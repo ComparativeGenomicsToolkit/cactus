@@ -195,7 +195,7 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, unclip_seq_id_
         
     # run clip-vg on each input
     clipped_vg_ids = []
-    clipped_bed_ids = []
+    clipped_stats_list = []
     for vg_path, vg_id in zip(options.vg, vg_ids):
         clip_job = Job.wrapJobFn(clip_vg, options, config, vg_path, vg_id, bed_id,
                                  disk=vg_id.size * 2, memory=vg_id.size * 4)
@@ -204,7 +204,7 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, unclip_seq_id_
         else:
             root_job.addChild(clip_job)
         clipped_vg_ids.append(clip_job.rv(0))
-        clipped_bed_ids.append(clip_job.rv(1))
+        clipped_stats_list.append(clip_job.rv(1))
     
     # join the ids
     if not options.preserveIDs:
@@ -213,6 +213,9 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, unclip_seq_id_
         clipped_vg_ids = [join_job.rv(i) for i in range(len(vg_ids))]
     else:
         join_job = root_job
+
+    # join the stats
+    clipped_stats = root_job.addFollowOnJobFn(cat_stats, clipped_stats_list).rv()
 
     # optional clipping -- we do this down here after joining and normalization so
     # our graph is id-compatible with a graph that wasn't clipped (but run with same parameters otherwise)
@@ -290,7 +293,7 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, unclip_seq_id_
 
         out_dicts.append(hal_id_dict)
     
-    return clipped_vg_ids, clipped_bed_ids, out_dicts
+    return clipped_vg_ids, clipped_stats, out_dicts
 
 def clip_vg(job, options, config, vg_path, vg_id, bed_id):
     """ run clip-vg 
@@ -376,7 +379,45 @@ def clip_vg(job, options, config, vg_path, vg_id, bed_id):
     # worth it
     cactus_call(parameters=['vg', 'validate', out_path])
 
-    return job.fileStore.writeGlobalFile(out_path), job.fileStore.writeGlobalFile(clipped_bed_path)
+    # keep some stats of the chromosomal vg file:
+    # Path Lengths
+    chr_name = os.path.splitext(os.path.basename(vg_path))[0]
+    path_stats_path = vg_path + '.path-stats.tsv'
+    cactus_call(parameters=[['vg', 'paths', '-E', '-v', out_path],
+                            ['awk', '{{print "{}\t" $0}}'.format(chr_name)]],
+                outfile=path_stats_path)
+    # Nodes, edges and total length
+    graph_stats_path = vg_path + '.graph-stats.tsv'
+    cactus_call(parameters=[['vg', 'stats', '-l', '-z', out_path],
+                            ['awk', '{{print "{}\t" $0}}'.format(chr_name)]],
+                outfile=graph_stats_path)
+    # Stick the contig identifier onto the clipped regions bed
+    clipped_bed_chr_path = clipped_bed_path + '.named'
+    cactus_call(parameters=['awk',  '{{print $0 "\t{}"}}'.format(chr_name), clipped_bed_path],
+                outfile=clipped_bed_chr_path)
+    # Use WlineSep to sum up the path lengths per input sample (haplotype)
+    sample_stats_path = vg_path + '.sample-stats.tsv'
+    sample_stats = {}
+    with open(path_stats_path, 'r') as path_stats_file:
+        for line in path_stats_file:
+            toks = line.split()
+            contig_name = toks[1]
+            contig_length = int(toks[2])
+            sample_name = contig_name if not options.wlineSep else options.wlineSep.join(contig_name.split(options.wlineSep)[:2])
+            if sample_name not in sample_stats:
+                sample_stats[sample_name] = contig_length
+            else:
+                sample_stats[sample_name] += contig_length
+    with open(sample_stats_path, 'w') as sample_stats_file:
+        for sample in sorted(sample_stats.keys()):
+            sample_stats_file.write("{}\t{}\t{}\n".format(chr_name, sample, sample_stats[sample]))
+
+    out_stats = { 'clip-stats.bed' : job.fileStore.writeGlobalFile(clipped_bed_chr_path),
+                  'path-stats.tsv' : job.fileStore.writeGlobalFile(path_stats_path),
+                  'graph-stats.tsv' : job.fileStore.writeGlobalFile(graph_stats_path),
+                  'sample-stats.tsv' : job.fileStore.writeGlobalFile(sample_stats_path) }
+            
+    return job.fileStore.writeGlobalFile(out_path), out_stats
 
 def vg_clip_vg(job , options, config, vg_path, vg_id):
     """ run vg clip, chaining multiple invocations if desired.
@@ -628,8 +669,16 @@ def cat_bed_files(job, bed_ids):
                     line = '{}.{}'.format(sample, rest)
             ofile.write(line)    
     return job.fileStore.writeGlobalFile(renamed_bed_path)
+
+def cat_stats(job, stats_dict_list):
+    merged_dict = {}
+    for key in stats_dict_list[0].keys():        
+        merged_dict[key] = job.fileStore.getLocalTempFile()
+        catFiles([job.fileStore.readGlobalFile(sd[key]) for sd in stats_dict_list], merged_dict[key])
+        merged_dict[key] = job.fileStore.writeGlobalFile(merged_dict[key])
+    return merged_dict
     
-def export_join_data(toil, options, clip_ids, clip_bed_ids, idx_maps):
+def export_join_data(toil, options, clip_ids, clip_stats, idx_maps):
     """ download all the output data
     """
 
@@ -638,11 +687,13 @@ def export_join_data(toil, options, clip_ids, clip_bed_ids, idx_maps):
     if not clip_base.startswith('s3://') and not os.path.isdir(clip_base):
         os.makedirs(clip_base)
 
-    assert len(clip_bed_ids) == len(clip_ids)
-    for vg_path, vg_id, bed_id in zip(options.vg, clip_ids, clip_bed_ids):
+    for vg_path, vg_id,  in zip(options.vg, clip_ids):
         toil.exportFile(vg_id, makeURL(os.path.join(clip_base, os.path.basename(vg_path))))
-        toil.exportFile(bed_id, makeURL(os.path.join(clip_base, os.path.basename(vg_path) + '.clip.bed')))
 
+    # download the stats files 
+    for stats_file in clip_stats.keys():
+        toil.exportFile(clip_stats[stats_file], makeURL(os.path.join(clip_base, stats_file)))
+        
     # download everything else
     for idx_map in idx_maps:
         for ext, idx_id in idx_map.items():

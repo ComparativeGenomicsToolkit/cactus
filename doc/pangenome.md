@@ -250,7 +250,7 @@ total 67M
 As in the primates example, `cactus-graphmap-join` is used to make the final indexes.  Its use is identical, except multiple graphs are passed as input.  We also pass in the HAL files so it can merge them too.
 
 ```
-cactus-graphmap-join ./jobstore --vg yeast-pg/chrom-alignments/*.vg --hal yeast-pg/chrom-alignments/*.hal --outDir ./yeast-pg --outName yeast-pg --reference S288C --vcf --giraffe --gfaffix  --wlineSep "."
+cactus-graphmap-join ./jobstore --vg yeast-pg/chrom-alignments/*.vg --hal yeast-pg/chrom-alignments/*.hal --outDir ./yeast-pg --outName yeast-pg --reference S288C --vcf --giraffe --gfaffix  --wlineSep "." --realTimeLogging
 
 ```
 
@@ -344,7 +344,7 @@ Move `yeast-pg/hub` to somewhere web-accessible, and pass the full URL of `yeast
 
 The [Human Pangenome Reference Consortium](https://humanpangenome.org/data-and-resources/) is producing an ever-growing number of high quality phased assemblies.  This section will demonstrate how to use the Cactus-Minigraph Pangenome Pipeline to construct a Pangenome from them.  Note the instructions here are slightly different than were used to create the v1.0 Cactus-Minigraph pangenome that's been released by the HPRC, as they are based on a more recent and improved version of the pipeline. Also, some samples, including HG002, were left out of the v1.0 graph for evaluation. The instructions below leave them all in.
 
-The steps below are run on AWS/S3, and assume everything is written to s3://MYBUCKET. They can be run on other batch systems, at least in theory.  Most of the compute-heavy tasks spawn relatively few jobs, and may be amenable to SLURM environments.  `cactus-graphmap-split` spawns lots of little jobs and would therefore need to be run on a single node with Toils Single Machine batch system.  It requires lots of disk but not much in the way of memory or CPU.
+The steps below are run on AWS/S3, and assume everything is written to s3://MYBUCKET. They can be run on other batch systems, at least in theory.  Most of the compute-heavy tasks spawn relatively few jobs, and may be amenable to SLURM environments.  
 
 WDL / cactus-prepare support is in progress!
 
