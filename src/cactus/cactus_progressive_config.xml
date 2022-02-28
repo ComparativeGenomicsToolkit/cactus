@@ -293,7 +293,7 @@
 	<!-- useMinimapPAF: use minimap2 PAF for ambiguous contigs (rather than keeping their original mappings in the input PAF, requried if autoclipping enabled above) -->
 	<graphmap_split
 		 minQueryCoverages="0.90 0.80 0.75 0.70"
-       minQueryCoverageThresholds="10000 100000 1000000"
+         minQueryCoverageThresholds="10000 100000 1000000"
 		 minQueryUniqueness="3"
 		 maxGap="5000"
 		 ambiguousName="_AMBIGUOUS_"

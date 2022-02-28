@@ -107,25 +107,22 @@ def chain_alignments(job, alignment_files, reference_event_name, params):
     # Create a local temporary file to put the alignments in.
     output_alignments_file = job.fileStore.getLocalTempFile()
 
-    # Copy the alignment files locally
-    local_alignment_files = [job.fileStore.readGlobalFile(i) for i in alignment_files]
-
     # Get temporary file to store concatenated, chained alignments
     chained_alignment_file = job.fileStore.getLocalTempFile()
 
     # Run the chaining
     for i in alignment_files:
         i = job.fileStore.readGlobalFile(i)  # Copy the global alignment file locally
-        j = job.fileStore.getLocalTempFile()  # Get a temporary file to store the chained output in
-        messages = cactus_call(parameters=['paf_chain', "-i", i,
+        j = job.fileStore.getLocalTempFile()  # Get a temporary file to store local alignments and their inverse in
+        cactus_call(parameters=['cat', i], outfile=j, outappend=True)
+        cactus_call(parameters=['paf_invert', "-i", i], outfile=j, outappend=True)  # Not bothering to log this one
+        messages = cactus_call(parameters=['paf_chain', "-i", j,
                                 "--maxGapLength", params.find("blast").attrib["chainMaxGapLength"],
                                 "--chainGapOpen", params.find("blast").attrib["chainGapOpen"],
                                 "--chainGapExtend", params.find("blast").attrib["chainGapExtend"],
                                 "--trimFraction", params.find("blast").attrib["chainTrimFraction"],
-                                "--logLevel", getLogLevelString()], outfile=j, returnStdErr=True)
+                                "--logLevel", getLogLevelString()], outfile=chained_alignment_file, outappend=True, returnStdErr=True)
         job.fileStore.logToMaster("paf_chain {}\n{}".format(reference_event_name, messages[:-1]))  # Log paf_chain messages
-        cactus_call(parameters=['cat', j], outfile=chained_alignment_file, outappend=True)
-        cactus_call(parameters=['paf_invert', "-i", j], outfile=chained_alignment_file, outappend=True)  # Not bothering to log this one
 
     # Now tile
     messages = cactus_call(parameters=['paf_tile', "-i", chained_alignment_file, "--logLevel", getLogLevelString()],

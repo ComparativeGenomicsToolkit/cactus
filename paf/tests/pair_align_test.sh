@@ -36,7 +36,7 @@ base_example_file=`basename ${example_file}`
 cactus-preprocess ./jobstore/0 ./${example_file} ${working_dir}/${base_example_file} --inputNames c a b --realTimeLogging --logInfo --retryCount 0
 
 ## Generate the paf file
-cactus-blast ./jobstore/1 ${working_dir}/${base_example_file} ${working_dir}/anc1.paf --root anc1 --realTimeLogging --logInfo --retryCount 0
+cactus-blast ./jobstore/1 ${working_dir}/${base_example_file} ${working_dir}/anc1.paf --root anc1 --realTimeLogging --logDebug --retryCount 0
 
 # Run the cactus step
 cactus-align ./jobstore/2 ${working_dir}/${base_example_file} ${working_dir}/anc1.paf ${working_dir}/anc1.hal --root anc1 --realTimeLogging --logInfo --retryCount 0 --maxCores 2

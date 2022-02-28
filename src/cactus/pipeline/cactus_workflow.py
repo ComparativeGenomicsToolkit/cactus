@@ -88,7 +88,7 @@ def cactus_cons(job, tree, ancestor_event, config_node, seq_id_map, og_map, paf_
             "--speciesTree", NXNewick().writeString(tree), "--logLevel", getLogLevelString(),
             "--alignments", primary_alignment_file, "--params", tmpConfig, "--outputFile", tmpHal,
             "--outputHalFastaFile", tmpFasta, "--outputReferenceFile", tmpRef, "--outgroupEvents", " ".join(outgroups),
-            "--referenceEvent", ancestor_event, "--secondaryAlignments", secondary_alignment_file, "--threads", str(job.cores)]
+            "--referenceEvent", ancestor_event, "--threads", str(job.cores), "--secondaryAlignments", secondary_alignment_file]
 
     messages = cactus_call(check_output=True, returnStdErr=True,
                            parameters=["cactus_consolidated"] + args)[1]  # Get just the standard error output

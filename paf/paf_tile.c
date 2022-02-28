@@ -107,6 +107,7 @@ int64_t get_median_alignment_level(uint16_t *counts, Paf *paf) {
         j += level_counts[i];
         if(j >= matches/2.0) {
             free(level_counts);
+            assert(i > 0);
             return i;
         }
     }
