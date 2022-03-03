@@ -117,7 +117,7 @@
 		 minimumIngroupDegree="1"
 		 minimumOutgroupDegree="0"
 		 minimumTreeCoverage="0.0"
-		 alignmentFilter="filterSecondariesByMultipleSpecies"
+		 alignmentFilter="filterSecondariesByMultipleSequences"
 		 maxAdjacencyComponentSizeRatio="50"
 		 minLengthForChromosome="1000000"
 		 proportionOfUnalignedBasesForNewChromosome="0.8"

@@ -211,6 +211,10 @@ void caf(Flower *flower, CactusParams *params, char *alignmentsFile, char *secon
         sortAlignments = false;
         filterFn = NULL;
         secondaryFilterFn = stCaf_filterByMultipleSpecies;
+    } else if (strcmp(alignmentFilter, "filterSecondariesByMultipleSequences") == 0) {
+        sortAlignments = false;
+        filterFn = NULL;
+        secondaryFilterFn = stCaf_filterByMultipleSequences;
     } else if (strcmp(alignmentFilter, "relaxedSingleCopyOutgroup") == 0) {
         sortAlignments = true;
         filterFn = stCaf_relaxedFilterByOutgroup;

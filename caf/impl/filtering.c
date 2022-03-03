@@ -130,11 +130,18 @@ static bool containsMoreThanOneEvent(stPinchSegment *segment, Flower *flower) {
     return false;
 }
 
+bool stCaf_filterByMultipleSequences(stPinchSegment *segment1,
+                                     stPinchSegment *segment2, Flower *flower) {
+    // Only reject the alignment if both segments already have blocks
+    return stPinchSegment_getBlock(segment1) != NULL && stPinchSegment_getBlock(segment2) != NULL;
+}
+
 bool stCaf_filterByMultipleSpecies(stPinchSegment *segment1,
                                    stPinchSegment *segment2, Flower *flower) {
     stPinchBlock *block1, *block2;
     if ((block1 = stPinchSegment_getBlock(segment1)) != NULL) {
         if ((block2 = stPinchSegment_getBlock(segment2)) != NULL) {
+            return true;
             if (block1 == block2) {
                 return stPinchBlock_getLength(block1) == 1 ? 0 : containsMoreThanOneEvent(segment1, flower);
             }

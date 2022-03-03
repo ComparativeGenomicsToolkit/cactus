@@ -178,6 +178,14 @@ bool stCaf_relaxedSingleCopyIngroup(stPinchSegment *segment1,
 
 /*
  * Filters block alignments that would merge blocks that each already contain
+ * multiple sequences. The rationale of this filter is to only allow the alignment of
+ * unaligned sequences.
+ */
+bool stCaf_filterByMultipleSequences(stPinchSegment *segment1,
+                                     stPinchSegment *segment2, Flower *flower);
+
+/*
+ * Filters block alignments that would merge blocks that each already contain
  * sequences from multiple species. The rationale of this filter is to avoid
  * aligning together paralogous alignments that predate the speciation event.
  */
