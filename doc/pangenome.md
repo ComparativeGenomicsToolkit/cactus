@@ -365,20 +365,21 @@ sed src/cactus/cactus_progressive_config.xml -e "s/cutBefore=\"\"/cutBefore=\"#\
 Now the seqFile can be made as follows:
 ```
 wget https://raw.githubusercontent.com/human-pangenomics/HPP_Year1_Assemblies/main/assembly_index/Year1_assemblies_v2_genbank.index
-grep GRCh38 Year1_assemblies_v2_genbank.index | sed -e 's/_no_alt_analysis_set//g' | awk '{print $1 "\t" $2}' > hprc.seqfile
+grep GRCh38 Year1_assemblies_v2_genbank.index | sed -e 's/_no_alt_analysis_set\t/\t/g' | awk '{print $1 "\t" $2}' > hprc.seqfile
 grep CHM13 Year1_assemblies_v2_genbank.index | sed -e 's/CHM13_v1.1/CHM13_1_1.0/g' | awk '{print $1 "\t" $2}' >> hprc.seqfile
 tail -n +2 Year1_assemblies_v2_genbank.index | awk '{print $1 ".1\t" $2}' | grep -v CHM13 | grep -v GRCh38 >> hprc.seqfile
 tail -n +2 Year1_assemblies_v2_genbank.index | awk '{print $1 ".2\t" $3}' | grep -v CHM13 | grep -v GRCh38 >> hprc.seqfile
-sort -k1 hprc.seqfile > hprc.seqfile.sort ; mv hprc.seqfile.sort hprc.seqfile 
+sort -k1 hprc.seqfile > hprc.seqfile.sort ; mv hprc.seqfile.sort hprc.seqfile
+sed hprc.seqfile -i -e 's%s3://human-pangenomics/working/%https://s3-us-west-2.amazonaws.com/human-pangenomics/working/%g'
 ```
 Because we are using GRCh38 as a reference, we added the `.0` suffix to CHM13 (and removed the "." from its version number!).
 
 ```
 head -4 hprc.seqfile
-CHM13_1_1.0	s3://human-pangenomics/working/HPRC_PLUS/CHM13/assemblies/chm13.draft_v1.1.fasta.gz
-GRCh38	s3://human-pangenomics/working/HPRC_PLUS/GRCh38/assemblies/GCA_000001405.15_GRCh38.fna.gz
-HG002.1	s3://human-pangenomics/working/HPRC_PLUS/HG002/assemblies/year1_f1_assembly_v2_genbank/HG002.paternal.f1_assembly_v2_genbank.fa.gz
-HG002.2	s3://human-pangenomics/working/HPRC_PLUS/HG002/assemblies/year1_f1_assembly_v2_genbank/HG002.maternal.f1_assembly_v2_genbank.fa.gz
+CHM13_1_1.0	https://s3-us-west-2.amazonaws.com/human-pangenomics/working/HPRC_PLUS/CHM13/assemblies/chm13.draft_v1.1.fasta.gz
+GRCh38	https://s3-us-west-2.amazonaws.com/human-pangenomics/working/HPRC_PLUS/GRCh38/assemblies/GCA_000001405.15_GRCh38_no_alt_analysis_set.fna.gz
+HG002.1	https://s3-us-west-2.amazonaws.com/human-pangenomics/working/HPRC_PLUS/HG002/assemblies/year1_f1_assembly_v2_genbank/HG002.paternal.f1_assembly_v2_genbank.fa.gz
+HG002.2	https://s3-us-west-2.amazonaws.com/human-pangenomics/working/HPRC_PLUS/HG002/assemblies/year1_f1_assembly_v2_genbank/HG002.maternal.f1_assembly_v2_genbank.fa.gz
 ```
 
 If we forget to do this, genomes can be renamed before the `vg giraffe` indexes are made using the `--rename` option in `cactus-graphmap-join`. This can also be done manually on the hal files with `halRenameGenomes` or the vg files with `clip-vg -r`.
@@ -394,7 +395,7 @@ cactus-prepare ./hprc.seqfile --outDir hprc-pg --seqFileOnly
 # when running on AWS, data needs to be in S3
 sed hprc-pg/hprc.seqfile -i -e 's/hprc-pg/s3:\/\/MYBUCKET\/fasta/'
 
-cactus-preprocess aws:us-west-2:MYJOBSTORE hprc.seqfile hprc-pg/hprc.seqfile --configFile config_cut_hash.xml ./--realTimeLogging --maskAlpha --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.8xlarge --nodeStorage 500 --maxNodes 10
+cactus-preprocess aws:us-west-2:MYJOBSTORE hprc.seqfile hprc-pg/hprc.seqfile --configFile ./config_cut_hash.xml --realTimeLogging --maskAlpha --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.8xlarge --nodeStorage 500 --maxNodes 10 --brnnCores 8
 
 ```
 
@@ -448,7 +449,7 @@ The chromosome graphs can now be merged and indexed.  There will be a lot of una
 All sequences clipped out by `cactus-graphmap-join` will be saved in BED files in its output directory.
 
 ```
-cactus-graphmap-join aws:us-west-2:MYJOBSTORE --vg $(for j in $(for i in `seq 22`; do echo chr$i; done ; echo "chrX chrY chrM chrOther"); do echo s3://MYBUCKET/align-batch-grch38/${j}.vg; done) --hal $(for j in $(for i in `seq 22`; do echo chr$i; done ; echo "chrX chrY chrM chrOther"); do echo s3://MYBUCKET/align-batch-grch38/${j}.hal; done) --outDir s3://MYBUCKET/join-grch38 --outName grch38-hprc --reference GRCh38 --vcf --giraffe --gfaffix  --wlineSep "." --clipLength 10000 --clipNonMinigraph --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r4.8xlarge --nodeStorage 1000 --maxNodes 2 --indexCores 31 --realTimeLogging
+cactus-graphmap-join aws:us-west-2:MYJOBSTORE --vg $(for j in $(for i in `seq 22`; do echo chr$i; done ; echo "chrX chrY chrM chrOther"); do echo s3://MYBUCKET/align-batch-grch38/${j}.vg; done) --hal $(for j in $(for i in `seq 22`; do echo chr$i; done ; echo "chrX chrY chrM chrOther"); do echo s3://MYBUCKET/align-batch-grch38/${j}.hal; done) --outDir s3://MYBUCKET/join-grch38 --outName grch38-hprc --reference GRCh38 --vcf --giraffe --gfaffix  --wlineSep "." --clipLength 10000 --clipNonMinigraph --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.8xlarge --nodeStorage 1000 --maxNodes 2 --indexCores 31 --realTimeLogging
 ```
 
 Note: `--indexCores` is set to 31 instead of 32 to allow bigger jobs to run concurrently with hal chromosome merging, which leads to better resource usage overall.

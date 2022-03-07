@@ -65,9 +65,6 @@ def main():
     cactus_override_toil_options(options)
 
     start_time = timeit.default_timer()
-    end_time = timeit.default_timer()
-    run_time = end_time - start_time
-    logger.info("cactus-minigraph has finished after {} seconds".format(run_time))
 
     with Toil(options) as toil:
         importSingularityImage(options)
@@ -117,7 +114,11 @@ def main():
 
         #export the gfa
         toil.exportFile(gfa_id, makeURL(options.outputGFA))
-
+        
+    end_time = timeit.default_timer()
+    run_time = end_time - start_time
+    logger.info("cactus-minigraph has finished after {} seconds".format(run_time))
+        
 def minigraph_construct_workflow(job, config_node, name_id_map, seq_order, gfa_path):
     """ minigraph can handle bgzipped files but not gzipped; so unzip everything in case before running"""
     unzip_job = job.addChildJobFn(unzip_seqfile, name_id_map)
