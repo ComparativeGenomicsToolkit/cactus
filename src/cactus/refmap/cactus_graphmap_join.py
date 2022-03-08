@@ -330,9 +330,8 @@ def clip_vg(job, options, config, vg_path, vg_id, bed_id):
         # our vg file has minigraph sequences -- we'll filter them out, along with any nodes
         # that don't appear in a non-minigraph path
         cmd += ['-d', graph_event]
-        if options.clipLength:
-            # but... we'll leave the minigraph path fragments that are aligned to anything else in the vg's
-            cmd += ['-L']
+        # but... we'll leave the minigraph path fragments that are aligned to anything else in the vg's
+        cmd += ['-L']
         
     cactus_call(parameters=cmd, outfile=clipped_path)
         
