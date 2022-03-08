@@ -330,6 +330,9 @@ def clip_vg(job, options, config, vg_path, vg_id, bed_id):
         # our vg file has minigraph sequences -- we'll filter them out, along with any nodes
         # that don't appear in a non-minigraph path
         cmd += ['-d', graph_event]
+        if options.clipLength:
+            # but... we'll leave the minigraph path fragments that are aligned to anything else in the vg's
+            cmd += ['-L']
         
     cactus_call(parameters=cmd, outfile=clipped_path)
         
@@ -482,11 +485,13 @@ def vg_indexes(job, options, config, gfa_ids):
     with open(merge_gfa_path, 'w') as merge_gfa_file:
         merge_gfa_file.write('H\tVN:Z:1.0\n')
 
+    graph_event = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "assemblyName", default="_MINIGRAPH_")
+    
     # merge the gfas
     for vg_path, gfa_id in zip(options.vg, gfa_ids):
         gfa_path = os.path.join(work_dir, os.path.basename(vg_path) +  '.gfa')
-        job.fileStore.readGlobalFile(gfa_id, gfa_path, mutable=True)
-        cactus_call(parameters=['grep', '-v', '^H', gfa_path], outfile=merge_gfa_path, outappend=True)
+        job.fileStore.readGlobalFile(gfa_id, gfa_path, mutable=True)        
+        cactus_call(parameters=['grep', '-v', '^H\|^P	{}'.format(graph_event), gfa_path], outfile=merge_gfa_path, outappend=True)
         os.remove(gfa_path)
 
     # make the gbwt
