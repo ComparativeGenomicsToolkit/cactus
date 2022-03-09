@@ -9,7 +9,7 @@ Progressively aligning up a guide tree makes sense when the evolution of the inp
 
 But the tree-like assumption breaks down when considering an alignment of individuals from the *same species*.  Such within-population genome alignments are increasingly in demand as high-quality assemblies become more available (ex: [HPP](https://humanpangenome.org/)), given their potential to better identify and represent structural variation than more traditional reference-based re-sequencing approaches.
 
-The Cactus Pangenome Pipeline adapts [Cactus](../README.md) to no longer rely on a guide tree, by taking advantage of the relative similarity of the input sequence to use minimizer sketches to determine initial anchors, then partial order alignments to refine them.  It also provides the options to generate output in standard pangenome graph formats such as [vg](https://github.com/vgteam/vg) and [GFA](https://github.com/GFA-spec/GFA-spec), in addition to the usual HAL. 
+The Minigraph-Cactus Pangenome Pipeline adapts [Cactus](../README.md) to no longer rely on a guide tree, by taking advantage of the relative similarity of the input sequence to use minimizer sketches to determine initial anchors, then partial order alignments to refine them.  It also provides the options to generate output in standard pangenome graph formats such as [vg](https://github.com/vgteam/vg) and [GFA](https://github.com/GFA-spec/GFA-spec), in addition to the usual HAL. 
 
 The other key difference between the Pangenome and Progressive modes is that in Pangenome mode, Cactus will leave one "reference" genome uncollapsed (ie it will never be aligned to itself).  This lets it be used as a unique coordinate system for downstream analyses.  For example, when creating a human pangenome, GRCh38 (or CHM13) can be included and flagged as the reference.  These reference coordinates simplify projection to VCF, allow [vg giraffe](https://doi.org/10.1126/science.abg8871) to produce mappings in BAM format, are compatible with rGFA, etc.
 
@@ -48,18 +48,20 @@ So to begin, we add ".0" to the genome names in the Evolver Primates example and
 tail -n +2 examples/evolverPrimates.txt | sed -e 's/^simHuman/simHuman.0/g' -e 's/^simGorilla/simGorilla.0/g' -e 's/^simOrang/simOrang.0/g' > evolverPrimates.pg.txt
 ```
 
-Input contig names must be *globally* unique.  This can be enforced with `cactus-preprocess` by adding a prefix to each one. Ex:
+Input contig names must be *globally* unique to avoid collisions in PAF files.  This can be enforced with `cactus-preprocess` by adding a prefix to each one. Ex:
 
 ```
-cactus-prepare ./evolverPrimates.pg.txt --outDir primates-pg --seqFileOnly 
+# use cactus-prepare to make an output seqfile 
+cactus-prepare ./evolverPrimates.pg.txt --outDir primates-pg --seqFileOnly
+# fix the contig names
 cactus-preprocess ./jobstore ./evolverPrimates.pg.txt primates-pg/evolverPrimates.pg.txt --skipMasking 
 ```
 
-Note: The Pangenome pipeline supports gzipped fasta files if they end with `.gz`, likewise for `.gfa`.
+Note: The pangenome pipeline supports gzipped fasta files if they end with `.gz`, likewise for `.gfa`.  (`.paf` files must be left uncompressed)
 
 ### Evolver Primates: Constructing the Minigraph GFA
 
-The next step is to create the initial [minigraph](https://github.com/lh3/minigraph) graph. `minigraph` iteratively adds sequences to the graph, beginning with a reference genome that will serve as its uncollapsed backbone.  This reference genome needs to selected now and used consistently (via the `--reference` option in all following commands).  Other genomes are added to the `minigraph` in the order they appear in the seqfile. 
+The next step is to create the initial [minigraph](https://github.com/lh3/minigraph) graph. `minigraph` iteratively adds sequences to the graph, beginning with a reference genome that will serve throughout the pipeline as its uncollapsed backbone.  This reference genome needs to selected now and used consistently (via the `--reference` option in all following commands).  Other genomes are added to the `minigraph` in the order they appear in the seqfile.
 
 ```
 cactus-minigraph ./jobstore primates-pg/evolverPrimates.pg.txt primates-pg/primates.gfa.gz --realTimeLogging --reference simChimp
@@ -67,7 +69,7 @@ cactus-minigraph ./jobstore primates-pg/evolverPrimates.pg.txt primates-pg/prima
 
 ### Evolver Primates: Mapping the Genomes Back to the Minigraph
 
-`minigraph` does not perform base alignment, so the graph constructed above will only contain SVs (>50bp).  The remainder of the pipeline will add base-level alignments to the graph using Cactus.  The first step is to use `minigraph` to map each input sequence back to the graph.  The `minigraph` GFA itself will be come a "genome" in the Cactus graph, so a path for its fasta sequence also needs to be specified with `--outputFasta`.  
+`minigraph` does not perform base alignment, so the graph constructed above will only contain SVs (>50bp).  The remainder of the pipeline will add base-level alignments to the graph using Cactus.  The first step is to use `minigraph` to map each input sequence back to the graph.  The `minigraph` GFA itself will become a "genome" in the Cactus graph, so a path for its fasta sequence also needs to be specified with `--outputFasta`.  
 
 ```
 cactus-graphmap ./jobstore primates-pg/evolverPrimates.pg.txt primates-pg/primates.gfa.gz primates-pg/primates.paf --realTimeLogging --reference simChimp --outputFasta primates-pg/primates.gfa.fa.gz
@@ -127,7 +129,7 @@ Reference paths are needed for coordinates, but are inefficient to store in vg. 
 
 ## Splitting by Chromosome
 
-`cactus-align`'s memory usage will become prohibitive after about `10G` os so of input sequence. So in order to scale to dozens of human-sized genomes, `cactus-align` must be run individually on each chromosome.  By definition, inter-chromosomal events will *not be* represented using this approach.
+`cactus-align`'s memory usage will become prohibitive after about `10G` of input sequence. So in order to scale to dozens of human-sized genomes, `cactus-align` must be run individually on each chromosome.  By definition, inter-chromosomal events will *not be* represented using this approach.
 
 ### Yeast: Getting Started
 
@@ -344,7 +346,7 @@ Move `yeast-pg/hub` to somewhere web-accessible, and pass the full URL of `yeast
 
 ## HPRC Graph
 
-The [Human Pangenome Reference Consortium](https://humanpangenome.org/data-and-resources/) is producing an ever-growing number of high quality phased assemblies.  This section will demonstrate how to use the Cactus-Minigraph Pangenome Pipeline to construct a Pangenome from them.  Note the instructions here are slightly different than were used to create the v1.0 Cactus-Minigraph pangenome that's been released by the HPRC, as they are based on a more recent and improved version of the pipeline. Also, some samples, including HG002, were left out of the v1.0 graph for evaluation. The instructions below leave them all in.
+The [Human Pangenome Reference Consortium](https://humanpangenome.org/data-and-resources/) is producing an ever-growing number of high quality phased assemblies.  This section will demonstrate how to use the Cactus-Minigraph Pangenome Pipeline to construct a Pangenome from them.  Note the instructions here are slightly different than were used to create the v1.0 Cactus-Minigraph pangenome that's been released by the HPRC, as they are based on a more recent and improved version of the pipeline. 
 
 The steps below are run on AWS/S3, and assume everything is written to s3://MYBUCKET. They can be run on other batch systems, at least in theory.  Most of the compute-heavy tasks spawn relatively few jobs, and may be amenable to SLURM environments.  
 
@@ -375,6 +377,18 @@ sort -k1 hprc.seqfile > hprc.seqfile.sort ; mv hprc.seqfile.sort hprc.seqfile
 sed hprc.seqfile -i -e 's%s3://human-pangenomics/working/%https://s3-us-west-2.amazonaws.com/human-pangenomics/working/%g'
 ```
 Because we are using GRCh38 as a reference, we added the `.0` suffix to CHM13 (and removed the "." from its version number!).
+
+We have been holding out three samples for evaluation.  This is, of course, optional, but can be done here with:
+```
+grep -v 'HG002\|HG005\|NA19240' hprc.seqfile > t && mv t hprc.seqfile
+```
+
+Also, a misjoin in `HG02080#1#JAHEOW010000073.1` was manually corrected by using `samtools faidx` to break it into the following fragments
+```
+HG02080#1#JAHEOW010000073.1_sub_0_7238466
+HG02080#1#JAHEOW010000073.1_sub_7238466_12869124
+```
+Note: If the `_sub_start_end` naming convention is used for fragments, the coordinates will be properly preserved throughout the entire pipeline.
 
 ```
 head -4 hprc.seqfile
@@ -428,7 +442,7 @@ The rest of the pipeline is proceeds as in the yeast example. We need to manuall
 This command will create a vg and hal file for each chromosome in s3://MYBUCKET/align-batch-grch38/
 ```
 aws s3 cp s3://MYBUCKET/chroms-grch38/chromfile.txt .
-cactus-align-batch aws:us-west-2:MYJOBSTORE ./chromfile.txt s3://MYBUCKET/align-batch-grch38 --alignCores 32 --realTimeLogging --alignOptions "--pangenome --reference GRCh38 --realTimeLogging  --outVG" --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.8xlarge --nodeStorage 1000 --maxNodes 10
+cactus-align-batch aws:us-west-2:MYJOBSTORE ./chromfile.txt s3://MYBUCKET/align-batch-grch38 --alignCores 16 --realTimeLogging --alignOptions "--pangenome --reference GRCh38 --realTimeLogging  --outVG" --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.8xlarge --nodeStorage 1000 --maxNodes 10
 ```
 
 ### HPRC Graph: Creating the Whole-Genome Graph
@@ -436,8 +450,10 @@ cactus-align-batch aws:us-west-2:MYJOBSTORE ./chromfile.txt s3://MYBUCKET/align-
 The individual chromosome graphs can now be merged as follows:
 
 ```
-cactus-graphmap-join aws:us-west-2:MYJOBSTORE --vg $(for j in $(for i in `seq 22`; do echo chr$i; done ; echo "chrX chrY chrM chrOther"); do echo s3://MYBUCKET/align-batch-grch38/${j}.vg; done) --hal $(for j in $(for i in `seq 22`; do echo chr$i; done ; echo "chrX chrY chrM chrOther"); do echo s3://MYBUCKET/align-batch-grch38/${j}.hal; done) --outDir s3://MYBUCKET/join-grch38 --outName grch38-hprc --reference GRCh38 --gfaffix  --wlineSep "."  --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.8xlarge --nodeStorage 1000 --maxNodes 2 --indexCores 31 --realTimeLogging
+cactus-graphmap-join aws:us-west-2:MYJOBSTORE --vg $(for j in $(for i in `seq 22`; do echo chr$i; done ; echo "chrX chrY chrM chrOther"); do echo s3://MYBUCKET/align-batch-grch38/${j}.vg; done) --hal $(for j in $(for i in `seq 22`; do echo chr$i; done ; echo "chrX chrY chrM chrOther"); do echo s3://MYBUCKET/align-batch-grch38/${j}.hal; done) --outDir s3://MYBUCKET/join-grch38 --outName grch38-hprc --reference GRCh38 --gfaffix  --wlineSep "."  --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.8xlarge --nodeStorage 1000 --maxNodes 1 --indexCores 31 --realTimeLogging
 ```
+
+Note: `--indexCores 31` is used (instead of 32) to let the HAL merging job run in parallel on the same machine. 
 
 ### HPRC Graph: Filtering Complex Regions and Indexing for Giraffe
 
@@ -449,7 +465,9 @@ We also use the `--giraffe --vcf` options to create the Giraffe indexes and VCF.
 
 We use as input the vg files created by the previous call of `graphmap-join` as well as the `--preserveIDs` option to ensure that our new graph is ID-compatible with the full graph.
 
-cactus-graphmap-join aws:us-west-2:MYJOBSTORE --vg $(for j in $(for i in `seq 22`; do echo chr$i; done ; echo "chrX chrY chrM chrOther"); do echo s3://MYBUCKET/clip-grch38-hprc/${j}.vg; done) --outDir s3://MYBUCKET/join-grch38-clip10k --outName grch38-hprc-clip10k --reference GRCh38  --wlineSep "." --clipLength 10000 --clipNonMinigraph --vcf --giraffe --preserveIDs --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.8xlarge --nodeStorage 1000 --maxNodes 2 --indexCores 32 --realTimeLogging
+```
+cactus-graphmap-join aws:us-west-2:MYJOBSTORE --vg $(for j in $(for i in `seq 22`; do echo chr$i; done ; echo "chrX chrY chrM chrOther"); do echo s3://MYBUCKET/clip-grch38-hprc/${j}.vg; done) --outDir s3://MYBUCKET/join-grch38-clip10k --outName grch38-hprc-clip10k --reference GRCh38  --wlineSep "." --clipLength 10000 --clipNonMinigraph --vcf --giraffe --preserveIDs --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.8xlarge --nodeStorage 1000 --maxNodes 1 --indexCores 32 --realTimeLogging
+```
 
 **All sequences clipped out by `cactus-graphmap-join` will be saved in BED files in its output directory.**
 
@@ -457,7 +475,9 @@ cactus-graphmap-join aws:us-west-2:MYJOBSTORE --vg $(for j in $(for i in `seq 22
 
 It's a work in progress, but the Giraffe-DeepVariant pipeline performs best when further filtering the graph with an allele frequency filter.  Doing so removes rare variants, by definition, but also many assembly and alignment errors.  It can be done using the `--vgClipOpts` option:
 
-cactus-graphmap-join aws:us-west-2:MYJOBSTORE --vg $(for j in $(for i in `seq 22`; do echo chr$i; done ; echo "chrX chrY chrM chrOther"); do echo s3://MYBUCKET/clip-grch38-hprc/${j}.vg; done) --outDir s3://MYBUCKET/join-grch38-maf10 --outName grch38-hprc-maf10 --reference GRCh38  --wlineSep "." --vgClipOpts "-d 9 -m 1000" --preserveIDs --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.8xlarge --nodeStorage 1000 --maxNodes 2 --indexCores 32 --realTimeLogging
+```
+cactus-graphmap-join aws:us-west-2:MYJOBSTORE --vg $(for j in $(for i in `seq 22`; do echo chr$i; done ; echo "chrX chrY chrM chrOther"); do echo s3://MYBUCKET/clip-grch38-hprc/${j}.vg; done) --outDir s3://MYBUCKET/join-grch38-maf10 --outName grch38-hprc-maf10 --reference GRCh38  --wlineSep "." --vgClipOpts "-d 9 -m 1000" --preserveIDs --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.8xlarge --nodeStorage 1000 --maxNodes 1 --indexCores 32 --realTimeLogging
+```
 
 Here `--vgClipOpts "-d 9 -m 1000"` will remove all nodes with fewer than 9 paths covering them, filtering out resulting path fragments of fewer than 1kb bases.
 
