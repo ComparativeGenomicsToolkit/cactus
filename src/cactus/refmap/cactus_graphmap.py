@@ -121,6 +121,11 @@ def graph_map(options):
             #apply the maskfilter override
             if options.maskFilter is not None:
                 findRequiredNode(config_node, "graphmap").attrib["maskFilter"] = str(options.maskFilter)
+                if options.base:
+                    #use the analagous option in the base aligner
+                    barNode = findRequiredNode(config_node, "bar")
+                    poaNode = findRequiredNode(barNode, "poa")
+                    poaNode.attrib["partialOrderAlignmentMaskFilter"] = str(options.maskFilter)
             if options.delFilter is not None:
                 findRequiredNode(config_node, "graphmap").attrib["delFilter"] = str(options.delFilter)
 

@@ -87,6 +87,8 @@ cactus-align ./jobstore primates-pg/evolverPrimates.pg.txt primates-pg/primates.
 
 Finally, indexes for `vg giraffe` as well as a VCF file can be created.  **Important:** For the paths to be properly represented, the genomes need to be named in `SAMPLE.HAPLOTYPE` format as described above, and `--wlineSep .` must be passed.
 
+The `--gfaffix` option zips up redundant bubbles and is also important to use.
+
 ```
 cactus-graphmap-join ./jobstore --vg primates-pg/primates.vg --outDir ./primates-pg --outName primates-pg --reference simChimp --vcf --giraffe --gfaffix  --wlineSep "." --realTimeLogging
 ```
@@ -348,7 +350,7 @@ The steps below are run on AWS/S3, and assume everything is written to s3://MYBU
 
 WDL / cactus-prepare support is in progress!
 
-### HPRC Graph: Name Munging and Satellite Masking
+### HPRC Graph: Setup and Name Munging
 
 The fasta sequences for the Year-1 HPRC assemblies are [available here](https://github.com/human-pangenomics/HPP_Year1_Assemblies).  Of note, the contig names are of the format:
 
@@ -384,96 +386,117 @@ HG002.2	https://s3-us-west-2.amazonaws.com/human-pangenomics/working/HPRC_PLUS/H
 
 If we forget to do this, genomes can be renamed before the `vg giraffe` indexes are made using the `--rename` option in `cactus-graphmap-join`. This can also be done manually on the hal files with `halRenameGenomes` or the vg files with `clip-vg -r`.
 
-The HPRC assemblies are based on the latest long-read technologies and span many satellite rich regions in, for example, centromeres and telomeres.  Neither `minigraph` nor `cactus` is designed (yet) to handle such regions.  What tends to happen is that `minigraph` leaves them unaligned and `cactus` attemps to align them with a base aligner but, without any anchors reflecting structural events, it will produce a very noisy alignments, resulting in regions of the graph that serve only to confound further analysis.  The fact that the current assemblies are least-reliable in these regions does not help.
-
-We therefore elect to leave them unaligned in the graph.  A simple way to do that is to mask them out *a priori* with [dna-brnn](https://github.com/lh3/dna-nn).  This is done using the `--maskAlpha` option of cactus-preprocess.  It is important to use the `--configFile` option to make sure the renaming described above is done. 
-
-Note: `dna-brnn` only works on human satellites, at least by default. Different `dna-brnn` models can be used by specifying them with `-i` in the `dna-brnnOpts` attribute in the cactus configuration XML (urls are supported).
-
 ```
 cactus-prepare ./hprc.seqfile --outDir hprc-pg --seqFileOnly
 # when running on AWS, data needs to be in S3
 sed hprc-pg/hprc.seqfile -i -e 's/hprc-pg/s3:\/\/MYBUCKET\/fasta/'
 
-cactus-preprocess aws:us-west-2:MYJOBSTORE hprc.seqfile hprc-pg/hprc.seqfile --configFile ./config_cut_hash.xml --realTimeLogging --maskAlpha --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.8xlarge --nodeStorage 500 --maxNodes 10 --brnnCores 8
+cactus-preprocess aws:us-west-2:MYJOBSTORE hprc.seqfile hprc-pg/hprc.seqfile --configFile ./config_cut_hash.xml --realTimeLogging --maskAlpha --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.4xlarge --nodeStorage 500 --maxNodes 1 
 
 ```
 
 ### HPRC Graph: Mapping to the Graph
 
-Note: since there is already a minigraph available for this data, we just use it instead of constructing it with `cactus-minigraph`
+Note: since there is already a minigraph available for this data, we just use it instead of constructing it ourselves. See the previous examples for how to construct a minigraph with `cactus-minigraph`.
 
 Now that the sequences are ready, we run `cactus-graphmap` as before.  There are some new options:
 
 `--delFilter N` : Filter out mappings that would induce a deletion bubble of `>N` bases w.r.t. a path in the reference.  If this option is used, the unfiltered paf will also be output (with a `.unfiltered` suffix) as well as a log detailing what was filtered and why (`.filter.log` suffix).  This option is very important as minigraph will produce a small number of split-mappings that can cause chromosome-scale bubbles.
 
-`--base` : `minigraph` only produces minimizer hits, and these can sometimes be misleading when computing coverage for the above filter or during chromosome splitting.  This option sends each minigraph mapping through cactus to fill in base alignments, leading to more accurate PAFs.  It costs more to compute them, but saves time in down the road in `cactus-align`.
+`--base` : `minigraph` only produces minimizer hits, and these can sometimes be misleading when computing coverage for the above filter or during chromosome splitting.  This option sends each minigraph mapping through cactus to fill in base alignments, leading to more accurate PAFs.  It costs more to compute them, but saves time in down the road in `cactus-align` as there will be much fewer bases to align in that step.
 
 `--mapCores N` : Use `N` cores for each mapping job.  Setting this higher with the `--base` option helps ensure we don't run out of memory.
 
-Note: Some time can be saved by using `--maskFilter 100000` which will prevent minigraph from even trying to map through dna-brnn-masked regions. But leaving it off will allow more sensitivity around centromere boundaries.
+```
+cactus-graphmap aws:us-west-2:MYJOBSTORE hprc-pg/hprc.seqfile https://s3-us-west-2.amazonaws.com/human-pangenomics/pangenomes/freeze/freeze1/minigraph/hprc-v1.0-minigraph-grch38.gfa.gz s3://MYBUCKET/hprc.grch38.paf --outputFasta s3://MYBUCKET/fasta/minigraph.grch38.gfa.fa.gz --reference GRCh38  --delFilter 10000000 --base --mapCores 16 --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.8xlarge --nodeStorage 500 --maxNodes 10 --betaInertia 0 --targetTime 1
+```
 
-```
-cactus-graphmap aws:us-west-2:MYJOBSTORE hprc-pg/hprc.seqfile https://s3-us-west-2.amazonaws.com/human-pangenomics/pangenomes/freeze/freeze1/minigraph/hprc-v1.0-minigraph-grch38.gfa.gz s3://MYBUCKET/hprc.grch38.paf --outputFasta s3://MYBUCKET/fasta/minigraph.grch38.gfa.fa.gz --reference GRCh38  --delFilter 10000000 --base --mapCores 16 --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.8xlarge --nodeStorage 500 --maxNodes 20
-```
+Note:  The `--betaInertia 0 --targetTime 1` options force Toil to create AWS instances as soon as they are needed.  
 
 ### HPRC Graph: Splitting by Chromosome
 
 There are too many reference contigs to make a graph for each because of all the unplaced contigs in GRCh38.  Ideally, we would drop them but it simplifies some downstream pipelines that use tools that expect them to be in BAM headers etc. to just include them in the graph.  To do this, we use the `--otherContig` option to lump them all into a single job, and `--refContigs` to spell out all the contigs we want to treat separately.
 
-We use the `--maskFilter 100000` option to discount unmapped softmasked intervals from coverage computations as they will be mostly unaligned, even if `--maskFilter` wasn't used above.  
-
 ```
-cactus-graphmap-split aws:us-west-2:MYJOBSTORE  hprc-pg/hprc.seqfile https://s3-us-west-2.amazonaws.com/human-pangenomics/pangenomes/freeze/freeze1/minigraph/hprc-v1.0-minigraph-grch38.gfa.gz s3://MYBUCKET/hprc.grch38.paf --outDir s3://MYBUCKET/chroms-grch38 --otherContig chrOther --refContigs $(for i in `seq 22`; do echo chr$i; done ; echo "chrX chrY chrM") --reference GRCh38 --maskFilter 100000 --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.8xlarge --nodeStorage 1000 --maxNodes 2
+cactus-graphmap-split aws:us-west-2:MYJOBSTORE  hprc-pg/hprc.seqfile https://s3-us-west-2.amazonaws.com/human-pangenomics/pangenomes/freeze/freeze1/minigraph/hprc-v1.0-minigraph-grch38.gfa.gz s3://MYBUCKET/hprc.grch38.paf --outDir s3://MYBUCKET/chroms-grch38 --otherContig chrOther --refContigs $(for i in `seq 22`; do echo chr$i; done ; echo "chrX chrY chrM") --reference GRCh38 --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.8xlarge --nodeStorage 1000 --maxNodes 1
 ```
 
-### HPRC Graph: Batch Alignment and Joining
+### HPRC Graph: Batch Alignment
 
 The rest of the pipeline is proceeds as in the yeast example. We need to manually download the chromfile though.
-
-`--barMaskFilter 100000` tells Cactus to not try to base align any softmasked sequence longer than 100000bp.  This is a crucial option to avoid trying to align through centromeres. It only works if the input sequences were softmasked appropriately (which they were with `cactus-preprocess --maskAlpha`).
 
 This command will create a vg and hal file for each chromosome in s3://MYBUCKET/align-batch-grch38/
 ```
 aws s3 cp s3://MYBUCKET/chroms-grch38/chromfile.txt .
-cactus-align-batch aws:us-west-2:MYJOBSTORE ./chromfile.txt s3://MYBUCKET/align-batch-grch38 --alignCores 32 --realTimeLogging --alignOptions "--pangenome --reference GRCh38 --realTimeLogging --barMaskFilter 100000 --outVG" --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.8xlarge --nodeStorage 1000 --maxNodes 10
+cactus-align-batch aws:us-west-2:MYJOBSTORE ./chromfile.txt s3://MYBUCKET/align-batch-grch38 --alignCores 32 --realTimeLogging --alignOptions "--pangenome --reference GRCh38 --realTimeLogging  --outVG" --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.8xlarge --nodeStorage 1000 --maxNodes 10
 ```
 
-The chromosome graphs can now be merged and indexed.  There will be a lot of unaligned sequence in and around centromeres.  There are three choices:
+### HPRC Graph: Creating the Whole-Genome Graph
 
-1. Leave them in. This is the default behaviour of `cactus-graphmap-join` (and is also how the HAL is stored no matter what). 
-2. Remove masked sequence as identified by dna-brnn (that is unaligned).  This can be done with the `--clipBed` option (`cactus-preprocess` produces BED files when masking).
-3. Remove any unaligned stretch of >N unaligned bases in any haplotype (unaligned meaning not even aligned to the minigraph).  These will mostly correspond to the dna-brnned regions but will include some other poorly aligning regions.  The rationale is that we want the SV backbone of the resulting graph to be consistent with the minigraph, so large additional bubbles (not in the minigraph) are removed.  This is accomplished with the `--clipLength` option.  Even a smaller threshold (ex `10000` could be justifiable here to produce a cleaner graph).
-4. Remove any stretch of >N bases in any haplotype that does not align at all to the minigraph.  This is a slight relaxation of above (ie it will cut more sequence), and adds extra insurance that the result does not stray too far from the input minigraph's structure. 
-
-All sequences clipped out by `cactus-graphmap-join` will be saved in BED files in its output directory.
+The individual chromosome graphs can now be merged as follows:
 
 ```
-cactus-graphmap-join aws:us-west-2:MYJOBSTORE --vg $(for j in $(for i in `seq 22`; do echo chr$i; done ; echo "chrX chrY chrM chrOther"); do echo s3://MYBUCKET/align-batch-grch38/${j}.vg; done) --hal $(for j in $(for i in `seq 22`; do echo chr$i; done ; echo "chrX chrY chrM chrOther"); do echo s3://MYBUCKET/align-batch-grch38/${j}.hal; done) --outDir s3://MYBUCKET/join-grch38 --outName grch38-hprc --reference GRCh38 --vcf --giraffe --gfaffix  --wlineSep "." --clipLength 10000 --clipNonMinigraph --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.8xlarge --nodeStorage 1000 --maxNodes 2 --indexCores 31 --realTimeLogging
+cactus-graphmap-join aws:us-west-2:MYJOBSTORE --vg $(for j in $(for i in `seq 22`; do echo chr$i; done ; echo "chrX chrY chrM chrOther"); do echo s3://MYBUCKET/align-batch-grch38/${j}.vg; done) --hal $(for j in $(for i in `seq 22`; do echo chr$i; done ; echo "chrX chrY chrM chrOther"); do echo s3://MYBUCKET/align-batch-grch38/${j}.hal; done) --outDir s3://MYBUCKET/join-grch38 --outName grch38-hprc --reference GRCh38 --gfaffix  --wlineSep "."  --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.8xlarge --nodeStorage 1000 --maxNodes 2 --indexCores 31 --realTimeLogging
 ```
 
-Note: `--indexCores` is set to 31 instead of 32 to allow bigger jobs to run concurrently with hal chromosome merging, which leads to better resource usage overall.
+### HPRC Graph: Filtering Complex Regions and Indexing for Giraffe
 
-To improve variant calling accuracy, it can help to filter out rare alleles.  A graph with the same ID space as created above but using a (very crude path-depth based) allele-frequency filter can be created as follows, by running `cactus-graphmap-join` on the output chromosome graphs of the above command (they will be in the `clip-grch38-hprc/` subdirectory) and specifying the `--preserveIDs` option. Note that we do not pass in the HALs as they are not modified by `cactus-graphmap-join` (only merged), so the output would be the same as above.  We do not make a VCF either, as it would be better to run an allele frequency filter directly on the VCF created above instead.  The resulting graph here is only useful for indexing for `vg giraffe`.
+The graph created above will contain all input contigs except those which could not be unambiguously assigned to any chromosome. But there will be a lot of unaligned (and poorly aligned) sequence in and around centromeres, some acrocentric short arms, etc. In most cases, this will lead to long stretches of sequence "dangling" from the graph or forming large bubbles.  These structures are artifacts and should be used cautiously for making inferences about structural variation.  Furthermore, they can render efficient indexing and read mapping impossible with most current tools.
 
-The allele frequency cutoff is specified using `--vgClipOpts "-d 9"` where `9` is the minimum coverage to keep a node (this is amounts to about 10% of alleles). This is a large cutoff but provides the best results (currently) for small variant calling with DeepVariant. 
+The complex regions can be filtered out with a simple heuristic: remove paths of >Nbp that do not align to the underlying minigraph.  The intuition behind this is to restrict the graph to the SVs present from minigraph (which are generally quite clean and of high confidence), removing anything that arose by failure to map back to the minigraph.  This is done with the `--clipLength N --clipNonMinigraph` options to `graphmap-join`.
 
-```
-cactus-graphmap-join aws:us-west-2:MYJOBSTORE --vg $(for j in $(for i in `seq 22`; do echo chr$i; done ; echo "chrX chrY chrM chrOther"); do echo s3://MYBUCKET/join-grch38/clip-grch38-hprc/${j}.vg; done) --outDir s3://MYBUCKET/join-grch38 --outName grch38-hprc --reference GRCh38  --wlineSep "." --preserveIDs `--vgClipOpts "-d 9"` --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.16xlarge --nodeStorage 1000 --maxNodes 1 --indexCores 64 --realTimeLogging
-```
+We also use the `--giraffe --vcf` options to create the Giraffe indexes and VCF.
 
-### Changing the Reference
+We use as input the vg files created by the previous call of `graphmap-join` as well as the `--preserveIDs` option to ensure that our new graph is ID-compatible with the full graph.
 
-The selection of the reference genome is very important, as it will be used as the backbone for the graph.  It is the only genome that is guaranteed to not have any cycles nor to ever be clipped, and therefore provides a coordinate system in the graph.  Any input genome can be used as a reference, provided it's consistently passed as the `--reference` option to all the commands.  It also must not have a "." in its genome name.  In practice, there are usually two possible references for the HPRC graphs: GRCh38 and CHM13.  To make a CHM13 graph, the process is identical to above, except the genome names should be renamed from `GRCh38 and CHM13_1_1.0` to `GRCh38.0 and CHM13_1_1` in the seqFile.  All `--reference GRCh38` flags need to be changed to `--reference CHM13`.
+cactus-graphmap-join aws:us-west-2:MYJOBSTORE --vg $(for j in $(for i in `seq 22`; do echo chr$i; done ; echo "chrX chrY chrM chrOther"); do echo s3://MYBUCKET/clip-grch38-hprc/${j}.vg; done) --outDir s3://MYBUCKET/join-grch38-clip10k --outName grch38-hprc-clip10k --reference GRCh38  --wlineSep "." --clipLength 10000 --clipNonMinigraph --vcf --giraffe --preserveIDs --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.8xlarge --nodeStorage 1000 --maxNodes 2 --indexCores 32 --realTimeLogging
+
+**All sequences clipped out by `cactus-graphmap-join` will be saved in BED files in its output directory.**
+
+### HPRC Graph: Filtering by Allele Frequency
+
+It's a work in progress, but the Giraffe-DeepVariant pipeline performs best when further filtering the graph with an allele frequency filter.  Doing so removes rare variants, by definition, but also many assembly and alignment errors.  It can be done using the `--vgClipOpts` option:
+
+cactus-graphmap-join aws:us-west-2:MYJOBSTORE --vg $(for j in $(for i in `seq 22`; do echo chr$i; done ; echo "chrX chrY chrM chrOther"); do echo s3://MYBUCKET/clip-grch38-hprc/${j}.vg; done) --outDir s3://MYBUCKET/join-grch38-maf10 --outName grch38-hprc-maf10 --reference GRCh38  --wlineSep "." --vgClipOpts "-d 9 -m 1000" --preserveIDs --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.8xlarge --nodeStorage 1000 --maxNodes 2 --indexCores 32 --realTimeLogging
+
+Here `--vgClipOpts "-d 9 -m 1000"` will remove all nodes with fewer than 9 paths covering them, filtering out resulting path fragments of fewer than 1kb bases.
+
+Note: Don't use `--vcf` with this command to make an allele-frequency-filtered VCF.  It is much better to filter the VCF constructed in the previous section directly (ex. with `bcftools`).
+
+### HPRC Graph: Changing the Reference
+
+The selection of the reference genome is very important, as it will be used as the backbone for the graph.  It is the only genome that is guaranteed to not have any cycles nor to ever be clipped, and therefore provides a coordinate system in the graph.  Any input genome can be used as a reference, provided it's consistently passed as the `--reference` option to all the commands.  It also must not have a "." in its genome name.  In practice, there are usually two possible references for the HPRC graphs: GRCh38 and CHM13.  To make a CHM13 graph, the process is identical to above, except the genome names should be renamed from `GRCh38 and CHM13_1_1.0` to `GRCh38.0 and CHM13_1_1` in the seqFile.  All `--reference GRCh38` flags need to be changed to `--reference CHM13_1_1`.
 
 It is advisable to also pass `--vcfRerefence GRCh38` to `cactus-graphmap-join` to tell it to make a second VCF based on the GRCh38 reference. Likewise if creating a filtered graph with `cactus-graphmap-join --vgClipOpts "-d 9"`, you should use `--vgClipOpts "-d 9 -e GRCh38"` to not filter any nodes on the GRCh38 reference paths -- this will make it easier to use this graph (via surjection) to call variants on GRCh38 as well as CHM13.
 
 Note: some contig names like `chrY` (if it is not included) and options like `--otherContig` will not be necessary for `CHM13`
 
-### Clipping Centromeres First
+### HPRC Graph: Other Approaches for Masking or Clipping out Complex Regions
 
-The v1.0 Cactus-Minigraph graphs were actually generated by clipping out the centromeres before mapping.  This can be done with the `--clipAlpha` (instead of `--maskAlaph`) preprocessor option along with `--minLength`.  Contigs clipped in this way will get suffixes that store their subpath ranges, and these suffixes are handled by the rest of the pipeline.  This makes for a more complex pipeline, especially because in order to be used in CAT, the hal file needs to be "unclipped" with the `--unclipSeqFile` option to `cactus-graphmap-join`.  It does allow different fragments of (presumably misassembled) contigs to align to different regions of the graph, the gain in accuracy is minimal and should disappear altogether as assemblies improve.  Simplest just to make the graph with everything in it and then clip as necessary depending on the application.
+The Pangenome Pipeline supports options to for special handling of masked regions at pretty much every step.  These were added to address various issues during initial development and testing.  The approach of just aligning everything and filtering based on the minigraph described above is much simpler and seems at least as effective.  
 
-### Alternative to dna-brnn
+**cactus-preprocess**
 
-Gaps between `mingraph` mappings can also be used to infer difficult regions.  This can be done by feeding the PAF from `cactus-graphmap` into `cactus-preprocess` with the `--maskFile` option, and setting a length threshold (ex 100000) with `--maskLength` option.  The `--maskAction softmask` option should also be used.  On human data, this approach is very similar to dna-brnn (The union of the two were used for the version 1.0 HPRC year one graphs).  Again, for simplicity, it is easiest to just use `dna-brnn` and let `cactus-graphmap-join` clip out any unaligned regions, if desired, at the end.
+Most satellite sequence can be detected with `dna-brnn`, which can be run with via the `--maskAlpha --minLength 100000 --brnnCores 8` options in `cactus-preprocess`.  The entire pipeline supports sub-sequence fragments via naming conventions, so the masked sequence can be clipped out instead of masked by using `--clipAlpha` instead of `--maskAlpha`
+
+The minigraph mappings themselves can also be used to derive regions to mask, by finding gaps in the alignments.  This can be done by passing a PAF file (output from `cactus-graphmap`) back into `cactus-preprocess` via the `--maskFile` option.  This option can also accept BED files to mask any user-specified regions.  When using this option, the `--maskAction` option can be used to specify whether masked sequence is clipped out or not.
+
+**cactus-graphmap**
+
+Softmasked input sequence can be ignored by using the `--maskFilter 100000` option.  This will force such sequence to remain unaligned.
+
+**cactus-graphmap-split**
+
+Softmasked input sequence can (and should) be ignored when computing coverage in order to assign contigs to reference chromosomes.  This is done with `--maskFilter 100000`
+
+**cactus-align-batch**
+
+Softmasked input can be ignored (and forced to stay unaligned) with the `--barMaskFilter 100000` option to `cactus-align`, or by including it in the `cactus-align-batch --alignOptions "--barMaskFilter 100000"`
+
+**cactus-graphmap-join**
+
+If the softmasked sequence has been kept unaligned with the various options described, it can be clipped out with the `--clipLength 1000000` option in `cactus-graphmap-join.  To clip based on BED files (ie those from `cactus-preprocess`) use the `--clipBed` option instead.
+
+If the sequences were clipped instead of softmasked in `cactus-preprocess`, the HAL file will contain the chopped up sequences (with their fragment offsets described using suffixes of their names). Most downstream tools (CAT, Assembly Hubs) will not handle these well, so it's best to stitch the paths back together (leaving the clipped-out sequence unaligned).  This can be done via the `--unclipSeqFile` option.  
+
+
