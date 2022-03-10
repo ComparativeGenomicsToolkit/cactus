@@ -342,7 +342,7 @@ def split_fa_into_contigs(job, event, fa_id, fa_path, split_id_map, strip_prefix
     job.fileStore.readGlobalFile(fa_id, fa_path, mutable=is_gz)
     if is_gz:
         # samtools can only work on bgzipped files.  so we uncompress here to be able to support gzipped too
-        cactus_call(parameters=['gzip', '-fd', fa_path])
+        cactus_call(parameters=['bgzip', '-fd', fa_path, '--threads', str(job.cores)])
         fa_path = fa_path[:-3]
 
     unique_id = 'id={}|'.format(event)
@@ -373,13 +373,13 @@ def split_fa_into_contigs(job, event, fa_id, fa_path, split_id_map, strip_prefix
             # hal2vg is updated to do this autmatically
             cmd.append(get_faidx_subpath_rename_cmd())
             if is_gz:
-                cmd.append(['gzip'])
+                cmd.append(['bgzip', '--threads', str(job.cores)])
             cactus_call(parameters=cmd, outfile=contig_fasta_path)
 
             # now get the total sequence size
             size_cmd = [['cat', contig_fasta_path], ['grep', '-v', '>'], ['wc'], ['awk', '{print $3-$1}']]
             if is_gz:
-                size_cmd[0] = ['gzip', '-dc', contig_fasta_path]
+                size_cmd[0] = ['bgzip', '-dc', contig_fasta_path, '--threads', str(job.cores)]
             num_bases = int(cactus_call(parameters=size_cmd, check_output=True).strip())
         else:
             # TODO: review how cases like this are handled

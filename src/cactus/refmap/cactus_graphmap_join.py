@@ -539,7 +539,7 @@ def make_vcf(job, out_name, vcf_ref, index_dict, tag=''):
     job.fileStore.readGlobalFile(index_dict['trans.gz'], trans_path)
 
     # unzip the trans
-    cactus_call(parameters=['gzip', '-fd', trans_path])
+    cactus_call(parameters=['bgzip', '-fd', trans_path, '--threads', str(job.cores)])
     trans_path = trans_path[:-3]
 
     # make the vcf

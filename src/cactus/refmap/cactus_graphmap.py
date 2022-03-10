@@ -275,7 +275,7 @@ def make_minigraph_fasta(job, gfa_file_id, gfa_fa_file_path, name):
     if name:
         cmd.append(["sed", "-e", "s/^>\(.\)/>id={}|\\1/g".format(name)])
     if gfa_fa_file_path and gfa_fa_file_path.endswith('.gz'):
-        cmd.append(['gzip'])
+        cmd.append(['bgzip', '--threads', str(job.cores)])
         fa_path += '.gz'
     if len(cmd) == 1:
         cmd = cmd[0]
@@ -343,7 +343,7 @@ def minigraph_map_one(job, config, event_name, fa_path, fa_file_id, gfa_file_id,
 
     if fa_path.endswith('.gz'):
         fa_path = fa_path[:-3]
-        cactus_call(parameters = ['gzip', '-d', '-c', fa_path + '.gz'], outfile=fa_path)
+        cactus_call(parameters = ['bgzip', '-d', '-c', fa_path + '.gz', '--threads', str(job.cores)], outfile=fa_path)
 
     # parse options from the config
     xml_node = findRequiredNode(config.xmlRoot, "graphmap")
@@ -434,7 +434,7 @@ def compress_gafs(job, gaf_file_id_map):
 def compress_gaf(job, gaf_file_id):
     gaf_path = job.fileStore.readGlobalFile(gaf_file_id)
     zip_path = job.fileStore.getLocalTempFile()
-    cactus_call(parameters=['gzip', gaf_path, '-c', ], outfile=zip_path)
+    cactus_call(parameters=['bgzip', gaf_path, '-c', '--threads', str(job.cores)], outfile=zip_path)
     job.fileStore.deleteGlobalFile(gaf_file_id)
     return job.fileStore.writeGlobalFile(zip_path)
 
@@ -447,7 +447,7 @@ def extract_paf_from_gfa(job, gfa_id, gfa_path, ref_event, graph_event, ignore_p
     job.fileStore.readGlobalFile(gfa_id, gfa_path, mutable=True)
     # unzip if needed
     if gfa_path.endswith(".gz"):
-        cactus_call(parameters=['gzip', '-fd', gfa_path])
+        cactus_call(parameters=['bgzip', '-fd', gfa_path, '--threads', str(job.cores)])
         gfa_path = gfa_path[:-3]
     # optional paf whose queries we ignore
     ignore_paf_path = os.path.join(work_dir, os.path.basename(gfa_path) + ".tofilter.paf")
@@ -530,7 +530,7 @@ def filter_paf_deletions(job, paf_id, gfa_id, gfa_path, max_deletion, filter_thr
 
     # make the vg graph
     if gfa_path.endswith('.gz'):
-        cactus_call(parameters = ['gzip', '-f', '-d', gfa_path])
+        cactus_call(parameters = ['bgzip', '-f', '-d', gfa_path, '--threads', str(job.cores)])
         gfa_path = gfa_path[:-3]
 
     vg_path = gfa_path + '.vg'
