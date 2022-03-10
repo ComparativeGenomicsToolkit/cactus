@@ -50,6 +50,8 @@ def main():
     parser.add_argument("--reference", type=str, help = "Reference genome name.  MAPQ filter will not be applied to it")
     parser.add_argument("--refFromGFA", action="store_true", help = "Do not align reference (--reference) from seqfile, and instead extract its alignment from the rGFA tags (must have been used as reference for minigraph GFA construction)")
     parser.add_argument("--base", action="store_true", help = "Use cactus to fill in (pairwise) base alignments between minigraph minimizers")
+    parser.add_argument("--maxLen", type=int, default=None,
+                        help="Only align up to this many bases with --base option (overrides <bar bandingLimit> and <caf maxRecoverableChainLength> in configuration)")
     parser.add_argument("--mapCores", type=int, help = "Number of cores for each minigraph (and base-alignment job).  Overrides graphmap cpu in configuration")
 
     #WDL hacks
@@ -83,6 +85,9 @@ def main():
         if not options.pathOverrides or not options.pathOverrideNames or \
            len(options.pathOverrideNames) != len(options.pathOverrides):
             raise RuntimeError('same number of values must be passed to --pathOverrides and --pathOverrideNames')
+
+    if options.maxLen and not options.base:
+        raise RuntimeError('--maxLen can only be used with --base')
 
     # Mess with some toil options to create useful defaults.
     cactus_override_toil_options(options)
@@ -128,6 +133,11 @@ def graph_map(options):
                     poaNode.attrib["partialOrderAlignmentMaskFilter"] = str(options.maskFilter)
             if options.delFilter is not None:
                 findRequiredNode(config_node, "graphmap").attrib["delFilter"] = str(options.delFilter)
+            if options.maxLen is not None:
+                cafNode = findRequiredNode(config_node, "caf")
+                barNode = findRequiredNode(config_node, "bar")
+                barNode.attrib["bandingLimit"] = str(options.maxLen)
+                cafNode.attrib["maxRecoverableChainLength"] = str(int(options.maxLen / 2))
 
             # apply cpu override
             if options.mapCores is not None:
