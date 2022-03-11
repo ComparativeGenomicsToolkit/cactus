@@ -213,10 +213,12 @@ def minigraph_workflow(job, options, config, seq_path_map, seq_id_map, gfa_id, g
 
     root_job = Job()
     job.addChild(root_job)
+
+    mg_cores = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "cpu", typeFn=int, default=1)
     
     if options.outputFasta or options.base:
         # convert GFA to fasta
-        fa_job = root_job.addChildJobFn(make_minigraph_fasta, gfa_id, options.outputFasta, graph_event)
+        fa_job = root_job.addChildJobFn(make_minigraph_fasta, gfa_id, options.outputFasta, graph_event, cores = mg_cores)
         fa_id = fa_job.rv()
 
     fa_path = options.outputFasta if options.outputFasta else seq_path_map[graph_event]
@@ -232,7 +234,7 @@ def minigraph_workflow(job, options, config, seq_path_map, seq_id_map, gfa_id, g
         # extract a PAF directly from the rGFAs tag for the given reference
         # if --refFromGFA is specified, we get the entire alignment from that, otherwise we just take contigs
         # that didn't get mapped by anything else
-        gfa2paf_job = Job.wrapJobFn(extract_paf_from_gfa, gfa_id, options.minigraphGFA, None, graph_event, paf_job.rv(0) if not options.refFromGFA else None,
+        gfa2paf_job = Job.wrapJobFn(extract_paf_from_gfa, gfa_id, options.minigraphGFA, options.reference, graph_event, paf_job.rv(0) if not options.refFromGFA else None,
                                     disk=gfa_id.size * 12)
         if options.refFromGFA:
             root_job.addChild(gfa2paf_job)
@@ -253,7 +255,6 @@ def minigraph_workflow(job, options, config, seq_path_map, seq_id_map, gfa_id, g
     del_filter = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "delFilter", int, default=-1)
     if del_filter > 0:
         del_filter_threshold = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "delFilterThreshold", float, default=None)
-        mg_cores = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "cpu", typeFn=int, default=1)
         del_filter_job = prev_job.addFollowOnJobFn(filter_paf_deletions, out_paf_id, gfa_id, options.minigraphGFA, del_filter, del_filter_threshold,
                                                    disk=gfa_id.size * 12, cores=mg_cores)
         unfiltered_paf_id = out_paf_id
@@ -459,7 +460,7 @@ def extract_paf_from_gfa(job, gfa_id, gfa_path, ref_event, graph_event, ignore_p
     if ref_event:
         cmd += ['-P', 'id={}|'.format(ref_event)]
     if ignore_paf_id:
-        cmd += ['-i', ignore_paf_path]        
+        cmd += ['-i', ignore_paf_path]
     cactus_call(parameters=cmd, outfile=paf_path)
     return job.fileStore.writeGlobalFile(paf_path)
 

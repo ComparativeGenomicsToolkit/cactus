@@ -421,10 +421,10 @@ Now that the sequences are ready, we run `cactus-graphmap` as before.  There are
 
 `--maxLen N` : Do not attempt to align more than `N` bases with the Cactus base aligner (activated with `--base`).  This will save aligning too far into anchorless regions.
 
-`--mapCores N` : Use `N` cores for each mapping job.  Setting this higher with the `--base` option helps ensure we don't run out of memory.
+`--mapCores N` : Use `N` cores for each mapping job.
 
 ```
-cactus-graphmap aws:us-west-2:MYJOBSTORE hprc-pg/hprc.seqfile https://s3-us-west-2.amazonaws.com/human-pangenomics/pangenomes/freeze/freeze1/minigraph/hprc-v1.0-minigraph-grch38.gfa.gz s3://MYBUCKET/hprc.grch38.paf --outputFasta s3://MYBUCKET/fasta/minigraph.grch38.gfa.fa.gz --reference GRCh38  --delFilter 10000000 --base --maxLen 100000 --mapCores 8 --realTimeLogging --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.8xlarge --nodeStorage 500 --maxNodes 12 --betaInertia 0 --targetTime 1
+cactus-graphmap aws:us-west-2:MYJOBSTORE hprc-pg/hprc.seqfile https://s3-us-west-2.amazonaws.com/human-pangenomics/pangenomes/freeze/freeze1/minigraph/hprc-v1.0-minigraph-grch38.gfa.gz s3://MYBUCKET/hprc.grch38.paf --outputGAFDir s3://MYBUCKET/gaf-hprc.grch38 --outputFasta s3://MYBUCKET/fasta/minigraph.grch38.gfa.fa.gz --reference GRCh38  --delFilter 10000000 --base --maxLen 100000 --mapCores 16 --realTimeLogging --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.8xlarge --nodeStorage 500 --maxNodes 25 --betaInertia 0 --targetTime 1
 ```
 
 Note:  The `--betaInertia 0 --targetTime 1` options force Toil to create AWS instances as soon as they are needed.  
@@ -434,7 +434,7 @@ Note:  The `--betaInertia 0 --targetTime 1` options force Toil to create AWS ins
 There are too many reference contigs to make a graph for each because of all the unplaced contigs in GRCh38.  Ideally, we would drop them but it simplifies some downstream pipelines that use tools that expect them to be in BAM headers etc. to just include them in the graph.  To do this, we use the `--otherContig` option to lump them all into a single job, and `--refContigs` to spell out all the contigs we want to treat separately.
 
 ```
-cactus-graphmap-split aws:us-west-2:MYJOBSTORE  hprc-pg/hprc.seqfile https://s3-us-west-2.amazonaws.com/human-pangenomics/pangenomes/freeze/freeze1/minigraph/hprc-v1.0-minigraph-grch38.gfa.gz s3://MYBUCKET/hprc.grch38.paf --outDir s3://MYBUCKET/chroms-grch38 --otherContig chrOther --refContigs $(for i in `seq 22`; do echo chr$i; done ; echo "chrX chrY chrM") --reference GRCh38 --realTimeLogging --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.8xlarge --nodeStorage 1000 --maxNodes 1
+cactus-graphmap-split aws:us-west-2:MYJOBSTORE  hprc-pg/hprc.seqfile https://s3-us-west-2.amazonaws.com/human-pangenomics/pangenomes/freeze/freeze1/minigraph/hprc-v1.0-minigraph-grch38.gfa.gz s3://MYBUCKET/hprc.grch38.paf --outDir s3://MYBUCKET/chroms-hprc.grch38 --otherContig chrOther --refContigs $(for i in `seq 22`; do echo chr$i; done ; echo "chrX chrY chrM") --reference GRCh38 --realTimeLogging --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.8xlarge --nodeStorage 1000 --maxNodes 1
 ```
 
 ### HPRC Graph: Batch Alignment
@@ -444,7 +444,7 @@ The rest of the pipeline is proceeds as in the yeast example. We need to manuall
 This command will create a vg and hal file for each chromosome in s3://MYBUCKET/align-batch-grch38/
 ```
 aws s3 cp s3://MYBUCKET/chroms-grch38/chromfile.txt .
-cactus-align-batch aws:us-west-2:MYJOBSTORE ./chromfile.txt s3://MYBUCKET/align-batch-grch38 --alignCores 16 --realTimeLogging --alignOptions "--pangenome --reference GRCh38 --realTimeLogging  --outVG" --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.8xlarge --nodeStorage 1000 --maxNodes 10 --betaInertia 0 --targetTime 1
+cactus-align-batch aws:us-west-2:MYJOBSTORE ./chromfile.txt s3://MYBUCKET/align-batch-grch38 --alignCores 16 --realTimeLogging --alignOptions "--pangenome --reference GRCh38 --realTimeLogging  --outVG --maxLen 100000" --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.8xlarge --nodeStorage 1000 --maxNodes 10 --betaInertia 0 --targetTime 1
 ```
 
 ### HPRC Graph: Creating the Whole-Genome Graph
