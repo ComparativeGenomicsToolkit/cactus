@@ -344,68 +344,103 @@ hal2assemblyHub.py ./jobstore ./yeast-pg/yeast-pg.hal yeast-pg/hub --shortLabel 
 
 Move `yeast-pg/hub` to somewhere web-accessible, and pass the full URL of `yeast-pg/hub/hub.txt` to the Genome Browser in the "My Data -> Track Hubs" menu.   Select `S288C` as the reference and display the hub.  Right-click on the display and select "Configure yeast track set" to toggle on all the assemblies (and toggle off Anc0 and _MINIGRAPH_).
 
-## HPRC Graph
+## HPRC Graph v1.1
+with cactus commit 7fe0bea49e8adbf025eeaab2a88910375f514e87 except `cactus-graphmap-join` which used newer commit c893e9a1d08ac25dc6d8da07ba78fce71bf33180 (can reproduce exactly using the latter commit for whole pipeline)
 
 The [Human Pangenome Reference Consortium](https://humanpangenome.org/data-and-resources/) is producing an ever-growing number of high quality phased assemblies.  This section will demonstrate how to use the Cactus-Minigraph Pangenome Pipeline to construct a Pangenome from them.  Note the instructions here are slightly different than were used to create the v1.0 Cactus-Minigraph pangenome that's been released by the HPRC, as they are based on a more recent and improved version of the pipeline. 
 
-The steps below are run on AWS/S3, and assume everything is written to s3://MYBUCKET. They can be run on other batch systems, at least in theory.  Most of the compute-heavy tasks spawn relatively few jobs, and may be amenable to SLURM environments.  
+The steps below are run on AWS/S3, and assume everything is written to s3://MYBUCKET. They can be run on other batch systems, at least in theory.  Most of the compute-heavy tasks spawn relatively few jobs, and may be amenable to SLURM environments.
+
+The following environment variables must be defined: `MYBUCKET` and `MYJOBSTORE`. All output will be placed in `MYBUCKET`, and `MYJOBSTORE` will be used by TOIL for temporary storage.  For example
+```
+export MYBUCKET=s3://vg-k8s/vgamb/wg/cactus/mar11
+export MYJOBSTORE=aws:us-west-2:cactus-hprc-jobstore
+```
 
 WDL / cactus-prepare support is in progress!
 
 ### HPRC Graph: Setup and Name Munging
 
-The fasta sequences for the Year-1 HPRC assemblies are [available here](https://github.com/human-pangenomics/HPP_Year1_Assemblies).  Of note, the contig names are of the format:
+The fasta sequences for the Year-1 HPRC assemblies are [available here](https://github.com/human-pangenomics/HPP_Year1_Assemblies).  We begin by using them to create an input seqfile for Cactus:
 
 ```
-SAMPLE#HAPLTOYPE#CONTIG
+wget -q https://raw.githubusercontent.com/human-pangenomics/HPP_Year1_Assemblies/main/assembly_index/Year1_assemblies_v2_genbank.index
+grep GRCh38 Year1_assemblies_v2_genbank.index | sed -e 's/_no_alt_analysis_set\t/\t/g' | awk '{print $1 "\t" $2}' > hprc-v1.1-mc.seqfile
+grep CHM13 Year1_assemblies_v2_genbank.index | sed -e 's/CHM13_v1.1/CHM13_1_1/g' | awk '{print $1 "\t" $2}' >> hprc-v1.1-mc.seqfile
+tail -n +2 Year1_assemblies_v2_genbank.index | awk '{print $1 ".1\t" $2}' | grep -v CHM13 | grep -v GRCh38 >> hprc-v1.1-mc.seqfile
+tail -n +2 Year1_assemblies_v2_genbank.index | awk '{print $1 ".2\t" $3}' | grep -v CHM13 | grep -v GRCh38 >> hprc-v1.1-mc.seqfile
+sort -k1 hprc-v1.1-mc.seqfile > hprc-v1.1-mc.seqfile.sort ; mv hprc-v1.1-mc.seqfile.sort hprc-v1.1-mc.seqfile
+sed hprc-v1.1-mc.seqfile -i -e 's%s3://human-pangenomics/working/%https://s3-us-west-2.amazonaws.com/human-pangenomics/working/%g'
 ```
 
-"#" symbols cannot be displayed in the UCSC Genome Browser, so it is recommended to stick to the conventions described above: where the fasta contig names are just the `CONTIG`, and the genome name is `SAMPLE.HAPLOTYPE`.  This can be accomplished with `cactus-preprocess` (note: the full path of `cactus_progressive_config.xml` will be dependent on your cactus installation directory, and may need to be adjusted):
-
-```
-sed src/cactus/cactus_progressive_config.xml -e "s/cutBefore=\"\"/cutBefore=\"#\"/g" > config_cut_hash.xml
-```
-
-Now the seqFile can be made as follows:
-```
-wget https://raw.githubusercontent.com/human-pangenomics/HPP_Year1_Assemblies/main/assembly_index/Year1_assemblies_v2_genbank.index
-grep GRCh38 Year1_assemblies_v2_genbank.index | sed -e 's/_no_alt_analysis_set\t/\t/g' | awk '{print $1 "\t" $2}' > hprc.seqfile
-grep CHM13 Year1_assemblies_v2_genbank.index | sed -e 's/CHM13_v1.1/CHM13_1_1.0/g' | awk '{print $1 "\t" $2}' >> hprc.seqfile
-tail -n +2 Year1_assemblies_v2_genbank.index | awk '{print $1 ".1\t" $2}' | grep -v CHM13 | grep -v GRCh38 >> hprc.seqfile
-tail -n +2 Year1_assemblies_v2_genbank.index | awk '{print $1 ".2\t" $3}' | grep -v CHM13 | grep -v GRCh38 >> hprc.seqfile
-sort -k1 hprc.seqfile > hprc.seqfile.sort ; mv hprc.seqfile.sort hprc.seqfile
-sed hprc.seqfile -i -e 's%s3://human-pangenomics/working/%https://s3-us-west-2.amazonaws.com/human-pangenomics/working/%g'
-```
-Because we are using GRCh38 as a reference, we added the `.0` suffix to CHM13 (and removed the "." from its version number!).
+IMPORTANT: Normally we would add a ".0" suffix to CHM13_v_1 as it is not going to be considered a reference. But because we will use the same seqfile to make both GRCh38-based and CHM13-based graphs, we will add the ".0" in `cactus-graphmap-join`.
 
 We have been holding out three samples for evaluation.  This is, of course, optional, but can be done here with:
 ```
-grep -v 'HG002\|HG005\|NA19240' hprc.seqfile > t && mv t hprc.seqfile
+grep -v 'HG002\|HG005\|NA19240' hprc-v1.1-mc.seqfile > t && mv t hprc-v1.1-mc.seqfile
 ```
 
-Also, a misjoin in `HG02080#1#JAHEOW010000073.1` was manually corrected by using `samtools faidx` to break it into the following fragments
+Also, a misjoin in `HG02080#1#JAHEOW010000073.1` was manually corrected by using `samtools faidx` to break it into `HG02080#1#JAHEOW010000073.1_sub_0_7238466` and `HG02080#1#JAHEOW010000073.1_sub_7238466_12869124`.  The `sub_X_Y` (0-based, open-ended like BED) coordinates are understood by the pipeline, and the offsets will be preserved in the GFA W-lines at the end.  If we don't apply this change, then path names with ":"'s will end up in the HAL which will prevent it from working with assembly hubs.  
 ```
-HG02080#1#JAHEOW010000073.1_sub_0_7238466
-HG02080#1#JAHEOW010000073.1_sub_7238466_12869124
+wget -q $(grep HG02080\.1 hprc-v1.1-mc.seqfile | tail -1 | awk '{print $2}') -O HG02080.1.fa.gz
+gzip -d HG02080.1.fa.gz
+samtools faidx HG02080.1.fa
+keep_contigs=$(awk '{print $1}' HG02080.1.fa.fai | grep -v JAHEOW010000073\.1)
+samtools faidx HG02080.1.fa ${keep_contigs} > HG02080.1.fix.fa
+samtools faidx HG02080.1.fa "HG02080#1#JAHEOW010000073.1:1-7238466" | sed -e 's/\([^:]*\):\([0-9]*\)-\([0-9]*\)/echo "\1_sub_$((\2-1))_\3"/e' >> HG02080.1.fix.fa
+samtools faidx HG02080.1.fa "HG02080#1#JAHEOW010000073.1:7238467-12869124" | sed -e 's/\([^:]*\):\([0-9]*\)-\([0-9]*\)/echo "\1_sub_$((\2-1))_\3"/e' >> HG02080.1.fix.fa
+bgzip HG02080.1.fix.fa --threads 8
+aws s3 cp HG02080.1.fix.fa.gz ${MYBUCKET}/fasta/
+grep -v HG02080\.1 hprc-v1.1-mc.seqfile > t && mv t hprc-v1.1-mc.seqfile
+printf "HG02080.1\t${MYBUCKET}/fasta/HG02080.1.fix.fa.gz\n" >> hprc-v1.1-mc.seqfile
 ```
-Note: If the `_sub_start_end` naming convention is used for fragments, the coordinates will be properly preserved throughout the entire pipeline.
+
+Finally, we add a Y-chromosome to the CHM13 assembly, which is important (only) if we want to use it as a reference.  We add EBV while we're at it for the same reason, though it's far less important (GRCh38's won't make it into the CHM13-based graph on its own as it will not map to a reference contig). 
+```
+wget -q $(grep CHM13 hprc-v1.1-mc.seqfile | tail -1 | awk '{print $2}') -O CHM13.Y.v1.1.fa.gz
+wget -q $(grep GRCh38 hprc-v1.1-mc.seqfile | tail -1 | awk '{print $2}') -O GRCh38.fa.gz
+gzip -d  GRCh38.fa.gz
+samtools faidx GRCh38.fa chrY chrEBV | bgzip --threads 8 >> CHM13.Y.v1.1.fa.gz
+aws s3 cp CHM13.Y.v1.1.fa.gz ${MYBUCKET}/fasta/
+grep -v CHM13 hprc-v1.1-mc.seqfile > t 
+printf "CHM13_1_1\t${MYBUCKET}/fasta/CHM13.Y.v1.1.fa.gz\n" > hprc-v1.1-mc.seqfile
+cat t >> hprc-v1.1-mc.seqfile
+```
 
 ```
-head -4 hprc.seqfile
-CHM13_1_1.0	https://s3-us-west-2.amazonaws.com/human-pangenomics/working/HPRC_PLUS/CHM13/assemblies/chm13.draft_v1.1.fasta.gz
+head -4 hprc-v1.1-mc.seqfile
+CHM13_1_1	${MYBUCKET}/fasta/CHM13.Y.v1.1.fa.gz
 GRCh38	https://s3-us-west-2.amazonaws.com/human-pangenomics/working/HPRC_PLUS/GRCh38/assemblies/GCA_000001405.15_GRCh38_no_alt_analysis_set.fna.gz
 HG002.1	https://s3-us-west-2.amazonaws.com/human-pangenomics/working/HPRC_PLUS/HG002/assemblies/year1_f1_assembly_v2_genbank/HG002.paternal.f1_assembly_v2_genbank.fa.gz
 HG002.2	https://s3-us-west-2.amazonaws.com/human-pangenomics/working/HPRC_PLUS/HG002/assemblies/year1_f1_assembly_v2_genbank/HG002.maternal.f1_assembly_v2_genbank.fa.gz
 ```
 
+The names in these fasta files are for the form `chr1, chr2, etc` in CHM13 and GRCh38, and 
+
+```
+SAMPLE#HAPLTOYPE#CONTIG
+```
+
+in the other samples.  The "#" symbols cannot be displayed in the UCSC Genome Browser, so it is recommended to stick to the conventions described above: where the fasta contig names are just the `CONTIG`, and the genome name is `SAMPLE.HAPLOTYPE`.  This can be accomplished with `cactus-preprocess` (note: the full path of `cactus_progressive_config.xml` will be dependent on your cactus installation directory, and may need to be adjusted):
+
 If we forget to do this, genomes can be renamed before the `vg giraffe` indexes are made using the `--rename` option in `cactus-graphmap-join`. This can also be done manually on the hal files with `halRenameGenomes` or the vg files with `clip-vg -r`.
 
 ```
-cactus-prepare ./hprc.seqfile --outDir hprc-pg --seqFileOnly
-# when running on AWS, data needs to be in S3
-sed hprc-pg/hprc.seqfile -i -e 's/hprc-pg/s3:\/\/MYBUCKET\/fasta/'
+sed src/cactus/cactus_progressive_config.xml -e "s/cutBefore=\"\"/cutBefore=\"#\"/g" > config_cut_hash.xml
+```
 
-cactus-preprocess aws:us-west-2:MYJOBSTORE hprc.seqfile hprc-pg/hprc.seqfile --configFile ./config_cut_hash.xml --realTimeLogging --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.4xlarge --nodeStorage 500 --maxNodes 1 
+Now we setup a place for the renamed fasta files using `cactus-prepare` to generate a new seqfile, hprc-pg/hprc-v1.1-mc.seqfile
+```
+cactus-prepare ./hprc-v1.1-mc.seqfile --outDir hprc-pg --seqFileOnly
+# when running on AWS, data needs to be in S3
+sed hprc-pg/hprc-v1.1-mc.seqfile -e "s%hprc-pg%${MYBUCKET}/fasta%g" | grep -v ';' > hprc-v1.1-mc.pp.seqfile
+
+# save them
+aws s3 cp hprc-v1.1-mc.seqfile ${MYBUCKET}/
+aws s3 cp hprc-v1.1-mc.pp.seqfile ${MYBUCKET}/
+
+# finally, we run cactus-preprocess
+cactus-preprocess ${MYJOBSTORE} hprc-v1.1-mc.seqfile hprc-v1.1-mc.pp.seqfile --configFile ./config_cut_hash.xml --realTimeLogging --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.8xlarge --nodeStorage 500 --maxNodes 2 --skipMasking --logFile hprc-v1.1-mc-grch38.pp.log
 
 ```
 
@@ -419,40 +454,46 @@ Now that the sequences are ready, we run `cactus-graphmap` as before.  There are
 
 `--base` : `minigraph` only produces minimizer hits, and these can sometimes be misleading when computing coverage for the above filter or during chromosome splitting.  This option sends each minigraph mapping through cactus to fill in base alignments, leading to more accurate PAFs.  It costs more to compute them, but saves time in down the road in `cactus-align` as there will be much fewer bases to align in that step.
 
-`--maxLen N` : Do not attempt to align more than `N` bases with the Cactus base aligner (activated with `--base`).  This will save aligning too far into anchorless regions.
+`--maxLen N` : Do not attempt to align more than `N` bases with the Cactus base aligner (activated with `--base`).  This will save aligning too far into anchorless regions, which cannot be properly resolved with base alignment alone. 
 
 `--mapCores N` : Use `N` cores for each mapping job.
 
+`--outputGAFDir` : This is used to preserve the GAF output directly from minigraph.  It's huge and only for debugging/posterity.
+
 ```
-cactus-graphmap aws:us-west-2:MYJOBSTORE hprc-pg/hprc.seqfile https://s3-us-west-2.amazonaws.com/human-pangenomics/pangenomes/freeze/freeze1/minigraph/hprc-v1.0-minigraph-grch38.gfa.gz s3://MYBUCKET/hprc.grch38.paf --outputGAFDir s3://MYBUCKET/gaf-hprc.grch38 --outputFasta s3://MYBUCKET/fasta/minigraph.grch38.gfa.fa.gz --reference GRCh38  --delFilter 10000000 --base --maxLen 100000 --mapCores 16 --realTimeLogging --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.8xlarge --nodeStorage 500 --maxNodes 25 --betaInertia 0 --targetTime 1
+cactus-graphmap ${MYJOBSTORE} hprc-v1.1-mc.pp.seqfile https://s3-us-west-2.amazonaws.com/human-pangenomics/pangenomes/freeze/freeze1/minigraph/hprc-v1.0-minigraph-grch38.gfa.gz ${MYBUCKET}/hprc-v1.1-mc-grch38.paf --outputGAFDir ${MYBUCKET}/gaf-hprc-v1.1-mc-grch38 --outputFasta ${MYBUCKET}/fasta/minigraph.grch38.gfa.fa.gz --reference GRCh38  --delFilter 10000000 --base --maxLen 100000 --mapCores 16 --realTimeLogging --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.8xlarge:1.35 --nodeStorage 650 --maxNodes 25 --betaInertia 0 --targetTime 1 --logFile hprc-v1.1-mc-grch38.paf.log
 ```
 
-Note:  The `--betaInertia 0 --targetTime 1` options force Toil to create AWS instances as soon as they are needed.  
+Note:  The `--betaInertia 0 --targetTime 1` options force Toil to create AWS instances as soon as they are needed.
+
+This command uses the spot market by specifying `:1.35` after the node type to bid $1.35/hr (on-demand pricing at time of writing is about $2.00).
 
 ### HPRC Graph: Splitting by Chromosome
 
 There are too many reference contigs to make a graph for each because of all the unplaced contigs in GRCh38.  Ideally, we would drop them but it simplifies some downstream pipelines that use tools that expect them to be in BAM headers etc. to just include them in the graph.  To do this, we use the `--otherContig` option to lump them all into a single job, and `--refContigs` to spell out all the contigs we want to treat separately.
 
 ```
-cactus-graphmap-split aws:us-west-2:MYJOBSTORE  hprc-pg/hprc.seqfile https://s3-us-west-2.amazonaws.com/human-pangenomics/pangenomes/freeze/freeze1/minigraph/hprc-v1.0-minigraph-grch38.gfa.gz s3://MYBUCKET/hprc.grch38.paf --outDir s3://MYBUCKET/chroms-hprc.grch38 --otherContig chrOther --refContigs $(for i in `seq 22`; do echo chr$i; done ; echo "chrX chrY chrM") --reference GRCh38 --realTimeLogging --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.8xlarge --nodeStorage 1000 --maxNodes 1
+cactus-graphmap-split ${MYJOBSTORE}  hprc-v1.1-mc.pp.seqfile https://s3-us-west-2.amazonaws.com/human-pangenomics/pangenomes/freeze/freeze1/minigraph/hprc-v1.0-minigraph-grch38.gfa.gz ${MYBUCKET}/hprc-v1.1-mc-grch38.paf --outDir ${MYBUCKET}/chroms-hprc-v1.1-mc-grch38 --otherContig chrOther --refContigs $(for i in `seq 22`; do echo chr$i; done ; echo "chrX chrY chrM") --reference GRCh38 --realTimeLogging --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.8xlarge --nodeStorage 1000 --maxNodes 1 --logFile hprc-v1.1-mc-grch38.split.log
 ```
 
 ### HPRC Graph: Batch Alignment
 
 The rest of the pipeline is proceeds as in the yeast example. We need to manually download the chromfile though.
 
-This command will create a vg and hal file for each chromosome in s3://MYBUCKET/align-batch-grch38/
+This command will create a vg and hal file for each chromosome in ${MYBUCKET}/align-batch-grch38/
 ```
-aws s3 cp s3://MYBUCKET/chroms-grch38/chromfile.txt .
-cactus-align-batch aws:us-west-2:MYJOBSTORE ./chromfile.txt s3://MYBUCKET/align-batch-grch38 --alignCores 16 --realTimeLogging --alignOptions "--pangenome --reference GRCh38 --realTimeLogging  --outVG --maxLen 100000" --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.8xlarge --nodeStorage 1000 --maxNodes 10 --betaInertia 0 --targetTime 1
+aws s3 cp ${MYBUCKET}/chroms-hprc-v1.1-mc-grch38/chromfile.txt .
+cactus-align-batch ${MYJOBSTORE} ./chromfile.txt ${MYBUCKET}/align-hprc-v1.1-mc-grch38 --alignCores 16 --realTimeLogging --alignOptions "--pangenome --reference GRCh38 --realTimeLogging  --outVG --maxLen 10000" --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.8xlarge:1.35 --nodeStorage 1000 --maxNodes 10 --betaInertia 0 --targetTime 1 --logFile hprc-v1.1-mc-grch38.align.log
 ```
+
+We shorten `--maxLen` to 10000, as remaining gaps of this length are generally complex/satellite regions that will be poorly aligned by the base aligner, resulting in unnecessary graph complexity (and will be clipped out anyway in the following steps).
 
 ### HPRC Graph: Creating the Whole-Genome Graph
 
-The individual chromosome graphs can now be merged as follows:
+The individual chromosome graphs can now be merged as follows.  We also append the ".0" to the end of CHM13 with the `--rename` option at this point, as it's not considered a reference in the graph (we did not do it in the seqfile because we want to use the same seqfile for making CHM13-based graphs).
 
 ```
-cactus-graphmap-join aws:us-west-2:MYJOBSTORE --vg $(for j in $(for i in `seq 22`; do echo chr$i; done ; echo "chrX chrY chrM chrOther"); do echo s3://MYBUCKET/align-batch-grch38/${j}.vg; done) --hal $(for j in $(for i in `seq 22`; do echo chr$i; done ; echo "chrX chrY chrM chrOther"); do echo s3://MYBUCKET/align-batch-grch38/${j}.hal; done) --outDir s3://MYBUCKET/join-grch38 --outName grch38-hprc --reference GRCh38 --gfaffix  --wlineSep "."  --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.8xlarge --nodeStorage 1000 --maxNodes 1 --indexCores 31 --realTimeLogging
+cactus-graphmap-join ${MYJOBSTORE} --vg $(for j in $(for i in `seq 22`; do echo chr$i; done ; echo "chrX chrY chrM chrOther"); do echo ${MYBUCKET}/align-hprc-v1.1-mc-grch38/${j}.vg; done) --hal $(for j in $(for i in `seq 22`; do echo chr$i; done ; echo "chrX chrY chrM chrOther"); do echo ${MYBUCKET}/align-hprc-v1.1-mc-grch38/${j}.hal; done) --outDir ${MYBUCKET}/ --outName hprc-v1.1-mc-grch38-full --reference GRCh38 --gfaffix  --wlineSep "."  --rename "CHM13_1_1>CHM13_1_1.0" --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.8xlarge --nodeStorage 1000 --maxNodes 1 --indexCores 31 --realTimeLogging --logFile hprc-v1.1-mc-grch38-full.join.log 
 ```
 
 Note: `--indexCores 31` is used (instead of 32) to let the HAL merging job run in parallel on the same machine. 
@@ -468,7 +509,7 @@ We also use the `--giraffe --vcf` options to create the Giraffe indexes and VCF.
 We use as input the vg files created by the previous call of `graphmap-join` as well as the `--preserveIDs` option to ensure that our new graph is ID-compatible with the full graph.
 
 ```
-cactus-graphmap-join aws:us-west-2:MYJOBSTORE --vg $(for j in $(for i in `seq 22`; do echo chr$i; done ; echo "chrX chrY chrM chrOther"); do echo s3://MYBUCKET/clip-grch38-hprc/${j}.vg; done) --outDir s3://MYBUCKET/join-grch38-clip10k --outName grch38-hprc-clip10k --reference GRCh38  --wlineSep "." --clipLength 10000 --clipNonMinigraph --vcf --giraffe --preserveIDs --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.8xlarge --nodeStorage 1000 --maxNodes 1 --indexCores 32 --realTimeLogging
+cactus-graphmap-join ${MYJOBSTORE} --vg $(for j in $(for i in `seq 22`; do echo chr$i; done ; echo "chrX chrY chrM chrOther"); do echo ${MYBUCKET}/clip-grch38-hprc/${j}.vg; done) --outDir ${MYBUCKET}/ --outName hprc-v1.1-mc-grch38 --reference GRCh38  --wlineSep "." --clipLength 10000 --clipNonMinigraph --vcf --giraffe --preserveIDs --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.8xlarge --nodeStorage 1000 --maxNodes 1 --indexCores 32 --realTimeLogging --logFile hprc-v1.1-mc-grch38.join.log 
 ```
 
 **All sequences clipped out by `cactus-graphmap-join` will be saved in BED files in its output directory.**
@@ -478,7 +519,7 @@ cactus-graphmap-join aws:us-west-2:MYJOBSTORE --vg $(for j in $(for i in `seq 22
 It's a work in progress, but the Giraffe-DeepVariant pipeline performs best when further filtering the graph with an allele frequency filter.  Doing so removes rare variants, by definition, but also many assembly and alignment errors.  It can be done using the `--vgClipOpts` option:
 
 ```
-cactus-graphmap-join aws:us-west-2:MYJOBSTORE --vg $(for j in $(for i in `seq 22`; do echo chr$i; done ; echo "chrX chrY chrM chrOther"); do echo s3://MYBUCKET/clip-grch38-hprc/${j}.vg; done) --outDir s3://MYBUCKET/join-grch38-maf10 --outName grch38-hprc-maf10 --reference GRCh38  --wlineSep "." --vgClipOpts "-d 9 -m 1000" --preserveIDs --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.8xlarge --nodeStorage 1000 --maxNodes 1 --indexCores 32 --realTimeLogging
+cactus-graphmap-join ${MYJOBSTORE} --vg $(for j in $(for i in `seq 22`; do echo chr$i; done ; echo "chrX chrY chrM chrOther"); do echo ${MYBUCKET}/clip-grch38-hprc/${j}.vg; done) --outDir ${MYBUCKET} --outName hprc-v1.1-mc-grch38-minaf.0.1 --reference GRCh38  --wlineSep "." --vgClipOpts "-d 9 -m 1000" --preserveIDs --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.8xlarge --nodeStorage 1000 --maxNodes 1 --indexCores 32 --realTimeLogging --logFile hprc-v1.1-mc-grch38-minaf.0.1.join.log 
 ```
 
 Here `--vgClipOpts "-d 9 -m 1000"` will remove all nodes with fewer than 9 paths covering them, filtering out resulting path fragments of fewer than 1kb bases.
@@ -487,7 +528,7 @@ Note: Don't use `--vcf` with this command to make an allele-frequency-filtered V
 
 ### HPRC Graph: Changing the Reference
 
-The selection of the reference genome is very important, as it will be used as the backbone for the graph.  It is the only genome that is guaranteed to not have any cycles nor to ever be clipped, and therefore provides a coordinate system in the graph.  Any input genome can be used as a reference, provided it's consistently passed as the `--reference` option to all the commands.  It also must not have a "." in its genome name.  In practice, there are usually two possible references for the HPRC graphs: GRCh38 and CHM13.  To make a CHM13 graph, the process is identical to above, except the genome names should be renamed from `GRCh38 and CHM13_1_1.0` to `GRCh38.0 and CHM13_1_1` in the seqFile.  All `--reference GRCh38` flags need to be changed to `--reference CHM13_1_1`.
+The selection of the reference genome is very important, as it will be used as the backbone for the graph.  It is the only genome that is guaranteed to not have any cycles nor to ever be clipped, and therefore provides a coordinate system in the graph.  Any input genome can be used as a reference, provided it's consistently passed as the `--reference` option to all the commands.  It also must not have a "." in its genome name.  In practice, there are usually two possible references for the HPRC graphs: GRCh38 and CHM13. 
 
 It is advisable to also pass `--vcfRerefence GRCh38` to `cactus-graphmap-join` to tell it to make a second VCF based on the GRCh38 reference. Likewise if creating a filtered graph with `cactus-graphmap-join --vgClipOpts "-d 9"`, you should use `--vgClipOpts "-d 9 -e GRCh38"` to not filter any nodes on the GRCh38 reference paths -- this will make it easier to use this graph (via surjection) to call variants on GRCh38 as well as CHM13.
 
@@ -521,4 +562,28 @@ If the softmasked sequence has been kept unaligned with the various options desc
 
 If the sequences were clipped instead of softmasked in `cactus-preprocess`, the HAL file will contain the chopped up sequences (with their fragment offsets described using suffixes of their names). Most downstream tools (CAT, Assembly Hubs) will not handle these well, so it's best to stitch the paths back together (leaving the clipped-out sequence unaligned).  This can be done via the `--unclipSeqFile` option.  
 
+### HPRC Version 1.0 Graphs
+
+These graphs were created with the [cactus-pangenome.sh script](https://github.com/glennhickey/pg-stuff/blob/c87b9236a20272b127ea2fadffc5428c5bf15c0e/cactus-pangenome.sh) using Cactus commit [6cd9a42cdf40ad61843664ed82c9d5bc26445570](https://github.com/ComparativeGenomicsToolkit/cactus/commit/6cd9a42cdf40ad61843664ed82c9d5bc26445570).  The seqfile input was constructed as above, except chrY was only added to CHM13 for the CHM13-based graph (and chrEBV was never added).  Instead, a decoy graph consisting of chrEBV and all the hs38d1 contigs was added to both graphs in the `cactus-graphmap-join` step.
+
+The other main differences between this pipeline and v1.1 are
+* Input fasta files were softmasked with dna-brnn regions `>100kb`
+* After mapping to the graph, minimizer gaps `>100kb` were masked using a second call to `cactus-preprocess`
+* The two sets of masked regions were merged together and clipped out the input sequences.
+* The clipped sequences were remapped to the graph once again and the pipeline continued from there
+* The `--base` option was never used to perform sequence-to-graph base alignment (it didn't exist)
+* The `--delFilter` option didn't exist either, so several large spurious bubbles made it into the graphs
+* Much more stringent options were used to assign contigs to chromosomes with `cactus-graphmap-join`.  This was possible to some extent because the contigs were clipped, but also caused more sequence to be classified as ambiguous.
+* `cactus-graphmap-join` clipped out sequence that was unaligned to anything else (including minigraph), rather than unaligned to minigraph.  (this is less stringent).
+* A few small bugs were fixed in Cactus between the two versions, notably one that caused erroneous tiny duplications and inversions. 
+
+GRCh38 graph command line
+```
+./cactus-pangenome.sh -j aws:us-west-2:glennhickey-jobstore7 -s ./hprc-year1-f1g.fix.HG02080.1.brnn.leaveout.seqfile -m ftp://ftp.dfci.harvard.edu/pub/hli/minigraph/HPRC-f1g/GRCh38-f1g-90.gfa.gz  -o s3://vg-k8s/vgamb/wg/cactus/GRCh38-f1g-90/aug11 -n GRCh38-f1g-90-mc-aug11 -r GRCh38 -d s3://vg-k8s/vgamb/wg/fasta/hs38d1.decoys.only.vg  -g  -F  -C -M 100000 -K 10000  2>> stderr.aug11.2.log > /dev/null
+```
+
+CHM13 graph command line
+```
+ ./cactus-pangenome.sh -j aws:us-west-2:glennhickey-jobstore-hprc4 -s ./hprc-year1-f1g.chmy.fix.HG02080.1.brnn.leaveout.seqfile -m ftp://ftp.dfci.harvard.edu/pub/hli/minigraph/HPRC-f1g/CHM13-f1g-90.gfa.gz  -o s3://vg-k8s/vgamb/wg/cactus/CHM13-f1g-90/aug11 -n CHM13-f1g-90-mc-aug11  -r CHM13 -v GRCh38 -d s3://vg-k8s/vgamb/wg/fasta/hs38d1.decoys.only.vg  -g  -F -C -M 100000 -K 10000 -y  2>> stderr.aug11.chm13.3.log > /dev/null
+```
 
