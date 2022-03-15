@@ -278,9 +278,9 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, unclip_seq_id_
 
     # optional hal merge
     if hal_ids:
-        hal_merge_job = root_job.addChildJobFn(merge_hal, options, hal_ids,
-                                               cores = 1,
-                                               disk=sum(f.size for f in hal_ids) * 2)
+        hal_merge_job = job.addChildJobFn(merge_hal, options, hal_ids,
+                                          cores = 1,
+                                          disk=sum(f.size for f in hal_ids) * 2)
         hal_id_dict = hal_merge_job.rv()
         if unclip_seq_id_map:
             # optional hal unclip
