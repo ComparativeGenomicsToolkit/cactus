@@ -180,7 +180,7 @@
 		/>
 
 		<!-- Parameters for using abPOA to generate MSAs. -->
-		<!-- partialOrderAlignmentWindow a sliding window approach (with hardcoded 50% overlap) is used to perform abpoa alignments.  memory is quadratic in this.  it is applied after bandingLimit -->
+		<!-- partialOrderAlignmentWindow a sliding window approach (with hardcoded 50% overlap) is used to perform abpoa alignments.  memory is quadratic in this.  it is applied after bandingLimit.  if disableSeeding is "0", then this shouldn't be needed (set same as bandinglimit in <bar>) -->
 		<!-- partialOrderAlignmentMaskFilter trim input sequences as soon as more than this many soft or hard masked bases are encountered (-1=disabled) -->
 		<!-- partialOrderAlignmentBand abpoa adaptive band size is <partialOrderAlignmentBand> + <partialOrderAlignmentBandFraction>*<Length>.  Negative value here disables adaptive banding -->
 		<!-- partialOrderAlignmentBandFraction abpoa adaptibe band second parameter (see above) -->
@@ -195,7 +195,7 @@
 		<!-- partialOrderAlignmentMinimizerMinW abpoa minimum window size. -->
 		<!-- partialOrderAlignmentProgressiveMode= use guide tree from jaccard distance matrix to determine poa order -->
 		<poa
-			partialOrderAlignmentWindow="10000"
+			partialOrderAlignmentWindow="1000000"
 			partialOrderAlignmentMaskFilter="-1"
 			partialOrderAlignmentBandConstant="300"
 			partialOrderAlignmentBandFraction="0.05"
