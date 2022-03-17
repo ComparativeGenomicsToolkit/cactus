@@ -292,13 +292,13 @@
 	<!-- remapSplitOptions: extra rgfa-split options to apply when splitting after remapping (use -u 3000000 to enable autoclipping between contigs, add -s to allow within contig)-->
 	<!-- minIdentity: ignore PAF lines with identity (col 10 / col 11) is less than this -->
  	<graphmap_split
-		 minQueryCoverages="0.75 0.50 0.25"
+		 minQueryCoverages="0.5 0.25 0.1"
        minQueryCoverageThresholds="100000 1000000"
 		 minQueryUniqueness="3"
 		 maxGap="5000"
 		 ambiguousName="_AMBIGUOUS_"
 		 remapSplitOptions=""
-		 minIdentity="0.75"
+		 minIdentity="0"
 		 />
 	<!-- hal2vg options -->
 	<!-- includeMinigraph: include minigraph node sequences as paths in output (note that cactus-graphmap-join will still remove them by default) -->

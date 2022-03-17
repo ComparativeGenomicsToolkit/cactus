@@ -296,10 +296,6 @@ def make_align_job(options, toil):
         cafNode.attrib["maxRecoverableChainsIterations"] = "50"
         # turn down minimum block degree to get a fat ancestor
         barNode.attrib["minimumBlockDegree"] = "1"
-        # turn on POA
-        barNode.attrib["partialOrderAlignment"] = "1"
-        # turn off POA seeding
-        poaNode.attrib["partialOrderAlignmentDisableSeeding"] = "1"
 
     # import the PAF alignments
     paf_id = toil.importFile(makeURL(options.pafFile))
