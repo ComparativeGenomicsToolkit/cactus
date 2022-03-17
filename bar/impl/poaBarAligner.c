@@ -582,8 +582,12 @@ Msa *msa_make_partial_order_alignment(char **seqs, int *seq_lens, int64_t seq_no
 
         int test_cols = 0;
         uint8_t** test_msa = NULL;
-        abpoa_msa(ab, abpt, msa->seq_no, NULL, msa->seq_lens, bseqs, NULL, NULL, NULL, NULL, NULL,
-                  &(test_msa), &(test_cols));
+        abpoa_msa(ab, abpt, msa->seq_no, NULL, msa->seq_lens, bseqs, NULL);
+        // abpoa's interface has changed a bit -- instead of passing in pointers to the results, they
+        // end up in the ab->abc struct -- we extract them here
+        msa->msa_seq = ab->abc->msa_base;
+        ab->abc->msa_base = NULL;
+        msa->column_no = ab->abc->msa_len;
 
         // sanity check to make sure we get the same output
         assert(msa->column_no == test_cols);        
@@ -597,8 +601,12 @@ Msa *msa_make_partial_order_alignment(char **seqs, int *seq_lens, int64_t seq_no
         free(test_msa);
 #else
         // perform abpoa-msa
-        abpoa_msa(ab, abpt, msa->seq_no, NULL, msa->seq_lens, bseqs, NULL, NULL, NULL, NULL, NULL,
-                  &(msa->msa_seq), &(msa->column_no));
+        abpoa_msa(ab, abpt, msa->seq_no, NULL, msa->seq_lens, bseqs, NULL);
+        // abpoa's interface has changed a bit -- instead of passing in pointers to the results, they
+        // end up in the ab->abc struct -- we extract them here
+        msa->msa_seq = ab->abc->msa_base;
+        ab->abc->msa_base = NULL;
+        msa->column_no = ab->abc->msa_len;
 #endif
 
 #ifdef CACTUS_ABPOA_MSA_DUMP_DIR
