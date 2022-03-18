@@ -106,7 +106,7 @@ def graph_map(options):
         graph_event = getOptionalAttrib(findRequiredNode(config_node, "graphmap"), "assemblyName", default="_MINIGRAPH_")
         #Run the workflow
         if options.restart:
-            paf_id, gfa_fa_id, gaf_id_map = toil.restart()
+            paf_id, gfa_fa_id, gaf_id_map, unfiltered_paf_id, paf_filter_log = toil.restart()
         else:
             # load up the seqfile and figure out the outgroups and schedule
             config_wrapper = ConfigWrapper(config_node)
