@@ -345,11 +345,11 @@ hal2assemblyHub.py ./jobstore ./yeast-pg/yeast-pg.hal yeast-pg/hub --shortLabel 
 Move `yeast-pg/hub` to somewhere web-accessible, and pass the full URL of `yeast-pg/hub/hub.txt` to the Genome Browser in the "My Data -> Track Hubs" menu.   Select `S288C` as the reference and display the hub.  Right-click on the display and select "Configure yeast track set" to toggle on all the assemblies (and toggle off Anc0 and _MINIGRAPH_).
 
 ## HPRC Graph v1.1
-with cactus commit 7fe0bea49e8adbf025eeaab2a88910375f514e87 except `cactus-graphmap-join` which used newer commit c893e9a1d08ac25dc6d8da07ba78fce71bf33180 (can reproduce exactly using the latter commit for whole pipeline)
+with cactus commit 7fe0bea49e8adbf025eeaab2a88910375f514e87 except `cactus-graphmap-join` which used newer commit fdc16ae1739b225a324cb9f7f6b2ca8786f12b18 (can reproduce exactly using the latter commit for whole pipeline)
 
 The [Human Pangenome Reference Consortium](https://humanpangenome.org/data-and-resources/) is producing an ever-growing number of high quality phased assemblies.  This section will demonstrate how to use the Cactus-Minigraph Pangenome Pipeline to construct a Pangenome from them.  Note the instructions here are slightly different than were used to create the v1.0 Cactus-Minigraph pangenome that's been released by the HPRC, as they are based on a more recent and improved version of the pipeline. 
 
-The steps below are run on AWS/S3, and assume everything is written to s3://MYBUCKET. They can be run on other batch systems, at least in theory.  Most of the compute-heavy tasks spawn relatively few jobs, and may be amenable to SLURM environments.
+The steps below are run on AWS/S3, and assume everything is written to s3://MYBUCKET. All jobs are run on r5.8xlarge (32 cores / 256G RAM) nodes. In theory, the entire pipeline could therefore be run on a single machine (ideally with 64 cores).  It would take several days though. They can be run on other batch systems, at least in theory.  Most of the compute-heavy tasks spawn relatively few jobs, and may be amenable to SLURM environments.
 
 The following environment variables must be defined: `MYBUCKET` and `MYJOBSTORE`. All output will be placed in `MYBUCKET`, and `MYJOBSTORE` will be used by TOIL for temporary storage.  For example
 ```
@@ -454,7 +454,7 @@ Now that the sequences are ready, we run `cactus-graphmap` as before.  There are
 
 `--base` : `minigraph` only produces minimizer hits, and these can sometimes be misleading when computing coverage for the above filter or during chromosome splitting.  This option sends each minigraph mapping through cactus to fill in base alignments, leading to more accurate PAFs.  It costs more to compute them, but saves time in down the road in `cactus-align` as there will be much fewer bases to align in that step.
 
-`--maxLen N` : Do not attempt to align more than `N` bases with the Cactus base aligner (activated with `--base`).  This will save aligning too far into anchorless regions, which cannot be properly resolved with base alignment alone. 
+`--maxLen N` : Do not attempt to align more than `N` bases with the Cactus base aligner (activated with `--base`).  This will save aligning too far into anchorless regions, which cannot be properly resolved with base alignment alone.  It is 1000000 by default. 
 
 `--mapCores N` : Use `N` cores for each mapping job.
 
@@ -483,10 +483,8 @@ The rest of the pipeline is proceeds as in the yeast example. We need to manuall
 This command will create a vg and hal file for each chromosome in ${MYBUCKET}/align-batch-grch38/
 ```
 aws s3 cp ${MYBUCKET}/chroms-hprc-v1.1-mc-grch38/chromfile.txt .
-cactus-align-batch ${MYJOBSTORE} ./chromfile.txt ${MYBUCKET}/align-hprc-v1.1-mc-grch38 --alignCores 16 --realTimeLogging --alignOptions "--pangenome --reference GRCh38 --realTimeLogging  --outVG --maxLen 10000" --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.8xlarge:1.35 --nodeStorage 1000 --maxNodes 10 --betaInertia 0 --targetTime 1 --logFile hprc-v1.1-mc-grch38.align.log
+cactus-align-batch ${MYJOBSTORE} ./chromfile.txt ${MYBUCKET}/align-hprc-v1.1-mc-grch38 --alignCores 16 --realTimeLogging --alignOptions "--pangenome --reference GRCh38 --realTimeLogging  --outVG --maxLen 100000" --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.8xlarge:1.35 --nodeStorage 1000 --maxNodes 10 --betaInertia 0 --targetTime 1 --logFile hprc-v1.1-mc-grch38.align.log
 ```
-
-We shorten `--maxLen` to 10000, as remaining gaps of this length are generally complex/satellite regions that will be poorly aligned by the base aligner, resulting in unnecessary graph complexity (and will be clipped out anyway in the following steps).
 
 ### HPRC Graph: Creating the Whole-Genome Graph
 
@@ -509,7 +507,7 @@ We also use the `--giraffe --vcf` options to create the Giraffe indexes and VCF.
 We use as input the vg files created by the previous call of `graphmap-join` as well as the `--preserveIDs` option to ensure that our new graph is ID-compatible with the full graph.
 
 ```
-cactus-graphmap-join ${MYJOBSTORE} --vg $(for j in $(for i in `seq 22`; do echo chr$i; done ; echo "chrX chrY chrM chrOther"); do echo ${MYBUCKET}/clip-grch38-hprc/${j}.vg; done) --outDir ${MYBUCKET}/ --outName hprc-v1.1-mc-grch38 --reference GRCh38  --wlineSep "." --clipLength 10000 --clipNonMinigraph --vcf --giraffe --preserveIDs --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.8xlarge --nodeStorage 1000 --maxNodes 1 --indexCores 32 --realTimeLogging --logFile hprc-v1.1-mc-grch38.join.log 
+cactus-graphmap-join ${MYJOBSTORE} --vg $(for j in $(for i in `seq 22`; do echo chr$i; done ; echo "chrX chrY chrM chrOther"); do echo ${MYBUCKET}/clip-hprc-v1.1-mc-grch38-full/${j}.vg; done) --outDir ${MYBUCKET}/ --outName hprc-v1.1-mc-grch38 --reference GRCh38  --wlineSep "." --clipLength 10000 --clipNonMinigraph --vcf --giraffe --preserveIDs --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.8xlarge --nodeStorage 1000 --maxNodes 1 --indexCores 32 --realTimeLogging --logFile hprc-v1.1-mc-grch38.join.log 
 ```
 
 **All sequences clipped out by `cactus-graphmap-join` will be saved in BED files in its output directory.**
@@ -519,7 +517,7 @@ cactus-graphmap-join ${MYJOBSTORE} --vg $(for j in $(for i in `seq 22`; do echo 
 It's a work in progress, but the Giraffe-DeepVariant pipeline performs best when further filtering the graph with an allele frequency filter.  Doing so removes rare variants, by definition, but also many assembly and alignment errors.  It can be done using the `--vgClipOpts` option:
 
 ```
-cactus-graphmap-join ${MYJOBSTORE} --vg $(for j in $(for i in `seq 22`; do echo chr$i; done ; echo "chrX chrY chrM chrOther"); do echo ${MYBUCKET}/clip-grch38-hprc/${j}.vg; done) --outDir ${MYBUCKET} --outName hprc-v1.1-mc-grch38-minaf.0.1 --reference GRCh38  --wlineSep "." --vgClipOpts "-d 9 -m 1000" --preserveIDs --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.8xlarge --nodeStorage 1000 --maxNodes 1 --indexCores 32 --realTimeLogging --logFile hprc-v1.1-mc-grch38-minaf.0.1.join.log 
+cactus-graphmap-join ${MYJOBSTORE} --vg $(for j in $(for i in `seq 22`; do echo chr$i; done ; echo "chrX chrY chrM chrOther"); do echo ${MYBUCKET}/clip-hprc-v1.1-mc-grch38/${j}.vg; done) --outDir ${MYBUCKET} --outName hprc-v1.1-mc-grch38-minaf.0.1 --reference GRCh38  --wlineSep "." --vgClipOpts "-d 9 -m 1000" --preserveIDs --giraffe --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.8xlarge --nodeStorage 1000 --maxNodes 1 --indexCores 32 --realTimeLogging --logFile hprc-v1.1-mc-grch38-minaf.0.1.join.log 
 ```
 
 Here `--vgClipOpts "-d 9 -m 1000"` will remove all nodes with fewer than 9 paths covering them, filtering out resulting path fragments of fewer than 1kb bases.
