@@ -11,6 +11,9 @@ struct block {
     int64_t value;
 };
 
+// cactus_call doesn't always buffer stderr, so we need to be careful about spamming it
+static int64_t maxCoverageWarnings = 100;
+
 // For calculating coverage on the target genome
 static stHash *sequenceLengths = NULL;
 static stList *sequenceNames = NULL;
@@ -96,7 +99,7 @@ static void printCoverage(char *name, uint16_t *array, int64_t length) {
 // particular pairwise alignment. contigNum is which contig this
 // coverage array corresponds to in the CIGAR.
 static void fillCoverage(struct PairwiseAlignment *pA, int contigNum,
-                         uint16_t *coverageArray)
+                         uint16_t *coverageArray, int64_t *fillWarningCount)
 {
     int strand = contigNum == 1 ? pA->strand1 : pA->strand2;
     int64_t startPos = contigNum == 1 ? pA->start1 : pA->start2;
@@ -134,10 +137,14 @@ static void fillCoverage(struct PairwiseAlignment *pA, int contigNum,
         case PAIRWISE_MATCH:
             if(strand) {
                 for(j=curAlignmentPos; j < curAlignmentPos + op->length; j++) {
-                    if(coverageArray[j] == 65535) {
+                    if(coverageArray[j] == 65535 && *fillWarningCount < maxCoverageWarnings) {
                         fprintf(stderr, "WARNING: Coverage hit cap (65535) on contig: "
                                 "%s pos: %" PRIi64 "\n",
                                 contigNum == 1 ? pA->contig1 : pA->contig2, j);
+                        *fillWarningCount += 1;
+                        if (*fillWarningCount == maxCoverageWarnings) {
+                            fprintf(stderr, "Suppressing further warnings\n");
+                        }
                     } else {
                         coverageArray[j]++;
                     }
@@ -146,10 +153,14 @@ static void fillCoverage(struct PairwiseAlignment *pA, int contigNum,
                 assert(curAlignmentPos <= endPos);
             } else {
                 for(j=curAlignmentPos-1; j >= curAlignmentPos - op->length; j--) {
-                    if(coverageArray[j] == 65535) {
+                    if(coverageArray[j] == 65535 && *fillWarningCount < maxCoverageWarnings) {
                         fprintf(stderr, "WARNING: Coverage hit cap (65535) on contig: "
                                 "%s pos: %" PRIi64 "\n",
                                 contigNum == 1 ? pA->contig1 : pA->contig2, j);
+                        *fillWarningCount += 1;
+                        if (*fillWarningCount == maxCoverageWarnings ) {
+                            fprintf(stderr, "Suppressing further warnings\n");
+                        }
                     } else {
                         coverageArray[j]++;
                     }
@@ -285,6 +296,7 @@ int main(int argc, char *argv[])
     fastaReadToFunction(fastaHandle, NULL, addSequenceLength);
     fclose(fastaHandle);
 
+    int64_t fillWarningCount = 0;
     // Fill coverage arrays with the alignments
     FILE *alignmentsHandle = fopen(argv[optind + 1], "r");
     for(;;) {
@@ -299,14 +311,14 @@ int main(int argc, char *argv[])
             // "from" genome if it exists
             uint16_t *array = getCoverageArray(pA->contig1, pA->contig2,
                                                depthById);
-            fillCoverage(pA, 1, array);
+            fillCoverage(pA, 1, array, &fillWarningCount);
         }
         if((outputOnContig2 && (lengthPtr = stHash_search(sequenceLengths, pA->contig2))) && ((otherGenomeSequences == NULL) || stSet_search(otherGenomeSequences, pA->contig1))) {
             // contig 2 is present in the fasta and contig 1 is in the
             // "from" genome if it exists
             uint16_t *array = getCoverageArray(pA->contig2, pA->contig1,
                                                depthById);
-            fillCoverage(pA, 2, array);
+            fillCoverage(pA, 2, array, &fillWarningCount);
         }
         destructPairwiseAlignment(pA);
     }
