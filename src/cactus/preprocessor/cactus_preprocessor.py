@@ -334,22 +334,17 @@ class CactusPreprocessor2(RoundedJob):
             logger.info("Adding child batch_preprocessor target")
             return self.addChild(BatchPreprocessor(prepXmlElems, self.inputSequenceID, 0)).rv()
 
-def stageWorkflow(outputSequenceDir, configFile, inputSequences, toil, restart=False,
+def stageWorkflow(outputSequenceDir, configNode, inputSequences, toil, restart=False,
                   outputSequences = [], maskAlpha=False, clipAlpha=None,
-                  maskFile=None, maskFileAction=None, minLength=None, inputEventNames=None, brnnCores=None,
-                  gpu_override=False):
+                  maskFile=None, maskFileAction=None, minLength=None, inputEventNames=None, brnnCores=None):
     #Replace any constants
-    configNode = ET.parse(configFile).getroot()
     if not outputSequences:
         outputSequences = CactusPreprocessor.getOutputSequenceFiles(inputSequences, outputSequenceDir)
     else:
         assert len(outputSequences) == len(inputSequences)
 
-    # toggle on the gpu
-    ConfigWrapper(configNode).initGPU(gpu_override)
-
     # Make sure we have the dna-brnn model in the filestore if we need it
-    loadDnaBrnnModel(toil, ET.parse(configFile).getroot(), maskAlpha = maskAlpha)
+    loadDnaBrnnModel(toil, configNode, maskAlpha = maskAlpha)
         
     if configNode.find("constants") != None:
         ConfigWrapper(configNode).substituteAllPredefinedConstantsWithLiterals()
@@ -404,7 +399,7 @@ def runCactusPreprocessor(outputSequenceDir, configFile, inputSequences, toilDir
     toilOptions.logLevel = "INFO"
     toilOptions.disableCaching = True
     with Toil(toilOptions) as toil:
-        stageWorkflow(outputSequenceDir, configFile, inputSequences, toil)
+        stageWorkflow(outputSequenceDir, ET.parse(options.configFile).getroot(), inputSequences, toil)
 
 def main():
     parser = ArgumentParser()
@@ -474,6 +469,9 @@ def main():
     #we never want to preprocess minigraph sequences
     graph_event = getOptionalAttrib(findRequiredNode(configNode, "graphmap"), "assemblyName", default="_MINIGRAPH_")
     options.ignore.append(graph_event)
+
+    # toggle on the gpu
+    ConfigWrapper(configNode).initGPU(options)
     
     # mine the paths out of the seqfiles
     if options.inSeqFile:
@@ -524,7 +522,7 @@ def main():
 
     with Toil(options) as toil:
         stageWorkflow(outputSequenceDir=None,
-                      configFile=options.configFile,
+                      configNode=configNode,
                       inputSequences=inSeqPaths,
                       toil=toil,
                       restart=options.restart,
@@ -535,8 +533,7 @@ def main():
                       maskFileAction=options.maskAction,
                       minLength=options.minLength,
                       inputEventNames=inNames,
-                      brnnCores=options.brnnCores,
-                      gpu_override=options.gpu)
+                      brnnCores=options.brnnCores)
 
 if __name__ == '__main__':
     main()
