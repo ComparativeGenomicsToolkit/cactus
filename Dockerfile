@@ -1,7 +1,7 @@
 FROM quay.io/comparative-genomics-toolkit/ubuntu:18.04 AS builder
 
 # apt dependencies for build
-RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y build-essential git python3.8 python3.8-dev python3-pip zlib1g-dev wget libbz2-dev pkg-config libhdf5-dev liblzo2-dev libtokyocabinet-dev wget liblzma-dev libxml2-dev libssl-dev libpng-dev uuid-dev libcurl4-gnutls-dev libffi-dev python
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y build-essential git python3.8 python3.8-dev python3-pip zlib1g-dev wget libbz2-dev pkg-config libhdf5-dev liblzo2-dev libtokyocabinet-dev wget liblzma-dev libxml2-dev libssl-dev libpng-dev uuid-dev libcurl4-gnutls-dev libffi-dev python python3-virtualenv rsync
 
 # build cactus binaries
 RUN mkdir -p /home/cactus
@@ -22,10 +22,10 @@ RUN cd /home/cactus && ./build-tools/downloadUcscLib
 ENV ENABLE_UDC 1
 ENV KENTSRC /home/cactus/submodules/kent/src
 
-# clean out stuff before build.
-RUN find /home/cactus -name include.local.mk -exec rm -f {} \;
-RUN cd /home/cactus && make clean -j $(nproc)
-RUN cd /home/cactus && make -j $(nproc)
+# clean and build
+RUN find /home/cactus -name include.local.mk -exec rm -f {} \; && \
+	 cd /home/cactus && rm -rf bin/* && make clean -j $(nproc) && \
+	 make -j $(nproc)
 
 # download open-licenses kent binaries used by hal for assembly hubs
 RUN cd /home/cactus/bin && for i in wigToBigWig faToTwoBit bedToBigBed bigBedToBed; do wget -q http://hgdownload.cse.ucsc.edu/admin/exe/linux.x86_64/${i}; chmod ugo+x ${i}; done
@@ -43,39 +43,39 @@ RUN cd /home/cactus && rm -f ${binPackageDir}/bin/*test ${binPackageDir}/bin/*te
 # make the binaries smaller by removing debug symbols (but leave them in cactus_consolidated)
 RUN /bin/bash -O extglob -c "cd /home/cactus && strip -d bin/!(cactus_consolidated) 2> /dev/null || true"
 
+# check the linking on all our binaries (those kent tools above aren't static)
+RUN for i in /usr/local/bin/* ; do if [ -f ${i} ] && [ $(ldd ${i} | grep "not found" | wc -l) -ge 1 ]; then exit 1; fi; done
+
 # build cactus python3
-RUN mkdir -p /wheels && cd /wheels && python3.8 -m pip install -U pip==21.3.1 wheel && python3.8 -m pip wheel -r /home/cactus/toil-requirement.txt && python3.8 -m pip wheel /home/cactus
+RUN cd /home/cactus && rm -rf cactus_env && \
+	 python3.8 -m virtualenv -p python3.8 cactus_env  && \
+	 . cactus_env/bin/activate && \
+	 python3 -m pip install -U setuptools pip==21.3.1 && \
+	 python3 -m pip install -U -r ./toil-requirement.txt && \
+	 python3 -m pip install -U .
+	 
+# prep the hal python install which is not part of the setup
+RUN rm -rf /home/cactus/hal_lib && \
+	 rsync -avm --include='*.py' -f 'hide,! */' /home/cactus/submodules/hal /home/cactus/hal_lib
 
 # Create a thinner final Docker image in which only the binaries and necessary data exist.
 FROM quay.io/comparative-genomics-toolkit/ubuntu:18.04
 
 # apt dependencies for runtime
-RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends git python3.8 python3-pip python3.8-distutils zlib1g libbz2-1.0 net-tools libhdf5-100 liblzo2-2 libtokyocabinet9 rsync libkrb5-3 libk5crypto3 time liblzma5 libcurl4 libcurl4-gnutls-dev libxml2 libgomp1 libffi6
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends git python3.8 python3-pip python3.8-distutils zlib1g libbz2-1.0 net-tools libhdf5-100 liblzo2-2 libtokyocabinet9 libkrb5-3 libk5crypto3 time liblzma5 libcurl4 libcurl4-gnutls-dev libxml2 libgomp1 libffi6
 
-# copy temporary files for installing cactus
-COPY --from=builder /home/cactus /tmp/cactus
-COPY --from=builder /wheels /wheels
+# copy cactus runtime essentials (note: important cactus_env keeps its path)
+RUN mkdir /home/cactus
+COPY --from=builder /home/cactus/cactus_env /home/cactus/cactus_env
+COPY --from=builder /home/cactus/hal_lib/hal /home/cactus/hal
+COPY --from=builder /home/cactus/bin /home/cactus/bin
 
-# install the cactus binaries
-RUN cd /tmp/cactus && cp -rP bin /usr/local/
-
-# install the hal python modules
-RUN rsync -avm --include='*.py' -f 'hide,! */' /tmp/cactus/submodules/hal /usr/local/lib
-ENV PYTHONPATH /usr/local/lib:${PYTHONPATH}
-
-# install the python3 binaries then clean up
-RUN python3.8 -m pip install -U pip==21.3.1 wheel setuptools && \
-    python3.8 -m pip install -f /wheels -r /tmp/cactus/toil-requirement.txt && \
-    python3.8 -m pip install -f /wheels /tmp/cactus && \
-    rm -rf /wheels /root/.cache/pip/* /tmp/cactus && \
-    apt-get remove -y git python3-pip rsync && \
-    apt-get auto-remove -y
+# update the environment
+ENV PATH="/home/cactus/cactus_env/bin:/home/cactus/bin:$PATH"
+ENV PYTHONPATH="/home/cactus"
 
 # sanity check to make sure cactus at least runs
 RUN cactus --help
-
-# check the linking on all our binaries (those kent tools above aren't static)
-RUN for i in /usr/local/bin/* ; do if [ -f ${i} ] && [ $(ldd ${i} | grep "not found" | wc -l) -ge 1 ]; then exit 1; fi; done
 
 # wrapper.sh is used when running using the docker image with --binariesMode docker
 RUN mkdir /opt/cactus/
