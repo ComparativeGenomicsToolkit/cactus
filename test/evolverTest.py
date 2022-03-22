@@ -40,16 +40,89 @@ class TestCase(unittest.TestCase):
         if binariesMode == 'docker':
             cmd += ['--latest']
 
-        sys.stderr.write('Running {}'.format(' '.format(cmd)))
+        sys.stderr.write('Running {}\n'.format(' '.format(cmd)))
         subprocess.check_call(' '.join(cmd), shell=True)
 
+    def _update_evolver(self, binariesMode, configFile = None, new_leaf='simChimp', new_root='Anc1',
+                        step_by_step = True):
+        """ Update the evolver by adding primate to internal node """
+        assert new_leaf in ['simChimp', 'simGorilla', 'simOrang']
+        assert new_root in ['Anc0', 'Anc1', 'Anc2', 'mr']
+        # todo: this is kind of a dumb convention, should refactor:
+        hal_path = self._out_hal(binariesMode)
+        assert os.path.isfile(hal_path)
+
+        children = subprocess.check_output(['halStats', hal_path, '--children', new_root]).strip().split()
+        children = [c.decode("utf-8") for c in children]
+        genomes = children + [new_root]
+        
+        # make the fasta files
+        fa_paths = [os.path.join(self.tempDir, '{}.fa'.format(genome)) for genome in genomes]
+        for genome, genome_path in zip(genomes, fa_paths):
+            with open(genome_path, 'w') as genome_file:
+                subprocess.check_call(['hal2fasta', hal_path, genome], stdout=genome_file)
+
+        with open('./examples/evolverPrimates.txt', 'r') as primates_file:
+            for line in primates_file:
+                if line.split() and line.split()[0] == new_leaf:
+                    new_child_line = line
+        assert new_child_line
+        # make the seqfile
+        # todo: we could fish branch lengths out of the tree, but it's not really relevant to the test
+        tree_string = '({}){};'.format(','.join(children + [new_leaf]), new_root)        
+        seq_file_path = os.path.join(self.tempDir, 'seqfile.{}'.format(new_root))
+        with open(seq_file_path, 'w') as seq_file:
+            seq_file.write(tree_string + '\n')
+            for genome, genome_path in zip(genomes, fa_paths):
+                seq_file.write('{}\t{}\n'.format(genome, genome_path))
+            seq_file.write(new_child_line)
+
+        # run the alignment
+        out_hal = os.path.join(self.tempDir, '{}.hal'.format(new_root))
+        if step_by_step:
+            out_paf = os.path.join(self.tempDir, '{}.paf'.format(new_root))
+            cmd = ['cactus-blast', self._job_store(binariesMode), seq_file_path, out_paf, '--includeRoot', '--root', new_root,
+                   '--binariesMode', binariesMode, '--logInfo', '--realTimeLogging', '--workDir', self.tempDir]
+            if configFile:
+                cmd += ['--configFile', configFile]
+            # todo: it'd be nice to have an interface for setting tag to something not latest or commit
+            if binariesMode == 'docker':
+                cmd += ['--latest']
+            sys.stderr.write('Running {}\n'.format(' '.format(cmd)))
+            subprocess.check_call(cmd)
+            
+            cmd = ['cactus-align', self._job_store(binariesMode), seq_file_path, out_paf, out_hal, '--includeRoot', '--root', new_root,
+                   '--binariesMode', binariesMode, '--logInfo', '--realTimeLogging', '--workDir', self.tempDir]
+            if configFile:
+                cmd += ['--configFile', configFile]
+            # todo: it'd be nice to have an interface for setting tag to something not latest or commit
+            if binariesMode == 'docker':
+                cmd += ['--latest']
+            sys.stderr.write('Running {}\n'.format(' '.format(cmd)))
+            subprocess.check_call(cmd)
+        else:
+            cmd = ['cactus', self._job_store(binariesMode), seq_file_path, out_hal, 
+                   '--binariesMode', binariesMode, '--logInfo', '--realTimeLogging', '--workDir', self.tempDir]
+            if configFile:
+                cmd += ['--configFile', configFile]
+            # todo: it'd be nice to have an interface for setting tag to something not latest or commit
+            if binariesMode == 'docker':
+                cmd += ['--latest']
+            sys.stderr.write('Running {}\n'.format(' '.format(cmd)))
+            subprocess.check_call(cmd)
+
+        # update the tree
+        cmd = ['halReplaceGenome', hal_path, new_root, '--bottomAlignmentFile', out_hal, '--topAlignmentFile', hal_path]
+        sys.stderr.write('Running {}\n'.format(' '.format(cmd)))
+        subprocess.check_call(cmd)
+                
     def _run_evolver_in_docker(self, seqFile = './examples/evolverMammals.txt'):
 
         out_hal = self._out_hal('in_docker')
         cmd = ['docker', 'run', '--rm', '-v', '{}:{}'.format(os.path.dirname(out_hal), '/data'),
                '-v', '{}:{}'.format(os.getcwd(), '/workdir'), 'evolvertestdocker/cactus:latest',
                'cactus /data/js /workdir/{} /data/{}'.format(seqFile, os.path.basename(out_hal))]
-        sys.stderr.write('Running {}'.format(' '.format(cmd)))
+        sys.stderr.write('Running {}\n'.format(' '.format(cmd)))
         subprocess.check_call(' '.join(cmd), shell=True)
                
     def _write_primates_seqfile(self, seq_file_path):
@@ -86,7 +159,7 @@ class TestCase(unittest.TestCase):
                 # do Anc2 in binariesMode docker to broaden test coverage
                 if 'Anc2' in line and line.startswith('cactus-'):
                     line += ' --binariesMode docker --latest'
-                sys.stderr.write('Running {}'.format(line))
+                sys.stderr.write('Running {}\n'.format(line))
                 subprocess.check_call(line, shell=True)
 
     def _run_evolver_decomposed_wdl(self, name):
@@ -171,7 +244,7 @@ class TestCase(unittest.TestCase):
                     #Remove all the id prefixes to pretend the cigars came not cactus-blast
                     subprocess.check_call('sed -i -e \'s/id=[0,1]|//g\' {}/Anc0.cigar*'.format(out_dir), shell=True)
                     line += ' --nonCactusInput'
-                sys.stderr.write('Running {}'.format(line))
+                sys.stderr.write('Running {}\n'.format(line))
                 subprocess.check_call(line, shell=True)
 
     def _run_evolver_primates_refmap(self, binariesMode):
@@ -393,6 +466,14 @@ class TestCase(unittest.TestCase):
         self.assertGreaterEqual(acc[0] + delta, baseline_acc[0])
         self.assertGreaterEqual(acc[1] + delta, baseline_acc[1])
 
+    def _check_valid_hal(self, halPath, expected_tree=None):
+        """ Make sure a hal passes halValidate and has the given tree """
+
+        subprocess.check_call(['halValidate', halPath])
+        hal_tree = subprocess.check_output(['halStats', halPath, '--tree']).strip().decode('utf-8')
+        if expected_tree:
+            self.assertEqual(hal_tree, expected_tree)
+            
     def testEvolverLocal(self):
         """ Check that the output of halStats on a hal file produced by running cactus with --binariesMode local is
         is reasonable
@@ -405,6 +486,19 @@ class TestCase(unittest.TestCase):
         #self._check_stats(self._out_hal(name), delta_pct=0.25)
         #self._check_coverage(self._out_hal(name), delta_pct=0.20)
         self._check_maf_accuracy(self._out_hal(name), delta=0.04)
+
+    def testEvolverUpdateLocal(self):
+        """ Check that the "add a genome to ancestor" modification steps give sane/valid results """
+        name = "local"
+        self._run_evolver(name)
+        
+        self._update_evolver(name, new_leaf='simChimp', new_root='Anc1', step_by_step = True)
+        self._update_evolver(name, new_leaf='simOrang', new_root='mr', step_by_step = False)
+
+        self._check_valid_hal(self._out_hal(name),
+                              expected_tree='((simHuman_chr6:0.144018,(simMouse_chr6:0.084509,simRat_chr6:0.091589,simOrang:1)mr:0.271974,simChimp:1)Anc1:0.020593,(simCow_chr6:0.18908,simDog_chr6:0.16303)Anc2:0.032898)Anc0;')
+
+        self._check_maf_accuracy(self._out_hal(name), delta=0.1)
 
     def testEvolverPrepareWDL(self):
 
