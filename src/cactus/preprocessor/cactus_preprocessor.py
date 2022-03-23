@@ -445,6 +445,8 @@ def main():
             raise RuntimeError('--inPaths must be used in conjunction with --outPaths and not with --inSeqFile nor --outSeqFile')
         if len(options.inPaths) != len(options.outPaths):
             raise RuntimeError('--inPaths and --outPaths must have the same number of arguments')
+        if not options.inputNames or len(options.inputNames) != len(options.inPaths):
+            raise RuntimeError('--inputNames must be used in conjunction with --inputPaths to specify (exactly) one event name for each input')
     else:
         raise RuntimeError('--inSeqFile/--outSeqFile/--inputNames or --inPaths/--outPaths required to specify input')
     if options.maskAlpha and options.clipAlpha:
