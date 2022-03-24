@@ -354,9 +354,8 @@ def clip_vg(job, options, config, vg_path, vg_id, bed_id):
         normalized_path = clipped_path + '.gfaffixed'
         gfa_in_path = vg_path + '.gfa'
         gfa_out_path = normalized_path + '.gfa'
-        # chop first with mod -X because gfaffix seems to have trouble with large nodes
-        cactus_call(parameters=[['vg', 'mod', '-X', '10000', clipped_path], ['vg', 'convert', '-f', '-']], outfile=gfa_in_path)
-        fix_cmd = ['gfaffix', gfa_in_path, '--output_refined', gfa_out_path]
+        cactus_call(parameters=['vg', 'convert', '-f', clipped_path], outfile=gfa_in_path)
+        fix_cmd = ['gfaffix', gfa_in_path, '--output_refined', gfa_out_path, '--check_transformation']
         if options.reference:
             fix_cmd += ['--dont_collapse', options.reference + '*']
         cactus_call(parameters=fix_cmd)
