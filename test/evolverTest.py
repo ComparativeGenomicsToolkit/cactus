@@ -43,8 +43,8 @@ class TestCase(unittest.TestCase):
         sys.stderr.write('Running {}\n'.format(' '.format(cmd)))
         subprocess.check_call(' '.join(cmd), shell=True)
 
-    def _update_evolver(self, binariesMode, configFile = None, new_leaf='simChimp', new_root='Anc1',
-                        step_by_step = True):
+    def _update_evolver_add_to_node(self, binariesMode, configFile = None, new_leaf='simChimp', new_root='Anc1',
+                                    step_by_step = True):
         """ Update the evolver by adding primate to internal node """
         assert new_leaf in ['simChimp', 'simGorilla', 'simOrang']
         assert new_root in ['Anc0', 'Anc1', 'Anc2', 'mr']
@@ -115,7 +115,53 @@ class TestCase(unittest.TestCase):
         cmd = ['halReplaceGenome', hal_path, new_root, '--bottomAlignmentFile', out_hal, '--topAlignmentFile', hal_path]
         sys.stderr.write('Running {}\n'.format(' '.format(cmd)))
         subprocess.check_call(cmd)
-                
+
+    def _update_evolver_add_to_branch(self, binariesMode, configFile = None):
+        """ Quicka and dirty add to branch test, adds simGorilla as sister of mr """
+        # todo: this is kind of a dumb convention, should refactor:
+        hal_path = self._out_hal(binariesMode)
+        assert os.path.isfile(hal_path)
+
+        def genome_path(genome):
+            return os.path.join(self.tempDir, genome + '.fa')
+
+        # dump a bunch of fasta
+        for genome in ['simCow_chr6', 'simDog_chr6', 'simHuman_chr6', 'Anc0', 'Anc1', 'Anc2', 'mr']:
+            with open(genome_path(genome), 'w') as genome_file:
+                subprocess.check_call(['hal2fasta', hal_path, genome], stdout=genome_file)
+
+        # make the bottom seq_file
+        bottom_seq_path = os.path.join(self.tempDir, 'bottom.txt')
+        with open(bottom_seq_path, 'w') as bottom_seq_file:
+            bottom_seq_file.write('((simHuman_chr6:0.144018,(mr:0.271974,simGorilla:0.2)AncGorilla:0.1)Anc1:0.020593,(simCow_chr6:0.18908,simDog_chr6:0.16303)Anc2:0.032898)Anc0;\n')
+            bottom_seq_file.write('simGorilla	https://raw.githubusercontent.com/UCSantaCruzComputationalGenomicsLab/cactusTestData/master/evolver/primates/loci1/simGorilla.chr6\n')
+            for genome in ['simCow_chr6', 'simDog_chr6', 'simHuman_chr6', 'Anc0', 'Anc1', 'Anc2', 'mr']:
+                bottom_seq_file.write('{}\t{}\n'.format(genome, genome_path(genome)))
+
+        # make the bottom hal
+        bottom_hal_path = os.path.join(self.tempDir, 'bottom.hal')            
+        subprocess.check_call(['cactus', self._job_store(binariesMode), bottom_seq_path, bottom_hal_path, '--root', 'AncGorilla',
+                               '--binariesMode', binariesMode, '--logInfo', '--realTimeLogging', '--workDir', self.tempDir])
+
+        # dump the new ancestor
+        with open(genome_path('AncGorilla'), 'w') as anc_file:
+            subprocess.check_call(['hal2fasta', bottom_hal_path, 'AncGorilla'], stdout=anc_file)
+            
+        # make the top seq_ile
+        top_seq_path = os.path.join(self.tempDir, 'top.txt')
+        with open(top_seq_path, 'w') as top_seq_file:
+            top_seq_file.write('((simHuman_chr6:0.144018,AncGorilla:0.1)Anc1:0.020593,(simCow_chr6:0.18908,simDog_chr6:0.16303)Anc2:0.032898)Anc0;\n')
+            for genome in ['simCow_chr6', 'simDog_chr6', 'simHuman_chr6', 'AncGorilla', 'Anc0', 'Anc1', 'Anc2']:
+                top_seq_file.write('{}\t{}\n'.format(genome, genome_path(genome)))
+        
+        # make the top hal
+        top_hal_path = os.path.join(self.tempDir, 'top.hal')
+        subprocess.check_call(['cactus', self._job_store(binariesMode), top_seq_path, top_hal_path, '--root', 'Anc1',
+                               '--binariesMode', binariesMode, '--logInfo', '--realTimeLogging', '--workDir', self.tempDir])
+        
+        # update the hal
+        subprocess.check_call(['halAddToBranch', hal_path, bottom_hal_path, top_hal_path, 'Anc1', 'AncGorilla', 'mr', 'simGorilla', '0.1', '0.2'])
+        
     def _run_evolver_in_docker(self, seqFile = './examples/evolverMammals.txt'):
 
         out_hal = self._out_hal('in_docker')
@@ -487,18 +533,30 @@ class TestCase(unittest.TestCase):
         #self._check_coverage(self._out_hal(name), delta_pct=0.20)
         self._check_maf_accuracy(self._out_hal(name), delta=0.04)
 
-    def testEvolverUpdateLocal(self):
+    def testEvolverUpdateNodeLocal(self):
         """ Check that the "add a genome to ancestor" modification steps give sane/valid results """
         name = "local"
         self._run_evolver(name)
         
-        self._update_evolver(name, new_leaf='simChimp', new_root='Anc1', step_by_step = True)
-        self._update_evolver(name, new_leaf='simOrang', new_root='mr', step_by_step = False)
+        self._update_evolver_add_to_node(name, new_leaf='simChimp', new_root='Anc1', step_by_step = True)
+        self._update_evolver_add_to_node(name, new_leaf='simOrang', new_root='mr', step_by_step = False)
 
         self._check_valid_hal(self._out_hal(name),
                               expected_tree='((simHuman_chr6:0.144018,(simMouse_chr6:0.084509,simRat_chr6:0.091589,simOrang:1)mr:0.271974,simChimp:1)Anc1:0.020593,(simCow_chr6:0.18908,simDog_chr6:0.16303)Anc2:0.032898)Anc0;')
 
         self._check_maf_accuracy(self._out_hal(name), delta=0.1)
+
+    def testEvolverUpdateBranchLocal(self):
+        """ Check that the "add a genome to branch" modification steps give sane/valid results """
+        name = "local"
+        self._run_evolver(name)
+        self._update_evolver_add_to_branch(name)
+
+        self._check_valid_hal(self._out_hal(name),
+                              expected_tree='((simHuman_chr6:0.144018,((simMouse_chr6:0.084509,simRat_chr6:0.091589)mr:0.171974,simGorilla:0.2)AncGorilla:0.1)Anc1:0.020593,(simCow_chr6:0.18908,simDog_chr6:0.16303)Anc2:0.032898)Anc0;')
+
+        self._check_maf_accuracy(self._out_hal(name), delta=0.1)
+
 
     def testEvolverPrepareWDL(self):
 
