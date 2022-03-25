@@ -298,7 +298,7 @@
 		 maxGap="5000"
 		 ambiguousName="_AMBIGUOUS_"
 		 remapSplitOptions=""
-		 minIdentity="0.75"
+		 minIdentity="0.01"
 		 />
 	<!-- hal2vg options -->
 	<!-- includeMinigraph: include minigraph node sequences as paths in output (note that cactus-graphmap-join will still remove them by default) -->
