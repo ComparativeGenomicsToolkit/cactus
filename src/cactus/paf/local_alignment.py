@@ -14,7 +14,7 @@ from toil.lib.bioio import getLogLevelString
 from sonLib.bioio import newickTreeParser
 import os
 from cactus.paf.paf import get_leaf_event_pairs, get_subtree_nodes, get_leaves, get_node
-from cactus.shared.common import cactus_call
+from cactus.shared.common import cactus_call, getOptionalAttrib
 
 def run_lastz(job, genome_A, genome_B, distance, params):    
     # Create a local temporary file to put the alignments in.
@@ -28,21 +28,30 @@ def run_lastz(job, genome_A, genome_B, distance, params):
     job.fileStore.readGlobalFile(genome_B, genome_b_file)
 
     # Get the params to do the alignment
-    lastz_params_node = params.find("blast").find("divergence")
+    lastz_params_node = params.find("blast")
+    lastz_divergence_node = lastz_params_node.find("divergence")
     divergences = params.find("constants").find("divergences")
     for i in "one", "two", "three", "four", "five":
         if distance <= float(divergences.attrib[i]):
-            lastz_params = lastz_params_node.attrib[i]
+            lastz_params = lastz_divergence_node.attrib[i]
             break
     else:
-        lastz_params = lastz_params_node.attrib["default"]
+        lastz_params = lastz_divergence_node.attrib["default"]
     logger.info("For distance {} for genomes {}, {} using {} lastz parameters".format(distance, genome_A,
                                                                                       genome_B, lastz_params))
+    
+    if getOptionalAttrib(lastz_params_node, 'gpuLastz', typeFn=bool, default=False):
+        lastz_bin = 'run_segalign'
+        suffix_a, suffix_b = '', ''
+    else:
+        lastz_bin = 'lastz'
+        suffix_a = '[multiple][nameparse=darkspace]'
+        suffix_b = '[nameparse=darkspace]'
 
     # Generate the alignment
-    lastz_cmd = ['lastz',
-                 '{}[multiple][nameparse=darkspace]'.format(os.path.basename(genome_a_file)),
-                 '{}[nameparse=darkspace]'.format(os.path.basename(genome_b_file)),
+    lastz_cmd = [lastz_bin,
+                 '{}{}'.format(os.path.basename(genome_a_file), suffix_a),
+                 '{}{}'.format(os.path.basename(genome_b_file), suffix_b),
                  '--format=paf:minimap2'] + lastz_params.split(' ')
     # note: it's very important to set the work_dir here, because cactus_call is not able to
     # sort out the mount directory by itself, presumably due to square brackets...
@@ -79,6 +88,13 @@ def combine_chunks(job, chunked_alignment_files):
 
 
 def make_chunked_alignments(job, genome_a, genome_b, distance, params):
+
+    lastz_params_node = params.find("blast")
+    if getOptionalAttrib(lastz_params_node, 'gpuLastz', typeFn=bool, default=False):
+        # wga-gpu has a 6G limit, so we always override
+        lastz_params_node.attrib['chunkSize'] = '6000000000'
+    lastz_cores = getOptionalAttrib(lastz_params_node, 'cpu', typeFn=int, default=None)
+    
     def make_chunks(genome):
         output_chunks_dir = job.fileStore.getLocalTempDir()
         fasta_chunk_cmd = ['fasta_chunk',
@@ -98,7 +114,8 @@ def make_chunked_alignments(job, genome_a, genome_b, distance, params):
         for chunk_b in chunks_b:
             mappers = { "lastz":run_lastz, "minimap2":run_minimap2}
             mappingFn = mappers[params.find("blast").attrib["mapper"]]
-            chunked_alignment_files.append(job.addChildJobFn(mappingFn, chunk_a, chunk_b, distance, params).rv())
+            chunked_alignment_files.append(job.addChildJobFn(mappingFn, chunk_a, chunk_b, distance, params,
+                                                             cores=lastz_cores, disk=4*(chunk_a.size+chunk_b.size)).rv())
 
     return job.addFollowOnJobFn(combine_chunks, chunked_alignment_files).rv()  # Combine the chunked alignment files
 
@@ -147,9 +164,11 @@ def make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancest
     event_names_to_events = { node.iD : node for node in get_subtree_nodes(event_tree) }
 
     # Check we have a sequence file for all events
+    total_sequence_size = 0
     for event in get_leaves(event_tree):
         if event.iD not in event_names_to_sequences:
             raise RuntimeError("No sequence found for event (aka node) {}".format(event.iD))
+        total_sequence_size += event_names_to_sequences[event.iD].size
 
     ancestor_event = get_node(event_tree, ancestor_event_string)
     ingroup_events = get_leaves(ancestor_event) # Get the set of ingroup events
@@ -163,8 +182,10 @@ def make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancest
                         "{} (ingroup:{}) and event: {} (ingroup:{})".format(event_a.iD, event_a in ingroup_events,
                                                                             event_b.iD, event_b in ingroup_events))
             alignment = root_job.addChildJobFn(make_chunked_alignments, event_names_to_sequences[event_a.iD],
-                                               event_names_to_sequences[event_b.iD], distance_a_b, params).rv()
+                                               event_names_to_sequences[event_b.iD], distance_a_b, params,
+                                               disk=2*total_sequence_size).rv()
             alignments.append(alignment)
 
     # Now do the chaining
-    return root_job.addFollowOnJobFn(chain_alignments, alignments, ancestor_event_string, params).rv()
+    return root_job.addFollowOnJobFn(chain_alignments, alignments, ancestor_event_string, params,
+                                     disk=2*total_sequence_size).rv()

@@ -48,7 +48,7 @@ void increase_alignment_level_counts(uint16_t *counts, Paf *paf) {
             if(c->op == match) {
                 for(int64_t j=0; j<c->length; j++) {
                     assert(i + j < paf->query_end && i + j >= 0 && i + j < paf->query_length);
-                    if(counts[i + j] < INT16_MAX) { // prevent overflow
+                    if(counts[i + j] < INT16_MAX - 1) { // prevent overflow
                         counts[i + j]++;
                     }
                 }
