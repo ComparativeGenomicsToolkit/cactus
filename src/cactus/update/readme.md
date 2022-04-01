@@ -30,7 +30,27 @@ nameN pathN lengthN
 
 For this example, the `input.txt` file mentioned above looks like:
 ```
-simGorilla https://raw.githubusercontent.com/UCSantaCruzComputationalGenomicsLab/cactusTestData/master/evolver/primates/loci1/simChimp.chr6 0.075
+simChimp https://raw.githubusercontent.com/UCSantaCruzComputationalGenomicsLab/cactusTestData/master/evolver/primates/loci1/simChimp.chr6 0.075
+```
+
+The output of `cactus-update-prepare` is expected to be as follows:
+```
+## Preprocessor
+cactus-preprocess jobstore/2 steps/seq_file.in steps/seq_file.out --inputNames simChimp --realTimeLogging --logInfo --retryCount 0
+
+## Alignment
+
+### Round 0
+cactus-blast jobstore/3 steps/seq_file.out steps/mr.cigar --root mr --realTimeLogging --logInfo --retryCount 0 --includeRoot
+cactus-align jobstore/4 steps/seq_file.out steps/mr.cigar steps/mr.hal --root mr --realTimeLogging --logInfo --retryCount 0 --maxCores 2 --includeRoot
+hal2fasta steps/mr.hal mr --hdf5InMemory > steps/mr.fa.2
+
+
+## Alignment update
+halReplaceGenome --bottomAlignmentFile steps/mr.hal --topAlignmentFile hal/evolverMammals.hal hal/evolverMammals.hal mr --hdf5InMemory
+
+## Aligment validation
+halValidate --genome mr hal/evolverMammals.hal --hdf5InMemory
 ```
 
 Before the execution of this example, the original tree of the `evolverMammals` alignment looks like:
@@ -41,7 +61,7 @@ Before the execution of this example, the original tree of the `evolverMammals` 
 
 The tree of`evolverMammals` alignment  after the addition of `simChimp` to the `mr` node will look like:
 ```
-((simHuman_chr6:0.144018,(simMouse_chr6:0.084509,simRat_chr6:0.091589,simGorilla:0.075)mr:0.271974)Anc1:0.020593,(simCow_chr6:0.18908,simDog_chr6:0.16303)Anc2:0.032898)Anc0;
+((simHuman_chr6:0.144018,(simMouse_chr6:0.084509,simRat_chr6:0.091589,simChimp:0.075)mr:0.271974)Anc1:0.020593,(simCow_chr6:0.18908,simDog_chr6:0.16303)Anc2:0.032898)Anc0;
 ```
 
 
@@ -69,7 +89,34 @@ where:
 
 For this example, the `input.txt` file mentioned above looks like:
 ```
-simGorilla https://raw.githubusercontent.com/UCSantaCruzComputationalGenomicsLab/cactusTestData/master/evolver/primates/loci1/simChimp.chr6 0.075
+simChimp https://raw.githubusercontent.com/UCSantaCruzComputationalGenomicsLab/cactusTestData/master/evolver/primates/loci1/simChimp.chr6 0.075
+```
+
+The output of `cactus-prepare-update` above will looks like as follows:
+```
+## Preprocessor
+cactus-preprocess jobstore/0 steps/seq_file.in steps/seq_file.out --inputNames simChimp --realTimeLogging --logInfo --retryCount 0
+
+## Alignment
+
+### Round 0
+cactus-blast jobstore/1 steps/seq_file.out steps/cg.cigar --root cg --realTimeLogging --logInfo --retryCount 0
+cactus-align jobstore/2 steps/seq_file.out steps/cg.cigar steps/cg.hal --root cg --realTimeLogging --logInfo --retryCount 0 --maxCores 4
+hal2fasta steps/cg.hal cg --hdf5InMemory > steps/cg.fa
+
+### Round 1
+cactus-blast jobstore/3 steps/seq_file.out steps/Anc1.cigar --root Anc1 --realTimeLogging --logInfo --retryCount 0 --includeRoot
+cactus-align jobstore/4 steps/seq_file.out steps/Anc1.cigar steps/Anc1.hal --root Anc1 --realTimeLogging --logInfo --retryCount 0 --maxCores 4 --includeRoot
+hal2fasta steps/Anc1.hal Anc1 --hdf5InMemory > steps/Anc1.fa
+
+## Alignment update
+halAddToBranch hal/evolverMammals.hal steps/cg.hal steps/Anc1.hal Anc1 cg simHuman_chr6 simChimp 0.1 0.075 --hdf5InMemory
+
+## Aligment validation
+halValidate --genome Anc1 hal/evolverMammals.hal --hdf5InMemory
+halValidate --genome cg hal/evolverMammals.hal --hdf5InMemory
+halValidate --genome simHuman_chr6 hal/evolverMammals.hal --hdf5InMemory
+halValidate --genome simChimp hal/evolverMammals.hal --hdf5InMemory
 ```
 
 Before the execution of this example, the original tree of the `evolverMammals` alignment looks like:
@@ -79,5 +126,5 @@ Before the execution of this example, the original tree of the `evolverMammals` 
 
 The tree of the `evolverMammals` alignment after the addition of `simChimp` to the branch connecting `Anc1` to `simHuman_chr6` will look like:
 ```
-(((simMouse_chr6:0.084509,simRat_chr6:0.091589)mr:0.271974,(simHuman_chr6:0.044018,simGorilla:0.075)cg:0.1)Anc1:0.020593,(simCow_chr6:0.18908,simDog_chr6:0.16303)Anc2:0.032898)Anc0;
+(((simMouse_chr6:0.084509,simRat_chr6:0.091589)mr:0.271974,(simHuman_chr6:0.044018,simChimp:0.075)cg:0.1)Anc1:0.020593,(simCow_chr6:0.18908,simDog_chr6:0.16303)Anc2:0.032898)Anc0;
 ```
