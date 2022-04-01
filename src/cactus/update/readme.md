@@ -8,7 +8,7 @@ This example takes the `simChimp` genome from the evolverPrimates [example](http
 
 For this example, run:
 ```
-cactus-update-prepare node evolverMammals.hal input.txt --genome mr --outDir steps --jobStore jobstore
+cactus-update-prepare node hal/evolverMammals.hal input/input.txt --genome mr --outDir steps --jobStore jobstore
 ```
 where 
 - `node` indicate the `adding-to-a-node` action
@@ -71,7 +71,7 @@ This example takes the `simChimp` genome from the evolverPrimates [example](http
 
 For this example, run:
 ```
-cactus-update-prepare branch evolverMammals.hal input.txt --parentGenome Anc1 --childGenome simHuman_chr6 --ancestorName cg --topBranchLength 0.10 --outDir steps --jobStore jobstore
+cactus-update-prepare branch --topGenome Anc1 --bottomGenome simHuman_chr6 hal/evolverMammals.hal input/input.txt --cactus-prepare-options '--alignCores 4' --outDir steps --jobStore jobstore --ancestorName cg --topBranchLength 0.10
 ```
 where:
 - `branch` indicate the `adding-to-a-branch` action
