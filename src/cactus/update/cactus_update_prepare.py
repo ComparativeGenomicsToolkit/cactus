@@ -711,8 +711,8 @@ def cactus_alignment_update(options):
                 options.cactus_prepare_options,
             )
         )
-
-    raise RuntimeError(f"Unknown subcommand '{options.action}'")
+    else:
+        raise RuntimeError(f"Unknown subcommand '{options.action}'")
 
 
 def add_subcommand_options(subparser, parent_parser, subcommand):
