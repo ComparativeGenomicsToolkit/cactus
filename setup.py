@@ -7,6 +7,10 @@ import subprocess
 versionFile = "src/cactus/shared/version.py"
 if os.path.exists(versionFile):
     os.remove(versionFile)
+# following the abovr
+readmeFile = "src/cactus/updating-alignment/src/cactus/update/readme.md"
+if os.path.exists(readmeFile):
+    os.remove(readmeFile)
 git_commit = subprocess.check_output(['git', 'rev-parse', 'HEAD'], encoding="ascii").strip()
 with open(versionFile, 'w') as versionFH:
     versionFH.write("cactus_commit = '%s'\n" % git_commit)
@@ -54,4 +58,5 @@ setup(
                             'cactus-graphmap-split = cactus.refmap.cactus_graphmap_split:main',
                             'cactus-graphmap-join = cactus.refmap.cactus_graphmap_join:main',
                             'cactus-align = cactus.setup.cactus_align:main',
-                            'cactus-align-batch = cactus.setup.cactus_align:main_batch']},)
+                            'cactus-align-batch = cactus.setup.cactus_align:main_batch',
+                            'cactus-update-prepare = cactus.update.cactus_update_prepare:main']},)
