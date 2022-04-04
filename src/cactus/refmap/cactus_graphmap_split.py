@@ -46,6 +46,7 @@ def main():
     parser.add_argument("--otherContig", type=str, help = "Lump all reference contigs unselected by above options into single one with this name")
     parser.add_argument("--reference", type=str, help = "Name of reference (in seqFile).  Ambiguity filters will not be applied to it")
     parser.add_argument("--maskFilter", type=int, help = "Ignore softmasked sequence intervals > Nbp")
+    parser.add_argument("--minIdentity", type=float, help = "Ignore PAF lines with identity (column 10/11) < this (overrides minIdentity in <graphmap_split> in config)")
     
     #Progressive Cactus Options
     parser.add_argument("--configFile", dest="configFile",
@@ -84,9 +85,13 @@ def cactus_graphmap_split(options):
         importSingularityImage(options)
 
         #load cactus config
-        configNode = ET.parse(options.configFile).getroot()
-        config = ConfigWrapper(configNode)
+        config_node = ET.parse(options.configFile).getroot()
+        config = ConfigWrapper(config_node)
         config.substituteAllPredefinedConstantsWithLiterals()
+
+        #override the minIdentity
+        if options.minIdentity is not None:
+            findRequiredNode(config_node, "graphmap_split").attrib["minIdentity"] = str(options.minIdentity)
 
         #Run the workflow
         if options.restart:
@@ -107,7 +112,7 @@ def cactus_graphmap_split(options):
                 assert options.otherContig not in ref_contigs
 
             # get the minigraph "virutal" assembly name
-            graph_event = getOptionalAttrib(findRequiredNode(configNode, "graphmap"), "assemblyName", default="_MINIGRAPH_")
+            graph_event = getOptionalAttrib(findRequiredNode(config_node, "graphmap"), "assemblyName", default="_MINIGRAPH_")
 
             # load the seqfile
             seqFile = SeqFile(options.seqFile)
@@ -230,7 +235,7 @@ def split_gfa(job, config, gfa_id, paf_ids, ref_contigs, other_contig, reference
     min_paf_ident = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "minIdentity", typeFn=float, default=None)
     if min_paf_ident:
         filter_paf_path = paf_path + ".filter"
-        cactus_call(parameters=['awk', '$10 / ($11 + 0.0000001) > {}'.format(min_paf_ident), paf_path], outfile=filter_paf_path)
+        cactus_call(parameters=['awk', '$10 / ($11 + 0.0000001) >= {}'.format(min_paf_ident), paf_path], outfile=filter_paf_path)
         paf_path = filter_paf_path
     
     # get the minigraph "virutal" assembly name

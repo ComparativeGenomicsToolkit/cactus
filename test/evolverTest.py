@@ -286,7 +286,7 @@ class TestCase(unittest.TestCase):
         chroms = ['chrI', 'chrII', 'chrIII', 'chrIV', 'chrV', 'chrVI', 'chrVII', 'chrVIII', 'chrIX', 'chrX', 'chrXI', 'chrXIV', 'chrXV']
         gm_out_dir = os.path.join(self.tempDir, 'chroms')
         subprocess.check_call(['cactus-graphmap-split', self._job_store(binariesMode), seq_file_path, mg_path, paf_path,
-                               '--refContigs'] + chroms +
+                               '--refContigs'] + chroms + ['--minIdentity', '0.55'] +
                               ['--reference', 'S288C', '--maskFilter', '20000', '--otherContig', 'chrOther', '--outDir', gm_out_dir] + cactus_opts)
 
         # create the vg graph for each chromosome
