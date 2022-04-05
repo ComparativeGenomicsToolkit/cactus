@@ -119,8 +119,8 @@ export PYTHONPATH=$(pwd)/submodules:$PYTHONPATH
 
 It's useful to add the paths to the virtualenv so as not to set them each time you need to run cactus from a new shell.  This can be done with
 ```
-echo 'export PATH=$(pwd)/bin:$PATH' >> cactus_env/bin/activate
-echo 'export PYTHONPATH=$(pwd)/lib:$PYTHONPATH' >> cactus_env/bin/activate
+echo "export PATH=$(pwd)/bin:\$PATH" >> cactus_env/bin/activate
+echo "export PYTHONPATH=$(pwd)/lib:\$PYTHONPATH" >> cactus_env/bin/activate
 ```
 
 #### Python Install With Docker Binaries
