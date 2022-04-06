@@ -74,6 +74,14 @@ def cactus_cons(job, tree, ancestor_event, config_node, seq_id_map, og_map, paf_
     secondary_alignment_file = os.path.join(work_dir, '{}_secondary.paf'.format(ancestor_event))
     system("grep 'tp:A:S' {} > {} || true".format(paf_path, secondary_alignment_file))  # Alignments that are secondaries
 
+    # Rescue secondaries
+    rescued_secondary_alignment_file = os.path.join(work_dir, '{}_rescued_secondary.paf'.format(ancestor_event))
+    system("paf_consistency {} -i {} > {} || true".format(primary_alignment_file, secondary_alignment_file, rescued_secondary_alignment_file))  # Alignments that are not-secondaries
+
+    # Add rescued secondaries to primaries
+    primary_and_rescued_secondaries_alignment_file = os.path.join(work_dir, '{}_primary_and_rescued_secondary.paf'.format(ancestor_event))
+    system("cat {} {} > {} || true".format(primary_alignment_file, rescued_secondary_alignment_file, primary_and_rescued_secondaries_alignment_file))
+
     # Temporary place to store the output c2h file
     tmpHal = os.path.join(work_dir, '{}.c2h'.format(ancestor_event))
     tmpFasta = os.path.join(work_dir, '{}.c2h.fa'.format(ancestor_event))
@@ -86,9 +94,9 @@ def cactus_cons(job, tree, ancestor_event, config_node, seq_id_map, og_map, paf_
     pairs = [[genome, faPath] for genome, faPath in list(seq_path_map.items())]
     args = ["--sequences", " ".join([item for sublist in pairs for item in sublist]),
             "--speciesTree", NXNewick().writeString(tree), "--logLevel", getLogLevelString(),
-            "--alignments", primary_alignment_file, "--params", tmpConfig, "--outputFile", tmpHal,
+            "--alignments", primary_and_rescued_secondaries_alignment_file, "--params", tmpConfig, "--outputFile", tmpHal,
             "--outputHalFastaFile", tmpFasta, "--outputReferenceFile", tmpRef, "--outgroupEvents", " ".join(outgroups),
-            "--referenceEvent", ancestor_event, "--threads", str(job.cores), "--secondaryAlignments", secondary_alignment_file]
+            "--referenceEvent", ancestor_event, "--threads", str(job.cores)] #, "--secondaryAlignments", rescued_secondary_alignment_file]
 
     messages = cactus_call(check_output=True, returnStdErr=True,
                            parameters=["cactus_consolidated"] + args)[1]  # Get just the standard error output
