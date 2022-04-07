@@ -345,7 +345,7 @@ hal2assemblyHub.py ./jobstore ./yeast-pg/yeast-pg.hal yeast-pg/hub --shortLabel 
 Move `yeast-pg/hub` to somewhere web-accessible, and pass the full URL of `yeast-pg/hub/hub.txt` to the Genome Browser in the "My Data -> Track Hubs" menu.   Select `S288C` as the reference and display the hub.  Right-click on the display and select "Configure yeast track set" to toggle on all the assemblies (and toggle off Anc0 and _MINIGRAPH_).
 
 ## HPRC Graph v1.1
-with cactus commit 7fe0bea49e8adbf025eeaab2a88910375f514e87 except `cactus-graphmap-join` which used newer commit fdc16ae1739b225a324cb9f7f6b2ca8786f12b18 (can reproduce exactly using the latter commit for whole pipeline)
+with cactus commit 8f87e6e9e56ad4488a65a1b5c343257ca3b8d3fa
 
 The [Human Pangenome Reference Consortium](https://humanpangenome.org/data-and-resources/) is producing an ever-growing number of high quality phased assemblies.  This section will demonstrate how to use the Cactus-Minigraph Pangenome Pipeline to construct a Pangenome from them.  Note the instructions here are slightly different than were used to create the v1.0 Cactus-Minigraph pangenome that's been released by the HPRC, as they are based on a more recent and improved version of the pipeline. 
 
@@ -461,7 +461,7 @@ Now that the sequences are ready, we run `cactus-graphmap` as before.  There are
 `--outputGAFDir` : This is used to preserve the GAF output directly from minigraph.  It's huge and only for debugging/posterity.
 
 ```
-cactus-graphmap ${MYJOBSTORE} hprc-v1.1-mc.pp.seqfile https://s3-us-west-2.amazonaws.com/human-pangenomics/pangenomes/freeze/freeze1/minigraph/hprc-v1.0-minigraph-grch38.gfa.gz ${MYBUCKET}/hprc-v1.1-mc-grch38.paf --outputGAFDir ${MYBUCKET}/gaf-hprc-v1.1-mc-grch38 --outputFasta ${MYBUCKET}/fasta/minigraph.grch38.gfa.fa.gz --reference GRCh38  --delFilter 10000000 --base --maxLen 100000 --mapCores 16 --realTimeLogging --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.8xlarge:1.35 --nodeStorage 650 --maxNodes 25 --betaInertia 0 --targetTime 1 --logFile hprc-v1.1-mc-grch38.paf.log
+cactus-graphmap ${MYJOBSTORE} hprc-v1.1-mc.pp.seqfile https://s3-us-west-2.amazonaws.com/human-pangenomics/pangenomes/freeze/freeze1/minigraph/hprc-v1.0-minigraph-grch38.gfa.gz ${MYBUCKET}/hprc-v1.1-mc-grch38.paf --outputGAFDir ${MYBUCKET}/gaf-hprc-v1.1-mc-grch38 --outputFasta ${MYBUCKET}/fasta/minigraph.grch38.gfa.fa.gz --reference GRCh38  --delFilter 10000000 --base --maxLen 100000 --mapCores 16 --realTimeLogging --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.8xlarge:1.5 --nodeStorage 650 --maxNodes 25 --betaInertia 0 --targetTime 1 --logFile hprc-v1.1-mc-grch38.paf.log
 ```
 
 Note:  The `--betaInertia 0 --targetTime 1` options force Toil to create AWS instances as soon as they are needed.
@@ -472,8 +472,10 @@ This command uses the spot market by specifying `:1.35` after the node type to b
 
 There are too many reference contigs to make a graph for each because of all the unplaced contigs in GRCh38.  Ideally, we would drop them but it simplifies some downstream pipelines that use tools that expect them to be in BAM headers etc. to just include them in the graph.  To do this, we use the `--otherContig` option to lump them all into a single job, and `--refContigs` to spell out all the contigs we want to treat separately.
 
+Also, the `--minIdentity` option is used to ignore PAF lines with < 75% identity. Using this stringency is only possible because `--base` was used with `cactus-graphmap`.
+
 ```
-cactus-graphmap-split ${MYJOBSTORE}  hprc-v1.1-mc.pp.seqfile https://s3-us-west-2.amazonaws.com/human-pangenomics/pangenomes/freeze/freeze1/minigraph/hprc-v1.0-minigraph-grch38.gfa.gz ${MYBUCKET}/hprc-v1.1-mc-grch38.paf --outDir ${MYBUCKET}/chroms-hprc-v1.1-mc-grch38 --otherContig chrOther --refContigs $(for i in `seq 22`; do echo chr$i; done ; echo "chrX chrY chrM") --reference GRCh38 --realTimeLogging --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.8xlarge --nodeStorage 1000 --maxNodes 1 --logFile hprc-v1.1-mc-grch38.split.log
+cactus-graphmap-split ${MYJOBSTORE}  hprc-v1.1-mc.pp.seqfile https://s3-us-west-2.amazonaws.com/human-pangenomics/pangenomes/freeze/freeze1/minigraph/hprc-v1.0-minigraph-grch38.gfa.gz ${MYBUCKET}/hprc-v1.1-mc-grch38.paf --outDir ${MYBUCKET}/chroms-hprc-v1.1-mc-grch38 --otherContig chrOther --refContigs $(for i in `seq 22`; do echo chr$i; done ; echo "chrX chrY chrM") --reference GRCh38 --minIdentity --realTimeLogging --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.8xlarge --nodeStorage 1000 --maxNodes 1 --logFile hprc-v1.1-mc-grch38.split.log
 ```
 
 ### HPRC Graph: Batch Alignment
@@ -483,7 +485,7 @@ The rest of the pipeline is proceeds as in the yeast example. We need to manuall
 This command will create a vg and hal file for each chromosome in ${MYBUCKET}/align-batch-grch38/
 ```
 aws s3 cp ${MYBUCKET}/chroms-hprc-v1.1-mc-grch38/chromfile.txt .
-cactus-align-batch ${MYJOBSTORE} ./chromfile.txt ${MYBUCKET}/align-hprc-v1.1-mc-grch38 --alignCores 16 --realTimeLogging --alignOptions "--pangenome --reference GRCh38 --realTimeLogging  --outVG --maxLen 100000" --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.8xlarge:1.35 --nodeStorage 1000 --maxNodes 10 --betaInertia 0 --targetTime 1 --logFile hprc-v1.1-mc-grch38.align.log
+cactus-align-batch ${MYJOBSTORE} ./chromfile.txt ${MYBUCKET}/align-hprc-v1.1-mc-grch38 --alignCores 16 --realTimeLogging --alignOptions "--pangenome --reference GRCh38 --realTimeLogging  --outVG --maxLen 100000" --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.8xlarge:1.5 --nodeStorage 1000 --maxNodes 10 --betaInertia 0 --targetTime 1 --logFile hprc-v1.1-mc-grch38.align.log
 ```
 
 ### HPRC Graph: Creating the Whole-Genome Graph
