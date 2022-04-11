@@ -77,7 +77,7 @@ def main():
     set_logging_from_options(options)
     enableDumpStack()
 
-    if options.outputGAFDir:
+    if options.outputGAFDir and not options.outputGAFDir.startswith('s3://'):
         if not os.path.isdir(options.outputGAFDir):
             os.makedirs(options.outputGAFDir)
 
