@@ -485,7 +485,7 @@ The rest of the pipeline is proceeds as in the yeast example. We need to manuall
 This command will create a vg and hal file for each chromosome in ${MYBUCKET}/align-batch-grch38/
 ```
 aws s3 cp ${MYBUCKET}/chroms-hprc-v1.1-mc-grch38/chromfile.txt .
-cactus-align-batch ${MYJOBSTORE} ./chromfile.txt ${MYBUCKET}/align-hprc-v1.1-mc-grch38 --alignCores 16 --realTimeLogging --alignOptions "--pangenome --reference GRCh38 --realTimeLogging  --outVG --maxLen 100000" --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.8xlarge:1.5 --nodeStorage 1000 --maxNodes 10 --betaInertia 0 --targetTime 1 --logFile hprc-v1.1-mc-grch38.align.log
+cactus-align-batch ${MYJOBSTORE} ./chromfile.txt ${MYBUCKET}/align-hprc-v1.1-mc-grch38 --alignCores 16 --realTimeLogging --alignOptions "--pangenome --reference GRCh38 --realTimeLogging  --outVG --maxLen 10000" --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.8xlarge:1.5 --nodeStorage 1000 --maxNodes 10 --betaInertia 0 --targetTime 1 --logFile hprc-v1.1-mc-grch38.align.log
 ```
 
 ### HPRC Graph: Creating the Whole-Genome Graph
