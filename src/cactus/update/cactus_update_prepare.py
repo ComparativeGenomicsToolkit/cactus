@@ -323,7 +323,6 @@ def make_plan(
     patch,
     assemblies,
     preprocess_to_remove,
-    fasta_sanity_check,
 ):
     """Creates the plan from cactus-prepare and performs needed amendments removing unnecessary command lines
 
@@ -336,7 +335,6 @@ def make_plan(
         patch (str): the newick tree to be included in the seq_file
         assemblies (Dict[float,str]): assemblies/sequencies information to be included in the seq_file
         preprocess_to_remove (List[str]): list of sequences that do not need preprocessing step
-        fasta_sanity_check (bool): flag to indicate the inclusing of FASTA file sanity check
 
     Returns:
         str: the stepwise execution plan to execute Cactus
@@ -375,17 +373,9 @@ def make_plan(
     plan = re.sub("\n## HAL merging\n", "", plan, re.IGNORECASE | re.MULTILINE)
     plan = re.sub("halAppendSubtree .*?\n", "", plan, re.IGNORECASE | re.MULTILINE)
 
-    # replace HAL filename of the last hal2fast command-line
-    hal2fasta_job = re.findall(r"hal2fasta .*?(?=\s{0,}\n)", plan, re.IGNORECASE | re.MULTILINE)[-1]
-    plan = re.sub(hal2fasta_job, hal2fasta_job + ".2", plan, re.IGNORECASE | re.MULTILINE)
-
-    # add FASTA files sanity check command line
-    # it mustn't have no differences between old and FASTA files
-    if fasta_sanity_check:
-        genome = hal2fasta_job.split()[2]
-        plan += f"\n## Ancestor {genome} sequence sanity check\n"
-        plan += f"diff {os.path.join(out_dir,genome)}.fa {os.path.join(out_dir,genome)}.fa.2"
-        plan += "\n"
+    # remove the last hal2fasta as it will 
+    hal2fasta_job = re.findall(r"hal2fasta .*?(?=\s{0,})\n", plan, re.IGNORECASE | re.MULTILINE)[-1]
+    plan = re.sub(hal2fasta_job, "", plan, re.IGNORECASE | re.MULTILINE)
 
     return plan
 
@@ -399,7 +389,6 @@ def get_plan_adding2node(
     out_dir,
     jobstore_dir,
     out_seq_file,
-    fasta_sanity_check,
     cactus_prepare_options="",
 ):
     """
@@ -451,8 +440,7 @@ def get_plan_adding2node(
         cactus_prepare_options + " --outHal " + out_hal,
         patch,
         assemblies,
-        list(set([*children]) - set([*in_fasta_map])),
-        fasta_sanity_check,
+        list(set([*children]) - set([*in_fasta_map]))
     )
 
     # Amendment commands
@@ -492,7 +480,6 @@ def get_plan_adding2branch(
     out_seq_file,
     top_length,
     bottom_length,
-    fasta_sanity_check,
     cactus_prepare_options="",
 ):
     """A function that automatises the instructions at
@@ -609,8 +596,7 @@ def get_plan_adding2branch(
         cactus_prepare_options + " --outHal " + top_half_hal,
         patch,
         assemblies,
-        [child_genome] + list(set([*children]) - set([patch])),
-        fasta_sanity_check,
+        [child_genome] + list(set([*children]) - set([patch]))
     )
 
     # Amendment commands
@@ -683,7 +669,6 @@ def cactus_alignment_update(options):
                 options.out_dir,
                 options.jobstore_dir,
                 options.out_seq_file,
-                options.fasta_sanity_check,
                 options.cactus_prepare_options,
             )
         )
@@ -707,7 +692,6 @@ def cactus_alignment_update(options):
                 options.out_seq_file,
                 options.top_length,
                 options.bottom_length,
-                options.fasta_sanity_check,
                 options.cactus_prepare_options,
             )
         )
@@ -967,12 +951,6 @@ def main():
         choices=["docker", "local", "singularity"],
         help="The way to run the Cactus binaries (at top level; use --cactusOpts to set it in nested calls)",
         default=None,
-    )
-    parent_parser.add_argument(
-        "--with-fasta-check",
-        dest="fasta_sanity_check",
-        action="store_true",
-        help="Flag to output the diff command line for eldest ancestor FASTA file",
     )
 
     # new for cactus-update-prepare
