@@ -107,8 +107,7 @@ SequenceInterval get_target_interval(Paf *paf, SequenceInterval s) {
             s2.start = paf->target_start + (s.start - paf->query_start) * f;
             s2.end = paf->target_start + (s.end - paf->query_start) * f;
             assert(paf->target_start <= s2.start <= s2.end <= paf->target_end);
-        }
-        else {
+        } else {
             // End and start reverse as we reverse the alignment
             s2.end = paf->target_end - (s.start - paf->query_start) * f;
             s2.start = paf->target_end - (s.end - paf->query_start) * f;
@@ -139,6 +138,22 @@ int64_t find_index_of_first_overlapping_alignment(stList *paf_alignments, Sequen
      * Returns index of the first paf alignment overlapping this interval
      */
     return stList_binarySearchFirstIndex(paf_alignments, &s, cmp_paf_to_interval);
+}
+
+int64_t score_overlap(Paf *paf3, SequenceInterval interval1, SequenceInterval interval2) {
+    SequenceInterval interval3 = overlap(get_query_interval(paf3), interval1); // Approximate interval on query
+    if(interval_has_non_zero_length(interval3)) {
+        // Project interval3 through the secondary paf to calculate the approximate interval on the target sequence
+        SequenceInterval interval4 = get_target_interval(paf3, interval3);
+
+        // If interval2 and interval4 overlap then we have an agreement in the approximate alignment
+        SequenceInterval interval5 = overlap(interval2, interval4);
+        if(interval_has_non_zero_length(interval5)) {
+            assert(interval5.end > interval5.start);
+            return interval5.end - interval5.start; // Add the length of the overlap to the score
+        }
+    }
+    return 0;
 }
 
 int main(int argc, char *argv[]) {
@@ -260,22 +275,14 @@ int main(int argc, char *argv[]) {
                 int64_t k = 0; //find_index_of_first_overlapping_alignment(secondary_pafs, interval1);
                 while(k >= 0 && k < stList_length(secondary_pafs)) {
                     Paf *paf3 = stList_get(secondary_pafs, k);
-                    SequenceInterval interval3 = overlap(get_query_interval(paf3), interval1); // Approximate interval on query
-                    if(interval_has_non_zero_length(interval3)) {
-
-                        // Project interval3 through the secondary paf to calculate the approximate interval on the target sequence
-                        SequenceInterval interval4 = get_target_interval(paf3, interval3);
-
-                        // If interval2 and interval4 overlap then we have an agreement in the approximate alignment
-                        SequenceInterval interval5 = overlap(interval2, interval4);
-                        if(interval_has_non_zero_length(interval5)) {
-                            assert(interval5.end > interval5.start);
-                            secondary_alignment_scores[k] += interval5.end - interval5.start; // Add the length of the overlap to the score
-                        }
+                    if(score_overlap(paf3, interval1, interval2) > 0 || score_overlap(paf3, interval2, interval1) > 0) {
+                        st_uglyf("hello %i %i %i %i %i %i %i\n", (int)i, (int)j, (int)k, (int) score_overlap(paf3, interval1, interval2),
+                                 (int) score_overlap(paf3, interval2, interval1),
+                                 (int) paf3->query_end - paf3->query_start,
+                                 (int) paf3->target_end - paf3->target_start);
                     }
-                    else { // No more overlap between a sequence and interval1 is possible on the query sequence
-                        //break;
-                    }
+                    secondary_alignment_scores[k] += score_overlap(paf3, interval1, interval2);
+                    secondary_alignment_scores[k] += score_overlap(paf3, interval2, interval1); // Now do it with the target intervals reversed
                     k++;
                 }
             }
@@ -291,7 +298,7 @@ int main(int argc, char *argv[]) {
         if(secondary_alignment_scores[i] >= 1) {
             paf->tile_level = 1;
             paf->type = 'P';
-            //st_uglyf("%i %s %i\n", (int)secondary_alignment_scores[i], paf->query_name, (int)paf->query_end - paf->query_start);
+            st_uglyf("%i %s %i %i\n", (int)secondary_alignment_scores[i], paf->query_name, (int)paf->query_end - paf->query_start, (int)paf->target_end - paf->target_start);
         }
     }
 
