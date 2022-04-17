@@ -40,9 +40,13 @@ static void convertCoordinatesP(char **contig, int64_t *start, int64_t *end, int
     *end = *end + startP;
 }
 
-void paf_dechunk(Paf *paf) {
-    convertCoordinatesP(&paf->query_name, &paf->query_start, &paf->query_end, &paf->query_length);
-    convertCoordinatesP(&paf->target_name, &paf->target_start, &paf->target_end, &paf->target_length);
+void paf_dechunk(Paf *paf, bool fix_query, bool fix_target) {
+     if(fix_query) {
+         convertCoordinatesP(&paf->query_name, &paf->query_start, &paf->query_end, &paf->query_length);
+     }
+     if(fix_target) {
+         convertCoordinatesP(&paf->target_name, &paf->target_start, &paf->target_end, &paf->target_length);
+     }
  }
 
 int main(int argc, char *argv[]) {
@@ -54,6 +58,8 @@ int main(int argc, char *argv[]) {
      char *logLevelString = NULL;
      char *inputFile = NULL;
      char *outputFile = NULL;
+     bool fix_query = 1;
+     bool fix_target = 1;
 
      ///////////////////////////////////////////////////////////////////////////
      // Parse the inputs
@@ -63,11 +69,13 @@ int main(int argc, char *argv[]) {
          static struct option long_options[] = { { "logLevel", required_argument, 0, 'l' },
                                                  { "inputFile", required_argument, 0, 'i' },
                                                  { "outputFile", required_argument, 0, 'o' },
+                                                 { "query", no_argument, 0, 'q' },
+                                                 { "target", no_argument, 0, 't' },
                                                  { "help", no_argument, 0, 'h' },
                                                  { 0, 0, 0, 0 } };
 
          int option_index = 0;
-         int64_t key = getopt_long(argc, argv, "l:i:o:h", long_options, &option_index);
+         int64_t key = getopt_long(argc, argv, "l:i:o:hqt", long_options, &option_index);
          if (key == -1) {
              break;
          }
@@ -81,6 +89,12 @@ int main(int argc, char *argv[]) {
                  break;
              case 'o':
                  outputFile = optarg;
+                 break;
+             case 'q':
+                 fix_target = 0;
+                 break;
+             case 't':
+                 fix_query = 0;
                  break;
              case 'h':
                  usage();
@@ -108,7 +122,7 @@ int main(int argc, char *argv[]) {
 
      Paf *paf;
      while((paf = paf_read(input)) != NULL) {
-         paf_dechunk(paf);
+         paf_dechunk(paf, fix_query, fix_target);
          paf_check(paf);
          paf_write(paf, output);
          paf_destruct(paf);

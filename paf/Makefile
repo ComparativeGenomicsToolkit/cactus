@@ -10,7 +10,7 @@ stPafLibs = ${LDLIBS}
 
 all: all_libs all_progs
 all_libs: ${LIBDIR}/stPaf.a
-all_progs: all_libs ${BINDIR}/stPafTests ${BINDIR}/paf_chain ${BINDIR}/paf_invert ${BINDIR}/paf_tile ${BINDIR}/paf_trim ${BINDIR}/paf_shatter ${BINDIR}/paf_view ${BINDIR}/fasta_chunk ${BINDIR}/paf_dechunk ${BINDIR}/paf_dedupe
+all_progs: all_libs ${BINDIR}/stPafTests ${BINDIR}/paf_chain ${BINDIR}/paf_invert ${BINDIR}/paf_tile ${BINDIR}/paf_trim ${BINDIR}/paf_shatter ${BINDIR}/paf_view ${BINDIR}/fasta_chunk ${BINDIR}/fasta_extract ${BINDIR}/paf_dechunk ${BINDIR}/paf_dedupe ${BINDIR}/paf_to_bed
 
 ${LIBDIR}/stPaf.a : ${libSources} ${libHeaders}  ${stPafDependencies}
 	${CC} ${CPPFLAGS} ${CFLAGS} ${LDFLAGS} -c ${libSources}
@@ -20,6 +20,9 @@ ${LIBDIR}/stPaf.a : ${libSources} ${libHeaders}  ${stPafDependencies}
 
 ${BINDIR}/fasta_chunk : fasta_chunk.c ${LIBDEPENDS} ${commonPafLibs} ${libSources} ${libHeaders}
 	${CC} ${CPPFLAGS} ${CFLAGS} -o ${BINDIR}/fasta_chunk fasta_chunk.c ${libSources} ${commonPafLibs} ${LDLIBS}
+
+${BINDIR}/fasta_extract : fasta_extract.c ${LIBDEPENDS} ${commonPafLibs} ${libSources} ${libHeaders}
+	${CC} ${CPPFLAGS} ${CFLAGS} -o ${BINDIR}/fasta_extract fasta_extract.c ${libSources} ${commonPafLibs} ${LDLIBS}
 
 ${BINDIR}/paf_dechunk : paf_dechunk.c ${LIBDEPENDS} ${commonPafLibs} ${libSources} ${libHeaders}
 	${CC} ${CPPFLAGS} ${CFLAGS} -o ${BINDIR}/paf_dechunk paf_dechunk.c ${libSources} ${commonPafLibs} ${LDLIBS}
@@ -45,9 +48,12 @@ ${BINDIR}/paf_view : paf_view.c ${LIBDEPENDS} ${commonPafLibs} ${libSources} ${l
 ${BINDIR}/paf_dedupe : paf_dedupe.c ${LIBDEPENDS} ${commonPafLibs} ${libSources} ${libHeaders}
 	${CC} ${CPPFLAGS} ${CFLAGS} -o ${BINDIR}/paf_dedupe paf_dedupe.c ${libSources} ${commonPafLibs} ${LDLIBS}
 
+${BINDIR}/paf_to_bed : paf_to_bed.c ${LIBDEPENDS} ${commonPafLibs} ${libSources} ${libHeaders}
+	${CC} ${CPPFLAGS} ${CFLAGS} -o ${BINDIR}/paf_to_bed paf_to_bed.c ${libSources} ${commonPafLibs} ${LDLIBS}
+
 ${BINDIR}/stPafTests : ${libTests} ${LIBDIR}/stPaf.a ${stPafDependencies}
 	${CC} ${CPPFLAGS} ${CFLAGS} ${LDFLAGS} -o ${BINDIR}/stPafTests ${libTests} ${libSources} ${LIBDIR}/stPaf.a ${stCafLibs} ${LDLIBS}
 
 clean : 
 	rm -f *.o
-	rm -f ${LIBDIR}/stPaf.a ${BINDIR}/stPafTests ${BINDIR}/paf_chain ${BINDIR}/paf_invert ${BINDIR}/paf_tile ${BINDIR}/paf_trim ${BINDIR}/paf_shatter ${BINDIR}/paf_view ${BINDIR}/fasta_chunk ${BINDIR}/paf_dechunk ${BINDIR}/paf_dedupe
+	rm -f ${LIBDIR}/stPaf.a ${BINDIR}/stPafTests ${BINDIR}/paf_chain ${BINDIR}/paf_invert ${BINDIR}/paf_tile ${BINDIR}/paf_trim ${BINDIR}/paf_shatter ${BINDIR}/paf_view ${BINDIR}/fasta_chunk ${BINDIR}/fasta_extract ${BINDIR}/paf_dechunk ${BINDIR}/paf_dedupe ${BINDIR}/paf_to_bed

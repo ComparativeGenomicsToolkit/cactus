@@ -500,3 +500,39 @@ stList *paf_shatter(Paf *paf) {
 
     return matches;
 }
+
+/*
+ * Functions used by paf_tile and paf_to_bed
+ */
+
+SequenceCountArray *get_alignment_count_array(stHash *seq_names_to_alignment_count_arrays, Paf *paf) {
+    SequenceCountArray *seq_count_array = stHash_search(seq_names_to_alignment_count_arrays, paf->query_name);
+    if(seq_count_array == NULL) { // If the counts have not been initialized yet
+        seq_count_array = st_calloc(1, sizeof(SequenceCountArray));
+        seq_count_array->name = paf->query_name;
+        seq_count_array->length = paf->query_length;
+        seq_count_array->counts = st_calloc(paf->query_length, sizeof(uint16_t)); // sets all the counts to zero
+        stHash_insert(seq_names_to_alignment_count_arrays, paf->query_name, seq_count_array); // adds to the hash
+    }
+    return seq_count_array;
+}
+
+void increase_alignment_level_counts(SequenceCountArray *seq_count_array, Paf *paf) {
+    Cigar *c = paf->cigar;
+    int64_t i = paf->query_start;
+    while(c != NULL) {
+        if(c->op != query_delete) {
+            if(c->op == match) {
+                for(int64_t j=0; j<c->length; j++) {
+                    assert(i + j < paf->query_end && i + j >= 0 && i + j < paf->query_length);
+                    if(seq_count_array->counts[i + j] < INT16_MAX - 1) { // prevent overflow
+                        seq_count_array->counts[i + j]++;
+                    }
+                }
+            }
+            i += c->length;
+        }
+        c = c->next;
+    }
+    assert(i == paf->query_end);
+}

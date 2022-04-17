@@ -166,5 +166,25 @@ stList *paf_shatter(Paf *paf);
 void paf_stats_calc(Paf *paf, char *query_seq, char *target_seq,
                        int64_t *matches, int64_t *mismatches, int64_t *query_inserts, int64_t *query_deletes);
 
+
+/*
+ * Structure used to represent alignment coverage along a sequence
+ */
+typedef struct _sequenceCountArray {
+    char *name; // Sequence name
+    int64_t length; // Sequence length
+    uint16_t *counts; // Array of counts, one for each base
+} SequenceCountArray;
+
+/*
+ * Get a count array for the query sequence of a paf record, creating one if it doesn't exist.
+ */
+SequenceCountArray *get_alignment_count_array(stHash *seq_names_to_alignment_count_arrays, Paf *paf);
+
+/*
+ * Increase the count of alignment coverages for the query bases covered by a paf record.
+ */
+void increase_alignment_level_counts(SequenceCountArray *seq_count_array, Paf *paf);
+
 #endif /* ST_PAF_H_ */
 

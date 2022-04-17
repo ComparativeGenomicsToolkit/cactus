@@ -17,3 +17,27 @@ Write a PAF library [DONE]
 Write tests [PARTIALLY DONE]
 
 Get a dotplot working [DONE]
+
+
+- Cleanup paf_consistency and park it.
+
+- Come up with a pipeline for filtering outgroup sequences
+  - paf_to_bed: creates a bed coverage track
+  - fasta_extract: filter sequences to just those overlapping (or not overlapping) the bed intervals
+
+  - algorithm sketch:
+     - construct the paf of all alignments X as follows:
+         - for each ingroup A
+               - for each outgroup B, ranked in preference (probably closest to furthest)
+                    - align A to B to produce pafs Y
+                    - identify all ingroup sub-sequences that are unaligned longer than k as follows:
+                        - run paf_to_bed on ingroup A with the alignments Y to B to create a bed of aligned coverage on A (consider doing chaining before this is done)
+                        - run bed_filter to extract unaligned sequences longer than k creating a reduced subset of A called A'
+                    - replace A with A'
+                    - if not the first outgroup in list of outgroups:
+                        - run paf_dechunk to update the paf coordinates of paf alignments Y to be in the global coordinate space and add them to X
+
+     - extract just the relevant parts of each outgroup to include in the final alignment as follows:
+          - for each outgroup B
+               - run paf_to_bed on B with X to create a bed of aligned coverage on B
+               - run bed_filter to extract aligned sequences
