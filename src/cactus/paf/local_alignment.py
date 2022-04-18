@@ -13,7 +13,7 @@ from toil.statsAndLogging import logger
 from toil.lib.bioio import getLogLevelString
 from sonLib.bioio import newickTreeParser
 import os
-from cactus.paf.paf import get_leaf_event_pairs, get_subtree_nodes, get_leaves, get_node
+from cactus.paf.paf import get_leaf_event_pairs, get_leaves, get_node, get_distances
 from cactus.shared.common import cactus_call, getOptionalAttrib
 
 
@@ -148,8 +148,10 @@ def make_ingroup_to_outgroup_alignments2(job, alignments, ingroup, outgroup_even
 
     # run paf_to_bed to create a bed of aligned coverage
     bed_file = job.fileStore.getLocalTempFile()  # Get a temporary file to store the bed file in
-    messages = cactus_call(parameters=['paf_to_bed', "--excludeAligned", "--binary", "--minSize", "100", "-i",
-                                       job.fileStore.readGlobalFile(alignments), "--logLevel", getLogLevelString()],
+    messages = cactus_call(parameters=['paf_to_bed', "--excludeAligned", "--binary",
+                                       "--minSize", params.find("blast").attrib["trimMinSize"],
+                                       "-i", job.fileStore.readGlobalFile(alignments),
+                                       "--logLevel", getLogLevelString()],
                                        outfile=bed_file, returnStdErr=True)
     job.fileStore.logToMaster("paf_to_bed event:{}\n{}".format(ingroup.iD, messages[:-1]))  # Log paf_to_bed
 
@@ -157,7 +159,8 @@ def make_ingroup_to_outgroup_alignments2(job, alignments, ingroup, outgroup_even
     seq_file = job.fileStore.getLocalTempFile()  # Get a temporary file to store the subsequences in
     ingroup_seq_file = job.fileStore.readGlobalFile(event_names_to_sequences[ingroup.iD])  # The ingroup sequences
     messages = cactus_call(parameters=['fasta_extract', "-i", bed_file, ingroup_seq_file,
-                                       "--flank", "10", "--logLevel", getLogLevelString()],
+                                       "--flank", params.find("blast").attrib["trimFlanking"],
+                                       "--logLevel", getLogLevelString()],
                            outfile=seq_file, returnStdErr=True)
     job.fileStore.logToMaster("fasta_extract event:{}\n{}".format(ingroup.iD, messages[:-1]))  # Log fasta_extract
 
@@ -233,18 +236,19 @@ def make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancest
     root_job = Job()
     job.addChild(root_job)
 
-    logger.info("Parsing species tree: {}".format(event_tree_string))
+    job.fileStore.logToMaster("Parsing species tree: {}".format(event_tree_string))
     event_tree = newickTreeParser(event_tree_string)
-
-    # Make a map of event names to nodes in the event tree
-    event_names_to_events = {node.iD:node for node in get_subtree_nodes(event_tree)}
+    distances = get_distances(event_tree)  # Distances between all pairs of nodes
 
     ancestor_event = get_node(event_tree, ancestor_event_string)
     ingroup_events = get_leaves(ancestor_event) # Get the set of ingroup events
-    logger.info("Got ingroup events: {} for ancestor event: {}".format(" ".join([i.iD for i in ingroup_events]), ancestor_event_string))
+    job.fileStore.logToMaster("Got ingroup events: {} for ancestor event: {}".format(" ".join([i.iD for i in ingroup_events]),
+                                                                       ancestor_event_string))
 
-    outgroup_events = [ event for event in get_leaves(event_tree) if event not in ingroup_events]  # Set of outgroups
-    logger.info("Got outgroup events: {} for ancestor event: {}".format(" ".join([i.iD for i in outgroup_events]), ancestor_event_string))
+    outgroup_events = [event for event in get_leaves(event_tree) if event not in ingroup_events]  # Set of outgroups
+    outgroup_events.sort(key=lambda outgroup: distances[ancestor_event, outgroup])  # Sort from closest to furthest
+    job.fileStore.logToMaster("Got outgroup events: {} for ancestor event: {}".format(" ".join([i.iD for i in outgroup_events]),
+                                                                        ancestor_event_string))
 
     # Calculate the total sequence size
     total_sequence_size = sum(event_names_to_sequences[event.iD].size for event in get_leaves(event_tree))
@@ -252,7 +256,7 @@ def make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancest
     # for each pair of ingroups make alignments
     ingroup_alignments = []
     for ingroup, ingroup2, distance_a_b in get_leaf_event_pairs(ancestor_event):
-        logger.info("Building alignment between event: {} (ingroup) and event: {} (ingroup)".format(ingroup.iD, ingroup2.iD))
+        job.fileStore.logToMaster("Building alignment between event: {} (ingroup) and event: {} (ingroup)".format(ingroup.iD, ingroup2.iD))
         ingroup_alignments.append(root_job.addChildJobFn(make_chunked_alignments, event_names_to_sequences[ingroup.iD],
                                                          event_names_to_sequences[ingroup2.iD], distance_a_b, params,
                                                          disk=2*total_sequence_size).rv())
@@ -267,5 +271,17 @@ def make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancest
                                      ancestor_event_string, params, disk=2*total_sequence_size).rv()
 
 
+# Todo: Sort out right level of logging
+
+# Todo: Write a function to trim the outgroup sequences by coverage
+# For each outgroup: Calculate coverage on the outgroup using paf_to_bed
+# Todo: ensure no overlap between bed_intervals and allow for flanks
+
+# Extract the aligned subsequences using fasta_extract
+# Todo: add option to ignore any region not in input sequences
+
+# Convert alignments to refer to subsequences
+
+# Write back file
 
 

@@ -44,6 +44,11 @@
 	<!-- runMapQFiltering Filter alignments by score/mapQ, ranking alignments from highest mapQ/score to lowest -->
 	<!-- minimumMapQValue Minimum score/mapQ -->
 	<!-- maxAlignmentsPerSite Maximum alignments per site in performing filtering -->
+	<!-- trimOutgroupFlanking: The amount of flanking sequence to leave on the ends of the trimmed outgroup fragments.
+	   NB: this value should be larger than the 'splitIndelsLongerThanThis' value in the realign arguments -->
+	<!-- trimFlanking: The length of flanking sequence to attach to the trimmed ingroup sequences -->
+	<!-- trimMinSize: The minimum size of uncovered regions (*before* adding flanking sequence) to output from the
+         trimming process -->
 	<blast chunkSize="25000000"
 		   overlapSize="10000"
 		   mapper="lastz"
@@ -59,6 +64,9 @@
 		   chainGapOpen="5000"
 		   chainGapExtend="1"
 		   chainTrimFraction="0.02"
+		   trimMinSize="100"
+		   trimFlanking="10"
+		   trimOutgroupFlanking="2000"
 		   >
 
 		<!-- The following are parametrised to produce the same results as the default settings,

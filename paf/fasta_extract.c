@@ -134,10 +134,10 @@ int main(int argc, char *argv[]) {
         char *sequence = stHash_search(sequences, seq_name);
         assert(sequence != NULL);
         int64_t seq_length = (int64_t)stHash_search(sequenceLengths, seq_name);
-        assert(0 <= start <= end <= seq_length);
+        assert(0 <= start); assert(start <= end); assert(end <= seq_length);
         if(end - start >= min_size) { // Meets the minimum threshold length
             int64_t i = start - flank > 0 ? start - flank : 0, j = end + flank <= seq_length ? end + flank : seq_length; // Get expanded bounds of sequence
-            assert(0 <= i <= start <= end <= j <= seq_length);
+            assert(0 <= i); assert(i <= start); assert(start <= end); assert(end <= j); assert(j <= seq_length);
             char *s = stString_getSubString(sequence, i, j-i);
             fprintf(output, ">%s|%" PRIi64 "|%" PRIi64 "\n%s\n", seq_name, seq_length, i, s);
             free(s);
