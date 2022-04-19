@@ -530,7 +530,7 @@ Note: Don't use `--vcf` with this command to make an allele-frequency-filtered V
 
 The selection of the reference genome is very important, as it will be used as the backbone for the graph.  It is the only genome that is guaranteed to not have any cycles nor to ever be clipped, and therefore provides a coordinate system in the graph.  Any input genome can be used as a reference, provided it's consistently passed as the `--reference` option to all the commands.  It also must not have a "." in its genome name.  In practice, there are usually two possible references for the HPRC graphs: GRCh38 and CHM13. 
 
-It is advisable to also pass `--vcfRerefence GRCh38 --xgReference GRCh38` to `cactus-graphmap-join` to tell it to make a second VCF and xg based on the GRCh38 reference. Likewise if creating a filtered graph with `cactus-graphmap-join --vgClipOpts "-d 9"`, you should instead use `--vgClipOpts "-d 9 -e GRCh38"` to not filter any nodes on the GRCh38 reference paths -- this will make it easier to use this graph (via surjection) to call variants on GRCh38 as well as CHM13.
+It is advisable to also pass `--vcfRerefence GRCh38 --xgReference GRCh38` to `cactus-graphmap-join` to tell it to make a second VCF and xg based on the GRCh38 reference. Likewise if creating a filtered graph with `cactus-graphmap-join --vgClipOpts "-d 9"`, you should instead use `--vgClipOpts "-d 9 -P GRCh38"` to not filter any nodes on the GRCh38 reference paths -- this will make it easier to use this graph (via surjection) to call variants on GRCh38 as well as CHM13.
 
 Note: some contig names like `chrY` (if it is not included) and options like `--otherContig` will not be necessary for `CHM13`
 
