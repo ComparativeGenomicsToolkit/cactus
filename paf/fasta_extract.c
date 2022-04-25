@@ -26,8 +26,19 @@ void usage() {
     fprintf(stderr, "-o --outFile : The output fasta file. If omitted then sequences will be written to stdout\n");
     fprintf(stderr, "-f --flank : How much flanking sequence to include at each end of each extracted sequence, by default: %" PRIi64 "\n", flank);
     fprintf(stderr, "-m --minSize : The minimum size of a sequence (before adding the flanks) to extract, by default: %" PRIi64 "\n", min_size);
+    fprintf(stderr, "-n --skipMissing : Skip bed intervals that reference missing sequences instead of causing an error\n");
     fprintf(stderr, "-l --logLevel : Set the log level\n");
     fprintf(stderr, "-h --help : Print this help message\n");
+}
+
+void report_interval(FILE *output, char *seq_name, int64_t start, int64_t end, stHash *sequences, stHash *sequenceLengths) {
+    char *sequence = stHash_search(sequences, seq_name);
+    assert(sequence != NULL);
+    int64_t seq_length = (int64_t)stHash_search(sequenceLengths, seq_name);
+    assert(0 <= start); assert(start <= end); assert(end <= seq_length);
+    char *s = stString_getSubString(sequence, start, end-start);
+    fprintf(output, ">%s|%" PRIi64 "|%" PRIi64 "\n%s\n", seq_name, seq_length, start, s);
+    free(s);
 }
 
 int main(int argc, char *argv[]) {
@@ -39,6 +50,7 @@ int main(int argc, char *argv[]) {
     char *logLevelString = NULL;
     char *bed_file = NULL;
     char *output_file = NULL;
+    bool skipMissing = 0;
 
     ///////////////////////////////////////////////////////////////////////////
     // Parse the inputs
@@ -50,11 +62,12 @@ int main(int argc, char *argv[]) {
                                                 { "outputFile", required_argument, 0, 'o' },
                                                 { "flank", required_argument, 0, 'f' },
                                                 { "minSize", required_argument, 0, 'm' },
+                                                { "skipMissing", no_argument, 0, 'n' },
                                                 { "help", no_argument, 0, 'h' },
                                                 { 0, 0, 0, 0 } };
 
         int option_index = 0;
-        int64_t key = getopt_long(argc, argv, "l:o:f:hm:i:", long_options, &option_index);
+        int64_t key = getopt_long(argc, argv, "l:o:f:hnm:i:", long_options, &option_index);
         if (key == -1) {
             break;
         }
@@ -74,6 +87,9 @@ int main(int argc, char *argv[]) {
                 break;
             case 'm':
                 min_size = atol(optarg);
+                break;
+            case 'n':
+                skipMissing = 1;
                 break;
             case 'h':
                 usage();
@@ -119,29 +135,58 @@ int main(int argc, char *argv[]) {
     stHash_destructIterator(it);
 
     //////////////////////////////////////////////
-    // Now parse the bed file and extract the sequences
+    // Now parse the bed file and extract the sequences, ensuring they are non-overlapping
     //////////////////////////////////////////////
 
     FILE *input = bed_file == NULL ? stdin : fopen(bed_file, "r");
     FILE *output = output_file == NULL ? stdout : fopen(output_file, "w");
-    char *line;
+    char *line, *p_seq_name = NULL;
+    int64_t p_start, p_end;
     while((line = stFile_getLineFromFile(input)) != NULL) {
-        stList *tokens = stString_split(line);
+        stList *tokens = stString_split(line); free(line); // Tokenize and cleanup the line
         char *seq_name = stList_get(tokens, 0);
         int64_t start = atol(stList_get(tokens, 1));
         int64_t end = atol(stList_get(tokens, 2));
-        st_logDebug("Processing sequence fragment: %s start:%" PRIi64 " end:%" PRIi64 " \n", seq_name, start, end);
-        char *sequence = stHash_search(sequences, seq_name);
-        assert(sequence != NULL);
-        int64_t seq_length = (int64_t)stHash_search(sequenceLengths, seq_name);
-        assert(0 <= start); assert(start <= end); assert(end <= seq_length);
-        if(end - start >= min_size) { // Meets the minimum threshold length
-            int64_t i = start - flank > 0 ? start - flank : 0, j = end + flank <= seq_length ? end + flank : seq_length; // Get expanded bounds of sequence
-            assert(0 <= i); assert(i <= start); assert(start <= end); assert(end <= j); assert(j <= seq_length);
-            char *s = stString_getSubString(sequence, i, j-i);
-            fprintf(output, ">%s|%" PRIi64 "|%" PRIi64 "\n%s\n", seq_name, seq_length, i, s);
-            free(s);
+
+        if(stHash_search(sequences, seq_name) == NULL) { // Check if we have the sequence
+            if(skipMissing) { // If we are expecting to skip missing sequences
+                stList_destruct(tokens);
+                st_logDebug("Skipping sequence fragment: %s start:%" PRIi64 " end:%" PRIi64 " \n", seq_name, start, end);
+                continue;
+            }
+            st_errAbort("Missing sequence: %s\n", seq_name); // Report an error if the sequence has not been read
         }
+
+        st_logDebug("Processing sequence fragment: %s start:%" PRIi64 " end:%" PRIi64 " \n", seq_name, start, end);
+
+        if(end - start >= min_size) { // Meets the minimum threshold length
+            // Get coordinates of interval, adding on flanks
+            int64_t seq_length = (int64_t)stHash_search(sequenceLengths, seq_name);
+            int64_t i = start - flank > 0 ? start - flank : 0, j = end + flank <= seq_length ? end + flank : seq_length; // Get expanded bounds of sequence with flanks
+            assert(0 <= i); assert(i <= start); assert(start <= end); assert(end <= j); assert(j <= seq_length);
+
+            if(p_seq_name != NULL) { // Has a prior interval
+                if(strcmp(p_seq_name, seq_name) == 0 && p_end >= i) { // Previous interval overlaps this one
+                    stList_destruct(tokens);
+                    p_end = p_end > j ? p_end : j; // Get right-most point of new and old interval to expand previous interval
+                    continue; // Go to next interval without creating a new one, no need to print it yet
+                }
+                else { // Does not overlap previous interval
+                    // Print out the previous interval
+                    report_interval(output, p_seq_name, p_start, p_end, sequences, sequenceLengths);
+                    free(p_seq_name);
+                }
+            }
+            // Create a new interval - either because there was no prior interval or because we have printed out the previous interval
+            p_seq_name = stString_copy(seq_name);
+            p_start = i; p_end = j;
+        }
+        stList_destruct(tokens);
+    }
+    if(p_seq_name != NULL) { // Has a final interval
+        // Report the last interval
+        report_interval(output, p_seq_name, p_start, p_end, sequences, sequenceLengths);
+        free(p_seq_name);
     }
 
     //////////////////////////////////////////////

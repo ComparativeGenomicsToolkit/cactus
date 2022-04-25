@@ -186,5 +186,20 @@ SequenceCountArray *get_alignment_count_array(stHash *seq_names_to_alignment_cou
  */
 void increase_alignment_level_counts(SequenceCountArray *seq_count_array, Paf *paf);
 
+typedef struct _interval {
+    char *name;
+    int64_t start, end, length;
+} Interval;
+
+/*
+ * Decodes a fasta header into an interval.
+ */
+Interval *decode_fasta_header(char *fasta_header);
+
+/*
+ * Compare intervals;
+ */
+int cmp_intervals(const void *i, const void *j);
+
 #endif /* ST_PAF_H_ */
 

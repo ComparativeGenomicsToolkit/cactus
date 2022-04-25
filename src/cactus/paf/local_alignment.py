@@ -121,24 +121,24 @@ def make_chunked_alignments(job, genome_a, genome_b, distance, params):
     return job.addFollowOnJobFn(combine_chunks, chunked_alignment_files).rv()  # Combine the chunked alignment files
 
 
-def make_ingroup_to_outgroup_alignments(job, ingroup, outgroup_events, event_tree, event_names_to_sequences, params):
+def make_ingroup_to_outgroup_alignments_1(job, ingroup_event, outgroup_events, event_names_to_sequences, params):
     #  a job should never set its own follow-on, so we hang everything off root_job here to encapsulate
     root_job = Job()
     job.addChild(root_job)
 
     #  align ingroup to first outgroup to produce paf alignments
     outgroup = outgroup_events[0] # The first outgroup
-    logger.info("Building alignment between ingroup event: {} and outgroup event: {}".format(ingroup.iD, outgroup.iD))
+    logger.info("Building alignment between ingroup event: {} and outgroup event: {}".format(ingroup_event.iD, outgroup.iD))
     alignment = root_job.addChildJobFn(make_chunked_alignments, event_names_to_sequences[outgroup.iD],
-                                       event_names_to_sequences[ingroup.iD], 1.0, params,
-                                       disk=2*(event_names_to_sequences[ingroup.iD].size+event_names_to_sequences[outgroup.iD].size)).rv()
+                                       event_names_to_sequences[ingroup_event.iD], 1.0, params,
+                                       disk=2*(event_names_to_sequences[ingroup_event.iD].size+event_names_to_sequences[outgroup.iD].size)).rv()
 
     #  post process the alignments and recursively generate alignments to remaining outgroups
-    return root_job.addFollowOnJobFn(make_ingroup_to_outgroup_alignments2, alignment, ingroup, outgroup_events[1:], event_tree,
+    return root_job.addFollowOnJobFn(make_ingroup_to_outgroup_alignments_2, alignment, ingroup_event, outgroup_events[1:],
                                      event_names_to_sequences, params).rv() if len(outgroup_events) > 1 else alignment
 
 
-def make_ingroup_to_outgroup_alignments2(job, alignments, ingroup, outgroup_events, event_tree,
+def make_ingroup_to_outgroup_alignments_2(job, alignments, ingroup_event, outgroup_events,
                                          event_names_to_sequences, params):
     # a job should never set its own follow-on, so we hang everything off root_job here to encapsulate
     root_job = Job()
@@ -153,29 +153,29 @@ def make_ingroup_to_outgroup_alignments2(job, alignments, ingroup, outgroup_even
                                        "-i", job.fileStore.readGlobalFile(alignments),
                                        "--logLevel", getLogLevelString()],
                                        outfile=bed_file, returnStdErr=True)
-    job.fileStore.logToMaster("paf_to_bed event:{}\n{}".format(ingroup.iD, messages[:-1]))  # Log paf_to_bed
+    job.fileStore.logToMaster("paf_to_bed event:{}\n{}".format(ingroup_event.iD, messages[:-1]))  # Log paf_to_bed
 
     # run fasta_extract to extract unaligned sequences longer than a threshold creating a reduced subset of A
     seq_file = job.fileStore.getLocalTempFile()  # Get a temporary file to store the subsequences in
-    ingroup_seq_file = job.fileStore.readGlobalFile(event_names_to_sequences[ingroup.iD])  # The ingroup sequences
+    ingroup_seq_file = job.fileStore.readGlobalFile(event_names_to_sequences[ingroup_event.iD])  # The ingroup sequences
     messages = cactus_call(parameters=['fasta_extract', "-i", bed_file, ingroup_seq_file,
                                        "--flank", params.find("blast").attrib["trimFlanking"],
                                        "--logLevel", getLogLevelString()],
                            outfile=seq_file, returnStdErr=True)
-    job.fileStore.logToMaster("fasta_extract event:{}\n{}".format(ingroup.iD, messages[:-1]))  # Log fasta_extract
+    job.fileStore.logToMaster("fasta_extract event:{}\n{}".format(ingroup_event.iD, messages[:-1]))  # Log fasta_extract
 
     # replace the ingroup sequences with remaining sequences
-    event_names_to_sequences[ingroup.iD] = job.fileStore.writeGlobalFile(seq_file)
+    event_names_to_sequences[ingroup_event.iD] = job.fileStore.writeGlobalFile(seq_file)
 
     # recursively make alignments with the remaining outgroups
-    alignments2 = root_job.addChildJobFn(make_ingroup_to_outgroup_alignments, ingroup, outgroup_events, event_tree,
+    alignments2 = root_job.addChildJobFn(make_ingroup_to_outgroup_alignments_1, ingroup_event, outgroup_events,
                                          event_names_to_sequences, params).rv()
 
-    return root_job.addFollowOnJobFn(make_ingroup_to_outgroup_alignments3, ingroup, event_names_to_sequences[ingroup.iD],
+    return root_job.addFollowOnJobFn(make_ingroup_to_outgroup_alignments_3, ingroup_event, event_names_to_sequences[ingroup_event.iD],
                                      alignments, alignments2).rv()
 
 
-def make_ingroup_to_outgroup_alignments3(job, ingroup, ingroup_seq_file, alignments, alignments2):
+def make_ingroup_to_outgroup_alignments_3(job, ingroup_event, ingroup_seq_file, alignments, alignments2):
     # Merge the together two alignment files
 
     alignments = job.fileStore.readGlobalFile(alignments)  # Copy the global alignment files locally
@@ -185,7 +185,7 @@ def make_ingroup_to_outgroup_alignments3(job, ingroup, ingroup_seq_file, alignme
     alignments2_corrected = job.fileStore.getLocalTempFile()
     messages = cactus_call(parameters=['paf_dechunk', "-i", alignments2, "--query", "--logLevel", getLogLevelString()],
                            outfile=alignments2_corrected, returnStdErr=True)
-    job.fileStore.logToMaster("paf_dechunk event:{}\n{}".format(ingroup.iD, messages[:-1]))  # Log paf_dechunk
+    job.fileStore.logToMaster("paf_dechunk event:{}\n{}".format(ingroup_event.iD, messages[:-1]))  # Log paf_dechunk
 
     # merge the two alignment files together
     merged_alignments = job.fileStore.getLocalTempFile()
@@ -232,23 +232,18 @@ def chain_alignments(job, alignment_files, reference_event_name, params):
 
 
 def make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancestor_event_string, params):
-    # a job should never set its own follow-on, so we hang everything off root_job here to encapsulate
+    # a job should never set its own follow-on, so we hang everything off the root_job here to encapsulate
     root_job = Job()
     job.addChild(root_job)
 
     job.fileStore.logToMaster("Parsing species tree: {}".format(event_tree_string))
     event_tree = newickTreeParser(event_tree_string)
-    distances = get_distances(event_tree)  # Distances between all pairs of nodes
 
     ancestor_event = get_node(event_tree, ancestor_event_string)
     ingroup_events = get_leaves(ancestor_event) # Get the set of ingroup events
+    outgroup_events = [event for event in get_leaves(event_tree) if event not in ingroup_events]  # Set of outgroups
     job.fileStore.logToMaster("Got ingroup events: {} for ancestor event: {}".format(" ".join([i.iD for i in ingroup_events]),
                                                                        ancestor_event_string))
-
-    outgroup_events = [event for event in get_leaves(event_tree) if event not in ingroup_events]  # Set of outgroups
-    outgroup_events.sort(key=lambda outgroup: distances[ancestor_event, outgroup])  # Sort from closest to furthest
-    job.fileStore.logToMaster("Got outgroup events: {} for ancestor event: {}".format(" ".join([i.iD for i in outgroup_events]),
-                                                                        ancestor_event_string))
 
     # Calculate the total sequence size
     total_sequence_size = sum(event_names_to_sequences[event.iD].size for event in get_leaves(event_tree))
@@ -261,27 +256,57 @@ def make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancest
                                                          event_names_to_sequences[ingroup2.iD], distance_a_b, params,
                                                          disk=2*total_sequence_size).rv())
 
+    # Get the outgroup events
+    distances = get_distances(event_tree)  # Distances between all pairs of nodes
+    outgroup_events.sort(key=lambda outgroup: distances[ancestor_event, outgroup])  # Sort from closest to furthest
+    job.fileStore.logToMaster("Got outgroup events: {} for ancestor event: {}".format(" ".join([i.iD for i in outgroup_events]),
+                                                                                      ancestor_event.iD))
+
     # for each ingroup make alignments to the outgroups
-    outgroup_alignments = [root_job.addChildJobFn(make_ingroup_to_outgroup_alignments, ingroup, outgroup_events,
-                                                  event_tree, event_names_to_sequences, params).rv()
+    outgroup_alignments = [root_job.addChildJobFn(make_ingroup_to_outgroup_alignments_1, ingroup, outgroup_events,
+                                                  dict(event_names_to_sequences), params).rv()
                            for ingroup in ingroup_events] if len(outgroup_events) > 0 else []
 
     # Now do the chaining
     return root_job.addFollowOnJobFn(chain_alignments, ingroup_alignments + outgroup_alignments,
                                      ancestor_event_string, params, disk=2*total_sequence_size).rv()
 
+def trim_unaligned_sequences(job, sequences, alignments, params):
+    alignments = job.fileStore.readGlobalFile(alignments)  # Download the alignments
+
+    # Make a bed of aligned sequence
+    # run paf_to_bed to create a bed of aligned coverage
+    bed_file = job.fileStore.getLocalTempFile()  # Get a temporary file to store the bed file in
+    messages = cactus_call(parameters=['paf_to_bed', "--binary", "--excludeUnaligned", "--includeInverted",
+                                       '-i', alignments, "--logLevel", getLogLevelString()],
+                           outfile=bed_file, returnStdErr=True)
+    # Log paf_to_bed
+    job.fileStore.logToMaster("paf_to_bed:\n{}".format(messages[:-1]))
+
+    trimmed_sequence_files = []
+    for sequence in sequences:
+        # run fasta_extract to extract unaligned sequences longer than a threshold creating a reduced subset of A
+        seq_file = job.fileStore.readGlobalFile(sequence)  # Load original sequence file
+        trimmed_seq_file = job.fileStore.getLocalTempFile()  # Get a temporary file to store the extracted subsequences
+        messages = cactus_call(parameters=['fasta_extract', "-i", bed_file, seq_file, "--skipMissing", "--minSize", "1",
+                                           "--flank", params.find("blast").attrib["trimOutgroupFlanking"],
+                                           "--logLevel", getLogLevelString()],
+                               outfile=trimmed_seq_file, returnStdErr=True)
+        job.fileStore.logToMaster("fasta_extract \n{}".format(messages[:-1]))  # Log fasta_extract
+        trimmed_sequence_files.append(trimmed_seq_file)
+
+    # Now convert the alignments to refer to the reduced sequences
+    trimmed_alignments = job.fileStore.getLocalTempFile()  # Get a temporary file to store the "trimmed" alignments
+    messages = cactus_call(parameters=['paf_upconvert', "-i", alignments, "--logLevel", getLogLevelString()] +
+                           trimmed_sequence_files, outfile=trimmed_alignments, returnStdErr=True)
+    job.fileStore.logToMaster("paf_upconvert\n{}".format(messages[:-1]))  # Log
+
+    return [job.fileStore.writeGlobalFile(i) for i in trimmed_sequence_files], \
+        job.fileStore.writeGlobalFile(trimmed_alignments)  # Return the trimmed sequence files and trimmed alignments
+
 
 # Todo: Sort out right level of logging
 
-# Todo: Write a function to trim the outgroup sequences by coverage
-# For each outgroup: Calculate coverage on the outgroup using paf_to_bed
-# Todo: ensure no overlap between bed_intervals and allow for flanks
-
-# Extract the aligned subsequences using fasta_extract
-# Todo: add option to ignore any region not in input sequences
-
-# Convert alignments to refer to subsequences
-
-# Write back file
+# Todo: Write unittests for fasta_extract, paf_to_bed and paf_upconvert
 
 

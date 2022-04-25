@@ -10,7 +10,7 @@ stPafLibs = ${LDLIBS}
 
 all: all_libs all_progs
 all_libs: ${LIBDIR}/stPaf.a
-all_progs: all_libs ${BINDIR}/stPafTests ${BINDIR}/paf_chain ${BINDIR}/paf_invert ${BINDIR}/paf_tile ${BINDIR}/paf_trim ${BINDIR}/paf_shatter ${BINDIR}/paf_view ${BINDIR}/fasta_chunk ${BINDIR}/fasta_extract ${BINDIR}/paf_dechunk ${BINDIR}/paf_dedupe ${BINDIR}/paf_to_bed
+all_progs: all_libs ${BINDIR}/stPafTests ${BINDIR}/paf_chain ${BINDIR}/paf_invert ${BINDIR}/paf_tile ${BINDIR}/paf_trim ${BINDIR}/paf_shatter ${BINDIR}/paf_view ${BINDIR}/fasta_chunk ${BINDIR}/fasta_extract ${BINDIR}/paf_dechunk ${BINDIR}/paf_dedupe ${BINDIR}/paf_to_bed ${BINDIR}/paf_upconvert
 
 ${LIBDIR}/stPaf.a : ${libSources} ${libHeaders}  ${stPafDependencies}
 	${CC} ${CPPFLAGS} ${CFLAGS} ${LDFLAGS} -c ${libSources}
@@ -51,9 +51,12 @@ ${BINDIR}/paf_dedupe : paf_dedupe.c ${LIBDEPENDS} ${commonPafLibs} ${libSources}
 ${BINDIR}/paf_to_bed : paf_to_bed.c ${LIBDEPENDS} ${commonPafLibs} ${libSources} ${libHeaders}
 	${CC} ${CPPFLAGS} ${CFLAGS} -o ${BINDIR}/paf_to_bed paf_to_bed.c ${libSources} ${commonPafLibs} ${LDLIBS}
 
+${BINDIR}/paf_upconvert : paf_upconvert.c ${LIBDEPENDS} ${commonPafLibs} ${libSources} ${libHeaders}
+	${CC} ${CPPFLAGS} ${CFLAGS} -o ${BINDIR}/paf_upconvert paf_upconvert.c ${libSources} ${commonPafLibs} ${LDLIBS}
+
 ${BINDIR}/stPafTests : ${libTests} ${LIBDIR}/stPaf.a ${stPafDependencies}
 	${CC} ${CPPFLAGS} ${CFLAGS} ${LDFLAGS} -o ${BINDIR}/stPafTests ${libTests} ${libSources} ${LIBDIR}/stPaf.a ${stCafLibs} ${LDLIBS}
 
 clean : 
 	rm -f *.o
-	rm -f ${LIBDIR}/stPaf.a ${BINDIR}/stPafTests ${BINDIR}/paf_chain ${BINDIR}/paf_invert ${BINDIR}/paf_tile ${BINDIR}/paf_trim ${BINDIR}/paf_shatter ${BINDIR}/paf_view ${BINDIR}/fasta_chunk ${BINDIR}/fasta_extract ${BINDIR}/paf_dechunk ${BINDIR}/paf_dedupe ${BINDIR}/paf_to_bed
+	rm -f ${LIBDIR}/stPaf.a ${BINDIR}/stPafTests ${BINDIR}/paf_chain ${BINDIR}/paf_invert ${BINDIR}/paf_tile ${BINDIR}/paf_trim ${BINDIR}/paf_shatter ${BINDIR}/paf_view ${BINDIR}/fasta_chunk ${BINDIR}/fasta_extract ${BINDIR}/paf_dechunk ${BINDIR}/paf_dedupe ${BINDIR}/paf_to_bed ${BINDIR}/paf_upconvert

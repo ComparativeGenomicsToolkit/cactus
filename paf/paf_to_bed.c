@@ -24,6 +24,7 @@ void usage() {
     fprintf(stderr, "-e --excludeUnaligned : Exclude any interval with 0 alignment coverage from the output\n");
     fprintf(stderr, "-f --excludeAligned : Exclude any interval with > 0 alignment coverage from the output\n");
     fprintf(stderr, "-m --minSize : Exclude any interval shorter than this length from the output\n");
+    fprintf(stderr, "-n --includeInverted : Flip the alignments to include the target sequences also.\n");
     fprintf(stderr, "-l --logLevel : Set the log level\n");
     fprintf(stderr, "-h --help : Print this help message\n");
 }
@@ -65,6 +66,7 @@ int main(int argc, char *argv[]) {
     bool exclude_unaligned = 0;
     bool exclude_aligned = 0;
     int64_t min_size = 1;
+    bool include_inverted_alignments = 0;
 
     ///////////////////////////////////////////////////////////////////////////
     // Parse the inputs
@@ -78,11 +80,12 @@ int main(int argc, char *argv[]) {
                                                 { "excludeUnaligned", no_argument, 0, 'e' },
                                                 { "excludeAligned", no_argument, 0, 'f' },
                                                 { "minSize", required_argument, 0, 'm' },
+                                                { "includeInverted", no_argument, 0, 'n' },
                                                 { "help", no_argument, 0, 'h' },
                                                 { 0, 0, 0, 0 } };
 
         int option_index = 0;
-        int64_t key = getopt_long(argc, argv, "l:i:o:hbefm:", long_options, &option_index);
+        int64_t key = getopt_long(argc, argv, "l:i:o:hbefm:n", long_options, &option_index);
         if (key == -1) {
             break;
         }
@@ -108,6 +111,9 @@ int main(int argc, char *argv[]) {
                 break;
             case 'm':
                 min_size = atol(optarg);
+                break;
+            case 'n':
+                include_inverted_alignments = 1;
                 break;
             case 'h':
                 usage();
@@ -141,6 +147,12 @@ int main(int argc, char *argv[]) {
     while((paf = paf_read(input)) != NULL) {
         SequenceCountArray *seq_count_array = get_alignment_count_array(seq_names_to_alignment_count_arrays, paf);
         increase_alignment_level_counts(seq_count_array, paf);
+
+        if(include_inverted_alignments) {
+            paf_invert(paf); // Flip the alignment
+            seq_count_array = get_alignment_count_array(seq_names_to_alignment_count_arrays, paf);
+            increase_alignment_level_counts(seq_count_array, paf);
+        }
     }
 
     // Output local alignments file, sorted by score from best-to-worst

@@ -22,22 +22,9 @@
  }
 
 static void convertCoordinatesP(char **contig, int64_t *start, int64_t *end, int64_t *length) {
-    stList *attributes = fastaDecodeHeader(*contig);
-    //Decode attributes
-    int64_t startP;
-    int64_t i = sscanf((const char *) stList_peek(attributes), "%" PRIi64 "", &startP);
-    (void) i;
-    free(stList_pop(attributes));
-    assert(i == 1);
-    i = sscanf((const char *) stList_peek(attributes), "%" PRIi64 "", length);
-    free(stList_pop(attributes));
-    assert(i == 1);
-    //Now relabel attributes
-    free(*contig);
-    *contig = fastaEncodeHeader(attributes);
-    stList_destruct(attributes);
-    *start = *start + startP;
-    *end = *end + startP;
+    Interval *i = decode_fasta_header(*contig);
+    *contig = i->name; *start += i->start; *end += i->start; *length = i->length;
+    free(i);
 }
 
 void paf_dechunk(Paf *paf, bool fix_query, bool fix_target) {

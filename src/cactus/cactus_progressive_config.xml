@@ -49,6 +49,7 @@
 	<!-- trimFlanking: The length of flanking sequence to attach to the trimmed ingroup sequences -->
 	<!-- trimMinSize: The minimum size of uncovered regions (*before* adding flanking sequence) to output from the
          trimming process -->
+	<!-- trimIngroups  -->
 	<blast chunkSize="25000000"
 		   overlapSize="10000"
 		   mapper="lastz"
@@ -64,6 +65,8 @@
 		   chainGapOpen="5000"
 		   chainGapExtend="1"
 		   chainTrimFraction="0.02"
+		   trimIngroups="1"
+		   trimOutgroups="1"
 		   trimMinSize="100"
 		   trimFlanking="10"
 		   trimOutgroupFlanking="2000"

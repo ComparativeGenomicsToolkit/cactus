@@ -1,6 +1,7 @@
 #include "paf.h"
 #include <ctype.h>
 #include "../inc/paf.h"
+#include "bioioC.h"
 
 /*
  * Library functions for manipulating paf files.
@@ -535,4 +536,27 @@ void increase_alignment_level_counts(SequenceCountArray *seq_count_array, Paf *p
         c = c->next;
     }
     assert(i == paf->query_end);
+}
+
+Interval *decode_fasta_header(char *fasta_header) {
+    Interval *i = st_calloc(1, sizeof(Interval));
+    stList *attributes = fastaDecodeHeader(fasta_header);
+    //Decode attributes
+    int64_t j = sscanf((const char *) stList_peek(attributes), "%" PRIi64 "", &i->start);
+    (void) j;
+    free(stList_pop(attributes));
+    assert(j == 1);
+    j = sscanf((const char *) stList_peek(attributes), "%" PRIi64 "", &i->length);
+    free(stList_pop(attributes));
+    assert(j == 1);
+    //Now relabel attributes
+    i->name = fastaEncodeHeader(attributes);
+    stList_destruct(attributes);
+    return i;
+}
+
+int cmp_intervals(const void *i, const void *j) {
+    Interval *x = (Interval *)i, *y = (Interval *)j;
+    int k = strcmp(x->name, y->name);
+    return k == 0 ? (x->start < y->start ? -1 : (x->start > y->start ? 1 : 0)) : k;
 }

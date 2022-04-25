@@ -39,7 +39,7 @@ from cactus.pipeline.cactus_workflow import cactus_cons_with_resources
 from cactus.progressive.progressive_decomposition import compute_outgroups, parse_seqfile, get_subtree, get_spanning_subtree, get_event_set
 from cactus.preprocessor.cactus_preprocessor import CactusPreprocessor
 from cactus.preprocessor.dnabrnnMasking import loadDnaBrnnModel
-from cactus.paf.local_alignment import make_paf_alignments
+from cactus.paf.local_alignment import make_paf_alignments, trim_unaligned_sequences
 from cactus.shared.configWrapper import ConfigWrapper
 from cactus.progressive.multiCactusTree import MultiCactusTree
 from cactus.shared.common import setupBinaries, importSingularityImage
@@ -159,15 +159,31 @@ def progressive_step(job, options, config_node, seq_id_map, tree, og_map, event)
 
     # get the spanning tree (which is what consolidated wants)
     spanning_tree = get_spanning_subtree(tree, event, ConfigWrapper(config_node), og_map)
-        
-    # do the blast
-    paf_job = job.addChildJobFn(make_paf_alignments, NXNewick().writeString(spanning_tree), subtree_eventmap, event, config_node)
-    
-    # do the consolidated
-    consolidated_job = paf_job.addFollowOnJobFn(cactus_cons_with_resources, spanning_tree, event, config_node, subtree_eventmap, og_map, paf_job.rv(),
-                                                cons_cores = options.consCores, intermediate_results_url = options.intermediateResultsUrl)
 
-    return consolidated_job.rv()
+    # do the blast
+    paf_job = job.addChildJobFn(make_paf_alignments, NXNewick().writeString(spanning_tree),
+                                subtree_eventmap, event, config_node).encapsulate()
+
+    # trim the outgroups
+    outgroups = og_map[event] if event in og_map else []
+    trim_sequences = paf_job.addChildJobFn(trim_unaligned_sequences,
+                                           [subtree_eventmap[i] for i in outgroups], paf_job.rv(), config_node)
+
+    return paf_job.addFollowOnJobFn(progressive_step_2, trim_sequences.rv(), options, config_node, subtree_eventmap,
+                                    spanning_tree, og_map, event).rv()
+
+
+def progressive_step_2(job, trimmed_outgroups_and_alignments, options, config_node, subtree_eventmap,
+                       spanning_tree, og_map, event):
+    trimmed_outgroup_seqs, pafs = trimmed_outgroups_and_alignments  # unpack the pafs and outgroup sequences
+    # set the outgroup seqs
+    for outgroup, sequence in zip(og_map[event] if event in og_map else [], trimmed_outgroup_seqs):
+        subtree_eventmap[outgroup] = sequence
+
+    # now do consolidated
+    return job.addChildJobFn(cactus_cons_with_resources, spanning_tree, event, config_node, subtree_eventmap, og_map,
+                             pafs, cons_cores=options.consCores,
+                             intermediate_results_url=options.intermediateResultsUrl).rv()
 
 
 def export_hal(job, mc_tree, config_node, seq_id_map, og_map, results, event=None, cacheBytes=None,
