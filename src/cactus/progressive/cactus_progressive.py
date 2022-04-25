@@ -165,12 +165,17 @@ def progressive_step(job, options, config_node, seq_id_map, tree, og_map, event)
                                 subtree_eventmap, event, config_node).encapsulate()
 
     # trim the outgroups
-    outgroups = og_map[event] if event in og_map else []
-    trim_sequences = paf_job.addChildJobFn(trim_unaligned_sequences,
-                                           [subtree_eventmap[i] for i in outgroups], paf_job.rv(), config_node)
+    if int(config_node.find("blast").attrib["trimOutgroups"]):  # Trim the outgroup sequences
+        outgroups = og_map[event] if event in og_map else []
+        trim_sequences = paf_job.addChildJobFn(trim_unaligned_sequences,
+                                               [subtree_eventmap[i] for i in outgroups], paf_job.rv(), config_node)
+        return paf_job.addFollowOnJobFn(progressive_step_2, trim_sequences.rv(), options, config_node, subtree_eventmap,
+                                        spanning_tree, og_map, event).rv()
 
-    return paf_job.addFollowOnJobFn(progressive_step_2, trim_sequences.rv(), options, config_node, subtree_eventmap,
-                                    spanning_tree, og_map, event).rv()
+    else:  # Without outgroup trimming
+        return paf_job.addChildJobFn(cactus_cons_with_resources, spanning_tree, event, config_node, subtree_eventmap,
+                                     og_map, paf_job.rv(), cons_cores=options.consCores,
+                                     intermediate_results_url=options.intermediateResultsUrl).rv()
 
 
 def progressive_step_2(job, trimmed_outgroups_and_alignments, options, config_node, subtree_eventmap,

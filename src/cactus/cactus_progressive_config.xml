@@ -49,7 +49,9 @@
 	<!-- trimFlanking: The length of flanking sequence to attach to the trimmed ingroup sequences -->
 	<!-- trimMinSize: The minimum size of uncovered regions (*before* adding flanking sequence) to output from the
          trimming process -->
-	<!-- trimIngroups  -->
+	<!-- trimIngroups Progressively filter ingroup sequences from alignment to successive outgroups as an alignment
+	 is identified-->
+	<!-- trimOutgroups Remove outgroup sequences that don't have an alignment to an ingroup sequence-->
 	<blast chunkSize="25000000"
 		   overlapSize="10000"
 		   mapper="lastz"

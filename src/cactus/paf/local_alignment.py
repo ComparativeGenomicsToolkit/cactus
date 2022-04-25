@@ -263,9 +263,16 @@ def make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancest
                                                                                       ancestor_event.iD))
 
     # for each ingroup make alignments to the outgroups
-    outgroup_alignments = [root_job.addChildJobFn(make_ingroup_to_outgroup_alignments_1, ingroup, outgroup_events,
-                                                  dict(event_names_to_sequences), params).rv()
-                           for ingroup in ingroup_events] if len(outgroup_events) > 0 else []
+    if int(params.find("blast").attrib["trimIngroups"]):  # Trim the ingroup sequences
+        outgroup_alignments = [root_job.addChildJobFn(make_ingroup_to_outgroup_alignments_1, ingroup, outgroup_events,
+                                                      dict(event_names_to_sequences), params).rv()
+                                for ingroup in ingroup_events] if len(outgroup_events) > 0 else []
+    else:
+        outgroup_alignments = [root_job.addChildJobFn(make_chunked_alignments, event_names_to_sequences[ingroup.iD],
+                                                      event_names_to_sequences[outgroup.iD],
+                                                      distances[ingroup, outgroup], params,
+                                                      disk=2*total_sequence_size).rv()
+                               for ingroup in ingroup_events for outgroup in outgroup_events]
 
     # Now do the chaining
     return root_job.addFollowOnJobFn(chain_alignments, ingroup_alignments + outgroup_alignments,
