@@ -151,15 +151,15 @@ int main(int argc, char *argv[]) {
         if(stHash_search(sequences, seq_name) == NULL) { // Check if we have the sequence
             if(skipMissing) { // If we are expecting to skip missing sequences
                 stList_destruct(tokens);
-                st_logDebug("Skipping sequence fragment: %s start:%" PRIi64 " end:%" PRIi64 " \n", seq_name, start, end);
                 continue;
             }
             st_errAbort("Missing sequence: %s\n", seq_name); // Report an error if the sequence has not been read
         }
 
-        st_logDebug("Processing sequence fragment: %s start:%" PRIi64 " end:%" PRIi64 " \n", seq_name, start, end);
 
         if(end - start >= min_size) { // Meets the minimum threshold length
+            st_logDebug("Processing sequence fragment: %s start:%" PRIi64 " end:%" PRIi64 " \n", seq_name, start, end);
+
             // Get coordinates of interval, adding on flanks
             int64_t seq_length = (int64_t)stHash_search(sequenceLengths, seq_name);
             int64_t i = start - flank > 0 ? start - flank : 0, j = end + flank <= seq_length ? end + flank : seq_length; // Get expanded bounds of sequence with flanks
