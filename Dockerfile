@@ -27,6 +27,9 @@ RUN find /home/cactus -name include.local.mk -exec rm -f {} \; && \
 	 cd /home/cactus && rm -rf bin/* && make clean -j $(nproc) && \
 	 make -j $(nproc)
 
+# make sure that UDC works (the halfile here just needs to be anything public)
+RUN /home/cactus/bin/halStats --tree https://cgl.gi.ucsc.edu/data/cactus/241-mammalian-2020v2.hal > /dev/null
+
 # download open-licenses kent binaries used by hal for assembly hubs
 RUN cd /home/cactus/bin && for i in wigToBigWig faToTwoBit bedToBigBed bigBedToBed; do wget -q http://hgdownload.cse.ucsc.edu/admin/exe/linux.x86_64/${i}; chmod ugo+x ${i}; done
 
