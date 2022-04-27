@@ -18,18 +18,14 @@ ENV ENABLE_PHYLOP 1
 
 # Install UCSC browser libraries to compile UDC
 # remote access.  The browser common.mk file checks for
-# Todo: UDC doesn't actually work in Docker at the moment -- commands just hang forever
-# RUN cd /home/cactus && ./build-tools/downloadUcscLib
-# ENV ENABLE_UDC 1
-# ENV KENTSRC /home/cactus/submodules/kent/src
+RUN cd /home/cactus && ./build-tools/downloadUcscLib
+ENV ENABLE_UDC 1
+ENV KENTSRC /home/cactus/submodules/kent/src
 
 # clean and build
 RUN find /home/cactus -name include.local.mk -exec rm -f {} \; && \
 	 cd /home/cactus && rm -rf bin/* && make clean -j $(nproc) && \
 	 make -j $(nproc)
-
-# make sure that UDC works (the halfile here just needs to be anything public)
-# RUN /home/cactus/bin/halStats --tree https://cgl.gi.ucsc.edu/data/cactus/241-mammalian-2020v2.hal > /dev/null
 
 # download open-licenses kent binaries used by hal for assembly hubs
 RUN cd /home/cactus/bin && for i in wigToBigWig faToTwoBit bedToBigBed bigBedToBed; do wget -q http://hgdownload.cse.ucsc.edu/admin/exe/linux.x86_64/${i}; chmod ugo+x ${i}; done
