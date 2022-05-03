@@ -23,6 +23,7 @@ from cactus.shared.common import getOptionalAttrib, findRequiredNode
 from cactus.shared.common import unzip_gz, write_s3
 from cactus.shared.common import get_faidx_subpath_rename_cmd
 from cactus.preprocessor.fileMasking import get_mask_bed_from_fasta
+from cactus.refmap.cactus_graphmap import filter_paf
 from toil.job import Job
 from toil.common import Toil
 from toil.statsAndLogging import logger
@@ -168,6 +169,11 @@ def graphmap_split_workflow(job, options, config, seqIDMap, gfa_id, gfa_path, pa
         paf_id = root_job.addChildJobFn(unzip_gz, paf_path, paf_id, disk=paf_id.size * 10).rv()
         paf_size *= 10
 
+    # do some basic paf filtering
+    paf_filter_job = root_job.addFollowOnJobFn(filter_paf, paf_id, config)
+    paf_id = paf_filter_job.rv()
+    root_job = paf_filter_job
+
     mask_bed_id = None
     if options.maskFilter:
         mask_bed_id = root_job.addChildJobFn(get_mask_bed, seqIDMap, options.maskFilter).rv()
@@ -260,14 +266,12 @@ def split_gfa(job, config, gfa_id, paf_ids, ref_contigs, other_contig, reference
         except:
             raise RuntimeError("minQueryCoverages and / or minQueryCoverageThresholds malspecified in config")
     query_uniqueness = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "minQueryUniqueness", default="0")
-    max_gap = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "maxGap", default="0")
     amb_name = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "ambiguousName", default="_AMBIGUOUS_")
 
     cmd = ['rgfa-split',
            '-p', paf_path,
            '-b', out_prefix,
            '-Q', query_uniqueness,
-           '-P', max_gap,
            '-a', amb_name,
            '-L', log_path]
     cmd += coverage_opts    

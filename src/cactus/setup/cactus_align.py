@@ -27,6 +27,7 @@ from cactus.shared.common import cactus_call
 from cactus.shared.common import write_s3, has_s3, get_aws_region, unzip_gzs
 from cactus.shared.common import cactusRootPath
 from cactus.shared.configWrapper import ConfigWrapper
+from cactus.refmap.cactus_graphmap import filter_paf
 
 from toil.job import Job
 from toil.common import Toil, Config
@@ -302,7 +303,7 @@ def make_align_job(options, toil):
 
     # import the PAF alignments
     paf_id = toil.importFile(makeURL(options.pafFile))
-    
+            
     #import the sequences
     input_seq_id_map = {}
     for (genome, seq) in input_seq_map.items():
@@ -329,11 +330,13 @@ def make_align_job(options, toil):
                               doGFA=options.outGFA,
                               referenceEvent=options.reference,
                               paf2Stable=paf_to_stable,
+                              do_filter_paf=options.pangenome,
                               cons_cores = options.consCores)
+    
     return align_job
 
 def cactus_align(job, config_wrapper, mc_tree, input_seq_map, input_seq_id_map, paf_id, root_name, og_map, checkpointInfo, doVG, doGFA,
-                 referenceEvent=None, paf2Stable=False, cons_cores = None):
+                 referenceEvent=None, paf2Stable=False, do_filter_paf = False, cons_cores = None):
     
     head_job = Job()
     job.addChild(head_job)
@@ -342,6 +345,10 @@ def cactus_align(job, config_wrapper, mc_tree, input_seq_map, input_seq_id_map, 
     
     # unzip the input sequences
     unzip_job = head_job.addChildJobFn(unzip_gzs, [input_seq_map[e] for e in event_list], [input_seq_id_map[e] for e in event_list])
+
+    # run the paf filter (only for pangenome)
+    if do_filter_paf:
+        paf_id = head_job.addChildJobFn(filter_paf, paf_id, config_wrapper, disk=paf_id.size * 2).rv()
 
     new_seq_id_map = {}
     for i, event in enumerate(input_seq_id_map.keys()):

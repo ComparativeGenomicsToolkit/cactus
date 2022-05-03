@@ -280,7 +280,7 @@ class TestCase(unittest.TestCase):
         paf_path = os.path.join(self.tempDir, 'yeast.paf')
         fa_path = os.path.join(self.tempDir, 'yeast.gfa.fa')        
         subprocess.check_call(['cactus-graphmap', self._job_store(binariesMode), seq_file_path, mg_path, paf_path,
-                               '--outputFasta', fa_path, '--base', '--delFilter', '2000000'] + cactus_opts)
+                               '--outputFasta', fa_path, '--delFilter', '2000000'] + cactus_opts)
             
         # split into chromosomes
         chroms = ['chrI', 'chrII', 'chrIII', 'chrIV', 'chrV', 'chrVI', 'chrVII', 'chrVIII', 'chrIX', 'chrX', 'chrXI', 'chrXIV', 'chrXV']

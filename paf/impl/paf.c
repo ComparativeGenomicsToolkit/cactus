@@ -24,10 +24,22 @@ static Cigar *parse_cigar_record(char **c) {
         i++;
     }
     char t = (*c)[i]; // The type of the cigar operation
-    if(t != 'M' && t != 'I' && t != 'D') {
+    switch(t) {
+    case 'M': // match
+    case '=': // exact match
+    case 'X': // snp match
+        cigar->op = match;
+        break;
+    case 'I':
+        cigar->op = query_insert;
+        break;
+    case 'D':
+        cigar->op = query_delete;
+        break;
+    default:
         st_errAbort("Got an unexpected character paf cigar string: %c\n", t);
+        break;
     }
-    cigar->op = t == 'M' ? match : (t == 'I' ? query_insert : query_delete);
     (*c)[i] = ' ';
     cigar->length = atoll(*c);
     *c = &((*c)[i+1]);
