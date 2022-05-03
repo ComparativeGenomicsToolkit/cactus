@@ -16,14 +16,14 @@ import os
 from cactus.paf.paf import get_leaf_event_pairs, get_subtree_nodes, get_leaves, get_node
 from cactus.shared.common import cactus_call, getOptionalAttrib
 
-def run_lastz(job, genome_A, genome_B, distance, params):    
+def run_lastz(job, name_A, genome_A, name_B, genome_B, distance, params):
     # Create a local temporary file to put the alignments in.
-    work_dir = job.fileStore.getLocalTempDir()
-    alignment_file = os.path.join(work_dir, 'aln.paf')
+    work_dir = job.fileStore.getLocalTempDir()    
+    alignment_file = os.path.join(work_dir, '{}_{}.paf'.format(name_A, name_B))
 
     # Get the input files
-    genome_a_file = os.path.join(work_dir, 'a.fa')
-    genome_b_file = os.path.join(work_dir, 'b.fa')
+    genome_a_file = os.path.join(work_dir, '{}.fa'.format(name_A))
+    genome_b_file = os.path.join(work_dir, '{}.fa'.format(name_B))
     job.fileStore.readGlobalFile(genome_A, genome_a_file)
     job.fileStore.readGlobalFile(genome_B, genome_b_file)
 
@@ -39,8 +39,9 @@ def run_lastz(job, genome_A, genome_B, distance, params):
         lastz_params = lastz_divergence_node.attrib["default"]
     logger.info("For distance {} for genomes {}, {} using {} lastz parameters".format(distance, genome_A,
                                                                                       genome_B, lastz_params))
-    
-    if getOptionalAttrib(lastz_params_node, 'gpuLastz', typeFn=bool, default=False):
+
+    gpu = getOptionalAttrib(lastz_params_node, 'gpuLastz', typeFn=bool, default=False)
+    if gpu:
         lastz_bin = 'run_segalign'
         suffix_a, suffix_b = '', ''
     else:
@@ -55,14 +56,29 @@ def run_lastz(job, genome_A, genome_B, distance, params):
                  '--format=paf:minimap2'] + lastz_params.split(' ')
     # note: it's very important to set the work_dir here, because cactus_call is not able to
     # sort out the mount directory by itself, presumably due to square brackets...
-    cactus_call(parameters=lastz_cmd, outfile=alignment_file, work_dir=work_dir)
+    segalign_messages = cactus_call(parameters=lastz_cmd, outfile=alignment_file, work_dir=work_dir, returnStdErr=gpu)
+
+    if gpu:
+        # run_segalign can crash and still exit 0, so it's worth taking a moment to check the log for errors
+        segalign_messages = segalign_messages.lower()
+        for keyword in ['terminate', 'error', 'fail', 'assert', 'signal', 'abort', 'segmentation', 'sigsegv', 'kill']:
+            if keyword in segalign_messages:
+                job.fileStore.logToMaster("Segalign Stderr: " + segalign_messages)  # Log the messages
+                raise RuntimeError('{} exited 0 but keyword "{}" found in stderr'.format(lastz_cmd, keyword))
 
     # Return the alignment file
     return job.fileStore.writeGlobalFile(alignment_file)
 
-def run_minimap2(job, genome_A, genome_B, distance, params):
+def run_minimap2(job, name_A, genome_A, name_B, genome_B, distance, params):
     # Create a local temporary file to put the alignments in.
-    alignment_file = job.fileStore.getLocalTempFile()
+    work_dir = job.fileStore.getLocalTempDir()    
+    alignment_file = os.path.join(work_dir, '{}_{}.paf'.format(name_A, name_B))
+
+    # Get the input files
+    genome_a_file = os.path.join(work_dir, '{}.fa'.format(name_A))
+    genome_b_file = os.path.join(work_dir, '{}.fa'.format(name_B))
+    job.fileStore.readGlobalFile(genome_A, genome_a_file)
+    job.fileStore.readGlobalFile(genome_B, genome_b_file)
 
     minimap2_params = params.find("blast").attrib["minimap2_params"]
     
@@ -87,7 +103,7 @@ def combine_chunks(job, chunked_alignment_files):
     return job.fileStore.writeGlobalFile(alignment_file)  # Return the final alignments file copied to the jobstore
 
 
-def make_chunked_alignments(job, genome_a, genome_b, distance, params):
+def make_chunked_alignments(job, event_a, genome_a, event_b, genome_b, distance, params):
 
     lastz_params_node = params.find("blast")
     if getOptionalAttrib(lastz_params_node, 'gpuLastz', typeFn=bool, default=False):
@@ -110,11 +126,12 @@ def make_chunked_alignments(job, genome_a, genome_b, distance, params):
 
     # Align all chunks from genome_A against all chunks from genome_B
     chunked_alignment_files = []
-    for chunk_a in chunks_a:
-        for chunk_b in chunks_b:
+    for i, chunk_a in enumerate(chunks_a):
+        for j, chunk_b in enumerate(chunks_b):
             mappers = { "lastz":run_lastz, "minimap2":run_minimap2}
             mappingFn = mappers[params.find("blast").attrib["mapper"]]
-            chunked_alignment_files.append(job.addChildJobFn(mappingFn, chunk_a, chunk_b, distance, params,
+            chunked_alignment_files.append(job.addChildJobFn(mappingFn, '{}_{}'.format(event_a, i), chunk_a,
+                                                             '{}_{}'.format(event_b, j), chunk_b, distance, params,
                                                              cores=lastz_cores, disk=4*(chunk_a.size+chunk_b.size)).rv())
 
     return job.addFollowOnJobFn(combine_chunks, chunked_alignment_files).rv()  # Combine the chunked alignment files
@@ -181,8 +198,8 @@ def make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancest
             logger.info("Building alignment between event: "
                         "{} (ingroup:{}) and event: {} (ingroup:{})".format(event_a.iD, event_a in ingroup_events,
                                                                             event_b.iD, event_b in ingroup_events))
-            alignment = root_job.addChildJobFn(make_chunked_alignments, event_names_to_sequences[event_a.iD],
-                                               event_names_to_sequences[event_b.iD], distance_a_b, params,
+            alignment = root_job.addChildJobFn(make_chunked_alignments, event_a.iD, event_names_to_sequences[event_a.iD],
+                                               event_b.iD, event_names_to_sequences[event_b.iD], distance_a_b, params,
                                                disk=2*total_sequence_size).rv()
             alignments.append(alignment)
 

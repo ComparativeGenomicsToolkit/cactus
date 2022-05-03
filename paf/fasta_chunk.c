@@ -142,10 +142,10 @@ int main(int argc, char *argv[]) {
                 logLevelString = optarg;
                 break;
             case 'c':
-                chunkSize = atoi(optarg);
+                chunkSize = atol(optarg);
                 break;
             case 'o':
-                chunkOverlapSize = atoi(optarg);
+                chunkOverlapSize = atol(optarg);
                 break;
             case 'd':
                 chunksDir = optarg;
