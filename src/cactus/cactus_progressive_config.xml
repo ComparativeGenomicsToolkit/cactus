@@ -244,8 +244,8 @@
 			partialOrderAlignmentDisableSeeding="0"
 			partialOrderAlignmentMinimizerK="19"
 			partialOrderAlignmentMinimizerW="10"
-			partialOrderAlignmentMinimizerMinW="50"
-			partialOrderAlignmentProgressiveMode="0"
+			partialOrderAlignmentMinimizerMinW="500"
+			partialOrderAlignmentProgressiveMode="1"
 		/>
 	</bar>
 
@@ -295,19 +295,28 @@
 	<!-- delFilter: any deletions implied by split-read mappings greater than this are removed from the paf (by removing all lines of the smallest block bordering deletion)-->
 	<!-- removeMinigraphFromPAF: replace all minigraph contigs with transitive alignments in cactus-align-->
 	<!-- cpu: use up to this many cpus for each minigraph command. -->
+	<!-- cactus-graphmap options -->
+	<!-- assemblyName: special name of "virtual" minigraph assembly, which is just the list of sequences from the graph. -->
+	<!-- minigraphMapOptions: flags to pass to minigraph for mapping -->
+	<!-- minigraphConstructOptions: flags to pass to minigraph for construction -->
+	<!-- minMAPQ: ignore minigraph alignments with mapping quality less than this -->
+	<!-- minGAFBlockLength: ignore minigraph alignments with block length less than this -->
+	<!-- maskFilter: any softmasked sequence intervals > than this many bp will be hardmasked before being read by the minigraph mapper [negative value = disable]-->
+	<!-- delFilter: any deletions implied by split-read mappings greater than this are removed from the paf (by removing all lines of the smallest block bordering deletion)-->
+	<!-- delFilterThreshold: only remove deletion if it costs < delFilterThreshold * deletion-size matches. must be in range (0, 1] -->
+	<!-- minIdentity: ignore PAF lines with identity (col 10 / col 11) is less than this -->	
+	<!-- removeMinigraphFromPAF: replace all minigraph contigs with transitive alignments in cactus-align-->
+	<!-- cpu: use up to this many cpus for each minigraph command. -->
 	<graphmap
 		 assemblyName="_MINIGRAPH_"
-		 minigraphMapOptions="-S --write-mz -xasm"
-		 universalMZFilter="0"
-		 nodeBasedUniversal="0"
-		 strictUniversal="0"
-		 minMZBlockLength="0"
+		 minigraphMapOptions="-c -xasm"
+		 minigraphConstructOptions="-c -xggs"
 		 minMAPQ="5"
-		 minGAFBlockLength="0"
-		 minGAFNodeLength="0"
-		 minGAFQueryOverlapFilter="10000"
+		 minGAFBlockLength="50000"
 		 maskFilter="-1"
 		 delFilter="-1"
+		 delFilterThreshold="0.01"
+		 minIdentity="0.01"		 
 		 removeMinigraphFromPAF="0"
 		 cpu="6"
 		 />
@@ -319,20 +328,15 @@
 	<!--                    10000-99999 : min_coverage = 0. 95 -->
 	<!--                    100000-infinity : min_coverage = 0.90 -->		  
 	<!-- minQueryUniqueness: The ratio of the number of query bases aligned to the chosen ref contig vs the next best ref contig must exceed this threshold to not be considered ambigious. -->
-	<!-- maxGap: Include indel gaps <= maxGap when counting minigraph coverage -->
 	<!-- ambiguousName: Contigs deemed ambiguous using the above filters get added to a "contig" with this name, and are preserved in output. -->
-	<!-- remap: 1: remap ambiguous contigs with minimap2 0: don't -->
 	<!-- remapSplitOptions: extra rgfa-split options to apply when splitting after remapping (use -u 3000000 to enable autoclipping between contigs, add -s to allow within contig)-->
-	<!-- useMinimapPAF: use minimap2 PAF for ambiguous contigs (rather than keeping their original mappings in the input PAF, requried if autoclipping enabled above) -->
-	<graphmap_split
-		 minQueryCoverages="0.90 0.80 0.75 0.70"
-       minQueryCoverageThresholds="10000 100000 1000000"
+
+  	<graphmap_split
+		 minQueryCoverages="0.75 0.5 0.25"
+       minQueryCoverageThresholds="100000 1000000"
 		 minQueryUniqueness="3"
-		 maxGap="5000"
 		 ambiguousName="_AMBIGUOUS_"
-		 remap="0"
 		 remapSplitOptions=""
-		 useMinimapPAF="0"
 		 />
 	<!-- hal2vg options -->
 	<!-- includeMinigraph: include minigraph node sequences as paths in output (note that cactus-graphmap-join will still remove them by default) -->

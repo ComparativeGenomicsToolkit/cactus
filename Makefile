@@ -45,12 +45,12 @@ static:
 	${MAKE} all
 
 check-static: static
-ifeq ($(shell ldd bin/* | grep "not a dynamic" | wc -l), $(shell ls bin/* | wc -l))
-	$(info ldd verified that all files in .bin/ are static)
-	echo "All static"
-else
-	$(error ldd found dynamic linked binary in .bin/)
-endif
+	ifeq ($(shell ldd bin/* | grep "not a dynamic" | wc -l), $(shell ls bin/* | wc -l))
+		$(info ldd verified that all files in .bin/ are static)
+		echo "All static"
+	else
+		$(error ldd found dynamic linked binary in .bin/)
+	endif
 
 all_libs:
 	${MAKE} ${modules:%=all_libs.%}
@@ -159,6 +159,9 @@ evolver_test_refmap_local: all bin/mafComparator
 
 evolver_test_graphmap_local: all bin/mafComparator
 	PYTHONPATH="" CACTUS_BINARIES_MODE=local CACTUS_DOCKER_MODE=0 ${PYTHON} -m pytest ${pytestOpts} -s test/evolverTest.py::TestCase::testEvolverMinigraphLocal
+
+yeast_test_local:
+	PYTHONPATH="" CACTUS_BINARIES_MODE=local CACTUS_DOCKER_MODE=0 ${PYTHON} -m pytest ${pytestOpts} -s test/evolverTest.py::TestCase::testYeastPangenomeLocal
 
 ##
 # clean targets

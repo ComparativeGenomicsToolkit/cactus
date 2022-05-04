@@ -372,7 +372,136 @@ class TestCase(unittest.TestCase):
         # do the alignment
         subprocess.check_call(['cactus-align', self._job_store(binariesMode), out_seq_file_path, paf_path, self._out_hal(binariesMode),
                                '--pafInput', '--pangenome', '--outVG', '--outGFA', '--pafMaskFilter', '10000', '--barMaskFilter', '10000'] + cactus_opts) 
+
+    def _run_yeast_pangenome(self, binariesMode):
+        """ yeast pangenome chromosome by chromosome pipeline
+        """
+
+        # make a config that replaces stuff like SC4.chrI with id=SC4|chrI
+        # also run dna brnn with softmasking
+        orig_seq_file_path = './examples/yeastPangenome.txt'
+        seq_file_path = os.path.join(self.tempDir, 'pp', os.path.basename(orig_seq_file_path))        
+        subprocess.check_call(['cactus-prepare',  orig_seq_file_path, '--outDir', os.path.join(self.tempDir, 'pp'), '--seqFileOnly'])
+        orig_config_path = 'src/cactus/cactus_progressive_config.xml'
+        config_path = os.path.join(self.tempDir, 'config.xml')
+        subprocess.check_call('cat {} | sed -e \'s/cutBefore=""/cutBefore="."/g\' | grep -v lastzRepeatMask > {}'.format(
+            orig_config_path, config_path), shell=True)
+        cactus_opts = ['--binariesMode', binariesMode, '--logInfo', '--realTimeLogging', '--workDir', self.tempDir, '--configFile', config_path, '--maxCores', '8']
+        subprocess.check_call(['cactus-preprocess', self._job_store(binariesMode),
+                               orig_seq_file_path, seq_file_path, '--maskAlpha', '--minLen', '20000'] + cactus_opts, shell=False)
+
+        # fish out the event names
+        events = []
+        with open(seq_file_path, 'r') as seq_file:
+            for line in seq_file:
+                toks = line.strip().split()
+                if len(toks) == 2:
+                    events.append(toks[0])
+        
+        # build the minigraph
+        mg_path = os.path.join(self.tempDir, 'yeast.gfa.gz')
+        mg_cmd = ['cactus-minigraph', self._job_store(binariesMode), seq_file_path, mg_path, '--reference', 'S288C'] + cactus_opts
+        subprocess.check_call(mg_cmd)
                 
+        # run graphmap in base mode
+        paf_path = os.path.join(self.tempDir, 'yeast.paf')
+        fa_path = os.path.join(self.tempDir, 'yeast.gfa.fa')        
+        subprocess.check_call(['cactus-graphmap', self._job_store(binariesMode), seq_file_path, mg_path, paf_path,
+                               '--outputFasta', fa_path, '--delFilter', '2000000'] + cactus_opts)
+            
+        # split into chromosomes
+        chroms = ['chrI', 'chrII', 'chrIII', 'chrIV', 'chrV', 'chrVI', 'chrVII', 'chrVIII', 'chrIX', 'chrX', 'chrXI', 'chrXIV', 'chrXV']
+        gm_out_dir = os.path.join(self.tempDir, 'chroms')
+        subprocess.check_call(['cactus-graphmap-split', self._job_store(binariesMode), seq_file_path, mg_path, paf_path,
+                               '--refContigs'] + chroms + ['--minIdentity', '0.55'] +
+                              ['--reference', 'S288C', '--maskFilter', '20000', '--otherContig', 'chrOther', '--outDir', gm_out_dir] + cactus_opts)
+
+        # create the vg graph for each chromosome
+        chromfile_path = os.path.join(gm_out_dir, 'chromfile.txt')
+        ba_path = os.path.join(self.tempDir, 'batch')
+        os.makedirs(ba_path, exist_ok=True)
+        subprocess.check_call(['cactus-align-batch', self._job_store(binariesMode), chromfile_path, ba_path, '--alignCores', '1',
+                               '--alignOptions', '--pangenome --outVG --barMaskFilter 20000 --realTimeLogging --reference S288C --binariesMode {}'.format(binariesMode)])
+
+        vg_files = [os.path.join(ba_path, c) + '.vg' for c in chroms]
+        hal_files = [os.path.join(ba_path, c) + '.hal' for c in chroms]
+
+        # join up the graphs and index for giraffe
+        join_path = os.path.join(self.tempDir, 'join')
+        # must specify haploid for everything
+        rename_opts = ['--rename']
+        for event in events:
+            rename_opts += ['{}>{}.0'.format(event, event)]
+        subprocess.check_call(['cactus-graphmap-join', self._job_store(binariesMode), '--outDir', join_path, '--outName', 'yeast',
+                               '--reference', 'S288C', '--vg'] +  vg_files + ['--hal'] + hal_files + ['--gfaffix', '--wlineSep', '.',
+                               '--vcf', '--giraffe'] + rename_opts + cactus_opts)
+
+    def _check_yeast_pangenome(self, binariesMode):
+        """ yeast pangenome chromosome by chromosome pipeline
+        """
+
+        # load up the events
+        orig_seq_file_path = './examples/yeastPangenome.txt'
+        events = []
+        with open(orig_seq_file_path, 'r') as orig_seq_file:
+            for line in orig_seq_file:
+                toks = line.strip().split()
+                if len(toks) == 2:
+                    events += [toks[0]]
+        assert len(events) == 6
+
+        join_path = os.path.join(self.tempDir, 'join')
+        vcf_path = os.path.join(join_path, 'yeast.vcf.gz')
+
+        # check that we have some alts for each sample in the VCF
+        vcf_allele_threshold = 40000
+        for event in events:
+            allele = 0 if event == "S288C" else 1
+            event = event.split(".")[0]
+            proc = subprocess.Popen('bcftools view {} -s {} -a -H | awk \'{{print $10}}\' | grep {} | wc -l'.format(vcf_path, event, allele),
+                                    shell=True, stdout=subprocess.PIPE)
+            output, errors = proc.communicate()
+            sts = proc.wait()
+            num_alleles = int(output.strip())
+            self.assertGreaterEqual(num_alleles, vcf_allele_threshold)
+
+        # make sure we have about the right sequence counts in the hal
+        hal_path = os.path.join(join_path, 'yeast.hal')
+        for event in events:
+            if event != "_MINIGRAPH_":
+                proc = subprocess.Popen('halStats {} --sequenceStats {} | wc -l'.format(hal_path, event), shell=True, stdout=subprocess.PIPE)
+                output, errors = proc.communicate()
+                sts = proc.wait()
+                num_sequences = int(output.strip())
+                self.assertGreaterEqual(num_sequences, 11)
+                self.assertLessEqual(num_sequences, 15)
+
+        # make sure the vg is sane
+        xg_path = os.path.join(join_path, 'yeast.xg')
+        proc = subprocess.Popen('vg stats -l {} | awk \'{{print $2}}\''.format(xg_path), shell=True, stdout=subprocess.PIPE)
+        output, errors = proc.communicate()
+        sts = proc.wait()
+        num_bases = int(output.strip())
+        self.assertGreaterEqual(num_bases, 10000000)
+        self.assertLessEqual(num_bases, 11200000)
+
+        # make sure we have the giraffe indexes
+        for giraffe_idx in ['yeast.snarls', 'yeast.gg', 'yeast.dist', 'yeast.min', 'yeast.trans.gz', 'yeast.gbwt']:
+            idx_bytes = os.path.getsize(os.path.join(join_path, giraffe_idx))
+            self.assertGreaterEqual(idx_bytes, 500000)
+
+        # make sure the chrom splitting stats are somewhat sane
+        contig_sizes = {}
+        with open(os.path.join(self.tempDir, 'chroms', 'contig_sizes.tsv'), 'r') as sizes_file:
+            for line in sizes_file:
+                if line.startswith('chr'):
+                    toks=line.strip().split()
+                    contig_sizes[toks[0]] = toks[1:]
+        self.assertEqual(len(contig_sizes), 14)
+        for chr,sizes in contig_sizes.items():
+            self.assertEqual(len(sizes), 10)
+            self.assertGreaterEqual(int(sizes[9]), 200000)
+        
     def _csvstr_to_table(self, csvstr, header_fields):
         """ Hacky csv parse """
         output_stats = {}
@@ -677,6 +806,13 @@ class TestCase(unittest.TestCase):
         # todo: tune config so that delta can be reduced
         self._check_maf_accuracy(self._out_hal("local"), delta=0.025, dataset='primates')
         
+    def testYeastPangenomeLocal(self):
+        """ Run pangenome pipeline (including contig splitting!) on yeast dataset """
+        name = "local"
+        self._run_yeast_pangenome(name)
+        
+        # check the output
+        self._check_yeast_pangenome(name)
         
 
 if __name__ == '__main__':

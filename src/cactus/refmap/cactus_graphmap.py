@@ -31,6 +31,7 @@ from cactus.shared.common import enableDumpStack
 from cactus.shared.common import cactus_override_toil_options
 from cactus.shared.common import cactus_call
 from cactus.shared.common import getOptionalAttrib, findRequiredNode
+from cactus.shared.common import unzip_gz, zip_gz
 from toil.job import Job
 from toil.common import Toil
 from toil.statsAndLogging import logger
@@ -101,8 +102,10 @@ def graph_map(options):
     with Toil(options) as toil:
         importSingularityImage(options)
         #Run the workflow
+        configNode = ET.parse(options.configFile).getroot()
+        graph_event = getOptionalAttrib(findRequiredNode(configNode, "graphmap"), "assemblyName", default="_MINIGRAPH_")        
         if options.restart:
-            paf_id, gfa_fa_id, gaf_id_map = toil.restart()
+            paf_id, gfa_fa_id, gaf_id, unfiltered_paf_id, paf_filter_log = toil.restart()            
         else:
             options.cactusDir = getTempDirectory()
 
@@ -112,8 +115,6 @@ def graph_map(options):
             # interface shift away from files of paths throughout all of cactus
             if options.pathOverrides:
                 seqFile = SeqFile(options.seqFile)
-                configNode = ET.parse(options.configFile).getroot()
-                config = ConfigWrapper(configNode)
                 tree = MultiCactusTree(seqFile.tree)
                 tree.nameUnlabeledInternalNodes(prefix = config.getDefaultInternalNodePrefix())
                 for name, override in zip(options.pathOverrideNames, options.pathOverrides):
@@ -159,7 +160,8 @@ def graph_map(options):
             gfa_id = toil.importFile(makeURL(options.minigraphGFA))
 
             #import the sequences (that we need to align for the given event, ie leaves and outgroups)
-            seqIDMap = {}
+            seq_id_map = {}
+            fa_id_map = {}
             leaves = set([seqFile.tree.getName(node) for node in seqFile.tree.getLeaves()])
             for genome, seq in seqFile.pathMap.items():
                 if genome != graph_event and genome in leaves and genome != options.refFromGFA:
@@ -169,71 +171,88 @@ def graph_map(options):
                         seq = tmpSeq
                     seq = makeURL(seq)
                     logger.info("Importing {}".format(seq))
-                    seqIDMap[genome] = (seq, toil.importFile(seq))
+                    seq_id_map[genome] = toil.importFile(seq)
+                    fa_id_map[genome] = seq
 
             # run the workflow
-            paf_id, gfa_fa_id, gaf_id_map = toil.start(Job.wrapJobFn(minigraph_workflow, options, config, seqIDMap, gfa_id, graph_event))
+            paf_id, gfa_fa_id, gaf_id, unfiltered_paf_id, paf_filter_log = toil.start(Job.wrapJobFn(
+                minigraph_workflow, options, config, fa_id_map, seq_id_map, gfa_id, graph_event))
 
         #export the paf
         toil.exportFile(paf_id, makeURL(options.outputPAF))
+        output_gaf = options.outputPAF[:-4] if options.outputPAF.endswith('.paf') else options.outputPAF
+        output_gaf += '.gaf.gz'
+        toil.exportFile(gaf_id, makeURL(output_gaf))
+        if unfiltered_paf_id:
+            toil.exportFile(unfiltered_paf_id, makeURL(options.outputPAF + ".unfiltered.gz"))
+            toil.exportFile(paf_filter_log, makeURL(options.outputPAF + ".filter.log"))
+                        
         if gfa_fa_id:
             toil.exportFile(gfa_fa_id, makeURL(options.outputFasta))
-
-        #export the gafs
-        if options.outputGAFDir:
-            for event, gaf_id in gaf_id_map.items():
-                gaf_path = os.path.join(options.outputGAFDir, '{}.gaf.gz'.format(event))
-                toil.exportFile(gaf_id, makeURL(gaf_path))
 
         # update the input seqfile (in place!)
         if options.outputFasta:
             add_genome_to_seqfile(options.seqFile, makeURL(options.outputFasta), graph_event)
 
-def minigraph_workflow(job, options, config, seq_id_map, gfa_id, graph_event):
+def minigraph_workflow(job, options, config, seq_path_map, seq_id_map, gfa_id, graph_event):
     """ Overall workflow takes command line options and returns (paf-id, (optional) fa-id) """
     fa_id = None
-        
+    gfa_id_size = gfa_id.size
+
+    root_job = Job()
+    job.addChild(root_job)
+
+    mg_cores = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "cpu", typeFn=int, default=1)
+
     if options.outputFasta:
         # convert GFA to fasta
-        fa_job = job.addChildJobFn(make_minigraph_fasta, gfa_id, options.outputFasta, graph_event)
+        fa_job = root_job.addChildJobFn(make_minigraph_fasta, gfa_id, options.outputFasta, graph_event, cores = mg_cores)
         fa_id = fa_job.rv()
 
-    mg_vg_id = None
-    mg_trans_id = None
-    del_filter = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "delFilter", int, default=-1)
-    if del_filter > 0:
-        # convert the input GFA into a vg graph, which is needed for the deletion filter
-        gfa_to_vg_job = job.addChildJobFn(make_minigraph_vg, gfa_id, options.minigraphGFA,
-                                          disk=gfa_id.size*10)
-        mg_vg_id = gfa_to_vg_job.rv(0)
-        mg_trans_id = gfa_to_vg_job.rv(1)
-
-    paf_job = Job.wrapJobFn(minigraph_map_all, config, gfa_id, seq_id_map, graph_event, options.outputGAFDir is not None,
-                            mg_vg_id, mg_trans_id)
-    if mg_vg_id:
-        gfa_to_vg_job.addFollowOn(paf_job)
-    else:
-        job.addChild(paf_job)
+    if options.minigraphGFA.endswith('.gz'):
+        # gaf2paf needs unzipped gfa, so we take care of that upfront
+        gfa_unzip_job = root_job.addChildJobFn(unzip_gz, options.minigraphGFA, gfa_id, disk=5*gfa_id.size)
+        gfa_id = gfa_unzip_job.rv()
+        root_job = Job()
+        gfa_unzip_job.addFollowOn(root_job)
+        gfa_id_size *= 10
+    
+    paf_job = Job.wrapJobFn(minigraph_map_all, config, gfa_id, seq_path_map, seq_id_map, graph_event)
+    root_job.addChild(paf_job)
 
     if options.reference:
         # extract a PAF directly from the rGFAs tag for the given reference
         # if --refFromGFA is specified, we get the entire alignment from that, otherwise we just take contigs
         # that didn't get mapped by anything else
         gfa2paf_job = Job.wrapJobFn(extract_paf_from_gfa, gfa_id, options.minigraphGFA, options.reference, graph_event, paf_job.rv(0) if not options.refFromGFA else None,
-                                    disk=gfa_id.size * 12)
+                                    disk=gfa_id_size)
         if options.refFromGFA:
-            job.addChild(gfa2paf_job)
+            root_job.addChild(gfa2paf_job)
         else:
             paf_job.addFollowOn(gfa2paf_job)
-        merge_paf_job = Job.wrapJobFn(merge_pafs, {"1" : paf_job.rv(0), "2" : gfa2paf_job.rv()}, disk=gfa_id.size * 12)
+        merge_paf_job = Job.wrapJobFn(merge_pafs, {"1" : paf_job.rv(0), "2" : gfa2paf_job.rv()}, disk=gfa_id_size)
         paf_job.addFollowOn(merge_paf_job)
         gfa2paf_job.addFollowOn(merge_paf_job)
         out_paf_id = merge_paf_job.rv()
+        prev_job = merge_paf_job
     else:
         out_paf_id = paf_job.rv(0)
+        prev_job = paf_job
+    
+    # apply the optional deletion filter
+    unfiltered_paf_id = None
+    filtered_paf_log = None
+    del_filter = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "delFilter", int, default=-1)
+    if del_filter > 0:
+        del_filter_threshold = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "delFilterThreshold", float, default=None)
+        del_filter_job = prev_job.addFollowOnJobFn(filter_paf_deletions, out_paf_id, gfa_id, del_filter, del_filter_threshold,
+                                                   disk=gfa_id_size, cores=mg_cores)
+        unfiltered_paf_id = prev_job.addFollowOnJobFn(zip_gz, 'mg.paf.unfiltered', out_paf_id, disk=gfa_id_size).rv()
+        out_paf_id = del_filter_job.rv(0)
+        filtered_paf_log = del_filter_job.rv(1)
 
-    return out_paf_id, fa_id, paf_job.rv(1)
-        
+    return out_paf_id, fa_id if options.outputFasta else None, paf_job.rv(1), unfiltered_paf_id, filtered_paf_log
+                    
 def make_minigraph_fasta(job, gfa_file_id, fa_file_path, name):
     """ Use gfatools to make the minigraph "assembly" """
 
@@ -252,27 +271,7 @@ def make_minigraph_fasta(job, gfa_file_id, fa_file_path, name):
 
     return job.fileStore.writeGlobalFile(fa_path)
 
-def make_minigraph_vg(job, gfa_file_id, gfa_file_path):
-    """ Use vg to convert the minigraph from gfa into vg """
-    work_dir = job.fileStore.getLocalTempDir()
-    gfa_path = os.path.join(work_dir, os.path.basename(gfa_file_path))
-
-    job.fileStore.readGlobalFile(gfa_file_id, gfa_path)
-
-    if gfa_path.endswith('.gz'):
-        cactus_call(parameters = ['gzip', '-f', '-d', gfa_path])
-        gfa_path = gfa_path[:-3]
-
-    vg_path = gfa_path + '.vg'
-    trans_path = gfa_path + '.trans'
-
-    cactus_call(parameters = ['vg', 'convert', '-r', '0', '-g', gfa_path, '-p', '-T', trans_path],
-                outfile=vg_path)
-
-    return job.fileStore.writeGlobalFile(vg_path), job.fileStore.writeGlobalFile(trans_path)
-
-    
-def minigraph_map_all(job, config, gfa_id, fa_id_map, graph_event, keep_gaf, mg_vg_id, mg_trans_id):
+def minigraph_map_all(job, config, gfa_id, fa_path_map, fa_id_map, graph_event):
     """ top-level job to run the minigraph mapping in parallel, returns paf """
     
     # hang everything on this job, to self-contain workflow
@@ -280,7 +279,6 @@ def minigraph_map_all(job, config, gfa_id, fa_id_map, graph_event, keep_gaf, mg_
     job.addChild(top_job)
 
     mg_cores = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "cpu", typeFn=int, default=1)
-    mg_cores = min(mg_cores, cpu_count())
 
     # doing the paf conversion is more efficient when done separately for each genome.  we can get away
     # with doing this if the universal filter (which needs to process everything at once) is disabled
@@ -291,38 +289,29 @@ def minigraph_map_all(job, config, gfa_id, fa_id_map, graph_event, keep_gaf, mg_
     gaf_id_map = {}
     paf_id_map = {}
                 
-    for event, fa_path_fa_id in fa_id_map.items():
-        fa_path = fa_path_fa_id[0]
-        fa_id = fa_path_fa_id[1]
+    for event, fa_id in fa_id_map.items():
+        fa_path = fa_path_map[event]
         minigraph_map_job = top_job.addChildJobFn(minigraph_map_one, config, event, fa_path, fa_id, gfa_id,
-                                                  keep_gaf or not paf_per_genome, paf_per_genome,
-                                                  mg_vg_id, mg_trans_id,
                                                   # todo: estimate RAM
-                                                  cores=mg_cores, disk=5*(fa_id.size + gfa_id.size))
+                                                  cores=mg_cores, disk=5 * fa_id.size + gfa_id.size)
         gaf_id_map[event] = minigraph_map_job.rv(0)
         paf_id_map[event] = minigraph_map_job.rv(1)
 
-    # convert to paf
-    if paf_per_genome:
-        paf_job = top_job.addFollowOnJobFn(merge_pafs, paf_id_map)
-    else:
-        paf_job = top_job.addFollowOnJobFn(merge_gafs_into_paf, config, gaf_id_map, [], mg_vg_id, mg_trans_id)
+    # merge up
+    paf_merge_job = top_job.addFollowOnJobFn(merge_pafs, paf_id_map)
+    gaf_merge_job = top_job.addFollowOnJobFn(merge_pafs, gaf_id_map, gzip=True)
+    
+    return paf_merge_job.rv(), gaf_merge_job.rv()
 
-    if not keep_gaf:
-        gaf_id_map = None
-    else:
-        gaf_id_map = paf_job.addFollowOnJobFn(compress_gafs, gaf_id_map).rv()
-        
-    return paf_job.rv(), gaf_id_map
-
-def minigraph_map_one(job, config, event_name, fa_path, fa_file_id, gfa_file_id, gaf_output, paf_output,
-                      mg_vg_id, mg_trans_id):
+def minigraph_map_one(job, config, event_name, fa_path, fa_file_id, gfa_file_id):
     """ Run minigraph to map a Fasta file to a GFA graph, producing a GAF output """
 
     work_dir = job.fileStore.getLocalTempDir()
     gfa_path = os.path.join(work_dir, "mg.gfa")
-    fa_dir = job.fileStore.getLocalTempDir()
+    fa_dir = job.fileStore.getLocalTempDir() # only necessary for prependunique...
     fa_path = os.path.join(fa_dir, os.path.basename(fa_path))
+    if fa_path == gfa_path or fa_path == gfa_path + ".gz":
+        gfa_path += ".1"
     gaf_path = os.path.join(work_dir, "{}.gaf".format(event_name))
     
     job.fileStore.readGlobalFile(gfa_file_id, gfa_path)
@@ -330,120 +319,61 @@ def minigraph_map_one(job, config, event_name, fa_path, fa_file_id, gfa_file_id,
 
     if fa_path.endswith('.gz'):
         fa_path = fa_path[:-3]
-        cactus_call(parameters = ['gzip', '-d', '-c', fa_path + '.gz'], outfile=fa_path)
+        cactus_call(parameters = ['bgzip', '-d', '-c', fa_path + '.gz', '--threads', str(job.cores)], outfile=fa_path)
 
     # prepend the unique id before mapping so the GAF has cactus-compatible event names
     fa_path = prependUniqueIDs({event_name : fa_path}, work_dir, eventNameAsID=True)[event_name]
-
+        
     # parse options from the config
     xml_node = findRequiredNode(config.xmlRoot, "graphmap")
     minigraph_opts = getOptionalAttrib(xml_node, "minigraphMapOptions", str, default="")     
     opts_list = minigraph_opts.split()
     # add required options if not present
-    if "-S" not in opts_list:
-        opts_list += ["-S"]
-    if "--write-mz" not in opts_list:
-        opts_list += ["--write-mz"]
+    if "-c" not in opts_list:
+        opts_list += ["-c"]
     if "-t" not in opts_list:
         opts_list += ["-t", str(int(job.cores))]
 
-    cmd = ["minigraph",
-           os.path.basename(gfa_path),
-           os.path.basename(fa_path),
-           "-o", os.path.basename(gaf_path)] + opts_list
+    cmd = []
 
+    # optional hardmasking of softmasked fasta input (to ignore masked sequence)
     mask_filter = getOptionalAttrib(xml_node, "maskFilter", int, default=-1)
     if mask_filter >= 0:
-        cmd[2] = '-'
-        cmd = [['cactus_softmask2hardmask', os.path.basename(fa_path), '-m', str(mask_filter)], cmd]
-    
-    cactus_call(work_dir=work_dir, parameters=cmd)
+        cmd += [['cactus_softmask2hardmask', fa_path, '-m', str(mask_filter)]]
+        fa_path = '-'
 
-    paf_id, gaf_id = None, None
-    if paf_output:
-        # optional gaf->paf step.  we are not piping directly out of minigraph because mzgaf2paf's overlap filter
-        # (which is usually on) requires 2 passes so it won't read stdin when it's enabled
-        paf_id =  merge_gafs_into_paf(job, config, None, [gaf_path], mg_vg_id, mg_trans_id)
-    if gaf_output:
-        gaf_id = job.fileStore.writeGlobalFile(gaf_path)
+    # run minigraph mapping
+    cmd += [["minigraph", gfa_path, fa_path, "-o", gaf_path] + opts_list]
 
-    return gaf_id, paf_id
+    cactus_call(parameters=cmd)
 
-def merge_gafs_into_paf(job, config, gaf_file_id_map, gaf_paths, mg_vg_id, mg_trans_id):
-    """ Merge GAF alignments into a single PAF, applying some filters """
+    # convert the gaf into unstable gaf (targets are node sequences)
+    # note: the gfa needs to be uncompressed for this tool to work
+    mg_lengths_path = gfa_path + '.node_lengths.tsv'
+    unstable_gaf_path = gaf_path + '.unstable'
+    cactus_call(parameters=['gaf2unstable', gaf_path, '-g', gfa_path, '-o', mg_lengths_path],
+                outfile=unstable_gaf_path)
 
-    work_dir = job.fileStore.getLocalTempDir()
-    paf_path = os.path.join(work_dir, "mz_alignments.paf")
-    if not gaf_paths:
-        for event, gaf_id in gaf_file_id_map.items():
-            gaf_paths.append("{}.gaf".format(event))
-            job.fileStore.readGlobalFile(gaf_id, os.path.join(work_dir, gaf_paths[-1]))
-
-    xml_node = findRequiredNode(config.xmlRoot, "graphmap")
-    mzgaf2paf_opts = []
+    # convert the unstable gaf into unstable paf, which is what cactus expects
+    # also tack on the unique id to the target column
     graph_event = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "assemblyName", default="_MINIGRAPH_")
-    # this must be consistent with prependUniqueIDs() in cactus_workflow.py
-    mzgaf2paf_opts += ['-p', 'id={}|'.format(graph_event)]
-    mz_filter = getOptionalAttrib(xml_node, "universalMZFilter", float)
-    if mz_filter:
-        mzgaf2paf_opts += ['-u', str(mz_filter)]
-    if getOptionalAttrib(xml_node, "nodeBasedUniversal", typeFn=bool, default=False):
-        mzgaf2paf_opts += ['-n']
-    if getOptionalAttrib(xml_node, "strictUniversal", typeFn=bool, default=False):
-        mzgaf2paf_opts += ['-i']
-    min_mz = getOptionalAttrib(xml_node, "minMZBlockLength", int)
-    if min_mz:
-        mzgaf2paf_opts += ['-m', str(min_mz)]
-    mapq = getOptionalAttrib(xml_node, "minMAPQ", int)
-    if mapq:
-        mzgaf2paf_opts += ['-q', str(mapq)]
-    gaf_block = getOptionalAttrib(xml_node, "minGAFBlockLength", int)
-    if gaf_block:
-        mzgaf2paf_opts += ['-b', str(gaf_block)]
-    gaf_node = getOptionalAttrib(xml_node, "minGAFNodeLength", int)
-    if gaf_node:
-        mzgaf2paf_opts += ['-s', str(gaf_node)]
-    overlap_filter_len = getOptionalAttrib(xml_node, "minGAFQueryOverlapFilter", int)
-    if overlap_filter_len:
-        mzgaf2paf_opts += ['-o', str(overlap_filter_len)]
+    unstable_paf_path = unstable_gaf_path + '.paf'
+    unstable_paf_cmd = [['gaf2paf', unstable_gaf_path, '-l', mg_lengths_path],
+                        ['awk', 'BEGIN{{OFS=\"	\"}} {{$6="id={}|"$6; print}}'.format(graph_event)]]
+    cactus_call(parameters=unstable_paf_cmd, outfile=unstable_paf_path)
 
-    cmd = [["mzgaf2paf"] + gaf_paths + mzgaf2paf_opts, ['sort', '-k' , '1,1', '-k', '3,3n']]
-    cactus_call(outfile=paf_path, parameters=cmd)
+    # return the stable gaf (minigraph output) and the unstable paf
+    return job.fileStore.writeGlobalFile(gaf_path), job.fileStore.writeGlobalFile(unstable_paf_path)
 
-    # optional deletions filter
-    del_filter = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "delFilter", int, default=-1)
-    if del_filter > 0:
-        assert mg_vg_id and mg_trans_id
-        vg_path = os.path.join(work_dir, 'minigraph.vg')
-        trans_path = os.path.join(work_dir, 'minigraph.trans')
-        job.fileStore.readGlobalFile(mg_vg_id, vg_path)
-        job.fileStore.readGlobalFile(mg_trans_id, trans_path)
-        filter_paf_path = paf_path + '.filter'
-        cactus_call(parameters=['filter-paf-deletions', vg_path, trans_path, paf_path, str(del_filter), '-t', str(job.cores)],
-                    outfile=filter_paf_path)
-        # todo: would be nice to keep both
-        paf_path = filter_paf_path
-
-    return job.fileStore.writeGlobalFile(paf_path)
-
-def merge_pafs(job, paf_file_id_map):
+def merge_pafs(job, paf_file_id_map, gzip=False):
     """ merge up some pafs """
     paf_paths = [job.fileStore.readGlobalFile(paf_id) for paf_id in paf_file_id_map.values()]
     merged_path = job.fileStore.getLocalTempFile()
     catFiles(paf_paths, merged_path)
+    if gzip:
+        cactus_call(parameters=['bgzip', merged_path, '--threads', str(job.cores)])
+        merged_path += '.gz'                    
     return job.fileStore.writeGlobalFile(merged_path)
-
-def compress_gafs(job, gaf_file_id_map):
-    for event, file_id in gaf_file_id_map.items():
-        gaf_file_id_map[event] = job.addChildJobFn(compress_gaf, file_id, disk=int(1.5 * file_id.size)).rv()
-    return gaf_file_id_map
-
-def compress_gaf(job, gaf_file_id):
-    gaf_path = job.fileStore.readGlobalFile(gaf_file_id)
-    zip_path = job.fileStore.getLocalTempFile()
-    cactus_call(parameters=['gzip', gaf_path, '-c', ], outfile=zip_path)
-    job.fileStore.deleteGlobalFile(gaf_file_id)
-    return job.fileStore.writeGlobalFile(zip_path)
 
 def extract_paf_from_gfa(job, gfa_id, gfa_path, ref_event, graph_event, ignore_paf_id):
     """ make a paf directly from the rGFA tags.  rgfa2paf supports other ranks, but we're only
@@ -454,7 +384,7 @@ def extract_paf_from_gfa(job, gfa_id, gfa_path, ref_event, graph_event, ignore_p
     job.fileStore.readGlobalFile(gfa_id, gfa_path, mutable=True)
     # unzip if needed
     if gfa_path.endswith(".gz"):
-        cactus_call(parameters=['gzip', '-fd', gfa_path])
+        cactus_call(parameters=['bgzip', '-fd', gfa_path, '--threads', str(job.cores)])
         gfa_path = gfa_path[:-3]
     # optional paf whose queries we ignore
     ignore_paf_path = os.path.join(work_dir, os.path.basename(gfa_path) + ".tofilter.paf")
@@ -462,12 +392,73 @@ def extract_paf_from_gfa(job, gfa_id, gfa_path, ref_event, graph_event, ignore_p
         job.fileStore.readGlobalFile(ignore_paf_id, ignore_paf_path)
     # make the paf
     paf_path = job.fileStore.getLocalTempFile()
-    cmd = ['rgfa2paf', gfa_path, '-T', 'id={}|'.format(graph_event), '-P', 'id={}|'.format(ref_event)]
+    cmd = ['rgfa2paf', gfa_path, '-T', 'id={}|'.format(graph_event)]
+    if ref_event:
+        cmd += ['-P', 'id={}|'.format(ref_event)]
     if ignore_paf_id:
         cmd += ['-i', ignore_paf_path]
     cactus_call(parameters=cmd, outfile=paf_path)
     return job.fileStore.writeGlobalFile(paf_path)
-    
+
+def filter_paf(job, paf_id, config):
+    """ run basic paf-filtering.  these are quick filters that are best to do on-the-fly when reading the paf and 
+        as such, they are called by cactus-graphmap-split and cactus-align, not here """
+    work_dir = job.fileStore.getLocalTempDir()
+    paf_path = os.path.join(work_dir, 'mg.paf')
+    filter_paf_path = os.path.join(work_dir, 'mg.paf.filter')
+    job.fileStore.readGlobalFile(paf_id, paf_path)
+
+    min_block = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "minGAFBlockLength", typeFn=int, default=0)
+    min_mapq = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "minMAPQ", typeFn=int, default=0)
+    min_ident = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "minIdentity", typeFn=float, default=0)
+    with open(paf_path, 'r') as paf_file, open(filter_paf_path, 'w') as filter_paf_file:
+        for line in paf_file:
+            toks = line.split('\t')
+            mapq = int(toks[11])
+            ident = float(toks[9]) / (float(toks[10]) + 0.00000001)
+            bl = None
+            for tok in toks[12:]:
+                # this is a special tag that was written by gaf2paf in order to preserve the original gaf block length
+                # we use it to be able to filter by the gaf block even after it's been broken in the paf
+                if tok.startswith('gl:i'):
+                    bl = int(tok[4:])
+            assert bl is not None
+            if mapq >= min_mapq and bl >= min_block and ident >= min_ident:
+                filter_paf_file.write(line)
+    return job.fileStore.writeGlobalFile(filter_paf_path)    
+
+def filter_paf_deletions(job, paf_id, gfa_id, max_deletion, filter_threshold):
+    """ run filter-paf-deletions on a paf to break out giant-snarl-making edges """
+    work_dir = job.fileStore.getLocalTempDir()
+    paf_path = os.path.join(work_dir, 'mg.paf')
+    gfa_path = os.path.join(work_dir, 'mg.gfa')
+    job.fileStore.readGlobalFile(paf_id, paf_path)
+    job.fileStore.readGlobalFile(gfa_id, gfa_path)
+
+    # make the vg graph
+    vg_path = gfa_path + '.vg'
+    trans_path = gfa_path + '.trans'
+
+    cactus_call(parameters = ['vg', 'convert', '-r', '0', '-g', gfa_path, '-p', '-T', trans_path],
+                outfile=vg_path)
+
+    # call filter-paf-deletionts
+    filter_paf_path = paf_path + ".filter"
+    filter_log_path = paf_path + ".filter.log"
+    filter_paf_cmd = ['filter-paf-deletions', vg_path, trans_path, paf_path, '-d', str(max_deletion), '-v', '-p', '-t', str(job.cores)]
+    if filter_threshold:
+        filter_paf_cmd += ['-m', str(filter_threshold)]
+    filter_stdout, filter_stderr = cactus_call(parameters=filter_paf_cmd, check_output=True, returnStdErr=True)
+    with open(filter_log_path, 'w') as filter_log_file:
+        for line in filter_stderr:
+            filter_log_file.write(line)
+    with open(filter_paf_path, 'w') as filter_paf_file:
+        for line in filter_stdout:
+            filter_paf_file.write(line)
+
+    # return the results
+    return (job.fileStore.writeGlobalFile(filter_paf_path), job.fileStore.writeGlobalFile(filter_log_path))            
+
 def add_genome_to_seqfile(seqfile_path, fasta_path, name):
     """ hack the auto-generated minigraph assembly back into the seqfile for future use """
     seq_file = SeqFile(seqfile_path)
@@ -484,7 +475,7 @@ def add_genome_to_seqfile(seqfile_path, fasta_path, name):
         label = max_id + 1
         seq_file.tree.nxDg.add_edge(0, label)
         seq_file.tree.setName(label, name)
-        seq_file.tree.setWeight(0, label, SeqFile.branchLen)
+        seq_file.tree.setWeight(0, label, seq_file.branchLen)
 
     # add the sequence to the map
     seq_file.pathMap[name] = fasta_path

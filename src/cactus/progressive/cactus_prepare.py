@@ -68,6 +68,7 @@ def main(toil_mode=False):
         parser.add_argument("--noLocalInputs", action="store_true", help="dont embed local input paths in WDL script (as they will need"
                             " to be respecified when running on Terra")
         parser.add_argument("--jobStore", type=str, default="./jobstore", help="base directory of jobStores to use in suggested commands")
+        parser.add_argument("--seqFileOnly", action="store_true", help="Only create output SeqFile (with no ancestors); do not make plan")
     parser.add_argument("--configFile", default=os.path.join(cactusRootPath(), "cactus_progressive_config.xml"))
     parser.add_argument("--preprocessBatchSize", type=int, default=3, help="size (number of genomes) of preprocessing jobs")
     parser.add_argument("--halAppendBatchSize", type=int, default=12, help="size (number of genomes) of halAppendSubtree jobs (WDL-only)")
@@ -148,6 +149,12 @@ def main(toil_mode=False):
 
     if not options.outHal:
         options.outHal = os.path.join(options.outDir if options.outDir else '', 'out.hal')
+
+    if not options.toil:
+        if options.wdl and options.seqFileOnly:
+            raise RuntimeError("--wdl cannot be used with --seqFileOnly")
+    else:
+        options.seqFileOnly = False            
 
     if options.wdl:
         # wdl handles output file structure
@@ -356,7 +363,8 @@ def cactusPrepare(options, project):
 
     # get the ancestor names
     tree = MultiCactusTree(seqFile.tree)
-    tree.nameUnlabeledInternalNodes(prefix = config.getDefaultInternalNodePrefix())
+    if not options.seqFileOnly:
+        tree.nameUnlabeledInternalNodes(prefix = config.getDefaultInternalNodePrefix())
 
     # make the output
     outSeqFile = SeqFile()
@@ -369,6 +377,8 @@ def cactusPrepare(options, project):
         name = outSeqFile.tree.getName(node)
         leaf = outSeqFile.tree.isLeaf(node)
         if leaf or (not leaf and name not in seqFile.pathMap and not options.preprocessOnly):
+            if options.seqFileOnly and name not in seqFile.pathMap:
+                continue
             out_basename = seqFile.pathMap[name] if name in seqFile.pathMap else '{}.fa'.format(name)
             outSeqFile.pathMap[name] = os.path.join(options.outDir, os.path.basename(out_basename))
             if options.wdl:
@@ -387,7 +397,7 @@ def cactusPrepare(options, project):
                 toil.restart()
             else:
                 get_plan(options, project, seqFile, outSeqFile, toil=toil)
-    else:
+    elif not options.seqFileOnly:
         print(get_plan(options, project, seqFile, outSeqFile, toil=None))            
 
 def get_plan(options, project, inSeqFile, outSeqFile, toil):
