@@ -195,6 +195,18 @@ then
 else
 	 exit 1
 fi
+if [[ $STATIC_CHECK -ne 1 || $(ldd pafcoverage | grep so | wc -l) -eq 0 ]]
+then
+	 mv pafcoverage ${binDir}
+else
+	 exit 1
+fi
+if [[ $STATIC_CHECK -ne 1 || $(ldd pafmask | grep so | wc -l) -eq 0 ]]
+then
+	 mv pafmask ${binDir}
+else
+	 exit 1
+fi
 if [[ $STATIC_CHECK -ne 1 || $(ldd paf2stable | grep so | wc -l) -eq 0 ]]
 then
 	 mv paf2stable ${binDir}

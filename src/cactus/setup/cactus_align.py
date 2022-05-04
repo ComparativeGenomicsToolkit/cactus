@@ -62,7 +62,7 @@ def main():
                         help="Activate pangenome mode (suitable for star trees of closely related samples) by overriding several configuration settings."
                         " The overridden configuration will be saved in <outHal>.pg-conf.xml")
     parser.add_argument("--pafInput", action="store_true",
-                        help="'cigarsFile' arugment is in PAF format, rather than lastz cigars. [toggled on automatically when --pangenome used]")
+                        help="'cigarsFile' arugment is in PAF format, rather than lastz cigars.")
     parser.add_argument("--usePafSecondaries", action="store_true",
                         help="use the secondary alignments from the PAF input.  They are ignored by default.")
     parser.add_argument("--singleCopySpecies", type=str,
@@ -156,9 +156,6 @@ def main():
 
     # Mess with some toil options to create useful defaults.
     cactus_override_toil_options(options)
-
-    if options.pangenome:
-        options.pafInput = True
 
     # We set which type of unique ids to expect.  Numeric (from cactus-blast) or Eventname (cactus-refmap or cactus-grpahmap)
     # This is a bit ugly, since we don't have a good way to differentiate refmap from blast, and use --pangenome as a proxy
