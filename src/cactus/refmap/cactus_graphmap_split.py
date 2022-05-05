@@ -120,9 +120,11 @@ def cactus_graphmap_split(options):
 
             
             #import the graph
+            logger.info("Importing {}".format(options.minigraphGFA))
             gfa_id = toil.importFile(makeURL(options.minigraphGFA))
 
             #import the paf
+            logger.info("Importing {}".format(options.graphmapPAF))
             paf_id = toil.importFile(makeURL(options.graphmapPAF))
 
             #import the sequences (that we need to align for the given event, ie leaves and outgroups)

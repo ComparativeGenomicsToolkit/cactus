@@ -157,6 +157,7 @@ def graph_map(options):
                 raise RuntimeError("{} assembly not found in seqfile so it must be specified with --outputFasta".format(graph_event))
 
             #import the graph
+            logger.info("Importing {}".format(options.minigraphGFA))
             gfa_id = toil.importFile(makeURL(options.minigraphGFA))
 
             #import the sequences (that we need to align for the given event, ie leaves and outgroups)

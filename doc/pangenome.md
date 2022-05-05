@@ -343,6 +343,7 @@ The following environment variables must be defined: `MYBUCKET` and `MYJOBSTORE`
 export MYBUCKET=s3://vg-k8s/vgamb/wg/cactus/may4
 export MYJOBSTORE=aws:us-west-2:cactus-hprc-jobstore
 export VERSION=may4
+export MINIGRAPH=https://zenodo.org/record/6499594/files/GRCh38-90c.r518.gfa.gz
 ```
 
 WDL / cactus-prepare support is in progress!
@@ -424,6 +425,7 @@ cactus-preprocess ${MYJOBSTORE} hprc-${VERSION}-mc.seqfile hprc-${VERSION}-mc.pp
 
 Note: since there is already a minigraph available for this data, we just use it instead of constructing it ourselves. See the previous examples for how to construct a minigraph with `cactus-minigraph`.
 
+```
 Now that the sequences are ready, we run `cactus-graphmap` as before.  There is a new option:
 
 `--delFilter N` : Filter out mappings that would induce a deletion bubble of `>N` bases w.r.t. a path in the reference.  If this option is used, the unfiltered paf will also be output (with a `.unfiltered` suffix) as well as a log detailing what was filtered and why (`.filter.log` suffix).  This option is very important as minigraph will produce a small number of split-mappings that can cause chromosome-scale bubbles.
@@ -432,7 +434,7 @@ Now that the sequences are ready, we run `cactus-graphmap` as before.  There is 
 # set the minigraph cores to 16
 sed src/cactus/cactus_progressive_config.xml -e "s/cpu=\"6\"/cpu=\"16\"/g" >  config_minigraph.xml
 
-cactus-graphmap ${MYJOBSTORE} hprc-${VERSION}-mc.pp.seqfile https://s3-us-west-2.amazonaws.com/human-pangenomics/pangenomes/freeze/freeze1/minigraph/hprc-v1.0-minigraph-grch38.gfa.gz ${MYBUCKET}/hprc-${VERSION}-mc-grch38.paf --outputGAFDir ${MYBUCKET}/gaf-hprc-${VERSION}-mc-grch38 --outputFasta ${MYBUCKET}/fasta/minigraph.grch38.gfa.fa.gz --reference GRCh38  --delFilter 10000000 --realTimeLogging --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.8xlarge:1.5 --nodeStorage 650 --maxNodes 25 --betaInertia 0 --targetTime 1 --configFile config_minigraph.xml --logFile hprc-${VERSION}-mc-grch38.paf.log
+cactus-graphmap ${MYJOBSTORE} hprc-${VERSION}-mc.pp.seqfile ${MINIGRAPH} ${MYBUCKET}/hprc-${VERSION}-mc-grch38.paf --outputGAFDir ${MYBUCKET}/gaf-hprc-${VERSION}-mc-grch38 --outputFasta ${MYBUCKET}/fasta/minigraph.grch38.gfa.fa.gz --reference GRCh38  --delFilter 10000000 --realTimeLogging --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.8xlarge:1.5 --nodeStorage 650 --maxNodes 25 --betaInertia 0 --targetTime 1 --configFile config_minigraph.xml --logFile hprc-${VERSION}-mc-grch38.paf.log
 ```
 
 Note:  The `--betaInertia 0 --targetTime 1` options force Toil to create AWS instances as soon as they are needed.
@@ -446,7 +448,7 @@ There are too many reference contigs to make a graph for each because of all the
 Also, the `--minIdentity` option is used to ignore PAF lines with < 75% identity. Using this stringency is only possible because `--base` was used with `cactus-graphmap`.
 
 ```
-cactus-graphmap-split ${MYJOBSTORE}  hprc-${VERSION}-mc.pp.seqfile https://s3-us-west-2.amazonaws.com/human-pangenomics/pangenomes/freeze/freeze1/minigraph/hprc-v1.0-minigraph-grch38.gfa.gz ${MYBUCKET}/hprc-${VERSION}-mc-grch38.paf --outDir ${MYBUCKET}/chroms-hprc-${VERSION}-mc-grch38 --otherContig chrOther --refContigs $(for i in `seq 22`; do echo chr$i; done ; echo "chrX chrY chrM") --reference GRCh38 --minIdentity 0.75 --realTimeLogging --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.8xlarge --nodeStorage 1000 --maxNodes 1 --logFile hprc-${VERSION}-mc-grch38.split.log
+cactus-graphmap-split ${MYJOBSTORE}  hprc-${VERSION}-mc.pp.seqfile ${MINIGRAPH} ${MYBUCKET}/hprc-${VERSION}-mc-grch38.paf --outDir ${MYBUCKET}/chroms-hprc-${VERSION}-mc-grch38 --otherContig chrOther --refContigs $(for i in `seq 22`; do echo chr$i; done ; echo "chrX chrY chrM") --reference GRCh38 --minIdentity 0.75 --realTimeLogging --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.8xlarge --nodeStorage 1000 --maxNodes 1 --logFile hprc-${VERSION}-mc-grch38.split.log
 ```
 
 ### HPRC Graph: Batch Alignment
@@ -455,8 +457,11 @@ The rest of the pipeline is proceeds as in the yeast example. We need to manuall
 
 This command will create a vg and hal file for each chromosome in ${MYBUCKET}/align-batch-grch38/
 ```
+# turn down recoverable chains to avoid sliding poa window
+sed src/cactus/cactus_progressive_config.xml -e "s/maxRecoverableChainLength=\"500000\"/maxRecoverableChainLength=\"10000\"/g" >  config_align.xml
+
 aws s3 cp ${MYBUCKET}/chroms-hprc-${VERSION}-mc-grch38/chromfile.txt .
-cactus-align-batch ${MYJOBSTORE} ./chromfile.txt ${MYBUCKET}/align-hprc-${VERSION}-mc-grch38 --alignCores 16 --realTimeLogging --alignOptions "--pangenome --pafInput --reference GRCh38 --realTimeLogging  --outVG --maxLen 10000" --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.8xlarge:1.5 --nodeStorage 1000 --maxNodes 10 --betaInertia 0 --targetTime 1 --logFile hprc-${VERSION}-mc-grch38.align.log
+cactus-align-batch ${MYJOBSTORE} ./chromfile.txt ${MYBUCKET}/align-hprc-${VERSION}-mc-grch38 --alignCores 16 --realTimeLogging --alignOptions "--pangenome --pafInput --reference GRCh38 --realTimeLogging  --outVG" --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.8xlarge:1.5 --nodeStorage 1000 --maxNodes 10 --betaInertia 0 --targetTime 1 --configFile config_align.xml --logFile hprc-${VERSION}-mc-grch38.align.log
 ```
 
 ### HPRC Graph: Creating the Whole-Genome Graph
