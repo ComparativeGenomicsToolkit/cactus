@@ -216,6 +216,7 @@ def minigraph_workflow(job, options, config, seq_path_map, seq_id_map, gfa_id, g
         root_job = Job()
         gfa_unzip_job.addFollowOn(root_job)
         gfa_id_size *= 10
+        options.minigraphGFA = options.minigraphGFA[:-3]
     
     paf_job = Job.wrapJobFn(minigraph_map_all, config, gfa_id, seq_path_map, seq_id_map, graph_event)
     root_job.addChild(paf_job)
