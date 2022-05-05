@@ -334,8 +334,8 @@ class CactusPreprocessor2(RoundedJob):
             return self.addChild(BatchPreprocessor(prepXmlElems, self.inputSequenceID, 0)).rv()
 
 def stageWorkflow(outputSequenceDir, configFile, inputSequences, toil, restart=False,
-                  outputSequences = [], maskAlpha=False, clipAlpha=None,
-                  maskFile=None, maskFileAction=None, minLength=None, inputEventNames=None, brnnCores=None,
+                  outputSequences = [], maskMode=None, maskAction=None,
+                  maskFile=None, minLength=None, inputEventNames=None, brnnCores=None,
                   gpu_override=False):
     #Replace any constants
     configNode = ET.parse(configFile).getroot()
@@ -348,17 +348,19 @@ def stageWorkflow(outputSequenceDir, configFile, inputSequences, toil, restart=F
     ConfigWrapper(configNode).initGPU(gpu_override)
 
     # Make sure we have the dna-brnn model in the filestore if we need it
-    loadDnaBrnnModel(toil, ET.parse(configFile).getroot(), maskAlpha = maskAlpha)
+    loadDnaBrnnModel(toil, ET.parse(configFile).getroot(), maskAlpha = maskMode == 'brnn')
         
     if configNode.find("constants") != None:
         ConfigWrapper(configNode).substituteAllPredefinedConstantsWithLiterals()
-    if maskAlpha or clipAlpha:
-        ConfigWrapper(configNode).setPreprocessorActive("lastzRepeatMask", False)
-        ConfigWrapper(configNode).setPreprocessorActive("dna-brnn", True)
-        for node in configNode.findall("preprocessor"):
-            if getOptionalAttrib(node, "preprocessJob") == 'dna-brnn':
-                if clipAlpha:
-                    node.attrib["action"] = "clip"                    
+    if maskMode:
+        lastz = maskMode == 'lastz'
+        brnn = maskMode == 'brnn'
+        ConfigWrapper(configNode).setPreprocessorActive("lastzRepeatMask", lastz)
+        ConfigWrapper(configNode).setPreprocessorActive("dna-brnn", brnn)
+        if brnn and maskAction == 'clip':
+            for node in configNode.findall("preprocessor"):
+                if getOptionalAttrib(node, "preprocessJob") == 'dna-brnn':
+                    node.attrib["action"] = "clip"
     if brnnCores is not None:
         for node in configNode.findall("preprocessor"):
             if getOptionalAttrib(node, "preprocessJob") == 'dna-brnn':
@@ -373,7 +375,7 @@ def stageWorkflow(outputSequenceDir, configFile, inputSequences, toil, restart=F
             inputSequenceIDs.append(toil.importFile(makeURL(seq)))
         maskFileID = toil.importFile(makeURL(maskFile)) if maskFile else None
         unzip_job = Job.wrapJobFn(unzip_then_pp, configNode, inputSequences, inputSequenceIDs, inputEventNames,
-                                  maskFile, maskFileID, maskFileAction, minLength)
+                                  maskFile, maskFileID, maskAction, minLength)
         outputSequenceIDs = toil.start(unzip_job)
     else:
         outputSequenceIDs = toil.restart()
@@ -414,12 +416,11 @@ def main():
     parser.add_argument("--inputNames", nargs='*', help='input genome names (not paths) to preprocess (all leaves from Input Seq file if none specified)')
     parser.add_argument("--inPaths", nargs='*', help='Space-separated list of input fasta paths (to be used in place of --inSeqFile')
     parser.add_argument("--outPaths", nargs='*', help='Space-separated list of output fasta paths (one for each inPath, used in place of --outSeqFile)')
-    parser.add_argument("--maskAlpha", action='store_true', help='Use dna-brnn instead of lastz for repeatmasking')
-    parser.add_argument("--clipAlpha", action='store_true', help='use dna-brnn instead of lastz for repeatmasking.  Also, clip sequence using given minimum length instead of softmasking')
-    parser.add_argument("--ignore", nargs='*', help='Space-separate list of genomes from inSeqFile to ignore', default=[])
-    parser.add_argument("--maskFile", type=str, help='Add masking from BED or PAF file to sequences, ignoring all other preprocessors')
-    parser.add_argument("--maskAction", type=str, help='Action for --maskFile filter. One of {clip, softmask, hardmask}', default=None)
+    parser.add_argument("--maskMode", type=str, help='Masking mode, one of {"lastz", "brnn", "none"}. Default="lastz".', default='lastz')
+    parser.add_argument("--maskAction", type=str, help='Masking action, one of {"softmask", "hardmask", "clip"}. Default="softmask"', default='softmask')
     parser.add_argument("--minLength", type=int, help='Minimum interval threshold for masking.  Overrides config')
+    parser.add_argument("--maskFile", type=str, help='Add masking from BED or PAF file to sequences, **ignoring all other preprocessors**')
+    parser.add_argument("--ignore", nargs='*', help='Space-separate list of genomes from inSeqFile to ignore', default=[])
     parser.add_argument("--brnnCores", type=int, help='Specify number of cores for each dna-brnn job (overriding default value from the config)')
     parser.add_argument("--latest", dest="latest", action="store_true",
                         help="Use the latest version of the docker container "
@@ -451,16 +452,14 @@ def main():
             raise RuntimeError('--inPaths and --outPaths must have the same number of arguments')
     else:
         raise RuntimeError('--inSeqFile/--outSeqFile/--inputNames or --inPaths/--outPaths required to specify input')
-    if options.maskAlpha and options.clipAlpha:
-        raise RuntimeError('--maskAlpha and --clipAlpha cannot be used together')
-    if options.clipAlpha:
-        options.maskAlpha = True
-    if options.ignore and options.clipAlpha is None:
-        raise RuntimeError('--ignore can only be used with --clipAlpha')
+    if options.maskMode not in ['lastz', 'brnn', 'none']:
+        raise RuntimeError('--maskMode must be one of {"lastz", "brnn", "none"}')    
+    if options.maskAction not in ['softmask', 'hardmask', 'clip']:
+        raise RuntimeError('--maskAction must be one of {"softmask", "hardmask", "clip"}')
+    if options.maskMode == 'lastz' and options.maskAction != 'softmask':
+        raise RuntimeError('only softmasking is supported with lastz')
     if options.maskFile and options.maskFile.endswith('.paf') and not options.inputNames and not options.inSeqFile:
         raise RuntimeError('paf masking requires event names specified wither with an input seqfile or with --inputNames')
-    if options.maskFile and options.maskAction not in ['clip', 'hardmask', 'softmask']:
-        raise RuntimeError('--maskAction must be used with --maskFile.  Only valid values are clip, hardmask and softmask')
     if options.maskFile and options.minLength is None:
         raise RuntimeError('--minLength must be used with --maskFile')
     
@@ -528,10 +527,8 @@ def main():
                       toil=toil,
                       restart=options.restart,
                       outputSequences=outSeqPaths,
-                      maskAlpha=options.maskAlpha,
-                      clipAlpha=options.clipAlpha,
-                      maskFile=options.maskFile,
-                      maskFileAction=options.maskAction,
+                      maskMode=options.maskMode,
+                      maskAction=options.maskAction,
                       minLength=options.minLength,
                       inputEventNames=inNames,
                       brnnCores=options.brnnCores,
