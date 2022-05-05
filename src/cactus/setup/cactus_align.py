@@ -36,6 +36,7 @@ from cactus.shared.common import getOptionalAttrib
 from cactus.shared.common import cactus_call
 from cactus.refmap.paf_to_lastz import paf_to_lastz
 from cactus.shared.common import write_s3, has_s3, get_aws_region
+from cactus.refmap.cactus_graphmap import filter_paf
 
 from toil.job import Job
 from toil.common import Toil
@@ -448,11 +449,12 @@ def make_align_job(options, toil):
                               eventNameAsID=options.eventNameAsID,
                               referenceEvent=options.reference,
                               pafMaskFilter=options.pafMaskFilter,
-                              paf2Stable=paf_to_stable)
+                              paf2Stable=paf_to_stable,
+                              do_filter_paf=options.pangenome)
     return align_job
 
 def run_cactus_align(job, configWrapper, cactusWorkflowArguments, project, checkpointInfo, doRenaming, pafInput, pafSecondaries, doVG, doGFA, delay=0,
-                     eventNameAsID=False, referenceEvent=None, pafMaskFilter=None, paf2Stable=False):
+                     eventNameAsID=False, referenceEvent=None, pafMaskFilter=None, paf2Stable=False, do_filter_paf=False):
     
     head_job = Job()
     job.addChild(head_job)
@@ -476,7 +478,7 @@ def run_cactus_align(job, configWrapper, cactusWorkflowArguments, project, check
     if pafInput:
         # convert the paf input to lastz format, splitting out into primary and secondary files
         # optionally apply the masking
-        cur_job = cur_job.addFollowOnJobFn(mask_and_convert_paf, cactusWorkflowArguments, pafSecondaries, mask_bed_id, paf2Stable)
+        cur_job = cur_job.addFollowOnJobFn(mask_and_convert_paf, configWrapper, cactusWorkflowArguments, pafSecondaries, mask_bed_id, paf2Stable, do_filter_paf=do_filter_paf)
         cactusWorkflowArguments = cur_job.rv()
     
     if no_ingroup_coverage:
@@ -507,16 +509,28 @@ def run_cactus_align(job, configWrapper, cactusWorkflowArguments, project, check
         
     return hal_export_job.rv(), vg_file_id, gfa_file_id
 
-def mask_and_convert_paf(job, cactusWorkflowArguments, pafSecondaries, mask_bed_id, paf_to_stable):
+def mask_and_convert_paf(job, configWrapper, cactusWorkflowArguments, pafSecondaries, mask_bed_id, paf_to_stable, do_filter_paf):
     """ convert to lastz and run masking.  just wraps paf_to_lastz, but resolves the workflow promise on the way """
     paf_to_lastz_disk = cactusWorkflowArguments.alignmentsID.size * 2
     if mask_bed_id:
         paf_to_lastz_disk += mask_bed_id.size
     if paf_to_stable:
         paf_to_lastz_disk += cactusWorkflowArguments.alignmentsID.size * 6
-    paf_to_lastz_job = job.addChildJobFn(paf_to_lastz, cactusWorkflowArguments.alignmentsID, sort_secondaries=True,
-                                         mask_bed_id=mask_bed_id, paf_to_stable=paf_to_stable,
-                                         disk=paf_to_lastz_disk)
+        
+    # run the paf filter (only for pangenome)
+    paf_id = cactusWorkflowArguments.alignmentsID
+    if do_filter_paf:
+        paf_filter_job = job.addChildJobFn(filter_paf, paf_id, configWrapper, disk=paf_id.size * 2)
+        paf_id = paf_filter_job.rv()
+    
+    paf_to_lastz_job = Job.wrapJobFn(paf_to_lastz, paf_id, sort_secondaries=True,
+                                     mask_bed_id=mask_bed_id, paf_to_stable=paf_to_stable,
+                                     disk=paf_to_lastz_disk)
+    if do_filter_paf:
+        paf_filter_job.addFollowOn(paf_to_lastz_job)
+    else:
+        job.addChild(paf_to_lastz_job)        
+    
     cactusWorkflowArguments.alignmentsID = paf_to_lastz_job.rv(0)
     cactusWorkflowArguments.secondaryAlignmentsID = paf_to_lastz_job.rv(1) if pafSecondaries else None
     return cactusWorkflowArguments

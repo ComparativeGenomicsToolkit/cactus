@@ -340,7 +340,7 @@ The steps below are run on AWS/S3, and assume everything is written to s3://MYBU
 
 The following environment variables must be defined: `MYBUCKET` and `MYJOBSTORE`. All output will be placed in `MYBUCKET`, and `MYJOBSTORE` will be used by TOIL for temporary storage.  For example
 ```
-export MYBUCKET=s3://vg-k8s/vgamb/wg/cactus/may4
+export MYBUCKET=s3://vg-k8s/vgamb/wg/cactus/GRCh38-f1g-90/may4
 export MYJOBSTORE=aws:us-west-2:cactus-hprc-jobstore
 export VERSION=may4
 export MINIGRAPH=https://zenodo.org/record/6499594/files/GRCh38-90c.r518.gfa.gz
