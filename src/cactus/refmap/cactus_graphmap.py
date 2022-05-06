@@ -422,10 +422,9 @@ def filter_paf(job, paf_id, config):
             for tok in toks[12:]:
                 # this is a special tag that was written by gaf2paf in order to preserve the original gaf block length
                 # we use it to be able to filter by the gaf block even after it's been broken in the paf
-                if tok.startswith('gl:i'):
-                    bl = int(tok[4:])
-            assert bl is not None
-            if mapq >= min_mapq and bl >= min_block and ident >= min_ident:
+                if tok.startswith('gl:i:'):
+                    bl = int(tok[5:])
+            if mapq >= min_mapq and (bl is None or bl >= min_block) and ident >= min_ident:
                 filter_paf_file.write(line)
     return job.fileStore.writeGlobalFile(filter_paf_path)    
 
