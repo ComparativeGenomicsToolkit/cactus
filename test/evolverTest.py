@@ -344,7 +344,7 @@ class TestCase(unittest.TestCase):
         cactus_opts = ['--binariesMode', binariesMode, '--logInfo', '--realTimeLogging', '--workDir', self.tempDir, '--configFile', poa_config_path]
         
         # preprocess with dna-brnn
-        subprocess.check_call(['cactus-preprocess', self._job_store(binariesMode), seq_file_path, out_seq_file_path, '--maskAlpha'] + cactus_opts)
+        subprocess.check_call(['cactus-preprocess', self._job_store(binariesMode), seq_file_path, out_seq_file_path, '--maskMode', 'brnn'] + cactus_opts)
 
         # make the reference graph
         mg_cmd = ['minigraph', '-xggs', '-t', '4']
@@ -388,7 +388,7 @@ class TestCase(unittest.TestCase):
             orig_config_path, config_path), shell=True)
         cactus_opts = ['--binariesMode', binariesMode, '--logInfo', '--realTimeLogging', '--workDir', self.tempDir, '--configFile', config_path, '--maxCores', '8']
         subprocess.check_call(['cactus-preprocess', self._job_store(binariesMode),
-                               orig_seq_file_path, seq_file_path, '--maskAlpha', '--minLen', '20000'] + cactus_opts, shell=False)
+                               orig_seq_file_path, seq_file_path, '--maskMode', 'brnn', '--minLength', '20000'] + cactus_opts, shell=False)
 
         # fish out the event names
         events = []
