@@ -417,6 +417,7 @@ def filter_paf(job, paf_id, config):
         for line in paf_file:
             toks = line.split('\t')
             mapq = int(toks[11])
+            query_len = int(toks[1])
             ident = float(toks[9]) / (float(toks[10]) + 0.00000001)
             bl = None
             for tok in toks[12:]:
@@ -424,7 +425,7 @@ def filter_paf(job, paf_id, config):
                 # we use it to be able to filter by the gaf block even after it's been broken in the paf
                 if tok.startswith('gl:i:'):
                     bl = int(tok[5:])
-            if mapq >= min_mapq and (bl is None or bl >= min_block) and ident >= min_ident:
+            if mapq >= min_mapq and (bl is None or query_len <= min_block or bl >= min_block) and ident >= min_ident:
                 filter_paf_file.write(line)
     return job.fileStore.writeGlobalFile(filter_paf_path)    
 
