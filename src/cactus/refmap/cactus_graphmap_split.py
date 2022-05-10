@@ -7,6 +7,7 @@ from argparse import ArgumentParser
 import xml.etree.ElementTree as ET
 import copy
 import timeit
+import shutil
 
 from operator import itemgetter
 
@@ -191,8 +192,11 @@ def graphmap_split_workflow(job, options, config, seqIDMap, gfa_id, gfa_path, pa
     # gather everythign up into a table
     gather_fas_job = split_fas_job.addFollowOnJobFn(gather_fas, seqIDMap, split_gfa_job.rv(0), split_fas_job.rv(0), split_fas_job.rv(1))
 
+    # lump "other" contigs together into one file (to make fewer align jobs downstream)
+    bin_other_job = gather_fas_job.addFollowOnJobFn(bin_other_contigs, ref_contigs, other_contig, gather_fas_job.rv(0), disk=(gfa_size + paf_size) * 2)
+
     # return all the files, as well as the 2 split logs
-    return (seqIDMap, gather_fas_job.rv(0), split_gfa_job.rv(1), gather_fas_job.rv(1))
+    return (seqIDMap, bin_other_job.rv(), split_gfa_job.rv(1), gather_fas_job.rv(1))
 
 def get_mask_bed(job, seq_id_map, min_length):
     """ make a bed file from the fastas """
@@ -279,8 +283,6 @@ def split_gfa(job, config, gfa_id, paf_ids, ref_contigs, other_contig, reference
     cmd += coverage_opts    
     if gfa_id:
         cmd += ['-g', gfa_path, '-G']
-    if other_contig:
-        cmd += ['-o', other_contig]
     if reference_event:
         cmd += ['-r', 'id={}|'.format(reference_event)]
     if mask_bed_id:
@@ -293,8 +295,6 @@ def split_gfa(job, config, gfa_id, paf_ids, ref_contigs, other_contig, reference
         remap_opts = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "remapSplitOptions", default=None)
         if remap_opts:
             cmd += remap_opts.split(' ')        
-    for contig in ref_contigs:
-        cmd += ['-c', contig]
 
     cactus_call(parameters=cmd, work_dir=work_dir)
 
@@ -435,7 +435,76 @@ def gather_fas(job, seq_id_map, output_id_map, contig_fa_map, contig_size_map):
     contig_size_table_id = job.fileStore.writeGlobalFile(size_table_path)
 
     return output_id_map, contig_size_table_id
-    
+
+def bin_other_contigs(job, ref_contigs, other_contig, output_id_map):
+    """ take all the other (ie non ref) contigs (in practice, unplaced bits of grch38) and merge them
+    all up into a single "other" contig.  this avoids a 1000 align jobs getting created downstream. 
+    Note we've moved this to the ned here (it used to be done usinc -c -o in rgfa-split) so as to
+    avoid letting these contigs glom together into componenets: the final output will be identital
+    to if they were kept in separate files. """
+    work_dir = job.fileStore.getLocalTempDir()
+    if not ref_contigs or not other_contig or not output_id_map:
+        return output_id_map
+
+    ref_contigs = set(ref_contigs)
+    other_contigs = set()
+    merged_output_path_map = {} # map[TYPE][EVENT] = local file path
+
+    for ref_contig in output_id_map.keys():
+        if ref_contig not in ref_contigs:
+            other_contigs.add(ref_contig)
+            for type_key in output_id_map[ref_contig].keys():
+                if type_key == 'fa':
+                    for event in output_id_map[ref_contig][type_key].keys():
+                        # we read the existing id
+                        local_path = os.path.join(work_dir, '{}_{}.{}'.format(ref_contig, event, type_key))
+                        job.fileStore.readGlobalFile(output_id_map[ref_contig][type_key][event], local_path)
+
+                        # find its new home
+                        other_path = os.path.join(work_dir, '{}_{}.{}'.format(other_contig, event, type_key))
+
+                        # update the map
+                        if type_key not in merged_output_path_map:
+                            merged_output_path_map[type_key] = {}
+                        if event not in merged_output_path_map[type_key]:
+                            merged_output_path_map[type_key][event] = other_path
+
+                        # append the file
+                        with open(local_path, 'rb') as local_file, open(other_path, 'ab') as other_file:
+                            shutil.copyfileobj(local_file, other_file)
+                else:
+                    # we read the existing id
+                    local_path = os.path.join(work_dir, '{}.{}'.format(ref_contig, type_key))
+                    job.fileStore.readGlobalFile(output_id_map[ref_contig][type_key], local_path)
+
+                    # find its new home
+                    other_path = os.path.join(work_dir, '{}.{}'.format(other_contig, type_key))
+
+                    # update the map
+                    if type_key not in merged_output_path_map:
+                        merged_output_path_map[type_key] = other_path
+
+                    # append the file
+                    with open(local_path, 'rb') as local_file, open(other_path, 'ab') as other_file:
+                        shutil.copyfileobj(local_file, other_file)
+                    
+    # and convert to ids
+    for type_key in merged_output_path_map.keys():
+        if type_key == 'fa':
+            for event in merged_output_path_map[type_key].keys():
+                merged_output_path_map[type_key][event] = job.fileStore.writeGlobalFile(merged_output_path_map[type_key][event])
+        else:
+            merged_output_path_map[type_key] = job.fileStore.writeGlobalFile(merged_output_path_map[type_key])
+
+    # remove the other contigs from the map
+    for contig in other_contigs:
+        del output_id_map[contig]
+
+    # drop in the other contig
+    output_id_map[other_contig] = merged_output_path_map
+
+    return output_id_map
+
 def export_split_data(toil, input_seq_id_map, output_id_map, split_log_id, contig_size_table_id, output_dir, config):
     """ download all the split data locally """
 
