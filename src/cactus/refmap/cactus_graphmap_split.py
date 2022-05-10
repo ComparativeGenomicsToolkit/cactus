@@ -192,7 +192,8 @@ def graphmap_split_workflow(job, options, config, seqIDMap, gfa_id, gfa_path, pa
     gather_fas_job = split_fas_job.addFollowOnJobFn(gather_fas, seqIDMap, split_gfa_job.rv(0), split_fas_job.rv(0), split_fas_job.rv(1))
 
     # lump "other" contigs together into one file (to make fewer align jobs downstream)
-    bin_other_job = gather_fas_job.addFollowOnJobFn(bin_other_contigs, ref_contigs, other_contig, gather_fas_job.rv(0), disk=(gfa_size + paf_size) * 2)
+    bin_other_job = gather_fas_job.addFollowOnJobFn(bin_other_contigs, config, ref_contigs, other_contig, gather_fas_job.rv(0),
+                                                    disk=(gfa_size + paf_size) * 2)
 
     # return all the files, as well as the 2 split logs
     return (seqIDMap, bin_other_job.rv(), split_gfa_job.rv(1), gather_fas_job.rv(1))
@@ -451,7 +452,7 @@ def gather_fas(job, seq_id_map, output_id_map, contig_fa_map, contig_size_map):
 
     return output_id_map, contig_size_table_id
 
-def bin_other_contigs(job, ref_contigs, other_contig, output_id_map):
+def bin_other_contigs(job, config, ref_contigs, other_contig, output_id_map):
     """ take all the other (ie non ref) contigs (in practice, unplaced bits of grch38) and merge them
     all up into a single "other" contig.  this avoids a 1000 align jobs getting created downstream. 
     Note we've moved this to the ned here (it used to be done usinc -c -o in rgfa-split) so as to
@@ -461,12 +462,14 @@ def bin_other_contigs(job, ref_contigs, other_contig, output_id_map):
     if not ref_contigs or not other_contig or not output_id_map:
         return output_id_map
 
+    amb_name = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "ambiguousName", default="_AMBIGUOUS_")
+    
     ref_contigs = set(ref_contigs)
     other_contigs = set()
     merged_output_path_map = {} # map[TYPE][EVENT] = local file path
 
     for ref_contig in output_id_map.keys():
-        if ref_contig not in ref_contigs:
+        if ref_contig not in ref_contigs and ref_contig != amb_name:
             other_contigs.add(ref_contig)
             for type_key in output_id_map[ref_contig].keys():
                 if type_key == 'fa':
