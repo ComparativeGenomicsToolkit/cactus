@@ -119,7 +119,6 @@ def cactus_graphmap_split(options):
             # load the seqfile
             seqFile = SeqFile(options.seqFile)
 
-            
             #import the graph
             logger.info("Importing {}".format(options.minigraphGFA))
             gfa_id = toil.importFile(makeURL(options.minigraphGFA))
@@ -294,7 +293,18 @@ def split_gfa(job, config, gfa_id, paf_ids, ref_contigs, other_contig, reference
     if not gfa_id:
         remap_opts = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "remapSplitOptions", default=None)
         if remap_opts:
-            cmd += remap_opts.split(' ')        
+            cmd += remap_opts.split(' ')
+    if not other_contig:
+        # we use this option only when subsetting to given ref contigs *without* using the "other"
+        # option.  otherwise, we rely on bin_other_contigs here in python to do the job
+        for contig in ref_contigs:
+            cmd += ['-c', contig]
+            # hack in to make sure we deal with gfas with/without prexixes
+            # todo: once all merged, this needs to be simplified and cleaned
+            if reference_event and not contig.startswith('id={}|'.format(reference_event)):
+                cmd += ['-c', 'id={}|{}'.format(reference_event, contig)]
+            if contig.startswith('id=') and contig.find('|') > 3:
+                cmd += ['-c', contig[contig.find('|')+1:]]            
 
     cactus_call(parameters=cmd, work_dir=work_dir)
 
@@ -304,6 +314,11 @@ def split_gfa(job, config, gfa_id, paf_ids, ref_contigs, other_contig, reference
         if file_name.startswith(os.path.basename(out_prefix)) and ext in [".gfa", ".paf", ".fa_contigs"] and \
            os.path.isfile(os.path.join(work_dir, file_name + ".fa_contigs")):
             name = file_name[len(os.path.basename(out_prefix)):]
+
+            # don't leave unique identifier in names
+            if name.startswith('id=') and name.find('|') > 3:
+                name=name[name.find('|') + 1:]
+
             if name not in output_id_map:
                 output_id_map[name] = {}
             if ext == '.paf':
@@ -519,7 +534,7 @@ def export_split_data(toil, input_seq_id_map, output_id_map, split_log_id, conti
     # export the log
     toil.exportFile(split_log_id, makeURL(os.path.join(output_dir, 'minigraph.split.log')))
 
-    for ref_contig in output_id_map.keys():
+    for ref_contig in output_id_map.keys():        
         if output_id_map[ref_contig] is None:
             # todo: check ambigous?
             continue
