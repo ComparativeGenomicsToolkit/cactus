@@ -497,7 +497,7 @@ class TestCase(unittest.TestCase):
                 if line.startswith('chr'):
                     toks=line.strip().split()
                     contig_sizes[toks[0]] = toks[1:]
-        self.assertEqual(len(contig_sizes), 14)
+        self.assertEqual(len(contig_sizes), 16)
         for chr,sizes in contig_sizes.items():
             self.assertEqual(len(sizes), 10)
             self.assertGreaterEqual(int(sizes[9]), 200000)
