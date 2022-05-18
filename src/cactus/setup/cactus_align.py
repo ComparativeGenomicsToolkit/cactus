@@ -873,7 +873,10 @@ def align_toil(job, chrom, seq_file_id, paf_file_id, config_id, options):
     log_file = os.path.join(work_dir, '{}.hal.log'.format(chrom))
 
     cmd = ['cactus-align', js, seq_file, paf_file, out_file, '--logFile', log_file, '--configFile', config_file] + options.alignOptions.split()
-
+    cores=options.alignCoresOverrides[chrom] if chrom in options.alignCoresOverrides else options.alignCores
+    if cores:
+        cmd += ['--consCores', str(cores)]
+        cmd += ['--maxCores', str(cores)]
     cactus_call(parameters=cmd)
 
     ret_ids = [None, None, None, None]
