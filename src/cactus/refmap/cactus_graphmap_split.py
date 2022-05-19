@@ -243,13 +243,6 @@ def split_gfa(job, config, gfa_id, paf_ids, ref_contigs, other_contig, reference
     if len(paf_paths) > 1:
         catFiles(paf_paths, paf_path)
 
-    # do an identity filter
-    min_paf_ident = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "minIdentity", typeFn=float, default=None)
-    if min_paf_ident:
-        filter_paf_path = paf_path + ".filter"
-        cactus_call(parameters=['awk', '$10 / ($11 + 0.0000001) >= {}'.format(min_paf_ident), paf_path], outfile=filter_paf_path)
-        paf_path = filter_paf_path
-    
     # get the minigraph "virutal" assembly name
     graph_event = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "assemblyName", default="_MINIGRAPH_")
     # and look up its unique id prefix.  this will be needed to pick its contigs out of the list
