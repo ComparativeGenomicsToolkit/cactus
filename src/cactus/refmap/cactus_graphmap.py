@@ -353,8 +353,13 @@ def minigraph_map_one(job, config, event_name, fa_path, fa_file_id, gfa_file_id)
     # note: the gfa needs to be uncompressed for this tool to work
     mg_lengths_path = gfa_path + '.node_lengths.tsv'
     unstable_gaf_path = gaf_path + '.unstable'
-    cactus_call(parameters=['gaf2unstable', gaf_path, '-g', gfa_path, '-o', mg_lengths_path],
-                outfile=unstable_gaf_path)
+    cmd = ['gaf2unstable', gaf_path, '-g', gfa_path, '-o', mg_lengths_path]
+
+    # optional (but recommended) gaf overlap filter
+    gaf_filter_ratio = getOptionalAttrib(xml_node, "queryFilterRatio", int, default=None)
+    if gaf_filter_ratio:
+        cmd = [cmd, ['gaffilter', '-', '-r', str(gaf_filter_ratio)]]        
+    cactus_call(parameters=cmd, outfile=unstable_gaf_path)
 
     # convert the unstable gaf into unstable paf, which is what cactus expects
     # also tack on the unique id to the target column

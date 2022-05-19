@@ -163,7 +163,7 @@ fi
 cd ${pangenomeBuildDir}
 git clone https://github.com/ComparativeGenomicsToolkit/cactus-gfa-tools.git
 cd cactus-gfa-tools
-git checkout f543c8110cbc5b3647f9fdf6b382d3f28012493e
+git checkout 93cab435cab8bde5fbc0e9242f5cf09f48f2cfd7
 make -j ${numcpu}
 if [[ $STATIC_CHECK -ne 1 || $(ldd paf2lastz | grep so | wc -l) -eq 0 ]]
 then
@@ -180,6 +180,12 @@ fi
 if [[ $STATIC_CHECK -ne 1 || $(ldd gaf2unstable | grep so | wc -l) -eq 0 ]]
 then
 	 mv gaf2unstable ${binDir}
+else
+	 exit 1
+fi
+if [[ $STATIC_CHECK -ne 1 || $(ldd gaffilter | grep so | wc -l) -eq 0 ]]
+then
+	 mv gaffilter ${binDir}
 else
 	 exit 1
 fi
