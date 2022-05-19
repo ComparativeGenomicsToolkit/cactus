@@ -35,7 +35,7 @@ setup(
 
     install_requires = [
         'decorator',
-        'networkx>=2,<3',
+        'networkx>=2,<2.81',
         'pytest',
         'cigar',
         'biopython'], 
