@@ -373,7 +373,7 @@ def make_plan(
     plan = re.sub("\n## HAL merging\n", "", plan, re.IGNORECASE | re.MULTILINE)
     plan = re.sub("halAppendSubtree .*?\n", "", plan, re.IGNORECASE | re.MULTILINE)
 
-    # remove the last hal2fasta as it will 
+    # remove the last hal2fasta as it will
     hal2fasta_job = re.findall(r"hal2fasta .*?(?=\s{0,})\n", plan, re.IGNORECASE | re.MULTILINE)[-1]
     plan = re.sub(hal2fasta_job, "", plan, re.IGNORECASE | re.MULTILINE)
 
@@ -440,7 +440,7 @@ def get_plan_adding2node(
         cactus_prepare_options + " --outHal " + out_hal,
         patch,
         assemblies,
-        list(set([*children]) - set([*in_fasta_map]))
+        list(set([*children]) - set([*in_fasta_map])),
     )
 
     # Amendment commands
@@ -596,7 +596,7 @@ def get_plan_adding2branch(
         cactus_prepare_options + " --outHal " + top_half_hal,
         patch,
         assemblies,
-        [child_genome] + list(set([*children]) - set([patch]))
+        [child_genome] + list(set([*children]) - set([patch])),
     )
 
     # Amendment commands
@@ -699,76 +699,92 @@ def cactus_alignment_update(options):
         raise RuntimeError(f"Unknown subcommand '{options.action}'")
 
 
-def add_subcommand_options(subparser, parent_parser, subcommand):
-    """Adds the node and branch subcommand to the main argparse
+def subcommand_options(subparser, parent_parser, subcommand, action):
+    """Adds the node and branch action to the main argparse
 
     Args:
         subparser (ArgumentParser): subparser object from the main ArgumentParser object
         parent_parser (ArgumentParser object): the parent of subparser
-        subcommand (str): subcommand name
+        action (str): action name
     """
 
-    if "node" in subcommand:
+    if "replace" in subcommand:
         parser_node_approach = subparser.add_parser(
-            "node",
+            "replace",
             parents=[parent_parser],
-            help="Adding a new genome to a node (aka, the update-node approach)",
+            help="Replacing an existing genome",
         )
-        requiredNamed = parser_node_approach.add_argument_group("Node approach options")
-
-        # required args for subcommand "node"
+        requiredNamed = parser_node_approach.add_argument_group("Replace genome options")
+        # required args for action "node"
         requiredNamed.add_argument(
             "--genome",
             help="Name of the genome in the existing alignment",
-            required=True,
+            # required=True,
             metavar="GENOME_NAME",
         )
 
-    elif "branch" in subcommand:
+    elif "add" in subcommand:
+        if "node" in action:
+            parser_node_approach = subparser.add_parser(
+                "node",
+                parents=[parent_parser],
+                help="Adding a new genome to a node (aka, the adding-to-a-node approach)",
+            )
+            requiredNamed = parser_node_approach.add_argument_group("Adding-to-a-node options")
 
-        parser_branch_approach = subparser.add_parser(
-            "branch",
-            parents=[parent_parser],
-            help="Add a new genome to a branch (aka, the update-branch approach)",
-        )
-        requiredNamed = parser_branch_approach.add_argument_group("Branch approach options")
+            # required args for action "node"
+            requiredNamed.add_argument(
+                "--genome",
+                help="Name of the genome in the existing alignment",
+                required=True,
+                metavar="GENOME_NAME",
+            )
 
-        # required args for subcommand "branch"
-        requiredNamed.add_argument(
-            "--parentGenome",
-            help="Name of the genome in the existing alignment",
-            dest="parent_genome",
-            required=True,
-            metavar="GENOME_NAME",
-        )
-        requiredNamed.add_argument(
-            "--childGenome",
-            help="Name of the genome in the existing alignment",
-            dest="child_genome",
-            required=True,
-            metavar="GENOME_NAME",
-        )
-        requiredNamed.add_argument(
-            "--ancestorName",
-            help="Name of the new inferred ancestor",
-            dest="ancestor_name",
-            metavar="GENOME_NAME",
-        )
-        requiredNamed.add_argument(
-            "--topBranchLength",
-            help="Length of the branch between the new ancestor and the top genome",
-            dest="top_length",
-            type=check_positive_float,
-            metavar="BRANCH_LENGTH",
-            default=1.0,
-        )
-        requiredNamed.add_argument(
-            "--forceBottomBranchLength",
-            help="Forcing the branch length between the new ancestor and the bottom genome",
-            dest="bottom_length",
-            type=check_positive_float,
-            metavar="BRANCH_LENGTH",
-        )
+        elif "branch" in action:
+
+            parser_branch_approach = subparser.add_parser(
+                "branch",
+                parents=[parent_parser],
+                help="Adding a new genome to a branch (aka, the adding-to-a-branch approach)",
+            )
+            requiredNamed = parser_branch_approach.add_argument_group("Adding-to-a-branch options")
+
+            # required args for action "branch"
+            requiredNamed.add_argument(
+                "--parentGenome",
+                help="Name of the genome in the existing alignment",
+                dest="parent_genome",
+                required=True,
+                metavar="GENOME_NAME",
+            )
+            requiredNamed.add_argument(
+                "--childGenome",
+                help="Name of the genome in the existing alignment",
+                dest="child_genome",
+                required=True,
+                metavar="GENOME_NAME",
+            )
+            requiredNamed.add_argument(
+                "--ancestorName",
+                help="Name of the new inferred ancestor",
+                dest="ancestor_name",
+                metavar="GENOME_NAME",
+            )
+            requiredNamed.add_argument(
+                "--topBranchLength",
+                help="Length of the branch between the new ancestor and the top genome",
+                dest="top_length",
+                type=check_positive_float,
+                metavar="BRANCH_LENGTH",
+                default=1.0,
+            )
+            requiredNamed.add_argument(
+                "--forceBottomBranchLength",
+                help="Forcing the branch length between the new ancestor and the bottom genome",
+                dest="bottom_length",
+                type=check_positive_float,
+                metavar="BRANCH_LENGTH",
+            )
 
 
 def in_hal_sanity_check(filename, skip_backup, skip_halValidate):
@@ -880,13 +896,10 @@ def main():
     # Same main parser as usual
     parser = ArgumentParser(
         formatter_class=ArgumentDefaultsHelpFormatter,
-        usage="%(prog)s {node,branch} [-h] [Options]",
+        usage="%(prog)s {add,replace} [-h] [Options]",
         add_help=False,
     )
-    parser._positionals.title = "subcommand"
-
-    # Same subparsers as usual
-    subparser = parser.add_subparsers(help="Desired alignment update approach", dest="action")
+    parser._positionals.title = "Update subcommand"
 
     # hack to add --help
     parser.add_argument("--help", "-h", action="store_true", dest="help", help=SUPPRESS)
@@ -979,15 +992,29 @@ def main():
     # add logging option
     add_logging_options(parent_parser)
 
-    # add subcommands options
-    add_subcommand_options(subparser, parent_parser, "node")
-    add_subcommand_options(subparser, parent_parser, "branch")
+    # overall subparser
+    subparsers = parser.add_subparsers(help="Desired update for the given alignment", dest="action")
+
+    # adding "add" subcommand and its "node" and "branch" actions
+    add_parser = subparsers.add_parser("add", help="Adding a new genome")
+    add_subparser = add_parser.add_subparsers(help="Methods to add a new genome", dest="subcommand")
+    subcommand_options(add_subparser, parent_parser, "add", "node")
+    subcommand_options(add_subparser, parent_parser, "add", "branch")
+
+    # adding "replace" subcommand as an action
+    subcommand_options(subparsers, parent_parser, "replace", "")
 
     options = parser.parse_args()
+
+    parser.print_help()
+    print(options)
+    return
 
     if not options.action:
         parser.print_help()
         sys.exit(1)
+
+    return
 
     # From cactus-prepare
     setupBinaries(options)

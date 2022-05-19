@@ -75,11 +75,11 @@ Afterwards, the `evolverMammals` alignment tree  will contain  `simGorilla` as a
 
 ### Adding to a branch
 
-This example now takes the `simGorilla` genome from the evolverPrimates [example](https://raw.githubusercontent.com/ComparativeGenomicsToolkit/cactus/master/examples/evolverPrimates.txt) and adds it to the **branch** connecting `Anc1` with `simHuman_chr6` in the evolverMammals alignment. It updates the evolverMammals alignment  at a cost of **two** Cactus alignments.  The update procedure is a [four-fold](https://github.com/ComparativeGenomicsToolkit/cactus/blob/master/doc/updating-alignments.md#adding-to-a-branch) step. First, it infers a new ancestor (labelled in this example as `ch`) between `Anc1` and `simHuman_chr6`, where `Anc1` becomes `ch`'s parent and `simHuman_chr6` becomes `ch`'s child. Next, the `ch` genome sequence is  created by aligning the `ch`'s children (i.e., `simHuman_chr6` and `simGorilla`) to produce the HAL-format file `ch.hal`. After that, another Cactus call is triggered to make the alignment among `ch` and its new siblings (`Anc1`'s children) to yield the `Anc1.hal` file. In the final step, the original file `evolverMammals.hal` is updated using `halAddToBranch` (taken from the [HAL API](https://github.com/ComparativeGenomicsToolkit/hal)). It reads the `ch.hal` and `Anc1.hal` containing updates of `Anc1` and `mr` to patch `evolverMammals.hal`.
+This example now takes the `simGorilla` genome from the evolverPrimates [example](https://raw.githubusercontent.com/ComparativeGenomicsToolkit/cactus/master/examples/evolverPrimates.txt) and adds it to the **branch** connecting `Anc1` with `mr` in the evolverMammals alignment. It updates the evolverMammals alignment  at a cost of **two** Cactus alignments.  The update procedure is a [four-fold](https://github.com/ComparativeGenomicsToolkit/cactus/blob/master/doc/updating-alignments.md#adding-to-a-branch) step. First, it infers a new ancestor (labelled in this example as `AncGorilla`) between `Anc1` and `mr`, where `Anc1` becomes `AncGorilla`'s parent and `mr` becomes `AncGorilla`'s child. Next, the `AncGorilla` genome sequence is  created by aligning the `AncGorilla`'s children (i.e., `mr` and `simGorilla`) to produce the HAL-format file `AncGorilla.hal`. After that, another Cactus call is triggered to make the alignment among `AncGorilla` and its new siblings (`Anc1`'s children) to yield the `Anc1.hal` file. In the final step, the original file `evolverMammals.hal` is updated using `halAddToBranch` (taken from the [HAL API](https://github.com/ComparativeGenomicsToolkit/hal)). It reads the `AncGorilla.hal` and `Anc1.hal` containing updates to patch `evolverMammals.hal`.
 
 For this example, run:
 ```
-cactus-update-prepare branch --parentGenome Anc1 --childGenome simHuman_chr6 ./evolverMammals.hal ./input.txt --cactus-prepare-options '--alignCores 4' --outDir ./steps --jobStore ./jobstore --ancestorName AncGorilla --topBranchLength 0.10
+cactus-update-prepare branch --parentGenome Anc1 --childGenome mr ./evolverMammals.hal ./input.txt --cactus-prepare-options '--alignCores 4' --outDir ./steps --jobStore ./jobstore --ancestorName AncGorilla --topBranchLength 0.10
 ```
 where:
 - `branch` indicate the `adding-to-a-branch` action
@@ -113,7 +113,7 @@ cactus-blast ./jobstore/3 ./steps/seq_file.out ./steps/Anc1.cigar --root Anc1 --
 cactus-align ./jobstore/4 ./steps/seq_file.out ./steps/Anc1.cigar ./steps/Anc1.hal --root Anc1 --realTimeLogging --logInfo --retryCount 0 --maxCores 4 --includeRoot
 
 ## Alignment update
-halAddToBranch ./evolverMammals.hal ./steps/AncGorilla.hal ./steps/Anc1.hal Anc1 AncGorilla simHuman_chr6 simGorilla 0.1 0.075 --hdf5InMemory
+halAddToBranch ./evolverMammals.hal ./steps/AncGorilla.hal ./steps/Anc1.hal Anc1 AncGorilla mr simGorilla 0.1 0.075 --hdf5InMemory
 
 ## Alignment validation
 halValidate --genome Anc1 ./evolverMammals.hal --hdf5InMemory
