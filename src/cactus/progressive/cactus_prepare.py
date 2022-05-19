@@ -76,9 +76,9 @@ def main(toil_mode=False):
     parser.add_argument("--preprocessOnly", action="store_true", help="only decompose into preprocessor and cactus jobs")
     parser.add_argument("--dockerImage", type=str, help="docker image to use as wdl runtime")
     
-    parser.add_argument("--gpu", action="store_true", help="use gpu-enabled lastz in cactus-blast")
-    parser.add_argument("--gpuType", default="nvidia-tesla-v100", help="GPU type (to set in WDL runtime parameters)")
-    parser.add_argument("--gpuCount", default=1, help="GPU count (to set in WDL runtime parameters)")
+    parser.add_argument("--gpu", action="store_true", help="use gpu-enabled lastz in cactus-blast and cactus-preprocess")
+    parser.add_argument("--gpuType", default="nvidia-tesla-v100", help="GPU type (to set in WDL runtime parameters, use only with --wdl)")
+    parser.add_argument("--gpuCount", type=int, default=1, help="GPU count (to set in WDL runtime parametersm, use only with --wdl)")
     parser.add_argument("--nvidiaDriver", default="440.64.00", help="Nvidia driver version")
     parser.add_argument("--gpuZone", default="us-central1-a", help="zone used for gpu task")
     parser.add_argument("--zone", default="us-west2-a", help="zone used for all but gpu tasks")
@@ -341,17 +341,10 @@ def cactusPrepare(options, project):
         if not os.access(options.outDir, os.W_OK):
             logger.warning('Output sequence directory is not writeable: \'{}\''.format(options.outDir))
 
-    if options.preprocessOnly or options.gpu:
+    if options.preprocessOnly:
         if options.preprocessOnly:
             # hack the configfile to skip preprocessing and write it to the output dir
             config.removePreprocessors()
-        if options.gpu:
-            # hack the configfile to toggle on gpu lastz
-            cafNode = findRequiredNode(config.xmlRoot, "caf")
-            cafNode.attrib["gpuLastz"] = "true"
-            # realigning doesn't mix well with lastz so we make sure it's off
-            # https://github.com/ComparativeGenomicsToolkit/cactus/issues/271
-            cafNode.attrib["realign"] = "0"
         options.configFile = os.path.join(options.outDir, 'config-prepared.xml')
         sys.stderr.write("configuration saved in {}\n".format(options.configFile))
         config.writeXML(options.configFile)
@@ -426,9 +419,10 @@ def get_plan(options, project, inSeqFile, outSeqFile, toil):
                                                                           memory=options.preprocessMemory,
                                                                           disk=options.preprocessDisk)
         else:
-            plan += 'cactus-preprocess {} {} {} --inputNames {} {} {}\n'.format(
+            plan += 'cactus-preprocess {} {} {} --inputNames {} {} {}{}\n'.format(
                 get_jobstore(options), options.seqFile, options.outSeqFile, ' '.join(pre_batch),
-                options.cactusOptions, get_toil_resource_opts(options, 'preprocess'))
+                options.cactusOptions, get_toil_resource_opts(options, 'preprocess'),
+                ' --gpu' if options.gpu else '')
 
     if options.preprocessOnly:
         plan += '\n## Cactus\n'
@@ -554,9 +548,10 @@ def get_plan(options, project, inSeqFile, outSeqFile, toil):
                                                                                        disk=options.alignDisk)
             else:
                 # todo: support cactus interface (it's easy enough here, but cactus_progressive.py needs changes to handle)
-                plan += 'cactus-blast {} {} {} --root {} {} {}\n'.format(
+                plan += 'cactus-blast {} {} {} --root {} {} {}{}\n'.format(
                     get_jobstore(options), options.outSeqFile, cigarPath(event), event,
-                    options.cactusOptions, get_toil_resource_opts(options, 'blast'))
+                    options.cactusOptions, get_toil_resource_opts(options, 'blast'),
+                    ' --gpu' if options.gpu else '')
                 plan += 'cactus-align {} {} {} {} --root {} {} {} \n'.format(
                     get_jobstore(options), options.outSeqFile, cigarPath(event), halPath(event), event,
                     options.cactusOptions, get_toil_resource_opts(options, 'align'))
@@ -719,8 +714,8 @@ def wdl_task_preprocess(options):
     s += '    }\n'
     s += '    command {\n        '
     s += 'cactus-preprocess {} --inPaths ${{sep=\" \" default=\"\" in_files}} ${{sep=\" \" default=\"\" in_urls}}'.format(get_jobstore(options, 'preprocess'))
-    s += ' --outPaths ${{sep=\" \" out_names}} {} {} --workDir {}'.format(options.cactusOptions, get_toil_resource_opts(options, 'preprocess'),
-                                                                          wdl_disk(options, 'preprocess')[1])
+    s += ' --outPaths ${{sep=\" \" out_names}} {} {} --workDir {}{}'.format(options.cactusOptions, get_toil_resource_opts(options, 'preprocess'),
+                                                                             wdl_disk(options, 'preprocess')[1], ' --gpu' if options.gpu else '')
     s += ' ${\"--configFile \" + in_config_file}'
     s += '\n'
     s += '    }\n'
@@ -778,6 +773,8 @@ def toil_call_preprocess(job, options, in_seq_file, out_seq_file, name):
     cmd = ['cactus-preprocess', os.path.join(work_dir, 'js'), '--inPaths', in_path,
            '--outPaths', out_name, '--workDir', work_dir,
            '--maxCores', str(int(job.cores)), '--maxDisk', bytes2humanN(job.disk), '--maxMemory', bytes2humanN(job.memory)] + options.cactusOptions.strip().split(' ')
+    if options.gpu:
+        cmd += ['--gpu']
     
     cactus_call(parameters=cmd)
 
@@ -798,8 +795,8 @@ def wdl_task_blast(options):
     s += '    command {\n        '
     s += 'cactus-blast {} ${{in_seq_file}} ${{out_name}} --root ${{in_root}}'.format(get_jobstore(options, 'blast'))
     s += ' --pathOverrides ${sep=\" \" in_fa_files} --pathOverrideNames ${sep=\" \" in_fa_names}'
-    s += ' {} {} --workDir {} ${{\"--configFile \" + in_config_file}}'.format(options.cactusOptions, get_toil_resource_opts(options, 'blast'),
-                                                                              wdl_disk(options, 'blast')[1])
+    s += ' {} {} --workDir {}{} ${{\"--configFile \" + in_config_file}}'.format(options.cactusOptions, get_toil_resource_opts(options, 'blast'),
+                                                                                 wdl_disk(options, 'blast')[1], ' --gpu' if options.gpu else '')
     s += '\n    }\n'
     s += '    runtime {\n'
     s += '        preemptible: {}\n'.format(options.blastPreemptible)
@@ -865,10 +862,14 @@ def toil_call_blast(job, options, seq_file, project, event, cigar_name, dep_name
     fa_paths = [os.path.join(work_dir, "{}.pp.fa".format(name)) for name in dep_names]
     for fa_path, fa_id in zip(fa_paths, dep_fa_ids):
         job.fileStore.readGlobalFile(fa_id, fa_path)
-            
-    cactus_call(parameters=['cactus-blast', os.path.join(work_dir, 'js'), seq_file_path, os.path.join(work_dir, os.path.basename(cigar_name)),
-                 '--root', event, '--pathOverrides'] + fa_paths+ ['--pathOverrideNames'] + dep_names +
-                ['--workDir', work_dir, '--maxCores', str(int(job.cores)), '--maxDisk', bytes2humanN(job.disk), '--maxMemory', bytes2humanN(job.memory)] + options.cactusOptions.strip().split(' '))
+
+    blast_cmd = ['cactus-blast', os.path.join(work_dir, 'js'), seq_file_path, os.path.join(work_dir, os.path.basename(cigar_name)),
+                 '--root', event, '--pathOverrides'] + fa_paths+ ['--pathOverrideNames'] + dep_names + \
+                ['--workDir', work_dir, '--maxCores', str(int(job.cores)), '--maxDisk', bytes2humanN(job.disk), '--maxMemory', bytes2humanN(job.memory)] + \
+                options.cactusOptions.strip().split(' ')
+    if options.gpu:
+        blast_cmd += ['--gpu']
+    cactus_call(parameters=blast_cmd)
 
     # scrape the output files out of the workdir
     out_nameids = []
