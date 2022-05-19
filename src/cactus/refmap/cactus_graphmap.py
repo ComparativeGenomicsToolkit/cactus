@@ -355,10 +355,11 @@ def minigraph_map_one(job, config, event_name, fa_path, fa_file_id, gfa_file_id)
     unstable_gaf_path = gaf_path + '.unstable'
     cmd = ['gaf2unstable', gaf_path, '-g', gfa_path, '-o', mg_lengths_path]
 
-    # optional (but recommended) gaf overlap filter
-    gaf_filter_ratio = getOptionalAttrib(xml_node, "queryFilterRatio", int, default=None)
-    if gaf_filter_ratio:
-        cmd = [cmd, ['gaffilter', '-', '-r', str(gaf_filter_ratio)]]        
+    # optional gaf overlap filter
+    overlap_ratio = getOptionalAttrib(xml_node, "GAFOverlapFilterRatio", typeFn=float, default=0)
+    length_ratio = getOptionalAttrib(xml_node, "GAFOverlapFilterMinLengthRatio", typeFn=float, default=0)    
+    if overlap_ratio:
+        cmd = [cmd, ['gaffilter', '-', '-r', str(overlap_ratio), '-m', str(length_ratio)]]
     cactus_call(parameters=cmd, outfile=unstable_gaf_path)
 
     # convert the unstable gaf into unstable paf, which is what cactus expects
@@ -432,6 +433,15 @@ def filter_paf(job, paf_id, config):
                     bl = int(tok[5:])
             if mapq >= min_mapq and (bl is None or query_len <= min_block or bl >= min_block) and ident >= min_ident:
                 filter_paf_file.write(line)
+
+    overlap_ratio = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "PAFOverlapFilterRatio", typeFn=float, default=0)
+    length_ratio = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "PAFOverlapFilterMinLengthRatio", typeFn=float, default=0)    
+    if overlap_ratio:
+        overlap_filter_paf_path = filter_paf_path + ".overlap"
+        cactus_call(parameters=['gaffilter', filter_paf_path, '-r', str(overlap_ratio), '-m', str(length_ratio), '-p'],
+                    outfile=overlap_filter_paf_path)
+        filter_paf_path = overlap_filter_paf_path
+
     return job.fileStore.writeGlobalFile(filter_paf_path)    
 
 def filter_paf_deletions(job, paf_id, gfa_id, max_deletion, filter_threshold):
