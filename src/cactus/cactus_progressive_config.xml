@@ -305,7 +305,7 @@
 	<!--                           if 1 query region in a block of at least this size overlaps query regions in blocks smaller than this, filter out the smaller ones -->
 	<!--                           Filter is disabled when set to 0.  Any non-zero value will prevent query overlaps -->		
 	<!-- GAFOverlapFilterRatio: filter overlapping (by query) gaf records. keep records if their MAPQ or query length are <ratio> bigger than overlapping interval (see gaffilter -r) [0=disable] -->
-	<!-- GAFOverlapFilterMinLengthRatio: only consider overlaps (for above) whose lengths represent this much (ratio between 0 and 1) of the block length -->
+	<!-- GAFOverlapFilterMinLengthRatio: only consider overlaps (for above) whose lengths represent at least this much (ratio between 0 and 1) of the block length -->
 	<!-- PAFFOverlapFilterRatio: Same as GAFOverlapFilterRatio, but applied after conversion to PAF -->
 	<!-- PAFFOverlapFilterMinLengthRatio: Same as GAFOverlapFilterMinLengthRatio, but applies after conversion to PAF -->
 	<!-- maskFilter: any softmasked sequence intervals > than this many bp will be hardmasked before being read by the minigraph mapper [negative value = disable]-->
@@ -320,11 +320,11 @@
 		 minigraphConstructOptions="-c -xggs"
 		 minMAPQ="5"
 		 minGAFBlockLength="50000"
-		 minGAFQueryOverlapFilter="10000"
-		 GAFOverlapFilterRatio="2"
-		 GAFOverlapFilterMinLengthRatio="0.75"
-		 PAFOverlapFilterRatio="2"
-		 PAFOverlapFilterMinLengthRatio="0.25"
+		 minGAFQueryOverlapFilter="0"
+		 GAFOverlapFilterRatio="4"
+		 GAFOverlapFilterMinLengthRatio="0"
+		 PAFOverlapFilterRatio="0"
+		 PAFOverlapFilterMinLengthRatio="0"
 		 maskFilter="-1"
 		 delFilter="-1"
 		 delFilterThreshold="0.01"
