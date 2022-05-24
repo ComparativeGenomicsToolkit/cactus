@@ -357,9 +357,13 @@ def minigraph_map_one(job, config, event_name, fa_path, fa_file_id, gfa_file_id)
 
     # optional gaf overlap filter
     overlap_ratio = getOptionalAttrib(xml_node, "GAFOverlapFilterRatio", typeFn=float, default=0)
-    length_ratio = getOptionalAttrib(xml_node, "GAFOverlapFilterMinLengthRatio", typeFn=float, default=0)    
-    if overlap_ratio:
-        cmd = [cmd, ['gaffilter', '-', '-r', str(overlap_ratio), '-m', str(length_ratio)]]
+    length_ratio = getOptionalAttrib(xml_node, "GAFOverlapFilterMinLengthRatio", typeFn=float, default=0)
+    overlap_filter_len = getOptionalAttrib(xml_node, "minGAFQueryOverlapFilter", int, default=0)    
+    min_block = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "minGAFBlockLength", typeFn=int, default=0)
+    min_mapq = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "minMAPQ", typeFn=int, default=0)
+    if overlap_ratio or overlap_filter_len:
+        cmd = [cmd, ['gaffilter', '-', '-r', str(overlap_ratio), '-m', str(length_ratio), '-q', str(min_mapq),
+                     '-b', str(min_block), '-o', str(overlap_filter_len)]]
     cactus_call(parameters=cmd, outfile=unstable_gaf_path)
 
     # convert the unstable gaf into unstable paf, which is what cactus expects
