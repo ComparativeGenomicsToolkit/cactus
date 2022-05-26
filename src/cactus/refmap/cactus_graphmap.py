@@ -442,7 +442,8 @@ def filter_paf(job, paf_id, config):
     length_ratio = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "PAFOverlapFilterMinLengthRatio", typeFn=float, default=0)    
     if overlap_ratio:
         overlap_filter_paf_path = filter_paf_path + ".overlap"
-        cactus_call(parameters=['gaffilter', filter_paf_path, '-r', str(overlap_ratio), '-m', str(length_ratio), '-p'],
+        cactus_call(parameters=['gaffilter', filter_paf_path, '-p', '-r', str(overlap_ratio), '-m', str(length_ratio),
+                                '-b', str(min_block), '-q', str(min_mapq)],
                     outfile=overlap_filter_paf_path)
         filter_paf_path = overlap_filter_paf_path
 
