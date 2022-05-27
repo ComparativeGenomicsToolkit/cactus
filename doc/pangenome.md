@@ -431,10 +431,7 @@ Now that the sequences are ready, we run `cactus-graphmap` as before.  There is 
 `--delFilter N` : Filter out mappings that would induce a deletion bubble of `>N` bases w.r.t. a path in the reference.  If this option is used, the unfiltered paf will also be output (with a `.unfiltered` suffix) as well as a log detailing what was filtered and why (`.filter.log` suffix).  This option is very important as minigraph will produce a small number of split-mappings that can cause chromosome-scale bubbles.
 
 ```
-# set the minigraph cores to 16
-sed src/cactus/cactus_progressive_config.xml -e "s/cpu=\"6\"/cpu=\"16\"/g" >  config_minigraph.xml
-
-cactus-graphmap ${MYJOBSTORE} hprc-${VERSION}-mc.pp.seqfile ${MINIGRAPH} ${MYBUCKET}/hprc-${VERSION}-mc-grch38.paf --outputGAFDir ${MYBUCKET}/gaf-hprc-${VERSION}-mc-grch38 --outputFasta ${MYBUCKET}/fasta/minigraph.grch38.gfa.fa.gz --reference GRCh38  --delFilter 10000000 --realTimeLogging --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.8xlarge:1.5 --nodeStorage 650 --maxNodes 25 --betaInertia 0 --targetTime 1 --configFile config_minigraph.xml --logFile hprc-${VERSION}-mc-grch38.paf.log
+cactus-graphmap ${MYJOBSTORE} hprc-${VERSION}-mc.pp.seqfile ${MINIGRAPH} ${MYBUCKET}/hprc-${VERSION}-mc-grch38.paf --outputGAFDir ${MYBUCKET}/gaf-hprc-${VERSION}-mc-grch38 --outputFasta ${MYBUCKET}/fasta/minigraph.grch38.gfa.fa.gz --reference GRCh38 --mapCores 16 --delFilter 10000000 --realTimeLogging --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.8xlarge:1.5 --nodeStorage 650 --maxNodes 25 --betaInertia 0 --targetTime 1  --logFile hprc-${VERSION}-mc-grch38.paf.log
 ```
 
 Note:  The `--betaInertia 0 --targetTime 1` options force Toil to create AWS instances as soon as they are needed.
@@ -461,7 +458,7 @@ This command will create a vg and hal file for each chromosome in ${MYBUCKET}/al
 ```
 
 aws s3 cp ${MYBUCKET}/chroms-hprc-${VERSION}-mc-grch38/chromfile.txt .
-cactus-align-batch ${MYJOBSTORE} ./chromfile.txt ${MYBUCKET}/align-hprc-${VERSION}-mc-grch38 --alignCores 16 --realTimeLogging --alignOptions "--pangenome --pafInput --maxLen 10000 --reference GRCh38 --realTimeLogging  --outVG" --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.8xlarge:1.5 --nodeStorage 1000 --maxNodes 10 --betaInertia 0 --targetTime 1 --logFile hprc-${VERSION}-mc-grch38.align.log
+cactus-align-batch ${MYJOBSTORE} ./chromfile.txt ${MYBUCKET}/align-hprc-${VERSION}-mc-grch38 --alignCores 16 --realTimeLogging --alignOptions "--pangenome --pafInput --maxLen 10000 --reference GRCh38 --realTimeLogging  --outVG" --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.8xlarge:1.5 --nodeStorage 1000 --maxNodes 20 --betaInertia 0 --targetTime 1 --logFile hprc-${VERSION}-mc-grch38.align.log
 ```
 
 ### HPRC Graph: Creating the Whole-Genome Graph
@@ -469,10 +466,10 @@ cactus-align-batch ${MYJOBSTORE} ./chromfile.txt ${MYBUCKET}/align-hprc-${VERSIO
 The individual chromosome graphs can now be merged as follows.  We also append the ".0" to the end of CHM13 with the `--rename` option at this point, as it's not considered a reference in the graph (we did not do it in the seqfile because we want to use the same seqfile for making CHM13-based graphs).
 
 ```
-cactus-graphmap-join ${MYJOBSTORE} --vg $(for j in $(for i in `seq 22`; do echo chr$i; done ; echo "chrX chrY chrM chrOther"); do echo ${MYBUCKET}/align-hprc-${VERSION}-mc-grch38/${j}.vg; done) --hal $(for j in $(for i in `seq 22`; do echo chr$i; done ; echo "chrX chrY chrM chrOther"); do echo ${MYBUCKET}/align-hprc-${VERSION}-mc-grch38/${j}.hal; done) --outDir ${MYBUCKET}/ --outName hprc-${VERSION}-mc-grch38-full --reference GRCh38 --gfaffix  --wlineSep "."  --rename "CHM13v2>CHM13v2.0" --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.8xlarge --nodeStorage 1000 --maxNodes 1 --indexCores 31 --realTimeLogging --logFile hprc-${VERSION}-mc-grch38-full.join.log 
+cactus-graphmap-join ${MYJOBSTORE} --vg $(for j in $(for i in `seq 22`; do echo chr$i; done ; echo "chrX chrY chrM chrOther"); do echo ${MYBUCKET}/align-hprc-${VERSION}-mc-grch38/${j}.vg; done) --hal $(for j in $(for i in `seq 22`; do echo chr$i; done ; echo "chrX chrY chrM chrOther"); do echo ${MYBUCKET}/align-hprc-${VERSION}-mc-grch38/${j}.hal; done) --outDir ${MYBUCKET}/ --outName hprc-${VERSION}-mc-grch38-full --reference GRCh38 --gfaffix  --wlineSep "."  --rename "CHM13v2>CHM13v2.0" --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.16xlarge --nodeStorage 1000 --maxNodes 1 --indexCores 63 --realTimeLogging --logFile hprc-${VERSION}-mc-grch38-full.join.log 
 ```
 
-Note: `--indexCores 31` is used (instead of 32) to let the HAL merging job run in parallel on the same machine. 
+Note: `--indexCores 63` is used (instead of all 64) to let the HAL merging job run in parallel on the same machine. 
 
 ### HPRC Graph: Filtering Complex Regions and Indexing for Giraffe
 
@@ -485,7 +482,7 @@ We also use the `--giraffe --vcf` options to create the Giraffe indexes and VCF.
 We use as input the vg files created by the previous call of `graphmap-join` as well as the `--preserveIDs` option to ensure that our new graph is ID-compatible with the full graph.
 
 ```
-cactus-graphmap-join ${MYJOBSTORE} --vg $(for j in $(for i in `seq 22`; do echo chr$i; done ; echo "chrX chrY chrM chrOther"); do echo ${MYBUCKET}/clip-hprc-${VERSION}-mc-grch38-full/${j}.vg; done) --outDir ${MYBUCKET}/ --outName hprc-${VERSION}-mc-grch38 --reference GRCh38  --wlineSep "." --clipLength 10000 --clipNonMinigraph --vcf --giraffe --preserveIDs --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.16xlarge --nodeStorage 1000 --maxNodes 2 --indexCores 64 --realTimeLogging --logFile hprc-${VERSION}-mc-grch38.join.log 
+cactus-graphmap-join ${MYJOBSTORE} --vg $(for j in $(for i in `seq 22`; do echo chr$i; done ; echo "chrX chrY chrM chrOther"); do echo ${MYBUCKET}/clip-hprc-${VERSION}-mc-grch38-full/${j}.vg; done) --outDir ${MYBUCKET}/ --outName hprc-${VERSION}-mc-grch38 --reference GRCh38  --wlineSep "." --clipLength 10000 --clipNonMinigraph --vcf --giraffe --preserveIDs --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.16xlarge --nodeStorage 1000 --maxNodes 2 --indexCores 64 --betaInertia 0 --targetTime 1 --realTimeLogging --logFile hprc-${VERSION}-mc-grch38.join.log 
 ```
 
 **All sequences clipped out by `cactus-graphmap-join` will be saved in BED files in its output directory.**
@@ -495,7 +492,7 @@ cactus-graphmap-join ${MYJOBSTORE} --vg $(for j in $(for i in `seq 22`; do echo 
 It's a work in progress, but the Giraffe-DeepVariant pipeline performs best when further filtering the graph with an allele frequency filter.  Doing so removes rare variants, by definition, but also many assembly and alignment errors.  It can be done using the `--vgClipOpts` option:
 
 ```
-cactus-graphmap-join ${MYJOBSTORE} --vg $(for j in $(for i in `seq 22`; do echo chr$i; done ; echo "chrX chrY chrM chrOther"); do echo ${MYBUCKET}/clip-hprc-${VERSION}-mc-grch38/${j}.vg; done) --outDir ${MYBUCKET} --outName hprc-${VERSION}-mc-grch38-minaf.0.1 --reference GRCh38  --wlineSep "." --vgClipOpts "-d 9 -m 1000" --preserveIDs --giraffe --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.8xlarge --nodeStorage 1000 --maxNodes 2 --indexCores 32 --realTimeLogging --logFile hprc-${VERSION}-mc-grch38-minaf.0.1.join.log 
+cactus-graphmap-join ${MYJOBSTORE} --vg $(for j in $(for i in `seq 22`; do echo chr$i; done ; echo "chrX chrY chrM chrOther"); do echo ${MYBUCKET}/clip-hprc-${VERSION}-mc-grch38/${j}.vg; done) --outDir ${MYBUCKET} --outName hprc-${VERSION}-mc-grch38-minaf.0.1 --reference GRCh38  --wlineSep "." --vgClipOpts "-d 9 -m 1000" --preserveIDs --giraffe --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.16xlarge --nodeStorage 1000 --maxNodes 2 --indexCores 64 --realTimeLogging --logFile hprc-${VERSION}-mc-grch38-minaf.0.1.join.log 
 ```
 
 Here `--vgClipOpts "-d 9 -m 1000"` will remove all nodes with fewer than 9 paths covering them, filtering out resulting path fragments of fewer than 1kb bases.

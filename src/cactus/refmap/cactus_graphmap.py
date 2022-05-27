@@ -56,6 +56,7 @@ def main():
     parser.add_argument("--outputGAFDir", type=str, help = "Output GAF alignments (raw minigraph output before PAF conversion) to this directory")
     parser.add_argument("--reference", type=str, help = "Reference genome name.  MAPQ filter will not be applied to it")
     parser.add_argument("--refFromGFA", action="store_true", help = "Do not align reference (--reference) from seqfile, and instead extract its alignment from the rGFA tags (must have been used as reference for minigraph GFA construction)")
+    parser.add_argument("--mapCores", type=int, help = "Number of cores for minigraph.  Overrides graphmap cpu in configuration")    
 
     #WDL hacks
     parser.add_argument("--pathOverrides", nargs="*", help="paths (multiple allowed) to override from seqFile")
@@ -135,6 +136,14 @@ def graph_map(options):
             if options.delFilter is not None:
                 findRequiredNode(configNode, "graphmap").attrib["delFilter"] = str(options.delFilter)
 
+            # apply cpu override                
+            if options.mapCores is not None:
+                findRequiredNode(configNode, "graphmap").attrib["cpu"] = str(options.mapCores)
+            mg_cores = getOptionalAttrib(findRequiredNode(configNode, "graphmap"), "cpu", typeFn=int, default=1)
+            if options.batchSystem.lower() in ['single_machine', 'singleMachine']:
+                mg_cores = min(mg_cores, cpu_count(), int(options.maxCores) if options.maxCores else sys.maxsize)
+                findRequiredNode(configNode, "graphmap").attrib["cpu"] = str(mg_cores)
+                
             # get the minigraph "virutal" assembly name
             graph_event = getOptionalAttrib(findRequiredNode(configNode, "graphmap"), "assemblyName", default="_MINIGRAPH_")
 
