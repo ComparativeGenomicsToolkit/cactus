@@ -7,7 +7,7 @@
             by the rest of cactus)
 
 """
-import os
+import os, sys
 from argparse import ArgumentParser
 import xml.etree.ElementTree as ET
 import copy
