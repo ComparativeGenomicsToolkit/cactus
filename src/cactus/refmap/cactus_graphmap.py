@@ -370,9 +370,10 @@ def minigraph_map_one(job, config, event_name, fa_path, fa_file_id, gfa_file_id)
     overlap_filter_len = getOptionalAttrib(xml_node, "minGAFQueryOverlapFilter", int, default=0)    
     min_block = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "minGAFBlockLength", typeFn=int, default=0)
     min_mapq = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "minMAPQ", typeFn=int, default=0)
+    min_ident = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "minIdentity", typeFn=float, default=0)    
     if overlap_ratio or overlap_filter_len:
         cmd = [cmd, ['gaffilter', '-', '-r', str(overlap_ratio), '-m', str(length_ratio), '-q', str(min_mapq),
-                     '-b', str(min_block), '-o', str(overlap_filter_len)]]
+                     '-b', str(min_block), '-o', str(overlap_filter_len), '-i', str(min_ident)]]
     cactus_call(parameters=cmd, outfile=unstable_gaf_path)
 
     # convert the unstable gaf into unstable paf, which is what cactus expects
@@ -445,6 +446,9 @@ def filter_paf(job, paf_id, config):
                 # we use it to be able to filter by the gaf block even after it's been broken in the paf
                 if tok.startswith('gl:i:'):
                     bl = int(tok[5:])
+                # we can also get the identity of the parent gaf block (it's stored as an integer percent value)
+                if tok.startswith('gi:i:'):
+                    ident = float(toks[5:]) / 100.0
             if mapq >= min_mapq and (bl is None or query_len <= min_block or bl >= min_block) and ident >= min_ident:
                 filter_paf_file.write(line)
 
@@ -453,7 +457,7 @@ def filter_paf(job, paf_id, config):
     if overlap_ratio:
         overlap_filter_paf_path = filter_paf_path + ".overlap"
         cactus_call(parameters=['gaffilter', filter_paf_path, '-p', '-r', str(overlap_ratio), '-m', str(length_ratio),
-                                '-b', str(min_block), '-q', str(min_mapq)],
+                                '-b', str(min_block), '-q', str(min_mapq), '-i', str(min_ident)],
                     outfile=overlap_filter_paf_path)
         filter_paf_path = overlap_filter_paf_path
 
