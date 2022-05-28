@@ -93,7 +93,7 @@ def cactus_graphmap_split(options):
 
         #override the minIdentity
         if options.minIdentity is not None:
-            findRequiredNode(config_node, "graphmap_split").attrib["minIdentity"] = str(options.minIdentity)
+            findRequiredNode(config_node, "graphmap").attrib["minIdentity"] = str(options.minIdentity)
 
         #Run the workflow
         if options.restart:

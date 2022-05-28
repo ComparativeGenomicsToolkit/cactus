@@ -432,6 +432,7 @@ def filter_paf(job, paf_id, config):
     min_block = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "minGAFBlockLength", typeFn=int, default=0)
     min_mapq = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "minMAPQ", typeFn=int, default=0)
     min_ident = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "minIdentity", typeFn=float, default=0)
+    RealtimeLogger.info("Running PAF filter with minBlock={} minMAPQ={} minIdentity={}".format(min_block, min_mapq, min_ident))
     with open(paf_path, 'r') as paf_file, open(filter_paf_path, 'w') as filter_paf_file:
         for line in paf_file:
             toks = line.split('\t')
