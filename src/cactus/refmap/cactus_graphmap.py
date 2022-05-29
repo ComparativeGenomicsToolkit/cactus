@@ -446,9 +446,9 @@ def filter_paf(job, paf_id, config):
                 # we use it to be able to filter by the gaf block even after it's been broken in the paf
                 if tok.startswith('gl:i:'):
                     bl = int(tok[5:])
-                # we can also get the identity of the parent gaf block (it's stored as an integer percent value)
+                # we can also get the identity of the parent gaf block 
                 if tok.startswith('gi:i:'):
-                    ident = min(ident, float(toks[5:]) / 100.0)
+                    ident = min(ident, float(toks[5:]))
             if mapq >= min_mapq and (bl is None or query_len <= min_block or bl >= min_block) and ident >= min_ident:
                 filter_paf_file.write(line)
 
