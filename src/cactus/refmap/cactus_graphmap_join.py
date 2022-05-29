@@ -313,11 +313,14 @@ def clip_vg(job, options, config, vg_path, vg_id, bed_id):
     graph_event = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "assemblyName", default="_MINIGRAPH_")
 
     # remove masked unaligned regions with clip-vg
+    drop_mini = False
     cmd = ['clip-vg', vg_path, '-f']
     if options.clipLength is not None and not is_decoy:
         cmd += ['-u', str(options.clipLength)]
+        drop_mini = True
     if options.clipNonMinigraph:
         cmd += ['-a', graph_event]
+        drop_mini = True
     for rs in options.rename:
         cmd += ['-r', rs]
     if options.reference:
@@ -325,6 +328,10 @@ def clip_vg(job, options, config, vg_path, vg_id, bed_id):
     if bed_id and not is_decoy:
         cmd += ['-b', bed_path]
     cmd += ['-o', clipped_bed_path]
+    if drop_mini:
+        # get rid of minigraph if we're doing any kind of clipping
+        # (keep otherwise, since we may want to use it to clip with -a in the future)
+        cmd += ['-d', graph_event]
 
     if getOptionalAttrib(findRequiredNode(config.xmlRoot, "hal2vg"), "includeMinigraph", typeFn=bool, default=False):
         # our vg file has minigraph sequences -- we'll filter them out, along with any nodes

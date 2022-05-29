@@ -328,7 +328,7 @@
 		 maskFilter="-1"
 		 delFilter="-1"
 		 delFilterThreshold="0.01"
-		 minIdentity="0.01"		 
+		 minIdentity="0.5"		 
 		 removeMinigraphFromPAF="0"
 		 cpu="6"
 		 />
