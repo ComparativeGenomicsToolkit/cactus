@@ -235,7 +235,7 @@
 			partialOrderAlignmentWindow="10000"
 			partialOrderAlignmentMaskFilter="-1"
 			partialOrderAlignmentBandConstant="300"
-			partialOrderAlignmentBandFraction="0.025"
+			partialOrderAlignmentBandFraction="0.05"
 			partialOrderAlignmentSubMatrix="91 -114 -61 -123 0 -114 100 -125 -61 0 -61 -125 100 -114 0 -123 -61 -114 91 0 0 0 0 0 0"
 			partialOrderAlignmentGapOpenPenalty1="400"
 			partialOrderAlignmentGapExtensionPenalty1="30"
