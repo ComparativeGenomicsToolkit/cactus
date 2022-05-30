@@ -421,8 +421,8 @@ class TestCase(unittest.TestCase):
         ba_path = os.path.join(self.tempDir, 'batch')
         os.makedirs(ba_path, exist_ok=True)
         subprocess.check_call(['cactus-align-batch', self._job_store(binariesMode), chromfile_path, ba_path, '--alignCores', '1',
-                               '--alignCoresOverrides', 'chr1,4 chrV,2 chrX,1'
-                               '--configOverrides', 'chrX,{} chrII,{}'.format(config_path, config_path),
+                               '--alignCoresOverrides', 'chr1,4',  'chrV,2', 'chrX,1'
+                               '--configOverrides', 'chrX,{}', 'chrII,{}'.format(config_path, config_path),
                                '--alignOptions', '--pangenome --pafInput --outVG --barMaskFilter 20000 --realTimeLogging --reference S288C --binariesMode {}'.format(binariesMode)])
 
         vg_files = [os.path.join(ba_path, c) + '.vg' for c in chroms]
