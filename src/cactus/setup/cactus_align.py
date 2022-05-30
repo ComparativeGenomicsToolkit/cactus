@@ -769,18 +769,26 @@ def main_batch():
     parser.add_argument("outHal", type=str, help = "Output directory (can be s3://)")
     parser.add_argument("--alignOptions", type=str, help = "Options to pass through to cactus-align (don't forget to wrap in quotes)")
     parser.add_argument("--alignCores", type=int, help = "Number of cores per align job")
-    parser.add_argument("--alignCoresOverrides", nargs="*", help = "Override align job cores for a chromosome. Space-separated list of chrom,cores pairse epxected")
+    parser.add_argument("--alignCoresOverrides", nargs="*", help = "Override align job cores for a chromosome. Space-separated list of chrom,cores pairs epxected")
+    parser.add_argument("--configOverrides", nargs="*", help = "Override configFile for a chromosome. Space-spearated list of chrom,configFile pairs expected")
 
     parser.add_argument("--configFile", dest="configFile",
                         help="Specify cactus configuration file",
                         default=os.path.join(cactusRootPath(), "cactus_progressive_config.xml"))
 
+    parser.add_argument("--latest", dest="latest", action="store_true",
+                        help="Use the latest version of the docker container "
+                        "rather than pulling one matching this version of cactus")
+    parser.add_argument("--containerImage", dest="containerImage", default=None,
+                        help="Use the the specified pre-built containter image "
+                        "rather than pulling one from quay.io")
+    parser.add_argument("--binariesMode", choices=["docker", "local", "singularity"],
+                        help="The way to run the Cactus binaries", default=None)
+
+
     options = parser.parse_args()
 
-    options.containerImage=None
-    options.binariesMode=None
     options.root=None
-    options.latest=None
 
     setupBinaries(options)
     set_logging_from_options(options)
@@ -802,7 +810,18 @@ def main_batch():
                 cores_overrides[chrom] = int(cores)
             except:
                 raise RuntimeError("Error parsing alignCoresOverrides \"{}\"".format(o))
-    options.alignCoresOverrides = cores_overrides                
+    options.alignCoresOverrides = cores_overrides
+
+    # Turn the config overrides into a dict of chrom->(path, id)
+    config_overrides = {}
+    if options.configOverrides:
+        for o in options.configOverrides:
+            try:
+                chrom, config_override = o.split(',')
+                config_overrides[chrom] = [config_override, None]
+            except:
+                raise RuntimeError("Error parsing configOverrides \"{}\"".format(o))
+    options.configOverrides = config_overrides
 
     start_time = timeit.default_timer()
     with Toil(options) as toil:
@@ -820,6 +839,8 @@ def main_batch():
                         assert len(toks) == 3
                         chrom, seqfile, alnFile = toks[0], toks[1], toks[2]
                         chrom_dict[chrom] = toil.importFile(makeURL(seqfile)), toil.importFile(makeURL(alnFile))
+                        if chrom in options.configOverrides:
+                            options.configOverrides[chrom][1] = toil.importFile(makeURL(options.configOverrides[chrom][0]))
             results_dict = toil.start(Job.wrapJobFn(align_toil_batch, chrom_dict, config_id, options))
 
         # when using s3 output urls, things get checkpointed as they're made so no reason to export
@@ -841,11 +862,21 @@ def main_batch():
 def align_toil_batch(job, chrom_dict, config_id, options):
     """ spawn a toil job for each cactus-align """
 
+    # remember what comes in, as we'll potentially override them
+    orig_cores = options.alignCores
+    orig_config = options.configFile
+    orig_config_id = config_id
+    
     results_dict = {}
     for chrom in chrom_dict.keys():
         seq_file_id, paf_file_id = chrom_dict[chrom]
+        # apply the overrides from --alignCoresOverrides and --configOverrides
+        options.aligCores = options.alignCoresOverrides[chrom] if chrom in options.alignCoresOverrides else orig_cores
+        options.configFile = options.configOverrides[chrom][0] if chrom in options.configOverrides else orig_config
+        config_id = options.configOverrides[chrom][1] if chrom in options.configOverrides else orig_config_id
+        # spawn the chromosome job
         align_job = job.addChildJobFn(align_toil, chrom, seq_file_id, paf_file_id, config_id, options,
-                                      cores=options.alignCoresOverrides[chrom] if chrom in options.alignCoresOverrides else options.alignCores)
+                                      cores=options.alignCores)
         results_dict[chrom] = align_job.rv()
 
     return results_dict
