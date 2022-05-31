@@ -319,7 +319,7 @@
 		 minigraphMapOptions="-c -xasm"
 		 minigraphConstructOptions="-c -xggs"
 		 minMAPQ="5"
-		 minGAFBlockLength="50000"
+		 minGAFBlockLength="250000"
 		 minGAFQueryOverlapFilter="0"
 		 GAFOverlapFilterRatio="5"
 		 GAFOverlapFilterMinLengthRatio="0.25"
