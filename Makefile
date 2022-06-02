@@ -45,12 +45,12 @@ static:
 	${MAKE} all
 
 check-static: static
-	ifeq ($(shell ldd bin/* | grep "not a dynamic" | wc -l), $(shell ls bin/* | wc -l))
-		$(info ldd verified that all files in .bin/ are static)
-		echo "All static"
-	else
-		$(error ldd found dynamic linked binary in .bin/)
-	endif
+	if [ $(shell ldd bin/* | grep "not a dynamic" | wc -l) = $(shell ls bin/* | wc -l) ] ; then\
+		echo "ldd verified that all files in bin/ are static";\
+	else\
+		echo "ldd found dynamic linked binary in bin/";\
+		exit 1;\
+	fi
 
 all_libs:
 	${MAKE} ${modules:%=all_libs.%}
