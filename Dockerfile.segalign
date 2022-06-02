@@ -1,5 +1,8 @@
 FROM nvidia/cuda:10.2-devel as builder
 
+# See suggested workaround in the comments: https://forums.developer.nvidia.com/t/18-04-cuda-docker-image-is-broken/212892/6
+RUN rm /etc/apt/sources.list.d/cuda.list /etc/apt/sources.list.d/nvidia-ml.list
+
 # system dependencies are installed by ./installUbuntu.sh below, but we need sudo first
 RUN apt-get -qq -y update && \
     apt-get -qq -y upgrade && \
@@ -17,6 +20,9 @@ RUN cd /WGA_GPU && rm -rf build && ./scripts/installUbuntu.sh -c && git rev-pars
 
 # Create a thinner final Docker image with only runtime dependencies
 FROM nvidia/cuda:10.2-runtime
+
+# See suggested workaround in the comments: https://forums.developer.nvidia.com/t/18-04-cuda-docker-image-is-broken/212892/6
+RUN rm /etc/apt/sources.list.d/cuda.list /etc/apt/sources.list.d/nvidia-ml.list
 
 # Install runtime dependencies
 RUN apt-get -qq -y update && \

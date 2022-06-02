@@ -39,6 +39,11 @@ else
 	 sed -i src/cactus/cactus_progressive_config.xml -e 's/partialOrderAlignment="1"/partialOrderAlignment="0"/g'
 fi
 
+# hack lastz to build static.
+# todo: it'd be nice to have this done in cactus's "make static"
+sed -i submodules/lastz/src/Makefile -e 's/CFLAGS = /CFLAGS = -static /g'
+sed -i submodules/lastz/src/Makefile -e 's/-lm/-lm -static/g'
+
 export CFLAGS="-static"
 export CXXFLAGS="-static"
 export LDFLAGS="-static"
