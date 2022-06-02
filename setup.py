@@ -20,7 +20,7 @@ class PostInstallCommand(install):
 
 setup(
     name = "Cactus",
-    version = "1.0",
+    version = "2.0.5",
     author = "Benedict Paten",
     package_dir = {'': 'src'},
     packages = find_packages(where='src'),
@@ -50,6 +50,7 @@ setup(
                             'cactus-prepare-toil = cactus.progressive.cactus_prepare:main_toil',
                             'cactus-blast = cactus.blast.cactus_blast:main',
                             'cactus-refmap = cactus.refmap.cactus_refmap:main',
+                            'cactus-minigraph = cactus.refmap.cactus_minigraph:main',
                             'cactus-graphmap = cactus.refmap.cactus_graphmap:main',
                             'cactus-graphmap-split = cactus.refmap.cactus_graphmap_split:main',
                             'cactus-graphmap-join = cactus.refmap.cactus_graphmap_join:main',

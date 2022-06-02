@@ -31,12 +31,8 @@ from operator import itemgetter
 from cactus.progressive.seqFile import SeqFile
 from cactus.progressive.multiCactusTree import MultiCactusTree
 from cactus.shared.common import setupBinaries, importSingularityImage
-from cactus.progressive.multiCactusProject import MultiCactusProject
-from cactus.shared.experimentWrapper import ExperimentWrapper
 from cactus.shared.common import cactusRootPath
 from cactus.shared.configWrapper import ConfigWrapper
-from cactus.pipeline.cactus_workflow import CactusWorkflowArguments
-from cactus.pipeline.cactus_workflow import addCactusWorkflowOptions
 from cactus.shared.common import makeURL, catFiles
 from cactus.shared.common import enableDumpStack
 from cactus.shared.common import cactus_override_toil_options
@@ -57,7 +53,6 @@ from sonLib.bioio import getTempDirectory, getTempFile, catFiles
 def main():
     parser = ArgumentParser()
     Job.Runner.addToilOptions(parser)
-    addCactusWorkflowOptions(parser)
 
     parser.add_argument("--vg", required=True, nargs='+',  help = "Input vg files (PackedGraph or HashGraph format)")
     parser.add_argument("--outDir", required=True, type=str, help = "Output directory")
@@ -67,6 +62,8 @@ def main():
     parser.add_argument("--xgReference", type=str, help = "Produce additonal XG that also includes given reference event (as copied from the GBWT)")
     parser.add_argument("--rename", nargs='+', default = [], help = "Path renaming, each of form src>dest (see clip-vg -r)")
     parser.add_argument("--clipLength", type=int, default=None, help = "clip out unaligned sequences longer than this")
+    parser.add_argument("--clipNonMinigraph", action="store_true", help = "apply --clipLength filter to stretches not aligned to minigraph")
+    parser.add_argument("--clipBed", nargs='+', default = [], help = "BED file(s) (ie from cactus-preprocess) of regions to clip")
     parser.add_argument("--wlineSep", type=str, help = "wline separator for vg convert")
     parser.add_argument("--indexCores", type=int, default=1, help = "cores for general indexing and VCF constructions")
     parser.add_argument("--giraffeCores", type=int, default=None, help = "cores for giraffe-specific indexing (defaults to --indexCores)")
@@ -119,12 +116,12 @@ def main():
     cactus_override_toil_options(options)
 
     start_time = timeit.default_timer()
-    runCactusGraphMapJoin(options)
+    graphmap_join(options)
     end_time = timeit.default_timer()
     run_time = end_time - start_time
     logger.info("cactus-graphmap-join has finished after {} seconds".format(run_time))
 
-def runCactusGraphMapJoin(options):
+def graphmap_join(options):
     with Toil(options) as toil:
         importSingularityImage(options)
         #Run the workflow
@@ -138,6 +135,13 @@ def runCactusGraphMapJoin(options):
             config = ConfigWrapper(configNode)
             config.substituteAllPredefinedConstantsWithLiterals()
 
+            # load up the beds
+            bed_ids = []
+            if options.clipBed:
+                logger.info("Importing BED files")
+            for bed_path in options.clipBed:
+                bed_ids.append(toil.importFile(makeURL(bed_path)))
+                
             # load up the vgs
             vg_ids = []
             for vg_path in options.vg:
@@ -174,22 +178,33 @@ def runCactusGraphMapJoin(options):
                         unclip_seq_id_map[genome] = (seq, toil.importFile(seq))
 
             # run the workflow
-            wf_output = toil.start(Job.wrapJobFn(graphmap_join_workflow, options, config, vg_ids, hal_ids, unclip_seq_id_map))
+            wf_output = toil.start(Job.wrapJobFn(graphmap_join_workflow, options, config, vg_ids, hal_ids, unclip_seq_id_map, bed_ids))
                 
         #export the split data
-        export_join_data(toil, options, wf_output[0], wf_output[1])
+        export_join_data(toil, options, wf_output[0], wf_output[1], wf_output[2])
 
-def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, unclip_seq_id_map):
+def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, unclip_seq_id_map, bed_ids):
 
     root_job = Job()
     job.addChild(root_job)
 
+    # concat the bed_files
+    if bed_ids:
+        bed_cat_job = root_job.addChildJobFn(cat_bed_files, bed_ids)
+    bed_id = bed_cat_job.rv() if bed_ids else None
+        
     # run clip-vg on each input
     clipped_vg_ids = []
+    clipped_stats_list = []
     for vg_path, vg_id in zip(options.vg, vg_ids):
-        clip_job = root_job.addChildJobFn(clip_vg, options, config, vg_path, vg_id,
-                                          disk=vg_id.size * 2, memory=vg_id.size * 4)
-        clipped_vg_ids.append(clip_job.rv())
+        clip_job = Job.wrapJobFn(clip_vg, options, config, vg_path, vg_id, bed_id,
+                                 disk=vg_id.size * 2, memory=vg_id.size * 4)
+        if bed_id:
+            bed_cat_job.addFollowOn(clip_job)
+        else:
+            root_job.addChild(clip_job)
+        clipped_vg_ids.append(clip_job.rv(0))
+        clipped_stats_list.append(clip_job.rv(1))
     
     # join the ids
     if not options.preserveIDs:
@@ -198,6 +213,9 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, unclip_seq_id_
         clipped_vg_ids = [join_job.rv(i) for i in range(len(vg_ids))]
     else:
         join_job = root_job
+
+    # join the stats
+    clipped_stats = root_job.addFollowOnJobFn(cat_stats, clipped_stats_list).rv()
 
     # optional clipping -- we do this down here after joining and normalization so
     # our graph is id-compatible with a graph that wasn't clipped (but run with same parameters otherwise)
@@ -260,9 +278,9 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, unclip_seq_id_
 
     # optional hal merge
     if hal_ids:
-        hal_merge_job = root_job.addChildJobFn(merge_hal, options, hal_ids,
-                                               cores = 1,
-                                               disk=sum(f.size for f in hal_ids) * 2)
+        hal_merge_job = job.addChildJobFn(merge_hal, options, hal_ids,
+                                          cores = 1,
+                                          disk=sum(f.size for f in hal_ids) * 2)
         hal_id_dict = hal_merge_job.rv()
         if unclip_seq_id_map:
             # optional hal unclip
@@ -275,32 +293,52 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, unclip_seq_id_
 
         out_dicts.append(hal_id_dict)
     
-    return clipped_vg_ids, out_dicts
+    return clipped_vg_ids, clipped_stats, out_dicts
 
-def clip_vg(job, options, config, vg_path, vg_id):
+def clip_vg(job, options, config, vg_path, vg_id, bed_id):
     """ run clip-vg 
     """
     work_dir = job.fileStore.getLocalTempDir()
     is_decoy = vg_path == options.decoyGraph
     vg_path = os.path.join(work_dir, os.path.basename(vg_path))
     job.fileStore.readGlobalFile(vg_id, vg_path)
+    bed_path = os.path.join(work_dir, 'clip-bed.bed')
+    if bed_id:
+        job.fileStore.readGlobalFile(bed_id, bed_path)
+
     clipped_path = vg_path + '.clip'
     out_path = vg_path + '.out'
+    clipped_bed_path = vg_path + '.clip.bed'
+
+    graph_event = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "assemblyName", default="_MINIGRAPH_")
 
     # remove masked unaligned regions with clip-vg
+    drop_mini = False
     cmd = ['clip-vg', vg_path, '-f']
     if options.clipLength is not None and not is_decoy:
         cmd += ['-u', str(options.clipLength)]
+        drop_mini = True
+    if options.clipNonMinigraph:
+        cmd += ['-a', graph_event]
+        drop_mini = True
     for rs in options.rename:
         cmd += ['-r', rs]
     if options.reference:
         cmd += ['-e', options.reference]
+    if bed_id and not is_decoy:
+        cmd += ['-b', bed_path]
+    cmd += ['-o', clipped_bed_path]
+    if drop_mini:
+        # get rid of minigraph if we're doing any kind of clipping
+        # (keep otherwise, since we may want to use it to clip with -a in the future)
+        cmd += ['-d', graph_event]
 
     if getOptionalAttrib(findRequiredNode(config.xmlRoot, "hal2vg"), "includeMinigraph", typeFn=bool, default=False):
         # our vg file has minigraph sequences -- we'll filter them out, along with any nodes
         # that don't appear in a non-minigraph path
-        graph_event = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "assemblyName", default="_MINIGRAPH_")
         cmd += ['-d', graph_event]
+        # but... we'll leave the minigraph path fragments that are aligned to anything else in the vg's
+        cmd += ['-L']
         
     cactus_call(parameters=cmd, outfile=clipped_path)
         
@@ -324,13 +362,12 @@ def clip_vg(job, options, config, vg_path, vg_id):
         gfa_in_path = vg_path + '.gfa'
         gfa_out_path = normalized_path + '.gfa'
         cactus_call(parameters=['vg', 'convert', '-f', clipped_path], outfile=gfa_in_path)
-        fix_cmd = ['gfaffix', gfa_in_path, '--output_refined', gfa_out_path]
+        fix_cmd = ['gfaffix', gfa_in_path, '--output_refined', gfa_out_path, '--check_transformation']
         if options.reference:
             fix_cmd += ['--dont_collapse', options.reference + '*']
         cactus_call(parameters=fix_cmd)
-        # GFAFfix doesn't seem to unchop that well, so we do that in vg after
-        # The double convert is to work around: https://github.com/vgteam/vg/issues/3373
-        cactus_call(parameters=[['vg', 'convert', '-g', '-a', gfa_out_path], ['vg', 'mod', '-u', '-'], ['vg', 'convert', '-p', '-']], outfile=normalized_path)
+        # GFAFfix doesn't unchop, so we do that in vg after
+        cactus_call(parameters=[['vg', 'convert', '-g', '-p', gfa_out_path], ['vg', 'mod', '-u', '-']], outfile=normalized_path)
         clipped_path = normalized_path
 
     # also forwardize just in case
@@ -350,7 +387,45 @@ def clip_vg(job, options, config, vg_path, vg_id):
     # worth it
     cactus_call(parameters=['vg', 'validate', out_path])
 
-    return job.fileStore.writeGlobalFile(out_path)
+    # keep some stats of the chromosomal vg file:
+    # Path Lengths
+    chr_name = os.path.splitext(os.path.basename(vg_path))[0]
+    path_stats_path = vg_path + '.path-stats.tsv'
+    cactus_call(parameters=[['vg', 'paths', '-E', '-v', out_path],
+                            ['awk', '{{print "{}\t" $0}}'.format(chr_name)]],
+                outfile=path_stats_path)
+    # Nodes, edges and total length
+    graph_stats_path = vg_path + '.graph-stats.tsv'
+    cactus_call(parameters=[['vg', 'stats', '-l', '-z', out_path],
+                            ['awk', '{{print "{}\t" $0}}'.format(chr_name)]],
+                outfile=graph_stats_path)
+    # Stick the contig identifier onto the clipped regions bed
+    clipped_bed_chr_path = clipped_bed_path + '.named'
+    cactus_call(parameters=['awk',  '{{print $0 "\t{}"}}'.format(chr_name), clipped_bed_path],
+                outfile=clipped_bed_chr_path)
+    # Use WlineSep to sum up the path lengths per input sample (haplotype)
+    sample_stats_path = vg_path + '.sample-stats.tsv'
+    sample_stats = {}
+    with open(path_stats_path, 'r') as path_stats_file:
+        for line in path_stats_file:
+            toks = line.split()
+            contig_name = toks[1]
+            contig_length = int(toks[2])
+            sample_name = contig_name if not options.wlineSep else options.wlineSep.join(contig_name.split(options.wlineSep)[:2])
+            if sample_name not in sample_stats:
+                sample_stats[sample_name] = contig_length
+            else:
+                sample_stats[sample_name] += contig_length
+    with open(sample_stats_path, 'w') as sample_stats_file:
+        for sample in sorted(sample_stats.keys()):
+            sample_stats_file.write("{}\t{}\t{}\n".format(chr_name, sample, sample_stats[sample]))
+
+    out_stats = { 'clip-stats.bed' : job.fileStore.writeGlobalFile(clipped_bed_chr_path),
+                  'path-stats.tsv' : job.fileStore.writeGlobalFile(path_stats_path),
+                  'graph-stats.tsv' : job.fileStore.writeGlobalFile(graph_stats_path),
+                  'sample-stats.tsv' : job.fileStore.writeGlobalFile(sample_stats_path) }
+            
+    return job.fileStore.writeGlobalFile(out_path), out_stats
 
 def vg_clip_vg(job , options, config, vg_path, vg_id):
     """ run vg clip, chaining multiple invocations if desired.
@@ -415,11 +490,13 @@ def vg_indexes(job, options, config, gfa_ids):
     with open(merge_gfa_path, 'w') as merge_gfa_file:
         merge_gfa_file.write('H\tVN:Z:1.0\n')
 
+    graph_event = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "assemblyName", default="_MINIGRAPH_")
+    
     # merge the gfas
     for vg_path, gfa_id in zip(options.vg, gfa_ids):
         gfa_path = os.path.join(work_dir, os.path.basename(vg_path) +  '.gfa')
-        job.fileStore.readGlobalFile(gfa_id, gfa_path, mutable=True)
-        cactus_call(parameters=['grep', '-v', '^H', gfa_path], outfile=merge_gfa_path, outappend=True)
+        job.fileStore.readGlobalFile(gfa_id, gfa_path, mutable=True)        
+        cactus_call(parameters=['grep', '-v', '^H\|^P	{}'.format(graph_event), gfa_path], outfile=merge_gfa_path, outappend=True)
         os.remove(gfa_path)
 
     # make the gbwt
@@ -468,7 +545,7 @@ def make_vcf(job, out_name, vcf_ref, index_dict, tag=''):
     job.fileStore.readGlobalFile(index_dict['trans.gz'], trans_path)
 
     # unzip the trans
-    cactus_call(parameters=['gzip', '-fd', trans_path])
+    cactus_call(parameters=['bgzip', '-fd', trans_path, '--threads', str(job.cores)])
     trans_path = trans_path[:-3]
 
     # make the vcf
@@ -583,7 +660,35 @@ def unclip_hal(job, hal_id_dict, seq_id_map):
 
     return { 'hal' : job.fileStore.writeGlobalFile(out_hal_path) }
 
-def export_join_data(toil, options, clip_ids, idx_maps):
+def cat_bed_files(job, bed_ids):
+    bed_paths = [job.fileStore.readGlobalFile(bed_id) for bed_id in bed_ids]
+    cat_bed_path = job.fileStore.getLocalTempFile()
+    catFiles(bed_paths, cat_bed_path)
+    renamed_bed_path = cat_bed_path + '.renamed'
+    # cactus-preprocess will make a bed like "ID=SAMPLE.1|CONTIG"
+    # but by the name its been through cactus/hal it'll be SAMPLE.1.CONTIG
+    # so we need to make the same transformation in the bed
+    # if the id=| prefix is not present, it's up to the user to make sure it's consistent on input
+    with open(cat_bed_path, 'r') as ifile, open(renamed_bed_path, 'w') as ofile:
+        for line in ifile:
+            if line.startswith('ID='):
+                p = line.find('|')
+                if p > 3:
+                    sample = line[3:p]
+                    rest = line[p+1:]
+                    line = '{}.{}'.format(sample, rest)
+            ofile.write(line)    
+    return job.fileStore.writeGlobalFile(renamed_bed_path)
+
+def cat_stats(job, stats_dict_list):
+    merged_dict = {}
+    for key in stats_dict_list[0].keys():        
+        merged_dict[key] = job.fileStore.getLocalTempFile()
+        catFiles([job.fileStore.readGlobalFile(sd[key]) for sd in stats_dict_list], merged_dict[key])
+        merged_dict[key] = job.fileStore.writeGlobalFile(merged_dict[key])
+    return merged_dict
+    
+def export_join_data(toil, options, clip_ids, clip_stats, idx_maps):
     """ download all the output data
     """
 
@@ -592,9 +697,13 @@ def export_join_data(toil, options, clip_ids, idx_maps):
     if not clip_base.startswith('s3://') and not os.path.isdir(clip_base):
         os.makedirs(clip_base)
 
-    for vg_path, vg_id in zip(options.vg, clip_ids):
+    for vg_path, vg_id,  in zip(options.vg, clip_ids):
         toil.exportFile(vg_id, makeURL(os.path.join(clip_base, os.path.basename(vg_path))))
 
+    # download the stats files 
+    for stats_file in clip_stats.keys():
+        toil.exportFile(clip_stats[stats_file], makeURL(os.path.join(clip_base, stats_file)))
+        
     # download everything else
     for idx_map in idx_maps:
         for ext, idx_id in idx_map.items():
