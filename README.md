@@ -30,7 +30,7 @@ Note that to run even the very small evolverMammals example, you may need up to 
 
 IMPORTANT:  It is highly recommend that one **not** run Cactus using the Toil Grid Engine-like batch systems (GridEngine, HTCondor, LSF, SLURM, or Torque).  Cactus creates a very large number of small jobs, which can overwhelm these systems.  There is a work-around described [here](#running-the-step-by-step-workflow-direclty-in-toil) for clusters with large compute nodes available.  **Update**:  Cactus version >= 2.0 with GPU enabled will spawn far fewer jobs which, in theory, should make this less of an issue.
 
-NEW:  Cactus can now align individuals from the same species without a tree using the [Cactus Pangenome Pipeline](doc/pangenome.md).
+NEW:  Cactus can now align individuals from the same species without a tree using the [Minigraph-Cactus Pangenome Pipeline](doc/pangenome.md).
 
 ### Installation Overview
 
@@ -42,10 +42,10 @@ There are many different ways to install and run Cactus:
 
 #### Docker Image
 
-Cactus docker images are hosted on [quay](https://quay.io/repository/comparative-genomics-toolkit/cactus).  The image for the latest release is listed on the [Releases Page](https://github.com/ComparativeGenomicsToolkit/cactus/releases).  Here is an command line to run the included evolver mammals example with release 2.0.5
+Cactus docker images are hosted on [quay](https://quay.io/repository/comparative-genomics-toolkit/cactus).  The image for the latest release is listed on the [Releases Page](https://github.com/ComparativeGenomicsToolkit/cactus/releases).  Here is an command line to run the included evolver mammals example with release 2.1.0
 ```
 wget https://raw.githubusercontent.com/ComparativeGenomicsToolkit/cactus/master/examples/evolverMammals.txt
-docker run -v $(pwd):/data --rm -it quay.io/comparative-genomics-toolkit/cactus:v2.0.5 cactus /data/jobStore /data/evolverMammals.txt /data/evolverMammals.hal --root mr --binariesMode local
+docker run -v $(pwd):/data --rm -it quay.io/comparative-genomics-toolkit/cactus:v2.1.0 cactus /data/jobStore /data/evolverMammals.txt /data/evolverMammals.hal --root mr --binariesMode local
 
 ```
 
@@ -107,7 +107,7 @@ and added to the PATH with
 export PATH=$(pwd)/bin:$PATH
 ```
 
-In order to run the [Cactus Pangenome Pipeline](doc/pangenome.md), additional tools must be installed with:
+In order to run the [Minigraph-Cactus Pangenome Pipeline](doc/pangenome.md), additional tools must be installed with:
 ```
 build-tools/downloadPangenomeTools
 ```
@@ -129,7 +129,7 @@ Cactus can be setup and used in a virtual environment as in the [previous sectio
 
 Singularity binaries can be used in place of docker binaries with the `--binariesMode singularity` flag.  Note, you must use Singularity 2.3 - 2.6 or Singularity 3.1.0+. Singularity 3 versions below 3.1.0 are incompatible with cactus (see [issue #55](https://github.com/ComparativeGenomicsToolkit/cactus/issues/55) and [issue #60](https://github.com/ComparativeGenomicsToolkit/cactus/issues/60)).
 
-By default, cactus will use the image, `quay.io/comparative-genomics-toolkit/cactus:<CACTUS_COMMIT>` when running binaries. This is usually okay, but can be overridden with the `CACTUS_DOCKER_ORG` and `CACTUS_DOCKER_TAG` environment variables.  For example, to use GPU release 2.0.5, run `export CACTUS_DOCKER_TAG=v2.0.5-gpu` before running cactus.  
+By default, cactus will use the image, `quay.io/comparative-genomics-toolkit/cactus:<CACTUS_COMMIT>` when running binaries. This is usually okay, but can be overridden with the `CACTUS_DOCKER_ORG` and `CACTUS_DOCKER_TAG` environment variables.  For example, to use GPU release 2.1.0, run `export CACTUS_DOCKER_TAG=v2.1.0-gpu` before running cactus.  
 
 The `--binariesMode local` flag can be used to force `cactus` to run local binaries -- this is the default behavior if they are found.
 
@@ -139,7 +139,7 @@ To run Cactus, the basic format is:
 cactus <jobStorePath> <seqFile> <outputHal>
 ```
 
-Note: alternative ways of running include the [step-by-step interface](#running-step-by-step) and the [Cactus Pangenome Pipeline](doc/pangenome.md).
+Note: alternative ways of running include the [step-by-step interface](#running-step-by-step) and the [Minigraph-Cactus Pangenome Pipeline](doc/pangenome.md).
 
 The `jobStorePath` is where intermediate files, as well as job metadata, will be stored. It must be accessible to all worker systems.
 
@@ -266,7 +266,7 @@ cactus-prepare-toil aws:us-west-2:<JOBSTORE-NAME> examples/evolverMammals.txt --
 
 ### Pangenome Pipeline
 
-[The Cactus Pangenome Pipeline is described here](doc/pangenome.md)
+[The Minigraph-Cactus Pangenome Pipeline is described here](doc/pangenome.md)
 
 ## GPU Acceleration
 

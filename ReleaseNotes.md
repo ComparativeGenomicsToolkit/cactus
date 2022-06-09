@@ -1,3 +1,25 @@
+# Release 2.1.0  2022-06-02
+
+This release introduces a major overhaul to the Minigraph-Cactus Pangenome Pipeline, including:
+
+- Total documentation rewrite (doc/pangenome.md) with more explanations, a new example (data included) for yeast, and detailed instructions that exactly reproduce a HPRC pangenome.
+- Incorporation of latest minigraph version that can write base alignments.  These alignments, via GAF cigars, are now used by the Minigraph-Cactus pipeline rather than the raw minimizers.
+- Masking with dna-brnn is no longer needed or recommended (but it is still supported).  Instead, a graph with the full sequences is constructed and any trimming is done based on the alignment in postprocessing (via `cactus-graphmap-join`).
+- Better Continuous Integration testing for the entire pangenome pipeline.
+
+Graphs constructed with the new, simpler pipeline should be slightly more accurate and much cleaner.
+
+Other changes include:
+
+- Fix bug in Cactus (since v2.0) that sometimes caused spurious tiny self-alignments.
+- Update to newer version of abPOA (improves stability, and some corner case accuracy)
+- Fix Dockerfile so that Cactus Docker images are now much (5X) smaller.
+- Fix HAL support for remote files in Cactus Docker images.
+- Update HAL library to patched version that works for alignment updates (as described in doc/updating-alignments.md)
+
+The `--gpu` option still doesn't always work.  When using the GPU outside the gpu Docker Release, it is still advised to set gpuLastz="true" in src/cactus/cactus_progressive_config.xml (and rerun `pip install -U`).  
+
+
 # Release 2.0.5  2022-01-25
 
 This release fixes fixes a major (though rare) bug where the reference phase could take forever on some inputs.  It includes a newer version of lastz which seems to fix some crashes as well.
