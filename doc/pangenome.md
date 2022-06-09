@@ -7,7 +7,7 @@ The Minigraph-Cactus Pangenome Pipeline
 
 Progressively aligning up a guide tree makes sense when the evolution of the input genomes can be explained by a tree.  It is robust to small errors in the tree, as well as small numbers of non-treelike events (ex incomplete lineage sorting or horizontal genen transfer), making it [suitable for alignments of different vertebrate species](https://doi.org/10.1038/s41586-020-2871-y).
 
-But the tree-like assumption breaks down when considering an alignment of individuals from the *same species*.  Such within-population genome alignments are increasingly in demand as high-quality assemblies become more available (ex: [HPP](https://humanpangenome.org/)), given their potential to better identify and represent structural variation than more traditional reference-based re-sequencing approaches.
+But the tree-like assumption breaks down when considering an alignment of individuals from the *same species*.  Such within-population genome alignments are increasingly in demand as high-quality assemblies become more available (ex: [Human Pangenome Reference Consortium](https://humanpangenome.org/)), given their potential to better identify and represent structural variation than more traditional reference-based re-sequencing approaches.
 
 The Minigraph-Cactus Pangenome Pipeline adapts [Cactus](../README.md) to no longer rely on a guide tree, by taking advantage of the relative similarity of the input sequence to use minimizer sketches to determine initial anchors, then partial order alignments to refine them.  It also provides the options to generate output in standard pangenome graph formats such as [vg](https://github.com/vgteam/vg) and [GFA](https://github.com/GFA-spec/GFA-spec), in addition to the usual HAL. 
 
@@ -61,7 +61,7 @@ cactus-minigraph ./jobstore primates-pg/evolverPrimates.pg.txt primates-pg/prima
 
 ### Evolver Primates: Mapping the Genomes Back to the Minigraph
 
-`minigraph` does not perform base alignment, so the graph constructed above will only contain SVs (>50bp).  The remainder of the pipeline will add base-level alignments to the graph using Cactus.  The first step is to use `minigraph` to map each input sequence back to the graph.  The `minigraph` GFA itself will become a "genome" in the Cactus graph, so a path for its fasta sequence also needs to be specified with `--outputFasta`.  
+`minigraph` can perform base alignment since version 0.17 but it does *not* encode small variants during construction. As such, the graph constructed above will only contain SVs (>50bp).  The remainder of the pipeline will add base-level alignments to this graph using Cactus, which allows the input haplotypes to be embedded as paths in the graph.  The first step is to use `minigraph` to map each input sequence back to the graph.  The `minigraph` GFA itself will become a "genome" in the Cactus graph (each of its nodes will be an individual sequence), so a path for its fasta sequence also needs to be specified with `--outputFasta`.  
 
 ```
 cactus-graphmap ./jobstore primates-pg/evolverPrimates.pg.txt primates-pg/primates.gfa.gz primates-pg/primates.paf --realTimeLogging --reference simChimp --outputFasta primates-pg/primates.gfa.fa.gz
@@ -500,7 +500,7 @@ Note: Don't use `--vcf` with this command to make an allele-frequency-filtered V
 
 The selection of the reference genome is very important, as it will be used as the backbone for the graph.  It is the only genome that is guaranteed to not have any cycles nor to ever be clipped, and therefore provides a coordinate system in the graph.  Any input genome can be used as a reference, provided it's consistently passed as the `--reference` option to all the commands.  It also must not have a "." in its genome name.  In practice, there are usually two possible references for the HPRC graphs: GRCh38 and CHM13. 
 
-It is advisable to also pass `--vcfRerefence GRCh38 --xgReference GRCh38` to `cactus-graphmap-join` to tell it to make a second VCF and xg based on the GRCh38 reference. Likewise if creating a filtered graph with `cactus-graphmap-join --vgClipOpts "-d 9"`, you should instead use `--vgClipOpts "-d 9 -P GRCh38"` to not filter any nodes on the GRCh38 reference paths -- this will make it easier to use this graph (via surjection) to call variants on GRCh38 as well as CHM13.
+It is advisable to also pass `--vcfReference GRCh38 --xgReference GRCh38` to `cactus-graphmap-join` to tell it to make a second VCF and xg based on the GRCh38 reference. Likewise if creating a filtered graph with `cactus-graphmap-join --vgClipOpts "-d 9"`, you should instead use `--vgClipOpts "-d 9 -P GRCh38"` to not filter any nodes on the GRCh38 reference paths -- this will make it easier to use this graph (via surjection) to call variants on GRCh38 as well as CHM13. Finally, `--rename "GRCh38>GRCh38.0"` needs to be used (instead of --rename "CHM13v2>CHM13v2.0") in the first call to `cactus-graphmap-join`.
 
 Note: some contig names like `chrY` (if it is not included) and options like `--otherContig` will not be necessary for `CHM13`
 
