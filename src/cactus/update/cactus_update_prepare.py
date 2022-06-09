@@ -112,11 +112,11 @@ def call_cactus_prepare(seq_file, out_dir, jobstore_dir, out_seq_file, cactus_pr
     return cactus_call(check_output=True, parameters=cmd.split() + cactus_options)
 
 
-def extract_newick_tree(hal_filename):
+def extract_newick_tree(hal_file):
     """Extracts the newick tree from a HAL-format file using the halStats binary tool
 
     Args:
-        hal_filename (str): The path for the HAL-format file
+        hal_file (str): The path for the HAL-format file
 
     Raises:
         RuntimeError: Failed to parse the newick tree extract from the HAL-format file
@@ -126,7 +126,7 @@ def extract_newick_tree(hal_filename):
     """
 
     # extract the tree in a string format
-    string_tree = cactus_call(check_output=True, parameters=["halStats", "--tree", hal_filename])
+    string_tree = cactus_call(check_output=True, parameters=["halStats", "--tree", hal_file])
 
     # parse and sanity check
     newickParser = NXNewick()
@@ -389,7 +389,7 @@ def get_plan_adding2node(
     out_dir,
     jobstore_dir,
     out_seq_file,
-    cactus_prepare_options="",
+    cactus_prepare_options=""
 ):
     """
     A function that automatises the instructions at
@@ -419,13 +419,13 @@ def get_plan_adding2node(
 
     # The weight of the genome's first ancestor must be set to None here;
     # otherwise, cactus-prepare will "wrap" the current genome with a
-    # brand-new ancestor. Also, the real weight betwen the current genome
+    # brand-new ancestor. Also, the real weight between the current genome
     # and its first ancestor doesn't need to be catch now. The new genome
     # alignment will be replace anyway during the halReplaceGenome step,
-    # and this weight is already in the given hal_file =)
+    # and this weight is already in the given hal_file
     top_weight = None
 
-    # finanly get the newick-format tree "patch" to embed the update
+    # finally get the newick-format tree "patch" to embed the update
     patch = get_tree_patch(genome, top_weight, children, True)
 
     # filename of the last hal file
@@ -548,7 +548,9 @@ def get_plan_adding2branch(
     #########
 
     # one of new ancestor' child is the given bottom genome
-    children = {nxtree.getName(child_genome_internal_id): bottom_length}
+    children = {
+        nxtree.getName(child_genome_internal_id): bottom_length
+    }
 
     # extract FASTA files for each target_genome's children
     assemblies = extract_fasta_files(in_hal, children.keys(), hal_options, out_dir)
@@ -658,43 +660,90 @@ def cactus_alignment_update(options):
         RuntimeError: if action is not node nor branch
     """
 
-    if "node" == options.action:
-        print(
-            get_plan_adding2node(
-                options.genome,
-                options.in_hal,
-                options.in_fasta_map,
-                options.in_seq_file,
-                options.hal_options,
-                options.out_dir,
-                options.jobstore_dir,
-                options.out_seq_file,
-                options.cactus_prepare_options,
+    # A genome can be replaced (for example to update an assembly version) by
+    # removing it and then following the "add-to-node" procedure to add the
+    # new version back as a child of its parent.
+    if "replace" == options.action:
+
+        # leaf-genome sanity check
+        children_genomes = cactus_call(check_output=True, parameters=[
+            "halStats", "--children", options.genome, options.in_hal
+        ]).strip().split()
+
+        if len(children_genomes) > 0:
+            raise RuntimeError(
+                f"Node {options.genome} has children {children_genomes}. "
+                f"Replacement works for leaf genomes only."
             )
+
+        # replacement sanity-check
+        if options.genome not in options.in_fasta_map:
+            raise RuntimeError(
+                f"Genome asked for replacement '{options.genome}' "
+                f"not mentioned in the input file: {options.in_fasta}"
+            )
+
+        # grab info before genome removal
+        parent_genome = cactus_call(check_output=True, parameters=[
+            "halStats", "--parent", options.genome, options.in_hal
+        ]).strip()
+        branch_length = cactus_call(check_output=True, parameters=[
+            "halStats", "--branchLength", options.genome, options.in_hal
+        ]).strip()
+
+        # keep the same length
+        options.in_fasta_map[options.genome] = (
+            branch_length, *options.in_fasta_map[options.genome][1:]
         )
 
-    elif "branch" == options.action:
+        # remove the genome for replacement
+        cactus_call(check_output=False, parameters=[
+            "halRemoveGenome", options.in_hal, options.genome
+        ])
 
-        if not options.ancestor_name:
-            options.ancestor_name = f"{options.child_genome}-Patch-{options.parent_genome}"
+        # following the "add-to-node" procedure to add it again
+        options.action = "add"
+        options.subcommand = "node"
+        options.genome = parent_genome
 
-        print(
-            get_plan_adding2branch(
-                options.parent_genome,
-                options.child_genome,
-                options.ancestor_name,
-                options.in_hal,
-                options.in_fasta_map,
-                options.in_seq_file,
-                options.hal_options,
-                options.out_dir,
-                options.jobstore_dir,
-                options.out_seq_file,
-                options.top_length,
-                options.bottom_length,
-                options.cactus_prepare_options,
+    if "add" == options.action:
+        if "node" == options.subcommand:
+            print(
+                get_plan_adding2node(
+                    options.genome,
+                    options.in_hal,
+                    options.in_fasta_map,
+                    options.in_seq_file,
+                    options.hal_options,
+                    options.out_dir,
+                    options.jobstore_dir,
+                    options.out_seq_file,
+                    options.cactus_prepare_options,
+                )
             )
-        )
+
+        elif "branch" == options.subcommand:
+
+            if not options.ancestor_name:
+                options.ancestor_name = f"{options.child_genome}-Patch-{options.parent_genome}"
+
+            print(
+                get_plan_adding2branch(
+                    options.parent_genome,
+                    options.child_genome,
+                    options.ancestor_name,
+                    options.in_hal,
+                    options.in_fasta_map,
+                    options.in_seq_file,
+                    options.hal_options,
+                    options.out_dir,
+                    options.jobstore_dir,
+                    options.out_seq_file,
+                    options.top_length,
+                    options.bottom_length,
+                    options.cactus_prepare_options,
+                )
+            )
     else:
         raise RuntimeError(f"Unknown subcommand '{options.action}'")
 
@@ -847,7 +896,7 @@ def cactus_prepare_options_sanity_check(cactus_prepare_options):
 
 
 def work_dir_sanity_check(jobstore_dir, out_dir):
-    """Creates the jobstore and output directores
+    """Creates the jobstore and output directories
 
     Args:
         jobstore_dir (str): path for the jobstore directory
@@ -874,7 +923,10 @@ def in_fasta_map_sanity_check(filename):
         for line in f:
             line = line.split()
 
-            # TODO: check if len(line) !=3
+            if len(line) < 2 or len(line) > 3:
+                raise RuntimeError(f"Tab-separated text file must have 2 or 3 (tab-separated) columns per row")
+
+            # no length give, add the default value of 1.0
             if len(line) == 2:
                 line.append(1.0)
 
@@ -912,7 +964,7 @@ def main():
         help="The input HAL-format file containing the existing alignment",
     )
     parent_parser.add_argument(
-        "in_fasta_map",
+        "in_fasta",
         metavar="inFasta",
         help="Tab-separated file. First column: genome name, second column: FASTA-format file path",
     )
@@ -1002,26 +1054,20 @@ def main():
     subcommand_options(add_subparser, parent_parser, "add", "branch")
 
     # adding "replace" subcommand as an action
-    subcommand_options(subparsers, parent_parser, "replace", "")
+    subcommand_options(subparsers, parent_parser, "replace", None)
 
     options = parser.parse_args()
-
-    parser.print_help()
-    print(options)
-    return
 
     if not options.action:
         parser.print_help()
         sys.exit(1)
 
-    return
-
-    # From cactus-prepare
+     # From cactus-prepare
     setupBinaries(options)
     set_logging_from_options(options)
 
     # validate the given in_fasta_map text file
-    options.in_fasta_map = in_fasta_map_sanity_check(options.in_fasta_map)
+    options.in_fasta_map = in_fasta_map_sanity_check(options.in_fasta)
 
     # validate the given in_hal file and create a bkp if not requested via
     # --skip_backup
