@@ -34,8 +34,7 @@ cd bin && for i in wigToBigWig faToTwoBit bedToBigBed bigBedToBed bedSort hgGcPe
 
 ## Testing
 
-To test Cactus, the following will run a moderately sized alignment.  It may
-take several hours, depending on your system.
+To test Cactus, the following will run a tiny sumulated alignment.
 ```
 cactus ./jobstore ./examples/evolverMammals.txt ./evolverMammals.hal --realTimeLogging
 ``
