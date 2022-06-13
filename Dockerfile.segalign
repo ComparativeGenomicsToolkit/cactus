@@ -1,7 +1,4 @@
-FROM nvidia/cuda:10.2-devel as builder
-
-# See suggested workaround in the comments: https://forums.developer.nvidia.com/t/18-04-cuda-docker-image-is-broken/212892/6
-RUN rm /etc/apt/sources.list.d/cuda.list /etc/apt/sources.list.d/nvidia-ml.list
+FROM nvidia/cuda:11.7.0-devel-ubuntu22.04 as builder
 
 # system dependencies are installed by ./installUbuntu.sh below, but we need sudo first
 RUN apt-get -qq -y update && \
@@ -19,10 +16,7 @@ RUN git clone https://github.com/ComparativeGenomicsToolkit/SegAlign.git /WGA_GP
 RUN cd /WGA_GPU && rm -rf build && ./scripts/installUbuntu.sh -c && git rev-parse HEAD > /Segalign.commit
 
 # Create a thinner final Docker image with only runtime dependencies
-FROM nvidia/cuda:10.2-runtime
-
-# See suggested workaround in the comments: https://forums.developer.nvidia.com/t/18-04-cuda-docker-image-is-broken/212892/6
-RUN rm /etc/apt/sources.list.d/cuda.list /etc/apt/sources.list.d/nvidia-ml.list
+FROM nvidia/cuda:11.7.0-runtime-ubuntu22.04
 
 # Install runtime dependencies
 RUN apt-get -qq -y update && \
