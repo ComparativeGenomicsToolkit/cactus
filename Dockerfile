@@ -1,4 +1,4 @@
-FROM quay.io/comparative-genomics-toolkit/ubuntu:18.04 AS builder
+FROM quay.io/comparative-genomics-toolkit/ubuntu:22.04 AS builder
 
 # apt dependencies for build
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y build-essential git python3.8 python3.8-dev python3-pip zlib1g-dev wget libbz2-dev pkg-config libhdf5-dev liblzo2-dev libtokyocabinet-dev wget liblzma-dev libxml2-dev libssl-dev libpng-dev uuid-dev libcurl4-gnutls-dev libffi-dev python python3-virtualenv rsync
@@ -59,7 +59,7 @@ RUN rm -rf /home/cactus/hal_lib && \
 	 rsync -avm --include='*.py' -f 'hide,! */' /home/cactus/submodules/hal /home/cactus/hal_lib
 
 # Create a thinner final Docker image in which only the binaries and necessary data exist.
-FROM quay.io/comparative-genomics-toolkit/ubuntu:18.04
+FROM quay.io/comparative-genomics-toolkit/ubuntu:22.04
 
 # apt dependencies for runtime
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends git python3.8 python3-pip python3.8-distutils zlib1g libbz2-1.0 net-tools libhdf5-100 liblzo2-2 libtokyocabinet9 libkrb5-3 libk5crypto3 time liblzma5 libcurl4 libcurl4-gnutls-dev libxml2 libgomp1 libffi6
