@@ -14,7 +14,7 @@ cd "cactus-bin-${REL_TAG}"
 
 To build a python virtualenv and activate, do the following steps:
 ```
-virtualenv -p python3.8 cactus_env
+virtualenv -p python3 cactus_env
 echo "export PATH=$(pwd)/bin:\$PATH" >> cactus_env/bin/activate
 echo "export PYTHONPATH=$(pwd)/lib:\$PYTHONPATH" >> cactus_env/bin/activate
 source cactus_env/bin/activate
