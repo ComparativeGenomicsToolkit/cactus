@@ -62,7 +62,7 @@ RUN rm -rf /home/cactus/hal_lib && \
 FROM quay.io/comparative-genomics-toolkit/ubuntu:22.04
 
 # apt dependencies for runtime
-RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends git python3 python3-pip python3-distutils zlib1g libbz2-1.0 net-tools libhdf5-100 liblzo2-2 libtokyocabinet9 libkrb5-3 libk5crypto3 time liblzma5 libcurl4 libcurl4-gnutls-dev libxml2 libgomp1 libffi6
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends git python3 python3-pip python3-distutils zlib1g libbz2-1.0 net-tools libhdf5-103 liblzo2-2 libtokyocabinet9 libkrb5-3 libk5crypto3 time liblzma5 libcurl4 libcurl4-gnutls-dev libxml2 libgomp1 libffi7
 
 # copy cactus runtime essentials (note: important cactus_env keeps its path)
 RUN mkdir /home/cactus
