@@ -192,25 +192,24 @@ def get_node_id(tree, node_name):
     raise RuntimeError(f"Genome {node_name} not found in the tree extracted from the given HAL-format file")
 
 
-def get_tree_patch(node_name, top_weight, children, close=True):
+def get_tree_patch(node_name, top_weight, children_length_map, close=True):
     """ "Creates a tree in a NEWICK format
 
     Args:
-        node_name (str): a parent node name
-        top_weight (float): the parent's weight
-        children (Dict[str,float]): the parent's children
-        close (bool, optional): Indicator to close the tree with `;`. Defaults to True.
+        node_name (str): the name of the current node
+        top_weight (float): Edge weight connecting the current node with its parent
+        children_length_map (Dict[str,float]): Node's children
+        close (bool, optional): Indicator to close the tree string with `;`. Defaults to True.
 
     Returns:
         str: the newick-format tree
     """
 
-    # the tree patch for adding the new genomes as children of the
-    # target_genome
+    # the tree patch for adding the new genomes as children of the target_genome
     patch = "("
 
     # adding children to the patch
-    for name, weight in children.items():
+    for name, weight in children_length_map.items():
         patch += f"{name}:{weight},"
 
     # remove the last ','
@@ -400,18 +399,18 @@ def get_plan_adding2node(
     genome_internal_id = get_node_id(nxtree, genome)
 
     # get current children of the target genome
-    children = {
+    length_map = {
         nxtree.getName(child_id): nxtree.getWeight(genome_internal_id, child_id)
         for child_id in nxtree.getChildren(genome_internal_id)
     }
 
     # extract FASTA files for each target_genome's children and the target_genome itself
-    assemblies = extract_fasta_files(in_hal, [*children] + [genome], hal_options, out_dir)
+    assemblies = extract_fasta_files(in_hal, [*length_map] + [genome], hal_options, out_dir)
 
     # the remains new ancestor's children are given by the in_fasta_map file
     for genome_name, value in in_fasta_map.items():
         # extract weight and path
-        (children[genome_name], assemblies[genome_name]) = value
+        (length_map[genome_name], assemblies[genome_name]) = value
 
     # The weight of the genome's first ancestor must be set to None here;
     # otherwise, cactus-prepare will "wrap" the current genome with a
@@ -422,7 +421,7 @@ def get_plan_adding2node(
     top_weight = None
 
     # finally get the newick-format tree "patch" to embed the update
-    patch = get_tree_patch(genome, top_weight, children, True)
+    patch = get_tree_patch(genome, top_weight, length_map, True)
 
     # filename of the last hal file
     out_hal = f"{os.path.join(out_dir,genome)}.hal"
@@ -436,7 +435,7 @@ def get_plan_adding2node(
         cactus_prepare_options + " --outHal " + out_hal,
         patch,
         assemblies,
-        list(set([*children]) - set([*in_fasta_map])),
+        list(set([*length_map]) - set([*in_fasta_map])),
     )
 
     # Amendment commands
@@ -455,8 +454,11 @@ def get_plan_adding2node(
             f"{hal_options} "
         )
     ]
+
+    # adding HAL-file validating instructions
     validation_cmds = [f"halValidate --genome {genome} {in_hal} {hal_options}"]
 
+    # finally create the plan
     plan = make_plan_amendments(plan, update_cmds, validation_cmds)
 
     # alignment-patch done!
@@ -496,11 +498,11 @@ def get_plan_adding2branch(
         parent_genome_internal_id
     ) or not parent_genome_internal_id == nxtree.getParent(child_genome_internal_id):
         raise RuntimeError(
-            f'Not a valid branch. Genome "{parent_genome}" (top) is not a parent of "{child_genome}" (bottom)'
+            f'Not a valid branch. Top genome "{parent_genome}" is not a parent of the bottom genome"{child_genome}"'
         )
 
     #########
-    # PREAMBLE - Length check
+    # PREAMBLE:  Length check
     #########
     original_length = nxtree.getWeight(parent_genome_internal_id, child_genome_internal_id)
 
@@ -513,9 +515,9 @@ def get_plan_adding2branch(
                 f"(top genome) and the new ancestor ({new_ancestor_name}) "
                 f"is higher than the original branch length "
                 f"({original_length}) between {parent_genome} (top genome) "
-                f" and {child_genome} (bottom genome). "
+                f"and {child_genome} (bottom genome). "
                 f"This would imply in a negative length "
-                f"({original_length - top_length}) to be used between "
+                f"({original_length} - {top_length} = {original_length - top_length}) to be used between "
                 f"the new ancestor ({new_ancestor_name}) and {child_genome} "
                 f"(bottom genome). Use --forceBottomBranchLength to make a "
                 f"compulsory positive length value."
@@ -536,49 +538,52 @@ def get_plan_adding2branch(
                 f"branch length) != {original_length} (original {child_genome}-{parent_genome} "
                 f"branch length). Please, after the HAL-format {in_hal} file have been updated, "
                 f'run "halUpdateBranchLengths" to '
-                f"update the branch lengths for the correct Newick tree display by HAL."
+                f"update the branch lengths for the correct NEWICK tree display by HAL."
             )
 
     #########
-    # STEP 1) Bottom half step:  inferring a new ancestor and addressing its children.
+    # STEP 1) Bottom half step:  inferring a new ancestor
     #########
 
-    # one of new ancestor' child is the given bottom genome
-    children = {nxtree.getName(child_genome_internal_id): bottom_length}
+    # one of new ancestor's children is the given bottom genome that is already presented
+    # in the given alignment (HAL file)
+    length_map = {nxtree.getName(child_genome_internal_id): bottom_length}
 
-    # extract FASTA files for each target_genome's children
-    assemblies = extract_fasta_files(in_hal, children.keys(), hal_options, out_dir)
+    # extract FASTA files for each children capture above
+    assemblies = extract_fasta_files(in_hal, length_map.keys(), hal_options, out_dir)
 
-    # the remains new ancestor's children are given by the in_fasta_map file
+    # others new ancestor's children are given by the in_fasta_map (given file)
     for genome_name, value in in_fasta_map.items():
-        # extract weight and path
-        (children[genome_name], assemblies[genome_name]) = value
+        # extract weight and the path for the fasta file
+        (length_map[genome_name], assemblies[genome_name]) = value
 
-    # create the patch for the current tree to include the new ancestor
-    patch = get_tree_patch(new_ancestor_name, None, children, False)
+    # infer the tree patch for the new ancestor
+    patch = get_tree_patch(new_ancestor_name, None, length_map, False)
 
     #####
     # STEP 2) TOP half step:  addressing new ancestor's parent
     #########
 
-    # get the remains parent_genome's children (without the bottom genome addressed above)
-    # because they now will be siblings of the new ancestor node created.
-    children = {
+    # Get the parent_genome's children (with the except of the bottom genome addressed above) because they will:
+    #   - a) be the new ancestor's siblings
+    #   - b) provide outgroup information to build the new ancestor more accurately
+    length_map = {
         nxtree.getName(child_id): nxtree.getWeight(parent_genome_internal_id, child_id)
         for child_id in nxtree.getChildren(parent_genome_internal_id)
         if child_id != child_genome_internal_id
     }
 
-    # extract FASTA files for each parent_genome's children (minus bottom genome) + the parent_genome itself
+    # extract FASTA files for each parent_genome's children (except the bottom genome) + the parent_genome itself
     assemblies = {
         **assemblies,
-        **extract_fasta_files(in_hal, [*children] + [parent_genome], hal_options, out_dir),
+        **extract_fasta_files(in_hal, [*length_map] + [parent_genome], hal_options, out_dir),
     }
 
-    children[patch] = top_length
+    # update the map adding the length connecting the patch (previously created) with its parent (i.e. new ancestor)
+    length_map[patch] = top_length
 
     # update the tree's patch to address the new ancestor's parent
-    patch = get_tree_patch(parent_genome, None, children, True)
+    patch = get_tree_patch(parent_genome, None, length_map, True)
 
     # filename of the last hal file
     top_half_hal = f"{os.path.join(out_dir,parent_genome)}.hal"
@@ -592,13 +597,12 @@ def get_plan_adding2branch(
         cactus_prepare_options + " --outHal " + top_half_hal,
         patch,
         assemblies,
-        [child_genome] + list(set([*children]) - set([patch])),
+        [child_genome] + list(set([*length_map]) - set([patch])),
     )
 
     # Amendment commands
 
-    # HACK: in case we a list of genomes is deliveried to add into a branch
-    # pick random one if there are more than one (in this case, we need to replace genome later)
+    # HACK: in case a list of genomes is delivered pick random one in the case of existing more than one
     new_leaf = next(iter(in_fasta_map))
     update_cmds = [
         (
@@ -616,7 +620,7 @@ def get_plan_adding2branch(
             f"{hal_options} "
         )
     ]
-    # HACK: to tacke the above issue
+    # HACK: to tackle the above issue
     if len(in_fasta_map) > 1:
         update_cmds.append(
             (
@@ -630,6 +634,8 @@ def get_plan_adding2branch(
                 f"{hal_options} "
             )
         )
+
+    # adding HAL-file validating instructions
     hal_validate_cmds = [
         f"halValidate --genome {i} {in_hal} {hal_options}"
         for i in [parent_genome, new_ancestor_name, child_genome]
@@ -638,6 +644,7 @@ def get_plan_adding2branch(
         [f"halValidate --genome {i} {in_hal} {hal_options}" for i in in_fasta_map.keys()]
     )
 
+    # finally create the plan
     plan = make_plan_amendments(plan, update_cmds, hal_validate_cmds)
 
     # alignment-patch done!
