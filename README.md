@@ -20,7 +20,7 @@ Cactus uses many different algorithms and individual code contributions, princip
 ## Setup
 
 ### System requirements
-We regularly test on Ubuntu 18.04 (Bionic) and to a more limited degree on Mac OS X (using Docker).
+We regularly test on Ubuntu 22.04 (Bionic) and to a more limited degree on Mac OS X (using Docker).
 
 Cactus requires Python >= 3.7.
 
@@ -64,7 +64,7 @@ python3 -m pip install virtualenv
 
 To set up a virtual environment in the directory `cactus_env`, run:
 ```
-python3 -m virtualenv -p python3.8 cactus_env
+python3 -m virtualenv -p python3 cactus_env
 ```
 
 Then, to enter the virtualenv, run:

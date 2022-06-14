@@ -1,13 +1,13 @@
-FROM nvidia/cuda:10.2-devel as builder
+FROM nvidia/cuda:11.4.3-devel-ubuntu20.04 as builder
 
-# See suggested workaround in the comments: https://forums.developer.nvidia.com/t/18-04-cuda-docker-image-is-broken/212892/6
-RUN rm /etc/apt/sources.list.d/cuda.list /etc/apt/sources.list.d/nvidia-ml.list
+# Prevent dpkg from trying to ask any questions, ever
+ENV DEBIAN_FRONTEND noninteractive
 
 # system dependencies are installed by ./installUbuntu.sh below, but we need sudo first
 RUN apt-get -qq -y update && \
     apt-get -qq -y upgrade && \
     apt-get -qq -y install \
-    sudo git
+    sudo git cmake
 
 # Use the commit from the file
 COPY build-tools/Segalign.commit /
@@ -19,10 +19,7 @@ RUN git clone https://github.com/ComparativeGenomicsToolkit/SegAlign.git /WGA_GP
 RUN cd /WGA_GPU && rm -rf build && ./scripts/installUbuntu.sh -c && git rev-parse HEAD > /Segalign.commit
 
 # Create a thinner final Docker image with only runtime dependencies
-FROM nvidia/cuda:10.2-runtime
-
-# See suggested workaround in the comments: https://forums.developer.nvidia.com/t/18-04-cuda-docker-image-is-broken/212892/6
-RUN rm /etc/apt/sources.list.d/cuda.list /etc/apt/sources.list.d/nvidia-ml.list
+FROM nvidia/cuda:11.4.3-runtime-ubuntu20.04
 
 # Install runtime dependencies
 RUN apt-get -qq -y update && \

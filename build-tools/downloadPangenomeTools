@@ -121,21 +121,14 @@ fi
 
 #bedtools
 cd ${pangenomeBuildDir}
-wget -q https://github.com/arq5x/bedtools2/releases/download/v2.29.1/bedtools-2.29.1.tar.gz
-tar -zxf bedtools-2.29.1.tar.gz
-cd bedtools2
-if [[ $STATIC_CHECK -ne 1 ]]
+wget -q https://github.com/arq5x/bedtools2/releases/download/v2.30.0/bedtools.static.binary
+mv bedtools.static.binary bedtools
+chmod +x bedtools
+if [[ $STATIC_CHECK -ne 1 || $(ldd bedtools | grep so | wc -l) -eq 0 ]]
 then
-	 make -j ${numcpu}
-	 mv bin/bedtools ${binDir}/bedtools
+	 mv bedtools ${binDir}
 else
-	 make static -j ${numcpu}
-	 if [[ $STATIC_CHECK -ne 1 || $(ldd bin/bedtools.static | grep so | wc -l) -eq 0 ]]
-	 then
-		  mv bin/bedtools.static ${binDir}/bedtools
-	 else
-		  exit 1
-	 fi
+	 exit 1
 fi
 
 # dna-brnn

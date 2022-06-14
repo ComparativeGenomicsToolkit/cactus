@@ -17,7 +17,7 @@ Follow the steps in the README, making sure to install toil with its extra AWS s
 ```
 git clone https://github.com/comparativegenomicstoolkit/cactus.git
 cd cactus
-virtualenv -p python 3.8 venv
+virtualenv -p python3 venv
 source venv/bin/activate
 pip install -r toil-requirement.txt
 ```
