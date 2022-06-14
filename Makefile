@@ -132,7 +132,7 @@ ${versionPy}:
 
 bin/mafComparator:
 	rm -rf submodules/mafTools
-	cd submodules && git clone https://github.com/dentearl/mafTools.git && cd mafTools && git checkout 82077ac39c9966ac8fb8efe9796fbcfb7da55477
+	cd submodules && git clone https://github.com/ComparativeGenomicsToolkit/mafTools.git && cd mafTools && git checkout cf144382b3c5a672d58a6798eebe23979c9a6b1f
 	cd submodules/mafTools && sed -i -e 's/-Werror//g' inc/common.mk lib/Makefile && sed -i -e 's/mafExtractor//g' Makefile && make
 	cp submodules/mafTools/bin/mafComparator bin/
 	cd ${CWD}/test && wget -q https://raw.githubusercontent.com/UCSantaCruzComputationalGenomicsLab/cactusTestData/master/evolver/mammals/loci1/all.maf -O mammals-truth.maf
