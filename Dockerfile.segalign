@@ -7,7 +7,7 @@ ENV DEBIAN_FRONTEND noninteractive
 RUN apt-get -qq -y update && \
     apt-get -qq -y upgrade && \
     apt-get -qq -y install \
-    sudo git
+    sudo git cmake
 
 # Use the commit from the file
 COPY build-tools/Segalign.commit /
