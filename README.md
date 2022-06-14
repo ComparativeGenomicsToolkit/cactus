@@ -20,7 +20,7 @@ Cactus uses many different algorithms and individual code contributions, princip
 ## Setup
 
 ### System requirements
-We regularly test on Ubuntu 22.04 (Bionic) and to a more limited degree on Mac OS X (using Docker).
+We regularly test on Ubuntu 20.04, 22.04 and, to a more limited degree, on Mac OS X (using Docker).
 
 Cactus requires Python >= 3.7.
 
@@ -209,6 +209,7 @@ It will print the sequence of commands to run the alignment step-by-step.  Block
 cactus-prepare examples/evolverMammals.txt --outDir steps-output --outSeqFile steps-output/evovlerMammals.txt --outHal steps-output/evolverMammals.hal --jobStore jobstore --preprocessOnly
 ```
 
+
 #### Creading a WDL script to run on Cromwell or Terra
 
 The `--wdl` option in `cactus-prepare` can be used to generate a bespoke [WDL](https://github.com/openwdl/wdl/blob/master/versions/1.0/SPEC.md) script for running the alignment from the input seqFile.  Here is an example on how to run locally in [Cromwell](https://github.com/broadinstitute/cromwell)
@@ -264,6 +265,10 @@ If the workflow fails for whatever reason, it can be edited (to, say, increase j
 cactus-prepare-toil aws:us-west-2:<JOBSTORE-NAME> examples/evolverMammals.txt --binariesMode singularity --batchSystem kubernetes --realTimeLogging --outHal s3://<BUCKET-NAME>/out.hal --defaultDisk 20G --defaultMemory 12G --defaultCores 4
 ```
 
+#### Updating existing alingments
+
+`cactus-update-prepare` can be used to generate recipes to replace or add genomes to an existing HAL file.  See the full documentation [here](doc/cactus-update-prepare.md).
+
 ### Pangenome Pipeline
 
 [The Minigraph-Cactus Pangenome Pipeline is described here](doc/pangenome.md)
@@ -287,7 +292,9 @@ You can also [convert the HAL alignment into a Pangenome Graph](https://github.c
 Please [cite HAL](https://doi.org/10.1093/bioinformatics/btt128).
 
 ## Updating existing alignments
-Cactus supports incrementally updating existing alignments to add, remove, or update genomes. The process involves minor surgery on the output HAL files. See [this document](doc/updating-alignments.md) for details.
+Cactus supports incrementally updating existing alignments to add, remove, or update genomes. The process involves minor surgery on the output HAL files. See [this document](doc/updating-alignments.md) for details. [cactus-update-prepare](doc/cactus-update-prepare.md) can be used to simplify this process!
+
+
 # Frequently Asked Questions
 Q: I'm running under macOS using the Docker functionality and get an error from Docker: `docker: Error response from daemon: Mounts denied: [...]`
 
