@@ -1,3 +1,12 @@
+# Release 2.1.1 2022-06-15
+
+This release includes:
+
+- Update Segalign to fix crash while lastz-repeatmasking certain (fragmented?) assemblies using GPUs.
+- Add [cactus-update-prepare](doc/cactus-update-prepare.md) which generates scripts for updating HAL alignments (Thanks @thiagogenez)
+- Upgrade release (CPU) Docker images from Ubuntu 18.04 to Ubuntu 22.04.
+- Upgrade release GPU Docker image from Ubuntu 18.04 / Cuda 10.2 to Ubuntu 20.04 / Cuda 11.4.3 (the most recent Cuda currently supported by Terra)
+
 # Release 2.1.0  2022-06-02
 
 This release introduces a major overhaul to the Minigraph-Cactus Pangenome Pipeline, including:
