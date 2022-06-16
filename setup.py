@@ -61,4 +61,4 @@ setup(
                             'cactus-align = cactus.setup.cactus_align:main',
                             'cactus-align-batch = cactus.setup.cactus_align:main_batch',
                             'cactus-update-prepare = cactus.update.cactus_update_prepare:main',
-                            'cactus-resume-terra-wdl = cactus.progressive.cactus_resume_terra_wdl:main']},)
+                            'cactus-terra-helper = cactus.progressive.cactus_terra_helper:main']},)
