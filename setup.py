@@ -60,4 +60,5 @@ setup(
                             'cactus-graphmap-join = cactus.refmap.cactus_graphmap_join:main',
                             'cactus-align = cactus.setup.cactus_align:main',
                             'cactus-align-batch = cactus.setup.cactus_align:main_batch',
-                            'cactus-update-prepare = cactus.update.cactus_update_prepare:main']},)
+                            'cactus-update-prepare = cactus.update.cactus_update_prepare:main',
+                            'cactus-resume-terra-wdl = cactus.progressive.cactus_resume_terra_wdl:main']},)
