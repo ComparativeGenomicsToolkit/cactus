@@ -12,16 +12,51 @@ Example:
 2) it crashes in blast_Anc07
 3) make primates.2.wdl that uses an updated docker image
 4) fish out the google bucket prefix, which would look like gs://fc-8d260e46-b01a-4bc0-8710-b2e95124dece/d3ec9c38-3794-4590-8452-0f367b265495/cactus_prepared/969c5d70-c0ee-4238-b6f7-5b9df3d1f041/
-5) gsutil ls -r <bucket> | resume-terra-wdl.py > primates.2.wdl  
+5) gsutil ls -r <bucket> | cactus-terra-helper resume primates.wdl > primates.2.wdl  
 
 and it will print out a new WDL where things like preprocess_Piliocolobus_tephrosceles_Pan_paniscus_Pan_trog_4b5e36051c04efdc81c34c6206d44ee1.out_files[2] are replaced with the full path gs://fc-8d260e46-b01a-4bc0-8710-b2e95124dece/d3ec9c38-3794-4590-8452-0f367b265495/cactus_prepared/969c5d70-c0ee-4238-b6f7-5b9df3d1f041/call-preprocess_Piliocolobus_tephrosceles_Pan_paniscus_Pan_trog_4b5e36051c04efdc81c34c6206d44ee1/attempt-2/PD_0802_megahit_final_contigs.min1k.assembly.masked.fa.pp etc.
 
 Warning:
 
 The parsing is pretty quick and hacky and really expects the WDL to look a lot like what comes out of cactus-prepare --wdl (at time of writing), and the terra bucket structure to be what I'm currently seeing.  Also, it assumes that if an output file is found in the job's bucket, then that job was a success and the file should be used (which I think is fine)
+
+Scraping logs:
+
+Use the scrape-logs subcommand to download all the logs
 """
 
 import os, sys
+from datetime import datetime
+import subprocess
+
+def scrape_logs(dirtree):
+    """ download all the logs (stderr).  input must come from gsutil ls -l -r """    
+    job_to_log = {}
+    for line in dirtree:
+        line_toks = line.strip().split()
+        if len(line_toks) != 3:
+            continue
+        full_path = line_toks[-1]        
+        if not full_path.startswith("gs://"):
+            continue
+        if os.path.basename(full_path) != 'stderr':
+            continue
+        toks = full_path.split("/")
+        pi = toks.index("cactus_prepared")
+        if pi + 3 >= len(toks):
+            continue
+        job_name = toks[pi + 2]
+        assert job_name.startswith("call-")
+        job_name = job_name[5:]
+        
+        assert len(line_toks) == 3
+        date = datetime.strptime(line_toks[1], "%Y-%m-%dT%H:%M:%SZ")
+
+        if job_name not in job_to_log or date > job_to_log[job_name][0]:
+            job_to_log[job_name] = (date, full_path)
+
+    for k,v in job_to_log.items():
+        subprocess.check_call(['gsutil', 'cp', v[1], './{}.log'.format(k)])
 
 def load_dirtree(dirtree):
     """ load up the results of gsutil ls -r"""
@@ -173,20 +208,26 @@ def remove_jobs(job_names, wdl_lines):
 
     return out_lines    
 
+
 def main():
 
-    if len(sys.argv) != 2:
-        sys.stderr.write("{}: Edit WDL to use temporary outputs cached in a Google Bucket.\n".format(os.path.basename(sys.argv[0])))
-        sys.stderr.write("Use to work around Terra's frequent refusals to use its own cache\n\n")
-        sys.stderr.write("Usage: gsutil ls -r <gs://bucket/prefix> | {} aln.wdl > aln.resume.wdl\n".format(os.path.basename(sys.argv[0])))
+    if not ((len(sys.argv) == 2 and sys.argv[1] == 'scrape-logs') or (len(sys.argv) == 3 and sys.argv[1] == 'resume')):
+        sys.stderr.write("{}: Extract logs or edit WDL to use temporary outputs cached in a Google Bucket.\n".format(os.path.basename(sys.argv[0])))
+        sys.stderr.write("Usage:\n  To resume:   gsutil ls -r <gs://bucket/prefix> | {} resume aln.wdl > aln.resume.wdl\n".format(os.path.basename(sys.argv[0])))
+        sys.stderr.write("  To get logs: gsutil ls -lr <gs://bucket/prefix> | {} scrape-logs\n".format(os.path.basename(sys.argv[0])))
         return 1
+
+    if sys.argv[1] == 'scrape-logs':
+        scrape_logs(sys.stdin)
+        return 0
+    assert sys.argv[1] == 'resume'
 
     # load the directory tree for the bucket
     pp_files, blast_files, align_files = load_dirtree(sys.stdin)
 
     # load the wdl file into list of lines
     wdl_lines = []
-    with open(sys.argv[1]) as wdl_file:
+    with open(sys.argv[2]) as wdl_file:
         for line in wdl_file:
             wdl_lines.append(line)
 
