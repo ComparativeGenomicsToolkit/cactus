@@ -175,7 +175,7 @@ def resolve_align_files(align_files, wdl_lines):
         assert len(cache_array) == 2
         if cache_array[0].endswith('.hal'):
             cache_array = cache_array[1], cache_array[0]
-        assert cache_array[0].endswith('.fa')
+        assert cache_array[0].endswith('.fa') or cache_array[0].endswith('.pp')
         assert cache_array[1].endswith('.hal')
         replace_map['{}.out_fa_file'.format(job_name)] = '"{}"'.format(cache_array[0])
         replace_map['{}.out_hal_file'.format(job_name)] = '"{}"'.format(cache_array[1])
