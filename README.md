@@ -62,7 +62,7 @@ To avoid problems with conflicting versions of dependencies on your system, we s
 python3 -m pip install virtualenv
 ```
 
-To set up a virtual environment in the directory `cactus_env`, run:
+To set up a virtual environment in the directory `cactus_env`, run (Ubuntu 18.04 users should use `-p python3.8` below):
 ```
 python3 -m virtualenv -p python3 cactus_env
 ```
