@@ -88,9 +88,6 @@ RUN chmod 777 /opt/cactus/wrapper.sh
 # log the memory usage (with --realTimeLogging) for local commands
 ENV CACTUS_LOG_MEMORY 1
 
-# remember where we came from
-ARG CACTUS_COMMIT
-
 # UCSC convention is to work in /data
 RUN mkdir -p /data
 WORKDIR /data

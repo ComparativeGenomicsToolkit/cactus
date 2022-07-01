@@ -247,7 +247,7 @@ In the evolver example, all input sequences are specified in public URLs.  If se
 Here is an example of some settings that have worked on a mammalian-sized genome alignment on Terra:
 
 ```
-cactus-prepare --wdl mammals.txt --noLocalInputs --preprocessBatchSize 5 --alignDisk 3000G --halAppendDisk 3000G --preprocessDisk 3000G --defaultDisk 1000G --defaultCores 64 --gpu --gpuCount 8 --defaultMemory 385G > mammals.wdl
+cactus-prepare --wdl mammals.txt --noLocalInputs --preprocessBatchSize 5 --alignDisk 3000G --halAppendDisk 3000G --preprocessDisk 3000G --defaultDisk 1000G --defaultCores 70 --gpu --gpuCount 8 --defaultMemory 450G > mammals.wdl
 
 ```
 
@@ -256,6 +256,22 @@ If the workflow fails for whatever reason, it can be edited (to, say, increase j
 * Edit it and "Save a New Snapshot"
 * Back in the Terra Workflows tab for the workflow, refresh the page, and select the new snapshot from the "Snapshots" menu.
 * Click the "Save" button, ensure that "Use call caching" is ticked, then "Run Analysis" again to resume the workflow.
+
+**Important note on resuming Terra workflows**
+
+The above instructions to use Terra's call caching do not work reliably anymore.  This is really frustrating, as you can be many days and dollars into a workflow, need to adjust the WDL for whatever reason, and Terra will ignore all intermediate files and restart from scratch when you rerun for reasons only it understands. But if the results are in your GCP bucket somewhere (which they will be as long as you are not explicitly removing them), you can still use them by editing the WDL to incorporate them.  This can be done with `cactus-terra-helper`. You can use the Terra interface (by clicking on pretty much any file) to find the root bucket prefix of all intermediate files of a given run.  Once you have that, run
+
+```
+gsutil ls -r gs://<BUCKET/PREFIX> | cactus-terra-helper resume mammals.wdl > mammals-resume.wdl
+```
+
+The output script will remove all WDL calls for which output files were found in the bucket, and replace references to them to full paths of the intermediate files.
+
+The same script can be used to download all the logs off Terra, which can be useful.  This command (the `-l` is important) will download the latest version of each log to the present directory. 
+
+```
+gsutil ls -l -r gs://<BUCKET/PREFIX> | cactus-terra-helper scrape-logs
+```
 
 #### Running the step-by-step workflow direclty in Toil
 
