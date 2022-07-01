@@ -63,9 +63,9 @@ make install
 export PATH=${DEP_PREFIX}/bin:$PATH
 # libxml2
 cd ${DEP_PREFIX}
-wget -q http://xmlsoft.org/sources/libxml2-2.7.2.tar.gz
-tar -zxf libxml2-2.7.2.tar.gz
-cd libxml2-2.7.2
+wget -q http://xmlsoft.org/sources/libxml2-2.9.12.tar.gz
+tar -zxf libxml2-2.9.12.tar.gz
+cd libxml2-2.9.12
 ./configure --enable-static --disable-shared --prefix=${DEP_PREFIX}
 make -j $(nproc)
 make install
