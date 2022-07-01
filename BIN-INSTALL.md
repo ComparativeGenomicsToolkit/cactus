@@ -12,7 +12,7 @@ cd "cactus-bin-${REL_TAG}"
 
 ## Setup
 
-To build a python virtualenv and activate, do the following steps:
+To build a python virtualenv and activate, do the following steps (Ubuntu 18.04 users should use `-p python3.8` below):
 ```
 virtualenv -p python3 cactus_env
 echo "export PATH=$(pwd)/bin:\$PATH" >> cactus_env/bin/activate
