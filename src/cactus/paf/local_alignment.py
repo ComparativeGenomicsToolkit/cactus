@@ -147,8 +147,9 @@ def make_ingroup_to_outgroup_alignments_1(job, ingroup_event, outgroup_events, e
     #  align ingroup to first outgroup to produce paf alignments
     outgroup = outgroup_events[0] # The first outgroup
     logger.info("Building alignment between ingroup event: {} and outgroup event: {}".format(ingroup_event.iD, outgroup.iD))
-    alignment = root_job.addChildJobFn(make_chunked_alignments, event_names_to_sequences[outgroup.iD],
-                                       event_names_to_sequences[ingroup_event.iD], 1.0, params,
+    alignment = root_job.addChildJobFn(make_chunked_alignments,
+                                       outgroup.iD, event_names_to_sequences[outgroup.iD],
+                                       ingroup_event.iD, event_names_to_sequences[ingroup_event.iD], 1.0, params,
                                        disk=2*(event_names_to_sequences[ingroup_event.iD].size+event_names_to_sequences[outgroup.iD].size)).rv()
 
     #  post process the alignments and recursively generate alignments to remaining outgroups
