@@ -333,6 +333,4 @@ def trim_unaligned_sequences(job, sequences, alignments, params):
         job.fileStore.writeGlobalFile(trimmed_alignments)  # Return the trimmed sequence files and trimmed alignments
 
 
-# Todo: Write unittests for fasta_extract, paf_to_bed and paf_upconvert
-
-
+# Todo: Write unittests for paf_to_bed and paf_upconvert

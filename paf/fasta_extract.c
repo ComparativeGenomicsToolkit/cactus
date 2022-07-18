@@ -41,6 +41,24 @@ void report_interval(FILE *output, char *seq_name, int64_t start, int64_t end, s
     free(s);
 }
 
+typedef struct _interval {
+    int64_t start, end;
+    char *name;
+} Interval;
+
+void interval_destruct(Interval *i) {
+    free(i->name);
+    free(i);
+}
+
+int interval_cmp(Interval *i, Interval *j) {
+    int k = strcmp(i->name, j->name);
+    if(k == 0) {
+        return i->start < j->start ? -1 : (i->start > j->start ? 1 : (i->end < j->end ? -1 : (i->end > j->end ? 1 : 0)));
+    }
+    return k;
+}
+
 int main(int argc, char *argv[]) {
     time_t startTime = time(NULL);
 
@@ -138,36 +156,53 @@ int main(int argc, char *argv[]) {
     // Now parse the bed file and extract the sequences, ensuring they are non-overlapping
     //////////////////////////////////////////////
 
+    // Get input and output file handles
     FILE *input = bed_file == NULL ? stdin : fopen(bed_file, "r");
     FILE *output = output_file == NULL ? stdout : fopen(output_file, "w");
-    char *line, *p_seq_name = NULL;
-    int64_t p_start, p_end;
-    while((line = stFile_getLineFromFile(input)) != NULL) {
-        stList *tokens = stString_split(line); free(line); // Tokenize and cleanup the line
-        char *seq_name = stList_get(tokens, 0);
-        int64_t start = atol(stList_get(tokens, 1));
-        int64_t end = atol(stList_get(tokens, 2));
 
-        if(stHash_search(sequences, seq_name) == NULL) { // Check if we have the sequence
+    // Read in bed intervals
+    stList *intervals = stList_construct3(0, (void (*)(void *))interval_destruct);
+    char *line;
+    while((line = stFile_getLineFromFile(input)) != NULL) {
+        stList *tokens = stString_split(line);
+        free(line); // Tokenize and cleanup the line
+        Interval *interval = st_malloc(sizeof(Interval));
+        interval->name = stString_copy(stList_get(tokens, 0));
+        interval->start = atol(stList_get(tokens, 1));
+        interval->end = atol(stList_get(tokens, 2));
+        stList_destruct(tokens);
+
+        if(stHash_search(sequences, interval->name) == NULL) { // Check if we have the sequence
             if(skipMissing) { // If we are expecting to skip missing sequences
-                stList_destruct(tokens);
+                interval_destruct(interval);
                 continue;
             }
-            st_errAbort("Missing sequence: %s\n", seq_name); // Report an error if the sequence has not been read
+            st_errAbort("Missing sequence: %s\n", interval->name); // Report an error if the sequence has not been read
         }
 
+        st_logDebug("Adding sequence fragment: %s start:%" PRIi64 " end:%" PRIi64 " \n", interval->name, interval->start, interval->end);
+        stList_append(intervals, interval);
+    }
 
-        if(end - start >= min_size) { // Meets the minimum threshold length
-            st_logDebug("Processing sequence fragment: %s start:%" PRIi64 " end:%" PRIi64 " \n", seq_name, start, end);
+    // Sort the intervals
+    stList_sort(intervals, (int (*)(const void *, const void *))interval_cmp);
+
+    // Now extract the sequences for the intervals
+    char *p_seq_name = NULL;
+    int64_t p_start = -1, p_end = -1; // Initial values don't matter here
+    for(int64_t k=0; k<stList_length(intervals); k++) {
+        Interval *interval = stList_get(intervals, k);
+
+        if(interval->end - interval->start >= min_size) { // Meets the minimum threshold length
+            st_logDebug("Processing sequence fragment: %s start:%" PRIi64 " end:%" PRIi64 " \n", interval->name, interval->start, interval->end);
 
             // Get coordinates of interval, adding on flanks
-            int64_t seq_length = (int64_t)stHash_search(sequenceLengths, seq_name);
-            int64_t i = start - flank > 0 ? start - flank : 0, j = end + flank <= seq_length ? end + flank : seq_length; // Get expanded bounds of sequence with flanks
-            assert(0 <= i); assert(i <= start); assert(start <= end); assert(end <= j); assert(j <= seq_length);
+            int64_t seq_length = (int64_t)stHash_search(sequenceLengths, interval->name);
+            int64_t i = interval->start - flank > 0 ? interval->start - flank : 0, j = interval->end + flank <= seq_length ? interval->end + flank : seq_length; // Get expanded bounds of sequence with flanks
+            assert(0 <= i); assert(i <= interval->start); assert(interval->start <= interval->end); assert(interval->end <= j); assert(j <= seq_length);
 
             if(p_seq_name != NULL) { // Has a prior interval
-                if(strcmp(p_seq_name, seq_name) == 0 && p_end >= i) { // Previous interval overlaps this one
-                    stList_destruct(tokens);
+                if(strcmp(p_seq_name, interval->name) == 0 && p_end >= i) { // Previous interval overlaps this one
                     p_end = p_end > j ? p_end : j; // Get right-most point of new and old interval to expand previous interval
                     continue; // Go to next interval without creating a new one, no need to print it yet
                 }
@@ -178,10 +213,9 @@ int main(int argc, char *argv[]) {
                 }
             }
             // Create a new interval - either because there was no prior interval or because we have printed out the previous interval
-            p_seq_name = stString_copy(seq_name);
+            p_seq_name = stString_copy(interval->name);
             p_start = i; p_end = j;
         }
-        stList_destruct(tokens);
     }
     if(p_seq_name != NULL) { // Has a final interval
         // Report the last interval
@@ -193,6 +227,7 @@ int main(int argc, char *argv[]) {
     // Cleanup
     //////////////////////////////////////////////
 
+    stList_destruct(intervals);
     stHash_destruct(sequences);
     stHash_destruct(sequenceLengths);
     if(bed_file != NULL) {
