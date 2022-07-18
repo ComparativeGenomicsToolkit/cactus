@@ -37,7 +37,7 @@ def cactus_cons_with_resources(job, tree, ancestor_event, config_node, seq_id_ma
         os.remove(seq_path)
 
     disk = int(3 * total_sequence_size)
- 
+
     # this is the old caf job's memory function
     memoryPoly = [1.80395944e+01, 7.96042247e+07]
     memoryCap = 120e09
@@ -50,7 +50,7 @@ def cactus_cons_with_resources(job, tree, ancestor_event, config_node, seq_id_ma
                                  intermediate_results_url=intermediate_results_url, cores = cons_cores,
                                  memory=mem, disk=disk)
     return cons_job.rv()
-   
+
 def cactus_cons(job, tree, ancestor_event, config_node, seq_id_map, og_map, paf_id, intermediate_results_url = None):
     ''' run cactus_consolidated '''
 
@@ -61,13 +61,13 @@ def cactus_cons(job, tree, ancestor_event, config_node, seq_id_map, og_map, paf_
         seq_path = os.path.join(work_dir, '{}.fa'.format(event))
         job.fileStore.readGlobalFile(seq_id, seq_path)
         seq_path_map[event] = seq_path
-        
+
     outgroups = og_map[ancestor_event] if ancestor_event in og_map else []
 
     # Get the alignments file
     paf_path = os.path.join(work_dir, '{}.paf'.format(ancestor_event))
     job.fileStore.readGlobalFile(paf_id, paf_path)
-    
+
     # Split the alignments file into primary and secondary
     primary_alignment_file = os.path.join(work_dir, '{}_primary.paf'.format(ancestor_event))
     system("grep -v 'tp:A:S' {} > {} || true".format(paf_path, primary_alignment_file))  # Alignments that are not-secondaries

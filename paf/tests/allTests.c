@@ -6,12 +6,14 @@
 #include "sonLib.h"
 
 CuSuite* addPafTestSuite(void);
+CuSuite* addFastaExtractTestSuite(void);
 
 int cactusPafRunAllTests(void) {
     CuString *output = CuStringNew();
     CuSuite* suite = CuSuiteNew();
 
     CuSuiteAddSuite(suite, addPafTestSuite());
+    CuSuiteAddSuite(suite, addFastaExtractTestSuite());
     CuSuiteRun(suite);
     CuSuiteSummary(suite, output);
     CuSuiteDetails(suite, output);

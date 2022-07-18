@@ -1,6 +1,7 @@
 #include "paf.h"
 #include <ctype.h>
 #include "../inc/paf.h"
+#include "bioioC.h"
 
 /*
  * Library functions for manipulating paf files.
@@ -499,4 +500,63 @@ stList *paf_shatter(Paf *paf) {
     }
 
     return matches;
+}
+
+/*
+ * Functions used by paf_tile and paf_to_bed
+ */
+
+SequenceCountArray *get_alignment_count_array(stHash *seq_names_to_alignment_count_arrays, Paf *paf) {
+    SequenceCountArray *seq_count_array = stHash_search(seq_names_to_alignment_count_arrays, paf->query_name);
+    if(seq_count_array == NULL) { // If the counts have not been initialized yet
+        seq_count_array = st_calloc(1, sizeof(SequenceCountArray));
+        seq_count_array->name = paf->query_name;
+        seq_count_array->length = paf->query_length;
+        seq_count_array->counts = st_calloc(paf->query_length, sizeof(uint16_t)); // sets all the counts to zero
+        stHash_insert(seq_names_to_alignment_count_arrays, paf->query_name, seq_count_array); // adds to the hash
+    }
+    return seq_count_array;
+}
+
+void increase_alignment_level_counts(SequenceCountArray *seq_count_array, Paf *paf) {
+    Cigar *c = paf->cigar;
+    int64_t i = paf->query_start;
+    while(c != NULL) {
+        if(c->op != query_delete) {
+            if(c->op == match) {
+                for(int64_t j=0; j<c->length; j++) {
+                    assert(i + j < paf->query_end && i + j >= 0 && i + j < paf->query_length);
+                    if(seq_count_array->counts[i + j] < INT16_MAX - 1) { // prevent overflow
+                        seq_count_array->counts[i + j]++;
+                    }
+                }
+            }
+            i += c->length;
+        }
+        c = c->next;
+    }
+    assert(i == paf->query_end);
+}
+
+Interval *decode_fasta_header(char *fasta_header) {
+    Interval *i = st_calloc(1, sizeof(Interval));
+    stList *attributes = fastaDecodeHeader(fasta_header);
+    //Decode attributes
+    int64_t j = sscanf((const char *) stList_peek(attributes), "%" PRIi64 "", &i->start);
+    (void) j;
+    free(stList_pop(attributes));
+    assert(j == 1);
+    j = sscanf((const char *) stList_peek(attributes), "%" PRIi64 "", &i->length);
+    free(stList_pop(attributes));
+    assert(j == 1);
+    //Now relabel attributes
+    i->name = fastaEncodeHeader(attributes);
+    stList_destruct(attributes);
+    return i;
+}
+
+int cmp_intervals(const void *i, const void *j) {
+    Interval *x = (Interval *)i, *y = (Interval *)j;
+    int k = strcmp(x->name, y->name);
+    return k == 0 ? (x->start < y->start ? -1 : (x->start > y->start ? 1 : 0)) : k;
 }
