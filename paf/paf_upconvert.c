@@ -51,7 +51,6 @@ int cmp_overlapping_intervals(const void *i, const void *j) {
 
 void fix_interval(stList *intervals, char **name, int64_t *start, int64_t *end, int64_t *length) {
     Interval qi; qi.name = *name; qi.start = *start; qi.end = *end;
-    st_logDebug("Searching for seq: %s align start: %" PRIi64 " align end: %" PRIi64 "\n", *name, *start, *end);
 
     Interval *i = stList_binarySearch(intervals, &qi, cmp_overlapping_intervals);
     if(i != NULL) { // If this fails the coordinate range is not contained within a sequence interval
@@ -62,6 +61,10 @@ void fix_interval(stList *intervals, char **name, int64_t *start, int64_t *end, 
         free(*name);
         *name = stString_print("%s|%" PRIi64 "|%" PRIi64 "", i->name, i->length, i->start); // Fix name
         *start -= i->start; *end -= i->start; *length = i->length; // Fix coordinates
+    }
+    else {
+        st_logDebug("Did not find sequence for interval: seq: %s align start: %" PRIi64 " align end: %" PRIi64 "\n",
+                    *name, *start, *end);
     }
 }
 
