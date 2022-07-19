@@ -50,7 +50,7 @@ static void test_paf(CuTest *testCase) {
 
 static void test_paf_align_human_mouse(CuTest *testCase) {
     // Run a complete alignment and compare to the true alignment
-    st_system("./paf/tests/pair_align_test.sh %s %s\n", params_file, example_file);
+    st_system("./paf/tests/pair_align_human_mouse_test.sh %s %s\n", params_file, example_file);
     // todo capture output and test it
 }
 

@@ -189,10 +189,11 @@ static stList *paf_chain_ignore_strand(stList *pafs, int64_t (*gap_cost)(int64_t
                 // than we can chain to then there are no more alignments we can chain to
                 break;
             } else { // We can chain to this alignment
-                int64_t chain_score = paf->score + pChain->score
-                        - gap_cost(paf->query_start - pChain->paf->query_end,
-                                   paf->target_start - pChain->paf->target_end, gap_cost_params);
-                if (chain_score > chain->score) {
+                int64_t g = gap_cost(paf->query_start - pChain->paf->query_end,
+                                     paf->target_start - pChain->paf->target_end, gap_cost_params);
+                int64_t chain_score = paf->score + pChain->score - g;
+                if (g < paf->score && chain_score > chain->score) { // If the gap cost is less than the cost of the next
+                    // alignment and the chain is the best score seen so far
                     chain->score = chain_score;
                     chain->pChain = pChain;
                 }

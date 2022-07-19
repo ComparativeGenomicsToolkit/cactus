@@ -1,0 +1,3 @@
+(human:0.02,chimp:0.02);
+chimp https://glennhickey.s3.amazonaws.com/share/panTro6_preprocessed_chr10.fa
+human https://glennhickey.s3.amazonaws.com/share/hg38_preprocessed_chr10.fa
