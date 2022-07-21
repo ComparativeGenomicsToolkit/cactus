@@ -7,6 +7,7 @@
 
 CuSuite* addPafTestSuite(void);
 CuSuite* addFastaExtractTestSuite(void);
+CuSuite* addFastaChunkAndMergeTestSuite(void);
 
 int cactusPafRunAllTests(void) {
     CuString *output = CuStringNew();
@@ -14,6 +15,7 @@ int cactusPafRunAllTests(void) {
 
     CuSuiteAddSuite(suite, addPafTestSuite());
     CuSuiteAddSuite(suite, addFastaExtractTestSuite());
+    CuSuiteAddSuite(suite, addFastaChunkAndMergeTestSuite());
     CuSuiteRun(suite);
     CuSuiteSummary(suite, output);
     CuSuiteDetails(suite, output);

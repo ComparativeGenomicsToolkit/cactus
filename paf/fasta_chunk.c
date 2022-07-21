@@ -30,15 +30,28 @@ void usage() {
                     "To encode the chunking information each faster header is appended |x,"
                     "where x is the start coordinate (0-based) of the chunked sequence in the original sequence\n");
     fprintf(stderr, "-c --chunkSize : The chunk size, by default: %" PRIi64 "\n", chunkSize);
-    fprintf(stderr, "-o --overlap : The chunk overlap size, by default: %" PRIi64 "\n", chunkOverlapSize);
+    fprintf(stderr, "-o --overlap : The chunk overlap size (each chunked file will have length chunkSize + overlap), by default: %" PRIi64 "\n", chunkOverlapSize);
     fprintf(stderr, "-d --dir : An empty directory to place the chunk files in, by default: %s\n", chunksDir);
     fprintf(stderr, "-l --logLevel : Set the log level\n");
     fprintf(stderr, "-h --help : Print this help message\n");
 }
 
+void startChunkingSequences() {
+    if(chunkFileHandle == NULL) {
+        assert(tempChunkFile == NULL);
+        tempChunkFile = stString_print("%s/%"
+        PRIi64
+        "", chunksDir, chunkNo++);
+        chunkFileHandle = fopen(tempChunkFile, "w");
+        chunkRemaining = chunkSize;
+        st_logDebug("Starting chunk %s\n", tempChunkFile);
+    }
+}
+
 void finishChunkingSequences() {
     if (chunkFileHandle != NULL) {
         fclose(chunkFileHandle);
+        st_logDebug("Finishing chunk %s\n", tempChunkFile);
         fprintf(stdout, "%s\n", tempChunkFile); // Print the output file to stdout
         free(tempChunkFile);
         tempChunkFile = NULL;
@@ -52,62 +65,32 @@ static void updateChunkRemaining(int64_t seqLength) {
     chunkRemaining -= seqLength;
     if (chunkRemaining <= 0) {
         finishChunkingSequences();
-        chunkRemaining = chunkSize;
     }
-}
-
-static int64_t processSubsequenceChunk(char *fastaHeader, int64_t start, char *sequence, int64_t seqLength, int64_t lengthOfChunkRemaining) {
-    if (chunkFileHandle == NULL) {
-        tempChunkFile = stString_print("%s/%" PRIi64 "", chunksDir, chunkNo++);
-        chunkFileHandle = fopen(tempChunkFile, "w");
-    }
-
-    int64_t i = 0;
-    fastaHeader = stString_copy(fastaHeader);
-    while (fastaHeader[i] != '\0') {
-        if (fastaHeader[i] == ' ' || fastaHeader[i] == '\t') {
-            fastaHeader[i] = '\0';
-            break;
-        }
-        i++;
-    }
-    char *chunkHeader = stString_print("%s|%" PRIi64 "|%" PRIi64 "", fastaHeader, seqLength, start);
-    free(fastaHeader);
-    assert(lengthOfChunkRemaining <= chunkSize);
-    assert(start >= 0);
-    int64_t lengthOfSubsequence = lengthOfChunkRemaining;
-    if (start + lengthOfChunkRemaining > seqLength) {
-        lengthOfSubsequence = seqLength - start;
-    }
-    assert(lengthOfSubsequence > 0);
-    char c = sequence[start + lengthOfSubsequence];
-    sequence[start + lengthOfSubsequence] = '\0';
-    fastaWrite(&sequence[start], chunkHeader, chunkFileHandle);
-    //fprintf(chunkFileHandle, "%s\n", &sequence[start]);
-    free(chunkHeader);
-    sequence[start + lengthOfSubsequence] = c;
-
-    updateChunkRemaining(lengthOfSubsequence);
-    return lengthOfSubsequence;
 }
 
 void processSequenceToChunk(void* dest, const char *fastaHeader, const char *sequence, int64_t sequenceLength) {
-    if (sequenceLength > 0) {
-        int64_t lengthOfSubsequence = processSubsequenceChunk((char *) fastaHeader, 0, (char *) sequence, sequenceLength, chunkRemaining);
-        while (sequenceLength - lengthOfSubsequence > 0) {
-            //Make the non overlap file
-            int64_t lengthOfFollowingSubsequence = processSubsequenceChunk((char *) fastaHeader, lengthOfSubsequence, (char *) sequence, sequenceLength, chunkRemaining);
+    // For each chunk of these sequence
+    assert(chunkSize > chunkOverlapSize);
+    for (int64_t i = 0; i < sequenceLength; i += chunkSize) {
+        // be ready to print more sequence
+        startChunkingSequences();
 
-            //Make the overlap file
-            if(chunkOverlapSize > 0) {
-                int64_t i = lengthOfSubsequence - chunkOverlapSize / 2;
-                if (i < 0) {
-                    i = 0;
-                }
-                processSubsequenceChunk((char *) fastaHeader, i, (char *) sequence, sequenceLength, chunkOverlapSize);
-            }
-            lengthOfSubsequence += lengthOfFollowingSubsequence;
-        }
+        // print the header to the file
+        fprintf(chunkFileHandle, ">%s|%" PRIi64 "|%" PRIi64 "\n", fastaHeader, sequenceLength, i);
+
+        // Get end of chunk, including the extra overlap
+        int64_t j = (i + chunkSize + chunkOverlapSize) <= sequenceLength ? (i + chunkSize + chunkOverlapSize) : sequenceLength;
+
+        // Get chunk sequence
+        char *seq_chunk = stString_getSubString(sequence, i, j-i);
+        assert(strlen(seq_chunk) == j - i);
+
+        // print the sequence to the file
+        fprintf(chunkFileHandle, "%s\n", seq_chunk);
+        free(seq_chunk); // cleanup the fragment
+
+        // update the remaining chunk
+        updateChunkRemaining(j - i);
     }
 }
 

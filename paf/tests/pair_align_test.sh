@@ -30,16 +30,16 @@ cactus-prepare ${example_file}  --outDir ${working_dir}
 base_example_file=`basename ${example_file}`
 
 ## Preprocessor
-cactus-preprocess ./jobstore/0 ./${example_file} ${working_dir}/${base_example_file} --realTimeLogging --logInfo --retryCount 0
+time cactus-preprocess ./jobstore/0 ./${example_file} ${working_dir}/${base_example_file} --realTimeLogging --logInfo --retryCount 0
 
 ## Generate the paf file
-cactus-blast ./jobstore/1 ${working_dir}/${base_example_file} ${working_dir}/Anc0.paf --root Anc0 --realTimeLogging --logDebug --retryCount 0
+time cactus-blast ./jobstore/1 ${working_dir}/${base_example_file} ${working_dir}/Anc0.paf --root Anc0 --realTimeLogging --logInfo --retryCount 0
 
 # Run the cactus step
-cactus-align ./jobstore/2 ${working_dir}/${base_example_file} ${working_dir}/Anc0.paf ${working_dir}/Anc0.hal --root Anc0 --realTimeLogging --logInfo --retryCount 0 --maxCores 2
+time cactus-align ./jobstore/2 ${working_dir}/${base_example_file} ${working_dir}/Anc0.paf ${working_dir}/Anc0.hal --root Anc0 --realTimeLogging --logInfo --retryCount 0 --maxCores 2
 
 # Now generate the maf
-hal2maf ${working_dir}/Anc0.hal ${working_dir}/output.maf --onlySequenceNames
+time hal2maf ${working_dir}/Anc0.hal ${working_dir}/output.maf --onlySequenceNames
 
 # Report number of PAFs
 wc -l ${working_dir}/Anc0.paf

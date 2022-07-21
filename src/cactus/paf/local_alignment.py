@@ -299,6 +299,7 @@ def make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancest
     return root_job.addFollowOnJobFn(chain_alignments, ingroup_alignments + outgroup_alignments,
                                      ancestor_event_string, params, disk=2*total_sequence_size).rv()
 
+
 def trim_unaligned_sequences(job, sequences, alignments, params):
     alignments = job.fileStore.readGlobalFile(alignments)  # Download the alignments
 
