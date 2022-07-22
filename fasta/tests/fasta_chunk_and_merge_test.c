@@ -1,4 +1,3 @@
-#include "paf.h"
 #include "CuTest.h"
 #include "sonLib.h"
 #include "bioioC.h"
@@ -7,10 +6,10 @@
  * Test fasta extract
  */
 
-static char *test_fa_file = "./paf/tests/temp.fa";
-static char *test_fasta_chunks_dir = "./paf/tests/temp_fastas";
-static char *test_chunks_file = "./paf/tests/chunks.txt";
-static char *test_dechunked_fa_file = "./paf/tests/temp2.fa";
+static char *test_fa_file = "./fasta/tests/temp.fa";
+static char *test_fasta_chunks_dir = "./fasta/tests/temp_fastas";
+static char *test_chunks_file = "./fasta/tests/chunks.txt";
+static char *test_dechunked_fa_file = "./fasta/tests/temp2.fa";
 
 static void test_fasta_chunk_and_merge(CuTest *testCase) {
     int64_t chunk_size = 1000000;

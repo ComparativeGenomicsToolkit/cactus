@@ -10,22 +10,13 @@ stPafLibs = ${LDLIBS}
 
 all: all_libs all_progs
 all_libs: ${LIBDIR}/stPaf.a
-all_progs: all_libs ${BINDIR}/stPafTests ${BINDIR}/paf_chain ${BINDIR}/paf_invert ${BINDIR}/paf_tile ${BINDIR}/paf_trim ${BINDIR}/paf_shatter ${BINDIR}/paf_view ${BINDIR}/fasta_chunk ${BINDIR}/fasta_merge ${BINDIR}/fasta_extract ${BINDIR}/paf_dechunk ${BINDIR}/paf_dedupe ${BINDIR}/paf_to_bed ${BINDIR}/paf_upconvert
+all_progs: all_libs ${BINDIR}/stPafTests ${BINDIR}/paf_chain ${BINDIR}/paf_invert ${BINDIR}/paf_tile ${BINDIR}/paf_trim ${BINDIR}/paf_shatter ${BINDIR}/paf_view ${BINDIR}/paf_dechunk ${BINDIR}/paf_dedupe ${BINDIR}/paf_to_bed ${BINDIR}/paf_upconvert
 
 ${LIBDIR}/stPaf.a : ${libSources} ${libHeaders}  ${stPafDependencies}
 	${CC} ${CPPFLAGS} ${CFLAGS} ${LDFLAGS} -c ${libSources}
 	${AR} rc stPaf.a *.o
 	${RANLIB} stPaf.a
 	mv stPaf.a ${LIBDIR}/
-
-${BINDIR}/fasta_chunk : fasta_chunk.c ${LIBDEPENDS} ${commonPafLibs} ${libSources} ${libHeaders}
-	${CC} ${CPPFLAGS} ${CFLAGS} -o ${BINDIR}/fasta_chunk fasta_chunk.c ${libSources} ${commonPafLibs} ${LDLIBS}
-
-${BINDIR}/fasta_merge : fasta_merge.c ${LIBDEPENDS} ${commonPafLibs} ${libSources} ${libHeaders}
-	${CC} ${CPPFLAGS} ${CFLAGS} -o ${BINDIR}/fasta_merge fasta_merge.c ${libSources} ${commonPafLibs} ${LDLIBS}
-
-${BINDIR}/fasta_extract : fasta_extract.c ${LIBDEPENDS} ${commonPafLibs} ${libSources} ${libHeaders}
-	${CC} ${CPPFLAGS} ${CFLAGS} -o ${BINDIR}/fasta_extract fasta_extract.c ${libSources} ${commonPafLibs} ${LDLIBS}
 
 ${BINDIR}/paf_dechunk : paf_dechunk.c ${LIBDEPENDS} ${commonPafLibs} ${libSources} ${libHeaders}
 	${CC} ${CPPFLAGS} ${CFLAGS} -o ${BINDIR}/paf_dechunk paf_dechunk.c ${libSources} ${commonPafLibs} ${LDLIBS}
@@ -62,4 +53,4 @@ ${BINDIR}/stPafTests : ${libTests} ${LIBDIR}/stPaf.a ${stPafDependencies}
 
 clean : 
 	rm -f *.o
-	rm -f ${LIBDIR}/stPaf.a ${BINDIR}/stPafTests ${BINDIR}/paf_chain ${BINDIR}/paf_invert ${BINDIR}/paf_tile ${BINDIR}/paf_trim ${BINDIR}/paf_shatter ${BINDIR}/paf_view ${BINDIR}/fasta_chunk ${BINDIR}/fasta_merge ${BINDIR}/fasta_extract ${BINDIR}/paf_dechunk ${BINDIR}/paf_dedupe ${BINDIR}/paf_to_bed ${BINDIR}/paf_upconvert
+	rm -f ${LIBDIR}/stPaf.a ${BINDIR}/stPafTests ${BINDIR}/paf_chain ${BINDIR}/paf_invert ${BINDIR}/paf_tile ${BINDIR}/paf_trim ${BINDIR}/paf_shatter ${BINDIR}/paf_view ${BINDIR}/paf_dechunk ${BINDIR}/paf_dedupe ${BINDIR}/paf_to_bed ${BINDIR}/paf_upconvert

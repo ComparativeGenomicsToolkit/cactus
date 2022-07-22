@@ -7,9 +7,9 @@
  * Test fasta extract
  */
 
-static char *test_fa_file = "./paf/tests/temp.fa";
-static char *test_bed_file = "./paf/tests/temp.bed";
-static char *test_out_file = "./paf/tests/out.fa";
+static char *test_fa_file = "./fasta/tests/temp.fa";
+static char *test_bed_file = "./fasta/tests/temp.bed";
+static char *test_out_file = "./fasta/tests/out.fa";
 
 static void test_fasta_extract(CuTest *testCase) {
     for(int64_t test=0; test<1000; test++) {

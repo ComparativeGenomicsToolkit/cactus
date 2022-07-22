@@ -5,13 +5,14 @@
 #include "CuTest.h"
 #include "sonLib.h"
 
-CuSuite* addPafTestSuite(void);
+CuSuite* addFastaExtractTestSuite(void);
+CuSuite* addFastaChunkAndMergeTestSuite(void);
 
-int cactusPafRunAllTests(void) {
+int cactusFastaRunAllTests(void) {
     CuString *output = CuStringNew();
     CuSuite* suite = CuSuiteNew();
-
-    CuSuiteAddSuite(suite, addPafTestSuite());
+    CuSuiteAddSuite(suite, addFastaExtractTestSuite());
+    CuSuiteAddSuite(suite, addFastaChunkAndMergeTestSuite());
     CuSuiteRun(suite);
     CuSuiteSummary(suite, output);
     CuSuiteDetails(suite, output);
@@ -23,7 +24,7 @@ int main(int argc, char *argv[]) {
     if(argc == 2) {
         st_setLogLevelFromString(argv[1]);
     }
-    int i = cactusPafRunAllTests();
+    int i = cactusFastaRunAllTests();
     //while(1);
     return i;
 }
