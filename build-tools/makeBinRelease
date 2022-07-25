@@ -39,6 +39,11 @@ else
 	 sed -i src/cactus/cactus_progressive_config.xml -e 's/partialOrderAlignment="1"/partialOrderAlignment="0"/g'
 fi
 
+# hack lastz to build static.
+# todo: it'd be nice to have this done in cactus's "make static"
+sed -i submodules/lastz/src/Makefile -e 's/CFLAGS = /CFLAGS = -static /g'
+sed -i submodules/lastz/src/Makefile -e 's/-lm/-lm -static/g'
+
 export CFLAGS="-static"
 export CXXFLAGS="-static"
 export LDFLAGS="-static"
@@ -58,9 +63,9 @@ make install
 export PATH=${DEP_PREFIX}/bin:$PATH
 # libxml2
 cd ${DEP_PREFIX}
-wget -q http://xmlsoft.org/sources/libxml2-2.7.2.tar.gz
-tar -zxf libxml2-2.7.2.tar.gz
-cd libxml2-2.7.2
+wget -q http://xmlsoft.org/sources/libxml2-2.9.12.tar.gz
+tar -zxf libxml2-2.9.12.tar.gz
+cd libxml2-2.9.12
 ./configure --enable-static --disable-shared --prefix=${DEP_PREFIX}
 make -j $(nproc)
 make install

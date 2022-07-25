@@ -1,6 +1,5 @@
 (simHuman:1.0,simChimp:1.0,simGorilla:1.0,simOrang:1.0,_MINIGRAPH_:1.0);
-simHuman	https://raw.githubusercontent.com/UCSantaCruzComputationalGenomicsLab/cactusTestData/master/evolver/primates/loci1/simHuman.chr6
-simChimp	https://raw.githubusercontent.com/UCSantaCruzComputationalGenomicsLab/cactusTestData/master/evolver/primates/loci1/simChimp.chr6
-simGorilla	https://raw.githubusercontent.com/UCSantaCruzComputationalGenomicsLab/cactusTestData/master/evolver/primates/loci1/simGorilla.chr6
-simOrang	https://raw.githubusercontent.com/UCSantaCruzComputationalGenomicsLab/cactusTestData/master/evolver/primates/loci1/simOrang.chr6
-
+simHuman	https://raw.githubusercontent.com/ComparativeGenomicsToolkit/cactusTestData/master/evolver/primates/loci1/simHuman.chr6
+simChimp	https://raw.githubusercontent.com/ComparativeGenomicsToolkit/cactusTestData/master/evolver/primates/loci1/simChimp.chr6
+simGorilla	https://raw.githubusercontent.com/ComparativeGenomicsToolkit/cactusTestData/master/evolver/primates/loci1/simGorilla.chr6
+simOrang	https://raw.githubusercontent.com/ComparativeGenomicsToolkit/cactusTestData/master/evolver/primates/loci1/simOrang.chr6

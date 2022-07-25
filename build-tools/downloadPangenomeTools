@@ -59,7 +59,7 @@ fi
 cd ${pangenomeBuildDir}
 git clone https://github.com/lh3/minigraph.git
 pushd minigraph
-git checkout 7bdfc6aed2857807d901d910134b86b947b5b087
+git checkout 45d11e42498130fdd45b7c19a7ec285ce09cfece
 # hack in flags support
 sed -i Makefile -e 's/CFLAGS=/CFLAGS+=/'
 make -j ${numcpu}
@@ -121,21 +121,14 @@ fi
 
 #bedtools
 cd ${pangenomeBuildDir}
-wget -q https://github.com/arq5x/bedtools2/releases/download/v2.29.1/bedtools-2.29.1.tar.gz
-tar -zxf bedtools-2.29.1.tar.gz
-cd bedtools2
-if [[ $STATIC_CHECK -ne 1 ]]
+wget -q https://github.com/arq5x/bedtools2/releases/download/v2.30.0/bedtools.static.binary
+mv bedtools.static.binary bedtools
+chmod +x bedtools
+if [[ $STATIC_CHECK -ne 1 || $(ldd bedtools | grep so | wc -l) -eq 0 ]]
 then
-	 make -j ${numcpu}
-	 mv bin/bedtools ${binDir}/bedtools
+	 mv bedtools ${binDir}
 else
-	 make static -j ${numcpu}
-	 if [[ $STATIC_CHECK -ne 1 || $(ldd bin/bedtools.static | grep so | wc -l) -eq 0 ]]
-	 then
-		  mv bin/bedtools.static ${binDir}/bedtools
-	 else
-		  exit 1
-	 fi
+	 exit 1
 fi
 
 # dna-brnn
@@ -163,7 +156,7 @@ fi
 cd ${pangenomeBuildDir}
 git clone https://github.com/ComparativeGenomicsToolkit/cactus-gfa-tools.git
 cd cactus-gfa-tools
-git checkout 8ef89773ae41168c4fd8fc4cf46fdf351d441a8f
+git checkout 9b26caa961d6e72ad3747e5c2ce81cdf1e9b63c3
 make -j ${numcpu}
 if [[ $STATIC_CHECK -ne 1 || $(ldd paf2lastz | grep so | wc -l) -eq 0 ]]
 then
@@ -171,9 +164,21 @@ then
 else
 	 exit 1
 fi
-if [[ $STATIC_CHECK -ne 1 || $(ldd mzgaf2paf | grep so | wc -l) -eq 0 ]]
+if [[ $STATIC_CHECK -ne 1 || $(ldd gaf2paf | grep so | wc -l) -eq 0 ]]
 then
-	 mv mzgaf2paf ${binDir}
+	 mv gaf2paf ${binDir}
+else
+	 exit 1
+fi
+if [[ $STATIC_CHECK -ne 1 || $(ldd gaf2unstable | grep so | wc -l) -eq 0 ]]
+then
+	 mv gaf2unstable ${binDir}
+else
+	 exit 1
+fi
+if [[ $STATIC_CHECK -ne 1 || $(ldd gaffilter | grep so | wc -l) -eq 0 ]]
+then
+	 mv gaffilter ${binDir}
 else
 	 exit 1
 fi
@@ -210,7 +215,7 @@ fi
 
 # hal2vg
 cd ${pangenomeBuildDir}
-wget -q https://github.com/ComparativeGenomicsToolkit/hal2vg/releases/download/v1.0.16/hal2vg
+wget -q https://github.com/ComparativeGenomicsToolkit/hal2vg/releases/download/v1.0.17/hal2vg
 chmod +x hal2vg
 if [[ $STATIC_CHECK -ne 1 || $(ldd hal2vg | grep so | wc -l) -eq 0 ]]
 then
@@ -220,7 +225,7 @@ else
 fi
 # clip-vg
 cd ${pangenomeBuildDir}
-wget -q https://github.com/ComparativeGenomicsToolkit/hal2vg/releases/download/v1.0.16/clip-vg
+wget -q https://github.com/ComparativeGenomicsToolkit/hal2vg/releases/download/v1.0.17/clip-vg
 chmod +x clip-vg
 if [[ $STATIC_CHECK -ne 1 || $(ldd clip-vg | grep so | wc -l) -eq 0 ]]
 then
@@ -230,7 +235,7 @@ else
 fi
 # halRemoveDupes
 cd ${pangenomeBuildDir}
-wget -q https://github.com/ComparativeGenomicsToolkit/hal2vg/releases/download/v1.0.16/halRemoveDupes
+wget -q https://github.com/ComparativeGenomicsToolkit/hal2vg/releases/download/v1.0.17/halRemoveDupes
 chmod +x halRemoveDupes
 if [[ $STATIC_CHECK -ne 1 || $(ldd halRemoveDupes | grep so | wc -l) -eq 0 ]]
 then
@@ -240,7 +245,7 @@ else
 fi
 # halMergeChroms
 cd ${pangenomeBuildDir}
-wget -q https://github.com/ComparativeGenomicsToolkit/hal2vg/releases/download/v1.0.16/halMergeChroms
+wget -q https://github.com/ComparativeGenomicsToolkit/hal2vg/releases/download/v1.0.17/halMergeChroms
 chmod +x halMergeChroms
 if [[ $STATIC_CHECK -ne 1 || $(ldd halMergeChroms | grep so | wc -l) -eq 0 ]]
 then
@@ -251,7 +256,7 @@ fi
 
 # halUnclip
 cd ${pangenomeBuildDir}
-wget -q https://github.com/ComparativeGenomicsToolkit/hal2vg/releases/download/v1.0.16/halUnclip
+wget -q https://github.com/ComparativeGenomicsToolkit/hal2vg/releases/download/v1.0.17/halUnclip
 chmod +x halUnclip
 if [[ $STATIC_CHECK -ne 1 || $(ldd halUnclip | grep so | wc -l) -eq 0 ]]
 then
@@ -262,9 +267,7 @@ fi
 
 # filter-paf-deletions
 cd ${pangenomeBuildDir}
-#todo: make release
-#wget -q https://github.com/ComparativeGenomicsToolkit/hal2vg/releases/download/v1.0.16/filter-paf-deletions
-wget -q http://public.gi.ucsc.edu/~hickey/filter-paf-deletions
+wget -q https://github.com/ComparativeGenomicsToolkit/hal2vg/releases/download/v1.0.17/filter-paf-deletions
 chmod +x filter-paf-deletions
 if [[ $STATIC_CHECK -ne 1 || $(ldd filter-paf-deletions | grep so | wc -l) -eq 0 ]]
 then
@@ -275,7 +278,7 @@ fi
 
 # vg
 cd ${pangenomeBuildDir}
-wget -q https://github.com/vgteam/vg/releases/download/v1.37.0/vg
+wget -q https://github.com/vgteam/vg/releases/download/v1.40.0/vg
 chmod +x vg
 if [[ $STATIC_CHECK -ne 1 || $(ldd vg | grep so | wc -l) -eq 0 ]]
 then
@@ -286,12 +289,12 @@ fi
 
 # gfaffix
 cd ${pangenomeBuildDir}
-wget -q https://github.com/marschall-lab/GFAffix/releases/download/0.1.2/GFAffix-0.1.2_linux_x86_64.tar.gz
-tar xzf GFAffix-0.1.2_linux_x86_64.tar.gz
-chmod +x GFAffix-0.1.2/gfaffix
-if [[ $STATIC_CHECK -ne 1 || $(ldd GFAffix-0.1.2/gfaffix | grep so | wc -l) -eq 0 ]]
+wget -q https://github.com/marschall-lab/GFAffix/releases/download/0.1.3/GFAffix-0.1.3_linux_x86_64.tar.gz
+tar xzf GFAffix-0.1.3_linux_x86_64.tar.gz
+chmod +x GFAffix-0.1.3/gfaffix
+if [[ $STATIC_CHECK -ne 1 || $(ldd GFAffix-0.1.3/gfaffix | grep so | wc -l) -eq 0 ]]
 then
-	 mv GFAffix-0.1.2/gfaffix ${binDir}
+	 mv GFAffix-0.1.3/gfaffix ${binDir}
 else
 	 exit 1
 fi

@@ -45,12 +45,12 @@ static:
 	${MAKE} all
 
 check-static: static
-	ifeq ($(shell ldd bin/* | grep "not a dynamic" | wc -l), $(shell ls bin/* | wc -l))
-		$(info ldd verified that all files in .bin/ are static)
-		echo "All static"
-	else
-		$(error ldd found dynamic linked binary in .bin/)
-	endif
+	if [ $(shell ldd bin/* | grep "not a dynamic" | wc -l) = $(shell ls bin/* | wc -l) ] ; then\
+		echo "ldd verified that all files in bin/ are static";\
+	else\
+		echo "ldd found dynamic linked binary in bin/";\
+		exit 1;\
+	fi
 
 all_libs:
 	${MAKE} ${modules:%=all_libs.%}
@@ -155,8 +155,8 @@ ${versionPy}:
 
 bin/mafComparator:
 	rm -rf submodules/mafTools
-	cd submodules && git clone https://github.com/dentearl/mafTools.git && cd mafTools && git checkout 82077ac39c9966ac8fb8efe9796fbcfb7da55477
-	cd submodules/mafTools && sed -i -e 's/-Werror/-fsigned-char/g' inc/common.mk lib/Makefile && sed -i -e 's/mafExtractor//g' Makefile && make
+	cd submodules && git clone https://github.com/ComparativeGenomicsToolkit/mafTools.git && cd mafTools && git checkout cf144382b3c5a672d58a6798eebe23979c9a6b1f
+	cd submodules/mafTools && sed -i -e 's/-Werror//g' inc/common.mk lib/Makefile && sed -i -e 's/mafExtractor//g' Makefile && make
 	cp submodules/mafTools/bin/mafComparator bin/
 	cd ${CWD}/test && wget -q https://raw.githubusercontent.com/UCSantaCruzComputationalGenomicsLab/cactusTestData/master/evolver/mammals/loci1/all.maf -O mammals-truth.maf
 	cd ${CWD}/test && wget -q https://raw.githubusercontent.com/UCSantaCruzComputationalGenomicsLab/cactusTestData/master/evolver/primates/loci1/all.maf -O primates-truth.maf
@@ -191,6 +191,12 @@ evolver_test_prepare_no_outgroup_docker: all bin/mafComparator
 evolver_test_prepare_no_outgroup_local: all bin/mafComparator
 	PYTHONPATH="" CACTUS_BINARIES_MODE=local CACTUS_DOCKER_MODE=0 ${PYTHON} -m pytest ${pytestOpts} -s test/evolverTest.py::TestCase::testEvolverPrepareNoOutgroupLocal
 
+evolver_test_update_node_local: bin/mafComparator
+	PYTHONPATH="" CACTUS_BINARIES_MODE=local CACTUS_DOCKER_MODE=0 ${PYTHON} -m pytest ${pytestOpts} -s test/evolverTest.py::TestCase::testEvolverUpdateNodeLocal
+
+evolver_test_update_branch_local: bin/mafComparator
+	PYTHONPATH="" CACTUS_BINARIES_MODE=local CACTUS_DOCKER_MODE=0 ${PYTHON} -m pytest ${pytestOpts} -s test/evolverTest.py::TestCase::testEvolverUpdateBranchLocal
+
 evolver_test_poa_local: all bin/mafComparator
 	PYTHONPATH="" CACTUS_BINARIES_MODE=local CACTUS_DOCKER_MODE=0 ${PYTHON} -m pytest ${pytestOpts} -s test/evolverTest.py::TestCase::testEvolverPOALocal
 
@@ -201,6 +207,9 @@ evolver_test_minigraph_local: all bin/mafComparator
 	PYTHONPATH="" CACTUS_BINARIES_MODE=local CACTUS_DOCKER_MODE=0 ${PYTHON} -m pytest ${pytestOpts} -s test/evolverTest.py::TestCase::testEvolverMinigraphLocal
 
 evolver_test_all_local: evolver_test_local evolver_test_prepare_toil evolver_test_decomposed_local evolver_test_prepare_no_outgroup_local evolver_test_poa_local evolver_test_refmap_local evolver_test_minigraph_local
+
+yeast_test_local:
+	PYTHONPATH="" CACTUS_BINARIES_MODE=local CACTUS_DOCKER_MODE=0 ${PYTHON} -m pytest ${pytestOpts} -s test/evolverTest.py::TestCase::testYeastPangenomeLocal
 
 ##
 # clean targets
@@ -262,7 +271,7 @@ suball.lastz:
 suball.lastz:
 	cd submodules/lastz && ${MAKE}
 	mkdir -p bin
-	ln -f submodules/lastz/src/* bin
+	ln -f submodules/lastz/src/lastz bin
 
 subclean.%:
 	cd submodules/$* && ${MAKE} clean
