@@ -124,7 +124,7 @@
 	<caf annealingRounds="64"
 		 deannealingRounds="2 4 8"
 		 trim="3"
-		 blockTrim="2"
+		 blockTrim="5"
 		 minimumBlockDegree="2"
 		 minimumNumberOfSpecies="1"
 		 minimumIngroupDegree="1"
@@ -136,9 +136,9 @@
 		 proportionOfUnalignedBasesForNewChromosome="0.8"
 		 maximumMedianSequenceLengthBetweenLinkedEnds="1000"
 		 removeRecoverableChains="unequalNumberOfIngroupCopies"
-		 maxRecoverableChainsIterations="5"
+		 maxRecoverableChainsIterations="10"
 		 maxRecoverableChainLength="500000"
-		 minimumBlockDegreeToCheckSupport="10"
+		 minimumBlockDegreeToCheckSupport="0"
 		 minimumBlockHomologySupport="0.05"
 	/>
 
