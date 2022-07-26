@@ -385,7 +385,7 @@ class TestCase(unittest.TestCase):
         orig_seq_file_path = './examples/yeastPangenome.txt'
         seq_file_path = os.path.join(self.tempDir, 'pp', os.path.basename(orig_seq_file_path))        
         subprocess.check_call(['cactus-prepare',  orig_seq_file_path, '--outDir', os.path.join(self.tempDir, 'pp'), '--seqFileOnly'])
-        cactus_opts = ['--binariesMode', binariesMode, '--logInfo', '--realTimeLogging', '--workDir', self.tempDir, '--maxCores', '8']
+        cactus_opts = ['--binariesMode', binariesMode, '--logInfo', '--realTimeLogging', '--workDir', self.tempDir, '--maxCores', '4']
         subprocess.check_call(['cactus-preprocess', self._job_store(binariesMode),
                                orig_seq_file_path, seq_file_path, '--pangenome'] + cactus_opts, shell=False)
 
