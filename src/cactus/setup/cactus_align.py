@@ -315,10 +315,10 @@ def make_align_job(options, toil):
                               pafMaskFilter=options.pafMaskFilter,
                               paf2Stable=paf_to_stable,
                               do_filter_paf=options.pangenome)
-        return align_job
+    return align_job
 
 def cactus_align(job, config_wrapper, mc_tree, input_seq_map, input_seq_id_map, paf_id, root_name, og_map, checkpointInfo, doVG, doGFA, delay=0,
-                 referenceEvent=None, paf2Stable=False, cons_cores = None, do_filter_paf=False):
+                 referenceEvent=None, pafMaskFilter=None, paf2Stable=False, cons_cores = None, do_filter_paf=False):
     
     head_job = Job()
     job.addChild(head_job)

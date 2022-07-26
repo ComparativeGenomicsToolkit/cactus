@@ -16,8 +16,6 @@ from cactus.progressive.seqFile import SeqFile
 from cactus.shared.common import setupBinaries, importSingularityImage
 from cactus.shared.common import cactusRootPath
 from cactus.shared.configWrapper import ConfigWrapper
-from cactus.pipeline.cactus_workflow import addCactusWorkflowOptions
-from cactus.pipeline.cactus_workflow import prependUniqueIDs
 from cactus.shared.common import makeURL, catFiles
 from cactus.shared.common import enableDumpStack
 from cactus.shared.common import cactus_override_toil_options
@@ -36,7 +34,6 @@ from sonLib.bioio import getTempDirectory
 def main():
     parser = ArgumentParser()
     Job.Runner.addToilOptions(parser)
-    addCactusWorkflowOptions(parser)
 
     parser.add_argument("seqFile", help = "Seq file (will be modified if necessary to include graph Fasta sequence)")
     parser.add_argument("outputGFA", help = "Output Minigraph GFA")
@@ -137,7 +134,6 @@ def minigraph_construct_workflow(job, config_node, name_id_map, seq_order, gfa_p
 def minigraph_construct(job, config_node, name_id_map, seq_order, gfa_path):
     """ Make minigraph """
     work_dir = job.fileStore.getLocalTempDir()
-    fa_dir = job.fileStore.getLocalTempDir() # only necessary for prependunique...
     gfa_path = os.path.join(work_dir, os.path.basename(gfa_path))
 
     # parse options from the config
@@ -151,9 +147,9 @@ def minigraph_construct(job, config_node, name_id_map, seq_order, gfa_path):
     local_fa_paths = {}
     for event in name_id_map.keys():
         fa_id = name_id_map[event][1]
-        fa_path = os.path.join(fa_dir, '{}.fa'.format(event))
+        fa_path = os.path.join(work_dir, '{}.fa'.format(event))
         job.fileStore.readGlobalFile(fa_id, fa_path)
-        local_fa_paths[event] = prependUniqueIDs({event : fa_path}, work_dir, eventNameAsID=True)[event]
+        local_fa_paths[event] = fa_path
         assert os.path.getsize(local_fa_paths[event]) > 0
 
     mg_cmd = ['minigraph'] + opts_list

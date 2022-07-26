@@ -74,7 +74,7 @@ You can tune the number of CPUs used by each mapping job with the `--mapCores` o
 Now Cactus can be run, much as it would its default progressive mode.  The only difference is that we specify the `--pangenome`, `--pafInput`, `--outVG` and `--reference` options.
 
 ```
-cactus-align ./jobstore primates-pg/evolverPrimates.pg.txt primates-pg/primates.paf primates-pg/primates.hal --pangenome --pafInput --outVG --reference simChimp --realTimeLogging
+cactus-align ./jobstore primates-pg/evolverPrimates.pg.txt primates-pg/primates.paf primates-pg/primates.hal --pangenome --outVG --reference simChimp --realTimeLogging
 ```
 
 ### Evolver Primates: Creating the VG Indexes
@@ -224,7 +224,7 @@ The sequence-to-graph PAF files can be refined by adding the `--base` option to 
 The options we would normally pass directly to `cactus-align` must be quoted and passed via `--alignOptions` here:
 
 ```
-cactus-align-batch ./jobstore ./yeast-pg/chroms/chromfile.txt yeast-pg/chrom-alignments --alignOptions "--pangenome --pafInput --reference S288C --outVG --realTimeLogging" --realTimeLogging
+cactus-align-batch ./jobstore ./yeast-pg/chroms/chromfile.txt yeast-pg/chrom-alignments --alignOptions "--pangenome --reference S288C --outVG --realTimeLogging" --realTimeLogging
 ```
 
 The results are a HAL and VG file, along with a `cactus-align` log, for each chromosome:
@@ -455,7 +455,7 @@ This command will create a vg and hal file for each chromosome in ${MYBUCKET}/al
 ```
 
 aws s3 cp ${MYBUCKET}/chroms-hprc-${VERSION}-mc-grch38/chromfile.txt .
-cactus-align-batch ${MYJOBSTORE} ./chromfile.txt ${MYBUCKET}/align-hprc-${VERSION}-mc-grch38 --alignCores 16 --realTimeLogging --alignOptions "--pangenome --pafInput --maxLen 10000 --reference GRCh38 --realTimeLogging  --outVG" --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.8xlarge:1.5 --nodeStorage 1000 --maxNodes 20 --betaInertia 0 --targetTime 1 --logFile hprc-${VERSION}-mc-grch38.align.log
+cactus-align-batch ${MYJOBSTORE} ./chromfile.txt ${MYBUCKET}/align-hprc-${VERSION}-mc-grch38 --alignCores 16 --realTimeLogging --alignOptions "--pangenome --maxLen 10000 --reference GRCh38 --realTimeLogging  --outVG" --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.8xlarge:1.5 --nodeStorage 1000 --maxNodes 20 --betaInertia 0 --targetTime 1 --logFile hprc-${VERSION}-mc-grch38.align.log
 ```
 
 ### HPRC Graph: Creating the Whole-Genome Graph

@@ -114,12 +114,6 @@ def graph_map(options):
             # for s3 paths and force wdl to use it.  a better way would be a more fundamental
             # interface shift away from files of paths throughout all of cactus
             if options.pathOverrides:
-<<<<<<< HEAD
-=======
-                seqFile = SeqFile(options.seqFile)
-                tree = MultiCactusTree(seqFile.tree)
-                tree.nameUnlabeledInternalNodes(prefix = config.getDefaultInternalNodePrefix())
->>>>>>> origin/master
                 for name, override in zip(options.pathOverrideNames, options.pathOverrides):
                     input_seq_map[name] = override
 
@@ -165,38 +159,23 @@ def graph_map(options):
             logger.info("Importing {}".format(options.minigraphGFA))
             gfa_id = toil.importFile(makeURL(options.minigraphGFA))
 
-<<<<<<< HEAD
-            #import the sequences
-            input_seq_id_map = {}
-            for (genome, seq) in input_seq_map.items():
-                if genome in event_set:
-=======
             #import the sequences (that we need to align for the given event, ie leaves and outgroups)
             seq_id_map = {}
             fa_id_map = {}
-            leaves = set([seqFile.tree.getName(node) for node in seqFile.tree.getLeaves()])
-            for genome, seq in seqFile.pathMap.items():
-                if genome != graph_event and genome in leaves and genome != options.refFromGFA:
->>>>>>> origin/master
+            for (genome, seq) in input_seq_map.items():
+                if genome in event_set:
                     if os.path.isdir(seq):
                         tmpSeq = getTempFile()
                         catFiles([os.path.join(seq, subSeq) for subSeq in os.listdir(seq)], tmpSeq)
                         seq = tmpSeq
                     seq = makeURL(seq)
                     logger.info("Importing {}".format(seq))
-<<<<<<< HEAD
-                    input_seq_id_map[genome] = toil.importFile(seq)
-            
-            # run the workflow
-            paf_id, gfa_fa_id, gaf_id_map = toil.start(Job.wrapJobFn(minigraph_workflow, options, config_wrapper, input_seq_map, input_seq_id_map, gfa_id, graph_event))
-=======
                     seq_id_map[genome] = toil.importFile(seq)
                     fa_id_map[genome] = seq
 
             # run the workflow
             paf_id, gfa_fa_id, gaf_id, unfiltered_paf_id, paf_filter_log = toil.start(Job.wrapJobFn(
-                minigraph_workflow, options, config, fa_id_map, seq_id_map, gfa_id, graph_event))
->>>>>>> origin/master
+                minigraph_workflow, options, config_wrapper, fa_id_map, seq_id_map, gfa_id, graph_event))
 
         #export the paf
         toil.exportFile(paf_id, makeURL(options.outputPAF))
@@ -274,7 +253,7 @@ def minigraph_workflow(job, options, config, seq_path_map, seq_id_map, gfa_id, g
 
     return out_paf_id, fa_id if options.outputFasta else None, paf_job.rv(1), unfiltered_paf_id, filtered_paf_log
                     
-def make_minigraph_fasta(job, gfa_file_id, fa_file_path, name):
+def make_minigraph_fasta(job, gfa_file_id, gfa_file_path, name):
     """ Use gfatools to make the minigraph "assembly" """
 
     # note: using the toil-vg convention of naming working files manually so that logging is more readable
