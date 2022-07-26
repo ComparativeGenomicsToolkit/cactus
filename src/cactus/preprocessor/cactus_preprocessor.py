@@ -334,7 +334,7 @@ class CactusPreprocessor2(RoundedJob):
             logger.info("Adding child batch_preprocessor target")
             return self.addChild(BatchPreprocessor(prepXmlElems, self.inputSequenceID, 0)).rv()
 
-def stageWorkflow(outputSequenceDir, configFile, inputSequences, toil, restart=False,
+def stageWorkflow(outputSequenceDir, configNode, inputSequences, toil, restart=False,
                   outputSequences = [], maskMode=None, maskAction=None,
                   maskFile=None, minLength=None, inputEventNames=None, brnnCores=None,
                   gpu_override=False):
@@ -429,6 +429,7 @@ def main():
                         help="The way to run the Cactus binaries", default=None)
     parser.add_argument("--gpu", action="store_true",
                         help="Enable GPU acceleration by using Segaling instead of lastz")
+    parser.add_argument("--pangenome", action="store_true", help='Do not mask. Just add Cactus-style unique prefixes and strip anything up to and including last #')
 
     options = parser.parse_args()
     setupBinaries(options)
@@ -461,7 +462,7 @@ def main():
         raise RuntimeError('paf masking requires event names specified wither with an input seqfile or with --inputNames')
     if options.maskFile and options.minLength is None:
         raise RuntimeError('--minLength must be used with --maskFile')
-    
+        
     inSeqPaths = []
     outSeqPaths = []
     inNames = options.inputNames
@@ -474,6 +475,16 @@ def main():
 
     # toggle on the gpu
     ConfigWrapper(configNode).initGPU(options)
+
+    # apply pangenome overrides
+    if options.pangenome:
+        # don't mask
+        options.maskMode = 'none'
+        # set cutBefore to #
+        # so HG002#0#chrY would turn into id=HG002.0|chrY (so long as event name is HG002.0)
+        for node in configNode.findall("preprocessor"):
+            if getOptionalAttrib(node, "preprocessJob") == 'cutHeaders':
+                node.attrib["cutBefore"] = "#"
     
     # mine the paths out of the seqfiles
     if options.inSeqFile:

@@ -385,13 +385,9 @@ class TestCase(unittest.TestCase):
         orig_seq_file_path = './examples/yeastPangenome.txt'
         seq_file_path = os.path.join(self.tempDir, 'pp', os.path.basename(orig_seq_file_path))        
         subprocess.check_call(['cactus-prepare',  orig_seq_file_path, '--outDir', os.path.join(self.tempDir, 'pp'), '--seqFileOnly'])
-        orig_config_path = 'src/cactus/cactus_progressive_config.xml'
-        config_path = os.path.join(self.tempDir, 'config.xml')
-        subprocess.check_call('cat {} | sed -e \'s/cutBefore=""/cutBefore="."/g\' | grep -v lastzRepeatMask > {}'.format(
-            orig_config_path, config_path), shell=True)
-        cactus_opts = ['--binariesMode', binariesMode, '--logInfo', '--realTimeLogging', '--workDir', self.tempDir, '--configFile', config_path, '--maxCores', '8']
+        cactus_opts = ['--binariesMode', binariesMode, '--logInfo', '--realTimeLogging', '--workDir', self.tempDir, '--maxCores', '8']
         subprocess.check_call(['cactus-preprocess', self._job_store(binariesMode),
-                               orig_seq_file_path, seq_file_path, '--maskMode', 'brnn', '--minLength', '20000'] + cactus_opts, shell=False)
+                               orig_seq_file_path, seq_file_path, '--pangenome'] + cactus_opts, shell=False)
 
         # fish out the event names
         events = []
@@ -423,10 +419,12 @@ class TestCase(unittest.TestCase):
         chromfile_path = os.path.join(gm_out_dir, 'chromfile.txt')
         ba_path = os.path.join(self.tempDir, 'batch')
         os.makedirs(ba_path, exist_ok=True)
+        config_path = os.path.join(self.tempDir, 'config.xml')
+        shutil.copyfile('src/cactus/cactus_progressive_config.xml', config_path)
         subprocess.check_call(['cactus-align-batch', self._job_store(binariesMode), chromfile_path, ba_path, '--alignCores', '1',
                                '--alignCoresOverrides', 'chr1,4',  'chrV,2', 'chrX,1',
                                '--configOverrides', 'chrX,{}'.format(config_path), 'chrII,{}'.format(config_path),
-                               '--alignOptions', '--pangenome --pafInput --outVG --barMaskFilter 20000 --realTimeLogging --reference S288C --binariesMode {}'.format(binariesMode)])
+                               '--alignOptions', '--pangenome --outVG --barMaskFilter 20000 --realTimeLogging --reference S288C --binariesMode {}'.format(binariesMode)])
 
         vg_files = [os.path.join(ba_path, c) + '.vg' for c in chroms]
         hal_files = [os.path.join(ba_path, c) + '.hal' for c in chroms]

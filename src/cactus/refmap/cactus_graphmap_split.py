@@ -345,7 +345,7 @@ def split_fas(job, seq_id_map, split_id_map):
         fa_path, fa_id = seq_id_map[event]
         if fa_id.size:
             split_job = root_job.addChildJobFn(split_fa_into_contigs, event, fa_id, fa_path, split_id_map,
-                                               strip_prefix=True, # todo: set to false if relying on preprocessor (ie when paf-chains merged)
+                                               strip_prefix=False, 
                                                disk=fa_id.size * 3)
             fa_contigs[event] = split_job.rv(0)
             fa_contig_sizes[event] = split_job.rv(1)
