@@ -91,9 +91,16 @@ def cactus_cons(job, tree, ancestor_event, config_node, seq_id_map, og_map, paf_
             "--referenceEvent", ancestor_event, "--threads", str(job.cores), "--secondaryAlignments", secondary_alignment_file]
 
     messages = cactus_call(check_output=True, returnStdErr=True,
-                           parameters=["cactus_consolidated"] + args)[1]  # Get just the standard error output
+                                 realtimeStderrPrefix='cactus_consolidated({})'.format(ancestor_event),
+                                 parameters=["cactus_consolidated"] + args)[1]  # Get just the standard error output
 
-    job.fileStore.logToMaster("cactus_consolidated event:{}\n{}".format(ancestor_event, messages))  # Log the messages
+    # if cactus was run with --realTimeLogging, cactus_call will print out conslidated's stderr messages as they happen
+    # (and not return anything)
+    # otherwise, if run without --realTimeLogging, cactus_call will return (but not print) stderr messages
+    if messages:
+        job.fileStore.logToMaster("cactus_consolidated event:{}\n{}".format(ancestor_event, messages))  # Log the messages
+    else:
+        job.fileStore.logToMaster("Ran cactus consolidated okay")
 
     # Write the temporary output files to the final output
     # At top level--have the final .c2h file
