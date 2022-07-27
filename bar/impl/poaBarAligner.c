@@ -1039,6 +1039,9 @@ int caps_comp_by_adjacency_length(const void *a, const void *b) {
     return length1 > length2 ? -1 : (length1 < length2 ? 1 : 0); // sort in descending order of length
 }
 
+/*
+ * Returns end sequences sorted from longest to shortest
+ */
 void get_end_sequences(End *end, char **end_strings, int *end_string_lengths, int64_t *overlaps,
                        Cap **indices_to_caps, int64_t max_seq_length, int64_t mask_filter) {
     // Make inputs
