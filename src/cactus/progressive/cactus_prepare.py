@@ -674,6 +674,7 @@ def wdl_task_preprocess(options):
     s += '    }\n'
     s += '    command {\n        '
     s += 'cactus-preprocess {} --inPaths ${{sep=\" \" default=\"\" in_files}} ${{sep=\" \" default=\"\" in_urls}}'.format(get_jobstore(options, 'preprocess'))
+    s += ' --inputNames ${sep=\" \" default=\"\" in_names}'
     s += ' --outPaths ${{sep=\" \" out_names}} {} {} --workDir {}{}'.format(options.cactusOptions, get_toil_resource_opts(options, 'preprocess'),
                                                                              wdl_disk(options, 'preprocess')[1], ' --gpu' if options.gpu else '')
     s += ' ${\"--configFile \" + in_config_file}'
