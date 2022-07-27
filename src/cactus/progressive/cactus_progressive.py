@@ -368,6 +368,12 @@ def main():
             mc_tree, input_seq_map, og_candidates = parse_seqfile(options.seqFile, config_wrapper)
             og_map = compute_outgroups(mc_tree, config_wrapper, set(og_candidates), options.root)
             event_set = get_event_set(mc_tree, config_wrapper, og_map, options.root)
+            # infer default root
+            if not options.root:
+                options.root = mc_tree.getRootName()
+            # take presence of root as sign we want to include it
+            if options.root in input_seq_map and input_seq_map[options.root]:
+                event_set.add(options.root)
                         
             #import the sequences
             input_seq_id_map = {}
