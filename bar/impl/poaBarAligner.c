@@ -1023,27 +1023,45 @@ void create_alignment_blocks(Msa *msa, Cap **row_indexes_to_caps, stList *alignm
     assert(i == msa->column_no);
 }
 
+
+int caps_comp_by_adjacency_length(const void *a, const void *b) {
+    int length1, length2;
+    get_adjacency_string((Cap *)a, &length1, 0);
+    get_adjacency_string((Cap *)b, &length2, 0);
+    return length1 > length2 ? -1 : (length1 < length2 ? 1 : 0); // sort in descending order of length
+}
+
 void get_end_sequences(End *end, char **end_strings, int *end_string_lengths, int64_t *overlaps,
                        Cap **indices_to_caps, int64_t max_seq_length, int64_t mask_filter) {
     // Make inputs
     Cap *cap;
     End_InstanceIterator *capIterator = end_getInstanceIterator(end);
     int64_t j=0; // Index of the cap in the end's arrays
+
+    // sorting the caps by length from longest to shortest (to make a consistent ordering, also POA seems to
+    // create better alignments this way)
+    stList *caps = stList_construct();
     while ((cap = end_getNext(capIterator)) != NULL) {
-        // Ensure we have the cap in the correct orientation
         if (cap_getSide(cap)) {
             cap = cap_getReverse(cap);
         }
+        stList_append(caps, cap);
+    }
+    stList_sort(caps, caps_comp_by_adjacency_length); // sort by descending order of length
+    end_destructInstanceIterator(capIterator);
+
+    // Now create the actual end sequences
+    for(int64_t i=0; i<stList_length(caps); i++) {
+        Cap *cap = stList_get(caps, i);
+        assert(!cap_getSide(cap));
         // Get the prefix of the adjacency string and its length and overlap with its reverse complement
         end_strings[j] = get_adjacency_string_and_overlap(cap, &(end_string_lengths[j]),
                                                           &(overlaps[j]), max_seq_length, mask_filter);
 
         // Populate the caps to end/row indices, and vice versa, data structures
-        indices_to_caps[j] = cap;
-
-        j++;
+        indices_to_caps[j++] = cap;
     }
-    end_destructInstanceIterator(capIterator);
+    stList_destruct(caps); // cleanup
 }
 
 int64_t getMaxSequenceLength(End *end) {
@@ -1131,14 +1149,12 @@ stList *make_flower_alignment_poa(Flower *flower, int64_t max_seq_length, int64_
     // Fill out the end / row indices for each cap
     endIterator = flower_getEndIterator(flower);
     i=0;
-    while ((end = flower_getNextEnd(endIterator)) != NULL) {
-        Cap *cap;
-        End_InstanceIterator *capIterator = end_getInstanceIterator(end);
-        int64_t j=0;
-        while ((cap = end_getNext(capIterator)) != NULL) {
-            if (cap_getSide(cap)) {
-                cap = cap_getReverse(cap);
-            }
+    while ((end = flower_getNextEnd(endIterator)) != NULL) { // Note, the use
+        // of this iterator assumes that ends are iterated over in a stable order
+        for(int64_t j=0; j<end_lengths[i]; j++) {
+            Cap *cap = indices_to_caps[i][j];
+            assert(!cap_getSide(cap));
+
             Cap *cap2 = cap_getAdjacency(cap);
             assert(cap2 != NULL);
             cap2 = cap_getReverse(cap2);
@@ -1149,10 +1165,7 @@ stList *make_flower_alignment_poa(Flower *flower, int64_t max_seq_length, int64_
 
             right_end_indexes[i][j] = stIntTuple_get(k, 0);
             right_end_row_indexes[i][j] = stIntTuple_get(k, 1);
-
-            j++;
         }
-        end_destructInstanceIterator(capIterator);
         i++;
     }
     flower_destructEndIterator(endIterator);
