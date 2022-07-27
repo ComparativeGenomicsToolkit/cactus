@@ -11,6 +11,11 @@ halRemoveGenome <hal file> <genome to delete>
 The parent ancestral genome of the genome you deleted will still hang around, since it's needed to establish the alignment relationships between the other genomes in the parent's subtree and its supertree. Only leaf genomes can be deleted, though reconstructed genomes may be deleted if all their children have already been deleted (since in that case they would now be a leaf genome).
 
 The HAL file will remain the same size, since the genome data offsets cannot easily be shifted. If you need a smaller HAL file, check out the documentation for the `h5repack` command, or use the `halExtract` tool from the HAL toolkit (which is a bit slower than `h5repack`.
+
+## Generating update recipes with cactus-update-prepare
+
+The instructions below to add new genomes are fiddly and error-prone, even for cactus experts.  Consider using [cactus-update-prepare](../doc/cactus-update-prepare.md) to print out an exact recipe for your data!
+
 ## Adding a new genome
 Adding a new genome can be fairly complicated. The first thing to do is to determine *how* the genome should be added into the species tree: by splitting an existing branch (**add-to-branch**) or by adding the new genome as a child of an existing ancestral genome (**add-to-node**). These two ways allow you to maintain whatever species tree shape you want. Adding a genome to a node is slightly easier (it involves creating only one alignment rather than two), but may be more expensive since the alignment involves more genomes than in the add-to-branch case. Check out this handy diagram, showing the different ways that a genome "6" can be added:
 

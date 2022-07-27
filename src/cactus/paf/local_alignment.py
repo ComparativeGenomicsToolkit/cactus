@@ -13,7 +13,7 @@ from toil.statsAndLogging import logger
 from toil.lib.bioio import getLogLevelString
 from sonLib.bioio import newickTreeParser
 import os
-from cactus.paf.paf import get_leaf_event_pairs, get_leaves, get_node, get_distances
+from cactus.paf.paf import get_event_pairs, get_leaves, get_node, get_distances
 from cactus.shared.common import cactus_call, getOptionalAttrib
 
 
@@ -260,6 +260,10 @@ def make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancest
 
     ancestor_event = get_node(event_tree, ancestor_event_string)
     ingroup_events = get_leaves(ancestor_event) # Get the set of ingroup events
+    # to be consistent with pre-refactor (and work with updating tests), we include the root when its id is input
+    # and just treat it as an ingroup
+    if ancestor_event.iD in event_names_to_sequences and event_names_to_sequences[ancestor_event.iD]:
+        ingroup_events.append(ancestor_event)
     outgroup_events = [event for event in get_leaves(event_tree) if event not in ingroup_events]  # Set of outgroups
     logger.info("Got ingroup events: {} for ancestor event: {}".format(" ".join([i.iD for i in ingroup_events]),
                                                                        ancestor_event_string))
@@ -269,7 +273,7 @@ def make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancest
 
     # for each pair of ingroups make alignments
     ingroup_alignments = []
-    for ingroup, ingroup2, distance_a_b in get_leaf_event_pairs(ancestor_event):
+    for ingroup, ingroup2, distance_a_b in get_event_pairs(ancestor_event, ingroup_events):
         logger.info("Building alignment between event: {} (ingroup) and event: {} (ingroup)".format(ingroup.iD, ingroup2.iD))
         ingroup_alignments.append(root_job.addChildJobFn(make_chunked_alignments,
                                                          ingroup.iD, event_names_to_sequences[ingroup.iD],

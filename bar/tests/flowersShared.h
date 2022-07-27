@@ -12,7 +12,7 @@
 #include "pairwiseAligner.h"
 
 //Statemachine
-StateMachine *stateMachine;
+static StateMachine *stateMachine;
 
 //Basic flower.
 static CactusDisk *cactusDisk;

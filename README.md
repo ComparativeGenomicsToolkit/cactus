@@ -20,7 +20,7 @@ Cactus uses many different algorithms and individual code contributions, princip
 ## Setup
 
 ### System requirements
-We regularly test on Ubuntu 18.04 (Bionic) and to a more limited degree on Mac OS X (using Docker).
+We regularly test on Ubuntu 20.04, 22.04 and, to a more limited degree, on Mac OS X (using Docker).
 
 Cactus requires Python >= 3.7.
 
@@ -30,7 +30,7 @@ Note that to run even the very small evolverMammals example, you may need up to 
 
 IMPORTANT:  It is highly recommend that one **not** run Cactus using the Toil Grid Engine-like batch systems (GridEngine, HTCondor, LSF, SLURM, or Torque).  Cactus creates a very large number of small jobs, which can overwhelm these systems.  There is a work-around described [here](#running-the-step-by-step-workflow-direclty-in-toil) for clusters with large compute nodes available.  **Update**:  Cactus version >= 2.0 with GPU enabled will spawn far fewer jobs which, in theory, should make this less of an issue.
 
-NEW:  Cactus can now align individuals from the same species without a tree using the [Cactus Pangenome Pipeline](doc/pangenome.md).
+NEW:  Cactus can now align individuals from the same species without a tree using the [Minigraph-Cactus Pangenome Pipeline](doc/pangenome.md).
 
 ### Installation Overview
 
@@ -42,10 +42,10 @@ There are many different ways to install and run Cactus:
 
 #### Docker Image
 
-Cactus docker images are hosted on [quay](https://quay.io/repository/comparative-genomics-toolkit/cactus).  The image for the latest release is listed on the [Releases Page](https://github.com/ComparativeGenomicsToolkit/cactus/releases).  Here is an command line to run the included evolver mammals example with release 2.0.5
+Cactus docker images are hosted on [quay](https://quay.io/repository/comparative-genomics-toolkit/cactus).  The image for the latest release is listed on the [Releases Page](https://github.com/ComparativeGenomicsToolkit/cactus/releases).  Here is an command line to run the included evolver mammals example with release 2.1.1
 ```
 wget https://raw.githubusercontent.com/ComparativeGenomicsToolkit/cactus/master/examples/evolverMammals.txt
-docker run -v $(pwd):/data --rm -it quay.io/comparative-genomics-toolkit/cactus:v2.0.5 cactus /data/jobStore /data/evolverMammals.txt /data/evolverMammals.hal --root mr --binariesMode local
+docker run -v $(pwd):/data --rm -it quay.io/comparative-genomics-toolkit/cactus:v2.1.1 cactus /data/jobStore /data/evolverMammals.txt /data/evolverMammals.hal --root mr --binariesMode local
 
 ```
 
@@ -62,9 +62,9 @@ To avoid problems with conflicting versions of dependencies on your system, we s
 python3 -m pip install virtualenv
 ```
 
-To set up a virtual environment in the directory `cactus_env`, run:
+To set up a virtual environment in the directory `cactus_env`, run (Ubuntu 18.04 users should use `-p python3.8` below):
 ```
-python3 -m virtualenv -p python3.8 cactus_env
+python3 -m virtualenv -p python3 cactus_env
 ```
 
 Then, to enter the virtualenv, run:
@@ -107,7 +107,7 @@ and added to the PATH with
 export PATH=$(pwd)/bin:$PATH
 ```
 
-In order to run the [Cactus Pangenome Pipeline](doc/pangenome.md), additional tools must be installed with:
+In order to run the [Minigraph-Cactus Pangenome Pipeline](doc/pangenome.md), additional tools must be installed with:
 ```
 build-tools/downloadPangenomeTools
 ```
@@ -129,7 +129,7 @@ Cactus can be setup and used in a virtual environment as in the [previous sectio
 
 Singularity binaries can be used in place of docker binaries with the `--binariesMode singularity` flag.  Note, you must use Singularity 2.3 - 2.6 or Singularity 3.1.0+. Singularity 3 versions below 3.1.0 are incompatible with cactus (see [issue #55](https://github.com/ComparativeGenomicsToolkit/cactus/issues/55) and [issue #60](https://github.com/ComparativeGenomicsToolkit/cactus/issues/60)).
 
-By default, cactus will use the image, `quay.io/comparative-genomics-toolkit/cactus:<CACTUS_COMMIT>` when running binaries. This is usually okay, but can be overridden with the `CACTUS_DOCKER_ORG` and `CACTUS_DOCKER_TAG` environment variables.  For example, to use GPU release 2.0.5, run `export CACTUS_DOCKER_TAG=v2.0.5-gpu` before running cactus.  
+By default, cactus will use the image, `quay.io/comparative-genomics-toolkit/cactus:<CACTUS_COMMIT>` when running binaries. This is usually okay, but can be overridden with the `CACTUS_DOCKER_ORG` and `CACTUS_DOCKER_TAG` environment variables.  For example, to use GPU release 2.1.1, run `export CACTUS_DOCKER_TAG=v2.1.1-gpu` before running cactus.  
 
 The `--binariesMode local` flag can be used to force `cactus` to run local binaries -- this is the default behavior if they are found.
 
@@ -139,7 +139,7 @@ To run Cactus, the basic format is:
 cactus <jobStorePath> <seqFile> <outputHal>
 ```
 
-Note: alternative ways of running include the [step-by-step interface](#running-step-by-step) and the [Cactus Pangenome Pipeline](doc/pangenome.md).
+Note: alternative ways of running include the [step-by-step interface](#running-step-by-step) and the [Minigraph-Cactus Pangenome Pipeline](doc/pangenome.md).
 
 The `jobStorePath` is where intermediate files, as well as job metadata, will be stored. It must be accessible to all worker systems.
 
@@ -209,6 +209,7 @@ It will print the sequence of commands to run the alignment step-by-step.  Block
 cactus-prepare examples/evolverMammals.txt --outDir steps-output --outSeqFile steps-output/evovlerMammals.txt --outHal steps-output/evolverMammals.hal --jobStore jobstore --preprocessOnly
 ```
 
+
 #### Creading a WDL script to run on Cromwell or Terra
 
 The `--wdl` option in `cactus-prepare` can be used to generate a bespoke [WDL](https://github.com/openwdl/wdl/blob/master/versions/1.0/SPEC.md) script for running the alignment from the input seqFile.  Here is an example on how to run locally in [Cromwell](https://github.com/broadinstitute/cromwell)
@@ -246,8 +247,7 @@ In the evolver example, all input sequences are specified in public URLs.  If se
 Here is an example of some settings that have worked on a mammalian-sized genome alignment on Terra:
 
 ```
-cactus-prepare --wdl mammals.txt --noLocalInputs --preprocessBatchSize 5 --alignDisk 3000G --halAppendDisk 3000G --preprocessDisk 3000G --defaultDisk 1000G --defaultCores 64 --gpu --gpuCount 8 --defaultMemory 512G > mammals.wdl
-
+cactus-prepare --wdl mammals.txt --noLocalInputs --preprocessBatchSize 5 --alignDisk 3000G --halAppendDisk 3000G --preprocessDisk 3000G --defaultDisk 1000G --defaultCores 70 --gpu --gpuCount 8 --defaultMemory 450G > mammals.wdl
 ```
 
 If the workflow fails for whatever reason, it can be edited (to, say, increase job requirements) then resumed as follows:
@@ -255,6 +255,22 @@ If the workflow fails for whatever reason, it can be edited (to, say, increase j
 * Edit it and "Save a New Snapshot"
 * Back in the Terra Workflows tab for the workflow, refresh the page, and select the new snapshot from the "Snapshots" menu.
 * Click the "Save" button, ensure that "Use call caching" is ticked, then "Run Analysis" again to resume the workflow.
+
+**Important note on resuming Terra workflows**
+
+The above instructions to use Terra's call caching do not work reliably anymore.  This is really frustrating, as you can be many days and dollars into a workflow, need to adjust the WDL for whatever reason, and Terra will ignore all intermediate files and restart from scratch when you rerun for reasons only it understands. But if the results are in your GCP bucket somewhere (which they will be as long as you are not explicitly removing them), you can still use them by editing the WDL to incorporate them.  This can be done with `cactus-terra-helper`. You can use the Terra interface (by clicking on pretty much any file) to find the root bucket prefix of all intermediate files of a given run.  Once you have that, run
+
+```
+gsutil ls -r gs://<BUCKET/PREFIX> | cactus-terra-helper resume mammals.wdl > mammals-resume.wdl
+```
+
+The output script will remove all WDL calls for which output files were found in the bucket, and replace references to them to full paths of the intermediate files.
+
+The same script can be used to download all the logs off Terra, which can be useful.  This command (the `-l` is important) will download the latest version of each log to the present directory. 
+
+```
+gsutil ls -l -r gs://<BUCKET/PREFIX> | cactus-terra-helper scrape-logs
+```
 
 #### Running the step-by-step workflow direclty in Toil
 
@@ -264,9 +280,13 @@ If the workflow fails for whatever reason, it can be edited (to, say, increase j
 cactus-prepare-toil aws:us-west-2:<JOBSTORE-NAME> examples/evolverMammals.txt --binariesMode singularity --batchSystem kubernetes --realTimeLogging --outHal s3://<BUCKET-NAME>/out.hal --defaultDisk 20G --defaultMemory 12G --defaultCores 4
 ```
 
+#### Updating existing alingments
+
+`cactus-update-prepare` can be used to generate recipes to replace or add genomes to an existing HAL file.  See the full documentation [here](doc/cactus-update-prepare.md).
+
 ### Pangenome Pipeline
 
-[The Cactus Pangenome Pipeline is described here](doc/pangenome.md)
+[The Minigraph-Cactus Pangenome Pipeline is described here](doc/pangenome.md)
 
 ## GPU Acceleration
 
@@ -287,7 +307,9 @@ You can also [convert the HAL alignment into a Pangenome Graph](https://github.c
 Please [cite HAL](https://doi.org/10.1093/bioinformatics/btt128).
 
 ## Updating existing alignments
-Cactus supports incrementally updating existing alignments to add, remove, or update genomes. The process involves minor surgery on the output HAL files. See [this document](doc/updating-alignments.md) for details.
+Cactus supports incrementally updating existing alignments to add, remove, or update genomes. The process involves minor surgery on the output HAL files. See [this document](doc/updating-alignments.md) for details. [cactus-update-prepare](doc/cactus-update-prepare.md) can be used to simplify this process!
+
+
 # Frequently Asked Questions
 Q: I'm running under macOS using the Docker functionality and get an error from Docker: `docker: Error response from daemon: Mounts denied: [...]`
 

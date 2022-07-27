@@ -40,16 +40,135 @@ class TestCase(unittest.TestCase):
         if binariesMode == 'docker':
             cmd += ['--latest']
 
-        sys.stderr.write('Running {}'.format(' '.format(cmd)))
+        sys.stderr.write('Running {}\n'.format(' '.format(cmd)))
         subprocess.check_call(' '.join(cmd), shell=True)
 
+    def _update_evolver_add_to_node(self, binariesMode, configFile = None, new_leaf='simChimp', new_root='Anc1',
+                                    step_by_step = True):
+        """ Update the evolver by adding primate to internal node """
+        assert new_leaf in ['simChimp', 'simGorilla', 'simOrang']
+        assert new_root in ['Anc0', 'Anc1', 'Anc2', 'mr']
+        # todo: this is kind of a dumb convention, should refactor:
+        hal_path = self._out_hal(binariesMode)
+        assert os.path.isfile(hal_path)
+
+        children = subprocess.check_output(['halStats', hal_path, '--children', new_root]).strip().split()
+        children = [c.decode("utf-8") for c in children]
+        genomes = children + [new_root]
+        
+        # make the fasta files
+        fa_paths = [os.path.join(self.tempDir, '{}.fa'.format(genome)) for genome in genomes]
+        for genome, genome_path in zip(genomes, fa_paths):
+            with open(genome_path, 'w') as genome_file:
+                subprocess.check_call(['hal2fasta', hal_path, genome], stdout=genome_file)
+
+        with open('./examples/evolverPrimates.txt', 'r') as primates_file:
+            for line in primates_file:
+                if line.split() and line.split()[0] == new_leaf:
+                    new_child_line = line
+        assert new_child_line
+        # make the seqfile
+        # todo: we could fish branch lengths out of the tree, but it's not really relevant to the test
+        tree_string = '({}){};'.format(','.join(children + [new_leaf]), new_root)        
+        seq_file_path = os.path.join(self.tempDir, 'seqfile.{}'.format(new_root))
+        with open(seq_file_path, 'w') as seq_file:
+            seq_file.write(tree_string + '\n')
+            for genome, genome_path in zip(genomes, fa_paths):
+                seq_file.write('{}\t{}\n'.format(genome, genome_path))
+            seq_file.write(new_child_line)
+
+        # run the alignment
+        out_hal = os.path.join(self.tempDir, '{}.hal'.format(new_root))
+        if step_by_step:
+            out_paf = os.path.join(self.tempDir, '{}.paf'.format(new_root))
+            cmd = ['cactus-blast', self._job_store(binariesMode), seq_file_path, out_paf, '--includeRoot', '--root', new_root,
+                   '--binariesMode', binariesMode, '--logInfo', '--realTimeLogging', '--workDir', self.tempDir]
+            if configFile:
+                cmd += ['--configFile', configFile]
+            # todo: it'd be nice to have an interface for setting tag to something not latest or commit
+            if binariesMode == 'docker':
+                cmd += ['--latest']
+            sys.stderr.write('Running {}\n'.format(' '.format(cmd)))
+            subprocess.check_call(cmd)
+            
+            cmd = ['cactus-align', self._job_store(binariesMode), seq_file_path, out_paf, out_hal, '--includeRoot', '--root', new_root,
+                   '--binariesMode', binariesMode, '--logInfo', '--realTimeLogging', '--workDir', self.tempDir]
+            if configFile:
+                cmd += ['--configFile', configFile]
+            # todo: it'd be nice to have an interface for setting tag to something not latest or commit
+            if binariesMode == 'docker':
+                cmd += ['--latest']
+            sys.stderr.write('Running {}\n'.format(' '.format(cmd)))
+            subprocess.check_call(cmd)
+        else:
+            cmd = ['cactus', self._job_store(binariesMode), seq_file_path, out_hal, 
+                   '--binariesMode', binariesMode, '--logInfo', '--realTimeLogging', '--workDir', self.tempDir]
+            if configFile:
+                cmd += ['--configFile', configFile]
+            # todo: it'd be nice to have an interface for setting tag to something not latest or commit
+            if binariesMode == 'docker':
+                cmd += ['--latest']
+            sys.stderr.write('Running {}\n'.format(' '.format(cmd)))
+            subprocess.check_call(cmd)
+
+        # update the tree
+        cmd = ['halReplaceGenome', hal_path, new_root, '--bottomAlignmentFile', out_hal, '--topAlignmentFile', hal_path]
+        sys.stderr.write('Running {}\n'.format(' '.format(cmd)))
+        subprocess.check_call(cmd)
+
+    def _update_evolver_add_to_branch(self, binariesMode, configFile = None):
+        """ Quicka and dirty add to branch test, adds simGorilla as sister of mr """
+        # todo: this is kind of a dumb convention, should refactor:
+        hal_path = self._out_hal(binariesMode)
+        assert os.path.isfile(hal_path)
+
+        def genome_path(genome):
+            return os.path.join(self.tempDir, genome + '.fa')
+
+        # dump a bunch of fasta
+        for genome in ['simCow_chr6', 'simDog_chr6', 'simHuman_chr6', 'Anc0', 'Anc1', 'Anc2', 'mr']:
+            with open(genome_path(genome), 'w') as genome_file:
+                subprocess.check_call(['hal2fasta', hal_path, genome], stdout=genome_file)
+
+        # make the bottom seq_file
+        bottom_seq_path = os.path.join(self.tempDir, 'bottom.txt')
+        with open(bottom_seq_path, 'w') as bottom_seq_file:
+            bottom_seq_file.write('((simHuman_chr6:0.144018,(mr:0.271974,simGorilla:0.2)AncGorilla:0.1)Anc1:0.020593,(simCow_chr6:0.18908,simDog_chr6:0.16303)Anc2:0.032898)Anc0;\n')
+            bottom_seq_file.write('simGorilla	https://raw.githubusercontent.com/UCSantaCruzComputationalGenomicsLab/cactusTestData/master/evolver/primates/loci1/simGorilla.chr6\n')
+            for genome in ['simCow_chr6', 'simDog_chr6', 'simHuman_chr6', 'Anc0', 'Anc1', 'Anc2', 'mr']:
+                bottom_seq_file.write('{}\t{}\n'.format(genome, genome_path(genome)))
+
+        # make the bottom hal
+        bottom_hal_path = os.path.join(self.tempDir, 'bottom.hal')            
+        subprocess.check_call(['cactus', self._job_store(binariesMode), bottom_seq_path, bottom_hal_path, '--root', 'AncGorilla',
+                               '--binariesMode', binariesMode, '--logInfo', '--realTimeLogging', '--workDir', self.tempDir])
+
+        # dump the new ancestor
+        with open(genome_path('AncGorilla'), 'w') as anc_file:
+            subprocess.check_call(['hal2fasta', bottom_hal_path, 'AncGorilla'], stdout=anc_file)
+            
+        # make the top seq_ile
+        top_seq_path = os.path.join(self.tempDir, 'top.txt')
+        with open(top_seq_path, 'w') as top_seq_file:
+            top_seq_file.write('((simHuman_chr6:0.144018,AncGorilla:0.1)Anc1:0.020593,(simCow_chr6:0.18908,simDog_chr6:0.16303)Anc2:0.032898)Anc0;\n')
+            for genome in ['simCow_chr6', 'simDog_chr6', 'simHuman_chr6', 'AncGorilla', 'Anc0', 'Anc1', 'Anc2']:
+                top_seq_file.write('{}\t{}\n'.format(genome, genome_path(genome)))
+        
+        # make the top hal
+        top_hal_path = os.path.join(self.tempDir, 'top.hal')
+        subprocess.check_call(['cactus', self._job_store(binariesMode), top_seq_path, top_hal_path, '--root', 'Anc1',
+                               '--binariesMode', binariesMode, '--logInfo', '--realTimeLogging', '--workDir', self.tempDir])
+        
+        # update the hal
+        subprocess.check_call(['halAddToBranch', hal_path, bottom_hal_path, top_hal_path, 'Anc1', 'AncGorilla', 'mr', 'simGorilla', '0.1', '0.2'])
+        
     def _run_evolver_in_docker(self, seqFile = './examples/evolverMammals.txt'):
 
         out_hal = self._out_hal('in_docker')
         cmd = ['docker', 'run', '--rm', '-v', '{}:{}'.format(os.path.dirname(out_hal), '/data'),
                '-v', '{}:{}'.format(os.getcwd(), '/workdir'), 'evolvertestdocker/cactus:latest',
                'cactus /data/js /workdir/{} /data/{}'.format(seqFile, os.path.basename(out_hal))]
-        sys.stderr.write('Running {}'.format(' '.format(cmd)))
+        sys.stderr.write('Running {}\n'.format(' '.format(cmd)))
         subprocess.check_call(' '.join(cmd), shell=True)
                
     def _write_primates_seqfile(self, seq_file_path):
@@ -87,7 +206,10 @@ class TestCase(unittest.TestCase):
         for line in job_plan.split('\n'):
             line = line.strip()
             if len(line) > 0 and not line.startswith('#'):
-                sys.stderr.write('Running {}'.format(line))
+                # do Anc2 in binariesMode docker to broaden test coverage
+                if 'Anc2' in line and line.startswith('cactus-'):
+                    line += ' --binariesMode docker --latest'
+                sys.stderr.write('Running {}\n'.format(line))
                 subprocess.check_call(line, shell=True)
 
     def _run_evolver_decomposed_wdl(self, name):
@@ -225,7 +347,7 @@ class TestCase(unittest.TestCase):
         cactus_opts = ['--binariesMode', binariesMode, '--logInfo', '--realTimeLogging', '--workDir', self.tempDir, '--configFile', poa_config_path]
         
         # preprocess with dna-brnn
-        subprocess.check_call(['cactus-preprocess', self._job_store(binariesMode), seq_file_path, out_seq_file_path, '--maskAlpha'] + cactus_opts)
+        subprocess.check_call(['cactus-preprocess', self._job_store(binariesMode), seq_file_path, out_seq_file_path, '--maskMode', 'brnn'] + cactus_opts)
 
         # make the reference graph
         mg_cmd = ['minigraph', '-xggs', '-t', '4']
@@ -248,12 +370,141 @@ class TestCase(unittest.TestCase):
             cactus_opts += ['--latest']
         
         subprocess.check_call(['cactus-graphmap', self._job_store(binariesMode), out_seq_file_path, mg_path, paf_path,
-                               '--outputFasta', fa_path] + cactus_opts)
+                               '--outputFasta', fa_path, '--mapCores', '4'] + cactus_opts)
 
         # do the alignment
         subprocess.check_call(['cactus-align', self._job_store(binariesMode), out_seq_file_path, paf_path, self._out_hal(binariesMode),
-                               '--pangenome', '--outVG', '--outGFA', '--barMaskFilter', '10000'] + cactus_opts) 
+                               '--pangenome', '--outVG', '--outGFA', '--pafMaskFilter', '10000', '--barMaskFilter', '10000'] + cactus_opts) 
+
+    def _run_yeast_pangenome(self, binariesMode):
+        """ yeast pangenome chromosome by chromosome pipeline
+        """
+
+        # make a config that replaces stuff like SC4.chrI with id=SC4|chrI
+        # also run dna brnn with softmasking
+        orig_seq_file_path = './examples/yeastPangenome.txt'
+        seq_file_path = os.path.join(self.tempDir, 'pp', os.path.basename(orig_seq_file_path))        
+        subprocess.check_call(['cactus-prepare',  orig_seq_file_path, '--outDir', os.path.join(self.tempDir, 'pp'), '--seqFileOnly'])
+        cactus_opts = ['--binariesMode', binariesMode, '--logInfo', '--realTimeLogging', '--workDir', self.tempDir, '--maxCores', '4']
+        subprocess.check_call(['cactus-preprocess', self._job_store(binariesMode),
+                               orig_seq_file_path, seq_file_path, '--pangenome'] + cactus_opts, shell=False)
+
+        # fish out the event names
+        events = []
+        with open(seq_file_path, 'r') as seq_file:
+            for line in seq_file:
+                toks = line.strip().split()
+                if len(toks) == 2:
+                    events.append(toks[0])
+        
+        # build the minigraph
+        mg_path = os.path.join(self.tempDir, 'yeast.gfa.gz')
+        mg_cmd = ['cactus-minigraph', self._job_store(binariesMode), seq_file_path, mg_path, '--reference', 'S288C'] + cactus_opts
+        subprocess.check_call(mg_cmd)
                 
+        # run graphmap in base mode
+        paf_path = os.path.join(self.tempDir, 'yeast.paf')
+        fa_path = os.path.join(self.tempDir, 'yeast.gfa.fa')        
+        subprocess.check_call(['cactus-graphmap', self._job_store(binariesMode), seq_file_path, mg_path, paf_path,
+                               '--outputFasta', fa_path, '--delFilter', '2000000'] + cactus_opts)
+            
+        # split into chromosomes
+        chroms = ['chrI', 'chrII', 'chrIII', 'chrIV', 'chrV', 'chrVI', 'chrVII', 'chrVIII', 'chrIX', 'chrX', 'chrXI', 'chrXIV', 'chrXV']
+        gm_out_dir = os.path.join(self.tempDir, 'chroms')
+        subprocess.check_call(['cactus-graphmap-split', self._job_store(binariesMode), seq_file_path, mg_path, paf_path,
+                               '--refContigs'] + chroms + ['--minIdentity', '0.55'] +
+                              ['--reference', 'S288C', '--maskFilter', '20000', '--otherContig', 'chrOther', '--outDir', gm_out_dir] + cactus_opts)
+
+        # create the vg graph for each chromosome
+        chromfile_path = os.path.join(gm_out_dir, 'chromfile.txt')
+        ba_path = os.path.join(self.tempDir, 'batch')
+        os.makedirs(ba_path, exist_ok=True)
+        config_path = os.path.join(self.tempDir, 'config.xml')
+        shutil.copyfile('src/cactus/cactus_progressive_config.xml', config_path)
+        subprocess.check_call(['cactus-align-batch', self._job_store(binariesMode), chromfile_path, ba_path, '--alignCores', '1',
+                               '--alignCoresOverrides', 'chr1,4',  'chrV,2', 'chrX,1',
+                               '--configOverrides', 'chrX,{}'.format(config_path), 'chrII,{}'.format(config_path),
+                               '--alignOptions', '--pangenome --outVG --barMaskFilter 20000 --realTimeLogging --reference S288C --binariesMode {}'.format(binariesMode)])
+
+        vg_files = [os.path.join(ba_path, c) + '.vg' for c in chroms]
+        hal_files = [os.path.join(ba_path, c) + '.hal' for c in chroms]
+
+        # join up the graphs and index for giraffe
+        join_path = os.path.join(self.tempDir, 'join')
+        # must specify haploid for everything
+        rename_opts = ['--rename']
+        for event in events:
+            rename_opts += ['{}>{}.0'.format(event, event)]
+        subprocess.check_call(['cactus-graphmap-join', self._job_store(binariesMode), '--outDir', join_path, '--outName', 'yeast',
+                               '--reference', 'S288C', '--vg'] +  vg_files + ['--hal'] + hal_files + ['--gfaffix', '--wlineSep', '.',
+                               '--vcf', '--giraffe'] + rename_opts + cactus_opts)
+
+    def _check_yeast_pangenome(self, binariesMode):
+        """ yeast pangenome chromosome by chromosome pipeline
+        """
+
+        # load up the events
+        orig_seq_file_path = './examples/yeastPangenome.txt'
+        events = []
+        with open(orig_seq_file_path, 'r') as orig_seq_file:
+            for line in orig_seq_file:
+                toks = line.strip().split()
+                if len(toks) == 2:
+                    events += [toks[0]]
+        assert len(events) == 6
+
+        join_path = os.path.join(self.tempDir, 'join')
+        vcf_path = os.path.join(join_path, 'yeast.vcf.gz')
+
+        # check that we have some alts for each sample in the VCF
+        vcf_allele_threshold = 40000
+        for event in events:
+            allele = 0 if event == "S288C" else 1
+            event = event.split(".")[0]
+            proc = subprocess.Popen('bcftools view {} -s {} -a -H | awk \'{{print $10}}\' | grep {} | wc -l'.format(vcf_path, event, allele),
+                                    shell=True, stdout=subprocess.PIPE)
+            output, errors = proc.communicate()
+            sts = proc.wait()
+            num_alleles = int(output.strip())
+            self.assertGreaterEqual(num_alleles, vcf_allele_threshold)
+
+        # make sure we have about the right sequence counts in the hal
+        hal_path = os.path.join(join_path, 'yeast.hal')
+        for event in events:
+            if event != "_MINIGRAPH_":
+                proc = subprocess.Popen('halStats {} --sequenceStats {} | wc -l'.format(hal_path, event), shell=True, stdout=subprocess.PIPE)
+                output, errors = proc.communicate()
+                sts = proc.wait()
+                num_sequences = int(output.strip())
+                self.assertGreaterEqual(num_sequences, 11)
+                self.assertLessEqual(num_sequences, 15)
+
+        # make sure the vg is sane
+        xg_path = os.path.join(join_path, 'yeast.xg')
+        proc = subprocess.Popen('vg stats -l {} | awk \'{{print $2}}\''.format(xg_path), shell=True, stdout=subprocess.PIPE)
+        output, errors = proc.communicate()
+        sts = proc.wait()
+        num_bases = int(output.strip())
+        self.assertGreaterEqual(num_bases, 10000000)
+        self.assertLessEqual(num_bases, 11200000)
+
+        # make sure we have the giraffe indexes
+        for giraffe_idx in ['yeast.snarls', 'yeast.gg', 'yeast.dist', 'yeast.min', 'yeast.trans.gz', 'yeast.gbwt']:
+            idx_bytes = os.path.getsize(os.path.join(join_path, giraffe_idx))
+            self.assertGreaterEqual(idx_bytes, 500000)
+
+        # make sure the chrom splitting stats are somewhat sane
+        contig_sizes = {}
+        with open(os.path.join(self.tempDir, 'chroms', 'contig_sizes.tsv'), 'r') as sizes_file:
+            for line in sizes_file:
+                if line.startswith('chr'):
+                    toks=line.strip().split()
+                    contig_sizes[toks[0]] = toks[1:]
+        self.assertEqual(len(contig_sizes), 16)
+        for chr,sizes in contig_sizes.items():
+            self.assertEqual(len(sizes), 10)
+            self.assertGreaterEqual(int(sizes[9]), 200000)
+        
     def _csvstr_to_table(self, csvstr, header_fields):
         """ Hacky csv parse """
         output_stats = {}
@@ -393,6 +644,14 @@ class TestCase(unittest.TestCase):
         self.assertGreaterEqual(acc[0] + delta, baseline_acc[0])
         self.assertGreaterEqual(acc[1] + delta, baseline_acc[1])
 
+    def _check_valid_hal(self, halPath, expected_tree=None):
+        """ Make sure a hal passes halValidate and has the given tree """
+
+        subprocess.check_call(['halValidate', halPath])
+        hal_tree = subprocess.check_output(['halStats', halPath, '--tree']).strip().decode('utf-8')
+        if expected_tree:
+            self.assertEqual(hal_tree, expected_tree)
+            
     def testEvolverLocal(self):
         """ Check that the output of halStats on a hal file produced by running cactus with --binariesMode local is
         is reasonable
@@ -405,6 +664,31 @@ class TestCase(unittest.TestCase):
         #self._check_stats(self._out_hal(name), delta_pct=0.25)
         #self._check_coverage(self._out_hal(name), delta_pct=0.20)
         self._check_maf_accuracy(self._out_hal(name), delta=0.04)
+
+    def testEvolverUpdateNodeLocal(self):
+        """ Check that the "add a genome to ancestor" modification steps give sane/valid results """
+        name = "local"
+        self._run_evolver(name)
+        
+        self._update_evolver_add_to_node(name, new_leaf='simChimp', new_root='Anc1', step_by_step = True)
+        self._update_evolver_add_to_node(name, new_leaf='simOrang', new_root='mr', step_by_step = False)
+
+        self._check_valid_hal(self._out_hal(name),
+                              expected_tree='((simHuman_chr6:0.144018,(simMouse_chr6:0.084509,simRat_chr6:0.091589,simOrang:1)mr:0.271974,simChimp:1)Anc1:0.020593,(simCow_chr6:0.18908,simDog_chr6:0.16303)Anc2:0.032898)Anc0;')
+
+        self._check_maf_accuracy(self._out_hal(name), delta=0.1)
+
+    def testEvolverUpdateBranchLocal(self):
+        """ Check that the "add a genome to branch" modification steps give sane/valid results """
+        name = "local"
+        self._run_evolver(name)
+        self._update_evolver_add_to_branch(name)
+
+        self._check_valid_hal(self._out_hal(name),
+                              expected_tree='((simHuman_chr6:0.144018,((simMouse_chr6:0.084509,simRat_chr6:0.091589)mr:0.171974,simGorilla:0.2)AncGorilla:0.1)Anc1:0.020593,(simCow_chr6:0.18908,simDog_chr6:0.16303)Anc2:0.032898)Anc0;')
+
+        self._check_maf_accuracy(self._out_hal(name), delta=0.1)
+
 
     def testEvolverPrepareWDL(self):
 
@@ -538,6 +822,13 @@ class TestCase(unittest.TestCase):
         # todo: tune config so that delta can be reduced
         self._check_maf_accuracy(self._out_hal("local"), delta=0.025, dataset='primates')
         
+    def testYeastPangenomeLocal(self):
+        """ Run pangenome pipeline (including contig splitting!) on yeast dataset """
+        name = "local"
+        self._run_yeast_pangenome(name)
+        
+        # check the output
+        self._check_yeast_pangenome(name)
         
 
 if __name__ == '__main__':

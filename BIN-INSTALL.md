@@ -12,11 +12,11 @@ cd "cactus-bin-${REL_TAG}"
 
 ## Setup
 
-To build a python virtualenv and activate, do the following steps:
+To build a python virtualenv and activate, do the following steps (Ubuntu 18.04 users should use `-p python3.8` below):
 ```
-virtualenv -p python3.8 cactus_env
-echo 'export PATH=$(pwd)/bin:$PATH' >> cactus_env/bin/activate
-echo 'export PYTHONPATH=$(pwd)/lib:$PYTHONPATH' >> cactus_env/bin/activate
+virtualenv -p python3 cactus_env
+echo "export PATH=$(pwd)/bin:\$PATH" >> cactus_env/bin/activate
+echo "export PYTHONPATH=$(pwd)/lib:\$PYTHONPATH" >> cactus_env/bin/activate
 source cactus_env/bin/activate
 python3 -m pip install -U setuptools pip==21.3.1
 python3 -m pip install -U -r ./toil-requirement.txt
@@ -34,8 +34,7 @@ cd bin && for i in wigToBigWig faToTwoBit bedToBigBed bigBedToBed bedSort hgGcPe
 
 ## Testing
 
-To test Cactus, the following will run a moderately sized alignment.  It may
-take several hours, depending on your system.
+To test Cactus, the following will run a tiny sumulated alignment.
 ```
 cactus ./jobstore ./examples/evolverMammals.txt ./evolverMammals.hal --realTimeLogging
 ``
