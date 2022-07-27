@@ -95,15 +95,13 @@ def graph_map(options):
     with Toil(options) as toil:
         importSingularityImage(options)
         #Run the workflow
-        configNode = ET.parse(options.configFile).getroot()
-        graph_event = getOptionalAttrib(findRequiredNode(configNode, "graphmap"), "assemblyName", default="_MINIGRAPH_")        
+        config_node = ET.parse(options.configFile).getroot()
+        config_wrapper = ConfigWrapper(config_node)        
+        graph_event = getOptionalAttrib(findRequiredNode(config_node, "graphmap"), "assemblyName", default="_MINIGRAPH_")        
         if options.restart:
             paf_id, gfa_fa_id, gaf_id, unfiltered_paf_id, paf_filter_log = toil.restart()            
         else:
-
             # load up the seqfile and figure out the outgroups and schedule
-            config_node = ET.parse(options.configFile).getroot()
-            config_wrapper = ConfigWrapper(config_node)
             config_wrapper.substituteAllPredefinedConstantsWithLiterals()
             mc_tree, input_seq_map, og_candidates = parse_seqfile(options.seqFile, config_wrapper)
             og_map = compute_outgroups(mc_tree, config_wrapper, set(og_candidates))
@@ -125,11 +123,11 @@ def graph_map(options):
 
             # apply cpu override                
             if options.mapCores is not None:
-                findRequiredNode(configNode, "graphmap").attrib["cpu"] = str(options.mapCores)
-            mg_cores = getOptionalAttrib(findRequiredNode(configNode, "graphmap"), "cpu", typeFn=int, default=1)
+                findRequiredNode(config_node, "graphmap").attrib["cpu"] = str(options.mapCores)
+            mg_cores = getOptionalAttrib(findRequiredNode(config_node, "graphmap"), "cpu", typeFn=int, default=1)
             if options.batchSystem.lower() in ['single_machine', 'singleMachine']:
                 mg_cores = min(mg_cores, cpu_count(), int(options.maxCores) if options.maxCores else sys.maxsize)
-                findRequiredNode(configNode, "graphmap").attrib["cpu"] = str(mg_cores)
+                findRequiredNode(config_node, "graphmap").attrib["cpu"] = str(mg_cores)
                 
             # get the minigraph "virutal" assembly name
             graph_event = getOptionalAttrib(findRequiredNode(config_node, "graphmap"), "assemblyName", default="_MINIGRAPH_")
