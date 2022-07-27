@@ -58,15 +58,14 @@ def get_distances(root, distances={}):
 
     return distances
 
-def get_leaf_event_pairs(tree):
+def get_event_pairs(tree, events):
     """
-    Generates the sequence of leaf event pairs and their pairwise distance in the tree
+    Generates the sequence of event pairs and their pairwise distance in the tree
     :param tree: BinaryTree
     :return: Yields a sequence of (BinaryTree, BinaryTree, distance) tuples
     """
-    # Returns all pairs of leaves in the given tree and the distance between them
-    leaves = get_leaves(tree)
+    # Returns all pairs of events in given list and the distance in the the given tree between them
     distances = get_distances(tree)
-    for i in range(len(leaves)):
-        for j in range(i+1, len(leaves)):
-            yield leaves[i], leaves[j], distances[(leaves[i], leaves[j])]
+    for i in range(len(events)):
+        for j in range(i+1, len(events)):
+            yield events[i], events[j], distances[(events[i], events[j])]

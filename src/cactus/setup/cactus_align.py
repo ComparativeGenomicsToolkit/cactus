@@ -227,8 +227,10 @@ def make_align_job(options, toil):
     og_map = compute_outgroups(mc_tree, config_wrapper, set(og_candidates))
     event_set = get_event_set(mc_tree, config_wrapper, og_map, options.root if options.root else mc_tree.getRootName())
     if options.includeRoot:
+        if options.root not in input_seq_map:
+            raise RuntimeError("--includeRoot specified but root, {},  not found in input Seqfile".format(options.root))
         event_set.add(options.root)
-    
+        
     # apply path overrides.  this was necessary for wdl which doesn't take kindly to
     # text files of local paths (ie seqfile).  one way to fix would be to add support
     # for s3 paths and force wdl to use it.  a better way would be a more fundamental

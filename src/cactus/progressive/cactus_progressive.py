@@ -91,6 +91,7 @@ def progressive_schedule(job, options, config_node, seq_id_map, tree, og_map, ro
     # dependencies are its children + outgroups (which is what get_subtree() returns)
     dep_table = {}
     subtree_event_set = set(tree.getSubtreeRootNames())
+    
     iteration_0_events = []
     for node in tree.postOrderTraversal(tree.getNodeId(root_event)):
         event = tree.getName(node)
@@ -129,6 +130,9 @@ def progressive_schedule(job, options, config_node, seq_id_map, tree, og_map, ro
                 event_id_map = {}
                 for dep in dep_table[event]:
                     event_id_map[dep] = fasta_results[dep]
+                # to be consistent with pre-refactor (and work with updating tests), we include the root when its id is input
+                if event in seq_id_map and seq_id_map[event]:
+                    event_id_map[event] = seq_id_map[event]                    
                 event_job = Job.wrapJobFn(progressive_step, options, config_node, event_id_map, tree, og_map, event)
                 job_table[event] = event_job
                 for dep in dep_table[event]:
@@ -156,6 +160,10 @@ def progressive_step(job, options, config_node, seq_id_map, tree, og_map, event)
     subtree_eventmap = {}
     for leaf in subtree.getLeaves():
         subtree_eventmap[subtree.getName(leaf)] = seq_id_map[subtree.getName(leaf)]
+
+    # to be consistent with pre-refactor (and work with updating tests), we include the root when its id is input
+    if event in seq_id_map and seq_id_map[event]:
+        subtree_eventmap[event] = seq_id_map[event]
 
     # get the spanning tree (which is what consolidated wants)
     spanning_tree = get_spanning_subtree(tree, event, ConfigWrapper(config_node), og_map)
