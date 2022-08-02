@@ -162,6 +162,10 @@ def graphmap_split_workflow(job, options, config, seqIDMap, gfa_id, gfa_path, pa
     # get the sizes before we overwrite below
     gfa_size = gfa_id.size
     paf_size = paf_id.size
+
+    # fix up the headers
+    sanitize_job = root_job.addChildJobFn(sanitize_fasta_headers, seqIDMap)
+    seqIDMap = sanitize_job.rv()
     
     # use file extension to sniff out compressed input
     if gfa_path.endswith(".gz"):
@@ -178,7 +182,7 @@ def graphmap_split_workflow(job, options, config, seqIDMap, gfa_id, gfa_path, pa
 
     mask_bed_id = None
     if options.maskFilter:
-        mask_bed_id = root_job.addChildJobFn(get_mask_bed, seqIDMap, options.maskFilter).rv()
+        mask_bed_id = sanitize_job.addFollowOnJobFn(get_mask_bed, seqIDMap, options.maskFilter).rv()
         
     # use rgfa-split to split the gfa and paf up by contig
     split_gfa_job = root_job.addFollowOnJobFn(split_gfa, config, gfa_id, [paf_id], ref_contigs,
@@ -202,7 +206,8 @@ def get_mask_bed(job, seq_id_map, min_length):
     """ make a bed file from the fastas """
     beds = []
     for event in seq_id_map.keys():
-        fa_path, fa_id = seq_id_map[event]
+        fa_id = seq_id_map[event]
+        fa_path = '{}.fa'.format(event) # ugh, our fa_id is now unzipped 
         beds.append(job.addChildJobFn(get_mask_bed_from_fasta, event, fa_id, fa_path, min_length, disk=fa_id.size * 5).rv())
     return job.addFollowOnJobFn(cat_beds, beds).rv()
 
@@ -362,8 +367,8 @@ def split_fa_into_contigs(job, event, fa_id, fa_path, split_id_map, strip_prefix
     is_gz = fa_path.endswith(".gz")
     job.fileStore.readGlobalFile(fa_id, fa_path, mutable=is_gz)
     if is_gz:
-        # samtools can only work on bgzipped files.  so we uncompress here to be able to support gzipped too
-        cactus_call(parameters=['bgzip', '-fd', fa_path, '--threads', str(job.cores)])
+        # todo: more general cleanup.  before the file could actually be gzipped, but sanitze_fasta_headers
+        # which is run before insures this isn't true
         fa_path = fa_path[:-3]
 
     unique_id = 'id={}|'.format(event)

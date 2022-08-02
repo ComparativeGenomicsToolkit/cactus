@@ -57,7 +57,7 @@ void addUniqueFastaPrefix(void* destination, const char *fastaHeader, const char
     }
   
     char* newHeader = NULL;
-    if (strncmp(fastaHeader, "id=", 3) != 0 || strstr(fastaHeader, "|") == NULL) {
+    if (strncmp(fastaHeader, "id=", 3) != 0 || pipe_pos <= 0) { 
         // no prefix found, we add one
         newHeader = (char*)malloc(strlen(fastaHeader) + strlen(eventName) + 8);
         sprintf(newHeader, "id=%s|%s", eventName, fastaHeader);
