@@ -527,6 +527,9 @@ SequenceCountArray *get_alignment_count_array(stHash *seq_names_to_alignment_cou
         seq_count_array->counts = st_calloc(paf->query_length, sizeof(uint16_t)); // sets all the counts to zero
         stHash_insert(seq_names_to_alignment_count_arrays, paf->query_name, seq_count_array); // adds to the hash
     }
+    else {
+        assert(seq_count_array->length == paf->query_length); // Check the name is unique
+    }
     return seq_count_array;
 }
 
@@ -538,6 +541,7 @@ void increase_alignment_level_counts(SequenceCountArray *seq_count_array, Paf *p
             if(c->op == match) {
                 for(int64_t j=0; j<c->length; j++) {
                     assert(i + j < paf->query_end && i + j >= 0 && i + j < paf->query_length);
+                    assert(i + j < seq_count_array->length);
                     if(seq_count_array->counts[i + j] < INT16_MAX - 1) { // prevent overflow
                         seq_count_array->counts[i + j]++;
                     }
