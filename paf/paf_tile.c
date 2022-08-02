@@ -34,13 +34,14 @@ int paf_cmp_by_descending_score(const void *a, const void *b) {
 int64_t get_median_alignment_level(uint16_t *counts, Paf *paf) {
     Cigar *c = paf->cigar;
     int64_t i = paf->query_start, max_level=0, matches=0;
-    int64_t *level_counts = st_calloc(INT16_MAX, sizeof(int64_t)); // An array of counts of the number of bases with the given alignment level
+    int64_t *level_counts = st_calloc(UINT16_MAX, sizeof(int64_t)); // An array of counts of the number of bases with the given alignment level
     // such that level_counts[i] is the number of bases in the query with level_counts[i] number of alignments to it (at this point in the tiling)
     while(c != NULL) {
         if(c->op != query_delete) {
             if(c->op == match) {
                 for(int64_t j=0; j<c->length; j++) {
                     assert(i + j < paf->query_end && i + j >= 0 && i + j < paf->query_length);
+                    assert(counts[i + j] < UINT16_MAX);
                     level_counts[counts[i + j]]++;
                     matches++;
                     if(counts[i + j] > max_level) {
