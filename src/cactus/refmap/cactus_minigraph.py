@@ -127,9 +127,9 @@ def minigraph_construct_workflow(job, config_node, name_id_map, seq_order, gfa_p
     """ minigraph can handle bgzipped files but not gzipped; so unzip everything in case before running"""
     sanitize_job = job.addChildJobFn(sanitize_fasta_headers, name_id_map)
     mg_cores = getOptionalAttrib(findRequiredNode(config_node, "graphmap"), "cpu", typeFn=int, default=1)
-    minigraph_job = unzip_job.addFollowOnJobFn(minigraph_construct, config_node, sanitize_job.rv(), seq_order, gfa_path,
-                                               cores = mg_cores,
-                                               disk = 5 * sum([name_id[1].size for name_id in name_id_map.values()]))
+    minigraph_job = sanitize_job.addFollowOnJobFn(minigraph_construct, config_node, sanitize_job.rv(), seq_order, gfa_path,
+                                                  cores = mg_cores,
+                                                  disk = 5 * sum([name_id[1].size for name_id in name_id_map.values()]))
     return minigraph_job.rv()
 
 def minigraph_construct(job, config_node, name_id_map, seq_order, gfa_path):
