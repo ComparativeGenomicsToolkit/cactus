@@ -215,8 +215,6 @@ def minigraph_workflow(job, options, config, seq_id_map, gfa_id, graph_event):
         # gaf2paf needs unzipped gfa, so we take care of that upfront
         gfa_unzip_job = root_job.addChildJobFn(unzip_gz, options.minigraphGFA, gfa_id, disk=5*gfa_id.size)
         gfa_id = gfa_unzip_job.rv()
-        root_job = Job()
-        gfa_unzip_job.addFollowOn(root_job)
         gfa_id_size *= 10
         options.minigraphGFA = options.minigraphGFA[:-3]
     paf_job = Job.wrapJobFn(minigraph_map_all, config, gfa_id, seq_id_map, graph_event)

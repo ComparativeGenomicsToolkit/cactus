@@ -129,10 +129,8 @@ Below is an example of creating a yeast pangenome chromosome by chromosome, refe
 
 ```
 # make the seqfile
-cactus-prepare ./examples/yeastPangenome.txt --outDir ./yeast-pg --seqFileOnly
-
-# run the preprocessor (absolutely necessary if fasta sequence names aren't unique, which they aren't here)
-cactus-preprocess ./jobstore ./examples/yeastPangenome.txt ./yeast-pg/yeastPangenome.txt --pangenome
+mkdir -p yeast-pg
+cp ./examples/yeastPangenome.txt yeast-pg/
 
 # make the minigraph
 cactus-minigraph ./jobstore  ./yeast-pg/yeastPangenome.txt ./yeast-pg/yeast.gfa --realTimeLogging --reference S288C
