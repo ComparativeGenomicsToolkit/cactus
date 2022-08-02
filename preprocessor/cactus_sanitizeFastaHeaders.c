@@ -38,7 +38,7 @@ void addUniqueFastaPrefix(void* destination, const char *fastaHeader, const char
         return;
     }
 
-    if (stSet_search(header_set, fastaHeader) != NULL) {
+    if (stSet_search(header_set, (void*)fastaHeader) != NULL) {
         fprintf(stderr, "Error: The fasta header \"%s\" appears more than once for event \"%s\". Please ensure fast headers are unique for each input\n", fastaHeader, eventName);
         exit(1);
     }
