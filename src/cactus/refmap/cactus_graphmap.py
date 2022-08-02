@@ -204,6 +204,7 @@ def minigraph_workflow(job, options, config, seq_id_map, gfa_id, graph_event):
 
     # enforce unique prefixes and unzip fastas
     sanitize_job = root_job.addChildJobFn(sanitize_fasta_headers, seq_id_map)
+    seq_id_map = sanitize_job.rv()
     
     if options.outputFasta:
         # convert GFA to fasta
