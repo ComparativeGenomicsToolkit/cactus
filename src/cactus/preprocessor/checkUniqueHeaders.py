@@ -3,6 +3,8 @@
 """
 from Bio import SeqIO
 from Bio.SeqRecord import SeqRecord
+import os
+from cactus.shared.common import cactus_call
 
 def checkUniqueHeaders(inputFile, outputFile, eventName, checkAlphaNumeric=False, checkUCSC=False, checkAssemblyHub=True):
     """Check that headers are unique and meet certain requirements."""
@@ -33,4 +35,35 @@ def checkUniqueHeaders(inputFile, outputFile, eventName, checkAlphaNumeric=False
         seq_record.id = header
         SeqIO.write(seq_record, outputFile, 'fasta')
 
+    
+def sanitize_fasta_headers(job, fasta_id_map):
+    """ input must be map of event -> fasta id"""
+    out_fasta_id_map = {}
+    for event, fasta_id in fasta_id_map.items():
+        out_fasta_id_map[event] = job.addChildJobFn(sanitize_fasta_header, fasta_id, event,
+                                                    disk=fasta_id.size*7).rv()
+    return out_fasta_id_map
+
+def sanitize_fasta_header(job, fasta_id, event):
+    """ run the fasta through cactus_sanitizeFastaHeaders and ungzip if necessary.
+    This doesn't do the full check above (though it could), but will catch serious errors as well as
+    make sure everything has a id=EVENT| prefix """
+    
+    work_dir = job.fileStore.getLocalTempDir()
+    in_fa_path = os.path.join(work_dir, '{}.fa'.format(event))
+    out_fa_path = os.path.join(work_dir, '{}.sanitized.fa'.format(event))
+    job.fileStore.readGlobalFile(fasta_id, in_fa_path)
+    with open(in_fa_path, 'rb') as in_fa_file:
+        # https://stackoverflow.com/questions/3703276/how-to-tell-if-a-file-is-gzip-compressed
+        is_gzipped = in_fa_file.read(2) == b'\x1f\x8b'
+    if is_gzipped:
+        cmd = [['gzip', '-dc', in_fa_path], ['cactus_sanitizeFastaHeaders', '-', event]]
+    else:
+        cmd = ['cactus_sanitizeFastaHeaders', in_fa_path, event]
+    cactus_call(parameters=cmd, outfile=out_fa_path)    
+    job.fileStore.deleteGlobalFile(fasta_id)
+    return job.fileStore.writeGlobalFile(out_fa_path)
+    
+
+    
     

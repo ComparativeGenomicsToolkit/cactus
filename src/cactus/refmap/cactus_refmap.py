@@ -42,7 +42,7 @@ from cactus.shared.common import cactus_call
 from cactus.shared.configWrapper import ConfigWrapper
 from cactus.shared.common import cactusRootPath
 from cactus.progressive.progressive_decomposition import compute_outgroups, parse_seqfile, get_subtree, get_spanning_subtree, get_event_set
-
+from cactus.preprocessor.checkUniqueHeaders import sanitize_fasta_headers
 
 ## utilitary fxns:
 
@@ -138,7 +138,8 @@ def run_cactus_reference_align(job, assembly_files, reference, debug_export=Fals
     """
     Preprocesses assemblies, then runs mappings.
     """
-    mappings = job.addFollowOnJobFn(map_all_to_ref, assembly_files, reference, debug_export, dipcall_bed_filter, dipcall_vcf_filter).rv()
+    sanitize_job = job.addChildJobFn(sanitize_fasta_headers, assembly_files)
+    mappings = sanitize_job.addFollowOnJobFn(map_all_to_ref, sanitize_job.rv(), reference, debug_export, dipcall_bed_filter, dipcall_vcf_filter).rv()
     return mappings
 
 def map_all_to_ref(job, assembly_files, reference, debug_export=False, dipcall_bed_filter=False, dipcall_vcf_filter=False):

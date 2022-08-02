@@ -15,7 +15,7 @@ from sonLib.bioio import newickTreeParser
 import os
 from cactus.paf.paf import get_event_pairs, get_leaves, get_node, get_distances
 from cactus.shared.common import cactus_call, getOptionalAttrib
-
+from cactus.preprocessor.checkUniqueHeaders import sanitize_fasta_headers
 
 def run_lastz(job, name_A, genome_A, name_B, genome_B, distance, params):
     # Create a local temporary file to put the alignments in.
@@ -249,6 +249,10 @@ def chain_alignments(job, alignment_files, reference_event_name, params):
 
     return job.fileStore.writeGlobalFile(output_alignments_file)  # Copy back
 
+def sanitize_then_make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancestor_event_string, params):
+    sanitize_job = job.addChildJobFn(sanitize_fasta_headers, event_names_to_sequences)
+    paf_job = sanitize_job.addFollowOnJobFn(make_paf_alignments, event_tree_string, sanitize_job.rv(), ancestor_event_string, params)
+    return paf_job.rv()
 
 def make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancestor_event_string, params):
     # a job should never set its own follow-on, so we hang everything off the root_job here to encapsulate

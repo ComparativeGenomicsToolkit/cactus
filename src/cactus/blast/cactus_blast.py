@@ -18,7 +18,7 @@ from cactus.shared.common import makeURL, catFiles
 from cactus.shared.common import enableDumpStack
 from cactus.shared.common import cactus_override_toil_options
 
-from cactus.paf.local_alignment import make_paf_alignments
+from cactus.paf.local_alignment import sanitize_then_make_paf_alignments
 
 from toil.job import Job
 from toil.common import Toil
@@ -122,7 +122,8 @@ def runCactusBlastOnly(options):
                     logger.info("Importing {}".format(seq))
                     input_seq_id_map[genome] = toil.importFile(seq)
 
-            paf_id = toil.start(Job.wrapJobFn(make_paf_alignments, NXNewick().writeString(spanning_tree), input_seq_id_map, options.root, config_node))
+            paf_id = toil.start(Job.wrapJobFn(sanitize_then_make_paf_alignments, NXNewick().writeString(spanning_tree),
+                                              input_seq_id_map, options.root, config_node))
 
         # export the alignments
         toil.exportFile(paf_id, makeURL(options.outputFile))

@@ -39,6 +39,7 @@ from cactus.pipeline.cactus_workflow import cactus_cons_with_resources
 from cactus.progressive.progressive_decomposition import compute_outgroups, parse_seqfile, get_subtree, get_spanning_subtree, get_event_set
 from cactus.preprocessor.cactus_preprocessor import CactusPreprocessor
 from cactus.preprocessor.dnabrnnMasking import loadDnaBrnnModel
+from cactus.preprocessor.checkUniqueHeaders import sanitize_fasta_headers
 from cactus.paf.local_alignment import make_paf_alignments, trim_unaligned_sequences
 from cactus.shared.configWrapper import ConfigWrapper
 from cactus.progressive.multiCactusTree import MultiCactusTree
@@ -273,9 +274,8 @@ def progressive_workflow(job, options, config_node, mc_tree, og_map, input_seq_i
         pp_job = job.addChildJobFn(preprocess_all, options, config_node, input_seq_id_map)
         seq_id_map = pp_job.rv()
     else:
-        pp_job = Job()
-        job.addChild(pp_job)
-        seq_id_map = input_seq_id_map
+        pp_job = job.addChildJobFn(sanitize_fasta_headers, input_seq_id_map)
+        seq_id_map = pp_job.rv()
 
     # then do the progressive workflow
     root_event = options.root if options.root else mc_tree.getRootName()

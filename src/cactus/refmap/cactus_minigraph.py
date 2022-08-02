@@ -22,6 +22,7 @@ from cactus.shared.common import cactus_override_toil_options
 from cactus.shared.common import cactus_call
 from cactus.shared.common import getOptionalAttrib, findRequiredNode
 from cactus.refmap.cactus_graphmap_join import unzip_seqfile
+from cactus.preprocessor.checkUniqueHeaders import sanitize_fasta_headers
 from toil.job import Job
 from toil.common import Toil
 from toil.statsAndLogging import logger
@@ -124,9 +125,9 @@ def main():
         
 def minigraph_construct_workflow(job, config_node, name_id_map, seq_order, gfa_path):
     """ minigraph can handle bgzipped files but not gzipped; so unzip everything in case before running"""
-    unzip_job = job.addChildJobFn(unzip_seqfile, name_id_map)
+    sanitize_job = job.addChildJobFn(sanitize_fasta_headers, name_id_map)
     mg_cores = getOptionalAttrib(findRequiredNode(config_node, "graphmap"), "cpu", typeFn=int, default=1)
-    minigraph_job = unzip_job.addFollowOnJobFn(minigraph_construct, config_node, unzip_job.rv(), seq_order, gfa_path,
+    minigraph_job = unzip_job.addFollowOnJobFn(minigraph_construct, config_node, sanitize_job.rv(), seq_order, gfa_path,
                                                cores = mg_cores,
                                                disk = 5 * sum([name_id[1].size for name_id in name_id_map.values()]))
     return minigraph_job.rv()

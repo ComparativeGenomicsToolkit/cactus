@@ -28,6 +28,7 @@ from cactus.shared.common import write_s3, has_s3, get_aws_region, unzip_gzs
 from cactus.shared.common import cactusRootPath
 from cactus.shared.configWrapper import ConfigWrapper
 from cactus.refmap.cactus_graphmap import filter_paf
+from cactus.preprocessor.checkUniqueHeaders import sanitize_fasta_headers
 
 from toil.job import Job
 from toil.common import Toil
@@ -327,12 +328,9 @@ def cactus_align(job, config_wrapper, mc_tree, input_seq_map, input_seq_id_map, 
 
     event_list = input_seq_id_map.keys()
     
-    # unzip the input sequences
-    unzip_job = head_job.addChildJobFn(unzip_gzs, [input_seq_map[e] for e in event_list], [input_seq_id_map[e] for e in event_list])
-
-    new_seq_id_map = {}
-    for i, event in enumerate(input_seq_id_map.keys()):
-        new_seq_id_map[event] = unzip_job.rv(i)
+    # unzip the input sequences and enforce unique header prefixes
+    sanitize_job = head_job.addChildJobFn(sanitize_fasta_headers, input_seq_id_map)
+    new_seq_id_map = sanitize_job.rv()
 
     # get the spanning tree (which is what consolidated wants)
     spanning_tree = get_spanning_subtree(mc_tree, root_name, config_wrapper, og_map)

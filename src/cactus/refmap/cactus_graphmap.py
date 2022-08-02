@@ -25,6 +25,7 @@ from cactus.shared.common import cactus_override_toil_options
 from cactus.shared.common import cactus_call
 from cactus.shared.common import getOptionalAttrib, findRequiredNode
 from cactus.shared.common import unzip_gz, zip_gz
+from cactus.preprocessor.checkUniqueHeaders import sanitize_fasta_headers
 from toil.job import Job
 from toil.common import Toil
 from toil.statsAndLogging import logger
@@ -173,7 +174,7 @@ def graph_map(options):
 
             # run the workflow
             paf_id, gfa_fa_id, gaf_id, unfiltered_paf_id, paf_filter_log = toil.start(Job.wrapJobFn(
-                minigraph_workflow, options, config_wrapper, fa_id_map, seq_id_map, gfa_id, graph_event))
+                minigraph_workflow, options, config_wrapper, seq_id_map, gfa_id, graph_event))
 
         #export the paf
         toil.exportFile(paf_id, makeURL(options.outputPAF))
@@ -191,7 +192,7 @@ def graph_map(options):
         if options.outputFasta:
             add_genome_to_seqfile(options.seqFile, makeURL(options.outputFasta), graph_event)
 
-def minigraph_workflow(job, options, config, seq_path_map, seq_id_map, gfa_id, graph_event):
+def minigraph_workflow(job, options, config, seq_id_map, gfa_id, graph_event):
     """ Overall workflow takes command line options and returns (paf-id, (optional) fa-id) """
     fa_id = None
     gfa_id_size = gfa_id.size
@@ -201,6 +202,9 @@ def minigraph_workflow(job, options, config, seq_path_map, seq_id_map, gfa_id, g
 
     mg_cores = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "cpu", typeFn=int, default=1)
 
+    # enforce unique prefixes and unzip fastas
+    sanitize_job = root_job.addChildJobFn(sanitize_fasta_headers, seq_id_map)
+    
     if options.outputFasta:
         # convert GFA to fasta
         fa_job = root_job.addChildJobFn(make_minigraph_fasta, gfa_id, options.outputFasta, graph_event, cores = mg_cores)
@@ -214,9 +218,8 @@ def minigraph_workflow(job, options, config, seq_path_map, seq_id_map, gfa_id, g
         gfa_unzip_job.addFollowOn(root_job)
         gfa_id_size *= 10
         options.minigraphGFA = options.minigraphGFA[:-3]
-    
-    paf_job = Job.wrapJobFn(minigraph_map_all, config, gfa_id, seq_path_map, seq_id_map, graph_event)
-    root_job.addChild(paf_job)
+    paf_job = Job.wrapJobFn(minigraph_map_all, config, gfa_id, seq_id_map, graph_event)
+    root_job.addFollowOn(paf_job)
 
     if options.reference:
         # extract a PAF directly from the rGFAs tag for the given reference
@@ -272,7 +275,7 @@ def make_minigraph_fasta(job, gfa_file_id, gfa_file_path, name):
 
     return job.fileStore.writeGlobalFile(fa_path)
 
-def minigraph_map_all(job, config, gfa_id, fa_path_map, fa_id_map, graph_event):
+def minigraph_map_all(job, config, gfa_id, fa_id_map, graph_event):
     """ top-level job to run the minigraph mapping in parallel, returns paf """
     
     # hang everything on this job, to self-contain workflow
@@ -291,8 +294,7 @@ def minigraph_map_all(job, config, gfa_id, fa_path_map, fa_id_map, graph_event):
     paf_id_map = {}
                 
     for event, fa_id in fa_id_map.items():
-        fa_path = fa_path_map[event]
-        minigraph_map_job = top_job.addChildJobFn(minigraph_map_one, config, event, fa_path, fa_id, gfa_id,
+        minigraph_map_job = top_job.addChildJobFn(minigraph_map_one, config, event, fa_id, gfa_id,
                                                   # todo: estimate RAM
                                                   cores=mg_cores, disk=5 * fa_id.size + gfa_id.size)
         gaf_id_map[event] = minigraph_map_job.rv(0)
@@ -304,23 +306,19 @@ def minigraph_map_all(job, config, gfa_id, fa_path_map, fa_id_map, graph_event):
     
     return paf_merge_job.rv(), gaf_merge_job.rv()
 
-def minigraph_map_one(job, config, event_name, fa_path, fa_file_id, gfa_file_id):
+def minigraph_map_one(job, config, event_name, fa_file_id, gfa_file_id):
     """ Run minigraph to map a Fasta file to a GFA graph, producing a GAF output """
 
     work_dir = job.fileStore.getLocalTempDir()
     gfa_path = os.path.join(work_dir, "mg.gfa")
     fa_dir = job.fileStore.getLocalTempDir() # only necessary for prependunique...
-    fa_path = os.path.join(fa_dir, os.path.basename(fa_path))
+    fa_path = os.path.join(fa_dir, "{}.fa".format(event_name))
     if fa_path == gfa_path or fa_path == gfa_path + ".gz":
         gfa_path += ".1"
     gaf_path = os.path.join(work_dir, "{}.gaf".format(event_name))
     
     job.fileStore.readGlobalFile(gfa_file_id, gfa_path)
     job.fileStore.readGlobalFile(fa_file_id, fa_path)
-
-    if fa_path.endswith('.gz'):
-        fa_path = fa_path[:-3]
-        cactus_call(parameters = ['bgzip', '-d', '-c', fa_path + '.gz', '--threads', str(job.cores)], outfile=fa_path)
 
     # parse options from the config
     xml_node = findRequiredNode(config.xmlRoot, "graphmap")
