@@ -317,6 +317,7 @@ def make_align_job(options, toil):
                               referenceEvent=options.reference,
                               pafMaskFilter=options.pafMaskFilter,
                               paf2Stable=paf_to_stable,
+                              cons_cores=options.consCores,
                               do_filter_paf=options.pangenome)
     return align_job
 
