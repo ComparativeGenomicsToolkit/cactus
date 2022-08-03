@@ -13,26 +13,24 @@ def checkUniqueHeaders(inputFile, outputFile, eventName, checkAlphaNumeric=False
         header = seq_record.description
         seq = seq_record.seq
         if " " in header or "\t" in header:
-            raise RuntimeError("The fasta header '%s' contains spaces or tabs. These characters will cause issues in space-separated formats like MAF, and may not function properly when viewed in a browser. Please remove these characters from the input headers and try again." % header)
+            raise RuntimeError("The fasta header '{}' for event '{}' contains spaces or tabs. These characters will cause issues in space-separated formats like MAF, and may not function properly when viewed in a browser. Please remove these characters from the input headers and try again.".format(header, eventName))
         mungedHeader = header.split()[0]
+        if mungedHeader.startswith('id=') and mungedHeader.find('|') > 3:
+            # ignore unique prefix in this check -- it won't end up in final hal
+            mungedHeader = mungedHeader[mungedHeader.find('|') + 1:]            
         if checkAlphaNumeric and "".join([ i for i in mungedHeader if str.isalnum(i) ]) != mungedHeader: #Check is only alpha numeric
-            raise RuntimeError("We found a non-alpha numeric character in the fasta header, and the config file (checkAlphaNumeric option) demands that all fasta headers be alpha numeric: %s" % header)
+            raise RuntimeError("We found a non-alpha numeric character in the fasta header, and the config file (checkAlphaNumeric option) demands that all fasta headers be alpha numeric: '{}' in '{}'".format(header, eventName))
         if checkUCSC:
             mungedHeader = mungedHeader.split('.')[-1]
             if "".join([ i for i in mungedHeader if (str.isalnum(i) or i == '_' or i == '-' or i == ':') ]) != mungedHeader:
-                raise RuntimeError("We found a non-alpha numeric, '-', ':' or '_' prefix in the fasta header (UCSC Names option), please modify the first word after the '>' and after the last '.' in every fasta header to only contain alpha-numeric, '_', ':' or '-' characters, or consider using a more lenient option like --checkForAssemblyHub. The offending header: %s" % header)
+                raise RuntimeError("We found a non-alpha numeric, '-', ':' or '_' prefix in the fasta header (UCSC Names option), please modify the first word after the '>' and after the last '.' in every fasta header to only contain alpha-numeric, '_', ':' or '-' characters, or consider using a more lenient option like --checkForAssemblyHub. The offending header: '{}' in '{}'".format(header, eventName))
         if checkAssemblyHub:
             if "".join([ i for i in mungedHeader if (str.isalnum(i) or i == '_' or i == '-' or i == ':' or i == ".") ]) != mungedHeader:
-                raise RuntimeError("An invalid character was found in the first word of a fasta header. Acceptable characters for headers in an assembly hub include alphanumeric characters plus '_', '-', ':', and '.'. Please modify your headers to eliminate other characters. The offending header: %s" % header)
+                raise RuntimeError("An invalid character was found in the first word of a fasta header. Acceptable characters for headers in an assembly hub include alphanumeric characters plus '_', '-', ':', and '.'. Please modify your headers to eliminate other characters. The offending header: '{}' in '{}'".format(header, eventName))
         if mungedHeader in seen:
-            raise RuntimeError("We found a duplicated fasta header, the first word of each fasta header should be unique within each genome, as this is a requirement for the output HAL file or any MAF file subsequently created. Please modify the input fasta file. Offending duplicate header: %s" % header)
+            raise RuntimeError("We found a duplicated fasta header, the first word of each fasta header should be unique within each genome, as this is a requirement for the output HAL file or any MAF file subsequently created. Please modify the input fasta file. Offending duplicate header: '{}' in '{}'".format(header, eventName))
         seen.add(mungedHeader)
 
-        # preprocess the unique id
-        assert eventName
-        header = 'id={}|{}'.format(eventName, header)
-        seq_record.description = header
-        seq_record.id = header
         SeqIO.write(seq_record, outputFile, 'fasta')
 
     

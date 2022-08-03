@@ -266,19 +266,18 @@ def export_hal(job, mc_tree, config_node, seq_id_map, og_map, results, event=Non
 
     return job.fileStore.writeGlobalFile(hal_path)
     
-def progressive_workflow(job, options, config_node, mc_tree, og_map, input_seq_id_map, gzipped_input):
+def progressive_workflow(job, options, config_node, mc_tree, og_map, input_seq_id_map):
     ''' run the entire progressive workflow '''
 
+    # run the usual unzip / rename, even before preprocessing
+    sanitize_job = job.addChildJobFn(sanitize_fasta_headers, input_seq_id_map)
+    
     # start with the preprocessor
     if not options.skipPreprocessor:
-        pp_job = job.addChildJobFn(preprocess_all, options, config_node, input_seq_id_map)
-        if gzipped_input:
-            # a bit overkill, but it's handy to support gzipped fasta!
-            pp_job = pp_job.addFollowOnJobFn(sanitize_fasta_headers, pp_job.rv())
+        pp_job = sanitize_job.addFollowOnJobFn(preprocess_all, options, config_node, sanitize_job.rv())
         seq_id_map = pp_job.rv()
     else:
-        pp_job = job.addChildJobFn(sanitize_fasta_headers, input_seq_id_map)
-        seq_id_map = pp_job.rv()
+        seq_id_map = sanitize_job.rv()
 
     # then do the progressive workflow
     root_event = options.root if options.root else mc_tree.getRootName()
@@ -380,7 +379,6 @@ def main():
                         
             #import the sequences
             input_seq_id_map = {}
-            gzipped_input = False
             for (genome, seq) in input_seq_map.items():
                 if genome in event_set:
                     if os.path.isdir(seq):
@@ -390,14 +388,12 @@ def main():
                     seq = makeURL(seq)
                     logger.info("Importing {}".format(seq))
                     input_seq_id_map[genome] = toil.importFile(seq)
-                    if seq.endswith('.gz'):
-                        gzipped_input = True
                 
             # Make sure we have the dna-brnn model in the filestore if we need it
             loadDnaBrnnModel(toil, config_node)
 
             # run the whole workflow
-            hal_id = toil.start(Job.wrapJobFn(progressive_workflow, options, config_node, mc_tree, og_map, input_seq_id_map, gzipped_input))
+            hal_id = toil.start(Job.wrapJobFn(progressive_workflow, options, config_node, mc_tree, og_map, input_seq_id_map))
 
         toil.exportFile(hal_id, makeURL(options.outputHal))
     
