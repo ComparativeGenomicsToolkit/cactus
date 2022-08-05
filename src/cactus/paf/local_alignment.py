@@ -134,7 +134,8 @@ def make_chunked_alignments(job, event_a, genome_a, event_b, genome_b, distance,
             mappingFn = mappers[params.find("blast").attrib["mapper"]]
             chunked_alignment_files.append(job.addChildJobFn(mappingFn, '{}_{}'.format(event_a, i), chunk_a,
                                                              '{}_{}'.format(event_b, j), chunk_b, distance, params,
-                                                             cores=lastz_cores, disk=4*(chunk_a.size+chunk_b.size)).rv())
+                                                             cores=lastz_cores, disk=4*(chunk_a.size+chunk_b.size),
+                                                             memory=8*chunk_a.size+chunk_b.size).rv())
 
     return job.addFollowOnJobFn(combine_chunks, chunked_alignment_files).rv()  # Combine the chunked alignment files
 
