@@ -41,7 +41,7 @@ int64_t get_median_alignment_level(uint16_t *counts, Paf *paf) {
             if(c->op == match) {
                 for(int64_t j=0; j<c->length; j++) {
                     assert(i + j < paf->query_end && i + j >= 0 && i + j < paf->query_length);
-                    assert(counts[i + j] < UINT16_MAX);
+                    assert(counts[i + j] < UINT16_MAX); // paranoid check
                     level_counts[counts[i + j]]++;
                     matches++;
                     if(counts[i + j] > max_level) {
