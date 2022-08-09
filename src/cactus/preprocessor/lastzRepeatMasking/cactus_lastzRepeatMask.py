@@ -128,7 +128,7 @@ class LastzRepeatMaskJob(RoundedJob):
         # run_segalign can crash and still exit 0, so it's worth taking a moment to check the log for errors
         segalign_messages = segalign_messages.lower()
         for line in segalign_messages.split("\n"):
-            if not line.startswith("signals delivered")
+            if not line.startswith("signals delivered"):
                 for keyword in ['terminate', 'error', 'fail', 'assert', 'signal', 'abort', 'segmentation', 'sigsegv', 'kill']:
                     if keyword in segalign_messages:
                         job.fileStore.logToMaster("Segalign Stderr: " + segalign_messages)  # Log the messages
