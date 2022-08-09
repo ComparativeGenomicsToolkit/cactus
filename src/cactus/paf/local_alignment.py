@@ -62,10 +62,12 @@ def run_lastz(job, name_A, genome_A, name_B, genome_B, distance, params):
     if gpu:
         # run_segalign can crash and still exit 0, so it's worth taking a moment to check the log for errors
         segalign_messages = segalign_messages.lower()
-        for keyword in ['terminate', 'error', 'fail', 'assert', 'signal', 'abort', 'segmentation', 'sigsegv', 'kill']:
-            if keyword in segalign_messages:
-                job.fileStore.logToMaster("Segalign Stderr: " + segalign_messages)  # Log the messages
-                raise RuntimeError('{} exited 0 but keyword "{}" found in stderr'.format(lastz_cmd, keyword))
+        for line in segalign_messages.split("\n"):
+            if not line.startswith("signals delivered")
+                for keyword in ['terminate', 'error', 'fail', 'assert', 'signal', 'abort', 'segmentation', 'sigsegv', 'kill']:
+                    if keyword in segalign_messages:
+                        job.fileStore.logToMaster("Segalign Stderr: " + segalign_messages)  # Log the messages
+                        raise RuntimeError('{} exited 0 but keyword "{}" found in stderr'.format(lastz_cmd, keyword))
 
     # Return the alignment file
     return job.fileStore.writeGlobalFile(alignment_file)
