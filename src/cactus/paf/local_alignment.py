@@ -135,7 +135,7 @@ def make_chunked_alignments(job, event_a, genome_a, event_b, genome_b, distance,
             chunked_alignment_files.append(job.addChildJobFn(mappingFn, '{}_{}'.format(event_a, i), chunk_a,
                                                              '{}_{}'.format(event_b, j), chunk_b, distance, params,
                                                              cores=lastz_cores, disk=4*(chunk_a.size+chunk_b.size),
-                                                             memory=4*(chunk_a.size+chunk_b.size).rv())
+                                                             memory=4*(chunk_a.size+chunk_b.size)).rv())
 
     return job.addFollowOnJobFn(combine_chunks, chunked_alignment_files).rv()  # Combine the chunked alignment files
 
