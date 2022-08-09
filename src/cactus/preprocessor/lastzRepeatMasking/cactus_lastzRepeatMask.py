@@ -131,7 +131,7 @@ class LastzRepeatMaskJob(RoundedJob):
             if not line.startswith("signals delivered"):
                 for keyword in ['terminate', 'error', 'fail', 'assert', 'signal', 'abort', 'segmentation', 'sigsegv', 'kill']:
                     if keyword in line:
-                        job.fileStore.logToMaster("Segalign Stderr: " + segalign_messages)  # Log the messages
+                        job.fileStore.logToMaster("Segalign offending line: " + line)
                         raise RuntimeError('{} exited 0 but keyword "{}" found in stderr'.format(lastz_cmd, keyword))
 
         # scrape the segalign output into one big file, making an effort to read in numeric order

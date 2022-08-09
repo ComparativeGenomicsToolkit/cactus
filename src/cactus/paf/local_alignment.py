@@ -66,7 +66,7 @@ def run_lastz(job, name_A, genome_A, name_B, genome_B, distance, params):
             if not line.startswith("signals delivered"):
                 for keyword in ['terminate', 'error', 'fail', 'assert', 'signal', 'abort', 'segmentation', 'sigsegv', 'kill']:
                     if keyword in line:
-                        job.fileStore.logToMaster("Segalign Stderr: " + segalign_messages)  # Log the messages
+                        job.fileStore.logToMaster("Segalign offending line: " + line)  # Log the messages
                         raise RuntimeError('{} exited 0 but keyword "{}" found in stderr'.format(lastz_cmd, keyword))
 
     # Return the alignment file
