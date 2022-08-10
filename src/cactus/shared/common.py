@@ -773,7 +773,10 @@ def cactus_call(tool=None,
         if process.returncode > 0:
             raise RuntimeError("Command {} exited {}: {}".format(call, process.returncode, out))
         else:
-            raise RuntimeError("Command {} signaled {}: {}".format(call, signal.Signals(-process.returncode).name, out))
+            signal_name = signal.Signals(-process.returncode).name
+            if 'cactus_consolidated' in call and signal_name == 'SIGILL':
+                logger.critical('\n\n\n*******************************************************************************************************\nERROR: Your CPU seems too old to support AVX2 instructions in this Cactus release.\n       Please see the release notes for more details: https://github.com/ComparativeGenomicsToolkit/cactus/releases\n*******************************************************************************************************\n\n\n')
+            raise RuntimeError("Command {} signaled {}: {}".format(call, signal_name, out))
 
     if check_output:
         return (output, stderr) if returnStdErr else output
