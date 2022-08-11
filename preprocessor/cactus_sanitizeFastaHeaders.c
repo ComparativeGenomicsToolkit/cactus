@@ -38,38 +38,36 @@ void addUniqueFastaPrefix(void* destination, const char *fastaHeader, const char
         return;
     }
 
-    if (stSet_search(header_set, (void*)fastaHeader) != NULL) {
-        fprintf(stderr, "Error: The fasta header \"%s\" appears more than once for event \"%s\". Please ensure fast headers are unique for each input\n", fastaHeader, eventName);
-        exit(1);
-    }
-    stSet_insert(header_set, stString_copy(fastaHeader));
-
-    // we mimic a very basic check from the preprocessor while we're at it
-    size_t header_len = strlen(fastaHeader);
+    // we cut at whitespace (like preprocessor does by default)
+    char* trunc_header = stString_copy(fastaHeader);
+    size_t header_len = strlen(trunc_header);
     int64_t pipe_pos = -1;
-    int64_t trunc_len = 0;
     for (size_t i = 0; i < header_len; ++i) {
-        if (fastaHeader[i] == '|') {
+        if (trunc_header[i] == '|') {
             pipe_pos = (int64_t)i;
-        } else if (fastaHeader[i] == ' ' || fastaHeader[i] == '\t') {
-            // do we bother warning? most other tools don't 
-            trunc_len = header_len - i;
+        } else if (isspace(trunc_header[i])) {
+            trunc_header[i] = '\0';
             break;
         }
     }
-  
-    char* newHeader = (char*)malloc(strlen(fastaHeader) + strlen(eventName) + 8);
+
+    if (stSet_search(header_set, (void*)trunc_header) != NULL) {
+        fprintf(stderr, "Error: The fasta header \"%s\" appears more than once for event \"%s\". Please ensure fast headers are unique for each input\n", trunc_header, eventName);
+        exit(1);
+    }
+
+    stSet_insert(header_set, stString_copy(trunc_header));
+
     if (strncmp(fastaHeader, "id=", 3) != 0 || pipe_pos <= 0) { 
         // no prefix found, we add one
-        sprintf(newHeader, "id=%s|%s", eventName, fastaHeader);
-    } else {
-        strcpy(newHeader, fastaHeader);
+        char* prefixed_header = (char*)st_malloc(strlen(trunc_header) + strlen(eventName) + 8);
+        sprintf(prefixed_header, "id=%s|%s", eventName, trunc_header);
+        free(trunc_header);
+        trunc_header = prefixed_header;
     }
-    // cut off after white space
-    newHeader[strlen(newHeader) - trunc_len] = '\0';
     
-    fastaWrite((char*)string, newHeader, stdout);
-    free(newHeader);
+    fastaWrite((char*)string, trunc_header, stdout);
+    free(trunc_header);
 }
 
 int main(int argc, char *argv[]) {
