@@ -47,23 +47,29 @@ void addUniqueFastaPrefix(void* destination, const char *fastaHeader, const char
     // we mimic a very basic check from the preprocessor while we're at it
     size_t header_len = strlen(fastaHeader);
     int64_t pipe_pos = -1;
+    int64_t trunc_len = 0;
     for (size_t i = 0; i < header_len; ++i) {
         if (fastaHeader[i] == '|') {
             pipe_pos = (int64_t)i;
         } else if (fastaHeader[i] == ' ' || fastaHeader[i] == '\t') {
-            fprintf(stderr, "Error: The fasta header \"%s\" from event \"%s\" contains spaces or tabs. These characters will cause issues in space-separated formats like MAF, and may not function properly when viewed in a browser. Please remove these characters from the input headers and try again.\n", fastaHeader, eventName);
-            exit(1);
+            // do we bother warning? most other tools don't 
+            trunc_len = header_len - i;
+            break;
         }
     }
   
-    char* newHeader = NULL;
+    char* newHeader = (char*)malloc(strlen(fastaHeader) + strlen(eventName) + 8);
     if (strncmp(fastaHeader, "id=", 3) != 0 || pipe_pos <= 0) { 
         // no prefix found, we add one
-        newHeader = (char*)malloc(strlen(fastaHeader) + strlen(eventName) + 8);
         sprintf(newHeader, "id=%s|%s", eventName, fastaHeader);
+    } else {
+        strcpy(newHeader, fastaHeader);
     }
-    const char* header = newHeader ? newHeader : fastaHeader;
-    fastaWrite((char*)string, (char*)header, stdout);
+    // cut off after white space
+    newHeader[strlen(newHeader) - trunc_len] = '\0';
+    
+    fastaWrite((char*)string, newHeader, stdout);
+    free(newHeader);
 }
 
 int main(int argc, char *argv[]) {
