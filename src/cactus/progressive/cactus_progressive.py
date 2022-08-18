@@ -39,6 +39,7 @@ from cactus.pipeline.cactus_workflow import cactus_cons_with_resources
 from cactus.progressive.progressive_decomposition import compute_outgroups, parse_seqfile, get_subtree, get_spanning_subtree, get_event_set
 from cactus.preprocessor.cactus_preprocessor import CactusPreprocessor
 from cactus.preprocessor.dnabrnnMasking import loadDnaBrnnModel
+from cactus.preprocessor.checkUniqueHeaders import sanitize_fasta_headers
 from cactus.paf.local_alignment import make_paf_alignments, trim_unaligned_sequences
 from cactus.shared.configWrapper import ConfigWrapper
 from cactus.progressive.multiCactusTree import MultiCactusTree
@@ -268,14 +269,15 @@ def export_hal(job, mc_tree, config_node, seq_id_map, og_map, results, event=Non
 def progressive_workflow(job, options, config_node, mc_tree, og_map, input_seq_id_map):
     ''' run the entire progressive workflow '''
 
+    # run the usual unzip / rename, even before preprocessing
+    sanitize_job = job.addChildJobFn(sanitize_fasta_headers, input_seq_id_map)
+    
     # start with the preprocessor
     if not options.skipPreprocessor:
-        pp_job = job.addChildJobFn(preprocess_all, options, config_node, input_seq_id_map)
+        pp_job = sanitize_job.addFollowOnJobFn(preprocess_all, options, config_node, sanitize_job.rv())
         seq_id_map = pp_job.rv()
     else:
-        pp_job = Job()
-        job.addChild(pp_job)
-        seq_id_map = input_seq_id_map
+        seq_id_map = sanitize_job.rv()
 
     # then do the progressive workflow
     root_event = options.root if options.root else mc_tree.getRootName()

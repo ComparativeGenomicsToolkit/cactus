@@ -237,7 +237,13 @@ def get_jobstore(options, task=None):
     return js
 
 def human2bytesN(s):
-    return human2bytes(s) if s else s
+    if s is not None:
+        sb = human2bytes(s)
+        if sb < 10000000:
+            raise RuntimeError("Suspiciously small disk or memory specification detected: {}.  Did you forget to add a \"G\" for gigabytes?".format(sb))
+        return sb
+    else:
+        return None
 
 def bytes2humanN(s):
     return bytes2human(s).replace(' ', '') if s else s

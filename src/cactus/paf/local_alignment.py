@@ -15,7 +15,7 @@ from sonLib.bioio import newickTreeParser
 import os
 from cactus.paf.paf import get_event_pairs, get_leaves, get_node, get_distances
 from cactus.shared.common import cactus_call, getOptionalAttrib
-
+from cactus.preprocessor.checkUniqueHeaders import sanitize_fasta_headers
 
 def run_lastz(job, name_A, genome_A, name_B, genome_B, distance, params):
     # Create a local temporary file to put the alignments in.
@@ -62,10 +62,12 @@ def run_lastz(job, name_A, genome_A, name_B, genome_B, distance, params):
     if gpu:
         # run_segalign can crash and still exit 0, so it's worth taking a moment to check the log for errors
         segalign_messages = segalign_messages.lower()
-        for keyword in ['terminate', 'error', 'fail', 'assert', 'signal', 'abort', 'segmentation', 'sigsegv', 'kill']:
-            if keyword in segalign_messages:
-                job.fileStore.logToMaster("Segalign Stderr: " + segalign_messages)  # Log the messages
-                raise RuntimeError('{} exited 0 but keyword "{}" found in stderr'.format(lastz_cmd, keyword))
+        for line in segalign_messages.split("\n"):
+            if not line.startswith("signals delivered"):
+                for keyword in ['terminate', 'error', 'fail', 'assert', 'signal', 'abort', 'segmentation', 'sigsegv', 'kill']:
+                    if keyword in line and 'signals' not in line:
+                        job.fileStore.logToMaster("Segalign offending line: " + line)  # Log the messages
+                        raise RuntimeError('{} exited 0 but keyword "{}" found in stderr'.format(lastz_cmd, keyword))
 
     # Return the alignment file
     return job.fileStore.writeGlobalFile(alignment_file)
@@ -134,7 +136,8 @@ def make_chunked_alignments(job, event_a, genome_a, event_b, genome_b, distance,
             mappingFn = mappers[params.find("blast").attrib["mapper"]]
             chunked_alignment_files.append(job.addChildJobFn(mappingFn, '{}_{}'.format(event_a, i), chunk_a,
                                                              '{}_{}'.format(event_b, j), chunk_b, distance, params,
-                                                             cores=lastz_cores, disk=4*(chunk_a.size+chunk_b.size)).rv())
+                                                             cores=lastz_cores, disk=4*(chunk_a.size+chunk_b.size),
+                                                             memory=4*(chunk_a.size+chunk_b.size)).rv())
 
     return job.addFollowOnJobFn(combine_chunks, chunked_alignment_files).rv()  # Combine the chunked alignment files
 
@@ -249,6 +252,10 @@ def chain_alignments(job, alignment_files, reference_event_name, params):
 
     return job.fileStore.writeGlobalFile(output_alignments_file)  # Copy back
 
+def sanitize_then_make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancestor_event_string, params):
+    sanitize_job = job.addChildJobFn(sanitize_fasta_headers, event_names_to_sequences)
+    paf_job = sanitize_job.addFollowOnJobFn(make_paf_alignments, event_tree_string, sanitize_job.rv(), ancestor_event_string, params)
+    return paf_job.rv()
 
 def make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancestor_event_string, params):
     # a job should never set its own follow-on, so we hang everything off the root_job here to encapsulate

@@ -770,10 +770,25 @@ def cactus_call(tool=None,
     if process.returncode != 0:
         out = "stdout={}".format(output)
         out += ", stderr={}".format(stderr)
+
+        sigill_msg = ''
+        if abs(process.returncode) == 4:
+            # this (rightfully) trips up many users, try to make logging a little more clear
+            # https://github.com/ComparativeGenomicsToolkit/cactus/issues/574
+            sigill_msg  = '\n\n\n'
+            sigill_msg += '***********************************************************************************\n'
+            sigill_msg += '***********************************************************************************\n'
+            sigill_msg += 'ERROR: Your CPU is incompatible with the Cactus binaries.\n'
+            sigill_msg += '       This is often due to it being too old to support AVX2 instructions.\n'
+            sigill_msg += '       Please see the release notes for more details:\n'
+            sigill_msg += '       https://github.com/ComparativeGenomicsToolkit/cactus/releases\n'
+            sigill_msg += '***********************************************************************************\n'
+            sigill_msg += '***********************************************************************************\n\n\n'
+        
         if process.returncode > 0:
-            raise RuntimeError("Command {} exited {}: {}".format(call, process.returncode, out))
+            raise RuntimeError("{}Command {} exited {}: {}".format(sigill_msg, call, process.returncode, out))
         else:
-            raise RuntimeError("Command {} signaled {}: {}".format(call, signal.Signals(-process.returncode).name, out))
+            raise RuntimeError("{}Command {} signaled {}: {}".format(sigill_msg, call, signal.Signals(-process.returncode).name, out))
 
     if check_output:
         return (output, stderr) if returnStdErr else output
