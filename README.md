@@ -79,7 +79,7 @@ To install Cactus in Python, clone it and **its submodules with --recursive** fr
 ```
 git clone https://github.com/ComparativeGenomicsToolkit/cactus.git --recursive
 cd cactus
-python3 -m pip install -U setuptools pip==21.3.1
+python3 -m pip install -U setuptools pip
 python3 -m pip install -U -r ./toil-requirement.txt
 python3 -m pip install -U .
 ```

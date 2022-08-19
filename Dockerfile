@@ -50,7 +50,7 @@ RUN for i in /usr/local/bin/* ; do if [ -f ${i} ] && [ $(ldd ${i} | grep "not fo
 RUN cd /home/cactus && rm -rf cactus_env && \
 	 python3 -m virtualenv -p python3 cactus_env  && \
 	 . cactus_env/bin/activate && \
-	 python3 -m pip install -U setuptools pip==21.3.1 && \
+	 python3 -m pip install -U setuptools pip && \
 	 python3 -m pip install -U -r ./toil-requirement.txt && \
 	 python3 -m pip install -U .
 	 
