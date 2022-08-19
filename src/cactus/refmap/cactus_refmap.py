@@ -25,6 +25,7 @@ logger.info timer (see line 91 of cactus_blast)
 
 from toil.common import Toil
 from toil.job import Job
+from toil.statsAndLogging import logger
 
 import os
 from argparse import ArgumentParser
@@ -38,13 +39,10 @@ from cactus.refmap import apply_dipcall_bed_filter
 from cactus.shared.common import setupBinaries, importSingularityImage
 from cactus.shared.common import makeURL
 from cactus.shared.common import cactus_call
-from cactus.progressive.seqFile import SeqFile
-from cactus.pipeline.cactus_workflow import prependUniqueIDs
 from cactus.shared.configWrapper import ConfigWrapper
-from cactus.progressive.multiCactusTree import MultiCactusTree
 from cactus.shared.common import cactusRootPath
-# from cactus.pipeline.cactus_workflow import addCactusWorkflowOptions
-
+from cactus.progressive.progressive_decomposition import compute_outgroups, parse_seqfile, get_subtree, get_spanning_subtree, get_event_set
+from cactus.preprocessor.checkUniqueHeaders import sanitize_fasta_headers
 
 ## utilitary fxns:
 
@@ -90,23 +88,6 @@ def consolidate_mappings(job, mapping_files):
                         outfile.write(line)
     return job.fileStore.writeGlobalFile(consolidated_mappings)
 
-def get_asms_from_seqfile(seqFile, workflow):
-    """[summary]
-
-    Args:
-        seqFile ([type]): [description]
-        workflow ([type]): [description]
-
-    Returns:
-        [type]: [description]
-    """
-    seqFile = SeqFile(seqFile)
-    seqDict = col.OrderedDict(seqFile.pathMap)
-    print(seqDict)
-    for name, seqURL in seqDict.items():
-        seqDict[name] = workflow.importFile(makeURL(seqURL))
-    return seqDict
-
 def empty(job):
     """
     An empty job, for easier toil job organization.
@@ -151,36 +132,14 @@ def filter_out_secondaries_from_paf(job, paf):
                         break
     return job.fileStore.writeGlobalFile(primary_paf)
 
-def run_prepend_unique_ids(job, assembly_files):
-    """
-    Ensures all input sequences from assembly_files have unique names.
-    This is adapted from run_prepend_unique_ids in cactus_align, in order to maintain order-dependent renamings.
-    Because cactus-reference-align assumes that all input sequences are ingroups, it does not attempt to avoid renaming outgroup genomes.  
-    """
-    # download all the sequence files
-    event_to_path = {}
-    for event, assembly_id in assembly_files.items():
-        event_to_path[event] = job.fileStore.readGlobalFile(assembly_id)
-
-    # prepend unique id to each one (using event name instead of numeric id, as it's more stable across tools)
-    event_to_unique_path = prependUniqueIDs(event_to_path, job.fileStore.getLocalTempDir(), eventNameAsID=True)
-
-    # write the prepended files back to the job store and return the dict
-    for event, prepended_sequence_path in event_to_unique_path.items():
-        assembly_files[event] = job.fileStore.writeGlobalFile(prepended_sequence_path, cleanup=True)
-    return assembly_files
-
 ## mapping fxns:
 
 def run_cactus_reference_align(job, assembly_files, reference, debug_export=False, dipcall_bed_filter=False, dipcall_vcf_filter=False):
     """
     Preprocesses assemblies, then runs mappings.
     """
-    ## Note: this is adapted from run_prepend_unique_ids in cactus_align, in order to maintain order-dependent renamings.
-    ## Because cactus-reference-align assumes that all input sequences are ingroups, it does not attempt to avoid renaming outgroup genomes.  
-    preprocess_job = job.addChildJobFn(run_prepend_unique_ids, assembly_files)
-    assembly_files = preprocess_job.rv()
-    mappings = preprocess_job.addFollowOnJobFn(map_all_to_ref, assembly_files, reference, debug_export, dipcall_bed_filter, dipcall_vcf_filter).rv()
+    sanitize_job = job.addChildJobFn(sanitize_fasta_headers, assembly_files)
+    mappings = sanitize_job.addFollowOnJobFn(map_all_to_ref, sanitize_job.rv(), reference, debug_export, dipcall_bed_filter, dipcall_vcf_filter).rv()
     return mappings
 
 def map_all_to_ref(job, assembly_files, reference, debug_export=False, dipcall_bed_filter=False, dipcall_vcf_filter=False):
@@ -221,25 +180,18 @@ def map_all_to_ref(job, assembly_files, reference, debug_export=False, dipcall_b
 
                 dipcall_bed_filter_job = secondaries_filter_job.addFollowOnJobFn(apply_dipcall_bed_filter.apply_dipcall_bed_filter, primary_paf)
                 bed_filtered_primary_mappings = dipcall_bed_filter_job.rv()
-
-                conversion_job = dipcall_bed_filter_job.addFollowOnJobFn(paf_to_lastz.paf_to_lastz, bed_filtered_primary_mappings)
-                lastz_mappings = conversion_job.rv()
+                paf_mappings = bed_filtered_primary_mappings
             else:
                 # convert mapping to lastz (and filter into primary and secondary mappings)
-                conversion_job = map_job.addFollowOnJobFn(paf_to_lastz.paf_to_lastz, ref_mappings[assembly])
-                lastz_mappings = conversion_job.rv()
+                paf_mappings = ref_mappings[assembly]
 
             # extract the primary and secondary mappings.
-            primary_mappings[assembly] = conversion_job.addFollowOnJobFn(unpack_promise, lastz_mappings, 0).rv()
-            secondary_mappings[assembly] = conversion_job.addFollowOnJobFn(unpack_promise, lastz_mappings, 1).rv()
+            primary_mappings[assembly] = paf_mappings
+            secondary_mappings[assembly] = None
 
     # consolidate the primary mappings into a single file; same for secondary mappings.
     all_primary = lead_job.addFollowOnJobFn(consolidate_mappings, primary_mappings).rv()
-    all_secondary = lead_job.addFollowOnJobFn(consolidate_mappings, secondary_mappings).rv()
-    if debug_export:
-        return (all_primary, all_secondary, ref_mappings, primary_mappings, secondary_mappings)
-    else:
-        return (all_primary, all_secondary)
+    return all_primary
 
 def map_a_to_b(job, a, b, dipcall_filter):
     """Maps fasta a to fasta b.
@@ -286,12 +238,11 @@ def get_options():
     # options for basic input/output
     parser.add_argument('seqFile', type=str,
                         help='A file containing all the information specified by cactus in construction. This aligner ignores the newick tree.')
-    parser.add_argument('refID', type=str, 
+    parser.add_argument('reference', type=str, 
                         help='Specifies which asm in seqFile should be treated as the reference.')
     parser.add_argument("outputFile", type=str, help = "Output pairwise alignment file")
     parser.add_argument("--pathOverrides", nargs="*", help="paths (multiple allowd) to override from seqFile")
     parser.add_argument("--pathOverrideNames", nargs="*", help="names (must be same number as --paths) of path overrides")
-    parser.add_argument("--writeSecondaries", action="store_true", help="write secondary alignments file (secondaries not written by default)")
 
     # dipcall-like filters
     parser.add_argument('--dipcall_bed_filter', action='store_true', 
@@ -336,68 +287,58 @@ def get_options():
 def main():
     options = get_options()
 
-    with Toil(options) as workflow:
+    with Toil(options) as toil:
         setupBinaries(options)
 
         importSingularityImage(options)
 
-        ## Preprocessing:
-        if (options.pathOverrides or options.pathOverrideNames):
-            if not options.pathOverrides or not options.pathOverrideNames or \
-            len(options.pathOverrideNames) != len(options.pathOverrides):
-                raise RuntimeError('same number of values must be passed to --pathOverrides and --pathOverrideNames')
+        # load up the seqfile and figure out the outgroups and schedule
+        config_node = ET.parse(options.configFile).getroot()
+        config_wrapper = ConfigWrapper(config_node)
+        config_wrapper.substituteAllPredefinedConstantsWithLiterals()
+        mc_tree, input_seq_map, og_candidates = parse_seqfile(options.seqFile, config_wrapper)
+        og_map = compute_outgroups(mc_tree, config_wrapper, set(og_candidates))
+        event_set = get_event_set(mc_tree, config_wrapper, og_map, mc_tree.getRootName())
 
         # apply path overrides.  this was necessary for wdl which doesn't take kindly to
         # text files of local paths (ie seqfile).  one way to fix would be to add support
         # for s3 paths and force wdl to use it.  a better way would be a more fundamental
         # interface shift away from files of paths throughout all of cactus
         if options.pathOverrides:
-            seqFile = SeqFile(options.seqFile)
-            configNode = ET.parse(options.configFile).getroot()
-            config = ConfigWrapper(configNode)
-            tree = MultiCactusTree(seqFile.tree)
-            tree.nameUnlabeledInternalNodes(prefix = config.getDefaultInternalNodePrefix())                
             for name, override in zip(options.pathOverrideNames, options.pathOverrides):
-                seqFile.pathMap[name] = override
-            override_seq = os.path.join(options.cactusDir, 'seqFile.override')
-            with open(override_seq, 'w') as out_sf:
-                out_sf.write(str(seqFile))
-            options.seqFile = override_seq
+                input_seq_map[name] = override
 
-        # Import asms; by default, prepends unique IDs in the technique used in cactus-blast.
-        asms = get_asms_from_seqfile(options.seqFile, workflow)
-
+        # check --reference input
+        if options.reference:
+            leaves = [mc_tree.getName(leaf) for leaf in mc_tree.getLeaves()]
+            if options.reference not in leaves:
+                raise RuntimeError("Genome specified with --reference, {}, not found in tree leaves".format(options.reference))
+                
+        #import the sequences
+        input_seq_id_map = {}
+        for (genome, seq) in input_seq_map.items():
+            if genome in event_set:
+                if os.path.isdir(seq):
+                    tmpSeq = getTempFile()
+                    catFiles([os.path.join(seq, subSeq) for subSeq in os.listdir(seq)], tmpSeq)
+                    seq = tmpSeq
+                seq = makeURL(seq)
+                logger.info("Importing {}".format(seq))
+                input_seq_id_map[genome] = toil.importFile(seq)
+        
         ## Perform alignments:
-        if not workflow.options.restart:
-            alignments = workflow.start(Job.wrapJobFn(run_cactus_reference_align, asms, options.refID, options.debug_export, options.dipcall_bed_filter, options.dipcall_vcf_filter))
+        if not toil.options.restart:
+            alignments = toil.start(Job.wrapJobFn(run_cactus_reference_align, input_seq_id_map, options.reference, options.debug_export, options.dipcall_bed_filter, options.dipcall_vcf_filter))
 
         else:
-            alignments = workflow.restart()
-
-        if options.debug_export:
-            # first, ensure the debug dir exists.
-            if not os.path.isdir(options.debug_export_dir):
-                os.mkdir(options.debug_export_dir)
-            
-            print(alignments)
-            # Then return value is: (all_primary, all_secondary, ref_mappings, primary_mappings, secondary_mappings)
-            for asm, mapping_file in alignments[2].items():
-                workflow.exportFile(mapping_file, 'file://' + os.path.abspath("mappings_for_" + asm + ".paf"))
-            for asm, mapping_file in alignments[3].items():
-                workflow.exportFile(mapping_file, 'file://' + os.path.abspath("mappings_for_" + asm + ".cigar"))
-            for asm, mapping_file in alignments[4].items():
-                workflow.exportFile(mapping_file, 'file://' + os.path.abspath("mappings_for_" + asm + ".cigar.secondry"))
+            alignments = toil.restart()
 
         ## Save alignments:
         if options.dipcall_vcf_filter: # this is substantially less restrictive than the dipcall_bed_filter. 
-            dipcall_filtered = workflow.start(Job.wrapJobFn(apply_dipcall_vcf_filter, alignments[0]))
-            workflow.exportFile(dipcall_filtered, makeURL(options.outputFile))
-            if options.writeSecondaries:
-                workflow.exportFile(alignments[1], makeURL(options.outputFile + ".unfiltered.secondary"))
+            dipcall_filtered = toil.start(Job.wrapJobFn(apply_dipcall_vcf_filter, alignments))
+            toil.exportFile(dipcall_filtered, makeURL(options.outputFile))
         else:
-            workflow.exportFile(alignments[0], makeURL(options.outputFile))
-            if options.writeSecondaries:
-                workflow.exportFile(alignments[1], makeURL(options.outputFile + ".secondary"))
+            toil.exportFile(alignments, makeURL(options.outputFile))
 
 if __name__ == "__main__":
     main()

@@ -186,7 +186,7 @@ class TestCase(unittest.TestCase):
         self._write_primates_seqfile(seq_file_path)
         self._run_evolver(binariesMode, configFile=configFile, seqFile=seq_file_path)
 
-    def _run_evolver_decomposed(self, name):
+    def _run_evolver_decomposed(self, binariesMode, name):
         """ Run the full evolver test, putting the jobstore and output in tempDir
         but instead of doing in in one shot like above, use cactus-prepare, cactus-blast
         and cactus-align to break it into different steps """
@@ -196,6 +196,10 @@ class TestCase(unittest.TestCase):
         in_seqfile = './examples/evolverMammals.txt'
         cmd = ['cactus-prepare', in_seqfile, '--outDir', out_dir, '--outSeqFile', out_seqfile, '--outHal', self._out_hal(name),
                '--jobStore', self._job_store(name)]
+        bm_flag = '--binariesMode {}'.format(binariesMode)
+        if binariesMode == "docker":
+            bm_flag += ' --latest'
+        cmd += ['--cactusOptions', '\"{}\"'.format(bm_flag)]
 
         job_plan = popenCatch(' '.join(cmd))
 
@@ -289,8 +293,7 @@ class TestCase(unittest.TestCase):
                 if line.startswith('cactus-align'):
                     #Remove all the id prefixes to pretend the cigars came not cactus-blast
                     subprocess.check_call('sed -i -e \'s/id=[0,1]|//g\' {}/Anc0.cigar*'.format(out_dir), shell=True)
-                    line += ' --nonCactusInput'
-                sys.stderr.write('Running {}\n'.format(line))
+                sys.stderr.write('Running {}'.format(line))
                 subprocess.check_call(line, shell=True)
 
     def _run_evolver_primates_refmap(self, binariesMode):
@@ -344,7 +347,7 @@ class TestCase(unittest.TestCase):
         cactus_opts = ['--binariesMode', binariesMode, '--logInfo', '--realTimeLogging', '--workDir', self.tempDir, '--configFile', poa_config_path]
         
         # preprocess with dna-brnn
-        subprocess.check_call(['cactus-preprocess', self._job_store(binariesMode), seq_file_path, out_seq_file_path, '--maskAlpha'] + cactus_opts)
+        subprocess.check_call(['cactus-preprocess', self._job_store(binariesMode), seq_file_path, out_seq_file_path, '--maskMode', 'brnn'] + cactus_opts)
 
         # make the reference graph
         mg_cmd = ['minigraph', '-xggs', '-t', '4']
@@ -367,11 +370,11 @@ class TestCase(unittest.TestCase):
             cactus_opts += ['--latest']
         
         subprocess.check_call(['cactus-graphmap', self._job_store(binariesMode), out_seq_file_path, mg_path, paf_path,
-                               '--outputFasta', fa_path] + cactus_opts)
+                               '--outputFasta', fa_path, '--mapCores', '4'] + cactus_opts)
 
         # do the alignment
         subprocess.check_call(['cactus-align', self._job_store(binariesMode), out_seq_file_path, paf_path, self._out_hal(binariesMode),
-                               '--pafInput', '--pangenome', '--outVG', '--outGFA', '--pafMaskFilter', '10000', '--barMaskFilter', '10000'] + cactus_opts) 
+                               '--pangenome', '--outVG', '--outGFA', '--pafMaskFilter', '10000', '--barMaskFilter', '10000'] + cactus_opts) 
 
     def _run_yeast_pangenome(self, binariesMode):
         """ yeast pangenome chromosome by chromosome pipeline
@@ -382,13 +385,9 @@ class TestCase(unittest.TestCase):
         orig_seq_file_path = './examples/yeastPangenome.txt'
         seq_file_path = os.path.join(self.tempDir, 'pp', os.path.basename(orig_seq_file_path))        
         subprocess.check_call(['cactus-prepare',  orig_seq_file_path, '--outDir', os.path.join(self.tempDir, 'pp'), '--seqFileOnly'])
-        orig_config_path = 'src/cactus/cactus_progressive_config.xml'
-        config_path = os.path.join(self.tempDir, 'config.xml')
-        subprocess.check_call('cat {} | sed -e \'s/cutBefore=""/cutBefore="."/g\' | grep -v lastzRepeatMask > {}'.format(
-            orig_config_path, config_path), shell=True)
-        cactus_opts = ['--binariesMode', binariesMode, '--logInfo', '--realTimeLogging', '--workDir', self.tempDir, '--configFile', config_path, '--maxCores', '8']
+        cactus_opts = ['--binariesMode', binariesMode, '--logInfo', '--realTimeLogging', '--workDir', self.tempDir, '--maxCores', '4']
         subprocess.check_call(['cactus-preprocess', self._job_store(binariesMode),
-                               orig_seq_file_path, seq_file_path, '--maskAlpha', '--minLen', '20000'] + cactus_opts, shell=False)
+                               orig_seq_file_path, seq_file_path, '--pangenome'] + cactus_opts, shell=False)
 
         # fish out the event names
         events = []
@@ -420,10 +419,12 @@ class TestCase(unittest.TestCase):
         chromfile_path = os.path.join(gm_out_dir, 'chromfile.txt')
         ba_path = os.path.join(self.tempDir, 'batch')
         os.makedirs(ba_path, exist_ok=True)
+        config_path = os.path.join(self.tempDir, 'config.xml')
+        shutil.copyfile('src/cactus/cactus_progressive_config.xml', config_path)
         subprocess.check_call(['cactus-align-batch', self._job_store(binariesMode), chromfile_path, ba_path, '--alignCores', '1',
                                '--alignCoresOverrides', 'chr1,4',  'chrV,2', 'chrX,1',
                                '--configOverrides', 'chrX,{}'.format(config_path), 'chrII,{}'.format(config_path),
-                               '--alignOptions', '--pangenome --pafInput --outVG --barMaskFilter 20000 --realTimeLogging --reference S288C --binariesMode {}'.format(binariesMode)])
+                               '--alignOptions', '--pangenome --outVG --barMaskFilter 20000 --realTimeLogging --reference S288C --binariesMode {}'.format(binariesMode)])
 
         vg_files = [os.path.join(ba_path, c) + '.vg' for c in chroms]
         hal_files = [os.path.join(ba_path, c) + '.hal' for c in chroms]
@@ -716,13 +717,26 @@ class TestCase(unittest.TestCase):
         """
         # run cactus step by step via the plan made by cactus-prepare
         name = "decomposed"
-        self._run_evolver_decomposed(name)
+        self._run_evolver_decomposed("local", name)
 
         # check the output
         #self._check_stats(self._out_hal(name), delta_pct=0.25)
         #self._check_coverage(self._out_hal(name), delta_pct=0.20)
         self._check_maf_accuracy(self._out_hal(name), delta=0.04)
 
+    def testEvolverDecomposedDocker(self):
+        """ Check that the output of halStats on a hal file produced by running cactus with --binariesMode docker is
+        is reasonable
+        """
+        # run cactus step by step via the plan made by cactus-prepare
+        name = "decomposed"
+        self._run_evolver_decomposed("docker", name)
+
+        # check the output
+        #self._check_stats(self._out_hal(name), delta_pct=0.25)
+        #self._check_coverage(self._out_hal(name), delta_pct=0.20)
+        self._check_maf_accuracy(self._out_hal(name), delta=0.04)
+        
     def testEvolverDocker(self):
         """ Check that the output of halStats on a hal file produced by running cactus with --binariesMode docker is
         is reasonable.  Note: the local image being tested should be set up via CACTUS_DOCKER_ORG (with tag==latest)
@@ -749,7 +763,7 @@ class TestCase(unittest.TestCase):
         
     def testEvolverPrepareNoOutgroupDocker(self):
 
-        # run cactus step by step via the plan made by cactus-prepare, hacking to apply --nonCactusInput option to cactus-align
+        # run cactus step by step via the plan made by cactus-prepare
         self._run_evolver_decomposed_no_outgroup("docker")
 
         # check the output
@@ -758,7 +772,7 @@ class TestCase(unittest.TestCase):
 
     def testEvolverPrepareNoOutgroupLocal(self):
 
-        # run cactus step by step via the plan made by cactus-prepare, hacking to apply --nonCactusInput option to cactus-align
+        # run cactus step by step via the plan made by cactus-prepare
         self._run_evolver_decomposed_no_outgroup("local")
 
         # check the output

@@ -24,6 +24,7 @@ from cactus.shared.common import getOptionalAttrib, findRequiredNode
 from cactus.shared.common import unzip_gz, write_s3
 from cactus.shared.common import get_faidx_subpath_rename_cmd
 from cactus.preprocessor.fileMasking import get_mask_bed_from_fasta
+from cactus.preprocessor.checkUniqueHeaders import sanitize_fasta_headers
 from cactus.refmap.cactus_graphmap import filter_paf
 from toil.job import Job
 from toil.common import Toil
@@ -128,7 +129,8 @@ def cactus_graphmap_split(options):
             paf_id = toil.importFile(makeURL(options.graphmapPAF))
 
             #import the sequences (that we need to align for the given event, ie leaves and outgroups)
-            seqIDMap = {}
+            input_seq_id_map = {}
+            input_name_map = {}
             leaves = set([seqFile.tree.getName(node) for node in seqFile.tree.getLeaves()])
             
             if graph_event not in leaves:
@@ -144,17 +146,18 @@ def cactus_graphmap_split(options):
                         seq = tmpSeq
                     seq = makeURL(seq)
                     logger.info("Importing {}".format(seq))
-                    seqIDMap[genome] = (seq, toil.importFile(seq))
+                    input_seq_id_map[genome] = toil.importFile(seq)
+                    input_name_map[genome] = os.path.basename(seq)
 
             # run the workflow
-            wf_output = toil.start(Job.wrapJobFn(graphmap_split_workflow, options, config, seqIDMap,
+            wf_output = toil.start(Job.wrapJobFn(graphmap_split_workflow, options, config, input_seq_id_map, input_name_map,
                                                  gfa_id, options.minigraphGFA,
                                                  paf_id, options.graphmapPAF, ref_contigs, options.otherContig))
 
         #export the split data
         export_split_data(toil, wf_output[0], wf_output[1], wf_output[2], wf_output[3], options.outDir, config)
 
-def graphmap_split_workflow(job, options, config, seqIDMap, gfa_id, gfa_path, paf_id, paf_path, ref_contigs, other_contig):
+def graphmap_split_workflow(job, options, config, seq_id_map, seq_name_map, gfa_id, gfa_path, paf_id, paf_path, ref_contigs, other_contig):
 
     root_job = Job()
     job.addChild(root_job)
@@ -162,6 +165,10 @@ def graphmap_split_workflow(job, options, config, seqIDMap, gfa_id, gfa_path, pa
     # get the sizes before we overwrite below
     gfa_size = gfa_id.size
     paf_size = paf_id.size
+
+    # fix up the headers
+    sanitize_job = root_job.addChildJobFn(sanitize_fasta_headers, seq_id_map)
+    seq_id_map = sanitize_job.rv()
     
     # use file extension to sniff out compressed input
     if gfa_path.endswith(".gz"):
@@ -178,7 +185,7 @@ def graphmap_split_workflow(job, options, config, seqIDMap, gfa_id, gfa_path, pa
 
     mask_bed_id = None
     if options.maskFilter:
-        mask_bed_id = root_job.addChildJobFn(get_mask_bed, seqIDMap, options.maskFilter).rv()
+        mask_bed_id = sanitize_job.addFollowOnJobFn(get_mask_bed, seq_id_map, options.maskFilter).rv()
         
     # use rgfa-split to split the gfa and paf up by contig
     split_gfa_job = root_job.addFollowOnJobFn(split_gfa, config, gfa_id, [paf_id], ref_contigs,
@@ -186,23 +193,24 @@ def graphmap_split_workflow(job, options, config, seqIDMap, gfa_id, gfa_path, pa
                                               disk=(gfa_size + paf_size) * 5)
 
     # use the output of the above splitting to do the fasta splitting
-    split_fas_job = split_gfa_job.addFollowOnJobFn(split_fas, seqIDMap, split_gfa_job.rv(0))
+    split_fas_job = split_gfa_job.addFollowOnJobFn(split_fas, seq_id_map, seq_name_map, split_gfa_job.rv(0))
 
     # gather everythign up into a table
-    gather_fas_job = split_fas_job.addFollowOnJobFn(gather_fas, seqIDMap, split_gfa_job.rv(0), split_fas_job.rv(0), split_fas_job.rv(1))
+    gather_fas_job = split_fas_job.addFollowOnJobFn(gather_fas, split_gfa_job.rv(0), split_fas_job.rv(0), split_fas_job.rv(1))
 
     # lump "other" contigs together into one file (to make fewer align jobs downstream)
     bin_other_job = gather_fas_job.addFollowOnJobFn(bin_other_contigs, config, ref_contigs, other_contig, gather_fas_job.rv(0),
                                                     disk=(gfa_size + paf_size) * 2)
 
     # return all the files, as well as the 2 split logs
-    return (seqIDMap, bin_other_job.rv(), split_gfa_job.rv(1), gather_fas_job.rv(1))
+    return (seq_name_map, bin_other_job.rv(), split_gfa_job.rv(1), gather_fas_job.rv(1))
 
 def get_mask_bed(job, seq_id_map, min_length):
     """ make a bed file from the fastas """
     beds = []
     for event in seq_id_map.keys():
-        fa_path, fa_id = seq_id_map[event]
+        fa_id = seq_id_map[event]
+        fa_path = '{}.fa'.format(event) 
         beds.append(job.addChildJobFn(get_mask_bed_from_fasta, event, fa_id, fa_path, min_length, disk=fa_id.size * 5).rv())
     return job.addFollowOnJobFn(cat_beds, beds).rv()
 
@@ -325,7 +333,7 @@ def split_gfa(job, config, gfa_id, paf_ids, ref_contigs, other_contig, reference
             
     return output_id_map, job.fileStore.writeGlobalFile(log_path)
 
-def split_fas(job, seq_id_map, split_id_map):
+def split_fas(job, seq_id_map, seq_name_map, split_id_map):
     """ Use samtools to split a bunch of fasta files into reference contigs, using the output of rgfa-split as a guide"""
 
     if (seq_id_map, split_id_map) == (None, None):
@@ -341,30 +349,26 @@ def split_fas(job, seq_id_map, split_id_map):
     fa_contig_sizes = {}
     
     # we do each fasta in parallel
-    for event in seq_id_map.keys():
-        fa_path, fa_id = seq_id_map[event]
+    for event, fa_id in seq_id_map.items():
+        fa_path = seq_name_map[event]
         if fa_id.size:
             split_job = root_job.addChildJobFn(split_fa_into_contigs, event, fa_id, fa_path, split_id_map,
-                                               strip_prefix=True, # todo: set to false if relying on preprocessor (ie when paf-chains merged)
+                                               strip_prefix=False, 
                                                disk=fa_id.size * 3)
             fa_contigs[event] = split_job.rv(0)
             fa_contig_sizes[event] = split_job.rv(1)
 
     return fa_contigs, fa_contig_sizes
 
-def split_fa_into_contigs(job, event, fa_id, fa_path, split_id_map, strip_prefix=False):
+def split_fa_into_contigs(job, event, fa_id, fa_name, split_id_map, strip_prefix=False):
     """ Use samtools turn on fasta into one for each contig. this relies on the informatino in .fa_contigs
     files made by rgfa-split """
 
     # download the fasta
     work_dir = job.fileStore.getLocalTempDir()
-    fa_path = os.path.join(work_dir, os.path.basename(fa_path))
-    is_gz = fa_path.endswith(".gz")
-    job.fileStore.readGlobalFile(fa_id, fa_path, mutable=is_gz)
-    if is_gz:
-        # samtools can only work on bgzipped files.  so we uncompress here to be able to support gzipped too
-        cactus_call(parameters=['bgzip', '-fd', fa_path, '--threads', str(job.cores)])
-        fa_path = fa_path[:-3]
+    fa_path = os.path.join(work_dir, '{}.fa'.format(event))
+    is_gz = fa_name.endswith(".gz")
+    job.fileStore.readGlobalFile(fa_id, fa_path)
 
     unique_id = 'id={}|'.format(event)
                         
@@ -412,7 +416,7 @@ def split_fa_into_contigs(job, event, fa_id, fa_path, split_id_map, strip_prefix
         
     return contig_fa_dict, contig_size_dict
 
-def gather_fas(job, seq_id_map, output_id_map, contig_fa_map, contig_size_map):
+def gather_fas(job, output_id_map, contig_fa_map, contig_size_map):
     """ take the split_fas output which has everything sorted by event, and move into the ref-contig-based table
     from split_gfa.  return the updated table, which can then be exported into the chromosome projects """
 
@@ -516,7 +520,7 @@ def bin_other_contigs(job, config, ref_contigs, other_contig, output_id_map):
 
     return output_id_map
 
-def export_split_data(toil, input_seq_id_map, output_id_map, split_log_id, contig_size_table_id, output_dir, config):
+def export_split_data(toil, input_name_map, output_id_map, split_log_id, contig_size_table_id, output_dir, config):
     """ download all the split data locally """
 
     amb_name = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "ambiguousName", default="_AMBIGUOUS_")
@@ -556,7 +560,7 @@ def export_split_data(toil, input_seq_id_map, output_id_map, split_log_id, conti
             if not os.path.isdir(fa_base) and not fa_base.startswith('s3://'):
                 os.makedirs(fa_base)
             fa_path = makeURL(os.path.join(fa_base, '{}_{}.fa'.format(event, ref_contig)))
-            if input_seq_id_map[event][0].endswith('.gz'):
+            if input_name_map[event].endswith('.gz'):
                 fa_path += '.gz'
             seq_file_map[event] = fa_path
             toil.exportFile(ref_contig_fa_id, fa_path)

@@ -127,65 +127,6 @@ def findRequiredNode(configNode, nodeName):
 #############################################
 #############################################
 
-def runCactusConsolidated(seqMap, newickTreeString, cactusParams,
-                          alignmentsFile, outputFile, outputHalFastaFile=None,
-                          outputReferenceFile=None, secondaryAlignmentsFile=None, constraintAlignmentsFile=None,
-                          logLevel=None, outgroupEvents=None, referenceEvent=None, cores=None):
-    logLevel = logLevel if logLevel != None else getLogLevelString2(logLevel)
-    """
-    ## Hacks to allow running locally
-    fileNo=0
-    import shutil
-    for genome, faPath in list(seqMap.items()):
-        newPath = "/Users/benedictpaten/CLionProjects/cactus/tempExperiment/{}".format(fileNo)
-        fileNo += 1
-        shutil.copy(faPath, newPath) # Copy to permanent local file
-        seqMap[genome] = newPath
-
-    newPath = "/Users/benedictpaten/CLionProjects/cactus/tempExperiment/alignments.fa"
-    shutil.copy(alignmentsFile, newPath) # Copy to permanent local file
-    alignmentsFile=newPath
-
-    if secondaryAlignmentsFile != None:
-        newPath = "/Users/benedictpaten/CLionProjects/cactus/tempExperiment/secondaryAlignments.fa"
-        shutil.copy(secondaryAlignmentsFile, newPath) # Copy to permanent local file
-        secondaryAlignmentsFile=newPath
-
-    outputFile="/Users/benedictpaten/CLionProjects/cactus/tempExperiment/output.file"
-    outputHalFastaFile="/Users/benedictpaten/CLionProjects/cactus/tempExperiment/output.hal"
-    outputReferenceFile="/Users/benedictpaten/CLionProjects/cactus/tempExperiment/output.ref"
-    ## End hacks to allow running locally
-    """
-
-    # We pass in the genome->sequence map as a series of paired arguments: [genome, faPath]*N.
-    pairs = [[genome, faPath] for genome, faPath in list(seqMap.items())]
-    args = ["--sequences", " ".join([item for sublist in pairs for item in sublist])]
-    args += ["--speciesTree", newickTreeString, "--logLevel", logLevel, "--alignments", alignmentsFile,
-             "--params", cactusParams, "--outputFile", outputFile]
-
-
-    if outputHalFastaFile:
-        args += ["--outputHalFastaFile", outputHalFastaFile]
-    if outputReferenceFile:
-        args += ["--outputReferenceFile", outputReferenceFile]
-    if outgroupEvents:
-        args += ["--outgroupEvents", " ".join(outgroupEvents)]
-    if referenceEvent:
-        args += ["--referenceEvent", referenceEvent]
-    if secondaryAlignmentsFile:
-        args += ["--secondaryAlignments", secondaryAlignmentsFile]
-    if constraintAlignmentsFile:
-        args += ["--constraintAlignments", constraintAlignmentsFile]
-    if cores:
-        args += ["--threads", str(cores)]
-
-    #print("Command to run\n", " ".join(["cactus_consolidated"] + args))
-
-    masterMessages = cactus_call(check_output=True, returnStdErr=True, realtimeStderrPrefix='cactus_consolidated({})'.format(referenceEvent),
-                                 parameters=["cactus_consolidated"] + args)[1] # Get just the standard error output
-
-    logger.info("Ran cactus consolidated okay")
-    return [ i for i in masterMessages.split("\n") if i != '' ] if masterMessages else []
 
 def _fn(toilDir,
       logLevel=None, retryCount=0,
@@ -288,51 +229,18 @@ def runCactusProgressive(seqFile,
     from cactus.progressive.cactus_progressive import runCactusProgressive as runRealCactusProgressive
     runRealCactusProgressive(opts)
 
-def runCactusAnalyseAssembly(sequenceFile):
-    return cactus_call(check_output=True,
-                parameters=["cactus_analyseAssembly",
-                            sequenceFile])[:-1]
-
 def runToilStats(toil, outputFile):
     system("toil stats %s --outputFile %s" % (toil, outputFile))
     logger.info("Ran the job-tree stats command apparently okay")
 
-def runLastz(seq1, seq2, alignmentsFile, lastzArguments, work_dir=None, gpuLastz=False):
-    if work_dir is None:
-        assert os.path.dirname(seq1) == os.path.dirname(seq2)
-        work_dir = os.path.dirname(seq1)
-    if gpuLastz == True:
-        lastzCommand = "run_segalign"
-    else:
-        lastzCommand = "lastz"
-        seq1 += "[multiple][nameparse=darkspace]"
-        seq2 += "[nameparse=darkspace]"
-    cactus_call(work_dir=work_dir, outfile=alignmentsFile,
-                parameters=[lastzCommand, seq1, seq2, "--format=cigar", "--notrivial"] + lastzArguments.split())
-
-def runSelfLastz(seq, alignmentsFile, lastzArguments, work_dir=None, gpuLastz=False):
-    return runLastz(seq, seq, alignmentsFile, lastzArguments, work_dir, gpuLastz)
-
-def runCactusRealign(seq1, seq2, inputAlignmentsFile, outputAlignmentsFile, realignArguments, work_dir=None):
-    cactus_call(infile=inputAlignmentsFile, outfile=outputAlignmentsFile, work_dir=work_dir,
-                parameters=["cPecanRealign"] + realignArguments.split() + [seq1, seq2])
-
-def runCactusSelfRealign(seq, inputAlignmentsFile, outputAlignmentsFile, realignArguments, work_dir=None):
-    cactus_call(infile=inputAlignmentsFile, outfile=outputAlignmentsFile, work_dir=work_dir,
-                parameters=["cPecanRealign"] + realignArguments.split() + [seq])
-
-def runCactusCoverage(sequenceFile, alignmentsFile, work_dir=None):
-    return cactus_call(check_output=True, work_dir=work_dir,
-                parameters=["cactus_coverage", sequenceFile, alignmentsFile])
-
 def runGetChunks(sequenceFiles, chunksDir, chunkSize, overlapSize, work_dir=None):
     chunks = cactus_call(work_dir=work_dir,
                          check_output=True,
-                         parameters=["cactus_blast_chunkSequences",
-                                     getLogLevelString(),
-                                     str(chunkSize),
-                                     str(overlapSize),
-                                     chunksDir] + sequenceFiles)
+                         parameters=["fasta_chunk",
+                                     "--logLevel", getLogLevelString(),
+                                     "--chunkSize", str(chunkSize),
+                                     "--overlap", str(overlapSize),
+                                     "--dir", chunksDir] + sequenceFiles)
     return [chunk for chunk in chunks.split("\n") if chunk != ""]
 
 def pullCactusImage():
@@ -862,13 +770,31 @@ def cactus_call(tool=None,
     if process.returncode != 0:
         out = "stdout={}".format(output)
         out += ", stderr={}".format(stderr)
+
+        sigill_msg = ''
+        if abs(process.returncode) == 4:
+            # this (rightfully) trips up many users, try to make logging a little more clear
+            # https://github.com/ComparativeGenomicsToolkit/cactus/issues/574
+            sigill_msg  = '\n\n\n'
+            sigill_msg += '***********************************************************************************\n'
+            sigill_msg += '***********************************************************************************\n'
+            sigill_msg += 'ERROR: Your CPU is incompatible with the Cactus binaries.\n'
+            sigill_msg += '       This is often due to it being too old to support AVX2 instructions.\n'
+            sigill_msg += '       Please see the release notes for more details:\n'
+            sigill_msg += '       https://github.com/ComparativeGenomicsToolkit/cactus/releases\n'
+            sigill_msg += '***********************************************************************************\n'
+            sigill_msg += '***********************************************************************************\n\n\n'
+        
         if process.returncode > 0:
-            raise RuntimeError("Command {} exited {}: {}".format(call, process.returncode, out))
+            raise RuntimeError("{}Command {} exited {}: {}".format(sigill_msg, call, process.returncode, out))
         else:
-            raise RuntimeError("Command {} signaled {}: {}".format(call, signal.Signals(-process.returncode).name, out))
+            raise RuntimeError("{}Command {} signaled {}: {}".format(sigill_msg, call, signal.Signals(-process.returncode).name, out))
 
     if check_output:
         return (output, stderr) if returnStdErr else output
+
+    if returnStdErr:
+        return stderr
 
 class RunAsFollowOn(Job):
     def __init__(self, job, *args, **kwargs):

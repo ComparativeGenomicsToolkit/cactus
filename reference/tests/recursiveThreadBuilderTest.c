@@ -33,9 +33,7 @@ static void recursiveFileBuilder_test(CuTest *testCase) {
         stFile_rmtree(tempDir);
     }
     stFile_mkdir(tempDir);
-    stKVDatabaseConf *conf = stKVDatabaseConf_constructTokyoCabinet(
-                stFile_pathJoin(tempDir, "temporaryCactusDisk"));
-    CactusDisk *cactusDisk = cactusDisk_construct(conf, true, true);
+    CactusDisk *cactusDisk = cactusDisk_construct();
     eventTree_construct2(cactusDisk);
     Flower *flower = flower_construct(cactusDisk);
     End *end1 = end_construct2(0, 1, flower);
@@ -77,25 +75,20 @@ static void recursiveFileBuilder_test(CuTest *testCase) {
     flower_destructEndIterator(endIt);
 
     //Create the sequence database
-    stKVDatabaseConf *secondaryConf = stKVDatabaseConf_constructTokyoCabinet(
-                    stFile_pathJoin(tempDir, "temporaryCactusDisk2"));
-    stKVDatabase *secondaryDatabase = stKVDatabase_construct(secondaryConf, 1);
+    RecordHolder *rh = recordHolder_construct();
     stList *caps = stList_construct();
     stList_append(caps, flower_getCap(nestedFlower, cap_getName(cap1)));
-    buildRecursiveThreads(secondaryDatabase, caps, writeSegment, writeTerminalAdjacency, NULL);
-    stKVDatabase_destruct(secondaryDatabase);
+    buildRecursiveThreadsNoDb(rh, caps, writeSegment, writeTerminalAdjacency, NULL);
 
     //Now complete the alignment
-    secondaryDatabase = stKVDatabase_construct(secondaryConf, 0);
     stList_pop(caps);
     stList_append(caps, cap1);
-    stList *threadStrings = buildRecursiveThreadsInList(secondaryDatabase, caps, writeSegment, writeTerminalAdjacency, NULL);
-    stKVDatabase_deleteFromDisk(secondaryDatabase);
+    stList *threadStrings = buildRecursiveThreadsInListNoDb(rh, caps, writeSegment, writeTerminalAdjacency, NULL);
 
     CuAssertIntEquals(testCase, 1, stList_length(threadStrings));
     CuAssertStrEquals(testCase, "1 ACG 3 TA ", stList_get(threadStrings, 0));
 
-    cactusDisk_destruct(cactusDisk);
+    recordHolder_destruct(rh);
     stFile_rmtree(tempDir);
 }
 

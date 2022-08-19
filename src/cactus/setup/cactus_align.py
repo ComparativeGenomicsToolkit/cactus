@@ -14,29 +14,21 @@ import time
 import multiprocessing
 from operator import itemgetter
 
-from cactus.progressive.seqFile import SeqFile
-from cactus.progressive.multiCactusTree import MultiCactusTree
 from cactus.shared.common import setupBinaries, importSingularityImage
-from cactus.progressive.cactus_progressive import exportHal
-from cactus.progressive.multiCactusProject import MultiCactusProject
-from cactus.shared.experimentWrapper import ExperimentWrapper
-from cactus.progressive.projectWrapper import ProjectWrapper
-from cactus.shared.common import cactusRootPath
-from cactus.shared.configWrapper import ConfigWrapper
-from cactus.pipeline.cactus_workflow import CactusWorkflowArguments
-from cactus.pipeline.cactus_workflow import addCactusWorkflowOptions
-from cactus.pipeline.cactus_workflow import prependUniqueIDs
-from cactus.pipeline.cactus_workflow import CactusConsolidated
-from cactus.blast.blast import calculateCoverage
+from cactus.pipeline.cactus_workflow import cactus_cons_with_resources
+from cactus.progressive.progressive_decomposition import compute_outgroups, parse_seqfile, get_subtree, get_spanning_subtree, get_event_set
+from cactus.progressive.cactus_progressive import export_hal
 from cactus.shared.common import makeURL, catFiles
 from cactus.shared.common import enableDumpStack
 from cactus.shared.common import cactus_override_toil_options
 from cactus.shared.common import findRequiredNode
 from cactus.shared.common import getOptionalAttrib
 from cactus.shared.common import cactus_call
-from cactus.refmap.paf_to_lastz import paf_to_lastz
-from cactus.shared.common import write_s3, has_s3, get_aws_region
+from cactus.shared.common import write_s3, has_s3, get_aws_region, unzip_gzs
+from cactus.shared.common import cactusRootPath
+from cactus.shared.configWrapper import ConfigWrapper
 from cactus.refmap.cactus_graphmap import filter_paf
+from cactus.preprocessor.checkUniqueHeaders import sanitize_fasta_headers
 
 from toil.job import Job
 from toil.common import Toil
@@ -50,10 +42,9 @@ from sonLib.bioio import getTempDirectory, getTempFile
 def main():
     parser = ArgumentParser()
     Job.Runner.addToilOptions(parser)
-    addCactusWorkflowOptions(parser)
 
     parser.add_argument("seqFile", help = "Seq file")
-    parser.add_argument("cigarsFile", nargs="*", help = "Pairiwse aliginments (from cactus-blast, cactus-refmap or cactus-graphmap)")
+    parser.add_argument("pafFile", type=str, help = "Pairiwse aliginments (from cactus-blast, cactus-refmap or cactus-graphmap)")
     parser.add_argument("outHal", type=str, help = "Output HAL file (or directory in --batch mode)")
     parser.add_argument("--pathOverrides", nargs="*", help="paths (multiple allowd) to override from seqFile")
     parser.add_argument("--pathOverrideNames", nargs="*", help="names (must be same number as --paths) of path overrides")
@@ -62,10 +53,6 @@ def main():
     parser.add_argument("--pangenome", action="store_true",
                         help="Activate pangenome mode (suitable for star trees of closely related samples) by overriding several configuration settings."
                         " The overridden configuration will be saved in <outHal>.pg-conf.xml")
-    parser.add_argument("--pafInput", action="store_true",
-                        help="'cigarsFile' arugment is in PAF format, rather than lastz cigars.")
-    parser.add_argument("--usePafSecondaries", action="store_true",
-                        help="use the secondary alignments from the PAF input.  They are ignored by default.")
     parser.add_argument("--singleCopySpecies", type=str,
                         help="Filter out all self-alignments in given species")
     parser.add_argument("--barMaskFilter", type=int, default=None,
@@ -99,8 +86,8 @@ def main():
                         "rather than pulling one from quay.io")
     parser.add_argument("--binariesMode", choices=["docker", "local", "singularity"],
                         help="The way to run the Cactus binaries", default=None)
-    parser.add_argument("--nonCactusInput", action="store_true",
-                        help="Input lastz cigars do not come from cactus-blast or cactus-refmap: Prepend ids in cigars")
+    parser.add_argument("--gpu", action="store_true",
+                        help="Enable GPU acceleration by using Segaling instead of lastz")
     parser.add_argument("--consCores", type=int, 
                         help="Number of cores for each cactus_consolidated job (defaults to all available / maxCores on single_machine)", default=None)
 
@@ -153,22 +140,12 @@ def main():
         # the output hal is a directory, make sure it's there
         if not os.path.isdir(options.outHal):
             os.makedirs(options.outHal)
-        assert len(options.cigarsFile) == 0
+        assert len(options.pafFile) == 0
     else:
-        assert len(options.cigarsFile) > 0
+        assert len(options.pafFile) > 0
 
     # Mess with some toil options to create useful defaults.
     cactus_override_toil_options(options)
-
-    # We set which type of unique ids to expect.  Numeric (from cactus-blast) or Eventname (cactus-refmap or cactus-grpahmap)
-    # This is a bit ugly, since we don't have a good way to differentiate refmap from blast, and use --pangenome as a proxy
-    # But I don't think there's a real use case yet of making a separate parameter
-    options.eventNameAsID = os.environ.get('CACTUS_EVENT_NAME_AS_UNIQUE_ID')
-    if options.eventNameAsID is not None:
-        options.eventNameAsID = False if not bool(eventName) or eventName == '0' else True
-    else:
-        options.eventNameAsID = options.pangenome or options.pafInput
-    os.environ['CACTUS_EVENT_NAME_AS_UNIQUE_ID'] = str(int(options.eventNameAsID))
 
     start_time = timeit.default_timer()
     with Toil(options) as toil:
@@ -177,7 +154,7 @@ def main():
             results_dict = toil.restart()
         else:
             align_jobs = make_batch_align_jobs(options, toil)
-            results_dict = toil.start(Job.wrapJobFn(run_batch_align_jobs, align_jobs))
+            results_dict = toil.start(Job.wrapJobFn(batch_align_jobs, align_jobs))
 
         # when using s3 output urls, things get checkpointed as they're made so no reason to export
         # todo: make a more unified interface throughout cactus for this
@@ -205,7 +182,7 @@ def main():
     run_time = end_time - start_time
     logger.info("cactus-align has finished after {} seconds".format(run_time))
     
-def run_batch_align_jobs(job, jobs_dict):
+def batch_align_jobs(job, jobs_dict):
     """ todo: clean this up """
     rv_dict = {}
     for chrom, chrom_job in jobs_dict.items():
@@ -227,7 +204,7 @@ def make_batch_align_jobs(options, toil):
                     chrom_options = copy.deepcopy(options)
                     chrom_options.batch = False
                     chrom_options.seqFile = seqfile
-                    chrom_options.cigarsFile = [alnFile]
+                    chrom_options.pafFile = [alnFile]
                     if chrom_options.checkpointInfo:
                         chrom_options.checkpointInfo = (chrom_options.checkpointInfo[0],
                                                         os.path.join(chrom_options.checkpointInfo[1], chrom + '.hal'))
@@ -240,161 +217,56 @@ def make_batch_align_jobs(options, toil):
     
     
 def make_align_job(options, toil):
-    options.cactusDir = getTempDirectory()
 
+    # load up the seqfile and figure out the outgroups
+    config_node = ET.parse(options.configFile).getroot()
+    config_wrapper = ConfigWrapper(config_node)
+    config_wrapper.substituteAllPredefinedConstantsWithLiterals()
+    config_wrapper.initGPU(options)
+    mc_tree, input_seq_map, og_candidates = parse_seqfile(options.seqFile, config_wrapper,
+                                                          default_branch_length = 0.025 if options.pangenome else None)
+    og_map = compute_outgroups(mc_tree, config_wrapper, set(og_candidates))
+    event_set = get_event_set(mc_tree, config_wrapper, og_map, options.root if options.root else mc_tree.getRootName())
+    if options.includeRoot:
+        if options.root not in input_seq_map:
+            raise RuntimeError("--includeRoot specified but root, {},  not found in input Seqfile".format(options.root))
+        event_set.add(options.root)
+        
     # apply path overrides.  this was necessary for wdl which doesn't take kindly to
     # text files of local paths (ie seqfile).  one way to fix would be to add support
     # for s3 paths and force wdl to use it.  a better way would be a more fundamental
     # interface shift away from files of paths throughout all of cactus
     if options.pathOverrides:
-        seqFile = SeqFile(options.seqFile)
-        configNode = ET.parse(options.configFile).getroot()
-        config = ConfigWrapper(configNode)
-        tree = MultiCactusTree(seqFile.tree)
-        tree.nameUnlabeledInternalNodes(prefix = config.getDefaultInternalNodePrefix())                
         for name, override in zip(options.pathOverrideNames, options.pathOverrides):
-            seqFile.pathMap[name] = override
-        override_seq = os.path.join(options.cactusDir, 'seqFile.override')
-        with open(override_seq, 'w') as out_sf:
-            out_sf.write(str(seqFile))
-        options.seqFile = override_seq
+            input_seq_map[name] = override
 
+    # infer default root
     if not options.root:
-        seqFile = SeqFile(options.seqFile)
-        configNode = ET.parse(options.configFile).getroot()
-        config = ConfigWrapper(configNode)
-        mcTree = MultiCactusTree(seqFile.tree)
-        mcTree.nameUnlabeledInternalNodes(prefix=config.getDefaultInternalNodePrefix())
-        options.root = mcTree.getRootName()
+        options.root = mc_tree.getRootName()
 
+    # check --reference input
     if options.reference:
-        seqFile = SeqFile(options.seqFile)
-        tree = MultiCactusTree(seqFile.tree)
-        leaves = [tree.getName(leaf) for leaf in tree.getLeaves()]
+        leaves = [mc_tree.getName(leaf) for leaf in mc_tree.getLeaves()]
         if options.reference not in leaves:
             raise RuntimeError("Genome specified with --reference, {}, not found in tree leaves".format(options.reference))
 
-    if options.pafMaskFilter and not options.pafInput:
-        raise RuntimeError("--pafMaskFilter can only be run with --pafInput")
-
+    # toggle stable
     paf_to_stable = False
-    configNode = ET.parse(options.configFile).getroot()
-    if options.pafInput and getOptionalAttrib(findRequiredNode(configNode, "graphmap"), "removeMinigraphFromPAF", typeFn=bool, default=False):
-        # remove minigraph event from input seqfile
-        seqFile = SeqFile(options.seqFile)
-        configNode = ET.parse(options.configFile).getroot()
-        graph_event = getOptionalAttrib(findRequiredNode(configNode, "graphmap"), "assemblyName", default="_MINIGRAPH_")
-        if graph_event in seqFile.pathMap:
-            del seqFile.pathMap[graph_event]
-            tree = MultiCactusTree(seqFile.tree)
-            seqFile.tree.removeLeaf(tree.getNodeId(graph_event))
-            override_seq = os.path.join(options.cactusDir, 'seqFile.override')
-            with open(override_seq, 'w') as out_sf:
-                out_sf.write(str(seqFile))
-            options.seqFile = override_seq
-            # toggling this on will put the input paf through paf2stable which will replace all minigraph targets
-            # with query sequences using transitive mapping
+    config_node = ET.parse(options.configFile).getroot()
+    if getOptionalAttrib(findRequiredNode(config_node, "graphmap"), "removeMinigraphFromPAF", typeFn=bool, default=False):
+        # remove minigraph event from input
+        graph_event = getOptionalAttrib(findRequiredNode(config_node, "graphmap"), "assemblyName", default="_MINIGRAPH_")
+        if graph_event in event_set:
+            event_set.remove(graph_event)
+            mc_tree.removeLeaf(tree.getNodeId(graph_event))
             paf_to_stable = True
-            
-    #to be consistent with all-in-one cactus, we make sure the project
-    #isn't limiting itself to the subtree (todo: parameterize so root can
-    #be passed through from prepare to blast/align)
-    proj_options = copy.deepcopy(options)
-    proj_options.root = None
-    #Create the progressive cactus project (as we do in runCactusProgressive)
-    projWrapper = ProjectWrapper(proj_options, proj_options.configFile, ignoreSeqPaths=options.root if not options.includeRoot else [])
-    projWrapper.writeXml()
 
-    pjPath = os.path.join(options.cactusDir, ProjectWrapper.alignmentDirName,
-                          '%s_project.xml' % ProjectWrapper.alignmentDirName)
-    assert os.path.exists(pjPath)
-
-    project = MultiCactusProject()
-
-    if not os.path.isdir(options.cactusDir):
-        os.makedirs(options.cactusDir)
-
-    project.readXML(pjPath)
-
-    # open up the experiment (as we do in ProgressiveUp.run)
-    # note that we copy the path into the options here
-    experimentFile = project.expMap[options.root]
-    expXml = ET.parse(experimentFile).getroot()
-    experiment = ExperimentWrapper(expXml)
-    configPath = experiment.getConfigPath()
-    configXml = ET.parse(configPath).getroot()
-
-    seqIDMap = dict()
-    tree = MultiCactusTree(experiment.getTree()).extractSubTree(options.root)
-    leaves = [tree.getName(leaf) for leaf in tree.getLeaves()]
-    outgroups = experiment.getOutgroupGenomes()
-    genome_set = set(leaves + outgroups)
-
-    if options.includeRoot and options.root not in project.inputSequenceMap:
-        raise RuntimeError("--includeRoot specified but root, {},  not found in input Seqfile".format(options.root))
-    
-    # this is a hack to allow specifying all the input on the command line, rather than using suffix lookups
-    def get_input_path(suffix=''):
-        base_path = options.cigarsFile[0]
-        for input_path in options.cigarsFile:
-            if suffix and input_path.endswith(suffix):
-                return input_path
-            if os.path.basename(base_path).startswith(os.path.basename(input_path)):
-                base_path = input_path
-        return base_path + suffix
-
-    # import the outgroups
-    outgroupIDs = []
-    outgroup_fragment_found = False
-    for i, outgroup in enumerate(outgroups):
-        try:
-            outgroupID = toil.importFile(makeURL(get_input_path('.og_fragment_{}'.format(i))))
-            outgroupIDs.append(outgroupID)
-            experiment.setSequenceID(outgroup, outgroupID)
-            outgroup_fragment_found = True
-            assert not options.pangenome
-        except:
-            # we assume that input is not coming from cactus blast, so we'll treat output
-            # sequences normally and not go looking for fragments
-            outgroupIDs = []
-            break
-
-    #import the sequences (that we need to align for the given event, ie leaves and outgroups)
-    for genome, seq in list(project.inputSequenceMap.items()):
-        if genome in leaves or (not outgroup_fragment_found and genome in outgroups) or (options.includeRoot and genome == options.root):
-            if os.path.isdir(seq):
-                tmpSeq = getTempFile()
-                catFiles([os.path.join(seq, subSeq) for subSeq in os.listdir(seq)], tmpSeq)
-                seq = tmpSeq
-            seq = makeURL(seq)
-
-            logger.info("Importing {}".format(seq))
-            experiment.setSequenceID(genome, toil.importFile(seq))
-
-    if not outgroup_fragment_found:
-        outgroupIDs = [experiment.getSequenceID(outgroup) for outgroup in outgroups]
-
-    # write back the experiment, as CactusWorkflowArguments wants a path
-    experiment.writeXML(experimentFile)
-
-    #import cactus config
-    if options.configFile:
-        cactusConfigID = toil.importFile(makeURL(options.configFile))
-    else:
-        cactusConfigID = toil.importFile(makeURL(project.getConfigPath()))
-    project.setConfigID(cactusConfigID)
-
-    project.syncToFileStore(toil)
-    configNode = ET.parse(project.getConfigPath()).getroot()
-    configWrapper = ConfigWrapper(configNode)
-    configWrapper.substituteAllPredefinedConstantsWithLiterals()
-    cafNode = findRequiredNode(configWrapper.xmlRoot, "caf")
-    barNode = findRequiredNode(configWrapper.xmlRoot, "bar")
+    # apply command line overrides to config
+    cafNode = findRequiredNode(config_node, "caf")
+    barNode = findRequiredNode(config_node, "bar")
     poaNode = findRequiredNode(barNode, "poa")
-
     if options.singleCopySpecies:
         cafNode.attrib["alignmentFilter"] = "singleCopyEvent:{}".format(options.singleCopySpecies)
-
     if options.barMaskFilter:
         poaNode.attrib["partialOrderAlignmentMaskFilter"] = str(options.barMaskFilter)
 
@@ -414,301 +286,85 @@ def make_align_job(options, toil):
         barNode.attrib["minimumBlockDegree"] = "1"
         # turn off POA seeding
         poaNode.attrib["partialOrderAlignmentDisableSeeding"] = "1"
-        # save it
-        if not options.batch:
-            pg_file = options.outHal + ".pg-conf.xml"
-            if pg_file.startswith('s3://'):
-                pg_temp_file = getTempFile()
-            else:
-                pg_temp_file = pg_file            
-            configWrapper.writeXML(pg_temp_file)
-            if pg_file.startswith('s3://'):
-                write_s3(pg_temp_file, pg_file, region=get_aws_region(options.jobStore))
-            logger.info("pangenome configuration overrides saved in {}".format(pg_file))
 
-    workFlowArgs = CactusWorkflowArguments(options, experimentFile=experimentFile, configNode=configNode, seqIDMap = project.inputSequenceIDMap, consCores = options.consCores)
+    # import the PAF alignments
+    paf_id = toil.importFile(makeURL(options.pafFile))
+    
+    #import the sequences
+    input_seq_id_map = {}
+    for (genome, seq) in input_seq_map.items():
+        if genome in event_set:
+            if os.path.isdir(seq):
+                tmpSeq = getTempFile()
+                catFiles([os.path.join(seq, subSeq) for subSeq in os.listdir(seq)], tmpSeq)
+                seq = tmpSeq
+            seq = makeURL(seq)
+            logger.info("Importing {}".format(seq))
+            input_seq_id_map[genome] = toil.importFile(seq)
 
-    #import the files that cactus-blast made
-    workFlowArgs.alignmentsID = toil.importFile(makeURL(get_input_path()))
-    workFlowArgs.secondaryAlignmentsID = None
-    if not options.pafInput:
-        try:
-            workFlowArgs.secondaryAlignmentsID = toil.importFile(makeURL(get_input_path('.secondary')))
-        except:
-            pass
-    workFlowArgs.outgroupFragmentIDs = outgroupIDs
-    workFlowArgs.ingroupCoverageIDs = []
-    if outgroup_fragment_found and len(outgroups) > 0:
-        for i in range(len(leaves)):
-            workFlowArgs.ingroupCoverageIDs.append(toil.importFile(makeURL(get_input_path('.ig_coverage_{}'.format(i)))))
-
-    align_job = Job.wrapJobFn(run_cactus_align,
-                              configWrapper,
-                              workFlowArgs,
-                              project,
+    # make the align job that will (optional unzip) -> consolidated -> hal export -> (optional vg/gfa)
+    align_job = Job.wrapJobFn(cactus_align,
+                              config_wrapper,
+                              mc_tree,
+                              input_seq_map,
+                              input_seq_id_map,
+                              paf_id,
+                              options.root,
+                              og_map,
                               checkpointInfo=options.checkpointInfo,
-                              doRenaming=options.nonCactusInput,
-                              pafInput=options.pafInput,
-                              pafSecondaries=options.usePafSecondaries,
                               doVG=options.outVG,
                               doGFA=options.outGFA,
-                              eventNameAsID=options.eventNameAsID,
                               referenceEvent=options.reference,
                               pafMaskFilter=options.pafMaskFilter,
                               paf2Stable=paf_to_stable,
+                              cons_cores=options.consCores,
                               do_filter_paf=options.pangenome)
     return align_job
 
-def run_cactus_align(job, configWrapper, cactusWorkflowArguments, project, checkpointInfo, doRenaming, pafInput, pafSecondaries, doVG, doGFA, delay=0,
-                     eventNameAsID=False, referenceEvent=None, pafMaskFilter=None, paf2Stable=False, do_filter_paf=False):
+def cactus_align(job, config_wrapper, mc_tree, input_seq_map, input_seq_id_map, paf_id, root_name, og_map, checkpointInfo, doVG, doGFA, delay=0,
+                 referenceEvent=None, pafMaskFilter=None, paf2Stable=False, cons_cores = None, do_filter_paf=False):
     
     head_job = Job()
     job.addChild(head_job)
 
-    # unzip the input sequences if necessary, and also extract paf masking beds
-    preprocess_job = head_job.addChildJobFn(preprocess_input_sequences, configWrapper, project, cactusWorkflowArguments, pafMaskFilter, referenceEvent)
-    no_ingroup_coverage = not cactusWorkflowArguments.ingroupCoverageIDs
-    cactusWorkflowArguments = preprocess_job.rv(0)
-    mask_beds = preprocess_job.rv(1)    
-
-    # do the name mangling cactus expects, where every fasta sequence starts with id=0|, id=1| etc
-    # and the cigar files match up.  If reading cactus-blast output, the cigars are fine, just need
-    # the fastas (todo: make this less hacky somehow)
-    cur_job = head_job.addFollowOnJobFn(run_prepend_unique_ids, cactusWorkflowArguments, project, doRenaming, eventNameAsID, mask_beds
-                                        #todo disk=
-    )
-    cactusWorkflowArguments = cur_job.rv(0)
-    mask_bed_id = cur_job.rv(1)
-
-    # allow for input in paf format:
-    if pafInput:
-        # convert the paf input to lastz format, splitting out into primary and secondary files
-        # optionally apply the masking
-        cur_job = cur_job.addFollowOnJobFn(mask_and_convert_paf, configWrapper, cactusWorkflowArguments, pafSecondaries, mask_bed_id, paf2Stable, do_filter_paf=do_filter_paf)
-        cactusWorkflowArguments = cur_job.rv()
+    event_list = input_seq_id_map.keys()
     
-    if no_ingroup_coverage:
-        # if we're not taking cactus_blast input, then we need to recompute the ingroup coverage
-        cur_job = cur_job.addFollowOnJobFn(run_ingroup_coverage, cactusWorkflowArguments, project)
-        cactusWorkflowArguments = cur_job.rv()
+    # unzip the input sequences and enforce unique header prefixes
+    sanitize_job = head_job.addChildJobFn(sanitize_fasta_headers, input_seq_id_map)
+    new_seq_id_map = sanitize_job.rv()
 
-    # run cactus setup all the way through cactus2hal generation
-    setup_job = cur_job.addFollowOnJobFn(run_setup_phase, cactusWorkflowArguments)
+    # get the spanning tree (which is what consolidated wants)
+    spanning_tree = get_spanning_subtree(mc_tree, root_name, config_wrapper, og_map)
 
-    # set up the project
-    prepare_hal_export_job = setup_job.addFollowOnJobFn(run_prepare_hal_export, project, setup_job.rv())
+    # run consolidated
+    cons_job = head_job.addFollowOnJobFn(cactus_cons_with_resources, spanning_tree, root_name, config_wrapper.xmlRoot, new_seq_id_map, og_map, paf_id, cons_cores = cons_cores)
+    results = {root_name : (cons_job.rv(1), cons_job.rv(2))}
 
-    # create the hal
-    hal_export_job = prepare_hal_export_job.addFollowOnJobFn(exportHal, prepare_hal_export_job.rv(0), event=prepare_hal_export_job.rv(1),
-                                                             checkpointInfo=checkpointInfo, acyclicEvent=referenceEvent,
-                                                             memory=configWrapper.getDefaultMemory(),
-                                                             disk=configWrapper.getExportHalDisk(),
-                                                             preemptable=False)
+    # get the immediate subtree (which is all export_hal can use)
+    sub_tree = get_subtree(mc_tree, root_name, config_wrapper, og_map, include_outgroups=False)
+    
+    # run the hal export
+    hal_job = cons_job.addFollowOnJobFn(export_hal, sub_tree, config_wrapper.xmlRoot, new_seq_id_map, og_map, results, event=root_name, inMemory=True,
+                                        checkpointInfo=checkpointInfo, acyclicEvent=referenceEvent)
 
     # optionally create the VG
     if doVG or doGFA:
-        vg_export_job = hal_export_job.addFollowOnJobFn(export_vg, hal_export_job.rv(), configWrapper, doVG, doGFA,
-                                                        checkpointInfo=checkpointInfo)
+        vg_export_job = hal_job.addFollowOnJobFn(export_vg, hal_job.rv(), config_wrapper, doVG, doGFA,
+                                                 checkpointInfo=checkpointInfo)
         vg_file_id, gfa_file_id = vg_export_job.rv(0), vg_export_job.rv(1)
     else:
         vg_file_id, gfa_file_id = None, None
         
-    return hal_export_job.rv(), vg_file_id, gfa_file_id
+    return hal_job.rv(), vg_file_id, gfa_file_id
 
-def mask_and_convert_paf(job, configWrapper, cactusWorkflowArguments, pafSecondaries, mask_bed_id, paf_to_stable, do_filter_paf):
-    """ convert to lastz and run masking.  just wraps paf_to_lastz, but resolves the workflow promise on the way """
-    paf_to_lastz_disk = cactusWorkflowArguments.alignmentsID.size * 2
-    if mask_bed_id:
-        paf_to_lastz_disk += mask_bed_id.size
-    if paf_to_stable:
-        paf_to_lastz_disk += cactusWorkflowArguments.alignmentsID.size * 6
-        
-    # run the paf filter (only for pangenome)
-    paf_id = cactusWorkflowArguments.alignmentsID
-    if do_filter_paf:
-        paf_filter_job = job.addChildJobFn(filter_paf, paf_id, configWrapper, disk=paf_id.size * 2)
-        paf_id = paf_filter_job.rv()
-    
-    paf_to_lastz_job = Job.wrapJobFn(paf_to_lastz, paf_id, sort_secondaries=True,
-                                     mask_bed_id=mask_bed_id, paf_to_stable=paf_to_stable,
-                                     disk=paf_to_lastz_disk)
-    if do_filter_paf:
-        paf_filter_job.addFollowOn(paf_to_lastz_job)
-    else:
-        job.addChild(paf_to_lastz_job)        
-    
-    cactusWorkflowArguments.alignmentsID = paf_to_lastz_job.rv(0)
-    cactusWorkflowArguments.secondaryAlignmentsID = paf_to_lastz_job.rv(1) if pafSecondaries else None
-    return cactusWorkflowArguments
 
-def preprocess_input_sequences(job, configWrapper, project, cactusWorkflowArguments, pafMaskFilter=None, referenceEvent=None):
-    """ update the workflow arguments in place with unzipped version of any input fastas whose paths 
-    end in .gz, 
-    if there's a pafMaskFilter, softmasked regions are extracted from each sequence into a bed.
-    Note that the beds will need unique ids prepended just like the fastas...
-    """
-    head_job = Job()
-    job.addChild(head_job)
-    graph_event = getOptionalAttrib(findRequiredNode(configWrapper.xmlRoot, "graphmap"), "assemblyName", default="_MINIGRAPH_")
-    exp = cactusWorkflowArguments.experimentWrapper
-    ingroupsAndOriginalIDs = [(g, exp.getSequenceID(g)) for g in exp.getGenomesWithSequence() if g not in exp.getOutgroupGenomes()]
-    mask_bed_ids = {}
-    events = []
-    updated_seq_ids = []
-    for g, seqID in ingroupsAndOriginalIDs:
-        zipped = project.inputSequenceMap[g].endswith('.gz')
-        do_filter = pafMaskFilter and g not in [graph_event, referenceEvent]
-        if zipped or do_filter:
-            prepend_id_job = head_job.addChildJobFn(preprocess_input_sequence, g, seqID, project.inputSequenceMap[g], pafMaskFilter)
-            updated_seq_id, mask_bed_id = prepend_id_job.rv(0), prepend_id_job.rv(1)
-            if zipped:
-                events.append(g)
-                updated_seq_ids.append(updated_seq_id)
-            if do_filter:
-                mask_bed_ids[g] = mask_bed_id
-
-    return head_job.addFollowOnJobFn(resolve_id_promises, events, updated_seq_ids, cactusWorkflowArguments).rv(), mask_bed_ids
-
-def resolve_id_promises(job, events, updated_seq_ids, cactusWorkflowArguments):
-    if events:
-        exp = cactusWorkflowArguments.experimentWrapper
-        for g, seqID in zip(events, updated_seq_ids):
-            cactusWorkflowArguments.experimentWrapper.setSequenceID(g, seqID)
-    return cactusWorkflowArguments
-
-def preprocess_input_sequence(job, event, seq_id, seq_path, paf_mask_filter):
-    work_dir = job.fileStore.getLocalTempDir()
-    seq_path = os.path.join(work_dir, os.path.basename(seq_path))
-    job.fileStore.readGlobalFile(seq_id, seq_path, mutable=seq_path.endswith('.gz'))
-    # decompress if gzipped
-    if seq_path.endswith('.gz'):
-        cactus_call(parameters=['gzip', '-fd', seq_path])
-        seq_path = seq_path[:-3]
-        seq_id = job.fileStore.writeGlobalFile(seq_path)
-    if paf_mask_filter:
-        bed_path = seq_path + '.mask.bed'
-        cactus_call(parameters=['cactus_softmask2hardmask', seq_path, '-b', '-m', str(paf_mask_filter)], outfile=bed_path)
-        bed_id = job.fileStore.writeGlobalFile(bed_path)
-    else:
-        bed_id = None
-    return seq_id, bed_id
-        
-def prepend_cigar_ids(cigars, outputDir, idMap):
-    """ like cactus_workflow.prependUniqueIDs, but runs on cigar files.  requires name map
-    updated by prependUniqueIDs """
-    ret = []
-    for cigar in cigars:
-        outPath = os.path.join(outputDir, os.path.basename(cigar))
-        with open(outPath, 'w') as outfile, open(cigar, 'r') as infile:
-            for line in infile:
-                toks = line.split()
-                if toks[1] not in idMap:
-                    raise RuntimeError('cigar id {} not found in id-map {}'.format(toks[1], str(idMap)[:1000]))
-                if toks[5] not in idMap:
-                    raise RuntimeError('cigar id {} not found in id-map {}'.format(toks[5], str(idMap)[:1000]))
-                toks[1] = idMap[toks[1]]
-                toks[5] = idMap[toks[5]]
-                outfile.write('{}\n'.format(' '.join(toks)))
-        ret.append(outPath)
-    return ret
-
-def run_prepend_unique_ids(job, cactusWorkflowArguments, project, renameCigars, eventNameAsID, mask_beds):
-    """ prepend the unique ids on the input fasta.  this is required for cactus to work (would be great to relax it though"""
-
-    # note, there is an order dependence to everything where we have to match what was done in cactus_workflow
-    # (so the code is pasted exactly as it is there)
-    # this is horrible and needs to be fixed via drastic interface refactor
-    # update: this has been somewhat fixed with a minor refactor: prependUniqueIDs is no longer order dependent (but takes dict instead of list)
-    exp = cactusWorkflowArguments.experimentWrapper
-    ingroupsAndOriginalIDs = [(g, exp.getSequenceID(g)) for g in exp.getGenomesWithSequence() if g not in exp.getOutgroupGenomes()]
-    eventToSequence = {}
-    for g, seqID in ingroupsAndOriginalIDs:
-        seqPath = job.fileStore.getLocalTempFile() + '.fa'
-        job.fileStore.readGlobalFile(seqID, seqPath)
-        eventToSequence[g] = seqPath
-    cactusWorkflowArguments.totalSequenceSize = sum(os.stat(x).st_size for x in eventToSequence.values())
-    # need to have outgroups in there just for id naming (don't need their sequence)
-    for g in exp.getOutgroupGenomes():
-        eventToSequence[g] = None
-    renamedInputSeqDir = job.fileStore.getLocalTempDir()
-    id_map = {}
-    eventToUnique = prependUniqueIDs(eventToSequence, renamedInputSeqDir, idMap=id_map, eventNameAsID=eventNameAsID)
-    # Set the uniquified IDs for the ingroups and outgroups
-    for event, uniqueFa in eventToUnique.items():
-        uniqueFaID = job.fileStore.writeGlobalFile(uniqueFa, cleanup=True)
-        cactusWorkflowArguments.experimentWrapper.setSequenceID(event, uniqueFaID)
-
-    # if we're not taking cactus-[blast|refmap] input, then we have to apply to the cigar files too
-    if renameCigars:
-        alignments = job.fileStore.readGlobalFile(cactusWorkflowArguments.alignmentsID)
-        renamed_alignments = prepend_cigar_ids([alignments], renamedInputSeqDir, id_map)
-        cactusWorkflowArguments.alignmentsID = job.fileStore.writeGlobalFile(renamed_alignments[0], cleanup=True)
-        if cactusWorkflowArguments.secondaryAlignmentsID:
-            sec_alignments = job.fileStore.readGlobalFile(cactusWorkflowArguments.secondaryAlignmentsID)
-            renamed_sec_alignments = prepend_cigar_ids([sec_alignments], renamedInputSeqDir, id_map)
-            cactusWorkflowArguments.secondaryAlignmentsID = job.fileStore.writeGlobalFile(renamed_sec_alignments[0], cleanup=True)
-        if cactusWorkflowArguments.outgroupFragmentIDs:
-            og_alignments= job.fileStore.readGlobalFile(cactusWorkflowArguments.outgroupFragmentIDs)
-            renamed_og_alignments = prepend_cigar_ids(og_alignments, renamedInputSeqDir, id_map)
-            cactusWorkflowArguments.outgroupFragmentIDs = [job.fileStore.writeGlobalFile(rga, cleanup=True) for rga in renamed_og_alignments]
-
-    # if we have some masking beds (maps event name to bed file id), then apply the naming there too
-    mask_bed_id = None
-    if mask_beds:
-        mask_bed_path = job.fileStore.getLocalTempFile()
-        with open(mask_bed_path, 'w') as mask_bed_file:
-            for g, bed_id in mask_beds.items():
-                bed_path = job.fileStore.readGlobalFile(bed_id)
-                with open(bed_path, 'r') as bed_file:
-                    for line in bed_file:
-                        toks = line.split('\t')
-                        if len(toks) > 2:
-                            if toks[0] not in id_map:
-                                raise RuntimeError('bed id {} not found in id-map {}'.format(toks[0], str(idMap)[:1000]))
-                            toks[0] = id_map[toks[0]]
-                            mask_bed_file.write('\t'.join(toks))
-        mask_bed_id = job.fileStore.writeGlobalFile(mask_bed_path)
-    
-    return cactusWorkflowArguments, mask_bed_id
-
-def run_ingroup_coverage(job, cactusWorkflowArguments, project):
-    """ for every ingroup genome, make a bed file by computing its coverge vs the outgroups """
-    work_dir=job.fileStore.getLocalTempDir()
-    exp = cactusWorkflowArguments.experimentWrapper
-    ingroupsAndOriginalIDs = [(g, exp.getSequenceID(g)) for g in exp.getGenomesWithSequence() if g not in exp.getOutgroupGenomes()]
-    outgroups = [job.fileStore.readGlobalFile(id) for id in cactusWorkflowArguments.outgroupFragmentIDs]
-    sequences = [job.fileStore.readGlobalFile(id) for id in map(itemgetter(1), ingroupsAndOriginalIDs)]
-    cactusWorkflowArguments.totalSequenceSize = sum(os.stat(x).st_size for x in sequences)
-    ingroups = map(itemgetter(0), ingroupsAndOriginalIDs)
-    cigar = job.fileStore.readGlobalFile(cactusWorkflowArguments.alignmentsID)
-    if len(outgroups) > 0:
-        # should we parallelize with child jobs?
-        for ingroup, sequence in zip(ingroups, sequences):
-            coverage_path = os.path.join(work_dir, '{}.coverage'.format(sequence))
-            calculateCoverage(sequence, cigar, coverage_path, fromGenome=outgroups, work_dir=work_dir)
-            cactusWorkflowArguments.ingroupCoverageIDs.append(job.fileStore.writeGlobalFile(coverage_path))
-    return cactusWorkflowArguments
-
-def run_setup_phase(job, cactusWorkflowArguments):
-    # needs to be its own job to resovolve the workflowargument promise
-    return job.addChild(CactusConsolidated(cactusWorkflowArguments=cactusWorkflowArguments, phaseName="consolidated")).rv()
-
-def run_prepare_hal_export(job, project, experiment):
-    """ hack up the given project into something that gets exportHal() to do what we want """
-    event = experiment.getRootGenome()
-    exp_path = os.path.join(job.fileStore.getLocalTempDir(), event + '_experiment.xml')
-    experiment.writeXML(exp_path)
-    project.expMap = {event : experiment}
-    project.expIDMap = {event : job.fileStore.writeGlobalFile(exp_path)}
-    return project, event
-
-def export_vg(job, hal_id, configWrapper, doVG, doGFA, checkpointInfo=None, resource_spec = False):
+def export_vg(job, hal_id, config_wrapper, doVG, doGFA, checkpointInfo=None, resource_spec = False):
     """ use hal2vg to convert the HAL to vg format """
 
     if not resource_spec:
         # caller couldn't figure out the resrouces from hal_id promise.  do that
         # now and try again
-        return job.addChildJobFn(export_vg, hal_id, configWrapper, doVG, doGFA, checkpointInfo,
+        return job.addChildJobFn(export_vg, hal_id, config_wrapper, doVG, doGFA, checkpointInfo,
                                  resource_spec = True,
                                  disk=hal_id.size * 3,
                                  memory=hal_id.size * 10).rv()
@@ -717,20 +373,20 @@ def export_vg(job, hal_id, configWrapper, doVG, doGFA, checkpointInfo=None, reso
     hal_path = os.path.join(work_dir, "out.hal")
     job.fileStore.readGlobalFile(hal_id, hal_path)
     
-    graph_event = getOptionalAttrib(findRequiredNode(configWrapper.xmlRoot, "graphmap"), "assemblyName", default="_MINIGRAPH_")
-    hal2vg_opts = getOptionalAttrib(findRequiredNode(configWrapper.xmlRoot, "hal2vg"), "hal2vgOptions", default="")
+    graph_event = getOptionalAttrib(findRequiredNode(config_wrapper.xmlRoot, "graphmap"), "assemblyName", default="_MINIGRAPH_")
+    hal2vg_opts = getOptionalAttrib(findRequiredNode(config_wrapper.xmlRoot, "hal2vg"), "hal2vgOptions", default="")
     if hal2vg_opts:
         hal2vg_opts = hal2vg_opts.split(' ')
     else:
         hal2vg_opts = []
     ignore_events = []
-    if not getOptionalAttrib(findRequiredNode(configWrapper.xmlRoot, "hal2vg"), "includeMinigraph", typeFn=bool, default=False):
+    if not getOptionalAttrib(findRequiredNode(config_wrapper.xmlRoot, "hal2vg"), "includeMinigraph", typeFn=bool, default=False):
         ignore_events.append(graph_event)
-    if not getOptionalAttrib(findRequiredNode(configWrapper.xmlRoot, "hal2vg"), "includeAncestor", typeFn=bool, default=False):
-        ignore_events.append(configWrapper.getDefaultInternalNodePrefix() + '0')
+    if not getOptionalAttrib(findRequiredNode(config_wrapper.xmlRoot, "hal2vg"), "includeAncestor", typeFn=bool, default=False):
+        ignore_events.append(config_wrapper.getDefaultInternalNodePrefix() + '0')
     if ignore_events:
         hal2vg_opts += ['--ignoreGenomes', ','.join(ignore_events)]
-    if not getOptionalAttrib(findRequiredNode(configWrapper.xmlRoot, "hal2vg"), "prependGenomeNames", typeFn=bool, default=True):
+    if not getOptionalAttrib(findRequiredNode(config_wrapper.xmlRoot, "hal2vg"), "prependGenomeNames", typeFn=bool, default=True):
         hal2vg_opts += ['--onlySequenceNames']
 
     vg_path = os.path.join(work_dir, "out.vg")
@@ -763,7 +419,6 @@ def main_batch():
     """
     parser = ArgumentParser()
     Job.Runner.addToilOptions(parser)
-    addCactusWorkflowOptions(parser)
 
     parser.add_argument("chromFile", help = "chroms file")
     parser.add_argument("outHal", type=str, help = "Output directory (can be s3://)")

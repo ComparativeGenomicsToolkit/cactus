@@ -2,7 +2,7 @@ rootPath = .
 
 include ${rootPath}/include.mk
 
-modules = api setup blastLib caf bar blast hal reference pipeline preprocessor
+modules = api setup fasta paf caf bar hal reference pipeline preprocessor
 
 # submodules are in multiple pass to handle dependencies cactus2hal being dependent on
 # both cactus and sonLib
@@ -69,25 +69,45 @@ all_libs.blastLib: all_libs.api
 # tests, see DEVELOPMENT.md for environment variables controling tests.
 ##
 
-# under test modules under src/cactus/, split up to allowing run them in parallel.
+# Python tests
 testModules = \
-    bar/cactus_barTest.py \
-    blast/blastTest.py \
-    blast/cactus_coverageTest.py \
-    blast/cactus_realignTest.py \
-    blast/mappingQualityRescoringAndFilteringTest.py \
-    blast/trimSequencesTest.py \
-    hal/cactus_halTest.py \
-    pipeline/cactus_evolverTest.py \
-    pipeline/cactus_workflowTest.py \
+    progressive/outgroupTest.py \
     preprocessor/cactus_preprocessorTest.py \
     preprocessor/lastzRepeatMasking/cactus_lastzRepeatMaskTest.py \
-    progressive/cactus_progressiveTest.py \
-    progressive/multiCactusTreeTest.py \
-    progressive/outgroupTest.py \
-    progressive/scheduleTest.py \
-    shared/commonTest.py \
-    shared/experimentWrapperTest.py
+    progressive/multiCactusTreeTest.py
+
+# Unit tests (just collecting everything in bin/ with "test" in the name)
+unitTests = \
+	cactus_barTests \
+	cactusAPITests \
+	cactus_halGeneratorTests \
+	stCafTests \
+	stFastaTests \
+	stPafTests \
+	stPinchesAndCactiTests \
+	stPipelineTests \
+	matchingAndOrderingTests \
+	referenceTests \
+	cPecanLibTests \
+	sonLibTests \
+
+# these are slow, but added to CI here since hal no longer has its own
+halTests = \
+	hal4dExtractTest \
+	halAlignmentTreesTest \
+	halBottomSegmentTest \
+	halColumnIteratorTest \
+	halGappedSegmentIteratorTest \
+	halGenomeTest \
+	halHdf5Tests \
+	halLiftoverTests \
+	halMafTests \
+	halMappedSegmentTest \
+	halMetaDataTest \
+	halRearrangementTest \
+	halSequenceTest \
+	halTopSegmentTest \
+	halValidateTest
 
 # if running travis or gitlab, we want output to go to stdout/stderr so it can
 # be seen in the log file, as opposed to individual files, which are much
@@ -109,10 +129,10 @@ testLogDir = ${testOutDir}/logs
 # parallel tests don't currenty work, not all cases of collission have
 # been fixed
 .NOTPARALLEL: test test_blast test_nonblast
-
-test: ${testModules:%=%_runtest}
+test: ${testModules:%=%_runtest} ${unitTests:%=%_run_unit_test}
 test_blast: ${testModules:%=%_runtest_blast}
 test_nonblast: ${testModules:%=%_runtest_nonblast}
+hal_test: ${halTests:%=%_run_unit_test}
 
 # run one test and save output
 %_runtest: ${versionPy}
@@ -126,6 +146,9 @@ test_nonblast: ${testModules:%=%_runtest_nonblast}
 %_runtest_nonblast: ${versionPy}
 	@mkdir -p ${testLogDir}
 	${PYTHON} -m pytest ${pytestOpts} src/cactus/$* --suite=nonblast ${testErrOut}
+
+%_run_unit_test:
+	$*
 
 ${versionPy}:
 	echo "cactus_commit = '${git_commit}'" >$@
@@ -145,6 +168,29 @@ evolver_test: all bin/mafComparator
 evolver_test_local: all bin/mafComparator
 	PYTHONPATH="" CACTUS_BINARIES_MODE=local CACTUS_DOCKER_MODE=0 ${PYTHON} -m pytest ${pytestOpts} -s test/evolverTest.py::TestCase::testEvolverLocal
 
+evolver_test_prepare_wdl: all bin/mafComparator
+	PYTHONPATH="" CACTUS_BINARIES_MODE=local CACTUS_DOCKER_MODE=0 ${PYTHON} -m pytest ${pytestOpts} -s test/evolverTest.py::TestCase::testEvolverPrepareWDL
+
+evolver_test_prepare_toil: all bin/mafComparator
+	PYTHONPATH="" CACTUS_BINARIES_MODE=local CACTUS_DOCKER_MODE=0 ${PYTHON} -m pytest ${pytestOpts} -s test/evolverTest.py::TestCase::testEvolverPrepareToil
+
+evolver_test_decomposed_local: all bin/mafComparator
+	PYTHONPATH="" CACTUS_BINARIES_MODE=local CACTUS_DOCKER_MODE=0 ${PYTHON} -m pytest ${pytestOpts} -s test/evolverTest.py::TestCase::testEvolverDecomposedLocal
+
+evolver_test_decomposed_docker: all bin/mafComparator
+#note make docker needs to be run beforehand
+	PYTHONPATH="" CACTUS_DOCKER_ORG=evolvertestdocker CACTUS_USE_LATEST=1 ${PYTHON} -m pytest ${pytestOpts} -s test/evolverTest.py::TestCase::testEvolverDecomposedDocker
+
+evolver_test_docker: all bin/mafComparator
+	PYTHONPATH="" CACTUS_BINARIES_MODE=local CACTUS_DOCKER_MODE=0 ${PYTHON} -m pytest ${pytestOpts} -s test/evolverTest.py::TestCase::testEvolverDocker
+
+evolver_test_prepare_no_outgroup_docker: all bin/mafComparator
+#note make docker needs to be run beforehand
+	PYTHONPATH="" CACTUS_DOCKER_ORG=evolvertestdocker CACTUS_USE_LATEST=1 ${PYTHON} -m pytest ${pytestOpts} -s test/evolverTest.py::TestCase::testEvolverPrepareNoOutgroupDocker
+
+evolver_test_prepare_no_outgroup_local: all bin/mafComparator
+	PYTHONPATH="" CACTUS_BINARIES_MODE=local CACTUS_DOCKER_MODE=0 ${PYTHON} -m pytest ${pytestOpts} -s test/evolverTest.py::TestCase::testEvolverPrepareNoOutgroupLocal
+
 evolver_test_update_node_local: bin/mafComparator
 	PYTHONPATH="" CACTUS_BINARIES_MODE=local CACTUS_DOCKER_MODE=0 ${PYTHON} -m pytest ${pytestOpts} -s test/evolverTest.py::TestCase::testEvolverUpdateNodeLocal
 
@@ -157,8 +203,10 @@ evolver_test_poa_local: all bin/mafComparator
 evolver_test_refmap_local: all bin/mafComparator
 	PYTHONPATH="" CACTUS_BINARIES_MODE=local CACTUS_DOCKER_MODE=0 ${PYTHON} -m pytest ${pytestOpts} -s test/evolverTest.py::TestCase::testEvolverRefmapLocal
 
-evolver_test_graphmap_local: all bin/mafComparator
+evolver_test_minigraph_local: all bin/mafComparator
 	PYTHONPATH="" CACTUS_BINARIES_MODE=local CACTUS_DOCKER_MODE=0 ${PYTHON} -m pytest ${pytestOpts} -s test/evolverTest.py::TestCase::testEvolverMinigraphLocal
+
+evolver_test_all_local: evolver_test_local evolver_test_prepare_toil evolver_test_decomposed_local evolver_test_prepare_no_outgroup_local evolver_test_poa_local evolver_test_refmap_local evolver_test_minigraph_local
 
 yeast_test_local:
 	PYTHONPATH="" CACTUS_BINARIES_MODE=local CACTUS_DOCKER_MODE=0 ${PYTHON} -m pytest ${pytestOpts} -s test/evolverTest.py::TestCase::testYeastPangenomeLocal
@@ -212,6 +260,13 @@ suball.abPOA:
 	cd submodules/abPOA && ${MAKE}
 	ln -f submodules/abPOA/lib/*.a ${LIBDIR}
 	ln -f submodules/abPOA/include/*.h ${INCLDIR}
+	rm -fr ${INCLDIR}/simde && cp -r submodules/abPOA/include/simde ${INCLDIR}
+
+suball.lastz:
+	cd submodules/lastz && ${MAKE}
+	mkdir -p bin
+	ln -f submodules/lastz/src/* bin
+
 
 suball.lastz:
 	cd submodules/lastz && ${MAKE}

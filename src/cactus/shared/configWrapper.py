@@ -15,6 +15,7 @@ from xml.dom import minidom
 import sys
 from cactus.shared.common import findRequiredNode
 from cactus.shared.common import getOptionalAttrib
+from toil.lib.threading import cpu_count
 
 class ConfigWrapper:
     defaultOutgroupStrategy = 'none'
@@ -88,12 +89,6 @@ class ConfigWrapper:
             "max_num_outgroups" in ogElem.attrib):
             maxNumOutgroups = int(ogElem.attrib["max_num_outgroups"])
         return maxNumOutgroups
-
-    def getDoTrimStrategy(self):
-        trimBlastNode = findRequiredNode(findRequiredNode(self.xmlRoot, "blast"), "trimBlast")
-        if "doTrimStrategy" in trimBlastNode.attrib:
-            return trimBlastNode.attrib["doTrimStrategy"] == "1"
-        return False
 
     def getDoSelfAlignment(self):
         decompElem = self.getDecompositionElem()
@@ -247,8 +242,9 @@ class ConfigWrapper:
                 return getOptionalAttrib(node, "active", default="1" if default_val else "0") == "1"
         return default_val
 
-    def initGPU(self, force_activate):
+    def initGPU(self, options):
         """ Turn on GPU and / or check options make sense """
+        force_activate = options.gpu
         if force_activate:
             # apply the gpu override
             findRequiredNode(self.xmlRoot, "blast").attrib["gpuLastz"] = "true"
@@ -257,6 +253,18 @@ class ConfigWrapper:
                 if getOptionalAttrib(node, "preprocessJob") == "lastzRepeatMask":
                     node.attrib["gpuLastz"] = "true"
 
+        if getOptionalAttrib(findRequiredNode(self.xmlRoot, "blast"), 'gpuLastz', typeFn=bool, default=False):
+            # single machine: we give all the cores to segalign
+            if options.batchSystem.lower() in ['single_machine', 'singlemachine']:
+                if options.maxCores is not None:
+                    lastz_cores = options.maxCores
+                else:
+                    lastz_cores = cpu_count()
+            else:
+                # todo: toil doesn't support gpu properly yet
+                lastz_cores = None
+            findRequiredNode(self.xmlRoot, "blast").attrib["cpu"] = str(lastz_cores)
+                    
         # make absolutely sure realign is never turned on with the gpu.  they don't work together because
         # realign requires small chunks, and segalign needs big chunks
         # realign is cpu based, which is wasteful on a gpu node

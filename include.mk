@@ -55,17 +55,39 @@ else
 	CFLAGS+= -fopenmp
 endif
 
+# Hack in ARM support
+# Toggle on if "arm" is set, or if uname -m returns aarch64
+ifeq ($(shell uname -m || true), aarch64)
+	arm=1
+endif
+ifeq ($(shell arch || true), aarch64)
+	arm=1
+endif
+ifdef arm
+# flags to build abpoa
+export armv8 = 1
+export aarch64 = 1
+# flags to include simde abpoa in cactus on ARM
+CFLAGS+= -march=armv8-a+simd
+else
+# flags to build abpoa
+export avx2 = 1
+# flags to include simde abpoa in cactus on X86
+CFLAGS+= -mavx2
+endif
+# flags needed to include simde abpoa in cactus on any architecture
+CFLAGS+= -D__AVX2__ -DUSE_SIMDE -DSIMDE_ENABLE_NATIVE_ALIASES
 
 dataSetsPath=/Users/benedictpaten/Dropbox/Documents/work/myPapers/genomeCactusPaper/dataSets
 
-inclDirs = hal/inc api/inc setup/inc bar/inc caf/inc hal/inc reference/inc pipeline/inc submodules/sonLib/C/inc \
+inclDirs = hal/inc api/inc setup/inc bar/inc caf/inc paf/inc hal/inc reference/inc pipeline/inc submodules/sonLib/C/inc \
 	blastLib submodules/sonLib/externalTools/cutest submodules/pinchesAndCacti/inc \
 	submodules/matchingAndOrdering/inc submodules/cPecan/inc
 
 CPPFLAGS += ${inclDirs:%=-I${rootPath}/%} -I${LIBDIR} -I${rootPath}/include
 
 # libraries can't be added until they are build, so add as to LDLIBS until needed
-cactusLibs = ${LIBDIR}/stCaf.a ${LIBDIR}/stReference.a ${LIBDIR}/cactusBarLib.a ${LIBDIR}/cactusBlastAlignment.a ${LIBDIR}/cactusLib.a
+cactusLibs = ${LIBDIR}/stCaf.a ${LIBDIR}/stReference.a ${LIBDIR}/cactusBarLib.a ${LIBDIR}/cactusLib.a
 sonLibLibs = ${sonLibDir}/sonLib.a ${sonLibDir}/cuTest.a
 
 # note: the CACTUS_STATIC_LINK_FLAGS below can generally be empty -- it's used by the static builder script only

@@ -74,7 +74,7 @@ You can tune the number of CPUs used by each mapping job with the `--mapCores` o
 Now Cactus can be run, much as it would its default progressive mode.  The only difference is that we specify the `--pangenome`, `--pafInput`, `--outVG` and `--reference` options.
 
 ```
-cactus-align ./jobstore primates-pg/evolverPrimates.pg.txt primates-pg/primates.paf primates-pg/primates.hal --pangenome --pafInput --outVG --reference simChimp --realTimeLogging
+cactus-align ./jobstore primates-pg/evolverPrimates.pg.txt primates-pg/primates.paf primates-pg/primates.hal --pangenome --outVG --reference simChimp --realTimeLogging
 ```
 
 ### Evolver Primates: Creating the VG Indexes
@@ -175,45 +175,35 @@ Here we can see that a few contigs from UWOPS034614 were left unplaced (and woul
 
 ```
 zcat yeast-pg/chroms/_AMBIGUOUS_/fasta/UWOPS034614.0__AMBIGUOUS_.fa.gz | grep '>'
->chrXIII
->chrX
->chrVII
->chrXI
->chrVIII
+>id=UWOPS034614.0|chrX
+>id=UWOPS034614.0|chrVII
+>id=UWOPS034614.0|chrXI
+>id=UWOPS034614.0|chrVIII
 ```
 
 The reason why these contigs are unassigned to a chromosome can normally be found in `minigraph.split.log`:
 
 ```
-grep ambiguous yeast-pg/chroms/minigraph.split.log -A 3
-Query contig is ambiguous: id=UWOPS034614.0|chrXI  len=792116 cov=0.551694 (vs 0.5) uf=1.41798 (vs 3)
+Query contig is ambiguous: id=UWOPS034614.0|chrXI  len=792116 cov=0.573045 (vs 0.5) uf=1.47861 (vs 2)
  Reference contig mappings:
-  chrVII: 308189
-  chrXI: 437006
+  chrVII: 306989
+  chrXI: 453918
 --
-Query contig is ambiguous: id=UWOPS034614.0|chrVIII  len=738767 cov=0.47896 (vs 0.5) uf=1.04615 (vs 3)
+Query contig is ambiguous: id=UWOPS034614.0|chrVIII  len=738767 cov=0.481758 (vs 0.5) uf=1.06071 (vs 2)
  Reference contig mappings:
-  chrVII: 353840
-  chrVIII: 338232
+  chrVII: 355907
+  chrVIII: 335536
 --
-Query contig is ambiguous: id=UWOPS034614.0|chrXIII  len=662343 cov=0.526851 (vs 0.5) uf=1.72564 (vs 3)
+Query contig is ambiguous: id=UWOPS034614.0|chrVII  len=632616 cov=0.407576 (vs 0.5) uf= infinity (vs 2)
+Assigned contig to chrXI: id=DBVPG6044.0|chrXI  len=695907 cov=0.972054 (vs 0.5) uf= infinity (vs 2)
+Query contig is ambiguous: id=UWOPS034614.0|chrX  len=1092164 cov=0.49082 (vs 0.25) uf=1.04957 (vs 2)
  Reference contig mappings:
-  chrVII: 91734
-  chrXI: 202218
---
-Query contig is ambiguous: id=UWOPS034614.0|chrVII  len=632616 cov=0.409076 (vs 0.5) uf=1.54897 (vs 3)
- Reference contig mappings:
-  chrVII: 258788
-  chrVIII: 167071
---
-Query contig is ambiguous: id=UWOPS034614.0|chrX  len=1092164 cov=0.486244 (vs 0.25) uf=1.05286 (vs 3)
- Reference contig mappings:
-  chrX: 504394
-  chrXIII: 531058
+  chrX: 510741
+  chrXIII: 536056
 
 ```
 
-It is saying that not enough bases in these contigs aligned to a single reference chromosome, given the 50% threshold and 3X uniqueness factor.  These thresholds are explained, and can be adjusted in, the `<graphmap-split>` section of the [cactus config](../src/cactus/cactus_progressive_config.xml).
+It is saying that not enough bases in these contigs aligned to a single reference chromosome, given the 50% threshold and 2X uniqueness factor.  These thresholds are explained, and can be adjusted in, the `<graphmap-split>` section of the [cactus config](../src/cactus/cactus_progressive_config.xml).
 
 The sequence-to-graph PAF files can be refined by adding the `--base` option to `cactus-graphmap`.  This can often improve the accuracy of `cactus-graphmap-split`.  This option will be used in the HPRC example below. 
 
@@ -224,7 +214,7 @@ The sequence-to-graph PAF files can be refined by adding the `--base` option to 
 The options we would normally pass directly to `cactus-align` must be quoted and passed via `--alignOptions` here:
 
 ```
-cactus-align-batch ./jobstore ./yeast-pg/chroms/chromfile.txt yeast-pg/chrom-alignments --alignOptions "--pangenome --pafInput --reference S288C --outVG --realTimeLogging" --realTimeLogging
+cactus-align-batch ./jobstore ./yeast-pg/chroms/chromfile.txt yeast-pg/chrom-alignments --alignOptions "--pangenome --reference S288C --outVG --realTimeLogging" --realTimeLogging
 ```
 
 The results are a HAL and VG file, along with a `cactus-align` log, for each chromosome:
@@ -334,7 +324,7 @@ hal2assemblyHub.py ./jobstore ./yeast-pg/yeast-pg.hal yeast-pg/hub --shortLabel 
 Move `yeast-pg/hub` to somewhere web-accessible, and pass the full URL of `yeast-pg/hub/hub.txt` to the Genome Browser in the "My Data -> Track Hubs" menu.   Select `S288C` as the reference and display the hub.  Right-click on the display and select "Configure yeast track set" to toggle on all the assemblies (and toggle off Anc0 and _MINIGRAPH_).
 
 ## HPRC Graph
-The [Human Pangenome Reference Consortium](https://humanpangenome.org/data-and-resources/) is producing an ever-growing number of high quality phased assemblies.  This section will demonstrate how to use the Cactus-Minigraph Pangenome Pipeline to construct a Pangenome from them.  Note the instructions here are slightly different than were used to create the v1.0 Cactus-Minigraph pangenome that's been released by the HPRC, as they are based on a more recent and improved version of the pipeline. 
+The [Human Pangenome Reference Consortium](https://humanpangenome.org/data-and-resources/) is producing an ever-growing number of high quality phased assemblies.  This section will demonstrate how to use the Minigraph-Cactus Pangenome Pipeline to construct a Pangenome from them.  Note the instructions here are slightly different than were used to create the v1.0 Minigraph-Cactus pangenome that's been released by the HPRC, as they are based on a more recent and improved version of the pipeline. 
 
 The steps below are run on AWS/S3, and assume everything is written to s3://MYBUCKET. All jobs are run on r5.8xlarge (32 cores / 256G RAM) nodes. In theory, the entire pipeline could therefore be run on a single machine (ideally with 64 cores).  It would take several days though. They can be run on other batch systems, at least in theory.  Most of the compute-heavy tasks spawn relatively few jobs, and may be amenable to SLURM environments.
 
@@ -349,6 +339,8 @@ export MINIGRAPH=https://zenodo.org/record/6499594/files/GRCh38-90c.r518.gfa.gz
 WDL / cactus-prepare support is in progress!
 
 ### HPRC Graph: Setup and Name Munging
+
+**Important** The Cactus-Minigraph Pipeline does not support alt contigs in the reference.  If you really want them in your graph, then you will need to pull them out into separate samples (ie one alt contig per region per sample).  Otherwise they will end up as separate reference contigs and not align together.  As such we advice using the GRCh38 fasta file referenced in the `hprc-${VERSION}-mc.seqfile` generated below for any graph using GRCh38 as a reference.  
 
 The fasta sequences for the Year-1 HPRC assemblies are [available here](https://github.com/human-pangenomics/HPP_Year1_Assemblies).  We begin by using them to create an input seqfile for Cactus:
 
@@ -398,15 +390,9 @@ The names in these fasta files are for the form `chr1, chr2, etc` in CHM13 and G
 SAMPLE#HAPLTOYPE#CONTIG
 ```
 
-in the other samples.  The "#" symbols cannot be displayed in the UCSC Genome Browser, so it is recommended to stick to the conventions described above: where the fasta contig names are just the `CONTIG`, and the genome name is `SAMPLE.HAPLOTYPE`.  This can be accomplished with `cactus-preprocess` (note: the full path of `cactus_progressive_config.xml` will be dependent on your cactus installation directory, and may need to be adjusted):
+in the other samples.  The "#" symbols cannot be displayed in the UCSC Genome Browser, so it is recommended to stick to the conventions described above: where the fasta contig names are just the `CONTIG`, and the genome name is `SAMPLE.HAPLOTYPE`. Sequence names of the form `SAMPLE#HAPLOTYPE#CONTIG` will be replaced by default with `id=GENOME|CONTIG` by default by `cactus-preprocess --pangenome`.  
 
-If we forget to do this, genomes can be renamed before the `vg giraffe` indexes are made using the `--rename` option in `cactus-graphmap-join`. This can also be done manually on the hal files with `halRenameGenomes` or the vg files with `clip-vg -r`.  In the below config, we also turn off the lastz repeat masking option, which is incredibly important (this interface will be simpler in an upcoming release)
-
-```
-sed src/cactus/cactus_progressive_config.xml -e "s/cutBefore=\"\"/cutBefore=\"#\"/g" -e "s/gpuLastz=\"false\" active=\"1\"/gpuLastz=\"false\" active=\"0\"/g" >  config_cut_hash.xml
-```
-
-Now we setup a place for the renamed fasta files using `cactus-prepare` to generate a new seqfile, hprc-pg/hprc-${VERSION}-mc.seqfile
+We first setup a place for the renamed fasta files using `cactus-prepare` to generate a new seqfile, hprc-pg/hprc-${VERSION}-mc.seqfile
 ```
 cactus-prepare ./hprc-${VERSION}-mc.seqfile --outDir hprc-pg --seqFileOnly
 # when running on AWS, data needs to be in S3
@@ -416,8 +402,8 @@ sed hprc-pg/hprc-${VERSION}-mc.seqfile -e "s%hprc-pg%${MYBUCKET}/fasta%g" | grep
 aws s3 cp hprc-${VERSION}-mc.seqfile ${MYBUCKET}/
 aws s3 cp hprc-${VERSION}-mc.pp.seqfile ${MYBUCKET}/
 
-# finally, we run cactus-preprocess
-cactus-preprocess ${MYJOBSTORE} hprc-${VERSION}-mc.seqfile hprc-${VERSION}-mc.pp.seqfile --configFile ./config_cut_hash.xml --realTimeLogging --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.8xlarge --nodeStorage 500 --maxNodes 2 --logFile hprc-${VERSION}-mc-grch38.pp.log
+# finally, we run cactus-preprocess --pangenome
+cactus-preprocess ${MYJOBSTORE} hprc-${VERSION}-mc.seqfile hprc-${VERSION}-mc.pp.seqfile --pangenome --realTimeLogging --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.8xlarge --nodeStorage 500 --maxNodes 2 --logFile hprc-${VERSION}-mc-grch38.pp.log
 
 ```
 
@@ -455,7 +441,7 @@ This command will create a vg and hal file for each chromosome in ${MYBUCKET}/al
 ```
 
 aws s3 cp ${MYBUCKET}/chroms-hprc-${VERSION}-mc-grch38/chromfile.txt .
-cactus-align-batch ${MYJOBSTORE} ./chromfile.txt ${MYBUCKET}/align-hprc-${VERSION}-mc-grch38 --alignCores 16 --realTimeLogging --alignOptions "--pangenome --pafInput --maxLen 10000 --reference GRCh38 --realTimeLogging  --outVG" --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.8xlarge:1.5 --nodeStorage 1000 --maxNodes 20 --betaInertia 0 --targetTime 1 --logFile hprc-${VERSION}-mc-grch38.align.log
+cactus-align-batch ${MYJOBSTORE} ./chromfile.txt ${MYBUCKET}/align-hprc-${VERSION}-mc-grch38 --alignCores 16 --realTimeLogging --alignOptions "--pangenome --maxLen 10000 --reference GRCh38 --realTimeLogging  --outVG" --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.8xlarge:1.5 --nodeStorage 1000 --maxNodes 20 --betaInertia 0 --targetTime 1 --logFile hprc-${VERSION}-mc-grch38.align.log
 ```
 
 ### HPRC Graph: Creating the Whole-Genome Graph

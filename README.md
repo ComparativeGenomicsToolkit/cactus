@@ -248,7 +248,6 @@ Here is an example of some settings that have worked on a mammalian-sized genome
 
 ```
 cactus-prepare --wdl mammals.txt --noLocalInputs --preprocessBatchSize 5 --alignDisk 3000G --halAppendDisk 3000G --preprocessDisk 3000G --defaultDisk 1000G --defaultCores 70 --gpu --gpuCount 8 --defaultMemory 450G > mammals.wdl
-
 ```
 
 If the workflow fails for whatever reason, it can be edited (to, say, increase job requirements) then resumed as follows:

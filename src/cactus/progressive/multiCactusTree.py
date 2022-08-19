@@ -65,6 +65,9 @@ class MultiCactusTree(NXTree):
     def getSubtreeRootNames(self):
         return [self.getName(x) for x in self.subtreeRoots]
 
+    def getSubtreeRoots(self):
+        return self.subtreeRoots
+
     # generate eall nodes beneath (and including) given
     # root
     def traverseSubtree(self, root, node):

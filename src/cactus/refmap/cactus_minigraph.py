@@ -16,14 +16,13 @@ from cactus.progressive.seqFile import SeqFile
 from cactus.shared.common import setupBinaries, importSingularityImage
 from cactus.shared.common import cactusRootPath
 from cactus.shared.configWrapper import ConfigWrapper
-from cactus.pipeline.cactus_workflow import addCactusWorkflowOptions
-from cactus.pipeline.cactus_workflow import prependUniqueIDs
 from cactus.shared.common import makeURL, catFiles
 from cactus.shared.common import enableDumpStack
 from cactus.shared.common import cactus_override_toil_options
 from cactus.shared.common import cactus_call
 from cactus.shared.common import getOptionalAttrib, findRequiredNode
 from cactus.refmap.cactus_graphmap_join import unzip_seqfile
+from cactus.preprocessor.checkUniqueHeaders import sanitize_fasta_headers
 from toil.job import Job
 from toil.common import Toil
 from toil.statsAndLogging import logger
@@ -36,7 +35,6 @@ from sonLib.bioio import getTempDirectory
 def main():
     parser = ArgumentParser()
     Job.Runner.addToilOptions(parser)
-    addCactusWorkflowOptions(parser)
 
     parser.add_argument("seqFile", help = "Seq file (will be modified if necessary to include graph Fasta sequence)")
     parser.add_argument("outputGFA", help = "Output Minigraph GFA")
@@ -110,13 +108,8 @@ def main():
                     input_seq_id_map[genome] = toil.importFile(seq)
                     if genome != options.reference:
                         input_seq_order.append(genome)
-
-            # zip names and ids
-            name_id_map = {}
-            for event, fa_id in input_seq_id_map.items():
-                name_id_map[event] = (input_seq_map[event], fa_id)
             
-            gfa_id = toil.start(Job.wrapJobFn(minigraph_construct_workflow, config_node, name_id_map, input_seq_order, options.outputGFA))
+            gfa_id = toil.start(Job.wrapJobFn(minigraph_construct_workflow, config_node, input_seq_id_map, input_seq_order, options.outputGFA))
 
         #export the gfa
         toil.exportFile(gfa_id, makeURL(options.outputGFA))
@@ -125,19 +118,18 @@ def main():
     run_time = end_time - start_time
     logger.info("cactus-minigraph has finished after {} seconds".format(run_time))
         
-def minigraph_construct_workflow(job, config_node, name_id_map, seq_order, gfa_path):
+def minigraph_construct_workflow(job, config_node, seq_id_map, seq_order, gfa_path):
     """ minigraph can handle bgzipped files but not gzipped; so unzip everything in case before running"""
-    unzip_job = job.addChildJobFn(unzip_seqfile, name_id_map)
+    sanitize_job = job.addChildJobFn(sanitize_fasta_headers, seq_id_map)
     mg_cores = getOptionalAttrib(findRequiredNode(config_node, "graphmap"), "cpu", typeFn=int, default=1)
-    minigraph_job = unzip_job.addFollowOnJobFn(minigraph_construct, config_node, unzip_job.rv(), seq_order, gfa_path,
-                                               cores = mg_cores,
-                                               disk = 5 * sum([name_id[1].size for name_id in name_id_map.values()]))
+    minigraph_job = sanitize_job.addFollowOnJobFn(minigraph_construct, config_node, sanitize_job.rv(), seq_order, gfa_path,
+                                                  cores = mg_cores,
+                                                  disk = 5 * sum([seq_id.size for seq_id in seq_id_map.values()]))
     return minigraph_job.rv()
 
-def minigraph_construct(job, config_node, name_id_map, seq_order, gfa_path):
+def minigraph_construct(job, config_node, seq_id_map, seq_order, gfa_path):
     """ Make minigraph """
     work_dir = job.fileStore.getLocalTempDir()
-    fa_dir = job.fileStore.getLocalTempDir() # only necessary for prependunique...
     gfa_path = os.path.join(work_dir, os.path.basename(gfa_path))
 
     # parse options from the config
@@ -149,11 +141,11 @@ def minigraph_construct(job, config_node, name_id_map, seq_order, gfa_path):
     
     # download the sequences
     local_fa_paths = {}
-    for event in name_id_map.keys():
-        fa_id = name_id_map[event][1]
-        fa_path = os.path.join(fa_dir, '{}.fa'.format(event))
+    for event, fa_id in seq_id_map.items():
+        fa_id = seq_id_map[event]
+        fa_path = os.path.join(work_dir, '{}.fa'.format(event))
         job.fileStore.readGlobalFile(fa_id, fa_path)
-        local_fa_paths[event] = prependUniqueIDs({event : fa_path}, work_dir, eventNameAsID=True)[event]
+        local_fa_paths[event] = fa_path
         assert os.path.getsize(local_fa_paths[event]) > 0
 
     mg_cmd = ['minigraph'] + opts_list

@@ -58,8 +58,8 @@ from sonLib.bioio import popenCatch
 # *cat /tmp/cat/
 
 class SeqFile:
-    branchLen = 1
-    def __init__(self, path=None):
+    def __init__(self, path=None, defaultBranchLen=1.0):
+        self.branchLen = defaultBranchLen        
         if path is not None:
             self.parseFile(path)
 
@@ -111,7 +111,7 @@ class SeqFile:
             label += 1
             self.tree.nxDg.add_edge(0, label)
             self.tree.setName(label, name)
-            self.tree.setWeight(0, label, SeqFile.branchLen)
+            self.tree.setWeight(0, label, self.branchLen)
 
     def validate(self):
         if len([i for i in self.tree.postOrderTraversal()]) <= 2:
@@ -195,8 +195,8 @@ class SeqFile:
                 if self.tree.getWeight(parent, node) is None:
                     sys.stderr.write(
                         "No branch length for %s: setting to %d\n" % (
-                            self.tree.getName(node), SeqFile.branchLen))
-                    self.tree.setWeight(parent, node, SeqFile.branchLen)
+                            self.tree.getName(node), self.branchLen))
+                    self.tree.setWeight(parent, node, self.branchLen)
 
 
     # create the cactus_workflow_experiment xml element which serves as

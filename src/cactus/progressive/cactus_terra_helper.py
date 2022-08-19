@@ -64,6 +64,7 @@ def load_dirtree(dirtree):
     pp_files = {} 
     blast_files = {}
     align_files = {}
+    append_files = {}
     for line in dirtree:
         if not line.startswith("gs://"):
             continue
@@ -97,7 +98,14 @@ def load_dirtree(dirtree):
                     align_files[job_name] = []
                 align_files[job_name].append(full_path)
 
-    return pp_files, blast_files, align_files
+        elif job_name.startswith('call-hal_append'):
+            job_name = job_name[5:]
+            if full_path.endswith('.hal'):
+                if job_name not in append_files:
+                    append_files[job_name] = []
+                append_files[job_name].append(full_path)
+
+    return pp_files, blast_files, align_files, append_files
 
 def fix_pp_order(pp_files, wdl_lines):
     """ make sure that pp_files arrays are in the right order """
@@ -188,6 +196,26 @@ def resolve_align_files(align_files, wdl_lines):
 
     return out_lines
 
+def resolve_append_files(append_files, wdl_lines):
+    """ replace all references to hal files with their cached counterparts """
+    out_lines = []
+
+    # brute force replace rules
+    replace_map = {}
+    for job_name, cache_array in append_files.items():
+        assert len(cache_array) == 1 and cache_array[0].endswith('.hal')
+        cache_file = cache_array[0]
+        replace_map['{}.out_file'.format(job_name)] = '"{}"'.format(cache_file)
+
+    for wdl_line in wdl_lines:
+        fixed_line = wdl_line
+        for query, target in replace_map.items():
+            fixed_line = fixed_line.replace(query, target)
+        out_lines.append(fixed_line)
+
+    return out_lines
+    
+
 def remove_jobs(job_names, wdl_lines):
     """ if a job's in our cache, we remove its call from the wdl """
     out_lines = []
@@ -223,7 +251,7 @@ def main():
     assert sys.argv[1] == 'resume'
 
     # load the directory tree for the bucket
-    pp_files, blast_files, align_files = load_dirtree(sys.stdin)
+    pp_files, blast_files, align_files, append_files = load_dirtree(sys.stdin)
 
     # load the wdl file into list of lines
     wdl_lines = []
@@ -245,6 +273,10 @@ def main():
     # and the hal/fa align outputs
     wdl_lines = resolve_align_files(align_files, wdl_lines)
     wdl_lines = remove_jobs(align_files.keys(), wdl_lines)
+
+    # and the hal files from hal_append_cactus_subtree
+    wdl_lines = resolve_append_files(append_files, wdl_lines)
+    wdl_lines = remove_jobs(append_files.keys(), wdl_lines)
 
     for line in wdl_lines:
         sys.stdout.write(line)    

@@ -3,7 +3,6 @@
 #include "stCaf.h"
 #include "stPinchGraphs.h"
 #include "stPinchIterator.h"
-#include "stLastzAlignments.h"
 #include "stGiantComponent.h"
 #include "stCafPhylogeny.h"
 
@@ -212,6 +211,10 @@ void caf(Flower *flower, CactusParams *params, char *alignmentsFile, char *secon
         sortAlignments = false;
         filterFn = NULL;
         secondaryFilterFn = stCaf_filterByMultipleSpecies;
+    } else if (strcmp(alignmentFilter, "filterSecondariesByMultipleSequences") == 0) {
+        sortAlignments = false;
+        filterFn = NULL;
+        secondaryFilterFn = stCaf_filterByMultipleSequences;
     } else if (strcmp(alignmentFilter, "relaxedSingleCopyOutgroup") == 0) {
         sortAlignments = true;
         filterFn = stCaf_relaxedFilterByOutgroup;
@@ -322,7 +325,7 @@ void caf(Flower *flower, CactusParams *params, char *alignmentsFile, char *secon
 
         if (sortAlignments) {
             tempFile1 = getTempFile();
-            stCaf_sortCigarsFileByScoreInDescendingOrder(alignmentsFile, tempFile1);
+            //stCaf_sortCigarsFileByScoreInDescendingOrder(alignmentsFile, tempFile1);
             pinchIterator = stPinchIterator_constructFromFile(tempFile1);
         } else {
             pinchIterator = stPinchIterator_constructFromFile(alignmentsFile);
@@ -331,7 +334,7 @@ void caf(Flower *flower, CactusParams *params, char *alignmentsFile, char *secon
         if(secondaryAlignmentsFile != NULL) {
             if (sortSecondaryAlignments) {
                 tempFile2 = getTempFile();
-                stCaf_sortCigarsFileByScoreInDescendingOrder(secondaryAlignmentsFile, tempFile2);
+                //stCaf_sortCigarsFileByScoreInDescendingOrder(secondaryAlignmentsFile, tempFile2);
                 secondaryPinchIterator = stPinchIterator_constructFromFile(tempFile2);
             } else {
                 secondaryPinchIterator = stPinchIterator_constructFromFile(secondaryAlignmentsFile);
@@ -369,7 +372,7 @@ void caf(Flower *flower, CactusParams *params, char *alignmentsFile, char *secon
                 }
             }
 
-            st_logDebug("Sequence graph statistics after annealing:\n");
+            st_logInfo("Sequence graph statistics after annealing:\n");
             printThreadSetStatistics(threadSet, flower, stderr);
 
             if (minimumBlockHomologySupport > 0) {
@@ -415,10 +418,8 @@ void caf(Flower *flower, CactusParams *params, char *alignmentsFile, char *secon
             stCaf_meltRecoverableChains(flower, threadSet, breakChainsAtReverseTandems, maximumMedianSequenceLengthBetweenLinkedEnds, recoverableChainsFilter, maxRecoverableChainsIterations, maxRecoverableChainLength);
         }
 
-        st_logDebug("Sequence graph statistics after melting:\n");
-        if(st_getLogLevel() == debug) {
-            printThreadSetStatistics(threadSet, flower, stderr);
-        }
+        st_logInfo("Sequence graph statistics after melting:\n");
+        printThreadSetStatistics(threadSet, flower, stderr);
 
         //Sort out case when we allow blocks of degree 1
         if (fa->minimumDegree < 2) {

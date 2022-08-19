@@ -124,7 +124,15 @@ class LastzRepeatMaskJob(RoundedJob):
                # and skip running it below
                "--M", str(self.repeatMaskOptions.period)] + gpu_opts
         
-        cactus_call(parameters=cmd, work_dir=alignment_dir)
+        segalign_messages = cactus_call(parameters=cmd, work_dir=alignment_dir, returnStdErr=True)
+        # run_segalign can crash and still exit 0, so it's worth taking a moment to check the log for errors
+        segalign_messages = segalign_messages.lower()
+        for line in segalign_messages.split("\n"):
+            if not line.startswith("signals delivered"):
+                for keyword in ['terminate', 'error', 'fail', 'assert', 'signal', 'abort', 'segmentation', 'sigsegv', 'kill']:
+                    if keyword in line and 'signals' not in line:
+                        fileStore.logToMaster("Segalign offending line: " + line)
+                        raise RuntimeError('{} exited 0 but keyword "{}" found in stderr'.format(cmd, keyword))
 
         # scrape the segalign output into one big file, making an effort to read in numeric order
         merged_path = fileStore.getLocalTempFile()

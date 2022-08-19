@@ -157,7 +157,7 @@ Flower *cactus_setup_first_flower(CactusDisk *cactusDisk, CactusParams *params,
      * Flow is:
      * Construct a flower.
      * Construct an event tree representing the species tree.
-     * For each sequence contruct two ends each containing an cap.
+     * For each sequence contruct two ends each containing a cap.
      * Make a file for the sequence.
      * Link the two caps.
      * Finish!

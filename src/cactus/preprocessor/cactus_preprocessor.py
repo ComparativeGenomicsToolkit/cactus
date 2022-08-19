@@ -85,12 +85,13 @@ class CheckUniqueHeaders(RoundedJob):
 
     def run(self, fileStore):
         inChunk = fileStore.readGlobalFile(self.inChunkID)
-        with open(inChunk) as inFile:
-            checkUniqueHeaders(inFile, checkAssemblyHub=self.prepOptions.checkAssemblyHub)
+        outChunk = fileStore.getLocalTempFile()
+        with open(inChunk) as inFile, open(outChunk, 'w') as outFile:
+            checkUniqueHeaders(inFile, outFile, self.prepOptions.eventName, checkAssemblyHub=self.prepOptions.checkAssemblyHub)
         # We re-write the file here so that the output's lifecycle
         # matches the other chunked jobs, which usually write a new
-        # chunk.
-        return fileStore.writeGlobalFile(inChunk)
+        # chunk. 
+        return fileStore.writeGlobalFile(outChunk)
 
 class MergeChunks(RoundedJob):
     def __init__(self, prepOptions, chunkIDList):
@@ -117,7 +118,7 @@ class MergeChunks2(RoundedJob):
         chunkList = [os.path.basename(chunk) for chunk in chunkList]
         outSequencePath = fileStore.getLocalTempFile()
         cactus_call(outfile=outSequencePath, stdin_string=" ".join(chunkList),
-                    parameters=["cactus_batch_mergeChunks"])
+                    parameters=["fasta_merge"])
         return fileStore.writeGlobalFile(outSequencePath)
 
 class PreprocessSequence(RoundedJob):
@@ -333,32 +334,30 @@ class CactusPreprocessor2(RoundedJob):
             logger.info("Adding child batch_preprocessor target")
             return self.addChild(BatchPreprocessor(prepXmlElems, self.inputSequenceID, 0)).rv()
 
-def stageWorkflow(outputSequenceDir, configFile, inputSequences, toil, restart=False,
-                  outputSequences = [], maskAlpha=False, clipAlpha=None,
-                  maskFile=None, maskFileAction=None, minLength=None, inputEventNames=None, brnnCores=None,
+def stageWorkflow(outputSequenceDir, configNode, inputSequences, toil, restart=False,
+                  outputSequences = [], maskMode=None, maskAction=None,
+                  maskFile=None, minLength=None, inputEventNames=None, brnnCores=None,
                   gpu_override=False):
     #Replace any constants
-    configNode = ET.parse(configFile).getroot()
     if not outputSequences:
         outputSequences = CactusPreprocessor.getOutputSequenceFiles(inputSequences, outputSequenceDir)
     else:
         assert len(outputSequences) == len(inputSequences)
 
-    # toggle on the gpu
-    ConfigWrapper(configNode).initGPU(gpu_override)
-
     # Make sure we have the dna-brnn model in the filestore if we need it
-    loadDnaBrnnModel(toil, ET.parse(configFile).getroot(), maskAlpha = maskAlpha)
+    loadDnaBrnnModel(toil, configNode, maskAlpha = maskMode == 'brnn')
         
     if configNode.find("constants") != None:
         ConfigWrapper(configNode).substituteAllPredefinedConstantsWithLiterals()
-    if maskAlpha or clipAlpha:
-        ConfigWrapper(configNode).setPreprocessorActive("lastzRepeatMask", False)
-        ConfigWrapper(configNode).setPreprocessorActive("dna-brnn", True)
-        for node in configNode.findall("preprocessor"):
-            if getOptionalAttrib(node, "preprocessJob") == 'dna-brnn':
-                if clipAlpha:
-                    node.attrib["action"] = "clip"                    
+    if maskMode:
+        lastz = maskMode == 'lastz'
+        brnn = maskMode == 'brnn'
+        ConfigWrapper(configNode).setPreprocessorActive("lastzRepeatMask", lastz)
+        ConfigWrapper(configNode).setPreprocessorActive("dna-brnn", brnn)
+        if brnn and maskAction == 'clip':
+            for node in configNode.findall("preprocessor"):
+                if getOptionalAttrib(node, "preprocessJob") == 'dna-brnn':
+                    node.attrib["action"] = "clip"
     if brnnCores is not None:
         for node in configNode.findall("preprocessor"):
             if getOptionalAttrib(node, "preprocessJob") == 'dna-brnn':
@@ -373,7 +372,7 @@ def stageWorkflow(outputSequenceDir, configFile, inputSequences, toil, restart=F
             inputSequenceIDs.append(toil.importFile(makeURL(seq)))
         maskFileID = toil.importFile(makeURL(maskFile)) if maskFile else None
         unzip_job = Job.wrapJobFn(unzip_then_pp, configNode, inputSequences, inputSequenceIDs, inputEventNames,
-                                  maskFile, maskFileID, maskFileAction, minLength)
+                                  maskFile, maskFileID, maskAction, minLength)
         outputSequenceIDs = toil.start(unzip_job)
     else:
         outputSequenceIDs = toil.restart()
@@ -394,7 +393,7 @@ def unzip_then_pp(job, config_node, input_fa_paths, input_fa_ids, input_event_na
         mask_unzip_job = unzip_job.addChildJobFn(unzip_gzs, [mask_file_path], [mask_file_id])
         config_node = mask_unzip_job.addFollowOnJobFn(maskJobOverride, config_node, mask_file_path, mask_unzip_job.rv(0), mask_file_action, min_length,
                                                       disk=mask_file_id.size*20).rv()
-    pp_job = unzip_job.addFollowOn(CactusPreprocessor([unzip_job.rv(i) for i in range(len(input_fa_ids))], config_node, input_event_names))
+    pp_job = unzip_job.addFollowOn(CactusPreprocessor([unzip_job.rv(i) for i in range(len(input_fa_ids))], config_node, eventNames=input_event_names))
     zip_job = pp_job.addFollowOnJobFn(zip_gzs, input_fa_paths,  pp_job.rv(), list_elems = [0])
     return zip_job.rv()
     
@@ -403,7 +402,7 @@ def runCactusPreprocessor(outputSequenceDir, configFile, inputSequences, toilDir
     toilOptions.logLevel = "INFO"
     toilOptions.disableCaching = True
     with Toil(toilOptions) as toil:
-        stageWorkflow(outputSequenceDir, configFile, inputSequences, toil)
+        stageWorkflow(outputSequenceDir, ET.parse(options.configFile).getroot(), inputSequences, toil)
 
 def main():
     parser = ArgumentParser()
@@ -414,12 +413,11 @@ def main():
     parser.add_argument("--inputNames", nargs='*', help='input genome names (not paths) to preprocess (all leaves from Input Seq file if none specified)')
     parser.add_argument("--inPaths", nargs='*', help='Space-separated list of input fasta paths (to be used in place of --inSeqFile')
     parser.add_argument("--outPaths", nargs='*', help='Space-separated list of output fasta paths (one for each inPath, used in place of --outSeqFile)')
-    parser.add_argument("--maskAlpha", action='store_true', help='Use dna-brnn instead of lastz for repeatmasking')
-    parser.add_argument("--clipAlpha", action='store_true', help='use dna-brnn instead of lastz for repeatmasking.  Also, clip sequence using given minimum length instead of softmasking')
-    parser.add_argument("--ignore", nargs='*', help='Space-separate list of genomes from inSeqFile to ignore', default=[])
-    parser.add_argument("--maskFile", type=str, help='Add masking from BED or PAF file to sequences, ignoring all other preprocessors')
-    parser.add_argument("--maskAction", type=str, help='Action for --maskFile filter. One of {clip, softmask, hardmask}', default=None)
+    parser.add_argument("--maskMode", type=str, help='Masking mode, one of {"lastz", "brnn", "none"}. Default="lastz".', default='lastz')
+    parser.add_argument("--maskAction", type=str, help='Masking action, one of {"softmask", "hardmask", "clip"}. Default="softmask"', default='softmask')
     parser.add_argument("--minLength", type=int, help='Minimum interval threshold for masking.  Overrides config')
+    parser.add_argument("--maskFile", type=str, help='Add masking from BED or PAF file to sequences, **ignoring all other preprocessors**')
+    parser.add_argument("--ignore", nargs='*', help='Space-separate list of genomes from inSeqFile to ignore', default=[])
     parser.add_argument("--brnnCores", type=int, help='Specify number of cores for each dna-brnn job (overriding default value from the config)')
     parser.add_argument("--latest", dest="latest", action="store_true",
                         help="Use the latest version of the docker container "
@@ -431,6 +429,7 @@ def main():
                         help="The way to run the Cactus binaries", default=None)
     parser.add_argument("--gpu", action="store_true",
                         help="Enable GPU acceleration by using Segaling instead of lastz")
+    parser.add_argument("--pangenome", action="store_true", help='Do not mask. Just add Cactus-style unique prefixes and strip anything up to and including last #')
 
     options = parser.parse_args()
     setupBinaries(options)
@@ -449,21 +448,21 @@ def main():
             raise RuntimeError('--inPaths must be used in conjunction with --outPaths and not with --inSeqFile nor --outSeqFile')
         if len(options.inPaths) != len(options.outPaths):
             raise RuntimeError('--inPaths and --outPaths must have the same number of arguments')
+        if not options.inputNames or len(options.inputNames) != len(options.inPaths):
+            raise RuntimeError('--inputNames must be used in conjunction with --inputPaths to specify (exactly) one event name for each input')
     else:
         raise RuntimeError('--inSeqFile/--outSeqFile/--inputNames or --inPaths/--outPaths required to specify input')
-    if options.maskAlpha and options.clipAlpha:
-        raise RuntimeError('--maskAlpha and --clipAlpha cannot be used together')
-    if options.clipAlpha:
-        options.maskAlpha = True
-    if options.ignore and options.clipAlpha is None:
-        raise RuntimeError('--ignore can only be used with --clipAlpha')
+    if options.maskMode not in ['lastz', 'brnn', 'none']:
+        raise RuntimeError('--maskMode must be one of {"lastz", "brnn", "none"}')    
+    if options.maskAction not in ['softmask', 'hardmask', 'clip']:
+        raise RuntimeError('--maskAction must be one of {"softmask", "hardmask", "clip"}')
+    if options.maskMode == 'lastz' and options.maskAction != 'softmask':
+        raise RuntimeError('only softmasking is supported with lastz')
     if options.maskFile and options.maskFile.endswith('.paf') and not options.inputNames and not options.inSeqFile:
         raise RuntimeError('paf masking requires event names specified wither with an input seqfile or with --inputNames')
-    if options.maskFile and options.maskAction not in ['clip', 'hardmask', 'softmask']:
-        raise RuntimeError('--maskAction must be used with --maskFile.  Only valid values are clip, hardmask and softmask')
     if options.maskFile and options.minLength is None:
         raise RuntimeError('--minLength must be used with --maskFile')
-    
+        
     inSeqPaths = []
     outSeqPaths = []
     inNames = options.inputNames
@@ -473,6 +472,19 @@ def main():
     #we never want to preprocess minigraph sequences
     graph_event = getOptionalAttrib(findRequiredNode(configNode, "graphmap"), "assemblyName", default="_MINIGRAPH_")
     options.ignore.append(graph_event)
+
+    # toggle on the gpu
+    ConfigWrapper(configNode).initGPU(options)
+
+    # apply pangenome overrides
+    if options.pangenome:
+        # don't mask
+        options.maskMode = 'none'
+        # set cutBefore to #
+        # so HG002#0#chrY would turn into id=HG002.0|chrY (so long as event name is HG002.0)
+        for node in configNode.findall("preprocessor"):
+            if getOptionalAttrib(node, "preprocessJob") == 'cutHeaders':
+                node.attrib["cutBefore"] = "#"
     
     # mine the paths out of the seqfiles
     if options.inSeqFile:
@@ -523,19 +535,16 @@ def main():
 
     with Toil(options) as toil:
         stageWorkflow(outputSequenceDir=None,
-                      configFile=options.configFile,
+                      configNode=configNode,
                       inputSequences=inSeqPaths,
                       toil=toil,
                       restart=options.restart,
                       outputSequences=outSeqPaths,
-                      maskAlpha=options.maskAlpha,
-                      clipAlpha=options.clipAlpha,
-                      maskFile=options.maskFile,
-                      maskFileAction=options.maskAction,
+                      maskMode=options.maskMode,
+                      maskAction=options.maskAction,
                       minLength=options.minLength,
                       inputEventNames=inNames,
-                      brnnCores=options.brnnCores,
-                      gpu_override=options.gpu)
+                      brnnCores=options.brnnCores)
 
 if __name__ == '__main__':
     main()

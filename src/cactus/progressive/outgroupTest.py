@@ -15,7 +15,7 @@ from sonLib.bioio import getTempDirectory
 from sonLib.bioio import system
 
 from cactus.progressive.multiCactusTree import MultiCactusTree
-from cactus.progressive.outgroup import GreedyOutgroup, DynamicOutgroup
+from cactus.progressive.outgroup import GreedyOutgroup
 
 from sonLib.nxnewick import NXNewick
 from sonLib.nxtreeTest import randomTreeSet
@@ -231,45 +231,6 @@ class TestCase(unittest.TestCase):
             assert all([len(x) <= 3 for x in list(og.ogMap.values())])
             # and for all entries, the closest must be first.
             assert all([x == sorted(x, key=itemgetter(1)) for x in list(og.ogMap.values())])
-
-    @TestStatus.shortLength
-    def testDynamicOutgroupsOnRandomTrees(self):
-        for tree, seqMap in zip(self.mcTrees, self.dummySeqMaps):
-            degree = max([len(tree.getChildren(x)) for x in
-                         tree.breadthFirstTraversal()])
-            if degree < 8:
-                og = DynamicOutgroup()
-                og.edgeLen = 5
-                og.importTree(tree, seqMap)
-                og.compute(maxNumOutgroups=3)
-                # make sure all entries have <= 3 outgroups.
-                assert all([len(x) <= 3 for x in list(og.ogMap.values())])
-                # and for all entries, the closest must be first.
-                # (this will be true because all sequences are the same)
-                assert all([x == sorted(x, key=itemgetter(1)) for x in list(og.ogMap.values())])
-
-    @TestStatus.shortLength
-    def testDynamicOutgroupsJustLeaves(self):
-        og = DynamicOutgroup()
-        og.importTree(self.borMcTree, self.blanchetteSeqMap)
-        og.compute(maxNumOutgroups=3, sequenceLossWeight=0.)
-        # make sure all entries have <= 3 outgroups.
-        assert all([len(x) <= 3 for x in list(og.ogMap.values())])
-        # and for all entries, the closest must be first.
-        assert all([x == sorted(x, key=itemgetter(1)) for x in list(og.ogMap.values())])
-        # ordering is important!
-        assert og.ogMap['Anc1'][0][0] == 'HUMAN'
-        assert og.ogMap['Anc7'][0][0] == 'BABOON'
-
-        og = DynamicOutgroup()
-        og.importTree(self.borMcTree, self.blanchetteSeqMap)
-        og.compute(maxNumOutgroups=3)
-        # make sure all entries have <= 3 outgroups.
-        assert all([len(x) <= 3 for x in list(og.ogMap.values())])
-
-        # we keep dynamic outgroups sorted by distance too
-        assert all([x == sorted(x, key=itemgetter(1)) for x in list(og.ogMap.values())])
-
 
     @TestStatus.shortLength
     def testMultipleIdenticalRunsProduceSameResult(self):
