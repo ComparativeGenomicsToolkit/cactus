@@ -1,3 +1,21 @@
+# Release 2.2.0 2022-08-19
+
+This release contains a major update to the "blast" phase, where chaining logic is introduced to select lastz anchors, replacing the old quality-based heuristic. It also uses 1 fewer outgroup (2 instead of 3) by default, and no longer explicitly computes self-alignments, which should result in faster runtimes. 
+
+Other changes include:
+
+- Complete rewrite and drastic simplification of all code used to genereate lastz anchors
+- PAF format now used natively throughout Cactus (replacing lastz cigars)
+- Major refactor and cleanup of the "progressive" python module, removing vestiges of old Progressive Cactus repo
+- Rewrite and simplifcation of the "Cactus Workflow" Python code.
+- Intermediate files (project, multicactus project, experiment XML) all done away with.
+- More explicit error message for "illegal instruction" signal (which commonly confused people trying to run on older CPUs)
+- Fasta contig name checking and prefixing done at beginning of each tool (this should prevent cryptic `halAppendSubtree` errors in the pangenome pipeline)
+- Update to newest SegAlign, which should fix an overflow bug that occurs when repeatmasking some data.
+- Increase binary compatibility by linking with newer libxml2
+- Add `cactus-terra-helper` tool to force-resume Terra workflows (when its own call caching fails)
+- Small cleanup of `cactus-preprocess` interface
+
 # Release 2.1.1 2022-06-15
 
 This release includes:
