@@ -1,3 +1,4 @@
+# Reminder: if updating this image, also update it in build-tools/makeGpuDockerRelease
 FROM nvidia/cuda:11.4.3-devel-ubuntu20.04 as builder
 
 # Prevent dpkg from trying to ask any questions, ever
