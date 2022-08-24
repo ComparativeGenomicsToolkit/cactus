@@ -141,6 +141,11 @@ def graph_map(options):
                 leaves = [mc_tree.getName(leaf) for leaf in mc_tree.getLeaves()]
                 if options.reference not in leaves:
                     raise RuntimeError("Genome specified with --reference, {}, not found in tree leaves".format(options.reference))
+                for sample in input_seq_map.keys():
+                    if sample != options.reference and sample.startswith(options.reference):
+                        raise RuntimeError("Input sample {} is prefixed by given reference {}. ".format(sample, options.reference) +                        
+                                           "This is not supported by this version of Cactus, " +
+                                           "so one of these samples needs to be renamed to continue")
             
             if options.refFromGFA:
                 if not options.reference:
