@@ -50,13 +50,17 @@ def scrape_logs(dirtree):
         job_name = job_name[5:]
         
         assert len(line_toks) == 3
+        size = int(line_toks[0])
         date = datetime.strptime(line_toks[1], "%Y-%m-%dT%H:%M:%SZ")
 
-        if job_name not in job_to_log or date > job_to_log[job_name][0]:
-            job_to_log[job_name] = (date, full_path)
+        # note we accept older logs if they are much bigger to filter out empty logs due to restart shenanigans
+        if job_name not in job_to_log or \
+           (date > job_to_log[job_name][0] and size * 10 > job_to_log[job_name][1]) or \
+           (date <= job_to_log[job_name][0] and size > 10 * job_to_log[job_name][1]):
+            job_to_log[job_name] = (date, size, full_path)
 
     for k,v in job_to_log.items():
-        subprocess.check_call(['gsutil', 'cp', v[1], './{}.log'.format(k)])
+        subprocess.check_call(['gsutil', 'cp', v[2], './{}.log'.format(k)])
 
 def load_dirtree(dirtree):
     """ load up the results of gsutil ls -r"""

@@ -84,6 +84,11 @@ def main():
             
             if options.reference not in input_seq_map:
                 raise RuntimeError("Specified reference not in seqfile")
+            for sample in input_seq_map.keys():
+                if sample != options.reference and sample.startswith(options.reference):
+                    raise RuntimeError("Input sample {} is prefixed by given reference {}. ".format(sample, options.reference) +                        
+                                       "This is not supported by this version of Cactus, " +
+                                       "so one of these samples needs to be renamed to continue")
 
             # apply cpu override                
             if options.mapCores is not None:

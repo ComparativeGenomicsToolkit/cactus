@@ -137,7 +137,14 @@ def cactus_graphmap_split(options):
                 raise RuntimeError("Minigraph name {} not found in seqfile".format(graph_event))
             if options.reference and options.reference not in leaves:
                 raise RuntimeError("Name given with --reference {} not found in seqfile".format(options.reference))
-                
+
+            if options.reference:
+                for sample in seqFile.pathMap.keys():
+                    if sample != options.reference and sample.startswith(options.reference):
+                        raise RuntimeError("Input sample {} is prefixed by given reference {}. ".format(sample, options.reference) +
+                                           "This is not supported by this version of Cactus, " +
+                                           "so one of these samples needs to be renamed to continue")
+                        
             for genome, seq in seqFile.pathMap.items():
                 if genome in leaves:
                     if os.path.isdir(seq):
