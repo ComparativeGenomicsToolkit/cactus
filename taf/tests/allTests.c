@@ -9,12 +9,14 @@
 
 CuSuite* maf_test_suite(void);
 CuSuite* taf_test_suite(void);
+CuSuite* ond_test_suite(void);
 
 static int allTests(void) {
     CuString *output = CuStringNew();
     CuSuite* suite = CuSuiteNew();
     //CuSuiteAddSuite(suite, maf_test_suite());
-    CuSuiteAddSuite(suite, taf_test_suite());
+    //CuSuiteAddSuite(suite, taf_test_suite());
+    CuSuiteAddSuite(suite, ond_test_suite());
 
     CuSuiteRun(suite);
     CuSuiteSummary(suite, output);

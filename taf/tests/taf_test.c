@@ -15,7 +15,7 @@ static void test_taf(CuTest *testCase) {
             alignment_link_adjacent(p_alignment, alignment);
         }
         //maf_write_block(alignment, stdout);
-        taf_write_block(alignment, out_file);
+        taf_write_block(p_alignment, alignment, out_file);
         if(p_alignment != NULL) {
             alignment_destruct(p_alignment);
         }

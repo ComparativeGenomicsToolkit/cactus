@@ -4,7 +4,7 @@
  * Is useful for quickly computing the diff between two similar lists.
  */
 
-#include "taf.h"
+#include "ond.h"
 
 typedef struct _WF {
     /*
@@ -144,14 +144,14 @@ int64_t WFS_get_max_diag(WFS *wfs, int64_t s) {
     return wf->max_diag;
 }
 
-typedef struct _WFA {
+struct _WFA {
     stList *string1;
     stList *string2;
     int64_t gap_score, mismatch_score;
     bool (*elements_equal)(void *, void *);
     int64_t s; // The starting alignment score
     WFS *wfs; // The wavefront set
-} WFA;
+};
 
 void WFA_destruct(WFA *wfa) {
     WFS_destruct(wfa->wfs);
@@ -184,11 +184,11 @@ bool WFA_done(WFA *wfa) {
     return WFS_get_fp(wfa->wfs, wfa->s, stList_length(wfa->string1) - stList_length(wfa->string2)) == stList_length(wfa->string1);
 }
 
-int64_t max(int64_t i, int64_t j) {
+static int64_t max(int64_t i, int64_t j) {
     return i > j ? i : j;
 }
 
-int64_t min(int64_t i, int64_t j) {
+static int64_t min(int64_t i, int64_t j) {
     return i < j ? i : j;
 }
 
@@ -289,7 +289,8 @@ stList *WFA_get_alignment(WFA *wfa) {
             // k = x - y, f = x
             int64_t x = f;
             int64_t y = -(k - f);
-            stList_append(alignment, stIntTuple_construct2(x - 1, y - 1));  // subtract one to get seq coordinates
+            stList_append(alignment, stList_get(wfa->string2, y - 1));
+            stList_append(alignment, stList_get(wfa->string1, x - 1));  // subtract one to get seq coordinates
             f -= 1;
         }
 
@@ -306,7 +307,7 @@ stList *WFA_get_alignment(WFA *wfa) {
         }
     }
 
-    stList_reverse(alignment);
+    stList_reverse(alignment); // reverse to get back the set of matched pairs in order of the strings
 
     return alignment;
 }

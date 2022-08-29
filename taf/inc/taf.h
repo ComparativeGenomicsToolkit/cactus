@@ -32,7 +32,8 @@ struct _row {
     int64_t start, length, sequence_length; // zero based, half open coordinates
     bool strand; // nonzero is "+" else "-"
     char *bases; // [A-Za-z*+]* string
-    Alignment_Row *p_row;  // any connection to a previous row
+    Alignment_Row *l_row;  // connection to a left row (may be NULL)
+    Alignment_Row *r_row;  // connection to a right row (may be NULL)
     Alignment_Row *n_row;  // the next row in the alignment
 };
 
@@ -54,7 +55,7 @@ Alignment *taf_read_column(FILE *fh, Alignment *p_column);
 /*
  * Write a taf block.
  */
-void taf_write_block(Alignment *alignment, FILE *fh);
+void taf_write_block(Alignment *p_alignment, Alignment *alignment, FILE *fh);
 
 #endif /* STTAF_H_ */
 
