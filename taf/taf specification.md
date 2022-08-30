@@ -1,9 +1,11 @@
 # The TAF File Format
 
-This is a specification for a "transposed alignment format" or maybe "terrific alignment format" (.taf). The idea 
+This is a specification for a "transposed alignment format", or maybe "terrific alignment format" (.taf). The idea 
 is to describe the alignment as a series of columns, one per line, with bases in the
-columns run-length encoded, and row coordinates given as needed after the bases in each column.
+columns optionally run-length encoded, and row coordinates given as needed after the bases in each column.
 Where coordinates are not given it is assumed the coordinates continue from the previous column.
+User defined tags, as key:value pairs, are also included to allow the alignemnt
+columns to be annotated.
 
 The format supports line based indexing for rapid retrieval of any column or contiguous sequence of columns from 
 the file. The format is intentionally simple but should prove quite space efficient for large alignments. 
@@ -43,6 +45,9 @@ Tokens are separated by white-space. The syntax is defined as follows:
            -> bases tag_string
            -> bases
 
+(Columns are encoded, one per line. Each column encodes an alignment of the
+bases in the column (see below) and then some optional coordinates and tags.)
+
     bases -> run_length_encoded_bases
           -> bases
 
@@ -55,7 +60,7 @@ Tokens are separated by white-space. The syntax is defined as follows:
 
     bases -> string or alphabet characters or '-' or '*' ([A-Z,a-z,-,*]+)
 
-(Columns are encoded, one per line, either using a run-length encoded
+(Aligned bases are either a run-length encoded
 representation or simply as a sequence of aligned characters. To specify
 which format to use we use the tag "run_length_encoded_bases=1" in the header.
 If "run_length_encoded_bases=0" or the tag is not specified the format is
@@ -117,12 +122,12 @@ The MAF file (602 bytes):
     s       simDog.chr6     437462  8       +       593897  TT-TTCCG
     s       simHuman.chr6   446338  8       +       601863  TTCTTCCG
     s       simMouse.chr6   460762  8       +       636262  TTTTACCG
-    s       simRat.chr6     470350  8       +       647215  TTTTACCG
+    s       simRat.chr6     470355  8       +       647215  TTTTACCG
 
 
-The corresponding TAF file (256 bytes):
+The corresponding TAF file (262 bytes):
 
-    # version=1 scoring=N/A
+    # version:1 scoring:N/A
     CTTT ; i 0 simDog.chr6 437451 + i 1 simHuman.chr6 446327 + i 2 simMouse.chr6 460751 + i 3 simRat.chr6 470339 11
     CCTT
     CCCC
@@ -133,7 +138,7 @@ The corresponding TAF file (256 bytes):
     TGAG
     GGGG
     TTTT
-    TTTTT ; i 0 simCow.chr6 445326 +
+    TTTTT ; i 0 simCow.chr6 445326 + g 4 5
     TTTTT
     T-CTT
     TTTTT
