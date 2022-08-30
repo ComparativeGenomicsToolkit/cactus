@@ -30,7 +30,7 @@ void alignment_link_adjacent(Alignment *left_alignment, Alignment *right_alignme
     stList *left_rows = get_rows_in_a_list(left_alignment->row);
     stList *right_rows = get_rows_in_a_list(right_alignment->row);
     // get the alignment of the rows
-    WFA *wfa = WFA_construct(left_rows, right_rows, (bool (*)(void *, void *))rows_equal, 1, 1);
+    WFA *wfa = WFA_construct(left_rows, right_rows, (bool (*)(void *, void *))rows_equal, 1, 1); // Use unit gap and mismatch costs for the diff
     stList *aligned_rows = WFA_get_alignment(wfa);
     // connect up the rows
     assert(stList_length(aligned_rows) % 2 == 0); // must be even length

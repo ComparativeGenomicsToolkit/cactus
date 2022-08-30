@@ -26,10 +26,16 @@ Alignment *maf_read_block(FILE *fh) {
                     return alignment;
                 }
                 tokens = stString_split(line);
-                free(line);
+                //free(line);
                 if(stList_length(tokens) == 0) {
                     stList_destruct(tokens);
                     return alignment;
+                }
+                if(strcmp(stList_get(tokens, 0), "s") != 0) {
+                    //st_uglyf("Line %s\n", line);
+                    assert(strcmp(stList_get(tokens, 0), "i") == 0 || strcmp(stList_get(tokens, 0), "e") == 0); // Must be an "i" line
+                    stList_destruct(tokens);
+                    continue;
                 }
                 assert(strcmp(stList_get(tokens, 0), "s") == 0); // Must be an "s" line
                 Alignment_Row *row = st_calloc(1, sizeof(Alignment_Row));

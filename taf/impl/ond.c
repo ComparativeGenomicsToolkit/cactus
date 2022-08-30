@@ -21,6 +21,7 @@ WF *WF_construct(int64_t min_diag, int64_t max_diag) {
     wf->min_diag = min_diag;
     wf->max_diag = max_diag;
     wf->original_min_diag = min_diag;
+    assert(max_diag >= min_diag);
     wf->fpa = st_calloc(1+max_diag-min_diag, sizeof(int64_t));
     return wf;
 }
@@ -47,7 +48,8 @@ void WF_set_fp(WF *wf, int64_t k, int64_t h) {
     /*
      * Set the further point (an x coordinate) on the x - y = k antidiagonal
     */
-    assert(wf->min_diag <= k <= wf->max_diag);  // Otherwise we're trying to set a point not on the wavefront
+    assert(wf->min_diag <= k);
+    assert(k <= wf->max_diag);  // Otherwise we're trying to set a point not on the wavefront
     wf->fpa[k - wf->original_min_diag] = h;
 }
 
@@ -75,6 +77,7 @@ typedef struct _WFS {
 WFS *WFS_construct() {
     WFS *wfs = st_calloc(1, sizeof(WFS));
     wfs->wfl = stList_construct3(0, (void (*)(void *))WF_destruct);
+    stList_append(wfs->wfl, WF_construct(0, 0));
     return wfs;
 }
 
@@ -87,7 +90,7 @@ WF *WFS_get_wf(WFS *wfs, int64_t s) {
     /*
     * Get the wavefront for score s
     */
-    return s < stList_length(wfs->wfl) ? stList_get(wfs->wfl, s) : NULL;
+    return (s >= 0 && s < stList_length(wfs->wfl)) ? stList_get(wfs->wfl, s) : NULL;
 }
 
 int64_t WFS_get_fp(WFS *wfs, int64_t s, int64_t k) {
@@ -113,7 +116,7 @@ WF *WFS_add_wf(WFS *wfs, int64_t min_diag, int64_t max_diag, int64_t s) {
      * Adds a wavefront to the set.
     */
     WF *wf = WF_construct(min_diag, max_diag);
-    assert(s > stList_length(wfs->wfl));
+    assert(s >= stList_length(wfs->wfl));
     while(s > stList_length(wfs->wfl)) { // pad out any intermediate points
         stList_append(wfs->wfl, NULL);
     }
@@ -164,11 +167,13 @@ void WFA_extend(WFA *wfa) {
     */
     // Get the current wavefront, whose points are to be extended
     WF *wf = WFS_get_wf(wfa->wfs, wfa->s);
+    assert(wf != NULL);
     // For each diagonal on the wf extend it by the maximum number of matches from the current furthest point
     for(int64_t k=wf->min_diag; k<=wf->max_diag; k++) {
         int64_t h = WF_get_fp(wf, k);
         if(h >= 0 && h - k >= 0) {  // If h = x-y such that x >= 0 and y >= 0
-            while(h < stList_length(wfa->string1) && h - k < stList_length(wfa->string2) && wfa->elements_equal(stList_get(wfa->string1, h), stList_get(wfa->string2, h - k))) {
+            while(h < stList_length(wfa->string1) && h - k < stList_length(wfa->string2) &&
+            wfa->elements_equal(stList_get(wfa->string1, h), stList_get(wfa->string2, h - k))) {
                 // Extend the furthest point
                 h += 1;
                 WF_set_fp(wf, k, h);
@@ -198,10 +203,7 @@ void WFA_next(WFA *wfa) {
     */
     while(1) { // Get the next score by increasing s until we find s minus mismatch or gap score has a
         // wavefront
-
-        // Increment s
-        wfa->s++;
-
+        wfa->s++; // Increment s
         if (WFS_get_wf(wfa->wfs, wfa->s - wfa->gap_score) != NULL ||
             WFS_get_wf(wfa->wfs, wfa->s - wfa->mismatch_score) != NULL) {
             break;  // There is a prior wavefront to connect to
@@ -296,7 +298,8 @@ stList *WFA_get_alignment(WFA *wfa) {
 
         if (a >= b && a >= c) {  // we must take a mis-match
             t -= wfa->mismatch_score;
-        } else if (b >= a && b >= c) {  // alignment has insert in string1
+        } else if (b >= c) {  // alignment has insert in string1
+            assert(b >= a);
             k -= 1;
             f -= 1;
             t -= wfa->gap_score;

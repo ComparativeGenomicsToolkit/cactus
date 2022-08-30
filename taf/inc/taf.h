@@ -4,30 +4,15 @@
 #include "sonLib.h"
 
 /*
- * a
- * s       simDog.chr6     437451  11      +       593897  CCCGTCAGTGT
- * s       simHuman.chr6   446327  11      +       601863  TCCGCCAAGGT
- * s       simMouse.chr6   460751  11      +       636262  TTCATCAGAGT
- * s       simRat.chr6     470339  11      +       647215  TTCATTAGGGT
- * a
- * s       simCow.chr6     445326  8       +       602619  TTTTCCCA
- * s       simDog.chr6     437462  8       +       593897  TT-TTCCG
- * s       simHuman.chr6   446338  8       +       601863  TTCTTCCG
- * s       simMouse.chr6   460762  8       +       636262  TTTTACCG
- * s       simRat.chr6     470350  8       +       647215  TTTTACCG
+ * Structures to represent blocks of an alignment
  */
-
 typedef struct _row Alignment_Row;
 
 typedef struct _alignment {
-    Alignment_Row *row;
+    Alignment_Row *row; // An alignment is just a sequence of rows
 } Alignment;
 
-void alignment_destruct(Alignment *alignment);
-
-void alignment_link_adjacent(Alignment *left_alignment, Alignment *right_alignment);
-
-struct _row {
+struct _row { // Each row encodes the information about an aligned sequence
     char *sequence_name; // name of sequence
     int64_t start, length, sequence_length; // zero based, half open coordinates
     bool strand; // nonzero is "+" else "-"
@@ -36,6 +21,19 @@ struct _row {
     Alignment_Row *r_row;  // connection to a right row (may be NULL)
     Alignment_Row *n_row;  // the next row in the alignment
 };
+
+/*
+ * Clean up the memory for an alignment
+ */
+void alignment_destruct(Alignment *alignment);
+
+/*
+ * Use the O(ND) alignment to diff the rows between two alignments and connect together their rows
+ * so that we can determine which rows in the right_alignment are a continuation of rows in the
+ * left_alignment. We use this for efficiently outputting TAF.
+ */
+void alignment_link_adjacent(Alignment *left_alignment, Alignment *right_alignment);
+
 
 /*
  * Read a maf alignment block from the file stream. Return NULL if none available
@@ -55,7 +53,7 @@ Alignment *taf_read_column(FILE *fh, Alignment *p_column);
 /*
  * Write a taf block.
  */
-void taf_write_block(Alignment *p_alignment, Alignment *alignment, FILE *fh);
+void taf_write_block(Alignment *p_alignment, Alignment *alignment, FILE *fh, bool run_length_encode_bases);
 
 #endif /* STTAF_H_ */
 

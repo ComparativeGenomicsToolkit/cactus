@@ -3,10 +3,11 @@
 
 static void test_taf(CuTest *testCase) {
     // Example maf file
-    char *example_file = "./tests/evolverMammals.maf";
-    char *temp_copy = "./tests/evolverMammals.taf";
+    char *example_file = "./tests/chr2_KI270776v1_alt.maf"; //"./tests/chr2_KI270893v1_alt.maf"; //evolverMammals.maf";
+    char *temp_copy = "./tests/chr2_KI270776v1_alt.taf.rle"; //evolverMammals.taf";
+    bool run_length_encode_bases = 1;
 
-    //
+    // Write out the taf file
     FILE *file = fopen(example_file, "r");
     FILE *out_file = fopen(temp_copy, "w");
     Alignment *alignment, *p_alignment = NULL;
@@ -14,8 +15,7 @@ static void test_taf(CuTest *testCase) {
         if(p_alignment != NULL) {
             alignment_link_adjacent(p_alignment, alignment);
         }
-        //maf_write_block(alignment, stdout);
-        taf_write_block(p_alignment, alignment, out_file);
+        taf_write_block(p_alignment, alignment, out_file, run_length_encode_bases);
         if(p_alignment != NULL) {
             alignment_destruct(p_alignment);
         }
@@ -27,7 +27,7 @@ static void test_taf(CuTest *testCase) {
     fclose(file);
     fclose(out_file);
 
-    // Now check that all the maf blocks are the same
+    // Now parse the taf
     /*file = fopen(example_file, "r");
     FILE *file_copy = fopen(temp_copy, "r");
     Alignment *alignment2;
