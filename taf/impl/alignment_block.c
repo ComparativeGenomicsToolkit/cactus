@@ -1,12 +1,19 @@
 #include "taf.h"
 #include "ond.h"
 
+void Alignment_Row_destruct(Alignment_Row *row) {
+    free(row->bases);
+    free(row->sequence_name);
+    free(row);
+}
+
 void alignment_destruct(Alignment *alignment) {
     Alignment_Row *row = alignment->row;
     while(row != NULL) {
         Alignment_Row *r = row;
         row = row->n_row;
         free(r);
+        Alignment_Row_destruct(r);
     }
     free(alignment);
 }

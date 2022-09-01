@@ -30,6 +30,11 @@ struct _row { // Each row encodes the information about an aligned sequence
 void alignment_destruct(Alignment *alignment);
 
 /*
+ * Cleanup a row
+ */
+void Alignment_Row_destruct(Alignment_Row *row);
+
+/*
  * Use the O(ND) alignment to diff the rows between two alignments and connect together their rows
  * so that we can determine which rows in the right_alignment are a continuation of rows in the
  * left_alignment. We use this for efficiently outputting TAF.
@@ -65,7 +70,7 @@ stList *taf_read_header(LI *li);
  * Read a taf block - that is a column with column coordinates and all subsequent coordinate-less columns that
  * are considered to be part of the block.
  */
-Alignment *taf_read_block(Alignment *p_block,bool run_length_encode_bases, LI *li)
+Alignment *taf_read_block(Alignment *p_block, bool run_length_encode_bases, LI *li);
 
 /*
  * Write a taf header line

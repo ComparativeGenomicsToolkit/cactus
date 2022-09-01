@@ -37,7 +37,7 @@ static Alignment *parse_coordinates_and_establish_block(Alignment *p_block, stLi
         Alignment_Row *row = st_calloc(1, sizeof(Alignment_Row));
         alignment->row_number++; // Increment the row number
         // Clone the fields
-        *row = *p_block;
+        *row = *l_row;
         // Link up the previous and current rows
         *p_row = row;
         p_row = &(row->n_row);
@@ -56,7 +56,7 @@ static Alignment *parse_coordinates_and_establish_block(Alignment *p_block, stLi
         assert(strlen(op_type) == 1); // Must be a single character in length
         int64_t row_index = atol(stList_get(tokens, j++)); // Get the index of the affected row
         int64_t i=0;
-        Row **row = &(alignment->row); // Get the pointer to the pointer to the row being modded
+        Alignment_Row **row = &(alignment->row); // Get the pointer to the pointer to the row being modded
         while(i++ < row_index) {
             assert(*row != NULL);
             row = &((*row)->n_row);
@@ -68,7 +68,7 @@ static Alignment *parse_coordinates_and_establish_block(Alignment *p_block, stLi
             new_row->n_row = *row;
             *row = new_row;
             // Fill it out
-            parse_coordinates(row, &j, tokens);
+            parse_coordinates(*row, &j, tokens);
         } else if(op_type[0] == 's') { // Is substituting a row
             parse_coordinates(*row, &j, tokens);
         } else if(op_type[0] == 'd') { // Is deleting a row
@@ -77,7 +77,7 @@ static Alignment *parse_coordinates_and_establish_block(Alignment *p_block, stLi
             Alignment_Row *r = *row;
             *row = r->n_row;
             r->n_row = NULL;
-            Alignment_Row_destruct(row);
+            Alignment_Row_destruct(r);
         } else if(op_type[0] == 'g') { // Is making a gap without the sequence specified
             int64_t gap_length = atol(stList_get(tokens, j++)); // Get the index of the affected row
             (*row)->start += gap_length; // todo fix for negative strand
@@ -121,7 +121,7 @@ Alignment *taf_read_block(Alignment *p_block, bool run_length_encode_bases, LI *
     while(1) {
         // Read column with coordinates first, using previous alignment block and the coordinates
         // to create the set of rows
-        char *line = LI_read_next_line(li);
+        char *line = LI_get_next_line(li);
 
         if (line == NULL) { // At end of file
             return NULL;
@@ -137,7 +137,7 @@ Alignment *taf_read_block(Alignment *p_block, bool run_length_encode_bases, LI *
         }
 
         // Find the coordinates
-        Alignment *block = parse_coordinates_and_establish_block(tokens, p_block);
+        Alignment *block = parse_coordinates_and_establish_block(p_block, tokens);
         stList_destruct(tokens);
 
         // Now add in all subsequent columns until we get one with coordinates, which we push back
@@ -153,21 +153,22 @@ Alignment *taf_read_block(Alignment *p_block, bool run_length_encode_bases, LI *
             tokens = stString_split(line);
 
             if(stList_length(tokens) == 0) { // Is a white space only line, just ignore it
-                LI_read_next_line(li); // pull the line
+                LI_get_next_line(li); // pull the line
                 stList_destruct(tokens); // clean up
                 continue;
             }
 
-            if(has_coordinates(tokens)) { // If it has coordinates we have reached the end of the block, so break
+            int64_t i;
+            if(has_coordinates(tokens, &i)) { // If it has coordinates we have reached the end of the block, so break
                 // and don't pull the line
                 stList_destruct(tokens); // clean up
                 break;
             }
 
             // Add the bases from the line as a column to the alignment
-            stList_append(alignment_columns, get_bases(alignment->row_number, tokens, run_length_encode_bases));
+            stList_append(alignment_columns, get_bases(block->row_number, tokens, run_length_encode_bases));
 
-            LI_read_next_line(li); // pull the line
+            LI_get_next_line(li); // pull the line
             free(line); // clean up the memory for the line
             stList_destruct(tokens); // clean up the tokens
         }

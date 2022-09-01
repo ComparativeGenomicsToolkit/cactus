@@ -18,7 +18,7 @@ void LI_destruct(LI *li) {
 
 char *LI_get_next_line(LI *li) {
     char *l = li->line;
-    li->line = stFile_getLineFromFile(fh);
+    li->line = stFile_getLineFromFile(li->fh);
     return l;
 }
 
