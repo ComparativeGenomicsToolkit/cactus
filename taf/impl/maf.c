@@ -1,6 +1,5 @@
 //
 // Created by Benedict Paten on 8/25/22.
-//
 
 #include "taf.h"
 
@@ -26,19 +25,19 @@ Alignment *maf_read_block(FILE *fh) {
                     return alignment;
                 }
                 tokens = stString_split(line);
-                //free(line);
+                free(line);
                 if(stList_length(tokens) == 0) {
                     stList_destruct(tokens);
                     return alignment;
                 }
                 if(strcmp(stList_get(tokens, 0), "s") != 0) {
-                    //st_uglyf("Line %s\n", line);
-                    assert(strcmp(stList_get(tokens, 0), "i") == 0 || strcmp(stList_get(tokens, 0), "e") == 0); // Must be an "i" line
+                    assert(strcmp(stList_get(tokens, 0), "i") == 0 || strcmp(stList_get(tokens, 0), "e") == 0); // Must be an "i" or "e" line, which we ignore
                     stList_destruct(tokens);
                     continue;
                 }
                 assert(strcmp(stList_get(tokens, 0), "s") == 0); // Must be an "s" line
                 Alignment_Row *row = st_calloc(1, sizeof(Alignment_Row));
+                alignment->row_number++;
                 *p_row = row;
                 p_row = &(row->n_row);
                 row->sequence_name = stString_copy(stList_get(tokens, 1));
@@ -53,7 +52,7 @@ Alignment *maf_read_block(FILE *fh) {
             return alignment;
         }
         else {
-            assert(strcmp(stList_get(tokens, 0), "s") != 0);
+            assert(strcmp(stList_get(tokens, 0), "s") != 0); // Can not be an s line without a prior a line
         }
     }
 }

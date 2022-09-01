@@ -28,11 +28,13 @@ static void test_taf(CuTest *testCase) {
     fclose(out_file);
 
     // Now parse the taf
-    /*file = fopen(example_file, "r");
+    file = fopen(example_file, "r");
     FILE *file_copy = fopen(temp_copy, "r");
-    Alignment *alignment2;
+    LI *li = LI_construct(file_copy);
+    Alignment *alignment2, p_alignment2;
     while((alignment = maf_read_block(file)) != NULL) {
-        alignment2 = taf_read_column(file_copy);
+        // Alignment *taf_read_block(Alignment *p_block, bool run_length_encode_bases, LI *li)
+        alignment2 = taf_read_block(p_alignment2, run_length_encode_bases, li);
         CuAssertTrue(testCase, alignment2 != NULL);
         // Check that the blocks are the same
 
@@ -50,12 +52,16 @@ static void test_taf(CuTest *testCase) {
         CuAssertTrue(testCase, row2 == NULL);
 
         alignment_destruct(alignment);
-        alignment_destruct(alignment2);
+        if(p_alignment2 != NULL) {
+            alignment_destruct(p_alignment2);
+        }
+        p_alignment2 = alignment2;
     }
-    CuAssertTrue(testCase, taf_read_block(file_copy) == NULL);
+    CuAssertTrue(testCase, taf_read_block(p_alignment2, run_length_encode_bases, li) == NULL);
 
+    LI_destruct(li);
     fclose(file);
-    fclose(out_file);*/
+    fclose(out_file);
 }
 
 CuSuite* taf_test_suite(void) {

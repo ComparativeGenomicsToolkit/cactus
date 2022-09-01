@@ -146,5 +146,3 @@ The corresponding TAF file (262 bytes):
     CCCCC
     CCCCC
     AGGGG
-
-
