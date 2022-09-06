@@ -142,7 +142,7 @@ def make_chunked_alignments(job, event_a, genome_a, event_b, genome_b, distance,
     return job.addFollowOnJobFn(combine_chunks, chunked_alignment_files).rv()  # Combine the chunked alignment files
 
 
-def make_ingroup_to_outgroup_alignments_1(job, ingroup_event, outgroup_events, event_names_to_sequences, params):
+def make_ingroup_to_outgroup_alignments_1(job, ingroup_event, outgroup_events, event_names_to_sequences, distances, params):
     #  a job should never set its own follow-on, so we hang everything off root_job here to encapsulate
     root_job = Job()
     job.addChild(root_job)
@@ -152,16 +152,16 @@ def make_ingroup_to_outgroup_alignments_1(job, ingroup_event, outgroup_events, e
     logger.info("Building alignment between ingroup event: {} and outgroup event: {}".format(ingroup_event.iD, outgroup.iD))
     alignment = root_job.addChildJobFn(make_chunked_alignments,
                                        outgroup.iD, event_names_to_sequences[outgroup.iD],
-                                       ingroup_event.iD, event_names_to_sequences[ingroup_event.iD], 1.0, params,
+                                       ingroup_event.iD, event_names_to_sequences[ingroup_event.iD], distances[ingroup_event, outgroup], params,
                                        disk=2*(event_names_to_sequences[ingroup_event.iD].size+event_names_to_sequences[outgroup.iD].size)).rv()
 
     #  post process the alignments and recursively generate alignments to remaining outgroups
     return root_job.addFollowOnJobFn(make_ingroup_to_outgroup_alignments_2, alignment, ingroup_event, outgroup_events[1:],
-                                     event_names_to_sequences, params).rv() if len(outgroup_events) > 1 else alignment
+                                     event_names_to_sequences, distances, params).rv() if len(outgroup_events) > 1 else alignment
 
 
 def make_ingroup_to_outgroup_alignments_2(job, alignments, ingroup_event, outgroup_events,
-                                         event_names_to_sequences, params):
+                                          event_names_to_sequences, distances, params):
     # a job should never set its own follow-on, so we hang everything off root_job here to encapsulate
     root_job = Job()
     job.addChild(root_job)
@@ -191,7 +191,7 @@ def make_ingroup_to_outgroup_alignments_2(job, alignments, ingroup_event, outgro
 
     # recursively make alignments with the remaining outgroups
     alignments2 = root_job.addChildJobFn(make_ingroup_to_outgroup_alignments_1, ingroup_event, outgroup_events,
-                                         event_names_to_sequences, params).rv()
+                                         event_names_to_sequences, distances, params).rv()
 
     return root_job.addFollowOnJobFn(make_ingroup_to_outgroup_alignments_3, ingroup_event, event_names_to_sequences[ingroup_event.iD],
                                      alignments, alignments2).rv()
@@ -296,7 +296,7 @@ def make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancest
     # for each ingroup make alignments to the outgroups
     if int(params.find("blast").attrib["trimIngroups"]):  # Trim the ingroup sequences
         outgroup_alignments = [root_job.addChildJobFn(make_ingroup_to_outgroup_alignments_1, ingroup, outgroup_events,
-                                                      dict(event_names_to_sequences), params).rv()
+                                                      dict(event_names_to_sequences), distances, params).rv()
                                 for ingroup in ingroup_events] if len(outgroup_events) > 0 else []
     else:
         outgroup_alignments = [root_job.addChildJobFn(make_chunked_alignments,
