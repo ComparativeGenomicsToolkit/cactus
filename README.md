@@ -251,10 +251,11 @@ Here is an example of some settings that have worked on a mammalian-sized genome
 * **append**: `n1-highmem-16`
 
 ```
-cactus-prepare --wdl mammals.txt --noLocalInputs --preprocessBatchSize 5 --preprocessDisk 375Gi --preprocessCores 32 --preprocessMemory 120Gi \
+cactus-prepare --wdl mammals.txt --noLocalInputs --preprocessBatchSize 5 \
+               --preprocessDisk 375Gi --preprocessCores 32 --preprocessMemory 120Gi \
                --blastDisk 375Gi --blastCores 32 --gpu --gpuCount 8 --blastMemory 120Gi \
-					--alignDisk 375Gi --alignCores 64 --alignMemory 416Gi \
-					--halAppendDisk 3750Gi  --defaultMemory 104Gi  > mammals.wdl
+               --alignDisk 375Gi --alignCores 64 --alignMemory 416Gi \
+               --halAppendDisk 3750Gi  --defaultMemory 104Gi  > mammals.wdl
 ```
 
 If the workflow fails for whatever reason, it can be edited (to, say, increase job requirements) then resumed as follows:
