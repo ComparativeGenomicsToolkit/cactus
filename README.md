@@ -244,10 +244,17 @@ Then in Terra's [workspace menu](https://app.terra.bio/#workspaces):
 
 In the evolver example, all input sequences are specified in public URLs.  If sequences are not specified as URLs in the seqfile, then they must be uploaded in similar fashion to how the evolverMammals.txt was uploaded and selected in the example above.
 
-Here is an example of some settings that have worked on a mammalian-sized genome alignment on Terra:
+Here is an example of some settings that have worked on a mammalian-sized genome alignment on Terra.  It's important to align the [resources](https://cromwell.readthedocs.io/en/stable/RuntimeAttributes) requested (CPU and memory) to N1 instance types as found [here](https://gcloud-compute.com/instances.html).  Note that disk will be rounded up to the [nearest 375G](https://cromwell.readthedocs.io/en/stable/RuntimeAttributes/#disks). In the example below this is:
+
+* **preprocess/blast**: `n1-standard-32 + 8 v100 GPUs`
+* **align**: `n1-highmem-64` (can lower to `n1-highmem-32` using `--alignCores 32 --alignMemory 208Gi` for shorter branches/smaller genomes)
+* **append**: `n1-highmem-16`
 
 ```
-cactus-prepare --wdl mammals.txt --noLocalInputs --preprocessBatchSize 5 --alignDisk 3000G --halAppendDisk 3000G --preprocessDisk 3000G --defaultDisk 1000G --defaultCores 70 --gpu --gpuCount 8 --defaultMemory 450G > mammals.wdl
+cactus-prepare --wdl mammals.txt --noLocalInputs --preprocessBatchSize 5 --preprocessDisk 375Gi --preprocessCores 32 --preprocessMemory 120Gi \
+               --blastDisk 375Gi --blastCores 32 --gpu --gpuCount 8 --blastMemory 120Gi \
+					--alignDisk 375Gi --alignCores 64 --alignMemory 416Gi \
+					--halAppendDisk 3750Gi  --defaultMemory 104Gi  > mammals.wdl
 ```
 
 If the workflow fails for whatever reason, it can be edited (to, say, increase job requirements) then resumed as follows:

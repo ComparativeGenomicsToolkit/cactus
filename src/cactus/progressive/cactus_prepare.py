@@ -16,6 +16,7 @@ import subprocess
 import timeit
 import shutil
 import shlex
+import math
 
 from operator import itemgetter
 
@@ -113,6 +114,11 @@ def main(toil_mode=False):
     parser.add_argument("--blastPreemptible", type=int, help="Preemptible attempt count for each cactus-blast job [default=1]", default=1)
     parser.add_argument("--alignPreemptible", type=int, help="Preemptible attempt count for each cactus-align job [default=1]", default=1)
     parser.add_argument("--halAppendPreemptible", type=int, help="Preemptible attempt count for each halAppendSubtree job [default=1]", default=1)
+
+    parser.add_argument("--preprocessRetries", type=int, help="Retry attempts for each cactus-preprocess job [default=1]", default=1)
+    parser.add_argument("--blastRetries", type=int, help="Retry attempts for each cactus-blast job [default=1]", default=1)
+    parser.add_argument("--alignRetries", type=int, help="Retry attempts for each cactus-align job [default=1]", default=0)
+    parser.add_argument("--halAppendRetries", type=int, help="Retry attempts for each halAppendSubtree job [default=1]", default=0)
 
     options = parser.parse_args()
     #todo support root option
@@ -240,7 +246,7 @@ def human2bytesN(s):
     if s is not None:
         sb = human2bytes(s)
         if sb < 10000000:
-            raise RuntimeError("Suspiciously small disk or memory specification detected: {}.  Did you forget to add a \"G\" for gigabytes?".format(sb))
+            raise RuntimeError("Suspiciously small disk or memory specification detected: {}.  Did you forget to add a \"Gi\" for gigabytes?".format(sb))
         return sb
     else:
         return None
@@ -276,7 +282,7 @@ def get_toil_resource_opts(options, task):
         s += '--maxMemory {}'.format(bytes2humanN(mem))
     return s
 
-def wdl_disk(options, task, max_local=300):
+def wdl_disk(options, task, local_scale=375):
     """ get the wdl disk options and toil workdir"""
     if task == 'preprocess':
         disk = options.preprocessDisk
@@ -288,12 +294,12 @@ def wdl_disk(options, task, max_local=300):
         disk = options.halAppendDisk        
     if not disk:
         return "", "."
-    wdl_disk_options = "local-disk {} LOCAL".format(min(bytes2gigs(disk), max_local))
-    if disk > max_local:
-        wdl_disk_options += ", /mnt/hdd {} HDD".format(bytes2gigs(disk))
-        cactus_opts = "/mnt/hdd"
-    else:
-        cactus_opts = "."
+    disk = bytes2gigs(disk)
+    if disk > local_scale:
+        # round up to nearlest local_scale
+        disk = int(math.ceil(float(disk) / float(local_scale))) * local_scale
+    wdl_disk_options = "local-disk {} LOCAL".format(disk)
+    cactus_opts = "./__cactus_work"
     return wdl_disk_options, cactus_opts
 
 def get_leaves_and_outgroups(options, mc_tree, og_map, root):
@@ -689,6 +695,7 @@ def wdl_task_preprocess(options):
     
     s += '    runtime {\n'
     s += '        preemptible: {}\n'.format(options.preprocessPreemptible)
+    s += '        maxRetries: {}\n'.format(options.preprocessRetries)    
     if options.preprocessCores:
         s += '        cpu: {}\n'.format(options.preprocessCores)
     if options.preprocessMemory:
@@ -768,6 +775,7 @@ def wdl_task_blast(options):
     s += '\n    }\n'
     s += '    runtime {\n'
     s += '        preemptible: {}\n'.format(options.blastPreemptible)
+    s += '        maxRetries: {}\n'.format(options.blastRetries)
     if options.blastCores:
         s += '        cpu: {}\n'.format(options.blastCores)
     if options.blastMemory:
@@ -870,6 +878,7 @@ def wdl_task_align(options):
     s += '    runtime {\n'
     s += '        docker: \"{}\"\n'.format(options.dockerImage)
     s += '        preemptible: {}\n'.format(options.alignPreemptible)
+    s += '        maxRetries: {}\n'.format(options.alignRetries)    
     if options.alignCores:
         s += '        cpu: {}\n'.format(options.alignCores)
     if options.alignMemory:
@@ -976,6 +985,7 @@ def wdl_task_hal_append(options):
     s += '    runtime {\n'
     s += '        docker: \"{}\"\n'.format(options.dockerImage)
     s += '        preemptible: {}\n'.format(options.halAppendPreemptible)
+    s += '        maxRetries: {}\n'.format(options.halAppendRetries)        
     s += '        cpu: 1\n'
     if options.alignMemory:
         s+= '        memory: \"{}GB\"\n'.format(bytes2gigs(options.alignMemory))
