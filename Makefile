@@ -265,12 +265,6 @@ suball.abPOA:
 suball.lastz:
 	cd submodules/lastz && ${MAKE}
 	mkdir -p bin
-	ln -f submodules/lastz/src/* bin
-
-
-suball.lastz:
-	cd submodules/lastz && ${MAKE}
-	mkdir -p bin
 	ln -f submodules/lastz/src/lastz bin
 
 subclean.%:
