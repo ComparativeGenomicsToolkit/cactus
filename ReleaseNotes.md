@@ -7,8 +7,11 @@ This release patches recent regressions in the "blast" phase:
 
 Other changes include:
 
+- Fix regression in 2.2.0 where "legacy" binary release was built with same compiler options as normal release (and therefore no more portable).
+- Make WDL output from `cactus-prepare` a bit cleaner.  Revise Terra best practices in the documentation to be much more efficient. 
 - Update to Toil 5.7.1
 - Update to minigraph 0.19
+
 
 # Release 2.2.0 2022-08-19
 
