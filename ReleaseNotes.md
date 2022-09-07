@@ -1,3 +1,15 @@
+# Release 2.2.1 2022-09-07
+
+This release patches recent regressions in the "blast" phase:
+
+- Fix `cactus-blast` crash when using GPU on mammalian-sized genomes 
+- Use tree distance (rather than 1) for determining lastz parameters for outgroups.
+
+Other changes include:
+
+- Update to Toil 5.7.1
+- Update to minigraph 0.19
+
 # Release 2.2.0 2022-08-19
 
 This release contains a major update to the "blast" phase, where chaining logic is introduced to select lastz anchors, replacing the old quality-based heuristic. It also uses 1 fewer outgroup (2 instead of 3) by default, and no longer explicitly computes self-alignments, which should result in faster runtimes. 
