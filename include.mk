@@ -64,19 +64,29 @@ ifeq ($(shell arch || true), aarch64)
 	arm=1
 endif
 ifdef arm
-# flags to build abpoa
-export armv8 = 1
-export aarch64 = 1
-# flags to include simde abpoa in cactus on ARM
-CFLAGS+= -march=armv8-a+simd
+#	flags to build abpoa
+	export armv8 = 1
+	export aarch64 = 1
+#	flags to include simde abpoa in cactus on ARM
+	CFLAGS+= -march=armv8-a+simd
 else
-# flags to build abpoa
-export avx2 = 1
-# flags to include simde abpoa in cactus on X86
-CFLAGS+= -mavx2
+	ifdef CACTUS_LEGACY_ARCH
+		export sse2 = 1
+		CFLAGS+= -msse2
+	else
+#		flags to build abpoa
+		export avx2 = 1
+#		flags to include simde abpoa in cactus on X86
+		CFLAGS+= -mavx2
 endif
+endif
+
 # flags needed to include simde abpoa in cactus on any architecture
-CFLAGS+= -D__AVX2__ -DUSE_SIMDE -DSIMDE_ENABLE_NATIVE_ALIASES
+ifdef CACTUS_LEGACY_ARCH
+	CFLAGS+= -D__SSE2__ -DUSE_SIMDE -DSIMDE_ENABLE_NATIVE_ALIASES
+else
+	CFLAGS+= -D__AVX2__ -DUSE_SIMDE -DSIMDE_ENABLE_NATIVE_ALIASES
+endif
 
 dataSetsPath=/Users/benedictpaten/Dropbox/Documents/work/myPapers/genomeCactusPaper/dataSets
 
