@@ -6,6 +6,7 @@
 
 """
 import os
+import sys
 from argparse import ArgumentParser
 import xml.etree.ElementTree as ET
 import timeit
@@ -73,6 +74,7 @@ def main():
     # Mess with some toil options to create useful defaults.
     cactus_override_toil_options(options)
 
+    logger.info('Cactus Command: {}'.format(' '.join(sys.argv)))
     start_time = timeit.default_timer()
     runCactusBlastOnly(options)
     end_time = timeit.default_timer()
