@@ -299,7 +299,7 @@ def wdl_disk(options, task, local_scale=375):
         # round up to nearlest local_scale
         disk = int(math.ceil(float(disk) / float(local_scale))) * local_scale
     wdl_disk_options = "local-disk {} LOCAL".format(disk)
-    cactus_opts = "./__cactus_work"
+    cactus_opts = ""
     return wdl_disk_options, cactus_opts
 
 def get_leaves_and_outgroups(options, mc_tree, og_map, root):
@@ -687,8 +687,8 @@ def wdl_task_preprocess(options):
     s += '    command {\n        '
     s += 'cactus-preprocess {} --inPaths ${{sep=\" \" default=\"\" in_files}} ${{sep=\" \" default=\"\" in_urls}}'.format(get_jobstore(options, 'preprocess'))
     s += ' --inputNames ${sep=\" \" default=\"\" in_names}'
-    s += ' --outPaths ${{sep=\" \" out_names}} {} {} --workDir {}{}'.format(options.cactusOptions, get_toil_resource_opts(options, 'preprocess'),
-                                                                             wdl_disk(options, 'preprocess')[1], ' --gpu' if options.gpu else '')
+    s += ' --outPaths ${{sep=\" \" out_names}} {} {} {}{}'.format(options.cactusOptions, get_toil_resource_opts(options, 'preprocess'),
+                                                                  wdl_disk(options, 'preprocess')[1], ' --gpu' if options.gpu else '')
     s += ' ${\"--configFile \" + in_config_file}'
     s += '\n'
     s += '    }\n'
@@ -770,8 +770,8 @@ def wdl_task_blast(options):
     s += '    command {\n        '
     s += 'cactus-blast {} ${{in_seq_file}} ${{out_name}} --root ${{in_root}}'.format(get_jobstore(options, 'blast'))
     s += ' --pathOverrides ${sep=\" \" in_fa_files} --pathOverrideNames ${sep=\" \" in_fa_names}'
-    s += ' {} {} --workDir {}{} ${{\"--configFile \" + in_config_file}}'.format(options.cactusOptions, get_toil_resource_opts(options, 'blast'),
-                                                                                 wdl_disk(options, 'blast')[1], ' --gpu' if options.gpu else '')
+    s += ' {} {} {}{} ${{\"--configFile \" + in_config_file}}'.format(options.cactusOptions, get_toil_resource_opts(options, 'blast'),
+                                                                      wdl_disk(options, 'blast')[1], ' --gpu' if options.gpu else '')
     s += '\n    }\n'
     s += '    runtime {\n'
     s += '        preemptible: {}\n'.format(options.blastPreemptible)
@@ -870,8 +870,8 @@ def wdl_task_align(options):
     s += '    command {\n        '
     s += 'cactus-align {} ${{in_seq_file}} ${{sep=\" \" in_blast_files}} ${{out_hal_name}} --root ${{in_root}}'.format(get_jobstore(options, 'align'))
     s += ' --pathOverrides ${{sep=\" \" in_fa_files}} --pathOverrideNames ${{sep=\" \" in_fa_names}} {}'.format(options.cactusOptions)
-    s += ' {} --workDir {} ${{\"--configFile \" + in_config_file}}'.format(get_toil_resource_opts(options, 'align'),
-                                                                           wdl_disk(options, 'align')[1])
+    s += ' {} {} ${{\"--configFile \" + in_config_file}}'.format(get_toil_resource_opts(options, 'align'),
+                                                                 wdl_disk(options, 'align')[1])
     s += '\n        '
     s += 'hal2fasta ${{out_hal_name}} ${{in_root}} {} > ${{out_fa_name}}'.format(options.halOptions)
     s += '\n    }\n'
