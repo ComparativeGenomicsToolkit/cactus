@@ -972,12 +972,12 @@ def wdl_task_hal_append(options):
     
     # note: I've been unable to modify an input file then return it as an output
     #       so we explicitly copy it into a local string here first
-    s += '        cp ~{in_hal_parent} ./~{parent_name}.mut\n'
+    s += '        cp ~{in_hal_parent} ./~{parent_name}\n'
     # convert WDL arrays to bash arrays (don't think spaces in names will be supported, but that's true almost everywhere else too)
     s += '        HA_CHILDS=(~{sep=" " in_hal_childs})\n'
     s += '        HA_NAMES=(~{sep=" " in_names})\n'    
     s += '        for i in "${!HA_NAMES[@]}"; do\n'
-    s += '             halAppendSubtree ./~{{parent_name}}.mut ${{HA_CHILDS[$i]}} ${{HA_NAMES[$i]}} ${{HA_NAMES[$i]}} --merge {}\n'.format(
+    s += '             halAppendSubtree ./~{{parent_name}} ${{HA_CHILDS[$i]}} ${{HA_NAMES[$i]}} ${{HA_NAMES[$i]}} --merge {}\n'.format(
 options.halOptions)
     s += '        done\n'
     s += '    >>>\n'
@@ -993,7 +993,7 @@ options.halOptions)
     s += '        zones: \"{}\"\n'.format(options.zone)
     s += '    }\n'
     s += '    output {\n'
-    s += '        File out_file=\"./~{parent_name}.mut\"\n'
+    s += '        File out_file=\"./~{parent_name}\"\n'
     s += '    }\n'
     s += '}\n'
 
