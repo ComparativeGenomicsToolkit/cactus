@@ -64,6 +64,7 @@ def main():
     # Mess with some toil options to create useful defaults.
     cactus_override_toil_options(options)
 
+    logger.info('Cactus Command: {}'.format(' '.join(sys.argv)))
     start_time = timeit.default_timer()
 
     with Toil(options) as toil:

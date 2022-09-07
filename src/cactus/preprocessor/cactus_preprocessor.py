@@ -8,6 +8,7 @@
 
 """
 import os
+import sys
 import math
 import copy
 from argparse import ArgumentParser
@@ -533,6 +534,8 @@ def main():
             if ignore_event in inNames:
                 del inNames[inNames.index(ignore_event)]
 
+    logger.info('Cactus Command: {}'.format(' '.join(sys.argv)))
+    
     with Toil(options) as toil:
         stageWorkflow(outputSequenceDir=None,
                       configNode=configNode,

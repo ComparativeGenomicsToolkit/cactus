@@ -2,7 +2,7 @@
 
 """This sciprt will take the cactus-graphmap output and input and split it up into chromosomes.  This is done after a whole-genome graphmap as we need the whole-genome minigraph alignments to do the chromosome splitting in the first place.  For each chromosome, it will make a PAF, GFA and Seqfile (pointing to chrosome fastas)
 """
-import os
+import os, sys
 from argparse import ArgumentParser
 import xml.etree.ElementTree as ET
 import copy
@@ -77,6 +77,7 @@ def main():
     # Mess with some toil options to create useful defaults.
     cactus_override_toil_options(options)
 
+    logger.info('Cactus Command: {}'.format(' '.join(sys.argv)))
     start_time = timeit.default_timer()
     cactus_graphmap_split(options)
     end_time = timeit.default_timer()

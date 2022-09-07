@@ -16,6 +16,7 @@ import subprocess
 import timeit
 import shutil
 import shlex
+import math
 
 from operator import itemgetter
 
@@ -68,7 +69,7 @@ def main(toil_mode=False):
         parser.add_argument("--seqFileOnly", action="store_true", help="Only create output SeqFile (with no ancestors); do not make plan")
     parser.add_argument("--configFile", default=os.path.join(cactusRootPath(), "cactus_progressive_config.xml"))
     parser.add_argument("--preprocessBatchSize", type=int, default=3, help="size (number of genomes) of preprocessing jobs")
-    parser.add_argument("--halAppendBatchSize", type=int, default=60, help="size (number of genomes) of halAppendSubtree jobs (WDL-only)")
+    parser.add_argument("--halAppendBatchSize", type=int, default=100, help="size (number of genomes) of halAppendSubtree jobs (WDL-only)")
     parser.add_argument("--halOptions", type=str, default="--hdf5InMemory", help="options for every hal command")
     parser.add_argument("--cactusOptions", type=str, default="--realTimeLogging --logInfo --retryCount 0", help="options for every cactus command")
     parser.add_argument("--preprocessOnly", action="store_true", help="only decompose into preprocessor and cactus jobs")
@@ -113,6 +114,11 @@ def main(toil_mode=False):
     parser.add_argument("--blastPreemptible", type=int, help="Preemptible attempt count for each cactus-blast job [default=1]", default=1)
     parser.add_argument("--alignPreemptible", type=int, help="Preemptible attempt count for each cactus-align job [default=1]", default=1)
     parser.add_argument("--halAppendPreemptible", type=int, help="Preemptible attempt count for each halAppendSubtree job [default=1]", default=1)
+
+    parser.add_argument("--preprocessRetries", type=int, help="Retry attempts for each cactus-preprocess job [default=1]", default=1)
+    parser.add_argument("--blastRetries", type=int, help="Retry attempts for each cactus-blast job [default=1]", default=1)
+    parser.add_argument("--alignRetries", type=int, help="Retry attempts for each cactus-align job [default=1]", default=0)
+    parser.add_argument("--halAppendRetries", type=int, help="Retry attempts for each halAppendSubtree job [default=1]", default=0)
 
     options = parser.parse_args()
     #todo support root option
@@ -240,7 +246,7 @@ def human2bytesN(s):
     if s is not None:
         sb = human2bytes(s)
         if sb < 10000000:
-            raise RuntimeError("Suspiciously small disk or memory specification detected: {}.  Did you forget to add a \"G\" for gigabytes?".format(sb))
+            raise RuntimeError("Suspiciously small disk or memory specification detected: {}.  Did you forget to add a \"Gi\" for gigabytes?".format(sb))
         return sb
     else:
         return None
@@ -276,7 +282,7 @@ def get_toil_resource_opts(options, task):
         s += '--maxMemory {}'.format(bytes2humanN(mem))
     return s
 
-def wdl_disk(options, task, max_local=300):
+def wdl_disk(options, task, local_scale=375):
     """ get the wdl disk options and toil workdir"""
     if task == 'preprocess':
         disk = options.preprocessDisk
@@ -288,12 +294,12 @@ def wdl_disk(options, task, max_local=300):
         disk = options.halAppendDisk        
     if not disk:
         return "", "."
-    wdl_disk_options = "local-disk {} LOCAL".format(min(bytes2gigs(disk), max_local))
-    if disk > max_local:
-        wdl_disk_options += ", /mnt/hdd {} HDD".format(bytes2gigs(disk))
-        cactus_opts = "/mnt/hdd"
-    else:
-        cactus_opts = "."
+    disk = bytes2gigs(disk)
+    if disk > local_scale:
+        # round up to nearlest local_scale
+        disk = int(math.ceil(float(disk) / float(local_scale))) * local_scale
+    wdl_disk_options = "local-disk {} LOCAL".format(disk)
+    cactus_opts = "."
     return wdl_disk_options, cactus_opts
 
 def get_leaves_and_outgroups(options, mc_tree, og_map, root):
@@ -681,14 +687,15 @@ def wdl_task_preprocess(options):
     s += '    command {\n        '
     s += 'cactus-preprocess {} --inPaths ${{sep=\" \" default=\"\" in_files}} ${{sep=\" \" default=\"\" in_urls}}'.format(get_jobstore(options, 'preprocess'))
     s += ' --inputNames ${sep=\" \" default=\"\" in_names}'
-    s += ' --outPaths ${{sep=\" \" out_names}} {} {} --workDir {}{}'.format(options.cactusOptions, get_toil_resource_opts(options, 'preprocess'),
-                                                                             wdl_disk(options, 'preprocess')[1], ' --gpu' if options.gpu else '')
+    s += ' --outPaths ${{sep=\" \" out_names}} {} {} {}'.format(options.cactusOptions, get_toil_resource_opts(options, 'preprocess'),
+                                                                ' --gpu' if options.gpu else '')
     s += ' ${\"--configFile \" + in_config_file}'
     s += '\n'
     s += '    }\n'
     
     s += '    runtime {\n'
     s += '        preemptible: {}\n'.format(options.preprocessPreemptible)
+    s += '        maxRetries: {}\n'.format(options.preprocessRetries)    
     if options.preprocessCores:
         s += '        cpu: {}\n'.format(options.preprocessCores)
     if options.preprocessMemory:
@@ -763,11 +770,12 @@ def wdl_task_blast(options):
     s += '    command {\n        '
     s += 'cactus-blast {} ${{in_seq_file}} ${{out_name}} --root ${{in_root}}'.format(get_jobstore(options, 'blast'))
     s += ' --pathOverrides ${sep=\" \" in_fa_files} --pathOverrideNames ${sep=\" \" in_fa_names}'
-    s += ' {} {} --workDir {}{} ${{\"--configFile \" + in_config_file}}'.format(options.cactusOptions, get_toil_resource_opts(options, 'blast'),
-                                                                                 wdl_disk(options, 'blast')[1], ' --gpu' if options.gpu else '')
+    s += ' {} {} {} ${{\"--configFile \" + in_config_file}}'.format(options.cactusOptions, get_toil_resource_opts(options, 'blast'),
+                                                                    ' --gpu' if options.gpu else '')
     s += '\n    }\n'
     s += '    runtime {\n'
     s += '        preemptible: {}\n'.format(options.blastPreemptible)
+    s += '        maxRetries: {}\n'.format(options.blastRetries)
     if options.blastCores:
         s += '        cpu: {}\n'.format(options.blastCores)
     if options.blastMemory:
@@ -862,14 +870,14 @@ def wdl_task_align(options):
     s += '    command {\n        '
     s += 'cactus-align {} ${{in_seq_file}} ${{sep=\" \" in_blast_files}} ${{out_hal_name}} --root ${{in_root}}'.format(get_jobstore(options, 'align'))
     s += ' --pathOverrides ${{sep=\" \" in_fa_files}} --pathOverrideNames ${{sep=\" \" in_fa_names}} {}'.format(options.cactusOptions)
-    s += ' {} --workDir {} ${{\"--configFile \" + in_config_file}}'.format(get_toil_resource_opts(options, 'align'),
-                                                                           wdl_disk(options, 'align')[1])
+    s += ' {} ${{\"--configFile \" + in_config_file}}'.format(get_toil_resource_opts(options, 'align'))
     s += '\n        '
     s += 'hal2fasta ${{out_hal_name}} ${{in_root}} {} > ${{out_fa_name}}'.format(options.halOptions)
     s += '\n    }\n'
     s += '    runtime {\n'
     s += '        docker: \"{}\"\n'.format(options.dockerImage)
     s += '        preemptible: {}\n'.format(options.alignPreemptible)
+    s += '        maxRetries: {}\n'.format(options.alignRetries)    
     if options.alignCores:
         s += '        cpu: {}\n'.format(options.alignCores)
     if options.alignMemory:
@@ -963,28 +971,29 @@ def wdl_task_hal_append(options):
     s += '    command <<<\n'
     
     # note: I've been unable to modify an input file then return it as an output
-    #       so we explicitly copy it into a local string here first (using workdir)
-    s += '        cp ~{{in_hal_parent}} {}/~{{parent_name}}\n'.format(wdl_disk(options, 'halAppend')[1])
+    #       so we explicitly copy it into a local string here first
+    s += '        cp ~{in_hal_parent} ./~{parent_name}\n'
     # convert WDL arrays to bash arrays (don't think spaces in names will be supported, but that's true almost everywhere else too)
     s += '        HA_CHILDS=(~{sep=" " in_hal_childs})\n'
     s += '        HA_NAMES=(~{sep=" " in_names})\n'    
     s += '        for i in "${!HA_NAMES[@]}"; do\n'
-    s += '             halAppendSubtree {}/~{{parent_name}} ${{HA_CHILDS[$i]}} ${{HA_NAMES[$i]}} ${{HA_NAMES[$i]}} --merge {}\n'.format(
-        wdl_disk(options, 'halAppend')[1], options.halOptions)
+    s += '             halAppendSubtree ./~{{parent_name}} ${{HA_CHILDS[$i]}} ${{HA_NAMES[$i]}} ${{HA_NAMES[$i]}} --merge {}\n'.format(
+options.halOptions)
     s += '        done\n'
     s += '    >>>\n'
     s += '    runtime {\n'
     s += '        docker: \"{}\"\n'.format(options.dockerImage)
     s += '        preemptible: {}\n'.format(options.halAppendPreemptible)
+    s += '        maxRetries: {}\n'.format(options.halAppendRetries)        
     s += '        cpu: 1\n'
     if options.alignMemory:
-        s+= '        memory: \"{}GB\"\n'.format(bytes2gigs(options.alignMemory))
+        s += '        memory: \"{}GB\"\n'.format(bytes2gigs(options.alignMemory))
     if options.halAppendDisk:
         s += '        disks: \"{}\"\n'.format(wdl_disk(options, 'halAppend')[0])
     s += '        zones: \"{}\"\n'.format(options.zone)
     s += '    }\n'
     s += '    output {\n'
-    s += '        File out_file=\"{}/${{parent_name}}\"\n'.format(wdl_disk(options, 'halAppend')[1])
+    s += '        File out_file=\"./~{parent_name}\"\n'
     s += '    }\n'
     s += '}\n'
 

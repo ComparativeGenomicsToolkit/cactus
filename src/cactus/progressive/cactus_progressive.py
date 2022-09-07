@@ -11,6 +11,7 @@ tree.
 
 import logging
 import os
+import sys
 import xml.etree.ElementTree as ET
 import timeit
 from argparse import ArgumentParser
@@ -353,12 +354,13 @@ def main():
     cactus_override_toil_options(options)
 
     start_time = timeit.default_timer()
+    logger.info('Cactus Command: {}'.format(' '.join(sys.argv)))
 
     with Toil(options) as toil:
         importSingularityImage(options)
         #Run the workflow
         if options.restart:
-            halID = toil.restart()
+            hal_id = toil.restart()
         else:
 
             # load up the seqfile and figure out the outgroups and schedule
