@@ -58,6 +58,11 @@ def cactus_override_toil_options(options):
         # instead of Toil's default (1).
         options.retryCount = 5
 
+    if not options.realTimeLogging:
+        # Too much valuable debugging information to pass up
+        logger.info('Enabling realtime logging in Toil')
+        options.realTimeLogging = True
+
 def makeURL(path_or_url):
     if urlparse(path_or_url).scheme == '':
         return "file://" + os.path.abspath(path_or_url)
