@@ -210,6 +210,9 @@ def get_event_set(mc_tree, config_wrapper, outgroup_map, root_name):
         tree_events = set([sub_tree.getName(node) for node in sub_tree.postOrderTraversal()])
         event_set = event_set.intersection(tree_events)
         event_set.remove(root_name)
+        leaf_names = [mc_tree.getName(leaf) for leaf in mc_tree.getLeaves()]
+        if root_name in leaf_names:
+            raise RuntimeError('Genome specified with --root, \"{}\", is a leaf.  Only internal nodes can be used as the root'.format(root_name))
     return event_set
 
 def check_branch_lengths(mc_tree, warning_cap=2.0, error_cap=25.0):
