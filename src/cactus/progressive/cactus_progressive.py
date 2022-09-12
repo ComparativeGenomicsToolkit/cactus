@@ -277,12 +277,13 @@ def progressive_workflow(job, options, config_node, mc_tree, og_map, input_seq_i
     if not options.skipPreprocessor:
         pp_job = sanitize_job.addFollowOnJobFn(preprocess_all, options, config_node, sanitize_job.rv())
         seq_id_map = pp_job.rv()
+        sanitize_job = pp_job
     else:
         seq_id_map = sanitize_job.rv()
 
     # then do the progressive workflow
     root_event = options.root if options.root else mc_tree.getRootName()
-    progressive_job = pp_job.addFollowOnJobFn(progressive_schedule, options, config_node, seq_id_map, mc_tree, og_map, root_event)
+    progressive_job = sanitize_job.addFollowOnJobFn(progressive_schedule, options, config_node, seq_id_map, mc_tree, og_map, root_event)
 
     # then do the hal export
     hal_export_job = progressive_job.addFollowOnJobFn(export_hal, mc_tree, config_node, seq_id_map, og_map, progressive_job.rv(), event=root_event,
