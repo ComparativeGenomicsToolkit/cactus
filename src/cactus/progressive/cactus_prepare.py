@@ -542,7 +542,7 @@ def get_plan(options, inSeqFile, outSeqFile, configWrapper, toil):
         for event in group:
             if event != root:
                 if not options.toil and not options.wdl:
-                    plan += 'halAppendSubtree {} {} {} {} --merge {}\n'.format(
+                    plan += 'halAppendSubtree {} {} {} {} --merge {} --hdf5InMemory\n'.format(
                         halPath(root), halPath(event), event, event, options.halOptions)
                 append_count += 1
                 event_list.append(event)
@@ -977,7 +977,7 @@ def wdl_task_hal_append(options):
     s += '        HA_CHILDS=(~{sep=" " in_hal_childs})\n'
     s += '        HA_NAMES=(~{sep=" " in_names})\n'    
     s += '        for i in "${!HA_NAMES[@]}"; do\n'
-    s += '             halAppendSubtree ./~{{parent_name}} ${{HA_CHILDS[$i]}} ${{HA_NAMES[$i]}} ${{HA_NAMES[$i]}} --merge {}\n'.format(
+    s += '             halAppendSubtree ./~{{parent_name}} ${{HA_CHILDS[$i]}} ${{HA_NAMES[$i]}} ${{HA_NAMES[$i]}} --merge --hdf5InMemory {}\n'.format(
 options.halOptions)
     s += '        done\n'
     s += '    >>>\n'
@@ -1031,7 +1031,7 @@ def toil_call_hal_append_subtrees(job, options, mc_tree, og_map, root_name, root
         job.fileStore.readGlobalFile(event_id, hal_files[-1])
 
         # append to the root
-        cactus_call(parameters=['halAppendSubtree', root_file, hal_files[-1], event_name, event_name, '--merge'] +
+        cactus_call(parameters=['halAppendSubtree', root_file, hal_files[-1], event_name, event_name, '--merge', '--hdf5InMemory'] +
                     options.halOptions.strip().split(' '))
 
     # bypassing toil.exportFile for now as it only works on promises returned by the
