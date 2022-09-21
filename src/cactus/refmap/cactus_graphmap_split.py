@@ -23,6 +23,7 @@ from cactus.shared.common import cactus_call
 from cactus.shared.common import getOptionalAttrib, findRequiredNode
 from cactus.shared.common import unzip_gz, write_s3
 from cactus.shared.common import get_faidx_subpath_rename_cmd
+from cactus.shared.version import cactus_commit
 from cactus.preprocessor.fileMasking import get_mask_bed_from_fasta
 from cactus.preprocessor.checkUniqueHeaders import sanitize_fasta_headers
 from cactus.refmap.cactus_graphmap import filter_paf
@@ -78,6 +79,7 @@ def main():
     cactus_override_toil_options(options)
 
     logger.info('Cactus Command: {}'.format(' '.join(sys.argv)))
+    logger.info('Cactus Commit: {}'.format(cactus_commit))
     start_time = timeit.default_timer()
     cactus_graphmap_split(options)
     end_time = timeit.default_timer()

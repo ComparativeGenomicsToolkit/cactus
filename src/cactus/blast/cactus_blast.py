@@ -18,6 +18,7 @@ from cactus.shared.configWrapper import ConfigWrapper
 from cactus.shared.common import makeURL, catFiles
 from cactus.shared.common import enableDumpStack
 from cactus.shared.common import cactus_override_toil_options
+from cactus.shared.version import cactus_commit
 
 from cactus.paf.local_alignment import sanitize_then_make_paf_alignments
 
@@ -75,6 +76,7 @@ def main():
     cactus_override_toil_options(options)
 
     logger.info('Cactus Command: {}'.format(' '.join(sys.argv)))
+    logger.info('Cactus Commit: {}'.format(cactus_commit))
     start_time = timeit.default_timer()
     runCactusBlastOnly(options)
     end_time = timeit.default_timer()

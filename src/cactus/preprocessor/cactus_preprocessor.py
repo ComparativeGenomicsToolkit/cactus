@@ -32,6 +32,7 @@ from cactus.shared.common import setupBinaries, importSingularityImage
 from cactus.shared.common import enableDumpStack
 from cactus.shared.common import unzip_gzs
 from cactus.shared.common import zip_gzs
+from cactus.shared.version import cactus_commit
 from toil.statsAndLogging import set_logging_from_options
 from toil.realtimeLogger import RealtimeLogger
 
@@ -535,6 +536,7 @@ def main():
                 del inNames[inNames.index(ignore_event)]
 
     logger.info('Cactus Command: {}'.format(' '.join(sys.argv)))
+    logger.info('Cactus Commit: {}'.format(cactus_commit))
     
     with Toil(options) as toil:
         stageWorkflow(outputSequenceDir=None,

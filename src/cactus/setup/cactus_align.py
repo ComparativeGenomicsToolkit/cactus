@@ -27,6 +27,7 @@ from cactus.shared.common import getOptionalAttrib
 from cactus.shared.common import cactus_call
 from cactus.shared.common import write_s3, has_s3, get_aws_region, unzip_gzs
 from cactus.shared.common import cactusRootPath
+from cactus.shared.version import cactus_commit
 from cactus.shared.configWrapper import ConfigWrapper
 from cactus.refmap.cactus_graphmap import filter_paf
 from cactus.preprocessor.checkUniqueHeaders import sanitize_fasta_headers
@@ -149,6 +150,7 @@ def main():
     cactus_override_toil_options(options)
     
     logger.info('Cactus Command: {}'.format(' '.join(sys.argv)))
+    logger.info('Cactus Commit: {}'.format(cactus_commit))
     start_time = timeit.default_timer()
     with Toil(options) as toil:
         importSingularityImage(options)
@@ -481,6 +483,7 @@ def main_batch():
     options.configOverrides = config_overrides
 
     logger.info('Cactus Command: {}'.format(' '.join(sys.argv)))
+    logger.info('Cactus Commit: {}'.format(cactus_commit))    
     start_time = timeit.default_timer()
     with Toil(options) as toil:
         importSingularityImage(options)
