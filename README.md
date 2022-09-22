@@ -250,12 +250,14 @@ Here is an example of some settings that have worked on a mammalian-sized genome
 * **align**: `n1-highmem-64` (can lower to `n1-highmem-32` using `--alignCores 32 --alignMemory 208Gi` for shorter branches/smaller genomes)
 * **append**: `n1-highmem-16`
 
+**Note** If the disk size is greater than 375Gi, it will be rounded up to the nearest value in 375 times one of these multiples: `[0, 1, 2, 3, 4, 5, 6, 7, 8, 16, 24]` [as required by Terra](https://github.com/ComparativeGenomicsToolkit/cactus/issues/792).
+
 ```
 cactus-prepare --wdl mammals.txt --noLocalInputs --preprocessBatchSize 5 \
                --preprocessDisk 375Gi --preprocessCores 32 --preprocessMemory 120Gi \
                --blastDisk 375Gi --blastCores 32 --gpu --gpuCount 8 --blastMemory 120Gi \
                --alignDisk 375Gi --alignCores 64 --alignMemory 416Gi \
-               --halAppendDisk 3750Gi  --defaultMemory 104Gi  > mammals.wdl
+               --halAppendDisk 3000Gi  --defaultMemory 104Gi  > mammals.wdl
 ```
 
 If the workflow fails for whatever reason, it can be edited (to, say, increase job requirements) then resumed as follows:

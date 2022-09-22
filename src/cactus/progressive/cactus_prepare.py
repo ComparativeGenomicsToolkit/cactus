@@ -282,7 +282,7 @@ def get_toil_resource_opts(options, task):
         s += '--maxMemory {}'.format(bytes2humanN(mem))
     return s
 
-def wdl_disk(options, task, local_scale=375):
+def wdl_disk(options, task, local_scale=375, local_multiples=[0, 1, 2, 3, 4, 5, 6, 7, 8, 16, 24]):
     """ get the wdl disk options and toil workdir"""
     if task == 'preprocess':
         disk = options.preprocessDisk
@@ -296,7 +296,14 @@ def wdl_disk(options, task, local_scale=375):
         return "", "."
     disk = bytes2gigs(disk)
     if disk > local_scale:
+        local_multiples = sorted(local_multiples)
         # round up to nearlest local_scale
+        for mult in local_multiples:
+            if mult * local_scale >= disk:
+                disk = mult * local_scale
+                break
+        if local_multiples and disk > local_multiples[-1] * local_scale:
+            logger.critical('Specified disk {} > {}*{}: this probably won\'t run on Terra'.format(disk, local_scale, local_multiples[-1]))            
         disk = int(math.ceil(float(disk) / float(local_scale))) * local_scale
     wdl_disk_options = "local-disk {} LOCAL".format(disk)
     cactus_opts = "."
