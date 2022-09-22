@@ -25,6 +25,7 @@ from cactus.shared.common import cactus_override_toil_options
 from cactus.shared.common import cactus_call
 from cactus.shared.common import getOptionalAttrib, findRequiredNode
 from cactus.shared.common import unzip_gz, zip_gz
+from cactus.shared.version import cactus_commit
 from cactus.preprocessor.checkUniqueHeaders import sanitize_fasta_headers
 from toil.job import Job
 from toil.common import Toil
@@ -86,7 +87,8 @@ def main():
     # Mess with some toil options to create useful defaults.
     cactus_override_toil_options(options)
 
-    logger.info('Cactus Command: {}'.format(' '.join(sys.argv)))    
+    logger.info('Cactus Command: {}'.format(' '.join(sys.argv)))
+    logger.info('Cactus Commit: {}'.format(cactus_commit))
     start_time = timeit.default_timer()
     graph_map(options)
     end_time = timeit.default_timer()

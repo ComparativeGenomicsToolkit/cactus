@@ -21,6 +21,7 @@ from cactus.shared.common import enableDumpStack
 from cactus.shared.common import cactus_override_toil_options
 from cactus.shared.common import cactus_call
 from cactus.shared.common import getOptionalAttrib, findRequiredNode
+from cactus.shared.version import cactus_commit
 from cactus.refmap.cactus_graphmap_join import unzip_seqfile
 from cactus.preprocessor.checkUniqueHeaders import sanitize_fasta_headers
 from toil.job import Job
@@ -65,6 +66,7 @@ def main():
     cactus_override_toil_options(options)
 
     logger.info('Cactus Command: {}'.format(' '.join(sys.argv)))
+    logger.info('Cactus Commit: {}'.format(cactus_commit))
     start_time = timeit.default_timer()
 
     with Toil(options) as toil:

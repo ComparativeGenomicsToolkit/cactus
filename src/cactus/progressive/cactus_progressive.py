@@ -356,6 +356,7 @@ def main():
 
     start_time = timeit.default_timer()
     logger.info('Cactus Command: {}'.format(' '.join(sys.argv)))
+    logger.info('Cactus Commit: {}'.format(cactus_commit))
 
     with Toil(options) as toil:
         importSingularityImage(options)
