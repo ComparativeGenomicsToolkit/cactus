@@ -300,7 +300,13 @@ cactus-prepare-toil aws:us-west-2:<JOBSTORE-NAME> examples/evolverMammals.txt --
 
 [SegAlign](https://github.com/ComparativeGenomicsToolkit/SegAlign), a GPU-accelerated version of lastz, can be used in the "preprocess" and "blast" phases to speed up the runtime considerably, provided the right hardware is available. Unlike lastz, the input sequences do not need to be chunked before running SegAlign, so it also reduces the number of Toil jobs substantially.  The [GPU-enabled Docker releases](https://github.com/ComparativeGenomicsToolkit/cactus/releases) have SegAlign turned on by default and require no extra options from the user.  Otherwise, it is possible to [manually install it](https://github.com/ComparativeGenomicsToolkit/SegAlign#-dependencies) and then enable it in `cactus` using the `--gpu` command line option. One effective way of ensuring that only GPU-enabled parts of the workflow are run on GPU nodes is on Terra with `cactus-prepare --gpu --wdl` (see above example).
 
-For mammal-sized genomes, we've tested SegAlign with 8 V100 GPUs / 32 CPU cores / 120G RAM. In general, you need about 1-2 CPU cores per GPU, and at least 8GB of GPU memory per GPU.   
+GPUs must
+* support CUDA
+* have at least 8GB GPU memory (for mammal-sized input)
+* have 1-2 CPU cores available each for spawning lastz jobs
+
+We've tested SegAlign on Nvidia V100 and A10G GPUs. See the Terra example above for suggested node type on GCP.   
+
 
 Please [cite SegAlign](https://doi.ieeecomputersociety.org/10.1109/SC41405.2020.00043).
  
