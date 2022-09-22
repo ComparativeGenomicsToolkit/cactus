@@ -244,13 +244,11 @@ Then in Terra's [workspace menu](https://app.terra.bio/#workspaces):
 
 In the evolver example, all input sequences are specified in public URLs.  If sequences are not specified as URLs in the seqfile, then they must be uploaded in similar fashion to how the evolverMammals.txt was uploaded and selected in the example above.
 
-Here is an example of some settings that have worked on a mammalian-sized genome alignment on Terra.  It's important to align the [resources](https://cromwell.readthedocs.io/en/stable/RuntimeAttributes) requested (CPU and memory) to N1 instance types as found [here](https://gcloud-compute.com/instances.html).  Note that disk will be rounded up to the [nearest 375G](https://cromwell.readthedocs.io/en/stable/RuntimeAttributes/#disks). In the example below this is:
+Here is an example of some settings that have worked on a mammalian-sized genome alignment on Terra.  It's important to align the [resources](https://cromwell.readthedocs.io/en/stable/RuntimeAttributes) requested (CPU and memory) to N1 instance types as found [here](https://gcloud-compute.com/instances.html).  Note that disk will be rounded up to the [nearest multiple of 375G](https://cromwell.readthedocs.io/en/stable/RuntimeAttributes/#disks), with only [these multiples](https://github.com/ComparativeGenomicsToolkit/cactus/issues/792) supported: [0, 1, 2, 3, 4, 5, 6, 7, 8, 16, 24] . In the example below this is:
 
 * **preprocess/blast**: `n1-standard-32 + 8 v100 GPUs`
 * **align**: `n1-highmem-64` (can lower to `n1-highmem-32` using `--alignCores 32 --alignMemory 208Gi` for shorter branches/smaller genomes)
 * **append**: `n1-highmem-16`
-
-**Note** If the disk size is greater than 375Gi, it will be rounded up to the nearest value in 375 times one of these multiples: `[0, 1, 2, 3, 4, 5, 6, 7, 8, 16, 24]` [as required by Terra](https://github.com/ComparativeGenomicsToolkit/cactus/issues/792).
 
 ```
 cactus-prepare --wdl mammals.txt --noLocalInputs --preprocessBatchSize 5 \
