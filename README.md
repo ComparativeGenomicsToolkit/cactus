@@ -244,7 +244,7 @@ Then in Terra's [workspace menu](https://app.terra.bio/#workspaces):
 
 In the evolver example, all input sequences are specified in public URLs.  If sequences are not specified as URLs in the seqfile, then they must be uploaded in similar fashion to how the evolverMammals.txt was uploaded and selected in the example above.
 
-Here is an example of some settings that have worked on a mammalian-sized genome alignment on Terra.  It's important to align the [resources](https://cromwell.readthedocs.io/en/stable/RuntimeAttributes) requested (CPU and memory) to N1 instance types as found [here](https://gcloud-compute.com/instances.html).  Note that disk will be rounded up to the [nearest 375G](https://cromwell.readthedocs.io/en/stable/RuntimeAttributes/#disks). In the example below this is:
+Here is an example of some settings that have worked on a mammalian-sized genome alignment on Terra.  It's important to align the [resources](https://cromwell.readthedocs.io/en/stable/RuntimeAttributes) requested (CPU and memory) to N1 instance types as found [here](https://gcloud-compute.com/instances.html).  Note that disk will be rounded up to the [nearest multiple of 375G](https://cromwell.readthedocs.io/en/stable/RuntimeAttributes/#disks), with only [these multiples](https://github.com/ComparativeGenomicsToolkit/cactus/issues/792) supported: `[0, 1, 2, 3, 4, 5, 6, 7, 8, 16, 24]`. In the example below this is:
 
 * **preprocess/blast**: `n1-standard-32 + 8 v100 GPUs`
 * **align**: `n1-highmem-64` (can lower to `n1-highmem-32` using `--alignCores 32 --alignMemory 208Gi` for shorter branches/smaller genomes)
@@ -255,7 +255,7 @@ cactus-prepare --wdl mammals.txt --noLocalInputs --preprocessBatchSize 5 \
                --preprocessDisk 375Gi --preprocessCores 32 --preprocessMemory 120Gi \
                --blastDisk 375Gi --blastCores 32 --gpu --gpuCount 8 --blastMemory 120Gi \
                --alignDisk 375Gi --alignCores 64 --alignMemory 416Gi \
-               --halAppendDisk 3750Gi  --defaultMemory 104Gi  > mammals.wdl
+               --halAppendDisk 3000Gi  --defaultMemory 104Gi  > mammals.wdl
 ```
 
 If the workflow fails for whatever reason, it can be edited (to, say, increase job requirements) then resumed as follows:
@@ -300,7 +300,13 @@ cactus-prepare-toil aws:us-west-2:<JOBSTORE-NAME> examples/evolverMammals.txt --
 
 [SegAlign](https://github.com/ComparativeGenomicsToolkit/SegAlign), a GPU-accelerated version of lastz, can be used in the "preprocess" and "blast" phases to speed up the runtime considerably, provided the right hardware is available. Unlike lastz, the input sequences do not need to be chunked before running SegAlign, so it also reduces the number of Toil jobs substantially.  The [GPU-enabled Docker releases](https://github.com/ComparativeGenomicsToolkit/cactus/releases) have SegAlign turned on by default and require no extra options from the user.  Otherwise, it is possible to [manually install it](https://github.com/ComparativeGenomicsToolkit/SegAlign#-dependencies) and then enable it in `cactus` using the `--gpu` command line option. One effective way of ensuring that only GPU-enabled parts of the workflow are run on GPU nodes is on Terra with `cactus-prepare --gpu --wdl` (see above example).
 
-For mammal-sized genomes, we've tested SegAlign with 8 V100 GPUs / 64 CPU cores / 400G RAM. 
+GPUs must
+* support CUDA
+* have at least 8GB GPU memory (for mammal-sized input)
+* have 1-2 CPU cores available each for spawning lastz jobs
+
+We've tested SegAlign on Nvidia V100 and A10G GPUs. See the Terra example above for suggested node type on GCP.   
+
 
 Please [cite SegAlign](https://doi.ieeecomputersociety.org/10.1109/SC41405.2020.00043).
  
