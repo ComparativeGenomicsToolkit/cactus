@@ -274,7 +274,7 @@ def make_minigraph_fasta(job, gfa_file_id, gfa_file_path, name):
     if name:
         cmd.append(["sed", "-e", "s/^>\(.\)/>id={}|\\1/g".format(name)])
     if gfa_file_path.endswith('.gz'):
-        cmd.append(['gzip'])
+        cmd.append(['bgzip', '--threads', str(job.cores)])
         fa_path += '.gz'
     if len(cmd) == 1:
         cmd = cmd[0]
