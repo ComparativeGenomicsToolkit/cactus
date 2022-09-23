@@ -318,8 +318,7 @@ def minigraph_map_one(job, config, event_name, fa_file_id, gfa_file_id):
 
     work_dir = job.fileStore.getLocalTempDir()
     gfa_path = os.path.join(work_dir, "mg.gfa")
-    fa_dir = job.fileStore.getLocalTempDir() # only necessary for prependunique...
-    fa_path = os.path.join(fa_dir, "{}.fa".format(event_name))
+    fa_path = os.path.join(work_dir, "{}.fa".format(event_name))
     if fa_path == gfa_path or fa_path == gfa_path + ".gz":
         gfa_path += ".1"
     gaf_path = os.path.join(work_dir, "{}.gaf".format(event_name))
