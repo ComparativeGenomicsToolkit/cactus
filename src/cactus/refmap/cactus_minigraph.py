@@ -9,6 +9,8 @@ from argparse import ArgumentParser
 import xml.etree.ElementTree as ET
 import copy
 import timeit, time
+from Bio import SeqIO
+from Bio.SeqRecord import SeqRecord
 
 from operator import itemgetter
 
@@ -155,6 +157,15 @@ def minigraph_construct(job, config_node, seq_id_map, seq_order, gfa_path):
         job.fileStore.readGlobalFile(fa_id, fa_path)
         local_fa_paths[event] = fa_path
         assert os.path.getsize(local_fa_paths[event]) > 0
+
+    if getOptionalAttrib(xml_node, "minigraphSortBySize", bool, default=False):
+        # don't touch the reference
+        sorted_order = [seq_order[0]]
+        # sort the rest by size, biggest first, which is usually how we help poa
+        sorted_order += sorted(seq_order[1:],
+                               key = lambda e : sum([len(r.seq) for r in SeqIO.parse(local_fa_paths[e], 'fasta')]),
+                               reverse = True)
+        seq_order = sorted_order
 
     mg_cmd = ['minigraph'] + opts_list
     for event in seq_order:
