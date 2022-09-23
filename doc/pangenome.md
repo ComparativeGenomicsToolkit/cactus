@@ -53,7 +53,7 @@ Note: The pangenome pipeline supports gzipped fasta files if they end with `.gz`
 
 ### Evolver Primates: Constructing the Minigraph GFA
 
-The next step is to create the initial [minigraph](https://github.com/lh3/minigraph) graph. `minigraph` iteratively adds sequences to the graph, beginning with a reference genome that will serve throughout the pipeline as its uncollapsed backbone.  This reference genome needs to selected now and used consistently (via the `--reference` option in all following commands).  Other genomes are added to the `minigraph` in the order they appear in the seqfile.
+The next step is to create the initial [minigraph](https://github.com/lh3/minigraph) graph. `minigraph` iteratively adds sequences to the graph, beginning with a reference genome that will serve throughout the pipeline as its uncollapsed backbone.  This reference genome needs to selected now and used consistently (via the `--reference` option in all following commands).  Other genomes are added to the `minigraph` in the order of decreasing size (this can be toggled off to use the order in the seqfile with the `minigraphSortBySize` parameter in the configuration).
 
 ```
 cactus-minigraph ./jobstore primates-pg/evolverPrimates.pg.txt primates-pg/primates.gfa.gz --realTimeLogging --reference simChimp
