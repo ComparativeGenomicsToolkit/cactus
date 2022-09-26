@@ -369,8 +369,15 @@ def clip_vg(job, options, config, vg_path, vg_id, bed_id):
         if options.reference:
             fix_cmd += ['--dont_collapse', options.reference + '*']
         cactus_call(parameters=fix_cmd)
+        # Come back from gfa to vg
+        conv_cmd = [['vg', 'convert', '-g', '-p', gfa_out_path]]
+        if options.reference:
+            # GFAFfix can leave uncovered nodes with --dont_collapse.  We filter out here so they dont cause trouble later
+            conv_cmd.append(['vg', 'clip', '-d', '1', '-P', options.reference, '-'])
         # GFAFfix doesn't unchop, so we do that in vg after
-        cactus_call(parameters=[['vg', 'convert', '-g', '-p', gfa_out_path], ['vg', 'mod', '-u', '-']], outfile=normalized_path)
+        conv_cmd.append(['vg', 'mod', '-u', '-'])
+        cactus_call(parameters=conv_cmd, outfile=normalized_path)
+        
         clipped_path = normalized_path
 
     # also forwardize just in case
