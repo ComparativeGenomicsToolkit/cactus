@@ -4,18 +4,34 @@ Minigraph-Cactus is included in the [Cactus Software Package](../README.md) and 
 
 Please cite the [Minigraph-Cactus paper](in prep) when using Minigraph-Cactus.
 
-
-## Pangenome Data Portal
-
-Please see [here for a collection of public Minigraph-Cactus pangenomes](pangenome_data.md), for species such as chicken, cow, dog, fruitfly, human, mouse and soybean. All commands used to create the pangenomes are included, and may serve as interesting examples for users seeking to align their own data.
-
 ## Table of Contents
 
+* [Pangenome Data](#pangenome-data)
 * [Quick-Start](#quick-start)
 * [Introduction](#introduction)
 * [Interface](#interface)
 * [Yeast Graph](#yeast-graph)
 * [Human Graph](#hprc-graph)
+
+## Pangenome Data
+
+Some pangenomes constructed with Minigraph-Cactus, along with all material to reproduce, can be found here. The commits used can be found in the logs in the Output links. Data is provided in HAL, vg, GFA and VCF formats. Please read about [VCF output](fam) before using it.  
+
+Please cite the [Minigraph-Cactus paper](in prep) when using these pangenomes. For the HPRC pangenomes, please also cite the [HPRC Paper](https://doi.org/10.1101/2022.07.09.499321 ).
+
+|<sub>**Name**</sub>| <sub>**Species**</sub> | <sub> **Date** </sub> |<sub>**Haplotypes**</sub> | <sub>**Reference**</sub> | <sub>**SeqFile**</sub> | <sub>**Commands**</sub> | <sub>**Output**</sub>|
+| :-------- | :-------- | :-------- | :------ | :------ |:------ | :------ | :------ |
+| <sub> Cow </sub> | <sub> *Bos taurus* </sub> | <sub> 2022-09-23 </sub> | <sub> 5 </sub> | <sub> bosTau9 </sub> | <sub> link </sub> | <sub> link2 </sub> |
+| <sub> Chicken </sub> | <sub> *Gallus gallus* </sub> | <sub> 2022-09-23 </sub> | <sub> 10 </sub> | <sub> galGal6 </sub> | <sub> link </sub> | <sub> link2 </sub> |
+| <sub> Dog </sub> | <sub> *Canis lupus familiaris* </sub> | <sub> 2022-09-23 </sub> | <sub> 9 </sub> | <sub> canFam4 </sub> | <sub> link </sub> | <sub> link2 </sub> |
+| <sub> Fruit fly </sub> | <sub> *Drosophila melanogaster* </sub> | <sub> 2022-09-23 </sub> | <sub> 16 </sub> | <sub> dm6 </sub> | <sub> link </sub> | <sub> link2 </sub> |
+| <sub> Human </sub> | <sub> *Homo sapiens* </sub> | <sub> 2022-09-23 </sub> | <sub> 90 </sub> | <sub> GRCh38 </sub> | <sub> link </sub> | <sub> link2 </sub> |
+| <sub> Human </sub> | <sub> *Homo sapiens* </sub> | <sub> 2022-09-23 </sub> | <sub> 90 </sub> | <sub> GRCh38 </sub> | <sub> link </sub> | <sub> link2 </sub> |
+| <sub> Mouse </sub> | <sub> *Mus musculus* </sub> | <sub> 2022-09-23 </sub> | <sub> 30 </sub> | <sub> mm10 </sub> | <sub> link </sub> | <sub> link2 </sub> |
+| <sub> Soybean </sub> | <sub> *Glycine max* </sub> | <sub> 2022-09-23 </sub> | <sub> 17 </sub> | <sub> Glycine_max_v4.0 </sub> | <sub> link </sub> | <sub> link2 </sub> |
+
+Please see [here for a collection of public Minigraph-Cactus pangenomes](pangenome_data.md), for species such as chicken, cow, dog, fruitfly, human, mouse and soybean. All commands used to create the pangenomes are included, and may serve as interesting examples for users seeking to align their own data.
+
 
 ## Quick-Start
 
