@@ -16,7 +16,7 @@ Please cite the [Minigraph-Cactus paper](in prep) when using Minigraph-Cactus.
 
 ## Pangenome Data
 
-Some pangenomes constructed with Minigraph-Cactus, along with all material to reproduce, can be found [here](/mc-pangenoems/README.md]. tfly, human, mouse and soybean. All commands used to create the pangenomes are included, and may serve as interesting examples for users seeking to align their own data.
+Some pangenomes constructed with Minigraph-Cactus, along with all material to reproduce, can be found [here](./mc-pangenomes/README.md). 
 
 ## Quick-Start
 
