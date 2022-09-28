@@ -1,0 +1,10 @@
+galGal6	https://hgdownload.soe.ucsc.edu/goldenPath/galGal6/bigZips/galGal6.fa.gz
+bGalGal1_mat_broiler_GRCg7b.0	https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/016/699/485/GCF_016699485.2_bGalGal1.mat.broiler.GRCg7b/GCF_016699485.2_bGalGal1.mat.broiler.GRCg7b_genomic.fna.gz
+bGalGal1_pat_whiteleghornlayer_GRCg7w_W.0	https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/016/700/215/GCF_016700215.2_bGalGal1.pat.whiteleghornlayer.GRCg7w/GCF_016700215.2_bGalGal1.pat.whiteleghornlayer.GRCg7w_genomic.fna.gz
+Ogye1_0.0	https://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/002/798/355/GCA_002798355.1_Ogye1.0/GCA_002798355.1_Ogye1.0_genomic.fna.gz
+ASM2465302v1.0	https://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/024/653/025/GCA_024653025.1_ASM2465302v1/GCA_024653025.1_ASM2465302v1_genomic.fna.gz
+ASM2465303v1.0	https://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/024/653/035/GCA_024653035.1_ASM2465303v1/GCA_024653035.1_ASM2465303v1_genomic.fna.gz
+ASM2465299v1.0	https://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/024/652/995/GCA_024652995.1_ASM2465299v1/GCA_024652995.1_ASM2465299v1_genomic.fna.gz
+ASM2465304v1.0	https://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/024/653/045/GCA_024653045.1_ASM2465304v1/GCA_024653045.1_ASM2465304v1_genomic.fna.gz
+ASM2465298v1.0	https://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/024/652/985/GCA_024652985.1_ASM2465298v1/GCA_024652985.1_ASM2465298v1_genomic.fna.gz
+ASM2420605v1.0	https://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/024/206/055/GCA_024206055.1_ASM2420605v1/GCA_024206055.1_ASM2420605v1_genomic.fna.gz

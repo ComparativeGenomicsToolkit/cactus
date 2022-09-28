@@ -12,26 +12,11 @@ Please cite the [Minigraph-Cactus paper](in prep) when using Minigraph-Cactus.
 * [Interface](#interface)
 * [Yeast Graph](#yeast-graph)
 * [Human Graph](#hprc-graph)
+* [VCF Output](#vcf-output)
 
 ## Pangenome Data
 
-Some pangenomes constructed with Minigraph-Cactus, along with all material to reproduce, can be found here. The commits used can be found in the logs in the Output links. Data is provided in HAL, vg, GFA and VCF formats. Please read about [VCF output](fam) before using it.  
-
-Please cite the [Minigraph-Cactus paper](in prep) when using these pangenomes. For the HPRC pangenomes, please also cite the [HPRC Paper](https://doi.org/10.1101/2022.07.09.499321 ).
-
-|<sub>**Name**</sub>| <sub>**Species**</sub> | <sub> **Date** </sub> |<sub>**Haplotypes**</sub> | <sub>**Reference**</sub> | <sub>**SeqFile**</sub> | <sub>**Commands**</sub> | <sub>**Output**</sub>|
-| :-------- | :-------- | :-------- | :------ | :------ |:------ | :------ | :------ |
-| <sub> Cow </sub> | <sub> *Bos taurus* </sub> | <sub> 2022-09-23 </sub> | <sub> 5 </sub> | <sub> bosTau9 </sub> | <sub> link </sub> | <sub> link2 </sub> |
-| <sub> Chicken </sub> | <sub> *Gallus gallus* </sub> | <sub> 2022-09-23 </sub> | <sub> 10 </sub> | <sub> galGal6 </sub> | <sub> link </sub> | <sub> link2 </sub> |
-| <sub> Dog </sub> | <sub> *Canis lupus familiaris* </sub> | <sub> 2022-09-23 </sub> | <sub> 9 </sub> | <sub> canFam4 </sub> | <sub> link </sub> | <sub> link2 </sub> |
-| <sub> Fruit fly </sub> | <sub> *Drosophila melanogaster* </sub> | <sub> 2022-09-23 </sub> | <sub> 16 </sub> | <sub> dm6 </sub> | <sub> link </sub> | <sub> link2 </sub> |
-| <sub> Human </sub> | <sub> *Homo sapiens* </sub> | <sub> 2022-09-23 </sub> | <sub> 90 </sub> | <sub> GRCh38 </sub> | <sub> link </sub> | <sub> link2 </sub> |
-| <sub> Human </sub> | <sub> *Homo sapiens* </sub> | <sub> 2022-09-23 </sub> | <sub> 90 </sub> | <sub> GRCh38 </sub> | <sub> link </sub> | <sub> link2 </sub> |
-| <sub> Mouse </sub> | <sub> *Mus musculus* </sub> | <sub> 2022-09-23 </sub> | <sub> 30 </sub> | <sub> mm10 </sub> | <sub> link </sub> | <sub> link2 </sub> |
-| <sub> Soybean </sub> | <sub> *Glycine max* </sub> | <sub> 2022-09-23 </sub> | <sub> 17 </sub> | <sub> Glycine_max_v4.0 </sub> | <sub> link </sub> | <sub> link2 </sub> |
-
-Please see [here for a collection of public Minigraph-Cactus pangenomes](pangenome_data.md), for species such as chicken, cow, dog, fruitfly, human, mouse and soybean. All commands used to create the pangenomes are included, and may serve as interesting examples for users seeking to align their own data.
-
+Some pangenomes constructed with Minigraph-Cactus, along with all material to reproduce, can be found [here](/mc-pangenoems/README.md]. tfly, human, mouse and soybean. All commands used to create the pangenomes are included, and may serve as interesting examples for users seeking to align their own data.
 
 ## Quick-Start
 
@@ -558,4 +543,18 @@ CHM13 graph command line
 ```
  ./cactus-pangenome.sh -j aws:us-west-2:glennhickey-jobstore-hprc4 -s ./hprc-year1-f1g.chmy.fix.HG02080.1.brnn.leaveout.seqfile -m ftp://ftp.dfci.harvard.edu/pub/hli/minigraph/HPRC-f1g/CHM13-f1g-90.gfa.gz  -o s3://vg-k8s/vgamb/wg/cactus/CHM13-f1g-90/aug11 -n CHM13-f1g-90-mc-aug11  -r CHM13 -v GRCh38 -d s3://vg-k8s/vgamb/wg/fasta/hs38d1.decoys.only.vg  -g  -F -C -M 100000 -K 10000 -y  2>> stderr.aug11.chm13.3.log > /dev/null
 ```
+
+## VCF Output
+
+The VCFs produced by `cactus-graphmap-join --vcf` are "raw" output VCFs from `vg deconstruct`.  As such they are *nested*: the same positions can appear in multiple sites.  The nesting relationship mirrors the snarls in the graph, and is described by these tags
+
+```
+##INFO=<ID=LV,Number=1,Type=Integer,Description="Level in the snarl tree (0=top level)">
+##INFO=<ID=LV,Number=1,Type=Integer,Description="Level in the snarl tree (0=top level)">
+##INFO=<ID=AT,Number=R,Type=String,Description="Allele Traversal as path in graph">
+```
+
+For most applications, you will want to "flatten" these VCFs out in order to remove overlaps between different sites.  This can be done with [vcfbub](https://github.com/pangenome/vcfbub).  To further normalize the VCF, you can re-align each alt allele to the reference using [vcfwave](https://github.com/vcflib/vcflib/blob/master/doc/vcfwave.md).
+
+
 
