@@ -13,10 +13,10 @@ Please cite the [Progressive Cactus paper](https://doi.org/10.1038/s41586-020-28
 * [Quick-start](#quick-start)
 * [Interface](#interface)
 * [Using Docker](#using-docker)
-* [Running in the Cloud](#running-in-the-cloud)
+* [Running in the Cloud](#running-on-the-cloud)
 * [Running on a Cluster](#running-on-a-cluster)
 * [Running Step-by-step](#running-step-by-step)
-* [Running on Terra/Cromwell](#running-on-terra-cromwell)
+* [Running on Terra or Cromwell](#running-on-terra-or-cromwell)
 * [Updating Alignments](#updating-alignments)
 * [GPU Acceleration](#gpu-acceleration)
 * [Pre-Alignment Checklist](#pre-alignment-checklist)
@@ -56,7 +56,7 @@ or converted to MAF with
 hal2maf evolverMammals.hal evolverMammals.maf --refGenome simHuman_chr6 --noAncestors --inMemory
 ```
 
-## Progressive Cactus Interface
+## Interface
 
 *Note*: See the [step-by-step interface](#running-step-by-step) to see how to run Progressive Cactus one job at a time.
 
@@ -89,15 +89,11 @@ An optional * can be placed at the beginning of a name to specify that its assem
 
 Please ensure your genomes are *soft*-masked with RepeatMasker. We do some basic masking as a preprocessing step to ensure highly repetitive elements are masked when repeat libraries are incomplete, but genomes that aren't properly masked can still take tens of times longer to align that those that are masked. Hard-masking (totally replacing repeats with stretches of Ns) isn't necessary, and is strongly discouraged (you will miss a *lot* of alignments!).
 
-An example seqfile can be found [here](./examples/evolverMammals.txt).
+An example seqfile can be found [here](../examples/evolverMammals.txt).
 
-The `outputHal` file represents the multiple alignment, including all input and inferred ancestral sequences.  It is stored in HAL format, and can be accessed with [HAL tools](https://github.com/ComparativeGenomicsToolkit/Hal), which are all included in Cactus either as static binaries for the binary release, or within the Docker image for the Docker release.  
-
-The HALformat represents the alignment in a reference-free, indexed way, but isn't readable by many tools. To export a MAF (which by its nature is usually reference-based), you can use the `hal2maf` tool to export the alignment from any particular genome: `hal2maf <hal> --refGenome <reference> <maf>`.
+The `outputHal` file represents the multiple alignment, including all input and inferred ancestral sequences.  It is stored in HAL format, and can be accessed with [HAL tools](https://github.com/ComparativeGenomicsToolkit/Hal), which are all included in Cactus either as static binaries for the binary release, or within the Docker image for the Docker release. The HAL format represents the alignment in a reference-free, indexed way, but isn't readable by many tools. To export a MAF (which by its nature is usually reference-based), you can use the `hal2maf` tool to export the alignment from any particular genome: `hal2maf <hal> --refGenome <reference> <maf>`.
 
 You can use the alignment to generate gene annotatations for your assemblies, using the [Comparative Annotation Toolkit](https://github.com/ComparativeGenomicsToolkit/Comparative-Annotation-Toolkit).
-
-You can also [convert the HAL alignment into a Pangenome Graph](https://github.com/ComparativeGenomicsToolkit/hal#pangenome-graph-export-gfa-and-vg).  `hal2vg` is now included in the Cactus Docker images and binary release.
 
 Please [cite HAL](https://doi.org/10.1093/bioinformatics/btt128).
 
@@ -118,7 +114,7 @@ cactus /data/jobStore /data/evolverMammals.txt /data/evolverMammals.hal --root m
 
 ## Running on the cloud
 
-Cactus supports running on AWS using [Toil's autoscaling features](https://toil.readthedocs.io/en/latest/running/cloud/cloud.html). For more details on running in AWS, check out [these instructions](doc/running-in-aws.md).
+Cactus supports running on AWS using [Toil's autoscaling features](https://toil.readthedocs.io/en/latest/running/cloud/cloud.html). For more details on running in AWS, check out [these instructions](./running-in-aws.md).
 
 Cactus can also be run on Google Cloud Platform via [Terra](#running-on-cromwell/terra).
 
@@ -149,7 +145,7 @@ cactus-prepare examples/evolverMammals.txt --outDir steps-output --outSeqFile st
 cactus-prepare-toil aws:us-west-2:<JOBSTORE-NAME> examples/evolverMammals.txt --binariesMode singularity --batchSystem kubernetes --outHal s3://<BUCKET-NAME>/out.hal --defaultDisk 20G --defaultMemory 12G --defaultCores 4
 ```
 
-## Running on Cromwell/Terra 
+## Running on Terra or Cromwell 
 
 The `--wdl` option in `cactus-prepare` can be used to generate a bespoke [WDL](https://github.com/openwdl/wdl/blob/master/versions/1.0/SPEC.md) script for running the alignment from the input seqFile.  Here is an example on how to run locally in [Cromwell](https://github.com/broadinstitute/cromwell)
 ```
