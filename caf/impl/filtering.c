@@ -141,7 +141,6 @@ bool stCaf_filterByMultipleSpecies(stPinchSegment *segment1,
     stPinchBlock *block1, *block2;
     if ((block1 = stPinchSegment_getBlock(segment1)) != NULL) {
         if ((block2 = stPinchSegment_getBlock(segment2)) != NULL) {
-            return true;
             if (block1 == block2) {
                 return stPinchBlock_getLength(block1) == 1 ? 0 : containsMoreThanOneEvent(segment1, flower);
             }
