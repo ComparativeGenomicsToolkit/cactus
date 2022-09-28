@@ -3,12 +3,10 @@
 
 Cactus is a reference-free whole-genome alignment program, as well as a pagenome graph construction toolkit.  
 
-Please subscribe to the [cactus-announce](https://groups.google.com/d/forum/cactus-announce) low-volume mailing list so we may reach about releases and other announcements.
-
 ## Getting Cactus
 
 * Use the precompiled binaries (Linux X86) or Docker image from [the latest release](https://github.com/ComparativeGenomicsToolkit/cactus/releases)
-* See [below](fam) for details on building from source. 
+* See [below](#installing-maunally-from-source) for details on building from source. 
 
 ## Alignment Between Different Species
 
@@ -20,7 +18,7 @@ Please subscribe to the [cactus-announce](https://groups.google.com/d/forum/cact
 * See the [Minigraph-Cactus Pangenome Pipeline documenatation](doc/pangenome.md)
 * Please cite the [Minigraph-Cactus paper](in prep).
 
-## Developers / Installing Manually
+## Installing Manually From Source
 
 **Cactus requires Python >= 3.7 along with Python development headers and libraries**
 
@@ -51,7 +49,7 @@ In order to compile the binaries locally and not use a Docker image, you need so
 grep apt-get Dockerfile | head -1 | sed -e 's/RUN //g' -e 's/apt-get/sudo apt-get/g'
 ```
 
-Prgoressive Cactus can be built on ARM cpus including on Mac (with packages installed via Brew), but Minigraph-Cactus is currently X86-only.
+Progressive Cactus can be built on ARM cpus including on Mac (with packages installed via Brew), but Minigraph-Cactus is currently X86-only.
 
 To build Cactus, run
 ```
@@ -62,7 +60,7 @@ In order to run the Minigraph-Cactus pipeline, you must also run
 build-tools/downloadPangenomeTools
 ```
 
-In order to toggle between local and Docker binaries, use the `--binariesMode` command line option. If `--binariesMode` is not specified, local binaries will be used if found, otherwise a Docker image will be used.
+In order to toggle between local and Docker binaries, use the `--binariesMode` command line option. If `--binariesMode` is not specified, local binaries will be used if found in `PATH`, otherwise a Docker image will be used.
 
 ## Acknowledgements
 
@@ -75,3 +73,7 @@ Cactus uses many different algorithms and individual code contributions, princip
 - Heng Li for [minigraph](https://github.com/lh3/minigraph), [minimap2](https://github.com/lh3/minimap2), [gfatools](https://github.com/lh3/gfatools) and [dna-brnn](https://github.com/lh3/dna-rnn)
 - Dany Doerr for [GFAffix](https://github.com/marschall-lab/GFAffix), used to optionally clean pangenome graphs.
 - The vg team for [vg](https://github.com/vgteam/vg), used to process pangenome graphs.
+
+## Mailing List
+
+Please subscribe to the [cactus-announce](https://groups.google.com/d/forum/cactus-announce) low-volume mailing list so we may reach about releases and other announcements.
