@@ -1,13 +1,13 @@
 # The Minigraph-Cactus Pangenome Pipeline
 
-Minigraph-Cactus is suitable for aligning similar samples, such as those from the *same species*. See [Progressive Cactus](./progressive.md) for aligning different species. 
+Minigraph-Cactus is included in the [Cactus Software Package](../README.md) and is suitable for aligning similar samples, such as those from the *same species*. See [Progressive Cactus](./progressive.md) for aligning different species. 
 
 Please cite the [Minigraph-Cactus paper](in prep) when using Minigraph-Cactus.
 
 
 ## Pangenome Data Portal
 
-[Please see here for a collection of public Minigraph-Cactus pangenomes](pangenome_data.md). All commands used to create the pangenomes are included, and may serve as interesting examples for users seeking to align their own data.
+Please see [here for a collection of public Minigraph-Cactus pangenomes](pangenome_data.md), for species such as chicken, cow, dog, fruitfly, human, mouse and soybean. All commands used to create the pangenomes are included, and may serve as interesting examples for users seeking to align their own data.
 
 ## Table of Contents
 
@@ -15,8 +15,7 @@ Please cite the [Minigraph-Cactus paper](in prep) when using Minigraph-Cactus.
 * [Introduction](#introduction)
 * [Interface](#interface)
 * [Yeast Graph](#yeast-graph)
-* [HPRC Graph](#hprc-graph)
-* [Pre-Alignment Checklist](#pre-alignment-checklist)
+* [Human Graph](#hprc-graph)
 
 ## Quick-Start
 
@@ -118,9 +117,9 @@ If this convention is not followed, the VCF and most vg output (GBWT,XG) will be
 
 4) `cactus-align <jobStore> <seqFile> <inputPAF> <outHal> --reference --pangenome --outVG --maxLen`: Compute the Cactus multiple genome alignment from the assembly-to-graph minigraph mappings. The `--maxLen` parameter specifies the maximum gap between minigraph mappings that Cactus will attempt to fill at once, and is recommended to be set to 10000.  If `cactus-graphmap-split` was used, the `cactus-align-batch` interface should be used instead (see examples below).
 
-5) `cactus-graphmap-join <jobStore> --wLineSep "." --vg --outDir --outName --reference`: Produce the final graph and indexes. This should be run whether or not `cactus-graphmap-split` was used.  It is recommended to run this command at least twice:  Once to make the "full" graph using the `--gfaffix` option to normalize the graph. Then again, using output of the first run as input, with `--clipLength 10000 --clipNonMinigraph --preserveIDs --vcf --giraffe` with unaligned portions clipped out. It is important to always use `--wLineSep "." in order to properly parse the sample names.  An optional third time can be used to make a graph with rare alleles filtered out.  See examples below. 
+5) `cactus-graphmap-join <jobStore> --wLineSep "." --vg --outDir --outName --reference`: Produce the final graph and indexes. This should be run whether or not `cactus-graphmap-split` was used.  It is recommended to run this command at least twice:  Once to make the "full" graph using the `--gfaffix` option to normalize the graph. Then again, using output of the first run as input, with `--clipLength 10000 --clipNonMinigraph --preserveIDs --vcf --giraffe` with unaligned portions clipped out. It is important to always use `--wLineSep "."` in order to properly parse the sample names.  An optional third time can be used to make a graph with rare alleles filtered out.  See examples below. 
 
-## Yeast Example
+## Yeast Graph
 
 This is a small test case whose input data is included in cactus that illustrates how to split by chromosome. 
 
