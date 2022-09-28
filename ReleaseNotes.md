@@ -1,3 +1,15 @@
+# Release 2.2.2 2022-09-28
+
+This release fixes a critcal bug in `cactus-align --pangenome` that was introduced in v2.2.0 and causes massive underalignments in pangenome graphs with more than 10 or so samples. Huge thanks for @minglibio for catching this!
+
+- `cactus-align --pangenome` fixed to properly set pangenome overrides in the config.
+- `gfaffix` updated to fix `cactus-graphmap-join` crash while normalizing some types of hairpins in the graph.  also, un-covered nodes left by `gfaffix` now filtered out before they can cause errors in `deconstruct`.
+- fix `cactus-graphmap` regression where it woudn't run with docker binaries due to directory issues.
+- `cactus-minigraph` now adds (non-reference) genomes in order of decreasing size by default.
+- `--realTimeLogging` enabled by default
+- better error message when invalid `--root` supplied to cactus
+- print cactus commit at the top of each log
+
 # Release 2.2.1 2022-09-07
 
 This release patches recent regressions in the "blast" phase:
