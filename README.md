@@ -6,7 +6,7 @@ Cactus is a reference-free whole-genome alignment program, as well as a pagenome
 ## Getting Cactus
 
 * Use the precompiled binaries (Linux X86) or Docker image from [the latest release](https://github.com/ComparativeGenomicsToolkit/cactus/releases)
-* See [below](#installing-maunally-from-source) for details on building from source. 
+* See [below](#installing-manually-from-source) for details on building from source. 
 
 ## Align Genomes from Different Species
 
