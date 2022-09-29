@@ -384,6 +384,8 @@ void caf(Flower *flower, CactusParams *params, char *alignmentsFile, char *secon
                 // the first melting step.
                 stPinchThreadSetBlockIt blockIt = stPinchThreadSet_getBlockIt(threadSet);
                 stPinchBlock *block;
+                int64_t num_megablocks_destroyed = 0;
+                int64_t num_homologies_diestroyed = 0;
                 while ((block = stPinchThreadSetBlockIt_getNext(&blockIt)) != NULL) {
                     if (stPinchBlock_getDegree(block) > minimumBlockDegreeToCheckSupport) {
                         uint64_t supportingHomologies = stPinchBlock_getNumSupportingHomologies(block);
@@ -395,8 +397,14 @@ void caf(Flower *flower, CactusParams *params, char *alignmentsFile, char *secon
                                             "of %" PRIi64 " (%lf%%).\n", stPinchBlock_getDegree(block),
                                     supportingHomologies, possibleSupportingHomologies, support);
                             stPinchBlock_destruct(block);
+                            ++num_megablocks_destroyed;
+                            num_homologies_diestroyed += supportingHomologies;
                         }
                     }
+                }
+                if (num_megablocks_destroyed > 0) {
+                  st_logInfo("Destroyed %" PRIi64 " megablocks with a total of %" PRIi64 " supporting homologies\n",
+                             num_megablocks_destroyed, num_homologies_diestroyed);
                 }
             }
 
