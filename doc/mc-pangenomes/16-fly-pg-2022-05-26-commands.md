@@ -8,7 +8,8 @@ cactus-minigraph ./js ./softmask.fly.txt fly-pg-${VERSION}.gfa.gz --reference dm
 
 cactus-graphmap ./js ./softmask.fly.txt ./fly-pg-${VERSION}.gfa.gz ./fly-pg-${VERSION}.paf --reference dm6 --delFilter 10000000  --realTimeLogging --logFile fly-pg-${VERSION}.graphmap.log --maxCores 32 --outputFasta ./fly-pg-${VERSION}.gfa.fa.gz
 
-# hand-edit config to have thresholds
+cp cactus/src/cactus/cactus_progressive_config.xml ./config-split.xml
+# hand-edit config-split.xml to have thresholds so as to be more permissive for smaller contig fragments.
 # minQueryCoverages="0.25"
 # minQueryCoverageThresholds=""
 
