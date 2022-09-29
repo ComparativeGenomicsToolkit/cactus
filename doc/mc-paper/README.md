@@ -21,6 +21,14 @@ This was computed using [count-vg-hap-cov](https://github.com/ComparativeGenomic
 
 The graphs and indexes were constructed using [these commands](../mc-pangenomes/16-fly-pg-2022-05-26-commands.md) with [this seqfile](../mc-pangenomes/16-fly-pg-2022-05-26-seqfile.txt) with Cactus commit [3f60d4f247c62d499e17202e059ff4d5d19cc71d](https://github.com/ComparativeGenomicsToolkit/cactus/commit/3f60d4f247c62d499e17202e059ff4d5d19cc71d).  The results are found at s3://vg-k8s/users/hickey/fly-pangenome/
 
+The Progressive Cactus graph was created with Cactus commit [c31e4104b28ef8f55e2244177c593b9c2d7c39ac](https://github.com/ComparativeGenomicsToolkit/cactus/commit/c31e4104b28ef8f55e2244177c593b9c2d7c39ac) and default parameters
+
+```
+cactus ./js ./c31e4104b28ef8f55e2244177c593b9c2d7c39ac ./softmask.fly.hal --realTimeLogging --logFile softmask.fly.hal.log
+hal2vg ./softmask.fly.hal --noAncesstors > fly-cactus.vg
+```
+and the output is available at s3://vg-k8s/users/hickey/fly-cactus/
+
 
 ### Short Read Sequencing Data
 
