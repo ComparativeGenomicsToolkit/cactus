@@ -119,7 +119,7 @@
 	<!-- removeRecoverableChains TODO-->
 	<!-- maxRecoverableChainsIterations TODO-->
 	<!-- maxRecoverableChainLength TODO-->
-	<!-- minimumBlockDegreeToCheckSupport TODO-->
+	<!-- minimumBlockDegreeToCheckSupport Apply support filter to blocks of more than this degree (0 = disable) -->
 	<!-- minimumBlockHomologySupport TODO-->
 	<caf annealingRounds="64"
 		 deannealingRounds="2 4 8"
