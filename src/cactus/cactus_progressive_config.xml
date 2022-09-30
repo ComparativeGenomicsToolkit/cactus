@@ -138,7 +138,7 @@
 		 removeRecoverableChains="unequalNumberOfIngroupCopies"
 		 maxRecoverableChainsIterations="10"
 		 maxRecoverableChainLength="500000"
-		 minimumBlockDegreeToCheckSupport="0"
+		 minimumBlockDegreeToCheckSupport="10"
 		 minimumBlockHomologySupport="0.05"
 	/>
 
