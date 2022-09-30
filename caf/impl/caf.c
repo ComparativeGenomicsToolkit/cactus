@@ -387,7 +387,7 @@ void caf(Flower *flower, CactusParams *params, char *alignmentsFile, char *secon
                 int64_t num_megablocks_destroyed = 0;
                 int64_t num_homologies_diestroyed = 0;
                 while ((block = stPinchThreadSetBlockIt_getNext(&blockIt)) != NULL) {
-                    if (stPinchBlock_getDegree(block) > minimumBlockDegreeToCheckSupport) {
+                    if (minimumBlockDegreeToCheckSupport > 0 && stPinchBlock_getDegree(block) > minimumBlockDegreeToCheckSupport) {
                         uint64_t supportingHomologies = stPinchBlock_getNumSupportingHomologies(block);
                         uint64_t possibleSupportingHomologies = numPossibleSupportingHomologies(block, flower);
                         double support = ((double) supportingHomologies) / possibleSupportingHomologies;
