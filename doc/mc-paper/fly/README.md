@@ -1,4 +1,4 @@
-# Analysis of the Fly pangenome
+# D. Melanogaster - Exploration of the mapping and  variant calls
 
 ## Snakemake pipeline and scripts
 
@@ -11,8 +11,6 @@ For this analysis the raw data includes:
 - the alignments of the 100 samples to the pangenome (GAMs) and to dm6 (gzipped SAM files)
 - the variants genotyped from the alignment to the pangenome for the 100 samples
 - the calls from FreeBayes for the 100 samples for both the pangenomic and linear reference approaches.
-
-The instructions to produce this input data can be found at ??.
 
 The pipeline also uses custom scripts (`S3.remote(SROOT + 'scripts/...')` in the Snakefile). 
 Those scripts were deposited in the [`scripts`](scripts) folder.
@@ -27,8 +25,8 @@ snakemake --cores 8 --config mapper=bwa graph=dm6 -p mapping_stats
 ```
 
 This will create a tsv for each sample and mapper in the forms: `<GENOME>_mappings/<GENOME>.<SAMPLE>.<MAPPER>.mapstats.txt` where:
-- *<GENOME>* is either `dm6` or `fly-pg-may26-d2`
-- *<MAPPER>* is either `bwa` or `giraffe`
+- `<GENOME>` is either `dm6` or `fly-pg-may26-d2`
+- `<MAPPER>` is either `bwa` or `giraffe`
 
 Those files, localized in the two `*_mappings` folders, are then read by [`mapstats-analysis.R`](mapstats-analysis.R).
 This script will compute stats and makes the figures shown in the manuscript.

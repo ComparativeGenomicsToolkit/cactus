@@ -1,4 +1,4 @@
-# Human Pangenome
+# Human Pangenome - Read mapping and short variant calling
 
 ## Snakemake pipeline and scripts
 
@@ -6,8 +6,8 @@
 Our pipeline, implemented in the Snakefiles (`Snakefile_*`), is set up to work with our data located in our private S3 buckets.
 Hence, to reproduce the analysis, one would have to replace the parts specifying those S3 paths (`S3.remote(...)`), with local paths where the raw data was downloaded.
 
-The pipeline also uses custom scripts (`S3.remote(SROOT + 'scripts/...')` in the Snakefile). 
-Those scripts were deposited in the [`scripts`](scripts) folder.
+The pipeline also uses custom scripts or additional files (`resources/..')` in the Snakefile). 
+Those files have been deposited in the [`resources`](resources) folder.
 
 ## Snarl summary statistics
 
@@ -90,15 +90,15 @@ Other files used for the runs were also place in [`terra-files`](terra-files):
 - [`terra-files/CHM13.path_list.txt`](terra-files/CHM13.path_list.txt)
 - [`terra-files/GRCh38.path_list.txt`](terra-files/GRCh38.path_list.txt)
 
-`chm13v2.0.plus_hs38d1_analysis_set.compact_decoys.fa` was created by adding the (hs38d1 decoy sequences)[https://www.ncbi.nlm.nih.gov/assembly/GCA_000786075.2/] to [CHM12 v2.0](https://s3-us-west-2.amazonaws.com/human-pangenomics/T2T/CHM13/assemblies/analysis_set/chm13v2.0.fa.gz).
+`chm13v2.0.plus_hs38d1_analysis_set.compact_decoys.fa` was created by adding the [hs38d1 decoy sequences](https://www.ncbi.nlm.nih.gov/assembly/GCA_000786075.2/) to [CHM12 v2.0](https://s3-us-west-2.amazonaws.com/human-pangenomics/T2T/CHM13/assemblies/analysis_set/chm13v2.0.fa.gz).
 
 The DeepVariant models, trained on the HPRC mappings, are available at [https://s3-us-west-2.amazonaws.com/human-pangenomics/index.html?prefix=publications/PANGENOME_2022/DeepVariant/models/DEEPVARIANT_MC_Y1/](https://s3-us-west-2.amazonaws.com/human-pangenomics/index.html?prefix=publications/PANGENOME_2022/DeepVariant/models/DEEPVARIANT_MC_Y1/).
-As for the mapping statistics, we used FASTQs for for HG001/2/5 (30x PCR-free novaseq) from the [DeepVariant benchmarking dataset bucket](https://console.cloud.google.com/storage/browser/deepvariant/benchmarking/fastq/wgs_pcr_free/30x).
+As for the mapping statistics, we used FASTQs for the HG001/2/5 samples (30x PCR-free novaseq) from the [DeepVariant benchmarking dataset bucket](https://console.cloud.google.com/storage/browser/deepvariant/benchmarking/fastq/wgs_pcr_free/30x).
 
 The VCF files produced are available at:
 
-1. [https://s3-us-west-2.amazonaws.com/human-pangenomics/index.html?prefix=publications/PANGENOME_2022/DeepVariant/samples/](https://s3-us-west-2.amazonaws.com/human-pangenomics/index.html?prefix=publications/PANGENOME_2022/DeepVariant/samples/) for the calls on GRCh38 (using the GRCh38-based pangenome).
-2. ?? for the calls using the CHM13-based pangenome or the full GRCh38-based pangenome (no clipping).
+1. [`https://public.gi.ucsc.edu/~jmonlong/hprc/minigraph-cactus-manuscript/hprc-human/hprc-calls-on-grch38/`](https://public.gi.ucsc.edu/~jmonlong/hprc/minigraph-cactus-manuscript/hprc-human/hprc-calls-on-grch38/) for the calls on the GRCh38 reference.
+1. [`https://public.gi.ucsc.edu/~jmonlong/hprc/minigraph-cactus-manuscript/hprc-human/hprc-calls-on-chm13/`](https://public.gi.ucsc.edu/~jmonlong/hprc/minigraph-cactus-manuscript/hprc-human/hprc-calls-on-chm13/) for the calls on the CHM13 reference
 
 ### Evaluating the calls against the GIAB/CMRG truthsets
 

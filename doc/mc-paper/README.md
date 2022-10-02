@@ -16,7 +16,7 @@ This was computed using [count-vg-hap-cov](https://github.com/ComparativeGenomic
 
 ### Read mapping and short variant calling
 
-Scripts and commands to map reads to the pangenomes, call variants, and evaluate the variant calling performance have been compiled in the [`hprc`](hprc) folder
+Scripts and commands to map reads to the pangenomes, call variants, and evaluate the variant calling performance have been compiled in the [`hprc` folder](hprc).
 
 ## D. Melanogaster Graphs
 
@@ -91,6 +91,6 @@ Single-sample VCFs were merged with `bcftools merge`.
 To compare the variant calls by both approaches, we used bcftools [https://doi.org/10.1093/gigascience/giab008] (v1.10.2) to normalize the VCFs (bcftools norm), and compare them (bcftools isec) to mark variant sites where both approaches call a variant, and sites where only one approach does. We compared the number of calls in each category, across samples, and for different minimum variant quality thresholds (QUAL field or genotype quality GQ field). 
 
 
-### Exploration of the variant calls
+### Exploration of the mapping and  variant calls
 
-The [`fly`](fly) folder contains scripts and commands used to explore the structural variants in the pangenome or genotyped from short reads, mapping statistics, and the small variants called by FreeBayes (see above).
+The [`fly` folder](fly) contains scripts and commands used to explore the structural variants in the pangenome or genotyped from short reads, mapping statistics, and the small variants called by FreeBayes (see above).
