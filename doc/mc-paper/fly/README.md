@@ -1,4 +1,4 @@
-# D. Melanogaster - Exploration of the mapping and  variant calls
+# D. Melanogaster - Exploration of the mapping and variant calls
 
 ## Snakemake pipeline and scripts
 
@@ -41,7 +41,7 @@ snakemake --cores 8 --config graph=fly-pg-may26-d2 -p compare_freebayes
 ```
 
 This will create one `<SAMPLE>.isec.stats.tsv.gz` for each sample.
-Assuming all those files are in located in a `freebayes_stats` folder, the [`compare-freebayes-calls.R`](compare-freebayes-calls.R) script will compute stats and make the graphs shown in the manuscript.
+Assuming all those files are located in a `freebayes_stats` folder, the [`compare-freebayes-calls.R`](compare-freebayes-calls.R) script will compute stats and make the graphs shown in the manuscript.
 
 ---
 

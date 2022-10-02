@@ -6,7 +6,7 @@
 Our pipeline, implemented in the Snakefiles (`Snakefile_*`), is set up to work with our data located in our private S3 buckets.
 Hence, to reproduce the analysis, one would have to replace the parts specifying those S3 paths (`S3.remote(...)`), with local paths where the raw data was downloaded.
 
-The pipeline also uses custom scripts or additional files (`resources/..')` in the Snakefile). 
+The pipeline also uses custom scripts or additional files (`resources/..'` in the Snakefile). 
 Those files have been deposited in the [`resources`](resources) folder.
 
 ## Snarl summary statistics
@@ -239,7 +239,7 @@ gzip HG002v11-align2-CHM13v1.0.dip.lifted.bed
 aws s3 cp HG002v11-align2-CHM13v1.0.dip.lifted.bed.gz s3://vg-k8s/vgamb/wg/giraffedv/giab-evaluation-chm13/truth/GIAB_4_2_1_lifted.HG002.dipcall.bed.gz
 ```
 
-We also lifted over confident regions from GIAB v4.2.1 from GRCh38 to CHM13 v2.0.
+We also lifted over the confident regions from GIAB v4.2.1 from GRCh38 to CHM13 v2.0.
 
 ```sh
 aws s3 cp s3://vg-k8s/vgamb/wg/giraffedv/giab-evaluation/truth/GIAB_4_2_1.HG002.wg_noinconsistent.bed.gz .
