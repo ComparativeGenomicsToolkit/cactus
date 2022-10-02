@@ -1,0 +1,20 @@
+{
+  "GiraffeDeepVariant.INPUT_READ_FILE_1": "${this.fastq1}",
+  "GiraffeDeepVariant.INPUT_READ_FILE_2": "${this.fastq2}",
+  "GiraffeDeepVariant.XG_FILE": "gs://fc-0e9b62da-2dd8-42e5-bb50-8d08e7cdebc3/hprc-f1-D10M-clipped-indexes/GRCh38-f1g-90-mc-aug11-clip.d9.m1000.D10M.m1000.xg",
+  "GiraffeDeepVariant.MIN_FILE": "gs://fc-0e9b62da-2dd8-42e5-bb50-8d08e7cdebc3/hprc-f1-D10M-clipped-indexes/GRCh38-f1g-90-mc-aug11-clip.d9.m1000.D10M.m1000.min",
+  "GiraffeDeepVariant.DIST_FILE": "gs://fc-0e9b62da-2dd8-42e5-bb50-8d08e7cdebc3/hprc-f1-D10M-clipped-indexes/GRCh38-f1g-90-mc-aug11-clip.d9.m1000.D10M.m1000.dist",
+  "GiraffeDeepVariant.GBWT_FILE": "gs://fc-0e9b62da-2dd8-42e5-bb50-8d08e7cdebc3/hprc-f1-D10M-clipped-indexes/GRCh38-f1g-90-mc-aug11-clip.d9.m1000.D10M.m1000.gbwt",
+  "GiraffeDeepVariant.GGBWT_FILE": "gs://fc-0e9b62da-2dd8-42e5-bb50-8d08e7cdebc3/hprc-f1-D10M-clipped-indexes/GRCh38-f1g-90-mc-aug11-clip.d9.m1000.D10M.m1000.gg",
+  "GiraffeDeepVariant.SAMPLE_NAME": "${this.sample}",
+  "GiraffeDeepVariant.DV_MODEL_INDEX": "gs://fc-0e9b62da-2dd8-42e5-bb50-8d08e7cdebc3/giraffe-hprc-20220121/dv-giraffe-model/model.ckpt-364300.index",
+  "GiraffeDeepVariant.DV_MODEL_DATA": "gs://fc-0e9b62da-2dd8-42e5-bb50-8d08e7cdebc3/giraffe-hprc-20220121/dv-giraffe-model/model.ckpt-364300.data-00000-of-00001",
+  "GiraffeDeepVariant.DV_MODEL_META": "gs://fc-0e9b62da-2dd8-42e5-bb50-8d08e7cdebc3/giraffe-hprc-20220121/dv-giraffe-model/model.ckpt-364300.meta",
+  "GiraffeDeepVariant.PATH_LIST_FILE": "gs://fc-0e9b62da-2dd8-42e5-bb50-8d08e7cdebc3/GRCh38.path_list.txt",
+  "GiraffeDeepVariant.REFERENCE_PREFIX": "GRCh38.",
+  "GiraffeDeepVariant.REFERENCE_FILE": "gs://fc-0e9b62da-2dd8-42e5-bb50-8d08e7cdebc3/hg38.fa",
+  "GiraffeDeepVariant.OUTPUT_GAM": "false",
+  "GiraffeDeepVariant.OUTPUT_GAF": "true",
+  "GiraffeDeepVariant.SPLIT_READ_CORES": "16",
+  "GiraffeDeepVariant.SPLIT_READ_DISK": "120"
+}

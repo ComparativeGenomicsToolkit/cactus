@@ -1,0 +1,21 @@
+{
+  "GiraffeDeepVariant.INPUT_READ_FILE_1": "${this.fastq1}",
+  "GiraffeDeepVariant.INPUT_READ_FILE_2": "${this.fastq2}",
+  "GiraffeDeepVariant.XG_FILE": "gs://fc-0e9b62da-2dd8-42e5-bb50-8d08e7cdebc3/hprc-v1.0-mc-chm13-minaf.0.1.grch38.xg",
+  "GiraffeDeepVariant.GBWT_FILE": "gs://fc-0e9b62da-2dd8-42e5-bb50-8d08e7cdebc3/hprc-v1.0-mc-chm13-minaf.0.1.gbwt",
+  "GiraffeDeepVariant.MIN_FILE": "gs://fc-0e9b62da-2dd8-42e5-bb50-8d08e7cdebc3/hprc-v1.0-mc-chm13-minaf.0.1.min",
+  "GiraffeDeepVariant.DIST_FILE": "gs://fc-0e9b62da-2dd8-42e5-bb50-8d08e7cdebc3/hprc-v1.0-mc-chm13-minaf.0.1.dist",
+  "GiraffeDeepVariant.GGBWT_FILE": "gs://fc-0e9b62da-2dd8-42e5-bb50-8d08e7cdebc3/hprc-v1.0-mc-chm13-minaf.0.1.gg",
+  "GiraffeDeepVariant.DV_MODEL_META": "gs://fc-0e9b62da-2dd8-42e5-bb50-8d08e7cdebc3/giraffe-hprc-20220121/dv-giraffe-model/model.ckpt-364300.meta",
+  "GiraffeDeepVariant.DV_MODEL_DATA": "gs://fc-0e9b62da-2dd8-42e5-bb50-8d08e7cdebc3/giraffe-hprc-20220121/dv-giraffe-model/model.ckpt-364300.data-00000-of-00001",
+  "GiraffeDeepVariant.DV_MODEL_INDEX": "gs://fc-0e9b62da-2dd8-42e5-bb50-8d08e7cdebc3/giraffe-hprc-20220121/dv-giraffe-model/model.ckpt-364300.index",
+  "GiraffeDeepVariant.REFERENCE_FILE": "gs://fc-0e9b62da-2dd8-42e5-bb50-8d08e7cdebc3/chm13v2.0.plus_hs38d1_analysis_set.compact_decoys.fa",
+  "GiraffeDeepVariant.REFERENCE_PREFIX": "CHM13.",
+  "GiraffeDeepVariant.SAMPLE_NAME": "${this.sample}",
+  "GiraffeDeepVariant.PATH_LIST_FILE": "gs://fc-0e9b62da-2dd8-42e5-bb50-8d08e7cdebc3/CHM13.path_list.txt",
+  "GiraffeDeepVariant.VG_CONTAINER": "quay.io/vgteam/vg:ci-412-34a822dae4e1cefc01058ccb3887de9183c834b7",
+  "GiraffeDeepVariant.OUTPUT_GAF": "false",
+  "GiraffeDeepVariant.OUTPUT_GAM": "true",
+  "GiraffeDeepVariant.CALL_DISK": "100",
+  "GiraffeDeepVariant.CALL_MEM": "100"
+}

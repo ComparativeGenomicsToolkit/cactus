@@ -1,0 +1,146 @@
+from snakemake.remote.S3 import RemoteProvider as S3RemoteProvider
+import gzip
+S3 = S3RemoteProvider()
+
+# SCRIPTS='hprc/genotyping-experiments/workflow/scripts/'
+SROOT="s3://vg-k8s/vgamb/wg/giraffedv/mapping-eval/"
+REF_ROOT="s3://vg-k8s/users/jmonlong/references/"
+
+SAMPLES = ['HG001', 'HG002', 'HG005']
+
+GRAPH = 'hprc_v1_0_mc_grch38_minaf_0_1'
+if 'graph' in config:
+    GRAPH = config['graph']
+
+rule mapstats_giraffe:
+    input: S3.remote(expand(SROOT + 'giraffe/{sample}.giraffe.{graph}.mapstats.txt', sample=SAMPLES, graph=GRAPH))
+
+rule mapstats_bwa:
+    input: S3.remote(expand(SROOT + 'bwa/{sample}.bwamem.{ref}.mapstats.txt', ref='GCA_000001405.15_GRCh38_no_alt_plus_hs38d1_analysis_set.compact_decoys', sample=SAMPLES))
+
+
+## FASTQs with 30x novaseq reads for HG001-7
+rule dwl_fastq:
+    output: "{sample}.novaseq.pcr-free.30x.R{rp}.fastq.gz"
+    shell:
+        """
+        wget --quiet -O {output} https://storage.googleapis.com/deepvariant/benchmarking/fastq/wgs_pcr_free/30x/{wildcards.sample}.novaseq.pcr-free.30x.R{wildcards.rp}.fastq.gz
+        """
+
+##
+## Map reads with giraffe
+##
+
+rule dwl_hprc_pangenome_grch38:
+    output:
+        xg='hprc_v1_0_mc_grch38_minaf_0_1.xg',
+        dist='hprc_v1_0_mc_grch38_minaf_0_1.dist',
+        min='hprc_v1_0_mc_grch38_minaf_0_1.min',
+        gbwt='hprc_v1_0_mc_grch38_minaf_0_1.gbwt'
+    shell:
+        """
+        wget --quiet -O {output.xg} https://s3-us-west-2.amazonaws.com/human-pangenomics/pangenomes/freeze/freeze1/minigraph-cactus/filtered/hprc-v1.0-mc-grch38-minaf.0.1.xg
+        wget --quiet -O {output.dist} https://s3-us-west-2.amazonaws.com/human-pangenomics/pangenomes/freeze/freeze1/minigraph-cactus/filtered/hprc-v1.0-mc-grch38-minaf.0.1.dist
+        wget --quiet -O {output.gbwt} https://s3-us-west-2.amazonaws.com/human-pangenomics/pangenomes/freeze/freeze1/minigraph-cactus/filtered/hprc-v1.0-mc-grch38-minaf.0.1.gbwt
+        wget --quiet -O {output.min} https://s3-us-west-2.amazonaws.com/human-pangenomics/pangenomes/freeze/freeze1/minigraph-cactus/filtered/hprc-v1.0-mc-grch38-minaf.0.1.min
+        """
+
+rule dwl_hprc_pangenome_chm13:
+    output:
+        xg='hprc_v1_0_mc_chm13_minaf_0_1.xg',
+        dist='hprc_v1_0_mc_chm13_minaf_0_1.dist',
+        min='hprc_v1_0_mc_chm13_minaf_0_1.min',
+        gbwt='hprc_v1_0_mc_chm13_minaf_0_1.gbwt'
+    shell:
+        """
+        wget --quiet -O {output.xg} https://s3-us-west-2.amazonaws.com/human-pangenomics/pangenomes/freeze/freeze1/minigraph-cactus/filtered/hprc-v1.0-mc-chm13-minaf.0.1.grch38.xg
+        wget --quiet -O {output.dist} https://s3-us-west-2.amazonaws.com/human-pangenomics/pangenomes/freeze/freeze1/minigraph-cactus/filtered/hprc-v1.0-mc-chm13-minaf.0.1.dist
+        wget --quiet -O {output.gbwt} https://s3-us-west-2.amazonaws.com/human-pangenomics/pangenomes/freeze/freeze1/minigraph-cactus/filtered/hprc-v1.0-mc-chm13-minaf.0.1.gbwt
+        wget --quiet -O {output.min} https://s3-us-west-2.amazonaws.com/human-pangenomics/pangenomes/freeze/freeze1/minigraph-cactus/filtered/hprc-v1.0-mc-chm13-minaf.0.1.min
+        """
+
+rule dwl_hprc_pangenome_grch38_noclip:
+    output:
+        xg='hprc_v1_0_mc_grch38_minaf_0_1_noclip.xg',
+        dist='hprc_v1_0_mc_grch38_minaf_0_1_noclip.dist',
+        min='hprc_v1_0_mc_grch38_minaf_0_1_noclip.min',
+        gbwt='hprc_v1_0_mc_grch38_minaf_0_1_noclip.gbwt'
+    shell:
+        """
+        wget --quiet -O {output.xg} https://s3-us-west-2.amazonaws.com/human-pangenomics/pangenomes/freeze/freeze1/minigraph-cactus/filtered/hprc-v1.0-mc-grch38-maxdel.10mb.xg
+        wget --quiet -O {output.dist} https://s3-us-west-2.amazonaws.com/human-pangenomics/pangenomes/freeze/freeze1/minigraph-cactus/filtered/hprc-v1.0-mc-grch38-maxdel.10mb.dist
+        wget --quiet -O {output.gbwt} https://s3-us-west-2.amazonaws.com/human-pangenomics/pangenomes/freeze/freeze1/minigraph-cactus/filtered/hprc-v1.0-mc-grch38-maxdel.10mb.gbwt
+        wget --quiet -O {output.min} https://s3-us-west-2.amazonaws.com/human-pangenomics/pangenomes/freeze/freeze1/minigraph-cactus/filtered/hprc-v1.0-mc-grch38-maxdel.10mb.min
+        """
+
+rule giraffe_map:
+    input:
+        fq1="{sample}.novaseq.pcr-free.30x.R1.fastq.gz",
+        fq2="{sample}.novaseq.pcr-free.30x.R2.fastq.gz",
+        xg='{graph}.xg',
+        dist='{graph}.dist',
+        gbwt='{graph}.gbwt',
+        min='{graph}.min'
+    output: S3.remote(SROOT + "giraffe/{sample}.giraffe.{graph}.gaf.gz")
+    benchmark: S3.remote(SROOT + "giraffe/benchmarks/{sample}.giraffe.{graph}.benchmark.tsv")
+    threads: 32
+    singularity: "docker://quay.io/vgteam/vg:v1.42.0"
+    shell:
+        """
+        vg giraffe -o gaf -p -t {threads} -b fast -m {input.min} -d {input.dist} --gbwt-name {input.gbwt} -x {input.xg} -N {wildcards.sample} -f {input.fq1} -f {input.fq2} | gzip > {output}
+        """
+
+rule mapping_stats_giraffe:
+    input: S3.remote(SROOT + "giraffe/{sample}.giraffe.{graph}.gaf.gz")
+    output: S3.remote(SROOT + "giraffe/{sample}.giraffe.{graph}.mapstats.txt")
+    shell:
+        """
+        gunzip -c {input} | awk '{{if($10=="*"){{$12=-1}};if($10!="*" && $10==$11){{perf="true"}}else{{perf="false"}};print $12,perf}}' | sort | uniq -c > {output}
+        """
+
+
+##
+## Map reads with BWA-MEM
+##
+
+rule bwa_index:
+    input:
+        fa=S3.remote(REF_ROOT + '{ref}.fa'),
+        fai=S3.remote(REF_ROOT + '{ref}.fa.fai')
+    output:
+        bwt=S3.remote(REF_ROOT + "{ref}.fa.bwt"),
+        pac=S3.remote(REF_ROOT + "{ref}.fa.pac"),
+        ann=S3.remote(REF_ROOT + "{ref}.fa.ann"),
+        amb=S3.remote(REF_ROOT + "{ref}.fa.amb"),
+        sa=S3.remote(REF_ROOT + "{ref}.fa.sa")
+    singularity: "docker://quay.io/jmonlong/bwa-samtools:0.7.17_1.10.0"
+    shell: "bwa index {input.fa}"
+
+rule bwa_map:
+    input:
+        fq1="{sample}.novaseq.pcr-free.30x.R1.fastq.gz",
+        fq2="{sample}.novaseq.pcr-free.30x.R2.fastq.gz",
+        fa=S3.remote(REF_ROOT + '{ref}.fa'),
+        fai=S3.remote(REF_ROOT + '{ref}.fa.fai'),
+        bwt=S3.remote(REF_ROOT + "{ref}.fa.bwt"),
+        pac=S3.remote(REF_ROOT + "{ref}.fa.pac"),
+        ann=S3.remote(REF_ROOT + "{ref}.fa.ann"),
+        amb=S3.remote(REF_ROOT + "{ref}.fa.amb"),
+        sa=S3.remote(REF_ROOT + "{ref}.fa.sa")
+    output: S3.remote(SROOT + 'bwa/{sample}.bwamem.{ref}.bam')
+    threads: 32
+    singularity: "docker://quay.io/jmonlong/bwa-samtools:0.7.17_1.10.0"
+    shell:
+        """
+        bwa mem -R "@RG\\tID:1\\tSM:{wildcards.sample}" -t {threads} {input.fa} {input.fq1} {input.fq2} | samtools view -b > {output}
+        """
+
+rule mapping_stats_bwa:
+    input:
+        script=S3.remote(SROOT + "resources/compute_mapping_stats.py"),
+        bam=S3.remote(SROOT + 'bwa/{sample}.bwamem.{ref}.bam')
+    output: S3.remote(SROOT + 'bwa/{sample}.bwamem.{ref}.mapstats.txt')
+    shell:
+        """
+        samtools view {input.bam} | python3 {input.script} > {output}
+        """

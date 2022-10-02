@@ -1,0 +1,7 @@
+HG001	ftp://ftp-trace.ncbi.nlm.nih.gov/giab/ftp/release/NA12878_HG001/NISTv4.2.1/GRCh38/	HG001_GRCh38_1_22_v4.2.1_benchmark.bed	HG001_GRCh38_1_22_v4.2.1_benchmark.vcf.gz
+HG002	ftp://ftp-trace.ncbi.nlm.nih.gov/giab/ftp/release/AshkenazimTrio/HG002_NA24385_son/NISTv4.2.1/GRCh38/	HG002_GRCh38_1_22_v4.2.1_benchmark_noinconsistent.bed	HG002_GRCh38_1_22_v4.2.1_benchmark.vcf.gz
+HG003	ftp://ftp-trace.ncbi.nlm.nih.gov/giab/ftp/release/AshkenazimTrio/HG003_NA24149_father/NISTv4.2.1/GRCh38/	HG003_GRCh38_1_22_v4.2.1_benchmark_noinconsistent.bed	HG003_GRCh38_1_22_v4.2.1_benchmark.vcf.gz
+HG004	ftp://ftp-trace.ncbi.nlm.nih.gov/giab/ftp/release/AshkenazimTrio/HG004_NA24143_mother/NISTv4.2.1/GRCh38/	HG004_GRCh38_1_22_v4.2.1_benchmark_noinconsistent.bed	HG004_GRCh38_1_22_v4.2.1_benchmark.vcf.gz
+HG005	ftp://ftp-trace.ncbi.nlm.nih.gov/giab/ftp/release/ChineseTrio/HG005_NA24631_son/NISTv4.2.1/GRCh38/	HG005_GRCh38_1_22_v4.2.1_benchmark.bed	HG005_GRCh38_1_22_v4.2.1_benchmark.vcf.gz
+HG006	ftp://ftp-trace.ncbi.nlm.nih.gov/giab/ftp/release/ChineseTrio/HG006_NA24694_father/NISTv4.2.1/GRCh38/	HG006_GRCh38_1_22_v4.2.1_benchmark.bed	HG006_GRCh38_1_22_v4.2.1_benchmark.vcf.gz
+HG007	ftp://ftp-trace.ncbi.nlm.nih.gov/giab/ftp/release/ChineseTrio/HG007_NA24695_mother/NISTv4.2.1/GRCh38/	HG007_GRCh38_1_22_v4.2.1_benchmark.bed	HG007_GRCh38_1_22_v4.2.1_benchmark.vcf.gz
