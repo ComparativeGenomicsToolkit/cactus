@@ -11,7 +11,7 @@ These are direct links to the VCFs used in the paper
 
 ### Construction
 
-The graphs were constructed as described [here](../pangenome.md#hprc-version-1.0-graphs).  They are available to download [here](https://github.com/human-pangenomics/hpp_pangenome_resources/).
+The graphs were constructed as described [here](../pangenome.md#hprc-version-10-graphs).  They are available to download [here](https://github.com/human-pangenomics/hpp_pangenome_resources/).
 
 The versions of the graph used to create Supplementary Figure 3 in order to show sequence removed when not using dna-brnn were created with the commands listed [here](../pangenome.md#hprc-graph).
 
@@ -23,13 +23,13 @@ This was computed using [count-vg-hap-cov](https://github.com/ComparativeGenomic
 
 ### Read mapping and short variant calling
 
-Scripts and commands to map reads to the pangenomes, call variants, and evaluate the variant calling performance have been compiled in the [`hprc` folder](hprc).
+Scripts and commands to map reads to the pangenomes, call variants, and evaluate the variant calling performance have been compiled in the [hprc folder](hprc).
 
 ## D. Melanogaster Graphs
 
 ### Construction
 
-The graphs and indexes were constructed using [these commands](../mc-pangenomes/16-fly-pg-2022-05-26-commands.md) with [this seqfile](../mc-pangenomes/16-fly-pg-2022-05-26-seqfile.txt) with Cactus commit [3f60d4f247c62d499e17202e059ff4d5d19cc71d](https://github.com/ComparativeGenomicsToolkit/cactus/commit/3f60d4f247c62d499e17202e059ff4d5d19cc71d).  The results are found [here](https://s3-us-west-2.amazonaws.com/human-pangenomics/index.html?prefix=publications/mc_2022/mc-pangenomes/16-fly-pg-2022-05-26).
+The graphs and indexes were constructed using [these commands](../mc-pangenomes/16-fly-pg-2022-05-26-commands.md) with [this seqfile](../mc-pangenomes/16-fly-pg-2022-05-26-seqfile.txt) with Cactus commit [3f60d4f247c62d499e17202e059ff4d5d19cc71d](https://github.com/ComparativeGenomicsToolkit/cactus/commit/3f60d4f247c62d499e17202e059ff4d5d19cc71d).  The results (and an archive of the input fastas) are found [here](https://s3-us-west-2.amazonaws.com/human-pangenomics/index.html?prefix=publications/mc_2022/mc-pangenomes/16-fly-pg-2022-05-26).
 
 The Progressive Cactus graph was created with Cactus commit [c31e4104b28ef8f55e2244177c593b9c2d7c39ac](https://github.com/ComparativeGenomicsToolkit/cactus/commit/c31e4104b28ef8f55e2244177c593b9c2d7c39ac) and default parameters
 
@@ -100,4 +100,4 @@ To compare the variant calls by both approaches, we used bcftools [https://doi.o
 
 ### Exploration of the mapping and  variant calls
 
-The [`fly` folder](fly) contains scripts and commands used to explore the structural variants in the pangenome or genotyped from short reads, mapping statistics, and the small variants called by FreeBayes (see above).
+The [fly folder](fly) contains scripts and commands used to explore the structural variants in the pangenome or genotyped from short reads, mapping statistics, and the small variants called by FreeBayes (see above).

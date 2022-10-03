@@ -30,7 +30,7 @@ This will create a tsv for each sample and mapper in the forms: `<GENOME>_mappin
 
 Those files, localized in the two `*_mappings` folders, are then read by [`mapstats-analysis.R`](mapstats-analysis.R).
 This script will compute stats and makes the figures shown in the manuscript.
-Those files were archived at [`https://s3-us-west-2.amazonaws.com/human-pangenomics/index.html?prefix=publications/mc2022/fruitfly/fly-maptstats.tar.gz`](https://s3-us-west-2.amazonaws.com/human-pangenomics/index.html?prefix=publications/mc2022/fruitfly/fly-maptstats.tar.gz).
+Those files were archived at [`https://s3-us-west-2.amazonaws.com/human-pangenomics/index.html?prefix=publications/mc_2022/fruitfly/fly-maptstats.tar.gz`](https://s3-us-west-2.amazonaws.com/human-pangenomics/index.html?prefix=publications/mc_2022/fruitfly/fly-maptstats.tar.gz).
 
 ## FreeBayes calls
 
@@ -52,11 +52,11 @@ snakemake --cores 8 -p bwa.dm6.vcf.gz
 snakemake --cores 8 -p surject.16-fruitfly-mc-2022-05-26-d2.vcf.gz
 ```
 
-The merged VCFs are made available at [`https://s3-us-west-2.amazonaws.com/human-pangenomics/index.html?prefix=publications/mc2022/fruitfly/bwa.dm6.vcf.gz`](https://s3-us-west-2.amazonaws.com/human-pangenomics/index.html?prefix=publications/mc2022/fruitfly/bwa.dm6.vcf.gz) and [`https://s3-us-west-2.amazonaws.com/human-pangenomics/index.html?prefix=publications/mc2022/fruitfly/surject.16-fruitfly-mc-2022-05-26-d2.vcf.gz`](https://s3-us-west-2.amazonaws.com/human-pangenomics/index.html?prefix=publications/mc2022/fruitfly/surject.16-fruitfly-mc-2022-05-26-d2.vcf.gz).
+The merged VCFs are made available at [`https://s3-us-west-2.amazonaws.com/human-pangenomics/index.html?prefix=publications/mc_2022/fruitfly/bwa.dm6.vcf.gz`](https://s3-us-west-2.amazonaws.com/human-pangenomics/index.html?prefix=publications/mc_2022/fruitfly/bwa.dm6.vcf.gz) and [`https://s3-us-west-2.amazonaws.com/human-pangenomics/index.html?prefix=publications/mc_2022/fruitfly/surject.16-fruitfly-mc-2022-05-26-d2.vcf.gz`](https://s3-us-west-2.amazonaws.com/human-pangenomics/index.html?prefix=publications/mc_2022/fruitfly/surject.16-fruitfly-mc-2022-05-26-d2.vcf.gz).
 
 The [`compare-freebayes-calls-hetrate.R`](compare-freebayes-calls-hetrate.R) script then compute the heterozygous rates and makes the graph shown in the manuscript.
 This info is also compiled in `freebayes-het-rate.tsv` which will be read by this script if present.
-This file is available at [`https://s3-us-west-2.amazonaws.com/human-pangenomics/index.html?prefix=publications/mc2022/fruitfly/freebayes-het-rate.tsv`](https://s3-us-west-2.amazonaws.com/human-pangenomics/index.html?prefix=publications/mc2022/fruitfly/freebayes-het-rate.tsv)
+This file is available at [`https://s3-us-west-2.amazonaws.com/human-pangenomics/index.html?prefix=publications/mc_2022/fruitfly/freebayes-het-rate.tsv`](https://s3-us-west-2.amazonaws.com/human-pangenomics/index.html?prefix=publications/mc_2022/fruitfly/freebayes-het-rate.tsv)
 
 ## SV analysis
 
@@ -91,14 +91,14 @@ The variants will be merged into one file called `16-fruitfly-mc-2022-05-26-d2.1
         - `16-fruitfly-mc-2022-05-26.svs.site.rol90.insd100.rds`
         - `16-fruitfly-mc-2022-05-26-d2.100samples.decomposed.svs.site.rol90.insd100.rds`
     - The output files were deposited in:
-        - [`https://s3-us-west-2.amazonaws.com/human-pangenomics/index.html?prefix=publications/mc2022/fruitfly/16-fruitfly-mc-2022-05-26.svs.site.rol90.insd100.rds`](https://s3-us-west-2.amazonaws.com/human-pangenomics/index.html?prefix=publications/mc2022/fruitfly/16-fruitfly-mc-2022-05-26.svs.site.rol90.insd100.rds)
-        - [`https://s3-us-west-2.amazonaws.com/human-pangenomics/index.html?prefix=publications/mc2022/fruitfly/16-fruitfly-mc-2022-05-26-d2.100samples.decomposed.svs.site.rol90.insd100.rds`](https://s3-us-west-2.amazonaws.com/human-pangenomics/index.html?prefix=publications/mc2022/fruitfly/16-fruitfly-mc-2022-05-26-d2.100samples.decomposed.svs.site.rol90.insd100.rds)
+        - [`https://s3-us-west-2.amazonaws.com/human-pangenomics/index.html?prefix=publications/mc_2022/fruitfly/16-fruitfly-mc-2022-05-26.svs.site.rol90.insd100.rds`](https://s3-us-west-2.amazonaws.com/human-pangenomics/index.html?prefix=publications/mc_2022/fruitfly/16-fruitfly-mc-2022-05-26.svs.site.rol90.insd100.rds)
+        - [`https://s3-us-west-2.amazonaws.com/human-pangenomics/index.html?prefix=publications/mc_2022/fruitfly/16-fruitfly-mc-2022-05-26-d2.100samples.decomposed.svs.site.rol90.insd100.rds`](https://s3-us-west-2.amazonaws.com/human-pangenomics/index.html?prefix=publications/mc_2022/fruitfly/16-fruitfly-mc-2022-05-26-d2.100samples.decomposed.svs.site.rol90.insd100.rds)
 2. Annotate the alleles with RepeatMasker: [`annotate-repeats.R`](annotate-repeats.R)
     - Annotates the major allele of each SV site
     - Uses the following docker container with RepeatMasker: `jmonlong/repeatmasker:release-4.0.9-p2`
     - Input: `16-fruitfly-mc-2022-05-26-d2.100samples.decomposed.svs.site.rol90.insd100.rds`
     - Output: `16-fruitfly-mc-2022-05-26-d2.100samples.decomposed.svs.site.rol90.insd100.rmsk.rds`
-    - The output files were deposited at [`https://s3-us-west-2.amazonaws.com/human-pangenomics/index.html?prefix=publications/mc2022/fruitfly/16-fruitfly-mc-2022-05-26-d2.100samples.decomposed.svs.site.rol90.insd100.rmsk.rds`](https://s3-us-west-2.amazonaws.com/human-pangenomics/index.html?prefix=publications/mc2022/fruitfly/16-fruitfly-mc-2022-05-26-d2.100samples.decomposed.svs.site.rol90.insd100.rmsk.rds)
+    - The output files were deposited at [`https://s3-us-west-2.amazonaws.com/human-pangenomics/index.html?prefix=publications/mc_2022/fruitfly/16-fruitfly-mc-2022-05-26-d2.100samples.decomposed.svs.site.rol90.insd100.rmsk.rds`](https://s3-us-west-2.amazonaws.com/human-pangenomics/index.html?prefix=publications/mc_2022/fruitfly/16-fruitfly-mc-2022-05-26-d2.100samples.decomposed.svs.site.rol90.insd100.rmsk.rds)
 1. Make figures: [`svs-analysis.R`](svs-analysis.R).
     - Input:
         - `16-fruitfly-mc-2022-05-26.svs.site.rol90.insd100.rds`
