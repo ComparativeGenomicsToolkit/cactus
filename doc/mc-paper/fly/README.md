@@ -1,4 +1,4 @@
-# D. Melanogaster Graphs
+# D. Melanogaster Pangenome Methods
 
 ## Construction
 

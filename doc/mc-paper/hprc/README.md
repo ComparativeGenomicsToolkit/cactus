@@ -1,4 +1,4 @@
-# Human Pangenome - Read mapping and short variant calling
+# HPRC Pangenome Methods
 
 ## Construction
 
