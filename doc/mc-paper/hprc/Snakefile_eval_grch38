@@ -1,0 +1,206 @@
+from snakemake.remote.S3 import RemoteProvider as S3RemoteProvider
+import gzip
+S3 = S3RemoteProvider()
+
+SROOT="s3://vg-k8s/vgamb/wg/giraffedv/giab-evaluation"
+
+## read paths to GIAB 4.2.1 TSV files
+giab_paths = {}
+with open('resources/giab.truthset.paths.tsv', 'r') as inf:
+    for line in inf:
+        line = line.rstrip().split('\t')
+        giab_paths[line[0]] = {'root': line[1],
+                               'bed': line[2],
+                               'vcf': line[3]}
+
+## label to add as a suffix to the combined table
+sum_suffix = ''
+if 'label' in config:
+    sum_suffix = '-' + config['label']
+        
+rule main:
+    input: S3.remote(expand(SROOT + '/happy_runs/{truthset}.{sample}.{reads}.{method}.{region}/{truthset}.{sample}.{reads}.{method}.{region}.summary.csv', sample=config['samples'], method=config['methods'], region=config['regions'], truthset=config['truthset'], reads=config['reads']))
+    output:
+        pdf=S3.remote(SROOT + '/summary/eval-summary' + sum_suffix + '.pdf'),
+        tsv=S3.remote(SROOT + '/summary/eval-summary' + sum_suffix + '.tsv')
+    shell:
+        """
+        cp resources/eval-summary.Rmd .
+        Rscript eval-summary.Rmd {input}
+        mv eval-summary.pdf {output.pdf}
+        mv eval-summary.tsv {output.tsv}
+        """
+
+rule main_roc:
+    input: S3.remote(expand(SROOT + '/happy_runs/{truthset}.{sample}.{reads}.{method}.{region}/{truthset}.{sample}.{reads}.{method}.{region}.roc.all.csv.gz', sample=config['samples'], method=config['methods'], region=config['regions'], truthset=config['truthset'], reads=config['reads']))
+    output:
+        pdf=S3.remote(SROOT + '/summary/eval-roc-summary' + sum_suffix + '.pdf'),
+        tsv=S3.remote(SROOT + '/summary/eval-roc-summary' + sum_suffix + '.tsv')
+    shell:
+        """
+        cp resources/eval-roc-summary.Rmd .
+        Rscript eval-roc-summary.Rmd {input}
+        mv eval-roc-summary.pdf {output.pdf}
+        mv eval-roc-summary.tsv {output.tsv}
+        """
+
+######
+######
+rule dwl_truth_vcf_4_2_1:
+    output:
+        vcf=S3.remote(SROOT + '/truth/GIAB_4_2_1.{sample}.vcf.gz')
+    params:
+        ftp_root=lambda wildcards: giab_paths[wildcards.sample]['root'],
+        ftp_vcf=lambda wildcards: giab_paths[wildcards.sample]['vcf']
+    shell:
+        """
+        wget -O {output.vcf} {params.ftp_root}/{params.ftp_vcf}
+        """
+
+rule dwl_hc_4_2_1_region:
+    output: S3.remote(SROOT + '/truth/GIAB_4_2_1.{sample}.wg_noinconsistent.bed.gz')
+    params:
+        ftp_root=lambda wildcards: giab_paths[wildcards.sample]['root'],
+        ftp_bed=lambda wildcards: giab_paths[wildcards.sample]['bed'],
+        tmp_bed='{sample}_GRCh38_1_22_v4.2.1_benchmark_noinconsistent.bed'
+    shell:
+        """
+        wget -O {params.tmp_bed} {params.ftp_root}/{params.ftp_bed}
+        gzip -c {params.tmp_bed} > {output}
+        rm {params.tmp_bed}
+        """
+
+rule dwl_truth_vcf_cmrg:
+    output:
+        vcf=S3.remote(SROOT + '/truth/CMRG_1_0.HG002.vcf.gz')
+    params:
+        ftp_vcf='ftp://ftp-trace.ncbi.nlm.nih.gov/giab/ftp/release/AshkenazimTrio/HG002_NA24385_son/CMRG_v1.00/GRCh38/SmallVariant/HG002_GRCh38_CMRG_smallvar_v1.00.vcf.gz'
+    shell:
+        """
+        wget -O {output.vcf} {params.ftp_vcf}
+        """
+
+rule dwl_hc_cmrg_region:
+    output: S3.remote(SROOT + '/truth/CMRG_1_0.HG002.wg_noinconsistent.bed.gz')
+    params:
+        ftp_bed='ftp://ftp-trace.ncbi.nlm.nih.gov/giab/ftp/release/AshkenazimTrio/HG002_NA24385_son/CMRG_v1.00/GRCh38/SmallVariant/HG002_GRCh38_CMRG_smallvar_v1.00.bed',
+        tmp_bed='HG002_GRCh38_CMRG_smallvar_v1.00.bed'
+    shell:
+        """
+        wget -O {params.tmp_bed} {params.ftp_bed}
+        gzip -c {params.tmp_bed} > {output}
+        rm {params.tmp_bed}
+        """
+
+rule make_bed_hc_chr20:
+    input: S3.remote(SROOT + '/truth/{truthset}.{sample}.wg_noinconsistent.bed.gz')
+    output: S3.remote(SROOT + '/truth/{truthset}.{sample}.chr20_noinconsistent.bed.gz')
+    shell:
+        """
+        zcat {input} | awk '{{if($1=="chr20"){{print $0}}}}' | gzip > {output}
+        """
+
+rule dwl_falsedup_regions:
+    output: 'grch38.falsedup.bed'
+    params: tmpbed='temp.falsedup.bed.gz'
+    shell:
+        """
+        rm -f {params.tmpbed}
+        wget --quiet -O {params.tmpbed} https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/genome-stratifications/v3.0/GRCh38/OtherDifficult/GRCh38_collapsed_duplication_FP_regions.bed.gz
+        gunzip -c {params.tmpbed} > {output}
+        rm -f {params.tmpbed}
+        wget --quiet -O {params.tmpbed} https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/genome-stratifications/v3.0/GRCh38/OtherDifficult/GRCh38_false_duplications_correct_copy.bed.gz
+        gunzip -c {params.tmpbed} >> {output}
+        rm -f {params.tmpbed}
+        wget --quiet -O {params.tmpbed} https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/genome-stratifications/v3.0/GRCh38/OtherDifficult/GRCh38_false_duplications_incorrect_copy.bed.gz
+        gunzip -c {params.tmpbed} >> {output}
+        rm -f {params.tmpbed}
+        wget --quiet -O {params.tmpbed} https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/genome-stratifications/v3.0/GRCh38/OtherDifficult/GRCh38_population_CNV_FP_regions.bed.gz
+        gunzip -c {params.tmpbed} >> {output}
+        rm -f {params.tmpbed}
+        """
+
+rule make_bed_hc_gcrh38_chm13:
+    input:
+        grch38=S3.remote(SROOT + '/truth/grch38.regions.in_CHM13_hprc.bed.gz'),
+        hc=S3.remote(SROOT + '/truth/{truthset}.{sample}.wg_noinconsistent.bed.gz')
+    output: S3.remote(SROOT + '/truth/{truthset}.{sample}.grch38_in_chm13.bed.gz')
+    singularity: "docker://quay.io/biocontainers/bedtools:2.30.0--hc088bd4_0"
+    shell:
+        """
+        bedtools intersect -a {input.grch38} -b {input.hc} | gzip > {output}
+        """
+
+rule make_bed_hc_gcrh38_chm13_nofalsedup:
+    input:
+        grch38=S3.remote(SROOT + '/truth/grch38.regions.in_CHM13_hprc.bed.gz'),
+        hc=S3.remote(SROOT + '/truth/{truthset}.{sample}.nofalsedup.bed.gz')
+    output: S3.remote(SROOT + '/truth/{truthset}.{sample}.nofalsedup_in_chm13.bed.gz')
+    singularity: "docker://quay.io/biocontainers/bedtools:2.30.0--hc088bd4_0"
+    shell:
+        """
+        bedtools intersect -a {input.grch38} -b {input.hc} | gzip > {output}
+        """
+
+rule make_bed_hc_nofalsedup:
+    input:
+        fd='grch38.falsedup.bed',
+        hc=S3.remote(SROOT + '/truth/{truthset}.{sample}.wg_noinconsistent.bed.gz')
+    output: S3.remote(SROOT + '/truth/{truthset}.{sample}.nofalsedup.bed.gz')
+    singularity: "docker://quay.io/biocontainers/bedtools:2.30.0--hc088bd4_0"
+    shell:
+        """
+        bedtools subtract -a {input.hc} -b {input.fd} | gzip > {output}
+        """
+
+def format_inputs(wildcards):
+    samp = wildcards.sample
+    meth = wildcards.method
+    if meth.endswith('-giab'):
+        meth = meth.replace('-giab', '')
+    if 'jointcalled' in wildcards.method:
+        if wildcards.sample == 'HG003' or wildcards.sample == 'HG004':
+            samp = 'HG002'
+        elif wildcards.sample == 'HG006' or wildcards.sample == 'HG007':
+            samp = 'HG005'
+    return(S3.remote('s3://vg-k8s/vgamb/wg/giraffedv/giab-calls/{}.{}.{}.vcf.gz'.format(samp, wildcards.reads, meth)))
+rule format_temp_vcf:
+    input: format_inputs
+    output: S3.remote(SROOT + '/calls-vcfs/{sample}.{reads}.{method}.vcf.gz')
+    shell: "python3 resources/rename_chr_vcf.py -i {input} | bcftools view -c 1 -s {wildcards.sample} | bgzip > {output}"
+
+rule index_vcf:
+    input: S3.remote(SROOT + '/{vcf}.vcf.gz')
+    output: S3.remote(SROOT + '/{vcf}.vcf.gz.tbi')
+    shell: "tabix -p vcf {input}"
+
+rule eval_happy:
+    input:
+        vcf=S3.remote(SROOT + '/calls-vcfs/{sample}.{reads}.{method}.vcf.gz'),
+        tbi=S3.remote(SROOT + '/calls-vcfs/{sample}.{reads}.{method}.vcf.gz.tbi'),
+        bed=S3.remote(SROOT + '/truth/{truthset}.{sample}.{region}.bed.gz'),
+        truth=S3.remote(SROOT + '/truth/{truthset}.{sample}.vcf.gz'),
+        truth_tbi=S3.remote(SROOT + '/truth/{truthset}.{sample}.vcf.gz.tbi'),
+        ref_fa=S3.remote(SROOT + '/resources/GCA_000001405.15_GRCh38_no_alt_plus_hs38d1_analysis_set.fna'),
+        ref_fa_fai=S3.remote(SROOT + '/resources/GCA_000001405.15_GRCh38_no_alt_plus_hs38d1_analysis_set.fna.fai')
+    output:
+        sum=S3.remote(SROOT + '/happy_runs/{truthset}.{sample}.{reads}.{method}.{region}/{truthset}.{sample}.{reads}.{method}.{region}.summary.csv'),
+        roc=S3.remote(SROOT + '/happy_runs/{truthset}.{sample}.{reads}.{method}.{region}/{truthset}.{sample}.{reads}.{method}.{region}.roc.all.csv.gz'),
+        vcf=S3.remote(SROOT + '/happy_runs/{truthset}.{sample}.{reads}.{method}.{region}/{truthset}.{sample}.{reads}.{method}.{region}.vcf.gz'),
+        runinfo=S3.remote(SROOT + '/happy_runs/{truthset}.{sample}.{reads}.{method}.{region}/{truthset}.{sample}.{reads}.{method}.{region}.runinfo.json')
+    benchmark: S3.remote(SROOT + '/benchmark/{truthset}.{sample}.{reads}.{method}.{region}.happy.benchmark.tsv')
+    params:
+        out_prefix="{truthset}.{sample}.{reads}.{method}.{region}",
+        out_dir="happy_runs/{truthset}.{sample}.{reads}.{method}.{region}"
+    threads: 1
+    singularity: "docker://jmcdani20/hap.py:v0.3.12"
+    shell:
+        """
+        mkdir -p {params.out_dir}
+        /opt/hap.py/bin/hap.py {input.truth} {input.vcf} --reference {input.ref_fa} -f {input.bed} --threads {threads} --engine=vcfeval -o {params.out_dir}/{params.out_prefix}
+        cp {params.out_dir}/{params.out_prefix}.summary.csv {output.sum}
+        cp {params.out_dir}/{params.out_prefix}.vcf.gz {output.vcf}
+        cp {params.out_dir}/{params.out_prefix}.roc.all.csv.gz {output.roc}
+        cp {params.out_dir}/{params.out_prefix}.runinfo.json {output.runinfo}
+        rm -rf {params.out_dir}
+        """

@@ -1,0 +1,6 @@
+methods: ['giraffedv_chm13_lifted', 'bwadv_chm13_lifted']
+samples: ['HG002']
+regions: ['wg_noinconsistent']
+truthset: ['CMRG_1_0_chm13visible']
+reads: ['30x_novaseq_pcrfree']
+label: 'CMRG_1_0_chm13visible'

@@ -14,6 +14,9 @@ The versions of the graph used to create Supplementary Figure 3 in order to show
 
 This was computed using [count-vg-hap-cov](https://github.com/ComparativeGenomicsToolkit/hal2vg/blob/f3d9a1838d1fb5582b6e1cd509792daee51fd2a9/count-vg-hap-cov.cpp) on the [GRCh38](https://s3-us-west-2.amazonaws.com/human-pangenomics/index.html?prefix=pangenomes/scratch/2021_08_11_minigraph_cactus/GRCh38-chrom-graphs/) and [CHM13](https://s3-us-west-2.amazonaws.com/human-pangenomics/index.html?prefix=pangenomes/scratch/2021_08_11_minigraph_cactus/CHM13-chrom-graphs/) chromosome vg graphs.
 
+### Read mapping and short variant calling
+
+Scripts and commands to map reads to the pangenomes, call variants, and evaluate the variant calling performance have been compiled in the [`hprc` folder](hprc).
 
 ## D. Melanogaster Graphs
 
@@ -88,3 +91,6 @@ Single-sample VCFs were merged with `bcftools merge`.
 To compare the variant calls by both approaches, we used bcftools [https://doi.org/10.1093/gigascience/giab008] (v1.10.2) to normalize the VCFs (bcftools norm), and compare them (bcftools isec) to mark variant sites where both approaches call a variant, and sites where only one approach does. We compared the number of calls in each category, across samples, and for different minimum variant quality thresholds (QUAL field or genotype quality GQ field). 
 
 
+### Exploration of the mapping and  variant calls
+
+The [`fly` folder](fly) contains scripts and commands used to explore the structural variants in the pangenome or genotyped from short reads, mapping statistics, and the small variants called by FreeBayes (see above).

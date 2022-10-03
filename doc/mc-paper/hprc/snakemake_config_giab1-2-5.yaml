@@ -1,0 +1,6 @@
+methods: ['giraffedv', 'giraffedv_chm13', 'bwadv', 'dragen', 'giraffe_noclip']
+samples: ['HG001', 'HG002', 'HG005']
+regions: ['chr20_noinconsistent', 'wg_noinconsistent', 'nofalsedup_in_chm13']
+truthset: ['GIAB_4_2_1']
+reads: ['30x_novaseq_pcrfree']
+label: 'GIAB_4_2_1_HG00_1_2_5'
