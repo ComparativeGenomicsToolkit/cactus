@@ -72,7 +72,7 @@ For example, it will parse both the CIGAR field and the MD tag to figure out if 
 
 The `<SAMPLE>.<MAPPER>.<REF>.mapstats.txt` files created by these runs contains the number of reads for each profile (*mapping quality* x *perfect alignment*).
 They are read by the [`mapstats-analysis.R`](mapstats-analysis.R) script to make the graphs.
-A TAR file containing all of those `*mapstats.txt` files for HG001,2,5 and the different reference (pan)genomes is shared at [http://public.gi.ucsc.edu/~jmonlong/hprc/minigraph-cactus-manuscript/hprc-human/mapstats.hg001_2_5.giraffe_hprc.bwa_grch38.tar.gz](http://public.gi.ucsc.edu/~jmonlong/hprc/minigraph-cactus-manuscript/hprc-human/mapstats.hg001_2_5.giraffe_hprc.bwa_grch38.tar.gz).
+A TAR file containing all of those `*mapstats.txt` files for HG001,2,5 and the different reference (pan)genomes is shared at [https://s3-us-west-2.amazonaws.com/human-pangenomics/publications/mc_2022/hprc-human/mapstats.hg001_2_5.giraffe_hprc.bwa_grch38.tar.gz](https://s3-us-west-2.amazonaws.com/human-pangenomics/publications/mc_2022/hprc-human/mapstats.hg001_2_5.giraffe_hprc.bwa_grch38.tar.gz).
 
 ## Small variant calling with DeepVariant
 
@@ -261,7 +261,7 @@ snakemake -s Snakefile_eval_chm13 --configfile snakemake_config_chm13.yaml --cor
 
 The [`calls-evaluation-exploration.R`](calls-evaluation-exploration.R) script makes figures from the combined evaluation summary files (`eval-summary-*.tsv` and `eval-roc-summary-*.tsv`).
 
-The combined summary files are available at [http://public.gi.ucsc.edu/~jmonlong/hprc/minigraph-cactus-manuscript/hprc-human/eval-summary-hprc.tar.gz](http://public.gi.ucsc.edu/~jmonlong/hprc/minigraph-cactus-manuscript/hprc-human/eval-summary-hprc.tar.gz).
+The combined summary files are available at [https://s3-us-west-2.amazonaws.com/human-pangenomics/publications/mc_2022/hprc-human/eval-summary-hprc.tar.gz](https://s3-us-west-2.amazonaws.com/human-pangenomics/publications/mc_2022/hprc-human/eval-summary-hprc.tar.gz).
 
 #### Stratification of the GRCh38-based vs CHM13-based pangenomes performance
 
