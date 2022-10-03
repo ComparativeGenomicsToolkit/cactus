@@ -1,4 +1,4 @@
-# Minigraph-Cactus Paper Methods
+# Methods for "Pangenome Graph Construction from Whole Genome Alignments"
 
 Links to the commands and scripts used in the paper can all be found below.  The pangenome graphs discussed, among several others, can also be found [on this page](../mc-pangenomes/README.md).
 * [HPRC methods](hprc)
