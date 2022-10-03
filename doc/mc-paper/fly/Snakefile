@@ -1,7 +1,7 @@
 from snakemake.remote.S3 import RemoteProvider as S3RemoteProvider
 S3 = S3RemoteProvider()
-SROOT="s3://vg-k8s/users/jmonlong/fly/"
-PGROOT="s3://vg-k8s/users/hickey/fly-pangenome/"
+SROOT="s3://human-pangenomics/publications/mc2022/fruitfly/"
+PGROOT="s3://human-pangenomics/publications/mc2022/mc-pangenomes/16-fruitfly-mc-2022-05-26/"
 
 ## samples in the pangenome
 SAMPLES="A1 A2 A3 A4 A5 A6 A7 AB8 B1 B2 B3 B4 B6 B7 OreR".split(' ')
@@ -110,7 +110,7 @@ rule make_svs_rds:
 
 rule drop_inconsistent_sites_calls:
     input:
-        vcf=S3.remote("s3://vg-k8s/users/hickey/fly-calling/{graph}_{sample}.vcf.gz"),
+        vcf=S3.remote("s3://human-pangenomics/publications/mc2022/fruitfly/fly-calling/{graph}_{sample}.vcf.gz"),
         py=S3.remote(SROOT + 'scripts/drop_inconsistent_sites.py')
     output: 'calls_consistent/{graph}.{sample}.vcf.gz'
     params:
@@ -200,7 +200,7 @@ rule mapping_stats_giraffe:
 rule mapping_stats_bwa:
     input:
         script=S3.remote(SROOT + "scripts/compute_mapping_stats.py"),
-        sam=S3.remote("s3://vg-k8s/users/hickey/fly-bwa/{sample}_bwa.sam.gz")
+        sam=S3.remote("s3://human-pangenomics/publications/mc2022/fruitfly/fly-bwa/{sample}_bwa.sam.gz")
     output: S3.remote(SROOT + "dm6_mappings/dm6.{sample}.bwa.mapstats.txt")
     shell:
         """
@@ -227,10 +227,10 @@ rule prepare_freebayes_vcfs:
         fa='{graph}.ref.fa',
         fai='{graph}.ref.fa.fai',
         rename_script=S3.remote(SROOT + 'scripts/rename_chr_vcf.py'),
-        bwa=S3.remote("s3://vg-k8s/users/hickey/fly-bwa-freebayes/{sample}_bwa.fb.vcf.gz"),
-        bwa_tbi=S3.remote("s3://vg-k8s/users/hickey/fly-bwa-freebayes/{sample}_bwa.fb.vcf.gz.tbi"),
-        surject=S3.remote("s3://vg-k8s/users/hickey/fly-surject-freebayes/fly-pg-may26-d2_{sample}.fb.vcf.gz"),
-        surject_tbi=S3.remote("s3://vg-k8s/users/hickey/fly-surject-freebayes/fly-pg-may26-d2_{sample}.fb.vcf.gz.tbi")
+        bwa=S3.remote("s3://human-pangenomics/publications/mc2022/fruitfly/fly-bwa-freebayes/{sample}_bwa.fb.vcf.gz"),
+        bwa_tbi=S3.remote("s3://human-pangenomics/publications/mc2022/fruitfly/fly-bwa-freebayes/{sample}_bwa.fb.vcf.gz.tbi"),
+        surject=S3.remote("s3://human-pangenomics/publications/mc2022/fruitfly/fly-surject-freebayes/fly-pg-may26-d2_{sample}.fb.vcf.gz"),
+        surject_tbi=S3.remote("s3://human-pangenomics/publications/mc2022/fruitfly/fly-surject-freebayes/fly-pg-may26-d2_{sample}.fb.vcf.gz.tbi")
     output:
         bwa='freebayes_comp_{sample}/bwa.{sample}.{graph}.vcf.gz',
         bwa_tbi='freebayes_comp_{sample}/bwa.{sample}.{graph}.vcf.gz.tbi',
@@ -304,11 +304,11 @@ rule compute_freebayes_stats:
 def fb_simple_inputs(wildcards):
     inputs = {}
     if wildcards.method == 'bwa':
-        inputs['vcf'] = S3.remote("s3://vg-k8s/users/hickey/fly-bwa-freebayes/{sample}_bwa.fb.vcf.gz")
-        inputs['vcf_tbi'] = S3.remote("s3://vg-k8s/users/hickey/fly-bwa-freebayes/{sample}_bwa.fb.vcf.gz.tbi")
+        inputs['vcf'] = S3.remote("s3://human-pangenomics/publications/mc2022/fruitfly/fly-bwa-freebayes/{sample}_bwa.fb.vcf.gz")
+        inputs['vcf_tbi'] = S3.remote("s3://human-pangenomics/publications/mc2022/fruitfly/fly-bwa-freebayes/{sample}_bwa.fb.vcf.gz.tbi")
     else:
-        inputs['vcf'] = S3.remote("s3://vg-k8s/users/hickey/fly-surject-freebayes/{graph}_{{sample}}.fb.vcf.gz".format(graph=wildcards.graph))
-        inputs['vcf_tbi'] = S3.remote("s3://vg-k8s/users/hickey/fly-surject-freebayes/{graph}_{{sample}}.fb.vcf.gz.tbi".format(graph=wildcards.graph))
+        inputs['vcf'] = S3.remote("s3://human-pangenomics/publications/mc2022/fruitfly/fly-surject-freebayes/{graph}_{{sample}}.fb.vcf.gz".format(graph=wildcards.graph))
+        inputs['vcf_tbi'] = S3.remote("s3://human-pangenomics/publications/mc2022/fruitfly/fly-surject-freebayes/{graph}_{{sample}}.fb.vcf.gz.tbi".format(graph=wildcards.graph))
     return(inputs)
 
 rule prepare_for_merge:
