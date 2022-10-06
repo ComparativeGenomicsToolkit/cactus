@@ -130,6 +130,7 @@ def main(toil_mode=False):
     if toil_mode:
         options.wdl = False
         options.noLocalInputs = False
+        options.includeRoot = False
         options.outDir = '.'
         setupBinaries(options)
         # need to avoid nested container calls, so set toil-inside-toil jobs to local by default
