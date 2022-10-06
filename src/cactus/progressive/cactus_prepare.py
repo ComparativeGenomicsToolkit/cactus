@@ -829,7 +829,7 @@ def wdl_call_blast(options, in_seq_file, mc_tree, og_map, event, cigar_name):
         input_fas.append('{}.out_fa_file'.format(align_call_name(input_name)))
         input_names.append(input_name)
     if event == options.includeRoot:
-        input_fas.append(in_seq_file.pathMap[event])
+        input_fas.append('\"{}\"'.format(in_seq_file.pathMap[event]))
         input_names.append(event)
         extra_options = '--includeRoot'
     else:
@@ -934,7 +934,7 @@ def wdl_call_align(options, in_seq_file, mc_tree, og_map, event, cigar_name, hal
         input_fas.append('{}.out_fa_file'.format(align_call_name(input_name)))
         input_names.append(input_name)
     if event == options.includeRoot:
-        input_fas.append(in_seq_file.pathMap[event])
+        input_fas.append('\"{}\"'.format(in_seq_file.pathMap[event]))        
         input_names.append(event)
         extra_options = '--includeRoot'
     else:
