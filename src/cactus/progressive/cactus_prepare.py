@@ -76,7 +76,7 @@ def main(toil_mode=False):
     parser.add_argument("--dockerImage", type=str, help="docker image to use as wdl runtime")
     if not toil_mode:
         # no good reason this isn't supported in toil_mode, just time to implement
-        parser.add_argument("--includeRoot", type=str, help="Given ancestral node's sequence is set from input: --includeRoot will be specified for its align and blast jobs")
+        parser.add_argument("--includeRoot", action='store_true', help="Root node's sequence is set from input: --includeRoot will be specified for its align and blast jobs")
     
     parser.add_argument("--gpu", action="store_true", help="use gpu-enabled lastz in cactus-blast and cactus-preprocess")
     parser.add_argument("--gpuType", default="nvidia-tesla-v100", help="GPU type (to set in WDL runtime parameters, use only with --wdl)")
@@ -364,10 +364,8 @@ def cactusPrepare(options):
     if not options.seqFileOnly:
         tree.nameUnlabeledInternalNodes(prefix = config.getDefaultInternalNodePrefix())
 
-    if options.includeRoot and not options.includeRoot in seqFile.pathMap:
-        raise RuntimeError('Genome specified with --includeRoot ({}) must be present in the seqFile'.format(options.includeRoot))
-    if options.includeRoot and options.includeRoot in [tree.getName(leaf) for leaf in tree.getLeaves()]:
-        raise RuntimeError('Genome specified with --includeRoot ({}) must be ancestral (not a leaf)'.format(options.includeRoot))
+    if options.includeRoot and not tree.getRootName() in seqFile.pathMap:
+        raise RuntimeError('Root genome ({}) must be present in sequfile when --includeRoot is set.'.format(tree.getRootName()))
         
     # make the output
     outSeqFile = SeqFile()
@@ -533,7 +531,7 @@ def get_plan(options, inSeqFile, outSeqFile, configWrapper, toil):
                                                                                        disk=options.alignDisk)
             else:
                 # todo: support cactus interface (it's easy enough here, but cactus_progressive.py needs changes to handle)
-                cactus_options = options.cactusOptions + ' --includeRoot' if options.includeRoot == event else ''
+                cactus_options = options.cactusOptions + ' --includeRoot' if options.includeRoot and event == mc_tree.getRootName() else ''
                 plan += 'cactus-blast {} {} {} --root {} {} {}{}\n'.format(
                     get_jobstore(options), options.outSeqFile, cigarPath(event), event,
                     cactus_options, get_toil_resource_opts(options, 'blast'),
@@ -828,7 +826,7 @@ def wdl_call_blast(options, in_seq_file, mc_tree, og_map, event, cigar_name):
         # take fasta from cactus-align for internal nodes
         input_fas.append('{}.out_fa_file'.format(align_call_name(input_name)))
         input_names.append(input_name)
-    if event == options.includeRoot:
+    if options.includeRoot and event == mc_tree.getRootName():
         input_fas.append('\"{}\"'.format(in_seq_file.pathMap[event]))
         input_names.append(event)
         extra_options = '--includeRoot'
@@ -933,7 +931,7 @@ def wdl_call_align(options, in_seq_file, mc_tree, og_map, event, cigar_name, hal
         # take fasta from cactus-align for internal nodes
         input_fas.append('{}.out_fa_file'.format(align_call_name(input_name)))
         input_names.append(input_name)
-    if event == options.includeRoot:
+    if options.includeRoot and event == mc_tree.getRootName():
         input_fas.append('\"{}\"'.format(in_seq_file.pathMap[event]))        
         input_names.append(event)
         extra_options = '--includeRoot'
