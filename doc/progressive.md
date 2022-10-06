@@ -4,10 +4,6 @@ Progressive Cactus is included in the [Cactus Software Package](../README.md).  
 
 Please cite the [Progressive Cactus paper](https://doi.org/10.1038/s41586-020-2871-y) when using Cactus.
 
-## Cactus Alignments
-
-[Please see here for a collection of public Progressive Alignments](progressive_alignments.md).
-
 ## Table of Contents
 
 * [Quick-start](#quick-start)
