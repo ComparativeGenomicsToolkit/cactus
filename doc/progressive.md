@@ -79,6 +79,7 @@ An optional * can be placed at the beginning of a name to specify that its assem
 * Branch lengths that are not specified are assumed to be 1.
 * Lines beginning with # are ignored. 
 * Sequence paths must point to either a FASTA file or a directory containing 1 or more FASTA files.
+* FASTA files may be gzipped (since Cactus v2.2.0)
 * Sequence paths must not contain spaces.
 * Each name / path pair must be on its own line
 * `http://`, `s3://`, etc. URLs may be used.
