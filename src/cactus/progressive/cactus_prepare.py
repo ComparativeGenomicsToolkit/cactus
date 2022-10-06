@@ -777,6 +777,7 @@ def wdl_task_blast(options):
     s += '        File in_seq_file\n'
     s += '        Array[String] in_fa_names\n'
     s += '        Array[File] in_fa_files\n'
+    s += '        Array[String]? in_fa_urls\n'
     s += '        String in_root\n'
     s += '        File? in_config_file\n'
     s += '        String? in_options\n'
@@ -784,7 +785,7 @@ def wdl_task_blast(options):
     s += '    }\n'
     s += '    command {\n        '
     s += 'cactus-blast {} ${{in_seq_file}} ${{out_name}} --root ${{in_root}}'.format(get_jobstore(options, 'blast'))
-    s += ' --pathOverrides ${sep=\" \" in_fa_files} --pathOverrideNames ${sep=\" \" in_fa_names}'
+    s += ' --pathOverrides ${sep=\" \" in_fa_files} ${sep=\" \" in_fa_urls} --pathOverrideNames ${sep=\" \" in_fa_names}'
     s += ' {} {} {} ${{\"--configFile \" + in_config_file}} ${{in_options}}'.format(options.cactusOptions, get_toil_resource_opts(options, 'blast'),
                                                                                     ' --gpu' if options.gpu else '')
     s += '\n    }\n'
@@ -818,6 +819,7 @@ def wdl_call_blast(options, in_seq_file, mc_tree, og_map, event, cigar_name):
     leaf_deps, anc_deps = get_dep_names(options, mc_tree, og_map, event)
     input_fas = []
     input_names = []
+    input_urls = []
     for input_name in leaf_deps:
         # take fasta from cactus-preprocess for leaves
         input_fas.append(preprocess_output(options, input_name))
@@ -827,7 +829,7 @@ def wdl_call_blast(options, in_seq_file, mc_tree, og_map, event, cigar_name):
         input_fas.append('{}.out_fa_file'.format(align_call_name(input_name)))
         input_names.append(input_name)
     if options.includeRoot and event == mc_tree.getRootName():
-        input_fas.append('\"{}\"'.format(in_seq_file.pathMap[event]))
+        input_urls.append('\"{}\"'.format(in_seq_file.pathMap[event]))
         input_names.append(event)
         extra_options = '--includeRoot'
     else:
@@ -838,6 +840,8 @@ def wdl_call_blast(options, in_seq_file, mc_tree, og_map, event, cigar_name):
     s += ' in_seq_file=seq_file,'
     s += ' in_fa_names=[{}],'.format(', '.join(['\"{}\"'.format(name) for name in input_names]))
     s += ' in_fa_files=[{}],'.format(', '.join(input_fas))
+    if input_urls:
+        s += ' in_fa_urls=[{}],'.format(', '.join(input_urls))
     s += ' in_root=\"{}\",'.format(event)
     s += ' in_config_file=config_file,'
     if extra_options:
@@ -884,6 +888,7 @@ def wdl_task_align(options):
     s += '        File in_seq_file\n'
     s += '        Array[String] in_fa_names\n'
     s += '        Array[File] in_fa_files\n'
+    s += '        Array[String]? in_fa_urls\n'    
     s += '        Array[File] in_blast_files\n'
     s += '        String in_root\n'
     s += '        File? in_config_file\n'
@@ -893,7 +898,7 @@ def wdl_task_align(options):
     s += '    }\n'
     s += '    command {\n        '
     s += 'cactus-align {} ${{in_seq_file}} ${{sep=\" \" in_blast_files}} ${{out_hal_name}} --root ${{in_root}}'.format(get_jobstore(options, 'align'))
-    s += ' --pathOverrides ${{sep=\" \" in_fa_files}} --pathOverrideNames ${{sep=\" \" in_fa_names}} {}'.format(options.cactusOptions)
+    s += ' --pathOverrides ${{sep=\" \" in_fa_files}} ${{sep=\" \" in_fa_urls}} --pathOverrideNames ${{sep=\" \" in_fa_names}} {}'.format(options.cactusOptions)
     s += ' {} ${{\"--configFile \" + in_config_file}} ${{in_options}}'.format(get_toil_resource_opts(options, 'align'))
     s += '\n        '
     s += 'hal2fasta ${{out_hal_name}} ${{in_root}} {} > ${{out_fa_name}}'.format(options.halOptions)
@@ -923,6 +928,7 @@ def wdl_call_align(options, in_seq_file, mc_tree, og_map, event, cigar_name, hal
     leaf_deps, anc_deps = get_dep_names(options, mc_tree, og_map, event)
     input_fas = []
     input_names = []
+    input_urls = []
     for input_name in leaf_deps:
         # take fasta from cactus-preprocess for leaves
         input_fas.append(preprocess_output(options, input_name))
@@ -932,7 +938,7 @@ def wdl_call_align(options, in_seq_file, mc_tree, og_map, event, cigar_name, hal
         input_fas.append('{}.out_fa_file'.format(align_call_name(input_name)))
         input_names.append(input_name)
     if options.includeRoot and event == mc_tree.getRootName():
-        input_fas.append('\"{}\"'.format(in_seq_file.pathMap[event]))        
+        input_urls.append('\"{}\"'.format(in_seq_file.pathMap[event]))        
         input_names.append(event)
         extra_options = '--includeRoot'
     else:
@@ -942,7 +948,9 @@ def wdl_call_align(options, in_seq_file, mc_tree, og_map, event, cigar_name, hal
     s += '        input:'
     s += ' in_seq_file=seq_file,'
     s += ' in_fa_names=[{}],'.format(', '.join(['\"{}\"'.format(name) for name in input_names]))
-    s += ' in_fa_files=[{}],'.format(', '.join(input_fas))    
+    s += ' in_fa_files=[{}],'.format(', '.join(input_fas))
+    if input_urls:
+        s += ' in_fa_urls=[{}],'.format(', '.join(input_urls))
     s += ' in_blast_files={}.out_files,'.format(blast_call_name(event))
     s += ' in_root=\"{}\",'.format(event)
     s += ' in_config_file=config_file,'
