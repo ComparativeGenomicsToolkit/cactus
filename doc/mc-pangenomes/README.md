@@ -4,7 +4,7 @@ These are some pangenomes created using [Minigraph-Cactus](../pangenome.md), alo
 
 The commits used can be found in the logs in the Output links. Data is provided in HAL, vg, GFA and VCF formats. Please read about [VCF output](../pangenome.md#vcf-output) before using it.  
 
-Please cite the [Minigraph-Cactus paper](https://doi.org/10.1101/2022.07.09.499321) when using these pangenomes. For the HPRC pangenomes, please also cite the [HPRC Paper](https://doi.org/10.1101/2022.07.09.499321 ).
+Please cite the [Minigraph-Cactus paper](https://doi.org/10.1101/2022.10.06.511217) when using these pangenomes. For the HPRC pangenomes, please also cite the [HPRC Paper](https://doi.org/10.1101/2022.07.09.499321 ).
 
 **Note** The `30-mouse-pg-2022-09-23` pangenome is nearly 40% Ns due, apparently, to gappy input assemblies. This should be taken into account when using it. Todo: add a filter to postprocessing, or rebuild with a subset of higher quality assemblies.   
 
