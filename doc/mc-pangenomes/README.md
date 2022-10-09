@@ -6,6 +6,8 @@ The commits used can be found in the logs in the Output links. Data is provided 
 
 Please cite the [Minigraph-Cactus paper](in prep) when using these pangenomes. For the HPRC pangenomes, please also cite the [HPRC Paper](https://doi.org/10.1101/2022.07.09.499321 ).
 
+**Note** The `30-mouse-pg-2022-09-23` pangenome is nearly 40% Ns due, apparently, to gappy input assemblies. This should be taken into account when using it. Todo: add a filter to postprocessing, or rebuild with a subset of higher quality assemblies.   
+
 |<sub>**Name**</sub>| <sub>**Species**</sub> | <sub> **Date** </sub> |<sub>**Haplotypes**</sub> | <sub>**Reference**</sub> | <sub>**SeqFile**</sub> | <sub>**Commands**</sub> | <sub>**Output**</sub>|
 | :-------- | :-------- | :-------- | :------ | :------ |:------ | :------ | :------ |
 | <sub> Cow </sub> | <sub> *Bos taurus* </sub> | <sub> 2022-09-22 </sub> | <sub> 5 </sub> | <sub> bosTau9 </sub> | <sub> [5-cow-pg-2022-09-22-seqfile.txt](5-cow-pg-2022-09-22-seqfile.txt) </sub> | <sub> [5-cow-pg-2022-09-22-commands.md](5-cow-pg-2022-09-22-commands.md) </sub> | <sub> [files](https://s3-us-west-2.amazonaws.com/human-pangenomics/index.html?prefix=publications/mc_2022/mc_pangenomes/5-cow-mc-2022-09-22) </sub> | 
