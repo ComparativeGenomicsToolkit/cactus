@@ -1,0 +1,17 @@
+Glycine_max_v4_0	s3://vg-k8s/users/hickey/soybean-pangenome/GCF_000004515.6.ucsc.fa.gz
+JD17_chr_final.0	https://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/021/733/175/GCA_021733175.1_JD17_chr_final/GCA_021733175.1_JD17_chr_final_genomic.fna.gz
+Gmax_ZH13_v2_0.0	https://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/003/349/995/GCA_003349995.2_Gmax_ZH13_v2.0/GCA_003349995.2_Gmax_ZH13_v2.0_genomic.fna.gz
+ASM2049715v1.0	https://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/020/497/155/GCA_020497155.1_ASM2049715v1/GCA_020497155.1_ASM2049715v1_genomic.fna.gz
+PI594527_PLATINUM_CHROMOSOMES_fasta.0	https://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/019/321/705/GCA_019321705.1_PI594527.PLATINUM.CHROMOSOMES.fasta/GCA_019321705.1_PI594527.PLATINUM.CHROMOSOMES.fasta_genomic.fna.gz
+WHFS_GmHX3_1_0.0	https://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/014/282/145/GCA_014282145.1_WHFS_GmHX3_1.0/GCA_014282145.1_WHFS_GmHX3_1.0_genomic.fna.gz
+GmBRS537_a1_v2.0	https://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/012/273/815/GCA_012273815.2_GmBRS537.a1.v2/GCA_012273815.2_GmBRS537.a1.v2_genomic.fna.gz
+WHFS_GmZH13_1_0.0	https://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/014/282/085/GCA_014282085.1_WHFS_GmZH13_1.0/GCA_014282085.1_WHFS_GmZH13_1.0_genomic.fna.gz
+WHFS_GmJY_1_0.0	https://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/014/282/095/GCA_014282095.1_WHFS_GmJY_1.0/GCA_014282095.1_WHFS_GmJY_1.0_genomic.fna.gz
+Tianlong1.0	https://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/015/227/745/GCA_015227745.1_Tianlong1/GCA_015227745.1_Tianlong1_genomic.fna.gz
+WHFS_GmHF25_1_0.0	https://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/014/282/065/GCA_014282065.1_WHFS_GmHF25_1.0/GCA_014282065.1_WHFS_GmHF25_1.0_genomic.fna.gz
+ASM2211499v1.0	https://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/022/114/995/GCA_022114995.1_ASM2211499v1/GCA_022114995.1_ASM2211499v1_genomic.fna.gz
+WHFS_GmW82_1_0.0	https://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/014/282/185/GCA_014282185.1_WHFS_GmW82_1.0/GCA_014282185.1_WHFS_GmW82_1.0_genomic.fna.gz
+WHFS_GmWF7_1_0.0	https://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/014/282/035/GCA_014282035.1_WHFS_GmWF7_1.0/GCA_014282035.1_WHFS_GmWF7_1.0_genomic.fna.gz
+WHFS_GmZH35_1_0.0	https://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/014/282/075/GCA_014282075.1_WHFS_GmZH35_1.0/GCA_014282075.1_WHFS_GmZH35_1.0_genomic.fna.gz
+glyma_Lee_gnm1.0	https://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/002/905/335/GCA_002905335.2_glyma.Lee.gnm1/GCA_002905335.2_glyma.Lee.gnm1_genomic.fna.gz
+WHFS_GsojaF_1_0.0	https://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/014/282/345/GCA_014282345.1_WHFS_GsojaF_1.0/GCA_014282345.1_WHFS_GsojaF_1.0_genomic.fna.gz

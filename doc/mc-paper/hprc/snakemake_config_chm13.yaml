@@ -1,0 +1,6 @@
+methods: ['bwadv', 'giraffedv']
+samples: ['HG002']
+regions: ['wg_noinconsistent']
+truthset: ['CMRG_1_0', '20211005_dipcall_z2k']
+reads: ['30x_novaseq_pcrfree']
+label: 'HG002_chm13'

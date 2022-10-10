@@ -1,0 +1,124 @@
+from snakemake.remote.S3 import RemoteProvider as S3RemoteProvider
+import gzip
+S3 = S3RemoteProvider()
+
+# SCRIPTS='hprc/genotyping-experiments/workflow/scripts/'
+SROOT="s3://vg-k8s/vgamb/wg/giraffedv/giab-evaluation-chm13"
+SROOT38="s3://vg-k8s/vgamb/wg/giraffedv/giab-evaluation"
+
+sum_suffix = ''
+if 'label' in config:
+    sum_suffix = '-' + config['label']
+        
+rule main:
+    input: S3.remote(expand(SROOT + '/happy_runs/{truthset}.{sample}.{reads}.{method}.{region}/{truthset}.{sample}.{reads}.{method}.{region}.summary.csv', sample=config['samples'], method=config['methods'], region=config['regions'], truthset=config['truthset'], reads=config['reads']))
+    output:
+        pdf=S3.remote(SROOT + '/summary/eval-summary' + sum_suffix + '.pdf'),
+        tsv=S3.remote(SROOT + '/summary/eval-summary' + sum_suffix + '.tsv')
+    shell:
+        """
+        cp resources/eval-summary.Rmd .
+        Rscript eval-summary.Rmd {input}
+        mv eval-summary.pdf {output.pdf}
+        mv eval-summary.tsv {output.tsv}
+        """
+
+rule main_roc:
+    input: S3.remote(expand(SROOT + '/happy_runs/{truthset}.{sample}.{reads}.{method}.{region}/{truthset}.{sample}.{reads}.{method}.{region}.roc.all.csv.gz', sample=config['samples'], method=config['methods'], region=config['regions'], truthset=config['truthset'], reads=config['reads']))
+    output:
+        pdf=S3.remote(SROOT + '/summary/eval-roc-summary' + sum_suffix + '.pdf'),
+        tsv=S3.remote(SROOT + '/summary/eval-roc-summary' + sum_suffix + '.tsv')
+    shell:
+        """
+        cp resources/eval-roc-summary.Rmd .
+        Rscript eval-roc-summary.Rmd {input}
+        mv eval-roc-summary.pdf {output.pdf}
+        mv eval-roc-summary.tsv {output.tsv}
+        """
+
+######
+######
+rule dwl_chm13:
+    output:
+        fa=S3.remote(SROOT + '/resources/chm13v2.0.fa'),
+        fai=S3.remote(SROOT + '/resources/chm13v2.0.fa.fai')
+    shell:
+        """
+        wget --quiet https://s3-us-west-2.amazonaws.com/human-pangenomics/T2T/CHM13/assemblies/analysis_set/chm13v2.0.fa.gz
+        gunzip -c chm13v2.0.fa.gz > {output.fa}
+        samtools faidx {output.fa}
+        """
+
+rule make_hc_wg_dipcall:
+    input:
+        bench=S3.remote(SROOT + '/truth/20211005_dipcall_z2k.HG002.benchmark.bed'),
+        conf_lo=S3.remote(SROOT + '/truth/GIAB_4_2_1_lifted.HG002.lifted.bed.gz')
+    output: S3.remote(SROOT + '/truth/20211005_dipcall_z2k.HG002.wg_noinconsistent.bed.gz')
+    singularity: "docker://quay.io/biocontainers/bedtools:2.30.0--hc088bd4_0"
+    shell:
+        """
+        bedtools intersect -a {input.bench} -b {input.conf_lo} | gzip > {output}
+        """
+
+rule make_hc_lifted:
+    input:
+        dipcall=S3.remote(SROOT + '/truth/GIAB_4_2_1_lifted.HG002.dipcall.bed.gz'),
+        conf_lo=S3.remote(SROOT + '/truth/GIAB_4_2_1_lifted.HG002.lifted.bed.gz')
+    output: S3.remote(SROOT + '/truth/GIAB_4_2_1_lifted.HG002.wg_noinconsistent.bed.gz')
+    singularity: "docker://quay.io/biocontainers/bedtools:2.30.0--hc088bd4_0"
+    shell:
+        """
+        bedtools intersect -a {input.dipcall} -b {input.conf_lo} | gzip > {output}
+        """
+        
+def format_inputs(wildcards):
+    samp = wildcards.sample
+    meth = wildcards.method
+    if meth.endswith('-giab'):
+        meth = meth.replace('-giab', '')
+    if 'jointcalled' in wildcards.method:
+        if wildcards.sample == 'HG003' or wildcards.sample == 'HG004':
+            samp = 'HG002'
+        elif wildcards.sample == 'HG006' or wildcards.sample == 'HG007':
+            samp = 'HG005'
+    return(S3.remote('s3://vg-k8s/vgamb/wg/giraffedv/giab-calls-chm13/{}.{}.{}.vcf.gz'.format(samp, wildcards.reads, meth)))
+rule format_temp_vcf:
+    input: format_inputs
+    output: S3.remote(SROOT + '/calls-vcfs/{sample}.{reads}.{method}.vcf.gz')
+    shell: "python3 resources/rename_chr_vcf.py -i {input} | bcftools view -c 1 -s {wildcards.sample} | bgzip > {output}"
+
+rule index_vcf:
+    input: S3.remote(SROOT + '/{vcf}.vcf.gz')
+    output: S3.remote(SROOT + '/{vcf}.vcf.gz.tbi')
+    shell: "tabix -p vcf {input}"
+
+rule eval_happy:
+    input:
+        vcf=S3.remote(SROOT + '/calls-vcfs/{sample}.{reads}.{method}.vcf.gz'),
+        tbi=S3.remote(SROOT + '/calls-vcfs/{sample}.{reads}.{method}.vcf.gz.tbi'),
+        bed=S3.remote(SROOT + '/truth/{truthset}.{sample}.{region}.bed.gz'),
+        truth=S3.remote(SROOT + '/truth/{truthset}.{sample}.vcf.gz'),
+        truth_tbi=S3.remote(SROOT + '/truth/{truthset}.{sample}.vcf.gz.tbi'),
+        ref_fa=S3.remote(SROOT + '/resources/chm13v2.0.fa'),
+        ref_fa_fai=S3.remote(SROOT + '/resources/chm13v2.0.fa.fai')
+    output:
+        sum=S3.remote(SROOT + '/happy_runs/{truthset}.{sample}.{reads}.{method}.{region}/{truthset}.{sample}.{reads}.{method}.{region}.summary.csv'),
+        roc=S3.remote(SROOT + '/happy_runs/{truthset}.{sample}.{reads}.{method}.{region}/{truthset}.{sample}.{reads}.{method}.{region}.roc.all.csv.gz'),
+        vcf=S3.remote(SROOT + '/happy_runs/{truthset}.{sample}.{reads}.{method}.{region}/{truthset}.{sample}.{reads}.{method}.{region}.vcf.gz'),
+        runinfo=S3.remote(SROOT + '/happy_runs/{truthset}.{sample}.{reads}.{method}.{region}/{truthset}.{sample}.{reads}.{method}.{region}.runinfo.json')
+    benchmark: S3.remote(SROOT + '/benchmark/{truthset}.{sample}.{reads}.{method}.{region}.happy.benchmark.tsv')
+    params:
+        out_prefix="{truthset}.{sample}.{reads}.{method}.{region}",
+        out_dir="happy_runs/{truthset}.{sample}.{reads}.{method}.{region}"
+    threads: 2
+    singularity: "docker://jmcdani20/hap.py:v0.3.12"
+    shell:
+        """
+        mkdir -p {params.out_dir}
+        /opt/hap.py/bin/hap.py {input.truth} {input.vcf} --reference {input.ref_fa} -f {input.bed} --threads {threads} --engine=vcfeval -o {params.out_dir}/{params.out_prefix}
+        cp {params.out_dir}/{params.out_prefix}.summary.csv {output.sum}
+        cp {params.out_dir}/{params.out_prefix}.vcf.gz {output.vcf}
+        cp {params.out_dir}/{params.out_prefix}.roc.all.csv.gz {output.roc}
+        cp {params.out_dir}/{params.out_prefix}.runinfo.json {output.runinfo}
+        rm -rf {params.out_dir}
+        """

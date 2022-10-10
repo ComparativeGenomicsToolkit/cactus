@@ -1,0 +1,7 @@
+{
+  "BWADV.INPUT_READ_FILE_1": "${this.fastq1}",
+  "BWADV.INPUT_READ_FILE_2": "${this.fastq2}",
+  "BWADV.REFERENCE_FILE": "gs://fc-0e9b62da-2dd8-42e5-bb50-8d08e7cdebc3/chm13v2.0.plus_hs38d1_analysis_set.compact_decoys.fa",
+  "BWADV.PATH_LIST_FILE": "gs://fc-0e9b62da-2dd8-42e5-bb50-8d08e7cdebc3/fasta-indexes-for-crams/GRCh38_full_analysis_set_plus_decoy_hla.chr1-22-X-Y.txt",
+  "BWADV.SAMPLE_NAME": "${this.sample}"
+}
