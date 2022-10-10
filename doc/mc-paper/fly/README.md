@@ -2,12 +2,12 @@
 
 ## Construction
 
-The graphs and indexes were constructed using [these commands](../mc-pangenomes/16-fly-pg-2022-05-26-commands.md) with [this seqfile](../mc-pangenomes/16-fly-pg-2022-05-26-seqfile.txt) with Cactus commit [3f60d4f247c62d499e17202e059ff4d5d19cc71d](https://github.com/ComparativeGenomicsToolkit/cactus/commit/3f60d4f247c62d499e17202e059ff4d5d19cc71d).  The results (and an archive of the input fastas) are found [here](https://s3-us-west-2.amazonaws.com/human-pangenomics/index.html?prefix=publications/mc_2022/mc-pangenomes/16-fly-pg-2022-05-26).
+The graphs and indexes were constructed using [these commands](../../mc-pangenomes/16-fly-pg-2022-05-26-commands.md) with [this seqfile](../../mc-pangenomes/16-fly-pg-2022-05-26-seqfile.txt) with Cactus commit [3f60d4f247c62d499e17202e059ff4d5d19cc71d](https://github.com/ComparativeGenomicsToolkit/cactus/commit/3f60d4f247c62d499e17202e059ff4d5d19cc71d).  The results (and an archive of the input fastas) are found [here](https://s3-us-west-2.amazonaws.com/human-pangenomics/index.html?prefix=publications/mc_2022/mc_pangenomes/16-fruitfly-mc-2022-05-26/).
 
 The Progressive Cactus graph was created with Cactus commit [c31e4104b28ef8f55e2244177c593b9c2d7c39ac](https://github.com/ComparativeGenomicsToolkit/cactus/commit/c31e4104b28ef8f55e2244177c593b9c2d7c39ac) and default parameters
 
 ```
-cactus ./js ./c31e4104b28ef8f55e2244177c593b9c2d7c39ac ./softmask.fly.hal --realTimeLogging --logFile softmask.fly.hal.log
+cactus ./js 16-fly-pg-2022-05-26-seqfile.txt ./softmask.fly.hal --realTimeLogging --logFile softmask.fly.hal.log
 hal2vg ./softmask.fly.hal --noAncesstors > fly-cactus.vg
 ```
 and the output is available [here](https://s3-us-west-2.amazonaws.com/human-pangenomics/index.html?prefix=publications/mc_2022/fruitfly/fly-cactus/).
@@ -15,7 +15,7 @@ and the output is available [here](https://s3-us-west-2.amazonaws.com/human-pang
 
 ## Short Read Sequencing Data
 
-The reads were downloaded from NCBI as follows, using accessions listed in [fly-sra.tsv](./fly-sra.tsv).
+The reads were downloaded from NCBI as follows, using accessions listed in [fly-sra.tsv](../fly-sra.tsv).
 
 ```
 for i in `cat fly-sra.tsv  | awk '{print $2}'` ; do fasterq-dump $i --split-3 ; bgzip ${i}_1.fastq --threads 8 ; bgzip ${i}_2.fastq --threads 8; done

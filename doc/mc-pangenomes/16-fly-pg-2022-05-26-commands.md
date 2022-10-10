@@ -4,17 +4,16 @@ tar zxf 16-fly-softmasked-fa.tar.gz
 
 export VERSION=2022-05-26
 
-cactus-minigraph ./js ./softmask.fly.txt 16-fly-pg-${VERSION}-minigraph.gfa.gz --reference dm6 --maxCores 32 --mapCores 32 --realTimeLogging --logFile 16-fly-pg-${VERSION}.minigraph.log
+cactus-minigraph ./js ./16-fly-pg-2022-05-26-seqfile.txt fly-pg-${VERSION}-minigraph.gfa.gz --reference dm6 --maxCores 32 --mapCores 32 --realTimeLogging --logFile fly-pg-${VERSION}.minigraph.log
 
-cactus-graphmap ./js ./softmask.fly.txt ./16-fly-pg-${VERSION}-minigraph.gfa.gz ./16-fly-pg-${VERSION}.paf --reference dm6 --delFilter 10000000  --realTimeLogging --logFile 16-fly-pg-${VERSION}.graphmap.log --maxCores 32 --outputFasta ./16-fly-pg-${VERSION}.gfa.fa.gz
+cactus-graphmap ./js ./16-fly-pg-2022-05-26-seqfile.txt ./fly-pg-${VERSION}-minigraph.gfa.gz ./fly-pg-${VERSION}.paf --reference dm6 --delFilter 10000000  --realTimeLogging --logFile fly-pg-${VERSION}.graphmap.log --maxCores 32 --outputFasta ./fly-pg-${VERSION}.gfa.fa.gz
 
 cp cactus/src/cactus/cactus_progressive_config.xml ./config-split.xml
 # hand-edit config-split.xml to have thresholds so as to be more permissive for smaller contig fragments.
 # minQueryCoverages="0.25"
 # minQueryCoverageThresholds=""
 
-cactus-graphmap-split ./js ./softmask.fly.txt ./16-fly-pg-${VERSION}-minigraph.gfa.gz ./16-fly-pg-${VERSION}.paf --outDir ./chroms-16-fly-pg-${VERSION} --otherContig chrOther --refContigs $(for i in 2L 2R 3L 3R 4 X Y M; do echo chr$i; done) --reference dm6 --otherContig chrOther --realTimeLogging --logFile 16-fly-pg-${VERSION}.split.log --maxCores 32  --co
-nfigFile ./config-split.xml
+cactus-graphmap-split ./js ./16-fly-pg-2022-05-26-seqfile.txt ./fly-pg-${VERSION}-minigraph.gfa.gz ./fly-pg-${VERSION}.paf --outDir ./chroms-fly-pg-${VERSION} --otherContig chrOther --refContigs $(for i in 2L 2R 3L 3R 4 X Y M; do echo chr$i; done) --reference dm6 --otherContig chrOther --realTimeLogging --logFile fly-pg-${VERSION}.split.log --maxCores 32  --configFile ./config-split.xml
 
 cactus-align-batch ./js ./chroms-16-fly-pg-${VERSION}/chromfile.txt align-16-fly-pg-${VERSION} --alignCores 8 --maxCores 32 --realTimeLogging --logFile 16-fly-pg-${VERSION}.align.log --alignOptions "--pangenome --pafInput --maxLen 10000 --reference dm6 --realTimeLogging  --outVG"
 
