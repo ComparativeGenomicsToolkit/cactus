@@ -1,3 +1,9 @@
+# Release 2.2.3 2022-10-04
+
+This release contains yet another patch regarding the `minimumBlockDegreeToCheckSupport` filter option, this time in progressive alignment. It was supposed to have been toggled off entirely in v2.2.0 but instead was applied to all blocks. 
+
+- `minimumBlockDegreeToCheckSupport` of <= 0 now interpreted as disabling the filter, rather than applying it to all blocks with > 0 support.  Before v2.2.0 it was applied to blocks with support > 10, since v2.2.0 it was applied to blocks with support > 0, and now it is disabled. 
+
 # Release 2.2.2 2022-09-28
 
 This release fixes a critcal bug in `cactus-align --pangenome` that was introduced in v2.2.0 and causes massive underalignments in pangenome graphs with more than 10 or so samples. Huge thanks for @minglibio for catching this!

@@ -57,7 +57,7 @@ python3 -m pip install -U .
 
 If you have Docker installed, you can now run Cactus.  All binaries, such as `lastz` and `cactus-consolidated` will be run via Docker.  Singularity binaries can be used in place of docker binaries with the `--binariesMode singularity` flag.  Note, you must use Singularity 2.3 - 2.6 or Singularity 3.1.0+. Singularity 3 versions below 3.1.0 are incompatible with cactus (see [issue #55](https://github.com/ComparativeGenomicsToolkit/cactus/issues/55) and [issue #60](https://github.com/ComparativeGenomicsToolkit/cactus/issues/60)).
 
-By default, cactus will use the image, `quay.io/comparative-genomics-toolkit/cactus:<CACTUS_COMMIT>` when running binaries. This is usually okay, but can be overridden with the `CACTUS_DOCKER_ORG` and `CACTUS_DOCKER_TAG` environment variables.  For example, to use GPU release 2.2.2, run `export CACTUS_DOCKER_TAG=v2.2.2-gpu` before running cactus.  
+By default, cactus will use the image, `quay.io/comparative-genomics-toolkit/cactus:<CACTUS_COMMIT>` when running binaries. This is usually okay, but can be overridden with the `CACTUS_DOCKER_ORG` and `CACTUS_DOCKER_TAG` environment variables.  For example, to use GPU release 2.2.3, run `export CACTUS_DOCKER_TAG=v2.2.3-gpu` before running cactus.  
 
 ### Compiling Binaries Locally
 In order to compile the binaries locally and not use a Docker image, you need some dependencies installed.  On Ubuntu (we've tested on 20.04 and 22.04), you can look at the [Cactus Dockerfile](./Dockerfile) for guidance. To obtain the `apt-get` command:
