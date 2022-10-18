@@ -257,13 +257,8 @@ suball.hal: suball.sonLib
 	-ln -f submodules/hal/lib/libHal.a submodules/hal/lib/halLib.a
 
 suball.taf: suball.hal
-########## HACK until we sort out dual sonLib nightmare
-	mv submodules/taf/submodules/sonLib submodules/taf/submodules/sonLib.bak
-	cp -r submodules/sonLib submodules/taf/submodules/
 	cd submodules/taf && HALDIR=../hal make
 	-ln -f submodules/taf/bin/*taf* bin/
-	rm -rf submodules/taf/submodules/sonLib
-	mv submodules/taf/submodules/sonLib.bak submodules/taf/submodules/sonLib
 
 suball.abPOA:
 	cd submodules/abPOA && ${MAKE}
