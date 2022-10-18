@@ -133,6 +133,8 @@ test: ${testModules:%=%_runtest} ${unitTests:%=%_run_unit_test}
 test_blast: ${testModules:%=%_runtest_blast}
 test_nonblast: ${testModules:%=%_runtest_nonblast}
 hal_test: ${halTests:%=%_run_unit_test}
+taf_test:
+	cd submodules/taf && make test
 
 # run one test and save output
 %_runtest: ${versionPy}
