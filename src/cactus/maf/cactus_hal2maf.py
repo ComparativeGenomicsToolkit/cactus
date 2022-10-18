@@ -206,6 +206,8 @@ def hal2maf_cmd(hal_path, chunk, chunk_num, work_dir, options):
     if not options.raw:
         # todo: we can parameterize these guys in the cactus config
         cmd += ' | maf_to_taf | taf_add_gap_bases -a {} | taf_norm -k'.format(hal_path)
+    if chunk[1] != 0:
+        cmd += ' | grep -v ^#'
     if options.outputMAF.endswith('.gz'):
         cmd += ' | bgzip'        
     cmd += ' > {}.maf'.format(os.path.join(work_dir, str(chunk_num)))
