@@ -31,9 +31,6 @@ from toil.realtimeLogger import RealtimeLogger
 from toil.lib.threading import cpu_count
 from sonLib.bioio import getTempDirectory
 
-from hal.stats.halStats import getHalGenomeLength
-from hal.stats.halStats import getHalSequenceStats
-
 def main():
     parser = ArgumentParser()
     Job.Runner.addToilOptions(parser)
@@ -167,7 +164,12 @@ def hal2maf_ranges(job, hal_id, options):
     job.fileStore.readGlobalFile(hal_id, hal_path)
     RealtimeLogger.info("Computing range information")
 
-    ref_sequence_stats = getHalSequenceStats(hal_path, options.refGenome)
+    res = cactus_call(parameters=['halStats', hal_path, '--sequenceStats', options.refGenome], check_output=True)
+    ref_sequence_stats = []
+    for line in res.strip().split('\n')[1:]:
+        tokens = line.strip().split(",")
+        if len(tokens) == 4:
+            ref_sequence_stats.append((tokens[0], int(tokens[1]), int(tokens[2]), int(tokens[3])))
 
     chunks = []
     for ref_stats in ref_sequence_stats:
@@ -179,6 +181,7 @@ def hal2maf_ranges(job, hal_id, options):
             chunks.append((ref_name, start, end))
             start = end
 
+    assert chunks
     return chunks
 
 def hal2maf_all(job, hal_id, chunks, options):
@@ -208,8 +211,12 @@ def hal2maf_all(job, hal_id, chunks, options):
     
     return batch_results
 
-def hal2maf_cmd(hal_path, chunk, chunk_num, work_dir, options):
+def hal2maf_cmd(hal_path, chunk, chunk_num, options):
     """ make a hal2maf command for a chunk """
+
+    # we are going to run this relative to work_dir
+    hal_path = os.path.basename(hal_path)
+    
     cmd = 'set -eo pipefail && hal2maf {} stdout --refGenome {} --refSequence {} --start {} --length {}'.format(hal_path, options.refGenome, chunk[0], chunk[1], chunk[2]-chunk[1])
     if options.rootGenome:
         cmd += ' --rootGenome {}'.format(options.rootGenome)
@@ -233,7 +240,7 @@ def hal2maf_cmd(hal_path, chunk, chunk_num, work_dir, options):
         cmd += ' | grep -v ^#'
     if options.outputMAF.endswith('.gz'):
         cmd += ' | bgzip'        
-    cmd += ' > {}.maf'.format(os.path.join(work_dir, str(chunk_num)))
+    cmd += ' > {}.maf'.format(chunk_num)
     return cmd
 
 def hal2maf_batch(job, hal_id, batch_chunks, options):
@@ -243,7 +250,7 @@ def hal2maf_batch(job, hal_id, batch_chunks, options):
     RealtimeLogger.info("Reading HAL file from job store to {}".format(hal_path))
     job.fileStore.readGlobalFile(hal_id, hal_path)
 
-    cmds = [hal2maf_cmd(hal_path, chunk, i, work_dir, options) for i, chunk in enumerate(batch_chunks)]
+    cmds = [hal2maf_cmd(hal_path, chunk, i, options) for i, chunk in enumerate(batch_chunks)]
     
     # do it with parallel
     cmd_path = os.path.join(work_dir, 'hal2maf_cmds.txt')
@@ -253,7 +260,7 @@ def hal2maf_batch(job, hal_id, batch_chunks, options):
     parallel_cmd = [['cat', cmd_path],
                     ['parallel', '-j', str(job.cores), '{}']]
     RealtimeLogger.info('First of {} commands in parallel batch: {}'.format(len(cmds), cmds[0]))
-    cactus_call(parameters=parallel_cmd)
+    cactus_call(parameters=parallel_cmd, work_dir=work_dir)
 
     # merge up the results
     maf_path = os.path.join(work_dir, 'out.maf')
