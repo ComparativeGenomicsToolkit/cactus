@@ -27,4 +27,4 @@
 	url = https://github.com/ComparativeGenomicsToolkit/lastz.git
 [submodule "submodules/taf"]
 	path = submodules/taf
-	url = https://github.com/benedictpaten/taf.git
+	url = https://github.com/ComparativeGenomicsToolkit/taf.git
