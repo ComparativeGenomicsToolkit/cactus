@@ -205,7 +205,7 @@ def hal2maf_all(job, hal_id, chunks, options):
         cur_chunk = i * batch_size
         cur_batch_size = min(chunks_left, batch_size)
         batch_results.append(job.addChildJobFn(hal2maf_batch, hal_id, chunks[cur_chunk:cur_chunk+cur_batch_size], options,
-                                               disk=2*hal_id.size, cores=options.batchCores).rv())
+                                               disk=math.ceil((1 + 1 / num_batches)*hal_id.size), cores=options.batchCores).rv())
         chunks_left -= cur_batch_size
     assert chunks_left == 0
     
