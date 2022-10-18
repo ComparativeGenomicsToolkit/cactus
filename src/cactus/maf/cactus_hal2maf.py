@@ -76,6 +76,26 @@ def main():
                         action="store_true",
                         default=False)
     
+    # pass through taf_add_gap_bases options
+    parser.add_argument("--gapFill",
+                        help="use TAF tools to fill in reference gaps up to this length (currently more reliable than --maxRefGap) [default=50]",
+                        type=int,
+                        default=50)
+
+    # pass through taf_norm options
+    parser.add_argument("--maximumBlockLengthToMerge",
+                        help="Only merge together any two adjacent blocks if one or both is less than this many bases long, [default=200]",
+                        type=int,
+                        default=200)
+    parser.add_argument("--maximumGapLength",
+                         help="Only merge together two adjacent blocks if the total number of unaligned bases between the blocks is less than this many bases, [default=3]",
+                         type=int,
+                         default=3)
+    parser.add_argument("--fractionSharedRows",
+                        help="The fraction of rows between two blocks that need to be shared for a merge, [default=0.6]",
+                        type=float,
+                        default=0.6)                            
+    
     #Progressive Cactus Options
     parser.add_argument("--latest", dest="latest", action="store_true",
                         help="Use the latest version of the docker container "
@@ -205,7 +225,10 @@ def hal2maf_cmd(hal_path, chunk, chunk_num, work_dir, options):
         cmd += ' --noAncestors'
     if not options.raw:
         # todo: we can parameterize these guys in the cactus config
-        cmd += ' | maf_to_taf | taf_add_gap_bases -a {} | taf_norm -k'.format(hal_path)
+        cmd += ' | maf_to_taf | taf_add_gap_bases -a {} -m {} | taf_norm -k -m {} -n {} -q {}'.format(hal_path, options.gapFill,
+                                                                                                      options.maximumBlockLengthToMerge,
+                                                                                                      options.maximumGapLength,
+                                                                                                      options.fractionSharedRows)
     if chunk[1] != 0:
         cmd += ' | grep -v ^#'
     if options.outputMAF.endswith('.gz'):
@@ -229,6 +252,7 @@ def hal2maf_batch(job, hal_id, batch_chunks, options):
             cmd_file.write(cmd + '\n')
     parallel_cmd = [['cat', cmd_path],
                     ['parallel', '-j', str(job.cores), '{}']]
+    RealtimeLogger.info('First of {} commands in parallel batch: {}'.format(len(cmds), cmds[0]))
     cactus_call(parameters=parallel_cmd)
 
     # merge up the results
