@@ -234,7 +234,7 @@ Please [cite SegAlign](https://doi.ieeecomputersociety.org/10.1109/SC41405.2020.
 ## Pre-Alignment Checklist
 
 * Are the input sequences softmasked with RepeatMasker? For mammals we expect at least 40% of the genome to be masked this way. 
-* Have you run a small [test alignment](examples/evolverMammals.txt) to make sure Cactus is properly installed?
+* Have you run a small [test alignment](../examples/evolverMammals.txt) to make sure Cactus is properly installed?
 * Do you have at least one outgroup species?
 
 ## Frequently Asked Questions
