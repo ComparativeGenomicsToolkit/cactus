@@ -39,7 +39,7 @@ def main():
     Job.Runner.addToilOptions(parser)
 
     parser.add_argument("halFile", help = "HAL file to convert to MAF")
-    parser.add_argument("outputMAF", help = "Output MAF")
+    parser.add_argument("outputMAF", help = "Output MAF (will be gzipped if ends in .gz)")
     parser.add_argument("--batchSize", type=int, help = "Number of chunks for each hal2maf batch", default=None)
     parser.add_argument("--batchCount", type=int, help = "Number of hal2maf batches [default 1 unless --batchSize set]", default=None)
     parser.add_argument("--batchCores", type=int, help = "Number of cores for each hal2maf batch.")
@@ -109,10 +109,6 @@ def main():
     logger.info('Cactus Command: {}'.format(' '.join(sys.argv)))
     logger.info('Cactus Commit: {}'.format(cactus_commit))
     start_time = timeit.default_timer()
-
-    if not options.outputMAF.endswith('.gz'):
-        logger.info('Changing output path from {} to {}.gz'.format(options.outputMAF, options.outputMAF))
-        options.outputMAF += '.gz'
 
     if not options.batchCount and not options.batchSize:
         logger.info('Using default batch count of 1')
@@ -192,9 +188,9 @@ def hal2maf_all(job, hal_id, chunks, options):
     
     return batch_results
 
-def hal2maf_cmd(hal_path, chunk, chunk_num, options):
+def hal2maf_cmd(hal_path, chunk, chunk_num, work_dir, options):
     """ make a hal2maf command for a chunk """
-    cmd = 'hal2maf {} {}.maf --refGenome {} --refSequence {} --start {} --length {}'.format(hal_path, chunk_num, options.refGenome, chunk[0], chunk[1], chunk[2]-chunk[1])
+    cmd = 'set -eo pipefail && hal2maf {} stdout --refGenome {} --refSequence {} --start {} --length {}'.format(hal_path, options.refGenome, chunk[0], chunk[1], chunk[2]-chunk[1])
     if options.rootGenome:
         cmd += ' --rootGenome {}'.format(options.rootGenome)
     if options.targetGenomes:
@@ -207,6 +203,12 @@ def hal2maf_cmd(hal_path, chunk, chunk_num, options):
         cmd += ' --onlyOrthologs'
     if options.noAncestors:
         cmd += ' --noAncestors'
+    if not options.raw:
+        # todo: we can parameterize these guys in the cactus config
+        cmd += ' | maf_to_taf | taf_add_gap_bases -a {} | taf_norm -k'.format(hal_path)
+    if options.outputMAF.endswith('.gz'):
+        cmd += ' | bgzip'        
+    cmd += ' > {}.maf'.format(os.path.join(work_dir, str(chunk_num)))
     return cmd
 
 def hal2maf_batch(job, hal_id, batch_chunks, options):
@@ -216,26 +218,20 @@ def hal2maf_batch(job, hal_id, batch_chunks, options):
     RealtimeLogger.info("Reading HAL file from job store to {}".format(hal_path))
     job.fileStore.readGlobalFile(hal_id, hal_path)
 
-    cmds = [hal2maf_cmd(hal_path, chunk, i, options) for i, chunk in enumerate(batch_chunks)]
+    cmds = [hal2maf_cmd(hal_path, chunk, i, work_dir, options) for i, chunk in enumerate(batch_chunks)]
     
-    if len(batch_chunks) == 1:
-        # no need to go through parallel, just run directly
-        cactus_call(parameters=cmds[0].split())
-    else:
-        # do it with parallel
-        cmd_path = os.path.join(work_dir, 'hal2maf_cmds.txt')
-        with open(cmd_path, 'w') as cmd_file:
-            for cmd in cmds:
-                cmd_file.write(cmd + '\n')
-        parallel_cmd = [['cat', cmd_path],
-                        ['parallel', '-j', str(job.cores), '{}']]
-        cactus_call(parameters=parallel_cmd)
-            
-    # merge up the results and zip while we're at it
-    maf_path = os.path.join(work_dir, os.path.basename(options.outputMAF))
-    for i in range(len(batch_chunks)):
-        cactus_call(parameters=['bgzip', '-c', '{}.maf'.format(i), '--threads', str(job.cores)],
-                    outfile=maf_path, outappend=True)
+    # do it with parallel
+    cmd_path = os.path.join(work_dir, 'hal2maf_cmds.txt')
+    with open(cmd_path, 'w') as cmd_file:
+        for cmd in cmds:
+            cmd_file.write(cmd + '\n')
+    parallel_cmd = [['cat', cmd_path],
+                    ['parallel', '-j', str(job.cores), '{}']]
+    cactus_call(parameters=parallel_cmd)
+
+    # merge up the results
+    maf_path = os.path.join(work_dir, 'out.maf')
+    catFiles([os.path.join(work_dir, '{}.maf'.format(i)) for i in range(len(batch_chunks))], maf_path)
 
     return job.fileStore.writeGlobalFile(maf_path)
             
@@ -243,7 +239,7 @@ def hal2maf_batch(job, hal_id, batch_chunks, options):
 def hal2maf_merge(job, maf_ids, options):
     """ just cat the results """
     work_dir = job.fileStore.getLocalTempDir()
-    merged_path = os.path.join(work_dir, 'merged.maf.gz')
+    merged_path = os.path.join(work_dir, 'merged.maf')
     in_paths = []
     for i, maf_id in enumerate(maf_ids):
         in_paths.append(job.fileStore.readGlobalFile(maf_id))
