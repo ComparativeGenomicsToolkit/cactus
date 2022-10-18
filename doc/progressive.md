@@ -215,7 +215,7 @@ gsutil ls -l -r gs://<BUCKET/PREFIX> | cactus-terra-helper scrape-logs
 
 ## Updating Alignments
 
-Cactus supports incrementally updating existing alignments to add, remove, or update genomes. The process involves minor surgery on the output HAL files. See [this document](doc/updating-alignments.md) for details. [cactus-update-prepare](doc/cactus-update-prepare.md) can be used to simplify this process!
+Cactus supports incrementally updating existing alignments to add, remove, or update genomes. The process involves minor surgery on the output HAL files. See [this document](updating-alignments.md) for details. [cactus-update-prepare](cactus-update-prepare.md) can be used to simplify this process!
 
 ## GPU Acceleration
 
