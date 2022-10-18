@@ -623,7 +623,7 @@ class TestCase(unittest.TestCase):
         # cactus-hal2maf doesnt support --onlySequenceNames because the genome names are needed by taf_add_gap_bases
         # so we manually filter here
         for genome in subprocess.check_output(['halStats', halPath, '--genomes']).strip().decode('utf-8').split():
-            subprocess.check_call(['sed', '-i', halPath + '.maf', '-e', 's/{}\\.//g'.format(genome)])
+            subprocess.check_call(['sed', '-i', halPath + '.maf', '-e', 's/s\t{}\\./s\t/g'.format(genome)])
         subprocess.check_call(['bin/mafComparator', '--maf1', halPath + '.maf', '--maf2', ground_truth_file, '--samples', '100000000', '--out', halPath + 'comp.xml'])
 
         # grab the two accuracy values out of the XML

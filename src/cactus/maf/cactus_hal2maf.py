@@ -172,7 +172,7 @@ def hal2maf_ranges(job, hal_id, options):
             ref_sequence_stats.append((tokens[0], int(tokens[1]), int(tokens[2]), int(tokens[3])))
 
     chunks = []
-    for ref_stats in ref_sequence_stats:
+    for ref_stats in sorted(ref_sequence_stats, key=lambda x : x[0]):
         ref_name = ref_stats[0]
         ref_len = ref_stats[1]
         start = 0
