@@ -47,6 +47,10 @@ def main():
     parser.add_argument("--refGenome", required=True,
                         help="name of reference genome (root if empty)",
                         default=None)
+    parser.add_argument("--refSequence",
+                        help="subset to this contig in reference genome (multiple allowed) [default=all]",
+                        nargs='+',
+                        default=None)                        
     parser.add_argument("--rootGenome",
                         help="name of root genome (none if empty)",
                         default=None)
@@ -165,16 +169,23 @@ def hal2maf_ranges(job, hal_id, options):
     RealtimeLogger.info("Computing range information")
 
     res = cactus_call(parameters=['halStats', hal_path, '--sequenceStats', options.refGenome], check_output=True)
-    ref_sequence_stats = []
+    ref_sequence_lengths = {}
     for line in res.strip().split('\n')[1:]:
         tokens = line.strip().split(",")
         if len(tokens) == 4:
-            ref_sequence_stats.append((tokens[0], int(tokens[1]), int(tokens[2]), int(tokens[3])))
+            ref_sequence_lengths[tokens[0]] = int(tokens[1])
+
+    if options.refSequence:
+        subset_ref_sequence_lengths = {}
+        for ref_seq in options.refSequence:
+            if ref_seq not in ref_sequence_lengths:
+                raise RuntimeError('--refSequence {} not found in HAL file for genome {}'.format(ref_seq, options.refGenome))
+            subset_ref_sequence_lengths[ref_seq] = ref_sequence_lengths[ref_seq]
+        ref_sequence_lengths = subset_ref_sequence_lengths        
 
     chunks = []
-    for ref_stats in sorted(ref_sequence_stats, key=lambda x : x[0]):
-        ref_name = ref_stats[0]
-        ref_len = ref_stats[1]
+    for ref_name in sorted(ref_sequence_lengths.keys()):
+        ref_len = ref_sequence_lengths[ref_name]
         start = 0
         while start < ref_len:
             end = min(start + options.chunkSize, ref_len)
