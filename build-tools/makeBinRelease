@@ -47,6 +47,7 @@ sed -i submodules/lastz/src/Makefile -e 's/-lm/-lm -static/g'
 export CFLAGS="-static"
 export CXXFLAGS="-static"
 export LDFLAGS="-static"
+export LIBS="-static"
 
 # build a couple dependencies from source because versions from awk don't support static linking
 pushd .
@@ -73,8 +74,9 @@ export CACTUS_STATIC_LINK_FLAGS="-L${DEP_PREFIX}/lib -lz -lpthread -lm -llzma"
 export CACTUS_LIBXML2_INCLUDE_PATH=${DEP_PREFIX}/include/libxml2
 popd
 
-# install Phast and enable halPhyloP compilation
-build-tools/downloadPhast
+# install Phast and enable halPhyloP compilation and copy the phast binaries
+build-tools/downloadPhast 1
+cp submodules/phast/LICENSE.txt ./PHAST.LICENSE.txt
 export ENABLE_PHYLOP=1
 
 # install UCSC browser libraries to compile UDC

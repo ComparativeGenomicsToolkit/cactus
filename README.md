@@ -24,6 +24,7 @@ Cactus uses many different algorithms and individual code contributions, princip
 
 - Yung H. Tsin and Nima Norouzi for contributing their 3-edge connected components program code, which is crucial in constructing the cactus graph structure, see: Tsin,Y.H., "A simple 3-edge-connected component algorithm," Theory of Computing Systems, vol.40, No.2, 2007, pp.125-142.
 - Bob Harris for providing endless support for his [LastZ](https://github.com/lastz/lastz) pairwise, blast-like genome alignment tool.
+- Melissa Jane Hubiz and Adam Siepel for halPhyloP and [Phast](http://compgen.cshl.edu/phast/).
 - Sneha Goenka and Yatish Turakhia for [SegAlign](https://github.com/gsneha26/SegAlign), the GPU-accelerated version of LastZ.
 - Yan Gao et al. for [abPOA](https://github.com/yangao07/abPOA)
 - Heng Li for [minigraph](https://github.com/lh3/minigraph), [minimap2](https://github.com/lh3/minimap2), [gfatools](https://github.com/lh3/gfatools) and [dna-brnn](https://github.com/lh3/dna-rnn)
