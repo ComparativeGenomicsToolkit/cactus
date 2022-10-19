@@ -40,6 +40,7 @@ all:
 static:
 	CFLAGS="$${CFLAGS} -static" \
 	CXXFLAGS="$${CXXFLAGS} -static" \
+	LIBS="-static" \
 	KC_OPTIONS="--enable-lzo --enable-static --disable-shared" \
 	KT_OPTIONS="--without-lua --enable-static --disable-shared" \
 	${MAKE} all

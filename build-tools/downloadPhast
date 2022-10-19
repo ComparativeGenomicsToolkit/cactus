@@ -34,8 +34,13 @@ rm -rf phast
 git clone https://github.com/CshlSiepelLab/phast.git
 cd phast
 git checkout ${gitrel}
+# hack in flags support
+sed -i src/make-include.mk -e 's/CFLAGS =/CFLAGS +=/' -e 's/LIBS =/LIBS +=/' 
 # note: phast's makefile doesn't support -j (somehow this only came up when upgrading to ubunut 22.04)
 cd src && make
+
+# copy over the binaries
+cp ../bin/* ${CWD}/bin
 
 cd ${CWD}
 
