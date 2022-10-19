@@ -41,6 +41,7 @@ def main():
     parser.add_argument("--batchCount", type=int, help = "Number of hal2maf batches [default 1 unless --batchSize set]", default=None)
     parser.add_argument("--batchCores", type=int, help = "Number of cores for each hal2maf batch.")
     parser.add_argument("--chunkSize", type=int, help = "Size of chunks to operate on.", required=True)
+    parser.add_argument("--batchParallel", type=int, help = "Number of hal2maf commands to be executed in parallel in batch. Use to throttle down number of concurrent jobs to save memory. [default=batchCores]", default=None)
     parser.add_argument("--raw", action="store_true", help = "Do not run taf-based normalization on the MAF")
 
     # pass through a subset of hal2maf options
@@ -125,6 +126,11 @@ def main():
             logger.info('Setting batchCores to {}'.format(options.batchCores))
         else:
             raise RuntimeError('--batchCores must be specified for batch systems other than singleMachine')
+
+    if not options.batchParallel:
+        options.batchParallel = options.batchCores
+    if options.batchParallel > options.batchCores:
+        raise RuntimeError('--batchParallel cannot exceed the number of batch cores ({})'.format(options.batchCores))
     
     # Mess with some toil options to create useful defaults.
     cactus_override_toil_options(options)
@@ -276,7 +282,7 @@ def hal2maf_batch(job, hal_id, batch_chunks, options):
         for cmd in cmds:
             cmd_file.write(cmd + '\n')
     parallel_cmd = [['cat', cmd_path],
-                    ['parallel', '-j', str(job.cores), '{}']]
+                    ['parallel', '-j', str(options.batchParallel), '{}']]
     RealtimeLogger.info('First of {} commands in parallel batch: {}'.format(len(cmds), cmds[0]))
     cactus_call(parameters=parallel_cmd, work_dir=work_dir)
 
