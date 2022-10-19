@@ -171,7 +171,7 @@ def hal2maf_workflow(job, hal_id, options):
 def hal2maf_ranges(job, hal_id, options):
     """ get the ranges (in reference *sequence* coordinates) for each hal2maf job """
     work_dir = job.fileStore.getLocalTempDir()
-    hal_path = os.path.join(work_dir, os.path.basename(options.halFile))
+    hal_path = os.path.join(work_dir, os.path.basename(options.halFile.replace(' ', '.')))
     RealtimeLogger.info("Reading HAL file from job store to {}".format(hal_path))    
     job.fileStore.readGlobalFile(hal_id, hal_path)
     RealtimeLogger.info("Computing range information")
@@ -271,7 +271,7 @@ def hal2maf_cmd(hal_path, chunk, chunk_num, options):
 def hal2maf_batch(job, hal_id, batch_chunks, options):
     """ run hal2maf on a batch of chunks in parallel """
     work_dir = job.fileStore.getLocalTempDir()
-    hal_path = os.path.join(work_dir, os.path.basename(options.halFile))
+    hal_path = os.path.join(work_dir, os.path.basename(options.halFile.replace(' ', '.')))
     RealtimeLogger.info("Reading HAL file from job store to {}".format(hal_path))
     job.fileStore.readGlobalFile(hal_id, hal_path)
 
