@@ -121,7 +121,7 @@ def main():
         if options.batchSystem.lower() in ['single_machine', 'singleMachine']:
             options.batchCores = cpu_count()
             if options.maxCores:
-                options.batchCores = min(options.batchCores, options.maxCores)
+                options.batchCores = min(options.batchCores, int(options.maxCores))
             logger.info('Setting batchCores to {}'.format(options.batchCores))
         else:
             raise RuntimeError('--batchCores must be specified for batch systems other than singleMachine')
