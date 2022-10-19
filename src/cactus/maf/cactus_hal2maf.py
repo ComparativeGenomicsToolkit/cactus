@@ -120,6 +120,8 @@ def main():
     if options.batchCores is None:
         if options.batchSystem.lower() in ['single_machine', 'singleMachine']:
             options.batchCores = cpu_count()
+            if options.maxCores:
+                options.batchCores = min(options.batchCores, options.maxCores)
             logger.info('Setting batchCores to {}'.format(options.batchCores))
         else:
             raise RuntimeError('--batchCores must be specified for batch systems other than singleMachine')
@@ -198,11 +200,15 @@ def hal2maf_ranges(job, hal_id, options):
 def hal2maf_all(job, hal_id, chunks, options):
     """ make a job for each batch of chunks """
     num_batches = options.batchCount
-    if not num_batches:        
-        num_batches = int(len(chunks) / options.batchCores)
-        remainder = len(chunks) % options.batchCores
-        if remainder:
-            num_batches += 1
+    if not num_batches:
+        # default to 1 unless batch_size is set
+        if options.batchSize:
+            num_batches = int(len(chunks) / options.batchSize)
+            remainder = len(chunks) % options.batchSize
+            if remainder:
+                num_batches += 1
+        else:
+            num_batches = 1
         RealtimeLogger.info('Setting batchCount to {}'.format(num_batches))
             
     batch_size = options.batchSize
