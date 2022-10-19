@@ -229,7 +229,7 @@ def hal2maf_all(job, hal_id, chunks, options):
         cur_batch_size = min(chunks_left, batch_size)
         if cur_batch_size:
             batch_results.append(job.addChildJobFn(hal2maf_batch, hal_id, chunks[cur_chunk:cur_chunk+cur_batch_size], options,
-                                                   disk=math.ceil((1 + 1 / num_batches)*hal_id.size), cores=options.batchCores).rv())
+                                                   disk=math.ceil((1 + 1.5 / num_batches)*hal_id.size), cores=options.batchCores).rv())
         chunks_left -= cur_batch_size
     assert chunks_left == 0
     
@@ -255,16 +255,17 @@ def hal2maf_cmd(hal_path, chunk, chunk_num, options):
     if options.noAncestors:
         cmd += ' --noAncestors'
     if not options.raw:
-        # todo: we can parameterize these guys in the cactus config
-        cmd += ' | maf_to_taf | taf_add_gap_bases -a {} -m {} | taf_norm -k -m {} -n {} -q {}'.format(hal_path, options.gapFill,
-                                                                                                      options.maximumBlockLengthToMerge,
-                                                                                                      options.maximumGapLength,
-                                                                                                      options.fractionSharedRows)
+        # we don't pipe directly because add_gap_bases would double the memory
+        cmd += ' | gzip --fast > {}.temp.maf.gz && gzip -dc {}.temp.maf.gz | maf_to_taf'.format(chunk_num, chunk_num)
+        cmd += ' | taf_add_gap_bases -a {} -m {}'.format(hal_path, options.gapFill)
+        cmd += ' | taf_norm -k -m {} -n {} -q {}'.format(options.maximumBlockLengthToMerge, options.maximumGapLength, options.fractionSharedRows)
     if chunk[1] != 0:
         cmd += ' | grep -v ^#'
     if options.outputMAF.endswith('.gz'):
         cmd += ' | bgzip'        
     cmd += ' > {}.maf'.format(chunk_num)
+    if not options.raw:
+        cmd += ' ; rm -f {}.temp.maf.gz'.format(chunk_num)
     return cmd
 
 def hal2maf_batch(job, hal_id, batch_chunks, options):
