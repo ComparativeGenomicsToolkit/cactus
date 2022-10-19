@@ -44,7 +44,15 @@ sed -i src/make-include.mk -e 's/CFLAGS =/CFLAGS +=/' -e 's/LIBS =/LIBS +=/'
 cd src && make
 
 # copy over the binaries
-cp ../bin/* ${binDir}
+for PHASTBIN in ../bin/*
+do
+	 if [[ $STATIC_CHECK -ne 1 || $(ldd ${PHASTBIN} | grep so | wc -l) -eq 0 ]]
+	 then
+		  cp ${PHASTBIN} ${binDir}
+	 else
+		  exit 1;
+	 fi
+done
 
 cd ${CWD}
 
