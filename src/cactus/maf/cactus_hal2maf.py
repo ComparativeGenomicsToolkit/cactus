@@ -29,6 +29,7 @@ from toil.statsAndLogging import logger
 from toil.statsAndLogging import set_logging_from_options
 from toil.realtimeLogger import RealtimeLogger
 from toil.lib.threading import cpu_count
+from toil.lib.humanize import bytes2human
 from sonLib.bioio import getTempDirectory
 
 def main():
@@ -240,8 +241,12 @@ def hal2maf_cmd(hal_path, chunk, chunk_num, options):
 
     # we are going to run this relative to work_dir
     hal_path = os.path.basename(hal_path)
+
+    time_cmd = '/usr/bin/time -vp' if os.environ.get("CACTUS_LOG_MEMORY") else '(time -p '
+    time_end = '' if os.environ.get("CACTUS_LOG_MEMORY") else ')'
     
-    cmd = 'set -eo pipefail && hal2maf {} stdout --refGenome {} --refSequence {} --start {} --length {}'.format(hal_path, options.refGenome, chunk[0], chunk[1], chunk[2]-chunk[1])
+    cmd = 'set -eo pipefail && {} hal2maf {} stdout --refGenome {} --refSequence {} --start {} --length {}'.format(
+        time_cmd, hal_path, options.refGenome, chunk[0], chunk[1], chunk[2]-chunk[1])
     if options.rootGenome:
         cmd += ' --rootGenome {}'.format(options.rootGenome)
     if options.targetGenomes:
@@ -254,11 +259,13 @@ def hal2maf_cmd(hal_path, chunk, chunk_num, options):
         cmd += ' --onlyOrthologs'
     if options.noAncestors:
         cmd += ' --noAncestors'
+    cmd += '{} 2> {}.h2m.time'.format(time_end, chunk_num)
     if not options.raw:
         # we don't pipe directly because add_gap_bases would double the memory
-        cmd += ' | gzip --fast > {}.temp.maf.gz && gzip -dc {}.temp.maf.gz | maf_to_taf'.format(chunk_num, chunk_num)
-        cmd += ' | taf_add_gap_bases -a {} -m {}'.format(hal_path, options.gapFill)
-        cmd += ' | taf_norm -k -m {} -n {} -q {}'.format(options.maximumBlockLengthToMerge, options.maximumGapLength, options.fractionSharedRows)
+        cmd += ' | gzip --fast > {}.temp.maf.gz && gzip -dc {}.temp.maf.gz | {} maf_to_taf{} 2> {}.m2t.time'.format(chunk_num, chunk_num, time_cmd, time_end, chunk_num)
+        cmd += ' | {} taf_add_gap_bases -a {} -m {}{} 2> {}.tagp.time'.format(time_cmd, hal_path, options.gapFill, time_end, chunk_num)
+        cmd += ' | {} taf_norm -k -m {} -n {} -q {}{} 2> {}.tn.time'.format(time_cmd, options.maximumBlockLengthToMerge, options.maximumGapLength,
+                                                                            options.fractionSharedRows, time_end, chunk_num)
     if chunk[1] != 0:
         cmd += ' | grep -v ^#'
     if options.outputMAF.endswith('.gz'):
@@ -267,6 +274,32 @@ def hal2maf_cmd(hal_path, chunk, chunk_num, options):
     if not options.raw:
         cmd += ' ; rm -f {}.temp.maf.gz'.format(chunk_num)
     return cmd
+
+def read_time_mem(timefile_path):
+    ''' return a string with some resource usage from the given logfile '''
+    mem_usage = '?'
+    time_usage = '?'
+    do_mem = os.environ.get("CACTUS_LOG_MEMORY")
+
+    with open(timefile_path, 'r') as timefile:
+        if do_mem:
+            # parse /usr/bin/time -v default output kind of like common.py        
+            for line in timefile:
+                if 'Maximum resident set size (kbytes):' in line:
+                    mem_usage = bytes2human(int(line.split()[-1]) * 1024)
+                elif 'Elapsed (wall clock) time (h:mm:ss or m:ss):' in line:
+                    time_toks = line.split()[-1].split(':')
+                    if len(time_toks) == 2:
+                        time_usage = 60 * int(time_toks[0]) + float(time_toks[1])
+                    else:
+                        time_usage = 3600 * int(time_toks[0]) + 60 * int(time_toks[1]) + float(time_toks[2])
+        else:
+            time_usage = timefile.readline().strip().split()[1]
+
+    msg = 'in time: {}'.format(time_usage)
+    if do_mem:
+        msg += ' and memory: {}'.format(mem_usage)
+    return msg
 
 def hal2maf_batch(job, hal_id, batch_chunks, options):
     """ run hal2maf on a batch of chunks in parallel """
@@ -286,6 +319,22 @@ def hal2maf_batch(job, hal_id, batch_chunks, options):
                     ['parallel', '-j', str(options.batchParallel), '{}']]
     RealtimeLogger.info('First of {} commands in parallel batch: {}'.format(len(cmds), cmds[0]))
     cactus_call(parameters=parallel_cmd, work_dir=work_dir)
+
+    # realtime log the running times in format similar to cactus_call
+    # (but breakign up the big piped mess into something more readable)
+    for chunk_num in range(len(batch_chunks)):
+        chunk_msg = "Successfully ran "
+        cmd_toks = cmds[chunk_num].split(' ')
+        for i in range(len(cmd_toks)):
+            cmd_toks[i] = cmd_toks[i].rstrip(')')
+        for tag, cmd in [('h2m', 'hal2maf'), ('m2t', 'maf_to_taf'), ('tagp', 'taf_add_gap_bases'), ('tn', 'taf_norm')]:
+            if cmd == 'hal2maf' or not options.raw:
+                tag_start = cmd_toks.index(cmd)
+                tag_end = cmd_toks.index('2>')        
+                tag_cmd = ' '.join(cmd_toks[tag_start:tag_end])
+                chunk_msg += "{}{} {} ".format('' if cmd == 'hal2maf' else 'and ', tag_cmd, read_time_mem(os.path.join(work_dir, '{}.{}.time'.format(chunk_num, tag))))
+                cmd_toks = cmd_toks[tag_end + 1:]
+        RealtimeLogger.info(chunk_msg)
 
     # merge up the results
     maf_path = os.path.join(work_dir, 'out.maf')
