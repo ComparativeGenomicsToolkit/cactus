@@ -42,7 +42,8 @@ def main():
     parser.add_argument("--batchCount", type=int, help = "Number of hal2maf batches [default 1 unless --batchSize set]", default=None)
     parser.add_argument("--batchCores", type=int, help = "Number of cores for each hal2maf batch.")
     parser.add_argument("--chunkSize", type=int, help = "Size of chunks to operate on.", required=True)
-    parser.add_argument("--batchParallel", type=int, help = "Number of hal2maf commands to be executed in parallel in batch. Use to throttle down number of concurrent jobs to save memory. [default=batchCores]", default=None)
+    parser.add_argument("--batchParallelHal2maf", type=int, help = "Number of hal2maf commands to be executed in parallel in batch. Use to throttle down number of concurrent jobs to save memory. [default=batchCores]", default=None)
+    parser.add_argument("--batchParallelTaf", type=int, help = "Number of taf normalization command chains to be executed in parallel in batch. Use to throttle down number of concurrent jobs to save memory. [default=batchCores]", default=None)    
     parser.add_argument("--raw", action="store_true", help = "Do not run taf-based normalization on the MAF")
 
     # pass through a subset of hal2maf options
@@ -87,7 +88,7 @@ def main():
     parser.add_argument("--gapMaxGenomes",
                         help="maximum number of genomes for taf_add_gap_bases to have open at any one time (lower to reduce memory at cost of speed) [default=100]",
                         type=int,
-                        default=100)
+                        default=10000)
 
     # pass through taf_norm options
     parser.add_argument("--maximumBlockLengthToMerge",
@@ -132,10 +133,15 @@ def main():
         else:
             raise RuntimeError('--batchCores must be specified for batch systems other than singleMachine')
 
-    if not options.batchParallel:
-        options.batchParallel = options.batchCores
-    if options.batchParallel > options.batchCores:
-        raise RuntimeError('--batchParallel cannot exceed the number of batch cores ({})'.format(options.batchCores))
+    if not options.batchParallelHal2maf:
+        options.batchParallelHal2maf = options.batchCores
+    if options.batchParallelHal2maf > options.batchCores:
+        raise RuntimeError('--batchParallelHal2maf cannot exceed the number of batch cores ({})'.format(options.batchCores))
+    if not options.batchParallelTaf:
+        options.batchParallelTaf = options.batchCores            
+    if options.batchParallelTaf > options.batchCores:
+        raise RuntimeError('--batchParallelTaf cannot exceed the number of batch cores ({})'.format(options.batchCores))
+    
     
     # Mess with some toil options to create useful defaults.
     cactus_override_toil_options(options)
@@ -264,21 +270,35 @@ def hal2maf_cmd(hal_path, chunk, chunk_num, options):
     if options.noAncestors:
         cmd += ' --noAncestors'
     cmd += '{} 2> {}.h2m.time'.format(time_end, chunk_num)
-    if not options.raw:
-        # we don't pipe directly because add_gap_bases would double the memory
-        cmd += ' | gzip --fast > {}.temp.maf.gz && gzip -dc {}.temp.maf.gz | {} maf_to_taf{} 2> {}.m2t.time'.format(chunk_num, chunk_num, time_cmd, time_end, chunk_num)
-        cmd += ' | {} taf_add_gap_bases -a {} -m {} -g{}{} 2> {}.tagp.time'.format(time_cmd, hal_path, options.gapFill, options.gapMaxGenomes, time_end, chunk_num)
-        cmd += ' | {} taf_norm -k -m {} -n {} -q {}{} 2> {}.tn.time'.format(time_cmd, options.maximumBlockLengthToMerge, options.maximumGapLength,
-                                                                            options.fractionSharedRows, time_end, chunk_num)
+    if chunk[1] != 0 and options.raw:
+        cmd += ' | grep -v ^#'
+    if options.outputMAF.endswith('.gz'):
+        cmd += ' | bgzip'        
+    cmd += ' > {}.maf.gz'.format(chunk_num)
+    return cmd
+
+def taf_cmd(hal_path, chunk, chunk_num, options):
+    """ make a taf normalization command for the chunk """
+    # we are going to run this relative to work_dir
+    hal_path = os.path.basename(hal_path)
+
+    time_cmd = '/usr/bin/time -vp' if os.environ.get("CACTUS_LOG_MEMORY") else '(time -p '
+    time_end = '' if os.environ.get("CACTUS_LOG_MEMORY") else ')'
+    read_cmd = 'gzip -dc' if options.outputMAF.endswith ('.gz') else 'cat'
+
+    # we don't pipe directly from hal2maf because add_gap_bases uses even more memory in hal
+    cmd = 'set -eo pipefail && {} {}.maf.gz | {} maf_to_taf{} 2> {}.m2t.time'.format(read_cmd, chunk_num, time_cmd, time_end, chunk_num)
+    cmd += ' | {} taf_add_gap_bases -a {} -m {} -g{}{} 2> {}.tagp.time'.format(time_cmd, hal_path, options.gapFill, options.gapMaxGenomes, time_end, chunk_num)
+    cmd += ' | {} taf_norm -k -m {} -n {} -q {}{} 2> {}.tn.time'.format(time_cmd, options.maximumBlockLengthToMerge, options.maximumGapLength,
+                                                                        options.fractionSharedRows, time_end, chunk_num)
     if chunk[1] != 0:
         cmd += ' | grep -v ^#'
     if options.outputMAF.endswith('.gz'):
         cmd += ' | bgzip'        
-    cmd += ' > {}.maf'.format(chunk_num)
-    if not options.raw:
-        cmd += ' ; rm -f {}.temp.maf.gz'.format(chunk_num)
+    cmd += ' > {}.maf.norm.gz'.format(chunk_num)
+    cmd += ' && mv {}.maf.norm.gz {}.maf.gz'.format(chunk_num, chunk_num)
     return cmd
-
+    
 def read_time_mem(timefile_path):
     ''' return a string with some resource usage from the given logfile '''
     mem_usage = '?'
@@ -312,37 +332,66 @@ def hal2maf_batch(job, hal_id, batch_chunks, options):
     RealtimeLogger.info("Reading HAL file from job store to {}".format(hal_path))
     job.fileStore.readGlobalFile(hal_id, hal_path)
 
-    cmds = [hal2maf_cmd(hal_path, chunk, i, options) for i, chunk in enumerate(batch_chunks)]
+    h2m_cmds = [hal2maf_cmd(hal_path, chunk, i, options) for i, chunk in enumerate(batch_chunks)]
     
     # do it with parallel
-    cmd_path = os.path.join(work_dir, 'hal2maf_cmds.txt')
-    with open(cmd_path, 'w') as cmd_file:
-        for cmd in cmds:
-            cmd_file.write(cmd + '\n')
-    parallel_cmd = [['cat', cmd_path],
-                    ['parallel', '-j', str(options.batchParallel), '{}']]
-    RealtimeLogger.info('First of {} commands in parallel batch: {}'.format(len(cmds), cmds[0]))
+    h2m_cmd_path = os.path.join(work_dir, 'hal2maf_cmds.txt')
+    with open(h2m_cmd_path, 'w') as h2m_cmd_file:
+        for cmd in h2m_cmds:
+            h2m_cmd_file.write(cmd + '\n')
+    parallel_cmd = [['cat', h2m_cmd_path],
+                    ['parallel', '-j', str(options.batchParallelHal2maf), '{}']]
+    RealtimeLogger.info('First of {} commands in parallel batch: {}'.format(len(h2m_cmds), h2m_cmds[0]))
     cactus_call(parameters=parallel_cmd, work_dir=work_dir)
 
     # realtime log the running times in format similar to cactus_call
     # (but breakign up the big piped mess into something more readable)
     for chunk_num in range(len(batch_chunks)):
         chunk_msg = "Successfully ran "
-        cmd_toks = cmds[chunk_num].split(' ')
+        cmd_toks = h2m_cmds[chunk_num].split(' ')
         for i in range(len(cmd_toks)):
             cmd_toks[i] = cmd_toks[i].rstrip(')')
-        for tag, cmd in [('h2m', 'hal2maf'), ('m2t', 'maf_to_taf'), ('tagp', 'taf_add_gap_bases'), ('tn', 'taf_norm')]:
-            if cmd == 'hal2maf' or not options.raw:
+        for tag, cmd in [('h2m', 'hal2maf')]:
+            tag_start = cmd_toks.index(cmd)
+            tag_end = cmd_toks.index('2>')        
+            tag_cmd = ' '.join(cmd_toks[tag_start:tag_end])
+            chunk_msg += "{}{} {} ".format('' if cmd == 'hal2maf' else 'and ', tag_cmd, read_time_mem(os.path.join(work_dir, '{}.{}.time'.format(chunk_num, tag))))
+            cmd_toks = cmd_toks[tag_end + 1:]
+        RealtimeLogger.info(chunk_msg)
+
+    if not options.raw:
+        # and a separate batch for the taf commands. potentially much less efficient as all will block on the
+        # slowest h2m command, but we need to be able to specify fewer cores due to higher memory usage
+        taf_cmds = [taf_cmd(hal_path, chunk, i, options) for i, chunk in enumerate(batch_chunks)]
+
+        # do it with parallel
+        taf_cmd_path = os.path.join(work_dir, 'taf_cmds.txt')
+        with open(taf_cmd_path, 'w') as taf_cmd_file:
+            for cmd in taf_cmds:
+                taf_cmd_file.write(cmd + '\n')
+        parallel_cmd = [['cat', taf_cmd_path],
+                        ['parallel', '-j', str(options.batchParallelTaf), '{}']]
+        RealtimeLogger.info('First of {} commands in parallel batch: {}'.format(len(taf_cmds), taf_cmds[0]))
+        cactus_call(parameters=parallel_cmd, work_dir=work_dir)
+
+        # realtime log the running times in format similar to cactus_call
+        # (but breakign up the big piped mess into something more readable)
+        for chunk_num in range(len(batch_chunks)):
+            chunk_msg = "Successfully ran "
+            cmd_toks = taf_cmds[chunk_num].split(' ')
+            for i in range(len(cmd_toks)):
+                cmd_toks[i] = cmd_toks[i].rstrip(')')
+            for tag, cmd in [('m2t', 'maf_to_taf'), ('tagp', 'taf_add_gap_bases'), ('tn', 'taf_norm')]:
                 tag_start = cmd_toks.index(cmd)
                 tag_end = cmd_toks.index('2>')        
                 tag_cmd = ' '.join(cmd_toks[tag_start:tag_end])
                 chunk_msg += "{}{} {} ".format('' if cmd == 'hal2maf' else 'and ', tag_cmd, read_time_mem(os.path.join(work_dir, '{}.{}.time'.format(chunk_num, tag))))
                 cmd_toks = cmd_toks[tag_end + 1:]
-        RealtimeLogger.info(chunk_msg)
+            RealtimeLogger.info(chunk_msg)
 
     # merge up the results
-    maf_path = os.path.join(work_dir, 'out.maf')
-    catFiles([os.path.join(work_dir, '{}.maf'.format(i)) for i in range(len(batch_chunks))], maf_path)
+    maf_path = os.path.join(work_dir, 'out.maf.gz')
+    catFiles([os.path.join(work_dir, '{}.maf.gz'.format(i)) for i in range(len(batch_chunks))], maf_path)
 
     return job.fileStore.writeGlobalFile(maf_path)
             
