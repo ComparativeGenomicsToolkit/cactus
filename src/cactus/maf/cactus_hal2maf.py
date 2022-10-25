@@ -84,6 +84,10 @@ def main():
                         help="use TAF tools to fill in reference gaps up to this length (currently more reliable than --maxRefGap) [default=50]",
                         type=int,
                         default=50)
+    parser.add_argument("--gapMaxGenomes",
+                        help="maximum number of genomes for taf_add_gap_bases to have open at any one time (lower to reduce memory at cost of speed) [default=100]",
+                        type=int,
+                        default=100)
 
     # pass through taf_norm options
     parser.add_argument("--maximumBlockLengthToMerge",
@@ -263,7 +267,7 @@ def hal2maf_cmd(hal_path, chunk, chunk_num, options):
     if not options.raw:
         # we don't pipe directly because add_gap_bases would double the memory
         cmd += ' | gzip --fast > {}.temp.maf.gz && gzip -dc {}.temp.maf.gz | {} maf_to_taf{} 2> {}.m2t.time'.format(chunk_num, chunk_num, time_cmd, time_end, chunk_num)
-        cmd += ' | {} taf_add_gap_bases -a {} -m {}{} 2> {}.tagp.time'.format(time_cmd, hal_path, options.gapFill, time_end, chunk_num)
+        cmd += ' | {} taf_add_gap_bases -a {} -m {} -g{}{} 2> {}.tagp.time'.format(time_cmd, hal_path, options.gapFill, options.gapMaxGenomes, time_end, chunk_num)
         cmd += ' | {} taf_norm -k -m {} -n {} -q {}{} 2> {}.tn.time'.format(time_cmd, options.maximumBlockLengthToMerge, options.maximumGapLength,
                                                                             options.fractionSharedRows, time_end, chunk_num)
     if chunk[1] != 0:
