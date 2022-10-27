@@ -618,7 +618,12 @@ class TestCase(unittest.TestCase):
         ground_truth_file = 'test/{}-truth.maf'.format(dataset)
 
         # run mafComparator on the evolver output
-        subprocess.check_call(['bin/hal2maf', halPath,  halPath + '.maf', '--onlySequenceNames'], shell=False)
+        subprocess.check_call(['cactus-hal2maf', self._job_store('h2m'), halPath,  halPath + '.maf', '--chunkSize', '10000', '--batchCount', '2',
+                               '--refGenome', 'Anc0'], shell=False)
+        # cactus-hal2maf doesnt support --onlySequenceNames because the genome names are needed by taf_add_gap_bases
+        # so we manually filter here
+        for genome in subprocess.check_output(['halStats', halPath, '--genomes']).strip().decode('utf-8').split():
+            subprocess.check_call(['sed', '-i', halPath + '.maf', '-e', 's/s\t{}\\./s\t/g'.format(genome)])
         subprocess.check_call(['bin/mafComparator', '--maf1', halPath + '.maf', '--maf2', ground_truth_file, '--samples', '100000000', '--out', halPath + 'comp.xml'])
 
         # grab the two accuracy values out of the XML

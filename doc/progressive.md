@@ -8,6 +8,7 @@ Please cite the [Progressive Cactus paper](https://doi.org/10.1038/s41586-020-28
 
 * [Quick-start](#quick-start)
 * [Interface](#interface)
+* [Using the HAL Output](#using-the-hal-output)
 * [Using Docker](#using-docker)
 * [Running in the Cloud](#running-on-the-cloud)
 * [Running on a Cluster](#running-on-a-cluster)
@@ -88,11 +89,38 @@ Please ensure your genomes are *soft*-masked with RepeatMasker. We do some basic
 
 An example seqfile can be found [here](../examples/evolverMammals.txt).
 
-The `outputHal` file represents the multiple alignment, including all input and inferred ancestral sequences.  It is stored in HAL format, and can be accessed with [HAL tools](https://github.com/ComparativeGenomicsToolkit/Hal), which are all included in Cactus either as static binaries for the binary release, or within the Docker image for the Docker release. The HAL format represents the alignment in a reference-free, indexed way, but isn't readable by many tools. To export a MAF (which by its nature is usually reference-based), you can use the `hal2maf` tool to export the alignment from any particular genome: `hal2maf <hal> --refGenome <reference> <maf>`.
+## Using the HAL Output
+
+The `outputHal` file represents the multiple alignment, including all input and inferred ancestral sequences.  It is stored in HAL format, and can be accessed with [HAL tools](https://github.com/ComparativeGenomicsToolkit/Hal), which are all included in Cactus either as static binaries for the binary release, or within the Docker image for the Docker release.
+
+Please [cite HAL](https://doi.org/10.1093/bioinformatics/btt128).
+
+### MAF
+
+The HAL format represents the alignment in a reference-free, indexed way, but isn't readable by many tools. Many applications will require direct access to alignment columns, which requires "transposing" the row-based HAL format. This is best done by converting to [MAF](https://genome.cse.ucsc.edu/FAQ/FAQformat.html#format5), which can be computationally expensive for larger files. A toil-powered distributed MAF exporter is provided with Cactus.  Note that MAF is a reference-based format, so a reference (which can be any genome, leaf or ancestor, in the HAL file must be specified).
+
+```
+cactus-hal2maf ./js ./evolverMammals.hal evolverMammals.maf.gz --refGenome simHuman_chr6 --chunkSize 1000000 --noAncestors --onlyOrthologs
+```
+
+`cactus-hal2maf`, in addition to providing parallelism with Toil, also adds [TAF](https://github.com/ComparativeGenomicsToolkit/taf)-based normalization and is therefore recommended over running `hal2maf` directly.  Also, you usually want to pass the `--noAncestors` option and ``--onlyOrthologs` and/or `--noDupes` to reduce the complexity of the output. 
+
+The various batching options can be used to tune distributed runs on very large inputs. For example, to run 4 batches, each on a 32-core EC2 node but only processing 8 chunks in parallel, these options could be used
+```
+--chunkSize 1000000 --batchCount 4 --batchCores 32 --batchParallel 8 --batchSystem mesos --provisioner aws --defaultPreemptable --nodeStorage 2000 --maxNodes 4 --nodeTypes r5.8xlarge 
+```
+
+### CAT
 
 You can use the alignment to generate gene annotatations for your assemblies, using the [Comparative Annotation Toolkit](https://github.com/ComparativeGenomicsToolkit/Comparative-Annotation-Toolkit).
 
-Please [cite HAL](https://doi.org/10.1093/bioinformatics/btt128).
+### Assembly Hubs
+
+HAL alignments can also be displayed in the UCSC genome browser via creation of assembly hubs as described [here](https://github.com/ComparativeGenomicsToolkit/hal#displaying-in-the-ucsc-genome-browser-using-assembly-hubs).  `hal2assemblyHub.py` is included in Cactus. 
+
+### Phast
+
+Conservation scores can be computed using [phast](http://compgen.cshl.edu/phast/) either directly from the HAL (`halPhyloP`) or from the MAF. The phast binaries are included in the Cactus releases. 
 
 ## Using Docker
 
@@ -234,7 +262,7 @@ Please [cite SegAlign](https://doi.ieeecomputersociety.org/10.1109/SC41405.2020.
 ## Pre-Alignment Checklist
 
 * Are the input sequences softmasked with RepeatMasker? For mammals we expect at least 40% of the genome to be masked this way. 
-* Have you run a small [test alignment](examples/evolverMammals.txt) to make sure Cactus is properly installed?
+* Have you run a small [test alignment](../examples/evolverMammals.txt) to make sure Cactus is properly installed?
 * Do you have at least one outgroup species?
 
 ## Frequently Asked Questions
