@@ -372,6 +372,7 @@ def main():
             # apply gpu override
             config_wrapper.initGPU(options)
             mc_tree, input_seq_map, og_candidates = parse_seqfile(options.seqFile, config_wrapper)
+            logger.info('Tree: {}'.format(NXNewick().writeString(mc_tree)))
             og_map = compute_outgroups(mc_tree, config_wrapper, set(og_candidates), options.root)
             event_set = get_event_set(mc_tree, config_wrapper, og_map, options.root)
             # infer default root
