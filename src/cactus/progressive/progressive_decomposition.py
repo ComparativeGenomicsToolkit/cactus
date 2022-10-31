@@ -48,6 +48,8 @@ def parse_seqfile(seqfile_path, config_wrapper, root_name = None, default_branch
 
     check_branch_lengths(mc_tree)
 
+    check_degree2_ancestors(mc_tree)    
+
     return (mc_tree, seq_file.pathMap, seq_file.outgroups)
 
 def compute_outgroups(mc_tree, config_wrapper, outgroup_candidates = set(), root_name = None, include_dists = False):
@@ -244,3 +246,9 @@ def check_branch_lengths(mc_tree, warning_cap=2.0, error_cap=25.0):
                     logger.warning("WARNING: Long branch length of {} detected between {} and {}: Are you sure input branches reflect substitutions per site?".format(
                         branch_len, mc_tree.getName(node), mc_tree.getName(child_node)))
                 
+
+def check_degree2_ancestors(mc_tree):
+    for node in mc_tree.postOrderTraversal():
+        child_nodes = mc_tree.getChildren(node)
+        if len(child_nodes) == 1:
+            raise RuntimeError("Error parsing tree \"{}\":\n Node {} (parent of {}) has single descendant: Please remove all such nodes and try again.".format(NXNewick().writeString(mc_tree), mc_tree.getName(node), mc_tree.getName(child_nodes[0])))
