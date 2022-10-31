@@ -385,9 +385,9 @@ void caf(Flower *flower, CactusParams *params, char *alignmentsFile, char *secon
                 stPinchThreadSetBlockIt blockIt = stPinchThreadSet_getBlockIt(threadSet);
                 stPinchBlock *block;
                 int64_t num_megablocks_destroyed = 0;
-                int64_t num_homologies_diestroyed = 0;
+                int64_t num_homologies_destroyed = 0;
                 while ((block = stPinchThreadSetBlockIt_getNext(&blockIt)) != NULL) {
-                    if (stPinchBlock_getDegree(block) > minimumBlockDegreeToCheckSupport) {
+                    if (minimumBlockDegreeToCheckSupport > 0 && stPinchBlock_getDegree(block) > minimumBlockDegreeToCheckSupport) {
                         uint64_t supportingHomologies = stPinchBlock_getNumSupportingHomologies(block);
                         uint64_t possibleSupportingHomologies = numPossibleSupportingHomologies(block, flower);
                         double support = ((double) supportingHomologies) / possibleSupportingHomologies;
@@ -398,13 +398,13 @@ void caf(Flower *flower, CactusParams *params, char *alignmentsFile, char *secon
                                     supportingHomologies, possibleSupportingHomologies, support);
                             stPinchBlock_destruct(block);
                             ++num_megablocks_destroyed;
-                            num_homologies_diestroyed += supportingHomologies;
+                            num_homologies_destroyed += supportingHomologies;
                         }
                     }
                 }
                 if (num_megablocks_destroyed > 0) {
                   st_logInfo("Destroyed %" PRIi64 " megablocks with a total of %" PRIi64 " supporting homologies\n",
-                             num_megablocks_destroyed, num_homologies_diestroyed);
+                             num_megablocks_destroyed, num_homologies_destroyed);
                 }
             }
 
