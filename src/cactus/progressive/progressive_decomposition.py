@@ -198,13 +198,14 @@ def get_spanning_subtree(mc_tree, root_name, config_wrapper, outgroup_map):
     spanning_tree.computeSubtreeRoots()
     return spanning_tree
 
-def get_event_set(mc_tree, config_wrapper, outgroup_map, root_name):
+def get_event_set(mc_tree, config_wrapper, outgroup_map, root_name, subtree=True):
     """
     compute all events we need on hand (ingroups and outgroups) for a given problem or subproblem
     (used to narrow down import to releavnt nodes)
     """
-    event_set = set([mc_tree.getName(node) for node in mc_tree.postOrderTraversal()]).union(set(outgroup_map.keys()))
-    if root_name:
+    trav_root = mc_tree.getNodeId(mc_tree.getRootName() if not root_name else root_name)
+    event_set = set([mc_tree.getName(node) for node in mc_tree.postOrderTraversal(trav_root)]).union(set(outgroup_map.keys()))
+    if subtree and root_name:
         # make sure we don't download anything we don't need
         sub_tree = get_subtree(mc_tree, root_name, config_wrapper, outgroup_map)
         tree_events = set([sub_tree.getName(node) for node in sub_tree.postOrderTraversal()])
@@ -213,6 +214,11 @@ def get_event_set(mc_tree, config_wrapper, outgroup_map, root_name):
         leaf_names = [mc_tree.getName(leaf) for leaf in mc_tree.getLeaves()]
         if root_name in leaf_names:
             raise RuntimeError('Genome specified with --root, \"{}\", is a leaf.  Only internal nodes can be used as the root'.format(root_name))
+    elif root_name:
+        # need to add outgroups
+        if root_name in outgroup_map:
+            for og in outgroup_map[root_name]:
+                event_set.add(og)
     return event_set
 
 def check_branch_lengths(mc_tree, warning_cap=2.0, error_cap=25.0):

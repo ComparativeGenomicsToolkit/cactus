@@ -373,7 +373,7 @@ def main():
             config_wrapper.initGPU(options)
             mc_tree, input_seq_map, og_candidates = parse_seqfile(options.seqFile, config_wrapper)
             og_map = compute_outgroups(mc_tree, config_wrapper, set(og_candidates), options.root)
-            event_set = get_event_set(mc_tree, config_wrapper, og_map, options.root)
+            event_set = get_event_set(mc_tree, config_wrapper, og_map, options.root, subtree=False)
             # infer default root
             if not options.root:
                 options.root = mc_tree.getRootName()
