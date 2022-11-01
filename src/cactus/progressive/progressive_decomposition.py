@@ -202,24 +202,35 @@ def get_event_set(mc_tree, config_wrapper, outgroup_map, root_name, subtree=True
     """
     compute all events we need on hand (ingroups and outgroups) for a given problem or subproblem
     (used to narrow down import to releavnt nodes)
+    
+    when subtree is set, it behaves as used in a prepared/decomposed run: just return the nodes
+    needed to process the given intermediate event
+
+    otherwise it will return the entire subtree (as needed by cactus --root)
     """
-    trav_root = mc_tree.getNodeId(mc_tree.getRootName() if not root_name else root_name)
-    event_set = set([mc_tree.getName(node) for node in mc_tree.postOrderTraversal(trav_root)]).union(set(outgroup_map.keys()))
-    if subtree and root_name:
-        # make sure we don't download anything we don't need
-        sub_tree = get_subtree(mc_tree, root_name, config_wrapper, outgroup_map)
-        tree_events = set([sub_tree.getName(node) for node in sub_tree.postOrderTraversal()])
-        event_set = event_set.intersection(tree_events)
-        event_set.remove(root_name)
-        leaf_names = [mc_tree.getName(leaf) for leaf in mc_tree.getLeaves()]
-        if root_name in leaf_names:
-            raise RuntimeError('Genome specified with --root, \"{}\", is a leaf.  Only internal nodes can be used as the root'.format(root_name))
-    elif root_name:
-        # need to add outgroups
-        if root_name in outgroup_map:
-            for og in outgroup_map[root_name]:
-                event_set.add(og)
-    return event_set
+    if subtree:
+        event_set = set([mc_tree.getName(node) for node in mc_tree.postOrderTraversal()]).union(set(outgroup_map.keys()))
+        if root_name:
+            # make sure we don't download anything we don't need
+            sub_tree = get_subtree(mc_tree, root_name, config_wrapper, outgroup_map)
+            tree_events = set([sub_tree.getName(node) for node in sub_tree.postOrderTraversal()])
+            event_set = event_set.intersection(tree_events)
+            event_set.remove(root_name)
+            leaf_names = [mc_tree.getName(leaf) for leaf in mc_tree.getLeaves()]
+            if root_name in leaf_names:
+                raise RuntimeError('Genome specified with --root, \"{}\", is a leaf.  Only internal nodes can be used as the root'.format(root_name))
+        return event_set
+    else:        
+        trav_root = mc_tree.getNodeId(mc_tree.getRootName() if not root_name else root_name)
+        event_set = set([mc_tree.getName(node) for node in mc_tree.postOrderTraversal(trav_root)])
+        og_set = set()
+        for event in event_set:
+            if event in outgroup_map:
+                # need to add outgroups
+                for og in outgroup_map[event]:
+                    og_set.add(og)
+        event_set = event_set.union(og_set)
+        return event_set
 
 def check_branch_lengths(mc_tree, warning_cap=2.0, error_cap=25.0):
     """
