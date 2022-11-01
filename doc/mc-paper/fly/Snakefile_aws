@@ -1,3 +1,8 @@
+from snakemake.remote.S3 import RemoteProvider as S3RemoteProvider
+S3 = S3RemoteProvider()
+SROOT="s3://vg-k8s/users/jmonlong/fly/"
+PGROOT="s3://vg-k8s/users/hickey/fly-pangenome/"
+
 ## samples in the pangenome
 SAMPLES="A1 A2 A3 A4 A5 A6 A7 AB8 B1 B2 B3 B4 B6 B7 OreR".split(' ')
 
@@ -17,16 +22,16 @@ if 'mapper' in config:
 ##
 ## main rules
 rule decompose_pangenome:
-    input: expand("svs/{sample}.{graph}.decomposed.svs.rds", graph=GRAPH, sample=SAMPLES)
+    input: S3.remote(expand(SROOT + "{graph}_decomposed/{graph}.{sample}.decomposed.svs.rds", graph=GRAPH, sample=SAMPLES))
 
 rule decompose_calls:
-    input: expand("{graph}.100samples.decomposed.svs.rds", graph=GRAPH)
+    input: S3.remote(expand(SROOT + "{graph}_calls_decomposed/{graph}.100samples.decomposed.svs.rds", graph=GRAPH))
 
 rule mapping_stats:
-    input: expand("{graph}_mappings/{graph}.{sample}.{mapper}.mapstats.txt", graph=GRAPH, sample=CALL_SAMPLES, mapper=MAPPER)
+    input: S3.remote(expand(SROOT + "{graph}_mappings/{graph}.{sample}.{mapper}.mapstats.txt", graph=GRAPH, sample=CALL_SAMPLES, mapper=MAPPER))
 
 rule compare_freebayes:
-    input: expand("results/freebayes_comp_{graph}/{sample}.isec.stats.tsv.gz", graph=GRAPH, sample=CALL_SAMPLES)
+    input: S3.remote(expand(SROOT + "freebayes_comp_{graph}/{sample}.isec.stats.tsv.gz", graph=GRAPH, sample=CALL_SAMPLES))
 
 ##
 ## task rules
@@ -37,7 +42,7 @@ rule compare_freebayes:
 
 ## extract one sample from the deconstructed VCF
 rule extract_sample:
-    input: 'pangenomes/{graph}.vcf.gz'
+    input: S3.remote(PGROOT + 'join-{graph}/{graph}.vcf.gz')
     output: 'sample/{graph}.{sample}.vcf.gz'
     threads: 2
     shell:
@@ -48,7 +53,7 @@ rule extract_sample:
 rule drop_inconsistent_sites:
     input:
         vcf='sample/{graph}.{sample}.vcf.gz',
-        py='scripts/drop_inconsistent_sites.py'
+        py=S3.remote(SROOT + 'scripts/drop_inconsistent_sites.py')
     output: 'consistent/{graph}.{sample}.vcf.gz'
     params:
         inconsistent='consistent/{graph}.{sample}.inconsistent.vcf.gz'
@@ -61,16 +66,16 @@ rule split_multialts:
     shell: "bcftools norm --threads {threads} -m -any -Oz -o {output} {input}"
 
 rule convert_to_pg:
-    input: 'pangenomes/{graph}.xg'
-    output: "pangenomes/{graph}.pg"
+    input: S3.remote(PGROOT + 'join-{graph}/{graph}.xg')
+    output: "{graph}.pg"
     threads: 8
     shell: "vg convert -p -t {threads} {input} > {output}"
 
 rule decompose_variants:
     input:
         vcf='biallelic/{graph}.{sample}.vcf.gz',
-        pg="pangenomes/{graph}.pg",
-        py='scripts/decompose_graph_variants.py'
+        pg="{graph}.pg",
+        py=S3.remote(SROOT + 'scripts/decompose_graph_variants.py')
     output: 'decomposed/{graph}.{sample}.vcf.gz'
     shell: "python3 {input.py} -o {output} {input.pg} {input.vcf}"
 
@@ -82,8 +87,8 @@ rule extract_nonref:
 rule remove_dups:
     input:
         vcf='decomposed_nonref/{graph}.{sample}.vcf.gz',
-        py='scripts/remove_duplicates.py'
-    output: "results/{graph}_decomposed/{graph}.{sample}.decomposed.vcf.gz"
+        py=S3.remote(SROOT + 'scripts/remove_duplicates.py')
+    output: S3.remote(SROOT + "{graph}_decomposed/{graph}.{sample}.decomposed.vcf.gz")
     params:
         vcf='decomposed_nonref/{graph}.{sample}.rmdup.vcf'
     shell:
@@ -94,9 +99,9 @@ rule remove_dups:
 
 rule make_svs_rds:
     input:
-        vcf="results/{graph}_decomposed/{graph}.{sample}.decomposed.vcf.gz",
-        script='scripts/read_svs.R'
-    output: "svs/{sample}.{graph}.decomposed.svs.rds"
+        vcf=S3.remote(SROOT + "{graph}_decomposed/{graph}.{sample}.decomposed.vcf.gz"),
+        script=S3.remote(SROOT + 'scripts/read_svs.R')
+    output: S3.remote(SROOT + "{graph}_decomposed/{graph}.{sample}.decomposed.svs.rds")
     shell: "Rscript {input.script} {input.vcf} {output}"
 
 ##
@@ -105,8 +110,8 @@ rule make_svs_rds:
 
 rule drop_inconsistent_sites_calls:
     input:
-        vcf="vg_calls/{graph}_{sample}.vcf.gz",
-        py='scripts/drop_inconsistent_sites.py'
+        vcf=S3.remote("s3://vg-k8s/users/hickey/fly-calling/{graph}_{sample}.vcf.gz"),
+        py=S3.remote(SROOT + 'scripts/drop_inconsistent_sites.py')
     output: 'calls_consistent/{graph}.{sample}.vcf.gz'
     params:
         inconsistent='calls_consistent/{graph}.{sample}.inconsistent.vcf.gz'
@@ -124,8 +129,8 @@ rule split_multialts_calls:
 rule decompose_variants_calls:
     input:
         vcf='calls_biallelic/{graph}.{sample}.vcf.gz',
-        pg="pangenomes/{graph}.pg",
-        py='scripts/decompose_graph_variants_simple.py'
+        pg="{sample}-{graph}/{graph}.{sample}.pg",
+        py=S3.remote(SROOT + 'scripts/decompose_graph_variants_simple.py')
     output: 'calls_decomposed/{graph}.{sample}.vcf.gz'
     shell: "python3 {input.py} -o {output} {input.pg} {input.vcf}"
 
@@ -137,8 +142,8 @@ rule extract_nonref_calls:
 rule remove_dups_calls:
     input:
         vcf='calls_decomposed_nonref/{graph}.{sample}.vcf.gz',
-        py='scripts/remove_duplicates.py'
-    output: "results/{graph}_calls_decomposed/{graph}.{sample}.decomposed.vcf.gz"
+        py=S3.remote(SROOT + 'scripts/remove_duplicates.py')
+    output: S3.remote(SROOT + "{graph}_calls_decomposed/{graph}.{sample}.decomposed.vcf.gz")
     params:
         vcf='calls_decomposed_nonref/{graph}.{sample}.rmdup.vcf'
     shell:
@@ -149,7 +154,7 @@ rule remove_dups_calls:
         """
 
 rule prepare_vcf_for_merge:
-    input: "results/{graph}_calls_decomposed/{graph}.{sample}.decomposed.vcf.gz"
+    input: S3.remote(SROOT + "{graph}_calls_decomposed/{graph}.{sample}.decomposed.vcf.gz")
     output:
         vcf="{graph}_calls_decomposed/{graph}.{sample}.decomposed.formerge.vcf.gz",
         tbi="{graph}_calls_decomposed/{graph}.{sample}.decomposed.formerge.vcf.gz.tbi"
@@ -167,15 +172,15 @@ rule merge_vcf:
     input: 
         vcf=expand("{{graph}}_calls_decomposed/{{graph}}.{sample}.decomposed.formerge.vcf.gz", sample=CALL_SAMPLES),
         tbi=expand("{{graph}}_calls_decomposed/{{graph}}.{sample}.decomposed.formerge.vcf.gz.tbi", sample=CALL_SAMPLES)
-    output: "results/{graph}_calls_decomposed/{graph}.100samples.decomposed.svs.vcf.gz"
+    output: S3.remote(SROOT + "{graph}_calls_decomposed/{graph}.100samples.decomposed.svs.vcf.gz")
     threads: 8
     shell: "bcftools merge -0 --threads {threads} -m none -Oz -o {output} {input.vcf}"
 
 rule make_svs_rds_multisamps:
     input:
-        vcf="results/{graph}_calls_decomposed/{graph}.100samples.decomposed.svs.vcf.gz",
-        script='scripts/read_svs.R'
-    output: "{graph}.100samples.decomposed.svs.rds"
+        vcf=S3.remote(SROOT + "{graph}_calls_decomposed/{graph}.100samples.decomposed.svs.vcf.gz"),
+        script=S3.remote(SROOT + 'scripts/read_svs.R')
+    output: S3.remote(SROOT + "{graph}_calls_decomposed/{graph}.100samples.decomposed.svs.rds")
     shell: "Rscript {input.script} {input.vcf} {output} TRUE"
 
 ##
@@ -184,8 +189,8 @@ rule make_svs_rds_multisamps:
 
 ## output file has 4 columns: number of reads, mapq, perfect alignment boolean
 rule mapping_stats_giraffe:
-    input: "reads/{graph}.{sample}.giraffe.gaf.gz"
-    output: "{graph}_mappings/{graph}.{sample}.giraffe.mapstats.txt"
+    input: S3.remote(SROOT + "{graph}_mapped_reads/{graph}.{sample}.giraffe.gaf.gz")
+    output: S3.remote(SROOT + "{graph}_mappings/{graph}.{sample}.giraffe.mapstats.txt")
     shell:
         """
         gunzip -c {input} | awk '{{if($10=="*"){{$12=-1}};if($10!="*" && $10==$11){{perf="true"}}else{{perf="false"}};print $12,perf}}' | sort | uniq -c > {output}
@@ -194,9 +199,9 @@ rule mapping_stats_giraffe:
 ## output file has 4 columns: number of reads, mapq, perfect alignment boolean
 rule mapping_stats_bwa:
     input:
-        script="scripts/compute_mapping_stats.py",
-        sam="reads/{sample}_bwa.sam.gz"
-    output: "dm6_mappings/dm6.{sample}.bwa.mapstats.txt"
+        script=S3.remote(SROOT + "scripts/compute_mapping_stats.py"),
+        sam=S3.remote("s3://vg-k8s/users/hickey/fly-bwa/{sample}_bwa.sam.gz")
+    output: S3.remote(SROOT + "dm6_mappings/dm6.{sample}.bwa.mapstats.txt")
     shell:
         """
         gunzip -c {input.sam} | python3 {input.script} > {output}
@@ -207,7 +212,7 @@ rule mapping_stats_bwa:
 ##
 
 rule extract_ref:
-    input: 'pangenomes/{graph}.xg'
+    input: S3.remote(PGROOT + 'join-{graph}/{graph}.xg')
     output:
         fa='{graph}.ref.fa',
         fai='{graph}.ref.fa.fai'
@@ -221,11 +226,11 @@ rule prepare_freebayes_vcfs:
     input:
         fa='{graph}.ref.fa',
         fai='{graph}.ref.fa.fai',
-        rename_script='scripts/rename_chr_vcf.py',
-        bwa="calls/{sample}_bwa.fb.vcf.gz",
-        bwa_tbi="calls/{sample}_bwa.fb.vcf.gz.tbi",
-        surject="calls/fly-pg-may26-d2_{sample}.fb.vcf.gz",
-        surject_tbi="calls/fly-pg-may26-d2_{sample}.fb.vcf.gz.tbi"
+        rename_script=S3.remote(SROOT + 'scripts/rename_chr_vcf.py'),
+        bwa=S3.remote("s3://vg-k8s/users/hickey/fly-bwa-freebayes/{sample}_bwa.fb.vcf.gz"),
+        bwa_tbi=S3.remote("s3://vg-k8s/users/hickey/fly-bwa-freebayes/{sample}_bwa.fb.vcf.gz.tbi"),
+        surject=S3.remote("s3://vg-k8s/users/hickey/fly-surject-freebayes/fly-pg-may26-d2_{sample}.fb.vcf.gz"),
+        surject_tbi=S3.remote("s3://vg-k8s/users/hickey/fly-surject-freebayes/fly-pg-may26-d2_{sample}.fb.vcf.gz.tbi")
     output:
         bwa='freebayes_comp_{sample}/bwa.{sample}.{graph}.vcf.gz',
         bwa_tbi='freebayes_comp_{sample}/bwa.{sample}.{graph}.vcf.gz.tbi',
@@ -250,10 +255,10 @@ rule isec_freebayes_vcfs:
         surject='freebayes_comp_{sample}/surject.{sample}.{graph}.vcf.gz',
         surject_tbi='freebayes_comp_{sample}/surject.{sample}.{graph}.vcf.gz.tbi'
     output:
-        bwa_only="results/freebayes_comp_{graph}/isec_vcfs/{sample}.bwa_only.vcf.gz",
-        surject_only="results/freebayes_comp_{graph}/isec_vcfs/{sample}.surject_only.vcf.gz",
-        bwa_both="results/freebayes_comp_{graph}/isec_vcfs/{sample}.bwa_both.vcf.gz",
-        surject_both="results/freebayes_comp_{graph}/isec_vcfs/{sample}.surject_both.vcf.gz"
+        bwa_only=S3.remote(SROOT + "freebayes_comp_{graph}/isec_vcfs/{sample}.bwa_only.vcf.gz"),
+        surject_only=S3.remote(SROOT + "freebayes_comp_{graph}/isec_vcfs/{sample}.surject_only.vcf.gz"),
+        bwa_both=S3.remote(SROOT + "freebayes_comp_{graph}/isec_vcfs/{sample}.bwa_both.vcf.gz"),
+        surject_both=S3.remote(SROOT + "freebayes_comp_{graph}/isec_vcfs/{sample}.surject_both.vcf.gz")
     threads: 4
     params:
         isec_dir="isec_dir_{sample}_{graph}"
@@ -269,14 +274,14 @@ rule isec_freebayes_vcfs:
 
 rule compute_freebayes_stats:
     input:
-        script='scripts/freebayes_stats.R',
-        bwa_only="results/freebayes_comp_{graph}/isec_vcfs/{sample}.bwa_only.vcf.gz",
-        surject_only="results/freebayes_comp_{graph}/isec_vcfs/{sample}.surject_only.vcf.gz",
-        bwa_both="results/freebayes_comp_{graph}/isec_vcfs/{sample}.bwa_both.vcf.gz",
-        surject_both="results/freebayes_comp_{graph}/isec_vcfs/{sample}.surject_both.vcf.gz"
+        script=S3.remote(SROOT + 'scripts/freebayes_stats.R'),
+        bwa_only=S3.remote(SROOT + "freebayes_comp_{graph}/isec_vcfs/{sample}.bwa_only.vcf.gz"),
+        surject_only=S3.remote(SROOT + "freebayes_comp_{graph}/isec_vcfs/{sample}.surject_only.vcf.gz"),
+        bwa_both=S3.remote(SROOT + "freebayes_comp_{graph}/isec_vcfs/{sample}.bwa_both.vcf.gz"),
+        surject_both=S3.remote(SROOT + "freebayes_comp_{graph}/isec_vcfs/{sample}.surject_both.vcf.gz")
     output:
-        stats="results/freebayes_comp_{graph}/{sample}.isec.stats.tsv.gz",
-        regions="results/freebayes_comp_{graph}/{sample}.isec.regions.tsv.gz"
+        stats=S3.remote(SROOT + "freebayes_comp_{graph}/{sample}.isec.stats.tsv.gz"),
+        regions=S3.remote(SROOT + "freebayes_comp_{graph}/{sample}.isec.regions.tsv.gz")
     params:
         tsv_bb='tmp.{sample}.bwa_both.tsv.gz',
         tsv_sb='tmp.{sample}.surject_both.tsv.gz',
@@ -299,11 +304,11 @@ rule compute_freebayes_stats:
 def fb_simple_inputs(wildcards):
     inputs = {}
     if wildcards.method == 'bwa':
-        inputs['vcf'] = "calls/{sample}_bwa.fb.vcf.gz"
-        inputs['vcf_tbi'] = "calls/{sample}_bwa.fb.vcf.gz.tbi"
+        inputs['vcf'] = S3.remote("s3://vg-k8s/users/hickey/fly-bwa-freebayes/{sample}_bwa.fb.vcf.gz")
+        inputs['vcf_tbi'] = S3.remote("s3://vg-k8s/users/hickey/fly-bwa-freebayes/{sample}_bwa.fb.vcf.gz.tbi")
     else:
-        inputs['vcf'] = "calls/{graph}_{{sample}}.fb.vcf.gz".format(graph=wildcards.graph)
-        inputs['vcf_tbi'] = "calls/{graph}_{{sample}}.fb.vcf.gz.tbi".format(graph=wildcards.graph)
+        inputs['vcf'] = S3.remote("s3://vg-k8s/users/hickey/fly-surject-freebayes/{graph}_{{sample}}.fb.vcf.gz".format(graph=wildcards.graph))
+        inputs['vcf_tbi'] = S3.remote("s3://vg-k8s/users/hickey/fly-surject-freebayes/{graph}_{{sample}}.fb.vcf.gz.tbi".format(graph=wildcards.graph))
     return(inputs)
 
 rule prepare_for_merge:
@@ -322,6 +327,6 @@ rule merge_freebayes_calls:
     input:
         vcf=expand("for-merge/{{graph}}.{sample}.{{method}}.vcf.gz", sample=CALL_SAMPLES),
         vcf_tbi=expand("for-merge/{{graph}}.{sample}.{{method}}.vcf.gz.tbi", sample=CALL_SAMPLES)
-    output: "results/{method}.{graph}.vcf.gz"
+    output: S3.remote(SROOT + "{method}.{graph}.vcf.gz")
     threads: 8
     shell: "bcftools merge -0 --threads {threads} -m none {input.vcf} | bcftools view -c 1 -Oz -o {output}"

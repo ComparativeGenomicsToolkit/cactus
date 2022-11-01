@@ -1,0 +1,1331 @@
+Building DAG of jobs...
+Job stats:
+job                  count    min threads    max threads
+-----------------  -------  -------------  -------------
+mapping_stats            1              1              1
+mapping_stats_bwa      100              1              1
+total                  101              1              1
+
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR835047_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR835047.bwa.mapstats.txt
+    jobid: 53
+    reason: Missing output files: dm6_mappings/dm6.SRR835047.bwa.mapstats.txt
+    wildcards: sample=SRR835047
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR835047_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR835047.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR834519_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR834519.bwa.mapstats.txt
+    jobid: 11
+    reason: Missing output files: dm6_mappings/dm6.SRR834519.bwa.mapstats.txt
+    wildcards: sample=SRR834519
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR834519_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR834519.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR834547_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR834547.bwa.mapstats.txt
+    jobid: 25
+    reason: Missing output files: dm6_mappings/dm6.SRR834547.bwa.mapstats.txt
+    wildcards: sample=SRR834547
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR834547_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR834547.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR835096_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR835096.bwa.mapstats.txt
+    jobid: 81
+    reason: Missing output files: dm6_mappings/dm6.SRR835096.bwa.mapstats.txt
+    wildcards: sample=SRR835096
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR835096_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR835096.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR835069_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR835069.bwa.mapstats.txt
+    jobid: 67
+    reason: Missing output files: dm6_mappings/dm6.SRR835069.bwa.mapstats.txt
+    wildcards: sample=SRR835069
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR835069_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR835069.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR933591_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR933591.bwa.mapstats.txt
+    jobid: 95
+    reason: Missing output files: dm6_mappings/dm6.SRR933591.bwa.mapstats.txt
+    wildcards: sample=SRR933591
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR933591_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR933591.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR835033_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR835033.bwa.mapstats.txt
+    jobid: 39
+    reason: Missing output files: dm6_mappings/dm6.SRR835033.bwa.mapstats.txt
+    wildcards: sample=SRR835033
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR835033_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR835033.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR834520_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR834520.bwa.mapstats.txt
+    jobid: 12
+    reason: Missing output files: dm6_mappings/dm6.SRR834520.bwa.mapstats.txt
+    wildcards: sample=SRR834520
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR834520_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR834520.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR834551_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR834551.bwa.mapstats.txt
+    jobid: 26
+    reason: Missing output files: dm6_mappings/dm6.SRR834551.bwa.mapstats.txt
+    wildcards: sample=SRR834551
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR834551_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR834551.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR835048_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR835048.bwa.mapstats.txt
+    jobid: 54
+    reason: Missing output files: dm6_mappings/dm6.SRR835048.bwa.mapstats.txt
+    wildcards: sample=SRR835048
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR835048_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR835048.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR835071_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR835071.bwa.mapstats.txt
+    jobid: 68
+    reason: Missing output files: dm6_mappings/dm6.SRR835071.bwa.mapstats.txt
+    wildcards: sample=SRR835071
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR835071_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR835071.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR835097_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR835097.bwa.mapstats.txt
+    jobid: 82
+    reason: Missing output files: dm6_mappings/dm6.SRR835097.bwa.mapstats.txt
+    wildcards: sample=SRR835097
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR835097_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR835097.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR933592_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR933592.bwa.mapstats.txt
+    jobid: 96
+    reason: Missing output files: dm6_mappings/dm6.SRR933592.bwa.mapstats.txt
+    wildcards: sample=SRR933592
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR933592_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR933592.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR835034_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR835034.bwa.mapstats.txt
+    jobid: 40
+    reason: Missing output files: dm6_mappings/dm6.SRR835034.bwa.mapstats.txt
+    wildcards: sample=SRR835034
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR835034_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR835034.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR834521_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR834521.bwa.mapstats.txt
+    jobid: 13
+    reason: Missing output files: dm6_mappings/dm6.SRR834521.bwa.mapstats.txt
+    wildcards: sample=SRR834521
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR834521_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR834521.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR834552_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR834552.bwa.mapstats.txt
+    jobid: 27
+    reason: Missing output files: dm6_mappings/dm6.SRR834552.bwa.mapstats.txt
+    wildcards: sample=SRR834552
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR834552_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR834552.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR835050_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR835050.bwa.mapstats.txt
+    jobid: 55
+    reason: Missing output files: dm6_mappings/dm6.SRR835050.bwa.mapstats.txt
+    wildcards: sample=SRR835050
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR835050_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR835050.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR835072_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR835072.bwa.mapstats.txt
+    jobid: 69
+    reason: Missing output files: dm6_mappings/dm6.SRR835072.bwa.mapstats.txt
+    wildcards: sample=SRR835072
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR835072_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR835072.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR835098_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR835098.bwa.mapstats.txt
+    jobid: 83
+    reason: Missing output files: dm6_mappings/dm6.SRR835098.bwa.mapstats.txt
+    wildcards: sample=SRR835098
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR835098_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR835098.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR933593_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR933593.bwa.mapstats.txt
+    jobid: 97
+    reason: Missing output files: dm6_mappings/dm6.SRR933593.bwa.mapstats.txt
+    wildcards: sample=SRR933593
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR933593_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR933593.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR835035_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR835035.bwa.mapstats.txt
+    jobid: 41
+    reason: Missing output files: dm6_mappings/dm6.SRR835035.bwa.mapstats.txt
+    wildcards: sample=SRR835035
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR835035_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR835035.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR834522_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR834522.bwa.mapstats.txt
+    jobid: 14
+    reason: Missing output files: dm6_mappings/dm6.SRR834522.bwa.mapstats.txt
+    wildcards: sample=SRR834522
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR834522_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR834522.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR834553_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR834553.bwa.mapstats.txt
+    jobid: 28
+    reason: Missing output files: dm6_mappings/dm6.SRR834553.bwa.mapstats.txt
+    wildcards: sample=SRR834553
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR834553_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR834553.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR835051_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR835051.bwa.mapstats.txt
+    jobid: 56
+    reason: Missing output files: dm6_mappings/dm6.SRR835051.bwa.mapstats.txt
+    wildcards: sample=SRR835051
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR835051_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR835051.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR835073_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR835073.bwa.mapstats.txt
+    jobid: 70
+    reason: Missing output files: dm6_mappings/dm6.SRR835073.bwa.mapstats.txt
+    wildcards: sample=SRR835073
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR835073_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR835073.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR932121_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR932121.bwa.mapstats.txt
+    jobid: 84
+    reason: Missing output files: dm6_mappings/dm6.SRR932121.bwa.mapstats.txt
+    wildcards: sample=SRR932121
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR932121_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR932121.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR933594_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR933594.bwa.mapstats.txt
+    jobid: 98
+    reason: Missing output files: dm6_mappings/dm6.SRR933594.bwa.mapstats.txt
+    wildcards: sample=SRR933594
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR933594_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR933594.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR835036_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR835036.bwa.mapstats.txt
+    jobid: 42
+    reason: Missing output files: dm6_mappings/dm6.SRR835036.bwa.mapstats.txt
+    wildcards: sample=SRR835036
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR835036_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR835036.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR834523_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR834523.bwa.mapstats.txt
+    jobid: 15
+    reason: Missing output files: dm6_mappings/dm6.SRR834523.bwa.mapstats.txt
+    wildcards: sample=SRR834523
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR834523_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR834523.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR834554_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR834554.bwa.mapstats.txt
+    jobid: 29
+    reason: Missing output files: dm6_mappings/dm6.SRR834554.bwa.mapstats.txt
+    wildcards: sample=SRR834554
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR834554_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR834554.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR835052_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR835052.bwa.mapstats.txt
+    jobid: 57
+    reason: Missing output files: dm6_mappings/dm6.SRR835052.bwa.mapstats.txt
+    wildcards: sample=SRR835052
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR835052_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR835052.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR835074_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR835074.bwa.mapstats.txt
+    jobid: 71
+    reason: Missing output files: dm6_mappings/dm6.SRR835074.bwa.mapstats.txt
+    wildcards: sample=SRR835074
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR835074_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR835074.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR933563_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR933563.bwa.mapstats.txt
+    jobid: 85
+    reason: Missing output files: dm6_mappings/dm6.SRR933563.bwa.mapstats.txt
+    wildcards: sample=SRR933563
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR933563_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR933563.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR933599_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR933599.bwa.mapstats.txt
+    jobid: 99
+    reason: Missing output files: dm6_mappings/dm6.SRR933599.bwa.mapstats.txt
+    wildcards: sample=SRR933599
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR933599_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR933599.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR834508_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR834508.bwa.mapstats.txt
+    jobid: 3
+    reason: Missing output files: dm6_mappings/dm6.SRR834508.bwa.mapstats.txt
+    wildcards: sample=SRR834508
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR834508_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR834508.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR835037_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR835037.bwa.mapstats.txt
+    jobid: 43
+    reason: Missing output files: dm6_mappings/dm6.SRR835037.bwa.mapstats.txt
+    wildcards: sample=SRR835037
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR835037_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR835037.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR834526_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR834526.bwa.mapstats.txt
+    jobid: 16
+    reason: Missing output files: dm6_mappings/dm6.SRR834526.bwa.mapstats.txt
+    wildcards: sample=SRR834526
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR834526_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR834526.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR835023_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR835023.bwa.mapstats.txt
+    jobid: 30
+    reason: Missing output files: dm6_mappings/dm6.SRR835023.bwa.mapstats.txt
+    wildcards: sample=SRR835023
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR835023_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR835023.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR835054_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR835054.bwa.mapstats.txt
+    jobid: 58
+    reason: Missing output files: dm6_mappings/dm6.SRR835054.bwa.mapstats.txt
+    wildcards: sample=SRR835054
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR835054_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR835054.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR835075_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR835075.bwa.mapstats.txt
+    jobid: 72
+    reason: Missing output files: dm6_mappings/dm6.SRR835075.bwa.mapstats.txt
+    wildcards: sample=SRR835075
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR835075_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR835075.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR933569_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR933569.bwa.mapstats.txt
+    jobid: 86
+    reason: Missing output files: dm6_mappings/dm6.SRR933569.bwa.mapstats.txt
+    wildcards: sample=SRR933569
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR933569_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR933569.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR933601_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR933601.bwa.mapstats.txt
+    jobid: 100
+    reason: Missing output files: dm6_mappings/dm6.SRR933601.bwa.mapstats.txt
+    wildcards: sample=SRR933601
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR933601_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR933601.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR833244_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR833244.bwa.mapstats.txt
+    jobid: 1
+    reason: Missing output files: dm6_mappings/dm6.SRR833244.bwa.mapstats.txt
+    wildcards: sample=SRR833244
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR833244_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR833244.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR835038_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR835038.bwa.mapstats.txt
+    jobid: 44
+    reason: Missing output files: dm6_mappings/dm6.SRR835038.bwa.mapstats.txt
+    wildcards: sample=SRR835038
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR835038_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR835038.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR834527_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR834527.bwa.mapstats.txt
+    jobid: 17
+    reason: Missing output files: dm6_mappings/dm6.SRR834527.bwa.mapstats.txt
+    wildcards: sample=SRR834527
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR834527_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR834527.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR835024_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR835024.bwa.mapstats.txt
+    jobid: 31
+    reason: Missing output files: dm6_mappings/dm6.SRR835024.bwa.mapstats.txt
+    wildcards: sample=SRR835024
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR835024_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR835024.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR835055_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR835055.bwa.mapstats.txt
+    jobid: 59
+    reason: Missing output files: dm6_mappings/dm6.SRR835055.bwa.mapstats.txt
+    wildcards: sample=SRR835055
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR835055_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR835055.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR835077_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR835077.bwa.mapstats.txt
+    jobid: 73
+    reason: Missing output files: dm6_mappings/dm6.SRR835077.bwa.mapstats.txt
+    wildcards: sample=SRR835077
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR835077_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR835077.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR933573_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR933573.bwa.mapstats.txt
+    jobid: 87
+    reason: Missing output files: dm6_mappings/dm6.SRR933573.bwa.mapstats.txt
+    wildcards: sample=SRR933573
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR933573_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR933573.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR834507_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR834507.bwa.mapstats.txt
+    jobid: 2
+    reason: Missing output files: dm6_mappings/dm6.SRR834507.bwa.mapstats.txt
+    wildcards: sample=SRR834507
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR834507_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR834507.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR835039_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR835039.bwa.mapstats.txt
+    jobid: 45
+    reason: Missing output files: dm6_mappings/dm6.SRR835039.bwa.mapstats.txt
+    wildcards: sample=SRR835039
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR835039_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR835039.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR835058_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR835058.bwa.mapstats.txt
+    jobid: 60
+    reason: Missing output files: dm6_mappings/dm6.SRR835058.bwa.mapstats.txt
+    wildcards: sample=SRR835058
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR835058_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR835058.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR834531_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR834531.bwa.mapstats.txt
+    jobid: 18
+    reason: Missing output files: dm6_mappings/dm6.SRR834531.bwa.mapstats.txt
+    wildcards: sample=SRR834531
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR834531_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR834531.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR835086_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR835086.bwa.mapstats.txt
+    jobid: 74
+    reason: Missing output files: dm6_mappings/dm6.SRR835086.bwa.mapstats.txt
+    wildcards: sample=SRR835086
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR835086_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR835086.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR933577_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR933577.bwa.mapstats.txt
+    jobid: 88
+    reason: Missing output files: dm6_mappings/dm6.SRR933577.bwa.mapstats.txt
+    wildcards: sample=SRR933577
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR933577_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR933577.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR835025_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR835025.bwa.mapstats.txt
+    jobid: 32
+    reason: Missing output files: dm6_mappings/dm6.SRR835025.bwa.mapstats.txt
+    wildcards: sample=SRR835025
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR835025_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR835025.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR834509_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR834509.bwa.mapstats.txt
+    jobid: 4
+    reason: Missing output files: dm6_mappings/dm6.SRR834509.bwa.mapstats.txt
+    wildcards: sample=SRR834509
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR834509_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR834509.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR835040_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR835040.bwa.mapstats.txt
+    jobid: 46
+    reason: Missing output files: dm6_mappings/dm6.SRR835040.bwa.mapstats.txt
+    wildcards: sample=SRR835040
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR835040_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR835040.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR834537_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR834537.bwa.mapstats.txt
+    jobid: 19
+    reason: Missing output files: dm6_mappings/dm6.SRR834537.bwa.mapstats.txt
+    wildcards: sample=SRR834537
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR834537_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR834537.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR835026_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR835026.bwa.mapstats.txt
+    jobid: 33
+    reason: Missing output files: dm6_mappings/dm6.SRR835026.bwa.mapstats.txt
+    wildcards: sample=SRR835026
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR835026_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR835026.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR835059_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR835059.bwa.mapstats.txt
+    jobid: 61
+    reason: Missing output files: dm6_mappings/dm6.SRR835059.bwa.mapstats.txt
+    wildcards: sample=SRR835059
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR835059_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR835059.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR835087_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR835087.bwa.mapstats.txt
+    jobid: 75
+    reason: Missing output files: dm6_mappings/dm6.SRR835087.bwa.mapstats.txt
+    wildcards: sample=SRR835087
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR835087_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR835087.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR933580_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR933580.bwa.mapstats.txt
+    jobid: 89
+    reason: Missing output files: dm6_mappings/dm6.SRR933580.bwa.mapstats.txt
+    wildcards: sample=SRR933580
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR933580_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR933580.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR834510_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR834510.bwa.mapstats.txt
+    jobid: 5
+    reason: Missing output files: dm6_mappings/dm6.SRR834510.bwa.mapstats.txt
+    wildcards: sample=SRR834510
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR834510_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR834510.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR835041_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR835041.bwa.mapstats.txt
+    jobid: 47
+    reason: Missing output files: dm6_mappings/dm6.SRR835041.bwa.mapstats.txt
+    wildcards: sample=SRR835041
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR835041_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR835041.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR834539_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR834539.bwa.mapstats.txt
+    jobid: 20
+    reason: Missing output files: dm6_mappings/dm6.SRR834539.bwa.mapstats.txt
+    wildcards: sample=SRR834539
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR834539_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR834539.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR835027_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR835027.bwa.mapstats.txt
+    jobid: 34
+    reason: Missing output files: dm6_mappings/dm6.SRR835027.bwa.mapstats.txt
+    wildcards: sample=SRR835027
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR835027_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR835027.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR835060_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR835060.bwa.mapstats.txt
+    jobid: 62
+    reason: Missing output files: dm6_mappings/dm6.SRR835060.bwa.mapstats.txt
+    wildcards: sample=SRR835060
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR835060_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR835060.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR835088_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR835088.bwa.mapstats.txt
+    jobid: 76
+    reason: Missing output files: dm6_mappings/dm6.SRR835088.bwa.mapstats.txt
+    wildcards: sample=SRR835088
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR835088_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR835088.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR933581_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR933581.bwa.mapstats.txt
+    jobid: 90
+    reason: Missing output files: dm6_mappings/dm6.SRR933581.bwa.mapstats.txt
+    wildcards: sample=SRR933581
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR933581_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR933581.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR834511_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR834511.bwa.mapstats.txt
+    jobid: 6
+    reason: Missing output files: dm6_mappings/dm6.SRR834511.bwa.mapstats.txt
+    wildcards: sample=SRR834511
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR834511_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR834511.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR835042_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR835042.bwa.mapstats.txt
+    jobid: 48
+    reason: Missing output files: dm6_mappings/dm6.SRR835042.bwa.mapstats.txt
+    wildcards: sample=SRR835042
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR835042_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR835042.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR834541_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR834541.bwa.mapstats.txt
+    jobid: 21
+    reason: Missing output files: dm6_mappings/dm6.SRR834541.bwa.mapstats.txt
+    wildcards: sample=SRR834541
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR834541_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR834541.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR835028_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR835028.bwa.mapstats.txt
+    jobid: 35
+    reason: Missing output files: dm6_mappings/dm6.SRR835028.bwa.mapstats.txt
+    wildcards: sample=SRR835028
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR835028_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR835028.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR835061_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR835061.bwa.mapstats.txt
+    jobid: 63
+    reason: Missing output files: dm6_mappings/dm6.SRR835061.bwa.mapstats.txt
+    wildcards: sample=SRR835061
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR835061_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR835061.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR835089_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR835089.bwa.mapstats.txt
+    jobid: 77
+    reason: Missing output files: dm6_mappings/dm6.SRR835089.bwa.mapstats.txt
+    wildcards: sample=SRR835089
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR835089_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR835089.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR933585_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR933585.bwa.mapstats.txt
+    jobid: 91
+    reason: Missing output files: dm6_mappings/dm6.SRR933585.bwa.mapstats.txt
+    wildcards: sample=SRR933585
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR933585_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR933585.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR834512_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR834512.bwa.mapstats.txt
+    jobid: 7
+    reason: Missing output files: dm6_mappings/dm6.SRR834512.bwa.mapstats.txt
+    wildcards: sample=SRR834512
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR834512_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR834512.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR835043_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR835043.bwa.mapstats.txt
+    jobid: 49
+    reason: Missing output files: dm6_mappings/dm6.SRR835043.bwa.mapstats.txt
+    wildcards: sample=SRR835043
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR835043_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR835043.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR834543_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR834543.bwa.mapstats.txt
+    jobid: 22
+    reason: Missing output files: dm6_mappings/dm6.SRR834543.bwa.mapstats.txt
+    wildcards: sample=SRR834543
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR834543_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR834543.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR835029_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR835029.bwa.mapstats.txt
+    jobid: 36
+    reason: Missing output files: dm6_mappings/dm6.SRR835029.bwa.mapstats.txt
+    wildcards: sample=SRR835029
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR835029_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR835029.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR835062_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR835062.bwa.mapstats.txt
+    jobid: 64
+    reason: Missing output files: dm6_mappings/dm6.SRR835062.bwa.mapstats.txt
+    wildcards: sample=SRR835062
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR835062_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR835062.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR835091_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR835091.bwa.mapstats.txt
+    jobid: 78
+    reason: Missing output files: dm6_mappings/dm6.SRR835091.bwa.mapstats.txt
+    wildcards: sample=SRR835091
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR835091_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR835091.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR933586_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR933586.bwa.mapstats.txt
+    jobid: 92
+    reason: Missing output files: dm6_mappings/dm6.SRR933586.bwa.mapstats.txt
+    wildcards: sample=SRR933586
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR933586_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR933586.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR834514_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR834514.bwa.mapstats.txt
+    jobid: 8
+    reason: Missing output files: dm6_mappings/dm6.SRR834514.bwa.mapstats.txt
+    wildcards: sample=SRR834514
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR834514_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR834514.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR835044_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR835044.bwa.mapstats.txt
+    jobid: 50
+    reason: Missing output files: dm6_mappings/dm6.SRR835044.bwa.mapstats.txt
+    wildcards: sample=SRR835044
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR835044_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR835044.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR834545_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR834545.bwa.mapstats.txt
+    jobid: 23
+    reason: Missing output files: dm6_mappings/dm6.SRR834545.bwa.mapstats.txt
+    wildcards: sample=SRR834545
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR834545_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR834545.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR835030_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR835030.bwa.mapstats.txt
+    jobid: 37
+    reason: Missing output files: dm6_mappings/dm6.SRR835030.bwa.mapstats.txt
+    wildcards: sample=SRR835030
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR835030_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR835030.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR835063_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR835063.bwa.mapstats.txt
+    jobid: 65
+    reason: Missing output files: dm6_mappings/dm6.SRR835063.bwa.mapstats.txt
+    wildcards: sample=SRR835063
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR835063_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR835063.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR835092_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR835092.bwa.mapstats.txt
+    jobid: 79
+    reason: Missing output files: dm6_mappings/dm6.SRR835092.bwa.mapstats.txt
+    wildcards: sample=SRR835092
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR835092_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR835092.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR933587_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR933587.bwa.mapstats.txt
+    jobid: 93
+    reason: Missing output files: dm6_mappings/dm6.SRR933587.bwa.mapstats.txt
+    wildcards: sample=SRR933587
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR933587_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR933587.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR834516_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR834516.bwa.mapstats.txt
+    jobid: 9
+    reason: Missing output files: dm6_mappings/dm6.SRR834516.bwa.mapstats.txt
+    wildcards: sample=SRR834516
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR834516_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR834516.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR835045_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR835045.bwa.mapstats.txt
+    jobid: 51
+    reason: Missing output files: dm6_mappings/dm6.SRR835045.bwa.mapstats.txt
+    wildcards: sample=SRR835045
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR835045_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR835045.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR834546_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR834546.bwa.mapstats.txt
+    jobid: 24
+    reason: Missing output files: dm6_mappings/dm6.SRR834546.bwa.mapstats.txt
+    wildcards: sample=SRR834546
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR834546_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR834546.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR835031_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR835031.bwa.mapstats.txt
+    jobid: 38
+    reason: Missing output files: dm6_mappings/dm6.SRR835031.bwa.mapstats.txt
+    wildcards: sample=SRR835031
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR835031_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR835031.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR835067_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR835067.bwa.mapstats.txt
+    jobid: 66
+    reason: Missing output files: dm6_mappings/dm6.SRR835067.bwa.mapstats.txt
+    wildcards: sample=SRR835067
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR835067_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR835067.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR835095_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR835095.bwa.mapstats.txt
+    jobid: 80
+    reason: Missing output files: dm6_mappings/dm6.SRR835095.bwa.mapstats.txt
+    wildcards: sample=SRR835095
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR835095_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR835095.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR933589_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR933589.bwa.mapstats.txt
+    jobid: 94
+    reason: Missing output files: dm6_mappings/dm6.SRR933589.bwa.mapstats.txt
+    wildcards: sample=SRR933589
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR933589_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR933589.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR834517_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR834517.bwa.mapstats.txt
+    jobid: 10
+    reason: Missing output files: dm6_mappings/dm6.SRR834517.bwa.mapstats.txt
+    wildcards: sample=SRR834517
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR834517_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR834517.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+rule mapping_stats_bwa:
+    input: scripts/compute_mapping_stats.py, reads/SRR835046_bwa.sam.gz
+    output: dm6_mappings/dm6.SRR835046.bwa.mapstats.txt
+    jobid: 52
+    reason: Missing output files: dm6_mappings/dm6.SRR835046.bwa.mapstats.txt
+    wildcards: sample=SRR835046
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/SRR835046_bwa.sam.gz | python3 scripts/compute_mapping_stats.py > dm6_mappings/dm6.SRR835046.bwa.mapstats.txt
+        
+
+[Mon Oct 31 17:43:25 2022]
+localrule mapping_stats:
+    input: dm6_mappings/dm6.SRR833244.bwa.mapstats.txt, dm6_mappings/dm6.SRR834507.bwa.mapstats.txt, dm6_mappings/dm6.SRR834508.bwa.mapstats.txt, dm6_mappings/dm6.SRR834509.bwa.mapstats.txt, dm6_mappings/dm6.SRR834510.bwa.mapstats.txt, dm6_mappings/dm6.SRR834511.bwa.mapstats.txt, dm6_mappings/dm6.SRR834512.bwa.mapstats.txt, dm6_mappings/dm6.SRR834514.bwa.mapstats.txt, dm6_mappings/dm6.SRR834516.bwa.mapstats.txt, dm6_mappings/dm6.SRR834517.bwa.mapstats.txt, dm6_mappings/dm6.SRR834519.bwa.mapstats.txt, dm6_mappings/dm6.SRR834520.bwa.mapstats.txt, dm6_mappings/dm6.SRR834521.bwa.mapstats.txt, dm6_mappings/dm6.SRR834522.bwa.mapstats.txt, dm6_mappings/dm6.SRR834523.bwa.mapstats.txt, dm6_mappings/dm6.SRR834526.bwa.mapstats.txt, dm6_mappings/dm6.SRR834527.bwa.mapstats.txt, dm6_mappings/dm6.SRR834531.bwa.mapstats.txt, dm6_mappings/dm6.SRR834537.bwa.mapstats.txt, dm6_mappings/dm6.SRR834539.bwa.mapstats.txt, dm6_mappings/dm6.SRR834541.bwa.mapstats.txt, dm6_mappings/dm6.SRR834543.bwa.mapstats.txt, dm6_mappings/dm6.SRR834545.bwa.mapstats.txt, dm6_mappings/dm6.SRR834546.bwa.mapstats.txt, dm6_mappings/dm6.SRR834547.bwa.mapstats.txt, dm6_mappings/dm6.SRR834551.bwa.mapstats.txt, dm6_mappings/dm6.SRR834552.bwa.mapstats.txt, dm6_mappings/dm6.SRR834553.bwa.mapstats.txt, dm6_mappings/dm6.SRR834554.bwa.mapstats.txt, dm6_mappings/dm6.SRR835023.bwa.mapstats.txt, dm6_mappings/dm6.SRR835024.bwa.mapstats.txt, dm6_mappings/dm6.SRR835025.bwa.mapstats.txt, dm6_mappings/dm6.SRR835026.bwa.mapstats.txt, dm6_mappings/dm6.SRR835027.bwa.mapstats.txt, dm6_mappings/dm6.SRR835028.bwa.mapstats.txt, dm6_mappings/dm6.SRR835029.bwa.mapstats.txt, dm6_mappings/dm6.SRR835030.bwa.mapstats.txt, dm6_mappings/dm6.SRR835031.bwa.mapstats.txt, dm6_mappings/dm6.SRR835033.bwa.mapstats.txt, dm6_mappings/dm6.SRR835034.bwa.mapstats.txt, dm6_mappings/dm6.SRR835035.bwa.mapstats.txt, dm6_mappings/dm6.SRR835036.bwa.mapstats.txt, dm6_mappings/dm6.SRR835037.bwa.mapstats.txt, dm6_mappings/dm6.SRR835038.bwa.mapstats.txt, dm6_mappings/dm6.SRR835039.bwa.mapstats.txt, dm6_mappings/dm6.SRR835040.bwa.mapstats.txt, dm6_mappings/dm6.SRR835041.bwa.mapstats.txt, dm6_mappings/dm6.SRR835042.bwa.mapstats.txt, dm6_mappings/dm6.SRR835043.bwa.mapstats.txt, dm6_mappings/dm6.SRR835044.bwa.mapstats.txt, dm6_mappings/dm6.SRR835045.bwa.mapstats.txt, dm6_mappings/dm6.SRR835046.bwa.mapstats.txt, dm6_mappings/dm6.SRR835047.bwa.mapstats.txt, dm6_mappings/dm6.SRR835048.bwa.mapstats.txt, dm6_mappings/dm6.SRR835050.bwa.mapstats.txt, dm6_mappings/dm6.SRR835051.bwa.mapstats.txt, dm6_mappings/dm6.SRR835052.bwa.mapstats.txt, dm6_mappings/dm6.SRR835054.bwa.mapstats.txt, dm6_mappings/dm6.SRR835055.bwa.mapstats.txt, dm6_mappings/dm6.SRR835058.bwa.mapstats.txt, dm6_mappings/dm6.SRR835059.bwa.mapstats.txt, dm6_mappings/dm6.SRR835060.bwa.mapstats.txt, dm6_mappings/dm6.SRR835061.bwa.mapstats.txt, dm6_mappings/dm6.SRR835062.bwa.mapstats.txt, dm6_mappings/dm6.SRR835063.bwa.mapstats.txt, dm6_mappings/dm6.SRR835067.bwa.mapstats.txt, dm6_mappings/dm6.SRR835069.bwa.mapstats.txt, dm6_mappings/dm6.SRR835071.bwa.mapstats.txt, dm6_mappings/dm6.SRR835072.bwa.mapstats.txt, dm6_mappings/dm6.SRR835073.bwa.mapstats.txt, dm6_mappings/dm6.SRR835074.bwa.mapstats.txt, dm6_mappings/dm6.SRR835075.bwa.mapstats.txt, dm6_mappings/dm6.SRR835077.bwa.mapstats.txt, dm6_mappings/dm6.SRR835086.bwa.mapstats.txt, dm6_mappings/dm6.SRR835087.bwa.mapstats.txt, dm6_mappings/dm6.SRR835088.bwa.mapstats.txt, dm6_mappings/dm6.SRR835089.bwa.mapstats.txt, dm6_mappings/dm6.SRR835091.bwa.mapstats.txt, dm6_mappings/dm6.SRR835092.bwa.mapstats.txt, dm6_mappings/dm6.SRR835095.bwa.mapstats.txt, dm6_mappings/dm6.SRR835096.bwa.mapstats.txt, dm6_mappings/dm6.SRR835097.bwa.mapstats.txt, dm6_mappings/dm6.SRR835098.bwa.mapstats.txt, dm6_mappings/dm6.SRR932121.bwa.mapstats.txt, dm6_mappings/dm6.SRR933563.bwa.mapstats.txt, dm6_mappings/dm6.SRR933569.bwa.mapstats.txt, dm6_mappings/dm6.SRR933573.bwa.mapstats.txt, dm6_mappings/dm6.SRR933577.bwa.mapstats.txt, dm6_mappings/dm6.SRR933580.bwa.mapstats.txt, dm6_mappings/dm6.SRR933581.bwa.mapstats.txt, dm6_mappings/dm6.SRR933585.bwa.mapstats.txt, dm6_mappings/dm6.SRR933586.bwa.mapstats.txt, dm6_mappings/dm6.SRR933587.bwa.mapstats.txt, dm6_mappings/dm6.SRR933589.bwa.mapstats.txt, dm6_mappings/dm6.SRR933591.bwa.mapstats.txt, dm6_mappings/dm6.SRR933592.bwa.mapstats.txt, dm6_mappings/dm6.SRR933593.bwa.mapstats.txt, dm6_mappings/dm6.SRR933594.bwa.mapstats.txt, dm6_mappings/dm6.SRR933599.bwa.mapstats.txt, dm6_mappings/dm6.SRR933601.bwa.mapstats.txt
+    jobid: 0
+    reason: Input files updated by another job: dm6_mappings/dm6.SRR835037.bwa.mapstats.txt, dm6_mappings/dm6.SRR933589.bwa.mapstats.txt, dm6_mappings/dm6.SRR834521.bwa.mapstats.txt, dm6_mappings/dm6.SRR835046.bwa.mapstats.txt, dm6_mappings/dm6.SRR834543.bwa.mapstats.txt, dm6_mappings/dm6.SRR835096.bwa.mapstats.txt, dm6_mappings/dm6.SRR835059.bwa.mapstats.txt, dm6_mappings/dm6.SRR835024.bwa.mapstats.txt, dm6_mappings/dm6.SRR835025.bwa.mapstats.txt, dm6_mappings/dm6.SRR834547.bwa.mapstats.txt, dm6_mappings/dm6.SRR834541.bwa.mapstats.txt, dm6_mappings/dm6.SRR834509.bwa.mapstats.txt, dm6_mappings/dm6.SRR835028.bwa.mapstats.txt, dm6_mappings/dm6.SRR834522.bwa.mapstats.txt, dm6_mappings/dm6.SRR835043.bwa.mapstats.txt, dm6_mappings/dm6.SRR932121.bwa.mapstats.txt, dm6_mappings/dm6.SRR835040.bwa.mapstats.txt, dm6_mappings/dm6.SRR835062.bwa.mapstats.txt, dm6_mappings/dm6.SRR834507.bwa.mapstats.txt, dm6_mappings/dm6.SRR834545.bwa.mapstats.txt, dm6_mappings/dm6.SRR835097.bwa.mapstats.txt, dm6_mappings/dm6.SRR835029.bwa.mapstats.txt, dm6_mappings/dm6.SRR835055.bwa.mapstats.txt, dm6_mappings/dm6.SRR835088.bwa.mapstats.txt, dm6_mappings/dm6.SRR834526.bwa.mapstats.txt, dm6_mappings/dm6.SRR835039.bwa.mapstats.txt, dm6_mappings/dm6.SRR835044.bwa.mapstats.txt, dm6_mappings/dm6.SRR834510.bwa.mapstats.txt, dm6_mappings/dm6.SRR835077.bwa.mapstats.txt, dm6_mappings/dm6.SRR933563.bwa.mapstats.txt, dm6_mappings/dm6.SRR834552.bwa.mapstats.txt, dm6_mappings/dm6.SRR834512.bwa.mapstats.txt, dm6_mappings/dm6.SRR835060.bwa.mapstats.txt, dm6_mappings/dm6.SRR834511.bwa.mapstats.txt, dm6_mappings/dm6.SRR835063.bwa.mapstats.txt, dm6_mappings/dm6.SRR835075.bwa.mapstats.txt, dm6_mappings/dm6.SRR835091.bwa.mapstats.txt, dm6_mappings/dm6.SRR835026.bwa.mapstats.txt, dm6_mappings/dm6.SRR933591.bwa.mapstats.txt, dm6_mappings/dm6.SRR834554.bwa.mapstats.txt, dm6_mappings/dm6.SRR835031.bwa.mapstats.txt, dm6_mappings/dm6.SRR835051.bwa.mapstats.txt, dm6_mappings/dm6.SRR835061.bwa.mapstats.txt, dm6_mappings/dm6.SRR933599.bwa.mapstats.txt, dm6_mappings/dm6.SRR834508.bwa.mapstats.txt, dm6_mappings/dm6.SRR835058.bwa.mapstats.txt, dm6_mappings/dm6.SRR834537.bwa.mapstats.txt, dm6_mappings/dm6.SRR835067.bwa.mapstats.txt, dm6_mappings/dm6.SRR834517.bwa.mapstats.txt, dm6_mappings/dm6.SRR834519.bwa.mapstats.txt, dm6_mappings/dm6.SRR835050.bwa.mapstats.txt, dm6_mappings/dm6.SRR835072.bwa.mapstats.txt, dm6_mappings/dm6.SRR835035.bwa.mapstats.txt, dm6_mappings/dm6.SRR835030.bwa.mapstats.txt, dm6_mappings/dm6.SRR933573.bwa.mapstats.txt, dm6_mappings/dm6.SRR834546.bwa.mapstats.txt, dm6_mappings/dm6.SRR835033.bwa.mapstats.txt, dm6_mappings/dm6.SRR834539.bwa.mapstats.txt, dm6_mappings/dm6.SRR933577.bwa.mapstats.txt, dm6_mappings/dm6.SRR933593.bwa.mapstats.txt, dm6_mappings/dm6.SRR834553.bwa.mapstats.txt, dm6_mappings/dm6.SRR933586.bwa.mapstats.txt, dm6_mappings/dm6.SRR834531.bwa.mapstats.txt, dm6_mappings/dm6.SRR835045.bwa.mapstats.txt, dm6_mappings/dm6.SRR835071.bwa.mapstats.txt, dm6_mappings/dm6.SRR835038.bwa.mapstats.txt, dm6_mappings/dm6.SRR834523.bwa.mapstats.txt, dm6_mappings/dm6.SRR933585.bwa.mapstats.txt, dm6_mappings/dm6.SRR933569.bwa.mapstats.txt, dm6_mappings/dm6.SRR835034.bwa.mapstats.txt, dm6_mappings/dm6.SRR835086.bwa.mapstats.txt, dm6_mappings/dm6.SRR835027.bwa.mapstats.txt, dm6_mappings/dm6.SRR835089.bwa.mapstats.txt, dm6_mappings/dm6.SRR933601.bwa.mapstats.txt, dm6_mappings/dm6.SRR933587.bwa.mapstats.txt, dm6_mappings/dm6.SRR834516.bwa.mapstats.txt, dm6_mappings/dm6.SRR933581.bwa.mapstats.txt, dm6_mappings/dm6.SRR835054.bwa.mapstats.txt, dm6_mappings/dm6.SRR835042.bwa.mapstats.txt, dm6_mappings/dm6.SRR835087.bwa.mapstats.txt, dm6_mappings/dm6.SRR833244.bwa.mapstats.txt, dm6_mappings/dm6.SRR933580.bwa.mapstats.txt, dm6_mappings/dm6.SRR835036.bwa.mapstats.txt, dm6_mappings/dm6.SRR835041.bwa.mapstats.txt, dm6_mappings/dm6.SRR835095.bwa.mapstats.txt, dm6_mappings/dm6.SRR834520.bwa.mapstats.txt, dm6_mappings/dm6.SRR835023.bwa.mapstats.txt, dm6_mappings/dm6.SRR834527.bwa.mapstats.txt, dm6_mappings/dm6.SRR835048.bwa.mapstats.txt, dm6_mappings/dm6.SRR933594.bwa.mapstats.txt, dm6_mappings/dm6.SRR834514.bwa.mapstats.txt, dm6_mappings/dm6.SRR835074.bwa.mapstats.txt, dm6_mappings/dm6.SRR835069.bwa.mapstats.txt, dm6_mappings/dm6.SRR835098.bwa.mapstats.txt, dm6_mappings/dm6.SRR835073.bwa.mapstats.txt, dm6_mappings/dm6.SRR835052.bwa.mapstats.txt, dm6_mappings/dm6.SRR835047.bwa.mapstats.txt, dm6_mappings/dm6.SRR835092.bwa.mapstats.txt, dm6_mappings/dm6.SRR933592.bwa.mapstats.txt, dm6_mappings/dm6.SRR834551.bwa.mapstats.txt
+    resources: tmpdir=/tmp
+
+Job stats:
+job                  count    min threads    max threads
+-----------------  -------  -------------  -------------
+mapping_stats            1              1              1
+mapping_stats_bwa      100              1              1
+total                  101              1              1
+
+Reasons:
+    (check individual jobs above for details)
+    input files updated by another job:
+        mapping_stats
+    missing output files:
+        mapping_stats_bwa
+
+This was a dry-run (flag -n). The order of jobs does not reflect the order of execution.

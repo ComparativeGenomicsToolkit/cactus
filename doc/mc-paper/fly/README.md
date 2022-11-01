@@ -48,8 +48,8 @@ Assuming all those files are located in a `freebayes_stats` folder, the [`compar
 To compare the proportion of heterozygous variants, the calls were first merged with:
 
 ```sh
-snakemake --cores 8 -p bwa.dm6.vcf.gz
-snakemake --cores 8 -p surject.fly-pg-may26-d2.vcf.gz
+snakemake --cores 8 -p results/bwa.dm6.vcf.gz
+snakemake --cores 8 -p results/surject.fly-pg-may26-d2.vcf.gz
 ```
 
 The merged VCFs are made available at [`http://public.gi.ucsc.edu/~jmonlong/hprc/minigraph-cactus-manuscript/fly/bwa.dm6.vcf.gz`](http://public.gi.ucsc.edu/~jmonlong/hprc/minigraph-cactus-manuscript/fly/bwa.dm6.vcf.gz) and [`http://public.gi.ucsc.edu/~jmonlong/hprc/minigraph-cactus-manuscript/fly/surject.fly-pg-may26-d2.vcf.gz`](http://public.gi.ucsc.edu/~jmonlong/hprc/minigraph-cactus-manuscript/fly/surject.fly-pg-may26-d2.vcf.gz).
@@ -68,7 +68,7 @@ To decompose the deconstructed VCF from the full pangenome:
 snakemake --cores 8 -p decompose_pangenome
 ```
 
-This will create one file for each sample/assembly in the pangenome: `<SAMPLE>.decomposed.svs.rds`
+This will create one file for each sample/assembly in the pangenome: `svs/<SAMPLE>.<GRAPH>.decomposed.svs.rds`
 
 ---
 
@@ -85,7 +85,7 @@ The variants will be merged into one file called `fly-pg-may26-d2.100samples.dec
 1. Cluster SVs into SV sites (for both SVs in the pangenome and calls across 100 samples): [`cluster-svs.R`](cluster-svs.R)
     - This will just add new columns to the calls to specify the assigned SV site.
     - Input: 
-        - `<SAMPLE>.decomposed.svs.rds` for each sample in the pangenome
+        - `svs/<SAMPLE>.<GRAPH>.decomposed.svs.rds` for each sample in the pangenome
         - `fly-pg-may26-d2.100samples.decomposed.svs.rds`
     - Output:
         - `fly-pg-may26.svs.site.rol90.insd100.rds`
