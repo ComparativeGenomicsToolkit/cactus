@@ -19,12 +19,12 @@ svs = lapply(list.files('svs', '*.rds'), function(fn){
 
 svs = clusterSVs(svs, range.seq.comp=TRUE, ins.seq.comp=TRUE, nb.cores=16, batch.maxsize=500, simprep=sr, min.rol=.9, max.ins.dist=100)
 
-saveRDS(svs, file='fly-pg-may26.svs.site.rol90.insd100.rds')
+saveRDS(svs, file='16-fruitfly-mc-2022-05-26.svs.site.rol90.insd100.rds')
 
 ## calls
-svs = readRDS('fly-pg-may26-d2.100samples.decomposed.svs.rds')
+svs = readRDS('16-fruitfly-mc-2022-05-26-d2.100samples.decomposed.svs.rds')
 svs = subset(svs, ac>0)
 
 svs = clusterSVs(svs, range.seq.comp=TRUE, ins.seq.comp=TRUE, nb.cores=16, batch.maxsize=500, simprep=sr, min.rol=.9, max.ins.dist=100)
 
-saveRDS(svs, file='fly-pg-may26-d2.100samples.decomposed.svs.site.rol90.insd100.rds')
+saveRDS(svs, file='16-fruitfly-mc-2022-05-26-d2.100samples.decomposed.svs.site.rol90.insd100.rds')

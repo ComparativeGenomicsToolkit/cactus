@@ -1,0 +1,1331 @@
+Building DAG of jobs...
+Job stats:
+job                      count    min threads    max threads
+---------------------  -------  -------------  -------------
+mapping_stats                1              1              1
+mapping_stats_giraffe      100              1              1
+total                      101              1              1
+
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR835069.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835069.giraffe.mapstats.txt
+    jobid: 67
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835069.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR835069
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR835069.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835069.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR834519.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834519.giraffe.mapstats.txt
+    jobid: 11
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834519.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR834519
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR834519.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834519.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR834547.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834547.giraffe.mapstats.txt
+    jobid: 25
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834547.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR834547
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR834547.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834547.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR835096.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835096.giraffe.mapstats.txt
+    jobid: 81
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835096.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR835096
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR835096.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835096.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR835033.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835033.giraffe.mapstats.txt
+    jobid: 39
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835033.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR835033
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR835033.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835033.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR835047.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835047.giraffe.mapstats.txt
+    jobid: 53
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835047.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR835047
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR835047.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835047.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR933591.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR933591.giraffe.mapstats.txt
+    jobid: 95
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR933591.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR933591
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR933591.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR933591.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR834520.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834520.giraffe.mapstats.txt
+    jobid: 12
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834520.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR834520
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR834520.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834520.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR834551.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834551.giraffe.mapstats.txt
+    jobid: 26
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834551.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR834551
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR834551.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834551.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR835071.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835071.giraffe.mapstats.txt
+    jobid: 68
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835071.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR835071
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR835071.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835071.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR835097.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835097.giraffe.mapstats.txt
+    jobid: 82
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835097.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR835097
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR835097.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835097.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR835034.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835034.giraffe.mapstats.txt
+    jobid: 40
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835034.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR835034
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR835034.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835034.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR835048.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835048.giraffe.mapstats.txt
+    jobid: 54
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835048.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR835048
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR835048.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835048.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR933592.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR933592.giraffe.mapstats.txt
+    jobid: 96
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR933592.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR933592
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR933592.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR933592.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR834521.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834521.giraffe.mapstats.txt
+    jobid: 13
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834521.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR834521
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR834521.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834521.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR834552.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834552.giraffe.mapstats.txt
+    jobid: 27
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834552.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR834552
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR834552.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834552.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR835072.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835072.giraffe.mapstats.txt
+    jobid: 69
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835072.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR835072
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR835072.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835072.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR835098.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835098.giraffe.mapstats.txt
+    jobid: 83
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835098.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR835098
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR835098.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835098.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR835035.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835035.giraffe.mapstats.txt
+    jobid: 41
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835035.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR835035
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR835035.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835035.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR835050.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835050.giraffe.mapstats.txt
+    jobid: 55
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835050.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR835050
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR835050.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835050.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR933593.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR933593.giraffe.mapstats.txt
+    jobid: 97
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR933593.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR933593
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR933593.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR933593.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR834522.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834522.giraffe.mapstats.txt
+    jobid: 14
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834522.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR834522
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR834522.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834522.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR834553.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834553.giraffe.mapstats.txt
+    jobid: 28
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834553.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR834553
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR834553.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834553.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR932121.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR932121.giraffe.mapstats.txt
+    jobid: 84
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR932121.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR932121
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR932121.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR932121.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR835073.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835073.giraffe.mapstats.txt
+    jobid: 70
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835073.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR835073
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR835073.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835073.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR835036.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835036.giraffe.mapstats.txt
+    jobid: 42
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835036.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR835036
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR835036.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835036.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR835051.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835051.giraffe.mapstats.txt
+    jobid: 56
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835051.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR835051
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR835051.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835051.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR933594.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR933594.giraffe.mapstats.txt
+    jobid: 98
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR933594.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR933594
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR933594.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR933594.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR834508.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834508.giraffe.mapstats.txt
+    jobid: 3
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834508.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR834508
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR834508.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834508.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR834523.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834523.giraffe.mapstats.txt
+    jobid: 15
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834523.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR834523
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR834523.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834523.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR834554.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834554.giraffe.mapstats.txt
+    jobid: 29
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834554.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR834554
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR834554.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834554.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR835074.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835074.giraffe.mapstats.txt
+    jobid: 71
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835074.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR835074
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR835074.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835074.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR933563.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR933563.giraffe.mapstats.txt
+    jobid: 85
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR933563.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR933563
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR933563.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR933563.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR835037.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835037.giraffe.mapstats.txt
+    jobid: 43
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835037.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR835037
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR835037.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835037.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR835052.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835052.giraffe.mapstats.txt
+    jobid: 57
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835052.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR835052
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR835052.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835052.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR933599.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR933599.giraffe.mapstats.txt
+    jobid: 99
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR933599.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR933599
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR933599.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR933599.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR834526.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834526.giraffe.mapstats.txt
+    jobid: 16
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834526.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR834526
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR834526.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834526.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR833244.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR833244.giraffe.mapstats.txt
+    jobid: 1
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR833244.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR833244
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR833244.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR833244.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR835023.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835023.giraffe.mapstats.txt
+    jobid: 30
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835023.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR835023
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR835023.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835023.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR835075.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835075.giraffe.mapstats.txt
+    jobid: 72
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835075.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR835075
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR835075.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835075.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR933569.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR933569.giraffe.mapstats.txt
+    jobid: 86
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR933569.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR933569
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR933569.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR933569.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR835038.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835038.giraffe.mapstats.txt
+    jobid: 44
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835038.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR835038
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR835038.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835038.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR835054.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835054.giraffe.mapstats.txt
+    jobid: 58
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835054.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR835054
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR835054.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835054.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR933601.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR933601.giraffe.mapstats.txt
+    jobid: 100
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR933601.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR933601
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR933601.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR933601.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR834507.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834507.giraffe.mapstats.txt
+    jobid: 2
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834507.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR834507
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR834507.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834507.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR834527.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834527.giraffe.mapstats.txt
+    jobid: 17
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834527.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR834527
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR834527.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834527.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR835024.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835024.giraffe.mapstats.txt
+    jobid: 31
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835024.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR835024
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR835024.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835024.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR835077.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835077.giraffe.mapstats.txt
+    jobid: 73
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835077.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR835077
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR835077.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835077.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR933573.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR933573.giraffe.mapstats.txt
+    jobid: 87
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR933573.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR933573
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR933573.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR933573.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR835039.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835039.giraffe.mapstats.txt
+    jobid: 45
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835039.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR835039
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR835039.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835039.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR835055.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835055.giraffe.mapstats.txt
+    jobid: 59
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835055.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR835055
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR835055.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835055.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR933577.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR933577.giraffe.mapstats.txt
+    jobid: 88
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR933577.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR933577
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR933577.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR933577.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR835025.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835025.giraffe.mapstats.txt
+    jobid: 32
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835025.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR835025
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR835025.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835025.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR834531.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834531.giraffe.mapstats.txt
+    jobid: 18
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834531.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR834531
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR834531.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834531.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR834509.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834509.giraffe.mapstats.txt
+    jobid: 4
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834509.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR834509
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR834509.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834509.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR835086.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835086.giraffe.mapstats.txt
+    jobid: 74
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835086.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR835086
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR835086.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835086.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR835058.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835058.giraffe.mapstats.txt
+    jobid: 60
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835058.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR835058
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR835058.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835058.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR835040.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835040.giraffe.mapstats.txt
+    jobid: 46
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835040.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR835040
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR835040.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835040.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR834510.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834510.giraffe.mapstats.txt
+    jobid: 5
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834510.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR834510
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR834510.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834510.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR834537.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834537.giraffe.mapstats.txt
+    jobid: 19
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834537.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR834537
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR834537.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834537.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR835026.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835026.giraffe.mapstats.txt
+    jobid: 33
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835026.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR835026
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR835026.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835026.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR835087.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835087.giraffe.mapstats.txt
+    jobid: 75
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835087.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR835087
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR835087.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835087.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR933580.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR933580.giraffe.mapstats.txt
+    jobid: 89
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR933580.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR933580
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR933580.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR933580.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR835041.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835041.giraffe.mapstats.txt
+    jobid: 47
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835041.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR835041
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR835041.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835041.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR835059.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835059.giraffe.mapstats.txt
+    jobid: 61
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835059.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR835059
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR835059.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835059.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR834511.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834511.giraffe.mapstats.txt
+    jobid: 6
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834511.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR834511
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR834511.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834511.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR834539.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834539.giraffe.mapstats.txt
+    jobid: 20
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834539.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR834539
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR834539.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834539.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR835027.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835027.giraffe.mapstats.txt
+    jobid: 34
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835027.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR835027
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR835027.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835027.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR835088.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835088.giraffe.mapstats.txt
+    jobid: 76
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835088.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR835088
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR835088.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835088.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR933581.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR933581.giraffe.mapstats.txt
+    jobid: 90
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR933581.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR933581
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR933581.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR933581.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR835042.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835042.giraffe.mapstats.txt
+    jobid: 48
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835042.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR835042
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR835042.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835042.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR835060.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835060.giraffe.mapstats.txt
+    jobid: 62
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835060.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR835060
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR835060.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835060.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR834512.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834512.giraffe.mapstats.txt
+    jobid: 7
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834512.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR834512
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR834512.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834512.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR834541.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834541.giraffe.mapstats.txt
+    jobid: 21
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834541.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR834541
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR834541.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834541.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR835028.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835028.giraffe.mapstats.txt
+    jobid: 35
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835028.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR835028
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR835028.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835028.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR835089.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835089.giraffe.mapstats.txt
+    jobid: 77
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835089.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR835089
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR835089.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835089.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR933585.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR933585.giraffe.mapstats.txt
+    jobid: 91
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR933585.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR933585
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR933585.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR933585.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR835043.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835043.giraffe.mapstats.txt
+    jobid: 49
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835043.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR835043
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR835043.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835043.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR835061.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835061.giraffe.mapstats.txt
+    jobid: 63
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835061.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR835061
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR835061.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835061.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR834514.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834514.giraffe.mapstats.txt
+    jobid: 8
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834514.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR834514
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR834514.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834514.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR834543.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834543.giraffe.mapstats.txt
+    jobid: 22
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834543.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR834543
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR834543.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834543.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR835029.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835029.giraffe.mapstats.txt
+    jobid: 36
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835029.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR835029
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR835029.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835029.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR835091.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835091.giraffe.mapstats.txt
+    jobid: 78
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835091.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR835091
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR835091.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835091.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR933586.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR933586.giraffe.mapstats.txt
+    jobid: 92
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR933586.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR933586
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR933586.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR933586.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR835044.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835044.giraffe.mapstats.txt
+    jobid: 50
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835044.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR835044
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR835044.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835044.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR835062.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835062.giraffe.mapstats.txt
+    jobid: 64
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835062.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR835062
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR835062.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835062.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR834516.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834516.giraffe.mapstats.txt
+    jobid: 9
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834516.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR834516
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR834516.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834516.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR834545.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834545.giraffe.mapstats.txt
+    jobid: 23
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834545.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR834545
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR834545.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834545.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR835030.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835030.giraffe.mapstats.txt
+    jobid: 37
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835030.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR835030
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR835030.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835030.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR835092.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835092.giraffe.mapstats.txt
+    jobid: 79
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835092.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR835092
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR835092.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835092.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR933587.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR933587.giraffe.mapstats.txt
+    jobid: 93
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR933587.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR933587
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR933587.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR933587.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR835045.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835045.giraffe.mapstats.txt
+    jobid: 51
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835045.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR835045
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR835045.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835045.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR835063.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835063.giraffe.mapstats.txt
+    jobid: 65
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835063.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR835063
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR835063.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835063.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR834517.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834517.giraffe.mapstats.txt
+    jobid: 10
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834517.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR834517
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR834517.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834517.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR834546.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834546.giraffe.mapstats.txt
+    jobid: 24
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834546.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR834546
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR834546.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834546.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR835031.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835031.giraffe.mapstats.txt
+    jobid: 38
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835031.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR835031
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR835031.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835031.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR835095.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835095.giraffe.mapstats.txt
+    jobid: 80
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835095.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR835095
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR835095.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835095.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR933589.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR933589.giraffe.mapstats.txt
+    jobid: 94
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR933589.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR933589
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR933589.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR933589.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR835046.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835046.giraffe.mapstats.txt
+    jobid: 52
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835046.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR835046
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR835046.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835046.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+rule mapping_stats_giraffe:
+    input: reads/16-fruitfly-mc-2022-05-26-d2.SRR835067.giraffe.gaf.gz
+    output: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835067.giraffe.mapstats.txt
+    jobid: 66
+    reason: Missing output files: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835067.giraffe.mapstats.txt
+    wildcards: graph=16-fruitfly-mc-2022-05-26-d2, sample=SRR835067
+    resources: tmpdir=/tmp
+
+
+        gunzip -c reads/16-fruitfly-mc-2022-05-26-d2.SRR835067.giraffe.gaf.gz | awk '{if($10=="*"){$12=-1};if($10!="*" && $10==$11){perf="true"}else{perf="false"};print $12,perf}' | sort | uniq -c > 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835067.giraffe.mapstats.txt
+        
+
+[Mon Oct 31 20:08:47 2022]
+localrule mapping_stats:
+    input: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR833244.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834507.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834508.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834509.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834510.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834511.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834512.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834514.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834516.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834517.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834519.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834520.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834521.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834522.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834523.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834526.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834527.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834531.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834537.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834539.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834541.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834543.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834545.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834546.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834547.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834551.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834552.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834553.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834554.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835023.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835024.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835025.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835026.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835027.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835028.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835029.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835030.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835031.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835033.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835034.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835035.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835036.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835037.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835038.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835039.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835040.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835041.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835042.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835043.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835044.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835045.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835046.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835047.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835048.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835050.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835051.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835052.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835054.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835055.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835058.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835059.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835060.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835061.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835062.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835063.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835067.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835069.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835071.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835072.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835073.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835074.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835075.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835077.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835086.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835087.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835088.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835089.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835091.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835092.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835095.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835096.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835097.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835098.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR932121.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR933563.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR933569.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR933573.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR933577.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR933580.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR933581.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR933585.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR933586.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR933587.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR933589.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR933591.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR933592.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR933593.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR933594.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR933599.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR933601.giraffe.mapstats.txt
+    jobid: 0
+    reason: Input files updated by another job: 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835088.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835036.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834519.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835063.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834546.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834551.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834523.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835069.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834517.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR933573.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834526.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR933599.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835059.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834541.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835027.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835044.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834520.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835042.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835040.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835047.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835050.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835058.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834539.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR933601.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834512.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834554.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835054.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835075.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835097.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR933587.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR933591.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835030.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835095.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835041.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835072.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834508.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835035.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835028.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835025.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835071.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834521.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835045.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835061.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835074.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834511.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835023.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834553.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR933594.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834522.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR933592.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR933580.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR933589.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835086.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834516.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835037.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835060.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834507.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835096.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR933563.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835034.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835046.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR933581.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835091.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835048.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835062.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834552.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835077.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835033.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR932121.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835043.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835073.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834531.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR933586.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834514.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835098.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834545.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835029.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834537.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835092.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834543.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR833244.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835026.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834509.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR933593.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835051.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR933577.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835052.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835055.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834547.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR933585.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835039.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834510.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR834527.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835089.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835031.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835087.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835038.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835067.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR835024.giraffe.mapstats.txt, 16-fruitfly-mc-2022-05-26-d2_mappings/16-fruitfly-mc-2022-05-26-d2.SRR933569.giraffe.mapstats.txt
+    resources: tmpdir=/tmp
+
+Job stats:
+job                      count    min threads    max threads
+---------------------  -------  -------------  -------------
+mapping_stats                1              1              1
+mapping_stats_giraffe      100              1              1
+total                      101              1              1
+
+Reasons:
+    (check individual jobs above for details)
+    input files updated by another job:
+        mapping_stats
+    missing output files:
+        mapping_stats_giraffe
+
+This was a dry-run (flag -n). The order of jobs does not reflect the order of execution.

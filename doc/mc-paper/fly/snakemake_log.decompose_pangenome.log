@@ -1,0 +1,1317 @@
+Building DAG of jobs...
+Job stats:
+job                        count    min threads    max threads
+-----------------------  -------  -------------  -------------
+convert_to_pg                  1              8              8
+decompose_pangenome            1              1              1
+decompose_variants            15              1              1
+drop_inconsistent_sites       15              1              1
+extract_nonref                15              1              1
+extract_sample                15              2              2
+make_svs_rds                  15              1              1
+remove_dups                   15              1              1
+split_multialts               15              2              2
+total                        107              1              8
+
+
+[Mon Oct 31 21:09:07 2022]
+rule extract_sample:
+    input: pangenomes/16-fruitfly-mc-2022-05-26.vcf.gz
+    output: sample/16-fruitfly-mc-2022-05-26.B1.vcf.gz
+    jobid: 64
+    reason: Missing output files: sample/16-fruitfly-mc-2022-05-26.B1.vcf.gz
+    wildcards: graph=16-fruitfly-mc-2022-05-26, sample=B1
+    threads: 2
+    resources: tmpdir=/tmp
+
+
+        bcftools view -a -I -s B1 -Ou pangenomes/16-fruitfly-mc-2022-05-26.vcf.gz | bcftools view -e 'GT="ref" | GT="0|." | GT=".|0" | GT=".|." | GT="." | GT="0/." | GT="./0" | GT="./."' -Oz -o sample/16-fruitfly-mc-2022-05-26.B1.vcf.gz
+        
+
+[Mon Oct 31 21:09:07 2022]
+rule extract_sample:
+    input: pangenomes/16-fruitfly-mc-2022-05-26.vcf.gz
+    output: sample/16-fruitfly-mc-2022-05-26.B3.vcf.gz
+    jobid: 78
+    reason: Missing output files: sample/16-fruitfly-mc-2022-05-26.B3.vcf.gz
+    wildcards: graph=16-fruitfly-mc-2022-05-26, sample=B3
+    threads: 2
+    resources: tmpdir=/tmp
+
+
+        bcftools view -a -I -s B3 -Ou pangenomes/16-fruitfly-mc-2022-05-26.vcf.gz | bcftools view -e 'GT="ref" | GT="0|." | GT=".|0" | GT=".|." | GT="." | GT="0/." | GT="./0" | GT="./."' -Oz -o sample/16-fruitfly-mc-2022-05-26.B3.vcf.gz
+        
+
+[Mon Oct 31 21:09:07 2022]
+rule extract_sample:
+    input: pangenomes/16-fruitfly-mc-2022-05-26.vcf.gz
+    output: sample/16-fruitfly-mc-2022-05-26.B6.vcf.gz
+    jobid: 92
+    reason: Missing output files: sample/16-fruitfly-mc-2022-05-26.B6.vcf.gz
+    wildcards: graph=16-fruitfly-mc-2022-05-26, sample=B6
+    threads: 2
+    resources: tmpdir=/tmp
+
+
+        bcftools view -a -I -s B6 -Ou pangenomes/16-fruitfly-mc-2022-05-26.vcf.gz | bcftools view -e 'GT="ref" | GT="0|." | GT=".|0" | GT=".|." | GT="." | GT="0/." | GT="./0" | GT="./."' -Oz -o sample/16-fruitfly-mc-2022-05-26.B6.vcf.gz
+        
+
+[Mon Oct 31 21:09:07 2022]
+rule convert_to_pg:
+    input: pangenomes/16-fruitfly-mc-2022-05-26.xg
+    output: pangenomes/16-fruitfly-mc-2022-05-26.pg
+    jobid: 8
+    reason: Missing output files: pangenomes/16-fruitfly-mc-2022-05-26.pg
+    wildcards: graph=16-fruitfly-mc-2022-05-26
+    threads: 8
+    resources: tmpdir=/tmp
+
+vg convert -p -t 8 pangenomes/16-fruitfly-mc-2022-05-26.xg > pangenomes/16-fruitfly-mc-2022-05-26.pg
+
+[Mon Oct 31 21:09:07 2022]
+rule extract_sample:
+    input: pangenomes/16-fruitfly-mc-2022-05-26.vcf.gz
+    output: sample/16-fruitfly-mc-2022-05-26.OreR.vcf.gz
+    jobid: 106
+    reason: Missing output files: sample/16-fruitfly-mc-2022-05-26.OreR.vcf.gz
+    wildcards: graph=16-fruitfly-mc-2022-05-26, sample=OreR
+    threads: 2
+    resources: tmpdir=/tmp
+
+
+        bcftools view -a -I -s OreR -Ou pangenomes/16-fruitfly-mc-2022-05-26.vcf.gz | bcftools view -e 'GT="ref" | GT="0|." | GT=".|0" | GT=".|." | GT="." | GT="0/." | GT="./0" | GT="./."' -Oz -o sample/16-fruitfly-mc-2022-05-26.OreR.vcf.gz
+        
+
+[Mon Oct 31 21:09:07 2022]
+rule extract_sample:
+    input: pangenomes/16-fruitfly-mc-2022-05-26.vcf.gz
+    output: sample/16-fruitfly-mc-2022-05-26.A1.vcf.gz
+    jobid: 7
+    reason: Missing output files: sample/16-fruitfly-mc-2022-05-26.A1.vcf.gz
+    wildcards: graph=16-fruitfly-mc-2022-05-26, sample=A1
+    threads: 2
+    resources: tmpdir=/tmp
+
+
+        bcftools view -a -I -s A1 -Ou pangenomes/16-fruitfly-mc-2022-05-26.vcf.gz | bcftools view -e 'GT="ref" | GT="0|." | GT=".|0" | GT=".|." | GT="." | GT="0/." | GT="./0" | GT="./."' -Oz -o sample/16-fruitfly-mc-2022-05-26.A1.vcf.gz
+        
+
+[Mon Oct 31 21:09:07 2022]
+rule extract_sample:
+    input: pangenomes/16-fruitfly-mc-2022-05-26.vcf.gz
+    output: sample/16-fruitfly-mc-2022-05-26.A6.vcf.gz
+    jobid: 43
+    reason: Missing output files: sample/16-fruitfly-mc-2022-05-26.A6.vcf.gz
+    wildcards: graph=16-fruitfly-mc-2022-05-26, sample=A6
+    threads: 2
+    resources: tmpdir=/tmp
+
+
+        bcftools view -a -I -s A6 -Ou pangenomes/16-fruitfly-mc-2022-05-26.vcf.gz | bcftools view -e 'GT="ref" | GT="0|." | GT=".|0" | GT=".|." | GT="." | GT="0/." | GT="./0" | GT="./."' -Oz -o sample/16-fruitfly-mc-2022-05-26.A6.vcf.gz
+        
+
+[Mon Oct 31 21:09:07 2022]
+rule extract_sample:
+    input: pangenomes/16-fruitfly-mc-2022-05-26.vcf.gz
+    output: sample/16-fruitfly-mc-2022-05-26.AB8.vcf.gz
+    jobid: 57
+    reason: Missing output files: sample/16-fruitfly-mc-2022-05-26.AB8.vcf.gz
+    wildcards: graph=16-fruitfly-mc-2022-05-26, sample=AB8
+    threads: 2
+    resources: tmpdir=/tmp
+
+
+        bcftools view -a -I -s AB8 -Ou pangenomes/16-fruitfly-mc-2022-05-26.vcf.gz | bcftools view -e 'GT="ref" | GT="0|." | GT=".|0" | GT=".|." | GT="." | GT="0/." | GT="./0" | GT="./."' -Oz -o sample/16-fruitfly-mc-2022-05-26.AB8.vcf.gz
+        
+
+[Mon Oct 31 21:09:07 2022]
+rule extract_sample:
+    input: pangenomes/16-fruitfly-mc-2022-05-26.vcf.gz
+    output: sample/16-fruitfly-mc-2022-05-26.B2.vcf.gz
+    jobid: 71
+    reason: Missing output files: sample/16-fruitfly-mc-2022-05-26.B2.vcf.gz
+    wildcards: graph=16-fruitfly-mc-2022-05-26, sample=B2
+    threads: 2
+    resources: tmpdir=/tmp
+
+
+        bcftools view -a -I -s B2 -Ou pangenomes/16-fruitfly-mc-2022-05-26.vcf.gz | bcftools view -e 'GT="ref" | GT="0|." | GT=".|0" | GT=".|." | GT="." | GT="0/." | GT="./0" | GT="./."' -Oz -o sample/16-fruitfly-mc-2022-05-26.B2.vcf.gz
+        
+
+[Mon Oct 31 21:09:07 2022]
+rule extract_sample:
+    input: pangenomes/16-fruitfly-mc-2022-05-26.vcf.gz
+    output: sample/16-fruitfly-mc-2022-05-26.B4.vcf.gz
+    jobid: 85
+    reason: Missing output files: sample/16-fruitfly-mc-2022-05-26.B4.vcf.gz
+    wildcards: graph=16-fruitfly-mc-2022-05-26, sample=B4
+    threads: 2
+    resources: tmpdir=/tmp
+
+
+        bcftools view -a -I -s B4 -Ou pangenomes/16-fruitfly-mc-2022-05-26.vcf.gz | bcftools view -e 'GT="ref" | GT="0|." | GT=".|0" | GT=".|." | GT="." | GT="0/." | GT="./0" | GT="./."' -Oz -o sample/16-fruitfly-mc-2022-05-26.B4.vcf.gz
+        
+
+[Mon Oct 31 21:09:07 2022]
+rule extract_sample:
+    input: pangenomes/16-fruitfly-mc-2022-05-26.vcf.gz
+    output: sample/16-fruitfly-mc-2022-05-26.A3.vcf.gz
+    jobid: 22
+    reason: Missing output files: sample/16-fruitfly-mc-2022-05-26.A3.vcf.gz
+    wildcards: graph=16-fruitfly-mc-2022-05-26, sample=A3
+    threads: 2
+    resources: tmpdir=/tmp
+
+
+        bcftools view -a -I -s A3 -Ou pangenomes/16-fruitfly-mc-2022-05-26.vcf.gz | bcftools view -e 'GT="ref" | GT="0|." | GT=".|0" | GT=".|." | GT="." | GT="0/." | GT="./0" | GT="./."' -Oz -o sample/16-fruitfly-mc-2022-05-26.A3.vcf.gz
+        
+
+[Mon Oct 31 21:09:07 2022]
+rule extract_sample:
+    input: pangenomes/16-fruitfly-mc-2022-05-26.vcf.gz
+    output: sample/16-fruitfly-mc-2022-05-26.A5.vcf.gz
+    jobid: 36
+    reason: Missing output files: sample/16-fruitfly-mc-2022-05-26.A5.vcf.gz
+    wildcards: graph=16-fruitfly-mc-2022-05-26, sample=A5
+    threads: 2
+    resources: tmpdir=/tmp
+
+
+        bcftools view -a -I -s A5 -Ou pangenomes/16-fruitfly-mc-2022-05-26.vcf.gz | bcftools view -e 'GT="ref" | GT="0|." | GT=".|0" | GT=".|." | GT="." | GT="0/." | GT="./0" | GT="./."' -Oz -o sample/16-fruitfly-mc-2022-05-26.A5.vcf.gz
+        
+
+[Mon Oct 31 21:09:07 2022]
+rule extract_sample:
+    input: pangenomes/16-fruitfly-mc-2022-05-26.vcf.gz
+    output: sample/16-fruitfly-mc-2022-05-26.A7.vcf.gz
+    jobid: 50
+    reason: Missing output files: sample/16-fruitfly-mc-2022-05-26.A7.vcf.gz
+    wildcards: graph=16-fruitfly-mc-2022-05-26, sample=A7
+    threads: 2
+    resources: tmpdir=/tmp
+
+
+        bcftools view -a -I -s A7 -Ou pangenomes/16-fruitfly-mc-2022-05-26.vcf.gz | bcftools view -e 'GT="ref" | GT="0|." | GT=".|0" | GT=".|." | GT="." | GT="0/." | GT="./0" | GT="./."' -Oz -o sample/16-fruitfly-mc-2022-05-26.A7.vcf.gz
+        
+
+[Mon Oct 31 21:09:07 2022]
+rule extract_sample:
+    input: pangenomes/16-fruitfly-mc-2022-05-26.vcf.gz
+    output: sample/16-fruitfly-mc-2022-05-26.B7.vcf.gz
+    jobid: 99
+    reason: Missing output files: sample/16-fruitfly-mc-2022-05-26.B7.vcf.gz
+    wildcards: graph=16-fruitfly-mc-2022-05-26, sample=B7
+    threads: 2
+    resources: tmpdir=/tmp
+
+
+        bcftools view -a -I -s B7 -Ou pangenomes/16-fruitfly-mc-2022-05-26.vcf.gz | bcftools view -e 'GT="ref" | GT="0|." | GT=".|0" | GT=".|." | GT="." | GT="0/." | GT="./0" | GT="./."' -Oz -o sample/16-fruitfly-mc-2022-05-26.B7.vcf.gz
+        
+
+[Mon Oct 31 21:09:07 2022]
+rule extract_sample:
+    input: pangenomes/16-fruitfly-mc-2022-05-26.vcf.gz
+    output: sample/16-fruitfly-mc-2022-05-26.A2.vcf.gz
+    jobid: 15
+    reason: Missing output files: sample/16-fruitfly-mc-2022-05-26.A2.vcf.gz
+    wildcards: graph=16-fruitfly-mc-2022-05-26, sample=A2
+    threads: 2
+    resources: tmpdir=/tmp
+
+
+        bcftools view -a -I -s A2 -Ou pangenomes/16-fruitfly-mc-2022-05-26.vcf.gz | bcftools view -e 'GT="ref" | GT="0|." | GT=".|0" | GT=".|." | GT="." | GT="0/." | GT="./0" | GT="./."' -Oz -o sample/16-fruitfly-mc-2022-05-26.A2.vcf.gz
+        
+
+[Mon Oct 31 21:09:07 2022]
+rule extract_sample:
+    input: pangenomes/16-fruitfly-mc-2022-05-26.vcf.gz
+    output: sample/16-fruitfly-mc-2022-05-26.A4.vcf.gz
+    jobid: 29
+    reason: Missing output files: sample/16-fruitfly-mc-2022-05-26.A4.vcf.gz
+    wildcards: graph=16-fruitfly-mc-2022-05-26, sample=A4
+    threads: 2
+    resources: tmpdir=/tmp
+
+
+        bcftools view -a -I -s A4 -Ou pangenomes/16-fruitfly-mc-2022-05-26.vcf.gz | bcftools view -e 'GT="ref" | GT="0|." | GT=".|0" | GT=".|." | GT="." | GT="0/." | GT="./0" | GT="./."' -Oz -o sample/16-fruitfly-mc-2022-05-26.A4.vcf.gz
+        
+
+[Mon Oct 31 21:09:07 2022]
+rule drop_inconsistent_sites:
+    input: sample/16-fruitfly-mc-2022-05-26.B1.vcf.gz, scripts/drop_inconsistent_sites.py
+    output: consistent/16-fruitfly-mc-2022-05-26.B1.vcf.gz
+    jobid: 63
+    reason: Missing output files: consistent/16-fruitfly-mc-2022-05-26.B1.vcf.gz; Input files updated by another job: sample/16-fruitfly-mc-2022-05-26.B1.vcf.gz
+    wildcards: graph=16-fruitfly-mc-2022-05-26, sample=B1
+    resources: tmpdir=/tmp
+
+python3 scripts/drop_inconsistent_sites.py sample/16-fruitfly-mc-2022-05-26.B1.vcf.gz consistent/16-fruitfly-mc-2022-05-26.B1.vcf.gz consistent/16-fruitfly-mc-2022-05-26.B1.inconsistent.vcf.gz
+
+[Mon Oct 31 21:09:07 2022]
+rule drop_inconsistent_sites:
+    input: sample/16-fruitfly-mc-2022-05-26.A6.vcf.gz, scripts/drop_inconsistent_sites.py
+    output: consistent/16-fruitfly-mc-2022-05-26.A6.vcf.gz
+    jobid: 42
+    reason: Missing output files: consistent/16-fruitfly-mc-2022-05-26.A6.vcf.gz; Input files updated by another job: sample/16-fruitfly-mc-2022-05-26.A6.vcf.gz
+    wildcards: graph=16-fruitfly-mc-2022-05-26, sample=A6
+    resources: tmpdir=/tmp
+
+python3 scripts/drop_inconsistent_sites.py sample/16-fruitfly-mc-2022-05-26.A6.vcf.gz consistent/16-fruitfly-mc-2022-05-26.A6.vcf.gz consistent/16-fruitfly-mc-2022-05-26.A6.inconsistent.vcf.gz
+
+[Mon Oct 31 21:09:07 2022]
+rule drop_inconsistent_sites:
+    input: sample/16-fruitfly-mc-2022-05-26.B7.vcf.gz, scripts/drop_inconsistent_sites.py
+    output: consistent/16-fruitfly-mc-2022-05-26.B7.vcf.gz
+    jobid: 98
+    reason: Missing output files: consistent/16-fruitfly-mc-2022-05-26.B7.vcf.gz; Input files updated by another job: sample/16-fruitfly-mc-2022-05-26.B7.vcf.gz
+    wildcards: graph=16-fruitfly-mc-2022-05-26, sample=B7
+    resources: tmpdir=/tmp
+
+python3 scripts/drop_inconsistent_sites.py sample/16-fruitfly-mc-2022-05-26.B7.vcf.gz consistent/16-fruitfly-mc-2022-05-26.B7.vcf.gz consistent/16-fruitfly-mc-2022-05-26.B7.inconsistent.vcf.gz
+
+[Mon Oct 31 21:09:07 2022]
+rule drop_inconsistent_sites:
+    input: sample/16-fruitfly-mc-2022-05-26.AB8.vcf.gz, scripts/drop_inconsistent_sites.py
+    output: consistent/16-fruitfly-mc-2022-05-26.AB8.vcf.gz
+    jobid: 56
+    reason: Missing output files: consistent/16-fruitfly-mc-2022-05-26.AB8.vcf.gz; Input files updated by another job: sample/16-fruitfly-mc-2022-05-26.AB8.vcf.gz
+    wildcards: graph=16-fruitfly-mc-2022-05-26, sample=AB8
+    resources: tmpdir=/tmp
+
+python3 scripts/drop_inconsistent_sites.py sample/16-fruitfly-mc-2022-05-26.AB8.vcf.gz consistent/16-fruitfly-mc-2022-05-26.AB8.vcf.gz consistent/16-fruitfly-mc-2022-05-26.AB8.inconsistent.vcf.gz
+
+[Mon Oct 31 21:09:07 2022]
+rule drop_inconsistent_sites:
+    input: sample/16-fruitfly-mc-2022-05-26.A2.vcf.gz, scripts/drop_inconsistent_sites.py
+    output: consistent/16-fruitfly-mc-2022-05-26.A2.vcf.gz
+    jobid: 14
+    reason: Missing output files: consistent/16-fruitfly-mc-2022-05-26.A2.vcf.gz; Input files updated by another job: sample/16-fruitfly-mc-2022-05-26.A2.vcf.gz
+    wildcards: graph=16-fruitfly-mc-2022-05-26, sample=A2
+    resources: tmpdir=/tmp
+
+python3 scripts/drop_inconsistent_sites.py sample/16-fruitfly-mc-2022-05-26.A2.vcf.gz consistent/16-fruitfly-mc-2022-05-26.A2.vcf.gz consistent/16-fruitfly-mc-2022-05-26.A2.inconsistent.vcf.gz
+
+[Mon Oct 31 21:09:07 2022]
+rule drop_inconsistent_sites:
+    input: sample/16-fruitfly-mc-2022-05-26.B2.vcf.gz, scripts/drop_inconsistent_sites.py
+    output: consistent/16-fruitfly-mc-2022-05-26.B2.vcf.gz
+    jobid: 70
+    reason: Missing output files: consistent/16-fruitfly-mc-2022-05-26.B2.vcf.gz; Input files updated by another job: sample/16-fruitfly-mc-2022-05-26.B2.vcf.gz
+    wildcards: graph=16-fruitfly-mc-2022-05-26, sample=B2
+    resources: tmpdir=/tmp
+
+python3 scripts/drop_inconsistent_sites.py sample/16-fruitfly-mc-2022-05-26.B2.vcf.gz consistent/16-fruitfly-mc-2022-05-26.B2.vcf.gz consistent/16-fruitfly-mc-2022-05-26.B2.inconsistent.vcf.gz
+
+[Mon Oct 31 21:09:07 2022]
+rule drop_inconsistent_sites:
+    input: sample/16-fruitfly-mc-2022-05-26.A1.vcf.gz, scripts/drop_inconsistent_sites.py
+    output: consistent/16-fruitfly-mc-2022-05-26.A1.vcf.gz
+    jobid: 6
+    reason: Missing output files: consistent/16-fruitfly-mc-2022-05-26.A1.vcf.gz; Input files updated by another job: sample/16-fruitfly-mc-2022-05-26.A1.vcf.gz
+    wildcards: graph=16-fruitfly-mc-2022-05-26, sample=A1
+    resources: tmpdir=/tmp
+
+python3 scripts/drop_inconsistent_sites.py sample/16-fruitfly-mc-2022-05-26.A1.vcf.gz consistent/16-fruitfly-mc-2022-05-26.A1.vcf.gz consistent/16-fruitfly-mc-2022-05-26.A1.inconsistent.vcf.gz
+
+[Mon Oct 31 21:09:07 2022]
+rule drop_inconsistent_sites:
+    input: sample/16-fruitfly-mc-2022-05-26.A4.vcf.gz, scripts/drop_inconsistent_sites.py
+    output: consistent/16-fruitfly-mc-2022-05-26.A4.vcf.gz
+    jobid: 28
+    reason: Missing output files: consistent/16-fruitfly-mc-2022-05-26.A4.vcf.gz; Input files updated by another job: sample/16-fruitfly-mc-2022-05-26.A4.vcf.gz
+    wildcards: graph=16-fruitfly-mc-2022-05-26, sample=A4
+    resources: tmpdir=/tmp
+
+python3 scripts/drop_inconsistent_sites.py sample/16-fruitfly-mc-2022-05-26.A4.vcf.gz consistent/16-fruitfly-mc-2022-05-26.A4.vcf.gz consistent/16-fruitfly-mc-2022-05-26.A4.inconsistent.vcf.gz
+
+[Mon Oct 31 21:09:07 2022]
+rule drop_inconsistent_sites:
+    input: sample/16-fruitfly-mc-2022-05-26.B4.vcf.gz, scripts/drop_inconsistent_sites.py
+    output: consistent/16-fruitfly-mc-2022-05-26.B4.vcf.gz
+    jobid: 84
+    reason: Missing output files: consistent/16-fruitfly-mc-2022-05-26.B4.vcf.gz; Input files updated by another job: sample/16-fruitfly-mc-2022-05-26.B4.vcf.gz
+    wildcards: graph=16-fruitfly-mc-2022-05-26, sample=B4
+    resources: tmpdir=/tmp
+
+python3 scripts/drop_inconsistent_sites.py sample/16-fruitfly-mc-2022-05-26.B4.vcf.gz consistent/16-fruitfly-mc-2022-05-26.B4.vcf.gz consistent/16-fruitfly-mc-2022-05-26.B4.inconsistent.vcf.gz
+
+[Mon Oct 31 21:09:07 2022]
+rule drop_inconsistent_sites:
+    input: sample/16-fruitfly-mc-2022-05-26.A3.vcf.gz, scripts/drop_inconsistent_sites.py
+    output: consistent/16-fruitfly-mc-2022-05-26.A3.vcf.gz
+    jobid: 21
+    reason: Missing output files: consistent/16-fruitfly-mc-2022-05-26.A3.vcf.gz; Input files updated by another job: sample/16-fruitfly-mc-2022-05-26.A3.vcf.gz
+    wildcards: graph=16-fruitfly-mc-2022-05-26, sample=A3
+    resources: tmpdir=/tmp
+
+python3 scripts/drop_inconsistent_sites.py sample/16-fruitfly-mc-2022-05-26.A3.vcf.gz consistent/16-fruitfly-mc-2022-05-26.A3.vcf.gz consistent/16-fruitfly-mc-2022-05-26.A3.inconsistent.vcf.gz
+
+[Mon Oct 31 21:09:07 2022]
+rule drop_inconsistent_sites:
+    input: sample/16-fruitfly-mc-2022-05-26.B3.vcf.gz, scripts/drop_inconsistent_sites.py
+    output: consistent/16-fruitfly-mc-2022-05-26.B3.vcf.gz
+    jobid: 77
+    reason: Missing output files: consistent/16-fruitfly-mc-2022-05-26.B3.vcf.gz; Input files updated by another job: sample/16-fruitfly-mc-2022-05-26.B3.vcf.gz
+    wildcards: graph=16-fruitfly-mc-2022-05-26, sample=B3
+    resources: tmpdir=/tmp
+
+python3 scripts/drop_inconsistent_sites.py sample/16-fruitfly-mc-2022-05-26.B3.vcf.gz consistent/16-fruitfly-mc-2022-05-26.B3.vcf.gz consistent/16-fruitfly-mc-2022-05-26.B3.inconsistent.vcf.gz
+
+[Mon Oct 31 21:09:07 2022]
+rule drop_inconsistent_sites:
+    input: sample/16-fruitfly-mc-2022-05-26.A5.vcf.gz, scripts/drop_inconsistent_sites.py
+    output: consistent/16-fruitfly-mc-2022-05-26.A5.vcf.gz
+    jobid: 35
+    reason: Missing output files: consistent/16-fruitfly-mc-2022-05-26.A5.vcf.gz; Input files updated by another job: sample/16-fruitfly-mc-2022-05-26.A5.vcf.gz
+    wildcards: graph=16-fruitfly-mc-2022-05-26, sample=A5
+    resources: tmpdir=/tmp
+
+python3 scripts/drop_inconsistent_sites.py sample/16-fruitfly-mc-2022-05-26.A5.vcf.gz consistent/16-fruitfly-mc-2022-05-26.A5.vcf.gz consistent/16-fruitfly-mc-2022-05-26.A5.inconsistent.vcf.gz
+
+[Mon Oct 31 21:09:07 2022]
+rule drop_inconsistent_sites:
+    input: sample/16-fruitfly-mc-2022-05-26.B6.vcf.gz, scripts/drop_inconsistent_sites.py
+    output: consistent/16-fruitfly-mc-2022-05-26.B6.vcf.gz
+    jobid: 91
+    reason: Missing output files: consistent/16-fruitfly-mc-2022-05-26.B6.vcf.gz; Input files updated by another job: sample/16-fruitfly-mc-2022-05-26.B6.vcf.gz
+    wildcards: graph=16-fruitfly-mc-2022-05-26, sample=B6
+    resources: tmpdir=/tmp
+
+python3 scripts/drop_inconsistent_sites.py sample/16-fruitfly-mc-2022-05-26.B6.vcf.gz consistent/16-fruitfly-mc-2022-05-26.B6.vcf.gz consistent/16-fruitfly-mc-2022-05-26.B6.inconsistent.vcf.gz
+
+[Mon Oct 31 21:09:07 2022]
+rule drop_inconsistent_sites:
+    input: sample/16-fruitfly-mc-2022-05-26.A7.vcf.gz, scripts/drop_inconsistent_sites.py
+    output: consistent/16-fruitfly-mc-2022-05-26.A7.vcf.gz
+    jobid: 49
+    reason: Missing output files: consistent/16-fruitfly-mc-2022-05-26.A7.vcf.gz; Input files updated by another job: sample/16-fruitfly-mc-2022-05-26.A7.vcf.gz
+    wildcards: graph=16-fruitfly-mc-2022-05-26, sample=A7
+    resources: tmpdir=/tmp
+
+python3 scripts/drop_inconsistent_sites.py sample/16-fruitfly-mc-2022-05-26.A7.vcf.gz consistent/16-fruitfly-mc-2022-05-26.A7.vcf.gz consistent/16-fruitfly-mc-2022-05-26.A7.inconsistent.vcf.gz
+
+[Mon Oct 31 21:09:07 2022]
+rule drop_inconsistent_sites:
+    input: sample/16-fruitfly-mc-2022-05-26.OreR.vcf.gz, scripts/drop_inconsistent_sites.py
+    output: consistent/16-fruitfly-mc-2022-05-26.OreR.vcf.gz
+    jobid: 105
+    reason: Missing output files: consistent/16-fruitfly-mc-2022-05-26.OreR.vcf.gz; Input files updated by another job: sample/16-fruitfly-mc-2022-05-26.OreR.vcf.gz
+    wildcards: graph=16-fruitfly-mc-2022-05-26, sample=OreR
+    resources: tmpdir=/tmp
+
+python3 scripts/drop_inconsistent_sites.py sample/16-fruitfly-mc-2022-05-26.OreR.vcf.gz consistent/16-fruitfly-mc-2022-05-26.OreR.vcf.gz consistent/16-fruitfly-mc-2022-05-26.OreR.inconsistent.vcf.gz
+
+[Mon Oct 31 21:09:07 2022]
+rule split_multialts:
+    input: consistent/16-fruitfly-mc-2022-05-26.A6.vcf.gz
+    output: biallelic/16-fruitfly-mc-2022-05-26.A6.vcf.gz
+    jobid: 41
+    reason: Missing output files: biallelic/16-fruitfly-mc-2022-05-26.A6.vcf.gz; Input files updated by another job: consistent/16-fruitfly-mc-2022-05-26.A6.vcf.gz
+    wildcards: graph=16-fruitfly-mc-2022-05-26, sample=A6
+    threads: 2
+    resources: tmpdir=/tmp
+
+bcftools norm --threads 2 -m -any -Oz -o biallelic/16-fruitfly-mc-2022-05-26.A6.vcf.gz consistent/16-fruitfly-mc-2022-05-26.A6.vcf.gz
+
+[Mon Oct 31 21:09:07 2022]
+rule split_multialts:
+    input: consistent/16-fruitfly-mc-2022-05-26.A3.vcf.gz
+    output: biallelic/16-fruitfly-mc-2022-05-26.A3.vcf.gz
+    jobid: 20
+    reason: Missing output files: biallelic/16-fruitfly-mc-2022-05-26.A3.vcf.gz; Input files updated by another job: consistent/16-fruitfly-mc-2022-05-26.A3.vcf.gz
+    wildcards: graph=16-fruitfly-mc-2022-05-26, sample=A3
+    threads: 2
+    resources: tmpdir=/tmp
+
+bcftools norm --threads 2 -m -any -Oz -o biallelic/16-fruitfly-mc-2022-05-26.A3.vcf.gz consistent/16-fruitfly-mc-2022-05-26.A3.vcf.gz
+
+[Mon Oct 31 21:09:07 2022]
+rule split_multialts:
+    input: consistent/16-fruitfly-mc-2022-05-26.A4.vcf.gz
+    output: biallelic/16-fruitfly-mc-2022-05-26.A4.vcf.gz
+    jobid: 27
+    reason: Missing output files: biallelic/16-fruitfly-mc-2022-05-26.A4.vcf.gz; Input files updated by another job: consistent/16-fruitfly-mc-2022-05-26.A4.vcf.gz
+    wildcards: graph=16-fruitfly-mc-2022-05-26, sample=A4
+    threads: 2
+    resources: tmpdir=/tmp
+
+bcftools norm --threads 2 -m -any -Oz -o biallelic/16-fruitfly-mc-2022-05-26.A4.vcf.gz consistent/16-fruitfly-mc-2022-05-26.A4.vcf.gz
+
+[Mon Oct 31 21:09:07 2022]
+rule split_multialts:
+    input: consistent/16-fruitfly-mc-2022-05-26.B3.vcf.gz
+    output: biallelic/16-fruitfly-mc-2022-05-26.B3.vcf.gz
+    jobid: 76
+    reason: Missing output files: biallelic/16-fruitfly-mc-2022-05-26.B3.vcf.gz; Input files updated by another job: consistent/16-fruitfly-mc-2022-05-26.B3.vcf.gz
+    wildcards: graph=16-fruitfly-mc-2022-05-26, sample=B3
+    threads: 2
+    resources: tmpdir=/tmp
+
+bcftools norm --threads 2 -m -any -Oz -o biallelic/16-fruitfly-mc-2022-05-26.B3.vcf.gz consistent/16-fruitfly-mc-2022-05-26.B3.vcf.gz
+
+[Mon Oct 31 21:09:07 2022]
+rule split_multialts:
+    input: consistent/16-fruitfly-mc-2022-05-26.A5.vcf.gz
+    output: biallelic/16-fruitfly-mc-2022-05-26.A5.vcf.gz
+    jobid: 34
+    reason: Missing output files: biallelic/16-fruitfly-mc-2022-05-26.A5.vcf.gz; Input files updated by another job: consistent/16-fruitfly-mc-2022-05-26.A5.vcf.gz
+    wildcards: graph=16-fruitfly-mc-2022-05-26, sample=A5
+    threads: 2
+    resources: tmpdir=/tmp
+
+bcftools norm --threads 2 -m -any -Oz -o biallelic/16-fruitfly-mc-2022-05-26.A5.vcf.gz consistent/16-fruitfly-mc-2022-05-26.A5.vcf.gz
+
+[Mon Oct 31 21:09:07 2022]
+rule split_multialts:
+    input: consistent/16-fruitfly-mc-2022-05-26.B6.vcf.gz
+    output: biallelic/16-fruitfly-mc-2022-05-26.B6.vcf.gz
+    jobid: 90
+    reason: Missing output files: biallelic/16-fruitfly-mc-2022-05-26.B6.vcf.gz; Input files updated by another job: consistent/16-fruitfly-mc-2022-05-26.B6.vcf.gz
+    wildcards: graph=16-fruitfly-mc-2022-05-26, sample=B6
+    threads: 2
+    resources: tmpdir=/tmp
+
+bcftools norm --threads 2 -m -any -Oz -o biallelic/16-fruitfly-mc-2022-05-26.B6.vcf.gz consistent/16-fruitfly-mc-2022-05-26.B6.vcf.gz
+
+[Mon Oct 31 21:09:07 2022]
+rule split_multialts:
+    input: consistent/16-fruitfly-mc-2022-05-26.A7.vcf.gz
+    output: biallelic/16-fruitfly-mc-2022-05-26.A7.vcf.gz
+    jobid: 48
+    reason: Missing output files: biallelic/16-fruitfly-mc-2022-05-26.A7.vcf.gz; Input files updated by another job: consistent/16-fruitfly-mc-2022-05-26.A7.vcf.gz
+    wildcards: graph=16-fruitfly-mc-2022-05-26, sample=A7
+    threads: 2
+    resources: tmpdir=/tmp
+
+bcftools norm --threads 2 -m -any -Oz -o biallelic/16-fruitfly-mc-2022-05-26.A7.vcf.gz consistent/16-fruitfly-mc-2022-05-26.A7.vcf.gz
+
+[Mon Oct 31 21:09:07 2022]
+rule split_multialts:
+    input: consistent/16-fruitfly-mc-2022-05-26.OreR.vcf.gz
+    output: biallelic/16-fruitfly-mc-2022-05-26.OreR.vcf.gz
+    jobid: 104
+    reason: Missing output files: biallelic/16-fruitfly-mc-2022-05-26.OreR.vcf.gz; Input files updated by another job: consistent/16-fruitfly-mc-2022-05-26.OreR.vcf.gz
+    wildcards: graph=16-fruitfly-mc-2022-05-26, sample=OreR
+    threads: 2
+    resources: tmpdir=/tmp
+
+bcftools norm --threads 2 -m -any -Oz -o biallelic/16-fruitfly-mc-2022-05-26.OreR.vcf.gz consistent/16-fruitfly-mc-2022-05-26.OreR.vcf.gz
+
+[Mon Oct 31 21:09:07 2022]
+rule split_multialts:
+    input: consistent/16-fruitfly-mc-2022-05-26.B1.vcf.gz
+    output: biallelic/16-fruitfly-mc-2022-05-26.B1.vcf.gz
+    jobid: 62
+    reason: Missing output files: biallelic/16-fruitfly-mc-2022-05-26.B1.vcf.gz; Input files updated by another job: consistent/16-fruitfly-mc-2022-05-26.B1.vcf.gz
+    wildcards: graph=16-fruitfly-mc-2022-05-26, sample=B1
+    threads: 2
+    resources: tmpdir=/tmp
+
+bcftools norm --threads 2 -m -any -Oz -o biallelic/16-fruitfly-mc-2022-05-26.B1.vcf.gz consistent/16-fruitfly-mc-2022-05-26.B1.vcf.gz
+
+[Mon Oct 31 21:09:07 2022]
+rule split_multialts:
+    input: consistent/16-fruitfly-mc-2022-05-26.B7.vcf.gz
+    output: biallelic/16-fruitfly-mc-2022-05-26.B7.vcf.gz
+    jobid: 97
+    reason: Missing output files: biallelic/16-fruitfly-mc-2022-05-26.B7.vcf.gz; Input files updated by another job: consistent/16-fruitfly-mc-2022-05-26.B7.vcf.gz
+    wildcards: graph=16-fruitfly-mc-2022-05-26, sample=B7
+    threads: 2
+    resources: tmpdir=/tmp
+
+bcftools norm --threads 2 -m -any -Oz -o biallelic/16-fruitfly-mc-2022-05-26.B7.vcf.gz consistent/16-fruitfly-mc-2022-05-26.B7.vcf.gz
+
+[Mon Oct 31 21:09:07 2022]
+rule split_multialts:
+    input: consistent/16-fruitfly-mc-2022-05-26.AB8.vcf.gz
+    output: biallelic/16-fruitfly-mc-2022-05-26.AB8.vcf.gz
+    jobid: 55
+    reason: Missing output files: biallelic/16-fruitfly-mc-2022-05-26.AB8.vcf.gz; Input files updated by another job: consistent/16-fruitfly-mc-2022-05-26.AB8.vcf.gz
+    wildcards: graph=16-fruitfly-mc-2022-05-26, sample=AB8
+    threads: 2
+    resources: tmpdir=/tmp
+
+bcftools norm --threads 2 -m -any -Oz -o biallelic/16-fruitfly-mc-2022-05-26.AB8.vcf.gz consistent/16-fruitfly-mc-2022-05-26.AB8.vcf.gz
+
+[Mon Oct 31 21:09:07 2022]
+rule split_multialts:
+    input: consistent/16-fruitfly-mc-2022-05-26.A2.vcf.gz
+    output: biallelic/16-fruitfly-mc-2022-05-26.A2.vcf.gz
+    jobid: 13
+    reason: Missing output files: biallelic/16-fruitfly-mc-2022-05-26.A2.vcf.gz; Input files updated by another job: consistent/16-fruitfly-mc-2022-05-26.A2.vcf.gz
+    wildcards: graph=16-fruitfly-mc-2022-05-26, sample=A2
+    threads: 2
+    resources: tmpdir=/tmp
+
+bcftools norm --threads 2 -m -any -Oz -o biallelic/16-fruitfly-mc-2022-05-26.A2.vcf.gz consistent/16-fruitfly-mc-2022-05-26.A2.vcf.gz
+
+[Mon Oct 31 21:09:07 2022]
+rule split_multialts:
+    input: consistent/16-fruitfly-mc-2022-05-26.B2.vcf.gz
+    output: biallelic/16-fruitfly-mc-2022-05-26.B2.vcf.gz
+    jobid: 69
+    reason: Missing output files: biallelic/16-fruitfly-mc-2022-05-26.B2.vcf.gz; Input files updated by another job: consistent/16-fruitfly-mc-2022-05-26.B2.vcf.gz
+    wildcards: graph=16-fruitfly-mc-2022-05-26, sample=B2
+    threads: 2
+    resources: tmpdir=/tmp
+
+bcftools norm --threads 2 -m -any -Oz -o biallelic/16-fruitfly-mc-2022-05-26.B2.vcf.gz consistent/16-fruitfly-mc-2022-05-26.B2.vcf.gz
+
+[Mon Oct 31 21:09:07 2022]
+rule split_multialts:
+    input: consistent/16-fruitfly-mc-2022-05-26.A1.vcf.gz
+    output: biallelic/16-fruitfly-mc-2022-05-26.A1.vcf.gz
+    jobid: 5
+    reason: Missing output files: biallelic/16-fruitfly-mc-2022-05-26.A1.vcf.gz; Input files updated by another job: consistent/16-fruitfly-mc-2022-05-26.A1.vcf.gz
+    wildcards: graph=16-fruitfly-mc-2022-05-26, sample=A1
+    threads: 2
+    resources: tmpdir=/tmp
+
+bcftools norm --threads 2 -m -any -Oz -o biallelic/16-fruitfly-mc-2022-05-26.A1.vcf.gz consistent/16-fruitfly-mc-2022-05-26.A1.vcf.gz
+
+[Mon Oct 31 21:09:07 2022]
+rule split_multialts:
+    input: consistent/16-fruitfly-mc-2022-05-26.B4.vcf.gz
+    output: biallelic/16-fruitfly-mc-2022-05-26.B4.vcf.gz
+    jobid: 83
+    reason: Missing output files: biallelic/16-fruitfly-mc-2022-05-26.B4.vcf.gz; Input files updated by another job: consistent/16-fruitfly-mc-2022-05-26.B4.vcf.gz
+    wildcards: graph=16-fruitfly-mc-2022-05-26, sample=B4
+    threads: 2
+    resources: tmpdir=/tmp
+
+bcftools norm --threads 2 -m -any -Oz -o biallelic/16-fruitfly-mc-2022-05-26.B4.vcf.gz consistent/16-fruitfly-mc-2022-05-26.B4.vcf.gz
+
+[Mon Oct 31 21:09:07 2022]
+rule decompose_variants:
+    input: biallelic/16-fruitfly-mc-2022-05-26.A3.vcf.gz, pangenomes/16-fruitfly-mc-2022-05-26.pg, scripts/decompose_graph_variants.py
+    output: decomposed/16-fruitfly-mc-2022-05-26.A3.vcf.gz
+    jobid: 19
+    reason: Missing output files: decomposed/16-fruitfly-mc-2022-05-26.A3.vcf.gz; Input files updated by another job: pangenomes/16-fruitfly-mc-2022-05-26.pg, biallelic/16-fruitfly-mc-2022-05-26.A3.vcf.gz
+    wildcards: graph=16-fruitfly-mc-2022-05-26, sample=A3
+    resources: tmpdir=/tmp
+
+python3 scripts/decompose_graph_variants.py -o decomposed/16-fruitfly-mc-2022-05-26.A3.vcf.gz pangenomes/16-fruitfly-mc-2022-05-26.pg biallelic/16-fruitfly-mc-2022-05-26.A3.vcf.gz
+
+[Mon Oct 31 21:09:07 2022]
+rule decompose_variants:
+    input: biallelic/16-fruitfly-mc-2022-05-26.B7.vcf.gz, pangenomes/16-fruitfly-mc-2022-05-26.pg, scripts/decompose_graph_variants.py
+    output: decomposed/16-fruitfly-mc-2022-05-26.B7.vcf.gz
+    jobid: 96
+    reason: Missing output files: decomposed/16-fruitfly-mc-2022-05-26.B7.vcf.gz; Input files updated by another job: pangenomes/16-fruitfly-mc-2022-05-26.pg, biallelic/16-fruitfly-mc-2022-05-26.B7.vcf.gz
+    wildcards: graph=16-fruitfly-mc-2022-05-26, sample=B7
+    resources: tmpdir=/tmp
+
+python3 scripts/decompose_graph_variants.py -o decomposed/16-fruitfly-mc-2022-05-26.B7.vcf.gz pangenomes/16-fruitfly-mc-2022-05-26.pg biallelic/16-fruitfly-mc-2022-05-26.B7.vcf.gz
+
+[Mon Oct 31 21:09:07 2022]
+rule decompose_variants:
+    input: biallelic/16-fruitfly-mc-2022-05-26.AB8.vcf.gz, pangenomes/16-fruitfly-mc-2022-05-26.pg, scripts/decompose_graph_variants.py
+    output: decomposed/16-fruitfly-mc-2022-05-26.AB8.vcf.gz
+    jobid: 54
+    reason: Missing output files: decomposed/16-fruitfly-mc-2022-05-26.AB8.vcf.gz; Input files updated by another job: pangenomes/16-fruitfly-mc-2022-05-26.pg, biallelic/16-fruitfly-mc-2022-05-26.AB8.vcf.gz
+    wildcards: graph=16-fruitfly-mc-2022-05-26, sample=AB8
+    resources: tmpdir=/tmp
+
+python3 scripts/decompose_graph_variants.py -o decomposed/16-fruitfly-mc-2022-05-26.AB8.vcf.gz pangenomes/16-fruitfly-mc-2022-05-26.pg biallelic/16-fruitfly-mc-2022-05-26.AB8.vcf.gz
+
+[Mon Oct 31 21:09:07 2022]
+rule decompose_variants:
+    input: biallelic/16-fruitfly-mc-2022-05-26.A2.vcf.gz, pangenomes/16-fruitfly-mc-2022-05-26.pg, scripts/decompose_graph_variants.py
+    output: decomposed/16-fruitfly-mc-2022-05-26.A2.vcf.gz
+    jobid: 12
+    reason: Missing output files: decomposed/16-fruitfly-mc-2022-05-26.A2.vcf.gz; Input files updated by another job: pangenomes/16-fruitfly-mc-2022-05-26.pg, biallelic/16-fruitfly-mc-2022-05-26.A2.vcf.gz
+    wildcards: graph=16-fruitfly-mc-2022-05-26, sample=A2
+    resources: tmpdir=/tmp
+
+python3 scripts/decompose_graph_variants.py -o decomposed/16-fruitfly-mc-2022-05-26.A2.vcf.gz pangenomes/16-fruitfly-mc-2022-05-26.pg biallelic/16-fruitfly-mc-2022-05-26.A2.vcf.gz
+
+[Mon Oct 31 21:09:07 2022]
+rule decompose_variants:
+    input: biallelic/16-fruitfly-mc-2022-05-26.B2.vcf.gz, pangenomes/16-fruitfly-mc-2022-05-26.pg, scripts/decompose_graph_variants.py
+    output: decomposed/16-fruitfly-mc-2022-05-26.B2.vcf.gz
+    jobid: 68
+    reason: Missing output files: decomposed/16-fruitfly-mc-2022-05-26.B2.vcf.gz; Input files updated by another job: pangenomes/16-fruitfly-mc-2022-05-26.pg, biallelic/16-fruitfly-mc-2022-05-26.B2.vcf.gz
+    wildcards: graph=16-fruitfly-mc-2022-05-26, sample=B2
+    resources: tmpdir=/tmp
+
+python3 scripts/decompose_graph_variants.py -o decomposed/16-fruitfly-mc-2022-05-26.B2.vcf.gz pangenomes/16-fruitfly-mc-2022-05-26.pg biallelic/16-fruitfly-mc-2022-05-26.B2.vcf.gz
+
+[Mon Oct 31 21:09:07 2022]
+rule decompose_variants:
+    input: biallelic/16-fruitfly-mc-2022-05-26.A4.vcf.gz, pangenomes/16-fruitfly-mc-2022-05-26.pg, scripts/decompose_graph_variants.py
+    output: decomposed/16-fruitfly-mc-2022-05-26.A4.vcf.gz
+    jobid: 26
+    reason: Missing output files: decomposed/16-fruitfly-mc-2022-05-26.A4.vcf.gz; Input files updated by another job: pangenomes/16-fruitfly-mc-2022-05-26.pg, biallelic/16-fruitfly-mc-2022-05-26.A4.vcf.gz
+    wildcards: graph=16-fruitfly-mc-2022-05-26, sample=A4
+    resources: tmpdir=/tmp
+
+python3 scripts/decompose_graph_variants.py -o decomposed/16-fruitfly-mc-2022-05-26.A4.vcf.gz pangenomes/16-fruitfly-mc-2022-05-26.pg biallelic/16-fruitfly-mc-2022-05-26.A4.vcf.gz
+
+[Mon Oct 31 21:09:07 2022]
+rule decompose_variants:
+    input: biallelic/16-fruitfly-mc-2022-05-26.A1.vcf.gz, pangenomes/16-fruitfly-mc-2022-05-26.pg, scripts/decompose_graph_variants.py
+    output: decomposed/16-fruitfly-mc-2022-05-26.A1.vcf.gz
+    jobid: 4
+    reason: Missing output files: decomposed/16-fruitfly-mc-2022-05-26.A1.vcf.gz; Input files updated by another job: biallelic/16-fruitfly-mc-2022-05-26.A1.vcf.gz, pangenomes/16-fruitfly-mc-2022-05-26.pg
+    wildcards: graph=16-fruitfly-mc-2022-05-26, sample=A1
+    resources: tmpdir=/tmp
+
+python3 scripts/decompose_graph_variants.py -o decomposed/16-fruitfly-mc-2022-05-26.A1.vcf.gz pangenomes/16-fruitfly-mc-2022-05-26.pg biallelic/16-fruitfly-mc-2022-05-26.A1.vcf.gz
+
+[Mon Oct 31 21:09:07 2022]
+rule decompose_variants:
+    input: biallelic/16-fruitfly-mc-2022-05-26.B4.vcf.gz, pangenomes/16-fruitfly-mc-2022-05-26.pg, scripts/decompose_graph_variants.py
+    output: decomposed/16-fruitfly-mc-2022-05-26.B4.vcf.gz
+    jobid: 82
+    reason: Missing output files: decomposed/16-fruitfly-mc-2022-05-26.B4.vcf.gz; Input files updated by another job: pangenomes/16-fruitfly-mc-2022-05-26.pg, biallelic/16-fruitfly-mc-2022-05-26.B4.vcf.gz
+    wildcards: graph=16-fruitfly-mc-2022-05-26, sample=B4
+    resources: tmpdir=/tmp
+
+python3 scripts/decompose_graph_variants.py -o decomposed/16-fruitfly-mc-2022-05-26.B4.vcf.gz pangenomes/16-fruitfly-mc-2022-05-26.pg biallelic/16-fruitfly-mc-2022-05-26.B4.vcf.gz
+
+[Mon Oct 31 21:09:07 2022]
+rule decompose_variants:
+    input: biallelic/16-fruitfly-mc-2022-05-26.A6.vcf.gz, pangenomes/16-fruitfly-mc-2022-05-26.pg, scripts/decompose_graph_variants.py
+    output: decomposed/16-fruitfly-mc-2022-05-26.A6.vcf.gz
+    jobid: 40
+    reason: Missing output files: decomposed/16-fruitfly-mc-2022-05-26.A6.vcf.gz; Input files updated by another job: pangenomes/16-fruitfly-mc-2022-05-26.pg, biallelic/16-fruitfly-mc-2022-05-26.A6.vcf.gz
+    wildcards: graph=16-fruitfly-mc-2022-05-26, sample=A6
+    resources: tmpdir=/tmp
+
+python3 scripts/decompose_graph_variants.py -o decomposed/16-fruitfly-mc-2022-05-26.A6.vcf.gz pangenomes/16-fruitfly-mc-2022-05-26.pg biallelic/16-fruitfly-mc-2022-05-26.A6.vcf.gz
+
+[Mon Oct 31 21:09:07 2022]
+rule decompose_variants:
+    input: biallelic/16-fruitfly-mc-2022-05-26.B3.vcf.gz, pangenomes/16-fruitfly-mc-2022-05-26.pg, scripts/decompose_graph_variants.py
+    output: decomposed/16-fruitfly-mc-2022-05-26.B3.vcf.gz
+    jobid: 75
+    reason: Missing output files: decomposed/16-fruitfly-mc-2022-05-26.B3.vcf.gz; Input files updated by another job: pangenomes/16-fruitfly-mc-2022-05-26.pg, biallelic/16-fruitfly-mc-2022-05-26.B3.vcf.gz
+    wildcards: graph=16-fruitfly-mc-2022-05-26, sample=B3
+    resources: tmpdir=/tmp
+
+python3 scripts/decompose_graph_variants.py -o decomposed/16-fruitfly-mc-2022-05-26.B3.vcf.gz pangenomes/16-fruitfly-mc-2022-05-26.pg biallelic/16-fruitfly-mc-2022-05-26.B3.vcf.gz
+
+[Mon Oct 31 21:09:07 2022]
+rule decompose_variants:
+    input: biallelic/16-fruitfly-mc-2022-05-26.A5.vcf.gz, pangenomes/16-fruitfly-mc-2022-05-26.pg, scripts/decompose_graph_variants.py
+    output: decomposed/16-fruitfly-mc-2022-05-26.A5.vcf.gz
+    jobid: 33
+    reason: Missing output files: decomposed/16-fruitfly-mc-2022-05-26.A5.vcf.gz; Input files updated by another job: pangenomes/16-fruitfly-mc-2022-05-26.pg, biallelic/16-fruitfly-mc-2022-05-26.A5.vcf.gz
+    wildcards: graph=16-fruitfly-mc-2022-05-26, sample=A5
+    resources: tmpdir=/tmp
+
+python3 scripts/decompose_graph_variants.py -o decomposed/16-fruitfly-mc-2022-05-26.A5.vcf.gz pangenomes/16-fruitfly-mc-2022-05-26.pg biallelic/16-fruitfly-mc-2022-05-26.A5.vcf.gz
+
+[Mon Oct 31 21:09:07 2022]
+rule decompose_variants:
+    input: biallelic/16-fruitfly-mc-2022-05-26.B6.vcf.gz, pangenomes/16-fruitfly-mc-2022-05-26.pg, scripts/decompose_graph_variants.py
+    output: decomposed/16-fruitfly-mc-2022-05-26.B6.vcf.gz
+    jobid: 89
+    reason: Missing output files: decomposed/16-fruitfly-mc-2022-05-26.B6.vcf.gz; Input files updated by another job: pangenomes/16-fruitfly-mc-2022-05-26.pg, biallelic/16-fruitfly-mc-2022-05-26.B6.vcf.gz
+    wildcards: graph=16-fruitfly-mc-2022-05-26, sample=B6
+    resources: tmpdir=/tmp
+
+python3 scripts/decompose_graph_variants.py -o decomposed/16-fruitfly-mc-2022-05-26.B6.vcf.gz pangenomes/16-fruitfly-mc-2022-05-26.pg biallelic/16-fruitfly-mc-2022-05-26.B6.vcf.gz
+
+[Mon Oct 31 21:09:07 2022]
+rule decompose_variants:
+    input: biallelic/16-fruitfly-mc-2022-05-26.A7.vcf.gz, pangenomes/16-fruitfly-mc-2022-05-26.pg, scripts/decompose_graph_variants.py
+    output: decomposed/16-fruitfly-mc-2022-05-26.A7.vcf.gz
+    jobid: 47
+    reason: Missing output files: decomposed/16-fruitfly-mc-2022-05-26.A7.vcf.gz; Input files updated by another job: pangenomes/16-fruitfly-mc-2022-05-26.pg, biallelic/16-fruitfly-mc-2022-05-26.A7.vcf.gz
+    wildcards: graph=16-fruitfly-mc-2022-05-26, sample=A7
+    resources: tmpdir=/tmp
+
+python3 scripts/decompose_graph_variants.py -o decomposed/16-fruitfly-mc-2022-05-26.A7.vcf.gz pangenomes/16-fruitfly-mc-2022-05-26.pg biallelic/16-fruitfly-mc-2022-05-26.A7.vcf.gz
+
+[Mon Oct 31 21:09:07 2022]
+rule decompose_variants:
+    input: biallelic/16-fruitfly-mc-2022-05-26.OreR.vcf.gz, pangenomes/16-fruitfly-mc-2022-05-26.pg, scripts/decompose_graph_variants.py
+    output: decomposed/16-fruitfly-mc-2022-05-26.OreR.vcf.gz
+    jobid: 103
+    reason: Missing output files: decomposed/16-fruitfly-mc-2022-05-26.OreR.vcf.gz; Input files updated by another job: pangenomes/16-fruitfly-mc-2022-05-26.pg, biallelic/16-fruitfly-mc-2022-05-26.OreR.vcf.gz
+    wildcards: graph=16-fruitfly-mc-2022-05-26, sample=OreR
+    resources: tmpdir=/tmp
+
+python3 scripts/decompose_graph_variants.py -o decomposed/16-fruitfly-mc-2022-05-26.OreR.vcf.gz pangenomes/16-fruitfly-mc-2022-05-26.pg biallelic/16-fruitfly-mc-2022-05-26.OreR.vcf.gz
+
+[Mon Oct 31 21:09:07 2022]
+rule decompose_variants:
+    input: biallelic/16-fruitfly-mc-2022-05-26.B1.vcf.gz, pangenomes/16-fruitfly-mc-2022-05-26.pg, scripts/decompose_graph_variants.py
+    output: decomposed/16-fruitfly-mc-2022-05-26.B1.vcf.gz
+    jobid: 61
+    reason: Missing output files: decomposed/16-fruitfly-mc-2022-05-26.B1.vcf.gz; Input files updated by another job: pangenomes/16-fruitfly-mc-2022-05-26.pg, biallelic/16-fruitfly-mc-2022-05-26.B1.vcf.gz
+    wildcards: graph=16-fruitfly-mc-2022-05-26, sample=B1
+    resources: tmpdir=/tmp
+
+python3 scripts/decompose_graph_variants.py -o decomposed/16-fruitfly-mc-2022-05-26.B1.vcf.gz pangenomes/16-fruitfly-mc-2022-05-26.pg biallelic/16-fruitfly-mc-2022-05-26.B1.vcf.gz
+
+[Mon Oct 31 21:09:07 2022]
+rule extract_nonref:
+    input: decomposed/16-fruitfly-mc-2022-05-26.B7.vcf.gz
+    output: decomposed_nonref/16-fruitfly-mc-2022-05-26.B7.vcf.gz
+    jobid: 95
+    reason: Missing output files: decomposed_nonref/16-fruitfly-mc-2022-05-26.B7.vcf.gz; Input files updated by another job: decomposed/16-fruitfly-mc-2022-05-26.B7.vcf.gz
+    wildcards: graph=16-fruitfly-mc-2022-05-26, sample=B7
+    resources: tmpdir=/tmp
+
+bcftools view -e 'REF=ALT' -Oz -o decomposed_nonref/16-fruitfly-mc-2022-05-26.B7.vcf.gz decomposed/16-fruitfly-mc-2022-05-26.B7.vcf.gz
+
+[Mon Oct 31 21:09:07 2022]
+rule extract_nonref:
+    input: decomposed/16-fruitfly-mc-2022-05-26.B3.vcf.gz
+    output: decomposed_nonref/16-fruitfly-mc-2022-05-26.B3.vcf.gz
+    jobid: 74
+    reason: Missing output files: decomposed_nonref/16-fruitfly-mc-2022-05-26.B3.vcf.gz; Input files updated by another job: decomposed/16-fruitfly-mc-2022-05-26.B3.vcf.gz
+    wildcards: graph=16-fruitfly-mc-2022-05-26, sample=B3
+    resources: tmpdir=/tmp
+
+bcftools view -e 'REF=ALT' -Oz -o decomposed_nonref/16-fruitfly-mc-2022-05-26.B3.vcf.gz decomposed/16-fruitfly-mc-2022-05-26.B3.vcf.gz
+
+[Mon Oct 31 21:09:07 2022]
+rule extract_nonref:
+    input: decomposed/16-fruitfly-mc-2022-05-26.A5.vcf.gz
+    output: decomposed_nonref/16-fruitfly-mc-2022-05-26.A5.vcf.gz
+    jobid: 32
+    reason: Missing output files: decomposed_nonref/16-fruitfly-mc-2022-05-26.A5.vcf.gz; Input files updated by another job: decomposed/16-fruitfly-mc-2022-05-26.A5.vcf.gz
+    wildcards: graph=16-fruitfly-mc-2022-05-26, sample=A5
+    resources: tmpdir=/tmp
+
+bcftools view -e 'REF=ALT' -Oz -o decomposed_nonref/16-fruitfly-mc-2022-05-26.A5.vcf.gz decomposed/16-fruitfly-mc-2022-05-26.A5.vcf.gz
+
+[Mon Oct 31 21:09:07 2022]
+rule extract_nonref:
+    input: decomposed/16-fruitfly-mc-2022-05-26.B6.vcf.gz
+    output: decomposed_nonref/16-fruitfly-mc-2022-05-26.B6.vcf.gz
+    jobid: 88
+    reason: Missing output files: decomposed_nonref/16-fruitfly-mc-2022-05-26.B6.vcf.gz; Input files updated by another job: decomposed/16-fruitfly-mc-2022-05-26.B6.vcf.gz
+    wildcards: graph=16-fruitfly-mc-2022-05-26, sample=B6
+    resources: tmpdir=/tmp
+
+bcftools view -e 'REF=ALT' -Oz -o decomposed_nonref/16-fruitfly-mc-2022-05-26.B6.vcf.gz decomposed/16-fruitfly-mc-2022-05-26.B6.vcf.gz
+
+[Mon Oct 31 21:09:07 2022]
+rule extract_nonref:
+    input: decomposed/16-fruitfly-mc-2022-05-26.A1.vcf.gz
+    output: decomposed_nonref/16-fruitfly-mc-2022-05-26.A1.vcf.gz
+    jobid: 3
+    reason: Missing output files: decomposed_nonref/16-fruitfly-mc-2022-05-26.A1.vcf.gz; Input files updated by another job: decomposed/16-fruitfly-mc-2022-05-26.A1.vcf.gz
+    wildcards: graph=16-fruitfly-mc-2022-05-26, sample=A1
+    resources: tmpdir=/tmp
+
+bcftools view -e 'REF=ALT' -Oz -o decomposed_nonref/16-fruitfly-mc-2022-05-26.A1.vcf.gz decomposed/16-fruitfly-mc-2022-05-26.A1.vcf.gz
+
+[Mon Oct 31 21:09:07 2022]
+rule extract_nonref:
+    input: decomposed/16-fruitfly-mc-2022-05-26.A7.vcf.gz
+    output: decomposed_nonref/16-fruitfly-mc-2022-05-26.A7.vcf.gz
+    jobid: 46
+    reason: Missing output files: decomposed_nonref/16-fruitfly-mc-2022-05-26.A7.vcf.gz; Input files updated by another job: decomposed/16-fruitfly-mc-2022-05-26.A7.vcf.gz
+    wildcards: graph=16-fruitfly-mc-2022-05-26, sample=A7
+    resources: tmpdir=/tmp
+
+bcftools view -e 'REF=ALT' -Oz -o decomposed_nonref/16-fruitfly-mc-2022-05-26.A7.vcf.gz decomposed/16-fruitfly-mc-2022-05-26.A7.vcf.gz
+
+[Mon Oct 31 21:09:07 2022]
+rule extract_nonref:
+    input: decomposed/16-fruitfly-mc-2022-05-26.OreR.vcf.gz
+    output: decomposed_nonref/16-fruitfly-mc-2022-05-26.OreR.vcf.gz
+    jobid: 102
+    reason: Missing output files: decomposed_nonref/16-fruitfly-mc-2022-05-26.OreR.vcf.gz; Input files updated by another job: decomposed/16-fruitfly-mc-2022-05-26.OreR.vcf.gz
+    wildcards: graph=16-fruitfly-mc-2022-05-26, sample=OreR
+    resources: tmpdir=/tmp
+
+bcftools view -e 'REF=ALT' -Oz -o decomposed_nonref/16-fruitfly-mc-2022-05-26.OreR.vcf.gz decomposed/16-fruitfly-mc-2022-05-26.OreR.vcf.gz
+
+[Mon Oct 31 21:09:07 2022]
+rule extract_nonref:
+    input: decomposed/16-fruitfly-mc-2022-05-26.B1.vcf.gz
+    output: decomposed_nonref/16-fruitfly-mc-2022-05-26.B1.vcf.gz
+    jobid: 60
+    reason: Missing output files: decomposed_nonref/16-fruitfly-mc-2022-05-26.B1.vcf.gz; Input files updated by another job: decomposed/16-fruitfly-mc-2022-05-26.B1.vcf.gz
+    wildcards: graph=16-fruitfly-mc-2022-05-26, sample=B1
+    resources: tmpdir=/tmp
+
+bcftools view -e 'REF=ALT' -Oz -o decomposed_nonref/16-fruitfly-mc-2022-05-26.B1.vcf.gz decomposed/16-fruitfly-mc-2022-05-26.B1.vcf.gz
+
+[Mon Oct 31 21:09:07 2022]
+rule extract_nonref:
+    input: decomposed/16-fruitfly-mc-2022-05-26.A3.vcf.gz
+    output: decomposed_nonref/16-fruitfly-mc-2022-05-26.A3.vcf.gz
+    jobid: 18
+    reason: Missing output files: decomposed_nonref/16-fruitfly-mc-2022-05-26.A3.vcf.gz; Input files updated by another job: decomposed/16-fruitfly-mc-2022-05-26.A3.vcf.gz
+    wildcards: graph=16-fruitfly-mc-2022-05-26, sample=A3
+    resources: tmpdir=/tmp
+
+bcftools view -e 'REF=ALT' -Oz -o decomposed_nonref/16-fruitfly-mc-2022-05-26.A3.vcf.gz decomposed/16-fruitfly-mc-2022-05-26.A3.vcf.gz
+
+[Mon Oct 31 21:09:07 2022]
+rule extract_nonref:
+    input: decomposed/16-fruitfly-mc-2022-05-26.AB8.vcf.gz
+    output: decomposed_nonref/16-fruitfly-mc-2022-05-26.AB8.vcf.gz
+    jobid: 53
+    reason: Missing output files: decomposed_nonref/16-fruitfly-mc-2022-05-26.AB8.vcf.gz; Input files updated by another job: decomposed/16-fruitfly-mc-2022-05-26.AB8.vcf.gz
+    wildcards: graph=16-fruitfly-mc-2022-05-26, sample=AB8
+    resources: tmpdir=/tmp
+
+bcftools view -e 'REF=ALT' -Oz -o decomposed_nonref/16-fruitfly-mc-2022-05-26.AB8.vcf.gz decomposed/16-fruitfly-mc-2022-05-26.AB8.vcf.gz
+
+[Mon Oct 31 21:09:07 2022]
+rule extract_nonref:
+    input: decomposed/16-fruitfly-mc-2022-05-26.A2.vcf.gz
+    output: decomposed_nonref/16-fruitfly-mc-2022-05-26.A2.vcf.gz
+    jobid: 11
+    reason: Missing output files: decomposed_nonref/16-fruitfly-mc-2022-05-26.A2.vcf.gz; Input files updated by another job: decomposed/16-fruitfly-mc-2022-05-26.A2.vcf.gz
+    wildcards: graph=16-fruitfly-mc-2022-05-26, sample=A2
+    resources: tmpdir=/tmp
+
+bcftools view -e 'REF=ALT' -Oz -o decomposed_nonref/16-fruitfly-mc-2022-05-26.A2.vcf.gz decomposed/16-fruitfly-mc-2022-05-26.A2.vcf.gz
+
+[Mon Oct 31 21:09:07 2022]
+rule extract_nonref:
+    input: decomposed/16-fruitfly-mc-2022-05-26.B2.vcf.gz
+    output: decomposed_nonref/16-fruitfly-mc-2022-05-26.B2.vcf.gz
+    jobid: 67
+    reason: Missing output files: decomposed_nonref/16-fruitfly-mc-2022-05-26.B2.vcf.gz; Input files updated by another job: decomposed/16-fruitfly-mc-2022-05-26.B2.vcf.gz
+    wildcards: graph=16-fruitfly-mc-2022-05-26, sample=B2
+    resources: tmpdir=/tmp
+
+bcftools view -e 'REF=ALT' -Oz -o decomposed_nonref/16-fruitfly-mc-2022-05-26.B2.vcf.gz decomposed/16-fruitfly-mc-2022-05-26.B2.vcf.gz
+
+[Mon Oct 31 21:09:07 2022]
+rule extract_nonref:
+    input: decomposed/16-fruitfly-mc-2022-05-26.A4.vcf.gz
+    output: decomposed_nonref/16-fruitfly-mc-2022-05-26.A4.vcf.gz
+    jobid: 25
+    reason: Missing output files: decomposed_nonref/16-fruitfly-mc-2022-05-26.A4.vcf.gz; Input files updated by another job: decomposed/16-fruitfly-mc-2022-05-26.A4.vcf.gz
+    wildcards: graph=16-fruitfly-mc-2022-05-26, sample=A4
+    resources: tmpdir=/tmp
+
+bcftools view -e 'REF=ALT' -Oz -o decomposed_nonref/16-fruitfly-mc-2022-05-26.A4.vcf.gz decomposed/16-fruitfly-mc-2022-05-26.A4.vcf.gz
+
+[Mon Oct 31 21:09:07 2022]
+rule extract_nonref:
+    input: decomposed/16-fruitfly-mc-2022-05-26.B4.vcf.gz
+    output: decomposed_nonref/16-fruitfly-mc-2022-05-26.B4.vcf.gz
+    jobid: 81
+    reason: Missing output files: decomposed_nonref/16-fruitfly-mc-2022-05-26.B4.vcf.gz; Input files updated by another job: decomposed/16-fruitfly-mc-2022-05-26.B4.vcf.gz
+    wildcards: graph=16-fruitfly-mc-2022-05-26, sample=B4
+    resources: tmpdir=/tmp
+
+bcftools view -e 'REF=ALT' -Oz -o decomposed_nonref/16-fruitfly-mc-2022-05-26.B4.vcf.gz decomposed/16-fruitfly-mc-2022-05-26.B4.vcf.gz
+
+[Mon Oct 31 21:09:07 2022]
+rule extract_nonref:
+    input: decomposed/16-fruitfly-mc-2022-05-26.A6.vcf.gz
+    output: decomposed_nonref/16-fruitfly-mc-2022-05-26.A6.vcf.gz
+    jobid: 39
+    reason: Missing output files: decomposed_nonref/16-fruitfly-mc-2022-05-26.A6.vcf.gz; Input files updated by another job: decomposed/16-fruitfly-mc-2022-05-26.A6.vcf.gz
+    wildcards: graph=16-fruitfly-mc-2022-05-26, sample=A6
+    resources: tmpdir=/tmp
+
+bcftools view -e 'REF=ALT' -Oz -o decomposed_nonref/16-fruitfly-mc-2022-05-26.A6.vcf.gz decomposed/16-fruitfly-mc-2022-05-26.A6.vcf.gz
+
+[Mon Oct 31 21:09:07 2022]
+rule remove_dups:
+    input: decomposed_nonref/16-fruitfly-mc-2022-05-26.AB8.vcf.gz, scripts/remove_duplicates.py
+    output: results/16-fruitfly-mc-2022-05-26_decomposed/16-fruitfly-mc-2022-05-26.AB8.decomposed.vcf.gz
+    jobid: 52
+    reason: Missing output files: results/16-fruitfly-mc-2022-05-26_decomposed/16-fruitfly-mc-2022-05-26.AB8.decomposed.vcf.gz; Input files updated by another job: decomposed_nonref/16-fruitfly-mc-2022-05-26.AB8.vcf.gz
+    wildcards: graph=16-fruitfly-mc-2022-05-26, sample=AB8
+    resources: tmpdir=/tmp
+
+
+        python3 scripts/remove_duplicates.py decomposed_nonref/16-fruitfly-mc-2022-05-26.AB8.vcf.gz
+        bcftools sort decomposed_nonref/16-fruitfly-mc-2022-05-26.AB8.rmdup.vcf -Oz -o results/16-fruitfly-mc-2022-05-26_decomposed/16-fruitfly-mc-2022-05-26.AB8.decomposed.vcf.gz
+        
+
+[Mon Oct 31 21:09:07 2022]
+rule remove_dups:
+    input: decomposed_nonref/16-fruitfly-mc-2022-05-26.A5.vcf.gz, scripts/remove_duplicates.py
+    output: results/16-fruitfly-mc-2022-05-26_decomposed/16-fruitfly-mc-2022-05-26.A5.decomposed.vcf.gz
+    jobid: 31
+    reason: Missing output files: results/16-fruitfly-mc-2022-05-26_decomposed/16-fruitfly-mc-2022-05-26.A5.decomposed.vcf.gz; Input files updated by another job: decomposed_nonref/16-fruitfly-mc-2022-05-26.A5.vcf.gz
+    wildcards: graph=16-fruitfly-mc-2022-05-26, sample=A5
+    resources: tmpdir=/tmp
+
+
+        python3 scripts/remove_duplicates.py decomposed_nonref/16-fruitfly-mc-2022-05-26.A5.vcf.gz
+        bcftools sort decomposed_nonref/16-fruitfly-mc-2022-05-26.A5.rmdup.vcf -Oz -o results/16-fruitfly-mc-2022-05-26_decomposed/16-fruitfly-mc-2022-05-26.A5.decomposed.vcf.gz
+        
+
+[Mon Oct 31 21:09:07 2022]
+rule remove_dups:
+    input: decomposed_nonref/16-fruitfly-mc-2022-05-26.B6.vcf.gz, scripts/remove_duplicates.py
+    output: results/16-fruitfly-mc-2022-05-26_decomposed/16-fruitfly-mc-2022-05-26.B6.decomposed.vcf.gz
+    jobid: 87
+    reason: Missing output files: results/16-fruitfly-mc-2022-05-26_decomposed/16-fruitfly-mc-2022-05-26.B6.decomposed.vcf.gz; Input files updated by another job: decomposed_nonref/16-fruitfly-mc-2022-05-26.B6.vcf.gz
+    wildcards: graph=16-fruitfly-mc-2022-05-26, sample=B6
+    resources: tmpdir=/tmp
+
+
+        python3 scripts/remove_duplicates.py decomposed_nonref/16-fruitfly-mc-2022-05-26.B6.vcf.gz
+        bcftools sort decomposed_nonref/16-fruitfly-mc-2022-05-26.B6.rmdup.vcf -Oz -o results/16-fruitfly-mc-2022-05-26_decomposed/16-fruitfly-mc-2022-05-26.B6.decomposed.vcf.gz
+        
+
+[Mon Oct 31 21:09:07 2022]
+rule remove_dups:
+    input: decomposed_nonref/16-fruitfly-mc-2022-05-26.A7.vcf.gz, scripts/remove_duplicates.py
+    output: results/16-fruitfly-mc-2022-05-26_decomposed/16-fruitfly-mc-2022-05-26.A7.decomposed.vcf.gz
+    jobid: 45
+    reason: Missing output files: results/16-fruitfly-mc-2022-05-26_decomposed/16-fruitfly-mc-2022-05-26.A7.decomposed.vcf.gz; Input files updated by another job: decomposed_nonref/16-fruitfly-mc-2022-05-26.A7.vcf.gz
+    wildcards: graph=16-fruitfly-mc-2022-05-26, sample=A7
+    resources: tmpdir=/tmp
+
+
+        python3 scripts/remove_duplicates.py decomposed_nonref/16-fruitfly-mc-2022-05-26.A7.vcf.gz
+        bcftools sort decomposed_nonref/16-fruitfly-mc-2022-05-26.A7.rmdup.vcf -Oz -o results/16-fruitfly-mc-2022-05-26_decomposed/16-fruitfly-mc-2022-05-26.A7.decomposed.vcf.gz
+        
+
+[Mon Oct 31 21:09:07 2022]
+rule remove_dups:
+    input: decomposed_nonref/16-fruitfly-mc-2022-05-26.A1.vcf.gz, scripts/remove_duplicates.py
+    output: results/16-fruitfly-mc-2022-05-26_decomposed/16-fruitfly-mc-2022-05-26.A1.decomposed.vcf.gz
+    jobid: 2
+    reason: Missing output files: results/16-fruitfly-mc-2022-05-26_decomposed/16-fruitfly-mc-2022-05-26.A1.decomposed.vcf.gz; Input files updated by another job: decomposed_nonref/16-fruitfly-mc-2022-05-26.A1.vcf.gz
+    wildcards: graph=16-fruitfly-mc-2022-05-26, sample=A1
+    resources: tmpdir=/tmp
+
+
+        python3 scripts/remove_duplicates.py decomposed_nonref/16-fruitfly-mc-2022-05-26.A1.vcf.gz
+        bcftools sort decomposed_nonref/16-fruitfly-mc-2022-05-26.A1.rmdup.vcf -Oz -o results/16-fruitfly-mc-2022-05-26_decomposed/16-fruitfly-mc-2022-05-26.A1.decomposed.vcf.gz
+        
+
+[Mon Oct 31 21:09:07 2022]
+rule remove_dups:
+    input: decomposed_nonref/16-fruitfly-mc-2022-05-26.OreR.vcf.gz, scripts/remove_duplicates.py
+    output: results/16-fruitfly-mc-2022-05-26_decomposed/16-fruitfly-mc-2022-05-26.OreR.decomposed.vcf.gz
+    jobid: 101
+    reason: Missing output files: results/16-fruitfly-mc-2022-05-26_decomposed/16-fruitfly-mc-2022-05-26.OreR.decomposed.vcf.gz; Input files updated by another job: decomposed_nonref/16-fruitfly-mc-2022-05-26.OreR.vcf.gz
+    wildcards: graph=16-fruitfly-mc-2022-05-26, sample=OreR
+    resources: tmpdir=/tmp
+
+
+        python3 scripts/remove_duplicates.py decomposed_nonref/16-fruitfly-mc-2022-05-26.OreR.vcf.gz
+        bcftools sort decomposed_nonref/16-fruitfly-mc-2022-05-26.OreR.rmdup.vcf -Oz -o results/16-fruitfly-mc-2022-05-26_decomposed/16-fruitfly-mc-2022-05-26.OreR.decomposed.vcf.gz
+        
+
+[Mon Oct 31 21:09:07 2022]
+rule remove_dups:
+    input: decomposed_nonref/16-fruitfly-mc-2022-05-26.B1.vcf.gz, scripts/remove_duplicates.py
+    output: results/16-fruitfly-mc-2022-05-26_decomposed/16-fruitfly-mc-2022-05-26.B1.decomposed.vcf.gz
+    jobid: 59
+    reason: Missing output files: results/16-fruitfly-mc-2022-05-26_decomposed/16-fruitfly-mc-2022-05-26.B1.decomposed.vcf.gz; Input files updated by another job: decomposed_nonref/16-fruitfly-mc-2022-05-26.B1.vcf.gz
+    wildcards: graph=16-fruitfly-mc-2022-05-26, sample=B1
+    resources: tmpdir=/tmp
+
+
+        python3 scripts/remove_duplicates.py decomposed_nonref/16-fruitfly-mc-2022-05-26.B1.vcf.gz
+        bcftools sort decomposed_nonref/16-fruitfly-mc-2022-05-26.B1.rmdup.vcf -Oz -o results/16-fruitfly-mc-2022-05-26_decomposed/16-fruitfly-mc-2022-05-26.B1.decomposed.vcf.gz
+        
+
+[Mon Oct 31 21:09:07 2022]
+rule remove_dups:
+    input: decomposed_nonref/16-fruitfly-mc-2022-05-26.A3.vcf.gz, scripts/remove_duplicates.py
+    output: results/16-fruitfly-mc-2022-05-26_decomposed/16-fruitfly-mc-2022-05-26.A3.decomposed.vcf.gz
+    jobid: 17
+    reason: Missing output files: results/16-fruitfly-mc-2022-05-26_decomposed/16-fruitfly-mc-2022-05-26.A3.decomposed.vcf.gz; Input files updated by another job: decomposed_nonref/16-fruitfly-mc-2022-05-26.A3.vcf.gz
+    wildcards: graph=16-fruitfly-mc-2022-05-26, sample=A3
+    resources: tmpdir=/tmp
+
+
+        python3 scripts/remove_duplicates.py decomposed_nonref/16-fruitfly-mc-2022-05-26.A3.vcf.gz
+        bcftools sort decomposed_nonref/16-fruitfly-mc-2022-05-26.A3.rmdup.vcf -Oz -o results/16-fruitfly-mc-2022-05-26_decomposed/16-fruitfly-mc-2022-05-26.A3.decomposed.vcf.gz
+        
+
+[Mon Oct 31 21:09:07 2022]
+rule remove_dups:
+    input: decomposed_nonref/16-fruitfly-mc-2022-05-26.B3.vcf.gz, scripts/remove_duplicates.py
+    output: results/16-fruitfly-mc-2022-05-26_decomposed/16-fruitfly-mc-2022-05-26.B3.decomposed.vcf.gz
+    jobid: 73
+    reason: Missing output files: results/16-fruitfly-mc-2022-05-26_decomposed/16-fruitfly-mc-2022-05-26.B3.decomposed.vcf.gz; Input files updated by another job: decomposed_nonref/16-fruitfly-mc-2022-05-26.B3.vcf.gz
+    wildcards: graph=16-fruitfly-mc-2022-05-26, sample=B3
+    resources: tmpdir=/tmp
+
+
+        python3 scripts/remove_duplicates.py decomposed_nonref/16-fruitfly-mc-2022-05-26.B3.vcf.gz
+        bcftools sort decomposed_nonref/16-fruitfly-mc-2022-05-26.B3.rmdup.vcf -Oz -o results/16-fruitfly-mc-2022-05-26_decomposed/16-fruitfly-mc-2022-05-26.B3.decomposed.vcf.gz
+        
+
+[Mon Oct 31 21:09:07 2022]
+rule remove_dups:
+    input: decomposed_nonref/16-fruitfly-mc-2022-05-26.A2.vcf.gz, scripts/remove_duplicates.py
+    output: results/16-fruitfly-mc-2022-05-26_decomposed/16-fruitfly-mc-2022-05-26.A2.decomposed.vcf.gz
+    jobid: 10
+    reason: Missing output files: results/16-fruitfly-mc-2022-05-26_decomposed/16-fruitfly-mc-2022-05-26.A2.decomposed.vcf.gz; Input files updated by another job: decomposed_nonref/16-fruitfly-mc-2022-05-26.A2.vcf.gz
+    wildcards: graph=16-fruitfly-mc-2022-05-26, sample=A2
+    resources: tmpdir=/tmp
+
+
+        python3 scripts/remove_duplicates.py decomposed_nonref/16-fruitfly-mc-2022-05-26.A2.vcf.gz
+        bcftools sort decomposed_nonref/16-fruitfly-mc-2022-05-26.A2.rmdup.vcf -Oz -o results/16-fruitfly-mc-2022-05-26_decomposed/16-fruitfly-mc-2022-05-26.A2.decomposed.vcf.gz
+        
+
+[Mon Oct 31 21:09:07 2022]
+rule remove_dups:
+    input: decomposed_nonref/16-fruitfly-mc-2022-05-26.B2.vcf.gz, scripts/remove_duplicates.py
+    output: results/16-fruitfly-mc-2022-05-26_decomposed/16-fruitfly-mc-2022-05-26.B2.decomposed.vcf.gz
+    jobid: 66
+    reason: Missing output files: results/16-fruitfly-mc-2022-05-26_decomposed/16-fruitfly-mc-2022-05-26.B2.decomposed.vcf.gz; Input files updated by another job: decomposed_nonref/16-fruitfly-mc-2022-05-26.B2.vcf.gz
+    wildcards: graph=16-fruitfly-mc-2022-05-26, sample=B2
+    resources: tmpdir=/tmp
+
+
+        python3 scripts/remove_duplicates.py decomposed_nonref/16-fruitfly-mc-2022-05-26.B2.vcf.gz
+        bcftools sort decomposed_nonref/16-fruitfly-mc-2022-05-26.B2.rmdup.vcf -Oz -o results/16-fruitfly-mc-2022-05-26_decomposed/16-fruitfly-mc-2022-05-26.B2.decomposed.vcf.gz
+        
+
+[Mon Oct 31 21:09:07 2022]
+rule remove_dups:
+    input: decomposed_nonref/16-fruitfly-mc-2022-05-26.A4.vcf.gz, scripts/remove_duplicates.py
+    output: results/16-fruitfly-mc-2022-05-26_decomposed/16-fruitfly-mc-2022-05-26.A4.decomposed.vcf.gz
+    jobid: 24
+    reason: Missing output files: results/16-fruitfly-mc-2022-05-26_decomposed/16-fruitfly-mc-2022-05-26.A4.decomposed.vcf.gz; Input files updated by another job: decomposed_nonref/16-fruitfly-mc-2022-05-26.A4.vcf.gz
+    wildcards: graph=16-fruitfly-mc-2022-05-26, sample=A4
+    resources: tmpdir=/tmp
+
+
+        python3 scripts/remove_duplicates.py decomposed_nonref/16-fruitfly-mc-2022-05-26.A4.vcf.gz
+        bcftools sort decomposed_nonref/16-fruitfly-mc-2022-05-26.A4.rmdup.vcf -Oz -o results/16-fruitfly-mc-2022-05-26_decomposed/16-fruitfly-mc-2022-05-26.A4.decomposed.vcf.gz
+        
+
+[Mon Oct 31 21:09:07 2022]
+rule remove_dups:
+    input: decomposed_nonref/16-fruitfly-mc-2022-05-26.B4.vcf.gz, scripts/remove_duplicates.py
+    output: results/16-fruitfly-mc-2022-05-26_decomposed/16-fruitfly-mc-2022-05-26.B4.decomposed.vcf.gz
+    jobid: 80
+    reason: Missing output files: results/16-fruitfly-mc-2022-05-26_decomposed/16-fruitfly-mc-2022-05-26.B4.decomposed.vcf.gz; Input files updated by another job: decomposed_nonref/16-fruitfly-mc-2022-05-26.B4.vcf.gz
+    wildcards: graph=16-fruitfly-mc-2022-05-26, sample=B4
+    resources: tmpdir=/tmp
+
+
+        python3 scripts/remove_duplicates.py decomposed_nonref/16-fruitfly-mc-2022-05-26.B4.vcf.gz
+        bcftools sort decomposed_nonref/16-fruitfly-mc-2022-05-26.B4.rmdup.vcf -Oz -o results/16-fruitfly-mc-2022-05-26_decomposed/16-fruitfly-mc-2022-05-26.B4.decomposed.vcf.gz
+        
+
+[Mon Oct 31 21:09:07 2022]
+rule remove_dups:
+    input: decomposed_nonref/16-fruitfly-mc-2022-05-26.A6.vcf.gz, scripts/remove_duplicates.py
+    output: results/16-fruitfly-mc-2022-05-26_decomposed/16-fruitfly-mc-2022-05-26.A6.decomposed.vcf.gz
+    jobid: 38
+    reason: Missing output files: results/16-fruitfly-mc-2022-05-26_decomposed/16-fruitfly-mc-2022-05-26.A6.decomposed.vcf.gz; Input files updated by another job: decomposed_nonref/16-fruitfly-mc-2022-05-26.A6.vcf.gz
+    wildcards: graph=16-fruitfly-mc-2022-05-26, sample=A6
+    resources: tmpdir=/tmp
+
+
+        python3 scripts/remove_duplicates.py decomposed_nonref/16-fruitfly-mc-2022-05-26.A6.vcf.gz
+        bcftools sort decomposed_nonref/16-fruitfly-mc-2022-05-26.A6.rmdup.vcf -Oz -o results/16-fruitfly-mc-2022-05-26_decomposed/16-fruitfly-mc-2022-05-26.A6.decomposed.vcf.gz
+        
+
+[Mon Oct 31 21:09:07 2022]
+rule remove_dups:
+    input: decomposed_nonref/16-fruitfly-mc-2022-05-26.B7.vcf.gz, scripts/remove_duplicates.py
+    output: results/16-fruitfly-mc-2022-05-26_decomposed/16-fruitfly-mc-2022-05-26.B7.decomposed.vcf.gz
+    jobid: 94
+    reason: Missing output files: results/16-fruitfly-mc-2022-05-26_decomposed/16-fruitfly-mc-2022-05-26.B7.decomposed.vcf.gz; Input files updated by another job: decomposed_nonref/16-fruitfly-mc-2022-05-26.B7.vcf.gz
+    wildcards: graph=16-fruitfly-mc-2022-05-26, sample=B7
+    resources: tmpdir=/tmp
+
+
+        python3 scripts/remove_duplicates.py decomposed_nonref/16-fruitfly-mc-2022-05-26.B7.vcf.gz
+        bcftools sort decomposed_nonref/16-fruitfly-mc-2022-05-26.B7.rmdup.vcf -Oz -o results/16-fruitfly-mc-2022-05-26_decomposed/16-fruitfly-mc-2022-05-26.B7.decomposed.vcf.gz
+        
+
+[Mon Oct 31 21:09:07 2022]
+rule make_svs_rds:
+    input: results/16-fruitfly-mc-2022-05-26_decomposed/16-fruitfly-mc-2022-05-26.OreR.decomposed.vcf.gz, scripts/read_svs.R
+    output: svs/OreR.16-fruitfly-mc-2022-05-26.decomposed.svs.rds
+    jobid: 100
+    reason: Missing output files: svs/OreR.16-fruitfly-mc-2022-05-26.decomposed.svs.rds; Input files updated by another job: results/16-fruitfly-mc-2022-05-26_decomposed/16-fruitfly-mc-2022-05-26.OreR.decomposed.vcf.gz
+    wildcards: sample=OreR, graph=16-fruitfly-mc-2022-05-26
+    resources: tmpdir=/tmp
+
+Rscript scripts/read_svs.R results/16-fruitfly-mc-2022-05-26_decomposed/16-fruitfly-mc-2022-05-26.OreR.decomposed.vcf.gz svs/OreR.16-fruitfly-mc-2022-05-26.decomposed.svs.rds
+
+[Mon Oct 31 21:09:07 2022]
+rule make_svs_rds:
+    input: results/16-fruitfly-mc-2022-05-26_decomposed/16-fruitfly-mc-2022-05-26.A5.decomposed.vcf.gz, scripts/read_svs.R
+    output: svs/A5.16-fruitfly-mc-2022-05-26.decomposed.svs.rds
+    jobid: 30
+    reason: Missing output files: svs/A5.16-fruitfly-mc-2022-05-26.decomposed.svs.rds; Input files updated by another job: results/16-fruitfly-mc-2022-05-26_decomposed/16-fruitfly-mc-2022-05-26.A5.decomposed.vcf.gz
+    wildcards: sample=A5, graph=16-fruitfly-mc-2022-05-26
+    resources: tmpdir=/tmp
+
+Rscript scripts/read_svs.R results/16-fruitfly-mc-2022-05-26_decomposed/16-fruitfly-mc-2022-05-26.A5.decomposed.vcf.gz svs/A5.16-fruitfly-mc-2022-05-26.decomposed.svs.rds
+
+[Mon Oct 31 21:09:07 2022]
+rule make_svs_rds:
+    input: results/16-fruitfly-mc-2022-05-26_decomposed/16-fruitfly-mc-2022-05-26.A2.decomposed.vcf.gz, scripts/read_svs.R
+    output: svs/A2.16-fruitfly-mc-2022-05-26.decomposed.svs.rds
+    jobid: 9
+    reason: Missing output files: svs/A2.16-fruitfly-mc-2022-05-26.decomposed.svs.rds; Input files updated by another job: results/16-fruitfly-mc-2022-05-26_decomposed/16-fruitfly-mc-2022-05-26.A2.decomposed.vcf.gz
+    wildcards: sample=A2, graph=16-fruitfly-mc-2022-05-26
+    resources: tmpdir=/tmp
+
+Rscript scripts/read_svs.R results/16-fruitfly-mc-2022-05-26_decomposed/16-fruitfly-mc-2022-05-26.A2.decomposed.vcf.gz svs/A2.16-fruitfly-mc-2022-05-26.decomposed.svs.rds
+
+[Mon Oct 31 21:09:07 2022]
+rule make_svs_rds:
+    input: results/16-fruitfly-mc-2022-05-26_decomposed/16-fruitfly-mc-2022-05-26.B2.decomposed.vcf.gz, scripts/read_svs.R
+    output: svs/B2.16-fruitfly-mc-2022-05-26.decomposed.svs.rds
+    jobid: 65
+    reason: Missing output files: svs/B2.16-fruitfly-mc-2022-05-26.decomposed.svs.rds; Input files updated by another job: results/16-fruitfly-mc-2022-05-26_decomposed/16-fruitfly-mc-2022-05-26.B2.decomposed.vcf.gz
+    wildcards: sample=B2, graph=16-fruitfly-mc-2022-05-26
+    resources: tmpdir=/tmp
+
+Rscript scripts/read_svs.R results/16-fruitfly-mc-2022-05-26_decomposed/16-fruitfly-mc-2022-05-26.B2.decomposed.vcf.gz svs/B2.16-fruitfly-mc-2022-05-26.decomposed.svs.rds
+
+[Mon Oct 31 21:09:07 2022]
+rule make_svs_rds:
+    input: results/16-fruitfly-mc-2022-05-26_decomposed/16-fruitfly-mc-2022-05-26.A4.decomposed.vcf.gz, scripts/read_svs.R
+    output: svs/A4.16-fruitfly-mc-2022-05-26.decomposed.svs.rds
+    jobid: 23
+    reason: Missing output files: svs/A4.16-fruitfly-mc-2022-05-26.decomposed.svs.rds; Input files updated by another job: results/16-fruitfly-mc-2022-05-26_decomposed/16-fruitfly-mc-2022-05-26.A4.decomposed.vcf.gz
+    wildcards: sample=A4, graph=16-fruitfly-mc-2022-05-26
+    resources: tmpdir=/tmp
+
+Rscript scripts/read_svs.R results/16-fruitfly-mc-2022-05-26_decomposed/16-fruitfly-mc-2022-05-26.A4.decomposed.vcf.gz svs/A4.16-fruitfly-mc-2022-05-26.decomposed.svs.rds
+
+[Mon Oct 31 21:09:07 2022]
+rule make_svs_rds:
+    input: results/16-fruitfly-mc-2022-05-26_decomposed/16-fruitfly-mc-2022-05-26.B4.decomposed.vcf.gz, scripts/read_svs.R
+    output: svs/B4.16-fruitfly-mc-2022-05-26.decomposed.svs.rds
+    jobid: 79
+    reason: Missing output files: svs/B4.16-fruitfly-mc-2022-05-26.decomposed.svs.rds; Input files updated by another job: results/16-fruitfly-mc-2022-05-26_decomposed/16-fruitfly-mc-2022-05-26.B4.decomposed.vcf.gz
+    wildcards: sample=B4, graph=16-fruitfly-mc-2022-05-26
+    resources: tmpdir=/tmp
+
+Rscript scripts/read_svs.R results/16-fruitfly-mc-2022-05-26_decomposed/16-fruitfly-mc-2022-05-26.B4.decomposed.vcf.gz svs/B4.16-fruitfly-mc-2022-05-26.decomposed.svs.rds
+
+[Mon Oct 31 21:09:07 2022]
+rule make_svs_rds:
+    input: results/16-fruitfly-mc-2022-05-26_decomposed/16-fruitfly-mc-2022-05-26.A6.decomposed.vcf.gz, scripts/read_svs.R
+    output: svs/A6.16-fruitfly-mc-2022-05-26.decomposed.svs.rds
+    jobid: 37
+    reason: Missing output files: svs/A6.16-fruitfly-mc-2022-05-26.decomposed.svs.rds; Input files updated by another job: results/16-fruitfly-mc-2022-05-26_decomposed/16-fruitfly-mc-2022-05-26.A6.decomposed.vcf.gz
+    wildcards: sample=A6, graph=16-fruitfly-mc-2022-05-26
+    resources: tmpdir=/tmp
+
+Rscript scripts/read_svs.R results/16-fruitfly-mc-2022-05-26_decomposed/16-fruitfly-mc-2022-05-26.A6.decomposed.vcf.gz svs/A6.16-fruitfly-mc-2022-05-26.decomposed.svs.rds
+
+[Mon Oct 31 21:09:07 2022]
+rule make_svs_rds:
+    input: results/16-fruitfly-mc-2022-05-26_decomposed/16-fruitfly-mc-2022-05-26.B7.decomposed.vcf.gz, scripts/read_svs.R
+    output: svs/B7.16-fruitfly-mc-2022-05-26.decomposed.svs.rds
+    jobid: 93
+    reason: Missing output files: svs/B7.16-fruitfly-mc-2022-05-26.decomposed.svs.rds; Input files updated by another job: results/16-fruitfly-mc-2022-05-26_decomposed/16-fruitfly-mc-2022-05-26.B7.decomposed.vcf.gz
+    wildcards: sample=B7, graph=16-fruitfly-mc-2022-05-26
+    resources: tmpdir=/tmp
+
+Rscript scripts/read_svs.R results/16-fruitfly-mc-2022-05-26_decomposed/16-fruitfly-mc-2022-05-26.B7.decomposed.vcf.gz svs/B7.16-fruitfly-mc-2022-05-26.decomposed.svs.rds
+
+[Mon Oct 31 21:09:07 2022]
+rule make_svs_rds:
+    input: results/16-fruitfly-mc-2022-05-26_decomposed/16-fruitfly-mc-2022-05-26.AB8.decomposed.vcf.gz, scripts/read_svs.R
+    output: svs/AB8.16-fruitfly-mc-2022-05-26.decomposed.svs.rds
+    jobid: 51
+    reason: Missing output files: svs/AB8.16-fruitfly-mc-2022-05-26.decomposed.svs.rds; Input files updated by another job: results/16-fruitfly-mc-2022-05-26_decomposed/16-fruitfly-mc-2022-05-26.AB8.decomposed.vcf.gz
+    wildcards: sample=AB8, graph=16-fruitfly-mc-2022-05-26
+    resources: tmpdir=/tmp
+
+Rscript scripts/read_svs.R results/16-fruitfly-mc-2022-05-26_decomposed/16-fruitfly-mc-2022-05-26.AB8.decomposed.vcf.gz svs/AB8.16-fruitfly-mc-2022-05-26.decomposed.svs.rds
+
+[Mon Oct 31 21:09:07 2022]
+rule make_svs_rds:
+    input: results/16-fruitfly-mc-2022-05-26_decomposed/16-fruitfly-mc-2022-05-26.B6.decomposed.vcf.gz, scripts/read_svs.R
+    output: svs/B6.16-fruitfly-mc-2022-05-26.decomposed.svs.rds
+    jobid: 86
+    reason: Missing output files: svs/B6.16-fruitfly-mc-2022-05-26.decomposed.svs.rds; Input files updated by another job: results/16-fruitfly-mc-2022-05-26_decomposed/16-fruitfly-mc-2022-05-26.B6.decomposed.vcf.gz
+    wildcards: sample=B6, graph=16-fruitfly-mc-2022-05-26
+    resources: tmpdir=/tmp
+
+Rscript scripts/read_svs.R results/16-fruitfly-mc-2022-05-26_decomposed/16-fruitfly-mc-2022-05-26.B6.decomposed.vcf.gz svs/B6.16-fruitfly-mc-2022-05-26.decomposed.svs.rds
+
+[Mon Oct 31 21:09:07 2022]
+rule make_svs_rds:
+    input: results/16-fruitfly-mc-2022-05-26_decomposed/16-fruitfly-mc-2022-05-26.A7.decomposed.vcf.gz, scripts/read_svs.R
+    output: svs/A7.16-fruitfly-mc-2022-05-26.decomposed.svs.rds
+    jobid: 44
+    reason: Missing output files: svs/A7.16-fruitfly-mc-2022-05-26.decomposed.svs.rds; Input files updated by another job: results/16-fruitfly-mc-2022-05-26_decomposed/16-fruitfly-mc-2022-05-26.A7.decomposed.vcf.gz
+    wildcards: sample=A7, graph=16-fruitfly-mc-2022-05-26
+    resources: tmpdir=/tmp
+
+Rscript scripts/read_svs.R results/16-fruitfly-mc-2022-05-26_decomposed/16-fruitfly-mc-2022-05-26.A7.decomposed.vcf.gz svs/A7.16-fruitfly-mc-2022-05-26.decomposed.svs.rds
+
+[Mon Oct 31 21:09:07 2022]
+rule make_svs_rds:
+    input: results/16-fruitfly-mc-2022-05-26_decomposed/16-fruitfly-mc-2022-05-26.A1.decomposed.vcf.gz, scripts/read_svs.R
+    output: svs/A1.16-fruitfly-mc-2022-05-26.decomposed.svs.rds
+    jobid: 1
+    reason: Missing output files: svs/A1.16-fruitfly-mc-2022-05-26.decomposed.svs.rds; Input files updated by another job: results/16-fruitfly-mc-2022-05-26_decomposed/16-fruitfly-mc-2022-05-26.A1.decomposed.vcf.gz
+    wildcards: sample=A1, graph=16-fruitfly-mc-2022-05-26
+    resources: tmpdir=/tmp
+
+Rscript scripts/read_svs.R results/16-fruitfly-mc-2022-05-26_decomposed/16-fruitfly-mc-2022-05-26.A1.decomposed.vcf.gz svs/A1.16-fruitfly-mc-2022-05-26.decomposed.svs.rds
+
+[Mon Oct 31 21:09:07 2022]
+rule make_svs_rds:
+    input: results/16-fruitfly-mc-2022-05-26_decomposed/16-fruitfly-mc-2022-05-26.B1.decomposed.vcf.gz, scripts/read_svs.R
+    output: svs/B1.16-fruitfly-mc-2022-05-26.decomposed.svs.rds
+    jobid: 58
+    reason: Missing output files: svs/B1.16-fruitfly-mc-2022-05-26.decomposed.svs.rds; Input files updated by another job: results/16-fruitfly-mc-2022-05-26_decomposed/16-fruitfly-mc-2022-05-26.B1.decomposed.vcf.gz
+    wildcards: sample=B1, graph=16-fruitfly-mc-2022-05-26
+    resources: tmpdir=/tmp
+
+Rscript scripts/read_svs.R results/16-fruitfly-mc-2022-05-26_decomposed/16-fruitfly-mc-2022-05-26.B1.decomposed.vcf.gz svs/B1.16-fruitfly-mc-2022-05-26.decomposed.svs.rds
+
+[Mon Oct 31 21:09:07 2022]
+rule make_svs_rds:
+    input: results/16-fruitfly-mc-2022-05-26_decomposed/16-fruitfly-mc-2022-05-26.A3.decomposed.vcf.gz, scripts/read_svs.R
+    output: svs/A3.16-fruitfly-mc-2022-05-26.decomposed.svs.rds
+    jobid: 16
+    reason: Missing output files: svs/A3.16-fruitfly-mc-2022-05-26.decomposed.svs.rds; Input files updated by another job: results/16-fruitfly-mc-2022-05-26_decomposed/16-fruitfly-mc-2022-05-26.A3.decomposed.vcf.gz
+    wildcards: sample=A3, graph=16-fruitfly-mc-2022-05-26
+    resources: tmpdir=/tmp
+
+Rscript scripts/read_svs.R results/16-fruitfly-mc-2022-05-26_decomposed/16-fruitfly-mc-2022-05-26.A3.decomposed.vcf.gz svs/A3.16-fruitfly-mc-2022-05-26.decomposed.svs.rds
+
+[Mon Oct 31 21:09:07 2022]
+rule make_svs_rds:
+    input: results/16-fruitfly-mc-2022-05-26_decomposed/16-fruitfly-mc-2022-05-26.B3.decomposed.vcf.gz, scripts/read_svs.R
+    output: svs/B3.16-fruitfly-mc-2022-05-26.decomposed.svs.rds
+    jobid: 72
+    reason: Missing output files: svs/B3.16-fruitfly-mc-2022-05-26.decomposed.svs.rds; Input files updated by another job: results/16-fruitfly-mc-2022-05-26_decomposed/16-fruitfly-mc-2022-05-26.B3.decomposed.vcf.gz
+    wildcards: sample=B3, graph=16-fruitfly-mc-2022-05-26
+    resources: tmpdir=/tmp
+
+Rscript scripts/read_svs.R results/16-fruitfly-mc-2022-05-26_decomposed/16-fruitfly-mc-2022-05-26.B3.decomposed.vcf.gz svs/B3.16-fruitfly-mc-2022-05-26.decomposed.svs.rds
+
+[Mon Oct 31 21:09:07 2022]
+localrule decompose_pangenome:
+    input: svs/A1.16-fruitfly-mc-2022-05-26.decomposed.svs.rds, svs/A2.16-fruitfly-mc-2022-05-26.decomposed.svs.rds, svs/A3.16-fruitfly-mc-2022-05-26.decomposed.svs.rds, svs/A4.16-fruitfly-mc-2022-05-26.decomposed.svs.rds, svs/A5.16-fruitfly-mc-2022-05-26.decomposed.svs.rds, svs/A6.16-fruitfly-mc-2022-05-26.decomposed.svs.rds, svs/A7.16-fruitfly-mc-2022-05-26.decomposed.svs.rds, svs/AB8.16-fruitfly-mc-2022-05-26.decomposed.svs.rds, svs/B1.16-fruitfly-mc-2022-05-26.decomposed.svs.rds, svs/B2.16-fruitfly-mc-2022-05-26.decomposed.svs.rds, svs/B3.16-fruitfly-mc-2022-05-26.decomposed.svs.rds, svs/B4.16-fruitfly-mc-2022-05-26.decomposed.svs.rds, svs/B6.16-fruitfly-mc-2022-05-26.decomposed.svs.rds, svs/B7.16-fruitfly-mc-2022-05-26.decomposed.svs.rds, svs/OreR.16-fruitfly-mc-2022-05-26.decomposed.svs.rds
+    jobid: 0
+    reason: Input files updated by another job: svs/B1.16-fruitfly-mc-2022-05-26.decomposed.svs.rds, svs/B2.16-fruitfly-mc-2022-05-26.decomposed.svs.rds, svs/A2.16-fruitfly-mc-2022-05-26.decomposed.svs.rds, svs/A7.16-fruitfly-mc-2022-05-26.decomposed.svs.rds, svs/OreR.16-fruitfly-mc-2022-05-26.decomposed.svs.rds, svs/B3.16-fruitfly-mc-2022-05-26.decomposed.svs.rds, svs/B6.16-fruitfly-mc-2022-05-26.decomposed.svs.rds, svs/AB8.16-fruitfly-mc-2022-05-26.decomposed.svs.rds, svs/B7.16-fruitfly-mc-2022-05-26.decomposed.svs.rds, svs/A3.16-fruitfly-mc-2022-05-26.decomposed.svs.rds, svs/B4.16-fruitfly-mc-2022-05-26.decomposed.svs.rds, svs/A6.16-fruitfly-mc-2022-05-26.decomposed.svs.rds, svs/A4.16-fruitfly-mc-2022-05-26.decomposed.svs.rds, svs/A1.16-fruitfly-mc-2022-05-26.decomposed.svs.rds, svs/A5.16-fruitfly-mc-2022-05-26.decomposed.svs.rds
+    resources: tmpdir=/tmp
+
+Job stats:
+job                        count    min threads    max threads
+-----------------------  -------  -------------  -------------
+convert_to_pg                  1              8              8
+decompose_pangenome            1              1              1
+decompose_variants            15              1              1
+drop_inconsistent_sites       15              1              1
+extract_nonref                15              1              1
+extract_sample                15              2              2
+make_svs_rds                  15              1              1
+remove_dups                   15              1              1
+split_multialts               15              2              2
+total                        107              1              8
+
+Reasons:
+    (check individual jobs above for details)
+    input files updated by another job:
+        decompose_pangenome, decompose_variants, drop_inconsistent_sites, extract_nonref, make_svs_rds, remove_dups, split_multialts
+    missing output files:
+        convert_to_pg, decompose_variants, drop_inconsistent_sites, extract_nonref, extract_sample, make_svs_rds, remove_dups, split_multialts
+
+This was a dry-run (flag -n). The order of jobs does not reflect the order of execution.

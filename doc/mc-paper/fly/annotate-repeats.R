@@ -8,7 +8,7 @@ species='drosophila'
 docker.image='jmonlong/repeatmasker:release-4.0.9-p2'
 nb.cores = 16
 
-svs = readRDS('fly-pg-may26-d2.100samples.decomposed.svs.site.rol90.insd100.rds')
+svs = readRDS('16-fruitfly-mc-2022-05-26-d2.100samples.decomposed.svs.site.rol90.insd100.rds')
 svs$id = paste0('sv', 1:length(svs))
 
 svs.df = svs %>% as.data.frame %>%
@@ -56,4 +56,4 @@ svs$rmsk.classfam = rmout[svs$id, "repeat.class.family"]
 svs$rmsk.name = rmout[svs$id, "repeat.name"]
 svs$rmsk.cov = rmout[svs$id, "rm.w"]/GenomicRanges::width(seqs)
 
-saveRDS(svs, file='fly-pg-may26-d2.100samples.decomposed.svs.site.rol90.insd100.rmsk.rds')
+saveRDS(svs, file='16-fruitfly-mc-2022-05-26-d2.100samples.decomposed.svs.site.rol90.insd100.rmsk.rds')
