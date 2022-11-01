@@ -24,7 +24,7 @@ class PostInstallCommand(install):
 
 setup(
     name = "Cactus",
-    version = "2.2.2",
+    version = "2.2.3",
     author = "Benedict Paten",
     package_dir = {'': 'src'},
     packages = find_packages(where='src'),
@@ -61,4 +61,5 @@ setup(
                             'cactus-align = cactus.setup.cactus_align:main',
                             'cactus-align-batch = cactus.setup.cactus_align:main_batch',
                             'cactus-update-prepare = cactus.update.cactus_update_prepare:main',
-                            'cactus-terra-helper = cactus.progressive.cactus_terra_helper:main']},)
+                            'cactus-terra-helper = cactus.progressive.cactus_terra_helper:main',
+                            'cactus-hal2maf = cactus.maf.cactus_hal2maf:main']},)

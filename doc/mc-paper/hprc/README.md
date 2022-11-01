@@ -1,4 +1,12 @@
-# Human Pangenome - Read mapping and short variant calling
+# HPRC Pangenome Methods
+
+## Construction
+
+The graphs were constructed as described [here](../pangenome.md#hprc-version-10-graphs).  They are available to download [here](https://github.com/human-pangenomics/hpp_pangenome_resources/).
+
+The versions of the graph used to create Supplementary Figure 3 in order to show sequence removed when not using dna-brnn were created with the commands listed [here](../pangenome.md#hprc-graph).
+
+The non-reference sequence was computed using [count-vg-hap-cov](https://github.com/ComparativeGenomicsToolkit/hal2vg/blob/f3d9a1838d1fb5582b6e1cd509792daee51fd2a9/count-vg-hap-cov.cpp) on the [GRCh38](https://s3-us-west-2.amazonaws.com/human-pangenomics/index.html?prefix=pangenomes/scratch/2021_08_11_minigraph_cactus/GRCh38-chrom-graphs/) and [CHM13](https://s3-us-west-2.amazonaws.com/human-pangenomics/index.html?prefix=pangenomes/scratch/2021_08_11_minigraph_cactus/CHM13-chrom-graphs/) chromosome vg graphs.
 
 ## Snakemake pipeline and scripts
 
@@ -72,7 +80,7 @@ For example, it will parse both the CIGAR field and the MD tag to figure out if 
 
 The `<SAMPLE>.<MAPPER>.<REF>.mapstats.txt` files created by these runs contains the number of reads for each profile (*mapping quality* x *perfect alignment*).
 They are read by the [`mapstats-analysis.R`](mapstats-analysis.R) script to make the graphs.
-A TAR file containing all of those `*mapstats.txt` files for HG001,2,5 and the different reference (pan)genomes is shared at [http://public.gi.ucsc.edu/~jmonlong/hprc/minigraph-cactus-manuscript/hprc-human/mapstats.hg001_2_5.giraffe_hprc.bwa_grch38.tar.gz](http://public.gi.ucsc.edu/~jmonlong/hprc/minigraph-cactus-manuscript/hprc-human/mapstats.hg001_2_5.giraffe_hprc.bwa_grch38.tar.gz).
+A TAR file containing all of those `*mapstats.txt` files for HG001,2,5 and the different reference (pan)genomes is shared at [https://s3-us-west-2.amazonaws.com/human-pangenomics/publications/mc_2022/hprc-human/mapstats.hg001_2_5.giraffe_hprc.bwa_grch38.tar.gz](https://s3-us-west-2.amazonaws.com/human-pangenomics/publications/mc_2022/hprc-human/mapstats.hg001_2_5.giraffe_hprc.bwa_grch38.tar.gz).
 
 ## Small variant calling with DeepVariant
 
@@ -261,7 +269,7 @@ snakemake -s Snakefile_eval_chm13 --configfile snakemake_config_chm13.yaml --cor
 
 The [`calls-evaluation-exploration.R`](calls-evaluation-exploration.R) script makes figures from the combined evaluation summary files (`eval-summary-*.tsv` and `eval-roc-summary-*.tsv`).
 
-The combined summary files are available at [http://public.gi.ucsc.edu/~jmonlong/hprc/minigraph-cactus-manuscript/hprc-human/eval-summary-hprc.tar.gz](http://public.gi.ucsc.edu/~jmonlong/hprc/minigraph-cactus-manuscript/hprc-human/eval-summary-hprc.tar.gz).
+The combined summary files are available at [https://s3-us-west-2.amazonaws.com/human-pangenomics/publications/mc_2022/hprc-human/eval-summary-hprc.tar.gz](https://s3-us-west-2.amazonaws.com/human-pangenomics/publications/mc_2022/hprc-human/eval-summary-hprc.tar.gz).
 
 #### Stratification of the GRCh38-based vs CHM13-based pangenomes performance
 

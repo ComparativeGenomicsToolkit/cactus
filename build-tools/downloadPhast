@@ -8,6 +8,8 @@ STATIC_CHECK=$1
 set -beEu -o pipefail
 gitrel=85f7ed179dd097a86ba4added22d571785cc3e1d
 
+binDir=$(pwd)/bin
+
 # works on MacOS and Linux
 numcpu=$(getconf _NPROCESSORS_ONLN)
 
@@ -16,6 +18,8 @@ submodulesDir=$(pwd)/submodules
 CWD=$(pwd)
 
 set -x
+
+mkdir -p ${binDir}
 
 # build clapack
 cd ${submodulesDir}
@@ -34,8 +38,21 @@ rm -rf phast
 git clone https://github.com/CshlSiepelLab/phast.git
 cd phast
 git checkout ${gitrel}
+# hack in flags support
+sed -i src/make-include.mk -e 's/CFLAGS =/CFLAGS +=/' -e 's/LIBS =/LIBS +=/' 
 # note: phast's makefile doesn't support -j (somehow this only came up when upgrading to ubunut 22.04)
 cd src && make
+
+# copy over the binaries
+for PHASTBIN in ../bin/*
+do
+	 if [[ $STATIC_CHECK -ne 1 || $(ldd ${PHASTBIN} | grep so | wc -l) -eq 0 ]]
+	 then
+		  cp ${PHASTBIN} ${binDir}
+	 else
+		  exit 1;
+	 fi
+done
 
 cd ${CWD}
 
