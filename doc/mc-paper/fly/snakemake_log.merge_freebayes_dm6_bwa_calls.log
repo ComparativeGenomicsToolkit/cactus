@@ -7,67 +7,7 @@ prepare_for_merge          100              1              1
 total                      101              1              8
 
 
-[Mon Oct 31 18:09:08 2022]
-rule prepare_for_merge:
-    input: calls/SRR835069_bwa.fb.vcf.gz, calls/SRR835069_bwa.fb.vcf.gz.tbi
-    output: for-merge/dm6.SRR835069.bwa.vcf.gz, for-merge/dm6.SRR835069.bwa.vcf.gz.tbi
-    jobid: 67
-    reason: Missing output files: for-merge/dm6.SRR835069.bwa.vcf.gz.tbi, for-merge/dm6.SRR835069.bwa.vcf.gz
-    wildcards: graph=dm6, sample=SRR835069, method=bwa
-    resources: tmpdir=/tmp
-
-
-        echo SRR835069 > SRR835069.txt
-        bcftools reheader -s SRR835069.txt calls/SRR835069_bwa.fb.vcf.gz | bcftools annotate -x INFO,^FORMAT/GT | bcftools norm -m -any -o for-merge/dm6.SRR835069.bwa.vcf.gz -Oz
-        tabix for-merge/dm6.SRR835069.bwa.vcf.gz
-        
-
-[Mon Oct 31 18:09:08 2022]
-rule prepare_for_merge:
-    input: calls/SRR834519_bwa.fb.vcf.gz, calls/SRR834519_bwa.fb.vcf.gz.tbi
-    output: for-merge/dm6.SRR834519.bwa.vcf.gz, for-merge/dm6.SRR834519.bwa.vcf.gz.tbi
-    jobid: 11
-    reason: Missing output files: for-merge/dm6.SRR834519.bwa.vcf.gz.tbi, for-merge/dm6.SRR834519.bwa.vcf.gz
-    wildcards: graph=dm6, sample=SRR834519, method=bwa
-    resources: tmpdir=/tmp
-
-
-        echo SRR834519 > SRR834519.txt
-        bcftools reheader -s SRR834519.txt calls/SRR834519_bwa.fb.vcf.gz | bcftools annotate -x INFO,^FORMAT/GT | bcftools norm -m -any -o for-merge/dm6.SRR834519.bwa.vcf.gz -Oz
-        tabix for-merge/dm6.SRR834519.bwa.vcf.gz
-        
-
-[Mon Oct 31 18:09:08 2022]
-rule prepare_for_merge:
-    input: calls/SRR834547_bwa.fb.vcf.gz, calls/SRR834547_bwa.fb.vcf.gz.tbi
-    output: for-merge/dm6.SRR834547.bwa.vcf.gz, for-merge/dm6.SRR834547.bwa.vcf.gz.tbi
-    jobid: 25
-    reason: Missing output files: for-merge/dm6.SRR834547.bwa.vcf.gz.tbi, for-merge/dm6.SRR834547.bwa.vcf.gz
-    wildcards: graph=dm6, sample=SRR834547, method=bwa
-    resources: tmpdir=/tmp
-
-
-        echo SRR834547 > SRR834547.txt
-        bcftools reheader -s SRR834547.txt calls/SRR834547_bwa.fb.vcf.gz | bcftools annotate -x INFO,^FORMAT/GT | bcftools norm -m -any -o for-merge/dm6.SRR834547.bwa.vcf.gz -Oz
-        tabix for-merge/dm6.SRR834547.bwa.vcf.gz
-        
-
-[Mon Oct 31 18:09:08 2022]
-rule prepare_for_merge:
-    input: calls/SRR835033_bwa.fb.vcf.gz, calls/SRR835033_bwa.fb.vcf.gz.tbi
-    output: for-merge/dm6.SRR835033.bwa.vcf.gz, for-merge/dm6.SRR835033.bwa.vcf.gz.tbi
-    jobid: 39
-    reason: Missing output files: for-merge/dm6.SRR835033.bwa.vcf.gz.tbi, for-merge/dm6.SRR835033.bwa.vcf.gz
-    wildcards: graph=dm6, sample=SRR835033, method=bwa
-    resources: tmpdir=/tmp
-
-
-        echo SRR835033 > SRR835033.txt
-        bcftools reheader -s SRR835033.txt calls/SRR835033_bwa.fb.vcf.gz | bcftools annotate -x INFO,^FORMAT/GT | bcftools norm -m -any -o for-merge/dm6.SRR835033.bwa.vcf.gz -Oz
-        tabix for-merge/dm6.SRR835033.bwa.vcf.gz
-        
-
-[Mon Oct 31 18:09:08 2022]
+[Mon Oct 31 21:06:22 2022]
 rule prepare_for_merge:
     input: calls/SRR835047_bwa.fb.vcf.gz, calls/SRR835047_bwa.fb.vcf.gz.tbi
     output: for-merge/dm6.SRR835047.bwa.vcf.gz, for-merge/dm6.SRR835047.bwa.vcf.gz.tbi
@@ -82,7 +22,52 @@ rule prepare_for_merge:
         tabix for-merge/dm6.SRR835047.bwa.vcf.gz
         
 
-[Mon Oct 31 18:09:08 2022]
+[Mon Oct 31 21:06:22 2022]
+rule prepare_for_merge:
+    input: calls/SRR835069_bwa.fb.vcf.gz, calls/SRR835069_bwa.fb.vcf.gz.tbi
+    output: for-merge/dm6.SRR835069.bwa.vcf.gz, for-merge/dm6.SRR835069.bwa.vcf.gz.tbi
+    jobid: 67
+    reason: Missing output files: for-merge/dm6.SRR835069.bwa.vcf.gz.tbi, for-merge/dm6.SRR835069.bwa.vcf.gz
+    wildcards: graph=dm6, sample=SRR835069, method=bwa
+    resources: tmpdir=/tmp
+
+
+        echo SRR835069 > SRR835069.txt
+        bcftools reheader -s SRR835069.txt calls/SRR835069_bwa.fb.vcf.gz | bcftools annotate -x INFO,^FORMAT/GT | bcftools norm -m -any -o for-merge/dm6.SRR835069.bwa.vcf.gz -Oz
+        tabix for-merge/dm6.SRR835069.bwa.vcf.gz
+        
+
+[Mon Oct 31 21:06:22 2022]
+rule prepare_for_merge:
+    input: calls/SRR834519_bwa.fb.vcf.gz, calls/SRR834519_bwa.fb.vcf.gz.tbi
+    output: for-merge/dm6.SRR834519.bwa.vcf.gz, for-merge/dm6.SRR834519.bwa.vcf.gz.tbi
+    jobid: 11
+    reason: Missing output files: for-merge/dm6.SRR834519.bwa.vcf.gz.tbi, for-merge/dm6.SRR834519.bwa.vcf.gz
+    wildcards: graph=dm6, sample=SRR834519, method=bwa
+    resources: tmpdir=/tmp
+
+
+        echo SRR834519 > SRR834519.txt
+        bcftools reheader -s SRR834519.txt calls/SRR834519_bwa.fb.vcf.gz | bcftools annotate -x INFO,^FORMAT/GT | bcftools norm -m -any -o for-merge/dm6.SRR834519.bwa.vcf.gz -Oz
+        tabix for-merge/dm6.SRR834519.bwa.vcf.gz
+        
+
+[Mon Oct 31 21:06:22 2022]
+rule prepare_for_merge:
+    input: calls/SRR835033_bwa.fb.vcf.gz, calls/SRR835033_bwa.fb.vcf.gz.tbi
+    output: for-merge/dm6.SRR835033.bwa.vcf.gz, for-merge/dm6.SRR835033.bwa.vcf.gz.tbi
+    jobid: 39
+    reason: Missing output files: for-merge/dm6.SRR835033.bwa.vcf.gz, for-merge/dm6.SRR835033.bwa.vcf.gz.tbi
+    wildcards: graph=dm6, sample=SRR835033, method=bwa
+    resources: tmpdir=/tmp
+
+
+        echo SRR835033 > SRR835033.txt
+        bcftools reheader -s SRR835033.txt calls/SRR835033_bwa.fb.vcf.gz | bcftools annotate -x INFO,^FORMAT/GT | bcftools norm -m -any -o for-merge/dm6.SRR835033.bwa.vcf.gz -Oz
+        tabix for-merge/dm6.SRR835033.bwa.vcf.gz
+        
+
+[Mon Oct 31 21:06:22 2022]
 rule prepare_for_merge:
     input: calls/SRR835096_bwa.fb.vcf.gz, calls/SRR835096_bwa.fb.vcf.gz.tbi
     output: for-merge/dm6.SRR835096.bwa.vcf.gz, for-merge/dm6.SRR835096.bwa.vcf.gz.tbi
@@ -97,7 +82,22 @@ rule prepare_for_merge:
         tabix for-merge/dm6.SRR835096.bwa.vcf.gz
         
 
-[Mon Oct 31 18:09:08 2022]
+[Mon Oct 31 21:06:22 2022]
+rule prepare_for_merge:
+    input: calls/SRR834547_bwa.fb.vcf.gz, calls/SRR834547_bwa.fb.vcf.gz.tbi
+    output: for-merge/dm6.SRR834547.bwa.vcf.gz, for-merge/dm6.SRR834547.bwa.vcf.gz.tbi
+    jobid: 25
+    reason: Missing output files: for-merge/dm6.SRR834547.bwa.vcf.gz, for-merge/dm6.SRR834547.bwa.vcf.gz.tbi
+    wildcards: graph=dm6, sample=SRR834547, method=bwa
+    resources: tmpdir=/tmp
+
+
+        echo SRR834547 > SRR834547.txt
+        bcftools reheader -s SRR834547.txt calls/SRR834547_bwa.fb.vcf.gz | bcftools annotate -x INFO,^FORMAT/GT | bcftools norm -m -any -o for-merge/dm6.SRR834547.bwa.vcf.gz -Oz
+        tabix for-merge/dm6.SRR834547.bwa.vcf.gz
+        
+
+[Mon Oct 31 21:06:22 2022]
 rule prepare_for_merge:
     input: calls/SRR933591_bwa.fb.vcf.gz, calls/SRR933591_bwa.fb.vcf.gz.tbi
     output: for-merge/dm6.SRR933591.bwa.vcf.gz, for-merge/dm6.SRR933591.bwa.vcf.gz.tbi
@@ -112,12 +112,12 @@ rule prepare_for_merge:
         tabix for-merge/dm6.SRR933591.bwa.vcf.gz
         
 
-[Mon Oct 31 18:09:08 2022]
+[Mon Oct 31 21:06:22 2022]
 rule prepare_for_merge:
     input: calls/SRR834520_bwa.fb.vcf.gz, calls/SRR834520_bwa.fb.vcf.gz.tbi
     output: for-merge/dm6.SRR834520.bwa.vcf.gz, for-merge/dm6.SRR834520.bwa.vcf.gz.tbi
     jobid: 12
-    reason: Missing output files: for-merge/dm6.SRR834520.bwa.vcf.gz.tbi, for-merge/dm6.SRR834520.bwa.vcf.gz
+    reason: Missing output files: for-merge/dm6.SRR834520.bwa.vcf.gz, for-merge/dm6.SRR834520.bwa.vcf.gz.tbi
     wildcards: graph=dm6, sample=SRR834520, method=bwa
     resources: tmpdir=/tmp
 
@@ -127,37 +127,7 @@ rule prepare_for_merge:
         tabix for-merge/dm6.SRR834520.bwa.vcf.gz
         
 
-[Mon Oct 31 18:09:08 2022]
-rule prepare_for_merge:
-    input: calls/SRR834551_bwa.fb.vcf.gz, calls/SRR834551_bwa.fb.vcf.gz.tbi
-    output: for-merge/dm6.SRR834551.bwa.vcf.gz, for-merge/dm6.SRR834551.bwa.vcf.gz.tbi
-    jobid: 26
-    reason: Missing output files: for-merge/dm6.SRR834551.bwa.vcf.gz, for-merge/dm6.SRR834551.bwa.vcf.gz.tbi
-    wildcards: graph=dm6, sample=SRR834551, method=bwa
-    resources: tmpdir=/tmp
-
-
-        echo SRR834551 > SRR834551.txt
-        bcftools reheader -s SRR834551.txt calls/SRR834551_bwa.fb.vcf.gz | bcftools annotate -x INFO,^FORMAT/GT | bcftools norm -m -any -o for-merge/dm6.SRR834551.bwa.vcf.gz -Oz
-        tabix for-merge/dm6.SRR834551.bwa.vcf.gz
-        
-
-[Mon Oct 31 18:09:08 2022]
-rule prepare_for_merge:
-    input: calls/SRR835071_bwa.fb.vcf.gz, calls/SRR835071_bwa.fb.vcf.gz.tbi
-    output: for-merge/dm6.SRR835071.bwa.vcf.gz, for-merge/dm6.SRR835071.bwa.vcf.gz.tbi
-    jobid: 68
-    reason: Missing output files: for-merge/dm6.SRR835071.bwa.vcf.gz.tbi, for-merge/dm6.SRR835071.bwa.vcf.gz
-    wildcards: graph=dm6, sample=SRR835071, method=bwa
-    resources: tmpdir=/tmp
-
-
-        echo SRR835071 > SRR835071.txt
-        bcftools reheader -s SRR835071.txt calls/SRR835071_bwa.fb.vcf.gz | bcftools annotate -x INFO,^FORMAT/GT | bcftools norm -m -any -o for-merge/dm6.SRR835071.bwa.vcf.gz -Oz
-        tabix for-merge/dm6.SRR835071.bwa.vcf.gz
-        
-
-[Mon Oct 31 18:09:08 2022]
+[Mon Oct 31 21:06:22 2022]
 rule prepare_for_merge:
     input: calls/SRR835034_bwa.fb.vcf.gz, calls/SRR835034_bwa.fb.vcf.gz.tbi
     output: for-merge/dm6.SRR835034.bwa.vcf.gz, for-merge/dm6.SRR835034.bwa.vcf.gz.tbi
@@ -172,12 +142,12 @@ rule prepare_for_merge:
         tabix for-merge/dm6.SRR835034.bwa.vcf.gz
         
 
-[Mon Oct 31 18:09:08 2022]
+[Mon Oct 31 21:06:22 2022]
 rule prepare_for_merge:
     input: calls/SRR835048_bwa.fb.vcf.gz, calls/SRR835048_bwa.fb.vcf.gz.tbi
     output: for-merge/dm6.SRR835048.bwa.vcf.gz, for-merge/dm6.SRR835048.bwa.vcf.gz.tbi
     jobid: 54
-    reason: Missing output files: for-merge/dm6.SRR835048.bwa.vcf.gz.tbi, for-merge/dm6.SRR835048.bwa.vcf.gz
+    reason: Missing output files: for-merge/dm6.SRR835048.bwa.vcf.gz, for-merge/dm6.SRR835048.bwa.vcf.gz.tbi
     wildcards: graph=dm6, sample=SRR835048, method=bwa
     resources: tmpdir=/tmp
 
@@ -187,7 +157,22 @@ rule prepare_for_merge:
         tabix for-merge/dm6.SRR835048.bwa.vcf.gz
         
 
-[Mon Oct 31 18:09:08 2022]
+[Mon Oct 31 21:06:22 2022]
+rule prepare_for_merge:
+    input: calls/SRR835071_bwa.fb.vcf.gz, calls/SRR835071_bwa.fb.vcf.gz.tbi
+    output: for-merge/dm6.SRR835071.bwa.vcf.gz, for-merge/dm6.SRR835071.bwa.vcf.gz.tbi
+    jobid: 68
+    reason: Missing output files: for-merge/dm6.SRR835071.bwa.vcf.gz, for-merge/dm6.SRR835071.bwa.vcf.gz.tbi
+    wildcards: graph=dm6, sample=SRR835071, method=bwa
+    resources: tmpdir=/tmp
+
+
+        echo SRR835071 > SRR835071.txt
+        bcftools reheader -s SRR835071.txt calls/SRR835071_bwa.fb.vcf.gz | bcftools annotate -x INFO,^FORMAT/GT | bcftools norm -m -any -o for-merge/dm6.SRR835071.bwa.vcf.gz -Oz
+        tabix for-merge/dm6.SRR835071.bwa.vcf.gz
+        
+
+[Mon Oct 31 21:06:22 2022]
 rule prepare_for_merge:
     input: calls/SRR835097_bwa.fb.vcf.gz, calls/SRR835097_bwa.fb.vcf.gz.tbi
     output: for-merge/dm6.SRR835097.bwa.vcf.gz, for-merge/dm6.SRR835097.bwa.vcf.gz.tbi
@@ -202,12 +187,27 @@ rule prepare_for_merge:
         tabix for-merge/dm6.SRR835097.bwa.vcf.gz
         
 
-[Mon Oct 31 18:09:08 2022]
+[Mon Oct 31 21:06:22 2022]
+rule prepare_for_merge:
+    input: calls/SRR834551_bwa.fb.vcf.gz, calls/SRR834551_bwa.fb.vcf.gz.tbi
+    output: for-merge/dm6.SRR834551.bwa.vcf.gz, for-merge/dm6.SRR834551.bwa.vcf.gz.tbi
+    jobid: 26
+    reason: Missing output files: for-merge/dm6.SRR834551.bwa.vcf.gz, for-merge/dm6.SRR834551.bwa.vcf.gz.tbi
+    wildcards: graph=dm6, sample=SRR834551, method=bwa
+    resources: tmpdir=/tmp
+
+
+        echo SRR834551 > SRR834551.txt
+        bcftools reheader -s SRR834551.txt calls/SRR834551_bwa.fb.vcf.gz | bcftools annotate -x INFO,^FORMAT/GT | bcftools norm -m -any -o for-merge/dm6.SRR834551.bwa.vcf.gz -Oz
+        tabix for-merge/dm6.SRR834551.bwa.vcf.gz
+        
+
+[Mon Oct 31 21:06:22 2022]
 rule prepare_for_merge:
     input: calls/SRR933592_bwa.fb.vcf.gz, calls/SRR933592_bwa.fb.vcf.gz.tbi
     output: for-merge/dm6.SRR933592.bwa.vcf.gz, for-merge/dm6.SRR933592.bwa.vcf.gz.tbi
     jobid: 96
-    reason: Missing output files: for-merge/dm6.SRR933592.bwa.vcf.gz.tbi, for-merge/dm6.SRR933592.bwa.vcf.gz
+    reason: Missing output files: for-merge/dm6.SRR933592.bwa.vcf.gz, for-merge/dm6.SRR933592.bwa.vcf.gz.tbi
     wildcards: graph=dm6, sample=SRR933592, method=bwa
     resources: tmpdir=/tmp
 
@@ -217,7 +217,7 @@ rule prepare_for_merge:
         tabix for-merge/dm6.SRR933592.bwa.vcf.gz
         
 
-[Mon Oct 31 18:09:08 2022]
+[Mon Oct 31 21:06:22 2022]
 rule prepare_for_merge:
     input: calls/SRR834521_bwa.fb.vcf.gz, calls/SRR834521_bwa.fb.vcf.gz.tbi
     output: for-merge/dm6.SRR834521.bwa.vcf.gz, for-merge/dm6.SRR834521.bwa.vcf.gz.tbi
@@ -232,37 +232,7 @@ rule prepare_for_merge:
         tabix for-merge/dm6.SRR834521.bwa.vcf.gz
         
 
-[Mon Oct 31 18:09:08 2022]
-rule prepare_for_merge:
-    input: calls/SRR834552_bwa.fb.vcf.gz, calls/SRR834552_bwa.fb.vcf.gz.tbi
-    output: for-merge/dm6.SRR834552.bwa.vcf.gz, for-merge/dm6.SRR834552.bwa.vcf.gz.tbi
-    jobid: 27
-    reason: Missing output files: for-merge/dm6.SRR834552.bwa.vcf.gz, for-merge/dm6.SRR834552.bwa.vcf.gz.tbi
-    wildcards: graph=dm6, sample=SRR834552, method=bwa
-    resources: tmpdir=/tmp
-
-
-        echo SRR834552 > SRR834552.txt
-        bcftools reheader -s SRR834552.txt calls/SRR834552_bwa.fb.vcf.gz | bcftools annotate -x INFO,^FORMAT/GT | bcftools norm -m -any -o for-merge/dm6.SRR834552.bwa.vcf.gz -Oz
-        tabix for-merge/dm6.SRR834552.bwa.vcf.gz
-        
-
-[Mon Oct 31 18:09:08 2022]
-rule prepare_for_merge:
-    input: calls/SRR835072_bwa.fb.vcf.gz, calls/SRR835072_bwa.fb.vcf.gz.tbi
-    output: for-merge/dm6.SRR835072.bwa.vcf.gz, for-merge/dm6.SRR835072.bwa.vcf.gz.tbi
-    jobid: 69
-    reason: Missing output files: for-merge/dm6.SRR835072.bwa.vcf.gz, for-merge/dm6.SRR835072.bwa.vcf.gz.tbi
-    wildcards: graph=dm6, sample=SRR835072, method=bwa
-    resources: tmpdir=/tmp
-
-
-        echo SRR835072 > SRR835072.txt
-        bcftools reheader -s SRR835072.txt calls/SRR835072_bwa.fb.vcf.gz | bcftools annotate -x INFO,^FORMAT/GT | bcftools norm -m -any -o for-merge/dm6.SRR835072.bwa.vcf.gz -Oz
-        tabix for-merge/dm6.SRR835072.bwa.vcf.gz
-        
-
-[Mon Oct 31 18:09:08 2022]
+[Mon Oct 31 21:06:22 2022]
 rule prepare_for_merge:
     input: calls/SRR835035_bwa.fb.vcf.gz, calls/SRR835035_bwa.fb.vcf.gz.tbi
     output: for-merge/dm6.SRR835035.bwa.vcf.gz, for-merge/dm6.SRR835035.bwa.vcf.gz.tbi
@@ -277,7 +247,7 @@ rule prepare_for_merge:
         tabix for-merge/dm6.SRR835035.bwa.vcf.gz
         
 
-[Mon Oct 31 18:09:08 2022]
+[Mon Oct 31 21:06:22 2022]
 rule prepare_for_merge:
     input: calls/SRR835050_bwa.fb.vcf.gz, calls/SRR835050_bwa.fb.vcf.gz.tbi
     output: for-merge/dm6.SRR835050.bwa.vcf.gz, for-merge/dm6.SRR835050.bwa.vcf.gz.tbi
@@ -292,12 +262,27 @@ rule prepare_for_merge:
         tabix for-merge/dm6.SRR835050.bwa.vcf.gz
         
 
-[Mon Oct 31 18:09:08 2022]
+[Mon Oct 31 21:06:22 2022]
+rule prepare_for_merge:
+    input: calls/SRR835072_bwa.fb.vcf.gz, calls/SRR835072_bwa.fb.vcf.gz.tbi
+    output: for-merge/dm6.SRR835072.bwa.vcf.gz, for-merge/dm6.SRR835072.bwa.vcf.gz.tbi
+    jobid: 69
+    reason: Missing output files: for-merge/dm6.SRR835072.bwa.vcf.gz, for-merge/dm6.SRR835072.bwa.vcf.gz.tbi
+    wildcards: graph=dm6, sample=SRR835072, method=bwa
+    resources: tmpdir=/tmp
+
+
+        echo SRR835072 > SRR835072.txt
+        bcftools reheader -s SRR835072.txt calls/SRR835072_bwa.fb.vcf.gz | bcftools annotate -x INFO,^FORMAT/GT | bcftools norm -m -any -o for-merge/dm6.SRR835072.bwa.vcf.gz -Oz
+        tabix for-merge/dm6.SRR835072.bwa.vcf.gz
+        
+
+[Mon Oct 31 21:06:22 2022]
 rule prepare_for_merge:
     input: calls/SRR835098_bwa.fb.vcf.gz, calls/SRR835098_bwa.fb.vcf.gz.tbi
     output: for-merge/dm6.SRR835098.bwa.vcf.gz, for-merge/dm6.SRR835098.bwa.vcf.gz.tbi
     jobid: 83
-    reason: Missing output files: for-merge/dm6.SRR835098.bwa.vcf.gz.tbi, for-merge/dm6.SRR835098.bwa.vcf.gz
+    reason: Missing output files: for-merge/dm6.SRR835098.bwa.vcf.gz, for-merge/dm6.SRR835098.bwa.vcf.gz.tbi
     wildcards: graph=dm6, sample=SRR835098, method=bwa
     resources: tmpdir=/tmp
 
@@ -307,7 +292,22 @@ rule prepare_for_merge:
         tabix for-merge/dm6.SRR835098.bwa.vcf.gz
         
 
-[Mon Oct 31 18:09:08 2022]
+[Mon Oct 31 21:06:22 2022]
+rule prepare_for_merge:
+    input: calls/SRR834552_bwa.fb.vcf.gz, calls/SRR834552_bwa.fb.vcf.gz.tbi
+    output: for-merge/dm6.SRR834552.bwa.vcf.gz, for-merge/dm6.SRR834552.bwa.vcf.gz.tbi
+    jobid: 27
+    reason: Missing output files: for-merge/dm6.SRR834552.bwa.vcf.gz, for-merge/dm6.SRR834552.bwa.vcf.gz.tbi
+    wildcards: graph=dm6, sample=SRR834552, method=bwa
+    resources: tmpdir=/tmp
+
+
+        echo SRR834552 > SRR834552.txt
+        bcftools reheader -s SRR834552.txt calls/SRR834552_bwa.fb.vcf.gz | bcftools annotate -x INFO,^FORMAT/GT | bcftools norm -m -any -o for-merge/dm6.SRR834552.bwa.vcf.gz -Oz
+        tabix for-merge/dm6.SRR834552.bwa.vcf.gz
+        
+
+[Mon Oct 31 21:06:22 2022]
 rule prepare_for_merge:
     input: calls/SRR933593_bwa.fb.vcf.gz, calls/SRR933593_bwa.fb.vcf.gz.tbi
     output: for-merge/dm6.SRR933593.bwa.vcf.gz, for-merge/dm6.SRR933593.bwa.vcf.gz.tbi
@@ -322,42 +322,12 @@ rule prepare_for_merge:
         tabix for-merge/dm6.SRR933593.bwa.vcf.gz
         
 
-[Mon Oct 31 18:09:08 2022]
-rule prepare_for_merge:
-    input: calls/SRR834553_bwa.fb.vcf.gz, calls/SRR834553_bwa.fb.vcf.gz.tbi
-    output: for-merge/dm6.SRR834553.bwa.vcf.gz, for-merge/dm6.SRR834553.bwa.vcf.gz.tbi
-    jobid: 28
-    reason: Missing output files: for-merge/dm6.SRR834553.bwa.vcf.gz, for-merge/dm6.SRR834553.bwa.vcf.gz.tbi
-    wildcards: graph=dm6, sample=SRR834553, method=bwa
-    resources: tmpdir=/tmp
-
-
-        echo SRR834553 > SRR834553.txt
-        bcftools reheader -s SRR834553.txt calls/SRR834553_bwa.fb.vcf.gz | bcftools annotate -x INFO,^FORMAT/GT | bcftools norm -m -any -o for-merge/dm6.SRR834553.bwa.vcf.gz -Oz
-        tabix for-merge/dm6.SRR834553.bwa.vcf.gz
-        
-
-[Mon Oct 31 18:09:08 2022]
-rule prepare_for_merge:
-    input: calls/SRR835073_bwa.fb.vcf.gz, calls/SRR835073_bwa.fb.vcf.gz.tbi
-    output: for-merge/dm6.SRR835073.bwa.vcf.gz, for-merge/dm6.SRR835073.bwa.vcf.gz.tbi
-    jobid: 70
-    reason: Missing output files: for-merge/dm6.SRR835073.bwa.vcf.gz.tbi, for-merge/dm6.SRR835073.bwa.vcf.gz
-    wildcards: graph=dm6, sample=SRR835073, method=bwa
-    resources: tmpdir=/tmp
-
-
-        echo SRR835073 > SRR835073.txt
-        bcftools reheader -s SRR835073.txt calls/SRR835073_bwa.fb.vcf.gz | bcftools annotate -x INFO,^FORMAT/GT | bcftools norm -m -any -o for-merge/dm6.SRR835073.bwa.vcf.gz -Oz
-        tabix for-merge/dm6.SRR835073.bwa.vcf.gz
-        
-
-[Mon Oct 31 18:09:08 2022]
+[Mon Oct 31 21:06:22 2022]
 rule prepare_for_merge:
     input: calls/SRR834522_bwa.fb.vcf.gz, calls/SRR834522_bwa.fb.vcf.gz.tbi
     output: for-merge/dm6.SRR834522.bwa.vcf.gz, for-merge/dm6.SRR834522.bwa.vcf.gz.tbi
     jobid: 14
-    reason: Missing output files: for-merge/dm6.SRR834522.bwa.vcf.gz.tbi, for-merge/dm6.SRR834522.bwa.vcf.gz
+    reason: Missing output files: for-merge/dm6.SRR834522.bwa.vcf.gz, for-merge/dm6.SRR834522.bwa.vcf.gz.tbi
     wildcards: graph=dm6, sample=SRR834522, method=bwa
     resources: tmpdir=/tmp
 
@@ -367,12 +337,12 @@ rule prepare_for_merge:
         tabix for-merge/dm6.SRR834522.bwa.vcf.gz
         
 
-[Mon Oct 31 18:09:08 2022]
+[Mon Oct 31 21:06:22 2022]
 rule prepare_for_merge:
     input: calls/SRR835036_bwa.fb.vcf.gz, calls/SRR835036_bwa.fb.vcf.gz.tbi
     output: for-merge/dm6.SRR835036.bwa.vcf.gz, for-merge/dm6.SRR835036.bwa.vcf.gz.tbi
     jobid: 42
-    reason: Missing output files: for-merge/dm6.SRR835036.bwa.vcf.gz, for-merge/dm6.SRR835036.bwa.vcf.gz.tbi
+    reason: Missing output files: for-merge/dm6.SRR835036.bwa.vcf.gz.tbi, for-merge/dm6.SRR835036.bwa.vcf.gz
     wildcards: graph=dm6, sample=SRR835036, method=bwa
     resources: tmpdir=/tmp
 
@@ -382,7 +352,7 @@ rule prepare_for_merge:
         tabix for-merge/dm6.SRR835036.bwa.vcf.gz
         
 
-[Mon Oct 31 18:09:08 2022]
+[Mon Oct 31 21:06:22 2022]
 rule prepare_for_merge:
     input: calls/SRR835051_bwa.fb.vcf.gz, calls/SRR835051_bwa.fb.vcf.gz.tbi
     output: for-merge/dm6.SRR835051.bwa.vcf.gz, for-merge/dm6.SRR835051.bwa.vcf.gz.tbi
@@ -397,12 +367,27 @@ rule prepare_for_merge:
         tabix for-merge/dm6.SRR835051.bwa.vcf.gz
         
 
-[Mon Oct 31 18:09:08 2022]
+[Mon Oct 31 21:06:22 2022]
+rule prepare_for_merge:
+    input: calls/SRR835073_bwa.fb.vcf.gz, calls/SRR835073_bwa.fb.vcf.gz.tbi
+    output: for-merge/dm6.SRR835073.bwa.vcf.gz, for-merge/dm6.SRR835073.bwa.vcf.gz.tbi
+    jobid: 70
+    reason: Missing output files: for-merge/dm6.SRR835073.bwa.vcf.gz, for-merge/dm6.SRR835073.bwa.vcf.gz.tbi
+    wildcards: graph=dm6, sample=SRR835073, method=bwa
+    resources: tmpdir=/tmp
+
+
+        echo SRR835073 > SRR835073.txt
+        bcftools reheader -s SRR835073.txt calls/SRR835073_bwa.fb.vcf.gz | bcftools annotate -x INFO,^FORMAT/GT | bcftools norm -m -any -o for-merge/dm6.SRR835073.bwa.vcf.gz -Oz
+        tabix for-merge/dm6.SRR835073.bwa.vcf.gz
+        
+
+[Mon Oct 31 21:06:22 2022]
 rule prepare_for_merge:
     input: calls/SRR932121_bwa.fb.vcf.gz, calls/SRR932121_bwa.fb.vcf.gz.tbi
     output: for-merge/dm6.SRR932121.bwa.vcf.gz, for-merge/dm6.SRR932121.bwa.vcf.gz.tbi
     jobid: 84
-    reason: Missing output files: for-merge/dm6.SRR932121.bwa.vcf.gz.tbi, for-merge/dm6.SRR932121.bwa.vcf.gz
+    reason: Missing output files: for-merge/dm6.SRR932121.bwa.vcf.gz, for-merge/dm6.SRR932121.bwa.vcf.gz.tbi
     wildcards: graph=dm6, sample=SRR932121, method=bwa
     resources: tmpdir=/tmp
 
@@ -412,7 +397,22 @@ rule prepare_for_merge:
         tabix for-merge/dm6.SRR932121.bwa.vcf.gz
         
 
-[Mon Oct 31 18:09:08 2022]
+[Mon Oct 31 21:06:22 2022]
+rule prepare_for_merge:
+    input: calls/SRR834553_bwa.fb.vcf.gz, calls/SRR834553_bwa.fb.vcf.gz.tbi
+    output: for-merge/dm6.SRR834553.bwa.vcf.gz, for-merge/dm6.SRR834553.bwa.vcf.gz.tbi
+    jobid: 28
+    reason: Missing output files: for-merge/dm6.SRR834553.bwa.vcf.gz, for-merge/dm6.SRR834553.bwa.vcf.gz.tbi
+    wildcards: graph=dm6, sample=SRR834553, method=bwa
+    resources: tmpdir=/tmp
+
+
+        echo SRR834553 > SRR834553.txt
+        bcftools reheader -s SRR834553.txt calls/SRR834553_bwa.fb.vcf.gz | bcftools annotate -x INFO,^FORMAT/GT | bcftools norm -m -any -o for-merge/dm6.SRR834553.bwa.vcf.gz -Oz
+        tabix for-merge/dm6.SRR834553.bwa.vcf.gz
+        
+
+[Mon Oct 31 21:06:22 2022]
 rule prepare_for_merge:
     input: calls/SRR933594_bwa.fb.vcf.gz, calls/SRR933594_bwa.fb.vcf.gz.tbi
     output: for-merge/dm6.SRR933594.bwa.vcf.gz, for-merge/dm6.SRR933594.bwa.vcf.gz.tbi
@@ -427,7 +427,7 @@ rule prepare_for_merge:
         tabix for-merge/dm6.SRR933594.bwa.vcf.gz
         
 
-[Mon Oct 31 18:09:08 2022]
+[Mon Oct 31 21:06:22 2022]
 rule prepare_for_merge:
     input: calls/SRR834508_bwa.fb.vcf.gz, calls/SRR834508_bwa.fb.vcf.gz.tbi
     output: for-merge/dm6.SRR834508.bwa.vcf.gz, for-merge/dm6.SRR834508.bwa.vcf.gz.tbi
@@ -442,12 +442,12 @@ rule prepare_for_merge:
         tabix for-merge/dm6.SRR834508.bwa.vcf.gz
         
 
-[Mon Oct 31 18:09:08 2022]
+[Mon Oct 31 21:06:22 2022]
 rule prepare_for_merge:
     input: calls/SRR834523_bwa.fb.vcf.gz, calls/SRR834523_bwa.fb.vcf.gz.tbi
     output: for-merge/dm6.SRR834523.bwa.vcf.gz, for-merge/dm6.SRR834523.bwa.vcf.gz.tbi
     jobid: 15
-    reason: Missing output files: for-merge/dm6.SRR834523.bwa.vcf.gz.tbi, for-merge/dm6.SRR834523.bwa.vcf.gz
+    reason: Missing output files: for-merge/dm6.SRR834523.bwa.vcf.gz, for-merge/dm6.SRR834523.bwa.vcf.gz.tbi
     wildcards: graph=dm6, sample=SRR834523, method=bwa
     resources: tmpdir=/tmp
 
@@ -457,37 +457,7 @@ rule prepare_for_merge:
         tabix for-merge/dm6.SRR834523.bwa.vcf.gz
         
 
-[Mon Oct 31 18:09:08 2022]
-rule prepare_for_merge:
-    input: calls/SRR834554_bwa.fb.vcf.gz, calls/SRR834554_bwa.fb.vcf.gz.tbi
-    output: for-merge/dm6.SRR834554.bwa.vcf.gz, for-merge/dm6.SRR834554.bwa.vcf.gz.tbi
-    jobid: 29
-    reason: Missing output files: for-merge/dm6.SRR834554.bwa.vcf.gz, for-merge/dm6.SRR834554.bwa.vcf.gz.tbi
-    wildcards: graph=dm6, sample=SRR834554, method=bwa
-    resources: tmpdir=/tmp
-
-
-        echo SRR834554 > SRR834554.txt
-        bcftools reheader -s SRR834554.txt calls/SRR834554_bwa.fb.vcf.gz | bcftools annotate -x INFO,^FORMAT/GT | bcftools norm -m -any -o for-merge/dm6.SRR834554.bwa.vcf.gz -Oz
-        tabix for-merge/dm6.SRR834554.bwa.vcf.gz
-        
-
-[Mon Oct 31 18:09:08 2022]
-rule prepare_for_merge:
-    input: calls/SRR835074_bwa.fb.vcf.gz, calls/SRR835074_bwa.fb.vcf.gz.tbi
-    output: for-merge/dm6.SRR835074.bwa.vcf.gz, for-merge/dm6.SRR835074.bwa.vcf.gz.tbi
-    jobid: 71
-    reason: Missing output files: for-merge/dm6.SRR835074.bwa.vcf.gz.tbi, for-merge/dm6.SRR835074.bwa.vcf.gz
-    wildcards: graph=dm6, sample=SRR835074, method=bwa
-    resources: tmpdir=/tmp
-
-
-        echo SRR835074 > SRR835074.txt
-        bcftools reheader -s SRR835074.txt calls/SRR835074_bwa.fb.vcf.gz | bcftools annotate -x INFO,^FORMAT/GT | bcftools norm -m -any -o for-merge/dm6.SRR835074.bwa.vcf.gz -Oz
-        tabix for-merge/dm6.SRR835074.bwa.vcf.gz
-        
-
-[Mon Oct 31 18:09:08 2022]
+[Mon Oct 31 21:06:22 2022]
 rule prepare_for_merge:
     input: calls/SRR835037_bwa.fb.vcf.gz, calls/SRR835037_bwa.fb.vcf.gz.tbi
     output: for-merge/dm6.SRR835037.bwa.vcf.gz, for-merge/dm6.SRR835037.bwa.vcf.gz.tbi
@@ -502,7 +472,7 @@ rule prepare_for_merge:
         tabix for-merge/dm6.SRR835037.bwa.vcf.gz
         
 
-[Mon Oct 31 18:09:08 2022]
+[Mon Oct 31 21:06:22 2022]
 rule prepare_for_merge:
     input: calls/SRR835052_bwa.fb.vcf.gz, calls/SRR835052_bwa.fb.vcf.gz.tbi
     output: for-merge/dm6.SRR835052.bwa.vcf.gz, for-merge/dm6.SRR835052.bwa.vcf.gz.tbi
@@ -517,12 +487,27 @@ rule prepare_for_merge:
         tabix for-merge/dm6.SRR835052.bwa.vcf.gz
         
 
-[Mon Oct 31 18:09:08 2022]
+[Mon Oct 31 21:06:22 2022]
+rule prepare_for_merge:
+    input: calls/SRR835074_bwa.fb.vcf.gz, calls/SRR835074_bwa.fb.vcf.gz.tbi
+    output: for-merge/dm6.SRR835074.bwa.vcf.gz, for-merge/dm6.SRR835074.bwa.vcf.gz.tbi
+    jobid: 71
+    reason: Missing output files: for-merge/dm6.SRR835074.bwa.vcf.gz, for-merge/dm6.SRR835074.bwa.vcf.gz.tbi
+    wildcards: graph=dm6, sample=SRR835074, method=bwa
+    resources: tmpdir=/tmp
+
+
+        echo SRR835074 > SRR835074.txt
+        bcftools reheader -s SRR835074.txt calls/SRR835074_bwa.fb.vcf.gz | bcftools annotate -x INFO,^FORMAT/GT | bcftools norm -m -any -o for-merge/dm6.SRR835074.bwa.vcf.gz -Oz
+        tabix for-merge/dm6.SRR835074.bwa.vcf.gz
+        
+
+[Mon Oct 31 21:06:22 2022]
 rule prepare_for_merge:
     input: calls/SRR933563_bwa.fb.vcf.gz, calls/SRR933563_bwa.fb.vcf.gz.tbi
     output: for-merge/dm6.SRR933563.bwa.vcf.gz, for-merge/dm6.SRR933563.bwa.vcf.gz.tbi
     jobid: 85
-    reason: Missing output files: for-merge/dm6.SRR933563.bwa.vcf.gz.tbi, for-merge/dm6.SRR933563.bwa.vcf.gz
+    reason: Missing output files: for-merge/dm6.SRR933563.bwa.vcf.gz, for-merge/dm6.SRR933563.bwa.vcf.gz.tbi
     wildcards: graph=dm6, sample=SRR933563, method=bwa
     resources: tmpdir=/tmp
 
@@ -532,12 +517,27 @@ rule prepare_for_merge:
         tabix for-merge/dm6.SRR933563.bwa.vcf.gz
         
 
-[Mon Oct 31 18:09:08 2022]
+[Mon Oct 31 21:06:22 2022]
+rule prepare_for_merge:
+    input: calls/SRR834554_bwa.fb.vcf.gz, calls/SRR834554_bwa.fb.vcf.gz.tbi
+    output: for-merge/dm6.SRR834554.bwa.vcf.gz, for-merge/dm6.SRR834554.bwa.vcf.gz.tbi
+    jobid: 29
+    reason: Missing output files: for-merge/dm6.SRR834554.bwa.vcf.gz, for-merge/dm6.SRR834554.bwa.vcf.gz.tbi
+    wildcards: graph=dm6, sample=SRR834554, method=bwa
+    resources: tmpdir=/tmp
+
+
+        echo SRR834554 > SRR834554.txt
+        bcftools reheader -s SRR834554.txt calls/SRR834554_bwa.fb.vcf.gz | bcftools annotate -x INFO,^FORMAT/GT | bcftools norm -m -any -o for-merge/dm6.SRR834554.bwa.vcf.gz -Oz
+        tabix for-merge/dm6.SRR834554.bwa.vcf.gz
+        
+
+[Mon Oct 31 21:06:22 2022]
 rule prepare_for_merge:
     input: calls/SRR933599_bwa.fb.vcf.gz, calls/SRR933599_bwa.fb.vcf.gz.tbi
     output: for-merge/dm6.SRR933599.bwa.vcf.gz, for-merge/dm6.SRR933599.bwa.vcf.gz.tbi
     jobid: 99
-    reason: Missing output files: for-merge/dm6.SRR933599.bwa.vcf.gz.tbi, for-merge/dm6.SRR933599.bwa.vcf.gz
+    reason: Missing output files: for-merge/dm6.SRR933599.bwa.vcf.gz, for-merge/dm6.SRR933599.bwa.vcf.gz.tbi
     wildcards: graph=dm6, sample=SRR933599, method=bwa
     resources: tmpdir=/tmp
 
@@ -547,7 +547,22 @@ rule prepare_for_merge:
         tabix for-merge/dm6.SRR933599.bwa.vcf.gz
         
 
-[Mon Oct 31 18:09:08 2022]
+[Mon Oct 31 21:06:22 2022]
+rule prepare_for_merge:
+    input: calls/SRR834526_bwa.fb.vcf.gz, calls/SRR834526_bwa.fb.vcf.gz.tbi
+    output: for-merge/dm6.SRR834526.bwa.vcf.gz, for-merge/dm6.SRR834526.bwa.vcf.gz.tbi
+    jobid: 16
+    reason: Missing output files: for-merge/dm6.SRR834526.bwa.vcf.gz, for-merge/dm6.SRR834526.bwa.vcf.gz.tbi
+    wildcards: graph=dm6, sample=SRR834526, method=bwa
+    resources: tmpdir=/tmp
+
+
+        echo SRR834526 > SRR834526.txt
+        bcftools reheader -s SRR834526.txt calls/SRR834526_bwa.fb.vcf.gz | bcftools annotate -x INFO,^FORMAT/GT | bcftools norm -m -any -o for-merge/dm6.SRR834526.bwa.vcf.gz -Oz
+        tabix for-merge/dm6.SRR834526.bwa.vcf.gz
+        
+
+[Mon Oct 31 21:06:22 2022]
 rule prepare_for_merge:
     input: calls/SRR833244_bwa.fb.vcf.gz, calls/SRR833244_bwa.fb.vcf.gz.tbi
     output: for-merge/dm6.SRR833244.bwa.vcf.gz, for-merge/dm6.SRR833244.bwa.vcf.gz.tbi
@@ -562,37 +577,37 @@ rule prepare_for_merge:
         tabix for-merge/dm6.SRR833244.bwa.vcf.gz
         
 
-[Mon Oct 31 18:09:08 2022]
+[Mon Oct 31 21:06:22 2022]
 rule prepare_for_merge:
-    input: calls/SRR835023_bwa.fb.vcf.gz, calls/SRR835023_bwa.fb.vcf.gz.tbi
-    output: for-merge/dm6.SRR835023.bwa.vcf.gz, for-merge/dm6.SRR835023.bwa.vcf.gz.tbi
-    jobid: 30
-    reason: Missing output files: for-merge/dm6.SRR835023.bwa.vcf.gz.tbi, for-merge/dm6.SRR835023.bwa.vcf.gz
-    wildcards: graph=dm6, sample=SRR835023, method=bwa
+    input: calls/SRR835038_bwa.fb.vcf.gz, calls/SRR835038_bwa.fb.vcf.gz.tbi
+    output: for-merge/dm6.SRR835038.bwa.vcf.gz, for-merge/dm6.SRR835038.bwa.vcf.gz.tbi
+    jobid: 44
+    reason: Missing output files: for-merge/dm6.SRR835038.bwa.vcf.gz, for-merge/dm6.SRR835038.bwa.vcf.gz.tbi
+    wildcards: graph=dm6, sample=SRR835038, method=bwa
     resources: tmpdir=/tmp
 
 
-        echo SRR835023 > SRR835023.txt
-        bcftools reheader -s SRR835023.txt calls/SRR835023_bwa.fb.vcf.gz | bcftools annotate -x INFO,^FORMAT/GT | bcftools norm -m -any -o for-merge/dm6.SRR835023.bwa.vcf.gz -Oz
-        tabix for-merge/dm6.SRR835023.bwa.vcf.gz
+        echo SRR835038 > SRR835038.txt
+        bcftools reheader -s SRR835038.txt calls/SRR835038_bwa.fb.vcf.gz | bcftools annotate -x INFO,^FORMAT/GT | bcftools norm -m -any -o for-merge/dm6.SRR835038.bwa.vcf.gz -Oz
+        tabix for-merge/dm6.SRR835038.bwa.vcf.gz
         
 
-[Mon Oct 31 18:09:08 2022]
+[Mon Oct 31 21:06:22 2022]
 rule prepare_for_merge:
-    input: calls/SRR834526_bwa.fb.vcf.gz, calls/SRR834526_bwa.fb.vcf.gz.tbi
-    output: for-merge/dm6.SRR834526.bwa.vcf.gz, for-merge/dm6.SRR834526.bwa.vcf.gz.tbi
-    jobid: 16
-    reason: Missing output files: for-merge/dm6.SRR834526.bwa.vcf.gz.tbi, for-merge/dm6.SRR834526.bwa.vcf.gz
-    wildcards: graph=dm6, sample=SRR834526, method=bwa
+    input: calls/SRR835054_bwa.fb.vcf.gz, calls/SRR835054_bwa.fb.vcf.gz.tbi
+    output: for-merge/dm6.SRR835054.bwa.vcf.gz, for-merge/dm6.SRR835054.bwa.vcf.gz.tbi
+    jobid: 58
+    reason: Missing output files: for-merge/dm6.SRR835054.bwa.vcf.gz, for-merge/dm6.SRR835054.bwa.vcf.gz.tbi
+    wildcards: graph=dm6, sample=SRR835054, method=bwa
     resources: tmpdir=/tmp
 
 
-        echo SRR834526 > SRR834526.txt
-        bcftools reheader -s SRR834526.txt calls/SRR834526_bwa.fb.vcf.gz | bcftools annotate -x INFO,^FORMAT/GT | bcftools norm -m -any -o for-merge/dm6.SRR834526.bwa.vcf.gz -Oz
-        tabix for-merge/dm6.SRR834526.bwa.vcf.gz
+        echo SRR835054 > SRR835054.txt
+        bcftools reheader -s SRR835054.txt calls/SRR835054_bwa.fb.vcf.gz | bcftools annotate -x INFO,^FORMAT/GT | bcftools norm -m -any -o for-merge/dm6.SRR835054.bwa.vcf.gz -Oz
+        tabix for-merge/dm6.SRR835054.bwa.vcf.gz
         
 
-[Mon Oct 31 18:09:08 2022]
+[Mon Oct 31 21:06:22 2022]
 rule prepare_for_merge:
     input: calls/SRR835075_bwa.fb.vcf.gz, calls/SRR835075_bwa.fb.vcf.gz.tbi
     output: for-merge/dm6.SRR835075.bwa.vcf.gz, for-merge/dm6.SRR835075.bwa.vcf.gz.tbi
@@ -607,52 +622,7 @@ rule prepare_for_merge:
         tabix for-merge/dm6.SRR835075.bwa.vcf.gz
         
 
-[Mon Oct 31 18:09:08 2022]
-rule prepare_for_merge:
-    input: calls/SRR933601_bwa.fb.vcf.gz, calls/SRR933601_bwa.fb.vcf.gz.tbi
-    output: for-merge/dm6.SRR933601.bwa.vcf.gz, for-merge/dm6.SRR933601.bwa.vcf.gz.tbi
-    jobid: 100
-    reason: Missing output files: for-merge/dm6.SRR933601.bwa.vcf.gz.tbi, for-merge/dm6.SRR933601.bwa.vcf.gz
-    wildcards: graph=dm6, sample=SRR933601, method=bwa
-    resources: tmpdir=/tmp
-
-
-        echo SRR933601 > SRR933601.txt
-        bcftools reheader -s SRR933601.txt calls/SRR933601_bwa.fb.vcf.gz | bcftools annotate -x INFO,^FORMAT/GT | bcftools norm -m -any -o for-merge/dm6.SRR933601.bwa.vcf.gz -Oz
-        tabix for-merge/dm6.SRR933601.bwa.vcf.gz
-        
-
-[Mon Oct 31 18:09:08 2022]
-rule prepare_for_merge:
-    input: calls/SRR835038_bwa.fb.vcf.gz, calls/SRR835038_bwa.fb.vcf.gz.tbi
-    output: for-merge/dm6.SRR835038.bwa.vcf.gz, for-merge/dm6.SRR835038.bwa.vcf.gz.tbi
-    jobid: 44
-    reason: Missing output files: for-merge/dm6.SRR835038.bwa.vcf.gz.tbi, for-merge/dm6.SRR835038.bwa.vcf.gz
-    wildcards: graph=dm6, sample=SRR835038, method=bwa
-    resources: tmpdir=/tmp
-
-
-        echo SRR835038 > SRR835038.txt
-        bcftools reheader -s SRR835038.txt calls/SRR835038_bwa.fb.vcf.gz | bcftools annotate -x INFO,^FORMAT/GT | bcftools norm -m -any -o for-merge/dm6.SRR835038.bwa.vcf.gz -Oz
-        tabix for-merge/dm6.SRR835038.bwa.vcf.gz
-        
-
-[Mon Oct 31 18:09:08 2022]
-rule prepare_for_merge:
-    input: calls/SRR835054_bwa.fb.vcf.gz, calls/SRR835054_bwa.fb.vcf.gz.tbi
-    output: for-merge/dm6.SRR835054.bwa.vcf.gz, for-merge/dm6.SRR835054.bwa.vcf.gz.tbi
-    jobid: 58
-    reason: Missing output files: for-merge/dm6.SRR835054.bwa.vcf.gz.tbi, for-merge/dm6.SRR835054.bwa.vcf.gz
-    wildcards: graph=dm6, sample=SRR835054, method=bwa
-    resources: tmpdir=/tmp
-
-
-        echo SRR835054 > SRR835054.txt
-        bcftools reheader -s SRR835054.txt calls/SRR835054_bwa.fb.vcf.gz | bcftools annotate -x INFO,^FORMAT/GT | bcftools norm -m -any -o for-merge/dm6.SRR835054.bwa.vcf.gz -Oz
-        tabix for-merge/dm6.SRR835054.bwa.vcf.gz
-        
-
-[Mon Oct 31 18:09:08 2022]
+[Mon Oct 31 21:06:22 2022]
 rule prepare_for_merge:
     input: calls/SRR933569_bwa.fb.vcf.gz, calls/SRR933569_bwa.fb.vcf.gz.tbi
     output: for-merge/dm6.SRR933569.bwa.vcf.gz, for-merge/dm6.SRR933569.bwa.vcf.gz.tbi
@@ -667,7 +637,37 @@ rule prepare_for_merge:
         tabix for-merge/dm6.SRR933569.bwa.vcf.gz
         
 
-[Mon Oct 31 18:09:08 2022]
+[Mon Oct 31 21:06:22 2022]
+rule prepare_for_merge:
+    input: calls/SRR835023_bwa.fb.vcf.gz, calls/SRR835023_bwa.fb.vcf.gz.tbi
+    output: for-merge/dm6.SRR835023.bwa.vcf.gz, for-merge/dm6.SRR835023.bwa.vcf.gz.tbi
+    jobid: 30
+    reason: Missing output files: for-merge/dm6.SRR835023.bwa.vcf.gz, for-merge/dm6.SRR835023.bwa.vcf.gz.tbi
+    wildcards: graph=dm6, sample=SRR835023, method=bwa
+    resources: tmpdir=/tmp
+
+
+        echo SRR835023 > SRR835023.txt
+        bcftools reheader -s SRR835023.txt calls/SRR835023_bwa.fb.vcf.gz | bcftools annotate -x INFO,^FORMAT/GT | bcftools norm -m -any -o for-merge/dm6.SRR835023.bwa.vcf.gz -Oz
+        tabix for-merge/dm6.SRR835023.bwa.vcf.gz
+        
+
+[Mon Oct 31 21:06:22 2022]
+rule prepare_for_merge:
+    input: calls/SRR933601_bwa.fb.vcf.gz, calls/SRR933601_bwa.fb.vcf.gz.tbi
+    output: for-merge/dm6.SRR933601.bwa.vcf.gz, for-merge/dm6.SRR933601.bwa.vcf.gz.tbi
+    jobid: 100
+    reason: Missing output files: for-merge/dm6.SRR933601.bwa.vcf.gz.tbi, for-merge/dm6.SRR933601.bwa.vcf.gz
+    wildcards: graph=dm6, sample=SRR933601, method=bwa
+    resources: tmpdir=/tmp
+
+
+        echo SRR933601 > SRR933601.txt
+        bcftools reheader -s SRR933601.txt calls/SRR933601_bwa.fb.vcf.gz | bcftools annotate -x INFO,^FORMAT/GT | bcftools norm -m -any -o for-merge/dm6.SRR933601.bwa.vcf.gz -Oz
+        tabix for-merge/dm6.SRR933601.bwa.vcf.gz
+        
+
+[Mon Oct 31 21:06:22 2022]
 rule prepare_for_merge:
     input: calls/SRR834507_bwa.fb.vcf.gz, calls/SRR834507_bwa.fb.vcf.gz.tbi
     output: for-merge/dm6.SRR834507.bwa.vcf.gz, for-merge/dm6.SRR834507.bwa.vcf.gz.tbi
@@ -682,12 +682,12 @@ rule prepare_for_merge:
         tabix for-merge/dm6.SRR834507.bwa.vcf.gz
         
 
-[Mon Oct 31 18:09:08 2022]
+[Mon Oct 31 21:06:22 2022]
 rule prepare_for_merge:
     input: calls/SRR834527_bwa.fb.vcf.gz, calls/SRR834527_bwa.fb.vcf.gz.tbi
     output: for-merge/dm6.SRR834527.bwa.vcf.gz, for-merge/dm6.SRR834527.bwa.vcf.gz.tbi
     jobid: 17
-    reason: Missing output files: for-merge/dm6.SRR834527.bwa.vcf.gz.tbi, for-merge/dm6.SRR834527.bwa.vcf.gz
+    reason: Missing output files: for-merge/dm6.SRR834527.bwa.vcf.gz, for-merge/dm6.SRR834527.bwa.vcf.gz.tbi
     wildcards: graph=dm6, sample=SRR834527, method=bwa
     resources: tmpdir=/tmp
 
@@ -697,37 +697,7 @@ rule prepare_for_merge:
         tabix for-merge/dm6.SRR834527.bwa.vcf.gz
         
 
-[Mon Oct 31 18:09:08 2022]
-rule prepare_for_merge:
-    input: calls/SRR835024_bwa.fb.vcf.gz, calls/SRR835024_bwa.fb.vcf.gz.tbi
-    output: for-merge/dm6.SRR835024.bwa.vcf.gz, for-merge/dm6.SRR835024.bwa.vcf.gz.tbi
-    jobid: 31
-    reason: Missing output files: for-merge/dm6.SRR835024.bwa.vcf.gz.tbi, for-merge/dm6.SRR835024.bwa.vcf.gz
-    wildcards: graph=dm6, sample=SRR835024, method=bwa
-    resources: tmpdir=/tmp
-
-
-        echo SRR835024 > SRR835024.txt
-        bcftools reheader -s SRR835024.txt calls/SRR835024_bwa.fb.vcf.gz | bcftools annotate -x INFO,^FORMAT/GT | bcftools norm -m -any -o for-merge/dm6.SRR835024.bwa.vcf.gz -Oz
-        tabix for-merge/dm6.SRR835024.bwa.vcf.gz
-        
-
-[Mon Oct 31 18:09:08 2022]
-rule prepare_for_merge:
-    input: calls/SRR835077_bwa.fb.vcf.gz, calls/SRR835077_bwa.fb.vcf.gz.tbi
-    output: for-merge/dm6.SRR835077.bwa.vcf.gz, for-merge/dm6.SRR835077.bwa.vcf.gz.tbi
-    jobid: 73
-    reason: Missing output files: for-merge/dm6.SRR835077.bwa.vcf.gz, for-merge/dm6.SRR835077.bwa.vcf.gz.tbi
-    wildcards: graph=dm6, sample=SRR835077, method=bwa
-    resources: tmpdir=/tmp
-
-
-        echo SRR835077 > SRR835077.txt
-        bcftools reheader -s SRR835077.txt calls/SRR835077_bwa.fb.vcf.gz | bcftools annotate -x INFO,^FORMAT/GT | bcftools norm -m -any -o for-merge/dm6.SRR835077.bwa.vcf.gz -Oz
-        tabix for-merge/dm6.SRR835077.bwa.vcf.gz
-        
-
-[Mon Oct 31 18:09:08 2022]
+[Mon Oct 31 21:06:22 2022]
 rule prepare_for_merge:
     input: calls/SRR835039_bwa.fb.vcf.gz, calls/SRR835039_bwa.fb.vcf.gz.tbi
     output: for-merge/dm6.SRR835039.bwa.vcf.gz, for-merge/dm6.SRR835039.bwa.vcf.gz.tbi
@@ -742,12 +712,12 @@ rule prepare_for_merge:
         tabix for-merge/dm6.SRR835039.bwa.vcf.gz
         
 
-[Mon Oct 31 18:09:08 2022]
+[Mon Oct 31 21:06:22 2022]
 rule prepare_for_merge:
     input: calls/SRR835055_bwa.fb.vcf.gz, calls/SRR835055_bwa.fb.vcf.gz.tbi
     output: for-merge/dm6.SRR835055.bwa.vcf.gz, for-merge/dm6.SRR835055.bwa.vcf.gz.tbi
     jobid: 59
-    reason: Missing output files: for-merge/dm6.SRR835055.bwa.vcf.gz, for-merge/dm6.SRR835055.bwa.vcf.gz.tbi
+    reason: Missing output files: for-merge/dm6.SRR835055.bwa.vcf.gz.tbi, for-merge/dm6.SRR835055.bwa.vcf.gz
     wildcards: graph=dm6, sample=SRR835055, method=bwa
     resources: tmpdir=/tmp
 
@@ -757,7 +727,22 @@ rule prepare_for_merge:
         tabix for-merge/dm6.SRR835055.bwa.vcf.gz
         
 
-[Mon Oct 31 18:09:08 2022]
+[Mon Oct 31 21:06:22 2022]
+rule prepare_for_merge:
+    input: calls/SRR835077_bwa.fb.vcf.gz, calls/SRR835077_bwa.fb.vcf.gz.tbi
+    output: for-merge/dm6.SRR835077.bwa.vcf.gz, for-merge/dm6.SRR835077.bwa.vcf.gz.tbi
+    jobid: 73
+    reason: Missing output files: for-merge/dm6.SRR835077.bwa.vcf.gz, for-merge/dm6.SRR835077.bwa.vcf.gz.tbi
+    wildcards: graph=dm6, sample=SRR835077, method=bwa
+    resources: tmpdir=/tmp
+
+
+        echo SRR835077 > SRR835077.txt
+        bcftools reheader -s SRR835077.txt calls/SRR835077_bwa.fb.vcf.gz | bcftools annotate -x INFO,^FORMAT/GT | bcftools norm -m -any -o for-merge/dm6.SRR835077.bwa.vcf.gz -Oz
+        tabix for-merge/dm6.SRR835077.bwa.vcf.gz
+        
+
+[Mon Oct 31 21:06:22 2022]
 rule prepare_for_merge:
     input: calls/SRR933573_bwa.fb.vcf.gz, calls/SRR933573_bwa.fb.vcf.gz.tbi
     output: for-merge/dm6.SRR933573.bwa.vcf.gz, for-merge/dm6.SRR933573.bwa.vcf.gz.tbi
@@ -772,37 +757,22 @@ rule prepare_for_merge:
         tabix for-merge/dm6.SRR933573.bwa.vcf.gz
         
 
-[Mon Oct 31 18:09:08 2022]
+[Mon Oct 31 21:06:22 2022]
 rule prepare_for_merge:
-    input: calls/SRR834531_bwa.fb.vcf.gz, calls/SRR834531_bwa.fb.vcf.gz.tbi
-    output: for-merge/dm6.SRR834531.bwa.vcf.gz, for-merge/dm6.SRR834531.bwa.vcf.gz.tbi
-    jobid: 18
-    reason: Missing output files: for-merge/dm6.SRR834531.bwa.vcf.gz.tbi, for-merge/dm6.SRR834531.bwa.vcf.gz
-    wildcards: graph=dm6, sample=SRR834531, method=bwa
+    input: calls/SRR835024_bwa.fb.vcf.gz, calls/SRR835024_bwa.fb.vcf.gz.tbi
+    output: for-merge/dm6.SRR835024.bwa.vcf.gz, for-merge/dm6.SRR835024.bwa.vcf.gz.tbi
+    jobid: 31
+    reason: Missing output files: for-merge/dm6.SRR835024.bwa.vcf.gz, for-merge/dm6.SRR835024.bwa.vcf.gz.tbi
+    wildcards: graph=dm6, sample=SRR835024, method=bwa
     resources: tmpdir=/tmp
 
 
-        echo SRR834531 > SRR834531.txt
-        bcftools reheader -s SRR834531.txt calls/SRR834531_bwa.fb.vcf.gz | bcftools annotate -x INFO,^FORMAT/GT | bcftools norm -m -any -o for-merge/dm6.SRR834531.bwa.vcf.gz -Oz
-        tabix for-merge/dm6.SRR834531.bwa.vcf.gz
+        echo SRR835024 > SRR835024.txt
+        bcftools reheader -s SRR835024.txt calls/SRR835024_bwa.fb.vcf.gz | bcftools annotate -x INFO,^FORMAT/GT | bcftools norm -m -any -o for-merge/dm6.SRR835024.bwa.vcf.gz -Oz
+        tabix for-merge/dm6.SRR835024.bwa.vcf.gz
         
 
-[Mon Oct 31 18:09:08 2022]
-rule prepare_for_merge:
-    input: calls/SRR835025_bwa.fb.vcf.gz, calls/SRR835025_bwa.fb.vcf.gz.tbi
-    output: for-merge/dm6.SRR835025.bwa.vcf.gz, for-merge/dm6.SRR835025.bwa.vcf.gz.tbi
-    jobid: 32
-    reason: Missing output files: for-merge/dm6.SRR835025.bwa.vcf.gz, for-merge/dm6.SRR835025.bwa.vcf.gz.tbi
-    wildcards: graph=dm6, sample=SRR835025, method=bwa
-    resources: tmpdir=/tmp
-
-
-        echo SRR835025 > SRR835025.txt
-        bcftools reheader -s SRR835025.txt calls/SRR835025_bwa.fb.vcf.gz | bcftools annotate -x INFO,^FORMAT/GT | bcftools norm -m -any -o for-merge/dm6.SRR835025.bwa.vcf.gz -Oz
-        tabix for-merge/dm6.SRR835025.bwa.vcf.gz
-        
-
-[Mon Oct 31 18:09:08 2022]
+[Mon Oct 31 21:06:22 2022]
 rule prepare_for_merge:
     input: calls/SRR835086_bwa.fb.vcf.gz, calls/SRR835086_bwa.fb.vcf.gz.tbi
     output: for-merge/dm6.SRR835086.bwa.vcf.gz, for-merge/dm6.SRR835086.bwa.vcf.gz.tbi
@@ -817,7 +787,7 @@ rule prepare_for_merge:
         tabix for-merge/dm6.SRR835086.bwa.vcf.gz
         
 
-[Mon Oct 31 18:09:08 2022]
+[Mon Oct 31 21:06:22 2022]
 rule prepare_for_merge:
     input: calls/SRR834509_bwa.fb.vcf.gz, calls/SRR834509_bwa.fb.vcf.gz.tbi
     output: for-merge/dm6.SRR834509.bwa.vcf.gz, for-merge/dm6.SRR834509.bwa.vcf.gz.tbi
@@ -832,27 +802,12 @@ rule prepare_for_merge:
         tabix for-merge/dm6.SRR834509.bwa.vcf.gz
         
 
-[Mon Oct 31 18:09:08 2022]
-rule prepare_for_merge:
-    input: calls/SRR835040_bwa.fb.vcf.gz, calls/SRR835040_bwa.fb.vcf.gz.tbi
-    output: for-merge/dm6.SRR835040.bwa.vcf.gz, for-merge/dm6.SRR835040.bwa.vcf.gz.tbi
-    jobid: 46
-    reason: Missing output files: for-merge/dm6.SRR835040.bwa.vcf.gz, for-merge/dm6.SRR835040.bwa.vcf.gz.tbi
-    wildcards: graph=dm6, sample=SRR835040, method=bwa
-    resources: tmpdir=/tmp
-
-
-        echo SRR835040 > SRR835040.txt
-        bcftools reheader -s SRR835040.txt calls/SRR835040_bwa.fb.vcf.gz | bcftools annotate -x INFO,^FORMAT/GT | bcftools norm -m -any -o for-merge/dm6.SRR835040.bwa.vcf.gz -Oz
-        tabix for-merge/dm6.SRR835040.bwa.vcf.gz
-        
-
-[Mon Oct 31 18:09:08 2022]
+[Mon Oct 31 21:06:22 2022]
 rule prepare_for_merge:
     input: calls/SRR835058_bwa.fb.vcf.gz, calls/SRR835058_bwa.fb.vcf.gz.tbi
     output: for-merge/dm6.SRR835058.bwa.vcf.gz, for-merge/dm6.SRR835058.bwa.vcf.gz.tbi
     jobid: 60
-    reason: Missing output files: for-merge/dm6.SRR835058.bwa.vcf.gz.tbi, for-merge/dm6.SRR835058.bwa.vcf.gz
+    reason: Missing output files: for-merge/dm6.SRR835058.bwa.vcf.gz, for-merge/dm6.SRR835058.bwa.vcf.gz.tbi
     wildcards: graph=dm6, sample=SRR835058, method=bwa
     resources: tmpdir=/tmp
 
@@ -862,7 +817,22 @@ rule prepare_for_merge:
         tabix for-merge/dm6.SRR835058.bwa.vcf.gz
         
 
-[Mon Oct 31 18:09:08 2022]
+[Mon Oct 31 21:06:22 2022]
+rule prepare_for_merge:
+    input: calls/SRR834531_bwa.fb.vcf.gz, calls/SRR834531_bwa.fb.vcf.gz.tbi
+    output: for-merge/dm6.SRR834531.bwa.vcf.gz, for-merge/dm6.SRR834531.bwa.vcf.gz.tbi
+    jobid: 18
+    reason: Missing output files: for-merge/dm6.SRR834531.bwa.vcf.gz.tbi, for-merge/dm6.SRR834531.bwa.vcf.gz
+    wildcards: graph=dm6, sample=SRR834531, method=bwa
+    resources: tmpdir=/tmp
+
+
+        echo SRR834531 > SRR834531.txt
+        bcftools reheader -s SRR834531.txt calls/SRR834531_bwa.fb.vcf.gz | bcftools annotate -x INFO,^FORMAT/GT | bcftools norm -m -any -o for-merge/dm6.SRR834531.bwa.vcf.gz -Oz
+        tabix for-merge/dm6.SRR834531.bwa.vcf.gz
+        
+
+[Mon Oct 31 21:06:22 2022]
 rule prepare_for_merge:
     input: calls/SRR933577_bwa.fb.vcf.gz, calls/SRR933577_bwa.fb.vcf.gz.tbi
     output: for-merge/dm6.SRR933577.bwa.vcf.gz, for-merge/dm6.SRR933577.bwa.vcf.gz.tbi
@@ -877,12 +847,42 @@ rule prepare_for_merge:
         tabix for-merge/dm6.SRR933577.bwa.vcf.gz
         
 
-[Mon Oct 31 18:09:08 2022]
+[Mon Oct 31 21:06:22 2022]
+rule prepare_for_merge:
+    input: calls/SRR835040_bwa.fb.vcf.gz, calls/SRR835040_bwa.fb.vcf.gz.tbi
+    output: for-merge/dm6.SRR835040.bwa.vcf.gz, for-merge/dm6.SRR835040.bwa.vcf.gz.tbi
+    jobid: 46
+    reason: Missing output files: for-merge/dm6.SRR835040.bwa.vcf.gz, for-merge/dm6.SRR835040.bwa.vcf.gz.tbi
+    wildcards: graph=dm6, sample=SRR835040, method=bwa
+    resources: tmpdir=/tmp
+
+
+        echo SRR835040 > SRR835040.txt
+        bcftools reheader -s SRR835040.txt calls/SRR835040_bwa.fb.vcf.gz | bcftools annotate -x INFO,^FORMAT/GT | bcftools norm -m -any -o for-merge/dm6.SRR835040.bwa.vcf.gz -Oz
+        tabix for-merge/dm6.SRR835040.bwa.vcf.gz
+        
+
+[Mon Oct 31 21:06:22 2022]
+rule prepare_for_merge:
+    input: calls/SRR835025_bwa.fb.vcf.gz, calls/SRR835025_bwa.fb.vcf.gz.tbi
+    output: for-merge/dm6.SRR835025.bwa.vcf.gz, for-merge/dm6.SRR835025.bwa.vcf.gz.tbi
+    jobid: 32
+    reason: Missing output files: for-merge/dm6.SRR835025.bwa.vcf.gz.tbi, for-merge/dm6.SRR835025.bwa.vcf.gz
+    wildcards: graph=dm6, sample=SRR835025, method=bwa
+    resources: tmpdir=/tmp
+
+
+        echo SRR835025 > SRR835025.txt
+        bcftools reheader -s SRR835025.txt calls/SRR835025_bwa.fb.vcf.gz | bcftools annotate -x INFO,^FORMAT/GT | bcftools norm -m -any -o for-merge/dm6.SRR835025.bwa.vcf.gz -Oz
+        tabix for-merge/dm6.SRR835025.bwa.vcf.gz
+        
+
+[Mon Oct 31 21:06:22 2022]
 rule prepare_for_merge:
     input: calls/SRR834510_bwa.fb.vcf.gz, calls/SRR834510_bwa.fb.vcf.gz.tbi
     output: for-merge/dm6.SRR834510.bwa.vcf.gz, for-merge/dm6.SRR834510.bwa.vcf.gz.tbi
     jobid: 5
-    reason: Missing output files: for-merge/dm6.SRR834510.bwa.vcf.gz, for-merge/dm6.SRR834510.bwa.vcf.gz.tbi
+    reason: Missing output files: for-merge/dm6.SRR834510.bwa.vcf.gz.tbi, for-merge/dm6.SRR834510.bwa.vcf.gz
     wildcards: graph=dm6, sample=SRR834510, method=bwa
     resources: tmpdir=/tmp
 
@@ -892,7 +892,7 @@ rule prepare_for_merge:
         tabix for-merge/dm6.SRR834510.bwa.vcf.gz
         
 
-[Mon Oct 31 18:09:08 2022]
+[Mon Oct 31 21:06:22 2022]
 rule prepare_for_merge:
     input: calls/SRR834537_bwa.fb.vcf.gz, calls/SRR834537_bwa.fb.vcf.gz.tbi
     output: for-merge/dm6.SRR834537.bwa.vcf.gz, for-merge/dm6.SRR834537.bwa.vcf.gz.tbi
@@ -907,42 +907,12 @@ rule prepare_for_merge:
         tabix for-merge/dm6.SRR834537.bwa.vcf.gz
         
 
-[Mon Oct 31 18:09:08 2022]
-rule prepare_for_merge:
-    input: calls/SRR835026_bwa.fb.vcf.gz, calls/SRR835026_bwa.fb.vcf.gz.tbi
-    output: for-merge/dm6.SRR835026.bwa.vcf.gz, for-merge/dm6.SRR835026.bwa.vcf.gz.tbi
-    jobid: 33
-    reason: Missing output files: for-merge/dm6.SRR835026.bwa.vcf.gz.tbi, for-merge/dm6.SRR835026.bwa.vcf.gz
-    wildcards: graph=dm6, sample=SRR835026, method=bwa
-    resources: tmpdir=/tmp
-
-
-        echo SRR835026 > SRR835026.txt
-        bcftools reheader -s SRR835026.txt calls/SRR835026_bwa.fb.vcf.gz | bcftools annotate -x INFO,^FORMAT/GT | bcftools norm -m -any -o for-merge/dm6.SRR835026.bwa.vcf.gz -Oz
-        tabix for-merge/dm6.SRR835026.bwa.vcf.gz
-        
-
-[Mon Oct 31 18:09:08 2022]
-rule prepare_for_merge:
-    input: calls/SRR835087_bwa.fb.vcf.gz, calls/SRR835087_bwa.fb.vcf.gz.tbi
-    output: for-merge/dm6.SRR835087.bwa.vcf.gz, for-merge/dm6.SRR835087.bwa.vcf.gz.tbi
-    jobid: 75
-    reason: Missing output files: for-merge/dm6.SRR835087.bwa.vcf.gz, for-merge/dm6.SRR835087.bwa.vcf.gz.tbi
-    wildcards: graph=dm6, sample=SRR835087, method=bwa
-    resources: tmpdir=/tmp
-
-
-        echo SRR835087 > SRR835087.txt
-        bcftools reheader -s SRR835087.txt calls/SRR835087_bwa.fb.vcf.gz | bcftools annotate -x INFO,^FORMAT/GT | bcftools norm -m -any -o for-merge/dm6.SRR835087.bwa.vcf.gz -Oz
-        tabix for-merge/dm6.SRR835087.bwa.vcf.gz
-        
-
-[Mon Oct 31 18:09:08 2022]
+[Mon Oct 31 21:06:22 2022]
 rule prepare_for_merge:
     input: calls/SRR835041_bwa.fb.vcf.gz, calls/SRR835041_bwa.fb.vcf.gz.tbi
     output: for-merge/dm6.SRR835041.bwa.vcf.gz, for-merge/dm6.SRR835041.bwa.vcf.gz.tbi
     jobid: 47
-    reason: Missing output files: for-merge/dm6.SRR835041.bwa.vcf.gz, for-merge/dm6.SRR835041.bwa.vcf.gz.tbi
+    reason: Missing output files: for-merge/dm6.SRR835041.bwa.vcf.gz.tbi, for-merge/dm6.SRR835041.bwa.vcf.gz
     wildcards: graph=dm6, sample=SRR835041, method=bwa
     resources: tmpdir=/tmp
 
@@ -952,7 +922,7 @@ rule prepare_for_merge:
         tabix for-merge/dm6.SRR835041.bwa.vcf.gz
         
 
-[Mon Oct 31 18:09:08 2022]
+[Mon Oct 31 21:06:22 2022]
 rule prepare_for_merge:
     input: calls/SRR835059_bwa.fb.vcf.gz, calls/SRR835059_bwa.fb.vcf.gz.tbi
     output: for-merge/dm6.SRR835059.bwa.vcf.gz, for-merge/dm6.SRR835059.bwa.vcf.gz.tbi
@@ -967,12 +937,27 @@ rule prepare_for_merge:
         tabix for-merge/dm6.SRR835059.bwa.vcf.gz
         
 
-[Mon Oct 31 18:09:08 2022]
+[Mon Oct 31 21:06:22 2022]
+rule prepare_for_merge:
+    input: calls/SRR835087_bwa.fb.vcf.gz, calls/SRR835087_bwa.fb.vcf.gz.tbi
+    output: for-merge/dm6.SRR835087.bwa.vcf.gz, for-merge/dm6.SRR835087.bwa.vcf.gz.tbi
+    jobid: 75
+    reason: Missing output files: for-merge/dm6.SRR835087.bwa.vcf.gz, for-merge/dm6.SRR835087.bwa.vcf.gz.tbi
+    wildcards: graph=dm6, sample=SRR835087, method=bwa
+    resources: tmpdir=/tmp
+
+
+        echo SRR835087 > SRR835087.txt
+        bcftools reheader -s SRR835087.txt calls/SRR835087_bwa.fb.vcf.gz | bcftools annotate -x INFO,^FORMAT/GT | bcftools norm -m -any -o for-merge/dm6.SRR835087.bwa.vcf.gz -Oz
+        tabix for-merge/dm6.SRR835087.bwa.vcf.gz
+        
+
+[Mon Oct 31 21:06:22 2022]
 rule prepare_for_merge:
     input: calls/SRR933580_bwa.fb.vcf.gz, calls/SRR933580_bwa.fb.vcf.gz.tbi
     output: for-merge/dm6.SRR933580.bwa.vcf.gz, for-merge/dm6.SRR933580.bwa.vcf.gz.tbi
     jobid: 89
-    reason: Missing output files: for-merge/dm6.SRR933580.bwa.vcf.gz.tbi, for-merge/dm6.SRR933580.bwa.vcf.gz
+    reason: Missing output files: for-merge/dm6.SRR933580.bwa.vcf.gz, for-merge/dm6.SRR933580.bwa.vcf.gz.tbi
     wildcards: graph=dm6, sample=SRR933580, method=bwa
     resources: tmpdir=/tmp
 
@@ -982,12 +967,27 @@ rule prepare_for_merge:
         tabix for-merge/dm6.SRR933580.bwa.vcf.gz
         
 
-[Mon Oct 31 18:09:08 2022]
+[Mon Oct 31 21:06:22 2022]
+rule prepare_for_merge:
+    input: calls/SRR835026_bwa.fb.vcf.gz, calls/SRR835026_bwa.fb.vcf.gz.tbi
+    output: for-merge/dm6.SRR835026.bwa.vcf.gz, for-merge/dm6.SRR835026.bwa.vcf.gz.tbi
+    jobid: 33
+    reason: Missing output files: for-merge/dm6.SRR835026.bwa.vcf.gz.tbi, for-merge/dm6.SRR835026.bwa.vcf.gz
+    wildcards: graph=dm6, sample=SRR835026, method=bwa
+    resources: tmpdir=/tmp
+
+
+        echo SRR835026 > SRR835026.txt
+        bcftools reheader -s SRR835026.txt calls/SRR835026_bwa.fb.vcf.gz | bcftools annotate -x INFO,^FORMAT/GT | bcftools norm -m -any -o for-merge/dm6.SRR835026.bwa.vcf.gz -Oz
+        tabix for-merge/dm6.SRR835026.bwa.vcf.gz
+        
+
+[Mon Oct 31 21:06:22 2022]
 rule prepare_for_merge:
     input: calls/SRR834511_bwa.fb.vcf.gz, calls/SRR834511_bwa.fb.vcf.gz.tbi
     output: for-merge/dm6.SRR834511.bwa.vcf.gz, for-merge/dm6.SRR834511.bwa.vcf.gz.tbi
     jobid: 6
-    reason: Missing output files: for-merge/dm6.SRR834511.bwa.vcf.gz, for-merge/dm6.SRR834511.bwa.vcf.gz.tbi
+    reason: Missing output files: for-merge/dm6.SRR834511.bwa.vcf.gz.tbi, for-merge/dm6.SRR834511.bwa.vcf.gz
     wildcards: graph=dm6, sample=SRR834511, method=bwa
     resources: tmpdir=/tmp
 
@@ -997,7 +997,7 @@ rule prepare_for_merge:
         tabix for-merge/dm6.SRR834511.bwa.vcf.gz
         
 
-[Mon Oct 31 18:09:08 2022]
+[Mon Oct 31 21:06:22 2022]
 rule prepare_for_merge:
     input: calls/SRR834539_bwa.fb.vcf.gz, calls/SRR834539_bwa.fb.vcf.gz.tbi
     output: for-merge/dm6.SRR834539.bwa.vcf.gz, for-merge/dm6.SRR834539.bwa.vcf.gz.tbi
@@ -1012,42 +1012,12 @@ rule prepare_for_merge:
         tabix for-merge/dm6.SRR834539.bwa.vcf.gz
         
 
-[Mon Oct 31 18:09:08 2022]
-rule prepare_for_merge:
-    input: calls/SRR835027_bwa.fb.vcf.gz, calls/SRR835027_bwa.fb.vcf.gz.tbi
-    output: for-merge/dm6.SRR835027.bwa.vcf.gz, for-merge/dm6.SRR835027.bwa.vcf.gz.tbi
-    jobid: 34
-    reason: Missing output files: for-merge/dm6.SRR835027.bwa.vcf.gz.tbi, for-merge/dm6.SRR835027.bwa.vcf.gz
-    wildcards: graph=dm6, sample=SRR835027, method=bwa
-    resources: tmpdir=/tmp
-
-
-        echo SRR835027 > SRR835027.txt
-        bcftools reheader -s SRR835027.txt calls/SRR835027_bwa.fb.vcf.gz | bcftools annotate -x INFO,^FORMAT/GT | bcftools norm -m -any -o for-merge/dm6.SRR835027.bwa.vcf.gz -Oz
-        tabix for-merge/dm6.SRR835027.bwa.vcf.gz
-        
-
-[Mon Oct 31 18:09:08 2022]
-rule prepare_for_merge:
-    input: calls/SRR835088_bwa.fb.vcf.gz, calls/SRR835088_bwa.fb.vcf.gz.tbi
-    output: for-merge/dm6.SRR835088.bwa.vcf.gz, for-merge/dm6.SRR835088.bwa.vcf.gz.tbi
-    jobid: 76
-    reason: Missing output files: for-merge/dm6.SRR835088.bwa.vcf.gz, for-merge/dm6.SRR835088.bwa.vcf.gz.tbi
-    wildcards: graph=dm6, sample=SRR835088, method=bwa
-    resources: tmpdir=/tmp
-
-
-        echo SRR835088 > SRR835088.txt
-        bcftools reheader -s SRR835088.txt calls/SRR835088_bwa.fb.vcf.gz | bcftools annotate -x INFO,^FORMAT/GT | bcftools norm -m -any -o for-merge/dm6.SRR835088.bwa.vcf.gz -Oz
-        tabix for-merge/dm6.SRR835088.bwa.vcf.gz
-        
-
-[Mon Oct 31 18:09:08 2022]
+[Mon Oct 31 21:06:22 2022]
 rule prepare_for_merge:
     input: calls/SRR835042_bwa.fb.vcf.gz, calls/SRR835042_bwa.fb.vcf.gz.tbi
     output: for-merge/dm6.SRR835042.bwa.vcf.gz, for-merge/dm6.SRR835042.bwa.vcf.gz.tbi
     jobid: 48
-    reason: Missing output files: for-merge/dm6.SRR835042.bwa.vcf.gz, for-merge/dm6.SRR835042.bwa.vcf.gz.tbi
+    reason: Missing output files: for-merge/dm6.SRR835042.bwa.vcf.gz.tbi, for-merge/dm6.SRR835042.bwa.vcf.gz
     wildcards: graph=dm6, sample=SRR835042, method=bwa
     resources: tmpdir=/tmp
 
@@ -1057,7 +1027,7 @@ rule prepare_for_merge:
         tabix for-merge/dm6.SRR835042.bwa.vcf.gz
         
 
-[Mon Oct 31 18:09:08 2022]
+[Mon Oct 31 21:06:22 2022]
 rule prepare_for_merge:
     input: calls/SRR835060_bwa.fb.vcf.gz, calls/SRR835060_bwa.fb.vcf.gz.tbi
     output: for-merge/dm6.SRR835060.bwa.vcf.gz, for-merge/dm6.SRR835060.bwa.vcf.gz.tbi
@@ -1072,12 +1042,27 @@ rule prepare_for_merge:
         tabix for-merge/dm6.SRR835060.bwa.vcf.gz
         
 
-[Mon Oct 31 18:09:08 2022]
+[Mon Oct 31 21:06:22 2022]
+rule prepare_for_merge:
+    input: calls/SRR835088_bwa.fb.vcf.gz, calls/SRR835088_bwa.fb.vcf.gz.tbi
+    output: for-merge/dm6.SRR835088.bwa.vcf.gz, for-merge/dm6.SRR835088.bwa.vcf.gz.tbi
+    jobid: 76
+    reason: Missing output files: for-merge/dm6.SRR835088.bwa.vcf.gz.tbi, for-merge/dm6.SRR835088.bwa.vcf.gz
+    wildcards: graph=dm6, sample=SRR835088, method=bwa
+    resources: tmpdir=/tmp
+
+
+        echo SRR835088 > SRR835088.txt
+        bcftools reheader -s SRR835088.txt calls/SRR835088_bwa.fb.vcf.gz | bcftools annotate -x INFO,^FORMAT/GT | bcftools norm -m -any -o for-merge/dm6.SRR835088.bwa.vcf.gz -Oz
+        tabix for-merge/dm6.SRR835088.bwa.vcf.gz
+        
+
+[Mon Oct 31 21:06:22 2022]
 rule prepare_for_merge:
     input: calls/SRR933581_bwa.fb.vcf.gz, calls/SRR933581_bwa.fb.vcf.gz.tbi
     output: for-merge/dm6.SRR933581.bwa.vcf.gz, for-merge/dm6.SRR933581.bwa.vcf.gz.tbi
     jobid: 90
-    reason: Missing output files: for-merge/dm6.SRR933581.bwa.vcf.gz, for-merge/dm6.SRR933581.bwa.vcf.gz.tbi
+    reason: Missing output files: for-merge/dm6.SRR933581.bwa.vcf.gz.tbi, for-merge/dm6.SRR933581.bwa.vcf.gz
     wildcards: graph=dm6, sample=SRR933581, method=bwa
     resources: tmpdir=/tmp
 
@@ -1087,12 +1072,27 @@ rule prepare_for_merge:
         tabix for-merge/dm6.SRR933581.bwa.vcf.gz
         
 
-[Mon Oct 31 18:09:08 2022]
+[Mon Oct 31 21:06:22 2022]
+rule prepare_for_merge:
+    input: calls/SRR835027_bwa.fb.vcf.gz, calls/SRR835027_bwa.fb.vcf.gz.tbi
+    output: for-merge/dm6.SRR835027.bwa.vcf.gz, for-merge/dm6.SRR835027.bwa.vcf.gz.tbi
+    jobid: 34
+    reason: Missing output files: for-merge/dm6.SRR835027.bwa.vcf.gz.tbi, for-merge/dm6.SRR835027.bwa.vcf.gz
+    wildcards: graph=dm6, sample=SRR835027, method=bwa
+    resources: tmpdir=/tmp
+
+
+        echo SRR835027 > SRR835027.txt
+        bcftools reheader -s SRR835027.txt calls/SRR835027_bwa.fb.vcf.gz | bcftools annotate -x INFO,^FORMAT/GT | bcftools norm -m -any -o for-merge/dm6.SRR835027.bwa.vcf.gz -Oz
+        tabix for-merge/dm6.SRR835027.bwa.vcf.gz
+        
+
+[Mon Oct 31 21:06:22 2022]
 rule prepare_for_merge:
     input: calls/SRR834512_bwa.fb.vcf.gz, calls/SRR834512_bwa.fb.vcf.gz.tbi
     output: for-merge/dm6.SRR834512.bwa.vcf.gz, for-merge/dm6.SRR834512.bwa.vcf.gz.tbi
     jobid: 7
-    reason: Missing output files: for-merge/dm6.SRR834512.bwa.vcf.gz.tbi, for-merge/dm6.SRR834512.bwa.vcf.gz
+    reason: Missing output files: for-merge/dm6.SRR834512.bwa.vcf.gz, for-merge/dm6.SRR834512.bwa.vcf.gz.tbi
     wildcards: graph=dm6, sample=SRR834512, method=bwa
     resources: tmpdir=/tmp
 
@@ -1102,7 +1102,7 @@ rule prepare_for_merge:
         tabix for-merge/dm6.SRR834512.bwa.vcf.gz
         
 
-[Mon Oct 31 18:09:08 2022]
+[Mon Oct 31 21:06:22 2022]
 rule prepare_for_merge:
     input: calls/SRR834541_bwa.fb.vcf.gz, calls/SRR834541_bwa.fb.vcf.gz.tbi
     output: for-merge/dm6.SRR834541.bwa.vcf.gz, for-merge/dm6.SRR834541.bwa.vcf.gz.tbi
@@ -1117,42 +1117,12 @@ rule prepare_for_merge:
         tabix for-merge/dm6.SRR834541.bwa.vcf.gz
         
 
-[Mon Oct 31 18:09:08 2022]
-rule prepare_for_merge:
-    input: calls/SRR835028_bwa.fb.vcf.gz, calls/SRR835028_bwa.fb.vcf.gz.tbi
-    output: for-merge/dm6.SRR835028.bwa.vcf.gz, for-merge/dm6.SRR835028.bwa.vcf.gz.tbi
-    jobid: 35
-    reason: Missing output files: for-merge/dm6.SRR835028.bwa.vcf.gz.tbi, for-merge/dm6.SRR835028.bwa.vcf.gz
-    wildcards: graph=dm6, sample=SRR835028, method=bwa
-    resources: tmpdir=/tmp
-
-
-        echo SRR835028 > SRR835028.txt
-        bcftools reheader -s SRR835028.txt calls/SRR835028_bwa.fb.vcf.gz | bcftools annotate -x INFO,^FORMAT/GT | bcftools norm -m -any -o for-merge/dm6.SRR835028.bwa.vcf.gz -Oz
-        tabix for-merge/dm6.SRR835028.bwa.vcf.gz
-        
-
-[Mon Oct 31 18:09:08 2022]
-rule prepare_for_merge:
-    input: calls/SRR835089_bwa.fb.vcf.gz, calls/SRR835089_bwa.fb.vcf.gz.tbi
-    output: for-merge/dm6.SRR835089.bwa.vcf.gz, for-merge/dm6.SRR835089.bwa.vcf.gz.tbi
-    jobid: 77
-    reason: Missing output files: for-merge/dm6.SRR835089.bwa.vcf.gz.tbi, for-merge/dm6.SRR835089.bwa.vcf.gz
-    wildcards: graph=dm6, sample=SRR835089, method=bwa
-    resources: tmpdir=/tmp
-
-
-        echo SRR835089 > SRR835089.txt
-        bcftools reheader -s SRR835089.txt calls/SRR835089_bwa.fb.vcf.gz | bcftools annotate -x INFO,^FORMAT/GT | bcftools norm -m -any -o for-merge/dm6.SRR835089.bwa.vcf.gz -Oz
-        tabix for-merge/dm6.SRR835089.bwa.vcf.gz
-        
-
-[Mon Oct 31 18:09:08 2022]
+[Mon Oct 31 21:06:22 2022]
 rule prepare_for_merge:
     input: calls/SRR835043_bwa.fb.vcf.gz, calls/SRR835043_bwa.fb.vcf.gz.tbi
     output: for-merge/dm6.SRR835043.bwa.vcf.gz, for-merge/dm6.SRR835043.bwa.vcf.gz.tbi
     jobid: 49
-    reason: Missing output files: for-merge/dm6.SRR835043.bwa.vcf.gz.tbi, for-merge/dm6.SRR835043.bwa.vcf.gz
+    reason: Missing output files: for-merge/dm6.SRR835043.bwa.vcf.gz, for-merge/dm6.SRR835043.bwa.vcf.gz.tbi
     wildcards: graph=dm6, sample=SRR835043, method=bwa
     resources: tmpdir=/tmp
 
@@ -1162,12 +1132,12 @@ rule prepare_for_merge:
         tabix for-merge/dm6.SRR835043.bwa.vcf.gz
         
 
-[Mon Oct 31 18:09:08 2022]
+[Mon Oct 31 21:06:22 2022]
 rule prepare_for_merge:
     input: calls/SRR835061_bwa.fb.vcf.gz, calls/SRR835061_bwa.fb.vcf.gz.tbi
     output: for-merge/dm6.SRR835061.bwa.vcf.gz, for-merge/dm6.SRR835061.bwa.vcf.gz.tbi
     jobid: 63
-    reason: Missing output files: for-merge/dm6.SRR835061.bwa.vcf.gz.tbi, for-merge/dm6.SRR835061.bwa.vcf.gz
+    reason: Missing output files: for-merge/dm6.SRR835061.bwa.vcf.gz, for-merge/dm6.SRR835061.bwa.vcf.gz.tbi
     wildcards: graph=dm6, sample=SRR835061, method=bwa
     resources: tmpdir=/tmp
 
@@ -1177,7 +1147,22 @@ rule prepare_for_merge:
         tabix for-merge/dm6.SRR835061.bwa.vcf.gz
         
 
-[Mon Oct 31 18:09:08 2022]
+[Mon Oct 31 21:06:22 2022]
+rule prepare_for_merge:
+    input: calls/SRR835089_bwa.fb.vcf.gz, calls/SRR835089_bwa.fb.vcf.gz.tbi
+    output: for-merge/dm6.SRR835089.bwa.vcf.gz, for-merge/dm6.SRR835089.bwa.vcf.gz.tbi
+    jobid: 77
+    reason: Missing output files: for-merge/dm6.SRR835089.bwa.vcf.gz, for-merge/dm6.SRR835089.bwa.vcf.gz.tbi
+    wildcards: graph=dm6, sample=SRR835089, method=bwa
+    resources: tmpdir=/tmp
+
+
+        echo SRR835089 > SRR835089.txt
+        bcftools reheader -s SRR835089.txt calls/SRR835089_bwa.fb.vcf.gz | bcftools annotate -x INFO,^FORMAT/GT | bcftools norm -m -any -o for-merge/dm6.SRR835089.bwa.vcf.gz -Oz
+        tabix for-merge/dm6.SRR835089.bwa.vcf.gz
+        
+
+[Mon Oct 31 21:06:22 2022]
 rule prepare_for_merge:
     input: calls/SRR933585_bwa.fb.vcf.gz, calls/SRR933585_bwa.fb.vcf.gz.tbi
     output: for-merge/dm6.SRR933585.bwa.vcf.gz, for-merge/dm6.SRR933585.bwa.vcf.gz.tbi
@@ -1192,12 +1177,27 @@ rule prepare_for_merge:
         tabix for-merge/dm6.SRR933585.bwa.vcf.gz
         
 
-[Mon Oct 31 18:09:08 2022]
+[Mon Oct 31 21:06:22 2022]
+rule prepare_for_merge:
+    input: calls/SRR835028_bwa.fb.vcf.gz, calls/SRR835028_bwa.fb.vcf.gz.tbi
+    output: for-merge/dm6.SRR835028.bwa.vcf.gz, for-merge/dm6.SRR835028.bwa.vcf.gz.tbi
+    jobid: 35
+    reason: Missing output files: for-merge/dm6.SRR835028.bwa.vcf.gz.tbi, for-merge/dm6.SRR835028.bwa.vcf.gz
+    wildcards: graph=dm6, sample=SRR835028, method=bwa
+    resources: tmpdir=/tmp
+
+
+        echo SRR835028 > SRR835028.txt
+        bcftools reheader -s SRR835028.txt calls/SRR835028_bwa.fb.vcf.gz | bcftools annotate -x INFO,^FORMAT/GT | bcftools norm -m -any -o for-merge/dm6.SRR835028.bwa.vcf.gz -Oz
+        tabix for-merge/dm6.SRR835028.bwa.vcf.gz
+        
+
+[Mon Oct 31 21:06:22 2022]
 rule prepare_for_merge:
     input: calls/SRR834514_bwa.fb.vcf.gz, calls/SRR834514_bwa.fb.vcf.gz.tbi
     output: for-merge/dm6.SRR834514.bwa.vcf.gz, for-merge/dm6.SRR834514.bwa.vcf.gz.tbi
     jobid: 8
-    reason: Missing output files: for-merge/dm6.SRR834514.bwa.vcf.gz, for-merge/dm6.SRR834514.bwa.vcf.gz.tbi
+    reason: Missing output files: for-merge/dm6.SRR834514.bwa.vcf.gz.tbi, for-merge/dm6.SRR834514.bwa.vcf.gz
     wildcards: graph=dm6, sample=SRR834514, method=bwa
     resources: tmpdir=/tmp
 
@@ -1207,7 +1207,7 @@ rule prepare_for_merge:
         tabix for-merge/dm6.SRR834514.bwa.vcf.gz
         
 
-[Mon Oct 31 18:09:08 2022]
+[Mon Oct 31 21:06:22 2022]
 rule prepare_for_merge:
     input: calls/SRR834543_bwa.fb.vcf.gz, calls/SRR834543_bwa.fb.vcf.gz.tbi
     output: for-merge/dm6.SRR834543.bwa.vcf.gz, for-merge/dm6.SRR834543.bwa.vcf.gz.tbi
@@ -1222,37 +1222,7 @@ rule prepare_for_merge:
         tabix for-merge/dm6.SRR834543.bwa.vcf.gz
         
 
-[Mon Oct 31 18:09:08 2022]
-rule prepare_for_merge:
-    input: calls/SRR835029_bwa.fb.vcf.gz, calls/SRR835029_bwa.fb.vcf.gz.tbi
-    output: for-merge/dm6.SRR835029.bwa.vcf.gz, for-merge/dm6.SRR835029.bwa.vcf.gz.tbi
-    jobid: 36
-    reason: Missing output files: for-merge/dm6.SRR835029.bwa.vcf.gz.tbi, for-merge/dm6.SRR835029.bwa.vcf.gz
-    wildcards: graph=dm6, sample=SRR835029, method=bwa
-    resources: tmpdir=/tmp
-
-
-        echo SRR835029 > SRR835029.txt
-        bcftools reheader -s SRR835029.txt calls/SRR835029_bwa.fb.vcf.gz | bcftools annotate -x INFO,^FORMAT/GT | bcftools norm -m -any -o for-merge/dm6.SRR835029.bwa.vcf.gz -Oz
-        tabix for-merge/dm6.SRR835029.bwa.vcf.gz
-        
-
-[Mon Oct 31 18:09:08 2022]
-rule prepare_for_merge:
-    input: calls/SRR835091_bwa.fb.vcf.gz, calls/SRR835091_bwa.fb.vcf.gz.tbi
-    output: for-merge/dm6.SRR835091.bwa.vcf.gz, for-merge/dm6.SRR835091.bwa.vcf.gz.tbi
-    jobid: 78
-    reason: Missing output files: for-merge/dm6.SRR835091.bwa.vcf.gz.tbi, for-merge/dm6.SRR835091.bwa.vcf.gz
-    wildcards: graph=dm6, sample=SRR835091, method=bwa
-    resources: tmpdir=/tmp
-
-
-        echo SRR835091 > SRR835091.txt
-        bcftools reheader -s SRR835091.txt calls/SRR835091_bwa.fb.vcf.gz | bcftools annotate -x INFO,^FORMAT/GT | bcftools norm -m -any -o for-merge/dm6.SRR835091.bwa.vcf.gz -Oz
-        tabix for-merge/dm6.SRR835091.bwa.vcf.gz
-        
-
-[Mon Oct 31 18:09:08 2022]
+[Mon Oct 31 21:06:22 2022]
 rule prepare_for_merge:
     input: calls/SRR835044_bwa.fb.vcf.gz, calls/SRR835044_bwa.fb.vcf.gz.tbi
     output: for-merge/dm6.SRR835044.bwa.vcf.gz, for-merge/dm6.SRR835044.bwa.vcf.gz.tbi
@@ -1267,7 +1237,7 @@ rule prepare_for_merge:
         tabix for-merge/dm6.SRR835044.bwa.vcf.gz
         
 
-[Mon Oct 31 18:09:08 2022]
+[Mon Oct 31 21:06:22 2022]
 rule prepare_for_merge:
     input: calls/SRR835062_bwa.fb.vcf.gz, calls/SRR835062_bwa.fb.vcf.gz.tbi
     output: for-merge/dm6.SRR835062.bwa.vcf.gz, for-merge/dm6.SRR835062.bwa.vcf.gz.tbi
@@ -1282,12 +1252,27 @@ rule prepare_for_merge:
         tabix for-merge/dm6.SRR835062.bwa.vcf.gz
         
 
-[Mon Oct 31 18:09:08 2022]
+[Mon Oct 31 21:06:22 2022]
+rule prepare_for_merge:
+    input: calls/SRR835091_bwa.fb.vcf.gz, calls/SRR835091_bwa.fb.vcf.gz.tbi
+    output: for-merge/dm6.SRR835091.bwa.vcf.gz, for-merge/dm6.SRR835091.bwa.vcf.gz.tbi
+    jobid: 78
+    reason: Missing output files: for-merge/dm6.SRR835091.bwa.vcf.gz, for-merge/dm6.SRR835091.bwa.vcf.gz.tbi
+    wildcards: graph=dm6, sample=SRR835091, method=bwa
+    resources: tmpdir=/tmp
+
+
+        echo SRR835091 > SRR835091.txt
+        bcftools reheader -s SRR835091.txt calls/SRR835091_bwa.fb.vcf.gz | bcftools annotate -x INFO,^FORMAT/GT | bcftools norm -m -any -o for-merge/dm6.SRR835091.bwa.vcf.gz -Oz
+        tabix for-merge/dm6.SRR835091.bwa.vcf.gz
+        
+
+[Mon Oct 31 21:06:22 2022]
 rule prepare_for_merge:
     input: calls/SRR933586_bwa.fb.vcf.gz, calls/SRR933586_bwa.fb.vcf.gz.tbi
     output: for-merge/dm6.SRR933586.bwa.vcf.gz, for-merge/dm6.SRR933586.bwa.vcf.gz.tbi
     jobid: 92
-    reason: Missing output files: for-merge/dm6.SRR933586.bwa.vcf.gz, for-merge/dm6.SRR933586.bwa.vcf.gz.tbi
+    reason: Missing output files: for-merge/dm6.SRR933586.bwa.vcf.gz.tbi, for-merge/dm6.SRR933586.bwa.vcf.gz
     wildcards: graph=dm6, sample=SRR933586, method=bwa
     resources: tmpdir=/tmp
 
@@ -1297,7 +1282,22 @@ rule prepare_for_merge:
         tabix for-merge/dm6.SRR933586.bwa.vcf.gz
         
 
-[Mon Oct 31 18:09:08 2022]
+[Mon Oct 31 21:06:22 2022]
+rule prepare_for_merge:
+    input: calls/SRR835029_bwa.fb.vcf.gz, calls/SRR835029_bwa.fb.vcf.gz.tbi
+    output: for-merge/dm6.SRR835029.bwa.vcf.gz, for-merge/dm6.SRR835029.bwa.vcf.gz.tbi
+    jobid: 36
+    reason: Missing output files: for-merge/dm6.SRR835029.bwa.vcf.gz.tbi, for-merge/dm6.SRR835029.bwa.vcf.gz
+    wildcards: graph=dm6, sample=SRR835029, method=bwa
+    resources: tmpdir=/tmp
+
+
+        echo SRR835029 > SRR835029.txt
+        bcftools reheader -s SRR835029.txt calls/SRR835029_bwa.fb.vcf.gz | bcftools annotate -x INFO,^FORMAT/GT | bcftools norm -m -any -o for-merge/dm6.SRR835029.bwa.vcf.gz -Oz
+        tabix for-merge/dm6.SRR835029.bwa.vcf.gz
+        
+
+[Mon Oct 31 21:06:22 2022]
 rule prepare_for_merge:
     input: calls/SRR834516_bwa.fb.vcf.gz, calls/SRR834516_bwa.fb.vcf.gz.tbi
     output: for-merge/dm6.SRR834516.bwa.vcf.gz, for-merge/dm6.SRR834516.bwa.vcf.gz.tbi
@@ -1312,7 +1312,7 @@ rule prepare_for_merge:
         tabix for-merge/dm6.SRR834516.bwa.vcf.gz
         
 
-[Mon Oct 31 18:09:08 2022]
+[Mon Oct 31 21:06:22 2022]
 rule prepare_for_merge:
     input: calls/SRR834545_bwa.fb.vcf.gz, calls/SRR834545_bwa.fb.vcf.gz.tbi
     output: for-merge/dm6.SRR834545.bwa.vcf.gz, for-merge/dm6.SRR834545.bwa.vcf.gz.tbi
@@ -1327,37 +1327,7 @@ rule prepare_for_merge:
         tabix for-merge/dm6.SRR834545.bwa.vcf.gz
         
 
-[Mon Oct 31 18:09:08 2022]
-rule prepare_for_merge:
-    input: calls/SRR835030_bwa.fb.vcf.gz, calls/SRR835030_bwa.fb.vcf.gz.tbi
-    output: for-merge/dm6.SRR835030.bwa.vcf.gz, for-merge/dm6.SRR835030.bwa.vcf.gz.tbi
-    jobid: 37
-    reason: Missing output files: for-merge/dm6.SRR835030.bwa.vcf.gz, for-merge/dm6.SRR835030.bwa.vcf.gz.tbi
-    wildcards: graph=dm6, sample=SRR835030, method=bwa
-    resources: tmpdir=/tmp
-
-
-        echo SRR835030 > SRR835030.txt
-        bcftools reheader -s SRR835030.txt calls/SRR835030_bwa.fb.vcf.gz | bcftools annotate -x INFO,^FORMAT/GT | bcftools norm -m -any -o for-merge/dm6.SRR835030.bwa.vcf.gz -Oz
-        tabix for-merge/dm6.SRR835030.bwa.vcf.gz
-        
-
-[Mon Oct 31 18:09:08 2022]
-rule prepare_for_merge:
-    input: calls/SRR835092_bwa.fb.vcf.gz, calls/SRR835092_bwa.fb.vcf.gz.tbi
-    output: for-merge/dm6.SRR835092.bwa.vcf.gz, for-merge/dm6.SRR835092.bwa.vcf.gz.tbi
-    jobid: 79
-    reason: Missing output files: for-merge/dm6.SRR835092.bwa.vcf.gz, for-merge/dm6.SRR835092.bwa.vcf.gz.tbi
-    wildcards: graph=dm6, sample=SRR835092, method=bwa
-    resources: tmpdir=/tmp
-
-
-        echo SRR835092 > SRR835092.txt
-        bcftools reheader -s SRR835092.txt calls/SRR835092_bwa.fb.vcf.gz | bcftools annotate -x INFO,^FORMAT/GT | bcftools norm -m -any -o for-merge/dm6.SRR835092.bwa.vcf.gz -Oz
-        tabix for-merge/dm6.SRR835092.bwa.vcf.gz
-        
-
-[Mon Oct 31 18:09:08 2022]
+[Mon Oct 31 21:06:22 2022]
 rule prepare_for_merge:
     input: calls/SRR835045_bwa.fb.vcf.gz, calls/SRR835045_bwa.fb.vcf.gz.tbi
     output: for-merge/dm6.SRR835045.bwa.vcf.gz, for-merge/dm6.SRR835045.bwa.vcf.gz.tbi
@@ -1372,12 +1342,12 @@ rule prepare_for_merge:
         tabix for-merge/dm6.SRR835045.bwa.vcf.gz
         
 
-[Mon Oct 31 18:09:08 2022]
+[Mon Oct 31 21:06:22 2022]
 rule prepare_for_merge:
     input: calls/SRR835063_bwa.fb.vcf.gz, calls/SRR835063_bwa.fb.vcf.gz.tbi
     output: for-merge/dm6.SRR835063.bwa.vcf.gz, for-merge/dm6.SRR835063.bwa.vcf.gz.tbi
     jobid: 65
-    reason: Missing output files: for-merge/dm6.SRR835063.bwa.vcf.gz, for-merge/dm6.SRR835063.bwa.vcf.gz.tbi
+    reason: Missing output files: for-merge/dm6.SRR835063.bwa.vcf.gz.tbi, for-merge/dm6.SRR835063.bwa.vcf.gz
     wildcards: graph=dm6, sample=SRR835063, method=bwa
     resources: tmpdir=/tmp
 
@@ -1387,12 +1357,27 @@ rule prepare_for_merge:
         tabix for-merge/dm6.SRR835063.bwa.vcf.gz
         
 
-[Mon Oct 31 18:09:08 2022]
+[Mon Oct 31 21:06:22 2022]
+rule prepare_for_merge:
+    input: calls/SRR835092_bwa.fb.vcf.gz, calls/SRR835092_bwa.fb.vcf.gz.tbi
+    output: for-merge/dm6.SRR835092.bwa.vcf.gz, for-merge/dm6.SRR835092.bwa.vcf.gz.tbi
+    jobid: 79
+    reason: Missing output files: for-merge/dm6.SRR835092.bwa.vcf.gz.tbi, for-merge/dm6.SRR835092.bwa.vcf.gz
+    wildcards: graph=dm6, sample=SRR835092, method=bwa
+    resources: tmpdir=/tmp
+
+
+        echo SRR835092 > SRR835092.txt
+        bcftools reheader -s SRR835092.txt calls/SRR835092_bwa.fb.vcf.gz | bcftools annotate -x INFO,^FORMAT/GT | bcftools norm -m -any -o for-merge/dm6.SRR835092.bwa.vcf.gz -Oz
+        tabix for-merge/dm6.SRR835092.bwa.vcf.gz
+        
+
+[Mon Oct 31 21:06:22 2022]
 rule prepare_for_merge:
     input: calls/SRR933587_bwa.fb.vcf.gz, calls/SRR933587_bwa.fb.vcf.gz.tbi
     output: for-merge/dm6.SRR933587.bwa.vcf.gz, for-merge/dm6.SRR933587.bwa.vcf.gz.tbi
     jobid: 93
-    reason: Missing output files: for-merge/dm6.SRR933587.bwa.vcf.gz.tbi, for-merge/dm6.SRR933587.bwa.vcf.gz
+    reason: Missing output files: for-merge/dm6.SRR933587.bwa.vcf.gz, for-merge/dm6.SRR933587.bwa.vcf.gz.tbi
     wildcards: graph=dm6, sample=SRR933587, method=bwa
     resources: tmpdir=/tmp
 
@@ -1402,7 +1387,22 @@ rule prepare_for_merge:
         tabix for-merge/dm6.SRR933587.bwa.vcf.gz
         
 
-[Mon Oct 31 18:09:08 2022]
+[Mon Oct 31 21:06:22 2022]
+rule prepare_for_merge:
+    input: calls/SRR835030_bwa.fb.vcf.gz, calls/SRR835030_bwa.fb.vcf.gz.tbi
+    output: for-merge/dm6.SRR835030.bwa.vcf.gz, for-merge/dm6.SRR835030.bwa.vcf.gz.tbi
+    jobid: 37
+    reason: Missing output files: for-merge/dm6.SRR835030.bwa.vcf.gz.tbi, for-merge/dm6.SRR835030.bwa.vcf.gz
+    wildcards: graph=dm6, sample=SRR835030, method=bwa
+    resources: tmpdir=/tmp
+
+
+        echo SRR835030 > SRR835030.txt
+        bcftools reheader -s SRR835030.txt calls/SRR835030_bwa.fb.vcf.gz | bcftools annotate -x INFO,^FORMAT/GT | bcftools norm -m -any -o for-merge/dm6.SRR835030.bwa.vcf.gz -Oz
+        tabix for-merge/dm6.SRR835030.bwa.vcf.gz
+        
+
+[Mon Oct 31 21:06:22 2022]
 rule prepare_for_merge:
     input: calls/SRR834517_bwa.fb.vcf.gz, calls/SRR834517_bwa.fb.vcf.gz.tbi
     output: for-merge/dm6.SRR834517.bwa.vcf.gz, for-merge/dm6.SRR834517.bwa.vcf.gz.tbi
@@ -1417,12 +1417,12 @@ rule prepare_for_merge:
         tabix for-merge/dm6.SRR834517.bwa.vcf.gz
         
 
-[Mon Oct 31 18:09:08 2022]
+[Mon Oct 31 21:06:22 2022]
 rule prepare_for_merge:
     input: calls/SRR834546_bwa.fb.vcf.gz, calls/SRR834546_bwa.fb.vcf.gz.tbi
     output: for-merge/dm6.SRR834546.bwa.vcf.gz, for-merge/dm6.SRR834546.bwa.vcf.gz.tbi
     jobid: 24
-    reason: Missing output files: for-merge/dm6.SRR834546.bwa.vcf.gz, for-merge/dm6.SRR834546.bwa.vcf.gz.tbi
+    reason: Missing output files: for-merge/dm6.SRR834546.bwa.vcf.gz.tbi, for-merge/dm6.SRR834546.bwa.vcf.gz
     wildcards: graph=dm6, sample=SRR834546, method=bwa
     resources: tmpdir=/tmp
 
@@ -1432,37 +1432,7 @@ rule prepare_for_merge:
         tabix for-merge/dm6.SRR834546.bwa.vcf.gz
         
 
-[Mon Oct 31 18:09:08 2022]
-rule prepare_for_merge:
-    input: calls/SRR835031_bwa.fb.vcf.gz, calls/SRR835031_bwa.fb.vcf.gz.tbi
-    output: for-merge/dm6.SRR835031.bwa.vcf.gz, for-merge/dm6.SRR835031.bwa.vcf.gz.tbi
-    jobid: 38
-    reason: Missing output files: for-merge/dm6.SRR835031.bwa.vcf.gz.tbi, for-merge/dm6.SRR835031.bwa.vcf.gz
-    wildcards: graph=dm6, sample=SRR835031, method=bwa
-    resources: tmpdir=/tmp
-
-
-        echo SRR835031 > SRR835031.txt
-        bcftools reheader -s SRR835031.txt calls/SRR835031_bwa.fb.vcf.gz | bcftools annotate -x INFO,^FORMAT/GT | bcftools norm -m -any -o for-merge/dm6.SRR835031.bwa.vcf.gz -Oz
-        tabix for-merge/dm6.SRR835031.bwa.vcf.gz
-        
-
-[Mon Oct 31 18:09:08 2022]
-rule prepare_for_merge:
-    input: calls/SRR835095_bwa.fb.vcf.gz, calls/SRR835095_bwa.fb.vcf.gz.tbi
-    output: for-merge/dm6.SRR835095.bwa.vcf.gz, for-merge/dm6.SRR835095.bwa.vcf.gz.tbi
-    jobid: 80
-    reason: Missing output files: for-merge/dm6.SRR835095.bwa.vcf.gz.tbi, for-merge/dm6.SRR835095.bwa.vcf.gz
-    wildcards: graph=dm6, sample=SRR835095, method=bwa
-    resources: tmpdir=/tmp
-
-
-        echo SRR835095 > SRR835095.txt
-        bcftools reheader -s SRR835095.txt calls/SRR835095_bwa.fb.vcf.gz | bcftools annotate -x INFO,^FORMAT/GT | bcftools norm -m -any -o for-merge/dm6.SRR835095.bwa.vcf.gz -Oz
-        tabix for-merge/dm6.SRR835095.bwa.vcf.gz
-        
-
-[Mon Oct 31 18:09:08 2022]
+[Mon Oct 31 21:06:22 2022]
 rule prepare_for_merge:
     input: calls/SRR835046_bwa.fb.vcf.gz, calls/SRR835046_bwa.fb.vcf.gz.tbi
     output: for-merge/dm6.SRR835046.bwa.vcf.gz, for-merge/dm6.SRR835046.bwa.vcf.gz.tbi
@@ -1477,7 +1447,7 @@ rule prepare_for_merge:
         tabix for-merge/dm6.SRR835046.bwa.vcf.gz
         
 
-[Mon Oct 31 18:09:08 2022]
+[Mon Oct 31 21:06:22 2022]
 rule prepare_for_merge:
     input: calls/SRR835067_bwa.fb.vcf.gz, calls/SRR835067_bwa.fb.vcf.gz.tbi
     output: for-merge/dm6.SRR835067.bwa.vcf.gz, for-merge/dm6.SRR835067.bwa.vcf.gz.tbi
@@ -1492,12 +1462,27 @@ rule prepare_for_merge:
         tabix for-merge/dm6.SRR835067.bwa.vcf.gz
         
 
-[Mon Oct 31 18:09:08 2022]
+[Mon Oct 31 21:06:22 2022]
+rule prepare_for_merge:
+    input: calls/SRR835095_bwa.fb.vcf.gz, calls/SRR835095_bwa.fb.vcf.gz.tbi
+    output: for-merge/dm6.SRR835095.bwa.vcf.gz, for-merge/dm6.SRR835095.bwa.vcf.gz.tbi
+    jobid: 80
+    reason: Missing output files: for-merge/dm6.SRR835095.bwa.vcf.gz.tbi, for-merge/dm6.SRR835095.bwa.vcf.gz
+    wildcards: graph=dm6, sample=SRR835095, method=bwa
+    resources: tmpdir=/tmp
+
+
+        echo SRR835095 > SRR835095.txt
+        bcftools reheader -s SRR835095.txt calls/SRR835095_bwa.fb.vcf.gz | bcftools annotate -x INFO,^FORMAT/GT | bcftools norm -m -any -o for-merge/dm6.SRR835095.bwa.vcf.gz -Oz
+        tabix for-merge/dm6.SRR835095.bwa.vcf.gz
+        
+
+[Mon Oct 31 21:06:22 2022]
 rule prepare_for_merge:
     input: calls/SRR933589_bwa.fb.vcf.gz, calls/SRR933589_bwa.fb.vcf.gz.tbi
     output: for-merge/dm6.SRR933589.bwa.vcf.gz, for-merge/dm6.SRR933589.bwa.vcf.gz.tbi
     jobid: 94
-    reason: Missing output files: for-merge/dm6.SRR933589.bwa.vcf.gz, for-merge/dm6.SRR933589.bwa.vcf.gz.tbi
+    reason: Missing output files: for-merge/dm6.SRR933589.bwa.vcf.gz.tbi, for-merge/dm6.SRR933589.bwa.vcf.gz
     wildcards: graph=dm6, sample=SRR933589, method=bwa
     resources: tmpdir=/tmp
 
@@ -1507,12 +1492,27 @@ rule prepare_for_merge:
         tabix for-merge/dm6.SRR933589.bwa.vcf.gz
         
 
-[Mon Oct 31 18:09:08 2022]
+[Mon Oct 31 21:06:22 2022]
+rule prepare_for_merge:
+    input: calls/SRR835031_bwa.fb.vcf.gz, calls/SRR835031_bwa.fb.vcf.gz.tbi
+    output: for-merge/dm6.SRR835031.bwa.vcf.gz, for-merge/dm6.SRR835031.bwa.vcf.gz.tbi
+    jobid: 38
+    reason: Missing output files: for-merge/dm6.SRR835031.bwa.vcf.gz.tbi, for-merge/dm6.SRR835031.bwa.vcf.gz
+    wildcards: graph=dm6, sample=SRR835031, method=bwa
+    resources: tmpdir=/tmp
+
+
+        echo SRR835031 > SRR835031.txt
+        bcftools reheader -s SRR835031.txt calls/SRR835031_bwa.fb.vcf.gz | bcftools annotate -x INFO,^FORMAT/GT | bcftools norm -m -any -o for-merge/dm6.SRR835031.bwa.vcf.gz -Oz
+        tabix for-merge/dm6.SRR835031.bwa.vcf.gz
+        
+
+[Mon Oct 31 21:06:22 2022]
 rule merge_freebayes_calls:
     input: for-merge/dm6.SRR833244.bwa.vcf.gz, for-merge/dm6.SRR834507.bwa.vcf.gz, for-merge/dm6.SRR834508.bwa.vcf.gz, for-merge/dm6.SRR834509.bwa.vcf.gz, for-merge/dm6.SRR834510.bwa.vcf.gz, for-merge/dm6.SRR834511.bwa.vcf.gz, for-merge/dm6.SRR834512.bwa.vcf.gz, for-merge/dm6.SRR834514.bwa.vcf.gz, for-merge/dm6.SRR834516.bwa.vcf.gz, for-merge/dm6.SRR834517.bwa.vcf.gz, for-merge/dm6.SRR834519.bwa.vcf.gz, for-merge/dm6.SRR834520.bwa.vcf.gz, for-merge/dm6.SRR834521.bwa.vcf.gz, for-merge/dm6.SRR834522.bwa.vcf.gz, for-merge/dm6.SRR834523.bwa.vcf.gz, for-merge/dm6.SRR834526.bwa.vcf.gz, for-merge/dm6.SRR834527.bwa.vcf.gz, for-merge/dm6.SRR834531.bwa.vcf.gz, for-merge/dm6.SRR834537.bwa.vcf.gz, for-merge/dm6.SRR834539.bwa.vcf.gz, for-merge/dm6.SRR834541.bwa.vcf.gz, for-merge/dm6.SRR834543.bwa.vcf.gz, for-merge/dm6.SRR834545.bwa.vcf.gz, for-merge/dm6.SRR834546.bwa.vcf.gz, for-merge/dm6.SRR834547.bwa.vcf.gz, for-merge/dm6.SRR834551.bwa.vcf.gz, for-merge/dm6.SRR834552.bwa.vcf.gz, for-merge/dm6.SRR834553.bwa.vcf.gz, for-merge/dm6.SRR834554.bwa.vcf.gz, for-merge/dm6.SRR835023.bwa.vcf.gz, for-merge/dm6.SRR835024.bwa.vcf.gz, for-merge/dm6.SRR835025.bwa.vcf.gz, for-merge/dm6.SRR835026.bwa.vcf.gz, for-merge/dm6.SRR835027.bwa.vcf.gz, for-merge/dm6.SRR835028.bwa.vcf.gz, for-merge/dm6.SRR835029.bwa.vcf.gz, for-merge/dm6.SRR835030.bwa.vcf.gz, for-merge/dm6.SRR835031.bwa.vcf.gz, for-merge/dm6.SRR835033.bwa.vcf.gz, for-merge/dm6.SRR835034.bwa.vcf.gz, for-merge/dm6.SRR835035.bwa.vcf.gz, for-merge/dm6.SRR835036.bwa.vcf.gz, for-merge/dm6.SRR835037.bwa.vcf.gz, for-merge/dm6.SRR835038.bwa.vcf.gz, for-merge/dm6.SRR835039.bwa.vcf.gz, for-merge/dm6.SRR835040.bwa.vcf.gz, for-merge/dm6.SRR835041.bwa.vcf.gz, for-merge/dm6.SRR835042.bwa.vcf.gz, for-merge/dm6.SRR835043.bwa.vcf.gz, for-merge/dm6.SRR835044.bwa.vcf.gz, for-merge/dm6.SRR835045.bwa.vcf.gz, for-merge/dm6.SRR835046.bwa.vcf.gz, for-merge/dm6.SRR835047.bwa.vcf.gz, for-merge/dm6.SRR835048.bwa.vcf.gz, for-merge/dm6.SRR835050.bwa.vcf.gz, for-merge/dm6.SRR835051.bwa.vcf.gz, for-merge/dm6.SRR835052.bwa.vcf.gz, for-merge/dm6.SRR835054.bwa.vcf.gz, for-merge/dm6.SRR835055.bwa.vcf.gz, for-merge/dm6.SRR835058.bwa.vcf.gz, for-merge/dm6.SRR835059.bwa.vcf.gz, for-merge/dm6.SRR835060.bwa.vcf.gz, for-merge/dm6.SRR835061.bwa.vcf.gz, for-merge/dm6.SRR835062.bwa.vcf.gz, for-merge/dm6.SRR835063.bwa.vcf.gz, for-merge/dm6.SRR835067.bwa.vcf.gz, for-merge/dm6.SRR835069.bwa.vcf.gz, for-merge/dm6.SRR835071.bwa.vcf.gz, for-merge/dm6.SRR835072.bwa.vcf.gz, for-merge/dm6.SRR835073.bwa.vcf.gz, for-merge/dm6.SRR835074.bwa.vcf.gz, for-merge/dm6.SRR835075.bwa.vcf.gz, for-merge/dm6.SRR835077.bwa.vcf.gz, for-merge/dm6.SRR835086.bwa.vcf.gz, for-merge/dm6.SRR835087.bwa.vcf.gz, for-merge/dm6.SRR835088.bwa.vcf.gz, for-merge/dm6.SRR835089.bwa.vcf.gz, for-merge/dm6.SRR835091.bwa.vcf.gz, for-merge/dm6.SRR835092.bwa.vcf.gz, for-merge/dm6.SRR835095.bwa.vcf.gz, for-merge/dm6.SRR835096.bwa.vcf.gz, for-merge/dm6.SRR835097.bwa.vcf.gz, for-merge/dm6.SRR835098.bwa.vcf.gz, for-merge/dm6.SRR932121.bwa.vcf.gz, for-merge/dm6.SRR933563.bwa.vcf.gz, for-merge/dm6.SRR933569.bwa.vcf.gz, for-merge/dm6.SRR933573.bwa.vcf.gz, for-merge/dm6.SRR933577.bwa.vcf.gz, for-merge/dm6.SRR933580.bwa.vcf.gz, for-merge/dm6.SRR933581.bwa.vcf.gz, for-merge/dm6.SRR933585.bwa.vcf.gz, for-merge/dm6.SRR933586.bwa.vcf.gz, for-merge/dm6.SRR933587.bwa.vcf.gz, for-merge/dm6.SRR933589.bwa.vcf.gz, for-merge/dm6.SRR933591.bwa.vcf.gz, for-merge/dm6.SRR933592.bwa.vcf.gz, for-merge/dm6.SRR933593.bwa.vcf.gz, for-merge/dm6.SRR933594.bwa.vcf.gz, for-merge/dm6.SRR933599.bwa.vcf.gz, for-merge/dm6.SRR933601.bwa.vcf.gz, for-merge/dm6.SRR833244.bwa.vcf.gz.tbi, for-merge/dm6.SRR834507.bwa.vcf.gz.tbi, for-merge/dm6.SRR834508.bwa.vcf.gz.tbi, for-merge/dm6.SRR834509.bwa.vcf.gz.tbi, for-merge/dm6.SRR834510.bwa.vcf.gz.tbi, for-merge/dm6.SRR834511.bwa.vcf.gz.tbi, for-merge/dm6.SRR834512.bwa.vcf.gz.tbi, for-merge/dm6.SRR834514.bwa.vcf.gz.tbi, for-merge/dm6.SRR834516.bwa.vcf.gz.tbi, for-merge/dm6.SRR834517.bwa.vcf.gz.tbi, for-merge/dm6.SRR834519.bwa.vcf.gz.tbi, for-merge/dm6.SRR834520.bwa.vcf.gz.tbi, for-merge/dm6.SRR834521.bwa.vcf.gz.tbi, for-merge/dm6.SRR834522.bwa.vcf.gz.tbi, for-merge/dm6.SRR834523.bwa.vcf.gz.tbi, for-merge/dm6.SRR834526.bwa.vcf.gz.tbi, for-merge/dm6.SRR834527.bwa.vcf.gz.tbi, for-merge/dm6.SRR834531.bwa.vcf.gz.tbi, for-merge/dm6.SRR834537.bwa.vcf.gz.tbi, for-merge/dm6.SRR834539.bwa.vcf.gz.tbi, for-merge/dm6.SRR834541.bwa.vcf.gz.tbi, for-merge/dm6.SRR834543.bwa.vcf.gz.tbi, for-merge/dm6.SRR834545.bwa.vcf.gz.tbi, for-merge/dm6.SRR834546.bwa.vcf.gz.tbi, for-merge/dm6.SRR834547.bwa.vcf.gz.tbi, for-merge/dm6.SRR834551.bwa.vcf.gz.tbi, for-merge/dm6.SRR834552.bwa.vcf.gz.tbi, for-merge/dm6.SRR834553.bwa.vcf.gz.tbi, for-merge/dm6.SRR834554.bwa.vcf.gz.tbi, for-merge/dm6.SRR835023.bwa.vcf.gz.tbi, for-merge/dm6.SRR835024.bwa.vcf.gz.tbi, for-merge/dm6.SRR835025.bwa.vcf.gz.tbi, for-merge/dm6.SRR835026.bwa.vcf.gz.tbi, for-merge/dm6.SRR835027.bwa.vcf.gz.tbi, for-merge/dm6.SRR835028.bwa.vcf.gz.tbi, for-merge/dm6.SRR835029.bwa.vcf.gz.tbi, for-merge/dm6.SRR835030.bwa.vcf.gz.tbi, for-merge/dm6.SRR835031.bwa.vcf.gz.tbi, for-merge/dm6.SRR835033.bwa.vcf.gz.tbi, for-merge/dm6.SRR835034.bwa.vcf.gz.tbi, for-merge/dm6.SRR835035.bwa.vcf.gz.tbi, for-merge/dm6.SRR835036.bwa.vcf.gz.tbi, for-merge/dm6.SRR835037.bwa.vcf.gz.tbi, for-merge/dm6.SRR835038.bwa.vcf.gz.tbi, for-merge/dm6.SRR835039.bwa.vcf.gz.tbi, for-merge/dm6.SRR835040.bwa.vcf.gz.tbi, for-merge/dm6.SRR835041.bwa.vcf.gz.tbi, for-merge/dm6.SRR835042.bwa.vcf.gz.tbi, for-merge/dm6.SRR835043.bwa.vcf.gz.tbi, for-merge/dm6.SRR835044.bwa.vcf.gz.tbi, for-merge/dm6.SRR835045.bwa.vcf.gz.tbi, for-merge/dm6.SRR835046.bwa.vcf.gz.tbi, for-merge/dm6.SRR835047.bwa.vcf.gz.tbi, for-merge/dm6.SRR835048.bwa.vcf.gz.tbi, for-merge/dm6.SRR835050.bwa.vcf.gz.tbi, for-merge/dm6.SRR835051.bwa.vcf.gz.tbi, for-merge/dm6.SRR835052.bwa.vcf.gz.tbi, for-merge/dm6.SRR835054.bwa.vcf.gz.tbi, for-merge/dm6.SRR835055.bwa.vcf.gz.tbi, for-merge/dm6.SRR835058.bwa.vcf.gz.tbi, for-merge/dm6.SRR835059.bwa.vcf.gz.tbi, for-merge/dm6.SRR835060.bwa.vcf.gz.tbi, for-merge/dm6.SRR835061.bwa.vcf.gz.tbi, for-merge/dm6.SRR835062.bwa.vcf.gz.tbi, for-merge/dm6.SRR835063.bwa.vcf.gz.tbi, for-merge/dm6.SRR835067.bwa.vcf.gz.tbi, for-merge/dm6.SRR835069.bwa.vcf.gz.tbi, for-merge/dm6.SRR835071.bwa.vcf.gz.tbi, for-merge/dm6.SRR835072.bwa.vcf.gz.tbi, for-merge/dm6.SRR835073.bwa.vcf.gz.tbi, for-merge/dm6.SRR835074.bwa.vcf.gz.tbi, for-merge/dm6.SRR835075.bwa.vcf.gz.tbi, for-merge/dm6.SRR835077.bwa.vcf.gz.tbi, for-merge/dm6.SRR835086.bwa.vcf.gz.tbi, for-merge/dm6.SRR835087.bwa.vcf.gz.tbi, for-merge/dm6.SRR835088.bwa.vcf.gz.tbi, for-merge/dm6.SRR835089.bwa.vcf.gz.tbi, for-merge/dm6.SRR835091.bwa.vcf.gz.tbi, for-merge/dm6.SRR835092.bwa.vcf.gz.tbi, for-merge/dm6.SRR835095.bwa.vcf.gz.tbi, for-merge/dm6.SRR835096.bwa.vcf.gz.tbi, for-merge/dm6.SRR835097.bwa.vcf.gz.tbi, for-merge/dm6.SRR835098.bwa.vcf.gz.tbi, for-merge/dm6.SRR932121.bwa.vcf.gz.tbi, for-merge/dm6.SRR933563.bwa.vcf.gz.tbi, for-merge/dm6.SRR933569.bwa.vcf.gz.tbi, for-merge/dm6.SRR933573.bwa.vcf.gz.tbi, for-merge/dm6.SRR933577.bwa.vcf.gz.tbi, for-merge/dm6.SRR933580.bwa.vcf.gz.tbi, for-merge/dm6.SRR933581.bwa.vcf.gz.tbi, for-merge/dm6.SRR933585.bwa.vcf.gz.tbi, for-merge/dm6.SRR933586.bwa.vcf.gz.tbi, for-merge/dm6.SRR933587.bwa.vcf.gz.tbi, for-merge/dm6.SRR933589.bwa.vcf.gz.tbi, for-merge/dm6.SRR933591.bwa.vcf.gz.tbi, for-merge/dm6.SRR933592.bwa.vcf.gz.tbi, for-merge/dm6.SRR933593.bwa.vcf.gz.tbi, for-merge/dm6.SRR933594.bwa.vcf.gz.tbi, for-merge/dm6.SRR933599.bwa.vcf.gz.tbi, for-merge/dm6.SRR933601.bwa.vcf.gz.tbi
     output: results/bwa.dm6.vcf.gz
     jobid: 0
-    reason: Missing output files: results/bwa.dm6.vcf.gz; Input files updated by another job: for-merge/dm6.SRR834526.bwa.vcf.gz, for-merge/dm6.SRR835047.bwa.vcf.gz.tbi, for-merge/dm6.SRR933585.bwa.vcf.gz, for-merge/dm6.SRR834546.bwa.vcf.gz, for-merge/dm6.SRR933577.bwa.vcf.gz, for-merge/dm6.SRR834519.bwa.vcf.gz.tbi, for-merge/dm6.SRR834541.bwa.vcf.gz.tbi, for-merge/dm6.SRR835086.bwa.vcf.gz, for-merge/dm6.SRR933563.bwa.vcf.gz.tbi, for-merge/dm6.SRR835034.bwa.vcf.gz, for-merge/dm6.SRR835025.bwa.vcf.gz, for-merge/dm6.SRR835038.bwa.vcf.gz, for-merge/dm6.SRR933577.bwa.vcf.gz.tbi, for-merge/dm6.SRR933589.bwa.vcf.gz, for-merge/dm6.SRR835069.bwa.vcf.gz, for-merge/dm6.SRR835087.bwa.vcf.gz.tbi, for-merge/dm6.SRR835042.bwa.vcf.gz, for-merge/dm6.SRR834516.bwa.vcf.gz, for-merge/dm6.SRR933601.bwa.vcf.gz, for-merge/dm6.SRR834527.bwa.vcf.gz.tbi, for-merge/dm6.SRR834514.bwa.vcf.gz, for-merge/dm6.SRR835072.bwa.vcf.gz, for-merge/dm6.SRR933573.bwa.vcf.gz.tbi, for-merge/dm6.SRR834553.bwa.vcf.gz, for-merge/dm6.SRR835043.bwa.vcf.gz.tbi, for-merge/dm6.SRR834509.bwa.vcf.gz.tbi, for-merge/dm6.SRR835074.bwa.vcf.gz.tbi, for-merge/dm6.SRR835088.bwa.vcf.gz, for-merge/dm6.SRR835091.bwa.vcf.gz, for-merge/dm6.SRR834522.bwa.vcf.gz.tbi, for-merge/dm6.SRR933587.bwa.vcf.gz.tbi, for-merge/dm6.SRR834523.bwa.vcf.gz.tbi, for-merge/dm6.SRR835041.bwa.vcf.gz.tbi, for-merge/dm6.SRR933586.bwa.vcf.gz, for-merge/dm6.SRR834543.bwa.vcf.gz.tbi, for-merge/dm6.SRR835039.bwa.vcf.gz.tbi, for-merge/dm6.SRR835026.bwa.vcf.gz.tbi, for-merge/dm6.SRR933569.bwa.vcf.gz, for-merge/dm6.SRR835067.bwa.vcf.gz.tbi, for-merge/dm6.SRR835052.bwa.vcf.gz.tbi, for-merge/dm6.SRR835060.bwa.vcf.gz.tbi, for-merge/dm6.SRR834512.bwa.vcf.gz.tbi, for-merge/dm6.SRR835023.bwa.vcf.gz, for-merge/dm6.SRR835087.bwa.vcf.gz, for-merge/dm6.SRR835088.bwa.vcf.gz.tbi, for-merge/dm6.SRR835030.bwa.vcf.gz.tbi, for-merge/dm6.SRR835095.bwa.vcf.gz.tbi, for-merge/dm6.SRR835097.bwa.vcf.gz.tbi, for-merge/dm6.SRR835071.bwa.vcf.gz.tbi, for-merge/dm6.SRR835074.bwa.vcf.gz, for-merge/dm6.SRR835031.bwa.vcf.gz.tbi, for-merge/dm6.SRR933569.bwa.vcf.gz.tbi, for-merge/dm6.SRR834539.bwa.vcf.gz, for-merge/dm6.SRR835048.bwa.vcf.gz.tbi, for-merge/dm6.SRR933594.bwa.vcf.gz.tbi, for-merge/dm6.SRR833244.bwa.vcf.gz.tbi, for-merge/dm6.SRR834519.bwa.vcf.gz, for-merge/dm6.SRR835029.bwa.vcf.gz, for-merge/dm6.SRR834507.bwa.vcf.gz.tbi, for-merge/dm6.SRR835037.bwa.vcf.gz, for-merge/dm6.SRR835086.bwa.vcf.gz.tbi, for-merge/dm6.SRR834547.bwa.vcf.gz.tbi, for-merge/dm6.SRR835040.bwa.vcf.gz, for-merge/dm6.SRR835046.bwa.vcf.gz.tbi, for-merge/dm6.SRR835047.bwa.vcf.gz, for-merge/dm6.SRR834526.bwa.vcf.gz.tbi, for-merge/dm6.SRR834511.bwa.vcf.gz.tbi, for-merge/dm6.SRR835055.bwa.vcf.gz.tbi, for-merge/dm6.SRR835028.bwa.vcf.gz.tbi, for-merge/dm6.SRR835097.bwa.vcf.gz, for-merge/dm6.SRR834511.bwa.vcf.gz, for-merge/dm6.SRR835045.bwa.vcf.gz.tbi, for-merge/dm6.SRR835024.bwa.vcf.gz, for-merge/dm6.SRR834521.bwa.vcf.gz.tbi, for-merge/dm6.SRR835075.bwa.vcf.gz, for-merge/dm6.SRR834541.bwa.vcf.gz, for-merge/dm6.SRR835023.bwa.vcf.gz.tbi, for-merge/dm6.SRR933593.bwa.vcf.gz.tbi, for-merge/dm6.SRR933593.bwa.vcf.gz, for-merge/dm6.SRR834512.bwa.vcf.gz, for-merge/dm6.SRR834516.bwa.vcf.gz.tbi, for-merge/dm6.SRR834545.bwa.vcf.gz.tbi, for-merge/dm6.SRR835077.bwa.vcf.gz, for-merge/dm6.SRR835043.bwa.vcf.gz, for-merge/dm6.SRR835051.bwa.vcf.gz.tbi, for-merge/dm6.SRR834517.bwa.vcf.gz.tbi, for-merge/dm6.SRR835040.bwa.vcf.gz.tbi, for-merge/dm6.SRR933589.bwa.vcf.gz.tbi, for-merge/dm6.SRR835095.bwa.vcf.gz, for-merge/dm6.SRR834517.bwa.vcf.gz, for-merge/dm6.SRR834521.bwa.vcf.gz, for-merge/dm6.SRR834522.bwa.vcf.gz, for-merge/dm6.SRR835036.bwa.vcf.gz.tbi, for-merge/dm6.SRR834509.bwa.vcf.gz, for-merge/dm6.SRR835063.bwa.vcf.gz.tbi, for-merge/dm6.SRR932121.bwa.vcf.gz.tbi, for-merge/dm6.SRR835035.bwa.vcf.gz.tbi, for-merge/dm6.SRR835063.bwa.vcf.gz, for-merge/dm6.SRR835092.bwa.vcf.gz.tbi, for-merge/dm6.SRR835098.bwa.vcf.gz, for-merge/dm6.SRR835038.bwa.vcf.gz.tbi, for-merge/dm6.SRR835061.bwa.vcf.gz, for-merge/dm6.SRR834554.bwa.vcf.gz.tbi, for-merge/dm6.SRR835098.bwa.vcf.gz.tbi, for-merge/dm6.SRR834510.bwa.vcf.gz.tbi, for-merge/dm6.SRR835073.bwa.vcf.gz, for-merge/dm6.SRR835033.bwa.vcf.gz.tbi, for-merge/dm6.SRR835058.bwa.vcf.gz.tbi, for-merge/dm6.SRR835096.bwa.vcf.gz, for-merge/dm6.SRR933581.bwa.vcf.gz, for-merge/dm6.SRR834554.bwa.vcf.gz, for-merge/dm6.SRR835059.bwa.vcf.gz, for-merge/dm6.SRR933573.bwa.vcf.gz, for-merge/dm6.SRR933594.bwa.vcf.gz, for-merge/dm6.SRR835052.bwa.vcf.gz, for-merge/dm6.SRR835060.bwa.vcf.gz, for-merge/dm6.SRR835073.bwa.vcf.gz.tbi, for-merge/dm6.SRR933591.bwa.vcf.gz.tbi, for-merge/dm6.SRR835091.bwa.vcf.gz.tbi, for-merge/dm6.SRR835042.bwa.vcf.gz.tbi, for-merge/dm6.SRR933599.bwa.vcf.gz.tbi, for-merge/dm6.SRR835028.bwa.vcf.gz, for-merge/dm6.SRR834551.bwa.vcf.gz, for-merge/dm6.SRR933599.bwa.vcf.gz, for-merge/dm6.SRR835050.bwa.vcf.gz.tbi, for-merge/dm6.SRR835026.bwa.vcf.gz, for-merge/dm6.SRR835050.bwa.vcf.gz, for-merge/dm6.SRR835041.bwa.vcf.gz, for-merge/dm6.SRR835089.bwa.vcf.gz, for-merge/dm6.SRR835025.bwa.vcf.gz.tbi, for-merge/dm6.SRR835075.bwa.vcf.gz.tbi, for-merge/dm6.SRR834520.bwa.vcf.gz, for-merge/dm6.SRR834537.bwa.vcf.gz, for-merge/dm6.SRR834514.bwa.vcf.gz.tbi, for-merge/dm6.SRR834551.bwa.vcf.gz.tbi, for-merge/dm6.SRR835024.bwa.vcf.gz.tbi, for-merge/dm6.SRR932121.bwa.vcf.gz, for-merge/dm6.SRR933581.bwa.vcf.gz.tbi, for-merge/dm6.SRR835067.bwa.vcf.gz, for-merge/dm6.SRR834508.bwa.vcf.gz.tbi, for-merge/dm6.SRR835055.bwa.vcf.gz, for-merge/dm6.SRR834523.bwa.vcf.gz, for-merge/dm6.SRR835062.bwa.vcf.gz, for-merge/dm6.SRR835096.bwa.vcf.gz.tbi, for-merge/dm6.SRR835062.bwa.vcf.gz.tbi, for-merge/dm6.SRR933601.bwa.vcf.gz.tbi, for-merge/dm6.SRR834539.bwa.vcf.gz.tbi, for-merge/dm6.SRR835034.bwa.vcf.gz.tbi, for-merge/dm6.SRR835027.bwa.vcf.gz.tbi, for-merge/dm6.SRR835027.bwa.vcf.gz, for-merge/dm6.SRR834553.bwa.vcf.gz.tbi, for-merge/dm6.SRR835033.bwa.vcf.gz, for-merge/dm6.SRR835048.bwa.vcf.gz, for-merge/dm6.SRR835072.bwa.vcf.gz.tbi, for-merge/dm6.SRR835031.bwa.vcf.gz, for-merge/dm6.SRR933580.bwa.vcf.gz.tbi, for-merge/dm6.SRR835037.bwa.vcf.gz.tbi, for-merge/dm6.SRR834520.bwa.vcf.gz.tbi, for-merge/dm6.SRR835046.bwa.vcf.gz, for-merge/dm6.SRR835044.bwa.vcf.gz, for-merge/dm6.SRR835071.bwa.vcf.gz, for-merge/dm6.SRR834527.bwa.vcf.gz, for-merge/dm6.SRR835092.bwa.vcf.gz, for-merge/dm6.SRR933592.bwa.vcf.gz.tbi, for-merge/dm6.SRR834546.bwa.vcf.gz.tbi, for-merge/dm6.SRR834545.bwa.vcf.gz, for-merge/dm6.SRR835054.bwa.vcf.gz, for-merge/dm6.SRR835061.bwa.vcf.gz.tbi, for-merge/dm6.SRR835045.bwa.vcf.gz, for-merge/dm6.SRR933563.bwa.vcf.gz, for-merge/dm6.SRR834552.bwa.vcf.gz, for-merge/dm6.SRR835089.bwa.vcf.gz.tbi, for-merge/dm6.SRR834508.bwa.vcf.gz, for-merge/dm6.SRR835030.bwa.vcf.gz, for-merge/dm6.SRR933585.bwa.vcf.gz.tbi, for-merge/dm6.SRR834507.bwa.vcf.gz, for-merge/dm6.SRR933580.bwa.vcf.gz, for-merge/dm6.SRR835069.bwa.vcf.gz.tbi, for-merge/dm6.SRR835051.bwa.vcf.gz, for-merge/dm6.SRR835044.bwa.vcf.gz.tbi, for-merge/dm6.SRR835039.bwa.vcf.gz, for-merge/dm6.SRR933587.bwa.vcf.gz, for-merge/dm6.SRR933592.bwa.vcf.gz, for-merge/dm6.SRR835029.bwa.vcf.gz.tbi, for-merge/dm6.SRR835036.bwa.vcf.gz, for-merge/dm6.SRR834531.bwa.vcf.gz, for-merge/dm6.SRR834552.bwa.vcf.gz.tbi, for-merge/dm6.SRR834510.bwa.vcf.gz, for-merge/dm6.SRR835058.bwa.vcf.gz, for-merge/dm6.SRR834547.bwa.vcf.gz, for-merge/dm6.SRR834543.bwa.vcf.gz, for-merge/dm6.SRR933586.bwa.vcf.gz.tbi, for-merge/dm6.SRR834531.bwa.vcf.gz.tbi, for-merge/dm6.SRR835059.bwa.vcf.gz.tbi, for-merge/dm6.SRR933591.bwa.vcf.gz, for-merge/dm6.SRR833244.bwa.vcf.gz, for-merge/dm6.SRR835054.bwa.vcf.gz.tbi, for-merge/dm6.SRR835035.bwa.vcf.gz, for-merge/dm6.SRR835077.bwa.vcf.gz.tbi, for-merge/dm6.SRR834537.bwa.vcf.gz.tbi
+    reason: Missing output files: results/bwa.dm6.vcf.gz; Input files updated by another job: for-merge/dm6.SRR835026.bwa.vcf.gz, for-merge/dm6.SRR933592.bwa.vcf.gz, for-merge/dm6.SRR835074.bwa.vcf.gz.tbi, for-merge/dm6.SRR933587.bwa.vcf.gz, for-merge/dm6.SRR933577.bwa.vcf.gz.tbi, for-merge/dm6.SRR835058.bwa.vcf.gz, for-merge/dm6.SRR835033.bwa.vcf.gz, for-merge/dm6.SRR834519.bwa.vcf.gz.tbi, for-merge/dm6.SRR834545.bwa.vcf.gz.tbi, for-merge/dm6.SRR835044.bwa.vcf.gz, for-merge/dm6.SRR834543.bwa.vcf.gz.tbi, for-merge/dm6.SRR933589.bwa.vcf.gz.tbi, for-merge/dm6.SRR834547.bwa.vcf.gz, for-merge/dm6.SRR835048.bwa.vcf.gz, for-merge/dm6.SRR835087.bwa.vcf.gz.tbi, for-merge/dm6.SRR932121.bwa.vcf.gz, for-merge/dm6.SRR834509.bwa.vcf.gz, for-merge/dm6.SRR834516.bwa.vcf.gz, for-merge/dm6.SRR835096.bwa.vcf.gz, for-merge/dm6.SRR835043.bwa.vcf.gz, for-merge/dm6.SRR835046.bwa.vcf.gz, for-merge/dm6.SRR834523.bwa.vcf.gz.tbi, for-merge/dm6.SRR834552.bwa.vcf.gz, for-merge/dm6.SRR833244.bwa.vcf.gz, for-merge/dm6.SRR835061.bwa.vcf.gz, for-merge/dm6.SRR835040.bwa.vcf.gz, for-merge/dm6.SRR835089.bwa.vcf.gz, for-merge/dm6.SRR933593.bwa.vcf.gz.tbi, for-merge/dm6.SRR835062.bwa.vcf.gz, for-merge/dm6.SRR835091.bwa.vcf.gz.tbi, for-merge/dm6.SRR835071.bwa.vcf.gz, for-merge/dm6.SRR835031.bwa.vcf.gz.tbi, for-merge/dm6.SRR834553.bwa.vcf.gz, for-merge/dm6.SRR834523.bwa.vcf.gz, for-merge/dm6.SRR933592.bwa.vcf.gz.tbi, for-merge/dm6.SRR835089.bwa.vcf.gz.tbi, for-merge/dm6.SRR834541.bwa.vcf.gz.tbi, for-merge/dm6.SRR835060.bwa.vcf.gz.tbi, for-merge/dm6.SRR835037.bwa.vcf.gz.tbi, for-merge/dm6.SRR933593.bwa.vcf.gz, for-merge/dm6.SRR933573.bwa.vcf.gz.tbi, for-merge/dm6.SRR933587.bwa.vcf.gz.tbi, for-merge/dm6.SRR835059.bwa.vcf.gz.tbi, for-merge/dm6.SRR933581.bwa.vcf.gz.tbi, for-merge/dm6.SRR835088.bwa.vcf.gz, for-merge/dm6.SRR834554.bwa.vcf.gz.tbi, for-merge/dm6.SRR835023.bwa.vcf.gz, for-merge/dm6.SRR835075.bwa.vcf.gz.tbi, for-merge/dm6.SRR835045.bwa.vcf.gz.tbi, for-merge/dm6.SRR835024.bwa.vcf.gz, for-merge/dm6.SRR834512.bwa.vcf.gz.tbi, for-merge/dm6.SRR835033.bwa.vcf.gz.tbi, for-merge/dm6.SRR835031.bwa.vcf.gz, for-merge/dm6.SRR835030.bwa.vcf.gz.tbi, for-merge/dm6.SRR933580.bwa.vcf.gz.tbi, for-merge/dm6.SRR835029.bwa.vcf.gz.tbi, for-merge/dm6.SRR834547.bwa.vcf.gz.tbi, for-merge/dm6.SRR835046.bwa.vcf.gz.tbi, for-merge/dm6.SRR835075.bwa.vcf.gz, for-merge/dm6.SRR835097.bwa.vcf.gz, for-merge/dm6.SRR835034.bwa.vcf.gz.tbi, for-merge/dm6.SRR835086.bwa.vcf.gz, for-merge/dm6.SRR834543.bwa.vcf.gz, for-merge/dm6.SRR933594.bwa.vcf.gz.tbi, for-merge/dm6.SRR835035.bwa.vcf.gz, for-merge/dm6.SRR835069.bwa.vcf.gz, for-merge/dm6.SRR835072.bwa.vcf.gz.tbi, for-merge/dm6.SRR835073.bwa.vcf.gz.tbi, for-merge/dm6.SRR835044.bwa.vcf.gz.tbi, for-merge/dm6.SRR835038.bwa.vcf.gz, for-merge/dm6.SRR933599.bwa.vcf.gz, for-merge/dm6.SRR834545.bwa.vcf.gz, for-merge/dm6.SRR835048.bwa.vcf.gz.tbi, for-merge/dm6.SRR835058.bwa.vcf.gz.tbi, for-merge/dm6.SRR835042.bwa.vcf.gz, for-merge/dm6.SRR834546.bwa.vcf.gz, for-merge/dm6.SRR933601.bwa.vcf.gz.tbi, for-merge/dm6.SRR835054.bwa.vcf.gz.tbi, for-merge/dm6.SRR933589.bwa.vcf.gz, for-merge/dm6.SRR933591.bwa.vcf.gz.tbi, for-merge/dm6.SRR933594.bwa.vcf.gz, for-merge/dm6.SRR834553.bwa.vcf.gz.tbi, for-merge/dm6.SRR835098.bwa.vcf.gz.tbi, for-merge/dm6.SRR834531.bwa.vcf.gz.tbi, for-merge/dm6.SRR835097.bwa.vcf.gz.tbi, for-merge/dm6.SRR834551.bwa.vcf.gz.tbi, for-merge/dm6.SRR835054.bwa.vcf.gz, for-merge/dm6.SRR933581.bwa.vcf.gz, for-merge/dm6.SRR933585.bwa.vcf.gz, for-merge/dm6.SRR834521.bwa.vcf.gz, for-merge/dm6.SRR834527.bwa.vcf.gz.tbi, for-merge/dm6.SRR834541.bwa.vcf.gz, for-merge/dm6.SRR835052.bwa.vcf.gz, for-merge/dm6.SRR834551.bwa.vcf.gz, for-merge/dm6.SRR835027.bwa.vcf.gz, for-merge/dm6.SRR834509.bwa.vcf.gz.tbi, for-merge/dm6.SRR835063.bwa.vcf.gz.tbi, for-merge/dm6.SRR933601.bwa.vcf.gz, for-merge/dm6.SRR835043.bwa.vcf.gz.tbi, for-merge/dm6.SRR834511.bwa.vcf.gz.tbi, for-merge/dm6.SRR834510.bwa.vcf.gz.tbi, for-merge/dm6.SRR835077.bwa.vcf.gz, for-merge/dm6.SRR932121.bwa.vcf.gz.tbi, for-merge/dm6.SRR833244.bwa.vcf.gz.tbi, for-merge/dm6.SRR835025.bwa.vcf.gz, for-merge/dm6.SRR835050.bwa.vcf.gz.tbi, for-merge/dm6.SRR835026.bwa.vcf.gz.tbi, for-merge/dm6.SRR834531.bwa.vcf.gz, for-merge/dm6.SRR834517.bwa.vcf.gz, for-merge/dm6.SRR834520.bwa.vcf.gz, for-merge/dm6.SRR835051.bwa.vcf.gz.tbi, for-merge/dm6.SRR835071.bwa.vcf.gz.tbi, for-merge/dm6.SRR835088.bwa.vcf.gz.tbi, for-merge/dm6.SRR835077.bwa.vcf.gz.tbi, for-merge/dm6.SRR835059.bwa.vcf.gz, for-merge/dm6.SRR835029.bwa.vcf.gz, for-merge/dm6.SRR834507.bwa.vcf.gz.tbi, for-merge/dm6.SRR835037.bwa.vcf.gz, for-merge/dm6.SRR834537.bwa.vcf.gz.tbi, for-merge/dm6.SRR834514.bwa.vcf.gz.tbi, for-merge/dm6.SRR835023.bwa.vcf.gz.tbi, for-merge/dm6.SRR834507.bwa.vcf.gz, for-merge/dm6.SRR835035.bwa.vcf.gz.tbi, for-merge/dm6.SRR835069.bwa.vcf.gz.tbi, for-merge/dm6.SRR835086.bwa.vcf.gz.tbi, for-merge/dm6.SRR835092.bwa.vcf.gz, for-merge/dm6.SRR834539.bwa.vcf.gz.tbi, for-merge/dm6.SRR835038.bwa.vcf.gz.tbi, for-merge/dm6.SRR933563.bwa.vcf.gz, for-merge/dm6.SRR933586.bwa.vcf.gz, for-merge/dm6.SRR835087.bwa.vcf.gz, for-merge/dm6.SRR835039.bwa.vcf.gz.tbi, for-merge/dm6.SRR834522.bwa.vcf.gz, for-merge/dm6.SRR835050.bwa.vcf.gz, for-merge/dm6.SRR835028.bwa.vcf.gz.tbi, for-merge/dm6.SRR835051.bwa.vcf.gz, for-merge/dm6.SRR835055.bwa.vcf.gz, for-merge/dm6.SRR933563.bwa.vcf.gz.tbi, for-merge/dm6.SRR933569.bwa.vcf.gz, for-merge/dm6.SRR834520.bwa.vcf.gz.tbi, for-merge/dm6.SRR933599.bwa.vcf.gz.tbi, for-merge/dm6.SRR835036.bwa.vcf.gz, for-merge/dm6.SRR933591.bwa.vcf.gz, for-merge/dm6.SRR835060.bwa.vcf.gz, for-merge/dm6.SRR834539.bwa.vcf.gz, for-merge/dm6.SRR834517.bwa.vcf.gz.tbi, for-merge/dm6.SRR835045.bwa.vcf.gz, for-merge/dm6.SRR834537.bwa.vcf.gz, for-merge/dm6.SRR835052.bwa.vcf.gz.tbi, for-merge/dm6.SRR835067.bwa.vcf.gz, for-merge/dm6.SRR835073.bwa.vcf.gz, for-merge/dm6.SRR835092.bwa.vcf.gz.tbi, for-merge/dm6.SRR835027.bwa.vcf.gz.tbi, for-merge/dm6.SRR835098.bwa.vcf.gz, for-merge/dm6.SRR835047.bwa.vcf.gz, for-merge/dm6.SRR933573.bwa.vcf.gz, for-merge/dm6.SRR835095.bwa.vcf.gz.tbi, for-merge/dm6.SRR835034.bwa.vcf.gz, for-merge/dm6.SRR835024.bwa.vcf.gz.tbi, for-merge/dm6.SRR834522.bwa.vcf.gz.tbi, for-merge/dm6.SRR834554.bwa.vcf.gz, for-merge/dm6.SRR835036.bwa.vcf.gz.tbi, for-merge/dm6.SRR835040.bwa.vcf.gz.tbi, for-merge/dm6.SRR835041.bwa.vcf.gz, for-merge/dm6.SRR835041.bwa.vcf.gz.tbi, for-merge/dm6.SRR835055.bwa.vcf.gz.tbi, for-merge/dm6.SRR933577.bwa.vcf.gz, for-merge/dm6.SRR834511.bwa.vcf.gz, for-merge/dm6.SRR834516.bwa.vcf.gz.tbi, for-merge/dm6.SRR834526.bwa.vcf.gz.tbi, for-merge/dm6.SRR835067.bwa.vcf.gz.tbi, for-merge/dm6.SRR835030.bwa.vcf.gz, for-merge/dm6.SRR835091.bwa.vcf.gz, for-merge/dm6.SRR835062.bwa.vcf.gz.tbi, for-merge/dm6.SRR834526.bwa.vcf.gz, for-merge/dm6.SRR834527.bwa.vcf.gz, for-merge/dm6.SRR835095.bwa.vcf.gz, for-merge/dm6.SRR933580.bwa.vcf.gz, for-merge/dm6.SRR835047.bwa.vcf.gz.tbi, for-merge/dm6.SRR834508.bwa.vcf.gz, for-merge/dm6.SRR835063.bwa.vcf.gz, for-merge/dm6.SRR834546.bwa.vcf.gz.tbi, for-merge/dm6.SRR933585.bwa.vcf.gz.tbi, for-merge/dm6.SRR834514.bwa.vcf.gz, for-merge/dm6.SRR933586.bwa.vcf.gz.tbi, for-merge/dm6.SRR835042.bwa.vcf.gz.tbi, for-merge/dm6.SRR835028.bwa.vcf.gz, for-merge/dm6.SRR835039.bwa.vcf.gz, for-merge/dm6.SRR933569.bwa.vcf.gz.tbi, for-merge/dm6.SRR834519.bwa.vcf.gz, for-merge/dm6.SRR835096.bwa.vcf.gz.tbi, for-merge/dm6.SRR834508.bwa.vcf.gz.tbi, for-merge/dm6.SRR834521.bwa.vcf.gz.tbi, for-merge/dm6.SRR835025.bwa.vcf.gz.tbi, for-merge/dm6.SRR834512.bwa.vcf.gz, for-merge/dm6.SRR835072.bwa.vcf.gz, for-merge/dm6.SRR834510.bwa.vcf.gz, for-merge/dm6.SRR835074.bwa.vcf.gz, for-merge/dm6.SRR834552.bwa.vcf.gz.tbi, for-merge/dm6.SRR835061.bwa.vcf.gz.tbi
     wildcards: method=bwa, graph=dm6
     threads: 8
     resources: tmpdir=/tmp

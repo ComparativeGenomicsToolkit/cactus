@@ -10,13 +10,13 @@ if(file.exists('freebayes-het-rate.tsv')){
            'dm6.chr3R', 'dm6.chr2L')
 
   ## get chromosome lengths
-  hdr <- scanVcfHeader('results/surject.fly-pg-may26-d2.vcf.gz')
+  hdr <- scanVcfHeader('results/surject.16-fruitfly-mc-2022-05-26-d2.vcf.gz')
   seqs = seqlengths(hdr)
 
   ## surject calls
   het.df = lapply(chrs, function(chrn){
     vcf.params = ScanVcfParam(geno="GT", info=NA, which=GRanges(chrn, IRanges(0, seqs[chrn])))
-    vcf = readVcf('results/surject.fly-pg-may26-d2.vcf.gz', param=vcf.params)
+    vcf = readVcf('results/surject.16-fruitfly-mc-2022-05-26-d2.vcf.gz', param=vcf.params)
     hets = colSums(geno(vcf)$GT == '0/1') + colSums(geno(vcf)$GT == '1/0')
     homs = colSums(geno(vcf)$GT == '1/1')
     tibble(seqnames=chrn, sample=names(hets), het=hets, hom=homs, tot=length(vcf))

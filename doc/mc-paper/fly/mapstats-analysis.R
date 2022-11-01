@@ -11,11 +11,11 @@ map.d = lapply(map.d, function(ff){
 }) %>% bind_rows
 
 ## read pangenome-giraffe mapping stats
-map.g = list.files('fly-pg-may26-d2_mappings/')
+map.g = list.files('16-fruitfly-mc-2022-05-26-d2_mappings/')
 map.g = lapply(map.g, function(ff){
-  df = read.table(paste0('fly-pg-may26-d2_mappings/', ff), as.is=TRUE)
+  df = read.table(paste0('16-fruitfly-mc-2022-05-26-d2_mappings/', ff), as.is=TRUE)
   colnames(df) = c('n', 'mapq', 'perfect')
-  df$sample = gsub('fly-pg-may26-d2.(.*).giraffe.mapstats.txt', '\\1', ff)
+  df$sample = gsub('16-fruitfly-mc-2022-05-26-d2.(.*).giraffe.mapstats.txt', '\\1', ff)
   df
 }) %>% bind_rows
 

@@ -9,7 +9,7 @@ size.labs = c('0', '1-10', '11-49', '50-100', '100-500',
               '500-1K', '1K-5K', '5K-10K', '10K-100K', '100K-1M', '>1M')
 
 ## SVs in the pangenome
-svs = readRDS('fly-pg-may26.svs.site.rol90.insd100.rds')
+svs = readRDS('16-fruitfly-mc-2022-05-26.svs.site.rol90.insd100.rds')
 
 n.samps = length(unique(svs$sample))
 
@@ -26,7 +26,7 @@ svs.df = svs %>% as.data.frame %>%
 
 ## calls across cohort of 100 samples
 
-calls = readRDS('fly-pg-may26-d2.100samples.decomposed.svs.site.rol90.insd100.rds')
+calls = readRDS('16-fruitfly-mc-2022-05-26-d2.100samples.decomposed.svs.site.rol90.insd100.rds')
 
 calls.df = calls %>% as.data.frame %>%
   filter(size>=40) %>% 
@@ -40,7 +40,7 @@ calls.df = calls %>% as.data.frame %>%
   mutate(af=ifelse(af>1, 1, af))
 
 ## add RepeatMasker annotation
-calls.rm = readRDS('fly-pg-may26-d2.100samples.decomposed.svs.site.rol90.insd100.rmsk.rds')
+calls.rm = readRDS('16-fruitfly-mc-2022-05-26-d2.100samples.decomposed.svs.site.rol90.insd100.rmsk.rds')
 calls.rm = calls.rm %>% as.data.frame %>% select(svsite, rmsk.classfam, rmsk.name, rmsk.cov) %>% unique
 calls.df = merge(calls.df, calls.rm, all.x=TRUE)
 
@@ -133,7 +133,7 @@ ggp.rep.size = calls.df %>%
 ggp.rep.size
 
 ## make a PDF with figures
-pdf('fly-pg-may26.svs.pdf', 9, 4)
+pdf('16-fruitfly-mc-2022-05-26.svs.pdf', 9, 4)
 ggp.freq
 ggp.size
 ggp.call.freq
