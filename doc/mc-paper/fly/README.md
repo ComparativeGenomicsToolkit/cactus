@@ -42,7 +42,7 @@ To genotype variants in the pangenome, vg pack computes the coverage of short re
 
 ```
 vg pack -x  16-fruitfly-mc-2022-05-26-d2.xg -a 16-fruitfly-mc-2022-05-26-d2_SRR834526.gaf.gz -Q 5 -o 16-fruitfly-mc-2022-05-26-d2_SRR834526.pack -t 16 
-vg call 16-fruitfly-mc-2022-05-26-d2.xg -r16-fruitfly-mc-2022-05-26-d2.snarls -k  16-fruitfly-mc-2022-05-26-d2_SRR834526.pack -a -A -t 16 -s SRR834526
+vg call 16-fruitfly-mc-2022-05-26-d2.xg -r16-fruitfly-mc-2022-05-26-d2.snarls -k  16-fruitfly-mc-2022-05-26-d2_SRR834526.pack -a -A -t 16 -s SRR834526 > 16-fruitfly-mc-2022-05-26-d2_SRR834526.vcf
 ```
 
 For each sample, these variant calls were decomposed into canonical SVs using the same approach described above on the deconstructed VCF. The SV calls were then compared to the SVs in the pangenome using the sveval package [https://doi.org/10.1186/s13059-020-1941-7] which matches SVs based on their types, sizes and location. Here, two SVs were matched if: their regions had a reciprocal overlap of at least 90% for deletions and inversions; they were located at less than 100bp from each other, and their inserted sequences were at least 90% similar for insertions. The same approach was used to cluster the SVs alleles into the SV sites reported in the text and figures. The SV alleles were annotated with RepeatMasker (v4.0.9). We assigned a repeat class to a SV if more than 80% of the allelic sequence was annotated as such.
@@ -108,13 +108,13 @@ do
 done
 ```
 
-We have also share log files enumerating all the commands ran by Snakemake (`snakemake_log.*` files).
+We have also shared the log files enumerating all the commands ran by Snakemake (see `snakemake_log.*` files).
 
 Scripts used by this workflow were deposited in the [`scripts`](scripts) folder.
 
-We ran this analysis using a docker container with the necessary tools. 
+Finally, we ran this analysis using a docker container with the necessary tools. 
 It can be built using [this Dockerfile](Dockerfile).
-In particular, tools used below include:
+In particular, the tools that were used in the analysis below include:
 
 - [Snakemake](snakemake.readthedocs.io/)
 - [bcftools](https://samtools.github.io/bcftools/bcftools.html)
