@@ -56,10 +56,14 @@ def cactus_cpu_count():
     """ try the more cluster-friendly cpu counter before reverting to toil's
     https://github.com/ComparativeGenomicsToolkit/cactus/issues/820
     """
+    num_cpus = cpu_count()
     try:
-        return len(os.sched_getaffinity(0))
+        sched_cpus = len(os.sched_getaffinity(0))
+        if sched_cpus and sched_cpus < num_cpus:
+            num_cpus = sched_cpus
     except:
-        return cpu_count()
+        pass
+    return num_cpus
 
 def cactus_override_toil_options(options):
     """  Mess with some toil options to create useful defaults. """
