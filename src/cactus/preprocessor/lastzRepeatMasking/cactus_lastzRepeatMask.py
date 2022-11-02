@@ -7,7 +7,7 @@ import re
 import sys
 import shutil
 
-from toil.lib.threading import cpu_count
+from cactus.shared.common import cactus_cpu_count
 
 from sonLib.bioio import catFiles
 
@@ -48,7 +48,7 @@ class LastzRepeatMaskJob(RoundedJob):
         disk = 2*(queryID.size + targetsSize)
         if repeatMaskOptions.gpuLastz:
             # gpu jobs get the whole node (same hack as used in blast phase)
-            cores = cpu_count()
+            cores = cactus_cpu_count()
         else:
             cores = None
         RoundedJob.__init__(self, memory=memory, disk=disk, cores=cores, preemptable=True)

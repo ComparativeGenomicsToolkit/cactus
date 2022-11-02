@@ -41,15 +41,25 @@ from toil.common import Toil
 from toil.job import Job
 from toil.realtimeLogger import RealtimeLogger
 from toil.lib.humanize import bytes2human
-
+from toil.lib.threading import cpu_count
 from sonLib.bioio import popenCatch
 from sonLib.bioio import getTempDirectory
 
 from cactus.shared.version import cactus_commit
+    
 
 _log = logging.getLogger(__name__)
 
 subprocess._has_poll = False
+
+def cactus_cpu_count():
+    """ try the more cluster-friendly cpu counter before reverting to toil's
+    https://github.com/ComparativeGenomicsToolkit/cactus/issues/820
+    """
+    try:
+        return len(os.sched_getaffinity(0))
+    except:
+        return cpu_count()
 
 def cactus_override_toil_options(options):
     """  Mess with some toil options to create useful defaults. """

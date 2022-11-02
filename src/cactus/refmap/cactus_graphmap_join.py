@@ -46,7 +46,7 @@ from toil.common import Toil
 from toil.statsAndLogging import logger
 from toil.statsAndLogging import set_logging_from_options
 from toil.realtimeLogger import RealtimeLogger
-from toil.lib.threading import cpu_count
+from cactus.shared.common import cactus_cpu_count
 
 from sonLib.nxnewick import NXNewick
 from sonLib.bioio import getTempDirectory, getTempFile, catFiles

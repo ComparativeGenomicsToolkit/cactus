@@ -7,7 +7,7 @@ import re
 import sys
 import shutil
 
-from toil.lib.threading import cpu_count
+from cactus.shared.common import cactus_cpu_count
 
 from sonLib.bioio import catFiles
 
@@ -36,7 +36,7 @@ class DnabrnnMaskJob(RoundedJob):
     def __init__(self, fastaID, dnabrnnOpts, cpu, minLength=None, action=None, inputBedID=None, eventName=None):
         memory = 4*1024*1024*1024
         disk = 2*(fastaID.size)
-        cores = min(cpu_count(), cpu)
+        cores = min(cactus_cpu_count(), cpu)
         RoundedJob.__init__(self, memory=memory, disk=disk, cores=cores, preemptable=True)
         self.fastaID = fastaID
         self.minLength = minLength
