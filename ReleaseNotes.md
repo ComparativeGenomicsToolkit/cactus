@@ -1,3 +1,15 @@
+# Release 2.2.4 2022-11-03
+
+This release contains some small bugfixes in addition to improved MAF output support
+
+- New tool `cactus-hal2maf` added to speed up HAL->MAF conversion (replaces the old hal2mafMP.py from HAL), and includes TAF-based normalization and reference gaps.
+- Big documentation refactor
+- `--includeRoot` option added to `cactus-prepare`
+- Phast binaries now included in Cactus release (previously only halPhyloP was included)
+- `cactus --root` option regression from v2.2.0 is fixed
+- Better error-handling in case of degree-2 ancestral nodes (1-parent, 1-descendant) in input tree
+- Update HAL to version with improved memory utilization for `hal2maf`, `halExport` and `halAppendSubtree`, and new tool `halRemoveSubtree`
+
 # Release 2.2.3 2022-10-04
 
 This release contains yet another patch regarding the `minimumBlockDegreeToCheckSupport` filter option, this time in progressive alignment. It was supposed to have been toggled off entirely in v2.2.0 but instead was applied to all blocks. 
