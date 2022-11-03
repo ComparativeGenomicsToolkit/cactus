@@ -9,7 +9,7 @@ import re
 import sys
 import shutil
 import xml.etree.ElementTree as ET
-from toil.lib.threading import cpu_count
+from cactus.shared.common import cactus_cpu_count
 
 from Bio import SeqIO
 from Bio.SeqRecord import SeqRecord

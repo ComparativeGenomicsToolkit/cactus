@@ -36,7 +36,7 @@ from toil.job import Job
 from toil.common import Toil
 from toil.statsAndLogging import logger
 from toil.statsAndLogging import set_logging_from_options
-from toil.lib.threading import cpu_count
+from cactus.shared.common import cactus_cpu_count
 from toil.realtimeLogger import RealtimeLogger
 from toil.lib.conversions import human2bytes, bytes2human
 

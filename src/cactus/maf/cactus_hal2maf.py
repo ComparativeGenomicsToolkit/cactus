@@ -28,7 +28,7 @@ from toil.common import Toil
 from toil.statsAndLogging import logger
 from toil.statsAndLogging import set_logging_from_options
 from toil.realtimeLogger import RealtimeLogger
-from toil.lib.threading import cpu_count
+from cactus.shared.common import cactus_cpu_count
 from toil.lib.humanize import bytes2human
 from sonLib.bioio import getTempDirectory
 
@@ -122,7 +122,7 @@ def main():
     # apply cpu override                
     if options.batchCores is None:
         if options.batchSystem.lower() in ['single_machine', 'singleMachine']:
-            options.batchCores = cpu_count()
+            options.batchCores = cactus_cpu_count()
             if options.maxCores:
                 options.batchCores = min(options.batchCores, int(options.maxCores))
             logger.info('Setting batchCores to {}'.format(options.batchCores))

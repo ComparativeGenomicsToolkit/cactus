@@ -32,7 +32,7 @@ from toil.common import Toil
 from toil.statsAndLogging import logger
 from toil.statsAndLogging import set_logging_from_options
 from toil.realtimeLogger import RealtimeLogger
-from toil.lib.threading import cpu_count
+from cactus.shared.common import cactus_cpu_count
 from cactus.progressive.progressive_decomposition import compute_outgroups, parse_seqfile, get_subtree, get_spanning_subtree, get_event_set
 from sonLib.nxnewick import NXNewick
 from sonLib.bioio import getTempDirectory
@@ -130,7 +130,7 @@ def graph_map(options):
                 findRequiredNode(config_node, "graphmap").attrib["cpu"] = str(options.mapCores)
             mg_cores = getOptionalAttrib(findRequiredNode(config_node, "graphmap"), "cpu", typeFn=int, default=1)
             if options.batchSystem.lower() in ['single_machine', 'singleMachine']:
-                mg_cores = min(mg_cores, cpu_count(), int(options.maxCores) if options.maxCores else sys.maxsize)
+                mg_cores = min(mg_cores, cactus_cpu_count(), int(options.maxCores) if options.maxCores else sys.maxsize)
                 findRequiredNode(config_node, "graphmap").attrib["cpu"] = str(mg_cores)
                 
             # get the minigraph "virutal" assembly name

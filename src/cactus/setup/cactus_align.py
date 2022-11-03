@@ -36,7 +36,7 @@ from toil.job import Job
 from toil.common import Toil
 from toil.statsAndLogging import logger
 from toil.statsAndLogging import set_logging_from_options
-from toil.lib.threading import cpu_count
+from cactus.shared.common import cactus_cpu_count
 
 from sonLib.nxnewick import NXNewick
 from sonLib.bioio import getTempDirectory, getTempFile
@@ -113,7 +113,7 @@ def main():
             if options.maxCores is not None:
                 options.consCores = int(options.maxCores)
             else:
-                options.consCores = cpu_count()
+                options.consCores = cactus_cpu_count()
         elif options.maxCores is not None and options.consCores > int(options.maxCores):
             raise RuntimeError('--consCores must be <= --maxCores')
     else:

@@ -15,7 +15,7 @@ from xml.dom import minidom
 import sys
 from cactus.shared.common import findRequiredNode
 from cactus.shared.common import getOptionalAttrib
-from toil.lib.threading import cpu_count
+from cactus.shared.common import cactus_cpu_count
 
 class ConfigWrapper:
     defaultOutgroupStrategy = 'none'
@@ -259,7 +259,7 @@ class ConfigWrapper:
                 if options.maxCores is not None:
                     lastz_cores = options.maxCores
                 else:
-                    lastz_cores = cpu_count()
+                    lastz_cores = cactus_cpu_count()
             else:
                 # todo: toil doesn't support gpu properly yet
                 lastz_cores = None
