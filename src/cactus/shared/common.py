@@ -517,7 +517,7 @@ def singularityCommand(tool=None,
                 # This may happen repeatedly but it is atomic
                 os.rename(temp_sandbox_dirname, sandbox_dirname)
             except OSError as e:
-                if e.errno == errno.EEXIST:
+                if e.errno in (errno.EEXIST, errno.ENOTEMPTY):
                     # Can't rename a directory over another
                     # Make sure someone else has made the directory
                     assert os.path.exists(sandbox_dirname)
