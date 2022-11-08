@@ -12,7 +12,7 @@ class TestCase(unittest.TestCase):
         self.tempDir = getTempDirectory(os.getcwd())
         unittest.TestCase.setUp(self)
         self.cromwell = False
-
+        
     def tearDown(self):
         unittest.TestCase.tearDown(self)
         if self.cromwell:
@@ -436,8 +436,8 @@ class TestCase(unittest.TestCase):
         for event in events:
             rename_opts += ['{}>{}.0'.format(event, event)]
         subprocess.check_call(['cactus-graphmap-join', self._job_store(binariesMode), '--outDir', join_path, '--outName', 'yeast',
-                               '--reference', 'S288C', '--vg'] +  vg_files + ['--hal'] + hal_files + ['--gfaffix', '--wlineSep', '.',
-                               '--vcf', '--giraffe'] + rename_opts + cactus_opts)
+                               '--reference', 'S288C', '--vg'] +  vg_files + ['--hal'] + hal_files + ['--gfaffix',
+                               '--vcf', '--giraffe'] + rename_opts + cactus_opts + ['--indexCores', '4'])
 
     def _check_yeast_pangenome(self, binariesMode):
         """ yeast pangenome chromosome by chromosome pipeline
@@ -459,7 +459,9 @@ class TestCase(unittest.TestCase):
         # check that we have some alts for each sample in the VCF
         vcf_allele_threshold = 40000
         for event in events:
-            allele = 0 if event == "S288C" else 1
+            if event == "S288C":
+                continue
+            allele = 1
             event = event.split(".")[0]
             proc = subprocess.Popen('bcftools view {} -s {} -a -H | awk \'{{print $10}}\' | grep {} | wc -l'.format(vcf_path, event, allele),
                                     shell=True, stdout=subprocess.PIPE)
@@ -480,7 +482,7 @@ class TestCase(unittest.TestCase):
                 self.assertLessEqual(num_sequences, 15)
 
         # make sure the vg is sane
-        xg_path = os.path.join(join_path, 'yeast.xg')
+        xg_path = os.path.join(join_path, 'yeast.gbz')
         proc = subprocess.Popen('vg stats -l {} | awk \'{{print $2}}\''.format(xg_path), shell=True, stdout=subprocess.PIPE)
         output, errors = proc.communicate()
         sts = proc.wait()
@@ -489,7 +491,7 @@ class TestCase(unittest.TestCase):
         self.assertLessEqual(num_bases, 11200000)
 
         # make sure we have the giraffe indexes
-        for giraffe_idx in ['yeast.snarls', 'yeast.gg', 'yeast.dist', 'yeast.min', 'yeast.trans.gz', 'yeast.gbwt']:
+        for giraffe_idx in ['yeast.snarls', 'yeast.gbz', 'yeast.dist', 'yeast.min']:
             idx_bytes = os.path.getsize(os.path.join(join_path, giraffe_idx))
             self.assertGreaterEqual(idx_bytes, 500000)
 

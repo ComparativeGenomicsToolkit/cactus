@@ -60,12 +60,11 @@ def main():
     parser.add_argument("--outName", required=True, type=str, help = "Basename of all output files")
     parser.add_argument("--reference", required=True, type=str, help = "Reference event name")
     parser.add_argument("--vcfReference", type=str, help = "Produce additional VCF for given reference event")
-    parser.add_argument("--xgReference", type=str, help = "Produce additonal XG that also includes given reference event (as copied from the GBWT)")
+    parser.add_argument("--otherReferences", nargs='+', help = "Promote these events to reference-sense paths in vg (in addition to --reference)")
     parser.add_argument("--rename", nargs='+', default = [], help = "Path renaming, each of form src>dest (see clip-vg -r)")
     parser.add_argument("--clipLength", type=int, default=None, help = "clip out unaligned sequences longer than this")
     parser.add_argument("--clipNonMinigraph", action="store_true", help = "apply --clipLength filter to stretches not aligned to minigraph")
     parser.add_argument("--clipBed", nargs='+', default = [], help = "BED file(s) (ie from cactus-preprocess) of regions to clip")
-    parser.add_argument("--wlineSep", type=str, help = "wline separator for vg convert")
     parser.add_argument("--indexCores", type=int, default=1, help = "cores for general indexing and VCF constructions")
     parser.add_argument("--giraffeCores", type=int, default=None, help = "cores for giraffe-specific indexing (defaults to --indexCores)")
     parser.add_argument("--decoyGraph", help= "decoy sequences vg graph to add (PackedGraph or HashGraph format)")
@@ -112,6 +111,8 @@ def main():
         raise  RuntimeError("--unclipSeqFile can only be used with --hal")
     if options.preserveIDs and (options.normalizeIterations or options.gfaffix):
         raise RuntimeError("--preserveIDs cannot be used with any kind of normalization (--gfaffix or --normalizeIterations)")
+    if options.otherReferences and options.reference in options.otherReferences:
+        raise RuntimeError("the same cannot be specified both with --reference and --otherReferences")
         
     # Mess with some toil options to create useful defaults.
     cactus_override_toil_options(options)
@@ -265,13 +266,6 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, unclip_seq_id_
                                                              disk = sum(f.size for f in vg_ids) * 2)
         out_dicts.append(ref_deconstruct_job.rv())
 
-    # make an xg but including a different reference (as extracted from GBWT)
-    if options.xgReference:
-        xg_reference_job = gfa_merge_job.addFollowOnJobFn(make_xg_reference, options.outName, options.xgReference,
-                                                          out_dicts[0],
-                                                          disk = sum(f.size for f in vg_ids) * 5)
-        out_dicts.append(xg_reference_job.rv())
-
     # optional giraffe
     if options.giraffe:
         giraffe_job = gfa_merge_job.addFollowOnJobFn(make_giraffe_indexes, options, out_dicts[0],
@@ -364,11 +358,15 @@ def clip_vg(job, options, config, vg_path, vg_id, bed_id):
         normalized_path = clipped_path + '.gfaffixed'
         gfa_in_path = vg_path + '.gfa'
         gfa_out_path = normalized_path + '.gfa'
-        cactus_call(parameters=['vg', 'convert', '-f', clipped_path], outfile=gfa_in_path)
+        # GFAffix's --dont_collapse option doesn't work on W-lines, so we strip them for now with -W
+        cactus_call(parameters=['vg', 'convert', '-W', '-f', clipped_path], outfile=gfa_in_path)
         fix_cmd = ['gfaffix', gfa_in_path, '--output_refined', gfa_out_path, '--check_transformation']
         if options.reference:
             fix_cmd += ['--dont_collapse', options.reference + '*']
         cactus_call(parameters=fix_cmd)
+        # GFAffix strips the header, until this is fixed we need to add it back (for the RS tag)
+        gfa_header = cactus_call(parameters=['head', '-1', gfa_in_path], check_output=True).strip()
+        cactus_call(parameters=['sed', '-i', gfa_out_path, '-e', '1s/.*/{}/'.format(gfa_header)])
         # Come back from gfa to vg
         conv_cmd = [['vg', 'convert', '-g', '-p', gfa_out_path]]
         if options.reference:
@@ -413,7 +411,6 @@ def clip_vg(job, options, config, vg_path, vg_id, bed_id):
     clipped_bed_chr_path = clipped_bed_path + '.named'
     cactus_call(parameters=['awk',  '{{print $0 "\t{}"}}'.format(chr_name), clipped_bed_path],
                 outfile=clipped_bed_chr_path)
-    # Use WlineSep to sum up the path lengths per input sample (haplotype)
     sample_stats_path = vg_path + '.sample-stats.tsv'
     sample_stats = {}
     with open(path_stats_path, 'r') as path_stats_file:
@@ -421,7 +418,7 @@ def clip_vg(job, options, config, vg_path, vg_id, bed_id):
             toks = line.split()
             contig_name = toks[1]
             contig_length = int(toks[2])
-            sample_name = contig_name if not options.wlineSep else options.wlineSep.join(contig_name.split(options.wlineSep)[:2])
+            sample_name = contig_name if '#' not in contig_name else '#'.join(contig_name.split('#')[:2])
             if sample_name not in sample_stats:
                 sample_stats[sample_name] = contig_length
             else:
@@ -482,141 +479,89 @@ def vg_to_gfa(job, options, config, vg_path, vg_id):
     out_path = vg_path + '.gfa'
 
     cmd = ['vg', 'convert', '-f', '-Q', options.reference, os.path.basename(vg_path), '-B']
-    if options.wlineSep:
-        cmd += ['-w', options.wlineSep]
 
-    # important, when options.wlineSep is ., it throws off prepareWorkDir in cactus_call
-    # so important to specify the work_dir below       
     cactus_call(parameters=cmd, outfile=out_path, work_dir=work_dir)
 
     return job.fileStore.writeGlobalFile(out_path)
 
 def vg_indexes(job, options, config, gfa_ids):
-    """ merge of the gfas, then make gbwt / xg / snarls / trans
+    """ merge of the gfas, then make gbz / snarls / trans
     """ 
     work_dir = job.fileStore.getLocalTempDir()
     vg_paths = []
     merge_gfa_path = os.path.join(work_dir, 'merged.gfa')
-    with open(merge_gfa_path, 'w') as merge_gfa_file:
-        merge_gfa_file.write('H\tVN:Z:1.0\n')
 
     graph_event = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "assemblyName", default="_MINIGRAPH_")
     
     # merge the gfas
-    for vg_path, gfa_id in zip(options.vg, gfa_ids):
+    for i, (vg_path, gfa_id) in enumerate(zip(options.vg, gfa_ids)):
         gfa_path = os.path.join(work_dir, os.path.basename(vg_path) +  '.gfa')
-        job.fileStore.readGlobalFile(gfa_id, gfa_path, mutable=True)        
-        cactus_call(parameters=['grep', '-v', '^H\|^P	{}'.format(graph_event), gfa_path], outfile=merge_gfa_path, outappend=True)
+        job.fileStore.readGlobalFile(gfa_id, gfa_path, mutable=True)
+        cmd = ['grep', '-v', '{}^W	{}'.format('^H\|' if i else '', graph_event), gfa_path]
+        # add in the additional references here
+        if i == 0 and options.otherReferences:
+            # todo: this seems hacky!! also, maybe some path-local information needs changing?
+            # if so, will need a new tool (or perhaps interface on vg paths?)
+            cmd = [cmd, ['sed', '-e', '1s/{}/{} {}/'.format(options.reference, options.reference, ' '.join(options.otherReferences)),
+                         '-e', '1s/{}//'.format(graph_event)]]
+        cactus_call(parameters=cmd, outfile=merge_gfa_path, outappend=True)
         os.remove(gfa_path)
 
-    # make the gbwt
-    gbwt_path = os.path.join(work_dir, 'merged.gbwt')
-    gg_path = os.path.join(work_dir, 'merged.gg')
-    trans_path = os.path.join(work_dir, 'merged.trans')
-    cactus_call(parameters=['vg', 'gbwt', '-G', merge_gfa_path, '-o', gbwt_path, '-g', gg_path, '--translation', trans_path])
+    # make the gbz
+    gbz_path = os.path.join(work_dir, 'merged.gbz')
+    cactus_call(parameters=['vg', 'gbwt', '-G', merge_gfa_path, '--gbz-format', '-g', gbz_path])
 
-    # compress the trans
-    cactus_call(parameters=['bgzip', trans_path, '--threads', str(job.cores)])
-    trans_path += '.gz'                            
-    
     # zip the gfa
     cactus_call(parameters=['bgzip', merge_gfa_path, '--threads', str(job.cores)])
     gfa_path = merge_gfa_path + '.gz'
 
-    # make the xg
-    xg_path = os.path.join(work_dir, 'merged.xg')
-    cactus_call(parameters=['vg', 'convert', gg_path, '-b', gbwt_path, '-x', '-t', str(job.cores)], outfile=xg_path)
-
     # worth it
-    cactus_call(parameters=['vg', 'validate', xg_path])
+    cactus_call(parameters=['vg', 'validate', gbz_path])
 
     # make the snarls
     snarls_path = os.path.join(work_dir, 'merged.snarls')
-    cactus_call(parameters=['vg', 'snarls', xg_path, '-T', '-t', str(job.cores)], outfile=snarls_path)
+    cactus_call(parameters=['vg', 'snarls', gbz_path, '-T', '-t', str(job.cores)], outfile=snarls_path)
                             
     return { 'gfa.gz' : job.fileStore.writeGlobalFile(gfa_path),
-             'gbwt' : job.fileStore.writeGlobalFile(gbwt_path),
-             'gg' : job.fileStore.writeGlobalFile(gg_path),
-             'trans.gz' : job.fileStore.writeGlobalFile(trans_path),
-             'xg' : job.fileStore.writeGlobalFile(xg_path),
+             'gbz' : job.fileStore.writeGlobalFile(gbz_path),
              'snarls' : job.fileStore.writeGlobalFile(snarls_path) }
 
 def make_vcf(job, out_name, vcf_ref, index_dict, tag=''):
     """ make the vcf
     """ 
     work_dir = job.fileStore.getLocalTempDir()
-    xg_path = os.path.join(work_dir, os.path.basename(out_name) + '.xg')
-    gbwt_path = os.path.join(work_dir, os.path.basename(out_name) + '.gbwt')
+    gbz_path = os.path.join(work_dir, os.path.basename(out_name) + '.gbz')
     snarls_path = os.path.join(work_dir, os.path.basename(out_name) + '.snarls')
-    trans_path = os.path.join(work_dir, os.path.basename(out_name) + '.trans.gz')
-    job.fileStore.readGlobalFile(index_dict['xg'], xg_path)
-    job.fileStore.readGlobalFile(index_dict['gbwt'], gbwt_path)
+    job.fileStore.readGlobalFile(index_dict['gbz'], gbz_path)
     job.fileStore.readGlobalFile(index_dict['snarls'], snarls_path)
-    job.fileStore.readGlobalFile(index_dict['trans.gz'], trans_path)
-
-    # unzip the trans
-    cactus_call(parameters=['bgzip', '-fd', trans_path, '--threads', str(job.cores)])
-    trans_path = trans_path[:-3]
 
     # make the vcf
     vcf_path = os.path.join(work_dir, 'merged.vcf.gz')
-    cactus_call(parameters=[['vg', 'deconstruct', xg_path, '-P', vcf_ref, '-a', '-r', snarls_path, '-g', gbwt_path,
-                             '-T', trans_path, '-t', str(job.cores)],
+    cactus_call(parameters=[['vg', 'deconstruct', gbz_path, '-P', vcf_ref, '-a', '-r', snarls_path, 
+                             '-t', str(job.cores)],
                             ['bgzip', '--threads', str(job.cores)]],
                 outfile=vcf_path)
     cactus_call(parameters=['tabix', '-p', 'vcf', vcf_path])
 
     return { '{}vcf.gz'.format(tag) : job.fileStore.writeGlobalFile(vcf_path),
              '{}vcf.gz.tbi'.format(tag) : job.fileStore.writeGlobalFile(vcf_path + '.tbi') }
-
-def make_xg_reference(job, out_name, xg_reference, index_dict):
-    work_dir = job.fileStore.getLocalTempDir()
-    xg_path = os.path.join(work_dir, os.path.basename(out_name) + '.xg')
-    gbwt_path = os.path.join(work_dir, os.path.basename(out_name) + '.gbwt')
-    job.fileStore.readGlobalFile(index_dict['xg'], xg_path)
-    job.fileStore.readGlobalFile(index_dict['gbwt'], gbwt_path)
-
-    # make a gaf of paths extracted from gbwt
-    gaf_path = os.path.join(work_dir, 'ref_paths.gaf')
-    # extract reference paths from GBWT using _thread_NAME_ prefix
-    paths_cmd = ['vg', 'paths', '-x', xg_path, '-g', gbwt_path, '-Q', '_thread_{}_'.format(xg_reference), '-A']
-    # translate the gbwt _thread_ names into vg subpaths (really should be a vg option to do this)
-    sed_cmd = ['sed', '-e', 's/_thread_//g', '-e', 's/\([a-z,A-Z,0-9]*\)_\([a-z,A-Z,0-9,\.]*\)_\([0-1]*\)_\([0-9]*\)/\\1.\\2[\\4]/g']
-    cactus_call(parameters=[paths_cmd, sed_cmd], outfile=gaf_path)
-
-    # make a mutable graph from the xg
-    vg_path = os.path.join(work_dir, os.path.basename(out_name) + '.vg')
-    cactus_call(parameters=['vg', 'convert', xg_path], outfile=vg_path)
-
-    # augment the paths into it
-    augmented_vg_path = os.path.join(work_dir, os.path.basename(out_name) + '.aug.vg')
-    cactus_call(parameters=['vg', 'augment', '-B', '-F', vg_path, gaf_path], outfile=augmented_vg_path)
-
-    # finally, make the xg
-    xg_ref_path = os.path.join(work_dir, os.path.basename(out_name) + '.{}.xg'.format(xg_reference))
-    cactus_call(parameters=['vg', 'convert', '-x', augmented_vg_path], outfile=xg_ref_path)
-
-    # return the dict
-    return { '{}.xg'.format(xg_reference) : job.fileStore.writeGlobalFile(xg_ref_path) }
     
 def make_giraffe_indexes(job, options, index_dict):
     """ make giraffe-specific indexes: distance and minimaer """
     work_dir = job.fileStore.getLocalTempDir()
-    xg_path = os.path.join(work_dir, os.path.basename(options.outName) + '.xg')
-    gbwt_path = os.path.join(work_dir, os.path.basename(options.outName) + '.gbwt')
+    gbz_path = os.path.join(work_dir, os.path.basename(options.outName) + '.gbz')
     snarls_path = os.path.join(work_dir, os.path.basename(options.outName) + '.snarls')
-    job.fileStore.readGlobalFile(index_dict['xg'], xg_path)
-    job.fileStore.readGlobalFile(index_dict['gbwt'], gbwt_path)
+    job.fileStore.readGlobalFile(index_dict['gbz'], gbz_path)
     job.fileStore.readGlobalFile(index_dict['snarls'], snarls_path)
 
     # make the distance index
     dist_path = os.path.join(work_dir, os.path.basename(options.outName) + '.dist')
-    cactus_call(parameters=['vg', 'index', '-t', str(job.cores), '-j', dist_path, '-s', snarls_path, xg_path])
+    cactus_call(parameters=['vg', 'index', '-t', str(job.cores), '-j', dist_path, '-s', snarls_path, gbz_path])
 
     # make the minimizer index
     min_path = os.path.join(work_dir, os.path.basename(options.outName) + '.min')
-    cactus_call(parameters=['vg', 'minimizer', '-k', '29', '-w', '11', '-t', str(job.cores), '-g', gbwt_path,
-                            '-d', dist_path, '-o', min_path, xg_path])                            
+    cactus_call(parameters=['vg', 'minimizer', '-k', '29', '-w', '11', '-t', str(job.cores),
+                            '-d', dist_path, '-o', min_path, gbz_path])                            
                             
     return { 'min' : job.fileStore.writeGlobalFile(min_path),
              'dist' : job.fileStore.writeGlobalFile(dist_path) }

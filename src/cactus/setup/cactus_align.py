@@ -352,7 +352,7 @@ def cactus_align(job, config_wrapper, mc_tree, input_seq_map, input_seq_id_map, 
 
     # optionally create the VG
     if doVG or doGFA:
-        vg_export_job = hal_job.addFollowOnJobFn(export_vg, hal_job.rv(), config_wrapper, doVG, doGFA,
+        vg_export_job = hal_job.addFollowOnJobFn(export_vg, hal_job.rv(), config_wrapper, doVG, doGFA, referenceEvent,
                                                  checkpointInfo=checkpointInfo)
         vg_file_id, gfa_file_id = vg_export_job.rv(0), vg_export_job.rv(1)
     else:
@@ -361,13 +361,13 @@ def cactus_align(job, config_wrapper, mc_tree, input_seq_map, input_seq_id_map, 
     return hal_job.rv(), vg_file_id, gfa_file_id
 
 
-def export_vg(job, hal_id, config_wrapper, doVG, doGFA, checkpointInfo=None, resource_spec = False):
+def export_vg(job, hal_id, config_wrapper, doVG, doGFA, referenceEvent, checkpointInfo=None, resource_spec = False):
     """ use hal2vg to convert the HAL to vg format """
 
     if not resource_spec:
         # caller couldn't figure out the resrouces from hal_id promise.  do that
         # now and try again
-        return job.addChildJobFn(export_vg, hal_id, config_wrapper, doVG, doGFA, checkpointInfo,
+        return job.addChildJobFn(export_vg, hal_id, config_wrapper, doVG, doGFA, referenceEvent, checkpointInfo,
                                  resource_spec = True,
                                  disk=hal_id.size * 3,
                                  memory=hal_id.size * 10).rv()
@@ -391,6 +391,10 @@ def export_vg(job, hal_id, config_wrapper, doVG, doGFA, checkpointInfo=None, res
         hal2vg_opts += ['--ignoreGenomes', ','.join(ignore_events)]
     if not getOptionalAttrib(findRequiredNode(config_wrapper.xmlRoot, "hal2vg"), "prependGenomeNames", typeFn=bool, default=True):
         hal2vg_opts += ['--onlySequenceNames']
+    ref_events = graph_event
+    if referenceEvent:
+        ref_events += ',{}'.format(referenceEvent)
+        hal2vg_opts += ['--refGenomes', ref_events]
 
     vg_path = os.path.join(work_dir, "out.vg")
     cmd = ['hal2vg', hal_path] + hal2vg_opts
