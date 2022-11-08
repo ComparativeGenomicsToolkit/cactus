@@ -70,6 +70,7 @@ def main():
     parser.add_argument("--decoyGraph", help= "decoy sequences vg graph to add (PackedGraph or HashGraph format)")
     parser.add_argument("--hal", nargs='+', default = [], help = "Input hal files (for merging)")
     parser.add_argument("--vcf", action="store_true", help= "make VCF")
+    parser.add_argument("--vcfbub", type=int, default=100000, help = "Use vcfbub to flatten nested sites (sites with reference alleles > this will be replaced by their children)). Setting to 0 will disable, only prudcing raw VCF [default=100000].")
     parser.add_argument("--giraffe", action="store_true", help= "make Giraffe-specific indexes (distance and minimizer)")
     parser.add_argument("--normalizeIterations", type=int, default=None,
                         help="Run this many iterations of vg normamlization (shared prefix zipping)")
@@ -254,6 +255,7 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, unclip_seq_id_
     # optional vcf
     if options.vcf:
         deconstruct_job = gfa_merge_job.addFollowOnJobFn(make_vcf, options.outName, options.reference, out_dicts[0],
+                                                         max_ref_allele=options.vcfbub,
                                                          cores=options.indexCores,
                                                          disk = sum(f.size for f in vg_ids) * 2)
         out_dicts.append(deconstruct_job.rv())
@@ -261,6 +263,7 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, unclip_seq_id_
     # optional vcf with different reference
     if options.vcfReference:
         ref_deconstruct_job = gfa_merge_job.addFollowOnJobFn(make_vcf, options.outName, options.vcfReference, out_dicts[0],
+                                                             max_ref_allele=options.vcfbub,
                                                              tag=options.vcfReference + '.',
                                                              cores=options.indexCores,
                                                              disk = sum(f.size for f in vg_ids) * 2)
@@ -526,7 +529,7 @@ def vg_indexes(job, options, config, gfa_ids):
              'gbz' : job.fileStore.writeGlobalFile(gbz_path),
              'snarls' : job.fileStore.writeGlobalFile(snarls_path) }
 
-def make_vcf(job, out_name, vcf_ref, index_dict, tag=''):
+def make_vcf(job, out_name, vcf_ref, index_dict, tag='', max_ref_allele=None):
     """ make the vcf
     """ 
     work_dir = job.fileStore.getLocalTempDir()
@@ -543,8 +546,20 @@ def make_vcf(job, out_name, vcf_ref, index_dict, tag=''):
                 outfile=vcf_path)
     cactus_call(parameters=['tabix', '-p', 'vcf', vcf_path])
 
-    return { '{}vcf.gz'.format(tag) : job.fileStore.writeGlobalFile(vcf_path),
-             '{}vcf.gz.tbi'.format(tag) : job.fileStore.writeGlobalFile(vcf_path + '.tbi') }
+    output_dict = { '{}raw.vcf.gz'.format(tag) : job.fileStore.writeGlobalFile(vcf_path),
+                    '{}raw.vcf.gz.tbi'.format(tag) : job.fileStore.writeGlobalFile(vcf_path + '.tbi') }
+
+    # make the filtered vcf
+    if max_ref_allele:
+        vcfbub_path = os.path.join(work_dir, 'merged.filtered.vcf.gz')
+        cactus_call(parameters=[['vcfbub', '--input', vcf_path, '--max-ref-length', str(max_ref_allele), '--max-level', '0'],
+                                ['bgzip', '--threads', str(job.cores)]],
+                outfile=vcfbub_path)
+        cactus_call(parameters=['tabix', '-p', 'vcf', vcfbub_path])
+        output_dict['{}vcf.gz'.format(tag)] = job.fileStore.writeGlobalFile(vcfbub_path)
+        output_dict['{}vcf.gz.tbi'.format(tag)] = job.fileStore.writeGlobalFile(vcfbub_path + '.tbi')
+
+    return output_dict
     
 def make_giraffe_indexes(job, options, index_dict):
     """ make giraffe-specific indexes: distance and minimaer """

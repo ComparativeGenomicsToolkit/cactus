@@ -300,6 +300,17 @@ else
 	 exit 1
 fi
 
+# vcfbub
+cd ${pangenomeBuildDir}
+wget -q https://github.com/pangenome/vcfbub/releases/download/v0.1.0/vcfbub
+chmod +x vcfbub
+if [[ $STATIC_CHECK -ne 1 || $(ldd vcfbub | grep so | wc -l) -eq 0 ]]
+then
+	 mv vcfbub ${binDir}
+else
+	 exit 1
+fi
+
 cd ${CWD}
 rm -rf ${pangenomeBuildDir}
 
