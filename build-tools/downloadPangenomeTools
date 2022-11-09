@@ -215,7 +215,7 @@ fi
 
 # hal2vg
 cd ${pangenomeBuildDir}
-wget -q https://github.com/ComparativeGenomicsToolkit/hal2vg/releases/download/v1.1.0/hal2vg
+wget -q https://github.com/ComparativeGenomicsToolkit/hal2vg/releases/download/v1.1.1/hal2vg
 chmod +x hal2vg
 if [[ $STATIC_CHECK -ne 1 || $(ldd hal2vg | grep so | wc -l) -eq 0 ]]
 then
@@ -225,7 +225,7 @@ else
 fi
 # clip-vg
 cd ${pangenomeBuildDir}
-wget -q https://github.com/ComparativeGenomicsToolkit/hal2vg/releases/download/v1.1.0/clip-vg
+wget -q https://github.com/ComparativeGenomicsToolkit/hal2vg/releases/download/v1.1.1/clip-vg
 chmod +x clip-vg
 if [[ $STATIC_CHECK -ne 1 || $(ldd clip-vg | grep so | wc -l) -eq 0 ]]
 then
@@ -235,7 +235,7 @@ else
 fi
 # halRemoveDupes
 cd ${pangenomeBuildDir}
-wget -q https://github.com/ComparativeGenomicsToolkit/hal2vg/releases/download/v1.1.0/halRemoveDupes
+wget -q https://github.com/ComparativeGenomicsToolkit/hal2vg/releases/download/v1.1.1/halRemoveDupes
 chmod +x halRemoveDupes
 if [[ $STATIC_CHECK -ne 1 || $(ldd halRemoveDupes | grep so | wc -l) -eq 0 ]]
 then
@@ -245,7 +245,7 @@ else
 fi
 # halMergeChroms
 cd ${pangenomeBuildDir}
-wget -q https://github.com/ComparativeGenomicsToolkit/hal2vg/releases/download/v1.1.0/halMergeChroms
+wget -q https://github.com/ComparativeGenomicsToolkit/hal2vg/releases/download/v1.1.1/halMergeChroms
 chmod +x halMergeChroms
 if [[ $STATIC_CHECK -ne 1 || $(ldd halMergeChroms | grep so | wc -l) -eq 0 ]]
 then
@@ -256,7 +256,7 @@ fi
 
 # halUnclip
 cd ${pangenomeBuildDir}
-wget -q https://github.com/ComparativeGenomicsToolkit/hal2vg/releases/download/v1.1.0/halUnclip
+wget -q https://github.com/ComparativeGenomicsToolkit/hal2vg/releases/download/v1.1.1/halUnclip
 chmod +x halUnclip
 if [[ $STATIC_CHECK -ne 1 || $(ldd halUnclip | grep so | wc -l) -eq 0 ]]
 then
@@ -267,7 +267,7 @@ fi
 
 # filter-paf-deletions
 cd ${pangenomeBuildDir}
-wget -q https://github.com/ComparativeGenomicsToolkit/hal2vg/releases/download/v1.1.0/filter-paf-deletions
+wget -q https://github.com/ComparativeGenomicsToolkit/hal2vg/releases/download/v1.1.1/filter-paf-deletions
 chmod +x filter-paf-deletions
 if [[ $STATIC_CHECK -ne 1 || $(ldd filter-paf-deletions | grep so | wc -l) -eq 0 ]]
 then
@@ -279,7 +279,7 @@ fi
 # vg
 cd ${pangenomeBuildDir}
 #wget -q https://github.com/vgteam/vg/releases/download/v1.44.0/vg
-wget -q http://public.gi.ucsc.edu/~hickey/vg.90337438e303e9cfde3f08d41e38b4539fa492d8 -o vg
+wget -q http://public.gi.ucsc.edu/~hickey/vg.d7e210950390d0c703830291f08de5b5a44711a6 -O vg
 chmod +x vg
 if [[ $STATIC_CHECK -ne 1 || $(ldd vg | grep so | wc -l) -eq 0 ]]
 then
