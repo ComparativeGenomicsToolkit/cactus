@@ -358,13 +358,13 @@ class TestCase(unittest.TestCase):
                     name = os.path.basename(toks[1])
                     subprocess.check_call(['wget', toks[1]], cwd=self.tempDir)
                     mg_cmd += [os.path.join(self.tempDir, name)]
-        mg_path = os.path.join(self.tempDir, 'refgraph.gfa')
+        mg_path = os.path.join(self.tempDir, 'refgraph.sv.gfa')
         with open(mg_path, 'w') as mg_file:
             subprocess.check_call(mg_cmd, stdout=mg_file)
 
         # do the mapping
         paf_path = os.path.join(self.tempDir, 'aln.paf')
-        fa_path = os.path.join(self.tempDir, 'refgraph.gfa.fa')
+        fa_path = os.path.join(self.tempDir, 'refgraph.sv.gfa.fa')
         # todo: it'd be nice to have an interface for setting tag to something not latest or commit
         if binariesMode == 'docker':
             cactus_opts += ['--latest']
@@ -398,13 +398,13 @@ class TestCase(unittest.TestCase):
                     events.append(toks[0])
         
         # build the minigraph
-        mg_path = os.path.join(self.tempDir, 'yeast.gfa.gz')
+        mg_path = os.path.join(self.tempDir, 'yeast.sv.gfa.gz')
         mg_cmd = ['cactus-minigraph', self._job_store(binariesMode), seq_file_path, mg_path, '--reference', 'S288C'] + cactus_opts
         subprocess.check_call(mg_cmd)
                 
         # run graphmap in base mode
         paf_path = os.path.join(self.tempDir, 'yeast.paf')
-        fa_path = os.path.join(self.tempDir, 'yeast.gfa.fa')        
+        fa_path = os.path.join(self.tempDir, 'yeast.sv.gfa.fa')        
         subprocess.check_call(['cactus-graphmap', self._job_store(binariesMode), seq_file_path, mg_path, paf_path,
                                '--outputFasta', fa_path, '--delFilter', '2000000'] + cactus_opts + ['--mapCores', '1'])
             
