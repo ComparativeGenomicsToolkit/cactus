@@ -299,6 +299,7 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
         gfa_root_job = Job()
         phase_root_job.addFollowOn(gfa_root_job)
         gfa_ids = []
+        current_out_dict = None
         if workflow_phase in options.gfa + options.gbz + options.vcf + options.giraffe:
             for vg_path, vg_id, input_vg_id in zip(options.vg, phase_vg_ids, vg_ids):
                 gfa_job = gfa_root_job.addChildJobFn(vg_to_gfa, options, config, vg_path, vg_id,
@@ -312,21 +313,22 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
                                                           disk=sum(f.size for f in vg_ids) * 5)
             out_dicts.append(gfa_merge_job.rv())
             prev_job = gfa_merge_job
+            current_out_dict = gfa_merge_job.rv()
 
         # optional vcf
         if workflow_phase in options.vcf:
             for vcf_ref in options.vcfReference:
                 vcftag = vcf_ref + '.' + workflow_phase if vcf_ref != options.reference[0] else workflow_phase
-                deconstruct_job = prev_job.addFollowOnJobFn(make_vcf, options.outName, vcf_ref, out_dicts[-1],
+                deconstruct_job = prev_job.addFollowOnJobFn(make_vcf, options.outName, vcf_ref, current_out_dict,
                                                             max_ref_allele=options.vcfbub,
                                                             tag=vcftag + '.',
                                                             cores=options.indexCores,
                                                             disk = sum(f.size for f in vg_ids) * 2)
-                out_dicts.append(deconstruct_job.rv())
+                out_dicts.append(deconstruct_job.rv())                
 
         # optional giraffe
         if workflow_phase in options.giraffe:
-            giraffe_job = gfa_merge_job.addFollowOnJobFn(make_giraffe_indexes, options, out_dicts[-1],
+            giraffe_job = gfa_merge_job.addFollowOnJobFn(make_giraffe_indexes, options, current_out_dict,
                                                          tag=workflow_phase + '.',
                                                          cores=options.indexCores,
                                                          disk = sum(f.size for f in vg_ids) * 4)
@@ -518,7 +520,6 @@ def make_vg_indexes(job, options, config, gfa_ids, tag=''):
             cmd = [cmd, ['sed', '-e', '1s/{}/{}/'.format(options.reference[0], ' '.join(options.reference)),
                          '-e', '1s/{}//'.format(graph_event)]]
         cactus_call(parameters=cmd, outfile=merge_gfa_path, outappend=True)
-        os.remove(gfa_path)
         job.fileStore.deleteGlobalFile(gfa_id)
 
     # make the gbz

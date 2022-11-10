@@ -10,9 +10,10 @@ Please cite the [Minigraph-Cactus paper](https://doi.org/10.1101/2022.10.06.5112
 * [Quick-Start](#quick-start)
 * [Introduction](#introduction)
 * [Interface](#interface)
+* [Output](#output)
 * [Yeast Graph](#yeast-graph)
 * [Human Graph](#hprc-graph)
-* [VCF Output](#vcf-output)
+* [Frequently Asked Questions](#frequently-asked-questions)
 
 ## Pangenome Data
 
@@ -20,20 +21,20 @@ Some pangenomes constructed with Minigraph-Cactus, along with all material to re
 
 ## Quick-Start
 
-Apply naming convention where non-reference haploid samples have ".0" suffixes.
+Set up an output directory, and copy over the example seqfile (as it will be modified)
 ```
 mkdir -p primates-pg
-tail -n +2 examples/evolverPrimates.txt | sed -e 's/^simHuman/simHuman.0/g' -e 's/^simGorilla/simGorilla.0/g' -e 's/^simOrang/simOrang.0/g' > primates-pg/evolverPrimates.pg.txt
+cp examples/evolverPrimates.txt primates-pg/evolverPrimates.pg.txt
 ```
 
 Make the SV graph with `minigraph`
 ```
-cactus-minigraph ./jobstore primates-pg/evolverPrimates.pg.txt primates-pg/primates.gfa.gz  --reference simChimp
+cactus-minigraph ./jobstore primates-pg/evolverPrimates.pg.txt primates-pg/primates.sv.gfa.gz  --reference simChimp
 ```
 
 Make the assembly-to-graph alignments with `minigraph`
 ```
-cactus-graphmap ./jobstore primates-pg/evolverPrimates.pg.txt primates-pg/primates.gfa.gz primates-pg/primates.paf  --reference simChimp --outputFasta primates-pg/primates.gfa.fa.gz
+cactus-graphmap ./jobstore primates-pg/evolverPrimates.pg.txt primates-pg/primates.sv.gfa.gz primates-pg/primates.paf  --reference simChimp --outputFasta primates-pg/primates.gfa.fa.gz
 ```
 
 Create the Cactus base alignment and "raw" pangenome graph
@@ -41,59 +42,59 @@ Create the Cactus base alignment and "raw" pangenome graph
 cactus-align ./jobstore primates-pg/evolverPrimates.pg.txt primates-pg/primates.paf primates-pg/primates.hal --pangenome --outVG --reference simChimp 
 ```
 
-Create and index the final pangenome graph and produce a VCF
+Create and index the final pangenome graph and produce VCF files and vg-giraffe indexes. 
 ```
-cactus-graphmap-join ./jobstore --vg primates-pg/primates.vg --outDir ./primates-pg --outName primates-pg --reference simChimp --vcf --giraffe --gfaffix  --wlineSep "." 
-```
-Please note: additional invocation(s) of `cactus-graphmap-join` may be necessary to index larger graphs via centromere clipping. This is described below. 
-
-If it worked properly, the reference contigs, prefixed by the genome name and a "." will be in the xg, as well as P-lines in the GFA:
-```
-vg paths -Ev primates-pg/primates-pg.xg
-simChimp.simChimp.chr6	596350
-
-zcat primates-pg/primates-pg.gfa.gz | grep ^P | awk '{print $1 "\t" $2}'
-P	simChimp.simChimp.chr6
+cactus-graphmap-join ./jobstore --vg primates-pg/primates.vg --outDir ./primates-pg --outName primates-pg --reference simChimp --vcf --giraffe
 ```
 
-and all other paths will be listed as haplotype threads.  They will be stored in the GBWT, as well as in W-lines in the GFA:
+If it worked properly, the input sequences should show up as contigs in the GFA:
 ```
-vg paths -Lg  primates-pg/primates-pg.gbwt
-_thread__gbwt_ref_simChimp.simChimp.chr6_0_0
-_thread_simGorilla_simGorilla.chr6_0_0
-_thread_simHuman_simHuman.chr6_0_0
-_thread_simOrang_simOrang.chr6_0_0
-
-zcat primates-pg/primates-pg.gfa.gz | grep ^W | awk '{print $1 "\t" $2 "\t" $3 "\t" $4 "\t" $5 "\t" $6}' 
+zcat primates-pg/primates-pg.gfa.gz | grep '^W' | awk '{print $1 "\t" $2 "\t" $3 "\t" $4 "\t" $5 "\t" $6 }' | more
+W	simChimp	0	simChimp.chr6	0	596350
 W	simGorilla	0	simGorilla.chr6	0	599081
 W	simHuman	0	simHuman.chr6	0	597871
 W	simOrang	0	simOrang.chr6	0	591073
+```
+
+The reference path, which will be treated differently by some vg tools (for efficiency), will be identified in the header:
+```
+zcat primates-pg/primates-pg.gfa.gz | head -1
+H	VN:Z:1.1	RS:Z:simChimp
 ```
 
 The VCF will be based on the reference path (simChimp) and have a sample for each haplotype :
 ```
 gzip -dc primates-pg/primates-pg.vcf.gz | grep CHROM -A 1
 #CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	simGorilla	simHuman	simOrang
-simChimp.simChimp.chr6	15	>1>4	T	G	60	.	AC=1;AF=0.333333;AN=3;AT=>1>2>4,>1>3>4;NS=3;LV=0	GT	0	0	1
+simChimp.chr6	15	>1>4	T	G	60.0	.	AC=1;AF=0.333333;AN=3;AT=>1>2>4,>1>3>4;NS=3;LV=0	GT	0	0	1
 ```
 
-Reference paths are needed for coordinates, but are inefficient to store in vg.  Haplotype threads are exploited by `vg giraffe` and can be efficiently compressed in the GBWT.
+The three input files needed for giraffe are produced:
+```
+ls -hs primates-pg/primates-pg.d2.*
+4.8M primates-pg/primates-pg.d2.dist  2.5M primates-pg/primates-pg.d2.gbz  6.1M primates-pg/primates-pg.d2.min
+```
 
+By default, `--giraffe` will produce frequency filtered indexes, with a default minimum coverage of 2 (hence the `.d2`). This means only nodes covered by two haplotypes will appear in the index. This helps `vg giraffe` performance considerably (though a version of Giraffe that no longer needs it is under development). The dataset here is too small for this to be useful.  To index the clipped but unfiltered graph, use `--giraffe clip` or use `--giraffe full` to index the full, unclipped graph. See more detailed explanations below. 
+
+```
 ## Introduction
 
 Minigraph-Cactus uses [minigraph](https://github.com/lh3/minigraph) to construct a pangenome graph of structural variation in a set of input assemblies. The assemblies are then mapped back to this graph using minigraph.  These mappings are used as input to [Cactus](../README.md) to construct a new graph that contains variants of all sizes, allowing the input assemblies to be encoded as embedded paths in the graph. The graph is output in  pangenome graph formats such as [vg](https://github.com/vgteam/vg) and [GFA](https://github.com/GFA-spec/GFA-spec), in addition to the usual [HAL](https://github.com/ComparativeGenomicsToolkit/hal).
 
-Pangenomes from Minigraph-Cactus are indexed and ready for read mapping with [vg Giraffe](https://github.com/vgteam/vg/wiki/Mapping-short-reads-with-Giraffe). 
+Pangenomes from Minigraph-Cactus are indexable for and ready for read mapping with [vg Giraffe](https://github.com/vgteam/vg/wiki/Mapping-short-reads-with-Giraffe). 
 
-Unlike Progressive Cactus, Minigraph-Cactus does depend on a predetermined reference genome.  This genome is guaranteed to be acyclic and unclipped in the final graph.  Other genomes in the graph can still be used as reference coordinate systems, however.  For example, we achieved great variant calling performance when projecting mapped reads on a CHM13-referenced graph onto GRCh38.
+Unlike Progressive Cactus, Minigraph-Cactus does depend on a predetermined reference genome.  This genome is guaranteed to be acyclic and unclipped in the final graph.  Other genomes in the graph can still be used as reference coordinate systems, however.  For example, we achieved great variant calling performance when projecting mapped reads on a CHM13-referenced graph onto GRCh38. 
 
 ## Interface
 
 ### Sample Names
 
-The input is a two-column `seqFile` mapping sample names to fasta paths (gzipped fastas are supported).
+The input is a two-column `seqFile` mapping sample names to fasta paths (gzipped fastas are supported). The seqfile is the same as Progressive Cactus, except a tree is not specified.  Cactus may add a star-tree to this file, but it can be ignored.
 
-**A naming convention must be followed in order to get a sensible output**: Each sample, *except for exactly one referene* must be of the form `SAMPLE.HAPLOTYPE`, where `HAPLOTYPE` is either `0` for a haploid sample, or `1` or `2` for a diploid sample:
+
+
+**A naming convention must be followed for sample names**: The "." character is used to specify haplotype, and should be avoided in sample names unless it is being used that way.  For haploid samples, just don't use a ".".  For diploid or poloyploid samples, use the form `SAMPLE.HAPLOTYPE`. where `HAPLOTYPE` is either `0` for a haploid sample, or `1` or `2` for a diploid sample etc:
 
 ```
 # Diploid sample:
@@ -101,12 +102,8 @@ HG002.1  ./HG002.paternal.fa
 HG002.2  ./HG002.maternal.fa
 
 # Haploid sample:
-CHM13.0  ./chm13.fa
-
-# Reference Genome (do not specify haplotype):
-GRCh38   ./grch38.fa
+CHM13  ./chm13.fa
 ```
-If this convention is not followed, the VCF and most vg output (GBWT,XG) will be invalid due to absent path information.  Note that sample names can be altered before indexing with `cactus-graphmap-join --rename` if necessary, but it's best to have them correct before starting.
 
 ### Pipeline
 
@@ -118,7 +115,44 @@ If this convention is not followed, the VCF and most vg output (GBWT,XG) will be
 
 4) `cactus-align <jobStore> <seqFile> <inputPAF> <outHal> --reference --pangenome --outVG --maxLen`: Compute the Cactus multiple genome alignment from the assembly-to-graph minigraph mappings. The `--maxLen` parameter specifies the maximum gap between minigraph mappings that Cactus will attempt to fill at once, and is recommended to be set to 10000.  If `cactus-graphmap-split` was used, the `cactus-align-batch` interface should be used instead (see examples below).
 
-5) `cactus-graphmap-join <jobStore> --wLineSep "." --vg --outDir --outName --reference`: Produce the final graph and indexes. This should be run whether or not `cactus-graphmap-split` was used.  It is recommended to run this command at least twice:  Once to make the "full" graph using the `--gfaffix` option to normalize the graph. Then again, using output of the first run as input, with `--clipLength 10000 --clipNonMinigraph --preserveIDs --vcf --giraffe` with unaligned portions clipped out. It is important to always use `--wLineSep "."` in order to properly parse the sample names.  An optional third time can be used to make a graph with rare alleles filtered out.  See examples below. 
+5) `cactus-graphmap-join <jobStore>  --vg --outDir --outName --reference`: Produce the final graph and indexes. This should be run whether or not `cactus-graphmap-split` was used.
+
+### Clipping, Filtering and Indexing
+
+`cactus-graphmap-join` merges chromosome graphs created by `cactus-align-batch`, and also normalizes, clips and filters the graph in addition to producing some useful indexes.  It can produce up two three graphs (now in a single invocation), and a variety of indexes on any combination of them. The three graphs are the
+
+* `full` graph: This graph is normalized, but no sequence is removed. It and its indexes will have `.full` in their filenames. 
+* `clip` graph: This is the default graph. Stretches of sequence `>10kb` that were not aligned to the underlying SV/minigraph are removed.
+* `filter` graph: This graph is made by removing nodes covered by fewer than 2 haplotypes from the `clip` graph.  It and its indexes will have `.d2` in their filenames.
+
+The different graphs have different uses. For instance, the current version of `vg giraffe` performs best on the filtered graph (this will hopefully be remedied in an update soon).  For the HPRC paper, we used `d9`. When you pass `--giraffe` to `cactus-graphmap-join`, it will make the giraffe indexes on the filtered graph by default.  But you can override this behaviour to produces the indexes for any of the graphs though by passing in any combination of [`full`, `clip` and `filter`] to the `--giraffe` options. For example:
+
+`--giraffe`: Make the giraffe indexes for the filtered graph (default choice).
+
+`--giraffe clip`: Make the giraffe indexes for the clipped graph.
+
+`--giraffe clip filter`: Make the giraffe indexes for both the clipped and filtered graph.
+
+The same type of interface applies to all the output specification options: `--vcf`, `--gbz`, `--gfa`, `--giraffe`, `--chrom-vg`. They can all be used without arguments to apply to the default graph (generally the `clip` graph for everything except `--giraffe` which uses the `filter` graph) or with any combination of `full`, `clip` and `filter` to be applied to different graphs.
+
+Note that by default, only GFA is output, so the above options need to be used to toggle on any other output types. 
+
+Different clipping and filtering thresholds can be specified using the `--clip` and `--filter` options, respectively. For larger graphs, you probably want to use `--filter N` where `N` represents about 10% of the haplotypes.  It is indeed a shame to remove rarer variants before mapping, but is a necessity to get the best performance out of (the current version) of `vg giraffe`.  
+
+The `--vcf` option will produce two VCFs for each selected graph type. One VCF is a "raw" VCF which contains nested variants, indicated by the `LV` and `PS` tags. The second VCF is one that has gone through [vcfbub](https://github.com/pangenome/vcfbub) to remove nested sites, as well as those greater than 100kb.  Unless you want to explicitly handle nested variants, you are probably best to use the `vcfbub` VCF.  Switch off `vcfbub` with `--vcfbub 0` or specify a different threshold with `--vcfbub N`.
+
+If you want to use the HAL output, `cactus-graphmap-join` can also merge HAL chromosomes from `cactus-align-batch` with the `--hal` option.  These will never be filtered or otherwise processed. 
+
+### Output
+
+* `hal`: Cactus's [native alignment format](./progressive.md#using-the-hal-output) can be used to convert to MAF, build assembly hubs, run liftover and comparative annotation.
+* `gfa`: A [standard text-based graph format](https://github.com/GFA-spec/GFA-spec/blob/master/GFA1.md). Minigraph-Cactus uses GFA 1.1 as it represents haplotypes as [Walks][https://github.com/GFA-spec/GFA-spec/blob/master/GFA1.md#w-walk-line-since-v11). You can use `vg convert -gfW` to convert from GFA 1.1 to 1.0 and `vg convert -gf` to convert from 1.0 to 1.1.
+* `vcf`: A [standard text-based format](https://en.wikipedia.org/wiki/Variant_Call_Format) that represents a pangenome graph as sites of variation along a reference. VCFs exported from the graph are nested, and by default `vcfbub` is used to flatten them.
+* `vg`: [vg](https://github.com/vgteam/vg)'s native packed-graph format, can be read and written by vg but does not scale well with the number of paths.
+* `gbz`: A read-only [format that scales extremely efficiently with the number of paths](https://github.com/jltsiren/gbwtgraph/blob/master/SERIALIZATION.md). Readable by `vg` tools and required for `giraffe`.
+* `snarls`: The start and end nodes of the bubbles in the graph, as well as their nesting relationships.  Used by some `vg` tools like `call` and `deconstruct`.
+* `dist`: Snarl distance index required for `vg giraffe`.
+* `min`: Minimizer index required for `vg giraffe`.
 
 ## Yeast Graph
 
@@ -175,29 +209,29 @@ total 1.2M
 Here we can see that a few contigs from UWOPS034614 were left unplaced (and would be left out of any future cactus jobs).
 
 ```
-zcat yeast-pg/chroms/_AMBIGUOUS_/fasta/UWOPS034614.0__AMBIGUOUS_.fa.gz | grep '>'
->id=UWOPS034614.0|chrX
->id=UWOPS034614.0|chrVII
->id=UWOPS034614.0|chrXI
->id=UWOPS034614.0|chrVIII
+zcat yeast-pg/chroms/_AMBIGUOUS_/fasta/UWOPS034614__AMBIGUOUS_.fa.gz | grep '>'
+>id=UWOPS034614|chrXI
+>id=UWOPS034614|chrX
+>id=UWOPS034614|chrVII
+>id=UWOPS034614|chrVIII
 ```
 
 The reason why these contigs are unassigned to a chromosome can normally be found in `minigraph.split.log`:
 
 ```
-Query contig is ambiguous: id=UWOPS034614.0|chrXI  len=792116 cov=0.573045 (vs 0.5) uf=1.47861 (vs 2)
+Query contig is ambiguous: id=UWOPS034614|chrXI  len=792116 cov=0.573045 (vs 0.5) uf=1.47861 (vs 2)
  Reference contig mappings:
   chrVII: 306989
   chrXI: 453918
 --
-Query contig is ambiguous: id=UWOPS034614.0|chrVIII  len=738767 cov=0.481758 (vs 0.5) uf=1.06071 (vs 2)
+Query contig is ambiguous: id=UWOPS034614|chrVIII  len=738767 cov=0.481758 (vs 0.5) uf=1.06071 (vs 2)
  Reference contig mappings:
   chrVII: 355907
   chrVIII: 335536
 --
-Query contig is ambiguous: id=UWOPS034614.0|chrVII  len=632616 cov=0.407576 (vs 0.5) uf= infinity (vs 2)
-Assigned contig to chrXI: id=DBVPG6044.0|chrXI  len=695907 cov=0.972054 (vs 0.5) uf= infinity (vs 2)
-Query contig is ambiguous: id=UWOPS034614.0|chrX  len=1092164 cov=0.49082 (vs 0.25) uf=1.04957 (vs 2)
+Query contig is ambiguous: id=UWOPS034614|chrVII  len=632616 cov=0.407576 (vs 0.5) uf= infinity (vs 2)
+Assigned contig to chrXI: id=DBVPG6044|chrXI  len=695907 cov=0.972054 (vs 0.5) uf= infinity (vs 2)
+Query contig is ambiguous: id=UWOPS034614|chrX  len=1092164 cov=0.49082 (vs 0.25) uf=1.04957 (vs 2)
  Reference contig mappings:
   chrX: 510741
   chrXIII: 536056
@@ -235,91 +269,61 @@ total 67M
 As in the primates example, `cactus-graphmap-join` is used to make the final indexes.  Its use is identical, except multiple graphs are passed as input.  We also pass in the HAL files so it can merge them too.
 
 ```
-cactus-graphmap-join ./jobstore --vg yeast-pg/chrom-alignments/*.vg --hal yeast-pg/chrom-alignments/*.hal --outDir ./yeast-pg --outName yeast-pg --reference S288C --vcf --giraffe --gfaffix  --wlineSep "." 
+cactus-graphmap-join ./jobstore --vg yeast-pg/chrom-alignments/*.vg --hal yeast-pg/chrom-alignments/*.hal --outDir ./yeast-pg --outName yeast-pg --reference S288C --vcf --giraffe clip
 
 ```
 
 The GFA, VCF and all `vg giraffe` indexes will now be in `yeast-pg`:
 ```
 ls -hs yeast-pg/yeast-pg*
- 20M yeast-pg/yeast-pg.dist     37M yeast-pg/yeast-pg.gg   860K yeast-pg/yeast-pg.snarls    8.0K yeast-pg/yeast-pg.vcf.gz.tbi
-7.6M yeast-pg/yeast-pg.gbwt     36M yeast-pg/yeast-pg.hal  3.1M yeast-pg/yeast-pg.trans.gz   24M yeast-pg/yeast-pg.xg
- 14M yeast-pg/yeast-pg.gfa.gz  111M yeast-pg/yeast-pg.min  4.8M yeast-pg/yeast-pg.vcf.gz
+ 21M yeast-pg/yeast-pg.dist      103M yeast-pg/yeast-pg.min             4.3M yeast-pg/yeast-pg.vcf.gz
+ 38M yeast-pg/yeast-pg.full.hal  4.6M yeast-pg/yeast-pg.raw.vcf.gz      8.0K yeast-pg/yeast-pg.vcf.gz.tbi
+ 16M yeast-pg/yeast-pg.gbz       8.0K yeast-pg/yeast-pg.raw.vcf.gz.tbi
+ 14M yeast-pg/yeast-pg.gfa.gz     16K yeast-pg/yeast-pg.stats.tgz
 
-vg paths -Ev yeast-pg/yeast-pg.xg
-S288C.chrIII	341580
-S288C.chrII	813597
-S288C.chrI	219929
-S288C.chrIV	1566853
-S288C.chrIX	440036
-S288C.chrVIII	581049
-S288C.chrVII	1091538
-S288C.chrVI	271539
-S288C.chrV	583092
-S288C.chrXIII	930506
-S288C.chrXII	1075542
-S288C.chrXI	666862
-S288C.chrXIV	777615
-S288C.chrX	751611
-S288C.chrXVI	954457
-S288C.chrXV	1091343
+zcat yeast-pg/yeast-pg.gfa.gz | grep '^W' | awk '{print $1 "\t" $2 "\t" $3 "\t" $4 "\t" $5 "\t" $6 }' | grep S288C
+W	S288C	0	chrIII	0	341580
+W	S288C	0	chrII	0	813597
+W	S288C	0	chrI	0	219929
+W	S288C	0	chrIV	0	1566853
+W	S288C	0	chrIX	0	440036
+W	S288C	0	chrVIII	0	581049
+W	S288C	0	chrVII	0	1091538
+W	S288C	0	chrVI	0	271539
+W	S288C	0	chrV	0	583092
+W	S288C	0	chrXIII	0	930506
+W	S288C	0	chrXII	0	1075542
+W	S288C	0	chrXI	0	666862
+W	S288C	0	chrXIV	0	777615
+W	S288C	0	chrX	0	751611
+W	S288C	0	chrXVI	0	954457
+W	S288C	0	chrXV	0	1091343
 
-zcat yeast-pg/yeast-pg.gfa.gz | grep ^P | awk '{print $1 "\t" $2}'
-P	S288C.chrIII
-P	S288C.chrII
-P	S288C.chrI
-P	S288C.chrIV
-P	S288C.chrIX
-P	S288C.chrVIII
-P	S288C.chrVII
-P	S288C.chrVI
-P	S288C.chrV
-P	S288C.chrXIII
-P	S288C.chrXII
-P	S288C.chrXI
-P	S288C.chrXIV
-P	S288C.chrX
-P	S288C.chrXVI
-P	S288C.chrXV
-
-halStats yeast-pg/yeast-pg.hal --sequenceStats S288C
+halStats yeast-pg/yeast-pg.full.hal --sequenceStats S288C
 SequenceName, Length, NumTopSegments, NumBottomSegments
-chrI, 219929, 3533, 0
-chrII, 813597, 13395, 0
-chrIII, 341580, 6207, 0
-chrIV, 1566853, 27433, 0
-chrIX, 440036, 8115, 0
-chrV, 583092, 9739, 0
-chrVI, 271539, 5140, 0
-chrVII, 1091538, 17276, 0
-chrVIII, 581049, 8089, 0
-chrX, 751611, 11173, 0
-chrXI, 666862, 10212, 0
-chrXII, 1075542, 18179, 0
-chrXIII, 930506, 13978, 0
-chrXIV, 777615, 14338, 0
-chrXV, 1091343, 19735, 0
-chrXVI, 954457, 17092, 0
-
-vg paths -Lg  yeast-pg/yeast-pg.gbwt | head -4
-_thread__gbwt_ref_S288C.chrIII_0_0
-_thread_DBVPG6044_chrIII_0_0
-_thread_SK1_chrIII_0_0
-_thread_UWOPS034614_chrIII_0_0
-
-zcat yeast-pg/yeast-pg.gfa.gz | grep ^W | awk '{print $1 "\t" $2 "\t" $3 "\t" $4 "\t" $5 "\t" $6}'  | head -4
-W	DBVPG6044	0	chrIII	0	332771
-W	SK1	0	chrIII	0	340914
-W	UWOPS034614	0	chrIII	0	309137
-W	Y12	0	chrIII	0	322503
-```
+chrI, 219929, 5766, 0
+chrII, 813597, 15896, 0
+chrIII, 341580, 7778, 0
+chrIV, 1566853, 32488, 0
+chrIX, 440036, 10368, 0
+chrV, 583092, 12226, 0
+chrVI, 271539, 6587, 0
+chrVII, 1091538, 19912, 0
+chrVIII, 581049, 9996, 0
+chrX, 751611, 12635, 0
+chrXI, 666862, 11861, 0
+chrXII, 1075542, 21991, 0
+chrXIII, 930506, 16183, 0
+chrXIV, 777615, 17052, 0
+chrXV, 1091343, 23011, 0
+chrXVI, 954457, 19805, 0
 
 ### Yeast: Making a UCSC Genome Browser Assembly Hub
 
 The HAL file can be used to produce an assembly hub has follows.  Note that `PYTHONPATH` must set as described in Cactus's installation instructions. 
 
 ```
-hal2assemblyHub.py ./jobstore ./yeast-pg/yeast-pg.hal yeast-pg/hub --shortLabel yeast --longLabel "yeast pangenome"
+hal2assemblyHub.py ./jobstore ./yeast-pg/yeast-pg.full.hal yeast-pg/hub --shortLabel yeast --longLabel "yeast pangenome"
 ```
 
 Move `yeast-pg/hub` to somewhere web-accessible, and pass the full URL of `yeast-pg/hub/hub.txt` to the Genome Browser in the "My Data -> Track Hubs" menu.   Select `S288C` as the reference and display the hub.  Right-click on the display and select "Configure yeast track set" to toggle on all the assemblies (and toggle off Anc0 and _MINIGRAPH_).
@@ -354,8 +358,6 @@ tail -n +2 Year1_assemblies_v2_genbank.index | awk '{print $1 ".2\t" $3}' | grep
 sort -k1 hprc-${VERSION}-mc.seqfile > hprc-${VERSION}-mc.seqfile.sort ; mv hprc-${VERSION}-mc.seqfile.sort hprc-${VERSION}-mc.seqfile
 sed hprc-${VERSION}-mc.seqfile -i -e 's%s3://human-pangenomics/working/%https://s3-us-west-2.amazonaws.com/human-pangenomics/working/%g'
 ```
-
-IMPORTANT: Normally we would add a ".0" suffix to CHM13 as it is not going to be considered a reference. But because we will use the same seqfile to make both GRCh38-based and CHM13-based graphs, we will add the ".0" in `cactus-graphmap-join`.
 
 We have been holding out three samples for evaluation.  This is, of course, optional, but can be done here with:
 ```
@@ -447,47 +449,19 @@ cactus-align-batch ${MYJOBSTORE} ./chromfile.txt ${MYBUCKET}/align-hprc-${VERSIO
 
 ### HPRC Graph: Creating the Whole-Genome Graph
 
-The individual chromosome graphs can now be merged as follows.  We also append the ".0" to the end of CHM13 with the `--rename` option at this point, as it's not considered a reference in the graph (we did not do it in the seqfile because we want to use the same seqfile for making CHM13-based graphs).
+Important:
+* we use `--filter 9` and `--giraffe` to make giraffe indexes on the subgraph covered by at least 9/90 haplotypes (filter does not apply to the reference).
+* we use `--reference GRCh38 CHM13v2` to specify an additional reference. In this case `CHM13v2` will still be clipped (but not filtered), and it will be treated as a reference path in vg (and therefore easier to query).  You can add `--vcfReference GRCh38 CHM13v2` to make a VCF based on CHM13 too. 
 
-```
-cactus-graphmap-join ${MYJOBSTORE} --vg $(for j in $(for i in `seq 22`; do echo chr$i; done ; echo "chrX chrY chrM chrOther"); do echo ${MYBUCKET}/align-hprc-${VERSION}-mc-grch38/${j}.vg; done) --hal $(for j in $(for i in `seq 22`; do echo chr$i; done ; echo "chrX chrY chrM chrOther"); do echo ${MYBUCKET}/align-hprc-${VERSION}-mc-grch38/${j}.hal; done) --outDir ${MYBUCKET}/ --outName hprc-${VERSION}-mc-grch38-full --reference GRCh38 --gfaffix  --wlineSep "."  --rename "CHM13v2>CHM13v2.0" --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.16xlarge --nodeStorage 1000 --maxNodes 1 --indexCores 63  --logFile hprc-${VERSION}-mc-grch38-full.join.log 
-```
+cactus-graphmap-join ${MYJOBSTORE} --vg $(for j in $(for i in `seq 22`; do echo chr$i; done ; echo "chrX chrY chrM chrOther"); do echo ${MYBUCKET}/align-hprc-${VERSION}-mc-grch38/${j}.vg; done) --hal $(for j in $(for i in `seq 22`; do echo chr$i; done ; echo "chrX chrY chrM chrOther"); do echo ${MYBUCKET}/align-hprc-${VERSION}-mc-grch38/${j}.hal; done) --outDir ${MYBUCKET}/ --outName hprc-${VERSION}-mc-grch38 --reference GRCh38 --filter 9 --giraffe --vcf --gbz --gfa --vg-chroms --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.16xlarge --nodeStorage 1000 --maxNodes 1 --indexCores 63  --logFile hprc-${VERSION}-mc-grch38.join.log 
 
-Note: `--indexCores 63` is used (instead of all 64) to let the HAL merging job run in parallel on the same machine. 
-
-### HPRC Graph: Filtering Complex Regions and Indexing for Giraffe
-
-The graph created above will contain all input contigs except those which could not be unambiguously assigned to any chromosome. But there will be a lot of unaligned (and poorly aligned) sequence in and around centromeres, some acrocentric short arms, etc. In most cases, this will lead to long stretches of sequence "dangling" from the graph or forming large bubbles.  These structures are artifacts and should be used cautiously for making inferences about structural variation.  Furthermore, they can render efficient indexing and read mapping impossible with most current tools.
-
-The complex regions can be filtered out with a simple heuristic: remove paths of >Nbp that do not align to the underlying minigraph.  The intuition behind this is to restrict the graph to the SVs present from minigraph (which are generally quite clean and of high confidence), removing anything that arose by failure to map back to the minigraph.  This is done with the `--clipLength N --clipNonMinigraph` options to `graphmap-join`.
-
-We also use the `--giraffe --vcf` options to create the Giraffe indexes and VCF.
-
-We use as input the vg files created by the previous call of `graphmap-join` as well as the `--preserveIDs` option to ensure that our new graph is ID-compatible with the full graph.
-
-```
-cactus-graphmap-join ${MYJOBSTORE} --vg $(for j in $(for i in `seq 22`; do echo chr$i; done ; echo "chrX chrY chrM chrOther"); do echo ${MYBUCKET}/clip-hprc-${VERSION}-mc-grch38-full/${j}.vg; done) --outDir ${MYBUCKET}/ --outName hprc-${VERSION}-mc-grch38 --reference GRCh38  --wlineSep "." --clipLength 10000 --clipNonMinigraph --vcf --giraffe --preserveIDs --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.16xlarge --nodeStorage 1000 --maxNodes 2 --indexCores 64 --betaInertia 0 --targetTime 1  --logFile hprc-${VERSION}-mc-grch38.join.log 
-```
-
-**All sequences clipped out by `cactus-graphmap-join` will be saved in BED files in its output directory.**
-
-### HPRC Graph: Filtering by Allele Frequency
-
-It's a work in progress, but the Giraffe-DeepVariant pipeline performs best when further filtering the graph with an allele frequency filter.  Doing so removes rare variants, by definition, but also many assembly and alignment errors.  It can be done using the `--vgClipOpts` option:
-
-```
-cactus-graphmap-join ${MYJOBSTORE} --vg $(for j in $(for i in `seq 22`; do echo chr$i; done ; echo "chrX chrY chrM chrOther"); do echo ${MYBUCKET}/clip-hprc-${VERSION}-mc-grch38/${j}.vg; done) --outDir ${MYBUCKET} --outName hprc-${VERSION}-mc-grch38-minaf.0.1 --reference GRCh38  --wlineSep "." --vgClipOpts "-d 9 -m 1000" --preserveIDs --giraffe --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.16xlarge --nodeStorage 1000 --maxNodes 2 --indexCores 64  --logFile hprc-${VERSION}-mc-grch38-minaf.0.1.join.log 
-```
-
-Here `--vgClipOpts "-d 9 -m 1000"` will remove all nodes with fewer than 9 paths covering them, filtering out resulting path fragments of fewer than 1kb bases.
-
-Note: Don't use `--vcf` with this command to make an allele-frequency-filtered VCF.  It is much better to filter the VCF constructed in the previous section directly (ex. with `bcftools`).
+**All sequences clipped out by `cactus-graphmap-join` will be saved in a BED file in the ".stats.gz" file in its output directory.**
 
 ### HPRC Graph: Changing the Reference
 
 The selection of the reference genome is very important, as it will be used as the backbone for the graph.  It is the only genome that is guaranteed to not have any cycles nor to ever be clipped, and therefore provides a coordinate system in the graph.  Any input genome can be used as a reference, provided it's consistently passed as the `--reference` option to all the commands.  It also must not have a "." in its genome name.  In practice, there are usually two possible references for the HPRC graphs: GRCh38 and CHM13. 
 
-It is advisable to also pass `--vcfReference GRCh38 --xgReference GRCh38` to `cactus-graphmap-join` to tell it to make a second VCF and xg based on the GRCh38 reference. Likewise if creating a filtered graph with `cactus-graphmap-join --vgClipOpts "-d 9"`, you should instead use `--vgClipOpts "-d 9 -P GRCh38"` to not filter any nodes on the GRCh38 reference paths -- this will make it easier to use this graph (via surjection) to call variants on GRCh38 as well as CHM13. Finally, `--rename "GRCh38>GRCh38.0"` needs to be used (instead of --rename "CHM13v2>CHM13v2.0") in the first call to `cactus-graphmap-join`.
+It is advisable to also pass `--reference CHM13v2 GRCh38 --vcfReference CHM13v2 GRCh38` to `cactus-graphmap-join` to tell it to make a second VCF based on the GRCh38 reference.
 
 Note: some contig names like `chrY` (if it is not included) and options like `--otherContig` will not be necessary for `CHM13`
 
@@ -512,12 +486,6 @@ Softmasked input sequence can (and should) be ignored when computing coverage in
 **cactus-align-batch**
 
 Softmasked input can be ignored (and forced to stay unaligned) with the `--barMaskFilter 100000` option to `cactus-align`, or by including it in the `cactus-align-batch --alignOptions "--barMaskFilter 100000"`
-
-**cactus-graphmap-join**
-
-If the softmasked sequence has been kept unaligned with the various options described, it can be clipped out with the `--clipLength 1000000` option in `cactus-graphmap-join.  To clip based on BED files (ie those from `cactus-preprocess`) use the `--clipBed` option instead.
-
-If the sequences were clipped instead of softmasked in `cactus-preprocess`, the HAL file will contain the chopped up sequences (with their fragment offsets described using suffixes of their names). Most downstream tools (CAT, Assembly Hubs) will not handle these well, so it's best to stitch the paths back together (leaving the clipped-out sequence unaligned).  This can be done via the `--unclipSeqFile` option.  
 
 ### HPRC Version 1.0 Graphs
 
@@ -544,17 +512,22 @@ CHM13 graph command line
  ./cactus-pangenome.sh -j aws:us-west-2:glennhickey-jobstore-hprc4 -s ./hprc-year1-f1g.chmy.fix.HG02080.1.brnn.leaveout.seqfile -m ftp://ftp.dfci.harvard.edu/pub/hli/minigraph/HPRC-f1g/CHM13-f1g-90.gfa.gz  -o s3://vg-k8s/vgamb/wg/cactus/CHM13-f1g-90/aug11 -n CHM13-f1g-90-mc-aug11  -r CHM13 -v GRCh38 -d s3://vg-k8s/vgamb/wg/fasta/hs38d1.decoys.only.vg  -g  -F -C -M 100000 -K 10000 -y  2>> stderr.aug11.chm13.3.log > /dev/null
 ```
 
-## VCF Output
+## Frequently Asked Questions
 
-The VCFs produced by `cactus-graphmap-join --vcf` are "raw" output VCFs from `vg deconstruct`.  As such they are *nested*: the same positions can appear in multiple sites.  The nesting relationship mirrors the snarls in the graph, and is described by these tags
+Q; `cactus-graphmap-join` keeps crashing with a segfault and/or running out of memory.
 
-```
-##INFO=<ID=LV,Number=1,Type=Integer,Description="Level in the snarl tree (0=top level)">
-##INFO=<ID=LV,Number=1,Type=Integer,Description="Level in the snarl tree (0=top level)">
-##INFO=<ID=AT,Number=R,Type=String,Description="Allele Traversal as path in graph">
-```
+A: This is usually because `vg index -j` crashes while computing the distance index for `--giraffe`.  Make sure you did not disable clipping or filtering.  Try to use `--filter N` where `N` is about 10% of your input samples.  If that fails, try on a system with more memory.
 
-For most applications, you will want to "flatten" these VCFs out in order to remove overlaps between different sites.  This can be done with [vcfbub](https://github.com/pangenome/vcfbub).  To further normalize the VCF, you can re-align each alt allele to the reference using [vcfwave](https://github.com/vcflib/vcflib/blob/master/doc/vcfwave.md).
+Q: Why are the node id's different in my GFA and GBZ
 
+A: GBZ construction chops nodes to a maximum length of 1024, which changes their ids.  The GFA and VCF use the original, unchopped IDs.  You can get a mapping between the chopped and unchopped IDs from the GBZ using `vg gbwt --translation`.  This is all really annoying and I wonder if it's not just better to chop everything?
+
+Q: My tools can't read GFA 1.1 and W-lines.
+
+A: As mentioned [above](#output), you can use `vg convert -gfW` to convert from GFA 1.1 to GFA 1.0.
+
+Q: I hate the idea of clipping and filtering sequence from my graph.  Why do I have to do it?!
+
+A: So current toolchains can work with your graphs.  But clipping and filtering is optional in `cactus-graphmap-join`, just specify `full` for the various outputs (keeping in mind that much satellite sequence won't be aligned to anything).
 
 

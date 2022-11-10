@@ -2,7 +2,7 @@
 
 These are some pangenomes created using [Minigraph-Cactus](../pangenome.md), along with all steps used to produce them.
 
-The commits used can be found in the logs in the Output links. Data is provided in HAL, vg, GFA and VCF formats. Please read about [VCF output](../pangenome.md#vcf-output) before using it.  
+The commits used can be found in the logs in the Output links. Data is provided in HAL, vg, GFA and VCF formats. Please read about [VCF output](../pangenome.md#output) before using it.  
 
 Please cite the [Minigraph-Cactus paper](https://doi.org/10.1101/2022.10.06.511217) when using these pangenomes. For the HPRC pangenomes, please also cite the [HPRC Paper](https://doi.org/10.1101/2022.07.09.499321 ).
 
