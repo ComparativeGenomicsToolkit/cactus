@@ -12,7 +12,7 @@ class TestCase(unittest.TestCase):
         self.tempDir = getTempDirectory(os.getcwd())
         unittest.TestCase.setUp(self)
         self.cromwell = False
-        
+
     def tearDown(self):
         unittest.TestCase.tearDown(self)
         if self.cromwell:
@@ -406,7 +406,7 @@ class TestCase(unittest.TestCase):
         paf_path = os.path.join(self.tempDir, 'yeast.paf')
         fa_path = os.path.join(self.tempDir, 'yeast.gfa.fa')        
         subprocess.check_call(['cactus-graphmap', self._job_store(binariesMode), seq_file_path, mg_path, paf_path,
-                               '--outputFasta', fa_path, '--delFilter', '2000000'] + cactus_opts)
+                               '--outputFasta', fa_path, '--delFilter', '2000000'] + cactus_opts + ['--mapCores', '1'])
             
         # split into chromosomes
         chroms = ['chrI', 'chrII', 'chrIII', 'chrIV', 'chrV', 'chrVI', 'chrVII', 'chrVIII', 'chrIX', 'chrX', 'chrXI', 'chrXIV', 'chrXV']
@@ -431,13 +431,9 @@ class TestCase(unittest.TestCase):
 
         # join up the graphs and index for giraffe
         join_path = os.path.join(self.tempDir, 'join')
-        # must specify haploid for everything
-        rename_opts = ['--rename']
-        for event in events:
-            rename_opts += ['{}>{}.0'.format(event, event)]
         subprocess.check_call(['cactus-graphmap-join', self._job_store(binariesMode), '--outDir', join_path, '--outName', 'yeast',
-                               '--reference', 'S288C', '--vg'] +  vg_files + ['--hal'] + hal_files + ['--gfaffix',
-                               '--vcf', '--giraffe'] + rename_opts + cactus_opts + ['--indexCores', '4'])
+                               '--reference', 'S288C', '--vg'] +  vg_files + ['--hal'] + hal_files + 
+                               ['--vcf', '--giraffe', 'clip'] + cactus_opts + ['--indexCores', '4'])
 
     def _check_yeast_pangenome(self, binariesMode):
         """ yeast pangenome chromosome by chromosome pipeline
@@ -471,7 +467,7 @@ class TestCase(unittest.TestCase):
             self.assertGreaterEqual(num_alleles, vcf_allele_threshold)
 
         # make sure we have about the right sequence counts in the hal
-        hal_path = os.path.join(join_path, 'yeast.hal')
+        hal_path = os.path.join(join_path, 'yeast.full.hal')
         for event in events:
             if event != "_MINIGRAPH_":
                 proc = subprocess.Popen('halStats {} --sequenceStats {} | wc -l'.format(hal_path, event), shell=True, stdout=subprocess.PIPE)
@@ -491,7 +487,7 @@ class TestCase(unittest.TestCase):
         self.assertLessEqual(num_bases, 11200000)
 
         # make sure we have the giraffe indexes
-        for giraffe_idx in ['yeast.snarls', 'yeast.gbz', 'yeast.dist', 'yeast.min']:
+        for giraffe_idx in ['yeast.gbz', 'yeast.dist', 'yeast.min']:
             idx_bytes = os.path.getsize(os.path.join(join_path, giraffe_idx))
             self.assertGreaterEqual(idx_bytes, 500000)
 
