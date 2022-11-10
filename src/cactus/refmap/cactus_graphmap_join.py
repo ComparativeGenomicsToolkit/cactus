@@ -178,6 +178,12 @@ def main():
             raise RuntimError('--giraffe cannot be set to clip since clipping is disabled')
         if giraffe == 'filter' and not options.filter:
             raise RuntimeError('--giraffe cannot be set to filter since filtering is disabled')
+
+    # Prevent some useless compute due to default param combos
+    if options.clip and 'clip' not in options.gfa + options.gbz + options.chrom_vg + options.vcf + options.giraffe:
+        options.clip = None
+    if options.filter and 'filter' not in options.gfa + options.gbz + options.chrom_vg + options.vcf + options.giraffe:
+        options.filter = None
         
     # Mess with some toil options to create useful defaults.
     cactus_override_toil_options(options)
@@ -652,13 +658,19 @@ def cat_bed_files(job, bed_ids):
             ofile.write(line)    
     return job.fileStore.writeGlobalFile(renamed_bed_path)
 
-def cat_stats(job, stats_dict_list):
+def cat_stats(job, stats_dict_list, zip_stats=True):
+    work_dir = job.fileStore.getLocalTempDir()
     merged_dict = {}
-    for key in stats_dict_list[0].keys():        
-        merged_dict[key] = job.fileStore.getLocalTempFile()
+    for key in stats_dict_list[0].keys():
+        merged_dict[key] = os.path.join(work_dir, key)
         catFiles([job.fileStore.readGlobalFile(sd[key]) for sd in stats_dict_list], merged_dict[key])
-        merged_dict[key] = job.fileStore.writeGlobalFile(merged_dict[key])
-    return merged_dict
+    if zip_stats:
+        cactus_call(parameters=['tar', 'czf', os.path.join(work_dir, 'stats.tgz')] + list(merged_dict.values()))
+        return { 'stats.tgz': job.fileStore.writeGlobalFile(os.path.join(work_dir, 'stats.tgz')) }
+    else:
+        for key in stats_dict_list[0].keys():
+            merged_dict[key] = job.fileStore.writeGlobalFile(merged_dict[key])
+        return merged_dict
 
 def export_join_data(toil, options, full_ids, clip_ids, clip_stats, filter_ids, idx_maps):
     """ download all the output data
@@ -690,7 +702,7 @@ def export_join_data(toil, options, full_ids, clip_ids, clip_stats, filter_ids, 
                 
     # download the stats files 
     for stats_file in clip_stats.keys():
-        toil.exportFile(clip_stats[stats_file], makeURL(os.path.join(options.outDir, stats_file)))
+        toil.exportFile(clip_stats[stats_file], makeURL(os.path.join(options.outDir, '{}.{}'.format(options.outName, stats_file))))
         
     # download everything else
     for idx_map in idx_maps:
