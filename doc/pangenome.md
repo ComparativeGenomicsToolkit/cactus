@@ -317,6 +317,7 @@ chrXIII, 930506, 16183, 0
 chrXIV, 777615, 17052, 0
 chrXV, 1091343, 23011, 0
 chrXVI, 954457, 19805, 0
+```
 
 ### Yeast: Making a UCSC Genome Browser Assembly Hub
 
