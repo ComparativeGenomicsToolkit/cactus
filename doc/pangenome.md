@@ -77,7 +77,7 @@ ls -hs primates-pg/primates-pg.d2.*
 
 By default, `--giraffe` will produce frequency filtered indexes, with a default minimum coverage of 2 (hence the `.d2`). This means only nodes covered by two haplotypes will appear in the index. This helps `vg giraffe` performance considerably (though a version of Giraffe that no longer needs it is under development). The dataset here is too small for this to be useful.  To index the clipped but unfiltered graph, use `--giraffe clip` or use `--giraffe full` to index the full, unclipped graph. See more detailed explanations below. 
 
-```
+
 ## Introduction
 
 Minigraph-Cactus uses [minigraph](https://github.com/lh3/minigraph) to construct a pangenome graph of structural variation in a set of input assemblies. The assemblies are then mapped back to this graph using minigraph.  These mappings are used as input to [Cactus](../README.md) to construct a new graph that contains variants of all sizes, allowing the input assemblies to be encoded as embedded paths in the graph. The graph is output in  pangenome graph formats such as [vg](https://github.com/vgteam/vg) and [GFA](https://github.com/GFA-spec/GFA-spec), in addition to the usual [HAL](https://github.com/ComparativeGenomicsToolkit/hal).
