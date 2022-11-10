@@ -94,7 +94,7 @@ The input is a two-column `seqFile` mapping sample names to fasta paths (gzipped
 
 
 
-**A naming convention must be followed for sample names**: The "." character is used to specify haplotype, and should be avoided in sample names unless it is being used that way.  For haploid samples, just don't use a ".".  For diploid or poloyploid samples, use the form `SAMPLE.HAPLOTYPE` where `HAPLOTYPE` is either `0` for a haploid sample, or `1` or `2` for a diploid sample etc:
+**A naming convention must be followed for sample names**: The "." character is used to specify haplotype, and should be avoided in sample names unless it is being used that way.  For haploid samples, just don't use a "`.`".  For diploid or polyploid samples, use the form `SAMPLE.HAPLOTYPE` where `HAPLOTYPE` is `1` or `2` for a diploid sample etc:
 
 ```
 # Diploid sample:
@@ -107,7 +107,7 @@ CHM13  ./chm13.fa
 
 ### Pipeline
 
-1) `cactus-minigraph <jobStore> <seqFile> <outputGFA> --reference`: Construct a minigraph in GFA format (may be gzipped) from a set of FASTA files (may also be gzipped).  This is a very thing wrapper over `minigraph -cxggs`.  The reference is added first and the remainder of samples are added in decreasing order of size.  Use the `--mapCores` option to specify the number of cores.
+1) `cactus-minigraph <jobStore> <seqFile> <outputGFA> --reference`: Construct a minigraph in GFA format (may be gzipped) from a set of FASTA files (may also be gzipped).  This is a very thin wrapper over `minigraph -cxggs`.  The reference is added first and the remainder of samples are added in decreasing order of size.  Use the `--mapCores` option to specify the number of cores.
 
 2) `cactus-graphmap <jobStore> <seqFile> <inputGFA> <outputPAF> --reference`: Map each input assembly back to the graph using `minigraph`.  The number of cores for each mapping job can be set with `--mapCores`.  The `--delFilter` option can be used to remove large split mappings (the unfiltered output is returned as well, in addition to a log of what was filtered).  For human data, `--delFilter 10000000` helps remove some spurious bubbles.
 
@@ -119,13 +119,15 @@ CHM13  ./chm13.fa
 
 ### Clipping, Filtering and Indexing
 
-`cactus-graphmap-join` merges chromosome graphs created by `cactus-align-batch`, and also normalizes, clips and filters the graph in addition to producing some useful indexes.  It can produce up to three graphs (now in a single invocation), and a variety of indexes or any combination of them. The three graphs are the
+`cactus-graphmap-join` merges chromosome graphs created by `cactus-align-batch`, and also normalizes, clips and filters the graph in addition to producing some useful indexes.  It can produce up to three graphs (now in a single invocation), and a variety of indexes for any combination of them. The three graphs are the
 
 * `full` graph: This graph is normalized, but no sequence is removed. It and its indexes will have `.full` in their filenames. 
 * `clip` graph: This is the default graph. Stretches of sequence `>10kb` that were not aligned to the underlying SV/minigraph are removed.
 * `filter` graph: This graph is made by removing nodes covered by fewer than 2 haplotypes from the `clip` graph.  It and its indexes will have `.d2` in their filenames.
 
-The different graphs have different uses. For instance, the current version of `vg giraffe` performs best on the filtered graph (this will hopefully be remedied in an update soon).  For the HPRC paper, we used `d9`. When you pass `--giraffe` to `cactus-graphmap-join`, it will make the giraffe indexes on the filtered graph by default.  But you can override this behaviour to produces the indexes for any of the graphs  by passing in any combination of [`full`, `clip` and `filter`] to the `--giraffe` options. For example:
+The `clip` graph is a subgraph of the `full` graph and the `filter` graph is a subgraph of the `clip` graph. Put another way, any node in the `filter` graph exists with the exact same ID and sequence in the `clip` graph, etc. 
+
+The different graphs have different uses. For instance, the current version of `vg giraffe` performs best on the filtered graph (this will hopefully be soon remedied in an update to vg).  For the HPRC v1.0 graph and paper, we used `d9`. When you pass `--giraffe` to `cactus-graphmap-join`, it will make the giraffe indexes on the filtered graph by default.  But you can override this behaviour to produces the indexes for any of the graphs by passing in any combination of [`full`, `clip` and `filter`] to the `--giraffe` options. For example:
 
 `--giraffe`: Make the giraffe indexes for the filtered graph (default choice).
 
@@ -133,7 +135,7 @@ The different graphs have different uses. For instance, the current version of `
 
 `--giraffe clip filter`: Make the giraffe indexes for both the clipped and filtered graph.
 
-The same type of interface applies to all the output specification options: `--vcf`, `--gbz`, `--gfa`, `--giraffe`, `--chrom-vg`. They can all be used without arguments to apply to the default graph (generally the `clip` graph for everything except `--giraffe` which uses the `filter` graph) or with any combination of `full`, `clip` and `filter` to be applied to different graphs.
+The same type of interface applies to all the output specification options: `--vcf`, `--gbz`, `--gfa`, `--giraffe`, `--chrom-vg`. They can all be used without arguments to apply to the default graph (generally the `clip` graph for everything except `--giraffe` which defaults to the `filter` graph), or with any combination of `full`, `clip` and `filter` to be applied to different graphs.
 
 Note that by default, only GFA is output, so the above options need to be used to toggle on any other output types. 
 
@@ -153,6 +155,7 @@ If you want to use the HAL output, `cactus-graphmap-join` can also merge HAL chr
 * `snarls`: The start and end nodes of the bubbles in the graph, as well as their nesting relationships.  Used by some `vg` tools like `call` and `deconstruct`.
 * `dist`: Snarl distance index required for `vg giraffe`.
 * `min`: Minimizer index required for `vg giraffe`.
+* `stats.tgz`: Some stats about how much sequence was clipped, including a BED file of the removed sequence.
 
 ## Yeast Graph
 
@@ -160,7 +163,7 @@ This is a small test case whose input data is included in cactus that illustrate
 
 ### Yeast: Getting Started
 
-Below is an example of creating a yeast pangenome chromosome by chromosome, referenced on S288C.  The genome names are already in SAMPLE.HAPLOTYPE format, and the first steps are identical to above.  
+Below is an example of creating a yeast pangenome chromosome by chromosome, referenced on S288C.  
 
 ```
 # make the seqfile
