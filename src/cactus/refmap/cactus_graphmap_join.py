@@ -64,12 +64,18 @@ def main():
     parser.add_argument("--clip", type=int, default=10000, help = "Generate clipped graph by removing anything longer than this amount that is unaligned to the underlying minigraph. Set to 0 to disable (must also set --filter 0 as well). [default=10000]")
     
     parser.add_argument("--filter", type=int, default=2, help = "Generate a frequency filtered graph (from the clipped graph) by removing any sequence present in fewer than this many sequences. Set to 0 to disable. [default=2]")
+
+    parser.add_argument("--gfa", nargs='*', default=None, help = "Produce a GFA for given graph type(s) if specified. Valid types are 'full', 'clip', and 'filter'. If no type specified 'clip' will be used ('full' used if clipping disabled). Multiple types can be provided separated by a space. [--gfa clip assumed by default]")
     
-    parser.add_argument("--vcf", nargs='*', default=None, help = "Generate a VCF from the given graph type(s). Valid types are 'full', 'clip' and 'filter'. If no type specified, 'clip' will be used. Multipe types can be provided separated by space")
+    parser.add_argument("--gbz", nargs='*', default=None, help = "Generate GBZ/snarls indexes for the given graph type(s) if specified. Valid types are 'full', 'clip' and 'filter'. If no type specified 'clip' will be used ('full' used if clipping disabled). Multiple types can be provided separated by a space. --giraffe will also produce these (and other) indexes")
+
+    parser.add_argument("--chrom-vg", nargs='*', default=None, help = "Produce a directory of chromosomal graphs is vg format for the graph type(s) specified. Valid typs are 'full', 'clip' and 'filter'. If no type specified 'clip' will be used ('full' used if clipping disabled). Multiple types can be provided separated by a space.  The output will be the <outDir>/<outName>.chroms/ directory")
+    
+    parser.add_argument("--vcf", nargs='*', default=None, help = "Generate a VCF from the given graph type(s). Valid types are 'full', 'clip' and 'filter'. If no type specified, 'clip' will be used ('full' used if clipping disabled). Multipe types can be provided separated by space")
     parser.add_argument("--vcfReference", nargs='+', default=None, help = "If multiple references were provided with --reference, this option can be used to specify a subset for vcf creation with --vcf. By default, --vcf will create VCFs for the first reference only")
     parser.add_argument("--vcfbub", type=int, default=100000, help = "Use vcfbub to flatten nested sites (sites with reference alleles > this will be replaced by their children)). Setting to 0 will disable, only prudcing full VCF [default=100000].")
     
-    parser.add_argument("--giraffe", nargs='*', default=None, help = "Generate Giraffe (.dist, .min) indexes for the given graph type(s). Valid types are 'full', 'clip' and 'filter'. If not type specified, 'filter' will be used. Multiple types can be provided seperated by a space")
+    parser.add_argument("--giraffe", nargs='*', default=None, help = "Generate Giraffe (.dist, .min) indexes for the given graph type(s). Valid types are 'full', 'clip' and 'filter'. If not type specified, 'filter' will be used (will fall back to 'clip' than full if filtering, clipping disabled, respectively). Multiple types can be provided seperated by a space")
     parser.add_argument("--indexCores", type=int, default=None, help = "cores for general indexing and VCF constructions (defaults to the same as --maxCores)")
         
     #Progressive Cactus Options
@@ -111,6 +117,39 @@ def main():
     if options.filter and not options.clip:
         raise RuntimeError('--filter cannot be used without also disabling --clip.')
 
+    if not options.gfa:
+        options.gfa = ['clip'] if options.clip else ['full']
+    options.gfa = list(set(options.gfa))
+    for gfa in options.gfa:
+        if gfa not in ['clip', 'filter', 'full']:
+            raise RuntimeError('Unrecognized value for --gfa: {}. Must be one of {clip, filter, full}'.format(gfa))
+        if gfa == 'clip' and not options.clip:
+            raise RuntimError('--gfa cannot be set to clip since clipping is disabled')
+        if gfa == 'filter' and not options.filter:
+            raise RuntimeError('--gfa cannot be set to filter since filtering is disabled')
+
+    if options.gbz == []:
+        options.gbz = ['clip'] if options.clip else ['full']
+    options.gbz = list(set(options.gbz)) if options.gbz else []
+    for gbz in options.gbz:
+        if gbz not in ['clip', 'filter', 'full']:
+            raise RuntimeError('Unrecognized value for --gbz: {}. Must be one of {clip, filter, full}'.format(gbz))
+        if gbz == 'clip' and not options.clip:
+            raise RuntimError('--gbz cannot be set to clip since clipping is disabled')
+        if gbz == 'filter' and not options.filter:
+            raise RuntimeError('--gbz cannot be set to filter since filtering is disabled')
+
+    if options.chrom_vg == []:
+        options.chrom_vg = ['clip'] if options.clip else ['full']
+    options.chrom_vg = list(set(options.chrom_vg)) if options.chrom_vg else []
+    for chrom_vg in options.chrom_vg:
+        if chrom_vg not in ['clip', 'filter', 'full']:
+            raise RuntimeError('Unrecognized value for --chrom-vg: {}. Must be one of {clip, filter, full}'.format(chrom_vg))
+        if chrom_vg == 'clip' and not options.clip:
+            raise RuntimError('--chrom-vg cannot be set to clip since clipping is disabled')
+        if chrom_vg == 'filter' and not options.filter:
+            raise RuntimeError('--chrom-vg cannot be set to filter since filtering is disabled')        
+    
     if options.vcf == []:
         options.vcf = ['clip'] if options.clip else ['full']
     options.vcf = list(set(options.vcf)) if options.vcf else []    
@@ -249,36 +288,32 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
     if options.filter:
         workflow_phases.append(('filter', filter_vg_ids, filter_root_job))        
     for workflow_phase, phase_vg_ids, phase_root_job in workflow_phases:
-        tag = ''
-        if workflow_phase == 'filter':
-            tag = 'd{}.'.format(options.filter)
-        elif workflow_phase == 'full':
-            tag = 'full.'
         
         # make a gfa for each
         gfa_root_job = Job()
         phase_root_job.addFollowOn(gfa_root_job)
         gfa_ids = []
-        for vg_path, vg_id, input_vg_id in zip(options.vg, phase_vg_ids, vg_ids):
-            gfa_job = gfa_root_job.addChildJobFn(vg_to_gfa, options, config, vg_path, vg_id,
-                                                 disk=input_vg_id.size * 5)
-            gfa_ids.append(gfa_job.rv())
+        if workflow_phase in options.gfa + options.gbz + options.vcf + options.giraffe:
+            for vg_path, vg_id, input_vg_id in zip(options.vg, phase_vg_ids, vg_ids):
+                gfa_job = gfa_root_job.addChildJobFn(vg_to_gfa, options, config, vg_path, vg_id,
+                                                     disk=input_vg_id.size * 5)
+                gfa_ids.append(gfa_job.rv())
 
-        # merge up the gfas and make the various vg indexes
-        gfa_merge_job = gfa_root_job.addFollowOnJobFn(make_vg_indexes, options, config, gfa_ids,
-                                                      tag=tag,
-                                                      cores=options.indexCores,
-                                                      disk=sum(f.size for f in vg_ids) * 5)
-        out_dicts.append(gfa_merge_job.rv())
-        prev_job = gfa_merge_job
+            # merge up the gfas and make the various vg indexes
+            gfa_merge_job = gfa_root_job.addFollowOnJobFn(make_vg_indexes, options, config, gfa_ids,
+                                                          tag=workflow_phase + '.',
+                                                          cores=options.indexCores,
+                                                          disk=sum(f.size for f in vg_ids) * 5)
+            out_dicts.append(gfa_merge_job.rv())
+            prev_job = gfa_merge_job
 
         # optional vcf
         if workflow_phase in options.vcf:
             for vcf_ref in options.vcfReference:
-                vcftag = vcf_ref + '.' + tag if vcf_ref != options.reference[0] else tag
+                vcftag = vcf_ref + '.' + workflow_phase if vcf_ref != options.reference[0] else workflow_phase
                 deconstruct_job = prev_job.addFollowOnJobFn(make_vcf, options.outName, vcf_ref, out_dicts[-1],
                                                             max_ref_allele=options.vcfbub,
-                                                            tag=vcftag,
+                                                            tag=vcftag + '.',
                                                             cores=options.indexCores,
                                                             disk = sum(f.size for f in vg_ids) * 2)
                 out_dicts.append(deconstruct_job.rv())
@@ -286,7 +321,7 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
         # optional giraffe
         if workflow_phase in options.giraffe:
             giraffe_job = gfa_merge_job.addFollowOnJobFn(make_giraffe_indexes, options, out_dicts[-1],
-                                                         tag=tag,
+                                                         tag=workflow_phase + '.',
                                                          cores=options.indexCores,
                                                          disk = sum(f.size for f in vg_ids) * 4)
             out_dicts.append(giraffe_job.rv())
@@ -502,8 +537,8 @@ def make_vcf(job, out_name, vcf_ref, index_dict, tag='', max_ref_allele=None):
     work_dir = job.fileStore.getLocalTempDir()
     gbz_path = os.path.join(work_dir, tag + os.path.basename(out_name) + '.gbz')
     snarls_path = os.path.join(work_dir, tag + os.path.basename(out_name) + '.snarls')
-    job.fileStore.readGlobalFile(index_dict['gbz'], gbz_path)
-    job.fileStore.readGlobalFile(index_dict['snarls'], snarls_path)
+    job.fileStore.readGlobalFile(index_dict['{}gbz'.format(tag)], gbz_path)
+    job.fileStore.readGlobalFile(index_dict['{}snarls'.format(tag)], snarls_path)
 
     # make the vcf
     vcf_path = os.path.join(work_dir, '{}merged.vcf.gz'.format(tag))
@@ -630,32 +665,50 @@ def export_join_data(toil, options, full_ids, clip_ids, clip_stats, filter_ids, 
     """
 
     # make a directory for the chromosomal vgs
-    clip_base = os.path.join(options.outDir, '{}.chroms'.format(options.outName))
-    if not clip_base.startswith('s3://') and not os.path.isdir(clip_base):
-        os.makedirs(clip_base)
+    if options.chrom_vg:
+        clip_base = os.path.join(options.outDir, '{}.chroms'.format(options.outName))
+        if not clip_base.startswith('s3://') and not os.path.isdir(clip_base):
+            os.makedirs(clip_base)
 
-    # download the "full" vgs
-    for vg_path, full_id,  in zip(options.vg, full_ids):
-        name = os.path.splitext(vg_path)[0] + '.full.vg'
-        toil.exportFile(full_id, makeURL(os.path.join(clip_base, os.path.basename(name))))
+        if 'full' in options.chrom_vg:
+            # download the "full" vgs
+            for vg_path, full_id,  in zip(options.vg, full_ids):
+                name = os.path.splitext(vg_path)[0] + '.full.vg'
+                toil.exportFile(full_id, makeURL(os.path.join(clip_base, os.path.basename(name))))
 
-    # download the "clip" vgs
-    for vg_path, clip_id,  in zip(options.vg, clip_ids):
-        name = os.path.splitext(vg_path)[0] + '.vg'
-        toil.exportFile(clip_id, makeURL(os.path.join(clip_base, os.path.basename(name))))
+        if 'clip' in options.chrom_vg:
+            # download the "clip" vgs
+            for vg_path, clip_id,  in zip(options.vg, clip_ids):
+                name = os.path.splitext(vg_path)[0] + '.vg'
+                toil.exportFile(clip_id, makeURL(os.path.join(clip_base, os.path.basename(name))))
 
-    # download the "filter" vgs
-    for vg_path, filter_id,  in zip(options.vg, filter_ids):
-        name = os.path.splitext(vg_path)[0] + '.d{}.vg'.format(options.filter)
-        toil.exportFile(filter_id, makeURL(os.path.join(clip_base, os.path.basename(name))))
+        if 'filter' in options.chrom_vg:
+            # download the "filter" vgs
+            for vg_path, filter_id,  in zip(options.vg, filter_ids):
+                name = os.path.splitext(vg_path)[0] + '.d{}.vg'.format(options.filter)
+                toil.exportFile(filter_id, makeURL(os.path.join(clip_base, os.path.basename(name))))
+                
     # download the stats files 
     for stats_file in clip_stats.keys():
-        toil.exportFile(clip_stats[stats_file], makeURL(os.path.join(clip_base, stats_file)))
+        toil.exportFile(clip_stats[stats_file], makeURL(os.path.join(options.outDir, stats_file)))
         
     # download everything else
     for idx_map in idx_maps:
         for ext, idx_id in idx_map.items():
-            toil.exportFile(idx_id, makeURL(os.path.join(options.outDir, '{}.{}'.format(options.outName, ext))))
+            # hacky filtering of intermediate indexes that the user doesn't want
+            # ex if someone did --vcf clip --gfa full this would filter out clip.gfa etc.
+            is_intermediate = False
+            for out_ext, out_sel in [('gfa', options.gfa), ('gbz', options.gbz + options.giraffe), ('snarls', options.gbz)]:
+                for phase in ['full', 'clip', 'filter']:
+                    if '{}.{}'.format(phase, out_ext) in ext and phase not in out_sel:
+                        is_intermediate = True
+            if not is_intermediate:
+                out_ext = ext
+                if 'clip.' in out_ext:
+                    out_ext = out_ext.replace('clip.', '')
+                if 'filter.' in out_ext:
+                    out_ext = out_ext.replace('filter.', 'd{}.'.format(options.filter))
+                toil.exportFile(idx_id, makeURL(os.path.join(options.outDir, '{}.{}'.format(options.outName, out_ext))))
         
 if __name__ == "__main__":
     main()
