@@ -94,7 +94,7 @@ The input is a two-column `seqFile` mapping sample names to fasta paths (gzipped
 
 
 
-**A naming convention must be followed for sample names**: The "." character is used to specify haplotype, and should be avoided in sample names unless it is being used that way.  For haploid samples, just don't use a ".".  For diploid or poloyploid samples, use the form `SAMPLE.HAPLOTYPE`. where `HAPLOTYPE` is either `0` for a haploid sample, or `1` or `2` for a diploid sample etc:
+**A naming convention must be followed for sample names**: The "." character is used to specify haplotype, and should be avoided in sample names unless it is being used that way.  For haploid samples, just don't use a ".".  For diploid or poloyploid samples, use the form `SAMPLE.HAPLOTYPE` where `HAPLOTYPE` is either `0` for a haploid sample, or `1` or `2` for a diploid sample etc:
 
 ```
 # Diploid sample:
@@ -119,13 +119,13 @@ CHM13  ./chm13.fa
 
 ### Clipping, Filtering and Indexing
 
-`cactus-graphmap-join` merges chromosome graphs created by `cactus-align-batch`, and also normalizes, clips and filters the graph in addition to producing some useful indexes.  It can produce up two three graphs (now in a single invocation), and a variety of indexes on any combination of them. The three graphs are the
+`cactus-graphmap-join` merges chromosome graphs created by `cactus-align-batch`, and also normalizes, clips and filters the graph in addition to producing some useful indexes.  It can produce up to three graphs (now in a single invocation), and a variety of indexes or any combination of them. The three graphs are the
 
 * `full` graph: This graph is normalized, but no sequence is removed. It and its indexes will have `.full` in their filenames. 
 * `clip` graph: This is the default graph. Stretches of sequence `>10kb` that were not aligned to the underlying SV/minigraph are removed.
 * `filter` graph: This graph is made by removing nodes covered by fewer than 2 haplotypes from the `clip` graph.  It and its indexes will have `.d2` in their filenames.
 
-The different graphs have different uses. For instance, the current version of `vg giraffe` performs best on the filtered graph (this will hopefully be remedied in an update soon).  For the HPRC paper, we used `d9`. When you pass `--giraffe` to `cactus-graphmap-join`, it will make the giraffe indexes on the filtered graph by default.  But you can override this behaviour to produces the indexes for any of the graphs though by passing in any combination of [`full`, `clip` and `filter`] to the `--giraffe` options. For example:
+The different graphs have different uses. For instance, the current version of `vg giraffe` performs best on the filtered graph (this will hopefully be remedied in an update soon).  For the HPRC paper, we used `d9`. When you pass `--giraffe` to `cactus-graphmap-join`, it will make the giraffe indexes on the filtered graph by default.  But you can override this behaviour to produces the indexes for any of the graphs  by passing in any combination of [`full`, `clip` and `filter`] to the `--giraffe` options. For example:
 
 `--giraffe`: Make the giraffe indexes for the filtered graph (default choice).
 
@@ -146,7 +146,7 @@ If you want to use the HAL output, `cactus-graphmap-join` can also merge HAL chr
 ### Output
 
 * `hal`: Cactus's [native alignment format](./progressive.md#using-the-hal-output) can be used to convert to MAF, build assembly hubs, run liftover and comparative annotation.
-* `gfa`: A [standard text-based graph format](https://github.com/GFA-spec/GFA-spec/blob/master/GFA1.md). Minigraph-Cactus uses GFA 1.1 as it represents haplotypes as [Walks][https://github.com/GFA-spec/GFA-spec/blob/master/GFA1.md#w-walk-line-since-v11). You can use `vg convert -gfW` to convert from GFA 1.1 to 1.0 and `vg convert -gf` to convert from 1.0 to 1.1.
+* `gfa`: A [standard text-based graph format](https://github.com/GFA-spec/GFA-spec/blob/master/GFA1.md). Minigraph-Cactus uses GFA 1.1 as it represents haplotypes as [Walks](https://github.com/GFA-spec/GFA-spec/blob/master/GFA1.md#w-walk-line-since-v11). You can use `vg convert -gfW` to convert from GFA 1.1 to 1.0 and `vg convert -gf` to convert from 1.0 to 1.1.
 * `vcf`: A [standard text-based format](https://en.wikipedia.org/wiki/Variant_Call_Format) that represents a pangenome graph as sites of variation along a reference. VCFs exported from the graph are nested, and by default `vcfbub` is used to flatten them.
 * `vg`: [vg](https://github.com/vgteam/vg)'s native packed-graph format, can be read and written by vg but does not scale well with the number of paths.
 * `gbz`: A read-only [format that scales extremely efficiently with the number of paths](https://github.com/jltsiren/gbwtgraph/blob/master/SERIALIZATION.md). Readable by `vg` tools and required for `giraffe`.
