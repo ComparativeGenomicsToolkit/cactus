@@ -37,6 +37,9 @@ RUN cd /home/cactus/bin && for i in wigToBigWig faToTwoBit bedToBigBed bigBedToB
 # download tools used for pangenome pipeline
 RUN cd /home/cactus && ./build-tools/downloadPangenomeTools
 
+# download tools used for working with MAF
+RUN cd /home/cactus && ./build-tools/downloadMafTools
+
 # remove test executables
 RUN cd /home/cactus && rm -f ${binPackageDir}/bin/*test ${binPackageDir}/bin/*tests ${binPackageDir}/bin/*Test ${binPackageDir}/bin/*Tests
 

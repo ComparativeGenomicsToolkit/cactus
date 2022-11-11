@@ -28,7 +28,6 @@ test-job:
     - CACTUS_BINARIES_MODE=local SON_TRACE_DATASETS=$(pwd)/cactusTestData CACTUS_TEST_CHOICE=normal make test
     - make -j 8 hal_test
     - export CGL_DEBUG=ultra
-    - make taf_test
     - unset CGL_DEBUG
     - make clean
     - make docker
@@ -36,6 +35,7 @@ test-job:
     - docker login --username $QUAY_USERNAME --password $QUAY_PASSWORD quay.io
     - make push_only
     - numcpu=8 build-tools/downloadPangenomeTools
+    - numcpu=8 build-tools/downloadMafTools	 
     - python3.8 -m pip install -U .	 
     - make -j 8 evolver_test
   artifacts:
