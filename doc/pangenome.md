@@ -143,7 +143,9 @@ Different clipping and filtering thresholds can be specified using the `--clip` 
 
 The `--vcf` option will produce two VCFs for each selected graph type. One VCF is a "raw" VCF which contains nested variants, indicated by the `LV` and `PS` tags. The second VCF is one that has gone through [vcfbub](https://github.com/pangenome/vcfbub) to remove nested sites, as well as those greater than 100kb.  Unless you want to explicitly handle nested variants, you are probably best to use the `vcfbub` VCF.  Switch off `vcfbub` with `--vcfbub 0` or specify a different threshold with `--vcfbub N`.
 
-If you want to use the HAL output, `cactus-graphmap-join` can also merge HAL chromosomes from `cactus-align-batch` with the `--hal` option.  These will never be filtered or otherwise processed. 
+If you want to use the HAL output, `cactus-graphmap-join` can also merge HAL chromosomes from `cactus-align-batch` with the `--hal` option.  These will never be filtered or otherwise processed.
+
+When merging hal files with `--hal`, it is best to set `--indexCores` such that one core is free for hal merging.  So on a 32-core system, use `--indexCores 31`.  This way the slower indexing jobs can be done in parallel with the also slow hal merging (which itself is single-core).
 
 ### Output
 
@@ -455,7 +457,8 @@ cactus-align-batch ${MYJOBSTORE} ./chromfile.txt ${MYBUCKET}/align-hprc-${VERSIO
 
 Important:
 * we use `--filter 9` and `--giraffe` to make giraffe indexes on the subgraph covered by at least 9/90 haplotypes (filter does not apply to the reference).
-* we use `--reference GRCh38 CHM13v2` to specify an additional reference. In this case `CHM13v2` will still be clipped (but not filtered), and it will be treated as a reference path in vg (and therefore easier to query).  You can add `--vcfReference GRCh38 CHM13v2` to make a VCF based on CHM13 too. 
+* we use `--reference GRCh38 CHM13v2` to specify an additional reference. In this case `CHM13v2` will still be clipped (but not filtered), and it will be treated as a reference path in vg (and therefore easier to query).  You can add `--vcfReference GRCh38 CHM13v2` to make a VCF based on CHM13 too.
+* we use `--indexCores 63` to allow indexing and hal merging to be done in parallel, which can save quite a bit of time. 
 
 ```
 cactus-graphmap-join ${MYJOBSTORE} --vg $(for j in $(for i in `seq 22`; do echo chr$i; done ; echo "chrX chrY chrM chrOther"); do echo ${MYBUCKET}/align-hprc-${VERSION}-mc-grch38/${j}.vg; done) --hal $(for j in $(for i in `seq 22`; do echo chr$i; done ; echo "chrX chrY chrM chrOther"); do echo ${MYBUCKET}/align-hprc-${VERSION}-mc-grch38/${j}.hal; done) --outDir ${MYBUCKET}/ --outName hprc-${VERSION}-mc-grch38 --reference GRCh38 --filter 9 --giraffe --vcf --gbz --gfa --vg-chroms --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.16xlarge --nodeStorage 1000 --maxNodes 1 --indexCores 63  --logFile hprc-${VERSION}-mc-grch38.join.log 
