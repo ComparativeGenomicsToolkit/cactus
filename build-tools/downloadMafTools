@@ -30,7 +30,7 @@ cd taf
 git checkout f95fe49b9abbd75cfed4b87aa95f81289052ecd6
 HALDIR=${CWD}/submodules/hal make
 # make sure taf tests remain triggered in CI
-HALDIR=${CWD}/submodules/hal make test
+make test
 for tt in `ls bin/taf* bin/maf*`; do
 	 if [[ $STATIC_CHECK -ne 1 || $(ldd ${tt} | grep so | wc -l) -eq 0 ]]
 	 then
