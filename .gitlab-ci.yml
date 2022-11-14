@@ -35,7 +35,9 @@ test-job:
     # todo: should we check some kind of gitlab state before doing this?  I think current logic pushes every run....
     - docker login --username $QUAY_USERNAME --password $QUAY_PASSWORD quay.io
     - make push_only
+    - make -j 8	 
     - numcpu=8 build-tools/downloadPangenomeTools
+    - numcpu=8 build-tools/downloadMafTools	 
     - python3.8 -m pip install -U .	 
     - make -j 8 evolver_test
   artifacts:

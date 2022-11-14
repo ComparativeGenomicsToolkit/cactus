@@ -96,6 +96,9 @@ then
 	 build-tools/downloadPangenomeTools 1
 fi
 
+# download tools for working with MAF
+build-tools/downloadMafTools 1
+
 binPackageDir=cactus-bin-${REL_TAG}
 rm -rf ${binPackageDir}
 mkdir ${binPackageDir}

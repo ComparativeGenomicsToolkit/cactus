@@ -1,0 +1,49 @@
+#!/bin/bash
+# Download and statically build tools needed for MAF processing
+
+# set this to one to make sure everything gets built statically (necessary for binary release)
+STATIC_CHECK=$1
+
+set -beEu -o pipefail
+
+mafBuildDir=$(realpath -m build-maf-tools)
+binDir=$(pwd)/bin
+# just use cactusRootPath for now
+dataDir=$(pwd)/src/cactus
+CWD=$(pwd)
+# works on MacOS and Linux
+if [ -z ${numcpu+x} ]; then
+	 numcpu=$(getconf _NPROCESSORS_ONLN)
+fi
+
+set -x
+rm -rf ${mafBuildDir}
+mkdir -p ${mafBuildDir}
+mkdir -p ${binDir}
+
+# mafTools
+cd ${mafBuildDir}
+git clone https://github.com/ComparativeGenomicsToolkit/mafTools.git
+cd mafTools
+git checkout 40cfa5b503a34b8b0b7799678237e2f13ae8bf36
+find . -name "*.mk" | xargs sed -ie "s/-Werror//g"
+find . -name "Makefile*" | xargs sed -ie "s/-Werror//g"
+# hack in flags support
+sed -i inc/common.mk -e 's/cflags =/cflags = ${CFLAGS}/g'
+# and sonLib path
+sed -i inc/common.mk -e "s#sonLibPath = .*#sonLibPath = ${CWD}/submodules/sonLib/lib#g"
+make
+for mt in `ls bin/maf*`; do
+	 if [[ $STATIC_CHECK -ne 1 || $(ldd ${mt} | grep so | wc -l) -eq 0 ]]
+	 then
+		  mv ${mt} ${binDir}
+	 else
+		  exit 1
+	 fi
+done
+
+
+cd ${CWD}
+rm -rf ${mafBuildDir}
+
+set +x

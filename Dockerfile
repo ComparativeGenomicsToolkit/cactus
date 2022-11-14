@@ -1,7 +1,7 @@
 FROM quay.io/comparative-genomics-toolkit/ubuntu:22.04 AS builder
 
 # apt dependencies for build
-RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y build-essential git python3 python3-dev python3-pip zlib1g-dev wget libbz2-dev pkg-config libhdf5-dev liblzo2-dev libtokyocabinet-dev wget liblzma-dev libxml2-dev libssl-dev libpng-dev uuid-dev libcurl4-gnutls-dev libffi-dev python3-virtualenv rsync
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y build-essential git python3 python3-dev python3-pip zlib1g-dev wget libbz2-dev pkg-config libhdf5-dev liblzo2-dev libtokyocabinet-dev wget liblzma-dev libxml2-dev libssl-dev libpng-dev uuid-dev libcurl4-gnutls-dev libffi-dev python3-virtualenv rsync python-is-python3
 
 # build cactus binaries
 RUN mkdir -p /home/cactus
@@ -36,6 +36,9 @@ RUN cd /home/cactus/bin && for i in wigToBigWig faToTwoBit bedToBigBed bigBedToB
 
 # download tools used for pangenome pipeline
 RUN cd /home/cactus && ./build-tools/downloadPangenomeTools
+
+# download tools used for working with MAF
+RUN cd /home/cactus && ./build-tools/downloadMafTools
 
 # remove test executables
 RUN cd /home/cactus && rm -f ${binPackageDir}/bin/*test ${binPackageDir}/bin/*tests ${binPackageDir}/bin/*Test ${binPackageDir}/bin/*Tests
