@@ -72,6 +72,12 @@ def cactus_override_toil_options(options):
         # instead of Toil's default (1).
         options.retryCount = 5
 
+    if options.batchSystem.lower() in ['slurm', 'lsf', 'torque']:
+        # disable caching for cluster style batch systems as it seems to
+        # lead to weird toil errors?
+        # https://github.com/DataBiosphere/toil/issues/4218
+        options.disableCaching = True
+    
     if not options.realTimeLogging:
         # Too much valuable debugging information to pass up
         logger.info('Enabling realtime logging in Toil')
