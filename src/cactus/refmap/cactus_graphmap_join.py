@@ -328,7 +328,7 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
 
         # optional giraffe
         if workflow_phase in options.giraffe:
-            giraffe_job = gfa_merge_job.addFollowOnJobFn(make_giraffe_indexes, options, current_out_dict,
+            giraffe_job = gfa_merge_job.addFollowOnJobFn(make_giraffe_indexes, options, config, current_out_dict,
                                                          tag=workflow_phase + '.',
                                                          cores=options.indexCores,
                                                          disk = sum(f.size for f in vg_ids) * 4)
@@ -570,22 +570,20 @@ def make_vcf(job, out_name, vcf_ref, index_dict, tag='', max_ref_allele=None):
 
     return output_dict
     
-def make_giraffe_indexes(job, options, index_dict, tag=''):
+def make_giraffe_indexes(job, options, config, index_dict, tag=''):
     """ make giraffe-specific indexes: distance and minimaer """
     work_dir = job.fileStore.getLocalTempDir()
     gbz_path = os.path.join(work_dir, tag + os.path.basename(options.outName) + '.gbz')
-    snarls_path = os.path.join(work_dir, tag + os.path.basename(options.outName) + '.snarls')
     job.fileStore.readGlobalFile(index_dict['{}gbz'.format(tag)], gbz_path)
-    job.fileStore.readGlobalFile(index_dict['{}snarls'.format(tag)], snarls_path)
 
     # make the distance index
     dist_path = os.path.join(work_dir, tag + os.path.basename(options.outName) + '.dist')
-    cactus_call(parameters=['vg', 'index', '-t', str(job.cores), '-j', dist_path, '-s', snarls_path, gbz_path])
+    cactus_call(parameters=['vg', 'index', '-t', str(job.cores), '-j', dist_path, '-s', gbz_path])
 
     # make the minimizer index
     min_path = os.path.join(work_dir, os.path.basename(options.outName) + '.min')
-    cactus_call(parameters=['vg', 'minimizer', '-k', '29', '-w', '11', '-t', str(job.cores),
-                            '-d', dist_path, '-o', min_path, gbz_path])                            
+    min_opts = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "minimizerOptions", default='').split()
+    cactus_call(parameters=['vg', 'minimizer'] + min_opts + ['-t', str(job.cores), '-d', dist_path, '-o', min_path, gbz_path])
                             
     return { '{}min'.format(tag) : job.fileStore.writeGlobalFile(min_path),
              '{}dist'.format(tag) : job.fileStore.writeGlobalFile(dist_path) }
