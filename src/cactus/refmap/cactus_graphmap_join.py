@@ -578,7 +578,7 @@ def make_giraffe_indexes(job, options, config, index_dict, tag=''):
 
     # make the distance index
     dist_path = os.path.join(work_dir, tag + os.path.basename(options.outName) + '.dist')
-    cactus_call(parameters=['vg', 'index', '-t', str(job.cores), '-j', dist_path, '-s', gbz_path])
+    cactus_call(parameters=['vg', 'index', '-t', str(job.cores), '-j', dist_path, gbz_path])
 
     # make the minimizer index
     min_path = os.path.join(work_dir, os.path.basename(options.outName) + '.min')
