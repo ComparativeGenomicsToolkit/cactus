@@ -367,38 +367,45 @@ def clip_vg(job, options, config, vg_path, vg_id, phase):
         cactus_call(parameters=['sed', '-i', gfa_out_path, '-e', '1s/.*/{}/'.format(gfa_header)])
         # Come back from gfa to vg
         conv_cmd = [['vg', 'convert', '-g', '-p', gfa_out_path]]
-        if options.reference:
-            # GFAFfix can leave uncovered nodes with --dont_collapse.  We filter out here so they dont cause trouble later
-            conv_cmd.append(['vg', 'clip', '-d', '1', '-P', options.reference[0], '-'])
         # GFAFfix doesn't unchop, so we do that in vg after
         conv_cmd.append(['vg', 'mod', '-u', '-'])
         cactus_call(parameters=conv_cmd, outfile=normalized_path)        
         vg_path = normalized_path
 
     # run clip-vg no matter what, but we don't actually remove anything in full
-    cmd = ['clip-vg', vg_path, '-f']
+    cmd = []
+    clip_vg_cmd = ['clip-vg', vg_path, '-f']
 
     # don't clip the (first) reference, also enforces it's in forward orientation (for rGFA)
-    cmd += ['-e', options.reference[0]]
+    clip_vg_cmd += ['-e', options.reference[0]]
 
-    if getOptionalAttrib(findRequiredNode(config.xmlRoot, "hal2vg"), "includeMinigraph", typeFn=bool, default=False):
-        # our vg file has minigraph sequences -- we'll filter them out, along with any nodes
-        # that don't appear in a non-minigraph path
-        cmd += ['-d', graph_event]
-        if phase == 'full':
-            # but... we'll leave the minigraph path fragments that are aligned to anything else in the vg's
-            cmd += ['-L']
+    # our vg file has minigraph sequences -- we'll filter them out, along with any nodes
+    # that don't appear in a non-minigraph path
+    clip_vg_cmd += ['-d', graph_event]
+    if phase == 'full':
+        # but... in the full graph we'll leave the minigraph path fragments that are aligned to anything else in the vg's
+        # since we'll need them to run the actual clipping
+        clip_vg_cmd += ['-L']
 
     if phase == 'clip':
         if options.clip:
-            cmd += ['-u', str(options.clip)]
+            clip_vg_cmd += ['-u', str(options.clip)]
             if getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "clipNonMinigraph", typeFn=bool, default=True):
-                cmd += ['-a', graph_event]
-            cmd += ['-o', clipped_bed_path]
+                clip_vg_cmd += ['-a', graph_event]
+            clip_vg_cmd += ['-o', clipped_bed_path]
+
+    cmd.append(clip_vg_cmd)
+    if options.reference:
+        # GFAFfix can leave uncovered nodes with --dont_collapse.  We filter out here so they dont cause trouble later
+        # Also: any kind of clipping or path dropping can leave uncovered edges, so we remove them with vg clip        
+        clip_cmd = ['vg', 'clip', '-d', '1', '-']
+        for ref in options.reference:
+            clip_cmd += ['-P', ref]
+        cmd.append(clip_cmd)
 
     # and we sort by id on the first go-around
     if phase == 'full':
-        cmd = [cmd, ['vg', 'ids', '-s', '-']]
+        cmd.append(['vg', 'ids', '-s', '-'])
         
     cactus_call(parameters=cmd, outfile=clipped_path)
 
@@ -493,16 +500,9 @@ def vg_to_gfa(job, options, config, vg_path, vg_id):
     job.fileStore.readGlobalFile(vg_id, vg_path)
     out_path = vg_path + '.gfa'
 
-    # we also remove minigraph here
-    graph_event = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "assemblyName", default="_MINIGRAPH_")
-
-    drop_mini_cmd = ['vg', 'paths', '-v', vg_path, '-d', '-Q', graph_event]
-    clip_cmd = ['vg', 'clip', '-', '-d', '1']
-    for ref in options.reference:
-        clip_cmd += ['-P', ref]
-    gfa_cmd = ['vg', 'convert', '-', '-f', '-Q', options.reference[0], os.path.basename(vg_path), '-B']
-
-    cactus_call(parameters=[drop_mini_cmd, clip_cmd, gfa_cmd], outfile=out_path, work_dir=work_dir)
+    cmd = ['vg', 'convert', '-f', '-Q', options.reference[0], os.path.basename(vg_path), '-B']
+    
+    cactus_call(parameters=cmd, outfile=out_path, work_dir=work_dir)
 
     return job.fileStore.writeGlobalFile(out_path)
 
@@ -513,17 +513,18 @@ def make_vg_indexes(job, options, config, gfa_ids, tag=''):
     vg_paths = []
     merge_gfa_path = os.path.join(work_dir, '{}merged.gfa'.format(tag))
 
+    graph_event = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "assemblyName", default="_MINIGRAPH_")
+    
     # merge the gfas
     for i, (vg_path, gfa_id) in enumerate(zip(options.vg, gfa_ids)):
         gfa_path = os.path.join(work_dir, os.path.basename(vg_path) +  '.gfa')
         job.fileStore.readGlobalFile(gfa_id, gfa_path, mutable=True)
-        if i == 0: 
-            # add in the additional references here
-            # todo: this seems hacky!! also, maybe some path-local information needs changing?
-            # if so, will need a new tool (or perhaps interface on vg paths to promote any path to reference?)
-            cmd = ['sed', '-e', '1s/{}/{}/'.format(options.reference[0], ' '.join(options.reference)), gfa_path],
-        else:
-            cmd = ['grep', '-v', '^H', gfa_path]
+        cmd = ['grep', '-v', '{}^W     {}'.format('^H\|' if i else '', graph_event), gfa_path]
+        # add in the additional references here
+        if i == 0 and len(options.reference) > 1:
+            # if so, will need a new tool (or perhaps interface on vg paths?)
+            cmd = [cmd, ['sed', '-e', '1s/{}/{}/'.format(options.reference[0], ' '.join(options.reference)),
+                         '-e', '1s/{}//'.format(graph_event)]]
         cactus_call(parameters=cmd, outfile=merge_gfa_path, outappend=True)
         job.fileStore.deleteGlobalFile(gfa_id)
 
