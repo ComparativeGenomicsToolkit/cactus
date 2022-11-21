@@ -109,7 +109,7 @@ CHM13  ./chm13.fa
 
 1) `cactus-minigraph <jobStore> <seqFile> <outputGFA> --reference`: Construct a minigraph in GFA format (may be gzipped) from a set of FASTA files (may also be gzipped).  This is a very thin wrapper over `minigraph -cxggs`.  The reference is added first and the remainder of samples are added in decreasing order of size.  Use the `--mapCores` option to specify the number of cores.
 
-2) `cactus-graphmap <jobStore> <seqFile> <inputGFA> <outputPAF> --reference`: Map each input assembly back to the graph using `minigraph`.  The number of cores for each mapping job can be set with `--mapCores`.  The `--delFilter` option can be used to remove large split mappings (the unfiltered output is returned as well, in addition to a log of what was filtered).  For human data, `--delFilter 10000000` helps remove some spurious bubbles.
+2) `cactus-graphmap <jobStore> <seqFile> <inputGFA> <outputPAF> --reference`: Map each input assembly back to the graph using `minigraph`.  The number of cores for each mapping job can be set with `--mapCores`.  
 
 3) **(Optional)** `cactus-graphmap-split <jobStore> <seqFile> <inputGFA> <inputPAF> --reference --outDir`: Split the input assemblies and PAF into chromosomes using the rGFA tags in the GFA. Doing so reduces the memory requirements in the following steps.  It assigns each contig to a single chromosome according to the alignment in the input PAF, so all inter-chromosomal events will be filtered out.  Contigs that can't be assigned to a chromosome are deemed "ambiguous" and not considered in later steps.
 
@@ -422,7 +422,7 @@ Note: since there is already a minigraph available for this data, we just use it
 
 Now that the sequences are ready, we run `cactus-graphmap` as before.  There is a new option:
 
-`--delFilter N` : Filter out mappings that would induce a deletion bubble of `>N` bases w.r.t. a path in the reference.  If this option is used, the unfiltered paf will also be output (with a `.unfiltered` suffix) as well as a log detailing what was filtered and why (`.filter.log` suffix).  This option is very important as minigraph will produce a small number of split-mappings that can cause chromosome-scale bubbles.
+`--delFilter N` : Filter out mappings that would induce a deletion bubble of `>N` bases w.r.t. a path in the reference.  If this option is used, the unfiltered paf will also be output (with a `.unfiltered` suffix) as well as a log detailing what was filtered and why (`.filter.log` suffix).  This option is very important as minigraph will produce a small number of split-mappings that can cause chromosome-scale bubbles.  By default, it is set to 1000000.
 
 ```
 cactus-graphmap ${MYJOBSTORE} hprc-${VERSION}-mc.pp.seqfile ${MINIGRAPH} ${MYBUCKET}/hprc-${VERSION}-mc-grch38.paf --outputGAFDir ${MYBUCKET}/gaf-hprc-${VERSION}-mc-grch38 --outputFasta ${MYBUCKET}/fasta/minigraph.grch38.sv.gfa.fa.gz --reference GRCh38 --mapCores 16 --delFilter 10000000  --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.8xlarge:1.5 --nodeStorage 650 --maxNodes 25 --betaInertia 0 --targetTime 1  --logFile hprc-${VERSION}-mc-grch38.paf.log

@@ -46,7 +46,7 @@ def main():
     parser.add_argument("outputPAF", type=str, help = "Output pairwise alignment file in PAF format")
     parser.add_argument("--outputFasta", type=str, help = "Output graph sequence file in FASTA format (required if not present in seqFile)")
     parser.add_argument("--maskFilter", type=int, help = "Ignore softmasked sequence intervals > Nbp (overrides config option of same name)")
-    parser.add_argument("--delFilter", type=int, help = "Filter out split-mapping-implied deletions > Nbp")
+    parser.add_argument("--delFilter", type=int, help = "Filter out split-mapping-implied deletions > Nbp (default will be \"delFilter\" from the config")
     parser.add_argument("--outputGAFDir", type=str, help = "Output GAF alignments (raw minigraph output before PAF conversion) to this directory")
     parser.add_argument("--reference", type=str, help = "Reference genome name.  MAPQ filter will not be applied to it")
     parser.add_argument("--refFromGFA", action="store_true", help = "Do not align reference (--reference) from seqfile, and instead extract its alignment from the rGFA tags (must have been used as reference for minigraph GFA construction)")
@@ -253,7 +253,9 @@ def minigraph_workflow(job, options, config, seq_id_map, gfa_id, graph_event):
     del_filter = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "delFilter", int, default=-1)
     if del_filter > 0:
         del_filter_threshold = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "delFilterThreshold", float, default=None)
+        del_size_threshold = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "delFilterQuerySizeThreshold", float, default=None)
         del_filter_job = prev_job.addFollowOnJobFn(filter_paf_deletions, out_paf_id, gfa_id, del_filter, del_filter_threshold,
+                                                   del_query_size_threshold,
                                                    disk=gfa_id_size, cores=mg_cores)
         unfiltered_paf_id = prev_job.addFollowOnJobFn(zip_gz, 'mg.paf.unfiltered', out_paf_id, disk=gfa_id_size).rv()
         out_paf_id = del_filter_job.rv(0)
@@ -454,7 +456,7 @@ def filter_paf(job, paf_id, config):
 
     return job.fileStore.writeGlobalFile(filter_paf_path)    
 
-def filter_paf_deletions(job, paf_id, gfa_id, max_deletion, filter_threshold):
+def filter_paf_deletions(job, paf_id, gfa_id, max_deletion, filter_threshold, filter_query_size_threshold):
     """ run filter-paf-deletions on a paf to break out giant-snarl-making edges """
     work_dir = job.fileStore.getLocalTempDir()
     paf_path = os.path.join(work_dir, 'mg.paf')
@@ -475,6 +477,8 @@ def filter_paf_deletions(job, paf_id, gfa_id, max_deletion, filter_threshold):
     filter_paf_cmd = ['filter-paf-deletions', vg_path, trans_path, paf_path, '-d', str(max_deletion), '-v', '-p', '-t', str(job.cores)]
     if filter_threshold:
         filter_paf_cmd += ['-m', str(filter_threshold)]
+    if filter_query_size_threshold:
+        filter_paf_cmd += ['-s', str(filter_query_size_threshold)]
     filter_stdout, filter_stderr = cactus_call(parameters=filter_paf_cmd, check_output=True, returnStdErr=True)
     with open(filter_log_path, 'w') as filter_log_file:
         for line in filter_stderr:

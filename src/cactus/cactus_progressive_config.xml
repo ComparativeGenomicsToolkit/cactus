@@ -292,6 +292,7 @@
 	<!-- maskFilter: any softmasked sequence intervals > than this many bp will be hardmasked before being read by the minigraph mapper [negative value = disable]-->
 	<!-- delFilter: any deletions implied by split-read mappings greater than this are removed from the paf (by removing all lines of the smallest block bordering deletion)-->
 	<!-- delFilterThreshold: only remove deletion if it costs < delFilterThreshold * deletion-size matches. must be in range (0, 1] -->
+	<!-- delFilterQuerySizeThreshold: deletion removed if the supporting query contig has length < delFilterQuerySizeThreshold * deletion-size --> 
 	<!-- minIdentity: ignore PAF lines with identity (col 10 / col 11) is less than this -->	
 	<!-- removeMinigraphFromPAF: replace all minigraph contigs with transitive alignments in cactus-align-->
 	<!-- cpu: use up to this many cpus for each minigraph command. -->
@@ -308,8 +309,9 @@
 		 PAFOverlapFilterRatio="5"
 		 PAFOverlapFilterMinLengthRatio="0"
 		 maskFilter="-1"
-		 delFilter="-1"
+		 delFilter="10000000"
 		 delFilterThreshold="0.01"
+		 delFilterQuerySizeThreshold="2"
 		 minIdentity="0.5"		 
 		 removeMinigraphFromPAF="0"
 		 cpu="6"
