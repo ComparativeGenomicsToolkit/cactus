@@ -493,9 +493,16 @@ def vg_to_gfa(job, options, config, vg_path, vg_id):
     job.fileStore.readGlobalFile(vg_id, vg_path)
     out_path = vg_path + '.gfa'
 
-    cmd = ['vg', 'convert', '-f', '-Q', options.reference[0], os.path.basename(vg_path), '-B']
+    # we also remove minigraph here
+    graph_event = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "assemblyName", default="_MINIGRAPH_")
 
-    cactus_call(parameters=cmd, outfile=out_path, work_dir=work_dir)
+    drop_mini_cmd = ['vg', 'paths', '-v', vg_path, '-d', '-Q', graph_event]
+    clip_cmd = ['vg', 'clip', '-', '-d', '1']
+    for ref in options.reference:
+        clip_cmd += ['-P', ref]
+    gfa_cmd = ['vg', 'convert', '-', '-f', '-Q', options.reference[0], os.path.basename(vg_path), '-B']
+
+    cactus_call(parameters=[drop_mini_cmd, clip_cmd, gfa_cmd], outfile=out_path, work_dir=work_dir)
 
     return job.fileStore.writeGlobalFile(out_path)
 
@@ -506,19 +513,17 @@ def make_vg_indexes(job, options, config, gfa_ids, tag=''):
     vg_paths = []
     merge_gfa_path = os.path.join(work_dir, '{}merged.gfa'.format(tag))
 
-    graph_event = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "assemblyName", default="_MINIGRAPH_")
-    
     # merge the gfas
     for i, (vg_path, gfa_id) in enumerate(zip(options.vg, gfa_ids)):
         gfa_path = os.path.join(work_dir, os.path.basename(vg_path) +  '.gfa')
         job.fileStore.readGlobalFile(gfa_id, gfa_path, mutable=True)
-        cmd = ['grep', '-v', '{}^W	{}'.format('^H\|' if i else '', graph_event), gfa_path]
-        # add in the additional references here
-        if i == 0 and len(options.reference) > 1:
+        if i == 0: 
+            # add in the additional references here
             # todo: this seems hacky!! also, maybe some path-local information needs changing?
-            # if so, will need a new tool (or perhaps interface on vg paths?)
-            cmd = [cmd, ['sed', '-e', '1s/{}/{}/'.format(options.reference[0], ' '.join(options.reference)),
-                         '-e', '1s/{}//'.format(graph_event)]]
+            # if so, will need a new tool (or perhaps interface on vg paths to promote any path to reference?)
+            cmd = ['sed', '-e', '1s/{}/{}/'.format(options.reference[0], ' '.join(options.reference)), gfa_path],
+        else:
+            cmd = ['grep', '-v', '^H', gfa_path]
         cactus_call(parameters=cmd, outfile=merge_gfa_path, outappend=True)
         job.fileStore.deleteGlobalFile(gfa_id)
 
