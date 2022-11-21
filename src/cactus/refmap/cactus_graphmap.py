@@ -181,7 +181,7 @@ def graph_map(options):
                     fa_id_map[genome] = seq
 
             # run the workflow
-            paf_id, gfa_fa_id, gaf_id, unfiltered_paf_id, paf_filter_log = toil.start(Job.wrapJobFn(
+            paf_id, gfa_fa_id, gaf_id, unfiltered_paf_id, paf_filter_log, paf_was_filtered = toil.start(Job.wrapJobFn(
                 minigraph_workflow, options, config_wrapper, seq_id_map, gfa_id, graph_event))
 
         #export the paf
@@ -189,7 +189,7 @@ def graph_map(options):
         output_gaf = options.outputPAF[:-4] if options.outputPAF.endswith('.paf') else options.outputPAF
         output_gaf += '.gaf.gz'
         toil.exportFile(gaf_id, makeURL(output_gaf))
-        if unfiltered_paf_id:
+        if paf_was_filtered:
             toil.exportFile(unfiltered_paf_id, makeURL(options.outputPAF + ".unfiltered.gz"))
             toil.exportFile(paf_filter_log, makeURL(options.outputPAF + ".filter.log"))
                         
@@ -255,13 +255,14 @@ def minigraph_workflow(job, options, config, seq_id_map, gfa_id, graph_event):
         del_filter_threshold = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "delFilterThreshold", float, default=None)
         del_size_threshold = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "delFilterQuerySizeThreshold", float, default=None)
         del_filter_job = prev_job.addFollowOnJobFn(filter_paf_deletions, out_paf_id, gfa_id, del_filter, del_filter_threshold,
-                                                   del_query_size_threshold,
+                                                   del_size_threshold,
                                                    disk=gfa_id_size, cores=mg_cores)
         unfiltered_paf_id = prev_job.addFollowOnJobFn(zip_gz, 'mg.paf.unfiltered', out_paf_id, disk=gfa_id_size).rv()
         out_paf_id = del_filter_job.rv(0)
         filtered_paf_log = del_filter_job.rv(1)
+        paf_was_filtered = del_filter_job.rv(2)
 
-    return out_paf_id, fa_id if options.outputFasta else None, paf_job.rv(1), unfiltered_paf_id, filtered_paf_log
+    return out_paf_id, fa_id if options.outputFasta else None, paf_job.rv(1), unfiltered_paf_id, filtered_paf_log, paf_was_filtered
                     
 def make_minigraph_fasta(job, gfa_file_id, gfa_file_path, name):
     """ Use gfatools to make the minigraph "assembly" """
@@ -482,13 +483,17 @@ def filter_paf_deletions(job, paf_id, gfa_id, max_deletion, filter_threshold, fi
     filter_stdout, filter_stderr = cactus_call(parameters=filter_paf_cmd, check_output=True, returnStdErr=True)
     with open(filter_log_path, 'w') as filter_log_file:
         for line in filter_stderr:
-            filter_log_file.write(line)
+            filter_log_file.write(line)            
     with open(filter_paf_path, 'w') as filter_paf_file:
         for line in filter_stdout:
             filter_paf_file.write(line)
+    unfiltered_paf_lines = int(cactus_call(parameters=['wc', '-l', paf_path], check_output=True).strip().split()[0])            
+    filtered_paf_lines = int(cactus_call(parameters=['wc', '-l', filter_paf_path], check_output=True).strip().split()[0])
+    assert filtered_paf_lines <= unfiltered_paf_lines
+    was_filtered = filtered_paf_lines < unfiltered_paf_lines
 
     # return the results
-    return (job.fileStore.writeGlobalFile(filter_paf_path), job.fileStore.writeGlobalFile(filter_log_path))            
+    return (job.fileStore.writeGlobalFile(filter_paf_path), job.fileStore.writeGlobalFile(filter_log_path), was_filtered)  
 
 def add_genome_to_seqfile(seqfile_path, fasta_path, name):
     """ hack the auto-generated minigraph assembly back into the seqfile for future use """
