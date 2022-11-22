@@ -17,7 +17,7 @@ Please cite the [Progressive Cactus paper](https://doi.org/10.1038/s41586-020-28
 * [Updating Alignments](#updating-alignments)
 * [GPU Acceleration](#gpu-acceleration)
 * [Pre-Alignment Checklist](#pre-alignment-checklist)
-* [FAQ](#faq)
+* [Frequently Asked Questions](#frequently-asked-questions)
 
 ## Quick Start
 

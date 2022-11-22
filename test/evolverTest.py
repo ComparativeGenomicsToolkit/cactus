@@ -358,13 +358,13 @@ class TestCase(unittest.TestCase):
                     name = os.path.basename(toks[1])
                     subprocess.check_call(['wget', toks[1]], cwd=self.tempDir)
                     mg_cmd += [os.path.join(self.tempDir, name)]
-        mg_path = os.path.join(self.tempDir, 'refgraph.gfa')
+        mg_path = os.path.join(self.tempDir, 'refgraph.sv.gfa')
         with open(mg_path, 'w') as mg_file:
             subprocess.check_call(mg_cmd, stdout=mg_file)
 
         # do the mapping
         paf_path = os.path.join(self.tempDir, 'aln.paf')
-        fa_path = os.path.join(self.tempDir, 'refgraph.gfa.fa')
+        fa_path = os.path.join(self.tempDir, 'refgraph.sv.gfa.fa')
         # todo: it'd be nice to have an interface for setting tag to something not latest or commit
         if binariesMode == 'docker':
             cactus_opts += ['--latest']
@@ -398,15 +398,15 @@ class TestCase(unittest.TestCase):
                     events.append(toks[0])
         
         # build the minigraph
-        mg_path = os.path.join(self.tempDir, 'yeast.gfa.gz')
+        mg_path = os.path.join(self.tempDir, 'yeast.sv.gfa.gz')
         mg_cmd = ['cactus-minigraph', self._job_store(binariesMode), seq_file_path, mg_path, '--reference', 'S288C'] + cactus_opts
         subprocess.check_call(mg_cmd)
                 
         # run graphmap in base mode
         paf_path = os.path.join(self.tempDir, 'yeast.paf')
-        fa_path = os.path.join(self.tempDir, 'yeast.gfa.fa')        
+        fa_path = os.path.join(self.tempDir, 'yeast.sv.gfa.fa')        
         subprocess.check_call(['cactus-graphmap', self._job_store(binariesMode), seq_file_path, mg_path, paf_path,
-                               '--outputFasta', fa_path, '--delFilter', '2000000'] + cactus_opts)
+                               '--outputFasta', fa_path, '--delFilter', '2000000'] + cactus_opts + ['--mapCores', '1'])
             
         # split into chromosomes
         chroms = ['chrI', 'chrII', 'chrIII', 'chrIV', 'chrV', 'chrVI', 'chrVII', 'chrVIII', 'chrIX', 'chrX', 'chrXI', 'chrXIV', 'chrXV']
@@ -431,13 +431,9 @@ class TestCase(unittest.TestCase):
 
         # join up the graphs and index for giraffe
         join_path = os.path.join(self.tempDir, 'join')
-        # must specify haploid for everything
-        rename_opts = ['--rename']
-        for event in events:
-            rename_opts += ['{}>{}.0'.format(event, event)]
         subprocess.check_call(['cactus-graphmap-join', self._job_store(binariesMode), '--outDir', join_path, '--outName', 'yeast',
-                               '--reference', 'S288C', '--vg'] +  vg_files + ['--hal'] + hal_files + ['--gfaffix', '--wlineSep', '.',
-                               '--vcf', '--giraffe'] + rename_opts + cactus_opts)
+                               '--reference', 'S288C', '--vg'] +  vg_files + ['--hal'] + hal_files + 
+                               ['--vcf', '--giraffe', 'clip'] + cactus_opts + ['--indexCores', '4'])
 
     def _check_yeast_pangenome(self, binariesMode):
         """ yeast pangenome chromosome by chromosome pipeline
@@ -459,7 +455,9 @@ class TestCase(unittest.TestCase):
         # check that we have some alts for each sample in the VCF
         vcf_allele_threshold = 40000
         for event in events:
-            allele = 0 if event == "S288C" else 1
+            if event == "S288C":
+                continue
+            allele = 1
             event = event.split(".")[0]
             proc = subprocess.Popen('bcftools view {} -s {} -a -H | awk \'{{print $10}}\' | grep {} | wc -l'.format(vcf_path, event, allele),
                                     shell=True, stdout=subprocess.PIPE)
@@ -469,7 +467,7 @@ class TestCase(unittest.TestCase):
             self.assertGreaterEqual(num_alleles, vcf_allele_threshold)
 
         # make sure we have about the right sequence counts in the hal
-        hal_path = os.path.join(join_path, 'yeast.hal')
+        hal_path = os.path.join(join_path, 'yeast.full.hal')
         for event in events:
             if event != "_MINIGRAPH_":
                 proc = subprocess.Popen('halStats {} --sequenceStats {} | wc -l'.format(hal_path, event), shell=True, stdout=subprocess.PIPE)
@@ -480,7 +478,7 @@ class TestCase(unittest.TestCase):
                 self.assertLessEqual(num_sequences, 15)
 
         # make sure the vg is sane
-        xg_path = os.path.join(join_path, 'yeast.xg')
+        xg_path = os.path.join(join_path, 'yeast.gbz')
         proc = subprocess.Popen('vg stats -l {} | awk \'{{print $2}}\''.format(xg_path), shell=True, stdout=subprocess.PIPE)
         output, errors = proc.communicate()
         sts = proc.wait()
@@ -489,7 +487,7 @@ class TestCase(unittest.TestCase):
         self.assertLessEqual(num_bases, 11200000)
 
         # make sure we have the giraffe indexes
-        for giraffe_idx in ['yeast.snarls', 'yeast.gg', 'yeast.dist', 'yeast.min', 'yeast.trans.gz', 'yeast.gbwt']:
+        for giraffe_idx in ['yeast.gbz', 'yeast.dist', 'yeast.min']:
             idx_bytes = os.path.getsize(os.path.join(join_path, giraffe_idx))
             self.assertGreaterEqual(idx_bytes, 500000)
 
