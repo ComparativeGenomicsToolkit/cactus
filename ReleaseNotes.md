@@ -1,3 +1,20 @@
+# Release 2.3.0 2022-11-21
+
+This release contains substantial changes to the Minigraph-Cactus pangenome pipeline, namely in `cactus-graphmap-join`. 
+
+- The SAMPLE.HAPLOTYPE naming convention now only needed for non-haploid samples: you no longer need to add `.0` to non-reference samples
+- All paths, including reference, are stored as W-lines in the GFA output (previously the reference was stored as a P-line)
+- XG/GBWT/GG output replaced with GBZ
+- Latest vg now shipped with Cactus (was stuck at v.1.40.0 for a while).  **In most cases vg version >= 1.44.0 is now required to use the output.**
+- Giraffe indexing should now be more efficient
+- `cactus-graphmap-join` now only needs to be run once. Previously, up to 3 times was suggested. The single invocation of `cactus-graphmap-join` can still create up to three graphs and sets of indexes.  Sensible defaults are provided to encourage users to, for example, index the filtered graph.
+- Many options from `cactus-graphmap-join` have been removed or moved into the config xml
+- `--delFilter` now enabled by default in `cactus-graphmap`.  In addition, it is broadened to disallow any contig from inducing a deletion greater than (half) its length. (this ratio can be controlled using the `delFilterQuerySizeThreshold` config parameter).
+- `cactus-graphmap-join` will no longer ever produce a graphs with edges that aren't covered by any paths (was rare but possible before).
+- `minigraph` version included update to fix assertion failure bug.
+- [mafTools](https://github.com/ComparativeGenomicsToolkit/maftools) binaries now included in Cactus.
+- Toil caching turned off by default when using the slurm batch system.
+
 # Release 2.2.4 2022-11-03
 
 This release contains some small bugfixes in addition to improved MAF output support
