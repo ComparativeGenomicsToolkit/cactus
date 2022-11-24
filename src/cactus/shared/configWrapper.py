@@ -248,10 +248,14 @@ class ConfigWrapper:
         if force_activate:
             # apply the gpu override
             findRequiredNode(self.xmlRoot, "blast").attrib["gpuLastz"] = "true"
+            if options.gpuCount:
+                findRequiredNode(self.xmlRoot, "blast").attrib["gpuCount"] = str(options.gpuCount)
             findRequiredNode(self.xmlRoot, "blast").attrib["realign"] = "0"
             for node in self.xmlRoot.findall("preprocessor"):
                 if getOptionalAttrib(node, "preprocessJob") == "lastzRepeatMask":
                     node.attrib["gpuLastz"] = "true"
+                    if options.gpuCount:
+                        node.attrib["gpuCount"] = str(options.gpuCount)
 
         if getOptionalAttrib(findRequiredNode(self.xmlRoot, "blast"), 'gpuLastz', typeFn=bool, default=False):
             # single machine: we give all the cores to segalign
@@ -261,7 +265,7 @@ class ConfigWrapper:
                 else:
                     lastz_cores = cactus_cpu_count()
             else:
-                # todo: toil doesn't support gpu properly yet
+                # todo: segalign can't control number of cores
                 lastz_cores = None
             findRequiredNode(self.xmlRoot, "blast").attrib["cpu"] = str(lastz_cores)
                     

@@ -47,7 +47,7 @@ from cactus.preprocessor.fileMasking import maskJobOverride, FileMaskingJob
 class PreprocessorOptions:
     def __init__(self, chunkSize, memory, cpu, check, proportionToSample, unmask,
                  preprocessJob, checkAssemblyHub=None, lastzOptions=None, minPeriod=None,
-                 gpuLastz=False, dnabrnnOpts=None,
+                 gpuLastz=False, gpuCount=0, dnabrnnOpts=None,
                  dnabrnnAction=None, eventName=None, minLength=None,
                  cutBefore=None, cutBeforeOcc=None, cutAfter=None, inputBedID=None):
         self.chunkSize = chunkSize
@@ -61,6 +61,7 @@ class PreprocessorOptions:
         self.lastzOptions = lastzOptions
         self.minPeriod = minPeriod
         self.gpuLastz = gpuLastz
+        self.gpuCount = gpuCount
         self.gpuLastzInterval = self.chunkSize
         if self.gpuLastz:
             self.chunkSize = 0
@@ -145,6 +146,7 @@ class PreprocessSequence(RoundedJob):
                                                   minPeriod=self.prepOptions.minPeriod,
                                                   lastzOpts=self.prepOptions.lastzOptions,
                                                   gpuLastz=self.prepOptions.gpuLastz,
+                                                  gpuCount=self.prepOptions.gpuCount,
                                                   gpuLastzInterval=self.prepOptions.gpuLastzInterval)
             return LastzRepeatMaskJob(repeatMaskOptions=repeatMaskOptions,
                                       queryID=inChunkID,
@@ -254,6 +256,7 @@ class BatchPreprocessor(RoundedJob):
                                               minPeriod = getOptionalAttrib(prepNode, "minPeriod", typeFn=int, default=0),
                                               checkAssemblyHub = getOptionalAttrib(prepNode, "checkAssemblyHub", typeFn=bool, default=False),
                                               gpuLastz = getOptionalAttrib(prepNode, "gpuLastz", typeFn=bool, default=False),
+                                              gpuCount = getOptionalAttrib(prepNode, "gpuCount", typeFn=int, default=None),
                                               dnabrnnOpts = getOptionalAttrib(prepNode, "dna-brnnOpts", default=""),
                                               dnabrnnAction = getOptionalAttrib(prepNode, "action", typeFn=str, default="softmask"),
                                               eventName = getOptionalAttrib(prepNode, "eventName", typeFn=str, default=None),
@@ -431,6 +434,8 @@ def main():
                         help="The way to run the Cactus binaries", default=None)
     parser.add_argument("--gpu", action="store_true",
                         help="Enable GPU acceleration by using Segaling instead of lastz")
+    parser.add_argument("--gpuCount", type=int,
+                        help="Specify the number of GPUs for each repeatmasking job (will also toggle on --gpu). By default (or if set to 0) all available GPUs are used")
     parser.add_argument("--pangenome", action="store_true", help='Do not mask. Just add Cactus-style unique prefixes and strip anything up to and including last #')
 
     options = parser.parse_args()
@@ -464,7 +469,11 @@ def main():
         raise RuntimeError('paf masking requires event names specified wither with an input seqfile or with --inputNames')
     if options.maskFile and options.minLength is None:
         raise RuntimeError('--minLength must be used with --maskFile')
-        
+
+    # gpuCount auto-sets gpu so you don't need to use both
+    if options.gpuCount and options.gpuCount > 0:
+        options.gpu = True
+    
     inSeqPaths = []
     outSeqPaths = []
     inNames = options.inputNames

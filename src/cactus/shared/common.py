@@ -843,7 +843,7 @@ class RoundedJob(Job):
     # Default rounding amount: 100 MiB
     roundingAmount = 100*1024*1024
     def __init__(self, memory=None, cores=None, disk=None, preemptable=None,
-                 unitName=None, checkpoint=False):
+                 unitName=None, checkpoint=False, accelerators=None):
         if memory is not None:
             memory = self.roundUp(memory)
         if disk is not None:
@@ -853,7 +853,7 @@ class RoundedJob(Job):
             disk = 1500*1024*1024 + self.roundUp(disk)
         super(RoundedJob, self).__init__(memory=memory, cores=cores, disk=disk,
                                          preemptable=preemptable, unitName=unitName,
-                                         checkpoint=checkpoint)
+                                         checkpoint=checkpoint, accelerators=accelerators)
 
     def roundUp(self, bytesRequirement):
         """
