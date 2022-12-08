@@ -46,7 +46,7 @@ static:
 	${MAKE} all
 
 check-static: static
-	if [ $(shell ldd bin/* | grep "not a dynamic" | wc -l) = $(shell ls bin/* | wc -l) ] ; then\
+	if [ $(shell ls bin/* | grep -v mash | xargs ldd | grep "not a dynamic" | wc -l) = $(shell ls bin/* | grep -v mash | wc -l) ] ; then\
 		echo "ldd verified that all files in bin/ are static";\
 	else\
 		echo "ldd found dynamic linked binary in bin/";\
