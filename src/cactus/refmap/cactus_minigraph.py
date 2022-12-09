@@ -131,12 +131,58 @@ def main():
 def minigraph_construct_workflow(job, config_node, seq_id_map, seq_order, gfa_path):
     """ minigraph can handle bgzipped files but not gzipped; so unzip everything in case before running"""
     sanitize_job = job.addChildJobFn(sanitize_fasta_headers, seq_id_map)
-    mg_cores = getOptionalAttrib(findRequiredNode(config_node, "graphmap"), "cpu", typeFn=int, default=1)
-    minigraph_job = sanitize_job.addFollowOnJobFn(minigraph_construct, config_node, sanitize_job.rv(), seq_order, gfa_path,
-                                                  cores = mg_cores,
-                                                  disk = 5 * sum([seq_id.size for seq_id in seq_id_map.values()]))
+    xml_node = findRequiredNode(config_node, "graphmap")
+    mg_cores = getOptionalAttrib(xml_node, "cpu", typeFn=int, default=1)
+    sort_type = getOptionalAttrib(xml_node, "minigraphSortInput", str, default=None)
+    if sort_type == "mash":
+        sort_job = sanitize_job.addFollowOnJobFn(sort_minigraph_input_with_mash, sanitize_job.rv(), seq_order)
+        seq_order = sort_job.rv()
+        prev_job = sort_job
+    else:
+        prev_job = sanitize_job
+    minigraph_job = prev_job.addFollowOnJobFn(minigraph_construct, config_node, sanitize_job.rv(), seq_order, gfa_path,
+                                              cores = mg_cores,
+                                              disk = 5 * sum([seq_id.size for seq_id in seq_id_map.values()]))
     return minigraph_job.rv()
 
+def sort_minigraph_input_with_mash(job, seq_id_map, seq_order):
+    """ Sort the input """
+    # (dist, length) pairs which will be sorted decreasing on dist, breaking ties with increasing on length
+    root_job = Job()
+    job.addChild(root_job)
+    # assumption : reference is first
+    mash_dists = [(0, sys.maxsize)]
+    for seq in seq_order[1:]:
+        dist = root_job.addChildJobFn(mash_dist, seq, seq_order[0], seq_id_map,
+                                      disk = seq_id_map[seq].size + seq_id_map[seq_order[0]].size).rv()
+        mash_dists.append(dist)                    
+
+    return root_job.addFollowOnJobFn(mash_distance_order, seq_order, mash_dists).rv()
+
+def mash_dist(job, query_seq, ref_seq, seq_id_map):
+    """ get the mash distance """
+    work_dir = job.fileStore.getLocalTempDir()
+    ref_path = os.path.join(ref_seq + '.fa')
+    query_path = os.path.join(query_seq + '.fa')
+    job.fileStore.readGlobalFile(seq_id_map[ref_seq], ref_path)
+    job.fileStore.readGlobalFile(seq_id_map[query_seq], query_path)
+
+    mash_output = cactus_call(parameters=['mash', 'dist', query_path, ref_path], check_output=True)
+    dist = float(mash_output.strip().split()[2])
+    size = sum([len(r.seq) for r in SeqIO.parse(query_path, 'fasta')])
+    RealtimeLogger.info('mash distance of {} (size = {}) to reference {} = {}'.format(query_seq, size, ref_seq, dist))
+    return (dist, size)
+    
+def mash_distance_order(job, seq_order, mash_dists):
+    """ get the sequence order from the mash distance"""
+    seq_to_dist = { }
+    # we want to sort reverse on size, so make them negative
+    # and we round the dists to ignore tiny changes
+    mash_dists = [(round(x, 4),-y) for x,y in mash_dists]
+    for seq, md in zip(seq_order, mash_dists):
+        seq_to_dist[seq] = md
+    return sorted(seq_order, key = lambda x : seq_to_dist[x])
+    
 def minigraph_construct(job, config_node, seq_id_map, seq_order, gfa_path):
     """ Make minigraph """
     work_dir = job.fileStore.getLocalTempDir()
@@ -158,13 +204,15 @@ def minigraph_construct(job, config_node, seq_id_map, seq_order, gfa_path):
         local_fa_paths[event] = fa_path
         assert os.path.getsize(local_fa_paths[event]) > 0
 
-    if getOptionalAttrib(xml_node, "minigraphSortBySize", bool, default=False):
+    sort_type = getOptionalAttrib(xml_node, "minigraphSortInput", str, default=None)
+    if sort_type == "size":
         # don't touch the reference
         sorted_order = [seq_order[0]]
         # sort the rest by size, biggest first, which is usually how we help poa
-        sorted_order += sorted(seq_order[1:],
-                               key = lambda e : sum([len(r.seq) for r in SeqIO.parse(local_fa_paths[e], 'fasta')]),
-                               reverse = True)
+        seq_to_size = {}
+        for seq in seq_order[1:]:
+            seq_to_size[seq] = sum([len(r.seq) for r in SeqIO.parse(local_fa_paths[seq], 'fasta')])
+        sorted_order += sorted(seq_order[1:], key = lambda e : seq_to_size[e], reverse=True)
         seq_order = sorted_order
 
     mg_cmd = ['minigraph'] + opts_list

@@ -312,6 +312,17 @@ else
 	 exit 1
 fi
 
+# mash
+cd ${pangenomeBuildDir}
+wget -q https://github.com/marbl/Mash/releases/download/v2.3/mash-Linux64-v2.3.tar
+tar -xf mash-Linux64-v2.3.tar
+cd mash-Linux64-v2.3
+mv mash ${binDir}
+# note:
+# disabling the static check as this binary is not fully static.
+# but.. I can't figure out how to build proper static binary from
+# source and this one seems broadly compatible with many systems...
+
 cd ${CWD}
 rm -rf ${pangenomeBuildDir}
 
