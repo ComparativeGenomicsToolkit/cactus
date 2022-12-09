@@ -1065,6 +1065,10 @@ def main():
         parser.print_help()
         sys.exit(1)
 
+    if not options.subcommand:
+        add_parser.print_help()
+        sys.exit(1)
+    
     # From cactus-prepare
     setupBinaries(options)
     set_logging_from_options(options)
