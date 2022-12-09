@@ -35,6 +35,11 @@ class MultiCactusTree(NXTree):
     # fill in unlabeled node ids with a breadth-first
     # traversal numbering from the root
     def nameUnlabeledInternalNodes(self, prefix = "Anc", startIdx = 0):
+        # make sure we don't duplicate any pre-existing labels
+        existing_labels = set()
+        for node in self.breadthFirstTraversal():
+            if not self.isLeaf(node) and self.hasName(node):
+                existing_labels.add(self.getName(node))        
         count = startIdx
         numInternal = 0
         width = 0
@@ -44,9 +49,13 @@ class MultiCactusTree(NXTree):
         if numInternal > 0:
             width = int(math.log10(numInternal)) + 1
         for node in self.breadthFirstTraversal():
-            if not self.isLeaf(node) and not self.hasName(node):
-                self.setName(node, "%s%s" % (prefix, str(count).zfill(width)))
-                count += 1
+            if not self.isLeaf(node):
+                while not self.hasName(node):
+                    new_name = "%s%s" % (prefix, str(count).zfill(width))
+                    if new_name not in existing_labels:
+                        self.setName(node, new_name)
+                        existing_labels.add(new_name)
+                    count += 1
             self.nameToId[self.getName(node)] = node
 
     # identify roots of subclades in the tree and
