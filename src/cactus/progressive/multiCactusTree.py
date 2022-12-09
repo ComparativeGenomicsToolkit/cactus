@@ -38,7 +38,7 @@ class MultiCactusTree(NXTree):
         # make sure we don't duplicate any pre-existing labels
         existing_labels = set()
         for node in self.breadthFirstTraversal():
-            if not self.isLeaf(node) and self.hasName(node):
+            if self.hasName(node):
                 existing_labels.add(self.getName(node))        
         count = startIdx
         numInternal = 0
