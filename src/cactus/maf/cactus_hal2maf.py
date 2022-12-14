@@ -256,7 +256,7 @@ def hal2maf_cmd(hal_path, chunk, chunk_num, options):
     if options.rootGenome:
         cmd += ' --rootGenome {}'.format(options.rootGenome)
     if options.targetGenomes:
-        cmd += ' --rootGenome {}'.format(options.targetGenomes)
+        cmd += ' --targetGenomes {}'.format(options.targetGenomes)
     if options.maxRefGap:
         cmd += ' --maxRefGap {}'.format(options.maxRefGap)
     if options.noDupes:
