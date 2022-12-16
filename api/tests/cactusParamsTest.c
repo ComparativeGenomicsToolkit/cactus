@@ -24,7 +24,7 @@ static void testCactusParams(CuTest *testCase) {
 
     int64_t length;
     int64_t *l = cactusParams_get_ints(p, &length, 2, "caf", "deannealingRounds");
-    CuAssertIntEquals(testCase, 3, length);
+    CuAssertTrue(testCase, length >= 3);
     CuAssertIntEquals(testCase, l[0], 2);
     CuAssertIntEquals(testCase, l[1], 4);
     CuAssertIntEquals(testCase, l[2], 8);
