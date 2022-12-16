@@ -336,6 +336,11 @@ def cactus_align(job, config_wrapper, mc_tree, input_seq_map, input_seq_id_map, 
     sanitize_job = head_job.addChildJobFn(sanitize_fasta_headers, input_seq_id_map)
     new_seq_id_map = sanitize_job.rv()
 
+    # run pangenome-specific paf filter
+    if do_filter_paf:
+        paf_filter_job = head_job.addChildJobFn(filter_paf, paf_id, config_wrapper)
+        paf_id = paf_filter_job.rv()
+
     # get the spanning tree (which is what consolidated wants)
     spanning_tree = get_spanning_subtree(mc_tree, root_name, config_wrapper, og_map)
 
