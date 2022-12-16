@@ -121,8 +121,8 @@
 	<!-- maxRecoverableChainLength TODO-->
 	<!-- minimumBlockDegreeToCheckSupport Apply support filter to blocks of more than this degree (if greater than 0) -->
 	<!-- minimumBlockHomologySupport TODO-->
-	<caf annealingRounds="64"
-		 deannealingRounds="2 4 8"
+	<caf annealingRounds="512"
+		 deannealingRounds="2 4 8 16 32 64"
 		 trim="3"
 		 blockTrim="5"
 		 minimumBlockDegree="2"
