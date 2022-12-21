@@ -122,7 +122,7 @@
 	<!-- minimumBlockDegreeToCheckSupport Apply support filter to blocks of more than this degree (if greater than 0) -->
 	<!-- minimumBlockHomologySupport TODO-->
 	<caf annealingRounds="256"
-		 deannealingRounds="2 4 8 16 32 64"
+		 deannealingRounds="2 4 8 16 32 64 128"
 		 trim="3"
 		 blockTrim="5"
 		 minimumBlockDegree="2"
@@ -134,7 +134,7 @@
 		 maxAdjacencyComponentSizeRatio="50"
 		 minLengthForChromosome="1000000"
 		 proportionOfUnalignedBasesForNewChromosome="0.8"
-		 maximumMedianSequenceLengthBetweenLinkedEnds="1000"
+		 maximumMedianSequenceLengthBetweenLinkedEnds="100000"
 		 removeRecoverableChains="unequalNumberOfIngroupCopies"
 		 maxRecoverableChainsIterations="10"
 		 maxRecoverableChainLength="500000"
