@@ -26,8 +26,8 @@ static void testCactusParams(CuTest *testCase) {
     int64_t *l = cactusParams_get_ints(p, &length, 2, "caf", "deannealingRounds");
     CuAssertTrue(testCase, length >= 3);
     CuAssertIntEquals(testCase, l[0], 2);
-    CuAssertIntEquals(testCase, l[1], 4);
-    CuAssertIntEquals(testCase, l[2], 8);
+    CuAssertIntEquals(testCase, l[1], 32);
+    CuAssertIntEquals(testCase, l[2], 512);
 
     // Test moving the root of the search
     cactusParams_set_root(p, 1, "caf");
