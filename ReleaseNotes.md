@@ -1,8 +1,7 @@
-# Relase 2.3.1 2022-12-22
+# Relase 2.3.1 2022-12-23
 
-This release contains bugfixes changes that should result in much cleaner alignments both in progressive and pangenome mode.
+This release contains bugfixes changes that should result in cleaner alignments both in pangenome mode in some cases.
 
-- Increase default CAF chain length filters -- effectively adding much-needed chaining to cactus
 - Re-activate pangenome-specific paf filters (these were deactivated by accident back in v2.2.0, and were important in difficult regions in acrocentric chromosomes in HPRC graph).
 - Pangenome pipeline now included in legacy binaries. 
 - Use mash distance (by default) to determine the minigraph construction order
