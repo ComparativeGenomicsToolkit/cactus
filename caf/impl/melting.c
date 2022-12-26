@@ -339,47 +339,55 @@ static stHash *getPinchEndToChainEndHash(stCactusGraph *cactusGraph) {
 // find recoverable chains below them. Then find recoverable chains
 // below the current node given its parent chain.
 static void getRecoverableChains_R(stCactusNode *cactusNode, stCactusEdgeEnd *parentChain, stSet *deadEndComponent, Flower *flower, bool (*recoverabilityFilter)(stCactusEdgeEnd *, Flower *), stHash *pinchEndToChainEnd, stSet *recoverableChains, stList *telomereAdjacentChains, stHash *chainToRecoverableAdjacencies) {
-    stCactusNodeEdgeEndIt cactusEdgeEndIt = stCactusNode_getEdgeEndIt(cactusNode);
-    stCactusEdgeEnd *cactusEdgeEnd;
-    while ((cactusEdgeEnd = stCactusNodeEdgeEndIt_getNext(&cactusEdgeEndIt)) != NULL) {
-        if ((parentChain == NULL
-             || (cactusEdgeEnd != parentChain
-                 && cactusEdgeEnd != stCactusEdgeEnd_getLink(parentChain)))
-            && stCactusEdgeEnd_getLinkOrientation(cactusEdgeEnd)
-            && stCactusEdgeEnd_getOtherNode(cactusEdgeEnd) != cactusNode) {
-            // Found a new chain below this node.
-            assert(stCactusEdgeEnd_isChainEnd(cactusEdgeEnd));
-            getRecoverableChains_R(stCactusEdgeEnd_getOtherNode(cactusEdgeEnd),
-                                   stCactusEdgeEnd_getOtherEdgeEnd(cactusEdgeEnd),
-                                   deadEndComponent,
-                                   flower,
-                                   recoverabilityFilter,
-                                   pinchEndToChainEnd,
-                                   recoverableChains,
-                                   telomereAdjacentChains,
-                                   chainToRecoverableAdjacencies);
+    while(1) {
+        stCactusNodeEdgeEndIt cactusEdgeEndIt = stCactusNode_getEdgeEndIt(cactusNode);
+        stCactusEdgeEnd *cactusEdgeEnd;
+        while ((cactusEdgeEnd = stCactusNodeEdgeEndIt_getNext(&cactusEdgeEndIt)) != NULL) {
+            if ((parentChain == NULL
+                 || (cactusEdgeEnd != parentChain
+                     && cactusEdgeEnd != stCactusEdgeEnd_getLink(parentChain)))
+                && stCactusEdgeEnd_getLinkOrientation(cactusEdgeEnd)
+                && stCactusEdgeEnd_getOtherNode(cactusEdgeEnd) != cactusNode) {
+                // Found a new chain below this node.
+                assert(stCactusEdgeEnd_isChainEnd(cactusEdgeEnd));
+                getRecoverableChains_R(stCactusEdgeEnd_getOtherNode(cactusEdgeEnd),
+                                       stCactusEdgeEnd_getOtherEdgeEnd(cactusEdgeEnd),
+                                       deadEndComponent,
+                                       flower,
+                                       recoverabilityFilter,
+                                       pinchEndToChainEnd,
+                                       recoverableChains,
+                                       telomereAdjacentChains,
+                                       chainToRecoverableAdjacencies);
+            }
         }
-    }
 
-    if (parentChain != NULL) {
-        // Visit the next node on this chain (unless it's where we started).
-        stCactusEdgeEnd *nextEdgeEnd = stCactusEdgeEnd_getOtherEdgeEnd(stCactusEdgeEnd_getLink(parentChain));
-        if (!stCactusEdgeEnd_isChainEnd(nextEdgeEnd)) {
-            getRecoverableChains_R(stCactusEdgeEnd_getNode(nextEdgeEnd), nextEdgeEnd, deadEndComponent, flower, recoverabilityFilter, pinchEndToChainEnd, recoverableChains, telomereAdjacentChains, chainToRecoverableAdjacencies);
-        }
-    }
-
-    cactusEdgeEndIt = stCactusNode_getEdgeEndIt(cactusNode);
-    while ((cactusEdgeEnd = stCactusNodeEdgeEndIt_getNext(&cactusEdgeEndIt)) != NULL) {
-        if (stCactusEdgeEnd_isChainEnd(cactusEdgeEnd) && stCactusEdgeEnd_getLinkOrientation(cactusEdgeEnd)) {
-            if ((recoverabilityFilter == NULL || recoverabilityFilter(cactusEdgeEnd, flower)) && chainIsRecoverable(cactusEdgeEnd, deadEndComponent)) {
-                stSet_insert(recoverableChains, cactusEdgeEnd);
-                markRecoverableAdjacencies(cactusEdgeEnd, pinchEndToChainEnd, chainToRecoverableAdjacencies);
-                if (chainConnectsToTelomere(cactusEdgeEnd, deadEndComponent)) {
-                    stList_append(telomereAdjacentChains, cactusEdgeEnd);
+        cactusEdgeEndIt = stCactusNode_getEdgeEndIt(cactusNode);
+        while ((cactusEdgeEnd = stCactusNodeEdgeEndIt_getNext(&cactusEdgeEndIt)) != NULL) {
+            if (stCactusEdgeEnd_isChainEnd(cactusEdgeEnd) && stCactusEdgeEnd_getLinkOrientation(cactusEdgeEnd)) {
+                if ((recoverabilityFilter == NULL || recoverabilityFilter(cactusEdgeEnd, flower)) &&
+                    chainIsRecoverable(cactusEdgeEnd, deadEndComponent)) {
+                    stSet_insert(recoverableChains, cactusEdgeEnd);
+                    markRecoverableAdjacencies(cactusEdgeEnd, pinchEndToChainEnd, chainToRecoverableAdjacencies);
+                    if (chainConnectsToTelomere(cactusEdgeEnd, deadEndComponent)) {
+                        stList_append(telomereAdjacentChains, cactusEdgeEnd);
+                    }
                 }
             }
         }
+
+        if (parentChain == NULL) { // If we're not traversing a chain, we're done
+            break;
+        }
+        // Visit the next node on this chain (unless it's where we started).
+        stCactusEdgeEnd *nextEdgeEnd = stCactusEdgeEnd_getOtherEdgeEnd(stCactusEdgeEnd_getLink(parentChain));
+        if (stCactusEdgeEnd_isChainEnd(nextEdgeEnd)) { // If at the end, stop
+            break;
+        }
+        // Now get the next link in the chain
+        assert(cactusNode != stCactusEdgeEnd_getNode(nextEdgeEnd));
+        cactusNode = stCactusEdgeEnd_getNode(nextEdgeEnd);
+        parentChain = nextEdgeEnd;
     }
 }
 
