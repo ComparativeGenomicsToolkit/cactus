@@ -6,7 +6,7 @@ modules = api setup fasta paf caf bar hal reference pipeline preprocessor
 
 # submodules are in multiple pass to handle dependencies cactus2hal being dependent on
 # both cactus and sonLib
-submodules1 = sonLib cPecan hal taf matchingAndOrdering pinchesAndCacti abPOA lastz
+submodules1 = sonLib cPecan hal taffy matchingAndOrdering pinchesAndCacti abPOA lastz
 submodules2 = cactus2hal
 submodules = ${submodules1} ${submodules2}
 
@@ -134,8 +134,8 @@ test: ${testModules:%=%_runtest} ${unitTests:%=%_run_unit_test}
 test_blast: ${testModules:%=%_runtest_blast}
 test_nonblast: ${testModules:%=%_runtest_nonblast}
 hal_test: ${halTests:%=%_run_unit_test}
-taf_test:
-	cd submodules/taf && make test
+taffy_test:
+	cd submodules/taffy && ${MAKE} test
 
 # run one test and save output
 %_runtest: ${versionPy}
@@ -257,9 +257,9 @@ suball.hal: suball.sonLib
 	-ln -f submodules/hal/bin/* bin/
 	-ln -f submodules/hal/lib/libHal.a submodules/hal/lib/halLib.a
 
-suball.taf: suball.hal
-	cd submodules/taf && HALDIR=../hal make
-	-ln -f submodules/taf/bin/*taf* bin/
+suball.taffy: suball.hal
+	cd submodules/taffy && HALDIR=../hal ${MAKE}
+	-ln -f submodules/taffy/bin/taffy bin/
 
 suball.abPOA:
 	cd submodules/abPOA && ${MAKE}
