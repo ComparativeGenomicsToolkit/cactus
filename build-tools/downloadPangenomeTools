@@ -278,9 +278,7 @@ fi
 
 # vg
 cd ${pangenomeBuildDir}
-#wget -q https://github.com/vgteam/vg/releases/download/v1.45.0/vg
-# This is vg release v1.44.0 patched to add this PR https://github.com/vgteam/vg/pull/3795
-wget -q http://public.gi.ucsc.edu/~hickey/vg-patch/vg.04a8bda9fdbb6f6af66d7aa9ab457d57d1b98e72 -O vg
+wget -q https://github.com/vgteam/vg/releases/download/v1.45.0/vg
 chmod +x vg
 if [[ $STATIC_CHECK -ne 1 || $(ldd vg | grep so | wc -l) -eq 0 ]]
 then
