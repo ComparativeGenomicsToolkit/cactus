@@ -103,9 +103,9 @@ The HAL format represents the alignment in a reference-free, indexed way, but is
 cactus-hal2maf ./js ./evolverMammals.hal evolverMammals.maf.gz --refGenome simHuman_chr6 --chunkSize 1000000 --noAncestors --onlyOrthologs
 ```
 
-`cactus-hal2maf`, in addition to providing parallelism with Toil, also adds [TAF](https://github.com/ComparativeGenomicsToolkit/taf)-based normalization and is therefore recommended over running `hal2maf` directly.  Also, you usually want to pass the `--noAncestors` option and `--onlyOrthologs` and/or `--noDupes` to reduce the complexity of the output. 
+`cactus-hal2maf`, in addition to providing parallelism with Toil, also adds [TAFFY](https://github.com/ComparativeGenomicsToolkit/taffy)-based normalization and is therefore recommended over running `hal2maf` directly.  Also, you usually want to pass the `--noAncestors` option and `--onlyOrthologs` and/or `--noDupes` to reduce the complexity of the output. 
 
-The various batching options can be used to tune distributed runs on very large inputs. For example, to run 4 batches, each on a 32-core EC2 node but only processing 8 chunks with `taf_add_gap_bases` in parallel, these options could be used
+The various batching options can be used to tune distributed runs on very large inputs. For example, to run 4 batches, each on a 32-core EC2 node but only processing 8 chunks with `taffy add-gap-bases` in parallel, these options could be used
 ```
 --chunkSize 1000000 --batchCount 4 --batchCores 32 --batchParallelTaf 8 --batchSystem mesos --provisioner aws --defaultPreemptable --nodeStorage 2000 --maxNodes 4 --nodeTypes r5.8xlarge 
 ```

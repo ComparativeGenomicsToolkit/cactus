@@ -80,13 +80,13 @@ def main():
                         action="store_true",
                         default=False)
     
-    # pass through taf_add_gap_bases options
+    # pass through taffy add-gap-bases options
     parser.add_argument("--gapFill",
                         help="use TAF tools to fill in reference gaps up to this length (currently more reliable than --maxRefGap) [default=50]",
                         type=int,
                         default=50)
 
-    # pass through taf_norm options
+    # pass through taffy norm options
     parser.add_argument("--maximumBlockLengthToMerge",
                         help="Only merge together any two adjacent blocks if one or both is less than this many bases long, [default=200]",
                         type=int,
@@ -283,10 +283,10 @@ def taf_cmd(hal_path, chunk, chunk_num, options):
     read_cmd = 'gzip -dc' if options.outputMAF.endswith ('.gz') else 'cat'
 
     # we don't pipe directly from hal2maf because add_gap_bases uses even more memory in hal
-    cmd = 'set -eo pipefail && {} {}.maf.gz | {} maf_to_taf{} 2> {}.m2t.time'.format(read_cmd, chunk_num, time_cmd, time_end, chunk_num)
-    cmd += ' | {} taf_add_gap_bases -a {} -m {}{} 2> {}.tagp.time'.format(time_cmd, hal_path, options.gapFill, time_end, chunk_num)
-    cmd += ' | {} taf_norm -k -m {} -n {} -q {}{} 2> {}.tn.time'.format(time_cmd, options.maximumBlockLengthToMerge, options.maximumGapLength,
-                                                                        options.fractionSharedRows, time_end, chunk_num)
+    cmd = 'set -eo pipefail && {} {}.maf.gz | {} taffy view{} 2> {}.m2t.time'.format(read_cmd, chunk_num, time_cmd, time_end, chunk_num)
+    cmd += ' | {} taffy add-gap-bases -a {} -m {}{} 2> {}.tagp.time'.format(time_cmd, hal_path, options.gapFill, time_end, chunk_num)
+    cmd += ' | {} taffy norm -k -m {} -n {} -q {}{} 2> {}.tn.time'.format(time_cmd, options.maximumBlockLengthToMerge, options.maximumGapLength,
+                                                                          options.fractionSharedRows, time_end, chunk_num)
     if chunk[1] != 0:
         cmd += ' | grep -v ^#'
     if options.outputMAF.endswith('.gz'):
@@ -377,8 +377,8 @@ def hal2maf_batch(job, hal_id, batch_chunks, options):
             cmd_toks = taf_cmds[chunk_num].split(' ')
             for i in range(len(cmd_toks)):
                 cmd_toks[i] = cmd_toks[i].rstrip(')')
-            for tag, cmd in [('m2t', 'maf_to_taf'), ('tagp', 'taf_add_gap_bases'), ('tn', 'taf_norm')]:
-                tag_start = cmd_toks.index(cmd)
+            for tag, cmd in [('m2t', 'view'), ('tagp', 'add-gap-bases'), ('tn', 'norm')]:
+                tag_start = cmd_toks.index(cmd) - 1
                 tag_end = cmd_toks.index('2>')        
                 tag_cmd = ' '.join(cmd_toks[tag_start:tag_end])
                 chunk_msg += "{}{} {} ".format('' if cmd == 'hal2maf' else 'and ', tag_cmd, read_time_mem(os.path.join(work_dir, '{}.{}.time'.format(chunk_num, tag))))
