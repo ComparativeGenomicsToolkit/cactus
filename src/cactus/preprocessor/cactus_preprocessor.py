@@ -135,7 +135,7 @@ class PreprocessSequence(RoundedJob):
         self.inSequenceID = inSequenceID
         self.chunksToCompute = chunksToCompute
 
-    def getChunkedJobForCurrentStage(self, seqIDs, proportionSampled, inChunkID):
+    def getChunkedJobForCurrentStage(self, seqIDs, proportionSampled, inChunkID, chunk_i):
         """
         Give the chunked work to the appropriate job.
         """
@@ -147,7 +147,8 @@ class PreprocessSequence(RoundedJob):
                                                   lastzOpts=self.prepOptions.lastzOptions,
                                                   gpuLastz=self.prepOptions.gpuLastz,
                                                   gpuCount=self.prepOptions.gpuCount,
-                                                  gpuLastzInterval=self.prepOptions.gpuLastzInterval)
+                                                  gpuLastzInterval=self.prepOptions.gpuLastzInterval,
+                                                  eventName='{}_{}'.format(self.prepOptions.eventName, chunk_i))
             return LastzRepeatMaskJob(repeatMaskOptions=repeatMaskOptions,
                                       queryID=inChunkID,
                                       targetIDs=seqIDs)
@@ -212,7 +213,7 @@ class PreprocessSequence(RoundedJob):
             else:
                 # otherwise, it's taken from the ratio of chunks
                 proportionSampled = float(inChunkNumber)/len(inChunkIDList)
-            outChunkIDList.append(self.addChild(self.getChunkedJobForCurrentStage(inChunkIDs, proportionSampled, inChunkIDList[i])).rv())
+            outChunkIDList.append(self.addChild(self.getChunkedJobForCurrentStage(inChunkIDs, proportionSampled, inChunkIDList[i], i)).rv())
 
         if chunked:
             # Merge results of the chunking process back into a genome-wide file

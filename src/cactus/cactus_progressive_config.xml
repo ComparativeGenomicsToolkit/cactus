@@ -123,8 +123,8 @@
 	<!-- maxRecoverableChainLength TODO-->
 	<!-- minimumBlockDegreeToCheckSupport Apply support filter to blocks of more than this degree (if greater than 0) -->
 	<!-- minimumBlockHomologySupport TODO-->
-	<caf annealingRounds="64"
-		 deannealingRounds="2 4 8"
+	<caf annealingRounds="2048"
+		 deannealingRounds="2 32 512"
 		 trim="3"
 		 blockTrim="5"
 		 minimumBlockDegree="2"
@@ -136,7 +136,7 @@
 		 maxAdjacencyComponentSizeRatio="50"
 		 minLengthForChromosome="1000000"
 		 proportionOfUnalignedBasesForNewChromosome="0.8"
-		 maximumMedianSequenceLengthBetweenLinkedEnds="1000"
+		 maximumMedianSequenceLengthBetweenLinkedEnds="100000"
 		 removeRecoverableChains="unequalNumberOfIngroupCopies"
 		 maxRecoverableChainsIterations="10"
 		 maxRecoverableChainLength="500000"
@@ -281,7 +281,7 @@
 	<!-- assemblyName: special name of "virtual" minigraph assembly, which is just the list of sequences from the graph. -->
 	<!-- minigraphMapOptions: flags to pass to minigraph for mapping -->
 	<!-- minigraphConstructOptions: flags to pass to minigraph for construction -->
-	<!-- minigraphSortBySize: Add genomes by order of their size (except for reference which is first) when constructing minigraph. -->
+	<!-- minigraphSortInput: Method used to determine input order. Valid values are "mash", "size", "none" / "0" which refer to (decreasing) mash distance to reference, (decreasing) size or no sorting (order in seqfile), respectively -->
 	<!-- minMAPQ: ignore minigraph alignments with mapping quality less than this -->
 	<!-- minGAFBlockLength: ignore minigraph alignments with block length less than this -->
 	<!-- minGAFQueryOverlapFilter: if 2 or more query regions in blocks of at least this size, filter them out. -->
@@ -302,7 +302,7 @@
 		 assemblyName="_MINIGRAPH_"
 		 minigraphMapOptions="-c -xasm"
 		 minigraphConstructOptions="-c -xggs"
-		 minigraphSortBySize="1"
+		 minigraphSortInput="mash"
 		 minMAPQ="5"
 		 minGAFBlockLength="250000"
 		 minGAFQueryOverlapFilter="0"

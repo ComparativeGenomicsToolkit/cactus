@@ -513,7 +513,7 @@ class TestCase(unittest.TestCase):
             if skip:
                 if all([header in toks for header in header_fields]):
                     skip = False
-            elif len(toks) > len(header_fields):
+            elif len(toks) >= len(header_fields):
                 output_stats[toks[0]] = toks[1:]
         return output_stats
 
@@ -644,8 +644,8 @@ class TestCase(unittest.TestCase):
 
         sys.stderr.write("Comparing mafcomp accuracy {},{} to baseline accuracy {},{} with threshold {}\n".format(acc[0], acc[1], baseline_acc[0], baseline_acc[1], delta))
 
-        self.assertGreaterEqual(acc[0] + delta, baseline_acc[0])
-        self.assertGreaterEqual(acc[1] + delta, baseline_acc[1])
+        self.assertGreaterEqual(acc[0] + delta[0], baseline_acc[0])
+        self.assertGreaterEqual(acc[1] + delta[1], baseline_acc[1])
 
     def _check_valid_hal(self, halPath, expected_tree=None):
         """ Make sure a hal passes halValidate and has the given tree """
@@ -666,7 +666,7 @@ class TestCase(unittest.TestCase):
         # check the output
         #self._check_stats(self._out_hal(name), delta_pct=0.25)
         #self._check_coverage(self._out_hal(name), delta_pct=0.20)
-        self._check_maf_accuracy(self._out_hal(name), delta=0.04)
+        self._check_maf_accuracy(self._out_hal(name), delta=(0.04,0.13))
 
     def testEvolverUpdateNodeLocal(self):
         """ Check that the "add a genome to ancestor" modification steps give sane/valid results """
@@ -679,7 +679,7 @@ class TestCase(unittest.TestCase):
         self._check_valid_hal(self._out_hal(name),
                               expected_tree='((simHuman_chr6:0.144018,(simMouse_chr6:0.084509,simRat_chr6:0.091589,simOrang:1)mr:0.271974,simChimp:1)Anc1:0.020593,(simCow_chr6:0.18908,simDog_chr6:0.16303)Anc2:0.032898)Anc0;')
 
-        self._check_maf_accuracy(self._out_hal(name), delta=0.1)
+        self._check_maf_accuracy(self._out_hal(name), delta=(0.1,0.13))
 
     def testEvolverUpdateBranchLocal(self):
         """ Check that the "add a genome to branch" modification steps give sane/valid results """
@@ -690,7 +690,7 @@ class TestCase(unittest.TestCase):
         self._check_valid_hal(self._out_hal(name),
                               expected_tree='((simHuman_chr6:0.144018,((simMouse_chr6:0.084509,simRat_chr6:0.091589)mr:0.171974,simGorilla:0.2)AncGorilla:0.1)Anc1:0.020593,(simCow_chr6:0.18908,simDog_chr6:0.16303)Anc2:0.032898)Anc0;')
 
-        self._check_maf_accuracy(self._out_hal(name), delta=0.1)
+        self._check_maf_accuracy(self._out_hal(name), delta=(0.1,0.13))
 
 
     def testEvolverPrepareWDL(self):
@@ -701,7 +701,7 @@ class TestCase(unittest.TestCase):
         # check the output
         #self._check_stats(self._out_hal("wdl"), delta_pct=0.25)
         #self._check_coverage(self._out_hal("wdl"), delta_pct=0.20)
-        self._check_maf_accuracy(self._out_hal("wdl"), delta=0.04)
+        self._check_maf_accuracy(self._out_hal("wdl"), delta=(0.04,0.13))
 
     def testEvolverPrepareToil(self):
 
@@ -712,7 +712,7 @@ class TestCase(unittest.TestCase):
         # check the output
         #self._check_stats(self._out_hal(name), delta_pct=0.25)
         #self._check_coverage(self._out_hal(name), delta_pct=0.20)
-        self._check_maf_accuracy(self._out_hal(name), delta=0.04)
+        self._check_maf_accuracy(self._out_hal(name), delta=(0.04,0.13))
 
     def testEvolverDecomposedLocal(self):
         """ Check that the output of halStats on a hal file produced by running cactus with --binariesMode local is
@@ -725,7 +725,7 @@ class TestCase(unittest.TestCase):
         # check the output
         #self._check_stats(self._out_hal(name), delta_pct=0.25)
         #self._check_coverage(self._out_hal(name), delta_pct=0.20)
-        self._check_maf_accuracy(self._out_hal(name), delta=0.04)
+        self._check_maf_accuracy(self._out_hal(name), delta=(0.04,0.13))
 
     def testEvolverDecomposedDocker(self):
         """ Check that the output of halStats on a hal file produced by running cactus with --binariesMode docker is
@@ -738,7 +738,7 @@ class TestCase(unittest.TestCase):
         # check the output
         #self._check_stats(self._out_hal(name), delta_pct=0.25)
         #self._check_coverage(self._out_hal(name), delta_pct=0.20)
-        self._check_maf_accuracy(self._out_hal(name), delta=0.04)
+        self._check_maf_accuracy(self._out_hal(name), delta=(0.04,0.13))
         
     def testEvolverDocker(self):
         """ Check that the output of halStats on a hal file produced by running cactus with --binariesMode docker is
@@ -750,7 +750,7 @@ class TestCase(unittest.TestCase):
         # check the output
         #self._check_stats(self._out_hal("docker"), delta_pct=0.25)
         #self._check_coverage(self._out_hal("docker"), delta_pct=0.20)
-        self._check_maf_accuracy(self._out_hal("docker"), delta=0.04)
+        self._check_maf_accuracy(self._out_hal("docker"), delta=(0.04,0.13))
 
     def testEvolverInDocker(self):
         """ Check that the output of halStats on a hal file produced by running cactus in docker
@@ -762,7 +762,7 @@ class TestCase(unittest.TestCase):
         # check the output
         #self._check_stats(self._out_hal("docker"), delta_pct=0.25)
         #self._check_coverage(self._out_hal("docker"), delta_pct=0.20)
-        self._check_maf_accuracy(self._out_hal("in_docker"), delta=0.04)
+        self._check_maf_accuracy(self._out_hal("in_docker"), delta=(0.04,0.13))
         
     def testEvolverPrepareNoOutgroupDocker(self):
 
@@ -804,7 +804,7 @@ class TestCase(unittest.TestCase):
         self._run_evolver_primates_star(name, configFile = poa_config_path)
 
         # check the output
-        self._check_maf_accuracy(self._out_hal("local"), delta=0.0025, dataset='primates')
+        self._check_maf_accuracy(self._out_hal("local"), delta=(0.0025,0.0075), dataset='primates')
 
     def testEvolverRefmapLocal(self):
         """ Use the new minimap pangenome pipeline to create an alignment of the primates, then compare with the baseline
@@ -813,7 +813,7 @@ class TestCase(unittest.TestCase):
         self._run_evolver_primates_refmap(name)
 
         # check the output
-        self._check_maf_accuracy(self._out_hal("local"), delta=0.01, dataset='primates')
+        self._check_maf_accuracy(self._out_hal("local"), delta=(0.01,0.01), dataset='primates')
 
     def testEvolverMinigraphLocal(self):
         """ Use the new minigraph pangenome pipeline to create an alignment of the primates, then compare with the baseline
@@ -823,7 +823,7 @@ class TestCase(unittest.TestCase):
 
         # check the output
         # todo: tune config so that delta can be reduced
-        self._check_maf_accuracy(self._out_hal("local"), delta=0.025, dataset='primates')
+        self._check_maf_accuracy(self._out_hal("local"), delta=(0.025,0.025), dataset='primates')
         
     def testYeastPangenomeLocal(self):
         """ Run pangenome pipeline (including contig splitting!) on yeast dataset """

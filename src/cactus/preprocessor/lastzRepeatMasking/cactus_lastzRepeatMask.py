@@ -25,7 +25,8 @@ class RepeatMaskOptions:
             proportionSampled=1.0,
             gpuLastz=False,
             gpuCount=0,
-            gpuLastzInterval=3000000):
+            gpuLastzInterval=3000000,
+            eventName='seq'):
         self.fragment = fragment
         self.minPeriod = minPeriod
         self.lastzOpts = lastzOpts
@@ -35,6 +36,7 @@ class RepeatMaskOptions:
         self.gpuLastz = gpuLastz
         self.gpuCount = gpuCount
         self.gpuLastzInterval = gpuLastzInterval
+        self.eventName = eventName
 
         self.period = max(1, round(self.proportionSampled * self.minPeriod))
 
@@ -63,7 +65,7 @@ class LastzRepeatMaskJob(RoundedJob):
         """
         Chop up the query fasta into fragments of a certain size, overlapping by half their length.
         """
-        fragments = fileStore.getLocalTempFile()
+        fragments = os.path.join(self.work_dir, self.repeatMaskOptions.eventName + '_frag')        
         cactus_call(infile=queryFile, outfile=fragments,
                     parameters=["cactus_fasta_fragments.py",
                                 "--fragment=%s" % str(self.repeatMaskOptions.fragment),
@@ -76,17 +78,18 @@ class LastzRepeatMaskJob(RoundedJob):
         Align each query fragment against all the target chunks, stopping
         early to avoid exponential blowup if too many alignments are found.
         """
-        target = fileStore.getLocalTempFile()
+        target = os.path.join(self.work_dir, self.repeatMaskOptions.eventName + '.fa')
         catFiles(targetFiles, target)
         lastZSequenceHandling  = ['%s[multiple][nameparse=darkspace]' % os.path.basename(target), '%s[nameparse=darkspace]' % os.path.basename(fragments)]
         if self.repeatMaskOptions.unmaskInput:
             lastZSequenceHandling  = ['%s[multiple,unmask][nameparse=darkspace]' % os.path.basename(target), '%s[unmask][nameparse=darkspace]' % os.path.basename(fragments)]
-        alignment = fileStore.getLocalTempFile()
+        alignment = os.path.join(self.work_dir, self.repeatMaskOptions.eventName + '.cigar')
         # Each time a fragment aligns to a base in the sequence, that
         # base's match count is incremented.  the plus three for the
         # period parameter is a fudge to ensure sufficient alignments
         # are found
         cactus_call(outfile=alignment,
+                    work_dir=self.work_dir,
                     parameters=["lastz"] + lastZSequenceHandling +
                                 self.repeatMaskOptions.lastzOpts.split() +
                                 # Note that --querydepth has no effect when --ungapped is passed (which is by default)
@@ -158,7 +161,7 @@ class LastzRepeatMaskJob(RoundedJob):
         Mask the query fasta using the alignments to the target. Anything with more alignments than the period gets masked.
         """
         #This runs Bob's covered intervals program, which combines the lastz alignment info into intervals of the query.
-        maskInfo = fileStore.getLocalTempFile()
+        maskInfo = os.path.join(self.work_dir, self.repeatMaskOptions.eventName + '.maskinfo')
 
         # covered_intervals is part of segalign, so only run if not in gpu mode
         if self.repeatMaskOptions.gpuLastz:
@@ -182,9 +185,9 @@ class LastzRepeatMaskJob(RoundedJob):
             args = ["--origin=one"]
         if self.repeatMaskOptions.unmaskOutput:
             args.append("--unmask")
-        args.append(maskInfo)
-        maskedQuery = fileStore.getLocalTempFile()
-        cactus_call(infile=queryFile, outfile=maskedQuery,
+        args.append(os.path.basename(maskInfo))
+        maskedQuery = os.path.join(self.work_dir, self.repeatMaskOptions.eventName + '.maskedQeury')
+        cactus_call(infile=queryFile, outfile=maskedQuery, work_dir=self.work_dir,
                     parameters=["cactus_fasta_softmask_intervals.py"] + args)
         return maskedQuery
 
@@ -194,8 +197,12 @@ class LastzRepeatMaskJob(RoundedJob):
         """
         assert len(self.targetIDs) >= 1
         assert self.repeatMaskOptions.fragment > 1
-        queryFile = fileStore.readGlobalFile(self.queryID)
-        targetFiles = [fileStore.readGlobalFile(fileID) for fileID in self.targetIDs]
+        self.work_dir = fileStore.getLocalTempDir()
+        queryFile = os.path.join(self.work_dir, self.repeatMaskOptions.eventName + '.query')
+        fileStore.readGlobalFile(self.queryID, queryFile)
+        targetFiles = [os.path.join(self.work_dir, '{}_{}.tgt'.format(self.repeatMaskOptions.eventName, i)) for i in range(len(self.targetIDs))]
+        for targetFile, fileID in zip(targetFiles, self.targetIDs):
+            fileStore.readGlobalFile(fileID, targetFile)
 
         if self.repeatMaskOptions.gpuLastz:
             assert len(targetFiles) == 1

@@ -30,6 +30,7 @@ Cactus uses many different algorithms and individual code contributions, princip
 - Heng Li for [minigraph](https://github.com/lh3/minigraph), [minimap2](https://github.com/lh3/minimap2), [gfatools](https://github.com/lh3/gfatools) and [dna-brnn](https://github.com/lh3/dna-rnn)
 - Dany Doerr for [GFAffix](https://github.com/marschall-lab/GFAffix), used to optionally clean pangenome graphs.
 - The vg team for [vg](https://github.com/vgteam/vg), used to process pangenome graphs.
+- The authors of [Mash](https://github.com/marbl/Mash)
 
 ## Mailing List
 
@@ -58,7 +59,7 @@ python3 -m pip install -U .
 
 If you have Docker installed, you can now run Cactus.  All binaries, such as `lastz` and `cactus-consolidated` will be run via Docker.  Singularity binaries can be used in place of docker binaries with the `--binariesMode singularity` flag.  Note, you must use Singularity 2.3 - 2.6 or Singularity 3.1.0+. Singularity 3 versions below 3.1.0 are incompatible with cactus (see [issue #55](https://github.com/ComparativeGenomicsToolkit/cactus/issues/55) and [issue #60](https://github.com/ComparativeGenomicsToolkit/cactus/issues/60)).
 
-By default, cactus will use the image, `quay.io/comparative-genomics-toolkit/cactus:<CACTUS_COMMIT>` when running binaries. This is usually okay, but can be overridden with the `CACTUS_DOCKER_ORG` and `CACTUS_DOCKER_TAG` environment variables.  For example, to use GPU release 2.2.3, run `export CACTUS_DOCKER_TAG=v2.2.3-gpu` before running cactus.  
+By default, cactus will use the image, `quay.io/comparative-genomics-toolkit/cactus:<CACTUS_COMMIT>` when running binaries. This is usually okay, but can be overridden with the `CACTUS_DOCKER_ORG` and `CACTUS_DOCKER_TAG` environment variables.  For example, to use GPU release 2.2.3, run `export CACTUS_DOCKER_TAG=v2.2.3-gpu` before running cactus.
 
 ### Compiling Binaries Locally
 In order to compile the binaries locally and not use a Docker image, you need some dependencies installed.  On Ubuntu (we've tested on 20.04 and 22.04), you can look at the [Cactus Dockerfile](./Dockerfile) for guidance. To obtain the `apt-get` command:

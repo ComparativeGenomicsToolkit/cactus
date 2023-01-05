@@ -582,7 +582,7 @@ Msa *msa_make_partial_order_alignment(char **seqs, int *seq_lens, int64_t seq_no
 
         int test_cols = 0;
         uint8_t** test_msa = NULL;
-        abpoa_msa(ab, abpt, msa->seq_no, NULL, msa->seq_lens, bseqs, NULL);
+        abpoa_msa(ab, abpt, msa->seq_no, NULL, msa->seq_lens, bseqs, NULL, NULL);
         // abpoa's interface has changed a bit -- instead of passing in pointers to the results, they
         // end up in the ab->abc struct -- we extract them here
         test_msa = ab->abc->msa_base;
@@ -601,7 +601,7 @@ Msa *msa_make_partial_order_alignment(char **seqs, int *seq_lens, int64_t seq_no
         free(test_msa);
 #else
         // perform abpoa-msa
-        abpoa_msa(ab, abpt, msa->seq_no, NULL, msa->seq_lens, bseqs, NULL);
+        abpoa_msa(ab, abpt, msa->seq_no, NULL, msa->seq_lens, bseqs, NULL, NULL);
         // abpoa's interface has changed a bit -- instead of passing in pointers to the results, they
         // end up in the ab->abc struct -- we extract them here
         msa->msa_seq = ab->abc->msa_base;

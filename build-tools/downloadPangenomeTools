@@ -278,9 +278,7 @@ fi
 
 # vg
 cd ${pangenomeBuildDir}
-#wget -q https://github.com/vgteam/vg/releases/download/v1.45.0/vg
-# This is vg release v1.44.0 patched to add this PR https://github.com/vgteam/vg/pull/3795
-wget -q http://public.gi.ucsc.edu/~hickey/vg-patch/vg.04a8bda9fdbb6f6af66d7aa9ab457d57d1b98e72 -O vg
+wget -q https://github.com/vgteam/vg/releases/download/v1.45.0/vg
 chmod +x vg
 if [[ $STATIC_CHECK -ne 1 || $(ldd vg | grep so | wc -l) -eq 0 ]]
 then
@@ -311,6 +309,17 @@ then
 else
 	 exit 1
 fi
+
+# mash
+cd ${pangenomeBuildDir}
+wget -q https://github.com/marbl/Mash/releases/download/v2.3/mash-Linux64-v2.3.tar
+tar -xf mash-Linux64-v2.3.tar
+cd mash-Linux64-v2.3
+mv mash ${binDir}
+# note:
+# disabling the static check as this binary is not fully static.
+# but.. I can't figure out how to build proper static binary from
+# source and this one seems broadly compatible with many systems...
 
 cd ${CWD}
 rm -rf ${pangenomeBuildDir}

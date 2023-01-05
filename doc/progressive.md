@@ -103,9 +103,9 @@ The HAL format represents the alignment in a reference-free, indexed way, but is
 cactus-hal2maf ./js ./evolverMammals.hal evolverMammals.maf.gz --refGenome simHuman_chr6 --chunkSize 1000000 --noAncestors --onlyOrthologs
 ```
 
-`cactus-hal2maf`, in addition to providing parallelism with Toil, also adds [TAF](https://github.com/ComparativeGenomicsToolkit/taf)-based normalization and is therefore recommended over running `hal2maf` directly.  Also, you usually want to pass the `--noAncestors` option and `--onlyOrthologs` and/or `--noDupes` to reduce the complexity of the output. 
+`cactus-hal2maf`, in addition to providing parallelism with Toil, also adds [TAFFY](https://github.com/ComparativeGenomicsToolkit/taffy)-based normalization and is therefore recommended over running `hal2maf` directly.  Also, you usually want to pass the `--noAncestors` option and `--onlyOrthologs` and/or `--noDupes` to reduce the complexity of the output. 
 
-The various batching options can be used to tune distributed runs on very large inputs. For example, to run 4 batches, each on a 32-core EC2 node but only processing 8 chunks with `taf_add_gap_bases` in parallel, these options could be used
+The various batching options can be used to tune distributed runs on very large inputs. For example, to run 4 batches, each on a 32-core EC2 node but only processing 8 chunks with `taffy add-gap-bases` in parallel, these options could be used
 ```
 --chunkSize 1000000 --batchCount 4 --batchCores 32 --batchParallelTaf 8 --batchSystem mesos --provisioner aws --defaultPreemptable --nodeStorage 2000 --maxNodes 4 --nodeTypes r5.8xlarge 
 ```
@@ -127,12 +127,12 @@ Conservation scores can be computed using [phast](http://compgen.cshl.edu/phast/
 The Cactus Docker image contains everything you need to run Cactus (python environment, all binaries, system dependencies). For example, to run the test data:
 
 ```
-docker run -v $(pwd):/data --rm -it quay.io/comparative-genomics-toolkit/cactus:v2.3.0 cactus /data/jobStore /data/evolverMammals.txt /data/evolverMammals.hal --root mr
+docker run -v $(pwd):/data --rm -it quay.io/comparative-genomics-toolkit/cactus:v2.3.1 cactus /data/jobStore /data/evolverMammals.txt /data/evolverMammals.hal --root mr
 ```
 
 Or you can proceed interactively by running
 ```
-docker run -v $(pwd):/data --rm -it quay.io/comparative-genomics-toolkit/cactus:v2.3.0 bash
+docker run -v $(pwd):/data --rm -it quay.io/comparative-genomics-toolkit/cactus:v2.3.1 bash
 cactus /data/jobStore /data/evolverMammals.txt /data/evolverMammals.hal --root mr
 
 ```
@@ -267,8 +267,26 @@ Please [cite SegAlign](https://doi.ieeecomputersociety.org/10.1109/SC41405.2020.
 
 ## Frequently Asked Questions
 
-Q: I'm running under macOS using the Docker functionality and get an error from Docker: `docker: Error response from daemon: Mounts denied: [...]`
+**Q**: I'm running under macOS using the Docker functionality and get an error from Docker: `docker: Error response from daemon: Mounts denied: [...]`
 
-A: Go to your Docker preferences. In the "File Sharing" tab, double-click the last entry ("/path/to/exported/directory") and type in `/var/folders`. (Don't use the `+` button, it won't work because it resolves symlinks before adding).
+**A**: Go to your Docker preferences. In the "File Sharing" tab, double-click the last entry ("/path/to/exported/directory") and type in `/var/folders`. (Don't use the `+` button, it won't work because it resolves symlinks before adding).
 
 The reason you have to do this is that the Docker VM requires explicitly listing the directories that can be bind-mounted. The default temp directory on macOS (`/var/folders/...`) is *symlinked* to a directory that is already listed as bind-mountable, but Docker checks the listing before resolving the symlink, returning an error.
+
+**Q**: Why does cactus write some files to `/tmp` when I specify another location with `--workDir`.  
+
+**A**: This is a bug, but you can work around it by running `export TMPDIR=<your desired path>` before running cactus. 
+
+**Q**: How exactly does Cactus use the branch lengths in the input tree?
+
+**A**: The branch lengths are expected to be denoted in substitutions per site and are used in three ways. 
+
+1) to determine lastz parameters. The pairwise distance between species is measured using the branch lengths, and mapped to a set of lastz parameters using the `<divergences>` (inside `<constants>`) and `<divergence>` (inside `<blast>`) elements in the [configuration XML](../src/cactus/cactus_progressive_config.xml). Faster parameters are used for more closely-related species. If you are aligning human and chimp with the correct branch lengths, their distance will be about 0.02, and it will use the fasest parameters which will be several times faster than if, say, the default branch length of 1 was used. 
+
+2) to estimate ancestral bases. Here the relative branch lengths are more important -- the base of a descendant that is much nearer to the ancestor will provide more information and will be wieghted higher when estimating it.  
+
+3) to calculate outgroups.  Branch lengths are taken into account by the greedy heuristic used to find the nearest outgroup to the given ancestral event. 
+
+If you do not know the branch lengths, you can leave them out and Cactus will use its default (1). This will cause the alignment to be slower than necessary but the results shouldn't be affected much.  Otherwise, even inexact branch lengths should be fine.  For closely related species `mash dist` is a very easy way to estimate a pairwise distance (`mash` is now included in Cactus). Often you can use `mash` and already-published trees to come up with your branch lengths. 
+
+We are currently working on incorporating a fast genome tree estimation workflow with Cactus.  

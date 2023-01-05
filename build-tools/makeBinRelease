@@ -30,13 +30,10 @@ git submodule update --init --recursive
 if [ -z ${CACTUS_LEGACY_ARCH+x} ]
 then
 # Make sure abpoa doesn't build with -march=native, but something more portable
-# Todo: It would be more portable to use "sse41", but that leads to segfaults in rare cases
-# https://github.com/yangao07/abPOA/issues/26
+# Using avx2 in normal release and sse41 (which can be much slower on big problems) for legacy release	 
 	 export avx2=1
 else
-	 export sse2=1
-	 # haven't tested abpoa on older architectures, turn it off by default
-	 sed -i src/cactus/cactus_progressive_config.xml -e 's/partialOrderAlignment="1"/partialOrderAlignment="0"/g'
+	 export sse41=1
 fi
 
 # hack lastz to build static.
@@ -55,9 +52,9 @@ cd ${binBuildDir}
 mkdir -p deps ; cd deps
 DEP_PREFIX=$(pwd)
 # hdf5
-wget -q https://github.com/HDFGroup/hdf5/archive/refs/tags/hdf5-1_10_2.tar.gz
-tar -zxf hdf5-1_10_2.tar.gz
-cd  hdf5-hdf5-1_10_2
+wget -q https://github.com/HDFGroup/hdf5/archive/refs/tags/hdf5-1_10_9.tar.gz
+tar -zxf hdf5-1_10_9.tar.gz
+cd  hdf5-hdf5-1_10_9
 ./configure --enable-cxx --enable-static --disable-parallel --disable-shared --prefix=${DEP_PREFIX}
 make -j $(nproc)
 make install
@@ -67,7 +64,7 @@ cd ${DEP_PREFIX}
 wget -q http://xmlsoft.org/sources/libxml2-2.9.12.tar.gz
 tar -zxf libxml2-2.9.12.tar.gz
 cd libxml2-2.9.12
-./configure --enable-static --disable-shared --prefix=${DEP_PREFIX}
+./configure --enable-static --disable-shared --prefix=${DEP_PREFIX} --with-python=no
 make -j $(nproc)
 make install
 export CACTUS_STATIC_LINK_FLAGS="-L${DEP_PREFIX}/lib -lz -lpthread -lm -llzma"
@@ -89,12 +86,7 @@ export ENABLE_PHYLOP=1
 make -j $(nproc) check-static
 
 # download all external tools used for pangenome pipeline
-# (only works for newer architectures as vg and some other binaries are built with -march=nehalem)
-# todo: should try to just use nocona for everything and make one release 
-if [ -z ${CACTUS_LEGACY_ARCH+x} ]	
-then
-	 build-tools/downloadPangenomeTools 1
-fi
+build-tools/downloadPangenomeTools 1
 
 # download tools for working with MAF
 build-tools/downloadMafTools 1
