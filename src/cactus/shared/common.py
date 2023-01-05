@@ -65,6 +65,14 @@ def cactus_cpu_count():
         pass
     return num_cpus
 
+def cactus_gpu_count():
+    """ Since v5.8.0, Toil needs a gpu count to use the gpu.  In order to default to all available, we use this"""
+    try:
+        smi_out = subprocess.check_output(['nvidia-smi', '-L']).decode('utf-8').strip()
+        return len(smi_out.split('\n'))
+    except:
+        return 0
+
 def cactus_override_toil_options(options):
     """  Mess with some toil options to create useful defaults. """
     if options.retryCount is None and options.batchSystem.lower() not in ['single_machine', 'singleMachine']:

@@ -18,6 +18,7 @@ from cactus.shared.configWrapper import ConfigWrapper
 from cactus.shared.common import makeURL, catFiles
 from cactus.shared.common import enableDumpStack
 from cactus.shared.common import cactus_override_toil_options
+from cactus.shared.common import cactus_gpu_count
 from cactus.shared.version import cactus_commit
 
 from cactus.paf.local_alignment import sanitize_then_make_paf_alignments
@@ -75,8 +76,16 @@ def main():
            len(options.pathOverrideNames) != len(options.pathOverrides):
             raise RuntimeError('same number of values must be passed to --pathOverrides and --pathOverrideNames')
     # gpuCount auto-sets gpu so you don't need to use both
-    if options.gpuCount and options.gpuCount > 0:
-        options.gpu = True    
+    if options.gpuCount:
+        options.gpu = True
+    # default to all gpus available (like we did before the gpu count option)
+    if options.gpu and not options.gpuCount:
+        if options.batchSystem.lower() in ['single_machine', 'singlemachine']:
+            options.gpuCount = cactus_gpu_count()
+            if not options.gpuCount:
+                raise RuntimeError('Unable to automatically determine number of GPUs: Please set with --gpuCount')
+        else:
+            raise RuntimeError('--gpuCount required in order to use GPUs on non single_machine batch systems')
 
     # Mess with some toil options to create useful defaults.
     cactus_override_toil_options(options)

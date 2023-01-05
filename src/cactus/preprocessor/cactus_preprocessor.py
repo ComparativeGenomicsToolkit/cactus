@@ -32,6 +32,7 @@ from cactus.shared.common import setupBinaries, importSingularityImage
 from cactus.shared.common import enableDumpStack
 from cactus.shared.common import unzip_gzs
 from cactus.shared.common import zip_gzs
+from cactus.shared.common import cactus_gpu_count
 from cactus.shared.version import cactus_commit
 from toil.statsAndLogging import set_logging_from_options
 from toil.realtimeLogger import RealtimeLogger
@@ -472,8 +473,16 @@ def main():
         raise RuntimeError('--minLength must be used with --maskFile')
 
     # gpuCount auto-sets gpu so you don't need to use both
-    if options.gpuCount and options.gpuCount > 0:
+    if options.gpuCount:
         options.gpu = True
+    # default to all gpus available (like we did before the gpu count option)
+    if options.gpu and not options.gpuCount:
+        if options.batchSystem.lower() in ['single_machine', 'singlemachine']:
+            options.gpuCount = cactus_gpu_count()
+            if not options.gpuCount:
+                raise RuntimeError('Unable to automatically determine number of GPUs: Please set with --gpuCount')
+        else:
+            raise RuntimeError('--gpuCount required in order to use GPUs on non single_machine batch systems')
     
     inSeqPaths = []
     outSeqPaths = []
