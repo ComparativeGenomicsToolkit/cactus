@@ -32,10 +32,10 @@ from cactus.shared.common import setupBinaries, importSingularityImage
 from cactus.shared.common import enableDumpStack
 from cactus.shared.common import unzip_gzs
 from cactus.shared.common import zip_gzs
-from cactus.shared.common import cactus_gpu_count
 from cactus.shared.version import cactus_commit
 from toil.statsAndLogging import set_logging_from_options
 from toil.realtimeLogger import RealtimeLogger
+from toil.lib.accelerators import count_nvidia_gpus
 
 from cactus.shared.common import cactus_override_toil_options
 from cactus.preprocessor.checkUniqueHeaders import checkUniqueHeaders
@@ -478,7 +478,7 @@ def main():
     # default to all gpus available (like we did before the gpu count option)
     if options.gpu and not options.gpuCount:
         if options.batchSystem.lower() in ['single_machine', 'singlemachine']:
-            options.gpuCount = cactus_gpu_count()
+            options.gpuCount = count_nvidia_gpus()
             if not options.gpuCount:
                 raise RuntimeError('Unable to automatically determine number of GPUs: Please set with --gpuCount')
         else:

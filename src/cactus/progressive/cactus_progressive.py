@@ -18,12 +18,13 @@ from argparse import ArgumentParser
 from base64 import b64encode
 
 from toil.lib.bioio import getTempFile
-from cactus.shared.common import cactus_cpu_count, cactus_gpu_count
+from cactus.shared.common import cactus_cpu_count
 from toil.statsAndLogging import logger
 from toil.statsAndLogging import set_logging_from_options
 from toil.realtimeLogger import RealtimeLogger
 from toil.job import Job
 from toil.common import Toil
+from toil.lib.accelerators import count_nvidia_gpus
 
 from cactus.shared.common import getOptionalAttrib
 from cactus.shared.common import findRequiredNode
@@ -358,7 +359,7 @@ def main():
     # default to all gpus available (like we did before the gpu count option)
     if options.gpu and not options.gpuCount:
         if options.batchSystem.lower() in ['single_machine', 'singlemachine']:
-            options.gpuCount = cactus_gpu_count()
+            options.gpuCount = count_nvidia_gpus()
             if not options.gpuCount:
                 raise RuntimeError('Unable to automatically determine number of GPUs: Please set with --gpuCount')
         else:

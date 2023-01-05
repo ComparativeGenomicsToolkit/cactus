@@ -18,7 +18,6 @@ from cactus.shared.configWrapper import ConfigWrapper
 from cactus.shared.common import makeURL, catFiles
 from cactus.shared.common import enableDumpStack
 from cactus.shared.common import cactus_override_toil_options
-from cactus.shared.common import cactus_gpu_count
 from cactus.shared.version import cactus_commit
 
 from cactus.paf.local_alignment import sanitize_then_make_paf_alignments
@@ -27,6 +26,7 @@ from toil.job import Job
 from toil.common import Toil
 from toil.statsAndLogging import logger
 from toil.statsAndLogging import set_logging_from_options
+from toil.lib.accelerators import count_nvidia_gpus
 
 from sonLib.nxnewick import NXNewick
 from sonLib.bioio import getTempDirectory, getTempFile
@@ -81,7 +81,7 @@ def main():
     # default to all gpus available (like we did before the gpu count option)
     if options.gpu and not options.gpuCount:
         if options.batchSystem.lower() in ['single_machine', 'singlemachine']:
-            options.gpuCount = cactus_gpu_count()
+            options.gpuCount = count_nvidia_gpus()
             if not options.gpuCount:
                 raise RuntimeError('Unable to automatically determine number of GPUs: Please set with --gpuCount')
         else:
