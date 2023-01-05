@@ -24,6 +24,7 @@ from toil.statsAndLogging import set_logging_from_options
 from toil.realtimeLogger import RealtimeLogger
 from toil.job import Job
 from toil.common import Toil
+from toil.lib.accelerators import count_nvidia_gpus
 
 from cactus.shared.common import getOptionalAttrib
 from cactus.shared.common import findRequiredNode
@@ -353,8 +354,16 @@ def main():
     if options.maxCores is not None and options.consCores > int(options.maxCores):
         raise RuntimeError('--consCores must be <= --maxCores')
     # gpuCount auto-sets gpu so you don't need to use both
-    if options.gpuCount and options.gpuCount > 0:
-        options.gpu = True    
+    if options.gpuCount:
+        options.gpu = True
+    # default to all gpus available (like we did before the gpu count option)
+    if options.gpu and not options.gpuCount:
+        if options.batchSystem.lower() in ['single_machine', 'singlemachine']:
+            options.gpuCount = count_nvidia_gpus()
+            if not options.gpuCount:
+                raise RuntimeError('Unable to automatically determine number of GPUs: Please set with --gpuCount')
+        else:
+            raise RuntimeError('--gpuCount required in order to use GPUs on non single_machine batch systems')
     
     # Mess with some toil options to create useful defaults.
     cactus_override_toil_options(options)
