@@ -138,7 +138,7 @@ class LastzRepeatMaskJob(RoundedJob):
                         raise RuntimeError('{} exited 0 but keyword "{}" found in stderr'.format(cmd, keyword))
 
         # scrape the segalign output into one big file, making an effort to read in numeric order
-        merged_path = fileStore.getLocalTempFile()
+        merged_path = os.path.join(self.work_dir, self.repeatMaskOptions.eventName + '.mergedpath')
         with open(merged_path, "a") as merged_file:
             for work_file in sorted(os.listdir(alignment_dir), key = lambda x : int(re.sub("[^0-9]", "", x))):
                 # segalign_repeat_masker makes files that look like "tmp10.block0.intervals"
