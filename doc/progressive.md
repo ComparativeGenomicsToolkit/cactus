@@ -290,3 +290,13 @@ The reason you have to do this is that the Docker VM requires explicitly listing
 If you do not know the branch lengths, you can leave them out and Cactus will use its default (1). This will cause the alignment to be slower than necessary but the results shouldn't be affected much.  Otherwise, even inexact branch lengths should be fine.  For closely related species `mash dist` is a very easy way to estimate a pairwise distance (`mash` is now included in Cactus). Often you can use `mash` and already-published trees to come up with your branch lengths. 
 
 We are currently working on incorporating a fast genome tree estimation workflow with Cactus.  
+
+**Q**: How much do I have to worry about uncertainty in my guide tree?
+
+**A**:  Changes in the tree topology will affect the alignment, but like the Progressive Cactus paper shows, it'll be fairly minimal for small, local changes. For most data, there is no single correct tree anyway, due to things like incomplete lineage sorting, hybridization and lateral gene transfer.
+
+That said, cactus can handle multifurcations up to a point: runtime increases quadratically with the number of species in the split. So depending on your genome size, you probably won't be able to go much beyond 5. This should be more accurate in theory, but I haven't run the experiments to back it up.
+
+**Q**: I'm running out of memory, or getting crashes, or very long runtimes in one of the `paf_xxxx` tools (`paf_tile, paf_to_bed` etc.). What can I do?
+
+**A**: This is almost always due to Cactus having found too many pairwise alignments in the all-to-all lastz mapping (blast) phase. The only way to get around this is my softmasking the input genomes before running Cactus. For most species, this is best done with RepeatMasker. We do intend to work on lifting this requirement in the future by making cactus's own repeatmasking more robust. 
