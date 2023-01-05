@@ -42,9 +42,12 @@ def run_lastz(job, name_A, genome_A, name_B, genome_B, distance, params):
                                                                                       genome_B, lastz_params))
 
     gpu = getOptionalAttrib(lastz_params_node, 'gpuLastz', typeFn=bool, default=False)
+    gpu_count = getOptionalAttrib(lastz_params_node, 'gpuCount', typeFn=int, default=0)
     if gpu:
         lastz_bin = 'run_segalign'
         suffix_a, suffix_b = '', ''
+        if gpu_count:
+            lastz_params += ' --num_gpu {}'.format(gpu_count)
     else:
         lastz_bin = 'lastz'
         suffix_a = '[multiple][nameparse=darkspace]'
@@ -55,6 +58,7 @@ def run_lastz(job, name_A, genome_A, name_B, genome_B, distance, params):
                  '{}{}'.format(os.path.basename(genome_a_file), suffix_a),
                  '{}{}'.format(os.path.basename(genome_b_file), suffix_b),
                  '--format=paf:minimap2'] + lastz_params.split(' ')
+        
     # note: it's very important to set the work_dir here, because cactus_call is not able to
     # sort out the mount directory by itself, presumably due to square brackets...
     segalign_messages = cactus_call(parameters=lastz_cmd, outfile=alignment_file, work_dir=work_dir, returnStdErr=gpu)
@@ -129,6 +133,9 @@ def make_chunked_alignments(job, event_a, genome_a, event_b, genome_b, distance,
     chunks_b = make_chunks(genome_b)
 
     # Align all chunks from genome_A against all chunks from genome_B
+    gpu = getOptionalAttrib(lastz_params_node, 'gpuLastz', typeFn=bool, default=False)
+    gpu_count = getOptionalAttrib(lastz_params_node, 'gpuCount', typeFn=int, default=0)
+    accelerators = 'cuda:{}'.format(gpu_count) if gpu and gpu_count else None
     chunked_alignment_files = []
     for i, chunk_a in enumerate(chunks_a):
         for j, chunk_b in enumerate(chunks_b):
@@ -137,7 +144,8 @@ def make_chunked_alignments(job, event_a, genome_a, event_b, genome_b, distance,
             chunked_alignment_files.append(job.addChildJobFn(mappingFn, '{}_{}'.format(event_a, i), chunk_a,
                                                              '{}_{}'.format(event_b, j), chunk_b, distance, params,
                                                              cores=lastz_cores, disk=4*(chunk_a.size+chunk_b.size),
-                                                             memory=4*(chunk_a.size+chunk_b.size)).rv())
+                                                             memory=4*(chunk_a.size+chunk_b.size),
+                                                             accelerators=accelerators).rv())
 
     return job.addFollowOnJobFn(combine_chunks, chunked_alignment_files).rv()  # Combine the chunked alignment files
 

@@ -61,6 +61,9 @@ def main():
                         help="The way to run the Cactus binaries", default=None)
     parser.add_argument("--gpu", action="store_true",
                         help="Enable GPU acceleration by using Segaling instead of lastz")
+    parser.add_argument("--gpuCount", type=int,
+                        help="Specify the number of GPUs for each repeatmasking job (will also toggle on --gpu). By default (or if set to 0) all available GPUs are used")
+    
     options = parser.parse_args()
 
     setupBinaries(options)
@@ -71,6 +74,9 @@ def main():
         if not options.pathOverrides or not options.pathOverrideNames or \
            len(options.pathOverrideNames) != len(options.pathOverrides):
             raise RuntimeError('same number of values must be passed to --pathOverrides and --pathOverrideNames')
+    # gpuCount auto-sets gpu so you don't need to use both
+    if options.gpuCount and options.gpuCount > 0:
+        options.gpu = True    
 
     # Mess with some toil options to create useful defaults.
     cactus_override_toil_options(options)

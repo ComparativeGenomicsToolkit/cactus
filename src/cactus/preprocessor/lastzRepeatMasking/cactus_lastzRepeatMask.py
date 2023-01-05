@@ -24,6 +24,7 @@ class RepeatMaskOptions:
             unmaskOutput=False,
             proportionSampled=1.0,
             gpuLastz=False,
+            gpuCount=0,
             gpuLastzInterval=3000000,
             eventName='seq'):
         self.fragment = fragment
@@ -33,6 +34,7 @@ class RepeatMaskOptions:
         self.unmaskOutput = unmaskOutput
         self.proportionSampled = proportionSampled
         self.gpuLastz = gpuLastz
+        self.gpuCount = gpuCount
         self.gpuLastzInterval = gpuLastzInterval
         self.eventName = eventName
 
@@ -53,7 +55,8 @@ class LastzRepeatMaskJob(RoundedJob):
             cores = cactus_cpu_count()
         else:
             cores = None
-        RoundedJob.__init__(self, memory=memory, disk=disk, cores=cores, preemptable=True)
+        accelerators = ['cuda:{}'.format(repeatMaskOptions.gpuCount)] if repeatMaskOptions.gpuCount else None            
+        RoundedJob.__init__(self, memory=memory, disk=disk, cores=cores, accelerators=accelerators, preemptable=True)
         self.repeatMaskOptions = repeatMaskOptions
         self.queryID = queryID
         self.targetIDs = targetIDs
@@ -117,6 +120,8 @@ class LastzRepeatMaskJob(RoundedJob):
                 lastz_opts[i + 1] = None
             else:
                 gpu_opts += [lastz_opts[i]]
+        if self.repeatMaskOptions.gpuCount:
+            gpu_opts += ['--num_gpu', str(self.repeatMaskOptions.gpuCount)]
                         
         cmd = ["segalign_repeat_masker",
                targetFile,
