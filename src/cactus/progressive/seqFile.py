@@ -36,6 +36,10 @@ from sonLib.nxtree import NXTree
 from sonLib.nxnewick import NXNewick
 from sonLib.bioio import popenCatch
 
+from toil.statsAndLogging import logger
+from toil.statsAndLogging import set_logging_from_options
+from toil.realtimeLogger import RealtimeLogger
+
 # parse the input seqfile for progressive cactus.  this file is in the
 # format of:
 #   newick tree
@@ -58,12 +62,12 @@ from sonLib.bioio import popenCatch
 # *cat /tmp/cat/
 
 class SeqFile:
-    def __init__(self, path=None, defaultBranchLen=1.0):
+    def __init__(self, path=None, defaultBranchLen=1.0, root_name = None):
         self.branchLen = defaultBranchLen        
         if path is not None:
-            self.parseFile(path)
+            self.parseFile(path, root_name)
 
-    def parseFile(self, path):
+    def parseFile(self, path, root_name = None):
         if not os.path.isfile(path):
             raise RuntimeError("File not found: %s" % path)
         self.tree = None
@@ -99,7 +103,7 @@ class SeqFile:
 
         if self.tree is None:
             self.starTree()
-        self.cleanTree()
+        self.cleanTree(root_name)
         self.validate()
 
     def starTree(self):
@@ -170,13 +174,25 @@ class SeqFile:
                              "ignore this message.\n\n" % (path, nFrac))
 
     # remove leaves that do not have sequence data associated with them
-    def cleanTree(self):
+    def cleanTree(self, root_name = None):
         numLeaves = 0
         removeList = []
+        rootID = self.tree.getRootId()
+        if root_name:
+            for node in self.tree.breadthFirstTraversal():
+                if self.tree.hasName(node) and self.tree.getName(node) == root_name:
+                    rootID = node
+                    break
+
+        # we will never clean inside our root
+        mustKeepSet = set()
+        for node in self.tree.breadthFirstTraversal(root = rootID):
+            mustKeepSet.add(node)
+            
         for node in self.tree.postOrderTraversal():
             if self.tree.isLeaf(node):
                 name = self.tree.getName(node)
-                if name not in self.pathMap:
+                if name not in self.pathMap and node not in mustKeepSet:
                     removeList.append(node)
                 numLeaves += 1
         if numLeaves < 2:
@@ -185,19 +201,18 @@ class SeqFile:
         if len(removeList) == numLeaves:
             raise RuntimeError("No sequence path specified for any leaves in the tree")
         for leaf in removeList:
-             sys.stderr.write("No sequence path found for %s: skipping\n" % (
-                 self.tree.getName(leaf)))
+             logger.warning("No sequence path found for species %s: removing from tree\n" % (
+                 self.tree.getName(leaf)))             
              self.tree.removeLeaf(leaf)
 
         for node in self.tree.postOrderTraversal():
             if self.tree.hasParent(node):
                 parent = self.tree.getParent(node)
                 if self.tree.getWeight(parent, node) is None:
-                    sys.stderr.write(
+                    logger.warning(
                         "No branch length for %s: setting to %d\n" % (
                             self.tree.getName(node), self.branchLen))
                     self.tree.setWeight(parent, node, self.branchLen)
-
 
     # create the cactus_workflow_experiment xml element which serves as
     # the root node of the experiment template file needed by
