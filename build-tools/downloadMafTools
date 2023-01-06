@@ -21,6 +21,29 @@ rm -rf ${mafBuildDir}
 mkdir -p ${mafBuildDir}
 mkdir -p ${binDir}
 
+# taffy
+cd ${mafBuildDir}
+git clone https://github.com/samtools/htslib.git
+cd htslib
+git checkout 1.16
+git submodule update --init --recursive
+make -j ${numcpu}
+export HTSLIB_CFLAGS=-I$(pwd)/
+export HTSLIB_LIBS=$(pwd)/libhts.a
+cd ${mafBuildDir}
+git clone https://github.com/ComparativeGenomicsToolkit/taffy.git
+cd taffy
+git checkout 62356fee8d917dbba3834d9df83411923c512db4
+git submodule update --init --recursive
+export HALDIR=${CWD}/submodules/hal
+make -j ${numcpu}
+if [[ $STATIC_CHECK -ne 1 || $(ldd bin/taffy | grep so | wc -l) -eq 0 ]]
+then
+    mv bin/taffy ${binDir}
+else
+    exit 1
+fi
+
 # mafTools
 cd ${mafBuildDir}
 git clone https://github.com/ComparativeGenomicsToolkit/mafTools.git

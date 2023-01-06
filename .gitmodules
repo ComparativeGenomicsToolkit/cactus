@@ -25,6 +25,3 @@
 [submodule "submodules/lastz"]
 	path = submodules/lastz
 	url = https://github.com/ComparativeGenomicsToolkit/lastz.git
-[submodule "submodules/taffy"]
-	path = submodules/taffy
-	url = https://github.com/ComparativeGenomicsToolkit/taffy.git
