@@ -132,7 +132,7 @@ class LastzRepeatMaskJob(RoundedJob):
                # and skip running it below
                "--M", str(self.repeatMaskOptions.period)] + gpu_opts
         
-        segalign_messages = cactus_call(parameters=cmd, work_dir=alignment_dir, returnStdErr=True)
+        segalign_messages = cactus_call(parameters=cmd, work_dir=alignment_dir, returnStdErr=True, gpus=self.repeatMaskOptions.gpuCount)
         # run_segalign can crash and still exit 0, so it's worth taking a moment to check the log for errors
         segalign_messages = segalign_messages.lower()
         for line in segalign_messages.split("\n"):
