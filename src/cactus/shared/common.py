@@ -441,7 +441,8 @@ def singularityCommand(tool=None,
                        work_dir=None,
                        parameters=None,
                        port=None,
-                       file_store=None):
+                       file_store=None,
+                       gpus=None):
     if "CACTUS_SINGULARITY_IMG" in os.environ:
         # old logic: just run a local image
         # (this was toggled by only setting CACTUS_SINGULARITY_IMG when using a local jobstore in cactus_progressive.py)
@@ -467,6 +468,9 @@ def singularityCommand(tool=None,
         # where Toil puts things).
         # Note that we target Singularity 3+.
         baseSingularityCall += ['-u', '-B', '{}:{}'.format(os.path.abspath(work_dir), '/mnt'), '--pwd', '/mnt']
+
+        if gpus:
+            baseSingularityCall += ['--nv']
 
         # Problem: Multiple Singularity downloads sharing the same cache directory will
         # not work correctly. See https://github.com/sylabs/singularity/issues/3634
@@ -544,7 +548,8 @@ def dockerCommand(tool=None,
                   rm=True,
                   port=None,
                   dockstore=None,
-                  entrypoint=None):
+                  entrypoint=None,
+                  gpus=None):
     # This is really dumb, but we have to work around an intersection
     # between two bugs: one in CoreOS where /etc/resolv.conf is
     # sometimes missing temporarily, and one in Docker where it
@@ -558,6 +563,8 @@ def dockerCommand(tool=None,
                         '--log-driver=none',
                         '-u', '%s:%s' % (os.getuid(), os.getgid()),
                         '-v', '{}:/data'.format(os.path.abspath(work_dir))]
+    if gpus:
+        base_docker_call += ['--gpus', str(gpus)]
 
     if entrypoint is not None:
         base_docker_call += ['--entrypoint', entrypoint]
@@ -633,7 +640,8 @@ def cactus_call(tool=None,
                 features=None,
                 fileStore=None,
                 returnStdErr=False,
-                realtimeStderrPrefix=None):
+                realtimeStderrPrefix=None,
+                gpus=None):
     mode = os.environ.get("CACTUS_BINARIES_MODE", "docker")
     if dockstore is None:
         dockstore = getDockerOrg()
@@ -665,10 +673,12 @@ def cactus_call(tool=None,
                                             rm=rm,
                                             port=port,
                                             dockstore=dockstore,
-                                            entrypoint=entrypoint)
+                                            entrypoint=entrypoint,
+                                            gpus=gpus)
     elif mode == "singularity":
         call = singularityCommand(tool=tool, work_dir=work_dir,
-                                  parameters=parameters, port=port, file_store=fileStore)
+                                  parameters=parameters, port=port, file_store=fileStore,
+                                  gpus=gpus)
     else:
         assert mode == "local"
         call = parameters
