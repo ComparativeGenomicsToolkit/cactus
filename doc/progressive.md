@@ -214,7 +214,7 @@ Here is an example of some settings that have worked on a mammalian-sized genome
 ```
 cactus-prepare --wdl mammals.txt --noLocalInputs --preprocessBatchSize 5 \
                --preprocessDisk 375Gi --preprocessCores 32 --preprocessMemory 120Gi \
-               --blastDisk 375Gi --blastCores 32 --gpu --gpuCount 8 --blastMemory 120Gi \
+               --blastDisk 375Gi --blastCores 32 --gpu 8 --blastMemory 120Gi \
                --alignDisk 375Gi --alignCores 64 --alignMemory 416Gi \
                --halAppendDisk 3000Gi  --defaultMemory 104Gi  > mammals.wdl
 ```
@@ -248,6 +248,8 @@ Cactus supports incrementally updating existing alignments to add, remove, or up
 ## GPU Acceleration
 
 [SegAlign](https://github.com/ComparativeGenomicsToolkit/SegAlign), a GPU-accelerated version of lastz, can be used in the "preprocess" and "blast" phases to speed up the runtime considerably, provided the right hardware is available. Unlike lastz, the input sequences do not need to be chunked before running SegAlign, so it also reduces the number of Toil jobs substantially.  The [GPU-enabled Docker releases](https://github.com/ComparativeGenomicsToolkit/cactus/releases) have SegAlign turned on by default and require no extra options from the user.  Otherwise, it is possible to [manually install it](https://github.com/ComparativeGenomicsToolkit/SegAlign#-dependencies) and then enable it in `cactus` using the `--gpu` command line option. One effective way of ensuring that only GPU-enabled parts of the workflow are run on GPU nodes is on Terra with `cactus-prepare --gpu --wdl` (see above example).
+
+By default `--gpu` will give all available GPUs to each SegAlign job. This can be tuned by passing in a numeric value, ex `--gpu 8` to assign 8 GPUs to each SegAlign job.  In non-single-machine batch systems, it is mandatory to set an exact value with `--gpu`.  
 
 GPUs must
 * support CUDA

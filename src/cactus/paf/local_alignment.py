@@ -41,13 +41,12 @@ def run_lastz(job, name_A, genome_A, name_B, genome_B, distance, params):
     logger.info("For distance {} for genomes {}, {} using {} lastz parameters".format(distance, genome_A,
                                                                                       genome_B, lastz_params))
 
-    gpu = getOptionalAttrib(lastz_params_node, 'gpuLastz', typeFn=bool, default=False)
-    gpu_count = getOptionalAttrib(lastz_params_node, 'gpuCount', typeFn=int, default=0)
+    gpu = getOptionalAttrib(lastz_params_node, 'gpu', typeFn=int, default=0)
     if gpu:
         lastz_bin = 'run_segalign'
         suffix_a, suffix_b = '', ''
-        if gpu_count:
-            lastz_params += ' --num_gpu {}'.format(gpu_count)
+        assert gpu > 0
+        lastz_params += ' --num_gpu {}'.format(gpu)
     else:
         lastz_bin = 'lastz'
         suffix_a = '[multiple][nameparse=darkspace]'
@@ -61,7 +60,7 @@ def run_lastz(job, name_A, genome_A, name_B, genome_B, distance, params):
         
     # note: it's very important to set the work_dir here, because cactus_call is not able to
     # sort out the mount directory by itself, presumably due to square brackets...
-    segalign_messages = cactus_call(parameters=lastz_cmd, outfile=alignment_file, work_dir=work_dir, returnStdErr=gpu, gpus=gpu_count)
+    segalign_messages = cactus_call(parameters=lastz_cmd, outfile=alignment_file, work_dir=work_dir, returnStdErr=gpu>0, gpus=gpu)
 
     if gpu:
         # run_segalign can crash and still exit 0, so it's worth taking a moment to check the log for errors
@@ -113,7 +112,8 @@ def combine_chunks(job, chunked_alignment_files):
 
 def make_chunked_alignments(job, event_a, genome_a, event_b, genome_b, distance, params):
     lastz_params_node = params.find("blast")
-    if getOptionalAttrib(lastz_params_node, 'gpuLastz', typeFn=bool, default=False):
+    gpu = getOptionalAttrib(lastz_params_node, 'gpu', typeFn=int, default=0)
+    if gpu:
         # wga-gpu has a 6G limit, so we always override
         lastz_params_node.attrib['chunkSize'] = '6000000000'
     lastz_cores = getOptionalAttrib(lastz_params_node, 'cpu', typeFn=int, default=None)
@@ -133,9 +133,7 @@ def make_chunked_alignments(job, event_a, genome_a, event_b, genome_b, distance,
     chunks_b = make_chunks(genome_b)
 
     # Align all chunks from genome_A against all chunks from genome_B
-    gpu = getOptionalAttrib(lastz_params_node, 'gpuLastz', typeFn=bool, default=False)
-    gpu_count = getOptionalAttrib(lastz_params_node, 'gpuCount', typeFn=int, default=0)
-    accelerators = 'cuda:{}'.format(gpu_count) if gpu and gpu_count else None
+    accelerators = 'cuda:{}'.format(gpu) if gpu else None
     chunked_alignment_files = []
     for i, chunk_a in enumerate(chunks_a):
         for j, chunk_b in enumerate(chunks_b):

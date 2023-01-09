@@ -35,7 +35,6 @@ from cactus.shared.common import zip_gzs
 from cactus.shared.version import cactus_commit
 from toil.statsAndLogging import set_logging_from_options
 from toil.realtimeLogger import RealtimeLogger
-from toil.lib.accelerators import count_nvidia_gpus
 
 from cactus.shared.common import cactus_override_toil_options
 from cactus.preprocessor.checkUniqueHeaders import checkUniqueHeaders
@@ -48,7 +47,7 @@ from cactus.preprocessor.fileMasking import maskJobOverride, FileMaskingJob
 class PreprocessorOptions:
     def __init__(self, chunkSize, memory, cpu, check, proportionToSample, unmask,
                  preprocessJob, checkAssemblyHub=None, lastzOptions=None, minPeriod=None,
-                 gpuLastz=False, gpuCount=0, dnabrnnOpts=None,
+                 gpu=0, dnabrnnOpts=None,
                  dnabrnnAction=None, eventName=None, minLength=None,
                  cutBefore=None, cutBeforeOcc=None, cutAfter=None, inputBedID=None):
         self.chunkSize = chunkSize
@@ -61,10 +60,9 @@ class PreprocessorOptions:
         self.checkAssemblyHub = checkAssemblyHub
         self.lastzOptions = lastzOptions
         self.minPeriod = minPeriod
-        self.gpuLastz = gpuLastz
-        self.gpuCount = gpuCount
+        self.gpu = gpu
         self.gpuLastzInterval = self.chunkSize
-        if self.gpuLastz:
+        if self.gpu:
             self.chunkSize = 0
         self.dnabrnnOpts = dnabrnnOpts
         self.dnabrnnAction = dnabrnnAction
@@ -146,8 +144,7 @@ class PreprocessSequence(RoundedJob):
             repeatMaskOptions = RepeatMaskOptions(proportionSampled=proportionSampled,
                                                   minPeriod=self.prepOptions.minPeriod,
                                                   lastzOpts=self.prepOptions.lastzOptions,
-                                                  gpuLastz=self.prepOptions.gpuLastz,
-                                                  gpuCount=self.prepOptions.gpuCount,
+                                                  gpu=self.prepOptions.gpu,
                                                   gpuLastzInterval=self.prepOptions.gpuLastzInterval,
                                                   eventName='{}_{}'.format(self.prepOptions.eventName, chunk_i))
             return LastzRepeatMaskJob(repeatMaskOptions=repeatMaskOptions,
@@ -208,8 +205,8 @@ class PreprocessSequence(RoundedJob):
             if len(inChunkIDs) < inChunkNumber: #This logic is like making the list circular
                 inChunkIDs += inChunkIDList[:inChunkNumber-len(inChunkIDs)]
             assert len(inChunkIDs) == inChunkNumber
-            if self.prepOptions.gpuLastz:
-                # when using lastz, we pass through the proportion directly to segalign
+            if self.prepOptions.gpu:
+                # when using gpu lastz, we pass through the proportion directly to segalign
                 proportionSampled = self.prepOptions.proportionToSample
             else:
                 # otherwise, it's taken from the ratio of chunks
@@ -257,8 +254,7 @@ class BatchPreprocessor(RoundedJob):
                                               lastzOptions = getOptionalAttrib(prepNode, "lastzOpts", default=""),
                                               minPeriod = getOptionalAttrib(prepNode, "minPeriod", typeFn=int, default=0),
                                               checkAssemblyHub = getOptionalAttrib(prepNode, "checkAssemblyHub", typeFn=bool, default=False),
-                                              gpuLastz = getOptionalAttrib(prepNode, "gpuLastz", typeFn=bool, default=False),
-                                              gpuCount = getOptionalAttrib(prepNode, "gpuCount", typeFn=int, default=None),
+                                              gpu = getOptionalAttrib(prepNode, "gpu", typeFn=int, default=0),
                                               dnabrnnOpts = getOptionalAttrib(prepNode, "dna-brnnOpts", default=""),
                                               dnabrnnAction = getOptionalAttrib(prepNode, "action", typeFn=str, default="softmask"),
                                               eventName = getOptionalAttrib(prepNode, "eventName", typeFn=str, default=None),
@@ -434,10 +430,7 @@ def main():
                         "rather than pulling one from quay.io")
     parser.add_argument("--binariesMode", choices=["docker", "local", "singularity"],
                         help="The way to run the Cactus binaries", default=None)
-    parser.add_argument("--gpu", action="store_true",
-                        help="Enable GPU acceleration by using Segaling instead of lastz")
-    parser.add_argument("--gpuCount", type=int,
-                        help="Specify the number of GPUs for each repeatmasking job (will also toggle on --gpu). By default (or if set to 0) all available GPUs are used")
+    parser.add_argument("--gpu", nargs='?', const='all', default=None, help="toggle on GPU-enabled lastz, and specify number of GPUs (all available if no value provided)")    
     parser.add_argument("--pangenome", action="store_true", help='Do not mask. Just add Cactus-style unique prefixes and strip anything up to and including last #')
 
     options = parser.parse_args()
@@ -471,18 +464,6 @@ def main():
         raise RuntimeError('paf masking requires event names specified wither with an input seqfile or with --inputNames')
     if options.maskFile and options.minLength is None:
         raise RuntimeError('--minLength must be used with --maskFile')
-
-    # gpuCount auto-sets gpu so you don't need to use both
-    if options.gpuCount:
-        options.gpu = True
-    # default to all gpus available (like we did before the gpu count option)
-    if options.gpu and not options.gpuCount:
-        if options.batchSystem.lower() in ['single_machine', 'singlemachine']:
-            options.gpuCount = count_nvidia_gpus()
-            if not options.gpuCount:
-                raise RuntimeError('Unable to automatically determine number of GPUs: Please set with --gpuCount')
-        else:
-            raise RuntimeError('--gpuCount required in order to use GPUs on non single_machine batch systems')
     
     inSeqPaths = []
     outSeqPaths = []
