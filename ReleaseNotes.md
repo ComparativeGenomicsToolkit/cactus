@@ -1,3 +1,14 @@
+# Release 2.4.0 2023-01-09
+
+This release drastically increases Cactus's default chaining parameters, resulting in much cleaner and more linear alignments.
+
+Other changes include
+
+- Upgrade to Toil 5.8.0, which allows GPU counts to be assigned to jobs (which can be passed from cactus via the `--gpu` option). Toil only currently supports this functionality in single machine mode.
+- Fix bug introduced in v2.3.1 that broke GPU-enabled lastz preprocessing
+- Include latest vg release.
+- Include latest version of taffy (fka taf).
+
 # Relase 2.3.1 2022-12-23
 
 This release contains bugfixes changes that should result in cleaner alignments both in pangenome mode in some cases.
