@@ -18,8 +18,8 @@
 	<!-- **NEW** It now enforces sequences are globally unique by adding "id=<event name>|" to each one -->
 	<!-- The checkAssemblyHub option (if enabled) ensures that the first word contains only alphanumeric or '_', '-', ':', or '.' characters, and is unique. If you don't intend to make an assembly hub, you can turn off this option here. -->
 	<preprocessor memory="littleMemory" preprocessJob="checkUniqueHeaders" checkAssemblyHub="1" active="1"/>
-	<!-- The preprocessor for cactus_lastzRepeatMask masks every seed that is part of more than XX other alignments, this stops a combinatorial explosion in pairwise alignments -->
-	<preprocessor unmask="0" chunkSize="10000000" proportionToSample="0.2" memory="littleMemory" preprocessJob="lastzRepeatMask" minPeriod="50" lastzOpts='--step=3 --ambiguous=iupac,100,100 --ungapped --queryhsplimit=keep,nowarn:1500' gpuLastz="false" gpuCount="0" active="1"/>
+	<!-- The preprocessor for cactus_lastzRepeatMask masks every seed that is part of more than XX other alignments, this stops a combinatorial explosion in pairwise alignments. gpu sets the number of gpus (if >0, use segalign in stead of lastz. can be set to 'all' for all available GPUs) -->
+	<preprocessor unmask="0" chunkSize="10000000" proportionToSample="0.2" memory="littleMemory" preprocessJob="lastzRepeatMask" minPeriod="50" lastzOpts='--step=3 --ambiguous=iupac,100,100 --ungapped --queryhsplimit=keep,nowarn:1500' gpu="0" active="1"/>
 	<!-- Softmask alpha-satellite using the dna-brnn tool -->
 	<!-- This preprocessor is off by default, and will replace the lastzRepeatMask preprocessor via command line toggle (or setting active=1)-->
 	<!-- It will attempt to load its included "attcc-alpha.knm" model by default unless a different one is specified below -->
@@ -39,8 +39,7 @@
      Let IJC(L) be the inverse of the Jukes Cantor distance, expressed as the fraction of bases substituted. We filter all alignments
       with identity lower than 1 - IJC(L). -->
 	<!-- minimumDistance A minimum for L (see above), so we don't filter out alignments with high identity. -->
-	<!-- gpuLastz Use segAlign instead of lastz -->
-	<!-- gpuCount Use this many gpus. defaults to all available if 0 or unspecified -->
+	<!-- gpu Toggle on segAlign instead of lastz and set the number of gpus for each segalign job. 0: disable segalign, 'all': use all availabled GPUs-->
 	<!-- lastzMemory The memory to allocate for each blast job -->
 	<!-- runMapQFiltering Filter alignments by score/mapQ, ranking alignments from highest mapQ/score to lowest -->
 	<!-- minimumMapQValue Minimum score/mapQ -->
@@ -62,8 +61,7 @@
 		   filterByIdentity="0"
 		   identityRatio="3"
 		   minimumDistance="0.01"
-		   gpuLastz="false"
-		   gpuCount="0"			
+		   gpu="0"
 		   lastzMemory="littleMemory"
 	       chainMaxGapLength="1000000"
 		   chainGapOpen="5000"

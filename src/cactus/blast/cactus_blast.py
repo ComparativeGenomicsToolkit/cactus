@@ -26,7 +26,6 @@ from toil.job import Job
 from toil.common import Toil
 from toil.statsAndLogging import logger
 from toil.statsAndLogging import set_logging_from_options
-from toil.lib.accelerators import count_nvidia_gpus
 
 from sonLib.nxnewick import NXNewick
 from sonLib.bioio import getTempDirectory, getTempFile
@@ -60,10 +59,7 @@ def main():
                         "rather than pulling one from quay.io")
     parser.add_argument("--binariesMode", choices=["docker", "local", "singularity"],
                         help="The way to run the Cactus binaries", default=None)
-    parser.add_argument("--gpu", action="store_true",
-                        help="Enable GPU acceleration by using Segaling instead of lastz")
-    parser.add_argument("--gpuCount", type=int,
-                        help="Specify the number of GPUs for each repeatmasking job (will also toggle on --gpu). By default (or if set to 0) all available GPUs are used")
+    parser.add_argument("--gpu", nargs='?', const='all', default=None, help="toggle on GPU-enabled lastz, and specify number of GPUs (all available if no value provided)")
     
     options = parser.parse_args()
 
@@ -75,17 +71,6 @@ def main():
         if not options.pathOverrides or not options.pathOverrideNames or \
            len(options.pathOverrideNames) != len(options.pathOverrides):
             raise RuntimeError('same number of values must be passed to --pathOverrides and --pathOverrideNames')
-    # gpuCount auto-sets gpu so you don't need to use both
-    if options.gpuCount:
-        options.gpu = True
-    # default to all gpus available (like we did before the gpu count option)
-    if options.gpu and not options.gpuCount:
-        if options.batchSystem.lower() in ['single_machine', 'singlemachine']:
-            options.gpuCount = count_nvidia_gpus()
-            if not options.gpuCount:
-                raise RuntimeError('Unable to automatically determine number of GPUs: Please set with --gpuCount')
-        else:
-            raise RuntimeError('--gpuCount required in order to use GPUs on non single_machine batch systems')
 
     # Mess with some toil options to create useful defaults.
     cactus_override_toil_options(options)

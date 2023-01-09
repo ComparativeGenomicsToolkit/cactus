@@ -23,8 +23,7 @@ class RepeatMaskOptions:
             unmaskInput=False,
             unmaskOutput=False,
             proportionSampled=1.0,
-            gpuLastz=False,
-            gpuCount=0,
+            gpu=0,
             gpuLastzInterval=3000000,
             eventName='seq'):
         self.fragment = fragment
@@ -33,8 +32,7 @@ class RepeatMaskOptions:
         self.unmaskInput = unmaskInput
         self.unmaskOutput = unmaskOutput
         self.proportionSampled = proportionSampled
-        self.gpuLastz = gpuLastz
-        self.gpuCount = gpuCount
+        self.gpu = gpu
         self.gpuLastzInterval = gpuLastzInterval
         self.eventName = eventName
 
@@ -50,12 +48,12 @@ class LastzRepeatMaskJob(RoundedJob):
         targetsSize = sum(targetID.size for targetID in targetIDs)
         memory = 4*1024*1024*1024
         disk = 2*(queryID.size + targetsSize)
-        if repeatMaskOptions.gpuLastz:
+        if repeatMaskOptions.gpu:
             # gpu jobs get the whole node (same hack as used in blast phase)
             cores = cactus_cpu_count()
         else:
             cores = None
-        accelerators = ['cuda:{}'.format(repeatMaskOptions.gpuCount)] if repeatMaskOptions.gpuCount else None            
+        accelerators = ['cuda:{}'.format(repeatMaskOptions.gpu)] if repeatMaskOptions.gpu else None            
         RoundedJob.__init__(self, memory=memory, disk=disk, cores=cores, accelerators=accelerators, preemptable=True)
         self.repeatMaskOptions = repeatMaskOptions
         self.queryID = queryID
@@ -120,8 +118,8 @@ class LastzRepeatMaskJob(RoundedJob):
                 lastz_opts[i + 1] = None
             else:
                 gpu_opts += [lastz_opts[i]]
-        if self.repeatMaskOptions.gpuCount:
-            gpu_opts += ['--num_gpu', str(self.repeatMaskOptions.gpuCount)]
+        assert self.repeatMaskOptions.gpu > 0
+        gpu_opts += ['--num_gpu', str(self.repeatMaskOptions.gpu)]
                         
         cmd = ["segalign_repeat_masker",
                targetFile,
@@ -132,7 +130,7 @@ class LastzRepeatMaskJob(RoundedJob):
                # and skip running it below
                "--M", str(self.repeatMaskOptions.period)] + gpu_opts
         
-        segalign_messages = cactus_call(parameters=cmd, work_dir=alignment_dir, returnStdErr=True, gpus=self.repeatMaskOptions.gpuCount)
+        segalign_messages = cactus_call(parameters=cmd, work_dir=alignment_dir, returnStdErr=True, gpus=self.repeatMaskOptions.gpu)
         # run_segalign can crash and still exit 0, so it's worth taking a moment to check the log for errors
         segalign_messages = segalign_messages.lower()
         for line in segalign_messages.split("\n"):
@@ -164,7 +162,7 @@ class LastzRepeatMaskJob(RoundedJob):
         maskInfo = os.path.join(self.work_dir, self.repeatMaskOptions.eventName + '.maskinfo')
 
         # covered_intervals is part of segalign, so only run if not in gpu mode
-        if self.repeatMaskOptions.gpuLastz:
+        if self.repeatMaskOptions.gpu:
             maskInfo = alignment
         else:
             # * 2 takes into account the effect of the overlap
@@ -179,7 +177,7 @@ class LastzRepeatMaskJob(RoundedJob):
 
         # the previous lastz command outputs a file of intervals (denoted with indices) to softmask.
         # we finish by applying these intervals to the input file, to produce the final, softmasked output.
-        if self.repeatMaskOptions.gpuLastz:
+        if self.repeatMaskOptions.gpu:
             args = ["--origin=zero"]
         else:
             args = ["--origin=one"]
@@ -204,7 +202,7 @@ class LastzRepeatMaskJob(RoundedJob):
         for targetFile, fileID in zip(targetFiles, self.targetIDs):
             fileStore.readGlobalFile(fileID, targetFile)
 
-        if self.repeatMaskOptions.gpuLastz:
+        if self.repeatMaskOptions.gpu:
             assert len(targetFiles) == 1
             alignment = self.gpuRepeatMask(fileStore, targetFiles[0])
         else:

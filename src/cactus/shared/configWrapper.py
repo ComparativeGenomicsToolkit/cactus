@@ -16,6 +16,7 @@ import sys
 from cactus.shared.common import findRequiredNode
 from cactus.shared.common import getOptionalAttrib
 from cactus.shared.common import cactus_cpu_count
+from toil.lib.accelerators import count_nvidia_gpus
 
 class ConfigWrapper:
     defaultOutgroupStrategy = 'none'
@@ -244,20 +245,55 @@ class ConfigWrapper:
 
     def initGPU(self, options):
         """ Turn on GPU and / or check options make sense """
-        force_activate = options.gpu
-        if force_activate:
-            # apply the gpu override
-            findRequiredNode(self.xmlRoot, "blast").attrib["gpuLastz"] = "true"
-            if options.gpuCount:
-                findRequiredNode(self.xmlRoot, "blast").attrib["gpuCount"] = str(options.gpuCount)
-            findRequiredNode(self.xmlRoot, "blast").attrib["realign"] = "0"
+        # first, we override the config with --gpu from the options
+        # (we'll never use the options.gpu after -- only the config)
+        if options.gpu:
+            findRequiredNode(self.xmlRoot, "blast").attrib["gpu"] = str(options.gpu)
             for node in self.xmlRoot.findall("preprocessor"):
                 if getOptionalAttrib(node, "preprocessJob") == "lastzRepeatMask":
-                    node.attrib["gpuLastz"] = "true"
-                    if options.gpuCount:
-                        node.attrib["gpuCount"] = str(options.gpuCount)
+                    node.attrib["gpu"] = str(options.gpu)
+            
+        # we need to make sure that gpu is set to an integer (replacing 'all' with a count)
+        def get_gpu_count():
+            if options.batchSystem.lower() in ['single_machine', 'singlemachine']:
+                gpu_count = count_nvidia_gpus()
+                if not gpu_count:
+                    raise RuntimeError('Unable to automatically determine number of GPUs: Please set with --gpu N')
+            else:
+                raise RuntimeError('--gpu N required to set number of GPUs on non single_machine batch systems')
+            return gpu_count
 
-        if getOptionalAttrib(findRequiredNode(self.xmlRoot, "blast"), 'gpuLastz', typeFn=bool, default=False):
+        # ensure integer gpu for blast phase
+        lastz_gpu = findRequiredNode(self.xmlRoot, "blast").attrib["gpu"]
+        # backward compatible with old boolean logic
+        if lastz_gpu.lower() == 'false':
+            lastz_gpu = "0"
+        elif lastz_gpu.lower() == 'true':
+            lastz_gpu = 'all'            
+        if lastz_gpu == 'all':
+            lastz_gpu = get_gpu_count()
+        elif not lastz_gpu.isdigit() or int(lastz_gpu) < 0:
+            raise RuntimeError('Invalid value for blast gpu count, {}. Please specify a numeric value with --gpu'.format(lastz_gpu))
+        findRequiredNode(self.xmlRoot, "blast").attrib["gpu"] = str(lastz_gpu)
+
+        # ensure integer gpu for lastz repeatmasking in preprocessor phase
+        for node in self.xmlRoot.findall("preprocessor"):
+            if getOptionalAttrib(node, "preprocessJob") == "lastzRepeatMask":
+                pp_gpu = str(node.attrib["gpu"])
+                # backward compatible with old boolean logic
+                if pp_gpu.lower() == 'false':
+                    pp_gpu = "0"
+                elif pp_gpu.lower() == 'true':
+                    pp_gpu = 'all'
+                if pp_gpu == 'all':
+                    pp_gpu = get_gpu_count()
+                elif not pp_gpu.isdigit() or int(pp_gpu) < 0:
+                    raise RuntimeError('Invalid value for repeatmask gpu count, {}. Please specify a numeric value with --gpu'.format(lastz_gpu))
+                node.attrib["gpu"] = str(pp_gpu)
+
+        # segalign still can't contorl the number of cores it uses (!).  So we give all available on
+        # single machine.  
+        if getOptionalAttrib(findRequiredNode(self.xmlRoot, "blast"), 'gpu', typeFn=int, default=0):
             # single machine: we give all the cores to segalign
             if options.batchSystem.lower() in ['single_machine', 'singlemachine']:
                 if options.maxCores is not None:
@@ -273,7 +309,7 @@ class ConfigWrapper:
         # realign requires small chunks, and segalign needs big chunks
         # realign is cpu based, which is wasteful on a gpu node
         # realign is too slow, and largely negates gpu speed boost
-        if getOptionalAttrib(findRequiredNode(self.xmlRoot, "blast"), "gpuLastz", typeFn=bool) and \
+        if getOptionalAttrib(findRequiredNode(self.xmlRoot, "blast"), "gpu", typeFn=int, default=0) and \
            getOptionalAttrib(findRequiredNode(self.xmlRoot, "blast"), "realign", typeFn=bool):
             logger.warning("Switching off blast realignment as it is incompatible with GPU mode")
             findRequiredNode(self.xmlRoot, "blast").attrib["realign"] = "0"

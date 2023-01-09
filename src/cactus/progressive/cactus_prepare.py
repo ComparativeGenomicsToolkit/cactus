@@ -39,6 +39,7 @@ from toil.statsAndLogging import set_logging_from_options
 from cactus.shared.common import cactus_cpu_count
 from toil.realtimeLogger import RealtimeLogger
 from toil.lib.conversions import human2bytes, bytes2human
+from toil.lib.accelerators import count_nvidia_gpus
 
 def main_toil():
     return main(toil_mode=True)
@@ -78,9 +79,8 @@ def main(toil_mode=False):
         # no good reason this isn't supported in toil_mode, just time to implement
         parser.add_argument("--includeRoot", action='store_true', help="Root node's sequence is set from input: --includeRoot will be specified for its align and blast jobs")
     
-    parser.add_argument("--gpu", action="store_true", help="use gpu-enabled lastz in cactus-blast and cactus-preprocess")
+    parser.add_argument("--gpu", nargs='?', const='all', default=None, help="toggle on GPU-enabled lastz, and specify number of GPUs (all available if no value provided)")
     parser.add_argument("--gpuType", default="nvidia-tesla-v100", help="GPU type (to set in WDL runtime parameters, use only with --wdl)")
-    parser.add_argument("--gpuCount", type=int, default=1, help="GPU count (to set in WDL runtime parametersm, use only with --wdl)")
     parser.add_argument("--nvidiaDriver", default="470.82.01", help="Nvidia driver version")
     parser.add_argument("--gpuZone", default="us-central1-a", help="zone used for gpu task")
     parser.add_argument("--zone", default="us-west2-a", help="zone used for all but gpu tasks")
@@ -141,6 +141,14 @@ def main(toil_mode=False):
                 raise RuntimeError("--outHal must be s3:// address when using s3 job store")
             if not has_s3:
                 raise RuntimeError("S3 support requires toil to be installed with [aws]")
+        if options.gpu == 'all':
+            if options.batchSystem.lower() in ['single_machine', 'singlemachine']:
+                options.gpu = count_nvidia_gpus()
+                if not options.gpu:
+                    raise RuntimeError('Unable to automatically determine number of GPUs: Please set with --gpu N')
+            else:
+                raise RuntimeError('--gpu N required in order to use GPUs on non single_machine batch systems')
+
     options.toil = toil_mode
 
     if not options.wdl and not options.toil:
@@ -151,8 +159,11 @@ def main(toil_mode=False):
             if os.path.abspath(options.seqFile) == os.path.abspath(options.outSeqFile):
                 options.outSeqFile += '.1'
                 
-    if (not options.wdl or not options.gpu) and (options.gpuCount > 1 or options.gpuType != "nvidia-tesla-v100"):
-        raise RuntimeError("--gpuType and gpuCount can only be used with --wdl --gpu")
+    if not options.wdl and options.gpuType != "nvidia-tesla-v100":
+        raise RuntimeError("--gpuType can only be used with --wdl ")
+
+    if options.wdl and options.gpu == 'all':
+        raise RuntimeError("Number of gpus N must be specified with --gpu N when using --wdl")
 
     if not options.outHal:
         options.outHal = os.path.join(options.outDir if options.outDir else '', 'out.hal')
@@ -434,7 +445,7 @@ def get_plan(options, inSeqFile, outSeqFile, configWrapper, toil):
             plan += 'cactus-preprocess {} {} {} --inputNames {} {} {}{}\n'.format(
                 get_jobstore(options), options.seqFile, options.outSeqFile, ' '.join(pre_batch),
                 options.cactusOptions, get_toil_resource_opts(options, 'preprocess'),
-                ' --gpu' if options.gpu else '')
+                ' --gpu {}'.format(options.gpu) if options.gpu else '')
 
     if options.preprocessOnly:
         plan += '\n## Cactus\n'
@@ -536,7 +547,7 @@ def get_plan(options, inSeqFile, outSeqFile, configWrapper, toil):
                 plan += 'cactus-blast {} {} {} --root {} {} {}{}\n'.format(
                     get_jobstore(options), options.outSeqFile, cigarPath(event), event,
                     cactus_options, get_toil_resource_opts(options, 'blast'),
-                    ' --gpu' if options.gpu else '')
+                    ' --gpu {}'.format(options.gpu) if options.gpu else '')
                 plan += 'cactus-align {} {} {} {} --root {} {} {} \n'.format(
                     get_jobstore(options), options.outSeqFile, cigarPath(event), halPath(event), event,
                     cactus_options, get_toil_resource_opts(options, 'align'))
@@ -703,7 +714,7 @@ def wdl_task_preprocess(options):
     s += 'cactus-preprocess {} --inPaths ${{sep=\" \" default=\"\" in_files}} ${{sep=\" \" default=\"\" in_urls}}'.format(get_jobstore(options, 'preprocess'))
     s += ' --inputNames ${sep=\" \" default=\"\" in_names}'
     s += ' --outPaths ${{sep=\" \" out_names}} {} {} {}'.format(options.cactusOptions, get_toil_resource_opts(options, 'preprocess'),
-                                                                ' --gpu' if options.gpu else '')
+                                                                ' --gpu {}'.format(options.gpu) if options.gpu else '')
     s += ' ${\"--configFile \" + in_config_file}'
     s += '\n'
     s += '    }\n'
@@ -719,7 +730,7 @@ def wdl_task_preprocess(options):
         s += '        disks: \"{}\"\n'.format(wdl_disk(options, 'preprocess')[0])
     if options.gpu:
         s += '        gpuType: \"{}\"\n'.format(options.gpuType)
-        s += '        gpuCount: {}\n'.format(options.gpuCount)
+        s += '        gpuCount: {}\n'.format(options.gpu)
         s += '        bootDiskSizeGb: 20\n'
         s += '        nvidiaDriverVersion: \"{}\"\n'.format(options.nvidiaDriver)
         s += '        docker: \"{}\"\n'.format(getDockerRelease(gpu=True))
@@ -764,7 +775,7 @@ def toil_call_preprocess(job, options, in_seq_file, out_seq_file, name):
            '--outPaths', out_name, '--inputNames', name, '--workDir', work_dir,
            '--maxCores', str(int(job.cores)), '--maxDisk', bytes2humanN(job.disk), '--maxMemory', bytes2humanN(job.memory)] + options.cactusOptions.strip().split(' ')
     if options.gpu:
-        cmd += ['--gpu']
+        cmd += ['--gpu', options.gpu]
     
     cactus_call(parameters=cmd)
 
@@ -788,7 +799,7 @@ def wdl_task_blast(options):
     s += 'cactus-blast {} ${{in_seq_file}} ${{out_name}} --root ${{in_root}}'.format(get_jobstore(options, 'blast'))
     s += ' --pathOverrides ${sep=\" \" in_fa_files} ${sep=\" \" in_fa_urls} --pathOverrideNames ${sep=\" \" in_fa_names}'
     s += ' {} {} {} ${{\"--configFile \" + in_config_file}} ${{in_options}}'.format(options.cactusOptions, get_toil_resource_opts(options, 'blast'),
-                                                                                    ' --gpu' if options.gpu else '')
+                                                                                    ' --gpu {}'.format(options.gpu) if options.gpu else '')
     s += '\n    }\n'
     s += '    runtime {\n'
     s += '        preemptible: {}\n'.format(options.blastPreemptible)
@@ -801,7 +812,7 @@ def wdl_task_blast(options):
         s += '        disks: \"{}\"\n'.format(wdl_disk(options, 'blast')[0])    
     if options.gpu:
         s += '        gpuType: \"{}\"\n'.format(options.gpuType)
-        s += '        gpuCount: {}\n'.format(options.gpuCount)
+        s += '        gpuCount: {}\n'.format(options.gpu)
         s += '        bootDiskSizeGb: 20\n'
         s += '        nvidiaDriverVersion: \"{}\"\n'.format(options.nvidiaDriver)
         s += '        docker: \"{}\"\n'.format(getDockerRelease(gpu=True))
@@ -872,7 +883,7 @@ def toil_call_blast(job, options, seq_file, mc_tree, og_map, event, cigar_name, 
                 ['--workDir', work_dir, '--maxCores', str(int(job.cores)), '--maxDisk', bytes2humanN(job.disk), '--maxMemory', bytes2humanN(job.memory)] + \
                 options.cactusOptions.strip().split(' ')
     if options.gpu:
-        blast_cmd += ['--gpu']
+        blast_cmd += ['--gpu', options.gpu]
     cactus_call(parameters=blast_cmd)
 
     # scrape the output files out of the workdir
