@@ -46,6 +46,10 @@ export CXXFLAGS="-static"
 export LDFLAGS="-static"
 export LIBS="-static"
 
+# throw in gnu parallel since cactus-hal2maf depends on it
+wget -q http://git.savannah.gnu.org/cgit/parallel.git/plain/src/parallel -O bin/parallel
+chmod +x bin/parallel
+
 # build a couple dependencies from source because versions from awk don't support static linking
 pushd .
 cd ${binBuildDir}
