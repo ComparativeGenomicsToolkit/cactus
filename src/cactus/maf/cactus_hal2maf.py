@@ -338,7 +338,18 @@ def hal2maf_batch(job, hal_id, batch_chunks, options):
     parallel_cmd = [['cat', h2m_cmd_path],
                     ['parallel', '-j', str(options.batchParallelHal2maf), '{}']]
     RealtimeLogger.info('First of {} commands in parallel batch: {}'.format(len(h2m_cmds), h2m_cmds[0]))
-    cactus_call(parameters=parallel_cmd, work_dir=work_dir)
+    try:
+        cactus_call(parameters=parallel_cmd, work_dir=work_dir)
+    except Exception as e:
+        logger.error("Parallel hal2maf command failed, dumping all stderr")
+        for chunk_num in range(len(batch_chunks)):
+            for tag, cmd in [('h2m', 'hal2maf')]:
+                stderr_file_path = os.path.join(work_dir, '{}.{}.time'.format(chunk_num, tag))
+                if os.path.isfile(stderr_file_path):
+                    with open(stderr_file_path, 'r') as stderr_file:
+                        for line in stderr_file:
+                            logger.error(line.rstrip())
+        raise e
 
     # realtime log the running times in format similar to cactus_call
     # (but breakign up the big piped mess into something more readable)
@@ -368,7 +379,18 @@ def hal2maf_batch(job, hal_id, batch_chunks, options):
         parallel_cmd = [['cat', taf_cmd_path],
                         ['parallel', '-j', str(options.batchParallelTaf), '{}']]
         RealtimeLogger.info('First of {} commands in parallel batch: {}'.format(len(taf_cmds), taf_cmds[0]))
-        cactus_call(parameters=parallel_cmd, work_dir=work_dir)
+        try:
+            cactus_call(parameters=parallel_cmd, work_dir=work_dir)
+        except Exception as e:
+            logger.error("Parallel taffy command failed, dumping all stderr")
+            for chunk_num in range(len(batch_chunks)):
+                for tag, cmd in [('m2t', 'view'), ('tagp', 'add-gap-bases'), ('tn', 'norm')]:                
+                    stderr_file_path = os.path.join(work_dir, '{}.{}.time'.format(chunk_num, tag))
+                    if os.path.isfile(stderr_file_path):
+                        with open(stderr_file_path, 'r') as stderr_file:
+                            for line in stderr_file:
+                                logger.error(line.rstrip())
+            raise e
 
         # realtime log the running times in format similar to cactus_call
         # (but breakign up the big piped mess into something more readable)
