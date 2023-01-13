@@ -61,9 +61,6 @@ def main():
                         help="comma-separated (no spaces) list of target "
                         "genomes (others are excluded) (vist all if empty)",
                         default=None)
-    parser.add_argument("--maxRefGap",
-                        help="maximum gap length in reference", type=int,
-                        default=None)
     parser.add_argument("--noDupes",
                         help="ignore paralogy edges",
                         action="store_true",
@@ -257,8 +254,6 @@ def hal2maf_cmd(hal_path, chunk, chunk_num, options):
         cmd += ' --rootGenome {}'.format(options.rootGenome)
     if options.targetGenomes:
         cmd += ' --targetGenomes {}'.format(options.targetGenomes)
-    if options.maxRefGap:
-        cmd += ' --maxRefGap {}'.format(options.maxRefGap)
     if options.noDupes:
         cmd += ' --noDupes'
     if options.onlyOrthologs:
