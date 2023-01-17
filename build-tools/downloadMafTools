@@ -23,17 +23,24 @@ mkdir -p ${binDir}
 
 # taffy
 cd ${mafBuildDir}
-git clone https://github.com/samtools/htslib.git
-cd htslib
-git checkout 1.16
-git submodule update --init --recursive
+wget -q https://github.com/samtools/samtools/releases/download/1.11/samtools-1.11.tar.bz2
+tar -xf samtools-1.11.tar.bz2
+cd samtools-1.11
+SAMTOOLS_CONFIG_OPTS=""
+if [[ $STATIC_CHECK -eq 1 ]]
+then
+	 SAMTOOLS_CONFIG_OPTS="--disable-shared --enable-static"
+fi
+./configure --without-curses --disable-libcurl --enable-configure-htslib $SAMTOOLS_CONFIG_OPTS
 make -j ${numcpu}
-export HTSLIB_CFLAGS=-I$(pwd)/
-export HTSLIB_LIBS=$(pwd)/libhts.a
+cd htslib-1.11
+make -j ${numcpu} libhts.a
+export HTSLIB_CFLAGS=-I$(pwd)/htslib
+export HTSLIB_LIBS="$(pwd)/libhts.a -lbz2 -ldeflate -lm -lpthread -lz -llzma -pthread -lpthread"
 cd ${mafBuildDir}
 git clone https://github.com/ComparativeGenomicsToolkit/taffy.git
 cd taffy
-git checkout 62356fee8d917dbba3834d9df83411923c512db4
+git checkout f2328dfdb73be770bd4ea67b8d5f1c6f1b6c9302
 git submodule update --init --recursive
 export HALDIR=${CWD}/submodules/hal
 make -j ${numcpu}
