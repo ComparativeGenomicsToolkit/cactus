@@ -35,7 +35,7 @@ fi
 make -j ${numcpu}
 cd htslib-1.11
 make -j ${numcpu} libhts.a
-export HTSLIB_CFLAGS=-I$(pwd)/htslib
+export HTSLIB_CFLAGS=-I$(pwd)
 export HTSLIB_LIBS="$(pwd)/libhts.a -lbz2 -ldeflate -lm -lpthread -lz -llzma -pthread -lpthread"
 cd ${mafBuildDir}
 git clone https://github.com/ComparativeGenomicsToolkit/taffy.git
