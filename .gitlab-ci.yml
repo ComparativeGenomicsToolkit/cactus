@@ -3,7 +3,7 @@ image: quay.io/comparative-genomics-toolkit/cactus-ci-base:latest
 before_script:
   - whoami
   - sudo apt-get -q -y update
-  - sudo apt-get -q -y install --no-upgrade bcftools parallel libhts-dev tabix
+  - sudo apt-get -q -y install --no-upgrade bcftools parallel libdeflate-dev
   - startdocker || true
   - docker info
 
