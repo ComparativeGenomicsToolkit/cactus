@@ -47,6 +47,7 @@ export LDFLAGS="-static"
 export LIBS="-static"
 
 # throw in gnu parallel since cactus-hal2maf depends on it
+mkdir -p bin
 wget -q http://git.savannah.gnu.org/cgit/parallel.git/plain/src/parallel -O bin/parallel
 chmod +x bin/parallel
 
