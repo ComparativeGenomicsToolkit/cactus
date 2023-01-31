@@ -400,8 +400,17 @@ def setupBinaries(options):
                 else:
                     imgPath = os.path.join(os.path.abspath(locator), "cactus.img")
             os.environ["CACTUS_SINGULARITY_IMG"] = imgPath
+            if options.workDir:
+                os.environ['SINGULARITY_TMPDIR'] = os.path.abspath(options.workDir)
+            elif 'TMPDIR' in os.environ:
+                os.environ['SINGULARITY_TMPDIR'] = os.environ['TMPDIR']
+            else:
+                os.environ['SINGULARITY_TMPDIR'] = os.path.abspath(locator)
 
     os.environ["CACTUS_BINARIES_MODE"] = mode
+
+    if options.workDir:
+        os.environ['TMPDIR'] = os.path.abspath(options.workDir)
 
 def importSingularityImage(options):
     """Import the Singularity image from Docker if using Singularity."""
@@ -428,7 +437,7 @@ def importSingularityImage(options):
             # --size is deprecated starting in 2.4, but is needed for 2.3 support. Keeping it in for now.
             try:
                 subprocess.check_call(["singularity", "pull", "--size", "2000", "--name", os.path.basename(imgPath),
-                                       "docker://" + getDockerImage()])
+                                       "docker://" + getDockerImage()], stderr=subprocess.PIPE)
             except subprocess.CalledProcessError:
                 # Call failed, try without --size, required for singularity 3+
                 subprocess.check_call(["singularity", "pull", "--name", os.path.basename(imgPath),
@@ -443,34 +452,34 @@ def singularityCommand(tool=None,
                        port=None,
                        file_store=None,
                        gpus=None):
+
+    if parameters is None:
+        parameters = []
+    if work_dir is None:
+        work_dir = os.getcwd()
+
+    base_singularity_call = ['singularity', '--silent', 'exec']
+
+    # Mount workdir as /mnt and work in there.
+    # Hope the image actually has a /mnt available.
+    # Otherwise this silently doesn't mount.
+    # But with -u (user namespaces) we have no luck pointing in-container
+    # home at anything other than our real home (like something under /var
+    # where Toil puts things).
+    # Note that we target Singularity 3+.
+    base_singularity_call += ['-u', '-B', '{}:{}'.format(os.path.abspath(work_dir), '/mnt'), '--pwd', '/mnt']
+    if gpus:
+        base_singularity_call += ['--nv']
+    
     if "CACTUS_SINGULARITY_IMG" in os.environ:
         # old logic: just run a local image
         # (this was toggled by only setting CACTUS_SINGULARITY_IMG when using a local jobstore in cactus_progressive.py)
-        base_singularity_call = ["singularity", "--silent", "run", os.environ["CACTUS_SINGULARITY_IMG"]]
+        base_singularity_call += [os.environ['CACTUS_SINGULARITY_IMG']] 
         base_singularity_call.extend(parameters)
         return base_singularity_call
     else:
         # workaround for kubernetes toil: explicitly make a local image
         # (see https://github.com/vgteam/toil-vg/blob/master/src/toil_vg/singularity.py)
-
-        if parameters is None:
-            parameters = []
-        if work_dir is None:
-            work_dir = os.getcwd()
-
-        baseSingularityCall = ['singularity', '-q', 'exec']
-
-        # Mount workdir as /mnt and work in there.
-        # Hope the image actually has a /mnt available.
-        # Otherwise this silently doesn't mount.
-        # But with -u (user namespaces) we have no luck pointing in-container
-        # home at anything other than our real home (like something under /var
-        # where Toil puts things).
-        # Note that we target Singularity 3+.
-        baseSingularityCall += ['-u', '-B', '{}:{}'.format(os.path.abspath(work_dir), '/mnt'), '--pwd', '/mnt']
-
-        if gpus:
-            baseSingularityCall += ['--nv']
 
         # Problem: Multiple Singularity downloads sharing the same cache directory will
         # not work correctly. See https://github.com/sylabs/singularity/issues/3634
@@ -539,7 +548,7 @@ def singularityCommand(tool=None,
             # TODO: we could save some downloading by having one process download
             # and the others wait, but then we would need a real fnctl locking
             # system here.
-        return baseSingularityCall + [sandbox_dirname] + parameters
+        return base_singularity_call + [sandbox_dirname] + parameters
 
 
 def dockerCommand(tool=None,
@@ -600,7 +609,7 @@ def prepareWorkDir(work_dir, parameters):
     #with relative paths), just set the current directory as the work
     #dir
     if work_dir is None or work_dir == '':
-        work_dir = "."
+        work_dir = os.getcwd()
     _log.info("Docker work dir: %s" % work_dir)
 
     #We'll mount the work_dir containing the paths as /data in the container,
@@ -738,11 +747,17 @@ def cactus_call(tool=None,
             errfile = wfile
     else:
         errfile = subprocess.PIPE
-        
+
+    # hack to force consolidated to keep tmp files local (required to run at all in some singularity setups where /tmp is not writable)
+    sub_env = None
+    if (shell and 'cactus_consolidated' in call) or (not shell and any(['cactus_consolidated' in c for c in call])):
+        sub_env = os.environ.copy()
+        sub_env['TMPDIR']='.'
+
     process = subprocess.Popen(call, shell=shell, encoding="ascii",
                                stdin=stdinFileHandle, stdout=stdoutFileHandle,
                                stderr=errfile,
-                               bufsize=-1, cwd=work_dir)
+                               bufsize=-1, cwd=work_dir, env=sub_env)
 
     if server:
         return process
