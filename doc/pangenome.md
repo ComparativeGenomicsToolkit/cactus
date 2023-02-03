@@ -539,4 +539,6 @@ Q: I hate the idea of clipping and filtering sequence from my graph.  Why do I h
 
 A: So current toolchains can work with your graphs.  But clipping and filtering is optional in `cactus-graphmap-join`, just specify `full` for the various outputs (keeping in mind that much satellite sequence won't be aligned to anything).
 
+**Q**: I get an error to the effect of `ERROR: No matching distribution found for toil[aws]==xxxx` when trying to install Toil.
 
+**A**: This is probably happening because you are using Python 3.6. Toil and Cactus require Python >= 3.7.  Use `python3 --version` to check your Python version.

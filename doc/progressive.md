@@ -310,3 +310,7 @@ That said, cactus can handle multifurcations up to a point: runtime increases qu
 **Q**: But what if I want to use `--gpu` on my cluster? When I try from inside the GPU-enabled container, none of my cluster commands (ex `qsub`) are available.
 
 **A**: Install the Cactus binary release as described in the instructions on the Releases page.  But run Cactus with `--binariesMode docker` (or `singularity`).  This will let Cactus run SegAlign (and all other binaries) directly from the container, while itself running from the Python virtualenv.
+
+**Q**: I get an error to the effect of `ERROR: No matching distribution found for toil[aws]==xxxx` when trying to install Toil.
+
+**A**: This is probably happening because you are using Python 3.6. Toil and Cactus require Python >= 3.7.  Use `python3 --version` to check your Python version.
