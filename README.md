@@ -53,8 +53,8 @@ echo "export PATH=$(pwd)/bin:\$PATH" >> cactus_env/bin/activate
 echo "export PYTHONPATH=$(pwd)/lib:\$PYTHONPATH" >> cactus_env/bin/activate
 source cactus_env/bin/activate
 python3 -m pip install -U setuptools pip
-python3 -m pip install -U -r ./toil-requirement.txt
 python3 -m pip install -U .
+python3 -m pip install -U -r ./toil-requirement.txt
 ```
 
 If you have Docker installed, you can now run Cactus.  All binaries, such as `lastz` and `cactus-consolidated` will be run via Docker.  Singularity binaries can be used in place of docker binaries with the `--binariesMode singularity` flag.  Note, you must use Singularity 2.3 - 2.6 or Singularity 3.1.0+. Singularity 3 versions below 3.1.0 are incompatible with cactus (see [issue #55](https://github.com/ComparativeGenomicsToolkit/cactus/issues/55) and [issue #60](https://github.com/ComparativeGenomicsToolkit/cactus/issues/60)).

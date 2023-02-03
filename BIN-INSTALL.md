@@ -19,8 +19,8 @@ echo "export PATH=$(pwd)/bin:\$PATH" >> cactus_env/bin/activate
 echo "export PYTHONPATH=$(pwd)/lib:\$PYTHONPATH" >> cactus_env/bin/activate
 source cactus_env/bin/activate
 python3 -m pip install -U setuptools pip
-python3 -m pip install -U -r ./toil-requirement.txt
 python3 -m pip install -U .
+python3 -m pip install -U -r ./toil-requirement.txt
 ```
 
 Some tools required for `hal2assemblyHub.py` are not included and must be downloaded separately.
