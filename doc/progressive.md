@@ -127,12 +127,12 @@ Conservation scores can be computed using [phast](http://compgen.cshl.edu/phast/
 The Cactus Docker image contains everything you need to run Cactus (python environment, all binaries, system dependencies). For example, to run the test data:
 
 ```
-docker run -v $(pwd):/data --rm -it quay.io/comparative-genomics-toolkit/cactus:v2.4.0 cactus /data/jobStore /data/evolverMammals.txt /data/evolverMammals.hal --root mr
+docker run -v $(pwd):/data --rm -it quay.io/comparative-genomics-toolkit/cactus:v2.4.1 cactus /data/jobStore /data/evolverMammals.txt /data/evolverMammals.hal --root mr
 ```
 
 Or you can proceed interactively by running
 ```
-docker run -v $(pwd):/data --rm -it quay.io/comparative-genomics-toolkit/cactus:v2.4.0 bash
+docker run -v $(pwd):/data --rm -it quay.io/comparative-genomics-toolkit/cactus:v2.4.1 bash
 cactus /data/jobStore /data/evolverMammals.txt /data/evolverMammals.hal --root mr
 
 ```

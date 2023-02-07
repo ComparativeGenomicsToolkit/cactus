@@ -1,3 +1,12 @@
+# Release 2.4.1 2023-02-08
+
+Changes include:
+
+- Fix bug that could cause `cactus-graphmap-join` to crash when running `vg clip`
+- Upgrade to Toil 5.9.2
+- Include `taffy` binary with bgzip support enabled
+- Better error when trying to install on Python version < 3.7
+
 # Release 2.4.0 2023-01-09
 
 This release drastically increases Cactus's default chaining parameters, resulting in much cleaner and more linear alignments.
