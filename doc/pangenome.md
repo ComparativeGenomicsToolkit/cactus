@@ -93,7 +93,6 @@ Unlike Progressive Cactus, Minigraph-Cactus does depend on a predetermined refer
 The input is a two-column `seqFile` mapping sample names to fasta paths (gzipped fastas are supported). The seqfile is the same as Progressive Cactus, except a tree is not specified.  Cactus may add a star-tree to this file, but it can be ignored.
 
 
-
 **A naming convention must be followed for sample names**: The "." character is used to specify haplotype, and should be avoided in sample names unless it is being used that way.  For haploid samples, just don't use a "`.`".  For diploid or polyploid samples, use the form `SAMPLE.HAPLOTYPE` where `HAPLOTYPE` is `1` or `2` for a diploid sample etc:
 
 ```
@@ -104,6 +103,16 @@ HG002.2  ./HG002.maternal.fa
 # Haploid sample:
 CHM13  ./chm13.fa
 ```
+
+### Contig Names
+
+Contig names in the input FASTA files should not contain `#` characters.  If they do, you must strip them out before running.  This can be done with `cactus-preprocess`.  For example
+
+```
+cactus-prepare ./seqfile --outDir pp --seqFileOnly
+cactus-preprocess ./seqfile pp/seqfile --pangenome
+```
+then work with `pp/seqfile` for the remaining commands. 
 
 ### Pipeline
 
