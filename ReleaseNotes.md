@@ -3,7 +3,7 @@
 Changes include:
 
 - Fix bug that could cause `cactus-graphmap-join` to crash when running `vg clip`
-- Upgrade to Toil 5.9.2
+- Upgrade to Toil 5.9.0
 - Include `taffy` binary with bgzip support enabled
 - Better error when trying to install on Python version < 3.7
 
