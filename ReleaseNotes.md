@@ -1,3 +1,10 @@
+# Release 2.4.2 2023-03-14
+
+Changes include:
+
+- Update HAL to fix `halAppendSubtree` crash in certain cases (for real this time)
+- Upgrade to Toil 5.9.2 (ditto)
+
 # Release 2.4.1 2023-02-08
 
 Changes include:
