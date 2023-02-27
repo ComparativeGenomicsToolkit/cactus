@@ -29,22 +29,26 @@ cp examples/evolverPrimates.txt primates-pg/evolverPrimates.pg.txt
 
 Make the SV graph with `minigraph`
 ```
-cactus-minigraph ./jobstore primates-pg/evolverPrimates.pg.txt primates-pg/primates.sv.gfa.gz  --reference simChimp
+cactus-minigraph ./jobstore primates-pg/evolverPrimates.pg.txt primates-pg/primates.sv.gfa.gz  \
+--reference simChimp
 ```
 
 Make the assembly-to-graph alignments with `minigraph`
 ```
-cactus-graphmap ./jobstore primates-pg/evolverPrimates.pg.txt primates-pg/primates.sv.gfa.gz primates-pg/primates.paf  --reference simChimp --outputFasta primates-pg/primates.sv.gfa.fa.gz
+cactus-graphmap ./jobstore primates-pg/evolverPrimates.pg.txt primates-pg/primates.sv.gfa.gz primates-pg/primates.paf \
+--reference simChimp --outputFasta primates-pg/primates.sv.gfa.fa.gz
 ```
 
 Create the Cactus base alignment and "raw" pangenome graph
 ```
-cactus-align ./jobstore primates-pg/evolverPrimates.pg.txt primates-pg/primates.paf primates-pg/primates.hal --pangenome --outVG --reference simChimp 
+cactus-align ./jobstore primates-pg/evolverPrimates.pg.txt primates-pg/primates.paf primates-pg/primates.hal \
+--pangenome --outVG --reference simChimp 
 ```
 
 Create and index the final pangenome graph and produce VCF files and vg-giraffe indexes. 
 ```
-cactus-graphmap-join ./jobstore --vg primates-pg/primates.vg --outDir ./primates-pg --outName primates-pg --reference simChimp --vcf --giraffe
+cactus-graphmap-join ./jobstore --vg primates-pg/primates.vg --outDir ./primates-pg --outName primates-pg \
+--reference simChimp --vcf --giraffe
 ```
 
 If it worked properly, the input sequences should show up as contigs in the GFA:
@@ -185,14 +189,16 @@ cp ./examples/yeastPangenome.txt yeast-pg/
 cactus-minigraph ./jobstore  ./yeast-pg/yeastPangenome.txt ./yeast-pg/yeast.sv.gfa  --reference S288C
 
 # map back to the minigraph
-cactus-graphmap ./jobstore ./yeast-pg/yeastPangenome.txt ./yeast-pg/yeast.sv.gfa ./yeast-pg/yeast.paf --outputFasta ./yeast-pg/yeast.sv.gfa.fa  --reference S288C
+cactus-graphmap ./jobstore ./yeast-pg/yeastPangenome.txt ./yeast-pg/yeast.sv.gfa ./yeast-pg/yeast.paf \
+--outputFasta ./yeast-pg/yeast.sv.gfa.fa  --reference S288C
 ```
 
 ### Yeast: Splitting By Chromosome
 Now the PAF and GFA `minigraph` output can be used to partition the graph and mappings based on the reference genome's (S288C's) chromosomes:
 
 ```
-cactus-graphmap-split ./jobstore ./yeast-pg/yeastPangenome.txt ./yeast-pg/yeast.sv.gfa ./yeast-pg/yeast.paf --outDir yeast-pg/chroms  --reference S288C
+cactus-graphmap-split ./jobstore ./yeast-pg/yeastPangenome.txt ./yeast-pg/yeast.sv.gfa \
+./yeast-pg/yeast.paf --outDir yeast-pg/chroms  --reference S288C
 ```
 
 This command makes a cactus subproblem for each reference chromosome.  By default, it uses all contigs in the reference.  A subset can be specified using the `--refContigs` option.
@@ -263,7 +269,8 @@ The sequence-to-graph PAF files can be refined by adding the `--base` option to 
 The options we would normally pass directly to `cactus-align` must be quoted and passed via `--alignOptions` here:
 
 ```
-cactus-align-batch ./jobstore ./yeast-pg/chroms/chromfile.txt yeast-pg/chrom-alignments --alignOptions "--pangenome --reference S288C --outVG " 
+cactus-align-batch ./jobstore ./yeast-pg/chroms/chromfile.txt yeast-pg/chrom-alignments \
+--alignOptions "--pangenome --reference S288C --outVG " 
 ```
 
 The results are a HAL and VG file, along with a `cactus-align` log, for each chromosome:
@@ -283,7 +290,8 @@ total 67M
 As in the primates example, `cactus-graphmap-join` is used to make the final indexes.  Its use is identical, except multiple graphs are passed as input.  We also pass in the HAL files so it can merge them too.
 
 ```
-cactus-graphmap-join ./jobstore --vg yeast-pg/chrom-alignments/*.vg --hal yeast-pg/chrom-alignments/*.hal --outDir ./yeast-pg --outName yeast-pg --reference S288C --vcf --giraffe clip
+cactus-graphmap-join ./jobstore --vg yeast-pg/chrom-alignments/*.vg --hal yeast-pg/chrom-alignments/*.hal \
+--outDir ./yeast-pg --outName yeast-pg --reference S288C --vcf --giraffe clip
 
 ```
 
@@ -421,7 +429,9 @@ aws s3 cp hprc-${VERSION}-mc.seqfile ${MYBUCKET}/
 aws s3 cp hprc-${VERSION}-mc.pp.seqfile ${MYBUCKET}/
 
 # finally, we run cactus-preprocess --pangenome
-cactus-preprocess ${MYJOBSTORE} hprc-${VERSION}-mc.seqfile hprc-${VERSION}-mc.pp.seqfile --pangenome  --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.8xlarge --nodeStorage 500 --maxNodes 2 --logFile hprc-${VERSION}-mc-grch38.pp.log
+cactus-preprocess ${MYJOBSTORE} hprc-${VERSION}-mc.seqfile hprc-${VERSION}-mc.pp.seqfile --pangenome \
+--batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.8xlarge --nodeStorage 500 \
+--maxNodes 2 --logFile hprc-${VERSION}-mc-grch38.pp.log
 
 ```
 
@@ -434,7 +444,11 @@ Now that the sequences are ready, we run `cactus-graphmap` as before.  There is 
 `--delFilter N` : Filter out mappings that would induce a deletion bubble of `>N` bases w.r.t. a path in the reference.  If this option is used, the unfiltered paf will also be output (with a `.unfiltered` suffix) as well as a log detailing what was filtered and why (`.filter.log` suffix).  This option is very important as minigraph will produce a small number of split-mappings that can cause chromosome-scale bubbles.  By default, it is set to 1000000.
 
 ```
-cactus-graphmap ${MYJOBSTORE} hprc-${VERSION}-mc.pp.seqfile ${MINIGRAPH} ${MYBUCKET}/hprc-${VERSION}-mc-grch38.paf --outputGAFDir ${MYBUCKET}/gaf-hprc-${VERSION}-mc-grch38 --outputFasta ${MYBUCKET}/fasta/minigraph.grch38.sv.gfa.fa.gz --reference GRCh38 --mapCores 16 --delFilter 10000000  --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.8xlarge:1.5 --nodeStorage 650 --maxNodes 25 --betaInertia 0 --targetTime 1  --logFile hprc-${VERSION}-mc-grch38.paf.log
+cactus-graphmap ${MYJOBSTORE} hprc-${VERSION}-mc.pp.seqfile ${MINIGRAPH} ${MYBUCKET}/hprc-${VERSION}-mc-grch38.paf \
+--outputGAFDir ${MYBUCKET}/gaf-hprc-${VERSION}-mc-grch38 --outputFasta ${MYBUCKET}/fasta/minigraph.grch38.sv.gfa.fa.gz \
+--reference GRCh38 --mapCores 16 --delFilter 10000000  --batchSystem mesos --provisioner aws --defaultPreemptable \
+--nodeType r5.8xlarge:1.5 --nodeStorage 650 --maxNodes 25 --betaInertia 0 --targetTime 1 \
+--logFile hprc-${VERSION}-mc-grch38.paf.log
 ```
 
 Note:  The `--betaInertia 0 --targetTime 1` options force Toil to create AWS instances as soon as they are needed.
@@ -446,7 +460,11 @@ This command uses the spot market by specifying `:1.35` after the node type to b
 There are too many reference contigs to make a graph for each because of all the unplaced contigs in GRCh38.  Ideally, we would drop them but it simplifies some downstream pipelines that use tools that expect them to be in BAM headers etc. to just include them in the graph.  To do this, we use the `--otherContig` option to lump them all into a single job, and `--refContigs` to spell out all the contigs we want to treat separately.  Note that the final output will be the same whether or not `--otherContig` is used. This option serves only to reduce the number of output files (and therefore alignment jobs). 
 
 ```
-cactus-graphmap-split ${MYJOBSTORE}  hprc-${VERSION}-mc.pp.seqfile ${MINIGRAPH} ${MYBUCKET}/hprc-${VERSION}-mc-grch38.paf --outDir ${MYBUCKET}/chroms-hprc-${VERSION}-mc-grch38 --otherContig chrOther --refContigs $(for i in `seq 22`; do echo chr$i; done ; echo "chrX chrY chrM") --reference GRCh38  --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.8xlarge --nodeStorage 1000 --maxNodes 5 --betaInertia 0 --targetTime 1 --logFile hprc-${VERSION}-mc-grch38.split.log
+cactus-graphmap-split ${MYJOBSTORE}  hprc-${VERSION}-mc.pp.seqfile ${MINIGRAPH} \
+${MYBUCKET}/hprc-${VERSION}-mc-grch38.paf --outDir ${MYBUCKET}/chroms-hprc-${VERSION}-mc-grch38 \
+--otherContig chrOther --refContigs $(for i in `seq 22`; do echo chr$i; done ; echo "chrX chrY chrM") \
+--reference GRCh38  --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.8xlarge \
+--nodeStorage 1000 --maxNodes 5 --betaInertia 0 --targetTime 1 --logFile hprc-${VERSION}-mc-grch38.split.log
 ```
 
 ### HPRC Graph: Batch Alignment
@@ -459,7 +477,10 @@ This command will create a vg and hal file for each chromosome in ${MYBUCKET}/al
 ```
 
 aws s3 cp ${MYBUCKET}/chroms-hprc-${VERSION}-mc-grch38/chromfile.txt .
-cactus-align-batch ${MYJOBSTORE} ./chromfile.txt ${MYBUCKET}/align-hprc-${VERSION}-mc-grch38 --alignCores 16  --alignOptions "--pangenome --maxLen 10000 --reference GRCh38   --outVG" --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.8xlarge:1.5 --nodeStorage 1000 --maxNodes 20 --betaInertia 0 --targetTime 1 --logFile hprc-${VERSION}-mc-grch38.align.log
+cactus-align-batch ${MYJOBSTORE} ./chromfile.txt ${MYBUCKET}/align-hprc-${VERSION}-mc-grch38 \
+--alignCores 16  --alignOptions "--pangenome --maxLen 10000 --reference GRCh38   --outVG" \
+--batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.8xlarge:1.5 --nodeStorage 1000 \
+--maxNodes 20 --betaInertia 0 --targetTime 1 --logFile hprc-${VERSION}-mc-grch38.align.log
 ```
 
 ### HPRC Graph: Creating the Whole-Genome Graph
@@ -470,7 +491,13 @@ Important:
 * we use `--indexCores 63` to allow indexing and hal merging to be done in parallel, which can save quite a bit of time. 
 
 ```
-cactus-graphmap-join ${MYJOBSTORE} --vg $(for j in $(for i in `seq 22`; do echo chr$i; done ; echo "chrX chrY chrM chrOther"); do echo ${MYBUCKET}/align-hprc-${VERSION}-mc-grch38/${j}.vg; done) --hal $(for j in $(for i in `seq 22`; do echo chr$i; done ; echo "chrX chrY chrM chrOther"); do echo ${MYBUCKET}/align-hprc-${VERSION}-mc-grch38/${j}.hal; done) --outDir ${MYBUCKET}/ --outName hprc-${VERSION}-mc-grch38 --reference GRCh38 --filter 9 --giraffe --vcf --gbz --gfa --vg-chroms --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.16xlarge --nodeStorage 1000 --maxNodes 1 --indexCores 63  --logFile hprc-${VERSION}-mc-grch38.join.log 
+cactus-graphmap-join ${MYJOBSTORE} --vg $(for j in $(for i in `seq 22`; do echo chr$i; done ; \
+echo "chrX chrY chrM chrOther"); do echo ${MYBUCKET}/align-hprc-${VERSION}-mc-grch38/${j}.vg; done) \
+--hal $(for j in $(for i in `seq 22`; do echo chr$i; done ; echo "chrX chrY chrM chrOther"); \
+do echo ${MYBUCKET}/align-hprc-${VERSION}-mc-grch38/${j}.hal; done) --outDir ${MYBUCKET}/ \
+--outName hprc-${VERSION}-mc-grch38 --reference GRCh38 --filter 9 --giraffe --vcf --gbz --gfa \
+--vg-chroms --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.16xlarge \
+--nodeStorage 1000 --maxNodes 1 --indexCores 63  --logFile hprc-${VERSION}-mc-grch38.join.log 
 ```
 
 **All sequences clipped out by `cactus-graphmap-join` will be saved in a BED file in the ".stats.gz" file in its output directory.**
@@ -522,12 +549,20 @@ The other main differences between this pipeline and ${VERSION} are
 
 GRCh38 graph command line
 ```
-./cactus-pangenome.sh -j aws:us-west-2:glennhickey-jobstore7 -s ./hprc-year1-f1g.fix.HG02080.1.brnn.leaveout.seqfile -m ftp://ftp.dfci.harvard.edu/pub/hli/minigraph/HPRC-f1g/GRCh38-f1g-90.gfa.gz  -o s3://vg-k8s/vgamb/wg/cactus/GRCh38-f1g-90/aug11 -n GRCh38-f1g-90-mc-aug11 -r GRCh38 -d s3://vg-k8s/vgamb/wg/fasta/hs38d1.decoys.only.vg  -g  -F  -C -M 100000 -K 10000  2>> stderr.aug11.2.log > /dev/null
+./cactus-pangenome.sh -j aws:us-west-2:glennhickey-jobstore7 -s ./hprc-year1-f1g.fix.HG02080.1.brnn.leaveout.seqfile \
+-m ftp://ftp.dfci.harvard.edu/pub/hli/minigraph/HPRC-f1g/GRCh38-f1g-90.gfa.gz  \
+-o s3://vg-k8s/vgamb/wg/cactus/GRCh38-f1g-90/aug11 -n GRCh38-f1g-90-mc-aug11 -r GRCh38 \
+-d s3://vg-k8s/vgamb/wg/fasta/hs38d1.decoys.only.vg  -g  -F  -C -M 100000 -K 10000  2>> stderr.aug11.2.log > /dev/null
 ```
 
 CHM13 graph command line
 ```
- ./cactus-pangenome.sh -j aws:us-west-2:glennhickey-jobstore-hprc4 -s ./hprc-year1-f1g.chmy.fix.HG02080.1.brnn.leaveout.seqfile -m ftp://ftp.dfci.harvard.edu/pub/hli/minigraph/HPRC-f1g/CHM13-f1g-90.gfa.gz  -o s3://vg-k8s/vgamb/wg/cactus/CHM13-f1g-90/aug11 -n CHM13-f1g-90-mc-aug11  -r CHM13 -v GRCh38 -d s3://vg-k8s/vgamb/wg/fasta/hs38d1.decoys.only.vg  -g  -F -C -M 100000 -K 10000 -y  2>> stderr.aug11.chm13.3.log > /dev/null
+ ./cactus-pangenome.sh -j aws:us-west-2:glennhickey-jobstore-hprc4 -s \
+ ./hprc-year1-f1g.chmy.fix.HG02080.1.brnn.leaveout.seqfile \
+ -m ftp://ftp.dfci.harvard.edu/pub/hli/minigraph/HPRC-f1g/CHM13-f1g-90.gfa.gz  \
+ -o s3://vg-k8s/vgamb/wg/cactus/CHM13-f1g-90/aug11 -n CHM13-f1g-90-mc-aug11  \
+ -r CHM13 -v GRCh38 -d s3://vg-k8s/vgamb/wg/fasta/hs38d1.decoys.only.vg  -g  \
+ -F -C -M 100000 -K 10000 -y  2>> stderr.aug11.chm13.3.log > /dev/null
 ```
 
 ## Frequently Asked Questions
