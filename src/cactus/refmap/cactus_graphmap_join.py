@@ -402,6 +402,12 @@ def clip_vg(job, options, config, vg_path, vg_id, phase):
         for ref in options.reference:
             clip_cmd += ['-P', ref]
         cmd.append(clip_cmd)
+        if phase == 'clip' and getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "removeStubs", typeFn=bool, default=True):
+            # todo: could save a little time by making vg clip smart enough to do two things at once
+            stub_cmd = ['vg', 'clip', '-s', '-']
+            for ref in options.reference:
+                stub_cmd += ['-P', ref]
+            cmd.append(stub_cmd)
 
     # and we sort by id on the first go-around
     if phase == 'full':

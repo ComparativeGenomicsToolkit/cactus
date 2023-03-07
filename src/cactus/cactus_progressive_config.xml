@@ -338,11 +338,13 @@
 	<!-- clipNonMinigraph: clip out regions if the don't align to minigraph (if disabled, clip if they don't align to anything) -->
 	<!-- minimizerOptions: options for vg minimizer -->
 	<!-- minFilterFragment: discard fragments that result from the vg clip frequency filter if they are smaller than this -->
+	<!-- removeStubs: remove any nodes dangling off reference paths (ie softclips) -->
 	<graphmap_join
 		 gfaffix="1"
 		 clipNonMinigraph="1"		 
 		 minimizerOptions="-k 29 -w 11"
 		 minFilterFragment="1000"
+		 removeStubs="1"
 		 />
 	<!-- hal2vg options -->
 	<!-- includeMinigraph: include minigraph node sequences as paths in output (note that cactus-graphmap-join will still remove them by default) -->
