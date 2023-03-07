@@ -135,7 +135,7 @@ then work with `pp/seqfile` for the remaining commands.
 `cactus-graphmap-join` merges chromosome graphs created by `cactus-align-batch`, and also normalizes, clips and filters the graph in addition to producing some useful indexes.  It can produce up to three graphs (now in a single invocation), and a variety of indexes for any combination of them. The three graphs are the
 
 * `full` graph: This graph is normalized, but no sequence is removed. It and its indexes will have `.full` in their filenames. 
-* `clip` graph: This is the default graph. Stretches of sequence `>10kb` that were not aligned to the underlying SV/minigraph are removed.
+* `clip` graph: This is the default graph. Stretches of sequence `>10kb` that were not aligned to the underlying SV/minigraph are removed. "Dangling" nodes (ie that don't have an edge on each side) that aren't on the reference path are also removed, so that each chromosome only has two tips in the graph.
 * `filter` graph: This graph is made by removing nodes covered by fewer than 2 haplotypes from the `clip` graph.  It and its indexes will have `.d2` in their filenames.
 
 The `clip` graph is a subgraph of the `full` graph and the `filter` graph is a subgraph of the `clip` graph. Put another way, any node in the `filter` graph exists with the exact same ID and sequence in the `clip` graph, etc. 
@@ -586,3 +586,8 @@ A: So current toolchains can work with your graphs.  But clipping and filtering 
 **Q**: I get an error to the effect of `ERROR: No matching distribution found for toil[aws]==xxxx` when trying to install Toil.
 
 **A**: This is probably happening because you are using Python 3.6. Toil and Cactus require Python >= 3.7.  Use `python3 --version` to check your Python version.
+
+
+**Q**: `cactus-align-batch` spawns too many `cactus-align` jobs and runs out of memory. How do I fix this?
+
+**A**: You can control the number of jobs with `--alignCores` and `--maxCores` which set the cores per align job and total cores, respectively.  So to only do two align jobs at a time using 8 cores total, you can set `--alignCores 4 --maxCores 8`.

@@ -433,7 +433,7 @@ class TestCase(unittest.TestCase):
         join_path = os.path.join(self.tempDir, 'join')
         subprocess.check_call(['cactus-graphmap-join', self._job_store(binariesMode), '--outDir', join_path, '--outName', 'yeast',
                                '--reference', 'S288C', '--vg'] +  vg_files + ['--hal'] + hal_files + 
-                               ['--vcf', '--giraffe', 'clip'] + cactus_opts + ['--indexCores', '4'])
+                               ['--vcf', '--giraffe', 'clip', 'filter'] + cactus_opts + ['--indexCores', '4'])
 
     def _check_yeast_pangenome(self, binariesMode):
         """ yeast pangenome chromosome by chromosome pipeline
@@ -487,7 +487,7 @@ class TestCase(unittest.TestCase):
         self.assertLessEqual(num_bases, 11200000)
 
         # make sure we have the giraffe indexes
-        for giraffe_idx in ['yeast.gbz', 'yeast.dist', 'yeast.min']:
+        for giraffe_idx in ['yeast.gbz', 'yeast.dist', 'yeast.min', 'yeast.d2.gbz', 'yeast.d2.dist', 'yeast.d2.min']:
             idx_bytes = os.path.getsize(os.path.join(join_path, giraffe_idx))
             self.assertGreaterEqual(idx_bytes, 500000)
 
@@ -502,6 +502,33 @@ class TestCase(unittest.TestCase):
         for chr,sizes in contig_sizes.items():
             self.assertEqual(len(sizes), 10)
             self.assertGreaterEqual(int(sizes[9]), 200000)
+
+        # make sure the gbz stats are sane        
+        clip_degree_dist = subprocess.check_output(['vg', 'stats', '-D', os.path.join(join_path, 'yeast.gbz')]).strip().decode('utf-8')
+        clip_degree_dist = len(clip_degree_dist.strip().split('\n'))        
+        self.assertGreaterEqual(clip_degree_dist, 6)
+
+        filter_degree_dist = subprocess.check_output(['vg', 'stats', '-D', os.path.join(join_path, 'yeast.d2.gbz')]).strip().decode('utf-8')
+        filter_degree_dist = len(filter_degree_dist.strip().split('\n'))        
+        self.assertGreaterEqual(filter_degree_dist, 6)
+        self.assertLess(filter_degree_dist, clip_degree_dist)
+
+        clip_nodes = int(subprocess.check_output(['vg', 'stats', '-N', os.path.join(join_path, 'yeast.gbz')]).strip().decode('utf-8').strip())
+        self.assertGreaterEqual(clip_nodes, 400000)
+        self.assertLessEqual(clip_nodes, 500000)
+
+        filter_nodes = int(subprocess.check_output(['vg', 'stats', '-N', os.path.join(join_path, 'yeast.d2.gbz')]).strip().decode('utf-8').strip())
+        self.assertGreaterEqual(filter_nodes, 300000)
+        self.assertLessEqual(filter_nodes, 400000)
+
+        clip_edges = int(subprocess.check_output(['vg', 'stats', '-E', os.path.join(join_path, 'yeast.gbz')]).strip().decode('utf-8').strip())
+        self.assertGreaterEqual(clip_edges, 550000)
+        self.assertLessEqual(clip_edges, 650000)
+
+        filter_edges = int(subprocess.check_output(['vg', 'stats', '-E', os.path.join(join_path, 'yeast.d2.gbz')]).strip().decode('utf-8').strip())
+        self.assertGreaterEqual(filter_edges, 400000)
+        self.assertLessEqual(filter_edges, 500000)
+        
         
     def _csvstr_to_table(self, csvstr, header_fields):
         """ Hacky csv parse """
