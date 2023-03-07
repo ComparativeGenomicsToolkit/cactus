@@ -1,4 +1,13 @@
-# Release 2.4.2 2023-03-14
+# Release 2.4.4 2023-03-7
+
+This release patches a critical pangenome indexing bug introduced in v2.3.0, where a typo in the refactor of `cactus-graphmap-join` effectively caused *all* variation to be removed from the allele-frequency-filtered (ie .d2) graphs.
+
+Changes
+- Fix typo in `cactus-graphmap-join` where minimum fragment length (default 1000) was passed as minimum depth to `vg clip`, overriding the correct value.
+- Introduce stub filtering in `cactus-graphmap-join` that cleans out all dangling nodes. Resulting graphs will have exactly two stubs (tips) per reference chromosome (just like minigraph). This can be toggled off via the `removeStubs` config parameter.
+- Update HAL to fix a bug in `halRenameSequences`
+
+# Release 2.4.2 2023-02-14
 
 Changes include:
 
