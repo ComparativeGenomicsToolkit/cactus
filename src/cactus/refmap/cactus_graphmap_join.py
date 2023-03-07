@@ -407,6 +407,8 @@ def clip_vg(job, options, config, vg_path, vg_id, phase):
             stub_cmd = ['vg', 'clip', '-s', '-']
             for ref in options.reference:
                 stub_cmd += ['-P', ref]
+
+            # todo: do we want to add the minigraph prefix to keep stubs from minigraph? but I don't think it makes stubs....
             cmd.append(stub_cmd)
 
     # and we sort by id on the first go-around
@@ -475,7 +477,23 @@ def vg_clip_vg(job , options, config, vg_path, vg_id):
         clip_cmd += ['-P', ref]
     min_fragment = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "minFilterFragment", typeFn=int, default=None)
     if min_fragment:
-        clip_cmd += ['-d', str(min_fragment)]
+        clip_cmd += ['-m', str(min_fragment)]
+        # the min-fragment option is kind of ill thought out, and works as post-processing.  therefore it can
+        # actually leave uncovered nodes, we clean here but note that it can leave fragments smaller than min-fragment
+        clean_cmd = ['vg', 'clip', '-d', '1', '-']
+        for ref in options.reference:
+            clean_cmd += ['-P', ref]
+        clip_cmd = [clip_cmd, clean_cmd]
+
+    if getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "removeStubs", typeFn=bool, default=True):
+        # this command can also leave fragments smaller than min-fragment
+        stub_cmd = ['vg', 'clip', '-s', '-']
+        for ref in options.reference:
+            stub_cmd += ['-P', ref]
+        if min_fragment:
+            clip_cmd.append(stub_cmd)
+        else:
+            clip_cmd = [clip_cmd, stub_cmd]
 
     cactus_call(parameters=clip_cmd, outfile=clipped_path)
 
