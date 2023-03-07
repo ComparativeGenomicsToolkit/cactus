@@ -1,4 +1,4 @@
-# Release 2.4.4 2023-03-7
+# Release 2.4.4 2023-03-07
 
 This release patches a critical pangenome indexing bug introduced in v2.3.0, where a typo in the refactor of `cactus-graphmap-join` effectively caused *all* variation to be removed from the allele-frequency-filtered (ie .d2) graphs.
 
