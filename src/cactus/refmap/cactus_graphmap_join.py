@@ -319,7 +319,7 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
         if workflow_phase in options.vcf:
             for vcf_ref in options.vcfReference:
                 vcftag = vcf_ref + '.' + workflow_phase if vcf_ref != options.reference[0] else workflow_phase
-                deconstruct_job = prev_job.addFollowOnJobFn(make_vcf, options.outName, vcf_ref, current_out_dict,
+                deconstruct_job = prev_job.addFollowOnJobFn(make_vcf, config, options.outName, vcf_ref, current_out_dict,
                                                             max_ref_allele=options.vcfbub,
                                                             tag=vcftag + '.',
                                                             cores=options.indexCores,
@@ -568,7 +568,7 @@ def make_vg_indexes(job, options, config, gfa_ids, tag=''):
              '{}gbz'.format(tag) : job.fileStore.writeGlobalFile(gbz_path),
              '{}snarls'.format(tag) : job.fileStore.writeGlobalFile(snarls_path) }
 
-def make_vcf(job, out_name, vcf_ref, index_dict, tag='', max_ref_allele=None):
+def make_vcf(job, config, out_name, vcf_ref, index_dict, tag='', max_ref_allele=None):
     """ make the vcf
     """ 
     work_dir = job.fileStore.getLocalTempDir()
@@ -579,10 +579,10 @@ def make_vcf(job, out_name, vcf_ref, index_dict, tag='', max_ref_allele=None):
 
     # make the vcf
     vcf_path = os.path.join(work_dir, '{}merged.vcf.gz'.format(tag))
-    cactus_call(parameters=[['vg', 'deconstruct', gbz_path, '-P', vcf_ref, '-a', '-r', snarls_path, 
-                             '-t', str(job.cores)],
-                            ['bgzip', '--threads', str(job.cores)]],
-                outfile=vcf_path)
+    decon_cmd = ['vg', 'deconstruct', gbz_path, '-P', vcf_ref, '-a', '-r', snarls_path, '-t', str(job.cores)]
+    if getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "GFANodeIDsInVCF", typeFn=bool, default=True):
+        decon_cmd.append('-O')
+    cactus_call(parameters=[decon_cmd, ['bgzip', '--threads', str(job.cores)]], outfile=vcf_path)
     cactus_call(parameters=['tabix', '-p', 'vcf', vcf_path])
 
     output_dict = { '{}raw.vcf.gz'.format(tag) : job.fileStore.writeGlobalFile(vcf_path),
