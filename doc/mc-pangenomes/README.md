@@ -6,9 +6,11 @@ The commits used can be found in the logs in the Output links. Data is provided 
 
 Please cite the [Minigraph-Cactus paper](https://doi.org/10.1101/2022.10.06.511217) when using these pangenomes. For the HPRC pangenomes, please also cite the [HPRC Paper](https://doi.org/10.1101/2022.07.09.499321 ).
 
-**Note** The `30-mouse-pg-2022-09-23` pangenome is nearly 40% Ns due, apparently, to gappy input assemblies. This should be taken into account when using it. Todo: add a filter to postprocessing, or rebuild with a subset of higher quality assemblies. 
+**Note** `cactus-graphmap-join`'s interface was changed back in version [2.3.0](https://github.com/ComparativeGenomicsToolkit/cactus/releases/tag/v2.3.0).  The `--wlineSep` and `--gfaffix` options no longer exist. If you want to run some of the example below on a newer version of Minigraph-Cactus, you may need to adapt the commands accordingly (just not using these two options will be fine).  
 
-**Also** The commands given below to construct these graphs were run from [Toil AWS leader instances](https://github.com/ComparativeGenomicsToolkit/cactus/blob/master/doc/running-in-aws.md).  If you are not running on an AWS/EC2 cluster and want to reproduce the graphs, then you will need to adapt the commands to your environment.  To run locally remove the AWS-specific options like `--batchSystem`, `--defaultPreemptable`, `--nodeType`, `--nodeStorage`, `--maxNodes`, `--betaInertia`, `--targetTime` and `--provisioner` and use a *local* (non-s3) jobstore (like `./jobstore`).
+**Also** The `30-mouse-pg-2022-09-23` pangenome is nearly 40% Ns due, apparently, to gappy input assemblies. This should be taken into account when using it. Todo: add a filter to postprocessing, or rebuild with a subset of higher quality assemblies. 
+
+**And** The commands given below to construct these graphs were run from [Toil AWS leader instances](https://github.com/ComparativeGenomicsToolkit/cactus/blob/master/doc/running-in-aws.md).  If you are not running on an AWS/EC2 cluster and want to reproduce the graphs, then you will need to adapt the commands to your environment.  To run locally remove the AWS-specific options like `--batchSystem`, `--defaultPreemptable`, `--nodeType`, `--nodeStorage`, `--maxNodes`, `--betaInertia`, `--targetTime` and `--provisioner` and use a *local* (non-s3) jobstore (like `./jobstore`).
 
 |<sub>**Name**</sub>| <sub>**Species**</sub> | <sub> **Date** </sub> |<sub>**Haplotypes**</sub> | <sub>**Reference**</sub> | <sub>**SeqFile**</sub> | <sub>**Commands**</sub> | <sub>**Output**</sub>|
 | :-------- | :-------- | :-------- | :------ | :------ |:------ | :------ | :------ |
