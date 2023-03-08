@@ -166,11 +166,35 @@ When merging hal files with `--hal`, it is best to set `--indexCores` such that 
 * `gfa`: A [standard text-based graph format](https://github.com/GFA-spec/GFA-spec/blob/master/GFA1.md). Minigraph-Cactus uses GFA 1.1 as it represents haplotypes as [Walks](https://github.com/GFA-spec/GFA-spec/blob/master/GFA1.md#w-walk-line-since-v11). You can use `vg convert -gfW` to convert from GFA 1.1 to 1.0 and `vg convert -gf` to convert from 1.0 to 1.1.
 * `vcf`: A [standard text-based format](https://en.wikipedia.org/wiki/Variant_Call_Format) that represents a pangenome graph as sites of variation along a reference. VCFs exported from the graph are nested, and by default `vcfbub` is used to flatten them.
 * `vg`: [vg](https://github.com/vgteam/vg)'s native packed-graph format, can be read and written by vg but does not scale well with the number of paths.
-* `gbz`: A read-only [format that scales extremely efficiently with the number of paths](https://github.com/jltsiren/gbwtgraph/blob/master/SERIALIZATION.md). Readable by `vg` tools and required for `giraffe`.
+* `gbz`: A read-only [format that scales extremely efficiently with the number of paths](https://github.com/jltsiren/gbwtgraph/blob/master/SERIALIZATION.md). Readable by `vg` tools and required for `giraffe`.  
 * `snarls`: The start and end nodes of the bubbles in the graph, as well as their nesting relationships.  Used by some `vg` tools like `call` and `deconstruct`.
 * `dist`: Snarl distance index required for `vg giraffe`.
 * `min`: Minimizer index required for `vg giraffe`.
 * `stats.tgz`: Some stats about how much sequence was clipped, including a BED file of the removed sequence.
+
+#### Node Chopping
+
+The GBZ format uses 10 bits to store offsets within nodes, which imposees a 1024bp node length limit. Nodes are therefore chopped up as requried in the `.gbz` output (described above) to respect this limit. The index files derived from the `.gbz`: `.snarls`, `.dist`, and `.min` will share the `.gbz` graph's chopped ID space. 
+
+The `.gfa.gz` and node IDs referred to in the `.vgz.gz` file (via the variant IDs, AT and PS tags) are not chopped and therefore inconsistent with the `.gbz`.  This can be very confusing when trying to, for example, locate a variant in the `vcf.gz` back in the `.gbz` using node IDs: Node `X` in `.vcf.gz` and node `X` in `.gbz` will often both exist but can be totally different parts of the graph. 
+
+If you would rather have a VCF with consistent IDs to the GBZ as opposed to GFA, you can toggle this via the config XML
+```
+sed src/cactus/cactus_progressive_config.xml -e "s/GFANodeIDsInVCF=\"1\"/GFANodeIDsInVCF=\"0\"/g" > config.xml
+```
+then pass `--configFile config.xml` to `cactus-graphmap-join`
+
+If you want to see the mapping between the unchopped (2nd column) and chopped (3rd column) nodes, you can do so with
+```
+vg gbwt -Z  graph.gbz --translation mapping.tsv
+```
+
+If you want to make a GFA file with chopped nodes to be exactly equivalent to the GBZ
+```
+vg convert -f graph.gbz --vg-algorithm > graph.gfa
+```
+
+If you are running `vg call` or `vg deconstruct` on the GBZ yourself, the output VCF will, by default, use the chopped IDs from the GBZ. You can switch to the unchopped IDs using `-O` for both tools. 
 
 ## Yeast Graph
 
@@ -591,3 +615,7 @@ A: So current toolchains can work with your graphs.  But clipping and filtering 
 **Q**: `cactus-align-batch` spawns too many `cactus-align` jobs and runs out of memory. How do I fix this?
 
 **A**: You can control the number of jobs with `--alignCores` and `--maxCores` which set the cores per align job and total cores, respectively.  So to only do two align jobs at a time using 8 cores total, you can set `--alignCores 4 --maxCores 8`.
+
+**Q**: The node IDs referred to in the output VCF don't match the GBZ!
+
+**A**: Indeed they do not. They refer to the (unchopped) GFA IDs.  Please see the [Node Chopping](#node-chopping) section above. 
