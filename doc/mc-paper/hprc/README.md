@@ -17,6 +17,10 @@ Hence, to reproduce the analysis, one would have to replace the parts specifying
 The pipeline also uses custom scripts or additional files (`resources/..'` in the Snakefile). 
 Those files have been deposited in the [`resources`](resources) folder.
 
+## Non-reference sequence
+
+[count-vg-hap-cov](https://github.com/ComparativeGenomicsToolkit/hal2vg/releases/download/v1.1.2/count-vg-hap-cov) was used to compute the amount of sequence (reference and non-reference) in the graph according to how many haplotypes cover it. It was run on the using `-r GRCh38` (`CHM13`) to specify the reference of the GRCh38 (CHM13) based graphs. The chromosome vg output of `cactus-graphmap-join` was used as input.
+
 ## Snarl summary statistics
 
 The distance index contains the snarl structure and records the length of the maximum/minimum path through each.
