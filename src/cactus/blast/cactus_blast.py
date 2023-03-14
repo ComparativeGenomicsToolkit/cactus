@@ -88,7 +88,7 @@ def runCactusBlastOnly(options):
         importSingularityImage(options)
         #Run the workflow
         if options.restart:
-            outWorkFlowArgs = toil.restart()
+            paf_id = toil.restart()
         else:
 
             # load up the seqfile and figure out the outgroups and schedule
