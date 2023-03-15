@@ -51,10 +51,6 @@ def main():
                         help="Toggle how to handle duplications: None: heuristically choose most similar homolog; Ancestral: keep only duplications that coalesce in an ancestral sequence; All: keep all duplications, including anestral and novel paralogies in the target genome [default=Single]",
                         default="single")
 
-    # ancestors now off by default
-    parser.add_argument("--ancestors", action="store_true",
-                        help="Include Ancestral genomes")
-
     # pass through a subset of hal2maf options
     parser.add_argument("--refGenome", required=True,
                         help="name of reference genome (root if empty)",
@@ -70,6 +66,13 @@ def main():
                         help="comma-separated (no spaces) list of target "
                         "genomes (others are excluded) (vist all if empty)",
                         default=None)
+    parser.add_argument("--noAncestors",
+                        help="don't write ancestral sequences. IMPORTANT: "
+                        "Must be used in conjunction with --refGenome"
+                        " to set a non-ancestral genome as the reference"
+                        " because the default reference is the root.",
+                        action="store_true",
+                        default=False)    
     
     # pass through taffy add-gap-bases options
     parser.add_argument("--gapFill",
@@ -119,6 +122,8 @@ def main():
 
     if options.dupeMode == 'single' and options.raw:
         raise RuntimeError('--dupeMode single requires TAF normalization and therefore is incompatible with --raw')
+    if options.noAncestors and not options.refGenome:
+        raise RuntimeError('(non-ancestral) --refGenome required with --noAncestors')
 
     # apply cpu override                
     if options.batchCores is None:
@@ -260,7 +265,7 @@ def hal2maf_cmd(hal_path, chunk, chunk_num, options):
         cmd += ' --targetGenomes {}'.format(options.targetGenomes)
     if options.dupeMode == 'ancestral':
         cmd += '--onlyOrthologs'
-    if not options.ancestors:
+    if options.noAncestors:
         cmd += ' --noAncestors'
     cmd += '{} 2> {}.h2m.time'.format(time_end, chunk_num)
     if chunk[1] != 0 and options.raw:

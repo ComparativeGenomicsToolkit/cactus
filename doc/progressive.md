@@ -100,7 +100,7 @@ Please [cite HAL](https://doi.org/10.1093/bioinformatics/btt128).
 The HAL format represents the alignment in a reference-free, indexed way, but isn't readable by many tools. Many applications will require direct access to alignment columns, which requires "transposing" the row-based HAL format. This is best done by converting to [MAF](https://genome.cse.ucsc.edu/FAQ/FAQformat.html#format5), which can be computationally expensive for larger files. A toil-powered distributed MAF exporter is provided with Cactus.  Note that MAF is a reference-based format, so a reference (which can be any genome, leaf or ancestor, in the HAL file must be specified).
 
 ```
-cactus-hal2maf ./js ./evolverMammals.hal evolverMammals.maf.gz --refGenome simHuman_chr6 --chunkSize 1000000
+cactus-hal2maf ./js ./evolverMammals.hal evolverMammals.maf.gz --refGenome simHuman_chr6 --chunkSize 1000000 --noAncestors
 ```
 
 `cactus-hal2maf`, in addition to providing parallelism with Toil, also adds [TAFFY](https://github.com/ComparativeGenomicsToolkit/taffy)-based normalization and is therefore recommended over running `hal2maf` directly. To better understand the normalzation options, see the [TAFFY](https://github.com/ComparativeGenomicsToolkit/taffy) link above. `cactus-hal2maf` provides an interface to toggle them, and attempts to use sensible defaults. They can be completely deactivated with the `--raw` option. 
@@ -116,7 +116,7 @@ Many applications that take MAF as input expect a single row per sample per bloc
 * "ancestral" : Duplications are written for species if they can be traced to ancestral genomes in the tree.
 * "all" : All duplications are written, including ancestral (above) and "novel" paralogs in the species in question. 
 
-Unlike `hal2maf`, `cactus-hal2maf` does not write ancestral genomes by default. To add them to the maf, use `--ancestors`. 
+Usually a reference genome is specified with `--refGenome` and ancestral genomes are excluded `--noAncestors`. Since the default reference is the root of the alignment, `--noAncestors` can only be specified if a leaf genome is used with `--refGenome`. 
 
 ### BigMaf
 
