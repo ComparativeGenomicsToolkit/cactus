@@ -29,7 +29,7 @@ can be found [here](https://hgdownload.cse.ucsc.edu/admin/exe/).  Note that some
 a license for commercial use.  Static binaries are not available, but the following command
 should set them up successfully on many 64 bit Linux systems:
 ```
-cd bin && for i in wigToBigWig faToTwoBit bedToBigBed bigBedToBed bedSort hgGcPercent; do wget -q http://hgdownload.cse.ucsc.edu/admin/exe/linux.x86_64/${i}; chmod ugo+x ${i}; done
+cd bin && for i in wigToBigWig faToTwoBit bedToBigBed bigBedToBed bedSort hgGcPercent axtChain pslPosTarget; do wget -q http://hgdownload.cse.ucsc.edu/admin/exe/linux.x86_64/${i}; chmod ugo+x ${i}; done
 ```
 
 ## Testing
