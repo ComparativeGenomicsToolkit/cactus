@@ -50,7 +50,7 @@ simDog_chr6, 0, 593897, 1, 61666, 0
 
 or converted to MAF with
 ```
-hal2maf evolverMammals.hal evolverMammals.maf --refGenome simHuman_chr6 --noAncestors --inMemory
+cactus-hal2maf ./js evolverMammals.hal evolverMammals.maf.gz --refGenome simHuman_chr6 --chunkSize 1000000
 ```
 
 ## Interface
@@ -100,15 +100,23 @@ Please [cite HAL](https://doi.org/10.1093/bioinformatics/btt128).
 The HAL format represents the alignment in a reference-free, indexed way, but isn't readable by many tools. Many applications will require direct access to alignment columns, which requires "transposing" the row-based HAL format. This is best done by converting to [MAF](https://genome.cse.ucsc.edu/FAQ/FAQformat.html#format5), which can be computationally expensive for larger files. A toil-powered distributed MAF exporter is provided with Cactus.  Note that MAF is a reference-based format, so a reference (which can be any genome, leaf or ancestor, in the HAL file must be specified).
 
 ```
-cactus-hal2maf ./js ./evolverMammals.hal evolverMammals.maf.gz --refGenome simHuman_chr6 --chunkSize 1000000 --noAncestors --onlyOrthologs
+cactus-hal2maf ./js ./evolverMammals.hal evolverMammals.maf.gz --refGenome simHuman_chr6 --chunkSize 1000000
 ```
 
-`cactus-hal2maf`, in addition to providing parallelism with Toil, also adds [TAFFY](https://github.com/ComparativeGenomicsToolkit/taffy)-based normalization and is therefore recommended over running `hal2maf` directly.  Also, you usually want to pass the `--noAncestors` option and `--onlyOrthologs` and/or `--noDupes` to reduce the complexity of the output. 
+`cactus-hal2maf`, in addition to providing parallelism with Toil, also adds [TAFFY](https://github.com/ComparativeGenomicsToolkit/taffy)-based normalization and is therefore recommended over running `hal2maf` directly. To better understand the normalzation options, see the [TAFFY](https://github.com/ComparativeGenomicsToolkit/taffy) link above. `cactus-hal2maf` provides an interface to toggle them, and attempts to use sensible defaults. They can be completely deactivated with the `--raw` option. 
 
 The various batching options can be used to tune distributed runs on very large inputs. For example, to run 4 batches, each on a 32-core EC2 node but only processing 8 chunks with `taffy add-gap-bases` in parallel, these options could be used
 ```
 --chunkSize 1000000 --batchCount 4 --batchCores 32 --batchParallelTaf 8 --batchSystem mesos --provisioner aws --defaultPreemptable --nodeStorage 2000 --maxNodes 4 --nodeTypes r5.8xlarge 
 ```
+
+Many applications that take MAF as input expect a single row per sample per block. In other words, no duplications. By default, `cactus-hal2maf` will output MAF files in this form, using heuristics to try to pick the copy that most resembles the reference and causes fewer block breaks. This behaviour can be changed with the `--dupeMode` option in `cactus-hal2maf`.  The possible values are:
+
+* "single" : This is the default which, as described above, uses greedy heuristics to pick the copy for each species that results in fewest mutations and block breaks.
+* "ancestral" : Duplications are written for species if they can be traced to ancestral genomes in the tree.
+* "all" : All duplications are written, including ancestral (above) and "novel" paralogs in the species in question. 
+
+Unlike `hal2maf`, `cactus-hal2maf` does not write ancestral genomes by default. To add them to the maf, use `--ancestors`. 
 
 ### Chains
 

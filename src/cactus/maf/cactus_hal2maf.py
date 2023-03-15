@@ -44,7 +44,16 @@ def main():
     parser.add_argument("--chunkSize", type=int, help = "Size of chunks to operate on.", required=True)
     parser.add_argument("--batchParallelHal2maf", type=int, help = "Number of hal2maf commands to be executed in parallel in batch. Use to throttle down number of concurrent jobs to save memory. [default=batchCores]", default=None)
     parser.add_argument("--batchParallelTaf", type=int, help = "Number of taf normalization command chains to be executed in parallel in batch. Use to throttle down number of concurrent jobs to save memory. [default=batchCores]", default=None)    
-    parser.add_argument("--raw", action="store_true", help = "Do not run taf-based normalization on the MAF")
+    parser.add_argument("--raw", action="store_true", help = "Do not run taf-based normalization on the MAF (add --dupeMode all to not filter out any duplications)")
+
+    # new dupe-handler option
+    parser.add_argument("--dupeMode", type=str, choices=["single", "ancestral", "all"],
+                        help="Toggle how to handle duplications: None: heuristically choose most similar homolog; Ancestral: keep only duplications that coalesce in an ancestral sequence; All: keep all duplications, including anestral and novel paralogies in the target genome [default=Single]",
+                        default="single")
+
+    # ancestors now off by default
+    parser.add_argument("--ancestors", action="store_true",
+                        help="Include Ancestral genomes")
 
     # pass through a subset of hal2maf options
     parser.add_argument("--refGenome", required=True,
@@ -61,41 +70,30 @@ def main():
                         help="comma-separated (no spaces) list of target "
                         "genomes (others are excluded) (vist all if empty)",
                         default=None)
-    parser.add_argument("--noDupes",
-                        help="ignore paralogy edges",
-                        action="store_true",
-                        default=False)
-    parser.add_argument("--onlyOrthologs",
-                        help="make only orthologs to the reference appear in the MAF blocls",
-                        action="store_true",
-                        default=False)
-    parser.add_argument("--noAncestors",
-                        help="don't write ancestral sequences. IMPORTANT: "
-                        "Must be used in conjunction with --refGenome"
-                        " to set a non-ancestral genome as the reference"
-                        " because the default reference is the root.",
-                        action="store_true",
-                        default=False)
     
     # pass through taffy add-gap-bases options
     parser.add_argument("--gapFill",
-                        help="use TAF tools to fill in reference gaps up to this length (currently more reliable than --maxRefGap) [default=50]",
+                        help="use TAF tools to fill in small reference gaps up to this length (currently more reliable than --maxRefGap) [default=50]",
                         type=int,
                         default=50)
 
     # pass through taffy norm options
     parser.add_argument("--maximumBlockLengthToMerge",
-                        help="Only merge together any two adjacent blocks if one or both is less than this many bases long, [default=200]",
+                        help="Only merge together any two adjacent blocks if one or both is less than this many bases long, [default=500]",
                         type=int,
-                        default=200)
+                        default=500)
     parser.add_argument("--maximumGapLength",
-                         help="Only merge together two adjacent blocks if the total number of unaligned bases between the blocks is less than this many bases, [default=3]",
+                         help="Only merge together two adjacent blocks if the total number of unaligned bases between the blocks is less than this many bases, [default=50]",
                          type=int,
-                         default=3)
+                         default=50)
     parser.add_argument("--fractionSharedRows",
                         help="The fraction of rows between two blocks that need to be shared for a merge, [default=0.6]",
                         type=float,
-                        default=0.6)                            
+                        default=0.6)
+
+    parser.add_argument("--keepGapCausingDupes",
+                        help="Turn off taffy norm -d filter that removes duplications that would induce gaps > maximumGapLength",
+                        action="store_true")
     
     #Progressive Cactus Options
     parser.add_argument("--latest", dest="latest", action="store_true",
@@ -115,6 +113,12 @@ def main():
 
     if options.batchSize and options.batchCount:
         raise RuntimeError('Only one of --batchSize and --batchCount can be specified')
+
+    if not options.outputMAF.endswith('.maf') and not options.outputMAF.endswith('.maf.gz'):
+        raise RuntimeError('Output MAF path must end with .maf or .maf.gz')
+
+    if options.dupeMode == 'single' and options.raw:
+        raise RuntimeError('--dupeMode single requires TAF normalization and therefore is incompatible with --raw')
 
     # apply cpu override                
     if options.batchCores is None:
@@ -254,11 +258,9 @@ def hal2maf_cmd(hal_path, chunk, chunk_num, options):
         cmd += ' --rootGenome {}'.format(options.rootGenome)
     if options.targetGenomes:
         cmd += ' --targetGenomes {}'.format(options.targetGenomes)
-    if options.noDupes:
-        cmd += ' --noDupes'
-    if options.onlyOrthologs:
-        cmd += ' --onlyOrthologs'
-    if options.noAncestors:
+    if options.dupeMode == 'ancestral':
+        cmd += '--onlyOrthologs'
+    if not options.ancestors:
         cmd += ' --noAncestors'
     cmd += '{} 2> {}.h2m.time'.format(time_end, chunk_num)
     if chunk[1] != 0 and options.raw:
@@ -280,8 +282,11 @@ def taf_cmd(hal_path, chunk, chunk_num, options):
     # we don't pipe directly from hal2maf because add_gap_bases uses even more memory in hal
     cmd = 'set -eo pipefail && {} {}.maf.gz | {} taffy view{} 2> {}.m2t.time'.format(read_cmd, chunk_num, time_cmd, time_end, chunk_num)
     cmd += ' | {} taffy add-gap-bases -a {} -m {}{} 2> {}.tagp.time'.format(time_cmd, hal_path, options.gapFill, time_end, chunk_num)
-    cmd += ' | {} taffy norm -k -m {} -n {} -q {}{} 2> {}.tn.time'.format(time_cmd, options.maximumBlockLengthToMerge, options.maximumGapLength,
-                                                                          options.fractionSharedRows, time_end, chunk_num)
+    cmd += ' | {} taffy norm -k -m {} -n {} {} -q {}{} 2> {}.tn.time'.format(time_cmd, options.maximumBlockLengthToMerge, options.maximumGapLength,
+                                                                             '' if options.keepGapCausingDupes else '-d',
+                                                                             options.fractionSharedRows, time_end, chunk_num)
+    if options.dupeMode == 'single':
+        cmd += ' | mafDuplicateFilter -m - -k'
     if chunk[1] != 0:
         cmd += ' | grep -v ^#'
     if options.outputMAF.endswith('.gz'):
@@ -418,3 +423,4 @@ def hal2maf_merge(job, maf_ids, options):
         in_paths.append(job.fileStore.readGlobalFile(maf_id))
     catFiles(in_paths, merged_path)
     return job.fileStore.writeGlobalFile(merged_path)
+
