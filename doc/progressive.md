@@ -136,7 +136,7 @@ The [UCSC Chain Format](https://genome.ucsc.edu/goldenPath/help/chain.html) is a
 
 For example
 ```
-cactus-hal2chain ./js ./evolverMammals.hal chains-dir --refGenome simHuman_chr6 --inMemory
+cactus-hal2chain ./js ./evolverMammals.hal chains-dir --refGenome simHuman_chr6 
 ```
 
 will create `./chains-dir` and populate it with a Chain alignment between simHuman and each other leaf genome in evolverMammals.hal.
