@@ -118,6 +118,18 @@ Many applications that take MAF as input expect a single row per sample per bloc
 
 Unlike `hal2maf`, `cactus-hal2maf` does not write ancestral genomes by default. To add them to the maf, use `--ancestors`. 
 
+### BigMaf
+
+[UCSC BigMaf](https://genome.ucsc.edu/goldenPath/help/bigMaf.html) is an indexed version of MAF (see above) that can viewed on the Genome Browser. `cactus-maf2bigmaf` can be used to convert MAF (as output by `cactus-hal2maf`) into BigMaf.
+
+```
+cactus-maf2bigmaf ./js ./evolverMammals.maf.gz ./evolverMammals.bigmaf.bb --refGenome simHuman_chr6 --halFile evolverMammals.hal
+```
+
+This will produce the BigMaf file `evolverMammals.bigmaf.bb` along with the summary file `evolverMammals.bigmaf.summary.bb` which is used by the browser for zoomed out summary display.
+
+The chromosome sizes of the reference genome must be provided as input either directly with `--chromSizes` or via the original hal file via `--halFile`.
+
 ### Chains
 
 The [UCSC Chain Format](https://genome.ucsc.edu/goldenPath/help/chain.html) is a concise way to represent pairwise alignments, and is used by the Genome Browser and some of its tools. HAL files can be converted into sets of Chain files using `cactus-hal2chain`.

@@ -63,4 +63,5 @@ setup(
                             'cactus-update-prepare = cactus.update.cactus_update_prepare:main',
                             'cactus-terra-helper = cactus.progressive.cactus_terra_helper:main',
                             'cactus-hal2maf = cactus.maf.cactus_hal2maf:main',
-                            'cactus-hal2chains = cactus.maf.cactus_hal2chains:main']},)
+                            'cactus-hal2chains = cactus.maf.cactus_hal2chains:main',
+                            'cactus-maf2bigmaf = cactus.maf.cactus_maf2bigmaf:main']},)

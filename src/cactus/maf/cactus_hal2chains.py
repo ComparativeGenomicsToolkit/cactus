@@ -98,7 +98,7 @@ def main():
         importSingularityImage(options)
         #Run the workflow
         if options.restart:
-            maf_id = toil.restart()
+            chains_id_dict = toil.restart()
         else:
             #load cactus config
             configNode = ET.parse(options.configFile).getroot()
