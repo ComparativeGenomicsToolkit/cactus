@@ -27,12 +27,8 @@ RUN find /home/cactus -name include.local.mk -exec rm -f {} \; && \
 	 cd /home/cactus && rm -rf bin/* && make clean -j $(nproc) && \
 	 make -j $(nproc)
 
-# download open-licenses kent binaries used by hal for assembly hubs
-RUN cd /home/cactus/bin && for i in wigToBigWig faToTwoBit bedToBigBed bigBedToBed; do wget -q http://hgdownload.cse.ucsc.edu/admin/exe/linux.x86_64/${i}; chmod ugo+x ${i}; done
-
-# bedSort and hgGcPercent are part of a more restricted licence: https://hgdownload.cse.ucsc.edu/admin/exe/
-# if you agree to it, uncomment this line:
-# RUN cd /home/cactus/bin && for i in bedSort hgGcPercent; do wget -q http://hgdownload.cse.ucsc.edu/admin/exe/linux.x86_64/${i}; chmod ugo+x ${i}; done
+# download open-licenses kent binaries used by hal for assembly hubs and / or chains
+RUN cd /home/cactus/bin && for i in wigToBigWig faToTwoBit bedToBigBed bigBedToBed axtChain pslPosTarget bedSort hgGcPercent mafToBigMaf hgLoadMafSummary; do wget -q http://hgdownload.cse.ucsc.edu/admin/exe/linux.x86_64/${i}; chmod ugo+x ${i}; done
 
 # download tools used for pangenome pipeline
 RUN cd /home/cactus && ./build-tools/downloadPangenomeTools

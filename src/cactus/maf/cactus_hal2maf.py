@@ -10,6 +10,7 @@ from argparse import ArgumentParser
 import copy
 import timeit, time
 import math
+import xml.etree.ElementTree as ET
 
 from operator import itemgetter
 
@@ -46,6 +47,11 @@ def main():
     parser.add_argument("--batchParallelTaf", type=int, help = "Number of taf normalization command chains to be executed in parallel in batch. Use to throttle down number of concurrent jobs to save memory. [default=batchCores]", default=None)    
     parser.add_argument("--raw", action="store_true", help = "Do not run taf-based normalization on the MAF")
 
+    # new dupe-handler option
+    parser.add_argument("--dupeMode", type=str, choices=["single", "ancestral", "all"],
+                        help="Toggle how to handle duplications: None: heuristically choose single, most similar homolog; Ancestral: keep only duplications that are also separate in ancestor; All: keep all duplications, including paralogies (self-alignments) in given genome [default=All]",
+                        default="all")
+
     # pass through a subset of hal2maf options
     parser.add_argument("--refGenome", required=True,
                         help="name of reference genome (root if empty)",
@@ -61,43 +67,47 @@ def main():
                         help="comma-separated (no spaces) list of target "
                         "genomes (others are excluded) (vist all if empty)",
                         default=None)
-    parser.add_argument("--noDupes",
-                        help="ignore paralogy edges",
-                        action="store_true",
-                        default=False)
-    parser.add_argument("--onlyOrthologs",
-                        help="make only orthologs to the reference appear in the MAF blocls",
-                        action="store_true",
-                        default=False)
     parser.add_argument("--noAncestors",
                         help="don't write ancestral sequences. IMPORTANT: "
                         "Must be used in conjunction with --refGenome"
                         " to set a non-ancestral genome as the reference"
                         " because the default reference is the root.",
                         action="store_true",
-                        default=False)
+                        default=False)    
     
     # pass through taffy add-gap-bases options
     parser.add_argument("--gapFill",
-                        help="use TAF tools to fill in reference gaps up to this length (currently more reliable than --maxRefGap) [default=50]",
+                        help="use TAF tools to fill in small reference gaps up to this length (currently more reliable than --maxRefGap) [default=50]",
                         type=int,
                         default=50)
 
     # pass through taffy norm options
     parser.add_argument("--maximumBlockLengthToMerge",
-                        help="Only merge together any two adjacent blocks if one or both is less than this many bases long, [default=200]",
+                        help="Only merge together any two adjacent blocks if one or both is less than this many bases long, [default=1000]",
                         type=int,
-                        default=200)
+                        default=1000)
     parser.add_argument("--maximumGapLength",
-                         help="Only merge together two adjacent blocks if the total number of unaligned bases between the blocks is less than this many bases, [default=3]",
+                         help="Only merge together two adjacent blocks if the total number of unaligned bases between the blocks is less than this many bases, [default=100]",
                          type=int,
-                         default=3)
+                         default=100)
     parser.add_argument("--fractionSharedRows",
                         help="The fraction of rows between two blocks that need to be shared for a merge, [default=0.6]",
                         type=float,
-                        default=0.6)                            
-    
+                        default=0.6)
+
+    parser.add_argument("--keepGapCausingDupes",
+                        help="Turn off taffy norm -d filter that removes duplications that would induce gaps > maximumGapLength",
+                        action="store_true")
+
+    parser.add_argument("--maxRefNFrac",
+                        help="Filter out MAF blocks whose reference (first) line has a greater fraction of Ns than the given amount. Should be between 0.0 (filter everything) and 1.0 (filter nothing). [default=0.95]",
+                        type=float,
+                        default=0.95)
+                        
     #Progressive Cactus Options
+    parser.add_argument("--configFile", dest="configFile",
+                        help="Specify cactus configuration file",
+                        default=os.path.join(cactusRootPath(), "cactus_progressive_config.xml"))    
     parser.add_argument("--latest", dest="latest", action="store_true",
                         help="Use the latest version of the docker container "
                         "rather than pulling one matching this version of cactus")
@@ -115,6 +125,14 @@ def main():
 
     if options.batchSize and options.batchCount:
         raise RuntimeError('Only one of --batchSize and --batchCount can be specified')
+
+    if not options.outputMAF.endswith('.maf') and not options.outputMAF.endswith('.maf.gz'):
+        raise RuntimeError('Output MAF path must end with .maf or .maf.gz')
+
+    if options.dupeMode == 'single' and options.raw:
+        raise RuntimeError('--dupeMode single requires TAF normalization and therefore is incompatible with --raw')
+    if options.noAncestors and not options.refGenome:
+        raise RuntimeError('(non-ancestral) --refGenome required with --noAncestors')
 
     # apply cpu override                
     if options.batchCores is None:
@@ -153,9 +171,14 @@ def main():
         if options.restart:
             maf_id = toil.restart()
         else:
+            #load cactus config
+            configNode = ET.parse(options.configFile).getroot()
+            config = ConfigWrapper(configNode)
+            config.substituteAllPredefinedConstantsWithLiterals()
+            
             logger.info("Importing {}".format(options.halFile))
             hal_id = toil.importFile(options.halFile)
-            maf_id = toil.start(Job.wrapJobFn(hal2maf_workflow, hal_id, options))
+            maf_id = toil.start(Job.wrapJobFn(hal2maf_workflow, hal_id, options, config))
 
         #export the maf
         toil.exportFile(maf_id, makeURL(options.outputMAF))
@@ -165,10 +188,10 @@ def main():
     logger.info("cactus-hal2maf has finished after {} seconds".format(run_time))
 
 
-def hal2maf_workflow(job, hal_id, options):
+def hal2maf_workflow(job, hal_id, options, config):
 
     hal2maf_ranges_job = job.addChildJobFn(hal2maf_ranges, hal_id, options, cores=1, disk=hal_id.size)    
-    hal2maf_all_job = hal2maf_ranges_job.addFollowOnJobFn(hal2maf_all, hal_id, hal2maf_ranges_job.rv(), options)
+    hal2maf_all_job = hal2maf_ranges_job.addFollowOnJobFn(hal2maf_all, hal_id, hal2maf_ranges_job.rv(), options, config)
     hal2maf_merge_job = hal2maf_all_job.addFollowOnJobFn(hal2maf_merge, hal2maf_all_job.rv(), options, disk=hal_id.size)
     return hal2maf_merge_job.rv()
 
@@ -207,7 +230,7 @@ def hal2maf_ranges(job, hal_id, options):
     assert chunks
     return chunks
 
-def hal2maf_all(job, hal_id, chunks, options):
+def hal2maf_all(job, hal_id, chunks, options, config):
     """ make a job for each batch of chunks """
     num_batches = options.batchCount
     if not num_batches:
@@ -232,14 +255,14 @@ def hal2maf_all(job, hal_id, chunks, options):
         cur_chunk = i * batch_size
         cur_batch_size = min(chunks_left, batch_size)
         if cur_batch_size:
-            batch_results.append(job.addChildJobFn(hal2maf_batch, hal_id, chunks[cur_chunk:cur_chunk+cur_batch_size], options,
+            batch_results.append(job.addChildJobFn(hal2maf_batch, hal_id, chunks[cur_chunk:cur_chunk+cur_batch_size], options, config,
                                                    disk=math.ceil((1 + 1.5 / num_batches)*hal_id.size), cores=options.batchCores).rv())
         chunks_left -= cur_batch_size
     assert chunks_left == 0
     
     return batch_results
 
-def hal2maf_cmd(hal_path, chunk, chunk_num, options):
+def hal2maf_cmd(hal_path, chunk, chunk_num, options, config):
     """ make a hal2maf command for a chunk """
 
     # we are going to run this relative to work_dir
@@ -248,21 +271,21 @@ def hal2maf_cmd(hal_path, chunk, chunk_num, options):
     time_cmd = '/usr/bin/time -vp' if os.environ.get("CACTUS_LOG_MEMORY") else '(time -p '
     time_end = '' if os.environ.get("CACTUS_LOG_MEMORY") else ')'
     
-    cmd = 'set -eo pipefail && {} hal2maf {} stdout --refGenome {} --refSequence {} --start {} --length {}'.format(
+    cmd = 'set -eo pipefail && {} hal2maf {} stdout --refGenome {} --refSequence {} --start {} --length {} --maxBlockLen 10000'.format(
         time_cmd, hal_path, options.refGenome, chunk[0], chunk[1], chunk[2]-chunk[1])
     if options.rootGenome:
         cmd += ' --rootGenome {}'.format(options.rootGenome)
     if options.targetGenomes:
         cmd += ' --targetGenomes {}'.format(options.targetGenomes)
-    if options.noDupes:
-        cmd += ' --noDupes'
-    if options.onlyOrthologs:
+    if options.dupeMode == 'ancestral':
         cmd += ' --onlyOrthologs'
     if options.noAncestors:
         cmd += ' --noAncestors'
     cmd += '{} 2> {}.h2m.time'.format(time_end, chunk_num)
     if chunk[1] != 0 and options.raw:
         cmd += ' | grep -v ^#'
+    # todo: it would be better to filter this out upstream, but shouldn't make any difference here since we're taf normalizing anyway
+    cmd += ' | grep -v "^s	{}"'.format(getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "assemblyName", default="_MINIGRAPH_"))
     if options.outputMAF.endswith('.gz'):
         cmd += ' | bgzip'        
     cmd += ' > {}.maf.gz'.format(chunk_num)
@@ -280,8 +303,13 @@ def taf_cmd(hal_path, chunk, chunk_num, options):
     # we don't pipe directly from hal2maf because add_gap_bases uses even more memory in hal
     cmd = 'set -eo pipefail && {} {}.maf.gz | {} taffy view{} 2> {}.m2t.time'.format(read_cmd, chunk_num, time_cmd, time_end, chunk_num)
     cmd += ' | {} taffy add-gap-bases -a {} -m {}{} 2> {}.tagp.time'.format(time_cmd, hal_path, options.gapFill, time_end, chunk_num)
-    cmd += ' | {} taffy norm -k -m {} -n {} -q {}{} 2> {}.tn.time'.format(time_cmd, options.maximumBlockLengthToMerge, options.maximumGapLength,
-                                                                          options.fractionSharedRows, time_end, chunk_num)
+    cmd += ' | {} taffy norm -k -m {} -n {} {} -q {}{} 2> {}.tn.time'.format(time_cmd, options.maximumBlockLengthToMerge, options.maximumGapLength,
+                                                                             '' if options.keepGapCausingDupes else '-d',
+                                                                             options.fractionSharedRows, time_end, chunk_num)
+    if options.maxRefNFrac:
+        cmd += ' | mafFilter -m - -N {}'.format(options.maxRefNFrac)
+    if options.dupeMode == 'single':
+        cmd += ' | mafDuplicateFilter -m - -k'
     if chunk[1] != 0:
         cmd += ' | grep -v ^#'
     if options.outputMAF.endswith('.gz'):
@@ -316,14 +344,14 @@ def read_time_mem(timefile_path):
         msg += ' and memory: {}'.format(mem_usage)
     return msg
 
-def hal2maf_batch(job, hal_id, batch_chunks, options):
+def hal2maf_batch(job, hal_id, batch_chunks, options, config):
     """ run hal2maf on a batch of chunks in parallel """
     work_dir = job.fileStore.getLocalTempDir()
     hal_path = os.path.join(work_dir, os.path.basename(options.halFile.replace(' ', '.')))
     RealtimeLogger.info("Reading HAL file from job store to {}".format(hal_path))
     job.fileStore.readGlobalFile(hal_id, hal_path)
 
-    h2m_cmds = [hal2maf_cmd(hal_path, chunk, i, options) for i, chunk in enumerate(batch_chunks)]
+    h2m_cmds = [hal2maf_cmd(hal_path, chunk, i, options, config) for i, chunk in enumerate(batch_chunks)]
     
     # do it with parallel
     h2m_cmd_path = os.path.join(work_dir, 'hal2maf_cmds.txt')
@@ -418,3 +446,4 @@ def hal2maf_merge(job, maf_ids, options):
         in_paths.append(job.fileStore.readGlobalFile(maf_id))
     catFiles(in_paths, merged_path)
     return job.fileStore.writeGlobalFile(merged_path)
+
