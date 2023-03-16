@@ -100,9 +100,9 @@ def main():
                         action="store_true")
 
     parser.add_argument("--maxRefNFrac",
-                        help="(hopefully temporary) partial work around of a current bug that aligns through Ns by filtering out MAF blocks whose reference (first) line has a greater fraction of Ns than the given amount. Should be between 0.0 (filter everything) and 1.0 (filter nothing). [default=0.75]",
+                        help="Filter out MAF blocks whose reference (first) line has a greater fraction of Ns than the given amount. Should be between 0.0 (filter everything) and 1.0 (filter nothing). [default=0.95]",
                         type=float,
-                        default=0.75)
+                        default=0.95)
                         
     #Progressive Cactus Options
     parser.add_argument("--configFile", dest="configFile",
