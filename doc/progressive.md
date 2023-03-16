@@ -114,7 +114,7 @@ Depending on the application, you may want to handle duplication events differen
 
 * "single" : Uses greedy heuristics to pick the copy for each species that results in fewest mutations and block breaks. Recommended when visualizing via BigMaf (see below)
 * "ancestral" : Restricts the duplication relationships shown to only those orthologous to the reference genome according to the HAL tree. There may be multiple orthologs per genome. This relies on the dating of the duplication in the hal tree (ie in which genome it is explicitly self-aligned) and is still a work in progress.
-* "all" : (default) All duplications are written, including ancestral events (orthologs) and paralogs in the reference. 
+* "all" : (default) All duplications are written, including ancestral events (orthologs) and paralogs in the reference. Note that by default, some duplications will be filtered out if they break MAF blocks. To disable this in order to truly catch them all, use `--keepGapCausingDupes`.
 
 Usually a reference genome is specified with `--refGenome` and ancestral genomes are excluded `--noAncestors`. Since the default reference is the root of the alignment, `--noAncestors` can only be specified if a leaf genome is used with `--refGenome`. 
 
