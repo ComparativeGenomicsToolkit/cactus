@@ -46,7 +46,6 @@ def main():
                         help="comma-separated (no spaces) list of target "
                         "genomes (others are excluded) (vist all non-ancestral if empty)",
                         default=None)
-
     parser.add_argument("--useHalSynteny",
                         help="use halSynteny instead of halLiftover. halLiftover is default because that's what CAT uses",
                         action="store_true")
@@ -151,11 +150,9 @@ def hal2chains_ref_info(job, config, options, hal_id):
                             ['awk', '{{print $1 "\t0\t" $2}}']],
                 outfile=bed_path)
 
-    fa_path = os.path.join(work_dir, options.refGenome + '.fa')
-    cactus_call(parameters=['hal2fasta', hal_path, options.refGenome], outfile=fa_path)
-
-    tbit_path = os.path.join(work_dir, options.refGenome + '.2bit')
-    cactus_call(parameters=['faToTwoBit', fa_path, tbit_path])
+    tbit_path = os.path.join(work_dir, options.refGenome + '.2bit')    
+    cactus_call(parameters=[['hal2fasta', hal_path, options.refGenome],
+                            ['faToTwoBit', 'stdin', tbit_path]])
 
     genomes=cactus_call(parameters=['halStats', '--genomes', hal_path], check_output=True).split()
 
@@ -206,12 +203,9 @@ def hal2chains_genome(job, config, options, hal_id, ref_info, tgt_genome):
     job.fileStore.readGlobalFile(ref_info['2bit'], ref_2bit_path)
 
     # we need the target sequence for axtChain
-    tgt_fa_path = os.path.join(work_dir, tgt_genome + '.fa')
-    cactus_call(parameters=['hal2fasta', hal_path, tgt_genome], outfile=tgt_fa_path)
-
-    tgt_2bit_path = os.path.join(work_dir, tgt_genome + '.2bit')
-    cactus_call(parameters=['faToTwoBit', tgt_fa_path, tgt_2bit_path])
-    os.remove(tgt_fa_path)
+    tgt_2bit_path = os.path.join(work_dir, tgt_genome + '.2bit')    
+    cactus_call(parameters=[['hal2fasta', hal_path, tgt_genome],
+                            ['faToTwoBit', 'stdin', tgt_2bit_path]])
 
     # the output
     tgt_chain_path = os.path.join(work_dir, tgt_genome + '.chain.gz')
