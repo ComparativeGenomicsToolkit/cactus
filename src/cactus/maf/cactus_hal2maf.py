@@ -45,12 +45,12 @@ def main():
     parser.add_argument("--chunkSize", type=int, help = "Size of chunks to operate on.", required=True)
     parser.add_argument("--batchParallelHal2maf", type=int, help = "Number of hal2maf commands to be executed in parallel in batch. Use to throttle down number of concurrent jobs to save memory. [default=batchCores]", default=None)
     parser.add_argument("--batchParallelTaf", type=int, help = "Number of taf normalization command chains to be executed in parallel in batch. Use to throttle down number of concurrent jobs to save memory. [default=batchCores]", default=None)    
-    parser.add_argument("--raw", action="store_true", help = "Do not run taf-based normalization on the MAF (add --dupeMode all to not filter out any duplications)")
+    parser.add_argument("--raw", action="store_true", help = "Do not run taf-based normalization on the MAF")
 
     # new dupe-handler option
     parser.add_argument("--dupeMode", type=str, choices=["single", "ancestral", "all"],
-                        help="Toggle how to handle duplications: None: heuristically choose most similar homolog; Ancestral: keep only duplications that coalesce in an ancestral sequence; All: keep all duplications, including anestral and novel paralogies in the target genome [default=Single]",
-                        default="single")
+                        help="Toggle how to handle duplications: None: heuristically choose single, most similar homolog; Ancestral: keep only duplications that are also separate in ancestor; All: keep all duplications, including paralogies (self-alignments) in given genome [default=All]",
+                        default="all")
 
     # pass through a subset of hal2maf options
     parser.add_argument("--refGenome", required=True,
@@ -273,7 +273,7 @@ def hal2maf_cmd(hal_path, chunk, chunk_num, options, config):
     if options.targetGenomes:
         cmd += ' --targetGenomes {}'.format(options.targetGenomes)
     if options.dupeMode == 'ancestral':
-        cmd += '--onlyOrthologs'
+        cmd += ' --onlyOrthologs'
     if options.noAncestors:
         cmd += ' --noAncestors'
     cmd += '{} 2> {}.h2m.time'.format(time_end, chunk_num)

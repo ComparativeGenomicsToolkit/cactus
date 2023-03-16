@@ -110,17 +110,19 @@ The various batching options can be used to tune distributed runs on very large 
 --chunkSize 1000000 --batchCount 4 --batchCores 32 --batchParallelTaf 8 --batchSystem mesos --provisioner aws --defaultPreemptable --nodeStorage 2000 --maxNodes 4 --nodeTypes r5.8xlarge 
 ```
 
-Many applications that take MAF as input expect a single row per sample per block. In other words, no duplications. By default, `cactus-hal2maf` will output MAF files in this form, using heuristics to try to pick the copy that most resembles the reference and causes fewer block breaks. This behaviour can be changed with the `--dupeMode` option in `cactus-hal2maf`.  The possible values are:
+Depending on the application, you may want to handle duplication events differently when creating the MAF. Three different modes are available via the `--dupeMode` option.
 
-* "single" : This is the default which, as described above, uses greedy heuristics to pick the copy for each species that results in fewest mutations and block breaks.
-* "ancestral" : Duplications are written for species if they can be traced to ancestral genomes in the tree.
-* "all" : All duplications are written, including ancestral (above) and "novel" paralogs in the species in question. 
+* "single" : Uses greedy heuristics to pick the copy for each species that results in fewest mutations and block breaks. Recommended when visualizing via BigMaf (see below)
+* "ancestral" : Restricts the duplication relationships shown to only those orthologous to the reference genome according to the HAL tree. There may be multiple orthologs per genome. This relies on the dating of the duplication in the hal tree (ie in which genome it is explicitly self-aligned) and is still a work in progress.
+* "all" : (default) All duplications are written, including ancestral events (orthologs) and paralogs in the reference. 
 
 Usually a reference genome is specified with `--refGenome` and ancestral genomes are excluded `--noAncestors`. Since the default reference is the root of the alignment, `--noAncestors` can only be specified if a leaf genome is used with `--refGenome`. 
 
 ### BigMaf
 
 [UCSC BigMaf](https://genome.ucsc.edu/goldenPath/help/bigMaf.html) is an indexed version of MAF (see above) that can viewed on the Genome Browser. `cactus-maf2bigmaf` can be used to convert MAF (as output by `cactus-hal2maf`) into BigMaf.
+
+It is recommended to create the maf using the `--noAncestors --dupeMode single` options with `cactus-hal2maf`.
 
 ```
 cactus-maf2bigmaf ./js ./evolverMammals.maf.gz ./evolverMammals.bigmaf.bb --refGenome simHuman_chr6 --halFile evolverMammals.hal
