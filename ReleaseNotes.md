@@ -1,4 +1,17 @@
-# Release 2.4.4 2023-03-07
+# Release 2.4.4 2023-03-16
+
+This release includes some new export tools for the UCSC Genome Browser
+
+- `cactus-hal2chains` created in order to convert HAL output from Cactus into sets of pairwise alignment chains, using either `halLiftover` or `halSynteny`
+- `cactus-maf2bigmaf` created to convert `.maf` output from `cactus-hal2maf` to BigMaf and BigMaf Summary files for display on the Genome Browser
+- `cactus-hal2maf` typo fixed where 3 (instead of 30) was set for the default value of `--maximumGapLength`
+- Boost TAFFY normalization defaults in `cactus-hal2maf`, bringing `--maxmimumGapLength` to 100, and `--maximumBlockLengthToMerge` to 1000, and adding the heuristic block-breaking dupe filter from `taffy norm`. The latter is on by default to prevent over fragmentation, but can be disabled with `--kepGapCausingDupes`
+- Remove `--onlyOrthologs` and `--noDupes` options from `cactus-hal2maf` and replace with the `--dupeMode` option. `--dupeMode single` is now the recommended way of getting at most one row / species.  More information about this added to the documentation.
+- `--maxRefNFrac` option added to `cactus-hal2maf` to filter out blocks where the reference sequence is mostly Ns (default to filter out >95% Ns).
+- Change abPOA scoring matrix to be more consistent with lastz parameters used by cactus, where `N` bases are penalized when aligned with other characters. Before, they could be aligned to anything. This will hopefully make the above filter less necessary.
+- Fix bug where `cactus-blast --restart` would not work.
+
+# Release 2.4.3 2023-03-07
 
 This release patches a critical pangenome indexing bug introduced in v2.3.0, where a typo in the refactor of `cactus-graphmap-join` effectively caused *all* variation to be removed from the allele-frequency-filtered (ie .d2) graphs.
 
