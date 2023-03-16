@@ -10,6 +10,7 @@ from argparse import ArgumentParser
 import copy
 import timeit, time
 import math
+import xml.etree.ElementTree as ET
 
 from operator import itemgetter
 
@@ -82,13 +83,13 @@ def main():
 
     # pass through taffy norm options
     parser.add_argument("--maximumBlockLengthToMerge",
-                        help="Only merge together any two adjacent blocks if one or both is less than this many bases long, [default=500]",
+                        help="Only merge together any two adjacent blocks if one or both is less than this many bases long, [default=1000]",
                         type=int,
-                        default=500)
+                        default=1000)
     parser.add_argument("--maximumGapLength",
-                         help="Only merge together two adjacent blocks if the total number of unaligned bases between the blocks is less than this many bases, [default=50]",
+                         help="Only merge together two adjacent blocks if the total number of unaligned bases between the blocks is less than this many bases, [default=100]",
                          type=int,
-                         default=50)
+                         default=100)
     parser.add_argument("--fractionSharedRows",
                         help="The fraction of rows between two blocks that need to be shared for a merge, [default=0.6]",
                         type=float,
@@ -99,6 +100,9 @@ def main():
                         action="store_true")
     
     #Progressive Cactus Options
+    parser.add_argument("--configFile", dest="configFile",
+                        help="Specify cactus configuration file",
+                        default=os.path.join(cactusRootPath(), "cactus_progressive_config.xml"))    
     parser.add_argument("--latest", dest="latest", action="store_true",
                         help="Use the latest version of the docker container "
                         "rather than pulling one matching this version of cactus")
@@ -162,9 +166,14 @@ def main():
         if options.restart:
             maf_id = toil.restart()
         else:
+            #load cactus config
+            configNode = ET.parse(options.configFile).getroot()
+            config = ConfigWrapper(configNode)
+            config.substituteAllPredefinedConstantsWithLiterals()
+            
             logger.info("Importing {}".format(options.halFile))
             hal_id = toil.importFile(options.halFile)
-            maf_id = toil.start(Job.wrapJobFn(hal2maf_workflow, hal_id, options))
+            maf_id = toil.start(Job.wrapJobFn(hal2maf_workflow, hal_id, options, config))
 
         #export the maf
         toil.exportFile(maf_id, makeURL(options.outputMAF))
@@ -174,10 +183,10 @@ def main():
     logger.info("cactus-hal2maf has finished after {} seconds".format(run_time))
 
 
-def hal2maf_workflow(job, hal_id, options):
+def hal2maf_workflow(job, hal_id, options, config):
 
     hal2maf_ranges_job = job.addChildJobFn(hal2maf_ranges, hal_id, options, cores=1, disk=hal_id.size)    
-    hal2maf_all_job = hal2maf_ranges_job.addFollowOnJobFn(hal2maf_all, hal_id, hal2maf_ranges_job.rv(), options)
+    hal2maf_all_job = hal2maf_ranges_job.addFollowOnJobFn(hal2maf_all, hal_id, hal2maf_ranges_job.rv(), options, config)
     hal2maf_merge_job = hal2maf_all_job.addFollowOnJobFn(hal2maf_merge, hal2maf_all_job.rv(), options, disk=hal_id.size)
     return hal2maf_merge_job.rv()
 
@@ -216,7 +225,7 @@ def hal2maf_ranges(job, hal_id, options):
     assert chunks
     return chunks
 
-def hal2maf_all(job, hal_id, chunks, options):
+def hal2maf_all(job, hal_id, chunks, options, config):
     """ make a job for each batch of chunks """
     num_batches = options.batchCount
     if not num_batches:
@@ -241,14 +250,14 @@ def hal2maf_all(job, hal_id, chunks, options):
         cur_chunk = i * batch_size
         cur_batch_size = min(chunks_left, batch_size)
         if cur_batch_size:
-            batch_results.append(job.addChildJobFn(hal2maf_batch, hal_id, chunks[cur_chunk:cur_chunk+cur_batch_size], options,
+            batch_results.append(job.addChildJobFn(hal2maf_batch, hal_id, chunks[cur_chunk:cur_chunk+cur_batch_size], options, config,
                                                    disk=math.ceil((1 + 1.5 / num_batches)*hal_id.size), cores=options.batchCores).rv())
         chunks_left -= cur_batch_size
     assert chunks_left == 0
     
     return batch_results
 
-def hal2maf_cmd(hal_path, chunk, chunk_num, options):
+def hal2maf_cmd(hal_path, chunk, chunk_num, options, config):
     """ make a hal2maf command for a chunk """
 
     # we are going to run this relative to work_dir
@@ -257,7 +266,7 @@ def hal2maf_cmd(hal_path, chunk, chunk_num, options):
     time_cmd = '/usr/bin/time -vp' if os.environ.get("CACTUS_LOG_MEMORY") else '(time -p '
     time_end = '' if os.environ.get("CACTUS_LOG_MEMORY") else ')'
     
-    cmd = 'set -eo pipefail && {} hal2maf {} stdout --refGenome {} --refSequence {} --start {} --length {}'.format(
+    cmd = 'set -eo pipefail && {} hal2maf {} stdout --refGenome {} --refSequence {} --start {} --length {} --maxBlockLen 10000'.format(
         time_cmd, hal_path, options.refGenome, chunk[0], chunk[1], chunk[2]-chunk[1])
     if options.rootGenome:
         cmd += ' --rootGenome {}'.format(options.rootGenome)
@@ -270,6 +279,8 @@ def hal2maf_cmd(hal_path, chunk, chunk_num, options):
     cmd += '{} 2> {}.h2m.time'.format(time_end, chunk_num)
     if chunk[1] != 0 and options.raw:
         cmd += ' | grep -v ^#'
+    # todo: it would be better to filter this out upstream, but shouldn't make any difference here since we're taf normalizing anyway
+    cmd += ' | grep -v "^s	{}"'.format(getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "assemblyName", default="_MINIGRAPH_"))
     if options.outputMAF.endswith('.gz'):
         cmd += ' | bgzip'        
     cmd += ' > {}.maf.gz'.format(chunk_num)
@@ -326,14 +337,14 @@ def read_time_mem(timefile_path):
         msg += ' and memory: {}'.format(mem_usage)
     return msg
 
-def hal2maf_batch(job, hal_id, batch_chunks, options):
+def hal2maf_batch(job, hal_id, batch_chunks, options, config):
     """ run hal2maf on a batch of chunks in parallel """
     work_dir = job.fileStore.getLocalTempDir()
     hal_path = os.path.join(work_dir, os.path.basename(options.halFile.replace(' ', '.')))
     RealtimeLogger.info("Reading HAL file from job store to {}".format(hal_path))
     job.fileStore.readGlobalFile(hal_id, hal_path)
 
-    h2m_cmds = [hal2maf_cmd(hal_path, chunk, i, options) for i, chunk in enumerate(batch_chunks)]
+    h2m_cmds = [hal2maf_cmd(hal_path, chunk, i, options, config) for i, chunk in enumerate(batch_chunks)]
     
     # do it with parallel
     h2m_cmd_path = os.path.join(work_dir, 'hal2maf_cmds.txt')
