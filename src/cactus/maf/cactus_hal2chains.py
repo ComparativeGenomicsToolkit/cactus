@@ -110,8 +110,9 @@ def main():
             chains_id_dict = toil.start(Job.wrapJobFn(hal2chains_workflow, config, options, hal_id))
 
         #export the chains
-        for tgt_genome, chain_id in chains_id_dict.items():            
-            toil.exportFile(chain_id, makeURL(os.path.join(options.outDir, tgt_genome + ".chain.gz")))
+        for tgt_genome, chain_id in chains_id_dict.items():
+            clean_name = tgt_genome.replace('#', '.').replace(' ', '.')
+            toil.exportFile(chain_id, makeURL(os.path.join(options.outDir, clean_name + ".chain.gz")))
         
     end_time = timeit.default_timer()
     run_time = end_time - start_time
