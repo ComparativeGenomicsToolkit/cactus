@@ -143,7 +143,9 @@ cactus-hal2chain ./js ./evolverMammals.hal chains-dir --refGenome simHuman_chr6
 
 will create `./chains-dir` and populate it with a Chain alignment between simHuman and each other leaf genome in evolverMammals.hal.
 
-By default, chains will be created using `halLiftover` [as in CAT](https://github.com/ComparativeGenomicsToolkit/Comparative-Annotation-Toolkit/blob/fc1623da5df1309d2e2f0b9bb0363aaab84708f4/cat/chaining.py#L96-L98). An option `--useHalSynteny` is provided to use that tool instead. 
+By default, chains will be created using `halLiftover` [as in CAT](https://github.com/ComparativeGenomicsToolkit/Comparative-Annotation-Toolkit/blob/fc1623da5df1309d2e2f0b9bb0363aaab84708f4/cat/chaining.py#L96-L98). An option `--useHalSynteny` is provided to use that tool instead.
+
+See here for an all-vs-all script to make chains, including BigChain conversion: https://github.com/human-pangenomics/HPRC_Assembly_Hub/blob/main/chains/wdl/snakesonachain.wdl
 
 ### CAT
 

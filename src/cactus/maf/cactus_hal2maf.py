@@ -98,7 +98,12 @@ def main():
     parser.add_argument("--keepGapCausingDupes",
                         help="Turn off taffy norm -d filter that removes duplications that would induce gaps > maximumGapLength",
                         action="store_true")
-    
+
+    parser.add_argument("--maxRefNFrac",
+                        help="(hopefully temporary) partial work around of a current bug that aligns through Ns by filtering out MAF blocks whose reference (first) line has a greater fraction of Ns than the given amount. Should be between 0.0 (filter everything) and 1.0 (filter nothing). [default=0.75]",
+                        type=float,
+                        default=0.75)
+                        
     #Progressive Cactus Options
     parser.add_argument("--configFile", dest="configFile",
                         help="Specify cactus configuration file",
@@ -301,6 +306,8 @@ def taf_cmd(hal_path, chunk, chunk_num, options):
     cmd += ' | {} taffy norm -k -m {} -n {} {} -q {}{} 2> {}.tn.time'.format(time_cmd, options.maximumBlockLengthToMerge, options.maximumGapLength,
                                                                              '' if options.keepGapCausingDupes else '-d',
                                                                              options.fractionSharedRows, time_end, chunk_num)
+    if options.maxRefNFrac:
+        cmd += ' | mafFilter -m - -N {}'.format(options.maxRefNFrac)
     if options.dupeMode == 'single':
         cmd += ' | mafDuplicateFilter -m - -k'
     if chunk[1] != 0:
