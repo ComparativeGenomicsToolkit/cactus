@@ -308,6 +308,8 @@ def taf_cmd(hal_path, chunk, chunk_num, options):
                                                                              options.fractionSharedRows, time_end, chunk_num)
     if options.maxRefNFrac:
         cmd += ' | mafFilter -m - -N {}'.format(options.maxRefNFrac)
+    # get rid of single-row (ie ref-only) blcks while we're filtering
+    cmd += ' | mafFilter -m - -l 2'
     if options.dupeMode == 'single':
         cmd += ' | mafDuplicateFilter -m - -k'
     if chunk[1] != 0:
