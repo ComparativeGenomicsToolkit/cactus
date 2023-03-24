@@ -65,21 +65,31 @@ def cactus_cons(job, tree, ancestor_event, config_node, seq_id_map, og_map, paf_
     outgroups = og_map[ancestor_event] if ancestor_event in og_map else []
 
     # Get the alignments file
-    paf_path = os.path.join(work_dir, '{}.paf'.format(ancestor_event))
+    paf_path = os.path.join(work_dir, f'{ancestor_event}.paf')
     job.fileStore.readGlobalFile(paf_id, paf_path)
 
     # Split the alignments file into primary and secondary
-    primary_alignment_file = os.path.join(work_dir, '{}_primary.paf'.format(ancestor_event))
-    system("grep -v 'tp:A:S' {} > {} || true".format(paf_path, primary_alignment_file))  # Alignments that are not-secondaries
-    secondary_alignment_file = os.path.join(work_dir, '{}_secondary.paf'.format(ancestor_event))
-    system("grep 'tp:A:S' {} > {} || true".format(paf_path, secondary_alignment_file))  # Alignments that are secondaries
+    primary_alignment_file = os.path.join(work_dir, f'{ancestor_event}_primary.paf')
+    system(f"grep -v 'tp:A:S' {paf_path} > {primary_alignment_file} || true")  # Alignments that are not-secondaries
+
+    # Optionally parse our secondary alignments
+    use_secondary_alignments = int(config_node.find("caf").attrib["useSecondaryAlignments"])  # We should really switch to
+    # the empty string being false instead of 0
+    assert use_secondary_alignments == 0 or use_secondary_alignments == 1
+    if use_secondary_alignments:
+        secondary_alignment_file = os.path.join(work_dir, f'{ancestor_event}_secondary.paf')
+        system(f"grep 'tp:A:S' {paf_path} > {secondary_alignment_file} || true")  # Alignments that are secondaries
+
+    # Optionally copy the alignments to a specified location for debug purposes
+    if config_node.find("caf").attrib["writeInputAlignmentsTo"]:
+        system(f'cp {paf_path} {config_node.find("caf").attrib["writeInputAlignmentsTo"]}/{ancestor_event}.paf')
 
     # Temporary place to store the output c2h file
-    tmpHal = os.path.join(work_dir, '{}.c2h'.format(ancestor_event))
-    tmpFasta = os.path.join(work_dir, '{}.c2h.fa'.format(ancestor_event))
-    tmpRef = os.path.join(work_dir, '{}.ref'.format(ancestor_event))
+    tmpHal = os.path.join(work_dir, f'{ancestor_event}.c2h')
+    tmpFasta = os.path.join(work_dir, f'{ancestor_event}.c2h.fa')
+    tmpRef = os.path.join(work_dir, f'{ancestor_event}.ref')
 
-    tmpConfig = os.path.join(work_dir, '{}.config.xml'.format(ancestor_event))
+    tmpConfig = os.path.join(work_dir, f'{ancestor_event}.config.xml')
     ConfigWrapper(config_node).writeXML(tmpConfig)
 
     # We pass in the genome->sequence map as a series of paired arguments: [genome, faPath]*N.
@@ -88,17 +98,19 @@ def cactus_cons(job, tree, ancestor_event, config_node, seq_id_map, og_map, paf_
             "--speciesTree", NXNewick().writeString(tree), "--logLevel", getLogLevelString(),
             "--alignments", primary_alignment_file, "--params", tmpConfig, "--outputFile", tmpHal,
             "--outputHalFastaFile", tmpFasta, "--outputReferenceFile", tmpRef, "--outgroupEvents", " ".join(outgroups),
-            "--referenceEvent", ancestor_event, "--threads", str(job.cores), "--secondaryAlignments", secondary_alignment_file]
+            "--referenceEvent", ancestor_event, "--threads", str(job.cores)]
+    if use_secondary_alignments:  # Optionally add the secondary alignments
+        args += ["--secondaryAlignments", secondary_alignment_file]
 
     messages = cactus_call(check_output=True, returnStdErr=True,
-                                 realtimeStderrPrefix='cactus_consolidated({})'.format(ancestor_event),
+                                 realtimeStderrPrefix=f'cactus_consolidated({ancestor_event})',
                                  parameters=["cactus_consolidated"] + args)[1]  # Get just the standard error output
 
     # if cactus was run with --realTimeLogging, cactus_call will print out conslidated's stderr messages as they happen
     # (and not return anything)
     # otherwise, if run without --realTimeLogging, cactus_call will return (but not print) stderr messages
     if messages:
-        job.fileStore.logToMaster("cactus_consolidated event:{}\n{}".format(ancestor_event, messages))  # Log the messages
+        job.fileStore.logToMaster(f"cactus_consolidated event:{ancestor_event}\n{messages}")  # Log the messages
     else:
         job.fileStore.logToMaster("Ran cactus consolidated okay")
 

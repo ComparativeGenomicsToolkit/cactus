@@ -66,7 +66,7 @@
 	       chainMaxGapLength="1000000"
 		   chainGapOpen="5000"
 		   chainGapExtend="1"
-		   chainTrimFraction="0.02"
+		   chainTrimFraction="0.5"
 		   trimIngroups="1"
 		   trimOutgroups="1"
 		   trimMinSize="100"
@@ -121,6 +121,8 @@
 	<!-- maxRecoverableChainLength TODO-->
 	<!-- minimumBlockDegreeToCheckSupport Apply support filter to blocks of more than this degree (if greater than 0) -->
 	<!-- minimumBlockHomologySupport TODO-->
+	<!-- useSecondaryAlignments Feed the secondary alignments to CAF-->
+	<!-- writeInputAlignmentsTo Debug option to write the alignment chains fed to CAF to the specified path. Off by default.-->
 	<caf annealingRounds="2048"
 		 deannealingRounds="2 32 512"
 		 trim="3"
@@ -140,6 +142,8 @@
 		 maxRecoverableChainLength="500000"
 		 minimumBlockDegreeToCheckSupport="-1"
 		 minimumBlockHomologySupport="0.05"
+		 useSecondaryAlignments="0"
+		 writeInputAlignmentsTo=""
 	/>
 
 	<!-- The bar tag contains parameters for the bar algorithm. -->
