@@ -1,3 +1,0 @@
-(human:0.02,chimp:0.02);
-chimp https://github.com/ComparativeGenomicsToolkit/cactusTestData/blob/master/human_chimp_chr10/panTro6_preprocessed_chr10.fa.gz
-human https://github.com/ComparativeGenomicsToolkit/cactusTestData/blob/master/human_chimp_chr10/hg38_preprocessed_chr10.fa.gz
