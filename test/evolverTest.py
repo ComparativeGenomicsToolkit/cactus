@@ -421,10 +421,8 @@ class TestCase(unittest.TestCase):
         os.makedirs(ba_path, exist_ok=True)
         config_path = os.path.join(self.tempDir, 'config.xml')
         shutil.copyfile('src/cactus/cactus_progressive_config.xml', config_path)
-        subprocess.check_call(['cactus-align-batch', self._job_store(binariesMode), chromfile_path, ba_path, '--alignCores', '1',
-                               '--alignCoresOverrides', 'chr1,4',  'chrV,2', 'chrX,1',
-                               '--configOverrides', 'chrX,{}'.format(config_path), 'chrII,{}'.format(config_path),
-                               '--alignOptions', '--pangenome --outVG --barMaskFilter 20000 --realTimeLogging --reference S288C --binariesMode {}'.format(binariesMode)])
+        subprocess.check_call(['cactus-align', self._job_store(binariesMode), chromfile_path, ba_path, '--batch', '--pangenome', '--outVG',
+                               '--outVG', '--barMaskFilter', '20000', '--reference', 'S288C', '--binariesMode', binariesMode, '--consCores', '2'])
 
         vg_files = [os.path.join(ba_path, c) + '.vg' for c in chroms]
         hal_files = [os.path.join(ba_path, c) + '.hal' for c in chroms]
