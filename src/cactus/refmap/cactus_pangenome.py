@@ -144,7 +144,9 @@ def main():
     # (but we want to do as much error-checking upfront as possible)
     options.hal = [None]
     options.vg = [None]
+    options.reference = [options.reference] #todo multiple reference support
     options = graphmap_join_validate_options(options)
+    options.reference = options.reference[0]
 
     logger.info('Cactus Command: {}'.format(' '.join(sys.argv)))
     logger.info('Cactus Commit: {}'.format(cactus_commit))
@@ -184,7 +186,7 @@ def main():
             
             #import the sequences
             input_seq_id_map = {}
-            input_name_map = {}
+            input_path_map = {}
             input_seq_order = [options.reference]
             leaves = set([seqFile.tree.getName(node) for node in seqFile.tree.getLeaves()])
             for (genome, seq) in input_seq_map.items():
@@ -196,24 +198,42 @@ def main():
                     seq = makeURL(seq)
                     logger.info("Importing {}".format(seq))
                     input_seq_id_map[genome] = toil.importFile(seq)
-                    input_name_map[genome] = os.path.basename(seq)
+                    input_path_map[genome] = seq
                     if genome != options.reference:
                         input_seq_order.append(genome)
             
-            toil.start(Job.wrapJobFn(pangenome_end_to_end_workflow, options, config_wrapper, input_seq_id_map, input_name_map, input_seq_order))
+            toil.start(Job.wrapJobFn(pangenome_end_to_end_workflow, options, config_wrapper, input_seq_id_map, input_path_map, input_seq_order))
         
     end_time = timeit.default_timer()
     run_time = end_time - start_time
     logger.info("cactus-pangenome has finished after {} seconds".format(run_time))
 
-def update_seqfile(job, seq_id_map, seq_name_map, gfa_fa_id, gfa_fa_path, graph_event):
-    """ put the minigraph gfa.fa file into the seqfile """
+def export_minigraph_wrapper(job, options, sv_gfa_id, sv_gfa_path):
+    """ export the GFA from minigraph """
+    job.fileStore.exportFile(sv_gfa_id, makeURL(os.path.join(options.outDir, os.path.basename(sv_gfa_path))))
+    
+def update_seqfile(job, options, seq_id_map, seq_path_map, seq_order, gfa_fa_id, gfa_fa_path, graph_event):
+    """ put the minigraph gfa.fa file into the seqfile and export both """
+    work_dir = job.fileStore.getLocalTempDir()    
     seq_id_map[graph_event] = gfa_fa_id
-    seq_name_map[graph_event] = os.path.basename(gfa_fa_path)
-    return seq_id_map, seq_name_map
+    seq_path_map[graph_event] = gfa_fa_path
+    local_seqfile = os.path.join(work_dir, 'seqfile.txt')
+    with open(local_seqfile, 'w') as seqfile:
+        for sample in seq_order:
+            seqfile.write('{}\t{}\n'.format(sample, seq_path_map[sample]))
+        seqfile.write('{}\t{}\n'.format(graph_event, gfa_fa_path))            
+    job.fileStore.exportFile(local_seqfile, makeURL(os.path.join(options.outDir, os.path.basename(options.seqFile))))
+    job.fileStore.exportFile(gfa_fa_id, makeURL(os.path.join(options.outDir, os.path.basename(gfa_fa_path))))
+
+    seq_name_map = {}
+    for sample,seq_path in seq_path_map.items():
+        seq_name_map[sample] = os.path.basename(seq_path)
+    return seq_id_map, seq_path_map, seq_name_map
     
 def export_split_wrapper(job, wf_output, out_dir, config_node):
     """ toil job wrapper for cactus_graphmap_split's exporter """
+    if not out_dir.startswith('s3://') and not os.path.isdir(out_dir):
+        os.makedirs(out_dir)
     export_split_data(job.fileStore, wf_output[0], wf_output[1], wf_output[2], wf_output[3], out_dir, config_node)
 
 def make_batch_align_jobs_wrapper(job, options, chromfile_path):
@@ -250,13 +270,16 @@ def export_align_wrapper(job, options, results_dict):
     join_options.hal = hal_paths
     join_options.vg = vg_paths
 
+    #todo: fix multireferene support (including in join)
+    join_options.reference = [join_options.reference]
+
     return join_options, vg_ids, hal_ids
 
 def export_join_wrapper(job, options, wf_output):
     """ toil join wrapper for cactus_graphmap_join """
     export_join_data(job.fileStore, options, wf_output[0], wf_output[1], wf_output[2], wf_output[3], wf_output[4])
 
-def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_name_map, seq_order):
+def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_path_map, seq_order):
     """ chain the entire workflow together, doing exports after each step to mitigate annoyance of failures """
     root_job = Job()
     job.addChild(root_job)
@@ -271,6 +294,7 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
     
     minigraph_job = sanitize_job.addFollowOnJobFn(minigraph_construct_workflow, config_node, seq_id_map, seq_order, sv_gfa_path, sanitize=False)
     sv_gfa_id = minigraph_job.rv()
+    minigraph_job.addFollowOnJobFn(export_minigraph_wrapper, options, sv_gfa_id, sv_gfa_path)
 
     # cactus_graphmap
     paf_path = os.path.join(options.outDir, options.outName + '.paf')
@@ -283,17 +307,19 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
     paf_id, gfa_fa_id, gaf_id, unfiltered_paf_id, paf_filter_log = graphmap_job.rv(0), graphmap_job.rv(1), graphmap_job.rv(2), graphmap_job.rv(3), graphmap_job.rv(4)
 
     # we need to update the seqfile with the phonied in minigraph event
-    update_seqfile_job = graphmap_job.addFollowOnJobFn(update_seqfile, seq_id_map, seq_name_map, gfa_fa_id, gfa_fa_path, graph_event)
-    seq_id_map, seq_name_map = update_seqfile_job.rv(0), update_seqfile_job.rv(1)
+    update_seqfile_job = graphmap_job.addFollowOnJobFn(update_seqfile, options, seq_id_map, seq_path_map, seq_order, gfa_fa_id, gfa_fa_path, graph_event)
+    seq_id_map, seq_path_map, seq_name_map = update_seqfile_job.rv(0), update_seqfile_job.rv(1), update_seqfile_job.rv(2)
 
     # cactus_graphmap_split
     split_job = update_seqfile_job.addFollowOnJobFn(graphmap_split_workflow, options, config_wrapper, seq_id_map, seq_name_map, sv_gfa_id,
                                                     sv_gfa_path, paf_id, paf_path, options.refContigs, options.otherContig, sanitize=False)
+
     wf_output = split_job.rv()
-    split_export_job = split_job.addFollowOnJobFn(export_split_wrapper, wf_output, options.outDir, config_wrapper)
-    
+    split_out_path = os.path.join(options.outDir, 'chrom-subproblems')    
+    split_export_job = split_job.addFollowOnJobFn(export_split_wrapper, wf_output, split_out_path, config_wrapper)
+        
     # cactus_align
-    chromfile_path = os.path.join(options.outDir, 'chromfile.txt')
+    chromfile_path = os.path.join(split_out_path, 'chromfile.txt')
 
     align_jobs_make_job = split_export_job.addFollowOnJobFn(make_batch_align_jobs_wrapper, options, chromfile_path)
     align_jobs = align_jobs_make_job.rv()
@@ -302,7 +328,7 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
     align_export_job = align_job.addFollowOnJobFn(export_align_wrapper, options, results_dict)
     join_options, vg_ids, hal_ids = align_export_job.rv(0), align_export_job.rv(1), align_export_job.rv(2)
 
-    # cactus_graphmap_join    
+    # cactus_graphmap_join
     join_job = align_export_job.addFollowOnJobFn(graphmap_join_workflow, join_options, config_wrapper, vg_ids, hal_ids)
     join_wf_output = join_job.rv()
     join_export_job = join_job.addFollowOnJobFn(export_join_wrapper, options, join_wf_output)
