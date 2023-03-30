@@ -286,7 +286,7 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
     config_node = config_wrapper.xmlRoot
 
     # sanitize headers (once here, skip in all workflows below)
-    sanitize_job = root_job.addFollowOnJobFn(sanitize_fasta_headers, seq_id_map)
+    sanitize_job = root_job.addFollowOnJobFn(sanitize_fasta_headers, seq_id_map, pangenome=True)
     seq_id_map = sanitize_job.rv()
     
     # cactus_minigraph

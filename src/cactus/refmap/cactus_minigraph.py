@@ -131,7 +131,7 @@ def main():
 def minigraph_construct_workflow(job, config_node, seq_id_map, seq_order, gfa_path, sanitize=True):
     """ minigraph can handle bgzipped files but not gzipped; so unzip everything in case before running"""
     if sanitize:
-        sanitize_job = job.addChildJobFn(sanitize_fasta_headers, seq_id_map)
+        sanitize_job = job.addChildJobFn(sanitize_fasta_headers, seq_id_map, pangenome=True)
         sanitized_seq_id_map = sanitize_job.rv()
     else:
         sanitized_seq_id_map = seq_id_map

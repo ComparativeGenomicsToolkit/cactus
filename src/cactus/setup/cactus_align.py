@@ -335,7 +335,7 @@ def cactus_align(job, config_wrapper, mc_tree, input_seq_map, input_seq_id_map, 
     event_list = input_seq_id_map.keys()
     
     # unzip the input sequences and enforce unique header prefixes
-    sanitize_job = head_job.addChildJobFn(sanitize_fasta_headers, input_seq_id_map)
+    sanitize_job = head_job.addChildJobFn(sanitize_fasta_headers, input_seq_id_map, pangenome=doVG or doGFA or do_filter_paf)
     new_seq_id_map = sanitize_job.rv()
 
     # run pangenome-specific paf filter

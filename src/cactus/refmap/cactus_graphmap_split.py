@@ -178,7 +178,7 @@ def graphmap_split_workflow(job, options, config, seq_id_map, seq_name_map, gfa_
 
     # fix up the headers
     if sanitize:
-        sanitize_job = root_job.addChildJobFn(sanitize_fasta_headers, seq_id_map)
+        sanitize_job = root_job.addChildJobFn(sanitize_fasta_headers, seq_id_map, pangenome=True)
         seq_id_map = sanitize_job.rv()
     else:
         sanitize_job = Job()
