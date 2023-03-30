@@ -128,19 +128,25 @@ def main():
     run_time = end_time - start_time
     logger.info("cactus-minigraph has finished after {} seconds".format(run_time))
         
-def minigraph_construct_workflow(job, config_node, seq_id_map, seq_order, gfa_path):
+def minigraph_construct_workflow(job, config_node, seq_id_map, seq_order, gfa_path, sanitize=True):
     """ minigraph can handle bgzipped files but not gzipped; so unzip everything in case before running"""
-    sanitize_job = job.addChildJobFn(sanitize_fasta_headers, seq_id_map)
+    if sanitize:
+        sanitize_job = job.addChildJobFn(sanitize_fasta_headers, seq_id_map)
+        sanitized_seq_id_map = sanitize_job.rv()
+    else:
+        sanitized_seq_id_map = seq_id_map
+        sanitize_job = Job()
+        job.addChild(sanitize_job)
     xml_node = findRequiredNode(config_node, "graphmap")
     mg_cores = getOptionalAttrib(xml_node, "cpu", typeFn=int, default=1)
     sort_type = getOptionalAttrib(xml_node, "minigraphSortInput", str, default=None)
     if sort_type == "mash":
-        sort_job = sanitize_job.addFollowOnJobFn(sort_minigraph_input_with_mash, sanitize_job.rv(), seq_order)
+        sort_job = sanitize_job.addFollowOnJobFn(sort_minigraph_input_with_mash, sanitized_seq_id_map, seq_order)
         seq_order = sort_job.rv()
         prev_job = sort_job
     else:
         prev_job = sanitize_job
-    minigraph_job = prev_job.addFollowOnJobFn(minigraph_construct, config_node, sanitize_job.rv(), seq_order, gfa_path,
+    minigraph_job = prev_job.addFollowOnJobFn(minigraph_construct, config_node, sanitized_seq_id_map, seq_order, gfa_path,
                                               cores = mg_cores,
                                               disk = 5 * sum([seq_id.size for seq_id in seq_id_map.values()]))
     return minigraph_job.rv()

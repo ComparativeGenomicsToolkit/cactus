@@ -167,7 +167,7 @@ def cactus_graphmap_split(options):
         #export the split data
         export_split_data(toil, wf_output[0], wf_output[1], wf_output[2], wf_output[3], options.outDir, config)
 
-def graphmap_split_workflow(job, options, config, seq_id_map, seq_name_map, gfa_id, gfa_path, paf_id, paf_path, ref_contigs, other_contig):
+def graphmap_split_workflow(job, options, config, seq_id_map, seq_name_map, gfa_id, gfa_path, paf_id, paf_path, ref_contigs, other_contig, sanitize=True):
 
     root_job = Job()
     job.addChild(root_job)
@@ -177,8 +177,12 @@ def graphmap_split_workflow(job, options, config, seq_id_map, seq_name_map, gfa_
     paf_size = paf_id.size
 
     # fix up the headers
-    sanitize_job = root_job.addChildJobFn(sanitize_fasta_headers, seq_id_map)
-    seq_id_map = sanitize_job.rv()
+    if sanitize:
+        sanitize_job = root_job.addChildJobFn(sanitize_fasta_headers, seq_id_map)
+        seq_id_map = sanitize_job.rv()
+    else:
+        sanitize_job = Job()
+        root_job.addChild(sanitize_job)
     
     # use file extension to sniff out compressed input
     if gfa_path.endswith(".gz"):
@@ -539,7 +543,7 @@ def export_split_data(toil, input_name_map, output_id_map, split_log_id, contig_
 
     # export the sizes
     contig_size_table_path = os.path.join(output_dir, 'contig_sizes.tsv')
-    toil.exportFile(contig_size_table_id, contig_size_table_path)
+    toil.exportFile(contig_size_table_id, makeURL(contig_size_table_path))
 
     # export the log
     toil.exportFile(split_log_id, makeURL(os.path.join(output_dir, 'minigraph.split.log')))

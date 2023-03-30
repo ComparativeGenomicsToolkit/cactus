@@ -200,7 +200,7 @@ def graph_map(options):
         if options.outputFasta:
             add_genome_to_seqfile(options.seqFile, makeURL(options.outputFasta), graph_event)
 
-def minigraph_workflow(job, options, config, seq_id_map, gfa_id, graph_event):
+def minigraph_workflow(job, options, config, seq_id_map, gfa_id, graph_event, sanitize=True):
     """ Overall workflow takes command line options and returns (paf-id, (optional) fa-id) """
     fa_id = None
     gfa_id_size = gfa_id.size
@@ -211,8 +211,9 @@ def minigraph_workflow(job, options, config, seq_id_map, gfa_id, graph_event):
     mg_cores = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "cpu", typeFn=int, default=1)
 
     # enforce unique prefixes and unzip fastas
-    sanitize_job = root_job.addChildJobFn(sanitize_fasta_headers, seq_id_map)
-    seq_id_map = sanitize_job.rv()
+    if sanitize:
+        sanitize_job = root_job.addChildJobFn(sanitize_fasta_headers, seq_id_map)
+        seq_id_map = sanitize_job.rv()
     
     if options.outputFasta:
         # convert GFA to fasta
