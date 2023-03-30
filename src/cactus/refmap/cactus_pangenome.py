@@ -222,7 +222,7 @@ def update_seqfile(job, options, seq_id_map, seq_path_map, seq_order, gfa_fa_id,
         for sample in seq_order:
             seqfile.write('{}\t{}\n'.format(sample, seq_path_map[sample]))
         seqfile.write('{}\t{}\n'.format(graph_event, gfa_fa_path))            
-    job.fileStore.exportFile(local_seqfile, makeURL(os.path.join(options.outDir, os.path.basename(options.seqFile))))
+    job.fileStore.exportFile(job.fileStore.writeGlobalFile(local_seqfile), makeURL(os.path.join(options.outDir, os.path.basename(options.seqFile))))
     job.fileStore.exportFile(gfa_fa_id, makeURL(os.path.join(options.outDir, os.path.basename(gfa_fa_path))))
 
     seq_name_map = {}
@@ -243,7 +243,7 @@ def make_batch_align_jobs_wrapper(job, options, chromfile_path):
     chromfile_id = job.fileStore.importFile(makeURL(chromfile_path))
     job.fileStore.readGlobalFile(chromfile_id, local_chromfile_path)
     options.seqFile = local_chromfile_path    
-    align_jobs = make_batch_align_jobs(options, job.fileStore)
+    align_jobs = make_batch_align_jobs(options, job.fileStore, job.fileStore)
     return align_jobs
     
 def export_align_wrapper(job, options, results_dict):

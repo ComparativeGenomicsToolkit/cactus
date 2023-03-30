@@ -195,9 +195,11 @@ def batch_align_jobs(job, jobs_dict):
         rv_dict[chrom] = job.addChild(chrom_job).rv()
     return rv_dict
 
-def make_batch_align_jobs(options, toil):
+def make_batch_align_jobs(options, toil, filestore=None):
     """ Make a dicitonary of align jobs """
-
+    if filestore:
+        work_dir = filestore.getLocalTempDir()
+    
     result_dict = {}    
     if options.batch is True:
         #read the chrom file
@@ -209,7 +211,13 @@ def make_batch_align_jobs(options, toil):
                     chrom, seqfile, alnFile = toks[0], toks[1], toks[2]
                     chrom_options = copy.deepcopy(options)
                     chrom_options.batch = False
-                    chrom_options.seqFile = seqfile
+                    if filestore:
+                        seqfile_id = toil.importFile(makeURL(seqfile))
+                        local_seqfile = os.path.join(work_dir, os.path.basename(seqfile))
+                        toil.readGlobalFile(seqfile_id, local_seqfile)
+                    else:
+                        local_seqfile = seqfile
+                    chrom_options.seqFile = local_seqfile
                     chrom_options.pafFile = alnFile
                     if chrom_options.checkpointInfo:
                         chrom_options.checkpointInfo = (chrom_options.checkpointInfo[0],
