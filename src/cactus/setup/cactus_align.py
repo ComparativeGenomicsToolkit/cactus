@@ -214,7 +214,7 @@ def make_batch_align_jobs(options, toil):
                     if chrom_options.checkpointInfo:
                         chrom_options.checkpointInfo = (chrom_options.checkpointInfo[0],
                                                         os.path.join(chrom_options.checkpointInfo[1], chrom + '.hal'))
-                    chrom_align_job = make_align_job(chrom_options, toil)
+                    chrom_align_job = make_align_job(chrom_options, toil, chrom)
                     result_dict[chrom] = chrom_align_job
     else:
         result_dict[None] = make_align_job(options, toil)
@@ -222,7 +222,7 @@ def make_batch_align_jobs(options, toil):
     return result_dict
     
     
-def make_align_job(options, toil):
+def make_align_job(options, toil, chrom_name=None):
 
     # load up the seqfile and figure out the outgroups
     config_node = ET.parse(options.configFile).getroot()
@@ -323,11 +323,12 @@ def make_align_job(options, toil):
                               pafMaskFilter=options.pafMaskFilter,
                               paf2Stable=paf_to_stable,
                               cons_cores=options.consCores,
-                              do_filter_paf=options.pangenome)
+                              do_filter_paf=options.pangenome,
+                              chrom_name=chrom_name)
     return align_job
 
 def cactus_align(job, config_wrapper, mc_tree, input_seq_map, input_seq_id_map, paf_id, root_name, og_map, checkpointInfo, doVG, doGFA, delay=0,
-                 referenceEvent=None, pafMaskFilter=None, paf2Stable=False, cons_cores = None, do_filter_paf=False):
+                 referenceEvent=None, pafMaskFilter=None, paf2Stable=False, cons_cores = None, do_filter_paf=False, chrom_name=None):
     
     head_job = Job()
     job.addChild(head_job)
@@ -347,7 +348,8 @@ def cactus_align(job, config_wrapper, mc_tree, input_seq_map, input_seq_id_map, 
     spanning_tree = get_spanning_subtree(mc_tree, root_name, config_wrapper, og_map)
 
     # run consolidated
-    cons_job = head_job.addFollowOnJobFn(cactus_cons_with_resources, spanning_tree, root_name, config_wrapper.xmlRoot, new_seq_id_map, og_map, paf_id, cons_cores = cons_cores)
+    cons_job = head_job.addFollowOnJobFn(cactus_cons_with_resources, spanning_tree, root_name, config_wrapper.xmlRoot, new_seq_id_map, og_map, paf_id,
+                                         cons_cores = cons_cores, chrom_name=chrom_name)
     results = {root_name : (cons_job.rv(1), cons_job.rv(2))}
 
     # get the immediate subtree (which is all export_hal can use)

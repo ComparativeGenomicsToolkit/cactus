@@ -26,7 +26,8 @@ from cactus.shared.configWrapper import ConfigWrapper
 ############################################################
 ############################################################
 
-def cactus_cons_with_resources(job, tree, ancestor_event, config_node, seq_id_map, og_map, paf_id, cons_cores = None, intermediate_results_url = None):
+def cactus_cons_with_resources(job, tree, ancestor_event, config_node, seq_id_map, og_map, paf_id,
+                               cons_cores = None, intermediate_results_url = None, chrom_name = None):
     ''' run cactus_consolidated as a child job, requesting resources based on input sizes '''
 
     # compute resource requirements
@@ -47,11 +48,12 @@ def cactus_cons_with_resources(job, tree, ancestor_event, config_node, seq_id_ma
     mem = int(min(mem, memoryCap))
 
     cons_job = job.addChildJobFn(cactus_cons, tree, ancestor_event, config_node, seq_id_map, og_map, paf_id,
-                                 intermediate_results_url=intermediate_results_url, cores = cons_cores,
+                                 intermediate_results_url=intermediate_results_url, chrom_name=chrom_name, cores = cons_cores,
                                  memory=mem, disk=disk)
     return cons_job.rv()
 
-def cactus_cons(job, tree, ancestor_event, config_node, seq_id_map, og_map, paf_id, intermediate_results_url = None):
+def cactus_cons(job, tree, ancestor_event, config_node, seq_id_map, og_map, paf_id,
+                intermediate_results_url = None, chrom_name = None):
     ''' run cactus_consolidated '''
 
     # Build up a genome -> fasta map.
@@ -91,7 +93,7 @@ def cactus_cons(job, tree, ancestor_event, config_node, seq_id_map, og_map, paf_
             "--referenceEvent", ancestor_event, "--threads", str(job.cores), "--secondaryAlignments", secondary_alignment_file]
 
     messages = cactus_call(check_output=True, returnStdErr=True,
-                                 realtimeStderrPrefix='cactus_consolidated({})'.format(ancestor_event),
+                                 realtimeStderrPrefix='cactus_consolidated({})'.format(chrom_name if chrom_name else ancestor_event),
                                  parameters=["cactus_consolidated"] + args)[1]  # Get just the standard error output
 
     # if cactus was run with --realTimeLogging, cactus_call will print out conslidated's stderr messages as they happen
