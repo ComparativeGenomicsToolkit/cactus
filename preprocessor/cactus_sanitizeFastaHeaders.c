@@ -23,7 +23,7 @@
 #include "cactus.h"
 
 void usage() {
-    fprintf(stderr, "cactus_addUniquePrefixes [fastaFile] [EVENT] (-p)\n");
+    fprintf(stderr, "cactus_santizeFastaHeaders [fastaFile] [EVENT] (-p)\n");
     fprintf(stderr, "-p: add pangenome-specific processing to strip everything before (up to) last occurrence of #\n");
 }
 
