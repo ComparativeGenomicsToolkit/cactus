@@ -51,6 +51,7 @@ def main():
     parser.add_argument("--reference", type=str, help = "Name of reference (in seqFile).  Ambiguity filters will not be applied to it")
     parser.add_argument("--maskFilter", type=int, help = "Ignore softmasked sequence intervals > Nbp")
     parser.add_argument("--minIdentity", type=float, help = "Ignore PAF lines with identity (column 10/11) < this (overrides minIdentity in <graphmap_split> in config)")
+    parser.add_argument("--permissiveContigFilter", nargs='?', const='0.25', default=None, type=float, help = "If specified, override the configuration to accept contigs so long as they have at least given fraction of coverage (0.25 if no fraction specified). This can increase sensitivity of very small, fragmented and/or diverse assemblies.")
     
     #Progressive Cactus Options
     parser.add_argument("--configFile", dest="configFile",
@@ -95,16 +96,12 @@ def cactus_graphmap_split(options):
         config = ConfigWrapper(config_node)
         config.substituteAllPredefinedConstantsWithLiterals()
 
-        #override the minIdentity
-        if options.minIdentity is not None:
-            findRequiredNode(config_node, "graphmap").attrib["minIdentity"] = str(options.minIdentity)
-
         #Run the workflow
         if options.restart:
             wf_output = toil.restart()
         else:
             options.cactusDir = getTempDirectory()
-
+            
             # load up the contigs if any
             ref_contigs = set(options.refContigs)
             # todo: use import?
@@ -172,6 +169,17 @@ def graphmap_split_workflow(job, options, config, seq_id_map, seq_name_map, gfa_
     root_job = Job()
     job.addChild(root_job)
 
+    #override the minIdentity
+    if options.minIdentity is not None:
+        findRequiredNode(config.xmlRoot, "graphmap").attrib["minIdentity"] = str(options.minIdentity)
+
+    #override the contig filter parameters with a single value taken from this option
+    #also, disabling the uniqueness threshold
+    if options.permissiveContigFilter is not None:
+        findRequiredNode(config.xmlRoot, "graphmap_split").attrib["minQueryCoverages"] = str(options.permissiveContigFilter)
+        findRequiredNode(config.xmlRoot, "graphmap_split").attrib["minQueryCoverageThresholds"] = ""
+        findRequiredNode(config.xmlRoot, "graphmap_split").attrib["minQueryUniqueness"] = "1"
+    
     # get the sizes before we overwrite below
     gfa_size = gfa_id.size
     paf_size = paf_id.size

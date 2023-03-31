@@ -90,7 +90,7 @@ CHM13  ./chm13.fa
 
 The Minigraph-Cactus pipeline is run via the `cactus-pangenome` command. It consists of five stages which can also be run individually (below). `cactus-pangenome` writes output files into `--outDir` at the end of each stage. So different stages can be rerun with if necessary using the lower-level commands.
 
-Before running large jobs, it is important to consider the following options:
+**Before running large jobs, it is important to consider the following options:**
 
 * `--mapCores` the number of cores for each `minigraph` job (default: up to 6)
 * `--consCores` the number of cores for each `cactus-consolidated` job (default: all available)
@@ -98,6 +98,12 @@ Before running large jobs, it is important to consider the following options:
 * The various output options: `--gbz`, `--gfa`, `--giraffe`, `--vcf` which are explained in detail below.
 
 Reducing `--consCores` will allow more chromosomes to be aligned at once, requiring more memory. VCF export for very large graphs will take a long time unless `--indexCores` is set high, but `--indexCores` should still be at least 1 lower than all cores available to allow some parallelism. 
+
+**While many Minigraph-Cactus parameters' default values were tuned on high-quality human assemblies from the HPRC where ample benchmarking data was available, we believe they will be suitable for other datasets and species, so long as the contigs can be mapped with [minigraph](https://github.com/lh3/minigraph). By default, [small contigs are filtered out](https://github.com/ComparativeGenomicsToolkit/cactus/blob/v2.4.4/src/cactus/cactus_progressive_config.xml#L319-L335) during chromosome assignment using more stringent thresholds. This might lead to a surprisingly low sensitivity on small, fragmented, diverse assemblies or difficult-to-assemble regions. Users wishing to *keep* these contigs in their graph can use the following option:
+
+* `--permissiveContigFilter`
+
+The application and impact of this option is demonstrated in the explanation of the Yeast pangenome example below.
 
 **Important** The reference genome assembly must be chromosome scale. If your reference assembly also consists of many small fragments (ex GRCh38) then you must use the `--refContigs` option to specify the chromosomes.  Ex for GRCh38 `--refContigs $(for i in `seq 22`; do echo chr$i; done ; echo "chrX chrY chrM")`.  If you want to include the remaining reference contig fragments in your graph, add the `--otherContig chrOther` option.
 
@@ -181,11 +187,11 @@ If you are running `vg call` or `vg deconstruct` on the GBZ yourself, the output
 
 This is a small test case whose input data is included in cactus that illustrates how to split by chromosome. 
 
-### Yeast: All at Once
+```
+cactus-pangenome ./js ./examples/yeastPangenome.txt --reference S288C --outDir yeast-pg --outName yeast-pg --vcf --giraffe
+```
 
-```
-cactus-pangenome ./js ./examples/yeastPangenome.txt --reference S288C --outDir yeast-pg --outName yeast-pg --
-```
+All the output will be written to `./yeast-pg` as it is computed and is described below in the context of the equivalent lower-level commands that could be used to compute the same pangenome.
 
 ### Yeast: Getting Started
 
@@ -268,10 +274,8 @@ Query contig is ambiguous: id=UWOPS034614|chrX  len=1092164 cov=0.49082 (vs 0.25
   chrXIII: 536056
 
 ```
+This log shows that these contigs were omitted because they could not be confidently mapped (presumably due to an inter-chromosomal event) to a single reference chromosome. These filters can be turned down with the `--permissiveContigFilter` option (other either `cactus-graphmap-split` or `cactus-pangenome`).  Using that here will assign all UWOPS034614 contigs to the reference chromosome they best align to. For example, `UWOPS034614|chrXI` would end up in the graph for `chrXI` and the approximately 40% of the contig that better aligns to `chrVII` would most likely end up unaligned and removed in postprocessing. The exact thresholds are explained, and can be adjusted in, the `<graphmap-split>` section of the [cactus config](../src/cactus/cactus_progressive_config.xml).
 
-It is saying that not enough bases in these contigs aligned to a single reference chromosome, given the 50% threshold and 2X uniqueness factor.  These thresholds are explained, and can be adjusted in, the `<graphmap-split>` section of the [cactus config](../src/cactus/cactus_progressive_config.xml).
-
-The sequence-to-graph PAF files can be refined by adding the `--base` option to `cactus-graphmap`.  This can often improve the accuracy of `cactus-graphmap-split`.  This option will be used in the HPRC example below. 
 
 ### Yeast: Batch Aligning the Chromosomes
 
