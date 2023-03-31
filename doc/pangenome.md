@@ -21,34 +21,12 @@ Some pangenomes constructed with Minigraph-Cactus, along with all material to re
 
 ## Quick-Start
 
-Set up an output directory, and copy over the example seqfile (as it will be modified)
-```
-mkdir -p primates-pg
-cp examples/evolverPrimates.txt primates-pg/evolverPrimates.pg.txt
-```
+The Mingraph-Cactus pipeline is run with `cactus-pangenome`. Its input is a text file with two columns, separated by whitespace, denoting sample name and fasta URL, respectively. All output is written to a directory specified with `--outDir`. All output filenames are prefixed with the value of `--outName`.
 
-Make the SV graph with `minigraph`
-```
-cactus-minigraph ./jobstore primates-pg/evolverPrimates.pg.txt primates-pg/primates.sv.gfa.gz  \
---reference simChimp
-```
+Begin by making a pangenome for tiny simulated primates:
 
-Make the assembly-to-graph alignments with `minigraph`
 ```
-cactus-graphmap ./jobstore primates-pg/evolverPrimates.pg.txt primates-pg/primates.sv.gfa.gz primates-pg/primates.paf \
---reference simChimp --outputFasta primates-pg/primates.sv.gfa.fa.gz
-```
-
-Create the Cactus base alignment and "raw" pangenome graph
-```
-cactus-align ./jobstore primates-pg/evolverPrimates.pg.txt primates-pg/primates.paf primates-pg/primates.hal \
---pangenome --outVG --reference simChimp 
-```
-
-Create and index the final pangenome graph and produce VCF files and vg-giraffe indexes. 
-```
-cactus-graphmap-join ./jobstore --vg primates-pg/primates.vg --outDir ./primates-pg --outName primates-pg \
---reference simChimp --vcf --giraffe
+cactus-pangenome ./js ./examples/evolverPrimates.txt --outDir primates-pg --outName primates-pg --vcf --giraffe --gfa
 ```
 
 If it worked properly, the input sequences should show up as contigs in the GFA:
@@ -108,17 +86,24 @@ HG002.2  ./HG002.maternal.fa
 CHM13  ./chm13.fa
 ```
 
-### Contig Names
-
-Contig names in the input FASTA files should not contain `#` characters.  If they do, you must strip them out before running.  This can be done with `cactus-preprocess`.  For example
-
-```
-cactus-prepare ./seqfile --outDir pp --seqFileOnly
-cactus-preprocess ./seqfile pp/seqfile --pangenome
-```
-then work with `pp/seqfile` for the remaining commands. 
-
 ### Pipeline
+
+The Minigraph-Cactus pipeline is run via the `cactus-pangenome` command. It consists of five stages which can also be run individually (below). `cactus-pangenome` writes output files into `--outDir` at the end of each stage. So different stages can be rerun with if necessary using the lower-level commands.
+
+Before running large jobs, it is important to consider the following options:
+
+* `--mapCores` the number of cores for each `minigraph` job (default: up to 6)
+* `--consCores` the number of cores for each `cactus-consolidated` job (default: all available)
+* `--indexCores` the number of cores for each `vg` indexing job (default: 1)
+* The various output options: `--gbz`, `--gfa`, `--giraffe`, `--vcf` which are explained in detail below.
+
+Reducing `--consCores` will allow more chromosomes to be aligned at once, requiring more memory. VCF export for very large graphs will take a long time unless `--indexCores` is set high, but `--indexCores` should still be at least 1 lower than all cores available to allow some parallelism. 
+
+**Important** The reference genome assembly must be chromosome scale. If your reference assembly also consists of many small fragments (ex GRCh38) then you must use the `--refContigs` option to specify the chromosomes.  Ex for GRCh38 `--refContigs $(for i in `seq 22`; do echo chr$i; done ; echo "chrX chrY chrM")`.  If you want to include the remaining reference contig fragments in your graph, add the `--otherContig chrOther` option.
+
+**Also Important** We do not yet support the *alternate* loci from GRCh38, ex the various HLA contigs.  They must be excluded from the input fasta file to get sane results. They can be included in the graph by providing a separate sample / fasta pair in the input for each contig.  We are very interested in streamlining support for this in a future release.
+
+The individual parts of the pipeline can be run independently using the following commands.  See also the "step-by-step" yeast example below. 
 
 1) `cactus-minigraph <jobStore> <seqFile> <outputGFA> --reference`: Construct a minigraph in GFA format (may be gzipped) from a set of FASTA files (may also be gzipped).  This is a very thin wrapper over `minigraph -cxggs`.  The reference is added first and the remainder of samples are added in decreasing order of decreasing mash distance to the reference (see the `minigraphSortInput` parameter in the XML config to change or disable this).  Use the `--mapCores` option to specify the number of cores.
 
@@ -132,7 +117,7 @@ then work with `pp/seqfile` for the remaining commands.
 
 ### Clipping, Filtering and Indexing
 
-`cactus-graphmap-join` merges chromosome graphs created by `cactus-align-batch`, and also normalizes, clips and filters the graph in addition to producing some useful indexes.  It can produce up to three graphs (now in a single invocation), and a variety of indexes for any combination of them. The three graphs are the
+`cactus-pangenome` (options also available in `cactus-graphmap-join`) normalizes, clips and filters the graph in addition to producing some useful indexes.  It can produce up to three graphs (now in a single invocation), and a variety of indexes for any combination of them. The three graphs are the
 
 * `full` graph: This graph is normalized, but no sequence is removed. It and its indexes will have `.full` in their filenames. 
 * `clip` graph: This is the default graph. Stretches of sequence `>10kb` that were not aligned to the underlying SV/minigraph are removed. "Dangling" nodes (ie that don't have an edge on each side) that aren't on the reference path are also removed, so that each chromosome only has two tips in the graph.
@@ -140,7 +125,7 @@ then work with `pp/seqfile` for the remaining commands.
 
 The `clip` graph is a subgraph of the `full` graph and the `filter` graph is a subgraph of the `clip` graph. Put another way, any node in the `filter` graph exists with the exact same ID and sequence in the `clip` graph, etc. 
 
-The different graphs have different uses. For instance, the current version of `vg giraffe` performs best on the filtered graph (this will hopefully be soon remedied in an update to vg).  For the HPRC v1.0 graph and paper, we used `d9`. When you pass `--giraffe` to `cactus-graphmap-join`, it will make the giraffe indexes on the filtered graph by default.  But you can override this behaviour to produces the indexes for any of the graphs by passing in any combination of [`full`, `clip` and `filter`] to the `--giraffe` options. For example:
+The different graphs have different uses. For instance, the current version of `vg giraffe` performs best on the filtered graph (this will hopefully be soon remedied in an update to vg).  For the HPRC v1.0 graph and paper, we used `d9`. When you use `--giraffe`, it will make the giraffe indexes on the filtered graph by default.  But you can override this behaviour to produces the indexes for any of the graphs by passing in any combination of [`full`, `clip` and `filter`] to the `--giraffe` options. For example:
 
 `--giraffe`: Make the giraffe indexes for the filtered graph (default choice).
 
@@ -155,10 +140,6 @@ Note that by default, only GFA is output, so the above options need to be used t
 Different clipping and filtering thresholds can be specified using the `--clip` and `--filter` options, respectively. For larger graphs, you probably want to use `--filter N` where `N` represents about 10% of the haplotypes.  It is indeed a shame to remove rarer variants before mapping, but is a necessity to get the best performance out of (the current version) of `vg giraffe`.  
 
 The `--vcf` option will produce two VCFs for each selected graph type. One VCF is a "raw" VCF which contains nested variants, indicated by the `LV` and `PS` tags. The second VCF is one that has gone through [vcfbub](https://github.com/pangenome/vcfbub) to remove nested sites, as well as those greater than 100kb.  Unless you want to explicitly handle nested variants, you are probably best to use the `vcfbub` VCF.  Switch off `vcfbub` with `--vcfbub 0` or specify a different threshold with `--vcfbub N`.
-
-If you want to use the HAL output, `cactus-graphmap-join` can also merge HAL chromosomes from `cactus-align-batch` with the `--hal` option.  These will never be filtered or otherwise processed.
-
-When merging hal files with `--hal`, it is best to set `--indexCores` such that one core is free for hal merging.  So on a 32-core system, use `--indexCores 31`.  This way the slower indexing jobs can be done in parallel with the also slow hal merging (which itself is single-core).
 
 ### Output
 
@@ -199,6 +180,12 @@ If you are running `vg call` or `vg deconstruct` on the GBZ yourself, the output
 ## Yeast Graph
 
 This is a small test case whose input data is included in cactus that illustrates how to split by chromosome. 
+
+### Yeast: All at Once
+
+```
+cactus-pangenome ./js ./examples/yeastPangenome.txt --reference S288C --outDir yeast-pg --outName yeast-pg --
+```
 
 ### Yeast: Getting Started
 
