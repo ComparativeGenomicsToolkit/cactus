@@ -106,6 +106,7 @@ def main():
     options.pafMaskFilter = None
     options.outVG = True
     options.outGFA = False
+    options.minIdentity = None
     
     setupBinaries(options)
     set_logging_from_options(options)
