@@ -595,7 +595,7 @@ def make_vcf(job, config, out_name, vcf_ref, index_dict, tag='', max_ref_allele=
         decon_cmd.append('-O')
     cactus_call(parameters=[decon_cmd, ['bgzip', '--threads', str(job.cores)]], outfile=vcf_path)
     try:
-        cactus_call(parameters=['txabix', '-p', 'vcf', vcf_path])
+        cactus_call(parameters=['tabix', '-p', 'vcf', vcf_path])
         tbi_path = vcf_path + '.tbi'
     except Exception as e:
         # todo: better support for larger chromosomes
@@ -613,7 +613,7 @@ def make_vcf(job, config, out_name, vcf_ref, index_dict, tag='', max_ref_allele=
                                 ['bgzip', '--threads', str(job.cores)]],
                 outfile=vcfbub_path)
         try:
-            cactus_call(parameters=['taxbix', '-p', 'vcf', vcfbub_path])
+            cactus_call(parameters=['tabix', '-p', 'vcf', vcfbub_path])
             tbi_path = vcfbub_path + '.tbi'
         except Exception as e:
             # todo: better support for larger chromosomes
