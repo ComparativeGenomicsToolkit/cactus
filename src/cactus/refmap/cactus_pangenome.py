@@ -238,14 +238,14 @@ def export_split_wrapper(job, wf_output, out_dir, config_node):
         os.makedirs(out_dir)
     export_split_data(job.fileStore, wf_output[0], wf_output[1], wf_output[2], wf_output[3], out_dir, config_node)
 
-def make_batch_align_jobs_wrapper(job, options, chromfile_path):
+def make_batch_align_jobs_wrapper(job, options, chromfile_path, config_wrapper):
     """ toil job wrapper for make_batch_align_jobs from cactus_align """
     work_dir = job.fileStore.getLocalTempDir()
     local_chromfile_path = os.path.join(work_dir, 'chromfile.txt')
     chromfile_id = job.fileStore.importFile(makeURL(chromfile_path))
     job.fileStore.readGlobalFile(chromfile_id, local_chromfile_path)
     options.seqFile = local_chromfile_path    
-    align_jobs = make_batch_align_jobs(options, job.fileStore, job.fileStore)
+    align_jobs = make_batch_align_jobs(options, job.fileStore, job.fileStore, config_wrapper)
     return align_jobs
     
 def export_align_wrapper(job, options, results_dict):
@@ -323,7 +323,7 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
     # cactus_align
     chromfile_path = os.path.join(split_out_path, 'chromfile.txt')
 
-    align_jobs_make_job = split_export_job.addFollowOnJobFn(make_batch_align_jobs_wrapper, options, chromfile_path)
+    align_jobs_make_job = split_export_job.addFollowOnJobFn(make_batch_align_jobs_wrapper, options, chromfile_path, config_wrapper)
     align_jobs = align_jobs_make_job.rv()
     align_job = align_jobs_make_job.addFollowOnJobFn(batch_align_jobs, align_jobs)
     results_dict = align_job.rv()

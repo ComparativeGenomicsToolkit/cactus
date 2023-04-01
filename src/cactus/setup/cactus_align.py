@@ -195,7 +195,7 @@ def batch_align_jobs(job, jobs_dict):
         rv_dict[chrom] = job.addChild(chrom_job).rv()
     return rv_dict
 
-def make_batch_align_jobs(options, toil, filestore=None):
+def make_batch_align_jobs(options, toil, filestore=None, config_wrapper=None):
     """ Make a dicitonary of align jobs """
     if filestore:
         work_dir = filestore.getLocalTempDir()
@@ -222,7 +222,7 @@ def make_batch_align_jobs(options, toil, filestore=None):
                     if chrom_options.checkpointInfo:
                         chrom_options.checkpointInfo = (chrom_options.checkpointInfo[0],
                                                         os.path.join(chrom_options.checkpointInfo[1], chrom + '.hal'))
-                    chrom_align_job = make_align_job(chrom_options, toil, chrom)
+                    chrom_align_job = make_align_job(chrom_options, toil, config_wrapper, chrom)
                     result_dict[chrom] = chrom_align_job
     else:
         result_dict[None] = make_align_job(options, toil)
@@ -230,13 +230,16 @@ def make_batch_align_jobs(options, toil, filestore=None):
     return result_dict
     
     
-def make_align_job(options, toil, chrom_name=None):
+def make_align_job(options, toil, config_wrapper=None, chrom_name=None):
 
     # load up the seqfile and figure out the outgroups
-    config_node = ET.parse(options.configFile).getroot()
-    config_wrapper = ConfigWrapper(config_node)
-    config_wrapper.substituteAllPredefinedConstantsWithLiterals()
-    config_wrapper.initGPU(options)
+    if config_wrapper:
+        config_node = config_wrapper.xmlRoot
+    else:
+        config_node = ET.parse(options.configFile).getroot()
+        config_wrapper = ConfigWrapper(config_node)
+        config_wrapper.substituteAllPredefinedConstantsWithLiterals()
+        config_wrapper.initGPU(options)
     mc_tree, input_seq_map, og_candidates = parse_seqfile(options.seqFile, config_wrapper,
                                                           default_branch_length = 0.025 if options.pangenome else None)
     og_map = compute_outgroups(mc_tree, config_wrapper, set(og_candidates))
