@@ -594,10 +594,17 @@ def make_vcf(job, config, out_name, vcf_ref, index_dict, tag='', max_ref_allele=
     if getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "GFANodeIDsInVCF", typeFn=bool, default=True):
         decon_cmd.append('-O')
     cactus_call(parameters=[decon_cmd, ['bgzip', '--threads', str(job.cores)]], outfile=vcf_path)
-    cactus_call(parameters=['tabix', '-p', 'vcf', vcf_path])
+    try:
+        cactus_call(parameters=['txabix', '-p', 'vcf', vcf_path])
+        tbi_path = vcf_path + '.tbi'
+    except Exception as e:
+        # todo: better support for larger chromosomes
+        RealtimeLogger.warning('WARNING: tabix failed on VCF with this error {}'.format(str(e)))
+        tbi_path = None
 
-    output_dict = { '{}raw.vcf.gz'.format(tag) : job.fileStore.writeGlobalFile(vcf_path),
-                    '{}raw.vcf.gz.tbi'.format(tag) : job.fileStore.writeGlobalFile(vcf_path + '.tbi') }
+    output_dict = { '{}raw.vcf.gz'.format(tag) : job.fileStore.writeGlobalFile(vcf_path) }
+    if tbi_path:
+        output_dict['{}raw.vcf.gz.tbi'.format(tag)] = job.fileStore.writeGlobalFile(tbi_path)
 
     # make the filtered vcf
     if max_ref_allele:
@@ -605,9 +612,16 @@ def make_vcf(job, config, out_name, vcf_ref, index_dict, tag='', max_ref_allele=
         cactus_call(parameters=[['vcfbub', '--input', vcf_path, '--max-ref-length', str(max_ref_allele), '--max-level', '0'],
                                 ['bgzip', '--threads', str(job.cores)]],
                 outfile=vcfbub_path)
-        cactus_call(parameters=['tabix', '-p', 'vcf', vcfbub_path])
+        try:
+            cactus_call(parameters=['taxbix', '-p', 'vcf', vcfbub_path])
+            tbi_path = vcfbub_path + '.tbi'
+        except Exception as e:
+            # todo: better support for larger chromosomes
+            RealtimeLogger.warning('WARNING: tabix failed on VCF with this error {}'.format(str(e)))
+            tbi_path = None            
         output_dict['{}vcf.gz'.format(tag)] = job.fileStore.writeGlobalFile(vcfbub_path)
-        output_dict['{}vcf.gz.tbi'.format(tag)] = job.fileStore.writeGlobalFile(vcfbub_path + '.tbi')
+        if tbi_path:
+            output_dict['{}vcf.gz.tbi'.format(tag)] = job.fileStore.writeGlobalFile(vcfbub_path + '.tbi')
 
     return output_dict
     
