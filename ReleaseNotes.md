@@ -1,3 +1,15 @@
+# Release 2.5.0 2023-04-03
+
+This Release greatly simplifies the interface for building pangenomes
+
+- Introduction of `cactus-pangenome` command that, like `cactus` for the progressive aligner, runs the whole pipeline in one shot. Its inputs are a list of fasta sequences and sample names and it outputs the pangenome graph and various indexes, vcf, etc. Intermediate outputs are exported at the end of each stage, so low-level commands can be used to repeat or continue the workflow.
+- `#` characters in fasta contig names no longer need to be cleaned out with special invocation of `cactus-preprocess` to avoid conflicts with `vg` indexes.  This now happens automatically within the pipeline.
+- The lower level pangenome commands are all still supported and documented.  But `cactus-align-batch` is now deprecated.  This means it is removed from the documentation (except when describing older results) and from continuous integration tests, and it will give a warning when used. Users should now just run `cactus-align` instead of `cactus-align-batch` where applicable, using the former's `--batch` option. `cactus-align-batch` was a hack required to scale up before the cactus v2.0 rewrite but used nested Toil workflows and needed to go. 
+- Documentation updated to focus on the simpler interface
+- `GFAffix` updated to fix a rare crash
+- `cactus-graphmap-join` (and `cactus-pangenome`) will not fail in the event a VCF indexing error (ex from chromosomes that are too long for `tbi`). Instead it will give a warning and produce no index.
+- New `cactus-hal2maf` option `--keepGapCausingDupes` is changed to `--filterGapCausingDupes` and turned off by default. The underlying code has bugs that cause problems on certain datasets, and is not ready to be activated by default.
+
 # Release 2.4.4 2023-03-16
 
 This release includes some new export tools for the UCSC Genome Browser
