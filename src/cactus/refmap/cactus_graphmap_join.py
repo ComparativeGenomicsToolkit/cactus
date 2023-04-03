@@ -50,7 +50,7 @@ from cactus.shared.common import cactus_cpu_count
 
 from sonLib.nxnewick import NXNewick
 from sonLib.bioio import getTempDirectory, getTempFile, catFiles
-
+    
 def main():
     parser = ArgumentParser()
     Job.Runner.addToilOptions(parser)
@@ -60,23 +60,8 @@ def main():
     parser.add_argument("--outDir", required=True, type=str, help = "Output directory")
     parser.add_argument("--outName", required=True, type=str, help = "Basename of all output files")
     parser.add_argument("--reference", required=True, nargs='+', type=str, help = "Reference event name(s). The first will be the \"true\" reference and will be left unclipped and uncollapsed. It also should have been used with --reference in all upstream commands. Other names will be promoted to reference paths in vg")
-    
-    parser.add_argument("--clip", type=int, default=10000, help = "Generate clipped graph by removing anything longer than this amount that is unaligned to the underlying minigraph. Set to 0 to disable (must also set --filter 0 as well). [default=10000]")
-    
-    parser.add_argument("--filter", type=int, default=2, help = "Generate a frequency filtered graph (from the clipped graph) by removing any sequence present in fewer than this many sequences. Set to 0 to disable. [default=2]")
 
-    parser.add_argument("--gfa", nargs='*', default=None, help = "Produce a GFA for given graph type(s) if specified. Valid types are 'full', 'clip', and 'filter'. If no type specified 'clip' will be used ('full' used if clipping disabled). Multiple types can be provided separated by a space. [--gfa clip assumed by default]")
-    
-    parser.add_argument("--gbz", nargs='*', default=None, help = "Generate GBZ/snarls indexes for the given graph type(s) if specified. Valid types are 'full', 'clip' and 'filter'. If no type specified 'clip' will be used ('full' used if clipping disabled). Multiple types can be provided separated by a space. --giraffe will also produce these (and other) indexes")
-
-    parser.add_argument("--chrom-vg", nargs='*', default=None, help = "Produce a directory of chromosomal graphs is vg format for the graph type(s) specified. Valid typs are 'full', 'clip' and 'filter'. If no type specified 'clip' will be used ('full' used if clipping disabled). Multiple types can be provided separated by a space.  The output will be the <outDir>/<outName>.chroms/ directory")
-    
-    parser.add_argument("--vcf", nargs='*', default=None, help = "Generate a VCF from the given graph type(s). Valid types are 'full', 'clip' and 'filter'. If no type specified, 'clip' will be used ('full' used if clipping disabled). Multipe types can be provided separated by space")
-    parser.add_argument("--vcfReference", nargs='+', default=None, help = "If multiple references were provided with --reference, this option can be used to specify a subset for vcf creation with --vcf. By default, --vcf will create VCFs for the first reference only")
-    parser.add_argument("--vcfbub", type=int, default=100000, help = "Use vcfbub to flatten nested sites (sites with reference alleles > this will be replaced by their children)). Setting to 0 will disable, only prudcing full VCF [default=100000].")
-    
-    parser.add_argument("--giraffe", nargs='*', default=None, help = "Generate Giraffe (.dist, .min) indexes for the given graph type(s). Valid types are 'full', 'clip' and 'filter'. If not type specified, 'filter' will be used (will fall back to 'clip' than full if filtering, clipping disabled, respectively). Multiple types can be provided seperated by a space")
-    parser.add_argument("--indexCores", type=int, default=None, help = "cores for general indexing and VCF constructions (defaults to the same as --maxCores)")
+    graphmap_join_options(parser)
         
     #Progressive Cactus Options
     parser.add_argument("--configFile", dest="configFile",
@@ -101,6 +86,41 @@ def main():
         if not os.path.isdir(options.outDir):
             os.makedirs(options.outDir)
 
+    #make sure our options make sense and fill in sensible defaults
+    options = graphmap_join_validate_options(options)
+        
+    # Mess with some toil options to create useful defaults.
+    cactus_override_toil_options(options)
+
+    logger.info('Cactus Command: {}'.format(' '.join(sys.argv)))
+    logger.info('Cactus Commit: {}'.format(cactus_commit))
+    start_time = timeit.default_timer()
+    graphmap_join(options)
+    end_time = timeit.default_timer()
+    run_time = end_time - start_time
+    logger.info("cactus-graphmap-join has finished after {} seconds".format(run_time))
+
+def graphmap_join_options(parser):
+    """ we share these options with cactus-pangenome """
+    parser.add_argument("--clip", type=int, default=10000, help = "Generate clipped graph by removing anything longer than this amount that is unaligned to the underlying minigraph. Set to 0 to disable (must also set --filter 0 as well). [default=10000]")
+    
+    parser.add_argument("--filter", type=int, default=2, help = "Generate a frequency filtered graph (from the clipped graph) by removing any sequence present in fewer than this many sequences. Set to 0 to disable. [default=2]")
+
+    parser.add_argument("--gfa", nargs='*', default=None, help = "Produce a GFA for given graph type(s) if specified. Valid types are 'full', 'clip', and 'filter'. If no type specified 'clip' will be used ('full' used if clipping disabled). Multiple types can be provided separated by a space. [--gfa clip assumed by default]")
+    
+    parser.add_argument("--gbz", nargs='*', default=None, help = "Generate GBZ/snarls indexes for the given graph type(s) if specified. Valid types are 'full', 'clip' and 'filter'. If no type specified 'clip' will be used ('full' used if clipping disabled). Multiple types can be provided separated by a space. --giraffe will also produce these (and other) indexes")
+
+    parser.add_argument("--chrom-vg", nargs='*', default=None, help = "Produce a directory of chromosomal graphs is vg format for the graph type(s) specified. Valid typs are 'full', 'clip' and 'filter'. If no type specified 'clip' will be used ('full' used if clipping disabled). Multiple types can be provided separated by a space.  The output will be the <outDir>/<outName>.chroms/ directory")
+    
+    parser.add_argument("--vcf", nargs='*', default=None, help = "Generate a VCF from the given graph type(s). Valid types are 'full', 'clip' and 'filter'. If no type specified, 'clip' will be used ('full' used if clipping disabled). Multipe types can be provided separated by space")
+    parser.add_argument("--vcfReference", nargs='+', default=None, help = "If multiple references were provided with --reference, this option can be used to specify a subset for vcf creation with --vcf. By default, --vcf will create VCFs for the first reference only")
+    parser.add_argument("--vcfbub", type=int, default=100000, help = "Use vcfbub to flatten nested sites (sites with reference alleles > this will be replaced by their children)). Setting to 0 will disable, only prudcing full VCF [default=100000].")
+    
+    parser.add_argument("--giraffe", nargs='*', default=None, help = "Generate Giraffe (.dist, .min) indexes for the given graph type(s). Valid types are 'full', 'clip' and 'filter'. If not type specified, 'filter' will be used (will fall back to 'clip' than full if filtering, clipping disabled, respectively). Multiple types can be provided seperated by a space")
+    parser.add_argument("--indexCores", type=int, default=None, help = "cores for general indexing and VCF constructions (defaults to the same as --maxCores)")
+
+def graphmap_join_validate_options(options):
+    """ make sure the options make sense and fill in sensible defaults """
     if options.hal and len(options.hal) != len(options.vg):
         raise RuntimeError("If --hal and --vg should specify the same number of files")
 
@@ -184,18 +204,9 @@ def main():
         options.clip = None
     if options.filter and 'filter' not in options.gfa + options.gbz + options.chrom_vg + options.vcf + options.giraffe:
         options.filter = None
-        
-    # Mess with some toil options to create useful defaults.
-    cactus_override_toil_options(options)
 
-    logger.info('Cactus Command: {}'.format(' '.join(sys.argv)))
-    logger.info('Cactus Commit: {}'.format(cactus_commit))
-    start_time = timeit.default_timer()
-    graphmap_join(options)
-    end_time = timeit.default_timer()
-    run_time = end_time - start_time
-    logger.info("cactus-graphmap-join has finished after {} seconds".format(run_time))
-
+    return options
+    
 def graphmap_join(options):
     with Toil(options) as toil:
         importSingularityImage(options)
@@ -583,10 +594,17 @@ def make_vcf(job, config, out_name, vcf_ref, index_dict, tag='', max_ref_allele=
     if getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "GFANodeIDsInVCF", typeFn=bool, default=True):
         decon_cmd.append('-O')
     cactus_call(parameters=[decon_cmd, ['bgzip', '--threads', str(job.cores)]], outfile=vcf_path)
-    cactus_call(parameters=['tabix', '-p', 'vcf', vcf_path])
+    try:
+        cactus_call(parameters=['tabix', '-p', 'vcf', vcf_path])
+        tbi_path = vcf_path + '.tbi'
+    except Exception as e:
+        # todo: better support for larger chromosomes
+        RealtimeLogger.warning('WARNING: tabix failed on VCF with this error {}'.format(str(e)))
+        tbi_path = None
 
-    output_dict = { '{}raw.vcf.gz'.format(tag) : job.fileStore.writeGlobalFile(vcf_path),
-                    '{}raw.vcf.gz.tbi'.format(tag) : job.fileStore.writeGlobalFile(vcf_path + '.tbi') }
+    output_dict = { '{}raw.vcf.gz'.format(tag) : job.fileStore.writeGlobalFile(vcf_path) }
+    if tbi_path:
+        output_dict['{}raw.vcf.gz.tbi'.format(tag)] = job.fileStore.writeGlobalFile(tbi_path)
 
     # make the filtered vcf
     if max_ref_allele:
@@ -594,9 +612,16 @@ def make_vcf(job, config, out_name, vcf_ref, index_dict, tag='', max_ref_allele=
         cactus_call(parameters=[['vcfbub', '--input', vcf_path, '--max-ref-length', str(max_ref_allele), '--max-level', '0'],
                                 ['bgzip', '--threads', str(job.cores)]],
                 outfile=vcfbub_path)
-        cactus_call(parameters=['tabix', '-p', 'vcf', vcfbub_path])
+        try:
+            cactus_call(parameters=['tabix', '-p', 'vcf', vcfbub_path])
+            tbi_path = vcfbub_path + '.tbi'
+        except Exception as e:
+            # todo: better support for larger chromosomes
+            RealtimeLogger.warning('WARNING: tabix failed on VCF with this error {}'.format(str(e)))
+            tbi_path = None            
         output_dict['{}vcf.gz'.format(tag)] = job.fileStore.writeGlobalFile(vcfbub_path)
-        output_dict['{}vcf.gz.tbi'.format(tag)] = job.fileStore.writeGlobalFile(vcfbub_path + '.tbi')
+        if tbi_path:
+            output_dict['{}vcf.gz.tbi'.format(tag)] = job.fileStore.writeGlobalFile(vcfbub_path + '.tbi')
 
     return output_dict
     

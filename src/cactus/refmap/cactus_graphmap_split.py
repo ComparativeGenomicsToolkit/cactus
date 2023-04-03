@@ -51,6 +51,7 @@ def main():
     parser.add_argument("--reference", type=str, help = "Name of reference (in seqFile).  Ambiguity filters will not be applied to it")
     parser.add_argument("--maskFilter", type=int, help = "Ignore softmasked sequence intervals > Nbp")
     parser.add_argument("--minIdentity", type=float, help = "Ignore PAF lines with identity (column 10/11) < this (overrides minIdentity in <graphmap_split> in config)")
+    parser.add_argument("--permissiveContigFilter", nargs='?', const='0.25', default=None, type=float, help = "If specified, override the configuration to accept contigs so long as they have at least given fraction of coverage (0.25 if no fraction specified). This can increase sensitivity of very small, fragmented and/or diverse assemblies.")
     
     #Progressive Cactus Options
     parser.add_argument("--configFile", dest="configFile",
@@ -95,16 +96,12 @@ def cactus_graphmap_split(options):
         config = ConfigWrapper(config_node)
         config.substituteAllPredefinedConstantsWithLiterals()
 
-        #override the minIdentity
-        if options.minIdentity is not None:
-            findRequiredNode(config_node, "graphmap").attrib["minIdentity"] = str(options.minIdentity)
-
         #Run the workflow
         if options.restart:
             wf_output = toil.restart()
         else:
             options.cactusDir = getTempDirectory()
-
+            
             # load up the contigs if any
             ref_contigs = set(options.refContigs)
             # todo: use import?
@@ -167,18 +164,33 @@ def cactus_graphmap_split(options):
         #export the split data
         export_split_data(toil, wf_output[0], wf_output[1], wf_output[2], wf_output[3], options.outDir, config)
 
-def graphmap_split_workflow(job, options, config, seq_id_map, seq_name_map, gfa_id, gfa_path, paf_id, paf_path, ref_contigs, other_contig):
+def graphmap_split_workflow(job, options, config, seq_id_map, seq_name_map, gfa_id, gfa_path, paf_id, paf_path, ref_contigs, other_contig, sanitize=True):
 
     root_job = Job()
     job.addChild(root_job)
 
+    #override the minIdentity
+    if options.minIdentity is not None:
+        findRequiredNode(config.xmlRoot, "graphmap").attrib["minIdentity"] = str(options.minIdentity)
+
+    #override the contig filter parameters with a single value taken from this option
+    #also, disabling the uniqueness threshold
+    if options.permissiveContigFilter is not None:
+        findRequiredNode(config.xmlRoot, "graphmap_split").attrib["minQueryCoverages"] = str(options.permissiveContigFilter)
+        findRequiredNode(config.xmlRoot, "graphmap_split").attrib["minQueryCoverageThresholds"] = ""
+        findRequiredNode(config.xmlRoot, "graphmap_split").attrib["minQueryUniqueness"] = "1"
+    
     # get the sizes before we overwrite below
     gfa_size = gfa_id.size
     paf_size = paf_id.size
 
     # fix up the headers
-    sanitize_job = root_job.addChildJobFn(sanitize_fasta_headers, seq_id_map)
-    seq_id_map = sanitize_job.rv()
+    if sanitize:
+        sanitize_job = root_job.addChildJobFn(sanitize_fasta_headers, seq_id_map, pangenome=True)
+        seq_id_map = sanitize_job.rv()
+    else:
+        sanitize_job = Job()
+        root_job.addChild(sanitize_job)
     
     # use file extension to sniff out compressed input
     if gfa_path.endswith(".gz"):
@@ -539,7 +551,7 @@ def export_split_data(toil, input_name_map, output_id_map, split_log_id, contig_
 
     # export the sizes
     contig_size_table_path = os.path.join(output_dir, 'contig_sizes.tsv')
-    toil.exportFile(contig_size_table_id, contig_size_table_path)
+    toil.exportFile(contig_size_table_id, makeURL(contig_size_table_path))
 
     # export the log
     toil.exportFile(split_log_id, makeURL(os.path.join(output_dir, 'minigraph.split.log')))

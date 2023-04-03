@@ -21,34 +21,12 @@ Some pangenomes constructed with Minigraph-Cactus, along with all material to re
 
 ## Quick-Start
 
-Set up an output directory, and copy over the example seqfile (as it will be modified)
-```
-mkdir -p primates-pg
-cp examples/evolverPrimates.txt primates-pg/evolverPrimates.pg.txt
-```
+The Mingraph-Cactus pipeline is run with `cactus-pangenome`. Its input is a text file with two columns, separated by whitespace, denoting sample name and fasta URL, respectively. All output is written to a directory specified with `--outDir`. All output filenames are prefixed with the value of `--outName`.
 
-Make the SV graph with `minigraph`
-```
-cactus-minigraph ./jobstore primates-pg/evolverPrimates.pg.txt primates-pg/primates.sv.gfa.gz  \
---reference simChimp
-```
+Begin by making a pangenome for tiny simulated primates:
 
-Make the assembly-to-graph alignments with `minigraph`
 ```
-cactus-graphmap ./jobstore primates-pg/evolverPrimates.pg.txt primates-pg/primates.sv.gfa.gz primates-pg/primates.paf \
---reference simChimp --outputFasta primates-pg/primates.sv.gfa.fa.gz
-```
-
-Create the Cactus base alignment and "raw" pangenome graph
-```
-cactus-align ./jobstore primates-pg/evolverPrimates.pg.txt primates-pg/primates.paf primates-pg/primates.hal \
---pangenome --outVG --reference simChimp 
-```
-
-Create and index the final pangenome graph and produce VCF files and vg-giraffe indexes. 
-```
-cactus-graphmap-join ./jobstore --vg primates-pg/primates.vg --outDir ./primates-pg --outName primates-pg \
---reference simChimp --vcf --giraffe
+cactus-pangenome ./js ./examples/evolverPrimates.txt --outDir primates-pg --outName primates-pg --reference simChimp --vcf --giraffe --gfa --gbz
 ```
 
 If it worked properly, the input sequences should show up as contigs in the GFA:
@@ -92,12 +70,20 @@ Unlike Progressive Cactus, Minigraph-Cactus does depend on a predetermined refer
 
 ## Interface
 
+To run the Minigraph-Cactus pangenome pipeline, the basic format is:
+
+```
+cactus-pangenome <jobStorePath> <seqFile> --outDir <output directory> --outName <output file prefix> --reference <reference sample name>
+```
+
+The `jobStorePath` is where intermediate files, as well as job metadata, [will be kept by Toil](https://toil.readthedocs.io/en/latest/running/introduction.html#job-store). **It must be accessible to all worker systems.** 
+
+
+The `seqFile` is a two-column  mapping sample names to fasta paths (gzipped fastas are supported). The seqfile is the same as Progressive Cactus, except a tree is not specified.
+
 ### Sample Names
 
-The input is a two-column `seqFile` mapping sample names to fasta paths (gzipped fastas are supported). The seqfile is the same as Progressive Cactus, except a tree is not specified.  Cactus may add a star-tree to this file, but it can be ignored.
-
-
-**A naming convention must be followed for sample names**: The "." character is used to specify haplotype, and should be avoided in sample names unless it is being used that way.  For haploid samples, just don't use a "`.`".  For diploid or polyploid samples, use the form `SAMPLE.HAPLOTYPE` where `HAPLOTYPE` is `1` or `2` for a diploid sample etc:
+**A naming convention must be followed for sample names where "." characters have special meaning**: The "." character is used to specify haplotype, and should be avoided in sample names unless it is being used that way.  For haploid samples, just don't use a "`.`".  For diploid or polyploid samples, use the form `SAMPLE.HAPLOTYPE` where `HAPLOTYPE` is `1` or `2` for a diploid sample etc:
 
 ```
 # Diploid sample:
@@ -108,17 +94,30 @@ HG002.2  ./HG002.maternal.fa
 CHM13  ./chm13.fa
 ```
 
-### Contig Names
-
-Contig names in the input FASTA files should not contain `#` characters.  If they do, you must strip them out before running.  This can be done with `cactus-preprocess`.  For example
-
-```
-cactus-prepare ./seqfile --outDir pp --seqFileOnly
-cactus-preprocess ./seqfile pp/seqfile --pangenome
-```
-then work with `pp/seqfile` for the remaining commands. 
-
 ### Pipeline
+
+The Minigraph-Cactus pipeline is run via the `cactus-pangenome` command. It consists of five stages which can also be run individually (below). `cactus-pangenome` writes output files into `--outDir` at the end of each stage. So different stages can be rerun with if necessary using the lower-level commands.
+
+**Before running large jobs, it is important to consider the following options:**
+
+* `--mapCores` the number of cores for each `minigraph` job (default: up to 6)
+* `--consCores` the number of cores for each `cactus-consolidated` job (default: all available)
+* `--indexCores` the number of cores for each `vg` indexing job (default: 1)
+* The various output options: `--gbz`, `--gfa`, `--giraffe`, `--vcf` which are explained in detail below. If you forget to add one of these and are missing the corresponding output, you will need to rerun `cactus-graphmap-join` (or use `vg` to manually make the file yourself).
+
+Reducing `--consCores` will allow more chromosomes to be aligned at once, requiring more memory. VCF export for very large graphs will take a long time unless `--indexCores` is set high, but `--indexCores` should still be at least 1 lower than all cores available to allow some parallelism. 
+
+**PLEASE NOTE** While many Minigraph-Cactus parameters' default values were tuned on high-quality human assemblies from the HPRC where ample benchmarking data was available, we believe they will be suitable for other datasets and species, so long as the contigs can be mapped with [minigraph](https://github.com/lh3/minigraph). By default, [small contigs are filtered out](https://github.com/ComparativeGenomicsToolkit/cactus/blob/v2.4.4/src/cactus/cactus_progressive_config.xml#L319-L335) during chromosome assignment using more stringent thresholds. This might lead to a surprisingly low sensitivity on small, fragmented, diverse assemblies or difficult-to-assemble regions. Users wishing to *keep* these contigs in their graph can use the following option:
+
+* `--permissiveContigFilter`
+
+The application and impact of this option is demonstrated in the explanation of the Yeast pangenome example below.
+
+**Important** The reference genome assembly must be chromosome scale. If your reference assembly also consists of many small fragments (ex GRCh38) then you must use the `--refContigs` option to specify the chromosomes.  Ex for GRCh38 `--refContigs $(for i in `seq 22`; do echo chr$i; done ; echo "chrX chrY chrM")`.  If you want to include the remaining reference contig fragments in your graph, add the `--otherContig chrOther` option.
+
+**Also Important** We do not yet support the *alternate* loci from GRCh38, ex the various HLA contigs.  They must be excluded from the input fasta file to get sane results. They can be included in the graph by providing a separate sample / fasta pair in the input for each contig.  We are very interested in streamlining support for this in a future release.
+
+The individual parts of the pipeline can be run independently using the following commands.  See also the "step-by-step" yeast example below. 
 
 1) `cactus-minigraph <jobStore> <seqFile> <outputGFA> --reference`: Construct a minigraph in GFA format (may be gzipped) from a set of FASTA files (may also be gzipped).  This is a very thin wrapper over `minigraph -cxggs`.  The reference is added first and the remainder of samples are added in decreasing order of decreasing mash distance to the reference (see the `minigraphSortInput` parameter in the XML config to change or disable this).  Use the `--mapCores` option to specify the number of cores.
 
@@ -126,13 +125,13 @@ then work with `pp/seqfile` for the remaining commands.
 
 3) **(Optional)** `cactus-graphmap-split <jobStore> <seqFile> <inputGFA> <inputPAF> --reference --outDir`: Split the input assemblies and PAF into chromosomes using the rGFA tags in the GFA. Doing so reduces the memory requirements in the following steps.  It assigns each contig to a single chromosome according to the alignment in the input PAF, so all inter-chromosomal events will be filtered out.  Contigs that can't be assigned to a chromosome are deemed "ambiguous" and not considered in later steps.
 
-4) `cactus-align <jobStore> <seqFile> <inputPAF> <outHal> --reference --pangenome --outVG --maxLen`: Compute the Cactus multiple genome alignment from the assembly-to-graph minigraph mappings. The `--maxLen` parameter specifies the maximum gap between minigraph mappings that Cactus will attempt to fill at once, and is recommended to be set to 10000.  If `cactus-graphmap-split` was used, the `cactus-align-batch` interface should be used instead (see examples below).
+4) `cactus-align <jobStore> <seqFile> <inputPAF> <outHal> --reference --pangenome --outVG --maxLen`: Compute the Cactus multiple genome alignment from the assembly-to-graph minigraph mappings. The `--maxLen` parameter specifies the maximum gap between minigraph mappings that Cactus will attempt to fill at once, and is recommended to be set to 10000.  If `cactus-graphmap-split` was used, the `cactus-align` `--batch` interface should be used instead (on the chromfile.txt output rather than seqfile.txt) (see examples below).
 
 5) `cactus-graphmap-join <jobStore>  --vg --outDir --outName --reference`: Produce the final graph and indexes. This should be run whether or not `cactus-graphmap-split` was used.
 
 ### Clipping, Filtering and Indexing
 
-`cactus-graphmap-join` merges chromosome graphs created by `cactus-align-batch`, and also normalizes, clips and filters the graph in addition to producing some useful indexes.  It can produce up to three graphs (now in a single invocation), and a variety of indexes for any combination of them. The three graphs are the
+`cactus-pangenome` (options also available in `cactus-graphmap-join`) normalizes, clips and filters the graph in addition to producing some useful indexes.  It can produce up to three graphs (now in a single invocation), and a variety of indexes for any combination of them. The three graphs are the
 
 * `full` graph: This graph is normalized, but no sequence is removed. It and its indexes will have `.full` in their filenames. 
 * `clip` graph: This is the default graph. Stretches of sequence `>10kb` that were not aligned to the underlying SV/minigraph are removed. "Dangling" nodes (ie that don't have an edge on each side) that aren't on the reference path are also removed, so that each chromosome only has two tips in the graph.
@@ -140,7 +139,7 @@ then work with `pp/seqfile` for the remaining commands.
 
 The `clip` graph is a subgraph of the `full` graph and the `filter` graph is a subgraph of the `clip` graph. Put another way, any node in the `filter` graph exists with the exact same ID and sequence in the `clip` graph, etc. 
 
-The different graphs have different uses. For instance, the current version of `vg giraffe` performs best on the filtered graph (this will hopefully be soon remedied in an update to vg).  For the HPRC v1.0 graph and paper, we used `d9`. When you pass `--giraffe` to `cactus-graphmap-join`, it will make the giraffe indexes on the filtered graph by default.  But you can override this behaviour to produces the indexes for any of the graphs by passing in any combination of [`full`, `clip` and `filter`] to the `--giraffe` options. For example:
+The different graphs have different uses. For instance, the current version of `vg giraffe` performs best on the filtered graph (this will hopefully be soon remedied in an update to vg).  For the HPRC v1.0 graph and paper, we used `d9`. When you use `--giraffe`, it will make the giraffe indexes on the filtered graph by default.  But you can override this behaviour to produces the indexes for any of the graphs by passing in any combination of [`full`, `clip` and `filter`] to the `--giraffe` options. For example:
 
 `--giraffe`: Make the giraffe indexes for the filtered graph (default choice).
 
@@ -155,10 +154,6 @@ Note that by default, only GFA is output, so the above options need to be used t
 Different clipping and filtering thresholds can be specified using the `--clip` and `--filter` options, respectively. For larger graphs, you probably want to use `--filter N` where `N` represents about 10% of the haplotypes.  It is indeed a shame to remove rarer variants before mapping, but is a necessity to get the best performance out of (the current version) of `vg giraffe`.  
 
 The `--vcf` option will produce two VCFs for each selected graph type. One VCF is a "raw" VCF which contains nested variants, indicated by the `LV` and `PS` tags. The second VCF is one that has gone through [vcfbub](https://github.com/pangenome/vcfbub) to remove nested sites, as well as those greater than 100kb.  Unless you want to explicitly handle nested variants, you are probably best to use the `vcfbub` VCF.  Switch off `vcfbub` with `--vcfbub 0` or specify a different threshold with `--vcfbub N`.
-
-If you want to use the HAL output, `cactus-graphmap-join` can also merge HAL chromosomes from `cactus-align-batch` with the `--hal` option.  These will never be filtered or otherwise processed.
-
-When merging hal files with `--hal`, it is best to set `--indexCores` such that one core is free for hal merging.  So on a 32-core system, use `--indexCores 31`.  This way the slower indexing jobs can be done in parallel with the also slow hal merging (which itself is single-core).
 
 ### Output
 
@@ -199,6 +194,12 @@ If you are running `vg call` or `vg deconstruct` on the GBZ yourself, the output
 ## Yeast Graph
 
 This is a small test case whose input data is included in cactus that illustrates how to split by chromosome. 
+
+```
+cactus-pangenome ./js ./examples/yeastPangenome.txt --reference S288C --outDir yeast-pg --outName yeast-pg --vcf --giraffe
+```
+
+All the output will be written to `./yeast-pg` as it is computed and is described below in the context of the equivalent lower-level commands that could be used to compute the same pangenome.
 
 ### Yeast: Getting Started
 
@@ -281,32 +282,26 @@ Query contig is ambiguous: id=UWOPS034614|chrX  len=1092164 cov=0.49082 (vs 0.25
   chrXIII: 536056
 
 ```
+This log shows that these contigs were omitted because they could not be confidently mapped (presumably due to an inter-chromosomal event) to a single reference chromosome. These filters can be turned down with the `--permissiveContigFilter` option (other either `cactus-graphmap-split` or `cactus-pangenome`).  Using that here will assign all UWOPS034614 contigs to the reference chromosome they best align to. For example, `UWOPS034614|chrXI` would end up in the graph for `chrXI` and the approximately 40% of the contig that better aligns to `chrVII` would most likely end up unaligned and removed in postprocessing. The exact thresholds are explained, and can be adjusted in, the `<graphmap-split>` section of the [cactus config](../src/cactus/cactus_progressive_config.xml).
 
-It is saying that not enough bases in these contigs aligned to a single reference chromosome, given the 50% threshold and 2X uniqueness factor.  These thresholds are explained, and can be adjusted in, the `<graphmap-split>` section of the [cactus config](../src/cactus/cactus_progressive_config.xml).
-
-The sequence-to-graph PAF files can be refined by adding the `--base` option to `cactus-graphmap`.  This can often improve the accuracy of `cactus-graphmap-split`.  This option will be used in the HPRC example below. 
 
 ### Yeast: Batch Aligning the Chromosomes
 
-`cactus-align` can be run individually on each chromosome using the seqFiles created above.  This can be automated using the `cactus-align-batch` script, which takes as input a "chromFile", which is just a list of seqFiles and PAFs.  Such a chromFile was generated by `cactus-graphmap-split` above.
-
-The options we would normally pass directly to `cactus-align` must be quoted and passed via `--alignOptions` here:
+`cactus-align` can be run individually on each chromosome using the seqFiles created above by way of the `--batch` option.  When this is used, the input is expected to be the "chromfile" created by `cactus-graphmap-split` rather than the usual seqfile. Also, its output parameter is interpreted as an output directory, rather than an output HAL file. 
 
 ```
-cactus-align-batch ./jobstore ./yeast-pg/chroms/chromfile.txt yeast-pg/chrom-alignments \
---alignOptions "--pangenome --reference S288C --outVG " 
+cactus-align ./jobstore ./yeast-pg/chroms/chromfile.txt yeast-pg/chrom-alignments \
+--batch --pangenome --reference S288C --outVG 
 ```
 
-The results are a HAL and VG file, along with a `cactus-align` log, for each chromosome:
+The results are a HAL and VG file for each chromosome:
 ```
 ls -hs yeast-pg/chrom-alignments/
-total 67M
- 844K chrI.hal        1012K chrIII.vg       1.6M chrIX.hal       8.0K chrVI.hal.log     2.2M chrVII.vg      4.0K chrXI.hal.log     2.9M chrXII.vg        3.5M chrXV.hal
- 8.0K chrI.hal.log     1.9M chrII.vg        8.0K chrIX.hal.log   3.0M chrVII.hal        948K chrVI.vg       3.3M chrXII.hal        1.3M chrXI.vg         8.0K chrXV.hal.log
- 2.6M chrII.hal        748K chrI.vg         1.4M chrIX.vg        4.0K chrVII.hal.log    1.5M chrV.vg        8.0K chrXII.hal.log    2.6M chrXIV.hal       3.0M chrXVI.hal
- 8.0K chrII.hal.log    4.9M chrIV.hal       1.9M chrV.hal        1.6M chrVIII.hal       2.1M chrX.hal       2.5M chrXIII.hal       8.0K chrXIV.hal.log   8.0K chrXVI.hal.log
- 1.2M chrIII.hal       8.0K chrIV.hal.log   8.0K chrV.hal.log    4.0K chrVIII.hal.log   4.0K chrX.hal.log   4.0K chrXIII.hal.log   2.2M chrXIV.vg        2.3M chrXVI.vg
- 8.0K chrIII.hal.log   4.0M chrIV.vg        1.1M chrVI.hal       1.2M chrVIII.vg        1.9M chrXI.hal      1.7M chrXIII.vg        1.7M chrX.vg          2.7M chrXV.vg
+total 72M
+920K chrI.hal    2.1M chrII.vg   1.6M chrIX.hal  3.1M chrVII.hal   1.2M chrVI.vg   3.5M chrXII.hal   1.4M chrXI.vg    3.6M chrXV.hal
+2.7M chrII.hal   1.3M chrI.vg    1.7M chrIX.vg   1.6M chrVIII.hal  1.6M chrV.vg    2.9M chrXIII.hal  2.7M chrXIV.hal  3.2M chrXVI.hal
+1.3M chrIII.hal  5.1M chrIV.hal  2.0M chrV.hal   1.3M chrVIII.vg   2.1M chrX.hal   2.2M chrXIII.vg   2.4M chrXIV.vg   2.5M chrXVI.vg
+1.3M chrIII.vg   4.4M chrIV.vg   1.1M chrVI.hal  2.4M chrVII.vg    2.0M chrXI.hal  3.1M chrXII.vg    1.7M chrX.vg     3.1M chrXV.vg
 ```
 
 ### Yeast: Joining the Chromosome Alignments
@@ -376,15 +371,16 @@ hal2assemblyHub.py ./jobstore ./yeast-pg/yeast-pg.full.hal yeast-pg/hub --shortL
 Move `yeast-pg/hub` to somewhere web-accessible, and pass the full URL of `yeast-pg/hub/hub.txt` to the Genome Browser in the "My Data -> Track Hubs" menu.   Select `S288C` as the reference and display the hub.  Right-click on the display and select "Configure yeast track set" to toggle on all the assemblies (and toggle off Anc0 and _MINIGRAPH_).
 
 ## HPRC Graph
+
 The [Human Pangenome Reference Consortium](https://humanpangenome.org/data-and-resources/) is producing an ever-growing number of high quality phased assemblies.  This section will demonstrate how to use the Minigraph-Cactus Pangenome Pipeline to construct a Pangenome from them.  Note the instructions here are slightly different than were used to create the v1.0 Minigraph-Cactus pangenome that's been released by the HPRC, as they are based on a more recent and improved version of the pipeline. 
 
 The steps below are run on AWS/S3, and assume everything is written to s3://MYBUCKET. All jobs are run on r5.8xlarge (32 cores / 256G RAM) nodes. In theory, the entire pipeline could therefore be run on a single machine (ideally with 64 cores).  It would take several days though. They can be run on other batch systems, at least in theory.  Most of the compute-heavy tasks spawn relatively few jobs, and may be amenable to SLURM environments.
 
 The following environment variables must be defined: `MYBUCKET` and `MYJOBSTORE`. All output will be placed in `MYBUCKET`, and `MYJOBSTORE` will be used by TOIL for temporary storage.  For example
 ```
-export MYBUCKET=s3://vg-k8s/vgamb/wg/cactus/GRCh38-f1g-90/may4
-export MYJOBSTORE=aws:us-west-2:cactus-hprc-jobstore
 export VERSION=may4
+export MYBUCKET=s3://vg-k8s/vgamb/wg/cactus/GRCh38-f1g-90/${VERSION}
+export MYJOBSTORE=aws:us-west-2:cactus-hprc-jobstore
 export MINIGRAPH=https://zenodo.org/record/6499594/files/GRCh38-90c.r518.gfa.gz
 ```
 
@@ -434,32 +430,24 @@ HG00438.1       https://s3-us-west-2.amazonaws.com/human-pangenomics/working/HPR
 HG00438.2       https://s3-us-west-2.amazonaws.com/human-pangenomics/working/HPRC/HG00438/assemblies/year1_f1_assembly_v2_genbank/HG00438.maternal.f1_assembly_v2_genbank.fa.gz
 ```
 
-The names in these fasta files are for the form `chr1, chr2, etc` in CHM13 and GRCh38, and 
+### HPRC Graph: Running all at once
 
+The new (as of v2.5.0) `cactus-pangenome` interface can create the pangenome from the seqfile created above in one command.  To run locally (recommended 64 cores, 512Gb RAM, 3Tb disk in current directory):
 ```
-SAMPLE#HAPLTOYPE#CONTIG
-```
-
-in the other samples.  The "#" symbols cannot be displayed in the UCSC Genome Browser, so it is recommended to stick to the conventions described above: where the fasta contig names are just the `CONTIG`, and the genome name is `SAMPLE.HAPLOTYPE`. Sequence names of the form `SAMPLE#HAPLOTYPE#CONTIG` will be replaced by default with `id=GENOME|CONTIG` by default by `cactus-preprocess --pangenome`.  
-
-We first setup a place for the renamed fasta files using `cactus-prepare` to generate a new seqfile, hprc-pg/hprc-${VERSION}-mc.seqfile
-```
-cactus-prepare ./hprc-${VERSION}-mc.seqfile --outDir hprc-pg --seqFileOnly
-# when running on AWS, data needs to be in S3
-sed hprc-pg/hprc-${VERSION}-mc.seqfile -e "s%hprc-pg%${MYBUCKET}/fasta%g" | grep -v ';' > hprc-${VERSION}-mc.pp.seqfile
-
-# save them
-aws s3 cp hprc-${VERSION}-mc.seqfile ${MYBUCKET}/
-aws s3 cp hprc-${VERSION}-mc.pp.seqfile ${MYBUCKET}/
-
-# finally, we run cactus-preprocess --pangenome
-cactus-preprocess ${MYJOBSTORE} hprc-${VERSION}-mc.seqfile hprc-${VERSION}-mc.pp.seqfile --pangenome \
---batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.8xlarge --nodeStorage 500 \
---maxNodes 2 --logFile hprc-${VERSION}-mc-grch38.pp.log
-
+mkdir -p work
+cactus-pangenome ./js hprc-${VERSION}-mc.seqfile --outDir ./hprc-${VERSION} --outName hprc-${VERSION}-mc-grch38 --gbz --giraffe --vcf --chrom-vg --maxCores 64 --indexCores 32 --mapCores 8 --alignCores 16 --workDir work
 ```
 
-### HPRC Graph: Mapping to the Graph
+To run on a Mesos cluster on AWS (initialized as described [here](./running-in-aws.md), the command is the same as above except buckets (defined in variables above) are specified for the `jobstore` and `outDir`, and a few Toil options are provided to select instance types:
+```
+cactus-pangenome ${MYJOBSTORE} hprc-${VERSION}-mc.seqfile --outDir ${MYBUCKET} --outName hprc-${VERSION}-mc-grch38 --gbz --giraffe --vcf --chrom-vg --maxCores 64 --indexCores 64 --mapCores 8 --alignCores 16 --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.8xlarge:1.25,r5.16xlarge --nodeStorage 500
+```
+
+## HPRC Graph: Running step by step
+
+(This was the only way to run the pipeline prior to v2.5.0)
+
+### HPRC Graph (step by step): Mapping to the Graph
 
 Note: since there is already a minigraph available for this data, we just use it instead of constructing it ourselves. See the previous examples for how to construct a minigraph with `cactus-minigraph`.
 
@@ -468,7 +456,7 @@ Now that the sequences are ready, we run `cactus-graphmap` as before.  There is 
 `--delFilter N` : Filter out mappings that would induce a deletion bubble of `>N` bases w.r.t. a path in the reference.  If this option is used, the unfiltered paf will also be output (with a `.unfiltered` suffix) as well as a log detailing what was filtered and why (`.filter.log` suffix).  This option is very important as minigraph will produce a small number of split-mappings that can cause chromosome-scale bubbles.  By default, it is set to 1000000.
 
 ```
-cactus-graphmap ${MYJOBSTORE} hprc-${VERSION}-mc.pp.seqfile ${MINIGRAPH} ${MYBUCKET}/hprc-${VERSION}-mc-grch38.paf \
+cactus-graphmap ${MYJOBSTORE} hprc-${VERSION}-mc.seqfile ${MINIGRAPH} ${MYBUCKET}/hprc-${VERSION}-mc-grch38.paf \
 --outputGAFDir ${MYBUCKET}/gaf-hprc-${VERSION}-mc-grch38 --outputFasta ${MYBUCKET}/fasta/minigraph.grch38.sv.gfa.fa.gz \
 --reference GRCh38 --mapCores 16 --delFilter 10000000  --batchSystem mesos --provisioner aws --defaultPreemptable \
 --nodeType r5.8xlarge:1.5 --nodeStorage 650 --maxNodes 25 --betaInertia 0 --targetTime 1 \
@@ -479,19 +467,19 @@ Note:  The `--betaInertia 0 --targetTime 1` options force Toil to create AWS ins
 
 This command uses the spot market by specifying `:1.35` after the node type to bid $1.35/hr (on-demand pricing at time of writing is about $2.00).
 
-### HPRC Graph: Splitting by Chromosome
+### HPRC Graph (step-by-step): Splitting by Chromosome
 
 There are too many reference contigs to make a graph for each because of all the unplaced contigs in GRCh38.  Ideally, we would drop them but it simplifies some downstream pipelines that use tools that expect them to be in BAM headers etc. to just include them in the graph.  To do this, we use the `--otherContig` option to lump them all into a single job, and `--refContigs` to spell out all the contigs we want to treat separately.  Note that the final output will be the same whether or not `--otherContig` is used. This option serves only to reduce the number of output files (and therefore alignment jobs). 
 
 ```
-cactus-graphmap-split ${MYJOBSTORE}  hprc-${VERSION}-mc.pp.seqfile ${MINIGRAPH} \
+cactus-graphmap-split ${MYJOBSTORE}  hprc-${VERSION}-mc.seqfile ${MINIGRAPH} \
 ${MYBUCKET}/hprc-${VERSION}-mc-grch38.paf --outDir ${MYBUCKET}/chroms-hprc-${VERSION}-mc-grch38 \
 --otherContig chrOther --refContigs $(for i in `seq 22`; do echo chr$i; done ; echo "chrX chrY chrM") \
 --reference GRCh38  --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.8xlarge \
 --nodeStorage 1000 --maxNodes 5 --betaInertia 0 --targetTime 1 --logFile hprc-${VERSION}-mc-grch38.split.log
 ```
 
-### HPRC Graph: Batch Alignment
+### HPRC Graph (step-by-step): Batch Alignment
 
 The rest of the pipeline is proceeds as in the yeast example. We need to manually download the chromfile though.  We also use a new option
 
@@ -501,8 +489,8 @@ This command will create a vg and hal file for each chromosome in ${MYBUCKET}/al
 ```
 
 aws s3 cp ${MYBUCKET}/chroms-hprc-${VERSION}-mc-grch38/chromfile.txt .
-cactus-align-batch ${MYJOBSTORE} ./chromfile.txt ${MYBUCKET}/align-hprc-${VERSION}-mc-grch38 \
---alignCores 16  --alignOptions "--pangenome --maxLen 10000 --reference GRCh38   --outVG" \
+cactus-align --batch ${MYJOBSTORE} ./chromfile.txt ${MYBUCKET}/align-hprc-${VERSION}-mc-grch38 \
+--alignCores 16  --pangenome --maxLen 10000 --reference GRCh38 --outVG \
 --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.8xlarge:1.5 --nodeStorage 1000 \
 --maxNodes 20 --betaInertia 0 --targetTime 1 --logFile hprc-${VERSION}-mc-grch38.align.log
 ```
@@ -552,9 +540,9 @@ Softmasked input sequence can be ignored by using the `--maskFilter 100000` opti
 
 Softmasked input sequence can (and should) be ignored when computing coverage in order to assign contigs to reference chromosomes.  This is done with `--maskFilter 100000`
 
-**cactus-align-batch**
+**cactus-align**
 
-Softmasked input can be ignored (and forced to stay unaligned) with the `--barMaskFilter 100000` option to `cactus-align`, or by including it in the `cactus-align-batch --alignOptions "--barMaskFilter 100000"`
+Softmasked input can be ignored (and forced to stay unaligned) with the `--barMaskFilter 100000` option to `cactus-align`.
 
 ### HPRC Version 1.0 Graphs
 
@@ -605,7 +593,7 @@ A: As mentioned [above](#output), you can use `vg convert -gfW` to convert from 
 
 Q: I hate the idea of clipping and filtering sequence from my graph.  Why do I have to do it?!
 
-A: So current toolchains can work with your graphs.  But clipping and filtering is optional in `cactus-graphmap-join`, just specify `full` for the various outputs (keeping in mind that much satellite sequence won't be aligned to anything).
+A: So current toolchains can work with your graphs.  But clipping and filtering is optional in `cactus-pangenome` (and `cactus-graphmap-join`), just specify `full` for the various outputs (keeping in mind that much satellite sequence won't be aligned to anything).
 
 **Q**: I get an error to the effect of `ERROR: No matching distribution found for toil[aws]==xxxx` when trying to install Toil.
 
@@ -614,7 +602,7 @@ A: So current toolchains can work with your graphs.  But clipping and filtering 
 
 **Q**: `cactus-align-batch` spawns too many `cactus-align` jobs and runs out of memory. How do I fix this?
 
-**A**: You can control the number of jobs with `--alignCores` and `--maxCores` which set the cores per align job and total cores, respectively.  So to only do two align jobs at a time using 8 cores total, you can set `--alignCores 4 --maxCores 8`.
+**A**: You can control the number of jobs with `--alignCores` and `--maxCores` which set the cores per align job and total cores, respectively.  So to only do two align jobs at a time using 8 cores total, you can set `--alignCores 4 --maxCores 8`. **Update**: `cactus-align-batch` is now deprecated -- use `cactus-align --batch` instead and control the number of jobs with `--consCores`, just like in progressive cactus.
 
 **Q**: The node IDs referred to in the output VCF don't match the GBZ!
 

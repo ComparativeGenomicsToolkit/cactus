@@ -34,18 +34,26 @@ def checkUniqueHeaders(inputFile, outputFile, eventName, checkAlphaNumeric=False
         SeqIO.write(seq_record, outputFile, 'fasta')
 
     
-def sanitize_fasta_headers(job, fasta_id_map):
+def sanitize_fasta_headers(job, fasta_id_map, pangenome=False):
     """ input must be map of event -> fasta id"""
     out_fasta_id_map = {}
     for event, fasta_id in fasta_id_map.items():
-        out_fasta_id_map[event] = job.addChildJobFn(sanitize_fasta_header, fasta_id, event,
+        out_fasta_id_map[event] = job.addChildJobFn(sanitize_fasta_header, fasta_id, event, pangenome,
                                                     disk=fasta_id.size*7).rv()
     return out_fasta_id_map
 
-def sanitize_fasta_header(job, fasta_id, event):
+def sanitize_fasta_header(job, fasta_id, event, pangenome):
     """ run the fasta through cactus_sanitizeFastaHeaders and ungzip if necessary.
     This doesn't do the full check above (though it could), but will catch serious errors as well as
-    make sure everything has a id=EVENT| prefix """
+    make sure everything has a id=EVENT| prefix
+
+    if pangenome is set to true, it will strip everything up to and including last #
+    so HG002#0#chr2 would get changed to just chr2 (and then id=HG002| would be prefixed as above)
+
+    this keeps redundant information out of the sequence names, otherwise it can be duplicated
+    in the final output.  it also keeps # symbols out of sequence names which can still be
+    and issue for, say, hal2assmblyhub.py
+    """
     
     work_dir = job.fileStore.getLocalTempDir()
     in_fa_path = os.path.join(work_dir, '{}.fa'.format(event))
@@ -54,10 +62,11 @@ def sanitize_fasta_header(job, fasta_id, event):
     with open(in_fa_path, 'rb') as in_fa_file:
         # https://stackoverflow.com/questions/3703276/how-to-tell-if-a-file-is-gzip-compressed
         is_gzipped = in_fa_file.read(2) == b'\x1f\x8b'
+    pg_opts = ['-p'] if pangenome else []
     if is_gzipped:
-        cmd = [['gzip', '-dc', in_fa_path], ['cactus_sanitizeFastaHeaders', '-', event]]
+        cmd = [['gzip', '-dc', in_fa_path], ['cactus_sanitizeFastaHeaders', '-', event] + pg_opts]
     else:
-        cmd = ['cactus_sanitizeFastaHeaders', in_fa_path, event]
+        cmd = ['cactus_sanitizeFastaHeaders', in_fa_path, event] + pg_opts
     cactus_call(parameters=cmd, outfile=out_fa_path)    
     job.fileStore.deleteGlobalFile(fasta_id)
     return job.fileStore.writeGlobalFile(out_fa_path)
