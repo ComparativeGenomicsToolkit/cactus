@@ -1,0 +1,4 @@
+RS-LIC_NZ_Jersey.0	https://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/021/234/555/GCA_021234555.1_ARS-LIC_NZ_Jersey/GCA_021234555.1_ARS-LIC_NZ_Jersey_genomic.fna.gz
+ROSLIN_BTI_ANK1.0	https://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/905/123/885/GCA_905123885.1_ROSLIN_BTI_ANK1/GCA_905123885.1_ROSLIN_BTI_ANK1_genomic.fna.gz
+ROSLIN_BTT_NDA1.0	https://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/905/123/515/GCA_905123515.1_ROSLIN_BTT_NDA1/GCA_905123515.1_ROSLIN_BTT_NDA1_genomic.fna.gz
+ARS-LIC_NZ_Holstein-Friesian_1.0	https://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/021/347/905/GCA_021347905.1_ARS-LIC_NZ_Holstein-Friesian_1/GCA_021347905.1_ARS-LIC_NZ_Holstein-Friesian_1_genomic.fna.gz
