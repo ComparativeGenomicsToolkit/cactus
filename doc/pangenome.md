@@ -72,7 +72,9 @@ Unlike Progressive Cactus, Minigraph-Cactus does depend on a predetermined refer
 
 To run the Minigraph-Cactus pangenome pipeline, the basic format is:
 
+```
 cactus-pangenome <jobStorePath> <seqFile> --outDir <output directory> --outName <output file prefix> --reference <reference sample name>
+```
 
 The `jobStorePath` is where intermediate files, as well as job metadata, [will be kept by Toil](https://toil.readthedocs.io/en/latest/running/introduction.html#job-store). **It must be accessible to all worker systems.** 
 
@@ -105,7 +107,7 @@ The Minigraph-Cactus pipeline is run via the `cactus-pangenome` command. It cons
 
 Reducing `--consCores` will allow more chromosomes to be aligned at once, requiring more memory. VCF export for very large graphs will take a long time unless `--indexCores` is set high, but `--indexCores` should still be at least 1 lower than all cores available to allow some parallelism. 
 
-**While many Minigraph-Cactus parameters' default values were tuned on high-quality human assemblies from the HPRC where ample benchmarking data was available, we believe they will be suitable for other datasets and species, so long as the contigs can be mapped with [minigraph](https://github.com/lh3/minigraph). By default, [small contigs are filtered out](https://github.com/ComparativeGenomicsToolkit/cactus/blob/v2.4.4/src/cactus/cactus_progressive_config.xml#L319-L335) during chromosome assignment using more stringent thresholds. This might lead to a surprisingly low sensitivity on small, fragmented, diverse assemblies or difficult-to-assemble regions. Users wishing to *keep* these contigs in their graph can use the following option:
+**PLEASE NOTE** While many Minigraph-Cactus parameters' default values were tuned on high-quality human assemblies from the HPRC where ample benchmarking data was available, we believe they will be suitable for other datasets and species, so long as the contigs can be mapped with [minigraph](https://github.com/lh3/minigraph). By default, [small contigs are filtered out](https://github.com/ComparativeGenomicsToolkit/cactus/blob/v2.4.4/src/cactus/cactus_progressive_config.xml#L319-L335) during chromosome assignment using more stringent thresholds. This might lead to a surprisingly low sensitivity on small, fragmented, diverse assemblies or difficult-to-assemble regions. Users wishing to *keep* these contigs in their graph can use the following option:
 
 * `--permissiveContigFilter`
 
