@@ -261,7 +261,7 @@ def runToilStats(toil, outputFile):
 def runGetChunks(sequenceFiles, chunksDir, chunkSize, overlapSize, work_dir=None):
     chunks = cactus_call(work_dir=work_dir,
                          check_output=True,
-                         parameters=["fasta_chunk",
+                         parameters=["faffy", "chunk",
                                      "--logLevel", getLogLevelString(),
                                      "--chunkSize", str(chunkSize),
                                      "--overlap", str(overlapSize),

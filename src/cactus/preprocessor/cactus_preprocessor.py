@@ -120,7 +120,7 @@ class MergeChunks2(RoundedJob):
         chunkList = [os.path.basename(chunk) for chunk in chunkList]
         outSequencePath = fileStore.getLocalTempFile()
         cactus_call(outfile=outSequencePath, stdin_string=" ".join(chunkList),
-                    parameters=["fasta_merge"])
+                    parameters=["faffy", "merge"])
         return fileStore.writeGlobalFile(outSequencePath)
 
 class PreprocessSequence(RoundedJob):

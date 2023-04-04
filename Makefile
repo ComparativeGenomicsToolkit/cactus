@@ -2,7 +2,7 @@ rootPath = .
 
 include ${rootPath}/include.mk
 
-modules = api setup fasta caf bar hal reference pipeline preprocessor
+modules = api setup caf bar hal reference pipeline preprocessor
 
 # submodules are in multiple pass to handle dependencies cactus2hal being dependent on
 # both cactus and sonLib
@@ -83,8 +83,7 @@ unitTests = \
 	cactusAPITests \
 	cactus_halGeneratorTests \
 	stCafTests \
-	stFastaTests \
-	stPafTests \
+	paffyTests \
 	stPinchesAndCactiTests \
 	stPipelineTests \
 	matchingAndOrderingTests \
