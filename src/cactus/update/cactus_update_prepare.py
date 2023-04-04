@@ -373,7 +373,9 @@ def make_plan(
     # add --includeRoot option into Round #1's cactus-blast and cactus-align jobs only
     # the --includeRoot option includes the root's sequence in the alignment
     for cactus_job in re.findall(
-        r"cactus-(?:blast|align) .*?(?=\s{0,}\n)", plan, re.IGNORECASE | re.MULTILINE
+        r"cactus-(?:blast|align) .*?(?=\s{0,}\n)",
+        plan,
+        re.IGNORECASE | re.MULTILINE,
     )[-2:]:
         plan = re.sub(
             cactus_job,
@@ -692,38 +694,21 @@ def cactus_alignment_update(options):
     # new version back as a child of its parent.
     if "replace" == options.action:
 
-        # leaf-genome sanity check
-        children_genomes = (
-            cactus_call(
-                check_output=True,
-                parameters=["halStats", "--children", options.genome, options.in_hal],
-            )
-            .strip()
-            .split()
-        )
-
-        if len(children_genomes) > 0:
-            raise RuntimeError(
-                f"Node {options.genome} has children {children_genomes}. "
-                f"Replacement works for leaf genomes only."
-            )
-
-        # replacement sanity-check
-        if options.genome not in options.in_fasta_map:
-            raise RuntimeError(
-                f"Genome asked for replacement '{options.genome}' "
-                f"does not match with the one mentioned in the input "
-                f"file {options.in_fasta}: {list(options.in_fasta_map.keys())}"
-            )
-
-        # grab info before genome removal
+        # grab parent_genome info before genome removal
         parent_genome = cactus_call(
             check_output=True,
             parameters=["halStats", "--parent", options.genome, options.in_hal],
         ).strip()
+
+        # grab branch_length info before genome removal
         branch_length = cactus_call(
             check_output=True,
-            parameters=["halStats", "--branchLength", options.genome, options.in_hal],
+            parameters=[
+                "halStats",
+                "--branchLength",
+                options.genome,
+                options.in_hal,
+            ],
         ).strip()
 
         # keep the same length
@@ -738,7 +723,7 @@ def cactus_alignment_update(options):
             parameters=["halRemoveGenome", options.in_hal, options.genome],
         )
 
-        # following the "add-to-node" procedure to add it again
+        # following the "add-to-node" procedure below to add it again
         options.action = "add"
         options.subcommand = "node"
         options.genome = parent_genome
@@ -761,6 +746,7 @@ def cactus_alignment_update(options):
 
         elif "branch" == options.subcommand:
 
+            # create a name for the new ancestor if not given one
             if not options.ancestor_name:
                 options.ancestor_name = (
                     f"{options.child_genome}-Patch-{options.parent_genome}"
@@ -783,8 +769,6 @@ def cactus_alignment_update(options):
                     options.cactus_prepare_options,
                 )
             )
-    else:
-        raise RuntimeError(f"Unknown subcommand '{options.action}'")
 
 
 def subcommand_options(subparser, parent_parser, subcommand, action):
@@ -951,27 +935,96 @@ def sanity_checks(options):
 
                 options.in_fasta_map[name] = (weight, path)
 
-    def genomes_sanity_check():
-
-        # get existing genomes in the hal file
-        current_genomes = (
-            cactus_call(
-                check_output=True, parameters=["halStats", "--genomes", options.in_hal]
-            )
-            .strip()
-            .split()
-        )
-
+    def overall_genome_sanity_check():
+        """Checks if the given genome name of parameters 'genome', 'parent_genomes', and 'child_genome'
+        exist in the HAL file"""
         keywords = ["genome", "parent_genomes", "child_genome"]
 
         for kw in keywords:
             if kw in options:
                 genome = eval(f"options.{kw}")
-                if genome not in current_genomes:
+                if genome not in existing_genomes:
                     raise RuntimeError(
-                        f"genome '{genome}' given by parameter '--{kw}' "
-                        f"not found in the HAL file '{options.in_hal}'"
+                        f"Genome '{genome}' given by parameter '--{kw}' "
+                        f"not found in the HAL file '{options.in_hal}'. "
+                        f"Action '{options.action}' requires it."
                     )
+
+    def replace_action_sanity_check():
+        """Checks several things for replace action
+        a) if the replacement genome occurs for leaves only
+        b) if the given file mention one genome for replacement only
+        c) if the genome asked for replacement matches with the one in the input file
+        """
+        # a) leaf-genome sanity check
+        children_genomes = (
+            cactus_call(
+                check_output=True,
+                parameters=[
+                    "halStats",
+                    "--children",
+                    options.genome,
+                    options.in_hal,
+                ],
+            )
+            .strip()
+            .split()
+        )
+        if len(children_genomes) > 0:
+            raise RuntimeError(
+                f"Node {options.genome} has children {children_genomes}. "
+                f"Genome replacement works for leaf genomes only."
+            )
+
+        # b) one replecement at time
+        if len(options.in_fasta_map) != 1:
+            raise RuntimeError(
+                f"One genome replacement genome at time. "
+                f"File file {options.in_fasta} states {len(options.in_fasta_map)} "
+                f"genomes for replacement."
+            )
+
+        # c) replacement sanity-check 1: if the genome asked for replacement exist in the given HAL file
+        if options.genome not in existing_genomes:
+            raise RuntimeError(
+                f"Genome asked for replacement '{options.genome}' "
+                f"does not exist in the given HAL File  "
+                f"file {options.in_hal}"
+            )
+
+        # c) if the genome asked for replacement matches with the
+        # name given in the input file
+        if options.genome not in options.in_fasta_map:
+            raise RuntimeError(
+                f"Genome asked for replacement '{options.genome}' "
+                f"does not match with the one mentioned in the input "
+                f"file {options.in_fasta}: {list(options.in_fasta_map.keys())}"
+            )
+
+    def add_action_sanity_check():
+        """Checkes if the genomes stated in the given file doesn't exist in the HAL file"""
+
+        found = list()
+        for genome in options.in_fasta_map.keys():
+            if genome in existing_genomes:
+                found.append(genome)
+
+        if len(found) > 0:
+            raise RuntimeError(
+                f"HAL file already contains {found}, therefore "
+                f"the action of {options.action}ing {found} to a {options.subcommand} "
+                f"can't continue."
+            )
+
+    # get existing genomes in the hal file
+    existing_genomes = (
+        cactus_call(
+            check_output=True,
+            parameters=["halStats", "--genomes", options.in_hal],
+        )
+        .strip()
+        .split()
+    )
 
     # validate the given in_fasta_map text file
     in_fasta_map_sanity_check()
@@ -985,8 +1038,19 @@ def sanity_checks(options):
     # validate --outDir and --jobStore, and --outSeqFile
     work_dir_sanity_check()
 
-    # sanity check for genomes given
-    genomes_sanity_check()
+    # sanity check for --genome --parent_genomes and --child_genome parameters
+    overall_genome_sanity_check()
+
+    # sanity check depending on the action
+    if "add" == options.action:
+        # sanity check for add action
+        add_action_sanity_check()
+
+    elif "replace" == options.action:
+        # sanity check for replace action
+        replace_action_sanity_check()
+    else:
+        raise RuntimeError(f"Unknown subcommand '{options.action}'")
 
     return options
 
@@ -1132,6 +1196,10 @@ def main():
     subcommand_options(subparsers, parent_parser, "replace", None)
 
     options = parser.parse_args()
+
+    # there is None subcommnd for action "replace"
+    if options.action == "replace":
+        options.subcommand = None
 
     if not options.action:
         parser.print_help()
