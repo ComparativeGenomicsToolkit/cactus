@@ -41,9 +41,11 @@
 	<!-- minimumDistance A minimum for L (see above), so we don't filter out alignments with high identity. -->
 	<!-- gpu Toggle on segAlign instead of lastz and set the number of gpus for each segalign job. 0: disable segalign, 'all': use all availabled GPUs-->
 	<!-- lastzMemory The memory to allocate for each blast job -->
-	<!-- runMapQFiltering Filter alignments by score/mapQ, ranking alignments from highest mapQ/score to lowest -->
-	<!-- minimumMapQValue Minimum score/mapQ -->
-	<!-- maxAlignmentsPerSite Maximum alignments per site in performing filtering -->
+	<!-- chainMaxGapLength See paffy chain chainMaxGapLength param -->
+	<!-- chainGapOpen See paffy chain chainGapOpen param -->
+	<!-- chainGapExtend See paffy chain chainGapExtend param -->
+	<!-- chainTrimFraction See paffy chain chainTrimFraction param -->
+	<!-- pafTrimIdentity See paffy trim trimIdentity param-->
 	<!-- trimOutgroupFlanking: The amount of flanking sequence to leave on the ends of the trimmed outgroup fragments.
 	   NB: this value should be larger than the 'splitIndelsLongerThanThis' value in the realign arguments -->
 	<!-- trimFlanking: The length of flanking sequence to attach to the trimmed ingroup sequences -->
@@ -67,6 +69,7 @@
 		   chainGapOpen="5000"
 		   chainGapExtend="1"
 		   chainTrimFraction="0.5"
+		   pafTrimIdentity="0.3"
 		   trimIngroups="1"
 		   trimOutgroups="1"
 		   trimMinSize="100"
@@ -123,7 +126,7 @@
 	<!-- minimumBlockHomologySupport TODO-->
 	<!-- useSecondaryAlignments Feed the secondary alignments to CAF-->
 	<!-- writeInputAlignmentsTo Debug option to write the alignment chains fed to CAF to the specified path. Off by default.-->
-	<caf annealingRounds="2048"
+	<caf annealingRounds="1024"
 		 deannealingRounds="2 32 512"
 		 trim="3"
 		 blockTrim="5"

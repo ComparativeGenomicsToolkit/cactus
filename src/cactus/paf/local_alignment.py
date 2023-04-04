@@ -72,8 +72,13 @@ def run_lastz(job, name_A, genome_A, name_B, genome_B, distance, params):
                         job.fileStore.logToMaster("Segalign offending line: " + line)  # Log the messages
                         raise RuntimeError('{} exited 0 but keyword "{}" found in stderr'.format(lastz_cmd, keyword))
 
+    # Add in mismatches so we can trim alignments later
+    alignment_file_with_mismatches = os.path.join(work_dir, '{}_{}_mismatches.paf'.format(name_A, name_B))
+    cactus_call(parameters=['paffy', 'add_mismatches', "-i", alignment_file, genome_a_file, genome_b_file ],
+                outfile=alignment_file_with_mismatches)
+
     # Return the alignment file
-    return job.fileStore.writeGlobalFile(alignment_file)
+    return job.fileStore.writeGlobalFile(alignment_file_with_mismatches)
 
 
 def run_minimap2(job, name_A, genome_A, name_B, genome_B, distance, params):
@@ -234,11 +239,22 @@ def chain_alignments(job, alignment_files, reference_event_name, params):
 
     # Run the chaining
     for i in alignment_files:
+        # Copy the alignments from the job store
         i = job.fileStore.readGlobalFile(i)  # Copy the global alignment file locally
+
+        # Get the forward and reverse versions of each alignment for symmetry with chaining
         j = job.fileStore.getLocalTempFile()  # Get a temporary file to store local alignments and their inverse in
         cactus_call(parameters=['cat', i], outfile=j, outappend=True)
         cactus_call(parameters=['paffy', 'invert', "-i", i], outfile=j, outappend=True)  # Not bothering to log this one
-        messages = cactus_call(parameters=['paffy', 'chain', "-i", j,
+
+        # Trim the poorly aligned tails off the ends of the alignments
+        messages = cactus_call(parameters=['paffy', 'trim', "-i", j,
+                                           "--trimIdentity", params.find("blast").attrib["pafTrimIdentity"]],
+                               outfile=i, returnStdErr=True)
+        logger.info("paffy trim {}\n{}".format(reference_event_name, messages[:-1]))  # Log paffy trim
+
+        # Now chain the alignments
+        messages = cactus_call(parameters=['paffy', 'chain', "-i", i,
                                            "--maxGapLength", params.find("blast").attrib["chainMaxGapLength"],
                                            "--chainGapOpen", params.find("blast").attrib["chainGapOpen"],
                                            "--chainGapExtend", params.find("blast").attrib["chainGapExtend"],
