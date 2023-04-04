@@ -105,7 +105,7 @@ def cactus_cons(job, tree, ancestor_event, config_node, seq_id_map, og_map, paf_
         args += ["--secondaryAlignments", secondary_alignment_file]
 
     messages = cactus_call(check_output=True, returnStdErr=True,
-                                 realtimeStderrPrefix='cactus_consolidated({})'.format(chrom_name if chrom_name else ancestor_event),
+                                 realtimeStderrPrefix=f'cactus_consolidated({chrom_name if chrom_name else ancestor_event})',
                                  parameters=["cactus_consolidated"] + args)[1]  # Get just the standard error output
 
     # if cactus was run with --realTimeLogging, cactus_call will print out conslidated's stderr messages as they happen
