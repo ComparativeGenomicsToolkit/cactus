@@ -114,7 +114,7 @@ Depending on the application, you may want to handle duplication events differen
 
 * "single" : Uses greedy heuristics to pick the copy for each species that results in fewest mutations and block breaks. Recommended when visualizing via BigMaf (see below)
 * "ancestral" : Restricts the duplication relationships shown to only those orthologous to the reference genome according to the HAL tree. There may be multiple orthologs per genome. This relies on the dating of the duplication in the hal tree (ie in which genome it is explicitly self-aligned) and is still a work in progress. For example, in a tree with `((human,chimp),gorilla)`, if a duplication in human is collapsed (ie a single copy) in the human-chimp ancestor, then it would not show up on the human-referenced MAF using this option. But if the duplication is not collapsed in this ancestor (presumably because each copy has an ortholog in chimp and gorilla), then it will be in the MAF because the duplication event was higher in the tree.
-* "all" : (default) All duplications are written, including ancestral events (orthologs) and paralogs in the reference. Note that by default, some duplications will be filtered out if they break MAF blocks. To disable this in order to truly catch them all, use `--keepGapCausingDupes`.
+* "all" : (default) All duplications are written, including ancestral events (orthologs) and paralogs in the reference. 
 
 Usually a reference genome is specified with `--refGenome` and ancestral genomes are excluded `--noAncestors`. Since the default reference is the root of the alignment, `--noAncestors` can only be specified if a leaf genome is used with `--refGenome`. 
 
@@ -164,12 +164,12 @@ Conservation scores can be computed using [phast](http://compgen.cshl.edu/phast/
 The Cactus Docker image contains everything you need to run Cactus (python environment, all binaries, system dependencies). For example, to run the test data:
 
 ```
-docker run -v $(pwd):/data --rm -it quay.io/comparative-genomics-toolkit/cactus:v2.4.4 cactus /data/jobStore /data/evolverMammals.txt /data/evolverMammals.hal
+docker run -v $(pwd):/data --rm -it quay.io/comparative-genomics-toolkit/cactus:v2.5.0 cactus /data/jobStore /data/evolverMammals.txt /data/evolverMammals.hal
 ```
 
 Or you can proceed interactively by running
 ```
-docker run -v $(pwd):/data --rm -it quay.io/comparative-genomics-toolkit/cactus:v2.4.4 bash
+docker run -v $(pwd):/data --rm -it quay.io/comparative-genomics-toolkit/cactus:v2.5.0 bash
 cactus /data/jobStore /data/evolverMammals.txt /data/evolverMammals.hal
 
 ```

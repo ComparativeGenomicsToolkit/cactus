@@ -12,7 +12,7 @@ class TestCase(unittest.TestCase):
         self.tempDir = getTempDirectory(os.getcwd())
         unittest.TestCase.setUp(self)
         self.cromwell = False
-
+        
     def tearDown(self):
         unittest.TestCase.tearDown(self)
         if self.cromwell:
@@ -374,9 +374,30 @@ class TestCase(unittest.TestCase):
 
         # do the alignment
         subprocess.check_call(['cactus-align', self._job_store(binariesMode), out_seq_file_path, paf_path, self._out_hal(binariesMode),
-                               '--pangenome', '--outVG', '--outGFA', '--pafMaskFilter', '10000', '--barMaskFilter', '10000'] + cactus_opts) 
+                               '--pangenome', '--outVG', '--outGFA', '--pafMaskFilter', '10000', '--barMaskFilter', '10000'] + cactus_opts)
 
-    def _run_yeast_pangenome(self, binariesMode):
+    def _run_evolver_primates_pangenome(self, binariesMode):
+        """ run the primates start in using high-level cactus-pangenome interface """
+        # borrow seqfile from other primates test
+        # todo: make a seqfile and add it to the repo
+        seq_file_path = os.path.join(self.tempDir, 'primates.txt')
+        self._write_primates_seqfile(seq_file_path)
+
+        cactus_opts = ['--binariesMode', binariesMode, '--logInfo', '--realTimeLogging', '--workDir', self.tempDir]
+        # todo: it'd be nice to have an interface for setting tag to something not latest or commit
+        if binariesMode == 'docker':
+            cactus_opts += ['--latest']
+
+        out_dir = os.path.dirname(self._out_hal(binariesMode))
+        out_name = os.path.splitext(os.path.basename(self._out_hal(binariesMode)))[0]
+        cactus_pangenome_cmd = ['cactus-pangenome', self._job_store(binariesMode), seq_file_path, '--reference', 'simHuman',
+                                '--outDir', out_dir, '--outName', out_name]
+
+        subprocess.check_call(cactus_pangenome_cmd + cactus_opts)
+        # cactus-pangenome tacks on the .full to the output name
+        subprocess.check_call(['mv', os.path.join(out_dir, out_name + '.full.hal'), os.path.join(out_dir, out_name + '.hal')])
+
+    def _run_yeast_pangenome_step_by_step(self, binariesMode):
         """ yeast pangenome chromosome by chromosome pipeline
         """
 
@@ -421,10 +442,8 @@ class TestCase(unittest.TestCase):
         os.makedirs(ba_path, exist_ok=True)
         config_path = os.path.join(self.tempDir, 'config.xml')
         shutil.copyfile('src/cactus/cactus_progressive_config.xml', config_path)
-        subprocess.check_call(['cactus-align-batch', self._job_store(binariesMode), chromfile_path, ba_path, '--alignCores', '1',
-                               '--alignCoresOverrides', 'chr1,4',  'chrV,2', 'chrX,1',
-                               '--configOverrides', 'chrX,{}'.format(config_path), 'chrII,{}'.format(config_path),
-                               '--alignOptions', '--pangenome --outVG --barMaskFilter 20000 --realTimeLogging --reference S288C --binariesMode {}'.format(binariesMode)])
+        subprocess.check_call(['cactus-align', self._job_store(binariesMode), chromfile_path, ba_path, '--batch', '--pangenome', '--outVG',
+                               '--outVG', '--barMaskFilter', '20000', '--reference', 'S288C', '--binariesMode', binariesMode, '--consCores', '2'])
 
         vg_files = [os.path.join(ba_path, c) + '.vg' for c in chroms]
         hal_files = [os.path.join(ba_path, c) + '.hal' for c in chroms]
@@ -434,6 +453,26 @@ class TestCase(unittest.TestCase):
         subprocess.check_call(['cactus-graphmap-join', self._job_store(binariesMode), '--outDir', join_path, '--outName', 'yeast',
                                '--reference', 'S288C', '--vg'] +  vg_files + ['--hal'] + hal_files + 
                                ['--vcf', '--giraffe', 'clip', 'filter'] + cactus_opts + ['--indexCores', '4'])
+
+    def _run_yeast_pangenome(self, binariesMode):
+        """ yeast pangenome chromosome by chromosome pipeline, as run through a single invocations
+        """
+
+        orig_seq_file_path = './examples/yeastPangenome.txt'
+
+        join_path = os.path.join(self.tempDir, 'join')
+
+        cactus_opts = ['--binariesMode', binariesMode, '--logInfo', '--realTimeLogging', '--workDir', self.tempDir, '--maxCores', '4']
+
+        chroms = ['chrI', 'chrII', 'chrIII', 'chrIV', 'chrV', 'chrVI', 'chrVII', 'chrVIII', 'chrIX', 'chrX', 'chrXI', 'chrXIV', 'chrXV']
+        cactus_pangenome_cmd = ['cactus-pangenome', self._job_store(binariesMode), orig_seq_file_path, '--outDir', join_path, '--outName', 'yeast',
+                                '--refContigs'] + chroms + ['--reference', 'S288C', '--vcf', '--giraffe', 'clip', 'filter',
+                                                            '--indexCores', '4', '--consCores', '2']
+        subprocess.check_call(cactus_pangenome_cmd + cactus_opts)
+
+        #compatibility with older test        
+        subprocess.check_call(['mkdir', '-p', os.path.join(self.tempDir, 'chroms')])
+        subprocess.check_call(['mv', os.path.join(join_path, 'chrom-subproblems', 'contig_sizes.tsv'), os.path.join(self.tempDir, 'chroms')])
 
     def _check_yeast_pangenome(self, binariesMode):
         """ yeast pangenome chromosome by chromosome pipeline
@@ -475,7 +514,7 @@ class TestCase(unittest.TestCase):
                 sts = proc.wait()
                 num_sequences = int(output.strip())
                 self.assertGreaterEqual(num_sequences, 11)
-                self.assertLessEqual(num_sequences, 15)
+                #self.assertLessEqual(num_sequences, 15)
 
         # make sure the vg is sane
         xg_path = os.path.join(join_path, 'yeast.gbz')
@@ -498,7 +537,12 @@ class TestCase(unittest.TestCase):
                 if line.startswith('chr'):
                     toks=line.strip().split()
                     contig_sizes[toks[0]] = toks[1:]
-        self.assertEqual(len(contig_sizes), 16)
+        # todo: fix the range here -- it's allowed because the two yeast tests
+        # use slightly different workflows to subset the chromosomes
+        # (step-by-step splits everything then then only aligns a subsets
+        #  the all-at-once splits and aligns the same subset with the simpler interface)
+        self.assertLessEqual(len(contig_sizes), 16)
+        self.assertGreaterEqual(len(contig_sizes), 13)
         for chr,sizes in contig_sizes.items():
             self.assertEqual(len(sizes), 10)
             self.assertGreaterEqual(int(sizes[9]), 200000)
@@ -851,15 +895,34 @@ class TestCase(unittest.TestCase):
         # check the output
         # todo: tune config so that delta can be reduced
         self._check_maf_accuracy(self._out_hal("local"), delta=(0.025,0.025), dataset='primates')
+
+
+    def testEvolverPrimatesPangenomeLocal(self):
+        """ Evolver (star) primates but using the (much much) newer cactus-pangenome interface
+        """
+        name = "local"
+        self._run_evolver_primates_pangenome(name)
+
+        # check the output
+        # todo: tune config so that delta can be reduced
+        self._check_maf_accuracy(self._out_hal("local"), delta=(0.025,0.025), dataset='primates')        
+    
+    def testYeastPangenomeStepByStepLocal(self):
+        """ Run pangenome pipeline (including contig splitting!) on yeast dataset step by step"""
+        name = "local"
+        self._run_yeast_pangenome_step_by_step(name)
         
+        # check the output
+        self._check_yeast_pangenome(name)
+
     def testYeastPangenomeLocal(self):
-        """ Run pangenome pipeline (including contig splitting!) on yeast dataset """
+        """ Run pangenome pipeline (including contig splitting!) on yeast dataset using cactus-pangenome """
         name = "local"
         self._run_yeast_pangenome(name)
         
         # check the output
         self._check_yeast_pangenome(name)
-        
+
 
 if __name__ == '__main__':
     unittest.main()

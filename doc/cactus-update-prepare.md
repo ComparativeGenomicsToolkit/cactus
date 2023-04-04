@@ -2,7 +2,7 @@
 This document provides examples of how to use `cactus-update-prepare`, a wrapper tool of `cactus-prepare` yielding a list of command-lines to update cactus alignments in a step-by-step fashion. 
 
 ## EvolverPrimates Example
-Before show examples of updating an alignment, let's create an alignment first using the evolverPrimates [example](https://raw.githubusercontent.com/ComparativeGenomicsToolkit/cactus/master/examples/evolverPrimates.txt) as follows:
+Before show examples of updating an alignment, let's create an alignment first using the evolverMammals [example](https://raw.githubusercontent.com/ComparativeGenomicsToolkit/cactus/master/examples/evolverMammals.txt) as follows:
 
 ```
 cactus jobStore ./evolverMammals.txt ./evolverMammals.hal

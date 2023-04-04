@@ -95,8 +95,8 @@ def main():
                         type=float,
                         default=0.6)
 
-    parser.add_argument("--keepGapCausingDupes",
-                        help="Turn off taffy norm -d filter that removes duplications that would induce gaps > maximumGapLength",
+    parser.add_argument("--filterGapCausingDupes",
+                        help="Turn on (experimental) taffy norm -d filter that removes duplications that would induce gaps > maximumGapLength",
                         action="store_true")
 
     parser.add_argument("--maxRefNFrac",
@@ -304,7 +304,7 @@ def taf_cmd(hal_path, chunk, chunk_num, options):
     cmd = 'set -eo pipefail && {} {}.maf.gz | {} taffy view{} 2> {}.m2t.time'.format(read_cmd, chunk_num, time_cmd, time_end, chunk_num)
     cmd += ' | {} taffy add-gap-bases -a {} -m {}{} 2> {}.tagp.time'.format(time_cmd, hal_path, options.gapFill, time_end, chunk_num)
     cmd += ' | {} taffy norm -k -m {} -n {} {} -q {}{} 2> {}.tn.time'.format(time_cmd, options.maximumBlockLengthToMerge, options.maximumGapLength,
-                                                                             '' if options.keepGapCausingDupes else '-d',
+                                                                             '-d' if options.filterGapCausingDupes else '',
                                                                              options.fractionSharedRows, time_end, chunk_num)
     if options.maxRefNFrac:
         cmd += ' | mafFilter -m - -N {}'.format(options.maxRefNFrac)

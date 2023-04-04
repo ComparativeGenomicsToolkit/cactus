@@ -204,6 +204,10 @@ evolver_test_refmap_local: all ${CWD}/test/primates-truth.maf
 evolver_test_minigraph_local: all ${CWD}/test/primates-truth.maf
 	PYTHONPATH="${CWD}/submodules/" CACTUS_BINARIES_MODE=local CACTUS_DOCKER_MODE=0 ${PYTHON} -m pytest ${pytestOpts} -s test/evolverTest.py::TestCase::testEvolverMinigraphLocal
 
+evolver_test_primates_pangenome_local: all ${CWD}/test/primates-truth.maf
+	PYTHONPATH="${CWD}/submodules/" CACTUS_BINARIES_MODE=local CACTUS_DOCKER_MODE=0 ${PYTHON} -m pytest ${pytestOpts} -s test/evolverTest.py::TestCase::testEvolverPrimatesPangenomeLocal
+
+
 evolver_test_all_local: evolver_test_local evolver_test_prepare_toil evolver_test_decomposed_local evolver_test_prepare_no_outgroup_local evolver_test_poa_local evolver_test_refmap_local evolver_test_minigraph_local
 
 yeast_test_local:
