@@ -12,6 +12,7 @@ Please cite the [Minigraph-Cactus paper](https://doi.org/10.1101/2022.10.06.5112
 * [Interface](#interface)
 * [Output](#output)
 * [Yeast Graph](#yeast-graph)
+* [MHC Graph](#mhc-graph)
 * [Human Graph](#hprc-graph)
 * [Frequently Asked Questions](#frequently-asked-questions)
 
@@ -369,6 +370,34 @@ hal2assemblyHub.py ./jobstore ./yeast-pg/yeast-pg.full.hal yeast-pg/hub --shortL
 ```
 
 Move `yeast-pg/hub` to somewhere web-accessible, and pass the full URL of `yeast-pg/hub/hub.txt` to the Genome Browser in the "My Data -> Track Hubs" menu.   Select `S288C` as the reference and display the hub.  Right-click on the display and select "Configure yeast track set" to toggle on all the assemblies (and toggle off Anc0 and _MINIGRAPH_).
+
+## MHC Graph
+
+This is an example of how to build a [MHC](https://en.wikipedia.org/wiki/Major_histocompatibility_complex) Pangenome using [Minigraph example data of 61 haplotypes from the HPRC year 1 release](https://zenodo.org/record/6617246#.ZC0OQ-xBxhE). The first step is to convert the [AGC](https://github.com/refresh-bio/agc) archive into a seqfile:
+```
+# download the agc binary (if you don't already have it)
+wget -q https://github.com/refresh-bio/agc/releases/download/v3.0/agc-3.0_x64-linux-noavx.tar.gz
+tar zxf agc-3.0_x64-linux-noavx.tar.gz
+export PATH=$(pwd)/agc-3.0_x64-linux-noavx/:${PATH}
+
+# download the sequences
+wget -q https://zenodo.org/record/6617246/files/MHC-61.agc
+
+# make the seqfile
+mkdir -p mhc-fa ; rm -f mhc-seqfile.txt
+for s in $(agc listset MHC-61.agc); do printf "${s}\tmhc-fa/${s}.fa\n" >> mhc-seqfile.txt; agc getset MHC-61.agc $s > mhc-fa/${s}.fa; done
+
+# (Optional) clean up the sample names. if you don't do this, adjust --reference accordingly below
+sed -i mhc-seqfile.txt -e 's/^MHC-00GRCh38/MHC-GRCh38/g' -e 's/^MHC-CHM13.0/MHC-CHM13/g'
+
+# (Optional) clean up the contig names (replacing numbers with "MHC")
+for f in mhc-fa/*.fa; do sed -i ${f} -e 's/#0/#MHC/g' -e 's/#1/#MHC/g' -e 's/#2/#MCH/g'; done
+```
+
+The indexed pangenome can now be constructed as follows.  You can set the reference to `MHC-CHM13` instead of `MHC-GRCh38`. `--mapCores 1` is used to increase parallelism. The pipeline should take about 15 minutes on a system with 8 cores. 
+```
+cactus-pangenome ./js ./mhc-seqfile.txt --outDir mhc-pg --outName mhc --reference MHC-GRCh38 --gbz --giraffe --vcf --mapCores 1
+```
 
 ## HPRC Graph
 
