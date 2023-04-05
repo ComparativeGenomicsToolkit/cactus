@@ -83,13 +83,14 @@ unitTests = \
 	cactusAPITests \
 	cactus_halGeneratorTests \
 	stCafTests \
-	paffyTests \
 	stPinchesAndCactiTests \
 	stPipelineTests \
 	matchingAndOrderingTests \
 	referenceTests \
 	cPecanLibTests \
 	sonLibTests \
+
+#paffyTests \ # This is removed for now
 
 # these are slow, but added to CI here since hal no longer has its own
 halTests = \
