@@ -8,6 +8,44 @@ The versions of the graph used to create Supplementary Figure 3 in order to show
 
 The non-reference sequence was computed using [count-vg-hap-cov](https://github.com/ComparativeGenomicsToolkit/hal2vg/blob/f3d9a1838d1fb5582b6e1cd509792daee51fd2a9/count-vg-hap-cov.cpp) on the [GRCh38](https://s3-us-west-2.amazonaws.com/human-pangenomics/index.html?prefix=pangenomes/scratch/2021_08_11_minigraph_cactus/GRCh38-chrom-graphs/) and [CHM13](https://s3-us-west-2.amazonaws.com/human-pangenomics/index.html?prefix=pangenomes/scratch/2021_08_11_minigraph_cactus/CHM13-chrom-graphs/) chromosome vg graphs.
 
+### Filtered contigs during chromosome assignment
+
+The logs from Cactus-Minigraph were parsed to extract the assignment of each input contig to a chromosome, or why they were filtered out. 
+The analysis and figures can be reproduce with the `contig.inclusion.stats.R` script.
+
+The relevant log files for the GRCh38-based and CHM13-based pangenomes are also deposited here : `GRCh38-f1g-90-mc-jun1.minigraph.split.log.gz` and `chm13-f1g-90-mc-jun1.minigraph.split.log.gz`.
+
+The centromeric satellite and segmental duplication annotations for each contig were downloaded and preprocessed with:
+
+```
+#### centromeric satellites
+## get the annotation index from https://github.com/human-pangenomics/HPP_Year1_Assemblies
+wget https://raw.githubusercontent.com/human-pangenomics/HPP_Year1_Assemblies/main/annotation_index/Year1_assemblies_v2_genbank_DNA_BRNN.index
+## download annotation for each assembly and merge ranges
+touch hprc-dnabrnn.bed
+for s3ff in `cut -f3 Year1_assemblies_v2_genbank_DNA_BRNN.index | sed 1d | head`
+do
+    aws s3 cp $s3ff .
+    BN=`basename $s3ff`
+    HAPPREFIX=`echo $BN | awk '{split($0, a, "."); if(a[2]=="paternal"){a[2]=1}else{a[2]=2}; print a[1]"#"a[2]"#"}'`
+    awk -v pref=$HAPPREFIX 'BEGIN{OFS="\t"}{print pref$1,$2,$3}' $BN | bedtools sort | bedtools merge >> hprc-dnabrnn.bed
+    rm $s3ff
+done
+
+#### segmental duplications
+## get the annotation index from https://github.com/human-pangenomics/HPP_Year1_Assemblies
+wget https://raw.githubusercontent.com/human-pangenomics/HPP_Year1_Assemblies/main/annotation_index/Year1_assemblies_v2_genbank_Seg_Dups.index
+## download annotation for each assembly and merge ranges for both pairs of segmental duplications
+touch hprc-segdup.bed
+for s3ff in `cut -f3 Year1_assemblies_v2_genbank_Seg_Dups.index | sed 1d`
+do
+    aws s3 cp $s3ff .
+    BN=`basename $s3ff`
+    awk 'BEGIN{OFS="\t"}{print $1,$2,$3"\n"$4,$5,$6}' $BN | bedtools sort | bedtools merge >> hprc-segdup.bed
+    rm $s3ff
+done
+```
+
 ## Snakemake pipeline and scripts
 
 [Snakemake](https://snakemake.github.io/) is used for multiple analysis, to help run the same analysis across many samples or approaches.
