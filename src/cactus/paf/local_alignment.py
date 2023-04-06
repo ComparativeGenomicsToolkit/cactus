@@ -247,14 +247,8 @@ def chain_alignments(job, alignment_files, reference_event_name, params):
         cactus_call(parameters=['cat', i], outfile=j, outappend=True)
         cactus_call(parameters=['paffy', 'invert', "-i", i], outfile=j, outappend=True)  # Not bothering to log this one
 
-        # Trim the poorly aligned tails off the ends of the alignments
-        messages = cactus_call(parameters=['paffy', 'trim', "-i", j,
-                                           "--trimIdentity", params.find("blast").attrib["pafTrimIdentity"]],
-                               outfile=i, returnStdErr=True)
-        logger.info("paffy trim {}\n{}".format(reference_event_name, messages[:-1]))  # Log paffy trim
-
         # Now chain the alignments
-        messages = cactus_call(parameters=['paffy', 'chain', "-i", i,
+        messages = cactus_call(parameters=['paffy', 'chain', "-i", j,
                                            "--maxGapLength", params.find("blast").attrib["chainMaxGapLength"],
                                            "--chainGapOpen", params.find("blast").attrib["chainGapOpen"],
                                            "--chainGapExtend", params.find("blast").attrib["chainGapExtend"],
@@ -265,8 +259,15 @@ def chain_alignments(job, alignment_files, reference_event_name, params):
 
     # Now tile
     messages = cactus_call(parameters=['paffy', 'tile', "-i", chained_alignment_file, "--logLevel", getLogLevelString()],
-                           outfile=output_alignments_file, returnStdErr=True)
+                           outfile=j, returnStdErr=True)
     logger.info("paffy tile event:{}\n{}".format(reference_event_name, messages[:-1]))  # Log paffy tile
+
+    # Trim the poorly aligned tails off the ends of the alignments after tiling - doing so before tiling
+    # can create gaps in alignment chains which allows in spurious chains
+    messages = cactus_call(parameters=['paffy', 'trim', "-i", j,
+                                       "--trimIdentity", params.find("blast").attrib["pafTrimIdentity"]],
+                           outfile=output_alignments_file, returnStdErr=True)
+    logger.info("paffy trim {}\n{}".format(reference_event_name, messages[:-1]))  # Log paffy trim
 
     # Cleanup the old alignment files
     for i in alignment_files:
