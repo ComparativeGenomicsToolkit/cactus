@@ -6,17 +6,27 @@ S3 = S3RemoteProvider()
 SROOT="s3://vg-k8s/vgamb/wg/giraffedv/mapping-eval/"
 REF_ROOT="s3://vg-k8s/users/jmonlong/references/"
 
+## define which samples to use
 SAMPLES = ['HG001', 'HG002', 'HG005']
+GA_SAMPLES = ['HG002', 'HG003', 'HG004']
 
-GRAPH = 'hprc_v1_0_mc_grch38_minaf_0_1'
-if 'graph' in config:
-    GRAPH = config['graph']
-
+# Short reads mapped with vg giraffe
+GIRAFFE_GRAPHS = ['hprc_v1_0_mc_grch38_minaf_0_1', 'hprc_v1_0_mc_chm13_minaf_0_1',
+                  'hprc_v1_0_mc_grch38_minaf_0_1_noclip',
+                  'hprc_v1_0_mc_grch38_noclip']
 rule mapstats_giraffe:
-    input: S3.remote(expand(SROOT + 'giraffe/{sample}.giraffe.{graph}.mapstats.txt', sample=SAMPLES, graph=GRAPH))
+    input: S3.remote(expand(SROOT + 'giraffe/{sample}.giraffe.{graph}.mapstats.txt', sample=SAMPLES, graph=GIRAFFE_GRAPHS))
 
+# Short reads mapped with BWA-MEM
 rule mapstats_bwa:
     input: S3.remote(expand(SROOT + 'bwa/{sample}.bwamem.{ref}.mapstats.txt', ref='GCA_000001405.15_GRCh38_no_alt_plus_hs38d1_analysis_set.compact_decoys', sample=SAMPLES))
+
+# Long reads mapped with GraphAligner
+# list pangenomes with long read mapped onto
+GA_GRAPHS = ["chm13-flat", "grch38-flat", "hprc-v1.0-mc-chm13-minaf.0.1", "hprc-v1.0-mc-chm13", "hprc-v1.0-mc-grch38-minaf.0.1", "hprc-v1.0-mc-grch38"]
+
+rule mapstats_ga:
+    input: S3.remote(expand(SROOT + "graphaligner/{sample}.{graph}.mapstats.txt.gz", graph=GA_GRAPHS, sample=GA_SAMPLES))
 
 
 ## FASTQs with 30x novaseq reads for HG001-7
@@ -91,13 +101,14 @@ rule giraffe_map:
         """
 
 rule mapping_stats_giraffe:
-    input: S3.remote(SROOT + "giraffe/{sample}.giraffe.{graph}.gaf.gz")
+    input:
+        script=S3.remote(SROOT + "resources/compute_mapping_stats_gaf.py"),
+        gaf=S3.remote(SROOT + "giraffe/{sample}.giraffe.{graph}.gaf.gz")
     output: S3.remote(SROOT + "giraffe/{sample}.giraffe.{graph}.mapstats.txt")
     shell:
         """
-        gunzip -c {input} | awk '{{if($10=="*"){{$12=-1}};if($10!="*" && $10==$11){{perf="true"}}else{{perf="false"}};print $12,perf}}' | sort | uniq -c > {output}
+        gunzip -c {input.gaf} | python3 {input.script} > {output}
         """
-
 
 ##
 ## Map reads with BWA-MEM
@@ -143,4 +154,20 @@ rule mapping_stats_bwa:
     shell:
         """
         samtools view {input.bam} | python3 {input.script} > {output}
+        """
+
+
+##
+## Long reads
+##
+
+rule mapping_stats_graphaligner:
+    input:
+        script=S3.remote(SROOT + "resources/compute_mapping_stats_jq.py"),
+        gam=S3.remote(SROOT + "graphaligner/{sample}-{graph}.gam")
+    output: S3.remote(SROOT + "graphaligner/{sample}.{graph}.mapstats.txt.gz")
+    singularity: "docker://quay.io/vgteam/vg:v1.46.0"
+    shell:
+        """
+        vg view -a {input.gam} | jq -r "[.name,.identity,.score//0,.query_position//0,.sequence] | @tsv" | python3 {input.script} | gzip > {output}
         """

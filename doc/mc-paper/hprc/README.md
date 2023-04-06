@@ -113,12 +113,16 @@ For both mapping and compiling the statistics we used the [`Snakefile_mapstats`]
 ```sh
 snakemake -s Snakefile_mapstats --cores 16 -p mapstats_bwa
 snakemake -s Snakefile_mapstats --cores 16 -p mapstats_giraffe
-snakemake -s Snakefile_mapstats --cores 16 --config graph=hprc_v1_0_mc_chm13_minaf_0_1 -p mapstats_giraffe
-snakemake -s Snakefile_mapstats --cores 16 --config graph=hprc_v1_0_mc_grch38_minaf_0_1_noclip -p mapstats_giraffe
+snakemake -s Snakefile_mapstats --cores 16 -p mapstats_ga
 ```
 
-Internally, the workflow will use the [`resources/compute_mapping_stats.py`](resources/compute_mapping_stats.py) script to compute and tally reads in each profile in the BAM file.
+Internally, the workflow will use the python scripts to parse the different formats and tally reads in each profile (mapping quality x alignment score x perfect alignment).
+- [`resources/compute_mapping_stats.py`](resources/compute_mapping_stats.py) for BAM/SAM files
+- [`resources/compute_mapping_stats_gaf.py`](resources/compute_mapping_stats_gaf.py) for GAF files
+- [`resources/compute_mapping_stats_jq.py`](resources/compute_mapping_stats_jq.py) for GAM files (converted to json and passed as an input stream)
+
 For example, it will parse both the CIGAR field and the MD tag to figure out if the read is aligning perfectly to the reference genome.
+It also extracts alignment scores.
 
 The `<SAMPLE>.<MAPPER>.<REF>.mapstats.txt` files created by these runs contains the number of reads for each profile (*mapping quality* x *perfect alignment*).
 They are read by the [`mapstats-analysis.R`](mapstats-analysis.R) script to make the graphs.
@@ -368,6 +372,8 @@ GraphAligner -g hprc-v1.0-mc-grch38.gfa -f m64011_190830_220126.fastq.gz -t 32 -
 GraphAligner -g hprc-v1.0-mc-grch38.gfa -f PBmixSequel729_1_A01_PBTH_30hours_19kbV2PD_70pM_HumanHG003.fastq.gz  -t 32 -x vg -a grch38-hg003.gam
 GraphAligner -g hprc-v1.0-mc-grch38.gfa -f m64017_191115_211223.hifi_reads.fastq.gz -t 32 -x vg -a grch38-hg004.gam
 ```
+
+
 
 ## SV Genotyping with PanGenie
 
