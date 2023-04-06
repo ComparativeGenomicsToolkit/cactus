@@ -100,6 +100,30 @@ gzip hprc-v1.0-mc-grch38-maxdel.10mb.dist-stats.tsv
 
 The two `*.dist-stats.tsv` files created above were read by the [`snarls-stats.R`](snarls-stats.R) to make the figure shown in the manuscript.
 
+
+## Long Read Mapping with GraphAligner
+
+PacBio reads were downloaded from the Genome in a Bottle FTP Site: ftp-trace.ncbi.nlm.nih.gov 
+```
+get /giab/ftp/data/AshkenazimTrio/HG002_NA24385_son/PacBio_CCS_15kb_20kb_chemistry2/reads/m64011_190830_220126.fastq.gz
+get /giab/ftp/data/AshkenazimTrio/HG003_NA24149_father/PacBio_CCS_15kb_20kb_chemistry2/read/PBmixSequel729_1_A01_PBTH_30hours_19kbV2PD_70pM_HumanHG003.fastq.gz 
+get /giab/ftp/data/AshkenazimTrio/HG004_NA24143_mother/PacBio_CCS_15kb_20kb_chemistry2/uBAMs/m64017_191115_211223.hifi_reads.bam
+```
+The .bam above was converted to fastq with samtools 1.4.1
+```
+samtools fastq m64017_191115_211223.hifi_reads.bam | bgzip > m64017_191115_211223.hifi_reads.fastq.gz
+```
+and mapped with [GraphAligner v1.0.13](https://github.com/maickrau/GraphAligner/releases/tag/v1.0.13) (as installed via bioconda)
+using the [grch38](https://s3-us-west-2.amazonaws.com/human-pangenomics/pangenomes/freeze/freeze1/minigraph-cactus/hprc-v1.0-mc-grch38.gfa.gz) and [chm13](https://s3-us-west-2.amazonaws.com/human-pangenomics/pangenomes/freeze/freeze1/minigraph-cactus/hprc-v1.0-mc-chm13.gfa.gz) base graphs.
+```
+GraphAligner -g hprc-v1.0-mc-grch38.gfa -f m64011_190830_220126.fastq.gz -t 32 -x vg -a grch38-hg002.gam
+GraphAligner -g hprc-v1.0-mc-grch38.gfa -f PBmixSequel729_1_A01_PBTH_30hours_19kbV2PD_70pM_HumanHG003.fastq.gz  -t 32 -x vg -a grch38-hg003.gam
+GraphAligner -g hprc-v1.0-mc-grch38.gfa -f m64017_191115_211223.hifi_reads.fastq.gz -t 32 -x vg -a grch38-hg004.gam
+GraphAligner -g hprc-v1.0-mc-grch38.gfa -f m64011_190830_220126.fastq.gz -t 32 -x vg -a grch38-hg002.gam
+GraphAligner -g hprc-v1.0-mc-grch38.gfa -f PBmixSequel729_1_A01_PBTH_30hours_19kbV2PD_70pM_HumanHG003.fastq.gz  -t 32 -x vg -a grch38-hg003.gam
+GraphAligner -g hprc-v1.0-mc-grch38.gfa -f m64017_191115_211223.hifi_reads.fastq.gz -t 32 -x vg -a grch38-hg004.gam
+```
+
 ## Mapping statistics
 
 We mapped short reads (30x PCR-free novaseq) for HG001/2/5 to the reference genomes and the different pangenomes.
@@ -350,28 +374,6 @@ done
 
 Finally, those files are read by [`eval-stratification-grch38-chm13.R`](eval-stratification-grch38-chm13.R) to make the supplementary figure shown in the manuscript.
 
-## Long Read Mapping with GraphAligner
-
-PacBio reads were downloaded from the Genome in a Bottle FTP Site: ftp-trace.ncbi.nlm.nih.gov 
-```
-get /giab/ftp/data/AshkenazimTrio/HG002_NA24385_son/PacBio_CCS_15kb_20kb_chemistry2/reads/m64011_190830_220126.fastq.gz
-get /giab/ftp/data/AshkenazimTrio/HG003_NA24149_father/PacBio_CCS_15kb_20kb_chemistry2/read/PBmixSequel729_1_A01_PBTH_30hours_19kbV2PD_70pM_HumanHG003.fastq.gz 
-get /giab/ftp/data/AshkenazimTrio/HG004_NA24143_mother/PacBio_CCS_15kb_20kb_chemistry2/uBAMs/m64017_191115_211223.hifi_reads.bam
-```
-The .bam above was converted to fastq with samtools 1.4.1
-```
-samtools fastq m64017_191115_211223.hifi_reads.bam | bgzip > m64017_191115_211223.hifi_reads.fastq.gz
-```
-and mapped with [GraphAligner v1.0.13](https://github.com/maickrau/GraphAligner/releases/tag/v1.0.13) (as installed via bioconda)
-using the [grch38](https://s3-us-west-2.amazonaws.com/human-pangenomics/pangenomes/freeze/freeze1/minigraph-cactus/hprc-v1.0-mc-grch38.gfa.gz) and [chm13](https://s3-us-west-2.amazonaws.com/human-pangenomics/pangenomes/freeze/freeze1/minigraph-cactus/hprc-v1.0-mc-chm13.gfa.gz) base graphs.
-```
-GraphAligner -g hprc-v1.0-mc-grch38.gfa -f m64011_190830_220126.fastq.gz -t 32 -x vg -a grch38-hg002.gam
-GraphAligner -g hprc-v1.0-mc-grch38.gfa -f PBmixSequel729_1_A01_PBTH_30hours_19kbV2PD_70pM_HumanHG003.fastq.gz  -t 32 -x vg -a grch38-hg003.gam
-GraphAligner -g hprc-v1.0-mc-grch38.gfa -f m64017_191115_211223.hifi_reads.fastq.gz -t 32 -x vg -a grch38-hg004.gam
-GraphAligner -g hprc-v1.0-mc-grch38.gfa -f m64011_190830_220126.fastq.gz -t 32 -x vg -a grch38-hg002.gam
-GraphAligner -g hprc-v1.0-mc-grch38.gfa -f PBmixSequel729_1_A01_PBTH_30hours_19kbV2PD_70pM_HumanHG003.fastq.gz  -t 32 -x vg -a grch38-hg003.gam
-GraphAligner -g hprc-v1.0-mc-grch38.gfa -f m64017_191115_211223.hifi_reads.fastq.gz -t 32 -x vg -a grch38-hg004.gam
-```
 
 
 
