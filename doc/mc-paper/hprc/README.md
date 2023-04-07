@@ -8,6 +8,44 @@ The versions of the graph used to create Supplementary Figure 3 in order to show
 
 The non-reference sequence was computed using [count-vg-hap-cov](https://github.com/ComparativeGenomicsToolkit/hal2vg/blob/f3d9a1838d1fb5582b6e1cd509792daee51fd2a9/count-vg-hap-cov.cpp) on the [GRCh38](https://s3-us-west-2.amazonaws.com/human-pangenomics/index.html?prefix=pangenomes/scratch/2021_08_11_minigraph_cactus/GRCh38-chrom-graphs/) and [CHM13](https://s3-us-west-2.amazonaws.com/human-pangenomics/index.html?prefix=pangenomes/scratch/2021_08_11_minigraph_cactus/CHM13-chrom-graphs/) chromosome vg graphs.
 
+### Filtered contigs during chromosome assignment
+
+The logs from Cactus-Minigraph were parsed to extract the assignment of each input contig to a chromosome, or why they were filtered out. 
+The analysis and figures can be reproduce with the `contig.inclusion.stats.R` script.
+
+The relevant log files for the GRCh38-based and CHM13-based pangenomes are also deposited here : `GRCh38-f1g-90-mc-jun1.minigraph.split.log.gz` and `chm13-f1g-90-mc-jun1.minigraph.split.log.gz`.
+
+The centromeric satellite and segmental duplication annotations for each contig were downloaded and preprocessed with:
+
+```
+#### centromeric satellites
+## get the annotation index from https://github.com/human-pangenomics/HPP_Year1_Assemblies
+wget https://raw.githubusercontent.com/human-pangenomics/HPP_Year1_Assemblies/main/annotation_index/Year1_assemblies_v2_genbank_DNA_BRNN.index
+## download annotation for each assembly and merge ranges
+touch hprc-dnabrnn.bed
+for s3ff in `cut -f3 Year1_assemblies_v2_genbank_DNA_BRNN.index | sed 1d | head`
+do
+    aws s3 cp $s3ff .
+    BN=`basename $s3ff`
+    HAPPREFIX=`echo $BN | awk '{split($0, a, "."); if(a[2]=="paternal"){a[2]=1}else{a[2]=2}; print a[1]"#"a[2]"#"}'`
+    awk -v pref=$HAPPREFIX 'BEGIN{OFS="\t"}{print pref$1,$2,$3}' $BN | bedtools sort | bedtools merge >> hprc-dnabrnn.bed
+    rm $s3ff
+done
+
+#### segmental duplications
+## get the annotation index from https://github.com/human-pangenomics/HPP_Year1_Assemblies
+wget https://raw.githubusercontent.com/human-pangenomics/HPP_Year1_Assemblies/main/annotation_index/Year1_assemblies_v2_genbank_Seg_Dups.index
+## download annotation for each assembly and merge ranges for both pairs of segmental duplications
+touch hprc-segdup.bed
+for s3ff in `cut -f3 Year1_assemblies_v2_genbank_Seg_Dups.index | sed 1d`
+do
+    aws s3 cp $s3ff .
+    BN=`basename $s3ff`
+    awk 'BEGIN{OFS="\t"}{print $1,$2,$3"\n"$4,$5,$6}' $BN | bedtools sort | bedtools merge >> hprc-segdup.bed
+    rm $s3ff
+done
+```
+
 ## Snakemake pipeline and scripts
 
 [Snakemake](https://snakemake.github.io/) is used for multiple analysis, to help run the same analysis across many samples or approaches.
@@ -62,6 +100,30 @@ gzip hprc-v1.0-mc-grch38-maxdel.10mb.dist-stats.tsv
 
 The two `*.dist-stats.tsv` files created above were read by the [`snarls-stats.R`](snarls-stats.R) to make the figure shown in the manuscript.
 
+
+## Long Read Mapping with GraphAligner
+
+PacBio reads were downloaded from the Genome in a Bottle FTP Site: ftp-trace.ncbi.nlm.nih.gov 
+```
+get /giab/ftp/data/AshkenazimTrio/HG002_NA24385_son/PacBio_CCS_15kb_20kb_chemistry2/reads/m64011_190830_220126.fastq.gz
+get /giab/ftp/data/AshkenazimTrio/HG003_NA24149_father/PacBio_CCS_15kb_20kb_chemistry2/read/PBmixSequel729_1_A01_PBTH_30hours_19kbV2PD_70pM_HumanHG003.fastq.gz 
+get /giab/ftp/data/AshkenazimTrio/HG004_NA24143_mother/PacBio_CCS_15kb_20kb_chemistry2/uBAMs/m64017_191115_211223.hifi_reads.bam
+```
+The .bam above was converted to fastq with samtools 1.4.1
+```
+samtools fastq m64017_191115_211223.hifi_reads.bam | bgzip > m64017_191115_211223.hifi_reads.fastq.gz
+```
+and mapped with [GraphAligner v1.0.13](https://github.com/maickrau/GraphAligner/releases/tag/v1.0.13) (as installed via bioconda)
+using the [grch38](https://s3-us-west-2.amazonaws.com/human-pangenomics/pangenomes/freeze/freeze1/minigraph-cactus/hprc-v1.0-mc-grch38.gfa.gz) and [chm13](https://s3-us-west-2.amazonaws.com/human-pangenomics/pangenomes/freeze/freeze1/minigraph-cactus/hprc-v1.0-mc-chm13.gfa.gz) base graphs.
+```
+GraphAligner -g hprc-v1.0-mc-grch38.gfa -f m64011_190830_220126.fastq.gz -t 32 -x vg -a grch38-hg002.gam
+GraphAligner -g hprc-v1.0-mc-grch38.gfa -f PBmixSequel729_1_A01_PBTH_30hours_19kbV2PD_70pM_HumanHG003.fastq.gz  -t 32 -x vg -a grch38-hg003.gam
+GraphAligner -g hprc-v1.0-mc-grch38.gfa -f m64017_191115_211223.hifi_reads.fastq.gz -t 32 -x vg -a grch38-hg004.gam
+GraphAligner -g hprc-v1.0-mc-grch38.gfa -f m64011_190830_220126.fastq.gz -t 32 -x vg -a grch38-hg002.gam
+GraphAligner -g hprc-v1.0-mc-grch38.gfa -f PBmixSequel729_1_A01_PBTH_30hours_19kbV2PD_70pM_HumanHG003.fastq.gz  -t 32 -x vg -a grch38-hg003.gam
+GraphAligner -g hprc-v1.0-mc-grch38.gfa -f m64017_191115_211223.hifi_reads.fastq.gz -t 32 -x vg -a grch38-hg004.gam
+```
+
 ## Mapping statistics
 
 We mapped short reads (30x PCR-free novaseq) for HG001/2/5 to the reference genomes and the different pangenomes.
@@ -75,12 +137,16 @@ For both mapping and compiling the statistics we used the [`Snakefile_mapstats`]
 ```sh
 snakemake -s Snakefile_mapstats --cores 16 -p mapstats_bwa
 snakemake -s Snakefile_mapstats --cores 16 -p mapstats_giraffe
-snakemake -s Snakefile_mapstats --cores 16 --config graph=hprc_v1_0_mc_chm13_minaf_0_1 -p mapstats_giraffe
-snakemake -s Snakefile_mapstats --cores 16 --config graph=hprc_v1_0_mc_grch38_minaf_0_1_noclip -p mapstats_giraffe
+snakemake -s Snakefile_mapstats --cores 16 -p mapstats_ga
 ```
 
-Internally, the workflow will use the [`resources/compute_mapping_stats.py`](resources/compute_mapping_stats.py) script to compute and tally reads in each profile in the BAM file.
+Internally, the workflow will use the python scripts to parse the different formats and tally reads in each profile (mapping quality x alignment score x perfect alignment).
+- [`resources/compute_mapping_stats.py`](resources/compute_mapping_stats.py) for BAM/SAM files
+- [`resources/compute_mapping_stats_gaf.py`](resources/compute_mapping_stats_gaf.py) for GAF files
+- [`resources/compute_mapping_stats_jq.py`](resources/compute_mapping_stats_jq.py) for GAM files (converted to json and passed as an input stream)
+
 For example, it will parse both the CIGAR field and the MD tag to figure out if the read is aligning perfectly to the reference genome.
+It also extracts alignment scores.
 
 The `<SAMPLE>.<MAPPER>.<REF>.mapstats.txt` files created by these runs contains the number of reads for each profile (*mapping quality* x *perfect alignment*).
 They are read by the [`mapstats-analysis.R`](mapstats-analysis.R) script to make the graphs.
@@ -308,28 +374,8 @@ done
 
 Finally, those files are read by [`eval-stratification-grch38-chm13.R`](eval-stratification-grch38-chm13.R) to make the supplementary figure shown in the manuscript.
 
-## Long Read Mapping with GraphAligner
 
-PacBio reads were downloaded from the Genome in a Bottle FTP Site: ftp-trace.ncbi.nlm.nih.gov 
-```
-get /giab/ftp/data/AshkenazimTrio/HG002_NA24385_son/PacBio_CCS_15kb_20kb_chemistry2/reads/m64011_190830_220126.fastq.gz
-get /giab/ftp/data/AshkenazimTrio/HG003_NA24149_father/PacBio_CCS_15kb_20kb_chemistry2/read/PBmixSequel729_1_A01_PBTH_30hours_19kbV2PD_70pM_HumanHG003.fastq.gz 
-get /giab/ftp/data/AshkenazimTrio/HG004_NA24143_mother/PacBio_CCS_15kb_20kb_chemistry2/uBAMs/m64017_191115_211223.hifi_reads.bam
-```
-The .bam above was converted to fastq with samtools 1.4.1
-```
-samtools fastq m64017_191115_211223.hifi_reads.bam | bgzip > m64017_191115_211223.hifi_reads.fastq.gz
-```
-and mapped with [GraphAligner v1.0.13](https://github.com/maickrau/GraphAligner/releases/tag/v1.0.13) (as installed via bioconda)
-using the [grch38](https://s3-us-west-2.amazonaws.com/human-pangenomics/pangenomes/freeze/freeze1/minigraph-cactus/hprc-v1.0-mc-grch38.gfa.gz) and [chm13](https://s3-us-west-2.amazonaws.com/human-pangenomics/pangenomes/freeze/freeze1/minigraph-cactus/hprc-v1.0-mc-chm13.gfa.gz) base graphs.
-```
-GraphAligner -g hprc-v1.0-mc-grch38.gfa -f m64011_190830_220126.fastq.gz -t 32 -x vg -a grch38-hg002.gam
-GraphAligner -g hprc-v1.0-mc-grch38.gfa -f PBmixSequel729_1_A01_PBTH_30hours_19kbV2PD_70pM_HumanHG003.fastq.gz  -t 32 -x vg -a grch38-hg003.gam
-GraphAligner -g hprc-v1.0-mc-grch38.gfa -f m64017_191115_211223.hifi_reads.fastq.gz -t 32 -x vg -a grch38-hg004.gam
-GraphAligner -g hprc-v1.0-mc-grch38.gfa -f m64011_190830_220126.fastq.gz -t 32 -x vg -a grch38-hg002.gam
-GraphAligner -g hprc-v1.0-mc-grch38.gfa -f PBmixSequel729_1_A01_PBTH_30hours_19kbV2PD_70pM_HumanHG003.fastq.gz  -t 32 -x vg -a grch38-hg003.gam
-GraphAligner -g hprc-v1.0-mc-grch38.gfa -f m64017_191115_211223.hifi_reads.fastq.gz -t 32 -x vg -a grch38-hg004.gam
-```
+
 
 ## SV Genotyping with PanGenie
 
@@ -338,6 +384,8 @@ The exact commands are available [here](https://bitbucket.org/jana_ebler/hprc-ex
 PanGenie [v2.1.0](https://github.com/eblerjana/pangenie/releases/tag/v2.1.0) was used throughout. Intermediate files and a high level description are avilable [here](https://doi.org/10.5281/zenodo.7669083) and [here](https://zenodo.org/record/7669083/files/README.txt), respectively. 
 
 The genotype concordances produced by the above pipeline and used for the SV genotyping accuracy plots can be found [here](https://s3-us-west-2.amazonaws.com/human-pangenomics/index.html?prefix=publications/mc_2022/hprc-human/pangenie-misc/).
+
+Graphs were produced using [`graphs-pangenie.R`](graphs-pangenie.R).
 
 ## Minimum Allele Coverage Threshold Plots
 

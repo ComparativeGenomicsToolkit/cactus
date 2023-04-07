@@ -3,12 +3,17 @@ library(ggplot2) ## install with: install.packages('ggplot2')
 library(RColorBrewer)
 library(colorspace)
 
-pal = c(brewer.pal(4, 'Set1')[4], darken(brewer.pal(4, 'Set1')[1], .3))
+## color palette
+pal = brewer.pal(4, 'Set1')[c(4,1,1)]
+pal[2] = darken(pal[2], .3)
+pal[3] = lighten(pal[3], .2)
 
 ## snarls
 snarls.df = rbind(
   read.table('hprc-v1.0-mc-grch38-maxdel.10mb.dist-stats.tsv.gz',
              as.is=TRUE, header=TRUE) %>% mutate(pangenome='minigraph-cactus'),
+  read.table('hprc-v1.0-mc-chm13-maxdel.10mb.dist-stats.tsv.gz',
+             as.is=TRUE, header=TRUE) %>% mutate(pangenome='minigraph-cactus-chm13'),
   read.table('hprc-v1.0-minigraph-grch38.dist-stats.tsv.gz',
              as.is=TRUE, header=TRUE) %>% mutate(pangenome='minigraph')
 )
@@ -23,8 +28,10 @@ y.bks = 10^(1:10)
 
 snarls.df %>%
   mutate(diff_length=cut(diff_length, breaks=size.breaks, labels=size.labs),
-         pangenome=factor(pangenome, levels=c('minigraph', 'minigraph-cactus'),
-                          labels=c('Minigraph', 'Minigraph-Cactus'))) %>%
+         pangenome=factor(pangenome, levels=c('minigraph', 'minigraph-cactus',
+                                              'minigraph-cactus-chm13'),
+                          labels=c('Minigraph', 'GRCh38_Minigraph-Cactus',
+                                   'CHM13_Minigraph-Cactus'))) %>%
   group_by(pangenome, diff_length) %>% summarize(n=sum(n)) %>%
   ggplot(aes(x=diff_length, y=n+1, fill=pangenome)) +
   geom_bar(stat='identity', position='dodge') +
