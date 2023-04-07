@@ -126,7 +126,7 @@
 	<!-- minimumBlockHomologySupport TODO-->
 	<!-- useSecondaryAlignments Feed the secondary alignments to CAF-->
 	<!-- writeInputAlignmentsTo Debug option to write the alignment chains fed to CAF to the specified path. Off by default.-->
-	<caf annealingRounds="1024"
+	<caf annealingRounds="2048"
 		 deannealingRounds="2 32 512"
 		 trim="3"
 		 blockTrim="5"
