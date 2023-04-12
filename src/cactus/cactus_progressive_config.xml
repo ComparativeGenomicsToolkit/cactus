@@ -46,6 +46,7 @@
 	<!-- chainGapExtend See paffy chain chainGapExtend param -->
 	<!-- chainTrimFraction See paffy chain chainTrimFraction param -->
 	<!-- pafTrimIdentity See paffy trim trimIdentity param-->
+	<!-- minPrimaryChainScore Keep as primary alignments only those with a primary chain score greater than this threshold -->
 	<!-- trimOutgroupFlanking: The amount of flanking sequence to leave on the ends of the trimmed outgroup fragments.
 	   NB: this value should be larger than the 'splitIndelsLongerThanThis' value in the realign arguments -->
 	<!-- trimFlanking: The length of flanking sequence to attach to the trimmed ingroup sequences -->
@@ -70,6 +71,7 @@
 		   chainGapExtend="1"
 		   chainTrimFraction="1.0"
 		   pafTrimIdentity="0.2"
+		   minPrimaryChainScore="20000"
 		   trimIngroups="1"
 		   trimOutgroups="1"
 		   trimMinSize="100"
