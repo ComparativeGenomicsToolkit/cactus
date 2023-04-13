@@ -213,7 +213,18 @@ def main():
 def export_minigraph_wrapper(job, options, sv_gfa_id, sv_gfa_path):
     """ export the GFA from minigraph """
     job.fileStore.exportFile(sv_gfa_id, makeURL(os.path.join(options.outDir, os.path.basename(sv_gfa_path))))
-    
+
+def export_graphmap_wrapper(job, options, paf_id, paf_path, gaf_id, unfiltered_paf_id, paf_filter_log):
+    """ export the PAF file from minigraph """
+    paf_path = os.path.join(options.outDir, os.path.basename(paf_path))
+    job.fileStore.exportFile(paf_id, makeURL(paf_path))
+    if gaf_id:
+        gaf_name = os.path.splitext(os.path.basename(paf_path))[0]
+        job.fileStore.exportFile(gaf_id, makeURL(os.path.join(options.outDir, gaf_name)))
+    if unfiltered_paf_id:
+        job.fileStore.exportFile(paf_id, makeURL(paf_path + '.unfiltered.gz'))
+        job.fileStore.exportFile(paf_filter_log, makeURL(paf_path + '.filter.log'))
+
 def update_seqfile(job, options, seq_id_map, seq_path_map, seq_order, gfa_fa_id, gfa_fa_path, graph_event):
     """ put the minigraph gfa.fa file into the seqfile and export both """
     work_dir = job.fileStore.getLocalTempDir()    
@@ -307,6 +318,7 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
     
     graphmap_job = minigraph_job.addFollowOnJobFn(minigraph_workflow, options, config_wrapper, seq_id_map, sv_gfa_id, graph_event, sanitize=False)
     paf_id, gfa_fa_id, gaf_id, unfiltered_paf_id, paf_filter_log = graphmap_job.rv(0), graphmap_job.rv(1), graphmap_job.rv(2), graphmap_job.rv(3), graphmap_job.rv(4)
+    graphmap_job.addFollowOnJobFn(export_graphmap_wrapper, options, paf_id, paf_path, gaf_id, unfiltered_paf_id, paf_filter_log)
 
     # we need to update the seqfile with the phonied in minigraph event
     update_seqfile_job = graphmap_job.addFollowOnJobFn(update_seqfile, options, seq_id_map, seq_path_map, seq_order, gfa_fa_id, gfa_fa_path, graph_event)
