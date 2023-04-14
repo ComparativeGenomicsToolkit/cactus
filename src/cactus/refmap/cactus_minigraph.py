@@ -154,26 +154,40 @@ def minigraph_construct_workflow(job, config_node, seq_id_map, seq_order, gfa_pa
 def sort_minigraph_input_with_mash(job, seq_id_map, seq_order):
     """ Sort the input """
     # (dist, length) pairs which will be sorted decreasing on dist, breaking ties with increasing on length
-    root_job = Job()
-    job.addChild(root_job)
     # assumption : reference is first
     mash_dists = [(0, sys.maxsize)]
+    # start by sketching the reference to avoid a bunch of recomputation
+    sketch_job = job.addChildJobFn(mash_sketch, seq_order[0], seq_id_map,
+                                   disk = seq_id_map[seq_order[0]].size * 2)
+    ref_sketch_id = sketch_job.rv()
+    dist_root_job = Job()
+    sketch_job.addFollowOn(dist_root_job)
     for seq in seq_order[1:]:
-        dist = root_job.addChildJobFn(mash_dist, seq, seq_order[0], seq_id_map,
-                                      disk = seq_id_map[seq].size + seq_id_map[seq_order[0]].size).rv()
+        dist = dist_root_job.addChildJobFn(mash_dist, seq, seq_order[0], seq_id_map, ref_sketch_id,
+                                           disk = seq_id_map[seq].size + seq_id_map[seq_order[0]].size).rv()
         mash_dists.append(dist)                    
 
-    return root_job.addFollowOnJobFn(mash_distance_order, seq_order, mash_dists).rv()
+    return dist_root_job.addFollowOnJobFn(mash_distance_order, seq_order, mash_dists).rv()
 
-def mash_dist(job, query_seq, ref_seq, seq_id_map):
-    """ get the mash distance """
+def mash_sketch(job, ref_seq, seq_id_map):
+    """ get the sketch """
     work_dir = job.fileStore.getLocalTempDir()
     ref_path = os.path.join(ref_seq + '.fa')
-    query_path = os.path.join(query_seq + '.fa')
     job.fileStore.readGlobalFile(seq_id_map[ref_seq], ref_path)
+
+    cactus_call(parameters=['mash', 'sketch', ref_path])
+
+    return job.fileStore.writeGlobalFile(ref_path + '.msh')
+    
+def mash_dist(job, query_seq, ref_seq, seq_id_map, ref_sketch_id):
+    """ get the mash distance """
+    work_dir = job.fileStore.getLocalTempDir()
+    ref_sketch_path = os.path.join(ref_seq + '.fa.msh')
+    query_path = os.path.join(query_seq + '.fa')
+    job.fileStore.readGlobalFile(ref_sketch_id, ref_sketch_path)
     job.fileStore.readGlobalFile(seq_id_map[query_seq], query_path)
 
-    mash_output = cactus_call(parameters=['mash', 'dist', query_path, ref_path], check_output=True)
+    mash_output = cactus_call(parameters=['mash', 'dist', query_path, ref_sketch_path], check_output=True)
     dist = float(mash_output.strip().split()[2])
     size = sum([len(r.seq) for r in SeqIO.parse(query_path, 'fasta')])
     RealtimeLogger.info('mash distance of {} (size = {}) to reference {} = {}'.format(query_seq, size, ref_seq, dist))
