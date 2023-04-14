@@ -117,7 +117,7 @@ The application and impact of this option is demonstrated in the explanation of 
 
 **Important** The reference genome assembly must be chromosome scale. If your reference assembly also consists of many small fragments (ex GRCh38) then you must use the `--refContigs` option to specify the chromosomes.  Ex for GRCh38 `--refContigs $(for i in `seq 22`; do echo chr$i; done ; echo "chrX chrY chrM")`.  If you want to include the remaining reference contig fragments in your graph, add the `--otherContig chrOther` option.
 
-**Also Important** We do not yet support the *alternate* loci from GRCh38, ex the various HLA contigs.  They must be excluded from the input fasta file to get sane results. They can be included in the graph by providing a separate sample / fasta pair in the input for each contig.  We are very interested in streamlining support for this in a future release.
+**Also Important** We do not yet automatically support the *alternate* loci from GRCh38, ex the various HLA contigs.  They must be excluded from the input fasta file to get sane results. They can be included in the graph by providing a separate sample / fasta pair in the input for each contig.  Please [here](#grch38-alts-graph) for an example of how to do so.
 
 The individual parts of the pipeline can be run independently using the following commands.  See also the "step-by-step" yeast example below. 
 
@@ -428,15 +428,19 @@ mkdir -p work
 cactus-pangenome ./js ./grch38_alts.seqfile --reference GRCh38 --gbz clip --giraffe clip --vcf --outName grch38-alts-apr13 --outDir grch38-alts --logFile grch38-alts-apr13.log --indexCores 32 --mapCores 8 --consCores 8 --refContigs $(for i in `seq 22`; do printf "chr$i "; done ; echo "chrX chrY chrM") --otherContig chrOther --permissiveContigFilter 0.05 --workDir work
 ```
 
-The GRCh38 alt loci are concentrated in a handful of regions.  Here's an example of how to pull out [MHC](https://www.ncbi.nlm.nih.gov/grc/human/regions/MHC) and [LRC-KIR](https://www.ncbi.nlm.nih.gov/grc/human/regions/LRC_KIR), which can then be visualized with [Bandage-NG](https://github.com/asl/BandageNG).
+The GRCh38 alt loci are concentrated in a handful of regions.  Here's an example of how to pull out [MHC](https://www.ncbi.nlm.nih.gov/grc/human/regions/MHC) and [LRC-KIR](https://www.ncbi.nlm.nih.gov/grc/human/regions/LRC_KIR) (with a little bit of padding):
 
 ```
 vg chunk -x grch38-alts-apr13.gbz -S grch38-alts-apr13.snarls -p GRCh38#0#chr6:28500120-33490577 -O gfa > mhc.gfa
 vg chunk -x grch38-alts-apr13.gbz -S grch38-alts-apr13.snarls -p GRCh38#0#chr19:54015634-55094318 -O gfa > lrc_kir.gfa
 ```
 
-<img src="grch38-alt-pg-mhc.png">
-<img src="grch38-alt-pg-lrc_kir.png">
+which can then be visualized with [Bandage-NG](https://github.com/asl/BandageNG).
+
+MHC (partial view)
+<img src="grch38-alt-pg-mhc.png" height=30% width=30%>
+LRC-KIR
+<img src="grch38-alt-pg-lrc_kir.png" height=30% width=30%>>
 
 ## HPRC Graph
 
