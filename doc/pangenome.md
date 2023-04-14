@@ -13,6 +13,7 @@ Please cite the [Minigraph-Cactus paper](https://doi.org/10.1101/2022.10.06.5112
 * [Output](#output)
 * [Yeast Graph](#yeast-graph)
 * [MHC Graph](#mhc-graph)
+* [GRCh38 Alts Graph](#grch38-alts-graph)
 * [Human Graph](#hprc-graph)
 * [Frequently Asked Questions](#frequently-asked-questions)
 
@@ -114,9 +115,9 @@ Reducing `--consCores` will allow more chromosomes to be aligned at once, requir
 
 The application and impact of this option is demonstrated in the explanation of the Yeast pangenome example below.
 
-**Important** The reference genome assembly must be chromosome scale. If your reference assembly also consists of many small fragments (ex GRCh38) then you must use the `--refContigs` option to specify the chromosomes.  Ex for GRCh38 `--refContigs $(for i in `seq 22`; do echo chr$i; done ; echo "chrX chrY chrM")`.  If you want to include the remaining reference contig fragments in your graph, add the `--otherContig chrOther` option.
+**Important** The reference genome assembly must be chromosome scale. If your reference assembly also consists of many small fragments (ex GRCh38) then you must use the `--refContigs` option to specify the chromosomes.  Ex for GRCh38 `--refContigs $(for i in `seq 22`; do printf "chr$i "; done ; echo "chrX chrY chrM")`.  If you want to include the remaining reference contig fragments in your graph, add the `--otherContig chrOther` option.
 
-**Also Important** We do not yet support the *alternate* loci from GRCh38, ex the various HLA contigs.  They must be excluded from the input fasta file to get sane results. They can be included in the graph by providing a separate sample / fasta pair in the input for each contig.  We are very interested in streamlining support for this in a future release.
+**Also Important** We do not yet automatically support the *alternate* loci from GRCh38, ex the various HLA contigs.  They must be excluded from the input fasta file to get sane results. They can be included in the graph by providing a separate sample / fasta pair in the input for each contig.  Please [here](#grch38-alts-graph) for an example of how to do so.
 
 The individual parts of the pipeline can be run independently using the following commands.  See also the "step-by-step" yeast example below. 
 
@@ -398,6 +399,48 @@ The indexed pangenome can now be constructed as follows.  You can set the refere
 ```
 cactus-pangenome ./js ./mhc-seqfile.txt --outDir mhc-pg --outName mhc --reference MHC-GRCh38 --gbz --giraffe --vcf --mapCores 1
 ```
+
+## GRCh38 Alts Graph
+
+It's not often utilized as such, but the GRCh38 reference genome is actually a pangenome in and of itself, due to the various alternic loci scaffolds it contains. In general, including these sequences in the input to Cactus (both progressive and pangenome) along with the rest of GRCh38 will cause errors, so it is always important to filter them out. **But, we can use them by adding them back as separate samples.** Proof of concept instructions on doing so, resulting in a pangenome graph constructed from GRCh38 and its alt loci (excluding patches), are below.
+
+The results can be found with the example pangenomes [here](./mc-pangenomes/README.md). 
+
+We first download GRCh38 and extract each alt contig into its own fasta file:
+```
+wget https://hgdownload.soe.ucsc.edu/goldenPath/hg38/bigZips/hg38.fa.gz
+gzip -d hg38.fa.gz
+samtools faidx hg38.fa
+mkdir -p fa
+rm -f fa/hg38_no_alts.fa
+for contig in $(grep -v _alt hg38.fa.fai | awk '{print $1}'); do samtools faidx hg38.fa $contig >> fa/hg38_no_alts.fa; done
+bgzip fa/hg38_no_alts.fa --threads 16
+printf "GRCh38\tfa/hg38_no_alts.fa.gz\n" > grch38_alts.seqfile
+for contig in $(grep  _alt hg38.fa.fai | awk '{print $1}'); \
+do samtools faidx hg38.fa $contig | bgzip > fa/${contig}.fa.gz; \
+printf "${contig}\tfa/${contig}.fa.gz\n" >> grch38_alts.seqfile ; done
+```
+
+Make the pangenome, setting a very permissive overlap threshold to make sure all contigs get into a chromosome as some of them are very tiny and diverse. You will need about 100Gb of RAM to run this and, if you have fewer than 32 cores, need to adjust some of the settings below. 
+
+```
+mkdir -p work
+cactus-pangenome ./js ./grch38_alts.seqfile --reference GRCh38 --gbz clip --giraffe clip --vcf --outName grch38-alts-apr13 --outDir grch38-alts --logFile grch38-alts-apr13.log --indexCores 32 --mapCores 8 --consCores 8 --refContigs $(for i in `seq 22`; do printf "chr$i "; done ; echo "chrX chrY chrM") --otherContig chrOther --permissiveContigFilter 0.05 --workDir work
+```
+
+The GRCh38 alt loci are concentrated in a handful of regions.  Here's an example of how to pull out [MHC](https://www.ncbi.nlm.nih.gov/grc/human/regions/MHC) and [LRC-KIR](https://www.ncbi.nlm.nih.gov/grc/human/regions/LRC_KIR) (with a little bit of padding):
+
+```
+vg chunk -x grch38-alts-apr13.gbz -S grch38-alts-apr13.snarls -p GRCh38#0#chr6:28500120-33490577 -O gfa > mhc.gfa
+vg chunk -x grch38-alts-apr13.gbz -S grch38-alts-apr13.snarls -p GRCh38#0#chr19:54015634-55094318 -O gfa > lrc_kir.gfa
+```
+
+which can then be visualized with [Bandage-NG](https://github.com/asl/BandageNG).
+
+MHC (partial view)
+<img src="grch38-alt-pg-mhc.png" height=30% width=30%>
+LRC-KIR
+<img src="grch38-alt-pg-lrc_kir.png" height=30% width=30%>>
 
 ## HPRC Graph
 
