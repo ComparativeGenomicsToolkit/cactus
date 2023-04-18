@@ -134,7 +134,7 @@ static void attachThreadComponentToDeadEndComponent(stList *threadComponent, stL
         }
     }
     stList_sort(l, comparePinchThreadsByLength);
-    stList_appendAll(l, l2);
+    stList_appendAll(l, l2); // Add any already attached threads to the end (so they are considered first)
     stList_destruct(l2);
 
     //Now iterate on threads, attaching as needed.
@@ -142,10 +142,21 @@ static void attachThreadComponentToDeadEndComponent(stList *threadComponent, stL
     stHash *basesAligned = stHash_construct2(NULL, free);
     while (stList_length(l) > 0) {
         stPinchThread *pinchThread = stList_pop(l);
-        if (stPinchThread_getLength(pinchThread) < minLengthForChromosome && !first) {
+        if(markEndsAttached) {
+            Cap *cap = flower_getCap(flower, stPinchSegment_getName(stPinchThread_getFirst(pinchThread))); //The following three lines isolates the sequence associated with a segment.
+            assert(cap != NULL);
+            Sequence *sequence = cap_getSequence(cap);
+            assert(sequence != NULL);
+            st_logDebug("Considering attaching the following sequence to the cactus root %"
+            PRIi64 ", header %s with length %" PRIi64
+            ", is already attached: %s, have already attached something: %s\n",
+                    sequence_getName(sequence), sequence_getHeader(sequence), sequence_getLength(sequence),
+                    threadIsAttachedToDeadEndComponent(pinchThread, deadEndComponent, pinchEndsToAdjacencyComponents) ?
+                    "True" : "False", first ? "False" : "True");
+        }
+        if (stPinchThread_getLength(pinchThread) < minLengthForChromosome && !first) { // If too short and nothing in the component is attached
             continue;
         }
-        first = 0;
         int64_t *i = stHash_search(basesAligned, pinchThread);
         int64_t basesAlignedToChromosomeThreads = i != NULL ? *i : 0; //This is the number of bases already aligned in threads with attached ends (chromosomes);
         assert(basesAlignedToChromosomeThreads >= 0);
@@ -177,16 +188,17 @@ static void attachThreadComponentToDeadEndComponent(stList *threadComponent, stL
         i = stHash_search(basesAligned, pinchThread);
         int64_t totalBasesAligned = i != NULL ? *i : 0; //This is the number of bases already aligned in chromosomes;
         assert(totalBasesAligned >= basesAlignedToChromosomeThreads);
-        if((totalBasesAligned - basesAlignedToChromosomeThreads) >= proportionOfUnalignedBasesForNewChromosome * totalBasesAligned) {
+        if((totalBasesAligned - basesAlignedToChromosomeThreads) >= proportionOfUnalignedBasesForNewChromosome * totalBasesAligned || first) { // Attach if sufficiently distinct or nothing is yet attached
             attachThreadToDeadEndComponent(pinchThread, deadEndComponent, pinchEndsToAdjacencyComponents, markEndsAttached, flower);
+            first = 0; // We have officially attached an end in the component
             if(markEndsAttached) {
                 Cap *cap = flower_getCap(flower, stPinchSegment_getName(stPinchThread_getFirst(pinchThread))); //The following three lines isolates the sequence associated with a segment.
                 assert(cap != NULL);
                 Sequence *sequence = cap_getSequence(cap);
                 assert(sequence != NULL);
-                if(stPinchThread_getLength(pinchThread) > minLengthForChromosome) {
-                    fprintf(stdout, "Attaching the sequence to the cactus root %" PRIi64 ", header %s with length %" PRIi64 " and %" PRIi64 " total bases aligned and %" PRIi64 " bases aligned to other chromosome threads\n",
-                            sequence_getName(sequence), sequence_getHeader(sequence), sequence_getLength(sequence), totalBasesAligned, basesAlignedToChromosomeThreads);
+                if(stPinchThread_getLength(pinchThread) > minLengthForChromosome) { // Just log the longer sequences
+                    st_logInfo("Attaching the sequence to the cactus root %" PRIi64 ", header %s with length %" PRIi64 " and %" PRIi64 " total bases aligned and %" PRIi64 " bases aligned to other chromosome threads\n",
+                                sequence_getName(sequence), sequence_getHeader(sequence), sequence_getLength(sequence), totalBasesAligned, basesAlignedToChromosomeThreads);
                 }
             }
         }

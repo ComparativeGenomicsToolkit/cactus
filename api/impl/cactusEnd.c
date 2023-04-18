@@ -79,12 +79,14 @@ bool end_getSide(End *end) {
 void end_makeAttached(End *end) {
     assert(end_isStubEnd(end));
     assert(end_isFree(end));
+    assert(!end_isAttached(end));
     assert(flower_getName(end_getFlower(end)) == 0);
     if(end_getGroup(end) != NULL) {
         assert(group_isLeaf(end_getGroup(end)));
     }
     // Set the attached bit
     end_setBitForwardAndReverse(end, 4, 1, 0);
+    assert(end_isAttached(end));
 }
 
 BlockEndContents *end_getBlockEndContents(End *end) {

@@ -43,18 +43,18 @@ bool getCompleteStatus(const char *fileName) {
     if (i >= 9) {
         const char *cA = fileName + i - 9;
         if (strcmp(cA, ".complete") == 0) {
-            st_logDebug("The file %s is specified complete, the sequences will be attached\n", fileName);
+            st_logInfo("The file %s is specified complete, the sequences will be attached\n", fileName);
             return 1;
         }
     }
     if (i >= 12) {
         const char *cA = fileName + i - 12;
         if (strcmp(cA, ".complete.fa") == 0) {
-            st_logDebug("The file %s is specified complete, the sequences will be attached\n", fileName);
+            st_logInfo("The file %s is specified complete, the sequences will be attached\n", fileName);
             return 1;
         }
     }
-    st_logDebug("The file %s is specified incomplete, the sequences will not be attached\n", fileName);
+    st_logInfo("The file %s is specified incomplete, the sequences will not be attached\n", fileName);
     return 0;
 }
 

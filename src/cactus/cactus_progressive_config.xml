@@ -139,7 +139,7 @@
 		 minimumTreeCoverage="0.0"
 		 alignmentFilter="filterSecondariesByMultipleSequences"
 		 maxAdjacencyComponentSizeRatio="50"
-		 minLengthForChromosome="1000000"
+		 minLengthForChromosome="100000"
 		 proportionOfUnalignedBasesForNewChromosome="0.8"
 		 maximumMedianSequenceLengthBetweenLinkedEnds="100000"
 		 removeRecoverableChains="unequalNumberOfIngroupCopies"

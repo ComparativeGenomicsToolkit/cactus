@@ -616,8 +616,9 @@ static void getStubEdgesInTopLevelFlower(refOrdering *ref, Flower *flower, stHas
     refAdjList *stubAL = calculateZ(flower, stubEndsToNodes, nodeNumber,
     INT64_MAX, 1, calculateZScoreWeightedAdapterFn, zArgs);
     stHash_destruct(eventWeighting);
-    st_logDebug(
-            "Building a matching for %" PRIi64 " stub nodes in the top level problem from %" PRIi64 " total stubs of which %" PRIi64 " attached , %" PRIi64 " total ends, %" PRIi64 " chains, %" PRIi64 " blocks %" PRIi64 " groups and %" PRIi64 " sequences\n",
+    st_logInfo(
+            "Building a matching for %" PRIi64 " stub nodes in the top level problem from %" PRIi64 " total stubs of which %"
+            PRIi64 " attached , %" PRIi64 " total ends, %" PRIi64 " chains, %" PRIi64 " blocks %" PRIi64 " groups and %" PRIi64 " sequences\n",
             stList_length(stubEnds), flower_getStubEndNumber(flower), flower_getAttachedStubEndNumber(flower), flower_getEndNumber(flower),
             flower_getChainNumber(flower), flower_getBlockNumber(flower), flower_getGroupNumber(flower), flower_getSequenceNumber(flower));
 
@@ -1003,10 +1004,18 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader, int
      */
     stList *stubTangleEnds = getTangleStubEnds(flower, endsToNodes);
     int64_t nodeNumber = chainNumber + stList_length(stubTangleEnds);
-    st_logDebug(
-            "For flower: %" PRIi64 " we have %" PRIi64 " nodes for: %" PRIi64 " ends, %" PRIi64 " chains, %" PRIi64 " stubs and %" PRIi64 " blocks\n",
-            flower_getName(flower), nodeNumber, flower_getEndNumber(flower), flower_getChainNumber(flower), stList_length(stubTangleEnds),
-            flower_getBlockNumber(flower));
+    if(flower_getParentGroup(flower) == NULL) {
+        st_logInfo(
+                "For top-level flower: %" PRIi64 " we have %" PRIi64 " nodes for: %" PRIi64 " ends, %" PRIi64 " chains, %" PRIi64 " stubs and %" PRIi64 " blocks\n",
+                flower_getName(flower), nodeNumber, flower_getEndNumber(flower), flower_getChainNumber(flower), stList_length(stubTangleEnds),
+                flower_getBlockNumber(flower));
+    }
+    else {
+        st_logDebug(
+                "For flower: %" PRIi64 " we have %" PRIi64 " nodes for: %" PRIi64 " ends, %" PRIi64 " chains, %" PRIi64 " stubs and %" PRIi64 " blocks\n",
+                flower_getName(flower), nodeNumber, flower_getEndNumber(flower), flower_getChainNumber(flower), stList_length(stubTangleEnds),
+                flower_getBlockNumber(flower));
+    }
     assert(stList_length(stubTangleEnds) % 2 == 0);
 
     /*
@@ -1049,9 +1058,16 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader, int
     /*
      * Check the edges and nodes before starting to calculate the matching.
      */
-    st_logDebug(
-            "Starting to build the reference for flower %lli, with %" PRIi64 " stubs and %" PRIi64 " chains and %" PRIi64 " nodes in the flowers tangle\n",
-            flower_getName(flower), reference_getIntervalNumber(ref), chainNumber, nodeNumber);
+    if(flower_getParentGroup(flower) == NULL) {
+        st_logInfo(
+                "Starting to build the reference for top level flower %lli, with %" PRIi64 " ref intervals and %" PRIi64 " chains and %" PRIi64 " nodes in the flowers tangle\n",
+                flower_getName(flower), reference_getIntervalNumber(ref), chainNumber, nodeNumber);
+    }
+    else {
+        st_logDebug(
+                "Starting to build the reference for flower %lli, with %" PRIi64 " stubs and %" PRIi64 " chains and %" PRIi64 " nodes in the flowers tangle\n",
+                flower_getName(flower), reference_getIntervalNumber(ref), chainNumber, nodeNumber);
+    }
 
     double maxPossibleScore = refAdjList_getMaxPossibleScore(aL);
     makeReferenceGreedily2(aL, dAL, ref, wiggle);
