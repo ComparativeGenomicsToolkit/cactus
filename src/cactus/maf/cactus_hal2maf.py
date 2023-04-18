@@ -96,7 +96,7 @@ def main():
                         default=0.6)
 
     parser.add_argument("--filterGapCausingDupes",
-                        help="Turn on (experimental) taffy norm -d filter that removes duplications that would induce gaps > maximumGapLength",
+                        help="Turn on (experimental) taffy norm -d filter that removes duplications that would induce gaps > maximumGapLength [default=only active with dupeMode single]",
                         action="store_true")
 
     parser.add_argument("--maxRefNFrac",
@@ -134,6 +134,9 @@ def main():
     if options.noAncestors and not options.refGenome:
         raise RuntimeError('(non-ancestral) --refGenome required with --noAncestors')
 
+    if options.dupeMode == 'single':
+        options.filterGapCausingDupes = True
+        
     # apply cpu override                
     if options.batchCores is None:
         if options.batchSystem.lower() in ['single_machine', 'singleMachine']:
