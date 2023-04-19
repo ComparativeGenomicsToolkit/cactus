@@ -1,3 +1,14 @@
+# Release 2.5.1 2023-04-19
+
+This Release mostly patches some bugs in the pangenome pipeline
+
+- `cactus-pangenome` now saves PAF file in the output directory
+- Ship version of `vg` that is patched to not make too-slow `giraffe` indexes for some complex graphs
+- Fix bug where `.` characters in reference sample name could lead to strange errors at end of pipeline
+- Better sample name validation for all pangenome tools to prevent confusion around `.`s.
+- Update `taffy` to fix issues where `--filterGapCausingDupes` could lead to crashes in `cactus-hal2maf`
+- Strip defaults of `taffy` commands from being specified in `cactus-hal2maf` -- they are now taken from `taffy`
+
 # Release 2.5.0 2023-04-03
 
 This Release greatly simplifies the interface for building pangenomes
