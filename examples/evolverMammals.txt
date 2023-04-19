@@ -1,4 +1,4 @@
-((simHuman_chr6:0.144018,(simMouse_chr6:0.084509,simRat_chr6:0.091589)mr:0.271974)hmr:0.020593,(simCow_chr6:0.18908,simDog_chr6:0.16303)cd:0.032898);
+((simHuman_chr6:0.144018,(simMouse_chr6:0.084509,simRat_chr6:0.091589)mr:0.271974):0.020593,(simCow_chr6:0.18908,simDog_chr6:0.16303):0.032898);
 
 simCow_chr6 https://raw.githubusercontent.com/ComparativeGenomicsToolkit/cactusTestData/master/evolver/mammals/loci1/simCow.chr6
 simDog_chr6 https://raw.githubusercontent.com/ComparativeGenomicsToolkit/cactusTestData/master/evolver/mammals/loci1/simDog.chr6
