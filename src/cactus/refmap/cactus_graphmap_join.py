@@ -47,6 +47,7 @@ from toil.statsAndLogging import logger
 from toil.statsAndLogging import set_logging_from_options
 from toil.realtimeLogger import RealtimeLogger
 from cactus.shared.common import cactus_cpu_count
+from cactus.refmap.cactus_minigraph import check_sample_names
 
 from sonLib.nxnewick import NXNewick
 from sonLib.bioio import getTempDirectory, getTempFile, catFiles
@@ -136,6 +137,9 @@ def graphmap_join_validate_options(options):
     # sanity check the workflow options and apply defaults
     if options.filter and not options.clip:
         raise RuntimeError('--filter cannot be used without also disabling --clip.')
+
+    # check the reference name suffix
+    check_sample_names(options.reference, options.reference[0])
 
     if not options.gfa:
         options.gfa = ['clip'] if options.clip else ['full']
@@ -243,6 +247,17 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
 
     root_job = Job()
     job.addChild(root_job)
+
+    # make sure reference doesn't have a haplotype suffix, as it will have been changed upstream
+    ref_base, ref_ext = os.path.splitext(options.reference[0])
+    assert len(ref_base) > 0
+    if ref_ext:
+        assert len(ref_ext) > 1 and ref_ext[1:].isnumeric()
+        options.reference[0] = ref_base
+        if options.vcfReference:
+            for i in range(len(options.vcfReference)):
+                if options.vcfReference[i] == ref_base + ref_ext:
+                    options.vcfReference[i] = ref_base
 
     # run the "full" phase to do pre-clipping stuff
     full_vg_ids = []
@@ -666,16 +681,6 @@ def merge_hal(job, options, hal_ids):
     cactus_call(parameters=cmd, work_dir = work_dir)
 
     return { 'full.hal' : job.fileStore.writeGlobalFile(merged_path) }
-
-def unzip_seqfile(job, seq_id_map):
-    """ halUnclip needs uncompressed everythin, so we do it here relying on extensions """
-    unzip_id_map = {}
-    for event, name_id in seq_id_map.items():
-        if name_id[0].endswith(".gz"):
-            unzip_id_map[event] = (name_id[0][:-3], job.addChildJobFn(unzip_gz, name_id[0], name_id[1], disk=name_id[1].size * 10).rv())
-        else:
-            unzip_id_map[event] = name_id
-    return unzip_id_map
 
 def unclip_hal(job, hal_id_dict, seq_id_map):
     """ run halUnclip """

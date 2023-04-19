@@ -34,6 +34,7 @@ from toil.statsAndLogging import set_logging_from_options
 from toil.realtimeLogger import RealtimeLogger
 from cactus.shared.common import cactus_cpu_count
 from cactus.progressive.progressive_decomposition import compute_outgroups, parse_seqfile, get_subtree, get_spanning_subtree, get_event_set
+from cactus.refmap.cactus_minigraph import check_sample_names
 from sonLib.nxnewick import NXNewick
 from sonLib.bioio import getTempDirectory
 
@@ -139,16 +140,14 @@ def graph_map(options):
                 # dont need to import this
                 event_set.remove(graph_event)
 
-            # check --reference input
+            # validate the sample names
+            check_sample_names(input_seq_map.keys(), options.reference)
+                
+            # check --reference input (a bit redundant to above, but does additional leaf check)
             if options.reference:
                 leaves = [mc_tree.getName(leaf) for leaf in mc_tree.getLeaves()]
                 if options.reference not in leaves:
                     raise RuntimeError("Genome specified with --reference, {}, not found in tree leaves".format(options.reference))
-                for sample in input_seq_map.keys():
-                    if sample != options.reference and sample.startswith(options.reference):
-                        raise RuntimeError("Input sample {} is prefixed by given reference {}. ".format(sample, options.reference) +                        
-                                           "This is not supported by this version of Cactus, " +
-                                           "so one of these samples needs to be renamed to continue")
             
             if options.refFromGFA:
                 if not options.reference:

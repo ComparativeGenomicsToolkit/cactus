@@ -27,6 +27,7 @@ from cactus.shared.version import cactus_commit
 from cactus.preprocessor.fileMasking import get_mask_bed_from_fasta
 from cactus.preprocessor.checkUniqueHeaders import sanitize_fasta_headers
 from cactus.refmap.cactus_graphmap import filter_paf
+from cactus.refmap.cactus_minigraph import check_sample_names
 from toil.job import Job
 from toil.common import Toil
 from toil.statsAndLogging import logger
@@ -138,12 +139,8 @@ def cactus_graphmap_split(options):
             if options.reference and options.reference not in leaves:
                 raise RuntimeError("Name given with --reference {} not found in seqfile".format(options.reference))
 
-            if options.reference:
-                for sample in seqFile.pathMap.keys():
-                    if sample != options.reference and sample.startswith(options.reference):
-                        raise RuntimeError("Input sample {} is prefixed by given reference {}. ".format(sample, options.reference) +
-                                           "This is not supported by this version of Cactus, " +
-                                           "so one of these samples needs to be renamed to continue")
+            # validate the sample names
+            check_sample_names(input_seq_map.keys(), options.reference)
                         
             for genome, seq in seqFile.pathMap.items():
                 if genome in leaves:
