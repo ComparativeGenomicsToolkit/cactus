@@ -140,7 +140,7 @@ def cactus_graphmap_split(options):
                 raise RuntimeError("Name given with --reference {} not found in seqfile".format(options.reference))
 
             # validate the sample names
-            check_sample_names(input_seq_map.keys(), options.reference)
+            check_sample_names(seqFile.pathMap.keys(), options.reference)
                         
             for genome, seq in seqFile.pathMap.items():
                 if genome in leaves:
