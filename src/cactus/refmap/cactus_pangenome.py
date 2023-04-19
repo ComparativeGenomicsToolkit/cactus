@@ -30,7 +30,6 @@ from cactus.shared.common import cactus_override_toil_options
 from cactus.shared.common import cactus_call
 from cactus.shared.common import getOptionalAttrib, findRequiredNode
 from cactus.shared.version import cactus_commit
-from cactus.refmap.cactus_graphmap_join import unzip_seqfile
 from cactus.preprocessor.checkUniqueHeaders import sanitize_fasta_headers
 from toil.job import Job
 from toil.common import Toil
@@ -40,6 +39,7 @@ from toil.realtimeLogger import RealtimeLogger
 from cactus.shared.common import cactus_cpu_count
 
 from cactus.refmap.cactus_minigraph import minigraph_construct_workflow
+from cactus.refmap.cactus_minigraph import check_sample_names
 from cactus.refmap.cactus_graphmap import minigraph_workflow
 from cactus.refmap.cactus_graphmap_split import graphmap_split_workflow, export_split_data
 from cactus.setup.cactus_align import make_batch_align_jobs, batch_align_jobs
@@ -169,14 +169,9 @@ def main():
             # load the seqfile
             seqFile = SeqFile(options.seqFile)
             input_seq_map = seqFile.pathMap
-            
-            if options.reference not in input_seq_map:
-                raise RuntimeError("Specified reference not in seqfile")
-            for sample in input_seq_map.keys():
-                if sample != options.reference and sample.startswith(options.reference):
-                    raise RuntimeError("Input sample {} is prefixed by given reference {}. ".format(sample, options.reference) +                        
-                                       "This is not supported by this version of Cactus, " +
-                                       "so one of these samples needs to be renamed to continue")
+
+            # validate the sample names
+            check_sample_names(input_seq_map.keys(), options.reference)
 
             # apply cpu override                
             if options.mapCores is not None:

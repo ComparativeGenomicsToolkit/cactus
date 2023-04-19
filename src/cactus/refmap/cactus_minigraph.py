@@ -24,7 +24,6 @@ from cactus.shared.common import cactus_override_toil_options
 from cactus.shared.common import cactus_call
 from cactus.shared.common import getOptionalAttrib, findRequiredNode
 from cactus.shared.version import cactus_commit
-from cactus.refmap.cactus_graphmap_join import unzip_seqfile
 from cactus.preprocessor.checkUniqueHeaders import sanitize_fasta_headers
 from toil.job import Job
 from toil.common import Toil
@@ -86,14 +85,9 @@ def main():
             # load the seqfile
             seqFile = SeqFile(options.seqFile)
             input_seq_map = seqFile.pathMap
-            
-            if options.reference not in input_seq_map:
-                raise RuntimeError("Specified reference not in seqfile")
-            for sample in input_seq_map.keys():
-                if sample != options.reference and sample.startswith(options.reference):
-                    raise RuntimeError("Input sample {} is prefixed by given reference {}. ".format(sample, options.reference) +                        
-                                       "This is not supported by this version of Cactus, " +
-                                       "so one of these samples needs to be renamed to continue")
+
+            # validate the sample names
+            check_sample_names(input_seq_map.keys(), options.reference)
 
             # apply cpu override                
             if options.mapCores is not None:
@@ -127,7 +121,32 @@ def main():
     end_time = timeit.default_timer()
     run_time = end_time - start_time
     logger.info("cactus-minigraph has finished after {} seconds".format(run_time))
-        
+
+def check_sample_names(sample_names, reference):
+    """ make sure we have a workable set of sample names """
+
+    # make sure we have the reference
+    if reference is not None:
+        if reference not in sample_names:
+            raise RuntimeError("Specified reference not in seqfile")
+
+        # graphmap-join uses reference names as prefixes, so make sure we don't get into trouble with that
+        reference_base = os.path.splitext(reference)[0]
+        for sample in sample_names:
+            sample_base = os.path.splitext(sample)[0]
+            if sample != reference and sample_base.startswith(reference_base):
+                raise RuntimeError("Input sample {} is prefixed by given reference {}. ".format(sample_base, reference_base) +    
+                                   "This is not supported by this version of Cactus, " +
+                                   "so one of these samples needs to be renamed to continue")
+
+    # the "." character is overloaded to specify haplotype, make sure that it makes sense
+    for sample in sample_names:
+        sample_base, sample_ext = os.path.splitext(sample)
+        if not sample_base or (not sample_ext and sample_base.startswith(".")):
+            raise RuntimeError("Sample name {} invalid because it begins with \".\"".format(sample))
+        if sample_ext and (len(sample_ext) == 1 or not sample_ext[1:].isnumeric()):
+            raise RuntimeError("Sample name {} with \"{}\" suffix is not supported. You must either remove this suffix or use .N where N is an integer to specify haplotype".format(sample, sample_ext))
+                                    
 def minigraph_construct_workflow(job, config_node, seq_id_map, seq_order, gfa_path, sanitize=True):
     """ minigraph can handle bgzipped files but not gzipped; so unzip everything in case before running"""
     if sanitize:
