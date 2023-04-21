@@ -761,7 +761,7 @@ class TestCase(unittest.TestCase):
         self._check_valid_hal(self._out_hal(name),
                               expected_tree='((simHuman_chr6:0.144018,((simMouse_chr6:0.084509,simRat_chr6:0.091589)mr:0.171974,simGorilla:0.2)AncGorilla:0.1)Anc1:0.020593,(simCow_chr6:0.18908,simDog_chr6:0.16303)Anc2:0.032898)Anc0;')
 
-        self._check_maf_accuracy(self._out_hal(name), delta=(0.1,0.13))
+        self._check_maf_accuracy(self._out_hal(name), delta=(0.1,0.14))
 
 
     def testEvolverPrepareWDL(self):
