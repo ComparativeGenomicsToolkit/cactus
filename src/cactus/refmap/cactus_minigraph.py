@@ -122,22 +122,26 @@ def main():
     run_time = end_time - start_time
     logger.info("cactus-minigraph has finished after {} seconds".format(run_time))
 
-def check_sample_names(sample_names, reference):
+def check_sample_names(sample_names, references):
     """ make sure we have a workable set of sample names """
 
     # make sure we have the reference
-    if reference is not None:
-        if reference not in sample_names:
-            raise RuntimeError("Specified reference not in seqfile")
+    if references:
+        assert type(references) in [list, str]
+        if type(references) is str:
+            references = [references]
+        for reference in references:
+            if reference not in sample_names:
+                raise RuntimeError("Specified reference not in seqfile")
 
-        # graphmap-join uses reference names as prefixes, so make sure we don't get into trouble with that
-        reference_base = os.path.splitext(reference)[0]
-        for sample in sample_names:
-            sample_base = os.path.splitext(sample)[0]
-            if sample != reference and sample_base.startswith(reference_base):
-                raise RuntimeError("Input sample {} is prefixed by given reference {}. ".format(sample_base, reference_base) +    
-                                   "This is not supported by this version of Cactus, " +
-                                   "so one of these samples needs to be renamed to continue")
+            # graphmap-join uses reference names as prefixes, so make sure we don't get into trouble with that
+            reference_base = os.path.splitext(reference)[0]
+            for sample in sample_names:
+                sample_base = os.path.splitext(sample)[0]
+                if sample != reference and sample_base.startswith(reference_base):
+                    raise RuntimeError("Input sample {} is prefixed by given reference {}. ".format(sample_base, reference_base) +    
+                                       "This is not supported by this version of Cactus, " +
+                                       "so one of these samples needs to be renamed to continue")
 
     # the "." character is overloaded to specify haplotype, make sure that it makes sense
     for sample in sample_names:

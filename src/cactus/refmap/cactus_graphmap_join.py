@@ -184,13 +184,17 @@ def graphmap_join_validate_options(options):
             raise RuntimError('--vcf cannot be set to clip since clipping is disabled')
         if vcf == 'filter' and not options.filter:
             raise RuntimeError('--vcf cannot be set to filter since filtering is disabled')
-            
+
+    # if someone used --vcfReference they probably want --vcf too
+    if options.vcfReference and not options.vcf:
+        raise RuntimeError('--vcfReference cannot be used without --vcf')
+        
     if not options.vcfReference:
         options.vcfReference = [options.reference[0]]
     else:
         for vcfref in options.vcfReference:
             if vcfref not in options.reference:
-                raise RuntimeError('--vcfReference {} was not specified as a --reference'.format(vcfref))
+                raise RuntimeError('--vcfReference {} invalid because {} was not specified as a --reference'.format(vcfref, vcfref))
 
     if options.giraffe == []:
         options.giraffe = ['filter'] if options.filter else ['clip'] if options.clip else ['full']
@@ -347,7 +351,7 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
                 vcftag = vcf_ref + '.' + workflow_phase if vcf_ref != options.reference[0] else workflow_phase
                 deconstruct_job = prev_job.addFollowOnJobFn(make_vcf, config, options.outName, vcf_ref, current_out_dict,
                                                             max_ref_allele=options.vcfbub,
-                                                            tag=vcftag + '.',
+                                                            tag=vcftag + '.', ref_tag = workflow_phase + '.',
                                                             cores=options.indexCores,
                                                             disk = sum(f.size for f in vg_ids) * 2)
                 out_dicts.append(deconstruct_job.rv())                
@@ -594,14 +598,14 @@ def make_vg_indexes(job, options, config, gfa_ids, tag=''):
              '{}gbz'.format(tag) : job.fileStore.writeGlobalFile(gbz_path),
              '{}snarls'.format(tag) : job.fileStore.writeGlobalFile(snarls_path) }
 
-def make_vcf(job, config, out_name, vcf_ref, index_dict, tag='', max_ref_allele=None):
+def make_vcf(job, config, out_name, vcf_ref, index_dict, tag='', ref_tag='', max_ref_allele=None):
     """ make the vcf
     """ 
     work_dir = job.fileStore.getLocalTempDir()
-    gbz_path = os.path.join(work_dir, tag + os.path.basename(out_name) + '.gbz')
-    snarls_path = os.path.join(work_dir, tag + os.path.basename(out_name) + '.snarls')
-    job.fileStore.readGlobalFile(index_dict['{}gbz'.format(tag)], gbz_path)
-    job.fileStore.readGlobalFile(index_dict['{}snarls'.format(tag)], snarls_path)
+    gbz_path = os.path.join(work_dir, ref_tag + os.path.basename(out_name) + '.gbz')
+    snarls_path = os.path.join(work_dir, ref_tag + os.path.basename(out_name) + '.snarls')
+    job.fileStore.readGlobalFile(index_dict['{}gbz'.format(ref_tag)], gbz_path)
+    job.fileStore.readGlobalFile(index_dict['{}snarls'.format(ref_tag)], snarls_path)
 
     # make the vcf
     vcf_path = os.path.join(work_dir, '{}merged.vcf.gz'.format(tag))
