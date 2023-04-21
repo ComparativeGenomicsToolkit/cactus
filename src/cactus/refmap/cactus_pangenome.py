@@ -52,7 +52,7 @@ def main():
     parser.add_argument("seqFile", help = "Seq file (will be modified if necessary to include graph Fasta sequence)")
     parser.add_argument("--outDir", help = "Output directory", required=True)
     parser.add_argument("--outName", help = "Output name (without extension)", required=True)
-    parser.add_argument("--reference", help = "Reference genome name", required=True)
+    parser.add_argument("--reference", required=True, nargs='+', type=str, help = "Reference event name(s). The first will be the \"true\" reference and will be left unclipped and uncollapsed. It also should have been used with --reference in all upstream commands. Other names will be promoted to reference paths in vg") 
 
     # cactus-minigraph options
     parser.add_argument("--mapCores", type=int, help = "Number of cores for minigraph.  Overrides graphmap cpu in configuration")
@@ -146,9 +146,7 @@ def main():
     # (but we want to do as much error-checking upfront as possible)
     options.hal = [None]
     options.vg = [None]
-    options.reference = [options.reference] #todo multiple reference support
     options = graphmap_join_validate_options(options)
-    options.reference = options.reference[0]
 
     logger.info('Cactus Command: {}'.format(' '.join(sys.argv)))
     logger.info('Cactus Commit: {}'.format(cactus_commit))
@@ -184,7 +182,7 @@ def main():
             #import the sequences
             input_seq_id_map = {}
             input_path_map = {}
-            input_seq_order = [options.reference]
+            input_seq_order = [options.reference[0]]
             leaves = set([seqFile.tree.getName(node) for node in seqFile.tree.getLeaves()])
             for (genome, seq) in input_seq_map.items():
                 if genome != graph_event and genome in leaves:                
@@ -196,7 +194,7 @@ def main():
                     logger.info("Importing {}".format(seq))
                     input_seq_id_map[genome] = toil.importFile(seq)
                     input_path_map[genome] = seq
-                    if genome != options.reference:
+                    if genome != options.reference[0]:
                         input_seq_order.append(genome)
             
             toil.start(Job.wrapJobFn(pangenome_end_to_end_workflow, options, config_wrapper, input_seq_id_map, input_path_map, input_seq_order))
@@ -254,7 +252,7 @@ def make_batch_align_jobs_wrapper(job, options, chromfile_path, config_wrapper):
     align_jobs = make_batch_align_jobs(options, job.fileStore, job.fileStore, config_wrapper)
     return align_jobs
     
-def export_align_wrapper(job, options, results_dict):
+def export_align_wrapper(job, options, results_dict, reference_list):
     """ toil job wrapper for exporting from cactus_align """
     vg_ids = []
     vg_paths = []
@@ -277,9 +275,7 @@ def export_align_wrapper(job, options, results_dict):
     join_options = options
     join_options.hal = hal_paths
     join_options.vg = vg_paths
-
-    #todo: fix multireferene support (including in join)
-    join_options.reference = [join_options.reference]
+    join_options.reference = reference_list
 
     return join_options, vg_ids, hal_ids
 
@@ -292,6 +288,12 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
     root_job = Job()
     job.addChild(root_job)
     config_node = config_wrapper.xmlRoot
+
+    # it's really only graphmap_join that can accept (or use) multiple references
+    # so we forget about it until then
+    assert type(options.reference) == list
+    reference_list = options.reference
+    options.reference = options.reference[0]
 
     # sanitize headers (once here, skip in all workflows below)
     sanitize_job = root_job.addFollowOnJobFn(sanitize_fasta_headers, seq_id_map, pangenome=True)
@@ -334,7 +336,7 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
     align_jobs = align_jobs_make_job.rv()
     align_job = align_jobs_make_job.addFollowOnJobFn(batch_align_jobs, align_jobs)
     results_dict = align_job.rv()
-    align_export_job = align_job.addFollowOnJobFn(export_align_wrapper, options, results_dict)
+    align_export_job = align_job.addFollowOnJobFn(export_align_wrapper, options, results_dict, reference_list)
     join_options, vg_ids, hal_ids = align_export_job.rv(0), align_export_job.rv(1), align_export_job.rv(2)
 
     # cactus_graphmap_join
