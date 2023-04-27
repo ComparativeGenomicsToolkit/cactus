@@ -15,6 +15,7 @@ from sonLib.nxnewick import NXNewick
 from cactus.shared.common import makeURL
 from cactus.shared.common import cactus_call
 from cactus.shared.configWrapper import ConfigWrapper
+from cactus.shared.common import findRequiredNode, getOptionalAttrib
 
 ############################################################
 ############################################################
@@ -39,8 +40,11 @@ def cactus_cons_with_resources(job, tree, ancestor_event, config_node, seq_id_ma
 
     disk = int(3 * total_sequence_size)
 
-    # this is the old caf job's memory function
-    memoryPoly = [1.80395944e+01, 7.96042247e+07]
+    # this is (adapted from) the old caf job's memory function
+    memoryPoly = [2, 1e8]
+    # abPOA needs a bunch of memory for its table, even for tiny alignments
+    if getOptionalAttrib(findRequiredNode(config_node, 'bar'), 'partialOrderAlignment', typeFn=bool, default=True):
+        memoryPoly[1] = 4e9        
     memoryCap = 120e09
     mem = 0
     for degree, coefficient in enumerate(reversed(memoryPoly)):
