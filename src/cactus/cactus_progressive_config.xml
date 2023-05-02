@@ -55,7 +55,11 @@
 	<!-- trimIngroups Progressively filter ingroup sequences from alignment to successive outgroups as an alignment
 	 is identified-->
 	<!-- trimOutgroups Remove outgroup sequences that don't have an alignment to an ingroup sequence-->
+<<<<<<< HEAD
 	<!-- outputSecondaryAlignments Include secondary alignments in the output. If included CAF will use these -->
+=======
+	<!-- dechunkBatchSize Parallelize paf_dechunks into batches of at most this size-->
+>>>>>>> 45e6977e (parallelize paf_dechunk)
 	<blast chunkSize="30000000"
 		   overlapSize="10000"
 		   mapper="lastz"
@@ -79,6 +83,7 @@
 		   trimFlanking="10"
 		   trimOutgroupFlanking="2000"
 		   outputSecondaryAlignments="0"
+		   dechunkBatchSize="200"
 		   >
 
 		<!-- The following are parametrised to produce the same results as the default settings,

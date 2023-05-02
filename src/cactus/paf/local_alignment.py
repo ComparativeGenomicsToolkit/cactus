@@ -13,6 +13,8 @@ from toil.statsAndLogging import logger
 from toil.lib.bioio import getLogLevelString
 from sonLib.bioio import newickTreeParser
 import os
+import shutil
+import math
 from cactus.paf.paf import get_event_pairs, get_leaves, get_node, get_distances
 from cactus.shared.common import cactus_call, getOptionalAttrib
 from cactus.preprocessor.checkUniqueHeaders import sanitize_fasta_headers
@@ -105,15 +107,38 @@ def run_minimap2(job, name_A, genome_A, name_B, genome_B, distance, params):
     return job.fileStore.writeGlobalFile(alignment_file)
 
 
-def combine_chunks(job, chunked_alignment_files):
-    # Make combined alignments file
-    alignment_file = job.fileStore.getLocalTempFile()
-    for chunk in chunked_alignment_files: # Append each of the chunked alignment files into one file
-        cactus_call(parameters=['paffy', 'dechunk', '-i', job.fileStore.readGlobalFile(chunk)],
-                    outfile=alignment_file, outappend=True)
-        job.fileStore.deleteGlobalFile(chunk) # Cleanup the old files
-    return job.fileStore.writeGlobalFile(alignment_file)  # Return the final alignments file copied to the jobstore
-
+def combine_chunks(job, chunked_alignment_files, batch_size):
+    if len(chunked_alignment_files) >= 2 * batch_size:
+        # run combine_chunks in batches
+        root_job = Job()
+        job.addChild(root_job)
+        batch_results = []
+        for chunk_idx in range(math.ceil(len(chunked_alignment_files) / batch_size)):
+            batch = chunked_alignment_files[chunk_idx * batch_size : chunk_idx * batch_size + batch_size]
+            batch_results.append(root_job.addChildJobFn(combine_chunks, batch,
+                                                        disk=sum([f.size for f in batch])).rv())
+        return root_job.addFollowOnJobFn(merge_combined_chunks, batch_results,
+                                         disk=2*sum([f.size for f in chunked_alignment_files])).rv()
+    else:
+        # Make combined alignments file
+        alignment_file = job.fileStore.getLocalTempFile()
+        for chunk in chunked_alignment_files: # Append each of the chunked alignment files into one file
+            cactus_call(parameters=['paffy', 'dechunk', '-i', job.fileStore.readGlobalFile(chunk)],
+                        outfile=alignment_file, outappend=True)
+            job.fileStore.deleteGlobalFile(chunk) # Cleanup the old files
+        return job.fileStore.writeGlobalFile(alignment_file)  # Return the final alignments file copied to the jobstore
+        
+def merge_combined_chunks(job, combined_chunks):
+    # mege up and return some chunks, deleting them too
+    output_path = job.fileStore.getLocalTempFile()
+    with open(output_path, 'a') as output_file:
+        for i,chunk in enumerate(combined_chunks):
+            chunk_path = job.fileStore.readGlobalFile(chunk, mutable=True)
+            with open(chunk_path, 'r') as chunk_file:
+                shutil.copyfileobj(chunk_file, output_file)
+            os.remove(chunk_path)
+            job.fileStore.deleteGlobalFile(chunk)
+    return job.fileStore.writeGlobalFile(output_path)
 
 def make_chunked_alignments(job, event_a, genome_a, event_b, genome_b, distance, params):
     lastz_params_node = params.find("blast")
@@ -150,7 +175,8 @@ def make_chunked_alignments(job, event_a, genome_a, event_b, genome_b, distance,
                                                              memory=max(200000000, 15*(chunk_a.size+chunk_b.size)),
                                                              accelerators=accelerators).rv())
 
-    return job.addFollowOnJobFn(combine_chunks, chunked_alignment_files).rv()  # Combine the chunked alignment files
+    dechunk_batch_size = getOptionalAttrib(lastz_params_node, 'dechunkBatchSize', typeFn=int, default=1e9)
+    return job.addFollowOnJobFn(combine_chunks, chunked_alignment_files, dechunk_batch_size).rv()  # Combine the chunked alignment files
 
 
 def make_ingroup_to_outgroup_alignments_1(job, ingroup_event, outgroup_events, event_names_to_sequences, distances, params):
@@ -181,7 +207,7 @@ def make_ingroup_to_outgroup_alignments_2(job, alignments, ingroup_event, outgro
         # unpack promises to get size requirements then recurse
         return root_job.addChildJobFn(make_ingroup_to_outgroup_alignments_2, alignments, ingroup_event, outgroup_events,
                                       event_names_to_sequences, distances, params, has_resources=True,
-                                      disk=8*alignments.size, memory=8*alignments.size).rv()
+                                      disk=16*alignments.size, memory=16*alignments.size).rv()
         
     # identify all ingroup sub-sequences that remain unaligned longer than a threshold as follows:
 
