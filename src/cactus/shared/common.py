@@ -769,7 +769,7 @@ def cactus_call(tool=None,
     while True:
         try:
             # Wait a bit to see if the process is done
-            output, stderr = process.communicate(stdin_string if first_run else None, timeout=10)
+            output, stderr = process.communicate(stdin_string.encode() if first_run and stdin_string else None, timeout=10)
         except subprocess.TimeoutExpired:
             if mode == "docker":
                 # Every so often, check the memory usage of the container
