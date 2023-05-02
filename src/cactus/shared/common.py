@@ -754,7 +754,7 @@ def cactus_call(tool=None,
         sub_env = os.environ.copy()
         sub_env['TMPDIR']='.'
 
-    process = subprocess.Popen(call, shell=shell, encoding="ascii",
+    process = subprocess.Popen(call, shell=shell, encoding=None,
                                stdin=stdinFileHandle, stdout=stdoutFileHandle,
                                stderr=errfile,
                                bufsize=-1, cwd=work_dir, env=sub_env)
@@ -769,7 +769,7 @@ def cactus_call(tool=None,
     while True:
         try:
             # Wait a bit to see if the process is done
-            output, stderr = process.communicate(stdin_string if first_run else None, timeout=10)
+            output, stderr = process.communicate(stdin_string.encode() if first_run and stdin_string else None, timeout=10)
         except subprocess.TimeoutExpired:
             if mode == "docker":
                 # Every so often, check the memory usage of the container
@@ -798,6 +798,11 @@ def cactus_call(tool=None,
         # https://github.com/ComparativeGenomicsToolkit/cactus/issues/610#issuecomment-1015759593
         wfile.close()
         os.wait()
+
+    if stderr is not None:
+        stderr = stderr.decode()
+    if output is not None:
+        output = output.decode()
         
     if process.returncode == 0:
         run_time = time.time() - start_time
@@ -818,8 +823,7 @@ def cactus_call(tool=None,
         return process.returncode
 
     if process.returncode != 0:
-        out = "stdout={}".format(output)
-        out += ", stderr={}".format(stderr)
+        out = "stderr={}".format(stderr) if stderr else ''
 
         sigill_msg = ''
         if abs(process.returncode) == 4:
