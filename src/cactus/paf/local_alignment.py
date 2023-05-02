@@ -190,24 +190,20 @@ def make_ingroup_to_outgroup_alignments_1(job, ingroup_event, outgroup_events, e
     alignment = root_job.addChildJobFn(make_chunked_alignments,
                                        outgroup.iD, event_names_to_sequences[outgroup.iD],
                                        ingroup_event.iD, event_names_to_sequences[ingroup_event.iD], distances[ingroup_event, outgroup], params,
-                                       disk=2*(event_names_to_sequences[ingroup_event.iD].size+event_names_to_sequences[outgroup.iD].size)).rv()
+                                       disk=4*(event_names_to_sequences[ingroup_event.iD].size+event_names_to_sequences[outgroup.iD].size)).rv()
 
     #  post process the alignments and recursively generate alignments to remaining outgroups
     return root_job.addFollowOnJobFn(make_ingroup_to_outgroup_alignments_2, alignment, ingroup_event, outgroup_events[1:],
-                                     event_names_to_sequences, distances, params).rv() if len(outgroup_events) > 1 else alignment
+                                     event_names_to_sequences, distances, params,
+                                     disk=4*(event_names_to_sequences[ingroup_event.iD].size+event_names_to_sequences[outgroup.iD].size),
+                                     memory=4*(event_names_to_sequences[ingroup_event.iD].size+event_names_to_sequences[outgroup.iD].size)).rv() if len(outgroup_events) > 1 else alignment
 
 
 def make_ingroup_to_outgroup_alignments_2(job, alignments, ingroup_event, outgroup_events,
-                                          event_names_to_sequences, distances, params, has_resources=False):
+                                          event_names_to_sequences, distances, params):
     # a job should never set its own follow-on, so we hang everything off root_job here to encapsulate
     root_job = Job()
     job.addChild(root_job)
-
-    if not has_resources:
-        # unpack promises to get size requirements then recurse
-        return root_job.addChildJobFn(make_ingroup_to_outgroup_alignments_2, alignments, ingroup_event, outgroup_events,
-                                      event_names_to_sequences, distances, params, has_resources=True,
-                                      disk=16*alignments.size, memory=16*alignments.size).rv()
         
     # identify all ingroup sub-sequences that remain unaligned longer than a threshold as follows:
 
@@ -262,9 +258,15 @@ def make_ingroup_to_outgroup_alignments_3(job, ingroup_event, ingroup_seq_file, 
     return job.fileStore.writeGlobalFile(merged_alignments)
 
 
-def chain_alignments(job, alignment_files, reference_event_name, params):
+def chain_alignments(job, alignment_files, reference_event_name, params, has_resources=False):
     # The following recapitulates the pipeline showing in paffy/tests/paf_pipeline_test.sh
 
+    if not has_resources:
+        #unpack the promises to determine resources, and start again
+        total_paf_size = sum([alignment_file.size for alignment_file in alignment_files])
+        return job.addChildJobFn(chain_alignments, alignment_files, reference_event_name, params, has_resources=True,
+                                 disk=8*total_paf_size, memory=36*total_paf_size).rv()
+    
     # Create a local temporary file to put the alignments in.
     output_alignments_file = job.fileStore.getLocalTempFile()
 
@@ -408,17 +410,10 @@ def make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancest
 
     # Now do the chaining
     return root_job.addFollowOnJobFn(chain_alignments, ingroup_alignments + outgroup_alignments,
-                                     ancestor_event_string, params, disk=4*total_sequence_size,
-                                     memory=4*total_sequence_size).rv()
+                                     ancestor_event_string, params).rv()
 
 
-def trim_unaligned_sequences(job, sequences, alignments, params, has_resources=False):
-
-    if not has_resources:
-        # unpack promises to get size requirements then recurse
-        total_size = alignments.size + sum([file_id.size for file_id in sequences])
-        return job.addChildJobFn(trim_unaligned_sequences, sequences, alignments, params, has_resources=True,
-                                 disk=4*total_size, memory=2*total_size).rv()
+def trim_unaligned_sequences(job, sequences, alignments, params):
     
     alignments = job.fileStore.readGlobalFile(alignments)  # Download the alignments
 
