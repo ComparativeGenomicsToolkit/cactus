@@ -208,7 +208,8 @@ def graphmap_join_validate_options(options):
             raise RuntimeError('--giraffe cannot be set to filter since filtering is disabled')
 
     # Prevent some useless compute due to default param combos
-    if options.clip and 'clip' not in options.gfa + options.gbz + options.chrom_vg + options.vcf + options.giraffe:
+    if options.clip and 'clip' not in options.gfa + options.gbz + options.chrom_vg + options.vcf + options.giraffe \
+       and 'filter' not in options.gfa + options.gbz + options.chrom_vg + options.vcf + options.giraffe:
         options.clip = None
     if options.filter and 'filter' not in options.gfa + options.gbz + options.chrom_vg + options.vcf + options.giraffe:
         options.filter = None
@@ -265,6 +266,7 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
 
     # run the "full" phase to do pre-clipping stuff
     full_vg_ids = []
+    assert len(options.vg) == len(vg_ids)
     for vg_path, vg_id in zip(options.vg, vg_ids):
         full_job = Job.wrapJobFn(clip_vg, options, config, vg_path, vg_id, 'full',
                                 disk=vg_id.size * 2, memory=vg_id.size * 4)
@@ -281,10 +283,11 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
     # run the "clip" phase to do the clip-vg clipping
     clip_vg_ids = []
     clipped_stats = None 
-    if options.clip:
+    if options.clip or options.filter:
         clip_root_job = Job()
         prev_job.addFollowOn(clip_root_job)
         clip_vg_stats = []
+        assert len(options.vg) == len(full_vg_ids) == len(vg_ids)
         for vg_path, vg_id, input_vg_id in zip(options.vg, full_vg_ids, vg_ids):
             clip_job = Job.wrapJobFn(clip_vg, options, config, vg_path, vg_id, 'clip',
                                      disk=input_vg_id.size * 2, memory=input_vg_id.size * 4)
@@ -301,6 +304,7 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
     if options.filter:
         filter_root_job = Job()
         prev_job.addFollowOn(filter_root_job)
+        assert len(options.vg) == len(clip_vg_ids) == len(vg_ids)
         for vg_path, vg_id, input_vg_id in zip(options.vg, clip_vg_ids, vg_ids):
             filter_job = filter_root_job.addChildJobFn(vg_clip_vg, options, config, vg_path, vg_id, 
                                                        disk=input_vg_id.size * 2)
@@ -331,6 +335,7 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
         gfa_ids = []
         current_out_dict = None
         if workflow_phase in options.gfa + options.gbz + options.vcf + options.giraffe:
+            assert len(options.vg) == len(phase_vg_ids) == len(vg_ids)
             for vg_path, vg_id, input_vg_id in zip(options.vg, phase_vg_ids, vg_ids):
                 gfa_job = gfa_root_job.addChildJobFn(vg_to_gfa, options, config, vg_path, vg_id,
                                                      disk=input_vg_id.size * 5)
@@ -538,6 +543,7 @@ def join_vg(job, options, config, clipped_vg_ids):
     work_dir = job.fileStore.getLocalTempDir()
     vg_paths = []
 
+    assert len(options.vg) == len(clipped_vg_ids)
     for vg_path, vg_id in zip(options.vg, clipped_vg_ids):
         vg_path = os.path.join(work_dir, os.path.basename(vg_path))
         job.fileStore.readGlobalFile(vg_id, vg_path, mutable=True)
@@ -570,6 +576,7 @@ def make_vg_indexes(job, options, config, gfa_ids, tag=''):
     graph_event = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "assemblyName", default="_MINIGRAPH_")
     
     # merge the gfas
+    assert len(options.vg) == len(gfa_ids)
     for i, (vg_path, gfa_id) in enumerate(zip(options.vg, gfa_ids)):
         gfa_path = os.path.join(work_dir, os.path.basename(vg_path) +  '.gfa')
         job.fileStore.readGlobalFile(gfa_id, gfa_path, mutable=True)
@@ -666,6 +673,7 @@ def merge_hal(job, options, hal_ids):
     """ call halMergeChroms to make one big hal file out of the chromosome hal files """
     work_dir = job.fileStore.getLocalTempDir()
     hal_paths = []
+    assert len(options.hal) == len(hal_ids)
     for in_path, hal_id in zip(options.hal, hal_ids):
         hal_path = os.path.join(work_dir, os.path.basename(in_path))
         job.fileStore.readGlobalFile(hal_id, hal_path)
@@ -747,18 +755,21 @@ def export_join_data(toil, options, full_ids, clip_ids, clip_stats, filter_ids, 
 
         if 'full' in options.chrom_vg:
             # download the "full" vgs
+            assert len(options.vg) == len(full_ids)
             for vg_path, full_id,  in zip(options.vg, full_ids):
                 name = os.path.splitext(vg_path)[0] + '.full.vg'
                 toil.exportFile(full_id, makeURL(os.path.join(clip_base, os.path.basename(name))))
 
         if 'clip' in options.chrom_vg:
             # download the "clip" vgs
+            assert len(options.vg) == len(clip_ids)
             for vg_path, clip_id,  in zip(options.vg, clip_ids):
                 name = os.path.splitext(vg_path)[0] + '.vg'
                 toil.exportFile(clip_id, makeURL(os.path.join(clip_base, os.path.basename(name))))
 
         if 'filter' in options.chrom_vg:
             # download the "filter" vgs
+            assert len(options.vg) == len(filter_ids)
             for vg_path, filter_id,  in zip(options.vg, filter_ids):
                 name = os.path.splitext(vg_path)[0] + '.d{}.vg'.format(options.filter)
                 toil.exportFile(filter_id, makeURL(os.path.join(clip_base, os.path.basename(name))))
