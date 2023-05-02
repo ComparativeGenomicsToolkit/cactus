@@ -763,9 +763,10 @@ def export_join_data(toil, options, full_ids, clip_ids, clip_stats, filter_ids, 
                 name = os.path.splitext(vg_path)[0] + '.d{}.vg'.format(options.filter)
                 toil.exportFile(filter_id, makeURL(os.path.join(clip_base, os.path.basename(name))))
                 
-    # download the stats files 
-    for stats_file in clip_stats.keys():
-        toil.exportFile(clip_stats[stats_file], makeURL(os.path.join(options.outDir, '{}.{}'.format(options.outName, stats_file))))
+    # download the stats files
+    if clip_stats:
+        for stats_file in clip_stats.keys():
+            toil.exportFile(clip_stats[stats_file], makeURL(os.path.join(options.outDir, '{}.{}'.format(options.outName, stats_file))))
         
     # download everything else
     for idx_map in idx_maps:
