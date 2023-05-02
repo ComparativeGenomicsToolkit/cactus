@@ -172,11 +172,17 @@ def make_ingroup_to_outgroup_alignments_1(job, ingroup_event, outgroup_events, e
 
 
 def make_ingroup_to_outgroup_alignments_2(job, alignments, ingroup_event, outgroup_events,
-                                          event_names_to_sequences, distances, params):
+                                          event_names_to_sequences, distances, params, has_resources=False):
     # a job should never set its own follow-on, so we hang everything off root_job here to encapsulate
     root_job = Job()
     job.addChild(root_job)
 
+    if not has_resources:
+        # unpack promises to get size requirements then recurse
+        return root_job.addChildJobFn(make_ingroup_to_outgroup_alignments_2, alignments, ingroup_event, outgroup_events,
+                                      event_names_to_sequences, distances, params, has_resources=True,
+                                      disk=8*alignments.size, memory=8*alignments.size).rv()
+        
     # identify all ingroup sub-sequences that remain unaligned longer than a threshold as follows:
 
     # run paffy to_bed to create a bed of aligned coverage
@@ -376,10 +382,18 @@ def make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancest
 
     # Now do the chaining
     return root_job.addFollowOnJobFn(chain_alignments, ingroup_alignments + outgroup_alignments,
-                                     ancestor_event_string, params, disk=2*total_sequence_size).rv()
+                                     ancestor_event_string, params, disk=4*total_sequence_size,
+                                     memory=4*total_sequence_size).rv()
 
 
-def trim_unaligned_sequences(job, sequences, alignments, params):
+def trim_unaligned_sequences(job, sequences, alignments, params, has_resources=False):
+
+    if not has_resources:
+        # unpack promises to get size requirements then recurse
+        total_size = alignments.size + sum([file_id.size for file_id in sequences])
+        return job.addChildJobFn(trim_unaligned_sequences, sequences, alignments, params, has_resources=True,
+                                 disk=4*total_size, memory=2*total_size).rv()
+    
     alignments = job.fileStore.readGlobalFile(alignments)  # Download the alignments
 
     # Make a bed of aligned sequence
