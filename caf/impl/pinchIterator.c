@@ -130,7 +130,7 @@ static void pairwiseAlignmentToPinch_destructForFile(PairwiseAlignmentToPinch *p
 stPinchIterator *stPinchIterator_constructFromFile(const char *alignmentFile) {
     stPinchIterator *pinchIterator = st_calloc(1, sizeof(stPinchIterator));
     pinchIterator->alignmentArg = pairwiseAlignmentToPinch_construct(fopen(alignmentFile, "r"),
-            (Paf *(*)(void *)) paf_read, 1);
+            (Paf *(*)(void *)) paf_read2, 1);
     pinchIterator->getNextAlignment = (stPinch *(*)(void *, stPinch *)) pairwiseAlignmentToPinch_getNext;
     pinchIterator->destructAlignmentArg = (void(*)(void *)) pairwiseAlignmentToPinch_destructForFile;
     pinchIterator->startAlignmentStack = (void *(*)(void *)) pairwiseAlignmentToPinch_resetForFile;
