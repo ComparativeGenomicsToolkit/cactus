@@ -258,57 +258,98 @@ def make_ingroup_to_outgroup_alignments_3(job, ingroup_event, ingroup_seq_file, 
     return job.fileStore.writeGlobalFile(merged_alignments)
 
 
-def chain_alignments(job, alignment_files, reference_event_name, params, has_resources=False):
+def chain_alignments(job, alignment_files, alignment_names, reference_event_name, params):
     # The following recapitulates the pipeline showing in paffy/tests/paf_pipeline_test.sh
 
-    if not has_resources:
-        #unpack the promises to determine resources, and start again
-        total_paf_size = sum([alignment_file.size for alignment_file in alignment_files])
-        return job.addChildJobFn(chain_alignments, alignment_files, reference_event_name, params, has_resources=True,
-                                 disk=8*total_paf_size, memory=36*total_paf_size).rv()
+    root_job = Job()
+    job.addChild(root_job)
+
+    print("AF {}".format(alignment_files))
+    print("AN {}".format(alignment_names))
+    assert len(alignment_files) == len(alignment_names)
     
-    # Create a local temporary file to put the alignments in.
-    output_alignments_file = job.fileStore.getLocalTempFile()
+    # do the chaining
+    chained_alignment_files = []
+    for alignment_file, alignment_name in zip(alignment_files, alignment_names):
+        chained_alignment_files.append(root_job.addChildJobFn(chain_one_alignment, alignment_file, alignment_name, params,
+                                                              disk=6*alignment_file.size,
+                                                              memory=36*alignment_file.size).rv())
+        
+    # do the tiling and filtering
+    return root_job.addFollowOnJobFn(tile_alignments, chained_alignment_files, reference_event_name, params,
+                                     disk=6*sum([alignment_file.size for alignment_file in alignment_files]),
+                                     memory=36*sum([alignment_file.size for alignment_file in alignment_files])).rv()
 
-    # Get temporary files to store intermediate alignments in
-    j = job.fileStore.getLocalTempFile()
-    k = job.fileStore.getLocalTempFile()
+def chain_one_alignment(job, alignment_file, alignment_name, params):
+    # run paffy chain on one PAF
 
-    # Run the chaining
-    for i in alignment_files:
-        # Copy the alignments from the job store
-        i = job.fileStore.readGlobalFile(i)  # Copy the global alignment file locally
+    work_dir = job.fileStore.getLocalTempDir()
+    alignment_path = os.path.join(work_dir, alignment_name + '.paf')
+    alignment_inv_path = os.path.join(work_dir, alignment_name + '.inv.paf')
+    output_path = os.path.join(work_dir, alignment_name + '.chained.paf')
 
-        # Get the forward and reverse versions of each alignment for symmetry with chaining
-        cactus_call(parameters=['cat', i], outfile=j)
-        cactus_call(parameters=['paffy', 'invert', "-i", i], outfile=j, outappend=True)  # Not bothering to log this one
+    # Copy the alignments from the job store
+    job.fileStore.readGlobalFile(alignment_file, alignment_path)
 
-        # Now chain the alignments
-        messages = cactus_call(parameters=['paffy', 'chain', "-i", j,
-                                           "--maxGapLength", params.find("blast").attrib["chainMaxGapLength"],
-                                           "--chainGapOpen", params.find("blast").attrib["chainGapOpen"],
-                                           "--chainGapExtend", params.find("blast").attrib["chainGapExtend"],
-                                           "--trimFraction", params.find("blast").attrib["chainTrimFraction"],
-                                           "--logLevel", getLogLevelString()],
-                               outfile=k, outappend=True, returnStdErr=True)
-        logger.info("paffy chain {}\n{}".format(reference_event_name, messages[:-1]))  # Log paffy chain
+    # Get the forward and reverse versions of each alignment for symmetry with chaining
+    shutil.copyfile(alignment_path, alignment_inv_path)
+    cactus_call(parameters=['paffy', 'invert', "-i", alignment_path], outfile=alignment_inv_path, outappend=True)
+
+    # Now chain the alignments
+    cactus_call(parameters=['paffy', 'chain', "-i", alignment_inv_path,
+                            "--maxGapLength", params.find("blast").attrib["chainMaxGapLength"],
+                            "--chainGapOpen", params.find("blast").attrib["chainGapOpen"],
+                            "--chainGapExtend", params.find("blast").attrib["chainGapExtend"],
+                            "--trimFraction", params.find("blast").attrib["chainTrimFraction"],
+                            "--logLevel", getLogLevelString()],
+                outfile=output_path,
+                realtimeStderrPrefix='paffy-chain-{}'.format(alignment_name))
+
+    job.fileStore.deleteGlobalFile(alignment_file)
+
+    return job.fileStore.writeGlobalFile(output_path)
+    
+    
+def tile_alignments(job, alignment_files, reference_event_name, params):
+    # do everything post-chaining
+
+    work_dir = job.fileStore.getLocalTempDir()
+
+    # concatenate the input into one big paf
+    local_paths = [os.path.join(work_dir, 'chained_{}_{}.paf'.format(reference_event_name, i)) for i in range(len(alignment_files))]
+    for local_path, alignment_file in zip(local_paths, alignment_files):
+        job.fileStore.readGlobalFile(alignment_file, local_path)
+    chained_paf_path = os.path.join(work_dir, 'chained_{}'.format(reference_event_name))
+    with open(chained_paf_path, 'a') as chained_paf_file:
+        for local_path in local_paths:
+            with open(local_path, 'r') as local_file:
+                shutil.copyfileobj(local_file, chained_paf_file)
+    for alignment_file in alignment_files:
+        job.fileStore.deleteGlobalFile(alignment_file)
 
     # Now tile to select the primary alignments
-    messages = cactus_call(parameters=['paffy', 'tile', "-i", k, "--logLevel", getLogLevelString()],
-                           outfile=j, returnStdErr=True)
-    logger.info("paffy tile event:{}\n{}".format(reference_event_name, messages[:-1]))  # Log paffy tile
+    tiled_paf_path = os.path.join(work_dir, 'tiled_{}.paf'.format(reference_event_name))
+    cactus_call(parameters=['paffy', 'tile', "-i", chained_paf_path, "--logLevel", getLogLevelString()],
+                           outfile=tiled_paf_path, realtimeStderrPrefix='paffy-tile-{}'.format(reference_event_name))
+
+    os.remove(chained_paf_path)
+    trimmed_paf_path = os.path.join(work_dir, 'trim_{}.paf'.format(reference_event_name))
 
     # Trim the poorly aligned tails off the ends of the alignments after tiling - doing so before tiling
     # can create gaps in alignment chains which allows in spurious chains
-    messages = cactus_call(parameters=['paffy', 'trim', "-i", j,
-                                       "--trimIdentity", params.find("blast").attrib["pafTrimIdentity"]],
-                           outfile=k, returnStdErr=True)
-    logger.info("paffy trim {}\n{}".format(reference_event_name, messages[:-1]))  # Log paffy trim
+    cactus_call(parameters=['paffy', 'trim', "-i", tiled_paf_path,
+                            "--trimIdentity", params.find("blast").attrib["pafTrimIdentity"]],
+                outfile=trimmed_paf_path, realtimeStderrPrefix='paffy-trim-{}'.format(reference_event_name))
 
+    os.remove(tiled_paf_path)
+    filter_paf_path = os.path.join(work_dir, 'filter_{}.paf'.format(reference_event_name))
+                                    
     # Filter to primary alignments
-    messages = cactus_call(parameters=['paffy', 'filter', "-i", k, "--maxTileLevel", "1"],
-                           outfile=j, returnStdErr=True)
-    logger.info("paffy filter to get primaries {}\n{}".format(reference_event_name, messages[:-1]))  # Log paffy filter
+    cactus_call(parameters=['paffy', 'filter', "-i", trimmed_paf_path, "--maxTileLevel", "1"],
+                           outfile=filter_paf_path, realtimeStderrPrefix='paffy-filter-{}'.format(reference_event_name))
+
+    os.remove(trimmed_paf_path)
+    output_alignments_file = os.path.join(work_dir, 'output_alignments.paf')
 
     # Do we want to include the secondary alignments
     use_secondary_alignments = int(params.find("blast").attrib["outputSecondaryAlignments"])  # We should really switch to
@@ -316,43 +357,40 @@ def chain_alignments(job, alignment_files, reference_event_name, params, has_res
 
     if use_secondary_alignments:
         # Filter to secondary alignments and put in the final output file
-        messages = cactus_call(parameters=['paffy', 'filter', "-i", k, "--maxTileLevel", "1", '-x'],
-                               outfile=output_alignments_file, returnStdErr=True)
-        logger.info("paffy filter to get secondaries {}\n{}".format(reference_event_name, messages[:-1]))
+        cactus_call(parameters=['paffy', 'filter', "-i", filter_paf_path, "--maxTileLevel", "1", '-x'],
+                    outfile=output_alignments_file, realtimeStderrPrefix='paffy-filter-x-{}'.format(reference_event_name))
 
+    primary_chain_paf_path = os.path.join(work_dir, 'primary_chain_{}.paf'.format(reference_event_name))
+    
     # Rechain the "primary" alignments so we can see how good the chains of the primary alignments are
-    messages = cactus_call(parameters=['paffy', 'chain', "-i", j,
-                                       "--maxGapLength", params.find("blast").attrib["chainMaxGapLength"],
-                                       "--chainGapOpen", params.find("blast").attrib["chainGapOpen"],
-                                       "--chainGapExtend", params.find("blast").attrib["chainGapExtend"],
-                                       "--trimFraction", params.find("blast").attrib["chainTrimFraction"],
-                                       "--logLevel", getLogLevelString()],
-                           outfile=k, returnStdErr=True)
-    logger.info("paffy chain of primary alignments {}\n{}".format(reference_event_name, messages[:-1]))  # Log paffy chain
+    cactus_call(parameters=['paffy', 'chain', "-i", filter_paf_path,
+                            "--maxGapLength", params.find("blast").attrib["chainMaxGapLength"],
+                            "--chainGapOpen", params.find("blast").attrib["chainGapOpen"],
+                            "--chainGapExtend", params.find("blast").attrib["chainGapExtend"],
+                            "--trimFraction", params.find("blast").attrib["chainTrimFraction"],
+                            "--logLevel", getLogLevelString()],
+                outfile=primary_chain_paf_path, realtimeStderrPrefix='paffy-chain-p-{}'.format(reference_event_name))
+
+    os.remove(filter_paf_path)
 
     # Filter primary alignments not in good chains
-    messages = cactus_call(parameters=['paffy', 'filter', "-i", k,
-                                       "--minChainScore", params.find("blast").attrib["minPrimaryChainScore"]],
-                           outfile=output_alignments_file, outappend=True, returnStdErr=True)
-    logger.info("paffy filter {}\n{}".format(reference_event_name, messages[:-1]))  # Log paffy filter
+    cactus_call(parameters=['paffy', 'filter', "-i", primary_chain_paf_path,
+                            "--minChainScore", params.find("blast").attrib["minPrimaryChainScore"]],
+                outfile=output_alignments_file, outappend=True,
+                realtimeStderrPrefix='paffy-filter-p-{}'.format(reference_event_name))
 
     if use_secondary_alignments:
         # Get the primaries we've filtered and switch them to secondaries in the final output
-        messages = cactus_call(parameters=['paffy', 'filter', "-i", k, "-x",
-                                           "--minChainScore", params.find("blast").attrib["minPrimaryChainScore"]],
-                               outfile=j, returnStdErr=True)
-        logger.info("paffy filter {}\n{}".format(reference_event_name, messages[:-1]))  # Log paffy filter
-        messages = cactus_call(parameters=['sed', 's/tp:A:P/tp:A:S/', k], outfile=j, returnStdErr=True)
-        logger.info("switching low score primaries to secondaries {}\n{}".format(reference_event_name, messages[:-1]))
-        messages = cactus_call(parameters=['sed', 's/tl:i:1/tl:i:2/', j], outfile=output_alignments_file,
-                               outappend=True, returnStdErr=True)
-        logger.info("switching changing tile level of low score primaries {}\n{}".format(reference_event_name, messages[:-1]))
-
-    # Cleanup the old alignment files
-    for i in alignment_files:
-        job.fileStore.deleteGlobalFile(i)
+        prim_filter_cmd = [['paffy', 'filter', "-i", primary_chain_paf_path, "-x",
+                                           "--minChainScore", params.find("blast").attrib["minPrimaryChainScore"]]]
+        prim_filter_cmd += [['sed', 's/tp:A:P/tp:A:S/']]
+        # Switch low score primaries to secondaries
+        prim_filter_cmd += [['sed', 's/tl:i:1/tl:i:2/']]
+        cactus_call(parameters=prim_filter_cmd, outfile=output_alignments_file, outappend=True,
+                    realtimeStderrPrefix='paffy-filter-ps-{}'.format(reference_event_name))    
 
     return job.fileStore.writeGlobalFile(output_alignments_file)  # Copy back
+        
 
 def sanitize_then_make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancestor_event_string, params):
     sanitize_job = job.addChildJobFn(sanitize_fasta_headers, event_names_to_sequences)
@@ -382,12 +420,15 @@ def make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancest
 
     # for each pair of ingroups make alignments
     ingroup_alignments = []
+    # for better logs
+    ingroup_alignment_names = []
     for ingroup, ingroup2, distance_a_b in get_event_pairs(ancestor_event, ingroup_events):
         logger.info("Building alignment between event: {} (ingroup) and event: {} (ingroup)".format(ingroup.iD, ingroup2.iD))
         ingroup_alignments.append(root_job.addChildJobFn(make_chunked_alignments,
                                                          ingroup.iD, event_names_to_sequences[ingroup.iD],
                                                          ingroup2.iD, event_names_to_sequences[ingroup2.iD], distance_a_b, params,
                                                          disk=2*total_sequence_size).rv())
+        ingroup_alignment_names.append('{}-{}_vs_{}'.format(ancestor_event_string, ingroup.iD, ingroup2.iD))
 
     # Get the outgroup events
     distances = get_distances(event_tree)  # Distances between all pairs of nodes
@@ -407,9 +448,12 @@ def make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancest
                                                       distances[ingroup, outgroup], params,
                                                       disk=2*total_sequence_size).rv()
                                for ingroup in ingroup_events for outgroup in outgroup_events]
+    # for better logs
+    outgroup_alignment_names = ['{}-og_{}'.format(ancestor_event_string, i) for i in range(len(outgroup_alignments))]
 
     # Now do the chaining
     return root_job.addFollowOnJobFn(chain_alignments, ingroup_alignments + outgroup_alignments,
+                                     ingroup_alignment_names + outgroup_alignment_names,
                                      ancestor_event_string, params).rv()
 
 
