@@ -115,7 +115,7 @@ def combine_chunks(job, chunked_alignment_files, batch_size):
         batch_results = []
         for chunk_idx in range(math.ceil(len(chunked_alignment_files) / batch_size)):
             batch = chunked_alignment_files[chunk_idx * batch_size : chunk_idx * batch_size + batch_size]
-            batch_results.append(root_job.addChildJobFn(combine_chunks, batch,
+            batch_results.append(root_job.addChildJobFn(combine_chunks, batch, batch_size,
                                                         disk=sum([f.size for f in batch])).rv())
         return root_job.addFollowOnJobFn(merge_combined_chunks, batch_results,
                                          disk=2*sum([f.size for f in chunked_alignment_files])).rv()

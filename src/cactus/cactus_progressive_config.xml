@@ -83,7 +83,7 @@
 		   trimFlanking="10"
 		   trimOutgroupFlanking="2000"
 		   outputSecondaryAlignments="0"
-		   dechunkBatchSize="200"
+		   dechunkBatchSize="1000"
 		   >
 
 		<!-- The following are parametrised to produce the same results as the default settings,
