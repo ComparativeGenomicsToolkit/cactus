@@ -47,7 +47,7 @@ class LastzRepeatMaskJob(RoundedJob):
     def __init__(self, repeatMaskOptions, queryID, targetIDs):
         targetsSize = sum(targetID.size for targetID in targetIDs)
         memory = 4*1024*1024*1024
-        disk = 2*(queryID.size + targetsSize)
+        disk = 4*(queryID.size + targetsSize)
         if repeatMaskOptions.gpu:
             # gpu jobs get the whole node (same hack as used in blast phase)
             cores = cactus_cpu_count()
