@@ -236,8 +236,13 @@ def make_ingroup_to_outgroup_alignments_2(job, alignments, ingroup_event, outgro
                                      alignments, alignments2).rv()
 
 
-def make_ingroup_to_outgroup_alignments_3(job, ingroup_event, ingroup_seq_file, alignments, alignments2):
+def make_ingroup_to_outgroup_alignments_3(job, ingroup_event, ingroup_seq_file, alignments, alignments2, has_resources=False):
     # Merge the together two alignment files
+
+    if not has_resources:
+        # unpack promises for disk requirement
+        return job.addChildJobFn(make_ingroup_to_outgroup_alignments_3, ingroup_event, ingroup_seq_file, alignments,
+                                 alignments2, has_resources=True, disk=3*(alignments.size + alignments2.size)).rv()
 
     alignments = job.fileStore.readGlobalFile(alignments)  # Copy the global alignment files locally
     alignments2 = job.fileStore.readGlobalFile(alignments2)

@@ -32,13 +32,8 @@ def cactus_cons_with_resources(job, tree, ancestor_event, config_node, seq_id_ma
     ''' run cactus_consolidated as a child job, requesting resources based on input sizes '''
 
     # compute resource requirements
-    total_sequence_size = 0
-    for seq_id in seq_id_map.values():
-        seq_path = job.fileStore.readGlobalFile(seq_id, mutable=True, cache=False)
-        total_sequence_size += os.stat(seq_path).st_size
-        os.remove(seq_path)
-
-    disk = int(3 * total_sequence_size)
+    total_sequence_size = sum([seq_id.size for seq_id in seq_id_map.values()])
+    disk = 3 * total_sequence_size + 2 * paf_id.size
 
     # this is (adapted from) the old caf job's memory function
     memoryPoly = [2, 1e8]
