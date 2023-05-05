@@ -302,8 +302,7 @@ def chain_one_alignment(job, alignment_file, alignment_name, params):
                             "--chainGapExtend", params.find("blast").attrib["chainGapExtend"],
                             "--trimFraction", params.find("blast").attrib["chainTrimFraction"],
                             "--logLevel", getLogLevelString()],
-                outfile=output_path,
-                realtimeStderrPrefix='paffy-chain-{}'.format(alignment_name))
+                outfile=output_path)
 
     job.fileStore.deleteGlobalFile(alignment_file)
 
@@ -330,7 +329,7 @@ def tile_alignments(job, alignment_files, reference_event_name, params):
     # Now tile to select the primary alignments
     tiled_paf_path = os.path.join(work_dir, 'tiled_{}.paf'.format(reference_event_name))
     cactus_call(parameters=['paffy', 'tile', "-i", chained_paf_path, "--logLevel", getLogLevelString()],
-                           outfile=tiled_paf_path, realtimeStderrPrefix='paffy-tile-{}'.format(reference_event_name))
+                           outfile=tiled_paf_path)
 
     os.remove(chained_paf_path)
     trimmed_paf_path = os.path.join(work_dir, 'trim_{}.paf'.format(reference_event_name))
@@ -339,14 +338,14 @@ def tile_alignments(job, alignment_files, reference_event_name, params):
     # can create gaps in alignment chains which allows in spurious chains
     cactus_call(parameters=['paffy', 'trim', "-i", tiled_paf_path,
                             "--trimIdentity", params.find("blast").attrib["pafTrimIdentity"]],
-                outfile=trimmed_paf_path, realtimeStderrPrefix='paffy-trim-{}'.format(reference_event_name))
+                outfile=trimmed_paf_path)
 
     os.remove(tiled_paf_path)
     filter_paf_path = os.path.join(work_dir, 'filter_{}.paf'.format(reference_event_name))
                                     
     # Filter to primary alignments
     cactus_call(parameters=['paffy', 'filter', "-i", trimmed_paf_path, "--maxTileLevel", "1"],
-                           outfile=filter_paf_path, realtimeStderrPrefix='paffy-filter-{}'.format(reference_event_name))
+                           outfile=filter_paf_path)
 
     os.remove(trimmed_paf_path)
     output_alignments_file = os.path.join(work_dir, 'output_alignments.paf')
@@ -358,7 +357,7 @@ def tile_alignments(job, alignment_files, reference_event_name, params):
     if use_secondary_alignments:
         # Filter to secondary alignments and put in the final output file
         cactus_call(parameters=['paffy', 'filter', "-i", filter_paf_path, "--maxTileLevel", "1", '-x'],
-                    outfile=output_alignments_file, realtimeStderrPrefix='paffy-filter-x-{}'.format(reference_event_name))
+                    outfile=output_alignments_file)
 
     primary_chain_paf_path = os.path.join(work_dir, 'primary_chain_{}.paf'.format(reference_event_name))
     
@@ -369,25 +368,23 @@ def tile_alignments(job, alignment_files, reference_event_name, params):
                             "--chainGapExtend", params.find("blast").attrib["chainGapExtend"],
                             "--trimFraction", params.find("blast").attrib["chainTrimFraction"],
                             "--logLevel", getLogLevelString()],
-                outfile=primary_chain_paf_path, realtimeStderrPrefix='paffy-chain-p-{}'.format(reference_event_name))
+                outfile=primary_chain_paf_path)
 
     os.remove(filter_paf_path)
 
     # Filter primary alignments not in good chains
     cactus_call(parameters=['paffy', 'filter', "-i", primary_chain_paf_path,
                             "--minChainScore", params.find("blast").attrib["minPrimaryChainScore"]],
-                outfile=output_alignments_file, outappend=True,
-                realtimeStderrPrefix='paffy-filter-p-{}'.format(reference_event_name))
+                outfile=output_alignments_file, outappend=True)
 
     if use_secondary_alignments:
         # Get the primaries we've filtered and switch them to secondaries in the final output
         prim_filter_cmd = [['paffy', 'filter', "-i", primary_chain_paf_path, "-x",
-                                           "--minChainScore", params.find("blast").attrib["minPrimaryChainScore"]]]
+                            "--minChainScore", params.find("blast").attrib["minPrimaryChainScore"]]]
         prim_filter_cmd += [['sed', 's/tp:A:P/tp:A:S/']]
         # Switch low score primaries to secondaries
         prim_filter_cmd += [['sed', 's/tl:i:1/tl:i:2/']]
-        cactus_call(parameters=prim_filter_cmd, outfile=output_alignments_file, outappend=True,
-                    realtimeStderrPrefix='paffy-filter-ps-{}'.format(reference_event_name))    
+        cactus_call(parameters=prim_filter_cmd, outfile=output_alignments_file, outappend=True)
 
     return job.fileStore.writeGlobalFile(output_alignments_file)  # Copy back
         
