@@ -79,7 +79,7 @@ class CheckUniqueHeaders(RoundedJob):
     Check that the headers of the input file meet certain naming requirements.
     """
     def __init__(self, prepOptions, inChunkID):
-        disk = inChunkID.size
+        disk = 2*inChunkID.size
         RoundedJob.__init__(self, memory=prepOptions.memory, cores=prepOptions.cpu, disk=disk,
                      preemptable=True)
         self.prepOptions = prepOptions
