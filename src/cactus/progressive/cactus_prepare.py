@@ -552,7 +552,9 @@ def get_plan(options, inSeqFile, outSeqFile, configWrapper, toil):
                                                                                        disk=options.alignDisk)
             else:
                 # todo: support cactus interface (it's easy enough here, but cactus_progressive.py needs changes to handle)
-                cactus_options = options.cactusOptions + ' --includeRoot' if options.includeRoot and event == mc_tree.getRootName() else ''
+                cactus_options = options.cactusOptions
+                if options.includeRoot and event == mc_tree.getRootName():
+                    cactus_options += ' --includeRoot'
                 plan += 'cactus-blast {} {} {} --root {} {} {}{}{}\n'.format(
                     get_jobstore(options), options.outSeqFile, cigarPath(event), event,
                     cactus_options, get_toil_resource_opts(options, 'blast'),
