@@ -92,6 +92,9 @@ def main():
                         help="Enable GPU acceleration by using Segaling instead of lastz")
     parser.add_argument("--consCores", type=int, 
                         help="Number of cores for each cactus_consolidated job (defaults to all available / maxCores on single_machine)", default=None)
+    parser.add_argument("--consMemory", type=int,
+                        help="Memory IN GIGABYTES for each cactus_consolidated job (defaults to an estimate based on the input data size)", default=None)
+    
 
     options = parser.parse_args()
 
@@ -126,6 +129,12 @@ def main():
     if options.maxCores is not None and options.consCores > int(options.maxCores):
         raise RuntimeError('--consCores must be <= --maxCores')
 
+    if options.consMemory is not None:
+        # convert gigabytes to bytes
+        if options.consMemory > 10000:
+            logger.warning('--consMemory being set to {} GIGABYTES. Are you sure you want to do this?'.format(options.consMemory))
+        options.consMemory *= 1024
+    
     options.buildHal = True
     options.buildFasta = True
 
@@ -338,12 +347,13 @@ def make_align_job(options, toil, config_wrapper=None, chrom_name=None):
                               pafMaskFilter=options.pafMaskFilter,
                               paf2Stable=paf_to_stable,
                               cons_cores=options.consCores,
+                              cons_memory=options.consMemory,
                               do_filter_paf=options.pangenome,
                               chrom_name=chrom_name)
     return align_job
 
 def cactus_align(job, config_wrapper, mc_tree, input_seq_map, input_seq_id_map, paf_id, root_name, og_map, checkpointInfo, doVG, doGFA, delay=0,
-                 referenceEvent=None, pafMaskFilter=None, paf2Stable=False, cons_cores = None, do_filter_paf=False, chrom_name=None):
+                 referenceEvent=None, pafMaskFilter=None, paf2Stable=False, cons_cores = None, cons_memory = None, do_filter_paf=False, chrom_name=None):
     
     head_job = Job()
     job.addChild(head_job)
@@ -364,7 +374,7 @@ def cactus_align(job, config_wrapper, mc_tree, input_seq_map, input_seq_id_map, 
 
     # run consolidated
     cons_job = head_job.addFollowOnJobFn(cactus_cons_with_resources, spanning_tree, root_name, config_wrapper.xmlRoot, new_seq_id_map, og_map, paf_id,
-                                         cons_cores = cons_cores, chrom_name=chrom_name)
+                                         cons_cores = cons_cores, cons_memory=cons_memory, chrom_name=chrom_name)
     results = {root_name : (cons_job.rv(1), cons_job.rv(2))}
 
     # get the immediate subtree (which is all export_hal can use)

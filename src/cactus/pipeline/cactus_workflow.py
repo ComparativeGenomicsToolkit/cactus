@@ -11,6 +11,8 @@ import os
 import sys
 from toil.lib.bioio import system
 from toil.lib.bioio import getLogLevelString
+from toil.realtimeLogger import RealtimeLogger
+from toil.lib.conversions import bytes2human
 from sonLib.nxnewick import NXNewick
 from cactus.shared.common import makeURL
 from cactus.shared.common import cactus_call
@@ -28,23 +30,37 @@ from cactus.shared.common import findRequiredNode, getOptionalAttrib
 ############################################################
 
 def cactus_cons_with_resources(job, tree, ancestor_event, config_node, seq_id_map, og_map, paf_id,
-                               cons_cores = None, intermediate_results_url = None, chrom_name = None):
+                               cons_cores = None, cons_memory = None, intermediate_results_url = None, chrom_name = None):
     ''' run cactus_consolidated as a child job, requesting resources based on input sizes '''
 
     # compute resource requirements
     total_sequence_size = sum([seq_id.size for seq_id in seq_id_map.values()])
     disk = 3 * total_sequence_size + 2 * paf_id.size
 
-    # this is (adapted from) the old caf job's memory function
-    memoryPoly = [2, 1e8]
+    # constant factor
+    mem = 1e8
     # abPOA needs a bunch of memory for its table, even for tiny alignments
     if getOptionalAttrib(findRequiredNode(config_node, 'bar'), 'partialOrderAlignment', typeFn=bool, default=True):
-        memoryPoly[1] = 4e9        
-    memoryCap = 120e09
-    mem = 0
-    for degree, coefficient in enumerate(reversed(memoryPoly)):
-        mem += coefficient * (total_sequence_size**degree)
-    mem = int(min(mem, memoryCap))
+        mem = 4e9
+    # add function of paf size
+    mem += 3 * paf_id.size
+    # and quadratic in sequence size (if doable in gigs)
+    if total_sequence_size > 1024:
+        total_sequence_size_gigs = total_sequence_size / 1024.
+        if len(seq_id_map) < 10:
+            mem += 1024. * (total_sequence_size_gigs ** 2)
+        else:
+            # probably in pangenome mode: go a bit easier
+            mem += 1024. * (total_sequence_size_gigs ** 1.75)
+    else:
+        mem += 4 * total_sequence_size        
+    # but we cap things at 512 Gigs
+    mem=int(min(mem, 512e09))
+
+    if cons_memory is not None and cons_memory < mem:
+        RealtimeLogger.info('Overriding cactus_conslidated memory estimate of {} with {} from --consMemory'.format(
+            bytes2human(mem), bytes2human(cons_memory)))
+        mem = cons_memory
 
     cons_job = job.addChildJobFn(cactus_cons, tree, ancestor_event, config_node, seq_id_map, og_map, paf_id,
                                  intermediate_results_url=intermediate_results_url, chrom_name=chrom_name, cores = cons_cores,

@@ -186,7 +186,7 @@ def progressive_step(job, options, config_node, seq_id_map, tree, og_map, event)
 
     else:  # Without outgroup trimming
         return paf_job.addChildJobFn(cactus_cons_with_resources, spanning_tree, event, config_node, subtree_eventmap,
-                                     og_map, paf_job.rv(), cons_cores=options.consCores,
+                                     og_map, paf_job.rv(), cons_cores=options.consCores, cons_memory=options.consMemory,
                                      intermediate_results_url=options.intermediateResultsUrl).rv()
 
 
@@ -321,6 +321,8 @@ def main():
     parser.add_argument("--gpu", nargs='?', const='all', default=None, help="toggle on GPU-enabled lastz, and specify number of GPUs (all available if no value provided)")
     parser.add_argument("--consCores", type=int, 
                         help="Number of cores for each cactus_consolidated job (defaults to all available / maxCores on single_machine)", default=None)
+    parser.add_argument("--consMemory", type=int,
+                        help="Memory IN GIGABYTES for each cactus_consolidated job (defaults to an estimate based on the input data size)", default=None)
     parser.add_argument("--intermediateResultsUrl",
                         help="URL prefix to save intermediate results like DB dumps to (e.g. "
                         "prefix-dump-caf, prefix-dump-avg, etc.)", default=None)
@@ -333,6 +335,10 @@ def main():
     setupBinaries(options)
     set_logging_from_options(options)
     enableDumpStack()
+
+    # Todo: do we even need --consCores anymore?
+    if options.maxCores is not None and options.consCores is None:
+        options.consCores = int(options.maxCores)
 
     # Try to juggle --maxCores and --consCores to give some reasonable defaults where possible
     if options.batchSystem.lower() in ['single_machine', 'singlemachine']:
@@ -351,6 +357,12 @@ def main():
             raise RuntimeError('--consCores required for non single_machine batch systems')
     if options.maxCores is not None and options.consCores > int(options.maxCores):
         raise RuntimeError('--consCores must be <= --maxCores')
+
+    if options.consMemory is not None:
+        # convert gigabytes to bytes
+        if options.consMemory > 10000:
+            logger.warning('--consMemory being set to {} GIGABYTES. Are you sure you want to do this?'.format(options.consMemory))
+        options.consMemory *= 1024
     
     # Mess with some toil options to create useful defaults.
     cactus_override_toil_options(options)
