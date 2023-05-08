@@ -105,8 +105,8 @@ def main():
             raise RuntimeError('same number of values must be passed to --pathOverrides and --pathOverrideNames')
 
     # Todo: do we even need --consCores anymore?
-    if options.maxCores is not None and options.consCore is None:
-        options.consCores = options.maxCores
+    if options.maxCores is not None and options.consCores is None:
+        options.consCores = int(options.maxCores)
     
     # Try to juggle --maxCores and --consCores to give some reasonable defaults where possible
     if options.batchSystem.lower() in ['single_machine', 'singlemachine']:
