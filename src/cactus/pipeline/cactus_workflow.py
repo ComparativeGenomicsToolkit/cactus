@@ -47,11 +47,11 @@ def cactus_cons_with_resources(job, tree, ancestor_event, config_node, seq_id_ma
     # and quadratic in sequence size (if doable in gigs)
     if total_sequence_size > 1024:
         total_sequence_size_gigs = total_sequence_size / 1024.
-        if len(seq_id_map) < 10:
-            mem += 1024. * (total_sequence_size_gigs ** 2)
+        if len(seq_id_map) < 6:
+            mem += 1024. * (total_sequence_size_gigs ** 1.75)
         else:
             # probably in pangenome mode: go a bit easier
-            mem += 1024. * (total_sequence_size_gigs ** 1.75)
+            mem += 1024. * (total_sequence_size_gigs ** 1.30)
     else:
         mem += 4 * total_sequence_size        
     # but we cap things at 512 Gigs

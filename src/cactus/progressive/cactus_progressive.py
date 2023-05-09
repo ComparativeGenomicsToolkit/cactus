@@ -205,7 +205,7 @@ def progressive_step_2(job, trimmed_outgroups_and_alignments, options, config_no
 
 def export_hal(job, mc_tree, config_node, seq_id_map, og_map, results, event=None, cacheBytes=None,
                cacheMDC=None, cacheRDC=None, cacheW0=None, chunk=None, deflate=None, inMemory=False,
-               checkpointInfo=None, acyclicEvent=None):
+               checkpointInfo=None, acyclicEvent=None, has_resources=False):
 
     # todo: going through list nonsense because (i think) it helps with promises, should at least clean up
     work_dir = job.fileStore.getLocalTempDir()
@@ -221,6 +221,10 @@ def export_hal(job, mc_tree, config_node, seq_id_map, og_map, results, event=Non
         root_node = mc_tree.nameToId[event]
 
     hal_path = os.path.join(work_dir, '{}.hal'.format(event if event else mc_tree.getRootName()))
+
+    if not has_resources:
+        fa_file_ids = []
+        c2h_file_ids = []
     
     for node in mc_tree.breadthFirstTraversal(root_node):
         genome_name = mc_tree.getName(node)              
@@ -231,29 +235,42 @@ def export_hal(job, mc_tree, config_node, seq_id_map, og_map, results, event=Non
             sub_hal_path = os.path.join(work_dir, '{}.hal.c2h'.format(genome_name))
             hal_fasta_path = os.path.join(work_dir, '{}.hal.fa'.format(genome_name))
             assert genome_name in results
-            job.fileStore.readGlobalFile(results[genome_name][0], sub_hal_path)
-            job.fileStore.readGlobalFile(results[genome_name][1], hal_fasta_path)
+            if not has_resources:
+                c2h_file_ids.append(results[genome_name][0])
+                fa_file_ids.append(results[genome_name][1])                
+            else:
+                job.fileStore.readGlobalFile(results[genome_name][0], sub_hal_path)
+                job.fileStore.readGlobalFile(results[genome_name][1], hal_fasta_path)
+                
+                args = ['halAppendCactusSubtree', sub_hal_path, hal_fasta_path, tree_string, hal_path]
 
-            args = ['halAppendCactusSubtree', sub_hal_path, hal_fasta_path, tree_string, hal_path]
-            
-            if len(outgroups) > 0:
-                args += ["--outgroups", ",".join(outgroups)]
-            if cacheBytes is not None:
-                args += ["--cacheBytes", cacheBytes]
-            if cacheMDC is not None:
-                args += ["--cacheMDC", cacheMDC]
-            if cacheRDC is not None:
-                args += ["--cacheRDC", cacheRDC]
-            if cacheW0 is not None:
-                args += ["--cacheW0", cacheW0]
-            if chunk is not None:
-                args += ["--chunk", chunk]
-            if deflate is not None:
-                args += ["--deflate", deflate]
-            if inMemory is True:
-                args += ["--inMemory"]
+                if len(outgroups) > 0:
+                    args += ["--outgroups", ",".join(outgroups)]
+                if cacheBytes is not None:
+                    args += ["--cacheBytes", cacheBytes]
+                if cacheMDC is not None:
+                    args += ["--cacheMDC", cacheMDC]
+                if cacheRDC is not None:
+                    args += ["--cacheRDC", cacheRDC]
+                if cacheW0 is not None:
+                    args += ["--cacheW0", cacheW0]
+                if chunk is not None:
+                    args += ["--chunk", chunk]
+                if deflate is not None:
+                    args += ["--deflate", deflate]
+                if inMemory is True:
+                    args += ["--inMemory"]
 
-            cactus_call(parameters=args)
+                cactus_call(parameters=args)
+
+    if not has_resources:
+        disk = 3 * sum([file_id.size for file_id in fa_file_ids + c2h_file_ids])
+        mem = 5 * (max([file_id.size for file_id in fa_file_ids]) + max([file_id.size for file_id in c2h_file_ids]))
+        return job.addChildJobFn(export_hal, mc_tree, config_node, seq_id_map, og_map, results, event=event,
+                                 cacheBytes=cacheBytes, cacheMDC=cacheMDC, cacheRDC=cacheRDC, cacheW0=cacheW0,
+                                 chunk=chunk, deflate=deflate, inMemory=inMemory, checkpointInfo=checkpointInfo,
+                                 acyclicEvent=acyclicEvent, has_resources=True,
+                                 disk=disk, memory=mem).rv()
 
     cactus_call(parameters=["halSetMetadata", hal_path, "CACTUS_COMMIT", cactus_commit])
     config_path = os.path.join(work_dir, 'config.xml')
@@ -288,8 +305,8 @@ def progressive_workflow(job, options, config_node, mc_tree, og_map, input_seq_i
     progressive_job = sanitize_job.addFollowOnJobFn(progressive_schedule, options, config_node, seq_id_map, mc_tree, og_map, root_event)
 
     # then do the hal export
-    hal_export_job = progressive_job.addFollowOnJobFn(export_hal, mc_tree, config_node, seq_id_map, og_map, progressive_job.rv(), event=root_event,
-                                                      disk=ConfigWrapper(config_node).getExportHalDisk())
+    hal_export_job = progressive_job.addFollowOnJobFn(export_hal, mc_tree, config_node, seq_id_map, og_map,
+                                                      progressive_job.rv(), event=root_event)
 
     return hal_export_job.rv()
 

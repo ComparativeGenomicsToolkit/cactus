@@ -70,7 +70,9 @@ def main():
                         help="Only align up to this many bases (overrides <bar bandingLimit> and <caf maxRecoverableChainLength> in configuration)[default=10000]")
     parser.add_argument("--consCores", type=int, 
                         help="Number of cores for each cactus_consolidated job (defaults to all available / maxCores on single_machine)", default=None)
-
+    parser.add_argument("--consMemory", type=int,
+                        help="Memory IN GIGABYTES for each cactus_consolidated job (defaults to an estimate based on the input data size)", default=None)
+    
     # cactus-graphmap-join options
     graphmap_join_options(parser)
 

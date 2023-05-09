@@ -165,10 +165,6 @@ class ConfigWrapper:
         constantsElem = self.xmlRoot.find("constants")
         return int(constantsElem.attrib["defaultMemory"])
 
-    def getExportHalDisk(self):
-        exportHalElem = self.xmlRoot.find("exportHal")
-        return int(exportHalElem.attrib["disk"])
-
     def substituteAllPredefinedConstantsWithLiterals(self):
         constants = findRequiredNode(self.xmlRoot, "constants")
         defines = constants.find("defines")

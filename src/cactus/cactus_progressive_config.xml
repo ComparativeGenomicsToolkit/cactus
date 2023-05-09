@@ -402,7 +402,6 @@
 			max_parallel_subtrees="50000"
 	 	/>
   	</multi_cactus>
-    <exportHal disk="2000000000"/>
 	<consolidated></consolidated>
 	<consolidated2></consolidated2>
 </cactusWorkflowConfig>
