@@ -341,6 +341,7 @@
 	<!-- removeStubs: remove any nodes dangling off reference paths (ie softclips) -->
 	<!-- GFANodeIDsInVCF: write all node IDs in the VCF (variant names, AT fields etc.) in the (unchopped) GFA namespace by way of the GBZ translation table -->
 	<!-- minRGFAFragment: smallest rGFA (rank > 0) cover path to write -->
+	<!-- RGFASampleName: sample name to give RGFA cover fragments inside the GBZ -->
 	<graphmap_join
 		 gfaffix="1"
 		 clipNonMinigraph="1"		 
@@ -349,6 +350,7 @@
 		 removeStubs="1"
 		 GFANodeIDsInVCF="1"
 		 minRGFAFragment="50"
+		 RGFASampleName="_rGFA_"
 		 />
 	<!-- hal2vg options -->
 	<!-- includeMinigraph: include minigraph node sequences as paths in output (note that cactus-graphmap-join will still remove them by default) -->
