@@ -2,7 +2,7 @@
 
 Minigraph-Cactus is included in the [Cactus Software Package](../README.md) and is suitable for aligning similar samples, such as those from the *same species*. See [Progressive Cactus](./progressive.md) for aligning different species. 
 
-Please cite the [Minigraph-Cactus paper](https://doi.org/10.1101/2022.10.06.511217 ) when using Minigraph-Cactus.
+Please cite the [Minigraph-Cactus paper](https://doi.org/10.1038/s41587-023-01793-w) when using Minigraph-Cactus.
 
 ## Table of Contents
 
