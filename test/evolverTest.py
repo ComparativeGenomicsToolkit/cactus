@@ -467,7 +467,7 @@ class TestCase(unittest.TestCase):
         chroms = ['chrI', 'chrII', 'chrIII', 'chrIV', 'chrV', 'chrVI', 'chrVII', 'chrVIII', 'chrIX', 'chrX', 'chrXI', 'chrXIV', 'chrXV']
         cactus_pangenome_cmd = ['cactus-pangenome', self._job_store(binariesMode), orig_seq_file_path, '--outDir', join_path, '--outName', 'yeast',
                                 '--refContigs'] + chroms + ['--reference', 'S288C', 'DBVPG6044', '--vcf', '--vcfReference','DBVPG6044', 'S288C', 
-                                                            '--giraffe', 'clip', 'filter',  '--indexCores', '4', '--consCores', '2']
+                                                            '--giraffe', 'clip', 'filter',  '--chrom-vg', 'clip', 'filter', '--indexCores', '4', '--consCores', '2']
         subprocess.check_call(cactus_pangenome_cmd + cactus_opts)
 
         #compatibility with older test        
