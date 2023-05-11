@@ -279,7 +279,7 @@ fi
 # vg
 cd ${pangenomeBuildDir}
 #wget -q https://github.com/vgteam/vg/releases/download/v1.47.0/vg
-wget -q http://public.gi.ucsc.edu/~hickey/vg-patch/vg.67ccb47cba5c8859132997e4fb6ad1e195bacca2 -O vg
+wget -q http://public.gi.ucsc.edu/~hickey/vg-patch/vg.5ee7304afe83bc077fe7db4c314cd625a0ba956e -O vg
 chmod +x vg
 if [[ $STATIC_CHECK -ne 1 || $(ldd vg | grep so | wc -l) -eq 0 ]]
 then
