@@ -276,12 +276,12 @@ def chain_alignments(job, alignment_files, alignment_names, reference_event_name
     for alignment_file, alignment_name in zip(alignment_files, alignment_names):
         chained_alignment_files.append(root_job.addChildJobFn(chain_one_alignment, alignment_file, alignment_name, params,
                                                               disk=6*alignment_file.size,
-                                                              memory=24*alignment_file.size).rv())
+                                                              memory=32*alignment_file.size).rv())
         
     # do the tiling and filtering
     return root_job.addFollowOnJobFn(tile_alignments, chained_alignment_files, reference_event_name, params,
                                      disk=6*sum([alignment_file.size for alignment_file in alignment_files]),
-                                     memory=24*sum([alignment_file.size for alignment_file in alignment_files])).rv()
+                                     memory=32*sum([alignment_file.size for alignment_file in alignment_files])).rv()
 
 def chain_one_alignment(job, alignment_file, alignment_name, params):
     # run paffy chain on one PAF
