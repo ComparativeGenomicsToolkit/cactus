@@ -42,7 +42,7 @@ def main():
     parser.add_argument("outputGFA", help = "Output Minigraph GFA")
     parser.add_argument("--reference", type=str, required=True,
                         help = "Reference genome name (added to minigraph first). Order in seqfile used otherwise")
-    parser.add_argument("--mapCores", type=int, help = "Number of cores for minigraph.  Overrides graphmap cpu in configuration")
+    parser.add_argument("--mgCores", type=int, help = "Number of cores for minigraph construction (defaults to the same as --maxCores).")
     
     #Progressive Cactus Options
     parser.add_argument("--configFile", dest="configFile",
@@ -89,13 +89,14 @@ def main():
             # validate the sample names
             check_sample_names(input_seq_map.keys(), options.reference)
 
-            # apply cpu override                
-            if options.mapCores is not None:
-                findRequiredNode(config_node, "graphmap").attrib["cpu"] = str(options.mapCores)
-            mg_cores = getOptionalAttrib(findRequiredNode(config_node, "graphmap"), "cpu", typeFn=int, default=1)
+            # apply cpu override
             if options.batchSystem.lower() in ['single_machine', 'singleMachine']:
-                mg_cores = min(mg_cores, cactus_cpu_count(), int(options.maxCores) if options.maxCores else sys.maxsize)
-                findRequiredNode(config_node, "graphmap").attrib["cpu"] = str(mg_cores)
+                if not options.mgCores:
+                    options.mgCores = sys.maxsize
+                options.mgCores = min(options.mgCores, cactus_cpu_count(), int(options.maxCores) if options.maxCores else sys.maxsize)
+            else:
+                if not options.mgCores:
+                    raise RuntimeError("--mgCores required run *not* running on single machine batch system")
             
             #import the sequences
             input_seq_id_map = {}
@@ -113,7 +114,7 @@ def main():
                     if genome != options.reference:
                         input_seq_order.append(genome)
             
-            gfa_id = toil.start(Job.wrapJobFn(minigraph_construct_workflow, config_node, input_seq_id_map, input_seq_order, options.outputGFA))
+            gfa_id = toil.start(Job.wrapJobFn(minigraph_construct_workflow, options, config_node, input_seq_id_map, input_seq_order, options.outputGFA))
 
         #export the gfa
         toil.exportFile(gfa_id, makeURL(options.outputGFA))
@@ -151,7 +152,7 @@ def check_sample_names(sample_names, references):
         if sample_ext and (len(sample_ext) == 1 or not sample_ext[1:].isnumeric()):
             raise RuntimeError("Sample name {} with \"{}\" suffix is not supported. You must either remove this suffix or use .N where N is an integer to specify haplotype".format(sample, sample_ext))
                                     
-def minigraph_construct_workflow(job, config_node, seq_id_map, seq_order, gfa_path, sanitize=True):
+def minigraph_construct_workflow(job, options, config_node, seq_id_map, seq_order, gfa_path, sanitize=True):
     """ minigraph can handle bgzipped files but not gzipped; so unzip everything in case before running"""
     if sanitize:
         sanitize_job = job.addChildJobFn(sanitize_fasta_headers, seq_id_map, pangenome=True)
@@ -161,7 +162,6 @@ def minigraph_construct_workflow(job, config_node, seq_id_map, seq_order, gfa_pa
         sanitize_job = Job()
         job.addChild(sanitize_job)
     xml_node = findRequiredNode(config_node, "graphmap")
-    mg_cores = getOptionalAttrib(xml_node, "cpu", typeFn=int, default=1)
     sort_type = getOptionalAttrib(xml_node, "minigraphSortInput", str, default=None)
     if sort_type == "mash":
         sort_job = sanitize_job.addFollowOnJobFn(sort_minigraph_input_with_mash, sanitized_seq_id_map, seq_order)
@@ -170,7 +170,7 @@ def minigraph_construct_workflow(job, config_node, seq_id_map, seq_order, gfa_pa
     else:
         prev_job = sanitize_job
     minigraph_job = prev_job.addFollowOnJobFn(minigraph_construct, config_node, sanitized_seq_id_map, seq_order, gfa_path,
-                                              cores = mg_cores,
+                                              cores = options.mgCores,
                                               disk = 5 * sum([seq_id.size for seq_id in seq_id_map.values()]))
     return minigraph_job.rv()
 

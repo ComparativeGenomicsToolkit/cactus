@@ -102,9 +102,10 @@ The Minigraph-Cactus pipeline is run via the `cactus-pangenome` command. It cons
 
 **Before running large jobs, it is important to consider the following options:**
 
-* `--mapCores` the number of cores for each `minigraph` job (default: up to 6)
+* `--mgCores` the number of cores for `minigraph` construction (default: all available)
+* `--mapCores` the number of cores for each `minigraph` mapping job (default: up to 6)
 * `--consCores` the number of cores for each `cactus-consolidated` job (default: all available)
-* `--indexCores` the number of cores for each `vg` indexing job (default: 1)
+* `--indexCores` the number of cores for each `vg` indexing job (default: all available - 1)
 * The various output options: `--gbz`, `--gfa`, `--giraffe`, `--vcf` which are explained in detail below. If you forget to add one of these and are missing the corresponding output, you will need to rerun `cactus-graphmap-join` (or use `vg` to manually make the file yourself).
 
 Reducing `--consCores` will allow more chromosomes to be aligned at once, requiring more memory. VCF export for very large graphs will take a long time unless `--indexCores` is set high, but `--indexCores` should still be at least 1 lower than all cores available to allow some parallelism. 
