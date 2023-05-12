@@ -595,7 +595,7 @@ def export_split_data(toil, input_name_map, output_id_map, split_log_id, contig_
             if output_id_map[ref_contig]['fa'][event].size > 0:
                 seq_file_map_size += 1
         if seq_file_map_size < 2:
-            RealtimeLogger.warning("Omitting reference contig {} from the graph because it doesn't align well enough. If you absolutely want to include it, rerun with --refContigs and --otherContig specified".format(ref_contig))
+            logger.warning("Omitting reference contig {} from the graph because it doesn't align well enough. If you absolutely want to include it, rerun with --refContigs and --otherContig specified".format(ref_contig))
             empty_contigs.add(ref_contig)
             continue
         
