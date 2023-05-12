@@ -96,6 +96,24 @@ HG002.2  ./HG002.maternal.fa
 CHM13  ./chm13.fa
 ```
 
+### Reference Sample
+
+The `--reference` option must be used to select a "reference" sample.  This sample will:
+* Never be clipped.
+* Never be self-aligned ie its path in the output graph will be acyclic
+* Only visit nodes in their forward orientations
+* Be a "reference-sense" path in vg/gbz and will therefore be indexably for fast coordinate lookup
+* Be the basis for the output VCF and therefore won't appear as a sample in the VCF
+* Be used to divide the graph into chromosomes
+
+It is therefore extremely important that the reference sample's assembly be **chromosome** scale.  If there are many small contigs in the addition to chromosomes in the reference assembly, then please consider specifying the chromosomes with `--refContigs`. If you still want to keep the other contigs, add `--otherContig chrOther` (see explanation below).
+
+#### Multiple Reference Samples
+
+The `--reference` option can accept multiple samples (separated by space). If multiple samples are specified beyond the first, they will be clipped as usual, but end up as "reference-sense" paths in the vg/gbz output.  They can also be used as basis for VCF, and VCF files can be created based on them with the `--vcfReference` sample.
+
+For example, for human data one might consider using `--reference CHM13 GRCh38 GRCh37 --vcfReference CHM13 GRC3h8`.  This will make a graph referenced on CHM13, but will promote GRCh38 and GRCh38 to reference-sense paths so that they could be used, for example, to project BAMs on in `vg giraffe`.  Two VCFs will be output, one based on CHM13 and one based on GRCh38. 
+
 ### Pipeline
 
 The Minigraph-Cactus pipeline is run via the `cactus-pangenome` command. It consists of five stages which can also be run individually (below). `cactus-pangenome` writes output files into `--outDir` at the end of each stage. So different stages can be rerun with if necessary using the lower-level commands.
