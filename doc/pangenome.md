@@ -134,7 +134,7 @@ Reducing `--consCores` will allow more chromosomes to be aligned at once, requir
 
 The application and impact of this option is demonstrated in the explanation of the Yeast pangenome example below.
 
-**Important** The reference genome assembly must be chromosome scale. If your reference assembly also consists of many small fragments (ex GRCh38) then you must use the `--refContigs` option to specify the chromosomes.  Ex for GRCh38 `--refContigs $(for i in `seq 22`; do printf "chr$i "; done ; echo "chrX chrY chrM")`.  If you want to include the remaining reference contig fragments in your graph, add the `--otherContig chrOther` option.
+**Important** The reference genome assembly must be chromosome scale. If your reference assembly also consists of many small fragments (ex GRCh38) then you can use the `--refContigs` option to specify the chromosomes.  Ex for GRCh38 `--refContigs $(for i in `seq 22`; do printf "chr$i "; done ; echo "chrX chrY chrM")`.  If you want to include the remaining reference contig fragments in your graph, add the `--otherContig chrOther` option.  If you do not specify `--refContigs`, they will be determined automatically and small contigs will be included. 
 
 **Also Important** We do not yet automatically support the *alternate* loci from GRCh38, ex the various HLA contigs.  They must be excluded from the input fasta file to get sane results. They can be included in the graph by providing a separate sample / fasta pair in the input for each contig.  Please [here](#grch38-alts-graph) for an example of how to do so.
 

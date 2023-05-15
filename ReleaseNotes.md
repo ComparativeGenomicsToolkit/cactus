@@ -1,3 +1,18 @@
+# Relase 2.5.2 2023-05-15
+
+This Release patches some bugs in the pangenome pipeline and makes it a bit more user-friendly
+
+- Fix support for multiple referenes via `--reference` and `--vcfReference`
+- Fix bug where certain combinations of options (ie returning filtered but not clipped index) could lead to crash
+- Fix crash when handling non-ascii characters in vg crash reports
+- Fix the `--chrom-vg` option in `cactus-pangenome`
+- New option `--mgCores` to specify number of cores for minigraph construction (rather than lumping in with `--mapCores` which is also used for mapping)
+- Better defaults for number of cores used in pangenome pipeline on singlemachine.
+- Fix bug where small contigs in the reference sample could lead to crashes if they couldn't map to themselves (and `--refContigs` was not used to specify chromosomes). `--refContigs` is now automatically set if not specifed. 
+- Update to vg 1.48.0
+- Update pangenome paper citation from preprint to published version.
+
+
 # Release 2.5.1 2023-04-19
 
 This Release mostly patches some bugs in the pangenome pipeline

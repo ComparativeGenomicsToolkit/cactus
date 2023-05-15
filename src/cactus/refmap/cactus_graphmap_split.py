@@ -111,6 +111,14 @@ def cactus_graphmap_split(options):
                     for line in rc_file:
                         if len(line.strip()):
                             ref_contigs.add(line.strip().split()[0])
+            # our list has moved from options to ref_contigs, so don't get confused later:
+            options.refContigs = None
+
+            if ref_contigs:
+                max_ref_contigs = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "maxRefContigs", typeFn=int, default=128)
+                if len(ref_contigs) > max_ref_contigs:
+                    logger.warning('You specified {} refContigs, which is greater than the suggested limit of {}. This may cause issues downstream.'.format(len(ref_contigs), max_ref_contigs))
+                
 
             if options.otherContig:
                 assert options.otherContig not in ref_contigs
@@ -188,6 +196,14 @@ def graphmap_split_workflow(job, options, config, seq_id_map, seq_name_map, gfa_
     else:
         sanitize_job = Job()
         root_job.addChild(sanitize_job)
+
+    # auto-set --refContigs
+    if not options.refContigs:
+        refcontig_job = sanitize_job.addFollowOnJobFn(detect_ref_contigs, config, options, seq_id_map)
+        ref_contigs = refcontig_job.rv()        
+        options.otherContig = 'chrOther'
+        other_contig = 'chrOther'
+        sanitize_job = refcontig_job
     
     # use file extension to sniff out compressed input
     if gfa_path.endswith(".gz"):
@@ -223,6 +239,46 @@ def graphmap_split_workflow(job, options, config, seq_id_map, seq_name_map, gfa_
 
     # return all the files, as well as the 2 split logs
     return (seq_name_map, bin_other_job.rv(), split_gfa_job.rv(1), gather_fas_job.rv(1))
+
+def detect_ref_contigs(job, config, options, seq_id_map):
+    """ automatically determine --refContigs from the data """
+    work_dir = job.fileStore.getLocalTempDir()
+    # it will be unzipped since we're after sanitize
+    fa_path = os.path.join(work_dir, options.reference + '.fa')
+    job.fileStore.readGlobalFile(seq_id_map[options.reference], fa_path)
+    cactus_call(parameters=['samtools', 'faidx', fa_path])
+    contigs = []
+    with open(fa_path + '.fai', 'r') as fai_file:
+        for line in fai_file:
+            toks = line.split('\t')
+            assert len(toks) > 2
+            contigs.append((toks[0], float(toks[1])))
+
+    # get the cutoff heuristics 
+    max_ref_contigs = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "maxRefContigs", typeFn=int, default=128)
+    ref_contig_dropoff = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "refContigDropoff", typeFn=float, default=10.0)
+
+    # apply the heuristics to the contigs
+    ref_contigs = []
+    for contig_len in sorted(contigs, key=lambda x : x[1], reverse=True):
+        if len(ref_contigs):
+            dropoff = ref_contigs[0][1] / contig_len[1]
+            if dropoff >= ref_contig_dropoff:
+                break
+        ref_contigs.append(contig_len)        
+        if len(ref_contigs) >= max_ref_contigs:
+            break
+    
+    # clean up the names (since they will have been prefixed here)
+    ref_contigs_clean = []
+    for contig in ref_contigs:
+        assert contig[0].startswith('id={}|'.format(options.reference))
+        ref_contigs_clean.append(contig[0][len('id={}|'.format(options.reference)):])
+
+    RealtimeLogger.info("auto-detected --refContigs {} --otherContig chrOther".format(' '.join(ref_contigs_clean)))
+
+    return ref_contigs_clean            
+    
 
 def get_mask_bed(job, seq_id_map, min_length):
     """ make a bed file from the fastas """
@@ -560,7 +616,7 @@ def export_split_data(toil, input_name_map, output_id_map, split_log_id, contig_
     empty_contigs = set()
     
     for ref_contig in output_id_map.keys():        
-        if output_id_map[ref_contig] is None:
+        if output_id_map[ref_contig] is None or len(output_id_map[ref_contig]) == 0:
             # todo: check ambigous?
             continue
         ref_contig_path = os.path.join(output_dir, ref_contig)
