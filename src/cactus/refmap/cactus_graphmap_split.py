@@ -200,8 +200,9 @@ def graphmap_split_workflow(job, options, config, seq_id_map, seq_name_map, gfa_
     # auto-set --refContigs
     if not options.refContigs:
         refcontig_job = sanitize_job.addFollowOnJobFn(detect_ref_contigs, config, options, seq_id_map)
-        ref_contigs = refcontig_job.rv()
+        ref_contigs = refcontig_job.rv()        
         options.otherContig = 'chrOther'
+        other_contig = 'chrOther'
         sanitize_job = refcontig_job
     
     # use file extension to sniff out compressed input
