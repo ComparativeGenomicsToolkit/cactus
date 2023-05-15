@@ -610,7 +610,7 @@ def export_split_data(toil, input_name_map, output_id_map, split_log_id, contig_
     toil.exportFile(split_log_id, makeURL(os.path.join(output_dir, 'minigraph.split.log')))
 
     for ref_contig in output_id_map.keys():        
-        if output_id_map[ref_contig] is None:
+        if output_id_map[ref_contig] is None or len(output_id_map[ref_contig]) == 0:
             # todo: check ambigous?
             continue
         ref_contig_path = os.path.join(output_dir, ref_contig)

@@ -1,6 +1,6 @@
 # Relase 2.5.2 2023-05-15
 
-This Release mostly patches some bugs in the pangenome pipeline
+This Release patches some bugs in the pangenome pipeline and makes it a bit more user-friendly
 
 - Fix support for multiple referenes via `--reference` and `--vcfReference`
 - Fix bug where certain combinations of options (ie returning filtered but not clipped index) could lead to crash
