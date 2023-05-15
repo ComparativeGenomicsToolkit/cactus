@@ -55,9 +55,11 @@ def main():
     parser.add_argument("--reference", required=True, nargs='+', type=str, help = "Reference event name(s). The first will be the \"true\" reference and will be left unclipped and uncollapsed. It also should have been used with --reference in all upstream commands. Other names will be promoted to reference paths in vg") 
 
     # cactus-minigraph options
-    parser.add_argument("--mapCores", type=int, help = "Number of cores for minigraph.  Overrides graphmap cpu in configuration")
+    parser.add_argument("--mgCores", type=int, help = "Number of cores for minigraph construction (defaults to the same as --maxCores).")
 
     # cactus-graphmap options
+    parser.add_argument("--mapCores", type=int, help = "Number of cores for minigraph map.  Overrides graphmap cpu in configuration")
+    
     parser.add_argument("--delFilter", type=int, help = "Filter out split-mapping-implied deletions > Nbp (default will be \"delFilter\" from the config")
     
     # cactus-graphmap-split options
@@ -178,7 +180,15 @@ def main():
             if options.batchSystem.lower() in ['single_machine', 'singleMachine']:
                 mg_cores = min(mg_cores, cactus_cpu_count(), int(options.maxCores) if options.maxCores else sys.maxsize)
                 findRequiredNode(config_node, "graphmap").attrib["cpu"] = str(mg_cores)
-            
+
+            if options.batchSystem.lower() in ['single_machine', 'singleMachine']:
+                if not options.mgCores:
+                    options.mgCores = sys.maxsize
+                options.mgCores = min(options.mgCores, cactus_cpu_count(), int(options.maxCores) if options.maxCores else sys.maxsize)
+            else:
+                if not options.mgCores:
+                    raise RuntimeError("--mgCores required run *not* running on single machine batch system")
+                        
             #import the sequences
             input_seq_id_map = {}
             input_path_map = {}
@@ -302,7 +312,7 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
     # cactus_minigraph
     sv_gfa_path = os.path.join(options.outDir, options.outName + '.sv.gfa.gz')
     
-    minigraph_job = sanitize_job.addFollowOnJobFn(minigraph_construct_workflow, config_node, seq_id_map, seq_order, sv_gfa_path, sanitize=False)
+    minigraph_job = sanitize_job.addFollowOnJobFn(minigraph_construct_workflow, options, config_node, seq_id_map, seq_order, sv_gfa_path, sanitize=False)
     sv_gfa_id = minigraph_job.rv()
     minigraph_job.addFollowOnJobFn(export_minigraph_wrapper, options, sv_gfa_id, sv_gfa_path)
 

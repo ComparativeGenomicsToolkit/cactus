@@ -129,7 +129,7 @@ def graphmap_join_validate_options(options):
     if options.batchSystem.lower() in ['single_machine', 'singleMachine']:
         if not options.indexCores:
             options.indexCores = sys.maxsize
-        options.indexCores = min(options.indexCores, cactus_cpu_count(), int(options.maxCores) if options.maxCores else sys.maxsize)
+        options.indexCores = min(options.indexCores, max(1, cactus_cpu_count() - 1), int(options.maxCores) if options.maxCores else sys.maxsize)
     else:
         if not options.indexCores:
             raise RuntimeError("--indexCores required run *not* running on single machine batch system")
