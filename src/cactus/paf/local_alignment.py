@@ -195,8 +195,8 @@ def make_ingroup_to_outgroup_alignments_1(job, ingroup_event, outgroup_events, e
     #  post process the alignments and recursively generate alignments to remaining outgroups
     return root_job.addFollowOnJobFn(make_ingroup_to_outgroup_alignments_2, alignment, ingroup_event, outgroup_events[1:],
                                      event_names_to_sequences, distances, params,
-                                     disk=4*(event_names_to_sequences[ingroup_event.iD].size+event_names_to_sequences[outgroup.iD].size),
-                                     memory=4*(event_names_to_sequences[ingroup_event.iD].size+event_names_to_sequences[outgroup.iD].size)).rv() if len(outgroup_events) > 1 else alignment
+                                     disk=8*(event_names_to_sequences[ingroup_event.iD].size+event_names_to_sequences[outgroup.iD].size),
+                                     memory=8*(event_names_to_sequences[ingroup_event.iD].size+event_names_to_sequences[outgroup.iD].size)).rv() if len(outgroup_events) > 1 else alignment
 
 
 def make_ingroup_to_outgroup_alignments_2(job, alignments, ingroup_event, outgroup_events,

@@ -35,7 +35,7 @@ def cactus_cons_with_resources(job, tree, ancestor_event, config_node, seq_id_ma
 
     # compute resource requirements
     total_sequence_size = sum([seq_id.size for seq_id in seq_id_map.values()])
-    disk = 3 * total_sequence_size + 2 * paf_id.size
+    disk = 5 * total_sequence_size + 2 * paf_id.size
 
     # constant factor
     mem = 1e8
