@@ -8,7 +8,7 @@ This Release mostly patches some bugs in the pangenome pipeline
 - Fix the `--chrom-vg` option in `cactus-pangenome`
 - New option `--mgCores` to specify number of cores for minigraph construction (rather than lumping in with `--mapCores` which is also used for mapping)
 - Better defaults for number of cores used in pangenome pipeline on singlemachine.
-- Fix bug where small contigs in the reference sample could lead to crashes if they couldn't map to themselves (and `--refContigs` was not used to specify chromosomes).
+- Fix bug where small contigs in the reference sample could lead to crashes if they couldn't map to themselves (and `--refContigs` was not used to specify chromosomes). `--refContigs` is now automatically set if not specifed. 
 - Update to vg 1.48.0
 - Update pangenome paper citation from preprint to published version.
 
