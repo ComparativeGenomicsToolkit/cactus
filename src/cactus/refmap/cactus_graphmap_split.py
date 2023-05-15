@@ -261,7 +261,7 @@ def detect_ref_contigs(job, config, options, seq_id_map):
     ref_contigs = []
     for contig_len in sorted(contigs, key=lambda x : x[1], reverse=True):
         if len(ref_contigs):
-            dropoff = ref_contigs[-1][1] / contig_len[1]
+            dropoff = ref_contigs[0][1] / contig_len[1]
             if dropoff >= ref_contig_dropoff:
                 break
         ref_contigs.append(contig_len)        
