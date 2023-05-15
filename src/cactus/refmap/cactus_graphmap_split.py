@@ -553,6 +553,12 @@ def export_split_data(toil, input_name_map, output_id_map, split_log_id, contig_
     # export the log
     toil.exportFile(split_log_id, makeURL(os.path.join(output_dir, 'minigraph.split.log')))
 
+    # hack to filter out reference contigs where nothing maps to it (not even itself)
+    # this is usually worked around by using --refContigs <chroms> --otherContig chrOther
+    # but filtering them out here lets users who don't do that make graphs
+    # 
+    empty_contigs = set()
+    
     for ref_contig in output_id_map.keys():        
         if output_id_map[ref_contig] is None:
             # todo: check ambigous?
@@ -584,6 +590,15 @@ def export_split_data(toil, input_name_map, output_id_map, split_log_id, contig_
             seq_file_map[event] = fa_path
             toil.exportFile(ref_contig_fa_id, fa_path)
 
+        seq_file_map_size = 0
+        for event, fa_path in seq_file_map.items():
+            if output_id_map[ref_contig]['fa'][event].size > 0:
+                seq_file_map_size += 1
+        if seq_file_map_size < 2:
+            logger.warning("Omitting reference contig {} from the graph because it doesn't align well enough. If you absolutely want to include it, rerun with --refContigs and --otherContig specified".format(ref_contig))
+            empty_contigs.add(ref_contig)
+            continue
+        
         # Seqfile: <output_dir>/seqfiles/<contig>.seqfile
         seq_file_path = os.path.join(output_dir, 'seqfiles', '{}.seqfile'.format(ref_contig))
         if seq_file_path.startswith('s3://'):
@@ -612,7 +627,7 @@ def export_split_data(toil, input_name_map, output_id_map, split_log_id, contig_
         chrom_file_temp_path = chrom_file_path        
     with open(chrom_file_temp_path, 'w') as chromfile:
         for ref_contig, seqfile_paf in chrom_file_map.items():
-            if ref_contig != amb_name:
+            if ref_contig != amb_name and ref_contig not in empty_contigs:
                 seqfile, paf = seqfile_paf[0], seqfile_paf[1]
                 chromfile.write('{}\t{}\t{}\n'.format(ref_contig, seqfile, paf))
     if chrom_file_path.startswith('s3://'):
