@@ -101,8 +101,6 @@ class LastzRepeatMaskJob(RoundedJob):
         This is the gpu version of above.  It's much simpler in that there's no chunking or fragmenting
         """
 
-        alignment_dir = os.path.join(self.work_dir, 'segalign--output')
-
         # dont think gpu lastz can handle this
         assert not self.repeatMaskOptions.unmaskInput
 
@@ -130,7 +128,7 @@ class LastzRepeatMaskJob(RoundedJob):
                # and skip running it below
                "--M", str(self.repeatMaskOptions.period)] + gpu_opts
         
-        segalign_messages = cactus_call(parameters=cmd, work_dir=alignment_dir, returnStdErr=True, gpus=self.repeatMaskOptions.gpu)
+        segalign_messages = cactus_call(parameters=cmd, work_dir=self.work_dir, returnStdErr=True, gpus=self.repeatMaskOptions.gpu)
         # run_segalign can crash and still exit 0, so it's worth taking a moment to check the log for errors
         segalign_messages = segalign_messages.lower()
         for line in segalign_messages.split("\n"):
@@ -143,14 +141,14 @@ class LastzRepeatMaskJob(RoundedJob):
         # scrape the segalign output into one big file, making an effort to read in numeric order
         merged_path = os.path.join(self.work_dir, self.repeatMaskOptions.eventName + '.mergedpath')
         with open(merged_path, "a") as merged_file:
-            for work_file in sorted(os.listdir(alignment_dir), key = lambda x : int(re.sub("[^0-9]", "", x))):
+            for work_file in sorted(os.listdir(self.work_dir), key = lambda x : int(re.sub("[^0-9]", "", x))):
                 # segalign_repeat_masker makes files that look like "tmp10.block0.intervals"
-                # (not that there should be anything else in this directory)
+                # (so important that we gave our input .query and .target extensions)
                 if work_file.startswith("tmp") and work_file.endswith("intervals"):
                     # append it do the merged file and delete it right away to keep disk usage lower
-                    with open(os.path.join(alignment_dir, work_file), "r") as frag_file:
+                    with open(os.path.join(self.work_dir, work_file), "r") as frag_file:
                         shutil.copyfileobj(frag_file, merged_file)
-                    os.remove(os.path.join(alignment_dir, work_file))
+                    os.remove(os.path.join(self.work_dir, work_file))
 
         return merged_path
 
