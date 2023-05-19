@@ -336,6 +336,7 @@ def main():
     parser.add_argument("--binariesMode", choices=["docker", "local", "singularity"],
                         help="The way to run the Cactus binaries", default=None)
     parser.add_argument("--gpu", nargs='?', const='all', default=None, help="toggle on GPU-enabled lastz, and specify number of GPUs (all available if no value provided)")
+    parser.add_argument("--lastzCores", type=int, default=None, help="Number of cores for each lastz job, only relevant when running with --gpu")    
     parser.add_argument("--consCores", type=int, 
                         help="Number of cores for each cactus_consolidated job (defaults to all available / maxCores on single_machine)", default=None)
     parser.add_argument("--consMemory", type=int,

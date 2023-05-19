@@ -290,15 +290,17 @@ class ConfigWrapper:
         # segalign still can't contorl the number of cores it uses (!).  So we give all available on
         # single machine.  
         if getOptionalAttrib(findRequiredNode(self.xmlRoot, "blast"), 'gpu', typeFn=int, default=0):
-            # single machine: we give all the cores to segalign
-            if options.batchSystem.lower() in ['single_machine', 'singlemachine']:
-                if options.maxCores is not None:
-                    lastz_cores = options.maxCores
-                else:
-                    lastz_cores = cactus_cpu_count()
+            if options.lastzCores:
+                lastz_cores = options.lastzCores
             else:
-                # todo: segalign can't control number of cores
-                lastz_cores = None
+                # single machine: we give all the cores to segalign
+                if options.batchSystem.lower() in ['single_machine', 'singlemachine']:
+                    if options.maxCores is not None:
+                        lastz_cores = options.maxCores
+                    else:
+                        lastz_cores = cactus_cpu_count()
+                else:
+                    raise RuntimeError('--lastzCores must be used with --gpu on non-singlemachine batch systems')
             findRequiredNode(self.xmlRoot, "blast").attrib["cpu"] = str(lastz_cores)
                     
         # make absolutely sure realign is never turned on with the gpu.  they don't work together because

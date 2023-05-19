@@ -101,7 +101,7 @@ class LastzRepeatMaskJob(RoundedJob):
         This is the gpu version of above.  It's much simpler in that there's no chunking or fragmenting
         """
 
-        alignment_dir = fileStore.getLocalTempDir()
+        alignment_dir = os.path.join(self.work_dir, 'segalign--output')
 
         # dont think gpu lastz can handle this
         assert not self.repeatMaskOptions.unmaskInput
