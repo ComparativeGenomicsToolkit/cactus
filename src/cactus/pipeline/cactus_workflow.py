@@ -75,7 +75,7 @@ def cactus_cons(job, tree, ancestor_event, config_node, seq_id_map, og_map, paf_
     system(f"grep -v 'tp:A:S' {paf_path} > {primary_alignment_file} || true")  # Alignments that are not-secondaries
 
     # Optionally parse our secondary alignments
-    use_secondary_alignments = int(config_node.find("caf").attrib["useSecondaryAlignments"])  # We should really switch to
+    use_secondary_alignments = int(config_node.find("blast").attrib["outputSecondaryAlignments"])  # We should really switch to
     # the empty string being false instead of 0
     assert use_secondary_alignments == 0 or use_secondary_alignments == 1
     if use_secondary_alignments:

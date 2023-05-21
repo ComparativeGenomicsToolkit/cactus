@@ -276,10 +276,15 @@ def chain_alignments(job, alignment_files, reference_event_name, params):
                            outfile=j, returnStdErr=True)
     logger.info("paffy filter to get primaries {}\n{}".format(reference_event_name, messages[:-1]))  # Log paffy filter
 
-    # Filter to secondary alignments and put in the final output file
-    messages = cactus_call(parameters=['paffy', 'filter', "-i", k, "--maxTileLevel", "1", '-x'],
-                           outfile=output_alignments_file, returnStdErr=True)
-    logger.info("paffy filter to get secondaries {}\n{}".format(reference_event_name, messages[:-1]))
+    # Do we want to include the secondary alignments
+    use_secondary_alignments = int(params.find("blast").attrib["outputSecondaryAlignments"])  # We should really switch to
+    # the empty string being false instead of 0
+
+    if use_secondary_alignments:
+        # Filter to secondary alignments and put in the final output file
+        messages = cactus_call(parameters=['paffy', 'filter', "-i", k, "--maxTileLevel", "1", '-x'],
+                               outfile=output_alignments_file, returnStdErr=True)
+        logger.info("paffy filter to get secondaries {}\n{}".format(reference_event_name, messages[:-1]))
 
     # Rechain the "primary" alignments so we can see how good the chains of the primary alignments are
     messages = cactus_call(parameters=['paffy', 'chain', "-i", j,
@@ -297,16 +302,17 @@ def chain_alignments(job, alignment_files, reference_event_name, params):
                            outfile=output_alignments_file, outappend=True, returnStdErr=True)
     logger.info("paffy filter {}\n{}".format(reference_event_name, messages[:-1]))  # Log paffy filter
 
-    # Get the primaries we've filtered and switch them to secondaries in the final output
-    messages = cactus_call(parameters=['paffy', 'filter', "-i", k, "-x",
-                                       "--minChainScore", params.find("blast").attrib["minPrimaryChainScore"]],
-                           outfile=j, returnStdErr=True)
-    logger.info("paffy filter {}\n{}".format(reference_event_name, messages[:-1]))  # Log paffy filter
-    messages = cactus_call(parameters=['sed', 's/tp:A:P/tp:A:S/', k], outfile=j, returnStdErr=True)
-    logger.info("switching low score primaries to secondaries {}\n{}".format(reference_event_name, messages[:-1]))
-    messages = cactus_call(parameters=['sed', 's/tl:i:1/tl:i:2/', j], outfile=output_alignments_file,
-                           outappend=True, returnStdErr=True)
-    logger.info("switching changing tile level of low score primaries {}\n{}".format(reference_event_name, messages[:-1]))
+    if use_secondary_alignments:
+        # Get the primaries we've filtered and switch them to secondaries in the final output
+        messages = cactus_call(parameters=['paffy', 'filter', "-i", k, "-x",
+                                           "--minChainScore", params.find("blast").attrib["minPrimaryChainScore"]],
+                               outfile=j, returnStdErr=True)
+        logger.info("paffy filter {}\n{}".format(reference_event_name, messages[:-1]))  # Log paffy filter
+        messages = cactus_call(parameters=['sed', 's/tp:A:P/tp:A:S/', k], outfile=j, returnStdErr=True)
+        logger.info("switching low score primaries to secondaries {}\n{}".format(reference_event_name, messages[:-1]))
+        messages = cactus_call(parameters=['sed', 's/tl:i:1/tl:i:2/', j], outfile=output_alignments_file,
+                               outappend=True, returnStdErr=True)
+        logger.info("switching changing tile level of low score primaries {}\n{}".format(reference_event_name, messages[:-1]))
 
     # Cleanup the old alignment files
     for i in alignment_files:
