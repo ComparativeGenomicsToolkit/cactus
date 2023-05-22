@@ -24,6 +24,7 @@ class RepeatMaskOptions:
             unmaskOutput=False,
             proportionSampled=1.0,
             gpu=0,
+            cpu=None,
             gpuLastzInterval=3000000,
             eventName='seq'):
         self.fragment = fragment
@@ -33,6 +34,7 @@ class RepeatMaskOptions:
         self.unmaskOutput = unmaskOutput
         self.proportionSampled = proportionSampled
         self.gpu = gpu
+        self.cpu = cpu
         self.gpuLastzInterval = gpuLastzInterval
         self.eventName = eventName
 
@@ -48,11 +50,7 @@ class LastzRepeatMaskJob(RoundedJob):
         targetsSize = sum(targetID.size for targetID in targetIDs)
         memory = 4*1024*1024*1024
         disk = 4*(queryID.size + targetsSize)
-        if repeatMaskOptions.gpu:
-            # gpu jobs get the whole node (same hack as used in blast phase)
-            cores = cactus_cpu_count()
-        else:
-            cores = None
+        cores = repeatMaskOptions.cpu
         accelerators = ['cuda:{}'.format(repeatMaskOptions.gpu)] if repeatMaskOptions.gpu else None            
         RoundedJob.__init__(self, memory=memory, disk=disk, cores=cores, accelerators=accelerators, preemptable=True)
         self.repeatMaskOptions = repeatMaskOptions
@@ -128,7 +126,8 @@ class LastzRepeatMaskJob(RoundedJob):
                # and skip running it below
                "--M", str(self.repeatMaskOptions.period)] + gpu_opts
         
-        segalign_messages = cactus_call(parameters=cmd, work_dir=self.work_dir, returnStdErr=True, gpus=self.repeatMaskOptions.gpu)
+        segalign_messages = cactus_call(parameters=cmd, work_dir=self.work_dir, returnStdErr=True, gpus=self.repeatMaskOptions.gpu,
+                                        cpus=self.repeatMaskOptions.cpu)
         # run_segalign can crash and still exit 0, so it's worth taking a moment to check the log for errors
         segalign_messages = segalign_messages.lower()
         for line in segalign_messages.split("\n"):

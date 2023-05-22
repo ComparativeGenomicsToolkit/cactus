@@ -247,7 +247,7 @@ class ConfigWrapper:
             findRequiredNode(self.xmlRoot, "blast").attrib["gpu"] = str(options.gpu)
             for node in self.xmlRoot.findall("preprocessor"):
                 if getOptionalAttrib(node, "preprocessJob") == "lastzRepeatMask":
-                    node.attrib["gpu"] = str(options.gpu)
+                    node.attrib["gpu"] = str(options.gpu)        
             
         # we need to make sure that gpu is set to an integer (replacing 'all' with a count)
         def get_gpu_count():
@@ -302,6 +302,9 @@ class ConfigWrapper:
                 else:
                     raise RuntimeError('--lastzCores must be used with --gpu on non-singlemachine batch systems')
             findRequiredNode(self.xmlRoot, "blast").attrib["cpu"] = str(lastz_cores)
+            for node in self.xmlRoot.findall("preprocessor"):
+                if getOptionalAttrib(node, "preprocessJob") == "lastzRepeatMask":
+                    node.attrib["cpu"] = str(lastz_cores)            
                     
         # make absolutely sure realign is never turned on with the gpu.  they don't work together because
         # realign requires small chunks, and segalign needs big chunks

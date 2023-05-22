@@ -451,7 +451,8 @@ def singularityCommand(tool=None,
                        parameters=None,
                        port=None,
                        file_store=None,
-                       gpus=None):
+                       gpus=None,
+                       cpus=None):
 
     if parameters is None:
         parameters = []
@@ -470,6 +471,10 @@ def singularityCommand(tool=None,
     base_singularity_call += ['-u', '-B', '{}:{}'.format(os.path.abspath(work_dir), '/mnt'), '--pwd', '/mnt']
     if gpus:
         base_singularity_call += ['--nv']
+    #todo: it seems like this would be useful (eg to hopefully limit squashfs resources) but it doesn't work
+    #      on our cluster (crytpic cgroups errors)
+    #if cpus:
+    #    base_singularity_call += ['--cpus', str(cpus)]
     
     if "CACTUS_SINGULARITY_IMG" in os.environ:
         # old logic: just run a local image
@@ -558,7 +563,8 @@ def dockerCommand(tool=None,
                   port=None,
                   dockstore=None,
                   entrypoint=None,
-                  gpus=None):
+                  gpus=None,
+                  cpus=None):
     # This is really dumb, but we have to work around an intersection
     # between two bugs: one in CoreOS where /etc/resolv.conf is
     # sometimes missing temporarily, and one in Docker where it
@@ -574,6 +580,8 @@ def dockerCommand(tool=None,
                         '-v', '{}:/data'.format(os.path.abspath(work_dir))]
     if gpus:
         base_docker_call += ['--gpus', str(gpus)]
+    if cpus:
+        base_docker_call += ['--cpus', str(cpus)]
 
     if entrypoint is not None:
         base_docker_call += ['--entrypoint', entrypoint]
@@ -650,7 +658,8 @@ def cactus_call(tool=None,
                 fileStore=None,
                 returnStdErr=False,
                 realtimeStderrPrefix=None,
-                gpus=None):
+                gpus=None,
+                cpus=None):
     mode = os.environ.get("CACTUS_BINARIES_MODE", "docker")
     if dockstore is None:
         dockstore = getDockerOrg()
@@ -683,11 +692,11 @@ def cactus_call(tool=None,
                                             port=port,
                                             dockstore=dockstore,
                                             entrypoint=entrypoint,
-                                            gpus=gpus)
+                                            gpus=gpus, cpus=cpus)
     elif mode == "singularity":
         call = singularityCommand(tool=tool, work_dir=work_dir,
                                   parameters=parameters, port=port, file_store=fileStore,
-                                  gpus=gpus)
+                                  gpus=gpus, cpus=cpus)
     else:
         assert mode == "local"
         call = parameters

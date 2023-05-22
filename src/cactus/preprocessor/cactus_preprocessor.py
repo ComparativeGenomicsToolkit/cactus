@@ -145,6 +145,7 @@ class PreprocessSequence(RoundedJob):
                                                   minPeriod=self.prepOptions.minPeriod,
                                                   lastzOpts=self.prepOptions.lastzOptions,
                                                   gpu=self.prepOptions.gpu,
+                                                  cpu=self.prepOptions.cpu,
                                                   gpuLastzInterval=self.prepOptions.gpuLastzInterval,
                                                   eventName='{}_{}'.format(self.prepOptions.eventName, chunk_i))
             return LastzRepeatMaskJob(repeatMaskOptions=repeatMaskOptions,

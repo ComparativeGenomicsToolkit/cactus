@@ -44,6 +44,7 @@ def run_lastz(job, name_A, genome_A, name_B, genome_B, distance, params):
                                                                                       genome_B, lastz_params))
 
     gpu = getOptionalAttrib(lastz_params_node, 'gpu', typeFn=int, default=0)
+    cpu = getOptionalAttrib(lastz_params_node, 'cpu', typeFn=int, default=None)    
     if gpu:
         lastz_bin = 'run_segalign'
         suffix_a, suffix_b = '', ''
@@ -62,7 +63,8 @@ def run_lastz(job, name_A, genome_A, name_B, genome_B, distance, params):
         
     # note: it's very important to set the work_dir here, because cactus_call is not able to
     # sort out the mount directory by itself, presumably due to square brackets...
-    segalign_messages = cactus_call(parameters=lastz_cmd, outfile=alignment_file, work_dir=work_dir, returnStdErr=gpu>0, gpus=gpu)
+    segalign_messages = cactus_call(parameters=lastz_cmd, outfile=alignment_file, work_dir=work_dir, returnStdErr=gpu>0, gpus=gpu,
+                                    cpus=cpu)
 
     if gpu:
         # run_segalign can crash and still exit 0, so it's worth taking a moment to check the log for errors
