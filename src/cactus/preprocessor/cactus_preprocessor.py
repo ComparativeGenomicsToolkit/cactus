@@ -128,7 +128,7 @@ class PreprocessSequence(RoundedJob):
     """
     def __init__(self, prepOptions, inSequenceID, chunksToCompute=None):
         disk = 3*inSequenceID.size if hasattr(inSequenceID, "size") else None
-        RoundedJob.__init__(self, cores=prepOptions.cpu, memory=prepOptions.memory, disk=disk,
+        RoundedJob.__init__(self, memory=prepOptions.memory, disk=disk,
                      preemptable=True)
         self.prepOptions = prepOptions
         self.inSequenceID = inSequenceID

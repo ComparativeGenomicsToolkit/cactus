@@ -581,7 +581,7 @@ def dockerCommand(tool=None,
     if gpus:
         if 'SLURM_JOB_GPUS' in os.environ:
             # this allows slurm to identify which gpus are free
-            base_docker_call += ['--gpus', 'device={}'.format(os.environ['SLURM_JOB_GPUS'])]
+            base_docker_call += ['--gpus', '"device={}"'.format(os.environ['SLURM_JOB_GPUS'])]            
         else:                    
             base_docker_call += ['--gpus', str(gpus)]
     if cpus:
