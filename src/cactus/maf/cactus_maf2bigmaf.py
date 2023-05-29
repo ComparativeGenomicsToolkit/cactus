@@ -43,6 +43,7 @@ def main():
     
     parser.add_argument("--halFile", help = "HAL file to use to get chrom sizes from")
     parser.add_argument("--chromSizes", help = "File of chromosome sizes (can be obtained with halStats --chromSizes)")
+    parser.add_argument("--sort", action="store_true", help = "Sort by contig name. Only necessary if the input MAF is not already sorted. (cactus-hal2maf produces sorted MAFs so this option is *not* needed with input from cactus-hal2maf).")
     
     #Progressive Cactus Options
     parser.add_argument("--configFile", dest="configFile",
@@ -216,17 +217,19 @@ def maf2bigmaf(job, maf_id, chrom_sizes_id, options):
                                
     # make the bigmaf file
     bigmaf_txt_path = os.path.join(work_dir, 'bigMaf.txt')
-    cactus_call(parameters=[['mafToBigMaf', options.refGenome, maf_path, 'stdout'],
-                            ['sort', '-k1,1', '-k2,2n']],
-                outfile=bigmaf_txt_path)
+    cmd = ['mafToBigMaf', options.refGenome, maf_path, 'stdout']
+    if options.sort:
+        cmd = [cmd, ['sort', '-k1,1', '-k2,2n']]
+    cactus_call(parameters=cmd, outfile=bigmaf_txt_path)
     cactus_call(parameters=['bedToBigBed', '-type=bed3+1', '-as={}'.format(bigmaf_as_path), '-tab', bigmaf_txt_path, chrom_sizes_path, bigmaf_path])
 
     # make the bigmaf summary file
     summary_bed_path = os.path.join(work_dir, 'bigMafSummary.bed')
     cactus_call(parameters=['hgLoadMafSummary', '-minSeqSize=1', '-test', options.refGenome, 'bigMafSummary', maf_path])
-    cactus_call(parameters=[['cut', '-f2-', 'bigMafSummary.tab'],
-                            ['sort', '-k1,1', '-k2,2n']],
-                outfile=summary_bed_path)
+    cmd = ['cut', '-f2-', 'bigMafSummary.tab']
+    if options.sort:
+        cmd = [cmd, ['sort', '-k1,1', '-k2,2n']]
+    cactus_call(parameters=cmd, outfile=summary_bed_path)
     cactus_call(parameters=['bedToBigBed', '-type=bed3+4', '-as={}'.format(mafsummary_as_path), '-tab', summary_bed_path, chrom_sizes_path, summary_path])
     
     return { 'bb' : job.fileStore.writeGlobalFile(bigmaf_path),
