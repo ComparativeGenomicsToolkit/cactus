@@ -313,7 +313,7 @@ def taf_cmd(hal_path, chunk, chunk_num, options):
     if options.maximumGapLength is not None:
         norm_opts += ' -n {}'.format(options.maximumGapLength)
     if options.filterGapCausingDupes:
-        norm_opts += ' -d'
+        norm_opts += ' -d '
     if options.fractionSharedRows is not None:
         norm_opts += '-q {}'.format(options.fractionSharedRows)
     cmd += ' | {} taffy norm -k {}{} 2> {}.tn.time'.format(time_cmd, norm_opts, time_end, chunk_num)
