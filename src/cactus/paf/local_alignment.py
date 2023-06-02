@@ -30,7 +30,7 @@ def run_lastz(job, name_A, genome_A, name_B, genome_B, distance, params):
 
     # Get the params to do the alignment
     lastz_params_node = params.find("blast")
-    lastz_divergence_node = lastz_params_node.find("divergence")
+    lastz_divergence_node = lastz_params_node.find("lastzArguments")
     divergences = params.find("constants").find("divergences")
     for i in "one", "two", "three", "four", "five":
         if distance <= float(divergences.attrib[i]):

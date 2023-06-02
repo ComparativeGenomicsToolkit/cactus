@@ -124,4 +124,10 @@ bool event_isOutgroup(Event *event);
  */
 void event_check(Event *event);
 
+
+/*
+ * Get an stTree for the subtree rooted at this event
+ */
+stTree *event_getStTree(Event *event);
+
 #endif

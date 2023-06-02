@@ -75,7 +75,7 @@
 		   minPrimaryChainScore="10000"
 		   trimIngroups="1"
 		   trimOutgroups="1"
-		   trimMinSize="500"
+		   trimMinSize="100"
 		   trimFlanking="10"
 		   trimOutgroupFlanking="2000"
 		   outputSecondaryAlignments="0"
@@ -84,8 +84,7 @@
 		<!-- The following are parametrised to produce the same results as the default settings,
 		within a margin of 0.2% sensitivity, should be very fast for close genomes, these were tuned using the blast/blastParametersScript.py
 		We could go even faster for less than 0.05 divergence using, but want to be robust to poor branch length estimates -->
-		<divergence
-				argName="lastzArguments"
+		<lastzArguments
 				one="--step=2 --ambiguous=iupac,100,100 --ydrop=3000 --notransition"
 				two="--step=5 --ambiguous=iupac,100,100 --ydrop=3000"
 				three="--step=4 --ambiguous=iupac,100,100 --ydrop=3000"
@@ -129,7 +128,7 @@
 	<!-- minimumBlockDegreeToCheckSupport Apply support filter to blocks of more than this degree (if greater than 0) -->
 	<!-- minimumBlockHomologySupport TODO-->
 	<!-- writeInputAlignmentsTo Debug option to write the alignment chains fed to CAF to the specified path. Off by default.-->
-	<caf annealingRounds="2048"
+	<caf
 		 deannealingRounds="2 32 512"
 		 trim="3"
 		 blockTrim="5"
@@ -149,7 +148,24 @@
 		 minimumBlockDegreeToCheckSupport="-1"
 		 minimumBlockHomologySupport="0.05"
 		 writeInputAlignmentsTo=""
-	/>
+		 >
+		<!--  The following govern the minimum chain lengths in the graph for a given divergence.
+		   Divergence is specified as the maximum path length between any pair of ingroup nodes.
+		   Each value is a string of increasing positive integers defining minimum chain lengths.
+		   The last value defines the length of the minimum chain in the graph.
+	       The earlier <divergences> values define the minimum chain length as we progressively
+	       add alignments to the graph during each round.
+	       See DOI: 10.1101/gr.123356.111 for algorithm outline.
+		-->
+		<annealingRounds
+				one="2048"
+				two="1024"
+				three="1024"
+				four="512"
+				five="512"
+				default="512"
+		/>
+	</caf>
 
 	<!-- The bar tag contains parameters for the bar algorithm. -->
 	<!-- runBar Toggle the bar stage on or off. Turned off you get a sparse alignment just using the CAF phase-->
