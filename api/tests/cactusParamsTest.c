@@ -13,8 +13,8 @@ static char *params_file = "./src/cactus/cactus_progressive_config.xml";
 static void testCactusParams(CuTest *testCase) {
     CactusParams *p = cactusParams_load(params_file);
 
-    const char *c = cactusParams_get_string(p, 3, "blast", "divergence", "argName");
-    CuAssertStrEquals(testCase, "lastzArguments", c);
+    const char *c = cactusParams_get_string(p, 3, "blast", "lastzArguments", "default");
+    CuAssertStrEquals(testCase, "--step=1 --ambiguous=iupac,100,100 --ydrop=3000", c);
 
     int64_t i = cactusParams_get_int(p, 3, "bar", "pecan", "spanningTrees");
     CuAssertIntEquals(testCase, 5, i);
