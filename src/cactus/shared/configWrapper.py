@@ -165,10 +165,6 @@ class ConfigWrapper:
         constantsElem = self.xmlRoot.find("constants")
         return int(constantsElem.attrib["defaultMemory"])
 
-    def getExportHalDisk(self):
-        exportHalElem = self.xmlRoot.find("exportHal")
-        return int(exportHalElem.attrib["disk"])
-
     def substituteAllPredefinedConstantsWithLiterals(self):
         constants = findRequiredNode(self.xmlRoot, "constants")
         defines = constants.find("defines")
@@ -251,7 +247,7 @@ class ConfigWrapper:
             findRequiredNode(self.xmlRoot, "blast").attrib["gpu"] = str(options.gpu)
             for node in self.xmlRoot.findall("preprocessor"):
                 if getOptionalAttrib(node, "preprocessJob") == "lastzRepeatMask":
-                    node.attrib["gpu"] = str(options.gpu)
+                    node.attrib["gpu"] = str(options.gpu)        
             
         # we need to make sure that gpu is set to an integer (replacing 'all' with a count)
         def get_gpu_count():
@@ -294,16 +290,21 @@ class ConfigWrapper:
         # segalign still can't contorl the number of cores it uses (!).  So we give all available on
         # single machine.  
         if getOptionalAttrib(findRequiredNode(self.xmlRoot, "blast"), 'gpu', typeFn=int, default=0):
-            # single machine: we give all the cores to segalign
-            if options.batchSystem.lower() in ['single_machine', 'singlemachine']:
-                if options.maxCores is not None:
-                    lastz_cores = options.maxCores
-                else:
-                    lastz_cores = cactus_cpu_count()
+            if options.lastzCores:
+                lastz_cores = options.lastzCores
             else:
-                # todo: segalign can't control number of cores
-                lastz_cores = None
+                # single machine: we give all the cores to segalign
+                if options.batchSystem.lower() in ['single_machine', 'singlemachine']:
+                    if options.maxCores is not None:
+                        lastz_cores = options.maxCores
+                    else:
+                        lastz_cores = cactus_cpu_count()
+                else:
+                    raise RuntimeError('--lastzCores must be used with --gpu on non-singlemachine batch systems')
             findRequiredNode(self.xmlRoot, "blast").attrib["cpu"] = str(lastz_cores)
+            for node in self.xmlRoot.findall("preprocessor"):
+                if getOptionalAttrib(node, "preprocessJob") == "lastzRepeatMask":
+                    node.attrib["cpu"] = str(lastz_cores)            
                     
         # make absolutely sure realign is never turned on with the gpu.  they don't work together because
         # realign requires small chunks, and segalign needs big chunks

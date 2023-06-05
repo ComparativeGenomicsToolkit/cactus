@@ -79,7 +79,7 @@ class CheckUniqueHeaders(RoundedJob):
     Check that the headers of the input file meet certain naming requirements.
     """
     def __init__(self, prepOptions, inChunkID):
-        disk = inChunkID.size
+        disk = 2*inChunkID.size
         RoundedJob.__init__(self, memory=prepOptions.memory, cores=prepOptions.cpu, disk=disk,
                      preemptable=True)
         self.prepOptions = prepOptions
@@ -128,7 +128,7 @@ class PreprocessSequence(RoundedJob):
     """
     def __init__(self, prepOptions, inSequenceID, chunksToCompute=None):
         disk = 3*inSequenceID.size if hasattr(inSequenceID, "size") else None
-        RoundedJob.__init__(self, cores=prepOptions.cpu, memory=prepOptions.memory, disk=disk,
+        RoundedJob.__init__(self, memory=prepOptions.memory, disk=disk,
                      preemptable=True)
         self.prepOptions = prepOptions
         self.inSequenceID = inSequenceID
@@ -145,6 +145,7 @@ class PreprocessSequence(RoundedJob):
                                                   minPeriod=self.prepOptions.minPeriod,
                                                   lastzOpts=self.prepOptions.lastzOptions,
                                                   gpu=self.prepOptions.gpu,
+                                                  cpu=self.prepOptions.cpu,
                                                   gpuLastzInterval=self.prepOptions.gpuLastzInterval,
                                                   eventName='{}_{}'.format(self.prepOptions.eventName, chunk_i))
             return LastzRepeatMaskJob(repeatMaskOptions=repeatMaskOptions,
@@ -430,7 +431,8 @@ def main():
                         "rather than pulling one from quay.io")
     parser.add_argument("--binariesMode", choices=["docker", "local", "singularity"],
                         help="The way to run the Cactus binaries", default=None)
-    parser.add_argument("--gpu", nargs='?', const='all', default=None, help="toggle on GPU-enabled lastz, and specify number of GPUs (all available if no value provided)")    
+    parser.add_argument("--gpu", nargs='?', const='all', default=None, help="toggle on GPU-enabled lastz, and specify number of GPUs (all available if no value provided)")
+    parser.add_argument("--lastzCores", type=int, default=None, help="Number of cores for each lastz job, only relevant when running with --gpu")    
     parser.add_argument("--pangenome", action="store_true", help='Do not mask. Just add Cactus-style unique prefixes and strip anything up to and including last #')
 
     options = parser.parse_args()

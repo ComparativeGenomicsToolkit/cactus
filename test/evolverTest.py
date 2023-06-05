@@ -292,7 +292,7 @@ class TestCase(unittest.TestCase):
                         line += ' --latest'
                 if line.startswith('cactus-align'):
                     #Remove all the id prefixes to pretend the cigars came not cactus-blast
-                    subprocess.check_call('sed -i -e \'s/id=[0,1]|//g\' {}/Anc0.cigar*'.format(out_dir), shell=True)
+                    subprocess.check_call('sed -i -e \'s/id=[0,1]|//g\' {}/Anc0.paf*'.format(out_dir), shell=True)
                 sys.stderr.write('Running {}'.format(line))
                 subprocess.check_call(line, shell=True)
 
@@ -305,7 +305,7 @@ class TestCase(unittest.TestCase):
         self._write_primates_seqfile(seq_file_path)
 
         # do the mapping
-        cigar_path = os.path.join(self.tempDir, 'aln.cigar')
+        cigar_path = os.path.join(self.tempDir, 'aln.paf')
         cactus_opts = ['--binariesMode', binariesMode, '--logInfo', '--realTimeLogging', '--workDir', self.tempDir]
         # todo: it'd be nice to have an interface for setting tag to something not latest or commit
         if binariesMode == 'docker':
