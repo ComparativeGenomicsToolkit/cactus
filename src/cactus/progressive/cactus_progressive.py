@@ -45,6 +45,7 @@ from cactus.paf.local_alignment import make_paf_alignments, trim_unaligned_seque
 from cactus.shared.configWrapper import ConfigWrapper
 from cactus.progressive.multiCactusTree import MultiCactusTree
 from cactus.shared.common import setupBinaries, importSingularityImage
+from cactus.progressive.cactus_prepare import human2bytesN
 
 from sonLib.nxnewick import NXNewick
 from sonLib.bioio import getTempDirectory
@@ -199,7 +200,7 @@ def progressive_step_2(job, trimmed_outgroups_and_alignments, options, config_no
 
     # now do consolidated
     return job.addChildJobFn(cactus_cons_with_resources, spanning_tree, event, config_node, subtree_eventmap, og_map,
-                             pafs, cons_cores=options.consCores,
+                             pafs, cons_cores=options.consCores, cons_memory=options.consMemory,
                              intermediate_results_url=options.intermediateResultsUrl).rv()
 
 
@@ -339,8 +340,9 @@ def main():
     parser.add_argument("--lastzCores", type=int, default=None, help="Number of cores for each lastz job, only relevant when running with --gpu")    
     parser.add_argument("--consCores", type=int, 
                         help="Number of cores for each cactus_consolidated job (defaults to all available / maxCores on single_machine)", default=None)
-    parser.add_argument("--consMemory", type=int,
-                        help="Memory IN GIGABYTES for each cactus_consolidated job (defaults to an estimate based on the input data size)", default=None)
+    parser.add_argument("--consMemory", type=human2bytesN,
+                        help="Memory in bytes for each cactus_consolidated job (defaults to an estimate based on the input data size). "
+                        "Standard suffixes like K, Ki, M, Mi, G or Gi are supported (default=bytes))", default=None)
     parser.add_argument("--intermediateResultsUrl",
                         help="URL prefix to save intermediate results like DB dumps to (e.g. "
                         "prefix-dump-caf, prefix-dump-avg, etc.)", default=None)
@@ -375,12 +377,6 @@ def main():
             raise RuntimeError('--consCores required for non single_machine batch systems')
     if options.maxCores is not None and options.consCores > int(options.maxCores):
         raise RuntimeError('--consCores must be <= --maxCores')
-
-    if options.consMemory is not None:
-        # convert gigabytes to bytes
-        if options.consMemory > 10000:
-            logger.warning('--consMemory being set to {} GIGABYTES. Are you sure you want to do this?'.format(options.consMemory))
-        options.consMemory *= 1024
     
     # Mess with some toil options to create useful defaults.
     cactus_override_toil_options(options)
