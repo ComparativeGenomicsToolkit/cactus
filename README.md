@@ -32,6 +32,7 @@ Cactus uses many different algorithms and individual code contributions, princip
 - Dany Doerr for [GFAffix](https://github.com/marschall-lab/GFAffix), used to optionally clean pangenome graphs.
 - The vg team for [vg](https://github.com/vgteam/vg), used to process pangenome graphs.
 - The authors of [Mash](https://github.com/marbl/Mash)
+- Andrea Guarracino, Erik Garrison and co-authors for [odgi](https://github.com/pangenome/odgi). Make sure to [cite odgi](https://doi.org/10.1093/bioinformatics/btac308) when using it or its visualizations. 
 
 ## Mailing List
 
