@@ -44,18 +44,20 @@ def cactus_cons_with_resources(job, tree, ancestor_event, config_node, seq_id_ma
         mem = 4e9
     # add function of paf size
     mem += 3 * paf_id.size
-    # and quadratic in sequence size (if doable in gigs)
+    # and quadratic in sequence size (if doable in kb)
     if total_sequence_size > 1024:
-        total_sequence_size_gigs = total_sequence_size / 1024.
+        total_sequence_size_kb = total_sequence_size / 1024.
         if len(seq_id_map) < 6:
-            mem += 1024. * (total_sequence_size_gigs ** 1.75)
+            mem += 1024. * (total_sequence_size_kb ** 1.75)
         else:
             # probably in pangenome mode: go a bit easier
-            mem += 1024. * (total_sequence_size_gigs ** 1.30)
+            mem += 1024. * (total_sequence_size_kb ** 1.30)
     else:
         mem += 4 * total_sequence_size        
     # but we cap things at 512 Gigs
     mem=int(min(mem, 512e09))
+
+    RealtimeLogger.info('Estimating cactus_consolidated({}) memory as {} bytes from {} sequences with total-sequence-size {} and paf-size {}'.format(ancestor_event, mem, len(seq_id_map), total_sequence_size, paf_id.size))
 
     if cons_memory is not None and cons_memory < mem:
         RealtimeLogger.info('Overriding cactus_conslidated memory estimate of {} with {} from --consMemory'.format(
