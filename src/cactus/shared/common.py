@@ -731,7 +731,7 @@ def cactus_call(tool=None,
         if not shell:
             shell = True
             call = ' '.join(shlex.quote(t) for t in call)
-        call = '/usr/bin/time -v {}'.format(call)
+        call = '/usr/bin/time -f "CACTUS-LOGGED-MEMORY-IN-KB: %M" {}'.format(call)
 
     # optionally pipe stderr (but only if realtime logging enabled)
     # note the check below if realtime logging is enabled is rather hacky
@@ -741,21 +741,35 @@ def cactus_call(tool=None,
         rfd, wfd = os.pipe()
         rfile = os.fdopen(rfd, 'rb', 0)
         wfile = os.fdopen(wfd, 'wb', 0)
+        # And a different pipe for the memory log
+        mlrfd, mlwfd = os.pipe()
+        mlrfile = os.fdopen(mlrfd, 'rb', 0)
+        mlwfile = os.fdopen(mlwfd, 'wb', 0)
+                
         # Fork our child process (pid == 0) to catch stderr and log it
         pid = os.fork()
         if pid == 0:
             wfile.close()
+            mlrfile.close()
+            mem_log_line = ''
             while 1:
                 data = rfile.readline()
                 if not data:
                     break
-                RealtimeLogger.info('{}: {}'.format(realtimeStderrPrefix, data.strip().decode()))
+                line = data.strip().decode()
+                if 'CACTUS-LOGGED-MEMORY-IN-KB:' in line:
+                    mem_log_line = line
+                else:
+                    RealtimeLogger.info('{}: {}'.format(realtimeStderrPrefix, line))                    
             rfile.close()
+            mlwfile.write(mem_log_line.encode())
+            mlwfile.close()            
             os._exit(0)
         else:
             assert pid > 0
             # main process carries on, but sending stderr to the pipe
             rfile.close()
+            mlwfile.close()
             # note that only call_directly below actually does anything with errfile at the moment
             errfile = wfile
     else:
@@ -803,6 +817,7 @@ def cactus_call(tool=None,
                               "on JSON features %s: %s" % (job_name, parameters[0],
                                                            json.dumps(features), memUsage))
 
+    mem_log_line = None
     if pid and pid > 0:
         # It's not enough that the forked process is exited, it must be waited for or it's
         # deemed a zombine process:
@@ -810,21 +825,26 @@ def cactus_call(tool=None,
         # and Toil will complain forever about it:
         # https://github.com/ComparativeGenomicsToolkit/cactus/issues/610#issuecomment-1015759593
         wfile.close()
+        mem_log_line = mlrfile.readline().strip().decode()
+        mlrfile.close()        
         os.wait()
         
     if process.returncode == 0:
         run_time = time.time() - start_time
         if time_v:
-            call = call[len("/usr/bin/time -v "):]
+            call = call[len('/usr/bin/time -f "CACTUS-LOGGED-MEMORY-IN-KB: %M" '):]
         rt_message = "Successfully ran: \"{}\"".format(' '.join(call) if not shell else call)
         if features:
             rt_message += ' (features={})'.format(features)
         rt_message += " in {} seconds".format(round(run_time, 4))
-        if time_v and stderr:
-            for line in stderr.split('\n'):
-                if 'Maximum resident set size (kbytes):' in line:
-                    rt_message += ' and {} memory'.format(bytes2human(int(line.split()[-1]) * 1024))
-                    break
+        if time_v:
+            if stderr:
+                for line in stderr.split('\n'):
+                    if 'CACTUS-LOGGED-MEMORY-IN-KB:' in line:
+                        mem_log_line = line
+                        break
+            if mem_log_line:
+                rt_message += ' and {} memory'.format(bytes2human(int(mem_log_line.split()[-1]) * 1024))
         cactus_realtime_log(rt_message, log_debug = 'ktremotemgr' in call)
 
     if check_result:
