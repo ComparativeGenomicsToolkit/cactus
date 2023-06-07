@@ -311,8 +311,6 @@ def make_align_job(options, toil, config_wrapper=None, chrom_name=None):
         cafNode.attrib["runMapQFiltering"] = "0"
         # more iterations here helps quite a bit to reduce underalignment
         cafNode.attrib["maxRecoverableChainsIterations"] = "50"
-        # turn down minimum block degree to get a fat ancestor
-        barNode.attrib["minimumBlockDegree"] = "1"
         # turn off POA seeding
         poaNode.attrib["partialOrderAlignmentDisableSeeding"] = "1"
 
