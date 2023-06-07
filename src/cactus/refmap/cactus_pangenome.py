@@ -293,7 +293,7 @@ def export_align_wrapper(job, options, results_dict, reference_list):
 
 def export_join_wrapper(job, options, wf_output):
     """ toil join wrapper for cactus_graphmap_join """
-    export_join_data(job.fileStore, options, wf_output[0], wf_output[1], wf_output[2], wf_output[3], wf_output[4])
+    export_join_data(job.fileStore, options, wf_output[0], wf_output[1], wf_output[2], wf_output[3], wf_output[4], wf_output[5])
 
 def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_path_map, seq_order):
     """ chain the entire workflow together, doing exports after each step to mitigate annoyance of failures """
