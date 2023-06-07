@@ -113,6 +113,8 @@ def graphmap_join_options(parser):
     
     parser.add_argument("--gbz", nargs='*', default=None, help = "Generate GBZ/snarls indexes for the given graph type(s) if specified. Valid types are 'full', 'clip' and 'filter'. If no type specified 'clip' will be used ('full' used if clipping disabled). Multiple types can be provided separated by a space. --giraffe will also produce these (and other) indexes")
 
+    parser.add_argument("--odgi", nargs='*', default=None, help = "Generate ODGI (.og) versions for the given graph type(s) if specified. Valid types are 'full', 'clip' and 'filter'. If no type specified 'clip' will be used ('full' used if clipping disabled). Multiple types can be provided separated by a space.")
+
     parser.add_argument("--viz", nargs='*', default=None, help = "Generate 1D ODGI visualizations of each chromosomal graph for the given graph type(s) if specified. Valid types are 'full', 'clip' (but NOT `filter`). If no type specified 'clip' will be used ('full' used if clipping disabled). Multiple types can be provided separated by a space.")
 
     parser.add_argument("--draw", nargs='*', default=None, help = "Generate 2D ODGI visualizations of each chromosomal graph for the given graph type(s) if specified. WARNING: Can be quite slow. Valid types are 'full', 'clip' (but NOT `filter`). If no type specified 'clip' will be used ('full' used if clipping disabled). Multiple types can be provided separated by a space.")
@@ -177,6 +179,17 @@ def graphmap_join_validate_options(options):
         if gbz == 'filter' and not options.filter:
             raise RuntimeError('--gbz cannot be set to filter since filtering is disabled')
 
+    if options.odgi == []:
+        options.odgi = ['clip'] if options.clip else ['full']
+    options.odgi = list(set(options.odgi)) if options.odgi else []
+    for odgi in options.odgi:
+        if odgi not in ['clip', 'filter', 'full']:
+            raise RuntimeError('Unrecognized value for --odgi: {}. Must be one of {{clip, filter, full}}'.format(odgi))
+        if odgi == 'clip' and not options.clip:
+            raise RuntimError('--odgi cannot be set to clip since clipping is disabled')
+        if odgi == 'filter' and not options.filter:
+            raise RuntimeError('--odgi cannot be set to filter since filtering is disabled')
+        
     if options.viz == []:
         options.viz = ['clip'] if options.clip else ['full']
     options.viz = list(set(options.viz)) if options.viz else []
@@ -255,10 +268,10 @@ def graphmap_join_validate_options(options):
             raise RuntimeError('--giraffe cannot be set to filter since filtering is disabled')
 
     # Prevent some useless compute due to default param combos
-    if options.clip and 'clip' not in options.gfa + options.gbz + options.chrom_vg + options.chrom_og + options.vcf + options.giraffe + options.viz + options.draw\
-       and 'filter' not in options.gfa + options.gbz + options.chrom_vg + options.chrom_og + options.vcf + options.giraffe + options.viz + options.draw:
+    if options.clip and 'clip' not in options.gfa + options.gbz + options.odgi + options.chrom_vg + options.chrom_og + options.vcf + options.giraffe + options.viz + options.draw\
+       and 'filter' not in options.gfa + options.gbz + options.odgi + options.chrom_vg + options.chrom_og + options.vcf + options.giraffe + options.viz + options.draw:
         options.clip = None
-    if options.filter and 'filter' not in options.gfa + options.gbz + options.chrom_vg + options.chrom_og + options.vcf + options.giraffe + options.viz + options.draw:
+    if options.filter and 'filter' not in options.gfa + options.gbz + options.odgi + options.chrom_vg + options.chrom_og + options.vcf + options.giraffe + options.viz + options.draw:
         options.filter = None
 
     return options
@@ -321,7 +334,7 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
                                  disk=vg_id.size * 20, memory=max(2**31, vg_id.size * 20))
         root_job.addChild(full_job)
         full_vg_ids.append(full_job.rv(0))
-        if 'full' in options.chrom_og + options.viz + options.draw:
+        if 'full' in options.odgi + options.chrom_og + options.viz + options.draw:
             full_og_job = full_job.addFollowOnJobFn(vg_to_og, options, config, vg_path, full_job.rv(0),
                                                     disk=vg_id.size * 10, memory=vg_id.size * 4)
             og_chrom_ids['full']['og'].append(full_og_job.rv())
@@ -359,7 +372,7 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
             clip_root_job.addChild(clip_job)
             clip_vg_ids.append(clip_job.rv(0))
             clip_vg_stats.append(clip_job.rv(1))
-            if 'clip' in options.chrom_og + options.viz + options.draw:
+            if 'clip' in options.odgi + options.chrom_og + options.viz + options.draw:
                 clip_og_job = clip_job.addFollowOnJobFn(vg_to_og, options, config, vg_path, clip_job.rv(0),
                                                         disk=input_vg_id.size * 10, memory=input_vg_id.size * 4)
                 og_chrom_ids['clip']['og'].append(clip_og_job.rv())
@@ -378,7 +391,7 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
             filter_job = filter_root_job.addChildJobFn(vg_clip_vg, options, config, vg_path, vg_id, 
                                                        disk=input_vg_id.size * 20, memory=max(2**31, input_vg_id.size * 22))
             filter_vg_ids.append(filter_job.rv())
-            if 'filter' in options.chrom_og + options.viz + options.draw:
+            if 'filter' in options.odgi + options.chrom_og + options.viz + options.draw:
                 filter_og_job = filter_job.addFollowOnJobFn(vg_to_og, options, config, vg_path, filter_job.rv(),
                                                             disk=input_vg_id.size * 10, memory=input_vg_id.size * 4)
                 og_chrom_ids['filter']['og'].append(filter_og_job.rv())                
@@ -456,6 +469,12 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
                                                          disk = sum(f.size for f in vg_ids) * 16,
                                                          memory=index_mem)
             out_dicts.append(giraffe_job.rv())
+
+        # optional full-genome odgi
+        if workflow_phase in options.odgi:
+            odgi_job = gfa_root_job.addChildJobFn(odgi_squeeze, config, options.vg, og_chrom_ids[workflow_phase]['og'],
+                                                  tag=workflow_phase + '.', disk=sum(f.size for f in vg_ids) *4)
+            out_dicts.append(odgi_job.rv())                                                  
 
         # optional viz
         if workflow_phase in options.viz + options.draw:
@@ -798,6 +817,22 @@ def make_giraffe_indexes(job, options, config, index_dict, tag=''):
                             
     return { '{}min'.format(tag) : job.fileStore.writeGlobalFile(min_path),
              '{}dist'.format(tag) : job.fileStore.writeGlobalFile(dist_path) }
+
+def odgi_squeeze(job, config, vg_paths, og_ids, tag=''):
+    """ combine chrom odgis into one big odgi """
+    work_dir = job.fileStore.getLocalTempDir()
+    merged_path = os.path.join(work_dir, tag + 'og')
+    og_paths = []
+    for vg_path, og_id in zip(vg_paths, og_ids):
+        og_path = os.path.join(work_dir, os.path.basename(os.path.splitext(vg_path)[0]) + '.{}og'.format(tag))
+        job.fileStore.readGlobalFile(og_id, og_path)
+        og_paths.append(og_path)
+    list_path = os.path.join(work_dir, '{}.squeeze.input'.format(tag))
+    with open(list_path, 'w') as list_file:
+        for og_path in og_paths:
+            list_file.write(og_path +'\n')
+    cactus_call(parameters=['odgi', 'squeeze', '-f', list_path, '-o', merged_path])
+    return { '{}og'.format(tag) : job.fileStore.writeGlobalFile(merged_path) }    
 
 def make_odgi_viz(job, config, options, vg_path, og_id, tag='', viz=True, draw=True):
     """ use odgi viz and draw to make some images """
