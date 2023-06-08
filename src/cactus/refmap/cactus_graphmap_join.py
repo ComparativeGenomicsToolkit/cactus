@@ -272,14 +272,15 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
     assert len(options.vg) == len(vg_ids)
     for vg_path, vg_id in zip(options.vg, vg_ids):
         full_job = Job.wrapJobFn(clip_vg, options, config, vg_path, vg_id, 'full',
-                                disk=vg_id.size * 2, memory=vg_id.size * 4)
+                                 disk=vg_id.size * 20, memory=max(2**31, vg_id.size * 20))
         root_job.addChild(full_job)
         full_vg_ids.append(full_job.rv(0))
     prev_job = root_job
     
     # join the ids
     join_job = prev_job.addFollowOnJobFn(join_vg, options, config, full_vg_ids,
-                                         disk=sum([f.size for f in vg_ids]))
+                                         disk=sum([f.size for f in vg_ids]),
+                                         memory=max([f.size for f in vg_ids]) * 4)
     full_vg_ids = [join_job.rv(i) for i in range(len(vg_ids))]
     prev_job = join_job
 
@@ -303,7 +304,7 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
         assert len(options.vg) == len(full_vg_ids) == len(vg_ids)
         for vg_path, vg_id, input_vg_id in zip(options.vg, full_vg_ids, vg_ids):
             clip_job = Job.wrapJobFn(clip_vg, options, config, vg_path, vg_id, 'clip',
-                                     disk=input_vg_id.size * 2, memory=input_vg_id.size * 4)
+                                     disk=input_vg_id.size * 20, memory=max(2**31, input_vg_id.size * 20))
             clip_root_job.addChild(clip_job)
             clip_vg_ids.append(clip_job.rv(0))
             clip_vg_stats.append(clip_job.rv(1))
@@ -320,7 +321,7 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
         assert len(options.vg) == len(clip_vg_ids) == len(vg_ids)
         for vg_path, vg_id, input_vg_id in zip(options.vg, clip_vg_ids, vg_ids):
             filter_job = filter_root_job.addChildJobFn(vg_clip_vg, options, config, vg_path, vg_id, 
-                                                       disk=input_vg_id.size * 2)
+                                                       disk=input_vg_id.size * 20, memory=max(2**31, input_vg_id.size * 22))
             filter_vg_ids.append(filter_job.rv())
         prev_job = filter_root_job
 
@@ -331,7 +332,8 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
     if hal_ids:
         hal_merge_job = job.addChildJobFn(merge_hal, options, hal_ids,
                                           cores = 1,
-                                          disk=sum(f.size for f in hal_ids) * 2)
+                                          disk=sum(f.size for f in hal_ids) * 2,
+                                          memory=max(f.size for f in hal_ids) * 2)
         hal_id_dict = hal_merge_job.rv()
         out_dicts.append(hal_id_dict)
 
@@ -351,14 +353,16 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
             assert len(options.vg) == len(phase_vg_ids) == len(vg_ids)
             for vg_path, vg_id, input_vg_id in zip(options.vg, phase_vg_ids, vg_ids):
                 gfa_job = gfa_root_job.addChildJobFn(vg_to_gfa, options, config, vg_path, vg_id,
-                                                     disk=input_vg_id.size * 5)
+                                                     disk=input_vg_id.size * 10,
+                                                     memory=max(2**31, input_vg_id.size * 16))
                 gfa_ids.append(gfa_job.rv())
 
             # merge up the gfas and make the various vg indexes
             gfa_merge_job = gfa_root_job.addFollowOnJobFn(make_vg_indexes, options, config, gfa_ids,
                                                           tag=workflow_phase + '.',
                                                           cores=options.indexCores,
-                                                          disk=sum(f.size for f in vg_ids) * 5)
+                                                          disk=sum(f.size for f in vg_ids) * 6,
+                                                          memory=sum(f.size for f in vg_ids) * 11)
             out_dicts.append(gfa_merge_job.rv())
             prev_job = gfa_merge_job
             current_out_dict = gfa_merge_job.rv()
@@ -371,7 +375,8 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
                                                             max_ref_allele=options.vcfbub,
                                                             tag=vcftag + '.', ref_tag = workflow_phase + '.',
                                                             cores=options.indexCores,
-                                                            disk = sum(f.size for f in vg_ids) * 2)
+                                                            disk = sum(f.size for f in vg_ids) * 6,
+                                                            memory=sum(f.size for f in vg_ids) * 11)
                 out_dicts.append(deconstruct_job.rv())                
 
         # optional giraffe
@@ -379,7 +384,8 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
             giraffe_job = gfa_merge_job.addFollowOnJobFn(make_giraffe_indexes, options, config, current_out_dict,
                                                          tag=workflow_phase + '.',
                                                          cores=options.indexCores,
-                                                         disk = sum(f.size for f in vg_ids) * 4)
+                                                         disk = sum(f.size for f in vg_ids) * 16,
+                                                         memory=sum(f.size for f in vg_ids) * 11)
             out_dicts.append(giraffe_job.rv())
 
     

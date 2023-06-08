@@ -279,8 +279,18 @@ def mash_distance_order(job, seq_order, mash_output_maps):
         seq_to_dist[seq] = md
     return sorted(seq_order, key = lambda x : seq_to_dist[x])
     
-def minigraph_construct(job, config_node, seq_id_map, seq_order, gfa_path):
+def minigraph_construct(job, config_node, seq_id_map, seq_order, gfa_path, has_resources=False):
     """ Make minigraph """
+
+    if not has_resources:
+        # get the file sizes from the resolved promises run again with calculated resources
+        max_size = max([x.size for x in seq_id_map.values()])
+        total_size = sum([x.size for x in seq_id_map.values()])
+        disk = total_size * 2
+        mem = 64 * max_size + int(total_size / 5)
+        return job.addChildJobFn(minigraph_construct, config_node, seq_id_map, seq_order, gfa_path,
+                                 has_resources=True, disk=disk, memory=mem, cores=job.cores).rv()
+
     work_dir = job.fileStore.getLocalTempDir()
     gfa_path = os.path.join(work_dir, os.path.basename(gfa_path))
 
