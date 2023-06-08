@@ -3,7 +3,7 @@ image: quay.io/comparative-genomics-toolkit/cactus-ci-base:latest
 before_script:
   - whoami
   - sudo apt-get -q -y update
-  - sudo apt-get -q -y install --no-upgrade bcftools parallel libdeflate-dev
+  - sudo apt-get -q -y install --no-upgrade bcftools parallel libdeflate-dev cmake libjemalloc-dev python3-distutils
   - startdocker || true
   - docker info
 
