@@ -34,15 +34,15 @@ def checkUniqueHeaders(inputFile, outputFile, eventName, checkAlphaNumeric=False
         SeqIO.write(seq_record, outputFile, 'fasta')
 
     
-def sanitize_fasta_headers(job, fasta_id_map, pangenome=False):
+def sanitize_fasta_headers(job, fasta_id_map, pangenome=False, log_stats=True):
     """ input must be map of event -> fasta id"""
     out_fasta_id_map = {}
     for event, fasta_id in fasta_id_map.items():
-        out_fasta_id_map[event] = job.addChildJobFn(sanitize_fasta_header, fasta_id, event, pangenome,
+        out_fasta_id_map[event] = job.addChildJobFn(sanitize_fasta_header, fasta_id, event, pangenome, log_stats,
                                                     disk=fasta_id.size*7).rv()
     return out_fasta_id_map
 
-def sanitize_fasta_header(job, fasta_id, event, pangenome):
+def sanitize_fasta_header(job, fasta_id, event, pangenome, log_stats):
     """ run the fasta through cactus_sanitizeFastaHeaders and ungzip if necessary.
     This doesn't do the full check above (though it could), but will catch serious errors as well as
     make sure everything has a id=EVENT| prefix
@@ -67,8 +67,14 @@ def sanitize_fasta_header(job, fasta_id, event, pangenome):
         cmd = [['gzip', '-dc', in_fa_path], ['cactus_sanitizeFastaHeaders', '-', event] + pg_opts]
     else:
         cmd = ['cactus_sanitizeFastaHeaders', in_fa_path, event] + pg_opts
-    cactus_call(parameters=cmd, outfile=out_fa_path)    
+    cactus_call(parameters=cmd, outfile=out_fa_path)
     job.fileStore.deleteGlobalFile(fasta_id)
+
+    if log_stats:
+        analysisString = cactus_call(parameters=["cactus_analyseAssembly", os.path.basename(out_fa_path)],
+                                     work_dir=work_dir, check_output=True)
+        job.fileStore.logToMaster("Assembly stats for %s: %s" % (event, analysisString))
+    
     return job.fileStore.writeGlobalFile(out_fa_path)
     
 

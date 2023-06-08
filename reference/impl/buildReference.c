@@ -616,8 +616,9 @@ static void getStubEdgesInTopLevelFlower(refOrdering *ref, Flower *flower, stHas
     refAdjList *stubAL = calculateZ(flower, stubEndsToNodes, nodeNumber,
     INT64_MAX, 1, calculateZScoreWeightedAdapterFn, zArgs);
     stHash_destruct(eventWeighting);
-    st_logDebug(
-            "Building a matching for %" PRIi64 " stub nodes in the top level problem from %" PRIi64 " total stubs of which %" PRIi64 " attached , %" PRIi64 " total ends, %" PRIi64 " chains, %" PRIi64 " blocks %" PRIi64 " groups and %" PRIi64 " sequences\n",
+    st_logInfo(
+            "Building a matching for %" PRIi64 " stub nodes in the top level problem from %" PRIi64 " total stubs of which %"
+            PRIi64 " attached , %" PRIi64 " total ends, %" PRIi64 " chains, %" PRIi64 " blocks %" PRIi64 " groups and %" PRIi64 " sequences\n",
             stList_length(stubEnds), flower_getStubEndNumber(flower), flower_getAttachedStubEndNumber(flower), flower_getEndNumber(flower),
             flower_getChainNumber(flower), flower_getBlockNumber(flower), flower_getGroupNumber(flower), flower_getSequenceNumber(flower));
 
@@ -978,13 +979,25 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader, int
         bool ignoreUnalignedGaps, double wiggle, int64_t numberOfNsForScaffoldGap, int64_t minNumberOfSequencesToSupportAdjacency, bool makeScaffolds) {
     /*
      * Implements a greedy algorithm and greedy update sampler to find a solution to the adjacency problem for a net.
+     *
+     * Note(!):
+     *   Links in chains are assumed to be linked, and therefore ignored in creating the reference ordering by being excluded.
+     *   Do not be surprised, therefore, if there are no reference intervals in a problem. This will happen if all
+     *   the groups in the flower are all links in a chain. For example, if there is only one
+     *   chain, or multiple disjoint chains, and one pair of stub ends at the ends of each attached chain that form links
+     *   with the blocks at the ends of the chain, then there will be no reference intervals created in the problem.
      */
+
+    /*
+     * Determine which log level to use - we use info level logging for the highest level flower and log_debug otherwise
+     */
+    void (*log_fn)(const char *, ...) = flower_getParentGroup(flower) == NULL ? &st_logInfo : &st_logDebug;
 
     /*
      * Get the reference event
      */
     Event *referenceEvent = getReferenceEvent(flower, referenceEventHeader);
-    st_logDebug("Chose reference event %" PRIi64 ": %s\n", event_getName(referenceEvent), event_getHeader(referenceEvent));
+    log_fn("Chose reference event %" PRIi64 ": %s\n", event_getName(referenceEvent), event_getHeader(referenceEvent));
 
     /*
      * Get any extra ends to balance the group from the parent problem.
@@ -1003,10 +1016,9 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader, int
      */
     stList *stubTangleEnds = getTangleStubEnds(flower, endsToNodes);
     int64_t nodeNumber = chainNumber + stList_length(stubTangleEnds);
-    st_logDebug(
-            "For flower: %" PRIi64 " we have %" PRIi64 " nodes for: %" PRIi64 " ends, %" PRIi64 " chains, %" PRIi64 " stubs and %" PRIi64 " blocks\n",
-            flower_getName(flower), nodeNumber, flower_getEndNumber(flower), flower_getChainNumber(flower), stList_length(stubTangleEnds),
-            flower_getBlockNumber(flower));
+    log_fn("For flower: %" PRIi64 " we have %" PRIi64 " nodes for: %" PRIi64 " ends, %" PRIi64 " chains, %" PRIi64 " stubs and %" PRIi64 " blocks\n",
+           flower_getName(flower), nodeNumber, flower_getEndNumber(flower), flower_getChainNumber(flower), stList_length(stubTangleEnds),
+           flower_getBlockNumber(flower));
     assert(stList_length(stubTangleEnds) % 2 == 0);
 
     /*
@@ -1049,30 +1061,26 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader, int
     /*
      * Check the edges and nodes before starting to calculate the matching.
      */
-    st_logDebug(
-            "Starting to build the reference for flower %lli, with %" PRIi64 " stubs and %" PRIi64 " chains and %" PRIi64 " nodes in the flowers tangle\n",
+    log_fn("Starting to build the reference for flower %lli, with %" PRIi64 " stubs and %" PRIi64 " chains and %" PRIi64 " nodes in the flowers tangle\n",
             flower_getName(flower), reference_getIntervalNumber(ref), chainNumber, nodeNumber);
 
     double maxPossibleScore = refAdjList_getMaxPossibleScore(aL);
     makeReferenceGreedily2(aL, dAL, ref, wiggle);
     int64_t badAdjacenciesAfterGreedy = getBadAdjacencyCount(dAL, ref);
     double totalScoreAfterGreedy = getReferenceScore(aL, ref);
-    st_logDebug("The score of the initial solution is %f/%" PRIi64 " out of a max possible %f\n", totalScoreAfterGreedy, badAdjacenciesAfterGreedy,
+    log_fn("The score of the initial solution is %f/%" PRIi64 " out of a max possible %f\n", totalScoreAfterGreedy, badAdjacenciesAfterGreedy,
             maxPossibleScore);
 
     updateReferenceGreedily(aL, dAL, ref, permutations);
-
     int64_t badAdjacenciesAfterGreedySampling = getBadAdjacencyCount(dAL, ref);
     double totalScoreAfterGreedySampling = getReferenceScore(aL, ref);
-    st_logDebug(
-            "The score of the solution after permutation sampling is %f/%" PRIi64 " after %" PRIi64 " rounds of greedy permutation out of a max possible %f\n",
+    log_fn("The score of the solution after permutation sampling is %f/%" PRIi64 " after %" PRIi64 " rounds of greedy permutation out of a max possible %f\n",
             totalScoreAfterGreedySampling, badAdjacenciesAfterGreedySampling, permutations, maxPossibleScore);
 
     //reorderReferenceToAvoidBreakpoints(dAL2, ref);
     //int64_t badAdjacenciesAfterTopologicalReordering = getBadAdjacencyCount(dAL, ref);
     //double totalScoreAfterTopologicalReordering = getReferenceScore(aL, ref);
-    //st_logDebug(
-    //        "The score of the solution after topological reordering is %f/%" PRIi64 " after %" PRIi64 " rounds of greedy permutation out of a max possible %f\n",
+    //log_fn("The score of the solution after topological reordering is %f/%" PRIi64 " after %" PRIi64 " rounds of greedy permutation out of a max possible %f\n",
     //        totalScoreAfterTopologicalReordering, badAdjacenciesAfterTopologicalReordering, permutations, maxPossibleScore);
 
     int64_t maxNudge = 100;
@@ -1080,8 +1088,10 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader, int
     nudgeGreedily(dAL, aL, ref, nudgePermutations, maxNudge);
     int64_t badAdjacenciesAfterNudging = getBadAdjacencyCount(dAL, ref);
     double totalScoreAfterNudging = getReferenceScore(aL, ref);
-    st_logDebug("The score of the final solution is %f/%" PRIi64 " after %" PRIi64 " rounds of greedy nudging out of a max possible %f\n",
-            totalScoreAfterNudging, badAdjacenciesAfterNudging, nudgePermutations, maxPossibleScore);
+
+    log_fn("The score of the final reference solution is %f/%" PRIi64 " after %" PRIi64 " rounds of greedy nudging out of a max possible %f\n",
+           totalScoreAfterNudging, badAdjacenciesAfterNudging, nudgePermutations, maxPossibleScore);
+
     //The aL and dAL arrays are no longer valid as we've added additional nodes to the reference, let's clean up the arrays explicitly.
     refAdjList_destruct(aL);
     refAdjList_destruct(dAL);

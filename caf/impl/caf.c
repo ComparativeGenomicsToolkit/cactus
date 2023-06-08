@@ -136,7 +136,8 @@ static void printThreadSetStatistics(stPinchThreadSet *threadSet, Flower *flower
     free(blockSupports);
 }
 
-void caf(Flower *flower, CactusParams *params, char *alignmentsFile, char *secondaryAlignmentsFile, char *constraintsFile) {
+void caf(Flower *flower, CactusParams *params, char *alignmentsFile, char *secondaryAlignmentsFile, char *constraintsFile,
+         Event *referenceEvent) {
     //////////////////////////////////////////////
     //Parse the many, many necessary parameters from the params file
     //////////////////////////////////////////////
@@ -154,8 +155,35 @@ void caf(Flower *flower, CactusParams *params, char *alignmentsFile, char *secon
     fa->minimumTreeCoverage = cactusParams_get_float(params, 2, "caf", "minimumTreeCoverage");
 
     //Parameters for annealing/melting rounds
+
+    // As these parameters depend on the ingroup subtree we parse it here
+    stTree *tree = event_getStTree(referenceEvent);
+    double max_path_distance = stTree_getLongestPathLength(tree); // This is the longest path distance between ingroups, we use
+    // this distance to choose the min chain length (the annealingRounds parameter)
+    stTree_destruct(tree); // Cleanup the tree
+
+    // Pick the annealing round parameter based on the distance
     int64_t annealingRoundsLength;
-    int64_t *annealingRounds = cactusParams_get_ints(params, &annealingRoundsLength, 2, "caf", "annealingRounds");
+    int64_t *annealingRounds;
+    if(max_path_distance < cactusParams_get_float(params, 3, "constants", "divergences", "one")) {
+        annealingRounds = cactusParams_get_ints(params, &annealingRoundsLength, 3, "caf", "annealingRounds", "one");
+    } else if(max_path_distance < cactusParams_get_float(params, 3, "constants", "divergences", "two")) {
+        annealingRounds = cactusParams_get_ints(params, &annealingRoundsLength, 3, "caf", "annealingRounds", "two");
+    } else if(max_path_distance < cactusParams_get_float(params, 3, "constants", "divergences", "three")) {
+        annealingRounds = cactusParams_get_ints(params, &annealingRoundsLength, 3, "caf", "annealingRounds", "three");
+    } else if(max_path_distance < cactusParams_get_float(params, 3, "constants", "divergences", "four")) {
+        annealingRounds = cactusParams_get_ints(params, &annealingRoundsLength, 3, "caf", "annealingRounds", "four");
+    } else if(max_path_distance < cactusParams_get_float(params, 3, "constants", "divergences", "five")) {
+        annealingRounds = cactusParams_get_ints(params, &annealingRoundsLength, 3, "caf", "annealingRounds", "five");
+    } else {
+        annealingRounds = cactusParams_get_ints(params, &annealingRoundsLength, 3, "caf", "annealingRounds", "default");
+    }
+
+    // Log the annealing round parameters
+    char *tree_string = eventTree_makeNewickString(flower_getEventTree(flower));
+    st_logInfo("We found a max path distance between ingroups in the tree (%s) of %f, giving us and min final chain length of: %" PRIi64 "\n",
+               tree_string, max_path_distance, annealingRounds[annealingRoundsLength-1]);
+    free(tree_string);
 
     int64_t meltingRoundsLength;
     int64_t *meltingRounds = cactusParams_get_ints(params, &meltingRoundsLength, 2, "caf", "deannealingRounds");

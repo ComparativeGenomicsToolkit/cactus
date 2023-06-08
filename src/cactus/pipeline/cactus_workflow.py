@@ -11,10 +11,13 @@ import os
 import sys
 from toil.lib.bioio import system
 from toil.lib.bioio import getLogLevelString
+from toil.realtimeLogger import RealtimeLogger
+from toil.lib.conversions import bytes2human
 from sonLib.nxnewick import NXNewick
 from cactus.shared.common import makeURL
 from cactus.shared.common import cactus_call
 from cactus.shared.configWrapper import ConfigWrapper
+from cactus.shared.common import findRequiredNode, getOptionalAttrib
 
 ############################################################
 ############################################################
@@ -27,25 +30,39 @@ from cactus.shared.configWrapper import ConfigWrapper
 ############################################################
 
 def cactus_cons_with_resources(job, tree, ancestor_event, config_node, seq_id_map, og_map, paf_id,
-                               cons_cores = None, intermediate_results_url = None, chrom_name = None):
+                               cons_cores = None, cons_memory = None, intermediate_results_url = None, chrom_name = None):
     ''' run cactus_consolidated as a child job, requesting resources based on input sizes '''
 
     # compute resource requirements
-    total_sequence_size = 0
-    for seq_id in seq_id_map.values():
-        seq_path = job.fileStore.readGlobalFile(seq_id, mutable=True, cache=False)
-        total_sequence_size += os.stat(seq_path).st_size
-        os.remove(seq_path)
+    total_sequence_size = sum([seq_id.size for seq_id in seq_id_map.values()])
+    disk = 5 * total_sequence_size + 2 * paf_id.size
 
-    disk = int(3 * total_sequence_size)
+    # constant factor
+    mem = 1e8
+    # abPOA needs a bunch of memory for its table, even for tiny alignments
+    if getOptionalAttrib(findRequiredNode(config_node, 'bar'), 'partialOrderAlignment', typeFn=bool, default=True):
+        mem = 4e9
+    # add function of paf size
+    mem += 3 * paf_id.size
+    # and quadratic in sequence size (if doable in kb)
+    if total_sequence_size > 1024:
+        total_sequence_size_kb = total_sequence_size / 1024.
+        if len(seq_id_map) < 6:
+            mem += 1024. * (total_sequence_size_kb ** 1.75)
+        else:
+            # probably in pangenome mode: go a bit easier
+            mem += 1024. * (total_sequence_size_kb ** 1.30)
+    else:
+        mem += 4 * total_sequence_size        
+    # but we cap things at 512 Gigs
+    mem=int(min(mem, 512e09))
 
-    # this is the old caf job's memory function
-    memoryPoly = [1.80395944e+01, 7.96042247e+07]
-    memoryCap = 120e09
-    mem = 0
-    for degree, coefficient in enumerate(reversed(memoryPoly)):
-        mem += coefficient * (total_sequence_size**degree)
-    mem = int(min(mem, memoryCap))
+    RealtimeLogger.info('Estimating cactus_consolidated({}) memory as {} bytes from {} sequences with total-sequence-size {} and paf-size {}'.format(ancestor_event, mem, len(seq_id_map), total_sequence_size, paf_id.size))
+
+    if cons_memory is not None and cons_memory < mem:
+        RealtimeLogger.info('Overriding cactus_conslidated memory estimate of {} with {} from --consMemory'.format(
+            bytes2human(mem), bytes2human(cons_memory)))
+        mem = cons_memory
 
     cons_job = job.addChildJobFn(cactus_cons, tree, ancestor_event, config_node, seq_id_map, og_map, paf_id,
                                  intermediate_results_url=intermediate_results_url, chrom_name=chrom_name, cores = cons_cores,
@@ -67,21 +84,31 @@ def cactus_cons(job, tree, ancestor_event, config_node, seq_id_map, og_map, paf_
     outgroups = og_map[ancestor_event] if ancestor_event in og_map else []
 
     # Get the alignments file
-    paf_path = os.path.join(work_dir, '{}.paf'.format(ancestor_event))
+    paf_path = os.path.join(work_dir, f'{ancestor_event}.paf')
     job.fileStore.readGlobalFile(paf_id, paf_path)
 
     # Split the alignments file into primary and secondary
-    primary_alignment_file = os.path.join(work_dir, '{}_primary.paf'.format(ancestor_event))
-    system("grep -v 'tp:A:S' {} > {} || true".format(paf_path, primary_alignment_file))  # Alignments that are not-secondaries
-    secondary_alignment_file = os.path.join(work_dir, '{}_secondary.paf'.format(ancestor_event))
-    system("grep 'tp:A:S' {} > {} || true".format(paf_path, secondary_alignment_file))  # Alignments that are secondaries
+    primary_alignment_file = os.path.join(work_dir, f'{ancestor_event}_primary.paf')
+    system(f"grep -v 'tp:A:S' {paf_path} > {primary_alignment_file} || true")  # Alignments that are not-secondaries
+
+    # Optionally parse our secondary alignments
+    use_secondary_alignments = int(config_node.find("blast").attrib["outputSecondaryAlignments"])  # We should really switch to
+    # the empty string being false instead of 0
+    assert use_secondary_alignments == 0 or use_secondary_alignments == 1
+    if use_secondary_alignments:
+        secondary_alignment_file = os.path.join(work_dir, f'{ancestor_event}_secondary.paf')
+        system(f"grep 'tp:A:S' {paf_path} > {secondary_alignment_file} || true")  # Alignments that are secondaries
+
+    # Optionally copy the alignments to a specified location for debug purposes
+    if config_node.find("caf").attrib["writeInputAlignmentsTo"]:
+        system(f'cp {paf_path} {config_node.find("caf").attrib["writeInputAlignmentsTo"]}/{ancestor_event}.paf')
 
     # Temporary place to store the output c2h file
-    tmpHal = os.path.join(work_dir, '{}.c2h'.format(ancestor_event))
-    tmpFasta = os.path.join(work_dir, '{}.c2h.fa'.format(ancestor_event))
-    tmpRef = os.path.join(work_dir, '{}.ref'.format(ancestor_event))
+    tmpHal = os.path.join(work_dir, f'{ancestor_event}.c2h')
+    tmpFasta = os.path.join(work_dir, f'{ancestor_event}.c2h.fa')
+    tmpRef = os.path.join(work_dir, f'{ancestor_event}.ref')
 
-    tmpConfig = os.path.join(work_dir, '{}.config.xml'.format(ancestor_event))
+    tmpConfig = os.path.join(work_dir, f'{ancestor_event}.config.xml')
     ConfigWrapper(config_node).writeXML(tmpConfig)
 
     # We pass in the genome->sequence map as a series of paired arguments: [genome, faPath]*N.
@@ -90,17 +117,19 @@ def cactus_cons(job, tree, ancestor_event, config_node, seq_id_map, og_map, paf_
             "--speciesTree", NXNewick().writeString(tree), "--logLevel", getLogLevelString(),
             "--alignments", primary_alignment_file, "--params", tmpConfig, "--outputFile", tmpHal,
             "--outputHalFastaFile", tmpFasta, "--outputReferenceFile", tmpRef, "--outgroupEvents", " ".join(outgroups),
-            "--referenceEvent", ancestor_event, "--threads", str(job.cores), "--secondaryAlignments", secondary_alignment_file]
+            "--referenceEvent", ancestor_event, "--threads", str(job.cores)]
+    if use_secondary_alignments:  # Optionally add the secondary alignments
+        args += ["--secondaryAlignments", secondary_alignment_file]
 
     messages = cactus_call(check_output=True, returnStdErr=True,
-                                 realtimeStderrPrefix='cactus_consolidated({})'.format(chrom_name if chrom_name else ancestor_event),
+                                 realtimeStderrPrefix=f'cactus_consolidated({chrom_name if chrom_name else ancestor_event})',
                                  parameters=["cactus_consolidated"] + args)[1]  # Get just the standard error output
 
     # if cactus was run with --realTimeLogging, cactus_call will print out conslidated's stderr messages as they happen
     # (and not return anything)
     # otherwise, if run without --realTimeLogging, cactus_call will return (but not print) stderr messages
     if messages:
-        job.fileStore.logToMaster("cactus_consolidated event:{}\n{}".format(ancestor_event, messages))  # Log the messages
+        job.fileStore.logToMaster(f"cactus_consolidated event:{ancestor_event}\n{messages}")  # Log the messages
     else:
         job.fileStore.logToMaster("Ran cactus consolidated okay")
 

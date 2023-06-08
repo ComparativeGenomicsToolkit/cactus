@@ -178,6 +178,18 @@ void event_check(Event *event) {
     }
 }
 
+stTree *event_getStTree(Event *event) {
+    stTree *ret = stTree_construct();
+    stTree_setLabel(ret, stString_print("%" PRIi64, event_getName(event)));
+    stTree_setBranchLength(ret, event_getBranchLength(event));
+    for(int64_t i = 0; i < event_getChildNumber(event); i++) {
+        Event *child = event_getChild(event, i);
+        stTree *childStTree = event_getStTree(child);
+        stTree_setParent(childStTree, ret);
+    }
+    return ret;
+}
+
 /*
  * Private functions
  */

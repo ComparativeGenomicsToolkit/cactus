@@ -1,0 +1,14 @@
+(((((Human:0.006969,Chimp:0.009727)Anc10:0.025291,Rhesus:0.044568)Anc07:0.07,Tree_shrew:0.19)Anc03:0.03,(Kangaroo_rat:0.17,(Mouse:0.072818,Rat:0.081244)Anc08:0.11)Anc04:0.150342)Anc01:0.02326,((Dog:0.07,Cat:0.07)Anc05:0.087381,((Pig:0.06,Cow:0.06)Anc09:0.104728,Horse:0.05)Anc06:0.05)Anc02:0.04)root;
+
+Cat https://raw.githubusercontent.com/ComparativeGenomicsToolkit/cactusTestData/master/10_way_mhc/Cat.mhc.fa.gz
+Chimp https://raw.githubusercontent.com/ComparativeGenomicsToolkit/cactusTestData/master/10_way_mhc/Chimp.mhc.fa.gz
+Cow https://raw.githubusercontent.com/ComparativeGenomicsToolkit/cactusTestData/master/10_way_mhc/Cow.mhc.fa.gz
+Dog https://raw.githubusercontent.com/ComparativeGenomicsToolkit/cactusTestData/master/10_way_mhc/Dog.mhc.fa.gz
+Horse https://raw.githubusercontent.com/ComparativeGenomicsToolkit/cactusTestData/master/10_way_mhc/Horse.mhc.fa.gz
+Human https://raw.githubusercontent.com/ComparativeGenomicsToolkit/cactusTestData/master/10_way_mhc/Human.mhc.fa.gz
+Kangaroo_rat https://raw.githubusercontent.com/ComparativeGenomicsToolkit/cactusTestData/master/10_way_mhc/Kangaroo_rat.mhc.fa.gz
+Mouse https://raw.githubusercontent.com/ComparativeGenomicsToolkit/cactusTestData/master/10_way_mhc/Mouse.mhc.fa.gz
+Pig https://raw.githubusercontent.com/ComparativeGenomicsToolkit/cactusTestData/master/10_way_mhc/Pig.mhc.fa.gz
+Rat https://raw.githubusercontent.com/ComparativeGenomicsToolkit/cactusTestData/master/10_way_mhc/Rat.mhc.fa.gz
+Rhesus https://raw.githubusercontent.com/ComparativeGenomicsToolkit/cactusTestData/master/10_way_mhc/Rhesus.mhc.fa.gz
+Tree_shrew https://raw.githubusercontent.com/ComparativeGenomicsToolkit/cactusTestData/master/10_way_mhc/Tree_shrew.mhc.fa.gz

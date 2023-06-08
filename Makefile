@@ -2,11 +2,11 @@ rootPath = .
 
 include ${rootPath}/include.mk
 
-modules = api setup fasta paf caf bar hal reference pipeline preprocessor
+modules = api setup caf bar hal reference pipeline preprocessor
 
 # submodules are in multiple pass to handle dependencies cactus2hal being dependent on
 # both cactus and sonLib
-submodules1 = sonLib cPecan hal matchingAndOrdering pinchesAndCacti abPOA lastz
+submodules1 = sonLib cPecan hal matchingAndOrdering pinchesAndCacti abPOA lastz paffy
 submodules2 = cactus2hal
 submodules = ${submodules1} ${submodules2}
 
@@ -83,14 +83,14 @@ unitTests = \
 	cactusAPITests \
 	cactus_halGeneratorTests \
 	stCafTests \
-	stFastaTests \
-	stPafTests \
 	stPinchesAndCactiTests \
 	stPipelineTests \
 	matchingAndOrderingTests \
 	referenceTests \
 	cPecanLibTests \
 	sonLibTests \
+
+#paffyTests \ # This is removed for now
 
 # these are slow, but added to CI here since hal no longer has its own
 halTests = \
@@ -269,6 +269,14 @@ suball.lastz:
 	cd submodules/lastz && ${MAKE}
 	mkdir -p bin
 	ln -f submodules/lastz/src/lastz bin
+
+suball.paffy:
+	cd submodules/paffy && ${MAKE}
+	rm -rf submodules/paffy/bin/*.dSYM
+	mkdir -p ${BINDIR} ${LIBDIR} ${INCLDIR}
+	ln -f submodules/paffy/bin/[a-zA-Z]* ${BINDIR}
+	ln -f submodules/paffy/lib/*.a ${LIBDIR}
+	ln -f submodules/paffy/inc/*.h ${INCLDIR}
 
 subclean.%:
 	cd submodules/$* && ${MAKE} clean

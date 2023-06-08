@@ -17,7 +17,7 @@
 /*
  * The function to run the overall caf algorithm.
  */
-void caf(Flower *flower, CactusParams *params, char *alignmentsFile, char *secondaryAlignmentsFile, char *constraintsFile);
+void caf(Flower *flower, CactusParams *params, char *alignmentsFile, char *secondaryAlignmentsFile, char *constraintsFile, Event *referenceEvent);
 
 ///////////////////////////////////////////////////////////////////////////
 // Setup the pinch graph from a cactus graph

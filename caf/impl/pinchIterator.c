@@ -71,17 +71,25 @@ static stPinch *pairwiseAlignmentToPinch_getNext(PairwiseAlignmentToPinch *pA, s
         }
         while (pA->op != NULL) {
             assert(pA->op->length >= 1);
-            if (pA->op->op == match) { //deal with the possibility of a zero length match (strange, but not illegal)
+            if (pA->op->op == match || pA->op->op == sequence_match || pA->op->op == sequence_mismatch) { //deal with the possibility of a zero length match (strange, but not illegal)
+                // Make maximal length (in case run of sequence matches and mismatches)
+                int64_t i=0; // Represents the length of the previous matches in the sequence
+                while(pA->op->next != NULL && (pA->op->next->op == match ||
+                                               pA->op->next->op == sequence_match ||
+                                               pA->op->next->op == sequence_mismatch)) {
+                    i+=pA->op->length;
+                    pA->op = pA->op->next;
+                }
                 if (pA->paf->same_strand) {
-                    stPinch_fillOut(pinchToFillOut, pA->xName, pA->yName, pA->xCoordinate, pA->yCoordinate, pA->op->length,
+                    stPinch_fillOut(pinchToFillOut, pA->xName, pA->yName, pA->xCoordinate, pA->yCoordinate, i+pA->op->length,
                                     1);
-                    pA->xCoordinate += pA->op->length;
+                    pA->xCoordinate += i+pA->op->length;
                 } else {
-                    pA->xCoordinate -= pA->op->length;
-                    stPinch_fillOut(pinchToFillOut, pA->xName, pA->yName, pA->xCoordinate, pA->yCoordinate, pA->op->length,
+                    pA->xCoordinate -= i+pA->op->length;
+                    stPinch_fillOut(pinchToFillOut, pA->xName, pA->yName, pA->xCoordinate, pA->yCoordinate, i+pA->op->length,
                                     0);
                 }
-                pA->yCoordinate += pA->op->length;
+                pA->yCoordinate += i+pA->op->length;
                 pA->op = pA->op->next;
                 return pinchToFillOut;
             }
@@ -122,7 +130,7 @@ static void pairwiseAlignmentToPinch_destructForFile(PairwiseAlignmentToPinch *p
 stPinchIterator *stPinchIterator_constructFromFile(const char *alignmentFile) {
     stPinchIterator *pinchIterator = st_calloc(1, sizeof(stPinchIterator));
     pinchIterator->alignmentArg = pairwiseAlignmentToPinch_construct(fopen(alignmentFile, "r"),
-            (Paf *(*)(void *)) paf_read, 1);
+            (Paf *(*)(void *)) paf_read2, 1);
     pinchIterator->getNextAlignment = (stPinch *(*)(void *, stPinch *)) pairwiseAlignmentToPinch_getNext;
     pinchIterator->destructAlignmentArg = (void(*)(void *)) pairwiseAlignmentToPinch_destructForFile;
     pinchIterator->startAlignmentStack = (void *(*)(void *)) pairwiseAlignmentToPinch_resetForFile;
