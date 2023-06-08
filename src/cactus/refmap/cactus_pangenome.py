@@ -30,7 +30,6 @@ from cactus.shared.common import cactus_override_toil_options
 from cactus.shared.common import cactus_call
 from cactus.shared.common import getOptionalAttrib, findRequiredNode
 from cactus.shared.version import cactus_commit
-from cactus.refmap.cactus_graphmap_join import unzip_seqfile
 from cactus.preprocessor.checkUniqueHeaders import sanitize_fasta_headers
 from toil.job import Job
 from toil.common import Toil
@@ -40,6 +39,7 @@ from toil.realtimeLogger import RealtimeLogger
 from cactus.shared.common import cactus_cpu_count
 
 from cactus.refmap.cactus_minigraph import minigraph_construct_workflow
+from cactus.refmap.cactus_minigraph import check_sample_names
 from cactus.refmap.cactus_graphmap import minigraph_workflow
 from cactus.refmap.cactus_graphmap_split import graphmap_split_workflow, export_split_data
 from cactus.setup.cactus_align import make_batch_align_jobs, batch_align_jobs
@@ -52,12 +52,14 @@ def main():
     parser.add_argument("seqFile", help = "Seq file (will be modified if necessary to include graph Fasta sequence)")
     parser.add_argument("--outDir", help = "Output directory", required=True)
     parser.add_argument("--outName", help = "Output name (without extension)", required=True)
-    parser.add_argument("--reference", help = "Reference genome name", required=True)
+    parser.add_argument("--reference", required=True, nargs='+', type=str, help = "Reference event name(s). The first will be the \"true\" reference and will be left unclipped and uncollapsed. It also should have been used with --reference in all upstream commands. Other names will be promoted to reference paths in vg") 
 
     # cactus-minigraph options
-    parser.add_argument("--mapCores", type=int, help = "Number of cores for minigraph.  Overrides graphmap cpu in configuration")
+    parser.add_argument("--mgCores", type=int, help = "Number of cores for minigraph construction (defaults to the same as --maxCores).")
 
     # cactus-graphmap options
+    parser.add_argument("--mapCores", type=int, help = "Number of cores for minigraph map.  Overrides graphmap cpu in configuration")
+    
     parser.add_argument("--delFilter", type=int, help = "Filter out split-mapping-implied deletions > Nbp (default will be \"delFilter\" from the config")
     
     # cactus-graphmap-split options
@@ -148,9 +150,7 @@ def main():
     # (but we want to do as much error-checking upfront as possible)
     options.hal = [None]
     options.vg = [None]
-    options.reference = [options.reference] #todo multiple reference support
     options = graphmap_join_validate_options(options)
-    options.reference = options.reference[0]
 
     logger.info('Cactus Command: {}'.format(' '.join(sys.argv)))
     logger.info('Cactus Commit: {}'.format(cactus_commit))
@@ -171,14 +171,9 @@ def main():
             # load the seqfile
             seqFile = SeqFile(options.seqFile)
             input_seq_map = seqFile.pathMap
-            
-            if options.reference not in input_seq_map:
-                raise RuntimeError("Specified reference not in seqfile")
-            for sample in input_seq_map.keys():
-                if sample != options.reference and sample.startswith(options.reference):
-                    raise RuntimeError("Input sample {} is prefixed by given reference {}. ".format(sample, options.reference) +                        
-                                       "This is not supported by this version of Cactus, " +
-                                       "so one of these samples needs to be renamed to continue")
+
+            # validate the sample names
+            check_sample_names(input_seq_map.keys(), options.reference)
 
             # apply cpu override                
             if options.mapCores is not None:
@@ -187,11 +182,19 @@ def main():
             if options.batchSystem.lower() in ['single_machine', 'singleMachine']:
                 mg_cores = min(mg_cores, cactus_cpu_count(), int(options.maxCores) if options.maxCores else sys.maxsize)
                 findRequiredNode(config_node, "graphmap").attrib["cpu"] = str(mg_cores)
-            
+
+            if options.batchSystem.lower() in ['single_machine', 'singleMachine']:
+                if not options.mgCores:
+                    options.mgCores = sys.maxsize
+                options.mgCores = min(options.mgCores, cactus_cpu_count(), int(options.maxCores) if options.maxCores else sys.maxsize)
+            else:
+                if not options.mgCores:
+                    raise RuntimeError("--mgCores required run *not* running on single machine batch system")
+                        
             #import the sequences
             input_seq_id_map = {}
             input_path_map = {}
-            input_seq_order = [options.reference]
+            input_seq_order = [options.reference[0]]
             leaves = set([seqFile.tree.getName(node) for node in seqFile.tree.getLeaves()])
             for (genome, seq) in input_seq_map.items():
                 if genome != graph_event and genome in leaves:                
@@ -203,7 +206,7 @@ def main():
                     logger.info("Importing {}".format(seq))
                     input_seq_id_map[genome] = toil.importFile(seq)
                     input_path_map[genome] = seq
-                    if genome != options.reference:
+                    if genome != options.reference[0]:
                         input_seq_order.append(genome)
             
             toil.start(Job.wrapJobFn(pangenome_end_to_end_workflow, options, config_wrapper, input_seq_id_map, input_path_map, input_seq_order))
@@ -215,7 +218,18 @@ def main():
 def export_minigraph_wrapper(job, options, sv_gfa_id, sv_gfa_path):
     """ export the GFA from minigraph """
     job.fileStore.exportFile(sv_gfa_id, makeURL(os.path.join(options.outDir, os.path.basename(sv_gfa_path))))
-    
+
+def export_graphmap_wrapper(job, options, paf_id, paf_path, gaf_id, unfiltered_paf_id, paf_filter_log):
+    """ export the PAF file from minigraph """
+    paf_path = os.path.join(options.outDir, os.path.basename(paf_path))
+    job.fileStore.exportFile(paf_id, makeURL(paf_path))
+    if gaf_id:
+        gaf_name = os.path.splitext(os.path.basename(paf_path))[0]
+        job.fileStore.exportFile(gaf_id, makeURL(os.path.join(options.outDir, gaf_name)))
+    if unfiltered_paf_id:
+        job.fileStore.exportFile(paf_id, makeURL(paf_path + '.unfiltered.gz'))
+        job.fileStore.exportFile(paf_filter_log, makeURL(paf_path + '.filter.log'))
+
 def update_seqfile(job, options, seq_id_map, seq_path_map, seq_order, gfa_fa_id, gfa_fa_path, graph_event):
     """ put the minigraph gfa.fa file into the seqfile and export both """
     work_dir = job.fileStore.getLocalTempDir()    
@@ -250,7 +264,7 @@ def make_batch_align_jobs_wrapper(job, options, chromfile_path, config_wrapper):
     align_jobs = make_batch_align_jobs(options, job.fileStore, job.fileStore, config_wrapper)
     return align_jobs
     
-def export_align_wrapper(job, options, results_dict):
+def export_align_wrapper(job, options, results_dict, reference_list):
     """ toil job wrapper for exporting from cactus_align """
     vg_ids = []
     vg_paths = []
@@ -273,9 +287,7 @@ def export_align_wrapper(job, options, results_dict):
     join_options = options
     join_options.hal = hal_paths
     join_options.vg = vg_paths
-
-    #todo: fix multireferene support (including in join)
-    join_options.reference = [join_options.reference]
+    join_options.reference = reference_list
 
     return join_options, vg_ids, hal_ids
 
@@ -289,6 +301,12 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
     job.addChild(root_job)
     config_node = config_wrapper.xmlRoot
 
+    # it's really only graphmap_join that can accept (or use) multiple references
+    # so we forget about it until then
+    assert type(options.reference) == list
+    reference_list = options.reference
+    options.reference = options.reference[0]
+
     # sanitize headers (once here, skip in all workflows below)
     sanitize_job = root_job.addFollowOnJobFn(sanitize_fasta_headers, seq_id_map, pangenome=True)
     seq_id_map = sanitize_job.rv()
@@ -296,7 +314,7 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
     # cactus_minigraph
     sv_gfa_path = os.path.join(options.outDir, options.outName + '.sv.gfa.gz')
     
-    minigraph_job = sanitize_job.addFollowOnJobFn(minigraph_construct_workflow, config_node, seq_id_map, seq_order, sv_gfa_path, sanitize=False)
+    minigraph_job = sanitize_job.addFollowOnJobFn(minigraph_construct_workflow, options, config_node, seq_id_map, seq_order, sv_gfa_path, sanitize=False)
     sv_gfa_id = minigraph_job.rv()
     minigraph_job.addFollowOnJobFn(export_minigraph_wrapper, options, sv_gfa_id, sv_gfa_path)
 
@@ -309,6 +327,7 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
     
     graphmap_job = minigraph_job.addFollowOnJobFn(minigraph_workflow, options, config_wrapper, seq_id_map, sv_gfa_id, graph_event, sanitize=False)
     paf_id, gfa_fa_id, gaf_id, unfiltered_paf_id, paf_filter_log = graphmap_job.rv(0), graphmap_job.rv(1), graphmap_job.rv(2), graphmap_job.rv(3), graphmap_job.rv(4)
+    graphmap_job.addFollowOnJobFn(export_graphmap_wrapper, options, paf_id, paf_path, gaf_id, unfiltered_paf_id, paf_filter_log)
 
     # we need to update the seqfile with the phonied in minigraph event
     update_seqfile_job = graphmap_job.addFollowOnJobFn(update_seqfile, options, seq_id_map, seq_path_map, seq_order, gfa_fa_id, gfa_fa_path, graph_event)
@@ -329,12 +348,12 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
     align_jobs = align_jobs_make_job.rv()
     align_job = align_jobs_make_job.addFollowOnJobFn(batch_align_jobs, align_jobs)
     results_dict = align_job.rv()
-    align_export_job = align_job.addFollowOnJobFn(export_align_wrapper, options, results_dict)
+    align_export_job = align_job.addFollowOnJobFn(export_align_wrapper, options, results_dict, reference_list)
     join_options, vg_ids, hal_ids = align_export_job.rv(0), align_export_job.rv(1), align_export_job.rv(2)
 
     # cactus_graphmap_join
     join_job = align_export_job.addFollowOnJobFn(graphmap_join_workflow, join_options, config_wrapper, vg_ids, hal_ids)
     join_wf_output = join_job.rv()
-    join_export_job = join_job.addFollowOnJobFn(export_join_wrapper, options, join_wf_output)
+    join_export_job = join_job.addFollowOnJobFn(export_join_wrapper, join_options, join_wf_output)
         
         

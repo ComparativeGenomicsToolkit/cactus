@@ -24,7 +24,6 @@ from cactus.shared.common import cactus_override_toil_options
 from cactus.shared.common import cactus_call
 from cactus.shared.common import getOptionalAttrib, findRequiredNode
 from cactus.shared.version import cactus_commit
-from cactus.refmap.cactus_graphmap_join import unzip_seqfile
 from cactus.preprocessor.checkUniqueHeaders import sanitize_fasta_headers
 from toil.job import Job
 from toil.common import Toil
@@ -43,7 +42,7 @@ def main():
     parser.add_argument("outputGFA", help = "Output Minigraph GFA")
     parser.add_argument("--reference", type=str, required=True,
                         help = "Reference genome name (added to minigraph first). Order in seqfile used otherwise")
-    parser.add_argument("--mapCores", type=int, help = "Number of cores for minigraph.  Overrides graphmap cpu in configuration")
+    parser.add_argument("--mgCores", type=int, help = "Number of cores for minigraph construction (defaults to the same as --maxCores).")
     
     #Progressive Cactus Options
     parser.add_argument("--configFile", dest="configFile",
@@ -86,22 +85,18 @@ def main():
             # load the seqfile
             seqFile = SeqFile(options.seqFile)
             input_seq_map = seqFile.pathMap
-            
-            if options.reference not in input_seq_map:
-                raise RuntimeError("Specified reference not in seqfile")
-            for sample in input_seq_map.keys():
-                if sample != options.reference and sample.startswith(options.reference):
-                    raise RuntimeError("Input sample {} is prefixed by given reference {}. ".format(sample, options.reference) +                        
-                                       "This is not supported by this version of Cactus, " +
-                                       "so one of these samples needs to be renamed to continue")
 
-            # apply cpu override                
-            if options.mapCores is not None:
-                findRequiredNode(config_node, "graphmap").attrib["cpu"] = str(options.mapCores)
-            mg_cores = getOptionalAttrib(findRequiredNode(config_node, "graphmap"), "cpu", typeFn=int, default=1)
+            # validate the sample names
+            check_sample_names(input_seq_map.keys(), options.reference)
+
+            # apply cpu override
             if options.batchSystem.lower() in ['single_machine', 'singleMachine']:
-                mg_cores = min(mg_cores, cactus_cpu_count(), int(options.maxCores) if options.maxCores else sys.maxsize)
-                findRequiredNode(config_node, "graphmap").attrib["cpu"] = str(mg_cores)
+                if not options.mgCores:
+                    options.mgCores = sys.maxsize
+                options.mgCores = min(options.mgCores, cactus_cpu_count(), int(options.maxCores) if options.maxCores else sys.maxsize)
+            else:
+                if not options.mgCores:
+                    raise RuntimeError("--mgCores required run *not* running on single machine batch system")
             
             #import the sequences
             input_seq_id_map = {}
@@ -119,7 +114,7 @@ def main():
                     if genome != options.reference:
                         input_seq_order.append(genome)
             
-            gfa_id = toil.start(Job.wrapJobFn(minigraph_construct_workflow, config_node, input_seq_id_map, input_seq_order, options.outputGFA))
+            gfa_id = toil.start(Job.wrapJobFn(minigraph_construct_workflow, options, config_node, input_seq_id_map, input_seq_order, options.outputGFA))
 
         #export the gfa
         toil.exportFile(gfa_id, makeURL(options.outputGFA))
@@ -127,8 +122,37 @@ def main():
     end_time = timeit.default_timer()
     run_time = end_time - start_time
     logger.info("cactus-minigraph has finished after {} seconds".format(run_time))
-        
-def minigraph_construct_workflow(job, config_node, seq_id_map, seq_order, gfa_path, sanitize=True):
+
+def check_sample_names(sample_names, references):
+    """ make sure we have a workable set of sample names """
+
+    # make sure we have the reference
+    if references:
+        assert type(references) in [list, str]
+        if type(references) is str:
+            references = [references]
+        for reference in references:
+            if reference not in sample_names:
+                raise RuntimeError("Specified reference not in seqfile")
+
+            # graphmap-join uses reference names as prefixes, so make sure we don't get into trouble with that
+            reference_base = os.path.splitext(reference)[0]
+            for sample in sample_names:
+                sample_base = os.path.splitext(sample)[0]
+                if sample != reference and sample_base.startswith(reference_base):
+                    raise RuntimeError("Input sample {} is prefixed by given reference {}. ".format(sample_base, reference_base) +    
+                                       "This is not supported by this version of Cactus, " +
+                                       "so one of these samples needs to be renamed to continue")
+
+    # the "." character is overloaded to specify haplotype, make sure that it makes sense
+    for sample in sample_names:
+        sample_base, sample_ext = os.path.splitext(sample)
+        if not sample_base or (not sample_ext and sample_base.startswith(".")):
+            raise RuntimeError("Sample name {} invalid because it begins with \".\"".format(sample))
+        if sample_ext and (len(sample_ext) == 1 or not sample_ext[1:].isnumeric()):
+            raise RuntimeError("Sample name {} with \"{}\" suffix is not supported. You must either remove this suffix or use .N where N is an integer to specify haplotype".format(sample, sample_ext))
+                                    
+def minigraph_construct_workflow(job, options, config_node, seq_id_map, seq_order, gfa_path, sanitize=True):
     """ minigraph can handle bgzipped files but not gzipped; so unzip everything in case before running"""
     if sanitize:
         sanitize_job = job.addChildJobFn(sanitize_fasta_headers, seq_id_map, pangenome=True)
@@ -138,7 +162,6 @@ def minigraph_construct_workflow(job, config_node, seq_id_map, seq_order, gfa_pa
         sanitize_job = Job()
         job.addChild(sanitize_job)
     xml_node = findRequiredNode(config_node, "graphmap")
-    mg_cores = getOptionalAttrib(xml_node, "cpu", typeFn=int, default=1)
     sort_type = getOptionalAttrib(xml_node, "minigraphSortInput", str, default=None)
     if sort_type == "mash":
         sort_job = sanitize_job.addFollowOnJobFn(sort_minigraph_input_with_mash, sanitized_seq_id_map, seq_order)
@@ -147,33 +170,47 @@ def minigraph_construct_workflow(job, config_node, seq_id_map, seq_order, gfa_pa
     else:
         prev_job = sanitize_job
     minigraph_job = prev_job.addFollowOnJobFn(minigraph_construct, config_node, sanitized_seq_id_map, seq_order, gfa_path,
-                                              cores = mg_cores,
+                                              cores = options.mgCores,
                                               disk = 5 * sum([seq_id.size for seq_id in seq_id_map.values()]))
     return minigraph_job.rv()
 
 def sort_minigraph_input_with_mash(job, seq_id_map, seq_order):
     """ Sort the input """
     # (dist, length) pairs which will be sorted decreasing on dist, breaking ties with increasing on length
-    root_job = Job()
-    job.addChild(root_job)
     # assumption : reference is first
     mash_dists = [(0, sys.maxsize)]
+    # start by sketching the reference to avoid a bunch of recomputation
+    sketch_job = job.addChildJobFn(mash_sketch, seq_order[0], seq_id_map,
+                                   disk = seq_id_map[seq_order[0]].size * 2)
+    ref_sketch_id = sketch_job.rv()
+    dist_root_job = Job()
+    sketch_job.addFollowOn(dist_root_job)
     for seq in seq_order[1:]:
-        dist = root_job.addChildJobFn(mash_dist, seq, seq_order[0], seq_id_map,
-                                      disk = seq_id_map[seq].size + seq_id_map[seq_order[0]].size).rv()
+        dist = dist_root_job.addChildJobFn(mash_dist, seq, seq_order[0], seq_id_map, ref_sketch_id,
+                                           disk = seq_id_map[seq].size + seq_id_map[seq_order[0]].size).rv()
         mash_dists.append(dist)                    
 
-    return root_job.addFollowOnJobFn(mash_distance_order, seq_order, mash_dists).rv()
+    return dist_root_job.addFollowOnJobFn(mash_distance_order, seq_order, mash_dists).rv()
 
-def mash_dist(job, query_seq, ref_seq, seq_id_map):
-    """ get the mash distance """
+def mash_sketch(job, ref_seq, seq_id_map):
+    """ get the sketch """
     work_dir = job.fileStore.getLocalTempDir()
     ref_path = os.path.join(ref_seq + '.fa')
-    query_path = os.path.join(query_seq + '.fa')
     job.fileStore.readGlobalFile(seq_id_map[ref_seq], ref_path)
+
+    cactus_call(parameters=['mash', 'sketch', ref_path])
+
+    return job.fileStore.writeGlobalFile(ref_path + '.msh')
+    
+def mash_dist(job, query_seq, ref_seq, seq_id_map, ref_sketch_id):
+    """ get the mash distance """
+    work_dir = job.fileStore.getLocalTempDir()
+    ref_sketch_path = os.path.join(ref_seq + '.fa.msh')
+    query_path = os.path.join(query_seq + '.fa')
+    job.fileStore.readGlobalFile(ref_sketch_id, ref_sketch_path)
     job.fileStore.readGlobalFile(seq_id_map[query_seq], query_path)
 
-    mash_output = cactus_call(parameters=['mash', 'dist', query_path, ref_path], check_output=True)
+    mash_output = cactus_call(parameters=['mash', 'dist', query_path, ref_sketch_path], check_output=True)
     dist = float(mash_output.strip().split()[2])
     size = sum([len(r.seq) for r in SeqIO.parse(query_path, 'fasta')])
     RealtimeLogger.info('mash distance of {} (size = {}) to reference {} = {}'.format(query_seq, size, ref_seq, dist))

@@ -219,11 +219,57 @@ ggp.hprc.noclip =
   guides(color=guide_legend(ncol=3))
 print(ggp.hprc.noclip)
 
+## number of errors
+comb.pal = c(darken(set1.pal[1], .3), lighten(set1.pal[1], .2),
+             set1.pal[2:3])
+ggp.error.hprc.main = rbind(
+  df.r %>% filter(!grepl('visible', truthset),
+                  !grepl('lifted', variant_caller),
+                  !grepl('jun22', mapper),
+                  !grepl('default', mapper),
+                  !grepl('CHM13', mapper),
+                  region=='Whole genome') %>% mutate(exp='Evaluation of the\nGRCh38-based\nHPRC pangenome') %>%
+  ungroup %>% select(mapper, truthset, sample, FP, FN, TP, F1, exp),
+  df.r %>% filter(!grepl('visible', truthset),
+                  !grepl('lifted', variant_caller),
+                  !grepl('default', mapper),
+                  !grepl('jun22', mapper),
+                  region=='in CHM13 pangenome and no false duplications/collapse') %>%
+  mutate(exp='Evaluation of the\nCHM13-based\nHPRC pangenome') %>%
+  ungroup %>% select(mapper, truthset, sample, FP, FN, TP, F1, exp)) %>%
+  mutate(truthset=ifelse(grepl('GIAB', truthset), 'GIAB v4.2.1', 'CMRG v1.0'),
+         truthset=factor(truthset, levels=c('GIAB v4.2.1', 'CMRG v1.0')),
+         exp=factor(exp, levels=unique(exp))) %>%
+  arrange(mapper) %>%
+  mutate(mapper=factor(mapper, levels=levels(mapper),
+                       labels=paste0(levels(mapper), ' and ',
+                                     ifelse(grepl('Dragen', levels(mapper)), 'Dragen', 'DeepVariant')))) %>%
+  select(sample, mapper, exp, truthset, FN, FP) %>%
+  pivot_longer(cols=c(FN,FP)) %>%
+  group_by(sample, mapper, exp, truthset) %>%
+  mutate(ys=ifelse(name=='FN', 0, value[name=='FN']),
+         ye=ifelse(name=='FN', value, value+value[name=='FN'])) %>%
+  ggplot(aes(x=sample, ymin=ys, ymax=ye, alpha=name, color=mapper)) +
+  geom_linerange(aes(group=mapper), position=position_dodge(.8), size=1.3) +
+  scale_color_manual(values=comb.pal) +
+  scale_alpha_manual(values=c(.5,1), labels=c('false-negative', 'false-positive')) + 
+  facet_grid(exp~truthset, scales='free') +
+  theme_bw() + coord_flip() +
+  ylab('number of erroneous variant calls') + 
+  theme(legend.position='bottom',
+        legend.title=element_blank(),
+        strip.text.y=element_text(angle=0)) +
+  guides(color=guide_legend(ncol=3, override.aes=list(size=5)),
+         alpha=guide_legend(ncol=1, override.aes=list(size=5)))
+print(ggp.error.hprc.main)
+
 pdf('hprc_smallvariant-giab.pdf', 8, 3)
 print(ggp.hprc.main)
 print(ggp.hprc.chm13)
 print(ggp.hprc.noclip)
+print(ggp.error.hprc.main)
 dev.off()
+
 
 ##
 ## ROC

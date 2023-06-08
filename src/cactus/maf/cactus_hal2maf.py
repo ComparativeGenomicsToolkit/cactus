@@ -77,28 +77,26 @@ def main():
     
     # pass through taffy add-gap-bases options
     parser.add_argument("--gapFill",
-                        help="use TAF tools to fill in small reference gaps up to this length (currently more reliable than --maxRefGap) [default=50]",
+                        help="use TAF tools to fill in small reference gaps up to this length (currently more reliable than --maxRefGap) [default: see taffy add-gap-bases -h]",
                         type=int,
-                        default=50)
+                        default=None)
 
     # pass through taffy norm options
     parser.add_argument("--maximumBlockLengthToMerge",
-                        help="Only merge together any two adjacent blocks if one or both is less than this many bases long, [default=1000]",
+                        help="Only merge together any two adjacent blocks if one or both is less than this many bases long, [default: see taffy norm -h]",
                         type=int,
-                        default=1000)
+                        default=None)
     parser.add_argument("--maximumGapLength",
-                         help="Only merge together two adjacent blocks if the total number of unaligned bases between the blocks is less than this many bases, [default=100]",
+                         help="Only merge together two adjacent blocks if the total number of unaligned bases between the blocks is less than this many bases, [default: see taffy norm -h]",
                          type=int,
-                         default=100)
+                         default=None)
     parser.add_argument("--fractionSharedRows",
-                        help="The fraction of rows between two blocks that need to be shared for a merge, [default=0.6]",
+                        help="The fraction of rows between two blocks that need to be shared for a merge, [default: see taffy norm -h]",
                         type=float,
-                        default=0.6)
-
+                        default=None)
     parser.add_argument("--filterGapCausingDupes",
-                        help="Turn on (experimental) taffy norm -d filter that removes duplications that would induce gaps > maximumGapLength",
+                        help="Turn on (experimental) taffy norm -d filter that removes duplications that would induce gaps > maximumGapLength [default=Off unless --dupeMode single]",
                         action="store_true")
-
     parser.add_argument("--maxRefNFrac",
                         help="Filter out MAF blocks whose reference (first) line has a greater fraction of Ns than the given amount. Should be between 0.0 (filter everything) and 1.0 (filter nothing). [default=0.95]",
                         type=float,
@@ -134,6 +132,9 @@ def main():
     if options.noAncestors and not options.refGenome:
         raise RuntimeError('(non-ancestral) --refGenome required with --noAncestors')
 
+    if options.dupeMode == 'single':
+        options.filterGapCausingDupes = True
+        
     # apply cpu override                
     if options.batchCores is None:
         if options.batchSystem.lower() in ['single_machine', 'singleMachine']:
@@ -302,10 +303,20 @@ def taf_cmd(hal_path, chunk, chunk_num, options):
 
     # we don't pipe directly from hal2maf because add_gap_bases uses even more memory in hal
     cmd = 'set -eo pipefail && {} {}.maf.gz | {} taffy view{} 2> {}.m2t.time'.format(read_cmd, chunk_num, time_cmd, time_end, chunk_num)
-    cmd += ' | {} taffy add-gap-bases -a {} -m {}{} 2> {}.tagp.time'.format(time_cmd, hal_path, options.gapFill, time_end, chunk_num)
-    cmd += ' | {} taffy norm -k -m {} -n {} {} -q {}{} 2> {}.tn.time'.format(time_cmd, options.maximumBlockLengthToMerge, options.maximumGapLength,
-                                                                             '-d' if options.filterGapCausingDupes else '',
-                                                                             options.fractionSharedRows, time_end, chunk_num)
+    gap_opts = ''
+    if options.gapFill is not None:
+        gap_opts += '-m {}'.format(options.gapFill)
+    cmd += ' | {} taffy add-gap-bases -a {} {}{} 2> {}.tagp.time'.format(time_cmd, hal_path, gap_opts, time_end, chunk_num)
+    norm_opts = ''
+    if options.maximumBlockLengthToMerge is not None:
+        norm_opts += '-m {}'.format(options.maximumBlockLengthToMerge)
+    if options.maximumGapLength is not None:
+        norm_opts += ' -n {}'.format(options.maximumGapLength)
+    if options.filterGapCausingDupes:
+        norm_opts += ' -d '
+    if options.fractionSharedRows is not None:
+        norm_opts += '-q {}'.format(options.fractionSharedRows)
+    cmd += ' | {} taffy norm -k {}{} 2> {}.tn.time'.format(time_cmd, norm_opts, time_end, chunk_num)
     if options.maxRefNFrac:
         cmd += ' | mafFilter -m - -N {}'.format(options.maxRefNFrac)
     # get rid of single-row (ie ref-only) blcks while we're filtering

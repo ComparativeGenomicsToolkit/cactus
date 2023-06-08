@@ -30,6 +30,7 @@ from cactus.shared.common import cactusRootPath
 from cactus.shared.version import cactus_commit
 from cactus.shared.configWrapper import ConfigWrapper
 from cactus.refmap.cactus_graphmap import filter_paf
+from cactus.refmap.cactus_minigraph import check_sample_names
 from cactus.preprocessor.checkUniqueHeaders import sanitize_fasta_headers
 
 from toil.job import Job
@@ -261,6 +262,10 @@ def make_align_job(options, toil, config_wrapper=None, chrom_name=None):
         if options.root not in input_seq_map:
             raise RuntimeError("--includeRoot specified but root, {},  not found in input Seqfile".format(options.root))
         event_set.add(options.root)
+
+    if options.reference and options.pangenome:
+        # validate the sample names
+        check_sample_names(input_seq_map.keys(), options.reference)
         
     # apply path overrides.  this was necessary for wdl which doesn't take kindly to
     # text files of local paths (ie seqfile).  one way to fix would be to add support
