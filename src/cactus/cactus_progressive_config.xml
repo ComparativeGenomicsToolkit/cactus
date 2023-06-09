@@ -391,16 +391,24 @@
 		 hal2vgOptions="--progress --inMemory"
 		 />
   	<multi_cactus>
+	        <!-- stategy: outgroup selection algorithm, can be one of greedy, greedyLeaves or greedyPreference -->
+		<!-- threshold: depth increases by at most k per outgroup -->
+		<!-- ancestor_quality_fraction: min fraction of children of ancestor in candidateSet in order for the ancestor to be an outgroup candidate -->
+		<!-- max_num_outgroups: maximum number of outgroups per alignment job-->	  
 		<outgroup
 			strategy="greedyPreference"
 			threshold="0"
 			ancestor_quality_fraction="0.75"
 			max_num_outgroups="2"
-		/>
+			/>
+
+		<!-- default_internal_node_prefix: internal nodes of the tree are labeled with this prefix then a BFS order number -->
+		<!-- default_branch_len: use this branch length if information is missing from the input tree -->
+		<!-- default_branch_len_pangenome: use this branch length (for implicit star tree) in pangenome mode -->
 	 	<decomposition
-	 		self_alignment="false"
 	 		default_internal_node_prefix="Anc"
-			max_parallel_subtrees="50000"
+			default_branch_len="1"
+			default_branch_len_pangenome="0.025"
 	 	/>
   	</multi_cactus>
 	<consolidated></consolidated>

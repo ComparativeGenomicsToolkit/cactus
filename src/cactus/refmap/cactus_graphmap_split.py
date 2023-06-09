@@ -127,7 +127,7 @@ def cactus_graphmap_split(options):
             graph_event = getOptionalAttrib(findRequiredNode(config_node, "graphmap"), "assemblyName", default="_MINIGRAPH_")
 
             # load the seqfile
-            seqFile = SeqFile(options.seqFile)
+            seqFile = SeqFile(options.seqFile, defaultBranchLen=config.getDefaultBranchLen(pangenome=True))
 
             #import the graph
             logger.info("Importing {}".format(options.minigraphGFA))
