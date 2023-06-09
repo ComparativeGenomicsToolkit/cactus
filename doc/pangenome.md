@@ -126,7 +126,9 @@ The Minigraph-Cactus pipeline is run via the `cactus-pangenome` command. It cons
 * `--indexCores` the number of cores for each `vg` indexing job (default: all available - 1)
 * The various output options: `--gbz`, `--gfa`, `--giraffe`, `--vcf` which are explained in detail below. If you forget to add one of these and are missing the corresponding output, you will need to rerun `cactus-graphmap-join` (or use `vg` to manually make the file yourself).
 
-Reducing `--consCores` will allow more chromosomes to be aligned at once, requiring more memory. VCF export for very large graphs will take a long time unless `--indexCores` is set high, but `--indexCores` should still be at least 1 lower than all cores available to allow some parallelism. 
+Reducing `--consCores` will allow more chromosomes to be aligned at once, requiring more memory. VCF export for very large graphs will take a long time unless `--indexCores` is set high, but `--indexCores` should still be at least 1 lower than all cores available to allow some parallelism.
+
+By default, `cactus` attempts to automatically determine the amount of memory to request for each job.  This estimate can be too conservative for `cactus-consolidated` jobs. You can override it with `--consMemory`. 
 
 **PLEASE NOTE** While many Minigraph-Cactus parameters' default values were tuned on high-quality human assemblies from the HPRC where ample benchmarking data was available, we believe they will be suitable for other datasets and species, so long as the contigs can be mapped with [minigraph](https://github.com/lh3/minigraph). By default, [small contigs are filtered out](https://github.com/ComparativeGenomicsToolkit/cactus/blob/v2.4.4/src/cactus/cactus_progressive_config.xml#L319-L335) during chromosome assignment using more stringent thresholds. This might lead to a surprisingly low sensitivity on small, fragmented, diverse assemblies or difficult-to-assemble regions. Users wishing to *keep* these contigs in their graph can use the following option:
 
@@ -698,3 +700,7 @@ A: So current toolchains can work with your graphs.  But clipping and filtering 
 **Q**: The node IDs referred to in the output VCF don't match the GBZ!
 
 **A**: Indeed they do not. They refer to the (unchopped) GFA IDs.  Please see the [Node Chopping](#node-chopping) section above. 
+
+**Q**: I get an error to the effect of `toil.batchSystems.abstractBatchSystem.InsufficientSystemResources: The job cactus_cons is requesting 66623310306 bytes of memory, more than the maximum of 34359738368 bytes of memory that SingleMachineBatchSystem was configured with, or enforced by --maxMemory. Scale is set to 1.0.”`.  What's going on?
+
+**A**: As of version 2.6.0, Cactus is now trying to (conservatively) estimate the memory usage of each job, which is required for must cluster schedulers.  This can be annoying if, like in the above scenario, the estimate is too conservative to even try running on your machine.  So you can use the `--consMemory` option to override it.  Ex. use `--consMemory 32Gi` to force Cactus to reserve exactly 32 Gigs for each cactus consolidated job. 

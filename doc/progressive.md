@@ -85,7 +85,7 @@ An optional * can be placed at the beginning of a name to specify that its assem
 * Each name / path pair must be on its own line
 * `http://`, `s3://`, etc. URLs may be used.
 
-Please ensure your genomes are *soft*-masked with RepeatMasker. We do some basic masking as a preprocessing step to ensure highly repetitive elements are masked when repeat libraries are incomplete, but genomes that aren't properly masked can still take tens of times longer to align that those that are masked. Hard-masking (totally replacing repeats with stretches of Ns) isn't necessary, and is strongly discouraged (you will miss a *lot* of alignments!).
+Please ensure your genomes are *soft*-masked, ideally with RepeatMasker. We do some basic masking as a preprocessing step to ensure highly repetitive elements are masked when repeat libraries are incomplete, but genomes that aren't properly masked can still take tens of times longer to align that those that are masked. Hard-masking (totally replacing repeats with stretches of Ns) isn't necessary, and is strongly discouraged (you will miss a *lot* of alignments!).
 
 An example seqfile can be found [here](../examples/evolverMammals.txt).
 
@@ -164,12 +164,12 @@ Conservation scores can be computed using [phast](http://compgen.cshl.edu/phast/
 The Cactus Docker image contains everything you need to run Cactus (python environment, all binaries, system dependencies). For example, to run the test data:
 
 ```
-docker run -v $(pwd):/data --rm -it quay.io/comparative-genomics-toolkit/cactus:v2.5.2 cactus /data/jobStore /data/evolverMammals.txt /data/evolverMammals.hal
+docker run -v $(pwd):/data --rm -it quay.io/comparative-genomics-toolkit/cactus:v2.6.0 cactus /data/jobStore /data/evolverMammals.txt /data/evolverMammals.hal
 ```
 
 Or you can proceed interactively by running
 ```
-docker run -v $(pwd):/data --rm -it quay.io/comparative-genomics-toolkit/cactus:v2.5.2 bash
+docker run -v $(pwd):/data --rm -it quay.io/comparative-genomics-toolkit/cactus:v2.6.0 bash
 cactus /data/jobStore /data/evolverMammals.txt /data/evolverMammals.hal
 
 ```
@@ -300,7 +300,7 @@ Please [cite SegAlign](https://doi.ieeecomputersociety.org/10.1109/SC41405.2020.
 
 ## Pre-Alignment Checklist
 
-* Are the input sequences softmasked with RepeatMasker? For mammals we expect at least 40% of the genome to be masked this way. 
+* Are the input sequences softmasked (ideally with RepeatMasker, but WindowMasker may be sufficient)? For mammals we expect at least 40% of the genome to be masked this way. You can use the `cactus_analyseAssembly` tool (included in cactus, and who's output is logged by Cactus) to check how masked the gnomes are. 
 * Have you run a small [test alignment](../examples/evolverMammals.txt) to make sure Cactus is properly installed?
 * Do you have at least one outgroup species?
 
@@ -318,13 +318,15 @@ The reason you have to do this is that the Docker VM requires explicitly listing
 
 **Q**: How exactly does Cactus use the branch lengths in the input tree?
 
-**A**: The branch lengths are expected to be denoted in substitutions per site and are used in three ways. 
+**A**: The branch lengths are expected to be denoted in substitutions per site and are used in four ways. 
 
 1) to determine lastz parameters. The pairwise distance between species is measured using the branch lengths, and mapped to a set of lastz parameters using the `<divergences>` (inside `<constants>`) and `<divergence>` (inside `<blast>`) elements in the [configuration XML](../src/cactus/cactus_progressive_config.xml). Faster parameters are used for more closely-related species. If you are aligning human and chimp with the correct branch lengths, their distance will be about 0.02, and it will use the fasest parameters which will be several times faster than if, say, the default branch length of 1 was used. 
 
-2) to estimate ancestral bases. Here the relative branch lengths are more important -- the base of a descendant that is much nearer to the ancestor will provide more information and will be wieghted higher when estimating it.  
+2) (since v2.6.0) to determine cactus chaining parameters. Similar to above the `<annealingRounds>` (inside `<caf>`) alements are used to set the minimum chain length based on the divergence. A longer length is used for more closely related species, which will result in more syntenic, less fragmented alignments. Shorter lengths are used at higher divergences to boost sensitvity, allowing that longer synteny may not be possible due to structural changes. 
 
-3) to calculate outgroups.  Branch lengths are taken into account by the greedy heuristic used to find the nearest outgroup to the given ancestral event. 
+3) to estimate ancestral bases. Here the relative branch lengths are more important -- the base of a descendant that is much nearer to the ancestor will provide more information and will be wieghted higher when estimating it.  
+
+4) to calculate outgroups.  Branch lengths are taken into account by the greedy heuristic used to find the nearest outgroup to the given ancestral event. 
 
 If you do not know the branch lengths, you can leave them out and Cactus will use its default (1). This will cause the alignment to be slower than necessary but the results shouldn't be affected much.  Otherwise, even inexact branch lengths should be fine.  For closely related species `mash dist` is a very easy way to estimate a pairwise distance (`mash` is now included in Cactus). Often you can use `mash` and already-published trees to come up with your branch lengths. 
 
@@ -338,7 +340,7 @@ That said, cactus can handle multifurcations up to a point: runtime increases qu
 
 **Q**: I'm running out of memory, or getting crashes, or very long runtimes in one of the `paf_xxxx` tools (`paf_tile, paf_to_bed` etc.). What can I do?
 
-**A**: This is almost always due to Cactus having found too many pairwise alignments in the all-to-all lastz mapping (blast) phase. The only way to get around this is my softmasking the input genomes before running Cactus. For most species, this is best done with RepeatMasker. We do intend to work on lifting this requirement in the future by making cactus's own repeatmasking more robust. 
+**A**: This is almost always due to Cactus having found too many pairwise alignments in the all-to-all lastz mapping (blast) phase. The only way to get around this is my softmasking the input genomes before running Cactus. For most species, this is best done with RepeatMasker. We do intend to work on lifting this requirement in the future by making cactus's own repeatmasking more robust. As of v2.6.0, Cactus is more tolerant of repetative sequence but the input still needs to be softmasked. 
 
 **Q**: The `--gpu` option isn't working for me.
 
@@ -351,3 +353,7 @@ That said, cactus can handle multifurcations up to a point: runtime increases qu
 **Q**: I get an error to the effect of `ERROR: No matching distribution found for toil[aws]==xxxx` when trying to install Toil.
 
 **A**: This is probably happening because you are using Python 3.6. Toil and Cactus require Python >= 3.7.  Use `python3 --version` to check your Python version.
+
+**Q**: I get an error to the effect of `toil.batchSystems.abstractBatchSystem.InsufficientSystemResources: The job cactus_cons is requesting 66623310306 bytes of memory, more than the maximum of 34359738368 bytes of memory that SingleMachineBatchSystem was configured with, or enforced by --maxMemory. Scale is set to 1.0.”`.  What's going on?
+
+**A**: As of version 2.6.0, Cactus is now trying to (conservatively) estimate the memory usage of each job, which is required for must cluster schedulers.  This can be annoying if, like in the above scenario, the estimate is too conservative to even try running on your machine.  So you can use the `--consMemory` option to override it.  Ex. use `--consMemory 32Gi` to force Cactus to reserve exactly 32 Gigs for each cactus consolidated job. 

@@ -1,4 +1,15 @@
-# Relase 2.5.2 2023-05-15
+# Release 2.6.0 2023-06-09
+
+This Release significantly updates Cactus's chaining logic which, in early tests at least, allows alignment of T2T-quality assemblies as well as WindowMasked (and not RepeatMasked) genomes. 
+
+- Improved chaining of lastz's PAF output in order to support alignment of T2T-quality genomes
+- Minimum chain length in the Cactus graph now determined by branch length, so that more closely-related genomes can be chained more aggressively while not losing sensitivity along more distant branches where the alignment is more fragmented.
+- Early experiments show that the above changes make Cactus much less sensitive to the input repeat masking. Genomes that previously required masking with RepeatMasker were able to align with the WindowMasking-based fastas directly from NCBI. 
+- Update to Toil 5.10.0
+- Update to latest Taffy
+- Specify memory requirements for all Toil jobs (in Progressive Cactus). Cactus Consolidated memory is estimated conservatively, but can be overridden with `--consMemory`. 
+
+# Release 2.5.2 2023-05-15
 
 This Release patches some bugs in the pangenome pipeline and makes it a bit more user-friendly
 
