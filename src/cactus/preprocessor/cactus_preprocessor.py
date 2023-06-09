@@ -478,7 +478,8 @@ def main():
     options.ignore.append(graph_event)
 
     # toggle on the gpu
-    ConfigWrapper(configNode).initGPU(options)
+    config_wrapper = ConfigWrapper(configNode)
+    config_wrapper.initGPU(options)
 
     # apply pangenome overrides
     if options.pangenome:
@@ -492,8 +493,8 @@ def main():
     
     # mine the paths out of the seqfiles
     if options.inSeqFile:
-        inSeqFile = SeqFile(options.inSeqFile)
-        outSeqFile = SeqFile(options.outSeqFile)
+        inSeqFile = SeqFile(options.inSeqFile, defaultBranchLen=config_wrapper.getDefaultBranchLen(options.pangenome))
+        outSeqFile = SeqFile(options.outSeqFile, defaultBranchLen=config_wrapper.getDefaultBranchLen(options.pangenome))
 
         if not inNames:
             inNames = [inSeqFile.tree.getName(node) for node in inSeqFile.tree.getLeaves()]

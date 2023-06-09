@@ -33,14 +33,12 @@ from sonLib.nxnewick import NXNewick
 from toil.statsAndLogging import logger
 
 
-def parse_seqfile(seqfile_path, config_wrapper, root_name = None, default_branch_length = None):
+def parse_seqfile(seqfile_path, config_wrapper, root_name = None, pangenome = False):
     """
     parse the seqfile
     returns (tree, event->path map, og list (from *'s in seqfile)
     """
-    seq_file = SeqFile(seqfile_path, root_name = root_name)
-    if default_branch_length is not None:
-        seq_file.branchLen = default_branch_length
+    seq_file = SeqFile(seqfile_path, root_name = root_name, defaultBranchLen=config_wrapper.getDefaultBranchLen(pangenome=pangenome))
 
     mc_tree = MultiCactusTree(seq_file.tree)
     mc_tree.nameUnlabeledInternalNodes(config_wrapper.getDefaultInternalNodePrefix())

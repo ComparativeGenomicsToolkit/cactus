@@ -91,14 +91,6 @@ class ConfigWrapper:
             maxNumOutgroups = int(ogElem.attrib["max_num_outgroups"])
         return maxNumOutgroups
 
-    def getDoSelfAlignment(self):
-        decompElem = self.getDecompositionElem()
-        doSelf = self.defaultDoSelf
-        if decompElem is not None and "self_alignment" in decompElem.attrib:
-            doSelf = decompElem.attrib["self_alignment"].lower()
-        assert doSelf == "true" or doSelf == "false"
-        return doSelf == "true"
-
     def getDefaultInternalNodePrefix(self):
         decompElem = self.getDecompositionElem()
         prefix = self.defaultInternalNodePrefix
@@ -107,6 +99,13 @@ class ConfigWrapper:
             prefix = decompElem.attrib["default_internal_node_prefix"]
         assert len(prefix) > 0
         return prefix
+
+    def getDefaultBranchLen(self, pangenome=False):
+        decompElem = self.getDecompositionElem()
+        if pangenome:
+            return float(decompElem.attrib["default_branch_len_pangenome"])
+        else:
+            return float(decompElem.attrib["default_branch_len"])
 
     def getBuildHal(self):
         halElem = self.xmlRoot.find("hal")
@@ -133,21 +132,6 @@ class ConfigWrapper:
         halElem = self.xmlRoot.find("hal")
         assert halElem is not None
         halElem.attrib["buildFasta"] = str(int(buildFasta))
-
-    def getMaxParallelSubtrees(self):
-        decompElem = self.getDecompositionElem()
-        maxParallelSubtrees = self.defaultMaxParallelSubtrees
-        if decompElem is not None and\
-               "max_parallel_subtrees" in decompElem.attrib:
-            maxParallelSubtrees = int(
-                decompElem.attrib["max_parallel_subtrees"])
-        assert maxParallelSubtrees > 0
-        return maxParallelSubtrees
-
-    def setMaxParallelSubtrees(self, maxParallel):
-        decompElem = self.getDecompositionElem()
-        assert decompElem is not None
-        decompElem.attrib["max_parallel_subtrees"] = str(maxParallel)
 
     def getKtserverMemory(self, default=sys.maxsize):
         ktServerElem = self.xmlRoot.find("ktserver")
