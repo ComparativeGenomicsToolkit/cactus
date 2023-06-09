@@ -328,7 +328,7 @@ def minigraph_construct(job, config_node, seq_id_map, seq_order, gfa_path, has_r
     if gfa_path.endswith('.gz'):
         mg_cmd = [mg_cmd, ['bgzip', '--threads', str(job.cores)]]
 
-    cactus_call(parameters=mg_cmd, outfile=gfa_path, work_dir=work_dir, realtimeStderrPrefix='[minigraph]')
+    cactus_call(parameters=mg_cmd, outfile=gfa_path, work_dir=work_dir, realtimeStderrPrefix='[minigraph]', job_memory=job.memory)
 
     return job.fileStore.writeGlobalFile(gfa_path)
         

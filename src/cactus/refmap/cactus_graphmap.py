@@ -355,7 +355,7 @@ def minigraph_map_one(job, config, event_name, fa_file_id, gfa_file_id):
     # run minigraph mapping
     cmd += [["minigraph", gfa_path, fa_path, "-o", gaf_path] + opts_list]
 
-    cactus_call(parameters=cmd)
+    cactus_call(parameters=cmd, job_memory=job.memory)
 
     # convert the gaf into unstable gaf (targets are node sequences)
     # note: the gfa needs to be uncompressed for this tool to work
@@ -373,7 +373,7 @@ def minigraph_map_one(job, config, event_name, fa_file_id, gfa_file_id):
     if overlap_ratio or overlap_filter_len:
         cmd = [cmd, ['gaffilter', '-', '-r', str(overlap_ratio), '-m', str(length_ratio), '-q', str(min_mapq),
                      '-b', str(min_block), '-o', str(overlap_filter_len), '-i', str(min_ident)]]
-    cactus_call(parameters=cmd, outfile=unstable_gaf_path)
+    cactus_call(parameters=cmd, outfile=unstable_gaf_path, job_memory=job.memory)
 
     # convert the unstable gaf into unstable paf, which is what cactus expects
     # also tack on the unique id to the target column
@@ -381,7 +381,7 @@ def minigraph_map_one(job, config, event_name, fa_file_id, gfa_file_id):
     unstable_paf_path = unstable_gaf_path + '.paf'
     unstable_paf_cmd = [['gaf2paf', unstable_gaf_path, '-l', mg_lengths_path],
                         ['awk', 'BEGIN{{OFS=\"	\"}} {{$6="id={}|"$6; print}}'.format(graph_event)]]
-    cactus_call(parameters=unstable_paf_cmd, outfile=unstable_paf_path)
+    cactus_call(parameters=unstable_paf_cmd, outfile=unstable_paf_path, job_memory=job.memory)
 
     # return the stable gaf (minigraph output) and the unstable paf
     return job.fileStore.writeGlobalFile(gaf_path), job.fileStore.writeGlobalFile(unstable_paf_path)
@@ -475,7 +475,7 @@ def filter_paf_deletions(job, paf_id, gfa_id, max_deletion, filter_threshold, fi
     trans_path = gfa_path + '.trans'
 
     cactus_call(parameters = ['vg', 'convert', '-r', '0', '-g', gfa_path, '-p', '-T', trans_path],
-                outfile=vg_path)
+                outfile=vg_path, job_memory=job.memory)
 
     # call filter-paf-deletionts
     filter_paf_path = paf_path + ".filter"
@@ -485,7 +485,7 @@ def filter_paf_deletions(job, paf_id, gfa_id, max_deletion, filter_threshold, fi
         filter_paf_cmd += ['-m', str(filter_threshold)]
     if filter_query_size_threshold:
         filter_paf_cmd += ['-s', str(filter_query_size_threshold)]
-    filter_stdout, filter_stderr = cactus_call(parameters=filter_paf_cmd, check_output=True, returnStdErr=True)
+    filter_stdout, filter_stderr = cactus_call(parameters=filter_paf_cmd, check_output=True, returnStdErr=True, job_memory=job.memory)
     with open(filter_log_path, 'w') as filter_log_file:
         for line in filter_stderr:
             filter_log_file.write(line)            

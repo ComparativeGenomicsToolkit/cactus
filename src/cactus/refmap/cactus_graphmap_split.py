@@ -384,7 +384,7 @@ def split_gfa(job, config, gfa_id, paf_ids, ref_contigs, other_contig, reference
             if contig.startswith('id=') and contig.find('|') > 3:
                 cmd += ['-c', contig[contig.find('|')+1:]]            
 
-    cactus_call(parameters=cmd, work_dir=work_dir)
+    cactus_call(parameters=cmd, work_dir=work_dir, job_memory=job.memory)
 
     output_id_map = {}
     for out_name in os.listdir(work_dir):

@@ -262,7 +262,7 @@ def export_hal(job, mc_tree, config_node, seq_id_map, og_map, results, event=Non
                 if inMemory is True:
                     args += ["--inMemory"]
 
-                cactus_call(parameters=args)
+                cactus_call(parameters=args, job_memory=job.memory)
 
     if not has_resources:
         disk = 3 * sum([file_id.size for file_id in fa_file_ids + c2h_file_ids])
@@ -280,7 +280,7 @@ def export_hal(job, mc_tree, config_node, seq_id_map, og_map, results, event=Non
         cactus_call(parameters=["halSetMetadata", hal_path, "CACTUS_CONFIG", b64encode(configFile.read()).decode()])
 
     if acyclicEvent:
-        cactus_call(parameters=["halRemoveDupes", hal_path, acyclicEvent])
+        cactus_call(parameters=["halRemoveDupes", hal_path, acyclicEvent], job_memory=job.memory)
 
     if checkpointInfo:
         write_s3(hal_path, checkpointInfo[1], region=checkpointInfo[0])

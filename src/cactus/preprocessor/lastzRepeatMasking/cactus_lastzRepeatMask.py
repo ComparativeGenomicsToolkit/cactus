@@ -91,7 +91,8 @@ class LastzRepeatMaskJob(RoundedJob):
                                 # Note that --querydepth has no effect when --ungapped is passed (which is by default)
                                 ["--querydepth=keep,nowarn:%i" % (self.repeatMaskOptions.period+3),
                                  "--format=general:name1,zstart1,end1,name2,zstart2+,end2+",
-                                 "--markend"])
+                                 "--markend"],
+                    job_memory=self.memory)
         return alignment
 
     def gpuRepeatMask(self, fileStore, targetFile):
@@ -127,7 +128,7 @@ class LastzRepeatMaskJob(RoundedJob):
                "--M", str(self.repeatMaskOptions.period)] + gpu_opts
         
         segalign_messages = cactus_call(parameters=cmd, work_dir=self.work_dir, returnStdErr=True, gpus=self.repeatMaskOptions.gpu,
-                                        cpus=self.repeatMaskOptions.cpu)
+                                        cpus=self.repeatMaskOptions.cpu, job_memory=self.memory)
         # run_segalign can crash and still exit 0, so it's worth taking a moment to check the log for errors
         segalign_messages = segalign_messages.lower()
         for line in segalign_messages.split("\n"):
@@ -170,7 +171,7 @@ class LastzRepeatMaskJob(RoundedJob):
                                 "M=%s" % (int(self.repeatMaskOptions.period * scale_period))]
 
             covered_call_cmd += ["--queryoffsets"]
-            cactus_call(infile=alignment, outfile=maskInfo, parameters=covered_call_cmd)
+            cactus_call(infile=alignment, outfile=maskInfo, parameters=covered_call_cmd, job_memory=self.memory)
 
         # the previous lastz command outputs a file of intervals (denoted with indices) to softmask.
         # we finish by applying these intervals to the input file, to produce the final, softmasked output.
