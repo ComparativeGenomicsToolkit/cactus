@@ -318,13 +318,15 @@ The reason you have to do this is that the Docker VM requires explicitly listing
 
 **Q**: How exactly does Cactus use the branch lengths in the input tree?
 
-**A**: The branch lengths are expected to be denoted in substitutions per site and are used in three ways. 
+**A**: The branch lengths are expected to be denoted in substitutions per site and are used in four ways. 
 
 1) to determine lastz parameters. The pairwise distance between species is measured using the branch lengths, and mapped to a set of lastz parameters using the `<divergences>` (inside `<constants>`) and `<divergence>` (inside `<blast>`) elements in the [configuration XML](../src/cactus/cactus_progressive_config.xml). Faster parameters are used for more closely-related species. If you are aligning human and chimp with the correct branch lengths, their distance will be about 0.02, and it will use the fasest parameters which will be several times faster than if, say, the default branch length of 1 was used. 
 
-2) to estimate ancestral bases. Here the relative branch lengths are more important -- the base of a descendant that is much nearer to the ancestor will provide more information and will be wieghted higher when estimating it.  
+2) (since v2.6.0) to determine cactus chaining parameters. Similar to above the `<annealingRounds>` (inside `<caf>`) alements are used to set the minimum chain length based on the divergence. A longer length is used for more closely related species, which will result in more syntenic, less fragmented alignments. Shorter lengths are used at higher divergences to boost sensitvity, allowing that longer synteny may not be possible due to structural changes. 
 
-3) to calculate outgroups.  Branch lengths are taken into account by the greedy heuristic used to find the nearest outgroup to the given ancestral event. 
+3) to estimate ancestral bases. Here the relative branch lengths are more important -- the base of a descendant that is much nearer to the ancestor will provide more information and will be wieghted higher when estimating it.  
+
+4) to calculate outgroups.  Branch lengths are taken into account by the greedy heuristic used to find the nearest outgroup to the given ancestral event. 
 
 If you do not know the branch lengths, you can leave them out and Cactus will use its default (1). This will cause the alignment to be slower than necessary but the results shouldn't be affected much.  Otherwise, even inexact branch lengths should be fine.  For closely related species `mash dist` is a very easy way to estimate a pairwise distance (`mash` is now included in Cactus). Often you can use `mash` and already-published trees to come up with your branch lengths. 
 
