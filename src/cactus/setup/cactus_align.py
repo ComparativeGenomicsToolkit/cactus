@@ -38,6 +38,7 @@ from toil.common import Toil
 from toil.statsAndLogging import logger
 from toil.statsAndLogging import set_logging_from_options
 from cactus.shared.common import cactus_cpu_count
+from cactus.progressive.cactus_prepare import human2bytesN
 
 from sonLib.nxnewick import NXNewick
 from sonLib.bioio import getTempDirectory, getTempFile
@@ -93,9 +94,9 @@ def main():
                         help="Enable GPU acceleration by using Segaling instead of lastz")
     parser.add_argument("--consCores", type=int, 
                         help="Number of cores for each cactus_consolidated job (defaults to all available / maxCores on single_machine)", default=None)
-    parser.add_argument("--consMemory", type=int,
-                        help="Memory IN GIGABYTES for each cactus_consolidated job (defaults to an estimate based on the input data size)", default=None)
-    
+    parser.add_argument("--consMemory", type=human2bytesN,
+                        help="Memory in bytes for each cactus_consolidated job (defaults to an estimate based on the input data size). "
+                        "Standard suffixes like K, Ki, M, Mi, G or Gi are supported (default=bytes))", default=None)   
 
     options = parser.parse_args()
 
@@ -129,12 +130,6 @@ def main():
             raise RuntimeError('--consCores required for non single_machine batch systems')
     if options.maxCores is not None and options.consCores > int(options.maxCores):
         raise RuntimeError('--consCores must be <= --maxCores')
-
-    if options.consMemory is not None:
-        # convert gigabytes to bytes
-        if options.consMemory > 10000:
-            logger.warning('--consMemory being set to {} GIGABYTES. Are you sure you want to do this?'.format(options.consMemory))
-        options.consMemory *= 1024
     
     options.buildHal = True
     options.buildFasta = True
@@ -438,7 +433,7 @@ def export_vg(job, hal_id, config_wrapper, doVG, doGFA, referenceEvent, checkpoi
     vg_path = os.path.join(work_dir, "out.vg")
     cmd = ['hal2vg', hal_path] + hal2vg_opts
 
-    cactus_call(parameters=cmd, outfile=vg_path)
+    cactus_call(parameters=cmd, outfile=vg_path, job_memory=job.memory)
 
     if checkpointInfo:
         write_s3(vg_path, os.path.splitext(checkpointInfo[1])[0] + '.vg', region=checkpointInfo[0])
