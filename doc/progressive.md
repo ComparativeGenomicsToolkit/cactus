@@ -85,7 +85,7 @@ An optional * can be placed at the beginning of a name to specify that its assem
 * Each name / path pair must be on its own line
 * `http://`, `s3://`, etc. URLs may be used.
 
-Please ensure your genomes are *soft*-masked with RepeatMasker. We do some basic masking as a preprocessing step to ensure highly repetitive elements are masked when repeat libraries are incomplete, but genomes that aren't properly masked can still take tens of times longer to align that those that are masked. Hard-masking (totally replacing repeats with stretches of Ns) isn't necessary, and is strongly discouraged (you will miss a *lot* of alignments!).
+Please ensure your genomes are *soft*-masked, ideally with RepeatMasker. We do some basic masking as a preprocessing step to ensure highly repetitive elements are masked when repeat libraries are incomplete, but genomes that aren't properly masked can still take tens of times longer to align that those that are masked. Hard-masking (totally replacing repeats with stretches of Ns) isn't necessary, and is strongly discouraged (you will miss a *lot* of alignments!).
 
 An example seqfile can be found [here](../examples/evolverMammals.txt).
 
@@ -300,7 +300,7 @@ Please [cite SegAlign](https://doi.ieeecomputersociety.org/10.1109/SC41405.2020.
 
 ## Pre-Alignment Checklist
 
-* Are the input sequences softmasked with RepeatMasker? For mammals we expect at least 40% of the genome to be masked this way. 
+* Are the input sequences softmasked (ideally with RepeatMasker, but WindowMasker may be sufficient)? For mammals we expect at least 40% of the genome to be masked this way. You can use the `cactus_analyseAssembly` tool (included in cactus, and who's output is logged by Cactus) to check how masked the gnomes are. 
 * Have you run a small [test alignment](../examples/evolverMammals.txt) to make sure Cactus is properly installed?
 * Do you have at least one outgroup species?
 
@@ -340,7 +340,7 @@ That said, cactus can handle multifurcations up to a point: runtime increases qu
 
 **Q**: I'm running out of memory, or getting crashes, or very long runtimes in one of the `paf_xxxx` tools (`paf_tile, paf_to_bed` etc.). What can I do?
 
-**A**: This is almost always due to Cactus having found too many pairwise alignments in the all-to-all lastz mapping (blast) phase. The only way to get around this is my softmasking the input genomes before running Cactus. For most species, this is best done with RepeatMasker. We do intend to work on lifting this requirement in the future by making cactus's own repeatmasking more robust. 
+**A**: This is almost always due to Cactus having found too many pairwise alignments in the all-to-all lastz mapping (blast) phase. The only way to get around this is my softmasking the input genomes before running Cactus. For most species, this is best done with RepeatMasker. We do intend to work on lifting this requirement in the future by making cactus's own repeatmasking more robust. As of v2.6.0, Cactus is more tolerant of repetative sequence but the input still needs to be softmasked. 
 
 **Q**: The `--gpu` option isn't working for me.
 
