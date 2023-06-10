@@ -1,0 +1,5 @@
+(Pan_troglodytes:0.00272,Pan_paniscus:0.00269);
+
+Pan_troglodytes https://raw.githubusercontent.com/ComparativeGenomicsToolkit/cactusTestData/master/T2T_primate_PAR/mPanTro3_XY_1_5000000.fa
+Pan_paniscus https://raw.githubusercontent.com/ComparativeGenomicsToolkit/cactusTestData/master/T2T_primate_PAR/mPanPan1_XY_1_5000000.fa
+
