@@ -47,6 +47,7 @@ from toil.statsAndLogging import logger
 from toil.statsAndLogging import set_logging_from_options
 from toil.realtimeLogger import RealtimeLogger
 from cactus.shared.common import cactus_cpu_count
+from cactus.refmap.cactus_minigraph import check_sample_names
 
 from sonLib.nxnewick import NXNewick
 from sonLib.bioio import getTempDirectory, getTempFile, catFiles
@@ -128,7 +129,7 @@ def graphmap_join_validate_options(options):
     if options.batchSystem.lower() in ['single_machine', 'singleMachine']:
         if not options.indexCores:
             options.indexCores = sys.maxsize
-        options.indexCores = min(options.indexCores, cactus_cpu_count(), int(options.maxCores) if options.maxCores else sys.maxsize)
+        options.indexCores = min(options.indexCores, max(1, cactus_cpu_count() - 1), int(options.maxCores) if options.maxCores else sys.maxsize)
     else:
         if not options.indexCores:
             raise RuntimeError("--indexCores required run *not* running on single machine batch system")
@@ -136,6 +137,9 @@ def graphmap_join_validate_options(options):
     # sanity check the workflow options and apply defaults
     if options.filter and not options.clip:
         raise RuntimeError('--filter cannot be used without also disabling --clip.')
+
+    # check the reference name suffix
+    check_sample_names(options.reference, options.reference[0])
 
     if not options.gfa:
         options.gfa = ['clip'] if options.clip else ['full']
@@ -180,13 +184,17 @@ def graphmap_join_validate_options(options):
             raise RuntimError('--vcf cannot be set to clip since clipping is disabled')
         if vcf == 'filter' and not options.filter:
             raise RuntimeError('--vcf cannot be set to filter since filtering is disabled')
-            
+
+    # if someone used --vcfReference they probably want --vcf too
+    if options.vcfReference and not options.vcf:
+        raise RuntimeError('--vcfReference cannot be used without --vcf')
+        
     if not options.vcfReference:
         options.vcfReference = [options.reference[0]]
     else:
         for vcfref in options.vcfReference:
             if vcfref not in options.reference:
-                raise RuntimeError('--vcfReference {} was not specified as a --reference'.format(vcfref))
+                raise RuntimeError('--vcfReference {} invalid because {} was not specified as a --reference'.format(vcfref, vcfref))
 
     if options.giraffe == []:
         options.giraffe = ['filter'] if options.filter else ['clip'] if options.clip else ['full']
@@ -200,7 +208,8 @@ def graphmap_join_validate_options(options):
             raise RuntimeError('--giraffe cannot be set to filter since filtering is disabled')
 
     # Prevent some useless compute due to default param combos
-    if options.clip and 'clip' not in options.gfa + options.gbz + options.chrom_vg + options.vcf + options.giraffe:
+    if options.clip and 'clip' not in options.gfa + options.gbz + options.chrom_vg + options.vcf + options.giraffe \
+       and 'filter' not in options.gfa + options.gbz + options.chrom_vg + options.vcf + options.giraffe:
         options.clip = None
     if options.filter and 'filter' not in options.gfa + options.gbz + options.chrom_vg + options.vcf + options.giraffe:
         options.filter = None
@@ -244,8 +253,20 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
     root_job = Job()
     job.addChild(root_job)
 
+    # make sure reference doesn't have a haplotype suffix, as it will have been changed upstream
+    ref_base, ref_ext = os.path.splitext(options.reference[0])
+    assert len(ref_base) > 0
+    if ref_ext:
+        assert len(ref_ext) > 1 and ref_ext[1:].isnumeric()
+        options.reference[0] = ref_base
+        if options.vcfReference:
+            for i in range(len(options.vcfReference)):
+                if options.vcfReference[i] == ref_base + ref_ext:
+                    options.vcfReference[i] = ref_base
+
     # run the "full" phase to do pre-clipping stuff
     full_vg_ids = []
+    assert len(options.vg) == len(vg_ids)
     for vg_path, vg_id in zip(options.vg, vg_ids):
         full_job = Job.wrapJobFn(clip_vg, options, config, vg_path, vg_id, 'full',
                                 disk=vg_id.size * 2, memory=vg_id.size * 4)
@@ -262,10 +283,11 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
     # run the "clip" phase to do the clip-vg clipping
     clip_vg_ids = []
     clipped_stats = None 
-    if options.clip:
+    if options.clip or options.filter:
         clip_root_job = Job()
         prev_job.addFollowOn(clip_root_job)
         clip_vg_stats = []
+        assert len(options.vg) == len(full_vg_ids) == len(vg_ids)
         for vg_path, vg_id, input_vg_id in zip(options.vg, full_vg_ids, vg_ids):
             clip_job = Job.wrapJobFn(clip_vg, options, config, vg_path, vg_id, 'clip',
                                      disk=input_vg_id.size * 2, memory=input_vg_id.size * 4)
@@ -282,6 +304,7 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
     if options.filter:
         filter_root_job = Job()
         prev_job.addFollowOn(filter_root_job)
+        assert len(options.vg) == len(clip_vg_ids) == len(vg_ids)
         for vg_path, vg_id, input_vg_id in zip(options.vg, clip_vg_ids, vg_ids):
             filter_job = filter_root_job.addChildJobFn(vg_clip_vg, options, config, vg_path, vg_id, 
                                                        disk=input_vg_id.size * 2)
@@ -312,6 +335,7 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
         gfa_ids = []
         current_out_dict = None
         if workflow_phase in options.gfa + options.gbz + options.vcf + options.giraffe:
+            assert len(options.vg) == len(phase_vg_ids) == len(vg_ids)
             for vg_path, vg_id, input_vg_id in zip(options.vg, phase_vg_ids, vg_ids):
                 gfa_job = gfa_root_job.addChildJobFn(vg_to_gfa, options, config, vg_path, vg_id,
                                                      disk=input_vg_id.size * 5)
@@ -332,7 +356,7 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
                 vcftag = vcf_ref + '.' + workflow_phase if vcf_ref != options.reference[0] else workflow_phase
                 deconstruct_job = prev_job.addFollowOnJobFn(make_vcf, config, options.outName, vcf_ref, current_out_dict,
                                                             max_ref_allele=options.vcfbub,
-                                                            tag=vcftag + '.',
+                                                            tag=vcftag + '.', ref_tag = workflow_phase + '.',
                                                             cores=options.indexCores,
                                                             disk = sum(f.size for f in vg_ids) * 2)
                 out_dicts.append(deconstruct_job.rv())                
@@ -519,6 +543,7 @@ def join_vg(job, options, config, clipped_vg_ids):
     work_dir = job.fileStore.getLocalTempDir()
     vg_paths = []
 
+    assert len(options.vg) == len(clipped_vg_ids)
     for vg_path, vg_id in zip(options.vg, clipped_vg_ids):
         vg_path = os.path.join(work_dir, os.path.basename(vg_path))
         job.fileStore.readGlobalFile(vg_id, vg_path, mutable=True)
@@ -551,6 +576,7 @@ def make_vg_indexes(job, options, config, gfa_ids, tag=''):
     graph_event = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "assemblyName", default="_MINIGRAPH_")
     
     # merge the gfas
+    assert len(options.vg) == len(gfa_ids)
     for i, (vg_path, gfa_id) in enumerate(zip(options.vg, gfa_ids)):
         gfa_path = os.path.join(work_dir, os.path.basename(vg_path) +  '.gfa')
         job.fileStore.readGlobalFile(gfa_id, gfa_path, mutable=True)
@@ -579,14 +605,14 @@ def make_vg_indexes(job, options, config, gfa_ids, tag=''):
              '{}gbz'.format(tag) : job.fileStore.writeGlobalFile(gbz_path),
              '{}snarls'.format(tag) : job.fileStore.writeGlobalFile(snarls_path) }
 
-def make_vcf(job, config, out_name, vcf_ref, index_dict, tag='', max_ref_allele=None):
+def make_vcf(job, config, out_name, vcf_ref, index_dict, tag='', ref_tag='', max_ref_allele=None):
     """ make the vcf
     """ 
     work_dir = job.fileStore.getLocalTempDir()
-    gbz_path = os.path.join(work_dir, tag + os.path.basename(out_name) + '.gbz')
-    snarls_path = os.path.join(work_dir, tag + os.path.basename(out_name) + '.snarls')
-    job.fileStore.readGlobalFile(index_dict['{}gbz'.format(tag)], gbz_path)
-    job.fileStore.readGlobalFile(index_dict['{}snarls'.format(tag)], snarls_path)
+    gbz_path = os.path.join(work_dir, ref_tag + os.path.basename(out_name) + '.gbz')
+    snarls_path = os.path.join(work_dir, ref_tag + os.path.basename(out_name) + '.snarls')
+    job.fileStore.readGlobalFile(index_dict['{}gbz'.format(ref_tag)], gbz_path)
+    job.fileStore.readGlobalFile(index_dict['{}snarls'.format(ref_tag)], snarls_path)
 
     # make the vcf
     vcf_path = os.path.join(work_dir, '{}merged.vcf.gz'.format(tag))
@@ -647,6 +673,7 @@ def merge_hal(job, options, hal_ids):
     """ call halMergeChroms to make one big hal file out of the chromosome hal files """
     work_dir = job.fileStore.getLocalTempDir()
     hal_paths = []
+    assert len(options.hal) == len(hal_ids)
     for in_path, hal_id in zip(options.hal, hal_ids):
         hal_path = os.path.join(work_dir, os.path.basename(in_path))
         job.fileStore.readGlobalFile(hal_id, hal_path)
@@ -666,16 +693,6 @@ def merge_hal(job, options, hal_ids):
     cactus_call(parameters=cmd, work_dir = work_dir)
 
     return { 'full.hal' : job.fileStore.writeGlobalFile(merged_path) }
-
-def unzip_seqfile(job, seq_id_map):
-    """ halUnclip needs uncompressed everythin, so we do it here relying on extensions """
-    unzip_id_map = {}
-    for event, name_id in seq_id_map.items():
-        if name_id[0].endswith(".gz"):
-            unzip_id_map[event] = (name_id[0][:-3], job.addChildJobFn(unzip_gz, name_id[0], name_id[1], disk=name_id[1].size * 10).rv())
-        else:
-            unzip_id_map[event] = name_id
-    return unzip_id_map
 
 def unclip_hal(job, hal_id_dict, seq_id_map):
     """ run halUnclip """
@@ -738,25 +755,29 @@ def export_join_data(toil, options, full_ids, clip_ids, clip_stats, filter_ids, 
 
         if 'full' in options.chrom_vg:
             # download the "full" vgs
+            assert len(options.vg) == len(full_ids)
             for vg_path, full_id,  in zip(options.vg, full_ids):
                 name = os.path.splitext(vg_path)[0] + '.full.vg'
                 toil.exportFile(full_id, makeURL(os.path.join(clip_base, os.path.basename(name))))
 
         if 'clip' in options.chrom_vg:
             # download the "clip" vgs
+            assert len(options.vg) == len(clip_ids)
             for vg_path, clip_id,  in zip(options.vg, clip_ids):
                 name = os.path.splitext(vg_path)[0] + '.vg'
                 toil.exportFile(clip_id, makeURL(os.path.join(clip_base, os.path.basename(name))))
 
         if 'filter' in options.chrom_vg:
             # download the "filter" vgs
+            assert len(options.vg) == len(filter_ids)
             for vg_path, filter_id,  in zip(options.vg, filter_ids):
                 name = os.path.splitext(vg_path)[0] + '.d{}.vg'.format(options.filter)
                 toil.exportFile(filter_id, makeURL(os.path.join(clip_base, os.path.basename(name))))
                 
-    # download the stats files 
-    for stats_file in clip_stats.keys():
-        toil.exportFile(clip_stats[stats_file], makeURL(os.path.join(options.outDir, '{}.{}'.format(options.outName, stats_file))))
+    # download the stats files
+    if clip_stats:
+        for stats_file in clip_stats.keys():
+            toil.exportFile(clip_stats[stats_file], makeURL(os.path.join(options.outDir, '{}.{}'.format(options.outName, stats_file))))
         
     # download everything else
     for idx_map in idx_maps:

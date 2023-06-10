@@ -16,7 +16,7 @@ and the output is available [here](https://s3-us-west-2.amazonaws.com/human-pang
 
 ## Short Read Sequencing Data
 
-The reads were downloaded from NCBI as follows, using accessions listed in [fly-sra.tsv](../fly-sra.tsv).
+The reads were downloaded from NCBI as follows, using accessions listed in [fly-sra.tsv](../fly-sra.tsv) and `faster-dump` from [sra toolkit v3.0.2](https://ftp-trace.ncbi.nlm.nih.gov/sra/sdk/3.0.2/sratoolkit.3.0.2-ubuntu64.tar.gz).
 
 ```
 for i in `cat fly-sra.tsv  | awk '{print $2}'` ; do fasterq-dump $i --split-3 ; bgzip ${i}_1.fastq --threads 8 ; bgzip ${i}_2.fastq --threads 8; done

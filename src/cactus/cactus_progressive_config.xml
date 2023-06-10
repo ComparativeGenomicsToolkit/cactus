@@ -353,12 +353,16 @@
 	<!-- minQueryUniqueness: The ratio of the number of query bases aligned to the chosen ref contig vs the next best ref contig must exceed this threshold to not be considered ambigious. -->
 	<!-- ambiguousName: Contigs deemed ambiguous using the above filters get added to a "contig" with this name, and are preserved in output. -->
 	<!-- remapSplitOptions: extra rgfa-split options to apply when splitting after remapping (use -u 3000000 to enable autoclipping between contigs, add -s to allow within contig)-->
+	<!-- maxRefContigs: The maximum number of auto-detect refContigs -->
+	<!-- refContigDropoff: When detecting refContigs, sort in reverse order by size, and pick refContigs up until contig N is this many times smaller than contig 1 (or maxRefContigs) is reached.  The general idea is to have a refContig for each chromosome then lump all the tiny ones into their own graphs. -->
   	<graphmap_split
 		 minQueryCoverages="0.75 0.5 0.25"
-       minQueryCoverageThresholds="100000 1000000"
+		 minQueryCoverageThresholds="100000 1000000"
 		 minQueryUniqueness="2"
 		 ambiguousName="_AMBIGUOUS_"
 		 remapSplitOptions=""
+		 maxRefContigs="128"
+		 refContigDropoff="10.0"
 		 />
 	<!-- cactus-graphmap-join options -->
 	<!-- gfaffix: toggle gfaffix normalization on/off -->

@@ -2,7 +2,7 @@
 
 Minigraph-Cactus is included in the [Cactus Software Package](../README.md) and is suitable for aligning similar samples, such as those from the *same species*. See [Progressive Cactus](./progressive.md) for aligning different species. 
 
-Please cite the [Minigraph-Cactus paper](https://doi.org/10.1101/2022.10.06.511217 ) when using Minigraph-Cactus.
+Please cite the [Minigraph-Cactus paper](https://doi.org/10.1038/s41587-023-01793-w) when using Minigraph-Cactus.
 
 ## Table of Contents
 
@@ -12,6 +12,8 @@ Please cite the [Minigraph-Cactus paper](https://doi.org/10.1101/2022.10.06.5112
 * [Interface](#interface)
 * [Output](#output)
 * [Yeast Graph](#yeast-graph)
+* [MHC Graph](#mhc-graph)
+* [GRCh38 Alts Graph](#grch38-alts-graph)
 * [Human Graph](#hprc-graph)
 * [Frequently Asked Questions](#frequently-asked-questions)
 
@@ -94,15 +96,34 @@ HG002.2  ./HG002.maternal.fa
 CHM13  ./chm13.fa
 ```
 
+### Reference Sample
+
+The `--reference` option must be used to select a "reference" sample.  This sample will:
+* Never be clipped.
+* Never be self-aligned ie its path in the output graph will be acyclic
+* Only visit nodes in their forward orientations
+* Be a "reference-sense" path in vg/gbz and will therefore be indexably for fast coordinate lookup
+* Be the basis for the output VCF and therefore won't appear as a sample in the VCF
+* Be used to divide the graph into chromosomes
+
+It is therefore extremely important that the reference sample's assembly be **chromosome** scale.  If there are many small contigs in the addition to chromosomes in the reference assembly, then please consider specifying the chromosomes with `--refContigs`. If you still want to keep the other contigs, add `--otherContig chrOther` (see explanation below).
+
+#### Multiple Reference Samples
+
+The `--reference` option can accept multiple samples (separated by space). If multiple samples are specified beyond the first, they will be clipped as usual, but end up as "reference-sense" paths in the vg/gbz output.  They can also be used as basis for VCF, and VCF files can be created based on them with the `--vcfReference` sample.
+
+For example, for human data one might consider using `--reference CHM13 GRCh38 GRCh37 --vcfReference CHM13 GRC3h8`.  This will make a graph referenced on CHM13, but will promote GRCh38 and GRCh38 to reference-sense paths so that they could be used, for example, to project BAMs on in `vg giraffe`.  Two VCFs will be output, one based on CHM13 and one based on GRCh38. 
+
 ### Pipeline
 
 The Minigraph-Cactus pipeline is run via the `cactus-pangenome` command. It consists of five stages which can also be run individually (below). `cactus-pangenome` writes output files into `--outDir` at the end of each stage. So different stages can be rerun with if necessary using the lower-level commands.
 
 **Before running large jobs, it is important to consider the following options:**
 
-* `--mapCores` the number of cores for each `minigraph` job (default: up to 6)
+* `--mgCores` the number of cores for `minigraph` construction (default: all available)
+* `--mapCores` the number of cores for each `minigraph` mapping job (default: up to 6)
 * `--consCores` the number of cores for each `cactus-consolidated` job (default: all available)
-* `--indexCores` the number of cores for each `vg` indexing job (default: 1)
+* `--indexCores` the number of cores for each `vg` indexing job (default: all available - 1)
 * The various output options: `--gbz`, `--gfa`, `--giraffe`, `--vcf` which are explained in detail below. If you forget to add one of these and are missing the corresponding output, you will need to rerun `cactus-graphmap-join` (or use `vg` to manually make the file yourself).
 
 Reducing `--consCores` will allow more chromosomes to be aligned at once, requiring more memory. VCF export for very large graphs will take a long time unless `--indexCores` is set high, but `--indexCores` should still be at least 1 lower than all cores available to allow some parallelism. 
@@ -113,9 +134,9 @@ Reducing `--consCores` will allow more chromosomes to be aligned at once, requir
 
 The application and impact of this option is demonstrated in the explanation of the Yeast pangenome example below.
 
-**Important** The reference genome assembly must be chromosome scale. If your reference assembly also consists of many small fragments (ex GRCh38) then you must use the `--refContigs` option to specify the chromosomes.  Ex for GRCh38 `--refContigs $(for i in `seq 22`; do echo chr$i; done ; echo "chrX chrY chrM")`.  If you want to include the remaining reference contig fragments in your graph, add the `--otherContig chrOther` option.
+**Important** The reference genome assembly must be chromosome scale. If your reference assembly also consists of many small fragments (ex GRCh38) then you can use the `--refContigs` option to specify the chromosomes.  Ex for GRCh38 `--refContigs $(for i in `seq 22`; do printf "chr$i "; done ; echo "chrX chrY chrM")`.  If you want to include the remaining reference contig fragments in your graph, add the `--otherContig chrOther` option.  If you do not specify `--refContigs`, they will be determined automatically and small contigs will be included. 
 
-**Also Important** We do not yet support the *alternate* loci from GRCh38, ex the various HLA contigs.  They must be excluded from the input fasta file to get sane results. They can be included in the graph by providing a separate sample / fasta pair in the input for each contig.  We are very interested in streamlining support for this in a future release.
+**Also Important** We do not yet automatically support the *alternate* loci from GRCh38, ex the various HLA contigs.  They must be excluded from the input fasta file to get sane results. They can be included in the graph by providing a separate sample / fasta pair in the input for each contig.  Please [here](#grch38-alts-graph) for an example of how to do so.
 
 The individual parts of the pipeline can be run independently using the following commands.  See also the "step-by-step" yeast example below. 
 
@@ -171,7 +192,7 @@ The `--vcf` option will produce two VCFs for each selected graph type. One VCF i
 
 The GBZ format uses 10 bits to store offsets within nodes, which imposees a 1024bp node length limit. Nodes are therefore chopped up as requried in the `.gbz` output (described above) to respect this limit. The index files derived from the `.gbz`: `.snarls`, `.dist`, and `.min` will share the `.gbz` graph's chopped ID space. 
 
-The `.gfa.gz` and node IDs referred to in the `.vgz.gz` file (via the variant IDs, AT and PS tags) are not chopped and therefore inconsistent with the `.gbz`.  This can be very confusing when trying to, for example, locate a variant in the `vcf.gz` back in the `.gbz` using node IDs: Node `X` in `.vcf.gz` and node `X` in `.gbz` will often both exist but can be totally different parts of the graph. 
+The `.gfa.gz` and node IDs referred to in the `.vcf.gz` file (via the variant IDs, AT and PS tags) are not chopped and therefore inconsistent with the `.gbz`.  This can be very confusing when trying to, for example, locate a variant in the `vcf.gz` back in the `.gbz` using node IDs: Node `X` in `.vcf.gz` and node `X` in `.gbz` will often both exist but can be totally different parts of the graph. 
 
 If you would rather have a VCF with consistent IDs to the GBZ as opposed to GFA, you can toggle this via the config XML
 ```
@@ -369,6 +390,76 @@ hal2assemblyHub.py ./jobstore ./yeast-pg/yeast-pg.full.hal yeast-pg/hub --shortL
 ```
 
 Move `yeast-pg/hub` to somewhere web-accessible, and pass the full URL of `yeast-pg/hub/hub.txt` to the Genome Browser in the "My Data -> Track Hubs" menu.   Select `S288C` as the reference and display the hub.  Right-click on the display and select "Configure yeast track set" to toggle on all the assemblies (and toggle off Anc0 and _MINIGRAPH_).
+
+## MHC Graph
+
+This is an example of how to build a [MHC](https://en.wikipedia.org/wiki/Major_histocompatibility_complex) Pangenome using [Minigraph example data of 61 haplotypes from the HPRC year 1 release](https://zenodo.org/record/6617246#.ZC0OQ-xBxhE). The first step is to convert the [AGC](https://github.com/refresh-bio/agc) archive into a seqfile:
+```
+# download the agc binary (if you don't already have it)
+wget -q https://github.com/refresh-bio/agc/releases/download/v3.0/agc-3.0_x64-linux-noavx.tar.gz
+tar zxf agc-3.0_x64-linux-noavx.tar.gz
+export PATH=$(pwd)/agc-3.0_x64-linux-noavx/:${PATH}
+
+# download the sequences
+wget -q https://zenodo.org/record/6617246/files/MHC-61.agc
+
+# make the seqfile
+mkdir -p mhc-fa ; rm -f mhc-seqfile.txt
+for s in $(agc listset MHC-61.agc); do printf "${s}\tmhc-fa/${s}.fa\n" >> mhc-seqfile.txt; agc getset MHC-61.agc $s > mhc-fa/${s}.fa; done
+
+# (Optional) clean up the sample names. if you don't do this, adjust --reference accordingly below
+sed -i mhc-seqfile.txt -e 's/^MHC-00GRCh38/MHC-GRCh38/g' -e 's/^MHC-CHM13.0/MHC-CHM13/g'
+
+# (Optional) clean up the contig names (replacing numbers with "MHC")
+for f in mhc-fa/*.fa; do sed -i ${f} -e 's/#0/#MHC/g' -e 's/#1/#MHC/g' -e 's/#2/#MCH/g'; done
+```
+
+The indexed pangenome can now be constructed as follows.  You can set the reference to `MHC-CHM13` instead of `MHC-GRCh38`. `--mapCores 1` is used to increase parallelism. The pipeline should take about 15 minutes on a system with 8 cores. 
+```
+cactus-pangenome ./js ./mhc-seqfile.txt --outDir mhc-pg --outName mhc --reference MHC-GRCh38 --gbz --giraffe --vcf --mapCores 1
+```
+
+## GRCh38 Alts Graph
+
+It's not often utilized as such, but the GRCh38 reference genome is actually a pangenome in and of itself, due to the various alternic loci scaffolds it contains. In general, including these sequences in the input to Cactus (both progressive and pangenome) along with the rest of GRCh38 will cause errors, so it is always important to filter them out. **But, we can use them by adding them back as separate samples.** Proof of concept instructions on doing so, resulting in a pangenome graph constructed from GRCh38 and its alt loci (excluding patches), are below.
+
+The results can be found with the example pangenomes [here](./mc-pangenomes/README.md). 
+
+We first download GRCh38 and extract each alt contig into its own fasta file:
+```
+wget https://hgdownload.soe.ucsc.edu/goldenPath/hg38/bigZips/hg38.fa.gz
+gzip -d hg38.fa.gz
+samtools faidx hg38.fa
+mkdir -p fa
+rm -f fa/hg38_no_alts.fa
+for contig in $(grep -v _alt hg38.fa.fai | awk '{print $1}'); do samtools faidx hg38.fa $contig >> fa/hg38_no_alts.fa; done
+bgzip fa/hg38_no_alts.fa --threads 16
+printf "GRCh38\tfa/hg38_no_alts.fa.gz\n" > grch38_alts.seqfile
+for contig in $(grep  _alt hg38.fa.fai | awk '{print $1}'); \
+do samtools faidx hg38.fa $contig | bgzip > fa/${contig}.fa.gz; \
+printf "${contig}\tfa/${contig}.fa.gz\n" >> grch38_alts.seqfile ; done
+```
+
+Make the pangenome, setting a very permissive overlap threshold to make sure all contigs get into a chromosome as some of them are very tiny and diverse. You will need about 100Gb of RAM to run this and, if you have fewer than 32 cores, need to adjust some of the settings below. 
+
+```
+mkdir -p work
+cactus-pangenome ./js ./grch38_alts.seqfile --reference GRCh38 --gbz clip --giraffe clip --vcf --outName grch38-alts-apr13 --outDir grch38-alts --logFile grch38-alts-apr13.log --indexCores 32 --mapCores 8 --consCores 8 --refContigs $(for i in `seq 22`; do printf "chr$i "; done ; echo "chrX chrY chrM") --otherContig chrOther --permissiveContigFilter 0.05 --workDir work
+```
+
+The GRCh38 alt loci are concentrated in a handful of regions.  Here's an example of how to pull out [MHC](https://www.ncbi.nlm.nih.gov/grc/human/regions/MHC) and [LRC-KIR](https://www.ncbi.nlm.nih.gov/grc/human/regions/LRC_KIR) (with a little bit of padding):
+
+```
+vg chunk -x grch38-alts-apr13.gbz -S grch38-alts-apr13.snarls -p GRCh38#0#chr6:28500120-33490577 -O gfa > mhc.gfa
+vg chunk -x grch38-alts-apr13.gbz -S grch38-alts-apr13.snarls -p GRCh38#0#chr19:54015634-55094318 -O gfa > lrc_kir.gfa
+```
+
+which can then be visualized with [Bandage-NG](https://github.com/asl/BandageNG).
+
+MHC (partial view)
+<img src="grch38-alt-pg-mhc.png" height=30% width=30%>
+LRC-KIR
+<img src="grch38-alt-pg-lrc_kir.png" height=30% width=30%>>
 
 ## HPRC Graph
 

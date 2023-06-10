@@ -1,3 +1,29 @@
+# Relase 2.5.2 2023-05-15
+
+This Release patches some bugs in the pangenome pipeline and makes it a bit more user-friendly
+
+- Fix support for multiple referenes via `--reference` and `--vcfReference`
+- Fix bug where certain combinations of options (ie returning filtered but not clipped index) could lead to crash
+- Fix crash when handling non-ascii characters in vg crash reports
+- Fix the `--chrom-vg` option in `cactus-pangenome`
+- New option `--mgCores` to specify number of cores for minigraph construction (rather than lumping in with `--mapCores` which is also used for mapping)
+- Better defaults for number of cores used in pangenome pipeline on singlemachine.
+- Fix bug where small contigs in the reference sample could lead to crashes if they couldn't map to themselves (and `--refContigs` was not used to specify chromosomes). `--refContigs` is now automatically set if not specifed. 
+- Update to vg 1.48.0
+- Update pangenome paper citation from preprint to published version.
+
+
+# Release 2.5.1 2023-04-19
+
+This Release mostly patches some bugs in the pangenome pipeline
+
+- `cactus-pangenome` now saves PAF file in the output directory
+- Ship version of `vg` that is patched to not make too-slow `giraffe` indexes for some complex graphs
+- Fix bug where `.` characters in reference sample name could lead to strange errors at end of pipeline
+- Better sample name validation for all pangenome tools to prevent confusion around `.`s.
+- Update `taffy` to fix issues where `--filterGapCausingDupes` could lead to crashes in `cactus-hal2maf`
+- Strip defaults of `taffy` commands from being specified in `cactus-hal2maf` -- they are now taken from `taffy`
+
 # Release 2.5.0 2023-04-03
 
 This Release greatly simplifies the interface for building pangenomes

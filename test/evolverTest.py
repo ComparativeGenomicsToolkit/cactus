@@ -466,15 +466,15 @@ class TestCase(unittest.TestCase):
 
         chroms = ['chrI', 'chrII', 'chrIII', 'chrIV', 'chrV', 'chrVI', 'chrVII', 'chrVIII', 'chrIX', 'chrX', 'chrXI', 'chrXIV', 'chrXV']
         cactus_pangenome_cmd = ['cactus-pangenome', self._job_store(binariesMode), orig_seq_file_path, '--outDir', join_path, '--outName', 'yeast',
-                                '--refContigs'] + chroms + ['--reference', 'S288C', '--vcf', '--giraffe', 'clip', 'filter',
-                                                            '--indexCores', '4', '--consCores', '2']
+                                '--refContigs'] + chroms + ['--reference', 'S288C', 'DBVPG6044', '--vcf', '--vcfReference','DBVPG6044', 'S288C', 
+                                                            '--giraffe', 'clip', 'filter',  '--chrom-vg', 'clip', 'filter', '--indexCores', '4', '--consCores', '2']
         subprocess.check_call(cactus_pangenome_cmd + cactus_opts)
 
         #compatibility with older test        
         subprocess.check_call(['mkdir', '-p', os.path.join(self.tempDir, 'chroms')])
         subprocess.check_call(['mv', os.path.join(join_path, 'chrom-subproblems', 'contig_sizes.tsv'), os.path.join(self.tempDir, 'chroms')])
 
-    def _check_yeast_pangenome(self, binariesMode):
+    def _check_yeast_pangenome(self, binariesMode, other_ref=None):
         """ yeast pangenome chromosome by chromosome pipeline
         """
 
@@ -489,21 +489,25 @@ class TestCase(unittest.TestCase):
         assert len(events) == 6
 
         join_path = os.path.join(self.tempDir, 'join')
-        vcf_path = os.path.join(join_path, 'yeast.vcf.gz')
+        vcf_paths = [os.path.join(join_path, 'yeast.vcf.gz')]
+        if other_ref:
+            vcf_paths.append(os.path.join(join_path, 'yeast.{}.vcf.gz'.format(other_ref)))
 
         # check that we have some alts for each sample in the VCF
-        vcf_allele_threshold = 40000
         for event in events:
-            if event == "S288C":
+            if event == "S288C" or event == other_ref:
                 continue
-            allele = 1
-            event = event.split(".")[0]
-            proc = subprocess.Popen('bcftools view {} -s {} -a -H | awk \'{{print $10}}\' | grep {} | wc -l'.format(vcf_path, event, allele),
-                                    shell=True, stdout=subprocess.PIPE)
-            output, errors = proc.communicate()
-            sts = proc.wait()
-            num_alleles = int(output.strip())
-            self.assertGreaterEqual(num_alleles, vcf_allele_threshold)
+            refs = [event, other_ref] if other_ref else [event]
+            for vcf_path, vcf_ref in zip(vcf_paths, refs):
+                vcf_allele_threshold = 40000 if vcf_ref == 'S288C' else 14000
+                allele = 1
+                event = event.split(".")[0]
+                proc = subprocess.Popen('bcftools view {} -s {} -a -H | awk \'{{print $10}}\' | grep {} | wc -l'.format(vcf_path, event, allele),
+                                        shell=True, stdout=subprocess.PIPE)
+                output, errors = proc.communicate()
+                sts = proc.wait()
+                num_alleles = int(output.strip())
+                self.assertGreaterEqual(num_alleles, vcf_allele_threshold)
 
         # make sure we have about the right sequence counts in the hal
         hal_path = os.path.join(join_path, 'yeast.full.hal')
@@ -921,7 +925,7 @@ class TestCase(unittest.TestCase):
         self._run_yeast_pangenome(name)
         
         # check the output
-        self._check_yeast_pangenome(name)
+        self._check_yeast_pangenome(name, other_ref='DBVPG6044')
 
 
 if __name__ == '__main__':

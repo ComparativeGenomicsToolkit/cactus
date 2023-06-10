@@ -16,7 +16,7 @@ Cactus is a reference-free whole-genome alignment program, as well as a pagenome
 ## Align Genomes from the Same Species and Build Pangenome Graphs 
 
 * See the [Minigraph-Cactus Pangenome Pipeline documenatation](doc/pangenome.md)
-* Please cite the [Minigraph-Cactus paper](https://doi.org/10.1101/2022.10.06.511217).
+* Please cite the [Minigraph-Cactus paper](https://doi.org/10.1038/s41587-023-01793-w).
 
 ## Acknowledgements
 
