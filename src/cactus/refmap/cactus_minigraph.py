@@ -169,9 +169,7 @@ def minigraph_construct_workflow(job, options, config_node, seq_id_map, seq_orde
         prev_job = sort_job
     else:
         prev_job = sanitize_job
-    minigraph_job = prev_job.addFollowOnJobFn(minigraph_construct, config_node, sanitized_seq_id_map, seq_order, gfa_path,
-                                              cores = options.mgCores,
-                                              disk = 5 * sum([seq_id.size for seq_id in seq_id_map.values()]))
+    minigraph_job = prev_job.addFollowOnJobFn(minigraph_construct, config_node, sanitized_seq_id_map, seq_order, gfa_path)
     return minigraph_job.rv()
 
 def sort_minigraph_input_with_mash(job, seq_id_map, seq_order):

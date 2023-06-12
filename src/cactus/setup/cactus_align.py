@@ -404,7 +404,7 @@ def export_vg(job, hal_id, config_wrapper, doVG, doGFA, referenceEvent, checkpoi
         return job.addChildJobFn(export_vg, hal_id, config_wrapper, doVG, doGFA, referenceEvent, checkpointInfo,
                                  resource_spec = True,
                                  disk=hal_id.size * 3,
-                                 memory=hal_id.size * 10).rv()
+                                 memory=hal_id.size * 60).rv()
         
     work_dir = job.fileStore.getLocalTempDir()
     hal_path = os.path.join(work_dir, "out.hal")
