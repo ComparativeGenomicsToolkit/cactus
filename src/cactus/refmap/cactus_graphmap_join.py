@@ -120,6 +120,9 @@ def graphmap_join_options(parser):
     parser.add_argument("--giraffe", nargs='*', default=None, help = "Generate Giraffe (.dist, .min) indexes for the given graph type(s). Valid types are 'full', 'clip' and 'filter'. If not type specified, 'filter' will be used (will fall back to 'clip' than full if filtering, clipping disabled, respectively). Multiple types can be provided seperated by a space")
     parser.add_argument("--indexCores", type=int, default=None, help = "cores for general indexing and VCF constructions (defaults to the same as --maxCores)")
 
+    parser.add_argument("--chop", type=int, nargs='?', const=1024, default=None,
+                        help="chop all graph nodes to be at most this long (default=1024 specified without value). By default, nodes are only chopped for GBZ-derived formats, but left unchopped in the GFA, VCF, etc. If this option is used, the GBZ and GFA should have consistent IDs") 
+
 def graphmap_join_validate_options(options):
     """ make sure the options make sense and fill in sensible defaults """
     if options.hal and len(options.hal) != len(options.vg):
@@ -445,6 +448,10 @@ def clip_vg(job, options, config, vg_path, vg_id, phase):
 
             # todo: do we want to add the minigraph prefix to keep stubs from minigraph? but I don't think it makes stubs....
             cmd.append(stub_cmd)
+
+    # enforce chopping
+    if phase == 'full' and options.chop:
+        cmd.append(['vg', 'mod', '-X', str(options.chop), '-'])
 
     # and we sort by id on the first go-around
     if phase == 'full':
