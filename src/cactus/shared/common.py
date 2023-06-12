@@ -858,7 +858,7 @@ def cactus_call(tool=None,
         if job_memory:
             rt_message += ' with job-memory {}'.format(bytes2human(job_memory))
         if utilization:
-            rt_message += '. Percent utilization: {:.4}{}]'.format(100. * utilization, ' **WARNING: limit exceeded**' if utilization > 1 else '')
+            rt_message += '. Percent utilization: {:.4}{}'.format(100. * utilization, ' **WARNING: limit exceeded**' if utilization > 1 else '')
                 
         cactus_realtime_log(rt_message, log_debug = 'ktremotemgr' in call)
 

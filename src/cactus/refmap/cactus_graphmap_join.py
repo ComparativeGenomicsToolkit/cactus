@@ -348,7 +348,16 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
     if options.filter:
         workflow_phases.append(('filter', filter_vg_ids, filter_root_job))        
     for workflow_phase, phase_vg_ids, phase_root_job in workflow_phases:
-        
+
+        # hacky heuristic to get memory for vg jobs, where vg minimizer is tricky as
+        # it's not really based on graph size so much (ie simple graphs can take lots of mem)
+        tot_size = sum(f.size for f in vg_ids)
+        index_mem = tot_size * 5
+        for exp, fac in zip([30, 33, 36, 39], [40, 30, 20, 10]):
+            if tot_size < 2**exp:
+                index_mem = tot_size * fac
+                break
+            
         # make a gfa for each
         gfa_root_job = Job()
         phase_root_job.addFollowOn(gfa_root_job)
@@ -362,12 +371,11 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
                                                      memory=max(2**31, input_vg_id.size * 16))
                 gfa_ids.append(gfa_job.rv())
 
-            # merge up the gfas and make the various vg indexes
             gfa_merge_job = gfa_root_job.addFollowOnJobFn(make_vg_indexes, options, config, gfa_ids,
                                                           tag=workflow_phase + '.',
                                                           cores=options.indexCores,
                                                           disk=sum(f.size for f in vg_ids) * 6,
-                                                          memory=sum(f.size for f in vg_ids) * 11)
+                                                          memory=index_mem)
             out_dicts.append(gfa_merge_job.rv())
             prev_job = gfa_merge_job
             current_out_dict = gfa_merge_job.rv()
@@ -381,7 +389,7 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
                                                             tag=vcftag + '.', ref_tag = workflow_phase + '.',
                                                             cores=options.indexCores,
                                                             disk = sum(f.size for f in vg_ids) * 6,
-                                                            memory=sum(f.size for f in vg_ids) * 11)
+                                                            memory=index_mem)
                 out_dicts.append(deconstruct_job.rv())                
 
         # optional giraffe
@@ -390,7 +398,7 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
                                                          tag=workflow_phase + '.',
                                                          cores=options.indexCores,
                                                          disk = sum(f.size for f in vg_ids) * 16,
-                                                         memory=sum(f.size for f in vg_ids) * 11)
+                                                         memory=index_mem)
             out_dicts.append(giraffe_job.rv())
 
     
