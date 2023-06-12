@@ -580,12 +580,12 @@ def make_vg_indexes(job, options, config, gfa_ids, tag=''):
     for i, (vg_path, gfa_id) in enumerate(zip(options.vg, gfa_ids)):
         gfa_path = os.path.join(work_dir, os.path.basename(vg_path) +  '.gfa')
         job.fileStore.readGlobalFile(gfa_id, gfa_path, mutable=True)
-        cmd = ['grep', '-v', '{}^W     {}'.format('^H\|' if i else '', graph_event), gfa_path]
+        cmd = ['grep', '-v', '{}^W	{}'.format('^H\|' if i else '', graph_event), gfa_path]
         # add in the additional references here
-        if i == 0 and len(options.reference) > 1:
-            # if so, will need a new tool (or perhaps interface on vg paths?)
-            cmd = [cmd, ['sed', '-e', '1s/{}/{}/'.format(options.reference[0], ' '.join(options.reference)),
-                         '-e', '1s/{}//'.format(graph_event)]]
+        if i == 0:
+            cmd = [cmd, ['sed', '-e', '1s/{}//'.format(graph_event)]]
+            if len(options.reference) > 1:
+                cmd.append(['sed', '-e', '1s/{}/{}/'.format(options.reference[0], ' '.join(options.reference))])
         cactus_call(parameters=cmd, outfile=merge_gfa_path, outappend=True)
         job.fileStore.deleteGlobalFile(gfa_id)
 
