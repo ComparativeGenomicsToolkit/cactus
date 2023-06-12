@@ -280,6 +280,16 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
     full_vg_ids = [join_job.rv(i) for i in range(len(vg_ids))]
     prev_job = join_job
 
+    # take out the _MINIGRAPH_ paths
+    if 'full' in options.chrom_vg:
+        output_full_vg_ids = []
+        for vg_path, vg_id, full_vg_id in zip(options.vg, vg_ids, full_vg_ids):
+            drop_graph_event_job = join_job.addFollowOnJobFn(drop_graph_event, config, vg_path, full_vg_id,
+                                                             disk=vg_id.size * 3, memory=vg_id.size * 6)
+            output_full_vg_ids.append(drop_graph_event_job.rv())
+    else:
+        output_full_vg_ids = full_vg_ids
+
     # run the "clip" phase to do the clip-vg clipping
     clip_vg_ids = []
     clipped_stats = None 
@@ -370,7 +380,7 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
             out_dicts.append(giraffe_job.rv())
 
     
-    return full_vg_ids, clip_vg_ids, clipped_stats, filter_vg_ids, out_dicts
+    return output_full_vg_ids, clip_vg_ids, clipped_stats, filter_vg_ids, out_dicts
 
 def clip_vg(job, options, config, vg_path, vg_id, phase):
     """ run clip-vg 
@@ -553,6 +563,17 @@ def join_vg(job, options, config, clipped_vg_ids):
 
     return [job.fileStore.writeGlobalFile(f) for f in vg_paths]
 
+def drop_graph_event(job, config, vg_path, full_vg_id):
+    """ take the _MINIGRAPH_ paths out of a chrom-vg full output graph """
+    work_dir = job.fileStore.getLocalTempDir()
+    full_vg_path = os.path.join(work_dir, os.path.splitext(os.path.basename(vg_path))[0]) + '.full.vg'
+    job.fileStore.readGlobalFile(full_vg_id, full_vg_path)
+    out_path = full_vg_path + '.drop'
+    graph_event = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "assemblyName", default="_MINIGRAPH_")
+    
+    cactus_call(parameters=['vg', 'paths', '-d', '-S', graph_event, '-x', full_vg_path], outfile=out_path)
+    return job.fileStore.writeGlobalFile(out_path)
+    
 def vg_to_gfa(job, options, config, vg_path, vg_id):
     """ run gfa conversion """
     work_dir = job.fileStore.getLocalTempDir()
@@ -580,12 +601,12 @@ def make_vg_indexes(job, options, config, gfa_ids, tag=''):
     for i, (vg_path, gfa_id) in enumerate(zip(options.vg, gfa_ids)):
         gfa_path = os.path.join(work_dir, os.path.basename(vg_path) +  '.gfa')
         job.fileStore.readGlobalFile(gfa_id, gfa_path, mutable=True)
-        cmd = ['grep', '-v', '{}^W     {}'.format('^H\|' if i else '', graph_event), gfa_path]
+        cmd = ['grep', '-v', '{}^W	{}'.format('^H\|' if i else '', graph_event), gfa_path]
         # add in the additional references here
-        if i == 0 and len(options.reference) > 1:
-            # if so, will need a new tool (or perhaps interface on vg paths?)
-            cmd = [cmd, ['sed', '-e', '1s/{}/{}/'.format(options.reference[0], ' '.join(options.reference)),
-                         '-e', '1s/{}//'.format(graph_event)]]
+        if i == 0:
+            cmd = [cmd, ['sed', '-e', '1s/{}//'.format(graph_event)]]
+            if len(options.reference) > 1:
+                cmd.append(['sed', '-e', '1s/{}/{}/'.format(options.reference[0], ' '.join(options.reference))])
         cactus_call(parameters=cmd, outfile=merge_gfa_path, outappend=True)
         job.fileStore.deleteGlobalFile(gfa_id)
 
