@@ -271,7 +271,7 @@ def mash_distance_order(job, seq_order, mash_output_maps):
 
     # we want to sort reverse on size, so make them negative
     # and we round the dists to ignore tiny changes
-    mash_dists = [(round(x, 4),round(y, 4), -z) for x,y,z in mash_dists]
+    mash_dists = [(round(x, 7),round(y, 7), -z) for x,y,z in mash_dists]
     seq_to_dist = {}
     for seq, md in zip(seq_order, mash_dists):
         seq_to_dist[seq] = md
