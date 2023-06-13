@@ -11,7 +11,7 @@ import copy
 import timeit, time
 from Bio import SeqIO
 from Bio.SeqRecord import SeqRecord
-
+from collections import defaultdict
 from operator import itemgetter
 
 from cactus.progressive.seqFile import SeqFile
@@ -183,14 +183,29 @@ def sort_minigraph_input_with_mash(job, seq_id_map, seq_order):
     sketch_job = job.addChildJobFn(mash_sketch, seq_order[0], seq_id_map,
                                    disk = seq_id_map[seq_order[0]].size * 2)
     ref_sketch_id = sketch_job.rv()
+
     dist_root_job = Job()
     sketch_job.addFollowOn(dist_root_job)
-    for seq in seq_order[1:]:
-        dist = dist_root_job.addChildJobFn(mash_dist, seq, seq_order[0], seq_id_map, ref_sketch_id,
-                                           disk = seq_id_map[seq].size + seq_id_map[seq_order[0]].size).rv()
-        mash_dists.append(dist)                    
 
-    return dist_root_job.addFollowOnJobFn(mash_distance_order, seq_order, mash_dists).rv()
+    # in the case of diploid inputs, the distance will be driven by the sex of the haplotype
+    # ie in human, the haplotype with chrX is always going to be much closer to the reference
+    # than the one with chrY, which makes the resulting order pretty meaningless.
+    #
+    # so to get around this, we group the haplotypes by sample, and compute their distances together
+    # so, for example HG002.1 and HG002.2 would be always be consecutive in the order and their distance
+    # will be determined jointly (by just concatenating them).
+    seq_by_sample = defaultdict(list)
+    for seq_name in seq_order[1:]:
+        seq_by_sample[seq_name[:seq_name.rfind('.')]].append(seq_name)
+
+    # list of dictionary (promises) that map genome name to mash distance output
+    dist_maps = []
+    for sample, names in seq_by_sample.items():
+        dist_map = dist_root_job.addChildJobFn(mash_dist, names, seq_order[0], seq_id_map, ref_sketch_id,
+                                               disk = 2 * sum(seq_id_map[x].size for x in names) + seq_id_map[seq_order[0]].size).rv()
+        dist_maps.append(dist_map)
+            
+    return dist_root_job.addFollowOnJobFn(mash_distance_order, seq_order, dist_maps).rv()
 
 def mash_sketch(job, ref_seq, seq_id_map):
     """ get the sketch """
@@ -202,26 +217,64 @@ def mash_sketch(job, ref_seq, seq_id_map):
 
     return job.fileStore.writeGlobalFile(ref_path + '.msh')
     
-def mash_dist(job, query_seq, ref_seq, seq_id_map, ref_sketch_id):
-    """ get the mash distance """
+def mash_dist(job, query_seqs, ref_seq, seq_id_map, ref_sketch_id):
+    """ get the mash distance
+    returns a map from genome name to -> (sample distance, distance, size)
+    where sample_distance is the concatentation of all sequences from the same sample (ie HG002.1 and HG002.2)
+    """
     work_dir = job.fileStore.getLocalTempDir()
     ref_sketch_path = os.path.join(ref_seq + '.fa.msh')
-    query_path = os.path.join(query_seq + '.fa')
+    query_paths = [os.path.join(query_seq + '.fa') for query_seq in query_seqs]
     job.fileStore.readGlobalFile(ref_sketch_id, ref_sketch_path)
-    job.fileStore.readGlobalFile(seq_id_map[query_seq], query_path)
+    for query_seq, query_path in zip(query_seqs, query_paths):
+        job.fileStore.readGlobalFile(seq_id_map[query_seq], query_path)
 
-    mash_output = cactus_call(parameters=['mash', 'dist', query_path, ref_sketch_path], check_output=True)
-    dist = float(mash_output.strip().split()[2])
-    size = sum([len(r.seq) for r in SeqIO.parse(query_path, 'fasta')])
-    RealtimeLogger.info('mash distance of {} (size = {}) to reference {} = {}'.format(query_seq, size, ref_seq, dist))
-    return (dist, size)
+    def parse_mash_output(mash_output):
+        return float(mash_output.strip().split()[2])
+
+    output_dist_map = {}
     
-def mash_distance_order(job, seq_order, mash_dists):
+    # make the concatenated distance
+    cat_mash_dist = None
+    if len(query_seqs) > 1:        
+        cat_path = query_paths[0] + '.cat'
+        catFiles(query_paths, cat_path)
+        cat_mash_output = cactus_call(parameters=['mash', 'dist', cat_path, ref_sketch_path], check_output=True)
+        cat_mash_dist = parse_mash_output(cat_mash_output)
+
+    # make the individual distance
+    for query_seq, query_path in zip(query_seqs, query_paths):
+        mash_output = cactus_call(parameters=['mash', 'dist', query_path, ref_sketch_path], check_output=True)
+        dist = parse_mash_output(mash_output)
+        sample_dist = cat_mash_dist if cat_mash_dist is not None else dist
+        size = sum([len(r.seq) for r in SeqIO.parse(query_path, 'fasta')])
+        output_dist_map[query_seq] = (sample_dist, dist, size)
+        log_msg = 'mash distance of {} (size = {}) to reference {} = {}'.format(query_seq, size, ref_seq, dist)
+        if cat_mash_dist is not None:
+            log_msg += ' sample distance = {}'.format(cat_mash_dist)
+        RealtimeLogger.info(log_msg)
+        
+    return output_dist_map
+    
+def mash_distance_order(job, seq_order, mash_output_maps):
     """ get the sequence order from the mash distance"""
-    seq_to_dist = { }
+
+    # we first orient the list of dicts along seq_order
+    mash_output_map = mash_output_maps[0]
+    for output_map in mash_output_maps[1:]:
+        mash_output_map.update(output_map)    
+    mash_dists = []
+    for seq in seq_order:
+        if seq in mash_output_map:
+            mash_dists.append(mash_output_map[seq])
+        else:
+            assert seq == seq_order[0]
+            mash_dists.append((0, 0, sys.maxsize))
+
     # we want to sort reverse on size, so make them negative
     # and we round the dists to ignore tiny changes
-    mash_dists = [(round(x, 4),-y) for x,y in mash_dists]
+    mash_dists = [(round(x, 4),round(y, 4), -z) for x,y,z in mash_dists]
+    seq_to_dist = {}
     for seq, md in zip(seq_order, mash_dists):
         seq_to_dist[seq] = md
     return sorted(seq_order, key = lambda x : seq_to_dist[x])
