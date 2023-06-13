@@ -124,9 +124,12 @@ def graphmap_join_options(parser):
                         help="Memory in bytes for each indexing and vcf construction job job (defaults to an estimate based on the input data size). "
                         "Standard suffixes like K, Ki, M, Mi, G or Gi are supported (default=bytes))", default=None)   
     
+<<<<<<< HEAD
 
     parser.add_argument("--chop", type=int, nargs='?', const=1024, default=None,
                         help="chop all graph nodes to be at most this long (default=1024 specified without value). By default, nodes are only chopped for GBZ-derived formats, but left unchopped in the GFA, VCF, etc. If this option is used, the GBZ and GFA should have consistent IDs") 
+=======
+>>>>>>> 5813df07 (log percent memory utlization vs job memory)
 
 def graphmap_join_validate_options(options):
     """ make sure the options make sense and fill in sensible defaults """
@@ -428,7 +431,11 @@ def clip_vg(job, options, config, vg_path, vg_id, phase):
         fix_cmd = ['gfaffix', gfa_in_path, '--output_refined', gfa_out_path, '--check_transformation']
         if options.reference:
             fix_cmd += ['--dont_collapse', options.reference[0] + '*']
+<<<<<<< HEAD
         cactus_call(parameters=fix_cmd, job_memory=job.memory)
+=======
+        cactus_call(parameters=fix_cmd, , job_memory=job.memory)
+>>>>>>> 5813df07 (log percent memory utlization vs job memory)
         # GFAffix strips the header, until this is fixed we need to add it back (for the RS tag)
         gfa_header = cactus_call(parameters=['head', '-1', gfa_in_path], check_output=True).strip()
         cactus_call(parameters=['sed', '-i', gfa_out_path, '-e', '1s/.*/{}/'.format(gfa_header)])
