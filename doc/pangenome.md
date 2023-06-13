@@ -130,6 +130,8 @@ Reducing `--consCores` will allow more chromosomes to be aligned at once, requir
 
 By default, `cactus` attempts to automatically determine the amount of memory to request for each job.  This estimate can be too conservative for `cactus-consolidated` jobs. You can override it with `--consMemory`. 
 
+**IMPORTANT**: If you are going to make use of the vg node IDs across the various output files, consider using the `--chop` option to `cactus-pangenome` to force all files to use the chopped IDs (see [Node Chopping](#node-chopping) below). 
+
 **PLEASE NOTE** While many Minigraph-Cactus parameters' default values were tuned on high-quality human assemblies from the HPRC where ample benchmarking data was available, we believe they will be suitable for other datasets and species, so long as the contigs can be mapped with [minigraph](https://github.com/lh3/minigraph). By default, [small contigs are filtered out](https://github.com/ComparativeGenomicsToolkit/cactus/blob/v2.4.4/src/cactus/cactus_progressive_config.xml#L319-L335) during chromosome assignment using more stringent thresholds. This might lead to a surprisingly low sensitivity on small, fragmented, diverse assemblies or difficult-to-assemble regions. Users wishing to *keep* these contigs in their graph can use the following option:
 
 * `--permissiveContigFilter`
@@ -195,6 +197,10 @@ The `--vcf` option will produce two VCFs for each selected graph type. One VCF i
 The GBZ format uses 10 bits to store offsets within nodes, which imposees a 1024bp node length limit. Nodes are therefore chopped up as requried in the `.gbz` output (described above) to respect this limit. The index files derived from the `.gbz`: `.snarls`, `.dist`, and `.min` will share the `.gbz` graph's chopped ID space. 
 
 The `.gfa.gz` and node IDs referred to in the `.vcf.gz` file (via the variant IDs, AT and PS tags) are not chopped and therefore inconsistent with the `.gbz`.  This can be very confusing when trying to, for example, locate a variant in the `vcf.gz` back in the `.gbz` using node IDs: Node `X` in `.vcf.gz` and node `X` in `.gbz` will often both exist but can be totally different parts of the graph. 
+
+If you are working with the node IDs, and / or do not care if the nodes are chopped in the GFA, the simplest thing to do is use the `--chop` option for `cactus-pangenome` / `cactus-graphmap-join`.  This option will limit all nodes to a maximum length of 1024bp in all graph files which means that none will be renamed during GBZ construction.
+
+Otherwise, see below for how you can use the GBZ's built-in mapping to toggle between node ID spaces:
 
 If you would rather have a VCF with consistent IDs to the GBZ as opposed to GFA, you can toggle this via the config XML
 ```
