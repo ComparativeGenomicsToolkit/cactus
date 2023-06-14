@@ -304,19 +304,21 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
     # sanitize headers (once here, skip in all workflows below)
     sanitize_job = root_job.addFollowOnJobFn(sanitize_fasta_headers, seq_id_map, pangenome=True)
     seq_id_map = sanitize_job.rv()
-    
-    # cactus_minigraph
-    sv_gfa_path = os.path.join(options.outDir, options.outName + '.sv.gfa.gz')
-    
-    minigraph_job = sanitize_job.addFollowOnJobFn(minigraph_construct_workflow, options, config_node, seq_id_map, seq_order, sv_gfa_path, sanitize=False)
-    sv_gfa_id = minigraph_job.rv()
-    minigraph_job.addFollowOnJobFn(export_minigraph_wrapper, options, sv_gfa_id, sv_gfa_path)
 
-    # it's really only graphmap_join that can next accept (or use) multiple references
+    # it's really only graphmap_join (and now minigraph) that can next accept (or use) multiple references
     # so we forget about it until then
     assert type(options.reference) == list
     reference_list = options.reference
     options.reference = options.reference[0]
+
+    # cactus_minigraph
+    sv_gfa_path = os.path.join(options.outDir, options.outName + '.sv.gfa.gz')
+
+    mg_opts = copy.deepcopy(options)
+    mg_opts.reference = reference_list
+    minigraph_job = sanitize_job.addFollowOnJobFn(minigraph_construct_workflow, mg_opts, config_node, seq_id_map, seq_order, sv_gfa_path, sanitize=False)
+    sv_gfa_id = minigraph_job.rv()
+    minigraph_job.addFollowOnJobFn(export_minigraph_wrapper, options, sv_gfa_id, sv_gfa_path)
 
     # cactus_graphmap
     paf_path = os.path.join(options.outDir, options.outName + '.paf')
