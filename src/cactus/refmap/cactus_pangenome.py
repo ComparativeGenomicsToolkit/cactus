@@ -194,7 +194,7 @@ def main():
             #import the sequences
             input_seq_id_map = {}
             input_path_map = {}
-            input_seq_order = [options.reference[0]]
+            input_seq_order = copy.deepcopy(options.reference)
             leaves = set([seqFile.tree.getName(node) for node in seqFile.tree.getLeaves()])
             for (genome, seq) in input_seq_map.items():
                 if genome != graph_event and genome in leaves:                
@@ -206,7 +206,7 @@ def main():
                     logger.info("Importing {}".format(seq))
                     input_seq_id_map[genome] = toil.importFile(seq)
                     input_path_map[genome] = seq
-                    if genome != options.reference[0]:
+                    if genome not in options.reference:
                         input_seq_order.append(genome)
             
             toil.start(Job.wrapJobFn(pangenome_end_to_end_workflow, options, config_wrapper, input_seq_id_map, input_path_map, input_seq_order))
@@ -301,20 +301,22 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
     job.addChild(root_job)
     config_node = config_wrapper.xmlRoot
 
-    # it's really only graphmap_join that can accept (or use) multiple references
+    # sanitize headers (once here, skip in all workflows below)
+    sanitize_job = root_job.addFollowOnJobFn(sanitize_fasta_headers, seq_id_map, pangenome=True)
+    seq_id_map = sanitize_job.rv()
+
+    # it's really only graphmap_join (and now minigraph) that can next accept (or use) multiple references
     # so we forget about it until then
     assert type(options.reference) == list
     reference_list = options.reference
     options.reference = options.reference[0]
 
-    # sanitize headers (once here, skip in all workflows below)
-    sanitize_job = root_job.addFollowOnJobFn(sanitize_fasta_headers, seq_id_map, pangenome=True)
-    seq_id_map = sanitize_job.rv()
-    
     # cactus_minigraph
     sv_gfa_path = os.path.join(options.outDir, options.outName + '.sv.gfa.gz')
-    
-    minigraph_job = sanitize_job.addFollowOnJobFn(minigraph_construct_workflow, options, config_node, seq_id_map, seq_order, sv_gfa_path, sanitize=False)
+
+    mg_opts = copy.deepcopy(options)
+    mg_opts.reference = reference_list
+    minigraph_job = sanitize_job.addFollowOnJobFn(minigraph_construct_workflow, mg_opts, config_node, seq_id_map, seq_order, sv_gfa_path, sanitize=False)
     sv_gfa_id = minigraph_job.rv()
     minigraph_job.addFollowOnJobFn(export_minigraph_wrapper, options, sv_gfa_id, sv_gfa_path)
 

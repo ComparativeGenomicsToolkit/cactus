@@ -48,6 +48,7 @@ from toil.statsAndLogging import set_logging_from_options
 from toil.realtimeLogger import RealtimeLogger
 from cactus.shared.common import cactus_cpu_count
 from cactus.refmap.cactus_minigraph import check_sample_names
+from cactus.progressive.cactus_prepare import human2bytesN
 
 from sonLib.nxnewick import NXNewick
 from sonLib.bioio import getTempDirectory, getTempFile, catFiles
@@ -119,7 +120,10 @@ def graphmap_join_options(parser):
     
     parser.add_argument("--giraffe", nargs='*', default=None, help = "Generate Giraffe (.dist, .min) indexes for the given graph type(s). Valid types are 'full', 'clip' and 'filter'. If not type specified, 'filter' will be used (will fall back to 'clip' than full if filtering, clipping disabled, respectively). Multiple types can be provided seperated by a space")
     parser.add_argument("--indexCores", type=int, default=None, help = "cores for general indexing and VCF constructions (defaults to the same as --maxCores)")
-
+    parser.add_argument("--indexMemory", type=human2bytesN,
+                        help="Memory in bytes for each indexing and vcf construction job job (defaults to an estimate based on the input data size). "
+                        "Standard suffixes like K, Ki, M, Mi, G or Gi are supported (default=bytes))", default=None)   
+    
     parser.add_argument("--chop", type=int, nargs='?', const=1024, default=None,
                         help="chop all graph nodes to be at most this long (default=1024 specified without value). By default, nodes are only chopped for GBZ-derived formats, but left unchopped in the GFA, VCF, etc. If this option is used, the GBZ and GFA should have consistent IDs") 
 
@@ -272,14 +276,15 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
     assert len(options.vg) == len(vg_ids)
     for vg_path, vg_id in zip(options.vg, vg_ids):
         full_job = Job.wrapJobFn(clip_vg, options, config, vg_path, vg_id, 'full',
-                                disk=vg_id.size * 2, memory=vg_id.size * 4)
+                                 disk=vg_id.size * 20, memory=max(2**31, vg_id.size * 20))
         root_job.addChild(full_job)
         full_vg_ids.append(full_job.rv(0))
     prev_job = root_job
     
     # join the ids
     join_job = prev_job.addFollowOnJobFn(join_vg, options, config, full_vg_ids,
-                                         disk=sum([f.size for f in vg_ids]))
+                                         disk=sum([f.size for f in vg_ids]),
+                                         memory=max([f.size for f in vg_ids]) * 4)
     full_vg_ids = [join_job.rv(i) for i in range(len(vg_ids))]
     prev_job = join_job
 
@@ -303,7 +308,7 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
         assert len(options.vg) == len(full_vg_ids) == len(vg_ids)
         for vg_path, vg_id, input_vg_id in zip(options.vg, full_vg_ids, vg_ids):
             clip_job = Job.wrapJobFn(clip_vg, options, config, vg_path, vg_id, 'clip',
-                                     disk=input_vg_id.size * 2, memory=input_vg_id.size * 4)
+                                     disk=input_vg_id.size * 20, memory=max(2**31, input_vg_id.size * 20))
             clip_root_job.addChild(clip_job)
             clip_vg_ids.append(clip_job.rv(0))
             clip_vg_stats.append(clip_job.rv(1))
@@ -320,7 +325,7 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
         assert len(options.vg) == len(clip_vg_ids) == len(vg_ids)
         for vg_path, vg_id, input_vg_id in zip(options.vg, clip_vg_ids, vg_ids):
             filter_job = filter_root_job.addChildJobFn(vg_clip_vg, options, config, vg_path, vg_id, 
-                                                       disk=input_vg_id.size * 2)
+                                                       disk=input_vg_id.size * 20, memory=max(2**31, input_vg_id.size * 22))
             filter_vg_ids.append(filter_job.rv())
         prev_job = filter_root_job
 
@@ -331,7 +336,8 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
     if hal_ids:
         hal_merge_job = job.addChildJobFn(merge_hal, options, hal_ids,
                                           cores = 1,
-                                          disk=sum(f.size for f in hal_ids) * 2)
+                                          disk=sum(f.size for f in hal_ids) * 2,
+                                          memory=max(f.size for f in hal_ids) * 2)
         hal_id_dict = hal_merge_job.rv()
         out_dicts.append(hal_id_dict)
 
@@ -341,7 +347,16 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
     if options.filter:
         workflow_phases.append(('filter', filter_vg_ids, filter_root_job))        
     for workflow_phase, phase_vg_ids, phase_root_job in workflow_phases:
-        
+
+        # hacky heuristic to get memory for vg jobs, where vg minimizer is tricky as
+        # it's not really based on graph size so much (ie simple graphs can take lots of mem)
+        tot_size = sum(f.size for f in vg_ids)
+        index_mem = tot_size * 5
+        for exp, fac in zip([30, 33, 36, 39], [40, 30, 20, 10]):
+            if tot_size < 2**exp:
+                index_mem = tot_size * fac
+                break
+            
         # make a gfa for each
         gfa_root_job = Job()
         phase_root_job.addFollowOn(gfa_root_job)
@@ -351,14 +366,15 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
             assert len(options.vg) == len(phase_vg_ids) == len(vg_ids)
             for vg_path, vg_id, input_vg_id in zip(options.vg, phase_vg_ids, vg_ids):
                 gfa_job = gfa_root_job.addChildJobFn(vg_to_gfa, options, config, vg_path, vg_id,
-                                                     disk=input_vg_id.size * 5)
+                                                     disk=input_vg_id.size * 10,
+                                                     memory=max(2**31, input_vg_id.size * 16))
                 gfa_ids.append(gfa_job.rv())
 
-            # merge up the gfas and make the various vg indexes
             gfa_merge_job = gfa_root_job.addFollowOnJobFn(make_vg_indexes, options, config, gfa_ids,
                                                           tag=workflow_phase + '.',
                                                           cores=options.indexCores,
-                                                          disk=sum(f.size for f in vg_ids) * 5)
+                                                          disk=sum(f.size for f in vg_ids) * 6,
+                                                          memory=index_mem)
             out_dicts.append(gfa_merge_job.rv())
             prev_job = gfa_merge_job
             current_out_dict = gfa_merge_job.rv()
@@ -371,7 +387,8 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
                                                             max_ref_allele=options.vcfbub,
                                                             tag=vcftag + '.', ref_tag = workflow_phase + '.',
                                                             cores=options.indexCores,
-                                                            disk = sum(f.size for f in vg_ids) * 2)
+                                                            disk = sum(f.size for f in vg_ids) * 6,
+                                                            memory=index_mem)
                 out_dicts.append(deconstruct_job.rv())                
 
         # optional giraffe
@@ -379,7 +396,8 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
             giraffe_job = gfa_merge_job.addFollowOnJobFn(make_giraffe_indexes, options, config, current_out_dict,
                                                          tag=workflow_phase + '.',
                                                          cores=options.indexCores,
-                                                         disk = sum(f.size for f in vg_ids) * 4)
+                                                         disk = sum(f.size for f in vg_ids) * 16,
+                                                         memory=index_mem)
             out_dicts.append(giraffe_job.rv())
 
     
@@ -405,11 +423,11 @@ def clip_vg(job, options, config, vg_path, vg_id, phase):
         gfa_in_path = vg_path + '.gfa'
         gfa_out_path = normalized_path + '.gfa'
         # GFAffix's --dont_collapse option doesn't work on W-lines, so we strip them for now with -W
-        cactus_call(parameters=['vg', 'convert', '-W', '-f', vg_path], outfile=gfa_in_path)
+        cactus_call(parameters=['vg', 'convert', '-W', '-f', vg_path], outfile=gfa_in_path, job_memory=job.memory)
         fix_cmd = ['gfaffix', gfa_in_path, '--output_refined', gfa_out_path, '--check_transformation']
         if options.reference:
             fix_cmd += ['--dont_collapse', options.reference[0] + '*']
-        cactus_call(parameters=fix_cmd)
+        cactus_call(parameters=fix_cmd, job_memory=job.memory)
         # GFAffix strips the header, until this is fixed we need to add it back (for the RS tag)
         gfa_header = cactus_call(parameters=['head', '-1', gfa_in_path], check_output=True).strip()
         cactus_call(parameters=['sed', '-i', gfa_out_path, '-e', '1s/.*/{}/'.format(gfa_header)])
@@ -467,7 +485,7 @@ def clip_vg(job, options, config, vg_path, vg_id, phase):
     if phase == 'full':
         cmd.append(['vg', 'ids', '-s', '-'])
         
-    cactus_call(parameters=cmd, outfile=clipped_path)
+    cactus_call(parameters=cmd, outfile=clipped_path, job_memory=job.memory)
 
     # worth it
     cactus_call(parameters=['vg', 'validate', clipped_path])
@@ -547,7 +565,7 @@ def vg_clip_vg(job , options, config, vg_path, vg_id):
         else:
             clip_cmd = [clip_cmd, stub_cmd]
 
-    cactus_call(parameters=clip_cmd, outfile=clipped_path)
+    cactus_call(parameters=clip_cmd, outfile=clipped_path, job_memory=job.memory)
 
     # worth it
     cactus_call(parameters=['vg', 'validate', clipped_path])
@@ -566,7 +584,7 @@ def join_vg(job, options, config, clipped_vg_ids):
         job.fileStore.readGlobalFile(vg_id, vg_path, mutable=True)
         vg_paths.append(vg_path)
         
-    cactus_call(parameters=['vg', 'ids', '-j'] + vg_paths)
+    cactus_call(parameters=['vg', 'ids', '-j'] + vg_paths, job_memory=job.memory)
 
     return [job.fileStore.writeGlobalFile(f) for f in vg_paths]
 
@@ -590,7 +608,7 @@ def vg_to_gfa(job, options, config, vg_path, vg_id):
 
     cmd = ['vg', 'convert', '-f', '-Q', options.reference[0], os.path.basename(vg_path), '-B']
     
-    cactus_call(parameters=cmd, outfile=out_path, work_dir=work_dir)
+    cactus_call(parameters=cmd, outfile=out_path, work_dir=work_dir, job_memory=job.memory)
 
     return job.fileStore.writeGlobalFile(out_path)
 
@@ -614,12 +632,12 @@ def make_vg_indexes(job, options, config, gfa_ids, tag=''):
             cmd = [cmd, ['sed', '-e', '1s/{}//'.format(graph_event)]]
             if len(options.reference) > 1:
                 cmd.append(['sed', '-e', '1s/{}/{}/'.format(options.reference[0], ' '.join(options.reference))])
-        cactus_call(parameters=cmd, outfile=merge_gfa_path, outappend=True)
+        cactus_call(parameters=cmd, outfile=merge_gfa_path, outappend=True, job_memory=job.memory)
         job.fileStore.deleteGlobalFile(gfa_id)
 
     # make the gbz
     gbz_path = os.path.join(work_dir, '{}merged.gbz'.format(tag))
-    cactus_call(parameters=['vg', 'gbwt', '-G', merge_gfa_path, '--gbz-format', '-g', gbz_path])
+    cactus_call(parameters=['vg', 'gbwt', '-G', merge_gfa_path, '--gbz-format', '-g', gbz_path], job_memory=job.memory)
 
     # zip the gfa
     cactus_call(parameters=['bgzip', merge_gfa_path, '--threads', str(job.cores)])
@@ -627,7 +645,7 @@ def make_vg_indexes(job, options, config, gfa_ids, tag=''):
 
     # make the snarls
     snarls_path = os.path.join(work_dir, '{}merged.snarls'.format(tag))
-    cactus_call(parameters=['vg', 'snarls', gbz_path, '-T', '-t', str(job.cores)], outfile=snarls_path)
+    cactus_call(parameters=['vg', 'snarls', gbz_path, '-T', '-t', str(job.cores)], outfile=snarls_path, job_memory=job.memory)
                             
     return { '{}gfa.gz'.format(tag) : job.fileStore.writeGlobalFile(gfa_path),
              '{}gbz'.format(tag) : job.fileStore.writeGlobalFile(gbz_path),
@@ -647,7 +665,7 @@ def make_vcf(job, config, out_name, vcf_ref, index_dict, tag='', ref_tag='', max
     decon_cmd = ['vg', 'deconstruct', gbz_path, '-P', vcf_ref, '-a', '-r', snarls_path, '-t', str(job.cores)]
     if getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "GFANodeIDsInVCF", typeFn=bool, default=True):
         decon_cmd.append('-O')
-    cactus_call(parameters=[decon_cmd, ['bgzip', '--threads', str(job.cores)]], outfile=vcf_path)
+    cactus_call(parameters=[decon_cmd, ['bgzip', '--threads', str(job.cores)]], outfile=vcf_path, job_memory=job.memory)
     try:
         cactus_call(parameters=['tabix', '-p', 'vcf', vcf_path])
         tbi_path = vcf_path + '.tbi'
@@ -687,12 +705,12 @@ def make_giraffe_indexes(job, options, config, index_dict, tag=''):
 
     # make the distance index
     dist_path = os.path.join(work_dir, tag + os.path.basename(options.outName) + '.dist')
-    cactus_call(parameters=['vg', 'index', '-t', str(job.cores), '-j', dist_path, gbz_path])
+    cactus_call(parameters=['vg', 'index', '-t', str(job.cores), '-j', dist_path, gbz_path], job_memory=job.memory)
 
     # make the minimizer index
     min_path = os.path.join(work_dir, os.path.basename(options.outName) + '.min')
     min_opts = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "minimizerOptions", default='').split()
-    cactus_call(parameters=['vg', 'minimizer'] + min_opts + ['-t', str(job.cores), '-d', dist_path, '-o', min_path, gbz_path])
+    cactus_call(parameters=['vg', 'minimizer'] + min_opts + ['-t', str(job.cores), '-d', dist_path, '-o', min_path, gbz_path], job_memory=job.memory)
                             
     return { '{}min'.format(tag) : job.fileStore.writeGlobalFile(min_path),
              '{}dist'.format(tag) : job.fileStore.writeGlobalFile(dist_path) }
@@ -718,7 +736,7 @@ def merge_hal(job, options, hal_ids):
            ','.join([os.path.basename(p) for p in hal_paths]),
            os.path.basename(merged_path),
            '--progress']
-    cactus_call(parameters=cmd, work_dir = work_dir)
+    cactus_call(parameters=cmd, work_dir = work_dir, job_memory=job.memory)
 
     return { 'full.hal' : job.fileStore.writeGlobalFile(merged_path) }
 

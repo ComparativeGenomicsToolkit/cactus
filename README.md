@@ -12,6 +12,7 @@ Cactus is a reference-free whole-genome alignment program, as well as a pagenome
 
 * See the [Progressive Cactus documenation](doc/progressive.md)
 * Please cite the [Progressive Cactus paper](https://doi.org/10.1038/s41586-020-2871-y) when using Cactus.  Additional descriptions of the core algorithms can be found [here](https://doi.org/10.1101/gr.123356.111) and [here](https://doi.org/10.1089/cmb.2010.0252).
+* Please cite the [HAL paper](https://doi.org/10.1093/bioinformatics/btt128) when using HAL tools. 
 
 ## Align Genomes from the Same Species and Build Pangenome Graphs 
 

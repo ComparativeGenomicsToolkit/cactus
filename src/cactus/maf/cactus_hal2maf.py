@@ -24,6 +24,7 @@ from cactus.shared.common import cactus_override_toil_options
 from cactus.shared.common import cactus_call
 from cactus.shared.common import getOptionalAttrib, findRequiredNode
 from cactus.shared.version import cactus_commit
+from cactus.progressive.cactus_prepare import human2bytesN
 from toil.job import Job
 from toil.common import Toil
 from toil.statsAndLogging import logger
@@ -42,6 +43,9 @@ def main():
     parser.add_argument("--batchSize", type=int, help = "Number of chunks for each hal2maf batch", default=None)
     parser.add_argument("--batchCount", type=int, help = "Number of hal2maf batches [default 1 unless --batchSize set]", default=None)
     parser.add_argument("--batchCores", type=int, help = "Number of cores for each hal2maf batch.")
+    parser.add_argument("--batchMemory", type=human2bytesN,
+                        help="Memory in bytes for each hal2maf batch (defaults to an estimate based on the input data size). "
+                        "Standard suffixes like K, Ki, M, Mi, G or Gi are supported (default=bytes))", default=None)
     parser.add_argument("--chunkSize", type=int, help = "Size of chunks to operate on.", required=True)
     parser.add_argument("--batchParallelHal2maf", type=int, help = "Number of hal2maf commands to be executed in parallel in batch. Use to throttle down number of concurrent jobs to save memory. [default=batchCores]", default=None)
     parser.add_argument("--batchParallelTaf", type=int, help = "Number of taf normalization command chains to be executed in parallel in batch. Use to throttle down number of concurrent jobs to save memory. [default=batchCores]", default=None)    
@@ -249,6 +253,14 @@ def hal2maf_all(job, hal_id, chunks, options, config):
     if not batch_size:
         batch_size = math.ceil(len(chunks) / num_batches)
         RealtimeLogger.info('Setting batchSize to {}'.format(batch_size))
+
+    # try to figure out memory
+    if options.batchMemory:
+        batch_memory = options.batchMemory
+    else:
+        maf_mem = math.ceil(hal_id.size / 200)
+        taf_mem = math.ceil(hal_id.size / 33)
+        batch_memory = max(maf_mem * options.batchParallelHal2maf, taf_mem * options.batchParallelTaf)
         
     chunks_left = len(chunks)
     batch_results = []        
@@ -257,7 +269,8 @@ def hal2maf_all(job, hal_id, chunks, options, config):
         cur_batch_size = min(chunks_left, batch_size)
         if cur_batch_size:
             batch_results.append(job.addChildJobFn(hal2maf_batch, hal_id, chunks[cur_chunk:cur_chunk+cur_batch_size], options, config,
-                                                   disk=math.ceil((1 + 1.5 / num_batches)*hal_id.size), cores=options.batchCores).rv())
+                                                   disk=math.ceil((1 + 1.5 / num_batches)*hal_id.size), cores=options.batchCores,
+                                                   memory=batch_memory).rv())
         chunks_left -= cur_batch_size
     assert chunks_left == 0
     

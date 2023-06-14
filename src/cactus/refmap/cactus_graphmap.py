@@ -213,13 +213,16 @@ def minigraph_workflow(job, options, config, seq_id_map, gfa_id, graph_event, sa
     if sanitize:
         sanitize_job = root_job.addChildJobFn(sanitize_fasta_headers, seq_id_map, pangenome=True)
         seq_id_map = sanitize_job.rv()
-    
+
+    zipped_gfa = options.minigraphGFA.endswith('.gz')
     if options.outputFasta:
         # convert GFA to fasta
-        fa_job = root_job.addChildJobFn(make_minigraph_fasta, gfa_id, options.outputFasta, graph_event, cores = mg_cores)
+        scale = 5 if zipped_gfa else 1
+        fa_job = root_job.addChildJobFn(make_minigraph_fasta, gfa_id, options.outputFasta, graph_event,
+                                        disk=scale*2*gfa_id.size, memory=2*scale*gfa_id.size)
         fa_id = fa_job.rv()
 
-    if options.minigraphGFA.endswith('.gz'):
+    if zipped_gfa:
         # gaf2paf needs unzipped gfa, so we take care of that upfront
         gfa_unzip_job = root_job.addChildJobFn(unzip_gz, options.minigraphGFA, gfa_id, disk=5*gfa_id.size)
         gfa_id = gfa_unzip_job.rv()
@@ -233,7 +236,7 @@ def minigraph_workflow(job, options, config, seq_id_map, gfa_id, graph_event, sa
         # if --refFromGFA is specified, we get the entire alignment from that, otherwise we just take contigs
         # that didn't get mapped by anything else
         gfa2paf_job = Job.wrapJobFn(extract_paf_from_gfa, gfa_id, options.minigraphGFA, options.reference, graph_event, paf_job.rv(0) if not options.refFromGFA else None,
-                                    disk=gfa_id_size)
+                                    disk=gfa_id_size, memory=gfa_id_size)
         if options.refFromGFA:
             root_job.addChild(gfa2paf_job)
         else:
@@ -256,7 +259,8 @@ def minigraph_workflow(job, options, config, seq_id_map, gfa_id, graph_event, sa
         del_size_threshold = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "delFilterQuerySizeThreshold", float, default=None)
         del_filter_job = prev_job.addFollowOnJobFn(filter_paf_deletions, out_paf_id, gfa_id, del_filter, del_filter_threshold,
                                                    del_size_threshold,
-                                                   disk=gfa_id_size, cores=mg_cores)
+                                                   disk=gfa_id_size, cores=mg_cores,
+                                                   memory=6*gfa_id_size)
         unfiltered_paf_id = prev_job.addFollowOnJobFn(zip_gz, 'mg.paf.unfiltered', out_paf_id, disk=gfa_id_size).rv()
         out_paf_id = del_filter_job.rv(0)
         filtered_paf_log = del_filter_job.rv(1)
@@ -306,7 +310,8 @@ def minigraph_map_all(job, config, gfa_id, fa_id_map, graph_event):
     for event, fa_id in fa_id_map.items():
         minigraph_map_job = top_job.addChildJobFn(minigraph_map_one, config, event, fa_id, gfa_id,
                                                   # todo: estimate RAM
-                                                  cores=mg_cores, disk=5 * fa_id.size + gfa_id.size)
+                                                  cores=mg_cores, disk=5*fa_id.size + gfa_id.size,
+                                                  memory=64*fa_id.size + gfa_id.size)
         gaf_id_map[event] = minigraph_map_job.rv(0)
         paf_id_map[event] = minigraph_map_job.rv(1)
 
@@ -350,7 +355,7 @@ def minigraph_map_one(job, config, event_name, fa_file_id, gfa_file_id):
     # run minigraph mapping
     cmd += [["minigraph", gfa_path, fa_path, "-o", gaf_path] + opts_list]
 
-    cactus_call(parameters=cmd)
+    cactus_call(parameters=cmd, job_memory=job.memory)
 
     # convert the gaf into unstable gaf (targets are node sequences)
     # note: the gfa needs to be uncompressed for this tool to work
@@ -368,7 +373,7 @@ def minigraph_map_one(job, config, event_name, fa_file_id, gfa_file_id):
     if overlap_ratio or overlap_filter_len:
         cmd = [cmd, ['gaffilter', '-', '-r', str(overlap_ratio), '-m', str(length_ratio), '-q', str(min_mapq),
                      '-b', str(min_block), '-o', str(overlap_filter_len), '-i', str(min_ident)]]
-    cactus_call(parameters=cmd, outfile=unstable_gaf_path)
+    cactus_call(parameters=cmd, outfile=unstable_gaf_path, job_memory=job.memory)
 
     # convert the unstable gaf into unstable paf, which is what cactus expects
     # also tack on the unique id to the target column
@@ -376,7 +381,7 @@ def minigraph_map_one(job, config, event_name, fa_file_id, gfa_file_id):
     unstable_paf_path = unstable_gaf_path + '.paf'
     unstable_paf_cmd = [['gaf2paf', unstable_gaf_path, '-l', mg_lengths_path],
                         ['awk', 'BEGIN{{OFS=\"	\"}} {{$6="id={}|"$6; print}}'.format(graph_event)]]
-    cactus_call(parameters=unstable_paf_cmd, outfile=unstable_paf_path)
+    cactus_call(parameters=unstable_paf_cmd, outfile=unstable_paf_path, job_memory=job.memory)
 
     # return the stable gaf (minigraph output) and the unstable paf
     return job.fileStore.writeGlobalFile(gaf_path), job.fileStore.writeGlobalFile(unstable_paf_path)
@@ -470,7 +475,7 @@ def filter_paf_deletions(job, paf_id, gfa_id, max_deletion, filter_threshold, fi
     trans_path = gfa_path + '.trans'
 
     cactus_call(parameters = ['vg', 'convert', '-r', '0', '-g', gfa_path, '-p', '-T', trans_path],
-                outfile=vg_path)
+                outfile=vg_path, job_memory=job.memory)
 
     # call filter-paf-deletionts
     filter_paf_path = paf_path + ".filter"
@@ -480,7 +485,7 @@ def filter_paf_deletions(job, paf_id, gfa_id, max_deletion, filter_threshold, fi
         filter_paf_cmd += ['-m', str(filter_threshold)]
     if filter_query_size_threshold:
         filter_paf_cmd += ['-s', str(filter_query_size_threshold)]
-    filter_stdout, filter_stderr = cactus_call(parameters=filter_paf_cmd, check_output=True, returnStdErr=True)
+    filter_stdout, filter_stderr = cactus_call(parameters=filter_paf_cmd, check_output=True, returnStdErr=True, job_memory=job.memory)
     with open(filter_log_path, 'w') as filter_log_file:
         for line in filter_stderr:
             filter_log_file.write(line)            

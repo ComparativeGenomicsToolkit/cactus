@@ -214,7 +214,7 @@ def graphmap_split_workflow(job, options, config, seq_id_map, seq_name_map, gfa_
         paf_size *= 10
 
     # do some basic paf filtering
-    paf_filter_job = root_job.addFollowOnJobFn(filter_paf, paf_id, config)
+    paf_filter_job = root_job.addFollowOnJobFn(filter_paf, paf_id, config, disk = paf_id.size * 10, memory=paf_id.size * 10)
     paf_id = paf_filter_job.rv()
     root_job = paf_filter_job
 
@@ -225,7 +225,8 @@ def graphmap_split_workflow(job, options, config, seq_id_map, seq_name_map, gfa_
     # use rgfa-split to split the gfa and paf up by contig
     split_gfa_job = root_job.addFollowOnJobFn(split_gfa, config, gfa_id, [paf_id], ref_contigs,
                                               other_contig, options.reference, mask_bed_id,
-                                              disk=(gfa_size + paf_size) * 5)
+                                              disk=(gfa_size + paf_size) * 5,
+                                              memory=(gfa_size + paf_size) * 3)
 
     # use the output of the above splitting to do the fasta splitting
     split_fas_job = split_gfa_job.addFollowOnJobFn(split_fas, seq_id_map, seq_name_map, split_gfa_job.rv(0))
@@ -383,7 +384,7 @@ def split_gfa(job, config, gfa_id, paf_ids, ref_contigs, other_contig, reference
             if contig.startswith('id=') and contig.find('|') > 3:
                 cmd += ['-c', contig[contig.find('|')+1:]]            
 
-    cactus_call(parameters=cmd, work_dir=work_dir)
+    cactus_call(parameters=cmd, work_dir=work_dir, job_memory=job.memory)
 
     output_id_map = {}
     for out_name in os.listdir(work_dir):

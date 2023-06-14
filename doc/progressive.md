@@ -4,6 +4,8 @@ Progressive Cactus is included in the [Cactus Software Package](../README.md).  
 
 Please cite the [Progressive Cactus paper](https://doi.org/10.1038/s41586-020-2871-y) when using Cactus.
 
+Please cite the [HAL paper](https://doi.org/10.1093/bioinformatics/btt128) when using HAL tools. 
+
 ## Table of Contents
 
 * [Quick-start](#quick-start)

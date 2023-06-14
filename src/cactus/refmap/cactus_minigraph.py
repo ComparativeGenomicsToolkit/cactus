@@ -40,8 +40,8 @@ def main():
 
     parser.add_argument("seqFile", help = "Seq file (will be modified if necessary to include graph Fasta sequence)")
     parser.add_argument("outputGFA", help = "Output Minigraph GFA")
-    parser.add_argument("--reference", type=str, required=True,
-                        help = "Reference genome name (added to minigraph first). Order in seqfile used otherwise")
+    parser.add_argument("--reference", required=True, nargs='+', type=str,
+                        help = "Reference genome name(s) (added to minigraph first). Mash distance to 1st reference to determine order of other genomes (use minigraphSortInput in the config xml to toggle this behavior).")
     parser.add_argument("--mgCores", type=int, help = "Number of cores for minigraph construction (defaults to the same as --maxCores).")
     
     #Progressive Cactus Options
@@ -100,7 +100,7 @@ def main():
             
             #import the sequences
             input_seq_id_map = {}
-            input_seq_order = [options.reference]
+            input_seq_order = copy.deepcopy(options.reference)
             leaves = set([seqFile.tree.getName(node) for node in seqFile.tree.getLeaves()])
             for (genome, seq) in input_seq_map.items():
                 if genome != graph_event and genome in leaves:                
@@ -111,7 +111,7 @@ def main():
                     seq = makeURL(seq)
                     logger.info("Importing {}".format(seq))
                     input_seq_id_map[genome] = toil.importFile(seq)
-                    if genome != options.reference:
+                    if genome not in options.reference:
                         input_seq_order.append(genome)
             
             gfa_id = toil.start(Job.wrapJobFn(minigraph_construct_workflow, options, config_node, input_seq_id_map, input_seq_order, options.outputGFA))
@@ -154,6 +154,8 @@ def check_sample_names(sample_names, references):
                                     
 def minigraph_construct_workflow(job, options, config_node, seq_id_map, seq_order, gfa_path, sanitize=True):
     """ minigraph can handle bgzipped files but not gzipped; so unzip everything in case before running"""
+    assert type(options.reference) is list
+    assert options.reference == seq_order[:len(options.reference)]
     if sanitize:
         sanitize_job = job.addChildJobFn(sanitize_fasta_headers, seq_id_map, pangenome=True)
         sanitized_seq_id_map = sanitize_job.rv()
@@ -164,17 +166,15 @@ def minigraph_construct_workflow(job, options, config_node, seq_id_map, seq_orde
     xml_node = findRequiredNode(config_node, "graphmap")
     sort_type = getOptionalAttrib(xml_node, "minigraphSortInput", str, default=None)
     if sort_type == "mash":
-        sort_job = sanitize_job.addFollowOnJobFn(sort_minigraph_input_with_mash, sanitized_seq_id_map, seq_order)
+        sort_job = sanitize_job.addFollowOnJobFn(sort_minigraph_input_with_mash, options, sanitized_seq_id_map, seq_order)
         seq_order = sort_job.rv()
         prev_job = sort_job
     else:
         prev_job = sanitize_job
-    minigraph_job = prev_job.addFollowOnJobFn(minigraph_construct, config_node, sanitized_seq_id_map, seq_order, gfa_path,
-                                              cores = options.mgCores,
-                                              disk = 5 * sum([seq_id.size for seq_id in seq_id_map.values()]))
+    minigraph_job = prev_job.addFollowOnJobFn(minigraph_construct, options, config_node, sanitized_seq_id_map, seq_order, gfa_path)
     return minigraph_job.rv()
 
-def sort_minigraph_input_with_mash(job, seq_id_map, seq_order):
+def sort_minigraph_input_with_mash(job, options, seq_id_map, seq_order):
     """ Sort the input """
     # (dist, length) pairs which will be sorted decreasing on dist, breaking ties with increasing on length
     # assumption : reference is first
@@ -195,7 +195,7 @@ def sort_minigraph_input_with_mash(job, seq_id_map, seq_order):
     # so, for example HG002.1 and HG002.2 would be always be consecutive in the order and their distance
     # will be determined jointly (by just concatenating them).
     seq_by_sample = defaultdict(list)
-    for seq_name in seq_order[1:]:
+    for seq_name in seq_order[len(options.reference):]:
         seq_by_sample[seq_name[:seq_name.rfind('.')]].append(seq_name)
 
     # list of dictionary (promises) that map genome name to mash distance output
@@ -205,7 +205,7 @@ def sort_minigraph_input_with_mash(job, seq_id_map, seq_order):
                                                disk = 2 * sum(seq_id_map[x].size for x in names) + seq_id_map[seq_order[0]].size).rv()
         dist_maps.append(dist_map)
             
-    return dist_root_job.addFollowOnJobFn(mash_distance_order, seq_order, dist_maps).rv()
+    return dist_root_job.addFollowOnJobFn(mash_distance_order, options, seq_order, dist_maps).rv()
 
 def mash_sketch(job, ref_seq, seq_id_map):
     """ get the sketch """
@@ -256,11 +256,11 @@ def mash_dist(job, query_seqs, ref_seq, seq_id_map, ref_sketch_id):
         
     return output_dist_map
     
-def mash_distance_order(job, seq_order, mash_output_maps):
+def mash_distance_order(job, options, seq_order, mash_output_maps):
     """ get the sequence order from the mash distance"""
 
     # we first orient the list of dicts along seq_order
-    mash_output_map = mash_output_maps[0]
+    mash_output_map = mash_output_maps[0] if mash_output_maps else {}
     for output_map in mash_output_maps[1:]:
         mash_output_map.update(output_map)    
     mash_dists = []
@@ -268,19 +268,30 @@ def mash_distance_order(job, seq_order, mash_output_maps):
         if seq in mash_output_map:
             mash_dists.append(mash_output_map[seq])
         else:
-            assert seq == seq_order[0]
-            mash_dists.append((0, 0, sys.maxsize))
+            assert seq in options.reference
+            ref_rank = options.reference.index(seq)
+            mash_dists.append((0, 0, sys.maxsize - ref_rank))
 
     # we want to sort reverse on size, so make them negative
-    # and we round the dists to ignore tiny changes
-    mash_dists = [(round(x, 4),round(y, 4), -z) for x,y,z in mash_dists]
+    mash_dists = [(x, y, -z) for x,y,z in mash_dists]
     seq_to_dist = {}
     for seq, md in zip(seq_order, mash_dists):
         seq_to_dist[seq] = md
     return sorted(seq_order, key = lambda x : seq_to_dist[x])
     
-def minigraph_construct(job, config_node, seq_id_map, seq_order, gfa_path):
+def minigraph_construct(job, options, config_node, seq_id_map, seq_order, gfa_path, has_resources=False):
     """ Make minigraph """
+
+    if not has_resources:
+        # get the file sizes from the resolved promises run again with calculated resources
+        max_size = max([x.size for x in seq_id_map.values()])
+        total_size = sum([x.size for x in seq_id_map.values()])
+        disk = total_size * 2
+        mem = 64 * max_size + int(total_size / 5)
+        mem = max(mem, 2**30)
+        return job.addChildJobFn(minigraph_construct, options, config_node, seq_id_map, seq_order, gfa_path,
+                                 has_resources=True, disk=disk, memory=mem, cores=options.mgCores).rv()
+
     work_dir = job.fileStore.getLocalTempDir()
     gfa_path = os.path.join(work_dir, os.path.basename(gfa_path))
 
@@ -302,13 +313,13 @@ def minigraph_construct(job, config_node, seq_id_map, seq_order, gfa_path):
 
     sort_type = getOptionalAttrib(xml_node, "minigraphSortInput", str, default=None)
     if sort_type == "size":
-        # don't touch the reference
-        sorted_order = [seq_order[0]]
+        # don't touch the reference(s)        
+        sorted_order = seq_order[:len(options.reference)]
         # sort the rest by size, biggest first, which is usually how we help poa
         seq_to_size = {}
-        for seq in seq_order[1:]:
+        for seq in seq_order[len(options.reference):]:
             seq_to_size[seq] = sum([len(r.seq) for r in SeqIO.parse(local_fa_paths[seq], 'fasta')])
-        sorted_order += sorted(seq_order[1:], key = lambda e : seq_to_size[e], reverse=True)
+        sorted_order += sorted(seq_order[len(options.reference):], key = lambda e : seq_to_size[e], reverse=True)
         seq_order = sorted_order
 
     mg_cmd = ['minigraph'] + opts_list
@@ -318,7 +329,7 @@ def minigraph_construct(job, config_node, seq_id_map, seq_order, gfa_path):
     if gfa_path.endswith('.gz'):
         mg_cmd = [mg_cmd, ['bgzip', '--threads', str(job.cores)]]
 
-    cactus_call(parameters=mg_cmd, outfile=gfa_path, work_dir=work_dir, realtimeStderrPrefix='[minigraph]')
+    cactus_call(parameters=mg_cmd, outfile=gfa_path, work_dir=work_dir, realtimeStderrPrefix='[minigraph]', job_memory=job.memory)
 
     return job.fileStore.writeGlobalFile(gfa_path)
         
