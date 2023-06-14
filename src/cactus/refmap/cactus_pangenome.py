@@ -194,7 +194,7 @@ def main():
             #import the sequences
             input_seq_id_map = {}
             input_path_map = {}
-            input_seq_order = [options.reference[0]]
+            input_seq_order = copy.deepcopy(options.reference)
             leaves = set([seqFile.tree.getName(node) for node in seqFile.tree.getLeaves()])
             for (genome, seq) in input_seq_map.items():
                 if genome != graph_event and genome in leaves:                
@@ -206,7 +206,7 @@ def main():
                     logger.info("Importing {}".format(seq))
                     input_seq_id_map[genome] = toil.importFile(seq)
                     input_path_map[genome] = seq
-                    if genome != options.reference[0]:
+                    if genome not in options.reference:
                         input_seq_order.append(genome)
             
             toil.start(Job.wrapJobFn(pangenome_end_to_end_workflow, options, config_wrapper, input_seq_id_map, input_path_map, input_seq_order))

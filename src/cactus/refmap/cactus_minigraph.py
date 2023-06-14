@@ -155,6 +155,7 @@ def check_sample_names(sample_names, references):
 def minigraph_construct_workflow(job, options, config_node, seq_id_map, seq_order, gfa_path, sanitize=True):
     """ minigraph can handle bgzipped files but not gzipped; so unzip everything in case before running"""
     assert type(options.reference) is list
+    assert options.reference == seq_order[:len(options.reference)]
     if sanitize:
         sanitize_job = job.addChildJobFn(sanitize_fasta_headers, seq_id_map, pangenome=True)
         sanitized_seq_id_map = sanitize_job.rv()
