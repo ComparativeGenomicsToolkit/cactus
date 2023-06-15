@@ -473,7 +473,8 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
         # optional full-genome odgi
         if workflow_phase in options.odgi:
             odgi_job = gfa_root_job.addChildJobFn(odgi_squeeze, config, options.vg, og_chrom_ids[workflow_phase]['og'],
-                                                  tag=workflow_phase + '.', disk=sum(f.size for f in vg_ids) *4)
+                                                  tag=workflow_phase + '.', disk=sum(f.size for f in vg_ids) *4,
+                                                  memory=sum(f.size for f in vg_ids), cores=options.indexCores)
             out_dicts.append(odgi_job.rv())                                                  
 
         # optional viz
@@ -483,7 +484,8 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
             for vg_path, input_vg_id, og_id in zip(options.vg, vg_ids, og_chrom_ids[workflow_phase]['og']):
                 viz_job = gfa_root_job.addChildJobFn(make_odgi_viz, config, options, vg_path, og_id, tag=workflow_phase,
                                                      viz=do_viz, draw=do_draw,                                                     
-                                                     cores=options.indexCores, disk = input_vg_id.size * 10)
+                                                     cores=options.indexCores, disk = input_vg_id.size * 10,
+                                                     memory=input_vg_id.size * 5)
                 if do_viz:
                     og_chrom_ids[workflow_phase]['viz'].append(viz_job.rv(0))
                 if do_draw:
@@ -709,10 +711,10 @@ def vg_to_og(job, options, config, vg_path, vg_id):
     graph_event = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "assemblyName", default="_MINIGRAPH_")
     cactus_call(parameters=[['vg', 'convert', '-f', '-W', os.path.basename(vg_path)],
                             ['grep', '-v', '^P	{}'.format(graph_event)]],
-                outfile=gfa_path, work_dir=work_dir)
+                outfile=gfa_path, work_dir=work_dir, job_memory=job.memory)
     og_path = vg_path + '.og'
     cactus_call(parameters=['odgi', 'build', '-g', os.path.basename(gfa_path), '-o',
-                            os.path.basename(og_path)], work_dir=work_dir)
+                            os.path.basename(og_path), '-t', str(job.cores)], work_dir=work_dir)
     return job.fileStore.writeGlobalFile(og_path)
 
 def make_vg_indexes(job, options, config, gfa_ids, tag=''):
@@ -831,7 +833,7 @@ def odgi_squeeze(job, config, vg_paths, og_ids, tag=''):
     with open(list_path, 'w') as list_file:
         for og_path in og_paths:
             list_file.write(og_path +'\n')
-    cactus_call(parameters=['odgi', 'squeeze', '-f', list_path, '-o', merged_path])
+    cactus_call(parameters=['odgi', 'squeeze', '-f', list_path, '-o', merged_path, '-t', str(job.cores)], job_memory=job.memory)
     return { '{}og'.format(tag) : job.fileStore.writeGlobalFile(merged_path) }    
 
 def make_odgi_viz(job, config, options, vg_path, og_id, tag='', viz=True, draw=True):
@@ -841,21 +843,21 @@ def make_odgi_viz(job, config, options, vg_path, og_id, tag='', viz=True, draw=T
     job.fileStore.readGlobalFile(og_id, og_path)
 
     og_sort_path = og_path + '.sort'
-    cactus_call(parameters=['odgi', 'sort', '-i', og_path, '-o', og_sort_path, '-t', str(job.cores)])
+    cactus_call(parameters=['odgi', 'sort', '-i', og_path, '-o', og_sort_path, '-t', str(job.cores)], job_memory=job.memory)
 
     if viz: 
         viz_opts = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "odgiVizOptions", default='').split()
         viz_png_path = og_path + '.viz.png'
-        cactus_call(parameters=['odgi', 'viz', '-i', og_sort_path, '-o', viz_png_path, '-t', str(job.cores)] + viz_opts)
+        cactus_call(parameters=['odgi', 'viz', '-i', og_sort_path, '-o', viz_png_path, '-t', str(job.cores)] + viz_opts, job_memory=job.memory)
         
     if draw:    
         lay_opts = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "odgiLayoutOptions", default='').split()
         lay_path = og_path + '.lay'
-        cactus_call(parameters=['odgi', 'layout', '-i', og_sort_path, '-o', lay_path, '-t', str(job.cores)] + lay_opts)
+        cactus_call(parameters=['odgi', 'layout', '-i', og_sort_path, '-o', lay_path, '-t', str(job.cores)] + lay_opts, job_memory=job.memory)
     
         draw_opts = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "odgiDrawOptions", default='').split()
         draw_png_path = og_path + '.draw.png'
-        cactus_call(parameters=['odgi', 'draw', '-i', og_sort_path, '-c', lay_path, '-p', draw_png_path, '-t', str(job.cores)] + draw_opts)
+        cactus_call(parameters=['odgi', 'draw', '-i', og_sort_path, '-c', lay_path, '-p', draw_png_path, '-t', str(job.cores)] + draw_opts, job_memory=job.memory)
     
     return (job.fileStore.writeGlobalFile(viz_png_path) if viz else None,
             job.fileStore.writeGlobalFile(draw_png_path) if draw else None)
