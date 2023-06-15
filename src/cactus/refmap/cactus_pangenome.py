@@ -274,7 +274,7 @@ def export_align_wrapper(job, options, results_dict, reference_list):
     if not chrom_dir.startswith('s3://') and not os.path.isdir(chrom_dir):
         os.makedirs(chrom_dir)
 
-    for chrom, results in results_dict.items():
+    for chrom, results in sorted(results_dict.items()):
         hal_path = makeURL(os.path.join(chrom_dir, '{}.hal'.format(chrom)))
         vg_path = makeURL(os.path.join(chrom_dir, '{}.vg'.format(chrom)))
         job.fileStore.exportFile(results[0], hal_path)
