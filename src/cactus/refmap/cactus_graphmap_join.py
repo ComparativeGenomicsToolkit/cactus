@@ -478,18 +478,23 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
             out_dicts.append(odgi_job.rv())                                                  
 
         # optional viz
+        other_contig = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "otherContigName", typeFn=str, default="chrOther")
         if workflow_phase in options.viz + options.draw:
             do_viz = workflow_phase in options.viz
             do_draw = workflow_phase in options.draw
             for vg_path, input_vg_id, og_id in zip(options.vg, vg_ids, og_chrom_ids[workflow_phase]['og']):
-                viz_job = gfa_root_job.addChildJobFn(make_odgi_viz, config, options, vg_path, og_id, tag=workflow_phase,
-                                                     viz=do_viz, draw=do_draw,                                                     
-                                                     cores=options.indexCores, disk = input_vg_id.size * 10,
-                                                     memory=input_vg_id.size * 5)
+                # chrOther can contain tons of components, not sure if it ever makes sense to try to visualize
+                if not os.path.basename(vg_path).startswith(other_contig + '.'):
+                    viz_job = gfa_root_job.addChildJobFn(make_odgi_viz, config, options, vg_path, og_id, tag=workflow_phase,
+                                                         viz=do_viz, draw=do_draw,                                                     
+                                                         cores=options.indexCores, disk = input_vg_id.size * 10,
+                                                         memory=input_vg_id.size * 5)
+                else:
+                    viz_job = None
                 if do_viz:
-                    og_chrom_ids[workflow_phase]['viz'].append(viz_job.rv(0))
+                    og_chrom_ids[workflow_phase]['viz'].append(viz_job.rv(0) if viz_job else None)
                 if do_draw:
-                    og_chrom_ids[workflow_phase]['draw'].append(viz_job.rv(1))
+                    og_chrom_ids[workflow_phase]['draw'].append(viz_job.rv(1) if viz_job else None)
     
     return output_full_vg_ids, clip_vg_ids, clipped_stats, filter_vg_ids, out_dicts, og_chrom_ids
 
@@ -994,16 +999,18 @@ def export_join_data(toil, options, full_ids, clip_ids, clip_stats, filter_ids, 
             assert len(options.vg) == len(og_chrom_ids[gtype]['viz'])
             tag = 'd{}'.format(options.filter) if gtype == 'filter' else gtype            
             for vg_path, viz_id in zip(options.vg, og_chrom_ids[gtype]['viz']):
-                viz_name = os.path.splitext(vg_path)[0] + '.{}.viz.png'.format(tag)
-                toil.exportFile(viz_id, makeURL(os.path.join(viz_base, os.path.basename(viz_name))))
+                if viz_id:
+                    viz_name = os.path.splitext(vg_path)[0] + '.{}.viz.png'.format(tag)
+                    toil.exportFile(viz_id, makeURL(os.path.join(viz_base, os.path.basename(viz_name))))
 
         for gtype in options.draw:
             # download all the chromosomal 2D visualizations
             assert len(options.vg) == len(og_chrom_ids[gtype]['draw'])
             tag = 'd{}'.format(options.filter) if gtype == 'filter' else gtype            
             for vg_path, draw_id in zip(options.vg, og_chrom_ids[gtype]['draw']):
-                draw_name = os.path.splitext(vg_path)[0] + '.{}.draw.png'.format(tag)
-                toil.exportFile(draw_id, makeURL(os.path.join(viz_base, os.path.basename(draw_name))))
+                if draw_id:
+                    draw_name = os.path.splitext(vg_path)[0] + '.{}.draw.png'.format(tag)
+                    toil.exportFile(draw_id, makeURL(os.path.join(viz_base, os.path.basename(draw_name))))
                 
     # download the stats files
     if clip_stats:

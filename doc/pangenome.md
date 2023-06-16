@@ -146,7 +146,7 @@ chr3 500000
 chrM 1000
 random_1 400000
 random_2 5000
-randome_3 5000 
+random_3 5000 
 ```
 Then the pipeline will automatically determine, using the names and sizes (see the <graphmap-split> section of the configuration XML for details) that the reference contigs are `chr1`, `chr2`, `chr3`, `chrM` and `random_1`. It will make a graph file for each of these, and a single `chrOther` graph file for `random_2` and `random_3`.  All contigs will end up in the final whole-genome indexes.  This logic only affects the chromosome-scale output and workload distribution. If you do not want the `random` contigs in the graph, you would need to specify `--refContigs chr1 chr2 chr3 chrM`. By default, refContigs are limited to 128 in number, contigs that are at least 10% as long as the longest contig or contigs whose name begins with `chr` followed by up to 3 characters (any case).
 

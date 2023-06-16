@@ -201,9 +201,9 @@ def graphmap_split_workflow(job, options, config, seq_id_map, seq_name_map, gfa_
     # auto-set --refContigs
     if not options.refContigs:
         refcontig_job = sanitize_job.addFollowOnJobFn(detect_ref_contigs, config, options, seq_id_map)
-        ref_contigs = refcontig_job.rv()        
-        options.otherContig = 'chrOther'
-        other_contig = 'chrOther'
+        ref_contigs = refcontig_job.rv()
+        other_contig = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "otherContigName", typeFn=str, default="chrOther")
+        options.otherContig = other_contig
         sanitize_job = refcontig_job
     
     # use file extension to sniff out compressed input
@@ -263,6 +263,7 @@ def detect_ref_contigs(job, config, options, seq_id_map):
     max_ref_contigs = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "maxRefContigs", typeFn=int, default=128)
     ref_contig_dropoff = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "refContigDropoff", typeFn=float, default=10.0)
     ref_contig_regex = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "refContigRegex", typeFn=str, default=None)
+    other_contig_name = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "otherContigName", typeFn=str, default="chrOther")
 
     # sort by decreasing size
     sorted_contigs = sorted(contigs, key=lambda x : x[1], reverse=True)
@@ -291,7 +292,7 @@ def detect_ref_contigs(job, config, options, seq_id_map):
 
     msg = "auto-detected --refContigs {}".format(' '.join(ref_contigs))
     if len(ref_contigs) < len(sorted_contigs):
-        msg += " --otherContig chrOther"
+        msg += " --otherContig {}".format(other_contig_name)
 
     RealtimeLogger.info(msg)
 
