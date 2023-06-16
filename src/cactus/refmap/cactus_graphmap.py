@@ -457,7 +457,7 @@ def filter_paf(job, paf_id, config):
         overlap_filter_paf_path = filter_paf_path + ".overlap"
         cactus_call(parameters=['gaffilter', filter_paf_path, '-p', '-r', str(overlap_ratio), '-m', str(length_ratio),
                                 '-b', str(min_block), '-q', str(min_mapq), '-i', str(min_ident)],
-                    outfile=overlap_filter_paf_path)
+                    outfile=overlap_filter_paf_path, job_memory=job.memory)
         filter_paf_path = overlap_filter_paf_path
 
     return job.fileStore.writeGlobalFile(filter_paf_path)    
