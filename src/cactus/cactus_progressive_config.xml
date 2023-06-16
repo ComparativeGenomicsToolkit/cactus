@@ -355,6 +355,7 @@
 	<!-- remapSplitOptions: extra rgfa-split options to apply when splitting after remapping (use -u 3000000 to enable autoclipping between contigs, add -s to allow within contig)-->
 	<!-- maxRefContigs: The maximum number of auto-detect refContigs -->
 	<!-- refContigDropoff: When detecting refContigs, sort in reverse order by size, and pick refContigs up until contig N is this many times smaller than contig 1 (or maxRefContigs) is reached.  The general idea is to have a refContig for each chromosome then lump all the tiny ones into their own graphs. -->
+	<!-- refContigRegex: If specified, automatically promote any matching contig name into its own graph, regardless of how small it is.  Useful for making sure chrM doesn't get mixed with KI270322.1 etc. By defaulat it's anything beginning with chr (any case) followed by 0-3 chracters. This takes precedence over refContigDropoff -->
   	<graphmap_split
 		 minQueryCoverages="0.75 0.5 0.25"
 		 minQueryCoverageThresholds="100000 1000000"
@@ -363,6 +364,7 @@
 		 remapSplitOptions=""
 		 maxRefContigs="128"
 		 refContigDropoff="10.0"
+		 refContigRegex="[c,C][h,H][r,R].?.?.?"
 		 />
 	<!-- cactus-graphmap-join options -->
 	<!-- gfaffix: toggle gfaffix normalization on/off -->

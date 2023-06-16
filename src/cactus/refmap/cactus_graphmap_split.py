@@ -8,6 +8,7 @@ import xml.etree.ElementTree as ET
 import copy
 import timeit
 import shutil
+import re
 
 from operator import itemgetter
 
@@ -253,32 +254,48 @@ def detect_ref_contigs(job, config, options, seq_id_map):
         for line in fai_file:
             toks = line.split('\t')
             assert len(toks) > 2
-            contigs.append((toks[0], float(toks[1])))
+            # clean out prefix that was added by sanitize
+            assert toks[0].startswith('id={}|'.format(options.reference))
+            clean_name = toks[0][len('id={}|'.format(options.reference)):]
+            contigs.append((clean_name, float(toks[1])))
 
     # get the cutoff heuristics 
     max_ref_contigs = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "maxRefContigs", typeFn=int, default=128)
     ref_contig_dropoff = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "refContigDropoff", typeFn=float, default=10.0)
+    ref_contig_regex = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "refContigRegex", typeFn=str, default=None)
 
-    # apply the heuristics to the contigs
-    ref_contigs = []
-    for contig_len in sorted(contigs, key=lambda x : x[1], reverse=True):
-        if len(ref_contigs):
-            dropoff = ref_contigs[0][1] / contig_len[1]
-            if dropoff >= ref_contig_dropoff:
-                break
-        ref_contigs.append(contig_len)        
+    # sort by decreasing size
+    sorted_contigs = sorted(contigs, key=lambda x : x[1], reverse=True)
+    
+    ref_contigs = set()
+    # pass 1: do the regex matches
+    if ref_contig_regex:
+        for contig, length in contigs:
+            if re.fullmatch(ref_contig_regex, contig):
+                ref_contigs.add(contig)
+                if len(ref_contigs) >= max_ref_contigs:
+                    break
+        
+    # pass 2: do the dropoff
+    longest_length = sorted_contigs[0][1]
+    for contig_len in sorted_contigs:
         if len(ref_contigs) >= max_ref_contigs:
             break
-    
-    # clean up the names (since they will have been prefixed here)
-    ref_contigs_clean = []
-    for contig in ref_contigs:
-        assert contig[0].startswith('id={}|'.format(options.reference))
-        ref_contigs_clean.append(contig[0][len('id={}|'.format(options.reference)):])
+        if contig_len[0] not in ref_contigs:
+            dropoff = longest_length / contig_len[1]
+            if dropoff >= ref_contig_dropoff:
+                break
+            ref_contigs.add(contig_len[0])
 
-    RealtimeLogger.info("auto-detected --refContigs {} --otherContig chrOther".format(' '.join(ref_contigs_clean)))
+    ref_contigs = sorted(list(ref_contigs))
 
-    return ref_contigs_clean            
+    msg = "auto-detected --refContigs {}".format(' '.join(ref_contigs))
+    if len(ref_contigs) < len(sorted_contigs):
+        msg += " --otherContig chrOther"
+
+    RealtimeLogger.info(msg)
+
+    return sorted(list(ref_contigs))
     
 
 def get_mask_bed(job, seq_id_map, min_length):

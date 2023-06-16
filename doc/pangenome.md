@@ -138,7 +138,17 @@ By default, `cactus` attempts to automatically determine the amount of memory to
 
 The application and impact of this option is demonstrated in the explanation of the Yeast pangenome example below.
 
-**Important** The reference genome assembly must be chromosome scale. If your reference assembly also consists of many small fragments (ex GRCh38) then you can use the `--refContigs` option to specify the chromosomes.  Ex for GRCh38 `--refContigs $(for i in `seq 22`; do printf "chr$i "; done ; echo "chrX chrY chrM")`.  If you want to include the remaining reference contig fragments in your graph, add the `--otherContig chrOther` option.  If you do not specify `--refContigs`, they will be determined automatically and small contigs will be included. 
+**Important** The reference genome assembly must be chromosome scale. If your reference assembly also consists of many small fragments (ex GRCh38) then you can use the `--refContigs` option to specify the chromosomes.  Ex for GRCh38 `--refContigs $(for i in `seq 22`; do printf "chr$i "; done ; echo "chrX chrY chrM")`.  If you want to include the remaining reference contig fragments in your graph, add the `--otherContig chrOther` option.  If you do not specify `--refContigs`, they will be determined automatically and all small contigs will be included. For example, if your reference has the following contigs and lengths
+```
+chr1 1000000
+chr2 900000
+chr3 500000
+chrM 1000
+random_1 400000
+random_2 5000
+randome_3 5000 
+```
+Then the pipeline will automatically determine, using the names and sizes (see the <graphmap-split> section of the configuration XML for details) that the reference contigs are `chr1`, `chr2`, `chr3`, `chrM` and `random_1`. It will make a graph file for each of these, and a single `chrOther` graph file for `random_2` and `random_3`.  All contigs will end up in the final whole-genome indexes.  This logic only affects the chromosome-scale output and workload distribution. If you do not want the `random` contigs in the graph, you would need to specify `--refContigs chr1 chr2 chr3 chrM`. By default, refContigs are limited to 128 in number, contigs that are at least 10% as long as the longest contig or contigs whose name begins with `chr` followed by up to 3 characters (any case).
 
 **Also Important** We do not yet automatically support the *alternate* loci from GRCh38, ex the various HLA contigs.  They must be excluded from the input fasta file to get sane results. They can be included in the graph by providing a separate sample / fasta pair in the input for each contig.  Please [here](#grch38-alts-graph) for an example of how to do so.
 
