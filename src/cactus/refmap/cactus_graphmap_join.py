@@ -326,6 +326,8 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
 
     # keep og ids in separate structure indexed on chromosome
     og_chrom_ids = {'full' : defaultdict(list), 'clip' : defaultdict(list), 'filter' : defaultdict(list)}
+    # have a lot of trouble getting something working for small contigs, hack here:
+    og_min_size = max(2**31, int(sum(vg_id.size for vg_id in vg_ids) / len(vg_ids)) * 32)
     # run the "full" phase to do pre-clipping stuff
     full_vg_ids = []
     assert len(options.vg) == len(vg_ids)
@@ -336,7 +338,7 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
         full_vg_ids.append(full_job.rv(0))
         if 'full' in options.odgi + options.chrom_og + options.viz + options.draw:
             full_og_job = full_job.addFollowOnJobFn(vg_to_og, options, config, vg_path, full_job.rv(0),
-                                                    disk=vg_id.size * 10, memory=vg_id.size * 4)
+                                                    disk=vg_id.size * 16, memory=max(og_min_size, vg_id.size * 32))
             og_chrom_ids['full']['og'].append(full_og_job.rv())
 
     prev_job = root_job
@@ -374,7 +376,7 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
             clip_vg_stats.append(clip_job.rv(1))
             if 'clip' in options.odgi + options.chrom_og + options.viz + options.draw:
                 clip_og_job = clip_job.addFollowOnJobFn(vg_to_og, options, config, vg_path, clip_job.rv(0),
-                                                        disk=input_vg_id.size * 10, memory=input_vg_id.size * 4)
+                                                        disk=input_vg_id.size * 16, memory=max(og_min_size, input_vg_id.size * 32))
                 og_chrom_ids['clip']['og'].append(clip_og_job.rv())
 
         # join the stats
@@ -393,7 +395,7 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
             filter_vg_ids.append(filter_job.rv())
             if 'filter' in options.odgi + options.chrom_og + options.viz + options.draw:
                 filter_og_job = filter_job.addFollowOnJobFn(vg_to_og, options, config, vg_path, filter_job.rv(),
-                                                            disk=input_vg_id.size * 10, memory=input_vg_id.size * 4)
+                                                            disk=input_vg_id.size * 16, memory=max(og_min_size, input_vg_id.size * 64))
                 og_chrom_ids['filter']['og'].append(filter_og_job.rv())                
 
 
@@ -411,21 +413,20 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
         hal_id_dict = hal_merge_job.rv()
         out_dicts.append(hal_id_dict)
 
+    # hacky heuristic to get memory for vg jobs, where vg minimizer is tricky as
+    # it's not really based on graph size so much (ie simple graphs can take lots of mem)
+    index_mem = sum(f.size for f in vg_ids)
+    for tot_size, fac in zip([1e6, 1e9, 10e9, 50e9, 100e9, 500e9], [1000, 32, 10, 6, 5, 2]):
+        if index_mem < tot_size:
+            index_mem *= fac
+            break
+        
     workflow_phases = [('full', full_vg_ids, join_job)]
     if options.clip:
         workflow_phases.append(('clip', clip_vg_ids, clip_root_job))
     if options.filter:
         workflow_phases.append(('filter', filter_vg_ids, filter_root_job))        
     for workflow_phase, phase_vg_ids, phase_root_job in workflow_phases:
-
-        # hacky heuristic to get memory for vg jobs, where vg minimizer is tricky as
-        # it's not really based on graph size so much (ie simple graphs can take lots of mem)
-        tot_size = sum(f.size for f in vg_ids)
-        index_mem = tot_size * 5
-        for exp, fac in zip([30, 33, 36, 39], [40, 30, 20, 10]):
-            if tot_size < 2**exp:
-                index_mem = tot_size * fac
-                break
             
         # make a gfa for each
         gfa_root_job = Job()
@@ -474,7 +475,7 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
         if workflow_phase in options.odgi:
             odgi_job = gfa_root_job.addChildJobFn(odgi_squeeze, config, options.vg, og_chrom_ids[workflow_phase]['og'],
                                                   tag=workflow_phase + '.', disk=sum(f.size for f in vg_ids) *4,
-                                                  memory=sum(f.size for f in vg_ids), cores=options.indexCores)
+                                                  memory=index_mem, cores=options.indexCores)
             out_dicts.append(odgi_job.rv())                                                  
 
         # optional viz
@@ -719,7 +720,7 @@ def vg_to_og(job, options, config, vg_path, vg_id):
                 outfile=gfa_path, work_dir=work_dir, job_memory=job.memory)
     og_path = vg_path + '.og'
     cactus_call(parameters=['odgi', 'build', '-g', os.path.basename(gfa_path), '-o',
-                            os.path.basename(og_path), '-t', str(job.cores)], work_dir=work_dir)
+                            os.path.basename(og_path), '-t', str(job.cores)], work_dir=work_dir, job_memory=job.memory)
     return job.fileStore.writeGlobalFile(og_path)
 
 def make_vg_indexes(job, options, config, gfa_ids, tag=''):
@@ -834,7 +835,7 @@ def odgi_squeeze(job, config, vg_paths, og_ids, tag=''):
         og_path = os.path.join(work_dir, os.path.basename(os.path.splitext(vg_path)[0]) + '.{}og'.format(tag))
         job.fileStore.readGlobalFile(og_id, og_path)
         og_paths.append(og_path)
-    list_path = os.path.join(work_dir, '{}.squeeze.input'.format(tag))
+    list_path = os.path.join(work_dir, '{}squeeze.input'.format(tag))
     with open(list_path, 'w') as list_file:
         for og_path in og_paths:
             list_file.write(og_path +'\n')
