@@ -443,7 +443,7 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
                 gfa_ids.append(gfa_job.rv())
 
             gfa_merge_job = gfa_root_job.addFollowOnJobFn(make_vg_indexes, options, config, gfa_ids,
-                                                          tag=workflow_phase + '.',
+                                                          workflow_phase=workflow_phase,
                                                           cores=options.indexCores,
                                                           disk=sum(f.size for f in vg_ids) * 6,
                                                           memory=index_mem)
@@ -724,9 +724,10 @@ def vg_to_og(job, options, config, vg_path, vg_id):
                             os.path.basename(og_path), '-t', str(job.cores)], work_dir=work_dir, job_memory=job.memory)
     return job.fileStore.writeGlobalFile(og_path)
 
-def make_vg_indexes(job, options, config, gfa_ids, tag=''):
+def make_vg_indexes(job, options, config, gfa_ids, workflow_phase):
     """ merge of the gfas, then make gbz / snarls / trans
-    """ 
+    """
+    tag = workflow_phase + '.'
     work_dir = job.fileStore.getLocalTempDir()
     vg_paths = []
     merge_gfa_path = os.path.join(work_dir, '{}merged.gfa'.format(tag))
@@ -748,20 +749,24 @@ def make_vg_indexes(job, options, config, gfa_ids, tag=''):
         job.fileStore.deleteGlobalFile(gfa_id)
 
     # make the gbz
-    gbz_path = os.path.join(work_dir, '{}merged.gbz'.format(tag))
-    cactus_call(parameters=['vg', 'gbwt', '-G', merge_gfa_path, '--gbz-format', '-g', gbz_path], job_memory=job.memory)
+    if workflow_phase in options.gbz:
+        gbz_path = os.path.join(work_dir, '{}merged.gbz'.format(tag))
+        cactus_call(parameters=['vg', 'gbwt', '-G', merge_gfa_path, '--gbz-format', '-g', gbz_path], job_memory=job.memory)
 
     # zip the gfa
     cactus_call(parameters=['bgzip', merge_gfa_path, '--threads', str(job.cores)])
     gfa_path = merge_gfa_path + '.gz'
 
     # make the snarls
-    snarls_path = os.path.join(work_dir, '{}merged.snarls'.format(tag))
-    cactus_call(parameters=['vg', 'snarls', gbz_path, '-T', '-t', str(job.cores)], outfile=snarls_path, job_memory=job.memory)
-                            
-    return { '{}gfa.gz'.format(tag) : job.fileStore.writeGlobalFile(gfa_path),
-             '{}gbz'.format(tag) : job.fileStore.writeGlobalFile(gbz_path),
-             '{}snarls'.format(tag) : job.fileStore.writeGlobalFile(snarls_path) }
+    if workflow_phase in options.gbz:
+        snarls_path = os.path.join(work_dir, '{}merged.snarls'.format(tag))
+        cactus_call(parameters=['vg', 'snarls', gbz_path, '-T', '-t', str(job.cores)], outfile=snarls_path, job_memory=job.memory)
+
+    out_dict = { '{}gfa.gz'.format(tag) : job.fileStore.writeGlobalFile(gfa_path) }
+    if workflow_phase in options.gbz:
+        out_dict['{}gbz'.format(tag)] = job.fileStore.writeGlobalFile(gbz_path)
+        out_dict['{}snarls'.format(tag)] =  job.fileStore.writeGlobalFile(snarls_path)
+    return out_dict
 
 def make_vcf(job, config, out_name, vcf_ref, index_dict, tag='', ref_tag='', max_ref_allele=None):
     """ make the vcf
