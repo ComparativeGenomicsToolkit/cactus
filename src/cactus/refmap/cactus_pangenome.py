@@ -264,7 +264,7 @@ def make_batch_align_jobs_wrapper(job, options, chromfile_path, config_wrapper):
     align_jobs = make_batch_align_jobs(options, job.fileStore, job.fileStore, config_wrapper)
     return align_jobs
     
-def export_align_wrapper(job, options, results_dict, reference_list):
+def export_align_wrapper(job, options, results_dict):
     """ toil job wrapper for exporting from cactus_align """
     vg_ids = []
     vg_paths = []
@@ -287,7 +287,6 @@ def export_align_wrapper(job, options, results_dict, reference_list):
     join_options = options
     join_options.hal = hal_paths
     join_options.vg = vg_paths
-    join_options.reference = reference_list
 
     return join_options, vg_ids, hal_ids
 
@@ -305,18 +304,12 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
     sanitize_job = root_job.addFollowOnJobFn(sanitize_fasta_headers, seq_id_map, pangenome=True)
     seq_id_map = sanitize_job.rv()
 
-    # it's really only graphmap_join (and now minigraph) that can next accept (or use) multiple references
-    # so we forget about it until then
     assert type(options.reference) == list
-    reference_list = options.reference
-    options.reference = options.reference[0]
 
     # cactus_minigraph
     sv_gfa_path = os.path.join(options.outDir, options.outName + '.sv.gfa.gz')
 
-    mg_opts = copy.deepcopy(options)
-    mg_opts.reference = reference_list
-    minigraph_job = sanitize_job.addFollowOnJobFn(minigraph_construct_workflow, mg_opts, config_node, seq_id_map, seq_order, sv_gfa_path, sanitize=False)
+    minigraph_job = sanitize_job.addFollowOnJobFn(minigraph_construct_workflow, options, config_node, seq_id_map, seq_order, sv_gfa_path, sanitize=False)
     sv_gfa_id = minigraph_job.rv()
     minigraph_job.addFollowOnJobFn(export_minigraph_wrapper, options, sv_gfa_id, sv_gfa_path)
 
@@ -350,7 +343,7 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
     align_jobs = align_jobs_make_job.rv()
     align_job = align_jobs_make_job.addFollowOnJobFn(batch_align_jobs, align_jobs)
     results_dict = align_job.rv()
-    align_export_job = align_job.addFollowOnJobFn(export_align_wrapper, options, results_dict, reference_list)
+    align_export_job = align_job.addFollowOnJobFn(export_align_wrapper, options, results_dict)
     join_options, vg_ids, hal_ids = align_export_job.rv(0), align_export_job.rv(1), align_export_job.rv(2)
 
     # cactus_graphmap_join

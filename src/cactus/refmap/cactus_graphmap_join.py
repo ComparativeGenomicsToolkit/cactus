@@ -434,6 +434,7 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
         phase_root_job.addFollowOn(gfa_root_job)
         gfa_ids = []
         current_out_dict = None
+        do_gbz = workflow_phase in [options.gbz + options.vcf + options.giraffe]
         if workflow_phase in options.gfa + options.gbz + options.vcf + options.giraffe:
             assert len(options.vg) == len(phase_vg_ids) == len(vg_ids)
             for vg_path, vg_id, input_vg_id in zip(options.vg, phase_vg_ids, vg_ids):
@@ -443,7 +444,7 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
                 gfa_ids.append(gfa_job.rv())
 
             gfa_merge_job = gfa_root_job.addFollowOnJobFn(make_vg_indexes, options, config, gfa_ids,
-                                                          workflow_phase=workflow_phase,
+                                                          do_gbz=do_gbz,
                                                           cores=options.indexCores,
                                                           disk=sum(f.size for f in vg_ids) * 6,
                                                           memory=index_mem)
@@ -724,7 +725,7 @@ def vg_to_og(job, options, config, vg_path, vg_id):
                             os.path.basename(og_path), '-t', str(job.cores)], work_dir=work_dir, job_memory=job.memory)
     return job.fileStore.writeGlobalFile(og_path)
 
-def make_vg_indexes(job, options, config, gfa_ids, workflow_phase):
+def make_vg_indexes(job, options, config, gfa_ids, do_gbz=False):
     """ merge of the gfas, then make gbz / snarls / trans
     """
     tag = workflow_phase + '.'
@@ -743,13 +744,11 @@ def make_vg_indexes(job, options, config, gfa_ids, workflow_phase):
         # add in the additional references here
         if i == 0:
             cmd = [cmd, ['sed', '-e', '1s/{}//'.format(graph_event)]]
-            if len(options.reference) > 1:
-                cmd.append(['sed', '-e', '1s/{}/{}/'.format(options.reference[0], ' '.join(options.reference))])
         cactus_call(parameters=cmd, outfile=merge_gfa_path, outappend=True, job_memory=job.memory)
         job.fileStore.deleteGlobalFile(gfa_id)
 
     # make the gbz
-    if workflow_phase in options.gbz:
+    if do_gbz:
         gbz_path = os.path.join(work_dir, '{}merged.gbz'.format(tag))
         cactus_call(parameters=['vg', 'gbwt', '-G', merge_gfa_path, '--gbz-format', '-g', gbz_path], job_memory=job.memory)
 
@@ -758,12 +757,12 @@ def make_vg_indexes(job, options, config, gfa_ids, workflow_phase):
     gfa_path = merge_gfa_path + '.gz'
 
     # make the snarls
-    if workflow_phase in options.gbz:
+    if do_gbz:
         snarls_path = os.path.join(work_dir, '{}merged.snarls'.format(tag))
         cactus_call(parameters=['vg', 'snarls', gbz_path, '-T', '-t', str(job.cores)], outfile=snarls_path, job_memory=job.memory)
 
     out_dict = { '{}gfa.gz'.format(tag) : job.fileStore.writeGlobalFile(gfa_path) }
-    if workflow_phase in options.gbz:
+    if do_gbz:
         out_dict['{}gbz'.format(tag)] = job.fileStore.writeGlobalFile(gbz_path)
         out_dict['{}snarls'.format(tag)] =  job.fileStore.writeGlobalFile(snarls_path)
     return out_dict

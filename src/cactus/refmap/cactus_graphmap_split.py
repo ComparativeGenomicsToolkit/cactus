@@ -50,7 +50,7 @@ def main():
     parser.add_argument("--refContigs", nargs="*", help = "Subset to these reference contigs (multiple allowed)", default=[])
     parser.add_argument("--refContigsFile", type=str, help = "Subset to (newline-separated) reference contigs in this file")
     parser.add_argument("--otherContig", type=str, help = "Lump all reference contigs unselected by above options into single one with this name")
-    parser.add_argument("--reference", type=str, help = "Name of reference (in seqFile).  Ambiguity filters will not be applied to it")
+    parser.add_argument("--reference", required=True, nargs='+', type=str, help = "Name of reference (in seqFile).  Ambiguity filters will not be applied to it")
     parser.add_argument("--maskFilter", type=int, help = "Ignore softmasked sequence intervals > Nbp")
     parser.add_argument("--minIdentity", type=float, help = "Ignore PAF lines with identity (column 10/11) < this (overrides minIdentity in <graphmap_split> in config)")
     parser.add_argument("--permissiveContigFilter", nargs='?', const='0.25', default=None, type=float, help = "If specified, override the configuration to accept contigs so long as they have at least given fraction of coverage (0.25 if no fraction specified). This can increase sensitivity of very small, fragmented and/or diverse assemblies.")
@@ -80,6 +80,10 @@ def main():
         
     # Mess with some toil options to create useful defaults.
     cactus_override_toil_options(options)
+
+    # support but ignore multi reference
+    if options.reference:
+        options.reference = options.reference[0]
 
     logger.info('Cactus Command: {}'.format(' '.join(sys.argv)))
     logger.info('Cactus Commit: {}'.format(cactus_commit))
@@ -174,6 +178,10 @@ def graphmap_split_workflow(job, options, config, seq_id_map, seq_name_map, gfa_
 
     root_job = Job()
     job.addChild(root_job)
+
+    # can be a list coming in from cactus-pangenome, but we only need first item
+    if type(options.reference) is list:
+        options.reference = options.reference[0]
 
     #override the minIdentity
     if options.minIdentity is not None:

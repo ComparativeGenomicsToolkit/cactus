@@ -49,7 +49,7 @@ def main():
     parser.add_argument("--maskFilter", type=int, help = "Ignore softmasked sequence intervals > Nbp (overrides config option of same name)")
     parser.add_argument("--delFilter", type=int, help = "Filter out split-mapping-implied deletions > Nbp (default will be \"delFilter\" from the config")
     parser.add_argument("--outputGAFDir", type=str, help = "Output GAF alignments (raw minigraph output before PAF conversion) to this directory")
-    parser.add_argument("--reference", type=str, help = "Reference genome name.  MAPQ filter will not be applied to it")
+    parser.add_argument("--reference", required=True, nargs='+', type=str, help = "Reference genome name.  MAPQ filter will not be applied to it")
     parser.add_argument("--refFromGFA", action="store_true", help = "Do not align reference (--reference) from seqfile, and instead extract its alignment from the rGFA tags (must have been used as reference for minigraph GFA construction)")
     parser.add_argument("--mapCores", type=int, help = "Number of cores for minigraph.  Overrides graphmap cpu in configuration")    
 
@@ -84,6 +84,10 @@ def main():
         if not options.pathOverrides or not options.pathOverrideNames or \
            len(options.pathOverrideNames) != len(options.pathOverrides):
             raise RuntimeError('same number of values must be passed to --pathOverrides and --pathOverrideNames')
+
+    # support but ignore multi reference
+    if options.reference:
+        options.reference = options.reference[0]
 
     # Mess with some toil options to create useful defaults.
     cactus_override_toil_options(options)
@@ -203,6 +207,10 @@ def minigraph_workflow(job, options, config, seq_id_map, gfa_id, graph_event, sa
     """ Overall workflow takes command line options and returns (paf-id, (optional) fa-id) """
     fa_id = None
     gfa_id_size = gfa_id.size
+
+    # can be a list coming in from cactus-pangenome, but we only need first item
+    if type(options.reference) is list:
+        options.reference = options.reference[0]
 
     root_job = Job()
     job.addChild(root_job)
