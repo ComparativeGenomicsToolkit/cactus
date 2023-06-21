@@ -113,15 +113,15 @@ def graphmap_join_options(parser):
     
     parser.add_argument("--gbz", nargs='*', default=None, help = "Generate GBZ/snarls indexes for the given graph type(s) if specified. Valid types are 'full', 'clip' and 'filter'. If no type specified 'clip' will be used ('full' used if clipping disabled). Multiple types can be provided separated by a space. --giraffe will also produce these (and other) indexes")
 
-    parser.add_argument("--odgi", nargs='*', default=None, help = "Generate ODGI (.og) versions for the given graph type(s) if specified. Valid types are 'full', 'clip' and 'filter'. If no type specified 'clip' will be used ('full' used if clipping disabled). Multiple types can be provided separated by a space.")
+    parser.add_argument("--odgi", nargs='*', default=None, help = "Generate ODGI (.og) versions for the given graph type(s) if specified. Valid types are 'full', 'clip' and 'filter'. If no type specified 'full' will be used. Multiple types can be provided separated by a space.")
 
-    parser.add_argument("--viz", nargs='*', default=None, help = "Generate 1D ODGI visualizations of each chromosomal graph for the given graph type(s) if specified. Valid types are 'full', 'clip' (but NOT `filter`). If no type specified 'clip' will be used ('full' used if clipping disabled). Multiple types can be provided separated by a space.")
+    parser.add_argument("--viz", nargs='*', default=None, help = "Generate 1D ODGI visualizations of each chromosomal graph for the given graph type(s) if specified. Valid types are 'full', 'clip' (but NOT `filter`). If no type specified 'full' will be used. Multiple types can be provided separated by a space.")
 
-    parser.add_argument("--draw", nargs='*', default=None, help = "Generate 2D ODGI visualizations of each chromosomal graph for the given graph type(s) if specified. WARNING: Can be quite slow. Valid types are 'full', 'clip' (but NOT `filter`). If no type specified 'clip' will be used ('full' used if clipping disabled). Multiple types can be provided separated by a space.")
+    parser.add_argument("--draw", nargs='*', default=None, help = "Generate 2D ODGI visualizations of each chromosomal graph for the given graph type(s) if specified. WARNING: EXPERIMENTAL OPTION. More work needs to be done to figure out the best ODGI parameters to use, and it can be quite slow in the meantime. For larger graphs, use --chrom-og and run the drawing by hand in order to avoid having draw issues prevent you from getting the rest of your output. Valid types are 'full', 'clip' (but NOT `filter`). If no type specified 'full' will be used. Multiple types can be provided separated by a space.")
     
     parser.add_argument("--chrom-vg", nargs='*', default=None, help = "Produce a directory of chromosomal graphs is vg format for the graph type(s) specified. Valid typs are 'full', 'clip' and 'filter'. If no type specified 'clip' will be used ('full' used if clipping disabled). Multiple types can be provided separated by a space.  The output will be the <outDir>/<outName>.chroms/ directory")
 
-    parser.add_argument("--chrom-og", nargs='*', default=None, help = "Produce a directory of chromosomal graphs is odgi format for the graph type(s) specified. Valid typs are 'full', 'clip' and 'filter'. If no type specified 'clip' will be used ('full' used if clipping disabled). Multiple types can be provided separated by a space.  The output will be the <outDir>/<outName>.chroms/ directory")
+    parser.add_argument("--chrom-og", nargs='*', default=None, help = "Produce a directory of chromosomal graphs is odgi format for the graph type(s) specified. Valid typs are 'full', 'clip' and 'filter'. If no type specified 'full' will be used. Multiple types can be provided separated by a space.  The output will be the <outDir>/<outName>.chroms/ directory")
     
     parser.add_argument("--vcf", nargs='*', default=None, help = "Generate a VCF from the given graph type(s). Valid types are 'full', 'clip' and 'filter'. If no type specified, 'clip' will be used ('full' used if clipping disabled). Multipe types can be provided separated by space")
     parser.add_argument("--vcfReference", nargs='+', default=None, help = "If multiple references were provided with --reference, this option can be used to specify a subset for vcf creation with --vcf. By default, --vcf will create VCFs for the first reference only")
@@ -180,7 +180,7 @@ def graphmap_join_validate_options(options):
             raise RuntimeError('--gbz cannot be set to filter since filtering is disabled')
 
     if options.odgi == []:
-        options.odgi = ['clip'] if options.clip else ['full']
+        options.odgi = ['full']
     options.odgi = list(set(options.odgi)) if options.odgi else []
     for odgi in options.odgi:
         if odgi not in ['clip', 'filter', 'full']:
@@ -191,7 +191,7 @@ def graphmap_join_validate_options(options):
             raise RuntimeError('--odgi cannot be set to filter since filtering is disabled')
         
     if options.viz == []:
-        options.viz = ['clip'] if options.clip else ['full']
+        options.viz = ['full']
     options.viz = list(set(options.viz)) if options.viz else []
     for viz in options.viz:
         if viz not in ['clip', 'full']:
@@ -202,7 +202,7 @@ def graphmap_join_validate_options(options):
             raise RuntimeError('--viz cannot be set to filter since filtering is disabled')
 
     if options.draw == []:
-        options.draw = ['clip'] if options.clip else ['full']
+        options.draw = ['full']
     options.draw = list(set(options.draw)) if options.draw else []
     for draw in options.draw:
         if draw not in ['clip', 'full']:
@@ -224,7 +224,7 @@ def graphmap_join_validate_options(options):
             raise RuntimeError('--chrom-vg cannot be set to filter since filtering is disabled')
 
     if options.chrom_og == []:
-        options.chrom_og = ['clip'] if options.clip else ['full']
+        options.chrom_og = ['full']
     options.chrom_og = list(set(options.chrom_og)) if options.chrom_og else []
     for chrom_og in options.chrom_og:
         if chrom_og not in ['clip', 'filter', 'full']:
@@ -986,7 +986,7 @@ def export_join_data(toil, options, full_ids, clip_ids, clip_stats, filter_ids, 
             og_ids = og_chrom_ids[gtype]['og']
             assert len(options.vg) == len(og_ids)
             for vg_path, og_id in zip(options.vg, og_ids):
-                name = os.path.splitext(vg_path)[0] + '.{}.og'.format(tag)
+                name = os.path.splitext(vg_path)[0] + '{}.og'.format( '.' + tag if tag != 'clip' else '')
                 toil.exportFile(og_id, makeURL(os.path.join(clip_base, os.path.basename(name))))
 
     # make a directory for the viz
@@ -1001,7 +1001,7 @@ def export_join_data(toil, options, full_ids, clip_ids, clip_stats, filter_ids, 
             tag = 'd{}'.format(options.filter) if gtype == 'filter' else gtype            
             for vg_path, viz_id in zip(options.vg, og_chrom_ids[gtype]['viz']):
                 if viz_id:
-                    viz_name = os.path.splitext(vg_path)[0] + '.{}.viz.png'.format(tag)
+                    viz_name = os.path.splitext(vg_path)[0] + '{}.viz.png'.format('.' + tag if tag != 'clip' else '')
                     toil.exportFile(viz_id, makeURL(os.path.join(viz_base, os.path.basename(viz_name))))
 
         for gtype in options.draw:
@@ -1010,7 +1010,7 @@ def export_join_data(toil, options, full_ids, clip_ids, clip_stats, filter_ids, 
             tag = 'd{}'.format(options.filter) if gtype == 'filter' else gtype            
             for vg_path, draw_id in zip(options.vg, og_chrom_ids[gtype]['draw']):
                 if draw_id:
-                    draw_name = os.path.splitext(vg_path)[0] + '.{}.draw.png'.format(tag)
+                    draw_name = os.path.splitext(vg_path)[0] + '{}.draw.png'.format('.' + tag if tag != 'clip' else '')
                     toil.exportFile(draw_id, makeURL(os.path.join(viz_base, os.path.basename(draw_name))))
                 
     # download the stats files
