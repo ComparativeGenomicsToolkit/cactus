@@ -52,8 +52,8 @@ def main():
     parser.add_argument("--raw", action="store_true", help = "Do not run taf-based normalization on the MAF")
 
     # new dupe-handler option
-    parser.add_argument("--dupeMode", type=str, choices=["single", "ancestral", "all"],
-                        help="Toggle how to handle duplications: None: heuristically choose single, most similar homolog; Ancestral: keep only duplications that are also separate in ancestor; All: keep all duplications, including paralogies (self-alignments) in given genome [default=All]",
+    parser.add_argument("--dupeMode", type=str, choices=["single", "consensus", "ancestral", "all"],
+                        help="Toggle how to handle duplications: single: heuristically choose single, most similar homolog; consensus: squish all duplicate rows into a single conensus row; Ancestral: keep only duplications that are also separate in ancestor; All: keep all duplications, including paralogies (self-alignments) in given genome [default=all]",
                         default="all")
 
     # pass through a subset of hal2maf options
@@ -336,6 +336,8 @@ def taf_cmd(hal_path, chunk, chunk_num, options):
     cmd += ' | mafFilter -m - -l 2'
     if options.dupeMode == 'single':
         cmd += ' | mafDuplicateFilter -m - -k'
+    elif options.dupeMode == 'consensus':
+        cmd += ' | maf_stream merge_dups consensus'
     if chunk[1] != 0:
         cmd += ' | grep -v ^#'
     if options.outputMAF.endswith('.gz'):

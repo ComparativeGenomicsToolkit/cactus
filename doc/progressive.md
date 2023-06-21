@@ -112,9 +112,12 @@ The various batching options can be used to tune distributed runs on very large 
 --chunkSize 1000000 --batchCount 4 --batchCores 32 --batchParallelTaf 8 --batchSystem mesos --provisioner aws --defaultPreemptable --nodeStorage 2000 --maxNodes 4 --nodeTypes r5.8xlarge 
 ```
 
-Depending on the application, you may want to handle duplication events differently when creating the MAF. Three different modes are available via the `--dupeMode` option.
+**Important** Even with the default normalization, `hal2maf` will still often create alignemnts with too many blocks.  It is therefore highly recommended to add the `--filterGapCausingDupes` option to `cactus-hal2maf` (regardless of the `--dupeMode` selection below).  This option will greedily remove duplicate row entries that would break a block apart. In practice, it has a negligible effect on coverage, but a very large effect on the number of blocks. 
 
-* "single" : Uses greedy heuristics to pick the copy for each species that results in fewest mutations and block breaks. Recommended when visualizing via BigMaf (see below)
+Depending on the application, you may want to handle duplication events differently when creating the MAF. Four different modes are available via the `--dupeMode` option.
+
+* "single" : Uses greedy heuristics to pick the copy for each species that results in fewest mutations and block breaks.
+* "consensus" : Uses [maf_stream merge_dups consensus](https://github.com/ComparativeGenomicsToolkit/maf_stream#resolving-duplicated-entries) to make a single "consensus" row for all duplicate rows. This row won't actually reflect a real sequence in the fasta, but the individual columns will be more sensitive to the true coverage than when using "single".  Recommended when only looking at columns and duplications are not supported (ex with Phast and the UCSC Genome Browser). 
 * "ancestral" : Restricts the duplication relationships shown to only those orthologous to the reference genome according to the HAL tree. There may be multiple orthologs per genome. This relies on the dating of the duplication in the hal tree (ie in which genome it is explicitly self-aligned) and is still a work in progress. For example, in a tree with `((human,chimp),gorilla)`, if a duplication in human is collapsed (ie a single copy) in the human-chimp ancestor, then it would not show up on the human-referenced MAF using this option. But if the duplication is not collapsed in this ancestor (presumably because each copy has an ortholog in chimp and gorilla), then it will be in the MAF because the duplication event was higher in the tree.
 * "all" : (default) All duplications are written, including ancestral events (orthologs) and paralogs in the reference. 
 
