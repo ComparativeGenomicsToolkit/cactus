@@ -112,6 +112,8 @@ The various batching options can be used to tune distributed runs on very large 
 --chunkSize 1000000 --batchCount 4 --batchCores 32 --batchParallelTaf 8 --batchSystem mesos --provisioner aws --defaultPreemptable --nodeStorage 2000 --maxNodes 4 --nodeTypes r5.8xlarge 
 ```
 
+**Important** Even with the default normalization, `hal2maf` will still often create alignemnts with too many blocks.  It is therefore highly recommended to add the `--filterGapCausingDupes` option to `cactus-hal2maf` (regardless of the `--dupeMode` selection below).  This option will greedily remove duplicate row entries that would break a block apart. In practice, it has a negligible effect on coverage, but a very large effect on the number of blocks. 
+
 Depending on the application, you may want to handle duplication events differently when creating the MAF. Four different modes are available via the `--dupeMode` option.
 
 * "single" : Uses greedy heuristics to pick the copy for each species that results in fewest mutations and block breaks.
