@@ -25,6 +25,7 @@ from argparse import ArgumentParser
 import xml.etree.ElementTree as ET
 import copy
 import timeit
+import re
 
 from operator import itemgetter
 from collections import defaultdict
@@ -842,6 +843,7 @@ def odgi_squeeze(job, config, vg_paths, og_ids, tag=''):
     cactus_call(parameters=['odgi', 'squeeze', '-f', list_path, '-o', merged_path, '-t', str(job.cores)], job_memory=job.memory)
     return { '{}og'.format(tag) : job.fileStore.writeGlobalFile(merged_path) }    
 
+        
 def make_odgi_viz(job, config, options, vg_path, og_id, tag='', viz=True, draw=True):
     """ use odgi viz and draw to make some images """
     work_dir = job.fileStore.getLocalTempDir()
@@ -851,10 +853,27 @@ def make_odgi_viz(job, config, options, vg_path, og_id, tag='', viz=True, draw=T
     og_sort_path = og_path + '.sort'
     cactus_call(parameters=['odgi', 'sort', '-i', og_path, '-o', og_sort_path, '-t', str(job.cores)], job_memory=job.memory)
 
-    if viz: 
+    if viz:     
+        # determine prefixes to merge together (ie sample name + haplotype, splitting on #)
+        prefix_path = os.path.join(work_dir, 'path_sample_names')
+        odgi_paths_output = cactus_call(parameters=['odgi', 'paths', '-i', og_sort_path, '-L'], check_output=True).strip()
+        prefixes = set()
+        for line in odgi_paths_output.split('\n'):
+            m = re.match('.+#[0-9]+#', line)
+            if m and m.span()[0] == 0:
+                cut_pos = m.span()[1]
+            else:
+                cut_pos = line.find('#')
+            if cut_pos > 0:
+                prefixes.add(line[0:cut_pos])
+
+        with open(prefix_path, 'w') as prefix_file:
+            for prefix in sorted(list(prefixes)):
+                prefix_file.write(prefix + '\n')
+
         viz_opts = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "odgiVizOptions", default='').split()
         viz_png_path = og_path + '.viz.png'
-        cactus_call(parameters=['odgi', 'viz', '-i', og_sort_path, '-o', viz_png_path, '-t', str(job.cores)] + viz_opts, job_memory=job.memory)
+        cactus_call(parameters=['odgi', 'viz', '-i', og_sort_path, '-o', viz_png_path, '-M', prefix_path, '-t', str(job.cores)] + viz_opts, job_memory=job.memory)
         
     if draw:    
         lay_opts = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "odgiLayoutOptions", default='').split()
