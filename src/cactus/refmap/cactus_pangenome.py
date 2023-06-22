@@ -52,7 +52,8 @@ def main():
     parser.add_argument("seqFile", help = "Seq file (will be modified if necessary to include graph Fasta sequence)")
     parser.add_argument("--outDir", help = "Output directory", required=True)
     parser.add_argument("--outName", help = "Output name (without extension)", required=True)
-    parser.add_argument("--reference", required=True, nargs='+', type=str, help = "Reference event name(s). The first will be the \"true\" reference and will be left unclipped and uncollapsed. It also should have been used with --reference in all upstream commands. Other names will be promoted to reference paths in vg") 
+    parser.add_argument("--reference", required=True, nargs='+', type=str, help = "Reference event name(s). The first will be the \"true\" reference and will be left unclipped and uncollapsed. It also should have been used with --reference in all upstream commands. Other names will be promoted to reference paths in vg")
+    parser.add_argument("--outgroup", type=str, nargs='+', help = "Use given genome as outgroup. Multiple allowed")
 
     # cactus-minigraph options
     parser.add_argument("--mgCores", type=int, help = "Number of cores for minigraph construction (defaults to the same as --maxCores).")
