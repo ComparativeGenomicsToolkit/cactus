@@ -434,8 +434,8 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
         phase_root_job.addFollowOn(gfa_root_job)
         gfa_ids = []
         current_out_dict = None
-        do_gbz = workflow_phase in [options.gbz + options.vcf + options.giraffe]
-        if workflow_phase in options.gfa + options.gbz + options.vcf + options.giraffe:
+        do_gbz = workflow_phase in options.gbz + options.vcf + options.giraffe
+        if do_gbz or workflow_phase in options.gfa:
             assert len(options.vg) == len(phase_vg_ids) == len(vg_ids)
             for vg_path, vg_id, input_vg_id in zip(options.vg, phase_vg_ids, vg_ids):
                 gfa_job = gfa_root_job.addChildJobFn(vg_to_gfa, options, config, vg_path, vg_id,
@@ -444,6 +444,7 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
                 gfa_ids.append(gfa_job.rv())
 
             gfa_merge_job = gfa_root_job.addFollowOnJobFn(make_vg_indexes, options, config, gfa_ids,
+                                                          tag=workflow_phase + '.',
                                                           do_gbz=do_gbz,
                                                           cores=options.indexCores,
                                                           disk=sum(f.size for f in vg_ids) * 6,
@@ -725,10 +726,9 @@ def vg_to_og(job, options, config, vg_path, vg_id):
                             os.path.basename(og_path), '-t', str(job.cores)], work_dir=work_dir, job_memory=job.memory)
     return job.fileStore.writeGlobalFile(og_path)
 
-def make_vg_indexes(job, options, config, gfa_ids, do_gbz=False):
+def make_vg_indexes(job, options, config, gfa_ids, tag="", do_gbz=False):
     """ merge of the gfas, then make gbz / snarls / trans
     """
-    tag = workflow_phase + '.'
     work_dir = job.fileStore.getLocalTempDir()
     vg_paths = []
     merge_gfa_path = os.path.join(work_dir, '{}merged.gfa'.format(tag))

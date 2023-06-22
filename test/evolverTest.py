@@ -467,7 +467,9 @@ class TestCase(unittest.TestCase):
         chroms = ['chrI', 'chrII', 'chrIII', 'chrIV', 'chrV', 'chrVI', 'chrVII', 'chrVIII', 'chrIX', 'chrX', 'chrXI', 'chrXIV', 'chrXV']
         cactus_pangenome_cmd = ['cactus-pangenome', self._job_store(binariesMode), orig_seq_file_path, '--outDir', join_path, '--outName', 'yeast',
                                 '--refContigs'] + chroms + ['--reference', 'S288C', 'DBVPG6044', '--vcf', '--vcfReference','DBVPG6044', 'S288C', 
-                                                            '--giraffe', 'clip', 'filter',  '--chrom-vg', 'clip', 'filter', '--indexCores', '4', '--consCores', '2']
+                                                            '--giraffe', 'clip', 'filter',  '--chrom-vg', 'clip', 'filter',
+                                                            '--viz', '--chrom-og', 'clip', 'full', '--odgi',
+                                                            '--indexCores', '4', '--consCores', '2']
         subprocess.check_call(cactus_pangenome_cmd + cactus_opts)
 
         #compatibility with older test        
@@ -576,6 +578,13 @@ class TestCase(unittest.TestCase):
         filter_edges = int(subprocess.check_output(['vg', 'stats', '-E', os.path.join(join_path, 'yeast.d2.gbz')]).strip().decode('utf-8').strip())
         self.assertGreaterEqual(filter_edges, 400000)
         self.assertLessEqual(filter_edges, 500000)
+
+        # make sure the odgi stuff exists
+        self.assertGreaterEqual(os.path.getsize(os.path.join(join_path, 'yeast.full.og')), 75000000)
+        for chr in contig_sizes:
+            self.assertGreaterEqual(os.path.getsize(os.path.join(join_path, 'yeast.viz', chr + '.full.viz.png')), 700)
+            self.assertGreaterEqual(os.path.getsize(os.path.join(join_path, 'yeast.chroms', chr + '.full.og')), 3000000)
+            self.assertGreaterEqual(os.path.getsize(os.path.join(join_path, 'yeast.chroms', chr + '.og')), 3000000)
         
         
     def _csvstr_to_table(self, csvstr, header_fields):
