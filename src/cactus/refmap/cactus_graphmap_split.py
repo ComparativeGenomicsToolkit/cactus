@@ -50,7 +50,7 @@ def main():
     parser.add_argument("--refContigs", nargs="*", help = "Subset to these reference contigs (multiple allowed)", default=[])
     parser.add_argument("--refContigsFile", type=str, help = "Subset to (newline-separated) reference contigs in this file")
     parser.add_argument("--otherContig", type=str, help = "Lump all reference contigs unselected by above options into single one with this name")
-    parser.add_argument("--reference", type=str, help = "Name of reference (in seqFile).  Ambiguity filters will not be applied to it")
+    parser.add_argument("--reference", required=True, nargs='+', type=str, help = "Name of reference (in seqFile).  Ambiguity filters will not be applied to it")
     parser.add_argument("--maskFilter", type=int, help = "Ignore softmasked sequence intervals > Nbp")
     parser.add_argument("--minIdentity", type=float, help = "Ignore PAF lines with identity (column 10/11) < this (overrides minIdentity in <graphmap_split> in config)")
     parser.add_argument("--permissiveContigFilter", nargs='?', const='0.25', default=None, type=float, help = "If specified, override the configuration to accept contigs so long as they have at least given fraction of coverage (0.25 if no fraction specified). This can increase sensitivity of very small, fragmented and/or diverse assemblies.")
@@ -80,6 +80,10 @@ def main():
         
     # Mess with some toil options to create useful defaults.
     cactus_override_toil_options(options)
+
+    # support but ignore multi reference
+    if options.reference:
+        options.reference = options.reference[0]
 
     logger.info('Cactus Command: {}'.format(' '.join(sys.argv)))
     logger.info('Cactus Commit: {}'.format(cactus_commit))
@@ -175,6 +179,10 @@ def graphmap_split_workflow(job, options, config, seq_id_map, seq_name_map, gfa_
     root_job = Job()
     job.addChild(root_job)
 
+    # can be a list coming in from cactus-pangenome, but we only need first item
+    if type(options.reference) is list:
+        options.reference = options.reference[0]
+
     #override the minIdentity
     if options.minIdentity is not None:
         findRequiredNode(config.xmlRoot, "graphmap").attrib["minIdentity"] = str(options.minIdentity)
@@ -201,9 +209,9 @@ def graphmap_split_workflow(job, options, config, seq_id_map, seq_name_map, gfa_
     # auto-set --refContigs
     if not options.refContigs:
         refcontig_job = sanitize_job.addFollowOnJobFn(detect_ref_contigs, config, options, seq_id_map)
-        ref_contigs = refcontig_job.rv()        
-        options.otherContig = 'chrOther'
-        other_contig = 'chrOther'
+        ref_contigs = refcontig_job.rv()
+        other_contig = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "otherContigName", typeFn=str, default="chrOther")
+        options.otherContig = other_contig
         sanitize_job = refcontig_job
     
     # use file extension to sniff out compressed input
@@ -263,6 +271,7 @@ def detect_ref_contigs(job, config, options, seq_id_map):
     max_ref_contigs = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "maxRefContigs", typeFn=int, default=128)
     ref_contig_dropoff = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "refContigDropoff", typeFn=float, default=10.0)
     ref_contig_regex = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "refContigRegex", typeFn=str, default=None)
+    other_contig_name = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "otherContigName", typeFn=str, default="chrOther")
 
     # sort by decreasing size
     sorted_contigs = sorted(contigs, key=lambda x : x[1], reverse=True)
@@ -291,7 +300,7 @@ def detect_ref_contigs(job, config, options, seq_id_map):
 
     msg = "auto-detected --refContigs {}".format(' '.join(ref_contigs))
     if len(ref_contigs) < len(sorted_contigs):
-        msg += " --otherContig chrOther"
+        msg += " --otherContig {}".format(other_contig_name)
 
     RealtimeLogger.info(msg)
 

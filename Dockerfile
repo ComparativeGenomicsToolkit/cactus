@@ -1,7 +1,7 @@
 FROM quay.io/comparative-genomics-toolkit/ubuntu:22.04 AS builder
 
 # apt dependencies for build
-RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y build-essential git python3 python3-dev python3-pip zlib1g-dev wget libbz2-dev pkg-config libhdf5-dev liblzo2-dev libtokyocabinet-dev wget liblzma-dev libxml2-dev libssl-dev libpng-dev uuid-dev libcurl4-gnutls-dev libffi-dev python3-virtualenv rsync python-is-python3 libdeflate-dev
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y build-essential git python3 python3-dev python3-pip zlib1g-dev wget libbz2-dev pkg-config libhdf5-dev liblzo2-dev libtokyocabinet-dev wget liblzma-dev libxml2-dev libssl-dev libpng-dev uuid-dev libcurl4-gnutls-dev libffi-dev python3-virtualenv rsync python-is-python3 libdeflate-dev cmake libjemalloc-dev python3-distutils
 
 # build cactus binaries
 RUN mkdir -p /home/cactus
@@ -61,7 +61,7 @@ RUN rm -rf /home/cactus/hal_lib && \
 FROM quay.io/comparative-genomics-toolkit/ubuntu:22.04
 
 # apt dependencies for runtime
-RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends git python3 python3-pip python3-distutils zlib1g libbz2-1.0 net-tools libhdf5-103 liblzo2-2 libtokyocabinet9 libkrb5-3 libk5crypto3 time liblzma5 libcurl4 libcurl4-gnutls-dev libxml2 libgomp1 libffi7 parallel libdeflate0
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends git python3 python3-pip python3-distutils zlib1g libbz2-1.0 net-tools libhdf5-103 liblzo2-2 libtokyocabinet9 libkrb5-3 libk5crypto3 time liblzma5 libcurl4 libcurl4-gnutls-dev libxml2 libgomp1 libffi7 parallel libdeflate0 libjemalloc2
 
 # required for ubuntu22 but won't work anywhere else
 RUN bash -c "if ! command -v catchsegv > /dev/null; then apt-get install glibc-tools; fi"

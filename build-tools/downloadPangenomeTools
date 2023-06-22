@@ -321,6 +321,24 @@ mv mash ${binDir}
 # but.. I can't figure out how to build proper static binary from
 # source and this one seems broadly compatible with many systems...
 
+# odgi
+cd ${pangenomeBuildDir}
+wget -q https://github.com/pangenome/odgi/releases/download/v0.8.3/odgi-v0.8.3.tar.gz
+tar zxf odgi-v0.8.3.tar.gz
+cd odgi-v0.8.3
+if [[ $STATIC_CHECK -eq 1 ]]
+then
+    cmake -DBUILD_STATIC=1 -DCMAKE_BUILD_TYPE=Generic -H. -Bbuild && cmake --build build -- -j ${numcpu}
+else
+    cmake -H. -Bbuild -DCMAKE_BUILD_TYPE=Generic && cmake --build build -- -j ${numcpu}
+fi
+if [[ $STATIC_CHECK -ne 1 || $(ldd bin/odgi | grep so | wc -l) -eq 0 ]]
+then
+    mv bin/odgi ${binDir}
+else
+    exit 1
+fi
+
 cd ${CWD}
 rm -rf ${pangenomeBuildDir}
 

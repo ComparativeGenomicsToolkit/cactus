@@ -25,8 +25,10 @@ from argparse import ArgumentParser
 import xml.etree.ElementTree as ET
 import copy
 import timeit
+import re
 
 from operator import itemgetter
+from collections import defaultdict
 
 from cactus.progressive.seqFile import SeqFile
 from cactus.progressive.multiCactusTree import MultiCactusTree
@@ -112,7 +114,15 @@ def graphmap_join_options(parser):
     
     parser.add_argument("--gbz", nargs='*', default=None, help = "Generate GBZ/snarls indexes for the given graph type(s) if specified. Valid types are 'full', 'clip' and 'filter'. If no type specified 'clip' will be used ('full' used if clipping disabled). Multiple types can be provided separated by a space. --giraffe will also produce these (and other) indexes")
 
+    parser.add_argument("--odgi", nargs='*', default=None, help = "Generate ODGI (.og) versions for the given graph type(s) if specified. Valid types are 'full', 'clip' and 'filter'. If no type specified 'full' will be used. Multiple types can be provided separated by a space.")
+
+    parser.add_argument("--viz", nargs='*', default=None, help = "Generate 1D ODGI visualizations of each chromosomal graph for the given graph type(s) if specified. Valid types are 'full', 'clip' (but NOT `filter`). If no type specified 'full' will be used. Multiple types can be provided separated by a space.")
+
+    parser.add_argument("--draw", nargs='*', default=None, help = "Generate 2D ODGI visualizations of each chromosomal graph for the given graph type(s) if specified. WARNING: EXPERIMENTAL OPTION. More work needs to be done to figure out the best ODGI parameters to use, and it can be quite slow in the meantime. For larger graphs, use --chrom-og and run the drawing by hand in order to avoid having draw issues prevent you from getting the rest of your output. Valid types are 'full', 'clip' (but NOT `filter`). If no type specified 'full' will be used. Multiple types can be provided separated by a space.")
+    
     parser.add_argument("--chrom-vg", nargs='*', default=None, help = "Produce a directory of chromosomal graphs is vg format for the graph type(s) specified. Valid typs are 'full', 'clip' and 'filter'. If no type specified 'clip' will be used ('full' used if clipping disabled). Multiple types can be provided separated by a space.  The output will be the <outDir>/<outName>.chroms/ directory")
+
+    parser.add_argument("--chrom-og", nargs='*', default=None, help = "Produce a directory of chromosomal graphs is odgi format for the graph type(s) specified. Valid typs are 'full', 'clip' and 'filter'. If no type specified 'full' will be used. Multiple types can be provided separated by a space.  The output will be the <outDir>/<outName>.chroms/ directory")
     
     parser.add_argument("--vcf", nargs='*', default=None, help = "Generate a VCF from the given graph type(s). Valid types are 'full', 'clip' and 'filter'. If no type specified, 'clip' will be used ('full' used if clipping disabled). Multipe types can be provided separated by space")
     parser.add_argument("--vcfReference", nargs='+', default=None, help = "If multiple references were provided with --reference, this option can be used to specify a subset for vcf creation with --vcf. By default, --vcf will create VCFs for the first reference only")
@@ -153,7 +163,7 @@ def graphmap_join_validate_options(options):
     options.gfa = list(set(options.gfa))
     for gfa in options.gfa:
         if gfa not in ['clip', 'filter', 'full']:
-            raise RuntimeError('Unrecognized value for --gfa: {}. Must be one of {clip, filter, full}'.format(gfa))
+            raise RuntimeError('Unrecognized value for --gfa: {}. Must be one of {{clip, filter, full}}'.format(gfa))
         if gfa == 'clip' and not options.clip:
             raise RuntimError('--gfa cannot be set to clip since clipping is disabled')
         if gfa == 'filter' and not options.filter:
@@ -164,29 +174,73 @@ def graphmap_join_validate_options(options):
     options.gbz = list(set(options.gbz)) if options.gbz else []
     for gbz in options.gbz:
         if gbz not in ['clip', 'filter', 'full']:
-            raise RuntimeError('Unrecognized value for --gbz: {}. Must be one of {clip, filter, full}'.format(gbz))
+            raise RuntimeError('Unrecognized value for --gbz: {}. Must be one of {{clip, filter, full}}'.format(gbz))
         if gbz == 'clip' and not options.clip:
             raise RuntimError('--gbz cannot be set to clip since clipping is disabled')
         if gbz == 'filter' and not options.filter:
             raise RuntimeError('--gbz cannot be set to filter since filtering is disabled')
+
+    if options.odgi == []:
+        options.odgi = ['full']
+    options.odgi = list(set(options.odgi)) if options.odgi else []
+    for odgi in options.odgi:
+        if odgi not in ['clip', 'filter', 'full']:
+            raise RuntimeError('Unrecognized value for --odgi: {}. Must be one of {{clip, filter, full}}'.format(odgi))
+        if odgi == 'clip' and not options.clip:
+            raise RuntimError('--odgi cannot be set to clip since clipping is disabled')
+        if odgi == 'filter' and not options.filter:
+            raise RuntimeError('--odgi cannot be set to filter since filtering is disabled')
+        
+    if options.viz == []:
+        options.viz = ['full']
+    options.viz = list(set(options.viz)) if options.viz else []
+    for viz in options.viz:
+        if viz not in ['clip', 'full']:
+            raise RuntimeError('Unrecognized value for --viz: {}. Must be one of {{clip, full}}'.format(viz))
+        if viz == 'clip' and not options.clip:
+            raise RuntimError('--viz cannot be set to clip since clipping is disabled')
+        if viz == 'filter' and not options.filter:
+            raise RuntimeError('--viz cannot be set to filter since filtering is disabled')
+
+    if options.draw == []:
+        options.draw = ['full']
+    options.draw = list(set(options.draw)) if options.draw else []
+    for draw in options.draw:
+        if draw not in ['clip', 'full']:
+            raise RuntimeError('Unrecognized value for --draw: {}. Must be one of {{clip, full}}'.format(draw))
+        if draw == 'clip' and not options.clip:
+            raise RuntimError('--draw cannot be set to clip since clipping is disabled')
+        if draw == 'filter' and not options.filter:
+            raise RuntimeError('--draw cannot be set to filter since filtering is disabled')                
 
     if options.chrom_vg == []:
         options.chrom_vg = ['clip'] if options.clip else ['full']
     options.chrom_vg = list(set(options.chrom_vg)) if options.chrom_vg else []
     for chrom_vg in options.chrom_vg:
         if chrom_vg not in ['clip', 'filter', 'full']:
-            raise RuntimeError('Unrecognized value for --chrom-vg: {}. Must be one of {clip, filter, full}'.format(chrom_vg))
+            raise RuntimeError('Unrecognized value for --chrom-vg: {}. Must be one of {{clip, filter, full}}'.format(chrom_vg))
         if chrom_vg == 'clip' and not options.clip:
             raise RuntimError('--chrom-vg cannot be set to clip since clipping is disabled')
         if chrom_vg == 'filter' and not options.filter:
-            raise RuntimeError('--chrom-vg cannot be set to filter since filtering is disabled')        
+            raise RuntimeError('--chrom-vg cannot be set to filter since filtering is disabled')
+
+    if options.chrom_og == []:
+        options.chrom_og = ['full']
+    options.chrom_og = list(set(options.chrom_og)) if options.chrom_og else []
+    for chrom_og in options.chrom_og:
+        if chrom_og not in ['clip', 'filter', 'full']:
+            raise RuntimeError('Unrecognized value for --chrom-og: {}. Must be one of {{clip, filter, full}}'.format(chrom_og))
+        if chrom_og == 'clip' and not options.clip:
+            raise RuntimError('--chrom-og cannot be set to clip since clipping is disabled')
+        if chrom_og == 'filter' and not options.filter:
+            raise RuntimeError('--chrom-og cannot be set to filter since filtering is disabled')                
     
     if options.vcf == []:
         options.vcf = ['clip'] if options.clip else ['full']
     options.vcf = list(set(options.vcf)) if options.vcf else []    
     for vcf in options.vcf:
         if vcf not in ['clip', 'filter', 'full']:
-            raise RuntimeError('Unrecognized value for --vcf: {}. Must be one of {clip, filter, full}'.format(vcf))
+            raise RuntimeError('Unrecognized value for --vcf: {}. Must be one of {{clip, filter, full}}'.format(vcf))
         if vcf == 'clip' and not options.clip:
             raise RuntimError('--vcf cannot be set to clip since clipping is disabled')
         if vcf == 'filter' and not options.filter:
@@ -208,17 +262,17 @@ def graphmap_join_validate_options(options):
     options.giraffe = list(set(options.giraffe)) if options.giraffe else []        
     for giraffe in options.giraffe:
         if giraffe not in ['clip', 'filter', 'full']:
-            raise RuntimeError('Unrecognized value for --giraffe: {}. Must be one of {clip, filter, full}'.format(giraffe))
+            raise RuntimeError('Unrecognized value for --giraffe: {}. Must be one of {{clip, filter, full}}'.format(giraffe))
         if giraffe == 'clip' and not options.clip:
             raise RuntimError('--giraffe cannot be set to clip since clipping is disabled')
         if giraffe == 'filter' and not options.filter:
             raise RuntimeError('--giraffe cannot be set to filter since filtering is disabled')
 
     # Prevent some useless compute due to default param combos
-    if options.clip and 'clip' not in options.gfa + options.gbz + options.chrom_vg + options.vcf + options.giraffe \
-       and 'filter' not in options.gfa + options.gbz + options.chrom_vg + options.vcf + options.giraffe:
+    if options.clip and 'clip' not in options.gfa + options.gbz + options.odgi + options.chrom_vg + options.chrom_og + options.vcf + options.giraffe + options.viz + options.draw\
+       and 'filter' not in options.gfa + options.gbz + options.odgi + options.chrom_vg + options.chrom_og + options.vcf + options.giraffe + options.viz + options.draw:
         options.clip = None
-    if options.filter and 'filter' not in options.gfa + options.gbz + options.chrom_vg + options.vcf + options.giraffe:
+    if options.filter and 'filter' not in options.gfa + options.gbz + options.odgi + options.chrom_vg + options.chrom_og + options.vcf + options.giraffe + options.viz + options.draw:
         options.filter = None
 
     return options
@@ -253,7 +307,7 @@ def graphmap_join(options):
             wf_output = toil.start(Job.wrapJobFn(graphmap_join_workflow, options, config, vg_ids, hal_ids))
                 
         #export the split data
-        export_join_data(toil, options, wf_output[0], wf_output[1], wf_output[2], wf_output[3], wf_output[4])
+        export_join_data(toil, options, wf_output[0], wf_output[1], wf_output[2], wf_output[3], wf_output[4], wf_output[5])
 
 def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
 
@@ -271,6 +325,10 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
                 if options.vcfReference[i] == ref_base + ref_ext:
                     options.vcfReference[i] = ref_base
 
+    # keep og ids in separate structure indexed on chromosome
+    og_chrom_ids = {'full' : defaultdict(list), 'clip' : defaultdict(list), 'filter' : defaultdict(list)}
+    # have a lot of trouble getting something working for small contigs, hack here:
+    og_min_size = max(2**31, int(sum(vg_id.size for vg_id in vg_ids) / len(vg_ids)) * 32)
     # run the "full" phase to do pre-clipping stuff
     full_vg_ids = []
     assert len(options.vg) == len(vg_ids)
@@ -279,6 +337,11 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
                                  disk=vg_id.size * 20, memory=max(2**31, vg_id.size * 20))
         root_job.addChild(full_job)
         full_vg_ids.append(full_job.rv(0))
+        if 'full' in options.odgi + options.chrom_og + options.viz + options.draw:
+            full_og_job = full_job.addFollowOnJobFn(vg_to_og, options, config, vg_path, full_job.rv(0),
+                                                    disk=vg_id.size * 16, memory=max(og_min_size, vg_id.size * 32))
+            og_chrom_ids['full']['og'].append(full_og_job.rv())
+
     prev_job = root_job
     
     # join the ids
@@ -312,7 +375,11 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
             clip_root_job.addChild(clip_job)
             clip_vg_ids.append(clip_job.rv(0))
             clip_vg_stats.append(clip_job.rv(1))
- 
+            if 'clip' in options.odgi + options.chrom_og + options.viz + options.draw:
+                clip_og_job = clip_job.addFollowOnJobFn(vg_to_og, options, config, vg_path, clip_job.rv(0),
+                                                        disk=input_vg_id.size * 16, memory=max(og_min_size, input_vg_id.size * 32))
+                og_chrom_ids['clip']['og'].append(clip_og_job.rv())
+
         # join the stats
         clipped_stats = clip_root_job.addFollowOnJobFn(cat_stats, clip_vg_stats).rv()
         prev_job = clip_root_job
@@ -327,6 +394,12 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
             filter_job = filter_root_job.addChildJobFn(vg_clip_vg, options, config, vg_path, vg_id, 
                                                        disk=input_vg_id.size * 20, memory=max(2**31, input_vg_id.size * 22))
             filter_vg_ids.append(filter_job.rv())
+            if 'filter' in options.odgi + options.chrom_og + options.viz + options.draw:
+                filter_og_job = filter_job.addFollowOnJobFn(vg_to_og, options, config, vg_path, filter_job.rv(),
+                                                            disk=input_vg_id.size * 16, memory=max(og_min_size, input_vg_id.size * 64))
+                og_chrom_ids['filter']['og'].append(filter_og_job.rv())                
+
+
         prev_job = filter_root_job
 
     # set up our whole-genome output
@@ -341,28 +414,28 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
         hal_id_dict = hal_merge_job.rv()
         out_dicts.append(hal_id_dict)
 
+    # hacky heuristic to get memory for vg jobs, where vg minimizer is tricky as
+    # it's not really based on graph size so much (ie simple graphs can take lots of mem)
+    index_mem = sum(f.size for f in vg_ids)
+    for tot_size, fac in zip([1e6, 1e9, 10e9, 50e9, 100e9, 500e9], [1000, 32, 10, 6, 5, 2]):
+        if index_mem < tot_size:
+            index_mem *= fac
+            break
+        
     workflow_phases = [('full', full_vg_ids, join_job)]
     if options.clip:
         workflow_phases.append(('clip', clip_vg_ids, clip_root_job))
     if options.filter:
         workflow_phases.append(('filter', filter_vg_ids, filter_root_job))        
     for workflow_phase, phase_vg_ids, phase_root_job in workflow_phases:
-
-        # hacky heuristic to get memory for vg jobs, where vg minimizer is tricky as
-        # it's not really based on graph size so much (ie simple graphs can take lots of mem)
-        tot_size = sum(f.size for f in vg_ids)
-        index_mem = tot_size * 5
-        for exp, fac in zip([30, 33, 36, 39], [40, 30, 20, 10]):
-            if tot_size < 2**exp:
-                index_mem = tot_size * fac
-                break
             
         # make a gfa for each
         gfa_root_job = Job()
         phase_root_job.addFollowOn(gfa_root_job)
         gfa_ids = []
         current_out_dict = None
-        if workflow_phase in options.gfa + options.gbz + options.vcf + options.giraffe:
+        do_gbz = workflow_phase in options.gbz + options.vcf + options.giraffe
+        if do_gbz or workflow_phase in options.gfa:
             assert len(options.vg) == len(phase_vg_ids) == len(vg_ids)
             for vg_path, vg_id, input_vg_id in zip(options.vg, phase_vg_ids, vg_ids):
                 gfa_job = gfa_root_job.addChildJobFn(vg_to_gfa, options, config, vg_path, vg_id,
@@ -372,6 +445,7 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
 
             gfa_merge_job = gfa_root_job.addFollowOnJobFn(make_vg_indexes, options, config, gfa_ids,
                                                           tag=workflow_phase + '.',
+                                                          do_gbz=do_gbz,
                                                           cores=options.indexCores,
                                                           disk=sum(f.size for f in vg_ids) * 6,
                                                           memory=index_mem)
@@ -400,8 +474,33 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
                                                          memory=index_mem)
             out_dicts.append(giraffe_job.rv())
 
+        # optional full-genome odgi
+        if workflow_phase in options.odgi:
+            odgi_job = gfa_root_job.addChildJobFn(odgi_squeeze, config, options.vg, og_chrom_ids[workflow_phase]['og'],
+                                                  tag=workflow_phase + '.', disk=sum(f.size for f in vg_ids) *4,
+                                                  memory=index_mem, cores=options.indexCores)
+            out_dicts.append(odgi_job.rv())                                                  
+
+        # optional viz
+        other_contig = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "otherContigName", typeFn=str, default="chrOther")
+        if workflow_phase in options.viz + options.draw:
+            do_viz = workflow_phase in options.viz
+            do_draw = workflow_phase in options.draw
+            for vg_path, input_vg_id, og_id in zip(options.vg, vg_ids, og_chrom_ids[workflow_phase]['og']):
+                # chrOther can contain tons of components, not sure if it ever makes sense to try to visualize
+                if not os.path.basename(vg_path).startswith(other_contig + '.'):
+                    viz_job = gfa_root_job.addChildJobFn(make_odgi_viz, config, options, vg_path, og_id, tag=workflow_phase,
+                                                         viz=do_viz, draw=do_draw,                                                     
+                                                         cores=options.indexCores, disk = input_vg_id.size * 10,
+                                                         memory=input_vg_id.size * 5)
+                else:
+                    viz_job = None
+                if do_viz:
+                    og_chrom_ids[workflow_phase]['viz'].append(viz_job.rv(0) if viz_job else None)
+                if do_draw:
+                    og_chrom_ids[workflow_phase]['draw'].append(viz_job.rv(1) if viz_job else None)
     
-    return output_full_vg_ids, clip_vg_ids, clipped_stats, filter_vg_ids, out_dicts
+    return output_full_vg_ids, clip_vg_ids, clipped_stats, filter_vg_ids, out_dicts, og_chrom_ids
 
 def clip_vg(job, options, config, vg_path, vg_id, phase):
     """ run clip-vg 
@@ -612,9 +711,24 @@ def vg_to_gfa(job, options, config, vg_path, vg_id):
 
     return job.fileStore.writeGlobalFile(out_path)
 
-def make_vg_indexes(job, options, config, gfa_ids, tag=''):
+def vg_to_og(job, options, config, vg_path, vg_id):
+    """ run odgi conversion """
+    work_dir = job.fileStore.getLocalTempDir()
+    vg_path = os.path.join(work_dir, os.path.basename(vg_path))
+    job.fileStore.readGlobalFile(vg_id, vg_path)
+    gfa_path = vg_path + '.gfa'
+    graph_event = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "assemblyName", default="_MINIGRAPH_")
+    cactus_call(parameters=[['vg', 'convert', '-f', '-W', os.path.basename(vg_path)],
+                            ['grep', '-v', '^P	{}'.format(graph_event)]],
+                outfile=gfa_path, work_dir=work_dir, job_memory=job.memory)
+    og_path = vg_path + '.og'
+    cactus_call(parameters=['odgi', 'build', '-g', os.path.basename(gfa_path), '-o',
+                            os.path.basename(og_path), '-t', str(job.cores)], work_dir=work_dir, job_memory=job.memory)
+    return job.fileStore.writeGlobalFile(og_path)
+
+def make_vg_indexes(job, options, config, gfa_ids, tag="", do_gbz=False):
     """ merge of the gfas, then make gbz / snarls / trans
-    """ 
+    """
     work_dir = job.fileStore.getLocalTempDir()
     vg_paths = []
     merge_gfa_path = os.path.join(work_dir, '{}merged.gfa'.format(tag))
@@ -630,26 +744,28 @@ def make_vg_indexes(job, options, config, gfa_ids, tag=''):
         # add in the additional references here
         if i == 0:
             cmd = [cmd, ['sed', '-e', '1s/{}//'.format(graph_event)]]
-            if len(options.reference) > 1:
-                cmd.append(['sed', '-e', '1s/{}/{}/'.format(options.reference[0], ' '.join(options.reference))])
         cactus_call(parameters=cmd, outfile=merge_gfa_path, outappend=True, job_memory=job.memory)
         job.fileStore.deleteGlobalFile(gfa_id)
 
     # make the gbz
-    gbz_path = os.path.join(work_dir, '{}merged.gbz'.format(tag))
-    cactus_call(parameters=['vg', 'gbwt', '-G', merge_gfa_path, '--gbz-format', '-g', gbz_path], job_memory=job.memory)
+    if do_gbz:
+        gbz_path = os.path.join(work_dir, '{}merged.gbz'.format(tag))
+        cactus_call(parameters=['vg', 'gbwt', '-G', merge_gfa_path, '--gbz-format', '-g', gbz_path], job_memory=job.memory)
 
     # zip the gfa
     cactus_call(parameters=['bgzip', merge_gfa_path, '--threads', str(job.cores)])
     gfa_path = merge_gfa_path + '.gz'
 
     # make the snarls
-    snarls_path = os.path.join(work_dir, '{}merged.snarls'.format(tag))
-    cactus_call(parameters=['vg', 'snarls', gbz_path, '-T', '-t', str(job.cores)], outfile=snarls_path, job_memory=job.memory)
-                            
-    return { '{}gfa.gz'.format(tag) : job.fileStore.writeGlobalFile(gfa_path),
-             '{}gbz'.format(tag) : job.fileStore.writeGlobalFile(gbz_path),
-             '{}snarls'.format(tag) : job.fileStore.writeGlobalFile(snarls_path) }
+    if do_gbz:
+        snarls_path = os.path.join(work_dir, '{}merged.snarls'.format(tag))
+        cactus_call(parameters=['vg', 'snarls', gbz_path, '-T', '-t', str(job.cores)], outfile=snarls_path, job_memory=job.memory)
+
+    out_dict = { '{}gfa.gz'.format(tag) : job.fileStore.writeGlobalFile(gfa_path) }
+    if do_gbz:
+        out_dict['{}gbz'.format(tag)] = job.fileStore.writeGlobalFile(gbz_path)
+        out_dict['{}snarls'.format(tag)] =  job.fileStore.writeGlobalFile(snarls_path)
+    return out_dict
 
 def make_vcf(job, config, out_name, vcf_ref, index_dict, tag='', ref_tag='', max_ref_allele=None):
     """ make the vcf
@@ -714,6 +830,67 @@ def make_giraffe_indexes(job, options, config, index_dict, tag=''):
                             
     return { '{}min'.format(tag) : job.fileStore.writeGlobalFile(min_path),
              '{}dist'.format(tag) : job.fileStore.writeGlobalFile(dist_path) }
+
+def odgi_squeeze(job, config, vg_paths, og_ids, tag=''):
+    """ combine chrom odgis into one big odgi """
+    work_dir = job.fileStore.getLocalTempDir()
+    merged_path = os.path.join(work_dir, tag + 'og')
+    og_paths = []
+    for vg_path, og_id in zip(vg_paths, og_ids):
+        og_path = os.path.join(work_dir, os.path.basename(os.path.splitext(vg_path)[0]) + '.{}og'.format(tag))
+        job.fileStore.readGlobalFile(og_id, og_path)
+        og_paths.append(og_path)
+    list_path = os.path.join(work_dir, '{}squeeze.input'.format(tag))
+    with open(list_path, 'w') as list_file:
+        for og_path in og_paths:
+            list_file.write(og_path +'\n')
+    cactus_call(parameters=['odgi', 'squeeze', '-f', list_path, '-o', merged_path, '-t', str(job.cores)], job_memory=job.memory)
+    return { '{}og'.format(tag) : job.fileStore.writeGlobalFile(merged_path) }    
+
+        
+def make_odgi_viz(job, config, options, vg_path, og_id, tag='', viz=True, draw=True):
+    """ use odgi viz and draw to make some images """
+    work_dir = job.fileStore.getLocalTempDir()
+    og_path = os.path.join(work_dir, os.path.basename(os.path.splitext(vg_path)[0]) + '.{}.og'.format(tag))
+    job.fileStore.readGlobalFile(og_id, og_path)
+
+    og_sort_path = og_path + '.sort'
+    cactus_call(parameters=['odgi', 'sort', '-i', og_path, '-o', og_sort_path, '-t', str(job.cores)], job_memory=job.memory)
+
+    if viz:     
+        # determine prefixes to merge together (ie sample name + haplotype, splitting on #)
+        prefix_path = os.path.join(work_dir, 'path_sample_names')
+        odgi_paths_output = cactus_call(parameters=['odgi', 'paths', '-i', og_sort_path, '-L'], check_output=True).strip()
+        prefixes = set()
+        for line in odgi_paths_output.split('\n'):
+            m = re.match('.+#[0-9]+#', line)
+            if m and m.span()[0] == 0:
+                cut_pos = m.span()[1]
+            else:
+                cut_pos = line.find('#')
+            if cut_pos > 0:
+                prefixes.add(line[0:cut_pos])
+
+        with open(prefix_path, 'w') as prefix_file:
+            for prefix in sorted(list(prefixes)):
+                prefix_file.write(prefix + '\n')
+
+        viz_opts = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "odgiVizOptions", default='').split()
+        viz_png_path = og_path + '.viz.png'
+        cactus_call(parameters=['odgi', 'viz', '-i', og_sort_path, '-o', viz_png_path, '-M', prefix_path, '-t', str(job.cores)] + viz_opts, job_memory=job.memory)
+        
+    if draw:    
+        lay_opts = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "odgiLayoutOptions", default='').split()
+        lay_path = og_path + '.lay'
+        cactus_call(parameters=['odgi', 'layout', '-i', og_sort_path, '-o', lay_path, '-t', str(job.cores)] + lay_opts, job_memory=job.memory)
+    
+        draw_opts = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "odgiDrawOptions", default='').split()
+        draw_png_path = og_path + '.draw.png'
+        cactus_call(parameters=['odgi', 'draw', '-i', og_sort_path, '-c', lay_path, '-p', draw_png_path, '-t', str(job.cores)] + draw_opts, job_memory=job.memory)
+    
+    return (job.fileStore.writeGlobalFile(viz_png_path) if viz else None,
+            job.fileStore.writeGlobalFile(draw_png_path) if draw else None)
+    
 
 def merge_hal(job, options, hal_ids):
     """ call halMergeChroms to make one big hal file out of the chromosome hal files """
@@ -789,7 +966,7 @@ def cat_stats(job, stats_dict_list, zip_stats=True):
             merged_dict[key] = job.fileStore.writeGlobalFile(merged_dict[key])
         return merged_dict
 
-def export_join_data(toil, options, full_ids, clip_ids, clip_stats, filter_ids, idx_maps):
+def export_join_data(toil, options, full_ids, clip_ids, clip_stats, filter_ids, idx_maps, og_chrom_ids):
     """ download all the output data
     """
 
@@ -819,6 +996,45 @@ def export_join_data(toil, options, full_ids, clip_ids, clip_stats, filter_ids, 
             for vg_path, filter_id,  in zip(options.vg, filter_ids):
                 name = os.path.splitext(vg_path)[0] + '.d{}.vg'.format(options.filter)
                 toil.exportFile(filter_id, makeURL(os.path.join(clip_base, os.path.basename(name))))
+
+    # make a directory for the chromosomal ogs
+    if options.chrom_og:
+        clip_base = os.path.join(options.outDir, '{}.chroms'.format(options.outName))
+        if not clip_base.startswith('s3://') and not os.path.isdir(clip_base):
+            os.makedirs(clip_base)
+
+        for gtype in options.chrom_og:
+            # download all the chromosomal ogs
+            tag = 'd{}'.format(options.filter) if gtype == 'filter' else gtype
+            og_ids = og_chrom_ids[gtype]['og']
+            assert len(options.vg) == len(og_ids)
+            for vg_path, og_id in zip(options.vg, og_ids):
+                name = os.path.splitext(vg_path)[0] + '{}.og'.format( '.' + tag if tag != 'clip' else '')
+                toil.exportFile(og_id, makeURL(os.path.join(clip_base, os.path.basename(name))))
+
+    # make a directory for the viz
+    if options.viz + options.draw:
+        viz_base = os.path.join(options.outDir, '{}.viz'.format(options.outName))
+        if not viz_base.startswith('s3://') and not os.path.isdir(viz_base):
+            os.makedirs(viz_base)
+
+        for gtype in options.viz:
+            # download all the chromosomal 1D visualizations
+            assert len(options.vg) == len(og_chrom_ids[gtype]['viz'])
+            tag = 'd{}'.format(options.filter) if gtype == 'filter' else gtype            
+            for vg_path, viz_id in zip(options.vg, og_chrom_ids[gtype]['viz']):
+                if viz_id:
+                    viz_name = os.path.splitext(vg_path)[0] + '{}.viz.png'.format('.' + tag if tag != 'clip' else '')
+                    toil.exportFile(viz_id, makeURL(os.path.join(viz_base, os.path.basename(viz_name))))
+
+        for gtype in options.draw:
+            # download all the chromosomal 2D visualizations
+            assert len(options.vg) == len(og_chrom_ids[gtype]['draw'])
+            tag = 'd{}'.format(options.filter) if gtype == 'filter' else gtype            
+            for vg_path, draw_id in zip(options.vg, og_chrom_ids[gtype]['draw']):
+                if draw_id:
+                    draw_name = os.path.splitext(vg_path)[0] + '{}.draw.png'.format('.' + tag if tag != 'clip' else '')
+                    toil.exportFile(draw_id, makeURL(os.path.join(viz_base, os.path.basename(draw_name))))
                 
     # download the stats files
     if clip_stats:

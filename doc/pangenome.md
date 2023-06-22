@@ -11,6 +11,7 @@ Please cite the [Minigraph-Cactus paper](https://doi.org/10.1038/s41587-023-0179
 * [Introduction](#introduction)
 * [Interface](#interface)
 * [Output](#output)
+* [Visualization](#visualization)
 * [Yeast Graph](#yeast-graph)
 * [MHC Graph](#mhc-graph)
 * [GRCh38 Alts Graph](#grch38-alts-graph)
@@ -114,6 +115,8 @@ The `--reference` option can accept multiple samples (separated by space). If mu
 
 For example, for human data one might consider using `--reference CHM13 GRCh38 GRCh37 --vcfReference CHM13 GRC3h8`.  This will make a graph referenced on CHM13, but will promote GRCh38 and GRCh38 to reference-sense paths so that they could be used, for example, to project BAMs on in `vg giraffe`.  Two VCFs will be output, one based on CHM13 and one based on GRCh38. 
 
+Note: if you are using the step by step interface instead of `cactus-graphmap-join`, make sure to pass the same `--reference` options to each tool!
+
 ### Pipeline
 
 The Minigraph-Cactus pipeline is run via the `cactus-pangenome` command. It consists of five stages which can also be run individually (below). `cactus-pangenome` writes output files into `--outDir` at the end of each stage. So different stages can be rerun with if necessary using the lower-level commands.
@@ -146,7 +149,7 @@ chr3 500000
 chrM 1000
 random_1 400000
 random_2 5000
-randome_3 5000 
+random_3 5000 
 ```
 Then the pipeline will automatically determine, using the names and sizes (see the <graphmap-split> section of the configuration XML for details) that the reference contigs are `chr1`, `chr2`, `chr3`, `chrM` and `random_1`. It will make a graph file for each of these, and a single `chrOther` graph file for `random_2` and `random_3`.  All contigs will end up in the final whole-genome indexes.  This logic only affects the chromosome-scale output and workload distribution. If you do not want the `random` contigs in the graph, you would need to specify `--refContigs chr1 chr2 chr3 chrM`. By default, refContigs are limited to 128 in number, contigs that are at least 10% as long as the longest contig or contigs whose name begins with `chr` followed by up to 3 characters (any case).
 
@@ -182,7 +185,7 @@ The different graphs have different uses. For instance, the current version of `
 
 `--giraffe clip filter`: Make the giraffe indexes for both the clipped and filtered graph.
 
-The same type of interface applies to all the output specification options: `--vcf`, `--gbz`, `--gfa`, `--giraffe`, `--chrom-vg`. They can all be used without arguments to apply to the default graph (generally the `clip` graph for everything except `--giraffe` which defaults to the `filter` graph), or with any combination of `full`, `clip` and `filter` to be applied to different graphs.
+The same type of interface applies to all the output specification options: `--vcf`, `--gbz`, `--gfa`, `--giraffe`, `--chrom-vg`, `--odgi`, `--chrom-og`, `--viz`, `--draw`. They can all be used without arguments to apply to the default graph (generally the `clip` graph for everything except `--giraffe` which defaults to the `filter` graph, and anything odgi-related which defaults to `full`), or with any combination of `full`, `clip` and `filter` to be applied to different graphs.
 
 Note that by default, only GFA is output, so the above options need to be used to toggle on any other output types. 
 
@@ -195,12 +198,13 @@ The `--vcf` option will produce two VCFs for each selected graph type. One VCF i
 * `hal`: Cactus's [native alignment format](./progressive.md#using-the-hal-output) can be used to convert to MAF, build assembly hubs, run liftover and comparative annotation.
 * `gfa`: A [standard text-based graph format](https://github.com/GFA-spec/GFA-spec/blob/master/GFA1.md). Minigraph-Cactus uses GFA 1.1 as it represents haplotypes as [Walks](https://github.com/GFA-spec/GFA-spec/blob/master/GFA1.md#w-walk-line-since-v11). You can use `vg convert -gfW` to convert from GFA 1.1 to 1.0 and `vg convert -gf` to convert from 1.0 to 1.1.
 * `vcf`: A [standard text-based format](https://en.wikipedia.org/wiki/Variant_Call_Format) that represents a pangenome graph as sites of variation along a reference. VCFs exported from the graph are nested, and by default `vcfbub` is used to flatten them.
-* `vg`: [vg](https://github.com/vgteam/vg)'s native packed-graph format, can be read and written by vg but does not scale well with the number of paths.
+* `vg`: [vg](https://github.com/vgteam/vg)'s native packed-graph format, can be read and written by `vg` but does not scale well with the number of paths.
 * `gbz`: A read-only [format that scales extremely efficiently with the number of paths](https://github.com/jltsiren/gbwtgraph/blob/master/SERIALIZATION.md). Readable by `vg` tools and required for `giraffe`.  
 * `snarls`: The start and end nodes of the bubbles in the graph, as well as their nesting relationships.  Used by some `vg` tools like `call` and `deconstruct`.
 * `dist`: Snarl distance index required for `vg giraffe`.
 * `min`: Minimizer index required for `vg giraffe`.
 * `stats.tgz`: Some stats about how much sequence was clipped, including a BED file of the removed sequence.
+* `og`: [odgi](https://github.com/pangenome/odgi)'s native format, can be read and written by `odgi`. Very useful for [visualization](#visualization).
 
 #### Node Chopping
 
@@ -229,6 +233,114 @@ vg convert -f graph.gbz --vg-algorithm > graph.gfa
 ```
 
 If you are running `vg call` or `vg deconstruct` on the GBZ yourself, the output VCF will, by default, use the chopped IDs from the GBZ. You can switch to the unchopped IDs using `-O` for both tools. 
+
+## Visualization
+
+### Sequence Tube Maps
+
+[Sequence Tube Maps](https://github.com/vgteam/sequenceTubeMap) let you use your web browser to display pangenome graphs and their alignments. You should be able to load the gbz output from minigraph-cactus directly into a tube map. Any alignments (in .gam) format from `vg giraffe` can also be viewed, but they will need to be sorted first (a prepare script is [provided](https://github.com/vgteam/sequenceTubeMap#adding-your-own-data)). Note that while you should be able to load your entire graph into the tube map, you can only use it to display relatively small regions at a time.
+
+This is the tool that was used to make most of Figure 1 in the [Minigraph-Cactus paper](https://doi.org/10.1038/s41587-023-01793-w).
+
+Please cite [Sequence Tube Maps](https://doi.org/10.1093%2Fbioinformatics%2Fbtz597) for images you create with it!
+
+
+### Bandage-NG
+
+[Bandage-NG](https://github.com/asl/BandageNG) is an interactive viewer for graphs in GFA format. It is not included in Cactus, but it is [very easy to install on Mac and Linux](https://github.com/asl/BandageNG/releases).
+
+Depending on the size of the data set, you may need to extract a subregion from the graph in order to display it with Bandage-NG, which generally scales to about 10 or so mb of minigraph-cactus graphs.  You can do this with `vg chunk` on the output `.gbz` file specifying `-O gfa` to set the output format to GFA.
+
+Please see the [GRCh38 Alts Graph](#grch38-alts-graph) section below for how to use `vg chunk` and `Bandage-NG` to view regions of interest in a human pangenome.
+
+Please cite [Bandage-NG](https://github.com/asl/BandageNG) for images your create with it!
+
+### ODGI
+
+[odgi](https://github.com/pangenome/odgi) is a pangenome analysis toolkit and format. As of version [v2.6.1](https://github.com/ComparativeGenomicsToolkit/cactus/releases/tag/v2.6.1), Minigraph-Cactus includes the `odgi` binary and supports output in odgi format via the following `cactus-pangenome` / `cactus-graphmap-join` options:
+
+* `--odgi` : Output the graph to odgi (.og) format.  Valid options are `full` and/or `clip`, with the default being `full` if none are specified (there is no reason to output the `filter` graphs to odgi, and the tiny path fragments can potentially make conversion very slow).
+* `--chrom-og`: Output each graph chromosome in odgi (.og) format.  This is recommended if you want to run `odgi` yourself to do any visualization, since you will generally want to deal with one chromosome at a time.  As above, valid options are `full` and `clip`, defaulting to `full` if none specified.
+
+Unlike some of the related options such as `--gbz`, `--chrom-vg`, `--gfa`, etc, the odgi options above default to working on the `full` graph as opposed the the `clip` graphs.  As such, the output (by default) will contain the unaligned chromosomes.  The rationale is that these unaligned sequences do not seem to hinder visualization, whereas the path fragments that arise from clipping can bog odgi down a little bit (ex: chr1 from the clipped 10-chicken pangenome takes several hours to convert to odgi, but the full graph is fine). Also, odgi's coordinate system does not support path fragments, so its extraction tools etc. will only work properly on the full graphs.  This is still a work in progress, so you can use, say, `--chrom-og clip full` to experiment with both.
+
+#### ODGI Viz
+
+[odgi](https://github.com/pangenome/odgi)'s 1-dimensional visualization is a very efficient way to view pangenome graphs at the chromosome scale. You can use odgi on the `--chrom-og` output described following the instructions from [odgi's manual](https://odgi.readthedocs.io/en/latest/) or use the `--viz` option in `cactus-pangenome` / `cactus-graphmap-join` to automatically produce a .png file for each chromosome in the graph.
+
+Here is an example of using `--viz` in the [yeast example](#yeast-graph) below.
+
+```
+cactus-pangenome ./js ./examples/yeastPangenome.txt --reference S288C --outDir yeast-pg --outName yeast-pg --gbz --viz
+```
+
+The output is found here:
+```
+ls -h yeast-pg/yeast-pg.viz
+chrI.full.viz.png    chrIV.full.viz.png  chrVI.full.viz.png    chrX.full.viz.png    chrXIII.full.viz.png  chrXVI.full.viz.png
+chrII.full.viz.png   chrIX.full.viz.png  chrVII.full.viz.png   chrXI.full.viz.png   chrXIV.full.viz.png
+chrIII.full.viz.png  chrV.full.viz.png   chrVIII.full.viz.png  chrXII.full.viz.png  chrXV.full.viz.png
+```
+
+And the first two chromosomes look like
+
+<img src="yeast-pg-chrI.full.viz.png" height=50% width=80%>
+<img src="yeast-pg-chrII.full.viz.png" height=80% width=80%>
+
+#### ODGI Draw
+
+[odgi](https://github.com/pangenome/odgi)'s 2-dimensional "draw" visualization resembles Bandage-NGs, but can be done at a larger scale. You can produce chromosome images using this functionality with the `--draw` option in `cactus-pangenome` / `cactus-graphmap-join`.
+
+**WARNING** This option is very experimental -- I do not yet know the best set of parameters (and have not had much time to look) for drawing minigraph-cactus graphs.  Please use with caution, especially on larger graphs, since any major issue with drawing may prevent you from obtaining the various other indexes. For large graphs, consider using the `--chrom-og` option to produce the odgi graphs for each chromosome, and then running `draw` yourself following the ODGI [documentation](https://odgi.readthedocs.io/en/latest/).  Please report back any discoveries here!
+
+For example, we can add the 2D layouts to those created above using the following command (note the substantially longer running time):
+
+```
+cactus-graphmap-join ./js --vg ./yeast-pg/chrom-alignments/*.vg  --reference S288C --outDir yeast-pg --outName yeast-pg --draw
+```
+
+The output is written to the same place as `--viz` (see above):
+
+```
+ls -h yeast-pg/yeast-pg.viz/*.draw.png
+yeast-pg/yeast-pg.viz/chrI.full.draw.png    yeast-pg/yeast-pg.viz/chrVI.full.draw.png    yeast-pg/yeast-pg.viz/chrXIII.full.draw.png
+yeast-pg/yeast-pg.viz/chrII.full.draw.png   yeast-pg/yeast-pg.viz/chrVII.full.draw.png   yeast-pg/yeast-pg.viz/chrXIV.full.draw.png
+yeast-pg/yeast-pg.viz/chrIII.full.draw.png  yeast-pg/yeast-pg.viz/chrVIII.full.draw.png  yeast-pg/yeast-pg.viz/chrXV.full.draw.png
+yeast-pg/yeast-pg.viz/chrIV.full.draw.png   yeast-pg/yeast-pg.viz/chrX.full.draw.png     yeast-pg/yeast-pg.viz/chrXVI.full.draw.png
+yeast-pg/yeast-pg.viz/chrIX.full.draw.png   yeast-pg/yeast-pg.viz/chrXI.full.draw.png
+yeast-pg/yeast-pg.viz/chrV.full.draw.png    yeast-pg/yeast-pg.viz/chrXII.full.draw.png
+```
+
+And the first chromosome looks like
+
+<img src="yeast-pg-chrI.full.draw.png" height=50% width=80%>
+
+Please cite [ODGI](https://doi.org/10.1093/bioinformatics/btac308) for any images and analysis you use it for.
+
+### VG
+
+[vg](https://github.com/vgteam/vg) has two visualization tools, `vg view -d` and `vg viz`.
+
+`vg view -d` outputs graphs in [GraphViz](https://graphviz.org/) "dot" format, and can be converted to images with `dot -Tpng`. This command only works on very small subgraphs (though you can increase its scope by leaving out bases with `-S`).  As such, it is best used with `vg chunk` to extract subgraphs.
+
+An example for yeast, may look like
+```
+vg chunk -x yeast-pg/yeast-pg.gbz -S yeast-pg/yeast-pg.snarls -p S288C#0#chrI:100400-100500 | vg view -pd - | dot -Tpng > yeast-pg-chunk-view.png
+```
+
+And the result would be 
+
+<img src="yeast-pg-chunk-view.png" height=80% width=80%>
+
+We can pull out a larger region with `vg viz` (note that `vg viz` can also display coverage output from `vg pack` which is not demonstrated here)
+
+```
+vg chunk -x yeast-pg/yeast-pg.gbz -S yeast-pg/yeast-pg.snarls -p S288C#0#chrI:100400-101400 | vg viz -x - -o yeast-pg-chunk-viz.png
+```
+
+<img src="yeast-pg-chunk-viz.png" height=120% width=100%>
+
+Please cite [vg](https://doi.org/10.1038/nbt.4227) when using these visualizations.
 
 ## Yeast Graph
 

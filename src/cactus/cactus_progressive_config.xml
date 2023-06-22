@@ -356,6 +356,7 @@
 	<!-- maxRefContigs: The maximum number of auto-detect refContigs -->
 	<!-- refContigDropoff: When detecting refContigs, sort in reverse order by size, and pick refContigs up until contig N is this many times smaller than contig 1 (or maxRefContigs) is reached.  The general idea is to have a refContig for each chromosome then lump all the tiny ones into their own graphs. -->
 	<!-- refContigRegex: If specified, automatically promote any matching contig name into its own graph, regardless of how small it is.  Useful for making sure chrM doesn't get mixed with KI270322.1 etc. By defaulat it's anything beginning with chr (any case) followed by 0-3 chracters. This takes precedence over refContigDropoff -->
+	<!-- otherContigName: When determining refContigs automatically, other contigs get lumped into a graph with this name. This affects the file structure but has zero bearing on whole-genome graphs/indexes -->
   	<graphmap_split
 		 minQueryCoverages="0.75 0.5 0.25"
 		 minQueryCoverageThresholds="100000 1000000"
@@ -365,6 +366,7 @@
 		 maxRefContigs="128"
 		 refContigDropoff="10.0"
 		 refContigRegex="[c,C][h,H][r,R].?.?.?"
+		 otherContigName="chrOther"
 		 />
 	<!-- cactus-graphmap-join options -->
 	<!-- gfaffix: toggle gfaffix normalization on/off -->
@@ -373,6 +375,9 @@
 	<!-- minFilterFragment: discard fragments that result from the vg clip frequency filter if they are smaller than this -->
 	<!-- removeStubs: remove any nodes dangling off reference paths (ie softclips) -->
 	<!-- GFANodeIDsInVCF: write all node IDs in the VCF (variant names, AT fields etc.) in the (unchopped) GFA namespace by way of the GBZ translation table -->
+	<!-- odgiVizOptions: options to odgi viz, used for 1d viz -->
+	<!-- odgiLayoutOptions: options to odgi layout, used for 2d viz -->
+	<!-- odgiDrawOptions: options to odgi draw, used for 2d viz -->
 	<graphmap_join
 		 gfaffix="1"
 		 clipNonMinigraph="1"		 
@@ -380,6 +385,9 @@
 		 minFilterFragment="1000"
 		 removeStubs="1"
 		 GFANodeIDsInVCF="1"
+		 odgiVizOptions="-x 1500 -y 500 -a 10"
+		 odgiLayoutOptions="-x 50"
+		 odgiDrawOptions="-H 1000"
 		 />
 	<!-- hal2vg options -->
 	<!-- includeMinigraph: include minigraph node sequences as paths in output (note that cactus-graphmap-join will still remove them by default) -->
