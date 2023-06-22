@@ -476,7 +476,7 @@ class TestCase(unittest.TestCase):
         subprocess.check_call(['mkdir', '-p', os.path.join(self.tempDir, 'chroms')])
         subprocess.check_call(['mv', os.path.join(join_path, 'chrom-subproblems', 'contig_sizes.tsv'), os.path.join(self.tempDir, 'chroms')])
 
-    def _check_yeast_pangenome(self, binariesMode, other_ref=None):
+    def _check_yeast_pangenome(self, binariesMode, other_ref=None, expect_odgi=False):
         """ yeast pangenome chromosome by chromosome pipeline
         """
 
@@ -580,11 +580,12 @@ class TestCase(unittest.TestCase):
         self.assertLessEqual(filter_edges, 500000)
 
         # make sure the odgi stuff exists
-        self.assertGreaterEqual(os.path.getsize(os.path.join(join_path, 'yeast.full.og')), 75000000)
-        for chr in contig_sizes:
-            self.assertGreaterEqual(os.path.getsize(os.path.join(join_path, 'yeast.viz', chr + '.full.viz.png')), 700)
-            self.assertGreaterEqual(os.path.getsize(os.path.join(join_path, 'yeast.chroms', chr + '.full.og')), 3000000)
-            self.assertGreaterEqual(os.path.getsize(os.path.join(join_path, 'yeast.chroms', chr + '.og')), 3000000)
+        if expect_odgi:
+            self.assertGreaterEqual(os.path.getsize(os.path.join(join_path, 'yeast.full.og')), 75000000)
+            for chr in contig_sizes:
+                self.assertGreaterEqual(os.path.getsize(os.path.join(join_path, 'yeast.viz', chr + '.full.viz.png')), 700)
+                self.assertGreaterEqual(os.path.getsize(os.path.join(join_path, 'yeast.chroms', chr + '.full.og')), 3000000)
+                self.assertGreaterEqual(os.path.getsize(os.path.join(join_path, 'yeast.chroms', chr + '.og')), 3000000)
         
         
     def _csvstr_to_table(self, csvstr, header_fields):
@@ -934,7 +935,7 @@ class TestCase(unittest.TestCase):
         self._run_yeast_pangenome(name)
         
         # check the output
-        self._check_yeast_pangenome(name, other_ref='DBVPG6044')
+        self._check_yeast_pangenome(name, other_ref='DBVPG6044', expect_odgi=True)
 
 
 if __name__ == '__main__':
