@@ -37,6 +37,7 @@ from toil.statsAndLogging import logger
 from toil.statsAndLogging import set_logging_from_options
 from toil.realtimeLogger import RealtimeLogger
 from cactus.shared.common import cactus_cpu_count
+from cactus.progressive.cactus_prepare import human2bytesN
 
 from cactus.refmap.cactus_minigraph import minigraph_construct_workflow
 from cactus.refmap.cactus_minigraph import check_sample_names
@@ -72,8 +73,9 @@ def main():
                         help="Only align up to this many bases (overrides <bar bandingLimit> and <caf maxRecoverableChainLength> in configuration)[default=10000]")
     parser.add_argument("--consCores", type=int, 
                         help="Number of cores for each cactus_consolidated job (defaults to all available / maxCores on single_machine)", default=None)
-    parser.add_argument("--consMemory", type=int,
-                        help="Memory IN GIGABYTES for each cactus_consolidated job (defaults to an estimate based on the input data size)", default=None)
+    parser.add_argument("--consMemory", type=human2bytesN,
+                        help="Memory in bytes for each cactus_consolidated job (defaults to an estimate based on the input data size). "
+                        "Standard suffixes like K, Ki, M, Mi, G or Gi are supported (default=bytes))", default=None)   
     
     # cactus-graphmap-join options
     graphmap_join_options(parser)
