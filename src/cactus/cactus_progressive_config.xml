@@ -428,15 +428,15 @@
 	 		seq_size_100000="10000000"
 	 		seq_size_1000000="2000000000"
 	 		seq_size_5000000="8000000000"
-	 		seq_size_7000000="16000000000"		
+	 		seq_size_7000000="16000000000"
 	 		seq_size_10000000="32000000000"
 	 		seq_size_20000000="64000000000"
-	 		seq_size_30000000="128000000000"		
+	 		seq_size_30000000="128000000000"
 	 		seq_size_50000000="256000000000"
-	 		seq_size_60000000="350000000000"		
+	 		seq_size_60000000="350000000000"
 	 		seq_size_70000000="400000000000"
 	 		seq_size_100000000="512000000000"
 	 	/>
-	</consolidated>	    	
+	</consolidated>
 	<consolidated2></consolidated2>
 </cactusWorkflowConfig>

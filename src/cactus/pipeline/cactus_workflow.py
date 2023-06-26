@@ -39,16 +39,18 @@ def cactus_cons_with_resources(job, tree, ancestor_event, config_node, seq_id_ma
 
     # get the size from the config
     mem = None
+    start = None
     cons_node = findRequiredNode(config_node, 'consolidated')
     cons_memory_node = findRequiredNode(cons_node, 'consolidatedMemory')
-    # scan whole node, ie not assuming any order 
+    # scan whole node, ie not assuming any order, finding the highest interval that applies
     for key, val in cons_memory_node.items():
         try:
             assert key.startswith('seq_size_')
             interval_start = int(key[len('seq_size_'):])
-            mem_req = int(val)
-            if total_sequence_size >= interval_start and mem is None or mem > mem_req:
-                mem = mem_req
+            interval_mem = int(val)
+            if total_sequence_size >= interval_start and (start is None or interval_start > start):
+                mem = interval_mem
+                start = interval_start
         except:
             raise RuntimeError('Unable to parse attribute {}={} from <consolidatedMemory> node in configuration XML'.format(key, value))
 
@@ -61,7 +63,7 @@ def cactus_cons_with_resources(job, tree, ancestor_event, config_node, seq_id_ma
     # add function of paf size
     mem = max(mem, 10 * paf_id.size)
     
-    RealtimeLogger.info('Estimating cactus_consolidated({}) memory as {} bytes from {} sequences with total-sequence-size {} and paf-size {} using <conslidatedMemory> configuration settings'.format(chrom_name if chrom_name else ancestor_event, bytes2human(mem), len(seq_id_map), total_sequence_size, paf_id.size))
+    RealtimeLogger.info('Estimating cactus_consolidated({}) memory as {} from {} sequences with total-sequence-size {} and paf-size {} using <conslidatedMemory> configuration settings'.format(chrom_name if chrom_name else ancestor_event, bytes2human(mem), len(seq_id_map), bytes2human(total_sequence_size), paf_id.size))
 
     if cons_memory is not None and cons_memory != mem:
         RealtimeLogger.info('Overriding cactus_conslidated({}) memory estimate of {} with {} value {} from --consMemory'.format(
