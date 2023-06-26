@@ -422,18 +422,14 @@
 	 	/>
   	</multi_cactus>
 	<consolidated>
-	       <!-- consolidatedMemory: Specify memory requirement (in bytes) for cactus_conslidated. Each attribute corresponds to an interval start, and must be in the form seq_size_TOTAL_INPUT_SEQUENCE_SIZE=MEMORY.  So if cactus_consolidated is getting N input bytes, the first interval cekontaining N is found, and the value of that attribute is used as the Toil memory. The idea is that it will be easier to fiddle with these than a single polynomial function while attempting to learn decent defaults by trial and error.  If consMemory CLI option is used, then it overrides everything here.   -->
+	       <!-- consolidatedMemory: Specify memory requirement (in bytes) for cactus_conslidated. Each attribute corresponds to an interval start, and must be in the form seq_size_TOTAL_INPUT_SEQUENCE_SIZE=MEMORY.  So if cactus_consolidated is getting N input bytes, the first interval containing N is found, and the value of that attribute is used as the Toil memory. The idea is that it will be easier to fiddle with these than a single polynomial function while attempting to learn decent defaults by trial and error. By default, the memory requirement is linearly interpolated based on the endpoints of the interval.  If consMemory CLI option is used, then it overrides everything here.   -->
 	 	<consolidatedMemory
 	 		seq_size_0="1000000"
-			seq_size_1000000="1000000000"
-			seq_size_5000000="8000000000"
 			seq_size_10000000="16000000000"
-			seq_size_15000000="24000000000"
-			seq_size_20000000="32000000000"
 			seq_size_50000000="64000000000"
 			seq_size_1000000000="128000000000"
 			seq_size_4000000000="256000000000"
-			seq_size_8000000000="512000000000"
+			seq_size_10000000000="512000000000"
 	 	/>
 	</consolidated>
 	<consolidated2></consolidated2>

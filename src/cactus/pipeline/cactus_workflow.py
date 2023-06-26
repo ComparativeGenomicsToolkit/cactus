@@ -9,6 +9,7 @@
 
 import os
 import sys
+import bisect
 from toil.lib.bioio import system
 from toil.lib.bioio import getLogLevelString
 from toil.realtimeLogger import RealtimeLogger
@@ -39,21 +40,26 @@ def cactus_cons_with_resources(job, tree, ancestor_event, config_node, seq_id_ma
 
     # get the size from the config
     mem = None
-    start = None
     cons_node = findRequiredNode(config_node, 'consolidated')
     cons_memory_node = findRequiredNode(cons_node, 'consolidatedMemory')
-    # scan whole node, ie not assuming any order, finding the highest interval that applies
+    cons_memory_intervals = []
     for key, val in cons_memory_node.items():
         try:
             assert key.startswith('seq_size_')
             interval_start = int(key[len('seq_size_'):])
             interval_mem = int(val)
-            if total_sequence_size >= interval_start and (start is None or interval_start > start):
-                mem = interval_mem
-                start = interval_start
+            cons_memory_intervals.append((interval_start, interval_mem))
         except:
             raise RuntimeError('Unable to parse attribute {}={} from <consolidatedMemory> node in configuration XML'.format(key, value))
-
+    cons_memory_intervals = sorted(cons_memory_intervals)
+    interval_idx = bisect.bisect(cons_memory_intervals, (total_sequence_size + 0.5, 0)) - 1
+    interval = cons_memory_intervals[interval_idx]
+    mem = interval[1]
+    if interval_idx < len(cons_memory_intervals) - 1:
+        next_interval = cons_memory_intervals[interval_idx + 1]
+        interval_delta = (next_interval[0] - interval[0], next_interval[1] - interval[1])
+        mem += int(((total_sequence_size - interval[0]) / interval_delta[0]) * interval_delta[1])
+    
     if not mem:
         raise RuntimeError('Unable to parse memory requirement from <consolidatedMemory> node in configuration XML')
     

@@ -882,6 +882,8 @@ def cactus_call(tool=None,
             sigill_msg += '       https://github.com/ComparativeGenomicsToolkit/cactus/releases\n'
             sigill_msg += '***********************************************************************************\n'
             sigill_msg += '***********************************************************************************\n\n\n'
+        if realtimeStderrPrefix:
+            sigill_msg += realtimeStderrPrefix + ': '
         
         if process.returncode > 0:
             raise RuntimeError("{}Command {} exited {}: {}".format(sigill_msg, call, process.returncode, out))
