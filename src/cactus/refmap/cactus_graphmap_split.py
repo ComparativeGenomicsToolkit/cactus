@@ -223,7 +223,8 @@ def graphmap_split_workflow(job, options, config, seq_id_map, seq_name_map, gfa_
         paf_size *= 10
 
     # do some basic paf filtering
-    paf_filter_job = root_job.addFollowOnJobFn(filter_paf, paf_id, config, disk = paf_id.size * 10, memory=paf_id.size * 10)
+    paf_filter_mem = max(paf_id.size * 10, 2**32)
+    paf_filter_job = root_job.addFollowOnJobFn(filter_paf, paf_id, config, disk = paf_id.size * 10, memory=paf_filter_mem)
     paf_id = paf_filter_job.rv()
     root_job = paf_filter_job
 
