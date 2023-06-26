@@ -421,6 +421,22 @@
 			default_branch_len_pangenome="0.025"
 	 	/>
   	</multi_cactus>
-	<consolidated></consolidated>
+	<consolidated>
+	       <!-- consolidatedMemory: Specify memory requirement (in bytes) for cactus_conslidated. Each attribute corresponds to an interval start, and must be in the form seq_size_TOTAL_INPUT_SEQUENCE_SIZE=MEMORY.  So if cactus_consolidated is getting N input bytes, the first interval cekontaining N is found, and the value of that attribute is used as the Toil memory. The idea is that it will be easier to fiddle with these than a single polynomial function while attempting to learn decent defaults by trial and error.  If consMemory CLI option is used, then it overrides everything here.   -->
+	 	<consolidatedMemory
+	 		seq_size_0="1000000"
+	 		seq_size_100000="10000000"
+	 		seq_size_1000000="2000000000"
+	 		seq_size_5000000="8000000000"
+	 		seq_size_7000000="16000000000"		
+	 		seq_size_10000000="32000000000"
+	 		seq_size_20000000="64000000000"
+	 		seq_size_30000000="128000000000"		
+	 		seq_size_50000000="256000000000"
+	 		seq_size_60000000="350000000000"		
+	 		seq_size_70000000="400000000000"
+	 		seq_size_100000000="512000000000"
+	 	/>
+	</consolidated>	    	
 	<consolidated2></consolidated2>
 </cactusWorkflowConfig>
