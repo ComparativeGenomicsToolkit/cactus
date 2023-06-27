@@ -210,14 +210,14 @@ You cannot run `cactus --batchSystem slurm` from *inside* the Cactus docker cont
 To run Progressive Cactus with CPU (default) lastz, you should increase the chunk size.  This will divide the input assemblies into fewer pieces, resulting in fewer jobs on the cluster.
 
 ```
-cactus-bin-v2.6.1/src/cactus/cactus_progressive_config.xml ./config-slurm.xml
+cp cactus-bin-v2.6.1/src/cactus/cactus_progressive_config.xml ./config-slurm.xml
 sed -i config-slurm.xml -e 's/blast chunkSize="30000000"/blast chunkSize="90000000"/g'
 sed -i config-slurm.xml -e 's/dechunkBatchSize="1000"/dechunkBatchSize="200"/g'
 ```
 
 then add `--configFile config-slurm.xml` to your cactus invocation.
 
-** IMPORTANT **
+**IMPORTANT**
 
 Slurm can strictly enforce memory usage. This means that Cactus must specify the memory limit of each job before it is run, and it uses the input file sizes to do this. Accurately predicting the memory usage is challenging though, and remains a work in progress.  If Cactus predicts too little memory, then the job will be evicted by the cluster.  If it predicts too much, ie more than available on any node, then the job will never run.  In both these cases, the workflow is doomed and cannot even be resumed with `--restart`.  Some better [Toil support](https://github.com/DataBiosphere/toil/issues/4474) would also be useful.
 
@@ -226,7 +226,7 @@ Most of memory usage in Cactus occurs in the `cactus_consolidated` jobs and, as 
 **To be extra safe, consider setting `--consMemory` to the maximum amount of memory available on any node of your cluster. This way you know that all your jobs will be scheduled.**
 
 
-Cactus (through Toil) supports many other cluster workload managers in theory, including LSF, GridEngine, Parasol, and Torque, **but unlike slurm they are untested can we cannot support them**. Add `--batchSystem <batchSystem>`, e.g. `--batchSystem gridEngine`. If your batch system needs additional configuration, Toil exposes some [environment variables](http://toil.readthedocs.io/en/3.10.1/developingWorkflows/batchSystem.html#batch-system-enivronmental-variables) that can help.
+Cactus (through Toil) supports many other cluster workload managers in theory, including LSF, GridEngine, Parasol, and Torque, **but unlike slurm they are untested and difficult for us to support**. Add `--batchSystem <batchSystem>`, e.g. `--batchSystem gridEngine`. If your batch system needs additional configuration, Toil exposes some [environment variables](http://toil.readthedocs.io/en/3.10.1/developingWorkflows/batchSystem.html#batch-system-enivronmental-variables) that can help.
 
 ## Running step by step
 
