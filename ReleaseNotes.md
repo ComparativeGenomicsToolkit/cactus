@@ -1,3 +1,20 @@
+# Release 2.6.1 2023-06-27
+
+This Release adds SLURM cluster support for Cactus (both progressive and pangenome). It also adds some new visualization features to the pangenome pipeline, along with several bugfixes.
+
+- SLURM support added (via Toil v5.11).  It's important to read the documentation about `--consMemory` and `--indexMemory` when running large aligments.
+- ODGI now integrated into Cactus.  See `cactus-pangenome` options `--viz, --odgi, --chrom-og` and `--draw` for incorporating it into your output.
+- Add `--chop` option to `cactus-pangenome` make sure all output graphs have nodes chopped down to at most `1024bp`. By default, the `.gfa.gz` is unchopped and the `.gbz` is, which can lead to annoying confusion when trying to compare node IDs across different files.
+- Fix bug where `_MINIGRAPH_` paths ended up in the `.full` output graphs.
+- `vg clip` crash fixed.
+- `mash` distance for minigraph order now computed by sample (and not by haplotype).  Fixes issue where, for example, diploid ordering would be dependent on whether assembly has chrX.
+- If `--refContigs` is not specified, minigraph-cactus now uses naming in addition to size to try to guess reference contigs.
+- `--dupeMode consensus` option added to `cactus-hal2maf` in order to use `maf_stream` to merge multiple rows into consensus rows, which may be the best compromise to get the data into PhyloP or the Browser.
+- `halReplaceGenome` patched to fix a regression from late 2022 where updating large alignments could lead to a crash.
+- Fix `cactus-update-prepare replace` to print the `halRemoveGenome` command rather than quietly running it on the input.
+- `--consMemory` and `--indexMemory` options bugs fixed.
+- Fix bug with multuple `--reference` samples; they are now all promoted properly to REFERENCE-sense paths. 
+
 # Release 2.6.0 2023-06-09
 
 This Release significantly updates Cactus's chaining logic which, in early tests at least, allows alignment of T2T-quality assemblies as well as WindowMasked (and not RepeatMasked) genomes. 
