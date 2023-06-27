@@ -328,7 +328,7 @@ tar zxf odgi-v0.8.3.tar.gz
 cd odgi-v0.8.3
 if [[ $STATIC_CHECK -eq 1 ]]
 then
-    cmake -DBUILD_STATIC=1 -DCMAKE_BUILD_TYPE=Generic -H. -Bbuild && cmake --build build -- -j ${numcpu}
+    CXXFLAGS="" CFLAGS="" LDFLAGS="" LIBS="" cmake -DBUILD_STATIC=1 -DCMAKE_BUILD_TYPE=Generic -H. -Bbuild && CXXFLAGS="" CFLAGS="" LDFLAGS="" LIBS="" cmake --build build -- -j ${numcpu}
 else
     cmake -H. -Bbuild -DCMAKE_BUILD_TYPE=Generic && cmake --build build -- -j ${numcpu}
 fi
