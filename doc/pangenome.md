@@ -130,12 +130,10 @@ The Minigraph-Cactus pipeline is run via the `cactus-pangenome` command. It cons
 * `--mgCores` the number of cores for `minigraph` construction (default: all available)
 * `--mapCores` the number of cores for each `minigraph` mapping job (default: up to 6)
 * `--consCores` the number of cores for each `cactus-consolidated` job (default: all available)
+* `--consMemory` the amount of memory for each `cactus-consolidated` job. By default, it is estimated from the data but these estimates being wrong can be catastrophic on [SLURM](./progressive.md#running-on-a-cluster). Consider setting to the maximum memory you have available when running on a cluster to be extra safe (seems to be more of an issue for non-human data)
 * `--indexCores` the number of cores for each `vg` indexing job (default: all available - 1)
-* The various output options: `--gbz`, `--gfa`, `--giraffe`, `--vcf` which are explained in detail below. If you forget to add one of these and are missing the corresponding output, you will need to rerun `cactus-graphmap-join` (or use `vg` to manually make the file yourself).
-
-Reducing `--consCores` will allow more chromosomes to be aligned at once, requiring more memory. VCF export for very large graphs will take a long time unless `--indexCores` is set high, but `--indexCores` should still be at least 1 lower than all cores available to allow some parallelism.
-
-By default, `cactus` attempts to automatically determine the amount of memory to request for each job.  This estimate can be too conservative for `cactus-consolidated` jobs. You can override it with `--consMemory`. 
+* `--indexMemory` Like `--consMemory` above, you may want to set this when running on a cluster.
+* The various output options: `--gbz`, `--gfa`, `--giraffe`, `--vcf`, `--odgi`, etc. which are explained in detail below. If you forget to add one of these and are missing the corresponding output, you will need to rerun `cactus-graphmap-join` (or use `vg` to manually make the file yourself).
 
 **IMPORTANT**: If you are going to make use of the vg node IDs across the various output files, consider using the `--chop` option to `cactus-pangenome` to force all files to use the chopped IDs (see [Node Chopping](#node-chopping) below). 
 
