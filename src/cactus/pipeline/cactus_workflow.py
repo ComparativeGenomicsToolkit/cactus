@@ -9,6 +9,7 @@
 
 import os
 import sys
+import bisect
 from toil.lib.bioio import system
 from toil.lib.bioio import getLogLevelString
 from toil.realtimeLogger import RealtimeLogger
@@ -37,32 +38,49 @@ def cactus_cons_with_resources(job, tree, ancestor_event, config_node, seq_id_ma
     total_sequence_size = sum([seq_id.size for seq_id in seq_id_map.values()])
     disk = 5 * total_sequence_size + 2 * paf_id.size
 
-    # constant factor
-    mem = 1e8
+    # get the size from the config
+    mem = None
+    cons_node = findRequiredNode(config_node, 'consolidated')
+    cons_memory_node = findRequiredNode(cons_node, 'consolidatedMemory')
+    cons_memory_intervals = []
+    for key, val in cons_memory_node.items():
+        try:
+            assert key.startswith('seq_size_')
+            interval_start = int(key[len('seq_size_'):])
+            interval_mem = int(val)
+            cons_memory_intervals.append((interval_start, interval_mem))
+        except:
+            raise RuntimeError('Unable to parse attribute {}={} from <consolidatedMemory> node in configuration XML'.format(key, value))
+    cons_memory_intervals = sorted(cons_memory_intervals)
+    interval_idx = bisect.bisect(cons_memory_intervals, (total_sequence_size + 0.5, 0)) - 1
+    interval = cons_memory_intervals[interval_idx]
+    mem = interval[1]
+    if interval_idx < len(cons_memory_intervals) - 1:
+        next_interval = cons_memory_intervals[interval_idx + 1]
+        interval_delta = (next_interval[0] - interval[0], next_interval[1] - interval[1])
+        mem += int(((total_sequence_size - interval[0]) / interval_delta[0]) * interval_delta[1])
+    
+    if not mem:
+        raise RuntimeError('Unable to parse memory requirement from <consolidatedMemory> node in configuration XML')
+    
     # abPOA needs a bunch of memory for its table, even for tiny alignments
     if getOptionalAttrib(findRequiredNode(config_node, 'bar'), 'partialOrderAlignment', typeFn=bool, default=True):
-        mem = 4e9
+        mem = max(mem, int(4e9))
     # add function of paf size
-    mem += 3 * paf_id.size
-    # and quadratic in sequence size (if doable in kb)
-    if total_sequence_size > 1024:
-        total_sequence_size_kb = total_sequence_size / 1024.
-        if len(seq_id_map) < 6:
-            mem += 1024. * (total_sequence_size_kb ** 1.75)
-        else:
-            # probably in pangenome mode: go a bit easier
-            mem += 1024. * (total_sequence_size_kb ** 1.30)
-    else:
-        mem += 4 * total_sequence_size        
-    # but we cap things at 512 Gigs
-    mem=int(min(mem, 512e09))
+    mem = max(mem, 10 * paf_id.size)
+    
+    RealtimeLogger.info('Estimating cactus_consolidated({}) memory as {} from {} sequences with total-sequence-size {} and paf-size {} using <conslidatedMemory> configuration settings'.format(chrom_name if chrom_name else ancestor_event, bytes2human(mem), len(seq_id_map), bytes2human(total_sequence_size), paf_id.size))
 
-    RealtimeLogger.info('Estimating cactus_consolidated({}) memory as {} bytes from {} sequences with total-sequence-size {} and paf-size {}'.format(ancestor_event, mem, len(seq_id_map), total_sequence_size, paf_id.size))
-
-    if cons_memory is not None and cons_memory < mem:
-        RealtimeLogger.info('Overriding cactus_conslidated memory estimate of {} with {} from --consMemory'.format(
-            bytes2human(mem), bytes2human(cons_memory)))
+    if cons_memory is not None and cons_memory != mem:
+        RealtimeLogger.info('Overriding cactus_conslidated({}) memory estimate of {} with {} value {} from --consMemory'.format(
+            chrom_name if chrom_name else ancestor_event, bytes2human(mem), 'greater' if cons_memory > mem else 'lesser', bytes2human(cons_memory)))
         mem = cons_memory
+
+    max_system_memory = ConfigWrapper(config_node).getSystemMemory()
+    if max_system_memory and mem > max_system_memory:
+        RealtimeLogger.info('Clamping cactus_conslidated({}) memory estimate of {} to maximum system memory {}'.format(
+            chrom_name if chrom_name else ancestor_event, bytes2human(mem), bytes2human(max_system_memory)))
+        mem = max_system_memory
 
     cons_job = job.addChildJobFn(cactus_cons, tree, ancestor_event, config_node, seq_id_map, og_map, paf_id,
                                  intermediate_results_url=intermediate_results_url, chrom_name=chrom_name, cores = cons_cores,

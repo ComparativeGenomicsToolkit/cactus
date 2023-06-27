@@ -839,7 +839,8 @@ def cactus_call(tool=None,
         run_time = time.time() - start_time
         if time_v:
             call = call[len('/usr/bin/time -f "CACTUS-LOGGED-MEMORY-IN-KB: %M" '):]
-        rt_message = "Successfully ran: \"{}\"".format(' '.join(call) if not shell else call)
+        rt_message = "Successfully ran{}\"{}\"".format(' ' + realtimeStderrPrefix + ': ' if realtimeStderrPrefix else ': ',
+                                                         ' '.join(call) if not shell else call)
         if features:
             rt_message += ' (features={})'.format(features)
         rt_message += " in {} seconds".format(round(run_time, 4))
@@ -881,6 +882,8 @@ def cactus_call(tool=None,
             sigill_msg += '       https://github.com/ComparativeGenomicsToolkit/cactus/releases\n'
             sigill_msg += '***********************************************************************************\n'
             sigill_msg += '***********************************************************************************\n\n\n'
+        if realtimeStderrPrefix:
+            sigill_msg += realtimeStderrPrefix + ': '
         
         if process.returncode > 0:
             raise RuntimeError("{}Command {} exited {}: {}".format(sigill_msg, call, process.returncode, out))
