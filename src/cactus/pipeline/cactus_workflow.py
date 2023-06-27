@@ -76,6 +76,12 @@ def cactus_cons_with_resources(job, tree, ancestor_event, config_node, seq_id_ma
             chrom_name if chrom_name else ancestor_event, bytes2human(mem), 'greater' if cons_memory > mem else 'lesser', bytes2human(cons_memory)))
         mem = cons_memory
 
+    max_system_memory = ConfigWrapper(config_node).getSystemMemory()
+    if max_system_memory and mem > max_system_memory:
+        RealtimeLogger.info('Clamping cactus_conslidated({}) memory estimate of {} to maximum system memory {}'.format(
+            chrom_name if chrom_name else ancestor_event, bytes2human(mem), bytes2human(max_system_memory)))
+        mem = max_system_memory
+
     cons_job = job.addChildJobFn(cactus_cons, tree, ancestor_event, config_node, seq_id_map, og_map, paf_id,
                                  intermediate_results_url=intermediate_results_url, chrom_name=chrom_name, cores = cons_cores,
                                  memory=mem, disk=disk)

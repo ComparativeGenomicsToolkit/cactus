@@ -17,6 +17,7 @@ from cactus.shared.common import findRequiredNode
 from cactus.shared.common import getOptionalAttrib
 from cactus.shared.common import cactus_cpu_count
 from toil.lib.accelerators import count_nvidia_gpus
+from toil import physicalMemory
 
 class ConfigWrapper:
     defaultOutgroupStrategy = 'none'
@@ -300,3 +301,12 @@ class ConfigWrapper:
             findRequiredNode(self.xmlRoot, "blast").attrib["realign"] = "0"
 
 
+    def setSystemMemory(self, options):
+        """ hide the amount of memory available (on single machine) in the config
+        so we can make sure to never request more for big jobs """
+        if options.batchSystem in ['single_machine', 'singleMachine']:
+            constants = findRequiredNode(self.xmlRoot, "constants")
+            constants.set('system_memory', str(physicalMemory()))
+
+    def getSystemMemory(self):
+        return getOptionalAttrib(findRequiredNode(self.xmlRoot, 'constants'), 'system_memory', typeFn=int, default=None)

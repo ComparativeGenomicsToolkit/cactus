@@ -244,11 +244,14 @@ def make_align_job(options, toil, config_wrapper=None, chrom_name=None):
     # load up the seqfile and figure out the outgroups
     if config_wrapper:
         config_node = config_wrapper.xmlRoot
+        config_wrapper = ConfigWrapper(config_node)
     else:
         config_node = ET.parse(options.configFile).getroot()
         config_wrapper = ConfigWrapper(config_node)
         config_wrapper.substituteAllPredefinedConstantsWithLiterals()
         config_wrapper.initGPU(options)
+    config_wrapper.setSystemMemory(options)
+    
     mc_tree, input_seq_map, og_candidates = parse_seqfile(options.seqFile, config_wrapper,
                                                           pangenome=options.pangenome)
     og_map = compute_outgroups(mc_tree, config_wrapper, set(og_candidates))

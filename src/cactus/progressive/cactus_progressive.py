@@ -395,7 +395,9 @@ def main():
             # load up the seqfile and figure out the outgroups and schedule
             config_node = ET.parse(options.configFile).getroot()
             config_wrapper = ConfigWrapper(config_node)
-            config_wrapper.substituteAllPredefinedConstantsWithLiterals()
+            config_wrapper.substituteAllPredefinedConstantsWithLiterals()            
+            config_wrapper.setSystemMemory(options)
+
             # apply gpu override
             config_wrapper.initGPU(options)
             mc_tree, input_seq_map, og_candidates = parse_seqfile(options.seqFile, config_wrapper, root_name = options.root)

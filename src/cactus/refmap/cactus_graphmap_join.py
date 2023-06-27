@@ -325,6 +325,9 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
                 if options.vcfReference[i] == ref_base + ref_ext:
                     options.vcfReference[i] = ref_base
 
+    # get the single machine memory
+    config.setSystemMemory(options)    
+
     # keep og ids in separate structure indexed on chromosome
     og_chrom_ids = {'full' : defaultdict(list), 'clip' : defaultdict(list), 'filter' : defaultdict(list)}
     # have a lot of trouble getting something working for small contigs, hack here:
@@ -414,13 +417,20 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
         hal_id_dict = hal_merge_job.rv()
         out_dicts.append(hal_id_dict)
 
-    # hacky heuristic to get memory for vg jobs, where vg minimizer is tricky as
-    # it's not really based on graph size so much (ie simple graphs can take lots of mem)
-    index_mem = sum(f.size for f in vg_ids)
-    for tot_size, fac in zip([1e6, 1e9, 10e9, 50e9, 100e9, 500e9], [1000, 32, 10, 6, 5, 2]):
-        if index_mem < tot_size:
-            index_mem *= fac
-            break
+    if options.indexMemory:
+        index_mem = options.indexMemory
+    else:
+        # hacky heuristic to get memory for vg jobs, where vg minimizer is tricky as
+        # it's not really based on graph size so much (ie simple graphs can take lots of mem)
+        index_mem = sum(f.size for f in vg_ids)
+        for tot_size, fac in zip([1e6, 1e9, 10e9, 50e9, 100e9, 500e9], [1000, 32, 10, 6, 5, 2]):
+            if index_mem < tot_size:
+                index_mem *= fac
+                break
+    max_system_memory = config.getSystemMemory()
+    if max_system_memory and index_mem > max_system_memory:
+        RealtimeLogger.info("Clamping index memory {} to system limit of {}".format(index_mem, max_system_memory))
+        index_mem = max_system_memory    
         
     workflow_phases = [('full', full_vg_ids, join_job)]
     if options.clip:
