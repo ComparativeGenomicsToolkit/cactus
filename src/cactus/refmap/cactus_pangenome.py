@@ -332,7 +332,7 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
 
     # cactus_graphmap_split
     split_job = update_seqfile_job.addFollowOnJobFn(graphmap_split_workflow, options, config_wrapper, seq_id_map, seq_name_map, sv_gfa_id,
-                                                    sv_gfa_path, paf_id, paf_path, options.refContigs, options.otherContig, sanitize=False)
+                                                    sv_gfa_path, paf_id, paf_path, sanitize=False)
 
     wf_output = split_job.rv()
     split_out_path = os.path.join(options.outDir, 'chrom-subproblems')    
