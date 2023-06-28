@@ -226,11 +226,12 @@ def export_graphmap_wrapper(job, options, paf_id, paf_path, gaf_id, unfiltered_p
     paf_path = os.path.join(options.outDir, os.path.basename(paf_path))
     job.fileStore.exportFile(paf_id, makeURL(paf_path))
     if gaf_id:
-        gaf_name = os.path.splitext(os.path.basename(paf_path))[0]
+        gaf_name = os.path.splitext(os.path.basename(paf_path))[0] + '.gaf.gz'
         job.fileStore.exportFile(gaf_id, makeURL(os.path.join(options.outDir, gaf_name)))
     if unfiltered_paf_id:
-        job.fileStore.exportFile(paf_id, makeURL(paf_path + '.unfiltered.gz'))
+        job.fileStore.exportFile(unfiltered_paf_id, makeURL(paf_path + '.unfiltered.gz'))
         job.fileStore.exportFile(paf_filter_log, makeURL(paf_path + '.filter.log'))
+        
 
 def update_seqfile(job, options, seq_id_map, seq_path_map, seq_order, gfa_fa_id, gfa_fa_path, graph_event):
     """ put the minigraph gfa.fa file into the seqfile and export both """

@@ -8,8 +8,8 @@ Note: `--consMemory 256Gi` probably very conservative and could be lowered (see 
 cactus-pangenome ./js ./9-dog-pg-2023-06-27-seqfile.txt --outName 9-dog-pg-2023-06-27 --outDir 9-dog-pg-2023-06-27 --reference canFam4 --batchSystem slurm --indexCores 64 --consCores 64 --mgCores 64 --mapCores 8 --logFile 9-dog-pg-2023-06-27.log --gbz --gfa --vcf --giraffe --chrom-og --chrom-vg --viz --consMemory 256Gi
 ```
 
-Oops! (export of debug file broken in this release)
+Oops! (gaf file extension not added due to bug in this release)
 ```
-mv 9-dog-pg-2023-06-27/9-dog-pg-2023-06-27 9-dog-pg-2023-06-27/9-dog-pg-2023-06-27.paf.unfiltered.gz
+mv 9-dog-pg-2023-06-27/9-dog-pg-2023-06-27 9-dog-pg-2023-06-27/9-dog-pg-2023-06-27.gaf.gz
 ```
 

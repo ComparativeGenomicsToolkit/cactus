@@ -8,7 +8,7 @@ Note: `--consMemory 256Gi` is very conservative and could be lowered by at least
 cactus-pangenome ./js ./10-chicken-pg-2022-09-23-seqfile.txt --outName 10-chicken-pg-2023-06-7 --outDir 10-chicken-pg-2023-06-27 --reference galGal6 --batchSystem slurm --indexCores 64 --consCores 64 --mgCores 64 --mapCores 8 --logFile 10-chicken-pg-2023-06-27.log --maxLocalJobs 1000 --gbz --gfa --vcf --giraffe --chrom-og --chrom-vg --viz --consMemory 256Gi
 ```
 
-Oops! (export of debug file broken in this release)
+Oops! (gaf file extension not added due to bug in this release)
 ```
-mv 10-chicken-pg-2023-06-27/10-chicken-pg-2023-06-27 10-chicken-pg-2023-06-27/10-chicken-pg-2023-06-27.paf.unfiltered.gz
+mv 10-chicken-pg-2023-06-27/10-chicken-pg-2023-06-27 10-chicken-pg-2023-06-27/10-chicken-pg-2023-06-27.gaf.gz
 ```
