@@ -80,4 +80,9 @@ In order to run the Minigraph-Cactus pipeline, you must also run
 build-tools/downloadPangenomeTools
 ```
 
+If you want to work with MAF, including running `cactus-hal2maf`, you must also run
+```
+build-tools/downloadMafTools
+```
+
 In order to toggle between local and Docker binaries, use the `--binariesMode` command line option. If `--binariesMode` is not specified, local binaries will be used if found in `PATH`, otherwise a Docker image will be used.
