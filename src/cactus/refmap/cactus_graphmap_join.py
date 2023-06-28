@@ -342,7 +342,7 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
         full_vg_ids.append(full_job.rv(0))
         if 'full' in options.odgi + options.chrom_og + options.viz + options.draw:
             full_og_job = full_job.addFollowOnJobFn(vg_to_og, options, config, vg_path, full_job.rv(0),
-                                                    disk=vg_id.size * 16, memory=max(og_min_size, vg_id.size * 32))
+                                                    disk=vg_id.size * 16)
             og_chrom_ids['full']['og'].append(full_og_job.rv())
 
     prev_job = root_job
@@ -380,7 +380,7 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
             clip_vg_stats.append(clip_job.rv(1))
             if 'clip' in options.odgi + options.chrom_og + options.viz + options.draw:
                 clip_og_job = clip_job.addFollowOnJobFn(vg_to_og, options, config, vg_path, clip_job.rv(0),
-                                                        disk=input_vg_id.size * 16, memory=max(og_min_size, input_vg_id.size * 32))
+                                                        disk=input_vg_id.size * 16)
                 og_chrom_ids['clip']['og'].append(clip_og_job.rv())
 
         # join the stats
@@ -399,7 +399,7 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
             filter_vg_ids.append(filter_job.rv())
             if 'filter' in options.odgi + options.chrom_og + options.viz + options.draw:
                 filter_og_job = filter_job.addFollowOnJobFn(vg_to_og, options, config, vg_path, filter_job.rv(),
-                                                            disk=input_vg_id.size * 16, memory=max(og_min_size, input_vg_id.size * 64))
+                                                            disk=input_vg_id.size * 16)
                 og_chrom_ids['filter']['og'].append(filter_og_job.rv())                
 
 
