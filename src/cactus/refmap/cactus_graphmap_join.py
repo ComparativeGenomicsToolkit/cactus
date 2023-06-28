@@ -527,7 +527,7 @@ def clip_vg(job, options, config, vg_path, vg_id, phase):
     graph_event = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "assemblyName", default="_MINIGRAPH_")
 
     # optional gfaffixing -- only happens in full
-    if phase == 'full' and getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "gfaffix", typeFn=bool, default=True):
+    if False and phase == 'full' and getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "gfaffix", typeFn=bool, default=True):
         normalized_path = vg_path + '.gfaffixed'
         gfa_in_path = vg_path + '.gfa'
         gfa_out_path = normalized_path + '.gfa'
