@@ -1,3 +1,11 @@
+# Release 2.6.2 2023-06-28
+
+This release patches a few bugs introduced or found in v2.6.1
+
+- Docker container fixed to include runtime libatomic dependency for odgi
+- `--refContigs` option fixed in `cactus-graphmap-split`
+- `cactus-pangenome` fixed to properly output intermediate GAF and unfiltered PAF alignment files
+
 # Release 2.6.1 2023-06-27
 
 This Release adds SLURM cluster support for Cactus (both progressive and pangenome). It also adds some new visualization features to the pangenome pipeline, along with several bugfixes.
