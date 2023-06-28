@@ -116,17 +116,16 @@ def cactus_graphmap_split(options):
                     for line in rc_file:
                         if len(line.strip()):
                             ref_contigs.add(line.strip().split()[0])
-            # our list has moved from options to ref_contigs, so don't get confused later:
-            options.refContigs = None
+            options.refContigs = list(ref_contigs)
 
-            if ref_contigs:
+            if options.refContigs:
                 max_ref_contigs = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "maxRefContigs", typeFn=int, default=128)
-                if len(ref_contigs) > max_ref_contigs:
-                    logger.warning('You specified {} refContigs, which is greater than the suggested limit of {}. This may cause issues downstream.'.format(len(ref_contigs), max_ref_contigs))
+                if len(options.refContigs) > max_ref_contigs:
+                    logger.warning('You specified {} refContigs, which is greater than the suggested limit of {}. This may cause issues downstream.'.format(len(options.refContigs), max_ref_contigs))
                 
 
             if options.otherContig:
-                assert options.otherContig not in ref_contigs
+                assert options.otherContig not in options.refContigs
 
             # get the minigraph "virutal" assembly name
             graph_event = getOptionalAttrib(findRequiredNode(config_node, "graphmap"), "assemblyName", default="_MINIGRAPH_")
@@ -169,12 +168,12 @@ def cactus_graphmap_split(options):
             # run the workflow
             wf_output = toil.start(Job.wrapJobFn(graphmap_split_workflow, options, config, input_seq_id_map, input_name_map,
                                                  gfa_id, options.minigraphGFA,
-                                                 paf_id, options.graphmapPAF, ref_contigs, options.otherContig))
+                                                 paf_id, options.graphmapPAF))
 
         #export the split data
         export_split_data(toil, wf_output[0], wf_output[1], wf_output[2], wf_output[3], options.outDir, config)
 
-def graphmap_split_workflow(job, options, config, seq_id_map, seq_name_map, gfa_id, gfa_path, paf_id, paf_path, ref_contigs, other_contig, sanitize=True):
+def graphmap_split_workflow(job, options, config, seq_id_map, seq_name_map, gfa_id, gfa_path, paf_id, paf_path, sanitize=True):
 
     root_job = Job()
     job.addChild(root_job)
@@ -210,9 +209,11 @@ def graphmap_split_workflow(job, options, config, seq_id_map, seq_name_map, gfa_
     if not options.refContigs:
         refcontig_job = sanitize_job.addFollowOnJobFn(detect_ref_contigs, config, options, seq_id_map)
         ref_contigs = refcontig_job.rv()
-        other_contig = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "otherContigName", typeFn=str, default="chrOther")
-        options.otherContig = other_contig
+        options.otherContig = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "otherContigName", typeFn=str, default="chrOther")
         sanitize_job = refcontig_job
+    else:
+        # move from options to avoid promise confusion
+        ref_contigs = options.refContigs
     
     # use file extension to sniff out compressed input
     if gfa_path.endswith(".gz"):
@@ -234,7 +235,7 @@ def graphmap_split_workflow(job, options, config, seq_id_map, seq_name_map, gfa_
         
     # use rgfa-split to split the gfa and paf up by contig
     split_gfa_job = root_job.addFollowOnJobFn(split_gfa, config, gfa_id, [paf_id], ref_contigs,
-                                              other_contig, options.reference, mask_bed_id,
+                                              options.otherContig, options.reference, mask_bed_id,
                                               disk=(gfa_size + paf_size) * 5,
                                               memory=(gfa_size + paf_size) * 3)
 
@@ -245,7 +246,7 @@ def graphmap_split_workflow(job, options, config, seq_id_map, seq_name_map, gfa_
     gather_fas_job = split_fas_job.addFollowOnJobFn(gather_fas, split_gfa_job.rv(0), split_fas_job.rv(0), split_fas_job.rv(1))
 
     # lump "other" contigs together into one file (to make fewer align jobs downstream)
-    bin_other_job = gather_fas_job.addFollowOnJobFn(bin_other_contigs, config, ref_contigs, other_contig, gather_fas_job.rv(0),
+    bin_other_job = gather_fas_job.addFollowOnJobFn(bin_other_contigs, config, ref_contigs, options.otherContig, gather_fas_job.rv(0),
                                                     disk=(gfa_size + paf_size) * 2)
 
     # return all the files, as well as the 2 split logs
