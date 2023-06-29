@@ -1,3 +1,9 @@
+# Release 2.6.3 2023-06-29
+
+This release contains a single, minor patch that only applies when passing multiple values to `--reference`.  
+
+- Pangenome stub filtering changed to apply only to the first genome passed via `--reference` in order to be consistent with gap filter.ing (and enforce maximum of two stubs per graph component).
+
 # Release 2.6.2 2023-06-28
 
 This release patches a few bugs introduced or found in v2.6.1

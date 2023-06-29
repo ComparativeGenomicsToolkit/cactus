@@ -169,12 +169,12 @@ Conservation scores can be computed using [phast](http://compgen.cshl.edu/phast/
 The Cactus Docker image contains everything you need to run Cactus (python environment, all binaries, system dependencies). For example, to run the test data:
 
 ```
-docker run -v $(pwd):/data --rm -it quay.io/comparative-genomics-toolkit/cactus:v2.6.2 cactus /data/jobStore /data/evolverMammals.txt /data/evolverMammals.hal
+docker run -v $(pwd):/data --rm -it quay.io/comparative-genomics-toolkit/cactus:v2.6.3 cactus /data/jobStore /data/evolverMammals.txt /data/evolverMammals.hal
 ```
 
 Or you can proceed interactively by running
 ```
-docker run -v $(pwd):/data --rm -it quay.io/comparative-genomics-toolkit/cactus:v2.6.2 bash
+docker run -v $(pwd):/data --rm -it quay.io/comparative-genomics-toolkit/cactus:v2.6.3 bash
 cactus /data/jobStore /data/evolverMammals.txt /data/evolverMammals.hal
 
 ```
@@ -210,7 +210,7 @@ You cannot run `cactus --batchSystem slurm` from *inside* the Cactus docker cont
 To run Progressive Cactus with CPU (default) lastz, you should increase the chunk size.  This will divide the input assemblies into fewer pieces, resulting in fewer jobs on the cluster.
 
 ```
-cp cactus-bin-v2.6.2/src/cactus/cactus_progressive_config.xml ./config-slurm.xml
+cp cactus-bin-v2.6.3/src/cactus/cactus_progressive_config.xml ./config-slurm.xml
 sed -i config-slurm.xml -e 's/blast chunkSize="30000000"/blast chunkSize="90000000"/g'
 sed -i config-slurm.xml -e 's/dechunkBatchSize="1000"/dechunkBatchSize="200"/g'
 ```
