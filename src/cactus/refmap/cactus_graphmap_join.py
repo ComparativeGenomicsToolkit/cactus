@@ -573,15 +573,11 @@ def clip_vg(job, options, config, vg_path, vg_id, phase):
     if options.reference:
         # GFAFfix can leave uncovered nodes with --dont_collapse.  We filter out here so they dont cause trouble later
         # Also: any kind of clipping or path dropping can leave uncovered edges, so we remove them with vg clip        
-        clip_cmd = ['vg', 'clip', '-d', '1', '-']
-        for ref in options.reference:
-            clip_cmd += ['-P', ref]
+        clip_cmd = ['vg', 'clip', '-d', '1', '-', '-P', options.reference[0]]
         cmd.append(clip_cmd)
         if phase == 'clip' and getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "removeStubs", typeFn=bool, default=True):
             # todo: could save a little time by making vg clip smart enough to do two things at once
-            stub_cmd = ['vg', 'clip', '-s', '-']
-            for ref in options.reference:
-                stub_cmd += ['-P', ref]
+            stub_cmd = ['vg', 'clip', '-s', '-', '-P', options.reference[0]]
 
             # todo: do we want to add the minigraph prefix to keep stubs from minigraph? but I don't think it makes stubs....
             cmd.append(stub_cmd)
@@ -667,8 +663,8 @@ def vg_clip_vg(job , options, config, vg_path, vg_id):
     if getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "removeStubs", typeFn=bool, default=True):
         # this command can also leave fragments smaller than min-fragment
         stub_cmd = ['vg', 'clip', '-s', '-']
-        for ref in options.reference:
-            stub_cmd += ['-P', ref]
+        if options.reference:
+            stub_cmd += ['-P', options.reference[0]]
         if min_fragment:
             clip_cmd.append(stub_cmd)
         else:
