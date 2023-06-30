@@ -195,8 +195,9 @@ def main():
 
 def hal2maf_workflow(job, hal_id, options, config):
 
-    hal2maf_ranges_job = job.addChildJobFn(hal2maf_ranges, hal_id, options, cores=1, disk=hal_id.size)    
-    hal2maf_all_job = hal2maf_ranges_job.addFollowOnJobFn(hal2maf_all, hal_id, hal2maf_ranges_job.rv(), options, config)
+    hal2maf_ranges_job = job.addChildJobFn(hal2maf_ranges, hal_id, options, cores=1, disk=hal_id.size)
+    chunks, genome_list_id = hal2maf_ranges_job.rv(0), hal2maf_ranges_job.rv(1)
+    hal2maf_all_job = hal2maf_ranges_job.addFollowOnJobFn(hal2maf_all, hal_id, chunks, genome_list_id, options, config)
     hal2maf_merge_job = hal2maf_all_job.addFollowOnJobFn(hal2maf_merge, hal2maf_all_job.rv(), options, disk=hal_id.size)
     return hal2maf_merge_job.rv()
 
@@ -221,7 +222,7 @@ def hal2maf_ranges(job, hal_id, options):
             if ref_seq not in ref_sequence_lengths:
                 raise RuntimeError('--refSequence {} not found in HAL file for genome {}'.format(ref_seq, options.refGenome))
             subset_ref_sequence_lengths[ref_seq] = ref_sequence_lengths[ref_seq]
-        ref_sequence_lengths = subset_ref_sequence_lengths        
+        ref_sequence_lengths = subset_ref_sequence_lengths
 
     chunks = []
     for ref_name in sorted(ref_sequence_lengths.keys()):
@@ -233,9 +234,22 @@ def hal2maf_ranges(job, hal_id, options):
             start = end
 
     assert chunks
-    return chunks
 
-def hal2maf_all(job, hal_id, chunks, options, config):
+    genome_list_id = None
+    if options.dupeMode == 'consensus':
+        # maf_stream will muck up the ordering of maf blocks, so we re-sort using mafTools which requires an ordering file
+        genomes = cactus_call(parameters=['halStats', hal_path, '--genomes'], check_output=True).strip().split(' ')
+        genome_list_path = os.path.join(work_dir, 'genomes.list')
+        with open(genome_list_path, 'w') as genome_list_file:
+            genome_list_file.write(options.refGenome + '\n')
+            for genome in sorted(genomes):
+                if genome != options.refGenome:
+                    genome_list_file.write(genome + '\n')
+        genome_list_id = job.fileStore.writeGlobalFile(genome_list_path)    
+    
+    return chunks, genome_list_id
+
+def hal2maf_all(job, hal_id, chunks, genome_list_id, options, config):
     """ make a job for each batch of chunks """
     num_batches = options.batchCount
     if not num_batches:
@@ -268,7 +282,8 @@ def hal2maf_all(job, hal_id, chunks, options, config):
         cur_chunk = i * batch_size
         cur_batch_size = min(chunks_left, batch_size)
         if cur_batch_size:
-            batch_results.append(job.addChildJobFn(hal2maf_batch, hal_id, chunks[cur_chunk:cur_chunk+cur_batch_size], options, config,
+            batch_results.append(job.addChildJobFn(hal2maf_batch, hal_id, chunks[cur_chunk:cur_chunk+cur_batch_size],
+                                                   genome_list_id, options, config,
                                                    disk=math.ceil((1 + 1.5 / num_batches)*hal_id.size), cores=options.batchCores,
                                                    memory=batch_memory).rv())
         chunks_left -= cur_batch_size
@@ -305,7 +320,7 @@ def hal2maf_cmd(hal_path, chunk, chunk_num, options, config):
     cmd += ' > {}.maf.gz'.format(chunk_num)
     return cmd
 
-def taf_cmd(hal_path, chunk, chunk_num, options):
+def taf_cmd(hal_path, chunk, chunk_num, genome_list_path, options):
     """ make a taf normalization command for the chunk """
     # we are going to run this relative to work_dir
     hal_path = os.path.basename(hal_path)
@@ -338,6 +353,7 @@ def taf_cmd(hal_path, chunk, chunk_num, options):
         cmd += ' | mafDuplicateFilter -m - -k'
     elif options.dupeMode == 'consensus':
         cmd += ' | maf_stream merge_dups consensus'
+        cmd += ' | mafRowOrderer -m - --order-file {}'.format(genome_list_path)
     if chunk[1] != 0:
         cmd += ' | grep -v ^#'
     if options.outputMAF.endswith('.gz'):
@@ -372,15 +388,18 @@ def read_time_mem(timefile_path):
         msg += ' and memory: {}'.format(mem_usage)
     return msg
 
-def hal2maf_batch(job, hal_id, batch_chunks, options, config):
+def hal2maf_batch(job, hal_id, batch_chunks, genome_list_id, options, config):
     """ run hal2maf on a batch of chunks in parallel """
     work_dir = job.fileStore.getLocalTempDir()
     hal_path = os.path.join(work_dir, os.path.basename(options.halFile.replace(' ', '.')))
     RealtimeLogger.info("Reading HAL file from job store to {}".format(hal_path))
     job.fileStore.readGlobalFile(hal_id, hal_path)
+    genome_list_path = os.path.join(work_dir, 'genome.list')
+    if genome_list_id:
+        job.fileStore.readGlobalFile(genome_list_id, genome_list_path)
 
     h2m_cmds = [hal2maf_cmd(hal_path, chunk, i, options, config) for i, chunk in enumerate(batch_chunks)]
-    
+
     # do it with parallel
     h2m_cmd_path = os.path.join(work_dir, 'hal2maf_cmds.txt')
     with open(h2m_cmd_path, 'w') as h2m_cmd_file:
@@ -420,7 +439,7 @@ def hal2maf_batch(job, hal_id, batch_chunks, options, config):
     if not options.raw:
         # and a separate batch for the taf commands. potentially much less efficient as all will block on the
         # slowest h2m command, but we need to be able to specify fewer cores due to higher memory usage
-        taf_cmds = [taf_cmd(hal_path, chunk, i, options) for i, chunk in enumerate(batch_chunks)]
+        taf_cmds = [taf_cmd(hal_path, chunk, i, genome_list_path, options) for i, chunk in enumerate(batch_chunks)]
 
         # do it with parallel
         taf_cmd_path = os.path.join(work_dir, 'taf_cmds.txt')
