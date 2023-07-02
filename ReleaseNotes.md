@@ -1,3 +1,10 @@
+# Release 2.6.4 2023-07-02
+
+This is another minor patch release to fix support for multiple values to `--reference`.
+
+- Don't fail if a given reference contig contains no sequences from the 2nd reference. This issue prevented completing of HPRC graphs with `--reference GRCh38 CHM13` because CHM13 wasn't present in the non-chromosome components.
+- Fix `--dupeMode consensus` to output MAF with rows sorted (and, importantly, leaving the first row as reference). 
+
 # Release 2.6.3 2023-06-29
 
 This release contains a single, minor patch that only applies when passing multiple values to `--reference`.  
