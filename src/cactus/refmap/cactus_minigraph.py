@@ -132,7 +132,7 @@ def check_sample_names(sample_names, references):
         if type(references) is str:
             references = [references]
         if references[0] not in sample_names:
-                raise RuntimeError("Specified reference not in seqfile")
+                raise RuntimeError("Specified reference, \"{}\" not in seqfile".format(references[0]))
 
             # graphmap-join uses reference names as prefixes, so make sure we don't get into trouble with that
             reference_base = os.path.splitext(reference)[0]
