@@ -280,9 +280,8 @@ def make_align_job(options, toil, config_wrapper=None, chrom_name=None):
     # check --reference input
     if options.reference:
         leaves = [mc_tree.getName(leaf) for leaf in mc_tree.getLeaves()]
-        for reference in options.reference:
-            if reference not in leaves:
-                raise RuntimeError("Genome specified with --reference, {}, not found in tree leaves".format(options.reference))
+        if options.reference[0] not in leaves:
+            raise RuntimeError("Genome specified with --reference, {}, not found in tree leaves".format(options.reference[0]))
 
     # toggle stable
     paf_to_stable = False
