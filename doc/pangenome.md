@@ -599,6 +599,10 @@ The [Human Pangenome Reference Consortium](https://humanpangenome.org/data-and-r
 
 WDL / cactus-prepare support is in progress!
 
+### HPRC v1.1 Graph
+
+Please see [this page](mc-pangenomes/hprc-v1.1-mc.md) for a description of all commands to produce the [v1.1](tba) HPRC Minigraph-Cactus release.  The below instructions are now out of date.
+
 ### HPRC Graph: Setup and Name Munging
 
 **Important** The Cactus-Minigraph Pipeline does not support alt contigs in the reference.  If you really want them in your graph, then you will need to pull them out into separate samples (ie one alt contig per region per sample).  Otherwise they will end up as separate reference contigs and not align together.  As such we advice using the GRCh38 fasta file referenced in the `hprc-${VERSION}-mc.seqfile` generated below for any graph using GRCh38 as a reference.  
