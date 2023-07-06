@@ -9,7 +9,7 @@ The main differences in 1.1 with respect to 1.0 are:
 * Cleaner base alignment via `minigraph`'s new base alignment options, as well as many bugfixes to `cactus`'s base aligner
 * Cleaner large-scale alignment via better chaining and filtering.
 
-For a list of all changes, consult the Release Notes for Cactus [version 2.2.1](https://github.com/ComparativeGenomicsToolkit/cactus/releases/tag/v2.2.1 through [version 2.6.4](https://github.com/ComparativeGenomicsToolkit/cactus/releases/tag/v2.6.4)
+For a list of all changes, consult the Release Notes for Cactus [version 2.2.1](https://github.com/ComparativeGenomicsToolkit/cactus/releases/tag/v2.2.1) through [version 2.6.4](https://github.com/ComparativeGenomicsToolkit/cactus/releases/tag/v2.6.4)
 
 ## Table of Contents
 
@@ -83,7 +83,7 @@ cactus-pangenome ./js-chm13 ./hprc-v1.1-mc.seqfile --outName hprc-v1.1-mc-chm13 
 
 This script reproduces the filtering used for the "decomposed" 1.0 VCFs, ex `hprc-v1.0-mc.grch38.vcfbub.a100k.wave.vcf.gz`.
 
-It runs `vcfbub` to remove nested sites, keeping the highest-level version whose maximum allele length is under `100kb`, then runs `vcfwave` to re-align the alt alleles to the reference alleles, which is useful for cleaning up big muli-base SNPs, for example, by splitting them into smaller variants.  We [vcflib commit b5287d1c2dbbfe53fc7af8f88ff4aa1208d5dd49](https://github.com/vcflib/vcflib/commits/b5287d1c2dbbfe53fc7af8f88ff4aa1208d5dd49) for `vcfwave` and the version of `vcfbub` from [Cactus v2.6.4 binary release](https://github.com/ComparativeGenomicsToolkit/cactus/releases/tag/v2.6.4).
+It runs `vcfbub` to remove nested sites, keeping the highest-level version whose maximum allele length is under `100kb`, then runs `vcfwave` to re-align the alt alleles to the reference alleles, which is useful for cleaning up big muli-base SNPs, for example, by splitting them into smaller variants.  We use [vcflib commit b5287d1c2dbbfe53fc7af8f88ff4aa1208d5dd49](https://github.com/vcflib/vcflib/commits/b5287d1c2dbbfe53fc7af8f88ff4aa1208d5dd49) for `vcfwave` and the version of `vcfbub` from [Cactus v2.6.4 binary release](https://github.com/ComparativeGenomicsToolkit/cactus/releases/tag/v2.6.4).
 
 This relies on the following script, `parallel-vcfwave.sh`
 
@@ -107,7 +107,7 @@ rm -f ${INFILE}-*.vcf.gz
 
 This runs some of the preprocessing described in [the PanGenie HPRC workflow commit 7c39e241f6d5d01efb74fef19f47426a592fc43d](https://bitbucket.org/jana_ebler/hprc-experiments/src/7c39e241f6d5d01efb74fef19f47426a592fc43d/genotyping-experiments/).  It uses the `filter-vcf.py` script found in this repo.
 
-Note that if you want to reproduce the whole PanGenie analysis, you should run the SnakeMake workflow beginning with the `raw` VCF.  This procedure simply makes a version of the `wave` VCF with where GRCh38/CHM13 do not appear as *samples* and that each site is present in at least 80% of haplotypes.
+Note that if you want to reproduce the whole PanGenie analysis, you should run the SnakeMake workflow beginning with the `raw` VCF.  This procedure simply makes a version of the `vcfwave` decomposed VCF (above) where GRCh38/CHM13 do not appear as *samples* and that each site is present in at least 80% of sample haplotypes.
 
 
 This relies on the following script, `pangenie-filter.sh`, based on [prepare-vcf.smk](https://bitbucket.org/jana_ebler/hprc-experiments/src/7c39e241f6d5d01efb74fef19f47426a592fc43d/genotyping-experiments/workflow/rules/prepare-vcf.smk)
@@ -150,9 +150,9 @@ Three distinct VCFs were produced from the graphs.
 
 All three VCFs are filtered independently, in the same way, so below we will only discuss `hprc-v1.1-mc-grch38.raw.vcf.gz`.
 
-`minigraph-cactus` outputs by default:
+`minigraph-cactus` also outputs by default:
 
-* `hprc-v1.1-mc-grch38.vcf.gz`. Nested sites, and those with reference allele length > 100kb are removed with `vcfbub --max-ref-length 100000 --max-level 0`.  Note that it can still contain alt alleles > 100kb. The sites in this VCF, are consistent with the graph topoloy, with the alleles described as paths in the (GFA) graph via their `AT` tags. 
+* `hprc-v1.1-mc-grch38.vcf.gz`. Nested sites, and those with reference allele length > 100kb are removed with `vcfbub --max-ref-length 100000 --max-level 0`.  Note that it can still contain alt alleles > 100kb. The sites in this VCF are consistent with the graph topoloy, with the alleles described as paths in the (GFA) graph via their `AT` tags. 
 
 The more aggressive filtering procedure, described above, was also run similar to the 1.0 results, where each graph was derived from the previous one:
 
