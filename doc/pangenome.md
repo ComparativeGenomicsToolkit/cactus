@@ -143,7 +143,7 @@ The Minigraph-Cactus pipeline is run via the `cactus-pangenome` command. It cons
 
 The application and impact of this option is demonstrated in the explanation of the Yeast pangenome example below.
 
-**Important** The reference genome assembly must be chromosome scale. If your reference assembly also consists of many small fragments (ex GRCh38) then you can use the `--refContigs` option to specify the chromosomes.  Ex for GRCh38 `--refContigs $(for i in `seq 22`; do printf "chr$i "; done ; echo "chrX chrY chrM")`.  If you want to include the remaining reference contig fragments in your graph, add the `--otherContig chrOther` option.  If you do not specify `--refContigs`, they will be determined automatically and all small contigs will be included. For example, if your reference has the following contigs and lengths
+**Important** The reference genome assembly must be chromosome scale. If your reference assembly also consists of many small fragments (ex GRCh38) then you can use the `--refContigs` option to specify the chromosomes.  Ex for GRCh38 `--refContigs $(for i in $(seq 22); do printf "chr$i "; done ; echo "chrX chrY chrM")`.  If you want to include the remaining reference contig fragments in your graph, add the `--otherContig chrOther` option.  If you do not specify `--refContigs`, they will be determined automatically and all small contigs will be included. For example, if your reference has the following contigs and lengths
 ```
 chr1 1000000
 chr2 900000
