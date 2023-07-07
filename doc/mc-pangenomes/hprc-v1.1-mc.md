@@ -104,43 +104,6 @@ rm -f ${INFILE}-*.vcf.gz
 ./parallel-vcfwave.sh hprc-v1.1-mc-chm13.GRCh38.raw.vcf.gz hprc-v1.1-mc-chm13.GRCh38.vcfbub.a100k.wave.vcf.gz
 ```
 
-### PanGenie Filtering
-
-This runs some of the preprocessing described in [the PanGenie HPRC workflow commit 7c39e241f6d5d01efb74fef19f47426a592fc43d](https://bitbucket.org/jana_ebler/hprc-experiments/src/7c39e241f6d5d01efb74fef19f47426a592fc43d/genotyping-experiments/).  It uses the `filter-vcf.py` script found in this repo.
-
-Note that if you want to reproduce the whole PanGenie analysis, you should run the SnakeMake workflow beginning with the `raw` VCF.  This procedure simply makes a version of the `vcfwave` decomposed VCF (above) where GRCh38/CHM13 do not appear as *samples* and that each site is present in at least 80% of sample haplotypes.  Using this SnakeMake workflow on a CHM13-based VCF requires switching to its [CHM13 branch](https://bitbucket.org/jana_ebler/hprc-experiments/branch/chm13-based-pipeline).
-
-
-This relies on the following script, `pangenie-filter.sh`, based on [prepare-vcf.smk](https://bitbucket.org/jana_ebler/hprc-experiments/src/7c39e241f6d5d01efb74fef19f47426a592fc43d/genotyping-experiments/workflow/rules/prepare-vcf.smk)
-```
-#!/bin/bash
-INFILE=$1
-OUTFILE=$2
-len_assembly_samples=44
-nr_males=17
-let "min_an = (8 * $len_assembly_samples * 2) / 10"
-let "min_an_x = (8 * ( ($len_assembly_samples-nr_males) * 2 + $nr_males)) / 10"
-let "min_an_y = (8 * $nr_males ) / 10"
-
-rm -f filter-vcf.py
-wget -q https://bitbucket.org/jana_ebler/hprc-experiments/raw/7c39e241f6d5d01efb74fef19f47426a592fc43d/genotyping-experiments/workflow/scripts/filter-vcf.py
-chromosomes=$(for i in $(seq 22); do printf "chr$i "; done ; echo "chrX chrY")
-
-bcftools view $INFILE --samples ^CHM13,GRCh38 --force-samples | \
-bcftools +fill-tags | \
-bcftools view --min-ac 1 | \
-python3 ./filter-vcf.py ${min_an} ${min_an_x} ${min_an_y} --chromosomes $chromosomes | \
-bcftools view --trim-alt-alleles | bgzip --threads 2 > $OUTFILE
-tabix -fp vcf $OUTFILE
-```
-
-```
-./pangenie-filter.sh hprc-v1.1-mc-grch38.vcfbub.a100k.wave.vcf.gz hprc-v1.1-mc-grch38.pangenie.vcf.gz
-./pangenie-filter.sh hprc-v1.1-mc-chm13.vcfbub.a100k.wave.vcf.gz hprc-v1.1-mc-chm13.pangenie.vcf.gz
-./pangenie-filter.sh hprc-v1.1-mc-chm13.GRCh38.vcfbub.a100k.wave.vcf.gz hprc-v1.1-mc-chm13.GRCh38.pangenie.vcf.gz
-
-```
-
 ### VCF Overview
 
 Three distinct VCFs were produced from the graphs.
@@ -159,9 +122,8 @@ The more aggressive filtering procedure, described above, was also run similar t
 
 1) `hprc-v1.1-mc-grch38.raw.vcf.gz` : Raw output, as described above.
 2) `hprc-v1.1-mc-grch38.vcfbub.a100k.wave.vcf.gz` : Variants decomposed with `vcfbub -l 0 -a 100000` and re-aligned with `vcfwave -I 1000`.
-3) `hprc-v1.1-mc-grch38.pangenie.vcf.gz` : Sites with > 20% missing alleles filtered, as well as reference samples.  
 
-**Important** Because of the `vcfwave` realignment, the alleles in `hprc-v1.1-mc-grch38.vcfbub.a100k.wave.vcf.gz` and `hprc-v1.1-mc-grch38.pangenie.vcf.gz` are no longer necessarily consistent with the topology of the graph.
+**Important** Because of the `vcfwave` realignment, the alleles in `hprc-v1.1-mc-grch38.vcfbub.a100k.wave.vcf.gz` are no longer necessarily consistent with the topology of the graph.
 
 
 ## Excluded Regions
