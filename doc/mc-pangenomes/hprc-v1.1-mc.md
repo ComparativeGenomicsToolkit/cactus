@@ -119,8 +119,8 @@ OUTFILE=$2
 len_assembly_samples=44
 nr_males=17
 let "min_an = (8 * $len_assembly_samples * 2) / 10"
-let "min_an_male = (8 * ( $len_assembly_samples-nr_males *2 + $nr_males)) / 10"
-let "min_an_female = (8 * $nr_males * 2) / 10"
+let "min_an_x = (8 * ( ($len_assembly_samples-nr_males) * 2 + $nr_males)) / 10"
+let "min_an_y = (8 * $nr_males ) / 10"
 
 rm -f filter-vcf.py
 wget -q https://bitbucket.org/jana_ebler/hprc-experiments/raw/7c39e241f6d5d01efb74fef19f47426a592fc43d/genotyping-experiments/workflow/scripts/filter-vcf.py
@@ -129,7 +129,7 @@ chromosomes=$(for i in $(seq 22); do printf "chr$i "; done ; echo "chrX chrY")
 bcftools view $INFILE --samples ^CHM13,GRCh38 --force-samples | \
 bcftools +fill-tags | \
 bcftools view --min-ac 1 | \
-python3 ./filter-vcf.py ${min_an} ${min_an_male} ${min_an_female} --chromosomes $chromosomes | \
+python3 ./filter-vcf.py ${min_an} ${min_an_x} ${min_an_y} --chromosomes $chromosomes | \
 bcftools view --trim-alt-alleles | bgzip --threads 2 > $OUTFILE
 tabix -fp vcf $OUTFILE
 ```
