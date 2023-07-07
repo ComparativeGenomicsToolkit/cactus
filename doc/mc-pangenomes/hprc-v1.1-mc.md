@@ -20,6 +20,7 @@ For a list of all changes, consult the Release Notes for Cactus [version 2.2.1](
     * [VCFWave Decomposition](#vcfwave-decomposition)
     * [PanGenie Filtering](#pangenie-filtering)
     * [VCF Overview](#vcf-overview)
+* [Excluded Regions](#excluded-regions)
 
 ## Graphs and Indexes
 
@@ -92,7 +93,7 @@ This relies on the following script, `parallel-vcfwave.sh`
 INFILE=$1
 OUTFILE=$2
 for chr in `bcftools view -h $INFILE | perl -ne 'if (/^##contig=<ID=([^,]+)/) { print "$1\n" }'`; do echo $chr; done | parallel -j 16 "bcftools view $INFILE -r {} | bgzip > $INFILE-{}.input.vcf.gz ; tabix -fp vcf $INFILE-{}.input.vcf.gz ; vcfbub --input $INFILE-{}.input.vcf.gz -l 0 -a 100000 | vcfwave -t 2 -I 1000 | bgzip --threads 2 > ${INFILE}-{}.vcf.gz; rm -f $INFILE-{}.input.vcf.gz $INFILE-{}.input.vcf.gz.tbi"
-bcftools concat ${INFILE}-*.vcf.gz | bgzip --threads 16 > ${OUTFILE}
+bcftools concat ${INFILE}-*.vcf.gz | bcftools sort | bgzip --threads 16 > ${OUTFILE}
 tabix -fp vcf ${OUTFILE}
 rm -f ${INFILE}-*.vcf.gz
 ```
@@ -107,7 +108,7 @@ rm -f ${INFILE}-*.vcf.gz
 
 This runs some of the preprocessing described in [the PanGenie HPRC workflow commit 7c39e241f6d5d01efb74fef19f47426a592fc43d](https://bitbucket.org/jana_ebler/hprc-experiments/src/7c39e241f6d5d01efb74fef19f47426a592fc43d/genotyping-experiments/).  It uses the `filter-vcf.py` script found in this repo.
 
-Note that if you want to reproduce the whole PanGenie analysis, you should run the SnakeMake workflow beginning with the `raw` VCF.  This procedure simply makes a version of the `vcfwave` decomposed VCF (above) where GRCh38/CHM13 do not appear as *samples* and that each site is present in at least 80% of sample haplotypes.
+Note that if you want to reproduce the whole PanGenie analysis, you should run the SnakeMake workflow beginning with the `raw` VCF.  This procedure simply makes a version of the `vcfwave` decomposed VCF (above) where GRCh38/CHM13 do not appear as *samples* and that each site is present in at least 80% of sample haplotypes.  Using this SnakeMake workflow on a CHM13-based VCF requires switching to its [CHM13 branch](https://bitbucket.org/jana_ebler/hprc-experiments/branch/chm13-based-pipeline).
 
 
 This relies on the following script, `pangenie-filter.sh`, based on [prepare-vcf.smk](https://bitbucket.org/jana_ebler/hprc-experiments/src/7c39e241f6d5d01efb74fef19f47426a592fc43d/genotyping-experiments/workflow/rules/prepare-vcf.smk)
@@ -134,9 +135,9 @@ tabix -fp vcf $OUTFILE
 ```
 
 ```
-./pangenie-filter.sh hprc-v1.1-mc-grch38.wave.vcf.gz hprc-v1.1-mc-grch38.pangenie.vcf.gz
-./pangenie-filter.sh hprc-v1.1-mc-chm13.wave.vcf.gz hprc-v1.1-mc-chm13.pangenie.vcf.gz
-./pangenie-filter.sh hprc-v1.1-mc-chm13.GRCh38.wave.vcf.gz hprc-v1.1-mc-chm13.GRCh38.pangenie.vcf.gz
+./pangenie-filter.sh hprc-v1.1-mc-grch38.vcfbub.a100k.wave.vcf.gz hprc-v1.1-mc-grch38.pangenie.vcf.gz
+./pangenie-filter.sh hprc-v1.1-mc-chm13.vcfbub.a100k.wave.vcf.gz hprc-v1.1-mc-chm13.pangenie.vcf.gz
+./pangenie-filter.sh hprc-v1.1-mc-chm13.GRCh38.vcfbub.a100k.wave.vcf.gz hprc-v1.1-mc-chm13.GRCh38.pangenie.vcf.gz
 
 ```
 
@@ -161,3 +162,28 @@ The more aggressive filtering procedure, described above, was also run similar t
 3) `hprc-v1.1-mc-grch38.pangenie.vcf.gz` : Sites with > 20% missing alleles filtered, as well as reference samples.  
 
 **Important** Because of the `vcfwave` realignment, the alleles in `hprc-v1.1-mc-grch38.vcfbub.a100k.wave.vcf.gz` and `hprc-v1.1-mc-grch38.pangenie.vcf.gz` are no longer necessarily consistent with the topology of the graph.
+
+
+## Excluded Regions
+
+Using `samtools faidx` on each contig in the seqfile, we can obtain a [BED file of all input contigs](hprc-v1.1-mc-input-contigs.bed).  The path fragments in the graphs, as obtained form the GFA W-lines, can then be subtracted from this file in order to see what's missing from the graphs.
+
+`extract-missing.sh`
+```
+#!/bin/bash
+INGFA=$1
+zcat $INGFA | grep ^W | awk '{print $2 "#" $3 "#" $4 "\t" $5 "\t" $6}' | bedtools sort > ${INGFA}.contigs.bed
+bedtools subtract -a hprc-v1.1-mc-input-contigs.bed -b ${INGFA}.contigs.bed 
+```
+
+```
+./extract-missing.sh hprc-v1.1-mc-grch38.full.gfa.gz > hprc-v1.1-mc-grch38.full.cut.bed &
+./extract-missing.sh hprc-v1.1-mc-grch38.gfa.gz > hprc-v1.1-mc-grch38.cut.bed &
+
+./extract-missing.sh hprc-v1.1-mc-chm13.full.gfa.gz > hprc-v1.1-mc-chm13.full.cut.bed &
+./extract-missing.sh hprc-v1.1-mc-chm13.gfa.gz > hprc-v1.1-mc-chm13.cut.bed &
+
+```
+
+The `.full.cut.bed` files will show contigs that could not be assigned to a chromosome, and therefore are cut from the full graph. The `.cut.bed` files will also include contig fragments removed when clipping out unaligned regions >10kb.  
+
