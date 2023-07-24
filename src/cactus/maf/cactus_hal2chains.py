@@ -174,8 +174,8 @@ def hal2chains_all(job, config, options, hal_id, ref_info):
     hal_genomes = set(ref_info['genomes'])
     if options.targetGenomes:
         for opt_target_genome in options.targetGenomes.split(','):
-            if option_target_genome not in hal_genomes:
-                raise RuntimeError('--targetGenome {} not found in HAL'.format(option_target_genome))
+            if opt_target_genome not in hal_genomes:
+                raise RuntimeError('--targetGenome {} not found in HAL'.format(opt_target_genome))
             else:
                 tgt_genomes.append(opt_target_genome)
     else:

@@ -139,11 +139,11 @@ The chromosome sizes of the reference genome must be provided as input either di
 
 ### Chains
 
-The [UCSC Chain Format](https://genome.ucsc.edu/goldenPath/help/chain.html) is a concise way to represent pairwise alignments, and is used by the Genome Browser and some of its tools. HAL files can be converted into sets of Chain files using `cactus-hal2chain`.
+The [UCSC Chain Format](https://genome.ucsc.edu/goldenPath/help/chain.html) is a concise way to represent pairwise alignments, and is used by the Genome Browser and some of its tools. HAL files can be converted into sets of Chain files using `cactus-hal2chains`.
 
 For example
 ```
-cactus-hal2chain ./js ./evolverMammals.hal chains-dir --refGenome simHuman_chr6 
+cactus-hal2chains ./js ./evolverMammals.hal chains-dir --refGenome simHuman_chr6 
 ```
 
 will create `./chains-dir` and populate it with a Chain alignment between simHuman and each other leaf genome in evolverMammals.hal.
