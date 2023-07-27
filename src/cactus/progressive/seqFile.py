@@ -121,6 +121,7 @@ class SeqFile:
         if len([i for i in self.tree.postOrderTraversal()]) <= 2:
             raise RuntimeError("At least two valid leaf genomes required in"
                                " input tree")
+        nameSet = set()
         for node in self.tree.postOrderTraversal():
             if self.tree.isLeaf(node):
                 name = self.tree.getName(node)
@@ -131,6 +132,17 @@ class SeqFile:
                     #if not os.path.exists(path):
                     #    raise RuntimeError("Sequence path not found: %s" % path)
                     #self.sanityCheckSequence(path)
+                nameSet.add(name)
+            elif self.tree.hasName(node):
+                name = self.tree.getName(node)
+                if name.isnumeric():
+                    sys.stderr.write("WARNING: ignoring numeric ancestor name {} in input tree\n".format(name))
+                    self.tree.setName(node, None)
+                elif name in nameSet:
+                    sys.stderr.write("WARNING: ignoring duplicate ancestor name {} in input tree\n".format(name))
+                    self.tree.setName(node, None)
+                else:
+                    nameSet.add(name)
 
     def sanityCheckSequence(self, path):
         """Warns the user about common problems with the input sequences."""

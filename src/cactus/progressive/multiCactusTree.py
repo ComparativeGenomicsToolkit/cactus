@@ -50,7 +50,7 @@ class MultiCactusTree(NXTree):
             width = int(math.log10(numInternal)) + 1
         for node in self.breadthFirstTraversal():
             if not self.isLeaf(node):
-                while not self.hasName(node):
+                while not self.hasName(node) or not self.getName(node):
                     new_name = "%s%s" % (prefix, str(count).zfill(width))
                     if new_name not in existing_labels:
                         self.setName(node, new_name)
