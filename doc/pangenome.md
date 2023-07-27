@@ -601,7 +601,7 @@ WDL / cactus-prepare support is in progress!
 
 ### HPRC v1.1 Graph
 
-Please see [this page](mc-pangenomes/hprc-v1.1-mc.md) for a description of all commands to produce the [v1.1](tba) HPRC Minigraph-Cactus release.  The below instructions are now out of date.
+Please see [this page](mc-pangenomes/hprc-v1.1-mc.md) for a description of all commands to produce the [v1.1](https://github.com/human-pangenomics/hpp_pangenome_resources/#minigraph-cactus) HPRC Minigraph-Cactus release.  The below instructions are now out of date.
 
 ### HPRC Graph: Setup and Name Munging
 
