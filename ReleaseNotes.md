@@ -1,3 +1,11 @@
+# Release 2.6.5 2023-07-27
+
+This release patches a Toil bug that broke GPU support on single-machine.
+
+- Update to Toil v5.12, which fixes issue where trying to use GPUs on single machine batch systems would lead to a crash
+- Make cactus more robust to numeric and duplicate internal node labels on input tree (ie ignore them instead of crashing with a cryptic scheduling error)
+- Fix `hal2chains --targetGenomes` option.
+
 # Release 2.6.4 2023-07-02
 
 This is another minor patch release to fix support for multiple values to `--reference`.
