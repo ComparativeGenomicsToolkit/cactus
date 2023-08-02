@@ -378,6 +378,8 @@
 	<!-- odgiVizOptions: options to odgi viz, used for 1d viz -->
 	<!-- odgiLayoutOptions: options to odgi layout, used for 2d viz -->
 	<!-- odgiDrawOptions: options to odgi draw, used for 2d viz -->
+	<!-- rindexOptions: options to vg gbwt -r (r-index construction) as used to make haplotype sampling index -->
+	<!-- haplOptions: options to vg haplotypes as used to make haplotype sampling index -->
 	<graphmap_join
 		 gfaffix="1"
 		 clipNonMinigraph="1"		 
@@ -388,6 +390,8 @@
 		 odgiVizOptions="-x 1500 -y 500 -a 10"
 		 odgiLayoutOptions="-x 50"
 		 odgiDrawOptions="-H 1000"
+		 rindexOptions="-p"
+		 haplOptions="-v 2"
 		 />
 	<!-- hal2vg options -->
 	<!-- includeMinigraph: include minigraph node sequences as paths in output (note that cactus-graphmap-join will still remove them by default) -->
