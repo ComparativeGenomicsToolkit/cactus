@@ -14,10 +14,9 @@ cd "cactus-bin-${REL_TAG}"
 
 To build a python virtualenv and activate, do the following steps. This requires Python version >= 3.7 (so Ubuntu 18.04 users should use `-p python3.8` below):
 ```
-virtualenv -p python3 cactus_env
-echo "export PATH=$(pwd)/bin:\$PATH" >> cactus_env/bin/activate
-echo "export PYTHONPATH=$(pwd)/lib:\$PYTHONPATH" >> cactus_env/bin/activate
-source cactus_env/bin/activate
+virtualenv -p python3 venv-cactus-v2.6.6
+printf "export PATH=$(pwd)/bin:\$PATH\nexport PYTHONPATH=$(pwd)/lib:\$PYTHONPATH\n" >> venv-cactus-v2.6.6/bin/activate
+source venv-cactus-v2.6.6/bin/activate
 python3 -m pip install -U setuptools pip
 python3 -m pip install -U .
 python3 -m pip install -U -r ./toil-requirement.txt
