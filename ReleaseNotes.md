@@ -1,3 +1,10 @@
+# Release 2.6.6 2023-08-03
+
+This release fixes a compatibility problem between Cactus and the newly released `vg` version `1.50.0`.
+
+- Patch `hal2vg` to never write reference path names of the form `SAMPLE#CONTIG`, as `vg` now fails with an exception when reading them with `convert`. Instead, `SAMPLE#HAPLOTYPE#CONTIG` is always used, even if there is no haplotype specified (in which case it's set to 0).
+- Add (prototype) `--haplo` option to build new subsampling-compatible giraffe indexes. 
+
 # Release 2.6.5 2023-07-27
 
 This release patches a Toil bug that broke GPU support on single-machine.
