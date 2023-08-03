@@ -784,7 +784,7 @@ def make_vcf(job, config, out_name, vcf_ref, index_dict, tag='', ref_tag='', max
 
     # make the vcf
     vcf_path = os.path.join(work_dir, '{}merged.vcf.gz'.format(tag))
-    decon_cmd = ['vg', 'deconstruct', gbz_path, '-P', vcf_ref, '-a', '-r', snarls_path, '-t', str(job.cores)]
+    decon_cmd = ['vg', 'deconstruct', gbz_path, '-P', vcf_ref, '-C', '-a', '-r', snarls_path, '-t', str(job.cores)]
     if getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "GFANodeIDsInVCF", typeFn=bool, default=True):
         decon_cmd.append('-O')
     cactus_call(parameters=[decon_cmd, ['bgzip', '--threads', str(job.cores)]], outfile=vcf_path, job_memory=job.memory)
