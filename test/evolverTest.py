@@ -468,7 +468,7 @@ class TestCase(unittest.TestCase):
         cactus_pangenome_cmd = ['cactus-pangenome', self._job_store(binariesMode), orig_seq_file_path, '--outDir', join_path, '--outName', 'yeast',
                                 '--refContigs'] + chroms + ['--reference', 'S288C', 'DBVPG6044', '--vcf', '--vcfReference','DBVPG6044', 'S288C', 
                                                             '--giraffe', 'clip', 'filter',  '--chrom-vg', 'clip', 'filter',
-                                                            '--viz', '--chrom-og', 'clip', 'full', '--odgi',
+                                                            '--viz', '--chrom-og', 'clip', 'full', '--odgi', '--haplo', 'clip',
                                                             '--indexCores', '4', '--consCores', '2']
         subprocess.check_call(cactus_pangenome_cmd + cactus_opts)
 
@@ -476,7 +476,7 @@ class TestCase(unittest.TestCase):
         subprocess.check_call(['mkdir', '-p', os.path.join(self.tempDir, 'chroms')])
         subprocess.check_call(['mv', os.path.join(join_path, 'chrom-subproblems', 'contig_sizes.tsv'), os.path.join(self.tempDir, 'chroms')])
 
-    def _check_yeast_pangenome(self, binariesMode, other_ref=None, expect_odgi=False):
+    def _check_yeast_pangenome(self, binariesMode, other_ref=None, expect_odgi=False, expect_haplo=False):
         """ yeast pangenome chromosome by chromosome pipeline
         """
 
@@ -535,7 +535,13 @@ class TestCase(unittest.TestCase):
         for giraffe_idx in ['yeast.gbz', 'yeast.dist', 'yeast.min', 'yeast.d2.gbz', 'yeast.d2.dist', 'yeast.d2.min']:
             idx_bytes = os.path.getsize(os.path.join(join_path, giraffe_idx))
             self.assertGreaterEqual(idx_bytes, 500000)
-
+            
+        if expect_haplo:
+            # make sure we have the haplo indexes:
+            for haplo_idx in ['yeast.ri', 'yeast.hapl']:
+                idx_bytes = os.path.getsize(os.path.join(join_path, haplo_idx))
+                self.assertGreaterEqual(idx_bytes, 10000000)
+            
         # make sure the chrom splitting stats are somewhat sane
         contig_sizes = {}
         with open(os.path.join(self.tempDir, 'chroms', 'contig_sizes.tsv'), 'r') as sizes_file:
@@ -940,7 +946,7 @@ class TestCase(unittest.TestCase):
         self._run_yeast_pangenome(name)
         
         # check the output
-        self._check_yeast_pangenome(name, other_ref='DBVPG6044', expect_odgi=True)
+        self._check_yeast_pangenome(name, other_ref='DBVPG6044', expect_odgi=True, expect_haplo=True)
 
 
 if __name__ == '__main__':

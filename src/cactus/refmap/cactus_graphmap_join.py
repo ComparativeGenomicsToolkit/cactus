@@ -129,7 +129,12 @@ def graphmap_join_options(parser):
     parser.add_argument("--vcfbub", type=int, default=100000, help = "Use vcfbub to flatten nested sites (sites with reference alleles > this will be replaced by their children)). Setting to 0 will disable, only prudcing full VCF [default=100000].")
     
     parser.add_argument("--giraffe", nargs='*', default=None, help = "Generate Giraffe (.dist, .min) indexes for the given graph type(s). Valid types are 'full', 'clip' and 'filter'. If not type specified, 'filter' will be used (will fall back to 'clip' than full if filtering, clipping disabled, respectively). Multiple types can be provided seperated by a space")
+
+    parser.add_argument("--haplo", nargs='*', default=None, help = "Generate haplotype subsampling (.ri, .hapl) indexes for the given graph type(s). Haplotype subsampling is a new, better alternative filtering by allele frequency. Valid types are 'full' and 'clip'. If not type specified, 'clip' will be used ('full' will be used if clipping disabled). Multiple types can be provided seperated by a space. Must be used in conjunction with --giraffe")
+    
     parser.add_argument("--indexCores", type=int, default=None, help = "cores for general indexing and VCF constructions (defaults to the same as --maxCores)")
+
+    
     parser.add_argument("--indexMemory", type=human2bytesN,
                         help="Memory in bytes for each indexing and vcf construction job job (defaults to an estimate based on the input data size). "
                         "Standard suffixes like K, Ki, M, Mi, G or Gi are supported (default=bytes))", default=None)   
@@ -268,6 +273,17 @@ def graphmap_join_validate_options(options):
         if giraffe == 'filter' and not options.filter:
             raise RuntimeError('--giraffe cannot be set to filter since filtering is disabled')
 
+    if options.haplo == []:
+        options.haplo = ['clip'] if options.clip else ['full']
+    options.haplo = list(set(options.haplo)) if options.haplo else []        
+    for haplo in options.haplo:
+        if haplo not in ['clip', 'full']:
+            raise RuntimeError('Unrecognized value for --haplo: {}. Must be one of {{clip, full}}'.format(haplo))
+        if haplo == 'clip' and not options.clip:
+            raise RuntimError('--haplo cannot be set to clip since clipping is disabled')
+        if haplo not in options.giraffe:
+            raise RuntimeError('Specifying --haplo {} requires also specifying --giraffe {}'.format(haplo, haplo))
+        
     # Prevent some useless compute due to default param combos
     if options.clip and 'clip' not in options.gfa + options.gbz + options.odgi + options.chrom_vg + options.chrom_og + options.vcf + options.giraffe + options.viz + options.draw\
        and 'filter' not in options.gfa + options.gbz + options.odgi + options.chrom_vg + options.chrom_og + options.vcf + options.giraffe + options.viz + options.draw:
@@ -478,6 +494,7 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
         # optional giraffe
         if workflow_phase in options.giraffe:
             giraffe_job = gfa_merge_job.addFollowOnJobFn(make_giraffe_indexes, options, config, current_out_dict,
+                                                         haplotype_indexes = workflow_phase in options.haplo,
                                                          tag=workflow_phase + '.',
                                                          cores=options.indexCores,
                                                          disk = sum(f.size for f in vg_ids) * 16,
@@ -819,7 +836,7 @@ def make_vcf(job, config, out_name, vcf_ref, index_dict, tag='', ref_tag='', max
 
     return output_dict
     
-def make_giraffe_indexes(job, options, config, index_dict, tag=''):
+def make_giraffe_indexes(job, options, config, index_dict, haplotype_indexes=False, tag=''):
     """ make giraffe-specific indexes: distance and minimaer """
     work_dir = job.fileStore.getLocalTempDir()
     gbz_path = os.path.join(work_dir, tag + os.path.basename(options.outName) + '.gbz')
@@ -830,12 +847,29 @@ def make_giraffe_indexes(job, options, config, index_dict, tag=''):
     cactus_call(parameters=['vg', 'index', '-t', str(job.cores), '-j', dist_path, gbz_path], job_memory=job.memory)
 
     # make the minimizer index
-    min_path = os.path.join(work_dir, os.path.basename(options.outName) + '.min')
+    min_path = os.path.join(work_dir, tag + os.path.basename(options.outName) + '.min')
     min_opts = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "minimizerOptions", default='').split()
     cactus_call(parameters=['vg', 'minimizer'] + min_opts + ['-t', str(job.cores), '-d', dist_path, '-o', min_path, gbz_path], job_memory=job.memory)
-                            
-    return { '{}min'.format(tag) : job.fileStore.writeGlobalFile(min_path),
-             '{}dist'.format(tag) : job.fileStore.writeGlobalFile(dist_path) }
+
+    output_dict = { '{}min'.format(tag) : job.fileStore.writeGlobalFile(min_path),
+                    '{}dist'.format(tag) : job.fileStore.writeGlobalFile(dist_path) }
+    
+    # make the haplotype sampling indexes    
+    if haplotype_indexes:
+        # make the r-index
+        ri_path = os.path.join(work_dir, tag + os.path.basename(options.outName) + '.ri')
+        ri_opts = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "rindexOptions", default='').split()
+        cactus_call(parameters=['vg', 'gbwt'] + ri_opts + ['--num-threads', str(job.cores), '-r', ri_path, '-Z', gbz_path], job_memory=job.memory)
+
+        # make the haplotype index
+        hapl_path = os.path.join(work_dir, tag + os.path.basename(options.outName) + '.hapl')
+        hapl_opts = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "haplOptions", default='').split()
+        cactus_call(parameters=['vg', 'haplotypes'] + hapl_opts + ['-t', str(job.cores), '-H', hapl_path, gbz_path])
+
+        output_dict['{}ri'.format(tag)] = job.fileStore.writeGlobalFile(ri_path)
+        output_dict['{}hapl'.format(tag)] = job.fileStore.writeGlobalFile(hapl_path)
+        
+    return output_dict                            
 
 def odgi_squeeze(job, config, vg_paths, og_ids, tag=''):
     """ combine chrom odgis into one big odgi """
