@@ -506,10 +506,10 @@ def split_fa_into_contigs(job, event, fa_id, fa_name, split_id_map, strip_prefix
             cactus_call(parameters=cmd, outfile=contig_fasta_path)
 
             # now get the total sequence size
-            size_cmd = [['cat', contig_fasta_path], ['grep', '-v', '>'], ['wc'], ['awk', '{print $3-$1}']]
+            size_cmd = [['cat', contig_fasta_path], ['grep', '-v', '>'], ['wc'], ['awk', '{printf \"%f\", $3-$1}']]
             if is_gz:
                 size_cmd[0] = ['bgzip', '-dc', contig_fasta_path, '--threads', str(job.cores)]
-            num_bases = int(cactus_call(parameters=size_cmd, check_output=True).strip())
+            num_bases = int(float(cactus_call(parameters=size_cmd, check_output=True).strip()))
         else:
             # TODO: review how cases like this are handled
             with open(contig_fasta_path, 'w') as empty_file:
