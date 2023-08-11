@@ -762,7 +762,7 @@ class TestCase(unittest.TestCase):
         # check the output
         #self._check_stats(self._out_hal(name), delta_pct=0.25)
         #self._check_coverage(self._out_hal(name), delta_pct=0.20)
-        self._check_maf_accuracy(self._out_hal(name), delta=(0.05,0.14))
+        self._check_maf_accuracy(self._out_hal(name), delta=(0.045, 0.12))
 
     def testEvolverUpdateNodeLocal(self):
         """ Check that the "add a genome to ancestor" modification steps give sane/valid results """
@@ -797,7 +797,7 @@ class TestCase(unittest.TestCase):
         # check the output
         #self._check_stats(self._out_hal("wdl"), delta_pct=0.25)
         #self._check_coverage(self._out_hal("wdl"), delta_pct=0.20)
-        self._check_maf_accuracy(self._out_hal("wdl"), delta=(0.05,0.14))
+        self._check_maf_accuracy(self._out_hal("wdl"), delta=(0.045, 0.12))
 
     def testEvolverPrepareToil(self):
 
@@ -808,7 +808,7 @@ class TestCase(unittest.TestCase):
         # check the output
         #self._check_stats(self._out_hal(name), delta_pct=0.25)
         #self._check_coverage(self._out_hal(name), delta_pct=0.20)
-        self._check_maf_accuracy(self._out_hal(name), delta=(0.05,0.14))
+        self._check_maf_accuracy(self._out_hal(name), delta=(0.045, 0.12))
 
     def testEvolverDecomposedLocal(self):
         """ Check that the output of halStats on a hal file produced by running cactus with --binariesMode local is
@@ -821,7 +821,7 @@ class TestCase(unittest.TestCase):
         # check the output
         #self._check_stats(self._out_hal(name), delta_pct=0.25)
         #self._check_coverage(self._out_hal(name), delta_pct=0.20)
-        self._check_maf_accuracy(self._out_hal(name), delta=(0.05,0.14))
+        self._check_maf_accuracy(self._out_hal(name), delta=(0.045, 0.12))
 
     def testEvolverDecomposedDocker(self):
         """ Check that the output of halStats on a hal file produced by running cactus with --binariesMode docker is
@@ -834,7 +834,7 @@ class TestCase(unittest.TestCase):
         # check the output
         #self._check_stats(self._out_hal(name), delta_pct=0.25)
         #self._check_coverage(self._out_hal(name), delta_pct=0.20)
-        self._check_maf_accuracy(self._out_hal(name), delta=(0.05,0.14))
+        self._check_maf_accuracy(self._out_hal(name), delta=(0.045, 0.12))
         
     def testEvolverDocker(self):
         """ Check that the output of halStats on a hal file produced by running cactus with --binariesMode docker is
@@ -846,7 +846,7 @@ class TestCase(unittest.TestCase):
         # check the output
         #self._check_stats(self._out_hal("docker"), delta_pct=0.25)
         #self._check_coverage(self._out_hal("docker"), delta_pct=0.20)
-        self._check_maf_accuracy(self._out_hal("docker"), delta=(0.05,0.14))
+        self._check_maf_accuracy(self._out_hal("docker"), delta=(0.045, 0.12))
 
     def testEvolverInDocker(self):
         """ Check that the output of halStats on a hal file produced by running cactus in docker
@@ -858,7 +858,7 @@ class TestCase(unittest.TestCase):
         # check the output
         #self._check_stats(self._out_hal("docker"), delta_pct=0.25)
         #self._check_coverage(self._out_hal("docker"), delta_pct=0.20)
-        self._check_maf_accuracy(self._out_hal("in_docker"), delta=(0.05,0.14))
+        self._check_maf_accuracy(self._out_hal("in_docker"), delta=(0.045, 0.12))
         
     def testEvolverPrepareNoOutgroupDocker(self):
 
