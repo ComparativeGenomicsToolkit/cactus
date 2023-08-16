@@ -4,10 +4,10 @@ This describes the steps require to install the Cactus
 pre-compile binary, static linked distribution.
 
 ## Extracting
-If you have not already extract the distribution:
+If you have not already extract the distribution and cd into the cactus directory:
 ```
-tar -xzf "cactus-bin-${REL_TAG}.tar.gz"
-cd "cactus-bin-${REL_TAG}"
+tar -xzf cactus-bin-v2.6.7.tar.gz
+cd cactus-bin-v2.6.7
 ```
 
 ## Setup
