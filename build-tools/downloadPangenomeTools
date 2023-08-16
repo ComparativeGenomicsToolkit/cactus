@@ -291,7 +291,7 @@ fi
 cd ${pangenomeBuildDir}
 wget -q https://github.com/marschall-lab/GFAffix/releases/download/0.1.5/GFAffix-0.1.5_linux_x86_64.tar.gz
 tar xzf GFAffix-0.1.5_linux_x86_64.tar.gz
-chmod +x GFAffix-0.1.5/gfaffix
+chmod +x GFAffix-0.1.5_linux_x86_64/gfaffix
 if [[ $STATIC_CHECK -ne 1 || $(ldd GFAffix-0.1.5/gfaffix | grep so | wc -l) -eq 0 ]]
 then
 	 mv GFAffix-0.1.5/gfaffix ${binDir}
