@@ -1,3 +1,12 @@
+# Release 2.6.7 2023-08-16
+
+This release includes a patched vg and gfaffix
+
+- Update to `vg` version `1.50.1` which patches the path name incompatibility bug in `1.50.0`
+- Revert minigraph-cactus Reference path name convention introduced in v2.6.6 (ie haplotypes can be left unspecified)
+- Upgrade to GFAffix 0.1.5 which fixes a crash among other things (thanks @danydoerr!)
+- Fix bug where large input contig sizes (>2Gb) would break the pangenome pipeline with some versions of `awk`. 
+
 # Release 2.6.6 2023-08-03
 
 This release fixes a compatibility problem between Cactus and the newly released `vg` version `1.50.0`.
