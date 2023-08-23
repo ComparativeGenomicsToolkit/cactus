@@ -195,7 +195,8 @@ def sort_minigraph_input_with_mash(job, options, seq_id_map, seq_order):
     # will be determined jointly (by just concatenating them).
     seq_by_sample = defaultdict(list)
     for seq_name in seq_order[len(options.reference):]:
-        seq_by_sample[seq_name[:seq_name.rfind('.')]].append(seq_name)
+        sample_name = seq_name[:seq_name.rfind('.')] if '.' in seq_name else seq_name
+        seq_by_sample[sample_name].append(seq_name)
 
     # list of dictionary (promises) that map genome name to mash distance output
     dist_maps = []
