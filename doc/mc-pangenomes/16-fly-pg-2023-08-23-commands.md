@@ -21,5 +21,5 @@ cactus-pangenome ./js ./16-fly-pg-2023-08-23-seqfile.txt --outDir 16-fly-pg-2023
 Oops, `--haplo` doesn't work with this data, apparently.  Until vg is patched, we run without
 
 ```
-cactus-graphmap-join ./js --vg 16-fly-pg-2023-08-23/chrom-alignments/*.vg --hal 16-fly-pg-2023-08-23/chrom-alignments/*.hal --outDir 16-fly-pg-2023-08-23 --outName 16-fly-pg-2023-08-23-seqfile.txt --reference dm6 --giraffe clip filter --gbz clip filter full --gfa clip filter full --vcf --chrom-vg clip filter --chrom-og full --viz --indexCores 32 --logFile 16-fly-pg-2023-08-23.join.log  2> 16-fly-pg-2023-08-23.join.stderr
+cactus-graphmap-join ./js --vg 16-fly-pg-2023-08-23/chrom-alignments/*.vg --hal 16-fly-pg-2023-08-23/chrom-alignments/*.hal --outDir 16-fly-pg-2023-08-23 --outName 16-fly-pg-2023-08-23 --reference dm6 --giraffe clip filter --gbz clip filter full --gfa clip filter full --vcf --chrom-vg clip filter --chrom-og full --viz --indexCores 32 --logFile 16-fly-pg-2023-08-23.join.log  2> 16-fly-pg-2023-08-23.join.stderr
 ```
