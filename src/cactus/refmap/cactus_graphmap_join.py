@@ -519,7 +519,7 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
                     viz_job = gfa_root_job.addChildJobFn(make_odgi_viz, config, options, vg_path, og_id, tag=workflow_phase,
                                                          viz=do_viz, draw=do_draw,                                                     
                                                          cores=options.indexCores, disk = input_vg_id.size * 10,
-                                                         memory=input_vg_id.size * 5)
+                                                         memory=max(og_min_size, input_vg_id.size * 32))
                 else:
                     viz_job = None
                 if do_viz:

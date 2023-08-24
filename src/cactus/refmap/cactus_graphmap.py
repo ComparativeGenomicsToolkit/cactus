@@ -319,7 +319,7 @@ def minigraph_map_all(job, config, gfa_id, fa_id_map, graph_event):
         minigraph_map_job = top_job.addChildJobFn(minigraph_map_one, config, event, fa_id, gfa_id,
                                                   # todo: estimate RAM
                                                   cores=mg_cores, disk=5*fa_id.size + gfa_id.size,
-                                                  memory=64*fa_id.size + gfa_id.size)
+                                                  memory=72*fa_id.size + 2*gfa_id.size)
         gaf_id_map[event] = minigraph_map_job.rv(0)
         paf_id_map[event] = minigraph_map_job.rv(1)
 
