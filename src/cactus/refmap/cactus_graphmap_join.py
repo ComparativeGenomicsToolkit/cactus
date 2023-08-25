@@ -594,7 +594,7 @@ def clip_vg(job, options, config, vg_path, vg_id, phase):
         cmd.append(clip_cmd)
         if phase == 'clip' and getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "removeStubs", typeFn=bool, default=True):
             # todo: could save a little time by making vg clip smart enough to do two things at once
-            stub_cmd = ['vg', 'clip', '-s', '-', '-P', options.reference[0]]
+            stub_cmd = ['vg', 'clip', '-sS', '-', '-P', options.reference[0]]
 
             # todo: do we want to add the minigraph prefix to keep stubs from minigraph? but I don't think it makes stubs....
             cmd.append(stub_cmd)
@@ -679,7 +679,7 @@ def vg_clip_vg(job , options, config, vg_path, vg_id):
 
     if getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "removeStubs", typeFn=bool, default=True):
         # this command can also leave fragments smaller than min-fragment
-        stub_cmd = ['vg', 'clip', '-s', '-']
+        stub_cmd = ['vg', 'clip', '-sS', '-']
         if options.reference:
             stub_cmd += ['-P', options.reference[0]]
         if min_fragment:
