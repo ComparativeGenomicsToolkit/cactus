@@ -287,7 +287,7 @@ def minigraph_construct(job, options, config_node, seq_id_map, seq_order, gfa_pa
         max_size = max([x.size for x in seq_id_map.values()])
         total_size = sum([x.size for x in seq_id_map.values()])
         disk = total_size * 2
-        mem = 64 * max_size + int(total_size / 5)
+        mem = 128 * max_size + int(total_size / 4)
         mem = max(mem, 2**30)
         return job.addChildJobFn(minigraph_construct, options, config_node, seq_id_map, seq_order, gfa_path,
                                  has_resources=True, disk=disk, memory=mem, cores=options.mgCores).rv()
