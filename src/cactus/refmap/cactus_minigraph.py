@@ -277,6 +277,12 @@ def mash_distance_order(job, options, seq_order, mash_output_maps):
     seq_to_dist = {}
     for seq, md in zip(seq_order, mash_dists):
         seq_to_dist[seq] = md
+
+    # sanity check
+    max_seq_dist = max(seq_to_dist.items(), key = lambda x : x[1][1])
+    if max_seq_dist[1][1] > 0.02:
+        job.fileStore.logToMaster('\n\nWARNING: Sample {} has mash distance {} from the reference. A value this high likely means your data is too diverse to construct a useful pangenome graph from.\n'.format(max_seq_dist[0], max_seq_dist[1][1]))
+        
     return sorted(seq_order, key = lambda x : seq_to_dist[x])
     
 def minigraph_construct(job, options, config_node, seq_id_map, seq_order, gfa_path, has_resources=False):
