@@ -386,7 +386,8 @@ def cactus_align(job, config_wrapper, mc_tree, input_seq_map, input_seq_id_map, 
     
     # run the hal export
     hal_job = cons_job.addFollowOnJobFn(export_hal, sub_tree, config_wrapper.xmlRoot, new_seq_id_map, og_map, results, event=root_name, inMemory=True,
-                                        checkpointInfo=checkpointInfo, acyclicEvent=referenceEvents[0] if referenceEvents else None)
+                                        checkpointInfo=checkpointInfo, acyclicEvent=referenceEvents[0] if referenceEvents else None,
+                                        memory=cons_memory)
 
     # optionally create the VG
     if doVG or doGFA:
