@@ -267,6 +267,9 @@ def export_hal(job, mc_tree, config_node, seq_id_map, og_map, results, event=Non
     if not has_resources:
         disk = 3 * sum([file_id.size for file_id in fa_file_ids + c2h_file_ids])
         mem = 5 * (max([file_id.size for file_id in fa_file_ids]) + max([file_id.size for file_id in c2h_file_ids]))
+        # allows pass-through of memory override from --consMemory
+        if job.memory:
+            mem = max(job.memory, mem)
         return job.addChildJobFn(export_hal, mc_tree, config_node, seq_id_map, og_map, results, event=event,
                                  cacheBytes=cacheBytes, cacheMDC=cacheMDC, cacheRDC=cacheRDC, cacheW0=cacheW0,
                                  chunk=chunk, deflate=deflate, inMemory=inMemory, checkpointInfo=checkpointInfo,
@@ -307,7 +310,7 @@ def progressive_workflow(job, options, config_node, mc_tree, og_map, input_seq_i
 
     # then do the hal export
     hal_export_job = progressive_job.addFollowOnJobFn(export_hal, mc_tree, config_node, seq_id_map, og_map,
-                                                      progressive_job.rv(), event=root_event)
+                                                      progressive_job.rv(), event=root_event, memory=options.consMemory)
 
     return hal_export_job.rv()
 
