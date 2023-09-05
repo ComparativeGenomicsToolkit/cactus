@@ -21,6 +21,7 @@ For a list of all changes, consult the Release Notes for Cactus [version 2.2.1](
     * [PanGenie Filtering](#pangenie-filtering)
     * [VCF Overview](#vcf-overview)
 * [Excluded Regions](#excluded-regions)
+* [MAF and TAF](#maf-and-taf)
 
 ## Graphs and Indexes
 
@@ -149,3 +150,153 @@ bedtools subtract -a hprc-v1.1-mc-input-contigs.bed -b ${INGFA}.contigs.bed
 
 The `.full.cut.bed` files will show contigs that could not be assigned to a chromosome, and therefore are cut from the full graph. The `.cut.bed` files will also include contig fragments removed when clipping out unaligned regions >10kb.  
 
+## MAF and TAF
+
+[Multiple Alignment Format (MAF)](https://genome.ucsc.edu/FAQ/FAQformat.html#format5) is a text-based format that encodes alignment blocks. [Transposed Alignment Format (TAF)](https://github.com/ComparativeGenomicsToolkit/taffy#the-taf-file-format) is also a test-based multiple alignment format but whereas MAF stores one row per line, TAF stores one column per line.  The two formats encode the same information, but TAF tends to be much smaller as it can use run-length encoding to compress low-information columns, and is more clever about not repeating sequence names every line.
+
+When converting from HAL to MAF (or TAF), the alignment is projected onto a chosen reference (we use GRCh38 and CHM13 for the GRCh38-based and CHM13-based graphs, respectively). Alignments that cannot be represented within the context of the chosen reference are not included (so the HAL->MAF/TAF conversion is lossy).
+
+Both MAF and TAF files are indexed for random access via reference coordinates.  The indexes are `.tai` files, and work similarly to `samtools` FASTA indexes.  They can be queried with `taffy view`.  The `taffy` binary is included with Cactus and its source code and documentation can be found [here](https://github.com/ComparativeGenomicsToolkit/taffy). `taffy` works with both MAF and TAF.
+
+The HAL alignments were converted to MAF as follows:
+
+First, the genomes were renamed so that "." characters in the sample names were replaced by "#" characters (since "."s take on special meaning in some MAF tools including `mafDuplicateFilter` below).  This is something that needs to be smoothed over in future versions of the toolset.  See below for the contents of `hprc-rename.tsv`.
+
+```
+halRenameGenome hprc-v1.1-mc-grch38.full.hal hprc-rename.tsv
+halRenameGenome hprc-v1.1-mc-chm13.full.hal hprc-rename.tsv
+```
+
+Next, the HAL files are converted to MAF (Cactus version, which includes all binaries referred to below, used: v2.6.7).
+
+
+```
+cactus-hal2maf ./js ./hprc-v1.1-mc-grch38.full.hal ./hprc-v1.1-mc-grch38.full.maf.gz --noAncestors --refGenome GRCh38 --filterGapCausingDupes --chunkSize 100000 --batchCores 96 --batchCount 10 --noAncestors --batchParallelTaf 32 --batchSystem slurm --logFile ./hprc-v1.1-mc-grch38.full.maf.gz.log
+
+cactus-hal2maf ./js ./hprc-v1.1-mc-chm13.full.hal ./hprc-v1.1-mc-chm13.full.maf.gz --noAncestors --refGenome CHM13 --filterGapCausingDupes --chunkSize 100000 --batchCores 96 --batchCount 10 --noAncestors --batchParallelTaf 32 --batchSystem slurm --logFile ./hprc-v1.1-mc-chm13.full.maf.gz.log
+
+```
+
+Duplications (blocks with multiple rows from the same haplotype) are filtered out, as some tools do not expect them:
+
+```
+zcat  ./hprc-v1.1-mc-grch38.full.maf.gz | mafDuplicateFilter -k -m - | bgzip > hprc-v1.1-mc-grch38.full.single-copy.maf.gz
+zcat  ./hprc-v1.1-mc-chm13.full.maf.gz | mafDuplicateFilter -k -m - | bgzip > hprc-v1.1-mc-chm13.full.single-copy.maf.gz
+```
+
+Index the MAF files
+```
+taffy index -i hprc-v1.1-mc-grch38.full.maf.gz
+taffy index -i hprc-v1.1-mc-chm13.full.maf.gz
+taffy index -i hprc-v1.1-mc-grch38.full.single-copy.maf.gz
+taffy index -i hprc-v1.1-mc-chm13.full.single-copy.maf.gz
+```
+
+Create and index the TAF versions (they are way smaller)
+```
+taffy view -i hprc-v1.1-mc-grch38.full.maf.gz -uc > hprc-v1.1-mc-grch38.full.taf.gz
+taffy view -i hprc-v1.1-mc-chm13.full.maf.gz -uc > hprc-v1.1-mc-chm13.full.taf.gz
+taffy view -i hprc-v1.1-mc-grch38.full.single-copy.maf.gz -uc > hprc-v1.1-mc-grch38.full.single-copy.taf.gz
+taffy view -i hprc-v1.1-mc-chm13.full.single-copy.maf.gz -uc > hprc-v1.1-mc-chm13.full.single-copy.taf.gz
+
+taffy index -i hprc-v1.1-mc-grch38.full.taf.gz
+taffy index -i hprc-v1.1-mc-chm13.full.taf.gz
+taffy index -i hprc-v1.1-mc-grch38.full.single-copy.taf.gz
+taffy index -i hprc-v1.1-mc-chm13.full.single-copy.taf.gz
+
+```
+
+
+
+The contenst of `hprc-rename.tsv`
+
+```
+NA20129.2       NA20129#2
+NA21309.2       NA21309#2
+HG02572.1       HG02572#1
+NA18906.2       NA18906#2
+NA18906.1       NA18906#1
+HG03492.2       HG03492#2
+HG03492.1       HG03492#1
+HG03486.2       HG03486#2
+HG03486.1       HG03486#1
+HG02148.2       HG02148#2
+HG01361.2       HG01361#2
+HG01928.2       HG01928#2
+HG02257.1       HG02257#1
+HG01891.1       HG01891#1
+HG02486.1       HG02486#1
+HG02257.2       HG02257#2
+HG01358.2       HG01358#2
+NA21309.1       NA21309#1
+HG01106.1       HG01106#1
+HG01358.1       HG01358#1
+HG01258.2       HG01258#2
+HG01258.1       HG01258#1
+HG00741.1       HG00741#1
+HG01952.2       HG01952#2
+HG00673.2       HG00673#2
+HG01175.1       HG01175#1
+HG01071.2       HG01071#2
+HG00621.1       HG00621#1
+HG02148.1       HG02148#1
+HG01123.2       HG01123#2
+HG00621.2       HG00621#2
+HG00438.1       HG00438#1
+HG03453.2       HG03453#2
+HG02723.2       HG02723#2
+HG00438.2       HG00438#2
+HG00673.1       HG00673#1
+HG01175.2       HG01175#2
+HG02486.2       HG02486#2
+HG00735.1       HG00735#1
+HG02717.1       HG02717#1
+HG01071.1       HG01071#1
+HG02145.1       HG02145#1
+HG00741.2       HG00741#2
+HG01361.1       HG01361#1
+HG02622.2       HG02622#2
+HG01978.2       HG01978#2
+HG01106.2       HG01106#2
+HG02055.2       HG02055#2
+HG02109.1       HG02109#1
+HG01928.1       HG01928#1
+HG01123.1       HG01123#1
+HG03579.1       HG03579#1
+HG02559.1       HG02559#1
+HG02559.2       HG02559#2
+HG01952.1       HG01952#1
+HG02572.2       HG02572#2
+HG01978.1       HG01978#1
+HG03579.2       HG03579#2
+HG02622.1       HG02622#1
+HG02630.1       HG02630#1
+HG02630.2       HG02630#2
+HG02080.2       HG02080#2
+HG02818.2       HG02818#2
+HG02717.2       HG02717#2
+HG02886.1       HG02886#1
+HG02886.2       HG02886#2
+HG02145.2       HG02145#2
+HG01891.2       HG01891#2
+HG03540.1       HG03540#1
+HG03516.1       HG03516#1
+HG03516.2       HG03516#2
+HG03540.2       HG03540#2
+HG01243.1       HG01243#1
+HG00733.1       HG00733#1
+HG02818.1       HG02818#1
+HG00735.2       HG00735#2
+HG00733.2       HG00733#2
+HG01109.1       HG01109#1
+HG01109.2       HG01109#2
+HG03453.1       HG03453#1
+HG02723.1       HG02723#1
+HG02055.1       HG02055#1
+HG01243.2       HG01243#2
+HG02080.1       HG02080#1
+HG02109.2       HG02109#2
+NA20129.1       NA20129#1
+HG03098.1       HG03098#1
+HG03098.2       HG03098#2
+```
