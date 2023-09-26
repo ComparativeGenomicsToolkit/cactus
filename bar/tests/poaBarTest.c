@@ -11,6 +11,7 @@
 #include <stdio.h>
 #include <ctype.h>
 
+//#define stderr_logging
 /**
  * Validate MSA. Lengths is an array that is populated with the lengths of the
  * sequences found on the MSA.
@@ -39,12 +40,15 @@ void test_make_partial_order_alignment(CuTest *testCase) {
     abpoa_post_set_para(abpt);
     for(int64_t test=0; test<100; test++) {
         for (int64_t poa_window_size = 5; poa_window_size < 120; poa_window_size += 15) {
+#ifdef stderr_logging
             fprintf(stderr, "Running test_make_partial_order_alignment, test %i\n", (int)test);
-
+#endif
             // parent string from which other strings are created
 
             char *parent_string = getRandomACGTSequence(st_randomInt(1, 100));
+#ifdef stderr_logging            
             fprintf(stderr, "Parent string (length: %i): %s\n", (int)strlen(parent_string), parent_string);
+#endif
 
             // get random string no
             int64_t seq_no = st_randomInt(1, 20);
@@ -55,14 +59,18 @@ void test_make_partial_order_alignment(CuTest *testCase) {
             for(int64_t i=0; i<seq_no; i++) {
                 seqs[i] = evolveSequence(parent_string);
                 seq_lens[i] = strlen(seqs[i]);
+#ifdef stderr_logging                
                 fprintf(stderr, "String %i to align: %s (length: %i)\n", (int)i, seqs[i], (int)seq_lens[i]);
+#endif
             }
 
             // generate the alignment
             Msa *msa = msa_make_partial_order_alignment(seqs, seq_lens, seq_no, poa_window_size, abpt);
 
             // print the msa
+#ifdef stderr_logging
             msa_print(msa, stderr);
+#endif
 
             // validate the msa
             int64_t lengths[seq_no];
@@ -89,7 +97,9 @@ void test_make_consistent_partial_order_alignments_two_ends(CuTest *testCase) {
     abpoa_post_set_para(abpt);
     
     for(int64_t test=0; test<100; test++) {
+#ifdef stderr_logging
         fprintf(stderr, "Running test_make_consistent_partial_order_alignments_two_ends, test %i\n", (int)test);
+#endif
 
         // parent string from which other strings are created
         char *parent_string = getRandomACGTSequence(st_randomInt(1, 50));
@@ -138,10 +148,12 @@ void test_make_consistent_partial_order_alignments_two_ends(CuTest *testCase) {
                                                               right_end_indexes, right_end_row_indexes, overlaps, 1000000, abpt);
 
         // print the msas
+#ifdef stderr_logging
         for(int64_t i=0; i<end_no; i++) {
             fprintf(stderr, "MSA: %i\n", (int)i);
             msa_print(msas[i], stderr);
         }
+#endif
 
         // Validate the combination of both MSAs covers the complete sequences
         int64_t lengths1[seq_no], lengths2[seq_no];
@@ -172,8 +184,9 @@ void test_make_flower_alignment_poa(CuTest *testCase) {
     abpt->wb = 10;
     abpt->wf = 0.01;
     abpoa_post_set_para(abpt);
-
+#ifdef stderr_logging
     fprintf(stderr, "There are %i ends in the flower\n", (int)flower_getEndNumber(flower));
+#endif
     End *end;
     Flower_EndIterator *endIterator = flower_getEndIterator(flower);
     int64_t i=0; // Index of the end
@@ -189,7 +202,9 @@ void test_make_flower_alignment_poa(CuTest *testCase) {
             int length;
             char *s = get_adjacency_string(cap, &length, 1);
             Cap *adjacentCap = cap_getAdjacency(cap);
+#ifdef stderr_logging            
             fprintf(stderr, "For end: %i, cap: %i (% " PRIi64 " to %" PRIi64 ") we have string: %s\n", (int)i, (int)j, cap_getName(cap), cap_getName(adjacentCap), s);
+#endif
             j++;
         }
         end_destructInstanceIterator(capIterator);
@@ -201,7 +216,9 @@ void test_make_flower_alignment_poa(CuTest *testCase) {
 
     for(int64_t i=0; i<stList_length(alignment_blocks); i++) {
         AlignmentBlock *b = stList_get(alignment_blocks, i);
+#ifdef stderr_logging
         alignmentBlock_print(b, stderr);
+#endif
     }
 
     abpoa_free_para(abpt);
@@ -219,11 +236,12 @@ void test_alignment_block_iterator(CuTest *testCase) {
     stList *alignment_blocks = make_flower_alignment_poa(flower, 10000, 1000000, 5, abpt);
 
     abpoa_free_para(abpt);
-
+#ifdef stderr_logging
     for(int64_t i=0; i<stList_length(alignment_blocks); i++) {
         AlignmentBlock *b = stList_get(alignment_blocks, i);
         alignmentBlock_print(b, stderr);
     }
+#endif
 
     stPinchIterator *it = stPinchIterator_constructFromAlignedBlocks(alignment_blocks);
 
@@ -232,11 +250,13 @@ void test_alignment_block_iterator(CuTest *testCase) {
     //stCaf_anneal(threadSet, it, NULL);
 
     stPinch *pinch, pinchToFillOut;
+#ifdef stderr_logging
     while((pinch = stPinchIterator_getNext(it, &pinchToFillOut)) != NULL) {
         fprintf(stderr, "Pinch: name1: %" PRIi64 " s1:%i, name2: %" PRIi64 " s2:%i, length:%i, strand:%i\n",
                 pinch->name1, (int)pinch->start1, pinch->name2, (int)pinch->start2,
                 (int)pinch->length, (int)pinch->strand);
     }
+#endif
 
     stPinchIterator_destruct(it);
 
