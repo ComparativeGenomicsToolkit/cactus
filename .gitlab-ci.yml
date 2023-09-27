@@ -40,7 +40,6 @@ test-job:
     - numcpu=8 build-tools/downloadMafTools	 
     - python3.8 -m pip install -U .
     - sed -i Dockerfile -e 's/ENV avx2 1/ENV CACTUS_LEGACY_ARCH 1/g'
-    - make clean
     - make docker    
     - make -j 8 evolver_test
   artifacts:
