@@ -1,5 +1,8 @@
 image: quay.io/comparative-genomics-toolkit/cactus-ci-base:latest
 
+variables:
+  GIT_SUBMODULE_STRATEGY: recursive
+
 before_script:
   - whoami
   - sudo apt-get -q -y update
@@ -16,7 +19,7 @@ stages:
 test-job:
   stage: test
   script:
-    - git submodule update --init --recursive
+    - make clean
     - virtualenv -p python3.8 venv
     - source venv/bin/activate
     - python3.8 -m pip install -r toil-requirement.txt
@@ -35,7 +38,9 @@ test-job:
     - make -j 8	 
     - numcpu=8 build-tools/downloadPangenomeTools
     - numcpu=8 build-tools/downloadMafTools	 
-    - python3.8 -m pip install -U .	 
+    - python3.8 -m pip install -U .
+    - sed -i Dockerfile -e 's/ENV avx2 1/ENV CACTUS_LEGACY_ARCH 1/g'
+    - make docker    
     - make -j 8 evolver_test
   artifacts:
     # Let Gitlab see the junit report
