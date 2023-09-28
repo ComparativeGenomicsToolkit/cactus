@@ -267,8 +267,8 @@ def minigraph_workflow(job, options, config, seq_id_map, gfa_id, graph_event, sa
         del_size_threshold = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "delFilterQuerySizeThreshold", float, default=None)
         del_filter_job = prev_job.addFollowOnJobFn(filter_paf_deletions, out_paf_id, gfa_id, del_filter, del_filter_threshold,
                                                    del_size_threshold,
-                                                   disk=gfa_id_size, cores=mg_cores,
-                                                   memory=6*gfa_id_size)
+                                                   disk=8*gfa_id_size, cores=mg_cores,
+                                                   memory=16*gfa_id_size)
         unfiltered_paf_id = prev_job.addFollowOnJobFn(zip_gz, 'mg.paf.unfiltered', out_paf_id, disk=gfa_id_size).rv()
         out_paf_id = del_filter_job.rv(0)
         filtered_paf_log = del_filter_job.rv(1)
