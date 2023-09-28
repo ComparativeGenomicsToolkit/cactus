@@ -269,7 +269,7 @@ def export_hal(job, mc_tree, config_node, seq_id_map, og_map, results, event=Non
         mem = 5 * (max([file_id.size for file_id in fa_file_ids]) + max([file_id.size for file_id in c2h_file_ids]))
         # allows pass-through of memory override from --consMemory
         if job.memory:
-            mem = max(job.memory, mem)
+            mem = job.memory
         return job.addChildJobFn(export_hal, mc_tree, config_node, seq_id_map, og_map, results, event=event,
                                  cacheBytes=cacheBytes, cacheMDC=cacheMDC, cacheRDC=cacheRDC, cacheW0=cacheW0,
                                  chunk=chunk, deflate=deflate, inMemory=inMemory, checkpointInfo=checkpointInfo,
