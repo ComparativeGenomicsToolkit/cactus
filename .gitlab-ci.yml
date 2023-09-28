@@ -40,16 +40,6 @@ test-job:
     - sed -i Dockerfile -e 's/ENV avx2 1/ENV CACTUS_LEGACY_ARCH 1/g'
     - make docker    
     - make -j 8 evolver_test
-    # only push image to quay if the commit is tagged (and all tests have passed)
-    - export TAG_CMP=$(git describe --tags --exact-match $(git rev-parse --verify HEAD); echo $?)
-    - |
-      if [[ "{TAG_CMP}" == 0 ]] ; then
-        make clean
-        git checkout -- Dockerfile
-        make docker
-        docker login --username $QUAY_USERNAME --password $QUAY_PASSWORD quay.io
-        make push_only
-      fi
 
   artifacts:
     # Let Gitlab see the junit report
