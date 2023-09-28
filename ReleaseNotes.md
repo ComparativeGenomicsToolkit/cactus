@@ -1,3 +1,17 @@
+# Release 2.6.8 2023-09-28
+
+This release includes several bug fixes for the pangenome pipeline
+
+- Fix bug where mash distances used to determine minigraph construction order could be wrong when input sample names differ by only their last character
+- Fix some job memory specifications to better support slurm environments
+- Guarantee that pangenome components have exactly two tips (one for each reference path endpoint). This is required for vg's now haplotype sampling logic.
+- Add warning message when genomes that are too diverse are input to `cactus-pangenome`
+- Update hal
+- `--consMemory` option now overrides memory for hal export, in addition to `cactus_consolidated`
+- Update `vg` to v1.51.0
+- Fix bug where samples passed in to `--reference` (except the first) could be dropped as reference in the final output if they are missing from the first chromosome
+- Port CI to OpenStack
+
 # Release 2.6.7 2023-08-16
 
 This release includes a patched vg and gfaffix
