@@ -392,7 +392,7 @@ def cactus_align(job, config_wrapper, mc_tree, input_seq_map, input_seq_id_map, 
     # optionally create the VG
     if doVG or doGFA:
         vg_export_job = hal_job.addFollowOnJobFn(export_vg, hal_job.rv(), config_wrapper, doVG, doGFA, referenceEvents,
-                                                 checkpointInfo=checkpointInfo)
+                                                 checkpointInfo=checkpointInfo, memory=cons_memory)
         vg_file_id, gfa_file_id = vg_export_job.rv(0), vg_export_job.rv(1)
     else:
         vg_file_id, gfa_file_id = None, None
@@ -409,7 +409,8 @@ def export_vg(job, hal_id, config_wrapper, doVG, doGFA, referenceEvents, checkpo
         return job.addChildJobFn(export_vg, hal_id, config_wrapper, doVG, doGFA, referenceEvents, checkpointInfo,
                                  resource_spec = True,
                                  disk=hal_id.size * 3,
-                                 memory=hal_id.size * 60).rv()
+                                 # allow override with cons_memory
+                                 memory=hal_id.size * 60 if not job.memory else job.memory).rv()
         
     work_dir = job.fileStore.getLocalTempDir()
     hal_path = os.path.join(work_dir, "out.hal")
