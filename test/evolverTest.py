@@ -468,7 +468,7 @@ class TestCase(unittest.TestCase):
         cactus_pangenome_cmd = ['cactus-pangenome', self._job_store(binariesMode), orig_seq_file_path, '--outDir', join_path, '--outName', 'yeast',
                                 '--refContigs'] + chroms + ['--reference', 'S288C', 'DBVPG6044', '--vcf', '--vcfReference','DBVPG6044', 'S288C', 
                                                             '--giraffe', 'clip', 'filter',  '--chrom-vg', 'clip', 'filter',
-                                                            '--viz', '--chrom-og', 'clip', 'full', '--odgi', '--haplo', 'clip',
+                                                            '--viz', '--chrom-og', 'clip', 'full', '--odgi', '--haplo', 'clip', '--rgfa',
                                                             '--indexCores', '4', '--consCores', '2']
         subprocess.check_call(cactus_pangenome_cmd + cactus_opts)
 
@@ -476,7 +476,7 @@ class TestCase(unittest.TestCase):
         subprocess.check_call(['mkdir', '-p', os.path.join(self.tempDir, 'chroms')])
         subprocess.check_call(['mv', os.path.join(join_path, 'chrom-subproblems', 'contig_sizes.tsv'), os.path.join(self.tempDir, 'chroms')])
 
-    def _check_yeast_pangenome(self, binariesMode, other_ref=None, expect_odgi=False, expect_haplo=False):
+    def _check_yeast_pangenome(self, binariesMode, other_ref=None, expect_odgi=False, expect_haplo=False, expect_rgfa=False):
         """ yeast pangenome chromosome by chromosome pipeline
         """
 
@@ -541,6 +541,23 @@ class TestCase(unittest.TestCase):
             for haplo_idx in ['yeast.ri', 'yeast.hapl']:
                 idx_bytes = os.path.getsize(os.path.join(join_path, haplo_idx))
                 self.assertGreaterEqual(idx_bytes, 10000000)
+
+        if expect_rgfa:
+            # make sure we have the rgfa-related files
+            for rgfa_idx in ['yeast.rgfa.gz', 'yeast.rgfa.gbz', 'yeast.rgfa.vcf.gz', 'yeast.rgfa.vcf.gz.tbi']:
+                idx_bytes = os.path.getsize(os.path.join(join_path, haplo_idx))
+                if not rgfa_idx.endswith('.tbi'):
+                    self.assertGreaterEqual(idx_bytes, 500000)
+
+            # make sure we have some off-ref nodes in the rgfa file
+            for rank, expected_count in [(0, 200000), (1, 5000), (2, 100), (3, 9), (4, 2), (5, 1)]:
+                rank_count = int(subprocess.check_output('gzip -dc {} | grep "SR:i:{}" | wc -l'.format(os.path.join(join_path, 'yeast.rgfa.gz'),rank), shell=True).decode('utf-8'))
+                self.assertGreaterEqual(rank_count, expected_count)
+
+            # make sure the vcf is bigger
+            vcf_lines = int(subprocess.check_output('gzip -dc {} | wc -l'.format(vcf_paths[0]), shell=True).decode('utf-8'))
+            rgfa_vcf_lines = int(subprocess.check_output('gzip -dc {} | wc -l'.format(vcf_paths[0].replace('.vcf','.rgfa.vcf')), shell=True).decode('utf-8'))
+            self.assertGreaterEqual(rgfa_vcf_lines - vcf_lines, 1000)
             
         # make sure the chrom splitting stats are somewhat sane
         contig_sizes = {}
@@ -572,6 +589,9 @@ class TestCase(unittest.TestCase):
         clip_nodes = int(subprocess.check_output(['vg', 'stats', '-N', os.path.join(join_path, 'yeast.gbz')]).strip().decode('utf-8').strip())
         self.assertGreaterEqual(clip_nodes, 400000)
         self.assertLessEqual(clip_nodes, 500000)
+        if expect_rgfa:
+            rgfa_clip_nodes = int(subprocess.check_output(['vg', 'stats', '-N', os.path.join(join_path, 'yeast.rgfa.gbz')]).strip().decode('utf-8').strip())
+            self.assertEqual(rgfa_clip_nodes, clip_nodes)
 
         filter_nodes = int(subprocess.check_output(['vg', 'stats', '-N', os.path.join(join_path, 'yeast.d2.gbz')]).strip().decode('utf-8').strip())
         self.assertGreaterEqual(filter_nodes, 300000)
@@ -580,7 +600,10 @@ class TestCase(unittest.TestCase):
         clip_edges = int(subprocess.check_output(['vg', 'stats', '-E', os.path.join(join_path, 'yeast.gbz')]).strip().decode('utf-8').strip())
         self.assertGreaterEqual(clip_edges, 550000)
         self.assertLessEqual(clip_edges, 650000)
-
+        if expect_rgfa:
+            rgfa_clip_edges = int(subprocess.check_output(['vg', 'stats', '-E', os.path.join(join_path, 'yeast.rgfa.gbz')]).strip().decode('utf-8').strip())            
+            self.assertEqual(rgfa_clip_edges, clip_edges)
+            
         filter_edges = int(subprocess.check_output(['vg', 'stats', '-E', os.path.join(join_path, 'yeast.d2.gbz')]).strip().decode('utf-8').strip())
         self.assertGreaterEqual(filter_edges, 400000)
         self.assertLessEqual(filter_edges, 500000)
@@ -946,7 +969,7 @@ class TestCase(unittest.TestCase):
         self._run_yeast_pangenome(name)
         
         # check the output
-        self._check_yeast_pangenome(name, other_ref='DBVPG6044', expect_odgi=True, expect_haplo=True)
+        self._check_yeast_pangenome(name, other_ref='DBVPG6044', expect_odgi=True, expect_haplo=True, expect_rgfa=True)
 
 
 if __name__ == '__main__':
