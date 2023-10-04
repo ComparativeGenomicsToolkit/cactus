@@ -305,7 +305,7 @@ def graphmap_join(options):
             #load cactus config
             configNode = ET.parse(options.configFile).getroot()
             config = ConfigWrapper(configNode)
-            config.substituteAllPredefinedConstantsWithLiterals()
+            config.substituteAllPredefinedConstantsWithLiterals(options)
                 
             # load up the vgs
             vg_ids = []

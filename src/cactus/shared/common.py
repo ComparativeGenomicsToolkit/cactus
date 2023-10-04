@@ -77,6 +77,13 @@ def cactus_override_toil_options(options):
         # lead to weird toil errors?
         # https://github.com/DataBiosphere/toil/issues/4218
         options.disableCaching = True
+
+    if options.binariesMode in ['docker', 'singularity']:
+        # jobs, even when seemingly not using docker, sometimes disappear on
+        # slurm when using non-local binaries. to date, the solution has been
+        # to boost memory. this override is to help apply this globally to all
+        # the little jobs
+        options.defaultMemory = int(max(options.defaultMemory if options.defaultMemory else 0, 2**32))
     
     if not options.realTimeLogging:
         # Too much valuable debugging information to pass up

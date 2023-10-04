@@ -352,7 +352,7 @@ def stageWorkflow(outputSequenceDir, configNode, inputSequences, toil, restart=F
     loadDnaBrnnModel(toil, configNode, maskAlpha = maskMode == 'brnn')
         
     if configNode.find("constants") != None:
-        ConfigWrapper(configNode).substituteAllPredefinedConstantsWithLiterals()
+        ConfigWrapper(configNode).substituteAllPredefinedConstantsWithLiterals(options)
     if maskMode:
         lastz = maskMode == 'lastz'
         brnn = maskMode == 'brnn'

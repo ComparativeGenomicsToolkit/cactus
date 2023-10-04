@@ -253,7 +253,7 @@ def main():
     # can't use progressive_decomposition.py for circular deps...
     config_node = ET.parse(options.configFile).getroot()
     config_wrapper = ConfigWrapper(config_node)
-    config_wrapper.substituteAllPredefinedConstantsWithLiterals()
+    config_wrapper.substituteAllPredefinedConstantsWithLiterals(options)
     seq_file = SeqFile(args[0])
     mc_tree = MultiCactusTree(seq_file.tree)
     mc_tree.nameUnlabeledInternalNodes(config_wrapper.getDefaultInternalNodePrefix())
