@@ -663,7 +663,7 @@ def clip_vg(job, options, config, vg_path, vg_id, phase):
         if phase in options.rgfa:
             # do the rgfa cover
             min_rgfa_fragment = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "minRGFAFragment", typeFn=int, default=1)
-            rgfa_cover_cmd = ['vg', 'paths', '-v', '-', '-R', str(min_rgfa_fragment),
+            rgfa_cover_cmd = ['vg', 'paths', '-v', '-', '-f', str(min_rgfa_fragment),
                               '-Q', options.reference[0], '-t', str(job.cores)]
             cmd.append(rgfa_cover_cmd)
 
@@ -796,7 +796,7 @@ def drop_rgfa_path_fragments(job, vg_path, vg_id):
     out_vg_path = os.path.join(work_dir, os.path.splitext(os.path.basename(vg_path))[0]) + 'norgfa.vg'
     job.fileStore.readGlobalFile(vg_id, vg_path)
 
-    cactus_call(parameters=['vg', 'paths', '-d', '-S', rgfa_sample_name, '-v', vg_path], outfile=out_vg_path)
+    cactus_call(parameters=['vg', 'paths', '-d', '--rgfa-paths', '-v', vg_path], outfile=out_vg_path)
     return job.fileStore.writeGlobalFile(out_vg_path)    
     
 def vg_to_gfa(job, options, config, vg_path, vg_id, rgfa=False):
