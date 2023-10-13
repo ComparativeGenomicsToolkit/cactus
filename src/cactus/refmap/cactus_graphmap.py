@@ -111,7 +111,7 @@ def graph_map(options):
             paf_id, gfa_fa_id, gaf_id, unfiltered_paf_id, paf_filter_log = toil.restart()            
         else:
             # load up the seqfile and figure out the outgroups and schedule
-            config_wrapper.substituteAllPredefinedConstantsWithLiterals()
+            config_wrapper.substituteAllPredefinedConstantsWithLiterals(options)
             mc_tree, input_seq_map, og_candidates = parse_seqfile(options.seqFile, config_wrapper, pangenome=True)
             og_map = compute_outgroups(mc_tree, config_wrapper, set(og_candidates))
             event_set = get_event_set(mc_tree, config_wrapper, og_map, mc_tree.getRootName())

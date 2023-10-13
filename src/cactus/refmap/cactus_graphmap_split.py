@@ -100,7 +100,7 @@ def cactus_graphmap_split(options):
         #load cactus config
         config_node = ET.parse(options.configFile).getroot()
         config = ConfigWrapper(config_node)
-        config.substituteAllPredefinedConstantsWithLiterals()
+        config.substituteAllPredefinedConstantsWithLiterals(options)
 
         #Run the workflow
         if options.restart:

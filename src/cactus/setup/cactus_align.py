@@ -248,7 +248,7 @@ def make_align_job(options, toil, config_wrapper=None, chrom_name=None):
     else:
         config_node = ET.parse(options.configFile).getroot()
         config_wrapper = ConfigWrapper(config_node)
-        config_wrapper.substituteAllPredefinedConstantsWithLiterals()
+        config_wrapper.substituteAllPredefinedConstantsWithLiterals(options)
         config_wrapper.initGPU(options)
     config_wrapper.setSystemMemory(options)
     

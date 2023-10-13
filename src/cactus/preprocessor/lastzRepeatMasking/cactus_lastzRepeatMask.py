@@ -48,7 +48,10 @@ class RepeatMaskOptions:
 class LastzRepeatMaskJob(RoundedJob):
     def __init__(self, repeatMaskOptions, queryID, targetIDs):
         targetsSize = sum(targetID.size for targetID in targetIDs)
-        memory = 4*1024*1024*1024
+        if repeatMaskOptions.gpu:
+            memory = min(25 * targetsSize, 512e9)
+        else:
+            memory = 4*1024*1024*1024
         disk = 4*(queryID.size + targetsSize)
         cores = repeatMaskOptions.cpu
         accelerators = ['cuda:{}'.format(repeatMaskOptions.gpu)] if repeatMaskOptions.gpu else None            

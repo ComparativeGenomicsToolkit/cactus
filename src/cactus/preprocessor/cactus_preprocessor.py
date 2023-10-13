@@ -341,7 +341,7 @@ class CactusPreprocessor2(RoundedJob):
 def stageWorkflow(outputSequenceDir, configNode, inputSequences, toil, restart=False,
                   outputSequences = [], maskMode=None, maskAction=None,
                   maskFile=None, minLength=None, inputEventNames=None, brnnCores=None,
-                  gpu_override=False):
+                  gpu_override=False, options=None):
     #Replace any constants
     if not outputSequences:
         outputSequences = CactusPreprocessor.getOutputSequenceFiles(inputSequences, outputSequenceDir)
@@ -352,7 +352,7 @@ def stageWorkflow(outputSequenceDir, configNode, inputSequences, toil, restart=F
     loadDnaBrnnModel(toil, configNode, maskAlpha = maskMode == 'brnn')
         
     if configNode.find("constants") != None:
-        ConfigWrapper(configNode).substituteAllPredefinedConstantsWithLiterals()
+        ConfigWrapper(configNode).substituteAllPredefinedConstantsWithLiterals(options)
     if maskMode:
         lastz = maskMode == 'lastz'
         brnn = maskMode == 'brnn'
@@ -406,7 +406,7 @@ def runCactusPreprocessor(outputSequenceDir, configFile, inputSequences, toilDir
     toilOptions.logLevel = "INFO"
     toilOptions.disableCaching = True
     with Toil(toilOptions) as toil:
-        stageWorkflow(outputSequenceDir, ET.parse(options.configFile).getroot(), inputSequences, toil)
+        stageWorkflow(outputSequenceDir, ET.parse(options.configFile).getroot(), inputSequences, toil, options=toilOptions)
 
 def main():
     parser = ArgumentParser()
@@ -552,7 +552,8 @@ def main():
                       maskAction=options.maskAction,
                       minLength=options.minLength,
                       inputEventNames=inNames,
-                      brnnCores=options.brnnCores)
+                      brnnCores=options.brnnCores,
+                      options=options)
 
 if __name__ == '__main__':
     main()

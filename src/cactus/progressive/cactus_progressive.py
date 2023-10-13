@@ -398,7 +398,7 @@ def main():
             # load up the seqfile and figure out the outgroups and schedule
             config_node = ET.parse(options.configFile).getroot()
             config_wrapper = ConfigWrapper(config_node)
-            config_wrapper.substituteAllPredefinedConstantsWithLiterals()            
+            config_wrapper.substituteAllPredefinedConstantsWithLiterals(options)
             config_wrapper.setSystemMemory(options)
 
             # apply gpu override

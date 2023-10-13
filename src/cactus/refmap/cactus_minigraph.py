@@ -79,7 +79,7 @@ def main():
             # load up the seqfile
             config_node = ET.parse(options.configFile).getroot()
             config_wrapper = ConfigWrapper(config_node)
-            config_wrapper.substituteAllPredefinedConstantsWithLiterals()
+            config_wrapper.substituteAllPredefinedConstantsWithLiterals(options)
             graph_event = getOptionalAttrib(findRequiredNode(config_node, "graphmap"), "assemblyName", default="_MINIGRAPH_")
 
             # load the seqfile

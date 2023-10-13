@@ -295,7 +295,7 @@ def main():
         # load up the seqfile and figure out the outgroups and schedule
         config_node = ET.parse(options.configFile).getroot()
         config_wrapper = ConfigWrapper(config_node)
-        config_wrapper.substituteAllPredefinedConstantsWithLiterals()
+        config_wrapper.substituteAllPredefinedConstantsWithLiterals(options)
         mc_tree, input_seq_map, og_candidates = parse_seqfile(options.seqFile, config_wrapper)
         og_map = compute_outgroups(mc_tree, config_wrapper, set(og_candidates))
         event_set = get_event_set(mc_tree, config_wrapper, og_map, mc_tree.getRootName())
