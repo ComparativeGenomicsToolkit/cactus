@@ -40,7 +40,7 @@ from toil.lib.bioio import getLogLevelString
 from toil.common import Toil
 from toil.job import Job
 from toil.realtimeLogger import RealtimeLogger
-from toil.lib.humanize import bytes2human
+from toil.lib.humanize import bytes2human, human2bytes
 from toil.lib.threading import cpu_count
 from sonLib.bioio import popenCatch
 from sonLib.bioio import getTempDirectory
@@ -83,7 +83,10 @@ def cactus_override_toil_options(options):
         # slurm when using non-local binaries. to date, the solution has been
         # to boost memory. this override is to help apply this globally to all
         # the little jobs
-        options.defaultMemory = int(max(options.defaultMemory if options.defaultMemory else 0, 2**32))
+        opt_default_mem = options.defaultMemory if options.defaultMemory else 0
+        if isinstance(opt_default_mem, str):
+            opt_default_mem = human2bytes(opt_default_mem)
+        options.defaultMemory = int(max(opt_default_mem, 2**32))
     
     if not options.realTimeLogging:
         # Too much valuable debugging information to pass up
