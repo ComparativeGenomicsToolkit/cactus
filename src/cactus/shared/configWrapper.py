@@ -155,14 +155,12 @@ class ConfigWrapper:
         defines = constants.find("defines")
         if options.binariesMode in ['docker', 'singularity']:
             # hack to boost default memory to 4 Gigs when using docker            
-            for attrib in defines.attrib:
-                if attrib.endswith('Memory'):
-                    try:
-                        mem_val = int(defines[attrib])
-                        mem_val = max(mem_val, options.defaultMemory if options.defaultMemory else 2**32)
-                        defines[attrib] = str(mem_val)
-                    except:
-                        pass
+            for attrib_name in defines.attrib:
+                if attrib_name.endswith('Memory'):
+                    mem_val = int(defines.attrib[attrib_name])
+                    assert not options.defaultMemory or isinstance(options.defaultMemory, int)
+                    mem_val = max(mem_val, options.defaultMemory if options.defaultMemory else 2**32)
+                    defines.attrib[attrib_name] = str(mem_val)
         def replaceAllConstants(node, defines):
             for attrib in node.attrib:
                 if node.attrib[attrib] in defines.attrib:
