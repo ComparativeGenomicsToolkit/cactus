@@ -49,7 +49,7 @@ class LastzRepeatMaskJob(RoundedJob):
     def __init__(self, repeatMaskOptions, queryID, targetIDs):
         targetsSize = sum(targetID.size for targetID in targetIDs)
         if repeatMaskOptions.gpu:
-            memory = min(25 * targetsSize, 512e9)
+            memory = min(40 * targetsSize, 512e9)
         else:
             memory = 4*1024*1024*1024
         disk = 4*(queryID.size + targetsSize)
