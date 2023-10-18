@@ -280,13 +280,12 @@ class ConfigWrapper:
                     raise RuntimeError('Invalid value for repeatmask gpu count, {}. Please specify a numeric value with --gpu'.format(lastz_gpu))
                 node.attrib["gpu"] = str(pp_gpu)
 
-        # segalign still can't contorl the number of cores it uses (!).  So we give all available on
-        # single machine.  
+        lastz_cores = options.lastzCores if options.lastzCores else None
+            
         if getOptionalAttrib(findRequiredNode(self.xmlRoot, "blast"), 'gpu', typeFn=int, default=0):
-            if options.lastzCores:
-                lastz_cores = options.lastzCores
-            else:
-                # single machine: we give all the cores to segalign
+            if not lastz_cores:
+                # segalign still can't contorl the number of cores it uses (!).  So we give all available on
+                # single machine.  
                 if options.batchSystem.lower() in ['single_machine', 'singlemachine']:
                     if options.maxCores is not None:
                         lastz_cores = options.maxCores
@@ -294,10 +293,21 @@ class ConfigWrapper:
                         lastz_cores = cactus_cpu_count()
                 else:
                     raise RuntimeError('--lastzCores must be used with --gpu on non-singlemachine batch systems')
+
+        # override blast cores and memory if specified
+        if lastz_cores:
             findRequiredNode(self.xmlRoot, "blast").attrib["cpu"] = str(lastz_cores)
-            for node in self.xmlRoot.findall("preprocessor"):
-                if getOptionalAttrib(node, "preprocessJob") == "lastzRepeatMask":
-                    node.attrib["cpu"] = str(lastz_cores)            
+        if options.lastzMemory:
+            findRequiredNode(self.xmlRoot, "blast").attrib["lastz_memory"] = str(options.lastzMemory)
+
+        # override preprocess-repeatmask cores and memory if specified
+        for node in self.xmlRoot.findall("preprocessor"):
+            if getOptionalAttrib(node, "preprocessJob") == "lastzRepeatMask":
+                if lastz_cores:
+                    node.attrib["cpu"] = str(lastz_cores)
+                if options.lastzMemory:
+                    # there is already a general "memory" option, but we need something lastz-specific
+                    node.attrib["lastz_memory"] = str(options.lastzMemory)
                     
         # make absolutely sure realign is never turned on with the gpu.  they don't work together because
         # realign requires small chunks, and segalign needs big chunks

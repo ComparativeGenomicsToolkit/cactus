@@ -43,11 +43,12 @@ from cactus.preprocessor.lastzRepeatMasking.cactus_lastzRepeatMask import Repeat
 from cactus.preprocessor.dnabrnnMasking import DnabrnnMaskJob, loadDnaBrnnModel
 from cactus.preprocessor.cutHeaders import CutHeadersJob
 from cactus.preprocessor.fileMasking import maskJobOverride, FileMaskingJob
+from cactus.progressive.cactus_prepare import human2bytesN
 
 class PreprocessorOptions:
     def __init__(self, chunkSize, memory, cpu, check, proportionToSample, unmask,
                  preprocessJob, checkAssemblyHub=None, lastzOptions=None, minPeriod=None,
-                 gpu=0, dnabrnnOpts=None,
+                 gpu=0, lastz_memory=None, dnabrnnOpts=None,
                  dnabrnnAction=None, eventName=None, minLength=None,
                  cutBefore=None, cutBeforeOcc=None, cutAfter=None, inputBedID=None):
         self.chunkSize = chunkSize
@@ -64,6 +65,7 @@ class PreprocessorOptions:
         self.gpuLastzInterval = self.chunkSize
         if self.gpu:
             self.chunkSize = 0
+        self.lastz_memory= lastz_memory
         self.dnabrnnOpts = dnabrnnOpts
         self.dnabrnnAction = dnabrnnAction
         assert dnabrnnAction in ('softmask', 'hardmask', 'clip')
@@ -146,6 +148,7 @@ class PreprocessSequence(RoundedJob):
                                                   lastzOpts=self.prepOptions.lastzOptions,
                                                   gpu=self.prepOptions.gpu,
                                                   cpu=self.prepOptions.cpu,
+                                                  lastz_memory=self.prepOptions.lastz_memory,
                                                   gpuLastzInterval=self.prepOptions.gpuLastzInterval,
                                                   eventName='{}_{}'.format(self.prepOptions.eventName, chunk_i))
             return LastzRepeatMaskJob(repeatMaskOptions=repeatMaskOptions,
@@ -256,6 +259,7 @@ class BatchPreprocessor(RoundedJob):
                                               minPeriod = getOptionalAttrib(prepNode, "minPeriod", typeFn=int, default=0),
                                               checkAssemblyHub = getOptionalAttrib(prepNode, "checkAssemblyHub", typeFn=bool, default=False),
                                               gpu = getOptionalAttrib(prepNode, "gpu", typeFn=int, default=0),
+                                              lastz_memory = getOptionalAttrib(prepNode, "lastz_memory", typeFn=int, default=None),
                                               dnabrnnOpts = getOptionalAttrib(prepNode, "dna-brnnOpts", default=""),
                                               dnabrnnAction = getOptionalAttrib(prepNode, "action", typeFn=str, default="softmask"),
                                               eventName = getOptionalAttrib(prepNode, "eventName", typeFn=str, default=None),
@@ -432,7 +436,11 @@ def main():
     parser.add_argument("--binariesMode", choices=["docker", "local", "singularity"],
                         help="The way to run the Cactus binaries", default=None)
     parser.add_argument("--gpu", nargs='?', const='all', default=None, help="toggle on GPU-enabled lastz, and specify number of GPUs (all available if no value provided)")
-    parser.add_argument("--lastzCores", type=int, default=None, help="Number of cores for each lastz job, only relevant when running with --gpu")    
+    parser.add_argument("--lastzCores", type=int, default=None, help="Number of cores for each lastz/segalign job, only relevant when running with --gpu")
+    parser.add_argument("--lastzMemory", type=human2bytesN,
+                        help="Memory in bytes for each lastz/segalign job (defaults to an estimate based on the input data size). "
+                        "Standard suffixes like K, Ki, M, Mi, G or Gi are supported (default=bytes))", default=None)
+
     parser.add_argument("--pangenome", action="store_true", help='Do not mask. Just add Cactus-style unique prefixes and strip anything up to and including last #')
 
     options = parser.parse_args()
