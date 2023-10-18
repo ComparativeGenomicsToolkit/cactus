@@ -280,6 +280,10 @@ class ConfigWrapper:
                     raise RuntimeError('Invalid value for repeatmask gpu count, {}. Please specify a numeric value with --gpu'.format(lastz_gpu))
                 node.attrib["gpu"] = str(pp_gpu)
 
+        if 'lastzCores' not in options:
+            options.lastzCores = None
+        if 'lastzMemory' not in options:
+            options.lastzMemory = None            
         lastz_cores = options.lastzCores if options.lastzCores else None
             
         if getOptionalAttrib(findRequiredNode(self.xmlRoot, "blast"), 'gpu', typeFn=int, default=0):
