@@ -19,6 +19,7 @@ from cactus.shared.common import makeURL, catFiles
 from cactus.shared.common import enableDumpStack
 from cactus.shared.common import cactus_override_toil_options
 from cactus.shared.version import cactus_commit
+from cactus.progressive.cactus_prepare import human2bytesN
 
 from cactus.paf.local_alignment import sanitize_then_make_paf_alignments
 
