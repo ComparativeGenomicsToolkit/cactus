@@ -56,7 +56,7 @@ class LastzRepeatMaskJob(RoundedJob):
             memory = min(40 * targetsSize, 512e9)
         else:
             memory = 4*1024*1024*1024
-        disk = 4*(queryID.size + targetsSize)
+        disk = max(4*(queryID.size + targetsSize), memory)
         cores = repeatMaskOptions.cpu
         accelerators = ['cuda:{}'.format(repeatMaskOptions.gpu)] if repeatMaskOptions.gpu else None            
         RoundedJob.__init__(self, memory=memory, disk=disk, cores=cores, accelerators=accelerators, preemptable=True)
