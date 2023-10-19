@@ -340,6 +340,9 @@ We've tested SegAlign on Nvidia V100 and A10G GPUs. See the Terra example above 
 
 Please [cite SegAlign](https://doi.ieeecomputersociety.org/10.1109/SC41405.2020.00043).
 
+### Using GPU Acceleration on a Cluster
+
+Since `SegAlign` is only released in the GPU-enabled docker image, that's the easiest way to run it. When running on a cluster, this usually means the best way to use it is with `--binariesMode docker --gpu <N>`.  This way cactus is installed locally on your virtual environment and can run slurm commands like `sbatch` (that aren't available in the Cactus container), but SegAlign itself will be run from inside Docker. 
 
 ## Pre-Alignment Checklist
 
