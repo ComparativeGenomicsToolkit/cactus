@@ -25,6 +25,7 @@ class RepeatMaskOptions:
             proportionSampled=1.0,
             gpu=0,
             cpu=None,
+            lastz_memory=None,
             gpuLastzInterval=3000000,
             eventName='seq'):
         self.fragment = fragment
@@ -35,6 +36,7 @@ class RepeatMaskOptions:
         self.proportionSampled = proportionSampled
         self.gpu = gpu
         self.cpu = cpu
+        self.lastz_memory = lastz_memory
         self.gpuLastzInterval = gpuLastzInterval
         self.eventName = eventName
 
@@ -48,8 +50,10 @@ class RepeatMaskOptions:
 class LastzRepeatMaskJob(RoundedJob):
     def __init__(self, repeatMaskOptions, queryID, targetIDs):
         targetsSize = sum(targetID.size for targetID in targetIDs)
-        if repeatMaskOptions.gpu:
-            memory = min(25 * targetsSize, 512e9)
+        if repeatMaskOptions.lastz_memory:
+            memory = repeatMaskOptions.lastz_memory
+        elif repeatMaskOptions.gpu:
+            memory = min(40 * targetsSize, 512e9)
         else:
             memory = 4*1024*1024*1024
         disk = 4*(queryID.size + targetsSize)
