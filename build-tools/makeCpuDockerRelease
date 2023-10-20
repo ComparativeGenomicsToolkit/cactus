@@ -28,7 +28,7 @@ docker tag ${dockname}:${REL_TAG} ${dockname}:latest
 
 read -p "Are you sure you want to push ${dockname}:${REL_TAG} to quay?" yn
 case $yn in
-    [Yy]* ) docker push ${dockname}:${REL_TAG}; break;;
+    [Yy]* ) docker push ${dockname}:${REL_TAG} && docker push ${dockname}:latest ; break;;
     [Nn]* ) exit;;
     * ) echo "Please answer yes or no.";;
 esac
