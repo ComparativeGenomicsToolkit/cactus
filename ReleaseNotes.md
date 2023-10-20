@@ -1,3 +1,17 @@
+# Release 2.6.9 2023-10-20
+
+This release contains some bug fixes and changes to docker image uploads
+
+- GFAffix updated to latest release
+- CI no longer pushes a docker image to quay.io for every single commit.
+- CPU docker release now made locally as done for GPU
+- `--binariesMode docker` will automatically point to release image (using GPU one as appropriate)
+- `--consMemory` overrides `hal2vg` memory as well
+- `--defaulMemory` defaults to `4Gi` when using docker binaries
+- SegAlign job memory specification increased to something more realistic
+- `--lastzMemory` option added to override SegAlign memory -- highly recommended on SLURM
+- chromosome (.vg / .og) outputs from pangenome pipeline will have ref paths of form `GRCh38#0#chr1` instead of `GRCh38#chr1` to be more consistent with full-genome indexes (and PanSN in general)
+
 # Release 2.6.8 2023-09-28
 
 This release includes several bug fixes for the pangenome pipeline
