@@ -278,20 +278,6 @@ def runGetChunks(sequenceFiles, chunksDir, chunkSize, overlapSize, work_dir=None
                                      "--dir", chunksDir] + sequenceFiles)
     return [chunk for chunk in chunks.split("\n") if chunk != ""]
 
-def pullCactusImage():
-    """Ensure that the cactus Docker image is pulled."""
-    if os.environ.get('CACTUS_DOCKER_MODE') == "0":
-        return
-    if os.environ.get('CACTUS_USE_LOCAL_IMAGE', 0) == "1":
-        return
-    image = getDockerImage()
-    call = ["docker", "pull", image]
-    process = subprocess.Popen(call, stdout=subprocess.PIPE,
-                                 stderr=sys.stderr, bufsize=-1)
-    output, _ = process.communicate()
-    if process.returncode != 0:
-        raise RuntimeError("Command %s failed with output: %s" % (call, output))
-
 def getDockerOrg():
     """Get where we should find the cactus containers."""
     if "CACTUS_DOCKER_ORG" in os.environ:
@@ -299,26 +285,21 @@ def getDockerOrg():
     else:
         return "quay.io/comparative-genomics-toolkit"
 
-def getDockerTag():
+def getDockerTag(gpu=False):
     """Get what docker tag we should use for the cactus image
-    (either forced to be latest or the current cactus commit)."""
+    Default: latest release (which is all there is on quay these days)
+    otherwise, either forced to be latest or the current cactus commit."""
     if 'CACTUS_DOCKER_TAG' in os.environ:
         return os.environ['CACTUS_DOCKER_TAG']
     elif 'CACTUS_USE_LATEST' in os.environ:
         return "latest"    
     else:
-        return cactus_commit
+        # must be manually kept current with each release        
+        return 'v2.6.8' + ('-gpu' if gpu else '')
 
-def getDockerImage():
+def getDockerImage(gpu=False):
     """Get fully specified Docker image name."""
     return "%s/cactus:%s" % (getDockerOrg(), getDockerTag())
-
-def getDockerRelease(gpu=False):
-    """Get the most recent docker release."""
-    r = "quay.io/comparative-genomics-toolkit/cactus:v2.6.8"
-    if gpu:
-        r += "-gpu"
-    return r
 
 def maxMemUsageOfContainer(containerInfo):
     """Return the max RSS usage (in bytes) of a container, or None if something failed."""
@@ -445,13 +426,14 @@ def importSingularityImage(options):
             oldCWD = os.getcwd()
             os.chdir(os.path.dirname(imgPath))
             # --size is deprecated starting in 2.4, but is needed for 2.3 support. Keeping it in for now.
+            gpu = bool(options.gpu) if gpu in options else False
             try:
                 subprocess.check_call(["singularity", "pull", "--size", "2000", "--name", os.path.basename(imgPath),
-                                       "docker://" + getDockerImage()], stderr=subprocess.PIPE)
+                                       "docker://" + getDockerImage(gpu=gpu)], stderr=subprocess.PIPE)
             except subprocess.CalledProcessError:
                 # Call failed, try without --size, required for singularity 3+
                 subprocess.check_call(["singularity", "pull", "--name", os.path.basename(imgPath),
-                                       "docker://" + getDockerImage()])
+                                       "docker://" + getDockerImage(gpu=gpu)])
             os.chdir(oldCWD)
         else:
             logger.info("Using pre-built singularity image: '{}'".format(imgPath))
@@ -508,7 +490,7 @@ def singularityCommand(tool=None,
 
         # hack to transform back to docker image
         if tool == 'cactus':
-            tool = getDockerImage()
+            tool = getDockerImage(gpu = bool(gpus))
         # not a url or local file? try it as a Docker specifier
         if not tool.startswith('/') and '://' not in tool:
             tool = 'docker://' + tool
@@ -610,7 +592,7 @@ def dockerCommand(tool=None,
     if rm:
         base_docker_call.append('--rm')
 
-    docker_tag = getDockerTag()
+    docker_tag = getDockerTag(gpu=bool(gpus))
     tool = "%s/%s:%s" % (dockstore, tool, docker_tag)
     call = base_docker_call + [tool] + parameters
     return call, containerInfo

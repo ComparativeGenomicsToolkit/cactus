@@ -24,6 +24,7 @@ git checkout "${REL_TAG}"
 git submodule update --init --recursive
 
 docker build . -f Dockerfile -t ${dockname}:${REL_TAG}
+docker tag ${dockname}:${REL_TAG} ${dockname}:latest
 
 read -p "Are you sure you want to push ${dockname}:${REL_TAG} to quay?" yn
 case $yn in

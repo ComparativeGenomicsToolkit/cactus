@@ -240,7 +240,9 @@ class ConfigWrapper:
             findRequiredNode(self.xmlRoot, "blast").attrib["gpu"] = str(options.gpu)
             for node in self.xmlRoot.findall("preprocessor"):
                 if getOptionalAttrib(node, "preprocessJob") == "lastzRepeatMask":
-                    node.attrib["gpu"] = str(options.gpu)        
+                    node.attrib["gpu"] = str(options.gpu)
+            if 'latest' in options and options.latest:
+                raise RuntimeError('--latest cannot be used with --gpu')
             
         # we need to make sure that gpu is set to an integer (replacing 'all' with a count)
         def get_gpu_count():
