@@ -87,6 +87,9 @@ RUN chmod 777 /opt/cactus/wrapper.sh
 # log the memory usage (with --realTimeLogging) for local commands
 ENV CACTUS_LOG_MEMORY 1
 
+# remember we're in a docker to help with error handling
+ENV CACTUS_INSIDE_CONTAINER 1
+
 # UCSC convention is to work in /data
 RUN mkdir -p /data
 WORKDIR /data
