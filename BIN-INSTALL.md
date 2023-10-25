@@ -17,7 +17,7 @@ To build a python virtualenv and activate, do the following steps. This requires
 virtualenv -p python3 venv-cactus-v2.6.9
 printf "export PATH=$(pwd)/bin:\$PATH\nexport PYTHONPATH=$(pwd)/lib:\$PYTHONPATH\n" >> venv-cactus-v2.6.9/bin/activate
 source venv-cactus-v2.6.9/bin/activate
-python3 -m pip install -U setuptools pip
+python3 -m pip install -U setuptools pip wheel
 python3 -m pip install -U .
 python3 -m pip install -U -r ./toil-requirement.txt
 ```
