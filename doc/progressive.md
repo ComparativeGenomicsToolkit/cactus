@@ -204,6 +204,16 @@ export TOIL_SLURM_ARGS="--nice=5000"
 
 to avoid making too many enemies.
 
+You can (and probably should) use the `--batchLogsDir` option in order to enable more SLURM logging.  You must pass it a directory that already exists.  Ex.
+
+```
+mkdir -p batch-logs
+cactus ./js ./examples/evolverMammals.txt evolverMammals.hal --batchSystem slurm --batchLogsDir batch-logs
+```
+
+You'll want to clean out this directory after a successful run. 
+
+
 You cannot run `cactus --batchSystem slurm` from *inside* the Cactus docker container, because the Cactus docker container doesn't contain slurm.  Therefore in order to use slurm, you must be able to `pip install` Cactus inside a virtualenv on the head node. You can still use `--binariesMode docker` or `--binariesMode` singularity to run cactus *binaries* from a container, but the Cactus Python module needs to be installed locally.
 
 **IMPORTANT**
