@@ -241,6 +241,9 @@ def mash_dist(job, query_seqs, ref_seq, seq_id_map, ref_sketch_id):
         catFiles(query_paths, cat_path)
         cat_mash_output = cactus_call(parameters=['mash', 'dist', cat_path, ref_sketch_path], check_output=True)
         cat_mash_dist = parse_mash_output(cat_mash_output)
+        # we want samples to stay together in the event of ties (which happen).  So add a a little bit to make unique
+        cat_mash_dist += float(sorted(seq_id_map.keys()).index(query_seqs[0])) * sys.float_info.epsilon
+        assert False
 
     # make the individual distance
     for query_seq, query_path in zip(query_seqs, query_paths):
