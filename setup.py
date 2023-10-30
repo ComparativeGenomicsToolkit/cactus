@@ -24,7 +24,7 @@ class PostInstallCommand(install):
 
 setup(
     name = "Cactus",
-    version = "2.6.9",
+    version = "2.6.10",
     author = "Benedict Paten",
     package_dir = {'': 'src'},
     packages = find_packages(where='src'),

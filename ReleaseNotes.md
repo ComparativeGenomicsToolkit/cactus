@@ -1,3 +1,14 @@
+# Release 2.6.10 2023-10-30
+
+This release contains bug fixes for MAF export and the pangenome pipeline
+
+- Patch `taffy` to fix bug where sometimes length fields in output MAF can be wrong when using `cactus-hal2maf --filterGapCausingDupes`
+- Fix regression `cactus-graphmap-split / cactus-pangenome` so that small poorly aligned reference contigs (like some tiny unplaced GRCh38 contigs) do not get unintentionally filtered out. These contigs do not help the graph in any way, but the tool should do what it says and make a component for every single reference contig no matter what, which it is now fixed to do.
+- Cactus will now terminate with a clear error message if any other `--batchSystem` than `single_machine` is attempted from *inside* a docker container.
+- Mash distance order into `minigraph` construction fixed so that haplotypes from the same sample are always added contiguously in the presence of ties.
+- CI fixed to run all `hal` tests, and not just a subset.
+- `pip install wheel` added to installation instructions, as apparently that's needed to install Cactus with some (newer?) Pythons.
+
 # Release 2.6.9 2023-10-20
 
 This release contains some bug fixes and changes to docker image uploads
