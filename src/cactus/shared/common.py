@@ -433,7 +433,7 @@ def importSingularityImage(options):
             oldCWD = os.getcwd()
             os.chdir(os.path.dirname(imgPath))
             # --size is deprecated starting in 2.4, but is needed for 2.3 support. Keeping it in for now.
-            gpu = bool(options.gpu) if gpu in options else False
+            gpu = bool(options.gpu) if 'gpu' in options else False
             try:
                 subprocess.check_call(["singularity", "pull", "--size", "2000", "--name", os.path.basename(imgPath),
                                        "docker://" + getDockerImage(gpu=gpu)], stderr=subprocess.PIPE)
