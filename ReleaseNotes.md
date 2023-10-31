@@ -1,3 +1,9 @@
+# Release 2.6.11 2023-10-31
+
+This release fixes a bug introduced in v2.6.10 that prevents diploid samples from working with `cactus-pangenome`
+
+- Remove stray `assert False` from diploid mash distance that was accidentally included in previous release
+
 # Release 2.6.10 2023-10-30
 
 This release contains bug fixes for MAF export and the pangenome pipeline
