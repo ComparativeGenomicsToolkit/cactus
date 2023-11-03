@@ -248,7 +248,7 @@ def make_align_job(options, toil, config_wrapper=None, chrom_name=None):
     else:
         config_node = ET.parse(options.configFile).getroot()
         config_wrapper = ConfigWrapper(config_node)
-        config_wrapper.substituteAllPredefinedConstantsWithLiterals()
+        config_wrapper.substituteAllPredefinedConstantsWithLiterals(options)
         config_wrapper.initGPU(options)
     config_wrapper.setSystemMemory(options)
     
@@ -386,12 +386,13 @@ def cactus_align(job, config_wrapper, mc_tree, input_seq_map, input_seq_id_map, 
     
     # run the hal export
     hal_job = cons_job.addFollowOnJobFn(export_hal, sub_tree, config_wrapper.xmlRoot, new_seq_id_map, og_map, results, event=root_name, inMemory=True,
-                                        checkpointInfo=checkpointInfo, acyclicEvent=referenceEvents[0] if referenceEvents else None)
+                                        checkpointInfo=checkpointInfo, acyclicEvent=referenceEvents[0] if referenceEvents else None,
+                                        memory=cons_memory)
 
     # optionally create the VG
     if doVG or doGFA:
         vg_export_job = hal_job.addFollowOnJobFn(export_vg, hal_job.rv(), config_wrapper, doVG, doGFA, referenceEvents,
-                                                 checkpointInfo=checkpointInfo)
+                                                 checkpointInfo=checkpointInfo, memory=cons_memory)
         vg_file_id, gfa_file_id = vg_export_job.rv(0), vg_export_job.rv(1)
     else:
         vg_file_id, gfa_file_id = None, None
@@ -408,7 +409,8 @@ def export_vg(job, hal_id, config_wrapper, doVG, doGFA, referenceEvents, checkpo
         return job.addChildJobFn(export_vg, hal_id, config_wrapper, doVG, doGFA, referenceEvents, checkpointInfo,
                                  resource_spec = True,
                                  disk=hal_id.size * 3,
-                                 memory=hal_id.size * 60).rv()
+                                 # allow override with cons_memory
+                                 memory=hal_id.size * 60 if not job.memory else job.memory).rv()
         
     work_dir = job.fileStore.getLocalTempDir()
     hal_path = os.path.join(work_dir, "out.hal")

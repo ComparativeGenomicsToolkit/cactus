@@ -151,6 +151,7 @@ def make_chunked_alignments(job, event_a, genome_a, event_b, genome_b, distance,
         # wga-gpu has a 6G limit, so we always override
         lastz_params_node.attrib['chunkSize'] = '6000000000'
     lastz_cores = getOptionalAttrib(lastz_params_node, 'cpu', typeFn=int, default=None)
+    lastz_memory = getOptionalAttrib(lastz_params_node, 'lastz_memory', typeFn=int, default=None)
     
     def make_chunks(genome):
         output_chunks_dir = job.fileStore.getLocalTempDir()
@@ -173,10 +174,12 @@ def make_chunked_alignments(job, event_a, genome_a, event_b, genome_b, distance,
         for j, chunk_b in enumerate(chunks_b):
             mappers = { "lastz":run_lastz, "minimap2":run_minimap2}
             mappingFn = mappers[params.find("blast").attrib["mapper"]]
+            memory = lastz_memory if lastz_memory else max(200000000, 15*(chunk_a.size+chunk_b.size))
             chunked_alignment_files.append(job.addChildJobFn(mappingFn, '{}_{}'.format(event_a, i), chunk_a,
                                                              '{}_{}'.format(event_b, j), chunk_b, distance, params,
-                                                             cores=lastz_cores, disk=4*(chunk_a.size+chunk_b.size),
-                                                             memory=max(200000000, 15*(chunk_a.size+chunk_b.size)),
+                                                             cores=lastz_cores,
+                                                             disk=max(4*(chunk_a.size+chunk_b.size), memory),
+                                                             memory=memory,
                                                              accelerators=accelerators).rv())
 
     dechunk_batch_size = getOptionalAttrib(lastz_params_node, 'dechunkBatchSize', typeFn=int, default=1e9)

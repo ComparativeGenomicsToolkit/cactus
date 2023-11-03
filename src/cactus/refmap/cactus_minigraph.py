@@ -79,7 +79,7 @@ def main():
             # load up the seqfile
             config_node = ET.parse(options.configFile).getroot()
             config_wrapper = ConfigWrapper(config_node)
-            config_wrapper.substituteAllPredefinedConstantsWithLiterals()
+            config_wrapper.substituteAllPredefinedConstantsWithLiterals(options)
             graph_event = getOptionalAttrib(findRequiredNode(config_node, "graphmap"), "assemblyName", default="_MINIGRAPH_")
 
             # load the seqfile
@@ -195,7 +195,8 @@ def sort_minigraph_input_with_mash(job, options, seq_id_map, seq_order):
     # will be determined jointly (by just concatenating them).
     seq_by_sample = defaultdict(list)
     for seq_name in seq_order[len(options.reference):]:
-        seq_by_sample[seq_name[:seq_name.rfind('.')]].append(seq_name)
+        sample_name = seq_name[:seq_name.rfind('.')] if '.' in seq_name else seq_name
+        seq_by_sample[sample_name].append(seq_name)
 
     # list of dictionary (promises) that map genome name to mash distance output
     dist_maps = []
@@ -240,6 +241,8 @@ def mash_dist(job, query_seqs, ref_seq, seq_id_map, ref_sketch_id):
         catFiles(query_paths, cat_path)
         cat_mash_output = cactus_call(parameters=['mash', 'dist', cat_path, ref_sketch_path], check_output=True)
         cat_mash_dist = parse_mash_output(cat_mash_output)
+        # we want samples to stay together in the event of ties (which happen).  So add a a little bit to make unique
+        cat_mash_dist += float(sorted(seq_id_map.keys()).index(query_seqs[0])) * sys.float_info.epsilon
 
     # make the individual distance
     for query_seq, query_path in zip(query_seqs, query_paths):
@@ -276,6 +279,12 @@ def mash_distance_order(job, options, seq_order, mash_output_maps):
     seq_to_dist = {}
     for seq, md in zip(seq_order, mash_dists):
         seq_to_dist[seq] = md
+
+    # sanity check
+    max_seq_dist = max(seq_to_dist.items(), key = lambda x : x[1][1])
+    if max_seq_dist[1][1] > 0.02:
+        job.fileStore.logToMaster('\n\nWARNING: Sample {} has mash distance {} from the reference. A value this high likely means your data is too diverse to construct a useful pangenome graph from.\n'.format(max_seq_dist[0], max_seq_dist[1][1]))
+        
     return sorted(seq_order, key = lambda x : seq_to_dist[x])
     
 def minigraph_construct(job, options, config_node, seq_id_map, seq_order, gfa_path, has_resources=False):
@@ -286,7 +295,7 @@ def minigraph_construct(job, options, config_node, seq_id_map, seq_order, gfa_pa
         max_size = max([x.size for x in seq_id_map.values()])
         total_size = sum([x.size for x in seq_id_map.values()])
         disk = total_size * 2
-        mem = 64 * max_size + int(total_size / 5)
+        mem = 128 * max_size + int(total_size / 4)
         mem = max(mem, 2**30)
         return job.addChildJobFn(minigraph_construct, options, config_node, seq_id_map, seq_order, gfa_path,
                                  has_resources=True, disk=disk, memory=mem, cores=options.mgCores).rv()

@@ -100,7 +100,7 @@ def cactus_graphmap_split(options):
         #load cactus config
         config_node = ET.parse(options.configFile).getroot()
         config = ConfigWrapper(config_node)
-        config.substituteAllPredefinedConstantsWithLiterals()
+        config.substituteAllPredefinedConstantsWithLiterals(options)
 
         #Run the workflow
         if options.restart:
@@ -225,7 +225,8 @@ def graphmap_split_workflow(job, options, config, seq_id_map, seq_name_map, gfa_
 
     # do some basic paf filtering
     paf_filter_mem = max(paf_id.size * 10, 2**32)
-    paf_filter_job = root_job.addFollowOnJobFn(filter_paf, paf_id, config, disk = paf_id.size * 10, memory=paf_filter_mem)
+    paf_filter_job = root_job.addFollowOnJobFn(filter_paf, paf_id, config, reference=options.reference,
+                                               disk = paf_id.size * 10, memory=paf_filter_mem)
     paf_id = paf_filter_job.rv()
     root_job = paf_filter_job
 

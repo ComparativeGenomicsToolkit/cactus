@@ -1,3 +1,57 @@
+# Release 2.6.11 2023-10-31
+
+This release fixes a bug introduced in v2.6.10 that prevents diploid samples from working with `cactus-pangenome`
+
+- Remove stray `assert False` from diploid mash distance that was accidentally included in previous release
+
+# Release 2.6.10 2023-10-30
+
+This release contains bug fixes for MAF export and the pangenome pipeline
+
+- Patch `taffy` to fix bug where sometimes length fields in output MAF can be wrong when using `cactus-hal2maf --filterGapCausingDupes`
+- Fix regression `cactus-graphmap-split / cactus-pangenome` so that small poorly aligned reference contigs (like some tiny unplaced GRCh38 contigs) do not get unintentionally filtered out. These contigs do not help the graph in any way, but the tool should do what it says and make a component for every single reference contig no matter what, which it is now fixed to do.
+- Cactus will now terminate with a clear error message if any other `--batchSystem` than `single_machine` is attempted from *inside* a docker container.
+- Mash distance order into `minigraph` construction fixed so that haplotypes from the same sample are always added contiguously in the presence of ties.
+- CI fixed to run all `hal` tests, and not just a subset.
+- `pip install wheel` added to installation instructions, as apparently that's needed to install Cactus with some (newer?) Pythons.
+
+# Release 2.6.9 2023-10-20
+
+This release contains some bug fixes and changes to docker image uploads
+
+- GFAffix updated to latest release
+- CI no longer pushes a docker image to quay.io for every single commit.
+- CPU docker release now made locally as done for GPU
+- `--binariesMode docker` will automatically point to release image (using GPU one as appropriate)
+- `--consMemory` overrides `hal2vg` memory as well
+- `--defaulMemory` defaults to `4Gi` when using docker binaries
+- SegAlign job memory specification increased to something more realistic
+- `--lastzMemory` option added to override SegAlign memory -- highly recommended on SLURM
+- chromosome (.vg / .og) outputs from pangenome pipeline will have ref paths of form `GRCh38#0#chr1` instead of `GRCh38#chr1` to be more consistent with full-genome indexes (and PanSN in general)
+
+# Release 2.6.8 2023-09-28
+
+This release includes several bug fixes for the pangenome pipeline
+
+- Fix bug where mash distances used to determine minigraph construction order could be wrong when input sample names differ by only their last character
+- Fix some job memory specifications to better support slurm environments
+- Guarantee that pangenome components have exactly two tips (one for each reference path endpoint). This is required for vg's now haplotype sampling logic.
+- Add warning message when genomes that are too diverse are input to `cactus-pangenome`
+- Update hal
+- `--consMemory` option now overrides memory for hal export, in addition to `cactus_consolidated`
+- Update `vg` to v1.51.0
+- Fix bug where samples passed in to `--reference` (except the first) could be dropped as reference in the final output if they are missing from the first chromosome
+- Port CI to OpenStack
+
+# Release 2.6.7 2023-08-16
+
+This release includes a patched vg and gfaffix
+
+- Update to `vg` version `1.50.1` which patches the path name incompatibility bug in `1.50.0`
+- Revert minigraph-cactus Reference path name convention introduced in v2.6.6 (ie haplotypes can be left unspecified)
+- Upgrade to GFAffix 0.1.5 which fixes a crash among other things (thanks @danydoerr!)
+- Fix bug where large input contig sizes (>2Gb) would break the pangenome pipeline with some versions of `awk`. 
+
 # Release 2.6.6 2023-08-03
 
 This release fixes a compatibility problem between Cactus and the newly released `vg` version `1.50.0`.

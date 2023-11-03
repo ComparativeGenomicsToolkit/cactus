@@ -1,0 +1,16 @@
+dm6	genomes_3_softmask/dm6.fa.masked
+A1	genomes_3_softmask/a1.scaffold.fasta.masked
+A2	genomes_3_softmask/a2.scaffold.fasta.masked
+A3	genomes_3_softmask/a3.scaffold.fasta.masked
+A4	genomes_3_softmask/a4.scaffold.fasta.masked
+A5	genomes_3_softmask/a5.scaffold.fasta.masked
+A6	genomes_3_softmask/a6.scaffold.fasta.masked
+A7	genomes_3_softmask/a7.scaffold.fasta.masked
+AB8	genomes_3_softmask/ab8.scaffold.fasta.masked
+B1	genomes_3_softmask/b1.scaffold.fasta.masked
+B2	genomes_3_softmask/b2.scaffold.fasta.masked
+B3	genomes_3_softmask/b3.scaffold.fasta.masked
+B4	genomes_3_softmask/b4.scaffold.fasta.masked
+B6	genomes_3_softmask/b6.scaffold.fasta.masked
+B7	genomes_3_softmask/b7.scaffold.fasta.masked
+OreR	genomes_3_softmask/ore.scaffold.fasta.masked

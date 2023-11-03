@@ -338,7 +338,6 @@ static void testHGVMFiltering(CuTest *testCase) {
         checkCycleFree(testCase, stPinchThreadSet_getThread(threadSet, ingroup1Seq2));
 
         stSortedSet *threadComponents = stPinchThreadSet_getThreadComponents(threadSet);
-        printf("got %" PRIi64 " thread components\n", stSortedSet_size(threadComponents));
         CuAssertTrue(testCase, stSortedSet_size(threadComponents) >= 2);
 
         stSet_destruct(isolatedThreads);

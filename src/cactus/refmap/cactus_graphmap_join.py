@@ -305,7 +305,7 @@ def graphmap_join(options):
             #load cactus config
             configNode = ET.parse(options.configFile).getroot()
             config = ConfigWrapper(configNode)
-            config.substituteAllPredefinedConstantsWithLiterals()
+            config.substituteAllPredefinedConstantsWithLiterals(options)
                 
             # load up the vgs
             vg_ids = []
@@ -519,7 +519,7 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
                     viz_job = gfa_root_job.addChildJobFn(make_odgi_viz, config, options, vg_path, og_id, tag=workflow_phase,
                                                          viz=do_viz, draw=do_draw,                                                     
                                                          cores=options.indexCores, disk = input_vg_id.size * 10,
-                                                         memory=input_vg_id.size * 5)
+                                                         memory=max(og_min_size, input_vg_id.size * 32))
                 else:
                     viz_job = None
                 if do_viz:
@@ -594,7 +594,7 @@ def clip_vg(job, options, config, vg_path, vg_id, phase):
         cmd.append(clip_cmd)
         if phase == 'clip' and getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "removeStubs", typeFn=bool, default=True):
             # todo: could save a little time by making vg clip smart enough to do two things at once
-            stub_cmd = ['vg', 'clip', '-s', '-', '-P', options.reference[0]]
+            stub_cmd = ['vg', 'clip', '-sS', '-', '-P', options.reference[0]]
 
             # todo: do we want to add the minigraph prefix to keep stubs from minigraph? but I don't think it makes stubs....
             cmd.append(stub_cmd)
@@ -679,7 +679,7 @@ def vg_clip_vg(job , options, config, vg_path, vg_id):
 
     if getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "removeStubs", typeFn=bool, default=True):
         # this command can also leave fragments smaller than min-fragment
-        stub_cmd = ['vg', 'clip', '-s', '-']
+        stub_cmd = ['vg', 'clip', '-sS', '-']
         if options.reference:
             stub_cmd += ['-P', options.reference[0]]
         if min_fragment:
@@ -763,10 +763,21 @@ def make_vg_indexes(job, options, config, gfa_ids, tag="", do_gbz=False):
     for i, (vg_path, gfa_id) in enumerate(zip(options.vg, gfa_ids)):
         gfa_path = os.path.join(work_dir, os.path.basename(vg_path) +  '.gfa')
         job.fileStore.readGlobalFile(gfa_id, gfa_path, mutable=True)
-        cmd = ['grep', '-v', '{}^W	{}'.format('^H\|' if i else '', graph_event), gfa_path]
-        # add in the additional references here
         if i == 0:
-            cmd = [cmd, ['sed', '-e', '1s/{}//'.format(graph_event)]]
+            # make sure every --reference sample is in the GFA header RS tag (which won't be the case if one sample
+            # is completely missing from the first graph, as vg may filter it out apparently)
+            cmd = [['head', '-1', gfa_path], ['sed', '-e', '1s/{}//'.format(graph_event)]]
+            gfa_header = cactus_call(parameters=cmd, check_output=True).strip().split('\t')
+            for i in range(len(gfa_header)):
+                if gfa_header[i].startswith('RS:Z:'):
+                    header_refs = set(gfa_header[i][len('RS:Z:'):].split(' '))
+                    for ref_sample in options.reference:
+                        if ref_sample not in header_refs:
+                            gfa_header[i] += ' ' + ref_sample
+            with open(merge_gfa_path, 'w') as merge_gfa_file:
+                merge_gfa_file.write('\t'.join(gfa_header) + '\n')
+        # strip out header and minigraph paths
+        cmd = ['grep', '-v', '^H\|^W	{}'.format(graph_event), gfa_path]
         cactus_call(parameters=cmd, outfile=merge_gfa_path, outappend=True, job_memory=job.memory)
         job.fileStore.deleteGlobalFile(gfa_id)
 
