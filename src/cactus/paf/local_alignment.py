@@ -186,6 +186,22 @@ def make_chunked_alignments(job, event_a, genome_a, event_b, genome_b, distance,
     return job.addFollowOnJobFn(combine_chunks, chunked_alignment_files, dechunk_batch_size).rv()  # Combine the chunked alignment files
 
 
+def invert_alignments(job, alignment_file):
+    alignment_file = job.fileStore.readGlobalFile(alignment_file)
+    inverted_alignment_file = job.fileStore.getLocalTempFile()  # Get a temporary file to store the bed file in
+    cactus_call(parameters=['paffy', 'invert', "-i", alignment_file], outfile=inverted_alignment_file, outappend=True,
+                job_memory=job.memory)
+    return job.fileStore.writeGlobalFile(inverted_alignment_file)
+
+
+def make_ingroup_to_outgroup_alignments_0(job, ingroup_event, outgroup_events, event_names_to_sequences, distances, params):
+    alignment_file = job.addChildJobFn(make_ingroup_to_outgroup_alignments_1, ingroup_event, outgroup_events,
+                                            event_names_to_sequences, distances, params).rv()
+
+    # Invert the final alignment
+    return job.addFollowOnJobFn(invert_alignments, alignment_file).rv()
+
+
 def make_ingroup_to_outgroup_alignments_1(job, ingroup_event, outgroup_events, event_names_to_sequences, distances, params):
     #  a job should never set its own follow-on, so we hang everything off root_job here to encapsulate
     root_job = Job()
@@ -501,13 +517,14 @@ def make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancest
 
     # for each ingroup make alignments to the outgroups
     if int(params.find("blast").attrib["trimIngroups"]):  # Trim the ingroup sequences
-        outgroup_alignments = [root_job.addChildJobFn(make_ingroup_to_outgroup_alignments_1, ingroup, outgroup_events,
+        outgroup_alignments = [root_job.addChildJobFn(make_ingroup_to_outgroup_alignments_0, ingroup, outgroup_events,
                                                       dict(event_names_to_sequences), distances, params).rv()
                                 for ingroup in ingroup_events] if len(outgroup_events) > 0 else []
     else:
         outgroup_alignments = [root_job.addChildJobFn(make_chunked_alignments,
-                                                      outgroup.iD, event_names_to_sequences[outgroup.iD],
                                                       ingroup.iD, event_names_to_sequences[ingroup.iD],
+                                                      outgroup.iD, event_names_to_sequences[outgroup.iD],
+                                                      #ingroup.iD, event_names_to_sequences[ingroup.iD],
                                                       distances[ingroup, outgroup], params,
                                                       disk=2*total_sequence_size).rv()
                                for ingroup in ingroup_events for outgroup in outgroup_events]
