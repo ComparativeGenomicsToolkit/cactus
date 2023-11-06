@@ -58,7 +58,7 @@
 	<!-- outputSecondaryAlignments Include secondary alignments in the output. If included CAF will use these -->
 	<!-- dechunkBatchSize Parallelize paf_dechunks into batches of at most this size-->
 	<!-- pickIngroupPrimaryAlignmentsSeparatelyToOutgroups Separately make ingroups pick their primary alignment to
-	     other ingroups without outgroups, then get the ingroups to pick their primary alignment to the outgroups. If 0
+	     other ingroups without outgroups, then get the outgroups to pick their primary alignment to the ingroups. If 0
 	     get every sequence to pick its primary alignment without regard to if the other sequence is an ingroup or outgroup -->
 	<blast chunkSize="30000000"
 		   overlapSize="10000"

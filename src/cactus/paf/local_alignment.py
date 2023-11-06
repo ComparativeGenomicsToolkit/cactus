@@ -187,18 +187,21 @@ def make_chunked_alignments(job, event_a, genome_a, event_b, genome_b, distance,
 
 
 def invert_alignments(job, alignment_file):
+    """ Invert the pafs in the alignment_file """
     alignment_file = job.fileStore.readGlobalFile(alignment_file)
-    inverted_alignment_file = job.fileStore.getLocalTempFile()  # Get a temporary file to store the bed file in
+    inverted_alignment_file = job.fileStore.getLocalTempFile()  # Get a temporary file to store the alignments in
     cactus_call(parameters=['paffy', 'invert', "-i", alignment_file], outfile=inverted_alignment_file, outappend=True,
                 job_memory=job.memory)
+    job.fileStore.deleteGlobalFile(alignment_file)
     return job.fileStore.writeGlobalFile(inverted_alignment_file)
 
 
 def make_ingroup_to_outgroup_alignments_0(job, ingroup_event, outgroup_events, event_names_to_sequences, distances, params):
+    # Generate the alignments fle
     alignment_file = job.addChildJobFn(make_ingroup_to_outgroup_alignments_1, ingroup_event, outgroup_events,
                                             event_names_to_sequences, distances, params).rv()
 
-    # Invert the final alignment
+    # Invert the final alignment so that the query is the outgroup and the target is the ingroup
     return job.addFollowOnJobFn(invert_alignments, alignment_file).rv()
 
 
@@ -308,7 +311,7 @@ def chain_alignments_splitting_ingroups_and_outgroups(job, ingroup_alignment_fil
                                                       outgroup_alignment_files, outgroup_alignment_names,
                                                       reference_event_name, params):
     """ Chains/tiles/etc. the ingroup alignments to each other so that every ingroup sequence has a primary alignment to
-    another ingroup sequence, and separately each ingroup sequence has a primary alignment to an outgroup."""
+    another ingroup sequence, and separately each outgroup sequence has a primary alignment to an ingroup."""
 
     # Check we have the expected number of alignment files
     assert len(ingroup_alignment_files) == len(ingroup_alignment_names)
@@ -319,8 +322,8 @@ def chain_alignments_splitting_ingroups_and_outgroups(job, ingroup_alignment_fil
                                                    ingroup_alignment_names, reference_event_name, params).rv()
 
     # Separately pick the primary of the outgroups to the ingroups. By setting include_inverted_alignments=False
-    # we only get ingroup-to-outgroup alignments and not outgroup-to-ingroup alignments and therefore primary
-    # alignments along the primary sequences
+    # we only get outgroup-to-ingroup alignments and not imgroup-to-ouygroup alignments and therefore primary
+    # alignments along the outgroup sequences
     chained_outgroup_alignments = job.addChildJobFn(chain_alignments, outgroup_alignment_files,
                                                     outgroup_alignment_names, reference_event_name, params,
                                                     include_inverted_alignments=False).rv()
@@ -522,9 +525,9 @@ def make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancest
                                 for ingroup in ingroup_events] if len(outgroup_events) > 0 else []
     else:
         outgroup_alignments = [root_job.addChildJobFn(make_chunked_alignments,
+                                                      # Ingroup will be the target, outgroup the query
                                                       ingroup.iD, event_names_to_sequences[ingroup.iD],
                                                       outgroup.iD, event_names_to_sequences[outgroup.iD],
-                                                      #ingroup.iD, event_names_to_sequences[ingroup.iD],
                                                       distances[ingroup, outgroup], params,
                                                       disk=2*total_sequence_size).rv()
                                for ingroup in ingroup_events for outgroup in outgroup_events]
