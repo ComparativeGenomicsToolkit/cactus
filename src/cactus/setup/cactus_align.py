@@ -387,12 +387,12 @@ def cactus_align(job, config_wrapper, mc_tree, input_seq_map, input_seq_id_map, 
     # run the hal export
     hal_job = cons_job.addFollowOnJobFn(export_hal, sub_tree, config_wrapper.xmlRoot, new_seq_id_map, og_map, results, event=root_name, inMemory=True,
                                         checkpointInfo=checkpointInfo, acyclicEvent=referenceEvents[0] if referenceEvents else None,
-                                        memory=cons_memory)
+                                        memory_override=cons_memory)
 
     # optionally create the VG
     if doVG or doGFA:
         vg_export_job = hal_job.addFollowOnJobFn(export_vg, hal_job.rv(), config_wrapper, doVG, doGFA, referenceEvents,
-                                                 checkpointInfo=checkpointInfo, memory=cons_memory)
+                                                 checkpointInfo=checkpointInfo, memory_override=cons_memory)
         vg_file_id, gfa_file_id = vg_export_job.rv(0), vg_export_job.rv(1)
     else:
         vg_file_id, gfa_file_id = None, None
@@ -400,7 +400,8 @@ def cactus_align(job, config_wrapper, mc_tree, input_seq_map, input_seq_id_map, 
     return hal_job.rv(), vg_file_id, gfa_file_id
 
 
-def export_vg(job, hal_id, config_wrapper, doVG, doGFA, referenceEvents, checkpointInfo=None, resource_spec = False):
+def export_vg(job, hal_id, config_wrapper, doVG, doGFA, referenceEvents, checkpointInfo=None, resource_spec = False,
+              memory_override=None):
     """ use hal2vg to convert the HAL to vg format """
 
     if not resource_spec:
@@ -410,7 +411,7 @@ def export_vg(job, hal_id, config_wrapper, doVG, doGFA, referenceEvents, checkpo
                                  resource_spec = True,
                                  disk=hal_id.size * 3,
                                  # allow override with cons_memory
-                                 memory=hal_id.size * 60 if not job.memory else job.memory).rv()
+                                 memory=hal_id.size * 60 if not memory_override else memory_override).rv()
         
     work_dir = job.fileStore.getLocalTempDir()
     hal_path = os.path.join(work_dir, "out.hal")
