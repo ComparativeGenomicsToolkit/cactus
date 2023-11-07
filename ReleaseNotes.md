@@ -1,3 +1,11 @@
+# Release 2.6.12 2023-11-07
+
+The release contains fixes some recent regressions:
+
+- Include more portable (at least on Ubuntu) `gfaffix` binary.
+- Fix error where gpu support on singularity is completely broken.
+- Fix `export_hal` and `export_vg` job memory estimates when `--consMemory` not provided.
+
 # Release 2.6.11 2023-10-31
 
 This release fixes a bug introduced in v2.6.10 that prevents diploid samples from working with `cactus-pangenome`
