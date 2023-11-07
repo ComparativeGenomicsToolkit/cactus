@@ -188,12 +188,12 @@ def make_chunked_alignments(job, event_a, genome_a, event_b, genome_b, distance,
 
 def invert_alignments(job, alignment_file):
     """ Invert the pafs in the alignment_file """
-    alignment_file = job.fileStore.readGlobalFile(alignment_file)
-    inverted_alignment_file = job.fileStore.getLocalTempFile()  # Get a temporary file to store the alignments in
-    cactus_call(parameters=['paffy', 'invert', "-i", alignment_file], outfile=inverted_alignment_file, outappend=True,
+    alignment_file_local = job.fileStore.readGlobalFile(alignment_file)
+    inverted_alignment_file_local = job.fileStore.getLocalTempFile()  # Get a temporary file to store the alignments in
+    cactus_call(parameters=['paffy', 'invert', "-i", alignment_file_local], outfile=inverted_alignment_file_local, outappend=True,
                 job_memory=job.memory)
     job.fileStore.deleteGlobalFile(alignment_file)
-    return job.fileStore.writeGlobalFile(inverted_alignment_file)
+    return job.fileStore.writeGlobalFile(inverted_alignment_file_local)
 
 
 def make_ingroup_to_outgroup_alignments_0(job, ingroup_event, outgroup_events, event_names_to_sequences, distances, params):
