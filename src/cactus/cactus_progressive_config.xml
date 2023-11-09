@@ -135,7 +135,7 @@
 	<!-- minimumBlockHomologySupport TODO-->
 	<!-- writeInputAlignmentsTo Debug option to write the alignment chains fed to CAF to the specified path. Off by default.-->
 	<caf
-		 deannealingRounds="2 32 512"
+		 deannealingRounds="2 32 256"
 		 trim="3"
 		 blockTrim="5"
 		 minimumBlockDegree="2"
@@ -169,7 +169,7 @@
 				three="1024"
 				four="512"
 				five="512"
-				default="512"
+				default="256"
 		/>
 	</caf>
 

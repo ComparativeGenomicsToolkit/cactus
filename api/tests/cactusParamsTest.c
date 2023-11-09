@@ -27,7 +27,7 @@ static void testCactusParams(CuTest *testCase) {
     CuAssertTrue(testCase, length >= 3);
     CuAssertIntEquals(testCase, l[0], 2);
     CuAssertIntEquals(testCase, l[1], 32);
-    CuAssertIntEquals(testCase, l[2], 512);
+    CuAssertIntEquals(testCase, l[2], 256);
 
     // Test moving the root of the search
     cactusParams_set_root(p, 1, "caf");
