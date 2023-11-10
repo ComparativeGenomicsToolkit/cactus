@@ -80,7 +80,7 @@
 		   trimIngroups="1"
 		   trimOutgroups="1"
 		   trimMinSize="100"
-		   trimFlanking="10"
+		   trimFlanking="100"
 		   trimOutgroupFlanking="2000"
 		   outputSecondaryAlignments="0"
 		   dechunkBatchSize="1000"
