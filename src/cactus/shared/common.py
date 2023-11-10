@@ -78,12 +78,15 @@ def cactus_override_toil_options(options):
         # https://github.com/DataBiosphere/toil/issues/4218
         options.disableCaching = True
 
-    # some people get confused when trying to use their cluster from inside the cactus
-    # docker. it doesn't work (without tons of hackery) since slurm isnt in the image
-    if options.batchSystem.lower() not in ['single_machine', 'singleMachine'] and \
-       'CACTUS_INSIDE_CONTAINER' in os.environ and str(os.environ['CACTUS_INSIDE_CONTAINER']) == '1':
-        e = RuntimeError('"--batchSystem {}" is not supported from inside the Cactus Docker container. In order to use this batch system, you must run directly from a Python virutalenv on your head node. You can use --binariesMode docker to execute the various binaries using docker, but the cactus command itself must be run directly on your system where it will have access to your cluster environment (ex: sbatch).'.format(options.batchSystem))
-        raise e
+    if 'CACTUS_INSIDE_CONTAINER' in os.environ and str(os.environ['CACTUS_INSIDE_CONTAINER']) == '1':
+        # some people get confused when trying to use their cluster from inside the cactus
+        # docker. it doesn't work (without tons of hackery) since slurm isnt in the image
+        if options.batchSystem.lower() not in ['single_machine', 'singleMachine']:
+            e = RuntimeError('"--batchSystem {}" is not supported from inside the Cactus Docker container. In order to use this batch system, you must run directly from a Python virutalenv on your head node. You can use --binariesMode docker to execute the various binaries using docker, but the cactus command itself must be run directly on your system where it will have access to your cluster environment (ex: sbatch).'.format(options.batchSystem))
+            raise e
+        if options.binariesMode in ['docker', 'singularity']:
+            e = RuntimeError('"--binariesMode {}" is not supported from inside the Cactus Docker container, which does not support nested containerization. So if you are running Cactus from inside a Docker or Singularity container, please do not use the --binariesMode option.'.format(options.binariesMode))
+            raise e
 
     if options.binariesMode in ['docker', 'singularity']:
         # jobs, even when seemingly not using docker, sometimes disappear on
