@@ -300,7 +300,7 @@ def minigraph_construct(job, options, config_node, seq_id_map, seq_order, gfa_pa
         max_size = max([x.size for x in seq_id_map.values()])
         total_size = sum([x.size for x in seq_id_map.values()])
         disk = total_size * 2
-        mem = 128 * max_size + int(total_size / 4)
+        mem = 60 * max_size + int(total_size / 4)
         mem = max(mem, 2**31)
         if options.mgMemory is not None:
             RealtimeLogger.info('Overriding minigraph_construct memory estimate of {} with {} value {} from --mgMemory'.format(bytes2human(mem), 'greater' if options.mgMemory > mem else 'lesser', bytes2human(options.mgMemory)))     
