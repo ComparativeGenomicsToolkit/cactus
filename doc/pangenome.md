@@ -128,6 +128,7 @@ The Minigraph-Cactus pipeline is run via the `cactus-pangenome` command. It cons
 **Before running large jobs, it is important to consider the following options:**
 
 * `--mgCores` the number of cores for `minigraph` construction (default: all available)
+* `--mgMemory` the amount of memory for `minigraph` construction. The default estimate can be quite conservative (ie high), so if it is too high for your system, you can lower it with this option (default: estimate based on input size). 
 * `--mapCores` the number of cores for each `minigraph` mapping job (default: up to 6)
 * `--consCores` the number of cores for each `cactus-consolidated` job (default: all available)
 * `--consMemory` the amount of memory for each `cactus-consolidated` job. By default, it is estimated from the data but these estimates being wrong can be catastrophic on [SLURM](./progressive.md#running-on-a-cluster). Consider setting to the maximum memory you have available when running on a cluster to be extra safe (seems to be more of an issue for non-human data)
