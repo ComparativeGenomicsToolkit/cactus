@@ -24,12 +24,14 @@ from cactus.shared.common import cactus_override_toil_options
 from cactus.shared.common import cactus_call
 from cactus.shared.common import getOptionalAttrib, findRequiredNode
 from cactus.shared.version import cactus_commit
+from cactus.progressive.cactus_prepare import human2bytesN
 from cactus.preprocessor.checkUniqueHeaders import sanitize_fasta_headers
 from toil.job import Job
 from toil.common import Toil
 from toil.statsAndLogging import logger
 from toil.statsAndLogging import set_logging_from_options
 from toil.realtimeLogger import RealtimeLogger
+from toil.lib.conversions import bytes2human
 from cactus.shared.common import cactus_cpu_count
 from cactus.progressive.multiCactusTree import MultiCactusTree
 from sonLib.bioio import getTempDirectory
@@ -43,7 +45,10 @@ def main():
     parser.add_argument("--reference", required=True, nargs='+', type=str,
                         help = "Reference genome name(s) (added to minigraph first). Mash distance to 1st reference to determine order of other genomes (use minigraphSortInput in the config xml to toggle this behavior).")
     parser.add_argument("--mgCores", type=int, help = "Number of cores for minigraph construction (defaults to the same as --maxCores).")
-    
+    parser.add_argument("--mgMemory", type=human2bytesN,
+                        help="Memory in bytes for the minigraph construction job (defaults to an estimate based on the input data size). "
+                        "Standard suffixes like K, Ki, M, Mi, G or Gi are supported (default=bytes))", default=None)   
+        
     #Progressive Cactus Options
     parser.add_argument("--configFile", dest="configFile",
                         help="Specify cactus configuration file",
@@ -295,8 +300,11 @@ def minigraph_construct(job, options, config_node, seq_id_map, seq_order, gfa_pa
         max_size = max([x.size for x in seq_id_map.values()])
         total_size = sum([x.size for x in seq_id_map.values()])
         disk = total_size * 2
-        mem = 128 * max_size + int(total_size / 4)
-        mem = max(mem, 2**30)
+        mem = 60 * max_size + int(total_size / 4)
+        mem = max(mem, 2**31)
+        if options.mgMemory is not None:
+            RealtimeLogger.info('Overriding minigraph_construct memory estimate of {} with {} value {} from --mgMemory'.format(bytes2human(mem), 'greater' if options.mgMemory > mem else 'lesser', bytes2human(options.mgMemory)))     
+            mem = options.mgMemory
         return job.addChildJobFn(minigraph_construct, options, config_node, seq_id_map, seq_order, gfa_path,
                                  has_resources=True, disk=disk, memory=mem, cores=options.mgCores).rv()
 

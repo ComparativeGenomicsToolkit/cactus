@@ -57,6 +57,9 @@ def main():
 
     # cactus-minigraph options
     parser.add_argument("--mgCores", type=int, help = "Number of cores for minigraph construction (defaults to the same as --maxCores).")
+    parser.add_argument("--mgMemory", type=human2bytesN,
+                        help="Memory in bytes for the minigraph construction job (defaults to an estimate based on the input data size). "
+                        "Standard suffixes like K, Ki, M, Mi, G or Gi are supported (default=bytes))", default=None)       
 
     # cactus-graphmap options
     parser.add_argument("--mapCores", type=int, help = "Number of cores for minigraph map.  Overrides graphmap cpu in configuration")
