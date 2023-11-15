@@ -138,7 +138,6 @@ def merge_combined_chunks(job, combined_chunks):
             chunk_path = job.fileStore.readGlobalFile(chunk, mutable=True)
             with open(chunk_path, 'r') as chunk_file:
                 shutil.copyfileobj(chunk_file, output_file)
-            os.remove(chunk_path)
             job.fileStore.deleteGlobalFile(chunk)
     return job.fileStore.writeGlobalFile(output_path)
 
