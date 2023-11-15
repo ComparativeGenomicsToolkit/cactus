@@ -1,3 +1,12 @@
+# Release 2.6.13 2023-11-15
+
+This release fixes an issue where Toil can ask for way too much memory for minigraph construction
+- Cut default minigraph construction memory estimate by half
+- Add `--mgMemory` option to override minigraph construction memory estimate no matter what
+- Exit with a clear error message (instead of more cryptic crash) when user tries to run container binaries in a container
+- Fix double Toil delete that seems to cause fatal error in some environments
+- Fix `gfaffix` regular expression bug that could cause paths other than the reference to be protoected from collapse.
+
 # Release 2.6.12 2023-11-07
 
 The release contains fixes some recent regressions:
