@@ -515,7 +515,7 @@ You can project your read mappings from the graph to a linear reference with `vg
 
 You can project your mappings to any reference path in the graph (as selected with `--reference` in `cactus-pangenome`), so GRCh38 or CHM13 in the example.  You can in theory project reads to any sample in the graph (even non reference samples) but it is a little trickier and not covered here (requires updating the `.gbz` with `vg gbwt`).
 
-You must first create a list of reference paths (it is important to use the full graph for CHM13 paths):
+You must first create a list of reference paths. Note we're using the `.full` graph here just to make our path lists with the `vg paths` command.  This is important when getting the CHM13 path list, as they will be fragmented otherwise. **Important** you don't want to map or call with the `.full` graph -- it's just for getting this path list. 
 
 ```
 singularity exec -H $(pwd) docker://quay.io/comparative-genomics-toolkit/cactus:v2.6.13 \
