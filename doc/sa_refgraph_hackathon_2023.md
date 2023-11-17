@@ -464,11 +464,48 @@ This takes about 2.75 hours and 64Gb of RAM, and also produces `./hprc10.HG002.g
 
 ### Long Read Mapping
 
-Stretch Goal
+Note: this section is adpated from [methods for the mc paper](https://github.com/ComparativeGenomicsToolkit/cactus/tree/master/doc/mc-paper/hprc#long-read-mapping-with-graphaligner).
 
-`vg giraffe` will soon be able to map long reads, but is not ready yet. For now, you should use [GraphAligner](https://github.com/maickrau/GraphAligner). It should run quite well on `hprc10.gfa`.
+`vg giraffe` will soon be able to map long reads, but is not ready yet. For now, you should use [GraphAligner](https://github.com/maickrau/GraphAligner).
 
-There is no example in this tutorial, but one can be added on request. 
+In order for the resulting mapping to be compatible with the `.gbz`, we first convert the `.gbz` into a `.gfa`.  You can run `GraphAligner` on the `.gfa` that comes out of `cactus-pangenome`, but the [coordinates will be different](https://github.com/ComparativeGenomicsToolkit/cactus/blob/master/doc/pangenome.md#node-chopping) from the `.gbz`.
+
+```
+singularity exec -H $(pwd) docker://quay.io/comparative-genomics-toolkit/cactus:v2.6.13 \
+bash -c "vg convert ./hprc10/hprc10.gbz -f > ./hprc10/hprc10.gbz.gfa"
+```
+
+This takes 43 seconds and 10Gb RAM.
+
+Now download some public GIAB HiFi reads (or use your own):
+
+```
+# log in as anonymous, put anything for password
+ftp ftp-trace.ncbi.nlm.nih.gov
+cd /giab/ftp/data/AshkenazimTrio/HG002_NA24385_son/PacBio_CCS_15kb_20kb_chemistry2/reads/
+get m64011_190830_220126.fastq.gz
+```
+
+*Protip*: or use `aria2c` to get the file way faster
+```
+aria2c -x8 -j8 -s8 ftp://ftp-trace.ncbi.nlm.nih.gov/giab/ftp/data/AshkenazimTrio/HG002_NA24385_son/PacBio_CCS_15kb_20kb_chemistry2/reads/m64011_190830_220126.fastq.gz
+```
+
+Now run GraphAligner in pangenome mode. I'm using a relatively old version of `GraphAligner` here since the latest one, `1.0.17b--h21ec9f0_2`, doesn't seem to work properly (tons of assert errors, about 100X slower than expect)
+
+```
+singularity exec -H $(pwd) docker://quay.io/biocontainers/graphaligner:1.0.13--he1c1bb9_0  \
+GraphAligner -g ./hprc10/hprc10.gbz.gfa -f m64011_190830_220126.fastq.gz -a HG002.hifi.gam -x vg -t 32
+
+```
+
+This takes about 2.5 hours and 220Gb RAM. 
+
+You can now use the `.gam` and `.gbz` together with with `vg pack/call` as described in the [SV Genotyping with vg](#sv-genotyping-with-vg) section (though it should be passed into `vg pack` with `-g`, not `-a` as you would for `.gaf.gz`).  You do not need to further use `hprc10.gbz.gfa`.
+
+**IMPORTANT** : This version of `GraphAligner` doesn't output mapping qualities. So if you use `vg pack` on it, make sure to not use a quality filter, ie use `-Q0`.
+
+If you had mapped to `hprc10.gfa.gz` instead of converting the `.gbz`, you can still use `vg pack/call`, but you would need to run theme on `hprc10.gfa.gz`.  Also note, `vg call` must always be run on the exact same graph as `vg pack`.  Even if the nodes are identical, if you change formats between these two tools, then `vg call` will crash).
 
 ### Surjecting To BAM
 
@@ -563,7 +600,7 @@ We make an important distinction between *genotying* and *calling*:
 
 One strength of pangenome graphs is that they allow Structural Variants (SVs), which are normally different to determine from short reads, to be efficiently genotyped. One way to do this is with [vg call](https://doi.org/10.1186/s13059-020-1941-7).  This is a two-step process, beginning with a graph alignment (GAF or GAM) from `vg giraffe`.
 
-First, create a `.pack` coverage index:
+First, create a `.pack` coverage index (note, if you are using `GraphAligner` output, use `-Q0` below instead):
 ```
 singularity exec -H $(pwd) docker://quay.io/comparative-genomics-toolkit/cactus:v2.6.13 \
 vg pack -x ./hprc10/hprc10.gbz -Q5 -a ./hprc10/hprc10.hg002.new.gaf.gz -o ./hprc10/hprc10.hg002.pack
@@ -582,7 +619,139 @@ This takes 30 minutes and 40 Gb RAM.
 
 ### SV Genotyping with pangenie
 
-Stretch Goal / TODO
+**Credit for this section:** [Matteo Ungaro](https://github.com/Overcraft90)
+
+Along with  `vg call`  another tool for Structural Variants detection which works on pangenome graphs is 
+[PanGenie](https://github.com/eblerjana/pangenie); however, in contrast with the former  PanGenie  does not leverage any information from reads 
+alignment. It uses a HMM to determine the best possible haplotypes combination based on the paths in 
+the graph and the short reads dataset for the sample in question.
+For this reason,  PanGenie  performs a genome inference for this sample that is represented as a mosaic 
+of haplotypes, and which variants are limited those present in the graph space.
+
+#### 1. Installation and Pre-processing
+
+PanGenie  can be installed using some commonly used package manager such as Conda or Singularity. 
+Conda installation is the one proposed in this tutorial. First, the tool repository is downloaded with  git 
+clone
+```
+git clone https://github.com/eblerjana/pangenie.git
+```
+Afterwards, it is possible to access the  `./pangenie`  directory where it is necessary to create a custom 
+Conda environment with all the dependencies necessary to run the tool
+```
+cd pangenie  
+conda env create -f environment.yml
+```
+Finally, the environments has to be activated and tested for the tool’s build
+```
+conda activate pangenie   
+mkdir build; cd build; cmake .. ; make
+```
+
+Importantly, the  PanGenie  pipeline later introduced will make use of Snakemake that needs to be present 
+as a separate Conda environment, activated when using the tool.
+
+##### 1.2 Filtering and decomposition
+
+The first step to use  PanGenie  is to make sure the graph VCF presents the following properties (more on 
+this at the GitHub page for the tool):
+* phased samples
+* sequence-resolved
+* non-overlapping variants
+* diploid (important, since in our example CHM13 will be haploid in the VCF)
+
+We need to make sure the VCF is simplified as much as possible and diploid.  To that end,
+we start with the VCF output of MC, cut the other reference out (CHM13 in our example),
+then normalize it with `vcfwave`. 
+
+```
+singularity exec -H $(pwd) docker://ghcr.io/pangenome/pggb:latest \
+bash -c "bcftools view -s ^CHM13 ./hprc10/hprc10.vcf.gz \
+| vcfwave -I 10000 -t 32 -n | bgzip > hprc10/hprc10.wave.vcf.gz \
+&& tabix -fp vcf hprc10/hprc10.wave.vcf.gz"
+```
+
+##### 1.3 Running  PanGenie
+
+PanGenie  can be run form command line, but it is recommended to use the pipeline available because the 
+output VCF for the sample will be otherwise unviable for conversion to biallelic sites, a post-processing 
+step which improves performance. 
+The pipeline runs from a  `config.yaml`  file found at this path:
+```
+/path/to/pangenie/pipelines/run-from-callset/config.yaml)
+```
+
+once the tool is installed.
+
+And this is how it looks like:
+
+```
+# input vcf with variants to be genotyped (uncompressed)
+vcf: /path/to/<decomposed_and_filtered>.vcf
+# reference genome
+reference: /path/to/<reference>.fna
+# path to reads (FASTQ format, uncompressed)
+# for each sample that shall be genotyped
+reads:
+ sample1: /path/to/<sample_name>.fastq
+ #sample2: reads-sample2.fastq
+# path to PanGenie exectuable
+pangenie_genotype: /path/to/pangenie/build/src/PanGenie
+pangenie_index: /path/to/pangenie/build/src/PanGenie-index
+# name of the output directory (keep in mind PanGenie wants a specific directory where to save all the outputs 
+# for instance, <sample_name>-genome_inference
+outdir: /path/to/outdir
+```
+
+Once you've edited this to put the full path of your reads and `.wave` vcf (**IMPORTANT: Pangenie does not accept gzipped input: you must uncompress everything first**).
+
+
+Once done,  PanGenie  can be run in interactive from the folder where the  config.yaml  lives or, alternatively, 
+form a bash script simply typing
+```
+snakemake --cores n_of_threads
+```
+Beware,  PanGenie  requires that the chromosome/contig names match between the reference genome and 
+the graph VCF. Normally, it is good practice to keep the reference names unchanged and set the 
+chromosome names in the VCF to match the one in the reference; this can be easily done with  sed . For a 
+minigraph-CACTUS  pangenome this is how it is done:
+
+```
+# example based on a GRCh38 graph
+sed -i 's/GRCh38#0#//' <decomposed_and_filtered>.vcf
+```
+
+#### 2. Example BASH script
+
+```
+#!/bin/bash
+#
+#SBATCH --nodes=1 --ntasks=1 --cpus-per-task=<n_of_threads>
+#SBATCH --time=<time_in_hh:mm:ss>
+#SBATCH --mem=<allocated_ram>
+#
+#SBATCH --job-name=pangenie
+#SBATCH --output=genome_inference.out
+#
+#SBATCH --partition=<partition_name>
+source /path/to/anaconda3/etc/profile.d/conda.sh
+conda activate snakemake
+cd /path/to/pangenie/pipelines/run-from-callset/
+snakemake --cores n_of_threads
+```
+
+PanGenie  is very fast but the process is driven by the graph complexity and the quality/size of the short 
+reads dataset for the sample analyzed. A typical run can take ~1.5 hours and up to 80Gb of RAM. 
+However, **1.2 Filtering and decomposition** can be a fairly long process mainly because  `vcfwave`  
+multithreads only per chromosome and not over the whole VCF file at once.
+
+#### 3. Post-processing
+
+The results are found in a subfolder of the  `/outdir`  called  `/genotypes` . In there, a single VCF file named 
+sample1-genotypes.vcf will be present that needs to be converted to biallelic sites.
+To do so it is best to use the available script at the GitHub page for the tool (`convert-to-biallelic.py`) which 
+can be run as follow:
+
 
 
 
