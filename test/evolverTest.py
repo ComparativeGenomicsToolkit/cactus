@@ -12,7 +12,7 @@ class TestCase(unittest.TestCase):
         self.tempDir = getTempDirectory(os.getcwd())
         unittest.TestCase.setUp(self)
         self.cromwell = False
-        
+
     def tearDown(self):
         unittest.TestCase.tearDown(self)
         if self.cromwell:
@@ -55,7 +55,7 @@ class TestCase(unittest.TestCase):
         children = subprocess.check_output(['halStats', hal_path, '--children', new_root]).strip().split()
         children = [c.decode("utf-8") for c in children]
         genomes = children + [new_root]
-        
+
         # make the fasta files
         fa_paths = [os.path.join(self.tempDir, '{}.fa'.format(genome)) for genome in genomes]
         for genome, genome_path in zip(genomes, fa_paths):
@@ -69,7 +69,7 @@ class TestCase(unittest.TestCase):
         assert new_child_line
         # make the seqfile
         # todo: we could fish branch lengths out of the tree, but it's not really relevant to the test
-        tree_string = '({}){};'.format(','.join(children + [new_leaf]), new_root)        
+        tree_string = '({}){};'.format(','.join(children + [new_leaf]), new_root)
         seq_file_path = os.path.join(self.tempDir, 'seqfile.{}'.format(new_root))
         with open(seq_file_path, 'w') as seq_file:
             seq_file.write(tree_string + '\n')
@@ -90,7 +90,7 @@ class TestCase(unittest.TestCase):
                 cmd += ['--latest']
             sys.stderr.write('Running {}\n'.format(' '.format(cmd)))
             subprocess.check_call(cmd)
-            
+
             cmd = ['cactus-align', self._job_store(binariesMode), seq_file_path, out_paf, out_hal, '--includeRoot', '--root', new_root,
                    '--binariesMode', binariesMode, '--logInfo', '--realTimeLogging', '--workDir', self.tempDir]
             if configFile:
@@ -101,7 +101,7 @@ class TestCase(unittest.TestCase):
             sys.stderr.write('Running {}\n'.format(' '.format(cmd)))
             subprocess.check_call(cmd)
         else:
-            cmd = ['cactus', self._job_store(binariesMode), seq_file_path, out_hal, 
+            cmd = ['cactus', self._job_store(binariesMode), seq_file_path, out_hal,
                    '--binariesMode', binariesMode, '--logInfo', '--realTimeLogging', '--workDir', self.tempDir]
             if configFile:
                 cmd += ['--configFile', configFile]
@@ -139,29 +139,29 @@ class TestCase(unittest.TestCase):
                 bottom_seq_file.write('{}\t{}\n'.format(genome, genome_path(genome)))
 
         # make the bottom hal
-        bottom_hal_path = os.path.join(self.tempDir, 'bottom.hal')            
+        bottom_hal_path = os.path.join(self.tempDir, 'bottom.hal')
         subprocess.check_call(['cactus', self._job_store(binariesMode), bottom_seq_path, bottom_hal_path, '--root', 'AncGorilla',
                                '--binariesMode', binariesMode, '--logInfo', '--realTimeLogging', '--workDir', self.tempDir])
 
         # dump the new ancestor
         with open(genome_path('AncGorilla'), 'w') as anc_file:
             subprocess.check_call(['hal2fasta', bottom_hal_path, 'AncGorilla'], stdout=anc_file)
-            
+
         # make the top seq_ile
         top_seq_path = os.path.join(self.tempDir, 'top.txt')
         with open(top_seq_path, 'w') as top_seq_file:
             top_seq_file.write('((simHuman_chr6:0.144018,AncGorilla:0.1)Anc1:0.020593,(simCow_chr6:0.18908,simDog_chr6:0.16303)Anc2:0.032898)Anc0;\n')
             for genome in ['simCow_chr6', 'simDog_chr6', 'simHuman_chr6', 'AncGorilla', 'Anc0', 'Anc1', 'Anc2']:
                 top_seq_file.write('{}\t{}\n'.format(genome, genome_path(genome)))
-        
+
         # make the top hal
         top_hal_path = os.path.join(self.tempDir, 'top.hal')
         subprocess.check_call(['cactus', self._job_store(binariesMode), top_seq_path, top_hal_path, '--root', 'Anc1',
                                '--binariesMode', binariesMode, '--logInfo', '--realTimeLogging', '--workDir', self.tempDir])
-        
+
         # update the hal
         subprocess.check_call(['halAddToBranch', hal_path, bottom_hal_path, top_hal_path, 'Anc1', 'AncGorilla', 'mr', 'simGorilla', '0.1', '0.2'])
-        
+
     def _run_evolver_in_docker(self, seqFile = './examples/evolverMammals.txt'):
 
         out_hal = self._out_hal('in_docker')
@@ -170,11 +170,11 @@ class TestCase(unittest.TestCase):
                'cactus /data/js /workdir/{} /data/{}'.format(seqFile, os.path.basename(out_hal))]
         sys.stderr.write('Running {}\n'.format(' '.format(cmd)))
         subprocess.check_call(' '.join(cmd), shell=True)
-               
+
     def _write_primates_seqfile(self, seq_file_path):
         """ create the primates seqfile at given path"""
         with open(seq_file_path, 'w') as seq_file:
-            seq_file.write('simHuman\thttps://raw.githubusercontent.com/UCSantaCruzComputationalGenomicsLab/cactusTestData/master/evolver/primates/loci1/simHuman.chr6\n')            
+            seq_file.write('simHuman\thttps://raw.githubusercontent.com/UCSantaCruzComputationalGenomicsLab/cactusTestData/master/evolver/primates/loci1/simHuman.chr6\n')
             seq_file.write('simChimp\thttps://raw.githubusercontent.com/UCSantaCruzComputationalGenomicsLab/cactusTestData/master/evolver/primates/loci1/simChimp.chr6\n')
             seq_file.write('simGorilla\thttps://raw.githubusercontent.com/UCSantaCruzComputationalGenomicsLab/cactusTestData/master/evolver/primates/loci1/simGorilla.chr6\n')
             seq_file.write('simOrang\thttps://raw.githubusercontent.com/UCSantaCruzComputationalGenomicsLab/cactusTestData/master/evolver/primates/loci1/simOrang.chr6\n')
@@ -220,7 +220,7 @@ class TestCase(unittest.TestCase):
         # hack to use docker to remove filetree in teardown, as cromwell
         # can leave root files hanging around there
         self.cromwell = True
-        
+
         out_seqfile = os.path.join(self.tempDir, 'evolverMammalsOut.txt')
         in_seqfile = './examples/evolverMammals.txt'
         out_wdl = os.path.join(self.tempDir, 'prepared.wdl')
@@ -310,13 +310,13 @@ class TestCase(unittest.TestCase):
         # todo: it'd be nice to have an interface for setting tag to something not latest or commit
         if binariesMode == 'docker':
             cactus_opts += ['--latest']
-        
+
         subprocess.check_call(['cactus-refmap', self._job_store(binariesMode), seq_file_path, "simHuman", cigar_path] + cactus_opts)
 
         # do the alignment
         subprocess.check_call(['cactus-align', self._job_store(binariesMode), seq_file_path, cigar_path, self._out_hal(binariesMode),
-                               '--pangenome'] + cactus_opts)            
-                
+                               '--pangenome'] + cactus_opts)
+
 
     def _run_evolver_primates_graphmap(self, binariesMode):
         """ primates star test but using graphmap pangenome pipeline
@@ -328,7 +328,7 @@ class TestCase(unittest.TestCase):
 
         # use the same logic cactus does to get default config
         config_path = 'src/cactus/cactus_progressive_config.xml'
-        
+
         xml_root = ET.parse(config_path).getroot()
         bar_elem = xml_root.find("bar")
         bar_elem.attrib["partialOrderAlignment"] = "1"
@@ -345,7 +345,7 @@ class TestCase(unittest.TestCase):
         subprocess.check_call(['cactus-prepare', seq_file_path, '--outDir', os.path.dirname(out_seq_file_path)])
 
         cactus_opts = ['--binariesMode', binariesMode, '--logInfo', '--realTimeLogging', '--workDir', self.tempDir, '--configFile', poa_config_path]
-        
+
         # preprocess with dna-brnn
         subprocess.check_call(['cactus-preprocess', self._job_store(binariesMode), seq_file_path, out_seq_file_path, '--maskMode', 'brnn'] + cactus_opts)
 
@@ -368,7 +368,7 @@ class TestCase(unittest.TestCase):
         # todo: it'd be nice to have an interface for setting tag to something not latest or commit
         if binariesMode == 'docker':
             cactus_opts += ['--latest']
-        
+
         subprocess.check_call(['cactus-graphmap', self._job_store(binariesMode), out_seq_file_path, mg_path, paf_path,
                                '--outputFasta', fa_path, '--mapCores', '4'] + cactus_opts)
 
@@ -404,7 +404,7 @@ class TestCase(unittest.TestCase):
         # make a config that replaces stuff like SC4.chrI with id=SC4|chrI
         # also run dna brnn with softmasking
         orig_seq_file_path = './examples/yeastPangenome.txt'
-        seq_file_path = os.path.join(self.tempDir, 'pp', os.path.basename(orig_seq_file_path))        
+        seq_file_path = os.path.join(self.tempDir, 'pp', os.path.basename(orig_seq_file_path))
         subprocess.check_call(['cactus-prepare',  orig_seq_file_path, '--outDir', os.path.join(self.tempDir, 'pp'), '--seqFileOnly'])
         cactus_opts = ['--binariesMode', binariesMode, '--logInfo', '--realTimeLogging', '--workDir', self.tempDir, '--maxCores', '4']
         subprocess.check_call(['cactus-preprocess', self._job_store(binariesMode),
@@ -417,18 +417,18 @@ class TestCase(unittest.TestCase):
                 toks = line.strip().split()
                 if len(toks) == 2:
                     events.append(toks[0])
-        
+
         # build the minigraph
         mg_path = os.path.join(self.tempDir, 'yeast.sv.gfa.gz')
         mg_cmd = ['cactus-minigraph', self._job_store(binariesMode), seq_file_path, mg_path, '--reference', 'S288C'] + cactus_opts
         subprocess.check_call(mg_cmd)
-                
+
         # run graphmap in base mode
         paf_path = os.path.join(self.tempDir, 'yeast.paf')
-        fa_path = os.path.join(self.tempDir, 'yeast.sv.gfa.fa')        
+        fa_path = os.path.join(self.tempDir, 'yeast.sv.gfa.fa')
         subprocess.check_call(['cactus-graphmap', self._job_store(binariesMode), seq_file_path, mg_path, paf_path,
                                '--outputFasta', fa_path, '--delFilter', '2000000'] + cactus_opts + ['--mapCores', '1'])
-            
+
         # split into chromosomes
         chroms = ['chrI', 'chrII', 'chrIII', 'chrIV', 'chrV', 'chrVI', 'chrVII', 'chrVIII', 'chrIX', 'chrX', 'chrXI', 'chrXIV', 'chrXV']
         gm_out_dir = os.path.join(self.tempDir, 'chroms')
@@ -451,7 +451,7 @@ class TestCase(unittest.TestCase):
         # join up the graphs and index for giraffe
         join_path = os.path.join(self.tempDir, 'join')
         subprocess.check_call(['cactus-graphmap-join', self._job_store(binariesMode), '--outDir', join_path, '--outName', 'yeast',
-                               '--reference', 'S288C', '--vg'] +  vg_files + ['--hal'] + hal_files + 
+                               '--reference', 'S288C', '--vg'] +  vg_files + ['--hal'] + hal_files +
                                ['--vcf', '--giraffe', 'clip', 'filter'] + cactus_opts + ['--indexCores', '4'])
 
     def _run_yeast_pangenome(self, binariesMode):
@@ -466,13 +466,13 @@ class TestCase(unittest.TestCase):
 
         chroms = ['chrI', 'chrII', 'chrIII', 'chrIV', 'chrV', 'chrVI', 'chrVII', 'chrVIII', 'chrIX', 'chrX', 'chrXI', 'chrXIV', 'chrXV']
         cactus_pangenome_cmd = ['cactus-pangenome', self._job_store(binariesMode), orig_seq_file_path, '--outDir', join_path, '--outName', 'yeast',
-                                '--refContigs'] + chroms + ['--reference', 'S288C', 'DBVPG6044', '--vcf', '--vcfReference','DBVPG6044', 'S288C', 
+                                '--refContigs'] + chroms + ['--reference', 'S288C', 'DBVPG6044', '--vcf', '--vcfReference','DBVPG6044', 'S288C',
                                                             '--giraffe', 'clip', 'filter',  '--chrom-vg', 'clip', 'filter',
                                                             '--viz', '--chrom-og', 'clip', 'full', '--odgi', '--haplo', 'clip',
                                                             '--indexCores', '4', '--consCores', '2']
         subprocess.check_call(cactus_pangenome_cmd + cactus_opts)
 
-        #compatibility with older test        
+        #compatibility with older test
         subprocess.check_call(['mkdir', '-p', os.path.join(self.tempDir, 'chroms')])
         subprocess.check_call(['mv', os.path.join(join_path, 'chrom-subproblems', 'contig_sizes.tsv'), os.path.join(self.tempDir, 'chroms')])
 
@@ -535,13 +535,13 @@ class TestCase(unittest.TestCase):
         for giraffe_idx in ['yeast.gbz', 'yeast.dist', 'yeast.min', 'yeast.d2.gbz', 'yeast.d2.dist', 'yeast.d2.min']:
             idx_bytes = os.path.getsize(os.path.join(join_path, giraffe_idx))
             self.assertGreaterEqual(idx_bytes, 500000)
-            
+
         if expect_haplo:
             # make sure we have the haplo indexes:
             for haplo_idx in ['yeast.ri', 'yeast.hapl']:
                 idx_bytes = os.path.getsize(os.path.join(join_path, haplo_idx))
                 self.assertGreaterEqual(idx_bytes, 10000000)
-            
+
         # make sure the chrom splitting stats are somewhat sane
         contig_sizes = {}
         with open(os.path.join(self.tempDir, 'chroms', 'contig_sizes.tsv'), 'r') as sizes_file:
@@ -559,13 +559,13 @@ class TestCase(unittest.TestCase):
             self.assertEqual(len(sizes), 10)
             self.assertGreaterEqual(int(sizes[9]), 200000)
 
-        # make sure the gbz stats are sane        
+        # make sure the gbz stats are sane
         clip_degree_dist = subprocess.check_output(['vg', 'stats', '-D', os.path.join(join_path, 'yeast.gbz')]).strip().decode('utf-8')
-        clip_degree_dist = len(clip_degree_dist.strip().split('\n'))        
+        clip_degree_dist = len(clip_degree_dist.strip().split('\n'))
         self.assertGreaterEqual(clip_degree_dist, 6)
 
         filter_degree_dist = subprocess.check_output(['vg', 'stats', '-D', os.path.join(join_path, 'yeast.d2.gbz')]).strip().decode('utf-8')
-        filter_degree_dist = len(filter_degree_dist.strip().split('\n'))        
+        filter_degree_dist = len(filter_degree_dist.strip().split('\n'))
         self.assertGreaterEqual(filter_degree_dist, 6)
         self.assertLess(filter_degree_dist, clip_degree_dist)
 
@@ -592,8 +592,8 @@ class TestCase(unittest.TestCase):
                 self.assertGreaterEqual(os.path.getsize(os.path.join(join_path, 'yeast.viz', chr + '.full.viz.png')), 700)
                 self.assertGreaterEqual(os.path.getsize(os.path.join(join_path, 'yeast.chroms', chr + '.full.og')), 3000000)
                 self.assertGreaterEqual(os.path.getsize(os.path.join(join_path, 'yeast.chroms', chr + '.og')), 3000000)
-        
-        
+
+
     def _csvstr_to_table(self, csvstr, header_fields):
         """ Hacky csv parse """
         output_stats = {}
@@ -713,7 +713,7 @@ class TestCase(unittest.TestCase):
         # run it with --dupeMode consensus just to make sure it doesn't crash
         subprocess.check_call(['cactus-hal2maf', self._job_store('h2m'), halPath,  halPath + '.consensus.maf.gz', '--chunkSize', '10000', '--batchCount', '2',
                                '--refGenome', 'Anc0', '--dupeMode', 'consensus'], shell=False)
-        
+
         # cactus-hal2maf doesnt support --onlySequenceNames because the genome names are needed by taf_add_gap_bases
         # so we manually filter here
         for genome in subprocess.check_output(['halStats', halPath, '--genomes']).strip().decode('utf-8').split():
@@ -724,7 +724,7 @@ class TestCase(unittest.TestCase):
         def parse_mafcomp_output(xml_path):
             xml_root = ET.parse(xml_path).getroot()
             comp_roots = xml_root.findall("homologyTests")
-            assert len(comp_roots) == 2            
+            assert len(comp_roots) == 2
             first, second = None, None
             for comp_root in comp_roots:
                 avg_val = float(comp_root.find("aggregateResults").find("all").attrib["average"])
@@ -750,7 +750,7 @@ class TestCase(unittest.TestCase):
         hal_tree = subprocess.check_output(['halStats', halPath, '--tree']).strip().decode('utf-8')
         if expected_tree:
             self.assertEqual(hal_tree, expected_tree)
-            
+
     def testEvolverLocal(self):
         """ Check that the output of halStats on a hal file produced by running cactus with --binariesMode local is
         is reasonable
@@ -762,20 +762,20 @@ class TestCase(unittest.TestCase):
         # check the output
         #self._check_stats(self._out_hal(name), delta_pct=0.25)
         #self._check_coverage(self._out_hal(name), delta_pct=0.20)
-        self._check_maf_accuracy(self._out_hal(name), delta=(0.05,0.14))
+        self._check_maf_accuracy(self._out_hal(name), delta=(0.05,0.13))
 
     def testEvolverUpdateNodeLocal(self):
         """ Check that the "add a genome to ancestor" modification steps give sane/valid results """
         name = "local"
         self._run_evolver(name)
-        
+
         self._update_evolver_add_to_node(name, new_leaf='simChimp', new_root='Anc1', step_by_step = True)
         self._update_evolver_add_to_node(name, new_leaf='simOrang', new_root='mr', step_by_step = False)
 
         self._check_valid_hal(self._out_hal(name),
                               expected_tree='((simHuman_chr6:0.144018,(simMouse_chr6:0.084509,simRat_chr6:0.091589,simOrang:1)mr:0.271974,simChimp:1)Anc1:0.020593,(simCow_chr6:0.18908,simDog_chr6:0.16303)Anc2:0.032898)Anc0;')
 
-        self._check_maf_accuracy(self._out_hal(name), delta=(0.1,0.14))
+        self._check_maf_accuracy(self._out_hal(name), delta=(0.1,0.13))
 
     def testEvolverUpdateBranchLocal(self):
         """ Check that the "add a genome to branch" modification steps give sane/valid results """
@@ -786,7 +786,7 @@ class TestCase(unittest.TestCase):
         self._check_valid_hal(self._out_hal(name),
                               expected_tree='((simHuman_chr6:0.144018,((simMouse_chr6:0.084509,simRat_chr6:0.091589)mr:0.171974,simGorilla:0.2)AncGorilla:0.1)Anc1:0.020593,(simCow_chr6:0.18908,simDog_chr6:0.16303)Anc2:0.032898)Anc0;')
 
-        self._check_maf_accuracy(self._out_hal(name), delta=(0.1,0.14))
+        self._check_maf_accuracy(self._out_hal(name), delta=(0.1,0.13))
 
 
     def testEvolverPrepareWDL(self):
@@ -797,7 +797,7 @@ class TestCase(unittest.TestCase):
         # check the output
         #self._check_stats(self._out_hal("wdl"), delta_pct=0.25)
         #self._check_coverage(self._out_hal("wdl"), delta_pct=0.20)
-        self._check_maf_accuracy(self._out_hal("wdl"), delta=(0.05,0.14))
+        self._check_maf_accuracy(self._out_hal("wdl"), delta=(0.05,0.13))
 
     def testEvolverPrepareToil(self):
 
@@ -808,7 +808,7 @@ class TestCase(unittest.TestCase):
         # check the output
         #self._check_stats(self._out_hal(name), delta_pct=0.25)
         #self._check_coverage(self._out_hal(name), delta_pct=0.20)
-        self._check_maf_accuracy(self._out_hal(name), delta=(0.05,0.14))
+        self._check_maf_accuracy(self._out_hal(name), delta=(0.05,0.13))
 
     def testEvolverDecomposedLocal(self):
         """ Check that the output of halStats on a hal file produced by running cactus with --binariesMode local is
@@ -821,7 +821,7 @@ class TestCase(unittest.TestCase):
         # check the output
         #self._check_stats(self._out_hal(name), delta_pct=0.25)
         #self._check_coverage(self._out_hal(name), delta_pct=0.20)
-        self._check_maf_accuracy(self._out_hal(name), delta=(0.05,0.14))
+        self._check_maf_accuracy(self._out_hal(name), delta=(0.05,0.13))
 
     def testEvolverDecomposedDocker(self):
         """ Check that the output of halStats on a hal file produced by running cactus with --binariesMode docker is
@@ -834,8 +834,8 @@ class TestCase(unittest.TestCase):
         # check the output
         #self._check_stats(self._out_hal(name), delta_pct=0.25)
         #self._check_coverage(self._out_hal(name), delta_pct=0.20)
-        self._check_maf_accuracy(self._out_hal(name), delta=(0.05,0.14))
-        
+        self._check_maf_accuracy(self._out_hal(name), delta=(0.05,0.13))
+
     def testEvolverDocker(self):
         """ Check that the output of halStats on a hal file produced by running cactus with --binariesMode docker is
         is reasonable.  Note: the local image being tested should be set up via CACTUS_DOCKER_ORG (with tag==latest)
@@ -846,7 +846,7 @@ class TestCase(unittest.TestCase):
         # check the output
         #self._check_stats(self._out_hal("docker"), delta_pct=0.25)
         #self._check_coverage(self._out_hal("docker"), delta_pct=0.20)
-        self._check_maf_accuracy(self._out_hal("docker"), delta=(0.05,0.14))
+        self._check_maf_accuracy(self._out_hal("docker"), delta=(0.05,0.13))
 
     def testEvolverInDocker(self):
         """ Check that the output of halStats on a hal file produced by running cactus in docker
@@ -858,8 +858,8 @@ class TestCase(unittest.TestCase):
         # check the output
         #self._check_stats(self._out_hal("docker"), delta_pct=0.25)
         #self._check_coverage(self._out_hal("docker"), delta_pct=0.20)
-        self._check_maf_accuracy(self._out_hal("in_docker"), delta=(0.05,0.14))
-        
+        self._check_maf_accuracy(self._out_hal("in_docker"), delta=(0.05,0.13))
+
     def testEvolverPrepareNoOutgroupDocker(self):
 
         # run cactus step by step via the plan made by cactus-prepare
@@ -884,7 +884,7 @@ class TestCase(unittest.TestCase):
         """
         # use the same logic cactus does to get default config
         config_path = 'src/cactus/cactus_progressive_config.xml'
-        
+
         xml_root = ET.parse(config_path).getroot()
         bar_elem = xml_root.find("bar")
         bar_elem.attrib["partialOrderAlignment"] = "1"
@@ -930,13 +930,13 @@ class TestCase(unittest.TestCase):
 
         # check the output
         # todo: tune config so that delta can be reduced
-        self._check_maf_accuracy(self._out_hal("local"), delta=(0.025,0.025), dataset='primates')        
-    
+        self._check_maf_accuracy(self._out_hal("local"), delta=(0.025,0.025), dataset='primates')
+
     def testYeastPangenomeStepByStepLocal(self):
         """ Run pangenome pipeline (including contig splitting!) on yeast dataset step by step"""
         name = "local"
         self._run_yeast_pangenome_step_by_step(name)
-        
+
         # check the output
         self._check_yeast_pangenome(name)
 
@@ -944,7 +944,7 @@ class TestCase(unittest.TestCase):
         """ Run pangenome pipeline (including contig splitting!) on yeast dataset using cactus-pangenome """
         name = "local"
         self._run_yeast_pangenome(name)
-        
+
         # check the output
         self._check_yeast_pangenome(name, other_ref='DBVPG6044', expect_odgi=True, expect_haplo=True)
 
