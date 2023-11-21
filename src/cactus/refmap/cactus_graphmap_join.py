@@ -542,7 +542,7 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
                                                             memory=index_mem)
                 out_dicts.append(deconstruct_job.rv())                
 
-                if do_rgfa and vcf_ref == options.vcfReference[0]:
+                if do_rgfa and vcf_ref == options.reference[0]:
                     rgfa_deconstruct_job = prev_job.addFollowOnJobFn(make_vcf, config, options.outName, vcf_ref, current_out_dict,
                                                                      max_ref_allele=options.vcfbub,
                                                                      tag=vcftag + '.', ref_tag = workflow_phase + '.',
