@@ -24,6 +24,8 @@ class RepeatMaskOptions:
             unmaskOutput=False,
             proportionSampled=1.0,
             gpu=0,
+            cpu=None,
+            lastz_memory=None,
             gpuLastzInterval=3000000,
             eventName='seq'):
         self.fragment = fragment
@@ -33,6 +35,8 @@ class RepeatMaskOptions:
         self.unmaskOutput = unmaskOutput
         self.proportionSampled = proportionSampled
         self.gpu = gpu
+        self.cpu = cpu
+        self.lastz_memory = lastz_memory
         self.gpuLastzInterval = gpuLastzInterval
         self.eventName = eventName
 
@@ -46,13 +50,14 @@ class RepeatMaskOptions:
 class LastzRepeatMaskJob(RoundedJob):
     def __init__(self, repeatMaskOptions, queryID, targetIDs):
         targetsSize = sum(targetID.size for targetID in targetIDs)
-        memory = 4*1024*1024*1024
-        disk = 2*(queryID.size + targetsSize)
-        if repeatMaskOptions.gpu:
-            # gpu jobs get the whole node (same hack as used in blast phase)
-            cores = cactus_cpu_count()
+        if repeatMaskOptions.lastz_memory:
+            memory = repeatMaskOptions.lastz_memory
+        elif repeatMaskOptions.gpu:
+            memory = min(40 * targetsSize, 512e9)
         else:
-            cores = None
+            memory = 4*1024*1024*1024
+        disk = max(4*(queryID.size + targetsSize), memory)
+        cores = repeatMaskOptions.cpu
         accelerators = ['cuda:{}'.format(repeatMaskOptions.gpu)] if repeatMaskOptions.gpu else None            
         RoundedJob.__init__(self, memory=memory, disk=disk, cores=cores, accelerators=accelerators, preemptable=True)
         self.repeatMaskOptions = repeatMaskOptions
@@ -93,15 +98,14 @@ class LastzRepeatMaskJob(RoundedJob):
                                 # Note that --querydepth has no effect when --ungapped is passed (which is by default)
                                 ["--querydepth=keep,nowarn:%i" % (self.repeatMaskOptions.period+3),
                                  "--format=general:name1,zstart1,end1,name2,zstart2+,end2+",
-                                 "--markend"])
+                                 "--markend"],
+                    job_memory=self.memory)
         return alignment
 
     def gpuRepeatMask(self, fileStore, targetFile):
         """
         This is the gpu version of above.  It's much simpler in that there's no chunking or fragmenting
         """
-
-        alignment_dir = fileStore.getLocalTempDir()
 
         # dont think gpu lastz can handle this
         assert not self.repeatMaskOptions.unmaskInput
@@ -130,7 +134,8 @@ class LastzRepeatMaskJob(RoundedJob):
                # and skip running it below
                "--M", str(self.repeatMaskOptions.period)] + gpu_opts
         
-        segalign_messages = cactus_call(parameters=cmd, work_dir=alignment_dir, returnStdErr=True, gpus=self.repeatMaskOptions.gpu)
+        segalign_messages = cactus_call(parameters=cmd, work_dir=self.work_dir, returnStdErr=True, gpus=self.repeatMaskOptions.gpu,
+                                        cpus=self.repeatMaskOptions.cpu, job_memory=self.memory)
         # run_segalign can crash and still exit 0, so it's worth taking a moment to check the log for errors
         segalign_messages = segalign_messages.lower()
         for line in segalign_messages.split("\n"):
@@ -143,14 +148,14 @@ class LastzRepeatMaskJob(RoundedJob):
         # scrape the segalign output into one big file, making an effort to read in numeric order
         merged_path = os.path.join(self.work_dir, self.repeatMaskOptions.eventName + '.mergedpath')
         with open(merged_path, "a") as merged_file:
-            for work_file in sorted(os.listdir(alignment_dir), key = lambda x : int(re.sub("[^0-9]", "", x))):
+            for work_file in sorted(os.listdir(self.work_dir), key = lambda x : int(re.sub("[^0-9]", "", x))):
                 # segalign_repeat_masker makes files that look like "tmp10.block0.intervals"
-                # (not that there should be anything else in this directory)
+                # (so important that we gave our input .query and .target extensions)
                 if work_file.startswith("tmp") and work_file.endswith("intervals"):
                     # append it do the merged file and delete it right away to keep disk usage lower
-                    with open(os.path.join(alignment_dir, work_file), "r") as frag_file:
+                    with open(os.path.join(self.work_dir, work_file), "r") as frag_file:
                         shutil.copyfileobj(frag_file, merged_file)
-                    os.remove(os.path.join(alignment_dir, work_file))
+                    os.remove(os.path.join(self.work_dir, work_file))
 
         return merged_path
 
@@ -173,7 +178,7 @@ class LastzRepeatMaskJob(RoundedJob):
                                 "M=%s" % (int(self.repeatMaskOptions.period * scale_period))]
 
             covered_call_cmd += ["--queryoffsets"]
-            cactus_call(infile=alignment, outfile=maskInfo, parameters=covered_call_cmd)
+            cactus_call(infile=alignment, outfile=maskInfo, parameters=covered_call_cmd, job_memory=self.memory)
 
         # the previous lastz command outputs a file of intervals (denoted with indices) to softmask.
         # we finish by applying these intervals to the input file, to produce the final, softmasked output.

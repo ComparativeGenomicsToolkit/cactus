@@ -43,11 +43,12 @@ from cactus.preprocessor.lastzRepeatMasking.cactus_lastzRepeatMask import Repeat
 from cactus.preprocessor.dnabrnnMasking import DnabrnnMaskJob, loadDnaBrnnModel
 from cactus.preprocessor.cutHeaders import CutHeadersJob
 from cactus.preprocessor.fileMasking import maskJobOverride, FileMaskingJob
+from cactus.progressive.cactus_prepare import human2bytesN
 
 class PreprocessorOptions:
     def __init__(self, chunkSize, memory, cpu, check, proportionToSample, unmask,
                  preprocessJob, checkAssemblyHub=None, lastzOptions=None, minPeriod=None,
-                 gpu=0, dnabrnnOpts=None,
+                 gpu=0, lastz_memory=None, dnabrnnOpts=None,
                  dnabrnnAction=None, eventName=None, minLength=None,
                  cutBefore=None, cutBeforeOcc=None, cutAfter=None, inputBedID=None):
         self.chunkSize = chunkSize
@@ -64,6 +65,7 @@ class PreprocessorOptions:
         self.gpuLastzInterval = self.chunkSize
         if self.gpu:
             self.chunkSize = 0
+        self.lastz_memory= lastz_memory
         self.dnabrnnOpts = dnabrnnOpts
         self.dnabrnnAction = dnabrnnAction
         assert dnabrnnAction in ('softmask', 'hardmask', 'clip')
@@ -79,7 +81,7 @@ class CheckUniqueHeaders(RoundedJob):
     Check that the headers of the input file meet certain naming requirements.
     """
     def __init__(self, prepOptions, inChunkID):
-        disk = inChunkID.size
+        disk = 2*inChunkID.size
         RoundedJob.__init__(self, memory=prepOptions.memory, cores=prepOptions.cpu, disk=disk,
                      preemptable=True)
         self.prepOptions = prepOptions
@@ -120,7 +122,7 @@ class MergeChunks2(RoundedJob):
         chunkList = [os.path.basename(chunk) for chunk in chunkList]
         outSequencePath = fileStore.getLocalTempFile()
         cactus_call(outfile=outSequencePath, stdin_string=" ".join(chunkList),
-                    parameters=["fasta_merge"])
+                    parameters=["faffy", "merge"])
         return fileStore.writeGlobalFile(outSequencePath)
 
 class PreprocessSequence(RoundedJob):
@@ -128,7 +130,7 @@ class PreprocessSequence(RoundedJob):
     """
     def __init__(self, prepOptions, inSequenceID, chunksToCompute=None):
         disk = 3*inSequenceID.size if hasattr(inSequenceID, "size") else None
-        RoundedJob.__init__(self, cores=prepOptions.cpu, memory=prepOptions.memory, disk=disk,
+        RoundedJob.__init__(self, memory=prepOptions.memory, disk=disk,
                      preemptable=True)
         self.prepOptions = prepOptions
         self.inSequenceID = inSequenceID
@@ -145,6 +147,8 @@ class PreprocessSequence(RoundedJob):
                                                   minPeriod=self.prepOptions.minPeriod,
                                                   lastzOpts=self.prepOptions.lastzOptions,
                                                   gpu=self.prepOptions.gpu,
+                                                  cpu=self.prepOptions.cpu,
+                                                  lastz_memory=self.prepOptions.lastz_memory,
                                                   gpuLastzInterval=self.prepOptions.gpuLastzInterval,
                                                   eventName='{}_{}'.format(self.prepOptions.eventName, chunk_i))
             return LastzRepeatMaskJob(repeatMaskOptions=repeatMaskOptions,
@@ -255,6 +259,7 @@ class BatchPreprocessor(RoundedJob):
                                               minPeriod = getOptionalAttrib(prepNode, "minPeriod", typeFn=int, default=0),
                                               checkAssemblyHub = getOptionalAttrib(prepNode, "checkAssemblyHub", typeFn=bool, default=False),
                                               gpu = getOptionalAttrib(prepNode, "gpu", typeFn=int, default=0),
+                                              lastz_memory = getOptionalAttrib(prepNode, "lastz_memory", typeFn=int, default=None),
                                               dnabrnnOpts = getOptionalAttrib(prepNode, "dna-brnnOpts", default=""),
                                               dnabrnnAction = getOptionalAttrib(prepNode, "action", typeFn=str, default="softmask"),
                                               eventName = getOptionalAttrib(prepNode, "eventName", typeFn=str, default=None),
@@ -340,7 +345,7 @@ class CactusPreprocessor2(RoundedJob):
 def stageWorkflow(outputSequenceDir, configNode, inputSequences, toil, restart=False,
                   outputSequences = [], maskMode=None, maskAction=None,
                   maskFile=None, minLength=None, inputEventNames=None, brnnCores=None,
-                  gpu_override=False):
+                  gpu_override=False, options=None):
     #Replace any constants
     if not outputSequences:
         outputSequences = CactusPreprocessor.getOutputSequenceFiles(inputSequences, outputSequenceDir)
@@ -351,7 +356,7 @@ def stageWorkflow(outputSequenceDir, configNode, inputSequences, toil, restart=F
     loadDnaBrnnModel(toil, configNode, maskAlpha = maskMode == 'brnn')
         
     if configNode.find("constants") != None:
-        ConfigWrapper(configNode).substituteAllPredefinedConstantsWithLiterals()
+        ConfigWrapper(configNode).substituteAllPredefinedConstantsWithLiterals(options)
     if maskMode:
         lastz = maskMode == 'lastz'
         brnn = maskMode == 'brnn'
@@ -405,7 +410,7 @@ def runCactusPreprocessor(outputSequenceDir, configFile, inputSequences, toilDir
     toilOptions.logLevel = "INFO"
     toilOptions.disableCaching = True
     with Toil(toilOptions) as toil:
-        stageWorkflow(outputSequenceDir, ET.parse(options.configFile).getroot(), inputSequences, toil)
+        stageWorkflow(outputSequenceDir, ET.parse(options.configFile).getroot(), inputSequences, toil, options=toilOptions)
 
 def main():
     parser = ArgumentParser()
@@ -430,7 +435,12 @@ def main():
                         "rather than pulling one from quay.io")
     parser.add_argument("--binariesMode", choices=["docker", "local", "singularity"],
                         help="The way to run the Cactus binaries", default=None)
-    parser.add_argument("--gpu", nargs='?', const='all', default=None, help="toggle on GPU-enabled lastz, and specify number of GPUs (all available if no value provided)")    
+    parser.add_argument("--gpu", nargs='?', const='all', default=None, help="toggle on GPU-enabled lastz, and specify number of GPUs (all available if no value provided)")
+    parser.add_argument("--lastzCores", type=int, default=None, help="Number of cores for each lastz/segalign job, only relevant when running with --gpu")
+    parser.add_argument("--lastzMemory", type=human2bytesN,
+                        help="Memory in bytes for each lastz/segalign job (defaults to an estimate based on the input data size). "
+                        "Standard suffixes like K, Ki, M, Mi, G or Gi are supported (default=bytes))", default=None)
+
     parser.add_argument("--pangenome", action="store_true", help='Do not mask. Just add Cactus-style unique prefixes and strip anything up to and including last #')
 
     options = parser.parse_args()
@@ -476,7 +486,8 @@ def main():
     options.ignore.append(graph_event)
 
     # toggle on the gpu
-    ConfigWrapper(configNode).initGPU(options)
+    config_wrapper = ConfigWrapper(configNode)
+    config_wrapper.initGPU(options)
 
     # apply pangenome overrides
     if options.pangenome:
@@ -490,8 +501,8 @@ def main():
     
     # mine the paths out of the seqfiles
     if options.inSeqFile:
-        inSeqFile = SeqFile(options.inSeqFile)
-        outSeqFile = SeqFile(options.outSeqFile)
+        inSeqFile = SeqFile(options.inSeqFile, defaultBranchLen=config_wrapper.getDefaultBranchLen(options.pangenome))
+        outSeqFile = SeqFile(options.outSeqFile, defaultBranchLen=config_wrapper.getDefaultBranchLen(options.pangenome))
 
         if not inNames:
             inNames = [inSeqFile.tree.getName(node) for node in inSeqFile.tree.getLeaves()]
@@ -549,7 +560,8 @@ def main():
                       maskAction=options.maskAction,
                       minLength=options.minLength,
                       inputEventNames=inNames,
-                      brnnCores=options.brnnCores)
+                      brnnCores=options.brnnCores,
+                      options=options)
 
 if __name__ == '__main__':
     main()

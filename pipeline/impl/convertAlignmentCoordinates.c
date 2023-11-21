@@ -104,7 +104,7 @@ void convertAlignmentCoordinates(char *inputAlignmentFile, char *outputAlignment
     st_logDebug("Opened files for writing\n");
 
     Paf *paf;
-    while ((paf = paf_read(inputAlignmentFileHandle)) != NULL) {
+    while ((paf = paf_read(inputAlignmentFileHandle, 0)) != NULL) {
         convertCoordinates(paf, outputAlignmentFileHandle, sequenceHeaderToCapHash);
         paf_check(paf);
         paf_write(paf, outputAlignmentFileHandle);

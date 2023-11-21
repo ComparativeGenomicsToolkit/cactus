@@ -25,7 +25,7 @@ from cactus.progressive.multiCactusTree import MultiCactusTree
 from cactus.progressive.progressive_decomposition import compute_outgroups, get_subtree, check_branch_lengths
 from cactus.shared.common import cactusRootPath
 from cactus.shared.common import enableDumpStack, setupBinaries
-from cactus.shared.common import getDockerImage, getDockerRelease
+from cactus.shared.common import getDockerImage
 from cactus.shared.configWrapper import ConfigWrapper
 from cactus.shared.version import cactus_commit
 from cactus.shared.common import findRequiredNode
@@ -69,10 +69,10 @@ def main(toil_mode=False):
         parser.add_argument("--jobStore", type=str, default="./jobstore", help="base directory of jobStores to use in suggested commands")
         parser.add_argument("--seqFileOnly", action="store_true", help="Only create output SeqFile (with no ancestors); do not make plan")
     parser.add_argument("--configFile", default=os.path.join(cactusRootPath(), "cactus_progressive_config.xml"))
-    parser.add_argument("--preprocessBatchSize", type=int, default=3, help="size (number of genomes) of preprocessing jobs")
+    parser.add_argument("--preprocessBatchSize", type=int, default=10, help="size (number of genomes) of preprocessing jobs")
     parser.add_argument("--halAppendBatchSize", type=int, default=100, help="size (number of genomes) of halAppendSubtree jobs (WDL-only)")
     parser.add_argument("--halOptions", type=str, default="--hdf5InMemory", help="options for every hal command")
-    parser.add_argument("--cactusOptions", type=str, default="--realTimeLogging --logInfo --retryCount 0", help="options for every cactus command")
+    parser.add_argument("--cactusOptions", type=str, default="", help="options for every cactus command")
     parser.add_argument("--preprocessOnly", action="store_true", help="only decompose into preprocessor and cactus jobs")
     parser.add_argument("--dockerImage", type=str, help="docker image to use as wdl runtime")
     if not toil_mode:
@@ -201,10 +201,6 @@ def main(toil_mode=False):
             options.blastMemory = options.defaultMemory
         if not options.alignMemory:
             options.alignMemory = options.defaultMemory
-    if not options.alignCores or options.alignCores == 1:
-        if options.alignCores == 1:
-            sys.stderr.write("Warning: --alignCores changed from 1 to 2\n")
-        options.alignCores = 2
     if options.defaultDisk:
         if not options.preprocessDisk:
             options.preprocessDisk = options.defaultDisk
@@ -257,6 +253,17 @@ def get_jobstore(options, task=None):
     options.jobStoreCount += 1
     return js
 
+def get_log_options(options, task, event):
+    """ get a name of a logfile: this is only relevant for printed commands (ie not toil/wdl) """
+    if options.outDir:
+        log_base = os.path.join(options.outDir, 'logs')
+        try:
+            os.makedirs(log_base)
+        except:
+            pass
+        return ' --logFile {}'.format(os.path.join(log_base, '{}-{}.log'.format(task, event)))
+    return ''
+    
 def human2bytesN(s):
     if s is not None:
         sb = human2bytes(s)
@@ -442,15 +449,17 @@ def get_plan(options, inSeqFile, outSeqFile, configWrapper, toil):
                                                                           memory=options.preprocessMemory,
                                                                           disk=options.preprocessDisk)
         else:
-            plan += 'cactus-preprocess {} {} {} --inputNames {} {} {}{}\n'.format(
+            plan += 'cactus-preprocess {} {} {} --inputNames {} {} {}{}{}\n'.format(
                 get_jobstore(options), options.seqFile, options.outSeqFile, ' '.join(pre_batch),
                 options.cactusOptions, get_toil_resource_opts(options, 'preprocess'),
-                ' --gpu {}'.format(options.gpu) if options.gpu else '')
+                ' --gpu {}'.format(options.gpu) if options.gpu else '',
+                get_log_options(options, 'preprocess', leaves[i]))
 
     if options.preprocessOnly:
         plan += '\n## Cactus\n'
-        plan += 'cactus {} {} {} {}\n'.format(get_jobstore(options), options.outSeqFile,
-                                              options.outHal, options.cactusOptions)
+        plan += 'cactus {} {} {} {}{}\n'.format(get_jobstore(options), options.outSeqFile,
+                                                options.outHal, options.cactusOptions,
+                                                get_log_options(options, 'preprocess', 'all'))
         return plan
 
     # shedule up the alignments
@@ -497,7 +506,7 @@ def get_plan(options, inSeqFile, outSeqFile, configWrapper, toil):
         else:
             return os.path.join(options.outDir, event + '.hal')
     def cigarPath(event):
-        return os.path.join(options.outDir, event + '.cigar')
+        return os.path.join(options.outDir, event + '.paf')
 
     # alignment groups
     plan += '\n## Alignment\n'
@@ -543,14 +552,18 @@ def get_plan(options, inSeqFile, outSeqFile, configWrapper, toil):
                                                                                        disk=options.alignDisk)
             else:
                 # todo: support cactus interface (it's easy enough here, but cactus_progressive.py needs changes to handle)
-                cactus_options = options.cactusOptions + ' --includeRoot' if options.includeRoot and event == mc_tree.getRootName() else ''
-                plan += 'cactus-blast {} {} {} --root {} {} {}{}\n'.format(
+                cactus_options = options.cactusOptions
+                if options.includeRoot and event == mc_tree.getRootName():
+                    cactus_options += ' --includeRoot'
+                plan += 'cactus-blast {} {} {} --root {} {} {}{}{}\n'.format(
                     get_jobstore(options), options.outSeqFile, cigarPath(event), event,
                     cactus_options, get_toil_resource_opts(options, 'blast'),
-                    ' --gpu {}'.format(options.gpu) if options.gpu else '')
-                plan += 'cactus-align {} {} {} {} --root {} {} {} \n'.format(
+                    ' --gpu {}'.format(options.gpu) if options.gpu else '',
+                    get_log_options(options, 'blast', event))
+                plan += 'cactus-align {} {} {} {} --root {} {} {}{}\n'.format(
                     get_jobstore(options), options.outSeqFile, cigarPath(event), halPath(event), event,
-                    cactus_options, get_toil_resource_opts(options, 'align'))
+                    cactus_options, get_toil_resource_opts(options, 'align'),
+                    get_log_options(options, 'align', event))
                 # todo: just output the fasta in cactus-align.
                 plan += 'hal2fasta {} {} {} > {}\n'.format(halPath(event), event, options.halOptions, outSeqFile.pathMap[event])
 
@@ -568,7 +581,7 @@ def get_plan(options, inSeqFile, outSeqFile, configWrapper, toil):
         for event in group:
             if event != root:
                 if not options.toil and not options.wdl:
-                    plan += 'halAppendSubtree {} {} {} {} --merge {} --hdf5InMemory\n'.format(
+                    plan += 'halAppendSubtree {} {} {} {} --merge {}\n'.format(
                         halPath(root), halPath(event), event, event, options.halOptions)
                 append_count += 1
                 event_list.append(event)
@@ -733,7 +746,7 @@ def wdl_task_preprocess(options):
         s += '        gpuCount: {}\n'.format(options.gpu)
         s += '        bootDiskSizeGb: 20\n'
         s += '        nvidiaDriverVersion: \"{}\"\n'.format(options.nvidiaDriver)
-        s += '        docker: \"{}\"\n'.format(getDockerRelease(gpu=True))
+        s += '        docker: \"{}\"\n'.format(getDockerImage(gpu=True))
         s += '        zones: \"{}\"\n'.format(options.gpuZone)
     else:
         s += '        docker: \"{}\"\n'.format(options.dockerImage)
@@ -815,7 +828,7 @@ def wdl_task_blast(options):
         s += '        gpuCount: {}\n'.format(options.gpu)
         s += '        bootDiskSizeGb: 20\n'
         s += '        nvidiaDriverVersion: \"{}\"\n'.format(options.nvidiaDriver)
-        s += '        docker: \"{}\"\n'.format(getDockerRelease(gpu=True))
+        s += '        docker: \"{}\"\n'.format(getDockerImage(gpu=True))
         s += '        zones: \"{}\"\n'.format(options.gpuZone)
     else:
         s += '        docker: \"{}\"\n'.format(options.dockerImage)

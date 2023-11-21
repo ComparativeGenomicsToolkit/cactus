@@ -407,6 +407,7 @@ def get_plan_adding2node(
     jobStore,
     outSeqFile,
     cactus_prepare_options="",
+    remove_genome=None
 ):
     """
     A function that automatises the instructions at
@@ -478,6 +479,8 @@ def get_plan_adding2node(
             f"{halOptions} "
         )
     ]
+    if remove_genome:
+        update_cmds.insert(0, f"halRemoveGenome {out_hal} {remove_genome}")
 
     # adding HAL-file validating instructions
     validation_cmds = [f"halValidate --genome {genome} {in_hal} {halOptions}"]
@@ -692,6 +695,7 @@ def cactus_alignment_update(options):
     # A genome can be replaced (for example to update an assembly version) by
     # removing it and then following the "add-to-node" procedure to add the
     # new version back as a child of its parent.
+    remove_genome = None
     if "replace" == options.action:
 
         # grab parent_genome info before genome removal
@@ -718,10 +722,7 @@ def cactus_alignment_update(options):
         )
 
         # remove the genome for replacement
-        cactus_call(
-            check_output=False,
-            parameters=["halRemoveGenome", options.in_hal, options.genome],
-        )
+        remove_genome = options.genome
 
         # following the "add-to-node" procedure below to add it again
         options.action = "add"
@@ -741,6 +742,7 @@ def cactus_alignment_update(options):
                     options.jobStore,
                     options.outSeqFile,
                     options.cactus_prepare_options,
+                    remove_genome=remove_genome
                 )
             )
 

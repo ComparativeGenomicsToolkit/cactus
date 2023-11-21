@@ -17,6 +17,7 @@ from cactus.shared.common import findRequiredNode
 from cactus.shared.common import getOptionalAttrib
 from cactus.shared.common import cactus_cpu_count
 from toil.lib.accelerators import count_nvidia_gpus
+from toil import physicalMemory
 
 class ConfigWrapper:
     defaultOutgroupStrategy = 'none'
@@ -91,14 +92,6 @@ class ConfigWrapper:
             maxNumOutgroups = int(ogElem.attrib["max_num_outgroups"])
         return maxNumOutgroups
 
-    def getDoSelfAlignment(self):
-        decompElem = self.getDecompositionElem()
-        doSelf = self.defaultDoSelf
-        if decompElem is not None and "self_alignment" in decompElem.attrib:
-            doSelf = decompElem.attrib["self_alignment"].lower()
-        assert doSelf == "true" or doSelf == "false"
-        return doSelf == "true"
-
     def getDefaultInternalNodePrefix(self):
         decompElem = self.getDecompositionElem()
         prefix = self.defaultInternalNodePrefix
@@ -107,6 +100,13 @@ class ConfigWrapper:
             prefix = decompElem.attrib["default_internal_node_prefix"]
         assert len(prefix) > 0
         return prefix
+
+    def getDefaultBranchLen(self, pangenome=False):
+        decompElem = self.getDecompositionElem()
+        if pangenome:
+            return float(decompElem.attrib["default_branch_len_pangenome"])
+        else:
+            return float(decompElem.attrib["default_branch_len"])
 
     def getBuildHal(self):
         halElem = self.xmlRoot.find("hal")
@@ -134,21 +134,6 @@ class ConfigWrapper:
         assert halElem is not None
         halElem.attrib["buildFasta"] = str(int(buildFasta))
 
-    def getMaxParallelSubtrees(self):
-        decompElem = self.getDecompositionElem()
-        maxParallelSubtrees = self.defaultMaxParallelSubtrees
-        if decompElem is not None and\
-               "max_parallel_subtrees" in decompElem.attrib:
-            maxParallelSubtrees = int(
-                decompElem.attrib["max_parallel_subtrees"])
-        assert maxParallelSubtrees > 0
-        return maxParallelSubtrees
-
-    def setMaxParallelSubtrees(self, maxParallel):
-        decompElem = self.getDecompositionElem()
-        assert decompElem is not None
-        decompElem.attrib["max_parallel_subtrees"] = str(maxParallel)
-
     def getKtserverMemory(self, default=sys.maxsize):
         ktServerElem = self.xmlRoot.find("ktserver")
         if ktServerElem is not None and "memory" in ktServerElem.attrib:
@@ -165,13 +150,17 @@ class ConfigWrapper:
         constantsElem = self.xmlRoot.find("constants")
         return int(constantsElem.attrib["defaultMemory"])
 
-    def getExportHalDisk(self):
-        exportHalElem = self.xmlRoot.find("exportHal")
-        return int(exportHalElem.attrib["disk"])
-
-    def substituteAllPredefinedConstantsWithLiterals(self):
+    def substituteAllPredefinedConstantsWithLiterals(self, options):
         constants = findRequiredNode(self.xmlRoot, "constants")
         defines = constants.find("defines")
+        if options.binariesMode in ['docker', 'singularity']:
+            # hack to boost default memory to 4 Gigs when using docker            
+            for attrib_name in defines.attrib:
+                if attrib_name.endswith('Memory'):
+                    mem_val = int(defines.attrib[attrib_name])
+                    assert not options.defaultMemory or isinstance(options.defaultMemory, int)
+                    mem_val = max(mem_val, options.defaultMemory if options.defaultMemory else 2**32)
+                    defines.attrib[attrib_name] = str(mem_val)
         def replaceAllConstants(node, defines):
             for attrib in node.attrib:
                 if node.attrib[attrib] in defines.attrib:
@@ -252,6 +241,8 @@ class ConfigWrapper:
             for node in self.xmlRoot.findall("preprocessor"):
                 if getOptionalAttrib(node, "preprocessJob") == "lastzRepeatMask":
                     node.attrib["gpu"] = str(options.gpu)
+            if 'latest' in options and options.latest:
+                raise RuntimeError('--latest cannot be used with --gpu')
             
         # we need to make sure that gpu is set to an integer (replacing 'all' with a count)
         def get_gpu_count():
@@ -291,19 +282,38 @@ class ConfigWrapper:
                     raise RuntimeError('Invalid value for repeatmask gpu count, {}. Please specify a numeric value with --gpu'.format(lastz_gpu))
                 node.attrib["gpu"] = str(pp_gpu)
 
-        # segalign still can't contorl the number of cores it uses (!).  So we give all available on
-        # single machine.  
+        if 'lastzCores' not in options:
+            options.lastzCores = None
+        if 'lastzMemory' not in options:
+            options.lastzMemory = None            
+        lastz_cores = options.lastzCores if options.lastzCores else None
+            
         if getOptionalAttrib(findRequiredNode(self.xmlRoot, "blast"), 'gpu', typeFn=int, default=0):
-            # single machine: we give all the cores to segalign
-            if options.batchSystem.lower() in ['single_machine', 'singlemachine']:
-                if options.maxCores is not None:
-                    lastz_cores = options.maxCores
+            if not lastz_cores:
+                # segalign still can't contorl the number of cores it uses (!).  So we give all available on
+                # single machine.  
+                if options.batchSystem.lower() in ['single_machine', 'singlemachine']:
+                    if options.maxCores is not None:
+                        lastz_cores = options.maxCores
+                    else:
+                        lastz_cores = cactus_cpu_count()
                 else:
-                    lastz_cores = cactus_cpu_count()
-            else:
-                # todo: segalign can't control number of cores
-                lastz_cores = None
+                    raise RuntimeError('--lastzCores must be used with --gpu on non-singlemachine batch systems')
+
+        # override blast cores and memory if specified
+        if lastz_cores:
             findRequiredNode(self.xmlRoot, "blast").attrib["cpu"] = str(lastz_cores)
+        if options.lastzMemory:
+            findRequiredNode(self.xmlRoot, "blast").attrib["lastz_memory"] = str(options.lastzMemory)
+
+        # override preprocess-repeatmask cores and memory if specified
+        for node in self.xmlRoot.findall("preprocessor"):
+            if getOptionalAttrib(node, "preprocessJob") == "lastzRepeatMask":
+                if lastz_cores:
+                    node.attrib["cpu"] = str(lastz_cores)
+                if options.lastzMemory:
+                    # there is already a general "memory" option, but we need something lastz-specific
+                    node.attrib["lastz_memory"] = str(options.lastzMemory)
                     
         # make absolutely sure realign is never turned on with the gpu.  they don't work together because
         # realign requires small chunks, and segalign needs big chunks
@@ -315,3 +325,12 @@ class ConfigWrapper:
             findRequiredNode(self.xmlRoot, "blast").attrib["realign"] = "0"
 
 
+    def setSystemMemory(self, options):
+        """ hide the amount of memory available (on single machine) in the config
+        so we can make sure to never request more for big jobs """
+        if options.batchSystem in ['single_machine', 'singleMachine']:
+            constants = findRequiredNode(self.xmlRoot, "constants")
+            constants.set('system_memory', str(physicalMemory()))
+
+    def getSystemMemory(self):
+        return getOptionalAttrib(findRequiredNode(self.xmlRoot, 'constants'), 'system_memory', typeFn=int, default=None)

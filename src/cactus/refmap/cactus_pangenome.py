@@ -37,6 +37,7 @@ from toil.statsAndLogging import logger
 from toil.statsAndLogging import set_logging_from_options
 from toil.realtimeLogger import RealtimeLogger
 from cactus.shared.common import cactus_cpu_count
+from cactus.progressive.cactus_prepare import human2bytesN
 
 from cactus.refmap.cactus_minigraph import minigraph_construct_workflow
 from cactus.refmap.cactus_minigraph import check_sample_names
@@ -55,9 +56,14 @@ def main():
     parser.add_argument("--reference", required=True, nargs='+', type=str, help = "Reference event name(s). The first will be the \"true\" reference and will be left unclipped and uncollapsed. It also should have been used with --reference in all upstream commands. Other names will be promoted to reference paths in vg") 
 
     # cactus-minigraph options
-    parser.add_argument("--mapCores", type=int, help = "Number of cores for minigraph.  Overrides graphmap cpu in configuration")
+    parser.add_argument("--mgCores", type=int, help = "Number of cores for minigraph construction (defaults to the same as --maxCores).")
+    parser.add_argument("--mgMemory", type=human2bytesN,
+                        help="Memory in bytes for the minigraph construction job (defaults to an estimate based on the input data size). "
+                        "Standard suffixes like K, Ki, M, Mi, G or Gi are supported (default=bytes))", default=None)       
 
     # cactus-graphmap options
+    parser.add_argument("--mapCores", type=int, help = "Number of cores for minigraph map.  Overrides graphmap cpu in configuration")
+    
     parser.add_argument("--delFilter", type=int, help = "Filter out split-mapping-implied deletions > Nbp (default will be \"delFilter\" from the config")
     
     # cactus-graphmap-split options
@@ -70,7 +76,10 @@ def main():
                         help="Only align up to this many bases (overrides <bar bandingLimit> and <caf maxRecoverableChainLength> in configuration)[default=10000]")
     parser.add_argument("--consCores", type=int, 
                         help="Number of cores for each cactus_consolidated job (defaults to all available / maxCores on single_machine)", default=None)
-
+    parser.add_argument("--consMemory", type=human2bytesN,
+                        help="Memory in bytes for each cactus_consolidated job (defaults to an estimate based on the input data size). "
+                        "Standard suffixes like K, Ki, M, Mi, G or Gi are supported (default=bytes))", default=None)   
+    
     # cactus-graphmap-join options
     graphmap_join_options(parser)
 
@@ -161,7 +170,7 @@ def main():
             # load up the seqfile
             config_node = ET.parse(options.configFile).getroot()
             config_wrapper = ConfigWrapper(config_node)
-            config_wrapper.substituteAllPredefinedConstantsWithLiterals()
+            config_wrapper.substituteAllPredefinedConstantsWithLiterals(options)
             graph_event = getOptionalAttrib(findRequiredNode(config_node, "graphmap"), "assemblyName", default="_MINIGRAPH_")
 
             # load the seqfile
@@ -178,11 +187,19 @@ def main():
             if options.batchSystem.lower() in ['single_machine', 'singleMachine']:
                 mg_cores = min(mg_cores, cactus_cpu_count(), int(options.maxCores) if options.maxCores else sys.maxsize)
                 findRequiredNode(config_node, "graphmap").attrib["cpu"] = str(mg_cores)
-            
+
+            if options.batchSystem.lower() in ['single_machine', 'singleMachine']:
+                if not options.mgCores:
+                    options.mgCores = sys.maxsize
+                options.mgCores = min(options.mgCores, cactus_cpu_count(), int(options.maxCores) if options.maxCores else sys.maxsize)
+            else:
+                if not options.mgCores:
+                    raise RuntimeError("--mgCores required run *not* running on single machine batch system")
+                        
             #import the sequences
             input_seq_id_map = {}
             input_path_map = {}
-            input_seq_order = [options.reference[0]]
+            input_seq_order = copy.deepcopy(options.reference)
             leaves = set([seqFile.tree.getName(node) for node in seqFile.tree.getLeaves()])
             for (genome, seq) in input_seq_map.items():
                 if genome != graph_event and genome in leaves:                
@@ -194,7 +211,7 @@ def main():
                     logger.info("Importing {}".format(seq))
                     input_seq_id_map[genome] = toil.importFile(seq)
                     input_path_map[genome] = seq
-                    if genome != options.reference[0]:
+                    if genome not in options.reference:
                         input_seq_order.append(genome)
             
             toil.start(Job.wrapJobFn(pangenome_end_to_end_workflow, options, config_wrapper, input_seq_id_map, input_path_map, input_seq_order))
@@ -212,11 +229,12 @@ def export_graphmap_wrapper(job, options, paf_id, paf_path, gaf_id, unfiltered_p
     paf_path = os.path.join(options.outDir, os.path.basename(paf_path))
     job.fileStore.exportFile(paf_id, makeURL(paf_path))
     if gaf_id:
-        gaf_name = os.path.splitext(os.path.basename(paf_path))[0]
+        gaf_name = os.path.splitext(os.path.basename(paf_path))[0] + '.gaf.gz'
         job.fileStore.exportFile(gaf_id, makeURL(os.path.join(options.outDir, gaf_name)))
     if unfiltered_paf_id:
-        job.fileStore.exportFile(paf_id, makeURL(paf_path + '.unfiltered.gz'))
+        job.fileStore.exportFile(unfiltered_paf_id, makeURL(paf_path + '.unfiltered.gz'))
         job.fileStore.exportFile(paf_filter_log, makeURL(paf_path + '.filter.log'))
+        
 
 def update_seqfile(job, options, seq_id_map, seq_path_map, seq_order, gfa_fa_id, gfa_fa_path, graph_event):
     """ put the minigraph gfa.fa file into the seqfile and export both """
@@ -252,7 +270,7 @@ def make_batch_align_jobs_wrapper(job, options, chromfile_path, config_wrapper):
     align_jobs = make_batch_align_jobs(options, job.fileStore, job.fileStore, config_wrapper)
     return align_jobs
     
-def export_align_wrapper(job, options, results_dict, reference_list):
+def export_align_wrapper(job, options, results_dict):
     """ toil job wrapper for exporting from cactus_align """
     vg_ids = []
     vg_paths = []
@@ -262,7 +280,7 @@ def export_align_wrapper(job, options, results_dict, reference_list):
     if not chrom_dir.startswith('s3://') and not os.path.isdir(chrom_dir):
         os.makedirs(chrom_dir)
 
-    for chrom, results in results_dict.items():
+    for chrom, results in sorted(results_dict.items()):
         hal_path = makeURL(os.path.join(chrom_dir, '{}.hal'.format(chrom)))
         vg_path = makeURL(os.path.join(chrom_dir, '{}.vg'.format(chrom)))
         job.fileStore.exportFile(results[0], hal_path)
@@ -275,13 +293,12 @@ def export_align_wrapper(job, options, results_dict, reference_list):
     join_options = options
     join_options.hal = hal_paths
     join_options.vg = vg_paths
-    join_options.reference = reference_list
 
     return join_options, vg_ids, hal_ids
 
 def export_join_wrapper(job, options, wf_output):
     """ toil join wrapper for cactus_graphmap_join """
-    export_join_data(job.fileStore, options, wf_output[0], wf_output[1], wf_output[2], wf_output[3], wf_output[4])
+    export_join_data(job.fileStore, options, wf_output[0], wf_output[1], wf_output[2], wf_output[3], wf_output[4], wf_output[5])
 
 def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_path_map, seq_order):
     """ chain the entire workflow together, doing exports after each step to mitigate annoyance of failures """
@@ -289,20 +306,16 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
     job.addChild(root_job)
     config_node = config_wrapper.xmlRoot
 
-    # it's really only graphmap_join that can accept (or use) multiple references
-    # so we forget about it until then
-    assert type(options.reference) == list
-    reference_list = options.reference
-    options.reference = options.reference[0]
-
     # sanitize headers (once here, skip in all workflows below)
     sanitize_job = root_job.addFollowOnJobFn(sanitize_fasta_headers, seq_id_map, pangenome=True)
     seq_id_map = sanitize_job.rv()
-    
+
+    assert type(options.reference) == list
+
     # cactus_minigraph
     sv_gfa_path = os.path.join(options.outDir, options.outName + '.sv.gfa.gz')
-    
-    minigraph_job = sanitize_job.addFollowOnJobFn(minigraph_construct_workflow, config_node, seq_id_map, seq_order, sv_gfa_path, sanitize=False)
+
+    minigraph_job = sanitize_job.addFollowOnJobFn(minigraph_construct_workflow, options, config_node, seq_id_map, seq_order, sv_gfa_path, sanitize=False)
     sv_gfa_id = minigraph_job.rv()
     minigraph_job.addFollowOnJobFn(export_minigraph_wrapper, options, sv_gfa_id, sv_gfa_path)
 
@@ -323,7 +336,7 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
 
     # cactus_graphmap_split
     split_job = update_seqfile_job.addFollowOnJobFn(graphmap_split_workflow, options, config_wrapper, seq_id_map, seq_name_map, sv_gfa_id,
-                                                    sv_gfa_path, paf_id, paf_path, options.refContigs, options.otherContig, sanitize=False)
+                                                    sv_gfa_path, paf_id, paf_path, sanitize=False)
 
     wf_output = split_job.rv()
     split_out_path = os.path.join(options.outDir, 'chrom-subproblems')    
@@ -336,7 +349,7 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
     align_jobs = align_jobs_make_job.rv()
     align_job = align_jobs_make_job.addFollowOnJobFn(batch_align_jobs, align_jobs)
     results_dict = align_job.rv()
-    align_export_job = align_job.addFollowOnJobFn(export_align_wrapper, options, results_dict, reference_list)
+    align_export_job = align_job.addFollowOnJobFn(export_align_wrapper, options, results_dict)
     join_options, vg_ids, hal_ids = align_export_job.rv(0), align_export_job.rv(1), align_export_job.rv(2)
 
     # cactus_graphmap_join

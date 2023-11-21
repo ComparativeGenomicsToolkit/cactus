@@ -1,6 +1,8 @@
 # Updating Cactus alignments
 This document provides examples of how to use `cactus-update-prepare`, a wrapper tool of `cactus-prepare` yielding a list of command-lines to update cactus alignments in a step-by-step fashion. 
 
+**Important: back up your alignment file before attempting any of these operations. If something goes wrong, the file may be completely unrecoverable.**
+
 ## EvolverPrimates Example
 Before show examples of updating an alignment, let's create an alignment first using the evolverMammals [example](https://raw.githubusercontent.com/ComparativeGenomicsToolkit/cactus/master/examples/evolverMammals.txt) as follows:
 
@@ -161,6 +163,7 @@ cactus-blast ./jobstore/2 ./steps/seq_file.out ./steps/Anc1.cigar --root Anc1 --
 cactus-align ./jobstore/3 ./steps/seq_file.out ./steps/Anc1.cigar ./steps/Anc1.hal --root Anc1 --realTimeLogging --logInfo --retryCount 0 --maxCores 2 --includeRoot 
 
 ## Alignment update
+halRemoveGenome  ./steps/Anc1.hal simHuman_chr6
 halReplaceGenome --bottomAlignmentFile ./steps/Anc1.hal --topAlignmentFile ./evolverMammals.hal ./evolverMammals.hal Anc1 --hdf5InMemory 
 
 ## Alignment validation

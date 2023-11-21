@@ -1,0 +1,6 @@
+(Gorilla_gorilla:0.00993,((Pan_troglodytes:0.00272,Pan_paniscus:0.00269)cb:0.00415,hs1:0.00644)hcb:0.00046);
+
+Gorilla_gorilla https://raw.githubusercontent.com/ComparativeGenomicsToolkit/cactusTestData/master/T2T_primate_PAR/mGorGor1_XY_1_15000000.fa
+Pan_troglodytes https://raw.githubusercontent.com/ComparativeGenomicsToolkit/cactusTestData/master/T2T_primate_PAR/mPanTro3_XY_1_5000000.fa
+Pan_paniscus https://raw.githubusercontent.com/ComparativeGenomicsToolkit/cactusTestData/master/T2T_primate_PAR/mPanPan1_XY_1_5000000.fa
+hs1 https://raw.githubusercontent.com/ComparativeGenomicsToolkit/cactusTestData/master/T2T_primate_PAR/hs1_XY_1_5000000.fa

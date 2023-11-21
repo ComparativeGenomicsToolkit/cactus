@@ -12,11 +12,12 @@ Cactus is a reference-free whole-genome alignment program, as well as a pagenome
 
 * See the [Progressive Cactus documenation](doc/progressive.md)
 * Please cite the [Progressive Cactus paper](https://doi.org/10.1038/s41586-020-2871-y) when using Cactus.  Additional descriptions of the core algorithms can be found [here](https://doi.org/10.1101/gr.123356.111) and [here](https://doi.org/10.1089/cmb.2010.0252).
+* Please cite the [HAL paper](https://doi.org/10.1093/bioinformatics/btt128) when using HAL tools. 
 
 ## Align Genomes from the Same Species and Build Pangenome Graphs 
 
 * See the [Minigraph-Cactus Pangenome Pipeline documenatation](doc/pangenome.md)
-* Please cite the [Minigraph-Cactus paper](https://doi.org/10.1101/2022.10.06.511217).
+* Please cite the [Minigraph-Cactus paper](https://doi.org/10.1038/s41587-023-01793-w).
 
 ## Acknowledgements
 
@@ -31,6 +32,7 @@ Cactus uses many different algorithms and individual code contributions, princip
 - Dany Doerr for [GFAffix](https://github.com/marschall-lab/GFAffix), used to optionally clean pangenome graphs.
 - The vg team for [vg](https://github.com/vgteam/vg), used to process pangenome graphs.
 - The authors of [Mash](https://github.com/marbl/Mash)
+- Andrea Guarracino, Erik Garrison and co-authors for [odgi](https://github.com/pangenome/odgi). Make sure to [cite odgi](https://doi.org/10.1093/bioinformatics/btac308) when using it or its visualizations. 
 
 ## Mailing List
 
@@ -52,14 +54,14 @@ virtualenv -p python3 cactus_env
 echo "export PATH=$(pwd)/bin:\$PATH" >> cactus_env/bin/activate
 echo "export PYTHONPATH=$(pwd)/lib:\$PYTHONPATH" >> cactus_env/bin/activate
 source cactus_env/bin/activate
-python3 -m pip install -U setuptools pip
+python3 -m pip install -U setuptools pip wheel
 python3 -m pip install -U .
 python3 -m pip install -U -r ./toil-requirement.txt
 ```
 
 If you have Docker installed, you can now run Cactus.  All binaries, such as `lastz` and `cactus-consolidated` will be run via Docker.  Singularity binaries can be used in place of docker binaries with the `--binariesMode singularity` flag.  Note, you must use Singularity 2.3 - 2.6 or Singularity 3.1.0+. Singularity 3 versions below 3.1.0 are incompatible with cactus (see [issue #55](https://github.com/ComparativeGenomicsToolkit/cactus/issues/55) and [issue #60](https://github.com/ComparativeGenomicsToolkit/cactus/issues/60)).
 
-By default, cactus will use the image, `quay.io/comparative-genomics-toolkit/cactus:<CACTUS_COMMIT>` when running binaries. This is usually okay, but can be overridden with the `CACTUS_DOCKER_ORG` and `CACTUS_DOCKER_TAG` environment variables.  For example, to use GPU release 2.4.4, run `export CACTUS_DOCKER_TAG=v2.4.4-gpu` before running cactus.
+By default, cactus will use the image corresponding to the latest release when running docker binaries. This is usually okay, but can be overridden with the `CACTUS_DOCKER_ORG` and `CACTUS_DOCKER_TAG` environment variables.  For example, to use GPU release 2.4.4, run `export CACTUS_DOCKER_TAG=v2.4.4-gpu` before running cactus.
 
 ### Compiling Binaries Locally
 In order to compile the binaries locally and not use a Docker image, you need some dependencies installed.  On Ubuntu (we've tested on 20.04 and 22.04), you can look at the [Cactus Dockerfile](./Dockerfile) for guidance. To obtain the `apt-get` command:
@@ -76,6 +78,11 @@ make -j 8
 In order to run the Minigraph-Cactus pipeline, you must also run
 ```
 build-tools/downloadPangenomeTools
+```
+
+If you want to work with MAF, including running `cactus-hal2maf`, you must also run
+```
+build-tools/downloadMafTools
 ```
 
 In order to toggle between local and Docker binaries, use the `--binariesMode` command line option. If `--binariesMode` is not specified, local binaries will be used if found in `PATH`, otherwise a Docker image will be used.

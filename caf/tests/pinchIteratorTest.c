@@ -66,10 +66,13 @@ static stList *getRandomPairwiseAlignments() {
         paf->same_strand = st_random() > 0.5;
         int64_t i = paf->query_start, j = paf->target_start;
         Cigar **pc = &(paf->cigar);
+        CigarOp p_op_type = query_delete; // This is a fudge to ensure that we don't end up with two matches in succession
+        // in the cigar - because the pinch iterator will smush them together
         do {
             Cigar *c = st_calloc(1, sizeof(Cigar));
             c->length = st_randomInt(1, 10);
-            c->op = st_random() > 0.3 ? (st_random() > 0.5 ? match : query_insert): query_delete;
+            c->op = st_random() > 0.3 ? ((st_random() > 0.5 && p_op_type != match) ? match : query_insert): query_delete;
+            p_op_type = c->op;
             if (c->op != query_delete) {
                 i += c->length;
             }

@@ -1,4 +1,6 @@
-simHuman	https://raw.githubusercontent.com/ComparativeGenomicsToolkit/cactusTestData/master/evolver/primates/loci1/simHuman.chr6
-simChimp	https://raw.githubusercontent.com/ComparativeGenomicsToolkit/cactusTestData/master/evolver/primates/loci1/simChimp.chr6
-simGorilla	https://raw.githubusercontent.com/ComparativeGenomicsToolkit/cactusTestData/master/evolver/primates/loci1/simGorilla.chr6
+(simOrang:0.00993,((simChimp:0.00272,simHuman:0.00269)cb:0.00415,simGorilla:0.00644)hcb:0.00046);
+
 simOrang	https://raw.githubusercontent.com/ComparativeGenomicsToolkit/cactusTestData/master/evolver/primates/loci1/simOrang.chr6
+simChimp	https://raw.githubusercontent.com/ComparativeGenomicsToolkit/cactusTestData/master/evolver/primates/loci1/simChimp.chr6
+simHuman	https://raw.githubusercontent.com/ComparativeGenomicsToolkit/cactusTestData/master/evolver/primates/loci1/simHuman.chr6
+simGorilla	https://raw.githubusercontent.com/ComparativeGenomicsToolkit/cactusTestData/master/evolver/primates/loci1/simGorilla.chr6

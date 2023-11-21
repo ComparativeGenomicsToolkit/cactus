@@ -49,7 +49,7 @@ def main():
     parser.add_argument("--maskFilter", type=int, help = "Ignore softmasked sequence intervals > Nbp (overrides config option of same name)")
     parser.add_argument("--delFilter", type=int, help = "Filter out split-mapping-implied deletions > Nbp (default will be \"delFilter\" from the config")
     parser.add_argument("--outputGAFDir", type=str, help = "Output GAF alignments (raw minigraph output before PAF conversion) to this directory")
-    parser.add_argument("--reference", type=str, help = "Reference genome name.  MAPQ filter will not be applied to it")
+    parser.add_argument("--reference", nargs='+', type=str, help = "Reference genome name.  MAPQ filter will not be applied to it")
     parser.add_argument("--refFromGFA", action="store_true", help = "Do not align reference (--reference) from seqfile, and instead extract its alignment from the rGFA tags (must have been used as reference for minigraph GFA construction)")
     parser.add_argument("--mapCores", type=int, help = "Number of cores for minigraph.  Overrides graphmap cpu in configuration")    
 
@@ -85,6 +85,10 @@ def main():
            len(options.pathOverrideNames) != len(options.pathOverrides):
             raise RuntimeError('same number of values must be passed to --pathOverrides and --pathOverrideNames')
 
+    # support but ignore multi reference
+    if options.reference:
+        options.reference = options.reference[0]
+
     # Mess with some toil options to create useful defaults.
     cactus_override_toil_options(options)
 
@@ -107,8 +111,8 @@ def graph_map(options):
             paf_id, gfa_fa_id, gaf_id, unfiltered_paf_id, paf_filter_log = toil.restart()            
         else:
             # load up the seqfile and figure out the outgroups and schedule
-            config_wrapper.substituteAllPredefinedConstantsWithLiterals()
-            mc_tree, input_seq_map, og_candidates = parse_seqfile(options.seqFile, config_wrapper)
+            config_wrapper.substituteAllPredefinedConstantsWithLiterals(options)
+            mc_tree, input_seq_map, og_candidates = parse_seqfile(options.seqFile, config_wrapper, pangenome=True)
             og_map = compute_outgroups(mc_tree, config_wrapper, set(og_candidates))
             event_set = get_event_set(mc_tree, config_wrapper, og_map, mc_tree.getRootName())
 
@@ -204,6 +208,10 @@ def minigraph_workflow(job, options, config, seq_id_map, gfa_id, graph_event, sa
     fa_id = None
     gfa_id_size = gfa_id.size
 
+    # can be a list coming in from cactus-pangenome, but we only need first item
+    if type(options.reference) is list:
+        options.reference = options.reference[0]
+
     root_job = Job()
     job.addChild(root_job)
 
@@ -213,13 +221,16 @@ def minigraph_workflow(job, options, config, seq_id_map, gfa_id, graph_event, sa
     if sanitize:
         sanitize_job = root_job.addChildJobFn(sanitize_fasta_headers, seq_id_map, pangenome=True)
         seq_id_map = sanitize_job.rv()
-    
+
+    zipped_gfa = options.minigraphGFA.endswith('.gz')
     if options.outputFasta:
         # convert GFA to fasta
-        fa_job = root_job.addChildJobFn(make_minigraph_fasta, gfa_id, options.outputFasta, graph_event, cores = mg_cores)
+        scale = 5 if zipped_gfa else 1
+        fa_job = root_job.addChildJobFn(make_minigraph_fasta, gfa_id, options.outputFasta, graph_event,
+                                        disk=scale*2*gfa_id.size, memory=2*scale*gfa_id.size)
         fa_id = fa_job.rv()
 
-    if options.minigraphGFA.endswith('.gz'):
+    if zipped_gfa:
         # gaf2paf needs unzipped gfa, so we take care of that upfront
         gfa_unzip_job = root_job.addChildJobFn(unzip_gz, options.minigraphGFA, gfa_id, disk=5*gfa_id.size)
         gfa_id = gfa_unzip_job.rv()
@@ -233,7 +244,7 @@ def minigraph_workflow(job, options, config, seq_id_map, gfa_id, graph_event, sa
         # if --refFromGFA is specified, we get the entire alignment from that, otherwise we just take contigs
         # that didn't get mapped by anything else
         gfa2paf_job = Job.wrapJobFn(extract_paf_from_gfa, gfa_id, options.minigraphGFA, options.reference, graph_event, paf_job.rv(0) if not options.refFromGFA else None,
-                                    disk=gfa_id_size)
+                                    disk=gfa_id_size, memory=gfa_id_size)
         if options.refFromGFA:
             root_job.addChild(gfa2paf_job)
         else:
@@ -256,7 +267,8 @@ def minigraph_workflow(job, options, config, seq_id_map, gfa_id, graph_event, sa
         del_size_threshold = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "delFilterQuerySizeThreshold", float, default=None)
         del_filter_job = prev_job.addFollowOnJobFn(filter_paf_deletions, out_paf_id, gfa_id, del_filter, del_filter_threshold,
                                                    del_size_threshold,
-                                                   disk=gfa_id_size, cores=mg_cores)
+                                                   disk=8*gfa_id_size, cores=mg_cores,
+                                                   memory=16*gfa_id_size)
         unfiltered_paf_id = prev_job.addFollowOnJobFn(zip_gz, 'mg.paf.unfiltered', out_paf_id, disk=gfa_id_size).rv()
         out_paf_id = del_filter_job.rv(0)
         filtered_paf_log = del_filter_job.rv(1)
@@ -306,7 +318,8 @@ def minigraph_map_all(job, config, gfa_id, fa_id_map, graph_event):
     for event, fa_id in fa_id_map.items():
         minigraph_map_job = top_job.addChildJobFn(minigraph_map_one, config, event, fa_id, gfa_id,
                                                   # todo: estimate RAM
-                                                  cores=mg_cores, disk=5 * fa_id.size + gfa_id.size)
+                                                  cores=mg_cores, disk=5*fa_id.size + gfa_id.size,
+                                                  memory=72*fa_id.size + 2*gfa_id.size)
         gaf_id_map[event] = minigraph_map_job.rv(0)
         paf_id_map[event] = minigraph_map_job.rv(1)
 
@@ -350,7 +363,7 @@ def minigraph_map_one(job, config, event_name, fa_file_id, gfa_file_id):
     # run minigraph mapping
     cmd += [["minigraph", gfa_path, fa_path, "-o", gaf_path] + opts_list]
 
-    cactus_call(parameters=cmd)
+    cactus_call(parameters=cmd, job_memory=job.memory)
 
     # convert the gaf into unstable gaf (targets are node sequences)
     # note: the gfa needs to be uncompressed for this tool to work
@@ -368,7 +381,7 @@ def minigraph_map_one(job, config, event_name, fa_file_id, gfa_file_id):
     if overlap_ratio or overlap_filter_len:
         cmd = [cmd, ['gaffilter', '-', '-r', str(overlap_ratio), '-m', str(length_ratio), '-q', str(min_mapq),
                      '-b', str(min_block), '-o', str(overlap_filter_len), '-i', str(min_ident)]]
-    cactus_call(parameters=cmd, outfile=unstable_gaf_path)
+    cactus_call(parameters=cmd, outfile=unstable_gaf_path, job_memory=job.memory)
 
     # convert the unstable gaf into unstable paf, which is what cactus expects
     # also tack on the unique id to the target column
@@ -376,7 +389,7 @@ def minigraph_map_one(job, config, event_name, fa_file_id, gfa_file_id):
     unstable_paf_path = unstable_gaf_path + '.paf'
     unstable_paf_cmd = [['gaf2paf', unstable_gaf_path, '-l', mg_lengths_path],
                         ['awk', 'BEGIN{{OFS=\"	\"}} {{$6="id={}|"$6; print}}'.format(graph_event)]]
-    cactus_call(parameters=unstable_paf_cmd, outfile=unstable_paf_path)
+    cactus_call(parameters=unstable_paf_cmd, outfile=unstable_paf_path, job_memory=job.memory)
 
     # return the stable gaf (minigraph output) and the unstable paf
     return job.fileStore.writeGlobalFile(gaf_path), job.fileStore.writeGlobalFile(unstable_paf_path)
@@ -416,7 +429,7 @@ def extract_paf_from_gfa(job, gfa_id, gfa_path, ref_event, graph_event, ignore_p
     cactus_call(parameters=cmd, outfile=paf_path)
     return job.fileStore.writeGlobalFile(paf_path)
 
-def filter_paf(job, paf_id, config):
+def filter_paf(job, paf_id, config, reference=None):
     """ run basic paf-filtering.  these are quick filters that are best to do on-the-fly when reading the paf and 
         as such, they are called by cactus-graphmap-split and cactus-align, not here """
     work_dir = job.fileStore.getLocalTempDir()
@@ -431,6 +444,7 @@ def filter_paf(job, paf_id, config):
     with open(paf_path, 'r') as paf_file, open(filter_paf_path, 'w') as filter_paf_file:
         for line in paf_file:
             toks = line.split('\t')
+            is_ref = reference and toks[0].startswith('id={}|'.format(reference))
             mapq = int(toks[11])
             query_len = int(toks[1])
             ident = float(toks[9]) / (float(toks[10]) + 0.00000001)
@@ -443,7 +457,7 @@ def filter_paf(job, paf_id, config):
                 # we can also get the identity of the parent gaf block 
                 if tok.startswith('gi:i:'):
                     ident = min(ident, float(toks[5:]))
-            if mapq >= min_mapq and (bl is None or query_len <= min_block or bl >= min_block) and ident >= min_ident:
+            if is_ref or (mapq >= min_mapq and (bl is None or query_len <= min_block or bl >= min_block) and ident >= min_ident):
                 filter_paf_file.write(line)
 
     overlap_ratio = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "PAFOverlapFilterRatio", typeFn=float, default=0)
@@ -452,7 +466,7 @@ def filter_paf(job, paf_id, config):
         overlap_filter_paf_path = filter_paf_path + ".overlap"
         cactus_call(parameters=['gaffilter', filter_paf_path, '-p', '-r', str(overlap_ratio), '-m', str(length_ratio),
                                 '-b', str(min_block), '-q', str(min_mapq), '-i', str(min_ident)],
-                    outfile=overlap_filter_paf_path)
+                    outfile=overlap_filter_paf_path, job_memory=job.memory)
         filter_paf_path = overlap_filter_paf_path
 
     return job.fileStore.writeGlobalFile(filter_paf_path)    
@@ -470,7 +484,7 @@ def filter_paf_deletions(job, paf_id, gfa_id, max_deletion, filter_threshold, fi
     trans_path = gfa_path + '.trans'
 
     cactus_call(parameters = ['vg', 'convert', '-r', '0', '-g', gfa_path, '-p', '-T', trans_path],
-                outfile=vg_path)
+                outfile=vg_path, job_memory=job.memory)
 
     # call filter-paf-deletionts
     filter_paf_path = paf_path + ".filter"
@@ -480,7 +494,7 @@ def filter_paf_deletions(job, paf_id, gfa_id, max_deletion, filter_threshold, fi
         filter_paf_cmd += ['-m', str(filter_threshold)]
     if filter_query_size_threshold:
         filter_paf_cmd += ['-s', str(filter_query_size_threshold)]
-    filter_stdout, filter_stderr = cactus_call(parameters=filter_paf_cmd, check_output=True, returnStdErr=True)
+    filter_stdout, filter_stderr = cactus_call(parameters=filter_paf_cmd, check_output=True, returnStdErr=True, job_memory=job.memory)
     with open(filter_log_path, 'w') as filter_log_file:
         for line in filter_stderr:
             filter_log_file.write(line)            

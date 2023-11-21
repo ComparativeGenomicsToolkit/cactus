@@ -8,6 +8,7 @@ import xml.etree.ElementTree as ET
 import copy
 import timeit
 import shutil
+import re
 
 from operator import itemgetter
 
@@ -49,7 +50,7 @@ def main():
     parser.add_argument("--refContigs", nargs="*", help = "Subset to these reference contigs (multiple allowed)", default=[])
     parser.add_argument("--refContigsFile", type=str, help = "Subset to (newline-separated) reference contigs in this file")
     parser.add_argument("--otherContig", type=str, help = "Lump all reference contigs unselected by above options into single one with this name")
-    parser.add_argument("--reference", type=str, help = "Name of reference (in seqFile).  Ambiguity filters will not be applied to it")
+    parser.add_argument("--reference", required=True, nargs='+', type=str, help = "Name of reference (in seqFile).  Ambiguity filters will not be applied to it")
     parser.add_argument("--maskFilter", type=int, help = "Ignore softmasked sequence intervals > Nbp")
     parser.add_argument("--minIdentity", type=float, help = "Ignore PAF lines with identity (column 10/11) < this (overrides minIdentity in <graphmap_split> in config)")
     parser.add_argument("--permissiveContigFilter", nargs='?', const='0.25', default=None, type=float, help = "If specified, override the configuration to accept contigs so long as they have at least given fraction of coverage (0.25 if no fraction specified). This can increase sensitivity of very small, fragmented and/or diverse assemblies.")
@@ -80,6 +81,10 @@ def main():
     # Mess with some toil options to create useful defaults.
     cactus_override_toil_options(options)
 
+    # support but ignore multi reference
+    if options.reference:
+        options.reference = options.reference[0]
+
     logger.info('Cactus Command: {}'.format(' '.join(sys.argv)))
     logger.info('Cactus Commit: {}'.format(cactus_commit))
     start_time = timeit.default_timer()
@@ -95,7 +100,7 @@ def cactus_graphmap_split(options):
         #load cactus config
         config_node = ET.parse(options.configFile).getroot()
         config = ConfigWrapper(config_node)
-        config.substituteAllPredefinedConstantsWithLiterals()
+        config.substituteAllPredefinedConstantsWithLiterals(options)
 
         #Run the workflow
         if options.restart:
@@ -111,15 +116,22 @@ def cactus_graphmap_split(options):
                     for line in rc_file:
                         if len(line.strip()):
                             ref_contigs.add(line.strip().split()[0])
+            options.refContigs = list(ref_contigs)
+
+            if options.refContigs:
+                max_ref_contigs = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "maxRefContigs", typeFn=int, default=128)
+                if len(options.refContigs) > max_ref_contigs:
+                    logger.warning('You specified {} refContigs, which is greater than the suggested limit of {}. This may cause issues downstream.'.format(len(options.refContigs), max_ref_contigs))
+                
 
             if options.otherContig:
-                assert options.otherContig not in ref_contigs
+                assert options.otherContig not in options.refContigs
 
             # get the minigraph "virutal" assembly name
             graph_event = getOptionalAttrib(findRequiredNode(config_node, "graphmap"), "assemblyName", default="_MINIGRAPH_")
 
             # load the seqfile
-            seqFile = SeqFile(options.seqFile)
+            seqFile = SeqFile(options.seqFile, defaultBranchLen=config.getDefaultBranchLen(pangenome=True))
 
             #import the graph
             logger.info("Importing {}".format(options.minigraphGFA))
@@ -156,15 +168,19 @@ def cactus_graphmap_split(options):
             # run the workflow
             wf_output = toil.start(Job.wrapJobFn(graphmap_split_workflow, options, config, input_seq_id_map, input_name_map,
                                                  gfa_id, options.minigraphGFA,
-                                                 paf_id, options.graphmapPAF, ref_contigs, options.otherContig))
+                                                 paf_id, options.graphmapPAF))
 
         #export the split data
         export_split_data(toil, wf_output[0], wf_output[1], wf_output[2], wf_output[3], options.outDir, config)
 
-def graphmap_split_workflow(job, options, config, seq_id_map, seq_name_map, gfa_id, gfa_path, paf_id, paf_path, ref_contigs, other_contig, sanitize=True):
+def graphmap_split_workflow(job, options, config, seq_id_map, seq_name_map, gfa_id, gfa_path, paf_id, paf_path, sanitize=True):
 
     root_job = Job()
     job.addChild(root_job)
+
+    # can be a list coming in from cactus-pangenome, but we only need first item
+    if type(options.reference) is list:
+        options.reference = options.reference[0]
 
     #override the minIdentity
     if options.minIdentity is not None:
@@ -188,6 +204,16 @@ def graphmap_split_workflow(job, options, config, seq_id_map, seq_name_map, gfa_
     else:
         sanitize_job = Job()
         root_job.addChild(sanitize_job)
+
+    # auto-set --refContigs
+    if not options.refContigs:
+        refcontig_job = sanitize_job.addFollowOnJobFn(detect_ref_contigs, config, options, seq_id_map)
+        ref_contigs = refcontig_job.rv()
+        options.otherContig = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "otherContigName", typeFn=str, default="chrOther")
+        sanitize_job = refcontig_job
+    else:
+        # move from options to avoid promise confusion
+        ref_contigs = options.refContigs
     
     # use file extension to sniff out compressed input
     if gfa_path.endswith(".gz"):
@@ -198,7 +224,9 @@ def graphmap_split_workflow(job, options, config, seq_id_map, seq_name_map, gfa_
         paf_size *= 10
 
     # do some basic paf filtering
-    paf_filter_job = root_job.addFollowOnJobFn(filter_paf, paf_id, config)
+    paf_filter_mem = max(paf_id.size * 10, 2**32)
+    paf_filter_job = root_job.addFollowOnJobFn(filter_paf, paf_id, config, reference=options.reference,
+                                               disk = paf_id.size * 10, memory=paf_filter_mem)
     paf_id = paf_filter_job.rv()
     root_job = paf_filter_job
 
@@ -208,8 +236,9 @@ def graphmap_split_workflow(job, options, config, seq_id_map, seq_name_map, gfa_
         
     # use rgfa-split to split the gfa and paf up by contig
     split_gfa_job = root_job.addFollowOnJobFn(split_gfa, config, gfa_id, [paf_id], ref_contigs,
-                                              other_contig, options.reference, mask_bed_id,
-                                              disk=(gfa_size + paf_size) * 5)
+                                              options.otherContig, options.reference, mask_bed_id,
+                                              disk=(gfa_size + paf_size) * 5,
+                                              memory=(gfa_size + paf_size) * 3)
 
     # use the output of the above splitting to do the fasta splitting
     split_fas_job = split_gfa_job.addFollowOnJobFn(split_fas, seq_id_map, seq_name_map, split_gfa_job.rv(0))
@@ -218,11 +247,68 @@ def graphmap_split_workflow(job, options, config, seq_id_map, seq_name_map, gfa_
     gather_fas_job = split_fas_job.addFollowOnJobFn(gather_fas, split_gfa_job.rv(0), split_fas_job.rv(0), split_fas_job.rv(1))
 
     # lump "other" contigs together into one file (to make fewer align jobs downstream)
-    bin_other_job = gather_fas_job.addFollowOnJobFn(bin_other_contigs, config, ref_contigs, other_contig, gather_fas_job.rv(0),
+    bin_other_job = gather_fas_job.addFollowOnJobFn(bin_other_contigs, config, ref_contigs, options.otherContig, gather_fas_job.rv(0),
                                                     disk=(gfa_size + paf_size) * 2)
 
     # return all the files, as well as the 2 split logs
     return (seq_name_map, bin_other_job.rv(), split_gfa_job.rv(1), gather_fas_job.rv(1))
+
+def detect_ref_contigs(job, config, options, seq_id_map):
+    """ automatically determine --refContigs from the data """
+    work_dir = job.fileStore.getLocalTempDir()
+    # it will be unzipped since we're after sanitize
+    fa_path = os.path.join(work_dir, options.reference + '.fa')
+    job.fileStore.readGlobalFile(seq_id_map[options.reference], fa_path)
+    cactus_call(parameters=['samtools', 'faidx', fa_path])
+    contigs = []
+    with open(fa_path + '.fai', 'r') as fai_file:
+        for line in fai_file:
+            toks = line.split('\t')
+            assert len(toks) > 2
+            # clean out prefix that was added by sanitize
+            assert toks[0].startswith('id={}|'.format(options.reference))
+            clean_name = toks[0][len('id={}|'.format(options.reference)):]
+            contigs.append((clean_name, float(toks[1])))
+
+    # get the cutoff heuristics 
+    max_ref_contigs = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "maxRefContigs", typeFn=int, default=128)
+    ref_contig_dropoff = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "refContigDropoff", typeFn=float, default=10.0)
+    ref_contig_regex = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "refContigRegex", typeFn=str, default=None)
+    other_contig_name = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "otherContigName", typeFn=str, default="chrOther")
+
+    # sort by decreasing size
+    sorted_contigs = sorted(contigs, key=lambda x : x[1], reverse=True)
+    
+    ref_contigs = set()
+    # pass 1: do the regex matches
+    if ref_contig_regex:
+        for contig, length in contigs:
+            if re.fullmatch(ref_contig_regex, contig):
+                ref_contigs.add(contig)
+                if len(ref_contigs) >= max_ref_contigs:
+                    break
+        
+    # pass 2: do the dropoff
+    longest_length = sorted_contigs[0][1]
+    for contig_len in sorted_contigs:
+        if len(ref_contigs) >= max_ref_contigs:
+            break
+        if contig_len[0] not in ref_contigs:
+            dropoff = longest_length / contig_len[1]
+            if dropoff >= ref_contig_dropoff:
+                break
+            ref_contigs.add(contig_len[0])
+
+    ref_contigs = sorted(list(ref_contigs))
+
+    msg = "auto-detected --refContigs {}".format(' '.join(ref_contigs))
+    if len(ref_contigs) < len(sorted_contigs):
+        msg += " --otherContig {}".format(other_contig_name)
+
+    RealtimeLogger.info(msg)
+
+    return sorted(list(ref_contigs))
+    
 
 def get_mask_bed(job, seq_id_map, min_length):
     """ make a bed file from the fastas """
@@ -327,7 +413,7 @@ def split_gfa(job, config, gfa_id, paf_ids, ref_contigs, other_contig, reference
             if contig.startswith('id=') and contig.find('|') > 3:
                 cmd += ['-c', contig[contig.find('|')+1:]]            
 
-    cactus_call(parameters=cmd, work_dir=work_dir)
+    cactus_call(parameters=cmd, work_dir=work_dir, job_memory=job.memory)
 
     output_id_map = {}
     for out_name in os.listdir(work_dir):
@@ -421,10 +507,10 @@ def split_fa_into_contigs(job, event, fa_id, fa_name, split_id_map, strip_prefix
             cactus_call(parameters=cmd, outfile=contig_fasta_path)
 
             # now get the total sequence size
-            size_cmd = [['cat', contig_fasta_path], ['grep', '-v', '>'], ['wc'], ['awk', '{print $3-$1}']]
+            size_cmd = [['cat', contig_fasta_path], ['grep', '-v', '>'], ['wc'], ['awk', '{printf \"%f\", $3-$1}']]
             if is_gz:
                 size_cmd[0] = ['bgzip', '-dc', contig_fasta_path, '--threads', str(job.cores)]
-            num_bases = int(cactus_call(parameters=size_cmd, check_output=True).strip())
+            num_bases = int(float(cactus_call(parameters=size_cmd, check_output=True).strip()))
         else:
             # TODO: review how cases like this are handled
             with open(contig_fasta_path, 'w') as empty_file:
@@ -553,8 +639,14 @@ def export_split_data(toil, input_name_map, output_id_map, split_log_id, contig_
     # export the log
     toil.exportFile(split_log_id, makeURL(os.path.join(output_dir, 'minigraph.split.log')))
 
+    # hack to filter out reference contigs where nothing maps to it (not even itself)
+    # this is usually worked around by using --refContigs <chroms> --otherContig chrOther
+    # but filtering them out here lets users who don't do that make graphs
+    # 
+    empty_contigs = set()
+    
     for ref_contig in output_id_map.keys():        
-        if output_id_map[ref_contig] is None:
+        if output_id_map[ref_contig] is None or len(output_id_map[ref_contig]) == 0:
             # todo: check ambigous?
             continue
         ref_contig_path = os.path.join(output_dir, ref_contig)
@@ -584,6 +676,15 @@ def export_split_data(toil, input_name_map, output_id_map, split_log_id, contig_
             seq_file_map[event] = fa_path
             toil.exportFile(ref_contig_fa_id, fa_path)
 
+        seq_file_map_size = 0
+        for event, fa_path in seq_file_map.items():
+            if output_id_map[ref_contig]['fa'][event].size > 0:
+                seq_file_map_size += 1
+        if seq_file_map_size < 2:
+            logger.warning("Omitting reference contig {} from the graph because it doesn't align well enough. If you absolutely want to include it, rerun with --refContigs and --otherContig specified".format(ref_contig))
+            empty_contigs.add(ref_contig)
+            continue
+        
         # Seqfile: <output_dir>/seqfiles/<contig>.seqfile
         seq_file_path = os.path.join(output_dir, 'seqfiles', '{}.seqfile'.format(ref_contig))
         if seq_file_path.startswith('s3://'):
@@ -612,7 +713,7 @@ def export_split_data(toil, input_name_map, output_id_map, split_log_id, contig_
         chrom_file_temp_path = chrom_file_path        
     with open(chrom_file_temp_path, 'w') as chromfile:
         for ref_contig, seqfile_paf in chrom_file_map.items():
-            if ref_contig != amb_name:
+            if ref_contig != amb_name and ref_contig not in empty_contigs:
                 seqfile, paf = seqfile_paf[0], seqfile_paf[1]
                 chromfile.write('{}\t{}\t{}\n'.format(ref_contig, seqfile, paf))
     if chrom_file_path.startswith('s3://'):

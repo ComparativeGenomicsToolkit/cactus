@@ -40,7 +40,7 @@ from toil.lib.bioio import getLogLevelString
 from toil.common import Toil
 from toil.job import Job
 from toil.realtimeLogger import RealtimeLogger
-from toil.lib.humanize import bytes2human
+from toil.lib.humanize import bytes2human, human2bytes
 from toil.lib.threading import cpu_count
 from sonLib.bioio import popenCatch
 from sonLib.bioio import getTempDirectory
@@ -77,6 +77,26 @@ def cactus_override_toil_options(options):
         # lead to weird toil errors?
         # https://github.com/DataBiosphere/toil/issues/4218
         options.disableCaching = True
+
+    if 'CACTUS_INSIDE_CONTAINER' in os.environ and str(os.environ['CACTUS_INSIDE_CONTAINER']) == '1':
+        # some people get confused when trying to use their cluster from inside the cactus
+        # docker. it doesn't work (without tons of hackery) since slurm isnt in the image
+        if options.batchSystem.lower() not in ['single_machine', 'singleMachine']:
+            e = RuntimeError('"--batchSystem {}" is not supported from inside the Cactus Docker container. In order to use this batch system, you must run directly from a Python virutalenv on your head node. You can use --binariesMode docker to execute the various binaries using docker, but the cactus command itself must be run directly on your system where it will have access to your cluster environment (ex: sbatch).'.format(options.batchSystem))
+            raise e
+        if options.binariesMode in ['docker', 'singularity']:
+            e = RuntimeError('"--binariesMode {}" is not supported from inside the Cactus Docker container, which does not support nested containerization. So if you are running Cactus from inside a Docker or Singularity container, please do not use the --binariesMode option.'.format(options.binariesMode))
+            raise e
+
+    if options.binariesMode in ['docker', 'singularity']:
+        # jobs, even when seemingly not using docker, sometimes disappear on
+        # slurm when using non-local binaries. to date, the solution has been
+        # to boost memory. this override is to help apply this globally to all
+        # the little jobs
+        opt_default_mem = options.defaultMemory if options.defaultMemory else 0
+        if isinstance(opt_default_mem, str):
+            opt_default_mem = human2bytes(opt_default_mem)
+        options.defaultMemory = int(max(opt_default_mem, 2**32))
     
     if not options.realTimeLogging:
         # Too much valuable debugging information to pass up
@@ -261,26 +281,12 @@ def runToilStats(toil, outputFile):
 def runGetChunks(sequenceFiles, chunksDir, chunkSize, overlapSize, work_dir=None):
     chunks = cactus_call(work_dir=work_dir,
                          check_output=True,
-                         parameters=["fasta_chunk",
+                         parameters=["faffy", "chunk",
                                      "--logLevel", getLogLevelString(),
                                      "--chunkSize", str(chunkSize),
                                      "--overlap", str(overlapSize),
                                      "--dir", chunksDir] + sequenceFiles)
     return [chunk for chunk in chunks.split("\n") if chunk != ""]
-
-def pullCactusImage():
-    """Ensure that the cactus Docker image is pulled."""
-    if os.environ.get('CACTUS_DOCKER_MODE') == "0":
-        return
-    if os.environ.get('CACTUS_USE_LOCAL_IMAGE', 0) == "1":
-        return
-    image = getDockerImage()
-    call = ["docker", "pull", image]
-    process = subprocess.Popen(call, stdout=subprocess.PIPE,
-                                 stderr=sys.stderr, bufsize=-1)
-    output, _ = process.communicate()
-    if process.returncode != 0:
-        raise RuntimeError("Command %s failed with output: %s" % (call, output))
 
 def getDockerOrg():
     """Get where we should find the cactus containers."""
@@ -289,26 +295,21 @@ def getDockerOrg():
     else:
         return "quay.io/comparative-genomics-toolkit"
 
-def getDockerTag():
+def getDockerTag(gpu=False):
     """Get what docker tag we should use for the cactus image
-    (either forced to be latest or the current cactus commit)."""
+    Default: latest release (which is all there is on quay these days)
+    otherwise, either forced to be latest or the current cactus commit."""
     if 'CACTUS_DOCKER_TAG' in os.environ:
         return os.environ['CACTUS_DOCKER_TAG']
     elif 'CACTUS_USE_LATEST' in os.environ:
         return "latest"    
     else:
-        return cactus_commit
+        # must be manually kept current with each release        
+        return 'v2.6.13' + ('-gpu' if gpu else '')
 
-def getDockerImage():
+def getDockerImage(gpu=False):
     """Get fully specified Docker image name."""
     return "%s/cactus:%s" % (getDockerOrg(), getDockerTag())
-
-def getDockerRelease(gpu=False):
-    """Get the most recent docker release."""
-    r = "quay.io/comparative-genomics-toolkit/cactus:v2.5.1"
-    if gpu:
-        r += "-gpu"
-    return r
 
 def maxMemUsageOfContainer(containerInfo):
     """Return the max RSS usage (in bytes) of a container, or None if something failed."""
@@ -435,13 +436,14 @@ def importSingularityImage(options):
             oldCWD = os.getcwd()
             os.chdir(os.path.dirname(imgPath))
             # --size is deprecated starting in 2.4, but is needed for 2.3 support. Keeping it in for now.
+            gpu = bool(options.gpu) if 'gpu' in options else False
             try:
                 subprocess.check_call(["singularity", "pull", "--size", "2000", "--name", os.path.basename(imgPath),
-                                       "docker://" + getDockerImage()], stderr=subprocess.PIPE)
+                                       "docker://" + getDockerImage(gpu=gpu)], stderr=subprocess.PIPE)
             except subprocess.CalledProcessError:
                 # Call failed, try without --size, required for singularity 3+
                 subprocess.check_call(["singularity", "pull", "--name", os.path.basename(imgPath),
-                                       "docker://" + getDockerImage()])
+                                       "docker://" + getDockerImage(gpu=gpu)])
             os.chdir(oldCWD)
         else:
             logger.info("Using pre-built singularity image: '{}'".format(imgPath))
@@ -451,7 +453,8 @@ def singularityCommand(tool=None,
                        parameters=None,
                        port=None,
                        file_store=None,
-                       gpus=None):
+                       gpus=None,
+                       cpus=None):
 
     if parameters is None:
         parameters = []
@@ -470,6 +473,10 @@ def singularityCommand(tool=None,
     base_singularity_call += ['-u', '-B', '{}:{}'.format(os.path.abspath(work_dir), '/mnt'), '--pwd', '/mnt']
     if gpus:
         base_singularity_call += ['--nv']
+    #todo: it seems like this would be useful (eg to hopefully limit squashfs resources) but it doesn't work
+    #      on our cluster (crytpic cgroups errors)
+    #if cpus:
+    #    base_singularity_call += ['--cpus', str(cpus)]
     
     if "CACTUS_SINGULARITY_IMG" in os.environ:
         # old logic: just run a local image
@@ -493,7 +500,7 @@ def singularityCommand(tool=None,
 
         # hack to transform back to docker image
         if tool == 'cactus':
-            tool = getDockerImage()
+            tool = getDockerImage(gpu = bool(gpus))
         # not a url or local file? try it as a Docker specifier
         if not tool.startswith('/') and '://' not in tool:
             tool = 'docker://' + tool
@@ -558,7 +565,8 @@ def dockerCommand(tool=None,
                   port=None,
                   dockstore=None,
                   entrypoint=None,
-                  gpus=None):
+                  gpus=None,
+                  cpus=None):
     # This is really dumb, but we have to work around an intersection
     # between two bugs: one in CoreOS where /etc/resolv.conf is
     # sometimes missing temporarily, and one in Docker where it
@@ -573,7 +581,13 @@ def dockerCommand(tool=None,
                         '-u', '%s:%s' % (os.getuid(), os.getgid()),
                         '-v', '{}:/data'.format(os.path.abspath(work_dir))]
     if gpus:
-        base_docker_call += ['--gpus', str(gpus)]
+        if 'SLURM_JOB_GPUS' in os.environ:
+            # this allows slurm to identify which gpus are free
+            base_docker_call += ['--gpus', '"device={}"'.format(os.environ['SLURM_JOB_GPUS'])]            
+        else:                    
+            base_docker_call += ['--gpus', str(gpus)]
+    if cpus:
+        base_docker_call += ['--cpus', str(cpus)]
 
     if entrypoint is not None:
         base_docker_call += ['--entrypoint', entrypoint]
@@ -588,7 +602,7 @@ def dockerCommand(tool=None,
     if rm:
         base_docker_call.append('--rm')
 
-    docker_tag = getDockerTag()
+    docker_tag = getDockerTag(gpu=bool(gpus))
     tool = "%s/%s:%s" % (dockstore, tool, docker_tag)
     call = base_docker_call + [tool] + parameters
     return call, containerInfo
@@ -650,7 +664,9 @@ def cactus_call(tool=None,
                 fileStore=None,
                 returnStdErr=False,
                 realtimeStderrPrefix=None,
-                gpus=None):
+                gpus=None,
+                cpus=None,
+                job_memory=None):
     mode = os.environ.get("CACTUS_BINARIES_MODE", "docker")
     if dockstore is None:
         dockstore = getDockerOrg()
@@ -683,11 +699,11 @@ def cactus_call(tool=None,
                                             port=port,
                                             dockstore=dockstore,
                                             entrypoint=entrypoint,
-                                            gpus=gpus)
+                                            gpus=gpus, cpus=cpus)
     elif mode == "singularity":
         call = singularityCommand(tool=tool, work_dir=work_dir,
                                   parameters=parameters, port=port, file_store=fileStore,
-                                  gpus=gpus)
+                                  gpus=gpus, cpus=cpus)
     else:
         assert mode == "local"
         call = parameters
@@ -718,7 +734,7 @@ def cactus_call(tool=None,
         if not shell:
             shell = True
             call = ' '.join(shlex.quote(t) for t in call)
-        call = '/usr/bin/time -v {}'.format(call)
+        call = '/usr/bin/time -f "CACTUS-LOGGED-MEMORY-IN-KB: %M" {}'.format(call)
 
     # optionally pipe stderr (but only if realtime logging enabled)
     # note the check below if realtime logging is enabled is rather hacky
@@ -728,21 +744,35 @@ def cactus_call(tool=None,
         rfd, wfd = os.pipe()
         rfile = os.fdopen(rfd, 'rb', 0)
         wfile = os.fdopen(wfd, 'wb', 0)
+        # And a different pipe for the memory log
+        mlrfd, mlwfd = os.pipe()
+        mlrfile = os.fdopen(mlrfd, 'rb', 0)
+        mlwfile = os.fdopen(mlwfd, 'wb', 0)
+                
         # Fork our child process (pid == 0) to catch stderr and log it
         pid = os.fork()
         if pid == 0:
             wfile.close()
+            mlrfile.close()
+            mem_log_line = ''
             while 1:
                 data = rfile.readline()
                 if not data:
                     break
-                RealtimeLogger.info('{}: {}'.format(realtimeStderrPrefix, data.strip().decode()))
+                line = data.strip().decode()
+                if 'CACTUS-LOGGED-MEMORY-IN-KB:' in line:
+                    mem_log_line = line
+                else:
+                    RealtimeLogger.info('{}: {}'.format(realtimeStderrPrefix, line))                    
             rfile.close()
+            mlwfile.write(mem_log_line.encode())
+            mlwfile.close()            
             os._exit(0)
         else:
             assert pid > 0
             # main process carries on, but sending stderr to the pipe
             rfile.close()
+            mlwfile.close()
             # note that only call_directly below actually does anything with errfile at the moment
             errfile = wfile
     else:
@@ -790,6 +820,7 @@ def cactus_call(tool=None,
                               "on JSON features %s: %s" % (job_name, parameters[0],
                                                            json.dumps(features), memUsage))
 
+    mem_log_line = None
     if pid and pid > 0:
         # It's not enough that the forked process is exited, it must be waited for or it's
         # deemed a zombine process:
@@ -797,6 +828,8 @@ def cactus_call(tool=None,
         # and Toil will complain forever about it:
         # https://github.com/ComparativeGenomicsToolkit/cactus/issues/610#issuecomment-1015759593
         wfile.close()
+        mem_log_line = mlrfile.readline().strip().decode()
+        mlrfile.close()        
         os.wait()
 
     if stderr is not None:
@@ -807,16 +840,29 @@ def cactus_call(tool=None,
     if process.returncode == 0:
         run_time = time.time() - start_time
         if time_v:
-            call = call[len("/usr/bin/time -v "):]
-        rt_message = "Successfully ran: \"{}\"".format(' '.join(call) if not shell else call)
+            call = call[len('/usr/bin/time -f "CACTUS-LOGGED-MEMORY-IN-KB: %M" '):]
+        rt_message = "Successfully ran{}\"{}\"".format(' ' + realtimeStderrPrefix + ': ' if realtimeStderrPrefix else ': ',
+                                                         ' '.join(call) if not shell else call)
         if features:
             rt_message += ' (features={})'.format(features)
         rt_message += " in {} seconds".format(round(run_time, 4))
-        if time_v and stderr:
-            for line in stderr.split('\n'):
-                if 'Maximum resident set size (kbytes):' in line:
-                    rt_message += ' and {} memory'.format(bytes2human(int(line.split()[-1]) * 1024))
-                    break
+        utilization = None
+        if time_v:
+            if stderr:
+                for line in stderr.split('\n'):
+                    if 'CACTUS-LOGGED-MEMORY-IN-KB:' in line:
+                        mem_log_line = line
+                        break
+            if mem_log_line:
+                mem_bytes = int(mem_log_line.split()[-1]) * 1024
+                rt_message += ' and {} memory'.format(bytes2human(mem_bytes))
+                if job_memory:
+                    utilization = float(mem_bytes) / job_memory
+        if job_memory:
+            rt_message += ' with job-memory {}'.format(bytes2human(job_memory))
+        if utilization:
+            rt_message += '. Percent utilization: {:.4}{}'.format(100. * utilization, ' **WARNING: limit exceeded**' if utilization > 1 else '')
+                
         cactus_realtime_log(rt_message, log_debug = 'ktremotemgr' in call)
 
     if check_result:
@@ -838,6 +884,8 @@ def cactus_call(tool=None,
             sigill_msg += '       https://github.com/ComparativeGenomicsToolkit/cactus/releases\n'
             sigill_msg += '***********************************************************************************\n'
             sigill_msg += '***********************************************************************************\n\n\n'
+        if realtimeStderrPrefix:
+            sigill_msg += realtimeStderrPrefix + ': '
         
         if process.returncode > 0:
             raise RuntimeError("{}Command {} exited {}: {}".format(sigill_msg, call, process.returncode, out))

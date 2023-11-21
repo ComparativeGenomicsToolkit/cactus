@@ -2,7 +2,7 @@
 
 Minigraph-Cactus is included in the [Cactus Software Package](../README.md) and is suitable for aligning similar samples, such as those from the *same species*. See [Progressive Cactus](./progressive.md) for aligning different species. 
 
-Please cite the [Minigraph-Cactus paper](https://doi.org/10.1101/2022.10.06.511217 ) when using Minigraph-Cactus.
+Please cite the [Minigraph-Cactus paper](https://doi.org/10.1038/s41587-023-01793-w) when using Minigraph-Cactus.
 
 ## Table of Contents
 
@@ -11,6 +11,7 @@ Please cite the [Minigraph-Cactus paper](https://doi.org/10.1101/2022.10.06.5112
 * [Introduction](#introduction)
 * [Interface](#interface)
 * [Output](#output)
+* [Visualization](#visualization)
 * [Yeast Graph](#yeast-graph)
 * [MHC Graph](#mhc-graph)
 * [GRCh38 Alts Graph](#grch38-alts-graph)
@@ -83,6 +84,10 @@ The `jobStorePath` is where intermediate files, as well as job metadata, [will b
 
 The `seqFile` is a two-column  mapping sample names to fasta paths (gzipped fastas are supported). The seqfile is the same as Progressive Cactus, except a tree is not specified.
 
+### Running on Clusters or Cloud
+
+Please see the Progressive Cactus documentation for how to run Cactus on [SLURM](./progressive.md#running-on-a-cluster) and [AWS](./progressive.md#running-on-the-cloud).
+
 ### Sample Names
 
 **A naming convention must be followed for sample names where "." characters have special meaning**: The "." character is used to specify haplotype, and should be avoided in sample names unless it is being used that way.  For haploid samples, just don't use a "`.`".  For diploid or polyploid samples, use the form `SAMPLE.HAPLOTYPE` where `HAPLOTYPE` is `1` or `2` for a diploid sample etc:
@@ -96,18 +101,42 @@ HG002.2  ./HG002.maternal.fa
 CHM13  ./chm13.fa
 ```
 
+### Reference Sample
+
+The `--reference` option must be used to select a "reference" sample.  This sample will:
+* Never be clipped.
+* Never be self-aligned ie its path in the output graph will be acyclic
+* Only visit nodes in their forward orientations
+* Be a "reference-sense" path in vg/gbz and will therefore be indexably for fast coordinate lookup
+* Be the basis for the output VCF and therefore won't appear as a sample in the VCF
+* Be used to divide the graph into chromosomes
+
+It is therefore extremely important that the reference sample's assembly be **chromosome** scale.  If there are many small contigs in the addition to chromosomes in the reference assembly, then please consider specifying the chromosomes with `--refContigs`. If you still want to keep the other contigs, add `--otherContig chrOther` (see explanation below).
+
+#### Multiple Reference Samples
+
+The `--reference` option can accept multiple samples (separated by space). If multiple samples are specified beyond the first, they will be clipped as usual, but end up as "reference-sense" paths in the vg/gbz output.  They can also be used as basis for VCF, and VCF files can be created based on them with the `--vcfReference` sample.
+
+For example, for human data one might consider using `--reference CHM13 GRCh38 GRCh37 --vcfReference CHM13 GRC3h8`.  This will make a graph referenced on CHM13, but will promote GRCh38 and GRCh38 to reference-sense paths so that they could be used, for example, to project BAMs on in `vg giraffe`.  Two VCFs will be output, one based on CHM13 and one based on GRCh38. 
+
+Note: if you are using the step by step interface instead of `cactus-graphmap-join`, make sure to pass the same `--reference` options to each tool!
+
 ### Pipeline
 
 The Minigraph-Cactus pipeline is run via the `cactus-pangenome` command. It consists of five stages which can also be run individually (below). `cactus-pangenome` writes output files into `--outDir` at the end of each stage. So different stages can be rerun with if necessary using the lower-level commands.
 
 **Before running large jobs, it is important to consider the following options:**
 
-* `--mapCores` the number of cores for each `minigraph` job (default: up to 6)
+* `--mgCores` the number of cores for `minigraph` construction (default: all available)
+* `--mgMemory` the amount of memory for `minigraph` construction. The default estimate can be quite conservative (ie high), so if it is too high for your system, you can lower it with this option (default: estimate based on input size). 
+* `--mapCores` the number of cores for each `minigraph` mapping job (default: up to 6)
 * `--consCores` the number of cores for each `cactus-consolidated` job (default: all available)
-* `--indexCores` the number of cores for each `vg` indexing job (default: 1)
-* The various output options: `--gbz`, `--gfa`, `--giraffe`, `--vcf` which are explained in detail below. If you forget to add one of these and are missing the corresponding output, you will need to rerun `cactus-graphmap-join` (or use `vg` to manually make the file yourself).
+* `--consMemory` the amount of memory for each `cactus-consolidated` job. By default, it is estimated from the data but these estimates being wrong can be catastrophic on [SLURM](./progressive.md#running-on-a-cluster). Consider setting to the maximum memory you have available when running on a cluster to be extra safe (seems to be more of an issue for non-human data)
+* `--indexCores` the number of cores for each `vg` indexing job (default: all available - 1)
+* `--indexMemory` Like `--consMemory` above, you may want to set this when running on a cluster.
+* The various output options: `--gbz`, `--gfa`, `--giraffe`, `--vcf`, `--odgi`, etc. which are explained in detail below. If you forget to add one of these and are missing the corresponding output, you will need to rerun `cactus-graphmap-join` (or use `vg` to manually make the file yourself).
 
-Reducing `--consCores` will allow more chromosomes to be aligned at once, requiring more memory. VCF export for very large graphs will take a long time unless `--indexCores` is set high, but `--indexCores` should still be at least 1 lower than all cores available to allow some parallelism. 
+**IMPORTANT**: If you are going to make use of the vg node IDs across the various output files, consider using the `--chop` option to `cactus-pangenome` to force all files to use the chopped IDs (see [Node Chopping](#node-chopping) below). 
 
 **PLEASE NOTE** While many Minigraph-Cactus parameters' default values were tuned on high-quality human assemblies from the HPRC where ample benchmarking data was available, we believe they will be suitable for other datasets and species, so long as the contigs can be mapped with [minigraph](https://github.com/lh3/minigraph). By default, [small contigs are filtered out](https://github.com/ComparativeGenomicsToolkit/cactus/blob/v2.4.4/src/cactus/cactus_progressive_config.xml#L319-L335) during chromosome assignment using more stringent thresholds. This might lead to a surprisingly low sensitivity on small, fragmented, diverse assemblies or difficult-to-assemble regions. Users wishing to *keep* these contigs in their graph can use the following option:
 
@@ -115,7 +144,17 @@ Reducing `--consCores` will allow more chromosomes to be aligned at once, requir
 
 The application and impact of this option is demonstrated in the explanation of the Yeast pangenome example below.
 
-**Important** The reference genome assembly must be chromosome scale. If your reference assembly also consists of many small fragments (ex GRCh38) then you must use the `--refContigs` option to specify the chromosomes.  Ex for GRCh38 `--refContigs $(for i in `seq 22`; do printf "chr$i "; done ; echo "chrX chrY chrM")`.  If you want to include the remaining reference contig fragments in your graph, add the `--otherContig chrOther` option.
+**Important** The reference genome assembly must be chromosome scale. If your reference assembly also consists of many small fragments (ex GRCh38) then you can use the `--refContigs` option to specify the chromosomes.  Ex for GRCh38 `--refContigs $(for i in $(seq 22); do printf "chr$i "; done ; echo "chrX chrY chrM")`.  If you want to include the remaining reference contig fragments in your graph, add the `--otherContig chrOther` option.  If you do not specify `--refContigs`, they will be determined automatically and all small contigs will be included. For example, if your reference has the following contigs and lengths
+```
+chr1 1000000
+chr2 900000
+chr3 500000
+chrM 1000
+random_1 400000
+random_2 5000
+random_3 5000 
+```
+Then the pipeline will automatically determine, using the names and sizes (see the <graphmap-split> section of the configuration XML for details) that the reference contigs are `chr1`, `chr2`, `chr3`, `chrM` and `random_1`. It will make a graph file for each of these, and a single `chrOther` graph file for `random_2` and `random_3`.  All contigs will end up in the final whole-genome indexes.  This logic only affects the chromosome-scale output and workload distribution. If you do not want the `random` contigs in the graph, you would need to specify `--refContigs chr1 chr2 chr3 chrM`. By default, refContigs are limited to 128 in number, contigs that are at least 10% as long as the longest contig or contigs whose name begins with `chr` followed by up to 3 characters (any case).
 
 **Also Important** We do not yet automatically support the *alternate* loci from GRCh38, ex the various HLA contigs.  They must be excluded from the input fasta file to get sane results. They can be included in the graph by providing a separate sample / fasta pair in the input for each contig.  Please [here](#grch38-alts-graph) for an example of how to do so.
 
@@ -149,7 +188,7 @@ The different graphs have different uses. For instance, the current version of `
 
 `--giraffe clip filter`: Make the giraffe indexes for both the clipped and filtered graph.
 
-The same type of interface applies to all the output specification options: `--vcf`, `--gbz`, `--gfa`, `--giraffe`, `--chrom-vg`. They can all be used without arguments to apply to the default graph (generally the `clip` graph for everything except `--giraffe` which defaults to the `filter` graph), or with any combination of `full`, `clip` and `filter` to be applied to different graphs.
+The same type of interface applies to all the output specification options: `--vcf`, `--gbz`, `--gfa`, `--giraffe`, `--chrom-vg`, `--odgi`, `--chrom-og`, `--viz`, `--draw`. They can all be used without arguments to apply to the default graph (generally the `clip` graph for everything except `--giraffe` which defaults to the `filter` graph, and anything odgi-related which defaults to `full`), or with any combination of `full`, `clip` and `filter` to be applied to different graphs.
 
 Note that by default, only GFA is output, so the above options need to be used to toggle on any other output types. 
 
@@ -162,18 +201,23 @@ The `--vcf` option will produce two VCFs for each selected graph type. One VCF i
 * `hal`: Cactus's [native alignment format](./progressive.md#using-the-hal-output) can be used to convert to MAF, build assembly hubs, run liftover and comparative annotation.
 * `gfa`: A [standard text-based graph format](https://github.com/GFA-spec/GFA-spec/blob/master/GFA1.md). Minigraph-Cactus uses GFA 1.1 as it represents haplotypes as [Walks](https://github.com/GFA-spec/GFA-spec/blob/master/GFA1.md#w-walk-line-since-v11). You can use `vg convert -gfW` to convert from GFA 1.1 to 1.0 and `vg convert -gf` to convert from 1.0 to 1.1.
 * `vcf`: A [standard text-based format](https://en.wikipedia.org/wiki/Variant_Call_Format) that represents a pangenome graph as sites of variation along a reference. VCFs exported from the graph are nested, and by default `vcfbub` is used to flatten them.
-* `vg`: [vg](https://github.com/vgteam/vg)'s native packed-graph format, can be read and written by vg but does not scale well with the number of paths.
+* `vg`: [vg](https://github.com/vgteam/vg)'s native packed-graph format, can be read and written by `vg` but does not scale well with the number of paths.
 * `gbz`: A read-only [format that scales extremely efficiently with the number of paths](https://github.com/jltsiren/gbwtgraph/blob/master/SERIALIZATION.md). Readable by `vg` tools and required for `giraffe`.  
 * `snarls`: The start and end nodes of the bubbles in the graph, as well as their nesting relationships.  Used by some `vg` tools like `call` and `deconstruct`.
 * `dist`: Snarl distance index required for `vg giraffe`.
 * `min`: Minimizer index required for `vg giraffe`.
 * `stats.tgz`: Some stats about how much sequence was clipped, including a BED file of the removed sequence.
+* `og`: [odgi](https://github.com/pangenome/odgi)'s native format, can be read and written by `odgi`. Very useful for [visualization](#visualization).
 
 #### Node Chopping
 
 The GBZ format uses 10 bits to store offsets within nodes, which imposees a 1024bp node length limit. Nodes are therefore chopped up as requried in the `.gbz` output (described above) to respect this limit. The index files derived from the `.gbz`: `.snarls`, `.dist`, and `.min` will share the `.gbz` graph's chopped ID space. 
 
 The `.gfa.gz` and node IDs referred to in the `.vcf.gz` file (via the variant IDs, AT and PS tags) are not chopped and therefore inconsistent with the `.gbz`.  This can be very confusing when trying to, for example, locate a variant in the `vcf.gz` back in the `.gbz` using node IDs: Node `X` in `.vcf.gz` and node `X` in `.gbz` will often both exist but can be totally different parts of the graph. 
+
+If you are working with the node IDs, and / or do not care if the nodes are chopped in the GFA, the simplest thing to do is use the `--chop` option for `cactus-pangenome` / `cactus-graphmap-join`.  This option will limit all nodes to a maximum length of 1024bp in all graph files which means that none will be renamed during GBZ construction.
+
+Otherwise, see below for how you can use the GBZ's built-in mapping to toggle between node ID spaces:
 
 If you would rather have a VCF with consistent IDs to the GBZ as opposed to GFA, you can toggle this via the config XML
 ```
@@ -192,6 +236,114 @@ vg convert -f graph.gbz --vg-algorithm > graph.gfa
 ```
 
 If you are running `vg call` or `vg deconstruct` on the GBZ yourself, the output VCF will, by default, use the chopped IDs from the GBZ. You can switch to the unchopped IDs using `-O` for both tools. 
+
+## Visualization
+
+### Sequence Tube Maps
+
+[Sequence Tube Maps](https://github.com/vgteam/sequenceTubeMap) let you use your web browser to display pangenome graphs and their alignments. You should be able to load the gbz output from minigraph-cactus directly into a tube map. Any alignments (in .gam) format from `vg giraffe` can also be viewed, but they will need to be sorted first (a prepare script is [provided](https://github.com/vgteam/sequenceTubeMap#adding-your-own-data)). Note that while you should be able to load your entire graph into the tube map, you can only use it to display relatively small regions at a time.
+
+This is the tool that was used to make most of Figure 1 in the [Minigraph-Cactus paper](https://doi.org/10.1038/s41587-023-01793-w).
+
+Please cite [Sequence Tube Maps](https://doi.org/10.1093%2Fbioinformatics%2Fbtz597) for images you create with it!
+
+
+### Bandage-NG
+
+[Bandage-NG](https://github.com/asl/BandageNG) is an interactive viewer for graphs in GFA format. It is not included in Cactus, but it is [very easy to install on Mac and Linux](https://github.com/asl/BandageNG/releases).
+
+Depending on the size of the data set, you may need to extract a subregion from the graph in order to display it with Bandage-NG, which generally scales to about 10 or so mb of minigraph-cactus graphs.  You can do this with `vg chunk` on the output `.gbz` file specifying `-O gfa` to set the output format to GFA.
+
+Please see the [GRCh38 Alts Graph](#grch38-alts-graph) section below for how to use `vg chunk` and `Bandage-NG` to view regions of interest in a human pangenome.
+
+Please cite [Bandage-NG](https://github.com/asl/BandageNG) for images your create with it!
+
+### ODGI
+
+[odgi](https://github.com/pangenome/odgi) is a pangenome analysis toolkit and format. As of version [v2.6.1](https://github.com/ComparativeGenomicsToolkit/cactus/releases/tag/v2.6.1), Minigraph-Cactus includes the `odgi` binary and supports output in odgi format via the following `cactus-pangenome` / `cactus-graphmap-join` options:
+
+* `--odgi` : Output the graph to odgi (.og) format.  Valid options are `full` and/or `clip`, with the default being `full` if none are specified (there is no reason to output the `filter` graphs to odgi, and the tiny path fragments can potentially make conversion very slow).
+* `--chrom-og`: Output each graph chromosome in odgi (.og) format.  This is recommended if you want to run `odgi` yourself to do any visualization, since you will generally want to deal with one chromosome at a time.  As above, valid options are `full` and `clip`, defaulting to `full` if none specified.
+
+Unlike some of the related options such as `--gbz`, `--chrom-vg`, `--gfa`, etc, the odgi options above default to working on the `full` graph as opposed the the `clip` graphs.  As such, the output (by default) will contain the unaligned chromosomes.  The rationale is that these unaligned sequences do not seem to hinder visualization, whereas the path fragments that arise from clipping can bog odgi down a little bit (ex: chr1 from the clipped 10-chicken pangenome takes several hours to convert to odgi, but the full graph is fine). Also, odgi's coordinate system does not support path fragments, so its extraction tools etc. will only work properly on the full graphs.  This is still a work in progress, so you can use, say, `--chrom-og clip full` to experiment with both.
+
+#### ODGI Viz
+
+[odgi](https://github.com/pangenome/odgi)'s 1-dimensional visualization is a very efficient way to view pangenome graphs at the chromosome scale. You can use odgi on the `--chrom-og` output described following the instructions from [odgi's manual](https://odgi.readthedocs.io/en/latest/) or use the `--viz` option in `cactus-pangenome` / `cactus-graphmap-join` to automatically produce a .png file for each chromosome in the graph.
+
+Here is an example of using `--viz` in the [yeast example](#yeast-graph) below.
+
+```
+cactus-pangenome ./js ./examples/yeastPangenome.txt --reference S288C --outDir yeast-pg --outName yeast-pg --gbz --viz
+```
+
+The output is found here:
+```
+ls -h yeast-pg/yeast-pg.viz
+chrI.full.viz.png    chrIV.full.viz.png  chrVI.full.viz.png    chrX.full.viz.png    chrXIII.full.viz.png  chrXVI.full.viz.png
+chrII.full.viz.png   chrIX.full.viz.png  chrVII.full.viz.png   chrXI.full.viz.png   chrXIV.full.viz.png
+chrIII.full.viz.png  chrV.full.viz.png   chrVIII.full.viz.png  chrXII.full.viz.png  chrXV.full.viz.png
+```
+
+And the first two chromosomes look like
+
+<img src="yeast-pg-chrI.full.viz.png" height=50% width=80%>
+<img src="yeast-pg-chrII.full.viz.png" height=80% width=80%>
+
+#### ODGI Draw
+
+[odgi](https://github.com/pangenome/odgi)'s 2-dimensional "draw" visualization resembles Bandage-NGs, but can be done at a larger scale. You can produce chromosome images using this functionality with the `--draw` option in `cactus-pangenome` / `cactus-graphmap-join`.
+
+**WARNING** This option is very experimental -- I do not yet know the best set of parameters (and have not had much time to look) for drawing minigraph-cactus graphs.  Please use with caution, especially on larger graphs, since any major issue with drawing may prevent you from obtaining the various other indexes. For large graphs, consider using the `--chrom-og` option to produce the odgi graphs for each chromosome, and then running `draw` yourself following the ODGI [documentation](https://odgi.readthedocs.io/en/latest/).  Please report back any discoveries here!
+
+For example, we can add the 2D layouts to those created above using the following command (note the substantially longer running time):
+
+```
+cactus-graphmap-join ./js --vg ./yeast-pg/chrom-alignments/*.vg  --reference S288C --outDir yeast-pg --outName yeast-pg --draw
+```
+
+The output is written to the same place as `--viz` (see above):
+
+```
+ls -h yeast-pg/yeast-pg.viz/*.draw.png
+yeast-pg/yeast-pg.viz/chrI.full.draw.png    yeast-pg/yeast-pg.viz/chrVI.full.draw.png    yeast-pg/yeast-pg.viz/chrXIII.full.draw.png
+yeast-pg/yeast-pg.viz/chrII.full.draw.png   yeast-pg/yeast-pg.viz/chrVII.full.draw.png   yeast-pg/yeast-pg.viz/chrXIV.full.draw.png
+yeast-pg/yeast-pg.viz/chrIII.full.draw.png  yeast-pg/yeast-pg.viz/chrVIII.full.draw.png  yeast-pg/yeast-pg.viz/chrXV.full.draw.png
+yeast-pg/yeast-pg.viz/chrIV.full.draw.png   yeast-pg/yeast-pg.viz/chrX.full.draw.png     yeast-pg/yeast-pg.viz/chrXVI.full.draw.png
+yeast-pg/yeast-pg.viz/chrIX.full.draw.png   yeast-pg/yeast-pg.viz/chrXI.full.draw.png
+yeast-pg/yeast-pg.viz/chrV.full.draw.png    yeast-pg/yeast-pg.viz/chrXII.full.draw.png
+```
+
+And the first chromosome looks like
+
+<img src="yeast-pg-chrI.full.draw.png" height=50% width=80%>
+
+Please cite [ODGI](https://doi.org/10.1093/bioinformatics/btac308) for any images and analysis you use it for.
+
+### VG
+
+[vg](https://github.com/vgteam/vg) has two visualization tools, `vg view -d` and `vg viz`.
+
+`vg view -d` outputs graphs in [GraphViz](https://graphviz.org/) "dot" format, and can be converted to images with `dot -Tpng`. This command only works on very small subgraphs (though you can increase its scope by leaving out bases with `-S`).  As such, it is best used with `vg chunk` to extract subgraphs.
+
+An example for yeast, may look like
+```
+vg chunk -x yeast-pg/yeast-pg.gbz -S yeast-pg/yeast-pg.snarls -p S288C#0#chrI:100400-100500 | vg view -pd - | dot -Tpng > yeast-pg-chunk-view.png
+```
+
+And the result would be 
+
+<img src="yeast-pg-chunk-view.png" height=80% width=80%>
+
+We can pull out a larger region with `vg viz` (note that `vg viz` can also display coverage output from `vg pack` which is not demonstrated here)
+
+```
+vg chunk -x yeast-pg/yeast-pg.gbz -S yeast-pg/yeast-pg.snarls -p S288C#0#chrI:100400-101400 | vg viz -x - -o yeast-pg-chunk-viz.png
+```
+
+<img src="yeast-pg-chunk-viz.png" height=120% width=100%>
+
+Please cite [vg](https://doi.org/10.1038/nbt.4227) when using these visualizations.
 
 ## Yeast Graph
 
@@ -446,17 +598,11 @@ LRC-KIR
 
 The [Human Pangenome Reference Consortium](https://humanpangenome.org/data-and-resources/) is producing an ever-growing number of high quality phased assemblies.  This section will demonstrate how to use the Minigraph-Cactus Pangenome Pipeline to construct a Pangenome from them.  Note the instructions here are slightly different than were used to create the v1.0 Minigraph-Cactus pangenome that's been released by the HPRC, as they are based on a more recent and improved version of the pipeline. 
 
-The steps below are run on AWS/S3, and assume everything is written to s3://MYBUCKET. All jobs are run on r5.8xlarge (32 cores / 256G RAM) nodes. In theory, the entire pipeline could therefore be run on a single machine (ideally with 64 cores).  It would take several days though. They can be run on other batch systems, at least in theory.  Most of the compute-heavy tasks spawn relatively few jobs, and may be amenable to SLURM environments.
-
-The following environment variables must be defined: `MYBUCKET` and `MYJOBSTORE`. All output will be placed in `MYBUCKET`, and `MYJOBSTORE` will be used by TOIL for temporary storage.  For example
-```
-export VERSION=may4
-export MYBUCKET=s3://vg-k8s/vgamb/wg/cactus/GRCh38-f1g-90/${VERSION}
-export MYJOBSTORE=aws:us-west-2:cactus-hprc-jobstore
-export MINIGRAPH=https://zenodo.org/record/6499594/files/GRCh38-90c.r518.gfa.gz
-```
-
 WDL / cactus-prepare support is in progress!
+
+### HPRC v1.1 Graph
+
+Please see [this page](mc-pangenomes/hprc-v1.1-mc.md) for a description of all commands to produce the [v1.1](https://github.com/human-pangenomics/hpp_pangenome_resources/#minigraph-cactus) HPRC Minigraph-Cactus release.  The below instructions are now out of date.
 
 ### HPRC Graph: Setup and Name Munging
 
@@ -465,6 +611,7 @@ WDL / cactus-prepare support is in progress!
 The fasta sequences for the Year-1 HPRC assemblies are [available here](https://github.com/human-pangenomics/HPP_Year1_Assemblies).  We begin by using them to create an input seqfile for Cactus:
 
 ```
+export VERSION=may4
 wget -q https://raw.githubusercontent.com/human-pangenomics/HPP_Year1_Assemblies/main/assembly_index/Year1_assemblies_v2_genbank.index
 grep GRCh38 Year1_assemblies_v2_genbank.index | sed -e 's/_no_alt_analysis_set\t/\t/g' | awk '{print $1 "\t" $2}' > hprc-${VERSION}-mc.seqfile
 printf "CHM13v2\thttps://s3-us-west-2.amazonaws.com/human-pangenomics/T2T/CHM13/assemblies/analysis_set/chm13v2.0_maskedY_rCRS.fa.gz\n" >> hprc-${VERSION}-mc.seqfile
@@ -489,9 +636,18 @@ samtools faidx HG02080.1.fa ${keep_contigs} > HG02080.1.fix.fa
 samtools faidx HG02080.1.fa "HG02080#1#JAHEOW010000073.1:1-7238466" | sed -e 's/\([^:]*\):\([0-9]*\)-\([0-9]*\)/echo "\1_sub_$((\2-1))_\3"/e' >> HG02080.1.fix.fa
 samtools faidx HG02080.1.fa "HG02080#1#JAHEOW010000073.1:7238467-12869124" | sed -e 's/\([^:]*\):\([0-9]*\)-\([0-9]*\)/echo "\1_sub_$((\2-1))_\3"/e' >> HG02080.1.fix.fa
 bgzip HG02080.1.fix.fa --threads 8
+```
+
+If on aws, but the revised sequence in your bucket:
+```
 aws s3 cp HG02080.1.fix.fa.gz ${MYBUCKET}/fasta/
 grep -v HG02080\.1 hprc-${VERSION}-mc.seqfile > t && mv t hprc-${VERSION}-mc.seqfile
 printf "HG02080.1\t${MYBUCKET}/fasta/HG02080.1.fix.fa.gz\n" >> hprc-${VERSION}-mc.seqfile
+```
+otherwise, just leave it local:
+```
+grep -v HG02080\.1 hprc-${VERSION}-mc.seqfile > t && mv t hprc-${VERSION}-mc.seqfile
+printf "HG02080.1\t./HG02080.1.fix.fa.gz\n" >> hprc-${VERSION}-mc.seqfile
 ```
 
 ```
@@ -504,10 +660,9 @@ HG00438.2       https://s3-us-west-2.amazonaws.com/human-pangenomics/working/HPR
 
 ### HPRC Graph: Running all at once
 
-The new (as of v2.5.0) `cactus-pangenome` interface can create the pangenome from the seqfile created above in one command.  To run locally (recommended 64 cores, 512Gb RAM, 3Tb disk in current directory):
+The new (as of v2.5.0) `cactus-pangenome` interface can create the pangenome from the seqfile created above in one command.  To run locally (recommended 64 cores, 512Gb RAM, 3Tb disk in current directory -- the below command runs on a SLURM cluster):
 ```
-mkdir -p work
-cactus-pangenome ./js hprc-${VERSION}-mc.seqfile --outDir ./hprc-${VERSION} --outName hprc-${VERSION}-mc-grch38 --gbz --giraffe --vcf --chrom-vg --maxCores 64 --indexCores 32 --mapCores 8 --alignCores 16 --workDir work
+cactus-pangenome ./js hprc-${VERSION}-mc.seqfile --outDir ./hprc-${VERSION} --outName hprc-${VERSION}-mc-grch38 --gbz --giraffe --vcf --chrom-vg --maxCores 64 --indexCores 32 --mapCores 8 --alignCores 16 --batchSystem slurm
 ```
 
 To run on a Mesos cluster on AWS (initialized as described [here](./running-in-aws.md), the command is the same as above except buckets (defined in variables above) are specified for the `jobstore` and `outDir`, and a few Toil options are provided to select instance types:
@@ -518,6 +673,16 @@ cactus-pangenome ${MYJOBSTORE} hprc-${VERSION}-mc.seqfile --outDir ${MYBUCKET} -
 ## HPRC Graph: Running step by step
 
 (This was the only way to run the pipeline prior to v2.5.0)
+
+The steps below are run on AWS/S3, and assume everything is written to s3://MYBUCKET. All jobs are run on r5.8xlarge (32 cores / 256G RAM) nodes. In theory, the entire pipeline could therefore be run on a single machine (ideally with 64 cores).  It would take several days though. They can be run on other batch systems, at least in theory.  Most of the compute-heavy tasks spawn relatively few jobs, and may be amenable to SLURM environments.
+
+The following environment variables must be defined: `MYBUCKET` and `MYJOBSTORE`. All output will be placed in `MYBUCKET`, and `MYJOBSTORE` will be used by TOIL for temporary storage.  For example
+```
+export VERSION=may4
+export MYBUCKET=s3://vg-k8s/vgamb/wg/cactus/GRCh38-f1g-90/${VERSION}
+export MYJOBSTORE=aws:us-west-2:cactus-hprc-jobstore
+export MINIGRAPH=https://zenodo.org/record/6499594/files/GRCh38-90c.r518.gfa.gz
+```
 
 ### HPRC Graph (step by step): Mapping to the Graph
 
@@ -657,7 +822,7 @@ A: This is usually because `vg index -j` crashes while computing the distance in
 
 Q: Why are the node id's different in my GFA and GBZ
 
-A: GBZ construction chops nodes to a maximum length of 1024, which changes their ids.  The GFA and VCF use the original, unchopped IDs.  You can get a mapping between the chopped and unchopped IDs from the GBZ using `vg gbwt --translation`.  This is all really annoying and I wonder if it's not just better to chop everything?
+A: See [Node Chopping](#node-chopping) section above.
 
 Q: My tools can't read GFA 1.1 and W-lines.
 
@@ -679,3 +844,8 @@ A: So current toolchains can work with your graphs.  But clipping and filtering 
 **Q**: The node IDs referred to in the output VCF don't match the GBZ!
 
 **A**: Indeed they do not. They refer to the (unchopped) GFA IDs.  Please see the [Node Chopping](#node-chopping) section above. 
+
+**Q**: Some contigs or even entire samples are getting mysteriously dropped from my output. What happened?
+
+**A**: This is probably due to the reference contig assignment thresholds. The defaults (found in `minQueryCoverages` and `minQueryCoverageThresholds` in the cactus_progressive_config.xml configuration file) are quite stringent for tiny contigs.  For example, with the current defaults (circa v2.6.7), a contig shorter than 100kb would need to map with at least 75% of its bases to a reference graph component in order to be included. For diverse inputs and / or very fragmented assemblies, this may be too strict.  You can inspect which of your contigs were filtered and why by looking at `chrom-subproblems/minigraph-split-log` in your output directory. In most cases, you can resolve this by using the `--permissiveContigFilter` option, which by default, applies a 25% threshold to all contig sizes (you can further lower it by passing in a value, ex `--permissiveContigFilter 0.1`. This option (available in `cactus-pangenome` and `cactus-graphmap-split`) is also mentioned in the Yeast example above.
+**

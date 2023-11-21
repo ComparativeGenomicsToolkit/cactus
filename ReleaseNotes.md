@@ -1,3 +1,153 @@
+# Release 2.6.13 2023-11-15
+
+This release fixes an issue where Toil can ask for way too much memory for minigraph construction
+- Cut default minigraph construction memory estimate by half
+- Add `--mgMemory` option to override minigraph construction memory estimate no matter what
+- Exit with a clear error message (instead of more cryptic crash) when user tries to run container binaries in a container
+- Fix double Toil delete that seems to cause fatal error in some environments
+- Fix `gfaffix` regular expression bug that could cause paths other than the reference to be protoected from collapse.
+
+# Release 2.6.12 2023-11-07
+
+The release contains fixes some recent regressions:
+
+- Include more portable (at least on Ubuntu) `gfaffix` binary.
+- Fix error where gpu support on singularity is completely broken.
+- Fix `export_hal` and `export_vg` job memory estimates when `--consMemory` not provided.
+
+# Release 2.6.11 2023-10-31
+
+This release fixes a bug introduced in v2.6.10 that prevents diploid samples from working with `cactus-pangenome`
+
+- Remove stray `assert False` from diploid mash distance that was accidentally included in previous release
+
+# Release 2.6.10 2023-10-30
+
+This release contains bug fixes for MAF export and the pangenome pipeline
+
+- Patch `taffy` to fix bug where sometimes length fields in output MAF can be wrong when using `cactus-hal2maf --filterGapCausingDupes`
+- Fix regression `cactus-graphmap-split / cactus-pangenome` so that small poorly aligned reference contigs (like some tiny unplaced GRCh38 contigs) do not get unintentionally filtered out. These contigs do not help the graph in any way, but the tool should do what it says and make a component for every single reference contig no matter what, which it is now fixed to do.
+- Cactus will now terminate with a clear error message if any other `--batchSystem` than `single_machine` is attempted from *inside* a docker container.
+- Mash distance order into `minigraph` construction fixed so that haplotypes from the same sample are always added contiguously in the presence of ties.
+- CI fixed to run all `hal` tests, and not just a subset.
+- `pip install wheel` added to installation instructions, as apparently that's needed to install Cactus with some (newer?) Pythons.
+
+# Release 2.6.9 2023-10-20
+
+This release contains some bug fixes and changes to docker image uploads
+
+- GFAffix updated to latest release
+- CI no longer pushes a docker image to quay.io for every single commit.
+- CPU docker release now made locally as done for GPU
+- `--binariesMode docker` will automatically point to release image (using GPU one as appropriate)
+- `--consMemory` overrides `hal2vg` memory as well
+- `--defaulMemory` defaults to `4Gi` when using docker binaries
+- SegAlign job memory specification increased to something more realistic
+- `--lastzMemory` option added to override SegAlign memory -- highly recommended on SLURM
+- chromosome (.vg / .og) outputs from pangenome pipeline will have ref paths of form `GRCh38#0#chr1` instead of `GRCh38#chr1` to be more consistent with full-genome indexes (and PanSN in general)
+
+# Release 2.6.8 2023-09-28
+
+This release includes several bug fixes for the pangenome pipeline
+
+- Fix bug where mash distances used to determine minigraph construction order could be wrong when input sample names differ by only their last character
+- Fix some job memory specifications to better support slurm environments
+- Guarantee that pangenome components have exactly two tips (one for each reference path endpoint). This is required for vg's now haplotype sampling logic.
+- Add warning message when genomes that are too diverse are input to `cactus-pangenome`
+- Update hal
+- `--consMemory` option now overrides memory for hal export, in addition to `cactus_consolidated`
+- Update `vg` to v1.51.0
+- Fix bug where samples passed in to `--reference` (except the first) could be dropped as reference in the final output if they are missing from the first chromosome
+- Port CI to OpenStack
+
+# Release 2.6.7 2023-08-16
+
+This release includes a patched vg and gfaffix
+
+- Update to `vg` version `1.50.1` which patches the path name incompatibility bug in `1.50.0`
+- Revert minigraph-cactus Reference path name convention introduced in v2.6.6 (ie haplotypes can be left unspecified)
+- Upgrade to GFAffix 0.1.5 which fixes a crash among other things (thanks @danydoerr!)
+- Fix bug where large input contig sizes (>2Gb) would break the pangenome pipeline with some versions of `awk`. 
+
+# Release 2.6.6 2023-08-03
+
+This release fixes a compatibility problem between Cactus and the newly released `vg` version `1.50.0`.
+
+- Patch `hal2vg` to never write reference path names of the form `SAMPLE#CONTIG`, as `vg` now fails with an exception when reading them with `convert`. Instead, `SAMPLE#HAPLOTYPE#CONTIG` is always used, even if there is no haplotype specified (in which case it's set to 0).
+- Add (prototype) `--haplo` option to build new subsampling-compatible giraffe indexes. 
+
+# Release 2.6.5 2023-07-27
+
+This release patches a Toil bug that broke GPU support on single-machine.
+
+- Update to Toil v5.12, which fixes issue where trying to use GPUs on single machine batch systems would lead to a crash
+- Make cactus more robust to numeric and duplicate internal node labels on input tree (ie ignore them instead of crashing with a cryptic scheduling error)
+- Fix `hal2chains --targetGenomes` option.
+
+# Release 2.6.4 2023-07-02
+
+This is another minor patch release to fix support for multiple values to `--reference`.
+
+- Don't fail if a given reference contig contains no sequences from the 2nd reference. This issue prevented completing of HPRC graphs with `--reference GRCh38 CHM13` because CHM13 wasn't present in the non-chromosome components.
+- Fix `--dupeMode consensus` to output MAF with rows sorted (and, importantly, leaving the first row as reference). 
+
+# Release 2.6.3 2023-06-29
+
+This release contains a single, minor patch that only applies when passing multiple values to `--reference`.  
+
+- Pangenome stub filtering changed to apply only to the first genome passed via `--reference` in order to be consistent with gap filter.ing (and enforce maximum of two stubs per graph component).
+
+# Release 2.6.2 2023-06-28
+
+This release patches a few bugs introduced or found in v2.6.1
+
+- Docker container fixed to include runtime libatomic dependency for odgi
+- `--refContigs` option fixed in `cactus-graphmap-split`
+- `cactus-pangenome` fixed to properly output intermediate GAF and unfiltered PAF alignment files
+
+# Release 2.6.1 2023-06-27
+
+This Release adds SLURM cluster support for Cactus (both progressive and pangenome). It also adds some new visualization features to the pangenome pipeline, along with several bugfixes.
+
+- SLURM support added (via Toil v5.11).  It's important to read the documentation about `--consMemory` and `--indexMemory` when running large aligments.
+- ODGI now integrated into Cactus.  See `cactus-pangenome` options `--viz, --odgi, --chrom-og` and `--draw` for incorporating it into your output.
+- Add `--chop` option to `cactus-pangenome` make sure all output graphs have nodes chopped down to at most `1024bp`. By default, the `.gfa.gz` is unchopped and the `.gbz` is, which can lead to annoying confusion when trying to compare node IDs across different files.
+- Fix bug where `_MINIGRAPH_` paths ended up in the `.full` output graphs.
+- `vg clip` crash fixed.
+- `mash` distance for minigraph order now computed by sample (and not by haplotype).  Fixes issue where, for example, diploid ordering would be dependent on whether assembly has chrX.
+- If `--refContigs` is not specified, minigraph-cactus now uses naming in addition to size to try to guess reference contigs.
+- `--dupeMode consensus` option added to `cactus-hal2maf` in order to use `maf_stream` to merge multiple rows into consensus rows, which may be the best compromise to get the data into PhyloP or the Browser.
+- `halReplaceGenome` patched to fix a regression from late 2022 where updating large alignments could lead to a crash.
+- Fix `cactus-update-prepare replace` to print the `halRemoveGenome` command rather than quietly running it on the input.
+- `--consMemory` and `--indexMemory` options bugs fixed.
+- Fix bug with multuple `--reference` samples; they are now all promoted properly to REFERENCE-sense paths. 
+
+# Release 2.6.0 2023-06-09
+
+This Release significantly updates Cactus's chaining logic which, in early tests at least, allows alignment of T2T-quality assemblies as well as WindowMasked (and not RepeatMasked) genomes. 
+
+- Improved chaining of lastz's PAF output in order to support alignment of T2T-quality genomes
+- Minimum chain length in the Cactus graph now determined by branch length, so that more closely-related genomes can be chained more aggressively while not losing sensitivity along more distant branches where the alignment is more fragmented.
+- Early experiments show that the above changes make Cactus much less sensitive to the input repeat masking. Genomes that previously required masking with RepeatMasker were able to align with the WindowMasking-based fastas directly from NCBI. 
+- Update to Toil 5.10.0
+- Update to latest Taffy
+- Specify memory requirements for all Toil jobs (in Progressive Cactus). Cactus Consolidated memory is estimated conservatively, but can be overridden with `--consMemory`. 
+
+# Release 2.5.2 2023-05-15
+
+This Release patches some bugs in the pangenome pipeline and makes it a bit more user-friendly
+
+- Fix support for multiple referenes via `--reference` and `--vcfReference`
+- Fix bug where certain combinations of options (ie returning filtered but not clipped index) could lead to crash
+- Fix crash when handling non-ascii characters in vg crash reports
+- Fix the `--chrom-vg` option in `cactus-pangenome`
+- New option `--mgCores` to specify number of cores for minigraph construction (rather than lumping in with `--mapCores` which is also used for mapping)
+- Better defaults for number of cores used in pangenome pipeline on singlemachine.
+- Fix bug where small contigs in the reference sample could lead to crashes if they couldn't map to themselves (and `--refContigs` was not used to specify chromosomes). `--refContigs` is now automatically set if not specifed. 
+- Update to vg 1.48.0
+- Update pangenome paper citation from preprint to published version.
+
+
 # Release 2.5.1 2023-04-19
 
 This Release mostly patches some bugs in the pangenome pipeline

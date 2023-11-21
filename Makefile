@@ -2,11 +2,11 @@ rootPath = .
 
 include ${rootPath}/include.mk
 
-modules = api setup fasta paf caf bar hal reference pipeline preprocessor
+modules = api setup caf bar hal reference pipeline preprocessor
 
 # submodules are in multiple pass to handle dependencies cactus2hal being dependent on
 # both cactus and sonLib
-submodules1 = sonLib cPecan hal matchingAndOrdering pinchesAndCacti abPOA lastz
+submodules1 = sonLib cPecan hal matchingAndOrdering pinchesAndCacti abPOA lastz paffy
 submodules2 = cactus2hal
 submodules = ${submodules1} ${submodules2}
 
@@ -83,8 +83,6 @@ unitTests = \
 	cactusAPITests \
 	cactus_halGeneratorTests \
 	stCafTests \
-	stFastaTests \
-	stPafTests \
 	stPinchesAndCactiTests \
 	stPipelineTests \
 	matchingAndOrderingTests \
@@ -92,23 +90,7 @@ unitTests = \
 	cPecanLibTests \
 	sonLibTests \
 
-# these are slow, but added to CI here since hal no longer has its own
-halTests = \
-	hal4dExtractTest \
-	halAlignmentTreesTest \
-	halBottomSegmentTest \
-	halColumnIteratorTest \
-	halGappedSegmentIteratorTest \
-	halGenomeTest \
-	halHdf5Tests \
-	halLiftoverTests \
-	halMafTests \
-	halMappedSegmentTest \
-	halMetaDataTest \
-	halRearrangementTest \
-	halSequenceTest \
-	halTopSegmentTest \
-	halValidateTest
+#paffyTests \ # This is removed for now
 
 # if running travis or gitlab, we want output to go to stdout/stderr so it can
 # be seen in the log file, as opposed to individual files, which are much
@@ -133,7 +115,8 @@ testLogDir = ${testOutDir}/logs
 test: ${testModules:%=%_runtest} ${unitTests:%=%_run_unit_test}
 test_blast: ${testModules:%=%_runtest_blast}
 test_nonblast: ${testModules:%=%_runtest_nonblast}
-hal_test: ${halTests:%=%_run_unit_test}
+hal_test:
+	cd ${CWD}/submodules/hal && make test
 
 # run one test and save output
 %_runtest: ${versionPy}
@@ -269,6 +252,14 @@ suball.lastz:
 	cd submodules/lastz && ${MAKE}
 	mkdir -p bin
 	ln -f submodules/lastz/src/lastz bin
+
+suball.paffy:
+	cd submodules/paffy && ${MAKE}
+	rm -rf submodules/paffy/bin/*.dSYM
+	mkdir -p ${BINDIR} ${LIBDIR} ${INCLDIR}
+	ln -f submodules/paffy/bin/[a-zA-Z]* ${BINDIR}
+	ln -f submodules/paffy/lib/*.a ${LIBDIR}
+	ln -f submodules/paffy/inc/*.h ${INCLDIR}
 
 subclean.%:
 	cd submodules/$* && ${MAKE} clean

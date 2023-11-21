@@ -4,6 +4,8 @@ Progressive Cactus is included in the [Cactus Software Package](../README.md).  
 
 Please cite the [Progressive Cactus paper](https://doi.org/10.1038/s41586-020-2871-y) when using Cactus.
 
+Please cite the [HAL paper](https://doi.org/10.1093/bioinformatics/btt128) when using HAL tools. 
+
 ## Table of Contents
 
 * [Quick-start](#quick-start)
@@ -85,7 +87,7 @@ An optional * can be placed at the beginning of a name to specify that its assem
 * Each name / path pair must be on its own line
 * `http://`, `s3://`, etc. URLs may be used.
 
-Please ensure your genomes are *soft*-masked with RepeatMasker. We do some basic masking as a preprocessing step to ensure highly repetitive elements are masked when repeat libraries are incomplete, but genomes that aren't properly masked can still take tens of times longer to align that those that are masked. Hard-masking (totally replacing repeats with stretches of Ns) isn't necessary, and is strongly discouraged (you will miss a *lot* of alignments!).
+Please ensure your genomes are *soft*-masked, ideally with RepeatMasker. We do some basic masking as a preprocessing step to ensure highly repetitive elements are masked when repeat libraries are incomplete, but genomes that aren't properly masked can still take tens of times longer to align that those that are masked. Hard-masking (totally replacing repeats with stretches of Ns) isn't necessary, and is strongly discouraged (you will miss a *lot* of alignments!).
 
 An example seqfile can be found [here](../examples/evolverMammals.txt).
 
@@ -110,9 +112,12 @@ The various batching options can be used to tune distributed runs on very large 
 --chunkSize 1000000 --batchCount 4 --batchCores 32 --batchParallelTaf 8 --batchSystem mesos --provisioner aws --defaultPreemptable --nodeStorage 2000 --maxNodes 4 --nodeTypes r5.8xlarge 
 ```
 
-Depending on the application, you may want to handle duplication events differently when creating the MAF. Three different modes are available via the `--dupeMode` option.
+**Important** Even with the default normalization, `hal2maf` will still often create alignemnts with too many blocks.  It is therefore highly recommended to add the `--filterGapCausingDupes` option to `cactus-hal2maf` (regardless of the `--dupeMode` selection below).  This option will greedily remove duplicate row entries that would break a block apart. In practice, it has a negligible effect on coverage, but a very large effect on the number of blocks. 
 
-* "single" : Uses greedy heuristics to pick the copy for each species that results in fewest mutations and block breaks. Recommended when visualizing via BigMaf (see below)
+Depending on the application, you may want to handle duplication events differently when creating the MAF. Four different modes are available via the `--dupeMode` option.
+
+* "single" : Uses greedy heuristics to pick the copy for each species that results in fewest mutations and block breaks.
+* "consensus" : Uses [maf_stream merge_dups consensus](https://github.com/ComparativeGenomicsToolkit/maf_stream#resolving-duplicated-entries) to make a single "consensus" row for all duplicate rows. This row won't actually reflect a real sequence in the fasta, but the individual columns will be more sensitive to the true coverage than when using "single".  Recommended when only looking at columns and duplications are not supported (ex with Phast and the UCSC Genome Browser). 
 * "ancestral" : Restricts the duplication relationships shown to only those orthologous to the reference genome according to the HAL tree. There may be multiple orthologs per genome. This relies on the dating of the duplication in the hal tree (ie in which genome it is explicitly self-aligned) and is still a work in progress. For example, in a tree with `((human,chimp),gorilla)`, if a duplication in human is collapsed (ie a single copy) in the human-chimp ancestor, then it would not show up on the human-referenced MAF using this option. But if the duplication is not collapsed in this ancestor (presumably because each copy has an ortholog in chimp and gorilla), then it will be in the MAF because the duplication event was higher in the tree.
 * "all" : (default) All duplications are written, including ancestral events (orthologs) and paralogs in the reference. 
 
@@ -134,11 +139,11 @@ The chromosome sizes of the reference genome must be provided as input either di
 
 ### Chains
 
-The [UCSC Chain Format](https://genome.ucsc.edu/goldenPath/help/chain.html) is a concise way to represent pairwise alignments, and is used by the Genome Browser and some of its tools. HAL files can be converted into sets of Chain files using `cactus-hal2chain`.
+The [UCSC Chain Format](https://genome.ucsc.edu/goldenPath/help/chain.html) is a concise way to represent pairwise alignments, and is used by the Genome Browser and some of its tools. HAL files can be converted into sets of Chain files using `cactus-hal2chains`.
 
 For example
 ```
-cactus-hal2chain ./js ./evolverMammals.hal chains-dir --refGenome simHuman_chr6 
+cactus-hal2chains ./js ./evolverMammals.hal chains-dir --refGenome simHuman_chr6 
 ```
 
 will create `./chains-dir` and populate it with a Chain alignment between simHuman and each other leaf genome in evolverMammals.hal.
@@ -164,12 +169,13 @@ Conservation scores can be computed using [phast](http://compgen.cshl.edu/phast/
 The Cactus Docker image contains everything you need to run Cactus (python environment, all binaries, system dependencies). For example, to run the test data:
 
 ```
-docker run -v $(pwd):/data --rm -it quay.io/comparative-genomics-toolkit/cactus:v2.5.1 cactus /data/jobStore /data/evolverMammals.txt /data/evolverMammals.hal
+wget -q https://raw.githubusercontent.com/ComparativeGenomicsToolkit/cactus/master/examples/evolverMammals.txt -O evolverMammals.txt
+docker run -v $(pwd):/data --rm -it quay.io/comparative-genomics-toolkit/cactus:v2.6.13 cactus /data/jobStore /data/evolverMammals.txt /data/evolverMammals.hal
 ```
 
 Or you can proceed interactively by running
 ```
-docker run -v $(pwd):/data --rm -it quay.io/comparative-genomics-toolkit/cactus:v2.5.1 bash
+docker run -v $(pwd):/data --rm -it quay.io/comparative-genomics-toolkit/cactus:v2.6.13 bash
 cactus /data/jobStore /data/evolverMammals.txt /data/evolverMammals.hal
 
 ```
@@ -182,9 +188,56 @@ Cactus can also be run on Google Cloud Platform via [Terra](#running-on-cromwell
 
 ## Running on a cluster
 
-Cactus (through Toil) supports many batch systems in theory, including LSF, SLURM, GridEngine, Parasol, and Torque. To run on a cluster, add `--batchSystem <batchSystem>`, e.g. `--batchSystem gridEngine`. If your batch system needs additional configuration, Toil exposes some [environment variables](http://toil.readthedocs.io/en/3.10.1/developingWorkflows/batchSystem.html#batch-system-enivronmental-variables) that can help.
+Cactus supports [SLURM](https://github.com/SchedMD/slurm) since [version 2.6.1](https://github.com/ComparativeGenomicsToolkit/cactus/releases/tag/v2.6.1).  To run on SLURM, add `--batchSystem slurm` to your cactus command line and run it from your cluster's head node. For example,
 
-IMPORTANT:  It is highly recommend that one **not** run Cactus in its default mode using the Toil Grid Engine-like batch systems (GridEngine, HTCondor, LSF, SLURM, or Torque).  Cactus creates a very large number of small jobs, which can overwhelm these systems.  The work-around described [here](#running-the-step-by-step-workflow-direclty-in-toil) for clusters with large compute nodes available must be used instead.  **Update**:  Cactus version >= 2.0 with GPU enabled will spawn far fewer jobs which, in theory, should make this less of an issue.
+```
+cactus ./js ./examples/evolverMammals.txt evolverMammals.hal --batchSystem slurm
+```
+
+In order to run cactus, you will need a shared filesystem across the cluster nodes where the jobstore (`./js` in the exmaple above) and output file will be written.  It is best to use local scratch space for jobs, so you can use `--workDir` or the `TEMPDIR` environment to set this to a place that will be available to write to on all cluster nodes.
+
+You can use `TOIL_SLURM_ARGS` to add flags to the slurm submission commands that Toil uses.  For example if you are running Progressive Cactus and generating loads of `lastz` jobs, you may want to run
+
+```
+export TOIL_SLURM_ARGS="--nice=5000"
+```
+
+to avoid making too many enemies.
+
+You can (and probably should) use the `--batchLogsDir` option in order to enable more SLURM logging.  You must pass it a directory that already exists.  Ex.
+
+```
+mkdir -p batch-logs
+cactus ./js ./examples/evolverMammals.txt evolverMammals.hal --batchSystem slurm --batchLogsDir batch-logs
+```
+
+You'll want to clean out this directory after a successful run. 
+
+
+You cannot run `cactus --batchSystem slurm` from *inside* the Cactus docker container, because the Cactus docker container doesn't contain slurm.  Therefore in order to use slurm, you must be able to `pip install` Cactus inside a virtualenv on the head node. You can still use `--binariesMode docker` or `--binariesMode` singularity to run cactus *binaries* from a container, but the Cactus Python module needs to be installed locally.
+
+**IMPORTANT**
+
+To run Progressive Cactus with CPU (default) lastz, you should increase the chunk size.  This will divide the input assemblies into fewer pieces, resulting in fewer jobs on the cluster.
+
+```
+cp cactus-bin-v2.6.13/src/cactus/cactus_progressive_config.xml ./config-slurm.xml
+sed -i config-slurm.xml -e 's/blast chunkSize="30000000"/blast chunkSize="90000000"/g'
+sed -i config-slurm.xml -e 's/dechunkBatchSize="1000"/dechunkBatchSize="200"/g'
+```
+
+then add `--configFile config-slurm.xml` to your cactus invocation.
+
+**IMPORTANT**
+
+Slurm can strictly enforce memory usage. This means that Cactus must specify the memory limit of each job before it is run, and it uses the input file sizes to do this. Accurately predicting the memory usage is challenging though, and remains a work in progress.  If Cactus predicts too little memory, then the job will be evicted by the cluster.  If it predicts too much, ie more than available on any node, then the job will never run.  In both these cases, the workflow is doomed and cannot even be resumed with `--restart`.  Some better [Toil support](https://github.com/DataBiosphere/toil/issues/4474) would also be useful.
+
+Most of memory usage in Cactus occurs in the `cactus_consolidated` jobs and, as such, these are the most important to get right for slurm. The parameters used to estimate memory for `cactus_consolidated` can be found in the `<consolidatedMemory>` element in the configuraiton XML. Importantly, they can be overridden with the `--consMemory` option.
+
+**To be extra safe, consider setting `--consMemory` to the maximum amount of memory available on any node of your cluster. This way you know that all your jobs will be scheduled.**
+
+
+Cactus (through Toil) supports many other cluster workload managers in theory, including LSF, GridEngine, Parasol, and Torque, **but unlike slurm they are untested and difficult for us to support**. Add `--batchSystem <batchSystem>`, e.g. `--batchSystem gridEngine`. If your batch system needs additional configuration, Toil exposes some [environment variables](http://toil.readthedocs.io/en/3.10.1/developingWorkflows/batchSystem.html#batch-system-enivronmental-variables) that can help.
 
 ## Running step by step
 
@@ -297,10 +350,15 @@ We've tested SegAlign on Nvidia V100 and A10G GPUs. See the Terra example above 
 
 Please [cite SegAlign](https://doi.ieeecomputersociety.org/10.1109/SC41405.2020.00043).
 
+### Using GPU Acceleration on a Cluster
+
+Since `SegAlign` is only released in the GPU-enabled docker image, that's the easiest way to run it. When running on a cluster, this usually means the best way to use it is with `--binariesMode docker --gpu <N>`.  This way cactus is installed locally on your virtual environment and can run slurm commands like `sbatch` (that aren't available in the Cactus container), but SegAlign itself will be run from inside Docker.
+
+**Important**: Consider using `--lastzMemory` when using GPU acceleration on a cluster. Like `--consMemory`, it lets you override the amount of memory Toil requests which can help with errors if Cactus's automatic estimate is either too low (cluster evicts the job) or too high (cluster cannot schedule the job).  
 
 ## Pre-Alignment Checklist
 
-* Are the input sequences softmasked with RepeatMasker? For mammals we expect at least 40% of the genome to be masked this way. 
+* Are the input sequences softmasked (ideally with RepeatMasker, but WindowMasker may be sufficient)? For mammals we expect at least 40% of the genome to be masked this way. You can use the `cactus_analyseAssembly` tool (included in cactus, and who's output is logged by Cactus) to check how masked the gnomes are. 
 * Have you run a small [test alignment](../examples/evolverMammals.txt) to make sure Cactus is properly installed?
 * Do you have at least one outgroup species?
 
@@ -318,13 +376,15 @@ The reason you have to do this is that the Docker VM requires explicitly listing
 
 **Q**: How exactly does Cactus use the branch lengths in the input tree?
 
-**A**: The branch lengths are expected to be denoted in substitutions per site and are used in three ways. 
+**A**: The branch lengths are expected to be denoted in substitutions per site and are used in four ways. 
 
 1) to determine lastz parameters. The pairwise distance between species is measured using the branch lengths, and mapped to a set of lastz parameters using the `<divergences>` (inside `<constants>`) and `<divergence>` (inside `<blast>`) elements in the [configuration XML](../src/cactus/cactus_progressive_config.xml). Faster parameters are used for more closely-related species. If you are aligning human and chimp with the correct branch lengths, their distance will be about 0.02, and it will use the fasest parameters which will be several times faster than if, say, the default branch length of 1 was used. 
 
-2) to estimate ancestral bases. Here the relative branch lengths are more important -- the base of a descendant that is much nearer to the ancestor will provide more information and will be wieghted higher when estimating it.  
+2) (since v2.6.0) to determine cactus chaining parameters. Similar to above the `<annealingRounds>` (inside `<caf>`) alements are used to set the minimum chain length based on the divergence. A longer length is used for more closely related species, which will result in more syntenic, less fragmented alignments. Shorter lengths are used at higher divergences to boost sensitvity, allowing that longer synteny may not be possible due to structural changes. 
 
-3) to calculate outgroups.  Branch lengths are taken into account by the greedy heuristic used to find the nearest outgroup to the given ancestral event. 
+3) to estimate ancestral bases. Here the relative branch lengths are more important -- the base of a descendant that is much nearer to the ancestor will provide more information and will be wieghted higher when estimating it.  
+
+4) to calculate outgroups.  Branch lengths are taken into account by the greedy heuristic used to find the nearest outgroup to the given ancestral event. 
 
 If you do not know the branch lengths, you can leave them out and Cactus will use its default (1). This will cause the alignment to be slower than necessary but the results shouldn't be affected much.  Otherwise, even inexact branch lengths should be fine.  For closely related species `mash dist` is a very easy way to estimate a pairwise distance (`mash` is now included in Cactus). Often you can use `mash` and already-published trees to come up with your branch lengths. 
 
@@ -338,7 +398,7 @@ That said, cactus can handle multifurcations up to a point: runtime increases qu
 
 **Q**: I'm running out of memory, or getting crashes, or very long runtimes in one of the `paf_xxxx` tools (`paf_tile, paf_to_bed` etc.). What can I do?
 
-**A**: This is almost always due to Cactus having found too many pairwise alignments in the all-to-all lastz mapping (blast) phase. The only way to get around this is my softmasking the input genomes before running Cactus. For most species, this is best done with RepeatMasker. We do intend to work on lifting this requirement in the future by making cactus's own repeatmasking more robust. 
+**A**: This is almost always due to Cactus having found too many pairwise alignments in the all-to-all lastz mapping (blast) phase. The only way to get around this is my softmasking the input genomes before running Cactus. For most species, this is best done with RepeatMasker. We do intend to work on lifting this requirement in the future by making cactus's own repeatmasking more robust. As of v2.6.0, Cactus is more tolerant of repetative sequence but the input still needs to be softmasked. 
 
 **Q**: The `--gpu` option isn't working for me.
 
@@ -351,3 +411,7 @@ That said, cactus can handle multifurcations up to a point: runtime increases qu
 **Q**: I get an error to the effect of `ERROR: No matching distribution found for toil[aws]==xxxx` when trying to install Toil.
 
 **A**: This is probably happening because you are using Python 3.6. Toil and Cactus require Python >= 3.7.  Use `python3 --version` to check your Python version.
+
+**Q**: I get an error to the effect of `toil.batchSystems.abstractBatchSystem.InsufficientSystemResources: The job cactus_cons is requesting 66623310306 bytes of memory, more than the maximum of 34359738368 bytes of memory that SingleMachineBatchSystem was configured with, or enforced by --maxMemory. Scale is set to 1.0.”`.  What's going on?
+
+**A**: As of version 2.6.0, Cactus is now trying to (conservatively) estimate the memory usage of each job, which is required for must cluster schedulers.  This can be annoying if, like in the above scenario, the estimate is too conservative to even try running on your machine.  So you can use the `--consMemory` option to override it.  Ex. use `--consMemory 32Gi` to force Cactus to reserve exactly 32 Gigs for each cactus consolidated job. 

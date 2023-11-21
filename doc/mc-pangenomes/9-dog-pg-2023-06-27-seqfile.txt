@@ -1,0 +1,9 @@
+canFam4	https://hgdownload.soe.ucsc.edu/goldenPath/canFam4/bigZips/canFam4.fa.gz
+canFam3	https://hgdownload.soe.ucsc.edu/goldenPath/canFam3/bigZips/canFam3.fa.gz
+canFam5	https://hgdownload.soe.ucsc.edu/goldenPath/canFam5/bigZips/canFam5.fa.gz
+canFam6	https://hgdownload.soe.ucsc.edu/goldenPath/canFam6/bigZips/canFam6.fa.gz
+ROS_Cfam_1_0	https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/014/441/545/GCF_014441545.1_ROS_Cfam_1.0/GCF_014441545.1_ROS_Cfam_1.0_genomic.fna.gz
+ASM1204501v1	https://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/012/045/015/GCA_012045015.1_ASM1204501v1/GCA_012045015.1_ASM1204501v1_genomic.fna.gz
+UNSW_CanFamBas_1_2	https://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/013/276/365/GCA_013276365.2_UNSW_CanFamBas_1.2/GCA_013276365.2_UNSW_CanFamBas_1.2_genomic.fna.gz
+ASM864105v3	https://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/008/641/055/GCA_008641055.3_ASM864105v3/GCA_008641055.3_ASM864105v3_genomic.fna.gz
+Basenji_breed-1_1	https://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/004/886/185/GCA_004886185.2_Basenji_breed-1.1/GCA_004886185.2_Basenji_breed-1.1_genomic.fna.gz
