@@ -102,7 +102,7 @@ def main():
             #load cactus config
             configNode = ET.parse(options.configFile).getroot()
             config = ConfigWrapper(configNode)
-            config.substituteAllPredefinedConstantsWithLiterals()
+            config.substituteAllPredefinedConstantsWithLiterals(options)
             
             logger.info("Importing {}".format(options.halFile))
             hal_id = toil.importFile(options.halFile)            

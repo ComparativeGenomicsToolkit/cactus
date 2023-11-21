@@ -156,7 +156,7 @@ fi
 cd ${pangenomeBuildDir}
 git clone https://github.com/ComparativeGenomicsToolkit/cactus-gfa-tools.git
 cd cactus-gfa-tools
-git checkout 9b26caa961d6e72ad3747e5c2ce81cdf1e9b63c3
+git checkout 0c17bc4ae9a7cf174fa40805cde7f8f1f6de8225
 make -j ${numcpu}
 if [[ $STATIC_CHECK -ne 1 || $(ldd paf2lastz | grep so | wc -l) -eq 0 ]]
 then
@@ -279,7 +279,7 @@ fi
 # vg
 cd ${pangenomeBuildDir}
 #wget -q https://github.com/vgteam/vg/releases/download/v1.51.0/vg
-wget -q http://public.gi.ucsc.edu/~hickey/vg-patch/vg.9df2a056197cafd817cf48c76cf662dd775d265d -O vg
+wget -q http://public.gi.ucsc.edu/~hickey/vg-patch/vg.98e3b7c867eb64178298535b076189ef7fda5031 -O vg
 chmod +x vg
 if [[ $STATIC_CHECK -ne 1 || $(ldd vg | grep so | wc -l) -eq 0 ]]
 then
@@ -290,12 +290,12 @@ fi
 
 # gfaffix
 cd ${pangenomeBuildDir}
-wget -q https://github.com/marschall-lab/GFAffix/releases/download/0.1.5/GFAffix-0.1.5_linux_x86_64.tar.gz
-tar xzf GFAffix-0.1.5_linux_x86_64.tar.gz
-chmod +x GFAffix-0.1.5_linux_x86_64/gfaffix
-if [[ $STATIC_CHECK -ne 1 || $(ldd GFAffix-0.1.5_linux_x86_64/gfaffix | grep so | wc -l) -eq 0 ]]
+wget -q https://github.com/marschall-lab/GFAffix/releases/download/0.1.5b/GFAffix-0.1.5b_linux_x86_64.tar.gz
+tar xzf GFAffix-0.1.5b_linux_x86_64.tar.gz
+chmod +x GFAffix-0.1.5b_linux_x86_64/gfaffix
+if [[ $STATIC_CHECK -ne 1 || $(ldd GFAffix-0.1.5b_linux_x86_64/gfaffix | grep so | wc -l) -eq 0 ]]
 then
-	 mv GFAffix-0.1.5_linux_x86_64/gfaffix ${binDir}
+	 mv GFAffix-0.1.5b_linux_x86_64/gfaffix ${binDir}
 else
 	 exit 1
 fi

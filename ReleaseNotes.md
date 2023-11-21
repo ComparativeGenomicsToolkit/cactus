@@ -1,3 +1,51 @@
+# Release 2.6.13 2023-11-15
+
+This release fixes an issue where Toil can ask for way too much memory for minigraph construction
+- Cut default minigraph construction memory estimate by half
+- Add `--mgMemory` option to override minigraph construction memory estimate no matter what
+- Exit with a clear error message (instead of more cryptic crash) when user tries to run container binaries in a container
+- Fix double Toil delete that seems to cause fatal error in some environments
+- Fix `gfaffix` regular expression bug that could cause paths other than the reference to be protoected from collapse.
+
+# Release 2.6.12 2023-11-07
+
+The release contains fixes some recent regressions:
+
+- Include more portable (at least on Ubuntu) `gfaffix` binary.
+- Fix error where gpu support on singularity is completely broken.
+- Fix `export_hal` and `export_vg` job memory estimates when `--consMemory` not provided.
+
+# Release 2.6.11 2023-10-31
+
+This release fixes a bug introduced in v2.6.10 that prevents diploid samples from working with `cactus-pangenome`
+
+- Remove stray `assert False` from diploid mash distance that was accidentally included in previous release
+
+# Release 2.6.10 2023-10-30
+
+This release contains bug fixes for MAF export and the pangenome pipeline
+
+- Patch `taffy` to fix bug where sometimes length fields in output MAF can be wrong when using `cactus-hal2maf --filterGapCausingDupes`
+- Fix regression `cactus-graphmap-split / cactus-pangenome` so that small poorly aligned reference contigs (like some tiny unplaced GRCh38 contigs) do not get unintentionally filtered out. These contigs do not help the graph in any way, but the tool should do what it says and make a component for every single reference contig no matter what, which it is now fixed to do.
+- Cactus will now terminate with a clear error message if any other `--batchSystem` than `single_machine` is attempted from *inside* a docker container.
+- Mash distance order into `minigraph` construction fixed so that haplotypes from the same sample are always added contiguously in the presence of ties.
+- CI fixed to run all `hal` tests, and not just a subset.
+- `pip install wheel` added to installation instructions, as apparently that's needed to install Cactus with some (newer?) Pythons.
+
+# Release 2.6.9 2023-10-20
+
+This release contains some bug fixes and changes to docker image uploads
+
+- GFAffix updated to latest release
+- CI no longer pushes a docker image to quay.io for every single commit.
+- CPU docker release now made locally as done for GPU
+- `--binariesMode docker` will automatically point to release image (using GPU one as appropriate)
+- `--consMemory` overrides `hal2vg` memory as well
+- `--defaulMemory` defaults to `4Gi` when using docker binaries
+- SegAlign job memory specification increased to something more realistic
+- `--lastzMemory` option added to override SegAlign memory -- highly recommended on SLURM
+- chromosome (.vg / .og) outputs from pangenome pipeline will have ref paths of form `GRCh38#0#chr1` instead of `GRCh38#chr1` to be more consistent with full-genome indexes (and PanSN in general)
+
 # Release 2.6.8 2023-09-28
 
 This release includes several bug fixes for the pangenome pipeline

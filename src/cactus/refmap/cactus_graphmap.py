@@ -111,7 +111,7 @@ def graph_map(options):
             paf_id, gfa_fa_id, gaf_id, unfiltered_paf_id, paf_filter_log = toil.restart()            
         else:
             # load up the seqfile and figure out the outgroups and schedule
-            config_wrapper.substituteAllPredefinedConstantsWithLiterals()
+            config_wrapper.substituteAllPredefinedConstantsWithLiterals(options)
             mc_tree, input_seq_map, og_candidates = parse_seqfile(options.seqFile, config_wrapper, pangenome=True)
             og_map = compute_outgroups(mc_tree, config_wrapper, set(og_candidates))
             event_set = get_event_set(mc_tree, config_wrapper, og_map, mc_tree.getRootName())
@@ -429,7 +429,7 @@ def extract_paf_from_gfa(job, gfa_id, gfa_path, ref_event, graph_event, ignore_p
     cactus_call(parameters=cmd, outfile=paf_path)
     return job.fileStore.writeGlobalFile(paf_path)
 
-def filter_paf(job, paf_id, config):
+def filter_paf(job, paf_id, config, reference=None):
     """ run basic paf-filtering.  these are quick filters that are best to do on-the-fly when reading the paf and 
         as such, they are called by cactus-graphmap-split and cactus-align, not here """
     work_dir = job.fileStore.getLocalTempDir()
@@ -444,6 +444,7 @@ def filter_paf(job, paf_id, config):
     with open(paf_path, 'r') as paf_file, open(filter_paf_path, 'w') as filter_paf_file:
         for line in paf_file:
             toks = line.split('\t')
+            is_ref = reference and toks[0].startswith('id={}|'.format(reference))
             mapq = int(toks[11])
             query_len = int(toks[1])
             ident = float(toks[9]) / (float(toks[10]) + 0.00000001)
@@ -456,7 +457,7 @@ def filter_paf(job, paf_id, config):
                 # we can also get the identity of the parent gaf block 
                 if tok.startswith('gi:i:'):
                     ident = min(ident, float(toks[5:]))
-            if mapq >= min_mapq and (bl is None or query_len <= min_block or bl >= min_block) and ident >= min_ident:
+            if is_ref or (mapq >= min_mapq and (bl is None or query_len <= min_block or bl >= min_block) and ident >= min_ident):
                 filter_paf_file.write(line)
 
     overlap_ratio = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "PAFOverlapFilterRatio", typeFn=float, default=0)

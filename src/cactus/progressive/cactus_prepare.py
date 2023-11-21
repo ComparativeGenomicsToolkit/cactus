@@ -25,7 +25,7 @@ from cactus.progressive.multiCactusTree import MultiCactusTree
 from cactus.progressive.progressive_decomposition import compute_outgroups, get_subtree, check_branch_lengths
 from cactus.shared.common import cactusRootPath
 from cactus.shared.common import enableDumpStack, setupBinaries
-from cactus.shared.common import getDockerImage, getDockerRelease
+from cactus.shared.common import getDockerImage
 from cactus.shared.configWrapper import ConfigWrapper
 from cactus.shared.version import cactus_commit
 from cactus.shared.common import findRequiredNode
@@ -746,7 +746,7 @@ def wdl_task_preprocess(options):
         s += '        gpuCount: {}\n'.format(options.gpu)
         s += '        bootDiskSizeGb: 20\n'
         s += '        nvidiaDriverVersion: \"{}\"\n'.format(options.nvidiaDriver)
-        s += '        docker: \"{}\"\n'.format(getDockerRelease(gpu=True))
+        s += '        docker: \"{}\"\n'.format(getDockerImage(gpu=True))
         s += '        zones: \"{}\"\n'.format(options.gpuZone)
     else:
         s += '        docker: \"{}\"\n'.format(options.dockerImage)
@@ -828,7 +828,7 @@ def wdl_task_blast(options):
         s += '        gpuCount: {}\n'.format(options.gpu)
         s += '        bootDiskSizeGb: 20\n'
         s += '        nvidiaDriverVersion: \"{}\"\n'.format(options.nvidiaDriver)
-        s += '        docker: \"{}\"\n'.format(getDockerRelease(gpu=True))
+        s += '        docker: \"{}\"\n'.format(getDockerImage(gpu=True))
         s += '        zones: \"{}\"\n'.format(options.gpuZone)
     else:
         s += '        docker: \"{}\"\n'.format(options.dockerImage)

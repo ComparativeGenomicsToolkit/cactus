@@ -92,24 +92,6 @@ unitTests = \
 
 #paffyTests \ # This is removed for now
 
-# these are slow, but added to CI here since hal no longer has its own
-halTests = \
-	hal4dExtractTest \
-	halAlignmentTreesTest \
-	halBottomSegmentTest \
-	halColumnIteratorTest \
-	halGappedSegmentIteratorTest \
-	halGenomeTest \
-	halHdf5Tests \
-	halLiftoverTests \
-	halMafTests \
-	halMappedSegmentTest \
-	halMetaDataTest \
-	halRearrangementTest \
-	halSequenceTest \
-	halTopSegmentTest \
-	halValidateTest
-
 # if running travis or gitlab, we want output to go to stdout/stderr so it can
 # be seen in the log file, as opposed to individual files, which are much
 # easier to read when running tests in parallel.
@@ -133,7 +115,8 @@ testLogDir = ${testOutDir}/logs
 test: ${testModules:%=%_runtest} ${unitTests:%=%_run_unit_test}
 test_blast: ${testModules:%=%_runtest_blast}
 test_nonblast: ${testModules:%=%_runtest_nonblast}
-hal_test: ${halTests:%=%_run_unit_test}
+hal_test:
+	cd ${CWD}/submodules/hal && make test
 
 # run one test and save output
 %_runtest: ${versionPy}

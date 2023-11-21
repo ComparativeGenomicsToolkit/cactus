@@ -19,6 +19,7 @@ from cactus.shared.common import makeURL, catFiles
 from cactus.shared.common import enableDumpStack
 from cactus.shared.common import cactus_override_toil_options
 from cactus.shared.version import cactus_commit
+from cactus.progressive.cactus_prepare import human2bytesN
 
 from cactus.paf.local_alignment import sanitize_then_make_paf_alignments
 
@@ -60,8 +61,11 @@ def main():
     parser.add_argument("--binariesMode", choices=["docker", "local", "singularity"],
                         help="The way to run the Cactus binaries", default=None)
     parser.add_argument("--gpu", nargs='?', const='all', default=None, help="toggle on GPU-enabled lastz, and specify number of GPUs (all available if no value provided)")
-    parser.add_argument("--lastzCores", type=int, default=None, help="Number of cores for each lastz job, only relevant when running with --gpu")
-    
+    parser.add_argument("--lastzCores", type=int, default=None, help="Number of cores for each lastz/segalign job, only relevant when running with --gpu")
+    parser.add_argument("--lastzMemory", type=human2bytesN,
+                        help="Memory in bytes for each lastz/segalign job (defaults to an estimate based on the input data size). "
+                        "Standard suffixes like K, Ki, M, Mi, G or Gi are supported (default=bytes))", default=None)
+        
     options = parser.parse_args()
 
     setupBinaries(options)
@@ -95,7 +99,7 @@ def runCactusBlastOnly(options):
             # load up the seqfile and figure out the outgroups and schedule
             config_node = ET.parse(options.configFile).getroot()
             config_wrapper = ConfigWrapper(config_node)
-            config_wrapper.substituteAllPredefinedConstantsWithLiterals()
+            config_wrapper.substituteAllPredefinedConstantsWithLiterals(options)
             # apply gpu override
             config_wrapper.initGPU(options)
             mc_tree, input_seq_map, og_candidates = parse_seqfile(options.seqFile, config_wrapper)

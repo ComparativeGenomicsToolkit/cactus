@@ -206,7 +206,7 @@ def progressive_step_2(job, trimmed_outgroups_and_alignments, options, config_no
 
 def export_hal(job, mc_tree, config_node, seq_id_map, og_map, results, event=None, cacheBytes=None,
                cacheMDC=None, cacheRDC=None, cacheW0=None, chunk=None, deflate=None, inMemory=False,
-               checkpointInfo=None, acyclicEvent=None, has_resources=False):
+               checkpointInfo=None, acyclicEvent=None, has_resources=False, memory_override=None):
 
     # todo: going through list nonsense because (i think) it helps with promises, should at least clean up
     work_dir = job.fileStore.getLocalTempDir()
@@ -268,8 +268,8 @@ def export_hal(job, mc_tree, config_node, seq_id_map, og_map, results, event=Non
         disk = 3 * sum([file_id.size for file_id in fa_file_ids + c2h_file_ids])
         mem = 5 * (max([file_id.size for file_id in fa_file_ids]) + max([file_id.size for file_id in c2h_file_ids]))
         # allows pass-through of memory override from --consMemory
-        if job.memory:
-            mem = job.memory
+        if memory_override:
+            mem = memory_override
         return job.addChildJobFn(export_hal, mc_tree, config_node, seq_id_map, og_map, results, event=event,
                                  cacheBytes=cacheBytes, cacheMDC=cacheMDC, cacheRDC=cacheRDC, cacheW0=cacheW0,
                                  chunk=chunk, deflate=deflate, inMemory=inMemory, checkpointInfo=checkpointInfo,
@@ -310,7 +310,7 @@ def progressive_workflow(job, options, config_node, mc_tree, og_map, input_seq_i
 
     # then do the hal export
     hal_export_job = progressive_job.addFollowOnJobFn(export_hal, mc_tree, config_node, seq_id_map, og_map,
-                                                      progressive_job.rv(), event=root_event, memory=options.consMemory)
+                                                      progressive_job.rv(), event=root_event, memory_override=options.consMemory)
 
     return hal_export_job.rv()
 
@@ -340,7 +340,10 @@ def main():
     parser.add_argument("--binariesMode", choices=["docker", "local", "singularity"],
                         help="The way to run the Cactus binaries", default=None)
     parser.add_argument("--gpu", nargs='?', const='all', default=None, help="toggle on GPU-enabled lastz, and specify number of GPUs (all available if no value provided)")
-    parser.add_argument("--lastzCores", type=int, default=None, help="Number of cores for each lastz job, only relevant when running with --gpu")    
+    parser.add_argument("--lastzCores", type=int, default=None, help="Number of cores for each lastz/segalign job, only relevant when running with --gpu")
+    parser.add_argument("--lastzMemory", type=human2bytesN,
+                        help="Memory in bytes for each lastz/segalign job (defaults to an estimate based on the input data size). "
+                        "Standard suffixes like K, Ki, M, Mi, G or Gi are supported (default=bytes))", default=None)    
     parser.add_argument("--consCores", type=int, 
                         help="Number of cores for each cactus_consolidated job (defaults to all available / maxCores on single_machine)", default=None)
     parser.add_argument("--consMemory", type=human2bytesN,
@@ -398,7 +401,7 @@ def main():
             # load up the seqfile and figure out the outgroups and schedule
             config_node = ET.parse(options.configFile).getroot()
             config_wrapper = ConfigWrapper(config_node)
-            config_wrapper.substituteAllPredefinedConstantsWithLiterals()            
+            config_wrapper.substituteAllPredefinedConstantsWithLiterals(options)
             config_wrapper.setSystemMemory(options)
 
             # apply gpu override

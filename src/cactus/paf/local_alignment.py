@@ -129,7 +129,8 @@ def combine_chunks(job, chunked_alignment_files, batch_size):
                         outfile=alignment_file, outappend=True)
             job.fileStore.deleteGlobalFile(chunk) # Cleanup the old files
         return job.fileStore.writeGlobalFile(alignment_file)  # Return the final alignments file copied to the jobstore
-        
+
+
 def merge_combined_chunks(job, combined_chunks):
     # mege up and return some chunks, deleting them too
     output_path = job.fileStore.getLocalTempFile()
@@ -138,9 +139,9 @@ def merge_combined_chunks(job, combined_chunks):
             chunk_path = job.fileStore.readGlobalFile(chunk, mutable=True)
             with open(chunk_path, 'r') as chunk_file:
                 shutil.copyfileobj(chunk_file, output_file)
-            os.remove(chunk_path)
             job.fileStore.deleteGlobalFile(chunk)
     return job.fileStore.writeGlobalFile(output_path)
+
 
 def make_chunked_alignments(job, event_a, genome_a, event_b, genome_b, distance, params):
     lastz_params_node = params.find("blast")
@@ -149,6 +150,7 @@ def make_chunked_alignments(job, event_a, genome_a, event_b, genome_b, distance,
         # wga-gpu has a 6G limit, so we always override
         lastz_params_node.attrib['chunkSize'] = '6000000000'
     lastz_cores = getOptionalAttrib(lastz_params_node, 'cpu', typeFn=int, default=None)
+    lastz_memory = getOptionalAttrib(lastz_params_node, 'lastz_memory', typeFn=int, default=None)
     
     def make_chunks(genome):
         output_chunks_dir = job.fileStore.getLocalTempDir()
@@ -171,14 +173,35 @@ def make_chunked_alignments(job, event_a, genome_a, event_b, genome_b, distance,
         for j, chunk_b in enumerate(chunks_b):
             mappers = { "lastz":run_lastz, "minimap2":run_minimap2}
             mappingFn = mappers[params.find("blast").attrib["mapper"]]
+            memory = lastz_memory if lastz_memory else max(200000000, 15*(chunk_a.size+chunk_b.size))
             chunked_alignment_files.append(job.addChildJobFn(mappingFn, '{}_{}'.format(event_a, i), chunk_a,
                                                              '{}_{}'.format(event_b, j), chunk_b, distance, params,
-                                                             cores=lastz_cores, disk=4*(chunk_a.size+chunk_b.size),
-                                                             memory=max(200000000, 15*(chunk_a.size+chunk_b.size)),
+                                                             cores=lastz_cores,
+                                                             disk=max(4*(chunk_a.size+chunk_b.size), memory),
+                                                             memory=memory,
                                                              accelerators=accelerators).rv())
 
     dechunk_batch_size = getOptionalAttrib(lastz_params_node, 'dechunkBatchSize', typeFn=int, default=1e9)
     return job.addFollowOnJobFn(combine_chunks, chunked_alignment_files, dechunk_batch_size).rv()  # Combine the chunked alignment files
+
+
+def invert_alignments(job, alignment_file):
+    """ Invert the pafs in the alignment_file """
+    alignment_file_local = job.fileStore.readGlobalFile(alignment_file)
+    inverted_alignment_file_local = job.fileStore.getLocalTempFile()  # Get a temporary file to store the alignments in
+    cactus_call(parameters=['paffy', 'invert', "-i", alignment_file_local], outfile=inverted_alignment_file_local, outappend=True,
+                job_memory=job.memory)
+    job.fileStore.deleteGlobalFile(alignment_file)
+    return job.fileStore.writeGlobalFile(inverted_alignment_file_local)
+
+
+def make_ingroup_to_outgroup_alignments_0(job, ingroup_event, outgroup_events, event_names_to_sequences, distances, params):
+    # Generate the alignments fle
+    alignment_file = job.addChildJobFn(make_ingroup_to_outgroup_alignments_1, ingroup_event, outgroup_events,
+                                            event_names_to_sequences, distances, params).rv()
+
+    # Invert the final alignment so that the query is the outgroup and the target is the ingroup
+    return job.addFollowOnJobFn(invert_alignments, alignment_file).rv()
 
 
 def make_ingroup_to_outgroup_alignments_1(job, ingroup_event, outgroup_events, event_names_to_sequences, distances, params):
@@ -265,8 +288,56 @@ def make_ingroup_to_outgroup_alignments_3(job, ingroup_event, ingroup_seq_file, 
     return job.fileStore.writeGlobalFile(merged_alignments)
 
 
-def chain_alignments(job, alignment_files, alignment_names, reference_event_name, params):
-    # The following recapitulates the pipeline showing in paffy/tests/paf_pipeline_test.sh
+def merge_alignments(job, alignment_file1, alignment_file2):
+    """" Merge together two alignment files """
+    # Get a temporary directory to work in
+    work_dir = job.fileStore.getLocalTempDir()
+
+    # The merged alignment file
+    merged_alignments_file = os.path.join(work_dir, 'output_alignments.paf')
+
+    # Read the files to local disk and merge them together, don't bother to log
+    cactus_call(parameters=['cat',
+                            job.fileStore.readGlobalFile(alignment_file1, os.path.join(work_dir, 'alignment_1.paf')),
+                            job.fileStore.readGlobalFile(alignment_file2, os.path.join(work_dir, 'alignment_2.paf'))],
+                outfile=merged_alignments_file, job_memory=job.memory)
+
+    # Write the merged file back to the job store and return its path
+    return job.fileStore.writeGlobalFile(merged_alignments_file)
+
+
+def chain_alignments_splitting_ingroups_and_outgroups(job, ingroup_alignment_files, ingroup_alignment_names,
+                                                      outgroup_alignment_files, outgroup_alignment_names,
+                                                      reference_event_name, params):
+    """ Chains/tiles/etc. the ingroup alignments to each other so that every ingroup sequence has a primary alignment to
+    another ingroup sequence, and separately each outgroup sequence has a primary alignment to an ingroup."""
+
+    # Check we have the expected number of alignment files
+    assert len(ingroup_alignment_files) == len(ingroup_alignment_names)
+    assert len(outgroup_alignment_files) == len(outgroup_alignment_names)
+
+    # Chain and pick the primary alignments of the ingroups to each other
+    chained_ingroup_alignments = job.addChildJobFn(chain_alignments, ingroup_alignment_files,
+                                                   ingroup_alignment_names, reference_event_name, params).rv()
+
+    # Separately pick the primary of the outgroups to the ingroups. By setting include_inverted_alignments=False
+    # we only get outgroup-to-ingroup alignments and not imgroup-to-ouygroup alignments and therefore primary
+    # alignments along the outgroup sequences
+    chained_outgroup_alignments = job.addChildJobFn(chain_alignments, outgroup_alignment_files,
+                                                    outgroup_alignment_names, reference_event_name, params,
+                                                    include_inverted_alignments=False).rv()
+
+    # Calculate approximately total alignment file size
+    total_file_size = sum(alignment_file.size for alignment_file in ingroup_alignment_files + outgroup_alignment_files)
+
+    # Merge the resulting two alignment files into a single set of alignments
+    return job.addFollowOnJobFn(merge_alignments, chained_ingroup_alignments, chained_outgroup_alignments,
+                                disk=total_file_size*10).rv()
+
+
+def chain_alignments(job, alignment_files, alignment_names, reference_event_name, params,
+                     include_inverted_alignments=True):
+    """The following recapitulates the pipeline showing in paffy/tests/paf_pipeline_test.sh"""
 
     root_job = Job()
     job.addChild(root_job)
@@ -276,7 +347,8 @@ def chain_alignments(job, alignment_files, alignment_names, reference_event_name
     # do the chaining
     chained_alignment_files = []
     for alignment_file, alignment_name in zip(alignment_files, alignment_names):
-        chained_alignment_files.append(root_job.addChildJobFn(chain_one_alignment, alignment_file, alignment_name, params,
+        chained_alignment_files.append(root_job.addChildJobFn(chain_one_alignment, alignment_file, alignment_name,
+                                                              params, include_inverted_alignments,
                                                               disk=6*alignment_file.size,
                                                               memory=32*alignment_file.size).rv())
         
@@ -285,8 +357,11 @@ def chain_alignments(job, alignment_files, alignment_names, reference_event_name
                                      disk=6*sum([alignment_file.size for alignment_file in alignment_files]),
                                      memory=32*sum([alignment_file.size for alignment_file in alignment_files])).rv()
 
-def chain_one_alignment(job, alignment_file, alignment_name, params):
-    # run paffy chain on one PAF
+
+def chain_one_alignment(job, alignment_file, alignment_name, params, include_inverted_alignments):
+    """ run paffy chain on one PAF. include_inverted_alignemnts is a flag to control if we additionally include
+    the inverted paf records for chaining.
+    """
 
     work_dir = job.fileStore.getLocalTempDir()
     alignment_path = os.path.join(work_dir, alignment_name + '.paf')
@@ -296,13 +371,15 @@ def chain_one_alignment(job, alignment_file, alignment_name, params):
     # Copy the alignments from the job store
     job.fileStore.readGlobalFile(alignment_file, alignment_path)
 
-    # Get the forward and reverse versions of each alignment for symmetry with chaining
-    shutil.copyfile(alignment_path, alignment_inv_path)
-    cactus_call(parameters=['paffy', 'invert', "-i", alignment_path], outfile=alignment_inv_path, outappend=True,
-                job_memory=job.memory)
+    # Get the forward and reverse versions of each alignment for symmetry with chaining if include_inverted_alignments
+    # is set
+    if include_inverted_alignments:
+        shutil.copyfile(alignment_path, alignment_inv_path)
+        cactus_call(parameters=['paffy', 'invert', "-i", alignment_inv_path], outfile=alignment_path, outappend=True,
+                    job_memory=job.memory)
 
     # Now chain the alignments
-    cactus_call(parameters=['paffy', 'chain', "-i", alignment_inv_path,
+    cactus_call(parameters=['paffy', 'chain', "-i", alignment_path,
                             "--maxGapLength", params.find("blast").attrib["chainMaxGapLength"],
                             "--chainGapOpen", params.find("blast").attrib["chainGapOpen"],
                             "--chainGapExtend", params.find("blast").attrib["chainGapExtend"],
@@ -400,6 +477,7 @@ def sanitize_then_make_paf_alignments(job, event_tree_string, event_names_to_seq
     paf_job = sanitize_job.addFollowOnJobFn(make_paf_alignments, event_tree_string, sanitize_job.rv(), ancestor_event_string, params)
     return paf_job.rv()
 
+
 def make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancestor_event_string, params):
     # a job should never set its own follow-on, so we hang everything off the root_job here to encapsulate
     root_job = Job()
@@ -441,11 +519,12 @@ def make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancest
 
     # for each ingroup make alignments to the outgroups
     if int(params.find("blast").attrib["trimIngroups"]):  # Trim the ingroup sequences
-        outgroup_alignments = [root_job.addChildJobFn(make_ingroup_to_outgroup_alignments_1, ingroup, outgroup_events,
+        outgroup_alignments = [root_job.addChildJobFn(make_ingroup_to_outgroup_alignments_0, ingroup, outgroup_events,
                                                       dict(event_names_to_sequences), distances, params).rv()
                                 for ingroup in ingroup_events] if len(outgroup_events) > 0 else []
     else:
         outgroup_alignments = [root_job.addChildJobFn(make_chunked_alignments,
+                                                      # Ingroup will be the target, outgroup the query
                                                       ingroup.iD, event_names_to_sequences[ingroup.iD],
                                                       outgroup.iD, event_names_to_sequences[outgroup.iD],
                                                       distances[ingroup, outgroup], params,
@@ -454,10 +533,18 @@ def make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancest
     # for better logs
     outgroup_alignment_names = ['{}-og_{}'.format(ancestor_event_string, i) for i in range(len(outgroup_alignments))]
 
-    # Now do the chaining
-    return root_job.addFollowOnJobFn(chain_alignments, ingroup_alignments + outgroup_alignments,
-                                     ingroup_alignment_names + outgroup_alignment_names,
-                                     ancestor_event_string, params).rv()
+    # Now do the chaining, either getting ingroup primary alignments separately to primary ingroup to outgroup
+    # alignments if the following option is true, otherwise get every sequence to pick its primary alignment without
+    # regard to whether the other sequence is an ingroup or an outgroup
+    if int(params.find("blast").attrib["pickIngroupPrimaryAlignmentsSeparatelyToOutgroups"]):
+        return root_job.addFollowOnJobFn(chain_alignments_splitting_ingroups_and_outgroups,
+                                         ingroup_alignments, ingroup_alignment_names,
+                                         outgroup_alignments, outgroup_alignment_names,
+                                         ancestor_event_string, params).rv()
+
+    return job.addFollowOnJobFn(chain_alignments, ingroup_alignments + outgroup_alignments,
+                                ingroup_alignment_names + outgroup_alignment_names,
+                                ancestor_event_string, params).rv()
 
 
 def trim_unaligned_sequences(job, sequences, alignments, params):

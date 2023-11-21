@@ -51,7 +51,7 @@ export HTSLIB_LIBS="$(pwd)/libhts.a -lbz2 -ldeflate -lm -lpthread -lz -llzma -pt
 cd ${mafBuildDir}
 git clone https://github.com/ComparativeGenomicsToolkit/taffy.git
 cd taffy
-git checkout c75ce895b7975e7ac17cb1ce964db3016615de47
+git checkout ee50639be3d86451590de8ea4d3a7a037eeaf427
 git submodule update --init --recursive
 export HALDIR=${CWD}/submodules/hal
 make -j ${numcpu}
@@ -66,7 +66,7 @@ fi
 cd ${mafBuildDir}
 git clone https://github.com/ComparativeGenomicsToolkit/mafTools.git
 cd mafTools
-git checkout 837b8f27c7bf781c7cbee3972b94e91aa6a77790
+git checkout b88cd313cb18764d87bc801fbbbb00f982c1a48f
 find . -name "*.mk" | xargs sed -ie "s/-Werror//g"
 find . -name "Makefile*" | xargs sed -ie "s/-Werror//g"
 # hack in flags support

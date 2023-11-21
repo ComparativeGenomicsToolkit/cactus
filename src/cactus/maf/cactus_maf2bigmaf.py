@@ -84,7 +84,7 @@ def main():
             #load cactus config
             configNode = ET.parse(options.configFile).getroot()
             config = ConfigWrapper(configNode)
-            config.substituteAllPredefinedConstantsWithLiterals()
+            config.substituteAllPredefinedConstantsWithLiterals(options)
             
             logger.info("Importing {}".format(options.mafFile))
             maf_id = toil.importFile(options.mafFile)

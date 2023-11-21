@@ -170,12 +170,12 @@ The Cactus Docker image contains everything you need to run Cactus (python envir
 
 ```
 wget -q https://raw.githubusercontent.com/ComparativeGenomicsToolkit/cactus/master/examples/evolverMammals.txt -O evolverMammals.txt
-docker run -v $(pwd):/data --rm -it quay.io/comparative-genomics-toolkit/cactus:v2.6.8 cactus /data/jobStore /data/evolverMammals.txt /data/evolverMammals.hal
+docker run -v $(pwd):/data --rm -it quay.io/comparative-genomics-toolkit/cactus:v2.6.13 cactus /data/jobStore /data/evolverMammals.txt /data/evolverMammals.hal
 ```
 
 Or you can proceed interactively by running
 ```
-docker run -v $(pwd):/data --rm -it quay.io/comparative-genomics-toolkit/cactus:v2.6.8 bash
+docker run -v $(pwd):/data --rm -it quay.io/comparative-genomics-toolkit/cactus:v2.6.13 bash
 cactus /data/jobStore /data/evolverMammals.txt /data/evolverMammals.hal
 
 ```
@@ -204,6 +204,16 @@ export TOIL_SLURM_ARGS="--nice=5000"
 
 to avoid making too many enemies.
 
+You can (and probably should) use the `--batchLogsDir` option in order to enable more SLURM logging.  You must pass it a directory that already exists.  Ex.
+
+```
+mkdir -p batch-logs
+cactus ./js ./examples/evolverMammals.txt evolverMammals.hal --batchSystem slurm --batchLogsDir batch-logs
+```
+
+You'll want to clean out this directory after a successful run. 
+
+
 You cannot run `cactus --batchSystem slurm` from *inside* the Cactus docker container, because the Cactus docker container doesn't contain slurm.  Therefore in order to use slurm, you must be able to `pip install` Cactus inside a virtualenv on the head node. You can still use `--binariesMode docker` or `--binariesMode` singularity to run cactus *binaries* from a container, but the Cactus Python module needs to be installed locally.
 
 **IMPORTANT**
@@ -211,7 +221,7 @@ You cannot run `cactus --batchSystem slurm` from *inside* the Cactus docker cont
 To run Progressive Cactus with CPU (default) lastz, you should increase the chunk size.  This will divide the input assemblies into fewer pieces, resulting in fewer jobs on the cluster.
 
 ```
-cp cactus-bin-v2.6.8/src/cactus/cactus_progressive_config.xml ./config-slurm.xml
+cp cactus-bin-v2.6.13/src/cactus/cactus_progressive_config.xml ./config-slurm.xml
 sed -i config-slurm.xml -e 's/blast chunkSize="30000000"/blast chunkSize="90000000"/g'
 sed -i config-slurm.xml -e 's/dechunkBatchSize="1000"/dechunkBatchSize="200"/g'
 ```
@@ -340,6 +350,11 @@ We've tested SegAlign on Nvidia V100 and A10G GPUs. See the Terra example above 
 
 Please [cite SegAlign](https://doi.ieeecomputersociety.org/10.1109/SC41405.2020.00043).
 
+### Using GPU Acceleration on a Cluster
+
+Since `SegAlign` is only released in the GPU-enabled docker image, that's the easiest way to run it. When running on a cluster, this usually means the best way to use it is with `--binariesMode docker --gpu <N>`.  This way cactus is installed locally on your virtual environment and can run slurm commands like `sbatch` (that aren't available in the Cactus container), but SegAlign itself will be run from inside Docker.
+
+**Important**: Consider using `--lastzMemory` when using GPU acceleration on a cluster. Like `--consMemory`, it lets you override the amount of memory Toil requests which can help with errors if Cactus's automatic estimate is either too low (cluster evicts the job) or too high (cluster cannot schedule the job).  
 
 ## Pre-Alignment Checklist
 
