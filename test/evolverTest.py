@@ -391,7 +391,7 @@ class TestCase(unittest.TestCase):
         out_dir = os.path.dirname(self._out_hal(binariesMode))
         out_name = os.path.splitext(os.path.basename(self._out_hal(binariesMode)))[0]
         cactus_pangenome_cmd = ['cactus-pangenome', self._job_store(binariesMode), seq_file_path, '--reference', 'simHuman',
-                                '--outDir', out_dir, '--outName', out_name]
+                                '--outDir', out_dir, '--outName', out_name, '--noSplit']
 
         subprocess.check_call(cactus_pangenome_cmd + cactus_opts)
         # cactus-pangenome tacks on the .full to the output name

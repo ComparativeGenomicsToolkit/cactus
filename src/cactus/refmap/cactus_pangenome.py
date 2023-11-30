@@ -70,6 +70,7 @@ def main():
     parser.add_argument("--refContigs", nargs="*", help = "Subset to these reference contigs (multiple allowed)", default=[])
     parser.add_argument("--otherContig", type=str, help = "Lump all reference contigs unselected by above options into single one with this name")
     parser.add_argument("--permissiveContigFilter", nargs='?', const='0.25', default=None, type=float, help = "If specified, override the configuration to accept contigs so long as they have at least given fraction of coverage (0.25 if no fraction specified). This can increase sensitivity of very small, fragmented and/or diverse assemblies.")
+    parser.add_argument("--noSplit", action='store_true', help = "Do not split by ref chromsome. This will require much more memory and potentially produce a more complex graph")
 
     # cactus-align options
     parser.add_argument("--maxLen", type=int, default=10000,
@@ -253,7 +254,19 @@ def update_seqfile(job, options, seq_id_map, seq_path_map, seq_order, gfa_fa_id,
     for sample,seq_path in seq_path_map.items():
         seq_name_map[sample] = os.path.basename(seq_path)
     return seq_id_map, seq_path_map, seq_name_map
-    
+
+def phony_chromfile(job, options, paf_path):
+    """ make a one-chromosome chromfile, used to bypass split workflow while keeping interface unchanged"""
+    work_dir = job.fileStore.getLocalTempDir()        
+    # note: this is the same path used in update_seqfile()
+    seqfile_path = makeURL(os.path.join(options.outDir, os.path.basename(options.seqFile)))
+    # note: this is the same path used in export_graphmap_wrapper()
+    paf_path = makeURL(os.path.join(options.outDir, os.path.basename(paf_path)))
+    chromfile_path = os.path.join(options.outDir, 'chromfile.txt')        
+    with open(chromfile_path, 'w') as chromfile:
+        chromfile.write('all\t{}\t{}'.format(seqfile_path, paf_path))
+    return chromfile_path
+
 def export_split_wrapper(job, wf_output, out_dir, config_node):
     """ toil job wrapper for cactus_graphmap_split's exporter """
     if not out_dir.startswith('s3://') and not os.path.isdir(out_dir):
@@ -334,17 +347,21 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
     update_seqfile_job = graphmap_job.addFollowOnJobFn(update_seqfile, options, seq_id_map, seq_path_map, seq_order, gfa_fa_id, gfa_fa_path, graph_event)
     seq_id_map, seq_path_map, seq_name_map = update_seqfile_job.rv(0), update_seqfile_job.rv(1), update_seqfile_job.rv(2)
 
-    # cactus_graphmap_split
-    split_job = update_seqfile_job.addFollowOnJobFn(graphmap_split_workflow, options, config_wrapper, seq_id_map, seq_name_map, sv_gfa_id,
-                                                    sv_gfa_path, paf_id, paf_path, sanitize=False)
+    if options.noSplit:
+        # we phony in the entire alignment as one chromsome called 'all'
+        phony_chromfile_job = update_seqfile_job.addFollowOnJobFn(phony_chromfile, options, paf_path)
+        chromfile_path = phony_chromfile_job.rv()
+        split_export_job = phony_chromfile_job
+    else:        
+        # cactus_graphmap_split
+        split_job = update_seqfile_job.addFollowOnJobFn(graphmap_split_workflow, options, config_wrapper, seq_id_map, seq_name_map, sv_gfa_id,
+                                                        sv_gfa_path, paf_id, paf_path, sanitize=False)
+        wf_output = split_job.rv()
+        split_out_path = os.path.join(options.outDir, 'chrom-subproblems')    
+        split_export_job = split_job.addFollowOnJobFn(export_split_wrapper, wf_output, split_out_path, config_wrapper)        
+        chromfile_path = os.path.join(split_out_path, 'chromfile.txt')
 
-    wf_output = split_job.rv()
-    split_out_path = os.path.join(options.outDir, 'chrom-subproblems')    
-    split_export_job = split_job.addFollowOnJobFn(export_split_wrapper, wf_output, split_out_path, config_wrapper)
-        
-    # cactus_align
-    chromfile_path = os.path.join(split_out_path, 'chromfile.txt')
-
+    # cactus_align        
     align_jobs_make_job = split_export_job.addFollowOnJobFn(make_batch_align_jobs_wrapper, options, chromfile_path, config_wrapper)
     align_jobs = align_jobs_make_job.rv()
     align_job = align_jobs_make_job.addFollowOnJobFn(batch_align_jobs, align_jobs)
