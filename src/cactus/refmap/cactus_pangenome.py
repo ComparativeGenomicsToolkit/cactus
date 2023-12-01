@@ -255,7 +255,7 @@ def update_seqfile(job, options, seq_id_map, seq_path_map, seq_order, gfa_fa_id,
         seq_name_map[sample] = os.path.basename(seq_path)
     return seq_id_map, seq_path_map, seq_name_map
 
-def phony_chromfile(job, options, paf_path, paf_id):
+def phony_chromfile(job, options, paf_path):
     """ make a one-chromosome chromfile, used to bypass split workflow while keeping interface unchanged"""
     work_dir = job.fileStore.getLocalTempDir()        
     # note: this is the same path used in update_seqfile()
@@ -265,12 +265,6 @@ def phony_chromfile(job, options, paf_path, paf_id):
     chromfile_path = os.path.join(options.outDir, 'chromfile.txt')        
     with open(chromfile_path, 'w') as chromfile:
         chromfile.write('all\t{}\t{}'.format(seqfile_path, paf_path))
-
-    # don't need this anymore, also hoping this fixes weird error where somehow
-    # the exported version from export_graphmap_wrapper() is unreadable for a few seconds by batch_align_jobs()
-    # which can cause failures sometimes
-    job.fileStore.deleteGlobalFile(paf_id)
-        
     return chromfile_path
 
 def export_split_wrapper(job, wf_output, out_dir, config_node):
@@ -355,7 +349,7 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
 
     if options.noSplit:
         # we phony in the entire alignment as one chromsome called 'all'
-        phony_chromfile_job = update_seqfile_job.addFollowOnJobFn(phony_chromfile, options, paf_path, paf_id)
+        phony_chromfile_job = update_seqfile_job.addFollowOnJobFn(phony_chromfile, options, paf_path)
         chromfile_path = phony_chromfile_job.rv()
         split_export_job = phony_chromfile_job
     else:        
