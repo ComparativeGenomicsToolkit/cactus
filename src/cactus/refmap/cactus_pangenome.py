@@ -341,10 +341,10 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
     
     graphmap_job = minigraph_job.addFollowOnJobFn(minigraph_workflow, options, config_wrapper, seq_id_map, sv_gfa_id, graph_event, sanitize=False)
     paf_id, gfa_fa_id, gaf_id, unfiltered_paf_id, paf_filter_log = graphmap_job.rv(0), graphmap_job.rv(1), graphmap_job.rv(2), graphmap_job.rv(3), graphmap_job.rv(4)
-    graphmap_job.addFollowOnJobFn(export_graphmap_wrapper, options, paf_id, paf_path, gaf_id, unfiltered_paf_id, paf_filter_log)
+    graphmap_export_job = graphmap_job.addFollowOnJobFn(export_graphmap_wrapper, options, paf_id, paf_path, gaf_id, unfiltered_paf_id, paf_filter_log)
 
     # we need to update the seqfile with the phonied in minigraph event
-    update_seqfile_job = graphmap_job.addFollowOnJobFn(update_seqfile, options, seq_id_map, seq_path_map, seq_order, gfa_fa_id, gfa_fa_path, graph_event)
+    update_seqfile_job = graphmap_export_job.addFollowOnJobFn(update_seqfile, options, seq_id_map, seq_path_map, seq_order, gfa_fa_id, gfa_fa_path, graph_event)
     seq_id_map, seq_path_map, seq_name_map = update_seqfile_job.rv(0), update_seqfile_job.rv(1), update_seqfile_job.rv(2)
 
     if options.noSplit:
