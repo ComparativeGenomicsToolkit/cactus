@@ -114,6 +114,8 @@ def graphmap_join_options(parser):
     
     parser.add_argument("--gbz", nargs='*', default=None, help = "Generate GBZ/snarls indexes for the given graph type(s) if specified. Valid types are 'full', 'clip' and 'filter'. If no type specified 'clip' will be used ('full' used if clipping disabled). Multiple types can be provided separated by a space. --giraffe will also produce these (and other) indexes")
 
+    parser.add_argument("--xg", nargs='*', default=None, help = "Generate XG index (from GBZ) for the given graph type(s) if specified. Valid types are 'full', 'clip' and 'filter'. If no type specified 'clip' will be used ('full' used if clipping disabled). Multiple types can be provided separated by a space.")    
+
     parser.add_argument("--odgi", nargs='*', default=None, help = "Generate ODGI (.og) versions for the given graph type(s) if specified. Valid types are 'full', 'clip' and 'filter'. If no type specified 'full' will be used. Multiple types can be provided separated by a space.")
 
     parser.add_argument("--viz", nargs='*', default=None, help = "Generate 1D ODGI visualizations of each chromosomal graph for the given graph type(s) if specified. Valid types are 'full', 'clip' (but NOT `filter`). If no type specified 'full' will be used. Multiple types can be provided separated by a space.")
@@ -184,6 +186,19 @@ def graphmap_join_validate_options(options):
             raise RuntimError('--gbz cannot be set to clip since clipping is disabled')
         if gbz == 'filter' and not options.filter:
             raise RuntimeError('--gbz cannot be set to filter since filtering is disabled')
+
+    if options.xg == []:
+        options.xg = ['clip'] if options.clip else ['full']
+    options.xg = list(set(options.xg)) if options.xg else []
+    for xg in options.xg:
+        if xg not in ['clip', 'filter', 'full']:
+            raise RuntimeError('Unrecognized value for --xg: {}. Must be one of {{clip, filter, full}}'.format(xg))
+        if xg == 'clip' and not options.clip:
+            raise RuntimError('--xg cannot be set to clip since clipping is disabled')
+        if xg == 'filter' and not options.filter:
+            raise RuntimeError('--xg cannot be set to filter since filtering is disabled')
+        if xg not in options.xg:
+            raise RuntimeError('Specifying --xg {} requires also specifying --gbz {}'.format(xg, xg))
 
     if options.odgi == []:
         options.odgi = ['full']
@@ -478,6 +493,15 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
             out_dicts.append(gfa_merge_job.rv())
             prev_job = gfa_merge_job
             current_out_dict = gfa_merge_job.rv()
+
+        # optional xg
+        if workflow_phase in options.xg:
+            xg_job = prev_job.addFollowOnJobFn(make_xg, config, options.outName, current_out_dict,
+                                               tag=workflow_phase + '.',
+                                               cores=max(options.indexCores, 4),
+                                               disk = sum(f.size for f in vg_ids) * 10,
+                                               memory=index_mem)
+            out_dicts.append(xg_job.rv())
 
         # optional vcf
         if workflow_phase in options.vcf:
@@ -800,6 +824,22 @@ def make_vg_indexes(job, options, config, gfa_ids, tag="", do_gbz=False):
         out_dict['{}gbz'.format(tag)] = job.fileStore.writeGlobalFile(gbz_path)
         out_dict['{}snarls'.format(tag)] =  job.fileStore.writeGlobalFile(snarls_path)
     return out_dict
+
+def make_xg(job, config, out_name, index_dict, tag='', drop_haplotypes=False):
+    """ make the xg from the gbz
+    """
+    work_dir = job.fileStore.getLocalTempDir()
+    gbz_path = os.path.join(work_dir, tag + os.path.basename(out_name) + '.gbz')
+    xg_path = os.path.join(work_dir, tag + os.path.basename(out_name) + '.xg')
+    job.fileStore.readGlobalFile(index_dict['{}gbz'.format(tag)], gbz_path)
+
+    # make the xg
+    xg_cmd = ['vg', 'convert', '-x', gbz_path, '-t', str(job.cores)]
+    if drop_haplotypes:
+        xg_cmd += ['-H']
+    cactus_call(parameters=xg_cmd, outfile=xg_path)
+
+    return { '{}xg'.format(tag) : job.fileStore.writeGlobalFile(xg_path) }
 
 def make_vcf(job, config, out_name, vcf_ref, index_dict, tag='', ref_tag='', max_ref_allele=None):
     """ make the vcf
