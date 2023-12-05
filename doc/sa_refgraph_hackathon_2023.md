@@ -29,7 +29,7 @@ This is a tutorial written to support the **Reference Graph Pangenome Data Analy
 
 Unlike some previous workshops, and most of the existing Cactus documentation, this tutorial will focus on whole-genome human data. As such, it will need to be run over a period of time longer than a typical workshop session. The running times and memory usage of each command will be given wherever possible. 
 
-Slack (`#refgraph_hackathon_2023`) will probably be the best place to reach out to me (Glenn Hickey) for support. 
+**Update:** Many thanks to the workshop attendees for their patience and interest, and all credit to your feedback for helping to debug it! I will try to continue to support it at least for a little while.  Feel free to reach out to me on github or otherwise (even if you weren't in the workshop) with any questions or problems.
 
 ## Key Reference Material
 

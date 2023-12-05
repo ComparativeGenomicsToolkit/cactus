@@ -16,6 +16,7 @@ Please cite the [Minigraph-Cactus paper](https://doi.org/10.1038/s41587-023-0179
 * [MHC Graph](#mhc-graph)
 * [GRCh38 Alts Graph](#grch38-alts-graph)
 * [Human Graph](#hprc-graph)
+* [Tutorials](#tutorials)
 * [Frequently Asked Questions](#frequently-asked-questions)
 
 ## Pangenome Data
@@ -815,6 +816,9 @@ CHM13 graph command line
  -r CHM13 -v GRCh38 -d s3://vg-k8s/vgamb/wg/fasta/hs38d1.decoys.only.vg  -g  \
  -F -C -M 100000 -K 10000 -y  2>> stderr.aug11.chm13.3.log > /dev/null
 ```
+## Tutorials
+
+* [12/2023 South Africa Refgraph Hackathon](./sa_refgraph_hackathon_2023.md)
 
 ## Frequently Asked Questions
 
