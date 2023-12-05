@@ -191,7 +191,7 @@ The different graphs have different uses. For instance, the current version of `
 
 `--giraffe clip filter`: Make the giraffe indexes for both the clipped and filtered graph.
 
-The same type of interface applies to all the output specification options: `--vcf`, `--gbz`, `--gfa`, `--giraffe`, `--chrom-vg`, `--odgi`, `--chrom-og`, `--viz`, `--draw`. They can all be used without arguments to apply to the default graph (generally the `clip` graph for everything except `--giraffe` which defaults to the `filter` graph, and anything odgi-related which defaults to `full`), or with any combination of `full`, `clip` and `filter` to be applied to different graphs.
+The same type of interface applies to all the output specification options: `--vcf`, `--gbz`, `--gfa`, `--xg`, `--giraffe`, `--chrom-vg`, `--odgi`, `--chrom-og`, `--viz`, `--draw`. They can all be used without arguments to apply to the default graph (generally the `clip` graph for everything except `--giraffe` which defaults to the `filter` graph, and anything odgi-related which defaults to `full`), or with any combination of `full`, `clip` and `filter` to be applied to different graphs.
 
 Note that by default, only GFA is output, so the above options need to be used to toggle on any other output types. 
 
@@ -205,7 +205,8 @@ The `--vcf` option will produce two VCFs for each selected graph type. One VCF i
 * `gfa`: A [standard text-based graph format](https://github.com/GFA-spec/GFA-spec/blob/master/GFA1.md). Minigraph-Cactus uses GFA 1.1 as it represents haplotypes as [Walks](https://github.com/GFA-spec/GFA-spec/blob/master/GFA1.md#w-walk-line-since-v11). You can use `vg convert -gfW` to convert from GFA 1.1 to 1.0 and `vg convert -gf` to convert from 1.0 to 1.1.
 * `vcf`: A [standard text-based format](https://en.wikipedia.org/wiki/Variant_Call_Format) that represents a pangenome graph as sites of variation along a reference. VCFs exported from the graph are nested, and by default `vcfbub` is used to flatten them.
 * `vg`: [vg](https://github.com/vgteam/vg)'s native packed-graph format, can be read and written by `vg` but does not scale well with the number of paths.
-* `gbz`: A read-only [format that scales extremely efficiently with the number of paths](https://github.com/jltsiren/gbwtgraph/blob/master/SERIALIZATION.md). Readable by `vg` tools and required for `giraffe`.  
+* `gbz`: A read-only [format that scales extremely efficiently with the number of paths](https://github.com/jltsiren/gbwtgraph/blob/master/SERIALIZATION.md). Readable by `vg` tools and required for `giraffe`.
+* `xg` : A read-only format that is indexed on all paths (not just reference paths like `.gbz`). As a consequence, it requires more memory than `.gbz`. Readable by `vg` tools, and ideal for `vg find` and `vg chunk`.
 * `snarls`: The start and end nodes of the bubbles in the graph, as well as their nesting relationships.  Used by some `vg` tools like `call` and `deconstruct`.
 * `dist`: Snarl distance index required for `vg giraffe`.
 * `min`: Minimizer index required for `vg giraffe`.
@@ -268,7 +269,7 @@ Please cite [Bandage-NG](https://github.com/asl/BandageNG) for images your creat
 * `--odgi` : Output the graph to odgi (.og) format.  Valid options are `full` and/or `clip`, with the default being `full` if none are specified (there is no reason to output the `filter` graphs to odgi, and the tiny path fragments can potentially make conversion very slow).
 * `--chrom-og`: Output each graph chromosome in odgi (.og) format.  This is recommended if you want to run `odgi` yourself to do any visualization, since you will generally want to deal with one chromosome at a time.  As above, valid options are `full` and `clip`, defaulting to `full` if none specified.
 
-Unlike some of the related options such as `--gbz`, `--chrom-vg`, `--gfa`, etc, the odgi options above default to working on the `full` graph as opposed the the `clip` graphs.  As such, the output (by default) will contain the unaligned chromosomes.  The rationale is that these unaligned sequences do not seem to hinder visualization, whereas the path fragments that arise from clipping can bog odgi down a little bit (ex: chr1 from the clipped 10-chicken pangenome takes several hours to convert to odgi, but the full graph is fine). Also, odgi's coordinate system does not support path fragments, so its extraction tools etc. will only work properly on the full graphs.  This is still a work in progress, so you can use, say, `--chrom-og clip full` to experiment with both.
+Unlike some of the related options such as `--gbz`, `--xg`, `--chrom-vg`, `--gfa`, etc, the odgi options above default to working on the `full` graph as opposed the the `clip` graphs.  As such, the output (by default) will contain the unaligned chromosomes.  The rationale is that these unaligned sequences do not seem to hinder visualization, whereas the path fragments that arise from clipping can bog odgi down a little bit (ex: chr1 from the clipped 10-chicken pangenome takes several hours to convert to odgi, but the full graph is fine). Also, odgi's coordinate system does not support path fragments, so its extraction tools etc. will only work properly on the full graphs.  This is still a work in progress, so you can use, say, `--chrom-og clip full` to experiment with both.
 
 #### ODGI Viz
 

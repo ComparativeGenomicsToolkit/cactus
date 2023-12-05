@@ -452,7 +452,7 @@ class TestCase(unittest.TestCase):
         join_path = os.path.join(self.tempDir, 'join')
         subprocess.check_call(['cactus-graphmap-join', self._job_store(binariesMode), '--outDir', join_path, '--outName', 'yeast',
                                '--reference', 'S288C', '--vg'] +  vg_files + ['--hal'] + hal_files +
-                               ['--vcf', '--giraffe', 'clip', 'filter'] + cactus_opts + ['--indexCores', '4'])
+                               ['--xg', '--vcf', '--giraffe', 'clip', 'filter'] + cactus_opts + ['--indexCores', '4'])
 
     def _run_yeast_pangenome(self, binariesMode):
         """ yeast pangenome chromosome by chromosome pipeline, as run through a single invocations
@@ -469,7 +469,7 @@ class TestCase(unittest.TestCase):
                                 '--refContigs'] + chroms + ['--reference', 'S288C', 'DBVPG6044', '--vcf', '--vcfReference','DBVPG6044', 'S288C',
                                                             '--giraffe', 'clip', 'filter',  '--chrom-vg', 'clip', 'filter',
                                                             '--viz', '--chrom-og', 'clip', 'full', '--odgi', '--haplo', 'clip',
-                                                            '--indexCores', '4', '--consCores', '2']
+                                                            '--xg', '--indexCores', '4', '--consCores', '2']
         subprocess.check_call(cactus_pangenome_cmd + cactus_opts)
 
         #compatibility with older test
@@ -572,6 +572,8 @@ class TestCase(unittest.TestCase):
         clip_nodes = int(subprocess.check_output(['vg', 'stats', '-N', os.path.join(join_path, 'yeast.gbz')]).strip().decode('utf-8').strip())
         self.assertGreaterEqual(clip_nodes, 400000)
         self.assertLessEqual(clip_nodes, 500000)
+        xg_clip_nodes = int(subprocess.check_output(['vg', 'stats', '-N', os.path.join(join_path, 'yeast.xg')]).strip().decode('utf-8').strip())
+        self.assertEqual(clip_nodes, xg_clip_nodes)
 
         filter_nodes = int(subprocess.check_output(['vg', 'stats', '-N', os.path.join(join_path, 'yeast.d2.gbz')]).strip().decode('utf-8').strip())
         self.assertGreaterEqual(filter_nodes, 300000)
@@ -592,6 +594,7 @@ class TestCase(unittest.TestCase):
                 self.assertGreaterEqual(os.path.getsize(os.path.join(join_path, 'yeast.viz', chr + '.full.viz.png')), 700)
                 self.assertGreaterEqual(os.path.getsize(os.path.join(join_path, 'yeast.chroms', chr + '.full.og')), 3000000)
                 self.assertGreaterEqual(os.path.getsize(os.path.join(join_path, 'yeast.chroms', chr + '.og')), 3000000)
+
 
 
     def _csvstr_to_table(self, csvstr, header_fields):
