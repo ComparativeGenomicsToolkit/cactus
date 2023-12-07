@@ -547,7 +547,9 @@ bash -c "vg giraffe -Z ./hprc10/hprc10.gbz -f ./hprc10/HG002.hiseqx.pcr-free.30x
 
 ```
 
-This takes about 4 hours and 64 Gb RAM. 
+This takes about 4 hours and 64 Gb RAM.
+
+See note below about fixing the BAM header if you have surjected onti a different reference than was used for the graph (ie you've surjected onto `CHM13` with a `GRCh38`-based graph.
 
 ## Part 4: Genotyping and Variant Calling
 
@@ -562,6 +564,18 @@ singularity exec -H $(pwd) docker://quay.io/comparative-genomics-toolkit/cactus:
 bash -c "vg paths -x ./hprc10/hprc10.gbz -S GRCh38 -F > ./GRCh38.fa"
 singularity exec -H $(pwd) docker://quay.io/comparative-genomics-toolkit/cactus:v2.6.13 \
 samtools faidx ./GRCh38.fa
+```
+
+**Important** if you are surjecting onto `CHM13` but using the GRCh38-based graph, you need to fix your BAM header as follows:
+
+```
+singularity exec -H $(pwd) docker://biocontainers/picard-tools:v2.18.25dfsg-2-deb_cv1 \
+PicardCommandLine CreateSequenceDictionary R=./GRCh38.fa O=./GRCh38.dict
+
+singularity exec -H $(pwd) docker://quay.io/comparative-genomics-toolkit/cactus:v2.6.13 \
+samtools reheader ./GRCh38.dict ./hprc10/hprc10.hg002.new.bam > ./hprc10/hprc10.hg002.new.fix.bam
+
+mv ./hprc10/hprc10.hg002.new.fix.bam  ./hprc10/hprc10.hg002.new.bam
 ```
 
 Next, index the BAM (this is a required step for almost any variant caller that takes BAM input)
