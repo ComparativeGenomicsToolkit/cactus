@@ -8,6 +8,14 @@ Cactus is a reference-free whole-genome alignment program, as well as a pagenome
 * Use the precompiled binaries (Linux X86) or Docker image from [the latest release](https://github.com/ComparativeGenomicsToolkit/cactus/releases)
 * See [below](#installing-manually-from-source) for details on building from source. 
 
+## Getting help
+
+Please subscribe to the [cactus-announce](https://groups.google.com/d/forum/cactus-announce) low-volume mailing list so we may reach out about releases and other announcements.
+
+To ask questions or request help, please use the [Cactus GitHub Discussions](https://github.com/ComparativeGenomicsToolkit/cactus/discussions).
+
+To file a bug report or enhancement request against the code or documentation, create a [GitHub Issue](https://github.com/ComparativeGenomicsToolkit/cactus/issues).
+
 ## Align Genomes from Different Species
 
 * See the [Progressive Cactus documenation](doc/progressive.md)
@@ -33,10 +41,6 @@ Cactus uses many different algorithms and individual code contributions, princip
 - The vg team for [vg](https://github.com/vgteam/vg), used to process pangenome graphs.
 - The authors of [Mash](https://github.com/marbl/Mash)
 - Andrea Guarracino, Erik Garrison and co-authors for [odgi](https://github.com/pangenome/odgi). Make sure to [cite odgi](https://doi.org/10.1093/bioinformatics/btac308) when using it or its visualizations. 
-
-## Mailing List
-
-Please subscribe to the [cactus-announce](https://groups.google.com/d/forum/cactus-announce) low-volume mailing list so we may reach about releases and other announcements.
 
 ## Installing Manually From Source
 
