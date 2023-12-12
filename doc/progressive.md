@@ -8,6 +8,7 @@ Please cite the [HAL paper](https://doi.org/10.1093/bioinformatics/btt128) when 
 
 ## Table of Contents
 
+* [Progressive Cactus Data](#progressive-cactus-data)
 * [Quick-start](#quick-start)
 * [Interface](#interface)
 * [Using the HAL Output](#using-the-hal-output)
@@ -20,6 +21,10 @@ Please cite the [HAL paper](https://doi.org/10.1093/bioinformatics/btt128) when 
 * [GPU Acceleration](#gpu-acceleration)
 * [Pre-Alignment Checklist](#pre-alignment-checklist)
 * [Frequently Asked Questions](#frequently-asked-questions)
+
+## Progressive Cactus Data
+
+* Some Progressive Cactus data including the [Zoonomia](https://zoonomiaproject.org/) alignments can be found [here](https://cglgenomics.ucsc.edu/data/cactus/).
 
 ## Quick Start
 
