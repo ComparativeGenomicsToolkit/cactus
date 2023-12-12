@@ -318,6 +318,9 @@ def make_align_job(options, toil, config_wrapper=None, chrom_name=None):
         barNode.attrib["minimumBlockDegree"] = "1"
         # turn off POA seeding
         poaNode.attrib["partialOrderAlignmentDisableSeeding"] = "1"
+        if options.reference:
+            # activate left-aligning for the reference inside BAR
+            poaNode.attrib["referenceEventName"] = options.reference[0]
 
     # import the PAF alignments
     paf_id = toil.importFile(makeURL(options.pafFile))

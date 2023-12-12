@@ -459,7 +459,7 @@ int64_t getMaxAdjacencyLength(Flower *flower) {
     return maxAdjacencyLength;
 }
 
-End *getDominantEnd(Flower *flower) {
+End *getDominantEnd(Flower *flower, Name ref_event_name) {
     //return NULL;
     assert(flower_getGroupNumber(flower) <= 1);
     Flower_EndIterator *endIt = flower_getEndIterator(flower);
@@ -467,11 +467,38 @@ End *getDominantEnd(Flower *flower) {
     int64_t maxInstanceNumber = 0;
     // Get the end with the largest number of caps
     End *dominantEnd = NULL;
+    // break ties with the largest number of forward sequences (prioritizing the ref_event_name)
+    int64_t dominantForwardRefCount = 0;
+    int64_t dominantForwardCount = 0;
     while ((end = flower_getNextEnd(endIt)) != NULL) {
-        if (end_getInstanceNumber(end) > maxInstanceNumber) {
-            maxInstanceNumber = end_getInstanceNumber(end);
-            dominantEnd = end;
-        }
+        int64_t endInstanceNumber = end_getInstanceNumber(end);
+        if (endInstanceNumber >= maxInstanceNumber) {
+            // compute the stranding information
+            End_InstanceIterator *endIt = end_getInstanceIterator(end);
+            Cap *cap;
+            int64_t forwardRefCount = 0;            
+            int64_t forwardCount = 0;
+            while ((cap = end_getNext(endIt)) != NULL) {
+                Cap *adj_cap = cap_getAdjacency(cap);
+                if (adj_cap != NULL && cap_getCoordinate(cap) < cap_getCoordinate(adj_cap)) {
+                    ++forwardCount;
+                    Event *event = cap_getEvent(cap);
+                    if (ref_event_name != NULL_NAME && event != NULL && event_getName(event) == ref_event_name) {
+                        ++forwardRefCount;
+                    }
+                }
+            }
+            end_destructInstanceIterator(endIt);
+            if (endInstanceNumber > maxInstanceNumber ||
+                (endInstanceNumber == maxInstanceNumber &&
+                 (forwardRefCount > dominantForwardRefCount ||
+                  (forwardRefCount == dominantForwardRefCount && forwardCount > dominantForwardCount)))) {                
+                maxInstanceNumber = endInstanceNumber;
+                dominantEnd = end;
+                dominantForwardRefCount = forwardRefCount;
+                dominantForwardCount = forwardCount;
+            }            
+        } 
     }
     flower_destructEndIterator(endIt);
     if (dominantEnd == NULL) { // This will only be true if there are no ends or only ends with no caps
@@ -504,7 +531,7 @@ static stSortedSet *getEndsToAlign(Flower *flower, int64_t maxSequenceLength) {
      * Gets a set of the ends that we need to construct actual alignments for.
      */
     stSortedSet *endsToAlign = stSortedSet_construct();
-    End *dominantEnd = getDominantEnd(flower); //an end to which all adjacencies are incident
+    End *dominantEnd = getDominantEnd(flower, NULL_NAME); //an end to which all adjacencies are incident
     if (dominantEnd != NULL && getMaxAdjacencyLength(flower) <= 2 * maxSequenceLength) {
         stSortedSet_insert(endsToAlign, dominantEnd);
     } else {

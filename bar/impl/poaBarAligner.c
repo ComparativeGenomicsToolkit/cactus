@@ -1094,8 +1094,8 @@ int64_t getMaxSequenceLength(End *end) {
 }
 
 stList *make_flower_alignment_poa(Flower *flower, int64_t max_seq_length, int64_t window_size, int64_t mask_filter,
-                                  abpoa_para_t * poa_parameters) {
-    End *dominantEnd = getDominantEnd(flower);
+                                  abpoa_para_t * poa_parameters, Name forward_event_name) {
+    End *dominantEnd = getDominantEnd(flower, forward_event_name);
     int64_t seq_no = dominantEnd != NULL ? end_getInstanceNumber(dominantEnd) : -1;
     if(dominantEnd != NULL && getMaxSequenceLength(dominantEnd) < max_seq_length) {
         /*

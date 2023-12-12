@@ -93,6 +93,15 @@ void bar(stList *flowers, CactusParams *params, CactusDisk *cactusDisk, stList *
         fa->minimumDegree = cactusParams_get_int(params, 2, "bar", "minimumBlockDegree");
         fa->minimumNumberOfSpecies = cactusParams_get_int(params, 2, "bar", "minimumNumberOfSpecies");
         fa->flower = flower;
+        // This option uses orients bar alignments so they are forward on the given event (to left-align in output)
+        Name forwardEventName = NULL_NAME;
+        if (cactusParams_has_attr(params, 3, "bar", "poa", "referenceEventName")) {
+            char *forwardEventHeader = cactusParams_get_string(params, 3, "bar", "poa", "referenceEventName");
+            Event *forwardEvent = eventTree_getEventByHeader(flower_getEventTree(flower), forwardEventHeader);
+            assert(forwardEvent != NULL);
+            forwardEventName = event_getName(forwardEvent);
+            free(forwardEventHeader);
+        }
 
         void *alignments;
         if (usePoa) {
@@ -101,7 +110,7 @@ void bar(stList *flowers, CactusParams *params, CactusDisk *cactusDisk, stList *
              *
              * It does not use any precomputed alignments, if they are provided they will be ignored
              */
-            alignments = make_flower_alignment_poa(flower, maximumLength, poaWindow, maskFilter, poaParameters);
+            alignments = make_flower_alignment_poa(flower, maximumLength, poaWindow, maskFilter, poaParameters, forwardEventName);
             st_logDebug("Created the poa alignments: %" PRIi64 " poa alignment blocks for flower\n", stList_length(alignments));
         } else {
             alignments = makeFlowerAlignment3(sM, flower, listOfEndAlignmentFiles, spanningTrees, maximumLength,

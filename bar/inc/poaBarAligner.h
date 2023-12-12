@@ -138,13 +138,15 @@ char *get_adjacency_string(Cap *cap, int *length, bool return_string);
  * @param mask_filter Trim input sequences if encountering this many consecutive soft of hard masked bases (0 = disabled)
  * @param poa_band_constant abpoa "b" parameter, where adaptive band is b+f*<length> (b < 0 = disabled)
  * @param poa_band_fraction abpoa "f" parameter, where adaptive band is b+f*<length> (b < 0 = disabled)
+ * @param forward_event_name try to orient (via getDominantEnd) alignments so they are forward wrt to this even (use NULL_NAME to disable)
  * Returns a list of AlignmentBlock ojects
  */
 stList *make_flower_alignment_poa(Flower *flower,
                                   int64_t max_seq_length,
                                   int64_t window_size,
                                   int64_t mask_filter,
-                                  abpoa_para_t * poa_parameters);
+                                  abpoa_para_t * poa_parameters,
+                                  Name forward_event_name);
 
 /**
  * Create a pinch iterator for a list of alignment blocks.
