@@ -1095,7 +1095,8 @@ int64_t getMaxSequenceLength(End *end) {
 
 stList *make_flower_alignment_poa(Flower *flower, int64_t max_seq_length, int64_t window_size, int64_t mask_filter,
                                   abpoa_para_t * poa_parameters, Name forward_event_name) {
-    End *dominantEnd = getDominantEnd(flower, forward_event_name);
+    bool is_flipped = false;
+    End *dominantEnd = getDominantEnd(flower, forward_event_name, &is_flipped);
     int64_t seq_no = dominantEnd != NULL ? end_getInstanceNumber(dominantEnd) : -1;
     if(dominantEnd != NULL && getMaxSequenceLength(dominantEnd) < max_seq_length) {
         /*
@@ -1110,7 +1111,33 @@ stList *make_flower_alignment_poa(Flower *flower, int64_t max_seq_length, int64_
         Cap *indices_to_caps[seq_no];
 
         get_end_sequences(dominantEnd, end_strings, end_string_lengths, overlaps, indices_to_caps, max_seq_length, mask_filter);
+
+        if (is_flipped) {
+            for (int64_t row = 0; row < seq_no; ++row) {
+                // todo: in place reverse complement
+                char *flipped_string = stString_reverseComplementString(end_strings[row]);
+                free(end_strings[row]);
+                end_strings[row] = flipped_string;
+            }            
+        }
+        
         Msa *msa = msa_make_partial_order_alignment(end_strings, end_string_lengths, seq_no, window_size, poa_parameters);
+
+        if (is_flipped) {
+            for (int64_t row = 0; row < seq_no; ++row) {
+                // todo: in place reverse complement
+                char *flipped_string = stString_reverseComplementString(msa->seqs[row]);
+                free(msa->seqs[row]);
+                msa->seqs[row] = flipped_string;
+                uint8_t *flipped_row = st_malloc(sizeof(uint8_t*) * msa->column_no);
+                for (int64_t col = 0; col < msa->column_no; ++col) {
+                    char c = stString_reverseComplementChar(msa_to_base(msa->seqs[row][col]));
+                    flipped_row[msa->column_no - 1 - col] = msa_to_byte(c);
+                }
+                free(msa->seqs[row]);
+                msa->seqs[row] = flipped_row;
+            }
+        }
 
         //Now convert to set of alignment blocks
         stList *alignment_blocks = stList_construct3(0, (void (*)(void *))alignmentBlock_destruct);

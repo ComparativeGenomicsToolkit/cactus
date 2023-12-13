@@ -36,9 +36,10 @@ stSortedSet *makeFlowerAlignment3(StateMachine *sM, Flower *flower, stList *list
 
 /*
  * Returns an end, if exists, that has cap involved in every adjacency, else returns null.
- * In case of tie, choose the end that would align forward along ref_event_name
+ * In case of tie, choose the end that would align forward along refEventName
+ * If the dominant end is still flipped along the reference, set outIsFlipped (if it isn't NULL) to true
  */
-End *getDominantEnd(Flower *flower, Name ref_event_name);
+End *getDominantEnd(Flower *flower, Name refEventName, bool* outIsFlipped);
 
 /*
  * Ascertain which ends should be aligned separately.
