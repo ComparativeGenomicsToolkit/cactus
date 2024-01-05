@@ -138,7 +138,7 @@ def graphmap_join_options(parser):
 
     
     parser.add_argument("--indexMemory", type=human2bytesN,
-                        help="Memory in bytes for each indexing and vcf construction job job (defaults to an estimate based on the input data size). "
+                        help="Memory in bytes for each indexing and vcf construction job job (defaults to an estimate based on the input data size). If specified will also be used to upper-bound per-chromosome memory estimates -- ie no job will request more than this much memory."
                         "Standard suffixes like K, Ki, M, Mi, G or Gi are supported (default=bytes))", default=None)   
     
     parser.add_argument("--chop", type=int, nargs='?', const=1024, default=None,
@@ -359,6 +359,9 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
     # get the single machine memory
     config.setSystemMemory(options)    
 
+    # use --indexMemory to cap memory on some jobs
+    max_mem = options.indexMemory if options.indexMemory else sys.maxsize
+    
     # keep og ids in separate structure indexed on chromosome
     og_chrom_ids = {'full' : defaultdict(list), 'clip' : defaultdict(list), 'filter' : defaultdict(list)}
     # have a lot of trouble getting something working for small contigs, hack here:
@@ -368,12 +371,12 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
     assert len(options.vg) == len(vg_ids)
     for vg_path, vg_id in zip(options.vg, vg_ids):
         full_job = Job.wrapJobFn(clip_vg, options, config, vg_path, vg_id, 'full',
-                                 disk=vg_id.size * 20, memory=max(2**31, vg_id.size * 20))
+                                 disk=vg_id.size * 20, memory=max(2**31, min(vg_id.size * 20, max_mem)))
         root_job.addChild(full_job)
         full_vg_ids.append(full_job.rv(0))
         if 'full' in options.odgi + options.chrom_og + options.viz + options.draw:
             full_og_job = full_job.addFollowOnJobFn(vg_to_og, options, config, vg_path, full_job.rv(0),
-                                                    disk=vg_id.size * 16, memory=max(og_min_size, vg_id.size * 32))
+                                                    disk=vg_id.size * 16, memory=min(max(og_min_size, vg_id.size * 32), max_mem))
             og_chrom_ids['full']['og'].append(full_og_job.rv())
 
     prev_job = root_job
@@ -381,7 +384,7 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
     # join the ids
     join_job = prev_job.addFollowOnJobFn(join_vg, options, config, full_vg_ids,
                                          disk=sum([f.size for f in vg_ids]),
-                                         memory=max([f.size for f in vg_ids]) * 4)
+                                         memory=min(max([f.size for f in vg_ids]) * 4, max_mem))
     full_vg_ids = [join_job.rv(i) for i in range(len(vg_ids))]
     prev_job = join_job
 
@@ -390,7 +393,7 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
         output_full_vg_ids = []
         for vg_path, vg_id, full_vg_id in zip(options.vg, vg_ids, full_vg_ids):
             drop_graph_event_job = join_job.addFollowOnJobFn(drop_graph_event, config, vg_path, full_vg_id,
-                                                             disk=vg_id.size * 3, memory=vg_id.size * 6)
+                                                             disk=vg_id.size * 3, memory=min(vg_id.size * 6, max_mem))
             output_full_vg_ids.append(drop_graph_event_job.rv())
     else:
         output_full_vg_ids = full_vg_ids
@@ -405,13 +408,14 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
         assert len(options.vg) == len(full_vg_ids) == len(vg_ids)
         for vg_path, vg_id, input_vg_id in zip(options.vg, full_vg_ids, vg_ids):
             clip_job = Job.wrapJobFn(clip_vg, options, config, vg_path, vg_id, 'clip',
-                                     disk=input_vg_id.size * 20, memory=max(2**31, input_vg_id.size * 20))
+                                     disk=input_vg_id.size * 20, memory=max(2**31, min(input_vg_id.size * 20, max_mem)))
             clip_root_job.addChild(clip_job)
             clip_vg_ids.append(clip_job.rv(0))
             clip_vg_stats.append(clip_job.rv(1))
             if 'clip' in options.odgi + options.chrom_og + options.viz + options.draw:
                 clip_og_job = clip_job.addFollowOnJobFn(vg_to_og, options, config, vg_path, clip_job.rv(0),
-                                                        disk=input_vg_id.size * 16, memory=max(og_min_size, input_vg_id.size * 32))
+                                                        disk=input_vg_id.size * 16,
+                                                        memory=min(max(og_min_size, input_vg_id.size * 32), max_mem))
                 og_chrom_ids['clip']['og'].append(clip_og_job.rv())
 
         # join the stats
@@ -426,11 +430,13 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
         assert len(options.vg) == len(clip_vg_ids) == len(vg_ids)
         for vg_path, vg_id, input_vg_id in zip(options.vg, clip_vg_ids, vg_ids):
             filter_job = filter_root_job.addChildJobFn(vg_clip_vg, options, config, vg_path, vg_id, 
-                                                       disk=input_vg_id.size * 20, memory=max(2**31, input_vg_id.size * 22))
+                                                       disk=input_vg_id.size * 20,
+                                                       memory=max(2**31, min(input_vg_id.size * 22, max_mem)))
             filter_vg_ids.append(filter_job.rv())
             if 'filter' in options.odgi + options.chrom_og + options.viz + options.draw:
                 filter_og_job = filter_job.addFollowOnJobFn(vg_to_og, options, config, vg_path, filter_job.rv(),
-                                                            disk=input_vg_id.size * 16, memory=max(og_min_size, input_vg_id.size * 64))
+                                                            disk=input_vg_id.size * 16,
+                                                            memory=min(max(og_min_size, input_vg_id.size * 64), max_mem))
                 og_chrom_ids['filter']['og'].append(filter_og_job.rv())                
 
 
@@ -444,7 +450,7 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
         hal_merge_job = job.addChildJobFn(merge_hal, options, hal_ids,
                                           cores = 1,
                                           disk=sum(f.size for f in hal_ids) * 2,
-                                          memory=max(f.size for f in hal_ids) * 2)
+                                          memory=min(max(f.size for f in hal_ids) * 2, max_mem))
         hal_id_dict = hal_merge_job.rv()
         out_dicts.append(hal_id_dict)
 
@@ -481,7 +487,7 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
             for vg_path, vg_id, input_vg_id in zip(options.vg, phase_vg_ids, vg_ids):
                 gfa_job = gfa_root_job.addChildJobFn(vg_to_gfa, options, config, vg_path, vg_id,
                                                      disk=input_vg_id.size * 10,
-                                                     memory=max(2**31, input_vg_id.size * 16))
+                                                     memory=min(max(2**31, input_vg_id.size * 16), max_mem))
                 gfa_ids.append(gfa_job.rv())
 
             gfa_merge_job = gfa_root_job.addFollowOnJobFn(make_vg_indexes, options, config, gfa_ids,
@@ -543,7 +549,7 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
                     viz_job = gfa_root_job.addChildJobFn(make_odgi_viz, config, options, vg_path, og_id, tag=workflow_phase,
                                                          viz=do_viz, draw=do_draw,                                                     
                                                          cores=options.indexCores, disk = input_vg_id.size * 10,
-                                                         memory=max(og_min_size, input_vg_id.size * 32))
+                                                         memory=min(max(og_min_size, input_vg_id.size * 32), max_mem))
                 else:
                     viz_job = None
                 if do_viz:
