@@ -21,7 +21,7 @@
 	url = https://github.com/ComparativeGenomicsToolkit/kyoto.git
 [submodule "submodules/abPOA"]
 	path = submodules/abPOA
-	url = https://github.com/ComparativeGenomicsToolkit/abPOA.git
+	url = https://github.com/yangao07/abPOA.git
 [submodule "submodules/lastz"]
 	path = submodules/lastz
 	url = https://github.com/ComparativeGenomicsToolkit/lastz.git
