@@ -15,8 +15,10 @@ import math
 import copy
 import itertools
 import networkx as NX
+import xml.etree.ElementTree as ET
 from collections import defaultdict, namedtuple
 from optparse import OptionParser
+from sonLib.nxnewick import NXNewick
 from cactus.shared.common import cactusRootPath
 from cactus.shared.configWrapper import ConfigWrapper
 from cactus.progressive.multiCactusTree import MultiCactusTree
@@ -240,11 +242,12 @@ def main():
                       default = None, help="greedy threshold")
     parser.add_option("--numOutgroups", dest="maxNumOutgroups",
                       help="Maximum number of outgroups to provide", type=int)
-    parser.add_argument("--configFile", dest="configFile",
-                        help="Specify cactus configuration file",
-                        default=os.path.join(cactusRootPath(), "cactus_progressive_config.xml"))    
+    parser.add_option("--configFile", dest="configFile",
+                      help="Specify cactus configuration file",
+                      default=os.path.join(cactusRootPath(), "cactus_progressive_config.xml"))    
     options, args = parser.parse_args()
 
+    options.binariesMode = 'local'
     if len(args) != 2:
         parser.print_help()
         raise RuntimeError("Wrong number of arguments")
@@ -275,6 +278,7 @@ def main():
     except Exception as e:
         print(("NetworkX failed: %s" % str(e)))
         print("Writing ogMap in non-graphviz format")
+        print("Tree %s" % NXNewick().writeString(mc_tree))
         with open(args[1], "w") as f:
             for node, ogs in list(outgroup.ogMap.items()):
                 f.write("%s -> %s\n" % (node, str(ogs)))
