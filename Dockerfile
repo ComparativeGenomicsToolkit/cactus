@@ -37,7 +37,7 @@ RUN cd /home/cactus && ./build-tools/downloadPangenomeTools
 RUN cd /home/cactus && ./build-tools/downloadMafTools
 
 # remove test executables
-RUN cd /home/cactus && rm -f ${binPackageDir}/bin/*test ${binPackageDir}/bin/*tests ${binPackageDir}/bin/*Test ${binPackageDir}/bin/*Tests
+RUN cd /home/cactus/bin && rm -f *test *tests *Test *Tests
 
 # make the binaries smaller by removing debug symbols (but leave them in cactus_consolidated)
 RUN /bin/bash -O extglob -c "cd /home/cactus && strip -d bin/!(cactus_consolidated) 2> /dev/null || true"
