@@ -3,10 +3,14 @@ FROM quay.io/comparative-genomics-toolkit/ubuntu:22.04 AS builder
 # apt dependencies for build
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y build-essential git python3 python3-dev python3-pip zlib1g-dev wget libbz2-dev pkg-config libhdf5-dev liblzo2-dev libtokyocabinet-dev wget liblzma-dev libxml2-dev libssl-dev libpng-dev uuid-dev libcurl4-gnutls-dev libffi-dev python3-virtualenv rsync python-is-python3 libdeflate-dev cmake libjemalloc-dev python3-distutils
 
-# build cactus binaries
+# copy cactus
 RUN mkdir -p /home/cactus
 COPY . /home/cactus
 
+# clean cactus
+RUN find /home/cactus -name include.local.mk -exec rm -f {} \; && \
+	 cd /home/cactus && rm -rf bin/* && make clean -j $(nproc)
+	 
 # Make sure abpoa doesn't build with -march=native, but something more portable
 # Todo: It would be more portable to use "sse41", but that leads to segfaults in rare cases
 # https://github.com/yangao07/abPOA/issues/26
@@ -22,10 +26,8 @@ RUN cd /home/cactus && ./build-tools/downloadUcscLib
 ENV ENABLE_UDC 1
 ENV KENTSRC /home/cactus/submodules/kent/src
 
-# clean and build
-RUN find /home/cactus -name include.local.mk -exec rm -f {} \; && \
-	 cd /home/cactus && rm -rf bin/* && make clean -j $(nproc) && \
-	 make -j $(nproc)
+# build cactus binaries
+RUN cd /home/cactus && make -j $(nproc)
 
 # download open-licenses kent binaries used by hal for assembly hubs and / or chains
 RUN cd /home/cactus/bin && for i in wigToBigWig faToTwoBit bedToBigBed bigBedToBed axtChain pslPosTarget bedSort hgGcPercent mafToBigMaf hgLoadMafSummary; do wget -q http://hgdownload.cse.ucsc.edu/admin/exe/linux.x86_64/${i}; chmod ugo+x ${i}; done
@@ -37,7 +39,7 @@ RUN cd /home/cactus && ./build-tools/downloadPangenomeTools
 RUN cd /home/cactus && ./build-tools/downloadMafTools
 
 # remove test executables
-RUN cd /home/cactus && rm -f ${binPackageDir}/bin/*test ${binPackageDir}/bin/*tests ${binPackageDir}/bin/*Test ${binPackageDir}/bin/*Tests
+RUN cd /home/cactus/bin && rm -f *test *tests *Test *Tests
 
 # make the binaries smaller by removing debug symbols (but leave them in cactus_consolidated)
 RUN /bin/bash -O extglob -c "cd /home/cactus && strip -d bin/!(cactus_consolidated) 2> /dev/null || true"
