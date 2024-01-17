@@ -32,7 +32,7 @@ class TestCase(unittest.TestCase):
         """ Run the full evolver test, putting the jobstore and output in tempDir
         """
         cmd = ['cactus', self._job_store(binariesMode), seqFile, self._out_hal(binariesMode),
-                        '--binariesMode', binariesMode, '--logInfo', '--realTimeLogging', '--workDir', self.tempDir]
+                        '--binariesMode', binariesMode, '--logInfo', '--workDir', self.tempDir]
         if configFile:
             cmd += ['--configFile', configFile]
 
@@ -82,7 +82,7 @@ class TestCase(unittest.TestCase):
         if step_by_step:
             out_paf = os.path.join(self.tempDir, '{}.paf'.format(new_root))
             cmd = ['cactus-blast', self._job_store(binariesMode), seq_file_path, out_paf, '--includeRoot', '--root', new_root,
-                   '--binariesMode', binariesMode, '--logInfo', '--realTimeLogging', '--workDir', self.tempDir]
+                   '--binariesMode', binariesMode, '--logInfo', '--workDir', self.tempDir]
             if configFile:
                 cmd += ['--configFile', configFile]
             # todo: it'd be nice to have an interface for setting tag to something not latest or commit
@@ -92,7 +92,7 @@ class TestCase(unittest.TestCase):
             subprocess.check_call(cmd)
 
             cmd = ['cactus-align', self._job_store(binariesMode), seq_file_path, out_paf, out_hal, '--includeRoot', '--root', new_root,
-                   '--binariesMode', binariesMode, '--logInfo', '--realTimeLogging', '--workDir', self.tempDir]
+                   '--binariesMode', binariesMode, '--logInfo', '--workDir', self.tempDir]
             if configFile:
                 cmd += ['--configFile', configFile]
             # todo: it'd be nice to have an interface for setting tag to something not latest or commit
@@ -102,7 +102,7 @@ class TestCase(unittest.TestCase):
             subprocess.check_call(cmd)
         else:
             cmd = ['cactus', self._job_store(binariesMode), seq_file_path, out_hal,
-                   '--binariesMode', binariesMode, '--logInfo', '--realTimeLogging', '--workDir', self.tempDir]
+                   '--binariesMode', binariesMode, '--logInfo', '--workDir', self.tempDir]
             if configFile:
                 cmd += ['--configFile', configFile]
             # todo: it'd be nice to have an interface for setting tag to something not latest or commit
@@ -141,7 +141,7 @@ class TestCase(unittest.TestCase):
         # make the bottom hal
         bottom_hal_path = os.path.join(self.tempDir, 'bottom.hal')
         subprocess.check_call(['cactus', self._job_store(binariesMode), bottom_seq_path, bottom_hal_path, '--root', 'AncGorilla',
-                               '--binariesMode', binariesMode, '--logInfo', '--realTimeLogging', '--workDir', self.tempDir])
+                               '--binariesMode', binariesMode, '--logInfo', '--workDir', self.tempDir])
 
         # dump the new ancestor
         with open(genome_path('AncGorilla'), 'w') as anc_file:
@@ -157,7 +157,7 @@ class TestCase(unittest.TestCase):
         # make the top hal
         top_hal_path = os.path.join(self.tempDir, 'top.hal')
         subprocess.check_call(['cactus', self._job_store(binariesMode), top_seq_path, top_hal_path, '--root', 'Anc1',
-                               '--binariesMode', binariesMode, '--logInfo', '--realTimeLogging', '--workDir', self.tempDir])
+                               '--binariesMode', binariesMode, '--logInfo', '--workDir', self.tempDir])
 
         # update the hal
         subprocess.check_call(['halAddToBranch', hal_path, bottom_hal_path, top_hal_path, 'Anc1', 'AncGorilla', 'mr', 'simGorilla', '0.1', '0.2'])
@@ -306,7 +306,7 @@ class TestCase(unittest.TestCase):
 
         # do the mapping
         cigar_path = os.path.join(self.tempDir, 'aln.paf')
-        cactus_opts = ['--binariesMode', binariesMode, '--logInfo', '--realTimeLogging', '--workDir', self.tempDir]
+        cactus_opts = ['--binariesMode', binariesMode, '--logInfo', '--workDir', self.tempDir]
         # todo: it'd be nice to have an interface for setting tag to something not latest or commit
         if binariesMode == 'docker':
             cactus_opts += ['--latest']
@@ -344,7 +344,7 @@ class TestCase(unittest.TestCase):
         out_seq_file_path = os.path.join(self.tempDir, 'prepared', 'primates.txt')
         subprocess.check_call(['cactus-prepare', seq_file_path, '--outDir', os.path.dirname(out_seq_file_path)])
 
-        cactus_opts = ['--binariesMode', binariesMode, '--logInfo', '--realTimeLogging', '--workDir', self.tempDir, '--configFile', poa_config_path]
+        cactus_opts = ['--binariesMode', binariesMode, '--logInfo', '--workDir', self.tempDir, '--configFile', poa_config_path]
 
         # preprocess with dna-brnn
         subprocess.check_call(['cactus-preprocess', self._job_store(binariesMode), seq_file_path, out_seq_file_path, '--maskMode', 'brnn'] + cactus_opts)
@@ -383,7 +383,7 @@ class TestCase(unittest.TestCase):
         seq_file_path = os.path.join(self.tempDir, 'primates.txt')
         self._write_primates_seqfile(seq_file_path)
 
-        cactus_opts = ['--binariesMode', binariesMode, '--logInfo', '--realTimeLogging', '--workDir', self.tempDir]
+        cactus_opts = ['--binariesMode', binariesMode, '--logInfo', '--workDir', self.tempDir]
         # todo: it'd be nice to have an interface for setting tag to something not latest or commit
         if binariesMode == 'docker':
             cactus_opts += ['--latest']
@@ -406,7 +406,7 @@ class TestCase(unittest.TestCase):
         orig_seq_file_path = './examples/yeastPangenome.txt'
         seq_file_path = os.path.join(self.tempDir, 'pp', os.path.basename(orig_seq_file_path))
         subprocess.check_call(['cactus-prepare',  orig_seq_file_path, '--outDir', os.path.join(self.tempDir, 'pp'), '--seqFileOnly'])
-        cactus_opts = ['--binariesMode', binariesMode, '--logInfo', '--realTimeLogging', '--workDir', self.tempDir, '--maxCores', '4']
+        cactus_opts = ['--binariesMode', binariesMode, '--logInfo', '--workDir', self.tempDir, '--maxCores', '4']
         subprocess.check_call(['cactus-preprocess', self._job_store(binariesMode),
                                orig_seq_file_path, seq_file_path, '--pangenome'] + cactus_opts, shell=False)
 
@@ -462,7 +462,7 @@ class TestCase(unittest.TestCase):
 
         join_path = os.path.join(self.tempDir, 'join')
 
-        cactus_opts = ['--binariesMode', binariesMode, '--logInfo', '--realTimeLogging', '--workDir', self.tempDir, '--maxCores', '4']
+        cactus_opts = ['--binariesMode', binariesMode, '--logInfo', '--workDir', self.tempDir, '--maxCores', '4']
 
         chroms = ['chrI', 'chrII', 'chrIII', 'chrIV', 'chrV', 'chrVI', 'chrVII', 'chrVIII', 'chrIX', 'chrX', 'chrXI', 'chrXIV', 'chrXV']
         cactus_pangenome_cmd = ['cactus-pangenome', self._job_store(binariesMode), orig_seq_file_path, '--outDir', join_path, '--outName', 'yeast',
