@@ -20,23 +20,23 @@ test-job:
   stage: test
   script:
     - make clean
-    - virtualenv -p python3.8 venv
+    - virtualenv -p python3.9 venv
     - source venv/bin/activate
-    - python3.8 -m pip install -r toil-requirement.txt
-    - python3.8 -m pip install -U .
+    - python3.9 -m pip install -r toil-requirement.txt
+    - python3.9 -m pip install -U .
     # these are the old travis tests, followed by its docker push
     - git clone https://github.com/ComparativeGenomicsToolkit/cactusTestData
     - export ASAN_OPTIONS="detect_leaks=0"
     - CGL_DEBUG=ultra make -j 8
     - CACTUS_BINARIES_MODE=local SON_TRACE_DATASETS=$(pwd)/cactusTestData CACTUS_TEST_CHOICE=normal make test
-    - pip install -U newick    
+    - pip install -U newick attrs
     - make -j 8 hal_test
     # rebuild without all the debug flags
     - make clean
     - make -j 8	 
     - numcpu=8 build-tools/downloadPangenomeTools
     - numcpu=8 build-tools/downloadMafTools	 
-    - python3.8 -m pip install -U .
+    - python3.9 -m pip install -U .
     # force local docker image to use legacy mode so tests run
     - sed -i Dockerfile -e 's/ENV avx2 1/ENV CACTUS_LEGACY_ARCH 1/g'
     - make docker    

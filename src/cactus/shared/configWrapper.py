@@ -293,7 +293,7 @@ class ConfigWrapper:
                 # segalign still can't contorl the number of cores it uses (!).  So we give all available on
                 # single machine.  
                 if options.batchSystem.lower() in ['single_machine', 'singlemachine']:
-                    if options.maxCores is not None:
+                    if options.maxCores is not None and options.maxCores < 2**20:
                         lastz_cores = options.maxCores
                     else:
                         lastz_cores = cactus_cpu_count()
