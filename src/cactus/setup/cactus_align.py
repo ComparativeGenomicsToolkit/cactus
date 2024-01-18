@@ -110,25 +110,25 @@ def main():
             raise RuntimeError('same number of values must be passed to --pathOverrides and --pathOverrideNames')
 
     # Todo: do we even need --consCores anymore?
-    if options.maxCores is not None and options.consCores is None:
+    if options.maxCores is not None and options.maxCores < 2**20 and options.consCores is None:
         options.consCores = int(options.maxCores)
     
     # Try to juggle --maxCores and --consCores to give some reasonable defaults where possible
     if options.batchSystem.lower() in ['single_machine', 'singlemachine']:
-        if options.maxCores is not None:
+        if options.maxCores is not None and options.maxCores < 2**20:
             if int(options.maxCores) <= 0:
                 raise RuntimeError('Cactus requires --maxCores >= 1')
         if options.consCores is None:
-            if options.maxCores is not None:
+            if options.maxCores is not None and options.maxCores < 2**20:
                 options.consCores = int(options.maxCores)
             else:
                 options.consCores = cactus_cpu_count()
-        elif options.maxCores is not None and options.consCores > int(options.maxCores):
+        elif options.maxCores is not None and options.maxCores < 2**20 and options.consCores > int(options.maxCores):
             raise RuntimeError('--consCores must be <= --maxCores')
     else:
         if not options.consCores:
             raise RuntimeError('--consCores required for non single_machine batch systems')
-    if options.maxCores is not None and options.consCores > int(options.maxCores):
+    if options.maxCores is not None and options.maxCores < 2**20 and options.consCores > int(options.maxCores):
         raise RuntimeError('--consCores must be <= --maxCores')
     
     options.buildHal = True
