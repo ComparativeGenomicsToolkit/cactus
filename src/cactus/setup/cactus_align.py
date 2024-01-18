@@ -96,7 +96,11 @@ def main():
                         help="Number of cores for each cactus_consolidated job (defaults to all available / maxCores on single_machine)", default=None)
     parser.add_argument("--consMemory", type=human2bytesN,
                         help="Memory in bytes for each cactus_consolidated job (defaults to an estimate based on the input data size). "
-                        "Standard suffixes like K, Ki, M, Mi, G or Gi are supported (default=bytes))", default=None)   
+                        "Standard suffixes like K, Ki, M, Mi, G or Gi are supported (default=bytes))", default=None)
+    parser.add_argument("--chromInfo",
+                        help="Two-column file mapping genome (col 1) to comma-separated list of sex chromosomes. This information "
+                        "will be used to guide outgroup selection so that, where possible, all chromosomes are present in"
+                        " at least one outgroup.")        
 
     options = parser.parse_args()
 
@@ -254,7 +258,7 @@ def make_align_job(options, toil, config_wrapper=None, chrom_name=None):
     
     mc_tree, input_seq_map, og_candidates = parse_seqfile(options.seqFile, config_wrapper,
                                                           pangenome=options.pangenome)
-    og_map = compute_outgroups(mc_tree, config_wrapper, set(og_candidates))
+    og_map = compute_outgroups(mc_tree, config_wrapper, set(og_candidates), chrom_info_file = options.chromInfo)
     event_set = get_event_set(mc_tree, config_wrapper, og_map, options.root if options.root else mc_tree.getRootName())
     if options.includeRoot:
         if options.root not in input_seq_map:
