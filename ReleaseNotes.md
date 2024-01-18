@@ -1,3 +1,17 @@
+# Release 2.7.1 2023-01-19
+
+This release adds some options to tune outgroup selection, as well as updates many included dependencies and tools
+
+- Add `--chromInfo` option to specify sex chromosomes of input genomes, in order to make sure outgroups are selected accordingly
+- Add `--maxOutgroups` option so that the number of outgroups can be toggled via the command line (previously required using a modified configuration file).
+- Update to Toil 6.0.0
+- Update to vg 1.54.0
+- Update to odgi 0.8.4
+- Update to latest taffy (fixing bug in paf export)
+- Update to abPOA 1.5.1
+- Fix Dockerfile so that Phast binaries are included
+- `--indexMemory` now acts as upper limit on chromosome-level jobs.
+
 # Release 2.7.0 2023-12-05
 
 This release changes how outgroups are used during chaining during progressive alignment, and adds some pangenome options 
