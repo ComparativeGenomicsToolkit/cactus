@@ -156,12 +156,24 @@ class GreedyOutgroup(object):
         if not os.path.isfile(chrom_info_name):
             raise RuntimeError('Unable to open chromosome info file {}'.format(chrom_info_name))
 
+        nodes_in_tree = set()
+        if self.mcTree:
+            for node_id in self.mcTree.breadthFirstTraversal():
+                nodes_in_tree.add(self.mcTree.getName(node_id))            
+
         with open(chrom_info_name, 'r') as chrom_info_file:
             for line in chrom_info_file:
                 toks = line.rstrip().split()
-                if len(toks) == 2:
+                if len(toks) <= 2:
                     genome_name = toks[0]
-                    chroms = toks[1]
+                    if len(toks) > 1:
+                        chroms = toks[1]
+                    else:
+                        chroms = []
+                    if genome_name in self.chrom_map:
+                        RuntimeError('Duplicate genome, {}, found in chromInfo file {}'.format(genome, chrom_info_name))
+                    if nodes_in_tree and genome_name not in nodes_in_tree:
+                        RuntimeError('Genome name, {}, from chromInfo file {}, not found in tree'.format(genome, chrom_info_name))
                     self.chrom_map[genome_name] = chroms.split(',')
                 elif len(toks):
                     raise RuntimeError('Unable to parse line in {}, expecting 2 columns: {}'.format(chrom_info_name, line))
@@ -190,14 +202,14 @@ class GreedyOutgroup(object):
                 og_chroms.add(og_chrom)
         return node_chrom_set.issubset(og_chroms)
 
-    def refine_og_chroms(self, node_chroms, max_outgroups):
+    def refine_og_chroms(self, node_chroms, max_outgroups, extra_chrom_outgroups):
         """
         go over the outgroup assignment and try to refine the selections to
         best represent the chromosome specificaitons
         """
         for source_name, og_names_dists in self.ogMap.items():
             source_id = self.mcTree.getNodeId(source_name)
-            source_chroms = node_chroms[source_id]            
+            source_chroms = node_chroms[source_id]
             # only need to do anything if we have chromosomes
             if source_chroms:
                 chrom_set = set()
@@ -215,32 +227,48 @@ class GreedyOutgroup(object):
                     if is_essential:
                         essential_ogs.append((og_name, og_dist))
 
-                # todo: we can/should use some kind of threshold to make sure we
-                # don't take rediculously distance outgroups just because they
-                # have the right chromosomes
-                if len(essential_ogs) > max_outgroups:
+                # cut off the outgroups list according to our input cap (if it's not set to auto with -1)
+                if extra_chrom_outgroups >= 0 and len(essential_ogs) > max_outgroups + extra_chrom_outgroups:
+                    cutoff = max_outgroups + extra_chrom_outgroups
                     logger.warning("Warning: Limiting outgroups for {} to {}, which means leaving out {}".format(
-                        source_name, max_outgroups, ",".join([dog[0] for dog in essential_ogs[max_outgroups:]])))
+                        source_name, cutoff, ",".join([dog[0] for dog in essential_ogs[cutoff:]])))
                     # todo: rank by how many chromosomes they have!
-                    essential_ogs = essential_ogs[:max_outgroups]
+                    essential_ogs = essential_ogs[:cutoff]
                 
                 if len(chrom_set) < len(source_chroms):
                     logger.warning("Warning: Unable to fulfull chromosome requirements when selecting outgroups for {}".format(source_name) +
                                    ". In particular, these chromosomes could not be found: {}".format(",".join(source_chroms - chrom_set)))
-                # if we have room for outgroups that aren't listed "essential" for their chromosome content,
-                # then pad by distance
-                if len(essential_ogs) < max_outgroups:
+                # this is the amount we add no matter what, since we want to get to max_outgroups 
+                required_padding = max(0, max_outgroups - len(essential_ogs))
+                # this is the amount we add if the nearest-by-distance outgroups aren't included.
+                # for example if we're allowed 1 extra outgroup and our max_outgroups is 3 and
+                # we've gotten 2 essenital outgroups to satisfy the chromosomes, then we can
+                # have optional_padding of 1.  And we'd add to it if either of the top-2-by distance
+                # outgroups aren't in the set
+                extra_cutoff = extra_chrom_outgroups if extra_chrom_outgroups >= 0 else len(essential_ogs)                
+                optional_padding = required_padding + extra_cutoff
+                
+                if optional_padding > 0:
                     padded_ogs = []
-                    padding = max_outgroups - len(essential_ogs)
                     for og_name, og_dist in og_names_dists:
                         is_essential = (og_name, og_dist) in essential_ogs
-                        if is_essential or padding > 0:
+                        # always add essential
+                        to_add = is_essential
+                        # pad out as required
+                        if not is_essential and required_padding > 0:
+                            to_add = True
+                            required_padding -= 1
+                        # pad out if we have room and top greedy choices aren't essential
+                        elif not is_essential and optional_padding > 0:
+                            to_add = True
+                        # tick down optional padding no matter what, as we only want it to apply to top choices
+                        optional_padding -= 1
+                        if to_add:
                             padded_ogs.append((og_name, og_dist))
-                            if not is_essential:
-                                padding -= 1
+                            required_padding 
                     essential_ogs = padded_ogs
 
-                # update the outgroupss
+                # update the outgroups
                 self.ogMap[source_name] = essential_ogs                    
 
     # greedily assign closest possible valid outgroups
@@ -259,12 +287,11 @@ class GreedyOutgroup(object):
     # if > 1, then only members of the candidate set and none of their
     # ancestors are chosen
     # maxNumOutgroups : max number of outgroups to put in each entry of self.ogMap
-    # maxNumChromOutgroups : max number of outgroups when trying to make chromosome assignment
-    # should be bigger than maxNumOutgroups so that the genomes with rare chromosomes can
-    # get the extra help they need.
+    # extraChromOutgroups : number of extra outgroups that can be added to attemp
+    # to satisfy chromosomes.
     def greedy(self, threshold = None, candidateSet = None,
                candidateChildFrac = 2., maxNumOutgroups = 1,
-               maxNumChromOutgroups = 1):
+               extraChromOutgroups = -1):
         # sort the (undirected) distance map
         orderedPairs = []
         for source, sinks in list(self.dm.items()):
@@ -390,7 +417,7 @@ class GreedyOutgroup(object):
         # the chromosome specification logic trumps the maximum number of outgroups
         # so we do a second pass to reconcile them (greedily) as best as possible
         if node_chroms:
-            self.refine_og_chroms(node_chroms, max(maxNumOutgroups, maxNumChromOutgroups))
+            self.refine_og_chroms(node_chroms, maxNumOutgroups, extraChromOutgroups)
 
 
 def main():
@@ -403,6 +430,8 @@ def main():
                       default = None, help="greedy threshold")
     parser.add_option("--numOutgroups", dest="maxNumOutgroups",
                       help="Maximum number of outgroups to provide", type=int)
+    parser.add_option("--extraChromOutgroups", dest="extraChromOutgroups",
+                      help="Maximum number of outgroups to provide if necessitated by --chromInfo", type=int, default=-1)    
     parser.add_option("--chromInfo", dest="chromInfo",
                       help="File mapping genomes to sex chromosome lists")
     parser.add_option("--configFile", dest="configFile",
@@ -436,7 +465,8 @@ def main():
         candidates = None
     outgroup.greedy(threshold=options.threshold, candidateSet=candidates,
                     candidateChildFrac=1.1,
-                    maxNumOutgroups=options.maxNumOutgroups)
+                    maxNumOutgroups=options.maxNumOutgroups,
+                    extraChromOutgroups=options.extraChromOutgroups)
 
     try:
         NX.drawing.nx_agraph.write_dot(outgroup.dag, args[1])

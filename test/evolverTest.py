@@ -28,13 +28,19 @@ class TestCase(unittest.TestCase):
     def _out_hal(self, binariesMode):
         return os.path.join(self.tempDir, 'evolver-{}.hal'.format(binariesMode))
 
-    def _run_evolver(self, binariesMode, configFile = None, seqFile = './examples/evolverMammals.txt'):
+    def _run_evolver(self, binariesMode, configFile = None, seqFile = './examples/evolverMammals.txt', chromInfoDict={}):
         """ Run the full evolver test, putting the jobstore and output in tempDir
         """
         cmd = ['cactus', self._job_store(binariesMode), seqFile, self._out_hal(binariesMode),
                         '--binariesMode', binariesMode, '--logInfo', '--workDir', self.tempDir]
         if configFile:
             cmd += ['--configFile', configFile]
+        if chromInfoDict:
+            chromInfoName = os.path.join(self.tempDir, 'chromInfo.txt')
+            with open(chromInfoName, 'w') as chromInfoFile:
+                for source, ogs in chromInfoDict.items():
+                    chromInfoFile.write('{}\t{}\n'.format(source, ogs))
+            cmd += ['--chromInfo', chromInfoName]
 
         # todo: it'd be nice to have an interface for setting tag to something not latest or commit
         if binariesMode == 'docker':
@@ -760,7 +766,7 @@ class TestCase(unittest.TestCase):
         """
         # run cactus directly, the old school way
         name = "local"
-        self._run_evolver(name)
+        self._run_evolver(name, chromInfoDict = {'simChow' : 'X,Y',  'simDog' : 'X', 'simRat' : 'Y', 'simHuman' : 'X,Y,Z'})
 
         # check the output
         #self._check_stats(self._out_hal(name), delta_pct=0.25)

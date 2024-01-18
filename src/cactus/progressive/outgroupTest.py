@@ -330,7 +330,7 @@ class TestCase(unittest.TestCase):
         og = GreedyOutgroup()
         og.importTree(tree)
         og.loadChromInfo(self.dipApesChromInfo)
-        og.greedy(maxNumOutgroups=1)
+        og.greedy(maxNumOutgroups=1, extraChromOutgroups=0)
         chrom_map = {}
         for source_name, ogs_dists in og.ogMap.items():
             chrom_map[source_name] = [o[0] for o in ogs_dists]
@@ -353,6 +353,35 @@ class TestCase(unittest.TestCase):
                 self.assertEqual([og[0].replace('.2', '.1')], chrom_map[source])
             else:
                 self.assertEqual(og, chrom_map[source])
+
+        # give an extra outgroup if needed to satisfy chromosomes (default behaviour now)
+        og = GreedyOutgroup()
+        og.importTree(tree)
+        og.loadChromInfo(self.dipApesChromInfo)
+        og.greedy(maxNumOutgroups=1)
+        chrom_map_extra = {}
+        for source_name, ogs_dists in og.ogMap.items():
+            chrom_map_extra[source_name] = [o[0] for o in ogs_dists]
+
+        self.assertEqual(len(chrom_map_extra), len(default_map))
+        self.assertEqual(sorted(chrom_map_extra.keys()), sorted(default_map.keys()))
+        for source, og in default_map.items():
+            assert source in chrom_map_extra
+            # there are three cases where either an extra outgroup is needed to satisfy both x,y
+            # or the closest outgroup can be added on becaue it wasn't in the solution that satisfied x,y
+            self.assertEqual(len(og), 1)
+            if og[0].startswith('chimp') or og[0].startswith('ponabe') or og[0].startswith('gor'):
+                self.assertEqual(len(chrom_map_extra[source]), 2)
+                self.assertTrue(chrom_map_extra[source][0] != chrom_map_extra[source][1])
+                self.assertEqual(chrom_map_extra[source][0].replace('.1', '').replace('.2', ''),
+                                 chrom_map_extra[source][1].replace('.1', '').replace('.2', ''))
+            else:
+                self.assertEqual(og, chrom_map_extra[source])
+        
+        
+
+        
+        
                             
 def main():
     unittest.main()

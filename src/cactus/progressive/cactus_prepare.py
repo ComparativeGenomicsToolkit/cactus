@@ -62,6 +62,11 @@ def main(toil_mode=False):
                         ' Required when not using --wdl')
     parser.add_argument("--outSeqFile", help="Path for annotated Seq file output [default: outDir/seqFile]")
     parser.add_argument("--outHal", help="Output HAL file [default: outDir/out.hal]", required=toil_mode)
+    parser.add_argument("--chromInfo",
+                        help="Two-column file mapping genome (col 1) to comma-separated list of sex chromosomes. This information "
+                        "will be used to guide outgroup selection so that, where possible, all chromosomes are present in"
+                        " at least one outgroup.")    
+            
     if not toil_mode:
         parser.add_argument("--wdl", action="store_true", help="output wdl workflow instead of list of commands")
         parser.add_argument("--noLocalInputs", action="store_true", help="dont embed local input paths in WDL script (as they will need"
@@ -467,7 +472,7 @@ def get_plan(options, inSeqFile, outSeqFile, configWrapper, toil):
     mc_tree = MultiCactusTree(tree)
     mc_tree.nameUnlabeledInternalNodes(configWrapper.getDefaultInternalNodePrefix())
     mc_tree.computeSubtreeRoots()
-    og_map = compute_outgroups(mc_tree, configWrapper, inSeqFile.outgroups)
+    og_map = compute_outgroups(mc_tree, configWrapper, inSeqFile.outgroups, chrom_info_file = options.chromInfo)
     check_branch_lengths(mc_tree)
 
     # set of all jobs, as genome names from the (fully resolved, output) seqfile
@@ -555,6 +560,8 @@ def get_plan(options, inSeqFile, outSeqFile, configWrapper, toil):
                 cactus_options = options.cactusOptions
                 if options.includeRoot and event == mc_tree.getRootName():
                     cactus_options += ' --includeRoot'
+                if options.chromInfo:
+                    cactus_options += ' --chromInfo {}'.format(options.chromInfo)
                 plan += 'cactus-blast {} {} {} --root {} {} {}{}{}\n'.format(
                     get_jobstore(options), options.outSeqFile, cigarPath(event), event,
                     cactus_options, get_toil_resource_opts(options, 'blast'),
@@ -683,10 +690,15 @@ def wdl_workflow_start(options, in_seq_file):
     if not options.noLocalInputs:
         s += '=\"{}\"'.format(os.path.abspath(options.seqFile))
     s += '\n'
-
+    
     s += '        File? config_file'
     if not options.noLocalInputs and options.configFile != os.path.join(cactusRootPath(), "cactus_progressive_config.xml"):
         s += '=\"{}\"'.format(os.path.abspath(options.configFile))
+    s += '\n'
+
+    s += '        File? chrom_info_file'
+    if not options.noLocalInputs and options.chromInfo:
+        s += '=\"{}\"'.format(os.path.abspath(options.chromInfo))
     s += '\n'
     
     for name, fa_path in in_seq_file.pathMap.items():
@@ -805,6 +817,7 @@ def wdl_task_blast(options):
     s += '        Array[String]? in_fa_urls\n'
     s += '        String in_root\n'
     s += '        File? in_config_file\n'
+    s += '        File? in_chrom_info_file\n'    
     s += '        String? in_options\n'
     s += '        String out_name\n'
     s += '    }\n'
@@ -813,6 +826,7 @@ def wdl_task_blast(options):
     s += ' --pathOverrides ${sep=\" \" in_fa_files} ${sep=\" \" in_fa_urls} --pathOverrideNames ${sep=\" \" in_fa_names}'
     s += ' {} {} {} ${{\"--configFile \" + in_config_file}} ${{in_options}}'.format(options.cactusOptions, get_toil_resource_opts(options, 'blast'),
                                                                                     ' --gpu {}'.format(options.gpu) if options.gpu else '')
+    s += ' ${\"--chromInfo \" + in_chrom_info_file}'
     s += '\n    }\n'
     s += '    runtime {\n'
     s += '        preemptible: {}\n'.format(options.blastPreemptible)
@@ -869,6 +883,7 @@ def wdl_call_blast(options, in_seq_file, mc_tree, og_map, event, cigar_name):
         s += ' in_fa_urls=[{}],'.format(', '.join(input_urls))
     s += ' in_root=\"{}\",'.format(event)
     s += ' in_config_file=config_file,'
+    s += ' in_chrom_info_file=chrom_info_file,'
     if extra_options:
         s += ' in_options=\"{}\",'.format(extra_options)
     s += ' out_name=\"{}\"'.format(os.path.basename(cigar_name))
@@ -897,6 +912,10 @@ def toil_call_blast(job, options, seq_file, mc_tree, og_map, event, cigar_name, 
                 options.cactusOptions.strip().split(' ')
     if options.gpu:
         blast_cmd += ['--gpu', options.gpu]
+    if options.chromInfo:
+        #todo this won't support distributed execution
+        blast_cmd += ['--chromInfo', options.chromInfo]
+        
     cactus_call(parameters=blast_cmd)
 
     # scrape the output files out of the workdir
@@ -917,6 +936,7 @@ def wdl_task_align(options):
     s += '        Array[File] in_blast_files\n'
     s += '        String in_root\n'
     s += '        File? in_config_file\n'
+    s += '        File? in_chrom_info_file\n'
     s += '        String? in_options\n'    
     s += '        String out_hal_name\n'
     s += '        String out_fa_name\n'
@@ -924,6 +944,7 @@ def wdl_task_align(options):
     s += '    command {\n        '
     s += 'cactus-align {} ${{in_seq_file}} ${{sep=\" \" in_blast_files}} ${{out_hal_name}} --root ${{in_root}}'.format(get_jobstore(options, 'align'))
     s += ' --pathOverrides ${{sep=\" \" in_fa_files}} ${{sep=\" \" in_fa_urls}} --pathOverrideNames ${{sep=\" \" in_fa_names}} {}'.format(options.cactusOptions)
+    s += ' ${\"--chromInfo \" + in_chrom_info_file}'
     s += ' {} ${{\"--configFile \" + in_config_file}} ${{in_options}}'.format(get_toil_resource_opts(options, 'align'))
     s += '\n        '
     s += 'hal2fasta ${{out_hal_name}} ${{in_root}} {} > ${{out_fa_name}}'.format(options.halOptions)
@@ -979,6 +1000,7 @@ def wdl_call_align(options, in_seq_file, mc_tree, og_map, event, cigar_name, hal
     s += ' in_blast_files={}.out_files,'.format(blast_call_name(event))
     s += ' in_root=\"{}\",'.format(event)
     s += ' in_config_file=config_file,'
+    s += ' in_chrom_info_file=chrom_info_file,'
     if extra_options:
         s += ' in_options=\"{}\",'.format(extra_options)    
     s += ' out_hal_name=\"{}\",'.format(os.path.basename(hal_path))
@@ -1013,7 +1035,7 @@ def toil_call_align(job, options, seq_file, mc_tree, og_map, event, cigar_name, 
     cactus_call(parameters=['cactus-align', os.path.join(work_dir, 'js'), seq_file_path] + blast_files +
                 [out_hal_path, '--root', event,
                  '--pathOverrides'] + fa_paths + ['--pathOverrideNames'] + dep_names +
-                ['--workDir', work_dir, '--maxCores', str(int(job.cores)), '--maxDisk', bytes2humanN(job.disk), '--maxMemory', bytes2humanN(job.memory)] + options.cactusOptions.strip().split(' '))
+                ['--workDir', work_dir, '--maxCores', str(int(job.cores)), '--maxDisk', bytes2humanN(job.disk), '--maxMemory', bytes2humanN(job.memory)] + options.cactusOptions.strip().split(' ') + (['--chromInfo', options.chromInfo] if options.chromInfo else []))
 
     out_hal_id = job.fileStore.writeGlobalFile(out_hal_path)
 

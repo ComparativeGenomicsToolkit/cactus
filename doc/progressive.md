@@ -96,6 +96,30 @@ Please ensure your genomes are *soft*-masked, ideally with RepeatMasker. We do s
 
 An example seqfile can be found [here](../examples/evolverMammals.txt).
 
+### Sex Chromosomes and Diploid Assemblies
+
+The number of genome assemblies for any given species is increasing.  To align several genomes of the same species, you are probably best to use the [Pangenome pipeline](./pangenome.md), but there are cases such as for diploid assemblies where you may want to include multiple genomes from one species in a progressive alignment. An example of such a dataset is the [T2T Primates](https://www.ncbi.nlm.nih.gov/datasets/genome/?taxon=9443&assembly_level=2:3&release_year=2024:2024) from NHGRI. These assemblies are all diploid, in that for each species, two haploid genomes are provided. For species (bonobo and gorilla) for which parental sequencing data was available, the haplotypes could be labeled as maternal or paternal, while for the other species the assignment into haplotypes is based on assembly quality.  The nomenclature for this data is as follows
+
+* primary assembly: most complete version of each autosome plus chrX and chrY
+* alternate assembly: other version of each autosome (no sex chromosomes)
+* maternal assembly: maternal autosomes (assigned with trio data) plus chrX
+* paternal assembly: paternal autosomes (assigned with trio data) plus chrY
+
+Note that all the samples were male. In other projects it's quite possible that the primary assembly does not include a chrY. Also, the same principle applies to other types of chromosomes, such as chrW and chrZ.
+
+In all cases, we want progressive cactus, where possible, to correctly reconstruct sex chromosomes in the ancestors. To do this, each of these chromosomes should be present in at least two genomes in each alignment. The `--chromInfo` option can be used to guide the outgroup selection process to ensure that this is the case. This option specifies a two-column text file mapping input genomes to lists of the sex chromosomes they contain. For example, it may contain something like
+
+```
+chimp_primary chrX,chrY
+hg38 chrX,chrY
+gorilla_maternal chrX
+gorilla_paternal chrY
+```
+
+Note that genomes with no chromosomes to specify (`chimp_alt` in this example) can be left out of the file (or included in a single column).
+
+Normally, cactus greedily chooses the N (default=2, override with `cactus --maxOutgroups` or in the configuration XML) nearest genomes to the ancestor in question to be outgroups.  When `--chromFile` is specified, it will choose (greedily, by distance) as many extra outgroups are needed to cover the set of specified chromosomes in the ingroups. 
+
 ## Using the HAL Output
 
 The `outputHal` file represents the multiple alignment, including all input and inferred ancestral sequences.  It is stored in HAL format, and can be accessed with [HAL tools](https://github.com/ComparativeGenomicsToolkit/Hal), which are all included in Cactus either as static binaries for the binary release, or within the Docker image for the Docker release.

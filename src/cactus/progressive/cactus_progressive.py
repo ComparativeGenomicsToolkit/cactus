@@ -355,6 +355,14 @@ def main():
     parser.add_argument("--skipPreprocessor",
                         help="Do not run any preprocessor jobs",
                         action="store_true")
+    parser.add_argument("--maxOutgroups",
+                        help="Number of outgroups to use for each alignment. Overrides `max_num_outgroups` from the config XML."
+                        " Using many outgroups can significantly increase alignment time, especially around long branchecs.",
+                        type=int, default=None)
+    parser.add_argument("--chromInfo",
+                        help="Two-column file mapping genome (col 1) to comma-separated list of sex chromosomes. This information "
+                        "will be used to guide outgroup selection so that, where possible, all chromosomes are present in"
+                        " at least one outgroup.")
 
     options = parser.parse_args()
 
@@ -411,12 +419,19 @@ def main():
             config_wrapper = ConfigWrapper(config_node)
             config_wrapper.substituteAllPredefinedConstantsWithLiterals(options)
             config_wrapper.setSystemMemory(options)
+            if options.maxOutgroups:
+                config_wrapper.setMaxNumOutgroups(options.maxOutgroups)
 
             # apply gpu override
             config_wrapper.initGPU(options)
             mc_tree, input_seq_map, og_candidates = parse_seqfile(options.seqFile, config_wrapper, root_name = options.root)
             logger.info('Tree: {}'.format(NXNewick().writeString(mc_tree)))
-            og_map = compute_outgroups(mc_tree, config_wrapper, set(og_candidates), options.root)
+            og_map = compute_outgroups(mc_tree, config_wrapper, set(og_candidates), options.root,
+                                       chrom_info_file = options.chromInfo)
+            og_log = ''
+            for source, ogs_dists in og_map.items():
+                og_log += ' {}: {}\n'.format(source, ogs_dists)
+            logger.info('Outgroups:\n{}'.format(og_log))
             event_set = get_event_set(mc_tree, config_wrapper, og_map, options.root, subtree=False)
             # infer default root
             if not options.root:
