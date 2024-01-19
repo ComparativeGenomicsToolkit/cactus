@@ -365,8 +365,6 @@ def main():
     # Todo: do we even need --consCores anymore?
     if options.maxCores is not None and options.maxCores < 2**20 and options.consCores is None:
         options.consCores = int(options.maxCores)
-        print("conscores is maxocores {}".format(options.consCores))
-
 
     # Try to juggle --maxCores and --consCores to give some reasonable defaults where possible
     if options.batchSystem.lower() in ['single_machine', 'singlemachine']:
@@ -387,10 +385,6 @@ def main():
             raise RuntimeError('--consCores required for non single_machine batch systems')
     if options.maxCores is not None and options.maxCores < 2**20 and options.consCores > int(options.maxCores):
         raise RuntimeError('--consCores must be <= --maxCores')
-
-    print("and this is conscores {}".format(options.consCores))
-    assert options.consCores < 10
-
     
     # Mess with some toil options to create useful defaults.
     cactus_override_toil_options(options)
