@@ -92,6 +92,21 @@ class ConfigWrapper:
             maxNumOutgroups = int(ogElem.attrib["max_num_outgroups"])
         return maxNumOutgroups
 
+    def setMaxNumOutgroups(self, maxOutgroups):
+        ogElem = self.getOutgroupElem()
+        maxNumOutgroups = self.defaultMaxNumOutgroups
+        assert ogElem is not None
+        ogElem.attrib["max_num_outgroups"] = str(maxOutgroups)
+    
+    def getExtraChromOutgroups(self):
+        ogElem = self.getOutgroupElem()
+        extraChromOutgroups = -1
+        if (ogElem is not None and\
+            "strategy" in ogElem.attrib and\
+            "extra_chrom_outgroups" in ogElem.attrib):
+            extraChromOutgroups = int(ogElem.attrib["extra_chrom_outgroups"])
+        return extraChromOutgroups
+
     def getDefaultInternalNodePrefix(self):
         decompElem = self.getDecompositionElem()
         prefix = self.defaultInternalNodePrefix

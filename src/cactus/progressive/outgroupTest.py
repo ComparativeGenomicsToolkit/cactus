@@ -57,6 +57,22 @@ class TestCase(unittest.TestCase):
         self.backboneTree.nameUnlabeledInternalNodes()
         self.mcTrees.append(self.backboneTree)
 
+        # sort of realistic diploid t2t primates tree
+        dipApesTree = '((((gor.1:0.0001,gor.2:0.0001):0.00993,(((chimp.1:0.0002,chimp.2:0.0001):0.00272,(bonobo.1:0.0001,bonobo.2:0.0001):0.00269):0.00415,(hs1:0.00025,hg38:0.00025):0.00619):0.00046):0.00509,((ponabe.1:0.0002,ponabe.2:0.0001):0.000945412,(ponpy.1:0.0001,ponpy.2:0.0001):0.000915022):0.01864):0.000107106,(gibbon.1:0.0001,gibbon.2:0.002):0.00990798);'
+        self.dipApesMcTree = MultiCactusTree(NXNewick().parseString(dipApesTree, addImpliedRoots=False))
+        self.dipApesMcTree.computeSubtreeRoots()
+        self.dipApesMcTree.nameUnlabeledInternalNodes()
+        self.mcTrees.append(self.borMcTree)        
+        self.dipApesChromInfo = os.path.join(self.tempDir, 'chrom-info.txt')
+        with open(self.dipApesChromInfo, 'w') as chrom_file:
+            chrom_file.write('gor.1 x\ngor.2 y\n')
+            chrom_file.write('chimp.1 x,y\n')
+            chrom_file.write('bonobo.1 x\nbonobo.2 y\n')
+            chrom_file.write('hs1 x,y\nhg38 y,x\n')
+            chrom_file.write('ponabe.1 x,y\n')
+            chrom_file.write('ponpy.1 x,y\n')
+            chrom_file.write('gibbon.1 x,y\n')            
+
         seqLens = dict()
         seqLens["HUMAN"] = 57553
         seqLens["CHIMP"] = 57344
@@ -305,6 +321,68 @@ class TestCase(unittest.TestCase):
                             sink2Id = tree.nameToId[sink2]
                             assert sink1Id not in tree.postOrderTraversal(sink2Id)
                             assert sink2Id not in tree.postOrderTraversal(sink1Id)
+
+    @TestStatus.shortLength
+    def testDiploidPrimatesChromSpec(self):
+        """No two outgroups should be on the same path to the root."""
+        tree = self.dipApesMcTree
+        tree.nameUnlabeledInternalNodes()
+        og = GreedyOutgroup()
+        og.importTree(tree)
+        og.loadChromInfo(self.dipApesChromInfo)
+        og.greedy(maxNumOutgroups=1, extraChromOutgroups=0)
+        chrom_map = {}
+        for source_name, ogs_dists in og.ogMap.items():
+            chrom_map[source_name] = [o[0] for o in ogs_dists]
+
+        og = GreedyOutgroup()
+        og.importTree(tree)
+        og.greedy(maxNumOutgroups=1)
+        default_map = {}
+        for source_name, ogs_dists in og.ogMap.items():
+            default_map[source_name] = [o[0] for o in ogs_dists]
+
+        self.assertEqual(len(chrom_map), len(default_map))
+        self.assertEqual(sorted(chrom_map.keys()), sorted(default_map.keys()))
+        for source, og in default_map.items():
+            assert source in chrom_map
+            # the idea is that even though .2 is closer (so it gets chosen in default)
+            # .1 has the desired chroms, so it shuold be chosen when the chrom map is used
+            self.assertEqual(len(og), 1)
+            if og[0].startswith('chimp') or og[0].startswith('ponabe') or og[0].startswith('gibbon'):
+                self.assertEqual([og[0].replace('.2', '.1')], chrom_map[source])
+            else:
+                self.assertEqual(og, chrom_map[source])
+
+        # give an extra outgroup if needed to satisfy chromosomes (default behaviour now)
+        og = GreedyOutgroup()
+        og.importTree(tree)
+        og.loadChromInfo(self.dipApesChromInfo)
+        og.greedy(maxNumOutgroups=1)
+        chrom_map_extra = {}
+        for source_name, ogs_dists in og.ogMap.items():
+            chrom_map_extra[source_name] = [o[0] for o in ogs_dists]
+
+        self.assertEqual(len(chrom_map_extra), len(default_map))
+        self.assertEqual(sorted(chrom_map_extra.keys()), sorted(default_map.keys()))
+        for source, og in default_map.items():
+            assert source in chrom_map_extra
+            # there are three cases where either an extra outgroup is needed to satisfy both x,y
+            # or the closest outgroup can be added on becaue it wasn't in the solution that satisfied x,y
+            self.assertEqual(len(og), 1)
+            if og[0].startswith('chimp') or og[0].startswith('ponabe') or og[0].startswith('gor'):
+                self.assertEqual(len(chrom_map_extra[source]), 2)
+                self.assertTrue(chrom_map_extra[source][0] != chrom_map_extra[source][1])
+                self.assertEqual(chrom_map_extra[source][0].replace('.1', '').replace('.2', ''),
+                                 chrom_map_extra[source][1].replace('.1', '').replace('.2', ''))
+            else:
+                self.assertEqual(og, chrom_map_extra[source])
+        
+        
+
+        
+        
+                            
 def main():
     unittest.main()
 
