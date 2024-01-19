@@ -166,15 +166,15 @@ class GreedyOutgroup(object):
                 toks = line.rstrip().split()
                 if len(toks) <= 2:
                     genome_name = toks[0]
-                    if len(toks) > 1:
-                        chroms = toks[1]
-                    else:
-                        chroms = []
                     if genome_name in self.chrom_map:
                         RuntimeError('Duplicate genome, {}, found in chromInfo file {}'.format(genome, chrom_info_name))
                     if nodes_in_tree and genome_name not in nodes_in_tree:
                         RuntimeError('Genome name, {}, from chromInfo file {}, not found in tree'.format(genome, chrom_info_name))
-                    self.chrom_map[genome_name] = chroms.split(',')
+                    if len(toks) > 1:
+                        chroms = toks[1].split(',')
+                    else:
+                        chroms = []
+                    self.chrom_map[genome_name] = chroms
                 elif len(toks):
                     raise RuntimeError('Unable to parse line in {}, expecting 2 columns: {}'.format(chrom_info_name, line))
                     
