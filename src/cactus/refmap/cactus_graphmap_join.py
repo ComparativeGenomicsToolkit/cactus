@@ -481,7 +481,7 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
         phase_root_job.addFollowOn(gfa_root_job)
         gfa_ids = []
         current_out_dict = None
-        do_gbz = workflow_phase in options.gbz + options.vcf + options.giraffe
+        do_gbz = workflow_phase in options.gbz + options.vcf + options.giraffe + options.xg
         if do_gbz or workflow_phase in options.gfa:
             assert len(options.vg) == len(phase_vg_ids) == len(vg_ids)
             for vg_path, vg_id, input_vg_id in zip(options.vg, phase_vg_ids, vg_ids):
