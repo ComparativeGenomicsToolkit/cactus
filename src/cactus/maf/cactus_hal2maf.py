@@ -79,12 +79,6 @@ def main():
                         action="store_true",
                         default=False)    
     
-    # pass through taffy add-gap-bases options
-    parser.add_argument("--gapFill",
-                        help="use TAF tools to fill in small reference gaps up to this length (currently more reliable than --maxRefGap) [default: see taffy add-gap-bases -h]",
-                        type=int,
-                        default=None)
-
     # pass through taffy norm options
     parser.add_argument("--maximumBlockLengthToMerge",
                         help="Only merge together any two adjacent blocks if one or both is less than this many bases long, [default: see taffy norm -h]",
@@ -329,12 +323,8 @@ def taf_cmd(hal_path, chunk, chunk_num, genome_list_path, options):
     time_end = '' if os.environ.get("CACTUS_LOG_MEMORY") else ')'
     read_cmd = 'gzip -dc' if options.outputMAF.endswith ('.gz') else 'cat'
 
-    # we don't pipe directly from hal2maf because add_gap_bases uses even more memory in hal
+    # we don't pipe directly from hal2maf because add_gap_bases (now norm) uses even more memory in hal
     cmd = 'set -eo pipefail && {} {}.maf.gz | {} taffy view{} 2> {}.m2t.time'.format(read_cmd, chunk_num, time_cmd, time_end, chunk_num)
-    gap_opts = ''
-    if options.gapFill is not None:
-        gap_opts += '-m {}'.format(options.gapFill)
-    cmd += ' | {} taffy add-gap-bases -a {} {}{} 2> {}.tagp.time'.format(time_cmd, hal_path, gap_opts, time_end, chunk_num)
     norm_opts = ''
     if options.maximumBlockLengthToMerge is not None:
         norm_opts += '-m {}'.format(options.maximumBlockLengthToMerge)
@@ -344,7 +334,7 @@ def taf_cmd(hal_path, chunk, chunk_num, genome_list_path, options):
         norm_opts += ' -d '
     if options.fractionSharedRows is not None:
         norm_opts += '-q {}'.format(options.fractionSharedRows)
-    cmd += ' | {} taffy norm -k {}{} 2> {}.tn.time'.format(time_cmd, norm_opts, time_end, chunk_num)
+    cmd += ' | {} taffy norm -a {} -k {}{} 2> {}.tn.time'.format(time_cmd, hal_path, norm_opts, time_end, chunk_num)
     if options.maxRefNFrac:
         cmd += ' | mafFilter -m - -N {}'.format(options.maxRefNFrac)
     # get rid of single-row (ie ref-only) blcks while we're filtering
@@ -454,7 +444,7 @@ def hal2maf_batch(job, hal_id, batch_chunks, genome_list_id, options, config):
         except Exception as e:
             logger.error("Parallel taffy command failed, dumping all stderr")
             for chunk_num in range(len(batch_chunks)):
-                for tag, cmd in [('m2t', 'view'), ('tagp', 'add-gap-bases'), ('tn', 'norm')]:                
+                for tag, cmd in [('m2t', 'view'), ('tn', 'norm')]:                
                     stderr_file_path = os.path.join(work_dir, '{}.{}.time'.format(chunk_num, tag))
                     if os.path.isfile(stderr_file_path):
                         with open(stderr_file_path, 'r') as stderr_file:
@@ -469,7 +459,7 @@ def hal2maf_batch(job, hal_id, batch_chunks, genome_list_id, options, config):
             cmd_toks = taf_cmds[chunk_num].split(' ')
             for i in range(len(cmd_toks)):
                 cmd_toks[i] = cmd_toks[i].rstrip(')')
-            for tag, cmd in [('m2t', 'view'), ('tagp', 'add-gap-bases'), ('tn', 'norm')]:
+            for tag, cmd in [('m2t', 'view'), ('tn', 'norm')]:
                 tag_start = cmd_toks.index(cmd) - 1
                 tag_end = cmd_toks.index('2>')        
                 tag_cmd = ' '.join(cmd_toks[tag_start:tag_end])
