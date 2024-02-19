@@ -33,6 +33,7 @@ from toil.realtimeLogger import RealtimeLogger
 from cactus.shared.common import cactus_cpu_count
 from toil.lib.humanize import bytes2human
 from sonLib.bioio import getTempDirectory
+from cactus.shared.common import cactus_clamp_memory
 
 def main():
     parser = ArgumentParser()
@@ -274,7 +275,7 @@ def hal2maf_all(job, hal_id, chunks, genome_list_id, options, config):
     else:
         maf_mem = math.ceil(hal_id.size / 200)
         taf_mem = math.ceil(hal_id.size / 33)
-        batch_memory = max(maf_mem * options.batchParallelHal2maf, taf_mem * options.batchParallelTaf)
+        batch_memory = cactus_clamp_memory(max(maf_mem * options.batchParallelHal2maf, taf_mem * options.batchParallelTaf))
         
     chunks_left = len(chunks)
     batch_results = []        

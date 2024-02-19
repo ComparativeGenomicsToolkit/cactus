@@ -41,6 +41,7 @@ from cactus.shared.common import cactus_override_toil_options
 from cactus.shared.common import cactus_call
 from cactus.shared.common import getOptionalAttrib, findRequiredNode
 from cactus.shared.common import unzip_gz, write_s3
+from cactus.shared.common import cactus_clamp_memory
 from cactus.shared.version import cactus_commit
 from cactus.preprocessor.fileMasking import get_mask_bed_from_fasta
 from toil.job import Job
@@ -361,6 +362,8 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
 
     # use --indexMemory to cap memory on some jobs
     max_mem = options.indexMemory if options.indexMemory else sys.maxsize
+    if not options.indexMemory:
+        max_mem = cactus_clamp_memory(max_mem)
     
     # keep og ids in separate structure indexed on chromosome
     og_chrom_ids = {'full' : defaultdict(list), 'clip' : defaultdict(list), 'filter' : defaultdict(list)}

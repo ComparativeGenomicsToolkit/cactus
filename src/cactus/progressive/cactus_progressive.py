@@ -35,6 +35,7 @@ from cactus.shared.common import cactusRootPath
 from cactus.shared.common import enableDumpStack
 from cactus.shared.common import cactus_override_toil_options
 from cactus.shared.common import write_s3
+from cactus.shared.common import cactus_clamp_memory
 
 from cactus.pipeline.cactus_workflow import cactus_cons_with_resources
 from cactus.progressive.progressive_decomposition import compute_outgroups, parse_seqfile, get_subtree, get_spanning_subtree, get_event_set
@@ -181,7 +182,7 @@ def progressive_step(job, options, config_node, seq_id_map, tree, og_map, event)
         trim_sequences = paf_job.addChildJobFn(trim_unaligned_sequences,
                                                [subtree_eventmap[i] for i in outgroups], paf_job.rv(), config_node,
                                                disk=sum(8*[subtree_eventmap[i].size for i in outgroups]),
-                                               memory=sum(8*[subtree_eventmap[i].size for i in outgroups]))
+                                               memory=cactus_clamp_memory(sum(8*[subtree_eventmap[i].size for i in outgroups])))
         return paf_job.addFollowOnJobFn(progressive_step_2, trim_sequences.rv(), options, config_node, subtree_eventmap,
                                         spanning_tree, og_map, event).rv()
 
@@ -266,7 +267,7 @@ def export_hal(job, mc_tree, config_node, seq_id_map, og_map, results, event=Non
 
     if not has_resources:
         disk = 3 * sum([file_id.size for file_id in fa_file_ids + c2h_file_ids])
-        mem = 5 * (max([file_id.size for file_id in fa_file_ids]) + max([file_id.size for file_id in c2h_file_ids]))
+        mem = cactus_clamp_memory(5 * (max([file_id.size for file_id in fa_file_ids]) + max([file_id.size for file_id in c2h_file_ids])))
         # allows pass-through of memory override from --consMemory
         if memory_override:
             mem = memory_override

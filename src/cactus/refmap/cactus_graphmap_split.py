@@ -24,6 +24,7 @@ from cactus.shared.common import cactus_call
 from cactus.shared.common import getOptionalAttrib, findRequiredNode
 from cactus.shared.common import unzip_gz, write_s3
 from cactus.shared.common import get_faidx_subpath_rename_cmd
+from cactus.shared.common import cactus_clamp_memory
 from cactus.shared.version import cactus_commit
 from cactus.preprocessor.fileMasking import get_mask_bed_from_fasta
 from cactus.preprocessor.checkUniqueHeaders import sanitize_fasta_headers
@@ -226,7 +227,7 @@ def graphmap_split_workflow(job, options, config, seq_id_map, seq_name_map, gfa_
     # do some basic paf filtering
     paf_filter_mem = max(paf_id.size * 10, 2**32)
     paf_filter_job = root_job.addFollowOnJobFn(filter_paf, paf_id, config, reference=options.reference,
-                                               disk = paf_id.size * 10, memory=paf_filter_mem)
+                                               disk = paf_id.size * 10, memory=cactus_clamp_memory(paf_filter_mem))
     paf_id = paf_filter_job.rv()
     root_job = paf_filter_job
 
@@ -238,7 +239,7 @@ def graphmap_split_workflow(job, options, config, seq_id_map, seq_name_map, gfa_
     split_gfa_job = root_job.addFollowOnJobFn(split_gfa, config, gfa_id, [paf_id], ref_contigs,
                                               options.otherContig, options.reference, mask_bed_id,
                                               disk=(gfa_size + paf_size) * 5,
-                                              memory=(gfa_size + paf_size) * 3)
+                                              memory=cactus_clamp_memory((gfa_size + paf_size) * 3))
 
     # use the output of the above splitting to do the fasta splitting
     split_fas_job = split_gfa_job.addFollowOnJobFn(split_fas, seq_id_map, seq_name_map, split_gfa_job.rv(0))

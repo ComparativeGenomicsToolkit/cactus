@@ -19,6 +19,7 @@ from cactus.shared.common import makeURL
 from cactus.shared.common import cactus_call
 from cactus.shared.configWrapper import ConfigWrapper
 from cactus.shared.common import findRequiredNode, getOptionalAttrib
+from cactus.shared.common import cactus_clamp_memory
 
 ############################################################
 ############################################################
@@ -84,7 +85,7 @@ def cactus_cons_with_resources(job, tree, ancestor_event, config_node, seq_id_ma
 
     cons_job = job.addChildJobFn(cactus_cons, tree, ancestor_event, config_node, seq_id_map, og_map, paf_id,
                                  intermediate_results_url=intermediate_results_url, chrom_name=chrom_name, cores = cons_cores,
-                                 memory=mem, disk=disk)
+                                 memory=cactus_clamp_memory(mem), disk=disk)
     return cons_job.rv()
 
 def cactus_cons(job, tree, ancestor_event, config_node, seq_id_map, og_map, paf_id,
