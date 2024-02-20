@@ -132,9 +132,11 @@ def maf2bigmaf_workflow(job, config, options, maf_id, chrom_sizes_id, hal_id):
     else:
         disk_mult = 3
     bigmaf_job = prev_job.addFollowOnJobFn(maf2bigmaf, maf_id, chrom_sizes_id, genomes_list, options,
-                                           disk=disk_mult * maf_id.size)
+                                           disk=disk_mult * maf_id.size,
+                                           memory=min(2**32, max(maf_id.size, 2**36)))
     bigmaf_summary_job = prev_job.addFollowOnJobFn(maf2bigmaf_summary, maf_id, chrom_sizes_id, genomes_list, options,
-                                                   disk=2 * maf_id.size)
+                                                   disk=2 * maf_id.size,
+                                                   memory=min(2**32, max(maf_id.size, 2**36)))
 
     return { 'bb' : bigmaf_job.rv(),  'summary.bb' : bigmaf_summary_job.rv() }
 
