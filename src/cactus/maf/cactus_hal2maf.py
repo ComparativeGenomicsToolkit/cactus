@@ -231,7 +231,7 @@ def hal2maf_ranges(job, hal_id, options):
 
     assert chunks
 
-    # get list of genomes sorted by distance to reference
+    # get list of genomes starting with reference, then sorted by distance to previous node in list
     tree_str = cactus_call(parameters=['halStats', hal_path, '--tree'], check_output=True).strip()
     event_tree = newickTreeParser(tree_str)
     distances = get_distances(event_tree)  # Distances between all pairs of nodes
@@ -242,11 +242,19 @@ def hal2maf_ranges(job, hal_id, options):
         if key[0].iD == options.refGenome:
             ref_node = key[0]
     assert ref_node
-    genomes = sorted(list(node_set), key = lambda g : distances[(ref_node, g)])
-    genome_list = [options.refGenome]
-    for genome in genomes:
-        if genome.iD != options.refGenome:
-            genome_list.append(genome.iD)
+    sorted_nodes = [ref_node]
+    node_set.remove(ref_node)
+    while len(node_set) > 0:
+        closest_node = None
+        closest_dist = sys.maxsize
+        for node in node_set:
+            if distances[(sorted_nodes[-1], node)] < closest_dist:
+                closest_node = node
+                closest_dist = distances[(sorted_nodes[-1], node)]
+        assert closest_node is not None
+        sorted_nodes.append(closest_node)
+        node_set.remove(closest_node)
+    genome_list = [node.iD for node in sorted_nodes]
     
     return chunks, genome_list
 
