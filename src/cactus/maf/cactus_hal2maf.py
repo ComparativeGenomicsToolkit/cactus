@@ -339,7 +339,16 @@ def taf_cmd(hal_path, chunk, chunk_num, genome_list_path, sed_script_paths, opti
     read_cmd = 'gzip -dc' if options.outputMAF.endswith ('.gz') else 'cat'
 
     # we don't pipe directly from hal2maf because add_gap_bases (now norm) uses even more memory in hal
-    cmd = 'set -eo pipefail && {} {}.maf.gz | {} taffy view{} 2> {}.m2t.time'.format(read_cmd, chunk_num, time_cmd, time_end, chunk_num)
+    cmd = 'set -eo pipefail && {} {}.maf.gz'.format(read_cmd, chunk_num)
+    if sed_script_paths:
+        # rename to alphanumeric names
+        cmd += ' | sed -f {}'.format(os.path.basename(sed_script_paths[0]))
+    cmd += ' | {} taffy view{} 2> {}.m2t.time'.format(time_cmd, time_end, chunk_num)
+    if genome_list_path:
+        cmd += ' | {} taffy sort -n {}{} 2> {}.sort.time'.format(time_cmd, genome_list_path, time_end, chunk_num)
+    if sed_script_paths:
+        # rename to original, since it needs to be compatible with hal in next step
+        cmd += ' | taffy view -m | sed -f {} | taffy view'.format(os.path.basename(sed_script_paths[1]))
     norm_opts = ''
     if options.maximumBlockLengthToMerge is not None:
         norm_opts += '-m {}'.format(options.maximumBlockLengthToMerge)
@@ -350,18 +359,23 @@ def taf_cmd(hal_path, chunk, chunk_num, genome_list_path, sed_script_paths, opti
     if options.fractionSharedRows is not None:
         norm_opts += '-q {}'.format(options.fractionSharedRows)
     cmd += ' | {} taffy norm -a {} -k {}{} 2> {}.tn.time'.format(time_cmd, hal_path, norm_opts, time_end, chunk_num)
+    if sed_script_paths:
+        # rename to alphanumeric names
+        cmd += ' | sed -f {}'.format(os.path.basename(sed_script_paths[0]))    
     if options.maxRefNFrac:
         cmd += ' | mafFilter -m - -N {}'.format(options.maxRefNFrac)
     # get rid of single-row (ie ref-only) blcks while we're filtering
     cmd += ' | mafFilter -m - -l 2'
     if options.dupeMode == 'single':
-        cmd += ' |{} mafDuplicateFilter -m - -k{}'.format(' sed -f {} |'.format(os.path.basename(sed_script_paths[0])) if sed_script_paths else '',
-                                                          ' | sed -f {}'.format(os.path.basename(sed_script_paths[1])) if sed_script_paths else '')
+        cmd += ' | mafDuplicateFilter -m - -k'                                               
     elif options.dupeMode == 'consensus':
         cmd += ' | maf_stream merge_dups consensus'
-    if genome_list_path:
-        # todo: replace with taffy sort as it's probably much faster
-        cmd += ' | mafRowOrderer -m - --order-file {}'.format(os.path.basename(genome_list_path))
+        # need to resort after merge_dups
+        if genome_list_path:
+            cmd += ' | taffy view | taffy sort -n {} | taffy view -m'.format(genome_list_path)
+    if sed_script_paths:
+        #rename back to original names
+        cmd += ' | sed -f {}'.format(sed_script_paths[1])
     if chunk[1] != 0:
         cmd += ' | grep -v ^#'
     if options.outputMAF.endswith('.gz'):
@@ -440,11 +454,21 @@ def hal2maf_batch(job, hal_id, batch_chunks, genome_list, options, config):
     hal_path = os.path.join(work_dir, os.path.basename(options.halFile.replace(' ', '.')))
     RealtimeLogger.info("Reading HAL file from job store to {}".format(hal_path))
     job.fileStore.readGlobalFile(hal_id, hal_path)
+    # apply any applicable renaming to the genome names
+    sed_script_paths = get_sed_rename_scripts(work_dir, genome_list)
+    if sed_script_paths:
+        renamed_genome_list = []
+        for genome in genome_list:
+            renamed_genome = sed_script_paths[2][genome] if genome in sed_script_paths[2] else genome
+            renamed_genome_list.append(renamed_genome)
+    else:
+        renamed_genome_list = genome_list
+            
+    # serialize the list
     genome_list_path = os.path.join(work_dir, 'genome.list')
     with open(genome_list_path, 'w') as genome_list_file:
-        for genome in genome_list:
+        for genome in renamed_genome_list:
             genome_list_file.write('{}\n'.format(genome))
-    sed_script_paths = get_sed_rename_scripts(work_dir, genome_list) if options.dupeMode == 'single' else None
         
     h2m_cmds = [hal2maf_cmd(hal_path, chunk, i, options, config) for i, chunk in enumerate(batch_chunks)]
 
@@ -502,7 +526,7 @@ def hal2maf_batch(job, hal_id, batch_chunks, genome_list, options, config):
         except Exception as e:
             logger.error("Parallel taffy command failed, dumping all stderr")
             for chunk_num in range(len(batch_chunks)):
-                for tag, cmd in [('m2t', 'view'), ('tn', 'norm')]:                
+                for tag, cmd in [('m2t', 'view'), ('sort', 'sort'), ('tn', 'norm')]:                
                     stderr_file_path = os.path.join(work_dir, '{}.{}.time'.format(chunk_num, tag))
                     if os.path.isfile(stderr_file_path):
                         with open(stderr_file_path, 'r') as stderr_file:
@@ -517,7 +541,7 @@ def hal2maf_batch(job, hal_id, batch_chunks, genome_list, options, config):
             cmd_toks = taf_cmds[chunk_num].split(' ')
             for i in range(len(cmd_toks)):
                 cmd_toks[i] = cmd_toks[i].rstrip(')')
-            for tag, cmd in [('m2t', 'view'), ('tn', 'norm')]:
+            for tag, cmd in [('m2t', 'view'), ('sort', 'sort'), ('tn', 'norm')]:
                 tag_start = cmd_toks.index(cmd) - 1
                 tag_end = cmd_toks.index('2>')        
                 tag_cmd = ' '.join(cmd_toks[tag_start:tag_end])
