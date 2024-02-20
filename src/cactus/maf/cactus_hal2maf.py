@@ -25,7 +25,8 @@ from cactus.shared.common import cactus_call
 from cactus.shared.common import getOptionalAttrib, findRequiredNode
 from cactus.shared.version import cactus_commit
 from cactus.progressive.cactus_prepare import human2bytesN
-from cactus.paf.paf import get_distances
+from cactus.progressive.multiCactusTree import MultiCactusTree
+
 from toil.job import Job
 from toil.common import Toil
 from toil.statsAndLogging import logger
@@ -34,7 +35,7 @@ from toil.realtimeLogger import RealtimeLogger
 from cactus.shared.common import cactus_cpu_count
 from toil.lib.humanize import bytes2human
 from sonLib.bioio import getTempDirectory
-from sonLib.bioio import newickTreeParser
+from sonLib.nxnewick import NXNewick
 
 def main():
     parser = ArgumentParser()
@@ -231,31 +232,15 @@ def hal2maf_ranges(job, hal_id, options):
 
     assert chunks
 
-    # get list of genomes starting with reference, then sorted by distance to previous node in list
+    # get list of genomes sorted by their distance to reference in pre-order traversal
     tree_str = cactus_call(parameters=['halStats', hal_path, '--tree'], check_output=True).strip()
-    event_tree = newickTreeParser(tree_str)
-    distances = get_distances(event_tree)  # Distances between all pairs of nodes
-    ref_node = None
-    node_set = set()
-    for key in distances.keys():
-        node_set.add(key[0])
-        if key[0].iD == options.refGenome:
-            ref_node = key[0]
-    assert ref_node
-    sorted_nodes = [ref_node]
-    node_set.remove(ref_node)
-    while len(node_set) > 0:
-        closest_node = None
-        closest_dist = sys.maxsize
-        for node in node_set:
-            if distances[(sorted_nodes[-1], node)] < closest_dist:
-                closest_node = node
-                closest_dist = distances[(sorted_nodes[-1], node)]
-        assert closest_node is not None
-        sorted_nodes.append(closest_node)
-        node_set.remove(closest_node)
-    genome_list = [node.iD for node in sorted_nodes]
-    
+    mc_tree = MultiCactusTree(NXNewick().parseString(tree_str, addImpliedRoots=False))
+    genome_ranks = {}
+    for i, node in enumerate(mc_tree.preOrderTraversal()):
+        genome_ranks[mc_tree.getName(node)] = i
+    genome_list = sorted(list(genome_ranks.keys()),
+                         key = lambda genome : abs(genome_ranks[genome] - genome_ranks[options.refGenome]))
+    assert genome_list[0] == options.refGenome
     return chunks, genome_list
 
 def hal2maf_all(job, hal_id, chunks, genome_list, options, config):
