@@ -255,12 +255,13 @@ def maf2bigmaf_summary(job, maf_id, chrom_sizes_id, genomes_list, options):
     cat_cmd = ['gzip', '-dc'] if maf_path.endswith('.gz') else ['cat']
 
     # make the bigmaf summary file
-    ref_mname = options.refGenome
+    ref_name = options.refGenome
     summary_bed_path = os.path.join(work_dir, 'summary.bed')
     summary_cmd = [cat_cmd + [maf_path]]
     if sed_scripts:
         summary_cmd += [['sed', '-f', sed_scripts[0]]]
-        ref_name = sed_scripts[2][options.refGenome]
+        if options.refGenome in sed_scripts[2]:
+            ref_name = sed_scripts[2][options.refGenome]
     summary_cmd += [['mafDuplicateFilter', '-km', '-'],
                     ['hgLoadMafSummary', '-minSeqSize=1', '-test', ref_name, 'bigMafSummary', 'stdin']]
     cactus_call(parameters=summary_cmd)
