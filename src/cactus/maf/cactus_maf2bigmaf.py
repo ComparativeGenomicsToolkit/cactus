@@ -29,6 +29,7 @@ from toil.statsAndLogging import logger
 from toil.statsAndLogging import set_logging_from_options
 from toil.realtimeLogger import RealtimeLogger
 from cactus.shared.common import cactus_cpu_count
+from cactus.maf.cactus_hal2maf import get_sed_rename_scripts
 from toil.lib.humanize import bytes2human
 from sonLib.bioio import getTempDirectory
 
@@ -41,7 +42,7 @@ def main():
     parser.add_argument("--refGenome", help = "reference genome to get chrom sizes from", required=True)
 
     
-    parser.add_argument("--halFile", help = "HAL file to use to get chrom sizes from")
+    parser.add_argument("--halFile", help = "HAL file to use to get chrom sizes from. Will also be used to work around dots in genome names")
     parser.add_argument("--chromSizes", help = "File of chromosome sizes (can be obtained with halStats --chromSizes)")
     
     #Progressive Cactus Options
@@ -117,20 +118,27 @@ def maf2bigmaf_workflow(job, config, options, maf_id, chrom_sizes_id, hal_id):
     root_job = Job()
     job.addChild(root_job)
     check_tools_job = root_job.addChildJobFn(maf2bigmaf_check_tools)
+    genomes_list = None
     if not chrom_sizes_id:
         chrom_sizes_job = check_tools_job.addFollowOnJobFn(maf2bigmaf_chrom_sizes, options, hal_id,
                                                            disk=hal_id.size)
         prev_job = chrom_sizes_job
-        chrom_sizes_id = chrom_sizes_job.rv()
+        chrom_sizes_id = chrom_sizes_job.rv(0)
+        genomes_list = chrom_sizes_job.rv(1)
     else:
         prev_job = check_tools_job
     if options.mafFile.endswith('.gz'):
-        disk_mult = 10
+        disk_mult = 7
     else:
         disk_mult = 3
-    bigmaf_job = prev_job.addFollowOnJobFn(maf2bigmaf, maf_id, chrom_sizes_id, options,
-                                           disk=disk_mult * maf_id.size)
-    return bigmaf_job.rv()
+    bigmaf_job = prev_job.addFollowOnJobFn(maf2bigmaf, maf_id, chrom_sizes_id, genomes_list, options,
+                                           disk=disk_mult * maf_id.size,
+                                           memory=min(2**32, max(maf_id.size, 2**36)))
+    bigmaf_summary_job = prev_job.addFollowOnJobFn(maf2bigmaf_summary, maf_id, chrom_sizes_id, genomes_list, options,
+                                                   disk=2 * maf_id.size,
+                                                   memory=min(2**32, max(maf_id.size, 2**36)))
+
+    return { 'bb' : bigmaf_job.rv(),  'summary.bb' : bigmaf_summary_job.rv() }
 
 def maf2bigmaf_check_tools(job):
     """ make sure we have the required ucsc commands available on the PATH"""
@@ -144,7 +152,7 @@ def maf2bigmaf_check_tools(job):
         raise RuntimeError('Required tool, {}, not found in PATH. Please download it with wget -q https://hgdownload.soe.ucsc.edu/admin/exe/linux.x86_64/{}'.format(tool, tool))
 
 def maf2bigmaf_chrom_sizes(job, options, hal_id):
-    """ get chromsizes from hal"""
+    """ get chromsizes from hal, also get a unique token to map underscores and dots to"""
     assert options.refGenome
     
     work_dir = job.fileStore.getLocalTempDir()
@@ -156,7 +164,10 @@ def maf2bigmaf_chrom_sizes(job, options, hal_id):
     chrom_sizes = os.path.join(work_dir, options.refGenome + '.chrom_sizes')
     cactus_call(parameters=['halStats', hal_path, '--chromSizes', options.refGenome],
                 outfile = chrom_sizes)
-    return job.fileStore.writeGlobalFile(chrom_sizes)
+
+    genomes = set(cactus_call(parameters=['halStats', '--genomes', hal_path], check_output=True).split())
+    
+    return job.fileStore.writeGlobalFile(chrom_sizes), genomes
 
 # https://genome.ucsc.edu/goldenPath/help/examples/bigMaf.as
 bigMaf_as = \
@@ -185,8 +196,10 @@ mafSummary_as = \
     )
 '''
 
-def maf2bigmaf(job, maf_id, chrom_sizes_id, options):
-    """ do the conversion from https://genome.ucsc.edu/goldenPath/help/bigMaf.html"""
+def maf2bigmaf(job, maf_id, chrom_sizes_id, genomes_list, options):
+    """ do the conversion from https://genome.ucsc.edu/goldenPath/help/bigMaf.html to
+    make the BigMaf bigbed file. This takes a lot of disk since it requires making
+    an uncompressed BED file intermediary"""
     work_dir = job.fileStore.getLocalTempDir()
     maf_path = os.path.join(work_dir, os.path.basename(options.mafFile.replace(' ', '.')))    
     RealtimeLogger.info("Reading MAF file from job store to {}".format(maf_path))
@@ -194,12 +207,6 @@ def maf2bigmaf(job, maf_id, chrom_sizes_id, options):
     chrom_sizes_path = os.path.join(work_dir, options.refGenome + '.chrom_sizes')    
     job.fileStore.readGlobalFile(chrom_sizes_id, chrom_sizes_path)
     bigmaf_path = os.path.join(work_dir, os.path.basename(options.outFile))
-    summary_path = os.path.splitext(bigmaf_path)[0] + '.summary.bb'
-
-    # doesn't seem possible to stream right from gzipped maf below
-    if maf_path.endswith('.gz'):
-        cactus_call(parameters=['bgzip', '-df', maf_path])
-        maf_path = os.path.splitext(maf_path)[0]
                                
     # make the bigMaf.as file
     bigmaf_as_path = os.path.join(work_dir, 'bigMaf.as')
@@ -207,27 +214,67 @@ def maf2bigmaf(job, maf_id, chrom_sizes_id, options):
     with open(bigmaf_as_path, 'w') as as_file:
         as_file.write(bigMaf_as)
         
+    # make the sed scripts to handle non-alphanumeric characters
+    sed_scripts = get_sed_rename_scripts(work_dir, genomes_list, out_bed=True)
+
+    cat_cmd = ['gzip', '-dc'] if maf_path.endswith('.gz') else ['cat']
+
+    # make the bigmaf bed file
+    bigmaf_bed_path = os.path.join(work_dir, 'bigMaf.bed')
+    bigmaf_cmd = [cat_cmd + [maf_path],
+                  ['mafDuplicateFilter', '-km', '-'],
+                  ['mafToBigMaf', options.refGenome, 'stdin', 'stdout'],
+                  ['sort', '-k1,1', '-k2,2n']]
+    cactus_call(parameters=bigmaf_cmd, outfile=bigmaf_bed_path)
+
+    # convert it to bigbed (can't pipe!)
+    cactus_call(parameters=['bedToBigBed', '-type=bed3+1', '-as={}'.format(bigmaf_as_path),
+                            '-tab', bigmaf_bed_path, chrom_sizes_path, bigmaf_path])
+    
+    return job.fileStore.writeGlobalFile(bigmaf_path)
+
+def maf2bigmaf_summary(job, maf_id, chrom_sizes_id, genomes_list, options):
+    """ do the conversion from https://genome.ucsc.edu/goldenPath/help/bigMaf.html to 
+    make the BigMafSummary BigBed """
+    work_dir = job.fileStore.getLocalTempDir()
+    maf_path = os.path.join(work_dir, os.path.basename(options.mafFile.replace(' ', '.')))    
+    RealtimeLogger.info("Reading MAF file from job store to {}".format(maf_path))
+    job.fileStore.readGlobalFile(maf_id, maf_path)    
+    chrom_sizes_path = os.path.join(work_dir, options.refGenome + '.chrom_sizes')    
+    job.fileStore.readGlobalFile(chrom_sizes_id, chrom_sizes_path)
+    bigmaf_path = os.path.join(work_dir, os.path.basename(options.outFile))
+    summary_path = os.path.splitext(bigmaf_path)[0] + '.summary.bb'
+                                       
     # make the mafSummary.as file
     mafsummary_as_path = os.path.join(work_dir, 'mafSummary.as')
     assert(maf_path != mafsummary_as_path)
     with open(mafsummary_as_path, 'w') as as_file:
         as_file.write(mafSummary_as)
-        
-                               
-    # make the bigmaf file
-    bigmaf_txt_path = os.path.join(work_dir, 'bigMaf.txt')
-    cactus_call(parameters=[['mafToBigMaf', options.refGenome, maf_path, 'stdout'],
-                            ['sort', '-k1,1', '-k2,2n']],
-                outfile=bigmaf_txt_path)
-    cactus_call(parameters=['bedToBigBed', '-type=bed3+1', '-as={}'.format(bigmaf_as_path), '-tab', bigmaf_txt_path, chrom_sizes_path, bigmaf_path])
+
+    # make the sed scripts to handle non-alphanumeric characters
+    sed_scripts = get_sed_rename_scripts(work_dir, genomes_list, out_bed=True)
+
+    cat_cmd = ['gzip', '-dc'] if maf_path.endswith('.gz') else ['cat']
 
     # make the bigmaf summary file
-    summary_bed_path = os.path.join(work_dir, 'bigMafSummary.bed')
-    cactus_call(parameters=['hgLoadMafSummary', '-minSeqSize=1', '-test', options.refGenome, 'bigMafSummary', maf_path])
-    cactus_call(parameters=[['cut', '-f2-', 'bigMafSummary.tab'],
-                            ['sort', '-k1,1', '-k2,2n']],
-                outfile=summary_bed_path)
-    cactus_call(parameters=['bedToBigBed', '-type=bed3+4', '-as={}'.format(mafsummary_as_path), '-tab', summary_bed_path, chrom_sizes_path, summary_path])
-    
-    return { 'bb' : job.fileStore.writeGlobalFile(bigmaf_path),
-             'summary.bb' : job.fileStore.writeGlobalFile(summary_path) }
+    ref_name = options.refGenome
+    summary_bed_path = os.path.join(work_dir, 'summary.bed')
+    summary_cmd = [cat_cmd + [maf_path]]
+    if sed_scripts:
+        summary_cmd += [['sed', '-f', sed_scripts[0]]]
+        if options.refGenome in sed_scripts[2]:
+            ref_name = sed_scripts[2][options.refGenome]
+    summary_cmd += [['mafDuplicateFilter', '-km', '-'],
+                    ['hgLoadMafSummary', '-minSeqSize=1', '-test', ref_name, 'bigMafSummary', 'stdin']]
+    cactus_call(parameters=summary_cmd)
+    sort_cmd = [['cut', '-f2-', 'bigMafSummary.tab']]                
+    if sed_scripts:
+        sort_cmd += [['sed', '-f', sed_scripts[1]]]
+    sort_cmd += [['sort', '-k1,1', '-k2,2n']]
+    cactus_call(parameters=sort_cmd, outfile=summary_bed_path)    
+
+    # convert it to bigbed (can't pipe!)
+    cactus_call(parameters=['bedToBigBed', '-type=bed3+4', '-as={}'.format(mafsummary_as_path),
+                            '-tab', summary_bed_path, chrom_sizes_path, summary_path])
+
+    return job.fileStore.writeGlobalFile(summary_path)
