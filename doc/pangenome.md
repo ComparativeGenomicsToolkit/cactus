@@ -179,7 +179,7 @@ The individual parts of the pipeline can be run independently using the followin
 
 * `full` graph: This graph is normalized, but no sequence is removed. It and its indexes will have `.full` in their filenames. 
 * `clip` graph: This is the default graph. Stretches of sequence `>10kb` that were not aligned to the underlying SV/minigraph are removed. "Dangling" nodes (ie that don't have an edge on each side) that aren't on the reference path are also removed, so that each chromosome only has two tips in the graph.
-* `filter` graph: This graph is made by removing nodes covered by fewer than 2 haplotypes from the `clip` graph.  It and its indexes will have `.d2` in their filenames.
+* `filter` graph: This graph is made by removing nodes covered by fewer than 2 haplotypes from the `clip` graph.  It and its indexes will have `.d2` in their filenames. **Note** in newer versions of vg, you can usually get away without allele frequency filtering by way of haplotype sampling (using the `--haplo` option to make an index for this). 
 
 The `clip` graph is a subgraph of the `full` graph and the `filter` graph is a subgraph of the `clip` graph. Put another way, any node in the `filter` graph exists with the exact same ID and sequence in the `clip` graph, etc. 
 
@@ -199,6 +199,20 @@ Different clipping and filtering thresholds can be specified using the `--clip` 
 
 The `--vcf` option will produce two VCFs for each selected graph type. One VCF is a "raw" VCF which contains nested variants, indicated by the `LV` and `PS` tags. The second VCF is one that has gone through [vcfbub](https://github.com/pangenome/vcfbub) to remove nested sites, as well as those greater than 100kb.  Unless you want to explicitly handle nested variants, you are probably best to use the `vcfbub` VCF.  Switch off `vcfbub` with `--vcfbub 0` or specify a different threshold with `--vcfbub N`.
 
+### Haplotype Sampling Instead of Filtering (NEW)
+
+The `.dX` graphs created with `--filter` were necessary for read mapping, but now `vg` supports dynamic haplotype subsampling (ie personalized pangenomes) and, in most cases, filtering is no longer necessary. In order to use haplotype sampling, run `cactus-pangenome / cactus-graphmap-join` with the `--haplo clip --giraffe clip` options. This will create the `giraffe` indexes for the clipped (unfiltered) graph, as well as the special `.hapl` haplotype index. From there, you can use the `.hapl` and `.gbz` (you do not need the `.dist` or `.min`) to run `vg giraffe` using the current best practices.
+
+While this process will give better mapping performance than using the `--filter` graphs there are two downsides:
+* In order to make the `.hapl` index, a `.dist` index must be created for the clipped graph (hence the required `--giraffe clip`).  This can be memory intensive for very complex graphs (ie involving different species).
+* Read mapping will now require an invocation of `kmc` to compute a kmer index (see links below). While this adds complexity, it does not seriously affect runtime (the time used making the kmer index and doing the subsampling is balanced out by faster mappings times).
+
+Further reading:
+
+* [Haplotype Sampling Wiki](https://github.com/vgteam/vg/wiki/Haplotype-Sampling)
+* [The Personalized Pangenome Paper](https://doi.org/10.1101/2023.12.13.571553) when using `vg haplotypes` and/or `vg giraffe --haplotype-name`
+* [Cactus Tutorials](#tutorials)
+
 ### Output
 
 * `hal`: Cactus's [native alignment format](./progressive.md#using-the-hal-output) can be used to convert to MAF, build assembly hubs, run liftover and comparative annotation.
@@ -210,6 +224,7 @@ The `--vcf` option will produce two VCFs for each selected graph type. One VCF i
 * `snarls`: The start and end nodes of the bubbles in the graph, as well as their nesting relationships.  Used by some `vg` tools like `call` and `deconstruct`.
 * `dist`: Snarl distance index required for `vg giraffe`.
 * `min`: Minimizer index required for `vg giraffe`.
+* `hapl` : Haplotype sampling index. Created with `--haplo` (new alternative to `--filter`) and used for new best practice `vg giraffe` pipeline.
 * `stats.tgz`: Some stats about how much sequence was clipped, including a BED file of the removed sequence.
 * `og`: [odgi](https://github.com/pangenome/odgi)'s native format, can be read and written by `odgi`. Very useful for [visualization](#visualization).
 
