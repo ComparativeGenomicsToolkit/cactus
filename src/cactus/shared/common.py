@@ -46,7 +46,7 @@ from sonLib.bioio import popenCatch
 from sonLib.bioio import getTempDirectory
 
 from cactus.shared.version import cactus_commit
-    
+from toil import physicalMemory    
 
 _log = logging.getLogger(__name__)
 
@@ -106,6 +106,9 @@ def cactus_override_toil_options(options):
         options.realTimeLogging = True
 
     # store toil memory limits here so we can get at them without carrying options around
+    max_mem = options.maxMemory
+    if options.batchSystem.lower() in ['single_machine', 'singleMachine']:
+        max_mem = min(max_mem, physicalMemory())
     os.environ['CACTUS_MAX_MEMORY'] = str(options.maxMemory)
     os.environ['CACTUS_DEFAULT_MEMORY'] = str(options.defaultMemory)
 
