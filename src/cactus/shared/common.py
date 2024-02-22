@@ -66,7 +66,7 @@ def cactus_cpu_count():
     return num_cpus
 
 def cactus_override_toil_options(options):
-    """  Mess with some toil options to create useful defaults. """
+    """  Mess with some toil options to create useful defaults. """    
     if options.retryCount is None and options.batchSystem.lower() not in ['single_machine', 'singleMachine']:
         # If the user didn't specify a retryCount value, make it 5
         # instead of Toil's default (1).
@@ -104,6 +104,14 @@ def cactus_override_toil_options(options):
         # Too much valuable debugging information to pass up
         logger.info('Enabling realtime logging in Toil')
         options.realTimeLogging = True
+
+    # store toil memory limits here so we can get at them without carrying options around
+    os.environ['CACTUS_MAX_MEMORY'] = str(options.maxMemory)
+    os.environ['CACTUS_DEFAULT_MEMORY'] = str(options.defaultMemory)
+
+def cactus_clamp_memory(memory_bytes):
+    """ use the environment variables from --maxMemory and --defaultMemory to clamp a given memory value """
+    return max(min(int(os.environ['CACTUS_MAX_MEMORY']), memory_bytes), int(os.environ['CACTUS_DEFAULT_MEMORY']))
 
 def makeURL(path_or_url):
     if urlparse(path_or_url).scheme == '':

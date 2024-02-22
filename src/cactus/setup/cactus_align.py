@@ -27,6 +27,7 @@ from cactus.shared.common import getOptionalAttrib
 from cactus.shared.common import cactus_call
 from cactus.shared.common import write_s3, has_s3, get_aws_region, unzip_gzs
 from cactus.shared.common import cactusRootPath
+from cactus.shared.common import cactus_clamp_memory
 from cactus.shared.version import cactus_commit
 from cactus.shared.configWrapper import ConfigWrapper
 from cactus.refmap.cactus_graphmap import filter_paf
@@ -415,7 +416,7 @@ def export_vg(job, hal_id, config_wrapper, doVG, doGFA, referenceEvents, checkpo
                                  resource_spec = True,
                                  disk=hal_id.size * 3,
                                  # allow override with cons_memory
-                                 memory=hal_id.size * 60 if not memory_override else memory_override).rv()
+                                 memory=cactus_clamp_memory(hal_id.size * 60) if not memory_override else memory_override).rv()
         
     work_dir = job.fileStore.getLocalTempDir()
     hal_path = os.path.join(work_dir, "out.hal")

@@ -18,6 +18,7 @@ import math
 from cactus.paf.paf import get_event_pairs, get_leaves, get_node, get_distances
 from cactus.shared.common import cactus_call, getOptionalAttrib
 from cactus.preprocessor.checkUniqueHeaders import sanitize_fasta_headers
+from cactus.shared.common import cactus_clamp_memory
 
 def run_lastz(job, name_A, genome_A, name_B, genome_B, distance, params):
     # Create a local temporary file to put the alignments in.
@@ -178,7 +179,7 @@ def make_chunked_alignments(job, event_a, genome_a, event_b, genome_b, distance,
                                                              '{}_{}'.format(event_b, j), chunk_b, distance, params,
                                                              cores=lastz_cores,
                                                              disk=max(4*(chunk_a.size+chunk_b.size), memory),
-                                                             memory=memory,
+                                                             memory=cactus_clamp_memory(memory),
                                                              accelerators=accelerators).rv())
 
     dechunk_batch_size = getOptionalAttrib(lastz_params_node, 'dechunkBatchSize', typeFn=int, default=1e9)
@@ -221,7 +222,7 @@ def make_ingroup_to_outgroup_alignments_1(job, ingroup_event, outgroup_events, e
     return root_job.addFollowOnJobFn(make_ingroup_to_outgroup_alignments_2, alignment, ingroup_event, outgroup_events[1:],
                                      event_names_to_sequences, distances, params,
                                      disk=8*(event_names_to_sequences[ingroup_event.iD].size+event_names_to_sequences[outgroup.iD].size),
-                                     memory=8*(event_names_to_sequences[ingroup_event.iD].size+event_names_to_sequences[outgroup.iD].size)).rv() if len(outgroup_events) > 1 else alignment
+                                     memory=cactus_clamp_memory(8*(event_names_to_sequences[ingroup_event.iD].size+event_names_to_sequences[outgroup.iD].size))).rv() if len(outgroup_events) > 1 else alignment
 
 
 def make_ingroup_to_outgroup_alignments_2(job, alignments, ingroup_event, outgroup_events,
@@ -350,12 +351,12 @@ def chain_alignments(job, alignment_files, alignment_names, reference_event_name
         chained_alignment_files.append(root_job.addChildJobFn(chain_one_alignment, alignment_file, alignment_name,
                                                               params, include_inverted_alignments,
                                                               disk=6*alignment_file.size,
-                                                              memory=32*alignment_file.size).rv())
+                                                              memory=cactus_clamp_memory(32*alignment_file.size)).rv())
         
     # do the tiling and filtering
     return root_job.addFollowOnJobFn(tile_alignments, chained_alignment_files, reference_event_name, params,
                                      disk=6*sum([alignment_file.size for alignment_file in alignment_files]),
-                                     memory=32*sum([alignment_file.size for alignment_file in alignment_files])).rv()
+                                     memory=cactus_clamp_memory(32*sum([alignment_file.size for alignment_file in alignment_files]))).rv()
 
 
 def chain_one_alignment(job, alignment_file, alignment_name, params, include_inverted_alignments):

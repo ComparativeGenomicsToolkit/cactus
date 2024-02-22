@@ -33,6 +33,7 @@ from toil.statsAndLogging import logger
 from toil.statsAndLogging import set_logging_from_options
 from toil.realtimeLogger import RealtimeLogger
 from cactus.shared.common import cactus_cpu_count
+from cactus.shared.common import cactus_clamp_memory
 from cactus.progressive.progressive_decomposition import compute_outgroups, parse_seqfile, get_subtree, get_spanning_subtree, get_event_set
 from cactus.refmap.cactus_minigraph import check_sample_names
 from sonLib.nxnewick import NXNewick
@@ -227,7 +228,7 @@ def minigraph_workflow(job, options, config, seq_id_map, gfa_id, graph_event, sa
         # convert GFA to fasta
         scale = 5 if zipped_gfa else 1
         fa_job = root_job.addChildJobFn(make_minigraph_fasta, gfa_id, options.outputFasta, graph_event,
-                                        disk=scale*2*gfa_id.size, memory=2*scale*gfa_id.size)
+                                        disk=scale*2*gfa_id.size, memory=cactus_clamp_memory(2*scale*gfa_id.size))
         fa_id = fa_job.rv()
 
     if zipped_gfa:
@@ -244,7 +245,7 @@ def minigraph_workflow(job, options, config, seq_id_map, gfa_id, graph_event, sa
         # if --refFromGFA is specified, we get the entire alignment from that, otherwise we just take contigs
         # that didn't get mapped by anything else
         gfa2paf_job = Job.wrapJobFn(extract_paf_from_gfa, gfa_id, options.minigraphGFA, options.reference, graph_event, paf_job.rv(0) if not options.refFromGFA else None,
-                                    disk=gfa_id_size, memory=gfa_id_size)
+                                    disk=gfa_id_size, memory=cactus_clamp_memory(gfa_id_size))
         if options.refFromGFA:
             root_job.addChild(gfa2paf_job)
         else:
@@ -268,7 +269,7 @@ def minigraph_workflow(job, options, config, seq_id_map, gfa_id, graph_event, sa
         del_filter_job = prev_job.addFollowOnJobFn(filter_paf_deletions, out_paf_id, gfa_id, del_filter, del_filter_threshold,
                                                    del_size_threshold,
                                                    disk=8*gfa_id_size, cores=mg_cores,
-                                                   memory=16*gfa_id_size)
+                                                   memory=cactus_clamp_memory(16*gfa_id_size))
         unfiltered_paf_id = prev_job.addFollowOnJobFn(zip_gz, 'mg.paf.unfiltered', out_paf_id, disk=gfa_id_size).rv()
         out_paf_id = del_filter_job.rv(0)
         filtered_paf_log = del_filter_job.rv(1)
@@ -319,7 +320,7 @@ def minigraph_map_all(job, config, gfa_id, fa_id_map, graph_event):
         minigraph_map_job = top_job.addChildJobFn(minigraph_map_one, config, event, fa_id, gfa_id,
                                                   # todo: estimate RAM
                                                   cores=mg_cores, disk=5*fa_id.size + gfa_id.size,
-                                                  memory=72*fa_id.size + 2*gfa_id.size)
+                                                  memory=cactus_clamp_memory(72*fa_id.size + 2*gfa_id.size))
         gaf_id_map[event] = minigraph_map_job.rv(0)
         paf_id_map[event] = minigraph_map_job.rv(1)
 
