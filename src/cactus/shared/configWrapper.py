@@ -123,6 +123,10 @@ class ConfigWrapper:
         else:
             return float(decompElem.attrib["default_branch_len"])
 
+    def getAllowMultifurcations(self):
+        decompElem = self.getDecompositionElem()
+        return getOptionalAttrib(decompElem, attribName="allow_multifurcations", typeFn=bool, default=False)
+        
     def getBuildHal(self):
         halElem = self.xmlRoot.find("hal")
         if halElem is not None and "buildHal" in halElem.attrib:

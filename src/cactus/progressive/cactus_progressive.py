@@ -383,10 +383,8 @@ def main():
         if options.consCores is None:
             if options.maxCores is not None and options.maxCores < 2**20:
                 options.consCores = int(options.maxCores)
-                print("conscores2 is maxcores {}".format(options.consCores))
             else:
                 options.consCores = cactus_cpu_count()
-                print("conscores is cput count {}".format(options.consCores))
         elif options.maxCores is not None and options.maxCores < 2**20 and options.consCores > int(options.maxCores):
             raise RuntimeError('--consCores must be <= --maxCores')
     else:
