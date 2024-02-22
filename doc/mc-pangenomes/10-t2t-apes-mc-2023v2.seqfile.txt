@@ -1,0 +1,10 @@
+hs1                  https://hgdownload.soe.ucsc.edu/goldenPath/hs1/bigZips/hs1.fa.gz
+hg38                 https://hgdownload.soe.ucsc.edu/goldenPath/hg38/bigZips/analysisSet/hg38.analysisSet.fa.gz
+hg002.1	        https://hgdownload.soe.ucsc.edu/hubs/GCA/018/852/605/GCA_018852605.2/GCA_018852605.2.fa.gz
+hg002.2 	https://hgdownload.soe.ucsc.edu/hubs/GCA/018/852/615/GCA_018852615.2/GCA_018852615.2.fa.gz
+mPanTro3.1	https://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/028/858/775/GCA_028858775.2_NHGRI_mPanTro3-v2.0_pri/GCA_028858775.2_NHGRI_mPanTro3-v2.0_pri_genomic.fna.gz
+mPanTro3.2	https://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/028/858/805/GCA_028858805.2_NHGRI_mPanTro3-v2.0_alt/GCA_028858805.2_NHGRI_mPanTro3-v2.0_alt_genomic.fna.gz
+mPanPan1.1	https://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/028/858/825/GCA_028858825.2_NHGRI_mPanPan1-v2.0_pat/GCA_028858825.2_NHGRI_mPanPan1-v2.0_pat_genomic.fna.gz
+mPanPan1.2	https://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/028/858/845/GCA_028858845.2_NHGRI_mPanPan1-v2.0_mat/GCA_028858845.2_NHGRI_mPanPan1-v2.0_mat_genomic.fna.gz
+mGorGor1.1	https://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/028/885/475/GCA_028885475.2_NHGRI_mGorGor1-v2.0_pat/GCA_028885475.2_NHGRI_mGorGor1-v2.0_pat_genomic.fna.gz
+mGorGor1.2	https://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/028/885/495/GCA_028885495.2_NHGRI_mGorGor1-v2.0_mat/GCA_028885495.2_NHGRI_mGorGor1-v2.0_mat_genomic.fna.gz
