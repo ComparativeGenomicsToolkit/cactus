@@ -83,14 +83,26 @@ class TestCase(unittest.TestCase):
                 seq_file.write('{}\t{}\n'.format(genome, genome_path))
             seq_file.write(new_child_line)
 
+        # use the same logic cactus does to get default config
+        config_path = 'src/cactus/cactus_progressive_config.xml' if not configFile else configFile
+
+        xml_root = ET.parse(config_path).getroot()
+        decomp_elem = xml_root.find("multi_cactus").find("decomposition")
+        # force cactus to accept multifurcation in tree
+        decomp_elem.attrib["allow_multifurcations"] = "1"
+
+        mc_config_path = os.path.join(self.tempDir, "config.mc.xml")
+        with open(mc_config_path, 'w') as mc_config_file:
+            xmlString = ET.tostring(xml_root, encoding='unicode')
+            xmlString = minidom.parseString(xmlString).toprettyxml()
+            mc_config_file.write(xmlString)
+            
         # run the alignment
         out_hal = os.path.join(self.tempDir, '{}.hal'.format(new_root))
         if step_by_step:
             out_paf = os.path.join(self.tempDir, '{}.paf'.format(new_root))
             cmd = ['cactus-blast', self._job_store(binariesMode), seq_file_path, out_paf, '--includeRoot', '--root', new_root,
-                   '--binariesMode', binariesMode, '--logInfo', '--workDir', self.tempDir]
-            if configFile:
-                cmd += ['--configFile', configFile]
+                   '--binariesMode', binariesMode, '--logInfo', '--workDir', self.tempDir, '--configFile', mc_config_path]
             # todo: it'd be nice to have an interface for setting tag to something not latest or commit
             if binariesMode == 'docker':
                 cmd += ['--latest']
@@ -98,9 +110,7 @@ class TestCase(unittest.TestCase):
             subprocess.check_call(cmd)
 
             cmd = ['cactus-align', self._job_store(binariesMode), seq_file_path, out_paf, out_hal, '--includeRoot', '--root', new_root,
-                   '--binariesMode', binariesMode, '--logInfo', '--workDir', self.tempDir]
-            if configFile:
-                cmd += ['--configFile', configFile]
+                   '--binariesMode', binariesMode, '--logInfo', '--workDir', self.tempDir, '--configFile', mc_config_path]
             # todo: it'd be nice to have an interface for setting tag to something not latest or commit
             if binariesMode == 'docker':
                 cmd += ['--latest']
@@ -108,9 +118,7 @@ class TestCase(unittest.TestCase):
             subprocess.check_call(cmd)
         else:
             cmd = ['cactus', self._job_store(binariesMode), seq_file_path, out_hal,
-                   '--binariesMode', binariesMode, '--logInfo', '--workDir', self.tempDir]
-            if configFile:
-                cmd += ['--configFile', configFile]
+                   '--binariesMode', binariesMode, '--logInfo', '--workDir', self.tempDir, '--configFile', mc_config_path]
             # todo: it'd be nice to have an interface for setting tag to something not latest or commit
             if binariesMode == 'docker':
                 cmd += ['--latest']
@@ -310,9 +318,23 @@ class TestCase(unittest.TestCase):
         seq_file_path = os.path.join(self.tempDir, 'primates.txt')
         self._write_primates_seqfile(seq_file_path)
 
+        # use the same logic cactus does to get default config
+        config_path = 'src/cactus/cactus_progressive_config.xml'
+
+        xml_root = ET.parse(config_path).getroot()
+        decomp_elem = xml_root.find("multi_cactus").find("decomposition")
+        # force cactus to accept multifurcation in tree
+        decomp_elem.attrib["allow_multifurcations"] = "1"
+
+        mc_config_path = os.path.join(self.tempDir, "config.mc.xml")
+        with open(mc_config_path, 'w') as mc_config_file:
+            xmlString = ET.tostring(xml_root, encoding='unicode')
+            xmlString = minidom.parseString(xmlString).toprettyxml()
+            mc_config_file.write(xmlString)
+
         # do the mapping
         cigar_path = os.path.join(self.tempDir, 'aln.paf')
-        cactus_opts = ['--binariesMode', binariesMode, '--logInfo', '--workDir', self.tempDir]
+        cactus_opts = ['--binariesMode', binariesMode, '--logInfo', '--workDir', self.tempDir, '--configFile', mc_config_path]
         # todo: it'd be nice to have an interface for setting tag to something not latest or commit
         if binariesMode == 'docker':
             cactus_opts += ['--latest']
@@ -339,6 +361,10 @@ class TestCase(unittest.TestCase):
         bar_elem = xml_root.find("bar")
         bar_elem.attrib["partialOrderAlignment"] = "1"
         bar_elem.attrib["partialOrderAlignmentMaskFilter"] = "1"
+        
+        # force cactus to accept multifurcation in tree
+        decomp_elem = xml_root.find("multi_cactus").find("decomposition")
+        decomp_elem.attrib["allow_multifurcations"] = "1"
 
         poa_config_path = os.path.join(self.tempDir, "config.poa.xml")
         with open(poa_config_path, 'w') as poa_config_file:
@@ -897,6 +923,9 @@ class TestCase(unittest.TestCase):
         xml_root = ET.parse(config_path).getroot()
         bar_elem = xml_root.find("bar")
         bar_elem.attrib["partialOrderAlignment"] = "1"
+        decomp_elem = xml_root.find("multi_cactus").find("decomposition")
+        # force cactus to accept multifurcation in tree
+        decomp_elem.attrib["allow_multifurcations"] = "1"
 
         poa_config_path = os.path.join(self.tempDir, "config.poa.xml")
         with open(poa_config_path, 'w') as poa_config_file:

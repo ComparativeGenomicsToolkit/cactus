@@ -425,10 +425,12 @@
 		<!-- default_internal_node_prefix: internal nodes of the tree are labeled with this prefix then a BFS order number -->
 		<!-- default_branch_len: use this branch length if information is missing from the input tree -->
 		<!-- default_branch_len_pangenome: use this branch length (for implicit star tree) in pangenome mode -->
+		<!-- allow_multifurcations: added in v2.7.2 and defaulted to 0, since multifurcations (ancestors with > 2 children) have been shown to reduce coverage. -->
 	 	<decomposition
 	 		default_internal_node_prefix="Anc"
 			default_branch_len="1"
 			default_branch_len_pangenome="0.025"
+			allow_multifurcations="0"
 	 	/>
   	</multi_cactus>
 	<consolidated>
