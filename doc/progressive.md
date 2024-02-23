@@ -265,6 +265,7 @@ Most of memory usage in Cactus occurs in the `cactus_consolidated` jobs and, as 
 
 **To be extra safe, consider setting `--consMemory` to the maximum amount of memory available on any node of your cluster. This way you know that all your jobs will be scheduled.**
 
+**NOTE** Since `v2.7.2` `--maxMemory` will act as a global memory override.  So it is best to set `--maxMemory` whenever using Slurm to the most memory available on your cluster to make sure that Cactus never asks for more memory.
 
 Cactus (through Toil) supports many other cluster workload managers in theory, including LSF, GridEngine, Parasol, and Torque, **but unlike slurm they are untested and difficult for us to support**. Add `--batchSystem <batchSystem>`, e.g. `--batchSystem gridEngine`. If your batch system needs additional configuration, Toil exposes some [environment variables](http://toil.readthedocs.io/en/3.10.1/developingWorkflows/batchSystem.html#batch-system-enivronmental-variables) that can help.
 
