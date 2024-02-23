@@ -1,3 +1,13 @@
+# Release 2.7.2 2023-02-23
+
+This release improves MAF output, along with some other fixes
+
+- `--maxMemory` option given more teeth. It is now used to clamp most large Toil jobs. On single-machine it defaults to system memory. This should prevent errors where Toil requrests more memory than available, halting the pipeline in an un-resumable state.
+- Update to latest `taffy` and use newer MAF normalization. This should result in larger blocks and fewer gaps. MAF rows will now be sorted phylogenetically rather than alphabetically
+- Better handle `.` characters in genome names during MAF processing. Previously neither duplicate filtering nor bigmaf summary creation could handle dots, but that should be fixed now.
+- Duplicating filtering now done automatically in `cactus-maf2bigmaf`. 
+- Disable support for multifurcations (aka polytomies or internal nodes with more than 2 children) in Progressive Cactus. I'm doing this because I got spooked by a drop in coverage I noticed recently in a 4-child alignment. This regression appears to be linked to the new PAF chaining logic that's been added over the past several months. Until that's resolved, Cactus will exit with an error if it sees degree > 2 in the tree. This behaviour can, however, be overridden in the XML configuration file.  
+
 # Release 2.7.1 2023-01-19
 
 This release adds some options to tune outgroup selection, as well as updates many included dependencies and tools
