@@ -42,6 +42,7 @@ from cactus.shared.common import cactus_call
 from cactus.shared.common import getOptionalAttrib, findRequiredNode
 from cactus.shared.common import unzip_gz, write_s3
 from cactus.shared.common import cactus_clamp_memory
+from cactus.shared.common import clean_jobstore_files
 from cactus.shared.version import cactus_commit
 from cactus.preprocessor.fileMasking import get_mask_bed_from_fasta
 from toil.job import Job
@@ -456,6 +457,8 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
                                           memory=min(max(f.size for f in hal_ids) * 2, max_mem))
         hal_id_dict = hal_merge_job.rv()
         out_dicts.append(hal_id_dict)
+        # delete the chromosome hals
+        hal_merge_job.addFollowOnJobFn(clean_jobstore_files, file_ids=hal_ids)
 
     if options.indexMemory:
         index_mem = options.indexMemory

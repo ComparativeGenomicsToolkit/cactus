@@ -28,6 +28,7 @@ from cactus.shared.common import cactus_call
 from cactus.shared.common import write_s3, has_s3, get_aws_region, unzip_gzs
 from cactus.shared.common import cactusRootPath
 from cactus.shared.common import cactus_clamp_memory
+from cactus.shared.common import clean_jobstore_files
 from cactus.shared.version import cactus_commit
 from cactus.shared.configWrapper import ConfigWrapper
 from cactus.refmap.cactus_graphmap import filter_paf
@@ -393,6 +394,9 @@ def cactus_align(job, config_wrapper, mc_tree, input_seq_map, input_seq_id_map, 
     hal_job = cons_job.addFollowOnJobFn(export_hal, sub_tree, config_wrapper.xmlRoot, new_seq_id_map, og_map, results, event=root_name, inMemory=True,
                                         checkpointInfo=checkpointInfo, acyclicEvent=referenceEvents[0] if referenceEvents else None,
                                         memory_override=cons_memory)
+
+    # clean out some of the  intermediate jobstore files
+    hal_job.addFollowOnJobFn(clean_jobstore_files, file_id_maps=[new_seq_id_map], file_ids=[paf_id])
 
     # optionally create the VG
     if doVG or doGFA:
