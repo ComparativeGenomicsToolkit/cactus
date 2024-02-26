@@ -29,6 +29,7 @@ from cactus.shared.common import enableDumpStack
 from cactus.shared.common import cactus_override_toil_options
 from cactus.shared.common import cactus_call
 from cactus.shared.common import getOptionalAttrib, findRequiredNode
+from cactus.shared.common import clean_jobstore_files
 from cactus.shared.version import cactus_commit
 from cactus.preprocessor.checkUniqueHeaders import sanitize_fasta_headers
 from toil.job import Job
@@ -361,6 +362,10 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
         split_out_path = os.path.join(options.outDir, 'chrom-subproblems')    
         split_export_job = split_job.addFollowOnJobFn(export_split_wrapper, wf_output, split_out_path, config_wrapper)        
         chromfile_path = os.path.join(split_out_path, 'chromfile.txt')
+
+    # clean out some jobstore files we no longer need
+    clean_jobstore_job = split_export_job.addFollowOnJobFn(clean_jobstore_files, file_id_maps=[seq_id_map] if not options.noSplit else None,
+                                                           file_ids=[sv_gfa_id, paf_id])
 
     # cactus_align        
     align_jobs_make_job = split_export_job.addFollowOnJobFn(make_batch_align_jobs_wrapper, options, chromfile_path, config_wrapper)

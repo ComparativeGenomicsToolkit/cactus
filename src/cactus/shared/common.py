@@ -1167,3 +1167,12 @@ def get_faidx_subpath_rename_cmd():
     """
     return ['sed', '-e', 's/\([^:]*\):\([0-9]*\)-\([0-9]*\)/echo "\\1_sub_$((\\2-1))_\\3"/e']
 
+def clean_jobstore_files(job, file_id_maps=None, file_ids=None):
+    """ clean some intermediate files that are no longer needed out of the jobstore """
+    if file_id_maps:
+        for file_id_map in file_id_maps:
+            for key, file_id in file_id_map.items():
+                job.fileStore.deleteGlobalFile(file_id)
+    if file_ids:
+        for file_id in file_ids:
+            job.fileStore.deleteGlobalFile(file_id)

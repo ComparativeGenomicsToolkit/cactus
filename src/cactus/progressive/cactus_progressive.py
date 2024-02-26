@@ -36,7 +36,7 @@ from cactus.shared.common import enableDumpStack
 from cactus.shared.common import cactus_override_toil_options
 from cactus.shared.common import write_s3
 from cactus.shared.common import cactus_clamp_memory
-
+from cactus.shared.common import clean_jobstore_files
 from cactus.pipeline.cactus_workflow import cactus_cons_with_resources
 from cactus.progressive.progressive_decomposition import compute_outgroups, parse_seqfile, get_subtree, get_spanning_subtree, get_event_set
 from cactus.preprocessor.cactus_preprocessor import CactusPreprocessor
@@ -183,13 +183,16 @@ def progressive_step(job, options, config_node, seq_id_map, tree, og_map, event)
                                                [subtree_eventmap[i] for i in outgroups], paf_job.rv(), config_node,
                                                disk=sum(8*[subtree_eventmap[i].size for i in outgroups]),
                                                memory=cactus_clamp_memory(sum(8*[subtree_eventmap[i].size for i in outgroups])))
-        return paf_job.addFollowOnJobFn(progressive_step_2, trim_sequences.rv(), options, config_node, subtree_eventmap,
-                                        spanning_tree, og_map, event).rv()
-
+        cons_job = paf_job.addFollowOnJobFn(progressive_step_2, trim_sequences.rv(), options, config_node, subtree_eventmap,
+                                            spanning_tree, og_map, event)
+        
     else:  # Without outgroup trimming
-        return paf_job.addChildJobFn(cactus_cons_with_resources, spanning_tree, event, config_node, subtree_eventmap,
-                                     og_map, paf_job.rv(), cons_cores=options.consCores, cons_memory=options.consMemory,
-                                     intermediate_results_url=options.intermediateResultsUrl).rv()
+        cons_job = paf_job.addChildJobFn(cactus_cons_with_resources, spanning_tree, event, config_node, subtree_eventmap,
+                                         og_map, paf_job.rv(), cons_cores=options.consCores, cons_memory=options.consMemory,
+                                         intermediate_results_url=options.intermediateResultsUrl).rv()
+    # erase the paf since its now longer needed
+    cons_job.addFollowOnJobFn(clean_jobstore_files, file_ids=[paf_job.rv()])
+    return cons_job.rv()
 
 
 def progressive_step_2(job, trimmed_outgroups_and_alignments, options, config_node, subtree_eventmap,
