@@ -23,7 +23,7 @@ from toil.realtimeLogger import RealtimeLogger
 
 class RedMaskJob(RoundedJob):
     def __init__(self, fastaID, redOpts, eventName=None, unmask=False):
-        memory = 4*1024*1024*1024
+        memory = max(4*1024*1024*1024, 8*fastaID.size)
         disk = 3*(fastaID.size)
         RoundedJob.__init__(self, memory=memory, disk=disk, preemptable=True)
         self.fastaID = fastaID
