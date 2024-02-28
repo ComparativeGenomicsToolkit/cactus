@@ -218,10 +218,10 @@ def graphmap_split_workflow(job, options, config, seq_id_map, seq_name_map, gfa_
     
     # use file extension to sniff out compressed input
     if gfa_path.endswith(".gz"):
-        gfa_id = root_job.addChildJobFn(unzip_gz, gfa_path, gfa_id, disk=gfa_id.size * 10).rv()
+        gfa_id = root_job.addChildJobFn(unzip_gz, gfa_path, gfa_id, delete_original=False, disk=gfa_id.size * 10).rv()
         gfa_size *= 10
     if paf_path.endswith(".gz"):
-        paf_id = root_job.addChildJobFn(unzip_gz, paf_path, paf_id, disk=paf_id.size * 10).rv()
+        paf_id = root_job.addChildJobFn(unzip_gz, paf_path, paf_id, delete_original=False, disk=paf_id.size * 10).rv()
         paf_size *= 10
 
     # do some basic paf filtering

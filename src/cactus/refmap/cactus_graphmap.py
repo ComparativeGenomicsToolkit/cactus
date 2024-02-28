@@ -233,7 +233,7 @@ def minigraph_workflow(job, options, config, seq_id_map, gfa_id, graph_event, sa
 
     if zipped_gfa:
         # gaf2paf needs unzipped gfa, so we take care of that upfront
-        gfa_unzip_job = root_job.addChildJobFn(unzip_gz, options.minigraphGFA, gfa_id, disk=5*gfa_id.size)
+        gfa_unzip_job = root_job.addChildJobFn(unzip_gz, options.minigraphGFA, gfa_id, delete_original=False, disk=5*gfa_id.size)
         gfa_id = gfa_unzip_job.rv()
         gfa_id_size *= 10
         options.minigraphGFA = options.minigraphGFA[:-3]
@@ -270,7 +270,8 @@ def minigraph_workflow(job, options, config, seq_id_map, gfa_id, graph_event, sa
                                                    del_size_threshold,
                                                    disk=8*gfa_id_size, cores=mg_cores,
                                                    memory=cactus_clamp_memory(16*gfa_id_size))
-        unfiltered_paf_id = prev_job.addFollowOnJobFn(zip_gz, 'mg.paf.unfiltered', out_paf_id, disk=gfa_id_size).rv()
+        unfiltered_paf_id = prev_job.addFollowOnJobFn(zip_gz, 'mg.paf.unfiltered', out_paf_id, delete_original=False,
+                                                      disk=gfa_id_size).rv()
         out_paf_id = del_filter_job.rv(0)
         filtered_paf_log = del_filter_job.rv(1)
         paf_was_filtered = del_filter_job.rv(2)

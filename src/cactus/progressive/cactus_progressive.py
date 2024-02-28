@@ -68,7 +68,7 @@ def preprocess_all(job, options, config_node, input_seq_id_map):
         pp_seq_ids[event] = preprocessor_job.rv(i)
 
     # do the logging and checkpointing
-    root_job.addFollowOnJobFn(save_preprocessed_files, options, config_node, input_seq_id_map)
+    root_job.addFollowOnJobFn(save_preprocessed_files, options, config_node, pp_seq_ids)
     
     return pp_seq_ids
 

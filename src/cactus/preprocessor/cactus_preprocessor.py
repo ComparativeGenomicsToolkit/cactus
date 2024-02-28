@@ -123,6 +123,8 @@ class MergeChunks2(RoundedJob):
         outSequencePath = fileStore.getLocalTempFile()
         cactus_call(outfile=outSequencePath, stdin_string=" ".join(chunkList),
                     parameters=["faffy", "merge"])
+        for chunkID in self.chunkIDList:
+            fileStore.deleteGlobalFile(chunkID)
         return fileStore.writeGlobalFile(outSequencePath)
 
 class PreprocessSequence(RoundedJob):
@@ -273,9 +275,12 @@ class BatchPreprocessor(RoundedJob):
                 inSequence = fileStore.readGlobalFile(self.inSequenceID)
                 unmaskedInputFile = fileStore.getLocalTempFile()
                 unmaskFasta(inSequence, unmaskedInputFile)
+                fileStore.deleteGlobalFile(self.inSequenceID)
                 self.inSequenceID = fileStore.writeGlobalFile(unmaskedInputFile)
 
-            outSeqID = self.addChild(PreprocessSequence(prepOptions, self.inSequenceID)).rv()
+            ppJob = self.addChild(PreprocessSequence(prepOptions, self.inSequenceID))
+            outSeqID = ppJob.rv()
+            self.addFollowOnJobFn(clean_if_different, self.inSequenceID, outSeqID)
         else:
             logger.info("Skipping inactive preprocessor {}".format(prepNode.attrib["preprocessJob"]))
             outSeqID = self.inSequenceID
@@ -285,6 +290,11 @@ class BatchPreprocessor(RoundedJob):
         else:
             return outSeqID
 
+def clean_if_different(job, file_id, other_file_id):
+    """ remove file_id from jobstore if its differetn from other_file_id"""
+    if file_id != other_file_id:
+        job.fileStore.deleteGlobalFile(file_id)
+        
 ############################################################
 ############################################################
 ############################################################
