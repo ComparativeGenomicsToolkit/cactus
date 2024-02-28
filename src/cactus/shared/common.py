@@ -679,7 +679,8 @@ def cactus_call(tool=None,
                 realtimeStderrPrefix=None,
                 gpus=None,
                 cpus=None,
-                job_memory=None):
+                job_memory=None,
+                rt_log_cmd=True):
     mode = os.environ.get("CACTUS_BINARIES_MODE", "docker")
     if dockstore is None:
         dockstore = getDockerOrg()
@@ -734,10 +735,11 @@ def cactus_call(tool=None,
         stdoutFileHandle = subprocess.PIPE
 
     _log.info("Running the command %s" % call)
-    rt_message = 'Running the command: \"{}\"'.format(' '.join(call))
-    if features:
-        rt_message += ' (features={})'.format(features)
-    cactus_realtime_log(rt_message, log_debug = 'ktremotemgr' in call)
+    if rt_log_cmd:
+        rt_message = 'Running the command: \"{}\"'.format(' '.join(call))
+        if features:
+            rt_message += ' (features={})'.format(features)    
+        cactus_realtime_log(rt_message, log_debug = 'ktremotemgr' in call)
 
     # hack to keep track of memory usage for single machine
     time_v = os.environ.get("CACTUS_LOG_MEMORY") is not None and 'ktserver' not in call and 'redis-server' not in call
@@ -850,7 +852,7 @@ def cactus_call(tool=None,
     if output is not None:
         output = output.decode()
         
-    if process.returncode == 0:
+    if process.returncode == 0 and rt_log_cmd:
         run_time = time.time() - start_time
         if time_v:
             call = call[len('/usr/bin/time -f "CACTUS-LOGGED-MEMORY-IN-KB: %M" '):]

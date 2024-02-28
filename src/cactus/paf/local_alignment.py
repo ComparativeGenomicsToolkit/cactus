@@ -125,9 +125,9 @@ def combine_chunks(job, chunked_alignment_files, batch_size):
     else:
         # Make combined alignments file
         alignment_file = job.fileStore.getLocalTempFile()
-        for chunk in chunked_alignment_files: # Append each of the chunked alignment files into one file
+        for i, chunk in enumerate(chunked_alignment_files): # Append each of the chunked alignment files into one file
             cactus_call(parameters=['paffy', 'dechunk', '-i', job.fileStore.readGlobalFile(chunk)],
-                        outfile=alignment_file, outappend=True)
+                        outfile=alignment_file, outappend=True, rt_log_cmd=(i<5 or i>=len(chunked_alignment_files)-5))
             job.fileStore.deleteGlobalFile(chunk) # Cleanup the old files
         return job.fileStore.writeGlobalFile(alignment_file)  # Return the final alignments file copied to the jobstore
 
