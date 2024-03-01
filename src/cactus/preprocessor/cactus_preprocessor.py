@@ -429,7 +429,7 @@ def main():
     parser.add_argument("--inputNames", nargs='*', help='input genome names (not paths) to preprocess (all leaves from Input Seq file if none specified)')
     parser.add_argument("--inPaths", nargs='*', help='Space-separated list of input fasta paths (to be used in place of --inSeqFile')
     parser.add_argument("--outPaths", nargs='*', help='Space-separated list of output fasta paths (one for each inPath, used in place of --outSeqFile)')
-    parser.add_argument("--maskMode", type=str, help='Masking mode, one of {"lastz", "brnn", "red", "none"}. Default="lastz".', default='lastz')
+    parser.add_argument("--maskMode", type=str, help='Masking mode, one of {"lastz", "brnn", "red", "none", "config"}. Default="config".', default='lastz')
     parser.add_argument("--maskAction", type=str, help='Masking action, one of {"softmask", "hardmask", "clip"}. Default="softmask"', default='softmask')
     parser.add_argument("--minLength", type=int, help='Minimum interval threshold for masking.  Overrides config')
     parser.add_argument("--maskFile", type=str, help='Add masking from BED or PAF file to sequences, **ignoring all other preprocessors**')
@@ -472,12 +472,14 @@ def main():
             raise RuntimeError('--inputNames must be used in conjunction with --inputPaths to specify (exactly) one event name for each input')
     else:
         raise RuntimeError('--inSeqFile/--outSeqFile/--inputNames or --inPaths/--outPaths required to specify input')
-    if options.maskMode not in ['lastz', 'brnn', 'red', 'none']:
-        raise RuntimeError('--maskMode must be one of {"lastz", "brnn", "red", "none"}')    
+    if options.maskMode not in ['lastz', 'brnn', 'red', 'none', 'config']:
+        raise RuntimeError('--maskMode must be one of {"lastz", "brnn", "red", "none", "config"}')    
     if options.maskAction not in ['softmask', 'hardmask', 'clip']:
         raise RuntimeError('--maskAction must be one of {"softmask", "hardmask", "clip"}')
     if options.maskMode == 'lastz' and options.maskAction != 'softmask':
         raise RuntimeError('only softmasking is supported with lastz')
+    if options.maskMode == 'red' and options.maskAction != 'softmask':
+        raise RuntimeError('only softmasking is supported with red')    
     if options.maskFile and options.maskFile.endswith('.paf') and not options.inputNames and not options.inSeqFile:
         raise RuntimeError('paf masking requires event names specified wither with an input seqfile or with --inputNames')
     if options.maskFile and options.minLength is None:
@@ -564,7 +566,7 @@ def main():
                       toil=toil,
                       restart=options.restart,
                       outputSequences=outSeqPaths,
-                      maskMode=options.maskMode,
+                      maskMode=options.maskMode if maskMode != 'config' else None,
                       maskAction=options.maskAction,
                       minLength=options.minLength,
                       inputEventNames=inNames,
