@@ -180,9 +180,7 @@ def progressive_step(job, options, config_node, seq_id_map, tree, og_map, event)
     if int(config_node.find("blast").attrib["trimOutgroups"]):  # Trim the outgroup sequences
         outgroups = og_map[event] if event in og_map else []
         trim_sequences = paf_job.addChildJobFn(trim_unaligned_sequences,
-                                               [subtree_eventmap[i] for i in outgroups], paf_job.rv(), config_node,
-                                               disk=sum(8*[subtree_eventmap[i].size for i in outgroups]),
-                                               memory=cactus_clamp_memory(sum(8*[subtree_eventmap[i].size for i in outgroups])))
+                                               [subtree_eventmap[i] for i in outgroups], paf_job.rv(), config_node)
         cons_job = paf_job.addFollowOnJobFn(progressive_step_2, trim_sequences.rv(), options, config_node, subtree_eventmap,
                                             spanning_tree, og_map, event)
         

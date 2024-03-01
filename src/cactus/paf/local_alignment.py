@@ -548,7 +548,12 @@ def make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancest
                                 ancestor_event_string, params).rv()
 
 
-def trim_unaligned_sequences(job, sequences, alignments, params):
+def trim_unaligned_sequences(job, sequences, alignments, params, has_resources=False):
+
+    if not has_resources:
+        return job.addChildJobFn(trim_unaligned_sequences, sequences, alignments, params, has_resources=True,
+                                 disk=8*sum([seq.size for seq in sequences]) + 32*alignments.size,
+                                 memory=cactus_clamp_memory(8*sum([seq.size for seq in sequences]) + 32*alignments.size)).rv()        
     
     alignments = job.fileStore.readGlobalFile(alignments)  # Download the alignments
 
