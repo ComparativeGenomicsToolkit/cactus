@@ -17,13 +17,14 @@ from cactus.shared.common import cactusRootPath
 from cactus.shared.common import getOptionalAttrib
 from cactus.shared.common import makeURL
 from cactus.shared.common import get_faidx_subpath_rename_cmd
+from cactus.shared.common import cactus_clamp_memory
 
 from toil.realtimeLogger import RealtimeLogger
 
 
 class RedMaskJob(RoundedJob):
     def __init__(self, fastaID, redOpts, eventName=None, unmask=False):
-        memory = max(4*1024*1024*1024, 8*fastaID.size)
+        memory = cactus_clamp_memory(6*fastaID.size)
         disk = 3*(fastaID.size)
         RoundedJob.__init__(self, memory=memory, disk=disk, preemptable=True)
         self.fastaID = fastaID
