@@ -1078,29 +1078,33 @@ def enableDumpStack(sig=signal.SIGUSR1):
     """enable dumping stacks when the specified signal is received"""
     signal.signal(sig, dumpStacksHandler)
 
-def unzip_gzs(job, input_paths, input_ids):
+def unzip_gzs(job, input_paths, input_ids, delete_original=True):
     """ go through a list of files and unzip any that end with .gz and return a list 
     of updated ids.  files that don't end in .gz are just passed through.  relying on the extension
     is pretty fragile but better than nothing """
     unzipped_ids = []
     for input_path, input_id in zip(input_paths, input_ids):
         if input_path.endswith('.gz'):
-            unzip_job = job.addChildJobFn(unzip_gz, input_path, input_id, disk=10*input_id.size)
+            unzip_job = job.addChildJobFn(unzip_gz, input_path, input_id, delete_original=delete_original,
+                                          disk=10*input_id.size)
             unzipped_ids.append(unzip_job.rv())
         else:
             unzipped_ids.append(input_id)
     return unzipped_ids
 
-def unzip_gz(job, input_path, input_id):
+def unzip_gz(job, input_path, input_id, delete_original=True):
     """ unzip a single file """
     work_dir = job.fileStore.getLocalTempDir()
     assert input_path.endswith('.gz')
     fa_path = os.path.join(work_dir, os.path.basename(input_path))
-    job.fileStore.readGlobalFile(input_id, fa_path, mutable=True)
-    cactus_call(parameters=['gzip', '-fd', os.path.basename(fa_path)], work_dir=work_dir)
+    job.fileStore.readGlobalFile(input_id, fa_path)
+    out_fa_path = fa_path[:-3]
+    cactus_call(parameters=['gzip', '-dc', os.path.basename(fa_path)], work_dir=work_dir, outfile=out_fa_path)
+    if delete_original:
+        job.fileStore.deleteGlobalFile(input_id)
     return job.fileStore.writeGlobalFile(fa_path[:-3])
 
-def zip_gzs(job, input_paths, input_ids, list_elems = None):
+def zip_gzs(job, input_paths, input_ids, list_elems = None, delete_original=True):
     """ zip up some files.  the input_ids can be a list of lists.  if it is, then list_elems
     can be used to only zip a subset (leaving everything else) on each list."""
     zipped_ids = []
@@ -1110,25 +1114,30 @@ def zip_gzs(job, input_paths, input_ids, list_elems = None):
                 output_list = []
                 for i, elem in enumerate(input_list):
                     if not list_elems or i in list_elems:
-                        output_list.append(job.addChildJobFn(zip_gz, input_path, elem, disk=2*elem.size).rv())
+                        output_list.append(job.addChildJobFn(zip_gz, input_path, elem, delete_original=delete_original,
+                                                             disk=2*elem.size).rv())
                     else:
                         output_list.append(elem)
                 zipped_ids.append(output_list)
             else:
-                zipped_ids.append(job.addChildJobFn(zip_gz, input_path, input_list, disk=2*input_list.size).rv())
+                zipped_ids.append(job.addChildJobFn(zip_gz, input_path, input_list, delete_original=delete_original,
+                                                    disk=2*input_list.size).rv())
         else:
             zipped_ids.append(input_list)
     return zipped_ids
     
-def zip_gz(job, input_path, input_id):
+def zip_gz(job, input_path, input_id, delete_original=True):
     """ zip a single file """
     work_dir = job.fileStore.getLocalTempDir()
     fa_path = os.path.join(work_dir, os.path.basename(input_path))
     if fa_path.endswith('.gz'):
         fa_path = fa_path[:-3]
-    job.fileStore.readGlobalFile(input_id, fa_path, mutable=True)
-    cactus_call(parameters=['gzip', '-f', os.path.basename(fa_path)], work_dir=work_dir)
-    return job.fileStore.writeGlobalFile(fa_path + '.gz')
+    job.fileStore.readGlobalFile(input_id, fa_path)
+    out_fa_path = fa_path + '.gz'
+    cactus_call(parameters=['gzip', '-c', os.path.basename(fa_path)], work_dir=work_dir, outfile=out_fa_path)
+    if delete_original:
+        job.fileStore.deleteGlobalFile(input_id)
+    return job.fileStore.writeGlobalFile(out_fa_path)
 
 def get_aws_region(full_path):
     """ parse aws:region:url  to just get region (toil surely has better way to do this but in rush)"""
