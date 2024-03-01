@@ -566,7 +566,7 @@ def main():
                       toil=toil,
                       restart=options.restart,
                       outputSequences=outSeqPaths,
-                      maskMode=options.maskMode if maskMode != 'config' else None,
+                      maskMode=options.maskMode if options.maskMode != 'config' else None,
                       maskAction=options.maskAction,
                       minLength=options.minLength,
                       inputEventNames=inNames,
