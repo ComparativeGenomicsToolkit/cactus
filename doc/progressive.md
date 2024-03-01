@@ -225,6 +225,8 @@ cactus ./js ./examples/evolverMammals.txt evolverMammals.hal --batchSystem slurm
 
 In order to run cactus, you will need a shared filesystem across the cluster nodes where the jobstore (`./js` in the exmaple above) and output file will be written.  It is best to use local scratch space for jobs, so you can use `--workDir` or the `TEMPDIR` environment to set this to a place that will be available to write to on all cluster nodes.
 
+Also, you should use `--coordinationDir` to specify a local, physical disk (non-network filesystem) for Toil to use for its locks. This can usually be the same as used for `--workDir`. 
+
 You can use `TOIL_SLURM_ARGS` to add flags to the slurm submission commands that Toil uses.  For example if you are running Progressive Cactus and generating loads of `lastz` jobs, you may want to run
 
 ```
@@ -236,7 +238,6 @@ to avoid making too many enemies.
 You can (and probably should) use the `--batchLogsDir` option in order to enable more SLURM logging.  You must pass it a directory that already exists.  Ex.
 
 ```
-mkdir -p batch-logs
 cactus ./js ./examples/evolverMammals.txt evolverMammals.hal --batchSystem slurm --batchLogsDir batch-logs
 ```
 
@@ -247,25 +248,13 @@ You cannot run `cactus --batchSystem slurm` from *inside* the Cactus docker cont
 
 **IMPORTANT**
 
-To run Progressive Cactus with CPU (default) lastz, you should increase the chunk size.  This will divide the input assemblies into fewer pieces, resulting in fewer jobs on the cluster.
-
-```
-cp cactus-bin-v2.7.2/src/cactus/cactus_progressive_config.xml ./config-slurm.xml
-sed -i config-slurm.xml -e 's/blast chunkSize="30000000"/blast chunkSize="90000000"/g'
-sed -i config-slurm.xml -e 's/dechunkBatchSize="1000"/dechunkBatchSize="200"/g'
-```
-
-then add `--configFile config-slurm.xml` to your cactus invocation.
-
-**IMPORTANT**
-
-Slurm can strictly enforce memory usage. This means that Cactus must specify the memory limit of each job before it is run, and it uses the input file sizes to do this. Accurately predicting the memory usage is challenging though, and remains a work in progress.  If Cactus predicts too little memory, then the job will be evicted by the cluster.  If it predicts too much, ie more than available on any node, then the job will never run.  In both these cases, the workflow is doomed and cannot even be resumed with `--restart`.  Some better [Toil support](https://github.com/DataBiosphere/toil/issues/4474) would also be useful.
+Slurm can strictly enforce memory usage. This means that Cactus must specify the memory limit of each job before it is run, and it uses the input file sizes to do this. Accurately predicting the memory usage is challenging though, and remains a work in progress.  If Cactus predicts too little memory, then the job will be evicted by the cluster.  If it predicts too much, ie more than available on any node, then the job will never run.  In both these cases, the workflow risks being doomed though there is a change that `--maxMemory` or `--defaultMemory` can be used in conjunction with `--restart` (see below) to rescue it.  Some better [Toil support](https://github.com/DataBiosphere/toil/issues/4474) would also be useful.
 
 Most of memory usage in Cactus occurs in the `cactus_consolidated` jobs and, as such, these are the most important to get right for slurm. The parameters used to estimate memory for `cactus_consolidated` can be found in the `<consolidatedMemory>` element in the configuraiton XML. Importantly, they can be overridden with the `--consMemory` option.
 
 **To be extra safe, consider setting `--consMemory` to the maximum amount of memory available on any node of your cluster. This way you know that all your jobs will be scheduled.**
 
-**NOTE** Since `v2.7.2` `--maxMemory` will act as a global memory override.  So it is best to set `--maxMemory` whenever using Slurm to the most memory available on your cluster to make sure that Cactus never asks for more memory.
+**NOTE** Since `v2.7.2` `--maxMemory` will act as a global memory override.  So it is best to set `--maxMemory` whenever using Slurm to the most memory available on your cluster to make sure that Cactus never asks for more memory.  Likewise `--defaultMemory` can be used to specifiy a minimum memory requirement for both jobs.  Both of these options can be used with `--restart` to try to rescue jobs that died due to invalid memory requirements (though they may not always work).  
 
 Cactus (through Toil) supports many other cluster workload managers in theory, including LSF, GridEngine, Parasol, and Torque, **but unlike slurm they are untested and difficult for us to support**. Add `--batchSystem <batchSystem>`, e.g. `--batchSystem gridEngine`. If your batch system needs additional configuration, Toil exposes some [environment variables](http://toil.readthedocs.io/en/3.10.1/developingWorkflows/batchSystem.html#batch-system-enivronmental-variables) that can help.
 

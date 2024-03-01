@@ -415,6 +415,7 @@ def main():
             config_wrapper = ConfigWrapper(config_node)
             config_wrapper.substituteAllPredefinedConstantsWithLiterals(options)
             config_wrapper.setSystemMemory(options)
+            config_wrapper.applySlurmChunkScaling(options)
             if options.maxOutgroups:
                 config_wrapper.setMaxNumOutgroups(options.maxOutgroups)
 
