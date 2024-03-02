@@ -18,6 +18,7 @@ from cactus.shared.common import getOptionalAttrib
 from cactus.shared.common import cactus_cpu_count
 from toil.lib.accelerators import count_nvidia_gpus
 from toil import physicalMemory
+from toil.statsAndLogging import logger
 
 class ConfigWrapper:
     defaultOutgroupStrategy = 'none'
@@ -353,3 +354,14 @@ class ConfigWrapper:
 
     def getSystemMemory(self):
         return getOptionalAttrib(findRequiredNode(self.xmlRoot, 'constants'), 'system_memory', typeFn=int, default=None)
+
+    def applySlurmChunkScaling(self, options):
+        """ make the chunk size bigger so as not to spam the slurm queue with too many jobs """
+        if options.batchSystem.lower() in ['slurm', 'lsf', 'torque']:
+            blast_node = findRequiredNode(self.xmlRoot, 'blast')
+            scale = getOptionalAttrib(blast_node, 'slurmChunkScale', typeFn=int, default=1)
+            if scale > 1:
+                logger.info('Scaling blast chunkSize up and dechunkBatchSize down by {} to be more cluster-friendly'.format(scale))
+                blast_node.attrib['chunkSize'] = str(scale * int(blast_node.attrib['chunkSize']))
+                blast_node.attrib['dechunkBatchSize'] = str(max(1, int(int(blast_node.attrib['dechunkBatchSize']) / scale)))
+            

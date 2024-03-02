@@ -60,6 +60,7 @@
 	<!-- pickIngroupPrimaryAlignmentsSeparatelyToOutgroups Separately make ingroups pick their primary alignment to
 	     other ingroups without outgroups, then get the outgroups to pick their primary alignment to the ingroups. If 0
 	     get every sequence to pick its primary alignment without regard to if the other sequence is an ingroup or outgroup -->
+	<!-- slurmChunkScale Multiply chunkSize and divide dechunkBatchSize by this value when running slurm in order to decrease job count -->
 	<blast chunkSize="30000000"
 		   overlapSize="10000"
 		   mapper="lastz"
@@ -85,6 +86,7 @@
 		   outputSecondaryAlignments="0"
 		   dechunkBatchSize="1000"
 		   pickIngroupPrimaryAlignmentsSeparatelyToOutgroups="1"
+		   slurmChunkScale="3"
 		   >
 
 		<!-- The following are parametrised to produce the same results as the default settings,
