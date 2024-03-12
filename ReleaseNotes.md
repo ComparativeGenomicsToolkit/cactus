@@ -1,4 +1,14 @@
-# Release 2.7.2 2023-02-23
+# Release 2.8.0 2024-03-13
+
+This release significantly changes the preprocessor step of Progressive Cactus in order to be more robust and efficient in the presence of unmasked repeats, something that seems more prevalent with newer, T2T assemblies. 
+
+- Replace lastz repeatmasking with REepeat Detector ([RED](https://bmcbioinformatics.biomedcentral.com/articles/10.1186/s12859-015-0654-5#Sec41)) in the Progressive Cactus preprocessor.  RED is more sensitive and orders of magnitude faster than the old lastz masking pipeline. Crucially, it is able to mask regions that would slip by RepeatMasker/WindowMasker/lastz in new T2T ape genomes that would otherwise break Cactus downstream. Tests so far show this change to make Cactus much faster and more robust.  The old lastz pipeline can still be toggled back on in the config.
+- Delete many unneeded files that previously collected in the jobstore directory until the end of execution. This was a particular issue in large `cactus-pangenome` runs where the jobstore would creep up to several terabytes for HPRC-sized inputs.
+- No longer require manually editing the blast chunksize in the config when running on Slurm (to reduce the number of jobs).  It's now scaled up automatically on slurm environments (by a factor controlled in the config).
+- Fix bug introduced in last release where Cactus would not work on AWS/MESOS clusters unless `--defaultMemory` and `--maxMemory` options were specified (and in bytes). 
+- Update to the latest `taffy` and `vg`
+
+# Release 2.7.2 2024-02-23
 
 This release improves MAF output, along with some other fixes
 
@@ -8,7 +18,7 @@ This release improves MAF output, along with some other fixes
 - Duplicating filtering now done automatically in `cactus-maf2bigmaf`. 
 - Disable support for multifurcations (aka polytomies or internal nodes with more than 2 children) in Progressive Cactus. I'm doing this because I got spooked by a drop in coverage I noticed recently in a 4-child alignment. This regression appears to be linked to the new PAF chaining logic that's been added over the past several months. Until that's resolved, Cactus will exit with an error if it sees degree > 2 in the tree. This behaviour can, however, be overridden in the XML configuration file.  
 
-# Release 2.7.1 2023-01-19
+# Release 2.7.1 2024-01-19
 
 This release adds some options to tune outgroup selection, as well as updates many included dependencies and tools
 
