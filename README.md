@@ -1,7 +1,7 @@
 # Cactus
 [![Build Status](https://travis-ci.org/ComparativeGenomicsToolkit/cactus.svg?branch=master)](https://travis-ci.org/ComparativeGenomicsToolkit/cactus)
 
-Cactus is a reference-free whole-genome alignment program, as well as a pagenome graph construction toolkit.  
+Cactus is a reference-free whole-genome alignment program, as well as a pangenome graph construction toolkit.  
 
 ## Getting Cactus
 
