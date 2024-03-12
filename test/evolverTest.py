@@ -223,6 +223,9 @@ class TestCase(unittest.TestCase):
                 # do Anc2 in binariesMode docker to broaden test coverage
                 if 'Anc2' in line and line.startswith('cactus-'):
                     line += ' --binariesMode docker --latest'
+                # make sure lastz preprocessing is somewhere in CI
+                if 'cactus-preprocess' in line:
+                    line += ' --maskMode lastz'
                 sys.stderr.write('Running {}\n'.format(line))
                 subprocess.check_call(line, shell=True)
 

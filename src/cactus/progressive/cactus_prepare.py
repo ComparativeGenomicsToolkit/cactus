@@ -74,7 +74,7 @@ def main(toil_mode=False):
         parser.add_argument("--jobStore", type=str, default="./jobstore", help="base directory of jobStores to use in suggested commands")
         parser.add_argument("--seqFileOnly", action="store_true", help="Only create output SeqFile (with no ancestors); do not make plan")
     parser.add_argument("--configFile", default=os.path.join(cactusRootPath(), "cactus_progressive_config.xml"))
-    parser.add_argument("--preprocessBatchSize", type=int, default=10, help="size (number of genomes) of preprocessing jobs")
+    parser.add_argument("--preprocessBatchSize", type=int, default=32, help="size (number of genomes) of preprocessing jobs")
     parser.add_argument("--halAppendBatchSize", type=int, default=100, help="size (number of genomes) of halAppendSubtree jobs (WDL-only)")
     parser.add_argument("--halOptions", type=str, default="--hdf5InMemory", help="options for every hal command")
     parser.add_argument("--cactusOptions", type=str, default="", help="options for every cactus command")
@@ -357,6 +357,7 @@ def cactusPrepare(options):
     seqFile = SeqFile(options.seqFile)
     configNode = ET.parse(options.configFile).getroot()
     config = ConfigWrapper(configNode)
+    options.gpu_preprocessor = options.gpu and config.getPreprocessorActive('lastzRepeatMask')
 
     if not options.wdl and not options.toil:
         # prepare output sequence directory
@@ -457,7 +458,7 @@ def get_plan(options, inSeqFile, outSeqFile, configWrapper, toil):
             plan += 'cactus-preprocess {} {} {} --inputNames {} {} {}{}{}\n'.format(
                 get_jobstore(options), options.seqFile, options.outSeqFile, ' '.join(pre_batch),
                 options.cactusOptions, get_toil_resource_opts(options, 'preprocess'),
-                ' --gpu {}'.format(options.gpu) if options.gpu else '',
+                ' --gpu {}'.format(options.gpu) if options.gpu_preprocessor else '',
                 get_log_options(options, 'preprocess', leaves[i]))
 
     if options.preprocessOnly:
@@ -753,7 +754,7 @@ def wdl_task_preprocess(options):
         s += '        memory: \"{}GB\"\n'.format(bytes2gigs(options.preprocessMemory))
     if options.preprocessDisk:
         s += '        disks: \"{}\"\n'.format(wdl_disk(options, 'preprocess')[0])
-    if options.gpu:
+    if options.gpu_preprocessor:
         s += '        gpuType: \"{}\"\n'.format(options.gpuType)
         s += '        gpuCount: {}\n'.format(options.gpu)
         s += '        bootDiskSizeGb: 20\n'
@@ -799,7 +800,7 @@ def toil_call_preprocess(job, options, in_seq_file, out_seq_file, name):
     cmd = ['cactus-preprocess', os.path.join(work_dir, 'js'), '--inPaths', in_path,
            '--outPaths', out_name, '--inputNames', name, '--workDir', work_dir,
            '--maxCores', str(int(job.cores)), '--maxDisk', bytes2humanN(job.disk), '--maxMemory', bytes2humanN(job.memory)] + options.cactusOptions.strip().split(' ')
-    if options.gpu:
+    if options.gpu_preprocessor:
         cmd += ['--gpu', options.gpu]
     
     cactus_call(parameters=cmd)

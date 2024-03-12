@@ -18,8 +18,12 @@
 	<!-- **NEW** It now enforces sequences are globally unique by adding "id=<event name>|" to each one -->
 	<!-- The checkAssemblyHub option (if enabled) ensures that the first word contains only alphanumeric or '_', '-', ':', or '.' characters, and is unique. If you don't intend to make an assembly hub, you can turn off this option here. -->
 	<preprocessor memory="littleMemory" preprocessJob="checkUniqueHeaders" checkAssemblyHub="1" active="1"/>
+	<!-- Use RED (Repeat DEtector) to masks repetitive sequence. -->
+	<!-- unmask: discard any previous masking on the input fasta, only masking from Red is kept -->
+	<!-- redOpts: any command line options can be passed to Red here -->
+	<preprocessor unmask="0" memory="mediumMemory" preprocessJob="red" redOpts='' active="1"/>	
 	<!-- The preprocessor for cactus_lastzRepeatMask masks every seed that is part of more than XX other alignments, this stops a combinatorial explosion in pairwise alignments. gpu sets the number of gpus (if >0, use segalign in stead of lastz. can be set to 'all' for all available GPUs) -->
-	<preprocessor unmask="0" chunkSize="10000000" proportionToSample="0.2" memory="littleMemory" preprocessJob="lastzRepeatMask" minPeriod="50" lastzOpts='--step=3 --ambiguous=iupac,100,100 --ungapped --queryhsplimit=keep,nowarn:1500' gpu="0" active="1"/>
+	<preprocessor unmask="0" chunkSize="10000000" proportionToSample="0.2" memory="littleMemory" preprocessJob="lastzRepeatMask" minPeriod="50" lastzOpts='--step=3 --ambiguous=iupac,100,100 --ungapped --queryhsplimit=keep,nowarn:1500' gpu="0" active="0"/>
 	<!-- Softmask alpha-satellite using the dna-brnn tool -->
 	<!-- This preprocessor is off by default, and will replace the lastzRepeatMask preprocessor via command line toggle (or setting active=1)-->
 	<!-- It will attempt to load its included "attcc-alpha.knm" model by default unless a different one is specified below -->

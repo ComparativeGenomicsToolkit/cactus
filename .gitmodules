@@ -28,3 +28,6 @@
 [submodule "submodules/paffy"]
 	path = submodules/paffy
 	url = https://github.com/ComparativeGenomicsToolkit/paffy.git
+[submodule "submodules/red"]
+	path = submodules/red
+	url = https://github.com/glennhickey/red.git

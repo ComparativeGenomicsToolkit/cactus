@@ -125,9 +125,9 @@ def combine_chunks(job, chunked_alignment_files, batch_size):
     else:
         # Make combined alignments file
         alignment_file = job.fileStore.getLocalTempFile()
-        for chunk in chunked_alignment_files: # Append each of the chunked alignment files into one file
+        for i, chunk in enumerate(chunked_alignment_files): # Append each of the chunked alignment files into one file
             cactus_call(parameters=['paffy', 'dechunk', '-i', job.fileStore.readGlobalFile(chunk)],
-                        outfile=alignment_file, outappend=True)
+                        outfile=alignment_file, outappend=True, rt_log_cmd=(i<5 or i>=len(chunked_alignment_files)-5))
             job.fileStore.deleteGlobalFile(chunk) # Cleanup the old files
         return job.fileStore.writeGlobalFile(alignment_file)  # Return the final alignments file copied to the jobstore
 
@@ -548,7 +548,12 @@ def make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancest
                                 ancestor_event_string, params).rv()
 
 
-def trim_unaligned_sequences(job, sequences, alignments, params):
+def trim_unaligned_sequences(job, sequences, alignments, params, has_resources=False):
+
+    if not has_resources:
+        return job.addChildJobFn(trim_unaligned_sequences, sequences, alignments, params, has_resources=True,
+                                 disk=8*sum([seq.size for seq in sequences]) + 32*alignments.size,
+                                 memory=cactus_clamp_memory(8*sum([seq.size for seq in sequences]) + 32*alignments.size)).rv()        
     
     alignments = job.fileStore.readGlobalFile(alignments)  # Download the alignments
 
