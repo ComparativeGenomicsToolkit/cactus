@@ -212,7 +212,7 @@ void test_make_flower_alignment_poa(CuTest *testCase) {
     }
     flower_destructEndIterator(endIterator);
 
-    stList *alignment_blocks = make_flower_alignment_poa(flower, 2, 1000000, 5, abpt);
+    stList *alignment_blocks = make_flower_alignment_poa(flower, 2, 1000000, 5, abpt, NULL_NAME);
 
     for(int64_t i=0; i<stList_length(alignment_blocks); i++) {
         AlignmentBlock *b = stList_get(alignment_blocks, i);
@@ -233,7 +233,7 @@ void test_alignment_block_iterator(CuTest *testCase) {
     abpt->wf = 0.01;
     abpoa_post_set_para(abpt);
 
-    stList *alignment_blocks = make_flower_alignment_poa(flower, 10000, 1000000, 5, abpt);
+    stList *alignment_blocks = make_flower_alignment_poa(flower, 10000, 1000000, 5, abpt, NULL_NAME);
 
     abpoa_free_para(abpt);
 #ifdef stderr_logging

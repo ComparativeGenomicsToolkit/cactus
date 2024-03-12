@@ -39,7 +39,7 @@ void cactusParams_set_root(CactusParams *p, int num, ...);
 /*
  * Get a string parameter.
  */
-char *cactusParams_get_string(CactusParams *p, int, ...);
+char *cactusParams_get_string(CactusParams *p, int num, ...);
 
 /*
  * Get an integer parameter.
@@ -55,5 +55,10 @@ double cactusParams_get_float(CactusParams *p, int, ...);
  * Get a sequence of integers
  */
 int64_t *cactusParams_get_ints(CactusParams *p, int64_t *length, int, ...);
+
+/*
+ * Check if attribute exists
+ */
+bool cactusParams_has_attr(CactusParams *p, int, ...);
 
 #endif /* ST_CACTUS_PARAMS_PARSER_H_ */
