@@ -106,11 +106,11 @@ def cactus_override_toil_options(options):
         options.realTimeLogging = True
 
     # store toil memory limits here so we can get at them without carrying options around
-    max_mem = options.maxMemory
+    max_mem = human2bytes(str(options.maxMemory)) if options.maxMemory else sys.maxsize
     if options.batchSystem.lower() in ['single_machine', 'singleMachine']:
         max_mem = min(max_mem, physicalMemory())
-    os.environ['CACTUS_MAX_MEMORY'] = str(options.maxMemory)
-    os.environ['CACTUS_DEFAULT_MEMORY'] = str(options.defaultMemory)
+    os.environ['CACTUS_MAX_MEMORY'] = str(max_mem)
+    os.environ['CACTUS_DEFAULT_MEMORY'] = str(human2bytes(str(options.defaultMemory)) if options.defaultMemory else 2**31)
 
 def cactus_clamp_memory(memory_bytes):
     """ use the environment variables from --maxMemory and --defaultMemory to clamp a given memory value """
