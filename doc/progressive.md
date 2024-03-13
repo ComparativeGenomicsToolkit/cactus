@@ -199,12 +199,12 @@ The Cactus Docker image contains everything you need to run Cactus (python envir
 
 ```
 wget -q https://raw.githubusercontent.com/ComparativeGenomicsToolkit/cactus/master/examples/evolverMammals.txt -O evolverMammals.txt
-docker run -v $(pwd):/data --rm -it quay.io/comparative-genomics-toolkit/cactus:v2.7.2 cactus /data/jobStore /data/evolverMammals.txt /data/evolverMammals.hal
+docker run -v $(pwd):/data --rm -it quay.io/comparative-genomics-toolkit/cactus:v2.8.0 cactus /data/jobStore /data/evolverMammals.txt /data/evolverMammals.hal
 ```
 
 Or you can proceed interactively by running
 ```
-docker run -v $(pwd):/data --rm -it quay.io/comparative-genomics-toolkit/cactus:v2.7.2 bash
+docker run -v $(pwd):/data --rm -it quay.io/comparative-genomics-toolkit/cactus:v2.8.0 bash
 cactus /data/jobStore /data/evolverMammals.txt /data/evolverMammals.hal
 
 ```
