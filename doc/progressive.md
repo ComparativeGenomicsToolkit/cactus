@@ -12,6 +12,7 @@ Please cite the [HAL paper](https://doi.org/10.1093/bioinformatics/btt128) when 
 * [Quick-start](#quick-start)
 * [Interface](#interface)
 * [Using the HAL Output](#using-the-hal-output)
+     * [MAF Export](#maf-export)
 * [Using Docker](#using-docker)
 * [Running in the Cloud](#running-on-the-cloud)
 * [Running on a Cluster](#running-on-a-cluster)
@@ -126,37 +127,101 @@ The `outputHal` file represents the multiple alignment, including all input and 
 
 Please [cite HAL](https://doi.org/10.1093/bioinformatics/btt128).
 
-### MAF
+### MAF Export
 
-The HAL format represents the alignment in a reference-free, indexed way, but isn't readable by many tools. Many applications will require direct access to alignment columns, which requires "transposing" the row-based HAL format. This is best done by converting to [MAF](https://genome.cse.ucsc.edu/FAQ/FAQformat.html#format5), which can be computationally expensive for larger files. A toil-powered distributed MAF exporter is provided with Cactus.  Note that MAF is a reference-based format, so a reference (which can be any genome, leaf or ancestor, in the HAL file must be specified).
+The HAL format represents the alignment in a reference-free, indexed way, but isn't readable by many tools. Many applications will require direct access to alignment columns, which requires "transposing" the row-based HAL format. This is best done by converting to [MAF](https://genome.cse.ucsc.edu/FAQ/FAQformat.html#format5), which can be computationally expensive for larger files.  HAL tools includes a conversion tool called `hal2maf` but it has several limitations:
 
-```
-cactus-hal2maf ./js ./evolverMammals.hal evolverMammals.maf.gz --refGenome simHuman_chr6 --chunkSize 1000000 --noAncestors
-```
+* `hal2maf` is extremely slow
+* `hal2maf` produces very small, fragmented alignment blocks
+* `hal2maf` can write multiple rows per block per species, representing paralogies, which are not supported by many tools. Filtering these using `hal2maf --noDupes` often leads to weird breaks in synteny.
+* `hal2maf` does not properly support insertions relative to the reference. It has an option for this, `--maxRefGap`, but it is extremely slow and doesn't work properly. 
 
-`cactus-hal2maf`, in addition to providing parallelism with Toil, also adds [TAFFY](https://github.com/ComparativeGenomicsToolkit/taffy)-based normalization and is therefore recommended over running `hal2maf` directly. To better understand the normalzation options, see the [TAFFY](https://github.com/ComparativeGenomicsToolkit/taffy) link above. `cactus-hal2maf` provides an interface to toggle them, and attempts to use sensible defaults. They can be completely deactivated with the `--raw` option. 
+These issues are all at least partially addressed by a new tool, `cactus-hal2maf`, included in Cactus. It is therefore always recommended to use `cactus-hal2maf` rather than running `hal2maf` directly (or `hal2mafMP.py`).
 
-The various batching options can be used to tune distributed runs on very large inputs. For example, to run 4 batches, each on a 32-core EC2 node but only processing 8 chunks with `taffy norm` in parallel, these options could be used
-```
---chunkSize 1000000 --batchCount 4 --batchCores 32 --batchParallelTaf 8 --batchSystem mesos --provisioner aws --defaultPreemptable --nodeStorage 2000 --maxNodes 4 --nodeTypes r5.8xlarge 
-```
+* `cactus-hal2maf` uses Toil to support distributed computation, which allows very large alignments to be quickly converted on clusters or the cloud.
+* `cactus-hal2maf` uses [TAFFY](https://github.com/ComparativeGenomicsToolkit/taffy)-based normalization to merge together adjacent blocks, resulting in far less fragmentation
+* `cactus-hal2maf` has a `--dupeMode` option to greedily filter down to a single row / species, using contiguity and identity to reference which, while not perfect, is much better than before.
+* `cactus-hal2maf` uses [TAFFY](https://github.com/ComparativeGenomicsToolkit/taffy) to correctly add insertions back into the alignment directly from the HAL file.
 
-**Important** Even with the default normalization, `hal2maf` will still often create alignemnts with too many blocks.  It is therefore highly recommended to add the `--filterGapCausingDupes` option to `cactus-hal2maf` (regardless of the `--dupeMode` selection below).  This option will greedily remove duplicate row entries that would break a block apart. In practice, it has a negligible effect on coverage, but a very large effect on the number of blocks. 
+#### cactus-hal2maf options
 
-Depending on the application, you may want to handle duplication events differently when creating the MAF. Four different modes are available via the `--dupeMode` option.
+**Genome Selection**
+* `--refGenome` (**required**): A genome from the alignment (can be an ancestor) to use as the MAF reference onto which all other alignments are projected. It will be the first row of each MAF block in the output.
+* `--refSequence`: Only process the given chromosome from the reference genome
+* `--noAncestors`: Do not included reconstructed ancestors in the output (ex `Anc0` etc)
+* `--targetGenomes`: Only include comma-separated list of genomes specified by this option in the output
 
+**Computational Resources**
+* `--chunkSize` (**required**): The size (in bp) of each chunk on the reference to process in parallel. I typically use `500000` for whole-genome alignments.
+* `--batchCount`: The number of Toil jobs to distribute computation to (`1` by default). For example, on a `3gb` genome with `1mb` chunks, there would be `3000` chunks to process.  If `--batchCount` is `10`, then these chunks would be divided into `10` multithreaded jobs, each processing `300` chunks.  If you are running on a single machine, there is little reason to use more than `1` job.
+* `--batchSize`: An alternative to `--batchCount`, this will set the number of jobs by specifying the maximum number of chunks for each job.  In the above example `--batchSize 300` would also divide the work into `10` Toil jobs.
+* `--batchCores`: Number of threads per Toil job, which determines how many `hal2maf` processes are run.
+* `--batchMemory`: Amount of memory to assign to each Toil Job (defaults to an estimate based on the input size).
+* `--batchParallelHal2maf`: Number of `hal2maf` jobs to run concurrently. (defaults to `--batchCores`)
+* `--batchParallelTaf`: Number of `taffy` normalization jobs to run concurrently. (defaults ot `--batchCores`)
+
+**Normalization**
+* `--filterGapCausingDupes` (**recommended**): Filter paralogous rows that would otherwise cause a block to be broken. In practice, it has a negligible effect on coverage, but a very large effect on the number of blocks.
+* `--maximumBlockLengthToMerge`: Merge adjacent blocks if one or both is less than this many bases long (see [TAFFY](https://github.com/ComparativeGenomicsToolkit/taffy) documentation for default value and more explanation).
+* `--maximumGapLength`: Merge adjacent blocks if the maximum number of unaligned bases between them is less than this value (see [TAFFY](https://github.com/ComparativeGenomicsToolkit/taffy) documentation for default value and more explanation).
+* `--fractionSharedRows`: Minimum fraction of shared rows between adjacent blocks in order to merge (see [TAFFY](https://github.com/ComparativeGenomicsToolkit/taffy) documentation for default value and more explanation).
+* `--maxRefNFrac`: Filter out blocks whose reference row has a greater proportion of `N`s than the given fraction
+
+**Duplication Filtering** is specified with the `--dupeMode` option. Possible values are:
 * "single" : Uses greedy heuristics to pick the copy for each species that results in fewest mutations and block breaks.
-* "consensus" : Uses [maf_stream merge_dups consensus](https://github.com/ComparativeGenomicsToolkit/maf_stream#resolving-duplicated-entries) to make a single "consensus" row for all duplicate rows. This row won't actually reflect a real sequence in the fasta, but the individual columns will be more sensitive to the true coverage than when using "single".  Recommended when only looking at columns and duplications are not supported (ex with Phast and the UCSC Genome Browser). 
+* "consensus" : Uses [maf_stream merge_dups consensus](https://github.com/ComparativeGenomicsToolkit/maf_stream#resolving-duplicated-entries) to make a single "consensus" row for all duplicate rows. This row won't actually reflect a real sequence in the fasta, but the individual columns will be more sensitive to the true coverage than when using "single".  Recommended when only looking for maximum coverage of columns, without considering duplications.
 * "ancestral" : Restricts the duplication relationships shown to only those orthologous to the reference genome according to the HAL tree. There may be multiple orthologs per genome. This relies on the dating of the duplication in the hal tree (ie in which genome it is explicitly self-aligned) and is still a work in progress. For example, in a tree with `((human,chimp),gorilla)`, if a duplication in human is collapsed (ie a single copy) in the human-chimp ancestor, then it would not show up on the human-referenced MAF using this option. But if the duplication is not collapsed in this ancestor (presumably because each copy has an ortholog in chimp and gorilla), then it will be in the MAF because the duplication event was higher in the tree.
 * "all" : (default) All duplications are written, including ancestral events (orthologs) and paralogs in the reference. 
 
-Usually a reference genome is specified with `--refGenome` and ancestral genomes are excluded `--noAncestors`. Since the default reference is the root of the alignment, `--noAncestors` can only be specified if a leaf genome is used with `--refGenome`. 
+#### cactus-hal2maf examples
+
+##### Small Simulated Test Example
+
+Export the simulated mammals example on a local machine, filtering the output so each genome only appears in at most one row per block
+
+```
+cactus-hal2maf ./js evolverMammals.hal evolverMammals.maf.gz --refGenome simHuman_chr6 --chunkSize 1000000 --dupeMode single
+```
+
+##### Apes Slurm Example
+
+Exporting a MAF for each reference in an 8-way [ape alignment](https://cglgenomics.ucsc.edu/february-2024-t2t-apes/) on UCSC Slurm cluster:
+
+```
+for i in hs1 hg38 GCA_028858775.2 GCA_028885655.2 GCA_028885625.2 GCA_028878055.2 GCA_029281585.2 GCA_029289425.2; do TOIL_SLURM_ARGS="--partition=long --time=8000" cactus-hal2maf ./js_hal2maf8 ./8-t2t-apes-2023v2.hal ./8-t2t-apes-2023v2.${i}.maf.gz --filterGapCausingDupes --refGenome $i --chunkSize 500000 --batchCores 64 --noAncestors --batchCount 16  --batchSystem slurm --logFile ./8-t2t-apes-2023v2.${i}.gz.log --batchLogsDir batch-logs-8apes --coordinationDir /data/tmp ;done
+```
+
+Note that the output will contain paralogies.  These can be filtered post-hoc with (note this isn't run on Slurm, to do so you'd need to run `sbatch` yourself)
+```
+for i in hs1 hg38 GCA_028858775.2 GCA_028885655.2 GCA_028885625.2 GCA_028878055.2 GCA_029281585.2 GCA_029289425.2; do zcat ./8-t2t-apes-2023v2.${i}.maf.gz | mafDuplicateFilter -km - | bgzip > ./8-t2t-apes-2023v2.${i}.single-copy.maf.gz
+```
+
+You can accomplish the same thing by passing `--dupeMode single` to the original `cactus-hal2maf` command. I usually prefer to do it in two steps to be able to keep around both versions of the MAF without needing to run the whole conversion process twice.
+
+##### Zoonomia + Primates Slurm Example
+
+Exporting a MAF on human for the [447-way Zoonomia with extra primates](https://cglgenomics.ucsc.edu/november-2023-nature-zoonomia-with-expanded-primates-alignment/) alignment on the UCSC Slurm cluster:
+
+```
+cactus-hal2maf ./js ../447-mammalian-2022v1.hal 447-mammalian-2022v1.maf.gz --chunkSize 100000 --batchCores 96 --batchCount 10 --noAncestors --filterGapCausingDupes --batchParallelTaf 32 --batchSystem slurm --maxLocalJobs 800 --refGenome hg38 --logFile 447-cmammalian-2022v1.maf.gz.log
+
+zcat 447-mammalian-2022v1.maf.gz | mafDuplicateFilter -k -m - | bgzip > 447-mammalian-2022v1-single-copy.maf.gz
+```
+
+Because the Zoonomia assemblies are so fragmented, and the alignment file is so huge, the TAFFY normalization processes that read the HAL file take lots of memory. To compensate for this, the `--batchParallelTaf 32` flag was used above to throttle down the number of `taffy` processes to run in parallel.
+
+##### Zoonomia + Primates AWS Example
+
+This is an earlier run of the above example on an AWS/EC2 autoscale cluster. 
+```
+cactus-hal2maf aws:us-west-2:cactus-hprc-jobstore-cow s3://vg-k8s/users/hickey/zoo/447-mammalian-2022v1.hal s3://vg-k8s/users/hickey/zoo/447-mammalian-2022v1.maf.gz --refGenome Homo_sapiens --noAncestors --chunkSize 5000000 --batchCount 20 --batchCores 32 --batchParallelTaf 8 --batchSystem mesos --provisioner aws --defaultPreemptable --nodeStorage 4000 --maxNodes 20 --nodeTypes r5.8xlarge --logFile 447-mammalian-2022v1.maf.gz.log --retryCount 0 --betaInertia 0 --targetTime 1
+```
 
 ### BigMaf
 
 [UCSC BigMaf](https://genome.ucsc.edu/goldenPath/help/bigMaf.html) is an indexed version of MAF (see above) that can viewed on the Genome Browser. `cactus-maf2bigmaf` can be used to convert MAF (as output by `cactus-hal2maf`) into BigMaf.
 
-It is recommended to create the maf using the `--noAncestors --dupeMode single` options with `cactus-hal2maf`.
+It is recommended to create the maf using the `--noAncestors` options with `cactus-hal2maf`. The Browser does not support duplicates, so `cactus-maf2bigmaf` will automatically filter them out using `mafDuplicateFilter -k`. 
 
 ```
 cactus-maf2bigmaf ./js ./evolverMammals.maf.gz ./evolverMammals.bigmaf.bb --refGenome simHuman_chr6 --halFile evolverMammals.hal
