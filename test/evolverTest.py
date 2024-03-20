@@ -746,11 +746,18 @@ class TestCase(unittest.TestCase):
 
         # run mafComparator on the evolver output
         subprocess.check_call(['cactus-hal2maf', self._job_store('h2m'), halPath,  halPath + '.maf', '--chunkSize', '10000', '--batchCount', '2',
-                               '--refGenome', 'Anc0'], shell=False)
+                               '--refGenome', 'Anc0', '--index'], shell=False)
+        self.assertGreaterEqual(os.path.getsize(halPath + '.maf.tai'), 50)        
 
         # run it with --dupeMode consensus just to make sure it doesn't crash
         subprocess.check_call(['cactus-hal2maf', self._job_store('h2m'), halPath,  halPath + '.consensus.maf.gz', '--chunkSize', '10000', '--batchCount', '2',
                                '--refGenome', 'Anc0', '--dupeMode', 'consensus'], shell=False)
+
+        # run it with --dupeMode consensus just to make sure it doesn't crash
+        subprocess.check_call(['cactus-hal2maf', self._job_store('h2m'), halPath,  halPath + '.taftest.taf.gz', '--chunkSize', '10000', '--batchCount', '2',
+                               '--refGenome', 'Anc0', '--coverage'], shell=False)
+        self.assertGreaterEqual(os.path.getsize(halPath + '.taftest.taf.gz'), 5000)
+        self.assertGreaterEqual(os.path.getsize(halPath + '.taftest.taf.gz.cov.tsv'), 50)        
 
         # cactus-hal2maf doesnt support --onlySequenceNames because the genome names are needed by taf_add_gap_bases
         # so we manually filter here
