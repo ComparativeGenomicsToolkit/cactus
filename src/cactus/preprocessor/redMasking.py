@@ -23,12 +23,13 @@ from toil.realtimeLogger import RealtimeLogger
 
 
 class RedMaskJob(RoundedJob):
-    def __init__(self, fastaID, redOpts, eventName=None, unmask=False):
+    def __init__(self, fastaID, redOpts, redPrefilterOpts, eventName=None, unmask=False):
         memory = cactus_clamp_memory(6*fastaID.size)
         disk = 5*(fastaID.size)
         RoundedJob.__init__(self, memory=memory, disk=disk, preemptable=True)
         self.fastaID = fastaID
         self.redOpts = redOpts
+        self.redPrefilterOpts = redPrefilterOpts
         self.eventName = eventName if eventName else 'seq'
         self.unmask = unmask
 
@@ -49,10 +50,13 @@ class RedMaskJob(RoundedJob):
         fileStore.readGlobalFile(self.fastaID, raw_fa_path)
 
         # get rid of small or single-base contigs that might crash Red
-        cactus_call(parameters=['cactus_filterRedBreakingSequences', raw_fa_path], outfile=in_fa_path)
+        filter_cmd = ['cactus_redPrefilter', raw_fa_path]
+        if self.redPrefilterOpts:
+            assert '-x' not in self.redPrefilterOpts and '--extract' not in self.redPrefilterOpts
+            filter_cmd += self.redPrefilterOpts.split()
+        cactus_call(parameters=filter_cmd, outfile=in_fa_path)
 
         if os.path.getsize(in_fa_path) > 0:
-
             # preserve existing masking
             pre_mask_size = 0
             if not self.unmask:
@@ -81,7 +85,6 @@ class RedMaskJob(RoundedJob):
             RealtimeLogger.info('Skipping Red for {} because contigs are too small'.format(self.eventName))
 
         # put the filtered contigs back
-        cactus_call(parameters=['cactus_filterRedBreakingSequences', '-x', raw_fa_path], outfile=out_fa_path,
-                    outappend=True)
+        cactus_call(parameters=filter_cmd + ['-x'], outfile=out_fa_path, outappend=True)
 
         return fileStore.writeGlobalFile(out_fa_path)

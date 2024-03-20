@@ -29,14 +29,15 @@
 #include "cactus.h"
 
 void usage() {
-    fprintf(stderr, "cactus_filterRedBreakingSequences [fastaFile]\n");
-    fprintf(stderr, "-m --minLength N: Filter contigs < Nbp. DEFAULT=20000\n");
-    fprintf(stderr, "-b --maxBaseFrac F:  Filter contigs with proportion of the same base >= F. DEFAULT=0.98\n");    
+    fprintf(stderr, "cactus_redPrefilter [fastaFile]\n");
+    fprintf(stderr, "-m --minLength N: Filter contigs < Nbp. DEFAULT=1000\n");
+    fprintf(stderr, "-b --maxBaseFrac F:  Filter contigs with proportion of the same base >= F. DEFAULT=1.0\n");    
     fprintf(stderr, "-x --extract:     Extract (instead of remove) filtered sequences\n");
 }
 
 static bool extract = false;
-static double max_base_frac = 0.98;
+static double max_base_frac = 1.0;
+static int64_t run_len_threshold = 10; 
 
 static void redfilter(void* min_length_p, const char* name, const char* seq, int64_t length) {
     int64_t min_length = *(int64_t*)min_length_p;
@@ -52,16 +53,26 @@ static void redfilter(void* min_length_p, const char* name, const char* seq, int
         ++base_hist[c];
     }
     bool is_monomer = length == 0;
+    char monomer;
     for (int64_t i = 0; i < 256 && !is_monomer; ++i) {
         if ((double)base_hist[i] / (double)length > max_base_frac) {
             is_monomer = true;
+            monomer = (char)i;
         }
     }
 
     if (is_monomer && extract) {
         // softmask the monomer
+        int64_t run_len = 0;
         for (int64_t i = 0; i < length; ++i) {
-            uc_seq[i] = tolower(uc_seq[i]);               
+            if (toupper(uc_seq[i]) == monomer) {
+                ++run_len;
+            } else {
+                run_len = 0;
+            }
+            if (run_len > run_len_threshold) {
+                uc_seq[i] = tolower(uc_seq[i]);
+            }
         }
     }
 
@@ -72,7 +83,7 @@ static void redfilter(void* min_length_p, const char* name, const char* seq, int
 
 int main(int argc, char *argv[]) {
 
-    int64_t min_length = 20000;
+    int64_t min_length = 1000;
     
     while (1) {
         static struct option long_options[] = { { "minLength", required_argument, 0, 'm' },
