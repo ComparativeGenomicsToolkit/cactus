@@ -6,7 +6,7 @@ CFLAGS += ${hiredisIncl}
 all: all_libs all_progs
 all_libs: 
 all_progs: all_libs
-	${MAKE} ${BINDIR}/cactus_analyseAssembly ${BINDIR}/cactus_makeAlphaNumericHeaders.py ${BINDIR}/cactus_filterSmallFastaSequences.py ${BINDIR}/cactus_softmask2hardmask ${BINDIR}/cactus_sanitizeFastaHeaders
+	${MAKE} ${BINDIR}/cactus_analyseAssembly ${BINDIR}/cactus_makeAlphaNumericHeaders.py ${BINDIR}/cactus_filterSmallFastaSequences.py ${BINDIR}/cactus_softmask2hardmask ${BINDIR}/cactus_sanitizeFastaHeaders ${BINDIR}/cactus_filterRedBreakingSequences
 	cd lastzRepeatMasking && ${MAKE} all
 
 ${BINDIR}/cactus_filterSmallFastaSequences.py : cactus_filterSmallFastaSequences.py
@@ -25,6 +25,10 @@ ${BINDIR}/cactus_softmask2hardmask : cactus_softmask2hardmask.c ${LIBDEPENDS} ${
 
 ${BINDIR}/cactus_sanitizeFastaHeaders : cactus_sanitizeFastaHeaders.c ${LIBDEPENDS} ${LIBDIR}/cactusLib.a
 	${CC} ${CPPFLAGS} ${CFLAGS} ${LDFLAGS} -o ${BINDIR}/cactus_sanitizeFastaHeaders cactus_sanitizeFastaHeaders.c ${LIBDIR}/cactusLib.a ${LDLIBS}
+
+${BINDIR}/cactus_filterRedBreakingSequences : cactus_filterRedBreakingSequences.c ${LIBDEPENDS} ${LIBDIR}/cactusLib.a
+	${CC} ${CPPFLAGS} ${CFLAGS} ${LDFLAGS} -o ${BINDIR}/cactus_filterRedBreakingSequences cactus_filterRedBreakingSequences.c ${LIBDIR}/cactusLib.a ${LDLIBS}
+
 
 clean : 
 	rm -f *.o

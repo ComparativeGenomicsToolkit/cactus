@@ -43,23 +43,34 @@ class RedMaskJob(RoundedJob):
         red_out_dir = os.path.join(work_dir, 'red-out-{}'.format(self.eventName))
         os.makedirs(red_in_dir)
         os.makedirs(red_out_dir)
-        in_fa_path = os.path.join(red_in_dir, '{}.fa'.format(self.eventName))
+        raw_fa_path = os.path.join(work_dir, '{}.fa'.format(self.eventName))
+        in_fa_path = os.path.join(red_in_dir, '{}.filter.fa'.format(self.eventName))
         out_fa_path = os.path.join(red_out_dir, '{}.msk'.format(self.eventName))
-        fileStore.readGlobalFile(self.fastaID, in_fa_path)
+        fileStore.readGlobalFile(self.fastaID, raw_fa_path)
 
         # preserve existing masking
         pre_mask_size = 0
         if not self.unmask:
             bed_path = os.path.join(work_dir, '{}.input.masking.bed'.format(self.eventName))
-            cactus_call(parameters=['cactus_softmask2hardmask', '-b', in_fa_path], outfile=bed_path)
+            cactus_call(parameters=['cactus_softmask2hardmask', '-b', raw_fa_path], outfile=bed_path)
             pre_mask_size = int(cactus_call(parameters=['awk', '{sum += $3-$2} END {print sum}', bed_path],
                                             check_output=True, rt_log_cmd=False).strip())
-            
-        # run red
-        red_cmd = ['Red', '-gnm', red_in_dir, '-msk', red_out_dir]
-        if self.redOpts:
-            red_cmd += self.redOpts.split()
-        cactus_call(parameters=red_cmd)
+
+        # get rid of small or single-base contigs that might crash Red
+        cactus_call(parameters=['cactus_filterRedBreakingSequences', raw_fa_path], outfile=in_fa_path)
+
+        if os.path.getsize(in_fa_path) > 0:                                       
+            # run red
+            red_cmd = ['Red', '-gnm', red_in_dir, '-msk', red_out_dir]
+            if self.redOpts:
+                red_cmd += self.redOpts.split()
+            cactus_call(parameters=red_cmd)
+        else:
+            RealtimeLogger.info('Skipping Red for {} because contigs are too small'.format(self.eventName))
+
+        # put the filtered contigs back
+        cactus_call(parameters=['cactus_filterRedBreakingSequences', '-x', raw_fa_path], outfile=out_fa_path,
+                    outappend=True)
 
         # merge the exsiting masking back in
         if not self.unmask:
