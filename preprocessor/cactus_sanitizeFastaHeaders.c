@@ -29,6 +29,7 @@ void usage() {
 
 static stSet* header_set = NULL;
 static bool strip_pounds = false;
+static bool convert_range = false;
 
 void addUniqueFastaPrefix(void* destination, const char *fastaHeader, const char *string, int64_t length) {
 
@@ -57,6 +58,46 @@ void addUniqueFastaPrefix(void* destination, const char *fastaHeader, const char
 
     char* clipped_header = stString_getSubString(fastaHeader, start, last-start);
 
+    // FROM shared.common.get_faidx_subpath_rename_cmd() which should be kept consistent:
+    //
+    // transform chr1:10-15 (1-based inclusive) into chr1_sub_9_15 (0-based end open)
+    // this is a format that contains no special characters in order to make assembly hubs
+    // happy.  But it does require conversion going into vg which wants chr[9-15] and
+    // hal2vg is updated to do this autmatically
+    if (convert_range) {
+        char *colonpos = strrchr(clipped_header, ':');
+        char *dashpos = colonpos != NULL ? strrchr(clipped_header, '-') : NULL;
+        if (colonpos != NULL && dashpos != NULL && dashpos > colonpos + 1) {
+            bool are_numbers = true;
+            for (char *i = colonpos + 1; i < dashpos && are_numbers; ++i) {
+                are_numbers = isdigit(*i);
+            }
+            char *last_pos = clipped_header + strlen(clipped_header);
+            for (char *i = dashpos + 1; i < last_pos && are_numbers; ++i) {
+                are_numbers = isdigit(*i);
+            }
+            if (are_numbers) {
+                int64_t range_start = -1;
+                int64_t range_end = -1;
+                int ret = sscanf(colonpos + 1, "%" PRIi64 "-%" PRIi64 "", &range_start, &range_end);
+                if (ret != 2 || range_start < 0 || range_end < range_start) {
+                    fprintf(stderr, "Error: Could not parse :start-end range in \"%s\" for event \"%s\".\n", clipped_header, eventName);
+                    exit(1);
+                }
+                // samtools is 1-based but will treat 0 like 1 so we do the same while
+                // converting here to 0-based
+                if (range_start > 0) {
+                    range_start -= 1;
+                }
+                char *range_header = (char*)st_calloc(last_pos - clipped_header + 5, sizeof(char));
+                strcpy(range_header, clipped_header);
+                sprintf(range_header + (colonpos - clipped_header), "_sub_%" PRIi64 "_%" PRIi64 "", range_start, range_end);
+                free(clipped_header);
+                clipped_header = range_header;
+            }
+        }
+    }
+
     if (stSet_search(header_set, (void*)clipped_header) != NULL) {
         fprintf(stderr, "Error: The sanitzied fasta header \"%s\" appears more than once for event \"%s\". Please ensure fast headers are unique for each input\n", clipped_header, eventName);
         exit(1);
@@ -84,6 +125,7 @@ int main(int argc, char *argv[]) {
     if (argc == 4) {
         if (strcmp(argv[3], "-p") == 0) {
             strip_pounds = true;
+            convert_range = true;
         } else {
             usage();
             return 1;
