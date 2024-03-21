@@ -50,7 +50,7 @@ class PreprocessorOptions:
     def __init__(self, chunkSize, memory, cpu, check, proportionToSample, unmask,
                  preprocessJob, checkAssemblyHub=None, lastzOptions=None, minPeriod=None,
                  gpu=0, lastz_memory=None, dnabrnnOpts=None,
-                 dnabrnnAction=None, redOpts=None, eventName=None, minLength=None,
+                 dnabrnnAction=None, redOpts=None, redPrefilterOpts=None, eventName=None, minLength=None,
                  cutBefore=None, cutBeforeOcc=None, cutAfter=None, inputBedID=None):
         self.chunkSize = chunkSize
         self.memory = memory
@@ -71,6 +71,7 @@ class PreprocessorOptions:
         self.dnabrnnAction = dnabrnnAction
         assert dnabrnnAction in ('softmask', 'hardmask', 'clip')
         self.redOpts = redOpts
+        self.redPrefilterOpts = redPrefilterOpts
         self.eventName = eventName
         self.minLength = minLength        
         self.cutBefore = cutBefore
@@ -168,6 +169,7 @@ class PreprocessSequence(RoundedJob):
         elif self.prepOptions.preprocessJob == "red":
             return RedMaskJob(inChunkID,
                               redOpts=self.prepOptions.redOpts,
+                              redPrefilterOpts=self.prepOptions.redPrefilterOpts,
                               eventName=self.prepOptions.eventName,
                               unmask=self.prepOptions.unmask)  
         elif self.prepOptions.preprocessJob == "cutHeaders":
@@ -272,6 +274,7 @@ class BatchPreprocessor(RoundedJob):
                                               dnabrnnOpts = getOptionalAttrib(prepNode, "dna-brnnOpts", default=""),
                                               dnabrnnAction = getOptionalAttrib(prepNode, "action", typeFn=str, default="softmask"),
                                               redOpts = getOptionalAttrib(prepNode, "redOpts", default=""),
+                                              redPrefilterOpts = getOptionalAttrib(prepNode, "redPrefilterOpts", default=""),
                                               eventName = getOptionalAttrib(prepNode, "eventName", typeFn=str, default=None),
                                               minLength = getOptionalAttrib(prepNode, "minLength", typeFn=int, default=1),
                                               cutBefore = getOptionalAttrib(prepNode, "cutBefore", typeFn=str, default=None),
