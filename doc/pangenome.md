@@ -102,6 +102,25 @@ HG002.2  ./HG002.maternal.fa
 CHM13  ./chm13.fa
 ```
 
+### Contig Names
+
+Ideally, the sequence/contig names in the input FASTA files should be as simple as possible. Ex:
+```
+>chr1
+AAAA....
+>chr2
+CCCC....
+etc
+```
+They do not need to be globally unique: the same contig name can be present in more than one input FASTA file.  But the same name can only appear once per file: you cannot have a genome with two `chr1`s (you will get an error almost right away in this case).  Some other things to know about contig names:
+
+
+* If you have a name of the form `HG002#0#chr1`, then `cactus-pangenome` will automatically ignore everything up to and including the last `#` character (leaving just `chr1`).  The sample name and haplotype will be derived from the Sample Name in the seqfile (as described above). 
+* `vg` can sometimes output paths with names like `HG002#0#chr1#0`.  This will be interpreted as `0` and almost surely lead to trouble.  You must manually correct this type of input before running `cactus-pangenome`.
+* Path subranges denoted by suffixes of the form `:start-end` (1-based, inclusive) are now supported (v2.8.1). The subrange information will be properly handled in the final output (VCF,GFA,GBZ etc). 
+* `:` characters in contig names that are not part of subranges will be automatically replaced with `_` in the output, as they can otherwise confuse the pipeline. 
+* Anything after the first space in a contig name is ignored.
+
 ### Reference Sample
 
 The `--reference` option must be used to select a "reference" sample.  This sample will:
