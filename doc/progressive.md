@@ -173,6 +173,18 @@ These issues are all at least partially addressed by a new tool, `cactus-hal2maf
 * "ancestral" : Restricts the duplication relationships shown to only those orthologous to the reference genome according to the HAL tree. There may be multiple orthologs per genome. This relies on the dating of the duplication in the hal tree (ie in which genome it is explicitly self-aligned) and is still a work in progress. For example, in a tree with `((human,chimp),gorilla)`, if a duplication in human is collapsed (ie a single copy) in the human-chimp ancestor, then it would not show up on the human-referenced MAF using this option. But if the duplication is not collapsed in this ancestor (presumably because each copy has an ortholog in chimp and gorilla), then it will be in the MAF because the duplication event was higher in the tree.
 * "all" : (default) All duplications are written, including ancestral events (orthologs) and paralogs in the reference. 
 
+#### TAF output
+
+The output path argument of `cactus-hal2maf` must end with `.maf.gz`, `.maf`, `.taf.gz` or `.taf`. In the latter two cases, the output will be written as [TAF](https://github.com/ComparativeGenomicsToolkit/taffy) instead of MAF. Conversion between MAF and TAF with `taffy view` is lossless, and TAF is much more compressed than MAF. 
+
+#### Random access in MAF files
+
+Files in `.maf.gz`, `.maf`, `.taf.gz` and `.taf` can be quickly queried by reference coordinate interval (analogous to `bcftools view -r`) using `taffy view`.  As in `VCF`, the files must be indexed first.  Use `cactus-hal2maf --index` to generate a `.tai` index of the output alignment file. See the [TAFFY](https://github.com/ComparativeGenomicsToolkit/taffy) documentation for more information on indexing. `taffy` can index and query MAF and TAF files interchangeably, ie an interval from an indexed TAF file can be output to MAF and vice versa.
+
+#### Coverage statistics
+
+A table of alignment coverage and identity statistics with suffix `.cov.tsv` will be generated with `cactus-hal2maf --coverage`. Breakdowns by gap length and sex chromosomes vs autosomes can be added using the `--coverageGapThresholds` and `--coverageSexChroms` options, respectively.  See the `taffy coverage` documentation on the [TAFFY site](https://github.com/ComparativeGenomicsToolkit/taffy) for more details. 
+
 #### cactus-hal2maf examples
 
 ##### Small Simulated Test Example
