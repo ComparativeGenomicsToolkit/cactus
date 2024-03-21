@@ -96,6 +96,15 @@ void addUniqueFastaPrefix(void* destination, const char *fastaHeader, const char
                 clipped_header = range_header;
             }
         }
+        if (colonpos != NULL) {
+            // : characters apparently cause crashes in and of themselves
+            int64_t n = strlen(clipped_header);
+            for (int64_t i = 0; i < n; ++i) {
+                if (clipped_header[i] == ':') {
+                    clipped_header[i] = '_';
+                }
+            }
+        }
     }
 
     if (stSet_search(header_set, (void*)clipped_header) != NULL) {
