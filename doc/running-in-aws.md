@@ -12,15 +12,10 @@ You'll also need to have your AWS access credentials set up in `~/.aws/credentia
 By default, AWS will restrict you to running only a few small instances at a time. If you have a new AWS account, or you're not sure what your limits are, you will probably need to increase them. See [this guide](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-resource-limits.html) for information on how to check your existing limits and how to increase them if necessary. AWS support takes only one or two business days to process your request if you have the default "basic" support package.
 
 [Look below](#estimating-the-maximum-number-of-worker-instances-youll-need) for tips on how many instances you may need for your specific alignment. Keep in mind that spot-market instance limits are separate from "on-demand" (non-preemptable) instance limits. (You'll probably want to request a slightly higher limit than you think you need, just in case you want to tweak the number of instances later on.)
+
 ## Installing Toil on your local machine
-Follow the steps in the README, making sure to install toil with its extra AWS support:
-```
-git clone https://github.com/comparativegenomicstoolkit/cactus.git
-cd cactus
-virtualenv -p python3 venv
-source venv/bin/activate
-pip install -r toil-requirement.txt
-```
+The simplest way to do this is to download the [latest precompiled binary Cactus release](https://github.com/ComparativeGenomicsToolkit/cactus/releases) and follow the [installation instructions](../BIN-INSTALL.md). 
+
 ## Estimating the maximum number of worker instances you'll need
 The cluster will automatically scale up and down, but you'll want to set a maximum number of nodes so the scaler doesn't get overly aggressive and waste money, or go over your AWS limits. We typically use `c4.8xlarge` on the spot market for most jobs, and `r4.8xlarge` on-demand for database jobs. Here are some very rough estimates of what we typically use for the maximum of each type (round up):
 
@@ -58,17 +53,22 @@ root@ip-172-31-34-148:/#
 ```
 indicating that you're on the leader.
 
-Install Cactus in a virtual environment on the leader:
+You now install Cactus again by downloading the [latest precompiled binary Cactus release](https://github.com/ComparativeGenomicsToolkit/cactus/releases) and following the [installation instructions](../BIN-INSTALL.md) **BUT WITH 2 CRITICAL CHANGES** to make sure you use the correct Toil:
+
+* add the `--system-site-packages` option when creating the `virtualenv`
+* do not run `python3 -m pip install -U -r ./toil-requirement.txt` (ie don't re-install Toil)
+
+For example, the installation instructions for [v2.8.0](https://github.com/ComparativeGenomicsToolkit/cactus/blob/v2.8.0/BIN-INSTALL.md) (you can/should use the latest release) would be changed to
 ```
-apt update
-apt install -y git tmux
-virtualenv --system-site-packages -p python3.8 venv
-source venv/bin/activate
-git clone https://github.com/comparativegenomicstoolkit/cactus.git --recursive
-cd cactus
-pip install --upgrade .
-cd /
+wget -q https://github.com/ComparativeGenomicsToolkit/cactus/releases/download/v2.8.0/cactus-bin-v2.8.0.tar.gz
+tar -xzf cactus-bin-v2.8.0.tar.gz
+cd cactus-bin-v2.8.0
+virtualenv -p python3 --system-site-packages venv-cactus-v2.8.0
+source venv-cactus-v2.8.0/bin/activate
+python3 -m pip install -U setuptools pip wheel
+python3 -m pip install -U .
 ```
+
 ## Run the alignment (on the leader)
 The key parameters you'll care about changing (besides the usual Cactus parameters) are the autoscaling parameters `--nodeTypes`, `--minNodes`, `--maxNodes` and the jobStore location, `aws:<region>:<jobStoreName>`.
 
