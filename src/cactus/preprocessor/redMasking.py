@@ -62,8 +62,10 @@ class RedMaskJob(RoundedJob):
             if not self.unmask:
                 bed_path = os.path.join(work_dir, '{}.input.masking.bed'.format(self.eventName))
                 cactus_call(parameters=['cactus_softmask2hardmask', '-b', in_fa_path], outfile=bed_path)
-                pre_mask_size = int(cactus_call(parameters=['awk', '{sum += $3-$2} END {print sum}', bed_path],
-                                                check_output=True, rt_log_cmd=False).strip())            
+                awkres = cactus_call(parameters=['awk', '{sum += $3-$2} END {print sum}', bed_path],
+                                                check_output=True, rt_log_cmd=False).strip()
+                pre_mask_size = int(awkres) if awkres else 0
+                
             # run red
             red_cmd = ['Red', '-gnm', red_in_dir, '-msk', red_out_dir]
             if self.redOpts:
@@ -72,13 +74,15 @@ class RedMaskJob(RoundedJob):
 
             # merge the exsiting masking back in
             if not self.unmask:
-                cactus_call(infile=out_fa_path, outfile=out_fa_path + '.remask',
-                            parameters=['cactus_fasta_softmask_intervals.py', '--origin=zero', bed_path])
-                out_fa_path = out_fa_path + '.remask'
+                if pre_mask_size:
+                    cactus_call(infile=out_fa_path, outfile=out_fa_path + '.remask',
+                                parameters=['cactus_fasta_softmask_intervals.py', '--origin=zero', bed_path])
+                    out_fa_path = out_fa_path + '.remask'
 
-                post_mask_size = int(cactus_call(parameters=[['cactus_softmask2hardmask', '-b', out_fa_path],
-                                                             ['awk', '{sum += $3-$2} END {print sum}']],
-                                                 check_output=True, rt_log_cmd=False).strip())
+                awkres = cactus_call(parameters=[['cactus_softmask2hardmask', '-b', out_fa_path],
+                                                 ['awk', '{sum += $3-$2} END {print sum}']],
+                                     check_output=True, rt_log_cmd=False).strip()
+                post_mask_size = int(awkres) if awkres else 0
                 RealtimeLogger.info('Red masked {} bp of {}, increasing masking from {} to {}'.format(
                     post_mask_size - pre_mask_size, self.eventName, pre_mask_size, post_mask_size))
         else:
