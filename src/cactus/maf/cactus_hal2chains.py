@@ -232,7 +232,8 @@ def hal2chains_chrom_info_all(job, config, options, hal_id, genomes):
 
     chrom_info_dict = {}
     for genome in set(options.queryGenomes + options.targetGenomes):
-        chrom_info_dict[genome] = job.addChildJobFn(hal2chains_chrom_info, config, options, hal_id, genome).rv()
+        chrom_info_dict[genome] = job.addChildJobFn(hal2chains_chrom_info, config, options, hal_id, genome,
+                                                    disk=int(hal_id.size * 1.2)).rv()
     return chrom_info_dict        
 
 def hal2chains_all(job, config, options, hal_id, chrom_info_dict):    
