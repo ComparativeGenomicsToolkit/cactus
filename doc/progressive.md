@@ -245,18 +245,19 @@ The chromosome sizes of the reference genome must be provided as input either di
 
 ### Chains
 
-The [UCSC Chain Format](https://genome.ucsc.edu/goldenPath/help/chain.html) is a concise way to represent pairwise alignments, and is used by the Genome Browser and some of its tools. HAL files can be converted into sets of Chain files using `cactus-hal2chains`.
+The [UCSC Chain Format](https://genome.ucsc.edu/goldenPath/help/chain.html) is a concise way to represent pairwise alignments, and is used by the Genome Browser and some of its tools. HAL files can be converted into sets of Chain files using `cactus-hal2chains`. Use the `--queryGenomes` and `--targetGenomes` flags to specify one or more query and/or target genomes. Chains between all pairs will be computed (so watch out for large alignments!).  If either `--queryGenomes` or `--targetGenomes` is unspecifiefd, then all leaf genomes in the HAL file will be used.
 
 For example
 ```
-cactus-hal2chains ./js ./evolverMammals.hal chains-dir --refGenome simHuman_chr6 
+cactus-hal2chains ./js ./evolverMammals.hal chains-dir --queryGenomes simHuman_chr6 
 ```
 
 will create `./chains-dir` and populate it with a Chain alignment between simHuman and each other leaf genome in evolverMammals.hal.
 
 By default, chains will be created using `halLiftover` [as in CAT](https://github.com/ComparativeGenomicsToolkit/Comparative-Annotation-Toolkit/blob/fc1623da5df1309d2e2f0b9bb0363aaab84708f4/cat/chaining.py#L96-L98). An option `--useHalSynteny` is provided to use that tool instead.
 
-See here for an all-vs-all script to make chains, including BigChain conversion: https://github.com/human-pangenomics/HPRC_Assembly_Hub/blob/main/chains/wdl/snakesonachain.wdl
+In order to view your chains on the UCSC Genome Browser, you need to [convert to bigChain](https://genome.ucsc.edu/goldenPath/help/bigChain.html).  Use the `--bigChain` flag to have `cactus-hal2chains` produce `bigChain.bb` and `bigChain.link.bb` output files in addtion to `chain.gz`.
+
 
 ### CAT
 
