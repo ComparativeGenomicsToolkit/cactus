@@ -123,12 +123,13 @@ def main():
             for target_genome in chains_id_dict[query_genome].keys():                
                 clean_target_name = target_genome.replace('#', '.').replace(' ', '.')
                 chain_id = chains_id_dict[query_genome][target_genome]['chains']
-                toil.exportFile(chain_id, makeURL(os.path.join(options.outDir, clean_query_name + '_vs_' + clean_target_name + ".chain.gz")))
+                out_base = makeURL(os.path.join(options.outDir, clean_target_name + '_vs_' + clean_query_name))
+                toil.exportFile(chain_id, out_base + ".chain.gz")
                 if options.bigChain:
                     bigchain_id = chains_id_dict[query_genome][target_genome]['bigChain']
-                    toil.exportFile(bigchain_id, makeURL(os.path.join(options.outDir, clean_query_name + '_vs_' + clean_target_name + ".bigChain.bb")))
+                    toil.exportFile(bigchain_id, out_base + ".bigChain.bb")
                     biglink_id = chains_id_dict[query_genome][target_genome]['bigLink']
-                    toil.exportFile(biglink_id, makeURL(os.path.join(options.outDir, clean_query_name + '_vs_' + clean_target_name + ".bigChain.link.bb")))                   
+                    toil.exportFile(biglink_id, out_base + ".bigChain.link.bb")
 
     end_time = timeit.default_timer()
     run_time = end_time - start_time
@@ -291,7 +292,7 @@ def hal2chains_genome(job, config, options, hal_id, query_genome, query_info, ta
                             ['faToTwoBit', 'stdin', target_2bit_path]])
 
     # the output
-    query_chain_path = os.path.join(work_dir, query_genome + '_vs_' + target_genome + '.chain.gz')
+    query_chain_path = os.path.join(work_dir, target_genome + '_vs_' + query_genome + '.chain.gz')
 
     # make our hal -> psl -> chain piped command
 
@@ -359,7 +360,7 @@ table bigLink
 def chain2bigchain(job, options, query_genome, target_genome, target_info, chain_id):
     """ convert the chain to big chain. from https://genome.ucsc.edu/goldenPath/help/bigChain.html """
     work_dir = job.fileStore.getLocalTempDir()
-    chain_path = os.path.join(work_dir, query_genome + '_vs_' + target_genome + '.chain.gz')
+    chain_path = os.path.join(work_dir, target_genome + '_vs_' + query_genome + '.chain.gz')
     job.fileStore.readGlobalFile(chain_id, chain_path)
     target_sizes_path = os.path.join(work_dir, target_genome + '.chrom.sizes')
     job.fileStore.readGlobalFile(target_info['sizes'], target_sizes_path)
@@ -377,7 +378,7 @@ def chain2bigchain(job, options, query_genome, target_genome, target_info, chain
     cactus_call(parameters=['hgLoadChain', '-noBin', '-test', target_genome, 'bigChain', uz_chain_path])
 
     # Create the bigChain file from your input chain file using a combination of sed, awk and the bedToBigBed utility:
-    bigchain_path = os.path.join(work_dir, query_genome + '_vs_' + target_genome + '.bigChain')
+    bigchain_path = os.path.join(work_dir, target_genome + '_vs_' + query_genome + '.bigChain')
     cactus_call(parameters=[['sed', 's/\\.000000//', 'chain.tab'],
                             ['awk', 'BEGIN {OFS=\"\\t\"} {print $2, $4, $5, $11, 1000, $8, $3, $6, $7, $9, $10, $1}']],
                 outfile=bigchain_path)
