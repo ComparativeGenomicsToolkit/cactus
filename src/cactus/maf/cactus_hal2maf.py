@@ -376,12 +376,14 @@ def taf_cmd(hal_path, chunk, chunk_num, genome_list_path, sed_script_paths, opti
     if sed_script_paths:
         # rename to alphanumeric names
         cmd += ' | sed -f {}'.format(os.path.basename(sed_script_paths[0]))
-    cmd += ' | {} taffy view{} 2> {}.m2t.time'.format(time_cmd, time_end, chunk_num)
     if genome_list_path:
-        cmd += ' | {} taffy sort -n {}{} 2> {}.sort.time'.format(time_cmd, genome_list_path, time_end, chunk_num)
+        # note, using mafRowOrderer instead of taffy sort because latter does not keep reference row
+        # (also, using taffy in this spot requires roundtrip maf-taf-maf tho that can be refactored away)
+        cmd += ' | {} mafRowOrderer -m - --order-file {}{} 2> {}.sort.time'.format(time_cmd, genome_list_path, time_end, chunk_num)
     if sed_script_paths:
         # rename to original, since it needs to be compatible with hal in next step
-        cmd += ' | taffy view -m | sed -f {} | taffy view'.format(os.path.basename(sed_script_paths[1]))
+        cmd += ' | sed -f {}'.format(os.path.basename(sed_script_paths[1]))
+    cmd += ' | {} taffy view {} 2> {}.m2t.time'.format(time_cmd, time_end, chunk_num)        
     norm_opts = ''
     if options.maximumBlockLengthToMerge is not None:
         norm_opts += '-m {}'.format(options.maximumBlockLengthToMerge)
@@ -405,7 +407,7 @@ def taf_cmd(hal_path, chunk, chunk_num, genome_list_path, sed_script_paths, opti
         cmd += ' | maf_stream merge_dups consensus'
         # need to resort after merge_dups
         if genome_list_path:
-            cmd += ' | taffy view | taffy sort -n {} | taffy view -m'.format(genome_list_path)
+            cmd += ' | mafRowOrderer -m - --order-file {}'.format(genome_list_path)
     if sed_script_paths:
         #rename back to original names
         cmd += ' | sed -f {}'.format(sed_script_paths[1])
@@ -469,6 +471,10 @@ def get_sed_rename_scripts(work_dir, genome_list, out_bed = False, prefix='g'):
         before_script_path = os.path.join(work_dir, 'genome_to_alnum.sed')
         after_script_path = os.path.join(work_dir, 'alnum_to_genome.sed')    
         with open(before_script_path, 'w') as before_script_file, open(after_script_path, 'w') as after_script_file:
+            # maftools uses spaces and taffy tabs, we make sure consistent here
+            before_script_file.write('s/[ ]\\+/\\t/g\n')
+            if not out_bed:
+                after_script_file.write('s/[ ]\\+/\\t/g\n')
             for genome in reversed(sorted(name_map.keys())):
                 before_script_file.write('s/^s\\t{}\\./s\\t{}\\./\n'.format(genome, name_map[genome]))
                 if out_bed:
@@ -575,11 +581,17 @@ def hal2maf_batch(job, hal_id, batch_chunks, genome_list, options, config):
             for i in range(len(cmd_toks)):
                 cmd_toks[i] = cmd_toks[i].rstrip(')')
             for tag, cmd in [('m2t', 'view'), ('sort', 'sort'), ('tn', 'norm')]:
-                tag_start = cmd_toks.index(cmd) - 1
-                tag_end = cmd_toks.index('2>')        
-                tag_cmd = ' '.join(cmd_toks[tag_start:tag_end])
-                chunk_msg += "{}{} {} ".format('' if cmd == 'hal2maf' else 'and ', tag_cmd, read_time_mem(os.path.join(work_dir, '{}.{}.time'.format(chunk_num, tag))))
-                cmd_toks = cmd_toks[tag_end + 1:]
+                tag_start = None
+                if tag == 'sort' and 'mafRowOrderer' in cmd_toks:
+                    tag_start = cmd_toks.index('mafRowOrderer')
+                    tag_end = tag_start + cmd_toks[tag_start:].index('2>')
+                    tag_cmd = 'mafRowOrderer'
+                elif cmd in cmd_toks:
+                    tag_start = cmd_toks.index(cmd) - 1
+                    tag_end = tag_start + cmd_toks[tag_start:].index('2>')        
+                    tag_cmd = ' '.join(cmd_toks[tag_start:tag_end])
+                if tag_start is not None:
+                    chunk_msg += "{}{} {} ".format('' if cmd == 'hal2maf' else 'and ', tag_cmd, read_time_mem(os.path.join(work_dir, '{}.{}.time'.format(chunk_num, tag))))
             RealtimeLogger.info(chunk_msg)
 
     # merge up the results
