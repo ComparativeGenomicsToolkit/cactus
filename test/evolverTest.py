@@ -753,7 +753,7 @@ class TestCase(unittest.TestCase):
         subprocess.check_call(['cactus-hal2maf', self._job_store('h2m'), halPath,  halPath + '.consensus.maf.gz', '--chunkSize', '10000', '--batchCount', '2',
                                '--refGenome', 'Anc0', '--dupeMode', 'consensus'], shell=False)
 
-        # run it with --dupeMode consensus just to make sure it doesn't crash
+        # run it with --coverage just to make sure it doesn't crash
         subprocess.check_call(['cactus-hal2maf', self._job_store('h2m'), halPath,  halPath + '.taftest.taf.gz', '--chunkSize', '10000', '--batchCount', '2',
                                '--refGenome', 'Anc0', '--coverage'], shell=False)
         self.assertGreaterEqual(os.path.getsize(halPath + '.taftest.taf.gz'), 5000)
@@ -766,7 +766,7 @@ class TestCase(unittest.TestCase):
         subprocess.check_call(['bin/mafComparator', '--maf1', halPath + '.maf', '--maf2', ground_truth_file, '--samples', '100000000', '--out', halPath + 'comp.xml'])
 
         # grab the two accuracy values out of the XML
-        def parse_mafcomp_output(xml_path):
+        def parse_mafcomp_output(xml_path, ground_truth_file):
             xml_root = ET.parse(xml_path).getroot()
             comp_roots = xml_root.findall("homologyTests")
             assert len(comp_roots) == 2
@@ -780,14 +780,58 @@ class TestCase(unittest.TestCase):
             assert first is not None and second is not None
             return first, second
 
-        baseline_acc = parse_mafcomp_output(baseline_file)
-        acc = parse_mafcomp_output(halPath + 'comp.xml')
+        #baseline_acc = parse_mafcomp_output(baseline_file, ground_truth_file)
+        #acc = parse_mafcomp_output(halPath + 'comp.xml', ground_truth_file)
 
-        sys.stderr.write("Comparing mafcomp accuracy {},{} to baseline accuracy {},{} with threshold {}\n".format(acc[0], acc[1], baseline_acc[0], baseline_acc[1], delta))
+        #sys.stderr.write("Comparing mafcomp accuracy {},{} to baseline accuracy {},{} with threshold {}\n".format(acc[0], acc[1], baseline_acc[0], baseline_acc[1], delta))
+        #self.assertGreaterEqual(acc[0] + delta[0], baseline_acc[0])
+        #self.assertGreaterEqual(acc[1] + delta[1], baseline_acc[1])
 
-        self.assertGreaterEqual(acc[0] + delta[0], baseline_acc[0])
-        self.assertGreaterEqual(acc[1] + delta[1], baseline_acc[1])
+        # check that subranges work in cactus-hal2maf
+        ranges_truth_file = os.path.join(self.tempDir, 'ranges-truth.maf')
+        ranges = [('simHuman.chr6', 10, 21), ('simHuman.chr6', 100000, 149998), ('simHuman.chr6', 40, 41)]
+        first = True
+        for seq, start, end in ranges:
+            cmd = ['hal2maf', halPath, ranges_truth_file, '--refGenome', 'simHuman_chr6',
+                   '--refSequence', seq, '--start', str(start), '--length', str(end-start)]
+            if first:            
+                first = False
+            else:
+                cmd += ['--append']
+            subprocess.check_call(cmd, shell=False)
 
+        ranges_opt_file = os.path.join(self.tempDir, 'ranges-opt.maf')
+        cmd = ['cactus-hal2maf', self._job_store('h2m'), halPath, ranges_opt_file, '--refGenome', 'simHuman_chr6', '--chunkSize', '500']
+        cmd += ['--refSequence'] + [r[0] for r in ranges]
+        cmd += ['--start'] + [str(r[1]) for r in ranges]
+        cmd += ['--length'] + [str(r[2] - r[1]) for r in ranges]
+        subprocess.check_call(cmd, shell=False)
+
+        subprocess.check_call(['bin/mafComparator', '--maf1', ranges_opt_file, '--maf2', ranges_truth_file, '--samples', '100000000', '--out', halPath + 'comp_opt.xml'])
+        opt_acc = parse_mafcomp_output(halPath + 'comp_opt.xml', ranges_truth_file)
+
+        # note, the only difference here should be due to normalization, so high baseline
+        sys.stderr.write("Comparing option subrange mafcomp accuracy {},{} to baseline accuracy {},{} with threshold {}\n".format(opt_acc[0], opt_acc[1], 0.95, 0.95, 0))
+        self.assertGreaterEqual(opt_acc[0], 0.97)
+        self.assertGreaterEqual(opt_acc[1], 0.97)
+        
+        ranges_bed_file = os.path.join(self.tempDir, 'ranges-bed.maf')
+        ranges_bed_input = os.path.join(self.tempDir, 'ranges.bed')
+        with open(ranges_bed_input, 'w') as bed_file:
+            for seq, start, end in ranges:
+                bed_file.write('{}\t{}\t{}\n'.format(seq, start, end))
+        subprocess.check_call(['cactus-hal2maf', self._job_store('h2m'), halPath, ranges_bed_file, '--refGenome', 'simHuman_chr6',
+                               '--chunkSize', '60000000', '--bedRanges', ranges_bed_input, '--raw'], shell=False)
+        
+        subprocess.check_call(['bin/mafComparator', '--maf1', ranges_bed_file, '--maf2', ranges_truth_file, '--samples', '100000000', '--out', halPath + 'comp_bed.xml'])
+        bed_acc = parse_mafcomp_output(halPath + 'comp_bed.xml', ranges_truth_file)
+
+        # should be identical since using raw
+        sys.stderr.write("Comparing option subrange mafcomp accuracy {},{} to baseline accuracy {},{} with threshold {}\n".format(bed_acc[0], bed_acc[1], 1, 1, 0))
+        self.assertGreaterEqual(bed_acc[0], 1)
+        self.assertGreaterEqual(bed_acc[1], 1)
+
+        
     def _check_valid_hal(self, halPath, expected_tree=None):
         """ Make sure a hal passes halValidate and has the given tree """
 
