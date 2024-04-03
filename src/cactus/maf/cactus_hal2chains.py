@@ -380,8 +380,10 @@ def chain2bigchain(job, options, query_genome, target_genome, target_info, chain
 
     # Create the bigChain file from your input chain file using a combination of sed, awk and the bedToBigBed utility:
     bigchain_path = os.path.join(work_dir, target_genome + '_vs_' + query_genome + '.bigChain')
+    # Note we cap the score to avoid "integer overflowed, limit=4294967295 in field 12.." error in bedToBigBed
+    # but it seems suspicious to have to do this...
     cactus_call(parameters=[['sed', 's/\\.000000//', 'chain.tab'],
-                            ['awk', 'BEGIN {OFS=\"\\t\"} {print $2, $4, $5, $11, 1000, $8, $3, $6, $7, $9, $10, $1}']],
+                            ['awk', 'BEGIN {OFS=\"\\t\"} {print $2, $4, $5, $11, 1000, $8, $3, $6, $7, $9, $10, ($1 < 4294967295 ? $1 : 4294967295)}']],
                 outfile=bigchain_path)
 
     bigchain_bb_path = bigchain_path + '.bb'
