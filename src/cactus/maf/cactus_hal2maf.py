@@ -321,9 +321,17 @@ def hal2maf_ranges(job, hal_id, bed_id, options):
     # todo: if we want to support fusing, then probably need to make sure normalization respects boundaries
     chunks = []
     for seq, start, end in raw_intervals:
-        num_chunks = max(1, int((end - start) / options.chunkSize + 0.5))
+        num_chunks = max(1, int((end - start) / options.chunkSize))
+        last_chunk_size = int(end - start) - (num_chunks - 1) * options.chunkSize
+        # avoid huge chunks
+        if last_chunk_size > options.chunkSize * 1.5 and num_chunks:
+            num_chunks += 1
+            last_chunk_size = int(end - start) - (num_chunks - 1) * options.chunkSize
         for i in range(num_chunks):
-            chunks.append((seq, start + i * options.chunkSize, min(end, start + (i+1) * options.chunkSize)))
+            chunk_size = options.chunkSize if i < num_chunks - 1 else last_chunk_size
+            chunk_start = start + i * options.chunkSize
+            chunk_end = chunk_start + chunk_size
+            chunks.append((seq, chunk_start, chunk_end))
     assert chunks
 
     # get list of genomes sorted by their distance to reference in pre-order traversal
