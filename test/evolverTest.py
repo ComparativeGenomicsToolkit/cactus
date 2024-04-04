@@ -822,7 +822,7 @@ class TestCase(unittest.TestCase):
                 for seq, start, end in ranges:
                     bed_file.write('{}\t{}\t{}\n'.format(seq, start, end))
             subprocess.check_call(['cactus-hal2maf', self._job_store('h2m'), halPath, ranges_bed_file, '--refGenome', 'simHuman_chr6',
-                                   '--chunkSize', '60000000', '--bedRanges', ranges_bed_input, '--raw'], shell=False)
+                                   '--chunkSize', '699', '--bedRanges', ranges_bed_input, '--raw'], shell=False)
 
             subprocess.check_call(['bin/mafComparator', '--maf1', ranges_bed_file, '--maf2', ranges_truth_file, '--samples', '100000000', '--out', halPath + 'comp_bed.xml'])
             bed_acc = parse_mafcomp_output(halPath + 'comp_bed.xml', ranges_truth_file)
