@@ -1,3 +1,16 @@
+# Release 2.8.1 2024-04-04
+
+This release patches some major recent bugs, including a major bug introduced in `cactus-hal2maf` in v2.7.2 that could produce negative-stranded (and out of order) reference rows. 
+
+- Do not apply RED masker to contigs that are likely to crash it (tiny contigs and extremely low information contigs)
+- Add `--coverage` option to `cactus-hal2maf` to include table of coverage statistics in the output
+- Fix bug where `:start-end` contig suffixes caused the pangenome pipeline to crash.  They are now correctly handled as subranges
+- Turn off `abPOA` seeding by default, after finding (what must be a fairly rare) case where it doesn't work.
+- Improve `cactus-hal2chains` interface
+- Add range support to `cactus-hal2maf` via `--start/--length` or `--bedRanges`
+- Deprecate `cactus-maf2bigmaf --chromSizes` (use `--halFile` instead, as it handles "."s in genome names properly)
+- Fix bug where reference row could be lost in `cactus-hal2maf` MAF due to sorting error. 
+
 # Release 2.8.0 2024-03-13
 
 This release significantly changes the preprocessor step of Progressive Cactus in order to be more robust and efficient in the presence of unmasked repeats, something that seems more prevalent with newer, T2T assemblies. 
