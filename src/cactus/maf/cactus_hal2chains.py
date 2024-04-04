@@ -172,7 +172,7 @@ def hal2chains_get_genomes(job, config, options, hal_id):
     leaf_genomes = []
     anc_genomes = []
     for node in mc_tree.preOrderTraversal():
-        if node == graph_event:
+        if mc_tree.getName(node) == graph_event:
             continue
         if mc_tree.isLeaf(node):
             leaf_genomes.append(mc_tree.getName(node))
