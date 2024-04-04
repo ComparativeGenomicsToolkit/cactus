@@ -114,7 +114,7 @@ def cactus_override_toil_options(options):
 
 def cactus_clamp_memory(memory_bytes):
     """ use the environment variables from --maxMemory and --defaultMemory to clamp a given memory value """
-    return max(min(int(os.environ['CACTUS_MAX_MEMORY']), memory_bytes), int(os.environ['CACTUS_DEFAULT_MEMORY']))
+    return max(min(int(os.environ['CACTUS_MAX_MEMORY']), int(memory_bytes)), int(os.environ['CACTUS_DEFAULT_MEMORY']))
 
 def makeURL(path_or_url):
     if urlparse(path_or_url).scheme == '':
