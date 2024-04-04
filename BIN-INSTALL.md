@@ -23,12 +23,12 @@ python3 -m pip install -U -r ./toil-requirement.txt
 ```
 
 Some tools required for `hal2assemblyHub.py`, `cactus-hal2chains` and `cactus-maf2bigmaf` are not included and must be downloaded separately.
-They are `wigToBigWig faToTwoBit bedToBigBed bigBedToBed axtChain pslPosTarget bedSort hgGcPercent mafToBigMaf hgLoadMafSummary`.  More information
+They are `wigToBigWig faToTwoBit bedToBigBed bigBedToBed axtChain pslPosTarget bedSort hgGcPercent mafToBigMaf hgLoadMafSummary hgLoadChain`.  More information
 can be found [here](https://hgdownload.cse.ucsc.edu/admin/exe/).  Note that some may require
 a license for commercial use.  Static binaries are not available, but the following command
 should set them up successfully on many 64 bit Linux systems:
 ```
-cd bin && for i in wigToBigWig faToTwoBit bedToBigBed bigBedToBed axtChain pslPosTarget bedSort hgGcPercent mafToBigMaf hgLoadMafSummary; do wget -q http://hgdownload.cse.ucsc.edu/admin/exe/linux.x86_64/${i}; chmod +x ${i}; done
+cd bin && for i in wigToBigWig faToTwoBit bedToBigBed bigBedToBed axtChain pslPosTarget bedSort hgGcPercent mafToBigMaf hgLoadMafSummary hgLoadChain; do wget -q http://hgdownload.cse.ucsc.edu/admin/exe/linux.x86_64/${i}; chmod +x ${i}; done
 ```
 
 ## Testing
