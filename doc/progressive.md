@@ -243,7 +243,7 @@ cactus-maf2bigmaf ./js ./evolverMammals.maf.gz ./evolverMammals.bigmaf.bb --refG
 
 This will produce the BigMaf file `evolverMammals.bigmaf.bb` along with the summary file `evolverMammals.bigmaf.summary.bb` which is used by the browser for zoomed out summary display.
 
-The chromosome sizes of the reference genome must be provided as input either directly with `--chromSizes` or via the original hal file via `--halFile`.
+The chromosome sizes of the reference genome must be provided via the original hal file via `--halFile`.
 
 ### Chains
 
