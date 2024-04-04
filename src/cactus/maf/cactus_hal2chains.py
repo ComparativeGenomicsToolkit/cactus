@@ -274,7 +274,7 @@ def hal2chains_all(job, config, options, hal_id, chrom_info_dict, distance_matri
             target_info = chrom_info_dict[target_genome]
             if options.includeSelfAlignments or target_genome != query_genome:
                 chains_job = job.addChildJobFn(hal2chains_genome, config, options, hal_id,
-                                               query_genome, query_info, target_genome,
+                                               query_genome, query_info, target_genome, target_info,
                                                distance_matrix[query_genome][target_genome],
                                                disk=int(hal_id.size * 1.2) + query_info['2bit'].size * 10 + target_info['2bit'].size * 10,
                                                memory=cactus_clamp_memory(query_info['2bit'].size * 10 + target_info['2bit'].size * 10 + hal_mem))
@@ -291,7 +291,7 @@ def hal2chains_all(job, config, options, hal_id, chrom_info_dict, distance_matri
     return output_dict
 
     
-def hal2chains_genome(job, config, options, hal_id, query_genome, query_info, target_genome, distance):
+def hal2chains_genome(job, config, options, hal_id, query_genome, query_info, target_genome, target_info, distance):
     """ convert one genome to chains """
     work_dir = job.fileStore.getLocalTempDir()
     hal_path = os.path.join(work_dir, os.path.basename(options.halFile.replace(' ', '.')))
@@ -303,11 +303,8 @@ def hal2chains_genome(job, config, options, hal_id, query_genome, query_info, ta
     job.fileStore.readGlobalFile(query_info['bed'], bed_path)
     query_2bit_path = os.path.join(work_dir, query_genome + '.2bit')
     job.fileStore.readGlobalFile(query_info['2bit'], query_2bit_path)
-
-    # we need the target sequence for axtChain
-    target_2bit_path = os.path.join(work_dir, target_genome + '.2bit')    
-    cactus_call(parameters=[['hal2fasta', hal_path, target_genome],
-                            ['faToTwoBit', 'stdin', target_2bit_path]])
+    target_2bit_path = os.path.join(work_dir, target_genome + '.2bit')
+    job.fileStore.readGlobalFile(target_info['2bit'], target_2bit_path)
 
     # the output
     query_chain_path = os.path.join(work_dir, target_genome + '_vs_' + query_genome + '.chain.gz')
