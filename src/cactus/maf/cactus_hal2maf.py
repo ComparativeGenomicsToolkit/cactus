@@ -72,7 +72,19 @@ def main():
     parser.add_argument("--refSequence",
                         help="subset to this contig in reference genome (multiple allowed) [default=all]",
                         nargs='+',
-                        default=None)                        
+                        default=None)
+    parser.add_argument("--start",
+                        help="restrict to subrange of --refSequence beginning at this 0-based position (multiple allowed)",
+                        type=int,
+                        nargs='+',
+                        default=None),
+    parser.add_argument("--length",
+                        help="restrict to subrange of --refSequence using this length (multiple allowed)",
+                        type=int,
+                        nargs='+',
+                        default=None),
+    parser.add_argument("--bedRanges",
+                        help="coordinates in BED format of sequence ranges in --refGenome to export")
     parser.add_argument("--rootGenome",
                         help="name of root genome (none if empty)",
                         default=None)
@@ -150,6 +162,17 @@ def main():
         raise RuntimeError('--dupeMode single requires TAF normalization and therefore is incompatible with --raw')
     if options.noAncestors and not options.refGenome:
         raise RuntimeError('(non-ancestral) --refGenome required with --noAncestors')
+    if options.start is not None or options.length is not None:
+        if options.start is None or options.length is None or options.refGenome is None or options.refSequence is None:
+            raise RuntimeError('in order to use --start or --length, all of --start, --length, --refGenome and --refSequence must be specified')
+        if len(options.start) != len(options.length) or len(options.start) != len(options.refSequence):
+            raise RuntimeError('--start and --length must have the same number of values as --refSequence')
+        if options.bedRanges is not None:
+            raise RuntimeError('--start and --length cannot be used with --bedRanges')
+    if options.bedRanges and options.refSequence:
+        raise RuntimeError('--refSequence cannot be used with --bedRanges')
+    if options.bedRanges and not options.bedRanges.endswith('.bed'):
+        raise RuntimeError('file passed to --bedRanges must end with .bed')
 
     if options.dupeMode == 'single':
         options.filterGapCausingDupes = True
@@ -202,10 +225,11 @@ def main():
             configNode = ET.parse(options.configFile).getroot()
             config = ConfigWrapper(configNode)
             config.substituteAllPredefinedConstantsWithLiterals(options)
-            
+
+            bed_id = toil.importFile(options.bedRanges) if options.bedRanges else None
             logger.info("Importing {}".format(options.halFile))
             hal_id = toil.importFile(options.halFile)
-            maf_id = toil.start(Job.wrapJobFn(hal2maf_workflow, hal_id, options, config))
+            maf_id = toil.start(Job.wrapJobFn(hal2maf_workflow, hal_id, bed_id, options, config))
         
     end_time = timeit.default_timer()
     run_time = end_time - start_time
@@ -215,9 +239,9 @@ def export_file(job, file_id, out_path):
     """ run toil export in its own job in order to a) do it right away but b) in a separate job (in case it fails) """
     job.fileStore.exportFile(file_id, makeURL(out_path))
     
-def hal2maf_workflow(job, hal_id, options, config):
+def hal2maf_workflow(job, hal_id, bed_id, options, config):
 
-    hal2maf_ranges_job = job.addChildJobFn(hal2maf_ranges, hal_id, options, cores=1, disk=hal_id.size)
+    hal2maf_ranges_job = job.addChildJobFn(hal2maf_ranges, hal_id, bed_id, options, cores=1, disk=hal_id.size)
     chunks, genome_list = hal2maf_ranges_job.rv(0), hal2maf_ranges_job.rv(1)
     hal2maf_all_job = hal2maf_ranges_job.addFollowOnJobFn(hal2maf_all, hal_id, chunks, genome_list, options, config)
     hal2maf_merge_job = hal2maf_all_job.addFollowOnJobFn(hal2maf_merge, hal2maf_all_job.rv(), options, disk=hal_id.size)
@@ -235,12 +259,15 @@ def hal2maf_workflow(job, hal_id, options, config):
         coverage_job.addFollowOnJobFn(export_file, coverage_job.rv(), options.outputMAF + '.cov.tsv')
         
 
-def hal2maf_ranges(job, hal_id, options):
+def hal2maf_ranges(job, hal_id, bed_id, options):
     """ get the ranges (in reference *sequence* coordinates) for each hal2maf job """
     work_dir = job.fileStore.getLocalTempDir()
     hal_path = os.path.join(work_dir, os.path.basename(options.halFile.replace(' ', '.')))
+    bed_path = os.path.join(work_dir, 'ranges.bed')
     RealtimeLogger.info("Reading HAL file from job store to {}".format(hal_path))    
     job.fileStore.readGlobalFile(hal_id, hal_path)
+    if bed_id:
+        job.fileStore.readGlobalFile(bed_id, bed_path)
     RealtimeLogger.info("Computing range information")
 
     res = cactus_call(parameters=['halStats', hal_path, '--sequenceStats', options.refGenome], check_output=True)
@@ -250,23 +277,61 @@ def hal2maf_ranges(job, hal_id, options):
         if len(tokens) == 4:
             ref_sequence_lengths[tokens[0]] = int(tokens[1])
 
-    if options.refSequence:
-        subset_ref_sequence_lengths = {}
-        for ref_seq in options.refSequence:
-            if ref_seq not in ref_sequence_lengths:
-                raise RuntimeError('--refSequence {} not found in HAL file for genome {}'.format(ref_seq, options.refGenome))
-            subset_ref_sequence_lengths[ref_seq] = ref_sequence_lengths[ref_seq]
-        ref_sequence_lengths = subset_ref_sequence_lengths
+    # upstream error handling should make sure that start/length, if specified, are 1:1 for refsequences
+    if options.start:
+        assert options.refSequence and options.length and len(options.start) == len(options.refSequence)
+    if options.length:
+        assert options.start and len(options.length) == len(options.start)
 
+    # collect the ranges to convert, which can be specified using various options
+    raw_intervals = []
+    if options.start:
+        # from --refSequence --start --length
+        for seq, start, length in zip(options.refSequence, options.start, options.length):
+            raw_intervals.append((seq, start, start + length))
+    elif options.bedRanges:
+        # from BED file with --bedRanges
+        with open(bed_path, 'r') as bed_file:
+            for line in bed_file:
+                toks = line.split()
+                if len(toks) >= 3:
+                    raw_intervals.append((toks[0], int(toks[1]), int(toks[2])))
+    else:
+        if options.refSequence:
+            # from --refSequence (but not subrange)
+            for seq in options.refSequence:
+                raw_intervals.append((seq, 0, ref_sequence_lengths[seq] if seq in ref_sequence_lengths else -1))
+        else:
+            # default to everything
+            for seq, length in ref_sequence_lengths.items():
+                raw_intervals.append((seq, 0, length))
+
+    # sanity check the invervals
+    for seq, start, end in raw_intervals:
+        if seq not in ref_sequence_lengths:
+            raise RuntimeError('target reference sequence {} not found in genome {}'.format(seq, options.refGenome))
+        if start < 0:
+            raise RuntimeError('negative start value {} not allowed'.format(start))
+        if end > ref_sequence_lengths[seq]:
+            raise RuntimeError('invalid range start={} end={} exceeds {} sequence length of {}'.format(start, end, seq, ref_sequence_lengths[seq]))
+                                                                                                          
+
+    # chunk the intervals
+    # note this breaks up, but doesn't fuse input chunks
+    # todo: if we want to support fusing, then probably need to make sure normalization respects boundaries
     chunks = []
-    for ref_name in sorted(ref_sequence_lengths.keys()):
-        ref_len = ref_sequence_lengths[ref_name]
-        start = 0
-        while start < ref_len:
-            end = min(start + options.chunkSize, ref_len)
-            chunks.append((ref_name, start, end))
-            start = end
-
+    for seq, start, end in raw_intervals:
+        num_chunks = max(1, int((end - start) / options.chunkSize))
+        last_chunk_size = int(end - start) - (num_chunks - 1) * options.chunkSize
+        # avoid huge chunks
+        if last_chunk_size > options.chunkSize * 1.5 and num_chunks:
+            num_chunks += 1
+            last_chunk_size = int(end - start) - (num_chunks - 1) * options.chunkSize
+        for i in range(num_chunks):
+            chunk_size = options.chunkSize if i < num_chunks - 1 else last_chunk_size
+            chunk_start = start + i * options.chunkSize
+            chunk_end = chunk_start + chunk_size
+            chunks.append((seq, chunk_start, chunk_end))
     assert chunks
 
     # get list of genomes sorted by their distance to reference in pre-order traversal
@@ -355,7 +420,7 @@ def hal2maf_cmd(hal_path, chunk, chunk_num, options, config):
     cmd += '{} 2> {}.h2m.time'.format(time_end, chunk_num)
     # todo: it would be better to filter this out upstream, but shouldn't make any difference here since we're taf normalizing anyway
     cmd += ' | grep -v "^s	{}"'.format(getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "assemblyName", default="_MINIGRAPH_"))
-    if chunk[1] != 0 and options.raw:
+    if chunk_num != 0 and options.raw:
         cmd += ' | grep -v ^#'        
     if options.outputMAF.endswith('.gz'):
         cmd += ' | bgzip'        
@@ -409,7 +474,7 @@ def taf_cmd(hal_path, chunk, chunk_num, genome_list_path, sed_script_paths, opti
     if sed_script_paths:
         #rename back to original names
         cmd += ' | sed -f {}'.format(sed_script_paths[1])
-    if chunk[1] != 0:
+    if chunk_num != 0:
         cmd += ' | grep -v ^#'
     if options.outputMAF.endswith('.gz'):
         cmd += ' | bgzip'        

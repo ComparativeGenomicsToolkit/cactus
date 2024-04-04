@@ -147,9 +147,11 @@ These issues are all at least partially addressed by a new tool, `cactus-hal2maf
 
 **Genome Selection**
 * `--refGenome` (**required**): A genome from the alignment (can be an ancestor) to use as the MAF reference onto which all other alignments are projected. It will be the first row of each MAF block in the output.
-* `--refSequence`: Only process the given chromosome from the reference genome
+* `--refSequence`: Only process the given chromosome(s) from the reference genome
 * `--noAncestors`: Do not included reconstructed ancestors in the output (ex `Anc0` etc)
 * `--targetGenomes`: Only include comma-separated list of genomes specified by this option in the output
+* `--start` / `--length` : Only process the given subrange(s) of the reference sequence(s)
+* `--bedRanges` : Only process the given subranges of reference genome
 
 **Computational Resources**
 * `--chunkSize` (**required**): The size (in bp) of each chunk on the reference to process in parallel. I typically use `500000` for whole-genome alignments.
