@@ -24,6 +24,8 @@ from cactus.shared.common import cactus_call
 from cactus.shared.common import getOptionalAttrib, findRequiredNode
 from cactus.shared.version import cactus_commit
 from cactus.progressive.multiCactusTree import MultiCactusTree
+from cactus.paf.paf import get_distances
+
 from toil.job import Job
 from toil.common import Toil
 from toil.statsAndLogging import logger
@@ -34,6 +36,7 @@ from cactus.shared.common import cactus_clamp_memory
 from toil.lib.humanize import bytes2human
 from sonLib.bioio import getTempDirectory
 from sonLib.nxnewick import NXNewick
+from sonLib.bioio import newickTreeParser
 
 def main():
     parser = ArgumentParser()
@@ -60,6 +63,8 @@ def main():
                         help="set --maxAnchorDistance in halSynteny")
     parser.add_argument("--minBlockSize", type=int,
                         help="set --minBlockSize in halSynteny")
+    parser.add_argument("--linearGapThreshold", type=float, default=1.0,
+                        help="Use axtChain -linearGap=medium if distance (from tree) is less than this value, and -linearGap=loose otherwise [default=0.7]")
 
     parser.add_argument("--inMemory",
                        help="use --inMemory for halLiftover and/or halSynteny",
@@ -141,9 +146,10 @@ def hal2chains_workflow(job, config, options, hal_id):
     job.addChild(root_job)
     check_tools_job = root_job.addChildJobFn(hal2chains_check_tools, options)
     get_genomes_job = check_tools_job.addFollowOnJobFn(hal2chains_get_genomes, config, options, hal_id)
-    leaf_genomes = get_genomes_job.rv()
+    leaf_genomes = get_genomes_job.rv(0)
+    distance_matrix = get_genomes_job.rv(1)
     chrom_info_job = get_genomes_job.addFollowOnJobFn(hal2chains_chrom_info_all, config, options, hal_id, leaf_genomes)
-    hal2chains_all_job = chrom_info_job.addFollowOnJobFn(hal2chains_all, config, options, hal_id, chrom_info_job.rv())
+    hal2chains_all_job = chrom_info_job.addFollowOnJobFn(hal2chains_all, config, options, hal_id, chrom_info_job.rv(), distance_matrix)
     return hal2chains_all_job.rv()
 
 def hal2chains_check_tools(job, options):
@@ -161,7 +167,7 @@ def hal2chains_check_tools(job, options):
         raise RuntimeError('Required tool, {}, not found in PATH. Please download it with wget -q https://hgdownload.soe.ucsc.edu/admin/exe/linux.x86_64/{}'.format(tool, tool))
 
 def hal2chains_get_genomes(job, config, options, hal_id):    
-    """ get the genomes in the hal file"""
+    """ get the genomes in the hal file, return it along with a distance matrix between them"""
     work_dir = job.fileStore.getLocalTempDir()
     hal_path = os.path.join(work_dir, os.path.basename(options.halFile.replace(' ', '.')))
     RealtimeLogger.info("Reading HAL file from job store to {}".format(hal_path))    
@@ -188,8 +194,18 @@ def hal2chains_get_genomes(job, config, options, hal_id):
         for input_genome in options.queryGenomes:
             if input_genome not in leaf_genomes and input_genome not in anc_genomes:
                 raise RuntimeError('Input --queryGenomes {} not found in HAL file'.format(input_genome))
-            
-    return leaf_genomes
+
+    # Distances between all pairs of nodes
+    event_tree = newickTreeParser(tree_str)
+    distances = get_distances(event_tree)
+    distance_matrix = {}
+    for k,v in distances.items():
+        g1,g2 = k[0].iD, k[1].iD
+        if g1 not in distance_matrix:
+            distance_matrix[g1] = {}
+        distance_matrix[g1][g2] = v
+    
+    return leaf_genomes, distance_matrix
     
 def hal2chains_chrom_info(job, config, options, hal_id, genome):
     """ get the BED and 2bit file for the genome from the hal """
@@ -236,7 +252,7 @@ def hal2chains_chrom_info_all(job, config, options, hal_id, genomes):
                                                     disk=int(hal_id.size * 1.2)).rv()
     return chrom_info_dict        
 
-def hal2chains_all(job, config, options, hal_id, chrom_info_dict):    
+def hal2chains_all(job, config, options, hal_id, chrom_info_dict, distance_matrix):    
     """ convert all the genomes in parallel """
 
     # default query / target genome sets to all leaves if they weren't input
@@ -259,6 +275,7 @@ def hal2chains_all(job, config, options, hal_id, chrom_info_dict):
             if options.includeSelfAlignments or target_genome != query_genome:
                 chains_job = job.addChildJobFn(hal2chains_genome, config, options, hal_id,
                                                query_genome, query_info, target_genome,
+                                               distance_matrix[query_genome][target_genome],
                                                disk=int(hal_id.size * 1.2) + query_info['2bit'].size * 10 + target_info['2bit'].size * 10,
                                                memory=cactus_clamp_memory(query_info['2bit'].size * 10 + target_info['2bit'].size * 10 + hal_mem))
                 output_dict[query_genome][target_genome] = {}
@@ -274,7 +291,7 @@ def hal2chains_all(job, config, options, hal_id, chrom_info_dict):
     return output_dict
 
     
-def hal2chains_genome(job, config, options, hal_id, query_genome, query_info, target_genome):
+def hal2chains_genome(job, config, options, hal_id, query_genome, query_info, target_genome, distance):
     """ convert one genome to chains """
     work_dir = job.fileStore.getLocalTempDir()
     hal_path = os.path.join(work_dir, os.path.basename(options.halFile.replace(' ', '.')))
@@ -316,7 +333,9 @@ def hal2chains_genome(job, config, options, hal_id, query_genome, query_info, ta
 
     cmd.append(['pslPosTarget', '/dev/stdin', '/dev/stdout'])
 
-    cmd.append(['axtChain', '-psl', '-verbose=0', '-linearGap=medium', '/dev/stdin', target_2bit_path, query_2bit_path, '/dev/stdout'])
+    gap = 'medium' if distance < options.linearGapThreshold else 'loose'
+    cmd.append(['axtChain', '-psl', '-verbose=0', '-linearGap={}'.format(gap), '/dev/stdin',
+                target_2bit_path, query_2bit_path, '/dev/stdout'])
 
     cmd.append(['gzip'])
 
