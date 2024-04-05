@@ -340,7 +340,7 @@ def hal2chains_genome(job, config, options, hal_id, query_genome, query_info, ta
 
     return job.fileStore.writeGlobalFile(query_chain_path)
 
-# https://genome.ucsc.edu/goldenPath/help/examples/bigChain.as
+# https://raw.githubusercontent.com/ucscGenomeBrowser/kent/cb3cd0e9c5b9006b7d316df7905faa516f880c6b/src/hg/lib/bigChain.as
 bigChain_as = \
 '''table bigChain
 "bigChain pairwise alignment"
@@ -356,7 +356,7 @@ bigChain_as = \
     uint qSize;         "size of query sequence"
     uint qStart;        "start of alignment on query sequence"
     uint qEnd;          "end of alignment on query sequence"
-    uint chainScore;    "score from chain"
+    double chainScore;    "score from chain"
     )
 '''
 
