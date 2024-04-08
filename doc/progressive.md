@@ -147,9 +147,11 @@ These issues are all at least partially addressed by a new tool, `cactus-hal2maf
 
 **Genome Selection**
 * `--refGenome` (**required**): A genome from the alignment (can be an ancestor) to use as the MAF reference onto which all other alignments are projected. It will be the first row of each MAF block in the output.
-* `--refSequence`: Only process the given chromosome from the reference genome
+* `--refSequence`: Only process the given chromosome(s) from the reference genome
 * `--noAncestors`: Do not included reconstructed ancestors in the output (ex `Anc0` etc)
 * `--targetGenomes`: Only include comma-separated list of genomes specified by this option in the output
+* `--start` / `--length` : Only process the given subrange(s) of the reference sequence(s)
+* `--bedRanges` : Only process the given subranges of reference genome
 
 **Computational Resources**
 * `--chunkSize` (**required**): The size (in bp) of each chunk on the reference to process in parallel. I typically use `500000` for whole-genome alignments.
@@ -241,7 +243,7 @@ cactus-maf2bigmaf ./js ./evolverMammals.maf.gz ./evolverMammals.bigmaf.bb --refG
 
 This will produce the BigMaf file `evolverMammals.bigmaf.bb` along with the summary file `evolverMammals.bigmaf.summary.bb` which is used by the browser for zoomed out summary display.
 
-The chromosome sizes of the reference genome must be provided as input either directly with `--chromSizes` or via the original hal file via `--halFile`.
+The chromosome sizes of the reference genome must be provided via the original hal file via `--halFile`.
 
 ### Chains
 
@@ -277,12 +279,12 @@ The Cactus Docker image contains everything you need to run Cactus (python envir
 
 ```
 wget -q https://raw.githubusercontent.com/ComparativeGenomicsToolkit/cactus/master/examples/evolverMammals.txt -O evolverMammals.txt
-docker run -v $(pwd):/data --rm -it quay.io/comparative-genomics-toolkit/cactus:v2.8.0 cactus /data/jobStore /data/evolverMammals.txt /data/evolverMammals.hal
+docker run -v $(pwd):/data --rm -it quay.io/comparative-genomics-toolkit/cactus:v2.8.1 cactus /data/jobStore /data/evolverMammals.txt /data/evolverMammals.hal
 ```
 
 Or you can proceed interactively by running
 ```
-docker run -v $(pwd):/data --rm -it quay.io/comparative-genomics-toolkit/cactus:v2.8.0 bash
+docker run -v $(pwd):/data --rm -it quay.io/comparative-genomics-toolkit/cactus:v2.8.1 bash
 cactus /data/jobStore /data/evolverMammals.txt /data/evolverMammals.hal
 
 ```

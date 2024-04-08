@@ -114,7 +114,7 @@ def cactus_override_toil_options(options):
 
 def cactus_clamp_memory(memory_bytes):
     """ use the environment variables from --maxMemory and --defaultMemory to clamp a given memory value """
-    return max(min(int(os.environ['CACTUS_MAX_MEMORY']), memory_bytes), int(os.environ['CACTUS_DEFAULT_MEMORY']))
+    return max(min(int(os.environ['CACTUS_MAX_MEMORY']), int(memory_bytes)), int(os.environ['CACTUS_DEFAULT_MEMORY']))
 
 def makeURL(path_or_url):
     if urlparse(path_or_url).scheme == '':
@@ -318,7 +318,7 @@ def getDockerTag(gpu=False):
         return "latest"    
     else:
         # must be manually kept current with each release        
-        return 'v2.8.0' + ('-gpu' if gpu else '')
+        return 'v2.8.1' + ('-gpu' if gpu else '')
 
 def getDockerImage(gpu=False):
     """Get fully specified Docker image name."""

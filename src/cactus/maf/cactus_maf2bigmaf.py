@@ -43,8 +43,7 @@ def main():
     parser.add_argument("--refGenome", help = "reference genome to get chrom sizes from", required=True)
 
     
-    parser.add_argument("--halFile", help = "HAL file to use to get chrom sizes from. Will also be used to work around dots in genome names")
-    parser.add_argument("--chromSizes", help = "File of chromosome sizes (can be obtained with halStats --chromSizes)")
+    parser.add_argument("--halFile", help = "HAL file to use to get chrom sizes from. Will also be used to work around dots in genome names", required=True)
     
     #Progressive Cactus Options
     parser.add_argument("--configFile", dest="configFile",
@@ -65,8 +64,6 @@ def main():
     set_logging_from_options(options)
     enableDumpStack()
 
-    if bool(options.halFile) == bool(options.chromSizes):
-        raise RuntimeError('Either --chromSizes or --halFile must be used to get the chromosome sizes, not both')
     if not options.outFile.endswith('.bb'):
         raise RuntimeError('output file path must end with .bb')
     
@@ -90,16 +87,12 @@ def main():
             
             logger.info("Importing {}".format(options.mafFile))
             maf_id = toil.importFile(options.mafFile)
-            chrom_sizes_id = None
-            if options.chromSizes:
-                logger.info("Importing {}".format(options.chromSizes))
-                chrom_sizes_id = toil.importFile(options.chromSizes)
             hal_id = None
             if options.halFile:
                 logger.info("Importing {}".format(options.halFile))
                 hal_id = toil.importFile(options.halFile)
                 
-            bigmaf_id_dict = toil.start(Job.wrapJobFn(maf2bigmaf_workflow, config, options, maf_id, chrom_sizes_id, hal_id))
+            bigmaf_id_dict = toil.start(Job.wrapJobFn(maf2bigmaf_workflow, config, options, maf_id, hal_id))
 
         #export the big maf
         out_bm_path = makeURL(options.outFile)
@@ -115,32 +108,28 @@ def main():
     logger.info("cactus-maf2bigmaf has finished after {} seconds".format(run_time))
 
 
-def maf2bigmaf_workflow(job, config, options, maf_id, chrom_sizes_id, hal_id):
+def maf2bigmaf_workflow(job, config, options, maf_id, hal_id):
     root_job = Job()
     job.addChild(root_job)
     check_tools_job = root_job.addChildJobFn(maf2bigmaf_check_tools)
     genomes_list = None
-    if not chrom_sizes_id:
-        chrom_sizes_job = check_tools_job.addFollowOnJobFn(maf2bigmaf_chrom_sizes, options, hal_id,
-                                                           disk=hal_id.size)
-        prev_job = chrom_sizes_job
-        chrom_sizes_id = chrom_sizes_job.rv(0)
-        genomes_list = chrom_sizes_job.rv(1)
-    else:
-        prev_job = check_tools_job
+    chrom_sizes_job = check_tools_job.addFollowOnJobFn(maf2bigmaf_chrom_sizes, options, hal_id,
+                                                       disk=hal_id.size)
+    chrom_sizes_id = chrom_sizes_job.rv(0)
+    genomes_list = chrom_sizes_job.rv(1)
     if options.mafFile.endswith('.gz'):
         disk_mult = 7
         mem_mult = 1.1
     else:
         disk_mult = 3
         mem_mult - 0.3
-    bigmaf_job = prev_job.addFollowOnJobFn(maf2bigmaf, maf_id, chrom_sizes_id, genomes_list, options,
-                                           disk=disk_mult * maf_id.size,
-                                           memory=cactus_clamp_memory(maf_id.size / 20))
-    bigmaf_summary_job = prev_job.addFollowOnJobFn(maf2bigmaf_summary, maf_id, chrom_sizes_id, genomes_list, options,
-                                                   disk=disk_mult * maf_id.size,
-                                                   memory=cactus_clamp_memory(maf_id.size * mem_mult))
-
+    bigmaf_job = chrom_sizes_job.addFollowOnJobFn(maf2bigmaf, maf_id, chrom_sizes_id, genomes_list, options,
+                                                  disk=disk_mult * maf_id.size,
+                                                  memory=cactus_clamp_memory(maf_id.size / 20))
+    bigmaf_summary_job = chrom_sizes_job.addFollowOnJobFn(maf2bigmaf_summary, maf_id, chrom_sizes_id, genomes_list, options,
+                                                          disk=disk_mult * maf_id.size,
+                                                          memory=cactus_clamp_memory(maf_id.size * mem_mult))
+    
     return { 'bb' : bigmaf_job.rv(),  'summary.bb' : bigmaf_summary_job.rv() }
 
 def maf2bigmaf_check_tools(job):
