@@ -255,7 +255,7 @@ def hal2maf_workflow(job, hal_id, bed_id, options, config):
 
     if options.coverage:
         coverage_job = hal2maf_merge_job.addFollowOnJobFn(taffy_coverage, maf_id, genome_list, options, disk=hal_id.size,
-                                                          memory=cactus_clamp_memory(hal_id.size / 25))
+                                                          memory=cactus_clamp_memory(hal_id.size / 8))
         coverage_job.addFollowOnJobFn(export_file, coverage_job.rv(), options.outputMAF + '.cov.tsv')
         
 
