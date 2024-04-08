@@ -22,6 +22,7 @@ from cactus.shared.common import enableDumpStack
 from cactus.shared.common import cactus_override_toil_options
 from cactus.shared.common import cactus_call
 from cactus.shared.common import getOptionalAttrib, findRequiredNode
+from cactus.shared.common import cactus_clamp_memory
 from cactus.shared.version import cactus_commit
 from toil.job import Job
 from toil.common import Toil
@@ -129,14 +130,16 @@ def maf2bigmaf_workflow(job, config, options, maf_id, chrom_sizes_id, hal_id):
         prev_job = check_tools_job
     if options.mafFile.endswith('.gz'):
         disk_mult = 7
+        mem_mult = 1.1
     else:
         disk_mult = 3
+        mem_mult - 0.3
     bigmaf_job = prev_job.addFollowOnJobFn(maf2bigmaf, maf_id, chrom_sizes_id, genomes_list, options,
                                            disk=disk_mult * maf_id.size,
-                                           memory=min(2**32, max(maf_id.size, 2**36)))
+                                           memory=cactus_clamp_memory(maf_id.size / 20))
     bigmaf_summary_job = prev_job.addFollowOnJobFn(maf2bigmaf_summary, maf_id, chrom_sizes_id, genomes_list, options,
-                                                   disk=2 * maf_id.size,
-                                                   memory=min(2**32, max(maf_id.size, 2**36)))
+                                                   disk=disk_mult * maf_id.size,
+                                                   memory=cactus_clamp_memory(maf_id.size * mem_mult))
 
     return { 'bb' : bigmaf_job.rv(),  'summary.bb' : bigmaf_summary_job.rv() }
 
