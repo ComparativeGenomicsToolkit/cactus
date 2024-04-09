@@ -164,7 +164,7 @@ evolver_test_decomposed_docker: all ${CWD}/test/mammals-truth.maf
 	PYTHONPATH="${CWD}/submodules/" CACTUS_DOCKER_ORG=evolvertestdocker CACTUS_USE_LATEST=1 ${PYTHON} -m pytest ${pytestOpts} -s test/evolverTest.py::TestCase::testEvolverDecomposedDocker
 
 evolver_test_docker: all ${CWD}/test/mammals-truth.maf
-	PYTHONPATH="${CWD}/submodules/" CACTUS_BINARIES_MODE=local CACTUS_DOCKER_MODE=0 ${PYTHON} -m pytest ${pytestOpts} -s test/evolverTest.py::TestCase::testEvolverDocker
+	PYTHONPATH="${CWD}/submodules/" CACTUS_BINARIES_MODE=local ${PYTHON} -m pytest ${pytestOpts} -s test/evolverTest.py::TestCase::testEvolverDocker
 
 evolver_test_prepare_no_outgroup_docker: all ${CWD}/test/mammals-truth.maf
 #note make docker needs to be run beforehand
