@@ -444,7 +444,7 @@ def taf_cmd(hal_path, chunk, chunk_num, genome_list_path, sed_script_paths, opti
     if genome_list_path:
         # note, using mafRowOrderer instead of taffy sort because latter does not keep reference row
         # (also, using taffy in this spot requires roundtrip maf-taf-maf tho that can be refactored away)
-        cmd += ' | {} mafRowOrderer -m - --order-file {}{} 2> {}.sort.time'.format(time_cmd, genome_list_path, time_end, chunk_num)
+        cmd += ' | {} mafRowOrderer -m - --order-file {}{} 2> {}.sort.time'.format(time_cmd, os.path.basename(genome_list_path), time_end, chunk_num)
     if sed_script_paths:
         # rename to original, since it needs to be compatible with hal in next step
         cmd += ' | sed -f {}'.format(os.path.basename(sed_script_paths[1]))
@@ -472,10 +472,10 @@ def taf_cmd(hal_path, chunk, chunk_num, genome_list_path, sed_script_paths, opti
         cmd += ' | maf_stream merge_dups consensus'
         # need to resort after merge_dups
         if genome_list_path:
-            cmd += ' | mafRowOrderer -m - --order-file {}'.format(genome_list_path)
+            cmd += ' | mafRowOrderer -m - --order-file {}'.format(os.path.basename(genome_list_path))
     if sed_script_paths:
         #rename back to original names
-        cmd += ' | sed -f {}'.format(sed_script_paths[1])
+        cmd += ' | sed -f {}'.format(os.path.basename(sed_script_paths[1]))
     if chunk_num != 0:
         cmd += ' | grep -v ^#'
     if options.outputMAF.endswith('.gz'):
