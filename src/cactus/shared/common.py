@@ -79,6 +79,8 @@ def cactus_override_toil_options(options):
         options.disableCaching = True
         # and now with Toil 6's interface
         options.caching = False
+        # usually better to have this than not
+        options.doubleMem = True
 
     if 'CACTUS_INSIDE_CONTAINER' in os.environ and str(os.environ['CACTUS_INSIDE_CONTAINER']) == '1':
         # some people get confused when trying to use their cluster from inside the cactus
