@@ -735,7 +735,7 @@ class TestCase(unittest.TestCase):
                 self.assertGreaterEqual(int(oval[i]), int(val[i]) - delta)
                 self.assertLessEqual(int(oval[i]), int(val[i]) + delta)
 
-    def _check_maf_accuracy(self, halPath, delta, dataset="mammals"):
+    def _check_maf_accuracy(self, halPath, delta, dataset="mammals", binariesMode="local"):
         """ Compare mafComparator output of evolver mammals to baseline
         """
         assert dataset in ('mammals', 'primates')
@@ -746,16 +746,16 @@ class TestCase(unittest.TestCase):
 
         # run mafComparator on the evolver output
         subprocess.check_call(['cactus-hal2maf', self._job_store('h2m'), halPath,  halPath + '.maf', '--chunkSize', '10000', '--batchCount', '2',
-                               '--refGenome', 'Anc0', '--index'], shell=False)
+                               '--refGenome', 'Anc0', '--index', '--binariesMode', binariesMode], shell=False)
         self.assertGreaterEqual(os.path.getsize(halPath + '.maf.tai'), 50)        
 
         # run it with --dupeMode consensus just to make sure it doesn't crash
         subprocess.check_call(['cactus-hal2maf', self._job_store('h2m'), halPath,  halPath + '.consensus.maf.gz', '--chunkSize', '10000', '--batchCount', '2',
-                               '--refGenome', 'Anc0', '--dupeMode', 'consensus'], shell=False)
+                               '--refGenome', 'Anc0', '--dupeMode', 'consensus', '--binariesMode', binariesMode], shell=False)
 
         # run it with --coverage just to make sure it doesn't crash
         subprocess.check_call(['cactus-hal2maf', self._job_store('h2m'), halPath,  halPath + '.taftest.taf.gz', '--chunkSize', '10000', '--batchCount', '2',
-                               '--refGenome', 'Anc0', '--coverage'], shell=False)
+                               '--refGenome', 'Anc0', '--coverage', '--binariesMode', binariesMode], shell=False)
         self.assertGreaterEqual(os.path.getsize(halPath + '.taftest.taf.gz'), 5000)
         self.assertGreaterEqual(os.path.getsize(halPath + '.taftest.taf.gz.cov.tsv'), 50)        
 
@@ -802,7 +802,8 @@ class TestCase(unittest.TestCase):
                 subprocess.check_call(cmd, shell=False)
 
             ranges_opt_file = os.path.join(self.tempDir, 'ranges-opt.maf')
-            cmd = ['cactus-hal2maf', self._job_store('h2m'), halPath, ranges_opt_file, '--refGenome', 'simHuman_chr6', '--chunkSize', '500']
+            cmd = ['cactus-hal2maf', self._job_store('h2m'), halPath, ranges_opt_file, '--refGenome', 'simHuman_chr6', '--chunkSize', '500',
+                   '--binariesMode', binariesMode]
             cmd += ['--refSequence'] + [r[0] for r in ranges]
             cmd += ['--start'] + [str(r[1]) for r in ranges]
             cmd += ['--length'] + [str(r[2] - r[1]) for r in ranges]
@@ -822,7 +823,7 @@ class TestCase(unittest.TestCase):
                 for seq, start, end in ranges:
                     bed_file.write('{}\t{}\t{}\n'.format(seq, start, end))
             subprocess.check_call(['cactus-hal2maf', self._job_store('h2m'), halPath, ranges_bed_file, '--refGenome', 'simHuman_chr6',
-                                   '--chunkSize', '699', '--bedRanges', ranges_bed_input, '--raw'], shell=False)
+                                   '--chunkSize', '699', '--bedRanges', ranges_bed_input, '--raw', '--binariesMode', binariesMode], shell=False)
 
             subprocess.check_call(['bin/mafComparator', '--maf1', ranges_bed_file, '--maf2', ranges_truth_file, '--samples', '100000000', '--out', halPath + 'comp_bed.xml'])
             bed_acc = parse_mafcomp_output(halPath + 'comp_bed.xml', ranges_truth_file)
@@ -936,7 +937,7 @@ class TestCase(unittest.TestCase):
         # check the output
         #self._check_stats(self._out_hal("docker"), delta_pct=0.25)
         #self._check_coverage(self._out_hal("docker"), delta_pct=0.20)
-        self._check_maf_accuracy(self._out_hal("docker"), delta=(0.05,0.13))
+        self._check_maf_accuracy(self._out_hal("docker"), delta=(0.05,0.13), binariesMode="docker")
 
     def testEvolverInDocker(self):
         """ Check that the output of halStats on a hal file produced by running cactus in docker
