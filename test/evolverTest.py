@@ -422,15 +422,22 @@ class TestCase(unittest.TestCase):
         # todo: it'd be nice to have an interface for setting tag to something not latest or commit
         if binariesMode == 'docker':
             cactus_opts += ['--latest']
+            # tack on a vcfwave test for docker binaries
+            cactus_opts += ['--vcf', '--vcfReference', 'simChimp', '--clip', '1000', '--vcfwave']
 
         out_dir = os.path.dirname(self._out_hal(binariesMode))
         out_name = os.path.splitext(os.path.basename(self._out_hal(binariesMode)))[0]
-        cactus_pangenome_cmd = ['cactus-pangenome', self._job_store(binariesMode), seq_file_path, '--reference', 'simHuman',
+        cactus_pangenome_cmd = ['cactus-pangenome', self._job_store(binariesMode), seq_file_path, '--reference', 'simHuman', 'simChimp',
                                 '--outDir', out_dir, '--outName', out_name, '--noSplit']
 
         subprocess.check_call(cactus_pangenome_cmd + cactus_opts)
         # cactus-pangenome tacks on the .full to the output name
         subprocess.check_call(['mv', os.path.join(out_dir, out_name + '.full.hal'), os.path.join(out_dir, out_name + '.hal')])
+
+        # make sure it made output
+        wave_vcf_bytes = os.path.getsize(os.path.join(out_dir, out_name + '.simChimp.wave.vcf.gz'))
+        self.assertGreaterEqual(wave_vcf_bytes, 500000)
+
 
     def _run_yeast_pangenome_step_by_step(self, binariesMode):
         """ yeast pangenome chromosome by chromosome pipeline
@@ -1025,6 +1032,18 @@ class TestCase(unittest.TestCase):
         # check the output
         # todo: tune config so that delta can be reduced
         self._check_maf_accuracy(self._out_hal("local"), delta=(0.025,0.025), dataset='primates')
+
+    def testEvolverPrimatesPangenomeDocker(self):
+        """ Evolver (star) primates but using the (much much) newer cactus-pangenome interface
+        with docker binaries
+        """
+        name = "docker"
+        self._run_evolver_primates_pangenome(name)
+
+        # check the output
+        # todo: tune config so that delta can be reduced
+        self._check_maf_accuracy(self._out_hal("docker"), delta=(0.025,0.025), dataset='primates')
+
 
     def testYeastPangenomeStepByStepLocal(self):
         """ Run pangenome pipeline (including contig splitting!) on yeast dataset step by step"""

@@ -216,7 +216,13 @@ Note that by default, only GFA is output, so the above options need to be used t
 
 Different clipping and filtering thresholds can be specified using the `--clip` and `--filter` options, respectively. For larger graphs, you probably want to use `--filter N` where `N` represents about 10% of the haplotypes.  It is indeed a shame to remove rarer variants before mapping, but is a necessity to get the best performance out of (the current version) of `vg giraffe`.  
 
+### VCF Normalization
+
 The `--vcf` option will produce two VCFs for each selected graph type. One VCF is a "raw" VCF which contains nested variants, indicated by the `LV` and `PS` tags. The second VCF is one that has gone through [vcfbub](https://github.com/pangenome/vcfbub) to remove nested sites, as well as those greater than 100kb.  Unless you want to explicitly handle nested variants, you are probably best to use the `vcfbub` VCF.  Switch off `vcfbub` with `--vcfbub 0` or specify a different threshold with `--vcfbub N`.
+
+By default (since version v2.8.2), all non-raw VCF output is normalized with `bcftools norm -f` which left-aligns and normalizes indels.  You can turn this off in the config XML by setting `bcftoolsNorm` to `"0"`.
+
+Also new in v2.8.2, you can use the `--vcfwave` option to create a version of the VCF(s) that has been normalized with [vcfwave](https://github.com/vcflib/vcflib/blob/master/doc/vcfwave.md). `vcfwave` can take a while to run on larger graphs, but it can do a good job of smoothing out small variants in complex regions. `vcfwave` is included in the Cactus docker images but **not** the the Cactus binary release. So you must either run Cactus from inside Docker, or run outside docker with the `--binariesMode docker` option. If you cannot run docker and still want to use `--vcfwave`, you must [build it yourself](https://github.com/vcflib/vcflib) and make sure its on your `PATH` before running cactus.
 
 ### Haplotype Sampling Instead of Filtering (NEW)
 

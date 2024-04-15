@@ -119,6 +119,25 @@ else
 	 exit 1
 fi
 
+#bcftools
+cd ${pangenomeBuildDir}
+wget -q https://github.com/samtools/bcftools/releases/download/1.19/bcftools-1.19.tar.bz2
+tar -xf bcftools-1.19.tar.bz2
+cd bcftools-1.19
+SAMTOOLS_CONFIG_OPTS=""
+if [[ $STATIC_CHECK -eq 1 ]]
+then
+	 SAMTOOLS_CONFIG_OPTS="--disable-bcftools-plugins"
+fi
+./configure $SAMTOOLS_CONFIG_OPTS
+make -j ${numcpu}
+if [[ $STATIC_CHECK -ne 1 || $(ldd bcftools | grep so | wc -l) -eq 0 ]]
+then
+	 mv bcftools ${binDir}
+else
+	 exit 1
+fi
+
 #bedtools
 cd ${pangenomeBuildDir}
 wget -q https://github.com/arq5x/bedtools2/releases/download/v2.30.0/bedtools.static.binary
@@ -339,8 +358,25 @@ else
     exit 1
 fi
 
+# vcfwave
+cd ${pangenomeBuildDir}
+# todo: it's be nice to figure out a static build. for now we skip entirely if static enabled.
+if [[ $STATIC_CHECK -ne 1 ]]
+then
+    git clone https://github.com/vcflib/vcflib.git
+    cd vcflib
+    git checkout 0a05bece60b9fce5ed6ffe02a06f596ee8054adb
+    git submodule update --init --recursive
+    mkdir build
+    cd build
+    cmake -DCMAKE_BUILD_TYPE=Release -DZIG=OFF ..
+    make -j ${numcpu}
+    mv vcfwave vcfcreatemulti vcfbreakmulti ${binDir}
+fi
+    
 cd ${CWD}
 rm -rf ${pangenomeBuildDir}
+
 
 set +x
 echo ""

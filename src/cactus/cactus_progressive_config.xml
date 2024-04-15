@@ -391,6 +391,8 @@
 	<!-- odgiDrawOptions: options to odgi draw, used for 2d viz -->
 	<!-- rindexOptions: options to vg gbwt -r (r-index construction) as used to make haplotype sampling index -->
 	<!-- haplOptions: options to vg haplotypes as used to make haplotype sampling index -->
+	<!-- vcfwaveOptions: options to pass to vcfwave (from vcflib)-->
+	<!-- bcftoolsNorm: Run bcftools norm -f (left shifting) on all non-raw VCF output -->
 	<graphmap_join
 		 gfaffix="1"
 		 clipNonMinigraph="1"		 
@@ -403,6 +405,8 @@
 		 odgiDrawOptions="-H 1000"
 		 rindexOptions="-p"
 		 haplOptions="-v 2"
+		 vcfwaveOptions="-I 1000"
+		 bcftoolsNorm="1"
 		 />
 	<!-- hal2vg options -->
 	<!-- includeMinigraph: include minigraph node sequences as paths in output (note that cactus-graphmap-join will still remove them by default) -->
