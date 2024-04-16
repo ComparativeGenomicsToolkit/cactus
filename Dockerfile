@@ -73,7 +73,7 @@ RUN mkdir /home/cactus && mkdir /home/cactus/lib
 COPY --from=builder /home/cactus/cactus_env /home/cactus/cactus_env
 COPY --from=builder /home/cactus/hal_lib/hal /home/cactus/hal
 COPY --from=builder /home/cactus/bin /home/cactus/bin
-COPY --from=builder /home/cactus/bin/*.so* /home/cactus/lib
+COPY --from=builder /home/cactus/lib/*.so* /home/cactus/lib
 
 # update the environment
 ENV PATH="/home/cactus/cactus_env/bin:/home/cactus/bin:$PATH"
