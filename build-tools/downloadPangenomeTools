@@ -371,8 +371,8 @@ then
     cd build
     cmake -DZIG=OFF -DCMAKE_BUILD_TYPE=Debug ..
     cmake --build . -- -j ${numcpu}
-    mv vcfwave vcfcreatemulti vcfbreakmulti ${binDir}
-    mv libwfa2.so.0 ${libDir}
+    mv vcfwave vcfcreatemulti vcfbreakmulti vcfuniq ${binDir}
+    mv ./contrib/WFA2-lib/libwfa2.so.0 ${libDir}
 fi
     
 cd ${CWD}
