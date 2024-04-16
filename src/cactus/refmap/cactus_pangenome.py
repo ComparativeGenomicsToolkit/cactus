@@ -336,7 +336,7 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
 
     # cactus_graphmap
     paf_path = os.path.join(options.outDir, options.outName + '.paf')
-    gfa_fa_path = os.path.join(options.outDir, options.outName + '.gfa.fa.gz')
+    gfa_fa_path = os.path.join(options.outDir, options.outName + '.sv.gfa.fa.gz')
     options.minigraphGFA = sv_gfa_path
     options.outputFasta = gfa_fa_path
     graph_event = getOptionalAttrib(findRequiredNode(config_node, "graphmap"), "assemblyName", default="_MINIGRAPH_")
