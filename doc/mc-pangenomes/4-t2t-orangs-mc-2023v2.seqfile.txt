@@ -1,0 +1,5 @@
+mPonAbe1_pri	https://hgdownload.soe.ucsc.edu/hubs/GCA/028/885/655/GCA_028885655.2/GCA_028885655.2.fa.gz
+mPonAbe1_alt	https://hgdownload.soe.ucsc.edu/hubs/GCA/028/885/685/GCA_028885685.2/GCA_028885685.2.fa.gz
+mPonPyg2.1	https://hgdownload.soe.ucsc.edu/hubs/GCA/028/885/625/GCA_028885625.2/GCA_028885625.2.fa.gz
+mPonPyg2.2	https://hgdownload.soe.ucsc.edu/hubs/GCA/028/885/525/GCA_028885525.2/GCA_028885525.2.fa.gz
+
