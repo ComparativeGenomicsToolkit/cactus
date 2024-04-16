@@ -363,14 +363,13 @@ cd ${pangenomeBuildDir}
 # todo: it's be nice to figure out a static build. for now we skip entirely if static enabled.
 if [[ $STATIC_CHECK -ne 1 ]]
 then
-    git clone https://github.com/vcflib/vcflib.git
+    git clone --recursive https://github.com/vcflib/vcflib.git
     cd vcflib
-    git checkout 0a05bece60b9fce5ed6ffe02a06f596ee8054adb
-    git submodule update --init --recursive
+    git checkout 7c1a31a430d339adcb9a0c2fd3fd02d3b30e3549
     mkdir build
     cd build
-    cmake -DCMAKE_BUILD_TYPE=Release -DZIG=OFF ..
-    make -j ${numcpu}
+    cmake -DZIG=OFF -DCMAKE_BUILD_TYPE=Debug ..
+    cmake --build . -- -j ${numcpu}
     mv vcfwave vcfcreatemulti vcfbreakmulti ${binDir}
 fi
     
