@@ -21,6 +21,7 @@ set -beEu -o pipefail
 
 pangenomeBuildDir=$(realpath -m build-pangenome-tools)
 binDir=$(pwd)/bin
+libDir=$(pwd)/lib
 # just use cactusRootPath for now
 dataDir=$(pwd)/src/cactus
 CWD=$(pwd)
@@ -371,6 +372,7 @@ then
     cmake -DZIG=OFF -DCMAKE_BUILD_TYPE=Debug ..
     cmake --build . -- -j ${numcpu}
     mv vcfwave vcfcreatemulti vcfbreakmulti ${binDir}
+    mv libwfa2.so.0 ${libDir}
 fi
     
 cd ${CWD}

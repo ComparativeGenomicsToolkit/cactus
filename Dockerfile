@@ -69,14 +69,16 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-ins
 RUN bash -c "if ! command -v catchsegv > /dev/null; then apt-get install glibc-tools; fi"
 
 # copy cactus runtime essentials (note: important cactus_env keeps its path)
-RUN mkdir /home/cactus
+RUN mkdir /home/cactus && mkdir /home/cactus/lib
 COPY --from=builder /home/cactus/cactus_env /home/cactus/cactus_env
 COPY --from=builder /home/cactus/hal_lib/hal /home/cactus/hal
 COPY --from=builder /home/cactus/bin /home/cactus/bin
+COPY --from=builder /home/cactus/bin/*.so* /home/cactus/lib
 
 # update the environment
 ENV PATH="/home/cactus/cactus_env/bin:/home/cactus/bin:$PATH"
 ENV PYTHONPATH="/home/cactus"
+ENV LD_LIBRARY_PATH="/home/cactus/lib:$LD_LIBRARY_PATH"
 
 # sanity check to make sure cactus at least runs
 RUN cactus --help
