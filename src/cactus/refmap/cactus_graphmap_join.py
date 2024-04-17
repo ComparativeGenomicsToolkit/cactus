@@ -995,7 +995,9 @@ tabix -fp vcf ${OUTFILE}
 
     wave_opts = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "vcfwaveOptions", typeFn=str, default=None)
     assert wave_opts
-    cactus_call(parameters=[script_path, raw_vcf_path, wave_vcf_path, str(job.cores), str(vcfbub_thresh), wave_opts])
+    cactus_call(parameters=['./' + os.path.basename(script_path),
+                            raw_vcf_path, wave_vcf_path, str(job.cores), str(vcfbub_thresh), wave_opts],
+                work_dir=work_dir)
 
     if getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "bcftoolsNorm", typeFn=bool, default=True):
         fa_ref_path = os.path.join(work_dir, vcf_ref + '.fa.gz')

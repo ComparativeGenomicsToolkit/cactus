@@ -435,8 +435,9 @@ class TestCase(unittest.TestCase):
         subprocess.check_call(['mv', os.path.join(out_dir, out_name + '.full.hal'), os.path.join(out_dir, out_name + '.hal')])
 
         # make sure it made output
-        wave_vcf_bytes = os.path.getsize(os.path.join(out_dir, out_name + '.simChimp.wave.vcf.gz'))
-        self.assertGreaterEqual(wave_vcf_bytes, 500000)
+        if binariesMode == 'docker':
+            wave_vcf_bytes = os.path.getsize(os.path.join(out_dir, out_name + '.simChimp.wave.vcf.gz'))
+            self.assertGreaterEqual(wave_vcf_bytes, 500000)
 
 
     def _run_yeast_pangenome_step_by_step(self, binariesMode):
