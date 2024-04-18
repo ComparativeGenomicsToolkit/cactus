@@ -21,6 +21,7 @@ set -beEu -o pipefail
 
 pangenomeBuildDir=$(realpath -m build-pangenome-tools)
 binDir=$(pwd)/bin
+libDir=$(pwd)/lib
 # just use cactusRootPath for now
 dataDir=$(pwd)/src/cactus
 CWD=$(pwd)
@@ -115,6 +116,25 @@ fi
 if [[ $STATIC_CHECK -ne 1 || $(ldd bgzip | grep so | wc -l) -eq 0 ]]
 then
 	 mv bgzip ${binDir}
+else
+	 exit 1
+fi
+
+#bcftools
+cd ${pangenomeBuildDir}
+wget -q https://github.com/samtools/bcftools/releases/download/1.19/bcftools-1.19.tar.bz2
+tar -xf bcftools-1.19.tar.bz2
+cd bcftools-1.19
+SAMTOOLS_CONFIG_OPTS=""
+if [[ $STATIC_CHECK -eq 1 ]]
+then
+	 SAMTOOLS_CONFIG_OPTS="--disable-bcftools-plugins"
+fi
+./configure $SAMTOOLS_CONFIG_OPTS
+make -j ${numcpu}
+if [[ $STATIC_CHECK -ne 1 || $(ldd bcftools | grep so | wc -l) -eq 0 ]]
+then
+	 mv bcftools ${binDir}
 else
 	 exit 1
 fi
@@ -339,8 +359,25 @@ else
     exit 1
 fi
 
+# vcfwave
+cd ${pangenomeBuildDir}
+# todo: it's be nice to figure out a static build. for now we skip entirely if static enabled.
+if [[ $STATIC_CHECK -ne 1 ]]
+then
+    git clone --recursive https://github.com/vcflib/vcflib.git
+    cd vcflib
+    git checkout 7c1a31a430d339adcb9a0c2fd3fd02d3b30e3549
+    mkdir build
+    cd build
+    cmake -DZIG=OFF -DCMAKE_BUILD_TYPE=Debug ..
+    cmake --build . -- -j ${numcpu}
+    mv vcfwave vcfcreatemulti vcfbreakmulti vcfuniq ${binDir}
+    mv ./contrib/WFA2-lib/libwfa2.so.0 ${libDir}
+fi
+    
 cd ${CWD}
 rm -rf ${pangenomeBuildDir}
+
 
 set +x
 echo ""

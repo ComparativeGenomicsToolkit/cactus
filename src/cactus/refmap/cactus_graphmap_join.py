@@ -131,6 +131,7 @@ def graphmap_join_options(parser):
     parser.add_argument("--vcf", nargs='*', default=None, help = "Generate a VCF from the given graph type(s). Valid types are 'full', 'clip' and 'filter'. If no type specified, 'clip' will be used ('full' used if clipping disabled). Multipe types can be provided separated by space")
     parser.add_argument("--vcfReference", nargs='+', default=None, help = "If multiple references were provided with --reference, this option can be used to specify a subset for vcf creation with --vcf. By default, --vcf will create VCFs for the first reference only")
     parser.add_argument("--vcfbub", type=int, default=100000, help = "Use vcfbub to flatten nested sites (sites with reference alleles > this will be replaced by their children)). Setting to 0 will disable, only prudcing full VCF [default=100000].")
+    parser.add_argument("--vcfwave", action='store_true', default=False, help = "Create a vcfwave-normalized VCF. vcfwave realigns alt alleles to the reference, and can help correct messy regions in the VCF. This option will output an additional VCF with 'wave' in its filename, other VCF outputs will not be affected")
     
     parser.add_argument("--giraffe", nargs='*', default=None, help = "Generate Giraffe (.dist, .min) indexes for the given graph type(s). Valid types are 'full', 'clip' and 'filter'. If not type specified, 'filter' will be used (will fall back to 'clip' than full if filtering, clipping disabled, respectively). Multiple types can be provided seperated by a space")
 
@@ -266,11 +267,14 @@ def graphmap_join_validate_options(options):
         if vcf == 'clip' and not options.clip:
             raise RuntimError('--vcf cannot be set to clip since clipping is disabled')
         if vcf == 'filter' and not options.filter:
-            raise RuntimeError('--vcf cannot be set to filter since filtering is disabled')
+            raise RuntimeError('--vcf cannot be set to filter since filtering is disabled')        
 
     # if someone used --vcfReference they probably want --vcf too
     if options.vcfReference and not options.vcf:
         raise RuntimeError('--vcfReference cannot be used without --vcf')
+
+    if options.vcfwave and not options.vcf:
+        raise RuntimeError('--vcfwave cannot be used without --vcf')
         
     if not options.vcfReference:
         options.vcfReference = [options.reference[0]]
@@ -347,6 +351,11 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
     root_job = Job()
     job.addChild(root_job)
 
+    # vcfwave isn't included in the static binary release, so we start by checking it's available
+    if options.vcfwave and options.vcf:
+        vcfwave_check_job = root_job.addFollowOnJobFn(check_vcfwave)
+        root_job = vcfwave_check_job
+        
     # make sure reference doesn't have a haplotype suffix, as it will have been changed upstream
     ref_base, ref_ext = os.path.splitext(options.reference[0])
     assert len(ref_base) > 0
@@ -473,7 +482,11 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
     max_system_memory = config.getSystemMemory()
     if max_system_memory and index_mem > max_system_memory:
         RealtimeLogger.info("Clamping index memory {} to system limit of {}".format(index_mem, max_system_memory))
-        index_mem = max_system_memory    
+        index_mem = max_system_memory
+
+    # keep track of unclipped reference fastas for bcftools norm
+    need_nonref_fasta = options.vcfReference and any([s != options.reference[0] for s in options.vcfReference])
+    nonref_fasta_job = None
         
     workflow_phases = [('full', full_vg_ids, join_job)]
     if options.clip:
@@ -488,6 +501,8 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
         gfa_ids = []
         current_out_dict = None
         do_gbz = workflow_phase in options.gbz + options.vcf + options.giraffe + options.xg
+        if workflow_phase == 'full' and need_nonref_fasta:
+            do_gbz = True
         if do_gbz or workflow_phase in options.gfa:
             assert len(options.vg) == len(phase_vg_ids) == len(vg_ids)
             for vg_path, vg_id, input_vg_id in zip(options.vg, phase_vg_ids, vg_ids):
@@ -505,6 +520,12 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
             out_dicts.append(gfa_merge_job.rv())
             prev_job = gfa_merge_job
             current_out_dict = gfa_merge_job.rv()
+            if workflow_phase == 'full' and need_nonref_fasta or (workflow_phase in options.vcf and nonref_fasta_job is None):
+                # we need fasta references from the gbz for vcf normalization
+                nonref_fasta_job = gfa_merge_job.addFollowOnJobFn(extract_gbz_fasta, options, current_out_dict,
+                                                                  tag=workflow_phase + '.',
+                                                                  memory=index_mem,
+                                                                  disk=sum(f.size for f in vg_ids) * 2)
 
         # optional xg
         if workflow_phase in options.xg:
@@ -520,13 +541,26 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
             for vcf_ref in options.vcfReference:
                 vcftag = vcf_ref + '.' + workflow_phase if vcf_ref != options.reference[0] else workflow_phase
                 deconstruct_job = prev_job.addFollowOnJobFn(make_vcf, config, options.outName, vcf_ref, current_out_dict,
+                                                            nonref_fasta_job.rv(),
                                                             max_ref_allele=options.vcfbub,
                                                             tag=vcftag + '.', ref_tag = workflow_phase + '.',
                                                             cores=options.indexCores,
                                                             disk = sum(f.size for f in vg_ids) * 6,
                                                             memory=index_mem)
-                out_dicts.append(deconstruct_job.rv())                
-
+                assert nonref_fasta_job is not None
+                nonref_fasta_job.addFollowOn(deconstruct_job)
+                out_dicts.append(deconstruct_job.rv())
+                
+                # optional vcfwave
+                if options.vcfwave:
+                    vcfwave_job = deconstruct_job.addFollowOnJobFn(vcfwave, config, vcf_ref, current_out_dict,
+                                                                   deconstruct_job.rv(), nonref_fasta_job.rv(), options.vcfbub,
+                                                                   tag=vcftag + '.', ref_tag = workflow_phase + '.',
+                                                                   cores=options.indexCores,
+                                                                   disk = sum(f.size for f in vg_ids) * 6,
+                                                                   memory=index_mem)
+                    out_dicts.append(vcfwave_job.rv())
+                    
         # optional giraffe
         if workflow_phase in options.giraffe:
             giraffe_job = gfa_merge_job.addFollowOnJobFn(make_giraffe_indexes, options, config, current_out_dict,
@@ -837,6 +871,25 @@ def make_vg_indexes(job, options, config, gfa_ids, tag="", do_gbz=False):
         out_dict['{}snarls'.format(tag)] =  job.fileStore.writeGlobalFile(snarls_path)
     return out_dict
 
+def extract_gbz_fasta(job, options, index_dict, tag):
+    """ get the reference fasta files from the unclipped gbz so they can be used with bcftools norm
+    """
+    work_dir = job.fileStore.getLocalTempDir()
+    gbz_path = os.path.join(work_dir, tag + os.path.basename(options.outName) + '.gbz')
+    print ("YAN", index_dict)
+    job.fileStore.readGlobalFile(index_dict['{}gbz'.format(tag)], gbz_path)
+
+    out_dict = {}
+    for vcf_ref in options.vcfReference:
+        fa_ref_path = os.path.join(work_dir, vcf_ref + '.fa.gz')            
+        cactus_call(parameters=[['vg', 'paths', '-x', gbz_path, '-S', vcf_ref, '-F'],
+                                ['sed', '-e', 's/{}#.\+#//g'.format(vcf_ref)],
+                                ['bgzip', '--threads', str(job.cores)]],
+                    outfile=fa_ref_path)
+        out_dict[vcf_ref] = job.fileStore.writeGlobalFile(fa_ref_path)
+
+    return out_dict
+
 def make_xg(job, config, out_name, index_dict, tag='', drop_haplotypes=False):
     """ make the xg from the gbz
     """
@@ -853,7 +906,7 @@ def make_xg(job, config, out_name, index_dict, tag='', drop_haplotypes=False):
 
     return { '{}xg'.format(tag) : job.fileStore.writeGlobalFile(xg_path) }
 
-def make_vcf(job, config, out_name, vcf_ref, index_dict, tag='', ref_tag='', max_ref_allele=None):
+def make_vcf(job, config, out_name, vcf_ref, index_dict, fasta_ref_dict, tag='', ref_tag='', max_ref_allele=None):
     """ make the vcf
     """ 
     work_dir = job.fileStore.getLocalTempDir()
@@ -881,11 +934,16 @@ def make_vcf(job, config, out_name, vcf_ref, index_dict, tag='', ref_tag='', max
         output_dict['{}raw.vcf.gz.tbi'.format(tag)] = job.fileStore.writeGlobalFile(tbi_path)
 
     # make the filtered vcf
-    if max_ref_allele:
+    if max_ref_allele:        
         vcfbub_path = os.path.join(work_dir, 'merged.filtered.vcf.gz')
-        cactus_call(parameters=[['vcfbub', '--input', vcf_path, '--max-ref-length', str(max_ref_allele), '--max-level', '0'],
-                                ['bgzip', '--threads', str(job.cores)]],
-                outfile=vcfbub_path)
+        bub_cmd = [['vcfbub', '--input', vcf_path, '--max-ref-length', str(max_ref_allele), '--max-level', '0']]
+        if getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "bcftoolsNorm", typeFn=bool, default=True):
+            fa_ref_path = os.path.join(work_dir, vcf_ref + '.fa.gz')
+            job.fileStore.readGlobalFile(fasta_ref_dict[vcf_ref], fa_ref_path)
+            bub_cmd.append(['bcftools', 'norm', '-f', fa_ref_path])
+            bub_cmd.append(['bcftools', 'sort'])
+        bub_cmd.append(['bgzip', '--threads', str(job.cores)])
+        cactus_call(parameters=bub_cmd, outfile=vcfbub_path)
         try:
             cactus_call(parameters=['tabix', '-p', 'vcf', vcfbub_path])
             tbi_path = vcfbub_path + '.tbi'
@@ -898,7 +956,66 @@ def make_vcf(job, config, out_name, vcf_ref, index_dict, tag='', ref_tag='', max
             output_dict['{}vcf.gz.tbi'.format(tag)] = job.fileStore.writeGlobalFile(vcfbub_path + '.tbi')
 
     return output_dict
+
+def check_vcfwave(job):
+    """ check to make sure vcfwave is installed """
+    try:
+        cactus_call(parameters=['vcfwave', '-h'])
+    except:
+        raise RuntimeError('--vcfwave option used, but vcfwave tool not found in PATH. vcfwave is *not* included in the cactus binary release, but it is in the cactus Docker image. If you have Docker installed, you can try running again with --binariesMode docker. Or running your whole command with docker run. If you cannot use Docker, then you will need to build vcflib yourself before retrying: source code and details here: https://github.com/vcflib/vcflib')
+
+ 
+def vcfwave(job, config, vcf_ref, index_dict, deconstruct_out_dict, fasta_ref_dict, vcfbub_thresh, tag, ref_tag):
+    """ run vcfwave """
+    work_dir = job.fileStore.getLocalTempDir()
+    raw_vcf_path = os.path.join(work_dir, '{}raw.vcf.gz'.format(tag))
+    raw_tbi_path = raw_vcf_path + '.tbi'
+    job.fileStore.readGlobalFile(deconstruct_out_dict['{}raw.vcf.gz'.format(tag)], raw_vcf_path)
+    job.fileStore.readGlobalFile(deconstruct_out_dict['{}raw.vcf.gz.tbi'.format(tag)], raw_tbi_path)
+
+    wave_vcf_path = os.path.join(work_dir, '{}wave.vcf.gz'.format(tag))
+    wave_tbi_path = wave_vcf_path + '.tbi'
     
+    # re-using my usual vcfwave script which uses parallel-based multithreading. TODO: toilify? """
+    vcf_bubwave= \
+'''#!/bin/bash
+INFILE=$1
+OUTFILE=$2
+JOBS=$3
+MAXLEN=$4
+WAVE_OPTS=$5
+for chr in `bcftools view -h $INFILE | perl -ne 'if (/^##contig=<ID=([^,]+)/) { print "$1\n" }'`; do echo $chr; done | parallel -j ${JOBS} "bcftools view $INFILE -r {} | bgzip > $INFILE-{}.input.vcf.gz ; tabix -fp vcf $INFILE-{}.input.vcf.gz ; vcfbub --input $INFILE-{}.input.vcf.gz -l 0 -a ${MAXLEN} | vcfwave ${WAVE_OPTS} | bgzip  > ${INFILE}-{}.vcf.gz; rm -f $INFILE-{}.input.vcf.gz $INFILE-{}.input.vcf.gz.tbi"
+bcftools concat ${INFILE}-*.vcf.gz | bcftools sort | bgzip --threads ${JOBS} > ${OUTFILE}
+tabix -fp vcf ${OUTFILE}
+'''
+    script_path = os.path.join(work_dir, 'vcf-bubwave.sh')
+    with open(script_path, 'w') as script_file:
+        script_file.write(vcf_bubwave)
+    os.chmod(script_path, 0o777)
+
+    wave_opts = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "vcfwaveOptions", typeFn=str, default=None)
+    assert wave_opts
+    cactus_call(parameters=['./' + os.path.basename(script_path),
+                            raw_vcf_path, wave_vcf_path, str(job.cores), str(vcfbub_thresh), wave_opts],
+                work_dir=work_dir)
+
+    if getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "bcftoolsNorm", typeFn=bool, default=True):
+        fa_ref_path = os.path.join(work_dir, vcf_ref + '.fa.gz')
+        job.fileStore.readGlobalFile(fasta_ref_dict[vcf_ref], fa_ref_path)
+        norm_path = os.path.join(work_dir, '{}wave.norm.vcf.gz'.format(tag))
+        cactus_call(parameters=[['bcftools', 'norm', '-f', fa_ref_path, wave_vcf_path],
+                                ['bcftools', 'sort'],
+                                ['bgzip', '--threads', str(job.cores)]],
+                    outfile=norm_path)
+        cactus_call(parameters=['tabix', '-fp', 'vcf', norm_path])
+
+        wave_vcf_path = norm_path
+        wave_tbi_path = norm_path + '.tbi'
+        
+
+    return { '{}wave.vcf.gz'.format(tag) : job.fileStore.writeGlobalFile(wave_vcf_path),
+             '{}wave.vcf.gz.tbi'.format(tag) : job.fileStore.writeGlobalFile(wave_tbi_path) }
+
 def make_giraffe_indexes(job, options, config, index_dict, haplotype_indexes=False, tag=''):
     """ make giraffe-specific indexes: distance and minimaer """
     work_dir = job.fileStore.getLocalTempDir()

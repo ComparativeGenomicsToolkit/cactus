@@ -42,6 +42,7 @@ Cactus uses many different algorithms and individual code contributions, princip
 - The authors of [Mash](https://github.com/marbl/Mash)
 - Andrea Guarracino, Erik Garrison and co-authors for [odgi](https://github.com/pangenome/odgi). Make sure to [cite odgi](https://doi.org/10.1093/bioinformatics/btac308) when using it or its visualizations.
 - Hani Z. Girgis for [RED](http://toolsmith.ens.utulsa.edu/)
+- Erik Garrison and co-authors for [vcfwave](https://github.com/vcflib/vcflib/blob/master/doc/vcfwave.md). [vcflib citation](https://doi.org/10.1371/journal.pcbi.1009123)
 
 ## Installing Manually From Source
 
@@ -83,6 +84,10 @@ make -j 8
 In order to run the Minigraph-Cactus pipeline, you must also run
 ```
 build-tools/downloadPangenomeTools
+```
+In order to run `cactus-pangenome --vcfwave` you may need to then run
+```
+export LD_LIBRARY_PATH=$(pwd)/lib:$LD_LIBRARY_PATH
 ```
 
 If you want to work with MAF, including running `cactus-hal2maf`, you must also run
