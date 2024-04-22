@@ -887,13 +887,17 @@ def cactus_call(tool=None,
         out = "stderr={}".format(stderr) if stderr else ''
 
         sigill_msg = ''
-        if abs(process.returncode) == 4:
+        if (stderr and 'illegal instruction' in stderr.lower()) or (not stderr and abs(process.returncode) == 4):
             # this (rightfully) trips up many users, try to make logging a little more clear
             # https://github.com/ComparativeGenomicsToolkit/cactus/issues/574
             sigill_msg  = '\n\n\n'
             sigill_msg += '***********************************************************************************\n'
             sigill_msg += '***********************************************************************************\n'
-            sigill_msg += 'ERROR: Your CPU is incompatible with the Cactus binaries.\n'
+            if stderr:
+                sigill_msg += 'ERROR: "illegal instruction" found in stderr. Your CPU is likely' 
+            else:
+                sigill_msg += 'ERROR: Signal 4 exit code found, this may mean mean your CPU is'
+            sigill_msg += 'incompatible with the Cactus binaries.\n'
             sigill_msg += '       This is often due to it being too old to support AVX2 instructions.\n'
             sigill_msg += '       Please see the release notes for more details:\n'
             sigill_msg += '       https://github.com/ComparativeGenomicsToolkit/cactus/releases\n'
