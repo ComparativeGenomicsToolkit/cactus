@@ -116,10 +116,6 @@ def main():
     parser.add_argument("--filterGapCausingDupes",
                         help="Turn on (experimental) taffy norm -d filter that removes duplications that would induce gaps > maximumGapLength [default=Off unless --dupeMode single]",
                         action="store_true")
-    parser.add_argument("--maxRefNFrac",
-                        help="Filter out MAF blocks whose reference (first) line has a greater fraction of Ns than the given amount. Should be between 0.0 (filter everything) and 1.0 (filter nothing). [default=0.95]",
-                        type=float,
-                        default=0.95)
 
     # coverage options
     parser.add_argument("--coverage",
@@ -462,10 +458,6 @@ def taf_cmd(hal_path, chunk, chunk_num, genome_list_path, sed_script_paths, opti
     if sed_script_paths:
         # rename to alphanumeric names
         cmd += ' | sed -f {}'.format(os.path.basename(sed_script_paths[0]))    
-    if options.maxRefNFrac:
-        cmd += ' | mafFilter -m - -N {}'.format(options.maxRefNFrac)
-    # get rid of single-row (ie ref-only) blcks while we're filtering
-    cmd += ' | mafFilter -m - -l 2'
     if options.dupeMode == 'single':
         cmd += ' | mafDuplicateFilter -m - -k'                                               
     elif options.dupeMode == 'consensus':

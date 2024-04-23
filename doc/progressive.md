@@ -167,7 +167,6 @@ These issues are all at least partially addressed by a new tool, `cactus-hal2maf
 * `--maximumBlockLengthToMerge`: Merge adjacent blocks if one or both is less than this many bases long (see [TAFFY](https://github.com/ComparativeGenomicsToolkit/taffy) documentation for default value and more explanation).
 * `--maximumGapLength`: Merge adjacent blocks if the maximum number of unaligned bases between them is less than this value (see [TAFFY](https://github.com/ComparativeGenomicsToolkit/taffy) documentation for default value and more explanation).
 * `--fractionSharedRows`: Minimum fraction of shared rows between adjacent blocks in order to merge (see [TAFFY](https://github.com/ComparativeGenomicsToolkit/taffy) documentation for default value and more explanation).
-* `--maxRefNFrac`: Filter out blocks whose reference row has a greater proportion of `N`s than the given fraction
 
 **Duplication Filtering** is specified with the `--dupeMode` option. Possible values are:
 * "single" : Uses greedy heuristics to pick the copy for each species that results in fewest mutations and block breaks.

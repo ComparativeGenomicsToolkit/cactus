@@ -44,6 +44,10 @@ def main():
 
     
     parser.add_argument("--halFile", help = "HAL file to use to get chrom sizes from. Will also be used to work around dots in genome names", required=True)
+    parser.add_argument("--maxRefNFrac",
+                        help="Filter out MAF blocks whose reference (first) line has a greater fraction of Ns than the given amount. Should be between 0.0 (filter everything) and 1.0 (filter nothing). [default=0.95]",
+                        type=float,
+                        default=0.95)
     
     #Progressive Cactus Options
     parser.add_argument("--configFile", dest="configFile",
@@ -214,9 +218,13 @@ def maf2bigmaf(job, maf_id, chrom_sizes_id, genomes_list, options):
     # make the bigmaf bed file
     bigmaf_bed_path = os.path.join(work_dir, 'bigMaf.bed')
     bigmaf_cmd = [cat_cmd + [maf_path],
-                  ['mafDuplicateFilter', '-km', '-'],
-                  ['mafToBigMaf', options.refGenome, 'stdin', 'stdout'],
-                  ['sort', '-k1,1', '-k2,2n']]
+                  ['mafDuplicateFilter', '-km', '-']]    
+    if options.maxRefNFrac:
+        bigmaf_cmd.append(['mafFilter', '-m',  '-', '-N',  str(options.maxRefNFrac)])
+    # get rid of single-row (ie ref-only) blcks while we're filtering
+    bigmaf_cmd.append(['mafFilter',  '-m',  '-',  '-l',  '2'])    
+    bigmaf_cmd += [['mafToBigMaf', options.refGenome, 'stdin', 'stdout'],
+                   ['sort', '-k1,1', '-k2,2n']]
     cactus_call(parameters=bigmaf_cmd, outfile=bigmaf_bed_path)
 
     # convert it to bigbed (can't pipe!)
