@@ -379,8 +379,11 @@ def stageWorkflow(outputSequenceDir, configNode, inputSequences, toil, restart=F
     if configNode.find("constants") != None:
         ConfigWrapper(configNode).substituteAllPredefinedConstantsWithLiterals(options)
     if maskMode:
+        assert maskMode in ['red', 'lastz', 'brnn']
+        red = maskMode == 'red'
         lastz = maskMode == 'lastz'
         brnn = maskMode == 'brnn'
+        ConfigWrapper(configNode).setPreprocessorActive("red", red)
         ConfigWrapper(configNode).setPreprocessorActive("lastzRepeatMask", lastz)
         ConfigWrapper(configNode).setPreprocessorActive("dna-brnn", brnn)
         if brnn and maskAction == 'clip':
@@ -442,7 +445,7 @@ def main():
     parser.add_argument("--inputNames", nargs='*', help='input genome names (not paths) to preprocess (all leaves from Input Seq file if none specified)')
     parser.add_argument("--inPaths", nargs='*', help='Space-separated list of input fasta paths (to be used in place of --inSeqFile')
     parser.add_argument("--outPaths", nargs='*', help='Space-separated list of output fasta paths (one for each inPath, used in place of --outSeqFile)')
-    parser.add_argument("--maskMode", type=str, help='Masking mode, one of {"lastz", "brnn", "red", "none", "config"}. Default="config".', default='lastz')
+    parser.add_argument("--maskMode", type=str, help='Masking mode, one of {"lastz", "brnn", "red", "none", "config"}. Default="config".', default='config')
     parser.add_argument("--maskAction", type=str, help='Masking action, one of {"softmask", "hardmask", "clip"}. Default="softmask"', default='softmask')
     parser.add_argument("--minLength", type=int, help='Minimum interval threshold for masking.  Overrides config')
     parser.add_argument("--maskFile", type=str, help='Add masking from BED or PAF file to sequences, **ignoring all other preprocessors**')
