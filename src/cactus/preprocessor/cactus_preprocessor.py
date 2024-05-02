@@ -379,7 +379,7 @@ def stageWorkflow(outputSequenceDir, configNode, inputSequences, toil, restart=F
     if configNode.find("constants") != None:
         ConfigWrapper(configNode).substituteAllPredefinedConstantsWithLiterals(options)
     if maskMode:
-        assert maskMode in ['red', 'lastz', 'brnn']
+        assert maskMode in ['red', 'lastz', 'brnn', 'none']
         red = maskMode == 'red'
         lastz = maskMode == 'lastz'
         brnn = maskMode == 'brnn'
