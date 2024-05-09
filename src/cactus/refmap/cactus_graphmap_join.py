@@ -1063,8 +1063,10 @@ def odgi_squeeze(job, config, vg_paths, og_ids, tag=''):
     list_path = os.path.join(work_dir, '{}squeeze.input'.format(tag))
     with open(list_path, 'w') as list_file:
         for og_path in og_paths:
-            list_file.write(og_path +'\n')
-    cactus_call(parameters=['odgi', 'squeeze', '-f', list_path, '-o', merged_path, '-t', str(job.cores)], job_memory=job.memory)
+            # important to use relative path for docker
+            list_file.write(os.path.basename(og_path) +'\n')
+    cactus_call(parameters=['odgi', 'squeeze', '-f', list_path, '-o', merged_path, '-t', str(job.cores)],
+                work_dir=work_dir, job_memory=job.memory)
     return { '{}og'.format(tag) : job.fileStore.writeGlobalFile(merged_path) }    
 
         
