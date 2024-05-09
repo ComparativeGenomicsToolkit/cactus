@@ -1,3 +1,16 @@
+# Release 2.8.2 2024-05-09
+
+This release fixes some bugs and adds a (docker-only) `vcfwave` normalization option for pangenomes.
+
+- Use correct `bigChain.as` that allows chain scores to be huge (instead of capping them)
+- Update `odgi`, `vg`, `abPOA` and `taffy` to their latest releases
+- Fix `cactus-hal2maf` and `cactus-pangenome --odgi` to work with `--binariesMode docker`
+- `bcftools norm -f` now run by default on all non-raw VCF outputs (toggle off in the config)
+- Minigraph fasta file renamed from `.gfa.fa` to `.sv.gfa.fa` to be less confusing
+- Gap and empty MAF block filtering moved from `cactus-hal2maf` to `cactus-maf2bigmaf`.  So MAF output will now have a reference base for every position.
+- Fix `cactus-preprocess` to do only RED masking by default (there was previously a bug where it ran RED then lastz after).  The `--maskMode` option is also fixed to work properly.
+- Update to Toil 6.1.0
+
 # Release 2.8.1 2024-04-04
 
 This release patches some major recent bugs, including a major bug introduced in `cactus-hal2maf` in v2.7.2 that could produce negative-stranded (and out of order) reference rows. 
