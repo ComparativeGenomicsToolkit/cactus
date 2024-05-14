@@ -109,7 +109,7 @@ def graph_map(options):
         config_wrapper = ConfigWrapper(config_node)        
         graph_event = getOptionalAttrib(findRequiredNode(config_node, "graphmap"), "assemblyName", default="_MINIGRAPH_")        
         if options.restart:
-            paf_id, gfa_fa_id, gaf_id, unfiltered_paf_id, paf_filter_log = toil.restart()            
+            paf_id, gfa_fa_id, gaf_id, unfiltered_paf_id, paf_filter_log, paf_was_filtered = toil.restart()
         else:
             # load up the seqfile and figure out the outgroups and schedule
             config_wrapper.substituteAllPredefinedConstantsWithLiterals(options)
