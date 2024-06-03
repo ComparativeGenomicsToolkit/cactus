@@ -194,11 +194,12 @@ The individual parts of the pipeline can be run independently using the followin
 
 ### Clipping, Filtering and Indexing
 
-`cactus-pangenome` (options also available in `cactus-graphmap-join`) normalizes, clips and filters the graph in addition to producing some useful indexes.  It can produce up to three graphs (now in a single invocation), and a variety of indexes for any combination of them. The three graphs are the
+`cactus-pangenome` (options also available in `cactus-graphmap-join`) normalizes, clips and filters the graph in addition to producing some useful indexes.  It can produce up to three graphs (now in a single invocation) in addition to the direct minigraph output, and a variety of indexes for any combination of them. The different graphs can be distinguished by their filenames.  Suppose the tool as run with `--outName yeast`, then you may have these files in the output:
 
-* `full` graph: This graph is normalized, but no sequence is removed. It and its indexes will have `.full` in their filenames. 
-* `clip` graph: This is the default graph. Stretches of sequence `>10kb` that were not aligned to the underlying SV/minigraph are removed. "Dangling" nodes (ie that don't have an edge on each side) that aren't on the reference path are also removed, so that each chromosome only has two tips in the graph.
-* `filter` graph: This graph is made by removing nodes covered by fewer than 2 haplotypes from the `clip` graph.  It and its indexes will have `.d2` in their filenames. **Note** in newer versions of vg, you can usually get away without allele frequency filtering by way of haplotype sampling (using the `--haplo` option to make an index for this). 
+* `yeast.sv.gfa.gz`: This graph is output by `minigraph`.  It contains SVs only, and doesn't have embedded paths for the input sequences.
+* `yeast.full.gfa.gz`: This is the `full` minigraph-cactus graph. It is normalized, but no sequence is removed. It and its indexes will have `.full` in their filenames. 
+* `yeast.gfa.gz`. This is the default or `clip` graph. Stretches of sequence `>10kb` that were not aligned to the underlying SV/minigraph are removed. "Dangling" nodes (ie that don't have an edge on each side) that aren't on the reference path are also removed, so that each chromosome only has two tips in the graph.
+* `yeast.d2.gfa.gz`: This `filter` graph is made by removing nodes covered by fewer than 2 haplotypes (this value can be changed using the `--filter` option) from the `clip` graph. **Note** in newer versions of vg, you can usually get away without allele frequency filtering by way of haplotype sampling (using the `--haplo` option to make an index for this). 
 
 The `clip` graph is a subgraph of the `full` graph and the `filter` graph is a subgraph of the `clip` graph. Put another way, any node in the `filter` graph exists with the exact same ID and sequence in the `clip` graph, etc. 
 
