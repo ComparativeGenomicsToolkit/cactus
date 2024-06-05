@@ -126,7 +126,7 @@ def maf2bigmaf_workflow(job, config, options, maf_id, hal_id):
         mem_mult = 1.1
     else:
         disk_mult = 3
-        mem_mult - 0.3
+        mem_mult = 0.3
     bigmaf_job = chrom_sizes_job.addFollowOnJobFn(maf2bigmaf, maf_id, chrom_sizes_id, genomes_list, options,
                                                   disk=disk_mult * maf_id.size,
                                                   memory=cactus_clamp_memory(maf_id.size / 20))
