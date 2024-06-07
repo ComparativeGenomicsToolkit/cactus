@@ -979,6 +979,7 @@ def vcfwave(job, config, vcf_ref, index_dict, deconstruct_out_dict, fasta_ref_di
     # re-using my usual vcfwave script which uses parallel-based multithreading. TODO: toilify? """
     vcf_bubwave= \
 '''#!/bin/bash
+set -eo pipefail
 INFILE=$1
 OUTFILE=$2
 JOBS=$3
