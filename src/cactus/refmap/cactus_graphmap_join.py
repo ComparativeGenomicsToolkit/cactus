@@ -985,7 +985,7 @@ OUTFILE=$2
 JOBS=$3
 MAXLEN=$4
 WAVE_OPTS=$5
-for chr in `bcftools view -h $INFILE | perl -ne 'if (/^##contig=<ID=([^,]+)/) { print "$1\n" }'`; do echo $chr; done | parallel -j ${JOBS} "bcftools view $INFILE -r {} | bgzip > $INFILE-{}.input.vcf.gz ; tabix -fp vcf $INFILE-{}.input.vcf.gz ; vcfbub --input $INFILE-{}.input.vcf.gz -l 0 -a ${MAXLEN} | vcfwave ${WAVE_OPTS} | bgzip  > ${INFILE}-{}.vcf.gz; rm -f $INFILE-{}.input.vcf.gz $INFILE-{}.input.vcf.gz.tbi"
+for chr in `bcftools view -h $INFILE | perl -ne 'if (/^##contig=<ID=([^,]+)/) { print "$1\n" }'`; do echo $chr; done | parallel -j ${JOBS} "set -eo pipefail && bcftools view $INFILE -r {} | bgzip > $INFILE-{}.input.vcf.gz && tabix -fp vcf $INFILE-{}.input.vcf.gz && vcfbub --input $INFILE-{}.input.vcf.gz -l 0 -a ${MAXLEN} | vcfwave ${WAVE_OPTS} | bgzip  > ${INFILE}-{}.vcf.gz && rm -f $INFILE-{}.input.vcf.gz $INFILE-{}.input.vcf.gz.tbi"
 bcftools concat ${INFILE}-*.vcf.gz | bcftools sort | bgzip --threads ${JOBS} > ${OUTFILE}
 tabix -fp vcf ${OUTFILE}
 '''
