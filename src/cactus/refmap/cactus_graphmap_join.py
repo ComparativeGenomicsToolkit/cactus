@@ -134,6 +134,7 @@ def graphmap_join_options(parser):
     parser.add_argument("--vcfbub", type=int, default=100000, help = "Use vcfbub to flatten nested sites (sites with reference alleles > this will be replaced by their children)). Setting to 0 will disable, only prudcing full VCF [default=100000].")
     parser.add_argument("--vcfwave", action='store_true', default=False, help = "Create a vcfwave-normalized VCF. vcfwave realigns alt alleles to the reference, and can help correct messy regions in the VCF. This option will output an additional VCF with 'wave' in its filename, other VCF outputs will not be affected")
     parser.add_argument("--vcfwaveCores", type=int, help = "Number of cores for each vcfwave job [default=2].", default=2)
+    parser.add_argument("--vcfwaveMemory", type=human2bytesN, help = "Memory for reach vcfwave job [default=32Gi].", default=32000000000)
     
     parser.add_argument("--giraffe", nargs='*', default=None, help = "Generate Giraffe (.dist, .min) indexes for the given graph type(s). Valid types are 'full', 'clip' and 'filter'. If not type specified, 'filter' will be used (will fall back to 'clip' than full if filtering, clipping disabled, respectively). Multiple types can be provided seperated by a space")
 
@@ -280,7 +281,7 @@ def graphmap_join_validate_options(options):
             raise RuntimeError('--vcfwave cannot be used without --vcf')
 
         if options.batchSystem == 'single_machine':
-            options.vcfwaveCores = min(options.vcfwaveCores, cactus_cpu_count())        
+            options.vcfwaveCores = min(options.vcfwaveCores, cactus_cpu_count())
         
     if not options.vcfReference:
         options.vcfReference = [options.reference[0]]
@@ -993,10 +994,6 @@ def vcfwave(job, options, config, vcf_ref, index_dict, deconstruct_out_dict, fas
     
     # do the vcf wave normalization in parallel
     for contig in vcf_contigs:
-        # todo: I'm not to sure how to set this yet -- for now very hacky
-        wave_memory = None
-        if options.indexMemory:
-            wave_memory = cactus_clamp_memory(options.indexMemory / (options.indexCores / options.vcfwaveCores))
         wave_job = wave_root_job.addChildJobFn(vcfwave_chr, config, vcf_ref, raw_vcf_id, raw_tbi_id,
                                                fasta_ref_dict[vcf_ref],
                                                contig,
@@ -1005,13 +1002,13 @@ def vcfwave(job, options, config, vcf_ref, index_dict, deconstruct_out_dict, fas
                                                ref_tag,
                                                cores=options.vcfwaveCores,
                                                disk=raw_vcf_id.size * 3,
-                                               memory=wave_memory)
+                                               memory=cactus_clamp_memory(options.vcfwaveMemory))
         
         wave_contig_ids.append((wave_job.rv(0), wave_job.rv(1)))
 
     # concatenate the results
     concat_job = wave_root_job.addFollowOnJobFn(vcf_cat, raw_vcf_id, raw_tbi_id, wave_contig_ids, vcf_contigs, tag, ref_tag,
-                                                disk=raw_tbi_id.size * 4,
+                                                disk=raw_vcf_id.size * 4,
                                                 cores=options.vcfwaveCores)
 
     return { '{}wave.vcf.gz'.format(tag) : concat_job.rv(0),
