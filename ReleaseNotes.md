@@ -1,3 +1,16 @@
+# Release-2.8.3 2024-06-12
+
+This release fixes some bugs and updates to the latest Toil.
+
+- Fix broken `--restart` option in `cactus-graphmap`
+- Raise Toil job memory requirement for `filter-paf-deletions`
+- Update to `vg` v1.57.0
+- Update `Toil` to v7.0
+- Fix bug where trim-outgroups job could requeset way too little memory when there are no outgroups
+- Fix typo that broke `cactus-maf2bigmaf` on uncompressed inputs
+- More robust implementation of `vcfwave`
+- Fix bug where RED preprocessing crashed `awk` returned a number in scientific notation
+
 # Release 2.8.2 2024-05-09
 
 This release fixes some bugs and adds a (docker-only) `vcfwave` normalization option for pangenomes.
