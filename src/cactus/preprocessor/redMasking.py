@@ -64,7 +64,7 @@ class RedMaskJob(RoundedJob):
                 cactus_call(parameters=['cactus_softmask2hardmask', '-b', in_fa_path], outfile=bed_path)
                 awkres = cactus_call(parameters=['awk', '{sum += $3-$2} END {print sum}', bed_path],
                                                 check_output=True, rt_log_cmd=False).strip()
-                pre_mask_size = int(awkres) if awkres else 0
+                pre_mask_size = int(float(awkres)) if awkres else 0
                 
             # run red
             red_cmd = ['Red', '-gnm', red_in_dir, '-msk', red_out_dir]
@@ -82,7 +82,7 @@ class RedMaskJob(RoundedJob):
                 awkres = cactus_call(parameters=[['cactus_softmask2hardmask', '-b', out_fa_path],
                                                  ['awk', '{sum += $3-$2} END {print sum}']],
                                      check_output=True, rt_log_cmd=False).strip()
-                post_mask_size = int(awkres) if awkres else 0
+                post_mask_size = int(float(awkres)) if awkres else 0
                 RealtimeLogger.info('Red masked {} bp of {}, increasing masking from {} to {}'.format(
                     post_mask_size - pre_mask_size, self.eventName, pre_mask_size, post_mask_size))
         else:
