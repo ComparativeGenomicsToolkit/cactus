@@ -26,6 +26,7 @@ import xml.etree.ElementTree as ET
 import copy
 import timeit
 import re
+import subprocess
 
 from operator import itemgetter
 from collections import defaultdict
@@ -132,6 +133,8 @@ def graphmap_join_options(parser):
     parser.add_argument("--vcfReference", nargs='+', default=None, help = "If multiple references were provided with --reference, this option can be used to specify a subset for vcf creation with --vcf. By default, --vcf will create VCFs for the first reference only")
     parser.add_argument("--vcfbub", type=int, default=100000, help = "Use vcfbub to flatten nested sites (sites with reference alleles > this will be replaced by their children)). Setting to 0 will disable, only prudcing full VCF [default=100000].")
     parser.add_argument("--vcfwave", action='store_true', default=False, help = "Create a vcfwave-normalized VCF. vcfwave realigns alt alleles to the reference, and can help correct messy regions in the VCF. This option will output an additional VCF with 'wave' in its filename, other VCF outputs will not be affected")
+    parser.add_argument("--vcfwaveCores", type=int, help = "Number of cores for each vcfwave job [default=2].", default=2)
+    parser.add_argument("--vcfwaveMemory", type=human2bytesN, help = "Memory for reach vcfwave job [default=32Gi].", default=32000000000)
     
     parser.add_argument("--giraffe", nargs='*', default=None, help = "Generate Giraffe (.dist, .min) indexes for the given graph type(s). Valid types are 'full', 'clip' and 'filter'. If not type specified, 'filter' will be used (will fall back to 'clip' than full if filtering, clipping disabled, respectively). Multiple types can be provided seperated by a space")
 
@@ -273,8 +276,12 @@ def graphmap_join_validate_options(options):
     if options.vcfReference and not options.vcf:
         raise RuntimeError('--vcfReference cannot be used without --vcf')
 
-    if options.vcfwave and not options.vcf:
-        raise RuntimeError('--vcfwave cannot be used without --vcf')
+    if options.vcfwave:
+        if not options.vcf:
+            raise RuntimeError('--vcfwave cannot be used without --vcf')
+
+        if options.batchSystem == 'single_machine':
+            options.vcfwaveCores = min(options.vcfwaveCores, cactus_cpu_count())
         
     if not options.vcfReference:
         options.vcfReference = [options.reference[0]]
@@ -553,12 +560,10 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
                 
                 # optional vcfwave
                 if options.vcfwave:
-                    vcfwave_job = deconstruct_job.addFollowOnJobFn(vcfwave, config, vcf_ref, current_out_dict,
+                    vcfwave_job = deconstruct_job.addFollowOnJobFn(vcfwave, options, config, vcf_ref, current_out_dict,
                                                                    deconstruct_job.rv(), nonref_fasta_job.rv(), options.vcfbub,
                                                                    tag=vcftag + '.', ref_tag = workflow_phase + '.',
-                                                                   cores=options.indexCores,
-                                                                   disk = sum(f.size for f in vg_ids) * 6,
-                                                                   memory=index_mem)
+                                                                   disk = sum(f.size for f in vg_ids) * 1)
                     out_dicts.append(vcfwave_job.rv())
                     
         # optional giraffe
@@ -964,58 +969,122 @@ def check_vcfwave(job):
     except:
         raise RuntimeError('--vcfwave option used, but vcfwave tool not found in PATH. vcfwave is *not* included in the cactus binary release, but it is in the cactus Docker image. If you have Docker installed, you can try running again with --binariesMode docker. Or running your whole command with docker run. If you cannot use Docker, then you will need to build vcflib yourself before retrying: source code and details here: https://github.com/vcflib/vcflib')
 
- 
-def vcfwave(job, config, vcf_ref, index_dict, deconstruct_out_dict, fasta_ref_dict, vcfbub_thresh, tag, ref_tag):
-    """ run vcfwave """
+
+def vcfwave(job, options, config, vcf_ref, index_dict, deconstruct_out_dict, fasta_ref_dict, vcfbub_thresh, tag, ref_tag):
+    """ run vcfwave, distributed over chromosomes"""
     work_dir = job.fileStore.getLocalTempDir()
     raw_vcf_path = os.path.join(work_dir, '{}raw.vcf.gz'.format(tag))
     raw_tbi_path = raw_vcf_path + '.tbi'
-    job.fileStore.readGlobalFile(deconstruct_out_dict['{}raw.vcf.gz'.format(tag)], raw_vcf_path)
-    job.fileStore.readGlobalFile(deconstruct_out_dict['{}raw.vcf.gz.tbi'.format(tag)], raw_tbi_path)
+    raw_vcf_id = deconstruct_out_dict['{}raw.vcf.gz'.format(tag)]
+    raw_tbi_id = deconstruct_out_dict['{}raw.vcf.gz.tbi'.format(tag)]
+    job.fileStore.readGlobalFile(raw_vcf_id, raw_vcf_path)
+    job.fileStore.readGlobalFile(raw_tbi_id, raw_tbi_path)
 
-    wave_vcf_path = os.path.join(work_dir, '{}wave.vcf.gz'.format(tag))
+    # get the contigs in the vcf
+    contig_cmd = [['bcftools', 'view', '-h', raw_vcf_path],
+                  ['perl', '-ne', r'if (/^##contig=<ID=([^,]+)/) { print "$1\n" }'],
+                  ['sort']]
+    vcf_contigs = cactus_call(parameters=contig_cmd, check_output=True).strip().split('\n')
+    assert vcf_contigs
+
+    # note, these are (vcf.gz, tbi) pairs
+    wave_contig_ids = []
+    wave_root_job = Job()
+    job.addChild(wave_root_job)
+    
+    # do the vcf wave normalization in parallel
+    for contig in vcf_contigs:
+        wave_job = wave_root_job.addChildJobFn(vcfwave_chr, config, vcf_ref, raw_vcf_id, raw_tbi_id,
+                                               fasta_ref_dict[vcf_ref],
+                                               contig,
+                                               vcfbub_thresh,
+                                               tag,
+                                               ref_tag,
+                                               cores=options.vcfwaveCores,
+                                               disk=raw_vcf_id.size * 3,
+                                               memory=cactus_clamp_memory(options.vcfwaveMemory))
+        
+        wave_contig_ids.append((wave_job.rv(0), wave_job.rv(1)))
+
+    # concatenate the results
+    concat_job = wave_root_job.addFollowOnJobFn(vcf_cat, raw_vcf_id, raw_tbi_id, wave_contig_ids, vcf_contigs, tag, ref_tag,
+                                                disk=raw_vcf_id.size * 4,
+                                                cores=options.vcfwaveCores)
+
+    return { '{}wave.vcf.gz'.format(tag) : concat_job.rv(0),
+             '{}wave.vcf.gz.tbi'.format(tag) : concat_job.rv(1) }
+
+
+def vcfwave_chr(job, config, vcf_ref, vcf_id, tbi_id, fasta_id, contig, vcfbub_thresh, tag, ref_tag):
+    """ run vcfwave on a given chromosome """
+    work_dir = job.fileStore.getLocalTempDir()
+    raw_vcf_path = os.path.join(work_dir, '{}raw.vcf.gz'.format(tag))
+    raw_tbi_path = raw_vcf_path + '.tbi'
+    job.fileStore.readGlobalFile(vcf_id, raw_vcf_path)
+    job.fileStore.readGlobalFile(tbi_id, raw_tbi_path)
+
+    # extract the chromosome
+    chrom_vcf_path = os.path.join(work_dir, '{}{}.vcf.gz'.format(tag, contig))
+    chrom_tbi_path = chrom_vcf_path + '.tbi'
+    cactus_call(parameters=[['bcftools', 'view', raw_vcf_path, '-r', contig], ['bgzip', '--threads', str(job.cores)]],
+                outfile=chrom_vcf_path)
+    cactus_call(parameters=['tabix', '-fp', 'vcf', chrom_vcf_path])
+
+    # short circuit on empty file (note zcat -> head exits 141, so we can't use cactus_call)
+    if int(subprocess.check_output('gzip -dc {} | grep -v ^# | head | wc -l'.format(chrom_vcf_path),
+                                   shell=True).decode('utf-8').strip()) == 0:    
+        return None,None
+
+    # run vcfbub and vcfwave
+    wave_vcf_path = os.path.join(work_dir, '{}{}_wave.vcf.gz'.format(tag, contig))
     wave_tbi_path = wave_vcf_path + '.tbi'
     
-    # re-using my usual vcfwave script which uses parallel-based multithreading. TODO: toilify? """
-    vcf_bubwave= \
-'''#!/bin/bash
-set -eo pipefail
-INFILE=$1
-OUTFILE=$2
-JOBS=$3
-MAXLEN=$4
-WAVE_OPTS=$5
-for chr in `bcftools view -h $INFILE | perl -ne 'if (/^##contig=<ID=([^,]+)/) { print "$1\n" }'`; do echo $chr; done | parallel -j ${JOBS} "set -eo pipefail && bcftools view $INFILE -r {} | bgzip > $INFILE-{}.input.vcf.gz && tabix -fp vcf $INFILE-{}.input.vcf.gz && vcfbub --input $INFILE-{}.input.vcf.gz -l 0 -a ${MAXLEN} | vcfwave ${WAVE_OPTS} | bgzip  > ${INFILE}-{}.vcf.gz && rm -f $INFILE-{}.input.vcf.gz $INFILE-{}.input.vcf.gz.tbi"
-bcftools concat ${INFILE}-*.vcf.gz | bcftools sort | bgzip --threads ${JOBS} > ${OUTFILE}
-tabix -fp vcf ${OUTFILE}
-'''
-    script_path = os.path.join(work_dir, 'vcf-bubwave.sh')
-    with open(script_path, 'w') as script_file:
-        script_file.write(vcf_bubwave)
-    os.chmod(script_path, 0o777)
-
     wave_opts = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "vcfwaveOptions", typeFn=str, default=None)
     assert wave_opts
-    cactus_call(parameters=['./' + os.path.basename(script_path),
-                            raw_vcf_path, wave_vcf_path, str(job.cores), str(vcfbub_thresh), wave_opts],
-                work_dir=work_dir)
-
+    bubwave_cmd = [['vcfbub', '--input', chrom_vcf_path, '-l', '0', '-a', str(vcfbub_thresh)],
+                   ['vcfwave'] + wave_opts.split(' ') + ['-t', str(job.cores)],
+                   ['bgzip']]
+    cactus_call(parameters=bubwave_cmd, outfile=wave_vcf_path)
+    
     if getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "bcftoolsNorm", typeFn=bool, default=True):
         fa_ref_path = os.path.join(work_dir, vcf_ref + '.fa.gz')
-        job.fileStore.readGlobalFile(fasta_ref_dict[vcf_ref], fa_ref_path)
-        norm_path = os.path.join(work_dir, '{}wave.norm.vcf.gz'.format(tag))
+        job.fileStore.readGlobalFile(fasta_id, fa_ref_path)
+        norm_vcf_path = os.path.join(work_dir, '{}{}_norm.vcf.gz'.format(tag, contig))
         cactus_call(parameters=[['bcftools', 'norm', '-f', fa_ref_path, wave_vcf_path],
                                 ['bcftools', 'sort'],
                                 ['bgzip', '--threads', str(job.cores)]],
-                    outfile=norm_path)
-        cactus_call(parameters=['tabix', '-fp', 'vcf', norm_path])
+                    outfile=norm_vcf_path)
+        cactus_call(parameters=['tabix', '-fp', 'vcf', norm_vcf_path])
 
-        wave_vcf_path = norm_path
-        wave_tbi_path = norm_path + '.tbi'
-        
+        wave_vcf_path = norm_vcf_path
+        wave_tbi_path = norm_vcf_path + '.tbi'
 
-    return { '{}wave.vcf.gz'.format(tag) : job.fileStore.writeGlobalFile(wave_vcf_path),
-             '{}wave.vcf.gz.tbi'.format(tag) : job.fileStore.writeGlobalFile(wave_tbi_path) }
+    return job.fileStore.writeGlobalFile(wave_vcf_path), job.fileStore.writeGlobalFile(wave_tbi_path)
+
+def vcf_cat(job, raw_vcf_id, raw_tbi_id, vcf_ids, contigs, tag, ref_tag):
+    """ concat some vcf files """
+    work_dir = job.fileStore.getLocalTempDir()
+    contig_vcf_files = []
+    assert len(vcf_ids) == len(contigs)
+    for vcf_id, contig in zip(vcf_ids, contigs):
+        if vcf_id[0] is not None:
+            vcf_path = os.path.join(work_dir, '{}{}_wave.vcf.gz'.format(tag, contig))
+            tbi_path = vcf_path + '.tbi'
+            job.fileStore.readGlobalFile(vcf_id[0], vcf_path)
+            job.fileStore.readGlobalFile(vcf_id[1], tbi_path)
+            contig_vcf_files.append(os.path.basename(vcf_path))
+
+    # todo: better error?
+    if not contig_vcf_files:
+        logger.warning("No variants found to run vcfwave on")
+        return raw_vcf_id, raw_tbi_id
+
+    cat_vcf_file = os.path.join(work_dir, '{}wave_concat.vcf.gz'.format(tag))
+    cactus_call(parameters=['bcftools', 'concat', '-O', 'z', '--threads', str(job.cores)] + contig_vcf_files,
+                work_dir=work_dir, outfile=cat_vcf_file)
+    cactus_call(parameters=['tabix', '-fp', 'vcf', cat_vcf_file])
+    
+    return job.fileStore.writeGlobalFile(cat_vcf_file), job.fileStore.writeGlobalFile(cat_vcf_file + '.tbi')
 
 def make_giraffe_indexes(job, options, config, index_dict, haplotype_indexes=False, tag=''):
     """ make giraffe-specific indexes: distance and minimaer """
