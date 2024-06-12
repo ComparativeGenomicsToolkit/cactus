@@ -64,7 +64,11 @@ class RedMaskJob(RoundedJob):
                 cactus_call(parameters=['cactus_softmask2hardmask', '-b', in_fa_path], outfile=bed_path)
                 awkres = cactus_call(parameters=['awk', '{sum += $3-$2} END {print sum}', bed_path],
                                                 check_output=True, rt_log_cmd=False).strip()
-                pre_mask_size = int(awkres) if awkres else 0
+                try:
+                    pre_mask_size = int(float(awkres)) if awkres else 0
+                except ValueError as e:
+                    print(f"Error converting awkres to int: {e}")
+                    pre_mask_size = 0
                 
             # run red
             red_cmd = ['Red', '-gnm', red_in_dir, '-msk', red_out_dir]
