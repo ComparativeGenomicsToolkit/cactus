@@ -5,7 +5,7 @@ This release fixes some bugs and updates to the latest Toil.
 - Fix broken `--restart` option in `cactus-graphmap`
 - Raise Toil job memory requirement for `filter-paf-deletions`
 - Update to `vg` v1.57.0
-- Update `Toil` to v7.0 **NOTE** this seems to bring minimum python requirement up to 3.9!
+- Update `Toil` to v7.0
 - Fix bug where trim-outgroups job could requeset way too little memory when there are no outgroups
 - Fix typo that broke `cactus-maf2bigmaf` on uncompressed inputs
 - More robust implementation of `vcfwave`
