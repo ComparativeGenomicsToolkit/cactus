@@ -46,7 +46,7 @@ Cactus uses many different algorithms and individual code contributions, princip
 
 ## Installing Manually From Source
 
-**Cactus requires Python >= 3.7 along with Python development headers and libraries**
+**Cactus requires Python >= 3.8 along with Python development headers and libraries**
 
 Clone cactus and submodules
 ```
