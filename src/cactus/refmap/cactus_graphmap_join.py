@@ -938,10 +938,8 @@ def make_vcf(job, config, out_name, vcf_ref, index_dict, fasta_ref_dict, tag='',
     if tbi_path:
         output_dict['{}raw.vcf.gz.tbi'.format(tag)] = job.fileStore.writeGlobalFile(tbi_path)
 
-    # running bcftools stats acts like a sanity check for the vcf
-    stats_path = vcf_path + '.stats'
-    cactus_call(parameters=['bcftools', 'stats', vcf_path], outfile=stats_path)
-    output_dict['{}raw.vcf.gz.stats'.format(tag)] = job.fileStore.writeGlobalFile(stats_path)
+    # running bcftools view acts like a sanity check for the vcf
+    cactus_call(parameters=['bcftools', 'view', vcf_path])
 
     # make the filtered vcf
     if max_ref_allele:        
@@ -965,10 +963,8 @@ def make_vcf(job, config, out_name, vcf_ref, index_dict, fasta_ref_dict, tag='',
         if tbi_path:
             output_dict['{}vcf.gz.tbi'.format(tag)] = job.fileStore.writeGlobalFile(vcfbub_path + '.tbi')
 
-        # running bcftools stats acts like a sanity check for the vcf
-        bub_stats_path = vcfbub_path + '.stats'
-        cactus_call(parameters=['bcftools', 'stats', vcfbub_path], outfile=bub_stats_path)
-        output_dict['{}vcf.gz.stats'.format(tag)] = job.fileStore.writeGlobalFile(bub_stats_path)
+        # running bcftools view acts like a sanity check for the vcf
+        cactus_call(parameters=['bcftools', 'view', vcfbub_path])
 
     return output_dict
 
@@ -1022,9 +1018,7 @@ def vcfwave(job, options, config, vcf_ref, index_dict, deconstruct_out_dict, fas
                                                 cores=options.vcfwaveCores)
 
     return { '{}wave.vcf.gz'.format(tag) : concat_job.rv(0),
-             '{}wave.vcf.gz.tbi'.format(tag) : concat_job.rv(1),
-             '{}wave.vcf.gz.stats'.format(tag) : concat_job.rv(3) }
-
+             '{}wave.vcf.gz.tbi'.format(tag) : concat_job.rv(1) }
 
 def vcfwave_chr(job, config, vcf_ref, vcf_id, tbi_id, fasta_id, contig, vcfbub_thresh, tag, ref_tag):
     """ run vcfwave on a given chromosome """
@@ -1070,8 +1064,8 @@ def vcfwave_chr(job, config, vcf_ref, vcf_id, tbi_id, fasta_id, contig, vcfbub_t
         wave_vcf_path = norm_vcf_path
         wave_tbi_path = norm_vcf_path + '.tbi'
     else:
-        # running bcftools stats acts like a sanity check for the vcf
-        cactus_call(parameters=['bcftools', 'stats', wave_vcf_path])
+        # running bcftools view acts like a sanity check for the vcf
+        cactus_call(parameters=['bcftools', 'view', wave_vcf_path])
 
     return job.fileStore.writeGlobalFile(wave_vcf_path), job.fileStore.writeGlobalFile(wave_tbi_path)
 
@@ -1098,13 +1092,7 @@ def vcf_cat(job, raw_vcf_id, raw_tbi_id, vcf_ids, contigs, tag, ref_tag):
                 work_dir=work_dir, outfile=cat_vcf_file)
     cactus_call(parameters=['tabix', '-fp', 'vcf', cat_vcf_file])
 
-    # running bcftools stats acts like a sanity check for the vcf
-    # (note bcftools concat probably catches errors, but we return stats for consistency)
-    cat_stats_path = cat_vcf_file + '.stats'
-    cactus_call(parameters=['bcftools', 'stats', cat_vcf_file], outfile=cat_stats_path)
-    cat_stats_id = job.fileStore.writeGlobalFile(cat_stats_path)
-   
-    return job.fileStore.writeGlobalFile(cat_vcf_file), job.fileStore.writeGlobalFile(cat_vcf_file + '.tbi'), cat_stats_id
+    return job.fileStore.writeGlobalFile(cat_vcf_file), job.fileStore.writeGlobalFile(cat_vcf_file + '.tbi')
 
 def make_giraffe_indexes(job, options, config, index_dict, haplotype_indexes=False, tag=''):
     """ make giraffe-specific indexes: distance and minimaer """
