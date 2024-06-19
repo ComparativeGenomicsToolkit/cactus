@@ -938,6 +938,9 @@ def make_vcf(job, config, out_name, vcf_ref, index_dict, fasta_ref_dict, tag='',
     if tbi_path:
         output_dict['{}raw.vcf.gz.tbi'.format(tag)] = job.fileStore.writeGlobalFile(tbi_path)
 
+    # running bcftools view acts like a sanity check for the vcf
+    cactus_call(parameters=['bcftools', 'view', vcf_path])
+
     # make the filtered vcf
     if max_ref_allele:        
         vcfbub_path = os.path.join(work_dir, 'merged.filtered.vcf.gz')
@@ -959,6 +962,9 @@ def make_vcf(job, config, out_name, vcf_ref, index_dict, fasta_ref_dict, tag='',
         output_dict['{}vcf.gz'.format(tag)] = job.fileStore.writeGlobalFile(vcfbub_path)
         if tbi_path:
             output_dict['{}vcf.gz.tbi'.format(tag)] = job.fileStore.writeGlobalFile(vcfbub_path + '.tbi')
+
+        # running bcftools view acts like a sanity check for the vcf
+        cactus_call(parameters=['bcftools', 'view', vcfbub_path])
 
     return output_dict
 
@@ -1014,7 +1020,6 @@ def vcfwave(job, options, config, vcf_ref, index_dict, deconstruct_out_dict, fas
     return { '{}wave.vcf.gz'.format(tag) : concat_job.rv(0),
              '{}wave.vcf.gz.tbi'.format(tag) : concat_job.rv(1) }
 
-
 def vcfwave_chr(job, config, vcf_ref, vcf_id, tbi_id, fasta_id, contig, vcfbub_thresh, tag, ref_tag):
     """ run vcfwave on a given chromosome """
     work_dir = job.fileStore.getLocalTempDir()
@@ -1058,6 +1063,9 @@ def vcfwave_chr(job, config, vcf_ref, vcf_id, tbi_id, fasta_id, contig, vcfbub_t
 
         wave_vcf_path = norm_vcf_path
         wave_tbi_path = norm_vcf_path + '.tbi'
+    else:
+        # running bcftools view acts like a sanity check for the vcf
+        cactus_call(parameters=['bcftools', 'view', wave_vcf_path])
 
     return job.fileStore.writeGlobalFile(wave_vcf_path), job.fileStore.writeGlobalFile(wave_tbi_path)
 
@@ -1083,7 +1091,7 @@ def vcf_cat(job, raw_vcf_id, raw_tbi_id, vcf_ids, contigs, tag, ref_tag):
     cactus_call(parameters=['bcftools', 'concat', '-O', 'z', '--threads', str(job.cores)] + contig_vcf_files,
                 work_dir=work_dir, outfile=cat_vcf_file)
     cactus_call(parameters=['tabix', '-fp', 'vcf', cat_vcf_file])
-    
+
     return job.fileStore.writeGlobalFile(cat_vcf_file), job.fileStore.writeGlobalFile(cat_vcf_file + '.tbi')
 
 def make_giraffe_indexes(job, options, config, index_dict, haplotype_indexes=False, tag=''):
