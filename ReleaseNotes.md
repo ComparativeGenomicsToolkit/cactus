@@ -1,3 +1,10 @@
+# Release-2.8.4 2024-06-21
+
+This release updates `vcfbub` in order to fix a longstanding issue where this tool can produce invalid VCFs. 
+
+- `vcfbub` updated to `v0.1.1` which resolves a bub where records could be missing columns in the presence of `.` genotypes
+- run `bcftools view` as sanity check on generated VCFs to prevent various normalization steps from ever silently producing invalid output.
+
 # Release-2.8.3 2024-06-12
 
 This release fixes some bugs and updates to the latest Toil.
