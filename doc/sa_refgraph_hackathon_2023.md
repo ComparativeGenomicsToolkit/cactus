@@ -85,12 +85,14 @@ I am going to run on 32-cores in order to simulate my understanding of an "avera
 
 Here it is, with an explanation of each option following below.
 
+**Update:** Previous versions of this document used `--giraffe clip filter` below.  Since Cactus v2.8.5, this is [no longer necessary](https://github.com/ComparativeGenomicsToolkit/cactus/pull/1424): you can use just `--giraffe filter` (or leave the `--giraffe` option out altogether to go all in on haplotype subsampling). Not using `--giraffe clip` drastically reduces peak memory usage.
+
 ```
 rm -rf cactus-scratch && mkdir cactus-scratch
 
 singularity exec -H $(pwd) docker://quay.io/comparative-genomics-toolkit/cactus:v2.6.13 \
 cactus-pangenome ./js ./hprc10.seqfile --outDir ./hprc10 --outName hprc10 --reference GRCh38 CHM13 \
---filter 2 --haplo --giraffe clip filter --viz --odgi --chrom-vg clip filter --chrom-og --gbz clip filter full \
+--filter 2 --haplo --giraffe filter --viz --odgi --chrom-vg clip filter --chrom-og --gbz clip filter full \
 --gfa clip full --vcf --vcfReference GRCh38 CHM13 --logFile ./hprc10.log --workDir ./cactus-scratch \
 --consCores 8 --mgMemory 128Gi
 ```
@@ -107,7 +109,7 @@ For `cactus-pangenome`:
 * `--reference GRCh38 CHM13`: Specify these two samples as reference genomes. Reference samples are indexed a little different in `vg` to make their coordinates easier to use. Also, the first reference given (GRCh38 in this case), is used to anchor the entire graph and is treated differently than the other samples.  Please see [here for more details](https://github.com/ComparativeGenomicsToolkit/cactus/blob/master/doc/pangenome.md#reference-sample).
 * `--filter 2`: Create an Allele-Frequency filtered (AF) graph that contains only nodes and edges supported by at least 2 haplotypes. This can lead to better mapping performance. `--filter 9` was used for the 90-assembly HPRC graph.  
 * `--haplo`: We are actually phasing out the Allele-Frequency filtering as described above in favour or dynamic creation of personal pangenomes. Using this option will create the necessary indexes for this functionality.
-* `--giraffe clip filter`: Make giraffe indexes for the Allele-Frequency filtered graph in addition to the (default) clipped graph.
+* `--giraffe filter`: Make giraffe indexes for the Allele-Frequency filtered graph.
 * `--viz`: Make an ODGI 1D visualization image for each chromosome.
 * `--odgi`: Make an ODGI formatted whole-genome graph
 * `--chrom-vg clip filter`: Make VG formatted chromosome graphs for the both the AF filtered and (default) clipped pangenome.
@@ -217,13 +219,15 @@ Next, switch to the directory where your input data is and where you want to run
 
 **IMPORTANT** Toil/Cactus do not (yet) understand cluser time limits. This will change soon (our cluster will be adopting time limits this month), but in the meantime, you need to make sure that the default time limit for all jobs is longer than the slowest job (which is almost always minigraph construction). One way to do this is with the `TOIL_SLURM_ARGS` environment variable. In general, this variable lets you add any options you want to every job submitted to the cluster by Cactus (see `sbatch --help` for a listing) of possible options. If you do not specify this, jobs will be submitted with some default limit (3 hours, I think) and get evicted if they go longer. Thanks **Mamana Mbiyavanga** for helping to figure this out!!!
 
+**Update:** Previous versions of this document used `--giraffe clip filter` below.  Since Cactus v2.8.5, this is [no longer necessary](https://github.com/ComparativeGenomicsToolkit/cactus/pull/1424): you can use just `--giraffe filter` (or leave the `--giraffe` option out altogether to go all in on haplotype subsampling). Not using `--giraffe clip` drastically reduces peak memory usage. 
+
 ```
 export TOIL_SLURM_ARGS="-t 1440"
 
 rm -rf slurm-logs ; mkdir -p slurm-logs
 
 cactus-pangenome ./js ./hprc10.seqfile --outDir ./hprc10 --outName hprc10 --reference GRCh38 CHM13 \
---filter 2 --haplo --giraffe clip filter --viz --odgi --chrom-vg clip filter --chrom-og --gbz clip filter full \
+--filter 2 --haplo --giraffe filter --viz --odgi --chrom-vg clip filter --chrom-og --gbz clip filter full \
 --gfa clip full --vcf --vcfReference GRCh38 CHM13 --logFile ./hprc10.log
 --consCores 8 --mgMemory 128Gi --batchSystem slurm --batchLogsDir ./slurm-logs --binariesMode singularity
 ```
