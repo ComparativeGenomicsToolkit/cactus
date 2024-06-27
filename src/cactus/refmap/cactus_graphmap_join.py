@@ -939,7 +939,7 @@ def make_vcf(job, config, out_name, vcf_ref, index_dict, fasta_ref_dict, tag='',
         output_dict['{}raw.vcf.gz.tbi'.format(tag)] = job.fileStore.writeGlobalFile(tbi_path)
 
     # running bcftools view acts like a sanity check for the vcf
-    cactus_call(parameters=['bcftools', 'view', vcf_path])
+    cactus_call(parameters=[['bcftools', 'view', vcf_path], ['tail']])
 
     # make the filtered vcf
     if max_ref_allele:        
@@ -964,7 +964,7 @@ def make_vcf(job, config, out_name, vcf_ref, index_dict, fasta_ref_dict, tag='',
             output_dict['{}vcf.gz.tbi'.format(tag)] = job.fileStore.writeGlobalFile(vcfbub_path + '.tbi')
 
         # running bcftools view acts like a sanity check for the vcf
-        cactus_call(parameters=['bcftools', 'view', vcfbub_path])
+        cactus_call(parameters=[['bcftools', 'view', vcfbub_path], ['tail']])
 
     return output_dict
 
