@@ -174,3 +174,36 @@ double cactusParams_get_float(CactusParams *p, int num, ...) {
     va_end(args);
     return j;
 }
+
+static bool cactusParams_has_attr2(CactusParams *p, int num, va_list *args) {
+    va_list args2;
+    va_copy(args2, *args); // to use the variable args we must copy it - see https://wiki.sei.cmu.edu/confluence/display/c/MSC39-C.+Do+not+call+va_arg%28%29+on+a+va_list+that+has+an+indeterminate+value
+    xmlNodePtr c = get_descendant_node(p->cur, num-1, &args2);
+
+    if(c == NULL) {
+        return false;
+    }
+    const char *attribute_name = NULL;
+    for (int64_t i = 0; i < num; i++) { // Loop to discard the earlier strings in the input
+        attribute_name = va_arg(args2, char *);
+    }
+    char *v =  (char *)xmlGetProp(c, (const xmlChar *)attribute_name);
+
+    if(v == NULL) {
+        return false;
+    }
+
+    va_end(args2);
+
+    return true;
+    
+}
+
+bool cactusParams_has_attr(CactusParams *p, int num, ...) {
+    va_list args;
+    bool ret;
+    va_start(args, num);
+    ret = cactusParams_has_attr2(p, num, &args);
+    va_end(args);
+    return ret;
+}
