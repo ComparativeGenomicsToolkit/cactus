@@ -199,7 +199,7 @@ The individual parts of the pipeline can be run independently using the followin
 * `yeast.sv.gfa.gz`: This graph is output by `minigraph`.  It contains SVs only, and doesn't have embedded paths for the input sequences.
 * `yeast.full.gfa.gz`: This is the `full` minigraph-cactus graph. It is normalized, but no sequence is removed. It and its indexes will have `.full` in their filenames. 
 * `yeast.gfa.gz`. This is the default or `clip` graph. Stretches of sequence `>10kb` that were not aligned to the underlying SV/minigraph are removed. "Dangling" nodes (ie that don't have an edge on each side) that aren't on the reference path are also removed, so that each chromosome only has two tips in the graph.
-* `yeast.d2.gfa.gz`: This `filter` graph is made by removing nodes covered by fewer than 2 haplotypes (this value can be changed using the `--filter` option) from the `clip` graph. **Note** in newer versions of vg, you can usually get away without allele frequency filtering by way of haplotype sampling (using the `--haplo` option to make an index for this). 
+* `yeast.d2.gfa.gz`: This `filter` graph is made by removing nodes covered by fewer than 2 haplotypes (this value can be changed using the `--filter` option) from the `clip` graph. **Note** in newer versions of vg, you can usually get away without allele frequency filtering by way of haplotype sampling (using the `--haplo` option (without `--giraffe`)) to make an index for this). 
 
 The `clip` graph is a subgraph of the `full` graph and the `filter` graph is a subgraph of the `clip` graph. Put another way, any node in the `filter` graph exists with the exact same ID and sequence in the `clip` graph, etc. 
 
@@ -227,10 +227,9 @@ Also new in v2.8.2, you can use the `--vcfwave` option to create a version of th
 
 ### Haplotype Sampling Instead of Filtering (NEW)
 
-The `.dX` graphs created with `--filter` were necessary for read mapping, but now `vg` supports dynamic haplotype subsampling (ie personalized pangenomes) and, in most cases, filtering is no longer necessary. In order to use haplotype sampling, run `cactus-pangenome / cactus-graphmap-join` with the `--haplo clip --giraffe clip` options. This will create the `giraffe` indexes for the clipped (unfiltered) graph, as well as the special `.hapl` haplotype index. From there, you can use the `.hapl` and `.gbz` (you do not need the `.dist` or `.min`) to run `vg giraffe` using the current best practices.
+The `.dX` graphs created with `--filter` were necessary for read mapping, but now `vg` supports dynamic haplotype subsampling (ie personalized pangenomes) and, in most cases, filtering is no longer necessary. In order to use haplotype sampling, run `cactus-pangenome / cactus-graphmap-join` with the `--haplo` option (and do not use `--giraffe`). This will create the `giraffe` indexes for the special `.hapl` haplotype index which (with the `.gbz`` is all you need to run `vg giraffe` using the current best practices.
 
-While this process will give better mapping performance than using the `--filter` graphs there are two downsides:
-* In order to make the `.hapl` index, a `.dist` index must be created for the clipped graph (hence the required `--giraffe clip`).  This can be memory intensive for very complex graphs (ie involving different species).
+While this process will give better mapping performance than using the `--filter` graphs there is one downside:
 * Read mapping will now require an invocation of `kmc` to compute a kmer index (see links below). While this adds complexity, it does not seriously affect runtime (the time used making the kmer index and doing the subsampling is balanced out by faster mappings times).
 
 Further reading:
