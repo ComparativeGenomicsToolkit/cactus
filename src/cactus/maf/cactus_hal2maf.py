@@ -514,7 +514,7 @@ def get_sed_rename_scripts(work_dir, genome_list, out_bed = False, prefix='g'):
     name_map = {}
     counter = 0
     for genome in genome_list:
-        if not genome.isalnum():
+        if not genome.replace('_', '').isalnum():
             assert ' ' not in genome and '\t' not in genome
             new_name = '{}{}'.format(prefix, counter)
             while new_name in genome_set or new_name in name_map:
