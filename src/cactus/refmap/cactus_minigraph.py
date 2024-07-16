@@ -9,6 +9,7 @@ from argparse import ArgumentParser
 import xml.etree.ElementTree as ET
 import copy
 import timeit, time
+import math
 from Bio import SeqIO
 from Bio.SeqRecord import SeqRecord
 from collections import defaultdict
@@ -23,6 +24,7 @@ from cactus.shared.common import enableDumpStack
 from cactus.shared.common import cactus_override_toil_options
 from cactus.shared.common import cactus_call
 from cactus.shared.common import getOptionalAttrib, findRequiredNode
+from cactus.shared.common import clean_jobstore_files
 from cactus.shared.version import cactus_commit
 from cactus.progressive.cactus_prepare import human2bytesN
 from cactus.preprocessor.checkUniqueHeaders import sanitize_fasta_headers
@@ -176,7 +178,7 @@ def minigraph_construct_workflow(job, options, config_node, seq_id_map, seq_orde
         prev_job = sort_job
     else:
         prev_job = sanitize_job
-    minigraph_job = prev_job.addFollowOnJobFn(minigraph_construct, options, config_node, sanitized_seq_id_map, seq_order, gfa_path)
+    minigraph_job = prev_job.addFollowOnJobFn(minigraph_construct_in_batches, options, config_node, sanitized_seq_id_map, seq_order, gfa_path)
     return minigraph_job.rv()
 
 def sort_minigraph_input_with_mash(job, options, seq_id_map, seq_order):
@@ -293,23 +295,59 @@ def mash_distance_order(job, options, seq_order, mash_output_maps):
         
     return sorted(seq_order, key = lambda x : seq_to_dist[x])
     
-def minigraph_construct(job, options, config_node, seq_id_map, seq_order, gfa_path, has_resources=False):
-    """ Make minigraph """
+def minigraph_construct_in_batches(job, options, config_node, seq_id_map, seq_order, gfa_path):
+    """ Make minigraph in sequential batches"""
 
-    if not has_resources:
-        # get the file sizes from the resolved promises run again with calculated resources
-        max_size = max([x.size for x in seq_id_map.values()])
-        total_size = sum([x.size for x in seq_id_map.values()])
-        disk = total_size * 2
-        mem = cactus_clamp_memory(60 * max_size + int(total_size / 4))
-        if options.mgMemory is not None:
-            RealtimeLogger.info('Overriding minigraph_construct memory estimate of {} with {} value {} from --mgMemory'.format(bytes2human(mem), 'greater' if options.mgMemory > mem else 'lesser', bytes2human(options.mgMemory)))     
-            mem = options.mgMemory
+    max_size = max([x.size for x in seq_id_map.values()])
+    total_size = sum([x.size for x in seq_id_map.values()])
+    disk = total_size * 2
+    mem = cactus_clamp_memory(60 * max_size + int(total_size / 4))
+    if options.mgMemory is not None:
+        RealtimeLogger.info('Overriding minigraph_construct memory estimate of {} with {} value {} from --mgMemory'.format(bytes2human(mem), 'greater' if options.mgMemory > mem else 'lesser', bytes2human(options.mgMemory)))     
+        mem = options.mgMemory
+        
         return job.addChildJobFn(minigraph_construct, options, config_node, seq_id_map, seq_order, gfa_path,
                                  has_resources=True, disk=disk, memory=mem, cores=options.mgCores).rv()
 
+    # parse options from the config
+    xml_node = findRequiredNode(config_node, "graphmap")
+    max_batch_size = getOptionalAttrib(xml_node, "minigraphConstructBatchSize", int, default=-1)
+    assert max_batch_size > 0
+    num_batches = int(math.ceil(len(seq_order) / max_batch_size))
+    prev_job = None
+    prev_gfa_path = None
+    for i in range(num_batches):        
+        batch_size = len(seq_order) - i * max_batch_size if i == num_batches - 1 else max_batch_size
+        input_seq_order = seq_order[i * max_batch_size : (i * max_batch_size) + batch_size]
+        assert input_seq_order and len(input_seq_order) <= max_batch_size
+        out_gfa_path = gfa_path
+        if i < num_batches:
+            if out_gfa_path.endswith('.gz'):
+                out_gfa_path = '{}.{}.gz'.format(gfa_path[:-3], i)
+            else:
+                out_gfa_path = '{}.{}'.format(gfa_path, i)                
+        minigraph_job = Job.wrapJobFn(minigraph_construct, options, config_node, seq_id_map, input_seq_order, out_gfa_path,
+                                      prev_job.rv() if prev_job else None, prev_gfa_path,
+                                      disk=disk, memory=mem, cores=options.mgCores)
+        if prev_job:
+            prev_job.addFollowOn(minigraph_job)
+            # delete the output of the previous batch from the job store            
+            minigraph_job.addFollowOnJobFn(clean_jobstore_files, file_ids=[prev_job.rv()])
+        else:
+            job.addChild(minigraph_job)
+        prev_job = minigraph_job
+        prev_gfa_path = out_gfa_path
+
+    return prev_job.rv()
+
+def minigraph_construct(job, options, config_node, seq_id_map, seq_order, gfa_path, prev_gfa_id, prev_gfa_path):
+    """ Make minigraph """
+
     work_dir = job.fileStore.getLocalTempDir()
     gfa_path = os.path.join(work_dir, os.path.basename(gfa_path))
+    if prev_gfa_id:
+        prev_gfa_path = os.path.join(work_dir, os.path.basename(prev_gfa_path))
+        job.fileStore.readGlobalFile(prev_gfa_id, prev_gfa_path)
 
     # parse options from the config
     xml_node = findRequiredNode(config_node, "graphmap")
@@ -320,25 +358,16 @@ def minigraph_construct(job, options, config_node, seq_id_map, seq_order, gfa_pa
     
     # download the sequences
     local_fa_paths = {}
-    for event, fa_id in seq_id_map.items():
+    for event in seq_order:
         fa_id = seq_id_map[event]
         fa_path = os.path.join(work_dir, '{}.fa'.format(event))
         job.fileStore.readGlobalFile(fa_id, fa_path)
         local_fa_paths[event] = fa_path
         assert os.path.getsize(local_fa_paths[event]) > 0
 
-    sort_type = getOptionalAttrib(xml_node, "minigraphSortInput", str, default=None)
-    if sort_type == "size":
-        # don't touch the reference(s)        
-        sorted_order = seq_order[:len(options.reference)]
-        # sort the rest by size, biggest first, which is usually how we help poa
-        seq_to_size = {}
-        for seq in seq_order[len(options.reference):]:
-            seq_to_size[seq] = sum([len(r.seq) for r in SeqIO.parse(local_fa_paths[seq], 'fasta')])
-        sorted_order += sorted(seq_order[len(options.reference):], key = lambda e : seq_to_size[e], reverse=True)
-        seq_order = sorted_order
-
     mg_cmd = ['minigraph'] + opts_list
+    if prev_gfa_id:
+        mg_cmd += [os.path.basename(prev_gfa_path)]
     for event in seq_order:
         mg_cmd += [os.path.basename(local_fa_paths[event])]
 
@@ -346,7 +375,7 @@ def minigraph_construct(job, options, config_node, seq_id_map, seq_order, gfa_pa
         mg_cmd = [mg_cmd, ['bgzip', '--threads', str(job.cores)]]
 
     cactus_call(parameters=mg_cmd, outfile=gfa_path, work_dir=work_dir, realtimeStderrPrefix='[minigraph]', job_memory=job.memory)
-
+    
     return job.fileStore.writeGlobalFile(gfa_path)
         
         
