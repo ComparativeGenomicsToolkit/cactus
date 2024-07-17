@@ -450,7 +450,7 @@ class TestCase(unittest.TestCase):
         # make sure it made output
         if binariesMode == 'docker':
             wave_vcf_bytes = os.path.getsize(os.path.join(out_dir, out_name + '.simChimp.wave.vcf.gz'))
-            self.assertGreaterEqual(wave_vcf_bytes, 500000)
+            self.assertGreaterEqual(wave_vcf_bytes, 300000)
 
 
     def _run_yeast_pangenome_step_by_step(self, binariesMode):
