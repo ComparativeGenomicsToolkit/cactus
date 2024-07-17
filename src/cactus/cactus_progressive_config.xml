@@ -317,7 +317,8 @@
 	<!-- assemblyName: special name of "virtual" minigraph assembly, which is just the list of sequences from the graph. -->
 	<!-- minigraphMapOptions: flags to pass to minigraph for mapping -->
 	<!-- minigraphConstructOptions: flags to pass to minigraph for construction -->
-	<!-- minigraphSortInput: Method used to determine input order. Valid values are "mash", "size", "none" / "0" which refer to (decreasing) mash distance to reference, (decreasing) size or no sorting (order in seqfile), respectively -->
+	<!-- minigraphConstructBatchSize: break minigraph construction into chunks of this size. this allows recovering from a failure during graph construction, and avoiding really long argument lists for each job. -->
+	<!-- minigraphSortInput: Method used to determine input order. Valid values are "mash", "none" / "0" which refer to (decreasing) mash distance to reference, or no sorting (order in seqfile), respectively -->
 	<!-- minMAPQ: ignore minigraph alignments with mapping quality less than this -->
 	<!-- minGAFBlockLength: ignore minigraph alignments with block length less than this -->
 	<!-- minGAFQueryOverlapFilter: if 2 or more query regions in blocks of at least this size, filter them out. -->
@@ -338,6 +339,7 @@
 		 assemblyName="_MINIGRAPH_"
 		 minigraphMapOptions="-c -xasm"
 		 minigraphConstructOptions="-c -xggs"
+		 minigraphConstructBatchSize="50"
 		 minigraphSortInput="mash"
 		 minMAPQ="5"
 		 minGAFBlockLength="250000"

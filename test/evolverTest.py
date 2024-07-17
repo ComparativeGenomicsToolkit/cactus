@@ -425,6 +425,19 @@ class TestCase(unittest.TestCase):
             # tack on a vcfwave test for docker binaries
             cactus_opts += ['--vcf', '--vcfReference', 'simChimp', '--clip', '1000', '--vcfwave']
 
+        # use the same logic cactus does to get default config
+        config_path = 'src/cactus/cactus_progressive_config.xml'
+        xml_root = ET.parse(config_path).getroot()
+        graphmap_elem = xml_root.find("graphmap")
+        # force cactus to use minigraph chunking
+        graphmap_elem.attrib["minigraphConstructBatchSize"] = "2"
+        mc_config_path = os.path.join(self.tempDir, "config.mc.xml")
+        with open(mc_config_path, 'w') as mc_config_file:
+            xmlString = ET.tostring(xml_root, encoding='unicode')
+            xmlString = minidom.parseString(xmlString).toprettyxml()
+            mc_config_file.write(xmlString)
+        cactus_opts += ['--configFile', mc_config_path]
+            
         out_dir = os.path.dirname(self._out_hal(binariesMode))
         out_name = os.path.splitext(os.path.basename(self._out_hal(binariesMode)))[0]
         cactus_pangenome_cmd = ['cactus-pangenome', self._job_store(binariesMode), seq_file_path, '--reference', 'simHuman', 'simChimp',
