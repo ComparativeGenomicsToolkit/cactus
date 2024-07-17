@@ -114,8 +114,7 @@ def graph_map(options):
             # load up the seqfile and figure out the outgroups and schedule
             config_wrapper.substituteAllPredefinedConstantsWithLiterals(options)
             mc_tree, input_seq_map, og_candidates = parse_seqfile(options.seqFile, config_wrapper, pangenome=True)
-            og_map = compute_outgroups(mc_tree, config_wrapper, set(og_candidates))
-            event_set = get_event_set(mc_tree, config_wrapper, og_map, mc_tree.getRootName())
+            event_set = get_event_set(mc_tree, config_wrapper, {}, mc_tree.getRootName())
 
             # apply path overrides.  this was necessary for wdl which doesn't take kindly to
             # text files of local paths (ie seqfile).  one way to fix would be to add support
