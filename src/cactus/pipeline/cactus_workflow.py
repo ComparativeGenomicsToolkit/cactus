@@ -135,7 +135,8 @@ def cactus_cons(job, tree, ancestor_event, config_node, seq_id_map, og_map, paf_
     with open(tmpSeqFilePath, 'w') as seqFile:
         seqFile.write(f'{NXNewick().writeString(tree)}\n')
         for genome, faPath in list(seq_path_map.items()):
-            seqFile.write(f'{genome}\t{faPath}\n')
+            # note: path must be relative for docker support
+            seqFile.write(f'{genome}\t{os.path.basename(faPath)}\n')
             
     args = ["--seqFile", tmpSeqFilePath, "--logLevel", getLogLevelString(),
             "--alignments", primary_alignment_file, "--params", tmpConfig, "--outputFile", tmpHal,
@@ -147,6 +148,7 @@ def cactus_cons(job, tree, ancestor_event, config_node, seq_id_map, og_map, paf_
     messages = cactus_call(check_output=True, returnStdErr=True,
                            realtimeStderrPrefix=f'cactus_consolidated({chrom_name if chrom_name else ancestor_event})',
                            parameters=["cactus_consolidated"] + args,
+                           work_dir=work_dir,
                            job_memory=job.memory)[1]  # Get just the standard error output
 
     # if cactus was run with --realTimeLogging, cactus_call will print out conslidated's stderr messages as they happen
