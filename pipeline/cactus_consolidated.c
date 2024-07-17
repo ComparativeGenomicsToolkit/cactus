@@ -36,16 +36,53 @@ void usage() {
     fprintf(stderr, "-f --outputFile : [Required] The file to write the combined cactus to hal output\n");
     fprintf(stderr, "-F --outputHalFastaFile : The file to write the sequences in to build the hal file.\n");
     fprintf(stderr, "-G --outputReferenceFile : The file to write the sequences of the reference in (used in the progressive recursion).\n");
-    fprintf(stderr, "-s --sequences [Required] [eventName fastaFile/Directory]xN: The sequences\n");
+    fprintf(stderr, "-s --sequences [Required unless --seqFile given] : eventName fastaFile/Directory]xN: The sequences\n");
+    fprintf(stderr, "-e --seqFile [Required unless --sequences and --speciesTree give] : seqfile containing tree and sequences\n"); 
     fprintf(stderr, "-a --alignments : [Required] The alignments file\n");
     fprintf(stderr, "-S --secondaryAlignments : The secondary alignments file\n");
     fprintf(stderr, "-c --constraintAlignments : The constraint alignments file\n");
-    fprintf(stderr, "-g --speciesTree : [Required] The species tree, which will form the skeleton of the event tree\n");
+    fprintf(stderr, "-g --speciesTree : [Required unless --seqFile given] The species tree, which will form the skeleton of the event tree\n");
     fprintf(stderr, "-o --outgroupEvents : Leaf events in the species tree identified as outgroups\n");
     fprintf(stderr, "-r --referenceEvent : [Required] The name of the reference event\n");
     fprintf(stderr, "-t --runChecks : Run cactus checks after each stage, used for debugging\n");
     fprintf(stderr, "-T --threads : (int > 0) Use up to this many threads [default: all available]\n");
     fprintf(stderr, "-h --help : Print this help message\n");
+}
+
+static void parse_seqfile(const char *seqFilePath, char **outSequencesAndEvents, char **outSpeciesTree) {
+    assert(seqFilePath != NULL && *outSequencesAndEvents == NULL && *outSpeciesTree == NULL);
+    
+    FILE *seq_file = fopen(seqFilePath, "r");
+    if (!seq_file) {
+        st_errAbort("unable to open input seqfile \"%s\"\n", seqFilePath);        
+    }
+    
+    int64_t buf_size = 65536;
+    char* buf = st_malloc(buf_size * sizeof(char));
+    int64_t line_no = 0;
+    stList *speciesEventsList = stList_construct3(0, free);
+    while (benLine(&buf, &buf_size, seq_file) != -1) {
+        if (strlen(buf) > 0 && buf[0] != '#') {
+            if (line_no == 0) {
+                *outSpeciesTree = stString_copy(buf);
+            } else {
+                stList *line_toks = stString_split(buf);
+                if (stList_length(line_toks) != 2) {
+                    st_errAbort("unable to parse seqfile line %d: %s\n", (int)line_no, buf);
+                }
+                stList_append(speciesEventsList, stString_copy((char*)stList_get(line_toks, 0)));
+                stList_append(speciesEventsList, stString_copy((char*)stList_get(line_toks, 1)));                
+            }
+            ++line_no;
+        }
+    }
+    if (stList_length(speciesEventsList) == 0) {
+        st_errAbort("unable to parse empty seqfile %s\n", seqFilePath);
+    }
+    *outSequencesAndEvents = stString_join2(" ", speciesEventsList);
+
+    stList_destruct(speciesEventsList);
+    free(buf);
 }
 
 static char *convertAlignments(char *alignmentsFile, Flower *flower) {
@@ -140,6 +177,7 @@ int main(int argc, char *argv[]) {
     char *outputHalFastaFile = NULL;
     char *outputReferenceFile = NULL;
     char *sequenceFilesAndEvents = NULL;
+    char *seqFile = NULL;
     char *alignmentsFile = NULL;
     char *secondaryAlignmentsFile = NULL;
     char *constraintAlignmentsFile = NULL;
@@ -167,6 +205,7 @@ int main(int argc, char *argv[]) {
                 { "outputHalFastaFile", required_argument, 0, 'F' },
                 { "outputReferenceFile", required_argument, 0, 'G' },
                 { "sequences", required_argument, 0, 's' },
+                { "seqFile", required_argument, 0, 'e' },
                 { "alignments", required_argument, 0, 'a' },
                 { "secondaryAlignments", required_argument, 0, 'S' },
                 { "speciesTree", required_argument, 0, 'g' },
@@ -180,7 +219,7 @@ int main(int argc, char *argv[]) {
 
         int option_index = 0;
 
-        int64_t key = getopt_long(argc, argv, "l:p:s:a:S:c:g:o:hr:F:G:tT:", long_options, &option_index);
+        int64_t key = getopt_long(argc, argv, "l:p:s:a:S:e:c:g:o:hr:F:G:tT:", long_options, &option_index);
 
         if (key == -1) {
             break;
@@ -205,6 +244,9 @@ int main(int argc, char *argv[]) {
             case 's':
                 sequenceFilesAndEvents = optarg;
                 break;
+            case 'e':
+                seqFile = optarg;
+                break;                                
             case 'a':
                 alignmentsFile = optarg;
                 break;
@@ -253,17 +295,20 @@ int main(int argc, char *argv[]) {
     if (outputFile == NULL) {
         st_errAbort("must supply --outputFile (-f))");
     }
-    if (sequenceFilesAndEvents == NULL) {
-        st_errAbort("must supply --sequences (-s)");
+    if (sequenceFilesAndEvents == NULL && seqFile == NULL) {
+        st_errAbort("must supply --sequences (-s) OR --seqFile (-e)");
     }
     if (alignmentsFile == NULL) {
         st_errAbort("must supply --alignments (-a)");
     }
-    if (speciesTree == NULL) {
-        st_errAbort("must supply --speciesTree (-f)");
+    if (speciesTree == NULL && seqFile == NULL) {
+        st_errAbort("must supply --speciesTree (-f) OR --seqFile (-e)");
     }
     if (referenceEventString == NULL) {
         st_errAbort("must supply --referenceEvent (-r)");
+    }
+    if (seqFile != NULL && (sequenceFilesAndEvents != NULL || speciesTree != NULL)) {
+        st_errAbort("--seqFile (-e) cannot be used with --sequences (-s) or --speciesTree (-f)\n");
     }
 
     //////////////////////////////////////////////
@@ -300,6 +345,11 @@ int main(int argc, char *argv[]) {
     CactusDisk *cactusDisk = cactusDisk_construct();
 
     st_logInfo("Set up the cactus disk, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
+
+    // Load the seqfile
+    if (seqFile) {
+        parse_seqfile(seqFile, &sequenceFilesAndEvents, &speciesTree);
+    }
 
     //////////////////////////////////////////////
     //Call cactus setup
@@ -482,6 +532,10 @@ int main(int argc, char *argv[]) {
     stList_destruct(flowerLayers);
     cactusParams_destruct(params);
     cactusDisk_destruct(cactusDisk);
+    if (seqFile) {
+        free(speciesTree);
+        free(sequenceFilesAndEvents);
+    }
 
     st_logInfo("Cactus consolidated cleanup is done!, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
 

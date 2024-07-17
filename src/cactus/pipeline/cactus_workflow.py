@@ -130,10 +130,14 @@ def cactus_cons(job, tree, ancestor_event, config_node, seq_id_map, og_map, paf_
     tmpConfig = os.path.join(work_dir, f'{ancestor_event}.config.xml')
     ConfigWrapper(config_node).writeXML(tmpConfig)
 
-    # We pass in the genome->sequence map as a series of paired arguments: [genome, faPath]*N.
-    pairs = [[genome, faPath] for genome, faPath in list(seq_path_map.items())]
-    args = ["--sequences", " ".join([item for sublist in pairs for item in sublist]),
-            "--speciesTree", NXNewick().writeString(tree), "--logLevel", getLogLevelString(),
+    # We pass the tree and species in with a seqFile
+    tmpSeqFilePath = os.path.join(work_dir, f'{ancestor_event}.seqfile')
+    with open(tmpSeqFilePath, 'w') as seqFile:
+        seqFile.write(f'{NXNewick().writeString(tree)}\n')
+        for genome, faPath in list(seq_path_map.items()):
+            seqFile.write(f'{genome}\t{faPath}\n')
+            
+    args = ["--seqFile", tmpSeqFilePath, "--logLevel", getLogLevelString(),
             "--alignments", primary_alignment_file, "--params", tmpConfig, "--outputFile", tmpHal,
             "--outputHalFastaFile", tmpFasta, "--outputReferenceFile", tmpRef, "--outgroupEvents", " ".join(outgroups),
             "--referenceEvent", ancestor_event, "--threads", str(job.cores)]
