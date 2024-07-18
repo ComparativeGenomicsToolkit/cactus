@@ -260,7 +260,12 @@ def make_align_job(options, toil, config_wrapper=None, chrom_name=None):
     
     mc_tree, input_seq_map, og_candidates = parse_seqfile(options.seqFile, config_wrapper,
                                                           pangenome=options.pangenome)
-    og_map = compute_outgroups(mc_tree, config_wrapper, set(og_candidates), chrom_info_file = options.chromInfo)
+    if options.pangenome:
+        # outgroups not supported in pangenomes
+        # also, compute_outgroups() uses about 300 * N^2 bytes which can be huge for big pangenomes
+        og_map = {}
+    else:
+        og_map = compute_outgroups(mc_tree, config_wrapper, set(og_candidates), chrom_info_file = options.chromInfo)
     event_set = get_event_set(mc_tree, config_wrapper, og_map, options.root if options.root else mc_tree.getRootName())
     if options.includeRoot:
         if options.root not in input_seq_map:
