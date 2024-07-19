@@ -234,7 +234,8 @@ def export_hal(job, mc_tree, config_node, seq_id_map, og_map, results, event=Non
         if genome_name in subtree_roots:
             outgroups = og_map[genome_name] if genome_name in og_map else []
             subtree = get_subtree(mc_tree, genome_name, ConfigWrapper(config_node), og_map, include_outgroups=False)
-            tree_string = NXNewick().writeString(subtree)
+            tree_path = os.path.join(work_dir, '{}.newick'.format(genome_name))
+            NXNewick().writeFile(tree_path, nxTree=subtree)
             sub_hal_path = os.path.join(work_dir, '{}.hal.c2h'.format(genome_name))
             hal_fasta_path = os.path.join(work_dir, '{}.hal.fa'.format(genome_name))
             assert genome_name in results
@@ -245,7 +246,7 @@ def export_hal(job, mc_tree, config_node, seq_id_map, og_map, results, event=Non
                 job.fileStore.readGlobalFile(results[genome_name][0], sub_hal_path)
                 job.fileStore.readGlobalFile(results[genome_name][1], hal_fasta_path)
                 
-                args = ['halAppendCactusSubtree', sub_hal_path, hal_fasta_path, tree_string, hal_path]
+                args = ['halAppendCactusSubtree', sub_hal_path, hal_fasta_path, tree_path, hal_path]
 
                 if len(outgroups) > 0:
                     args += ["--outgroups", ",".join(outgroups)]
