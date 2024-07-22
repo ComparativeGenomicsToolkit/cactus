@@ -314,6 +314,13 @@ def minigraph_construct_in_batches(job, options, config_node, seq_id_map, seq_or
     max_batch_size = getOptionalAttrib(xml_node, "minigraphConstructBatchSize", int, default=-1)
     assert max_batch_size > 0
     num_batches = int(math.ceil(len(seq_order) / max_batch_size))
+    if num_batches >= 990:
+        # Toil will fail with a python recursion error if we try to chain too many jobs
+        new_max_batch_size = int(len(seq_order) / 990 + 1)
+        job.fileStore.logToMaster('WARNING: Increasing minigraphConstructBatchSize from {} to {} to avoid Toil error from chaining too many jobs'.format(max_batch_size, new_max_batch_size))
+        max_batch_size = new_max_batch_size
+        num_batches = int(math.ceil(len(seq_order) / max_batch_size))
+        assert num_batches > 0 and num_batches <= 991
     prev_job = None
     prev_gfa_path = None
     for i in range(num_batches):        
