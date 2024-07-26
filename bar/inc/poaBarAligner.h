@@ -68,6 +68,7 @@ void msa_print(Msa *msa, FILE *f);
  * @param seq_lens An array giving the string lengths
  * @param seq_no The number of strings
  * @param window_size Sliding window size which limits length of poa sub-alignments.  Memory usage is quardatic in this. 
+ * @param max_prog_rows Disable abpoas progressive alignment if there are more than this many rows (avoid quadratic dist mat blowup)
  * @param poa_parameters abpoa parameters
  * @return An msa of the strings.
  */
@@ -75,6 +76,7 @@ Msa *msa_make_partial_order_alignment(char **seqs,
                                       int *seq_lens,
                                       int64_t seq_no,
                                       int64_t window_size,
+                                      int64_t max_prog_rows,
                                       abpoa_para_t *poa_parameters);
 
 /**
@@ -96,12 +98,13 @@ Msa *msa_make_partial_order_alignment(char **seqs,
  * @param right_end_row_indexes For each string, the index of the row of its reverse complement
  * @param overlaps For each prefix string, the length of the overlap with its reverse complement adjacency
  * @param window_size Sliding window size which limits length of poa sub-alignments.  Memory usage is quardatic in this. 
+ * @param max_prog_rows Disable abpoas progressive alignment if there are more than this many rows (avoid quadratic dist mat blowup)
  * @param poa_parameters abpoa parameters
  * @return A consistent Msa for each end
  */
 Msa **make_consistent_partial_order_alignments(int64_t end_no, int64_t *end_lengths, char ***end_strings,
         int **end_string_lengths, int64_t **right_end_indexes, int64_t **right_end_row_indexes, int64_t **overlaps,
-        int64_t window_size, abpoa_para_t *poa_parameters);
+        int64_t window_size, int64_t max_prog_rows, abpoa_para_t *poa_parameters);
 
 /**
  * Represents a gapless alignment of a set of sequences.
@@ -136,14 +139,14 @@ char *get_adjacency_string(Cap *cap, int *length, bool return_string);
  * to attempt to align.
  * @param window_size Sliding window size which limits length of poa sub-alignments.  Memory usage is quardatic in this. 
  * @param mask_filter Trim input sequences if encountering this many consecutive soft of hard masked bases (0 = disabled)
- * @param poa_band_constant abpoa "b" parameter, where adaptive band is b+f*<length> (b < 0 = disabled)
- * @param poa_band_fraction abpoa "f" parameter, where adaptive band is b+f*<length> (b < 0 = disabled)
- * Returns a list of AlignmentBlock ojects
+ * @param max_prog_rows Disable abpoas progressive alignment if there are more than this many rows (avoid quadratic dist mat blowup)
+ * @param poa_parameters abpoa parameters
  */
 stList *make_flower_alignment_poa(Flower *flower,
                                   int64_t max_seq_length,
                                   int64_t window_size,
                                   int64_t mask_filter,
+                                  int64_t max_prog_rows,
                                   abpoa_para_t * poa_parameters);
 
 /**

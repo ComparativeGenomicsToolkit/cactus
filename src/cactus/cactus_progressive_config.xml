@@ -248,7 +248,8 @@
 		<!-- partialOrderAlignmentMinimizerK abpoa kmer size for minimizer seeding. -->
 		<!-- partialOrderAlignmentMinimizerW abpoa window size for minimizer seeding. -->
 		<!-- partialOrderAlignmentMinimizerMinW abpoa minimum window size. -->
-		<!-- partialOrderAlignmentProgressiveMode= use guide tree from jaccard distance matrix to determine poa order -->
+		<!-- partialOrderAlignmentProgressiveMode use guide tree from jaccard distance matrix to determine poa order -->
+		<!-- partialOrderAlignmentProgressiveMaxRows disable progressive mode if there are more than this many rows to align -->
 		<poa
 			partialOrderAlignmentWindow="10000"
 			partialOrderAlignmentMaskFilter="-1"
@@ -264,6 +265,7 @@
 			partialOrderAlignmentMinimizerW="10"
 			partialOrderAlignmentMinimizerMinW="500"
 			partialOrderAlignmentProgressiveMode="1"
+			partialOrderAlignmentProgressiveMaxRows="5000"
 		/>
 	</bar>
 
