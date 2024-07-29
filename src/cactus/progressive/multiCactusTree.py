@@ -87,14 +87,18 @@ class MultiCactusTree(NXTree):
                     yield i
 
     # Extracts a tree spanning the nodes with the given names.
-    def extractSpanningTree(self, nodes):
+    def extractSpanningTree(self, nodes, root_id=None):
         assert len(nodes) > 1
         nodeIds = [self.nameToId[name] for name in nodes]
-        paths = [dijkstra_path(self.nxDg.to_undirected(), source=nodeIds[0], target=x) for x in nodeIds[1:]]
-        nodesToInclude = set()
-        for path in paths:
-            for node in path:
-                nodesToInclude.add(node)
+        if root_id is not None and all([self.getParent(n) == root_id for n in nodeIds]):
+            # this is a simple star tree, don't need path-finding logic below which doesn't scale to giant trees
+            nodesToInclude = nodeIds + [root_id]
+        else:
+            paths = [dijkstra_path(self.nxDg.to_undirected(), source=nodeIds[0], target=x) for x in nodeIds[1:]]
+            nodesToInclude = set()
+            for path in paths:
+                for node in path:
+                    nodesToInclude.add(node)
 
         cpy = self.nxDg.subgraph(nodesToInclude).copy()
         # Get rid of nodes that have only 1 children

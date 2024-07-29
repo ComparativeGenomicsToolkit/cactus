@@ -70,6 +70,7 @@ void bar(stList *flowers, CactusParams *params, CactusDisk *cactusDisk, stList *
     // Note that poa uses about N^2 memory, so maximum value is generally in 10s of kb
     int64_t poaWindow = cactusParams_get_int(params, 3, "bar", "poa", "partialOrderAlignmentWindow");
     int64_t maskFilter = cactusParams_get_int(params, 3, "bar", "poa", "partialOrderAlignmentMaskFilter");
+    int64_t poaMaxProgRows = cactusParams_get_int(params, 3, "bar", "poa", "partialOrderAlignmentProgressiveMaxRows");
     abpoa_para_t *poaParameters = usePoa ? abpoaParamaters_constructFromCactusParams(params) : NULL;
 
     //////////////////////////////////////////////
@@ -101,7 +102,7 @@ void bar(stList *flowers, CactusParams *params, CactusDisk *cactusDisk, stList *
              *
              * It does not use any precomputed alignments, if they are provided they will be ignored
              */
-            alignments = make_flower_alignment_poa(flower, maximumLength, poaWindow, maskFilter, poaParameters);
+            alignments = make_flower_alignment_poa(flower, maximumLength, poaWindow, maskFilter, poaMaxProgRows, poaParameters);
             st_logDebug("Created the poa alignments: %" PRIi64 " poa alignment blocks for flower\n", stList_length(alignments));
         } else {
             alignments = makeFlowerAlignment3(sM, flower, listOfEndAlignmentFiles, spanningTrees, maximumLength,

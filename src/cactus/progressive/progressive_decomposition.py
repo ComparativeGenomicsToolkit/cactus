@@ -31,7 +31,7 @@ from cactus.progressive.outgroup import GreedyOutgroup
 from cactus.progressive.seqFile import SeqFile
 from sonLib.nxnewick import NXNewick
 from toil.statsAndLogging import logger
-
+from toil.realtimeLogger import RealtimeLogger
 
 def parse_seqfile(seqfile_path, config_wrapper, root_name = None, pangenome = False):
     """
@@ -201,7 +201,7 @@ def get_spanning_subtree(mc_tree, root_name, config_wrapper, outgroup_map):
         node_id_set.add(node_id)
 
     # get the spanning tree
-    spanning_tree = mc_tree.extractSpanningTree([mc_tree.getName(node) for node in node_id_set])
+    spanning_tree = mc_tree.extractSpanningTree([mc_tree.getName(node) for node in node_id_set], root_id = root_id)
 
     spanning_tree.computeSubtreeRoots()
     return spanning_tree

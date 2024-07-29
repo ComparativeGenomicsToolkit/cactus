@@ -472,11 +472,11 @@ Note: this section is adpated from [methods for the mc paper](https://github.com
 
 `vg giraffe` will soon be able to map long reads, but is not ready yet. For now, you should use [GraphAligner](https://github.com/maickrau/GraphAligner).
 
-In order for the resulting mapping to be compatible with the `.gbz`, we first convert the `.gbz` into a `.gfa`.  You can run `GraphAligner` on the `.gfa` that comes out of `cactus-pangenome`, but the [coordinates will be different](https://github.com/ComparativeGenomicsToolkit/cactus/blob/master/doc/pangenome.md#node-chopping) from the `.gbz`.
+In order for the resulting mapping to be compatible with the `.gbz`, we first convert the `.gbz` into a `.gfa`.  You can run `GraphAligner` on the `.gfa` that comes out of `cactus-pangenome`, but the [coordinates will be different](https://github.com/ComparativeGenomicsToolkit/cactus/blob/master/doc/pangenome.md#node-chopping) from the `.gbz` (note the `--vg-algorithm` flag is important for ensuring this).
 
 ```
 singularity exec -H $(pwd) docker://quay.io/comparative-genomics-toolkit/cactus:v2.6.13 \
-bash -c "vg convert ./hprc10/hprc10.gbz -f > ./hprc10/hprc10.gbz.gfa"
+bash -c "vg convert ./hprc10/hprc10.gbz -f --vg-algorithm > ./hprc10/hprc10.gbz.gfa"
 ```
 
 This takes 43 seconds and 10Gb RAM.
