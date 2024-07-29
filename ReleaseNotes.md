@@ -1,3 +1,12 @@
+# Release-2.9.0 2024-07-29
+
+This release addresses two important scaling issues in the pangenome pipeline.
+
+- The haplotype sampling index (`--haplo`) can now be built without giraffe indexes (`--giraffe`).  This significantly reduces peak memory consumption when using `--haplo`, especially for big diverse pangenomes.
+- Previously, you could not align more than roughly 500 samples with Minigraph-Cactus, no matter how small the input genomes were. This bottleneck has been removed: you can now align as many genomes as your system resources allow. For very small genomes, this could be well into the tens of thousands.
+- Two bugs were recently found in `vcfwave`, which can be run with the `--vcfwave` option since v2.8.2. First the `AT` field is wrong in the output. Second, and more seriously, genotypes can be incorrect. The latter seems specific to multiallelic sites (but I'm not sure).  This release now strips `AT` fields (they are not relevant after re-alignment anyway). It also splits multiallelic sites before running `vcfwave` in an attempt to work around the genotyping bug.  
+
+
 # Release-2.8.4 2024-06-21
 
 This release updates `vcfbub` in order to fix a longstanding issue where this tool can produce invalid VCFs. 
