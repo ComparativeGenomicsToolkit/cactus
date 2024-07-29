@@ -94,8 +94,7 @@ class MultiCactusTree(NXTree):
             # this is a simple star tree, don't need path-finding logic below which doesn't scale to giant trees
             nodesToInclude = nodeIds + [root_id]
         else:
-            sourceId = root_id if root_id is not None else nodeIds[0]
-            paths = [dijkstra_path(self.nxDg.to_undirected(), source=sourceId, target=x) for x in nodeIds[1:]]
+            paths = [dijkstra_path(self.nxDg.to_undirected(), source=nodeIds[0], target=x) for x in nodeIds[1:]]
             nodesToInclude = set()
             for path in paths:
                 for node in path:
