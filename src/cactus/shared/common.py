@@ -318,7 +318,7 @@ def getDockerTag(gpu=False):
         return "latest"    
     else:
         # must be manually kept current with each release        
-        return 'v2.8.4' + ('-gpu' if gpu else '')
+        return 'v2.9.0' + ('-gpu' if gpu else '')
 
 def getDockerImage(gpu=False):
     """Get fully specified Docker image name."""
