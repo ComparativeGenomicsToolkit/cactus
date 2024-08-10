@@ -148,7 +148,10 @@ def graphmap_join_options(parser):
                         "Standard suffixes like K, Ki, M, Mi, G or Gi are supported (default=bytes))", default=None)   
     
     parser.add_argument("--chop", type=int, nargs='?', const=1024, default=None,
-                        help="chop all graph nodes to be at most this long (default=1024 specified without value). By default, nodes are only chopped for GBZ-derived formats, but left unchopped in the GFA, VCF, etc. If this option is used, the GBZ and GFA should have consistent IDs") 
+                        help="chop all graph nodes to be at most this long (default=1024 specified without value). By default, nodes are only chopped for GBZ-derived formats, but left unchopped in the GFA, VCF, etc. If this option is used, the GBZ and GFA should have consistent IDs")
+
+    parser.add_argument("--refCollapse", action='store_true', help = "Do not filter out self-alignments")
+
 
 def graphmap_join_validate_options(options):
     """ make sure the options make sense and fill in sensible defaults """
@@ -336,6 +339,9 @@ def graphmap_join(options):
             configNode = ET.parse(options.configFile).getroot()
             config = ConfigWrapper(configNode)
             config.substituteAllPredefinedConstantsWithLiterals(options)
+
+            if options.refCollapse:
+                findRequiredNode(config_node, "graphmap_join").attrib["allowRefCollapse"] = "1"
                 
             # load up the vgs
             vg_ids = []
@@ -673,6 +679,10 @@ def clip_vg(job, options, config, vg_path, vg_id, phase):
             if getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "clipNonMinigraph", typeFn=bool, default=True):
                 clip_vg_cmd += ['-a', graph_event]
             clip_vg_cmd += ['-o', clipped_bed_path]
+
+    # disable cycle check if desiired
+    if getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "allowRefCollapse", typeFn=bool, default=False):
+        clip_vg_cmd += ['-c']
 
     cmd.append(clip_vg_cmd)
     if options.reference:

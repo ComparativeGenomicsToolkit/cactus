@@ -59,6 +59,7 @@ def main():
     parser.add_argument("--pangenome", action="store_true",
                         help="Activate pangenome mode (suitable for star trees of closely related samples) by overriding several configuration settings."
                         " The overridden configuration will be saved in <outHal>.pg-conf.xml")
+    parser.add_argument("--refCollapse", action='store_true', help = "Do not filter out self-alignments in --pangenome mode")    
     parser.add_argument("--singleCopySpecies", type=str,
                         help="Filter out all self-alignments in given species")
     parser.add_argument("--barMaskFilter", type=int, default=None,
@@ -256,6 +257,8 @@ def make_align_job(options, toil, config_wrapper=None, chrom_name=None):
         config_wrapper = ConfigWrapper(config_node)
         config_wrapper.substituteAllPredefinedConstantsWithLiterals(options)
         config_wrapper.initGPU(options)
+        if options.refCollapse:
+            findRequiredNode(config_node, "graphmap_join").attrib["allowRefCollapse"] = "1"
     config_wrapper.setSystemMemory(options)
     
     mc_tree, input_seq_map, og_candidates = parse_seqfile(options.seqFile, config_wrapper,
@@ -396,8 +399,9 @@ def cactus_align(job, config_wrapper, mc_tree, input_seq_map, input_seq_id_map, 
     sub_tree = get_subtree(mc_tree, root_name, config_wrapper, og_map, include_outgroups=False)
     
     # run the hal export
+    allow_collapse = getOptionalAttrib(findRequiredNode(config_wrapper.xmlRoot, "graphmap_join"), "allowRefCollapse", typeFn=bool, default=False)
     hal_job = cons_job.addFollowOnJobFn(export_hal, sub_tree, config_wrapper.xmlRoot, new_seq_id_map, og_map, results, event=root_name, inMemory=True,
-                                        checkpointInfo=checkpointInfo, acyclicEvent=referenceEvents[0] if referenceEvents else None,
+                                        checkpointInfo=checkpointInfo, acyclicEvent=referenceEvents[0] if referenceEvents and not allow_collapse else None,
                                         memory_override=cons_memory)
 
     # clean out some of the  intermediate jobstore files

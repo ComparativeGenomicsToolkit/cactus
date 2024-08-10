@@ -52,7 +52,8 @@ def main():
     parser.add_argument("--outputGAFDir", type=str, help = "Output GAF alignments (raw minigraph output before PAF conversion) to this directory")
     parser.add_argument("--reference", nargs='+', type=str, help = "Reference genome name.  MAPQ filter will not be applied to it")
     parser.add_argument("--refFromGFA", action="store_true", help = "Do not align reference (--reference) from seqfile, and instead extract its alignment from the rGFA tags (must have been used as reference for minigraph GFA construction)")
-    parser.add_argument("--mapCores", type=int, help = "Number of cores for minigraph.  Overrides graphmap cpu in configuration")    
+    parser.add_argument("--mapCores", type=int, help = "Number of cores for minigraph.  Overrides graphmap cpu in configuration")
+    parser.add_argument("--collapse", help = "Incorporate minimap2 self-alignments. Valid values are \"reference\", \"all\" and \"none\"", default=None)
 
     #WDL hacks
     parser.add_argument("--pathOverrides", nargs="*", help="paths (multiple allowed) to override from seqFile")
@@ -89,6 +90,11 @@ def main():
     # support but ignore multi reference
     if options.reference:
         options.reference = options.reference[0]
+
+    if options.collapse and options.collapse not in ['reference', 'all', 'none']:
+        raise RuntimeError('valid values for --collapse are {reference, all, none}')
+    if options.collapse == 'reference' and not options.reference:
+        raise RuntimeError('--reference must be used with --collapse reference')    
 
     # Mess with some toil options to create useful defaults.
     cactus_override_toil_options(options)
@@ -137,6 +143,9 @@ def graph_map(options):
             if options.batchSystem.lower() in ['single_machine', 'singleMachine']:
                 mg_cores = min(mg_cores, cactus_cpu_count(), int(options.maxCores) if options.maxCores else sys.maxsize)
                 findRequiredNode(config_node, "graphmap").attrib["cpu"] = str(mg_cores)
+
+            if options.collapse:
+                findRequiredNode(config_node, "graphmap_join").attrib["minimapCollapseMode"] = options.collapse
                 
             # get the minigraph "virutal" assembly name
             graph_event = getOptionalAttrib(findRequiredNode(config_node, "graphmap"), "assemblyName", default="_MINIGRAPH_")
@@ -249,7 +258,10 @@ def minigraph_workflow(job, options, config, seq_id_map, gfa_id, graph_event, sa
             root_job.addChild(gfa2paf_job)
         else:
             paf_job.addFollowOn(gfa2paf_job)
-        merge_paf_job = Job.wrapJobFn(merge_pafs, {"1" : paf_job.rv(0), "2" : gfa2paf_job.rv()}, disk=gfa_id_size)
+        if options.collapse in ['reference', 'all']:            
+            collapse_job = paf_job.addChildJobFn(self_align_all, config, seq_id_map, options.collapse, options.reference)
+            collapse_paf_id = ref_collapse_job.rv()
+        merge_paf_job = Job.wrapJobFn(merge_pafs,  {"1" : paf_job.rv(0), "2" : gfa2paf_job.rv()}, disk=gfa_id_size)
         paf_job.addFollowOn(merge_paf_job)
         gfa2paf_job.addFollowOn(merge_paf_job)
         out_paf_id = merge_paf_job.rv()
@@ -274,6 +286,12 @@ def minigraph_workflow(job, options, config, seq_id_map, gfa_id, graph_event, sa
         out_paf_id = del_filter_job.rv(0)
         filtered_paf_log = del_filter_job.rv(1)
         paf_was_filtered = del_filter_job.rv(2)
+        prev_job = del_filter_job
+
+    if options.collapse in ['reference', 'all']:
+        # note: the collapse paf doesn't get merged into unfiltered_paf
+        merge_collapse_job = prev_job.addFollowOnJobFn(merge_pafs, {"1" : out_paf_id, "2" : collapse_paf_id}, disk=gfa_id_size)
+        out_paf_id = merge_collapse_job.rv()
 
     return out_paf_id, fa_id if options.outputFasta else None, paf_job.rv(1), unfiltered_paf_id, filtered_paf_log, paf_was_filtered
                     
@@ -430,6 +448,28 @@ def extract_paf_from_gfa(job, gfa_id, gfa_path, ref_event, graph_event, ignore_p
     cactus_call(parameters=cmd, outfile=paf_path)
     return job.fileStore.writeGlobalFile(paf_path)
 
+def ref_self_align(job, config, seq_id_map, reference):
+    """ run self-alignment of the reference genomee """
+    work_dir = job.fileStore.getLocalTempDir()
+    ref_name = reference.split('|')[-1]
+    fa_path = os.path.join(work_dir, ref_name + '.fa')
+    job.fileStore.readGlobalFile(seq_id_map[reference], fa_path)
+    cactus_call(parameters=['samtools', 'faidx', fa_path])
+    ref_contigs = []
+    with open(fa_path + '.fai', 'r') as fai_file:
+        for line in fai_file:
+            if line.strip():
+                ref_contigs.append(line.split()[0])
+    paf_path = os.path.join(work_dir, ref_name + '.self.paf')
+    xml_node = findRequiredNode(config.xmlRoot, "graphmap")
+    minimap_opts = getOptionalAttrib(xml_node, "minimapCollapseOptions", str, default="")     
+    for ref_contig in ref_contigs:
+        contig_path = os.path.join(work_dir, '{}.{}.fa'.format(ref_name, ref_contig))
+        cactus_call(parameters=['samtools', 'faidx', fa_path, ref_contig, '-o', contig_path])
+        cmd = ['minimap2'] + minimap_opts.split() + [contig_path, contig_path]
+        cactus_call(parameters=cmd, outfile=paf_path, outappend=True)
+    return job.fileStore.writeGlobalFile(paf_path)        
+
 def filter_paf(job, paf_id, config, reference=None):
     """ run basic paf-filtering.  these are quick filters that are best to do on-the-fly when reading the paf and 
         as such, they are called by cactus-graphmap-split and cactus-align, not here """
@@ -462,8 +502,10 @@ def filter_paf(job, paf_id, config, reference=None):
                 filter_paf_file.write(line)
 
     overlap_ratio = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "PAFOverlapFilterRatio", typeFn=float, default=0)
-    length_ratio = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "PAFOverlapFilterMinLengthRatio", typeFn=float, default=0)    
-    if overlap_ratio:
+    length_ratio = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "PAFOverlapFilterMinLengthRatio", typeFn=float, default=0)
+    allow_collapse = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "allowRefCollapse", typeFn=bool, default=False)
+
+    if overlap_ratio and not allow_collapse:
         overlap_filter_paf_path = filter_paf_path + ".overlap"
         cactus_call(parameters=['gaffilter', filter_paf_path, '-p', '-r', str(overlap_ratio), '-m', str(length_ratio),
                                 '-b', str(min_block), '-q', str(min_mapq), '-i', str(min_ident)],

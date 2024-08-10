@@ -198,6 +198,9 @@ def main():
             else:
                 if not options.mgCores:
                     raise RuntimeError("--mgCores required run *not* running on single machine batch system")
+
+            if options.refCollapse:
+                findRequiredNode(config_node, "graphmap_join").attrib["allowRefCollapse"] = "1"
                         
             #import the sequences
             input_seq_id_map = {}
