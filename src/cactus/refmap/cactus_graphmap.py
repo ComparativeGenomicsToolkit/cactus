@@ -54,6 +54,7 @@ def main():
     parser.add_argument("--refFromGFA", action="store_true", help = "Do not align reference (--reference) from seqfile, and instead extract its alignment from the rGFA tags (must have been used as reference for minigraph GFA construction)")
     parser.add_argument("--mapCores", type=int, help = "Number of cores for minigraph.  Overrides graphmap cpu in configuration")
     parser.add_argument("--collapse", help = "Incorporate minimap2 self-alignments. Valid values are \"reference\", \"all\" and \"none\"", default=None)
+    parser.add_argument("--collapseRefPAF", help ="Incorporate given reference self-alignments in PAF format")
 
     #WDL hacks
     parser.add_argument("--pathOverrides", nargs="*", help="paths (multiple allowed) to override from seqFile")
@@ -95,6 +96,11 @@ def main():
         raise RuntimeError('valid values for --collapse are {reference, all, none}')
     if options.collapse == 'reference' and not options.reference:
         raise RuntimeError('--reference must be used with --collapse reference')    
+    if options.collapseRefPAF:
+        if not options.collapseRefPAF.endswith('.paf'):
+            raise RuntimeError('file passed to --collapseRefPaf must end with .paf')
+        if not options.reference:
+            raise RuntimeError('--reference must be used with --collapseRefPAF')    
 
     # Mess with some toil options to create useful defaults.
     cactus_override_toil_options(options)
@@ -178,6 +184,12 @@ def graph_map(options):
             logger.info("Importing {}".format(options.minigraphGFA))
             gfa_id = toil.importFile(makeURL(options.minigraphGFA))
 
+            #import the reference collapse paf
+            ref_collapse_paf_id = None
+            if options.collapseRefPAF:
+                logger.info("Importing {}".format(options.collapseRefPAF))
+                ref_collapse_paf_id = toil.importFile(options.collapseRefPAF)
+
             #import the sequences (that we need to align for the given event, ie leaves and outgroups)
             seq_id_map = {}
             fa_id_map = {}
@@ -194,7 +206,7 @@ def graph_map(options):
 
             # run the workflow
             paf_id, gfa_fa_id, gaf_id, unfiltered_paf_id, paf_filter_log, paf_was_filtered = toil.start(Job.wrapJobFn(
-                minigraph_workflow, options, config_wrapper, seq_id_map, gfa_id, graph_event))
+                minigraph_workflow, options, config_wrapper, seq_id_map, gfa_id, graph_event, True, ref_collapse_paf_id))
 
         #export the paf
         toil.exportFile(paf_id, makeURL(options.outputPAF))
@@ -212,7 +224,7 @@ def graph_map(options):
         if options.outputFasta:
             add_genome_to_seqfile(options.seqFile, makeURL(options.outputFasta), graph_event)
 
-def minigraph_workflow(job, options, config, seq_id_map, gfa_id, graph_event, sanitize=True):
+def minigraph_workflow(job, options, config, seq_id_map, gfa_id, graph_event, sanitize, ref_collapse_paf_id):
     """ Overall workflow takes command line options and returns (paf-id, (optional) fa-id) """
     fa_id = None
     gfa_id_size = gfa_id.size
@@ -231,6 +243,11 @@ def minigraph_workflow(job, options, config, seq_id_map, gfa_id, graph_event, sa
         sanitize_job = root_job.addChildJobFn(sanitize_fasta_headers, seq_id_map, pangenome=True)
         seq_id_map = sanitize_job.rv()
 
+    # add unique prefixes to the input PAF
+    if ref_collapse_paf_id:
+        ref_collapse_paf_id = root_job.addChildJobFn(add_paf_prefixes, ref_collapse_paf_id, options.reference,
+                                                     disk=2*ref_collapse_paf_id.size).rv()
+
     zipped_gfa = options.minigraphGFA.endswith('.gz')
     if options.outputFasta:
         # convert GFA to fasta
@@ -248,6 +265,7 @@ def minigraph_workflow(job, options, config, seq_id_map, gfa_id, graph_event, sa
     paf_job = Job.wrapJobFn(minigraph_map_all, config, gfa_id, seq_id_map, graph_event)
     root_job.addFollowOn(paf_job)
 
+    collapse_paf_id = ref_collapse_paf_id
     if options.reference:
         # extract a PAF directly from the rGFAs tag for the given reference
         # if --refFromGFA is specified, we get the entire alignment from that, otherwise we just take contigs
@@ -261,7 +279,12 @@ def minigraph_workflow(job, options, config, seq_id_map, gfa_id, graph_event, sa
         if options.collapse in ['reference', 'all']:            
             collapse_job = paf_job.addChildJobFn(self_align_all, config, seq_id_map,
                                                  options.reference if options.collapse == 'reference' else None)
-            collapse_paf_id = collapse_job.rv()
+            
+            if ref_collapse_paf_id:
+                collapse_paf_id = collapse_job.addFollowOnJobFn(merge_pafs, {"1":collapse_job.rv(), "2":ref_collapse_paf_id},
+                                                                disk=gfa_id_size).rv()
+            else:
+                collapse_paf_id = collapse_job.rv()
         merge_paf_job = Job.wrapJobFn(merge_pafs,  {"1" : paf_job.rv(0), "2" : gfa2paf_job.rv()}, disk=gfa_id_size)
         paf_job.addFollowOn(merge_paf_job)
         gfa2paf_job.addFollowOn(merge_paf_job)
@@ -289,16 +312,25 @@ def minigraph_workflow(job, options, config, seq_id_map, gfa_id, graph_event, sa
         paf_was_filtered = del_filter_job.rv(2)
         prev_job = del_filter_job
 
-    if options.collapse in ['reference', 'all']:
+    if collapse_paf_id:
         # note: the collapse paf doesn't get merged into unfiltered_paf
         merge_collapse_job = prev_job.addFollowOnJobFn(merge_pafs, {"1" : out_paf_id, "2" : collapse_paf_id}, disk=gfa_id_size)
         out_paf_id = merge_collapse_job.rv()
 
     return out_paf_id, fa_id if options.outputFasta else None, paf_job.rv(1), unfiltered_paf_id, filtered_paf_log, paf_was_filtered
-                    
+
+def add_paf_prefixes(job, paf_id, name):
+    """ Add prefixes to paf """
+    work_dir = job.fileStore.getLocalTempDir()
+    paf_path = os.path.join(work_dir, name + ".paf")
+    job.fileStore.readGlobalFile(paf_id, paf_path)
+    renamed_paf_path = os.path.join(work_dir, name + '.prefixed.paf')
+    cmd = ['awk', 'BEGIN{{OFS=\"	\"}} {{$1="id={}|"$1; $6="id={}|"$6; print}}'.format(name, name), paf_path]
+    cactus_call(parameters=cmd, outfile=renamed_paf_path)
+    return job.fileStore.writeGlobalFile(renamed_paf_path)    
+    
 def make_minigraph_fasta(job, gfa_file_id, gfa_file_path, name):
     """ Use gfatools to make the minigraph "assembly" """
-
     # note: using the toil-vg convention of naming working files manually so that logging is more readable
     work_dir = job.fileStore.getLocalTempDir()
     gfa_path = os.path.join(work_dir, "mg.gfa")
@@ -488,7 +520,7 @@ def self_align(job, config, seq_name, seq_id):
         cactus_call(parameters=['samtools', 'faidx', fa_path, contig, '-o', contig_path])
         cmd = ['minimap2', '-t', str(job.cores)] + minimap_opts.split() + [contig_path, contig_path]
         # hack output to have have quality and primary or it will just get filtered out downstream
-        cmd = [cmd, ['sed', '-e', 's/tp:A:S/tp:A:P/g'], ['awk', 'OFS="\t" {$12="60"; print}']]
+        cmd = [cmd, ['sed', '-e', 's/tp:A:S/tp:A:P/g'], ['awk', 'BEGIN{OFS=\"	\"} {$12="60"; print}']]
         cactus_call(parameters=cmd, outfile=paf_path, outappend=True)
     return job.fileStore.writeGlobalFile(paf_path)        
 

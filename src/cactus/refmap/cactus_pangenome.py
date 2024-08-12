@@ -84,6 +84,7 @@ def main():
 
     # cactus-graphmap options
     parser.add_argument("--collapse", help = "Incorporate minimap2 self-alignments. Valid values are \"reference\", \"all\" and \"none\"", default=None)
+    parser.add_argument("--collapseRefPAF", help ="Incorporate given reference self-alignments in PAF format")
 
     # cactus-graphmap-join options
     graphmap_join_options(parser)
@@ -159,7 +160,12 @@ def main():
     if options.collapse and options.collapse not in ['reference', 'all', 'none']:
         raise RuntimeError('valid values for --collapse are {reference, all, none}')
     if options.collapse == 'reference' and not options.reference:
-        raise RuntimeError('--reference must be used with --collapse reference')    
+        raise RuntimeError('--reference must be used with --collapse reference')
+    if options.collapseRefPAF:
+        if not options.collapseRefPAF.endswith('.paf'):
+            raise RuntimeError('file passed to --collapseRefPaf must end with .paf')
+        if not options.reference:
+            raise RuntimeError('--reference must be used with --collapseRefPAF')        
 
     # Sort out the graphmap-join options, which can be rather complex
     # pass in dummy values for now, they will get filled in later
@@ -209,8 +215,15 @@ def main():
                 
             if options.collapse:
                 findRequiredNode(config_node, "graphmap").attrib["minimapCollapseMode"] = options.collapse
+            if options.collapse or options.collapseRefPAF:
                 findRequiredNode(config_node, "graphmap_join").attrib["allowRefCollapse"] = "1"
-                
+
+            #import the reference collapse paf
+            ref_collapse_paf_id = None
+            if options.collapseRefPAF:
+                logger.info("Importing {}".format(options.collapseRefPAF))
+                ref_collapse_paf_id = toil.importFile(options.collapseRefPAF)
+
             #import the sequences
             input_seq_id_map = {}
             input_path_map = {}
@@ -229,7 +242,7 @@ def main():
                     if genome not in options.reference:
                         input_seq_order.append(genome)
             
-            toil.start(Job.wrapJobFn(pangenome_end_to_end_workflow, options, config_wrapper, input_seq_id_map, input_path_map, input_seq_order))
+            toil.start(Job.wrapJobFn(pangenome_end_to_end_workflow, options, config_wrapper, input_seq_id_map, input_path_map, input_seq_order, ref_collapse_paf_id))
         
     end_time = timeit.default_timer()
     run_time = end_time - start_time
@@ -327,7 +340,7 @@ def export_join_wrapper(job, options, wf_output):
     """ toil join wrapper for cactus_graphmap_join """
     export_join_data(job.fileStore, options, wf_output[0], wf_output[1], wf_output[2], wf_output[3], wf_output[4], wf_output[5])
 
-def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_path_map, seq_order):
+def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_path_map, seq_order, ref_collapse_paf_id):
     """ chain the entire workflow together, doing exports after each step to mitigate annoyance of failures """
     root_job = Job()
     job.addChild(root_job)
@@ -353,7 +366,7 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
     options.outputFasta = gfa_fa_path
     graph_event = getOptionalAttrib(findRequiredNode(config_node, "graphmap"), "assemblyName", default="_MINIGRAPH_")
     
-    graphmap_job = minigraph_job.addFollowOnJobFn(minigraph_workflow, options, config_wrapper, seq_id_map, sv_gfa_id, graph_event, sanitize=False)
+    graphmap_job = minigraph_job.addFollowOnJobFn(minigraph_workflow, options, config_wrapper, seq_id_map, sv_gfa_id, graph_event, False, ref_collapse_paf_id)
     paf_id, gfa_fa_id, gaf_id, unfiltered_paf_id, paf_filter_log = graphmap_job.rv(0), graphmap_job.rv(1), graphmap_job.rv(2), graphmap_job.rv(3), graphmap_job.rv(4)
     graphmap_export_job = graphmap_job.addFollowOnJobFn(export_graphmap_wrapper, options, paf_id, paf_path, gaf_id, unfiltered_paf_id, paf_filter_log)
 
