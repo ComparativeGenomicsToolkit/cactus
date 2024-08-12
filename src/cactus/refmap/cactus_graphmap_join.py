@@ -831,7 +831,9 @@ def vg_to_gfa(job, options, config, vg_path, vg_id):
     job.fileStore.readGlobalFile(vg_id, vg_path)
     out_path = vg_path + '.gfa'
 
-    cmd = ['vg', 'convert', '-f', '-Q', options.reference[0], os.path.basename(vg_path), '-B']
+    cmd = ['vg', 'convert', '-f', os.path.basename(vg_path)]
+    if not getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "allowRefCollapse", typeFn=bool, default=False):
+        cmd += ['-Q', options.reference[0], '-B']
     
     cactus_call(parameters=cmd, outfile=out_path, work_dir=work_dir, job_memory=job.memory)
 
