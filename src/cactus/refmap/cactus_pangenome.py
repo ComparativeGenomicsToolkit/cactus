@@ -81,7 +81,10 @@ def main():
     parser.add_argument("--consMemory", type=human2bytesN,
                         help="Memory in bytes for each cactus_consolidated job (defaults to an estimate based on the input data size). "
                         "Standard suffixes like K, Ki, M, Mi, G or Gi are supported (default=bytes))", default=None)   
-    
+
+    # cactus-graphmap options
+    parser.add_argument("--collapse", help = "Incorporate minimap2 self-alignments. Valid values are \"reference\", \"all\" and \"none\"", default=None)
+
     # cactus-graphmap-join options
     graphmap_join_options(parser)
 
@@ -153,6 +156,11 @@ def main():
     if options.maxCores is not None and options.maxCores < 2**20 and options.consCores > int(options.maxCores):
         raise RuntimeError('--consCores must be <= --maxCores')
 
+    if options.collapse and options.collapse not in ['reference', 'all', 'none']:
+        raise RuntimeError('valid values for --collapse are {reference, all, none}')
+    if options.collapse == 'reference' and not options.reference:
+        raise RuntimeError('--reference must be used with --collapse reference')    
+
     # Sort out the graphmap-join options, which can be rather complex
     # pass in dummy values for now, they will get filled in later
     # (but we want to do as much error-checking upfront as possible)
@@ -198,10 +206,11 @@ def main():
             else:
                 if not options.mgCores:
                     raise RuntimeError("--mgCores required run *not* running on single machine batch system")
-
-            if options.refCollapse:
+                
+            if options.collapse:
+                findRequiredNode(config_node, "graphmap").attrib["minimapCollapseMode"] = options.collapse
                 findRequiredNode(config_node, "graphmap_join").attrib["allowRefCollapse"] = "1"
-                        
+                
             #import the sequences
             input_seq_id_map = {}
             input_path_map = {}

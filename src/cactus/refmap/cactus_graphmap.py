@@ -145,7 +145,7 @@ def graph_map(options):
                 findRequiredNode(config_node, "graphmap").attrib["cpu"] = str(mg_cores)
 
             if options.collapse:
-                findRequiredNode(config_node, "graphmap_join").attrib["minimapCollapseMode"] = options.collapse
+                findRequiredNode(config_node, "graphmap").attrib["minimapCollapseMode"] = options.collapse
                 
             # get the minigraph "virutal" assembly name
             graph_event = getOptionalAttrib(findRequiredNode(config_node, "graphmap"), "assemblyName", default="_MINIGRAPH_")
@@ -259,8 +259,9 @@ def minigraph_workflow(job, options, config, seq_id_map, gfa_id, graph_event, sa
         else:
             paf_job.addFollowOn(gfa2paf_job)
         if options.collapse in ['reference', 'all']:            
-            collapse_job = paf_job.addChildJobFn(self_align_all, config, seq_id_map, options.collapse, options.reference)
-            collapse_paf_id = ref_collapse_job.rv()
+            collapse_job = paf_job.addChildJobFn(self_align_all, config, seq_id_map,
+                                                 options.reference if options.collapse == 'reference' else None)
+            collapse_paf_id = collapse_job.rv()
         merge_paf_job = Job.wrapJobFn(merge_pafs,  {"1" : paf_job.rv(0), "2" : gfa2paf_job.rv()}, disk=gfa_id_size)
         paf_job.addFollowOn(merge_paf_job)
         gfa2paf_job.addFollowOn(merge_paf_job)
@@ -448,25 +449,46 @@ def extract_paf_from_gfa(job, gfa_id, gfa_path, ref_event, graph_event, ignore_p
     cactus_call(parameters=cmd, outfile=paf_path)
     return job.fileStore.writeGlobalFile(paf_path)
 
-def ref_self_align(job, config, seq_id_map, reference):
-    """ run self-alignment of the reference genomee """
+def self_align_all(job, config, seq_id_map, reference):
+    """ run self-alignment. if reference event given, just run on that, otherwise do all genomes """
+    root_job = Job()
+    job.addChild(root_job)
+    events = [reference] if reference else seq_id_map.keys()
+    mg_cores = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "cpu", typeFn=int, default=1)
+    paf_dict = {}
+    paf_size = 0
+    for event in events:
+        paf_size += seq_id_map[event].size
+        collapse_job = root_job.addChildJobFn(self_align, config, event, seq_id_map[event],
+                                              disk=4*seq_id_map[event].size,
+                                              cores=mg_cores)
+        paf_dict[event] = collapse_job.rv()
+
+    merge_paf_job = root_job.addFollowOnJobFn(merge_pafs,  paf_dict,
+                                              disk=4*paf_size)
+    return merge_paf_job.rv()
+
+def self_align(job, config, seq_name, seq_id):
+    """ run minimap2 self alignment on a single genome """
     work_dir = job.fileStore.getLocalTempDir()
-    ref_name = reference.split('|')[-1]
-    fa_path = os.path.join(work_dir, ref_name + '.fa')
-    job.fileStore.readGlobalFile(seq_id_map[reference], fa_path)
+    seq_name = seq_name.split('|')[-1]
+    fa_path = os.path.join(work_dir, seq_name + '.fa')
+    job.fileStore.readGlobalFile(seq_id, fa_path)
     cactus_call(parameters=['samtools', 'faidx', fa_path])
-    ref_contigs = []
+    contigs = []
     with open(fa_path + '.fai', 'r') as fai_file:
         for line in fai_file:
             if line.strip():
-                ref_contigs.append(line.split()[0])
-    paf_path = os.path.join(work_dir, ref_name + '.self.paf')
+                contigs.append(line.split()[0])
+    paf_path = os.path.join(work_dir, seq_name + '.self.paf')
     xml_node = findRequiredNode(config.xmlRoot, "graphmap")
     minimap_opts = getOptionalAttrib(xml_node, "minimapCollapseOptions", str, default="")     
-    for ref_contig in ref_contigs:
-        contig_path = os.path.join(work_dir, '{}.{}.fa'.format(ref_name, ref_contig))
-        cactus_call(parameters=['samtools', 'faidx', fa_path, ref_contig, '-o', contig_path])
-        cmd = ['minimap2'] + minimap_opts.split() + [contig_path, contig_path]
+    for contig in contigs:
+        contig_path = os.path.join(work_dir, '{}.{}.fa'.format(seq_name, contig))
+        cactus_call(parameters=['samtools', 'faidx', fa_path, contig, '-o', contig_path])
+        cmd = ['minimap2', '-t', str(job.cores)] + minimap_opts.split() + [contig_path, contig_path]
+        # hack output to have have quality and primary or it will just get filtered out downstream
+        cmd = [cmd, ['sed', '-e', 's/tp:A:S/tp:A:P/g'], ['awk', 'OFS="\t" {$12="60"; print}']]
         cactus_call(parameters=cmd, outfile=paf_path, outappend=True)
     return job.fileStore.writeGlobalFile(paf_path)        
 

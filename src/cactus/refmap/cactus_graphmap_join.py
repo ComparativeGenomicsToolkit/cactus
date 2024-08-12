@@ -324,6 +324,11 @@ def graphmap_join_validate_options(options):
     if options.filter and 'filter' not in options.gfa + options.gbz + options.odgi + options.chrom_vg + options.chrom_og + options.vcf + options.giraffe + options.viz + options.draw:
         options.filter = None
 
+    if options.collapse and options.collapse not in ['reference', 'all', 'none']:
+        raise RuntimeError('valid values for --collapse are {reference, all, none}')
+    if options.collapse == 'reference' and not options.reference:
+        raise RuntimeError('--reference must be used with --collapse reference')    
+
     return options
     
 def graphmap_join(options):

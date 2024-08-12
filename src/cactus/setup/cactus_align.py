@@ -334,6 +334,7 @@ def make_align_job(options, toil, config_wrapper=None, chrom_name=None):
         poaNode.attrib["partialOrderAlignmentDisableSeeding"] = "1"
 
     # import the PAF alignments
+    logger.info("Importing {}".format(options.pafFile))
     paf_id = toil.importFile(makeURL(options.pafFile))
     
     #import the sequences
