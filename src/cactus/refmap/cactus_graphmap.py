@@ -493,6 +493,7 @@ def self_align_all(job, config, seq_id_map, reference):
         paf_size += seq_id_map[event].size
         collapse_job = root_job.addChildJobFn(self_align, config, event, seq_id_map[event],
                                               disk=4*seq_id_map[event].size,
+                                              memory=4*seq_id_map[event].size,
                                               cores=mg_cores)
         paf_dict[event] = collapse_job.rv()
 
