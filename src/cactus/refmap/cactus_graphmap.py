@@ -520,8 +520,6 @@ def self_align(job, config, seq_name, seq_id):
         contig_path = os.path.join(work_dir, '{}.{}.fa'.format(seq_name, contig))
         cactus_call(parameters=['samtools', 'faidx', fa_path, contig, '-o', contig_path])
         cmd = ['minimap2', '-t', str(job.cores)] + minimap_opts.split() + [contig_path, contig_path]
-        # hack output to have have quality and primary or it will just get filtered out downstream
-        cmd = [cmd, ['sed', '-e', 's/tp:A:S/tp:A:P/g'], ['awk', 'BEGIN{OFS=\"	\"} {$12="60"; print}']]
         cactus_call(parameters=cmd, outfile=paf_path, outappend=True)
     return job.fileStore.writeGlobalFile(paf_path)        
 
