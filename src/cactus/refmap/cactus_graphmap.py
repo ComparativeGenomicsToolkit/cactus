@@ -53,7 +53,7 @@ def main():
     parser.add_argument("--reference", nargs='+', type=str, help = "Reference genome name.  MAPQ filter will not be applied to it")
     parser.add_argument("--refFromGFA", action="store_true", help = "Do not align reference (--reference) from seqfile, and instead extract its alignment from the rGFA tags (must have been used as reference for minigraph GFA construction)")
     parser.add_argument("--mapCores", type=int, help = "Number of cores for minigraph.  Overrides graphmap cpu in configuration")
-    parser.add_argument("--collapse", help = "Incorporate minimap2 self-alignments. Valid values are \"reference\", \"all\" and \"none\"", default=None)
+    parser.add_argument("--collapse", help = "Incorporate minimap2 self-alignments. Valid values are \"reference\", \"all\", \"nonref\" and \"none\". [EXPERIMENTAL, especially  \"reference\" and  \"nonref\"]", default=None)
     parser.add_argument("--collapseRefPAF", help ="Incorporate given reference self-alignments in PAF format")
 
     #WDL hacks
@@ -92,10 +92,10 @@ def main():
     if options.reference:
         options.reference = options.reference[0]
 
-    if options.collapse and options.collapse not in ['reference', 'all', 'none']:
-        raise RuntimeError('valid values for --collapse are {reference, all, none}')
-    if options.collapse == 'reference' and not options.reference:
-        raise RuntimeError('--reference must be used with --collapse reference')    
+    if options.collapse and options.collapse not in ['reference', 'all', 'nonref', 'none']:
+        raise RuntimeError('valid values for --collapse are {reference, all, nonref, none}')
+    if options.collapse in ['reference', 'nonref'] and not options.reference:
+        raise RuntimeError('--reference must be used with --collapse reference/nonref')    
     if options.collapseRefPAF:
         if not options.collapseRefPAF.endswith('.paf'):
             raise RuntimeError('file passed to --collapseRefPaf must end with .paf')
@@ -151,7 +151,7 @@ def graph_map(options):
                 findRequiredNode(config_node, "graphmap").attrib["cpu"] = str(mg_cores)
 
             if options.collapse:
-                findRequiredNode(config_node, "graphmap").attrib["minimapCollapseMode"] = options.collapse
+                findRequiredNode(config_node, "graphmap").attrib["collapse"] = options.collapse
                 
             # get the minigraph "virutal" assembly name
             graph_event = getOptionalAttrib(findRequiredNode(config_node, "graphmap"), "assemblyName", default="_MINIGRAPH_")
@@ -276,9 +276,8 @@ def minigraph_workflow(job, options, config, seq_id_map, gfa_id, graph_event, sa
             root_job.addChild(gfa2paf_job)
         else:
             paf_job.addFollowOn(gfa2paf_job)
-        if options.collapse in ['reference', 'all']:            
-            collapse_job = paf_job.addChildJobFn(self_align_all, config, seq_id_map,
-                                                 options.reference if options.collapse == 'reference' else None)
+        if options.collapse in ['reference', 'all', 'nonref']:            
+            collapse_job = paf_job.addChildJobFn(self_align_all, config, seq_id_map, options.reference, options.collapse)
             
             if ref_collapse_paf_id:
                 collapse_paf_id = collapse_job.addFollowOnJobFn(merge_pafs, {"1":collapse_job.rv(), "2":ref_collapse_paf_id},
@@ -481,11 +480,17 @@ def extract_paf_from_gfa(job, gfa_id, gfa_path, ref_event, graph_event, ignore_p
     cactus_call(parameters=cmd, outfile=paf_path)
     return job.fileStore.writeGlobalFile(paf_path)
 
-def self_align_all(job, config, seq_id_map, reference):
+def self_align_all(job, config, seq_id_map, reference, collapse_mode):
     """ run self-alignment. if reference event given, just run on that, otherwise do all genomes """
+    assert collapse_mode in ['reference', 'all', 'nonref']
+    assert reference or collapse_mode == 'all'
     root_job = Job()
     job.addChild(root_job)
-    events = [reference] if reference else seq_id_map.keys()
+    events = []
+    for event in seq_id_map.keys():
+        if collapse_mode == 'all' or (collapse_mode == 'reference' and event == reference) or \
+           (collapse_mode == 'nonref' and event != reference):
+            events.append(event)
     mg_cores = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "cpu", typeFn=int, default=1)
     paf_dict = {}
     paf_size = 0
@@ -556,7 +561,7 @@ def filter_paf(job, paf_id, config, reference=None):
 
     overlap_ratio = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "PAFOverlapFilterRatio", typeFn=float, default=0)
     length_ratio = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "PAFOverlapFilterMinLengthRatio", typeFn=float, default=0)
-    allow_collapse = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "allowRefCollapse", typeFn=bool, default=False)
+    allow_collapse = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "collapse", typeFn=str, default="none") != "none"
 
     if overlap_ratio and not allow_collapse:
         overlap_filter_paf_path = filter_paf_path + ".overlap"

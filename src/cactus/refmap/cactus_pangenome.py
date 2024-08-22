@@ -83,7 +83,6 @@ def main():
                         "Standard suffixes like K, Ki, M, Mi, G or Gi are supported (default=bytes))", default=None)   
 
     # cactus-graphmap options
-    parser.add_argument("--collapse", help = "Incorporate minimap2 self-alignments. Valid values are \"reference\", \"all\" and \"none\"", default=None)
     parser.add_argument("--collapseRefPAF", help ="Incorporate given reference self-alignments in PAF format")
 
     # cactus-graphmap-join options
@@ -157,15 +156,11 @@ def main():
     if options.maxCores is not None and options.maxCores < 2**20 and options.consCores > int(options.maxCores):
         raise RuntimeError('--consCores must be <= --maxCores')
 
-    if options.collapse and options.collapse not in ['reference', 'all', 'none']:
-        raise RuntimeError('valid values for --collapse are {reference, all, none}')
-    if options.collapse == 'reference' and not options.reference:
-        raise RuntimeError('--reference must be used with --collapse reference')
     if options.collapseRefPAF:
         if not options.collapseRefPAF.endswith('.paf'):
             raise RuntimeError('file passed to --collapseRefPaf must end with .paf')
         if not options.reference:
-            raise RuntimeError('--reference must be used with --collapseRefPAF')        
+            raise RuntimeError('--reference must be used with --collapseRefPAF')    
 
     # Sort out the graphmap-join options, which can be rather complex
     # pass in dummy values for now, they will get filled in later
@@ -214,9 +209,7 @@ def main():
                     raise RuntimeError("--mgCores required run *not* running on single machine batch system")
                 
             if options.collapse:
-                findRequiredNode(config_node, "graphmap").attrib["minimapCollapseMode"] = options.collapse
-            if options.collapse or options.collapseRefPAF:
-                findRequiredNode(config_node, "graphmap_join").attrib["allowRefCollapse"] = "1"
+                findRequiredNode(config_node, "graphmap").attrib["collapse"] = options.collapse
 
             #import the reference collapse paf
             ref_collapse_paf_id = None

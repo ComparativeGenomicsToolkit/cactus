@@ -321,7 +321,7 @@
 	<!-- minigraphConstructOptions: flags to pass to minigraph for construction -->
 	<!-- minigraphConstructBatchSize: break minigraph construction into chunks of this size. this allows recovering from a failure during graph construction, and avoiding really long argument lists for each job. -->
 	<!-- minimapCollapseOptions: options for minimap2 when using it for  self-alignments. Note these were inspired in part by https://github.com/lh3/minimap2/issues/106 !-->
-	<!-- minimapCollapseMode: Must be one of "all", "reference" or "none". Toggles self-alignment logic. -->
+	<!-- collapse: Must be one of "all", "reference", "nonref" or "none". Toggles self-alignment logic. -->
 	<!-- minigraphSortInput: Method used to determine input order. Valid values are "mash", "none" / "0" which refer to (decreasing) mash distance to reference, or no sorting (order in seqfile), respectively -->
 	<!-- minMAPQ: ignore minigraph alignments with mapping quality less than this -->
 	<!-- minGAFBlockLength: ignore minigraph alignments with block length less than this -->
@@ -344,7 +344,7 @@
 		 minigraphMapOptions="-c -xasm"
 		 minigraphConstructOptions="-c -xggs"
 		 minimapCollapseOptions="-c -D -xasm5 -m500"
-		 minimapCollapseMode="none"
+		 collapse="none"
 		 minigraphConstructBatchSize="50"
 		 minigraphSortInput="mash"
 		 minMAPQ="5"
@@ -401,7 +401,6 @@
 	<!-- haplOptions: options to vg haplotypes as used to make haplotype sampling index -->
 	<!-- vcfwaveOptions: options to pass to vcfwave (from vcflib)-->
 	<!-- bcftoolsNorm: Run bcftools norm -f (left shifting) on all non-raw VCF output -->
-	<!-- allowRefCollapse: Don't pull apart self-alignments in reference -->
 	<graphmap_join
 		 gfaffix="1"
 		 clipNonMinigraph="1"		 
@@ -416,7 +415,6 @@
 		 haplOptions="-v 2"
 		 vcfwaveOptions="-I 1000"
 		 bcftoolsNorm="1"
-		 allowRefCollapse="0"
 		 />
 	<!-- hal2vg options -->
 	<!-- includeMinigraph: include minigraph node sequences as paths in output (note that cactus-graphmap-join will still remove them by default) -->
