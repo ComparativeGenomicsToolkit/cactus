@@ -1180,7 +1180,7 @@ def get_faidx_subpath_rename_cmd():
     happy.  But it does require conversion going into vg which wants chr[9-15] and
     hal2vg is updated to do this autmatically
     """
-    return ['sed', '-e', 's/\([^:]*\):\([0-9]*\)-\([0-9]*\)/echo "\\1_sub_$((\\2-1))_\\3"/e']
+    return ['sed', '-e', 's/\([^:]*\):\([0-9]+\)-\([0-9]+\)/echo "\\1_sub_$((\\2-1))_\\3"/e']
 
 def clean_jobstore_files(job, file_id_maps=None, file_ids=None):
     """ clean some intermediate files that are no longer needed out of the jobstore """

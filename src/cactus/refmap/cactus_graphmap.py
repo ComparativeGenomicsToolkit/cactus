@@ -539,6 +539,7 @@ def filter_paf(job, paf_id, config, reference=None):
     min_block = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "minGAFBlockLength", typeFn=int, default=0)
     min_mapq = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "minMAPQ", typeFn=int, default=0)
     min_ident = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "minIdentity", typeFn=float, default=0)
+    min_score = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "minScore", typeFn=float, default=0)    
     RealtimeLogger.info("Running PAF filter with minBlock={} minMAPQ={} minIdentity={}".format(min_block, min_mapq, min_ident))
     with open(paf_path, 'r') as paf_file, open(filter_paf_path, 'w') as filter_paf_file:
         for line in paf_file:
@@ -548,6 +549,7 @@ def filter_paf(job, paf_id, config, reference=None):
             query_len = int(toks[1])
             ident = float(toks[9]) / (float(toks[10]) + 0.00000001)
             bl = None
+            score = None
             for tok in toks[12:]:
                 # this is a special tag that was written by gaf2paf in order to preserve the original gaf block length
                 # we use it to be able to filter by the gaf block even after it's been broken in the paf
@@ -556,7 +558,10 @@ def filter_paf(job, paf_id, config, reference=None):
                 # we can also get the identity of the parent gaf block 
                 if tok.startswith('gi:i:'):
                     ident = min(ident, float(toks[5:]))
-            if is_ref or (mapq >= min_mapq and (bl is None or query_len <= min_block or bl >= min_block) and ident >= min_ident):
+                if tok.startsiwth('AS:i:'):
+                    score = int(tok[5:])
+            if is_ref or (mapq >= min_mapq and (bl is None or query_len <= min_block or bl >= min_block) and ident >= min_ident and \
+                          (score is None or score < min_score)):
                 filter_paf_file.write(line)
 
     overlap_ratio = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "PAFOverlapFilterRatio", typeFn=float, default=0)
