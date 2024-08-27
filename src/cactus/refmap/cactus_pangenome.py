@@ -160,7 +160,9 @@ def main():
         if not options.collapseRefPAF.endswith('.paf'):
             raise RuntimeError('file passed to --collapseRefPaf must end with .paf')
         if not options.reference:
-            raise RuntimeError('--reference must be used with --collapseRefPAF')    
+            raise RuntimeError('--reference must be used with --collapseRefPAF')
+        if options.collapse:
+            raise RuntimeError('--collapseRefPaf cannot be used with --collapse')        
 
     # Sort out the graphmap-join options, which can be rather complex
     # pass in dummy values for now, they will get filled in later
@@ -209,13 +211,15 @@ def main():
                     raise RuntimeError("--mgCores required run *not* running on single machine batch system")
                 
             if options.collapse:
-                findRequiredNode(config_node, "graphmap").attrib["collapse"] = options.collapse
+                findRequiredNode(config_node, "graphmap").attrib["collapse"] = 'all'
 
             #import the reference collapse paf
             ref_collapse_paf_id = None
             if options.collapseRefPAF:
                 logger.info("Importing {}".format(options.collapseRefPAF))
                 ref_collapse_paf_id = toil.importFile(options.collapseRefPAF)
+                assert options.reference
+                findRequiredNode(config_node, "graphmap").attrib["collapse"] = 'reference'
 
             #import the sequences
             input_seq_id_map = {}

@@ -150,7 +150,7 @@ def graphmap_join_options(parser):
     parser.add_argument("--chop", type=int, nargs='?', const=1024, default=None,
                         help="chop all graph nodes to be at most this long (default=1024 specified without value). By default, nodes are only chopped for GBZ-derived formats, but left unchopped in the GFA, VCF, etc. If this option is used, the GBZ and GFA should have consistent IDs")
 
-    parser.add_argument("--collapse", help = "Incorporate minimap2 self-alignments. Valid values are \"reference\", \"all\", \"nonref\" and \"none\". [EXPERIMENTAL, especially  \"reference\" and  \"nonref\"]", default=None)
+    parser.add_argument("--collapse", help = "Incorporate minimap2 self-alignments.", action='store_true', default=False)
 
 
 def graphmap_join_validate_options(options):
@@ -324,11 +324,6 @@ def graphmap_join_validate_options(options):
     if options.filter and 'filter' not in options.gfa + options.gbz + options.odgi + options.chrom_vg + options.chrom_og + options.vcf + options.giraffe + options.viz + options.draw:
         options.filter = None
 
-    if options.collapse and options.collapse not in ['reference', 'all', 'nonref', 'none']:
-        raise RuntimeError('valid values for --collapse are {reference, all, nonref, none}')
-    if options.collapse in ['reference', 'nonref'] and not options.reference:
-        raise RuntimeError('--reference must be used with --collapse reference/nonref')    
-        
     return options
     
 def graphmap_join(options):
@@ -346,7 +341,7 @@ def graphmap_join(options):
             config.substituteAllPredefinedConstantsWithLiterals(options)
 
             if options.collapse:
-                findRequiredNode(config_node, "graphmap").attrib["collapse"] = options.collapse
+                findRequiredNode(config_node, "graphmap").attrib["collapse"] = 'all'
                 
             # load up the vgs
             vg_ids = []

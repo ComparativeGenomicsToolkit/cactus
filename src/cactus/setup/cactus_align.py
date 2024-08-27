@@ -60,7 +60,7 @@ def main():
                         help="Activate pangenome mode (suitable for star trees of closely related samples) by overriding several configuration settings."
                         " The overridden configuration will be saved in <outHal>.pg-conf.xml")
 
-    parser.add_argument("--collapse", help = "Incorporate minimap2 self-alignments. Valid values are \"reference\", \"all\", \"nonref\" and \"none\". [EXPERIMENTAL, especially  \"reference\" and  \"nonref\"]", default=None)
+    parser.add_argument("--collapse", help = "Incorporate minimap2 self-alignments.", action='store_true', default=False)
     
     parser.add_argument("--singleCopySpecies", type=str,
                         help="Filter out all self-alignments in given species")
@@ -169,11 +169,6 @@ def main():
     # Mess with some toil options to create useful defaults.
     cactus_override_toil_options(options)
 
-    if options.collapse and options.collapse not in ['reference', 'all', 'nonref', 'none']:
-        raise RuntimeError('valid values for --collapse are {reference, all, nonref, none}')
-    if options.collapse in ['reference', 'nonref'] and not options.reference:
-        raise RuntimeError('--reference must be used with --collapse reference/nonref')            
-    
     logger.info('Cactus Command: {}'.format(' '.join(sys.argv)))
     logger.info('Cactus Commit: {}'.format(cactus_commit))
     start_time = timeit.default_timer()
@@ -265,7 +260,7 @@ def make_align_job(options, toil, config_wrapper=None, chrom_name=None):
         config_wrapper.substituteAllPredefinedConstantsWithLiterals(options)
         config_wrapper.initGPU(options)
         if options.collapse:
-            findRequiredNode(config_node, "graphmap").attrib["collapse"] = options.collapse
+            findRequiredNode(config_node, "graphmap").attrib["collapse"] = 'all'
     config_wrapper.setSystemMemory(options)
     
     mc_tree, input_seq_map, og_candidates = parse_seqfile(options.seqFile, config_wrapper,
@@ -407,7 +402,7 @@ def cactus_align(job, config_wrapper, mc_tree, input_seq_map, input_seq_id_map, 
     sub_tree = get_subtree(mc_tree, root_name, config_wrapper, og_map, include_outgroups=False)
     
     # run the hal export
-    allow_collapse = getOptionalAttrib(findRequiredNode(config_wrapper.xmlRoot, "graphmap_join"), "allowCollapse", typeFn=bool, default=False)
+    allow_collapse = getOptionalAttrib(findRequiredNode(config_wrapper.xmlRoot, "graphmap"), "collapse", typeFn=str, default="none") in ['reference', 'all']
     hal_job = cons_job.addFollowOnJobFn(export_hal, sub_tree, config_wrapper.xmlRoot, new_seq_id_map, og_map, results, event=root_name, inMemory=True,
                                         checkpointInfo=checkpointInfo, acyclicEvent=referenceEvents[0] if referenceEvents and not allow_collapse else None,
                                         memory_override=cons_memory)

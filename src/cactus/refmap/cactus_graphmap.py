@@ -53,8 +53,8 @@ def main():
     parser.add_argument("--reference", nargs='+', type=str, help = "Reference genome name.  MAPQ filter will not be applied to it")
     parser.add_argument("--refFromGFA", action="store_true", help = "Do not align reference (--reference) from seqfile, and instead extract its alignment from the rGFA tags (must have been used as reference for minigraph GFA construction)")
     parser.add_argument("--mapCores", type=int, help = "Number of cores for minigraph.  Overrides graphmap cpu in configuration")
-    parser.add_argument("--collapse", help = "Incorporate minimap2 self-alignments. Valid values are \"reference\", \"all\", \"nonref\" and \"none\". [EXPERIMENTAL, especially  \"reference\" and  \"nonref\"]", default=None)
-    parser.add_argument("--collapseRefPAF", help ="Incorporate given reference self-alignments in PAF format")
+    parser.add_argument("--collapse", help = "Incorporate minimap2 self-alignments.", action='store_true', default=False)
+    parser.add_argument("--collapseRefPAF", help ="Incorporate given (reference-only) self-alignments in PAF format [Experimental]")
 
     #WDL hacks
     parser.add_argument("--pathOverrides", nargs="*", help="paths (multiple allowed) to override from seqFile")
@@ -92,15 +92,13 @@ def main():
     if options.reference:
         options.reference = options.reference[0]
 
-    if options.collapse and options.collapse not in ['reference', 'all', 'nonref', 'none']:
-        raise RuntimeError('valid values for --collapse are {reference, all, nonref, none}')
-    if options.collapse in ['reference', 'nonref'] and not options.reference:
-        raise RuntimeError('--reference must be used with --collapse reference/nonref')    
     if options.collapseRefPAF:
         if not options.collapseRefPAF.endswith('.paf'):
             raise RuntimeError('file passed to --collapseRefPaf must end with .paf')
         if not options.reference:
-            raise RuntimeError('--reference must be used with --collapseRefPAF')    
+            raise RuntimeError('--reference must be used with --collapseRefPAF')
+        if options.collapse:
+            raise RuntimeError('--collapseRefPaf cannot be used with --collapse')
 
     # Mess with some toil options to create useful defaults.
     cactus_override_toil_options(options)
@@ -113,6 +111,7 @@ def main():
     run_time = end_time - start_time
     logger.info("cactus-graphmap has finished after {} seconds".format(run_time))
 
+    
 def graph_map(options):
     with Toil(options) as toil:
         importSingularityImage(options)
@@ -151,7 +150,10 @@ def graph_map(options):
                 findRequiredNode(config_node, "graphmap").attrib["cpu"] = str(mg_cores)
 
             if options.collapse:
-                findRequiredNode(config_node, "graphmap").attrib["collapse"] = options.collapse
+                findRequiredNode(config_node, "graphmap").attrib["collapse"] = 'all'
+            if options.collapseRefPaf:
+                assert options.reference
+                findRequiredNode(config_node, "graphmap").attrib["collapse"] = 'reference'
                 
             # get the minigraph "virutal" assembly name
             graph_event = getOptionalAttrib(findRequiredNode(config_node, "graphmap"), "assemblyName", default="_MINIGRAPH_")
@@ -276,8 +278,9 @@ def minigraph_workflow(job, options, config, seq_id_map, gfa_id, graph_event, sa
             root_job.addChild(gfa2paf_job)
         else:
             paf_job.addFollowOn(gfa2paf_job)
-        if options.collapse in ['reference', 'all', 'nonref']:            
-            collapse_job = paf_job.addChildJobFn(self_align_all, config, seq_id_map, options.reference, options.collapse)
+        collapse_mode = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "collapse", typeFn=str, default="none")
+        if collapse_mode in ['reference', 'all', 'nonref']:
+            collapse_job = paf_job.addChildJobFn(self_align_all, config, seq_id_map, options.reference, collapse_mode)
             
             if ref_collapse_paf_id:
                 collapse_paf_id = collapse_job.addFollowOnJobFn(merge_pafs, {"1":collapse_job.rv(), "2":ref_collapse_paf_id},
@@ -558,7 +561,7 @@ def filter_paf(job, paf_id, config, reference=None):
                 # we can also get the identity of the parent gaf block 
                 if tok.startswith('gi:i:'):
                     ident = min(ident, float(toks[5:]))
-                if tok.startsiwth('AS:i:'):
+                if tok.startswith('AS:i:'):
                     score = int(tok[5:])
             if is_ref or (mapq >= min_mapq and (bl is None or query_len <= min_block or bl >= min_block) and ident >= min_ident and \
                           (score is None or score < min_score)):

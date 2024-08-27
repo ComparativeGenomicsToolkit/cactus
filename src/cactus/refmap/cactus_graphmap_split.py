@@ -56,7 +56,7 @@ def main():
     parser.add_argument("--minIdentity", type=float, help = "Ignore PAF lines with identity (column 10/11) < this (overrides minIdentity in <graphmap_split> in config)")
     parser.add_argument("--permissiveContigFilter", nargs='?', const='0.25', default=None, type=float, help = "If specified, override the configuration to accept contigs so long as they have at least given fraction of coverage (0.25 if no fraction specified). This can increase sensitivity of very small, fragmented and/or diverse assemblies.")
 
-    parser.add_argument("--collapse", help = "Incorporate minimap2 self-alignments. Valid values are \"reference\", \"all\", \"nonref\" and \"none\". [EXPERIMENTAL, especially  \"reference\" and  \"nonref\"]", default=None)
+    parser.add_argument("--collapse", help = "Incorporate minimap2 self-alignments.", action='store_true', default=False)
     
     #Progressive Cactus Options
     parser.add_argument("--configFile", dest="configFile",
@@ -88,11 +88,6 @@ def main():
     if options.reference:
         options.reference = options.reference[0]
 
-    if options.collapse and options.collapse not in ['reference', 'all', 'nonref', 'none']:
-        raise RuntimeError('valid values for --collapse are {reference, all, nonref, none}')
-    if options.collapse in ['reference', 'nonref'] and not options.reference:
-        raise RuntimeError('--reference must be used with --collapse reference/nonref')            
-
     logger.info('Cactus Command: {}'.format(' '.join(sys.argv)))
     logger.info('Cactus Commit: {}'.format(cactus_commit))
     start_time = timeit.default_timer()
@@ -111,7 +106,7 @@ def cactus_graphmap_split(options):
         config.substituteAllPredefinedConstantsWithLiterals(options)
 
         if options.collapse:
-            findRequiredNode(config_node, "graphmap").attrib["collapse"] = options.collapse
+            findRequiredNode(config_node, "graphmap").attrib["collapse"] = 'all'
 
         #Run the workflow
         if options.restart:

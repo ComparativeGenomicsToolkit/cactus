@@ -321,7 +321,7 @@
 	<!-- minigraphConstructOptions: flags to pass to minigraph for construction -->
 	<!-- minigraphConstructBatchSize: break minigraph construction into chunks of this size. this allows recovering from a failure during graph construction, and avoiding really long argument lists for each job. -->
 	<!-- minimapCollapseOptions: options for minimap2 when using it for  self-alignments. Note these were inspired in part by https://github.com/lh3/minimap2/issues/106 !-->
-	<!-- collapse: Must be one of "all", "reference", "nonref" or "none". Toggles self-alignment logic. -->
+	<!-- collapse: Toggles self-alignment logic. Supported values are "none" and "all". Experimental values "reference" and "nonref" can also be tried.  -->
 	<!-- minigraphSortInput: Method used to determine input order. Valid values are "mash", "none" / "0" which refer to (decreasing) mash distance to reference, or no sorting (order in seqfile), respectively -->
 	<!-- minMAPQ: ignore minigraph alignments with mapping quality less than this -->
 	<!-- minGAFBlockLength: ignore minigraph alignments with block length less than this -->
