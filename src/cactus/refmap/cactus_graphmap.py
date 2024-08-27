@@ -543,7 +543,7 @@ def filter_paf(job, paf_id, config, reference=None):
     min_mapq = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "minMAPQ", typeFn=int, default=0)
     min_ident = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "minIdentity", typeFn=float, default=0)
     min_score = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "minScore", typeFn=float, default=0)    
-    RealtimeLogger.info("Running PAF filter with minBlock={} minMAPQ={} minIdentity={}".format(min_block, min_mapq, min_ident))
+    RealtimeLogger.info("Running PAF filter with minBlock={} minMAPQ={} minIdentity={} minScore={}".format(min_block, min_mapq, min_ident, min_score))
     with open(paf_path, 'r') as paf_file, open(filter_paf_path, 'w') as filter_paf_file:
         for line in paf_file:
             toks = line.split('\t')
@@ -564,7 +564,7 @@ def filter_paf(job, paf_id, config, reference=None):
                 if tok.startswith('AS:i:'):
                     score = int(tok[5:])
             if is_ref or (mapq >= min_mapq and (bl is None or query_len <= min_block or bl >= min_block) and ident >= min_ident and \
-                          (score is None or score < min_score)):
+                          (score is None or score >= min_score)):
                 filter_paf_file.write(line)
 
     overlap_ratio = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "PAFOverlapFilterRatio", typeFn=float, default=0)
