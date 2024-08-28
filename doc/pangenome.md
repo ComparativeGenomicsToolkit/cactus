@@ -863,7 +863,11 @@ CHM13 graph command line
 
 ## Frequently Asked Questions
 
-Q; `cactus-graphmap-join` keeps crashing with a segfault and/or running out of memory.
+Q: Do my input FASTA files need to be masked?
+
+A: No. While *Progressive* Cactus requires input repeats to be softmasked, Minigraph-Cactus does not use masking information. Whether or not your input is softmasked will have zero effect on the output. It is strongly advised not to *hardmask* your input!
+
+Q": `cactus-graphmap-join` keeps crashing with a segfault and/or running out of memory.
 
 A: This is usually because `vg index -j` crashes while computing the distance index for `--giraffe`.  Make sure you did not disable clipping or filtering.  Try to use `--filter N` where `N` is about 10% of your input samples.  If that fails, try on a system with more memory.
 
