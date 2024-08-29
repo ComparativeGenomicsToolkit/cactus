@@ -158,11 +158,11 @@ def main():
 
     if options.collapseRefPAF:
         if not options.collapseRefPAF.endswith('.paf'):
-            raise RuntimeError('file passed to --collapseRefPaf must end with .paf')
+            raise RuntimeError('file passed to --collapseRefPAF must end with .paf')
         if not options.reference:
             raise RuntimeError('--reference must be used with --collapseRefPAF')
         if options.collapse:
-            raise RuntimeError('--collapseRefPaf cannot be used with --collapse')        
+            raise RuntimeError('--collapseRefPAF cannot be used with --collapse')        
 
     # Sort out the graphmap-join options, which can be rather complex
     # pass in dummy values for now, they will get filled in later

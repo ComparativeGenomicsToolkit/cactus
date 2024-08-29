@@ -94,11 +94,11 @@ def main():
 
     if options.collapseRefPAF:
         if not options.collapseRefPAF.endswith('.paf'):
-            raise RuntimeError('file passed to --collapseRefPaf must end with .paf')
+            raise RuntimeError('file passed to --collapseRefPAF must end with .paf')
         if not options.reference:
             raise RuntimeError('--reference must be used with --collapseRefPAF')
         if options.collapse:
-            raise RuntimeError('--collapseRefPaf cannot be used with --collapse')
+            raise RuntimeError('--collapseRefPAF cannot be used with --collapse')
 
     # Mess with some toil options to create useful defaults.
     cactus_override_toil_options(options)
@@ -151,7 +151,7 @@ def graph_map(options):
 
             if options.collapse:
                 findRequiredNode(config_node, "graphmap").attrib["collapse"] = 'all'
-            if options.collapseRefPaf:
+            if options.collapseRefPAF:
                 assert options.reference
                 findRequiredNode(config_node, "graphmap").attrib["collapse"] = 'reference'
                 
