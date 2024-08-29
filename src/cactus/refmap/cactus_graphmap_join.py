@@ -341,7 +341,7 @@ def graphmap_join(options):
             config.substituteAllPredefinedConstantsWithLiterals(options)
 
             if options.collapse:
-                findRequiredNode(config_node, "graphmap").attrib["collapse"] = 'all'
+                findRequiredNode(configNode, "graphmap").attrib["collapse"] = 'all'
                 
             # load up the vgs
             vg_ids = []
