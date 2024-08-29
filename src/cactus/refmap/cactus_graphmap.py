@@ -542,17 +542,21 @@ def filter_paf(job, paf_id, config, reference=None):
     min_block = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "minGAFBlockLength", typeFn=int, default=0)
     min_mapq = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "minMAPQ", typeFn=int, default=0)
     min_ident = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "minIdentity", typeFn=float, default=0)
-    min_score = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "minScore", typeFn=float, default=0)    
-    RealtimeLogger.info("Running PAF filter with minBlock={} minMAPQ={} minIdentity={} minScore={}".format(min_block, min_mapq, min_ident, min_score))
+    min_score = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "minScore", typeFn=float, default=0)
+    max_collapse_ratio = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "maxCollapseDistanceRatio", typeFn=float, default=-1)
+    RealtimeLogger.info("Running PAF filter with minBlock={} minMAPQ={} minIdentity={} minScore={} maxCollapseDistanceRatio={}".format(min_block, min_mapq, min_ident, min_score, max_collapse_ratio))
     with open(paf_path, 'r') as paf_file, open(filter_paf_path, 'w') as filter_paf_file:
         for line in paf_file:
             toks = line.split('\t')
-            is_ref = reference and toks[0].startswith('id={}|'.format(reference))
+            query_name = toks[0]
+            target_name = toks[5]
+            is_ref = reference and query_name.startswith('id={}|'.format(reference)) and query_name != target_name
             mapq = int(toks[11])
             query_len = int(toks[1])
             ident = float(toks[9]) / (float(toks[10]) + 0.00000001)
             bl = None
             score = None
+            collapse_ratio = None
             for tok in toks[12:]:
                 # this is a special tag that was written by gaf2paf in order to preserve the original gaf block length
                 # we use it to be able to filter by the gaf block even after it's been broken in the paf
@@ -563,8 +567,17 @@ def filter_paf(job, paf_id, config, reference=None):
                     ident = min(ident, float(toks[5:]))
                 if tok.startswith('AS:i:'):
                     score = int(tok[5:])
+            if query_name == target_name and max_collapse_ratio >= 0:
+                # compute the distance between the minimap2 self alignment intervals
+                # in order to see if they are too far apart via the max ratio
+                query_start, query_end = int(toks[2]), int(toks[3])
+                target_start, target_end = int(toks[7]), int(toks[8])
+                block_length = int(toks[10])
+                dist = target_start - query_end if query_start < target_start else query_start - target_end
+                if block_length > 0 and dist > 0:
+                    collapse_ratio = dist / block_length
             if is_ref or (mapq >= min_mapq and (bl is None or query_len <= min_block or bl >= min_block) and ident >= min_ident and \
-                          (score is None or score >= min_score)):
+                          (score is None or score >= min_score) and (collapse_ratio is None or collapse_ratio <= max_collapse_ratio)):
                 filter_paf_file.write(line)
 
     overlap_ratio = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "PAFOverlapFilterRatio", typeFn=float, default=0)
