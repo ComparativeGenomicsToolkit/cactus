@@ -958,10 +958,11 @@ def make_vcf(job, config, out_name, vcf_ref, index_dict, fasta_ref_dict, tag='',
     if max_ref_allele:        
         vcfbub_path = os.path.join(work_dir, 'merged.filtered.vcf.gz')
         bub_cmd = [['vcfbub', '--input', vcf_path, '--max-ref-length', str(max_ref_allele), '--max-level', '0']]
-        if getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "bcftoolsNorm", typeFn=bool, default=True):
+        if getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "bcftoolsNorm", typeFn=bool, default=False):
             fa_ref_path = os.path.join(work_dir, vcf_ref + '.fa.gz')
             job.fileStore.readGlobalFile(fasta_ref_dict[vcf_ref], fa_ref_path)
             bub_cmd.append(['bcftools', 'norm', '-f', fa_ref_path])
+            bub_cmd.append(['bcftools', 'norm', '-m', '+any'])
             bub_cmd.append(['bcftools', 'sort'])
         bub_cmd.append(['bgzip', '--threads', str(job.cores)])
         cactus_call(parameters=bub_cmd, outfile=vcfbub_path)
@@ -1069,7 +1070,7 @@ def vcfwave_chr(job, config, vcf_ref, vcf_id, tbi_id, fasta_id, contig, vcfbub_t
                    ['bgzip']]
     cactus_call(parameters=bubwave_cmd, outfile=wave_vcf_path)
     
-    if getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "bcftoolsNorm", typeFn=bool, default=True):
+    if getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "vcfwaveNorm", typeFn=bool, default=True):
         fa_ref_path = os.path.join(work_dir, vcf_ref + '.fa.gz')
         job.fileStore.readGlobalFile(fasta_id, fa_ref_path)
         norm_vcf_path = os.path.join(work_dir, '{}{}_norm.vcf.gz'.format(tag, contig))
