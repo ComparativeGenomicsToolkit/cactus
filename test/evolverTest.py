@@ -525,14 +525,14 @@ class TestCase(unittest.TestCase):
                                 '--refContigs'] + chroms + ['--reference', 'S288C', 'DBVPG6044', '--vcf', '--vcfReference','DBVPG6044', 'S288C',
                                                             '--giraffe', 'clip', 'filter',  '--chrom-vg', 'clip', 'filter',
                                                             '--viz', '--chrom-og', 'clip', 'full', '--odgi', '--haplo', 'clip',
-                                                            '--xg', '--indexCores', '4', '--consCores', '2']
+                                                            '--xg', '--unchopped-gfa', '--indexCores', '4', '--consCores', '2']
         subprocess.check_call(cactus_pangenome_cmd + cactus_opts)
 
         #compatibility with older test
         subprocess.check_call(['mkdir', '-p', os.path.join(self.tempDir, 'chroms')])
         subprocess.check_call(['mv', os.path.join(join_path, 'chrom-subproblems', 'contig_sizes.tsv'), os.path.join(self.tempDir, 'chroms')])
 
-    def _check_yeast_pangenome(self, binariesMode, other_ref=None, expect_odgi=False, expect_haplo=False):
+    def _check_yeast_pangenome(self, binariesMode, other_ref=None, expect_odgi=False, expect_haplo=False, expect_unchopped_gfa=False):
         """ yeast pangenome chromosome by chromosome pipeline
         """
 
@@ -597,6 +597,13 @@ class TestCase(unittest.TestCase):
             for haplo_idx in ['yeast.hapl']:
                 idx_bytes = os.path.getsize(os.path.join(join_path, haplo_idx))
                 self.assertGreaterEqual(idx_bytes, 10000000)
+
+        if expect_unchopped_gfa:
+            # make sure we have the unchopped gfa
+            unchopped_gfa_bytes = os.path.getsize(os.path.join(join_path, 'yeast.unchopped.gfa.gz'))
+            chopped_gfa_bytes = os.path.getsize(os.path.join(join_path, 'yeast.gfa.gz'))
+            self.assertNotEqual(chopped_gfa_bytes, unchopped_gfa_bytes)
+            self.assertGreaterEqual(unchopped_gfa_bytes, 8000000)
 
         # make sure the chrom splitting stats are somewhat sane
         contig_sizes = {}
@@ -1073,7 +1080,7 @@ class TestCase(unittest.TestCase):
         self._run_yeast_pangenome(name)
 
         # check the output
-        self._check_yeast_pangenome(name, other_ref='DBVPG6044', expect_odgi=True, expect_haplo=True)
+        self._check_yeast_pangenome(name, other_ref='DBVPG6044', expect_odgi=True, expect_haplo=True, expect_unchopped_gfa=True)
 
 
 if __name__ == '__main__':
