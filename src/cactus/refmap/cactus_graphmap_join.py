@@ -904,7 +904,19 @@ def make_vg_indexes(job, options, config, gfa_ids, tag="", do_gbz=False):
     # make the gbz
     if do_gbz:
         gbz_path = os.path.join(work_dir, '{}merged.gbz'.format(tag))
-        cactus_call(parameters=['vg', 'gbwt', '-G', merge_gfa_path, '--gbz-format', '-g', gbz_path], job_memory=job.memory)
+        gbz_cmd = ['vg', 'gbwt', '-G', merge_gfa_path, '--gbz-format', '-g', gbz_path]
+        # sanity check to make sure the gbz didn't chop anything
+        check_trans = 0 < getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "maxNodeLength", typeFn=int, default=-1) <= 1024
+        if check_trans:
+            trans_path = os.path.join(work_dir, '{}merged.gbz.trans'.format(tag))
+            gbz_cmd += ['--translation', trans_path]        
+        cactus_call(parameters=gbz_cmd, job_memory=job.memory)
+        if check_trans:
+            with open(trans_path, 'r') as trans_file:
+                for line in trans_file:
+                    node_id, trans_id = line.strip().split()[1:3]
+                    if node_id != trans_id:
+                        raise RuntimeError('GBZ translated {} to {}, but since chopping is enabled this should not have happened. Please report this bug!!'.format(node_id, trans_id))
 
     # zip the gfa
     cactus_call(parameters=['bgzip', merge_gfa_path, '--threads', str(job.cores)])
