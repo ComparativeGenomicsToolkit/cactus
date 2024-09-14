@@ -47,7 +47,7 @@ def run_lastz(job, name_A, genome_A, name_B, genome_B, distance, params):
     gpu = getOptionalAttrib(lastz_params_node, 'gpu', typeFn=int, default=0)
     cpu = getOptionalAttrib(lastz_params_node, 'cpu', typeFn=int, default=None)    
     if gpu:
-        lastz_bin = 'run_segalign'
+        lastz_bin = 'run_kegalign'
         suffix_a, suffix_b = '', ''
         assert gpu > 0
         lastz_params += ' --num_gpu {}'.format(gpu)

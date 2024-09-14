@@ -1,0 +1,54 @@
+# Reminder: if updating this image, also update it in build-tools/makeGpuDockerRelease
+FROM nvidia/cuda:11.7.1-devel-ubuntu22.04 as builder
+
+# Prevent dpkg from trying to ask any questions, ever
+ENV DEBIAN_FRONTEND noninteractive
+
+# system dependencies are installed by ./installUbuntu.sh below, but we need sudo first
+RUN apt-get -qq -y update && \
+    apt-get -qq -y upgrade && \
+    apt-get -qq -y install \
+    git build-essential wget curl jq dos2unix
+
+# Use the commit from the file
+COPY build-tools/KegAlign.commit /
+
+# clone KegAlign
+RUN git clone https://github.com/galaxyproject/KegAlign.git && cd KegAlign && git checkout $(cat /KegAlign.commit) && git submodule update --init --recursive
+
+# make the conda environment
+RUN cd /KegAlign && \
+    dos2unix ./scripts/*.bash ./scripts/*.py ./scripts/run_kegalign && \
+    ./scripts/make-conda-env.bash -dev
+
+# build KegAlign
+RUN cd /KegAlign && \
+    mkdir build && \
+    bash -c "source ./conda-env-dev.bash && cd build && cmake -DCMAKE_BUILD_TYPE=Release .. && make -j $(nproc)"
+
+# Create a thinner final Docker image with only runtime dependencies
+FROM nvidia/cuda:11.7.1-runtime-ubuntu22.04
+
+# Install runtime dependencies
+RUN apt-get -qq -y update && \
+    apt-get -qq -y upgrade  && \
+    apt-get -qq -y install mbuffer
+
+# copy kegalign runtime essentials (for historic reasons, cactus is in /home so we put kegalign there too)
+RUN mkdir /home/KegAlign /home/KegAlign/bin
+COPY --from=builder /KegAlign/build/kegalign /home/KegAlign/bin/
+COPY --from=builder /KegAlign/scripts /home/KegAlign/scripts
+COPY --from=builder /KegAlign/.conda/miniforge3/envs/kegalign-dev/lib /home/KegAlign/lib
+
+# add the library path
+ENV LD_LIBRARY_PATH="/home/KegAlign/lib:${LD_LIBRARY_PATH}"
+
+# add the kegalign path
+ENV PATH="/home/KegAlign/bin:/home/KegAlign/scripts:${PATH}"
+
+# remember that commit
+COPY --from=builder /KegAlign.commit /
+
+# UCSC convention is to work in /data
+RUN mkdir -p /data
+WORKDIR /data
