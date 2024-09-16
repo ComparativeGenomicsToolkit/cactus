@@ -101,6 +101,8 @@ class LastzRepeatMaskJob(RoundedJob):
             ["--querydepth=keep,nowarn:%i" % (self.repeatMaskOptions.period+3),
              "--format=general:name1,zstart1,end1,name2,zstart2+,end2+",
              "--markend"]
+        if self.repeatMaskOptions.gpu:
+            lastz_cmd += ['--num_threads', str(self.cores)]
         kegalign_messages = cactus_call(outfile=alignment,
                                         work_dir=self.work_dir,
                                         parameters=lastz_cmd,

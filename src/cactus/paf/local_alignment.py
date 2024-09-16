@@ -50,7 +50,7 @@ def run_lastz(job, name_A, genome_A, name_B, genome_B, distance, params):
         lastz_bin = 'run_kegalign'
         suffix_a, suffix_b = '', ''
         assert gpu > 0
-        lastz_params += ' --num_gpu {}'.format(gpu)
+        lastz_params += ' --num_gpu {} --num_threads {}'.format(gpu, job.cores)
     else:
         lastz_bin = 'lastz'
         suffix_a = '[multiple][nameparse=darkspace]'
