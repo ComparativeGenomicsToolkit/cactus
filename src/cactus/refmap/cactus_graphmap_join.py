@@ -703,6 +703,11 @@ def clip_vg(job, options, config, vg_path, vg_id, phase):
 
     cmd.append(clip_vg_cmd)
     if options.reference:
+        if phase == 'full' and getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "pathNormalize", typeFn=bool, default=True):
+            # run path normalization (important to do before vg clip -d1)
+            norm_command = ['vg', 'paths', '-x', '-', '-n', '-Q', options.reference[0], '-t', str(job.cores)]
+            cmd.append(norm_command)
+            
         # GFAFfix can leave uncovered nodes with --dont_collapse.  We filter out here so they dont cause trouble later
         # Also: any kind of clipping or path dropping can leave uncovered edges, so we remove them with vg clip        
         clip_cmd = ['vg', 'clip', '-d', '1', '-', '-P', options.reference[0]]
