@@ -156,8 +156,6 @@ The Minigraph-Cactus pipeline is run via the `cactus-pangenome` command. It cons
 * `--indexMemory` Like `--consMemory` above, you may want to set this when running on a cluster.
 * The various output options: `--gbz`, `--gfa`, `--giraffe`, `--vcf`, `--odgi`, etc. which are explained in detail below. If you forget to add one of these and are missing the corresponding output, you will need to rerun `cactus-graphmap-join` (or use `vg` to manually make the file yourself).
 
-**IMPORTANT**: If you are going to make use of the vg node IDs across the various output files, consider using the `--chop` option to `cactus-pangenome` to force all files to use the chopped IDs (see [Node Chopping](#node-chopping) below). 
-
 **PLEASE NOTE** While many Minigraph-Cactus parameters' default values were tuned on high-quality human assemblies from the HPRC where ample benchmarking data was available, we believe they will be suitable for other datasets and species, so long as the contigs can be mapped with [minigraph](https://github.com/lh3/minigraph). By default, [small contigs are filtered out](https://github.com/ComparativeGenomicsToolkit/cactus/blob/v2.4.4/src/cactus/cactus_progressive_config.xml#L319-L335) during chromosome assignment using more stringent thresholds. This might lead to a surprisingly low sensitivity on small, fragmented, diverse assemblies or difficult-to-assemble regions. Users wishing to *keep* these contigs in their graph can use the following option:
 
 * `--permissiveContigFilter`
@@ -255,31 +253,11 @@ Further reading:
 
 #### Node Chopping
 
-The GBZ format uses 10 bits to store offsets within nodes, which imposees a 1024bp node length limit. Nodes are therefore chopped up as requried in the `.gbz` output (described above) to respect this limit. The index files derived from the `.gbz`: `.snarls`, `.dist`, and `.min` will share the `.gbz` graph's chopped ID space. 
+As of [v2.9.1](https://github.com/ComparativeGenomicsToolkit/cactus/releases/tag/v2.9.1), all output graphs will have node IDs of at most 1024bp. This is because the `gbz` and `dist` indexes require this (they use 10bits for node offsets), and as a result so do an increasing number of `vg` tools. There is also a major benefit from the simplicity of having all output files sharing the same ID space.
 
-The `.gfa.gz` and node IDs referred to in the `.vcf.gz` file (via the variant IDs, AT and PS tags) are not chopped and therefore inconsistent with the `.gbz`.  This can be very confusing when trying to, for example, locate a variant in the `vcf.gz` back in the `.gbz` using node IDs: Node `X` in `.vcf.gz` and node `X` in `.gbz` will often both exist but can be totally different parts of the graph. 
+If you must have longer node lengths, perhaps for viewing very large simple graphs in BandageNG, then you can use the `--unchopped-gfa` option to produce additional output graph(s), with `.unchopped.gfa.gz` suffix. The node IDs in these graphs will be incompatible with all other output, including VCF.
 
-If you are working with the node IDs, and / or do not care if the nodes are chopped in the GFA, the simplest thing to do is use the `--chop` option for `cactus-pangenome` / `cactus-graphmap-join`.  This option will limit all nodes to a maximum length of 1024bp in all graph files which means that none will be renamed during GBZ construction.
-
-Otherwise, see below for how you can use the GBZ's built-in mapping to toggle between node ID spaces:
-
-If you would rather have a VCF with consistent IDs to the GBZ as opposed to GFA, you can toggle this via the config XML
-```
-sed src/cactus/cactus_progressive_config.xml -e "s/GFANodeIDsInVCF=\"1\"/GFANodeIDsInVCF=\"0\"/g" > config.xml
-```
-then pass `--configFile config.xml` to `cactus-graphmap-join`
-
-If you want to see the mapping between the unchopped (2nd column) and chopped (3rd column) nodes, you can do so with
-```
-vg gbwt -Z  graph.gbz --translation mapping.tsv
-```
-
-If you want to make a GFA file with chopped nodes to be exactly equivalent to the GBZ
-```
-vg convert -f graph.gbz --vg-algorithm > graph.gfa
-```
-
-If you are running `vg call` or `vg deconstruct` on the GBZ yourself, the output VCF will, by default, use the chopped IDs from the GBZ. You can switch to the unchopped IDs using `-O` for both tools. 
+If you want to revert to the previous logic of only the `vg giraffe`-specific files having chopped IDs, you can do so by setting `<graphmap_join maxNodeLength="-1">` in the configuration XML.  If you do this, then you can still use `vg gbwt -Z graph.gbz --translation mapping.tsv` to recover the translation between the IDs from the GBZ, or `-O` in `vg call/deconstruct` to toggle which IDs to use from the GBZ.
 
 ## Visualization
 
@@ -873,7 +851,7 @@ A: This is usually because `vg index -j` crashes while computing the distance in
 
 Q: Why are the node id's different in my GFA and GBZ
 
-A: See [Node Chopping](#node-chopping) section above.
+A: See [Node Chopping](#node-chopping) section above. Note: this shouldn't happen when running v2.9.1 or later.
 
 Q: My tools can't read GFA 1.1 and W-lines.
 
@@ -894,7 +872,7 @@ A: So current toolchains can work with your graphs.  But clipping and filtering 
 
 **Q**: The node IDs referred to in the output VCF don't match the GBZ!
 
-**A**: Indeed they do not. They refer to the (unchopped) GFA IDs.  Please see the [Node Chopping](#node-chopping) section above. 
+**A**: Indeed they do not (prior to v2.9.1). They refer to the (unchopped) GFA IDs.  Please see the [Node Chopping](#node-chopping) section above. 
 
 **Q**: Some contigs or even entire samples are getting mysteriously dropped from my output. What happened?
 

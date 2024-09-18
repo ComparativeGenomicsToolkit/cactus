@@ -384,12 +384,13 @@
 		 otherContigName="chrOther"
 		 />
 	<!-- cactus-graphmap-join options -->
+	<!-- maxNodeLength: chop graphs so that nodes have at most this many bases. set to 0 to disable chopping. if this value exceeds 1024 then vg-based files will have different node id spaces than GFA (GBZ will contain translation) -->
 	<!-- gfaffix: toggle gfaffix normalization on/off -->
 	<!-- clipNonMinigraph: clip out regions if the don't align to minigraph (if disabled, clip if they don't align to anything) -->
 	<!-- minimizerOptions: options for vg minimizer -->
 	<!-- minFilterFragment: discard fragments that result from the vg clip frequency filter if they are smaller than this -->
 	<!-- removeStubs: remove any nodes dangling off reference paths (ie softclips) -->
-	<!-- GFANodeIDsInVCF: write all node IDs in the VCF (variant names, AT fields etc.) in the (unchopped) GFA namespace by way of the GBZ translation table -->
+	<!-- GFANodeIDsInVCF: write all node IDs in the VCF (variant names, AT fields etc.) in the (unchopped) GFA namespace by way of the GBZ translation table. this is only relevant if maxNodeLength <=0 or > 1024 (otherwise ids are chopped to be consistent anyway) -->
 	<!-- odgiVizOptions: options to odgi viz, used for 1d viz -->
 	<!-- odgiLayoutOptions: options to odgi layout, used for 2d viz -->
 	<!-- odgiDrawOptions: options to odgi draw, used for 2d viz -->
@@ -399,6 +400,7 @@
 	<!-- vcfwaveNorm: run bcftools norm -f (left shift) after vcfwave -->
 	<!-- bcftoolsNorm: Run bcftools norm -f (left shifting) on (non-raw, non-wave) VCF output (may result in overlapping variants) -->
 	<graphmap_join
+		 maxNodeLength="1024"
 		 gfaffix="1"
 		 clipNonMinigraph="1"		 
 		 minimizerOptions="-k 29 -w 11"
