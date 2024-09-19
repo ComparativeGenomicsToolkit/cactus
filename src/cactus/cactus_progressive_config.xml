@@ -386,6 +386,7 @@
 	<!-- cactus-graphmap-join options -->
 	<!-- maxNodeLength: chop graphs so that nodes have at most this many bases. set to 0 to disable chopping. if this value exceeds 1024 then vg-based files will have different node id spaces than GFA (GBZ will contain translation) -->
 	<!-- gfaffix: toggle gfaffix normalization on/off -->
+	<!-- pathNormalize: toggle path normalization (merge equivalent paths through same site) on/off -->
 	<!-- clipNonMinigraph: clip out regions if the don't align to minigraph (if disabled, clip if they don't align to anything) -->
 	<!-- minimizerOptions: options for vg minimizer -->
 	<!-- minFilterFragment: discard fragments that result from the vg clip frequency filter if they are smaller than this -->
@@ -402,6 +403,7 @@
 	<graphmap_join
 		 maxNodeLength="1024"
 		 gfaffix="1"
+		 pathNormalize="1"
 		 clipNonMinigraph="1"		 
 		 minimizerOptions="-k 29 -w 11"
 		 minFilterFragment="1000"

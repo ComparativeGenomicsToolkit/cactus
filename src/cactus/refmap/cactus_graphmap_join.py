@@ -702,7 +702,26 @@ def clip_vg(job, options, config, vg_path, vg_id, phase):
             clip_vg_cmd += ['-o', clipped_bed_path]
 
     cmd.append(clip_vg_cmd)
+
+    # enforce chopping
+    max_node_len = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "maxNodeLength", typeFn=int, default=-1)
+    if phase == 'full':
+        if max_node_len > 0:
+            cmd.append(['vg', 'mod', '-X', str(max_node_len), '-'])
+    
     if options.reference:
+        if phase == 'full' and getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "pathNormalize", typeFn=bool, default=True):
+            # run path normalization (important to do before vg clip -d1)
+            # if node-chopping isn't enabled, we take the time to mod before/after since path normalization requires chopping
+            if max_node_len <= 0 or max_node_len > 1024:
+                cmd.append(['vg', 'mod', '-X', '1024', '-'])
+            norm_command = ['vg', 'paths', '-x', '-', '-n', '-Q', options.reference[0], '-t', str(job.cores)]
+            cmd.append(norm_command)
+            if max_node_len <= 0 or max_node_len > 1024:
+                cmd.append(['vg', 'mod', '-u', '-'])
+                if max_node_len > 1024:
+                    cmd.append(['vg', 'mod', '-X', str(max_node_len), '-'])
+            
         # GFAFfix can leave uncovered nodes with --dont_collapse.  We filter out here so they dont cause trouble later
         # Also: any kind of clipping or path dropping can leave uncovered edges, so we remove them with vg clip        
         clip_cmd = ['vg', 'clip', '-d', '1', '-', '-P', options.reference[0]]
@@ -713,12 +732,6 @@ def clip_vg(job, options, config, vg_path, vg_id, phase):
 
             # todo: do we want to add the minigraph prefix to keep stubs from minigraph? but I don't think it makes stubs....
             cmd.append(stub_cmd)
-
-    # enforce chopping
-    if phase == 'full':
-        max_node_len = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "maxNodeLength", typeFn=int, default=-1)
-        if max_node_len > 0:
-            cmd.append(['vg', 'mod', '-X', str(max_node_len), '-'])
 
     # and we sort by id on the first go-around
     if phase == 'full':
