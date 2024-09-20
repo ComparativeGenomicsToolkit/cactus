@@ -47,10 +47,10 @@ def run_lastz(job, name_A, genome_A, name_B, genome_B, distance, params):
     gpu = getOptionalAttrib(lastz_params_node, 'gpu', typeFn=int, default=0)
     cpu = getOptionalAttrib(lastz_params_node, 'cpu', typeFn=int, default=None)    
     if gpu:
-        lastz_bin = 'run_segalign'
+        lastz_bin = 'run_kegalign'
         suffix_a, suffix_b = '', ''
         assert gpu > 0
-        lastz_params += ' --num_gpu {}'.format(gpu)
+        lastz_params += ' --num_gpu {} --num_threads {}'.format(gpu, job.cores)
     else:
         lastz_bin = 'lastz'
         suffix_a = '[multiple][nameparse=darkspace]'
@@ -64,18 +64,29 @@ def run_lastz(job, name_A, genome_A, name_B, genome_B, distance, params):
         
     # note: it's very important to set the work_dir here, because cactus_call is not able to
     # sort out the mount directory by itself, presumably due to square brackets...
-    segalign_messages = cactus_call(parameters=lastz_cmd, outfile=alignment_file, work_dir=work_dir, returnStdErr=gpu>0, gpus=gpu,
+    kegalign_messages = cactus_call(parameters=lastz_cmd, outfile=alignment_file, work_dir=work_dir, returnStdErr=gpu>0, gpus=gpu,
                                     cpus=cpu, job_memory=job.memory)
 
     if gpu:
-        # run_segalign can crash and still exit 0, so it's worth taking a moment to check the log for errors
-        segalign_messages = segalign_messages.lower()
-        for line in segalign_messages.split("\n"):
+        # run_kegalign can crash and still exit 0, so it's worth taking a moment to check the log for errors
+        kegalign_messages = kegalign_messages.lower()
+        for line in kegalign_messages.split("\n"):
             if not line.startswith("signals delivered"):
                 for keyword in ['terminate', 'error', 'fail', 'assert', 'signal', 'abort', 'segmentation', 'sigsegv', 'kill']:
                     if keyword in line and 'signals' not in line:
-                        job.fileStore.logToMaster("Segalign offending line: " + line)  # Log the messages
+                        job.fileStore.logToMaster("KegAlign offending line: " + line)  # Log the messages
                         raise RuntimeError('{} exited 0 but keyword "{}" found in stderr'.format(lastz_cmd, keyword))
+
+        # kegalign will write an invalid file if the output is empty.  correct it here!
+        empty_output = False
+        with open(alignment_file, 'r') as alignment_fh:
+            first_line = alignment_fh.readline()
+            if first_line.lower().startswith('no alignment'):
+                empty_output = True
+                assert os.path.getsize(alignment_file) < 32
+        if empty_output:
+            with open(alignment_file, 'w') as alignment_fh:
+                pass
 
     # Add in mismatches so we can trim alignments later
     alignment_file_with_mismatches = os.path.join(work_dir, '{}_{}_mismatches.paf'.format(name_A, name_B))
