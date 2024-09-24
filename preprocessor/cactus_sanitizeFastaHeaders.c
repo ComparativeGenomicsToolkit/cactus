@@ -41,6 +41,12 @@ void addUniqueFastaPrefix(void* destination, const char *fastaHeader, const char
         return;
     }
 
+    // pipeline does not support nameless sequences
+    if (strlen(fastaHeader) == 0) {
+        fprintf(stderr, "Error: empty fasta header (> with nothing after) found in event \"%s\"\n", eventName);
+        exit(1);
+    }
+
     // we cut at whitespace (like preprocessor does by default)
     // optionally cut out up to last #
     int64_t start = 0;

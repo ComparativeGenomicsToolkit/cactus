@@ -114,6 +114,8 @@ def graphmap_join_options(parser):
     parser.add_argument("--filter", type=int, default=2, help = "Generate a frequency filtered graph (from the clipped graph) by removing any sequence present in fewer than this many sequences. Set to 0 to disable. [default=2]")
 
     parser.add_argument("--gfa", nargs='*', default=None, help = "Produce a GFA for given graph type(s) if specified. Valid types are 'full', 'clip', and 'filter'. If no type specified 'clip' will be used ('full' used if clipping disabled). Multiple types can be provided separated by a space. [--gfa clip assumed by default]")
+
+    parser.add_argument("--unchopped-gfa", nargs='*', default=None, help = "Many vg tools require nodes have lengths of at most 1024bp, so by default all output graphs are chopped in this way. This option will produce GFA files where this limit is not imposed - their nodes are as long as the graph toplogy allows. These files will have the .unchopped.gfa.gz suffix and *not* be compatible with any other graph files or VCFs which are all based on the chopped vg coordinates. Valid types are 'full', 'clip', and 'filter'. If no type specified 'clip' will be used ('full' used if clipping disabled). Multiple types can be provided separated by a space. [--gfa clip assumed by default]")
     
     parser.add_argument("--gbz", nargs='*', default=None, help = "Generate GBZ/snarls indexes for the given graph type(s) if specified. Valid types are 'full', 'clip' and 'filter'. If no type specified 'clip' will be used ('full' used if clipping disabled). Multiple types can be provided separated by a space. --giraffe will also produce these (and other) indexes")
 
@@ -147,11 +149,7 @@ def graphmap_join_options(parser):
                         help="Memory in bytes for each indexing and vcf construction job job (defaults to an estimate based on the input data size). If specified will also be used to upper-bound per-chromosome memory estimates -- ie no job will request more than this much memory."
                         "Standard suffixes like K, Ki, M, Mi, G or Gi are supported (default=bytes))", default=None)   
     
-    parser.add_argument("--chop", type=int, nargs='?', const=1024, default=None,
-                        help="chop all graph nodes to be at most this long (default=1024 specified without value). By default, nodes are only chopped for GBZ-derived formats, but left unchopped in the GFA, VCF, etc. If this option is used, the GBZ and GFA should have consistent IDs")
-
     parser.add_argument("--collapse", help = "Incorporate minimap2 self-alignments.", action='store_true', default=False)
-
 
 def graphmap_join_validate_options(options):
     """ make sure the options make sense and fill in sensible defaults """
@@ -174,9 +172,10 @@ def graphmap_join_validate_options(options):
     # check the reference name suffix
     check_sample_names(options.reference, options.reference[0])
 
-    if not options.gfa:
+    # if no graph output specified, default to gfa.gz
+    if not options.gfa and not options.unchopped_gfa and not options.xg and not options.gbz:
         options.gfa = ['clip'] if options.clip else ['full']
-    options.gfa = list(set(options.gfa))
+    options.gfa = list(set(options.gfa)) if options.gfa else []
     for gfa in options.gfa:
         if gfa not in ['clip', 'filter', 'full']:
             raise RuntimeError('Unrecognized value for --gfa: {}. Must be one of {{clip, filter, full}}'.format(gfa))
@@ -185,6 +184,17 @@ def graphmap_join_validate_options(options):
         if gfa == 'filter' and not options.filter:
             raise RuntimeError('--gfa cannot be set to filter since filtering is disabled')
 
+    if options.unchopped_gfa == []:
+        options.unchopped_gfa = ['clip'] if options.clip else ['full']
+    options.unchopped_gfa = list(set(options.unchopped_gfa)) if options.unchopped_gfa else []
+    for gfa in options.unchopped_gfa:
+        if gfa not in ['clip', 'filter', 'full']:
+            raise RuntimeError('Unrecognized value for --unchopped-gfa: {}. Must be one of {{clip, filter, full}}'.format(gfa))
+        if gfa == 'clip' and not options.clip:
+            raise RuntimError('--unchopped-gfa cannot be set to clip since clipping is disabled')
+        if gfa == 'filter' and not options.filter:
+            raise RuntimeError('--unchopped-gfa cannot be set to filter since filtering is disabled')
+        
     if options.gbz == []:
         options.gbz = ['clip'] if options.clip else ['full']
     options.gbz = list(set(options.gbz)) if options.gbz else []
@@ -542,6 +552,22 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
                                                                   memory=index_mem,
                                                                   disk=sum(f.size for f in vg_ids) * 2)
 
+        # optional unchopped gfa
+        if workflow_phase in options.unchopped_gfa:
+            unchopped_gfa_ids = []
+            for vg_path, vg_id, input_vg_id in zip(options.vg, phase_vg_ids, vg_ids):
+                unchopped_gfa_job = gfa_root_job.addChildJobFn(vg_to_gfa, options, config, vg_path, vg_id, unchopped=True,
+                                                               disk=input_vg_id.size * 10,
+                                                               memory=min(max(2**31, input_vg_id.size * 16), max_mem))
+                unchopped_gfa_ids.append(unchopped_gfa_job.rv())
+
+            unchopped_gfa_merge_job = gfa_root_job.addFollowOnJobFn(make_vg_indexes, options, config, unchopped_gfa_ids,
+                                                                    tag=workflow_phase + '.unchopped.',
+                                                                    do_gbz=False,
+                                                                    cores=1,
+                                                                    disk=sum(f.size for f in vg_ids) * 3)
+            out_dicts.append(unchopped_gfa_merge_job.rv())
+
         # optional xg
         if workflow_phase in options.xg:
             xg_job = prev_job.addFollowOnJobFn(make_xg, config, options.outName, current_out_dict,
@@ -685,7 +711,26 @@ def clip_vg(job, options, config, vg_path, vg_id, phase):
         clip_vg_cmd += ['-c']
 
     cmd.append(clip_vg_cmd)
+
+    # enforce chopping
+    max_node_len = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "maxNodeLength", typeFn=int, default=-1)
+    if phase == 'full':
+        if max_node_len > 0:
+            cmd.append(['vg', 'mod', '-X', str(max_node_len), '-'])
+    
     if options.reference:
+        if phase == 'full' and getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "pathNormalize", typeFn=bool, default=True):
+            # run path normalization (important to do before vg clip -d1)
+            # if node-chopping isn't enabled, we take the time to mod before/after since path normalization requires chopping
+            if max_node_len <= 0 or max_node_len > 1024:
+                cmd.append(['vg', 'mod', '-X', '1024', '-'])
+            norm_command = ['vg', 'paths', '-x', '-', '-n', '-Q', options.reference[0], '-t', str(job.cores)]
+            cmd.append(norm_command)
+            if max_node_len <= 0 or max_node_len > 1024:
+                cmd.append(['vg', 'mod', '-u', '-'])
+                if max_node_len > 1024:
+                    cmd.append(['vg', 'mod', '-X', str(max_node_len), '-'])
+            
         # GFAFfix can leave uncovered nodes with --dont_collapse.  We filter out here so they dont cause trouble later
         # Also: any kind of clipping or path dropping can leave uncovered edges, so we remove them with vg clip        
         clip_cmd = ['vg', 'clip', '-d', '1', '-', '-P', options.reference[0]]
@@ -696,10 +741,6 @@ def clip_vg(job, options, config, vg_path, vg_id, phase):
 
             # todo: do we want to add the minigraph prefix to keep stubs from minigraph? but I don't think it makes stubs....
             cmd.append(stub_cmd)
-
-    # enforce chopping
-    if phase == 'full' and options.chop:
-        cmd.append(['vg', 'mod', '-X', str(options.chop), '-'])
 
     # and we sort by id on the first go-around
     if phase == 'full':
@@ -819,16 +860,19 @@ def drop_graph_event(job, config, vg_path, full_vg_id):
     cactus_call(parameters=['vg', 'paths', '-d', '-S', graph_event, '-x', full_vg_path], outfile=out_path)
     return job.fileStore.writeGlobalFile(out_path)
     
-def vg_to_gfa(job, options, config, vg_path, vg_id):
+def vg_to_gfa(job, options, config, vg_path, vg_id, unchopped=False):
     """ run gfa conversion """
     work_dir = job.fileStore.getLocalTempDir()
     vg_path = os.path.join(work_dir, os.path.basename(vg_path))
     job.fileStore.readGlobalFile(vg_id, vg_path)
-    out_path = vg_path + '.gfa'
+    out_path = vg_path + '.unchopped.gfa' if unchopped else vg_path + '.gfa'
 
-    cmd = ['vg', 'convert', '-f', os.path.basename(vg_path)]
+    input_path = '-' if unchopped else os.path.basename(vg_path)
+    cmd = ['vg', 'convert', '-f', '-Q', options.reference[0], input_path, '-B']
     if getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "collapse", typeFn=str, default="none") not in ["all", "reference"]:
         cmd += ['-Q', options.reference[0], '-B']
+    if unchopped:
+        cmd = [['vg', 'mod', '-u', os.path.basename(vg_path)], cmd]
     
     cactus_call(parameters=cmd, outfile=out_path, work_dir=work_dir, job_memory=job.memory)
 
@@ -884,7 +928,19 @@ def make_vg_indexes(job, options, config, gfa_ids, tag="", do_gbz=False):
     # make the gbz
     if do_gbz:
         gbz_path = os.path.join(work_dir, '{}merged.gbz'.format(tag))
-        cactus_call(parameters=['vg', 'gbwt', '-G', merge_gfa_path, '--gbz-format', '-g', gbz_path], job_memory=job.memory)
+        gbz_cmd = ['vg', 'gbwt', '-G', merge_gfa_path, '--gbz-format', '-g', gbz_path]
+        # sanity check to make sure the gbz didn't chop anything
+        check_trans = 0 < getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "maxNodeLength", typeFn=int, default=-1) <= 1024
+        if check_trans:
+            trans_path = os.path.join(work_dir, '{}merged.gbz.trans'.format(tag))
+            gbz_cmd += ['--translation', trans_path]        
+        cactus_call(parameters=gbz_cmd, job_memory=job.memory)
+        if check_trans:
+            with open(trans_path, 'r') as trans_file:
+                for line in trans_file:
+                    node_id, trans_id = line.strip().split()[1:3]
+                    if node_id != trans_id:
+                        raise RuntimeError('GBZ translated {} to {}, but since chopping is enabled this should not have happened. Please report this bug!!'.format(node_id, trans_id))
 
     # zip the gfa
     cactus_call(parameters=['bgzip', merge_gfa_path, '--threads', str(job.cores)])
@@ -948,7 +1004,8 @@ def make_vcf(job, config, out_name, vcf_ref, index_dict, fasta_ref_dict, tag='',
     # make the vcf
     vcf_path = os.path.join(work_dir, '{}merged.vcf.gz'.format(tag))
     decon_cmd = ['vg', 'deconstruct', gbz_path, '-P', vcf_ref, '-C', '-a', '-r', snarls_path, '-t', str(job.cores)]
-    if getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "GFANodeIDsInVCF", typeFn=bool, default=True):
+    if getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "GFANodeIDsInVCF", typeFn=bool, default=True) and \
+       not (0 < getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "maxNodeLength", typeFn=int, default=-1) <= 1024):
         decon_cmd.append('-O')
     cactus_call(parameters=[decon_cmd, ['bgzip', '--threads', str(job.cores)]], outfile=vcf_path, job_memory=job.memory)
     try:
@@ -970,10 +1027,11 @@ def make_vcf(job, config, out_name, vcf_ref, index_dict, fasta_ref_dict, tag='',
     if max_ref_allele:        
         vcfbub_path = os.path.join(work_dir, 'merged.filtered.vcf.gz')
         bub_cmd = [['vcfbub', '--input', vcf_path, '--max-ref-length', str(max_ref_allele), '--max-level', '0']]
-        if getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "bcftoolsNorm", typeFn=bool, default=True):
+        if getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "bcftoolsNorm", typeFn=bool, default=False):
             fa_ref_path = os.path.join(work_dir, vcf_ref + '.fa.gz')
             job.fileStore.readGlobalFile(fasta_ref_dict[vcf_ref], fa_ref_path)
             bub_cmd.append(['bcftools', 'norm', '-f', fa_ref_path])
+            bub_cmd.append(['bcftools', 'norm', '-m', '+any'])
             bub_cmd.append(['bcftools', 'sort'])
         bub_cmd.append(['bgzip', '--threads', str(job.cores)])
         cactus_call(parameters=bub_cmd, outfile=vcfbub_path)
@@ -1081,7 +1139,7 @@ def vcfwave_chr(job, config, vcf_ref, vcf_id, tbi_id, fasta_id, contig, vcfbub_t
                    ['bgzip']]
     cactus_call(parameters=bubwave_cmd, outfile=wave_vcf_path)
     
-    if getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "bcftoolsNorm", typeFn=bool, default=True):
+    if getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "vcfwaveNorm", typeFn=bool, default=True):
         fa_ref_path = os.path.join(work_dir, vcf_ref + '.fa.gz')
         job.fileStore.readGlobalFile(fasta_id, fa_ref_path)
         norm_vcf_path = os.path.join(work_dir, '{}{}_norm.vcf.gz'.format(tag, contig))

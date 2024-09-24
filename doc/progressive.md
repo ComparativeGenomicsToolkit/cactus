@@ -335,7 +335,7 @@ TOIL_SLURM_ARGS="--partition=long --time=8000" cactus ./js ./examples/evolverMam
 
 You cannot run `cactus --batchSystem slurm` from *inside* the Cactus docker container, because the Cactus docker container doesn't contain slurm.  Therefore in order to use slurm, you must be able to `pip install` Cactus inside a virtualenv on the head node. You can still use `--binariesMode docker` or `--binariesMode` singularity to run cactus *binaries* from a container, but the Cactus Python module needs to be installed locally.
 
-In order to use `--gpu`, you *must* use `--binariesMode docker` or `--binariesMode singularity` since `segalign` is not included in the binary release.  
+In order to use `--gpu`, you *must* use `--binariesMode docker` or `--binariesMode singularity` since `kegalign` is not included in the binary release.  
 
 ### Non-Slurm clusters
 
@@ -439,22 +439,22 @@ Cactus supports incrementally updating existing alignments to add, remove, or up
 
 ## GPU Acceleration
 
-[SegAlign](https://github.com/ComparativeGenomicsToolkit/SegAlign), a GPU-accelerated version of lastz, can be used in the "preprocess" and "blast" phases to speed up the runtime considerably, provided the right hardware is available. Unlike lastz, the input sequences do not need to be chunked before running SegAlign, so it also reduces the number of Toil jobs substantially.  The [GPU-enabled Docker releases](https://github.com/ComparativeGenomicsToolkit/cactus/releases) have SegAlign turned on by default and require no extra options from the user.  Otherwise, it is possible to [manually install it](https://github.com/ComparativeGenomicsToolkit/SegAlign#-dependencies) and then enable it in `cactus` using the `--gpu` command line option. One effective way of ensuring that only GPU-enabled parts of the workflow are run on GPU nodes is on Terra with `cactus-prepare --gpu --wdl` (see above example).
+[KegAlign](https://github.com/galaxyproject/KegAlign), a GPU-accelerated version of lastz, can be used in the "blast" phase to speed up the runtime considerably, provided the right hardware is available. Unlike lastz, the input sequences do not need to be chunked before running KegAlign, so it also reduces the number of Toil jobs substantially.  The [GPU-enabled Docker releases](https://github.com/ComparativeGenomicsToolkit/cactus/releases) have KegAlign turned on by default and require no extra options from the user.  Otherwise, it is possible to [manually install it](https://github.com/galaxyproject/KegAlign#-installation) and then enable it in `cactus` using the `--gpu` command line option. One effective way of ensuring that only GPU-enabled parts of the workflow are run on GPU nodes is on Terra with `cactus-prepare --gpu --wdl` (see above example).
 
-By default `--gpu` will give all available GPUs to each SegAlign job. This can be tuned by passing in a numeric value, ex `--gpu 8` to assign 8 GPUs to each SegAlign job.  In non-single-machine batch systems, it is mandatory to set an exact value with `--gpu`.  
+By default `--gpu` will give all available GPUs to each KegAlign job. This can be tuned by passing in a numeric value, ex `--gpu 8` to assign 8 GPUs to each KegAlign job.  In non-single-machine batch systems, it is mandatory to set an exact value with `--gpu`.  
 
 GPUs must
 * support CUDA
 * have at least 8GB GPU memory (for mammal-sized input)
 * have 1-2 CPU cores available each for spawning lastz jobs
 
-We've tested SegAlign on Nvidia V100 and A10G GPUs. See the Terra example above for suggested node type on GCP.   
+We've tested KegAlign on Nvidia V100 and A10G GPUs. See the Terra example above for suggested node type on GCP.   
 
-Please [cite SegAlign](https://doi.ieeecomputersociety.org/10.1109/SC41405.2020.00043).
+Please [cite KegAlign](https://doi.org/10.1101/2024.09.02.610839).
 
 ### Using GPU Acceleration on a Cluster
 
-Since `SegAlign` is only released in the GPU-enabled docker image, that's the easiest way to run it. When running on a cluster, this usually means the best way to use it is with `--binariesMode docker --gpu <N>`.  This way cactus is installed locally on your virtual environment and can run slurm commands like `sbatch` (that aren't available in the Cactus container), but SegAlign itself will be run from inside Docker.
+Since `KegAlign` is only released in the GPU-enabled docker image, that's the easiest way to run it. When running on a cluster, this usually means the best way to use it is with `--binariesMode docker --gpu <N>`.  This way cactus is installed locally on your virtual environment and can run slurm commands like `sbatch` (that aren't available in the Cactus container), but KegAlign itself will be run from inside Docker.
 
 **Important**: Consider using `--lastzMemory` when using GPU acceleration on a cluster. Like `--consMemory`, it lets you override the amount of memory Toil requests which can help with errors if Cactus's automatic estimate is either too low (cluster evicts the job) or too high (cluster cannot schedule the job).  
 
@@ -504,11 +504,11 @@ That said, cactus can handle multifurcations up to a point: runtime increases qu
 
 **Q**: The `--gpu` option isn't working for me.
 
-**A**: Unless you've set up SegAlign yourself, the GPU option will only work using the gpu-enabled Docker image (name ending in `-gpu`).  If you are running directly from the container make sure you use `docker run`'s `--gpus` option to enable GPUs in your container. If you are using `singularity`, the option is `--nv`.
+**A**: Unless you've set up KegAlign yourself, the GPU option will only work using the gpu-enabled Docker image (name ending in `-gpu`).  If you are running directly from the container make sure you use `docker run`'s `--gpus` option to enable GPUs in your container. If you are using `singularity`, the option is `--nv`.
 
 **Q**: But what if I want to use `--gpu` on my cluster? When I try from inside the GPU-enabled container, none of my cluster commands (ex `qsub`) are available.
 
-**A**: Install the Cactus binary release as described in the instructions on the Releases page.  But run Cactus with `--binariesMode docker` (or `singularity`).  This will let Cactus run SegAlign (and all other binaries) directly from the container, while itself running from the Python virtualenv.
+**A**: Install the Cactus binary release as described in the instructions on the Releases page.  But run Cactus with `--binariesMode docker` (or `singularity`).  This will let Cactus run KegAlign (and all other binaries) directly from the container, while itself running from the Python virtualenv.
 
 **Q**: I get an error to the effect of `ERROR: No matching distribution found for toil[aws]==xxxx` when trying to install Toil.
 

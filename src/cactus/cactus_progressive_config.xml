@@ -23,7 +23,7 @@
 	<!-- redOpts: any command line options can be passed to Red here -->
 	<!-- redPrefilterOpts: run red prefilter with these options.  -m 20000 -b 0.98 means exclude contigs with length < 20000 and/or a single base comprising 98 pct of the sequence from Red masking, as Red can crash on very small / low-information contigs -->
 	<preprocessor unmask="0" memory="mediumMemory" preprocessJob="red" redOpts="" redPrefilterOpts="-m 20000 -b 0.98" active="1"/>	
-	<!-- The preprocessor for cactus_lastzRepeatMask masks every seed that is part of more than XX other alignments, this stops a combinatorial explosion in pairwise alignments. gpu sets the number of gpus (if >0, use segalign in stead of lastz. can be set to 'all' for all available GPUs) -->
+	<!-- The preprocessor for cactus_lastzRepeatMask masks every seed that is part of more than XX other alignments, this stops a combinatorial explosion in pairwise alignments. gpu sets the number of gpus (if >0, use kegalign in stead of lastz. can be set to 'all' for all available GPUs). Note: Setting unmask to 1 will cause an assertion failure if gpu is not 0. -->
 	<preprocessor unmask="0" chunkSize="10000000" proportionToSample="0.2" memory="littleMemory" preprocessJob="lastzRepeatMask" minPeriod="50" lastzOpts='--step=3 --ambiguous=iupac,100,100 --ungapped --queryhsplimit=keep,nowarn:1500' gpu="0" active="0"/>
 	<!-- Softmask alpha-satellite using the dna-brnn tool -->
 	<!-- This preprocessor is off by default, and will replace the lastzRepeatMask preprocessor via command line toggle (or setting active=1)-->
@@ -44,7 +44,7 @@
      Let IJC(L) be the inverse of the Jukes Cantor distance, expressed as the fraction of bases substituted. We filter all alignments
       with identity lower than 1 - IJC(L). -->
 	<!-- minimumDistance A minimum for L (see above), so we don't filter out alignments with high identity. -->
-	<!-- gpu Toggle on segAlign instead of lastz and set the number of gpus for each segalign job. 0: disable segalign, 'all': use all availabled GPUs-->
+	<!-- gpu Toggle on kegalign instead of lastz and set the number of gpus for each kegalign job. 0: disable kegalign, 'all': use all availabled GPUs-->
 	<!-- lastzMemory The memory to allocate for each blast job -->
 	<!-- chainMaxGapLength See paffy chain chainMaxGapLength param -->
 	<!-- chainGapOpen See paffy chain chainGapOpen param -->
@@ -392,21 +392,26 @@
 		 otherContigName="chrOther"
 		 />
 	<!-- cactus-graphmap-join options -->
+	<!-- maxNodeLength: chop graphs so that nodes have at most this many bases. set to 0 to disable chopping. if this value exceeds 1024 then vg-based files will have different node id spaces than GFA (GBZ will contain translation) -->
 	<!-- gfaffix: toggle gfaffix normalization on/off -->
+	<!-- pathNormalize: toggle path normalization (merge equivalent paths through same site) on/off -->
 	<!-- clipNonMinigraph: clip out regions if the don't align to minigraph (if disabled, clip if they don't align to anything) -->
 	<!-- minimizerOptions: options for vg minimizer -->
 	<!-- minFilterFragment: discard fragments that result from the vg clip frequency filter if they are smaller than this -->
 	<!-- removeStubs: remove any nodes dangling off reference paths (ie softclips) -->
-	<!-- GFANodeIDsInVCF: write all node IDs in the VCF (variant names, AT fields etc.) in the (unchopped) GFA namespace by way of the GBZ translation table -->
+	<!-- GFANodeIDsInVCF: write all node IDs in the VCF (variant names, AT fields etc.) in the (unchopped) GFA namespace by way of the GBZ translation table. this is only relevant if maxNodeLength <=0 or > 1024 (otherwise ids are chopped to be consistent anyway) -->
 	<!-- odgiVizOptions: options to odgi viz, used for 1d viz -->
 	<!-- odgiLayoutOptions: options to odgi layout, used for 2d viz -->
 	<!-- odgiDrawOptions: options to odgi draw, used for 2d viz -->
 	<!-- rindexOptions: options to vg gbwt -r (r-index construction) as used to make haplotype sampling index -->
 	<!-- haplOptions: options to vg haplotypes as used to make haplotype sampling index -->
-	<!-- vcfwaveOptions: options to pass to vcfwave (from vcflib)-->
-	<!-- bcftoolsNorm: Run bcftools norm -f (left shifting) on all non-raw VCF output -->
+	<!-- vcfwaveOptions: options to pass to vcfwave (from vcflib) -->
+	<!-- vcfwaveNorm: run bcftools norm -f (left shift) after vcfwave -->
+	<!-- bcftoolsNorm: Run bcftools norm -f (left shifting) on (non-raw, non-wave) VCF output (may result in overlapping variants) -->
 	<graphmap_join
+		 maxNodeLength="1024"
 		 gfaffix="1"
+		 pathNormalize="1"
 		 clipNonMinigraph="1"		 
 		 minimizerOptions="-k 29 -w 11"
 		 minFilterFragment="1000"
@@ -418,7 +423,8 @@
 		 rindexOptions="-p"
 		 haplOptions="-v 2"
 		 vcfwaveOptions="-I 1000"
-		 bcftoolsNorm="1"
+		 vcfwaveNorm="1"
+		 bcftoolsNorm="0"
 		 />
 	<!-- hal2vg options -->
 	<!-- includeMinigraph: include minigraph node sequences as paths in output (note that cactus-graphmap-join will still remove them by default) -->

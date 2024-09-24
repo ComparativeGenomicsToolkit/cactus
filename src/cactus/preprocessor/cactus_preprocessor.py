@@ -65,7 +65,8 @@ class PreprocessorOptions:
         self.gpu = gpu
         self.gpuLastzInterval = self.chunkSize
         if self.gpu:
-            self.chunkSize = 0
+            # wga-gpu has a 6G limit, so we always override
+            self.chunkSize = 6000000000
         self.lastz_memory= lastz_memory
         self.dnabrnnOpts = dnabrnnOpts
         self.dnabrnnAction = dnabrnnAction

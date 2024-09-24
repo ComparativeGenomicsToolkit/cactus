@@ -305,9 +305,6 @@ def minigraph_construct_in_batches(job, options, config_node, seq_id_map, seq_or
     if options.mgMemory is not None:
         RealtimeLogger.info('Overriding minigraph_construct memory estimate of {} with {} value {} from --mgMemory'.format(bytes2human(mem), 'greater' if options.mgMemory > mem else 'lesser', bytes2human(options.mgMemory)))     
         mem = options.mgMemory
-        
-        return job.addChildJobFn(minigraph_construct, options, config_node, seq_id_map, seq_order, gfa_path,
-                                 has_resources=True, disk=disk, memory=mem, cores=options.mgCores).rv()
 
     # parse options from the config
     xml_node = findRequiredNode(config_node, "graphmap")
