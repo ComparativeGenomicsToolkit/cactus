@@ -6,7 +6,8 @@ This release updates the pangenome pipeline, and adds `KegAlign` to progressive 
 - Path normalization added to pangenome pipeline to make sure no two equivalent alleles through any site have different paths. `AT` fields in VCF should now always be consistent with the graph as a result. 
 - Always chop nodes to 1024bp by default in pangenome pipeline. This ensures that all outputs (gfa, gbz, vcf etc) have compatible node ids.  Before, only GBZ and downstream graphs were chopped which was too confusing.  Old logic can be re-activated using the config XML though.  
 - Fix recent bug where using the `--mgMemory` option would crash `cactus-pangenome`
-- (Experimental) `--collapse` option added to pangenome pipeline to incorporate nearby self-alignments, including on the reference path. 
+- (Experimental) `--collapse` option added to pangenome pipeline to incorporate nearby self-alignments, including on the reference path.
+- Left shifting VCFs (`bcftools norm -f`) no longer run by default (except on `vcfwave`-normalized outputs), since it can cause conflicts with PanGenie by writing multiple variants at the same location.
 
 # Release-2.9.0 2024-07-29
 
