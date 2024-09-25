@@ -133,6 +133,10 @@ The `--reference` option must be used to select a "reference" sample.  This samp
 
 It is therefore extremely important that the reference sample's assembly be **chromosome** scale.  If there are many small contigs in the addition to chromosomes in the reference assembly, then please consider specifying the chromosomes with `--refContigs`. If you still want to keep the other contigs, add `--otherContig chrOther` (see explanation below).
 
+### Self-Alignment and the Collapse Option
+
+The `--collapse` option, added as an experimental prototype in [v2.9.1](https://github.com/ComparativeGenomicsToolkit/cactus/releases/tag/v2.9.1), can be used to incorporate self-alignments into the pangenome, *including the reference sample*.  This will produce a more compact graph with, for example, tandem duplications being represented as cycles (like PGGB) rather than insertions (like minigraph). It also drops the invariant (see above) that the reference path by acyclic -- with this option, the reference path can contain cycles. The `--collapse` option is implemented by running `minimap2` using options found in the `minimapCollapseOptions` parameter in the configuration XML to align each input *contig* with itself. These self alignments are fed into Cactus alongide the usual sequence-to-minigraph alignments.
+
 #### Multiple Reference Samples
 
 The `--reference` option can accept multiple samples (separated by space). If multiple samples are specified beyond the first, they will be clipped as usual, but end up as "reference-sense" paths in the vg/gbz output.  They can also be used as basis for VCF, and VCF files can be created based on them with the `--vcfReference` sample.

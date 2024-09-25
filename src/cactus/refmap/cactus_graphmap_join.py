@@ -149,6 +149,8 @@ def graphmap_join_options(parser):
                         help="Memory in bytes for each indexing and vcf construction job job (defaults to an estimate based on the input data size). If specified will also be used to upper-bound per-chromosome memory estimates -- ie no job will request more than this much memory."
                         "Standard suffixes like K, Ki, M, Mi, G or Gi are supported (default=bytes))", default=None)   
     
+    parser.add_argument("--collapse", help = "Incorporate minimap2 self-alignments.", action='store_true', default=False)
+
 def graphmap_join_validate_options(options):
     """ make sure the options make sense and fill in sensible defaults """
     if options.hal and len(options.hal) != len(options.vg):
@@ -347,6 +349,9 @@ def graphmap_join(options):
             configNode = ET.parse(options.configFile).getroot()
             config = ConfigWrapper(configNode)
             config.substituteAllPredefinedConstantsWithLiterals(options)
+
+            if options.collapse:
+                findRequiredNode(configNode, "graphmap").attrib["collapse"] = 'all'
                 
             # load up the vgs
             vg_ids = []
@@ -701,6 +706,10 @@ def clip_vg(job, options, config, vg_path, vg_id, phase):
                 clip_vg_cmd += ['-a', graph_event]
             clip_vg_cmd += ['-o', clipped_bed_path]
 
+    # disable reference cycle check if desiired
+    if getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "collapse", typeFn=str, default="none") in ["all", "reference"]:
+        clip_vg_cmd += ['-c']
+
     cmd.append(clip_vg_cmd)
 
     # enforce chopping
@@ -860,6 +869,8 @@ def vg_to_gfa(job, options, config, vg_path, vg_id, unchopped=False):
 
     input_path = '-' if unchopped else os.path.basename(vg_path)
     cmd = ['vg', 'convert', '-f', '-Q', options.reference[0], input_path, '-B']
+    if getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "collapse", typeFn=str, default="none") not in ["all", "reference"]:
+        cmd += ['-Q', options.reference[0], '-B']
     if unchopped:
         cmd = [['vg', 'mod', '-u', os.path.basename(vg_path)], cmd]
     

@@ -320,6 +320,9 @@
 	<!-- minigraphMapOptions: flags to pass to minigraph for mapping -->
 	<!-- minigraphConstructOptions: flags to pass to minigraph for construction -->
 	<!-- minigraphConstructBatchSize: break minigraph construction into chunks of this size. this allows recovering from a failure during graph construction, and avoiding really long argument lists for each job. -->
+	<!-- minimapCollapseOptions: options for minimap2 when using it for  self-alignments. Note these were inspired in part by https://github.com/lh3/minimap2/issues/106 !-->
+	<!-- collapse: Toggles self-alignment logic. Supported values are "none" and "all". Experimental values "reference" and "nonref" can also be tried.  -->
+	<!-- maxCollapseDistanceRatio: filter out self-alignments that are more than this value times the alignment lenght apart. Setting to 0 would only accept tandem (or overlapping alignments). Raising it allows alignments further apart. Set to -1 to completely disable. --> 
 	<!-- minigraphSortInput: Method used to determine input order. Valid values are "mash", "none" / "0" which refer to (decreasing) mash distance to reference, or no sorting (order in seqfile), respectively -->
 	<!-- minMAPQ: ignore minigraph alignments with mapping quality less than this -->
 	<!-- minGAFBlockLength: ignore minigraph alignments with block length less than this -->
@@ -334,13 +337,17 @@
 	<!-- delFilter: any deletions implied by split-read mappings greater than this are removed from the paf (by removing all lines of the smallest block bordering deletion)-->
 	<!-- delFilterThreshold: only remove deletion if it costs < delFilterThreshold * deletion-size matches. must be in range (0, 1] -->
 	<!-- delFilterQuerySizeThreshold: deletion removed if the supporting query contig has length < delFilterQuerySizeThreshold * deletion-size --> 
-	<!-- minIdentity: ignore PAF lines with identity (col 10 / col 11) is less than this -->	
+	<!-- minIdentity: ignore PAF lines with identity (col 10 / col 11) is less than this -->
+	<!-- minScore: ignore PAF lines with score (AS:i) less than this (adding this to filter negative-scoring minimap2 lines) -->
 	<!-- removeMinigraphFromPAF: replace all minigraph contigs with transitive alignments in cactus-align-->
 	<!-- cpu: use up to this many cpus for each minigraph command. -->
 	<graphmap
 		 assemblyName="_MINIGRAPH_"
 		 minigraphMapOptions="-c -xasm"
 		 minigraphConstructOptions="-c -xggs"
+		 minimapCollapseOptions="-c -D -xasm5 -m500"
+		 collapse="none"
+		 maxCollapseDistanceRatio="5"
 		 minigraphConstructBatchSize="50"
 		 minigraphSortInput="mash"
 		 minMAPQ="5"
@@ -354,7 +361,8 @@
 		 delFilter="10000000"
 		 delFilterThreshold="0.01"
 		 delFilterQuerySizeThreshold="2"
-		 minIdentity="0.5"		 
+		 minIdentity="0.5"
+		 minScore="1"
 		 removeMinigraphFromPAF="0"
 		 cpu="6"
 		 />

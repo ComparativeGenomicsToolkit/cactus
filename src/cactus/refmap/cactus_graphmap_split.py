@@ -55,6 +55,8 @@ def main():
     parser.add_argument("--maskFilter", type=int, help = "Ignore softmasked sequence intervals > Nbp")
     parser.add_argument("--minIdentity", type=float, help = "Ignore PAF lines with identity (column 10/11) < this (overrides minIdentity in <graphmap_split> in config)")
     parser.add_argument("--permissiveContigFilter", nargs='?', const='0.25', default=None, type=float, help = "If specified, override the configuration to accept contigs so long as they have at least given fraction of coverage (0.25 if no fraction specified). This can increase sensitivity of very small, fragmented and/or diverse assemblies.")
+
+    parser.add_argument("--collapse", help = "Incorporate minimap2 self-alignments.", action='store_true', default=False)
     
     #Progressive Cactus Options
     parser.add_argument("--configFile", dest="configFile",
@@ -102,6 +104,9 @@ def cactus_graphmap_split(options):
         config_node = ET.parse(options.configFile).getroot()
         config = ConfigWrapper(config_node)
         config.substituteAllPredefinedConstantsWithLiterals(options)
+
+        if options.collapse:
+            findRequiredNode(config_node, "graphmap").attrib["collapse"] = 'all'
 
         #Run the workflow
         if options.restart:
