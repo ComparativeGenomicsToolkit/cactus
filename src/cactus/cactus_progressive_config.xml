@@ -399,7 +399,6 @@
 	<!-- minimizerOptions: options for vg minimizer -->
 	<!-- minFilterFragment: discard fragments that result from the vg clip frequency filter if they are smaller than this -->
 	<!-- removeStubs: remove any nodes dangling off reference paths (ie softclips) -->
-	<!-- GFANodeIDsInVCF: write all node IDs in the VCF (variant names, AT fields etc.) in the (unchopped) GFA namespace by way of the GBZ translation table. this is only relevant if maxNodeLength <=0 or > 1024 (otherwise ids are chopped to be consistent anyway) -->
 	<!-- odgiVizOptions: options to odgi viz, used for 1d viz -->
 	<!-- odgiLayoutOptions: options to odgi layout, used for 2d viz -->
 	<!-- odgiDrawOptions: options to odgi draw, used for 2d viz -->
@@ -416,7 +415,6 @@
 		 minimizerOptions="-k 29 -w 11"
 		 minFilterFragment="1000"
 		 removeStubs="1"
-		 GFANodeIDsInVCF="1"
 		 odgiVizOptions="-x 1500 -y 500 -a 10"
 		 odgiLayoutOptions="-x 50"
 		 odgiDrawOptions="-H 1000"
