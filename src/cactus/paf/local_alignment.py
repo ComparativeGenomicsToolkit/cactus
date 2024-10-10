@@ -300,8 +300,13 @@ def make_ingroup_to_outgroup_alignments_3(job, ingroup_event, ingroup_seq_file, 
     return job.fileStore.writeGlobalFile(merged_alignments)
 
 
-def merge_alignments(job, alignment_file1, alignment_file2):
+def merge_alignments(job, alignment_file1, alignment_file2, has_resources=False):
     """" Merge together two alignment files """
+    if not has_resources:
+        # unpack promises for disk requirement
+        return job.addChildJobFn(merge_alignments, alignment_file1, alignment_file2, has_resources=True,
+                                 disk = 2 * (alignment_file1.size + alignment_file2.size)).rv()
+        
     # Get a temporary directory to work in
     work_dir = job.fileStore.getLocalTempDir()
 
@@ -343,9 +348,7 @@ def chain_alignments_splitting_ingroups_and_outgroups(job, ingroup_alignment_fil
     total_file_size = sum(alignment_file.size for alignment_file in ingroup_alignment_files + outgroup_alignment_files)
 
     # Merge the resulting two alignment files into a single set of alignments
-    return job.addFollowOnJobFn(merge_alignments, chained_ingroup_alignments, chained_outgroup_alignments,
-                                disk=total_file_size*10).rv()
-
+    return job.addFollowOnJobFn(merge_alignments, chained_ingroup_alignments, chained_outgroup_alignments).rv()
 
 def chain_alignments(job, alignment_files, alignment_names, reference_event_name, params,
                      include_inverted_alignments=True):
