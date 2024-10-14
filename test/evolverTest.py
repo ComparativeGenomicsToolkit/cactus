@@ -525,7 +525,8 @@ class TestCase(unittest.TestCase):
                                 '--refContigs'] + chroms + ['--reference', 'S288C', 'DBVPG6044', '--vcf', '--vcfReference','DBVPG6044', 'S288C',
                                                             '--giraffe', 'clip', 'filter',  '--chrom-vg', 'clip', 'filter',
                                                             '--viz', '--chrom-og', 'clip', 'full', '--odgi', '--haplo', 'clip',
-                                                            '--xg', '--unchopped-gfa', '--indexCores', '4', '--consCores', '2']
+                                                            '--xg', '--unchopped-gfa', '--indexCores', '4', '--consCores', '2',
+                                                            '--collapse']
         subprocess.check_call(cactus_pangenome_cmd + cactus_opts)
 
         #compatibility with older test
@@ -584,7 +585,7 @@ class TestCase(unittest.TestCase):
         output, errors = proc.communicate()
         sts = proc.wait()
         num_bases = int(output.strip())
-        self.assertGreaterEqual(num_bases, 10000000)
+        self.assertGreaterEqual(num_bases, 9000000)
         self.assertLessEqual(num_bases, 11200000)
 
         # make sure we have the giraffe indexes
