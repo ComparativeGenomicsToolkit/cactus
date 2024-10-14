@@ -868,7 +868,7 @@ def vg_to_gfa(job, options, config, vg_path, vg_id, unchopped=False):
     out_path = vg_path + '.unchopped.gfa' if unchopped else vg_path + '.gfa'
 
     input_path = '-' if unchopped else os.path.basename(vg_path)
-    cmd = ['vg', 'convert', '-f', '-Q', options.reference[0], input_path, '-B']
+    cmd = ['vg', 'convert', '-f', input_path]
     if getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "collapse", typeFn=str, default="none") not in ["all", "reference"]:
         cmd += ['-Q', options.reference[0], '-B']
     if unchopped:
