@@ -1,3 +1,11 @@
+# Release 2.9.2 2024-10-14
+
+This release patches a couple bugs
+
+- fix broken `--collapse` option 
+- give Toil exact disk requirement for merge_aligments job, fixing a potential over-estimate
+- update abpoa to latest release (v1.5.3)
+
 # Release 2.9.1 2024-09-25
 
 This release updates the pangenome pipeline, and adds `KegAlign` to progressive cactus. 
