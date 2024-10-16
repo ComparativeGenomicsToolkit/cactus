@@ -85,6 +85,8 @@ The `jobStorePath` is where intermediate files, as well as job metadata, [will b
 
 The `seqFile` is a two-column  mapping sample names to fasta paths (gzipped fastas are supported). The seqfile is the same as Progressive Cactus, except a tree is not specified.
 
+Unlike for Progressive Cactus, **Minigraph-Cactus ignores softmasking of the input sequences**. You therefore do not need to mask the input. And like Progressive Cactus, **hardmasking is not recommended**.
+
 ### Running on Clusters or Cloud
 
 Please see the Progressive Cactus documentation for how to run Cactus on [SLURM](./progressive.md#running-on-a-cluster) and [AWS](./progressive.md#running-on-the-cloud).
