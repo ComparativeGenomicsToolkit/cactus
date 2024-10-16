@@ -510,8 +510,9 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
         index_mem = max_system_memory
 
     # keep track of unclipped reference fastas for bcftools norm
-    need_nonref_fasta = options.vcfReference and any([s != options.reference[0] for s in options.vcfReference])
-    nonref_fasta_job = None
+    need_ref_fasta = (options.vcfbub and getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "bcftoolsNorm", typeFn=bool, default=False)) or\
+        (options.vcfwave and getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "vcfwaveNorm", typeFn=bool, default=True))        
+    ref_fasta_job = None
         
     workflow_phases = [('full', full_vg_ids, join_job)]
     if options.clip:
@@ -521,12 +522,12 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
     for workflow_phase, phase_vg_ids, phase_root_job in workflow_phases:
             
         # make a gfa for each
-        gfa_root_job = Job()
+        gfa_root_job = Job()        
         phase_root_job.addFollowOn(gfa_root_job)
         gfa_ids = []
         current_out_dict = None
         do_gbz = workflow_phase in options.gbz + options.vcf + options.giraffe + options.xg
-        if workflow_phase == 'full' and need_nonref_fasta:
+        if workflow_phase == 'full' and need_ref_fasta:
             do_gbz = True
         if do_gbz or workflow_phase in options.gfa:
             assert len(options.vg) == len(phase_vg_ids) == len(vg_ids)
@@ -545,13 +546,12 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
             out_dicts.append(gfa_merge_job.rv())
             prev_job = gfa_merge_job
             current_out_dict = gfa_merge_job.rv()
-            if workflow_phase == 'full' and need_nonref_fasta or (workflow_phase in options.vcf and nonref_fasta_job is None):
+            if workflow_phase == 'full' and need_ref_fasta:
                 # we need fasta references from the gbz for vcf normalization
-                nonref_fasta_job = gfa_merge_job.addFollowOnJobFn(extract_gbz_fasta, options, current_out_dict,
-                                                                  tag=workflow_phase + '.',
-                                                                  memory=index_mem,
-                                                                  disk=sum(f.size for f in vg_ids) * 2)
-
+                ref_fasta_job = gfa_merge_job.addFollowOnJobFn(extract_gbz_fasta, options, current_out_dict,
+                                                               tag=workflow_phase + '.',
+                                                               memory=index_mem,
+                                                               disk=sum(f.size for f in vg_ids) * 2)
         # optional unchopped gfa
         if workflow_phase in options.unchopped_gfa:
             unchopped_gfa_ids = []
@@ -566,7 +566,8 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
                                                                     do_gbz=False,
                                                                     cores=1,
                                                                     disk=sum(f.size for f in vg_ids) * 3)
-            out_dicts.append(unchopped_gfa_merge_job.rv())
+            out_dicts.append(unchopped_gfa_merge_job.rv())                
+            
 
         # optional xg
         if workflow_phase in options.xg:
@@ -579,26 +580,12 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
 
         # optional vcf
         if workflow_phase in options.vcf:
+            vcf_prev_job = ref_fasta_job if ref_fasta_job else gfa_root_job
             for vcf_ref in options.vcfReference:
-                vcftag = vcf_ref + '.' + workflow_phase if vcf_ref != options.reference[0] else workflow_phase
-                deconstruct_job = prev_job.addFollowOnJobFn(make_vcf, config, options.outName, vcf_ref, current_out_dict,
-                                                            nonref_fasta_job.rv(),
-                                                            max_ref_allele=options.vcfbub,
-                                                            tag=vcftag + '.', ref_tag = workflow_phase + '.',
-                                                            cores=options.indexCores,
-                                                            disk = sum(f.size for f in vg_ids) * 6,
-                                                            memory=index_mem)
-                assert nonref_fasta_job is not None
-                nonref_fasta_job.addFollowOn(deconstruct_job)
-                out_dicts.append(deconstruct_job.rv())
-                
-                # optional vcfwave
-                if options.vcfwave:
-                    vcfwave_job = deconstruct_job.addFollowOnJobFn(vcfwave, options, config, vcf_ref, current_out_dict,
-                                                                   deconstruct_job.rv(), nonref_fasta_job.rv(), options.vcfbub,
-                                                                   tag=vcftag + '.', ref_tag = workflow_phase + '.',
-                                                                   disk = sum(f.size for f in vg_ids) * 1)
-                    out_dicts.append(vcfwave_job.rv())
+                vcf_job = vcf_prev_job.addFollowOnJobFn(make_vcf, config, options, workflow_phase,
+                                                        index_mem, vcf_ref, phase_vg_ids,
+                                                        ref_fasta_job.rv() if ref_fasta_job else None)
+                out_dicts.append(vcf_job.rv())
                     
         # optional giraffe
         giraffe_job = None
@@ -992,64 +979,118 @@ def make_xg(job, config, out_name, index_dict, tag='', drop_haplotypes=False):
 
     return { '{}xg'.format(tag) : job.fileStore.writeGlobalFile(xg_path) }
 
-def make_vcf(job, config, out_name, vcf_ref, index_dict, fasta_ref_dict, tag='', ref_tag='', max_ref_allele=None):
-    """ make the vcf
+def make_vcf(job, config, options, workflow_phase, index_mem, vcf_ref, vg_ids, ref_fasta_dict):
+    """ make the raw vcf with deconstruct. optionally add in the bub and wave vcfs too
+    this is done in parallel on each chrom .vg graph
+    """
+    root_job = Job()
+    job.addChild(root_job)
+    vcftag = vcf_ref + '.' + workflow_phase if vcf_ref != options.reference[0] else workflow_phase
+    raw_vcf_tbi_ids, bub_vcf_tbi_ids, wave_vcf_tbi_ids = [], [], []
+    for vg_path, vg_id, in zip(options.vg, vg_ids):
+        deconstruct_job = root_job.addChildJobFn(deconstruct, config, options.outName,
+                                                 vcf_ref, vg_id,
+                                                 tag=os.path.splitext(os.path.basename(vg_path))[0] + '.' + vcftag + '.',
+                                                 cores=options.indexCores,
+                                                 disk = vg_id.size * 6,
+                                                 memory=index_mem)
+
+        raw_vcf_id, raw_tbi_id = deconstruct_job.rv(0), deconstruct_job.rv(1)
+        raw_vcf_tbi_ids.append((raw_vcf_id, raw_tbi_id))
+
+        if options.vcfbub:
+            vcfbub_job = deconstruct_job.addFollowOnJobFn(vcfbub, config, options.outName, vcf_ref,
+                                                                  raw_vcf_id, raw_tbi_id,
+                                                                  options.vcfbub,
+                                                                  ref_fasta_dict,
+                                                                  tag=os.path.splitext(os.path.basename(vg_path))[0] + '.' + vcftag + '.',
+                                                                  disk = vg_id.size * 6,
+                                                                  memory=cactus_clamp_memory(vg_id.size * 2))
+            bub_vcf_id, bub_tbi_id = vcfbub_job.rv(0), vcfbub_job.rv(1)
+            bub_vcf_tbi_ids.append((bub_vcf_id, bub_tbi_id))
+
+        if options.vcfwave:
+            vcfwave_job = deconstruct_job.addFollowOnJobFn(vcfwave, config, options.outName, vcf_ref,
+                                                           raw_vcf_id, raw_tbi_id,
+                                                           options.vcfbub,
+                                                           ref_fasta_dict,
+                                                           tag=os.path.splitext(os.path.basename(vg_path))[0] + '.' + vcftag + '.',
+                                                           cores=options.vcfwaveCores,
+                                                           disk=vg_id.size * 6,
+                                                           memory=cactus_clamp_memory(options.vcfwaveMemory))
+            wave_vcf_id, wave_tbi_id = vcfwave_job.rv(0), vcfwave_job.rv(1)
+            wave_vcf_tbi_ids.append((wave_vcf_id, wave_tbi_id))
+
+    merge_vcf_job = root_job.addFollowOnJobFn(vcf_cat, raw_vcf_tbi_ids, vcftag + '.raw.',
+                                                          disk = sum(f.size for f in vg_ids) * 16)
+    out_dict = {'{}.raw.vcf.gz'.format(vcftag) : merge_vcf_job.rv(0),
+                '{}.raw.vcf.gz.tbi'.format(vcftag) : merge_vcf_job.rv(1) }
+    if bub_vcf_tbi_ids:
+        merge_bub_job = root_job.addFollowOnJobFn(vcf_cat, bub_vcf_tbi_ids, vcftag + '.bub.',
+                                                  disk = sum(f.size for f in vg_ids) * 16)
+        out_dict['{}.vcf.gz'.format(vcftag)] = merge_bub_job.rv(0)
+        out_dict['{}.vcf.gz.tbi'.format(vcftag)] = merge_bub_job.rv(1)
+    if wave_vcf_tbi_ids:
+        merge_wave_job = root_job.addFollowOnJobFn(vcf_cat, wave_vcf_tbi_ids, vcftag + '.wave.',
+                                                   disk = sum(f.size for f in vg_ids) * 16)            
+        out_dict['{}.wave.vcf.gz'.format(vcftag)] = merge_wave_job.rv(0)
+        out_dict['{}.wave.vcf.gz.tbi'.format(vcftag)] = merge_wave_job.rv(1)
+        
+    return out_dict
+
+def deconstruct(job, config, out_name, vcf_ref, vg_id, tag):
+    """ make the raw vcf
     """ 
     work_dir = job.fileStore.getLocalTempDir()
-    gbz_path = os.path.join(work_dir, ref_tag + os.path.basename(out_name) + '.gbz')
-    snarls_path = os.path.join(work_dir, ref_tag + os.path.basename(out_name) + '.snarls')
-    job.fileStore.readGlobalFile(index_dict['{}gbz'.format(ref_tag)], gbz_path)
-    job.fileStore.readGlobalFile(index_dict['{}snarls'.format(ref_tag)], snarls_path)
+    vg_path = os.path.join(work_dir, os.path.basename(out_name) + '.' + tag + 'vg')    
+    job.fileStore.readGlobalFile(vg_id, vg_path)
 
     # make the vcf
-    vcf_path = os.path.join(work_dir, '{}merged.vcf.gz'.format(tag))
-    decon_cmd = ['vg', 'deconstruct', gbz_path, '-P', vcf_ref, '-C', '-a', '-r', snarls_path, '-t', str(job.cores)]
-    if getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "GFANodeIDsInVCF", typeFn=bool, default=True) and \
-       not (0 < getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "maxNodeLength", typeFn=int, default=-1) <= 1024):
-        decon_cmd.append('-O')
+    vcf_path = os.path.join(work_dir, os.path.basename(out_name) + '.' + tag + 'raw.vcf.gz')
+    decon_cmd = ['vg', 'deconstruct', vg_path, '-P', vcf_ref, '-C', '-a', '-t', str(job.cores)]
     cactus_call(parameters=[decon_cmd, ['bgzip', '--threads', str(job.cores)]], outfile=vcf_path, job_memory=job.memory)
     try:
         cactus_call(parameters=['tabix', '-p', 'vcf', vcf_path])
         tbi_path = vcf_path + '.tbi'
     except Exception as e:
-        # todo: better support for larger chromosomes
-        RealtimeLogger.warning('WARNING: tabix failed on VCF with this error {}'.format(str(e)))
-        tbi_path = None
+        cactus_call(parameters=['bcftools', 'index', '-c', vcf_path])
+        tbi_path = vcf_path + '.csi'        
 
-    output_dict = { '{}raw.vcf.gz'.format(tag) : job.fileStore.writeGlobalFile(vcf_path) }
-    if tbi_path:
-        output_dict['{}raw.vcf.gz.tbi'.format(tag)] = job.fileStore.writeGlobalFile(tbi_path)
+    return job.fileStore.writeGlobalFile(vcf_path), job.fileStore.writeGlobalFile(tbi_path)
 
-    # running bcftools view acts like a sanity check for the vcf
-    cactus_call(parameters=[['bcftools', 'view', vcf_path], ['tail']])
+def vcfbub(job, config, out_name, vcf_ref, vcf_id, tbi_id, max_ref_allele, fasta_ref_dict, tag):
+    """ make the vcfbub vcf
+    """
+    work_dir = job.fileStore.getLocalTempDir()
+    vcf_path = os.path.join(work_dir, os.path.basename(out_name) + '.' + tag + 'raw.vcf.gz')
+    job.fileStore.readGlobalFile(vcf_id, vcf_path)
+    job.fileStore.readGlobalFile(tbi_id, vcf_path + '.tbi')
 
-    # make the filtered vcf
-    if max_ref_allele:        
-        vcfbub_path = os.path.join(work_dir, 'merged.filtered.vcf.gz')
-        bub_cmd = [['vcfbub', '--input', vcf_path, '--max-ref-length', str(max_ref_allele), '--max-level', '0']]
-        if getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "bcftoolsNorm", typeFn=bool, default=False):
-            fa_ref_path = os.path.join(work_dir, vcf_ref + '.fa.gz')
-            job.fileStore.readGlobalFile(fasta_ref_dict[vcf_ref], fa_ref_path)
-            bub_cmd.append(['bcftools', 'norm', '-f', fa_ref_path])
-            bub_cmd.append(['bcftools', 'norm', '-m', '+any'])
-            bub_cmd.append(['bcftools', 'sort'])
-        bub_cmd.append(['bgzip', '--threads', str(job.cores)])
-        cactus_call(parameters=bub_cmd, outfile=vcfbub_path)
-        try:
-            cactus_call(parameters=['tabix', '-p', 'vcf', vcfbub_path])
-            tbi_path = vcfbub_path + '.tbi'
-        except Exception as e:
-            # todo: better support for larger chromosomes
-            RealtimeLogger.warning('WARNING: tabix failed on VCF with this error {}'.format(str(e)))
-            tbi_path = None            
-        output_dict['{}vcf.gz'.format(tag)] = job.fileStore.writeGlobalFile(vcfbub_path)
-        if tbi_path:
-            output_dict['{}vcf.gz.tbi'.format(tag)] = job.fileStore.writeGlobalFile(vcfbub_path + '.tbi')
+    # short circuit on empty file (note zcat -> head exits 141, so we can't use cactus_call)
+    if int(subprocess.check_output('gzip -dc {} | grep -v ^# | head | wc -l'.format(vcf_path),
+                                   shell=True).decode('utf-8').strip()) == 0:    
+        return vcf_id, tbi_id 
 
-        # running bcftools view acts like a sanity check for the vcf
-        cactus_call(parameters=[['bcftools', 'view', vcfbub_path], ['tail']])
+    # run vcfbub
+    vcfbub_path = os.path.join(work_dir, os.path.basename(out_name) + '.' + tag + 'bub.vcf.gz')
+    assert max_ref_allele
+    bub_cmd = [['vcfbub', '--input', vcf_path, '--max-ref-length', str(max_ref_allele), '--max-level', '0']]
+    if getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "bcftoolsNorm", typeFn=bool, default=False):
+        fa_ref_path = os.path.join(work_dir, tag + 'fa.gz')
+        job.fileStore.readGlobalFile(fasta_ref_dict[vcf_ref], fa_ref_path)
+        bub_cmd.append(['bcftools', 'norm', '-f', fa_ref_path])
+        bub_cmd.append(['bcftools', 'norm', '-m', '+any'])
+        bub_cmd.append(['bcftools', 'sort'])
+    bub_cmd.append(['bgzip', '--threads', str(job.cores)])
+    cactus_call(parameters=bub_cmd, outfile=vcfbub_path)
+    try:
+        cactus_call(parameters=['tabix', '-p', 'vcf', vcfbub_path])
+        tbi_path = vcfbub_path + '.tbi'
+    except Exception as e:
+        cactus_call(parameters=['bcftools', 'index', '-c', vcfbub_path])
+        tbi_path = vcfbub_path + '.csi'        
 
-    return output_dict
+    return job.fileStore.writeGlobalFile(vcfbub_path), job.fileStore.writeGlobalFile(tbi_path)
 
 def check_vcfwave(job):
     """ check to make sure vcfwave is installed """
@@ -1058,129 +1099,106 @@ def check_vcfwave(job):
     except:
         raise RuntimeError('--vcfwave option used, but vcfwave tool not found in PATH. vcfwave is *not* included in the cactus binary release, but it is in the cactus Docker image. If you have Docker installed, you can try running again with --binariesMode docker. Or running your whole command with docker run. If you cannot use Docker, then you will need to build vcflib yourself before retrying: source code and details here: https://github.com/vcflib/vcflib')
 
-
-def vcfwave(job, options, config, vcf_ref, index_dict, deconstruct_out_dict, fasta_ref_dict, vcfbub_thresh, tag, ref_tag):
-    """ run vcfwave, distributed over chromosomes"""
+def vcfwave(job, config, out_name, vcf_ref, vcf_id, tbi_id, max_ref_allele, fasta_ref_dict, tag):
+    """ run vcfwave """
     work_dir = job.fileStore.getLocalTempDir()
-    raw_vcf_path = os.path.join(work_dir, '{}raw.vcf.gz'.format(tag))
-    raw_tbi_path = raw_vcf_path + '.tbi'
-    raw_vcf_id = deconstruct_out_dict['{}raw.vcf.gz'.format(tag)]
-    raw_tbi_id = deconstruct_out_dict['{}raw.vcf.gz.tbi'.format(tag)]
-    job.fileStore.readGlobalFile(raw_vcf_id, raw_vcf_path)
-    job.fileStore.readGlobalFile(raw_tbi_id, raw_tbi_path)
-
-    # get the contigs in the vcf
-    contig_cmd = [['bcftools', 'view', '-h', raw_vcf_path],
-                  ['perl', '-ne', r'if (/^##contig=<ID=([^,]+)/) { print "$1\n" }'],
-                  ['sort']]
-    vcf_contigs = cactus_call(parameters=contig_cmd, check_output=True).strip().split('\n')
-    assert vcf_contigs
-
-    # note, these are (vcf.gz, tbi) pairs
-    wave_contig_ids = []
-    wave_root_job = Job()
-    job.addChild(wave_root_job)
-    
-    # do the vcf wave normalization in parallel
-    for contig in vcf_contigs:
-        wave_job = wave_root_job.addChildJobFn(vcfwave_chr, config, vcf_ref, raw_vcf_id, raw_tbi_id,
-                                               fasta_ref_dict[vcf_ref],
-                                               contig,
-                                               vcfbub_thresh,
-                                               tag,
-                                               ref_tag,
-                                               cores=options.vcfwaveCores,
-                                               disk=raw_vcf_id.size * 3,
-                                               memory=cactus_clamp_memory(options.vcfwaveMemory))
-        
-        wave_contig_ids.append((wave_job.rv(0), wave_job.rv(1)))
-
-    # concatenate the results
-    concat_job = wave_root_job.addFollowOnJobFn(vcf_cat, raw_vcf_id, raw_tbi_id, wave_contig_ids, vcf_contigs, tag, ref_tag,
-                                                disk=raw_vcf_id.size * 4,
-                                                cores=options.vcfwaveCores)
-
-    return { '{}wave.vcf.gz'.format(tag) : concat_job.rv(0),
-             '{}wave.vcf.gz.tbi'.format(tag) : concat_job.rv(1) }
-
-def vcfwave_chr(job, config, vcf_ref, vcf_id, tbi_id, fasta_id, contig, vcfbub_thresh, tag, ref_tag):
-    """ run vcfwave on a given chromosome """
-    work_dir = job.fileStore.getLocalTempDir()
-    raw_vcf_path = os.path.join(work_dir, '{}raw.vcf.gz'.format(tag))
-    raw_tbi_path = raw_vcf_path + '.tbi'
-    job.fileStore.readGlobalFile(vcf_id, raw_vcf_path)
-    job.fileStore.readGlobalFile(tbi_id, raw_tbi_path)
-
-    # extract the chromosome
-    chrom_vcf_path = os.path.join(work_dir, '{}{}.vcf.gz'.format(tag, contig))
-    chrom_tbi_path = chrom_vcf_path + '.tbi'
-    cactus_call(parameters=[['bcftools', 'view', raw_vcf_path, '-r', contig], ['bgzip', '--threads', str(job.cores)]],
-                outfile=chrom_vcf_path)
-    cactus_call(parameters=['tabix', '-fp', 'vcf', chrom_vcf_path])
+    vcf_path = os.path.join(work_dir, os.path.basename(out_name) + '.' + vcf_ref + tag + 'raw.vcf.gz')
+    job.fileStore.readGlobalFile(vcf_id, vcf_path)
+    job.fileStore.readGlobalFile(tbi_id, vcf_path + '.tbi')
 
     # short circuit on empty file (note zcat -> head exits 141, so we can't use cactus_call)
-    if int(subprocess.check_output('gzip -dc {} | grep -v ^# | head | wc -l'.format(chrom_vcf_path),
+    if int(subprocess.check_output('gzip -dc {} | grep -v ^# | head | wc -l'.format(vcf_path),
                                    shell=True).decode('utf-8').strip()) == 0:    
-        return None,None
+        return vcf_id, tbi_id 
 
-    # run vcfbub and vcfwave
-    wave_vcf_path = os.path.join(work_dir, '{}{}_wave.vcf.gz'.format(tag, contig))
-    wave_tbi_path = wave_vcf_path + '.tbi'
-
-    # vfwave has some bugs: https://github.com/vcflib/vcflib/issues/403
-    # that produce wrong genotypes and AT fields.  we try to hack around the former
-    # by splitting multiallelic sites beforehand, and the latter just by dropping 
+    # run vcfbub and vcfwave, using original HPRC recipe
+    vcfwave_path = os.path.join(work_dir, os.path.basename(out_name) + '.' + vcf_ref + tag + 'wave.vcf.gz')
     wave_opts = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "vcfwaveOptions", typeFn=str, default=None)
     assert wave_opts
-    bubwave_cmd = [['vcfbub', '--input', chrom_vcf_path, '-l', '0', '-a', str(vcfbub_thresh)],
+    bubwave_cmd = [['vcfbub', '--input', vcf_path, '-l', '0', '-a', str(max_ref_allele)],
                    ['bcftools', 'annotate', '-x', 'INFO/AT'],                   
                    ['bcftools', 'norm', '-m', '-any'],
-                   ['vcfwave'] + wave_opts.split(' ') + ['-t', str(job.cores)],
-                   ['bgzip']]
-    cactus_call(parameters=bubwave_cmd, outfile=wave_vcf_path)
-    
+                   ['vcfwave'] + wave_opts.split(' ') + ['-t', str(job.cores)]]
     if getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "vcfwaveNorm", typeFn=bool, default=True):
-        fa_ref_path = os.path.join(work_dir, vcf_ref + '.fa.gz')
-        job.fileStore.readGlobalFile(fasta_id, fa_ref_path)
-        norm_vcf_path = os.path.join(work_dir, '{}{}_norm.vcf.gz'.format(tag, contig))
-        cactus_call(parameters=[['bcftools', 'norm', '-f', fa_ref_path, wave_vcf_path],
-                                ['bcftools', 'sort'],
-                                ['bgzip', '--threads', str(job.cores)]],
-                    outfile=norm_vcf_path)
-        cactus_call(parameters=['tabix', '-fp', 'vcf', norm_vcf_path])
+        fa_ref_path = os.path.join(work_dir, tag + 'fa.gz')
+        job.fileStore.readGlobalFile(fasta_ref_dict[vcf_ref], fa_ref_path)
+        bubwave_cmd.append(['bcftools', 'norm', '-f', fa_ref_path])
+        bubwave_cmd.append(['bcftools', 'sort'])
+    bubwave_cmd.append(['bgzip'])
 
-        wave_vcf_path = norm_vcf_path
-        wave_tbi_path = norm_vcf_path + '.tbi'
-    else:
-        # running bcftools view acts like a sanity check for the vcf
-        cactus_call(parameters=['bcftools', 'view', wave_vcf_path])
+    cactus_call(parameters=bubwave_cmd, outfile=vcfwave_path)
+    try:
+        cactus_call(parameters=['tabix', '-p', 'vcf', vcfwave_path])
+        tbi_path = vcfwave_path + '.tbi'
+    except Exception as e:
+        cactus_call(parameters=['bcftools', 'index', '-c', vcfwave_path])
+        tbi_path = vcfwave_path + '.csi'
 
-    return job.fileStore.writeGlobalFile(wave_vcf_path), job.fileStore.writeGlobalFile(wave_tbi_path)
+    return job.fileStore.writeGlobalFile(vcfwave_path), job.fileStore.writeGlobalFile(tbi_path)
 
-def vcf_cat(job, raw_vcf_id, raw_tbi_id, vcf_ids, contigs, tag, ref_tag):
+def vcf_cat(job, vcf_tbi_ids, tag):
     """ concat some vcf files """
     work_dir = job.fileStore.getLocalTempDir()
-    contig_vcf_files = []
-    assert len(vcf_ids) == len(contigs)
-    for vcf_id, contig in zip(vcf_ids, contigs):
-        if vcf_id[0] is not None:
-            vcf_path = os.path.join(work_dir, '{}{}_wave.vcf.gz'.format(tag, contig))
-            tbi_path = vcf_path + '.tbi'
-            job.fileStore.readGlobalFile(vcf_id[0], vcf_path)
-            job.fileStore.readGlobalFile(vcf_id[1], tbi_path)
-            contig_vcf_files.append(os.path.basename(vcf_path))
+    vcf_paths = []
+    sample_sets = []
+    all_sample_set = set()
+    for i, (vcf_id, tbi_id) in enumerate(vcf_tbi_ids):
+        vcf_path = os.path.join(work_dir, '{}.{}vcf.gz'.format(i, tag))
+        job.fileStore.readGlobalFile(vcf_id, vcf_path)
+        job.fileStore.readGlobalFile(tbi_id, vcf_path + '.tbi')
+        vcf_paths.append(vcf_path)
+        samples = cactus_call(parameters=['bcftools', 'query', '-l', vcf_path], check_output=True).strip().split('\n')
+        all_sample_set.update(samples)
+        sample_sets.append(set(samples))
 
-    # todo: better error?
-    if not contig_vcf_files:
-        logger.warning("No variants found to run vcfwave on")
-        return raw_vcf_id, raw_tbi_id
+    all_sample_list = sorted(list(all_sample_set))
+    all_sample_list_path = os.path.join(work_dir, 'samples.txt')
+    with open(all_sample_list_path, 'w') as sample_list_file:
+        for sample in all_sample_list:
+            sample_list_file.write(sample + '\n')
 
-    cat_vcf_file = os.path.join(work_dir, '{}wave_concat.vcf.gz'.format(tag))
-    cactus_call(parameters=['bcftools', 'concat', '-O', 'z', '--threads', str(job.cores)] + contig_vcf_files,
-                work_dir=work_dir, outfile=cat_vcf_file)
-    cactus_call(parameters=['tabix', '-fp', 'vcf', cat_vcf_file])
+    # bcftools concat doesn't work unless every input file has the same samples
+    # but his may not happen since deconstruct is run individually on the chroms
+    # so we use bcftools merge to add any missing samples to each chromsome
+    # then view -S to sort them
+    # Note: This only works if the samples are alphabetically sorted coming
+    # out of deconstruct (since files with missing samples aren't touched)
+    for i, (vcf_path, sample_set) in enumerate(zip(vcf_paths, sample_sets)):
+        missing_samples = all_sample_set - sample_set
+        if missing_samples:            
+            header = cactus_call(parameters=['bcftools', 'view', '-h', vcf_path, '-s', '', '--force-samples'],
+                                 check_output=True).strip() + '\tFORMAT'
+            for s in missing_samples:
+                header += '\t{}'.format(s)
+            header += '\n\n'
+            header_path = vcf_path + '.missing-sample-header'
+            with open(header_path, 'w') as header_file:
+                header_file.write(header)
+            cactus_call(parameters=['bgzip', header_path])
+            cactus_call(parameters=['tabix', '-fp', 'vcf', header_path + '.gz'])
+            updated_vcf_path = vcf_path + '.fix'
+            cactus_call(parameters=[['bcftools', 'merge', vcf_path, header_path + '.gz'],
+                                    ['bcftools', 'view', '-S', all_sample_list_path, '-O', 'z']],
+                        outfile=updated_vcf_path)
+            vcf_paths[i] = updated_vcf_path
+        
+    cat_vcf_path = os.path.join(work_dir, '{}vcf.gz'.format(tag))
+    cactus_call(parameters=['bcftools', 'concat', '-O', 'z', '--threads', str(job.cores)] + \
+                [os.path.basename(vcf_path) for vcf_path in vcf_paths],
+                work_dir=work_dir, outfile=cat_vcf_path)
 
-    return job.fileStore.writeGlobalFile(cat_vcf_file), job.fileStore.writeGlobalFile(cat_vcf_file + '.tbi')
+    try:
+        cactus_call(parameters=['tabix', '-p', 'vcf', cat_vcf_path])
+        tbi_path = cat_vcf_path + '.tbi'
+    except Exception as e:
+        cactus_call(parameters=['bcftools', 'index', '-c', cat_vcf_path])
+        tbi_path = cat_vcf_path + '.csi'
+
+    for vcf_id, tbi_id in vcf_tbi_ids:
+        job.fileStore.deleteGlobalFile(vcf_id)
+        job.fileStore.deleteGlobalFile(tbi_id)
+
+    return job.fileStore.writeGlobalFile(cat_vcf_path), job.fileStore.writeGlobalFile(tbi_path)
 
 def make_giraffe_indexes(job, options, config, index_dict, tag=''):
     """ make giraffe-specific indexes: distance and minimaer """
