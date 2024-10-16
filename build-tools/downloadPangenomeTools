@@ -343,9 +343,9 @@ mv mash ${binDir}
 
 # odgi
 cd ${pangenomeBuildDir}
-wget -q https://github.com/pangenome/odgi/releases/download/v0.8.6/odgi-v0.8.6.tar.gz
-tar zxf odgi-v0.8.6.tar.gz
-cd odgi-v0.8.6
+wget -q https://github.com/pangenome/odgi/releases/download/v0.9.0/odgi-v0.9.0.tar.gz
+tar zxf odgi-v0.9.0.tar.gz
+cd odgi-v0.9.0
 if [[ $STATIC_CHECK -eq 1 ]]
 then
     CXXFLAGS="" CFLAGS="" LDFLAGS="" LIBS="" cmake -DBUILD_STATIC=1 -DCMAKE_BUILD_TYPE=Generic -H. -Bbuild && CXXFLAGS="" CFLAGS="" LDFLAGS="" LIBS="" cmake --build build -- -j ${numcpu}
