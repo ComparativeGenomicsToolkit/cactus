@@ -248,6 +248,9 @@ def main():
 def export_minigraph_wrapper(job, options, sv_gfa_id, sv_gfa_path):
     """ export the GFA from minigraph """
     job.fileStore.exportFile(sv_gfa_id, makeURL(os.path.join(options.outDir, os.path.basename(sv_gfa_path))))
+    
+    # hack to (hopefully maybe) avoid rare truncattion when importing recently exported files on phoenix
+    time.sleep(5)
 
 def export_graphmap_wrapper(job, options, paf_id, paf_path, gaf_id, unfiltered_paf_id, paf_filter_log):
     """ export the PAF file from minigraph """
@@ -260,6 +263,8 @@ def export_graphmap_wrapper(job, options, paf_id, paf_path, gaf_id, unfiltered_p
         job.fileStore.exportFile(unfiltered_paf_id, makeURL(paf_path + '.unfiltered.gz'))
         job.fileStore.exportFile(paf_filter_log, makeURL(paf_path + '.filter.log'))
         
+    # hack to (hopefully maybe) avoid rare truncattion when importing recently exported files on phoenix
+    time.sleep(5)
 
 def update_seqfile(job, options, seq_id_map, seq_path_map, seq_order, gfa_fa_id, gfa_fa_path, graph_event):
     """ put the minigraph gfa.fa file into the seqfile and export both """
@@ -296,6 +301,8 @@ def export_split_wrapper(job, wf_output, out_dir, config_node):
     if not out_dir.startswith('s3://') and not os.path.isdir(out_dir):
         os.makedirs(out_dir)
     export_split_data(job.fileStore, wf_output[0], wf_output[1], wf_output[2], wf_output[3], out_dir, config_node)
+    # hack to (hopefully maybe) avoid rare truncattion when importing recently exported files on phoenix
+    time.sleep(10)
 
 def make_batch_align_jobs_wrapper(job, options, chromfile_path, config_wrapper):
     """ toil job wrapper for make_batch_align_jobs from cactus_align """
@@ -330,6 +337,9 @@ def export_align_wrapper(job, options, results_dict):
     join_options = options
     join_options.hal = hal_paths
     join_options.vg = vg_paths
+
+    # hack to (hopefully maybe) avoid rare truncattion when importing recently exported files on phoenix
+    time.sleep(10)
 
     return join_options, vg_ids, hal_ids
 
