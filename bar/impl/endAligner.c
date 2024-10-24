@@ -215,11 +215,11 @@ stSortedSet *loadEndAlignmentFromDisk(Flower *flower, FILE *fileHandle, End **en
     if(i != 2 || lineNumber < 0) {
         st_errAbort("We encountered a mis-specified name in loading the first line of an end alignment from the disk: '%s'\n", line);
     }
-    free(line);
     *end = flower_getEnd(flower, flowerName);
     if(*end == NULL) {
         st_errAbort("We encountered an end name that is not in the database: '%s'\n", line);
     }
+    free(line);    
     for(int64_t i=0; i<lineNumber; i++) {
         line = stFile_getLineFromFile(fileHandle);
         if(line == NULL) {

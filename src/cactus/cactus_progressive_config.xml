@@ -250,6 +250,7 @@
 		<!-- partialOrderAlignmentMinimizerMinW abpoa minimum window size. -->
 		<!-- partialOrderAlignmentProgressiveMode use guide tree from jaccard distance matrix to determine poa order -->
 		<!-- partialOrderAlignmentProgressiveMaxRows disable progressive mode if there are more than this many rows to align -->
+		<!-- partialOrderAlignmentProgressiveMaxLengthDif disable progressive mode if 1 - len(smallest seq) / len(biggest seq) is greater than this number. in other words, we stick with sorting by length unless the lengths are all really similar -->
 		<poa
 			partialOrderAlignmentWindow="10000"
 			partialOrderAlignmentMaskFilter="-1"
@@ -266,6 +267,7 @@
 			partialOrderAlignmentMinimizerMinW="500"
 			partialOrderAlignmentProgressiveMode="1"
 			partialOrderAlignmentProgressiveMaxRows="5000"
+			partialOrderAlignmentProgressiveMaxLengthDiff="0.05"
 		/>
 	</bar>
 
