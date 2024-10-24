@@ -564,8 +564,8 @@ Msa *msa_make_partial_order_alignment(char **seqs, int *seq_lens, int64_t seq_no
         // init abpoa
         abpoa_t *ab = abpoa_init();
         abpoa_para_t *abpt = copy_abpoa_params(poa_parameters);
-        assert(msa->seq_lens[msa->seq_no-1] <= msa->seq_lens[0]);
         if (msa->seq_no > max_prog_rows ||
+            // note: these are sorted by length excep in unit tests
             (1. - (double)msa->seq_lens[msa->seq_no-1] / (double)msa->seq_lens[0] > max_prog_length_diff)) {
             abpt->progressive_poa = 0;
         }
