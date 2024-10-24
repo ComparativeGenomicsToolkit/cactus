@@ -461,7 +461,7 @@ static void msa_fix_trimmed(Msa* msa) {
 }
 
 Msa *msa_make_partial_order_alignment(char **seqs, int *seq_lens, int64_t seq_no, int64_t window_size,
-                                      int64_t max_prog_rows, abpoa_para_t *poa_parameters) {
+                                      int64_t max_prog_rows, double max_prog_length_diff, abpoa_para_t *poa_parameters) {
 
     assert(seq_no > 0);
 
@@ -564,7 +564,9 @@ Msa *msa_make_partial_order_alignment(char **seqs, int *seq_lens, int64_t seq_no
         // init abpoa
         abpoa_t *ab = abpoa_init();
         abpoa_para_t *abpt = copy_abpoa_params(poa_parameters);
-        if (msa->seq_no > max_prog_rows) {
+        assert(msa->seq_lens[msa->seq_no-1] <= msa->seq_lens[0]);
+        if (msa->seq_no > max_prog_rows ||
+            (1. - (double)msa->seq_lens[msa->seq_no-1] / (double)msa->seq_lens[0] > max_prog_length_diff)) {
             abpt->progressive_poa = 0;
         }
         
@@ -748,7 +750,7 @@ Msa *msa_make_partial_order_alignment(char **seqs, int *seq_lens, int64_t seq_no
 
 Msa **make_consistent_partial_order_alignments(int64_t end_no, int64_t *end_lengths, char ***end_strings,
         int **end_string_lengths, int64_t **right_end_indexes, int64_t **right_end_row_indexes, int64_t **overlaps,
-        int64_t window_size, int64_t max_prog_rows, abpoa_para_t *poa_parameters) {
+        int64_t window_size, int64_t max_prog_rows, double max_prog_length_diff, abpoa_para_t *poa_parameters) {
     // Calculate the initial, potentially inconsistent msas and column scores for each msa
     float *column_scores[end_no];
     Msa **msas = st_malloc(sizeof(Msa *) * end_no);
@@ -757,7 +759,7 @@ Msa **make_consistent_partial_order_alignments(int64_t end_no, int64_t *end_leng
 //#endif
     for(int64_t i=0; i<end_no; i++) {
         msas[i] = msa_make_partial_order_alignment(end_strings[i], end_string_lengths[i], end_lengths[i], window_size,
-                                                   max_prog_rows, poa_parameters);
+                                                   max_prog_rows, max_prog_length_diff, poa_parameters);
         column_scores[i] = make_column_scores(msas[i]);
     }
 
@@ -1097,7 +1099,7 @@ int64_t getMaxSequenceLength(End *end) {
 }
 
 stList *make_flower_alignment_poa(Flower *flower, int64_t max_seq_length, int64_t window_size, int64_t mask_filter,
-                                  int64_t max_prog_rows, abpoa_para_t * poa_parameters) {
+                                  int64_t max_prog_rows, double max_prog_length_diff, abpoa_para_t * poa_parameters) {
     End *dominantEnd = getDominantEnd(flower);
     int64_t seq_no = dominantEnd != NULL ? end_getInstanceNumber(dominantEnd) : -1;
     if(dominantEnd != NULL && getMaxSequenceLength(dominantEnd) < max_seq_length) {
@@ -1113,7 +1115,8 @@ stList *make_flower_alignment_poa(Flower *flower, int64_t max_seq_length, int64_
         Cap *indices_to_caps[seq_no];
 
         get_end_sequences(dominantEnd, end_strings, end_string_lengths, overlaps, indices_to_caps, max_seq_length, mask_filter);
-        Msa *msa = msa_make_partial_order_alignment(end_strings, end_string_lengths, seq_no, window_size, max_prog_rows, poa_parameters);
+        Msa *msa = msa_make_partial_order_alignment(end_strings, end_string_lengths, seq_no, window_size,
+                                                    max_prog_rows, max_prog_length_diff, poa_parameters);
 
         //Now convert to set of alignment blocks
         stList *alignment_blocks = stList_construct3(0, (void (*)(void *))alignmentBlock_destruct);
@@ -1187,7 +1190,7 @@ stList *make_flower_alignment_poa(Flower *flower, int64_t max_seq_length, int64_
     // Now make the consistent MSAs
     Msa **msas = make_consistent_partial_order_alignments(end_no, end_lengths, end_strings, end_string_lengths,
                                                           right_end_indexes, right_end_row_indexes, overlaps, window_size,
-                                                          max_prog_rows, poa_parameters);
+                                                          max_prog_rows, max_prog_length_diff, poa_parameters);
 
     // Temp debug output
     //for(int64_t i=0; i<end_no; i++) {
