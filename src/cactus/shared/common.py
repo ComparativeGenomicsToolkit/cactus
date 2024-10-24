@@ -851,6 +851,9 @@ def cactus_call(tool=None,
         stderr = stderr.decode()
     if output is not None:
         output = output.decode()
+
+    if outfile:
+        stdoutFileHandle.close()
         
     if process.returncode == 0 and rt_log_cmd:
         run_time = time.time() - start_time
