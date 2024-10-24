@@ -364,7 +364,7 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
 
     minigraph_job = sanitize_job.addFollowOnJobFn(minigraph_construct_workflow, options, config_node, seq_id_map, seq_order, sv_gfa_path, sanitize=False)
     sv_gfa_id = minigraph_job.rv()
-    minigraph_job.addFollowOnJobFn(export_minigraph_wrapper, options, sv_gfa_id, sv_gfa_path)
+    minigraph_wrapper_job = minigraph_job.addFollowOnJobFn(export_minigraph_wrapper, options, sv_gfa_id, sv_gfa_path)
 
     # cactus_graphmap
     paf_path = os.path.join(options.outDir, options.outName + '.paf')
@@ -373,7 +373,7 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
     options.outputFasta = gfa_fa_path
     graph_event = getOptionalAttrib(findRequiredNode(config_node, "graphmap"), "assemblyName", default="_MINIGRAPH_")
     
-    graphmap_job = minigraph_job.addFollowOnJobFn(minigraph_workflow, options, config_wrapper, seq_id_map, sv_gfa_id, graph_event, False, ref_collapse_paf_id)
+    graphmap_job = minigraph_wrapper_job.addFollowOnJobFn(minigraph_workflow, options, config_wrapper, seq_id_map, sv_gfa_id, graph_event, False, ref_collapse_paf_id)
     paf_id, gfa_fa_id, gaf_id, unfiltered_paf_id, paf_filter_log = graphmap_job.rv(0), graphmap_job.rv(1), graphmap_job.rv(2), graphmap_job.rv(3), graphmap_job.rv(4)
     graphmap_export_job = graphmap_job.addFollowOnJobFn(export_graphmap_wrapper, options, paf_id, paf_path, gaf_id, unfiltered_paf_id, paf_filter_log)
 
@@ -400,7 +400,7 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
                                                            file_ids=[sv_gfa_id, paf_id])
 
     # cactus_align        
-    align_jobs_make_job = split_export_job.addFollowOnJobFn(make_batch_align_jobs_wrapper, options, chromfile_path, config_wrapper)
+    align_jobs_make_job = clean_jobstore_job.addFollowOnJobFn(make_batch_align_jobs_wrapper, options, chromfile_path, config_wrapper)
     align_jobs = align_jobs_make_job.rv()
     align_job = align_jobs_make_job.addFollowOnJobFn(batch_align_jobs, align_jobs)
     results_dict = align_job.rv()
