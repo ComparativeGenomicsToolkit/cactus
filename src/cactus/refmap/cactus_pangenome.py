@@ -248,6 +248,9 @@ def main():
 def export_minigraph_wrapper(job, options, sv_gfa_id, sv_gfa_path):
     """ export the GFA from minigraph """
     job.fileStore.exportFile(sv_gfa_id, makeURL(os.path.join(options.outDir, os.path.basename(sv_gfa_path))))
+    
+    # hack to (hopefully maybe) avoid rare truncattion when importing recently exported files on phoenix
+    time.sleep(5)
 
 def export_graphmap_wrapper(job, options, paf_id, paf_path, gaf_id, unfiltered_paf_id, paf_filter_log):
     """ export the PAF file from minigraph """
@@ -260,6 +263,8 @@ def export_graphmap_wrapper(job, options, paf_id, paf_path, gaf_id, unfiltered_p
         job.fileStore.exportFile(unfiltered_paf_id, makeURL(paf_path + '.unfiltered.gz'))
         job.fileStore.exportFile(paf_filter_log, makeURL(paf_path + '.filter.log'))
         
+    # hack to (hopefully maybe) avoid rare truncattion when importing recently exported files on phoenix
+    time.sleep(5)
 
 def update_seqfile(job, options, seq_id_map, seq_path_map, seq_order, gfa_fa_id, gfa_fa_path, graph_event):
     """ put the minigraph gfa.fa file into the seqfile and export both """
@@ -296,6 +301,8 @@ def export_split_wrapper(job, wf_output, out_dir, config_node):
     if not out_dir.startswith('s3://') and not os.path.isdir(out_dir):
         os.makedirs(out_dir)
     export_split_data(job.fileStore, wf_output[0], wf_output[1], wf_output[2], wf_output[3], out_dir, config_node)
+    # hack to (hopefully maybe) avoid rare truncattion when importing recently exported files on phoenix
+    time.sleep(10)
 
 def make_batch_align_jobs_wrapper(job, options, chromfile_path, config_wrapper):
     """ toil job wrapper for make_batch_align_jobs from cactus_align """
@@ -331,6 +338,9 @@ def export_align_wrapper(job, options, results_dict):
     join_options.hal = hal_paths
     join_options.vg = vg_paths
 
+    # hack to (hopefully maybe) avoid rare truncattion when importing recently exported files on phoenix
+    time.sleep(10)
+
     return join_options, vg_ids, hal_ids
 
 def export_join_wrapper(job, options, wf_output):
@@ -354,7 +364,7 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
 
     minigraph_job = sanitize_job.addFollowOnJobFn(minigraph_construct_workflow, options, config_node, seq_id_map, seq_order, sv_gfa_path, sanitize=False)
     sv_gfa_id = minigraph_job.rv()
-    minigraph_job.addFollowOnJobFn(export_minigraph_wrapper, options, sv_gfa_id, sv_gfa_path)
+    minigraph_wrapper_job = minigraph_job.addFollowOnJobFn(export_minigraph_wrapper, options, sv_gfa_id, sv_gfa_path)
 
     # cactus_graphmap
     paf_path = os.path.join(options.outDir, options.outName + '.paf')
@@ -363,7 +373,7 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
     options.outputFasta = gfa_fa_path
     graph_event = getOptionalAttrib(findRequiredNode(config_node, "graphmap"), "assemblyName", default="_MINIGRAPH_")
     
-    graphmap_job = minigraph_job.addFollowOnJobFn(minigraph_workflow, options, config_wrapper, seq_id_map, sv_gfa_id, graph_event, False, ref_collapse_paf_id)
+    graphmap_job = minigraph_wrapper_job.addFollowOnJobFn(minigraph_workflow, options, config_wrapper, seq_id_map, sv_gfa_id, graph_event, False, ref_collapse_paf_id)
     paf_id, gfa_fa_id, gaf_id, unfiltered_paf_id, paf_filter_log = graphmap_job.rv(0), graphmap_job.rv(1), graphmap_job.rv(2), graphmap_job.rv(3), graphmap_job.rv(4)
     graphmap_export_job = graphmap_job.addFollowOnJobFn(export_graphmap_wrapper, options, paf_id, paf_path, gaf_id, unfiltered_paf_id, paf_filter_log)
 
@@ -390,7 +400,7 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
                                                            file_ids=[sv_gfa_id, paf_id])
 
     # cactus_align        
-    align_jobs_make_job = split_export_job.addFollowOnJobFn(make_batch_align_jobs_wrapper, options, chromfile_path, config_wrapper)
+    align_jobs_make_job = clean_jobstore_job.addFollowOnJobFn(make_batch_align_jobs_wrapper, options, chromfile_path, config_wrapper)
     align_jobs = align_jobs_make_job.rv()
     align_job = align_jobs_make_job.addFollowOnJobFn(batch_align_jobs, align_jobs)
     results_dict = align_job.rv()
