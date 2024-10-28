@@ -34,6 +34,7 @@ from cactus.shared.configWrapper import ConfigWrapper
 from cactus.refmap.cactus_graphmap import filter_paf
 from cactus.refmap.cactus_minigraph import check_sample_names
 from cactus.preprocessor.checkUniqueHeaders import sanitize_fasta_headers
+from cactus.paf.last_scoring import parse_train_file, apply_scores_to_config
 
 from toil.job import Job
 from toil.common import Toil
@@ -61,6 +62,8 @@ def main():
                         " The overridden configuration will be saved in <outHal>.pg-conf.xml")
 
     parser.add_argument("--collapse", help = "Incorporate minimap2 self-alignments.", action='store_true', default=False)
+    parser.add_argument("--scoresFile", type=str,
+                        help = "File containing scoring parameters (output of last-train / cactus-minigraphr --lastTrain)")
     
     parser.add_argument("--singleCopySpecies", type=str,
                         help="Filter out all self-alignments in given species")
@@ -139,6 +142,9 @@ def main():
             raise RuntimeError('--consCores required for non single_machine batch systems')
     if options.maxCores is not None and options.maxCores < 2**20 and options.consCores > int(options.maxCores):
         raise RuntimeError('--consCores must be <= --maxCores')
+
+    if options.scoresFile and not options.pangenome:
+        raise RuntimeError('--scores is only currently supported with --pangenome')
     
     options.buildHal = True
     options.buildFasta = True
@@ -309,6 +315,9 @@ def make_align_job(options, toil, config_wrapper=None, chrom_name=None):
             mc_tree.removeLeaf(tree.getNodeId(graph_event))
             paf_to_stable = True
 
+    # import the scoring parameters
+    scores_id = toil.importFile(makeURL(options.scoresFile)) if options.scoresFile else None
+
     # apply command line overrides to config
     cafNode = findRequiredNode(config_node, "caf")
     barNode = findRequiredNode(config_node, "bar")
@@ -369,17 +378,25 @@ def make_align_job(options, toil, config_wrapper=None, chrom_name=None):
                               cons_cores=options.consCores,
                               cons_memory=options.consMemory,
                               do_filter_paf=options.pangenome,
-                              chrom_name=chrom_name)
+                              chrom_name=chrom_name,
+                              scores_id=scores_id)
     return align_job
 
 def cactus_align(job, config_wrapper, mc_tree, input_seq_map, input_seq_id_map, paf_id, root_name, og_map, checkpointInfo, doVG, doGFA, delay=0,
-                 referenceEvents=None, pafMaskFilter=None, paf2Stable=False, cons_cores = None, cons_memory = None, do_filter_paf=False, chrom_name=None):
+                 referenceEvents=None, pafMaskFilter=None, paf2Stable=False, cons_cores = None, cons_memory = None, do_filter_paf=False, chrom_name=None, scores_id=None):
     
     head_job = Job()
     job.addChild(head_job)
 
     event_list = input_seq_id_map.keys()
-    
+
+    # parse the scores file into the config
+    if scores_id:
+        scores_path = os.path.join(job.fileStore.getLocalTempDir(), 'last.train')
+        job.fileStore.readGlobalFile(scores_id, scores_path)
+        score_dict = parse_train_file(scores_path)
+        apply_scores_to_config(score_dict, config_wrapper.xmlRoot)
+
     # unzip the input sequences and enforce unique header prefixes
     sanitize_job = head_job.addChildJobFn(sanitize_fasta_headers, input_seq_id_map, pangenome=doVG or doGFA or do_filter_paf)
     new_seq_id_map = sanitize_job.rv()

@@ -375,7 +375,39 @@ then
     mv vcfwave vcfcreatemulti vcfbreakmulti vcfuniq ${binDir}
     mv ./contrib/WFA2-lib/libwfa2.so.0 ${libDir}
 fi
-    
+
+# last
+cd ${pangenomeBuildDir}
+git clone https://gitlab.com/mcfrith/last.git --recursive
+cd last
+git checkout 1595
+sed -i makefile -e 's/CXXFLAGS=/CXXFLAGS+=/'
+make -j ${numcpu}
+if [[ $STATIC_CHECK -ne 1 || $(ldd bin/lastal | grep so | wc -l) -eq 0 ]]
+then
+    mv bin/lastal ${binDir}
+else
+    exit 1
+fi
+if [[ $STATIC_CHECK -ne 1 || $(ldd bin/lastdb | grep so | wc -l) -eq 0 ]]
+then
+    mv bin/lastdb ${binDir}
+else
+    exit 1
+fi
+if [[ $STATIC_CHECK -ne 1 || $(ldd bin/last-train | grep so | wc -l) -eq 0 ]]
+then
+    mv bin/last-train ${binDir}
+else
+    exit 1
+fi
+if [[ $STATIC_CHECK -ne 1 || $(ldd bin/last-postmask | grep so | wc -l) -eq 0 ]]
+then
+    mv bin/last-postmask ${binDir}
+else
+    exit 1
+fi
+
 cd ${CWD}
 rm -rf ${pangenomeBuildDir}
 

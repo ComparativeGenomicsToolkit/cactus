@@ -60,7 +60,9 @@ def main():
     parser.add_argument("--mgCores", type=int, help = "Number of cores for minigraph construction (defaults to the same as --maxCores).")
     parser.add_argument("--mgMemory", type=human2bytesN,
                         help="Memory in bytes for the minigraph construction job (defaults to an estimate based on the input data size). "
-                        "Standard suffixes like K, Ki, M, Mi, G or Gi are supported (default=bytes))", default=None)       
+                        "Standard suffixes like K, Ki, M, Mi, G or Gi are supported (default=bytes))", default=None)
+    parser.add_argument("--lastTrain", action="store_true",
+                        help="Use last-train to estimate scoring matrix from input data", default=False)    
 
     # cactus-graphmap options
     parser.add_argument("--mapCores", type=int, help = "Number of cores for minigraph map.  Overrides graphmap cpu in configuration")
@@ -245,9 +247,12 @@ def main():
     run_time = end_time - start_time
     logger.info("cactus-pangenome has finished after {} seconds".format(run_time))
 
-def export_minigraph_wrapper(job, options, sv_gfa_id, sv_gfa_path):
+def export_minigraph_wrapper(job, options, sv_gfa_id, sv_gfa_path, last_scores_id):
     """ export the GFA from minigraph """
     job.fileStore.exportFile(sv_gfa_id, makeURL(os.path.join(options.outDir, os.path.basename(sv_gfa_path))))
+    if last_scores_id:
+        scores_path = makeURL(os.path.join(options.outDir, options.outName + '.train'))
+        job.fileStore.exportFile(last_scores_id, makeURL(os.path.join(options.outDir, os.path.basename(scores_path))))
     
     # hack to (hopefully maybe) avoid rare truncattion when importing recently exported files on phoenix
     time.sleep(5)
@@ -304,13 +309,18 @@ def export_split_wrapper(job, wf_output, out_dir, config_node):
     # hack to (hopefully maybe) avoid rare truncattion when importing recently exported files on phoenix
     time.sleep(10)
 
-def make_batch_align_jobs_wrapper(job, options, chromfile_path, config_wrapper):
+def make_batch_align_jobs_wrapper(job, options, chromfile_path, config_wrapper, last_scores_id):
     """ toil job wrapper for make_batch_align_jobs from cactus_align """
     work_dir = job.fileStore.getLocalTempDir()
     local_chromfile_path = os.path.join(work_dir, 'chromfile.txt')
     chromfile_id = job.fileStore.importFile(makeURL(chromfile_path))
     job.fileStore.readGlobalFile(chromfile_id, local_chromfile_path)
-    options.seqFile = local_chromfile_path    
+    options.seqFile = local_chromfile_path
+    options.scoresFile = None
+    if last_scores_id:
+        local_scores_path = os.path.join(work_dir, 'scores.train')
+        job.fileStore.readGlobalFile(last_scores_id, local_scores_path)
+        options.scoresFile = local_scores_path
     align_jobs = make_batch_align_jobs(options, job.fileStore, job.fileStore, config_wrapper)
     return align_jobs
     
@@ -363,8 +373,8 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
     sv_gfa_path = os.path.join(options.outDir, options.outName + '.sv.gfa.gz')
 
     minigraph_job = sanitize_job.addFollowOnJobFn(minigraph_construct_workflow, options, config_node, seq_id_map, seq_order, sv_gfa_path, sanitize=False)
-    sv_gfa_id = minigraph_job.rv()
-    minigraph_wrapper_job = minigraph_job.addFollowOnJobFn(export_minigraph_wrapper, options, sv_gfa_id, sv_gfa_path)
+    sv_gfa_id, last_scores_id = minigraph_job.rv(0), minigraph_job.rv(1)
+    minigraph_wrapper_job = minigraph_job.addFollowOnJobFn(export_minigraph_wrapper, options, sv_gfa_id, sv_gfa_path, last_scores_id)
 
     # cactus_graphmap
     paf_path = os.path.join(options.outDir, options.outName + '.paf')
@@ -400,7 +410,8 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
                                                            file_ids=[sv_gfa_id, paf_id])
 
     # cactus_align        
-    align_jobs_make_job = clean_jobstore_job.addFollowOnJobFn(make_batch_align_jobs_wrapper, options, chromfile_path, config_wrapper)
+    align_jobs_make_job = clean_jobstore_job.addFollowOnJobFn(make_batch_align_jobs_wrapper, options, chromfile_path, config_wrapper,
+                                                              last_scores_id)
     align_jobs = align_jobs_make_job.rv()
     align_job = align_jobs_make_job.addFollowOnJobFn(batch_align_jobs, align_jobs)
     results_dict = align_job.rv()
