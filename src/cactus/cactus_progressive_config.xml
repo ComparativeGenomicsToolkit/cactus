@@ -244,6 +244,8 @@
 		<!-- partialOrderAlignmentGapExtensionPenalty1 abpoa gap extension penalty -->
 		<!-- partialOrderAlignmentGapOpenPenalty2 abpoa second gap open penalty (convex mode takes the minimum of both gap models, 0 disables convex) -->
 		<!-- partialOrderAlignmentGapExtensionPenalty abpoa second gap extension penalty (convex mode takes the minimum of both gap models) -->
+		<!-- partialOrderAlignmentTrainedGapOpen2Factor when learning scores last-train, set a gap-open-2 penalty that's this many times bigger than the learned gap penalty (last-train only learns one gap parameter but abpoa crashes unless it gets both) -->
+		<!-- partialOrderAlignmentTrainedGapExtension2Factor when learning scores last-train, set a gap-extend-2 penalty that's this many times smaller than the learned gap penalty (last-train only learns one gap parameter but abpoa crashes unless it gets both) -->
 		<!-- partialOrderAlignmentDisableSeeding abpoa disable minimizer seeding. toggling this on to disable seeding will slightly increase accuracy and robustness, at the cost of speed in the BAR phase on some inputs -->
 		<!-- partialOrderAlignmentMinimizerK abpoa kmer size for minimizer seeding. -->
 		<!-- partialOrderAlignmentMinimizerW abpoa window size for minimizer seeding. -->
@@ -258,9 +260,11 @@
 			partialOrderAlignmentBandFraction="0.05"
 			partialOrderAlignmentSubMatrix="91 -114 -61 -123 -100 -114 100 -125 -61 -100 -61 -125 100 -114 -100 -123 -61 -114 91 -100 -100 -100 -100 -100 100"
 			partialOrderAlignmentGapOpenPenalty1="400"
-			partialOrderAlignmentGapExtensionPenalty1="30"
+			partialOrderAlignmentGapExtensionPenalty1="30"			
 			partialOrderAlignmentGapOpenPenalty2="1200"
 			partialOrderAlignmentGapExtensionPenalty2="1"
+			partialOrderAlignmentTrainedGapOpen2Factor="3"
+			partialOrderAlignmentTrainedGapExtension2Factor="3"
 			partialOrderAlignmentDisableSeeding="1"
 			partialOrderAlignmentMinimizerK="19"
 			partialOrderAlignmentMinimizerW="10"
