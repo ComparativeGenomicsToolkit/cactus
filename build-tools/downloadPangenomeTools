@@ -370,7 +370,7 @@ then
     git checkout 404b98a6a0601a8668fb039eae5196fa1ae12525
     mkdir build
     cd build
-    cmake -DZIG=OFF -DCMAKE_BUILD_TYPE=Debug ..
+    cmake -DZIG=OFF -DWFA_GITMODULE=ON -DCMAKE_BUILD_TYPE=Debug ..
     cmake --build . -- -j ${numcpu}
     mv vcfwave vcfcreatemulti vcfbreakmulti vcfuniq ${binDir}
     mv ./contrib/WFA2-lib/libwfa2.so.0 ${libDir}
