@@ -163,7 +163,7 @@ static bool refSequenceProvided(char *sequenceFilesAndEvents, char *referenceEve
 stHash *compute_flower_length_hash(stList *flowers) {
     // compute lengths in parallel
     stList *flower_lengths = stList_construct2(stList_length(flowers));
-#pragma omp parallel for schedule(dynamic, 1)
+#pragma omp parallel for schedule(dynamic)
     for (int64_t i = 0; i < stList_length(flowers); ++i) {
         stList_set(flower_lengths, i, (void*)flower_getTotalBaseLength((Flower*)stList_get(flowers, i)));
     }
