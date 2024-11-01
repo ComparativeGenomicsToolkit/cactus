@@ -256,8 +256,8 @@
 		<poa
 			partialOrderAlignmentWindow="10000"
 			partialOrderAlignmentMaskFilter="-1"
-			partialOrderAlignmentBandConstant="300"
-			partialOrderAlignmentBandFraction="0.05"
+			partialOrderAlignmentBandConstant="1000"
+			partialOrderAlignmentBandFraction="0.1"
 			partialOrderAlignmentSubMatrix="91 -114 -61 -123 -100 -114 100 -125 -61 -100 -61 -125 100 -114 -100 -123 -61 -114 91 -100 -100 -100 -100 -100 100"
 			partialOrderAlignmentGapOpenPenalty1="400"
 			partialOrderAlignmentGapExtensionPenalty1="30"			
