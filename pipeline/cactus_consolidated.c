@@ -176,10 +176,16 @@ stHash *compute_flower_length_hash(stList *flowers) {
     return flower_to_length;
 }
 
-int flower_sizeCmpFn(const void *a, const void *b, void *flower_to_size_hash) {
-    // Sort by hashed size value of the flowers
-    int64_t i = (int64_t)stHash_search((stHash*)flower_to_size_hash, (void*)a);
-    int64_t j = (int64_t)stHash_search((stHash*)flower_to_size_hash, (void*)b);
+int flower_lengthCmpFn(const void *a, const void *b, void *flower_to_length_hash) {
+    // Sort by hashed length value of the flowers
+    int64_t i = (int64_t)stHash_search((stHash*)flower_to_length_hash, (void*)a);
+    int64_t j = (int64_t)stHash_search((stHash*)flower_to_length_hash, (void*)b);
+    return i < j ? 1 : (i > j ? -1 : 0); // Sort in descending order
+}
+
+int flower_sizeCmpFn(const void *a, const void *b) {
+    // Sort by number of caps the flowers contains
+    int64_t i = flower_getCapNumber((Flower *)a), j = flower_getCapNumber((Flower *)b);
     return i < j ? 1 : (i > j ? -1 : 0); // Sort in descending order
 }
 
@@ -435,9 +441,9 @@ int main(int argc, char *argv[]) {
         extendFlowers(flower, leafFlowers, 1); // Get nested flowers to complete
         // Sort by descending order of size, so that we start processing the
         // largest flower as quickly as possible
-        stHash *flower_to_size = compute_flower_length_hash(leafFlowers);
-        stList_sort2(leafFlowers, flower_sizeCmpFn, flower_to_size); 
-        stHash_destruct(flower_to_size);
+        stHash *flower_to_length = compute_flower_length_hash(leafFlowers);
+        stList_sort2(leafFlowers, flower_lengthCmpFn, flower_to_length); 
+        stHash_destruct(flower_to_length);
         st_logInfo("Ran extended flowers ready for bar, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
 
         bar(leafFlowers, params, cactusDisk, NULL);
@@ -462,9 +468,7 @@ int main(int argc, char *argv[]) {
     for(int64_t i=0; i<stList_length(flowerLayers); i++) {
         // Sort by descending order of size, so that we start processing the
         // largest flower as quickly as possible
-        stHash *flower_to_size = compute_flower_length_hash(stList_get(flowerLayers, i));
-        stList_sort2(stList_get(flowerLayers, i), flower_sizeCmpFn, flower_to_size); 
-        stHash_destruct(flower_to_size);
+        stList_sort(stList_get(flowerLayers, i), flower_sizeCmpFn); 
     }
     st_logInfo("There are %" PRIi64 " layers in the flowers hierarchy\n", stList_length(flowerLayers));
 
