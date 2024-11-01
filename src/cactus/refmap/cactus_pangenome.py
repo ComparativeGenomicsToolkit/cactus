@@ -74,6 +74,7 @@ def main():
     parser.add_argument("--noSplit", action='store_true', help = "Do not split by ref chromsome. This will require much more memory and potentially produce a more complex graph")
 
     # cactus-align options
+    # note: when changing this, make sure to keep option in cactus-align consistent
     parser.add_argument("--maxLen", type=int, default=10000,
                         help="Only align up to this many bases (overrides <bar bandingLimit> and <caf maxRecoverableChainLength> in configuration)[default=10000]")
     parser.add_argument("--consCores", type=int, 
