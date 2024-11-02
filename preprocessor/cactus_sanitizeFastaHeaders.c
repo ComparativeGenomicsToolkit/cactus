@@ -160,7 +160,9 @@ int main(int argc, char *argv[]) {
     }
 
     fastaReadToFunction(fileHandle, (void*)argv[2], addUniqueFastaPrefix);
-    fclose(fileHandle);
+    if (fileHandle != stdin) {
+        fclose(fileHandle);
+    }
     stSet_destruct(header_set);
 
     return 0;
