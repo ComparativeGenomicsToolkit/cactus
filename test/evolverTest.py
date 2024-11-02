@@ -346,7 +346,7 @@ class TestCase(unittest.TestCase):
 
         # do the alignment
         subprocess.check_call(['cactus-align', self._job_store(binariesMode), seq_file_path, cigar_path, self._out_hal(binariesMode),
-                               '--pangenome'] + cactus_opts)
+                               '--pangenome', '--maxLen', '20000'] + cactus_opts)
 
 
     def _run_evolver_primates_graphmap(self, binariesMode):
