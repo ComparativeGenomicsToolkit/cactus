@@ -1216,7 +1216,7 @@ void cactus_make_reference(stList *flowers, char *referenceEventString,
 
     double (*temperatureFn)(double) = useSimulatedAnnealing ? exponentiallyDecreasingTemperatureFn : constantTemperatureFn;
 
-#pragma omp parallel for
+#pragma omp parallel for schedule(dynamic, 1)
     for(int64_t i=0; i<stList_length(flowers); i++) {
         Flower *flower = stList_get(flowers, i);
         st_logDebug("Processing flower %" PRIi64 "\n", flower_getName(flower));

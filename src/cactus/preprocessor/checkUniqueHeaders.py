@@ -68,6 +68,8 @@ def sanitize_fasta_header(job, fasta_id, event, pangenome, log_stats):
     else:
         cmd = ['cactus_sanitizeFastaHeaders', in_fa_path, event] + pg_opts
     cactus_call(parameters=cmd, outfile=out_fa_path)
+    out_fa_id = job.fileStore.writeGlobalFile(out_fa_path)
+    
     job.fileStore.deleteGlobalFile(fasta_id)
 
     if log_stats:
@@ -75,7 +77,7 @@ def sanitize_fasta_header(job, fasta_id, event, pangenome, log_stats):
                                      work_dir=work_dir, check_output=True)
         job.fileStore.logToMaster("Assembly stats for %s: %s" % (event, analysisString))
     
-    return job.fileStore.writeGlobalFile(out_fa_path)
+    return out_fa_id
     
 
     
