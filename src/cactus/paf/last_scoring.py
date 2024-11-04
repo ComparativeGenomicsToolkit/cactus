@@ -104,33 +104,29 @@ def apply_scores_to_config(score_dict, config_xml):
     poa_node.attrib['partialOrderAlignmentGapOpenPenalty2'] = str(score_dict['GAP-OPEN-2'])
     poa_node.attrib['partialOrderAlignmentGapExtensionPenalty2'] = str(score_dict['GAP-EXTEND-2'])
 
-    total_mismatch = 0
-    total_mismatch_count = 0
-    total_match = 0
-    total_match_count = 0
+    mismatch_scores = []
+    match_scores = []
     for i in ['A', 'C', 'G', 'T']:
         for j in ['A', 'C', 'G', 'T']:
             if i != j:
-                total_mismatch += score_dict[i][j]
-                total_mismatch_count += 1
+                mismatch_scores.append(score_dict[i][j])
             else:
-                total_match += score_dict[i][j]
-                total_match_count += 1
+                match_scores.append(score_dict[i][j])
 
-    # use average scores for N -- don't really have a better idea
-    avg_mismatch = int(total_mismatch / total_mismatch_count)
-    avg_match = int(total_match / total_match_count)
+    # use min / max (match / mismatch) scores for N -- don't really have a better idea
+    max_mismatch = max(mismatch_scores)
+    min_match = min(match_scores)
             
     score_string = ''
     for i in ['A', 'C', 'G', 'T']:
         for j in ['A', 'C', 'G', 'T']:
             score_string += str(score_dict[i][j]) + ' '
-        score_string += str(avg_mismatch) + ' '
+        score_string += str(max_mismatch) + ' '
     for i in range(4):
-        score_string += str(avg_mismatch) + ' '    
+        score_string += str(max_mismatch) + ' '
     # todo: do we want option to put a mismatch here
     # it seems like for pangenomes in particular we probably don't want N alignment
-    score_string += str(avg_match)
+    score_string += str(min_match)
             
     poa_node.attrib['partialOrderAlignmentSubMatrix'] = score_string
 
