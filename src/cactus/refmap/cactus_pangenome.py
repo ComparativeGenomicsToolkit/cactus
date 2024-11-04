@@ -62,7 +62,9 @@ def main():
                         help="Memory in bytes for the minigraph construction job (defaults to an estimate based on the input data size). "
                         "Standard suffixes like K, Ki, M, Mi, G or Gi are supported (default=bytes))", default=None)
     parser.add_argument("--lastTrain", action="store_true",
-                        help="Use last-train to estimate scoring matrix from input data", default=False)    
+                        help="Use last-train to estimate scoring matrix from input data", default=False)
+    parser.add_argument("--scoresFile", type=str,
+                        help = "File containing scoring parameters (output of last-train)")
 
     # cactus-graphmap options
     parser.add_argument("--mapCores", type=int, help = "Number of cores for minigraph map.  Overrides graphmap cpu in configuration")
@@ -165,7 +167,10 @@ def main():
         if not options.reference:
             raise RuntimeError('--reference must be used with --collapseRefPAF')
         if options.collapse:
-            raise RuntimeError('--collapseRefPAF cannot be used with --collapse')        
+            raise RuntimeError('--collapseRefPAF cannot be used with --collapse')
+
+    if options.lastTrain and option.scoresFile:
+        raise RuntimeError('you cannot use both --lastTrain and --scoresFile together: pick one')
 
     # Sort out the graphmap-join options, which can be rather complex
     # pass in dummy values for now, they will get filled in later
@@ -220,9 +225,15 @@ def main():
             ref_collapse_paf_id = None
             if options.collapseRefPAF:
                 logger.info("Importing {}".format(options.collapseRefPAF))
-                ref_collapse_paf_id = toil.importFile(options.collapseRefPAF)
+                ref_collapse_paf_id = toil.importFile(makeURL(options.collapseRefPAF))
                 assert options.reference
                 findRequiredNode(config_node, "graphmap").attrib["collapse"] = 'reference'
+
+            #import the .train file
+            last_scores_id = None
+            if options.scoresFile:
+                logger.info("Importing {}".format(options.scoresFile))
+                last_scores_id = toil.importFile(makeURL(options.scoresFile))
 
             #import the sequences
             input_seq_id_map = {}
@@ -242,7 +253,7 @@ def main():
                     if genome not in options.reference:
                         input_seq_order.append(genome)
             
-            toil.start(Job.wrapJobFn(pangenome_end_to_end_workflow, options, config_wrapper, input_seq_id_map, input_path_map, input_seq_order, ref_collapse_paf_id))
+            toil.start(Job.wrapJobFn(pangenome_end_to_end_workflow, options, config_wrapper, input_seq_id_map, input_path_map, input_seq_order, ref_collapse_paf_id, last_scores_id))
         
     end_time = timeit.default_timer()
     run_time = end_time - start_time
@@ -358,7 +369,8 @@ def export_join_wrapper(job, options, wf_output):
     """ toil join wrapper for cactus_graphmap_join """
     export_join_data(job.fileStore, options, wf_output[0], wf_output[1], wf_output[2], wf_output[3], wf_output[4], wf_output[5])
 
-def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_path_map, seq_order, ref_collapse_paf_id):
+def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_path_map, seq_order, ref_collapse_paf_id,
+                                  last_scores_id):
     """ chain the entire workflow together, doing exports after each step to mitigate annoyance of failures """
     root_job = Job()
     job.addChild(root_job)
@@ -374,7 +386,9 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
     sv_gfa_path = os.path.join(options.outDir, options.outName + '.sv.gfa.gz')
 
     minigraph_job = sanitize_job.addFollowOnJobFn(minigraph_construct_workflow, options, config_node, seq_id_map, seq_order, sv_gfa_path, sanitize=False)
-    sv_gfa_id, last_scores_id = minigraph_job.rv(0), minigraph_job.rv(1)
+    sv_gfa_id = minigraph_job.rv(0)
+    if not last_scores_id:
+        last_scores_id = minigraph_job.rv(1)
     minigraph_wrapper_job = minigraph_job.addFollowOnJobFn(export_minigraph_wrapper, options, sv_gfa_id, sv_gfa_path, last_scores_id)
 
     # cactus_graphmap
