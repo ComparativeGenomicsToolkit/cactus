@@ -1032,7 +1032,7 @@ def make_vcf(job, config, out_name, vcf_ref, index_dict, fasta_ref_dict, tag='',
             job.fileStore.readGlobalFile(fasta_ref_dict[vcf_ref], fa_ref_path)
             bub_cmd.append(['bcftools', 'norm', '-f', fa_ref_path])
             bub_cmd.append(['bcftools', 'norm', '-m', '+any'])
-            bub_cmd.append(['bcftools', 'sort'])
+            bub_cmd.append(['bcftools', 'sort', '-T', os.path.join(work_dir, 'bcftools.XXXXXX')])
         bub_cmd.append(['bgzip', '--threads', str(job.cores)])
         cactus_call(parameters=bub_cmd, outfile=vcfbub_path)
         try:
@@ -1144,7 +1144,7 @@ def vcfwave_chr(job, config, vcf_ref, vcf_id, tbi_id, fasta_id, contig, vcfbub_t
         job.fileStore.readGlobalFile(fasta_id, fa_ref_path)
         norm_vcf_path = os.path.join(work_dir, '{}{}_norm.vcf.gz'.format(tag, contig))
         cactus_call(parameters=[['bcftools', 'norm', '-f', fa_ref_path, wave_vcf_path],
-                                ['bcftools', 'sort'],
+                                ['bcftools', 'sort', '-T', os.path.join(work_dir, 'bcftools.XXXXXX')],
                                 ['bgzip', '--threads', str(job.cores)]],
                     outfile=norm_vcf_path)
         cactus_call(parameters=['tabix', '-fp', 'vcf', norm_vcf_path])
