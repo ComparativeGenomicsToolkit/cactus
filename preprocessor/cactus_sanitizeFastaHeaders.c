@@ -163,6 +163,7 @@ int main(int argc, char *argv[]) {
     if (fileHandle != stdin) {
         fclose(fileHandle);
     }
+    fflush(stdout);
     stSet_destruct(header_set);
 
     return 0;
