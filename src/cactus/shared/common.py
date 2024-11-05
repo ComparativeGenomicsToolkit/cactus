@@ -793,11 +793,12 @@ def cactus_call(tool=None,
     else:
         errfile = subprocess.PIPE
 
-    # hack to force consolidated to keep tmp files local (required to run at all in some singularity setups where /tmp is not writable)
+    # hack to keep tmp files local (required to run at all in some singularity setups where /tmp is not writable)
     sub_env = None
-    if (shell and 'cactus_consolidated' in call) or (not shell and any(['cactus_consolidated' in c for c in call])):
+    if mode == 'singularity':
         sub_env = os.environ.copy()
         sub_env['TMPDIR']='.'
+        sub_env['TEMPDIR']='.'
 
     process = subprocess.Popen(call, shell=shell, encoding=None,
                                stdin=stdinFileHandle, stdout=stdoutFileHandle,
