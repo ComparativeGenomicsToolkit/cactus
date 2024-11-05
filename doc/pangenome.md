@@ -137,7 +137,7 @@ It is therefore extremely important that the reference sample's assembly be **ch
 
 ### Multiple Alignment Scoring Parameters
 
-The `--lastTrain` option, added as an experimental prototype in [v2.9.2](https://github.com/ComparativeGenomicsToolkit/cactus/releases/tag/v2.9.2), can be used to train substitution, match and gap scores from the input data using `last-train`.  The model is inferred from an alignment between the (first) referene sample and the most diverged input genome from it in the minigraph construct phase, and these scores are then used in the cactus alignment phase to compute the base-level multiple alignment.
+The `--lastTrain` option, added as an experimental prototype in [v2.9.3](https://github.com/ComparativeGenomicsToolkit/cactus/releases/tag/v2.9.3), can be used to train substitution, match and gap scores from the input data using `last-train`.  The model is inferred from an alignment between the (first) referene sample and the most diverged input genome from it in the minigraph construct phase, and these scores are then used in the cactus alignment phase to compute the base-level multiple alignment.
 
 The default scoring parameters, found in the config XML file, are derived from the HOXD70 matrix used in `lastz` and are most appropriate for very diverged genomes. But for pangenomes these scores can lead to, for example, long runs of transitions that really should be gaps. In this case, using the data-derived scores should be beneficial.
 
