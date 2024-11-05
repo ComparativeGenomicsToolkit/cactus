@@ -169,7 +169,7 @@ def main():
         if options.collapse:
             raise RuntimeError('--collapseRefPAF cannot be used with --collapse')
 
-    if options.lastTrain and option.scoresFile:
+    if options.lastTrain and options.scoresFile:
         raise RuntimeError('you cannot use both --lastTrain and --scoresFile together: pick one')
 
     # Sort out the graphmap-join options, which can be rather complex
