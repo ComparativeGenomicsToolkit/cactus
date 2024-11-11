@@ -135,6 +135,14 @@ The `--reference` option must be used to select a "reference" sample.  This samp
 
 It is therefore extremely important that the reference sample's assembly be **chromosome** scale.  If there are many small contigs in the addition to chromosomes in the reference assembly, then please consider specifying the chromosomes with `--refContigs`. If you still want to keep the other contigs, add `--otherContig chrOther` (see explanation below).
 
+### Multiple Alignment Scoring Parameters
+
+The `--lastTrain` option, added as an experimental prototype in [v2.9.3](https://github.com/ComparativeGenomicsToolkit/cactus/releases/tag/v2.9.3), can be used to train substitution, match and gap scores from the input data using `last-train`.  The model is inferred from an alignment between the (first) referene sample and the most diverged input genome from it in the minigraph construct phase, and these scores are then used in the cactus alignment phase to compute the base-level multiple alignment.
+
+The default scoring parameters, found in the config XML file, are derived from the HOXD70 matrix used in `lastz` and are most appropriate for very diverged genomes. But for pangenomes these scores can lead to, for example, long runs of transitions that really should be gaps. In this case, using the data-derived scores should be beneficial.
+
+You can also use the `--scoresFile` to input any `.train` file from `last-train` and use the scores contained in it to override cactus's defaults.  Be careful: only fully symmetric scoring matrices are accepted.
+
 ### Self-Alignment and the Collapse Option
 
 The `--collapse` option, added as an experimental prototype in [v2.9.1](https://github.com/ComparativeGenomicsToolkit/cactus/releases/tag/v2.9.1), can be used to incorporate self-alignments into the pangenome, *including the reference sample*.  This will produce a more compact graph with, for example, tandem duplications being represented as cycles (like PGGB) rather than insertions (like minigraph). It also drops the invariant (see above) that the reference path by acyclic -- with this option, the reference path can contain cycles. The `--collapse` option is implemented by running `minimap2` using options found in the `minimapCollapseOptions` parameter in the configuration XML to align each input *contig* with itself. These self alignments are fed into Cactus alongide the usual sequence-to-minigraph alignments.
