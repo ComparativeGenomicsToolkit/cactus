@@ -1,3 +1,17 @@
+# Releaes 2.9.3 2024-11-18
+
+This release adds some new options to the pangenome pipeline, and hopefully improves robustness overall
+
+- Faster path normalization (`vg paths -n`) for pangenomes via vg upgrade to v1.61.0
+- Sanity checks added to better detect corrupted intermediate FASTA files
+- Switch off abPOA's progressive mode unless input sequences have same length (otherwise sort by length)
+- `--lastTrain / --scoresFile` options added to learn and/or use custom scoring models for multiple alignment using `last-train`.
+- Update to latest `vcflib`.  Also add `vcflib` installation command as option to `BIN-INSTALL` instructions
+- Make `--maxLen` default value consistent between `cactus-align --pangenome` and `cactus-pangenome`.  Previously it was 100X bigger in the former, which made it very easy to have wildly different performance between the all-at-once and step-by-step versions of the pipeline
+- Fix bug where `--binariesMode singularity` could potentially attempt to write temporary files outside specified workDir
+- Tighten disk usage estimate for `tile_alignments` job
+- Patch `mafTools` to fix a bug where `taffy` normalization in `cactus-hal2maf` would crash if 1-character genome names were present in the input
+
 # Release 2.9.2 2024-10-14
 
 This release patches a couple bugs
