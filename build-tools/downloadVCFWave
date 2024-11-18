@@ -1,0 +1,36 @@
+#!/bin/bash
+# Download vcfwave. You can run this when installing the release binaries because vcfwave
+# isn't included in the release (because no static build)
+
+set -beEu -o pipefail
+
+# Note: this bit below should be kept consistent with downloadPangenomeTools
+pangenomeBuildDir=$(realpath -m build-pangenome-tools)
+binDir=$(pwd)/bin
+libDir=$(pwd)/lib
+# just use cactusRootPath for now
+dataDir=$(pwd)/src/cactus
+CWD=$(pwd)
+# works on MacOS and Linux
+if [ -z ${numcpu+x} ]; then
+	 numcpu=$(getconf _NPROCESSORS_ONLN)
+fi
+
+set -x
+rm -rf ${pangenomeBuildDir}
+mkdir -p ${pangenomeBuildDir}
+mkdir -p ${binDir}
+
+cd ${pangenomeBuildDir}
+git clone --recursive https://github.com/vcflib/vcflib.git
+cd vcflib
+git checkout 404b98a6a0601a8668fb039eae5196fa1ae12525
+mkdir build
+cd build
+cmake -DZIG=OFF -DWFA_GITMODULE=ON -DCMAKE_BUILD_TYPE=Debug ..
+cmake --build . -- -j ${numcpu}
+mv vcfwave vcfcreatemulti vcfbreakmulti vcfuniq ${binDir}
+mv ./contrib/WFA2-lib/libwfa2.so.0 ${libDir}
+ 
+cd ${CWD}
+rm -rf ${pangenomeBuildDir}
