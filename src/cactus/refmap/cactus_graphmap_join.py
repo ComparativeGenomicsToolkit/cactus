@@ -1127,14 +1127,11 @@ def vcfwave_chr(job, config, vcf_ref, vcf_id, tbi_id, fasta_id, contig, vcfbub_t
     wave_vcf_path = os.path.join(work_dir, '{}{}_wave.vcf.gz'.format(tag, contig))
     wave_tbi_path = wave_vcf_path + '.tbi'
 
-    # vfwave has some bugs: https://github.com/vcflib/vcflib/issues/403
-    # that produce wrong genotypes and AT fields.  we try to hack around the former
-    # by splitting multiallelic sites beforehand, and the latter just by dropping 
+    # AT fields don't mean much after vcfwave (and have been invalid in the past, so we strip them)
     wave_opts = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "vcfwaveOptions", typeFn=str, default=None)
     assert wave_opts
     bubwave_cmd = [['vcfbub', '--input', chrom_vcf_path, '-l', '0', '-a', str(vcfbub_thresh)],
                    ['bcftools', 'annotate', '-x', 'INFO/AT'],                   
-                   ['bcftools', 'norm', '-m', '-any'],
                    ['vcfwave'] + wave_opts.split(' ') + ['-t', str(job.cores)],
                    ['bgzip']]
     cactus_call(parameters=bubwave_cmd, outfile=wave_vcf_path)
