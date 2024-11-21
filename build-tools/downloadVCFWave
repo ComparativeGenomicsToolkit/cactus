@@ -24,7 +24,7 @@ mkdir -p ${binDir}
 cd ${pangenomeBuildDir}
 git clone --recursive https://github.com/vcflib/vcflib.git
 cd vcflib
-git checkout 404b98a6a0601a8668fb039eae5196fa1ae12525
+git checkout f8425d239e1bc406cdfe46a2e37f47ac3476dd8a
 mkdir build
 cd build
 cmake -DZIG=OFF -DWFA_GITMODULE=ON -DCMAKE_BUILD_TYPE=Debug ..
