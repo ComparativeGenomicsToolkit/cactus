@@ -1117,7 +1117,6 @@ def vcfwave(job, config, out_name, vcf_ref, vcf_id, tbi_id, max_ref_allele, fast
     assert wave_opts
     bubwave_cmd = [['vcfbub', '--input', vcf_path, '-l', '0', '-a', str(max_ref_allele)],
                    ['bcftools', 'annotate', '-x', 'INFO/AT'],                   
-                   ['bcftools', 'norm', '-m', '-any'],
                    ['vcfwave'] + wave_opts.split(' ') + ['-t', str(job.cores)]]
     if getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "vcfwaveNorm", typeFn=bool, default=True):
         fa_ref_path = os.path.join(work_dir, tag + 'fa.gz')
