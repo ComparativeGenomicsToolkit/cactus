@@ -128,6 +128,17 @@ void addUniqueFastaPrefix(void* destination, const char *fastaHeader, const char
         clipped_header = prefixed_header;
     }
     
+    // sanity check
+    int64_t n = strlen(string);
+    for (int64_t i = 0; i < n; ++i) {
+        char c = tolower(string[i]);
+        if (c != 'a' && c != 'c' && c != 'g' && c != 't' && c != 'n') {
+            fprintf(stderr, "Error: Non-ACGTN character '%c' found at position %" PRIi64 " of FASTA sequence %s in event %s\n",
+                    c, i, fastaHeader, eventName);
+            exit(1);
+        }
+    }
+    
     fastaWrite((char*)string, clipped_header, stdout);
     free(clipped_header);
 }
@@ -160,7 +171,10 @@ int main(int argc, char *argv[]) {
     }
 
     fastaReadToFunction(fileHandle, (void*)argv[2], addUniqueFastaPrefix);
-    fclose(fileHandle);
+    if (fileHandle != stdin) {
+        fclose(fileHandle);
+    }
+    fflush(stdout);
     stSet_destruct(header_set);
 
     return 0;

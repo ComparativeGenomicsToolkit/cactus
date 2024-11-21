@@ -318,7 +318,7 @@ def getDockerTag(gpu=False):
         return "latest"    
     else:
         # must be manually kept current with each release        
-        return 'v2.9.1' + ('-gpu' if gpu else '')
+        return 'v2.9.3' + ('-gpu' if gpu else '')
 
 def getDockerImage(gpu=False):
     """Get fully specified Docker image name."""
@@ -793,11 +793,12 @@ def cactus_call(tool=None,
     else:
         errfile = subprocess.PIPE
 
-    # hack to force consolidated to keep tmp files local (required to run at all in some singularity setups where /tmp is not writable)
+    # hack to keep tmp files local (required to run at all in some singularity setups where /tmp is not writable)
     sub_env = None
-    if (shell and 'cactus_consolidated' in call) or (not shell and any(['cactus_consolidated' in c for c in call])):
+    if mode == 'singularity':
         sub_env = os.environ.copy()
         sub_env['TMPDIR']='.'
+        sub_env['TEMPDIR']='.'
 
     process = subprocess.Popen(call, shell=shell, encoding=None,
                                stdin=stdinFileHandle, stdout=stdoutFileHandle,
@@ -851,6 +852,9 @@ def cactus_call(tool=None,
         stderr = stderr.decode()
     if output is not None:
         output = output.decode()
+
+    if outfile:
+        stdoutFileHandle.close()
         
     if process.returncode == 0 and rt_log_cmd:
         run_time = time.time() - start_time

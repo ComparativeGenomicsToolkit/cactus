@@ -346,7 +346,7 @@ class TestCase(unittest.TestCase):
 
         # do the alignment
         subprocess.check_call(['cactus-align', self._job_store(binariesMode), seq_file_path, cigar_path, self._out_hal(binariesMode),
-                               '--pangenome'] + cactus_opts)
+                               '--pangenome', '--maxLen', '20000'] + cactus_opts)
 
 
     def _run_evolver_primates_graphmap(self, binariesMode):
@@ -441,7 +441,7 @@ class TestCase(unittest.TestCase):
         out_dir = os.path.dirname(self._out_hal(binariesMode))
         out_name = os.path.splitext(os.path.basename(self._out_hal(binariesMode)))[0]
         cactus_pangenome_cmd = ['cactus-pangenome', self._job_store(binariesMode), seq_file_path, '--reference', 'simHuman', 'simChimp',
-                                '--outDir', out_dir, '--outName', out_name, '--noSplit', '--odgi', '--chrom-og', '--viz', '--draw', '--haplo', '--collapse']
+                                '--outDir', out_dir, '--outName', out_name, '--noSplit', '--odgi', '--chrom-og', '--viz', '--draw', '--haplo', '--collapse', '--lastTrain']
 
         subprocess.check_call(cactus_pangenome_cmd + cactus_opts)
         # cactus-pangenome tacks on the .full to the output name
@@ -525,7 +525,8 @@ class TestCase(unittest.TestCase):
                                 '--refContigs'] + chroms + ['--reference', 'S288C', 'DBVPG6044', '--vcf', '--vcfReference','DBVPG6044', 'S288C',
                                                             '--giraffe', 'clip', 'filter',  '--chrom-vg', 'clip', 'filter',
                                                             '--viz', '--chrom-og', 'clip', 'full', '--odgi', '--haplo', 'clip',
-                                                            '--xg', '--unchopped-gfa', '--indexCores', '4', '--consCores', '2']
+                                                            '--xg', '--unchopped-gfa', '--indexCores', '4', '--consCores', '2',
+                                                            '--collapse', '--lastTrain']
         subprocess.check_call(cactus_pangenome_cmd + cactus_opts)
 
         #compatibility with older test
@@ -584,7 +585,7 @@ class TestCase(unittest.TestCase):
         output, errors = proc.communicate()
         sts = proc.wait()
         num_bases = int(output.strip())
-        self.assertGreaterEqual(num_bases, 10000000)
+        self.assertGreaterEqual(num_bases, 9000000)
         self.assertLessEqual(num_bases, 11200000)
 
         # make sure we have the giraffe indexes
@@ -643,7 +644,7 @@ class TestCase(unittest.TestCase):
         self.assertLessEqual(filter_nodes, 400000)
 
         clip_edges = int(subprocess.check_output(['vg', 'stats', '-E', os.path.join(join_path, 'yeast.gbz')]).strip().decode('utf-8').strip())
-        self.assertGreaterEqual(clip_edges, 550000)
+        self.assertGreaterEqual(clip_edges, 500000)
         self.assertLessEqual(clip_edges, 650000)
 
         filter_edges = int(subprocess.check_output(['vg', 'stats', '-E', os.path.join(join_path, 'yeast.d2.gbz')]).strip().decode('utf-8').strip())

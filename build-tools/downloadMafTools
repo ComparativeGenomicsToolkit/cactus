@@ -66,7 +66,7 @@ fi
 cd ${mafBuildDir}
 git clone https://github.com/ComparativeGenomicsToolkit/mafTools.git
 cd mafTools
-git checkout b88cd313cb18764d87bc801fbbbb00f982c1a48f
+git checkout 259e5b47fa2ee17ff5ad1bba9cebf2992cbb7228
 find . -name "*.mk" | xargs sed -ie "s/-Werror//g"
 find . -name "Makefile*" | xargs sed -ie "s/-Werror//g"
 # hack in flags support

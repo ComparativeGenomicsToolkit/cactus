@@ -60,7 +60,11 @@ def main():
     parser.add_argument("--mgCores", type=int, help = "Number of cores for minigraph construction (defaults to the same as --maxCores).")
     parser.add_argument("--mgMemory", type=human2bytesN,
                         help="Memory in bytes for the minigraph construction job (defaults to an estimate based on the input data size). "
-                        "Standard suffixes like K, Ki, M, Mi, G or Gi are supported (default=bytes))", default=None)       
+                        "Standard suffixes like K, Ki, M, Mi, G or Gi are supported (default=bytes))", default=None)
+    parser.add_argument("--lastTrain", action="store_true",
+                        help="Use last-train to estimate scoring matrix from input data", default=False)
+    parser.add_argument("--scoresFile", type=str,
+                        help = "File containing scoring parameters (output of last-train)")
 
     # cactus-graphmap options
     parser.add_argument("--mapCores", type=int, help = "Number of cores for minigraph map.  Overrides graphmap cpu in configuration")
@@ -74,6 +78,7 @@ def main():
     parser.add_argument("--noSplit", action='store_true', help = "Do not split by ref chromsome. This will require much more memory and potentially produce a more complex graph")
 
     # cactus-align options
+    # note: when changing this, make sure to keep option in cactus-align consistent
     parser.add_argument("--maxLen", type=int, default=10000,
                         help="Only align up to this many bases (overrides <bar bandingLimit> and <caf maxRecoverableChainLength> in configuration)[default=10000]")
     parser.add_argument("--consCores", type=int, 
@@ -162,7 +167,10 @@ def main():
         if not options.reference:
             raise RuntimeError('--reference must be used with --collapseRefPAF')
         if options.collapse:
-            raise RuntimeError('--collapseRefPAF cannot be used with --collapse')        
+            raise RuntimeError('--collapseRefPAF cannot be used with --collapse')
+
+    if options.lastTrain and options.scoresFile:
+        raise RuntimeError('you cannot use both --lastTrain and --scoresFile together: pick one')
 
     # Sort out the graphmap-join options, which can be rather complex
     # pass in dummy values for now, they will get filled in later
@@ -217,9 +225,15 @@ def main():
             ref_collapse_paf_id = None
             if options.collapseRefPAF:
                 logger.info("Importing {}".format(options.collapseRefPAF))
-                ref_collapse_paf_id = toil.importFile(options.collapseRefPAF)
+                ref_collapse_paf_id = toil.importFile(makeURL(options.collapseRefPAF))
                 assert options.reference
                 findRequiredNode(config_node, "graphmap").attrib["collapse"] = 'reference'
+
+            #import the .train file
+            last_scores_id = None
+            if options.scoresFile:
+                logger.info("Importing {}".format(options.scoresFile))
+                last_scores_id = toil.importFile(makeURL(options.scoresFile))
 
             #import the sequences
             input_seq_id_map = {}
@@ -239,15 +253,21 @@ def main():
                     if genome not in options.reference:
                         input_seq_order.append(genome)
             
-            toil.start(Job.wrapJobFn(pangenome_end_to_end_workflow, options, config_wrapper, input_seq_id_map, input_path_map, input_seq_order, ref_collapse_paf_id))
+            toil.start(Job.wrapJobFn(pangenome_end_to_end_workflow, options, config_wrapper, input_seq_id_map, input_path_map, input_seq_order, ref_collapse_paf_id, last_scores_id))
         
     end_time = timeit.default_timer()
     run_time = end_time - start_time
     logger.info("cactus-pangenome has finished after {} seconds".format(run_time))
 
-def export_minigraph_wrapper(job, options, sv_gfa_id, sv_gfa_path):
+def export_minigraph_wrapper(job, options, sv_gfa_id, sv_gfa_path, last_scores_id):
     """ export the GFA from minigraph """
     job.fileStore.exportFile(sv_gfa_id, makeURL(os.path.join(options.outDir, os.path.basename(sv_gfa_path))))
+    if last_scores_id:
+        scores_path = makeURL(os.path.join(options.outDir, options.outName + '.train'))
+        job.fileStore.exportFile(last_scores_id, makeURL(os.path.join(options.outDir, os.path.basename(scores_path))))
+    
+    # hack to (hopefully maybe) avoid rare truncattion when importing recently exported files on phoenix
+    time.sleep(5)
 
 def export_graphmap_wrapper(job, options, paf_id, paf_path, gaf_id, unfiltered_paf_id, paf_filter_log):
     """ export the PAF file from minigraph """
@@ -260,6 +280,8 @@ def export_graphmap_wrapper(job, options, paf_id, paf_path, gaf_id, unfiltered_p
         job.fileStore.exportFile(unfiltered_paf_id, makeURL(paf_path + '.unfiltered.gz'))
         job.fileStore.exportFile(paf_filter_log, makeURL(paf_path + '.filter.log'))
         
+    # hack to (hopefully maybe) avoid rare truncattion when importing recently exported files on phoenix
+    time.sleep(5)
 
 def update_seqfile(job, options, seq_id_map, seq_path_map, seq_order, gfa_fa_id, gfa_fa_path, graph_event):
     """ put the minigraph gfa.fa file into the seqfile and export both """
@@ -296,14 +318,21 @@ def export_split_wrapper(job, wf_output, out_dir, config_node):
     if not out_dir.startswith('s3://') and not os.path.isdir(out_dir):
         os.makedirs(out_dir)
     export_split_data(job.fileStore, wf_output[0], wf_output[1], wf_output[2], wf_output[3], out_dir, config_node)
+    # hack to (hopefully maybe) avoid rare truncattion when importing recently exported files on phoenix
+    time.sleep(10)
 
-def make_batch_align_jobs_wrapper(job, options, chromfile_path, config_wrapper):
+def make_batch_align_jobs_wrapper(job, options, chromfile_path, config_wrapper, last_scores_id):
     """ toil job wrapper for make_batch_align_jobs from cactus_align """
     work_dir = job.fileStore.getLocalTempDir()
     local_chromfile_path = os.path.join(work_dir, 'chromfile.txt')
     chromfile_id = job.fileStore.importFile(makeURL(chromfile_path))
     job.fileStore.readGlobalFile(chromfile_id, local_chromfile_path)
-    options.seqFile = local_chromfile_path    
+    options.seqFile = local_chromfile_path
+    options.scoresFile = None
+    if last_scores_id:
+        local_scores_path = os.path.join(work_dir, 'scores.train')
+        job.fileStore.readGlobalFile(last_scores_id, local_scores_path)
+        options.scoresFile = local_scores_path
     align_jobs = make_batch_align_jobs(options, job.fileStore, job.fileStore, config_wrapper)
     return align_jobs
     
@@ -331,13 +360,17 @@ def export_align_wrapper(job, options, results_dict):
     join_options.hal = hal_paths
     join_options.vg = vg_paths
 
+    # hack to (hopefully maybe) avoid rare truncattion when importing recently exported files on phoenix
+    time.sleep(10)
+
     return join_options, vg_ids, hal_ids
 
 def export_join_wrapper(job, options, wf_output):
     """ toil join wrapper for cactus_graphmap_join """
     export_join_data(job.fileStore, options, wf_output[0], wf_output[1], wf_output[2], wf_output[3], wf_output[4], wf_output[5])
 
-def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_path_map, seq_order, ref_collapse_paf_id):
+def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_path_map, seq_order, ref_collapse_paf_id,
+                                  last_scores_id):
     """ chain the entire workflow together, doing exports after each step to mitigate annoyance of failures """
     root_job = Job()
     job.addChild(root_job)
@@ -353,8 +386,10 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
     sv_gfa_path = os.path.join(options.outDir, options.outName + '.sv.gfa.gz')
 
     minigraph_job = sanitize_job.addFollowOnJobFn(minigraph_construct_workflow, options, config_node, seq_id_map, seq_order, sv_gfa_path, sanitize=False)
-    sv_gfa_id = minigraph_job.rv()
-    minigraph_job.addFollowOnJobFn(export_minigraph_wrapper, options, sv_gfa_id, sv_gfa_path)
+    sv_gfa_id = minigraph_job.rv(0)
+    if not last_scores_id:
+        last_scores_id = minigraph_job.rv(1)
+    minigraph_wrapper_job = minigraph_job.addFollowOnJobFn(export_minigraph_wrapper, options, sv_gfa_id, sv_gfa_path, last_scores_id)
 
     # cactus_graphmap
     paf_path = os.path.join(options.outDir, options.outName + '.paf')
@@ -363,7 +398,7 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
     options.outputFasta = gfa_fa_path
     graph_event = getOptionalAttrib(findRequiredNode(config_node, "graphmap"), "assemblyName", default="_MINIGRAPH_")
     
-    graphmap_job = minigraph_job.addFollowOnJobFn(minigraph_workflow, options, config_wrapper, seq_id_map, sv_gfa_id, graph_event, False, ref_collapse_paf_id)
+    graphmap_job = minigraph_wrapper_job.addFollowOnJobFn(minigraph_workflow, options, config_wrapper, seq_id_map, sv_gfa_id, graph_event, False, ref_collapse_paf_id)
     paf_id, gfa_fa_id, gaf_id, unfiltered_paf_id, paf_filter_log = graphmap_job.rv(0), graphmap_job.rv(1), graphmap_job.rv(2), graphmap_job.rv(3), graphmap_job.rv(4)
     graphmap_export_job = graphmap_job.addFollowOnJobFn(export_graphmap_wrapper, options, paf_id, paf_path, gaf_id, unfiltered_paf_id, paf_filter_log)
 
@@ -390,7 +425,8 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
                                                            file_ids=[sv_gfa_id, paf_id])
 
     # cactus_align        
-    align_jobs_make_job = split_export_job.addFollowOnJobFn(make_batch_align_jobs_wrapper, options, chromfile_path, config_wrapper)
+    align_jobs_make_job = clean_jobstore_job.addFollowOnJobFn(make_batch_align_jobs_wrapper, options, chromfile_path, config_wrapper,
+                                                              last_scores_id)
     align_jobs = align_jobs_make_job.rv()
     align_job = align_jobs_make_job.addFollowOnJobFn(batch_align_jobs, align_jobs)
     results_dict = align_job.rv()

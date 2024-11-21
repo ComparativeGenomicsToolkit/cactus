@@ -300,8 +300,13 @@ def make_ingroup_to_outgroup_alignments_3(job, ingroup_event, ingroup_seq_file, 
     return job.fileStore.writeGlobalFile(merged_alignments)
 
 
-def merge_alignments(job, alignment_file1, alignment_file2):
+def merge_alignments(job, alignment_file1, alignment_file2, has_resources=False):
     """" Merge together two alignment files """
+    if not has_resources:
+        # unpack promises for disk requirement
+        return job.addChildJobFn(merge_alignments, alignment_file1, alignment_file2, has_resources=True,
+                                 disk = 2 * (alignment_file1.size + alignment_file2.size)).rv()
+        
     # Get a temporary directory to work in
     work_dir = job.fileStore.getLocalTempDir()
 
@@ -343,9 +348,7 @@ def chain_alignments_splitting_ingroups_and_outgroups(job, ingroup_alignment_fil
     total_file_size = sum(alignment_file.size for alignment_file in ingroup_alignment_files + outgroup_alignment_files)
 
     # Merge the resulting two alignment files into a single set of alignments
-    return job.addFollowOnJobFn(merge_alignments, chained_ingroup_alignments, chained_outgroup_alignments,
-                                disk=total_file_size*10).rv()
-
+    return job.addFollowOnJobFn(merge_alignments, chained_ingroup_alignments, chained_outgroup_alignments).rv()
 
 def chain_alignments(job, alignment_files, alignment_names, reference_event_name, params,
                      include_inverted_alignments=True):
@@ -361,13 +364,11 @@ def chain_alignments(job, alignment_files, alignment_names, reference_event_name
     for alignment_file, alignment_name in zip(alignment_files, alignment_names):
         chained_alignment_files.append(root_job.addChildJobFn(chain_one_alignment, alignment_file, alignment_name,
                                                               params, include_inverted_alignments,
-                                                              disk=6*alignment_file.size,
+                                                              disk=4*alignment_file.size,
                                                               memory=cactus_clamp_memory(32*alignment_file.size)).rv())
         
     # do the tiling and filtering
-    return root_job.addFollowOnJobFn(tile_alignments, chained_alignment_files, reference_event_name, params,
-                                     disk=6*sum([alignment_file.size for alignment_file in alignment_files]),
-                                     memory=cactus_clamp_memory(32*sum([alignment_file.size for alignment_file in alignment_files]))).rv()
+    return root_job.addFollowOnJobFn(tile_alignments, chained_alignment_files, reference_event_name, params).rv()
 
 
 def chain_one_alignment(job, alignment_file, alignment_name, params, include_inverted_alignments):
@@ -404,9 +405,14 @@ def chain_one_alignment(job, alignment_file, alignment_name, params, include_inv
     return job.fileStore.writeGlobalFile(output_path)
     
     
-def tile_alignments(job, alignment_files, reference_event_name, params):
+def tile_alignments(job, alignment_files, reference_event_name, params, has_resources = False):
     # do everything post-chaining
 
+    if not has_resources:
+        return job.addChildJobFn(tile_alignments, alignment_files, reference_event_name, params, has_resources=True,
+                                 disk=2*sum([alignment_file.size for alignment_file in alignment_files]),
+                                 memory=cactus_clamp_memory(32*sum([alignment_file.size for alignment_file in alignment_files]))).rv()
+    
     work_dir = job.fileStore.getLocalTempDir()
 
     # concatenate the input into one big paf

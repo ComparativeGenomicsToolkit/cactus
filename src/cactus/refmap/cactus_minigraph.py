@@ -28,6 +28,7 @@ from cactus.shared.common import clean_jobstore_files
 from cactus.shared.version import cactus_commit
 from cactus.progressive.cactus_prepare import human2bytesN
 from cactus.preprocessor.checkUniqueHeaders import sanitize_fasta_headers
+from cactus.paf.last_scoring import last_train
 from toil.job import Job
 from toil.common import Toil
 from toil.statsAndLogging import logger
@@ -50,7 +51,9 @@ def main():
     parser.add_argument("--mgCores", type=int, help = "Number of cores for minigraph construction (defaults to the same as --maxCores).")
     parser.add_argument("--mgMemory", type=human2bytesN,
                         help="Memory in bytes for the minigraph construction job (defaults to an estimate based on the input data size). "
-                        "Standard suffixes like K, Ki, M, Mi, G or Gi are supported (default=bytes))", default=None)   
+                        "Standard suffixes like K, Ki, M, Mi, G or Gi are supported (default=bytes))", default=None)
+    parser.add_argument("--lastTrain", action="store_true",
+                        help="Use last-train to estimate scoring matrix from input data", default=False)    
         
     #Progressive Cactus Options
     parser.add_argument("--configFile", dest="configFile",
@@ -122,10 +125,13 @@ def main():
                     if genome not in options.reference:
                         input_seq_order.append(genome)
             
-            gfa_id = toil.start(Job.wrapJobFn(minigraph_construct_workflow, options, config_node, input_seq_id_map, input_seq_order, options.outputGFA))
+            gfa_id, train_id = toil.start(Job.wrapJobFn(minigraph_construct_workflow, options, config_node, input_seq_id_map, input_seq_order, options.outputGFA))
 
         #export the gfa
         toil.exportFile(gfa_id, makeURL(options.outputGFA))
+        if train_id:
+            # export the scoring model (.train)
+            toil.exportFile(train_id, makeURL(options.outputGFA.replace('.gfa.gz', '.gfa').replace('.gfa', '.train')))
         
     end_time = timeit.default_timer()
     run_time = end_time - start_time
@@ -163,6 +169,7 @@ def minigraph_construct_workflow(job, options, config_node, seq_id_map, seq_orde
     """ minigraph can handle bgzipped files but not gzipped; so unzip everything in case before running"""
     assert type(options.reference) is list
     assert options.reference == seq_order[:len(options.reference)]
+    ref_size = seq_id_map[options.reference[0]].size
     if sanitize:
         sanitize_job = job.addChildJobFn(sanitize_fasta_headers, seq_id_map, pangenome=True)
         sanitized_seq_id_map = sanitize_job.rv()
@@ -179,7 +186,13 @@ def minigraph_construct_workflow(job, options, config_node, seq_id_map, seq_orde
     else:
         prev_job = sanitize_job
     minigraph_job = prev_job.addFollowOnJobFn(minigraph_construct_in_batches, options, config_node, sanitized_seq_id_map, seq_order, gfa_path)
-    return minigraph_job.rv()
+    if options.lastTrain:
+        last_train_job = prev_job.addFollowOnJobFn(last_train, config_node, seq_order, sanitized_seq_id_map, 
+                                                   cores=options.mgCores,
+                                                   disk=8*ref_size,
+                                                   memory=cactus_clamp_memory(8*ref_size))
+        
+    return minigraph_job.rv(), last_train_job.rv() if options.lastTrain else None
 
 def sort_minigraph_input_with_mash(job, options, seq_id_map, seq_order):
     """ Sort the input """

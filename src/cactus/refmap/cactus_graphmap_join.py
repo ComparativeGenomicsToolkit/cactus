@@ -855,7 +855,7 @@ def vg_to_gfa(job, options, config, vg_path, vg_id, unchopped=False):
     out_path = vg_path + '.unchopped.gfa' if unchopped else vg_path + '.gfa'
 
     input_path = '-' if unchopped else os.path.basename(vg_path)
-    cmd = ['vg', 'convert', '-f', '-Q', options.reference[0], input_path, '-B']
+    cmd = ['vg', 'convert', '-f', input_path]
     if getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "collapse", typeFn=str, default="none") not in ["all", "reference"]:
         cmd += ['-Q', options.reference[0], '-B']
     if unchopped:
@@ -1080,7 +1080,7 @@ def vcfbub(job, config, out_name, vcf_ref, vcf_id, tbi_id, max_ref_allele, fasta
         job.fileStore.readGlobalFile(fasta_ref_dict[vcf_ref], fa_ref_path)
         bub_cmd.append(['bcftools', 'norm', '-f', fa_ref_path])
         bub_cmd.append(['bcftools', 'norm', '-m', '+any'])
-        bub_cmd.append(['bcftools', 'sort'])
+        bub_cmd.append(['bcftools', 'sort'], '-T', os.path.join(work_dir, 'bcftools.XXXXXX')]
     bub_cmd.append(['bgzip', '--threads', str(job.cores)])
     cactus_call(parameters=bub_cmd, outfile=vcfbub_path)
     try:
@@ -1123,7 +1123,7 @@ def vcfwave(job, config, out_name, vcf_ref, vcf_id, tbi_id, max_ref_allele, fast
         fa_ref_path = os.path.join(work_dir, tag + 'fa.gz')
         job.fileStore.readGlobalFile(fasta_ref_dict[vcf_ref], fa_ref_path)
         bubwave_cmd.append(['bcftools', 'norm', '-f', fa_ref_path])
-        bubwave_cmd.append(['bcftools', 'sort'])
+        bubwave_cmd.append(['bcftools', 'sort', '-T', os.path.join(work_dir, 'bcftools.XXXXXX')]])
     bubwave_cmd.append(['bgzip'])
 
     cactus_call(parameters=bubwave_cmd, outfile=vcfwave_path)
