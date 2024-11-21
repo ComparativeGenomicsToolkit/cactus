@@ -276,7 +276,7 @@ suball.collapse-bubble:
 	ln -f submodules/collapse-bubble/scripts/merge_duplicates.py ${BINDIR}
 
 subclean.%:
-	cd submodules/$* && ${MAKE} clean
+	if [ $(shell ls submodules/$* | grep -i makefile | wc -l) != 0 ]; then cd submodules/$* && ${MAKE} clean; fi
 
 ##
 # docker
