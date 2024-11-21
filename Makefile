@@ -6,7 +6,7 @@ modules = api setup caf bar hal reference pipeline preprocessor
 
 # submodules are in multiple pass to handle dependencies cactus2hal being dependent on
 # both cactus and sonLib
-submodules1 = sonLib cPecan hal matchingAndOrdering pinchesAndCacti abPOA lastz paffy red
+submodules1 = sonLib cPecan hal matchingAndOrdering pinchesAndCacti abPOA lastz paffy red collapse-bubble
 submodules2 = cactus2hal
 submodules = ${submodules1} ${submodules2}
 
@@ -270,6 +270,9 @@ suball.paffy:
 suball.red:
 	cd submodules/red && ${MAKE}
 	ln -f submodules/red/bin/Red ${BINDIR}
+
+suball.collapse-bubble:
+	ln -f submodules/collapse-bubble/scripts/merge_duplicates.py src/cactus/refmap/
 
 subclean.%:
 	cd submodules/$* && ${MAKE} clean
