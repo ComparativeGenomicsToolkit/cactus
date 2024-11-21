@@ -272,7 +272,8 @@ suball.red:
 	ln -f submodules/red/bin/Red ${BINDIR}
 
 suball.collapse-bubble:
-	ln -f submodules/collapse-bubble/scripts/merge_duplicates.py src/cactus/refmap/
+	chmod +x submodules/collapse-bubble/scripts/merge_duplicates.py
+	ln -f submodules/collapse-bubble/scripts/merge_duplicates.py ${BINDIR}
 
 subclean.%:
 	cd submodules/$* && ${MAKE} clean
