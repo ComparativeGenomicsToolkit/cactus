@@ -105,6 +105,10 @@ def cactus_override_toil_options(options):
         logger.info('Enabling realtime logging in Toil')
         options.realTimeLogging = True
 
+    # toil supports fractional cores but cactus doesn't -- just round here
+    if options.defaultCores is not None:
+        options.defaultCores = max(1, int(options.defaultCores))
+
     # store toil memory limits here so we can get at them without carrying options around
     max_mem = human2bytes(str(options.maxMemory)) if options.maxMemory else sys.maxsize
     if options.batchSystem.lower() in ['single_machine', 'singleMachine']:
