@@ -580,11 +580,13 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
 
         # optional vcf
         if workflow_phase in options.vcf:
-            vcf_prev_job = ref_fasta_job if ref_fasta_job else gfa_root_job
             for vcf_ref in options.vcfReference:
-                vcf_job = vcf_prev_job.addFollowOnJobFn(make_vcf, config, options, workflow_phase,
+                vcf_job = gfa_root_job.addFollowOnJobFn(make_vcf, config, options, workflow_phase,
                                                         index_mem, vcf_ref, phase_vg_ids,
                                                         ref_fasta_job.rv() if ref_fasta_job else None)
+                if ref_fasta_job:
+                    ref_fasta_job.addFollowOn(vcf_job)
+                
                 out_dicts.append(vcf_job.rv())
                     
         # optional giraffe
@@ -1075,7 +1077,8 @@ def vcfbub(job, config, out_name, vcf_ref, vcf_id, tbi_id, max_ref_allele, fasta
     vcfbub_path = os.path.join(work_dir, os.path.basename(out_name) + '.' + tag + 'bub.vcf.gz')
     assert max_ref_allele
     bub_cmd = [['vcfbub', '--input', vcf_path, '--max-ref-length', str(max_ref_allele), '--max-level', '0']]
-    if getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "bcftoolsNorm", typeFn=bool, default=False):
+    run_norm = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "bcftoolsNorm", typeFn=bool, default=False)
+    if run_norm:
         fa_ref_path = os.path.join(work_dir, tag + 'fa.gz')
         job.fileStore.readGlobalFile(fasta_ref_dict[vcf_ref], fa_ref_path)
         bub_cmd.append(['bcftools', 'norm', '-f', fa_ref_path])
@@ -1083,6 +1086,14 @@ def vcfbub(job, config, out_name, vcf_ref, vcf_id, tbi_id, max_ref_allele, fasta
         bub_cmd.append(['bcftools', 'sort', '-T', os.path.join(work_dir, 'bcftools.XXXXXX')])
     bub_cmd.append(['bgzip', '--threads', str(job.cores)])
     cactus_call(parameters=bub_cmd, outfile=vcfbub_path)
+
+    merge_duplicates_opts = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "mergeDuplicatesOptions", typeFn=str, default=None)
+    if merge_duplicates_opts and merge_duplicates_opts != "0" and run_norm:
+        #note: merge_duplcates complains about not having a .tbi but I don't think it actually affects anything
+        merge_path = os.path.join(work_dir, os.path.basename(out_name) + '.' + vcf_ref + tag + 'bub.merge.vcf.gz')
+        cactus_call(parameters=['merge_duplicates.py', '-i', vcfbub_path, '-o', merge_path] + merge_duplicates_opts.split(' '))
+        vcfbub_path = merge_path        
+    
     try:
         cactus_call(parameters=['tabix', '-p', 'vcf', vcfbub_path])
         tbi_path = vcfbub_path + '.tbi'
@@ -1118,8 +1129,8 @@ def vcfwave(job, config, out_name, vcf_ref, vcf_id, tbi_id, max_ref_allele, fast
     bubwave_cmd = [['vcfbub', '--input', vcf_path, '-l', '0', '-a', str(max_ref_allele)],
                    ['bcftools', 'annotate', '-x', 'INFO/AT'],                   
                    ['vcfwave'] + wave_opts.split(' ') + ['-t', str(job.cores)]]
-
-    if getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "vcfwaveNorm", typeFn=bool, default=True):
+    run_norm = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "vcfwaveNorm", typeFn=bool, default=True)
+    if run_norm:
         fa_ref_path = os.path.join(work_dir, tag + 'fa.gz')
         job.fileStore.readGlobalFile(fasta_ref_dict[vcf_ref], fa_ref_path)
         bubwave_cmd.append(['bcftools', 'norm', '-f', fa_ref_path])
@@ -1127,6 +1138,13 @@ def vcfwave(job, config, out_name, vcf_ref, vcf_id, tbi_id, max_ref_allele, fast
     bubwave_cmd.append(['bgzip'])
 
     cactus_call(parameters=bubwave_cmd, outfile=vcfwave_path)
+
+    merge_duplicates_opts = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "mergeDuplicatesOptions", typeFn=str, default=None)
+    if merge_duplicates_opts and merge_duplicates_opts != "0" and run_norm:
+        #note: merge_duplcates complains about not having a .tbi but I don't think it actually affects anything
+        merge_path = os.path.join(work_dir, os.path.basename(out_name) + '.' + vcf_ref + tag + 'wave.merge.vcf.gz')
+        cactus_call(parameters=['merge_duplicates.py', '-i', vcfwave_path, '-o', merge_path] + merge_duplicates_opts.split(' '))
+        vcfwave_path = merge_path        
     try:
         cactus_call(parameters=['tabix', '-p', 'vcf', vcfwave_path])
         tbi_path = vcfwave_path + '.tbi'
