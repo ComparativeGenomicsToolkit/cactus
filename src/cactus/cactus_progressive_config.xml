@@ -430,7 +430,7 @@
 		 vcfwaveOptions="-I 1000"
 		 vcfwaveNorm="1"
 		 bcftoolsNorm="0"
-		 mergeDuplicatesOptions="--keep first"
+		 mergeDuplicatesOptions="--merge-mis-as-ref"
 		 />
 	<!-- hal2vg options -->
 	<!-- includeMinigraph: include minigraph node sequences as paths in output (note that cactus-graphmap-join will still remove them by default) -->
