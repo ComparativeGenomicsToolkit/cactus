@@ -42,7 +42,8 @@ setup(
         'networkx>=2,<2.8.1',
         'pytest',
         'cigar',
-        'biopython'], 
+        'biopython',
+        'pysam'], 
 
     cmdclass = {
         'install': PostInstallCommand,
