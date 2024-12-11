@@ -11,7 +11,6 @@ import shutil
 import subprocess
 import logging
 import pathlib
-import pipes
 import uuid
 import json
 import time
@@ -697,7 +696,7 @@ def cactus_call(tool=None,
     if (len(parameters) > 0) and isinstance(parameters[0], list):
         # We have a list of lists, which is the convention for commands piped into one another.
         flattened = [i for sublist in parameters for i in sublist]
-        chain_params = [' '.join(p) for p in [list(map(pipes.quote, q)) for q in parameters]]
+        chain_params = [' '.join(p) for p in [list(map(shlex.quote, q)) for q in parameters]]
         parameters = ['bash', '-c', 'set -eo pipefail && ' + ' | '.join(chain_params)]
         if mode == "docker":
             # We want to shell into bash directly rather than going
