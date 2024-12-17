@@ -1229,9 +1229,9 @@ def make_haplo_index(job, options, config, index_dict, giraffe_dict, tag=''):
     if giraffe_dict:
         job.fileStore.readGlobalFile(giraffe_dict['{}dist'.format(tag)], dist_path)
     else:
-        # note we are using --snarl-limit 1 here to reduce memory, and its all haplo sampling needs
+        # note we are using --no-nested-distance here to reduce memory, and its all haplo sampling needs
         dist_path += '1'
-        cactus_call(parameters=['vg', 'index', '-t', str(job.cores), '-j', dist_path, gbz_path, '--snarl-limit' ,'1'], job_memory=job.memory)
+        cactus_call(parameters=['vg', 'index', '-t', str(job.cores), '-j', dist_path, gbz_path, '--no-nested-distance'], job_memory=job.memory)
         
     # make the r-index
     # note: we don't bother adding it to the output_dict since it's only used for making the .hapl
