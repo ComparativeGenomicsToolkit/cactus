@@ -1146,9 +1146,15 @@ def vcfwave(job, config, out_name, vcf_ref, vcf_id, tbi_id, max_ref_allele, fast
 
     if run_merge:
         #note: merge_duplcates complains about not having a .tbi but I don't think it actually affects anything
-        merge_path = os.path.join(work_dir, os.path.basename(out_name) + '.' + vcf_ref + tag + 'wave.merge.vcf.gz')
-        cactus_call(parameters=['merge_duplicates.py', '-i', vcfwave_path, '-o', merge_path] + merge_duplicates_opts.split(' '))
-        vcfwave_path = merge_path        
+        merge_path_1 = os.path.join(work_dir, os.path.basename(out_name) + '.' + vcf_ref + tag + 'wave.merge.1.vcf.gz')
+        merge_path_2 = os.path.join(work_dir, os.path.basename(out_name) + '.' + vcf_ref + tag + 'wave.merge.vcf.gz')
+        merge_cmd = ['merge_duplicates.py', '-i', vcfwave_path, '-o', merge_path_1]
+        if merge_duplicates_opts:
+            merge_cmd.append(merge_duplicates_opts.split(' '))
+        cactus_call(parameters=merge_cmd)
+        #note: merge_dupcliates doesn't merge everythgin split by bcftools norm, hopefully this catches the remainder
+        cactus_call(parameters=['bcftools', 'norm', '-m', '+any', '-Oz', merge_path_1], outfile=merge_path_2)
+        vcfwave_path = merge_path_2
     try:
         cactus_call(parameters=['tabix', '-p', 'vcf', vcfwave_path])
         tbi_path = vcfwave_path + '.tbi'
