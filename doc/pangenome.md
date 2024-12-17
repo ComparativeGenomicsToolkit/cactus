@@ -264,7 +264,7 @@ Further reading:
 * `hapl` : Haplotype sampling index. Created with `--haplo` (new alternative to `--filter`) and used for new best practice `vg giraffe` pipeline.
 * `stats.tgz`: Some stats about how much sequence was clipped, including a BED file of the removed sequence.
 * `og`: [odgi](https://github.com/pangenome/odgi)'s native format, can be read and written by `odgi`. Very useful for [visualization](#visualization).
-
+* `snarl-stats.tsv.gz`: Table with one row per snarl (bubble) in the graph, sorted in decreasing order of the distance they span on the (first) reference sample.  See the table header for a description of each column, and note that snarls can be nested in eachother.  This table is produced with the `--snarlStats` option.  
 #### Node Chopping
 
 As of [v2.9.1](https://github.com/ComparativeGenomicsToolkit/cactus/releases/tag/v2.9.1), all output graphs will have node IDs of at most 1024bp. This is because the `gbz` and `dist` indexes require this (they use 10bits for node offsets), and as a result so do an increasing number of `vg` tools. There is also a major benefit from the simplicity of having all output files sharing the same ID space.
