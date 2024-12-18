@@ -177,7 +177,7 @@ def maf_viz_chrom(job, config, options, maf_id, tai_id, chrom):
     genome_groups = []
     if options.genomes:
         for genome in options.genomes:
-            genome_groups.append([g])
+            genome_groups.append([genome])
 
     # group haplotypes by sample, using .1 .2 etc naming convention from mc
     if options.haplotypes:
