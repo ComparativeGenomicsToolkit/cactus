@@ -211,13 +211,15 @@ def maf_viz(job, config, options, maf_id, chrom, genomes):
     if genomes != [None]:
         sed_cmd = ['sed']
         extract_cmd = [['gzip', '-dc', maf_path]] if options.mafFile.endswith('.gz') else [['cat', maf_path]]
+        new_genomes = []
         for genome in genomes:
             if '.' in genome:
                 new_genome = '_'.join(genome.rsplit('.', 1))
                 sed_cmd += ['-e', 's/{}/{}/g'.format(genome, new_genome)]
+                new_genomes.append(new_genome)
         if len(sed_cmd) > 1:
             extract_cmd.append(sed_cmd)
-        extract_cmd.append(['mafFilter', '-m', '-', '-i', ','.join(genomes + [options.refGenome])])
+        extract_cmd.append(['mafFilter', '-m', '-', '-i', ','.join(new_genomes + [options.refGenome])])
         extract_cmd.append(['mafFilter', '-m', '-', '-l', '2'])
         
         extract_cmd.append(['bgzip'])
@@ -232,12 +234,12 @@ def maf_viz(job, config, options, maf_id, chrom, genomes):
     # now we can do this viz
     dotfile = os.path.join(work_dir, 'dotplot.pdf')
     cactus_call(parameters=['python3', '/home/hickey/dev/taffy/scripts/taffy_alignment_plot.py',
-                            maf_path, '--show_dot_plot', '--output_format', 'png',
+                            extract_maf_path, '--show_dot_plot', '--output_format', 'png',
                             '--out_file', dotfile])
 
     syntfile = os.path.join(work_dir, 'synteny.pdf')
     cactus_call(parameters=['python3', '/home/hickey/dev/taffy/scripts/taffy_alignment_plot.py',
-                            maf_path, '--show_synteny', '--output_format', 'png',
+                            extract_maf_path, '--show_synteny', '--output_format', 'png',
                             '--bin_number', '500', '--show_sequence_boundaries',
                             '--out_file', syntfile])
 
