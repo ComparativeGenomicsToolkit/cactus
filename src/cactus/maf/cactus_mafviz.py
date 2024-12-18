@@ -148,7 +148,8 @@ def maf_viz_all(job, config, options, maf_id, tai_id):
         options.chroms = [None]
     if options.chroms:
         for chrom in options.chroms:
-            chrom_viz_job = job.addChildJobFn(maf_viz_chrom, config, options, maf_id, tai_id, chrom)
+            chrom_viz_job = job.addChildJobFn(maf_viz_chrom, config, options, maf_id, tai_id, chrom,
+                                              disk=maf_id.size*2)
             out_dict[chrom] = chrom_viz_job.rv()
 
     return out_dict
@@ -192,12 +193,15 @@ def maf_viz_chrom(job, config, options, maf_id, tai_id, chrom):
         for hap_list in sample_map.values():
             genome_groups.append(hap_list)
 
+    print(genome_groups)
             
     genome_dict = {}
     for genome_group in genome_groups:
-        viz_job = job.addChildJobFn(maf_viz, config, options, maf_id, chrom, genome_group)
+        viz_job = job.addChildJobFn(maf_viz, config, options, maf_id, chrom, genome_group,
+                                    disk=maf_id.size*3)
         genome_dict[genome_group[0]] = viz_job.rv()
 
+    print(genome_dict)
     return genome_dict
 
 def maf_viz(job, config, options, maf_id, chrom, genomes):
@@ -216,7 +220,9 @@ def maf_viz(job, config, options, maf_id, chrom, genomes):
             if '.' in genome:
                 new_genome = '_'.join(genome.rsplit('.', 1))
                 sed_cmd += ['-e', 's/{}/{}/g'.format(genome, new_genome)]
-                new_genomes.append(new_genome)
+            else:
+                new_genome = genome
+            new_genomes.append(new_genome)
         if len(sed_cmd) > 1:
             extract_cmd.append(sed_cmd)
         extract_cmd.append(['mafFilter', '-m', '-', '-i', ','.join(new_genomes + [options.refGenome])])
