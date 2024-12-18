@@ -230,7 +230,7 @@ def maf_viz(job, config, options, maf_id, chrom, genomes):
         
         extract_cmd.append(['bgzip'])
 
-        extract_maf_path = os.path.join(work_dir, genomes[0] + '.' + os.path.basename(options.mafFile))
+        extract_maf_path = os.path.join(work_dir, prefix + genomes[0] + '.' + os.path.basename(options.mafFile))
         if not extract_maf_path.endswith('.gz'):
             extract_maf_path += '.gz'
         cactus_call(parameters=extract_cmd, outfile=extract_maf_path)
