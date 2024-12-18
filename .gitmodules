@@ -31,3 +31,6 @@
 [submodule "submodules/red"]
 	path = submodules/red
 	url = https://github.com/glennhickey/red.git
+[submodule "submodules/collapse-bubble"]
+	path = submodules/collapse-bubble
+	url = https://github.com/Han-Cao/collapse-bubble.git
