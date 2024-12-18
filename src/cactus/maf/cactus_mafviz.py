@@ -208,13 +208,18 @@ def maf_viz(job, config, options, maf_id, chrom, genomes):
     maf_path = os.path.join(work_dir, prefix + os.path.basename(options.mafFile))
     job.fileStore.readGlobalFile(maf_id, maf_path)
 
-    if genomes != [None]:        
+    if genomes != [None]:
+        sed_cmd = ['sed']
         extract_cmd = [['gzip', '-dc', maf_path]] if options.mafFile.endswith('.gz') else [['cat', maf_path]]
         for genome in genomes:
             if '.' in genome:
                 new_genome = '_'.join(genome.rsplit('.', 1))
-                extract_cmd.append(['sed', '-e', 's/{}/{}/g'.format(genome, new_genome)])
-        extract_cmd.append(['mafFilter', '-m', '-', '-l', '2', '-i', ','.join(genomes + [options.refGenome])])
+                sed_cmd += ['-e', 's/{}/{}/g'.format(genome, new_genome)]
+        if len(sed_cmd) > 1:
+            extract_cmd.append(sed_cmd)
+        extract_cmd.append(['mafFilter', '-m', '-', '-i', ','.join(genomes + [options.refGenome])])
+        extract_cmd.append(['mafFilter', '-m', '-', '-l', '2'])
+        
         extract_cmd.append(['bgzip'])
 
         extract_maf_path = os.path.join(work_dir, genomes[0] + '.' + os.path.basename(options.mafFile))
