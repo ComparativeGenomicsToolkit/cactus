@@ -259,10 +259,6 @@ def export_mafviz(toil, options, output_dict):
             os.makedirs(chrom_base)
 
         for genome, genome_dict in chrom_dict.items():
-            genome_base = os.path.join(chrom_base, genome) if genome else chrom_base
-            if not genome_base.startswith('s3://') and not os.path.isdir(genome_base):
-                os.makedirs(genome_base)
-
             for viz_type, viz_id in genome_dict.items():
                 file_name = name
                 if chrom:
@@ -271,5 +267,5 @@ def export_mafviz(toil, options, output_dict):
                     file_name += '.{}'.format(genome)
                 file_name += '.{}.png'.format(viz_type)
                 
-                toil.exportFile(viz_id, makeURL(os.path.join(genome_base, file_name)))
+                toil.exportFile(viz_id, makeURL(os.path.join(chrom_base, file_name)))
 
