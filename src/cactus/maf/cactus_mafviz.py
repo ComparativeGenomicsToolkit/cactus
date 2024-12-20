@@ -199,7 +199,7 @@ def maf_viz_chrom(job, config, options, maf_id, tai_id, chrom):
     for genome_group in genome_groups:
         viz_job = job.addChildJobFn(maf_viz, config, options, maf_id, chrom, genome_group,
                                     disk=maf_id.size*3)
-        genome_dict[genome_group[0]] = viz_job.rv()
+        genome_dict[sorted(genome_group)[0]] = viz_job.rv()
 
     print(genome_dict)
     return genome_dict
