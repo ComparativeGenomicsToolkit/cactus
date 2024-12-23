@@ -1136,25 +1136,31 @@ def vcfwave(job, config, out_name, vcf_ref, vcf_id, tbi_id, max_ref_allele, fast
         fa_ref_path = os.path.join(work_dir, tag + 'fa.gz')
         job.fileStore.readGlobalFile(fasta_ref_dict[vcf_ref], fa_ref_path)
         bubwave_cmd.append(['bcftools', 'norm', '-f', fa_ref_path])
-        bubwave_cmd.append(['bcftools', 'sort', '-T', os.path.join(work_dir, 'bcftools.XXXXXX')])
         if run_merge:
             #merge_duplicates.py want biallelic
             bubwave_cmd.append(['bcftools', 'norm', '-m', '-any'])
+
     bubwave_cmd.append(['bgzip'])
 
     cactus_call(parameters=bubwave_cmd, outfile=vcfwave_path)
 
+    #do stable sort, which is apparently not guaranteed by bcftools
+    #(in case we merge later)
+    temp_path = os.path.join(work_dir, os.path.basename(out_name) + '.' + vcf_ref + tag + 'wave.tmp.vcf.gz')
+    cactus_call(parameters=['bcftools', 'view', '-Oz', '-h', vcfwave_path], outfile=temp_path)
+    cactus_call(parameters=[['bcftools', 'view', '-H', vcfwave_path],
+                                ['sort', '-k1,1d', '-k2,2n', '-s', '-T', work_dir],
+                                ['bgzip']], outfile=temp_path, outappend=True)
+    vcfwave_path, temp_path = temp_path, vcfwave_path
+
     if run_merge:
         #note: merge_duplcates complains about not having a .tbi but I don't think it actually affects anything
-        merge_path_1 = os.path.join(work_dir, os.path.basename(out_name) + '.' + vcf_ref + tag + 'wave.merge.1.vcf.gz')
-        merge_path_2 = os.path.join(work_dir, os.path.basename(out_name) + '.' + vcf_ref + tag + 'wave.merge.vcf.gz')
-        merge_cmd = ['merge_duplicates.py', '-i', vcfwave_path, '-o', merge_path_1]
+        merge_cmd = ['merge_duplicates.py', '-i', vcfwave_path, '-o', temp_path]
         if merge_duplicates_opts:
             merge_cmd.append(merge_duplicates_opts.split(' '))
         cactus_call(parameters=merge_cmd)
         #note: merge_dupcliates doesn't merge everythgin split by bcftools norm, hopefully this catches the remainder
-        cactus_call(parameters=['bcftools', 'norm', '-m', '+any', '-Oz', merge_path_1], outfile=merge_path_2)
-        vcfwave_path = merge_path_2
+        cactus_call(parameters=['bcftools', 'norm', '-m', '+any', '-Oz', temp_path], outfile=vcfwave_path)
     try:
         cactus_call(parameters=['tabix', '-p', 'vcf', vcfwave_path])
         tbi_path = vcfwave_path + '.tbi'
