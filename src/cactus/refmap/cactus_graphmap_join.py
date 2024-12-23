@@ -1123,11 +1123,13 @@ def vcfwave(job, config, out_name, vcf_ref, vcf_id, tbi_id, max_ref_allele, fast
         return vcf_id, tbi_id 
 
     # run vcfbub and vcfwave, using original HPRC recipe
+    # allele splitting added here as vcfwave has history of trouble with multi-allelic sites
     vcfwave_path = os.path.join(work_dir, os.path.basename(out_name) + '.' + vcf_ref + tag + 'wave.vcf.gz')
     wave_opts = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "vcfwaveOptions", typeFn=str, default=None)
     assert wave_opts
     bubwave_cmd = [['vcfbub', '--input', vcf_path, '-l', '0', '-a', str(max_ref_allele)],
-                   ['bcftools', 'annotate', '-x', 'INFO/AT'],                   
+                   ['bcftools', 'annotate', '-x', 'INFO/AT'],
+                   ['bcftools', 'norm', '-m', '-any'],
                    ['vcfwave'] + wave_opts.split(' ') + ['-t', str(job.cores)]]
     run_norm = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "vcfwaveNorm", typeFn=bool, default=True)
     merge_duplicates_opts = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "mergeDuplicatesOptions", typeFn=str, default=None)
@@ -1136,16 +1138,13 @@ def vcfwave(job, config, out_name, vcf_ref, vcf_id, tbi_id, max_ref_allele, fast
         fa_ref_path = os.path.join(work_dir, tag + 'fa.gz')
         job.fileStore.readGlobalFile(fasta_ref_dict[vcf_ref], fa_ref_path)
         bubwave_cmd.append(['bcftools', 'norm', '-f', fa_ref_path])
-        if run_merge:
-            #merge_duplicates.py want biallelic
-            bubwave_cmd.append(['bcftools', 'norm', '-m', '-any'])
 
     bubwave_cmd.append(['bgzip'])
 
     cactus_call(parameters=bubwave_cmd, outfile=vcfwave_path)
 
-    #do stable sort, which is apparently not guaranteed by bcftools
-    #(in case we merge later)
+    # stable sort, which is apparently not guaranteed by bcftools sort
+    # (in case we merge later, it's best to preserve variant order)
     temp_path = os.path.join(work_dir, os.path.basename(out_name) + '.' + vcf_ref + tag + 'wave.tmp.vcf.gz')
     cactus_call(parameters=['bcftools', 'view', '-Oz', '-h', vcfwave_path], outfile=temp_path)
     cactus_call(parameters=[['bcftools', 'view', '-H', vcfwave_path],
@@ -1159,8 +1158,11 @@ def vcfwave(job, config, out_name, vcf_ref, vcf_id, tbi_id, max_ref_allele, fast
         if merge_duplicates_opts:
             merge_cmd.append(merge_duplicates_opts.split(' '))
         cactus_call(parameters=merge_cmd)
-        #note: merge_dupcliates doesn't merge everythgin split by bcftools norm, hopefully this catches the remainder
-        cactus_call(parameters=['bcftools', 'norm', '-m', '+any', '-Oz', temp_path], outfile=vcfwave_path)
+        vcfwave_path, temp_path = temp_path, vcfwave_path
+        
+    cactus_call(parameters=['bcftools', 'norm', '-m', '+any', '-Oz', vcfwave_path], outfile=temp_path)
+    vcfwave_path, temp_path = temp_path, vcfwave_path
+    
     try:
         cactus_call(parameters=['tabix', '-p', 'vcf', vcfwave_path])
         tbi_path = vcfwave_path + '.tbi'
