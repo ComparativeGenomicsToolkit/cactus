@@ -580,11 +580,13 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
 
         # optional vcf
         if workflow_phase in options.vcf:
-            vcf_prev_job = ref_fasta_job if ref_fasta_job else gfa_root_job
             for vcf_ref in options.vcfReference:
-                vcf_job = vcf_prev_job.addFollowOnJobFn(make_vcf, config, options, workflow_phase,
+                vcf_job = gfa_root_job.addFollowOnJobFn(make_vcf, config, options, workflow_phase,
                                                         index_mem, vcf_ref, phase_vg_ids,
                                                         ref_fasta_job.rv() if ref_fasta_job else None)
+                if ref_fasta_job:
+                    ref_fasta_job.addFollowOn(vcf_job)
+
                 out_dicts.append(vcf_job.rv())
                     
         # optional giraffe
