@@ -137,7 +137,8 @@ def graphmap_join_options(parser):
     parser.add_argument("--vcfwave", action='store_true', default=False, help = "Create a vcfwave-normalized VCF. vcfwave realigns alt alleles to the reference, and can help correct messy regions in the VCF. This option will output an additional VCF with 'wave' in its filename, other VCF outputs will not be affected")
     parser.add_argument("--vcfwaveCores", type=int, help = "Number of cores for each vcfwave job [default=2].", default=2)
     parser.add_argument("--vcfwaveMemory", type=human2bytesN, help = "Memory for reach vcfwave job [default=32Gi].", default=32000000000)
-    
+    parser.add_argument("--snarlStats", nargs='*', help = "Write a list of snarl statistics for the graph type(s). Valid types are 'full', 'clip' and 'filter'. If no type specified, 'clip' will be used ('full' used if clipping disabled). Multipe types can be provided separated by space")
+        
     parser.add_argument("--giraffe", nargs='*', default=None, help = "Generate Giraffe (.dist, .min) indexes for the given graph type(s). Valid types are 'full', 'clip' and 'filter'. If not type specified, 'filter' will be used (will fall back to 'clip' than full if filtering, clipping disabled, respectively). Multiple types can be provided seperated by a space. NOTE: do not use this option if you want to use haplotype sampling. Use --haplo instead.")
 
     parser.add_argument("--haplo", nargs='*', default=None, help = "Generate haplotype subsampling (.ri, .hapl) indexes for the given graph type(s). Haplotype subsampling is a new, better alternative filtering by allele frequency. Valid types are 'full' and 'clip'. If not type specified, 'clip' will be used ('full' will be used if clipping disabled). Multiple types can be provided seperated by a space. NOTE: you normally want to use this option without --giraffe!")
@@ -146,7 +147,7 @@ def graphmap_join_options(parser):
 
     
     parser.add_argument("--indexMemory", type=human2bytesN,
-                        help="Memory in bytes for each indexing and vcf construction job job (defaults to an estimate based on the input data size). If specified will also be used to upper-bound per-chromosome memory estimates -- ie no job will request more than this much memory."
+                        help="Memory in bytes for each indexing and vcf construction job (defaults to an estimate based on the input data size). If specified will also be used to upper-bound per-chromosome memory estimates -- ie no job will request more than this much memory."
                         "Standard suffixes like K, Ki, M, Mi, G or Gi are supported (default=bytes))", default=None)   
     
     parser.add_argument("--collapse", help = "Incorporate minimap2 self-alignments.", action='store_true', default=False)
@@ -302,6 +303,17 @@ def graphmap_join_validate_options(options):
         for vcfref in options.vcfReference:
             if vcfref not in options.reference:
                 raise RuntimeError('--vcfReference {} invalid because {} was not specified as a --reference'.format(vcfref, vcfref))
+
+    if options.snarlStats == []:
+        options.snarlStats = ['clip'] if options.clip else ['full']
+    options.snarlStats = list(set(options.snarlStats)) if options.snarlStats else []    
+    for snarl_stats in options.snarlStats:
+        if snarl_stats not in ['clip', 'filter', 'full']:
+            raise RuntimeError('Unrecognized value for --snarlStats: {}. Must be one of {{clip, filter, full}}'.format(snarl_stats))
+        if snarl_stats == 'clip' and not options.clip:
+            raise RuntimError('--snarlStats cannot be set to clip since clipping is disabled')
+        if snarl_stats == 'filter' and not options.filter:
+            raise RuntimeError('--snarlStats cannot be set to filter since filtering is disabled')
 
     if options.giraffe == []:
         options.giraffe = ['filter'] if options.filter else ['clip'] if options.clip else ['full']
@@ -635,6 +647,22 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
                     og_chrom_ids[workflow_phase]['viz'].append(viz_job.rv(0) if viz_job else None)
                 if do_draw:
                     og_chrom_ids[workflow_phase]['draw'].append(viz_job.rv(1) if viz_job else None)
+
+        # optional snarl stats table
+        if workflow_phase in options.snarlStats:
+            snarl_stats_ids = []
+            for vg_path, vg_id, input_vg_id in zip(options.vg, phase_vg_ids, vg_ids):
+                
+                snarl_stats_job = gfa_root_job.addChildJobFn(snarl_stats, options, config, vg_path, vg_id,
+                                                             disk=input_vg_id.size * 2,
+                                                             memory=cactus_clamp_memory(input_vg_id.size * 5),
+                                                             cores=options.indexCores)
+                snarl_stats_ids.append(snarl_stats_job.rv())
+
+            snarl_stats_merge_job = gfa_root_job.addFollowOnJobFn(merge_snarl_stats, options.vg, snarl_stats_ids,
+                                                                  tag=workflow_phase + '.',
+                                                                  disk=sum(f.size for f in vg_ids) * 2)
+            out_dicts.append(snarl_stats_merge_job.rv())
     
     return output_full_vg_ids, clip_vg_ids, clipped_stats, filter_vg_ids, out_dicts, og_chrom_ids
 
@@ -951,7 +979,6 @@ def extract_gbz_fasta(job, options, index_dict, tag):
     """
     work_dir = job.fileStore.getLocalTempDir()
     gbz_path = os.path.join(work_dir, tag + os.path.basename(options.outName) + '.gbz')
-    print ("YAN", index_dict)
     job.fileStore.readGlobalFile(index_dict['{}gbz'.format(tag)], gbz_path)
 
     out_dict = {}
@@ -1310,6 +1337,46 @@ def make_odgi_viz(job, config, options, vg_path, og_id, tag='', viz=True, draw=T
     return (job.fileStore.writeGlobalFile(viz_png_path) if viz else None,
             job.fileStore.writeGlobalFile(draw_png_path) if draw else None)
     
+
+def snarl_stats(job, options, config, vg_path, vg_id):
+    """ use vg stats to make a table of snarls, including reference path intervals where possible"""
+    work_dir = job.fileStore.getLocalTempDir()
+    vg_path = os.path.join(work_dir, os.path.basename(vg_path))
+    job.fileStore.readGlobalFile(vg_id, vg_path)
+
+    snarl_stats_path = vg_path + '.snarl-stats.tsv'
+    cactus_call(parameters=['vg', 'stats', '-R', vg_path, '--snarl-sample', options.reference[0], '--threads', str(job.cores)],
+                outfile=snarl_stats_path)
+
+    return job.fileStore.writeGlobalFile(snarl_stats_path)
+
+def merge_snarl_stats(job, vg_paths, snarl_stats_ids, tag):
+    """ sort (decreasing reference interval sizer) and merge the different stats files """
+    work_dir = job.fileStore.getLocalTempDir()
+    local_paths = []
+    for in_path, in_id in zip(vg_paths, snarl_stats_ids):
+        name = os.path.splitext(os.path.basename(in_path))[0] + '.' + tag + 'ss.tsv'
+        vg_path = os.path.join(work_dir, name)
+        job.fileStore.readGlobalFile(in_id, vg_path)
+        local_paths.append(os.path.basename(vg_path))
+
+    merged_stats_path = 'merge{}.snarl-stats.tsv.gz'.format(tag)
+    # get the header
+    cactus_call(parameters=['head', '-1', local_paths[0]], outfile=merged_stats_path, work_dir=work_dir)
+
+    # sort by interval size
+    os.makedirs(os.path.join(work_dir, 'sorttmp'))
+    cactus_call(parameters=[['cat'] + local_paths,
+                            ['grep', '-v', '^#'],
+                            ['awk', '{print $3-$2 \"\\t\" $0}'],
+                            ['sort', '-k1', '-r', '-n', '-T', os.path.join(work_dir, 'sorttmp')],
+                            ['cut', '-f2-'],
+                            ['bgzip']],
+                outfile=merged_stats_path,
+                outappend=True,
+                work_dir=work_dir)
+
+    return { '{}snarl-stats.tsv.gz'.format(tag) : job.fileStore.writeGlobalFile(merged_stats_path) }
 
 def merge_hal(job, options, hal_ids):
     """ call halMergeChroms to make one big hal file out of the chromosome hal files """

@@ -526,7 +526,7 @@ class TestCase(unittest.TestCase):
                                                             '--giraffe', 'clip', 'filter',  '--chrom-vg', 'clip', 'filter',
                                                             '--viz', '--chrom-og', 'clip', 'full', '--odgi', '--haplo', 'clip',
                                                             '--xg', '--unchopped-gfa', '--indexCores', '4', '--consCores', '2',
-                                                            '--collapse', '--lastTrain']
+                                                            '--collapse', '--lastTrain', '--snarlStats']
         subprocess.check_call(cactus_pangenome_cmd + cactus_opts)
 
         #compatibility with older test
