@@ -152,8 +152,8 @@
 		 minimumTreeCoverage="0.0"
 		 alignmentFilter="filterSecondariesByMultipleSequences"
 		 maxAdjacencyComponentSizeRatio="50"
-		 minLengthForChromosome="100000"
-		 proportionOfUnalignedBasesForNewChromosome="0.8"
+		 minLengthForChromosome="1000000"
+		 proportionOfUnalignedBasesForNewChromosome="0.95"
 		 maximumMedianSequenceLengthBetweenLinkedEnds="100000"
 		 removeRecoverableChains="unequalNumberOfIngroupCopies"
 		 maxRecoverableChainsIterations="10"
@@ -276,22 +276,31 @@
 	</bar>
 
 	<!-- The reference tag provides parameters to cactus_reference, a method used to construct a reference genome for a given cactus database. -->
+	<!--  The algorithm was described in: https://www.liebertpub.com/doi/abs/10.1089/cmb.2014.0146 A sketch is as follows:
+	    (1) For each flower in the hierarchy:
+	    (2) Assume that all links in all chains are preserved, for the remaining, find a matching between the stub ends
+	    and chain ends using a matching algorithm (e.g. Blossum), scoring adjacencies
+	    so that each pair of bases in each sequence connected by a gap of length k contributes a score proportional
+	    to (1-theta)**k.
+	    (3) Refine the matching using a simulated annealing algorithm. -->
+	<!-- matchingAlgorithm the matching algorithm used to pick the adjcanecies (e.g. Blossum) -->
+	<!-- theta each pair of bases connected in a sequence by a gap of k bases contributes score proportional to (1-theta)**k the adjacency.-->
 	<!-- numberOfNs is the number of Ns to insert into an ancestral sequence when an adjacency is uncertain, think of its as the Ns in a scaffold gap -->
-	<!-- minNumberOfSequencesToSupportAdjacency is the number of sequences needed to bridge an adjacency -->
+	<!-- minNumberOfSequencesToSupportAdjacency is the number of sequences needed to bridge an adjacency [THIS SET TO 0, SO NO ADJACENCIES WILL BE BROKEN] -->
 	<!-- makeScaffolds is a boolean that enables the bridging of uncertain adjacencies in an ancestral sequence providing the larger scale problem (parent flower in cactus), bridges the path. -->
 	<!-- phi is the coefficient used to control how much weight to place on an adjacency given its phylogenetic distance from the reference node -->
 	<reference
 		matchingAlgorithm="blossom5"
 		reference="reference"
 		useSimulatedAnnealing="1"
-		theta="0.0001"
+		theta="0.000001"
 		phi="1.0"
 		maxWalkForCalculatingZ="100000"
 		permutations="10"
 		ignoreUnalignedGaps="1"
 		wiggle="0.9999"
 		numberOfNs="10"
-		minNumberOfSequencesToSupportAdjacency="1"
+		minNumberOfSequencesToSupportAdjacency="0"
 		makeScaffolds="1"
 	>
 	</reference>
