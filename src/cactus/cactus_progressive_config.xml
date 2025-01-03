@@ -293,7 +293,7 @@
 		matchingAlgorithm="blossom5"
 		reference="reference"
 		useSimulatedAnnealing="1"
-		theta="0.000001"
+		theta="0.0000005"
 		phi="1.0"
 		maxWalkForCalculatingZ="100000"
 		permutations="10"
