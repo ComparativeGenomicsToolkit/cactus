@@ -239,12 +239,12 @@ suball.cPecan: suball.sonLib
 
 suball.cactus2hal: suball.sonLib suball.hal all_libs.api
 	cd submodules/cactus2hal && ${MAKE}
-	mkdir -p bin
+	mkdir -p ${BINDIR} ${LIBDIR} ${INCLDIR}	
 	-ln -f submodules/cactus2hal/bin/* bin/
 
 suball.hal: suball.sonLib
 	cd submodules/hal &&  ${MAKE}
-	mkdir -p bin
+	mkdir -p ${BINDIR} ${LIBDIR} ${INCLDIR}	
 	-ln -f submodules/hal/bin/* bin/
 	-ln -f submodules/hal/lib/libHal.a submodules/hal/lib/halLib.a
 
@@ -256,7 +256,7 @@ suball.abPOA:
 
 suball.lastz:
 	cd submodules/lastz && ${MAKE}
-	mkdir -p bin
+	mkdir -p ${BINDIR} ${LIBDIR} ${INCLDIR}	
 	ln -f submodules/lastz/src/lastz bin
 
 suball.paffy:

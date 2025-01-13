@@ -34,6 +34,7 @@ set -x
 rm -rf ${pangenomeBuildDir}
 mkdir -p ${pangenomeBuildDir}
 mkdir -p ${binDir}
+mkdir -p ${libDir}
 
 # minimap2
 if [ -z ${arm+x} ]
