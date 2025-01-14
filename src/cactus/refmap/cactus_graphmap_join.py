@@ -1124,15 +1124,12 @@ def vcfwave(job, config, out_name, vcf_ref, vcf_id, tbi_id, max_ref_allele, fast
 
     # run vcfbub and vcfwave, using original HPRC recipe
     # allele splitting added here as vcfwave has history of trouble with multi-allelic sites
-    # running bcftools norm -a --atom-overlaps . (important to in sep. command to -m) to
-    # normalize as much as possible without realigning (and therefore changing graph)
     vcfwave_path = os.path.join(work_dir, os.path.basename(out_name) + '.' + vcf_ref + tag + 'wave.vcf.gz')
     wave_opts = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "vcfwaveOptions", typeFn=str, default=None)
     assert wave_opts
     bubwave_cmd = [['vcfbub', '--input', vcf_path, '-l', '0', '-a', str(max_ref_allele)],
                    ['bcftools', 'annotate', '-x', 'INFO/AT'],
                    ['bcftools', 'norm', '-m', '-any'],
-                   ['bcftools', 'norm', '-a', '--atom-overlaps', '.'],
                    ['vcfwave'] + wave_opts.split(' ') + ['-t', str(job.cores)]]
     run_norm = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "vcfwaveNorm", typeFn=bool, default=True)
     merge_duplicates_opts = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "mergeDuplicatesOptions", typeFn=str, default=None)
