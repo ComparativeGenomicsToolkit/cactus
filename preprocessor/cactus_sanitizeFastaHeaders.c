@@ -39,11 +39,11 @@ void init_mask_table() {
         mask_table[i] = 0;
     }
     for (int i = 0; i < strlen(valid_bases); ++i) {
-        mask_table[valid_bases[i]] = valid_bases[i];
+        mask_table[(int)valid_bases[i]] = valid_bases[i];
         mask_table[toupper(valid_bases[i])] = toupper(valid_bases[i]);        
     }
     for (int i = 0; i < strlen(mask_bases); ++i) {
-        mask_table[mask_bases[i]] = 'n';
+        mask_table[(int)mask_bases[i]] = 'n';
         mask_table[toupper(mask_bases[i])] = 'N';
     }
 }
