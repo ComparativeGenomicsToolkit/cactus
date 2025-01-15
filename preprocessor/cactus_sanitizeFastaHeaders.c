@@ -30,6 +30,23 @@ void usage() {
 static stSet* header_set = NULL;
 static bool strip_pounds = false;
 static bool convert_range = false;
+static char mask_table[256];
+
+void init_mask_table() {
+    char* valid_bases = "acgtn";
+    char* mask_bases = "uwsmkrybdhv";
+    for (int i = 0; i < 256; ++i) {
+        mask_table[i] = 0;
+    }
+    for (int i = 0; i < strlen(valid_bases); ++i) {
+        mask_table[(int)valid_bases[i]] = valid_bases[i];
+        mask_table[toupper(valid_bases[i])] = toupper(valid_bases[i]);        
+    }
+    for (int i = 0; i < strlen(mask_bases); ++i) {
+        mask_table[(int)mask_bases[i]] = 'n';
+        mask_table[toupper(mask_bases[i])] = 'N';
+    }
+}
 
 void addUniqueFastaPrefix(void* destination, const char *fastaHeader, const char *string, int64_t length) {
 
@@ -131,11 +148,15 @@ void addUniqueFastaPrefix(void* destination, const char *fastaHeader, const char
     // sanity check
     int64_t n = strlen(string);
     for (int64_t i = 0; i < n; ++i) {
-        char c = tolower(string[i]);
-        if (c != 'a' && c != 'c' && c != 'g' && c != 't' && c != 'n') {
-            fprintf(stderr, "Error: Non-ACGTN character '%c' found at position %" PRIi64 " of FASTA sequence %s in event %s\n",
-                    c, i, fastaHeader, eventName);
-            exit(1);
+        char mc = mask_table[(int)string[i]];
+        if (mc != string[i]) {
+            if (mc == 'n' || mc == 'N') {
+                ((char*)string)[i] = mc;
+            } else {
+                fprintf(stderr, "Error: Non-ACGTN (or IUPAC) character '%c' found at position %" PRIi64 " of FASTA sequence %s in event %s\n",
+                        string[i], i, fastaHeader, eventName);
+                exit(1);
+            }
         }
     }
     
@@ -158,6 +179,7 @@ int main(int argc, char *argv[]) {
         }
     }
 
+    init_mask_table();
     header_set = stSet_construct3(stHash_stringKey, stHash_stringEqualKey, free);
     
     FILE *fileHandle;
