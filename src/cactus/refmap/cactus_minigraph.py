@@ -469,11 +469,16 @@ def minigraph_gfa_from_pansn(job, names, gfa_path, gfa_id):
             for i, tok in enumerate(toks[4:]):
                 if tok.startswith('SN:Z:'):
                     hashpos = tok.find('#')
-                    assert hashpos > 0
+                    if hashpos < 0:
+                        # no prefix found: do nothing and hope for the best
+                        continue
                     hashpos2 = hashpos + 1 + tok[hashpos+1:].find('#')
-                    assert hashpos2 > hashpos
-                    name = tok[5:hashpos]
-                    hap = tok[hashpos+1:hashpos2]
+                    if hashpos2 < 0:
+                        name = tok[5:]
+                        hap = "0"
+                    else:
+                        name = tok[5:hashpos]
+                        hap = tok[hashpos+1:hashpos2]
                     # minigraph_to_pansn() will add #0 to names without any dots
                     # we untangle that here using the names list                    
                     if name not in names:
