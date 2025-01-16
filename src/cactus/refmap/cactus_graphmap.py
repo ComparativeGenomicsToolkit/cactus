@@ -35,7 +35,7 @@ from toil.realtimeLogger import RealtimeLogger
 from cactus.shared.common import cactus_cpu_count
 from cactus.shared.common import cactus_clamp_memory
 from cactus.progressive.progressive_decomposition import compute_outgroups, parse_seqfile, get_subtree, get_spanning_subtree, get_event_set
-from cactus.refmap.cactus_minigraph import check_sample_names
+from cactus.refmap.cactus_minigraph import check_sample_names, minigraph_gfa_from_pansn
 from sonLib.nxnewick import NXNewick
 from sonLib.bioio import getTempDirectory
 
@@ -122,10 +122,10 @@ def graph_map(options):
         if options.restart:
             paf_id, gfa_fa_id, gaf_id, unfiltered_paf_id, paf_filter_log, paf_was_filtered = toil.restart()
         else:
-            # load up the seqfile and figure out the outgroups and schedule
+            # load up the seqfile
             config_wrapper.substituteAllPredefinedConstantsWithLiterals(options)
-            mc_tree, input_seq_map, og_candidates = parse_seqfile(options.seqFile, config_wrapper, pangenome=True)
-            event_set = get_event_set(mc_tree, config_wrapper, {}, mc_tree.getRootName())
+            seqFile = SeqFile(options.seqFile, defaultBranchLen=config_wrapper.getDefaultBranchLen(pangenome=True))
+            input_seq_map = seqFile.pathMap
 
             # apply path overrides.  this was necessary for wdl which doesn't take kindly to
             # text files of local paths (ie seqfile).  one way to fix would be to add support
@@ -157,9 +157,6 @@ def graph_map(options):
                 
             # get the minigraph "virutal" assembly name
             graph_event = getOptionalAttrib(findRequiredNode(config_node, "graphmap"), "assemblyName", default="_MINIGRAPH_")
-            if graph_event in event_set:
-                # dont need to import this
-                event_set.remove(graph_event)
 
             # validate the sample names
             check_sample_names(input_seq_map.keys(), options.reference)
@@ -196,7 +193,7 @@ def graph_map(options):
             seq_id_map = {}
             fa_id_map = {}
             for (genome, seq) in input_seq_map.items():
-                if genome in event_set:
+                if genome != graph_event:
                     if os.path.isdir(seq):
                         tmpSeq = getTempFile()
                         catFiles([os.path.join(seq, subSeq) for subSeq in os.listdir(seq)], tmpSeq)
@@ -226,10 +223,11 @@ def graph_map(options):
         if options.outputFasta:
             add_genome_to_seqfile(options.seqFile, makeURL(options.outputFasta), graph_event)
 
-def minigraph_workflow(job, options, config, seq_id_map, gfa_id, graph_event, sanitize, ref_collapse_paf_id):
+def minigraph_workflow(job, options, config, seq_id_map, gfa_id, graph_event, sanitize, ref_collapse_paf_id, pansn_gfa_input=True):
     """ Overall workflow takes command line options and returns (paf-id, (optional) fa-id) """
     fa_id = None
     gfa_id_size = gfa_id.size
+    genome_names = set(seq_id_map.keys())
 
     # can be a list coming in from cactus-pangenome, but we only need first item
     if type(options.reference) is list:
@@ -250,17 +248,26 @@ def minigraph_workflow(job, options, config, seq_id_map, gfa_id, graph_event, sa
         ref_collapse_paf_id = root_job.addChildJobFn(add_paf_prefixes, ref_collapse_paf_id, options.reference,
                                                      disk=2*ref_collapse_paf_id.size).rv()
 
+    # convert the GFA from PanSN to Cactus names
+    if pansn_gfa_input:
+        rename_gfa_job = root_job.addChildJobFn(minigraph_gfa_from_pansn, genome_names, options.minigraphGFA, gfa_id,
+                                                disk=gfa_id.size*2)
+        new_root_job = Job()
+        root_job.addFollowOn(new_root_job)
+        root_job = new_root_job
+        gfa_id = rename_gfa_job.rv()
+
     zipped_gfa = options.minigraphGFA.endswith('.gz')
     if options.outputFasta:
         # convert GFA to fasta
         scale = 5 if zipped_gfa else 1
         fa_job = root_job.addChildJobFn(make_minigraph_fasta, gfa_id, options.outputFasta, graph_event,
-                                        disk=scale*2*gfa_id.size, memory=cactus_clamp_memory(2*scale*gfa_id.size))
+                                        disk=scale*2*gfa_id_size, memory=cactus_clamp_memory(2*scale*gfa_id_size))
         fa_id = fa_job.rv()
 
     if zipped_gfa:
         # gaf2paf needs unzipped gfa, so we take care of that upfront
-        gfa_unzip_job = root_job.addChildJobFn(unzip_gz, options.minigraphGFA, gfa_id, delete_original=False, disk=5*gfa_id.size)
+        gfa_unzip_job = root_job.addChildJobFn(unzip_gz, options.minigraphGFA, gfa_id, delete_original=False, disk=5*gfa_id_size)
         gfa_id = gfa_unzip_job.rv()
         gfa_id_size *= 10
         options.minigraphGFA = options.minigraphGFA[:-3]
@@ -353,7 +360,6 @@ def make_minigraph_fasta(job, gfa_file_id, gfa_file_path, name):
 
 def minigraph_map_all(job, config, gfa_id, fa_id_map, graph_event):
     """ top-level job to run the minigraph mapping in parallel, returns paf """
-    
     # hang everything on this job, to self-contain workflow
     top_job = Job()
     job.addChild(top_job)

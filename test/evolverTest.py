@@ -404,11 +404,16 @@ class TestCase(unittest.TestCase):
         if binariesMode == 'docker':
             cactus_opts += ['--latest']
 
-        subprocess.check_call(['cactus-graphmap', self._job_store(binariesMode), out_seq_file_path, mg_path, paf_path,
+        # cactus-grpahmap just aligns all the leaves (except graph event) in the input, ignoring the tree
+        # so wee need to get rid of Anc0 which was added by prepare (todo: this pipeline isn't really
+        # realistic, and probably doesn't need to be in CI anymore)
+        seq_file_fix_path = out_seq_file_path + '.fix'
+        subprocess.check_call('grep -v ^Anc {} > {}'.format(out_seq_file_path, seq_file_fix_path), shell=True)
+        subprocess.check_call(['cactus-graphmap', self._job_store(binariesMode), seq_file_fix_path, mg_path, paf_path,
                                '--outputFasta', fa_path, '--mapCores', '4'] + cactus_opts)
 
         # do the alignment
-        subprocess.check_call(['cactus-align', self._job_store(binariesMode), out_seq_file_path, paf_path, self._out_hal(binariesMode),
+        subprocess.check_call(['cactus-align', self._job_store(binariesMode), seq_file_fix_path, paf_path, self._out_hal(binariesMode),
                                '--pangenome', '--outVG', '--outGFA', '--pafMaskFilter', '10000', '--barMaskFilter', '10000'] + cactus_opts)
 
     def _run_evolver_primates_pangenome(self, binariesMode):
