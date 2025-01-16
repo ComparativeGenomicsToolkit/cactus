@@ -27,6 +27,8 @@ import copy
 import timeit
 import re
 import subprocess
+import gzip
+import shutil
 
 from operator import itemgetter
 from collections import defaultdict
@@ -1035,7 +1037,7 @@ def make_vcf(job, config, options, workflow_phase, index_mem, vcf_ref, vg_ids, r
             bub_vcf_tbi_ids.append((bub_vcf_id, bub_tbi_id))
 
         if options.vcfwave:
-            vcfwave_job = deconstruct_job.addFollowOnJobFn(vcfwave, config, options.outName, vcf_ref,
+            vcfwave_job = deconstruct_job.addFollowOnJobFn(chunked_vcfwave, config, options.outName, vcf_ref,
                                                            raw_vcf_id, raw_tbi_id,
                                                            options.vcfbub,
                                                            ref_fasta_dict,
@@ -1099,32 +1101,67 @@ def vcfbub(job, config, out_name, vcf_ref, vcf_id, tbi_id, max_ref_allele, fasta
     # run vcfbub
     vcfbub_path = os.path.join(work_dir, os.path.basename(out_name) + '.' + tag + 'bub.vcf.gz')
     assert max_ref_allele
-    bub_cmd = [['vcfbub', '--input', vcf_path, '--max-ref-length', str(max_ref_allele), '--max-level', '0']]
-    run_norm = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "bcftoolsNorm", typeFn=bool, default=False)
-    if run_norm:
-        fa_ref_path = os.path.join(work_dir, tag + 'fa.gz')
-        job.fileStore.readGlobalFile(fasta_ref_dict[vcf_ref], fa_ref_path)
-        bub_cmd.append(['bcftools', 'norm', '-f', fa_ref_path])
-        bub_cmd.append(['bcftools', 'norm', '-m', '+any'])
-        bub_cmd.append(['bcftools', 'sort', '-T', os.path.join(work_dir, 'bcftools.XXXXXX')])
-    bub_cmd.append(['bgzip', '--threads', str(job.cores)])
-    cactus_call(parameters=bub_cmd, outfile=vcfbub_path)
-
-    merge_duplicates_opts = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "mergeDuplicatesOptions", typeFn=str, default=None)
-    if merge_duplicates_opts and merge_duplicates_opts != "0" and run_norm:
-        #note: merge_duplcates complains about not having a .tbi but I don't think it actually affects anything
-        merge_path = os.path.join(work_dir, os.path.basename(out_name) + '.' + vcf_ref + tag + 'bub.merge.vcf.gz')
-        cactus_call(parameters=['merge_duplicates.py', '-i', vcfbub_path, '-o', merge_path] + merge_duplicates_opts.split(' '))
-        vcfbub_path = merge_path        
-    
+    cactus_call(parameters = [['vcfbub', '--input', vcf_path, '--max-ref-length', str(max_ref_allele), '--max-level', '0'],
+                              ['bgzip']], outfile = vcfbub_path)
+        
     try:
         cactus_call(parameters=['tabix', '-p', 'vcf', vcfbub_path])
         tbi_path = vcfbub_path + '.tbi'
     except Exception as e:
         cactus_call(parameters=['bcftools', 'index', '-c', vcfbub_path])
-        tbi_path = vcfbub_path + '.csi'        
+        tbi_path = vcfbub_path + '.csi'
 
-    return job.fileStore.writeGlobalFile(vcfbub_path), job.fileStore.writeGlobalFile(tbi_path)
+    bub_vcf_id = job.fileStore.writeGlobalFile(vcfbub_path)
+    bub_tbi_id = job.fileStore.writeGlobalFile(tbi_path)
+    
+    if getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "bcftoolsNorm", typeFn=bool, default=False):
+        norm_job = job.addChildJobFn(vcfnorm, config, vcf_ref, bub_vcf_id, vcfbub_path, bub_tbi_id, fasta_ref_dict,
+                                     disk=bub_vcf_id.size * 5)
+        return norm_job.rv()
+    else:
+        return bub_vcf_id, bub_tbi_id
+
+def vcfnorm(job, config, vcf_ref, vcf_id, vcf_path, tbi_id, fasta_ref_dict):
+    """ run bcftools norm and merge_duplicates.py """
+    work_dir = job.fileStore.getLocalTempDir()
+    vcf_path = os.path.join(work_dir, os.path.basename(vcf_path))
+    job.fileStore.readGlobalFile(vcf_id, vcf_path)
+    job.fileStore.readGlobalFile(tbi_id, vcf_path + '.tbi')
+    fa_ref_path = os.path.join(work_dir, vcf_ref + '.fa.gz')
+    job.fileStore.readGlobalFile(fasta_ref_dict[vcf_ref], fa_ref_path)
+
+    norm_path = os.path.join(work_dir, 'norm.' + os.path.basename(vcf_path))
+    cactus_call(parameters=['bcftools', 'view', '-h', '-Oz', vcf_path], outfile=norm_path)
+    cactus_call(parameters=[['bcftools', 'norm', '-m', '-any', vcf_path],
+                            ['bcftools', 'norm', '-f', fa_ref_path],
+                            ['bcftools', 'view', '-H'],
+                            ['sort', '-k1,1d', '-k2,2n', '-s', '-T', work_dir],
+                            ['bgzip']], outfile=norm_path, outappend=True)
+    
+    merge_duplicates_opts = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "mergeDuplicatesOptions", typeFn=str, default=None)
+    if merge_duplicates_opts not in [None, "0"]:
+        #note: merge_duplcates complains about not having a .tbi but I don't think it actually affects anything
+        merge_path = os.path.join(work_dir, 'merge.' + os.path.basename(vcf_path))
+        merge_cmd = ['merge_duplicates.py', '-i', norm_path, '-o', merge_path]
+        if merge_duplicates_opts:
+            merge_cmd.append(merge_duplicates_opts.split(' '))
+        cactus_call(parameters=merge_cmd)
+        norm_path = merge_path
+
+    multi_path = os.path.join(work_dir, 'multi.' + os.path.basename(vcf_path))
+    cactus_call(parameters=['bcftools', 'norm', '-m', '+any', '-Oz', norm_path], outfile=multi_path)
+    
+    try:
+        cactus_call(parameters=['tabix', '-p', 'vcf', multi_path])
+        tbi_path = multi_path + '.tbi'
+    except Exception as e:
+        cactus_call(parameters=['bcftools', 'index', '-c', multi_path])
+        tbi_path = multi_path + '.csi'        
+
+    job.fileStore.deleteGlobalFile(vcf_id)    
+    job.fileStore.deleteGlobalFile(tbi_id)
+    
+    return job.fileStore.writeGlobalFile(multi_path), job.fileStore.writeGlobalFile(tbi_path)
 
 def check_vcfwave(job):
     """ check to make sure vcfwave is installed """
@@ -1133,8 +1170,8 @@ def check_vcfwave(job):
     except:
         raise RuntimeError('--vcfwave option used, but vcfwave tool not found in PATH. vcfwave is *not* included in the cactus binary release, but it is in the cactus Docker image. If you have Docker installed, you can try running again with --binariesMode docker. Or running your whole command with docker run. If you cannot use Docker, then you will need to build vcflib yourself before retrying: source code and details here: https://github.com/vcflib/vcflib')
 
-def vcfwave(job, config, out_name, vcf_ref, vcf_id, tbi_id, max_ref_allele, fasta_ref_dict, tag):
-    """ run vcfwave """
+def chunked_vcfwave(job, config, out_name, vcf_ref, vcf_id, tbi_id, max_ref_allele, fasta_ref_dict, tag):
+    """ run vcfwave in parallel chunks """
     work_dir = job.fileStore.getLocalTempDir()
     vcf_path = os.path.join(work_dir, os.path.basename(out_name) + '.' + vcf_ref + tag + 'raw.vcf.gz')
     job.fileStore.readGlobalFile(vcf_id, vcf_path)
@@ -1145,58 +1182,98 @@ def vcfwave(job, config, out_name, vcf_ref, vcf_id, tbi_id, max_ref_allele, fast
                                    shell=True).decode('utf-8').strip()) == 0:    
         return vcf_id, tbi_id 
 
-    # run vcfbub and vcfwave, using original HPRC recipe
+    # run vcfbub using original HPRC recipe
     # allele splitting added here as vcfwave has history of trouble with multi-allelic sites
-    vcfwave_path = os.path.join(work_dir, os.path.basename(out_name) + '.' + vcf_ref + tag + 'wave.vcf.gz')
+    vcfbub_path = os.path.join(work_dir, os.path.basename(out_name) + '.' + vcf_ref + tag + 'bub.vcf.gz')
+    bub_cmd = [['vcfbub', '--input', vcf_path, '-l', '0', '-a', str(max_ref_allele)],
+               ['bcftools', 'annotate', '-x', 'INFO/AT'],
+               ['bcftools', 'norm', '-m', '-any'],
+               ['bgzip', '--threads', str(job.cores)]]
+    cactus_call(parameters=bub_cmd, outfile=vcfbub_path)
+
+    # count the lines in the vcf
+    lines = int(cactus_call(parameters=[['bcftools', 'view', '-H', vcfbub_path], ['wc', '-l']], check_output=True).strip())
+
+    # get the chunk size
+    chunk_lines = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "vcfwaveChunkLines", typeFn=int, default=None)
+    # sanity check
+    if chunk_lines and lines / chunk_lines >= 1000:
+        chunk_lines = int(lines / 1000)
+        
+    # make a bunch of chunks, storing their paths here
+    chunk_paths = []
+    if chunk_lines and lines > chunk_lines:
+        header_path = os.path.join(work_dir, 'header.vcf.gz')
+        cactus_call(parameters=['bcftools', 'view', '-h', vcfbub_path, '-Oz'], outfile=header_path)
+        with gzip.open(vcfbub_path, 'rb') as bubfile:
+            chunk_file = None
+            i = 0
+            for line in bubfile:
+                if line.decode().startswith('#'):
+                    continue
+                if i % chunk_lines == 0:
+                    chunk_path = os.path.join(work_dir, os.path.basename(out_name) + '.' +
+                                              vcf_ref + tag + 'chunk{}.vcf.gz'.format(len(chunk_paths)))
+                    if chunk_file:
+                        chunk_file.close()
+                    shutil.copy(header_path, chunk_path)
+                    chunk_file = gzip.open(chunk_path, 'ab')
+                    chunk_paths.append(chunk_path)
+                chunk_file.write(line)
+                i += 1
+            assert chunk_file
+            chunk_file.close()
+    else:
+        # no chunks, just use the original
+        chunk_paths = [vcfbub_path]
+            
+    # distribute on the chunks
+    root_job = Job()
+    job.addChild(root_job)
+    chunk_vcf_tbi_ids = []
+    for chunk_path in chunk_paths:
+        chunk_id = job.fileStore.writeGlobalFile(chunk_path)
+        vcfwave_job = root_job.addChildJobFn(vcfwave, config, chunk_path, chunk_id,
+                                             disk=chunk_id.size * 10, cores=job.cores, memory=job.memory)
+        chunk_vcf_tbi_ids.append(vcfwave_job.rv())
+
+    # combine the chunks
+    vcfwave_cat_job = root_job.addFollowOnJobFn(vcf_cat, chunk_vcf_tbi_ids, tag, sort=True, 
+                                                disk=vcf_id.size * 10, memory=job.memory)
+
+    # normalize the output
+    if getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "vcfwaveNorm", typeFn=bool, default=True):
+        norm_job = vcfwave_cat_job.addFollowOnJobFn(vcfnorm, config, vcf_ref, vcfwave_cat_job.rv(0),
+                                                    vcf_path, vcfwave_cat_job.rv(1), fasta_ref_dict,
+                                                    disk=vcf_id.size*5)
+        return norm_job.rv()
+    else:
+        return vcfwave_cat_job.rv()
+        
+def vcfwave(job, config, vcf_path, vcf_id):
+    """ run vcfwave """
+    work_dir = job.fileStore.getLocalTempDir()
+    vcf_path = os.path.join(work_dir, os.path.basename(vcf_path))
+    job.fileStore.readGlobalFile(vcf_id, vcf_path)
+
+    # short circuit on empty file (note zcat -> head exits 141, so we can't use cactus_call)
+    if int(subprocess.check_output('gzip -dc {} | grep -v ^# | head | wc -l'.format(vcf_path),
+                                   shell=True).decode('utf-8').strip()) == 0:    
+        return vcf_id
+
+    # run vcfwave
+    vcfwave_path = os.path.join(work_dir, 'wave.{}'.format(os.path.basename(vcf_path)))
     wave_opts = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "vcfwaveOptions", typeFn=str, default=None)
     assert wave_opts
-    bubwave_cmd = [['vcfbub', '--input', vcf_path, '-l', '0', '-a', str(max_ref_allele)],
-                   ['bcftools', 'annotate', '-x', 'INFO/AT'],
-                   ['bcftools', 'norm', '-m', '-any'],
-                   ['vcfwave'] + wave_opts.split(' ') + ['-t', str(job.cores)]]
-    run_norm = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "vcfwaveNorm", typeFn=bool, default=True)
-    merge_duplicates_opts = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "mergeDuplicatesOptions", typeFn=str, default=None)
-    run_merge = merge_duplicates_opts is not None and merge_duplicates_opts != "0" and run_norm    
-    if run_norm:
-        fa_ref_path = os.path.join(work_dir, tag + 'fa.gz')
-        job.fileStore.readGlobalFile(fasta_ref_dict[vcf_ref], fa_ref_path)
-        bubwave_cmd.append(['bcftools', 'norm', '-f', fa_ref_path])
+    cactus_call(parameters=[['zcat', vcf_path],
+                            ['vcfwave'] + wave_opts.split(' ') + ['-t', str(job.cores)],
+                            ['bgzip']], outfile=vcfwave_path)
 
-    bubwave_cmd.append(['bgzip'])
+    job.fileStore.deleteGlobalFile(vcf_id)
+    return job.fileStore.writeGlobalFile(vcfwave_path), None
 
-    cactus_call(parameters=bubwave_cmd, outfile=vcfwave_path)
-
-    # stable sort, which is apparently not guaranteed by bcftools sort
-    # (in case we merge later, it's best to preserve variant order)
-    temp_path = os.path.join(work_dir, os.path.basename(out_name) + '.' + vcf_ref + tag + 'wave.tmp.vcf.gz')
-    cactus_call(parameters=['bcftools', 'view', '-Oz', '-h', vcfwave_path], outfile=temp_path)
-    cactus_call(parameters=[['bcftools', 'view', '-H', vcfwave_path],
-                                ['sort', '-k1,1d', '-k2,2n', '-s', '-T', work_dir],
-                                ['bgzip']], outfile=temp_path, outappend=True)
-    vcfwave_path, temp_path = temp_path, vcfwave_path
-
-    if run_merge:
-        #note: merge_duplcates complains about not having a .tbi but I don't think it actually affects anything
-        merge_cmd = ['merge_duplicates.py', '-i', vcfwave_path, '-o', temp_path]
-        if merge_duplicates_opts:
-            merge_cmd.append(merge_duplicates_opts.split(' '))
-        cactus_call(parameters=merge_cmd)
-        vcfwave_path, temp_path = temp_path, vcfwave_path
-        
-    cactus_call(parameters=['bcftools', 'norm', '-m', '+any', '-Oz', vcfwave_path], outfile=temp_path)
-    vcfwave_path, temp_path = temp_path, vcfwave_path
-    
-    try:
-        cactus_call(parameters=['tabix', '-p', 'vcf', vcfwave_path])
-        tbi_path = vcfwave_path + '.tbi'
-    except Exception as e:
-        cactus_call(parameters=['bcftools', 'index', '-c', vcfwave_path])
-        tbi_path = vcfwave_path + '.csi'
-
-    return job.fileStore.writeGlobalFile(vcfwave_path), job.fileStore.writeGlobalFile(tbi_path)
-
-def vcf_cat(job, vcf_tbi_ids, tag):
-    """ concat some vcf files """
+def vcf_cat(job, vcf_tbi_ids, tag, sort=False):
+    """ concat some vcf files, optionally do a (stable) sort of the results """
     work_dir = job.fileStore.getLocalTempDir()
     vcf_paths = []
     sample_sets = []
@@ -1204,7 +1281,8 @@ def vcf_cat(job, vcf_tbi_ids, tag):
     for i, (vcf_id, tbi_id) in enumerate(vcf_tbi_ids):
         vcf_path = os.path.join(work_dir, '{}.{}vcf.gz'.format(i, tag))
         job.fileStore.readGlobalFile(vcf_id, vcf_path)
-        job.fileStore.readGlobalFile(tbi_id, vcf_path + '.tbi')
+        if not sort:
+            job.fileStore.readGlobalFile(tbi_id, vcf_path + '.tbi')
         vcf_paths.append(vcf_path)
         samples = cactus_call(parameters=['bcftools', 'query', '-l', vcf_path], check_output=True).strip().split('\n')
         all_sample_set.update(samples)
@@ -1246,6 +1324,16 @@ def vcf_cat(job, vcf_tbi_ids, tag):
                 [os.path.basename(vcf_path) for vcf_path in vcf_paths],
                 work_dir=work_dir, outfile=cat_vcf_path)
 
+    if sort:
+        # stable sort, which is apparently not guaranteed by bcftools sort
+        # (this could be useful for merge_duplicates.py)
+        sort_vcf_path = os.path.join(work_dir, '{}sort.vcf.gz'.format(tag))
+        cactus_call(parameters=['bcftools', 'view', '-Oz', '-h', cat_vcf_path], outfile=sort_vcf_path)
+        cactus_call(parameters=[['bcftools', 'view', '-H', cat_vcf_path],
+                                ['sort', '-k1,1d', '-k2,2n', '-s', '-T', work_dir],
+                                ['bgzip']], outfile=sort_vcf_path, outappend=True)
+        cat_vcf_path = sort_vcf_path
+
     try:
         cactus_call(parameters=['tabix', '-p', 'vcf', cat_vcf_path])
         tbi_path = cat_vcf_path + '.tbi'
@@ -1255,7 +1343,8 @@ def vcf_cat(job, vcf_tbi_ids, tag):
 
     for vcf_id, tbi_id in vcf_tbi_ids:
         job.fileStore.deleteGlobalFile(vcf_id)
-        job.fileStore.deleteGlobalFile(tbi_id)
+        if not sort:
+            job.fileStore.deleteGlobalFile(tbi_id)
 
     return job.fileStore.writeGlobalFile(cat_vcf_path), job.fileStore.writeGlobalFile(tbi_path)
 
