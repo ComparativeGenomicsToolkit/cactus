@@ -59,7 +59,9 @@ from cactus.progressive.cactus_prepare import human2bytesN
 
 from sonLib.nxnewick import NXNewick
 from sonLib.bioio import getTempDirectory, getTempFile, catFiles
-    
+
+import pysam
+
 def main():
     parser = ArgumentParser()
     Job.Runner.addToilOptions(parser)
@@ -1049,16 +1051,19 @@ def make_vcf(job, config, options, workflow_phase, index_mem, vcf_ref, vg_ids, r
             wave_vcf_tbi_ids.append((wave_vcf_id, wave_tbi_id))
 
     merge_vcf_job = root_job.addFollowOnJobFn(vcf_cat, raw_vcf_tbi_ids, vcftag + '.raw.',
-                                                          disk = sum(f.size for f in vg_ids) * 16)
+                                              fix_ploidies=True,
+                                              disk = sum(f.size for f in vg_ids) * 16)
     out_dict = {'{}.raw.vcf.gz'.format(vcftag) : merge_vcf_job.rv(0),
                 '{}.raw.vcf.gz.tbi'.format(vcftag) : merge_vcf_job.rv(1) }
     if bub_vcf_tbi_ids:
         merge_bub_job = root_job.addFollowOnJobFn(vcf_cat, bub_vcf_tbi_ids, vcftag + '.bub.',
+                                                  fix_ploidies=True,
                                                   disk = sum(f.size for f in vg_ids) * 16)
         out_dict['{}.vcf.gz'.format(vcftag)] = merge_bub_job.rv(0)
         out_dict['{}.vcf.gz.tbi'.format(vcftag)] = merge_bub_job.rv(1)
     if wave_vcf_tbi_ids:
         merge_wave_job = root_job.addFollowOnJobFn(vcf_cat, wave_vcf_tbi_ids, vcftag + '.wave.',
+                                                   fix_ploidies=True,
                                                    disk = sum(f.size for f in vg_ids) * 16)            
         out_dict['{}.wave.vcf.gz'.format(vcftag)] = merge_wave_job.rv(0)
         out_dict['{}.wave.vcf.gz.tbi'.format(vcftag)] = merge_wave_job.rv(1)
@@ -1163,6 +1168,41 @@ def vcfnorm(job, config, vcf_ref, vcf_id, vcf_path, tbi_id, fasta_ref_dict):
     
     return job.fileStore.writeGlobalFile(multi_path), job.fileStore.writeGlobalFile(tbi_path)
 
+def fix_vcf_ploidies(in_vcf_path, out_vcf_path):
+    """ since we're deconstructing chromosomes independently, we can have cases where a sample
+    is haploid in one chromosome (ex Y) but diploid in other chromosomes.  this will almost
+    certainly upset some downstream tools, which will be expecting consistent ploidies
+    across the whole vcf (which you would get if deconstructing the whole genome at once).
+    this function smooths it over, by doing two scans. 1) find the max ploidy of each sample
+    2) add dots to each GT to make sure each line gets this ploidy
+    """
+    sample_to_ploidy = {}
+    in_vcf = pysam.VariantFile(in_vcf_path, 'rb')
+
+    # pass 1: find the (max) ploidy of every sample, assuming phased
+    for var in in_vcf.fetch():
+        for sample in var.samples.values():
+            ploidy = len(sample['GT'])
+            cur_ploidy = 0 if sample.name not in sample_to_ploidy else sample_to_ploidy[sample.name]
+            sample_to_ploidy[sample.name] = max(ploidy, cur_ploidy)
+
+    # pass 2: correct the GTs
+    out_vcf = pysam.VariantFile(out_vcf_path, 'w', header=in_vcf.header)
+    for var in in_vcf.fetch():
+        for sample in var.samples.values():
+            ploidy_delta = sample_to_ploidy[sample.name] - len(sample['GT'])
+            if ploidy_delta > 0:
+                gt = list(sample['GT'])
+                for i in range(ploidy_delta):
+                    gt.append(None)
+                sample['GT'] = tuple(gt)
+                sample.phased = True
+
+        out_vcf.write(var)
+
+    in_vcf.close()
+    out_vcf.close()    
+
 def check_vcfwave(job):
     """ check to make sure vcfwave is installed """
     try:
@@ -1238,7 +1278,13 @@ def chunked_vcfwave(job, config, out_name, vcf_ref, vcf_id, tbi_id, max_ref_alle
         chunk_vcf_tbi_ids.append(vcfwave_job.rv())
 
     # combine the chunks
-    vcfwave_cat_job = root_job.addFollowOnJobFn(vcf_cat, chunk_vcf_tbi_ids, tag, sort=True, 
+    ##
+    ## Note: fix_ploidies should be false here.  But due to a bug in deconstrut we set it to true
+    ##       it's resolved here: https://github.com/vgteam/vg/pull/4497
+    ##       so we can toggle it back once cactus is updated to use the next vg release
+    ##
+    vcfwave_cat_job = root_job.addFollowOnJobFn(vcf_cat, chunk_vcf_tbi_ids, tag, sort=True,
+                                                fix_ploidies=False,
                                                 disk=vcf_id.size * 10, memory=job.memory)
 
     # normalize the output
@@ -1272,7 +1318,7 @@ def vcfwave(job, config, vcf_path, vcf_id):
     job.fileStore.deleteGlobalFile(vcf_id)
     return job.fileStore.writeGlobalFile(vcfwave_path), None
 
-def vcf_cat(job, vcf_tbi_ids, tag, sort=False):
+def vcf_cat(job, vcf_tbi_ids, tag, sort=False, fix_ploidies=True):
     """ concat some vcf files, optionally do a (stable) sort of the results """
     work_dir = job.fileStore.getLocalTempDir()
     vcf_paths = []
@@ -1333,6 +1379,11 @@ def vcf_cat(job, vcf_tbi_ids, tag, sort=False):
                                 ['sort', '-k1,1d', '-k2,2n', '-s', '-T', work_dir],
                                 ['bgzip']], outfile=sort_vcf_path, outappend=True)
         cat_vcf_path = sort_vcf_path
+
+    if fix_ploidies:
+        ploidy_vcf_path = os.path.join(work_dir, '{}ploidy.vcf.gz'.format(tag))
+        fix_vcf_ploidies(cat_vcf_path, ploidy_vcf_path)
+        cat_vcf_path = ploidy_vcf_path        
 
     try:
         cactus_call(parameters=['tabix', '-p', 'vcf', cat_vcf_path])
