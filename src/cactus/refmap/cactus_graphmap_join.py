@@ -1213,7 +1213,7 @@ def check_vcfwave(job):
 def chunked_vcfwave(job, config, out_name, vcf_ref, vcf_id, tbi_id, max_ref_allele, fasta_ref_dict, tag):
     """ run vcfwave in parallel chunks """
     work_dir = job.fileStore.getLocalTempDir()
-    vcf_path = os.path.join(work_dir, os.path.basename(out_name) + '.' + vcf_ref + tag + 'raw.vcf.gz')
+    vcf_path = os.path.join(work_dir, os.path.basename(out_name) + '.' + vcf_ref + '.' + tag + 'raw.vcf.gz')
     job.fileStore.readGlobalFile(vcf_id, vcf_path)
     job.fileStore.readGlobalFile(tbi_id, vcf_path + '.tbi')
 
@@ -1224,7 +1224,7 @@ def chunked_vcfwave(job, config, out_name, vcf_ref, vcf_id, tbi_id, max_ref_alle
 
     # run vcfbub using original HPRC recipe
     # allele splitting added here as vcfwave has history of trouble with multi-allelic sites
-    vcfbub_path = os.path.join(work_dir, os.path.basename(out_name) + '.' + vcf_ref + tag + 'bub.vcf.gz')
+    vcfbub_path = os.path.join(work_dir, os.path.basename(out_name) + '.' + vcf_ref + '.' + tag + 'bub.vcf.gz')
     bub_cmd = [['vcfbub', '--input', vcf_path, '-l', '0', '-a', str(max_ref_allele)],
                ['bcftools', 'annotate', '-x', 'INFO/AT'],
                ['bcftools', 'norm', '-m', '-any'],
@@ -1289,8 +1289,10 @@ def chunked_vcfwave(job, config, out_name, vcf_ref, vcf_id, tbi_id, max_ref_alle
 
     # normalize the output
     if getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "vcfwaveNorm", typeFn=bool, default=True):
+        vcfwave_path = os.path.join(work_dir, os.path.basename(out_name) + '.' + vcf_ref + '.' + tag + 'wave.vcf.gz')
+
         norm_job = vcfwave_cat_job.addFollowOnJobFn(vcfnorm, config, vcf_ref, vcfwave_cat_job.rv(0),
-                                                    vcf_path, vcfwave_cat_job.rv(1), fasta_ref_dict,
+                                                    vcfwave_path, vcfwave_cat_job.rv(1), fasta_ref_dict,
                                                     disk=vcf_id.size*5)
         return norm_job.rv()
     else:
