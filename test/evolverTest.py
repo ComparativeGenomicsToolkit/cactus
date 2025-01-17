@@ -434,8 +434,11 @@ class TestCase(unittest.TestCase):
         config_path = 'src/cactus/cactus_progressive_config.xml'
         xml_root = ET.parse(config_path).getroot()
         graphmap_elem = xml_root.find("graphmap")
+        graphmap_join_elem = xml_root.find("graphmap_join")
         # force cactus to use minigraph chunking
         graphmap_elem.attrib["minigraphConstructBatchSize"] = "2"
+        # force cactus use vcfwave chunking
+        graphmap_join_elem.attrib["vcfwaveChunkLines"] = "1000"
         mc_config_path = os.path.join(self.tempDir, "config.mc.xml")
         with open(mc_config_path, 'w') as mc_config_file:
             xmlString = ET.tostring(xml_root, encoding='unicode')

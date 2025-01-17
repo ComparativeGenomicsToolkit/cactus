@@ -438,7 +438,7 @@
 		 rindexOptions="-p"
 		 haplOptions="-v 2"
 		 vcfwaveOptions="-I 1000"
-		 vcfwaveChunkLines="250000"
+		 vcfwaveChunkLines="200000"
 		 vcfwaveNorm="1"
 		 bcftoolsNorm="0"
 		 mergeDuplicatesOptions=""

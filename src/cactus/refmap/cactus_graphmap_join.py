@@ -1243,26 +1243,31 @@ def chunked_vcfwave(job, config, out_name, vcf_ref, vcf_id, tbi_id, max_ref_alle
     # make a bunch of chunks, storing their paths here
     chunk_paths = []
     if chunk_lines and lines > chunk_lines:
-        header_path = os.path.join(work_dir, 'header.vcf.gz')
-        cactus_call(parameters=['bcftools', 'view', '-h', vcfbub_path, '-Oz'], outfile=header_path)
+        header_path = os.path.join(work_dir, 'header.vcf')
+        cactus_call(parameters=['bcftools', 'view', '-h', vcfbub_path], outfile=header_path)
         with gzip.open(vcfbub_path, 'rb') as bubfile:
             chunk_file = None
             i = 0
             for line in bubfile:
-                if line.decode().startswith('#'):
+                line = line.decode()
+                if line.startswith('#'):
                     continue
                 if i % chunk_lines == 0:
                     chunk_path = os.path.join(work_dir, os.path.basename(out_name) + '.' +
-                                              vcf_ref + tag + 'chunk{}.vcf.gz'.format(len(chunk_paths)))
+                                              vcf_ref + tag + 'chunk{}.vcf'.format(len(chunk_paths)))
                     if chunk_file:
                         chunk_file.close()
+                        cactus_call(parameters=['bgzip', chunk_paths[-1], '--threads', str(job.cores)])
+                        chunk_paths[-1] += '.gz'                               
                     shutil.copy(header_path, chunk_path)
-                    chunk_file = gzip.open(chunk_path, 'ab')
+                    chunk_file = open(chunk_path, 'a')
                     chunk_paths.append(chunk_path)
                 chunk_file.write(line)
                 i += 1
             assert chunk_file
             chunk_file.close()
+            cactus_call(parameters=['bgzip', chunk_paths[-1], '--threads', str(job.cores)])
+            chunk_paths[-1] += '.gz'
     else:
         # no chunks, just use the original
         chunk_paths = [vcfbub_path]
@@ -1307,7 +1312,7 @@ def vcfwave(job, config, vcf_path, vcf_id):
     # short circuit on empty file (note zcat -> head exits 141, so we can't use cactus_call)
     if int(subprocess.check_output('gzip -dc {} | grep -v ^# | head | wc -l'.format(vcf_path),
                                    shell=True).decode('utf-8').strip()) == 0:    
-        return vcf_id
+        return vcf_id, None
 
     # run vcfwave
     vcfwave_path = os.path.join(work_dir, 'wave.{}'.format(os.path.basename(vcf_path)))
