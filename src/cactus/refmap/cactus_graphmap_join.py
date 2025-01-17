@@ -1052,19 +1052,22 @@ def make_vcf(job, config, options, workflow_phase, index_mem, vcf_ref, vg_ids, r
 
     merge_vcf_job = root_job.addFollowOnJobFn(vcf_cat, raw_vcf_tbi_ids, vcftag + '.raw.',
                                               fix_ploidies=True,
-                                              disk = sum(f.size for f in vg_ids) * 16)
+                                              disk = sum(f.size for f in vg_ids) * 16,
+                                              memory = cactus_clamp_memeory(sum(f.size for f in vg_ids)))
     out_dict = {'{}.raw.vcf.gz'.format(vcftag) : merge_vcf_job.rv(0),
                 '{}.raw.vcf.gz.tbi'.format(vcftag) : merge_vcf_job.rv(1) }
     if bub_vcf_tbi_ids:
         merge_bub_job = root_job.addFollowOnJobFn(vcf_cat, bub_vcf_tbi_ids, vcftag + '.bub.',
                                                   fix_ploidies=True,
-                                                  disk = sum(f.size for f in vg_ids) * 16)
+                                                  disk = sum(f.size for f in vg_ids) * 16,
+                                                  memory = cactus_clamp_memeory(sum(f.size for f in vg_ids)))
         out_dict['{}.vcf.gz'.format(vcftag)] = merge_bub_job.rv(0)
         out_dict['{}.vcf.gz.tbi'.format(vcftag)] = merge_bub_job.rv(1)
     if wave_vcf_tbi_ids:
         merge_wave_job = root_job.addFollowOnJobFn(vcf_cat, wave_vcf_tbi_ids, vcftag + '.wave.',
                                                    fix_ploidies=True,
-                                                   disk = sum(f.size for f in vg_ids) * 16)            
+                                                   disk = sum(f.size for f in vg_ids) * 16,
+                                                   memory = cactus_clamp_memeory(sum(f.size for f in vg_ids)))
         out_dict['{}.wave.vcf.gz'.format(vcftag)] = merge_wave_job.rv(0)
         out_dict['{}.wave.vcf.gz.tbi'.format(vcftag)] = merge_wave_job.rv(1)
         
@@ -1290,7 +1293,8 @@ def chunked_vcfwave(job, config, out_name, vcf_ref, vcf_id, tbi_id, max_ref_alle
     ##
     vcfwave_cat_job = root_job.addFollowOnJobFn(vcf_cat, chunk_vcf_tbi_ids, tag, sort=True,
                                                 fix_ploidies=False,
-                                                disk=vcf_id.size * 10, memory=job.memory)
+                                                disk=vcf_id.size * 10,
+                                                memory=cactus_clamp_memory(vcf_id.size*5))
 
     # normalize the output
     if getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "vcfwaveNorm", typeFn=bool, default=True):
@@ -1298,7 +1302,8 @@ def chunked_vcfwave(job, config, out_name, vcf_ref, vcf_id, tbi_id, max_ref_alle
 
         norm_job = vcfwave_cat_job.addFollowOnJobFn(vcfnorm, config, vcf_ref, vcfwave_cat_job.rv(0),
                                                     vcfwave_path, vcfwave_cat_job.rv(1), fasta_ref_dict,
-                                                    disk=vcf_id.size*5)
+                                                    disk=vcf_id.size*10,
+                                                    memory=cactus_clamp_memory(vcf_id.size*5))
         return norm_job.rv()
     else:
         return vcfwave_cat_job.rv()
