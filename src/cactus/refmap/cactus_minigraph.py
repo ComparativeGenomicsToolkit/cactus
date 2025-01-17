@@ -14,6 +14,7 @@ from Bio import SeqIO
 from Bio.SeqRecord import SeqRecord
 from collections import defaultdict
 from operator import itemgetter
+import gzip
 
 from cactus.progressive.seqFile import SeqFile
 from cactus.shared.common import setupBinaries, importSingularityImage
@@ -125,10 +126,10 @@ def main():
                     if genome not in options.reference:
                         input_seq_order.append(genome)
             
-            gfa_id, train_id = toil.start(Job.wrapJobFn(minigraph_construct_workflow, options, config_node, input_seq_id_map, input_seq_order, options.outputGFA))
+            gfa_id, pansn_gfa_id, train_id = toil.start(Job.wrapJobFn(minigraph_construct_workflow, options, config_node, input_seq_id_map, input_seq_order, options.outputGFA))
 
         #export the gfa
-        toil.exportFile(gfa_id, makeURL(options.outputGFA))
+        toil.exportFile(pansn_gfa_id, makeURL(options.outputGFA))
         if train_id:
             # export the scoring model (.train)
             toil.exportFile(train_id, makeURL(options.outputGFA.replace('.gfa.gz', '.gfa').replace('.gfa', '.train')))
@@ -192,7 +193,7 @@ def minigraph_construct_workflow(job, options, config_node, seq_id_map, seq_orde
                                                    disk=8*ref_size,
                                                    memory=cactus_clamp_memory(8*ref_size))
         
-    return minigraph_job.rv(), last_train_job.rv() if options.lastTrain else None
+    return minigraph_job.rv(0), minigraph_job.rv(1), last_train_job.rv() if options.lastTrain else None
 
 def sort_minigraph_input_with_mash(job, options, seq_id_map, seq_order):
     """ Sort the input """
@@ -338,13 +339,16 @@ def minigraph_construct_in_batches(job, options, config_node, seq_id_map, seq_or
         input_seq_order = seq_order[i * max_batch_size : (i * max_batch_size) + batch_size]
         assert input_seq_order and len(input_seq_order) <= max_batch_size
         out_gfa_path = gfa_path
-        if i < num_batches:
+        pan_sn_output = True
+        if i < num_batches - 1:
             if out_gfa_path.endswith('.gz'):
                 out_gfa_path = '{}.{}.gz'.format(gfa_path[:-3], i)
             else:
-                out_gfa_path = '{}.{}'.format(gfa_path, i)                
+                out_gfa_path = '{}.{}'.format(gfa_path, i)
+            pan_sn_output = False
         minigraph_job = Job.wrapJobFn(minigraph_construct, options, config_node, seq_id_map, input_seq_order, out_gfa_path,
                                       prev_job.rv() if prev_job else None, prev_gfa_path,
+                                      pan_sn_output,
                                       disk=disk, memory=mem, cores=options.mgCores)
         if prev_job:
             prev_job.addFollowOn(minigraph_job)
@@ -357,7 +361,7 @@ def minigraph_construct_in_batches(job, options, config_node, seq_id_map, seq_or
 
     return prev_job.rv()
 
-def minigraph_construct(job, options, config_node, seq_id_map, seq_order, gfa_path, prev_gfa_id, prev_gfa_path):
+def minigraph_construct(job, options, config_node, seq_id_map, seq_order, gfa_path, prev_gfa_id, prev_gfa_path, pan_sn_output):
     """ Make minigraph """
 
     work_dir = job.fileStore.getLocalTempDir()
@@ -392,10 +396,103 @@ def minigraph_construct(job, options, config_node, seq_id_map, seq_order, gfa_pa
         mg_cmd = [mg_cmd, ['bgzip', '--threads', str(job.cores)]]
 
     cactus_call(parameters=mg_cmd, outfile=gfa_path, work_dir=work_dir, realtimeStderrPrefix='[minigraph]', job_memory=job.memory)
+
+    gfa_out_id = job.fileStore.writeGlobalFile(gfa_path)
+    if pan_sn_output:
+        # rename to pan-sn before serializing, so it's more useful (ie for anything except cactus)
+        pansn_gfa_path = os.path.join(work_dir, 'pan-sn.' + os.path.basename(gfa_path))
+        minigraph_gfa_to_pansn(set(seq_id_map.keys()), gfa_path, pansn_gfa_path)
+        pansn_gfa_out_id = job.fileStore.writeGlobalFile(pansn_gfa_path)
+        return gfa_out_id, pansn_gfa_out_id
+    else:
+        return gfa_out_id
+
+def minigraph_gfa_to_pansn(names, gfa_path, out_gfa_path):
+    """ hack to convert cactus names like id=simChimp.0|simChimp.chr6 to PanSN simChimp#0#simpChimp.chr6
+    so that minigraph GFA file can be used outside of catus
+
+    todo: Cactus should probably be changed to just use PanSN internally as well, but that's a much
+    bigger lift
+    """
+    if gfa_path.endswith('.gz'):
+        in_file = gzip.open(gfa_path, 'rb')
+        out_file = gzip.open(out_gfa_path, 'wb')
+    else:
+        in_file = open(gfa_path, 'rb')
+        out_file = open(out_gfa_path, 'wb')
+
+    for line in in_file:
+        line = line.decode()
+        if line.startswith('S'):
+            toks = line.strip().split('\t')
+            for i, tok in enumerate(toks[4:]):
+                if tok.startswith('SN:Z:id='):
+                    barpos = tok.find('|')
+                    assert barpos > 8
+                    name = tok[8:barpos]
+                    assert name in names
+                    dotpos = name.rfind('.')
+                    # add #0 to names without haplotype to make valid PAN-SN
+                    hap = '0' if dotpos < 0 else name[dotpos+1:]
+                    toks[4+i] = 'SN:Z:{}#{}#{}'.format(name, hap, tok[barpos+1:])
+                    break
+            out_file.write(('\t'.join(toks) + '\n').encode())
+        else:
+            out_file.write(line.encode())
+
+    in_file.close()
+    out_file.close()
+
+def minigraph_gfa_from_pansn(job, names, gfa_path, gfa_id):
+    """ hack to convert PanSN names like simChimp#0#simpChimp.chr6 to Cactus names like id=simChimp.0|simChimp.chr6
+    so that a minigrpah GFA (as converted panSN by minigraph_gfa_to_pansn() above) can be read back into Cactus
+
+    todo: Cactus should probably be changed to just use PanSN internally as well, but that's a much
+    bigger lift
+    """
+    work_dir = job.fileStore.getLocalTempDir()
+    gfa_path = os.path.join(work_dir, os.path.basename(gfa_path))
+    job.fileStore.readGlobalFile(gfa_id, gfa_path)
+    out_gfa_path = os.path.join(work_dir, 'cactus.' + os.path.basename(gfa_path))
     
-    return job.fileStore.writeGlobalFile(gfa_path)
-        
-        
-        
+    if gfa_path.endswith('.gz'):
+        in_file = gzip.open(gfa_path, 'rb')
+        out_file = gzip.open(out_gfa_path, 'wb')
+    else:
+        in_file = open(gfa_path, 'rb')
+        out_file = open(out_gfa_path, 'wb')
+
+    for line in in_file:
+        line = line.decode()
+        if line.startswith('S'):
+            toks = line.strip().split('\t')
+            for i, tok in enumerate(toks[4:]):
+                if tok.startswith('SN:Z:'):
+                    hashpos = tok.find('#')
+                    if hashpos < 0:
+                        # no prefix found: do nothing and hope for the best
+                        continue
+                    hashpos2 = hashpos + 1 + tok[hashpos+1:].find('#')
+                    if hashpos2 < 0:
+                        name = tok[5:]
+                        hap = "0"
+                    else:
+                        name = tok[5:hashpos]
+                        hap = tok[hashpos+1:hashpos2]
+                    # minigraph_to_pansn() will add #0 to names without any dots
+                    # we untangle that here using the names list                    
+                    if name not in names:
+                        name = '{}.{}'.format(name, hap)
+                        assert name in names                    
+                    toks[4+i] = 'SN:Z:id={}|{}'.format(name, tok[hashpos2+1:])
+                    break
+            out_file.write(('\t'.join(toks) + '\n').encode())
+        else:
+            out_file.write(line.encode())
+
+    in_file.close()
+    out_file.close()
+
+    return job.fileStore.writeGlobalFile(out_gfa_path)
 
     

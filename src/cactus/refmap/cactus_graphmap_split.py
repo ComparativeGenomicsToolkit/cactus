@@ -29,7 +29,7 @@ from cactus.shared.version import cactus_commit
 from cactus.preprocessor.fileMasking import get_mask_bed_from_fasta
 from cactus.preprocessor.checkUniqueHeaders import sanitize_fasta_headers
 from cactus.refmap.cactus_graphmap import filter_paf
-from cactus.refmap.cactus_minigraph import check_sample_names
+from cactus.refmap.cactus_minigraph import check_sample_names, minigraph_gfa_from_pansn
 from toil.job import Job
 from toil.common import Toil
 from toil.statsAndLogging import logger
@@ -179,7 +179,8 @@ def cactus_graphmap_split(options):
         #export the split data
         export_split_data(toil, wf_output[0], wf_output[1], wf_output[2], wf_output[3], options.outDir, config)
 
-def graphmap_split_workflow(job, options, config, seq_id_map, seq_name_map, gfa_id, gfa_path, paf_id, paf_path, sanitize=True):
+def graphmap_split_workflow(job, options, config, seq_id_map, seq_name_map, gfa_id, gfa_path, paf_id, paf_path, sanitize=True,
+                            pansn_gfa_input=True):
 
     root_job = Job()
     job.addChild(root_job)
@@ -202,6 +203,7 @@ def graphmap_split_workflow(job, options, config, seq_id_map, seq_name_map, gfa_
     # get the sizes before we overwrite below
     gfa_size = gfa_id.size
     paf_size = paf_id.size
+    genome_names = set(seq_id_map.keys())    
 
     # fix up the headers
     if sanitize:
@@ -220,10 +222,19 @@ def graphmap_split_workflow(job, options, config, seq_id_map, seq_name_map, gfa_
     else:
         # move from options to avoid promise confusion
         ref_contigs = options.refContigs
-    
+
+    # convert the GFA from PanSN to Cactus names
+    if pansn_gfa_input:
+        rename_gfa_job = root_job.addChildJobFn(minigraph_gfa_from_pansn, genome_names, gfa_path, gfa_id,
+                                                disk=gfa_size*2)
+        new_root_job = Job()
+        root_job.addFollowOn(new_root_job)
+        root_job = new_root_job
+        gfa_id = rename_gfa_job.rv()
+            
     # use file extension to sniff out compressed input
     if gfa_path.endswith(".gz"):
-        gfa_id = root_job.addChildJobFn(unzip_gz, gfa_path, gfa_id, delete_original=False, disk=gfa_id.size * 10).rv()
+        gfa_id = root_job.addChildJobFn(unzip_gz, gfa_path, gfa_id, delete_original=False, disk=gfa_size * 10).rv()
         gfa_size *= 10
     if paf_path.endswith(".gz"):
         paf_id = root_job.addChildJobFn(unzip_gz, paf_path, paf_id, delete_original=False, disk=paf_id.size * 10).rv()
