@@ -1053,21 +1053,21 @@ def make_vcf(job, config, options, workflow_phase, index_mem, vcf_ref, vg_ids, r
     merge_vcf_job = root_job.addFollowOnJobFn(vcf_cat, raw_vcf_tbi_ids, vcftag + '.raw.',
                                               fix_ploidies=True,
                                               disk = sum(f.size for f in vg_ids) * 16,
-                                              memory = cactus_clamp_memeory(sum(f.size for f in vg_ids)))
+                                              memory = cactus_clamp_memory(sum(f.size for f in vg_ids)))
     out_dict = {'{}.raw.vcf.gz'.format(vcftag) : merge_vcf_job.rv(0),
                 '{}.raw.vcf.gz.tbi'.format(vcftag) : merge_vcf_job.rv(1) }
     if bub_vcf_tbi_ids:
         merge_bub_job = root_job.addFollowOnJobFn(vcf_cat, bub_vcf_tbi_ids, vcftag + '.bub.',
                                                   fix_ploidies=True,
                                                   disk = sum(f.size for f in vg_ids) * 16,
-                                                  memory = cactus_clamp_memeory(sum(f.size for f in vg_ids)))
+                                                  memory = cactus_clamp_memory(sum(f.size for f in vg_ids)))
         out_dict['{}.vcf.gz'.format(vcftag)] = merge_bub_job.rv(0)
         out_dict['{}.vcf.gz.tbi'.format(vcftag)] = merge_bub_job.rv(1)
     if wave_vcf_tbi_ids:
         merge_wave_job = root_job.addFollowOnJobFn(vcf_cat, wave_vcf_tbi_ids, vcftag + '.wave.',
                                                    fix_ploidies=True,
                                                    disk = sum(f.size for f in vg_ids) * 16,
-                                                   memory = cactus_clamp_memeory(sum(f.size for f in vg_ids)))
+                                                   memory = cactus_clamp_memory(sum(f.size for f in vg_ids)))
         out_dict['{}.wave.vcf.gz'.format(vcftag)] = merge_wave_job.rv(0)
         out_dict['{}.wave.vcf.gz.tbi'.format(vcftag)] = merge_wave_job.rv(1)
         
