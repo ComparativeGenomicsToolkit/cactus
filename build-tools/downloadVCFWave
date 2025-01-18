@@ -20,6 +20,7 @@ set -x
 rm -rf ${pangenomeBuildDir}
 mkdir -p ${pangenomeBuildDir}
 mkdir -p ${binDir}
+mkdir -p ${libDir}
 
 cd ${pangenomeBuildDir}
 git clone --recursive https://github.com/vcflib/vcflib.git

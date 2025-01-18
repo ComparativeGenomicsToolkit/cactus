@@ -6,7 +6,7 @@ modules = api setup caf bar hal reference pipeline preprocessor
 
 # submodules are in multiple pass to handle dependencies cactus2hal being dependent on
 # both cactus and sonLib
-submodules1 = sonLib cPecan hal matchingAndOrdering pinchesAndCacti abPOA lastz paffy red
+submodules1 = sonLib cPecan hal matchingAndOrdering pinchesAndCacti abPOA lastz paffy red collapse-bubble
 submodules2 = cactus2hal
 submodules = ${submodules1} ${submodules2}
 
@@ -239,12 +239,12 @@ suball.cPecan: suball.sonLib
 
 suball.cactus2hal: suball.sonLib suball.hal all_libs.api
 	cd submodules/cactus2hal && ${MAKE}
-	mkdir -p bin
+	mkdir -p ${BINDIR} ${LIBDIR} ${INCLDIR}	
 	-ln -f submodules/cactus2hal/bin/* bin/
 
 suball.hal: suball.sonLib
 	cd submodules/hal &&  ${MAKE}
-	mkdir -p bin
+	mkdir -p ${BINDIR} ${LIBDIR} ${INCLDIR}	
 	-ln -f submodules/hal/bin/* bin/
 	-ln -f submodules/hal/lib/libHal.a submodules/hal/lib/halLib.a
 
@@ -256,7 +256,7 @@ suball.abPOA:
 
 suball.lastz:
 	cd submodules/lastz && ${MAKE}
-	mkdir -p bin
+	mkdir -p ${BINDIR} ${LIBDIR} ${INCLDIR}	
 	ln -f submodules/lastz/src/lastz bin
 
 suball.paffy:
@@ -271,8 +271,12 @@ suball.red:
 	cd submodules/red && ${MAKE}
 	ln -f submodules/red/bin/Red ${BINDIR}
 
+suball.collapse-bubble:
+	chmod +x submodules/collapse-bubble/scripts/merge_duplicates.py
+	ln -f submodules/collapse-bubble/scripts/merge_duplicates.py ${BINDIR}
+
 subclean.%:
-	cd submodules/$* && ${MAKE} clean
+	if [ $(shell ls submodules/$* | grep -i makefile | wc -l) != 0 ]; then cd submodules/$* && ${MAKE} clean; fi
 
 ##
 # docker
