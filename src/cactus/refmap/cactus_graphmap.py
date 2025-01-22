@@ -163,7 +163,7 @@ def graph_map(options):
                 
             # check --reference input (a bit redundant to above, but does additional leaf check)
             if options.reference:
-                leaves = [mc_tree.getName(leaf) for leaf in mc_tree.getLeaves()]
+                leaves = [seqFile.tree.getName(leaf) for leaf in seqFile.tree.getLeaves()]
                 if options.reference not in leaves:
                     raise RuntimeError("Genome specified with --reference, {}, not found in tree leaves".format(options.reference))
             
