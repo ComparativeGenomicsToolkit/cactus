@@ -396,6 +396,14 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
     if options.vcfwave and options.vcf:
         vcfwave_check_job = root_job.addFollowOnJobFn(check_vcfwave)
         root_job = vcfwave_check_job
+
+    # vcffixup isn't included in the static binary release, so we start by checking it's available
+    merge_dup = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "mergeDuplicatesOptions", typeFn=str, default=None) not in [None, "0"]
+    wave_norm = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "vcfwaveNorm", typeFn=str, default=True)
+    bub_norm = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "bcftoolsNorm", typeFn=str, default=False)
+    if options.vcf and merge_dup and (bub_norm or (options.vcfwave and wave_norm)):
+        vcffixup_check_job = root_job.addFollowOnJobFn(check_vcffixup)
+        root_job = vcffixup_check_job
         
     # make sure reference doesn't have a haplotype suffix, as it will have been changed upstream
     ref_base, ref_ext = os.path.splitext(options.reference[0])
@@ -1124,7 +1132,7 @@ def vcfbub(job, config, out_name, vcf_ref, vcf_id, tbi_id, max_ref_allele, fasta
     
     if getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "bcftoolsNorm", typeFn=bool, default=False):
         norm_job = job.addChildJobFn(vcfnorm, config, vcf_ref, bub_vcf_id, vcfbub_path, bub_tbi_id, fasta_ref_dict,
-                                     disk=bub_vcf_id.size * 5)
+                                     disk=bub_vcf_id.size * 6)
         return norm_job.rv()
     else:
         return bub_vcf_id, bub_tbi_id
@@ -1157,7 +1165,14 @@ def vcfnorm(job, config, vcf_ref, vcf_id, vcf_path, tbi_id, fasta_ref_dict):
         norm_path = merge_path
 
     multi_path = os.path.join(work_dir, 'multi.' + os.path.basename(vcf_path))
-    cactus_call(parameters=['bcftools', 'norm', '-m', '+any', '-Oz', norm_path], outfile=multi_path)
+    postmerge_cmd = [['bcftools', 'norm', '-m', '+any', norm_path]]
+    if merge_duplicates_opts not in [None, "0"]:
+        # note, we use vcffixup to fix up AC, AF, NS tags.  bcftools +fill-tags is about 1000 times faster
+        # and does more, but isn't in the static binary being delivered with cactus so am using vcflib
+        # for now (it's not in the binary either, but is already necessary for vcfwave)
+        postmerge_cmd.append(['vcffixup', '-'])
+    postmerge_cmd.append(['bgzip'])    
+    cactus_call(parameters=postmerge_cmd, outfile=multi_path)
     
     try:
         cactus_call(parameters=['tabix', '-p', 'vcf', multi_path])
@@ -1211,8 +1226,15 @@ def check_vcfwave(job):
     try:
         cactus_call(parameters=['vcfwave', '-h'])
     except:
-        raise RuntimeError('--vcfwave option used, but vcfwave tool not found in PATH. vcfwave is *not* included in the cactus binary release, but it is in the cactus Docker image. If you have Docker installed, you can try running again with --binariesMode docker. Or running your whole command with docker run. If you cannot use Docker, then you will need to build vcflib yourself before retrying: source code and details here: https://github.com/vcflib/vcflib')
+        raise RuntimeError('--vcfwave option used, but vcfwave tool not found in PATH. vcfwave is *not* included in the cactus binary release, but it is in the cactus Docker image. If you have Docker installed, you can try running again with --binariesMode docker. Or running your whole command with docker run. If you cannot use Docker, then you will need to build vcflib yourself before retrying: source code and details here: https://github.com/vcflib/vcflib.  Running the ./build-tools/downloadVCFWave script (from the cactus/ directory) will attemp to download and build vcfwave.')
 
+def check_vcffixup(job):
+    """ check to make sure vcffixup is installed """
+    try:
+        cactus_call(parameters=[['echo', '##fileformat=VCFv4.2'], ['vcffixup', '-']])
+    except:
+        raise RuntimeError('vcf normalization with merge_duplicates enabled, but vcffixup tool (used in postprocessing) not found in PATH. vcffixup is *not* included in the cactus binary release, but it is in the cactus Docker image. If you have Docker installed, you can try running again with --binariesMode docker. Or running your whole command with docker run. If you cannot use Docker, then you will need to build vcflib yourself before retrying: source code and details here: https://github.com/vcflib/vcflib. Running the ./build-tools/downloadVCFWave script (from the cactus/ directory) will attemp to download and build vcfwave.')    
+    
 def chunked_vcfwave(job, config, out_name, vcf_ref, vcf_id, tbi_id, max_ref_allele, fasta_ref_dict, tag):
     """ run vcfwave in parallel chunks """
     work_dir = job.fileStore.getLocalTempDir()
@@ -1302,7 +1324,7 @@ def chunked_vcfwave(job, config, out_name, vcf_ref, vcf_id, tbi_id, max_ref_alle
 
         norm_job = vcfwave_cat_job.addFollowOnJobFn(vcfnorm, config, vcf_ref, vcfwave_cat_job.rv(0),
                                                     vcfwave_path, vcfwave_cat_job.rv(1), fasta_ref_dict,
-                                                    disk=vcf_id.size*10,
+                                                    disk=vcf_id.size*12,
                                                     memory=cactus_clamp_memory(vcf_id.size*5))
         return norm_job.rv()
     else:
