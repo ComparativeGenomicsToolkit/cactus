@@ -43,6 +43,8 @@ Cactus uses many different algorithms and individual code contributions, princip
 - Andrea Guarracino, Erik Garrison and co-authors for [odgi](https://github.com/pangenome/odgi). Make sure to [cite odgi](https://doi.org/10.1093/bioinformatics/btac308) when using it or its visualizations.
 - Hani Z. Girgis for [RED](http://toolsmith.ens.utulsa.edu/)
 - Erik Garrison and co-authors for [vcfwave](https://github.com/vcflib/vcflib/blob/master/doc/vcfwave.md). [vcflib citation](https://doi.org/10.1371/journal.pcbi.1009123)
+- Martin Frith and collaborators for `last-train` from [last](https://gitlab.com/mcfrith/last). [last-train citation](https://academic.oup.com/bioinformatics/article-lookup/doi/10.1093/bioinformatics/btw742)
+- Han Cao for [merge_duplicates](https://github.com/Han-Cao/collapse-bubble) vcf cleanup script
 
 ## Installing Manually From Source
 
