@@ -73,6 +73,7 @@ class SeqFile:
         self.tree = None
         self.pathMap = dict()
         self.outgroups = []
+        self.seqOrder = []
         seqFile = open(path, "r")
         for l in seqFile:
             line = l.strip()
@@ -98,6 +99,7 @@ class SeqFile:
                     if name in self.pathMap:
                         raise RuntimeError("Duplicate name found: %s" % name)
                     self.pathMap[name] = path
+                    self.seqOrder.append(name)
                 elif len(tokens) > 0:
                     sys.stderr.write("Skipping line %s\n" % l)
 
