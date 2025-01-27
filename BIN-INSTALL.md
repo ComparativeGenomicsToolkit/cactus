@@ -40,5 +40,5 @@ build-tools/downloadVCFWave
 
 To test Cactus, the following will run a tiny sumulated alignment.
 ```
-cactus ./jobstore ./examples/evolverMammals.txt ./evolverMammals.hal --realTimeLogging
+cactus ./jobstore ./examples/evolverMammals.txt ./evolverMammals.hal
 ``
