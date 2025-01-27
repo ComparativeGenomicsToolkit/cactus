@@ -97,9 +97,16 @@ def main():
             # load the seqfile
             seqFile = SeqFile(options.seqFile, defaultBranchLen=config_wrapper.getDefaultBranchLen(pangenome=True))
             input_seq_map = seqFile.pathMap
+            raw_input_seq_order = seqFile.seqOrder
 
             # validate the sample names
             check_sample_names(input_seq_map.keys(), options.reference)
+
+            # make sure the reference is first
+            input_seq_order = [options.reference[0]]
+            for seq in raw_input_seq_order:
+                if seq != options.reference[0]:
+                    input_seq_order.append(seq)
 
             # apply cpu override
             if options.batchSystem.lower() in ['single_machine', 'singleMachine']:
@@ -112,7 +119,6 @@ def main():
             
             #import the sequences
             input_seq_id_map = {}
-            input_seq_order = copy.deepcopy(options.reference)
             leaves = set([seqFile.tree.getName(node) for node in seqFile.tree.getLeaves()])
             for (genome, seq) in input_seq_map.items():
                 if genome != graph_event and genome in leaves:                
@@ -123,8 +129,8 @@ def main():
                     seq = makeURL(seq)
                     logger.info("Importing {}".format(seq))
                     input_seq_id_map[genome] = toil.importFile(seq)
-                    if genome not in options.reference:
-                        input_seq_order.append(genome)
+                elif genome in input_seq_order:
+                    input_seq_order.remove(genome)
             
             gfa_id, pansn_gfa_id, train_id = toil.start(Job.wrapJobFn(minigraph_construct_workflow, options, config_node, input_seq_id_map, input_seq_order, options.outputGFA))
 
@@ -169,7 +175,7 @@ def check_sample_names(sample_names, references):
 def minigraph_construct_workflow(job, options, config_node, seq_id_map, seq_order, gfa_path, sanitize=True):
     """ minigraph can handle bgzipped files but not gzipped; so unzip everything in case before running"""
     assert type(options.reference) is list
-    assert options.reference == seq_order[:len(options.reference)]
+    assert options.reference[0] == seq_order[0]
     ref_size = seq_id_map[options.reference[0]].size
     if sanitize:
         sanitize_job = job.addChildJobFn(sanitize_fasta_headers, seq_id_map, pangenome=True)
@@ -181,7 +187,7 @@ def minigraph_construct_workflow(job, options, config_node, seq_id_map, seq_orde
     xml_node = findRequiredNode(config_node, "graphmap")
     sort_type = getOptionalAttrib(xml_node, "minigraphSortInput", str, default=None)
     if sort_type == "mash":
-        sort_job = sanitize_job.addFollowOnJobFn(sort_minigraph_input_with_mash, options, sanitized_seq_id_map, seq_order)
+        sort_job = sanitize_job.addFollowOnJobFn(sort_minigraph_input_with_mash, options, config_node, sanitized_seq_id_map, seq_order)
         seq_order = sort_job.rv()
         prev_job = sort_job
     else:
@@ -195,7 +201,7 @@ def minigraph_construct_workflow(job, options, config_node, seq_id_map, seq_orde
         
     return minigraph_job.rv(0), minigraph_job.rv(1), last_train_job.rv() if options.lastTrain else None
 
-def sort_minigraph_input_with_mash(job, options, seq_id_map, seq_order):
+def sort_minigraph_input_with_mash(job, options, config_node, seq_id_map, seq_order):
     """ Sort the input """
     # (dist, length) pairs which will be sorted decreasing on dist, breaking ties with increasing on length
     # assumption : reference is first
@@ -216,7 +222,8 @@ def sort_minigraph_input_with_mash(job, options, seq_id_map, seq_order):
     # so, for example HG002.1 and HG002.2 would be always be consecutive in the order and their distance
     # will be determined jointly (by just concatenating them).
     seq_by_sample = defaultdict(list)
-    for seq_name in seq_order[len(options.reference):]:
+    # note: seq_order[0] is (first) reference, so we don't include it
+    for seq_name in seq_order[1:]:
         sample_name = seq_name[:seq_name.rfind('.')] if '.' in seq_name else seq_name
         seq_by_sample[sample_name].append(seq_name)
 
@@ -227,7 +234,7 @@ def sort_minigraph_input_with_mash(job, options, seq_id_map, seq_order):
                                                disk = 2 * sum(seq_id_map[x].size for x in names) + seq_id_map[seq_order[0]].size).rv()
         dist_maps.append(dist_map)
             
-    return dist_root_job.addFollowOnJobFn(mash_distance_order, options, seq_order, dist_maps).rv()
+    return dist_root_job.addFollowOnJobFn(mash_distance_order, options, config_node, seq_order, dist_maps).rv()
 
 def mash_sketch(job, ref_seq, seq_id_map):
     """ get the sketch """
@@ -280,7 +287,7 @@ def mash_dist(job, query_seqs, ref_seq, seq_id_map, ref_sketch_id):
         
     return output_dist_map
     
-def mash_distance_order(job, options, seq_order, mash_output_maps):
+def mash_distance_order(job, options, config_node, seq_order, mash_output_maps):
     """ get the sequence order from the mash distance"""
 
     # we first orient the list of dicts along seq_order
@@ -292,23 +299,45 @@ def mash_distance_order(job, options, seq_order, mash_output_maps):
         if seq in mash_output_map:
             mash_dists.append(mash_output_map[seq])
         else:
-            assert seq in options.reference
-            ref_rank = options.reference.index(seq)
-            mash_dists.append((0, 0, sys.maxsize - ref_rank))
+            assert seq == options.reference[0]
 
     # we want to sort reverse on size, so make them negative
     mash_dists = [(x, y, -z) for x,y,z in mash_dists]
     seq_to_dist = {}
-    for seq, md in zip(seq_order, mash_dists):
+    for seq, md in zip(seq_order[1:], mash_dists):
         seq_to_dist[seq] = md
 
     # sanity check
     max_seq_dist = max(seq_to_dist.items(), key = lambda x : x[1][1])
     if max_seq_dist[1][1] > 0.02:
         job.fileStore.logToMaster('\n\nWARNING: Sample {} has mash distance {} from the reference. A value this high likely means your data is too diverse to construct a useful pangenome graph from.\n'.format(max_seq_dist[0], max_seq_dist[1][1]))
+
+    # sort by mash distance
+    mash_order = [seq_order[0]] + sorted(seq_order[1:], key = lambda x : seq_to_dist[x])
         
-    return sorted(seq_order, key = lambda x : seq_to_dist[x])
-    
+    # optionally fix secondary references back to their original positions in the seqfile
+    sort_refs  = getOptionalAttrib(findRequiredNode(config_node, "graphmap"), "minigraphSortReference", typeFn=bool, default=True)
+    if not sort_refs and len(options.reference) > 1:
+        fixed_order = copy.deepcopy(seq_order)
+        empty_slots = []
+        for i, seq in enumerate(seq_order):
+            if seq not in options.reference:
+                empty_slots.append(i)
+        j = 0
+        for seq in mash_order:
+            if seq not in options.reference:
+                fixed_order[empty_slots[j]] = seq
+                j += 1
+        for ref in options.reference[1:]:
+            mash_pos = mash_order.index(ref)
+            fix_pos = fixed_order.index(ref)
+            assert fix_pos == seq_order.index(ref)
+            if mash_pos != fix_pos:
+                RealtimeLogger.info('Secondary reference {}, which would have mash rank {}, fixed at input rank {} because minigraphSortReference is disabled'.format(ref, mash_pos, fix_pos))
+        mash_order = fixed_order
+
+    return mash_order
+            
 def minigraph_construct_in_batches(job, options, config_node, seq_id_map, seq_order, gfa_path):
     """ Make minigraph in sequential batches"""
 
