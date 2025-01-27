@@ -198,10 +198,17 @@ def main():
             # load the seqfile
             seqFile = SeqFile(options.seqFile)
             input_seq_map = seqFile.pathMap
+            raw_input_seq_order = seqFile.seqOrder
 
             # validate the sample names
             check_sample_names(input_seq_map.keys(), options.reference)
 
+            # make sure the reference is first
+            input_seq_order = [options.reference[0]]
+            for seq in raw_input_seq_order:
+                if seq != options.reference[0]:
+                    input_seq_order.append(seq)
+            
             # apply cpu override                
             if options.mapCores is not None:
                 findRequiredNode(config_node, "graphmap").attrib["cpu"] = str(options.mapCores)
@@ -238,10 +245,9 @@ def main():
             #import the sequences
             input_seq_id_map = {}
             input_path_map = {}
-            input_seq_order = copy.deepcopy(options.reference)
             leaves = set([seqFile.tree.getName(node) for node in seqFile.tree.getLeaves()])
             for (genome, seq) in input_seq_map.items():
-                if genome != graph_event and genome in leaves:                
+                if genome != graph_event and genome in leaves:
                     if os.path.isdir(seq):
                         tmpSeq = getTempFile()
                         catFiles([os.path.join(seq, subSeq) for subSeq in os.listdir(seq)], tmpSeq)
@@ -250,8 +256,8 @@ def main():
                     logger.info("Importing {}".format(seq))
                     input_seq_id_map[genome] = toil.importFile(seq)
                     input_path_map[genome] = seq
-                    if genome not in options.reference:
-                        input_seq_order.append(genome)
+                elif genome in input_seq_order:
+                    input_seq_order.remove(genome)                    
             
             toil.start(Job.wrapJobFn(pangenome_end_to_end_workflow, options, config_wrapper, input_seq_id_map, input_path_map, input_seq_order, ref_collapse_paf_id, last_scores_id))
         
