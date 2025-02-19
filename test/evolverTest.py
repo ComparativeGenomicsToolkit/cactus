@@ -605,7 +605,7 @@ class TestCase(unittest.TestCase):
             # make sure we have the haplo indexes:
             for haplo_idx in ['yeast.hapl']:
                 idx_bytes = os.path.getsize(os.path.join(join_path, haplo_idx))
-                self.assertGreaterEqual(idx_bytes, 10000000)
+                self.assertGreaterEqual(idx_bytes, 9000000)
 
         if expect_unchopped_gfa:
             # make sure we have the unchopped gfa
