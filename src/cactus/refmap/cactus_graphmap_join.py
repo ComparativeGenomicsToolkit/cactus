@@ -933,16 +933,12 @@ def make_vg_indexes(job, options, config, gfa_ids, tag="", do_gbz=False):
         gfa_path = os.path.join(work_dir, os.path.basename(vg_path) +  '.gfa')
         job.fileStore.readGlobalFile(gfa_id, gfa_path, mutable=True)
         if i == 0:
-            # make sure every --reference sample is in the GFA header RS tag (which won't be the case if one sample
-            # is completely missing from the first graph, as vg may filter it out apparently)
+            # make sure RS tag reflects only samples from --reference
             cmd = [['head', '-1', gfa_path], ['sed', '-e', '1s/{}//'.format(graph_event)]]
             gfa_header = cactus_call(parameters=cmd, check_output=True).strip().split('\t')
             for i in range(len(gfa_header)):
                 if gfa_header[i].startswith('RS:Z:'):
-                    header_refs = set(gfa_header[i][len('RS:Z:'):].split(' '))
-                    for ref_sample in options.reference:
-                        if ref_sample not in header_refs:
-                            gfa_header[i] += ' ' + ref_sample
+                    gfa_header[i] = 'RS:Z:' + ' '.join(options.reference)
             with open(merge_gfa_path, 'w') as merge_gfa_file:
                 merge_gfa_file.write('\t'.join(gfa_header) + '\n')
         # strip out header and minigraph paths
