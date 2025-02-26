@@ -342,6 +342,9 @@ def graphmap_join_validate_options(options):
         if haplo not in options.gbz:
             logger.warning("Activating --gbz {} since --haplo {} was specified".format(haplo, haplo))
             options.gbz.append(haplo)
+
+    if options.collapse and options.haplo:
+        raise RuntimError('--haplo not allowed with --collapse, as it can lead to indexing errors')
         
     # Prevent some useless compute due to default param combos
     if options.clip and 'clip' not in options.gfa + options.gbz + options.odgi + options.chrom_vg + options.chrom_og + options.vcf + options.giraffe + options.viz + options.draw\
