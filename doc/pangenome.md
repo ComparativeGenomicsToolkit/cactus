@@ -147,6 +147,8 @@ You can also use the `--scoresFile` to input any `.train` file from `last-train`
 
 The `--collapse` option, added as an experimental prototype in [v2.9.1](https://github.com/ComparativeGenomicsToolkit/cactus/releases/tag/v2.9.1), can be used to incorporate self-alignments into the pangenome, *including the reference sample*.  This will produce a more compact graph with, for example, tandem duplications being represented as cycles (like PGGB) rather than insertions (like minigraph). It also drops the invariant (see above) that the reference path by acyclic -- with this option, the reference path can contain cycles. The `--collapse` option is implemented by running `minimap2` using options found in the `minimapCollapseOptions` parameter in the configuration XML to align each input *contig* with itself. These self alignments are fed into Cactus alongide the usual sequence-to-minigraph alignments.
 
+Note: Haplotype indexes (`--haplo`) cannot always be built for collapsed graphs. If haplotype indexing fails when using `--collapse`, a warning will be printed in the log and the failing index will not appear in the output (but the program will not crash).
+
 #### Multiple Reference Samples
 
 The `--reference` option can accept multiple samples (separated by space). If multiple samples are specified beyond the first, they will be clipped as usual, but end up as "reference-sense" paths in the vg/gbz output.  They can also be used as basis for VCF, and VCF files can be created based on them with the `--vcfReference` sample.
