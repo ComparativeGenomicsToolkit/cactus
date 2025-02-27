@@ -1,4 +1,4 @@
-# Release 2.9.4 2025-02-26
+# Release 2.9.4 2025-02-27
 
 This release fixes compatibility with newer Python versions and improves the `--vcfwave` option, along with a few other patches
 
