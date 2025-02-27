@@ -271,7 +271,7 @@ def export_minigraph_wrapper(job, options, sv_gfa_id, sv_gfa_path, last_scores_i
     if last_scores_id:
         scores_path = makeURL(os.path.join(options.outDir, options.outName + '.train'))
         job.fileStore.exportFile(last_scores_id, makeURL(os.path.join(options.outDir, os.path.basename(scores_path))))
-    
+        
     # hack to (hopefully maybe) avoid rare truncattion when importing recently exported files on phoenix
     time.sleep(5)
 
@@ -336,9 +336,9 @@ def make_batch_align_jobs_wrapper(job, options, chromfile_path, config_wrapper, 
     options.seqFile = local_chromfile_path
     options.scoresFile = None
     if last_scores_id:
-        local_scores_path = os.path.join(work_dir, 'scores.train')
-        job.fileStore.readGlobalFile(last_scores_id, local_scores_path)
-        options.scoresFile = local_scores_path
+        # note: this must be the same as file used in export_minigraph_wrapper()
+        scores_path = makeURL(os.path.join(options.outDir, options.outName + '.train'))
+        options.scoresFile = scores_path
     align_jobs = make_batch_align_jobs(options, job.fileStore, job.fileStore, config_wrapper)
     return align_jobs
     

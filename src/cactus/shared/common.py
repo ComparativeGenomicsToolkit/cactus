@@ -71,14 +71,6 @@ def cactus_override_toil_options(options):
         # instead of Toil's default (1).
         options.retryCount = 5
 
-    if options.batchSystem.lower() in ['slurm', 'lsf', 'torque']:
-        # disable caching for cluster style batch systems as it seems to
-        # lead to weird toil errors?
-        # https://github.com/DataBiosphere/toil/issues/4218
-        options.disableCaching = True
-        # and now with Toil 6's interface
-        options.caching = False
-
     if 'CACTUS_INSIDE_CONTAINER' in os.environ and str(os.environ['CACTUS_INSIDE_CONTAINER']) == '1':
         # some people get confused when trying to use their cluster from inside the cactus
         # docker. it doesn't work (without tons of hackery) since slurm isnt in the image
