@@ -1,3 +1,21 @@
+# Release 2.9.4 2025-02-27
+
+This release fixes compatibility with newer Python versions and improves the `--vcfwave` option, along with a few other patches
+
+- `vcfwave` more parallelized (on chunks rather than whole-chromosome)
+- vcf normalization turned on by default after `vcfwave`, including allele merging from `collapse_bubble` package
+- fix `--defautCores` option
+- fix compatibility with Python 3.13
+- update to vg 1.6.3
+- update Toil to 8.0.0
+- add `--snarl-stats` option to print a table of large bubbles and their reference coordinates
+- default ancestral genome construction parameters changed to give larger, more contiguous ancestors
+- update to gfaffix 0.2.0
+- fix recent regression where non-agctn IUPAC fasta characters would cause errors in `cactus_sanitizeFastaHeaders`, they are now read in as Ns (once again)
+- minigraph graph (`.sv.gfa.gz`) now output with PanSN names, as opposed to Cactus's internal id=event| prefix.
+- use more sensitive seeds for abPOA's progressive ordering
+- reference genomes now added by mash distance order (instead of always first) by default.  this behaviour can be adjusted in the config with `minigraphSortInput` and `minigraphSortReference`.
+
 # Releaes 2.9.3 2024-11-18
 
 This release adds some new options to the pangenome pipeline, and hopefully improves robustness overall
