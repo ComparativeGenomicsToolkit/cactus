@@ -1471,8 +1471,14 @@ def make_haplo_index(job, options, config, index_dict, giraffe_dict, tag=''):
     # make the haplotype index
     hapl_path = os.path.join(work_dir, tag + os.path.basename(options.outName) + '.hapl')
     hapl_opts = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "haplOptions", default='').split()
-    cactus_call(parameters=['vg', 'haplotypes'] + hapl_opts + ['-t', str(job.cores), '-H', hapl_path, '-d', dist_path, '-r', ri_path, gbz_path])
-
+    try:
+        cactus_call(parameters=['vg', 'haplotypes'] + hapl_opts + ['-t', str(job.cores), '-H', hapl_path, '-d', dist_path, '-r', ri_path, gbz_path])
+    except Exception as e:
+        if options.collapse:
+            RealtimeLogger.warning('Unable to produce .hapl index on graph due to collapsing from --collapse')
+            return dict()
+        else:
+            raise e
     return { '{}hapl'.format(tag) : job.fileStore.writeGlobalFile(hapl_path) }
 
 def odgi_squeeze(job, config, vg_paths, og_ids, tag=''):
