@@ -12,7 +12,7 @@ cd cactus-bin-v2.9.4
 
 ## Setup
 
-To build a python virtualenv and activate, do the following steps. This requires Python version >= 3.7 (so Ubuntu 18.04 users should use `-p python3.8` below):
+To build a python virtualenv and activate, do the following steps. This requires Python version >= 3.9 (so Ubuntu 18.04 users should use `-p python3.9` below):
 ```
 virtualenv -p python3 venv-cactus-v2.9.4
 printf "export PATH=$(pwd)/bin:\$PATH\nexport PYTHONPATH=$(pwd)/lib:\$PYTHONPATH\nexport LD_LIBRARY_PATH=$(pwd)/lib:\$LD_LIBRARY_PATH\n" >> venv-cactus-v2.9.4/bin/activate
