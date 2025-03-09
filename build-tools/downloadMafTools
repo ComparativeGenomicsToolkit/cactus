@@ -35,7 +35,7 @@ fi
 # taffy
 cd ${mafBuildDir}
 wget -q https://github.com/samtools/samtools/releases/download/1.11/samtools-1.11.tar.bz2
-tar -xf samtools-1.11.tar.bz2
+tar --no-same-owner -xf samtools-1.11.tar.bz2
 cd samtools-1.11
 SAMTOOLS_CONFIG_OPTS=""
 if [[ $STATIC_CHECK -eq 1 ]]
