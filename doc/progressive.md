@@ -307,7 +307,6 @@ These are the most relevant options for running on a cluster
 * `--doubleMem true` (highly recommended): if slurm kills a job because it used more memory than it asked for, retry it asking for double the memory.
 * `--batchLogsDir` (highly recommended): a scratch directory for additional slurm logging.
 * `--workDir`: a local scratch directory available on each worker node (will default to `TEMPDIR` or `TMPDIR`). This could be on a shared filesystem, but it's much better if it's a local, physical disk on the worker node. 
-* `--coordinationDir` (recommended): a local, scratch directory on physical non-network disk (available on worker nodes) for toil scheduling. This can usually be the same as `--workDir`.
 * `--maxMemory` (recommended): use this to set the maximum memory you can schedule on your cluster. can help avoid toil making unrunnable jobs in some cases.
 * `--consMemory`: Override the memory for each `cactus_consolidated` job. Can be useful if Cactus's estimates are wrong, but `--maxMemory/--doubleMem` should be enough to work around this type of issue.
 
@@ -317,6 +316,8 @@ export TOIL_SLURM_ARGS="--nice=5000"
 ```
 before running cactus.
 
+**Note** that Since Toil 8.0.0 / Cactus v2.9.4, `--time` cannot be passed in through `TOIL_SLURM_ARGS`.  Use the `--slurmTime` command line option instead. Also note that the `--slurmPE` command line option can only be used to specify the cluster partition for multicore jobs. It is best to use, ex, `TOIL_SLURM_ARGS="--partition=long"` rather than `--slurmPE long` since the former will set the partition for all jobs. 
+
 ### Running on the UCSC Prism cluster
 
 Cactus is already installed.  Activate the environment with
@@ -325,10 +326,10 @@ Cactus is already installed.  Activate the environment with
 source /private/groups/cgl/cactus/venv-cactus-latest/bin/activate
 ```
 
-Some recommended options (note that `--coordinationDir /data/tmp` is required): 
+Some recommended options: 
 
 ```
-TOIL_SLURM_ARGS="--partition=long --time=8000" cactus ./js ./examples/evolverMammals.txt evolverMammals.hal --batchSystem slurm --batchLogsDir batch-logs --coordinationDir /data/tmp --consCores 64 --maxMemory 1.4Ti --doubleMem true
+TOIL_SLURM_ARGS="--partition=long" cactus ./js ./examples/evolverMammals.txt evolverMammals.hal --batchSystem slurm --batchLogsDir batch-logs --consCores 64 --maxMemory 1.4Ti --doubleMem true --slurmTime 178:0:0
 ```
 
 ### Clusters and containers
