@@ -1566,7 +1566,7 @@ def merge_snarl_stats(job, vg_paths, snarl_stats_ids, tag):
         job.fileStore.readGlobalFile(in_id, vg_path)
         local_paths.append(os.path.basename(vg_path))
 
-    merged_stats_path = 'merge{}.snarl-stats.tsv.gz'.format(tag)
+    merged_stats_path = os.path.join(work_dir, 'merge{}snarl-stats.tsv.gz'.format(tag))
     # get the header
     cactus_call(parameters=['head', '-1', local_paths[0]], outfile=merged_stats_path, work_dir=work_dir)
 
@@ -1579,7 +1579,6 @@ def merge_snarl_stats(job, vg_paths, snarl_stats_ids, tag):
                             ['cut', '-f2-'],
                             ['bgzip']],
                 outfile=merged_stats_path,
-                outappend=True,
                 work_dir=work_dir)
 
     return { '{}snarl-stats.tsv.gz'.format(tag) : job.fileStore.writeGlobalFile(merged_stats_path) }
