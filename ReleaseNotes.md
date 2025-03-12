@@ -1,3 +1,14 @@
+# Release 2.9.5 2025-03-12
+
+This release patches a few issues that arose in the previous release
+
+- Toil version updated from 8.0.0 to 8.1.0b1. This fixes slurm partition support by adding the `--slurmPartition` option.
+- Fix (via interface update) how environment variables are passed through to Toil (which was constributing factor to partition selection issue above).
+- Update Cactus's minimum Python requirement to 3.9. This will prevent cryptic Toil install errors. 
+- Fix `--snarlStats` option, which previously returned an invalid gzip file
+- Fix `mash` binary to have same user/group IDs as other files in the Docker image. The fact that it didn't apparently caused singularity issues for some users.
+- Revert from `gfaffix` 0.2.0 back to 0.1.5b, as the decollapsing process of the former still crashes in some cases. 
+
 # Release 2.9.4 2025-02-27
 
 This release fixes compatibility with newer Python versions and improves the `--vcfwave` option, along with a few other patches
