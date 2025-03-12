@@ -39,8 +39,7 @@ from sonLib.nxnewick import NXNewick
 from sonLib.bioio import newickTreeParser
 
 def main():
-    parser = ArgumentParser()
-    Job.Runner.addToilOptions(parser)
+    parser = Job.Runner.getDefaultArgumentParser()
 
     parser.add_argument("halFile", help = "HAL file to convert to MAF")
     parser.add_argument("outDir", help = "Output directory")

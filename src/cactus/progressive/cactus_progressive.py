@@ -318,8 +318,7 @@ def progressive_workflow(job, options, config_node, mc_tree, og_map, input_seq_i
     return hal_export_job.rv()
 
 def main():
-    parser = ArgumentParser()
-    Job.Runner.addToilOptions(parser)
+    parser = Job.Runner.getDefaultArgumentParser()
 
     parser.add_argument("seqFile", help = "Seq file")
     parser.add_argument("outputHal", type=str, help = "Output HAL file")

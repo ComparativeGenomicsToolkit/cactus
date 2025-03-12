@@ -41,8 +41,7 @@ from cactus.shared.common import cactus_clamp_memory
 from sonLib.nxnewick import NXNewick
 
 def main():
-    parser = ArgumentParser()
-    Job.Runner.addToilOptions(parser)
+    parser = Job.Runner.getDefaultArgumentParser()
 
     parser.add_argument("halFile", help = "HAL file to convert to MAF")
     parser.add_argument("outputMAF", help = "Output MAF (will be gzipped if ends in .gz). Suffix with .taf or .taf.gz if you want TAF output")

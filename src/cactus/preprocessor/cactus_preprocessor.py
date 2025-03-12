@@ -438,8 +438,7 @@ def runCactusPreprocessor(outputSequenceDir, configFile, inputSequences, toilDir
         stageWorkflow(outputSequenceDir, ET.parse(options.configFile).getroot(), inputSequences, toil, options=toilOptions)
 
 def main():
-    parser = ArgumentParser()
-    Job.Runner.addToilOptions(parser)
+    parser = Job.Runner.getDefaultArgumentParser()
     parser.add_argument("inSeqFile", type=str, nargs='?', default=None, help = "Input Seq file")
     parser.add_argument("outSeqFile", type=str, nargs='?', default=None, help = "Output Seq file (ex generated with cactus-prepare)")
     parser.add_argument("--configFile", default=os.path.join(cactusRootPath(), "cactus_progressive_config.xml"))

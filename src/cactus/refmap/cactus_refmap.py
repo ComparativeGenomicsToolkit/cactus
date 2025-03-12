@@ -226,8 +226,7 @@ def map_a_to_b(job, a, b, dipcall_filter):
 ## main fxn and interface:
 
 def get_options():
-    parser = ArgumentParser()
-    Job.Runner.addToilOptions(parser)
+    parser = Job.Runner.getDefaultArgumentParser()
     # addCactusWorkflowOptions(parser)
     
     # ### For quick debugging of apply_dipcall_bed_filter:

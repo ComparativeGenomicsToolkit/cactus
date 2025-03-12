@@ -47,7 +47,7 @@ def main_toil():
 def main(toil_mode=False):
     parser = ArgumentParser()
     if toil_mode:
-        Job.Runner.addToilOptions(parser)
+        parser = Job.Runner.getDefaultArgumentParser()
         parser.add_argument("--latest", dest="latest", action="store_true",
                             help="Use the latest version of the docker container "
                             "rather than pulling one matching this version of cactus")

@@ -47,8 +47,7 @@ from sonLib.nxnewick import NXNewick
 from sonLib.bioio import getTempDirectory, getTempFile
 
 def main():
-    parser = ArgumentParser()
-    Job.Runner.addToilOptions(parser)
+    parser = Job.Runner.getDefaultArgumentParser()
 
     parser.add_argument("seqFile", help = "Seq file")
     parser.add_argument("pafFile", nargs='?', default='', type=str, help = "Pairiwse aliginments (from cactus-blast, cactus-refmap or cactus-graphmap)")
@@ -509,8 +508,7 @@ def main_batch():
           could be ported to Terra
     cons: less efficient use of resources
     """
-    parser = ArgumentParser()
-    Job.Runner.addToilOptions(parser)
+    parser = Job.Runner.getDefaultArgumentParser()
 
     parser.add_argument("chromFile", help = "chroms file")
     parser.add_argument("outHal", type=str, help = "Output directory (can be s3://)")

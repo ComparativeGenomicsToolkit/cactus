@@ -40,8 +40,7 @@ from sonLib.nxnewick import NXNewick
 from sonLib.bioio import getTempDirectory
 
 def main():
-    parser = ArgumentParser()
-    Job.Runner.addToilOptions(parser)
+    parser = Job.Runner.getDefaultArgumentParser()
 
     parser.add_argument("seqFile", help = "Seq file (will be modified if necessary to include graph Fasta sequence)")
     parser.add_argument("minigraphGFA", help = "Minigraph-compatible reference graph in GFA format (can be gzipped)")

@@ -31,7 +31,7 @@ from cactus.preprocessor.checkUniqueHeaders import sanitize_fasta_headers
 from cactus.refmap.cactus_graphmap import filter_paf
 from cactus.refmap.cactus_minigraph import check_sample_names, minigraph_gfa_from_pansn
 from toil.job import Job
-from toil.common import Toil
+from toil.common import Toil, Job.Runner.getDefaultArgumentParser()
 from toil.statsAndLogging import logger
 from toil.statsAndLogging import set_logging_from_options
 from toil.realtimeLogger import RealtimeLogger
@@ -41,8 +41,7 @@ from sonLib.nxnewick import NXNewick
 from sonLib.bioio import getTempDirectory, getTempFile, catFiles
 
 def main():
-    parser = ArgumentParser()
-    Job.Runner.addToilOptions(parser)
+    parser = Job.Runner.getDefaultArgumentParser()
 
     parser.add_argument("seqFile", help = "Seq file (gzipped fastas supported)")
     parser.add_argument("minigraphGFA", help = "Minigraph-compatible reference graph in GFA format (can be gzipped)")
