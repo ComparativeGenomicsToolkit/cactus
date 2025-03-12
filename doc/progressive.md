@@ -201,7 +201,7 @@ cactus-hal2maf ./js evolverMammals.hal evolverMammals.maf.gz --refGenome simHuma
 Exporting a MAF for each reference in an 8-way [ape alignment](https://cglgenomics.ucsc.edu/february-2024-t2t-apes/) on UCSC Slurm cluster:
 
 ```
-for i in hs1 hg38 GCA_028858775.2 GCA_028885655.2 GCA_028885625.2 GCA_028878055.2 GCA_029281585.2 GCA_029289425.2; do TOIL_SLURM_ARGS="--partition=long --time=8000" cactus-hal2maf ./js_hal2maf8 ./8-t2t-apes-2023v2.hal ./8-t2t-apes-2023v2.${i}.maf.gz --filterGapCausingDupes --refGenome $i --chunkSize 500000 --batchCores 64 --noAncestors --batchCount 16  --batchSystem slurm --logFile ./8-t2t-apes-2023v2.${i}.gz.log --batchLogsDir batch-logs-8apes --coordinationDir /data/tmp ;done
+for i in hs1 hg38 GCA_028858775.2 GCA_028885655.2 GCA_028885625.2 GCA_028878055.2 GCA_029281585.2 GCA_029289425.2; do cactus-hal2maf ./js_hal2maf8 ./8-t2t-apes-2023v2.hal ./8-t2t-apes-2023v2.${i}.maf.gz --filterGapCausingDupes --refGenome $i --chunkSize 500000 --batchCores 64 --noAncestors --batchCount 16  --batchSystem slurm --logFile ./8-t2t-apes-2023v2.${i}.gz.log --batchLogsDir batch-logs-8apes --slurmTime 200:00:00 --slurmPartition long;done
 ```
 
 Note that the output will contain paralogies.  These can be filtered post-hoc with (note this isn't run on Slurm, to do so you'd need to run `sbatch` yourself)
@@ -307,15 +307,17 @@ These are the most relevant options for running on a cluster
 * `--doubleMem true` (highly recommended): if slurm kills a job because it used more memory than it asked for, retry it asking for double the memory.
 * `--batchLogsDir` (highly recommended): a scratch directory for additional slurm logging.
 * `--workDir`: a local scratch directory available on each worker node (will default to `TEMPDIR` or `TMPDIR`). This could be on a shared filesystem, but it's much better if it's a local, physical disk on the worker node. 
-* `--coordinationDir` (recommended): a local, scratch directory on physical non-network disk (available on worker nodes) for toil scheduling. This can usually be the same as `--workDir`.
 * `--maxMemory` (recommended): use this to set the maximum memory you can schedule on your cluster. can help avoid toil making unrunnable jobs in some cases.
 * `--consMemory`: Override the memory for each `cactus_consolidated` job. Can be useful if Cactus's estimates are wrong, but `--maxMemory/--doubleMem` should be enough to work around this type of issue.
 
-You can use `TOIL_SLURM_ARGS` to add any flags to the slurm `sbatch` submission commands that Toil uses. See `sbatch --help` for possibilities. For example, if you want to schedule your jobs with lower priority, you can run
-```
-export TOIL_SLURM_ARGS="--nice=5000"
-```
-before running cactus.
+On a cluster with partitions and/or time limits, make sure to use
+
+* `--slurmTime` to specify the time for each job.  Unfortunately cactus does not yet try to set this itself, so you need to give one value that will be applied to all jobs, ex `--slurmTime 200:00:00`
+* `--slurmPartition / --slurmGPUPartition` to specify the slurm partition where CPU / GPU jobs end up on.  Cactus will try to figure this out on its own using the `--slurmTime` value along with whether or not the job needs GPU.  But this option will allow you to override that.
+
+You can also use
+
+* `--slurmArgs` to specify any other flags (not covered above) to the slurm `sbatch` the slurm `sbatch` submission commands that Toil uses. See `sbatch --help` for possibilities. For example, if you want to schedule your jobs with lower priority, you can run with `--slurmArgs --nice=5000"`. 
 
 ### Running on the UCSC Prism cluster
 
@@ -328,7 +330,7 @@ source /private/groups/cgl/cactus/venv-cactus-latest/bin/activate
 Some recommended options (note that `--coordinationDir /data/tmp` is required): 
 
 ```
-TOIL_SLURM_ARGS="--partition=long --time=8000" cactus ./js ./examples/evolverMammals.txt evolverMammals.hal --batchSystem slurm --batchLogsDir batch-logs --coordinationDir /data/tmp --consCores 64 --maxMemory 1.4Ti --doubleMem true
+cactus ./js ./examples/evolverMammals.txt evolverMammals.hal --batchSystem slurm --batchLogsDir batch-logs --coordinationDir /data/tmp --consCores 64 --maxMemory 1.4Ti --doubleMem true --slurmTime 200:00:00 --partition long
 ```
 
 ### Clusters and containers
