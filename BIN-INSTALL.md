@@ -6,17 +6,17 @@ pre-compile binary, static linked distribution.
 ## Extracting
 If you have not already extract the distribution and cd into the cactus directory:
 ```
-tar -xzf cactus-bin-v2.9.4.tar.gz
-cd cactus-bin-v2.9.4
+tar -xzf cactus-bin-v2.9.5.tar.gz
+cd cactus-bin-v2.9.5
 ```
 
 ## Setup
 
 To build a python virtualenv and activate, do the following steps. This requires Python version >= 3.9 (so Ubuntu 18.04 users should use `-p python3.9` below):
 ```
-virtualenv -p python3 venv-cactus-v2.9.4
-printf "export PATH=$(pwd)/bin:\$PATH\nexport PYTHONPATH=$(pwd)/lib:\$PYTHONPATH\nexport LD_LIBRARY_PATH=$(pwd)/lib:\$LD_LIBRARY_PATH\n" >> venv-cactus-v2.9.4/bin/activate
-source venv-cactus-v2.9.4/bin/activate
+virtualenv -p python3 venv-cactus-v2.9.5
+printf "export PATH=$(pwd)/bin:\$PATH\nexport PYTHONPATH=$(pwd)/lib:\$PYTHONPATH\nexport LD_LIBRARY_PATH=$(pwd)/lib:\$LD_LIBRARY_PATH\n" >> venv-cactus-v2.9.5/bin/activate
+source venv-cactus-v2.9.5/bin/activate
 python3 -m pip install -U setuptools pip wheel
 python3 -m pip install -U .
 python3 -m pip install -U -r ./toil-requirement.txt
