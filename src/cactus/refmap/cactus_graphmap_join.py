@@ -63,8 +63,7 @@ from sonLib.bioio import getTempDirectory, getTempFile, catFiles
 import pysam
 
 def main():
-    parser = ArgumentParser()
-    Job.Runner.addToilOptions(parser)
+    parser = Job.Runner.getDefaultArgumentParser()
 
     parser.add_argument("--vg", required=True, nargs='+',  help = "Input vg files (PackedGraph or HashGraph format)")
     parser.add_argument("--hal", nargs='+', default = [], help = "Input hal files (for merging)")    

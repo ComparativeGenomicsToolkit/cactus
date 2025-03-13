@@ -41,8 +41,7 @@ from sonLib.nxnewick import NXNewick
 from sonLib.bioio import getTempDirectory, getTempFile, catFiles
 
 def main():
-    parser = ArgumentParser()
-    Job.Runner.addToilOptions(parser)
+    parser = Job.Runner.getDefaultArgumentParser()
 
     parser.add_argument("seqFile", help = "Seq file (gzipped fastas supported)")
     parser.add_argument("minigraphGFA", help = "Minigraph-compatible reference graph in GFA format (can be gzipped)")

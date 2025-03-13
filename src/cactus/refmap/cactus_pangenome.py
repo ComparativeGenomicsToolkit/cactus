@@ -48,8 +48,7 @@ from cactus.setup.cactus_align import make_batch_align_jobs, batch_align_jobs
 from cactus.refmap.cactus_graphmap_join import graphmap_join_workflow, export_join_data, graphmap_join_options, graphmap_join_validate_options
 
 def main():
-    parser = ArgumentParser()
-    Job.Runner.addToilOptions(parser)
+    parser = Job.Runner.getDefaultArgumentParser()
 
     parser.add_argument("seqFile", help = "Seq file (will be modified if necessary to include graph Fasta sequence)")
     parser.add_argument("--outDir", help = "Output directory", required=True)

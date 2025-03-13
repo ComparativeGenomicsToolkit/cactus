@@ -42,8 +42,7 @@ from cactus.progressive.multiCactusTree import MultiCactusTree
 from sonLib.bioio import getTempDirectory
 
 def main():
-    parser = ArgumentParser()
-    Job.Runner.addToilOptions(parser)
+    parser = Job.Runner.getDefaultArgumentParser()
 
     parser.add_argument("seqFile", help = "Seq file (will be modified if necessary to include graph Fasta sequence)")
     parser.add_argument("outputGFA", help = "Output Minigraph GFA")

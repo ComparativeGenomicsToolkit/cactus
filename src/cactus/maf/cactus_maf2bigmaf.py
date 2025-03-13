@@ -35,8 +35,7 @@ from toil.lib.humanize import bytes2human
 from sonLib.bioio import getTempDirectory
 
 def main():
-    parser = ArgumentParser()
-    Job.Runner.addToilOptions(parser)
+    parser = Job.Runner.getDefaultArgumentParser()
 
     parser.add_argument("mafFile", help = "MAF file to convert to BigMaf (can be gzipped)")
     parser.add_argument("outFile", help = "Output bigMaf file (.bb)")

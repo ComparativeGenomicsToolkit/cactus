@@ -32,8 +32,7 @@ from sonLib.nxnewick import NXNewick
 from sonLib.bioio import getTempDirectory, getTempFile
 
 def main():
-    parser = ArgumentParser()
-    Job.Runner.addToilOptions(parser)
+    parser = Job.Runner.getDefaultArgumentParser()
 
     parser.add_argument("seqFile", help="Seq file")
     parser.add_argument("outputFile", type=str, help="Output pairwise alignment file")
