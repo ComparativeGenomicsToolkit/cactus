@@ -1035,12 +1035,12 @@ def make_vcf(job, config, options, workflow_phase, index_mem, vcf_ref, vg_ids, r
 
         if options.vcfbub:
             vcfbub_job = deconstruct_job.addFollowOnJobFn(vcfbub, config, options.outName, vcf_ref,
-                                                                  raw_vcf_id, raw_tbi_id,
-                                                                  options.vcfbub,
-                                                                  ref_fasta_dict,
-                                                                  tag=os.path.splitext(os.path.basename(vg_path))[0] + '.' + vcftag + '.',
-                                                                  disk = vg_id.size * 6,
-                                                                  memory=cactus_clamp_memory(vg_id.size * 2))
+                                                          raw_vcf_id, raw_tbi_id,
+                                                          options.vcfbub,
+                                                          ref_fasta_dict,
+                                                          tag=os.path.splitext(os.path.basename(vg_path))[0] + '.' + vcftag + '.',
+                                                          disk = vg_id.size * 6,
+                                                          memory=cactus_clamp_memory(vg_id.size * 2))
             bub_vcf_id, bub_tbi_id = vcfbub_job.rv(0), vcfbub_job.rv(1)
             bub_vcf_tbi_ids.append((bub_vcf_id, bub_tbi_id))
 
@@ -1086,6 +1086,24 @@ def deconstruct(job, config, out_name, vcf_ref, vg_id, tag):
     vg_path = os.path.join(work_dir, os.path.basename(out_name) + '.' + tag + 'vg')    
     job.fileStore.readGlobalFile(vg_id, vg_path)
 
+    # deconstruct will fail if there are no alt paths.  we check for that here
+    graph_paths = cactus_call(parameters=['vg', 'paths', '-x', vg_path, '-L'], check_output=True).split('\n')
+    alt_paths = []
+    ref_paths = []
+    for graph_path in graph_paths:
+        graph_path = graph_path.strip()
+        if graph_path:
+            if graph_path.startswith(vcf_ref + '#'):
+                ref_paths.append(graph_path)
+            else:
+                alt_paths.append(graph_path)
+    # should be exactly 1 since we're running chrom by chrom, but leave more relaxed chek
+    assert len(ref_paths) > 0
+    if len(alt_paths) == 0:
+        # deconstruct will fail, but this can legitimately come up, ex chrEBV in GRCh38 analysis set
+        RealtimeLogger.warning('No variants found for {}: VCF generation skipped'.format(ref_paths[0]))
+        return None, None
+
     # make the vcf
     vcf_path = os.path.join(work_dir, os.path.basename(out_name) + '.' + tag + 'raw.vcf.gz')
     decon_cmd = ['vg', 'deconstruct', vg_path, '-P', vcf_ref, '-C', '-a', '-t', str(job.cores)]
@@ -1102,6 +1120,9 @@ def deconstruct(job, config, out_name, vcf_ref, vg_id, tag):
 def vcfbub(job, config, out_name, vcf_ref, vcf_id, tbi_id, max_ref_allele, fasta_ref_dict, tag):
     """ make the vcfbub vcf
     """
+    if vcf_id is None:
+        return None, None
+    
     work_dir = job.fileStore.getLocalTempDir()
     vcf_path = os.path.join(work_dir, os.path.basename(out_name) + '.' + tag + 'raw.vcf.gz')
     job.fileStore.readGlobalFile(vcf_id, vcf_path)
@@ -1137,6 +1158,8 @@ def vcfbub(job, config, out_name, vcf_ref, vcf_id, tbi_id, max_ref_allele, fasta
 
 def vcfnorm(job, config, vcf_ref, vcf_id, vcf_path, tbi_id, fasta_ref_dict):
     """ run bcftools norm and merge_duplicates.py """
+    if vcf_id is None:
+        return None, None
     work_dir = job.fileStore.getLocalTempDir()
     vcf_path = os.path.join(work_dir, os.path.basename(vcf_path))
     job.fileStore.readGlobalFile(vcf_id, vcf_path)
@@ -1352,6 +1375,9 @@ def vcfwave(job, config, vcf_path, vcf_id):
 
 def vcf_cat(job, vcf_tbi_ids, tag, sort=False, fix_ploidies=True):
     """ concat some vcf files, optionally do a (stable) sort of the results """
+    vcf_tbi_ids = [vt for vt in vcf_tbi_ids if vt[0] != None]
+    if not vcf_tbi_ids:
+        return None, None
     work_dir = job.fileStore.getLocalTempDir()
     vcf_paths = []
     sample_sets = []
