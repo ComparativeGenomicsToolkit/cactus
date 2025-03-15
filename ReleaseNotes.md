@@ -1,3 +1,10 @@
+# Release 2.9.6 2025-03-15
+
+This release contains yet another `gfaffix` patch (hopefully the last for a long time), as well as a fix for `deconstruct`
+
+- Update `gfaffix` to 0.2.1. Tests so far show this version to be much more stable on big graphs.
+- Resolve `vg deconstruct` crash on reference chromosomes with zero variation, ex `chrEBV`. 
+
 # Release 2.9.5 2025-03-12
 
 This release patches a few issues that arose in the previous release
