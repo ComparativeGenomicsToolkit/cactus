@@ -430,7 +430,7 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
     # run the "full" phase to do pre-clipping stuff
     full_vg_ids = []
     assert len(options.vg) == len(vg_ids)
-    for vg_path, vg_id in sorted(zip(options.vg, vg_ids)):
+    for vg_path, vg_id in zip(options.vg, vg_ids):
         full_job = Job.wrapJobFn(clip_vg, options, config, vg_path, vg_id, 'full',
                                  disk=vg_id.size * 20, memory=max(2**31, min(vg_id.size * 20, max_mem)))
         root_job.addChild(full_job)
