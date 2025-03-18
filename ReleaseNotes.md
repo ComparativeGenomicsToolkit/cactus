@@ -1,3 +1,8 @@
+# Release 2.9.7 2025-03-17
+
+- Resolve `vcfwave` normalization crash on reference chromosomes with zero variation, ex `chrEBV`. 
+- Fix bug introduced in v2.9.6 where per-chromosome outputs could be misnamed.
+
 # Release 2.9.6 2025-03-15
 
 This release contains yet another `gfaffix` patch (hopefully the last for a long time), as well as a fix for `deconstruct`
