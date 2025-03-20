@@ -264,9 +264,9 @@ def make_align_job(options, toil, config_wrapper=None, chrom_name=None):
         config_node = ET.parse(options.configFile).getroot()
         config_wrapper = ConfigWrapper(config_node)
         config_wrapper.substituteAllPredefinedConstantsWithLiterals(options)
-        config_wrapper.initGPU(options)
         if options.collapse:
             findRequiredNode(config_node, "graphmap").attrib["collapse"] = 'all'
+        config_wrapper.initLastz(options)
     config_wrapper.setSystemMemory(options)
     
     mc_tree, input_seq_map, og_candidates = parse_seqfile(options.seqFile, config_wrapper,
