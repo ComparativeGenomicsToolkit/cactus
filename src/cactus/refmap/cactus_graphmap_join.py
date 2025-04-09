@@ -430,7 +430,7 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
     # run the "full" phase to do pre-clipping stuff
     full_vg_ids = []
     assert len(options.vg) == len(vg_ids)
-    for vg_path, vg_id in sorted(zip(options.vg, vg_ids)):
+    for vg_path, vg_id in zip(options.vg, vg_ids):
         full_job = Job.wrapJobFn(clip_vg, options, config, vg_path, vg_id, 'full',
                                  disk=vg_id.size * 20, memory=max(2**31, min(vg_id.size * 20, max_mem)))
         root_job.addChild(full_job)
@@ -665,7 +665,7 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
                 
                 snarl_stats_job = gfa_root_job.addChildJobFn(snarl_stats, options, config, vg_path, vg_id,
                                                              disk=input_vg_id.size * 2,
-                                                             memory=cactus_clamp_memory(input_vg_id.size * 5),
+                                                             memory=cactus_clamp_memory(input_vg_id.size * 10),
                                                              cores=options.indexCores)
                 snarl_stats_ids.append(snarl_stats_job.rv())
 
@@ -1255,6 +1255,9 @@ def check_vcffixup(job):
     
 def chunked_vcfwave(job, config, out_name, vcf_ref, vcf_id, tbi_id, max_ref_allele, fasta_ref_dict, tag):
     """ run vcfwave in parallel chunks """
+    if vcf_id is None:
+        return None, None
+
     work_dir = job.fileStore.getLocalTempDir()
     vcf_path = os.path.join(work_dir, os.path.basename(out_name) + '.' + vcf_ref + '.' + tag + 'raw.vcf.gz')
     job.fileStore.readGlobalFile(vcf_id, vcf_path)
