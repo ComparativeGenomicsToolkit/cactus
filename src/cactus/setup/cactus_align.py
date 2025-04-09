@@ -98,8 +98,6 @@ def main():
                         "rather than pulling one from quay.io")
     parser.add_argument("--binariesMode", choices=["docker", "local", "singularity"],
                         help="The way to run the Cactus binaries", default=None)
-    parser.add_argument("--gpu", action="store_true",
-                        help="Enable GPU acceleration by using Segaling instead of lastz")
     parser.add_argument("--consCores", type=int, 
                         help="Number of cores for each cactus_consolidated job (defaults to all available / maxCores on single_machine)", default=None)
     parser.add_argument("--consMemory", type=human2bytesN,
@@ -264,7 +262,6 @@ def make_align_job(options, toil, config_wrapper=None, chrom_name=None):
         config_node = ET.parse(options.configFile).getroot()
         config_wrapper = ConfigWrapper(config_node)
         config_wrapper.substituteAllPredefinedConstantsWithLiterals(options)
-        config_wrapper.initGPU(options)
         if options.collapse:
             findRequiredNode(config_node, "graphmap").attrib["collapse"] = 'all'
     config_wrapper.setSystemMemory(options)
