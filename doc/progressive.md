@@ -18,6 +18,7 @@ Please cite the [HAL paper](https://doi.org/10.1093/bioinformatics/btt128) when 
 * [Running on a Cluster](#running-on-a-cluster)
 * [Running Step-by-step](#running-step-by-step)
 * [Running on Terra or Cromwell](#running-on-terra-or-cromwell)
+* [Running with SnakeMake](#running-with-snakemake)
 * [Updating Alignments](#updating-alignments)
 * [GPU Acceleration](#gpu-acceleration)
 * [Pre-Alignment Checklist](#pre-alignment-checklist)
@@ -434,6 +435,10 @@ The same script can be used to download all the logs off Terra, which can be use
 ```
 gsutil ls -l -r gs://<BUCKET/PREFIX> | cactus-terra-helper scrape-logs
 ```
+
+## Running with SnakeMake](#running-with-snakemake)
+
+Please see this [Cactus Snakemake](https://github.com/harvardinformatics/cactus-snakemake) interface.  I haven't tried it yet but it seems like an extremely promising alternative to WDL for running large jobs step-by-step, including on clusters.  Credit to Gregg Thomos @gwct.
 
 ## Updating Alignments
 
