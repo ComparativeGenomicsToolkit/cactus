@@ -98,8 +98,6 @@ def main():
                         "rather than pulling one from quay.io")
     parser.add_argument("--binariesMode", choices=["docker", "local", "singularity"],
                         help="The way to run the Cactus binaries", default=None)
-    parser.add_argument("--gpu", action="store_true",
-                        help="Enable GPU acceleration by using Segaling instead of lastz")
     parser.add_argument("--consCores", type=int, 
                         help="Number of cores for each cactus_consolidated job (defaults to all available / maxCores on single_machine)", default=None)
     parser.add_argument("--consMemory", type=human2bytesN,
