@@ -182,10 +182,6 @@ def merge_combined_chunks(job, combined_chunks):
 def make_chunked_alignments(job, event_a, genome_a, event_b, genome_b, distance, params):
     lastz_params_node = params.find("blast")
     gpu = getOptionalAttrib(lastz_params_node, 'gpu', typeFn=int, default=0)
-    fastga = getOptionalAttrib(lastz_params_node, 'mapper', typeFn=str) == 'fastga'
-    if gpu or fastga:
-        # wga-gpu has a 6G limit, so we always override
-        lastz_params_node.attrib['chunkSize'] = '6000000000'
     lastz_cores = getOptionalAttrib(lastz_params_node, 'cpu', typeFn=int, default=None)
     lastz_memory = getOptionalAttrib(lastz_params_node, 'lastz_memory', typeFn=int, default=None)
     
@@ -252,6 +248,7 @@ def make_ingroup_to_outgroup_alignments_1(job, ingroup_event, outgroup_events, e
     alignment = root_job.addChildJobFn(make_chunked_alignments,
                                        outgroup.iD, event_names_to_sequences[outgroup.iD],
                                        ingroup_event.iD, event_names_to_sequences[ingroup_event.iD], distances[ingroup_event, outgroup], params,
+                                       memory=cactus_clamp_memory(1.2 * float(params.find("blast").attrib["chunkSize"])),
                                        disk=4*(event_names_to_sequences[ingroup_event.iD].size+event_names_to_sequences[outgroup.iD].size)).rv()
 
     #  post process the alignments and recursively generate alignments to remaining outgroups
@@ -547,6 +544,14 @@ def make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancest
     # Calculate the total sequence size
     total_sequence_size = sum(event_names_to_sequences[event.iD].size for event in get_leaves(event_tree))
 
+    # override chunk size 
+    lastz_params_node = params.find("blast")
+    gpu = getOptionalAttrib(lastz_params_node, 'gpu', typeFn=int, default=0)
+    fastga = getOptionalAttrib(lastz_params_node, 'mapper', typeFn=str) == 'fastga'    
+    if gpu or fastga:
+        # wga-gpu has a 6G limit, so we always override
+        lastz_params_node.attrib['chunkSize'] = '6000000000'
+
     # for each pair of ingroups make alignments
     ingroup_alignments = []
     # for better logs
@@ -556,6 +561,7 @@ def make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancest
         ingroup_alignments.append(root_job.addChildJobFn(make_chunked_alignments,
                                                          ingroup.iD, event_names_to_sequences[ingroup.iD],
                                                          ingroup2.iD, event_names_to_sequences[ingroup2.iD], distance_a_b, params,
+                                                         memory=cactus_clamp_memory(1.2 * float(lastz_params_node.attrib['chunkSize'])),
                                                          disk=2*total_sequence_size).rv())
         ingroup_alignment_names.append('{}-{}_vs_{}'.format(ancestor_event_string, ingroup.iD, ingroup2.iD))
 
@@ -576,6 +582,7 @@ def make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancest
                                                       ingroup.iD, event_names_to_sequences[ingroup.iD],
                                                       outgroup.iD, event_names_to_sequences[outgroup.iD],
                                                       distances[ingroup, outgroup], params,
+                                                      memory=cactus_clamp_memory(1.2 * float(lastz_params_node.attrib['chunkSize'])),
                                                       disk=2*total_sequence_size).rv()
                                for ingroup in ingroup_events for outgroup in outgroup_events]
     # for better logs
