@@ -41,6 +41,7 @@ from cactus.shared.common import makeURL
 from cactus.shared.common import cactus_call
 from cactus.shared.configWrapper import ConfigWrapper
 from cactus.shared.common import cactusRootPath
+from cactus.shared.common import cactus_override_toil_options
 from cactus.progressive.progressive_decomposition import compute_outgroups, parse_seqfile, get_subtree, get_spanning_subtree, get_event_set
 from cactus.preprocessor.checkUniqueHeaders import sanitize_fasta_headers
 
@@ -285,7 +286,8 @@ def get_options():
 
 def main():
     options = get_options()
-
+    cactus_override_toil_options(options)
+    
     with Toil(options) as toil:
         setupBinaries(options)
 
