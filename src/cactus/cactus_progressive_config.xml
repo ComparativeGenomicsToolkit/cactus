@@ -105,6 +105,16 @@
 				five="--step=2 --ambiguous=iupac,100,100 --ydrop=3000 --queryhspbest=100000"
 				default="--step=1 --ambiguous=iupac,100,100 --ydrop=3000 --queryhspbest=100000"
 		/>
+		<!-- KegAlign doesn't seem to work properly with queryhspbest -->
+		<kegalignArguments
+				one="--step=2 --ambiguous=iupac,100,100 --ydrop=3000 --notransition"
+				two="--step=5 --ambiguous=iupac,100,100 --ydrop=3000"
+				three="--step=4 --ambiguous=iupac,100,100 --ydrop=3000"
+				four="--step=3 --ambiguous=iupac,100,100 --ydrop=3000"
+				five="--step=2 --ambiguous=iupac,100,100 --ydrop=3000"
+				default="--step=1 --ambiguous=iupac,100,100 --ydrop=3000"
+		/>
+		
 	</blast>
 
 	<setup makeEventHeadersAlphaNumeric="0"/>
