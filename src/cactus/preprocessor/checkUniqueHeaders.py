@@ -5,6 +5,7 @@ from Bio import SeqIO
 from Bio.SeqRecord import SeqRecord
 import os
 from cactus.shared.common import cactus_call
+from cactus.shared.common import cactus_clamp_memory
 
 def checkUniqueHeaders(inputFile, outputFile, eventName, checkAlphaNumeric=False, checkUCSC=False, checkAssemblyHub=True):
     """Check that headers are unique and meet certain requirements."""
@@ -39,6 +40,7 @@ def sanitize_fasta_headers(job, fasta_id_map, pangenome=False, log_stats=True):
     out_fasta_id_map = {}
     for event, fasta_id in fasta_id_map.items():
         out_fasta_id_map[event] = job.addChildJobFn(sanitize_fasta_header, fasta_id, event, pangenome, log_stats,
+                                                    memory=cactus_clamp_memory(fasta_id.size * 4),
                                                     disk=fasta_id.size*7).rv()
     return out_fasta_id_map
 
