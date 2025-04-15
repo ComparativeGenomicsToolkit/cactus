@@ -34,3 +34,6 @@
 [submodule "submodules/collapse-bubble"]
 	path = submodules/collapse-bubble
 	url = https://github.com/Han-Cao/collapse-bubble.git
+[submodule "submodules/FASTGA"]
+	path = submodules/FASTGA
+	url = https://github.com/thegenemyers/FASTGA.git
