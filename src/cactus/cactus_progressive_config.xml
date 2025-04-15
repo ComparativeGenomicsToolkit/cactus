@@ -98,6 +98,15 @@
 		within a margin of 0.2% sensitivity, should be very fast for close genomes, these were tuned using the blast/blastParametersScript.py
 		We could go even faster for less than 0.05 divergence using, but want to be robust to poor branch length estimates -->
 		<lastzArguments
+				one="--step=2 --ambiguous=iupac,100,100 --ydrop=3000 --notransition --queryhspbest=100000"
+				two="--step=5 --ambiguous=iupac,100,100 --ydrop=3000 --queryhspbest=100000"
+				three="--step=4 --ambiguous=iupac,100,100 --ydrop=3000 --queryhspbest=100000"
+				four="--step=3 --ambiguous=iupac,100,100 --ydrop=3000 --queryhspbest=100000"
+				five="--step=2 --ambiguous=iupac,100,100 --ydrop=3000 --queryhspbest=100000"
+				default="--step=1 --ambiguous=iupac,100,100 --ydrop=3000 --queryhspbest=100000"
+		/>
+		<!-- KegAlign doesn't seem to work properly with queryhspbest -->
+		<kegalignArguments
 				one="--step=2 --ambiguous=iupac,100,100 --ydrop=3000 --notransition"
 				two="--step=5 --ambiguous=iupac,100,100 --ydrop=3000"
 				three="--step=4 --ambiguous=iupac,100,100 --ydrop=3000"
@@ -105,6 +114,7 @@
 				five="--step=2 --ambiguous=iupac,100,100 --ydrop=3000"
 				default="--step=1 --ambiguous=iupac,100,100 --ydrop=3000"
 		/>
+		
 	</blast>
 
 	<setup makeEventHeadersAlphaNumeric="0"/>
