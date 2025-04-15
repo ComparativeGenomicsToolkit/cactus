@@ -30,10 +30,12 @@ def run_lastz(job, name_A, genome_A, name_B, genome_B, distance, params):
     genome_b_file = os.path.join(work_dir, '{}.fa'.format(name_B))
     job.fileStore.readGlobalFile(genome_A, genome_a_file)
     job.fileStore.readGlobalFile(genome_B, genome_b_file)
-
+    
     # Get the params to do the alignment
     lastz_params_node = params.find("blast")
-    lastz_divergence_node = lastz_params_node.find("lastzArguments")
+    gpu = getOptionalAttrib(lastz_params_node, 'gpu', typeFn=int, default=0)
+    cpu = getOptionalAttrib(lastz_params_node, 'cpu', typeFn=int, default=None)        
+    lastz_divergence_node = lastz_params_node.find("kegalignArguments" if gpu else "lastzArguments")
     divergences = params.find("constants").find("divergences")
     for i in "one", "two", "three", "four", "five":
         if distance <= float(divergences.attrib[i]):
@@ -43,9 +45,6 @@ def run_lastz(job, name_A, genome_A, name_B, genome_B, distance, params):
         lastz_params = lastz_divergence_node.attrib["default"]
     logger.info("For distance {} for genomes {}, {} using {} lastz parameters".format(distance, genome_A,
                                                                                       genome_B, lastz_params))
-
-    gpu = getOptionalAttrib(lastz_params_node, 'gpu', typeFn=int, default=0)
-    cpu = getOptionalAttrib(lastz_params_node, 'cpu', typeFn=int, default=None)    
     if gpu:
         lastz_bin = 'run_kegalign'
         suffix_a, suffix_b = '', ''
