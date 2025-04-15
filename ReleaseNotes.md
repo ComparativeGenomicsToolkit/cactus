@@ -1,3 +1,12 @@
+# Release 2.9.8 2025-04-15
+
+This release resolves some issues in Progressive Cactus
+
+- `--queryhspbest=100000` added to default `lastz` (but not kegalign) parameters in order to prevent tool from taking forever in some worst-case (ie not fully masked) situations
+- `paffy chunk` fixed to split FASTA contigs across multiple lines (instead of 1 / line).  This prevents kegalign crashes on large contigs (which can happen now that ancestors are big).
+- Remove `--gpu` option from `cactus-align`.  Not only was it inconsistent and unneeded, it prevented `cactus-align` from even being run from the gpu docker image if no gpus were available. 
+- Specify memory to Toil jobs that read in FASTA files (`faffy chunk`, `cacatus_santize_fasta_headers`). These tools read entire contigs into memory, and can therefore take non-trivial amounts for large contigs.
+
 # Release 2.9.7 2025-03-17
 
 - Resolve `vcfwave` normalization crash on reference chromosomes with zero variation, ex `chrEBV`. 
