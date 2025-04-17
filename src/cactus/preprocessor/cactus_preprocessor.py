@@ -459,11 +459,11 @@ def main():
                         "rather than pulling one from quay.io")
     parser.add_argument("--binariesMode", choices=["docker", "local", "singularity"],
                         help="The way to run the Cactus binaries", default=None)
-    parser.add_argument("--gpu", nargs='?', const='all', default=None, help="toggle on GPU-enabled lastz, and specify number of GPUs (all available if no value provided)")
-    parser.add_argument("--lastzCores", type=int, default=None, help="Number of cores for each lastz/segalign job, only relevant when running with --gpu")
+    parser.add_argument("--gpu", nargs='?', const='all', default=None, help="toggle on GPU-enabled lastz, and specify number of GPUs (all available if no value provided). NOTE: lastz preprocessing is deprecated and disabled by default so this option will have no effect unless lastz is specifcally enabled in the config (no recommended).")
+    parser.add_argument("--lastzCores", type=int, default=None, help="Number of cores for each lastz/segalign job, only relevant when running with --gpu. NOTE: lastz preprocessing is deprecated and disabled by default so this option will have no effect unless lastz is specifcally enabled in the config (no recommended).")
     parser.add_argument("--lastzMemory", type=human2bytesN,
                         help="Memory in bytes for each lastz/segalign job (defaults to an estimate based on the input data size). "
-                        "Standard suffixes like K, Ki, M, Mi, G or Gi are supported (default=bytes))", default=None)
+                        "Standard suffixes like K, Ki, M, Mi, G or Gi are supported (default=bytes). NOTE: lastz preprocessing is deprecated and disabled by default so this option will have no effect unless lastz is specifcally enabled in the config (no recommended).", default=None)
 
     parser.add_argument("--pangenome", action="store_true", help='Do not mask. Just add Cactus-style unique prefixes and strip anything up to and including last #')
 
@@ -513,7 +513,8 @@ def main():
 
     # toggle on the gpu
     config_wrapper = ConfigWrapper(configNode)
-    config_wrapper.initGPU(options)
+    if config_wrapper.isLastzPreprocessorActive():
+        config_wrapper.initGPU(options)
 
     # apply pangenome overrides
     if options.pangenome:

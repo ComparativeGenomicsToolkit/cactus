@@ -116,7 +116,7 @@ class LastzRepeatMaskJob(RoundedJob):
                 if not line.startswith("signals delivered"):
                     for keyword in ['terminate', 'error', 'fail', 'assert', 'signal', 'abort', 'segmentation', 'sigsegv', 'kill']:
                         if keyword in line and 'signals' not in line:
-                            job.fileStore.logToMaster("KegAlign offending line: " + line)  # Log the messages
+                            fileStore.logToMaster("KegAlign offending line: " + line)  # Log the messages
                             raise RuntimeError('{} exited 0 but keyword "{}" found in stderr'.format(lastz_cmd, keyword))
 
             # kegalign will write an invalid file if the output is empty.  correct it here!
