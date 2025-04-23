@@ -480,7 +480,7 @@ def get_plan_adding2node(
         )
     ]
     if remove_genome:
-        update_cmds.insert(0, f"halRemoveGenome {out_hal} {remove_genome}")
+        update_cmds.insert(0, f"halRemoveGenome {in_hal} {remove_genome}")
 
     # adding HAL-file validating instructions
     validation_cmds = [f"halValidate --genome {genome} {in_hal} {halOptions}"]
@@ -1174,7 +1174,7 @@ def main():
         "--cactus-prepare-options",
         dest="cactus_prepare_options",
         type=str,
-        default="--preprocessBatchSize 1 --cactusOptions '--realTimeLogging --logInfo --retryCount 0'",
+        default="--preprocessBatchSize 1",
         help="Options to bypass local configuration for cactus-prepare",
     )
 
