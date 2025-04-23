@@ -576,6 +576,7 @@ def main():
     logger.info('Cactus Commit: {}'.format(cactus_commit))
     
     with Toil(options) as toil:
+        importSingularityImage(options)        
         stageWorkflow(outputSequenceDir=None,
                       configNode=configNode,
                       inputSequences=inSeqPaths,

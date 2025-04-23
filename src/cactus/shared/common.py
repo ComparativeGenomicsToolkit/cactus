@@ -317,7 +317,7 @@ def getDockerTag(gpu=False):
 
 def getDockerImage(gpu=False):
     """Get fully specified Docker image name."""
-    return "%s/cactus:%s" % (getDockerOrg(), getDockerTag())
+    return "%s/cactus:%s" % (getDockerOrg(), getDockerTag(gpu))
 
 def maxMemUsageOfContainer(containerInfo):
     """Return the max RSS usage (in bytes) of a container, or None if something failed."""
