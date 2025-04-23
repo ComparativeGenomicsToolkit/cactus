@@ -85,6 +85,7 @@ def main(toil_mode=False):
         parser.add_argument("--includeRoot", action='store_true', help="Root node's sequence is set from input: --includeRoot will be specified for its align and blast jobs")
     
     parser.add_argument("--gpu", nargs='?', const='all', default=None, help="toggle on GPU-enabled lastz, and specify number of GPUs (all available if no value provided)")
+    parser.add_argument('--lastzCores', type=int, help='number of CPUs for GPU-enabled lastz')
     parser.add_argument("--gpuType", default="nvidia-tesla-v100", help="GPU type (to set in WDL runtime parameters, use only with --wdl)")
     parser.add_argument("--nvidiaDriver", default="470.82.01", help="Nvidia driver version")
     parser.add_argument("--gpuZone", default="us-central1-a", help="zone used for gpu task")
@@ -455,10 +456,11 @@ def get_plan(options, inSeqFile, outSeqFile, configWrapper, toil):
                                                                           memory=options.preprocessMemory,
                                                                           disk=options.preprocessDisk)
         else:
-            plan += 'cactus-preprocess {} {} {} --inputNames {} {} {}{}{}\n'.format(
+            plan += 'cactus-preprocess {} {} {} --inputNames {} {} {}{}{}{}\n'.format(
                 get_jobstore(options), options.seqFile, options.outSeqFile, ' '.join(pre_batch),
                 options.cactusOptions, get_toil_resource_opts(options, 'preprocess'),
                 ' --gpu {}'.format(options.gpu) if options.gpu_preprocessor else '',
+                ' --lastzCores {}'.format(options.lastzCores) if options.lastzCores else '',
                 get_log_options(options, 'preprocess', leaves[i]))
 
     if options.preprocessOnly:
@@ -563,10 +565,11 @@ def get_plan(options, inSeqFile, outSeqFile, configWrapper, toil):
                     cactus_options += ' --includeRoot'
                 if options.chromInfo:
                     cactus_options += ' --chromInfo {}'.format(options.chromInfo)
-                plan += 'cactus-blast {} {} {} --root {} {} {}{}{}\n'.format(
+                plan += 'cactus-blast {} {} {} --root {} {} {}{}{}{}\n'.format(
                     get_jobstore(options), options.outSeqFile, cigarPath(event), event,
                     cactus_options, get_toil_resource_opts(options, 'blast'),
                     ' --gpu {}'.format(options.gpu) if options.gpu else '',
+                    ' --lastzCores {}'.format(options.lastzCores) if options.lastzCores else '',
                     get_log_options(options, 'blast', event))
                 plan += 'cactus-align {} {} {} {} --root {} {} {}{}\n'.format(
                     get_jobstore(options), options.outSeqFile, cigarPath(event), halPath(event), event,
@@ -739,8 +742,9 @@ def wdl_task_preprocess(options):
     s += '    command {\n        '
     s += 'cactus-preprocess {} --inPaths ${{sep=\" \" default=\"\" in_files}} ${{sep=\" \" default=\"\" in_urls}}'.format(get_jobstore(options, 'preprocess'))
     s += ' --inputNames ${sep=\" \" default=\"\" in_names}'
-    s += ' --outPaths ${{sep=\" \" out_names}} {} {} {}'.format(options.cactusOptions, get_toil_resource_opts(options, 'preprocess'),
-                                                                ' --gpu {}'.format(options.gpu) if options.gpu else '')
+    s += ' --outPaths ${{sep=\" \" out_names}} {} {} {} {}'.format(options.cactusOptions, get_toil_resource_opts(options, 'preprocess'),
+                                                                   ' --gpu {}'.format(options.gpu) if options.gpu else '',
+                                                                   ' --lastzCores {}'.format(options.lastzCores) if options.lastzCores else '')
     s += ' ${\"--configFile \" + in_config_file}'
     s += '\n'
     s += '    }\n'
@@ -802,6 +806,8 @@ def toil_call_preprocess(job, options, in_seq_file, out_seq_file, name):
            '--maxCores', str(int(job.cores)), '--maxDisk', bytes2humanN(job.disk), '--maxMemory', bytes2humanN(job.memory)] + options.cactusOptions.strip().split(' ')
     if options.gpu_preprocessor:
         cmd += ['--gpu', options.gpu]
+        if options.lastzCores:
+            cmd += ['--lastzCores', str(options.lastzCores)]
     
     cactus_call(parameters=cmd)
 
@@ -825,8 +831,9 @@ def wdl_task_blast(options):
     s += '    command {\n        '
     s += 'cactus-blast {} ${{in_seq_file}} ${{out_name}} --root ${{in_root}}'.format(get_jobstore(options, 'blast'))
     s += ' --pathOverrides ${sep=\" \" in_fa_files} ${sep=\" \" in_fa_urls} --pathOverrideNames ${sep=\" \" in_fa_names}'
-    s += ' {} {} {} ${{\"--configFile \" + in_config_file}} ${{in_options}}'.format(options.cactusOptions, get_toil_resource_opts(options, 'blast'),
-                                                                                    ' --gpu {}'.format(options.gpu) if options.gpu else '')
+    s += ' {} {} {} {} ${{\"--configFile \" + in_config_file}} ${{in_options}}'.format(options.cactusOptions, get_toil_resource_opts(options, 'blast'),
+                                                                                       ' --gpu {}'.format(options.gpu) if options.gpu else '',
+                                                                                       ' --lastzCores {}'.format(options.lastzCores) if options.lastzCores else '')
     s += ' ${\"--chromInfo \" + in_chrom_info_file}'
     s += '\n    }\n'
     s += '    runtime {\n'
@@ -913,6 +920,8 @@ def toil_call_blast(job, options, seq_file, mc_tree, og_map, event, cigar_name, 
                 options.cactusOptions.strip().split(' ')
     if options.gpu:
         blast_cmd += ['--gpu', options.gpu]
+        if options.lastzCores:
+            blast_cmd += ['--lastzCores', str(options.lastzCores)]
     if options.chromInfo:
         #todo this won't support distributed execution
         blast_cmd += ['--chromInfo', options.chromInfo]
