@@ -196,7 +196,11 @@ int main(int argc, char *argv[]) {
     if (fileHandle != stdin) {
         fclose(fileHandle);
     }
-    fflush(stdout);
+    if (stSet_size(header_set) == 0) {
+        fprintf(stderr, "Error: No fasta sequences found in input FASTA file %s for %s\n", argv[1], argv[2]);
+        exit(1);
+    }
+    fflush(stdout);    
     stSet_destruct(header_set);
 
     return 0;
