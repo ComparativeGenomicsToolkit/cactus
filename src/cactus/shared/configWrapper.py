@@ -252,6 +252,14 @@ class ConfigWrapper:
                 return getOptionalAttrib(node, "active", default="1" if default_val else "0") == "1"
         return default_val
 
+    def isLastzPreprocessorActive(self):
+        """Determine if lastz (deprecated and disabled-by-default) preprocessing is active """
+        for node in self.xmlRoot.findall("preprocessor"):
+            if getOptionalAttrib(node, "preprocessJob") == "lastzRepeatMask":
+                if getOptionalAttrib(node, "active", default=False, typeFn=bool):
+                    return True
+        return False
+
     def initLastz(self, options):
         """ Turn on GPU and / or check options make sense """
         # fastga trumps all.  we explicitly disable gpu if it's on
