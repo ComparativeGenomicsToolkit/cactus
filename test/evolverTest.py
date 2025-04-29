@@ -28,7 +28,8 @@ class TestCase(unittest.TestCase):
     def _out_hal(self, binariesMode):
         return os.path.join(self.tempDir, 'evolver-{}.hal'.format(binariesMode))
 
-    def _run_evolver(self, binariesMode, configFile = None, seqFile = './examples/evolverMammals.txt', chromInfoDict={}):
+    def _run_evolver(self, binariesMode, configFile = None, seqFile = './examples/evolverMammals.txt', chromInfoDict={},
+                     fastga=False):
         """ Run the full evolver test, putting the jobstore and output in tempDir
         """
         cmd = ['cactus', self._job_store(binariesMode), seqFile, self._out_hal(binariesMode),
@@ -41,6 +42,8 @@ class TestCase(unittest.TestCase):
                 for source, ogs in chromInfoDict.items():
                     chromInfoFile.write('{}\t{}\n'.format(source, ogs))
             cmd += ['--chromInfo', chromInfoName]
+        if fastga:
+            cmd += ['--fastga']
 
         # todo: it'd be nice to have an interface for setting tag to something not latest or commit
         if binariesMode == 'docker':
@@ -892,6 +895,19 @@ class TestCase(unittest.TestCase):
         #self._check_coverage(self._out_hal(name), delta_pct=0.20)
         self._check_maf_accuracy(self._out_hal(name), delta=(0.05,0.13))
 
+    def testEvolverFastGALocal(self):
+        """ Check that the output of halStats on a hal file produced by running cactus with --binariesMode local is
+        is reasonable with fastga alignments
+        """
+        # run cactus directly, the old school way
+        name = "local"
+        self._run_evolver(name, fastga = True)
+
+        # check the output
+        #self._check_stats(self._out_hal(name), delta_pct=0.25)
+        #self._check_coverage(self._out_hal(name), delta_pct=0.20)
+        self._check_maf_accuracy(self._out_hal(name), delta=(0.05,0.13))
+        
     def testEvolverUpdateNodeLocal(self):
         """ Check that the "add a genome to ancestor" modification steps give sane/valid results """
         name = "local"
@@ -1073,7 +1089,6 @@ class TestCase(unittest.TestCase):
         # check the output
         # todo: tune config so that delta can be reduced
         self._check_maf_accuracy(self._out_hal("docker"), delta=(0.025,0.025), dataset='primates')
-
 
     def testYeastPangenomeStepByStepLocal(self):
         """ Run pangenome pipeline (including contig splitting!) on yeast dataset step by step"""

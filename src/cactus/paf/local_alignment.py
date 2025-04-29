@@ -138,8 +138,11 @@ def run_fastga(job, name_A, genome_A, name_B, genome_B, distance, params):
     fastga_cmd = ['FastGA']
     if fastga_params:
         fastga_cmd += fastga_params.split(' ')
-    fastga_cmd += ['-P{}'.format(fastga_tempdir), '-T{}'.format(job.cores), genome_b_file, genome_a_file]
-    cactus_call(parameters=fastga_cmd, outfile=alignment_file, job_memory=job.memory)
+    # note, deliberately using relative paths in FastGA command line because otherwise
+    # get a weird crash, but only when passing in --workDir to cactus
+    fastga_cmd += ['-P./'.format(os.path.basename(fastga_tempdir)), '-T{}'.format(job.cores),
+                   os.path.basename(genome_b_file), os.path.basename(genome_a_file)]
+    cactus_call(parameters=fastga_cmd, outfile=alignment_file, job_memory=job.memory, work_dir=work_dir)
 
     if getOptionalAttrib(params.find('blast'), 'fastga_fill', typeFn=bool, default=False):
 
