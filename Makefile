@@ -150,6 +150,9 @@ evolver_test: all ${CWD}/test/mammals-truth.maf ${CWD}/test/primates-truth.maf
 evolver_test_local: all ${CWD}/test/mammals-truth.maf
 	PYTHONPATH="${CWD}/submodules/" CACTUS_BINARIES_MODE=local CACTUS_DOCKER_MODE=0 ${PYTHON} -m pytest ${pytestOpts} -s test/evolverTest.py::TestCase::testEvolverLocal
 
+evolver_test_fastga_local: all ${CWD}/test/mammals-truth.maf
+	PYTHONPATH="${CWD}/submodules/" CACTUS_BINARIES_MODE=local CACTUS_DOCKER_MODE=0 ${PYTHON} -m pytest ${pytestOpts} -s test/evolverTest.py::TestCase::testEvolverFastGALocal
+
 evolver_test_prepare_wdl: all ${CWD}/test/mammals-truth.maf
 	PYTHONPATH="${CWD}/submodules/" CACTUS_BINARIES_MODE=local CACTUS_DOCKER_MODE=0 ${PYTHON} -m pytest ${pytestOpts} -s test/evolverTest.py::TestCase::testEvolverPrepareWDL
 
