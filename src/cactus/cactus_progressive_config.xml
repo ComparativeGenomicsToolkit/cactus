@@ -35,10 +35,12 @@
 
 	<!-- Params for blast -->
 	<!-- chunkSize The size of sequences in a blast job. Increase the chunkSize in the caf tag to reduce the number of blast jobs approximately quadratically -->
+	<!-- bigChunkSize overrides chunkSize for KegAlign and FastGA, which work on whole-genome scale inputs -->
 	<!-- overlapSize The amount of basepair overlap between chunks -->
 	<!-- mapper The local alignment program to use, currently either lastz or minimap2 or fastga -->
 	<!-- minimap2_params Parameters to use with minimap2 -->
 	<!-- fastga_params Parameters to use with fastga -->
+	<!-- fastga_fill Run lastz on gaps in the fastga alignment -->
 	<!-- compressFiles Compress the local alignments. (I think this may be broken) -->
 	<!-- filterByIdentity Filter alignments by % identity -->
 	<!-- identityRatio Let L be the sum of the branch lengths in the guide tree on the path connecting the genomes to be aligned.
@@ -68,10 +70,12 @@
 	     get every sequence to pick its primary alignment without regard to if the other sequence is an ingroup or outgroup -->
 	<!-- slurmChunkScale Multiply chunkSize and divide dechunkBatchSize by this value when running slurm in order to decrease job count -->
 	<blast chunkSize="30000000"
+	       bigChunkSize="6000000000"
 		   overlapSize="10000"
 		   mapper="lastz"
 		   minimap2_params="-x asm20"
 		   fastga_params="-pafx"
+		   fastga_fill="1"
 		   minimumSequenceLengthForBlast="30"
 		   compressFiles="1"
 		   filterByIdentity="0"

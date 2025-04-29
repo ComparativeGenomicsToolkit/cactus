@@ -15,6 +15,7 @@ from sonLib.bioio import newickTreeParser
 import os
 import shutil
 import math
+import copy
 from cactus.paf.paf import get_event_pairs, get_leaves, get_node, get_distances
 from cactus.shared.common import cactus_call, getOptionalAttrib
 from cactus.preprocessor.checkUniqueHeaders import sanitize_fasta_headers
@@ -140,6 +141,48 @@ def run_fastga(job, name_A, genome_A, name_B, genome_B, distance, params):
     fastga_cmd += ['-P{}'.format(fastga_tempdir), '-T{}'.format(job.cores), genome_b_file, genome_a_file]
     cactus_call(parameters=fastga_cmd, outfile=alignment_file, job_memory=job.memory)
 
+    if getOptionalAttrib(params.find('blast'), 'fastga_fill', typeFn=bool, default=False):
+
+        # extract the unaligned regions of genome a
+        bed_a_file = os.path.join(work_dir, '{}-unaligned.bed'.format(name_A))
+        cactus_call(parameters=[['paffy', 'invert', '-i', alignment_file],
+                                ['paffy', 'to_bed', '--excludeAligned', '--binary',
+                                '--minSize', params.find('blast').attrib['trimMinSize'],
+                                '--logLevel', getLogLevelString()]],
+                    outfile=bed_a_file)
+
+        # extract the unaligned regions of genome b
+        bed_b_file = os.path.join(work_dir, '{}-unaligned.bed'.format(name_B))
+        cactus_call(parameters=['paffy', 'to_bed', '--excludeAligned', '--binary',
+                                '--minSize', params.find('blast').attrib['trimMinSize'],
+                                '-i', alignment_file, '--logLevel', getLogLevelString()],
+                    outfile=bed_b_file)
+
+        # extract the unaligned sequence of genome a
+        unaligned_fasta_a_file = os.path.join(work_dir, '{}-unaligned.fasta'.format(name_A))
+        cactus_call(parameters=['faffy', 'extract', "-i", bed_a_file, genome_a_file,
+                                "--flank", params.find("blast").attrib["trimFlanking"],
+                                "--logLevel", getLogLevelString()],
+                    outfile=unaligned_fasta_a_file, job_memory=job.memory)
+        # extract the unaligned sequence of genome b
+        unaligned_fasta_b_file = os.path.join(work_dir, '{}-unaligned.fasta'.format(name_B))        
+        cactus_call(parameters=['faffy', 'extract', "-i", bed_b_file, genome_b_file,
+                                "--flank", params.find("blast").attrib["trimFlanking"],
+                                "--logLevel", getLogLevelString()],
+                    outfile=unaligned_fasta_b_file, job_memory=job.memory)
+
+        # flip back to the lastz aligner
+        root = Job()
+        job.addChild(root)
+        params_lastz = copy.deepcopy(params)
+        params_lastz.find('blast').attrib['mapper'] = 'lastz'
+        lastz_job = root.addChildJobFn(make_chunked_alignments, name_A, job.fileStore.writeGlobalFile(unaligned_fasta_a_file),
+                                       name_B, job.fileStore.writeGlobalFile(unaligned_fasta_b_file), distance, params_lastz)
+        # run paffy dechunk a second time, since they contigs were chunked both by extract and chunk
+        dechunk_job = root.addFollowOnJobFn(combine_chunks, [lastz_job.rv()], 1)
+        # merge the fastga and lastz alignments together
+        return dechunk_job.addFollowOnJobFn(merge_alignments, job.fileStore.writeGlobalFile(alignment_file), dechunk_job.rv()).rv()
+
     # Return the alignment file
     return job.fileStore.writeGlobalFile(alignment_file)
 
@@ -181,13 +224,15 @@ def merge_combined_chunks(job, combined_chunks):
 def make_chunked_alignments(job, event_a, genome_a, event_b, genome_b, distance, params):
     lastz_params_node = params.find("blast")
     gpu = getOptionalAttrib(lastz_params_node, 'gpu', typeFn=int, default=0)
+    fastga = getOptionalAttrib(lastz_params_node, 'mapper', typeFn=str) == 'fastga'        
     lastz_cores = getOptionalAttrib(lastz_params_node, 'cpu', typeFn=int, default=None)
     lastz_memory = getOptionalAttrib(lastz_params_node, 'lastz_memory', typeFn=int, default=None)
+    chunk_attr = 'bigChunkSize' if gpu or fastga else 'chunkSize'    
     
     def make_chunks(genome):
         output_chunks_dir = job.fileStore.getLocalTempDir()
         fasta_chunk_cmd = ['faffy', 'chunk',
-                           '-c', params.find("blast").attrib["chunkSize"],
+                           '-c', params.find("blast").attrib[chunk_attr],
                            '-o', params.find("blast").attrib["overlapSize"],
                            '--dir', output_chunks_dir,
                            job.fileStore.readGlobalFile(genome)]
@@ -241,13 +286,19 @@ def make_ingroup_to_outgroup_alignments_1(job, ingroup_event, outgroup_events, e
     root_job = Job()
     job.addChild(root_job)
 
+    # override chunk size 
+    lastz_params_node = params.find("blast")
+    gpu = getOptionalAttrib(lastz_params_node, 'gpu', typeFn=int, default=0)
+    fastga = getOptionalAttrib(lastz_params_node, 'mapper', typeFn=str) == 'fastga'
+    chunk_attr = 'bigChunkSize' if gpu or fastga else 'chunkSize'
+    
     #  align ingroup to first outgroup to produce paf alignments
     outgroup = outgroup_events[0] # The first outgroup
     logger.info("Building alignment between ingroup event: {} and outgroup event: {}".format(ingroup_event.iD, outgroup.iD))
     alignment = root_job.addChildJobFn(make_chunked_alignments,
                                        outgroup.iD, event_names_to_sequences[outgroup.iD],
                                        ingroup_event.iD, event_names_to_sequences[ingroup_event.iD], distances[ingroup_event, outgroup], params,
-                                       memory=cactus_clamp_memory(1.2 * float(params.find("blast").attrib["chunkSize"])),
+                                       memory=cactus_clamp_memory(1.2 * float(params.find("blast").attrib[chunk_attr])),
                                        disk=4*(event_names_to_sequences[ingroup_event.iD].size+event_names_to_sequences[outgroup.iD].size)).rv()
 
     #  post process the alignments and recursively generate alignments to remaining outgroups
@@ -345,6 +396,10 @@ def merge_alignments(job, alignment_file1, alignment_file2, has_resources=False)
                             job.fileStore.readGlobalFile(alignment_file2, os.path.join(work_dir, 'alignment_2.paf'))],
                 outfile=merged_alignments_file, job_memory=job.memory)
 
+    # Remove input from the file store. 
+    job.fileStore.deleteGlobalFile(alignment_file1)
+    job.fileStore.deleteGlobalFile(alignment_file2)
+    
     # Write the merged file back to the job store and return its path
     return job.fileStore.writeGlobalFile(merged_alignments_file)
 
@@ -546,10 +601,8 @@ def make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancest
     # override chunk size 
     lastz_params_node = params.find("blast")
     gpu = getOptionalAttrib(lastz_params_node, 'gpu', typeFn=int, default=0)
-    fastga = getOptionalAttrib(lastz_params_node, 'mapper', typeFn=str) == 'fastga'    
-    if gpu or fastga:
-        # wga-gpu has a 6G limit, so we always override
-        lastz_params_node.attrib['chunkSize'] = '6000000000'
+    fastga = getOptionalAttrib(lastz_params_node, 'mapper', typeFn=str) == 'fastga'
+    chunk_attr = 'bigChunkSize' if gpu or fastga else 'chunkSize'
 
     # for each pair of ingroups make alignments
     ingroup_alignments = []
@@ -560,7 +613,7 @@ def make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancest
         ingroup_alignments.append(root_job.addChildJobFn(make_chunked_alignments,
                                                          ingroup.iD, event_names_to_sequences[ingroup.iD],
                                                          ingroup2.iD, event_names_to_sequences[ingroup2.iD], distance_a_b, params,
-                                                         memory=cactus_clamp_memory(1.2 * float(lastz_params_node.attrib['chunkSize'])),
+                                                         memory=cactus_clamp_memory(1.2 * float(lastz_params_node.attrib[chunk_attr])),
                                                          disk=2*total_sequence_size).rv())
         ingroup_alignment_names.append('{}-{}_vs_{}'.format(ancestor_event_string, ingroup.iD, ingroup2.iD))
 
@@ -581,7 +634,7 @@ def make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancest
                                                       ingroup.iD, event_names_to_sequences[ingroup.iD],
                                                       outgroup.iD, event_names_to_sequences[outgroup.iD],
                                                       distances[ingroup, outgroup], params,
-                                                      memory=cactus_clamp_memory(1.2 * float(lastz_params_node.attrib['chunkSize'])),
+                                                      memory=cactus_clamp_memory(1.2 * float(lastz_params_node.attrib[chunk_attr])),
                                                       disk=2*total_sequence_size).rv()
                                for ingroup in ingroup_events for outgroup in outgroup_events]
     # for better logs
