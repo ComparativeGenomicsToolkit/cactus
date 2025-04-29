@@ -266,6 +266,7 @@ class ConfigWrapper:
         if options.fastga:
             findRequiredNode(self.xmlRoot, 'blast').attrib['mapper'] = 'fastga'
         fastga = getOptionalAttrib(findRequiredNode(self.xmlRoot, 'blast'), 'mapper', typeFn=str) == 'fastga'
+        fastga_fill = getOptionalAttrib(findRequiredNode(self.xmlRoot, 'blast'), 'fastga_fill', typeFn=bool, default=False)
         
         # first, we override the config with --gpu from the options
         # (we'll never use the options.gpu after -- only the config)
@@ -274,7 +275,7 @@ class ConfigWrapper:
             for node in self.xmlRoot.findall("preprocessor"):
                 if getOptionalAttrib(node, "preprocessJob") == "lastzRepeatMask":
                     node.attrib["gpu"] = '0' if fastga else str(options.gpu)
-                if fastga and getOptionalAttrib(node, "preprocessJob") in ["red", "lastzRepeatMask"]:
+                if fastga and not fastga_fill and getOptionalAttrib(node, "preprocessJob") in ["red", "lastzRepeatMask"]:
                     node.attrib["active"] = '0'                    
             if options.gpu and 'latest' in options and options.latest:
                 raise RuntimeError('--latest cannot be used with --gpu')
