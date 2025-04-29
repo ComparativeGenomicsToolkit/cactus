@@ -263,6 +263,8 @@ class ConfigWrapper:
     def initLastz(self, options):
         """ Turn on GPU and / or check options make sense """
         # fastga trumps all.  we explicitly disable gpu if it's on
+        if options.fastga:
+            findRequiredNode(self.xmlRoot, 'blast').attrib['mapper'] = 'fastga'
         fastga = getOptionalAttrib(findRequiredNode(self.xmlRoot, 'blast'), 'mapper', typeFn=str) == 'fastga'
         
         # first, we override the config with --gpu from the options

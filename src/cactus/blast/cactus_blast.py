@@ -64,6 +64,8 @@ def main():
     parser.add_argument("--lastzMemory", type=human2bytesN,
                         help="Memory in bytes for each lastz/segalign job (defaults to an estimate based on the input data size). "
                         "Standard suffixes like K, Ki, M, Mi, G or Gi are supported (default=bytes))", default=None)
+    parser.add_argument("--fastga", action="store_true",
+                        help="[EXPERIMENTAL] use FastGA instead of lastz")
     parser.add_argument("--chromInfo",
                         help="Two-column file mapping genome (col 1) to comma-separated list of sex chromosomes. This information "
                         "will be used to guide outgroup selection so that, where possible, all chromosomes are present in"

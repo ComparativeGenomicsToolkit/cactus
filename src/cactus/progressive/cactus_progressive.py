@@ -345,7 +345,9 @@ def main():
     parser.add_argument("--lastzCores", type=int, default=None, help="Number of cores for each lastz/segalign job, only relevant when running with --gpu")
     parser.add_argument("--lastzMemory", type=human2bytesN,
                         help="Memory in bytes for each lastz/segalign job (defaults to an estimate based on the input data size). "
-                        "Standard suffixes like K, Ki, M, Mi, G or Gi are supported (default=bytes))", default=None)    
+                        "Standard suffixes like K, Ki, M, Mi, G or Gi are supported (default=bytes))", default=None)
+    parser.add_argument("--fastga", action="store_true",
+                        help="[EXPERIMENTAL] use FastGA instead of lastz")    
     parser.add_argument("--consCores", type=int, 
                         help="Number of cores for each cactus_consolidated job (defaults to all available / maxCores on single_machine)", default=None)
     parser.add_argument("--consMemory", type=human2bytesN,
