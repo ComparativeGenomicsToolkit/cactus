@@ -367,13 +367,9 @@ class ConfigWrapper:
             logger.warning("Switching off blast realignment as it is incompatible with GPU mode")
             findRequiredNode(self.xmlRoot, "blast").attrib["realign"] = "0"
 
-        # FastGA doesn't work on fragmented assemblies.  It even crashes on trimmed evolver primates
-        # We work around this a bit by disabling trimming
-        #
         # todo: i'm not sure whay paffy chain doesnt work on fastga alignments but it always
         # reports 0 chain scores
         if fastga:
-            findRequiredNode(self.xmlRoot, 'blast').attrib['trimIngroups'] = '0'
             findRequiredNode(self.xmlRoot, 'blast').attrib['minPrimaryChainScore'] = '0'
 
     def setSystemMemory(self, options):

@@ -350,7 +350,12 @@ def make_ingroup_to_outgroup_alignments_2(job, alignments, ingroup_event, outgro
     # a job should never set its own follow-on, so we hang everything off root_job here to encapsulate
     root_job = Job()
     job.addChild(root_job)
-        
+
+    # override flanking size
+    lastz_params_node = params.find("blast")
+    fastga = getOptionalAttrib(lastz_params_node, 'mapper', typeFn=str) == 'fastga'
+    trim_flank_attr = 'trimFastgaFlanking' if fastga else 'trimFlanking'
+
     # identify all ingroup sub-sequences that remain unaligned longer than a threshold as follows:
 
     # run paffy to_bed to create a bed of aligned coverage
@@ -359,7 +364,7 @@ def make_ingroup_to_outgroup_alignments_2(job, alignments, ingroup_event, outgro
     job.fileStore.readGlobalFile(alignments, alignments_file)
     bed_file = os.path.join(work_dir, '{}.bed'.format(ingroup_event.iD))  # Get a temporary file to store the bed file in
     messages = cactus_call(parameters=['paffy', 'to_bed', "--excludeAligned", "--binary",
-                                       "--minSize", params.find("blast").attrib["trimMinSize"],
+                                       "--minSize", params.find("blast").attrib['trimMinSize'],
                                        "-i", alignments_file,
                                        "--logLevel", getLogLevelString()],
                                        outfile=bed_file, returnStdErr=True, job_memory=job.memory)
@@ -370,7 +375,7 @@ def make_ingroup_to_outgroup_alignments_2(job, alignments, ingroup_event, outgro
     ingroup_seq_file = os.path.join(work_dir, '{}.fa'.format(ingroup_event.iD))
     job.fileStore.readGlobalFile(event_names_to_sequences[ingroup_event.iD], ingroup_seq_file)  # The ingroup sequences
     messages = cactus_call(parameters=['faffy', 'extract', "-i", bed_file, ingroup_seq_file,
-                                       "--flank", params.find("blast").attrib["trimFlanking"],
+                                       "--flank", params.find("blast").attrib[trim_flank_attr],
                                        "--logLevel", getLogLevelString()],
                            outfile=seq_file, returnStdErr=True, job_memory=job.memory)
     logger.info("faffy extract event:{}\n{}".format(ingroup_event.iD, messages[:-1]))  # Log faffy extract
