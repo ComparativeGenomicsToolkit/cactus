@@ -11,6 +11,7 @@ Released under the MIT license, see LICENSE.txt
 from toil.job import Job
 from toil.statsAndLogging import logger
 from toil.lib.bioio import getLogLevelString
+from toil.realtimeLogger import RealtimeLogger
 from sonLib.bioio import newickTreeParser
 import os
 import shutil
@@ -140,10 +141,17 @@ def run_fastga(job, name_A, genome_A, name_B, genome_B, distance, params):
         fastga_cmd += fastga_params.split(' ')
     # note, deliberately using relative paths in FastGA command line because otherwise
     # get a weird crash, but only when passing in --workDir to cactus
-    fastga_cmd += ['-P./'.format(os.path.basename(fastga_tempdir)), '-T{}'.format(job.cores),
+    fastga_cmd += ['-P./{}'.format(os.path.basename(fastga_tempdir)), '-T{}'.format(job.cores),
                    os.path.basename(genome_b_file), os.path.basename(genome_a_file)]
     cactus_call(parameters=fastga_cmd, outfile=alignment_file, job_memory=job.memory, work_dir=work_dir)
 
+    if getOptionalAttrib(params.find('blast'), 'fastga_stats', typeFn=bool, default=False):
+        stats = cactus_call(parameters=[['paffy', 'view', genome_b_file, genome_a_file,
+                                         '-i', alignment_file, '-s'], ['tail', '-1']],
+                            check_output=True)
+        RealtimeLogger.info('paf-stats\tafter-fastga\t{}\t{}\t{}\t{}'.format(name_B, name_A, distance,
+                                                                             '\t'.join(stats.strip().split())))
+                                                 
     if getOptionalAttrib(params.find('blast'), 'fastga_fill', typeFn=bool, default=False):
 
         # extract the unaligned regions of genome a
@@ -183,12 +191,37 @@ def run_fastga(job, name_A, genome_A, name_B, genome_B, distance, params):
                                        name_B, job.fileStore.writeGlobalFile(unaligned_fasta_b_file), distance, params_lastz)
         # run paffy dechunk a second time, since they contigs were chunked both by extract and chunk
         dechunk_job = root.addFollowOnJobFn(combine_chunks, [lastz_job.rv()], 1)
+            
         # merge the fastga and lastz alignments together
-        return dechunk_job.addFollowOnJobFn(merge_alignments, job.fileStore.writeGlobalFile(alignment_file), dechunk_job.rv()).rv()
+        merge_job = dechunk_job.addFollowOnJobFn(merge_alignments, job.fileStore.writeGlobalFile(alignment_file), dechunk_job.rv())
+
+        if getOptionalAttrib(params.find('blast'), 'fastga_stats', typeFn=bool, default=False):
+            merge_job.addFollowOnJobFn(log_paf_stats, merge_job.rv(), name_A, genome_A, name_B, genome_B, distance, 'after-lastz',
+                                       memory=cactus_clamp_memory(2 * (genome_A.size + genome_B.size)),
+                                       disk=2*(genome_A.size + genome_B.size))
+        
+        return merge_job.rv()
 
     # Return the alignment file
     return job.fileStore.writeGlobalFile(alignment_file)
 
+def log_paf_stats(job, alignment, name_A, genome_A, name_B, genome_B, distance, tag):
+    work_dir = job.fileStore.getLocalTempDir()
+
+    # Get the input files
+    genome_a_file = os.path.join(work_dir, '{}.fa'.format(name_A))
+    genome_b_file = os.path.join(work_dir, '{}.fa'.format(name_B))
+    job.fileStore.readGlobalFile(genome_A, genome_a_file)
+    job.fileStore.readGlobalFile(genome_B, genome_b_file)
+
+    alignment_file = os.path.join(work_dir, '{}_{}.paf'.format(name_A, name_B))
+    job.fileStore.readGlobalFile(alignment, alignment_file)
+
+    stats = cactus_call(parameters=[['paffy', 'view', genome_b_file, genome_a_file,
+                                         '-i', alignment_file, '-s'], ['tail', '-1']],
+                            check_output=True)
+    RealtimeLogger.info('paf-stats\t{}\t{}\t{}\t{}\t{}'.format(tag, name_B, name_A, distance,
+                                                               '\t'.join(stats.strip().split())))    
 
 def combine_chunks(job, chunked_alignment_files, batch_size):
     if len(chunked_alignment_files) >= 2 * batch_size:

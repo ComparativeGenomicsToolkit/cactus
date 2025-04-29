@@ -41,6 +41,7 @@
 	<!-- minimap2_params Parameters to use with minimap2 -->
 	<!-- fastga_params Parameters to use with fastga -->
 	<!-- fastga_fill Run lastz on gaps in the fastga alignment -->
+	<!-- fastga_stats Print paf stats after fastga -->
 	<!-- compressFiles Compress the local alignments. (I think this may be broken) -->
 	<!-- filterByIdentity Filter alignments by % identity -->
 	<!-- identityRatio Let L be the sum of the branch lengths in the guide tree on the path connecting the genomes to be aligned.
@@ -76,6 +77,7 @@
 		   minimap2_params="-x asm20"
 		   fastga_params="-pafx"
 		   fastga_fill="1"
+		   fastga_stats="1"
 		   minimumSequenceLengthForBlast="30"
 		   compressFiles="1"
 		   filterByIdentity="0"
