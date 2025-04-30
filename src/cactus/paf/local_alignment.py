@@ -274,14 +274,14 @@ def apply_paf_scores(in_paf, out_paf, params):
                 elif operator == '*':
                     assert len(value) % 2 == 0
                     for i in range(0, len(value), 2):
-                        score += sub_matrix[value[i].upper()][value[i+1].upper()]                        
+                        score -= sub_matrix[value[i].upper()][value[i+1].upper()]                        
                     cg_cigar += '{}X'.format(int(len(value) / 2))
                 elif operator == '-':
-                    score += gap_open + (len(value) - 1) * gap_ext
+                    score -= gap_open + (len(value) - 1) * gap_ext
                     cg_cigar += '{}D'.format(len(value))
                 else:
                     assert operator == '+'
-                    score += gap_open + (len(value) - 1) * gap_ext
+                    score -= gap_open + (len(value) - 1) * gap_ext
                     cg_cigar += '{}I'.format(len(value))
             toks[-1] = 'AS:i:{}'.format(score)
             toks.append(cg_cigar)
