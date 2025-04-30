@@ -367,11 +367,6 @@ class ConfigWrapper:
             logger.warning("Switching off blast realignment as it is incompatible with GPU mode")
             findRequiredNode(self.xmlRoot, "blast").attrib["realign"] = "0"
 
-        # todo: i'm not sure whay paffy chain doesnt work on fastga alignments but it always
-        # reports 0 chain scores
-        if fastga:
-            findRequiredNode(self.xmlRoot, 'blast').attrib['minPrimaryChainScore'] = '0'
-
     def setSystemMemory(self, options):
         """ hide the amount of memory available (on single machine) in the config
         so we can make sure to never request more for big jobs """

@@ -145,6 +145,16 @@ def run_fastga(job, name_A, genome_A, name_B, genome_B, distance, params):
                    os.path.basename(genome_b_file), os.path.basename(genome_a_file)]
     cactus_call(parameters=fastga_cmd, outfile=alignment_file, job_memory=job.memory, work_dir=work_dir)
 
+    # FastGA doesn't write scores (AS tags in PAF).  So we estimate those from the cigar strings
+    # now, as they are important for chaining.
+    # todo: While it would be ideal for FastGA to just write these itself, the advantage of
+    # doing it here is that we can use consistent scoring with lastz, which means that
+    # filled in alignment files (FastGA mixed with lastz) should interoperate better
+    # todo: This could in theory be done much faster inside paffy view
+    scored_alignment_file = os.path.join(work_dir, '{}_{}_scores.paf'.format(name_A, name_B))
+    apply_paf_scores(alignment_file, scored_alignment_file, params)
+    alignment_file = scored_alignment_file
+
     if getOptionalAttrib(params.find('blast'), 'fastga_stats', typeFn=bool, default=False):
         stats = cactus_call(parameters=[['paffy', 'view', genome_b_file, genome_a_file,
                                          '-i', alignment_file, '-s'], ['tail', '-1']],
@@ -205,6 +215,78 @@ def run_fastga(job, name_A, genome_A, name_B, genome_B, distance, params):
     # Return the alignment file
     return job.fileStore.writeGlobalFile(alignment_file)
 
+def apply_paf_scores(in_paf, out_paf, params):
+    """ compute AS tag from cs cigars, then replace with cg cigars
+    End result should be FastGA paf in format consistent with lastz
+    """
+    # homemade cs cigar parser
+    class CSCigar:
+        def __init__(self, cs):
+            self.cs = cs
+            self.n = len(cs)
+        def __iter__(self):
+            self.i = 5
+            assert self.cs[:self.i] == 'cs:Z:'
+            return self
+        def __next__(self):
+            if self.i < self.n:
+                op = self.cs[self.i]
+                nop = self.n
+                for j in range(self.i+1, self.n):
+                    if self.cs[j] in [':', '*', '-', '+', '=']:
+                        nop = j
+                        break
+                ret = (op, self.cs[self.i+1:nop])
+                self.i = nop
+                return ret
+            else:
+                raise StopIteration
+            
+    # load up the score matrix.  instead of hardcoding, get it from the abpoa params in the config
+    # which are pretty much the defaults used in lastz
+    poa_scores = params.find('bar').find('poa').attrib['partialOrderAlignmentSubMatrix']
+    sub_matrix = { 'A':{}, 'C':{}, 'G':{}, 'T':{}, 'N':{} }
+    for i,s in enumerate(poa_scores.split()):
+        src = ['A','C','G','T','N'][i % 5]
+        dest = ['A','C','G','T','N'][int(i / 5)]
+        sub_matrix[src][dest] = int(s)
+    gap_open = int(params.find('bar').find('poa').attrib['partialOrderAlignmentGapOpenPenalty1'])
+    gap_ext = int(params.find('bar').find('poa').attrib['partialOrderAlignmentGapExtensionPenalty1'])
+    avg_match = int(sum([sub_matrix[b][b] for b in ['A','C','G','T']]) / 4)
+
+    # convert the PAF, changing cs to cg cigars and adding scores
+    with open(in_paf, 'r') as in_file, open(out_paf, 'w') as out_file:
+        for line in in_file:
+            toks = line.strip().split('\t')
+            cg_cigar = 'cg:Z:'
+            score = 0
+            # assume FastGA writes cs tag last, but we accept both : or = for matches
+            for operator, value in CSCigar(toks[-1]):
+                if operator == ':':
+                    num_matches = int(value)
+                    score += num_matches * avg_match
+                    cg_cigar += '{}='.format(value)
+                elif operator == '=':
+                    num_matches = len(value)
+                    for m in value:
+                        score += sub_matrix[m.upper()][m.upper()]
+                        cg_cigar += '{}='.format(num_matches)
+                elif operator == '*':
+                    assert len(value) % 2 == 0
+                    for i in range(0, len(value), 2):
+                        score += sub_matrix[value[i].upper()][value[i+1].upper()]                        
+                    cg_cigar += '{}X'.format(int(len(value) / 2))
+                elif operator == '-':
+                    score += gap_open + (len(value) - 1) * gap_ext
+                    cg_cigar += '{}D'.format(len(value))
+                else:
+                    assert operator == '+'
+                    score += gap_open + (len(value) - 1) * gap_ext
+                    cg_cigar += '{}I'.format(len(value))
+            toks[-1] = 'AS:i:{}'.format(score)
+            toks.append(cg_cigar)
+            out_file.write('\t'.join(toks) + '\n')
+            
 def log_paf_stats(job, alignment, name_A, genome_A, name_B, genome_B, distance, tag):
     work_dir = job.fileStore.getLocalTempDir()
 
