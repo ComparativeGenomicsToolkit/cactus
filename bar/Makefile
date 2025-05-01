@@ -9,6 +9,8 @@ libRunEndAlignment = tests/runEndAlignment.c
 commonBarLibs = ${LIBDIR}/stCaf.a ${LIBDIR}/stPaf.a ${sonLibDir}/stPinchesAndCacti.a ${LIBDIR}/cactusLib.a ${sonLibDir}/3EdgeConnected.a ${sonLibDir}/cPecanLib.a
 stBarDependencies =  ${commonBarLibs} ${LIBDEPENDS}
 LDLIBS += ${commonBarLibs} ${sonLibDir}/sonLib.a ${databaseLibs} -lm
+# simde (included via abPOA) doesn't compile with --Werror --pedantic
+CFLAGS:=$(filter-out --pedantic,$(CFLAGS))
 
 all: all_libs all_progs
 all_libs: ${LIBDIR}/cactusBarLib.a

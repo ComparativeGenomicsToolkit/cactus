@@ -249,8 +249,12 @@ suball.hal: suball.sonLib
 	-ln -f submodules/hal/lib/libHal.a submodules/hal/lib/halLib.a
 
 suball.abPOA:
-	cd submodules/abPOA && ${MAKE}
-	ln -f submodules/abPOA/lib/*.a ${LIBDIR}
+	cd submodules/abPOA && CFLAGS="$(filter-out --pedantic,$(CFLAGS))" ${MAKE}
+	if [ -f submodules/abPOA/lib/libabpoa_sse2.a ]; then ln -f submodules/abPOA/lib/libabpoa_sse2.a ${LIBDIR}/libabpoa.a; fi
+	if [ -f submodules/abPOA/lib/libabpoa_sse41.a ]; then ln -f submodules/abPOA/lib/libabpoa_sse41.a ${LIBDIR}/libabpoa.a; fi
+	if [ -f submodules/abPOA/lib/libabpoa_avx2.a ]; then ln -f submodules/abPOA/lib/libabpoa_avx2.a ${LIBDIR}/libabpoa.a; fi
+	if [ -f submodules/abPOA/lib/libabpoa_avx512bw.a ]; then ln -f submodules/abPOA/lib/libabpoa_avx512bw.a ${LIBDIR}/libabpoa.a; fi
+	if [ -f submodules/abPOA/lib/libabpoa.a ]; then ln -f submodules/abPOA/lib/libabpoa.a ${LIBDIR}/libabpoa.a; fi
 	ln -f submodules/abPOA/include/*.h ${INCLDIR}
 	rm -fr ${INCLDIR}/simde && cp -r submodules/abPOA/include/simde ${INCLDIR}
 
