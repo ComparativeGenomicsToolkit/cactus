@@ -273,11 +273,12 @@ def apply_paf_scores(in_paf, out_paf, params):
                     num_matches = len(value)
                     for m in value:
                         score += sub_matrix[m.upper()][m.upper()]
-                        cg_cigar += '{}='.format(num_matches)
+                    cg_cigar += '{}='.format(num_matches)
                 elif operator == '*':
                     assert len(value) % 2 == 0
                     for i in range(0, len(value), 2):
-                        score -= sub_matrix[value[i].upper()][value[i+1].upper()]                        
+                        score += sub_matrix[value[i].upper()][value[i+1].upper()]
+                        assert sub_matrix[value[i].upper()][value[i+1].upper()] < 0
                     cg_cigar += '{}X'.format(int(len(value) / 2))
                 elif operator == '-':
                     score -= gap_open + (len(value) - 1) * gap_ext
