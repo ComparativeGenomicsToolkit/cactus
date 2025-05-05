@@ -63,7 +63,7 @@ RUN rm -rf /home/cactus/hal_lib && \
 FROM quay.io/comparative-genomics-toolkit/ubuntu:22.04
 
 # apt dependencies for runtime
-RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends git python3 python3-pip python3-distutils zlib1g libbz2-1.0 net-tools libhdf5-103 liblzo2-2 libtokyocabinet9 libkrb5-3 libk5crypto3 time liblzma5 libcurl4 libcurl4-gnutls-dev libxml2 libgomp1 libffi7 parallel libdeflate0 libjemalloc2 libatomic1 libhts3
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends git python3 python3-pip python3-distutils zlib1g libbz2-1.0 net-tools libhdf5-103 liblzo2-2 libtokyocabinet9 libkrb5-3 libk5crypto3 time liblzma5 libcurl4 libcurl4-gnutls-dev libxml2 libgomp1 libffi7 parallel libdeflate0 libjemalloc2 libatomic1 libhts3 rsync
 
 # required for ubuntu22 but won't work anywhere else
 RUN bash -c "if ! command -v catchsegv > /dev/null; then apt-get install glibc-tools; fi"
