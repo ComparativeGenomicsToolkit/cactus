@@ -85,7 +85,7 @@ def main():
         importSingularityImage(options)
         #Run the workflow
         if options.restart:
-            gfa_id = toil.restart()
+            gfa_id, pansn_gfa_id, train_id = toil.restart()
         else:
             # load up the seqfile
             config_node = ET.parse(options.configFile).getroot()
