@@ -11,10 +11,12 @@ Released under the MIT license, see LICENSE.txt
 from toil.job import Job
 from toil.statsAndLogging import logger
 from toil.lib.bioio import getLogLevelString
+from toil.realtimeLogger import RealtimeLogger
 from sonLib.bioio import newickTreeParser
 import os
 import shutil
 import math
+import copy
 from cactus.paf.paf import get_event_pairs, get_leaves, get_node, get_distances
 from cactus.shared.common import cactus_call, getOptionalAttrib
 from cactus.preprocessor.checkUniqueHeaders import sanitize_fasta_headers
@@ -110,16 +112,205 @@ def run_minimap2(job, name_A, genome_A, name_B, genome_B, distance, params):
     minimap2_params = params.find("blast").attrib["minimap2_params"]
     
     # Generate the alignment
-    minimap2_cmd = ['minimap2',
-                    '-c',
-                    job.fileStore.readGlobalFile(genome_A),
-                    job.fileStore.readGlobalFile(genome_B)] + minimap2_params.split(' ')
+    minimap2_cmd = ['minimap2', '-c', genome_a_file, genome_b_file] + minimap2_params.split(' ')
     cactus_call(parameters=minimap2_cmd, outfile=alignment_file, job_memory=job.memory)
 
     # Return the alignment file
     return job.fileStore.writeGlobalFile(alignment_file)
 
+def run_fastga(job, name_A, genome_A, name_B, genome_B, distance, params):
+    # Create a local temporary file to put the alignments in.
+    work_dir = job.fileStore.getLocalTempDir()
+    fastga_tempdir = os.path.join(work_dir, 'fgatmp')
+    os.mkdir(fastga_tempdir)
+    
+    alignment_file = os.path.join(work_dir, '{}_{}.paf'.format(name_A, name_B))
 
+    # Get the input files
+    genome_a_file = os.path.join(work_dir, '{}.fa'.format(name_A))
+    genome_b_file = os.path.join(work_dir, '{}.fa'.format(name_B))
+    job.fileStore.readGlobalFile(genome_A, genome_a_file)
+    job.fileStore.readGlobalFile(genome_B, genome_b_file)
+
+    fastga_params = params.find("blast").attrib["fastga_params"]
+    
+    # Generate the alignment
+    # note: FastGA very picky about spacking and ordering of parameters
+    fastga_cmd = ['FastGA']
+    if fastga_params:
+        fastga_cmd += fastga_params.split(' ')
+    # note, deliberately using relative paths in FastGA command line because otherwise
+    # get a weird crash, but only when passing in --workDir to cactus
+    fastga_cmd += ['-P./{}'.format(os.path.basename(fastga_tempdir)), '-T{}'.format(job.cores),
+                   os.path.basename(genome_b_file), os.path.basename(genome_a_file)]
+    cactus_call(parameters=fastga_cmd, outfile=alignment_file, job_memory=job.memory, work_dir=work_dir)
+
+    # FastGA doesn't write scores (AS tags in PAF).  So we estimate those from the cigar strings
+    # now, as they are important for chaining.
+    # todo: While it would be ideal for FastGA to just write these itself, the advantage of
+    # doing it here is that we can use consistent scoring with lastz, which means that
+    # filled in alignment files (FastGA mixed with lastz) should interoperate better
+    # todo: This could in theory be done much faster inside paffy view
+    scored_alignment_file = os.path.join(work_dir, '{}_{}_scores.paf'.format(name_A, name_B))
+    apply_paf_scores(alignment_file, scored_alignment_file, params)
+    alignment_file = scored_alignment_file
+
+    if getOptionalAttrib(params.find('blast'), 'fastga_stats', typeFn=bool, default=False):
+        if os.path.getsize(alignment_file) > 0:
+            stats = cactus_call(parameters=[['paffy', 'view', genome_b_file, genome_a_file,
+                                             '-i', alignment_file, '-s'], ['tail', '-1']],
+                                check_output=True)
+        else:
+            stats = "EMPTY"
+        RealtimeLogger.info('paf-stats\tafter-fastga\t{}\t{}\t{}\t{}'.format(name_B, name_A, distance,
+                                                                             '\t'.join(stats.strip().split())))
+                                                 
+    if getOptionalAttrib(params.find('blast'), 'fastga_fill', typeFn=bool, default=False):
+
+        # extract the unaligned regions of genome a
+        bed_a_file = os.path.join(work_dir, '{}-unaligned.bed'.format(name_A))
+        cactus_call(parameters=[['paffy', 'invert', '-i', alignment_file],
+                                ['paffy', 'to_bed', '--excludeAligned', '--binary',
+                                '--minSize', params.find('blast').attrib['trimMinSize'],
+                                '--logLevel', getLogLevelString()]],
+                    outfile=bed_a_file)
+
+        # extract the unaligned regions of genome b
+        bed_b_file = os.path.join(work_dir, '{}-unaligned.bed'.format(name_B))
+        cactus_call(parameters=['paffy', 'to_bed', '--excludeAligned', '--binary',
+                                '--minSize', params.find('blast').attrib['trimMinSize'],
+                                '-i', alignment_file, '--logLevel', getLogLevelString()],
+                    outfile=bed_b_file)
+
+        # extract the unaligned sequence of genome a
+        unaligned_fasta_a_file = os.path.join(work_dir, '{}-unaligned.fasta'.format(name_A))
+        cactus_call(parameters=['faffy', 'extract', "-i", bed_a_file, genome_a_file,
+                                "--flank", params.find("blast").attrib["trimFlanking"],
+                                "--logLevel", getLogLevelString()],
+                    outfile=unaligned_fasta_a_file, job_memory=job.memory)
+        # extract the unaligned sequence of genome b
+        unaligned_fasta_b_file = os.path.join(work_dir, '{}-unaligned.fasta'.format(name_B))        
+        cactus_call(parameters=['faffy', 'extract', "-i", bed_b_file, genome_b_file,
+                                "--flank", params.find("blast").attrib["trimFlanking"],
+                                "--logLevel", getLogLevelString()],
+                    outfile=unaligned_fasta_b_file, job_memory=job.memory)
+
+        # flip back to the lastz aligner
+        root = Job()
+        job.addChild(root)
+        params_lastz = copy.deepcopy(params)
+        params_lastz.find('blast').attrib['mapper'] = 'lastz'
+        lastz_job = root.addChildJobFn(make_chunked_alignments, name_A, job.fileStore.writeGlobalFile(unaligned_fasta_a_file),
+                                       name_B, job.fileStore.writeGlobalFile(unaligned_fasta_b_file), distance, params_lastz)
+        # run paffy dechunk a second time, since they contigs were chunked both by extract and chunk
+        dechunk_job = root.addFollowOnJobFn(combine_chunks, [lastz_job.rv()], 1)
+            
+        # merge the fastga and lastz alignments together
+        merge_job = dechunk_job.addFollowOnJobFn(merge_alignments, job.fileStore.writeGlobalFile(alignment_file), dechunk_job.rv())
+
+        if getOptionalAttrib(params.find('blast'), 'fastga_stats', typeFn=bool, default=False):
+            merge_job.addFollowOnJobFn(log_paf_stats, merge_job.rv(), name_A, genome_A, name_B, genome_B, distance, 'after-lastz',
+                                       memory=cactus_clamp_memory(2 * (genome_A.size + genome_B.size)),
+                                       disk=2*(genome_A.size + genome_B.size))
+        
+        return merge_job.rv()
+
+    # Return the alignment file
+    return job.fileStore.writeGlobalFile(alignment_file)
+
+def apply_paf_scores(in_paf, out_paf, params):
+    """ compute AS tag from cs cigars, then replace with cg cigars
+    End result should be FastGA paf in format consistent with lastz
+    """
+    # homemade cs cigar parser
+    class CSCigar:
+        def __init__(self, cs):
+            self.cs = cs
+            self.n = len(cs)
+        def __iter__(self):
+            self.i = 5
+            assert self.cs[:self.i] == 'cs:Z:'
+            return self
+        def __next__(self):
+            if self.i < self.n:
+                op = self.cs[self.i]
+                nop = self.n
+                for j in range(self.i+1, self.n):
+                    if self.cs[j] in [':', '*', '-', '+', '=']:
+                        nop = j
+                        break
+                ret = (op, self.cs[self.i+1:nop])
+                self.i = nop
+                return ret
+            else:
+                raise StopIteration
+            
+    # load up the score matrix.  instead of hardcoding, get it from the abpoa params in the config
+    # which are pretty much the defaults used in lastz
+    poa_scores = params.find('bar').find('poa').attrib['partialOrderAlignmentSubMatrix']
+    sub_matrix = { 'A':{}, 'C':{}, 'G':{}, 'T':{}, 'N':{} }
+    for i,s in enumerate(poa_scores.split()):
+        src = ['A','C','G','T','N'][i % 5]
+        dest = ['A','C','G','T','N'][int(i / 5)]
+        sub_matrix[src][dest] = int(s)
+    gap_open = int(params.find('bar').find('poa').attrib['partialOrderAlignmentGapOpenPenalty1'])
+    gap_ext = int(params.find('bar').find('poa').attrib['partialOrderAlignmentGapExtensionPenalty1'])
+    avg_match = int(sum([sub_matrix[b][b] for b in ['A','C','G','T']]) / 4)
+
+    # convert the PAF, changing cs to cg cigars and adding scores
+    with open(in_paf, 'r') as in_file, open(out_paf, 'w') as out_file:
+        for line in in_file:
+            toks = line.strip().split('\t')
+            cg_cigar = 'cg:Z:'
+            score = 0
+            # assume FastGA writes cs tag last, but we accept both : or = for matches
+            for operator, value in CSCigar(toks[-1]):
+                if operator == ':':
+                    num_matches = int(value)
+                    score += num_matches * avg_match
+                    cg_cigar += '{}='.format(value)
+                elif operator == '=':
+                    num_matches = len(value)
+                    for m in value:
+                        score += sub_matrix[m.upper()][m.upper()]
+                    cg_cigar += '{}='.format(num_matches)
+                elif operator == '*':
+                    assert len(value) % 2 == 0
+                    for i in range(0, len(value), 2):
+                        score += sub_matrix[value[i].upper()][value[i+1].upper()]
+                        assert sub_matrix[value[i].upper()][value[i+1].upper()] < 0
+                    cg_cigar += '{}X'.format(int(len(value) / 2))
+                elif operator == '-':
+                    score -= gap_open + (len(value) - 1) * gap_ext
+                    cg_cigar += '{}D'.format(len(value))
+                else:
+                    assert operator == '+'
+                    score -= gap_open + (len(value) - 1) * gap_ext
+                    cg_cigar += '{}I'.format(len(value))
+            toks[-1] = 'AS:i:{}'.format(score)
+            toks.append(cg_cigar)
+            out_file.write('\t'.join(toks) + '\n')
+            
+def log_paf_stats(job, alignment, name_A, genome_A, name_B, genome_B, distance, tag):
+    work_dir = job.fileStore.getLocalTempDir()
+
+    # Get the input files
+    genome_a_file = os.path.join(work_dir, '{}.fa'.format(name_A))
+    genome_b_file = os.path.join(work_dir, '{}.fa'.format(name_B))
+    job.fileStore.readGlobalFile(genome_A, genome_a_file)
+    job.fileStore.readGlobalFile(genome_B, genome_b_file)
+
+    alignment_file = os.path.join(work_dir, '{}_{}.paf'.format(name_A, name_B))
+    job.fileStore.readGlobalFile(alignment, alignment_file)
+
+    if os.path.getsize(alignment_file) > 0:
+        stats = cactus_call(parameters=[['paffy', 'view', genome_b_file, genome_a_file,
+                                         '-i', alignment_file, '-s'], ['tail', '-1']],
+                            check_output=True)
+    else:
+        stats = "EMPTY"
+    RealtimeLogger.info('paf-stats\t{}\t{}\t{}\t{}\t{}'.format(tag, name_B, name_A, distance,
+                                                               '\t'.join(stats.strip().split())))    
 def combine_chunks(job, chunked_alignment_files, batch_size):
     if len(chunked_alignment_files) >= 2 * batch_size:
         # run combine_chunks in batches
@@ -157,13 +348,15 @@ def merge_combined_chunks(job, combined_chunks):
 def make_chunked_alignments(job, event_a, genome_a, event_b, genome_b, distance, params):
     lastz_params_node = params.find("blast")
     gpu = getOptionalAttrib(lastz_params_node, 'gpu', typeFn=int, default=0)
+    fastga = getOptionalAttrib(lastz_params_node, 'mapper', typeFn=str) == 'fastga'        
     lastz_cores = getOptionalAttrib(lastz_params_node, 'cpu', typeFn=int, default=None)
     lastz_memory = getOptionalAttrib(lastz_params_node, 'lastz_memory', typeFn=int, default=None)
+    chunk_attr = 'bigChunkSize' if gpu or fastga else 'chunkSize'    
     
     def make_chunks(genome):
         output_chunks_dir = job.fileStore.getLocalTempDir()
         fasta_chunk_cmd = ['faffy', 'chunk',
-                           '-c', params.find("blast").attrib["chunkSize"],
+                           '-c', params.find("blast").attrib[chunk_attr],
                            '-o', params.find("blast").attrib["overlapSize"],
                            '--dir', output_chunks_dir,
                            job.fileStore.readGlobalFile(genome)]
@@ -179,7 +372,7 @@ def make_chunked_alignments(job, event_a, genome_a, event_b, genome_b, distance,
     chunked_alignment_files = []
     for i, chunk_a in enumerate(chunks_a):
         for j, chunk_b in enumerate(chunks_b):
-            mappers = { "lastz":run_lastz, "minimap2":run_minimap2}
+            mappers = { "lastz":run_lastz, "minimap2":run_minimap2, "fastga":run_fastga}
             mappingFn = mappers[params.find("blast").attrib["mapper"]]
             memory = lastz_memory if lastz_memory else max(200000000, 15*(chunk_a.size+chunk_b.size))
             chunked_alignment_files.append(job.addChildJobFn(mappingFn, '{}_{}'.format(event_a, i), chunk_a,
@@ -217,13 +410,19 @@ def make_ingroup_to_outgroup_alignments_1(job, ingroup_event, outgroup_events, e
     root_job = Job()
     job.addChild(root_job)
 
+    # override chunk size 
+    lastz_params_node = params.find("blast")
+    gpu = getOptionalAttrib(lastz_params_node, 'gpu', typeFn=int, default=0)
+    fastga = getOptionalAttrib(lastz_params_node, 'mapper', typeFn=str) == 'fastga'
+    chunk_attr = 'bigChunkSize' if gpu or fastga else 'chunkSize'
+    
     #  align ingroup to first outgroup to produce paf alignments
     outgroup = outgroup_events[0] # The first outgroup
     logger.info("Building alignment between ingroup event: {} and outgroup event: {}".format(ingroup_event.iD, outgroup.iD))
     alignment = root_job.addChildJobFn(make_chunked_alignments,
                                        outgroup.iD, event_names_to_sequences[outgroup.iD],
                                        ingroup_event.iD, event_names_to_sequences[ingroup_event.iD], distances[ingroup_event, outgroup], params,
-                                       memory=cactus_clamp_memory(1.2 * float(params.find("blast").attrib["chunkSize"])),
+                                       memory=cactus_clamp_memory(1.2 * float(params.find("blast").attrib[chunk_attr])),
                                        disk=4*(event_names_to_sequences[ingroup_event.iD].size+event_names_to_sequences[outgroup.iD].size)).rv()
 
     #  post process the alignments and recursively generate alignments to remaining outgroups
@@ -235,26 +434,31 @@ def make_ingroup_to_outgroup_alignments_1(job, ingroup_event, outgroup_events, e
 
 def make_ingroup_to_outgroup_alignments_2(job, alignments, ingroup_event, outgroup_events,
                                           event_names_to_sequences, distances, params):
+    
     # a job should never set its own follow-on, so we hang everything off root_job here to encapsulate
     root_job = Job()
     job.addChild(root_job)
-        
+
     # identify all ingroup sub-sequences that remain unaligned longer than a threshold as follows:
 
     # run paffy to_bed to create a bed of aligned coverage
-    bed_file = job.fileStore.getLocalTempFile()  # Get a temporary file to store the bed file in
+    work_dir = job.fileStore.getLocalTempDir()
+    alignments_file = os.path.join(work_dir, '{}.paf'.format(ingroup_event.iD))
+    job.fileStore.readGlobalFile(alignments, alignments_file)
+    bed_file = os.path.join(work_dir, '{}.bed'.format(ingroup_event.iD))  # Get a temporary file to store the bed file in
     messages = cactus_call(parameters=['paffy', 'to_bed', "--excludeAligned", "--binary",
-                                       "--minSize", params.find("blast").attrib["trimMinSize"],
-                                       "-i", job.fileStore.readGlobalFile(alignments),
+                                       "--minSize", params.find("blast").attrib['trimMinSize'],
+                                       "-i", alignments_file,
                                        "--logLevel", getLogLevelString()],
                                        outfile=bed_file, returnStdErr=True, job_memory=job.memory)
     logger.info("paffy to_bed event:{}\n{}".format(ingroup_event.iD, messages[:-1]))  # Log paffy to_bed
 
     # run faffy extract to extract unaligned sequences longer than a threshold creating a reduced subset of A
-    seq_file = job.fileStore.getLocalTempFile()  # Get a temporary file to store the subsequences in
-    ingroup_seq_file = job.fileStore.readGlobalFile(event_names_to_sequences[ingroup_event.iD])  # The ingroup sequences
+    seq_file = os.path.join(work_dir, '{}_subseq.fa'.format(ingroup_event.iD))  # Get a temporary file to store the subsequences in
+    ingroup_seq_file = os.path.join(work_dir, '{}.fa'.format(ingroup_event.iD))
+    job.fileStore.readGlobalFile(event_names_to_sequences[ingroup_event.iD], ingroup_seq_file)  # The ingroup sequences
     messages = cactus_call(parameters=['faffy', 'extract', "-i", bed_file, ingroup_seq_file,
-                                       "--flank", params.find("blast").attrib["trimFlanking"],
+                                       "--flank", params.find("blast").attrib['trimFlanking'],
                                        "--logLevel", getLogLevelString()],
                            outfile=seq_file, returnStdErr=True, job_memory=job.memory)
     logger.info("faffy extract event:{}\n{}".format(ingroup_event.iD, messages[:-1]))  # Log faffy extract
@@ -316,6 +520,10 @@ def merge_alignments(job, alignment_file1, alignment_file2, has_resources=False)
                             job.fileStore.readGlobalFile(alignment_file2, os.path.join(work_dir, 'alignment_2.paf'))],
                 outfile=merged_alignments_file, job_memory=job.memory)
 
+    # Remove input from the file store. 
+    job.fileStore.deleteGlobalFile(alignment_file1)
+    job.fileStore.deleteGlobalFile(alignment_file2)
+    
     # Write the merged file back to the job store and return its path
     return job.fileStore.writeGlobalFile(merged_alignments_file)
 
@@ -517,9 +725,8 @@ def make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancest
     # override chunk size 
     lastz_params_node = params.find("blast")
     gpu = getOptionalAttrib(lastz_params_node, 'gpu', typeFn=int, default=0)
-    if gpu:
-        # wga-gpu has a 6G limit, so we always override
-        lastz_params_node.attrib['chunkSize'] = '6000000000'
+    fastga = getOptionalAttrib(lastz_params_node, 'mapper', typeFn=str) == 'fastga'
+    chunk_attr = 'bigChunkSize' if gpu or fastga else 'chunkSize'
 
     # for each pair of ingroups make alignments
     ingroup_alignments = []
@@ -530,7 +737,7 @@ def make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancest
         ingroup_alignments.append(root_job.addChildJobFn(make_chunked_alignments,
                                                          ingroup.iD, event_names_to_sequences[ingroup.iD],
                                                          ingroup2.iD, event_names_to_sequences[ingroup2.iD], distance_a_b, params,
-                                                         memory=cactus_clamp_memory(1.2 * float(lastz_params_node.attrib['chunkSize'])),
+                                                         memory=cactus_clamp_memory(1.2 * float(lastz_params_node.attrib[chunk_attr])),
                                                          disk=2*total_sequence_size).rv())
         ingroup_alignment_names.append('{}-{}_vs_{}'.format(ancestor_event_string, ingroup.iD, ingroup2.iD))
 
@@ -551,7 +758,7 @@ def make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancest
                                                       ingroup.iD, event_names_to_sequences[ingroup.iD],
                                                       outgroup.iD, event_names_to_sequences[outgroup.iD],
                                                       distances[ingroup, outgroup], params,
-                                                      memory=cactus_clamp_memory(1.2 * float(lastz_params_node.attrib['chunkSize'])),
+                                                      memory=cactus_clamp_memory(1.2 * float(lastz_params_node.attrib[chunk_attr])),
                                                       disk=2*total_sequence_size).rv()
                                for ingroup in ingroup_events for outgroup in outgroup_events]
     # for better logs
@@ -576,24 +783,27 @@ def trim_unaligned_sequences(job, sequences, alignments, params, has_resources=F
     if not has_resources:
         return job.addChildJobFn(trim_unaligned_sequences, sequences, alignments, params, has_resources=True,
                                  disk=8*sum([seq.size for seq in sequences]) + 32*alignments.size,
-                                 memory=cactus_clamp_memory(8*sum([seq.size for seq in sequences]) + 32*alignments.size)).rv()        
-    
-    alignments = job.fileStore.readGlobalFile(alignments)  # Download the alignments
+                                 memory=cactus_clamp_memory(8*sum([seq.size for seq in sequences]) + 32*alignments.size)).rv()
+
+    work_dir = job.fileStore.getLocalTempDir()
+    alignments_file = os.path.join(work_dir, 'alignments.paf')    
+    job.fileStore.readGlobalFile(alignments, alignments_file)  # Download the alignments
 
     # Make a bed of aligned sequence
     # run paffy to_bed to create a bed of aligned coverage
-    bed_file = job.fileStore.getLocalTempFile()  # Get a temporary file to store the bed file in
+    bed_file = alignments_file + '.bed' # Get a temporary file to store the bed file in
     messages = cactus_call(parameters=['paffy', 'to_bed', "--binary", "--excludeUnaligned", "--includeInverted",
-                                       '-i', alignments, "--logLevel", getLogLevelString()],
+                                       '-i', alignments_file, "--logLevel", getLogLevelString()],
                            outfile=bed_file, returnStdErr=True, job_memory=job.memory)
     # Log paffy to_bed
     logger.info("paffy to_bed:\n{}".format(messages[:-1]))
 
     trimmed_sequence_files = []
-    for sequence in sequences:
+    for i, sequence in enumerate(sequences):
         # run faffy extract to extract unaligned sequences longer than a threshold creating a reduced subset of A
-        seq_file = job.fileStore.readGlobalFile(sequence)  # Load original sequence file
-        trimmed_seq_file = job.fileStore.getLocalTempFile()  # Get a temporary file to store the extracted subsequences
+        seq_file = os.path.join(work_dir, '{}.fa'.format(i))
+        job.fileStore.readGlobalFile(sequence, seq_file)  # Load original sequence file
+        trimmed_seq_file = seq_file + '.trim'  # Get a temporary file to store the extracted subsequences
         messages = cactus_call(parameters=['faffy', 'extract', "-i", bed_file, seq_file, "--skipMissing", "--minSize", "1",
                                            "--flank", params.find("blast").attrib["trimOutgroupFlanking"],
                                            "--logLevel", getLogLevelString()],
@@ -602,8 +812,8 @@ def trim_unaligned_sequences(job, sequences, alignments, params, has_resources=F
         trimmed_sequence_files.append(trimmed_seq_file)
 
     # Now convert the alignments to refer to the reduced sequences
-    trimmed_alignments = job.fileStore.getLocalTempFile()  # Get a temporary file to store the "trimmed" alignments
-    messages = cactus_call(parameters=['paffy', 'upconvert', "-i", alignments, "--logLevel", getLogLevelString()] +
+    trimmed_alignments = alignments_file + '.trim'  # Get a temporary file to store the "trimmed" alignments
+    messages = cactus_call(parameters=['paffy', 'upconvert', "-i", alignments_file, "--logLevel", getLogLevelString()] +
                            trimmed_sequence_files, outfile=trimmed_alignments, returnStdErr=True)
     logger.info("paffy upconvert\n{}".format(messages[:-1]))  # Log
 

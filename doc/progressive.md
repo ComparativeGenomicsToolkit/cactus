@@ -21,6 +21,7 @@ Please cite the [HAL paper](https://doi.org/10.1093/bioinformatics/btt128) when 
 * [Running with SnakeMake](#running-with-snakemake)
 * [Updating Alignments](#updating-alignments)
 * [GPU Acceleration](#gpu-acceleration)
+* [FastGA](#fastga)
 * [Pre-Alignment Checklist](#pre-alignment-checklist)
 * [Frequently Asked Questions](#frequently-asked-questions)
 
@@ -458,6 +459,13 @@ GPUs must
 We've tested KegAlign on Nvidia V100 and A10G GPUs. See the Terra example above for suggested node type on GCP.   
 
 Please [cite KegAlign](https://doi.org/10.1101/2024.09.02.610839).
+
+## FastGA
+
+**WARNING This is a new, experimental and not well tested feature. Try it out if you are interested in benchmarking FastGA, but some further study is required before it should be considered as a replacement for the lastz or gpu modes.**
+
+[FastGA](https://github.com/thegenemyers/FASTGA) is a new, extremely fast whole genome pairwise aligner.  You can use it instead of `lastz` in cactus via the (very experimental) `--fastga` option. `FastGA` only aligns up to about 20% divergence, so any gaps in the `FastGA` will be re-aligned with `lastz`.  You can disable the `lastz` fallback by setting `<blast fastga_fill="0">` in the config XML.
+
 
 ### Using GPU Acceleration on a Cluster
 

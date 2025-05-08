@@ -514,7 +514,7 @@ def main():
     # toggle on the gpu
     config_wrapper = ConfigWrapper(configNode)
     if config_wrapper.isLastzPreprocessorActive():
-        config_wrapper.initGPU(options)
+        config_wrapper.initLastz(options)
 
     # apply pangenome overrides
     if options.pangenome:

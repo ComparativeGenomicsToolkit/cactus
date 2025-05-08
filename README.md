@@ -45,6 +45,7 @@ Cactus uses many different algorithms and individual code contributions, princip
 - Erik Garrison and co-authors for [vcfwave](https://github.com/vcflib/vcflib/blob/master/doc/vcfwave.md). [vcflib citation](https://doi.org/10.1371/journal.pcbi.1009123)
 - Martin Frith and collaborators for `last-train` from [last](https://gitlab.com/mcfrith/last). [last-train citation](https://academic.oup.com/bioinformatics/article-lookup/doi/10.1093/bioinformatics/btw742)
 - Han Cao for [merge_duplicates](https://github.com/Han-Cao/collapse-bubble) vcf cleanup script
+- Gene Myers, Richard Durbin and Chenxi Zhou for [FastGA](https://github.com/thegenemyers/FASTGA/)
 
 ## Installing Manually From Source
 
