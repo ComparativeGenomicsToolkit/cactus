@@ -29,6 +29,7 @@ export sonLibRootDir = ${CWD}/submodules/sonLib
 # Building.  First build submodules, then a pass for libs and a pass for bins
 ##
 all:
+	mkdir -p ${BINDIR} ${LIBDIR} ${INCLDIR}	
 	${MAKE} suball1
 	${MAKE} all_libs
 	${MAKE} all_progs
@@ -225,7 +226,6 @@ suball2: ${submodules2:%=suball.%}
 
 suball.sonLib:
 	cd submodules/sonLib && PKG_CONFIG_PATH=${CWD}/lib/pkgconfig:${PKG_CONFIG_PATH} ${MAKE}
-	mkdir -p ${BINDIR} ${LIBDIR} ${INCLDIR}
 	rm -rf submodules/sonLib/bin/*.dSYM
 	ln -f submodules/sonLib/bin/[a-zA-Z]* ${BINDIR}
 	ln -f submodules/sonLib/lib/*.a ${LIBDIR}
@@ -242,12 +242,10 @@ suball.cPecan: suball.sonLib
 
 suball.cactus2hal: suball.sonLib suball.hal all_libs.api
 	cd submodules/cactus2hal && ${MAKE}
-	mkdir -p ${BINDIR} ${LIBDIR} ${INCLDIR}	
 	-ln -f submodules/cactus2hal/bin/* bin/
 
 suball.hal: suball.sonLib
 	cd submodules/hal &&  ${MAKE}
-	mkdir -p ${BINDIR} ${LIBDIR} ${INCLDIR}	
 	-ln -f submodules/hal/bin/* bin/
 	-ln -f submodules/hal/lib/libHal.a submodules/hal/lib/halLib.a
 
@@ -263,13 +261,11 @@ suball.abPOA:
 
 suball.lastz:
 	cd submodules/lastz && ${MAKE}
-	mkdir -p ${BINDIR} ${LIBDIR} ${INCLDIR}	
 	ln -f submodules/lastz/src/lastz bin
 
 suball.paffy:
 	cd submodules/paffy && ${MAKE}
 	rm -rf submodules/paffy/bin/*.dSYM
-	mkdir -p ${BINDIR} ${LIBDIR} ${INCLDIR}
 	ln -f submodules/paffy/bin/[a-zA-Z]* ${BINDIR}
 	ln -f submodules/paffy/lib/*.a ${LIBDIR}
 	ln -f submodules/paffy/inc/*.h ${INCLDIR}
