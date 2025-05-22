@@ -1094,12 +1094,19 @@ def deconstruct(job, config, out_name, vcf_ref, vg_id, tag):
                 ref_paths.append(graph_path)
             else:
                 alt_paths.append(graph_path)
-    # should be exactly 1 since we're running chrom by chrom, but leave more relaxed chek
-    assert len(ref_paths) > 0
+
+    if len(ref_paths) == 0:
+        # this can happen in cases where we specified a seoncd reference but get a contig
+        # (dictated bt first reference) where it's not present
+        RealtimeLogger.warning('No reference found for {} in {}: VCF generation skipped'.format(vcf_ref, tag))
+        return None, None
     if len(alt_paths) == 0:
         # deconstruct will fail, but this can legitimately come up, ex chrEBV in GRCh38 analysis set
         RealtimeLogger.warning('No variants found for {}: VCF generation skipped'.format(ref_paths[0]))
         return None, None
+
+    # should be exactly 1 since we're running chrom by chrom, but leave more relaxed check
+    assert len(ref_paths) >= 1
 
     # make the vcf
     vcf_path = os.path.join(work_dir, os.path.basename(out_name) + '.' + tag + 'raw.vcf.gz')
