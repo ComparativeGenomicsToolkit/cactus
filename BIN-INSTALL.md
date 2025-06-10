@@ -6,17 +6,21 @@ pre-compile binary, static linked distribution.
 ## Extracting
 If you have not already extract the distribution and cd into the cactus directory:
 ```
-tar -xzf cactus-bin-v2.9.8.tar.gz
-cd cactus-bin-v2.9.8
+tar -xzf cactus-bin-v2.9.9.tar.gz
+cd cactus-bin-v2.9.9
 ```
+
+## GPU Patch:
+
+When using GPU support since v2.9.4, please make sure to pass in the patched config file with `--configFile` (download the patch from the [releases](https://github.com/ComparativeGenomicsToolkit/cactus/releases) page).
 
 ## Setup
 
 To build a python virtualenv and activate, do the following steps. This requires Python version >= 3.9 (so Ubuntu 18.04 users should use `-p python3.9` below):
 ```
-virtualenv -p python3 venv-cactus-v2.9.8
-printf "export PATH=$(pwd)/bin:\$PATH\nexport PYTHONPATH=$(pwd)/lib:\$PYTHONPATH\nexport LD_LIBRARY_PATH=$(pwd)/lib:\$LD_LIBRARY_PATH\n" >> venv-cactus-v2.9.8/bin/activate
-source venv-cactus-v2.9.8/bin/activate
+virtualenv -p python3 venv-cactus-v2.9.9
+printf "export PATH=$(pwd)/bin:\$PATH\nexport PYTHONPATH=$(pwd)/lib:\$PYTHONPATH\nexport LD_LIBRARY_PATH=$(pwd)/lib:\$LD_LIBRARY_PATH\n" >> venv-cactus-v2.9.9/bin/activate
+source venv-cactus-v2.9.9/bin/activate
 python3 -m pip install -U setuptools pip wheel
 python3 -m pip install -U .
 python3 -m pip install -U -r ./toil-requirement.txt
