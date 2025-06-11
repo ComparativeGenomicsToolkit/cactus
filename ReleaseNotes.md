@@ -1,4 +1,4 @@
-# Release 2.9.9 2025-09-10
+# Release 2.9.9 2025-09-11
 
 This release adds FastGA support, along with some bug fixes
 
@@ -10,6 +10,7 @@ This release adds FastGA support, along with some bug fixes
 - Fix `--restart` flag bug in `cactus-minigraph`
 - Fix `make` error that could (quite rarely) bug out by making a `bin` file instead of `bin/` directory
 - Fix VCF construction crash when multiple VCF references are given, but not all present in every reference contig
+- Update vg to v1.66
 
 Note: as in previous releases (since v2.9.4), you must specify a patched config file when running `cactus` or `cactus-align` along with GPUs in order not to generate ancestral contigs that are too big for `2bit` as used in KegAlign (download the patch from the [releases](https://github.com/ComparativeGenomicsToolkit/cactus/releases) page).
 
