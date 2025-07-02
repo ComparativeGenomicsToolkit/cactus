@@ -32,6 +32,7 @@ cmake -DZIG=OFF -DWFA_GITMODULE=ON -DCMAKE_BUILD_TYPE=Debug ..
 cmake --build . -- -j ${numcpu}
 mv vcfwave vcfcreatemulti vcfbreakmulti vcfuniq vcffixup ${binDir}
 mv ./contrib/WFA2-lib/libwfa2.so.0 ${libDir}
+mv ./libvcflib.so ${libDir}
  
 cd ${CWD}
 rm -rf ${pangenomeBuildDir}
