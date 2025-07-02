@@ -15,11 +15,11 @@ all_progs: all_libs
 	${MAKE} ${BINDIR}/stPipelineTests ${BINDIR}/cactus_consolidated ${BINDIR}/docker_test_script
 
 ${BINDIR}/stPipelineTests : ${libTests} ${LIBDIR}/cactusLib.a ${LIBDEPENDS}
-	${CC} ${CPPFLAGS} ${CFLAGS} -o ${BINDIR}/stPipelineTests ${libTests} ${LIBDIR}/cactusLib.a ${LDLIBS}
+	${CC} ${CPPFLAGS} ${CFLAGS} ${LDFLAGS} -o ${BINDIR}/stPipelineTests ${libTests} ${LIBDIR}/cactusLib.a ${LDLIBS}
 
 ${BINDIR}/cactus_consolidated : cactus_consolidated.c ${LIBDEPENDS} ${commonCafLibs} ${libSources} ${libHeaders}
 # the -Wno-unused-function is required to include abpoa.h with CGL_DEBUG defined
-	${CC} ${CPPFLAGS} ${CFLAGS} -o ${BINDIR}/cactus_consolidated cactus_consolidated.c ${libSources} ${commonCafLibs} ${LDLIBS} -Wno-unused-function
+	${CC} ${CPPFLAGS} ${CFLAGS} ${LDFLAGS} -o ${BINDIR}/cactus_consolidated cactus_consolidated.c ${libSources} ${commonCafLibs} ${LDLIBS} -Wno-unused-function
 
 ${BINDIR}/docker_test_script : docker_test_script.py
 	cp docker_test_script.py ${BINDIR}/docker_test_script

@@ -63,6 +63,9 @@ endif
 ifeq ($(shell arch || true), aarch64)
 	arm=1
 endif
+ifeq ($(shell arch || true), arm64)
+	arm=1
+endif
 ifdef arm
 #	flags to build abpoa
 	export armv8 = 1
