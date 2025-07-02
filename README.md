@@ -59,7 +59,7 @@ git clone https://github.com/ComparativeGenomicsToolkit/cactus.git --recursive
 Create the Python virtual environment.  Install virtualenv first if needed with `python3 -m pip install virtualenv`.
 ```
 cd cactus
-virtualenv -p python3 cactus_env
+python3 -m virtualenv  cactus_env
 echo "export PATH=$(pwd)/bin:\$PATH" >> cactus_env/bin/activate
 echo "export PYTHONPATH=$(pwd)/lib:\$PYTHONPATH" >> cactus_env/bin/activate
 source cactus_env/bin/activate
@@ -99,3 +99,71 @@ build-tools/downloadMafTools
 ```
 
 In order to toggle between local and Docker binaries, use the `--binariesMode` command line option. If `--binariesMode` is not specified, local binaries will be used if found in `PATH`, otherwise a Docker image will be used.
+
+### Compiling on Mac
+
+These are the steps I used to build Cactus on a new M4 Mac Mini with MacOS Sequoia 15.5:
+
+#### Developer Tools
+
+Install command-line developer tools.  I did this by typing `make` on the command line (in Terminal), and accepting the prompt in the pop-up window to install them.  The version insalled was
+
+```
+pkgutil --pkg-info=com.apple.pkg.CLTools_Executables
+
+package-id: com.apple.pkg.CLTools_Executables
+version: 16.4.0.0.1.1747106510
+volume: /
+location: /
+install-time: 1751461503
+```
+
+#### Homebrew
+
+I pasted the install commanid from the [Homebrew homepage](https://brew.sh/) into the Terminal and ran it.  For me this command was the following, but you're probably better off to get it from the webpage
+
+```
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+```
+
+Then I installed the brew dependencies for Cactus
+
+```
+brew install coreutils libomp hdf5 libdeflate parallel wget samtools bcftools 
+```
+
+When installing `libomp` above (use `brew reinstall libomp` if you missed it), it printed some messages about setting:
+
+```
+export LDFLAGS="-L/opt/homebrew/opt/libomp/lib"
+export CPPFLAGS="-I/opt/homebrew/opt/libomp/include"
+```
+
+So I added some flags to this effect to ~/.zprofile.  Doing so, and including `CFLAGS` is crucial for the build to work.
+
+```
+printf "export LDFLAGS=\"-L/opt/homebrew/opt/libomp/lib\" >> ~/.zprofile
+printf "export CPPFLAGS="-I/opt/homebrew/opt/libomp/include" >> ~/.zprofile
+prinft "export CFLAGS="-I/opt/homebrew/opt/libomp/include" >> ~/zprofile
+```
+
+#### Virtualenv
+
+Python3 seemed to be installed by default.  In order to install virtualenv I ran
+
+```
+python3 -m pip install virtualenv
+```
+
+#### That's it
+
+You should now be able to run the steps to `git clone --recursive` cactus, setup the `virtualenv` and `make` described above (See Installing Manually From Source).
+
+**Note that Minigraph-Cactus is not (yet) supported on Mac.**
+
+I recommend running
+```
+build-tools/downloadMafTools
+make evolver_test_local
+```
+in order to test your installation.
