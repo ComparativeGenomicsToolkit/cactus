@@ -6,7 +6,7 @@ STATIC_CHECK=$1
 
 set -beEu -o pipefail
 
-mafBuildDir=$(realpath -m build-maf-tools)
+mafBuildDir=$(pwd)/build-maf-tools
 binDir=$(pwd)/bin
 # just use cactusRootPath for now
 dataDir=$(pwd)/src/cactus
@@ -70,9 +70,9 @@ git checkout 259e5b47fa2ee17ff5ad1bba9cebf2992cbb7228
 find . -name "*.mk" | xargs sed -ie "s/-Werror//g"
 find . -name "Makefile*" | xargs sed -ie "s/-Werror//g"
 # hack in flags support
-sed -i inc/common.mk -e 's/cflags =/cflags = ${CFLAGS}/g'
+sed -ie 's/cflags =/cflags = ${CFLAGS}/g' inc/common.mk
 # and sonLib path
-sed -i inc/common.mk -e "s#sonLibPath = .*#sonLibPath = ${CWD}/submodules/sonLib/lib#g"
+sed -ie  "s#sonLibPath = .*#sonLibPath = ${CWD}/submodules/sonLib/lib#g" inc/common.mk
 make
 for mt in `ls bin/maf*`; do
 	 if [[ $STATIC_CHECK -ne 1 || $(ldd ${mt} | grep so | wc -l) -eq 0 ]]
