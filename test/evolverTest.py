@@ -790,8 +790,16 @@ class TestCase(unittest.TestCase):
         self.assertGreaterEqual(os.path.getsize(halPath + '.maf.tai'), 50)        
 
         # run it with --dupeMode consensus just to make sure it doesn't crash
-        subprocess.check_call(['cactus-hal2maf', self._job_store('h2m'), halPath,  halPath + '.consensus.maf.gz', '--chunkSize', '10000', '--batchCount', '2',
-                               '--refGenome', 'Anc0', '--dupeMode', 'consensus', '--binariesMode', binariesMode], shell=False)
+        # (but only if we have maf_stream, which we probably don't on arm)
+        have_maf_stream = False
+        try:
+            subprocess.check_call('maf_stream', '-h')
+            have_maf_stream = True
+        except:
+            pass
+        if have_maf_stream:
+            subprocess.check_call(['cactus-hal2maf', self._job_store('h2m'), halPath,  halPath + '.consensus.maf.gz', '--chunkSize', '10000', '--batchCount', '2',
+                                   '--refGenome', 'Anc0', '--dupeMode', 'consensus', '--binariesMode', binariesMode], shell=False)
 
         # run it with --coverage just to make sure it doesn't crash
         subprocess.check_call(['cactus-hal2maf', self._job_store('h2m'), halPath,  halPath + '.taftest.taf.gz', '--chunkSize', '10000', '--batchCount', '2',
@@ -802,7 +810,7 @@ class TestCase(unittest.TestCase):
         # cactus-hal2maf doesnt support --onlySequenceNames because the genome names are needed by taf_add_gap_bases
         # so we manually filter here
         for genome in subprocess.check_output(['halStats', halPath, '--genomes']).strip().decode('utf-8').split():
-            subprocess.check_call(['sed', '-i', halPath + '.maf', '-e', 's/s\t{}\\./s\t/g'.format(genome)])
+            subprocess.check_call(['sed', '-i', '-e', 's/s\t{}\\./s\t/g'.format(genome), halPath + '.maf'])
         subprocess.check_call(['bin/mafComparator', '--maf1', halPath + '.maf', '--maf2', ground_truth_file, '--samples', '100000000', '--out', halPath + 'comp.xml'])
 
         # grab the two accuracy values out of the XML
