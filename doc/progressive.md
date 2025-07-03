@@ -483,6 +483,10 @@ Since `KegAlign` is only released in the GPU-enabled docker image, that's the ea
 
 ## Frequently Asked Questions
 
+**Q**: I installed the Cactus binary release but there's no `cactus` binary in the `bin/` directory!
+
+**A**: The top-level Cactus interface is a Python package that is installed via `pip install` in a Python `virtualenv`.  So the `cactus` executable will be in the `bin/` direcory of the `virtualenv`. 
+
 **Q**: I'm running under macOS using the Docker functionality and get an error from Docker: `docker: Error response from daemon: Mounts denied: [...]`
 
 **A**: Go to your Docker preferences. In the "File Sharing" tab, double-click the last entry ("/path/to/exported/directory") and type in `/var/folders`. (Don't use the `+` button, it won't work because it resolves symlinks before adding).
