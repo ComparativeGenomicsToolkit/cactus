@@ -153,9 +153,9 @@ export CPPFLAGS="-I/opt/homebrew/opt/libomp/include"
 So I added some flags to this effect to ~/.zprofile.  Doing so, and including `CFLAGS`, is crucial for the build to work.
 
 ```
-printf "export LDFLAGS=\"-L/opt/homebrew/opt/libomp/lib\" >> ~/.zprofile
-printf "export CPPFLAGS="-I/opt/homebrew/opt/libomp/include" >> ~/.zprofile
-printf "export CFLAGS="-I/opt/homebrew/opt/libomp/include" >> ~/.zprofile
+printf "export LDFLAGS=\"-L/opt/homebrew/opt/libomp/lib\"\n" >> ~/.zprofile
+printf "export CPPFLAGS=\"-I/opt/homebrew/opt/libomp/include\"\n" >> ~/.zprofile
+printf "export CFLAGS=\"-I/opt/homebrew/opt/libomp/include\"\n" >> ~/.zprofile
 ```
 
 Make sure to reload the profile to apply the changes immediately:
