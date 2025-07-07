@@ -41,7 +41,8 @@ test-job:
     - python3.9 -m pip install -U .
     # force local docker image to use legacy mode so tests run
     - sed -i Dockerfile -e 's/ENV avx2 1/ENV CACTUS_LEGACY_ARCH 1/g'
-    - make docker    
+    - make docker
+    - export LD_LIBRARY_PATH=$(pwd)/lib:$LD_LIBRARY_PATH
     - make -j 8 evolver_test
 
   artifacts:
