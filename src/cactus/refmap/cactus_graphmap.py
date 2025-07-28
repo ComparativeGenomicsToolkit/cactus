@@ -179,13 +179,11 @@ def graph_map(options):
                 raise RuntimeError("{} assembly not found in seqfile so it must be specified with --outputFasta".format(graph_event))
 
             #import the graph
-            logger.info("Importing {}".format(options.minigraphGFA))
             gfa_id = toil.importFile(makeURL(options.minigraphGFA))
 
             #import the reference collapse paf
             ref_collapse_paf_id = None
             if options.collapseRefPAF:
-                logger.info("Importing {}".format(options.collapseRefPAF))
                 ref_collapse_paf_id = toil.importFile(options.collapseRefPAF)
 
             #import the sequences (that we need to align for the given event, ie leaves and outgroups)
@@ -198,7 +196,6 @@ def graph_map(options):
                         catFiles([os.path.join(seq, subSeq) for subSeq in os.listdir(seq)], tmpSeq)
                         seq = tmpSeq
                     seq = makeURL(seq)
-                    logger.info("Importing {}".format(seq))
                     seq_id_map[genome] = toil.importFile(seq)
                     fa_id_map[genome] = seq
 

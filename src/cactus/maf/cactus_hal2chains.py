@@ -117,7 +117,6 @@ def main():
             config = ConfigWrapper(configNode)
             config.substituteAllPredefinedConstantsWithLiterals(options)
             
-            logger.info("Importing {}".format(options.halFile))
             hal_id = toil.importFile(options.halFile)            
             chains_id_dict = toil.start(Job.wrapJobFn(hal2chains_workflow, config, options, hal_id))
 

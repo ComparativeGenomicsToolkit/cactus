@@ -126,7 +126,6 @@ def main():
                         catFiles([os.path.join(seq, subSeq) for subSeq in os.listdir(seq)], tmpSeq)
                         seq = tmpSeq
                     seq = makeURL(seq)
-                    logger.info("Importing {}".format(seq))
                     input_seq_id_map[genome] = toil.importFile(seq)
                 elif genome in input_seq_order:
                     input_seq_order.remove(genome)

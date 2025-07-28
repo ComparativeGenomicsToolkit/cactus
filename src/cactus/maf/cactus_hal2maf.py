@@ -222,7 +222,6 @@ def main():
             config.substituteAllPredefinedConstantsWithLiterals(options)
 
             bed_id = toil.importFile(options.bedRanges) if options.bedRanges else None
-            logger.info("Importing {}".format(options.halFile))
             hal_id = toil.importFile(options.halFile)
             maf_id = toil.start(Job.wrapJobFn(hal2maf_workflow, hal_id, bed_id, options, config))
         
