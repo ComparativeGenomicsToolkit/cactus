@@ -468,6 +468,7 @@ Please [cite KegAlign](https://doi.org/10.1101/2024.09.02.610839).
 
 [FastGA](https://github.com/thegenemyers/FASTGA) is a new, extremely fast whole genome pairwise aligner.  You can use it instead of `lastz` in cactus via the (very experimental) `--fastga` option. `FastGA` only aligns up to about 20% divergence, so any gaps in the `FastGA` will be re-aligned with `lastz`.  You can disable the `lastz` fallback by setting `<blast fastga_fill="0">` in the config XML.
 
+FastGA was designed for use with up to 8 cores. If you use more, there probably won't be much speedup (it's fast enough with 8).  If you use many more, then it will probably crash.  In cactus versions up to and including v2.9.9, it will default to using all the cores on your system, so it's crucial to specify `--lastzCores 8` alongside `--fastga`.  In later releases, it defaults to 8 cores so it is not necessary to specifiy `--lastzCores`.  
 
 ### Using GPU Acceleration on a Cluster
 
