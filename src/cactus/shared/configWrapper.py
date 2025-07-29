@@ -337,12 +337,19 @@ class ConfigWrapper:
                         lastz_cores = options.maxCores
                     else:
                         lastz_cores = cactus_cpu_count()
+                        if fastga:
+                            # FastGA will crash if you give it too many cores, and was apparently designed for
+                            # at most 8
+                            lastz_cores = min(lastz_cores, 8)
                 else:
                     if fastga:
                         raise RuntimeError('--lastzCores must be used with FastGA on non-singlemachine batch systems')
                     else:
                         raise RuntimeError('--lastzCores must be used with --gpu on non-singlemachine batch systems')
 
+        if fastga and lastz_cores > 8:
+            logger.warning("You specified --lastzCores {} with --fastga but FastGA should only be used with at most 8 cores so it will probably crash".format(lastz_cores))
+            
         # override blast cores and memory if specified
         if lastz_cores:
             findRequiredNode(self.xmlRoot, "blast").attrib["cpu"] = str(lastz_cores)
