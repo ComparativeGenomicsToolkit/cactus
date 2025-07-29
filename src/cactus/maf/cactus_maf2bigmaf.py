@@ -88,11 +88,9 @@ def main():
             config = ConfigWrapper(configNode)
             config.substituteAllPredefinedConstantsWithLiterals(options)
             
-            logger.info("Importing {}".format(options.mafFile))
             maf_id = toil.importFile(options.mafFile)
             hal_id = None
             if options.halFile:
-                logger.info("Importing {}".format(options.halFile))
                 hal_id = toil.importFile(options.halFile)
                 
             bigmaf_id_dict = toil.start(Job.wrapJobFn(maf2bigmaf_workflow, config, options, maf_id, hal_id))

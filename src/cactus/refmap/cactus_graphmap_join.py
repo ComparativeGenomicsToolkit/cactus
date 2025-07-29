@@ -371,13 +371,11 @@ def graphmap_join(options):
             # load up the vgs
             vg_ids = []
             for vg_path in options.vg:
-                logger.info("Importing {}".format(vg_path))
                 vg_ids.append(toil.importFile(makeURL(vg_path)))
                 
             # load up the hals
             hal_ids = []
             for hal_path in options.hal:
-                logger.info("Importing {}".format(hal_path))
                 hal_ids.append(toil.importFile(makeURL(hal_path)))
 
             # run the workflow

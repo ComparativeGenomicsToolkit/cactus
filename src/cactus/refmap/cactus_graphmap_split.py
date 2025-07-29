@@ -139,11 +139,9 @@ def cactus_graphmap_split(options):
             seqFile = SeqFile(options.seqFile, defaultBranchLen=config.getDefaultBranchLen(pangenome=True))
 
             #import the graph
-            logger.info("Importing {}".format(options.minigraphGFA))
             gfa_id = toil.importFile(makeURL(options.minigraphGFA))
 
             #import the paf
-            logger.info("Importing {}".format(options.graphmapPAF))
             paf_id = toil.importFile(makeURL(options.graphmapPAF))
 
             #import the sequences (that we need to align for the given event, ie leaves and outgroups)
@@ -166,7 +164,6 @@ def cactus_graphmap_split(options):
                         catFiles([os.path.join(seq, subSeq) for subSeq in os.listdir(seq)], tmpSeq)
                         seq = tmpSeq
                     seq = makeURL(seq)
-                    logger.info("Importing {}".format(seq))
                     input_seq_id_map[genome] = toil.importFile(seq)
                     input_name_map[genome] = os.path.basename(seq)
 

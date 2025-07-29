@@ -346,7 +346,6 @@ def make_align_job(options, toil, config_wrapper=None, chrom_name=None):
         poaNode.attrib["partialOrderAlignmentDisableSeeding"] = "1"
 
     # import the PAF alignments
-    logger.info("Importing {}".format(options.pafFile))
     paf_id = toil.importFile(makeURL(options.pafFile))
     
     #import the sequences
@@ -358,7 +357,6 @@ def make_align_job(options, toil, config_wrapper=None, chrom_name=None):
                 catFiles([os.path.join(seq, subSeq) for subSeq in os.listdir(seq)], tmpSeq)
                 seq = tmpSeq
             seq = makeURL(seq)
-            logger.info("Importing {}".format(seq))
             input_seq_id_map[genome] = toil.importFile(seq)
 
     # make the align job that will (optional unzip) -> consolidated -> hal export -> (optional vg/gfa)

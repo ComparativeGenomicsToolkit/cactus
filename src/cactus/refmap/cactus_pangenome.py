@@ -230,7 +230,6 @@ def main():
             #import the reference collapse paf
             ref_collapse_paf_id = None
             if options.collapseRefPAF:
-                logger.info("Importing {}".format(options.collapseRefPAF))
                 ref_collapse_paf_id = toil.importFile(makeURL(options.collapseRefPAF))
                 assert options.reference
                 findRequiredNode(config_node, "graphmap").attrib["collapse"] = 'reference'
@@ -238,7 +237,6 @@ def main():
             #import the .train file
             last_scores_id = None
             if options.scoresFile:
-                logger.info("Importing {}".format(options.scoresFile))
                 last_scores_id = toil.importFile(makeURL(options.scoresFile))
 
             #import the sequences
@@ -252,7 +250,6 @@ def main():
                         catFiles([os.path.join(seq, subSeq) for subSeq in os.listdir(seq)], tmpSeq)
                         seq = tmpSeq
                     seq = makeURL(seq)
-                    logger.info("Importing {}".format(seq))
                     input_seq_id_map[genome] = toil.importFile(seq)
                     input_path_map[genome] = seq
                 elif genome in input_seq_order:

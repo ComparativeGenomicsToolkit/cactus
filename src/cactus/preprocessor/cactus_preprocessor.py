@@ -401,7 +401,6 @@ def stageWorkflow(outputSequenceDir, configNode, inputSequences, toil, restart=F
     if not restart:
         inputSequenceIDs = []
         for seq in inputSequences:
-            logger.info("Importing {}".format(seq))
             inputSequenceIDs.append(toil.importFile(makeURL(seq)))
         maskFileID = toil.importFile(makeURL(maskFile)) if maskFile else None
         unzip_job = Job.wrapJobFn(unzip_then_pp, configNode, inputSequences, inputSequenceIDs, inputEventNames,

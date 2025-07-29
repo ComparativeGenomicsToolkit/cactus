@@ -134,7 +134,6 @@ def runCactusBlastOnly(options):
                         catFiles([os.path.join(seq, subSeq) for subSeq in os.listdir(seq)], tmpSeq)
                         seq = tmpSeq
                     seq = makeURL(seq)
-                    logger.info("Importing {}".format(seq))
                     input_seq_id_map[genome] = toil.importFile(seq)
 
             paf_id = toil.start(Job.wrapJobFn(sanitize_then_make_paf_alignments, NXNewick().writeString(spanning_tree),
