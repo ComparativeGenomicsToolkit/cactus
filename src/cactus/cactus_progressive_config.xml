@@ -39,7 +39,7 @@
 	<!-- overlapSize The amount of basepair overlap between chunks -->
 	<!-- mapper The local alignment program to use, currently either lastz or minimap2 or fastga -->
 	<!-- minimap2_params Parameters to use with minimap2 -->
-	<!-- fastga_params Parameters to use with fastga. Note that these should include -pafs or -pafS as that's the output cactus expects -->
+	<!-- fastga_params Parameters to use with fastga. Note that these should include -pafs or -pafS as that's the output cactus expects. We suggest -M as well to handle softmasked sequence simlar to the lastz/legacy pipeline -->
 	<!-- fastga_fill Run lastz on gaps in the fastga alignment -->
 	<!-- fastga_stats Print paf stats after fastga -->
 	<!-- compressFiles Compress the local alignments. (I think this may be broken) -->
@@ -75,7 +75,7 @@
 		   overlapSize="10000"
 		   mapper="lastz"
 		   minimap2_params="-x asm20"
-		   fastga_params="-pafs"
+		   fastga_params="-pafs -M"
 		   fastga_fill="1"
 		   fastga_stats="1"
 		   minimumSequenceLengthForBlast="30"
