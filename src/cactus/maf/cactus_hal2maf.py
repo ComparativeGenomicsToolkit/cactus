@@ -440,7 +440,7 @@ def taf_cmd(hal_path, chunk, chunk_num, genome_list_path, sed_script_paths, opti
     if sed_script_paths:
         # rename to original, since it needs to be compatible with hal in next step
         cmd += ' taffy view -m | sed -f {}'.format(os.path.basename(sed_script_paths[1]))
-    cmd += ' | {} taffy view {} 2> {}.m2t.time'.format(time_cmd, time_end, chunk_num)        
+    cmd += ' | taffy view'        
     norm_opts = ''
     if options.maximumBlockLengthToMerge is not None:
         norm_opts += '-m {}'.format(options.maximumBlockLengthToMerge)
@@ -618,7 +618,7 @@ def hal2maf_batch(job, hal_id, batch_chunks, genome_list, options, config):
         except Exception as e:
             logger.error("Parallel taffy command failed, dumping all stderr")
             for chunk_num in range(len(batch_chunks)):
-                for tag, cmd in [('m2t', 'view'), ('sort', 'sort'), ('tn', 'norm')]:                
+                for tag, cmd in [('sort', 'sort'), ('tn', 'norm')]:                
                     stderr_file_path = os.path.join(work_dir, '{}.{}.time'.format(chunk_num, tag))
                     if os.path.isfile(stderr_file_path):
                         with open(stderr_file_path, 'r') as stderr_file:
@@ -633,7 +633,7 @@ def hal2maf_batch(job, hal_id, batch_chunks, genome_list, options, config):
             cmd_toks = taf_cmds[chunk_num].split(' ')
             for i in range(len(cmd_toks)):
                 cmd_toks[i] = cmd_toks[i].rstrip(')')
-            for tag, cmd in [('m2t', 'view'), ('sort', 'sort'), ('tn', 'norm')]:
+            for tag, cmd in [('sort', 'sort'), ('tn', 'norm')]:
                 tag_start = None
                 if cmd in cmd_toks:
                     tag_start = cmd_toks.index(cmd) - 1
