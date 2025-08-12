@@ -446,16 +446,14 @@ def taf_cmd(hal_path, chunk, chunk_num, genome_list_path, sed_script_paths, opti
         norm_opts += '-m {}'.format(options.maximumBlockLengthToMerge)
     if options.maximumGapLength is not None:
         norm_opts += ' -n {}'.format(options.maximumGapLength)
+    if options.filterGapCausingDupes:
+        norm_opts += ' -d '
     if options.fractionSharedRows is not None:
         norm_opts += '-q {}'.format(options.fractionSharedRows)
     cmd += ' | {} taffy norm -a {} -k {}{} 2> {}.tn.time'.format(time_cmd, hal_path, norm_opts, time_end, chunk_num)
     if sed_script_paths:
         # rename to alphanumeric names
-        cmd += ' | sed -f {}'.format(os.path.basename(sed_script_paths[0]))
-    if options.filterGapCausingDupes:
-        # note: this needs to be a consecutive command as it doesn't
-        # work properly otherwise (todo: fix!)
-        cmd += ' | taffy view | taffy norm -d -k'        
+        cmd += ' | sed -f {}'.format(os.path.basename(sed_script_paths[0]))    
     if options.dupeMode == 'single':
         cmd += ' | mafDuplicateFilter -m - -k'                                               
     elif options.dupeMode == 'consensus':
