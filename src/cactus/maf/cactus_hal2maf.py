@@ -244,7 +244,8 @@ def hal2maf_workflow(job, hal_id, bed_id, options, config):
     hal2maf_merge_job.addFollowOnJobFn(export_file, maf_id, options.outputMAF)
 
     if options.index:
-        index_job = hal2maf_merge_job.addFollowOnJobFn(taffy_index, maf_id, options.outputMAF, disk=hal_id.size)
+        index_job = hal2maf_merge_job.addFollowOnJobFn(taffy_index, maf_id, options.outputMAF, disk=hal_id.size,
+                                                       memory=cactus_clamp_memory(hal_id.size / 8))
         index_job.addFollowOnJobFn(export_file, index_job.rv(), options.outputMAF + '.tai')
 
     if options.coverage:
