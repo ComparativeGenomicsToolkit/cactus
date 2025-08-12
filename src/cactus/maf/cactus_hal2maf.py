@@ -436,12 +436,10 @@ def taf_cmd(hal_path, chunk, chunk_num, genome_list_path, sed_script_paths, opti
         # rename to alphanumeric names
         cmd += ' | sed -f {}'.format(os.path.basename(sed_script_paths[0]))
     if genome_list_path:
-        # note, using mafRowOrderer instead of taffy sort because latter does not keep reference row
-        # (also, using taffy in this spot requires roundtrip maf-taf-maf tho that can be refactored away)
-        cmd += ' | {} mafRowOrderer -m - --order-file {}{} 2> {}.sort.time'.format(time_cmd, os.path.basename(genome_list_path), time_end, chunk_num)
+        cmd += ' | taffy view | {} taffy sort -n {}{} 2> {}.sort.time'.format(time_cmd, os.path.basename(genome_list_path), time_end, chunk_num)
     if sed_script_paths:
         # rename to original, since it needs to be compatible with hal in next step
-        cmd += ' | sed -f {}'.format(os.path.basename(sed_script_paths[1]))
+        cmd += ' taffy view -m | sed -f {}'.format(os.path.basename(sed_script_paths[1]))
     cmd += ' | {} taffy view {} 2> {}.m2t.time'.format(time_cmd, time_end, chunk_num)        
     norm_opts = ''
     if options.maximumBlockLengthToMerge is not None:
@@ -462,7 +460,7 @@ def taf_cmd(hal_path, chunk, chunk_num, genome_list_path, sed_script_paths, opti
         cmd += ' | maf_stream merge_dups consensus'
         # need to resort after merge_dups
         if genome_list_path:
-            cmd += ' | mafRowOrderer -m - --order-file {}'.format(os.path.basename(genome_list_path))
+            cmd += ' | taffy view | taffy sort -n {} | taffy view -m'.format(os.path.basename(genome_list_path))
     if sed_script_paths:
         #rename back to original names
         cmd += ' | sed -f {}'.format(os.path.basename(sed_script_paths[1]))
@@ -637,11 +635,7 @@ def hal2maf_batch(job, hal_id, batch_chunks, genome_list, options, config):
                 cmd_toks[i] = cmd_toks[i].rstrip(')')
             for tag, cmd in [('m2t', 'view'), ('sort', 'sort'), ('tn', 'norm')]:
                 tag_start = None
-                if tag == 'sort' and 'mafRowOrderer' in cmd_toks:
-                    tag_start = cmd_toks.index('mafRowOrderer')
-                    tag_end = tag_start + cmd_toks[tag_start:].index('2>')
-                    tag_cmd = 'mafRowOrderer'
-                elif cmd in cmd_toks:
+                if cmd in cmd_toks:
                     tag_start = cmd_toks.index(cmd) - 1
                     tag_end = tag_start + cmd_toks[tag_start:].index('2>')        
                     tag_cmd = ' '.join(cmd_toks[tag_start:tag_end])
