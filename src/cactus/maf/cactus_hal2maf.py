@@ -543,7 +543,7 @@ def hal2maf_batch(job, hal_id, batch_chunks, genome_list, options, config):
     job.fileStore.readGlobalFile(hal_id, hal_path)
     # apply any applicable renaming to the genome names
     sed_script_paths = get_sed_rename_scripts(work_dir, genome_list)
-    if sed_script_paths and False:
+    if sed_script_paths:
         renamed_genome_list = []
         for genome in genome_list:
             renamed_genome = sed_script_paths[2][genome] if genome in sed_script_paths[2] else genome
