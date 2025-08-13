@@ -432,14 +432,6 @@ def taf_cmd(hal_path, chunk, chunk_num, genome_list_path, sed_script_paths, opti
 
     # we don't pipe directly from hal2maf because add_gap_bases (now norm) uses even more memory in hal
     cmd = 'set -eo pipefail && {} {}'.format(read_cmd, chunk_name(chunk_num, options))
-    if sed_script_paths:
-        # rename to alphanumeric names
-        cmd += ' | sed -f {}'.format(os.path.basename(sed_script_paths[0]))
-    if genome_list_path:
-        cmd += ' | taffy view | {} taffy sort -n {}{} 2> {}.sort.time'.format(time_cmd, os.path.basename(genome_list_path), time_end, chunk_num)
-    if sed_script_paths:
-        # rename to original, since it needs to be compatible with hal in next step
-        cmd += ' taffy view -m | sed -f {}'.format(os.path.basename(sed_script_paths[1]))
     cmd += ' | taffy view'        
     norm_opts = ''
     if options.maximumBlockLengthToMerge is not None:
@@ -450,10 +442,13 @@ def taf_cmd(hal_path, chunk, chunk_num, genome_list_path, sed_script_paths, opti
         norm_opts += ' -d '
     if options.fractionSharedRows is not None:
         norm_opts += '-q {}'.format(options.fractionSharedRows)
+    # note: sort must now be run *after* norm which does its own alphabetical thing
     cmd += ' | {} taffy norm -a {} -k {}{} 2> {}.tn.time'.format(time_cmd, hal_path, norm_opts, time_end, chunk_num)
     if sed_script_paths:
         # rename to alphanumeric names
-        cmd += ' | sed -f {}'.format(os.path.basename(sed_script_paths[0]))    
+        cmd += ' | sed -f {}'.format(os.path.basename(sed_script_paths[0]))
+    if genome_list_path:
+        cmd += ' | taffy view | {} taffy sort -n {}{} | taffy view -m 2> {}.sort.time'.format(time_cmd, os.path.basename(genome_list_path), time_end, chunk_num)        
     if options.dupeMode == 'single':
         cmd += ' | mafDuplicateFilter -m - -k'                                               
     elif options.dupeMode == 'consensus':
@@ -548,7 +543,7 @@ def hal2maf_batch(job, hal_id, batch_chunks, genome_list, options, config):
     job.fileStore.readGlobalFile(hal_id, hal_path)
     # apply any applicable renaming to the genome names
     sed_script_paths = get_sed_rename_scripts(work_dir, genome_list)
-    if sed_script_paths:
+    if sed_script_paths and False:
         renamed_genome_list = []
         for genome in genome_list:
             renamed_genome = sed_script_paths[2][genome] if genome in sed_script_paths[2] else genome
