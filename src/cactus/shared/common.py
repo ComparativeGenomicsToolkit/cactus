@@ -107,6 +107,13 @@ def cactus_override_toil_options(options):
     os.environ['CACTUS_MAX_MEMORY'] = str(max_mem)
     os.environ['CACTUS_DEFAULT_MEMORY'] = str(human2bytes(str(options.defaultMemory)) if options.defaultMemory else 2**31)
 
+    # auto-set cactus_log_memory
+    try:
+        subprocess.check_call(['/usr/bin/time', '-v', 'ls'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        os.environ['CACTUS_LOG_MEMORY'] = '1'
+    except:
+        pass
+
 def cactus_clamp_memory(memory_bytes):
     """ use the environment variables from --maxMemory and --defaultMemory to clamp a given memory value """
     return max(min(int(os.environ['CACTUS_MAX_MEMORY']), int(memory_bytes)), int(os.environ['CACTUS_DEFAULT_MEMORY']))
