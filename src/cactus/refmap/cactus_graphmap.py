@@ -35,7 +35,6 @@ from toil.realtimeLogger import RealtimeLogger
 from cactus.shared.common import cactus_cpu_count
 from cactus.shared.common import cactus_clamp_memory
 from cactus.progressive.progressive_decomposition import compute_outgroups, parse_seqfile, get_subtree, get_spanning_subtree, get_event_set
-from cactus.refmap.cactus_minigraph import check_sample_names, minigraph_gfa_from_pansn
 from sonLib.nxnewick import NXNewick
 from sonLib.bioio import getTempDirectory
 
@@ -110,6 +109,33 @@ def main():
     run_time = end_time - start_time
     logger.info("cactus-graphmap has finished after {} seconds".format(run_time))
 
+def check_sample_names(sample_names, references):
+    """ make sure we have a workable set of sample names """
+
+    # make sure we have the reference
+    if references:
+        assert type(references) in [list, str]
+        if type(references) is str:
+            references = [references]
+        if references[0] not in sample_names:
+            raise RuntimeError("Specified reference, \"{}\" not in seqfile".format(references[0]))
+        for reference in references:
+            # graphmap-join uses reference names as prefixes, so make sure we don't get into trouble with that
+            reference_base = os.path.splitext(reference)[0]
+            for sample in sample_names:
+                sample_base = os.path.splitext(sample)[0]
+                if sample != reference and sample_base.startswith(reference_base):
+                    raise RuntimeError("Input sample {} is prefixed by given reference {}. ".format(sample_base, reference_base) +    
+                                       "This is not supported by this version of Cactus, " +
+                                       "so one of these samples needs to be renamed to continue")
+
+    # the "." character is overloaded to specify haplotype, make sure that it makes sense
+    for sample in sample_names:
+        sample_base, sample_ext = os.path.splitext(sample)
+        if not sample_base or (not sample_ext and sample_base.startswith(".")):
+            raise RuntimeError("Sample name {} invalid because it begins with \".\"".format(sample))
+        if sample_ext and (len(sample_ext) == 1 or not sample_ext[1:].isnumeric()):
+            raise RuntimeError("Sample name {} with \"{}\" suffix is not supported. You must either remove this suffix or use .N where N is an integer to specify haplotype".format(sample, sample_ext))
     
 def graph_map(options):
     with Toil(options) as toil:
@@ -372,7 +398,7 @@ def minigraph_map_all(job, config, gfa_id, fa_id_map, graph_event):
     paf_id_map = {}
                 
     for event, fa_id in fa_id_map.items():
-        minigraph_map_job = top_job.addChildJobFn(minigraph_map_one, config, event, fa_id, gfa_id,
+        minigraph_map_job = top_job.addChildJobFn(minigraph_map_one, config.xmlRoot, event, fa_id, gfa_id,
                                                   # todo: estimate RAM
                                                   cores=mg_cores, disk=5*fa_id.size + gfa_id.size,
                                                   memory=cactus_clamp_memory(72*fa_id.size + 2*gfa_id.size))
@@ -385,7 +411,7 @@ def minigraph_map_all(job, config, gfa_id, fa_id_map, graph_event):
     
     return paf_merge_job.rv(), gaf_merge_job.rv()
 
-def minigraph_map_one(job, config, event_name, fa_file_id, gfa_file_id):
+def minigraph_map_one(job, config_node, event_name, fa_file_id, gfa_file_id):
     """ Run minigraph to map a Fasta file to a GFA graph, producing a GAF output """
 
     work_dir = job.fileStore.getLocalTempDir()
@@ -399,7 +425,7 @@ def minigraph_map_one(job, config, event_name, fa_file_id, gfa_file_id):
     job.fileStore.readGlobalFile(fa_file_id, fa_path)
 
     # parse options from the config
-    xml_node = findRequiredNode(config.xmlRoot, "graphmap")
+    xml_node = findRequiredNode(config_node, "graphmap")
     minigraph_opts = getOptionalAttrib(xml_node, "minigraphMapOptions", str, default="")     
     opts_list = minigraph_opts.split()
     # add required options if not present
@@ -431,9 +457,9 @@ def minigraph_map_one(job, config, event_name, fa_file_id, gfa_file_id):
     overlap_ratio = getOptionalAttrib(xml_node, "GAFOverlapFilterRatio", typeFn=float, default=0)
     length_ratio = getOptionalAttrib(xml_node, "GAFOverlapFilterMinLengthRatio", typeFn=float, default=0)
     overlap_filter_len = getOptionalAttrib(xml_node, "minGAFQueryOverlapFilter", int, default=0)    
-    min_block = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "minGAFBlockLength", typeFn=int, default=0)
-    min_mapq = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "minMAPQ", typeFn=int, default=0)
-    min_ident = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "minIdentity", typeFn=float, default=0)    
+    min_block = getOptionalAttrib(findRequiredNode(config_node, "graphmap"), "minGAFBlockLength", typeFn=int, default=0)
+    min_mapq = getOptionalAttrib(findRequiredNode(config_node, "graphmap"), "minMAPQ", typeFn=int, default=0)
+    min_ident = getOptionalAttrib(findRequiredNode(config_node, "graphmap"), "minIdentity", typeFn=float, default=0)    
     if overlap_ratio or overlap_filter_len:
         cmd = [cmd, ['gaffilter', '-', '-r', str(overlap_ratio), '-m', str(length_ratio), '-q', str(min_mapq),
                      '-b', str(min_block), '-o', str(overlap_filter_len), '-i', str(min_ident)]]
@@ -441,7 +467,7 @@ def minigraph_map_one(job, config, event_name, fa_file_id, gfa_file_id):
 
     # convert the unstable gaf into unstable paf, which is what cactus expects
     # also tack on the unique id to the target column
-    graph_event = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "assemblyName", default="_MINIGRAPH_")
+    graph_event = getOptionalAttrib(findRequiredNode(config_node, "graphmap"), "assemblyName", default="_MINIGRAPH_")
     unstable_paf_path = unstable_gaf_path + '.paf'
     unstable_paf_cmd = [['gaf2paf', unstable_gaf_path, '-l', mg_lengths_path],
                         ['awk', 'BEGIN{{OFS=\"	\"}} {{$6="id={}|"$6; print}}'.format(graph_event)]]
@@ -658,5 +684,57 @@ def add_genome_to_seqfile(seqfile_path, fasta_path, name):
     with open(seqfile_path, 'w') as seqfile_handle:
         seqfile_handle.write(str(seq_file))
 
+def minigraph_gfa_from_pansn(job, names, gfa_path, gfa_id):
+    """ hack to convert PanSN names like simChimp#0#simpChimp.chr6 to Cactus names like id=simChimp.0|simChimp.chr6
+    so that a minigrpah GFA (as converted panSN by minigraph_gfa_to_pansn() above) can be read back into Cactus
+
+    todo: Cactus should probably be changed to just use PanSN internally as well, but that's a much
+    bigger lift
+    """
+    work_dir = job.fileStore.getLocalTempDir()
+    gfa_path = os.path.join(work_dir, os.path.basename(gfa_path))
+    job.fileStore.readGlobalFile(gfa_id, gfa_path)
+    out_gfa_path = os.path.join(work_dir, 'cactus.' + os.path.basename(gfa_path))
+    
+    if gfa_path.endswith('.gz'):
+        in_file = gzip.open(gfa_path, 'rb')
+        out_file = gzip.open(out_gfa_path, 'wb')
+    else:
+        in_file = open(gfa_path, 'rb')
+        out_file = open(out_gfa_path, 'wb')
+
+    for line in in_file:
+        line = line.decode()
+        if line.startswith('S'):
+            toks = line.strip().split('\t')
+            for i, tok in enumerate(toks[4:]):
+                if tok.startswith('SN:Z:'):
+                    hashpos = tok.find('#')
+                    if hashpos < 0:
+                        # no prefix found: do nothing and hope for the best
+                        continue
+                    hashpos2 = hashpos + 1 + tok[hashpos+1:].find('#')
+                    if hashpos2 < 0:
+                        name = tok[5:]
+                        hap = "0"
+                    else:
+                        name = tok[5:hashpos]
+                        hap = tok[hashpos+1:hashpos2]
+                    # minigraph_to_pansn() will add #0 to names without any dots
+                    # we untangle that here using the names list                    
+                    if name not in names:
+                        name = '{}.{}'.format(name, hap)
+                        assert name in names                    
+                    toks[4+i] = 'SN:Z:id={}|{}'.format(name, tok[hashpos2+1:])
+                    break
+            out_file.write(('\t'.join(toks) + '\n').encode())
+        else:
+            out_file.write(line.encode())
+
+    in_file.close()
+    out_file.close()
+
+    return job.fileStore.writeGlobalFile(out_gfa_path)
+        
 if __name__ == "__main__":
     main()

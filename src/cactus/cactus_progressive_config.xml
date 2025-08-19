@@ -351,6 +351,7 @@
 	<!-- assemblyName: special name of "virtual" minigraph assembly, which is just the list of sequences from the graph. -->
 	<!-- minigraphMapOptions: flags to pass to minigraph for mapping -->
 	<!-- minigraphConstructOptions: flags to pass to minigraph for construction -->
+	<!-- minigraphConstructIncremental: can be "0": construct all at once; "pre": incremental construction with map before add or "post": incremental construction with map after add -->
 	<!-- minigraphConstructBatchSize: break minigraph construction into chunks of this size. this allows recovering from a failure during graph construction, and avoiding really long argument lists for each job. -->
 	<!-- minimapCollapseOptions: options for minimap2 when using it for  self-alignments. Note these were inspired in part by https://github.com/lh3/minimap2/issues/106 !-->
 	<!-- collapse: Toggles self-alignment logic. Supported values are "none" and "all". Experimental values "reference" and "nonref" can also be tried.  -->
@@ -378,6 +379,7 @@
 		 assemblyName="_MINIGRAPH_"
 		 minigraphMapOptions="-c -xasm"
 		 minigraphConstructOptions="-c -xggs"
+		 minigraphConstructIncremental="0"
 		 minimapCollapseOptions="-c -D -xasm5 -m500"
 		 collapse="none"
 		 maxCollapseDistanceRatio="5"

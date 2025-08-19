@@ -41,7 +41,7 @@ from cactus.shared.common import cactus_cpu_count
 from cactus.progressive.cactus_prepare import human2bytesN
 
 from cactus.refmap.cactus_minigraph import minigraph_construct_workflow
-from cactus.refmap.cactus_minigraph import check_sample_names
+from cactus.refmap.cactus_graphmap import check_sample_names
 from cactus.refmap.cactus_graphmap import minigraph_workflow
 from cactus.refmap.cactus_graphmap_split import graphmap_split_workflow, export_split_data
 from cactus.setup.cactus_align import make_batch_align_jobs, batch_align_jobs

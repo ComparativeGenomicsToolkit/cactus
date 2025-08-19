@@ -29,7 +29,7 @@ from cactus.shared.version import cactus_commit
 from cactus.preprocessor.fileMasking import get_mask_bed_from_fasta
 from cactus.preprocessor.checkUniqueHeaders import sanitize_fasta_headers
 from cactus.refmap.cactus_graphmap import filter_paf
-from cactus.refmap.cactus_minigraph import check_sample_names, minigraph_gfa_from_pansn
+from cactus.refmap.cactus_graphmap import check_sample_names, minigraph_gfa_from_pansn
 from toil.job import Job
 from toil.common import Toil
 from toil.statsAndLogging import logger
