@@ -139,8 +139,7 @@ def main():
             # export the scoring model (.train)
             toil.exportFile(results[2], makeURL(options.outputGFA.replace('.gfa.gz', '.gfa').replace('.gfa', '.train')))
         if results[3]:
-            toil.exportFile(results[3], makeURL(options.outputGFA.replace('.gfa.gz', '.gfa').replace('.gfa', '.gaf.gz')))
-            toil.exportFile(results[4], makeURL(options.outputGFA.replace('.gfa.gz', '.gfa').replace('.gfa', '.paf')))
+            toil.exportFile(results[3], makeURL(options.outputGFA.replace('.gfa.gz', '.gfa').replace('.gfa', '.inc.gaf.gz')))
         
     end_time = timeit.default_timer()
     run_time = end_time - start_time
@@ -173,14 +172,12 @@ def minigraph_construct_workflow(job, options, config_node, seq_id_map, seq_orde
                                                    disk=8*ref_size,
                                                    memory=cactus_clamp_memory(8*ref_size))
 
-    output = [minigraph_job.rv(0), minigraph_job.rv(1), None, None, None]
+    output = [minigraph_job.rv(0), minigraph_job.rv(1), None, None]
     if options.lastTrain:
         output[2] = last_train_job.rv()
     if getOptionalAttrib(xml_node, 'minigraphConstructIncremental', str, default='0') != '0':
         gaf_merge_job = minigraph_job.addFollowOnJobFn(merge_pafs, minigraph_job.rv(2), gzip=True)
-        paf_merge_job = minigraph_job.addFollowOnJobFn(merge_pafs, minigraph_job.rv(3))
         output[3] = gaf_merge_job.rv()
-        output[4] = paf_merge_job.rv()
 
     return output
 
@@ -354,7 +351,6 @@ def minigraph_construct_in_batches(job, options, config_node, seq_id_map, seq_or
     prev_job = None
     prev_gfa_path = None
     gaf_id_map = {}
-    paf_id_map = {}
     for i in range(num_batches):        
         batch_size = len(seq_order) - i * max_batch_size if i == num_batches - 1 else max_batch_size
         input_seq_order = seq_order[i * max_batch_size : (i * max_batch_size) + batch_size]
@@ -374,7 +370,6 @@ def minigraph_construct_in_batches(job, options, config_node, seq_id_map, seq_or
         if minigraph_incremental != '0':
             assert len(input_seq_order) == 1
             gaf_id_map[input_seq_order[0]] = minigraph_job.rv(1)
-            paf_id_map[input_seq_order[0]] = minigraph_job.rv(2)
                            
         if prev_job:
             prev_job.addFollowOn(minigraph_job)
@@ -386,8 +381,8 @@ def minigraph_construct_in_batches(job, options, config_node, seq_id_map, seq_or
         prev_gfa_path = out_gfa_path
 
     gfa_id = prev_job.rv(0)
-    pan_sn_gfa_id = prev_job.rv(3 if minigraph_incremental != '0' else 1)
-    return gfa_id, pan_sn_gfa_id, gaf_id_map, paf_id_map
+    pan_sn_gfa_id = prev_job.rv(2 if minigraph_incremental != '0' else 1)
+    return gfa_id, pan_sn_gfa_id, gaf_id_map
 
 def minigraph_construct(job, options, config_node, seq_id_map, seq_order, gfa_path, prev_gfa_id, prev_gfa_path, pan_sn_output):
     """ Make minigraph """
@@ -450,7 +445,7 @@ def minigraph_construct(job, options, config_node, seq_id_map, seq_order, gfa_pa
                                                   # todo: estimate RAM
                                                   cores=mg_cores, disk=5*fa_id.size + inc_gfa_id.size,
                                                   memory=cactus_clamp_memory(72*fa_id.size + 2*inc_gfa_id.size))
-        output += [minigraph_map_job.rv(0), minigraph_map_job.rv(1)]
+        output += [minigraph_map_job.rv()]
     
     if pan_sn_output:
         output.append(pansn_gfa_out_id)

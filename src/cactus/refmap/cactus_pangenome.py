@@ -261,12 +261,15 @@ def main():
     run_time = end_time - start_time
     logger.info("cactus-pangenome has finished after {} seconds".format(run_time))
 
-def export_minigraph_wrapper(job, options, sv_gfa_id, sv_gfa_path, last_scores_id):
+def export_minigraph_wrapper(job, options, sv_gfa_id, sv_gfa_path, last_scores_id, incremental_gaf_id):
     """ export the GFA from minigraph """
     job.fileStore.exportFile(sv_gfa_id, makeURL(os.path.join(options.outDir, os.path.basename(sv_gfa_path))))
     if last_scores_id:
         scores_path = makeURL(os.path.join(options.outDir, options.outName + '.train'))
         job.fileStore.exportFile(last_scores_id, makeURL(os.path.join(options.outDir, os.path.basename(scores_path))))
+    if incremental_gaf_id:
+        gaf_path = makeURL(os.path.join(options.outDir, options.outName + '.inc.gaf.gz'))
+        job.fileStore.exportFile(incremental_gaf_id, makeURL(os.path.join(options.outDir, os.path.basename(gaf_path))))
         
     # hack to (hopefully maybe) avoid rare truncattion when importing recently exported files on phoenix
     time.sleep(5)
@@ -392,7 +395,8 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
     pansn_sv_gfa_id = minigraph_job.rv(1)
     if not last_scores_id:
         last_scores_id = minigraph_job.rv(2)
-    minigraph_wrapper_job = minigraph_job.addFollowOnJobFn(export_minigraph_wrapper, options, pansn_sv_gfa_id, sv_gfa_path, last_scores_id)
+    incremental_gaf_id = minigraph_job.rv(3)
+    minigraph_wrapper_job = minigraph_job.addFollowOnJobFn(export_minigraph_wrapper, options, pansn_sv_gfa_id, sv_gfa_path, last_scores_id, incremental_gaf_id)
 
     # cactus_graphmap
     paf_path = os.path.join(options.outDir, options.outName + '.paf')
@@ -401,7 +405,7 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
     options.outputFasta = gfa_fa_path
     graph_event = getOptionalAttrib(findRequiredNode(config_node, "graphmap"), "assemblyName", default="_MINIGRAPH_")
     
-    graphmap_job = minigraph_wrapper_job.addFollowOnJobFn(minigraph_workflow, options, config_wrapper, seq_id_map, sv_gfa_id, graph_event, False, ref_collapse_paf_id, pansn_gfa_input=False)
+    graphmap_job = minigraph_wrapper_job.addFollowOnJobFn(minigraph_workflow, options, config_wrapper, seq_id_map, sv_gfa_id, graph_event, False, ref_collapse_paf_id, pansn_gfa_input=False, gaf_override_id=incremental_gaf_id)
     paf_id, gfa_fa_id, gaf_id, unfiltered_paf_id, paf_filter_log = graphmap_job.rv(0), graphmap_job.rv(1), graphmap_job.rv(2), graphmap_job.rv(3), graphmap_job.rv(4)
     graphmap_export_job = graphmap_job.addFollowOnJobFn(export_graphmap_wrapper, options, paf_id, paf_path, gaf_id, unfiltered_paf_id, paf_filter_log)
 
