@@ -459,8 +459,12 @@ def minigraph_gfa_to_pansn(names, gfa_path, out_gfa_path):
                     name = tok[8:barpos]
                     assert name in names
                     dotpos = name.rfind('.')
-                    # add #0 to names without haplotype to make valid PAN-SN
-                    hap = '0' if dotpos < 0 else name[dotpos+1:]
+                    if dotpos > 0:
+                        hap = name[dotpos+1:]
+                        name = name[:dotpos]
+                    else:
+                        # add #0 to names without haplotype to make valid PAN-SN
+                        hap = '0'
                     toks[4+i] = 'SN:Z:{}#{}#{}'.format(name, hap, tok[barpos+1:])
                     break
             out_file.write(('\t'.join(toks) + '\n').encode())
