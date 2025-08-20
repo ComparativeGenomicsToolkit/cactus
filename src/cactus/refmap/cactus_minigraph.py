@@ -442,9 +442,9 @@ def minigraph_construct(job, options, config_node, seq_id_map, seq_order, gfa_pa
         fa_id = seq_id_map[event]
         mg_cores = getOptionalAttrib(findRequiredNode(config_node, "graphmap"), "cpu", typeFn=int, default=1)        
         minigraph_map_job = job.addChildJobFn(minigraph_map_one, config_node, event, fa_id, inc_gfa_id,
-                                                  # todo: estimate RAM
-                                                  cores=mg_cores, disk=5*fa_id.size + inc_gfa_id.size,
-                                                  memory=cactus_clamp_memory(72*fa_id.size + 2*inc_gfa_id.size))
+                                              # todo: estimate RAM
+                                              cores=mg_cores, disk=5*fa_id.size + inc_gfa_id.size,
+                                              memory=cactus_clamp_memory(72*fa_id.size + 2*inc_gfa_id.size))
         output += [minigraph_map_job.rv()]
     
     if pan_sn_output:

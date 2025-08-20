@@ -301,7 +301,17 @@ def minigraph_workflow(job, options, config, seq_id_map, gfa_id, graph_event, sa
         gfa_id_size *= 10
         options.minigraphGFA = options.minigraphGFA[:-3]
 
+    stable_paf = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "stablePAF", typeFn=bool, default=False)
+    seq_lengths_table_id = None
+    if stable_paf:
+        # need to get a table of sequence lengths for stable gaf2paf conversion
+        new_root_job = Job()
+        root_job.addFollowOn(new_root_job)
+        root_job = new_root_job
+        seq_lengths_table_id = root_job.addChildJobFn(get_all_contig_lengths, seq_id_map).rv()
+
     if gaf_override_id:
+        assert stable_paf
         # hack for cactus_pangenome interface that passes in the id without setting options
         if 'gaf' not in options:
             options.gaf = 'mg.inc.gaf.gz'
@@ -313,11 +323,11 @@ def minigraph_workflow(job, options, config, seq_id_map, gfa_id, graph_event, sa
             gaf_override_id = root_job.addChildJobFn(unzip_gz, options.gaf, gaf_override_id, delete_original=True,
                                                      disk=5*gaf_override_id.size).rv()
             gaf_override_size *= 5
-        paf_job = root_job.addFollowOnJobFn(gaf2paf, config.xmlRoot, gfa_id, gaf_override_id,
+        paf_job = root_job.addFollowOnJobFn(gaf2paf, config.xmlRoot, gfa_id, gaf_override_id, seq_lengths_table_id,
                                             disk=gaf_override_size + gfa_id_size,
                                             memory=cactus_clamp_memory(16*gaf_override_size + 2*gfa_id_size))
     else:
-        paf_job = Job.wrapJobFn(minigraph_map_all, config, gfa_id, seq_id_map, graph_event)
+        paf_job = Job.wrapJobFn(minigraph_map_all, config, gfa_id, seq_id_map, graph_event, seq_lengths_table_id)
         root_job.addFollowOn(paf_job)
 
     collapse_paf_id = ref_collapse_paf_id
@@ -354,7 +364,9 @@ def minigraph_workflow(job, options, config, seq_id_map, gfa_id, graph_event, sa
     filtered_paf_log = None
     paf_was_filtered = False
     del_filter = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "delFilter", int, default=-1)
-    if del_filter > 0:
+    # todo: we have incompatiblity between stable paf and deletion filtering
+    # this can be worked around in a few different ways, but none that are implemented yet
+    if del_filter > 0 and not stable_paf:
         del_filter_threshold = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "delFilterThreshold", float, default=None)
         del_size_threshold = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "delFilterQuerySizeThreshold", float, default=None)
         del_filter_job = prev_job.addFollowOnJobFn(filter_paf_deletions, out_paf_id, gfa_id, del_filter, del_filter_threshold,
@@ -405,7 +417,29 @@ def make_minigraph_fasta(job, gfa_file_id, gfa_file_path, name):
 
     return job.fileStore.writeGlobalFile(fa_path)
 
-def minigraph_map_all(job, config, gfa_id, fa_id_map, graph_event):
+def get_all_contig_lengths(job, seq_id_map):
+    seq_lengths_ids = []
+    root_job = Job()
+    job.addChild(root_job)
+    for event, fa_id in seq_id_map.items():
+        seq_lengths_ids.append(root_job.addChildJobFn(get_contig_lengths, event, fa_id, disk=2*fa_id.size).rv())
+    return root_job.addFollowOnJobFn(cat_seq_lengths, seq_lengths_ids).rv()
+
+def get_contig_lengths(job, event, fa_id):
+    work_dir = job.fileStore.getLocalTempDir()
+    fa_path = os.path.join(work_dir, event + ".fa")
+    job.fileStore.readGlobalFile(fa_id, fa_path)
+    cactus_call(parameters=['samtools', 'faidx', fa_path])
+    return job.fileStore.writeGlobalFile(fa_path + '.fai')
+
+def cat_seq_lengths(job, seq_lengths_ids):
+    work_dir = job.fileStore.getLocalTempDir()
+    seq_lengths_files = [job.fileStore.readGlobalFile(sli) for sli in seq_lengths_ids]
+    cat_file = os.path.join(work_dir, 'all.lengths')
+    catFiles(seq_lengths_files, cat_file)
+    return job.fileStore.writeGlobalFile(cat_file)
+        
+def minigraph_map_all(job, config, gfa_id, fa_id_map, graph_event, seq_lengths_table_id):
     """ top-level job to run the minigraph mapping in parallel, returns paf """
     # hang everything on this job, to self-contain workflow
     top_job = Job()
@@ -428,6 +462,7 @@ def minigraph_map_all(job, config, gfa_id, fa_id_map, graph_event):
                                                   cores=mg_cores, disk=5*fa_id.size + gfa_id.size,
                                                   memory=cactus_clamp_memory(72*fa_id.size + 2*gfa_id.size))
         gaf2paf_job = minigraph_map_job.addFollowOnJobFn(gaf2paf, config.xmlRoot, gfa_id, minigraph_map_job.rv(),
+                                                         seq_lengths_table_id,
                                                          disk=5*fa_id.size + gfa_id.size,
                                                          memory=cactus_clamp_memory(32*fa_id.size + 2*gfa_id.size))
         paf_id_map[event] = gaf2paf_job.rv(0)
@@ -477,22 +512,31 @@ def minigraph_map_one(job, config_node, event_name, fa_file_id, gfa_file_id):
 
     return job.fileStore.writeGlobalFile(gaf_path)
 
-def gaf2paf(job, config_node, gfa_file_id, gaf_file_id, gzip_gaf=False, gzip_paf=False):
+def gaf2paf(job, config_node, gfa_file_id, gaf_file_id, seq_lengths_table_id, gzip_gaf=False, gzip_paf=False):
     """ do minigraph mapping postprocessing, which involves filtering and converting
     to unstable coordinates """
     work_dir = job.fileStore.getLocalTempDir()
     gfa_path = os.path.join(work_dir, "mg.gfa")
     gaf_path = os.path.join(work_dir, "mg.gaf")
+    fa_path = os.path.join(work_dir, "mg.fa")
+    mg_lengths_path = gfa_path + '.node_lengths.tsv'
 
-    job.fileStore.readGlobalFile(gfa_file_id, gfa_path)
     job.fileStore.readGlobalFile(gaf_file_id, gaf_path)
 
-    # convert the gaf into unstable gaf (targets are node sequences)
-    # note: the gfa needs to be uncompressed for this tool to work
-    mg_lengths_path = gfa_path + '.node_lengths.tsv'
-    unstable_gaf_path = gaf_path + '.unstable'
-    cmd = ['gaf2unstable', gaf_path, '-g', gfa_path, '-o', mg_lengths_path]
-
+    xml_node = findRequiredNode(config_node, "graphmap")
+    stable_paf = getOptionalAttrib(xml_node, "stablePAF", typeFn=bool, default=False)
+    if stable_paf:
+        assert seq_lengths_table_id
+        job.fileStore.readGlobalFile(seq_lengths_table_id, mg_lengths_path)
+        unstable_gaf_path = gaf_path + '.filter'                
+        cmd = ['cat', gaf_path]
+    else:        
+        # convert the gaf into unstable gaf (targets are node sequences)
+        # note: the gfa needs to be uncompressed for this tool to work
+       job.fileStore.readGlobalFile(gfa_file_id, gfa_path)        
+       unstable_gaf_path = gaf_path + '.unstable'
+       cmd = ['gaf2unstable', gaf_path, '-g', gfa_path, '-o', mg_lengths_path]
+    
     # optional gaf overlap filter
     xml_node = findRequiredNode(config_node, "graphmap")
     overlap_ratio = getOptionalAttrib(xml_node, "GAFOverlapFilterRatio", typeFn=float, default=0)
@@ -504,8 +548,11 @@ def gaf2paf(job, config_node, gfa_file_id, gaf_file_id, gzip_gaf=False, gzip_paf
     if overlap_ratio or overlap_filter_len:
         cmd = [cmd, ['gaffilter', '-', '-r', str(overlap_ratio), '-m', str(length_ratio), '-q', str(min_mapq),
                      '-b', str(min_block), '-o', str(overlap_filter_len), '-i', str(min_ident)]]
-    
-    cactus_call(parameters=cmd, outfile=unstable_gaf_path, job_memory=job.memory)
+
+    if cmd[0] != 'cat':
+        cactus_call(parameters=cmd, outfile=unstable_gaf_path, job_memory=job.memory)
+    else:
+        unstable_gaf_path = gaf_path
 
     # convert the unstable gaf into unstable paf, which is what cactus expects
     # also tack on the unique id to the target column
@@ -513,8 +560,11 @@ def gaf2paf(job, config_node, gfa_file_id, gaf_file_id, gzip_gaf=False, gzip_paf
     unstable_paf_path = unstable_gaf_path + '.paf'
     if gzip_paf:
         unstable_paf_path += '.gz'
-    unstable_paf_cmd = [['gaf2paf', unstable_gaf_path, '-l', mg_lengths_path],
-                        ['awk', 'BEGIN{{OFS=\"	\"}} {{$6="id={}|"$6; print}}'.format(graph_event)]]
+    unstable_paf_cmd = [['gaf2paf', unstable_gaf_path, '-l', mg_lengths_path]]
+    if not stable_paf:
+        unstable_paf_cmd.append(['awk', 'BEGIN{{OFS=\"	\"}} {{$6="id={}|"$6; print}}'.format(graph_event)])
+    else:
+        unstable_paf_cmd.append(['cat'])
     if gzip_paf:
         unstable_paf_cmd.append(['bgzip'])
     cactus_call(parameters=unstable_paf_cmd, outfile=unstable_paf_path, job_memory=job.memory)
