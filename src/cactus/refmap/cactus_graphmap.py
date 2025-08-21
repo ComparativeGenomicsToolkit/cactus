@@ -12,6 +12,7 @@ from argparse import ArgumentParser
 import xml.etree.ElementTree as ET
 import copy
 import timeit
+import gzip
 
 from operator import itemgetter
 
@@ -335,7 +336,9 @@ def minigraph_workflow(job, options, config, seq_id_map, gfa_id, graph_event, sa
         # extract a PAF directly from the rGFAs tag for the given reference
         # if --refFromGFA is specified, we get the entire alignment from that, otherwise we just take contigs
         # that didn't get mapped by anything else
-        gfa2paf_job = Job.wrapJobFn(extract_paf_from_gfa, gfa_id, options.minigraphGFA, options.reference, graph_event, paf_job.rv(0) if not options.refFromGFA else None,
+        gfa2paf_job = Job.wrapJobFn(extract_paf_from_gfa, gfa_id, options.minigraphGFA, options.reference,
+                                    graph_event, paf_job.rv(0) if not options.refFromGFA and not stable_paf else None,
+                                    seq_lengths_table_id,
                                     disk=gfa_id_size, memory=cactus_clamp_memory(gfa_id_size))
         if options.refFromGFA:
             root_job.addChild(gfa2paf_job)
@@ -519,23 +522,28 @@ def gaf2paf(job, config_node, gfa_file_id, gaf_file_id, seq_lengths_table_id, gz
     gfa_path = os.path.join(work_dir, "mg.gfa")
     gaf_path = os.path.join(work_dir, "mg.gaf")
     fa_path = os.path.join(work_dir, "mg.fa")
-    mg_lengths_path = gfa_path + '.node_lengths.tsv'
 
+    job.fileStore.readGlobalFile(gfa_file_id, gfa_path)
     job.fileStore.readGlobalFile(gaf_file_id, gaf_path)
-
+    
     xml_node = findRequiredNode(config_node, "graphmap")
     stable_paf = getOptionalAttrib(xml_node, "stablePAF", typeFn=bool, default=False)
+
+    cmd = ['gaf2unstable', gaf_path, '-g', gfa_path]
     if stable_paf:
+        # if we're stable, we take our contig lengths as input (they came from fastas)
+        # but still run gaf2unstable in order to add rc tags (for graphmap_split)        
         assert seq_lengths_table_id
+        mg_lengths_path = gfa_path + '.stable_lengths.tsv'
         job.fileStore.readGlobalFile(seq_lengths_table_id, mg_lengths_path)
         unstable_gaf_path = gaf_path + '.filter'                
-        cmd = ['cat', gaf_path]
-    else:        
+        cmd += ['-r']
+    else:
         # convert the gaf into unstable gaf (targets are node sequences)
         # note: the gfa needs to be uncompressed for this tool to work
-       job.fileStore.readGlobalFile(gfa_file_id, gfa_path)        
+       mg_lengths_path = gfa_path + '.node_lengths.tsv'
        unstable_gaf_path = gaf_path + '.unstable'
-       cmd = ['gaf2unstable', gaf_path, '-g', gfa_path, '-o', mg_lengths_path]
+       cmd += ['-o', mg_lengths_path]
     
     # optional gaf overlap filter
     xml_node = findRequiredNode(config_node, "graphmap")
@@ -584,7 +592,7 @@ def merge_pafs(job, paf_file_id_map, gzip=False):
         merged_path += '.gz'                    
     return job.fileStore.writeGlobalFile(merged_path)
 
-def extract_paf_from_gfa(job, gfa_id, gfa_path, ref_event, graph_event, ignore_paf_id):
+def extract_paf_from_gfa(job, gfa_id, gfa_path, ref_event, graph_event, ignore_paf_id, contig_lengths_id):
     """ make a paf directly from the rGFA tags.  rgfa2paf supports other ranks, but we're only
     using rank=0 here to produce an alignment for the reference genome """
     work_dir = job.fileStore.getLocalTempDir()
@@ -599,13 +607,20 @@ def extract_paf_from_gfa(job, gfa_id, gfa_path, ref_event, graph_event, ignore_p
     ignore_paf_path = os.path.join(work_dir, os.path.basename(gfa_path) + ".tofilter.paf")
     if ignore_paf_id:
         job.fileStore.readGlobalFile(ignore_paf_id, ignore_paf_path)
+    # optional contigs lengths file to export higher ranks
+    contig_lengths_path = os.path.join(work_dir, os.path.basename(gfa_path) + ".lengths.tsv")
+    if contig_lengths_id:
+        job.fileStore.readGlobalFile(contig_lengths_id, contig_lengths_path)    
     # make the paf
     paf_path = job.fileStore.getLocalTempFile()
     cmd = ['rgfa2paf', gfa_path, '-T', 'id={}|'.format(graph_event)]
-    if ref_event:
+    if ref_event and not contig_lengths_id:
         cmd += ['-P', 'id={}|'.format(ref_event)]
     if ignore_paf_id:
         cmd += ['-i', ignore_paf_path]
+    if contig_lengths_id:
+        assert not ignore_paf_id
+        cmd += ['-q', contig_lengths_path, '-r', '9999999999']
     cactus_call(parameters=cmd, outfile=paf_path)
     return job.fileStore.writeGlobalFile(paf_path)
 
@@ -670,7 +685,9 @@ def filter_paf(job, paf_id, config, reference=None):
     min_ident = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "minIdentity", typeFn=float, default=0)
     min_score = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "minScore", typeFn=float, default=0)
     max_collapse_ratio = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "maxCollapseDistanceRatio", typeFn=float, default=-1)
+    stable_paf = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "stablePAF", typeFn=bool, default=False)    
     RealtimeLogger.info("Running PAF filter with minBlock={} minMAPQ={} minIdentity={} minScore={} maxCollapseDistanceRatio={}".format(min_block, min_mapq, min_ident, min_score, max_collapse_ratio))
+    famfile = open(filter_paf_path + '.reject', 'w')
     with open(paf_path, 'r') as paf_file, open(filter_paf_path, 'w') as filter_paf_file:
         for line in paf_file:
             toks = line.split('\t')
@@ -693,7 +710,8 @@ def filter_paf(job, paf_id, config, reference=None):
                     ident = min(ident, float(toks[5:]))
                 if tok.startswith('AS:i:'):
                     score = int(tok[5:])
-            if query_name == target_name and max_collapse_ratio >= 0:
+            # note about below: stable-paf and collapse options are not compatible!!!
+            if query_name == target_name and max_collapse_ratio >= 0 and not stable_paf:
                 # compute the distance between the minimap2 self alignment intervals
                 # in order to see if they are too far apart via the max ratio
                 query_start, query_end = int(toks[2]), int(toks[3])
@@ -705,6 +723,8 @@ def filter_paf(job, paf_id, config, reference=None):
             if is_ref or (mapq >= min_mapq and (bl is None or query_len <= min_block or bl >= min_block) and ident >= min_ident and \
                           (score is None or score >= min_score) and (collapse_ratio is None or collapse_ratio <= max_collapse_ratio)):
                 filter_paf_file.write(line)
+            else:
+                famfile.write(line)
 
     overlap_ratio = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "PAFOverlapFilterRatio", typeFn=float, default=0)
     length_ratio = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "PAFOverlapFilterMinLengthRatio", typeFn=float, default=0)
