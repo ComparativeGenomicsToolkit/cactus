@@ -41,7 +41,7 @@ def check_positive_float(value):
     return fValue
 
 
-def create_seq_file(seq_file, tree, assemblies):
+def create_seq_file(seq_file, tree, assemblies, options=None):
     """Creates the seq_file for cactus-prepare
 
     Args:
@@ -53,10 +53,20 @@ def create_seq_file(seq_file, tree, assemblies):
     # sanity check
     assert seq_file
 
+    if options and getattr(options, "replace", False):
+        old_genome = next(iter(options.in_fasta_map))
+        new_genome = options.in_fasta_map[old_genome][2]
+        tree = tree.replace(old_genome, new_genome)
+
     # write the cactus seqFile for the update alignment
     with open(seq_file, "w") as out_sf:
         out_sf.write(tree + "\n")
         for name, path in assemblies.items():
+            #print(f"{name} {path}")
+            # Check if this is a replacement and the current name matches the key in in_fasta_map
+            if options and getattr(options, "replace", False) and name == old_genome:
+                name = new_genome  # use the new name if it is a replacement
+            #print(f"{name} {path}")
             out_sf.write(f"{name} {path}\n")
 
 
@@ -112,7 +122,7 @@ def call_cactus_prepare(seq_file, outDir, jobStore, outSeqFile, cactus_prepare_o
         f"--jobStore {jobStore} "
         f"{cactus_prepare_options}"
     )
-
+    #print(f"Calling cactus-prepare with command: {cmd}")
     # call the built-in cactus_call function
     return cactus_call(check_output=True, parameters=cmd.split() + cactus_options)
 
@@ -331,6 +341,7 @@ def make_plan(
     patch,
     assemblies,
     preprocess_to_remove,
+    options=None,
 ):
     """Creates the plan from cactus-prepare and performs needed amendments removing unnecessary command lines
 
@@ -349,7 +360,7 @@ def make_plan(
     """
 
     # create the seqFile used as an input in cactus-prepare
-    create_seq_file(seq_file, patch, assemblies)
+    create_seq_file(seq_file, patch, assemblies, options=options)
 
     # created new header
     header = get_generation_info()
@@ -407,7 +418,8 @@ def get_plan_adding2node(
     jobStore,
     outSeqFile,
     cactus_prepare_options="",
-    remove_genome=None
+    remove_genome=None,
+    options=None,
 ):
     """
     A function that automatises the instructions at
@@ -435,7 +447,7 @@ def get_plan_adding2node(
     # the remains new ancestor's children are given by the in_fasta_map file
     for genome_name, value in in_fasta_map.items():
         # extract weight and path
-        (length_map[genome_name], assemblies[genome_name]) = value
+        (length_map[genome_name], assemblies[genome_name], new_name) = value
 
     # The weight of the genome's first ancestor must be set to None here;
     # otherwise, cactus-prepare will "wrap" the current genome with a
@@ -450,7 +462,7 @@ def get_plan_adding2node(
 
     # filename of the last hal file
     out_hal = f"{os.path.join(outDir,genome)}.hal"
-
+    
     # create execution plan using cactus_prepare
     plan = make_plan(
         seq_file,
@@ -461,6 +473,7 @@ def get_plan_adding2node(
         patch,
         assemblies,
         list(set([*length_map]) - set([*in_fasta_map])),
+        options,
     )
 
     # Amendment commands
@@ -725,6 +738,7 @@ def cactus_alignment_update(options):
         remove_genome = options.genome
 
         # following the "add-to-node" procedure below to add it again
+        options.replace = True
         options.action = "add"
         options.subcommand = "node"
         options.genome = parent_genome
@@ -742,7 +756,8 @@ def cactus_alignment_update(options):
                     options.jobStore,
                     options.outSeqFile,
                     options.cactus_prepare_options,
-                    remove_genome=remove_genome
+                    remove_genome=remove_genome,
+                    options=options,
                 )
             )
 
@@ -935,7 +950,13 @@ def sanity_checks(options):
                 if not re.search("^(https?|s3)", path, re.IGNORECASE):
                     path = os.path.relpath(path)
 
-                options.in_fasta_map[name] = (weight, path)
+                if options.action == "add":
+                    options.in_fasta_map[name] = (weight, path)
+
+                # For replacement, the genome name must match the one given by --genome and
+                # the new name is the one from the file (required)
+                elif options.action == "replace":
+                    options.in_fasta_map[options.genome] = (weight, path, name)
 
     def overall_genome_sanity_check():
         """Checks if the given genome name of parameters 'genome', 'parent_genomes', and 'child_genome'
@@ -994,14 +1015,14 @@ def sanity_checks(options):
                 f"file {options.in_hal}"
             )
 
-        # c) if the genome asked for replacement matches with the
+        # d) if the genome asked for replacement matches with the
         # name given in the input file
-        if options.genome not in options.in_fasta_map:
-            raise RuntimeError(
-                f"Genome asked for replacement '{options.genome}' "
-                f"does not match with the one mentioned in the input "
-                f"file {options.in_fasta}: {list(options.in_fasta_map.keys())}"
-            )
+        # if options.genome not in options.in_fasta_map:
+        #     raise RuntimeError(
+        #         f"Genome asked for replacement '{options.genome}' "
+        #         f"does not match with the one mentioned in the input "
+        #         f"file {options.in_fasta}: {list(options.in_fasta_map.keys())}"
+        #     )
 
     def add_action_sanity_check():
         """Checkes if the genomes stated in the given file doesn't exist in the HAL file"""
@@ -1059,7 +1080,7 @@ def sanity_checks(options):
 
 def main():
     """Main cactus-update-prepare function"""
-
+    
     # Same main parser as usual
     parser = ArgumentParser(
         formatter_class=ArgumentDefaultsHelpFormatter,
