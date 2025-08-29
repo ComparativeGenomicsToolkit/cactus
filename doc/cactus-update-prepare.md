@@ -144,11 +144,13 @@ cactus-update-prepare replace ./evolverMammals.hal ./input.txt --genome simHuman
 where 
 - `replace` indicates the action of replacing a genome to the given alignment
 - `evolverMammals.hal` is the HAL-format file containing the current `evolverMammals` alignment
-- `input.txt` is the text tab-spaced file providing the genome to be replaced
+- `input.txt` is the text tab-spaced file providing the genome to be replaced, as above
 - `simHuman_chr6` is the target genome being replaced
 - `--outDir` and `--jobStore` are options inherited from [`cactus-prepare`](https://github.com/ComparativeGenomicsToolkit/cactus/blob/master/src/cactus/progressive/cactus_prepare.py)
     - `steps` is the name of the directory where assemblies and all cactus-call dependencies will be placed
     - `jobstore` is the name of the directory used by [Toil](https://toil.readthedocs.io/en/latest/) (Cactus internal scheduler) to store temporary data of job executions
+
+> **Note:** If a branch length is present in the third column of your input file (*e.g.* `input.txt`) it will be ignored in *replace* mode. The existing branch length leading to the genome you are replacing will be used instead.
 
 The output of `cactus-prepare-update` above will looks like as follows:
 
