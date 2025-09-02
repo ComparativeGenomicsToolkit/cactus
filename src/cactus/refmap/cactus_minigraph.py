@@ -53,7 +53,9 @@ def main():
                         help="Memory in bytes for the minigraph construction job (defaults to an estimate based on the input data size). "
                         "Standard suffixes like K, Ki, M, Mi, G or Gi are supported (default=bytes))", default=None)
     parser.add_argument("--lastTrain", action="store_true",
-                        help="Use last-train to estimate scoring matrix from input data", default=False)    
+                        help="Use last-train to estimate scoring matrix from input data", default=False)
+    parser.add_argument("--refOnly", action="store_true",
+                        help="Only build the graph out of reference genome(s). Can be used when it will only be used for chromosome-splitting, for example")
         
     #Progressive Cactus Options
     parser.add_argument("--configFile", dest="configFile",
@@ -98,14 +100,22 @@ def main():
             input_seq_map = seqFile.pathMap
             raw_input_seq_order = seqFile.seqOrder
 
-            # validate the sample names
-            check_sample_names(input_seq_map.keys(), options.reference)
-
             # make sure the reference is first
             input_seq_order = [options.reference[0]]
             for seq in raw_input_seq_order:
                 if seq != options.reference[0]:
                     input_seq_order.append(seq)
+
+            # hack out everything but reference
+            if options.refOnly:
+                input_seq_order = options.reference
+                ref_seq_map = {}
+                for sample in options.reference:
+                    ref_seq_map[sample] = input_seq_map[sample]
+                input_seq_map = ref_seq_map
+
+            # validate the sample names
+            check_sample_names(input_seq_map.keys(), options.reference)
 
             # apply cpu override
             if options.batchSystem.lower() in ['single_machine', 'singleMachine']:
@@ -184,7 +194,7 @@ def minigraph_construct_workflow(job, options, config_node, seq_id_map, seq_orde
         job.addChild(sanitize_job)
     xml_node = findRequiredNode(config_node, "graphmap")
     sort_type = getOptionalAttrib(xml_node, "minigraphSortInput", str, default=None)
-    if sort_type == "mash":
+    if sort_type == "mash" and len(seq_id_map) > 1:
         sort_job = sanitize_job.addFollowOnJobFn(sort_minigraph_input_with_mash, options, config_node, sanitized_seq_id_map, seq_order)
         seq_order = sort_job.rv()
         prev_job = sort_job
