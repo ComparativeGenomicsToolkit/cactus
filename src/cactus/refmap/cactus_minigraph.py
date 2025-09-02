@@ -212,6 +212,8 @@ def sort_minigraph_input_with_mash(job, options, config_node, seq_id_map, seq_or
     dist_root_job = Job()
     sketch_job.addFollowOn(dist_root_job)
 
+    xml_node = findRequiredNode(config_node, "graphmap")
+    sort_by_sample = getOptionalAttrib(xml_node, "minigraphSortBySample", bool, default=False)
     # in the case of diploid inputs, the distance will be driven by the sex of the haplotype
     # ie in human, the haplotype with chrX is always going to be much closer to the reference
     # than the one with chrY, which makes the resulting order pretty meaningless.
@@ -222,7 +224,7 @@ def sort_minigraph_input_with_mash(job, options, config_node, seq_id_map, seq_or
     seq_by_sample = defaultdict(list)
     # note: seq_order[0] is (first) reference, so we don't include it
     for seq_name in seq_order[1:]:
-        sample_name = seq_name[:seq_name.rfind('.')] if '.' in seq_name else seq_name
+        sample_name = seq_name[:seq_name.rfind('.')] if '.' in seq_name and sort_by_sample else seq_name
         seq_by_sample[sample_name].append(seq_name)
 
     # list of dictionary (promises) that map genome name to mash distance output

@@ -357,6 +357,7 @@
 	<!-- maxCollapseDistanceRatio: filter out self-alignments that are more than this value times the alignment lenght apart. Setting to 0 would only accept tandem (or overlapping alignments). Raising it allows alignments further apart. Set to -1 to completely disable. --> 
 	<!-- minigraphSortInput: Method used to determine input order. Valid values are "mash", "none" / "0" which refer to (decreasing) mash distance to reference, or no sorting (order in seqfile), respectively -->
 	<!-- minigraphSortReference: If more than one reference set, specify whether or not 2nd reference etc are sorted as above ("1"). Or left in the position they are set in the seqfile ("0"). -->
+	<!-- minigraphSortBySample: Toggle weather mash distances are considered at the sample (1) or haplotype level (0). -->
 	<!-- minMAPQ: ignore minigraph alignments with mapping quality less than this -->
 	<!-- minGAFBlockLength: ignore minigraph alignments with block length less than this -->
 	<!-- minGAFQueryOverlapFilter: if 2 or more query regions in blocks of at least this size, filter them out. -->
@@ -384,6 +385,7 @@
 		 minigraphConstructBatchSize="50"
 		 minigraphSortInput="mash"
 		 minigraphSortReference="1"
+		 minigraphSortBySample="1"
 		 minMAPQ="5"
 		 minGAFBlockLength="250000"
 		 minGAFQueryOverlapFilter="0"
