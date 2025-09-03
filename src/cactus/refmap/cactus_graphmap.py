@@ -12,6 +12,7 @@ from argparse import ArgumentParser
 import xml.etree.ElementTree as ET
 import copy
 import timeit
+import shutil
 
 from operator import itemgetter
 
@@ -37,14 +38,15 @@ from cactus.shared.common import cactus_clamp_memory
 from cactus.progressive.progressive_decomposition import compute_outgroups, parse_seqfile, get_subtree, get_spanning_subtree, get_event_set
 from cactus.refmap.cactus_minigraph import check_sample_names, minigraph_gfa_from_pansn
 from sonLib.nxnewick import NXNewick
-from sonLib.bioio import getTempDirectory
+from sonLib.bioio import getTempDirectory, getTempFile
 
 def main():
     parser = Job.Runner.getDefaultArgumentParser()
 
-    parser.add_argument("seqFile", help = "Seq file (will be modified if necessary to include graph Fasta sequence)")
-    parser.add_argument("minigraphGFA", help = "Minigraph-compatible reference graph in GFA format (can be gzipped)")
-    parser.add_argument("outputPAF", type=str, help = "Output pairwise alignment file in PAF format")
+    parser.add_argument("seqFile", help = "Seq file (will be modified if necessary to include graph Fasta sequence) (or chromfile with --batch)")
+    parser.add_argument("minigraphGFA", nargs='?', default='', type=str,
+                        help = "Minigraph-compatible reference graph in GFA format (can be gzipped) (don't specify when using --batch)")
+    parser.add_argument("outputPAF", type=str, help = "Output pairwise alignment file in PAF format (or directory in --batch mode)")
     parser.add_argument("--outputFasta", type=str, help = "Output graph sequence file in FASTA format (required if not present in seqFile)")
     parser.add_argument("--maskFilter", type=int, help = "Ignore softmasked sequence intervals > Nbp (overrides config option of same name)")
     parser.add_argument("--delFilter", type=int, help = "Filter out split-mapping-implied deletions > Nbp (default will be \"delFilter\" from the config")
@@ -55,9 +57,8 @@ def main():
     parser.add_argument("--collapse", help = "Incorporate minimap2 self-alignments.", action='store_true', default=False)
     parser.add_argument("--collapseRefPAF", help ="Incorporate given (reference-only) self-alignments in PAF format [Experimental]")
 
-    #WDL hacks
-    parser.add_argument("--pathOverrides", nargs="*", help="paths (multiple allowed) to override from seqFile")
-    parser.add_argument("--pathOverrideNames", nargs="*", help="names (must be same number as --pathOverrides) of path overrides")
+    parser.add_argument("--batch", action="store_true",
+                        help="Run independently on set of chromosomea inputs (chromfile as from cactus-minigraph --batch). Note that the output will be a directory and not a PAF")
 
     #Progressive Cactus Options
     parser.add_argument("--configFile", dest="configFile",
@@ -82,14 +83,9 @@ def main():
         if not os.path.isdir(options.outputGAFDir):
             os.makedirs(options.outputGAFDir)
 
-    if (options.pathOverrides or options.pathOverrideNames):
-        if not options.pathOverrides or not options.pathOverrideNames or \
-           len(options.pathOverrideNames) != len(options.pathOverrides):
-            raise RuntimeError('same number of values must be passed to --pathOverrides and --pathOverrideNames')
-
     # support but ignore multi reference
     if options.reference:
-        options.reference = options.reference[0]
+        options.reference = options.reference[0]    
 
     if options.collapseRefPAF:
         if not options.collapseRefPAF.endswith('.paf'):
@@ -98,9 +94,22 @@ def main():
             raise RuntimeError('--reference must be used with --collapseRefPAF')
         if options.collapse:
             raise RuntimeError('--collapseRefPAF cannot be used with --collapse')
+    
+    if options.batch and options.minigraphGFA:
+        raise RuntimeError("minigraphGFA argument must *not* be specified when using --batch")
+    if not options.batch and not options.minigraphGFA:
+        raise RuntimeError("minigraphGFA argument must be specified when *not* using --batch")
 
+    if options.batch and options.outputFasta:
+        raise RuntimeError("--outputFasta cannot be used with --batch")
+    
     # Mess with some toil options to create useful defaults.
     cactus_override_toil_options(options)
+
+    if options.batch:
+        # the output paf is a directory, make sure it's there
+        if not os.path.isdir(options.outputPAF):
+            os.makedirs(options.outputPAF)
 
     logger.info('Cactus Command: {}'.format(' '.join(sys.argv)))
     logger.info('Cactus Commit: {}'.format(cactus_commit))
@@ -117,22 +126,26 @@ def graph_map(options):
         #Run the workflow
         config_node = ET.parse(options.configFile).getroot()
         config_wrapper = ConfigWrapper(config_node)        
-        graph_event = getOptionalAttrib(findRequiredNode(config_node, "graphmap"), "assemblyName", default="_MINIGRAPH_")        
-        if options.restart:
-            paf_id, gfa_fa_id, gaf_id, unfiltered_paf_id, paf_filter_log, paf_was_filtered = toil.restart()
-        else:
-            # load up the seqfile
-            config_wrapper.substituteAllPredefinedConstantsWithLiterals(options)
-            seqFile = SeqFile(options.seqFile, defaultBranchLen=config_wrapper.getDefaultBranchLen(pangenome=True))
-            input_seq_map = seqFile.pathMap
+        graph_event = getOptionalAttrib(findRequiredNode(config_node, "graphmap"), "assemblyName", default="_MINIGRAPH_")
 
-            # apply path overrides.  this was necessary for wdl which doesn't take kindly to
-            # text files of local paths (ie seqfile).  one way to fix would be to add support
-            # for s3 paths and force wdl to use it.  a better way would be a more fundamental
-            # interface shift away from files of paths throughout all of cactus
-            if options.pathOverrides:
-                for name, override in zip(options.pathOverrideNames, options.pathOverrides):
-                    input_seq_map[name] = override
+        # map chrom name to seqFile, gfa
+        input_map = {}
+        if options.batch:
+            with open(options.seqFile, 'r') as chrom_file:
+                for line in chrom_file:
+                    toks = line.strip().split()
+                    if len(toks):
+                        assert len(toks) in [3,4]
+                        input_map[toks[0]] = (toks[1], toks[2])
+        else:
+            input_map['all'] = options.seqFile, options.minigraphGFA
+        
+        if options.restart:
+            # output_dict maps chrom -> (paf_id, gfa_fa_id, gaf_id, unfiltered_paf_id, paf_filter_log, paf_was_filtered)
+            output_dict = toil.restart()
+        else:
+            # load the config
+            config_wrapper.substituteAllPredefinedConstantsWithLiterals(options)
 
             #apply the maskfilter override
             if options.maskFilter is not None:
@@ -148,76 +161,142 @@ def graph_map(options):
                 mg_cores = min(mg_cores, cactus_cpu_count(), int(options.maxCores) if options.maxCores else sys.maxsize)
                 findRequiredNode(config_node, "graphmap").attrib["cpu"] = str(mg_cores)
 
+            # apply the collapse overrides
             if options.collapse:
                 findRequiredNode(config_node, "graphmap").attrib["collapse"] = 'all'
             if options.collapseRefPAF:
                 assert options.reference
+                if options.batch:
+                    raise RuntimeError('--collapseRefPAF not supported with --batch')
                 findRequiredNode(config_node, "graphmap").attrib["collapse"] = 'reference'
+
+            if '://' not in options.outputPAF:
+                options.outputPAF = os.path.abspath(options.outputPAF)
                 
             # get the minigraph "virutal" assembly name
             graph_event = getOptionalAttrib(findRequiredNode(config_node, "graphmap"), "assemblyName", default="_MINIGRAPH_")
-
-            # validate the sample names
-            check_sample_names(input_seq_map.keys(), options.reference)
-                
-            # check --reference input (a bit redundant to above, but does additional leaf check)
-            if options.reference:
-                leaves = [seqFile.tree.getName(leaf) for leaf in seqFile.tree.getLeaves()]
-                if options.reference not in leaves:
-                    raise RuntimeError("Genome specified with --reference, {}, not found in tree leaves".format(options.reference))
+                                
+            # load up the chromfile / seqfiles
+            input_dict = {} # chrom -> seq_id_map, gfa_id, ref_collapse_paf_id, seqfile_path, gfa_path
+            for chrom, inputs in input_map.items():
+                input_seqfile, input_gfa = inputs
             
-            if options.refFromGFA:
-                if not options.reference:
-                    raise RuntimeError("--reference must be used with --refFromGFA")
-                # ugly, but this option used to be a string
-                # todo: probably best to eventually get rid of this option entirely.
-                options.refFromGFA = options.reference
-                # we're not going to need the fasta for anything, so forget about it now
-                del input_seq_map[options.refFromGFA]
+                seqFile = SeqFile(input_seqfile, defaultBranchLen=config_wrapper.getDefaultBranchLen(pangenome=True))
+                input_seq_map = seqFile.pathMap
+
+                # validate the sample names
+                check_sample_names(input_seq_map.keys(), options.reference)
                 
-            if not options.outputFasta and graph_event not in input_seq_map:
-                raise RuntimeError("{} assembly not found in seqfile so it must be specified with --outputFasta".format(graph_event))
+                # check --reference input (a bit redundant to above, but does additional leaf check)
+                if options.reference:
+                    leaves = [seqFile.tree.getName(leaf) for leaf in seqFile.tree.getLeaves()]
+                    if options.reference not in leaves:
+                        raise RuntimeError("Genome specified with --reference, {}, not found in tree leaves".format(options.reference))
+                if options.refFromGFA:
+                    if not options.reference:
+                        raise RuntimeError("--reference must be used with --refFromGFA")
+                    # ugly, but this option used to be a string
+                    # todo: probably best to eventually get rid of this option entirely.
+                    options.refFromGFA = options.reference
+                    # we're not going to need the fasta for anything, so forget about it now
+                    del input_seq_map[options.refFromGFA]
+                
+                if not options.outputFasta and not options.batch and graph_event not in input_seq_map:
+                    raise RuntimeError("{} assembly not found in seqfile so it must be specified with --outputFasta".format(graph_event))
 
-            #import the graph
-            gfa_id = toil.importFile(makeURL(options.minigraphGFA))
+                #import the graph
+                gfa_id = toil.importFile(makeURL(input_gfa))
 
-            #import the reference collapse paf
-            ref_collapse_paf_id = None
-            if options.collapseRefPAF:
-                ref_collapse_paf_id = toil.importFile(options.collapseRefPAF)
+                #import the reference collapse paf
+                ref_collapse_paf_id = None
+                if options.collapseRefPAF:
+                    ref_collapse_paf_id = toil.importFile(options.collapseRefPAF)
 
-            #import the sequences (that we need to align for the given event, ie leaves and outgroups)
-            seq_id_map = {}
-            fa_id_map = {}
-            for (genome, seq) in input_seq_map.items():
-                if genome != graph_event:
-                    if os.path.isdir(seq):
-                        tmpSeq = getTempFile()
-                        catFiles([os.path.join(seq, subSeq) for subSeq in os.listdir(seq)], tmpSeq)
-                        seq = tmpSeq
-                    seq = makeURL(seq)
-                    seq_id_map[genome] = toil.importFile(seq)
-                    fa_id_map[genome] = seq
+                #import the sequences (that we need to align for the given event, ie leaves and outgroups)
+                seq_id_map = {}
+                fa_id_map = {}
+                for (genome, seq) in input_seq_map.items():
+                    if genome != graph_event:
+                        if os.path.isdir(seq):
+                            tmpSeq = getTempFile()
+                            catFiles([os.path.join(seq, subSeq) for subSeq in os.listdir(seq)], tmpSeq)
+                            seq = tmpSeq
+                        seq = makeURL(seq)
+                        seq_id_map[genome] = toil.importFile(seq)
+                        fa_id_map[genome] = seq
 
+                input_dict[chrom] = seq_id_map, gfa_id, ref_collapse_paf_id, input_map[chrom][0], input_map[chrom][1]
+                
             # run the workflow
-            paf_id, gfa_fa_id, gaf_id, unfiltered_paf_id, paf_filter_log, paf_was_filtered = toil.start(Job.wrapJobFn(
-                minigraph_workflow, options, config_wrapper, seq_id_map, gfa_id, graph_event, True, ref_collapse_paf_id))
+            # output_dict is chrom -> paf_id, gfa_fa_id, gaf_id, unfiltered_paf_id, paf_filter_log, paf_was_filtered
+            output_dict = toil.start(Job.wrapJobFn(minigraph_batch_workflow, options, config_wrapper, input_dict, graph_event, True))
 
-        #export the paf
-        toil.exportFile(paf_id, makeURL(options.outputPAF))
-        output_gaf = options.outputPAF[:-4] if options.outputPAF.endswith('.paf') else options.outputPAF
-        output_gaf += '.gaf.gz'
-        toil.exportFile(gaf_id, makeURL(output_gaf))
-        if paf_was_filtered:
-            toil.exportFile(unfiltered_paf_id, makeURL(options.outputPAF + ".unfiltered.gz"))
-            toil.exportFile(paf_filter_log, makeURL(options.outputPAF + ".filter.log"))
-                        
-        if gfa_fa_id:
-            toil.exportFile(gfa_fa_id, makeURL(options.outputFasta))
 
-        # update the input seqfile (in place!)
-        if options.outputFasta:
-            add_genome_to_seqfile(options.seqFile, makeURL(options.outputFasta), graph_event)
+        if options.batch:
+            chrom_file_path = os.path.join(options.outputPAF, 'chromfile.gm.txt')
+            if chrom_file_path.startswith('s3://'):
+                chrom_file_temp_path = getTempFile()
+            else:
+                chrom_file_temp_path = chrom_file_path                    
+            chromfile = open(chrom_file_temp_path, 'w')
+        for chrom, output_ids in output_dict.items():
+            paf_id, gfa_fa_id, gaf_id, unfiltered_paf_id, paf_filter_log, paf_was_filtered = output_ids
+            if options.batch:
+                paf_path = os.path.join(options.outputPAF, chrom + '.paf')
+            else:
+                paf_path = options.outputPAF
+
+            #export the paf / gaf
+            toil.exportFile(paf_id, makeURL(paf_path))
+            output_gaf = paf_path[:-4] if paf_path.endswith('.paf') else paf_path
+            output_gaf += '.gaf.gz'
+            toil.exportFile(gaf_id, makeURL(output_gaf))
+            if paf_was_filtered:
+                toil.exportFile(unfiltered_paf_id, makeURL(paf_path + ".unfiltered.gz"))
+                toil.exportFile(paf_filter_log, makeURL(paf_path + ".filter.log"))
+
+            #export the fa and add it to the seqfile
+            out_seqfile_path = getTempFile() if options.batch else input_map[chrom][0]
+            if gfa_fa_id:
+                if options.batch:
+                    fa_path = paf_path[:-4] + '.sv.gfa.fa.gz'
+                else:
+                    fa_path = options.outputFasta                
+                toil.exportFile(gfa_fa_id, makeURL(fa_path))
+
+                # update the input seqfile (in place!)
+                if options.batch:
+                    shutil.copyfile(input_map[chrom][0], out_seqfile_path)
+                else:
+                    assert input_map[chrom][0] == options.seqFile
+                add_genome_to_seqfile(out_seqfile_path, makeURL(fa_path), graph_event)
+
+            #update the chromfile and copy the seqfile
+            if options.batch:
+                toil.exportFile(out_seqfile_path, paf_path[:-4] + '.gm.seqfile')
+                chromfile.write('{}\t{}\t{}\n'.format(chrom, paf_path[:-4] + '.gm.seqfile', paf_path))
+                
+        if options.batch:
+            chromfile.close()
+            if chrom_file_path.startswith('s3://'):
+                write_s3(chrom_file_temp_path, chrom_file_path)
+
+def minigraph_batch_workflow(job, options, config, input_dict, graph_event, sanitize, pansn_gfa_input=True):
+    """ Batch wrapper to run grpahmap independently at the chromosome level."""
+    output_dict = {}
+    for chrom, input_info in input_dict.items():
+        seq_id_map, gfa_id, ref_collapse_paf_id, seqfile, gfa = input_info
+        if options.batch:
+            chrom_options = copy.deepcopy(options)
+            chrom_options.minigraphGFA = gfa
+            chrom_options.seqFile = seqfile
+            chrom_options.outputFasta = 'sv.gfa.fa.gz'
+        else:
+            chrom_options = options
+        mgwf_job = job.addChildJobFn(minigraph_workflow, chrom_options, config, seq_id_map, gfa_id, graph_event,
+                                     sanitize, ref_collapse_paf_id, pansn_gfa_input)
+        output_dict[chrom] = mgwf_job.rv()
+    return output_dict
 
 def minigraph_workflow(job, options, config, seq_id_map, gfa_id, graph_event, sanitize, ref_collapse_paf_id, pansn_gfa_input=True):
     """ Overall workflow takes command line options and returns (paf-id, (optional) fa-id) """

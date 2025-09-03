@@ -44,7 +44,7 @@ from sonLib.bioio import getTempDirectory, getTempFile
 def main():
     parser = Job.Runner.getDefaultArgumentParser()
 
-    parser.add_argument("seqFile", help = "Seq file (will be modified if necessary to include graph Fasta sequence)")
+    parser.add_argument("seqFile", help = "Seq file (or chromfile with --batch)")
     parser.add_argument("outputGFA", help = "Output Minigraph GFA (or directory in --batch mode)")
     parser.add_argument("--reference", required=True, nargs='+', type=str,
                         help = "Reference genome name(s) (added to minigraph first). Mash distance to 1st reference to determine order of other genomes (use minigraphSortInput in the config xml to toggle this behavior).")
@@ -90,6 +90,18 @@ def main():
         if not os.path.isdir(options.outputGFA):
             os.makedirs(options.outputGFA)
 
+    # map chrom name to seqFile
+    input_seqfiles = {}
+    if options.batch:
+        with open(options.seqFile, 'r') as chrom_file:
+            for line in chrom_file:
+                toks = line.strip().split()
+                if len(toks):
+                    assert len(toks) == 3
+                    input_seqfiles[toks[0]] = toks[1]
+    else:
+        input_seqfiles['all'] = options.seqFile
+            
     with Toil(options) as toil:
         importSingularityImage(options)
         #Run the workflow
@@ -113,18 +125,6 @@ def main():
 
             if '://' not in options.outputGFA:
                 options.outputGFA = os.path.abspath(options.outputGFA)
-
-            # map chrom name to seqFile
-            input_seqfiles = {}
-            if options.batch:
-                with open(options.seqFile, 'r') as chrom_file:
-                    for line in chrom_file:
-                        toks = line.strip().split()
-                        if len(toks):
-                            assert len(toks) == 3
-                            input_seqfiles[toks[0]] = toks[1]
-            else:
-                input_seqfiles['all'] = options.seqFile
 
             # maps name -> input_seq_id_map, input_seq_order
             input_dict = {}
@@ -196,7 +196,7 @@ def main():
             if options.batch:
                 chromfile.write('{}\t{}\t{}\t{}\n'.format(chrom, input_seqfiles[chrom], gfa_path,
                                                           train_path if train_path else '*'))
-        if options.batch:ls -l 
+        if options.batch:
             chromfile.close()
             if chrom_file_path.startswith('s3://'):
                 write_s3(chrom_file_temp_path, chrom_file_path)
