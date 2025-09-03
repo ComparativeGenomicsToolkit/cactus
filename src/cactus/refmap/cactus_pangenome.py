@@ -437,7 +437,7 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
     join_options, vg_ids, hal_ids = align_export_job.rv(0), align_export_job.rv(1), align_export_job.rv(2)
 
     # cactus_graphmap_join
-    join_job = align_export_job.addFollowOnJobFn(graphmap_join_workflow, join_options, config_wrapper, vg_ids, hal_ids)
+    join_job = align_export_job.addFollowOnJobFn(graphmap_join_workflow, join_options, config_wrapper, vg_ids, hal_ids, [])
     join_wf_output = join_job.rv()
     join_export_job = join_job.addFollowOnJobFn(export_join_wrapper, join_options, join_wf_output)
         
