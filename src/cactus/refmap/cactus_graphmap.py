@@ -36,7 +36,7 @@ from toil.realtimeLogger import RealtimeLogger
 from cactus.shared.common import cactus_cpu_count
 from cactus.shared.common import cactus_clamp_memory
 from cactus.progressive.progressive_decomposition import compute_outgroups, parse_seqfile, get_subtree, get_spanning_subtree, get_event_set
-from cactus.refmap.cactus_minigraph import check_sample_names, minigraph_gfa_from_pansn
+from cactus.refmap.cactus_minigraph import check_sample_names, minigraph_gfa_from_pansn, read_chromfile
 from sonLib.nxnewick import NXNewick
 from sonLib.bioio import getTempDirectory, getTempFile
 
@@ -131,12 +131,7 @@ def graph_map(options):
         # map chrom name to seqFile, gfa
         input_map = {}
         if options.batch:
-            with open(options.seqFile, 'r') as chrom_file:
-                for line in chrom_file:
-                    toks = line.strip().split()
-                    if len(toks):
-                        assert len(toks) in [3,4]
-                        input_map[toks[0]] = (toks[1], toks[2])
+            input_map = read_chromfile(options.seqFile)
         else:
             input_map['all'] = options.seqFile, options.minigraphGFA
         
@@ -179,7 +174,7 @@ def graph_map(options):
             # load up the chromfile / seqfiles
             input_dict = {} # chrom -> seq_id_map, gfa_id, ref_collapse_paf_id, seqfile_path, gfa_path
             for chrom, inputs in input_map.items():
-                input_seqfile, input_gfa = inputs
+                input_seqfile, input_gfa = inputs[0], inputs[1]
             
                 seqFile = SeqFile(input_seqfile, defaultBranchLen=config_wrapper.getDefaultBranchLen(pangenome=True))
                 input_seq_map = seqFile.pathMap
@@ -242,6 +237,7 @@ def export_graphmap_output(options, config_node, input_map, output_dict, toil):
         else:
             chrom_file_temp_path = chrom_file_path                    
         chromfile = open(chrom_file_temp_path, 'w')
+        construct_chromfile = read_chromfile(options.seqFile)
     for chrom, output_ids in output_dict.items():
         paf_id, gfa_fa_id, gaf_id, unfiltered_paf_id, paf_filter_log, paf_was_filtered = output_ids
         if options.batch:
@@ -277,7 +273,7 @@ def export_graphmap_output(options, config_node, input_map, output_dict, toil):
         #update the chromfile and copy the seqfile
         if options.batch:
             toil.exportFile(out_seqfile_path, paf_path[:-4] + '.gm.seqfile')
-            chromfile.write('{}\t{}\t{}\n'.format(chrom, paf_path[:-4] + '.gm.seqfile', paf_path))
+            chromfile.write('{}\t{}\t{}\t{}\n'.format(chrom, paf_path[:-4] + '.gm.seqfile', paf_path, construct_chromfile[chrom][2]))
 
     if options.batch:
         chromfile.close()

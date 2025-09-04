@@ -362,6 +362,8 @@ def export_graphmap_batch_wrapper(job, options, config_node, graphmap_batch_resu
 
     # save to disk
     options.outputPAF = out_dir
+    # we set this so that the .train files can be carried over from the minigraph chromfile
+    options.seqFile = os.path.join(options.outDir, 'chrom-minigraph', 'chromfile.mg.txt')
     export_graphmap_output(options, config_node, input_seqfiles, graphmap_batch_results, job.fileStore)
 
     chromfile_path = os.path.join(out_dir, 'chromfile.gm.txt')
@@ -438,8 +440,12 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
     sv_gfa_path = os.path.join(options.outDir, options.outName + '.sv.gfa.gz')
 
     options.batch = False
-    options.refOnly = options.mgSplit
-    minigraph_job = sanitize_job.addFollowOnJobFn(minigraph_construct_workflow, options, config_node, seq_id_map, seq_order, sv_gfa_path, sanitize=False)
+    options.refOnly = False
+    mg_options = copy.deepcopy(options)
+    mg_options.refOnly = options.mgSplit
+    if options.refOnly:
+        mg_options.lastTrain = False        
+    minigraph_job = sanitize_job.addFollowOnJobFn(minigraph_construct_workflow, mg_options, config_node, seq_id_map, seq_order, sv_gfa_path, sanitize=False)
     sv_gfa_id = minigraph_job.rv(0)
     pansn_sv_gfa_id = minigraph_job.rv(1)
     if not last_scores_id:
@@ -509,7 +515,8 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
         # todo: figure out!!!
         #graphmap_batch_export_job.addFollowOnJobFn(clean_jobstore_files, file_id_maps=[minigraph_batch_results])
         
-    # cactus_align        
+    # cactus_align
+    options.scoresFromChromfile = options.lastTrain and options.mgSplit
     align_jobs_make_job = clean_jobstore_job.addFollowOnJobFn(make_batch_align_jobs_wrapper, options, chromfile_path, config_wrapper,
                                                               last_scores_id)
     graphmap_batch_export_job.addFollowOn(align_jobs_make_job)

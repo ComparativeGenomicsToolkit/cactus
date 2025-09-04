@@ -63,6 +63,8 @@ def main():
     parser.add_argument("--collapse", help = "Incorporate minimap2 self-alignments.", action='store_true', default=False)
     parser.add_argument("--scoresFile", type=str,
                         help = "File containing scoring parameters (output of last-train / cactus-minigraphr --lastTrain)")
+    parser.add_argument("--scoresFromChromfile", action="store_true", default=False,
+                        help = "Load scoring parameters from the 4th column of chromfile (as made from cactus-minigraph --batch --lastTrain")
     
     parser.add_argument("--singleCopySpecies", type=str,
                         help="Filter out all self-alignments in given species")
@@ -142,7 +144,9 @@ def main():
         raise RuntimeError('--consCores must be <= --maxCores')
 
     if options.scoresFile and not options.pangenome:
-        raise RuntimeError('--scores is only currently supported with --pangenome')
+        raise RuntimeError('--scoresFile is only currently supported with --pangenome')
+    if options.scoresFromChromfile and (not options.pangenome or not options.batch or options.scoresFile):
+        raise RuntimeError('--scoresFromChromfile can only be used with --batch --pangenome and without --scoresFile')
     
     options.buildHal = True
     options.buildFasta = True
@@ -229,10 +233,13 @@ def make_batch_align_jobs(options, toil, filestore=None, config_wrapper=None):
             for line in chrom_file:
                 toks = line.strip().split()
                 if len(toks):
-                    assert len(toks) == 3
+                    assert len(toks) in [3,4]
                     chrom, seqfile, alnFile = toks[0], toks[1], toks[2]
                     chrom_options = copy.deepcopy(options)
                     chrom_options.batch = False
+                    if options.scoresFromChromfile:
+                        assert len(toks) == 4 and toks[3] != '*'
+                        chrom_options.lastScores = toks[3]
                     if filestore:
                         seqfile_id = toil.importFile(makeURL(seqfile))
                         local_seqfile = os.path.join(work_dir, os.path.basename(seqfile))
