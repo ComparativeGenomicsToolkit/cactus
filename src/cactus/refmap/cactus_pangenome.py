@@ -40,9 +40,10 @@ from toil.realtimeLogger import RealtimeLogger
 from cactus.shared.common import cactus_cpu_count
 from cactus.progressive.cactus_prepare import human2bytesN
 
-from cactus.refmap.cactus_minigraph import minigraph_construct_workflow
-from cactus.refmap.cactus_minigraph import check_sample_names
-from cactus.refmap.cactus_graphmap import minigraph_workflow
+from cactus.refmap.cactus_minigraph import minigraph_construct_workflow, minigraph_construct_batch_workflow
+from cactus.refmap.cactus_minigraph import check_sample_names, read_chromfile
+from cactus.refmap.cactus_minigraph import minigraph_construct_import_sequences, export_minigraph_construct_output
+from cactus.refmap.cactus_graphmap import minigraph_workflow, minigraph_batch_workflow, export_graphmap_output
 from cactus.refmap.cactus_graphmap_split import graphmap_split_workflow, export_split_data
 from cactus.setup.cactus_align import make_batch_align_jobs, batch_align_jobs
 from cactus.refmap.cactus_graphmap_join import graphmap_join_workflow, export_join_data, graphmap_join_options, graphmap_join_validate_options
@@ -64,6 +65,8 @@ def main():
                         help="Use last-train to estimate scoring matrix from input data", default=False)
     parser.add_argument("--scoresFile", type=str,
                         help = "File containing scoring parameters (output of last-train)")
+    parser.add_argument("--mgSplit", action="store_true", default=False,
+                        help = "Run minigraph construction and mapping independently on each chromosome")                        
 
     # cactus-graphmap options
     parser.add_argument("--mapCores", type=int, help = "Number of cores for minigraph map.  Overrides graphmap cpu in configuration")
@@ -171,11 +174,15 @@ def main():
     if options.lastTrain and options.scoresFile:
         raise RuntimeError('you cannot use both --lastTrain and --scoresFile together: pick one')
 
+    if options.mgSplit and options.noSplit:
+        raise RuntimeError('you cannot use both --mgSplit and --noSplit together: pick one')
+
     # Sort out the graphmap-join options, which can be rather complex
     # pass in dummy values for now, they will get filled in later
     # (but we want to do as much error-checking upfront as possible)
     options.hal = [None]
     options.vg = [None]
+    options.sv_gfa = []
     options = graphmap_join_validate_options(options)
 
     logger.info('Cactus Command: {}'.format(' '.join(sys.argv)))
@@ -266,10 +273,7 @@ def export_minigraph_wrapper(job, options, sv_gfa_id, sv_gfa_path, last_scores_i
     job.fileStore.exportFile(sv_gfa_id, makeURL(os.path.join(options.outDir, os.path.basename(sv_gfa_path))))
     if last_scores_id:
         scores_path = makeURL(os.path.join(options.outDir, options.outName + '.train'))
-        job.fileStore.exportFile(last_scores_id, makeURL(os.path.join(options.outDir, os.path.basename(scores_path))))
-        
-    # hack to (hopefully maybe) avoid rare truncattion when importing recently exported files on phoenix
-    time.sleep(5)
+        job.fileStore.exportFile(last_scores_id, makeURL(os.path.join(options.outDir, os.path.basename(scores_path))))        
 
 def export_graphmap_wrapper(job, options, paf_id, paf_path, gaf_id, unfiltered_paf_id, paf_filter_log):
     """ export the PAF file from minigraph """
@@ -280,10 +284,7 @@ def export_graphmap_wrapper(job, options, paf_id, paf_path, gaf_id, unfiltered_p
         job.fileStore.exportFile(gaf_id, makeURL(os.path.join(options.outDir, gaf_name)))
     if unfiltered_paf_id:
         job.fileStore.exportFile(unfiltered_paf_id, makeURL(paf_path + '.unfiltered.gz'))
-        job.fileStore.exportFile(paf_filter_log, makeURL(paf_path + '.filter.log'))
-        
-    # hack to (hopefully maybe) avoid rare truncattion when importing recently exported files on phoenix
-    time.sleep(5)
+        job.fileStore.exportFile(paf_filter_log, makeURL(paf_path + '.filter.log'))        
 
 def update_seqfile(job, options, seq_id_map, seq_path_map, seq_order, gfa_fa_id, gfa_fa_path, graph_event):
     """ put the minigraph gfa.fa file into the seqfile and export both """
@@ -320,9 +321,61 @@ def export_split_wrapper(job, wf_output, out_dir, config_node):
     if not out_dir.startswith('s3://') and not os.path.isdir(out_dir):
         os.makedirs(out_dir)
     export_split_data(job.fileStore, wf_output[0], wf_output[1], wf_output[2], wf_output[3], out_dir, config_node)
-    # hack to (hopefully maybe) avoid rare truncattion when importing recently exported files on phoenix
-    time.sleep(10)
 
+def import_minigraph_batch_wrapper(job, options, config_wrapper, chromfile_path):
+    """ import some data for minigraph batch from the graphmap split chromfile """
+    input_seqfiles = read_chromfile(chromfile_path)
+    input_map = minigraph_construct_import_sequences(options, config_wrapper, input_seqfiles, job.fileStore)
+    return input_seqfiles, input_map    
+    
+def export_minigraph_batch_wrapper(job, options, config_node, input_seqfiles, input_seqid_map, minigraph_batch_results):
+    """ export the output dictionary from minigraph batch construction """
+    out_dir = os.path.join(options.outDir, 'chrom-minigraph')
+    if not out_dir.startswith('s3://') and not os.path.isdir(out_dir):
+        os.makedirs(out_dir)
+
+    # save to disk
+    options.outputGFA = out_dir
+    export_minigraph_construct_output(options, input_seqfiles, minigraph_batch_results, job.fileStore)
+
+    # output_dict:  chrom-> (gfa_id, pansn_gfa_id, train_id)
+    # filter out the pansn gfas (they were exported above) and continue with the
+    # regualar gfas
+    output_dict = {}
+    pansn_gfas = []
+    train_ids = []
+    for chrom, val in minigraph_batch_results.items():
+        # output_dict maps chrom -> seq_id_map, gfa_id, ref_collapse_paf_id, seqfile, gfa
+        output_dict[chrom] = (input_seqid_map[chrom][0], val[0], None, input_seqfiles[chrom][0], 
+                              os.path.join(out_dir, chrom + '.sv.gfa.gz'))
+        pansn_gfas.append(val[1])
+        train_ids.append(val[2])
+    job.addChildJobFn(clean_jobstore_files, file_ids=pansn_gfas)
+    return output_dict
+
+def export_graphmap_batch_wrapper(job, options, config_node, graphmap_batch_results, input_seqfiles):
+    """ export the graphmap results, which are another chromfile alongside new seqfiles and a bunch
+    of paf stuff"""
+    out_dir = os.path.join(options.outDir, 'chrom-graphmap')
+    if not out_dir.startswith('s3://') and not os.path.isdir(out_dir):
+        os.makedirs(out_dir)
+
+    # save to disk
+    options.outputPAF = out_dir
+    export_graphmap_output(options, config_node, input_seqfiles, graphmap_batch_results, job.fileStore)
+
+    chromfile_path = os.path.join(out_dir, 'chromfile.gm.txt')
+
+    # put these in easy to delete lists
+    output_list = []
+    for chrom, gm_output in graphmap_batch_results.items():
+        #chrom -> paf_id, gfa_fa_id, gaf_id, unfiltered_paf_id, paf_filter_log, paf_was_filtered
+        for fid in gm_output:
+            if fid and fid != True:
+                output_list.append(fid)
+
+    return output_list, chromfile_path    
+    
 def make_batch_align_jobs_wrapper(job, options, chromfile_path, config_wrapper, last_scores_id):
     """ toil job wrapper for make_batch_align_jobs from cactus_align """
     work_dir = job.fileStore.getLocalTempDir()
@@ -362,9 +415,6 @@ def export_align_wrapper(job, options, results_dict):
     join_options.hal = hal_paths
     join_options.vg = vg_paths
 
-    # hack to (hopefully maybe) avoid rare truncattion when importing recently exported files on phoenix
-    time.sleep(10)
-
     return join_options, vg_ids, hal_ids
 
 def export_join_wrapper(job, options, wf_output):
@@ -387,11 +437,14 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
     # cactus_minigraph
     sv_gfa_path = os.path.join(options.outDir, options.outName + '.sv.gfa.gz')
 
+    options.batch = False
+    options.refOnly = options.mgSplit
     minigraph_job = sanitize_job.addFollowOnJobFn(minigraph_construct_workflow, options, config_node, seq_id_map, seq_order, sv_gfa_path, sanitize=False)
     sv_gfa_id = minigraph_job.rv(0)
     pansn_sv_gfa_id = minigraph_job.rv(1)
     if not last_scores_id:
         last_scores_id = minigraph_job.rv(2)
+    # only build reference graph on first pass when doing minigraph-by-chrom pipeline
     minigraph_wrapper_job = minigraph_job.addFollowOnJobFn(export_minigraph_wrapper, options, pansn_sv_gfa_id, sv_gfa_path, last_scores_id)
 
     # cactus_graphmap
@@ -427,9 +480,40 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
     clean_jobstore_job = split_export_job.addFollowOnJobFn(clean_jobstore_files, file_id_maps=[seq_id_map] if not options.noSplit else None,
                                                            file_ids=[sv_gfa_id, paf_id])
 
+    options.batch = True
+    if options.mgSplit:
+        # rerun cactus_minigraph but on a per-chromosome basis
+        minigraph_batch_import_job = clean_jobstore_job.addFollowOnJobFn(import_minigraph_batch_wrapper, options, config_wrapper,
+                                                                         chromfile_path)
+        input_seqfiles = minigraph_batch_import_job.rv(0)
+        input_map = minigraph_batch_import_job.rv(1)
+        options.outputGFA=''
+        minigraph_batch_job = minigraph_batch_import_job.addFollowOnJobFn(minigraph_construct_batch_workflow, options, config_node,
+                                                                          input_map, None,  sanitize=False)
+        minigraph_batch_results = minigraph_batch_job.rv()
+        minigraph_batch_export_job = minigraph_batch_job.addFollowOnJobFn(export_minigraph_batch_wrapper, options, config_node,
+                                                                          input_seqfiles, input_map, minigraph_batch_results)
+
+        # now rerun cactus_graphmap but on a per-chromosome bassis
+        graphmap_input_dict = minigraph_batch_export_job.rv()
+        graphmap_batch_job = minigraph_batch_export_job.addFollowOnJobFn(minigraph_batch_workflow, options, config_wrapper,
+                                                                         graphmap_input_dict, graph_event, sanitize=False,
+                                                                         pansn_gfa_input=False)
+        graphmap_batch_results = graphmap_batch_job.rv()
+        graphmap_batch_export_job = graphmap_batch_job.addFollowOnJobFn(export_graphmap_batch_wrapper, options, config_node,
+                                                                        graphmap_batch_results, input_seqfiles)
+        graphmap_file_ids = graphmap_batch_export_job.rv(0)
+        chromfile_path = graphmap_batch_export_job.rv(1)
+        # clean out the jobstore, as cactus_align reads everything from disk
+        clean_jobstore_job = graphmap_batch_export_job.addFollowOnJobFn(clean_jobstore_files, file_ids=graphmap_file_ids)
+        # todo: figure out!!!
+        #graphmap_batch_export_job.addFollowOnJobFn(clean_jobstore_files, file_id_maps=[minigraph_batch_results])
+        
     # cactus_align        
     align_jobs_make_job = clean_jobstore_job.addFollowOnJobFn(make_batch_align_jobs_wrapper, options, chromfile_path, config_wrapper,
                                                               last_scores_id)
+    graphmap_batch_export_job.addFollowOn(align_jobs_make_job)
+    
     align_jobs = align_jobs_make_job.rv()
     align_job = align_jobs_make_job.addFollowOnJobFn(batch_align_jobs, align_jobs)
     results_dict = align_job.rv()

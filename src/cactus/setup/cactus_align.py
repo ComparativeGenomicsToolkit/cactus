@@ -49,7 +49,7 @@ from sonLib.bioio import getTempDirectory, getTempFile
 def main():
     parser = Job.Runner.getDefaultArgumentParser()
 
-    parser.add_argument("seqFile", help = "Seq file")
+    parser.add_argument("seqFile", help = "Seq file (or chromfile with --batch)")
     parser.add_argument("pafFile", nargs='?', default='', type=str, help = "Pairiwse aliginments (from cactus-blast, cactus-refmap or cactus-graphmap)")
     parser.add_argument("outHal", type=str, help = "Output HAL file (or directory in --batch mode)")
     parser.add_argument("--pathOverrides", nargs="*", help="paths (multiple allowd) to override from seqFile")
@@ -265,7 +265,6 @@ def make_align_job(options, toil, config_wrapper=None, chrom_name=None):
         if options.collapse:
             findRequiredNode(config_node, "graphmap").attrib["collapse"] = 'all'
     config_wrapper.setSystemMemory(options)
-    
     mc_tree, input_seq_map, og_candidates = parse_seqfile(options.seqFile, config_wrapper,
                                                           pangenome=options.pangenome)
     if options.pangenome:

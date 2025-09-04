@@ -231,55 +231,58 @@ def graph_map(options):
             # output_dict is chrom -> paf_id, gfa_fa_id, gaf_id, unfiltered_paf_id, paf_filter_log, paf_was_filtered
             output_dict = toil.start(Job.wrapJobFn(minigraph_batch_workflow, options, config_wrapper, input_dict, graph_event, True))
 
+        export_graphmap_output(options, config_node, input_map, output_dict, toil)
 
+def export_graphmap_output(options, config_node, input_map, output_dict, toil):
+    graph_event = getOptionalAttrib(findRequiredNode(config_node, "graphmap"), "assemblyName", default="_MINIGRAPH_")
+    if options.batch:
+        chrom_file_path = os.path.join(options.outputPAF, 'chromfile.gm.txt')
+        if chrom_file_path.startswith('s3://'):
+            chrom_file_temp_path = getTempFile()
+        else:
+            chrom_file_temp_path = chrom_file_path                    
+        chromfile = open(chrom_file_temp_path, 'w')
+    for chrom, output_ids in output_dict.items():
+        paf_id, gfa_fa_id, gaf_id, unfiltered_paf_id, paf_filter_log, paf_was_filtered = output_ids
         if options.batch:
-            chrom_file_path = os.path.join(options.outputPAF, 'chromfile.gm.txt')
-            if chrom_file_path.startswith('s3://'):
-                chrom_file_temp_path = getTempFile()
-            else:
-                chrom_file_temp_path = chrom_file_path                    
-            chromfile = open(chrom_file_temp_path, 'w')
-        for chrom, output_ids in output_dict.items():
-            paf_id, gfa_fa_id, gaf_id, unfiltered_paf_id, paf_filter_log, paf_was_filtered = output_ids
+            paf_path = os.path.join(options.outputPAF, chrom + '.paf')
+        else:
+            paf_path = options.outputPAF
+
+        #export the paf / gaf
+        toil.exportFile(paf_id, makeURL(paf_path))
+        output_gaf = paf_path[:-4] if paf_path.endswith('.paf') else paf_path
+        output_gaf += '.gaf.gz'
+        toil.exportFile(gaf_id, makeURL(output_gaf))
+        if paf_was_filtered:
+            toil.exportFile(unfiltered_paf_id, makeURL(paf_path + ".unfiltered.gz"))
+            toil.exportFile(paf_filter_log, makeURL(paf_path + ".filter.log"))
+
+        #export the fa and add it to the seqfile
+        out_seqfile_path = getTempFile() if options.batch else input_map[chrom][0]
+        if gfa_fa_id:
             if options.batch:
-                paf_path = os.path.join(options.outputPAF, chrom + '.paf')
+                fa_path = paf_path[:-4] + '.sv.gfa.fa.gz'
             else:
-                paf_path = options.outputPAF
+                fa_path = options.outputFasta                
+            toil.exportFile(gfa_fa_id, makeURL(fa_path))
 
-            #export the paf / gaf
-            toil.exportFile(paf_id, makeURL(paf_path))
-            output_gaf = paf_path[:-4] if paf_path.endswith('.paf') else paf_path
-            output_gaf += '.gaf.gz'
-            toil.exportFile(gaf_id, makeURL(output_gaf))
-            if paf_was_filtered:
-                toil.exportFile(unfiltered_paf_id, makeURL(paf_path + ".unfiltered.gz"))
-                toil.exportFile(paf_filter_log, makeURL(paf_path + ".filter.log"))
-
-            #export the fa and add it to the seqfile
-            out_seqfile_path = getTempFile() if options.batch else input_map[chrom][0]
-            if gfa_fa_id:
-                if options.batch:
-                    fa_path = paf_path[:-4] + '.sv.gfa.fa.gz'
-                else:
-                    fa_path = options.outputFasta                
-                toil.exportFile(gfa_fa_id, makeURL(fa_path))
-
-                # update the input seqfile (in place!)
-                if options.batch:
-                    shutil.copyfile(input_map[chrom][0], out_seqfile_path)
-                else:
-                    assert input_map[chrom][0] == options.seqFile
-                add_genome_to_seqfile(out_seqfile_path, makeURL(fa_path), graph_event)
-
-            #update the chromfile and copy the seqfile
+            # update the input seqfile (in place!)
             if options.batch:
-                toil.exportFile(out_seqfile_path, paf_path[:-4] + '.gm.seqfile')
-                chromfile.write('{}\t{}\t{}\n'.format(chrom, paf_path[:-4] + '.gm.seqfile', paf_path))
-                
+                shutil.copyfile(input_map[chrom][0], out_seqfile_path)
+            else:
+                assert input_map[chrom][0] == options.seqFile
+            add_genome_to_seqfile(out_seqfile_path, makeURL(fa_path), graph_event)
+
+        #update the chromfile and copy the seqfile
         if options.batch:
-            chromfile.close()
-            if chrom_file_path.startswith('s3://'):
-                write_s3(chrom_file_temp_path, chrom_file_path)
+            toil.exportFile(out_seqfile_path, paf_path[:-4] + '.gm.seqfile')
+            chromfile.write('{}\t{}\t{}\n'.format(chrom, paf_path[:-4] + '.gm.seqfile', paf_path))
+
+    if options.batch:
+        chromfile.close()
+        if chrom_file_path.startswith('s3://'):
+            write_s3(chrom_file_temp_path, chrom_file_path)
 
 def minigraph_batch_workflow(job, options, config, input_dict, graph_event, sanitize, pansn_gfa_input=True):
     """ Batch wrapper to run grpahmap independently at the chromosome level."""

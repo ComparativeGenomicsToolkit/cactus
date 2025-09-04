@@ -93,12 +93,7 @@ def main():
     # map chrom name to seqFile
     input_seqfiles = {}
     if options.batch:
-        with open(options.seqFile, 'r') as chrom_file:
-            for line in chrom_file:
-                toks = line.strip().split()
-                if len(toks):
-                    assert len(toks) == 3
-                    input_seqfiles[toks[0]] = toks[1]
+        input_seqfiles = read_chromfile(options.seqFile)
     else:
         input_seqfiles['all'] = options.seqFile
             
@@ -112,7 +107,6 @@ def main():
             config_node = ET.parse(options.configFile).getroot()
             config_wrapper = ConfigWrapper(config_node)
             config_wrapper.substituteAllPredefinedConstantsWithLiterals(options)
-            graph_event = getOptionalAttrib(findRequiredNode(config_node, "graphmap"), "assemblyName", default="_MINIGRAPH_")
 
             # apply cpu override
             if options.batchSystem.lower() in ['single_machine', 'singleMachine']:
@@ -127,83 +121,109 @@ def main():
                 options.outputGFA = os.path.abspath(options.outputGFA)
 
             # maps name -> input_seq_id_map, input_seq_order
-            input_dict = {}
+            input_dict = minigraph_construct_import_sequences(options, config_wrapper, input_seqfiles, toil)
                 
-            # load the seqfiles
-            for chrom, seqfile_path in input_seqfiles.items():
-                seqFile = SeqFile(seqfile_path, defaultBranchLen=config_wrapper.getDefaultBranchLen(pangenome=True))
-                input_seq_map = seqFile.pathMap
-                raw_input_seq_order = seqFile.seqOrder
-
-                # make sure the reference is first
-                input_seq_order = [options.reference[0]]
-                for seq in raw_input_seq_order:
-                    if seq != options.reference[0]:
-                        input_seq_order.append(seq)
-
-                # hack out everything but reference
-                if options.refOnly:
-                    input_seq_order = options.reference
-                    ref_seq_map = {}
-                    for sample in options.reference:
-                        ref_seq_map[sample] = input_seq_map[sample]
-                    input_seq_map = ref_seq_map
-
-                # validate the sample names
-                check_sample_names(input_seq_map.keys(), options.reference)
-
-                #import the sequences
-                input_seq_id_map = {}
-                leaves = set([seqFile.tree.getName(node) for node in seqFile.tree.getLeaves()])
-                for (genome, seq) in input_seq_map.items():
-                    if genome != graph_event and genome in leaves:                
-                        if os.path.isdir(seq):
-                            tmpSeq = getTempFile()
-                            catFiles([os.path.join(seq, subSeq) for subSeq in os.listdir(seq)], tmpSeq)
-                            seq = tmpSeq
-                        seq = makeURL(seq)
-                        input_seq_id_map[genome] = toil.importFile(seq)
-                    elif genome in input_seq_order:
-                        input_seq_order.remove(genome)
-
-                input_dict[chrom] = (input_seq_id_map, input_seq_order)
-
             # output_dict:  chrom-> (gfa_id, pansn_gfa_id, train_id)
             output_dict = toil.start(Job.wrapJobFn(minigraph_construct_batch_workflow, options, config_node, input_dict, options.outputGFA))
 
-        if options.batch:
-            chrom_file_path = os.path.join(options.outputGFA, 'chromfile.mg.txt')
-            if chrom_file_path.startswith('s3://'):
-                chrom_file_temp_path = getTempFile()
-            else:
-                chrom_file_temp_path = chrom_file_path                    
-            chromfile = open(chrom_file_temp_path, 'w')
-        for chrom, output_ids in output_dict.items():
-            gfa_id, pansn_gfa_id, train_id = output_ids
-            if options.batch:
-                gfa_path = os.path.join(options.outputGFA, chrom + '.gfa.gz')
-            else:
-                gfa_path = options.outputGFA
-            if train_id:
-                train_path = gfa_path.replace('.gfa.gz', '.gfa').replace('.gfa', '.train')
-            else:
-                train_path = None
-            #export the gfa            
-            toil.exportFile(pansn_gfa_id, makeURL(gfa_path))
-            if train_path:
-                # export the scoring model (.train)
-                toil.exportFile(train_id, makeURL(train_path))
-            if options.batch:
-                chromfile.write('{}\t{}\t{}\t{}\n'.format(chrom, input_seqfiles[chrom], gfa_path,
-                                                          train_path if train_path else '*'))
-        if options.batch:
-            chromfile.close()
-            if chrom_file_path.startswith('s3://'):
-                write_s3(chrom_file_temp_path, chrom_file_path)
+        export_minigraph_construct_output(options, input_seqfiles, output_dict, toil)
         
     end_time = timeit.default_timer()
     run_time = end_time - start_time
     logger.info("cactus-minigraph has finished after {} seconds".format(run_time))
+
+def read_chromfile(chromfile_path):
+    """ read tsv into map """
+    # map chrom name to seqFile
+    chromfile = {}
+    with open(chromfile_path, 'r') as chrom_file:
+        for line in chrom_file:
+            toks = line.strip().split()
+            if len(toks):
+                assert len(toks) >= 2
+                chromfile[toks[0]] = toks[1:]
+    return chromfile
+
+def minigraph_construct_import_sequences(options, config_wrapper, input_seqfiles, file_store):
+    """ import the files and return a map """
+    # maps name -> input_seq_id_map, input_seq_order
+    input_dict = {}
+    config_node = config_wrapper.xmlRoot
+    graph_event = getOptionalAttrib(findRequiredNode(config_node, "graphmap"), "assemblyName", default="_MINIGRAPH_")
+
+    # load the seqfiles
+    for chrom, seqfile_path in input_seqfiles.items():
+        if type(seqfile_path) is list:
+            seqfile_path = seqfile_path[0]
+        seqFile = SeqFile(seqfile_path, defaultBranchLen=config_wrapper.getDefaultBranchLen(pangenome=True))
+        input_seq_map = seqFile.pathMap
+        raw_input_seq_order = seqFile.seqOrder
+
+        # make sure the reference is first
+        input_seq_order = [options.reference[0]]
+        for seq in raw_input_seq_order:
+            if seq != options.reference[0]:
+                input_seq_order.append(seq)
+
+        # hack out everything but reference
+        if options.refOnly:
+            input_seq_order = options.reference
+            ref_seq_map = {}
+            for sample in options.reference:
+                ref_seq_map[sample] = input_seq_map[sample]
+            input_seq_map = ref_seq_map
+
+        # validate the sample names
+        check_sample_names(input_seq_map.keys(), options.reference)
+
+        #import the sequences
+        input_seq_id_map = {}
+        leaves = set([seqFile.tree.getName(node) for node in seqFile.tree.getLeaves()])
+        for (genome, seq) in input_seq_map.items():
+            if genome != graph_event and genome in leaves:                
+                if os.path.isdir(seq):
+                    tmpSeq = getTempFile()
+                    catFiles([os.path.join(seq, subSeq) for subSeq in os.listdir(seq)], tmpSeq)
+                    seq = tmpSeq
+                seq = makeURL(seq)
+                input_seq_id_map[genome] = file_store.importFile(seq)
+            elif genome in input_seq_order:
+                input_seq_order.remove(genome)
+
+        input_dict[chrom] = (input_seq_id_map, input_seq_order)
+        
+    return input_dict
+
+def export_minigraph_construct_output(options, input_seqfiles, output_dict, toil):
+    if options.batch:
+        chrom_file_path = os.path.join(options.outputGFA, 'chromfile.mg.txt')
+        if chrom_file_path.startswith('s3://'):
+            chrom_file_temp_path = getTempFile()
+        else:
+            chrom_file_temp_path = chrom_file_path                    
+        chromfile = open(chrom_file_temp_path, 'w')
+    for chrom, output_ids in output_dict.items():
+        gfa_id, pansn_gfa_id, train_id = output_ids
+        if options.batch:
+            gfa_path = os.path.join(options.outputGFA, chrom + '.sv.gfa.gz')
+        else:
+            gfa_path = options.outputGFA
+        if train_id:
+            train_path = gfa_path.replace('.gfa.gz', '.gfa').replace('.gfa', '.train')
+        else:
+            train_path = None
+        #export the gfa            
+        toil.exportFile(pansn_gfa_id, makeURL(gfa_path))
+        if train_path:
+            # export the scoring model (.train)
+            toil.exportFile(train_id, makeURL(train_path))
+        if options.batch:
+            chromfile.write('{}\t{}\t{}\t{}\n'.format(chrom, input_seqfiles[chrom][0], gfa_path,
+                                                      train_path if train_path else '*'))
+    if options.batch:
+        chromfile.close()
+        if chrom_file_path.startswith('s3://'):
+            write_s3(chrom_file_temp_path, chrom_file_path)
 
 def check_sample_names(sample_names, references):
     """ make sure we have a workable set of sample names """
@@ -250,6 +270,14 @@ def minigraph_construct_workflow(job, options, config_node, seq_id_map, seq_orde
     """ minigraph can handle bgzipped files but not gzipped; so unzip everything in case before running"""
     assert type(options.reference) is list
     assert options.reference[0] == seq_order[0]
+    if options.refOnly:
+        refonly_seq_id_map = {}
+        refonly_seq_order = []
+        for seq in seq_order:
+            if seq in options.reference:
+                refonly_seq_order.append(seq)
+                refonly_seq_id_map[seq] = seq_id_map[seq]
+        seq_id_map, seq_order = refonly_seq_id_map, refonly_seq_order
     ref_size = seq_id_map[options.reference[0]].size
     if sanitize:
         sanitize_job = job.addChildJobFn(sanitize_fasta_headers, seq_id_map, pangenome=True)
