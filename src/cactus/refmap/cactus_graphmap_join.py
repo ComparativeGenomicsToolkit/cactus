@@ -155,6 +155,8 @@ def graphmap_join_options(parser):
     
     parser.add_argument("--collapse", help = "Incorporate minimap2 self-alignments.", action='store_true', default=False)
 
+    parser.add_argument("--delEdgeFilter", type=int, default=None, help = "Remove edges that span more than Nbp on the reference genome (vg clip -D). Applied during clipping.")
+
 def graphmap_join_validate_options(options):
     """ make sure the options make sense and fill in sensible defaults """
     if options.hal and len(options.hal) != len(options.vg):
@@ -686,10 +688,11 @@ def clip_vg(job, options, config, vg_path, vg_id, phase):
     clipped_path = vg_path + '.clip'
     clipped_bed_path = vg_path + '.clip.bed'
 
+    join_xml_node = findRequiredNode(config.xmlRoot, "graphmap_join")
     graph_event = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "assemblyName", default="_MINIGRAPH_")
 
     # optional gfaffixing -- only happens in full
-    if phase == 'full' and getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "gfaffix", typeFn=bool, default=True):
+    if phase == 'full' and getOptionalAttrib(join_xml_node, "gfaffix", typeFn=bool, default=True):
         normalized_path = vg_path + '.gfaffixed'
         gfa_in_path = vg_path + '.gfa'
         gfa_out_path = normalized_path + '.gfa'
@@ -724,7 +727,7 @@ def clip_vg(job, options, config, vg_path, vg_id, phase):
     if phase == 'clip':
         if options.clip:
             clip_vg_cmd += ['-u', str(options.clip)]
-            if getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "clipNonMinigraph", typeFn=bool, default=True):
+            if getOptionalAttrib(join_xml_node, "clipNonMinigraph", typeFn=bool, default=True):
                 clip_vg_cmd += ['-a', graph_event]
             clip_vg_cmd += ['-o', clipped_bed_path]
 
@@ -735,13 +738,13 @@ def clip_vg(job, options, config, vg_path, vg_id, phase):
     cmd.append(clip_vg_cmd)
 
     # enforce chopping
-    max_node_len = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "maxNodeLength", typeFn=int, default=-1)
+    max_node_len = getOptionalAttrib(join_xml_node, "maxNodeLength", typeFn=int, default=-1)
     if phase == 'full':
         if max_node_len > 0:
             cmd.append(['vg', 'mod', '-X', str(max_node_len), '-'])
     
     if options.reference:
-        if phase == 'full' and getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "pathNormalize", typeFn=bool, default=True):
+        if phase == 'full' and getOptionalAttrib(join_xml_node, "pathNormalize", typeFn=bool, default=True):
             # run path normalization (important to do before vg clip -d1)
             # if node-chopping isn't enabled, we take the time to mod before/after since path normalization requires chopping
             if max_node_len <= 0 or max_node_len > 1024:
@@ -757,12 +760,23 @@ def clip_vg(job, options, config, vg_path, vg_id, phase):
         # Also: any kind of clipping or path dropping can leave uncovered edges, so we remove them with vg clip        
         clip_cmd = ['vg', 'clip', '-d', '1', '-', '-P', options.reference[0]]
         cmd.append(clip_cmd)
-        if phase == 'clip' and getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "removeStubs", typeFn=bool, default=True):
+        if phase == 'clip' and getOptionalAttrib(join_xml_node, "removeStubs", typeFn=bool, default=True):
             # todo: could save a little time by making vg clip smart enough to do two things at once
             stub_cmd = ['vg', 'clip', '-sS', '-', '-P', options.reference[0]]
 
             # todo: do we want to add the minigraph prefix to keep stubs from minigraph? but I don't think it makes stubs....
             cmd.append(stub_cmd)
+
+        # Optional deletion-edge filter to go after huge snarls that may negatively impact giraffe
+        if options.delEdgeFilter:
+            clip_context = getOptionalAttrib(join_xml_node, "clipContext", typeFn=int, default=0)
+            min_fragment = getOptionalAttrib(join_xml_node, "minFilterFragment", typeFn=int, default=0)
+            del_clip_cmd = ['vg', 'clip', '-', '-D', str(options.delEdgeFilter), '-P', options.reference[0]]
+            if clip_context:
+                del_clip_cmd += ['-c', str(clip_context)]
+            if min_fragment:
+                del_clip_cmd += ['-m', str(min_fragment)]
+            cmd.append(del_clip_cmd)
 
     # and we sort by id on the first go-around
     if phase == 'full':
