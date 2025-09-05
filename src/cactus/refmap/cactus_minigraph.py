@@ -101,7 +101,7 @@ def main():
         importSingularityImage(options)
         #Run the workflow
         if options.restart:
-            gfa_id, pansn_gfa_id, train_id = toil.restart()
+            output_dict = toil.restart()
         else:
             # load up the config
             config_node = ET.parse(options.configFile).getroot()
