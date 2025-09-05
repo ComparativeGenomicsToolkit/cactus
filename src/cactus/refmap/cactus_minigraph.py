@@ -141,6 +141,7 @@ def read_chromfile(chromfile_path):
             toks = line.strip().split()
             if len(toks):
                 assert len(toks) >= 2
+                assert toks[0] not in chromfile
                 chromfile[toks[0]] = toks[1:]
     return chromfile
 

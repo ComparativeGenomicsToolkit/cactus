@@ -356,20 +356,23 @@ def export_minigraph_batch_wrapper(job, options, config_node, input_seqfiles, in
     options.outputGFA = out_dir
     export_minigraph_construct_output(options, input_seqfiles, minigraph_batch_results, job.fileStore)
 
-    # output_dict:  chrom-> (gfa_id, pansn_gfa_id, train_id)
+    # minigraph_batch_results:  chrom-> (gfa_id, pansn_gfa_id, train_id)
     # filter out the pansn gfas (they were exported above) and continue with the
     # regualar gfas
     output_dict = {}
     pansn_gfas = []
     train_ids = []
+    output_file_ids = []
     for chrom, val in minigraph_batch_results.items():
         # output_dict maps chrom -> seq_id_map, gfa_id, ref_collapse_paf_id, seqfile, gfa
         output_dict[chrom] = (input_seqid_map[chrom][0], val[0], None, input_seqfiles[chrom][0], 
                               os.path.join(out_dir, chrom + '.sv.gfa.gz'))
+        output_file_ids += [input_seqid_map[chrom][0], val[0]]
         pansn_gfas.append(val[1])
         train_ids.append(val[2])
     job.addChildJobFn(clean_jobstore_files, file_ids=pansn_gfas)
-    return output_dict
+    job.addChildJobFn(clean_jobstore_files, file_ids=train_ids)
+    return output_dict, output_file_ids
 
 def export_graphmap_batch_wrapper(job, options, config_node, graphmap_batch_results, input_seqfiles):
     """ export the graphmap results, which are another chromfile alongside new seqfiles and a bunch
@@ -523,7 +526,8 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
                                                                           input_seqfiles, input_map, minigraph_batch_results)
 
         # now rerun cactus_graphmap but on a per-chromosome bassis
-        graphmap_input_dict = minigraph_batch_export_job.rv()
+        graphmap_input_dict = minigraph_batch_export_job.rv(0)
+        graphmap_input_files = minigraph_batch_export_job.rv(1)
         graphmap_batch_job = minigraph_batch_export_job.addFollowOnJobFn(minigraph_batch_workflow, options, config_wrapper,
                                                                          graphmap_input_dict, graph_event, sanitize=False,
                                                                          pansn_gfa_input=False)
@@ -534,8 +538,7 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
         chromfile_path = graphmap_batch_export_job.rv(1)
         # clean out the jobstore, as cactus_align reads everything from disk
         clean_jobstore_job = graphmap_batch_export_job.addFollowOnJobFn(clean_jobstore_files, file_ids=graphmap_file_ids)
-        # todo: figure out!!!
-        #graphmap_batch_export_job.addFollowOnJobFn(clean_jobstore_files, file_id_maps=[minigraph_batch_results])
+        clean_jobstore_job = clean_jobstore_job.addFollowOnJobFn(clean_jobstore_files, file_ids=graphmap_input_files)
         
     # cactus_align
     options.scoresFromChromfile = options.lastTrain and options.mgSplit
