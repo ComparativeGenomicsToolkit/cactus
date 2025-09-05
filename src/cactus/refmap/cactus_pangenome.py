@@ -326,8 +326,26 @@ def import_minigraph_batch_wrapper(job, options, config_wrapper, chromfile_path)
     """ import some data for minigraph batch from the graphmap split chromfile """
     input_seqfiles = read_chromfile(chromfile_path)
     input_map = minigraph_construct_import_sequences(options, config_wrapper, input_seqfiles, job.fileStore)
-    return input_seqfiles, input_map    
-    
+    return input_seqfiles, input_map
+
+def sanitize_fasta_headers_batch(job, chromfile_id_map):
+    """ run santize fasta headers on each chromsome """
+    out_id_map = {}
+    for chrom, value in chromfile_id_map.items():
+        # minigraph_importer makes a map of chrom -> seq_id_map, seq_order
+        # so we resolve that here
+        if type(value) in [list, tuple]:
+            value = list(value)
+            seq_id_map = value[0]
+        else:
+            seq_id_map = value
+        sanitize_job = job.addChildJobFn(sanitize_fasta_headers, seq_id_map, pangenome=True)
+        if type(value) is list:
+            out_id_map[chrom] = [sanitize_job.rv()] + value[1:]
+        else:
+            out_id_map[chrom] = sanitize_job.rv()
+    return out_id_map
+            
 def export_minigraph_batch_wrapper(job, options, config_node, input_seqfiles, input_seqid_map, minigraph_batch_results):
     """ export the output dictionary from minigraph batch construction """
     out_dir = os.path.join(options.outDir, 'chrom-minigraph')
@@ -443,7 +461,7 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
     options.refOnly = False
     mg_options = copy.deepcopy(options)
     mg_options.refOnly = options.mgSplit
-    if options.refOnly:
+    if mg_options.refOnly:
         mg_options.lastTrain = False        
     minigraph_job = sanitize_job.addFollowOnJobFn(minigraph_construct_workflow, mg_options, config_node, seq_id_map, seq_order, sv_gfa_path, sanitize=False)
     sv_gfa_id = minigraph_job.rv(0)
@@ -459,8 +477,10 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
     options.minigraphGFA = sv_gfa_path
     options.outputFasta = gfa_fa_path
     graph_event = getOptionalAttrib(findRequiredNode(config_node, "graphmap"), "assemblyName", default="_MINIGRAPH_")
-    
-    graphmap_job = minigraph_wrapper_job.addFollowOnJobFn(minigraph_workflow, options, config_wrapper, seq_id_map, sv_gfa_id, graph_event, False, ref_collapse_paf_id, pansn_gfa_input=False)
+    gm_options = copy.deepcopy(options)
+    if options.mgSplit:
+        gm_options.collapse = False
+    graphmap_job = minigraph_wrapper_job.addFollowOnJobFn(minigraph_workflow, gm_options, config_wrapper, seq_id_map, sv_gfa_id, graph_event, False, ref_collapse_paf_id, pansn_gfa_input=False)
     paf_id, gfa_fa_id, gaf_id, unfiltered_paf_id, paf_filter_log = graphmap_job.rv(0), graphmap_job.rv(1), graphmap_job.rv(2), graphmap_job.rv(3), graphmap_job.rv(4)
     graphmap_export_job = graphmap_job.addFollowOnJobFn(export_graphmap_wrapper, options, paf_id, paf_path, gaf_id, unfiltered_paf_id, paf_filter_log)
 
@@ -492,10 +512,12 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
         minigraph_batch_import_job = clean_jobstore_job.addFollowOnJobFn(import_minigraph_batch_wrapper, options, config_wrapper,
                                                                          chromfile_path)
         input_seqfiles = minigraph_batch_import_job.rv(0)
-        input_map = minigraph_batch_import_job.rv(1)
+        raw_input_map = minigraph_batch_import_job.rv(1)
+        sanitize_job = minigraph_batch_import_job.addFollowOnJobFn(sanitize_fasta_headers_batch, raw_input_map)
+        input_map = sanitize_job.rv()
         options.outputGFA=''
-        minigraph_batch_job = minigraph_batch_import_job.addFollowOnJobFn(minigraph_construct_batch_workflow, options, config_node,
-                                                                          input_map, None,  sanitize=False)
+        minigraph_batch_job = sanitize_job.addFollowOnJobFn(minigraph_construct_batch_workflow, options, config_node,
+                                                            input_map, None,  sanitize=False)
         minigraph_batch_results = minigraph_batch_job.rv()
         minigraph_batch_export_job = minigraph_batch_job.addFollowOnJobFn(export_minigraph_batch_wrapper, options, config_node,
                                                                           input_seqfiles, input_map, minigraph_batch_results)
@@ -519,7 +541,6 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
     options.scoresFromChromfile = options.lastTrain and options.mgSplit
     align_jobs_make_job = clean_jobstore_job.addFollowOnJobFn(make_batch_align_jobs_wrapper, options, chromfile_path, config_wrapper,
                                                               last_scores_id)
-    graphmap_batch_export_job.addFollowOn(align_jobs_make_job)
     
     align_jobs = align_jobs_make_job.rv()
     align_job = align_jobs_make_job.addFollowOnJobFn(batch_align_jobs, align_jobs)
