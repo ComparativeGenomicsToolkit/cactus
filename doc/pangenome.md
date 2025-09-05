@@ -149,13 +149,27 @@ The `--collapse` option, added as an experimental prototype in [v2.9.1](https://
 
 Note: Haplotype indexes (`--haplo`) cannot always be built for collapsed graphs. If haplotype indexing fails when using `--collapse`, a warning will be printed in the log and the failing index will not appear in the output (but the program will not crash).
 
-#### Multiple Reference Samples
+### Multiple Reference Samples
 
 The `--reference` option can accept multiple samples (separated by space). If multiple samples are specified beyond the first, they will be clipped as usual, but end up as "reference-sense" paths in the vg/gbz output.  They can also be used as basis for VCF, and VCF files can be created based on them with the `--vcfReference` sample.
 
 For example, for human data one might consider using `--reference CHM13 GRCh38 GRCh37 --vcfReference CHM13 GRC3h8`.  This will make a graph referenced on CHM13, but will promote GRCh38 and GRCh38 to reference-sense paths so that they could be used, for example, to project BAMs on in `vg giraffe`.  Two VCFs will be output, one based on CHM13 and one based on GRCh38. 
 
 Note: if you are using the step by step interface instead of `cactus-pangenome`, make sure to pass the same `--reference` options to each tool!
+
+### Running Minigraph on Chromosomes Independently
+
+By default, minigraph construction and mapping are performed at the whole-genome level.  The results are then split by (reference) chromosome so that Cactus (and some subsequent processing) can be run one chromosome at a time.  The `cactus-pangenome --mgSplit` option was introduced to run the minigraph construction and mapping independently at the chromosome level instead.  The intention is that by allowing the pipeline to choose a different ordering for minigraph construction for each chromosome, the accuracy of the output can be improved.  This comes at the cost of extra computation (minigraph construction and mapping run twice).  The step-by-step interface is likewise supported to support this and, using the small included example, would look like
+
+```
+cactus-minigraph js examples/evolverPrimates.txt ep.sv.gfa.gz --refOnly --reference simChimp 
+cactus-graphmap js examples/evolverPrimates.txt ep.sv.gfa.gz ep.paf --reference simChimp  --outputFasta ep.sv.fa.gz
+cactus-graphmap-split js examples/evolverPrimates.txt ep.sv.gfa.gz ep.paf --reference simChimp  --outDir out-split
+cactus-minigraph js ./out-split/chromfile.txt out-construct --reference simChimp --batch
+cactus-graphmap js ./out-construct/chromfile.mg.txt out-map --reference simChimp --batch
+cactus-align js ./out-map/chromfile.gm.txt out-align --reference simChimp --outVG --pangenome --batch
+cactus-graphmap-join js --vg out-align/*.vg --hal out-align/*.hal --sv-gfa out-construct/*.gfa.gz --reference simChimp --outDir out-join --outName ep --gb
+```
 
 ### Pipeline
 

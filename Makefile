@@ -198,11 +198,23 @@ evolver_test_primates_pangenome_local: all ${CWD}/test/primates-truth.maf
 evolver_test_primates_pangenome_docker: all ${CWD}/test/primates-truth.maf
 	PYTHONPATH="${CWD}/submodules/" CACTUS_BINARIES_MODE=docker CACTUS_DOCKER_MODE=1 ${PYTHON} -m pytest ${pytestOpts} -s test/evolverTest.py::TestCase::testEvolverPrimatesPangenomeDocker
 
+evolver_test_primates_pangenome_split_local: all ${CWD}/test/primates-truth.maf
+	PYTHONPATH="${CWD}/submodules/" CACTUS_BINARIES_MODE=local CACTUS_DOCKER_MODE=0 ${PYTHON} -m pytest ${pytestOpts} -s test/evolverTest.py::TestCase::testEvolverPrimatesPangenomeSplitLocal
+
+evolver_test_primates_pangenome_steps_mgsplit_local: all ${CWD}/test/primates-truth.maf
+	PYTHONPATH="${CWD}/submodules/" CACTUS_BINARIES_MODE=local CACTUS_DOCKER_MODE=0 ${PYTHON} -m pytest ${pytestOpts} -s test/evolverTest.py::TestCase::testEvolverPrimatesPangenomeStepByStepSplitLocal
+
+evolver_test_primates_pangenome_steps_mgsplit_docker: all ${CWD}/test/primates-truth.maf
+	PYTHONPATH="${CWD}/submodules/" CACTUS_BINARIES_MODE=docker CACTUS_DOCKER_MODE=1 ${PYTHON} -m pytest ${pytestOpts} -s test/evolverTest.py::TestCase::testEvolverPrimatesPangenomeStepByStepSplitDocker
+
 
 evolver_test_all_local: evolver_test_local evolver_test_prepare_toil evolver_test_decomposed_local evolver_test_prepare_no_outgroup_local evolver_test_poa_local evolver_test_refmap_local evolver_test_minigraph_local
 
 yeast_test_local:
 	PYTHONPATH="${CWD}/submodules/" CACTUS_BINARIES_MODE=local CACTUS_DOCKER_MODE=0 ${PYTHON} -m pytest ${pytestOpts} -s test/evolverTest.py::TestCase::testYeastPangenomeLocal
+
+yeast_test_split_local:
+	PYTHONPATH="${CWD}/submodules/" CACTUS_BINARIES_MODE=local CACTUS_DOCKER_MODE=0 ${PYTHON} -m pytest ${pytestOpts} -s test/evolverTest.py::TestCase::testYeastPangenomeSplitLocal
 
 yeast_test_step_by_step_local:
 	PYTHONPATH="${CWD}/submodules/" CACTUS_BINARIES_MODE=local CACTUS_DOCKER_MODE=0 ${PYTHON} -m pytest ${pytestOpts} -s test/evolverTest.py::TestCase::testYeastPangenomeStepByStepLocal

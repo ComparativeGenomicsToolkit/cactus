@@ -66,7 +66,8 @@ def main():
     parser = Job.Runner.getDefaultArgumentParser()
 
     parser.add_argument("--vg", required=True, nargs='+',  help = "Input vg files (PackedGraph or HashGraph format)")
-    parser.add_argument("--hal", nargs='+', default = [], help = "Input hal files (for merging)")    
+    parser.add_argument("--hal", nargs='+', default = [], help = "Input hal files (for merging)")
+    parser.add_argument("--sv-gfa", nargs='+', default= [], help = "Input minigraph gfa files to merge (from cactus-minigraph --batch)")
     parser.add_argument("--outDir", required=True, type=str, help = "Output directory")
     parser.add_argument("--outName", required=True, type=str, help = "Basename of all output files")
     parser.add_argument("--reference", required=True, nargs='+', type=str, help = "Reference event name(s). The first will be the \"true\" reference and will be left unclipped and uncollapsed. It also should have been used with --reference in all upstream commands. Other names will be promoted to reference paths in vg")
@@ -158,7 +159,13 @@ def graphmap_join_options(parser):
 def graphmap_join_validate_options(options):
     """ make sure the options make sense and fill in sensible defaults """
     if options.hal and len(options.hal) != len(options.vg):
-        raise RuntimeError("If --hal and --vg should specify the same number of files")
+        raise RuntimeError("--hal and --vg should specify the same number of files")
+    if options.sv_gfa and len(options.sv_gfa) != len(options.vg):
+        raise RuntimeError("--sv-gfa and --vg should specify the same number of files")
+    if options.sv_gfa:
+        for svgfa in options.sv_gfa:
+            if not svgfa.endswith('.gfa.gz'):
+                raise RuntimeError("Only files ending with .gfa.gz can be input with --sv-gfa")
 
     # apply cpu override
     if options.batchSystem.lower() in ['single_machine', 'singleMachine']:
@@ -378,13 +385,18 @@ def graphmap_join(options):
             for hal_path in options.hal:
                 hal_ids.append(toil.importFile(makeURL(hal_path)))
 
+            # load the minigraph gfas
+            sv_gfa_ids = []
+            for sv_gfa_path in options.sv_gfa:
+                sv_gfa_ids.append(toil.importFile(makeURL(sv_gfa_path)))
+
             # run the workflow
-            wf_output = toil.start(Job.wrapJobFn(graphmap_join_workflow, options, config, vg_ids, hal_ids))
+            wf_output = toil.start(Job.wrapJobFn(graphmap_join_workflow, options, config, vg_ids, hal_ids, sv_gfa_ids))
                 
         #export the split data
         export_join_data(toil, options, wf_output[0], wf_output[1], wf_output[2], wf_output[3], wf_output[4], wf_output[5])
 
-def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
+def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids):
 
     root_job = Job()
     job.addChild(root_job)
@@ -506,7 +518,7 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
 
     # optional hal merge
     if hal_ids:
-        hal_merge_job = job.addChildJobFn(merge_hal, options, hal_ids,
+        hal_merge_job = job.addChildJobFn(merge_hal, options, config, hal_ids,
                                           cores = 1,
                                           disk=sum(f.size for f in hal_ids) * 2,
                                           memory=min(max(f.size for f in hal_ids) * 2, max_mem))
@@ -514,6 +526,15 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
         out_dicts.append(hal_id_dict)
         # delete the chromosome hals
         hal_merge_job.addFollowOnJobFn(clean_jobstore_files, file_ids=hal_ids)
+
+    # optional minigraph gfa merge
+    if sv_gfa_ids:
+        sv_gfa_merge_job = job.addChildJobFn(merge_sv_gfa, options, sv_gfa_ids,
+                                             disk=sum(f.size for f in sv_gfa_ids) * 3)
+        sv_gfa_id_dict = sv_gfa_merge_job.rv()
+        out_dicts.append(sv_gfa_id_dict)
+        # delete the chromosome gfas
+        sv_gfa_merge_job.addFollowOnJobFn(clean_jobstore_files, file_ids=sv_gfa_ids)
 
     if options.indexMemory:
         index_mem = options.indexMemory
@@ -1616,14 +1637,17 @@ def merge_snarl_stats(job, vg_paths, snarl_stats_ids, tag):
 
     return { '{}snarl-stats.tsv.gz'.format(tag) : job.fileStore.writeGlobalFile(merged_stats_path) }
 
-def merge_hal(job, options, hal_ids):
+def merge_hal(job, options, config, hal_ids, remove_minigraph=True):
     """ call halMergeChroms to make one big hal file out of the chromosome hal files """
     work_dir = job.fileStore.getLocalTempDir()
     hal_paths = []
     assert len(options.hal) == len(hal_ids)
+    graph_event = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "assemblyName", default="_MINIGRAPH_")
     for in_path, hal_id in zip(options.hal, hal_ids):
         hal_path = os.path.join(work_dir, os.path.basename(in_path))
-        job.fileStore.readGlobalFile(hal_id, hal_path)
+        job.fileStore.readGlobalFile(hal_id, hal_path, mutable=remove_minigraph)
+        if remove_minigraph:
+            cactus_call(parameters=['halRemoveGenome', hal_path, graph_event])            
         hal_paths.append(hal_path)
 
     merged_path = os.path.join(work_dir, '__merged__.hal')
@@ -1641,6 +1665,36 @@ def merge_hal(job, options, hal_ids):
 
     return { 'full.hal' : job.fileStore.writeGlobalFile(merged_path) }
 
+def merge_sv_gfa(job, options, sv_gfa_ids):
+    """ do something like vg ids -j but on the minigraph .sv.gfa.gz
+    there may be tools for this (even with vg) but this simple python
+    version should be fine for now """
+    work_dir = job.fileStore.getLocalTempDir()
+    assert len(options.sv_gfa) == len(sv_gfa_ids)
+    merged_gfa_path = os.path.join(work_dir, '_sv_gfa_merged_.gfa.gz')
+    offset = 0
+    with gzip.open(merged_gfa_path, 'wb') as merged_gfa_file:
+        for in_path, sv_gfa_id in zip(options.sv_gfa, sv_gfa_ids):
+            sv_gfa_path = os.path.join(work_dir, os.path.basename(in_path))
+            assert sv_gfa_path != merged_gfa_path
+            job.fileStore.readGlobalFile(sv_gfa_id, sv_gfa_path)
+            with gzip.open(sv_gfa_path, 'rb') as sv_gfa_file:
+                cur_max = 0
+                for line in sv_gfa_file:
+                    line = line.decode()
+                    if line.startswith('S'):
+                        toks = line.split('\t')
+                        seq_id = toks[1]
+                        seq_no = int(seq_id[1:]) + offset
+                        toks[1] = 's{}'.format(seq_no)
+                        cur_max = max(cur_max, seq_no)
+                        merged_gfa_file.write('\t'.join(toks).encode())
+                    else:
+                        merged_gfa_file.write(line.encode())
+                offset = cur_max
+
+    return { 'sv.gfa.gz' : job.fileStore.writeGlobalFile(merged_gfa_path) }
+    
 def unclip_hal(job, hal_id_dict, seq_id_map):
     """ run halUnclip """
     work_dir = job.fileStore.getLocalTempDir()
