@@ -288,7 +288,7 @@ def minigraph_construct_workflow(job, options, config_node, seq_id_map, seq_orde
         job.addChild(sanitize_job)
     xml_node = findRequiredNode(config_node, "graphmap")
     sort_type = getOptionalAttrib(xml_node, "minigraphSortInput", str, default=None)
-    if sort_type == "mash" and len(seq_id_map) > 1:
+    if sort_type == "mash" and len(seq_id_map) > 2:
         sort_job = sanitize_job.addFollowOnJobFn(sort_minigraph_input_with_mash, options, config_node, sanitized_seq_id_map, seq_order)
         seq_order = sort_job.rv()
         prev_job = sort_job
@@ -317,7 +317,8 @@ def sort_minigraph_input_with_mash(job, options, config_node, seq_id_map, seq_or
     sketch_job.addFollowOn(dist_root_job)
 
     xml_node = findRequiredNode(config_node, "graphmap")
-    sort_by_sample = getOptionalAttrib(xml_node, "minigraphSortBySample", bool, default=False)
+    sort_by_sample = getOptionalAttrib(xml_node, "minigraphSortBySample", str, default='0')
+    sort_by_sample = True if sort_by_sample == '1' or (sort_by_sample == 'nonbatch' and not options.batch) else False
     # in the case of diploid inputs, the distance will be driven by the sex of the haplotype
     # ie in human, the haplotype with chrX is always going to be much closer to the reference
     # than the one with chrY, which makes the resulting order pretty meaningless.
