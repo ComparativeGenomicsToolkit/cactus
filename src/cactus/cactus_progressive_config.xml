@@ -434,6 +434,7 @@
 	<!-- clipNonMinigraph: clip out regions if the don't align to minigraph (if disabled, clip if they don't align to anything) -->
 	<!-- minimizerOptions: options for vg minimizer -->
 	<!-- minFilterFragment: discard fragments that result from the vg clip frequency filter if they are smaller than this -->
+	<!-- clipContext: use this many context steps when doing edge clipping (activated via delEdgeFilter cli option) -->	
 	<!-- removeStubs: remove any nodes dangling off reference paths (ie softclips) -->
 	<!-- odgiVizOptions: options to odgi viz, used for 1d viz -->
 	<!-- odgiLayoutOptions: options to odgi layout, used for 2d viz -->
@@ -452,6 +453,7 @@
 		 clipNonMinigraph="1"		 
 		 minimizerOptions="-k 29 -w 11"
 		 minFilterFragment="1000"
+		 clipContext="1000"
 		 removeStubs="1"
 		 odgiVizOptions="-x 1500 -y 500 -a 10"
 		 odgiLayoutOptions="-x 50"
