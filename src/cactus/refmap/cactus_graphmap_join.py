@@ -1272,6 +1272,10 @@ def check_vcfwave(job):
     except:
         raise RuntimeError('--vcfwave option used, but vcfwave tool not found in PATH. vcfwave is *not* included in the cactus binary release, but it is in the cactus Docker image. If you have Docker installed, you can try running again with --binariesMode docker. Or running your whole command with docker run. If you cannot use Docker, then you will need to build vcflib yourself before retrying: source code and details here: https://github.com/vcflib/vcflib.  Running the ./build-tools/downloadVCFWave script (from the cactus/ directory) will attemp to download and build vcfwave.')
 
+    if sys.version_info < (3, 10):
+        raise RuntimeError('--vcfwave option requires python 3.10 or newer (for compatibility with merge_duplicates.py). Using --binaresMode docker or running within the released Cactus docker image will work around this')
+        
+
 def check_vcffixup(job):
     """ check to make sure vcffixup is installed """
     try:
