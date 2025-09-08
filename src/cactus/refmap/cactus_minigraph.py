@@ -451,6 +451,9 @@ def minigraph_construct_in_batches(job, options, config_node, seq_id_map, seq_or
     total_size = sum([x.size for x in seq_id_map.values()])
     disk = total_size * 2
     mem = cactus_clamp_memory(60 * max_size + int(total_size / 4))
+    if options.batch:
+        # the memory heuristc seems to drastically underestimate some chromosomes in batch mode...
+        mem *= 3
     if options.mgMemory is not None:
         RealtimeLogger.info('Overriding minigraph_construct memory estimate of {} with {} value {} from --mgMemory'.format(bytes2human(mem), 'greater' if options.mgMemory > mem else 'lesser', bytes2human(options.mgMemory)))     
         mem = options.mgMemory
