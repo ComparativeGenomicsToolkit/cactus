@@ -238,8 +238,9 @@ def make_batch_align_jobs(options, toil, filestore=None, config_wrapper=None):
                     chrom_options = copy.deepcopy(options)
                     chrom_options.batch = False
                     if options.scoresFromChromfile:
-                        assert len(toks) == 4 and toks[3] != '*'
-                        chrom_options.scoresFile = toks[3]
+                        assert len(toks) == 4
+                        if toks[3] != '*':
+                            chrom_options.scoresFile = toks[3]
                     if filestore:
                         seqfile_id = toil.importFile(makeURL(seqfile))
                         local_seqfile = os.path.join(work_dir, os.path.basename(seqfile))

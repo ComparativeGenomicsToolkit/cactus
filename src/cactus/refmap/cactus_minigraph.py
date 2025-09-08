@@ -296,13 +296,15 @@ def minigraph_construct_workflow(job, options, config_node, seq_id_map, seq_orde
     else:
         prev_job = sanitize_job
     minigraph_job = prev_job.addFollowOnJobFn(minigraph_construct_in_batches, options, config_node, sanitized_seq_id_map, seq_order, gfa_path)
-    if options.lastTrain:
+    train_id = None
+    if options.lastTrain and len(seq_id_map) > 1:
         last_train_job = prev_job.addFollowOnJobFn(last_train, config_node, seq_order, sanitized_seq_id_map, 
                                                    cores=options.mgCores,
                                                    disk=8*ref_size,
                                                    memory=cactus_clamp_memory(8*ref_size))
+        train_id = last_train_job.rv()
         
-    return minigraph_job.rv(0), minigraph_job.rv(1), last_train_job.rv() if options.lastTrain else None
+    return minigraph_job.rv(0), minigraph_job.rv(1), train_id
 
 def sort_minigraph_input_with_mash(job, options, config_node, seq_id_map, seq_order):
     """ Sort the input """
