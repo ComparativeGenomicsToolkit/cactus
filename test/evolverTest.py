@@ -509,19 +509,20 @@ class TestCase(unittest.TestCase):
 
         out_dir = os.path.dirname(self._out_hal(binariesMode))
         out_name = os.path.splitext(os.path.basename(self._out_hal(binariesMode)))[0]
+        wave_opts = ['--vcfwave'] if binariesMode == 'docker' else []
         subprocess.check_call(['cactus-graphmap-join', self._job_store(binariesMode),
                                '--vg', os.path.join(batch_align_path, 'simChimp.chr6.vg'),
                                '--hal', os.path.join(batch_align_path, 'simChimp.chr6.hal'),
                                '--sv-gfa', os.path.join(batch_mg_path, 'simChimp.chr6.sv.gfa.gz'),
                                '--gbz', '--reference', 'simChimp', '--vcf', '--vcfwave',
-                               '--outDir', out_dir, '--outName', out_name] + cactus_opts)
+                               '--outDir', out_dir, '--outName', out_name] + cactus_opts + wave_opts)
 
         # cactus-pangenome tacks on the .full to the output name
         subprocess.check_call(['mv', os.path.join(out_dir, out_name + '.full.hal'), os.path.join(out_dir, out_name + '.hal')])
 
         # make sure it made output
         if binariesMode == 'docker':
-            wave_vcf_bytes = os.path.getsize(os.path.join(out_dir, out_name + '.simChimp.wave.vcf.gz'))
+            wave_vcf_bytes = os.path.getsize(os.path.join(out_dir, out_name + '.wave.vcf.gz'))
             self.assertGreaterEqual(wave_vcf_bytes, 300000)
 
             
