@@ -283,6 +283,7 @@ def export_graphmap_output(options, config_node, input_map, output_dict, toil):
 def minigraph_batch_workflow(job, options, config, input_dict, graph_event, sanitize, pansn_gfa_input=True):
     """ Batch wrapper to run grpahmap independently at the chromosome level."""
     output_dict = {}
+    options.mg_chrom_name = None
     for chrom, input_info in input_dict.items():
         seq_id_map, gfa_id, ref_collapse_paf_id, seqfile, gfa = input_info
         if options.batch:
@@ -290,6 +291,7 @@ def minigraph_batch_workflow(job, options, config, input_dict, graph_event, sani
             chrom_options.minigraphGFA = gfa
             chrom_options.seqFile = seqfile
             chrom_options.outputFasta = 'sv.gfa.fa.gz'
+            chrom_options.mg_chrom_name = chrom
         else:
             chrom_options = options
         mgwf_job = job.addChildJobFn(minigraph_workflow, chrom_options, config, seq_id_map, gfa_id, graph_event,
@@ -451,10 +453,12 @@ def minigraph_map_all(job, options, config, gfa_id, fa_id_map, graph_event):
                 
     for event, fa_id in fa_id_map.items():
         mem = 72*fa_id.size + 2*gfa_id.size
+        event_name = event
         if options.batch:
             # the memory heuristc seems to drastically underestimate some chromosomes in batch mode...
-            mem *= 3
-        minigraph_map_job = top_job.addChildJobFn(minigraph_map_one, config, event, fa_id, gfa_id,
+            mem *= 2
+            event_name = '{}.{}'.format(event, options.mg_chrom_name)
+        minigraph_map_job = top_job.addChildJobFn(minigraph_map_one, config, event_name, fa_id, gfa_id,
                                                   cores=mg_cores, disk=5*fa_id.size + gfa_id.size,
                                                   memory=cactus_clamp_memory(mem))
         gaf_id_map[event] = minigraph_map_job.rv(0)
