@@ -322,8 +322,8 @@
 		wiggle="0.9999"
 		numberOfNs="10"
 		minNumberOfSequencesToSupportAdjacency="1"
-		minimumNestedBasesToBreakAdjacency="1500"
-		maximumChainBasesToBreakAdjacency="3000000"
+		minimumNestedBasesToBreakAdjacency="1000000"
+		maximumChainBasesToBreakAdjacency="15000"
 		makeScaffolds="1"
 	>
 	</reference>

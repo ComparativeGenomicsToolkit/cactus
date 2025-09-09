@@ -1192,7 +1192,6 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader, int
      * Now re-join together pairs that need to be scaffolded together.
      */
     stList *prunedExtraStubNodes;
-    int64_t rescued_interval_number = referenceIntervalsToPreserve == NULL ? 0 : stList_length(referenceIntervalsToPreserve);
     if (makeScaffolds) {
         prunedExtraStubNodes = remakeReferenceIntervals(ref, referenceIntervalsToPreserve, extraStubNodes);
         stList_destruct(referenceIntervalsToPreserve); //Clean this up.
