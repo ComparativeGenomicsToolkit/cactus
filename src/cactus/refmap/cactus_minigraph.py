@@ -298,10 +298,12 @@ def minigraph_construct_workflow(job, options, config_node, seq_id_map, seq_orde
     minigraph_job = prev_job.addFollowOnJobFn(minigraph_construct_in_batches, options, config_node, sanitized_seq_id_map, seq_order, gfa_path)
     train_id = None
     if options.lastTrain and len(seq_id_map) > 1:
+        # note: somehow last training memory overruns don't seem to be detected by slurm so we
+        # give 12G at least whenever possible, as --doubleMem won't help...
         last_train_job = prev_job.addFollowOnJobFn(last_train, config_node, seq_order, sanitized_seq_id_map, 
                                                    cores=options.mgCores,
                                                    disk=8*ref_size,
-                                                   memory=cactus_clamp_memory(8*ref_size))
+                                                   memory=cactus_clamp_memory(max(8*ref_size, 12*10**9))
         train_id = last_train_job.rv()
         
     return minigraph_job.rv(0), minigraph_job.rv(1), train_id
