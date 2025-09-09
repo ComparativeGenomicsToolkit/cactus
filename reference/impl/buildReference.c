@@ -907,23 +907,26 @@ static void addAdditionalStubEnds(stList *extraStubNodes, Flower *flower, stHash
     }
 }
 
-/*
- * We have two criteria for splitting a reference interval.
- * (1) Absence of a direct adjacency.
- * (2) Absence of substantial amounts of indirect adjacencies.
- */
+
 bool referenceSplitFn(int64_t pNode, refOrdering *ref, void *extraArgs) {
     assert(reference_getNext(ref, pNode) != INT64_MAX);
-    /*
-     * We do not split if not a leaf adjacency.
-     *
-     * One complexity is that an end may not yet be assigned a group, in which case
-     * we look at its proposed adjacent end to decide if it's a leaf adjacency.
-     * If this does not also have a group
-     * then both ends must be from "N" blocks, and we allow them to be joined.
-     */
-    //void *extraArgs[4] = { nodesToEnds, dAL, &onlyDirectAdjacencies, aL };
+
+    // Unpack extraArgs
     stHash *nodesToEnds = ((void **) extraArgs)[0];
+    refAdjList *dAL = ((void **) extraArgs)[1];
+    int64_t minNumberOfSequencesToSupportAdjacency = *((int64_t *) ((void **) extraArgs)[2]);
+    bool canBreakAdjacency = *((bool *) ((void **) extraArgs)[3]);
+
+    if(!canBreakAdjacency) {  // If we've determined we can not break the adjacency because of surrounding structure
+        return false;
+    }
+
+    // First, check for sufficient direct adjacency support. If it exists, we never split.
+    if (refAdjList_getWeight(dAL, -pNode, reference_getNext(ref, pNode)) >= minNumberOfSequencesToSupportAdjacency) {
+        return false;
+    }
+
+    // An adjacency is only broken if it is between ends in a leaf group.
     stIntTuple *i = stIntTuple_construct1(-pNode);
     End *end = stHash_search(nodesToEnds, i);
     stIntTuple_destruct(i);
@@ -936,22 +939,11 @@ bool referenceSplitFn(int64_t pNode, refOrdering *ref, void *extraArgs) {
         assert(adjacentEnd != NULL);
         group = end_getGroup(adjacentEnd);
     }
-    refAdjList *dAL = ((void **) extraArgs)[1];
-    if (group == NULL) { //Case there is no group for either adjacent end.
-        assert(refAdjList_getWeight(dAL, -pNode, reference_getNext(ref, pNode)) == 0); //We can check they are not connected.
-        return 0;
+    if (group == NULL || !group_isLeaf(group)) {
+        // This can happen for new ends from scaffolding, or if it's not a tangle. Don't split.
+        return false;
     }
-    if (!group_isLeaf(group)) { //Case we are not at a leaf adjacency.
-        return 0;
-    }
-
-    /*
-     * The following is the logic for deciding if we should split an adjacency.
-     */
-    //We do not split edges that have direct sequence support.
-    int64_t minNumberOfSequencesToSupportAdjacency = *((int64_t *) ((void **) extraArgs)[2]);
-    assert(minNumberOfSequencesToSupportAdjacency >= 0);
-    return refAdjList_getWeight(dAL, -pNode, reference_getNext(ref, pNode)) < minNumberOfSequencesToSupportAdjacency;
+    return true;
 }
 
 stList *getReferenceIntervalsToPreserve(refOrdering *ref, refAdjList *dAL, int64_t minNumberOfSequencesToSupportAdjacency) {
@@ -967,6 +959,44 @@ stList *getReferenceIntervalsToPreserve(refOrdering *ref, refAdjList *dAL, int64
     return referenceIntervalsToPreserve;
 }
 
+bool canBreakAdjacencies(Flower *flower,
+                         int64_t minimumNestedBasesToBreakAdjacency,
+                         int64_t maximumChainBasesToBreakAdjacency) {
+    /*
+     * The following is the logic for deciding if we can split an adjacency in a given flower
+     */
+
+    // Look in parents to decide if nested in large chain
+    Group *ancestor_group;
+    while((ancestor_group = flower_getParentGroup(flower)) != NULL) {
+        // If flower contains more than x bases, regardless of if in large chain, determine we can break
+        if(flower_getTotalBaseLength(flower) > minimumNestedBasesToBreakAdjacency) {
+            return true;
+        }
+
+        // If parent group is part of chain, then determine if chain is large enough to
+        // decide not to break adajcencies
+        if(group_isLink(ancestor_group)) {
+            Chain *parent_chain = link_getChain(ancestor_group);
+            // Count the bases in the chain
+            Link *l = chain_getFirst(parent_chain);
+            int64_t i = 0;
+            while(l != NULL && i < maximumChainBasesToBreakAdjacency) {
+                End *end = link_get5End(l);
+                if(end_partOfBlock(end)) {
+                    i += block_getLength(end_getBlock(end));
+                }
+                l = link_getNextLink(l);
+            }
+            if(i >= maximumChainBasesToBreakAdjacency) {
+                return false;
+            }
+        }
+        flower = group_getFlower(ancestor_group);
+    }
+    return true;
+}
+
 ////////////////////////////////////
 ////////////////////////////////////
 //Main function
@@ -976,28 +1006,61 @@ stList *getReferenceIntervalsToPreserve(refOrdering *ref, refAdjList *dAL, int64
 void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader, int64_t permutations,
         stList *(*matchingAlgorithm)(stList *edges, int64_t nodeNumber), double (*temperature)(double),
         double theta, double phi, int64_t maxWalkForCalculatingZ,
-        bool ignoreUnalignedGaps, double wiggle, int64_t numberOfNsForScaffoldGap, int64_t minNumberOfSequencesToSupportAdjacency, bool makeScaffolds) {
-    /*
-     * Implements a greedy algorithm and greedy update sampler to find a solution to the adjacency problem for a net.
+        bool ignoreUnalignedGaps, double wiggle, int64_t numberOfNsForScaffoldGap, int64_t minNumberOfSequencesToSupportAdjacency, bool makeScaffolds,
+        int64_t minimumNestedBasesToBreakAdjacency, int64_t maximumChainBasesToBreakAdjacency) {
+    /**
+     * @brief Constructs the reference sequence paths for a given flower.
      *
-     * Note(!):
-     *   Links in chains are assumed to be linked, and therefore ignored in creating the reference ordering by being excluded.
-     *   Do not be surprised, therefore, if there are no reference intervals in a problem. This will happen if all
-     *   the groups in the flower are all links in a chain. For example, if there is only one
-     *   chain, or multiple disjoint chains, and one pair of stub ends at the ends of each attached chain that form links
-     *   with the blocks at the ends of the chain, then there will be no reference intervals created in the problem.
+     * This is the main function for building the reference. It orchestrates a multi-step process
+     * to determine the optimal ordering and connections of sequence segments (blocks) within a flower,
+     * effectively creating a reference genome layout for that part of the pangenome graph.
+     *
+     * The process involves:
+     * 1.  Identifying all relevant endpoints (chain ends and unchained "stub" ends) which are
+     *     the nodes in the adjacency problem.
+     * 2.  Calculating weighted adjacency scores (Z-scores) between all pairs of nodes. These scores
+     *     are informed by phylogenetic distance (phi) and sequence continuity (theta).
+     * 3.  For the top-level flower, it solves an initial matching problem for stub ends that connect
+     *     to the parent, or uses a matching algorithm if there is no parent.
+     * 4.  Building an initial linear ordering of nodes using a greedy algorithm (`makeReferenceGreedily2`).
+     * 5.  Refining this ordering through iterative sampling (`updateReferenceGreedily`) and local
+     *     rearrangements (`nudgeGreedily`) to improve the overall score.
+     * 6.  Breaking the reference at adjacencies that lack sufficient sequence support. An adjacency is broken if:
+     *     (1) it has fewer than `minNumberOfSequencesToSupportAdjacency` direct adjacencies, AND
+     *     (2) the flower contains at least `minimumNestedBasesToBreakAdjacency` bases, AND
+     *     (3) the flower is either the top-level flower OR it is a nested flower ("snarl") within a
+     *         chain that is no longer than `maximumChainBasesToBreakAdjacency` links long.
+     * 7.  Optionally, creating new "scaffold" blocks to bridge gaps between ends that are inferred
+     *     to be adjacent but are not connected by sequence.
+     * 8.  Finally, creating the actual reference threads (sequences and adjacencies) in the flower,
+     *     modifying it in-place.
+     *
+     * @param flower The flower for which to build the reference. It will be modified in-place.
+     * @param referenceEventHeader The header of the event to be treated as the reference, defining the
+     *        coordinate space and phylogenetic root for weighting.
+     * @param permutations The number of greedy permutation rounds to perform for refining the reference ordering.
+     * @param matchingAlgorithm A function pointer to the algorithm used for perfect matching of stub ends
+     *        (e.g., greedy, max-weight).
+     * @param temperature A function pointer for a simulated annealing schedule (currently unused, but available).
+     * @param theta A parameter for the Z-score calculation, influencing the penalty for gaps.
+     * @param phi A parameter for weighting events by phylogenetic distance. A higher phi gives more weight
+     *        to closer relatives of the reference event.
+     * @param maxWalkForCalculatingZ The maximum number of segments to traverse when searching for indirect adjacencies.
+     * @param ignoreUnalignedGaps If true, unaligned regions between adjacent segments are not penalized in Z-score calculation.
+     * @param wiggle A factor allowing the greedy algorithm to choose a sub-optimal adjacency if it is close to the best score,
+     *        adding stochasticity.
+     * @param numberOfNsForScaffoldGap The number of 'N' characters to insert for a synthetic scaffold gap.
+     * @param minNumberOfSequencesToSupportAdjacency The minimum number of direct adjacency observations required to
+     *        prevent an adjacency from being broken.
+     * @param makeScaffolds If true, enables the creation of scaffold blocks to bridge gaps.
+     * @param maximumChainBasesToBreakAdjacency The maximum length, in terms of bases, of a containing chain for an
+     *        adjacency in a nested flower (snarl) to be considered for breaking.
+     * @param minimumNestedBasesToBreakAdjacency The minimum number of bases a flower must contain for its
+     *        adjacencies to be considered for breaking.
+     * @note Links within chains are considered pre-determined adjacencies and are not part of the ordering problem solved
+     *       here. If a flower consists only of one or more complete chains, this function may not create any new
+     *       reference intervals, as all adjacencies are already resolved.
      */
-
-    /*
-     * Determine which log level to use - we use info level logging for the highest level flower and log_debug otherwise
-     */
-    void (*log_fn)(const char *, ...) = flower_getParentGroup(flower) == NULL ? &st_logInfo : &st_logDebug;
-
-    /*
-     * Get the reference event
-     */
-    Event *referenceEvent = getReferenceEvent(flower, referenceEventHeader);
-    log_fn("Chose reference event %" PRIi64 ": %s\n", event_getName(referenceEvent), event_getHeader(referenceEvent));
 
     /*
      * Get any extra ends to balance the group from the parent problem.
@@ -1009,17 +1072,31 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader, int
      */
     stHash *endsToNodes = getChainNodes(flower);
     assert(stHash_size(endsToNodes) % 2 == 0);
-    int64_t chainNumber = stHash_size(endsToNodes) / 2;
+    int64_t chainNumber = stHash_size(endsToNodes) / 2; // This number includes "trivial" chains composed of isolated blocks
+    // but excludes chains that form a larger chain with parent stubs
+
 
     /*
      * Create the stub nodes.
      */
-    stList *stubTangleEnds = getTangleStubEnds(flower, endsToNodes);
-    int64_t nodeNumber = chainNumber + stList_length(stubTangleEnds);
-    log_fn("For flower: %" PRIi64 " we have %" PRIi64 " nodes for: %" PRIi64 " ends, %" PRIi64 " chains, %" PRIi64 " stubs and %" PRIi64 " blocks\n",
-           flower_getName(flower), nodeNumber, flower_getEndNumber(flower), flower_getChainNumber(flower), stList_length(stubTangleEnds),
-           flower_getBlockNumber(flower));
+    stList *stubTangleEnds = getTangleStubEnds(flower, endsToNodes); // These are all the attached stubs from the parent,
+    // excluding any that form a chain
     assert(stList_length(stubTangleEnds) % 2 == 0);
+    int64_t nodeNumber = chainNumber + stList_length(stubTangleEnds);
+
+    /*
+     * Get the reference event
+     */
+    Event *referenceEvent = getReferenceEvent(flower, referenceEventHeader);
+    st_logDebug("Chose reference event %" PRIi64 ": %s\n", event_getName(referenceEvent), event_getHeader(referenceEvent));
+
+    /*
+     * Log info about the flower
+     */
+    st_logDebug("For flower: %" PRIi64 " we have %" PRIi64 " nodes in reference problem for: %" PRIi64 " chains (including trivial chains) and %" PRIi64 " reference intervals %" PRIi64 "\n",
+                flower_getName(flower), nodeNumber, chainNumber, stList_length(stubTangleEnds)/2);
+    st_logDebug("In flower: %" PRIi64 " we have %" PRIi64 " ends, %" PRIi64 " chains (including those in chains with higher level stubs), %" PRIi64 " stubs and %" PRIi64 " blocks\n",
+                flower_getName(flower), flower_getEndNumber(flower), flower_getChainNumber(flower), stList_length(stubTangleEnds), flower_getBlockNumber(flower));
 
     /*
      * Get the reference with chosen stub matched intervals
@@ -1061,21 +1138,21 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader, int
     /*
      * Check the edges and nodes before starting to calculate the matching.
      */
-    log_fn("Starting to build the reference for flower %lli, with %" PRIi64 " stubs and %" PRIi64 " chains and %" PRIi64 " nodes in the flowers tangle\n",
-            flower_getName(flower), reference_getIntervalNumber(ref), chainNumber, nodeNumber);
+    st_logDebug("Starting to build the reference for flower %lli, with %" PRIi64 " reference intervals and %" PRIi64 " chains and %" PRIi64 " nodes in the flowers tangle\n",
+                flower_getName(flower), reference_getIntervalNumber(ref), chainNumber, nodeNumber);
 
     double maxPossibleScore = refAdjList_getMaxPossibleScore(aL);
     makeReferenceGreedily2(aL, dAL, ref, wiggle);
     int64_t badAdjacenciesAfterGreedy = getBadAdjacencyCount(dAL, ref);
     double totalScoreAfterGreedy = getReferenceScore(aL, ref);
-    log_fn("The score of the initial solution is %f/%" PRIi64 " out of a max possible %f\n", totalScoreAfterGreedy, badAdjacenciesAfterGreedy,
-            maxPossibleScore);
+    st_logDebug("The score of the initial solution is %f/%" PRIi64 " out of a max possible %f\n", totalScoreAfterGreedy, badAdjacenciesAfterGreedy,
+                maxPossibleScore);
 
     updateReferenceGreedily(aL, dAL, ref, permutations);
     int64_t badAdjacenciesAfterGreedySampling = getBadAdjacencyCount(dAL, ref);
     double totalScoreAfterGreedySampling = getReferenceScore(aL, ref);
-    log_fn("The score of the solution after permutation sampling is %f/%" PRIi64 " after %" PRIi64 " rounds of greedy permutation out of a max possible %f\n",
-            totalScoreAfterGreedySampling, badAdjacenciesAfterGreedySampling, permutations, maxPossibleScore);
+    st_logDebug("The score of the solution after permutation sampling is %f/%" PRIi64 " after %" PRIi64 " rounds of greedy permutation out of a max possible %f\n",
+                totalScoreAfterGreedySampling, badAdjacenciesAfterGreedySampling, permutations, maxPossibleScore);
 
     //reorderReferenceToAvoidBreakpoints(dAL2, ref);
     //int64_t badAdjacenciesAfterTopologicalReordering = getBadAdjacencyCount(dAL, ref);
@@ -1089,8 +1166,8 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader, int
     int64_t badAdjacenciesAfterNudging = getBadAdjacencyCount(dAL, ref);
     double totalScoreAfterNudging = getReferenceScore(aL, ref);
 
-    log_fn("The score of the final reference solution is %f/%" PRIi64 " after %" PRIi64 " rounds of greedy nudging out of a max possible %f\n",
-           totalScoreAfterNudging, badAdjacenciesAfterNudging, nudgePermutations, maxPossibleScore);
+    st_logDebug("The score of the final reference solution is %f/%" PRIi64 " after %" PRIi64 " rounds of greedy nudging out of a max possible %f\n",
+                totalScoreAfterNudging, badAdjacenciesAfterNudging, nudgePermutations, maxPossibleScore);
 
     //The aL and dAL arrays are no longer valid as we've added additional nodes to the reference, let's clean up the arrays explicitly.
     refAdjList_destruct(aL);
@@ -1098,15 +1175,16 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader, int
 
     /*
      * Split reference intervals where the ordering of adjacent nodes
-     * is not supported by direct adjacencies, or (optionally) indirect
-     * adjacencies.
-     *
-     * The function returns a list of additional extra stub nodes, which
-     * must then be turned into ends in the flower.
+     * is not supported by sufficient direct adjacencies, subject to conditions on the flower's
+     * topology.
      */
+    // The canBreakAdjacencies function is used to determined if okay to break adjacencies in the given flower
+    // the logic is controlled by the number of bases in the flower and if the flower is nested within a large chain
+    bool okay_to_break_adjacencies = canBreakAdjacencies(flower, minimumNestedBasesToBreakAdjacency, maximumChainBasesToBreakAdjacency);
     refAdjList *countDAL = calculateZ(flower, endsToNodes, nodeNumber, 1, 1, countAdapterFn, NULL); //Gets set of adjacencies between stub ends.
-    void *extraArgs[3] = { nodesToEnds, countDAL, &minNumberOfSequencesToSupportAdjacency };
+    void *extraArgs[4] = { nodesToEnds, countDAL, &minNumberOfSequencesToSupportAdjacency, &okay_to_break_adjacencies };
     stList *extraStubNodes = splitReferenceAtIndicatedLocations(ref, referenceSplitFn, extraArgs);
+    assert(stList_length(extraStubNodes)%2 == 0); // Sanity check
     refAdjList_destruct(countDAL);
     stHash_destruct(endsToNodes); //Note this does not destroy the associated memory.
 
@@ -1114,11 +1192,30 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader, int
      * Now re-join together pairs that need to be scaffolded together.
      */
     stList *prunedExtraStubNodes;
+    int64_t rescued_interval_number = referenceIntervalsToPreserve == NULL ? 0 : stList_length(referenceIntervalsToPreserve);
     if (makeScaffolds) {
         prunedExtraStubNodes = remakeReferenceIntervals(ref, referenceIntervalsToPreserve, extraStubNodes);
         stList_destruct(referenceIntervalsToPreserve); //Clean this up.
     } else {
         prunedExtraStubNodes = stList_copy(extraStubNodes, NULL);
+    }
+    assert(stList_length(prunedExtraStubNodes)%2 == 0); // Sanity check
+    st_logDebug("Making %" PRIi64 " extra stub nodes after breaking adjacencies\n", stList_length(prunedExtraStubNodes));
+
+    if(stList_length(prunedExtraStubNodes) > 0) {
+        // Add a bunch of logging information whenever we break adjacencies in the ancestor
+        st_logInfo("For flower: %" PRIi64 " we have %" PRIi64 " nodes in reference problem (including ends) for: %" PRIi64 " chains (including trivial chains) and %" PRIi64 " reference intervals\n"
+                   "\t\twe have %" PRIi64 " ends, %" PRIi64 " chains, %" PRIi64 " stubs and %" PRIi64 " blocks\n"
+                   "\t\tThe score of the initial solution is %f/%" PRIi64 " out of a max possible %f\n"
+                   "\t\tThe score of the solution after permutation sampling is %f/%" PRIi64 " after %" PRIi64 " rounds of greedy permutation out of a max possible %f\n"
+                   "\t\tThe score of the final reference solution is %f/%" PRIi64 " after %" PRIi64 " rounds of greedy nudging out of a max possible %f\n"
+                   "\t\tBreaking %" PRIi64 " adjacencies within %" PRIi64 " reference intervals, after rescuing from %" PRIi64 " proposed adjacency breaks\n",
+           flower_getName(flower), nodeNumber, chainNumber, stList_length(stubTangleEnds)/2,
+           flower_getEndNumber(flower), flower_getChainNumber(flower), stList_length(stubTangleEnds), flower_getBlockNumber(flower),
+           totalScoreAfterGreedy, badAdjacenciesAfterGreedy, maxPossibleScore,
+           totalScoreAfterGreedySampling, badAdjacenciesAfterGreedySampling, permutations, maxPossibleScore,
+           totalScoreAfterNudging, badAdjacenciesAfterNudging, nudgePermutations, maxPossibleScore,
+           stList_length(prunedExtraStubNodes)/2, stList_length(stubTangleEnds)/2, stList_length(extraStubNodes)/2);
     }
 
     /*
@@ -1184,6 +1281,8 @@ void cactus_make_reference(stList *flowers, char *referenceEventString,
     double wiggle = cactusParams_get_float(params, 2, "reference", "wiggle");
     int64_t numberOfNsForScaffoldGap = cactusParams_get_int(params, 2, "reference", "numberOfNs");
     int64_t minNumberOfSequencesToSupportAdjacency = cactusParams_get_int(params, 2, "reference", "minNumberOfSequencesToSupportAdjacency");
+    int64_t minimumNestedBasesToBreakAdjacency = cactusParams_get_int(params, 2, "reference", "minimumNestedBasesToBreakAdjacency");
+    int64_t maximumChainBasesToBreakAdjacency = cactusParams_get_int(params, 2, "reference", "maximumChainBasesToBreakAdjacency");
     bool makeScaffolds = cactusParams_get_int(params, 2, "reference", "makeScaffolds");
 
     stList *(*matchingAlgorithm)(stList *edges, int64_t nodeNumber) = chooseMatching_greedy;
@@ -1222,7 +1321,7 @@ void cactus_make_reference(stList *flowers, char *referenceEventString,
         st_logDebug("Processing flower %" PRIi64 "\n", flower_getName(flower));
         buildReferenceTopDown(flower, referenceEventString, permutations, matchingAlgorithm, temperatureFn, theta,
                               phi, maxWalkForCalculatingZ, ignoreUnalignedGaps, wiggle, numberOfNsForScaffoldGap,
-                              minNumberOfSequencesToSupportAdjacency, makeScaffolds);
+                              minNumberOfSequencesToSupportAdjacency, makeScaffolds,
+                              minimumNestedBasesToBreakAdjacency, maximumChainBasesToBreakAdjacency);
     }
 }
-
