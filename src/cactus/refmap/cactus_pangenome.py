@@ -540,7 +540,7 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
         # clean out the jobstore, as cactus_align reads everything from disk
         clean_jobstore_job = graphmap_batch_export_job.addFollowOnJobFn(clean_jobstore_files, file_ids=graphmap_file_ids)
         clean_jobstore_job = clean_jobstore_job.addFollowOnJobFn(clean_jobstore_files, file_id_maps=minigraph_output_maps,
-                                                                 file_ids=minigraph_output_ids)
+                                                                 file_ids=minigraph_output_ids, allow_none=True)
         
     # cactus_align
     options.scoresFromChromfile = options.lastTrain and options.mgSplit
