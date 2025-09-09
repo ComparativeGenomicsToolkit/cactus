@@ -303,7 +303,7 @@ def minigraph_construct_workflow(job, options, config_node, seq_id_map, seq_orde
         last_train_job = prev_job.addFollowOnJobFn(last_train, config_node, seq_order, sanitized_seq_id_map, 
                                                    cores=options.mgCores,
                                                    disk=8*ref_size,
-                                                   memory=cactus_clamp_memory(max(8*ref_size, 12*10**9))
+                                                   memory=cactus_clamp_memory(max(8*ref_size, 12*10**9)))
         train_id = last_train_job.rv()
         
     return minigraph_job.rv(0), minigraph_job.rv(1), train_id
