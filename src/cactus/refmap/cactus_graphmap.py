@@ -453,7 +453,7 @@ def minigraph_map_all(job, options, config, gfa_id, fa_id_map, graph_event):
         mem = 72*fa_id.size + 2*gfa_id.size
         if options.batch:
             # the memory heuristc seems to drastically underestimate some chromosomes in batch mode...
-            mem *= 2
+            mem *= 3
         minigraph_map_job = top_job.addChildJobFn(minigraph_map_one, config, event, fa_id, gfa_id,
                                                   cores=mg_cores, disk=5*fa_id.size + gfa_id.size,
                                                   memory=cactus_clamp_memory(mem))
