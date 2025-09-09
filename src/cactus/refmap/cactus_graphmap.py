@@ -345,7 +345,7 @@ def minigraph_workflow(job, options, config, seq_id_map, gfa_id, graph_event, sa
         gfa_id = gfa_unzip_job.rv()
         gfa_id_size *= 10
         options.minigraphGFA = options.minigraphGFA[:-3]
-    paf_job = Job.wrapJobFn(minigraph_map_all, config, gfa_id, seq_id_map, graph_event)
+    paf_job = Job.wrapJobFn(minigraph_map_all, options, config, gfa_id, seq_id_map, graph_event)
     root_job.addFollowOn(paf_job)
 
     collapse_paf_id = ref_collapse_paf_id
@@ -432,7 +432,7 @@ def make_minigraph_fasta(job, gfa_file_id, gfa_file_path, name):
 
     return job.fileStore.writeGlobalFile(fa_path)
 
-def minigraph_map_all(job, config, gfa_id, fa_id_map, graph_event):
+def minigraph_map_all(job, options, config, gfa_id, fa_id_map, graph_event):
     """ top-level job to run the minigraph mapping in parallel, returns paf """
     # hang everything on this job, to self-contain workflow
     top_job = Job()
@@ -450,10 +450,13 @@ def minigraph_map_all(job, config, gfa_id, fa_id_map, graph_event):
     paf_id_map = {}
                 
     for event, fa_id in fa_id_map.items():
+        mem = 72*fa_id.size + 2*gfa_id.size
+        if options.batch:
+            # the memory heuristc seems to drastically underestimate some chromosomes in batch mode...
+            mem *= 2
         minigraph_map_job = top_job.addChildJobFn(minigraph_map_one, config, event, fa_id, gfa_id,
-                                                  # todo: estimate RAM
                                                   cores=mg_cores, disk=5*fa_id.size + gfa_id.size,
-                                                  memory=cactus_clamp_memory(72*fa_id.size + 2*gfa_id.size))
+                                                  memory=cactus_clamp_memory(mem))
         gaf_id_map[event] = minigraph_map_job.rv(0)
         paf_id_map[event] = minigraph_map_job.rv(1)
 
