@@ -36,6 +36,7 @@ from toil.statsAndLogging import set_logging_from_options
 from toil.realtimeLogger import RealtimeLogger
 from cactus.shared.common import cactus_cpu_count
 from toil.lib.humanize import bytes2human
+from toil.lib.bioio import system
 from sonLib.bioio import getTempDirectory
 from cactus.shared.common import cactus_clamp_memory
 from sonLib.nxnewick import NXNewick
@@ -51,15 +52,15 @@ def main():
     parser.add_argument("--batchMemory", type=human2bytesN,
                         help="Memory in bytes for each hal2maf batch (defaults to an estimate based on the input data size). "
                         "Standard suffixes like K, Ki, M, Mi, G or Gi are supported (default=bytes))", default=None)
-    parser.add_argument("--chunkSize", type=int, help = "Size of chunks to operate on.", required=True)
+    parser.add_argument("--chunkSize", type=int, help = "Size of chunks to operate on [default=100000].", default=100000)
     parser.add_argument("--batchParallelHal2maf", type=int, help = "Number of hal2maf commands to be executed in parallel in batch. Use to throttle down number of concurrent jobs to save memory. [default=batchCores]", default=None)
     parser.add_argument("--batchParallelTaf", type=int, help = "Number of taf normalization command chains to be executed in parallel in batch. Use to throttle down number of concurrent jobs to save memory. [default=batchCores]", default=None)    
-    parser.add_argument("--raw", action="store_true", help = "Do not run taf-based normalization on the MAF")
+    parser.add_argument("--onlyOrthologs", action="store_true", help = "Run hal2maf with --onlyOrthologs option which attempts to  keep only duplications that are also separate in ancestor")
 
+    # newer output type selection option
+    parser.add_argument("--outType", nargs='+', default=['norm'], choices=["raw", "norm", "single", "consensus"],
+                        help="Select which kind of postprocessing to apply to the hal2maf output. Multiple selections allowed. raw: return hal2maf output as-is; norm: run taffy normalization to merge adjacent blocks where possible; single: heuristically choose single, most similar homolog for each species for each (normalized) block using mafDuplicateFilter; consensus:  squish all duplicate rows for each (normalized) block into a single conensus row using maf_stream. [default=norm]")
     # new dupe-handler option
-    parser.add_argument("--dupeMode", type=str, choices=["single", "consensus", "ancestral", "all"],
-                        help="Toggle how to handle duplications: single: heuristically choose single, most similar homolog; consensus: squish all duplicate rows into a single conensus row; Ancestral: keep only duplications that are also separate in ancestor; All: keep all duplications, including paralogies (self-alignments) in given genome [default=all]",
-                        default="all")
 
     # toggle taffy indexing
     parser.add_argument("--index", action = "store_true", help = "Produce Taffy index (.tai) of the output", default=False)
@@ -113,7 +114,7 @@ def main():
                         type=float,
                         default=None)
     parser.add_argument("--filterGapCausingDupes",
-                        help="Turn on (experimental) taffy norm -d filter that removes duplications that would induce gaps > maximumGapLength [default=Off unless --dupeMode single]",
+                        help="Turn on (experimental) taffy norm -d filter that removes duplications that would induce gaps > maximumGapLength [default=Off, except when producing --outType single]",
                         action="store_true")
 
     # coverage options
@@ -153,8 +154,6 @@ def main():
        not options.outputMAF.endswith('.taf') and not options.outputMAF.endswith('.taf.gz'):
         raise RuntimeError('Output path must end with .maf, .maf.gz, .taf or .taf.gz')
 
-    if options.dupeMode == 'single' and options.raw:
-        raise RuntimeError('--dupeMode single requires TAF normalization and therefore is incompatible with --raw')
     if options.noAncestors and not options.refGenome:
         raise RuntimeError('(non-ancestral) --refGenome required with --noAncestors')
     if options.start is not None or options.length is not None:
@@ -168,9 +167,6 @@ def main():
         raise RuntimeError('--refSequence cannot be used with --bedRanges')
     if options.bedRanges and not options.bedRanges.endswith('.bed'):
         raise RuntimeError('file passed to --bedRanges must end with .bed')
-
-    if options.dupeMode == 'single':
-        options.filterGapCausingDupes = True
 
     if options.coverageSexChroms or options.coverageGapThresholds:
         logger.warning('Toggling --coverage on because --coverageSexChroms and/or --coverageGapThresholds was set')
@@ -214,7 +210,7 @@ def main():
         importSingularityImage(options)
         #Run the workflow
         if options.restart:
-            maf_id = toil.restart()
+            toil.restart()
         else:
             #load cactus config
             configNode = ET.parse(options.configFile).getroot()
@@ -223,7 +219,7 @@ def main():
 
             bed_id = toil.importFile(options.bedRanges) if options.bedRanges else None
             hal_id = toil.importFile(options.halFile)
-            maf_id = toil.start(Job.wrapJobFn(hal2maf_workflow, hal_id, bed_id, options, config))
+            toil.start(Job.wrapJobFn(hal2maf_workflow, hal_id, bed_id, options, config))
         
     end_time = timeit.default_timer()
     run_time = end_time - start_time
@@ -232,27 +228,17 @@ def main():
 def export_file(job, file_id, out_path):
     """ run toil export in its own job in order to a) do it right away but b) in a separate job (in case it fails) """
     job.fileStore.exportFile(file_id, makeURL(out_path))
+    return True
     
 def hal2maf_workflow(job, hal_id, bed_id, options, config):
 
     hal2maf_ranges_job = job.addChildJobFn(hal2maf_ranges, hal_id, bed_id, options, cores=1, disk=hal_id.size)
     chunks, genome_list = hal2maf_ranges_job.rv(0), hal2maf_ranges_job.rv(1)
     hal2maf_all_job = hal2maf_ranges_job.addFollowOnJobFn(hal2maf_all, hal_id, chunks, genome_list, options, config)
-    hal2maf_merge_job = hal2maf_all_job.addFollowOnJobFn(hal2maf_merge, hal2maf_all_job.rv(), options, disk=hal_id.size)
-    hal2maf_merge_job.addFollowOnJobFn(clean_jobstore_files, file_ids=hal2maf_all_job.rv())
-    maf_id = hal2maf_merge_job.rv()
-    hal2maf_merge_job.addFollowOnJobFn(export_file, maf_id, options.outputMAF)
-
-    if options.index:
-        index_job = hal2maf_merge_job.addFollowOnJobFn(taffy_index, maf_id, options.outputMAF, disk=hal_id.size,
-                                                       memory=cactus_clamp_memory(hal_id.size / 8))
-        index_job.addFollowOnJobFn(export_file, index_job.rv(), options.outputMAF + '.tai')
-
-    if options.coverage:
-        coverage_job = hal2maf_merge_job.addFollowOnJobFn(taffy_coverage, maf_id, genome_list, options, disk=hal_id.size,
-                                                          memory=cactus_clamp_memory(hal_id.size / 8))
-        coverage_job.addFollowOnJobFn(export_file, coverage_job.rv(), options.outputMAF + '.cov.tsv')
-        
+    hal2maf_merge_job = hal2maf_all_job.addFollowOnJobFn(hal2maf_merge_all, hal2maf_all_job.rv(), options, genome_list,
+                                                         disk=hal_id.size)
+    hal2maf_ranges_job.addFollowOn(hal2maf_merge_job)
+    # note: merge job also handles exporting (and some cleanup), indexing and coverage
 
 def hal2maf_ranges(job, hal_id, bed_id, options):
     """ get the ranges (in reference *sequence* coordinates) for each hal2maf job """
@@ -408,21 +394,19 @@ def hal2maf_cmd(hal_path, chunk, chunk_num, options, config):
         cmd += ' --rootGenome {}'.format(options.rootGenome)
     if options.targetGenomes:
         cmd += ' --targetGenomes {}'.format(options.targetGenomes)
-    if options.dupeMode == 'ancestral':
+    if options.onlyOrthologs:
         cmd += ' --onlyOrthologs'
     if options.noAncestors:
         cmd += ' --noAncestors'
     cmd += '{} 2> {}.h2m.time'.format(time_end, chunk_num)
     # todo: it would be better to filter this out upstream, but shouldn't make any difference here since we're taf normalizing anyway
     cmd += ' | grep -v "^s	{}"'.format(getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "assemblyName", default="_MINIGRAPH_"))
-    if chunk_num != 0 and options.raw:
-        cmd += ' | grep -v ^#'        
     if options.outputMAF.endswith('.gz'):
         cmd += ' | bgzip'        
     cmd += ' > {}'.format(chunk_name(chunk_num, options))
     return cmd
 
-def taf_cmd(hal_path, chunk, chunk_num, genome_list_path, sed_script_paths, options):
+def taf_cmd(hal_path, chunk, chunk_num, genome_list_path, sed_script_paths, options, out_type):
     """ make a taf normalization command for the chunk """
     # we are going to run this relative to work_dir
     hal_path = os.path.basename(hal_path)
@@ -439,7 +423,7 @@ def taf_cmd(hal_path, chunk, chunk_num, genome_list_path, sed_script_paths, opti
         norm_opts += '-m {}'.format(options.maximumBlockLengthToMerge)
     if options.maximumGapLength is not None:
         norm_opts += ' -n {}'.format(options.maximumGapLength)
-    if options.filterGapCausingDupes:
+    if options.filterGapCausingDupes or out_type == 'single':
         norm_opts += ' -d '
     if options.fractionSharedRows is not None:
         norm_opts += '-q {}'.format(options.fractionSharedRows)
@@ -450,9 +434,9 @@ def taf_cmd(hal_path, chunk, chunk_num, genome_list_path, sed_script_paths, opti
         cmd += ' | sed -f {}'.format(os.path.basename(sed_script_paths[0]))
     if genome_list_path:
         cmd += ' | taffy view | taffy sort -n {} | taffy view -m'.format(os.path.basename(genome_list_path), chunk_num)        
-    if options.dupeMode == 'single':
+    if out_type == 'single':
         cmd += ' | mafDuplicateFilter -m - -k'                                               
-    elif options.dupeMode == 'consensus':
+    elif out_type == 'consensus':
         cmd += ' | maf_stream merge_dups consensus'
         # need to resort after merge_dups
         if genome_list_path:
@@ -464,8 +448,7 @@ def taf_cmd(hal_path, chunk, chunk_num, genome_list_path, sed_script_paths, opti
         cmd += ' | grep -v ^#'
     if options.outputMAF.endswith('.gz'):
         cmd += ' | bgzip'        
-    cmd += ' > {}'.format(chunk_name(chunk_num, options, tag='.norm'))
-    cmd += ' && mv {} {}'.format(chunk_name(chunk_num, options, tag='.norm'), chunk_name(chunk_num, options))
+    cmd += ' > {}'.format(chunk_name(chunk_num, options, tag='.{}'.format(out_type)))
     return cmd
     
 def read_time_mem(timefile_path):
@@ -596,10 +579,11 @@ def hal2maf_batch(job, hal_id, batch_chunks, genome_list, options, config):
             cmd_toks = cmd_toks[tag_end + 1:]
         RealtimeLogger.info(chunk_msg)
 
-    if not options.raw:
+    out_dict = {}
+    for out_type in [x for x in options.outType if x != 'raw']:
         # and a separate batch for the taf commands. potentially much less efficient as all will block on the
         # slowest h2m command, but we need to be able to specify fewer cores due to higher memory usage
-        taf_cmds = [taf_cmd(hal_path, chunk, i, genome_list_path, sed_script_paths, options) for i, chunk in enumerate(batch_chunks)]
+        taf_cmds = [taf_cmd(hal_path, chunk, i, genome_list_path, sed_script_paths, options, out_type) for i, chunk in enumerate(batch_chunks)]
 
         # do it with parallel
         taf_cmd_path = os.path.join(work_dir, 'taf_cmds.txt')
@@ -639,13 +623,61 @@ def hal2maf_batch(job, hal_id, batch_chunks, genome_list, options, config):
                     chunk_msg += "{}{} {} ".format('' if cmd == 'hal2maf' else 'and ', tag_cmd, read_time_mem(os.path.join(work_dir, '{}.{}.time'.format(chunk_num, tag))))
             RealtimeLogger.info(chunk_msg)
 
-    # merge up the results
-    maf_path = os.path.join(work_dir, 'out.' + os.path.basename(options.outputMAF)).replace('.taf', '.maf')
-    catFiles([os.path.join(work_dir, '{}'.format(chunk_name(i, options))) for i in range(len(batch_chunks))], maf_path)
+        # merge up the results
+        maf_path = os.path.join(work_dir, 'out.{}.'.format(out_type) + os.path.basename(options.outputMAF)).replace('.taf', '.maf')
+        catFiles([os.path.join(work_dir, '{}'.format(chunk_name(i, options, '.' + out_type))) for i in range(len(batch_chunks))], maf_path)
+        # make sure these files don't confuse the next iteration in case of multiple output types
+        for f in [os.path.join(work_dir, '{}'.format(chunk_name(i, options, '.' +out_type))) for i in range(len(batch_chunks))]:
+            os.remove(f)
+        out_dict[out_type] = job.fileStore.writeGlobalFile(maf_path)
 
-    return job.fileStore.writeGlobalFile(maf_path)
+    # manually stitch together the raw maf because we need to remove the headers from all but first chunk
+    if 'raw' in options.outType:
+        raw_maf_path = os.path.join(work_dir, 'out.raw.' + os.path.basename(options.outputMAF)).replace('.taf', '.maf')
+        cat_cmd = 'gzip -dc' if options.outputMAF.endswith('.gz') else 'cat'
+        for i in range(len(batch_chunks)):
+            cmd = '{} {}'.format(cat_cmd, os.path.join(work_dir, '{}'.format(chunk_name(i, options))))
+            if i > 0:
+                cmd += '| grep -v ^#'
+            if options.outputMAF.endswith('.gz'):
+                cmd += '| bgzip'
+            cmd += ' >> {}'.format(raw_maf_path)
+            system(cmd)
+            out_dict['raw'] = job.fileStore.writeGlobalFile(raw_maf_path)
+        
+    return out_dict            
+
+def hal2maf_merge_all(job, output_dicts, options, genome_list):
+    """ merge up the batches, where each one is a dictionary """
+    for out_type in options.outType:
+        maf_ids = [out_dict[out_type] for out_dict in output_dicts]
+        maf_size = sum([maf_id.size for maf_id in maf_ids])
+        merge_job = job.addChildJobFn(hal2maf_merge, maf_ids, options)
+        # we export ASAP
+        output_name, output_ext = os.path.splitext(options.outputMAF)
+        if output_ext == '.gz':
+            output_name, output_ext = os.path.splitext(output_name)
+            output_ext += '.gz'
+        if out_type != 'norm' and len(options.outType) > 1:
+            output_name += '.{}'.format(out_type)
+        export_job = merge_job.addFollowOnJobFn(export_file, merge_job.rv(), output_name + output_ext)
+        merge_job.addFollowOnJobFn(clean_jobstore_files, file_ids=maf_ids)
+        if options.index:
+            index_job = merge_job.addFollowOnJobFn(taffy_index, merge_job.rv(), output_name + output_ext,
+                                                   disk=int(1.1 * maf_size),
+                                                   memory=cactus_clamp_memory(maf_size / 10))
+            index_job.addFollowOnJobFn(export_file, index_job.rv(), output_name + output_ext + '.tai')
             
-
+            
+        if options.coverage:
+            coverage_job = merge_job.addFollowOnJobFn(taffy_coverage, merge_job.rv(), output_name + output_ext,
+                                                      genome_list, options,
+                                                      disk=int(1.1 * maf_size),
+                                                      memory=cactus_clamp_memory(maf_size / 10))
+            coverage_job.addFollowOnJobFn(export_file, coverage_job.rv(), output_name + output_ext + '.cov.tsv')
+            
+    return export_job.rv()
+        
 def hal2maf_merge(job, maf_ids, options):
     """ just cat the results """
     work_dir = job.fileStore.getLocalTempDir()
@@ -675,10 +707,10 @@ def taffy_index(job, maf_id, output_path):
 
     return job.fileStore.writeGlobalFile(maf_path + '.tai')
     
-def taffy_coverage(job, maf_id, genome_list, options):
+def taffy_coverage(job, maf_id, output_path, genome_list, options):
     """ compute coverage with taffy coverage """
     work_dir = job.fileStore.getLocalTempDir()
-    maf_path = os.path.join(work_dir, os.path.basename(options.outputMAF))
+    maf_path = os.path.join(work_dir, os.path.basename(output_path))
     job.fileStore.readGlobalFile(maf_id, maf_path)
     
     cmd = ['taffy', 'coverage', '-r', options.refGenome, '-g', ' '.join(genome_list)]
