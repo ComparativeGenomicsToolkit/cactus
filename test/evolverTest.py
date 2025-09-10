@@ -786,7 +786,7 @@ class TestCase(unittest.TestCase):
 
         # run mafComparator on the evolver output
         subprocess.check_call(['cactus-hal2maf', self._job_store('h2m'), halPath,  halPath + '.maf', '--chunkSize', '10000', '--batchCount', '2',
-                               '--refGenome', 'Anc0', '--index', '--binariesMode', binariesMode], shell=False)
+                               '--refGenome', 'Anc0', '--outType', 'norm', 'single', '--index', '--binariesMode', binariesMode], shell=False)
         self.assertGreaterEqual(os.path.getsize(halPath + '.maf.tai'), 50)        
 
         # run it with --dupeMode consensus just to make sure it doesn't crash
@@ -799,7 +799,7 @@ class TestCase(unittest.TestCase):
             pass
         if have_maf_stream:
             subprocess.check_call(['cactus-hal2maf', self._job_store('h2m'), halPath,  halPath + '.consensus.maf.gz', '--chunkSize', '10000', '--batchCount', '2',
-                                   '--refGenome', 'Anc0', '--dupeMode', 'consensus', '--binariesMode', binariesMode], shell=False)
+                                   '--refGenome', 'Anc0', '--outType', 'consensus', '--binariesMode', binariesMode], shell=False)
 
         # run it with --coverage just to make sure it doesn't crash
         subprocess.check_call(['cactus-hal2maf', self._job_store('h2m'), halPath,  halPath + '.taftest.taf.gz', '--chunkSize', '10000', '--batchCount', '2',
@@ -871,7 +871,7 @@ class TestCase(unittest.TestCase):
                 for seq, start, end in ranges:
                     bed_file.write('{}\t{}\t{}\n'.format(seq, start, end))
             subprocess.check_call(['cactus-hal2maf', self._job_store('h2m'), halPath, ranges_bed_file, '--refGenome', 'simHuman_chr6',
-                                   '--chunkSize', '699', '--bedRanges', ranges_bed_input, '--raw', '--binariesMode', binariesMode], shell=False)
+                                   '--chunkSize', '699', '--bedRanges', ranges_bed_input, '--outType', 'raw', '--binariesMode', binariesMode], shell=False)
 
             subprocess.check_call(['bin/mafComparator', '--maf1', ranges_bed_file, '--maf2', ranges_truth_file, '--samples', '100000000', '--out', halPath + 'comp_bed.xml'])
             bed_acc = parse_mafcomp_output(halPath + 'comp_bed.xml', ranges_truth_file)
