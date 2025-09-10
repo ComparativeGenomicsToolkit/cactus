@@ -994,7 +994,7 @@ bool canBreakAdjacencies(Flower *flower,
         }
         flower = group_getFlower(ancestor_group);
     }
-    return true;
+    return true; // If not nested, we allow breaks
 }
 
 ////////////////////////////////////
@@ -1025,11 +1025,17 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader, int
      * 4.  Building an initial linear ordering of nodes using a greedy algorithm (`makeReferenceGreedily2`).
      * 5.  Refining this ordering through iterative sampling (`updateReferenceGreedily`) and local
      *     rearrangements (`nudgeGreedily`) to improve the overall score.
-     * 6.  Breaking the reference at adjacencies that lack sufficient sequence support. An adjacency is broken if:
-     *     (1) it has fewer than `minNumberOfSequencesToSupportAdjacency` direct adjacencies, AND
-     *     (2) the flower contains at least `minimumNestedBasesToBreakAdjacency` bases, AND
-     *     (3) the flower is either the top-level flower OR it is a nested flower ("snarl") within a
-     *         chain that is no longer than `maximumChainBasesToBreakAdjacency` links long.
+     * 6.  Breaking the reference at adjacencies that lack sufficient sequence support. An adjacency is broken if
+     *     it has fewer than `minNumberOfSequencesToSupportAdjacency` direct adjacencies, and any of the following
+     *     conditions is true:
+     *     (1) the flower is top-level (not nested) OR
+     *     (2) the flower contains at least `minimumNestedBasesToBreakAdjacency` bases OR
+     *     (3) the flower is not nested within a chain containing at least `maximumChainBasesToBreakAdjacency` bases OR
+     *     (4) the flower is nested within a parent flower P that contains at least `minimumNestedBasesToBreakAdjacency` bases and
+     *     there is no chain C of longer than `maximumChainBasesToBreakAdjacency` bases that contains the flower such that C is
+     *     is contained in P.
+     *     This heuristic for breaking effectively allows breaks only in top-level tangles, or nested tangles where the containing chains
+     *     are either short or the nested tangle is considered large enough to allow contig breaks, even when nested in a larger chain.
      * 7.  Optionally, creating new "scaffold" blocks to bridge gaps between ends that are inferred
      *     to be adjacent but are not connected by sequence.
      * 8.  Finally, creating the actual reference threads (sequences and adjacencies) in the flower,
@@ -1203,7 +1209,7 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader, int
 
     if(stList_length(prunedExtraStubNodes) > 0) {
         // Add a bunch of logging information whenever we break adjacencies in the ancestor
-        st_logInfo("For flower: %" PRIi64 " we have %" PRIi64 " nodes in reference problem (including ends) for: %" PRIi64 " chains (including trivial chains) and %" PRIi64 " reference intervals\n"
+        st_logDebug("For flower: %" PRIi64 " we have %" PRIi64 " nodes in reference problem (including ends) for: %" PRIi64 " chains (including trivial chains) and %" PRIi64 " reference intervals\n"
                    "\t\twe have %" PRIi64 " ends, %" PRIi64 " chains, %" PRIi64 " stubs and %" PRIi64 " blocks\n"
                    "\t\tThe score of the initial solution is %f/%" PRIi64 " out of a max possible %f\n"
                    "\t\tThe score of the solution after permutation sampling is %f/%" PRIi64 " after %" PRIi64 " rounds of greedy permutation out of a max possible %f\n"

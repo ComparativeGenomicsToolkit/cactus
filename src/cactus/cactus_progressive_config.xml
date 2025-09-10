@@ -306,7 +306,7 @@
 	<!-- minNumberOfSequencesToSupportAdjacency is the number of sequences needed to bridge an adjacency [THIS SET TO 0, SO NO ADJACENCIES WILL BE BROKEN] -->
 	<!-- makeScaffolds is a boolean that enables the bridging of uncertain adjacencies in an ancestral sequence providing the larger scale problem (parent flower in cactus), bridges the path. -->
 	<!-- minimumNestedBasesToBreakAdjacency The minimum number of bases a flower must contain for its
-	     adjacencies to be considered for breaking. -->
+	     adjacencies to be considered for breaking, irrespective of if it is nested in a longer chain. -->
 	<!-- maximumChainBasesToBreakAdjacency The maximum length, in terms of bases, of a parent chain for an
 	     adjacency in a nested flower (snarl) to be considered for breaking. -->
 	<!-- phi is the coefficient used to control how much weight to place on an adjacency given its phylogenetic distance from the reference node -->
@@ -322,7 +322,7 @@
 		wiggle="0.9999"
 		numberOfNs="10"
 		minNumberOfSequencesToSupportAdjacency="1"
-		minimumNestedBasesToBreakAdjacency="5000000"
+		minimumNestedBasesToBreakAdjacency="3000000"
 		maximumChainBasesToBreakAdjacency="5000"
 		makeScaffolds="1"
 	>
