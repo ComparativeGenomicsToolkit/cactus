@@ -514,7 +514,7 @@ class TestCase(unittest.TestCase):
                                '--vg', os.path.join(batch_align_path, 'simChimp.chr6.vg'),
                                '--hal', os.path.join(batch_align_path, 'simChimp.chr6.hal'),
                                '--sv-gfa', os.path.join(batch_mg_path, 'simChimp.chr6.sv.gfa.gz'),
-                               '--gbz', '--reference', 'simChimp', '--vcf', '--vcfwave',
+                               '--gbz', '--reference', 'simChimp', '--vcf', 
                                '--outDir', out_dir, '--outName', out_name] + cactus_opts + wave_opts)
 
         # cactus-pangenome tacks on the .full to the output name
