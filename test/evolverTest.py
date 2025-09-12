@@ -418,8 +418,8 @@ class TestCase(unittest.TestCase):
         # do the alignment
         subprocess.check_call(['cactus-align', self._job_store(binariesMode), seq_file_fix_path, paf_path, self._out_hal(binariesMode),
                                '--pangenome', '--outVG', '--outGFA', '--pafMaskFilter', '10000', '--barMaskFilter', '10000'] + cactus_opts)
-
-    def _run_evolver_primates_pangenome(self, binariesMode):
+        
+    def _run_evolver_primates_pangenome(self, binariesMode, mgSplit = False):
         """ run the primates start in using high-level cactus-pangenome interface """
         # borrow seqfile from other primates test
         # todo: make a seqfile and add it to the repo
@@ -452,7 +452,11 @@ class TestCase(unittest.TestCase):
         out_dir = os.path.dirname(self._out_hal(binariesMode))
         out_name = os.path.splitext(os.path.basename(self._out_hal(binariesMode)))[0]
         cactus_pangenome_cmd = ['cactus-pangenome', self._job_store(binariesMode), seq_file_path, '--reference', 'simHuman', 'simChimp',
-                                '--outDir', out_dir, '--outName', out_name, '--noSplit', '--odgi', '--chrom-og', '--viz', '--draw', '--haplo', '--collapse', '--lastTrain']
+                                '--outDir', out_dir, '--outName', out_name, '--odgi', '--chrom-og', '--viz', '--draw', '--haplo', '--collapse', '--lastTrain']
+        if mgSplit:
+            cactus_pangenome_cmd += ['--mgSplit']
+        else:
+            cactus_pangenome_cmd += ['--noSplit']
 
         subprocess.check_call(cactus_pangenome_cmd + cactus_opts)
         # cactus-pangenome tacks on the .full to the output name
@@ -463,7 +467,65 @@ class TestCase(unittest.TestCase):
             wave_vcf_bytes = os.path.getsize(os.path.join(out_dir, out_name + '.simChimp.wave.vcf.gz'))
             self.assertGreaterEqual(wave_vcf_bytes, 300000)
 
+    def _run_evolver_primates_step_by_step_mgsplit(self, binariesMode, train=False):
+        """ primates star test but using graphmap pangenome pipeline with chromosome splitting
+        (there are no chromosomes to split, but it still bangs most of the interface)
+        """
+        # borrow seqfile from other primates test
+        # todo: make a seqfile and add it to the repo
+        seq_file_path = os.path.join(self.tempDir, 'primates.txt')
+        self._write_primates_seqfile(seq_file_path)
 
+        cactus_opts = ['--binariesMode', binariesMode, '--logInfo', '--workDir', self.tempDir]
+        mg_path = os.path.join(self.tempDir, 'ep.sv.gfa.gz')
+        subprocess.check_call(['cactus-minigraph', self._job_store(binariesMode), seq_file_path, mg_path, '--refOnly',
+                               '--reference', 'simChimp'] + cactus_opts)
+
+        paf_path = os.path.join(self.tempDir, 'ep.paf')
+        fa_path = os.path.join(self.tempDir, 'ep.gfa.fa.gz')
+        subprocess.check_call(['cactus-graphmap', self._job_store(binariesMode), seq_file_path, mg_path, paf_path, 
+                               '--reference', 'simChimp', '--outputFasta', fa_path] + cactus_opts)
+
+        split_path = os.path.join(self.tempDir, 'chrom-subproblems')
+        chromfile_path = os.path.join(split_path, 'chromfile.txt')
+        subprocess.check_call(['cactus-graphmap-split', self._job_store(binariesMode), seq_file_path, mg_path, paf_path, 
+                               '--reference', 'simChimp', '--outDir', split_path] + cactus_opts)
+
+        batch_mg_path = os.path.join(self.tempDir, 'chrom-minigraph')
+        train_opts = ['--lastTrain'] if train else []
+        subprocess.check_call(['cactus-minigraph', self._job_store(binariesMode), chromfile_path, batch_mg_path,  
+                               '--reference', 'simChimp', '--batch'] + cactus_opts + train_opts)
+
+        batch_gm_path = os.path.join(self.tempDir, 'chrom-graphmap')
+        chromfile_path = os.path.join(batch_mg_path, 'chromfile.mg.txt')        
+        subprocess.check_call(['cactus-graphmap', self._job_store(binariesMode), chromfile_path, batch_gm_path,  
+                               '--reference', 'simChimp', '--batch'] + cactus_opts)
+
+        batch_align_path = os.path.join(self.tempDir, 'chrom-alignments')
+        train_opts = ['--scoresFromChromfile'] if train else []
+        chromfile_path = os.path.join(batch_gm_path, 'chromfile.gm.txt')        
+        subprocess.check_call(['cactus-align', self._job_store(binariesMode), chromfile_path, batch_align_path,  
+                               '--reference', 'simChimp', '--batch', '--pangenome', '--outVG'] + cactus_opts + train_opts)
+
+        out_dir = os.path.dirname(self._out_hal(binariesMode))
+        out_name = os.path.splitext(os.path.basename(self._out_hal(binariesMode)))[0]
+        wave_opts = ['--vcfwave'] if binariesMode == 'docker' else []
+        subprocess.check_call(['cactus-graphmap-join', self._job_store(binariesMode),
+                               '--vg', os.path.join(batch_align_path, 'simChimp.chr6.vg'),
+                               '--hal', os.path.join(batch_align_path, 'simChimp.chr6.hal'),
+                               '--sv-gfa', os.path.join(batch_mg_path, 'simChimp.chr6.sv.gfa.gz'),
+                               '--gbz', '--reference', 'simChimp', '--vcf', 
+                               '--outDir', out_dir, '--outName', out_name] + cactus_opts + wave_opts)
+
+        # cactus-pangenome tacks on the .full to the output name
+        subprocess.check_call(['mv', os.path.join(out_dir, out_name + '.full.hal'), os.path.join(out_dir, out_name + '.hal')])
+
+        # make sure it made output
+        if binariesMode == 'docker':
+            wave_vcf_bytes = os.path.getsize(os.path.join(out_dir, out_name + '.wave.vcf.gz'))
+            self.assertGreaterEqual(wave_vcf_bytes, 300000)
+
+            
     def _run_yeast_pangenome_step_by_step(self, binariesMode):
         """ yeast pangenome chromosome by chromosome pipeline
         """
@@ -521,7 +583,7 @@ class TestCase(unittest.TestCase):
                                '--reference', 'S288C', '--vg'] +  vg_files + ['--hal'] + hal_files +
                                ['--xg', '--vcf', '--giraffe', 'clip', 'filter'] + cactus_opts + ['--indexCores', '4'])
 
-    def _run_yeast_pangenome(self, binariesMode):
+    def _run_yeast_pangenome(self, binariesMode, mgSplit=False):
         """ yeast pangenome chromosome by chromosome pipeline, as run through a single invocations
         """
 
@@ -538,6 +600,8 @@ class TestCase(unittest.TestCase):
                                                             '--viz', '--chrom-og', 'clip', 'full', '--odgi', '--haplo', 'clip',
                                                             '--xg', '--unchopped-gfa', '--indexCores', '4', '--consCores', '2',
                                                             '--collapse', '--lastTrain', '--snarlStats']
+        if mgSplit:
+            cactus_pangenome_cmd += ['--mgSplit']
         subprocess.check_call(cactus_pangenome_cmd + cactus_opts)
 
         #compatibility with older test
@@ -1098,6 +1162,36 @@ class TestCase(unittest.TestCase):
         # todo: tune config so that delta can be reduced
         self._check_maf_accuracy(self._out_hal("docker"), delta=(0.025,0.025), dataset='primates')
 
+    def testEvolverPrimatesPangenomeSplitLocal(self):
+        """ Evolver (star) primates but using the (much much) newer cactus-pangenome interface
+        """
+        name = "local"
+        self._run_evolver_primates_pangenome(name, mgSplit=True)
+
+        # check the output
+        # todo: tune config so that delta can be reduced
+        self._check_maf_accuracy(self._out_hal("local"), delta=(0.025,0.025), dataset='primates')
+        
+    def testEvolverPrimatesPangenomeStepByStepSplitLocal(self):
+        """ Evolver primates but using the step-by-step cactus-pangenome interface with splitting
+        """
+        name = "local"
+        self._run_evolver_primates_step_by_step_mgsplit(name, train=True)
+
+        # check the output
+        # todo: tune config so that delta can be reduced
+        self._check_maf_accuracy(self._out_hal("local"), delta=(0.025,0.025), dataset='primates')
+
+    def testEvolverPrimatesPangenomeStepByStepSplitDocker(self):
+        """ Evolver primates but using the step-by-step cactus-pangenome interface with splitting
+        """
+        name = "docker"
+        self._run_evolver_primates_step_by_step_mgsplit(name, train=False)
+
+        # check the output
+        # todo: tune config so that delta can be reduced
+        self._check_maf_accuracy(self._out_hal("docker"), delta=(0.025,0.025), dataset='primates')
+        
     def testYeastPangenomeStepByStepLocal(self):
         """ Run pangenome pipeline (including contig splitting!) on yeast dataset step by step"""
         name = "local"
@@ -1114,6 +1208,14 @@ class TestCase(unittest.TestCase):
         # check the output
         self._check_yeast_pangenome(name, other_ref='DBVPG6044', expect_odgi=True, expect_haplo=True, expect_unchopped_gfa=True)
 
+    def testYeastPangenomeSplitLocal(self):
+        """ Run pangenome pipeline (including contig splitting!) on yeast dataset using cactus-pangenome """
+        name = "local"
+        self._run_yeast_pangenome(name, mgSplit=True)
+
+        # check the output
+        self._check_yeast_pangenome(name, other_ref='DBVPG6044', expect_odgi=True, expect_haplo=True, expect_unchopped_gfa=True)
+        
 
 if __name__ == '__main__':
     unittest.main()

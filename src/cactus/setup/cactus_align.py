@@ -49,7 +49,7 @@ from sonLib.bioio import getTempDirectory, getTempFile
 def main():
     parser = Job.Runner.getDefaultArgumentParser()
 
-    parser.add_argument("seqFile", help = "Seq file")
+    parser.add_argument("seqFile", help = "Seq file (or chromfile with --batch)")
     parser.add_argument("pafFile", nargs='?', default='', type=str, help = "Pairiwse aliginments (from cactus-blast, cactus-refmap or cactus-graphmap)")
     parser.add_argument("outHal", type=str, help = "Output HAL file (or directory in --batch mode)")
     parser.add_argument("--pathOverrides", nargs="*", help="paths (multiple allowd) to override from seqFile")
@@ -63,6 +63,8 @@ def main():
     parser.add_argument("--collapse", help = "Incorporate minimap2 self-alignments.", action='store_true', default=False)
     parser.add_argument("--scoresFile", type=str,
                         help = "File containing scoring parameters (output of last-train / cactus-minigraphr --lastTrain)")
+    parser.add_argument("--scoresFromChromfile", action="store_true", default=False,
+                        help = "Load scoring parameters from the 4th column of chromfile (as made from cactus-minigraph --batch --lastTrain")
     
     parser.add_argument("--singleCopySpecies", type=str,
                         help="Filter out all self-alignments in given species")
@@ -142,7 +144,9 @@ def main():
         raise RuntimeError('--consCores must be <= --maxCores')
 
     if options.scoresFile and not options.pangenome:
-        raise RuntimeError('--scores is only currently supported with --pangenome')
+        raise RuntimeError('--scoresFile is only currently supported with --pangenome')
+    if options.scoresFromChromfile and (not options.pangenome or not options.batch or options.scoresFile):
+        raise RuntimeError('--scoresFromChromfile can only be used with --batch --pangenome and without --scoresFile')
     
     options.buildHal = True
     options.buildFasta = True
@@ -229,10 +233,14 @@ def make_batch_align_jobs(options, toil, filestore=None, config_wrapper=None):
             for line in chrom_file:
                 toks = line.strip().split()
                 if len(toks):
-                    assert len(toks) == 3
+                    assert len(toks) in [3,4]
                     chrom, seqfile, alnFile = toks[0], toks[1], toks[2]
                     chrom_options = copy.deepcopy(options)
                     chrom_options.batch = False
+                    if options.scoresFromChromfile:
+                        assert len(toks) == 4
+                        if toks[3] != '*':
+                            chrom_options.scoresFile = toks[3]
                     if filestore:
                         seqfile_id = toil.importFile(makeURL(seqfile))
                         local_seqfile = os.path.join(work_dir, os.path.basename(seqfile))
@@ -265,7 +273,6 @@ def make_align_job(options, toil, config_wrapper=None, chrom_name=None):
         if options.collapse:
             findRequiredNode(config_node, "graphmap").attrib["collapse"] = 'all'
     config_wrapper.setSystemMemory(options)
-    
     mc_tree, input_seq_map, og_candidates = parse_seqfile(options.seqFile, config_wrapper,
                                                           pangenome=options.pangenome)
     if options.pangenome:

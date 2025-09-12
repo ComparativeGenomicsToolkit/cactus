@@ -20,7 +20,7 @@ from cactus.progressive.seqFile import SeqFile
 from cactus.shared.common import setupBinaries, importSingularityImage
 from cactus.shared.common import cactusRootPath
 from cactus.shared.configWrapper import ConfigWrapper
-from cactus.shared.common import makeURL, catFiles
+from cactus.shared.common import makeURL, catFiles, write_s3
 from cactus.shared.common import enableDumpStack
 from cactus.shared.common import cactus_override_toil_options
 from cactus.shared.common import cactus_call
@@ -39,13 +39,13 @@ from toil.lib.conversions import bytes2human
 from cactus.shared.common import cactus_cpu_count
 from cactus.shared.common import cactus_clamp_memory
 from cactus.progressive.multiCactusTree import MultiCactusTree
-from sonLib.bioio import getTempDirectory
+from sonLib.bioio import getTempDirectory, getTempFile
 
 def main():
     parser = Job.Runner.getDefaultArgumentParser()
 
-    parser.add_argument("seqFile", help = "Seq file (will be modified if necessary to include graph Fasta sequence)")
-    parser.add_argument("outputGFA", help = "Output Minigraph GFA")
+    parser.add_argument("seqFile", help = "Seq file (or chromfile with --batch)")
+    parser.add_argument("outputGFA", help = "Output Minigraph GFA (or directory in --batch mode)")
     parser.add_argument("--reference", required=True, nargs='+', type=str,
                         help = "Reference genome name(s) (added to minigraph first). Mash distance to 1st reference to determine order of other genomes (use minigraphSortInput in the config xml to toggle this behavior).")
     parser.add_argument("--mgCores", type=int, help = "Number of cores for minigraph construction (defaults to the same as --maxCores).")
@@ -53,7 +53,11 @@ def main():
                         help="Memory in bytes for the minigraph construction job (defaults to an estimate based on the input data size). "
                         "Standard suffixes like K, Ki, M, Mi, G or Gi are supported (default=bytes))", default=None)
     parser.add_argument("--lastTrain", action="store_true",
-                        help="Use last-train to estimate scoring matrix from input data", default=False)    
+                        help="Use last-train to estimate scoring matrix from input data", default=False)
+    parser.add_argument("--refOnly", action="store_true",
+                        help="Only build the graph out of reference genome(s). Can be used when it will only be used for chromosome-splitting, for example")
+    parser.add_argument("--batch", action="store_true",
+                        help="Run independently on set of chromosomea inputs (chromfile as from cactus-graphmap-split). Note that the output will be a directory and not a GFA")
         
     #Progressive Cactus Options
     parser.add_argument("--configFile", dest="configFile",
@@ -81,31 +85,28 @@ def main():
     logger.info('Cactus Commit: {}'.format(cactus_commit))
     start_time = timeit.default_timer()
 
+    if options.batch:
+        # the output gfa is a directory, make sure it's there
+        if not os.path.isdir(options.outputGFA):
+            os.makedirs(options.outputGFA)
+
+    # map chrom name to seqFile
+    input_seqfiles = {}
+    if options.batch:
+        input_seqfiles = read_chromfile(options.seqFile)
+    else:
+        input_seqfiles['all'] = options.seqFile
+            
     with Toil(options) as toil:
         importSingularityImage(options)
         #Run the workflow
         if options.restart:
-            gfa_id, pansn_gfa_id, train_id = toil.restart()
+            output_dict = toil.restart()
         else:
-            # load up the seqfile
+            # load up the config
             config_node = ET.parse(options.configFile).getroot()
             config_wrapper = ConfigWrapper(config_node)
             config_wrapper.substituteAllPredefinedConstantsWithLiterals(options)
-            graph_event = getOptionalAttrib(findRequiredNode(config_node, "graphmap"), "assemblyName", default="_MINIGRAPH_")
-
-            # load the seqfile
-            seqFile = SeqFile(options.seqFile, defaultBranchLen=config_wrapper.getDefaultBranchLen(pangenome=True))
-            input_seq_map = seqFile.pathMap
-            raw_input_seq_order = seqFile.seqOrder
-
-            # validate the sample names
-            check_sample_names(input_seq_map.keys(), options.reference)
-
-            # make sure the reference is first
-            input_seq_order = [options.reference[0]]
-            for seq in raw_input_seq_order:
-                if seq != options.reference[0]:
-                    input_seq_order.append(seq)
 
             # apply cpu override
             if options.batchSystem.lower() in ['single_machine', 'singleMachine']:
@@ -115,32 +116,115 @@ def main():
             else:
                 if not options.mgCores:
                     raise RuntimeError("--mgCores required run *not* running on single machine batch system")
-            
-            #import the sequences
-            input_seq_id_map = {}
-            leaves = set([seqFile.tree.getName(node) for node in seqFile.tree.getLeaves()])
-            for (genome, seq) in input_seq_map.items():
-                if genome != graph_event and genome in leaves:                
-                    if os.path.isdir(seq):
-                        tmpSeq = getTempFile()
-                        catFiles([os.path.join(seq, subSeq) for subSeq in os.listdir(seq)], tmpSeq)
-                        seq = tmpSeq
-                    seq = makeURL(seq)
-                    input_seq_id_map[genome] = toil.importFile(seq)
-                elif genome in input_seq_order:
-                    input_seq_order.remove(genome)
-            
-            gfa_id, pansn_gfa_id, train_id = toil.start(Job.wrapJobFn(minigraph_construct_workflow, options, config_node, input_seq_id_map, input_seq_order, options.outputGFA))
 
-        #export the gfa
-        toil.exportFile(pansn_gfa_id, makeURL(options.outputGFA))
-        if train_id:
-            # export the scoring model (.train)
-            toil.exportFile(train_id, makeURL(options.outputGFA.replace('.gfa.gz', '.gfa').replace('.gfa', '.train')))
+            if '://' not in options.outputGFA:
+                options.outputGFA = os.path.abspath(options.outputGFA)
+
+            # maps name -> input_seq_id_map, input_seq_order
+            input_dict = minigraph_construct_import_sequences(options, config_wrapper, input_seqfiles, toil)
+                
+            # output_dict:  chrom-> (gfa_id, pansn_gfa_id, train_id)
+            output_dict = toil.start(Job.wrapJobFn(minigraph_construct_batch_workflow, options, config_node, input_dict, options.outputGFA))
+
+        export_minigraph_construct_output(options, input_seqfiles, output_dict, toil)
         
     end_time = timeit.default_timer()
     run_time = end_time - start_time
     logger.info("cactus-minigraph has finished after {} seconds".format(run_time))
+
+def read_chromfile(chromfile_path):
+    """ read tsv into map """
+    # map chrom name to seqFile
+    chromfile = {}
+    with open(chromfile_path, 'r') as chrom_file:
+        for line in chrom_file:
+            toks = line.strip().split()
+            if len(toks):
+                assert len(toks) >= 2
+                assert toks[0] not in chromfile
+                chromfile[toks[0]] = toks[1:]
+    return chromfile
+
+def minigraph_construct_import_sequences(options, config_wrapper, input_seqfiles, file_store):
+    """ import the files and return a map """
+    # maps name -> input_seq_id_map, input_seq_order
+    input_dict = {}
+    config_node = config_wrapper.xmlRoot
+    graph_event = getOptionalAttrib(findRequiredNode(config_node, "graphmap"), "assemblyName", default="_MINIGRAPH_")
+
+    # load the seqfiles
+    for chrom, seqfile_path in input_seqfiles.items():
+        if type(seqfile_path) is list:
+            seqfile_path = seqfile_path[0]
+        seqFile = SeqFile(seqfile_path, defaultBranchLen=config_wrapper.getDefaultBranchLen(pangenome=True))
+        input_seq_map = seqFile.pathMap
+        raw_input_seq_order = seqFile.seqOrder
+
+        # make sure the reference is first
+        input_seq_order = [options.reference[0]]
+        for seq in raw_input_seq_order:
+            if seq != options.reference[0]:
+                input_seq_order.append(seq)
+
+        # hack out everything but reference
+        if options.refOnly:
+            input_seq_order = options.reference
+            ref_seq_map = {}
+            for sample in options.reference:
+                ref_seq_map[sample] = input_seq_map[sample]
+            input_seq_map = ref_seq_map
+
+        # validate the sample names
+        check_sample_names(input_seq_map.keys(), options.reference)
+
+        #import the sequences
+        input_seq_id_map = {}
+        leaves = set([seqFile.tree.getName(node) for node in seqFile.tree.getLeaves()])
+        for (genome, seq) in input_seq_map.items():
+            if genome != graph_event and genome in leaves:                
+                if os.path.isdir(seq):
+                    tmpSeq = getTempFile()
+                    catFiles([os.path.join(seq, subSeq) for subSeq in os.listdir(seq)], tmpSeq)
+                    seq = tmpSeq
+                seq = makeURL(seq)
+                input_seq_id_map[genome] = file_store.importFile(seq)
+            elif genome in input_seq_order:
+                input_seq_order.remove(genome)
+
+        input_dict[chrom] = (input_seq_id_map, input_seq_order)
+        
+    return input_dict
+
+def export_minigraph_construct_output(options, input_seqfiles, output_dict, toil):
+    if options.batch:
+        chrom_file_path = os.path.join(options.outputGFA, 'chromfile.mg.txt')
+        if chrom_file_path.startswith('s3://'):
+            chrom_file_temp_path = getTempFile()
+        else:
+            chrom_file_temp_path = chrom_file_path                    
+        chromfile = open(chrom_file_temp_path, 'w')
+    for chrom, output_ids in output_dict.items():
+        gfa_id, pansn_gfa_id, train_id = output_ids
+        if options.batch:
+            gfa_path = os.path.join(options.outputGFA, chrom + '.sv.gfa.gz')
+        else:
+            gfa_path = options.outputGFA
+        if train_id:
+            train_path = gfa_path.replace('.gfa.gz', '.gfa').replace('.gfa', '.train')
+        else:
+            train_path = None
+        #export the gfa            
+        toil.exportFile(pansn_gfa_id, makeURL(gfa_path))
+        if train_path:
+            # export the scoring model (.train)
+            toil.exportFile(train_id, makeURL(train_path))
+        if options.batch:
+            chromfile.write('{}\t{}\t{}\t{}\n'.format(chrom, input_seqfiles[chrom][0], gfa_path,
+                                                      train_path if train_path else '*'))
+    if options.batch:
+        chromfile.close()
+        if chrom_file_path.startswith('s3://'):
+            write_s3(chrom_file_temp_path, chrom_file_path)
 
 def check_sample_names(sample_names, references):
     """ make sure we have a workable set of sample names """
@@ -169,11 +253,32 @@ def check_sample_names(sample_names, references):
             raise RuntimeError("Sample name {} invalid because it begins with \".\"".format(sample))
         if sample_ext and (len(sample_ext) == 1 or not sample_ext[1:].isnumeric()):
             raise RuntimeError("Sample name {} with \"{}\" suffix is not supported. You must either remove this suffix or use .N where N is an integer to specify haplotype".format(sample, sample_ext))
+
+def minigraph_construct_batch_workflow(job, options, config_node, input_dict, gfa_path, sanitize=True):
+    """ run the construction workflow on individual chromosomes """
+    output_dict = {}
+    for chrom, input_info in input_dict.items():
+        seq_id_map, seq_order = input_info
+        if options.batch:
+            gfa_path = os.path.join(options.outputGFA, '{}.gfa.gz'.format(chrom))
+        else:
+            gfa_path = options.outputGFA
+        mgwf_job = job.addChildJobFn(minigraph_construct_workflow, options, config_node, seq_id_map, seq_order, gfa_path, sanitize)
+        output_dict[chrom] = mgwf_job.rv()
+    return output_dict
                                     
 def minigraph_construct_workflow(job, options, config_node, seq_id_map, seq_order, gfa_path, sanitize=True):
     """ minigraph can handle bgzipped files but not gzipped; so unzip everything in case before running"""
     assert type(options.reference) is list
     assert options.reference[0] == seq_order[0]
+    if options.refOnly:
+        refonly_seq_id_map = {}
+        refonly_seq_order = []
+        for seq in seq_order:
+            if seq in options.reference:
+                refonly_seq_order.append(seq)
+                refonly_seq_id_map[seq] = seq_id_map[seq]
+        seq_id_map, seq_order = refonly_seq_id_map, refonly_seq_order
     ref_size = seq_id_map[options.reference[0]].size
     if sanitize:
         sanitize_job = job.addChildJobFn(sanitize_fasta_headers, seq_id_map, pangenome=True)
@@ -184,20 +289,24 @@ def minigraph_construct_workflow(job, options, config_node, seq_id_map, seq_orde
         job.addChild(sanitize_job)
     xml_node = findRequiredNode(config_node, "graphmap")
     sort_type = getOptionalAttrib(xml_node, "minigraphSortInput", str, default=None)
-    if sort_type == "mash":
+    if sort_type == "mash" and len(seq_id_map) > 2:
         sort_job = sanitize_job.addFollowOnJobFn(sort_minigraph_input_with_mash, options, config_node, sanitized_seq_id_map, seq_order)
         seq_order = sort_job.rv()
         prev_job = sort_job
     else:
         prev_job = sanitize_job
     minigraph_job = prev_job.addFollowOnJobFn(minigraph_construct_in_batches, options, config_node, sanitized_seq_id_map, seq_order, gfa_path)
-    if options.lastTrain:
+    train_id = None
+    if options.lastTrain and len(seq_id_map) > 1:
+        # note: somehow last training memory overruns don't seem to be detected by slurm so we
+        # give 12G at least whenever possible, as --doubleMem won't help...
         last_train_job = prev_job.addFollowOnJobFn(last_train, config_node, seq_order, sanitized_seq_id_map, 
                                                    cores=options.mgCores,
                                                    disk=8*ref_size,
-                                                   memory=cactus_clamp_memory(8*ref_size))
+                                                   memory=cactus_clamp_memory(max(8*ref_size, 12*10**9)))
+        train_id = last_train_job.rv()
         
-    return minigraph_job.rv(0), minigraph_job.rv(1), last_train_job.rv() if options.lastTrain else None
+    return minigraph_job.rv(0), minigraph_job.rv(1), train_id
 
 def sort_minigraph_input_with_mash(job, options, config_node, seq_id_map, seq_order):
     """ Sort the input """
@@ -212,6 +321,9 @@ def sort_minigraph_input_with_mash(job, options, config_node, seq_id_map, seq_or
     dist_root_job = Job()
     sketch_job.addFollowOn(dist_root_job)
 
+    xml_node = findRequiredNode(config_node, "graphmap")
+    sort_by_sample = getOptionalAttrib(xml_node, "minigraphSortBySample", str, default='0')
+    sort_by_sample = True if sort_by_sample == '1' or (sort_by_sample == 'nonbatch' and not options.batch) else False
     # in the case of diploid inputs, the distance will be driven by the sex of the haplotype
     # ie in human, the haplotype with chrX is always going to be much closer to the reference
     # than the one with chrY, which makes the resulting order pretty meaningless.
@@ -222,7 +334,7 @@ def sort_minigraph_input_with_mash(job, options, config_node, seq_id_map, seq_or
     seq_by_sample = defaultdict(list)
     # note: seq_order[0] is (first) reference, so we don't include it
     for seq_name in seq_order[1:]:
-        sample_name = seq_name[:seq_name.rfind('.')] if '.' in seq_name else seq_name
+        sample_name = seq_name[:seq_name.rfind('.')] if '.' in seq_name and sort_by_sample else seq_name
         seq_by_sample[sample_name].append(seq_name)
 
     # list of dictionary (promises) that map genome name to mash distance output
@@ -343,6 +455,9 @@ def minigraph_construct_in_batches(job, options, config_node, seq_id_map, seq_or
     total_size = sum([x.size for x in seq_id_map.values()])
     disk = total_size * 2
     mem = cactus_clamp_memory(60 * max_size + int(total_size / 4))
+    if options.batch:
+        # the memory heuristc seems to drastically underestimate some chromosomes in batch mode...
+        mem *= 3
     if options.mgMemory is not None:
         RealtimeLogger.info('Overriding minigraph_construct memory estimate of {} with {} value {} from --mgMemory'.format(bytes2human(mem), 'greater' if options.mgMemory > mem else 'lesser', bytes2human(options.mgMemory)))     
         mem = options.mgMemory
@@ -422,7 +537,11 @@ def minigraph_construct(job, options, config_node, seq_id_map, seq_order, gfa_pa
     if gfa_path.endswith('.gz'):
         mg_cmd = [mg_cmd, ['bgzip', '--threads', str(job.cores)]]
 
-    cactus_call(parameters=mg_cmd, outfile=gfa_path, work_dir=work_dir, realtimeStderrPrefix='[minigraph]', job_memory=job.memory)
+    if options.batch:
+        prefix = '[minigraph-{}]'.format(os.path.basename(gfa_path).replace('.gz', '').replace('.gfa', ''))
+    else:
+        prefix = '[minigraph]'
+    cactus_call(parameters=mg_cmd, outfile=gfa_path, work_dir=work_dir, realtimeStderrPrefix=prefix, job_memory=job.memory)
 
     gfa_out_id = job.fileStore.writeGlobalFile(gfa_path)
     if pan_sn_output:

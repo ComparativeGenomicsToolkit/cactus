@@ -149,6 +149,12 @@ def last_train(job, config, seq_order, seq_id_map):
     fa2_path = os.path.join(work_dir, name2 + '.fa')
     job.fileStore.readGlobalFile(fa2_id, fa2_path)
 
+    # short circuit if sequences are too small to have a hope of training
+    for f in [fa1_path, fa2_path]:
+        if os.path.getsize(f) < 500000:
+            RealtimeLogger.warning('Input fasta {} too small to train scoring model on.  Will fall back to defaults'.format(os.path.basename(f)))
+            return None
+        
     # make the database
     cactus_call(parameters=['lastdb', name1 + '_db', fa1_path, '-P', str(job.cores)])
 
