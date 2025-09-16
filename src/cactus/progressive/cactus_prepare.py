@@ -25,12 +25,15 @@ from cactus.progressive.multiCactusTree import MultiCactusTree
 from cactus.progressive.progressive_decomposition import compute_outgroups, get_subtree, check_branch_lengths
 from cactus.shared.common import cactusRootPath
 from cactus.shared.common import enableDumpStack, setupBinaries
+from cactus.shared.common import importSingularityImage
 from cactus.shared.common import getDockerImage
 from cactus.shared.configWrapper import ConfigWrapper
 from cactus.shared.version import cactus_commit
 from cactus.shared.common import findRequiredNode
 from cactus.shared.common import makeURL, cactus_call, RoundedJob
 from cactus.shared.common import write_s3, has_s3, get_aws_region
+from cactus.shared.common import cactus_override_toil_options
+from cactus.shared.common import cactus_clamp_memory
 
 from toil.job import Job
 from toil.common import Toil
@@ -408,7 +411,7 @@ def cactusPrepare(options):
         if leaf or (not leaf and name not in seqFile.pathMap and not options.preprocessOnly):
             if options.seqFileOnly and name not in seqFile.pathMap:
                 continue
-            out_basename = seqFile.pathMap[name] if name in seqFile.pathMap else '{}.fa'.format(name)
+            out_basename = seqFile.pathMap[name] if name in seqFile.pathMap else '{}.fa.gz'.format(name)
             outSeqFile.pathMap[name] = os.path.join(options.outDir, os.path.basename(out_basename))
             if options.wdl:
                 # uniquify name in wdl to prevent collisions
@@ -578,8 +581,9 @@ def get_plan(options, inSeqFile, outSeqFile, configWrapper, toil):
                     get_jobstore(options), options.outSeqFile, cigarPath(event), halPath(event), event,
                     cactus_options, get_toil_resource_opts(options, 'align'),
                     get_log_options(options, 'align', event))
-                # todo: just output the fasta in cactus-align.
-                plan += 'hal2fasta {} {} {} > {}\n'.format(halPath(event), event, options.halOptions, outSeqFile.pathMap[event])
+                plan += 'cactus-hal2fasta {} {} {} {} {} {}\n'.format(
+                    get_jobstore(options), halPath(event), event, outSeqFile.pathMap[event], cactus_options,
+                    get_log_options(options, 'hal2fasta', event))
 
     # advance toil phase
     if options.toil:
@@ -963,7 +967,7 @@ def wdl_task_align(options):
     s += ' ${\"--chromInfo \" + in_chrom_info_file}'
     s += ' {} ${{\"--configFile \" + in_config_file}} ${{in_options}}'.format(get_toil_resource_opts(options, 'align'))
     s += '\n        '
-    s += 'hal2fasta ${{out_hal_name}} ${{in_root}} {} > ${{out_fa_name}}'.format(options.halOptions)
+    s += 'cactus-hal2fasta {} ${{out_hal_name}} ${{in_root}} ${{out_fa_name}} {}'.format(get_jobstore(options), options.cactusOptions)
     s += '\n    }\n'
     s += '    runtime {\n'
     s += '        docker: \"{}\"\n'.format(options.dockerImage)
@@ -1057,8 +1061,8 @@ def toil_call_align(job, options, seq_file, mc_tree, og_map, event, cigar_name, 
 
     # export the fasta while we're at it
     out_fa_path = os.path.join(work_dir, '{}.fa'.format(event))
-    cactus_call(parameters=['hal2fasta', out_hal_path, event] + options.halOptions.strip().split(' '),
-                outfile=out_fa_path)
+    cactus_call(parameters=['cactus-hal2fasta', os.path.join(work_dir, 'js'), out_hal_path, event, out_fa_path] + options.cactusOptions.strip().split(' '))
+             
     out_fa_id = job.fileStore.writeGlobalFile(out_fa_path)
 
     return out_fa_id, out_hal_id    
@@ -1149,6 +1153,74 @@ def toil_call_hal_append_subtrees(job, options, mc_tree, og_map, root_name, root
         shutil.copy2(root_file,  options.outHal)
 
     return job.fileStore.writeGlobalFile(root_file)
+
+
+def main_hal2fasta():
+    """ cli wrapper for hal2fasta so that cactus-perpare can send it to slurm consistently with other
+    cactus commands """
+    parser = Job.Runner.getDefaultArgumentParser()
+
+    parser.add_argument("halFile", help="input HAL file")
+    parser.add_argument("genome", help="Genome to convert to FASTA")
+    parser.add_argument("outputFastaFile", help="Output FASTA file, use .gz suffix to compress")
+
+    #Progressive Cactus Options
+    parser.add_argument("--latest", dest="latest", action="store_true",
+                        help="Use the latest version of the docker container "
+                        "rather than pulling one matching this version of cactus")
+    parser.add_argument("--containerImage", dest="containerImage", default=None,
+                        help="Use the the specified pre-built containter image "
+                        "rather than pulling one from quay.io")
+    parser.add_argument("--binariesMode", choices=["docker", "local", "singularity"],
+                        help="The way to run the Cactus binaries", default=None)
+
+    options = parser.parse_args()
+
+    setupBinaries(options)
+    set_logging_from_options(options)
+    enableDumpStack()
+
+    # Mess with some toil options to create useful defaults.
+    cactus_override_toil_options(options)
+
+    logger.info('Cactus Command: {}'.format(' '.join(sys.argv)))
+    logger.info('Cactus Commit: {}'.format(cactus_commit))
+    start_time = timeit.default_timer()
+
+    with Toil(options) as toil:
+        importSingularityImage(options)
+        #Run the workflow
+        if options.restart:
+            fa_id = toil.restart()
+        else:
+            hal_id = toil.importFile(options.halFile)
+            fa_id = toil.start(Job.wrapJobFn(hal2fasta, hal_id, options.halFile, options.genome, options.outputFastaFile,
+                                             memory=cactus_clamp_memory(3000000000),
+                                             disk=int(hal_id.size * 1.3)))
+
+        # export the alignments
+        toil.exportFile(fa_id, makeURL(options.outputFastaFile))            
+    
+    end_time = timeit.default_timer()
+    run_time = end_time - start_time
+    logger.info("cactus-hal2fasta has finished after {} seconds".format(run_time))
+
+def hal2fasta(job, hal_id, hal_path, genome, fa_path):
+    """ run hal2fasta """
+    work_dir = job.fileStore.getLocalTempDir()
+    hal_path = os.path.join(work_dir, os.path.basename(hal_path))
+    job.fileStore.readGlobalFile(hal_id, hal_path)
+    fa_path = os.path.join(work_dir, os.path.basename(fa_path))
+
+    cmd = ['hal2fasta', hal_path, genome]
+    if fa_path.endswith('.gz'):
+        cmd = [cmd, ['bgzip', '--threads', str(job.cores)]]
+
+    cactus_call(parameters=cmd, outfile=fa_path)
+
+    return job.fileStore.writeGlobalFile(fa_path)
+
+
 
 if __name__ == '__main__':
     main()
