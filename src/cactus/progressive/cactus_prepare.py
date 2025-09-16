@@ -443,7 +443,7 @@ def get_plan(options, inSeqFile, outSeqFile, configWrapper, toil):
 
     plan = ''
     if options.script:
-        plan += '!#/usr/bin/env bash\n'
+        plan += '#!/usr/bin/env bash\n'
 
     plan += get_generation_info() + '\n'
 
@@ -483,7 +483,7 @@ def get_plan(options, inSeqFile, outSeqFile, configWrapper, toil):
                 get_log_options(options, 'preprocess', leaves[i]),
                 ' &' if options.script else '')
     if options.script:
-        plan += 'wait\n'
+        plan += 'wait -n\n'
 
     if options.preprocessOnly:
         plan += '\n## Cactus\n'
@@ -606,7 +606,7 @@ def get_plan(options, inSeqFile, outSeqFile, configWrapper, toil):
                     get_log_options(options, 'hal2fasta', event),
                     ' &' if options.script else '')
         if options.script:
-            plan += 'wait\n'
+            plan += 'wait -n\n'
 
     # advance toil phase
     if options.toil:
