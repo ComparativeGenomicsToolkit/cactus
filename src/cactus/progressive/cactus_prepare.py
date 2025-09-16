@@ -1060,7 +1060,7 @@ def toil_call_align(job, options, seq_file, mc_tree, og_map, event, cigar_name, 
     out_hal_id = job.fileStore.writeGlobalFile(out_hal_path)
 
     # export the fasta while we're at it
-    out_fa_path = os.path.join(work_dir, '{}.fa'.format(event))
+    out_fa_path = os.path.join(work_dir, '{}.fa.gz'.format(event))
     cactus_call(parameters=['cactus-hal2fasta', os.path.join(work_dir, 'js'), out_hal_path, event, out_fa_path] + options.cactusOptions.strip().split(' '))
              
     out_fa_id = job.fileStore.writeGlobalFile(out_fa_path)
