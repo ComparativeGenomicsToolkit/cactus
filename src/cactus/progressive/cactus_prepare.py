@@ -514,10 +514,11 @@ def get_plan(options, inSeqFile, outSeqFile, configWrapper, toil):
         groups.append(sorted(group))
 
     def halPath(event):
-        if event == mc_tree.getRootName():
+        if event == mc_tree.getRootName() and (options.toil or options.wdl):
             return options.outHal
         else:
             return os.path.join(options.outDir, event + '.hal')
+        return os.path.join(options.outDir, event + '.hal')
     def cigarPath(event):
         return os.path.join(options.outDir, event + '.paf')
 
@@ -592,18 +593,33 @@ def get_plan(options, inSeqFile, outSeqFile, configWrapper, toil):
     # stitch together the final tree
     plan += '\n## HAL merging\n'
     root = mc_tree.getRootName()
-    prev_event = None
     append_count = 0
+    batch_count = 0
     event_list = []
     for group in reversed(groups):
         for event in group:
             if event != root:
-                if not options.toil and not options.wdl:
-                    plan += 'halAppendSubtree {} {} {} {} --merge {}\n'.format(
-                        halPath(root), halPath(event), event, event, options.halOptions)
-                append_count += 1
                 event_list.append(event)
-            prev_event = event
+
+    if not options.toil and not options.wdl:
+        prev_event = root
+        idx = 0
+        batch_count = 0
+        while idx < len(event_list):
+            event_subset = event_list[idx:idx+options.halAppendBatchSize]
+            input_hal = '{}{}'.format(halPath(root), '.append.{}'.format(batch_count -1) if batch_count else '')
+            if idx + options.halAppendBatchSize >= len(event_list):
+                output_hal = options.outHal
+            else:
+                output_hal = '{}.append.{}'.format(halPath(root), batch_count)
+            plan += 'cactus-halAppendSubtrees {} {} {} {} {}\n'.format(get_jobstore(options),
+                                                                       input_hal,
+                                                                       ' '.join(halPath(e) for e in event_subset),
+                                                                       output_hal,
+                                                                       cactus_options)
+            prev_event = event_subset[-1]
+            idx += options.halAppendBatchSize
+            batch_count += 1
 
     if options.toil:
         job_idx['hal_append'] = parent_job.addChildJobFn(toil_call_hal_append_subtrees,
@@ -1220,7 +1236,77 @@ def hal2fasta(job, hal_id, hal_path, genome, fa_path):
 
     return job.fileStore.writeGlobalFile(fa_path)
 
+def main_hal_append_subtrees():
+    """ toil wrapper for halAppendSubtree command(s) """
+    parser = Job.Runner.getDefaultArgumentParser()
 
+    parser.add_argument("tgtFile", help="input HAL file to append to")
+    parser.add_argument("subFiles", nargs='+', help="subtree HAL files to append")
+    parser.add_argument("outHalFile", help="output HAL file")
+
+    #Progressive Cactus Options
+    parser.add_argument("--latest", dest="latest", action="store_true",
+                        help="Use the latest version of the docker container "
+                        "rather than pulling one matching this version of cactus")
+    parser.add_argument("--containerImage", dest="containerImage", default=None,
+                        help="Use the the specified pre-built containter image "
+                        "rather than pulling one from quay.io")
+    parser.add_argument("--binariesMode", choices=["docker", "local", "singularity"],
+                        help="The way to run the Cactus binaries", default=None)
+    
+    options = parser.parse_args()
+
+    setupBinaries(options)
+    set_logging_from_options(options)
+    enableDumpStack()
+
+    # Mess with some toil options to create useful defaults.
+    cactus_override_toil_options(options)
+
+    logger.info('Cactus Command: {}'.format(' '.join(sys.argv)))
+    logger.info('Cactus Commit: {}'.format(cactus_commit))
+    start_time = timeit.default_timer()
+
+    with Toil(options) as toil:
+        importSingularityImage(options)
+        #Run the workflow
+        if options.restart:
+            out_hal_id = toil.restart()
+        else:
+            hal_id = toil.importFile(options.tgtFile)
+            sub_hal_ids = [toil.importFile(sub_hal) for sub_hal in options.subFiles]
+            out_hal_id = toil.start(Job.wrapJobFn(hal_append_subtrees, hal_id, sub_hal_ids, options,
+                                                  memory=cactus_clamp_memory(5 * max([f.size for f in sub_hal_ids])),
+                                                  disk=2 * (hal_id.size + sum([f.size for f in sub_hal_ids]))))
+
+        # export the alignments
+        toil.exportFile(hal_id, makeURL(options.outHalFile))  
+    
+    end_time = timeit.default_timer()
+    run_time = end_time - start_time
+    logger.info("cactus-halAppendSubtrees has finished after {} seconds".format(run_time))
+
+def hal_append_subtrees(job, hal_id, sub_hal_ids, options):
+    """ toil wrapper for halAppendSubtree """
+    # TODO would be better to merge this with toil_call_hal_append_subtrees
+    # but right now I don't want to spend the time maintaining the toil workflow
+
+    work_dir = job.fileStore.getLocalTempDir()
+    hal_path = os.path.join(work_dir, os.path.basename(options.tgtFile))
+    job.fileStore.readGlobalFile(hal_id, hal_path, mutable=True)
+
+    for sub_id, sub_input_path in zip(sub_hal_ids, options.subFiles):
+        sub_path = os.path.join(work_dir, os.path.basename(sub_input_path))
+        job.fileStore.readGlobalFile(sub_id, sub_path)
+        anc_name = cactus_call(parameters=['halStats', '--root', sub_path], check_output=True).strip()
+        # note: halAppendSubtree is unusably slow without --inMemory, so we just hardcode
+        cactus_call(parameters=['halAppendSubtree', hal_path, sub_path, anc_name, anc_name, '--merge', '--hdf5InMemory'])
+        os.remove(sub_path)
+
+    # I think toil won't re-save the file, even if it was mutable, so rename first
+    os.rename(hal_path, hal_path + '.1')
+    return job.fileStore.writeGlobalFile(hal_path + '.1')
+    
 
 if __name__ == '__main__':
     main()
