@@ -67,38 +67,31 @@ def compute_outgroups(mc_tree, config_wrapper, outgroup_candidates = set(), root
     
     outgroup = GreedyOutgroup()
     outgroup.importTree(mc_tree, mc_tree.getNodeId(root_name))
+
+    preference = config_wrapper.getOutgroupStrategy() in ['greedyPreference', 'greedyLeavesPreference']
+    leaves_only = config_wrapper.getOutgroupStrategy() in ['greedyLeaves', 'greedyLeavesPreference']
     
-    if config_wrapper.getOutgroupStrategy() == 'greedy':
-        # use the provided outgroup candidates, or use all outgroups
-        # as candidates if none are given
+    if preference and outgroup_candidates:
+        # pre-select candidates if wanted
         outgroup.greedy(threshold=config_wrapper.getOutgroupThreshold(),
                         candidateSet=outgroup_candidates,
                         candidateChildFrac=config_wrapper.getOutgroupAncestorQualityFraction(),
                         maxNumOutgroups=config_wrapper.getMaxNumOutgroups(),
                         extraChromOutgroups=config_wrapper.getExtraChromOutgroups())
-    elif config_wrapper.getOutgroupStrategy() == 'greedyLeaves':
+    if leaves_only:
         # use all leaves as outgroups, unless outgroup candidates are given
         outgroup.greedy(threshold=config_wrapper.getOutgroupThreshold(),
-                        candidateSet=outgroup_candidates,
+                        candidateSet=set([mc_tree.getName(n) for n in mc_tree.getLeaves()]),
                         candidateChildFrac=2.0,
                         maxNumOutgroups=config_wrapper.getMaxNumOutgroups(),
                         extraChromOutgroups=config_wrapper.getExtraChromOutgroups())
-    elif config_wrapper.getOutgroupStrategy() == 'greedyPreference':
-        # prefer the provided outgroup candidates, if any, but use
-        # other nodes as "filler" if we can't find enough.
-        outgroup.greedy(threshold=config_wrapper.getOutgroupThreshold(),
-                        candidateSet=outgroup_candidates,
-                        candidateChildFrac=config_wrapper.getOutgroupAncestorQualityFraction(),
-                        maxNumOutgroups=config_wrapper.getMaxNumOutgroups(),
-                        extraChromOutgroups=config_wrapper.getExtraChromOutgroups())
+    elif config_wrapper.getOutgroupStrategy() != 'none':
         outgroup.greedy(threshold=config_wrapper.getOutgroupThreshold(),
                         candidateSet=None,
                         candidateChildFrac=config_wrapper.getOutgroupAncestorQualityFraction(),
                         maxNumOutgroups=config_wrapper.getMaxNumOutgroups(),
-                        extraChromOutgroups=config_wrapper.getExtraChromOutgroups())                        
-    elif config_wrapper.getOutgroupStrategy() != 'none':
-        raise RuntimeError('Outgroup strategy "{}" not supported. Must be one of [greedy, greedyLeaves, greedyPreference, none]'.format(config_wrapper.getOutgroupStrategy))
-
+                        extraChromOutgroups=config_wrapper.getExtraChromOutgroups())
+    
     if not include_dists:
         for k, v in outgroup.ogMap.items():
             outgroup.ogMap[k] = [x[0] for x in v]
