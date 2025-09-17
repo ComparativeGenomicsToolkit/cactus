@@ -624,7 +624,6 @@ def get_plan(options, inSeqFile, outSeqFile, configWrapper, toil):
     # stitch together the final tree
     plan += '\n## HAL merging\n'
     root = mc_tree.getRootName()
-    append_count = 0
     batch_count = 0
     event_list = []
     for group in reversed(groups):
@@ -674,7 +673,7 @@ def get_plan(options, inSeqFile, outSeqFile, configWrapper, toil):
             plan += wdl_call_hal_append(options, mc_tree, og_map, event_subset, prev_event)
             prev_event = event_subset[-1]
             idx += options.halAppendBatchSize
-        plan += wdl_workflow_end(options, prev_event, append_count > 1)
+        plan += wdl_workflow_end(options, prev_event, len(event_list) > 1)
 
     if options.toil:
         start_time = timeit.default_timer()
