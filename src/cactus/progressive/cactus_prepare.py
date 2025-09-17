@@ -531,7 +531,7 @@ def get_plan(options, inSeqFile, outSeqFile, configWrapper, toil):
         groups.append(sorted(group))
 
     def halPath(event):
-        if event == mc_tree.getRootName() and (options.toil or options.wdl):
+        if len(groups) < 2 or (event == mc_tree.getRootName() and (options.toil or options.wdl)):
             return options.outHal
         else:
             return os.path.join(options.outDir, event + '.hal')
