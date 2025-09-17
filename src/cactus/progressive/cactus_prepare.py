@@ -464,6 +464,8 @@ def get_plan(options, inSeqFile, outSeqFile, configWrapper, toil):
     
     # preprocessing
     plan += '\n## Preprocessor\n'
+    if options.script:
+        plan += 'pids=()\n'
     leaves = [outSeqFile.tree.getName(leaf) for leaf in outSeqFile.tree.getLeaves()]
     for i in range(0, len(leaves), options.preprocessBatchSize):
         pre_batch = leaves[i:i+options.preprocessBatchSize]
@@ -482,8 +484,10 @@ def get_plan(options, inSeqFile, outSeqFile, configWrapper, toil):
                 ' --lastzCores {}'.format(options.lastzCores) if options.lastzCores else '',
                 get_log_options(options, 'preprocess', leaves[i]),
                 ' &' if options.script else '')
+            if options.script:
+                plan += 'pids+=($!)\n'
     if options.script:
-        plan += 'wait -n\n'
+        plan += 'for pid in ${pids[*]}; do wait $pid; done\n'
 
     if options.preprocessOnly:
         plan += '\n## Cactus\n'
@@ -540,15 +544,16 @@ def get_plan(options, inSeqFile, outSeqFile, configWrapper, toil):
         return os.path.join(options.outDir, event + '.paf')
 
     # alignment groups
-    plan += '\n## Alignment\n'
+    plan += '\n## Alignment'
     for i, group in enumerate(groups):
-        plan += '\n### Round {}'.format(i)
+        plan += '\n### Round {}\n'.format(i)
         if options.toil:
             # advance toil phase
             # todo: recapitulate exact dependencies
             parent_job = parent_job.addFollowOn(Job())
+        if options.script:
+            plan += 'pids=()\n'
         for event in sorted(group):
-            plan += '\n'
             if options.wdl:
                 plan += wdl_call_blast(options, inSeqFile, mc_tree, og_map, event, cigarPath(event))
                 plan += wdl_call_align(options, inSeqFile, mc_tree, og_map, event, cigarPath(event), halPath(event), outSeqFile.pathMap[event])
@@ -605,8 +610,12 @@ def get_plan(options, inSeqFile, outSeqFile, configWrapper, toil):
                     get_jobstore(options), halPath(event), event, outSeqFile.pathMap[event], cactus_options,
                     get_log_options(options, 'hal2fasta', event),
                     ' &' if options.script else '')
+                if options.script:
+                    plan += 'pids+=($!)\n'
+                if event != sorted(group)[-1]:
+                    plan += '\n'
         if options.script:
-            plan += 'wait -n\n'
+            plan += 'for pid in ${pids[*]}; do wait $pid; done\n'
 
     # advance toil phase
     if options.toil:
