@@ -398,23 +398,28 @@ def graphmap_join(options):
         #export the split data
         export_join_data(toil, options, wf_output[0], wf_output[1], wf_output[2], wf_output[3], wf_output[4], wf_output[5])
 
+def vcflib_checks(job, options, config_node):
+    """ run the vcflib checks"""
+        # vcfwave isn't included in the static binary release, so we start by checking it's available
+    if options.vcfwave and options.vcf:
+        vcfwave_check_job = job.addFollowOnJobFn(check_vcfwave)
+        job = vcfwave_check_job
+
+    # vcffixup isn't included in the static binary release, so we start by checking it's available
+    merge_dup = getOptionalAttrib(findRequiredNode(config_node, "graphmap_join"), "mergeDuplicatesOptions", typeFn=str, default=None) not in [None, "0"]
+    wave_norm = getOptionalAttrib(findRequiredNode(config_node, "graphmap_join"), "vcfwaveNorm", typeFn=bool, default=True)
+    bub_norm = getOptionalAttrib(findRequiredNode(config_node, "graphmap_join"), "bcftoolsNorm", typeFn=bool, default=False)
+    if options.vcf and merge_dup and (bub_norm or (options.vcfwave and wave_norm)):
+        vcffixup_check_job = job.addFollowOnJobFn(check_vcffixup)
+        job = vcffixup_check_job
+    return job
+        
 def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids):
 
     root_job = Job()
     job.addChild(root_job)
 
-    # vcfwave isn't included in the static binary release, so we start by checking it's available
-    if options.vcfwave and options.vcf:
-        vcfwave_check_job = root_job.addFollowOnJobFn(check_vcfwave)
-        root_job = vcfwave_check_job
-
-    # vcffixup isn't included in the static binary release, so we start by checking it's available
-    merge_dup = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "mergeDuplicatesOptions", typeFn=str, default=None) not in [None, "0"]
-    wave_norm = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "vcfwaveNorm", typeFn=str, default=True)
-    bub_norm = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "bcftoolsNorm", typeFn=str, default=False)
-    if options.vcf and merge_dup and (bub_norm or (options.vcfwave and wave_norm)):
-        vcffixup_check_job = root_job.addFollowOnJobFn(check_vcffixup)
-        root_job = vcffixup_check_job
+    root_job = vcflib_checks(root_job, options, config.xmlRoot)
         
     # make sure reference doesn't have a haplotype suffix, as it will have been changed upstream
     ref_base, ref_ext = os.path.splitext(options.reference[0])
