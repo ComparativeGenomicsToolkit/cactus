@@ -591,19 +591,19 @@ def get_plan(options, inSeqFile, outSeqFile, configWrapper, toil):
                 cactus_options = options.cactusOptions
                 if options.includeRoot and event == mc_tree.getRootName():
                     cactus_options += ' --includeRoot'
-                if options.chromInfo:
-                    cactus_options += ' --chromInfo {}'.format(options.chromInfo)
-                plan += 'cactus-blast {} {} {} --root {} {} {}{}{}{}{}{}\n'.format(
+                plan += 'cactus-blast {} {} {} --root {} {} {}{}{}{}{}{}{}\n'.format(
                     get_jobstore(options), options.outSeqFile, cigarPath(event), event,
                     cactus_options, get_toil_resource_opts(options, 'blast'),
                     ' --gpu {}'.format(options.gpu) if options.gpu else '',
                     ' --lastzCores {}'.format(options.lastzCores) if options.lastzCores else '',
                     ' --fastga' if options.fastga else '',
+                    ' --chromInfo {}'.format(options.chromInfo) if options.chromInfo else '',
                     get_log_options(options, 'blast', event),
                     ' && \\' if options.script else '')
-                plan += 'cactus-align {} {} {} {} --root {} {} {}{}{}\n'.format(
+                plan += 'cactus-align {} {} {} {} --root {} {} {}{}{}{}\n'.format(
                     get_jobstore(options), options.outSeqFile, cigarPath(event), halPath(event), event,
                     cactus_options, get_toil_resource_opts(options, 'align'),
+                    ' --chromInfo {}'.format(options.chromInfo) if options.chromInfo else '',
                     get_log_options(options, 'align', event),
                     ' && \\' if options.script else '')
                 plan += 'cactus-hal2fasta {} {} {} {} {} {}{}\n'.format(
