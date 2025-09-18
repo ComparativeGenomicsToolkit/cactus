@@ -286,6 +286,26 @@ class TestCase(unittest.TestCase):
                "--defaultMemory", "16G", "--defaultDisk", "20G", "--alignCores", "4"]
         subprocess.check_call(cmd)
 
+    def _run_evolver_decomposed_script(self, name, binariesMode):
+        """ Run the full evolver test, putting the jobstore and output in tempDir
+        but instead of doing in in one shot like above, use cactus-prepare to make a bash script """
+
+        out_dir = os.path.join(self.tempDir, 'output')
+        out_seqfile = os.path.join(out_dir, 'evolverMammalsOut.txt')
+        in_seqfile = './examples/evolverMammals.txt'
+        cmd = ['cactus-prepare', in_seqfile, '--outDir', out_dir, '--outSeqFile', out_seqfile, '--outHal', self._out_hal(name),
+               '--jobStore', self._job_store(name), '--alignCores', '2', '--halAppendBatchSize', '2', '--script']
+        bm_flag = '--binariesMode {}'.format(binariesMode)
+        if binariesMode == "docker":
+            bm_flag += ' --latest'
+        cmd += ['--cactusOptions', bm_flag]
+
+        script_file = os.path.join(self.tempDir, 'prepare-script.sh')        
+        with open(script_file, 'w') as script:
+            subprocess.check_call(cmd, stdout=script)
+        subprocess.check_call(['chmod', '+x', script_file])
+        subprocess.check_call(['bash', '-c', script_file])        
+
     def _run_evolver_decomposed_no_outgroup(self, binariesMode):
         """ Run just the mouse-rat alignment.  Inspired by issues arising here
         https://github.com/ComparativeGenomicsToolkit/cactus/pull/216
@@ -1026,6 +1046,17 @@ class TestCase(unittest.TestCase):
         #self._check_coverage(self._out_hal(name), delta_pct=0.20)
         self._check_maf_accuracy(self._out_hal(name), delta=(0.05,0.13))
 
+    def testEvolverPrepareScript(self):
+
+        # run cactus step by step via toil in bash
+        name = "toil-in-bash"
+        self._run_evolver_decomposed_script(name, "local")
+
+        # check the output
+        #self._check_stats(self._out_hal(name), delta_pct=0.25)
+        #self._check_coverage(self._out_hal(name), delta_pct=0.20)
+        self._check_maf_accuracy(self._out_hal(name), delta=(0.05,0.13))
+        
     def testEvolverDecomposedLocal(self):
         """ Check that the output of halStats on a hal file produced by running cactus with --binariesMode local is
         is reasonable

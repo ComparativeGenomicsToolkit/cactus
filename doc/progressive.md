@@ -321,6 +321,8 @@ You can also use
 
 * `--slurmArgs` to specify any other flags (not covered above) to the slurm `sbatch` the slurm `sbatch` submission commands that Toil uses. See `sbatch --help` for possibilities. For example, if you want to schedule your jobs with lower priority, you can run with `--slurmArgs --nice=5000"`. 
 
+Consider using `cactus-prepare --script` for larger slurm alignments.
+
 ### Running on the UCSC Prism cluster
 
 Cactus is already installed.  Activate the environment with
@@ -332,7 +334,15 @@ source /private/groups/cgl/cactus/venv-cactus-latest/bin/activate
 Some recommended options (note that `--coordinationDir /data/tmp` is required): 
 
 ```
-cactus ./js ./examples/evolverMammals.txt evolverMammals.hal --batchSystem slurm --batchLogsDir batch-logs --coordinationDir /data/tmp --consCores 64 --maxMemory 1.4Ti --doubleMem true --slurmTime 200:00:00 --partition long
+cactus ./js ./examples/evolverMammals.txt evolverMammals.hal --batchSystem slurm --batchLogsDir batch-logs --coordinationDir /data/tmp --consCores 64 --maxMemory 1.4Ti --doubleMem true --slurmTime 200:00:00
+```
+
+To run the same command step by step,
+
+```
+cactus-prepare ./examples/evolverMammals.txt --outDir mammals-prepare --outHal mammals-prepare/evolverMammals.hal --cactusOptions "--maxMemory 1.4Ti --doubleMem true --slurmTime 200:00:00 --batchSystem slurm" --alignCores 64 --script > mammals.sh
+chmod+x mammals.sh
+./mammals.sh
 ```
 
 ### Clusters and containers
@@ -358,6 +368,13 @@ It will print the sequence of commands to run the alignment step-by-step.  Block
 
 ```
 cactus-prepare examples/evolverMammals.txt --outDir steps-output --outSeqFile steps-output/evovlerMammals.txt --outHal steps-output/evolverMammals.hal --jobStore jobstore --preprocessOnly
+```
+
+Use the `--script` option to generate a bash script instead of a list of commands.  For exmaple:
+
+```
+cactus-prepare examples/evolverMammals.txt --outDir steps-output --outSeqFile steps-output/evovlerMammals.txt --outHal steps-output/evolverMammals.hal --script > mammals.sh
+chmod +x mammals.sh
 ```
 
 `cactus-prepare-toil` shares the interface of `cactus-prepare` except instead of printing the command lines or WDL script, it runs them directly from Toil.  An example use case of this is within UCSC's kubernetes cluster.  Like many computing environments, the number of jobs that can be scheduled is limited, so running `cactus` directly using Toil's `kubernetes` batch system will swamp the cluster.  But if the computation can be broken up into a handful of steps, and a job is only created for each step (as in the Cromwell/WDL method), then it can run through.  So `cactus-prepare-toil` will run as a high-level Toil workflow on the specified batch system, and it will launch jobs for each command (`cactus-preprocess, cactus-blast, cactus-align`), and each one of these jobs will get scheduled on a node and run its command with the `singleMachine` batch system.  Here is an example invocation for kubernetes:

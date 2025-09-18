@@ -24,7 +24,7 @@ from toil.realtimeLogger import RealtimeLogger
 
 class RedMaskJob(RoundedJob):
     def __init__(self, fastaID, redOpts, redPrefilterOpts, eventName=None, unmask=False):
-        memory = cactus_clamp_memory(6*fastaID.size)
+        memory = cactus_clamp_memory(12*fastaID.size)
         disk = 5*(fastaID.size)
         RoundedJob.__init__(self, memory=memory, disk=disk, preemptable=True)
         self.fastaID = fastaID

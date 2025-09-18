@@ -25,12 +25,15 @@ from cactus.progressive.multiCactusTree import MultiCactusTree
 from cactus.progressive.progressive_decomposition import compute_outgroups, get_subtree, check_branch_lengths
 from cactus.shared.common import cactusRootPath
 from cactus.shared.common import enableDumpStack, setupBinaries
+from cactus.shared.common import importSingularityImage
 from cactus.shared.common import getDockerImage
 from cactus.shared.configWrapper import ConfigWrapper
 from cactus.shared.version import cactus_commit
 from cactus.shared.common import findRequiredNode
 from cactus.shared.common import makeURL, cactus_call, RoundedJob
 from cactus.shared.common import write_s3, has_s3, get_aws_region
+from cactus.shared.common import cactus_override_toil_options
+from cactus.shared.common import cactus_clamp_memory
 
 from toil.job import Job
 from toil.common import Toil
@@ -73,6 +76,7 @@ def main(toil_mode=False):
                             " to be respecified when running on Terra")
         parser.add_argument("--jobStore", type=str, default="./jobstore", help="base directory of jobStores to use in suggested commands")
         parser.add_argument("--seqFileOnly", action="store_true", help="Only create output SeqFile (with no ancestors); do not make plan")
+        parser.add_argument("--script", action="store_true", help="print a bash script instead of list of commands")
     parser.add_argument("--configFile", default=os.path.join(cactusRootPath(), "cactus_progressive_config.xml"))
     parser.add_argument("--preprocessBatchSize", type=int, default=32, help="size (number of genomes) of preprocessing jobs")
     parser.add_argument("--halAppendBatchSize", type=int, default=100, help="size (number of genomes) of halAppendSubtree jobs (WDL-only)")
@@ -137,6 +141,7 @@ def main(toil_mode=False):
 
     if toil_mode:
         options.wdl = False
+        options.script = False
         options.noLocalInputs = False
         options.includeRoot = False
         options.outDir = '.'
@@ -169,6 +174,9 @@ def main(toil_mode=False):
                 
     if not options.wdl and options.gpuType != "nvidia-tesla-v100":
         raise RuntimeError("--gpuType can only be used with --wdl ")
+
+    if options.wdl and options.script:
+        raise RuntimeError("--wdl cannot be used with --script")
 
     if options.wdl and options.gpu == 'all':
         raise RuntimeError("Number of gpus N must be specified with --gpu N when using --wdl")
@@ -306,6 +314,8 @@ def get_toil_resource_opts(options, task):
     s = ''
     if cores:
         s += '--maxCores {}'.format(cores)
+        if task == 'align':
+            s += ' --consCores {}'.format(cores)
     if mem and not options.wdl:
         if s:
             s += ' '
@@ -408,7 +418,7 @@ def cactusPrepare(options):
         if leaf or (not leaf and name not in seqFile.pathMap and not options.preprocessOnly):
             if options.seqFileOnly and name not in seqFile.pathMap:
                 continue
-            out_basename = seqFile.pathMap[name] if name in seqFile.pathMap else '{}.fa'.format(name)
+            out_basename = seqFile.pathMap[name] if name in seqFile.pathMap else '{}.fa.gz'.format(name)
             outSeqFile.pathMap[name] = os.path.join(options.outDir, os.path.basename(out_basename))
             if options.wdl:
                 # uniquify name in wdl to prevent collisions
@@ -431,7 +441,11 @@ def cactusPrepare(options):
 
 def get_plan(options, inSeqFile, outSeqFile, configWrapper, toil):
 
-    plan = get_generation_info() + '\n'
+    plan = ''
+    if options.script:
+        plan += '#!/usr/bin/env bash\n'
+
+    plan += get_generation_info() + '\n'
 
     if options.wdl:
         plan += wdl_workflow_start(options, inSeqFile)
@@ -444,9 +458,14 @@ def get_plan(options, inSeqFile, outSeqFile, configWrapper, toil):
         start_job = RoundedJob()
         parent_job = start_job
         job_idx = {}
+
+    if options.script:
+        plan += 'set -xeo pipefail\n'
     
     # preprocessing
     plan += '\n## Preprocessor\n'
+    if options.script:
+        plan += 'pids=()\n'
     leaves = [outSeqFile.tree.getName(leaf) for leaf in outSeqFile.tree.getLeaves()]
     for i in range(0, len(leaves), options.preprocessBatchSize):
         pre_batch = leaves[i:i+options.preprocessBatchSize]
@@ -458,12 +477,17 @@ def get_plan(options, inSeqFile, outSeqFile, configWrapper, toil):
                                                                           memory=options.preprocessMemory,
                                                                           disk=options.preprocessDisk)
         else:
-            plan += 'cactus-preprocess {} {} {} --inputNames {} {} {}{}{}{}\n'.format(
+            plan += 'cactus-preprocess {} {} {} --inputNames {} {} {}{}{}{}{}\n'.format(
                 get_jobstore(options), options.seqFile, options.outSeqFile, ' '.join(pre_batch),
                 options.cactusOptions, get_toil_resource_opts(options, 'preprocess'),
                 ' --gpu {}'.format(options.gpu) if options.gpu_preprocessor else '',
                 ' --lastzCores {}'.format(options.lastzCores) if options.lastzCores else '',
-                get_log_options(options, 'preprocess', leaves[i]))
+                get_log_options(options, 'preprocess', leaves[i]),
+                ' &' if options.script else '')
+            if options.script:
+                plan += 'pids+=($!)\n'
+    if options.script:
+        plan += 'for pid in ${pids[*]}; do wait $pid; done\n'
 
     if options.preprocessOnly:
         plan += '\n## Cactus\n'
@@ -511,23 +535,25 @@ def get_plan(options, inSeqFile, outSeqFile, configWrapper, toil):
         groups.append(sorted(group))
 
     def halPath(event):
-        if event == mc_tree.getRootName():
+        if len(groups) < 2 or (event == mc_tree.getRootName() and (options.toil or options.wdl)):
             return options.outHal
         else:
             return os.path.join(options.outDir, event + '.hal')
+        return os.path.join(options.outDir, event + '.hal')
     def cigarPath(event):
         return os.path.join(options.outDir, event + '.paf')
 
     # alignment groups
-    plan += '\n## Alignment\n'
+    plan += '\n## Alignment'
     for i, group in enumerate(groups):
-        plan += '\n### Round {}'.format(i)
+        plan += '\n### Round {}\n'.format(i)
         if options.toil:
             # advance toil phase
             # todo: recapitulate exact dependencies
             parent_job = parent_job.addFollowOn(Job())
+        if options.script:
+            plan += 'pids=()\n'
         for event in sorted(group):
-            plan += '\n'
             if options.wdl:
                 plan += wdl_call_blast(options, inSeqFile, mc_tree, og_map, event, cigarPath(event))
                 plan += wdl_call_align(options, inSeqFile, mc_tree, og_map, event, cigarPath(event), halPath(event), outSeqFile.pathMap[event])
@@ -567,19 +593,29 @@ def get_plan(options, inSeqFile, outSeqFile, configWrapper, toil):
                     cactus_options += ' --includeRoot'
                 if options.chromInfo:
                     cactus_options += ' --chromInfo {}'.format(options.chromInfo)
-                plan += 'cactus-blast {} {} {} --root {} {} {}{}{}{}{}\n'.format(
+                plan += 'cactus-blast {} {} {} --root {} {} {}{}{}{}{}{}\n'.format(
                     get_jobstore(options), options.outSeqFile, cigarPath(event), event,
                     cactus_options, get_toil_resource_opts(options, 'blast'),
                     ' --gpu {}'.format(options.gpu) if options.gpu else '',
                     ' --lastzCores {}'.format(options.lastzCores) if options.lastzCores else '',
                     ' --fastga' if options.fastga else '',
-                    get_log_options(options, 'blast', event))
-                plan += 'cactus-align {} {} {} {} --root {} {} {}{}\n'.format(
+                    get_log_options(options, 'blast', event),
+                    ' && \\' if options.script else '')
+                plan += 'cactus-align {} {} {} {} --root {} {} {}{}{}\n'.format(
                     get_jobstore(options), options.outSeqFile, cigarPath(event), halPath(event), event,
                     cactus_options, get_toil_resource_opts(options, 'align'),
-                    get_log_options(options, 'align', event))
-                # todo: just output the fasta in cactus-align.
-                plan += 'hal2fasta {} {} {} > {}\n'.format(halPath(event), event, options.halOptions, outSeqFile.pathMap[event])
+                    get_log_options(options, 'align', event),
+                    ' && \\' if options.script else '')
+                plan += 'cactus-hal2fasta {} {} {} {} {} {}{}\n'.format(
+                    get_jobstore(options), halPath(event), event, outSeqFile.pathMap[event], cactus_options,
+                    get_log_options(options, 'hal2fasta', event),
+                    ' &' if options.script else '')
+                if options.script:
+                    plan += 'pids+=($!)\n'
+                if event != sorted(group)[-1]:
+                    plan += '\n'
+        if options.script:
+            plan += 'for pid in ${pids[*]}; do wait $pid; done\n'
 
     # advance toil phase
     if options.toil:
@@ -588,18 +624,33 @@ def get_plan(options, inSeqFile, outSeqFile, configWrapper, toil):
     # stitch together the final tree
     plan += '\n## HAL merging\n'
     root = mc_tree.getRootName()
-    prev_event = None
-    append_count = 0
+    batch_count = 0
     event_list = []
     for group in reversed(groups):
         for event in group:
             if event != root:
-                if not options.toil and not options.wdl:
-                    plan += 'halAppendSubtree {} {} {} {} --merge {}\n'.format(
-                        halPath(root), halPath(event), event, event, options.halOptions)
-                append_count += 1
                 event_list.append(event)
-            prev_event = event
+
+    if not options.toil and not options.wdl:
+        prev_event = root
+        idx = 0
+        batch_count = 0
+        while idx < len(event_list):
+            event_subset = event_list[idx:idx+options.halAppendBatchSize]
+            input_hal = '{}{}'.format(halPath(root), '.append.{}'.format(batch_count -1) if batch_count else '')
+            if idx + options.halAppendBatchSize >= len(event_list):
+                output_hal = options.outHal
+            else:
+                output_hal = '{}.append.{}'.format(halPath(root), batch_count)
+            plan += 'cactus-halAppendSubtrees {} {} {} {} {} {}\n'.format(get_jobstore(options),
+                                                                          input_hal,
+                                                                          ' '.join(halPath(e) for e in event_subset),
+                                                                          output_hal,
+                                                                          cactus_options,
+                                                                          get_log_options(options, 'halAppend', event_subset[0]))
+            prev_event = event_subset[-1]
+            idx += options.halAppendBatchSize
+            batch_count += 1
 
     if options.toil:
         job_idx['hal_append'] = parent_job.addChildJobFn(toil_call_hal_append_subtrees,
@@ -622,7 +673,7 @@ def get_plan(options, inSeqFile, outSeqFile, configWrapper, toil):
             plan += wdl_call_hal_append(options, mc_tree, og_map, event_subset, prev_event)
             prev_event = event_subset[-1]
             idx += options.halAppendBatchSize
-        plan += wdl_workflow_end(options, prev_event, append_count > 1)
+        plan += wdl_workflow_end(options, prev_event, len(event_list) > 1)
 
     if options.toil:
         start_time = timeit.default_timer()
@@ -963,7 +1014,7 @@ def wdl_task_align(options):
     s += ' ${\"--chromInfo \" + in_chrom_info_file}'
     s += ' {} ${{\"--configFile \" + in_config_file}} ${{in_options}}'.format(get_toil_resource_opts(options, 'align'))
     s += '\n        '
-    s += 'hal2fasta ${{out_hal_name}} ${{in_root}} {} > ${{out_fa_name}}'.format(options.halOptions)
+    s += 'cactus-hal2fasta {} ${{out_hal_name}} ${{in_root}} ${{out_fa_name}} {}'.format(get_jobstore(options), options.cactusOptions)
     s += '\n    }\n'
     s += '    runtime {\n'
     s += '        docker: \"{}\"\n'.format(options.dockerImage)
@@ -1056,9 +1107,9 @@ def toil_call_align(job, options, seq_file, mc_tree, og_map, event, cigar_name, 
     out_hal_id = job.fileStore.writeGlobalFile(out_hal_path)
 
     # export the fasta while we're at it
-    out_fa_path = os.path.join(work_dir, '{}.fa'.format(event))
-    cactus_call(parameters=['hal2fasta', out_hal_path, event] + options.halOptions.strip().split(' '),
-                outfile=out_fa_path)
+    out_fa_path = os.path.join(work_dir, '{}.fa.gz'.format(event))
+    cactus_call(parameters=['cactus-hal2fasta', os.path.join(work_dir, 'js'), out_hal_path, event, out_fa_path] + options.cactusOptions.strip().split(' '))
+             
     out_fa_id = job.fileStore.writeGlobalFile(out_fa_path)
 
     return out_fa_id, out_hal_id    
@@ -1149,6 +1200,142 @@ def toil_call_hal_append_subtrees(job, options, mc_tree, og_map, root_name, root
         shutil.copy2(root_file,  options.outHal)
 
     return job.fileStore.writeGlobalFile(root_file)
+
+
+def main_hal2fasta():
+    """ cli wrapper for hal2fasta so that cactus-perpare can send it to slurm consistently with other
+    cactus commands """
+    parser = Job.Runner.getDefaultArgumentParser()
+
+    parser.add_argument("halFile", help="input HAL file")
+    parser.add_argument("genome", help="Genome to convert to FASTA")
+    parser.add_argument("outputFastaFile", help="Output FASTA file, use .gz suffix to compress")
+
+    #Progressive Cactus Options
+    parser.add_argument("--latest", dest="latest", action="store_true",
+                        help="Use the latest version of the docker container "
+                        "rather than pulling one matching this version of cactus")
+    parser.add_argument("--containerImage", dest="containerImage", default=None,
+                        help="Use the the specified pre-built containter image "
+                        "rather than pulling one from quay.io")
+    parser.add_argument("--binariesMode", choices=["docker", "local", "singularity"],
+                        help="The way to run the Cactus binaries", default=None)
+
+    options = parser.parse_args()
+
+    setupBinaries(options)
+    set_logging_from_options(options)
+    enableDumpStack()
+
+    # Mess with some toil options to create useful defaults.
+    cactus_override_toil_options(options)
+
+    logger.info('Cactus Command: {}'.format(' '.join(sys.argv)))
+    logger.info('Cactus Commit: {}'.format(cactus_commit))
+    start_time = timeit.default_timer()
+
+    with Toil(options) as toil:
+        importSingularityImage(options)
+        #Run the workflow
+        if options.restart:
+            fa_id = toil.restart()
+        else:
+            hal_id = toil.importFile(options.halFile)
+            fa_id = toil.start(Job.wrapJobFn(hal2fasta, hal_id, options.halFile, options.genome, options.outputFastaFile,
+                                             memory=cactus_clamp_memory(3000000000),
+                                             disk=int(hal_id.size * 1.3)))
+
+        # export the alignments
+        toil.exportFile(fa_id, makeURL(options.outputFastaFile))            
+    
+    end_time = timeit.default_timer()
+    run_time = end_time - start_time
+    logger.info("cactus-hal2fasta has finished after {} seconds".format(run_time))
+
+def hal2fasta(job, hal_id, hal_path, genome, fa_path):
+    """ run hal2fasta """
+    work_dir = job.fileStore.getLocalTempDir()
+    hal_path = os.path.join(work_dir, os.path.basename(hal_path))
+    job.fileStore.readGlobalFile(hal_id, hal_path)
+    fa_path = os.path.join(work_dir, os.path.basename(fa_path))
+
+    cmd = ['hal2fasta', hal_path, genome]
+    if fa_path.endswith('.gz'):
+        cmd = [cmd, ['bgzip', '--threads', str(job.cores)]]
+
+    cactus_call(parameters=cmd, outfile=fa_path)
+
+    return job.fileStore.writeGlobalFile(fa_path)
+
+def main_hal_append_subtrees():
+    """ toil wrapper for halAppendSubtree command(s) """
+    parser = Job.Runner.getDefaultArgumentParser()
+
+    parser.add_argument("tgtFile", help="input HAL file to append to")
+    parser.add_argument("subFiles", nargs='+', help="subtree HAL files to append")
+    parser.add_argument("outHalFile", help="output HAL file")
+
+    #Progressive Cactus Options
+    parser.add_argument("--latest", dest="latest", action="store_true",
+                        help="Use the latest version of the docker container "
+                        "rather than pulling one matching this version of cactus")
+    parser.add_argument("--containerImage", dest="containerImage", default=None,
+                        help="Use the the specified pre-built containter image "
+                        "rather than pulling one from quay.io")
+    parser.add_argument("--binariesMode", choices=["docker", "local", "singularity"],
+                        help="The way to run the Cactus binaries", default=None)
+    
+    options = parser.parse_args()
+
+    setupBinaries(options)
+    set_logging_from_options(options)
+    enableDumpStack()
+
+    # Mess with some toil options to create useful defaults.
+    cactus_override_toil_options(options)
+
+    logger.info('Cactus Command: {}'.format(' '.join(sys.argv)))
+    logger.info('Cactus Commit: {}'.format(cactus_commit))
+    start_time = timeit.default_timer()
+
+    with Toil(options) as toil:
+        importSingularityImage(options)
+        #Run the workflow
+        if options.restart:
+            out_hal_id = toil.restart()
+        else:
+            hal_id = toil.importFile(options.tgtFile)
+            sub_hal_ids = [toil.importFile(sub_hal) for sub_hal in options.subFiles]
+            out_hal_id = toil.start(Job.wrapJobFn(hal_append_subtrees, hal_id, sub_hal_ids, options,
+                                                  memory=cactus_clamp_memory(5 * max([f.size for f in sub_hal_ids])),
+                                                  disk=2 * (hal_id.size + sum([f.size for f in sub_hal_ids]))))
+
+        # export the alignments
+        toil.exportFile(out_hal_id, makeURL(options.outHalFile))  
+    
+    end_time = timeit.default_timer()
+    run_time = end_time - start_time
+    logger.info("cactus-halAppendSubtrees has finished after {} seconds".format(run_time))
+
+def hal_append_subtrees(job, hal_id, sub_hal_ids, options):
+    """ toil wrapper for halAppendSubtree """
+    # TODO would be better to merge this with toil_call_hal_append_subtrees
+    # but right now I don't want to spend the time maintaining the toil workflow
+
+    work_dir = job.fileStore.getLocalTempDir()
+    hal_path = os.path.join(work_dir, os.path.basename(options.tgtFile))
+    job.fileStore.readGlobalFile(hal_id, hal_path, mutable=True)
+
+    for sub_id, sub_input_path in zip(sub_hal_ids, options.subFiles):
+        sub_path = os.path.join(work_dir, os.path.basename(sub_input_path))
+        job.fileStore.readGlobalFile(sub_id, sub_path)
+        anc_name = cactus_call(parameters=['halStats', '--root', sub_path], check_output=True).strip()
+        # note: halAppendSubtree is unusably slow without --inMemory, so we just hardcode
+        cactus_call(parameters=['halAppendSubtree', hal_path, sub_path, anc_name, anc_name, '--merge', '--hdf5InMemory'])
+        os.remove(sub_path)
+
+    return job.fileStore.writeGlobalFile(hal_path)
+    
 
 if __name__ == '__main__':
     main()
