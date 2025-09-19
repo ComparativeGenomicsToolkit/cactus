@@ -139,7 +139,7 @@ def run_fastga(job, name_A, genome_A, name_B, genome_B, distance, params):
         filter_a_file = os.path.join(work_dir, '{}.f.fa'.format(name_A))
         long_seq_iterator = (r for r in SeqIO.parse(genome_a_file, 'fasta') if len(r.seq) >= fastga_minlength)
         SeqIO.write(long_seq_iterator, filter_a_file, 'fasta')
-        filter_b_file = os.path.join(work_dir, '{}.f.fa'.format(name_A))
+        filter_b_file = os.path.join(work_dir, '{}.f.fa'.format(name_B))
         long_seq_iterator = (r for r in SeqIO.parse(genome_b_file, 'fasta') if len(r.seq) >= fastga_minlength)
         SeqIO.write(long_seq_iterator, filter_b_file, 'fasta')
     else:
