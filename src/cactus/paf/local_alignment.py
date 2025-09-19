@@ -17,6 +17,7 @@ import os
 import shutil
 import math
 import copy
+from Bio import SeqIO
 from cactus.paf.paf import get_event_pairs, get_leaves, get_node, get_distances
 from cactus.shared.common import cactus_call, getOptionalAttrib
 from cactus.preprocessor.checkUniqueHeaders import sanitize_fasta_headers
@@ -132,28 +133,46 @@ def run_fastga(job, name_A, genome_A, name_B, genome_B, distance, params):
     job.fileStore.readGlobalFile(genome_A, genome_a_file)
     job.fileStore.readGlobalFile(genome_B, genome_b_file)
 
-    fastga_params = params.find("blast").attrib["fastga_params"]
-    
-    # Generate the alignment
-    # note: FastGA very picky about spacking and ordering of parameters
-    fastga_cmd = ['FastGA']
-    if fastga_params:
-        fastga_cmd += fastga_params.split(' ')
-    # note, deliberately using relative paths in FastGA command line because otherwise
-    # get a weird crash, but only when passing in --workDir to cactus
-    fastga_cmd += ['-P./{}'.format(os.path.basename(fastga_tempdir)), '-T{}'.format(job.cores),
-                   os.path.basename(genome_b_file), os.path.basename(genome_a_file)]
-    cactus_call(parameters=fastga_cmd, outfile=alignment_file, job_memory=job.memory, work_dir=work_dir)
+    # Filter out small sequences
+    fastga_minlength = int(params.find("blast").attrib["fastga_minlength"])
+    if fastga_minlength > 0:
+        filter_a_file = os.path.join(work_dir, '{}.f.fa'.format(name_A))
+        long_seq_iterator = (r for r in SeqIO.parse(genome_a_file, 'fasta') if len(r.seq) >= fastga_minlength)
+        SeqIO.write(long_seq_iterator, filter_a_file, 'fasta')
+        filter_b_file = os.path.join(work_dir, '{}.f.fa'.format(name_A))
+        long_seq_iterator = (r for r in SeqIO.parse(genome_b_file, 'fasta') if len(r.seq) >= fastga_minlength)
+        SeqIO.write(long_seq_iterator, filter_b_file, 'fasta')
+    else:
+        filter_a_file = genome_a_file
+        filter_b_file = genome_b_file
 
-    # FastGA doesn't write scores (AS tags in PAF).  So we estimate those from the cigar strings
-    # now, as they are important for chaining.
-    # todo: While it would be ideal for FastGA to just write these itself, the advantage of
-    # doing it here is that we can use consistent scoring with lastz, which means that
-    # filled in alignment files (FastGA mixed with lastz) should interoperate better
-    # todo: This could in theory be done much faster inside paffy view
-    scored_alignment_file = os.path.join(work_dir, '{}_{}_scores.paf'.format(name_A, name_B))
-    apply_paf_scores(alignment_file, scored_alignment_file, params)
-    alignment_file = scored_alignment_file
+    fastga_params = params.find("blast").attrib["fastga_params"]
+
+    if os.path.getsize(filter_a_file) == 0 or os.path.getsize(filter_b_file) == 0:
+        # filtering emptied a file, don't bother aligning
+        assert fastga_minlength > 0
+        open(alignment_file, 'w').close()
+    else:
+        # Generate the alignment
+        # note: FastGA very picky about spacing and ordering of parameters
+        fastga_cmd = ['FastGA']
+        if fastga_params:
+            fastga_cmd += fastga_params.split(' ')
+        # note, deliberately using relative paths in FastGA command line because otherwise
+        # get a weird crash, but only when passing in --workDir to cactus
+        fastga_cmd += ['-P./{}'.format(os.path.basename(fastga_tempdir)), '-T{}'.format(job.cores),
+                       os.path.basename(filter_b_file), os.path.basename(filter_a_file)]
+        cactus_call(parameters=fastga_cmd, outfile=alignment_file, job_memory=job.memory, work_dir=work_dir)
+
+        # FastGA doesn't write scores (AS tags in PAF).  So we estimate those from the cigar strings
+        # now, as they are important for chaining.
+        # todo: While it would be ideal for FastGA to just write these itself, the advantage of
+        # doing it here is that we can use consistent scoring with lastz, which means that
+        # filled in alignment files (FastGA mixed with lastz) should interoperate better
+        # todo: This could in theory be done much faster inside paffy view
+        scored_alignment_file = os.path.join(work_dir, '{}_{}_scores.paf'.format(name_A, name_B))
+        apply_paf_scores(alignment_file, scored_alignment_file, params)
+        alignment_file = scored_alignment_file
 
     if getOptionalAttrib(params.find('blast'), 'fastga_stats', typeFn=bool, default=False):
         if os.path.getsize(alignment_file) > 0:
@@ -171,7 +190,8 @@ def run_fastga(job, name_A, genome_A, name_B, genome_B, distance, params):
         bed_a_file = os.path.join(work_dir, '{}-unaligned.bed'.format(name_A))
         cactus_call(parameters=[['paffy', 'invert', '-i', alignment_file],
                                 ['paffy', 'to_bed', '--excludeAligned', '--binary',
-                                '--minSize', params.find('blast').attrib['trimMinSize'],
+                                 '--minSize', params.find('blast').attrib['trimMinSize'],
+                                 '--queryFastaFile', genome_a_file,
                                 '--logLevel', getLogLevelString()]],
                     outfile=bed_a_file)
 
@@ -179,7 +199,8 @@ def run_fastga(job, name_A, genome_A, name_B, genome_B, distance, params):
         bed_b_file = os.path.join(work_dir, '{}-unaligned.bed'.format(name_B))
         cactus_call(parameters=['paffy', 'to_bed', '--excludeAligned', '--binary',
                                 '--minSize', params.find('blast').attrib['trimMinSize'],
-                                '-i', alignment_file, '--logLevel', getLogLevelString()],
+                                '-i', alignment_file, '--queryFastaFile', genome_b_file,
+                                '--logLevel', getLogLevelString()],
                     outfile=bed_b_file)
 
         # extract the unaligned sequence of genome a

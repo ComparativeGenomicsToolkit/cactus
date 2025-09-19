@@ -42,6 +42,7 @@
 	<!-- fastga_params Parameters to use with fastga. Note that these should include -pafs or -pafS as that's the output cactus expects. We suggest -M as well to handle softmasked sequence simlar to the lastz/legacy pipeline -->
 	<!-- fastga_fill Run lastz on gaps in the fastga alignment -->
 	<!-- fastga_stats Print paf stats after fastga -->
+	<!-- fastga_minlength Don't run fastga on sequences shorter than this (0 to not filter)-->
 	<!-- compressFiles Compress the local alignments. (I think this may be broken) -->
 	<!-- filterByIdentity Filter alignments by % identity -->
 	<!-- identityRatio Let L be the sum of the branch lengths in the guide tree on the path connecting the genomes to be aligned.
@@ -78,6 +79,7 @@
 		   fastga_params="-pafs -M"
 		   fastga_fill="1"
 		   fastga_stats="1"
+		   fastga_minlength="500000"
 		   minimumSequenceLengthForBlast="30"
 		   compressFiles="1"
 		   filterByIdentity="0"
