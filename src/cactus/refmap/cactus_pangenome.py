@@ -46,7 +46,7 @@ from cactus.refmap.cactus_minigraph import minigraph_construct_import_sequences,
 from cactus.refmap.cactus_graphmap import minigraph_workflow, minigraph_batch_workflow, export_graphmap_output
 from cactus.refmap.cactus_graphmap_split import graphmap_split_workflow, export_split_data
 from cactus.setup.cactus_align import make_batch_align_jobs, batch_align_jobs
-from cactus.refmap.cactus_graphmap_join import graphmap_join_workflow, export_join_data, graphmap_join_options, graphmap_join_validate_options
+from cactus.refmap.cactus_graphmap_join import graphmap_join_workflow, export_join_data, graphmap_join_options, graphmap_join_validate_options, vcflib_checks
 
 def main():
     parser = Job.Runner.getDefaultArgumentParser()
@@ -451,6 +451,9 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
     job.addChild(root_job)
     config_node = config_wrapper.xmlRoot
 
+    # make sure this is done up front
+    root_job = vcflib_checks(root_job, options, config_node)
+    
     # sanitize headers (once here, skip in all workflows below)
     sanitize_job = root_job.addFollowOnJobFn(sanitize_fasta_headers, seq_id_map, pangenome=True)
     seq_id_map = sanitize_job.rv()
