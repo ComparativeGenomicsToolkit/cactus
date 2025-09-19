@@ -221,6 +221,7 @@ def run_fastga(job, name_A, genome_A, name_B, genome_B, distance, params):
         job.addChild(root)
         params_lastz = copy.deepcopy(params)
         params_lastz.find('blast').attrib['mapper'] = 'lastz'
+        params_lastz.find('blast').attrib['cpu'] = '1'
         lastz_job = root.addChildJobFn(make_chunked_alignments, name_A, job.fileStore.writeGlobalFile(unaligned_fasta_a_file),
                                        name_B, job.fileStore.writeGlobalFile(unaligned_fasta_b_file), distance, params_lastz)
         # run paffy dechunk a second time, since they contigs were chunked both by extract and chunk
