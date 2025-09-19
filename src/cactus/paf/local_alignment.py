@@ -466,18 +466,18 @@ def make_ingroup_to_outgroup_alignments_2(job, alignments, ingroup_event, outgro
     work_dir = job.fileStore.getLocalTempDir()
     alignments_file = os.path.join(work_dir, '{}.paf'.format(ingroup_event.iD))
     job.fileStore.readGlobalFile(alignments, alignments_file)
+    ingroup_seq_file = os.path.join(work_dir, '{}.fa'.format(ingroup_event.iD))
+    job.fileStore.readGlobalFile(event_names_to_sequences[ingroup_event.iD], ingroup_seq_file)  # The ingroup sequences    
     bed_file = os.path.join(work_dir, '{}.bed'.format(ingroup_event.iD))  # Get a temporary file to store the bed file in
     messages = cactus_call(parameters=['paffy', 'to_bed', "--excludeAligned", "--binary",
                                        "--minSize", params.find("blast").attrib['trimMinSize'],
-                                       "-i", alignments_file,
+                                       "-i", alignments_file, "--queryFastaFile", ingroup_seq_file,
                                        "--logLevel", getLogLevelString()],
                                        outfile=bed_file, returnStdErr=True, job_memory=job.memory)
     logger.info("paffy to_bed event:{}\n{}".format(ingroup_event.iD, messages[:-1]))  # Log paffy to_bed
 
     # run faffy extract to extract unaligned sequences longer than a threshold creating a reduced subset of A
     seq_file = os.path.join(work_dir, '{}_subseq.fa'.format(ingroup_event.iD))  # Get a temporary file to store the subsequences in
-    ingroup_seq_file = os.path.join(work_dir, '{}.fa'.format(ingroup_event.iD))
-    job.fileStore.readGlobalFile(event_names_to_sequences[ingroup_event.iD], ingroup_seq_file)  # The ingroup sequences
     messages = cactus_call(parameters=['faffy', 'extract', "-i", bed_file, ingroup_seq_file,
                                        "--flank", params.find("blast").attrib['trimFlanking'],
                                        "--logLevel", getLogLevelString()],
