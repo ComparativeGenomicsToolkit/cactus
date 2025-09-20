@@ -277,12 +277,12 @@ The Cactus Docker image contains everything you need to run Cactus (python envir
 
 ```
 wget -q https://raw.githubusercontent.com/ComparativeGenomicsToolkit/cactus/master/examples/evolverMammals.txt -O evolverMammals.txt
-docker run -v $(pwd):/data --rm -it quay.io/comparative-genomics-toolkit/cactus:v2.9.9 cactus /data/jobStore /data/evolverMammals.txt /data/evolverMammals.hal
+docker run -v $(pwd):/data --rm -it quay.io/comparative-genomics-toolkit/cactus:v3.0.0 cactus /data/jobStore /data/evolverMammals.txt /data/evolverMammals.hal
 ```
 
 Or you can proceed interactively by running
 ```
-docker run -v $(pwd):/data --rm -it quay.io/comparative-genomics-toolkit/cactus:v2.9.9 bash
+docker run -v $(pwd):/data --rm -it quay.io/comparative-genomics-toolkit/cactus:v3.0.0 bash
 cactus /data/jobStore /data/evolverMammals.txt /data/evolverMammals.hal
 
 ```
@@ -461,8 +461,6 @@ Cactus supports incrementally updating existing alignments to add, remove, or up
 
 ## GPU Acceleration
 
-**Important** Since [v2.9.4](https://github.com/ComparativeGenomicsToolkit/cactus/releases/tag/v2.9.4), you must use a patched config file (via `--configFile config-v2.9.9-keg-patch.xml`) to prevent cactus for constructing ancestors with contigs that are too big for KegAlign to read.  This file must be passed into all `cactus` and/or `cactus-align` commands.  This is a temporary work-around and should be fixed properly in a release in the near future (download the patch from the [releases](https://github.com/ComparativeGenomicsToolkit/cactus/releases) page).  
-
 [KegAlign](https://github.com/galaxyproject/KegAlign), a GPU-accelerated version of lastz, can be used in the "blast" phase to speed up the runtime considerably, provided the right hardware is available. Unlike lastz, the input sequences do not need to be chunked before running KegAlign, so it also reduces the number of Toil jobs substantially.  The [GPU-enabled Docker releases](https://github.com/ComparativeGenomicsToolkit/cactus/releases) have KegAlign turned on by default and require no extra options from the user.  Otherwise, it is possible to [manually install it](https://github.com/galaxyproject/KegAlign#-installation) and then enable it in `cactus` using the `--gpu` command line option. One effective way of ensuring that only GPU-enabled parts of the workflow are run on GPU nodes is on Terra with `cactus-prepare --gpu --wdl` (see above example).
 
 By default `--gpu` will give all available GPUs to each KegAlign job. This can be tuned by passing in a numeric value, ex `--gpu 8` to assign 8 GPUs to each KegAlign job.  In non-single-machine batch systems, it is mandatory to set an exact value with `--gpu`.  
@@ -477,8 +475,6 @@ We've tested KegAlign on Nvidia V100 and A10G GPUs. See the Terra example above 
 Please [cite KegAlign](https://doi.org/10.1101/2024.09.02.610839).
 
 ## FastGA
-
-**WARNING This is a new, experimental and not well tested feature. Try it out if you are interested in benchmarking FastGA, but some further study is required before it should be considered as a replacement for the lastz or gpu modes.**
 
 [FastGA](https://github.com/thegenemyers/FASTGA) is a new, extremely fast whole genome pairwise aligner.  You can use it instead of `lastz` in cactus via the (very experimental) `--fastga` option. `FastGA` only aligns up to about 20% divergence, so any gaps in the `FastGA` will be re-aligned with `lastz`.  You can disable the `lastz` fallback by setting `<blast fastga_fill="0">` in the config XML.
 

@@ -1,4 +1,21 @@
-# Release 2.9.9 2025-09-11
+# Release 3.0.0 2025-09-20
+
+This release includes several significant patches and updates
+
+- FastGA support is now more robust and performant
+- MAF normalization and de-duplication bugs fixed
+- `cactus-hal2maf` interface generalized
+- Toil updated to v9.1.0, which performs much better on Slurm among other improvements
+- Contig naming bug fixed in minigraph (`.sv.gfa.gz`) output
+- `cactus-update-prepare` can now rename genomes
+- `--delEdgeFilter` option added to clip out big edges in pangenoems
+- More realistic ancestral contig sizes, allows kegalign to be run without special config
+- `cactus-pangenome --mgSplit` option to run `minigraph` steps independently for each chromosome
+- `cactus-prepare --script` option added to make a bash script to run pipeline step by step
+- Default outgroup strategy changed to `GreedyLeavesPreference` (and config XML outgroup toggle fixed)
+- Regression causing `cactus-pangenome --vcf` (even without `--vcfwave`) to fail when vcflib not installed fixed. 
+
+# Release 2.9.9 2025-06-11
 
 This release adds FastGA support, along with some bug fixes
 
