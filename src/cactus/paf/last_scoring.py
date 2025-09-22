@@ -141,19 +141,35 @@ def last_train(job, config, seq_order, seq_id_map):
     """ run last_train on a pair of fasta files, using the first as the database """
 
     assert len(seq_order) > 1
-    name1, name2 = seq_order[0], seq_order[-1]
+
+    name1 = seq_order[0]
+    name2 = None
+
+    # short circuit if ref sequence is too small to have a hope of training        
+    if seq_id_map[name1].size < 500000:
+        RealtimeLogger.warning('Input fasta for {} too small to train scoring model on.  Will fall back to defaults'.format(os.path.basename(name1)))
+        return None
+    
+    # determine sequence to compare to compare
+    # it's the furthest in the order that's both greater than 500k and 50% of the size of the first
+    rev_order = [seq for seq in reversed(seq_order)]
+    for seq in rev_order[1:]:
+        if seq_id_map[seq].size > 500000 and (float(seq_id_map[seq].size) / float(seq_id_map[name1].size) > 0.5):
+            name2 = seq
+            break
+
+    # short circuit if we can't find anything to train on
+    if name2 is None:
+       RealtimeLogger.warning('Unable to find sequence to train scoring model on for {}.  Will fall back to defaults'.format(os.path.basename(name1)))
+       return None
+                
+    # sometimes the s
     fa1_id, fa2_id = seq_id_map[name1], seq_id_map[name2]
     work_dir = job.fileStore.getLocalTempDir()
     fa1_path = os.path.join(work_dir, name1 + '.fa')
     job.fileStore.readGlobalFile(fa1_id, fa1_path)
     fa2_path = os.path.join(work_dir, name2 + '.fa')
     job.fileStore.readGlobalFile(fa2_id, fa2_path)
-
-    # short circuit if sequences are too small to have a hope of training
-    for f in [fa1_path, fa2_path]:
-        if os.path.getsize(f) < 500000:
-            RealtimeLogger.warning('Input fasta {} too small to train scoring model on.  Will fall back to defaults'.format(os.path.basename(f)))
-            return None
         
     # make the database
     cactus_call(parameters=['lastdb', name1 + '_db', fa1_path, '-P', str(job.cores)])
