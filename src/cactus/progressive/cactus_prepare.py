@@ -178,6 +178,10 @@ def main(toil_mode=False):
     if options.wdl and options.script:
         raise RuntimeError("--wdl cannot be used with --script")
 
+    if options.script:
+        if '--disableProgress' not in options.cactusOptions:
+            options.cactusOptions += ' --disableProgress'
+
     if options.wdl and options.gpu == 'all':
         raise RuntimeError("Number of gpus N must be specified with --gpu N when using --wdl")
 
