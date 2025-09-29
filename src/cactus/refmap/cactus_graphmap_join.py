@@ -1698,7 +1698,10 @@ def merge_sv_gfa(job, options, sv_gfa_ids):
     there may be tools for this (even with vg) but this simple python
     version should be fine for now """
     work_dir = job.fileStore.getLocalTempDir()
-    assert len(options.sv_gfa) == len(sv_gfa_ids)
+    if options.sv_gfa:
+        assert len(options.sv_gfa) == len(sv_gfa_ids)
+    else:
+        options.sv_gfa = ['graph-{}.sv.gfa.gz'.format(i) for i in range(len(sv_gfa_ids))]
     merged_gfa_path = os.path.join(work_dir, '_sv_gfa_merged_.gfa.gz')
     offset = 0
     with gzip.open(merged_gfa_path, 'wb') as merged_gfa_file:

@@ -361,7 +361,6 @@ def export_minigraph_batch_wrapper(job, options, config_node, input_seqfiles, in
     # regualar gfas
     output_dict = {}
     pansn_gfas = []
-    train_ids = []
     output_file_ids = []
     output_file_maps = []
     for chrom, val in minigraph_batch_results.items():
@@ -369,10 +368,11 @@ def export_minigraph_batch_wrapper(job, options, config_node, input_seqfiles, in
         output_dict[chrom] = (input_seqid_map[chrom][0], val[0], None, input_seqfiles[chrom][0], 
                               os.path.join(out_dir, chrom + '.sv.gfa.gz'))
         output_file_maps += [input_seqid_map[chrom][0]]
-        output_file_ids += [val[0], val[1]]
+        output_file_ids += [val[0]]
+        pansn_gfas += [val[1]]
         if options.lastTrain:
             output_file_ids += [val[2]]
-    return output_dict, output_file_maps, output_file_ids
+    return output_dict, output_file_maps, output_file_ids, pansn_gfas
 
 def export_graphmap_batch_wrapper(job, options, config_node, graphmap_batch_results, input_seqfiles):
     """ export the graphmap results, which are another chromfile alongside new seqfiles and a bunch
@@ -513,6 +513,7 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
                                                            file_ids=[sv_gfa_id, paf_id])
 
     options.batch = True
+    minigraph_pansn_sv_gfa_ids = []
     if options.mgSplit:
         # rerun cactus_minigraph but on a per-chromosome basis
         minigraph_batch_import_job = clean_jobstore_job.addFollowOnJobFn(import_minigraph_batch_wrapper, options, config_wrapper,
@@ -532,6 +533,7 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
         graphmap_input_dict = minigraph_batch_export_job.rv(0)
         minigraph_output_maps = minigraph_batch_export_job.rv(1)
         minigraph_output_ids = minigraph_batch_export_job.rv(2)
+        minigraph_pansn_sv_gfa_ids = minigraph_batch_export_job.rv(3)
         graphmap_batch_job = minigraph_batch_export_job.addFollowOnJobFn(minigraph_batch_workflow, options, config_wrapper,
                                                                          graphmap_input_dict, graph_event, sanitize=False,
                                                                          pansn_gfa_input=False)
@@ -557,7 +559,8 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
     join_options, vg_ids, hal_ids = align_export_job.rv(0), align_export_job.rv(1), align_export_job.rv(2)
 
     # cactus_graphmap_join
-    join_job = align_export_job.addFollowOnJobFn(graphmap_join_workflow, join_options, config_wrapper, vg_ids, hal_ids, [])
+    join_job = align_export_job.addFollowOnJobFn(graphmap_join_workflow, join_options, config_wrapper, vg_ids,
+                                                 hal_ids, minigraph_pansn_sv_gfa_ids)
     join_wf_output = join_job.rv()
     join_export_job = join_job.addFollowOnJobFn(export_join_wrapper, join_options, join_wf_output)
         
