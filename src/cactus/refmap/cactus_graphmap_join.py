@@ -1146,9 +1146,17 @@ def deconstruct(job, config, out_name, vcf_ref, vg_id, tag):
     # should be exactly 1 since we're running chrom by chrom, but leave more relaxed check
     assert len(ref_paths) >= 1
 
+    # make the snarls
+    # note: we use the old cactus algorithm since it priortizes path-oriented traversals
+    # todo: need to add similar interface to the integrated snarlfinder!
+    snarls_path = os.path.join(work_dir, os.path.basename(out_name) + '.' + tag + 'snarls')
+    snarls_cmd = [['vg', 'paths', '-x', vg_path, '-Q', vcf_ref, '-r'],
+                  ['vg', 'snarls', '-', '-A', 'cactus', '-t', str(job.cores)]]
+    cactus_call(parameters=snarls_cmd, outfile=snarls_path, job_memory=job.memory)
+    
     # make the vcf
     vcf_path = os.path.join(work_dir, os.path.basename(out_name) + '.' + tag + 'raw.vcf.gz')
-    decon_cmd = ['vg', 'deconstruct', vg_path, '-P', vcf_ref, '-C', '-a', '-t', str(job.cores)]
+    decon_cmd = ['vg', 'deconstruct', vg_path, '-P', vcf_ref, '-C', '-a', '-t', str(job.cores), '-r', snarls_path]
     cactus_call(parameters=[decon_cmd, ['bgzip', '--threads', str(job.cores)]], outfile=vcf_path, job_memory=job.memory)
     try:
         cactus_call(parameters=['tabix', '-p', 'vcf', vcf_path])
