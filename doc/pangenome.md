@@ -11,6 +11,7 @@ Please cite the [Minigraph-Cactus paper](https://doi.org/10.1038/s41587-023-0179
 * [Introduction](#introduction)
 * [Interface](#interface)
 * [Output](#output)
+* [Advanced Configuration](#advanced-configuration)
 * [Visualization](#visualization)
 * [Yeast Graph](#yeast-graph)
 * [MHC Graph](#mhc-graph)
@@ -288,6 +289,10 @@ As of [v2.9.1](https://github.com/ComparativeGenomicsToolkit/cactus/releases/tag
 If you must have longer node lengths, perhaps for viewing very large simple graphs in BandageNG, then you can use the `--unchopped-gfa` option to produce additional output graph(s), with `.unchopped.gfa.gz` suffix. The node IDs in these graphs will be incompatible with all other output, including VCF.
 
 If you want to revert to the previous logic of only the `vg giraffe`-specific files having chopped IDs, you can do so by setting `<graphmap_join maxNodeLength="-1">` in the configuration XML.  If you do this, then you can still use `vg gbwt -Z graph.gbz --translation mapping.tsv` to recover the translation between the IDs from the GBZ, or `-O` in `vg call/deconstruct` to toggle which IDs to use from the GBZ.
+
+## Advanced Configuration
+
+See [here](./progressive.md#advanced-configuration)
 
 ## Visualization
 
@@ -908,3 +913,7 @@ A: So current toolchains can work with your graphs.  But clipping and filtering 
 
 **A**: This is probably due to the reference contig assignment thresholds. The defaults (found in `minQueryCoverages` and `minQueryCoverageThresholds` in the cactus_progressive_config.xml configuration file) are quite stringent for tiny contigs.  For example, with the current defaults (circa v2.6.7), a contig shorter than 100kb would need to map with at least 75% of its bases to a reference graph component in order to be included. For diverse inputs and / or very fragmented assemblies, this may be too strict.  You can inspect which of your contigs were filtered and why by looking at `chrom-subproblems/minigraph-split-log` in your output directory. In most cases, you can resolve this by using the `--permissiveContigFilter` option, which by default, applies a 25% threshold to all contig sizes (you can further lower it by passing in a value, ex `--permissiveContigFilter 0.1`. This option (available in `cactus-pangenome` and `cactus-graphmap-split`) is also mentioned in the Yeast example above.
 **
+
+**Q**: Can I adjust the `minigraph` parameters?
+
+**A**: Yes, they can be tuned via the `<graphmap>` element in the [configuration XML](./progressive.md#advanced-configuration). The construction parameters are found in the `minigraphConstructOptions` attribuate, and the mapping parameters in `minigraphMapOptions`.

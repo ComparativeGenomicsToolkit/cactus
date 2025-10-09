@@ -22,6 +22,7 @@ Please cite the [HAL paper](https://doi.org/10.1093/bioinformatics/btt128) when 
 * [Updating Alignments](#updating-alignments)
 * [GPU Acceleration](#gpu-acceleration)
 * [FastGA](#fastga)
+* [Advanced Configuration](#advanced-configuration)
 * [Pre-Alignment Checklist](#pre-alignment-checklist)
 * [Frequently Asked Questions](#frequently-asked-questions)
 
@@ -277,7 +278,7 @@ The Cactus Docker image contains everything you need to run Cactus (python envir
 
 ```
 wget -q https://raw.githubusercontent.com/ComparativeGenomicsToolkit/cactus/master/examples/evolverMammals.txt -O evolverMammals.txt
-docker run -v $(pwd):/data --rm -it quay.io/comparative-genomics-toolkit/cactus:v3.0.0 cactus /data/jobStore /data/evolverMammals.txt /data/evolverMammals.hal
+docker run --user $(id -u):$(id -g) -v $(pwd):/data --rm -it quay.io/comparative-genomics-toolkit/cactus:v3.0.0 cactus /data/jobStore /data/evolverMammals.txt /data/evolverMammals.hal
 ```
 
 Or you can proceed interactively by running
@@ -474,17 +475,36 @@ We've tested KegAlign on Nvidia V100 and A10G GPUs. See the Terra example above 
 
 Please [cite KegAlign](https://doi.org/10.1101/2024.09.02.610839).
 
+### Using GPU Acceleration on a Cluster
+
+Since `KegAlign` is only released in the GPU-enabled docker image, that's the easiest way to run it. When running on a cluster, this usually means the best way to use it is with `--binariesMode docker --gpu <N>`.  This way cactus is installed locally on your virtual environment and can run slurm commands like `sbatch` (that aren't available in the Cactus container), but KegAlign itself will be run from inside Docker.
+
+**Important**: Consider using `--lastzMemory` when using GPU acceleration on a cluster. Like `--consMemory`, it lets you override the amount of memory Toil requests which can help with errors if Cactus's automatic estimate is either too low (cluster evicts the job) or too high (cluster cannot schedule the job).  
+
 ## FastGA
 
 [FastGA](https://github.com/thegenemyers/FASTGA) is a new, extremely fast whole genome pairwise aligner.  You can use it instead of `lastz` in cactus via the (very experimental) `--fastga` option. `FastGA` only aligns up to about 20% divergence, so any gaps in the `FastGA` will be re-aligned with `lastz`.  You can disable the `lastz` fallback by setting `<blast fastga_fill="0">` in the config XML.
 
 FastGA was designed for use with up to 8 cores. If you use more, there probably won't be much speedup (it's fast enough with 8).  If you use many more, then it will probably crash.  In cactus versions up to and including v2.9.9, it will default to using all the cores on your system, so it's crucial to specify `--lastzCores 8` alongside `--fastga`.  In later releases, it defaults to 8 cores so it is not necessary to specifiy `--lastzCores`.  
 
-### Using GPU Acceleration on a Cluster
+## Advanced Configuration
 
-Since `KegAlign` is only released in the GPU-enabled docker image, that's the easiest way to run it. When running on a cluster, this usually means the best way to use it is with `--binariesMode docker --gpu <N>`.  This way cactus is installed locally on your virtual environment and can run slurm commands like `sbatch` (that aren't available in the Cactus container), but KegAlign itself will be run from inside Docker.
+Cactus has hudreds of adjustable parameters. We recommend the defaults in most cases, but you can tune them if you want.  The best way to do this is to make a copy of `src/cactus/cactus_progressive_config.xml`, edit that, and then pass it into your cactus command using the `--configFile` option.
 
-**Important**: Consider using `--lastzMemory` when using GPU acceleration on a cluster. Like `--consMemory`, it lets you override the amount of memory Toil requests which can help with errors if Cactus's automatic estimate is either too low (cluster evicts the job) or too high (cluster cannot schedule the job).  
+It is important to use a configuration file that matches the Cactus version you are using.  If you are using the binary or src cactus release do:
+
+```
+cp <CACTUS-INSTALLATION-DIR>/src/cactus_progressive_config.xml ./config.xml
+```
+
+If you are running cactus directly from `docker run`, then do (making sure to use the same docker image that you will use to run cactus):
+
+```
+docker run --user $(id -u):$(id -g) -v $(pwd):/data --rm -it quay.io/comparative-genomics-toolkit/cactus:v3.0.0 cp /home/cactus/cactus_env/lib/python3.10/site-packages/cactus/cactus_progressive_config.xml /data/config.xml
+```
+
+You can then edit `config.xml` and use it to override cactus's defaults by adding `--configFile config.xml` to any cactus command.  If you are using `docker run -v $(pwd):/data` then you would add `--configFile /data/config.xml` to your command instead. 
+
 
 ## Pre-Alignment Checklist
 
