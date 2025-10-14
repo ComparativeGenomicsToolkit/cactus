@@ -278,12 +278,12 @@ The Cactus Docker image contains everything you need to run Cactus (python envir
 
 ```
 wget -q https://raw.githubusercontent.com/ComparativeGenomicsToolkit/cactus/master/examples/evolverMammals.txt -O evolverMammals.txt
-docker run --user $(id -u):$(id -g) -v $(pwd):/data --rm -it quay.io/comparative-genomics-toolkit/cactus:v3.0.0 cactus /data/jobStore /data/evolverMammals.txt /data/evolverMammals.hal
+docker run --user $(id -u):$(id -g) -v $(pwd):/data --rm -it quay.io/comparative-genomics-toolkit/cactus:v3.0.1 cactus /data/jobStore /data/evolverMammals.txt /data/evolverMammals.hal
 ```
 
 Or you can proceed interactively by running
 ```
-docker run -v $(pwd):/data --rm -it quay.io/comparative-genomics-toolkit/cactus:v3.0.0 bash
+docker run -v $(pwd):/data --rm -it quay.io/comparative-genomics-toolkit/cactus:v3.0.1 bash
 cactus /data/jobStore /data/evolverMammals.txt /data/evolverMammals.hal
 
 ```
@@ -500,7 +500,7 @@ cp <CACTUS-INSTALLATION-DIR>/src/cactus_progressive_config.xml ./config.xml
 If you are running cactus directly from `docker run`, then do (making sure to use the same docker image that you will use to run cactus):
 
 ```
-docker run --user $(id -u):$(id -g) -v $(pwd):/data --rm -it quay.io/comparative-genomics-toolkit/cactus:v3.0.0 cp /home/cactus/cactus_env/lib/python3.10/site-packages/cactus/cactus_progressive_config.xml /data/config.xml
+docker run --user $(id -u):$(id -g) -v $(pwd):/data --rm -it quay.io/comparative-genomics-toolkit/cactus:v3.0.1 cp /home/cactus/cactus_env/lib/python3.10/site-packages/cactus/cactus_progressive_config.xml /data/config.xml
 ```
 
 You can then edit `config.xml` and use it to override cactus's defaults by adding `--configFile config.xml` to any cactus command.  If you are using `docker run -v $(pwd):/data` then you would add `--configFile /data/config.xml` to your command instead. 
