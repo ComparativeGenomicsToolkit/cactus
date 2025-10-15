@@ -1,3 +1,12 @@
+# Release 3.0.1 2025-10-15
+
+This release patches some bugs in new functionality
+
+- Small contigs and N-only contigs no longer sent to FastGA (the latter causes crashes)
+- `--mgSplit --lastTrain` options fixed to work better together (fixing bug where HPRCv2 graphs would not estimate scores for sex chromosomes)
+- `--mgSplit` option fixed to output correct `.sv.gfa.gz` files from `cactus-pangenome`
+- Toil upgrade to `v9.1.2`.  This fixes a bug that made scripts from `cactus-prepare --script` fail frequently for no reason on large data sets. 
+
 # Release 3.0.0 2025-09-20
 
 This release includes several significant patches and updates
