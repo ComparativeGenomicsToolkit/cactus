@@ -183,7 +183,9 @@ class TestCase(unittest.TestCase):
 
         out_hal = self._out_hal('in_docker')
         cmd = ['docker', 'run', '--rm', '-v', '{}:{}'.format(os.path.dirname(out_hal), '/data'),
-               '-v', '{}:{}'.format(os.getcwd(), '/workdir'), 'evolvertestdocker/cactus:latest',
+               '-v', '{}:{}'.format(os.getcwd(), '/workdir'), 
+               '-u', '{}:{}'.format(os.getuid(), os.getgid()),
+               'evolvertestdocker/cactus:latest',
                'cactus /data/js /workdir/{} /data/{}'.format(seqFile, os.path.basename(out_hal))]
         sys.stderr.write('Running {}\n'.format(' '.format(cmd)))
         subprocess.check_call(' '.join(cmd), shell=True)
