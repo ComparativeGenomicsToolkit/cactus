@@ -98,3 +98,6 @@ ENV CACTUS_INSIDE_CONTAINER 1
 RUN mkdir -p /data
 WORKDIR /data
 
+# Toil needs a writable HOME dir (which it may not have with docker run -u)
+RUN mkdir -p /home/cactus_user && chmod 777 /home/cactus_user
+ENV HOME="/home/cactus_user"
