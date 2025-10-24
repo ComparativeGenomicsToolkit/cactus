@@ -79,7 +79,7 @@ def main(toil_mode=False):
         parser.add_argument("--script", action="store_true", help="print a bash script instead of list of commands")
     parser.add_argument("--configFile", default=os.path.join(cactusRootPath(), "cactus_progressive_config.xml"))
     parser.add_argument("--preprocessBatchSize", type=int, default=32, help="size (number of genomes) of preprocessing jobs")
-    parser.add_argument("--halAppendBatchSize", type=int, default=100, help="size (number of genomes) of halAppendSubtree jobs (WDL-only)")
+    parser.add_argument("--halAppendBatchSize", type=int, default=50, help="size (number of genomes) of halAppendSubtree jobs (WDL-only)")
     parser.add_argument("--halOptions", type=str, default="--hdf5InMemory", help="options for every hal command")
     parser.add_argument("--cactusOptions", type=str, default="", help="options for every cactus command")
     parser.add_argument("--preprocessOnly", action="store_true", help="only decompose into preprocessor and cactus jobs")
