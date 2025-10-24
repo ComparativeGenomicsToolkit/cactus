@@ -1311,7 +1311,7 @@ def main_hal_append_subtrees():
             hal_id = toil.importFile(options.tgtFile)
             sub_hal_ids = [toil.importFile(sub_hal) for sub_hal in options.subFiles]
             out_hal_id = toil.start(Job.wrapJobFn(hal_append_subtrees, hal_id, sub_hal_ids, options,
-                                                  memory=cactus_clamp_memory(5 * max([f.size for f in sub_hal_ids])),
+                                                  memory=cactus_clamp_memory(10 * max([f.size for f in sub_hal_ids])),
                                                   disk=2 * (hal_id.size + sum([f.size for f in sub_hal_ids]))))
 
         # export the alignments
