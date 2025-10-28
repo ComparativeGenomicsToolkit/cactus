@@ -397,11 +397,11 @@ def make_plan(
 
     # removing "## HAL merging" as there is no merging while performing alignment updates
     plan = re.sub("\n## HAL merging\n", "", plan, re.IGNORECASE | re.MULTILINE)
-    plan = re.sub("halAppendSubtree .*?\n", "", plan, re.IGNORECASE | re.MULTILINE)
+    plan = re.sub("cactus-halAppendSubtree .*?\n", "", plan, re.IGNORECASE | re.MULTILINE)
 
     # remove the last hal2fasta as it will
     hal2fasta_job = re.findall(
-        r"hal2fasta .*?(?=\s{0,})\n", plan, re.IGNORECASE | re.MULTILINE
+        r"cactus-hal2fasta .*?(?=\s{0,})\n", plan, re.IGNORECASE | re.MULTILINE
     )[-1]
     plan = re.sub(hal2fasta_job, "", plan, re.IGNORECASE | re.MULTILINE)
 
