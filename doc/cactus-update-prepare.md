@@ -150,6 +150,8 @@ where
     - `steps` is the name of the directory where assemblies and all cactus-call dependencies will be placed
     - `jobstore` is the name of the directory used by [Toil](https://toil.readthedocs.io/en/latest/) (Cactus internal scheduler) to store temporary data of job executions
 
+**The name of the genome in the new alignment will match the label in the first column of your input file.**
+
 > **Note:** If a branch length is present in the third column of your input file (*e.g.* `input.txt`) it will be ignored in *replace* mode. The existing branch length leading to the genome you are replacing will be used instead.
 
 The output of `cactus-prepare-update` above will looks like as follows:
