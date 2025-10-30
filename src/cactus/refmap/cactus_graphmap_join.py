@@ -1178,8 +1178,11 @@ def vcfbub(job, config, out_name, vcf_ref, vcf_id, tbi_id, max_ref_allele, fasta
     # run vcfbub
     vcfbub_path = os.path.join(work_dir, os.path.basename(out_name) + '.' + tag + 'bub.vcf.gz')
     assert max_ref_allele
-    cactus_call(parameters = [['vcfbub', '--input', vcf_path, '--max-ref-length', str(max_ref_allele), '--max-level', '0'],
-                              ['bgzip']], outfile = vcfbub_path)
+    bub_cmd = [['vcfbub', '--input', vcf_path, '--max-ref-length', str(max_ref_allele), '--max-level', '0']]
+    if getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "filterAC0", typeFn=bool, default=False):
+        bub_cmd.append(['bcftools', 'view', '-e', 'AC=0'])
+    bub_cmd.append(['bgzip'])
+    cactus_call(parameters = bub_cmd, outfile = vcfbub_path)
         
     try:
         cactus_call(parameters=['tabix', '-p', 'vcf', vcfbub_path])
@@ -1211,12 +1214,14 @@ def vcfnorm(job, config, vcf_ref, vcf_id, vcf_path, tbi_id, fasta_ref_dict):
 
     norm_path = os.path.join(work_dir, 'norm.' + os.path.basename(vcf_path))
     cactus_call(parameters=['bcftools', 'view', '-h', '-Oz', vcf_path], outfile=norm_path)
+    view_cmd = ['bcftools', 'view', '-H']
+    if getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "filterAC0", typeFn=bool, default=False):
+        view_cmd += ['-e', 'AC=0']
     cactus_call(parameters=[['bcftools', 'norm', '-m', '-any', vcf_path],
                             ['bcftools', 'norm', '-f', fa_ref_path],
-                            ['bcftools', 'view', '-H'],
+                            view_cmd,
                             ['sort', '-k1,1d', '-k2,2n', '-s', '-T', work_dir],
                             ['bgzip']], outfile=norm_path, outappend=True)
-    
     merge_duplicates_opts = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "mergeDuplicatesOptions", typeFn=str, default=None)
     if merge_duplicates_opts not in [None, "0"]:
         #note: merge_duplcates complains about not having a .tbi but I don't think it actually affects anything
@@ -1327,8 +1332,10 @@ def chunked_vcfwave(job, config, out_name, vcf_ref, vcf_id, tbi_id, max_ref_alle
     vcfbub_path = os.path.join(work_dir, os.path.basename(out_name) + '.' + vcf_ref + '.' + tag + 'bub.vcf.gz')
     bub_cmd = [['vcfbub', '--input', vcf_path, '-l', '0', '-a', str(max_ref_allele)],
                ['bcftools', 'annotate', '-x', 'INFO/AT'],
-               ['bcftools', 'norm', '-m', '-any'],
-               ['bgzip', '--threads', str(job.cores)]]
+               ['bcftools', 'norm', '-m', '-any']]
+    if getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "filterAC0", typeFn=bool, default=False):
+        bub_cmd.append(['bcftools', 'view', '-e', 'AC=0'])
+    bub_cmd.append(['bgzip', '--threads', str(job.cores)])
     cactus_call(parameters=bub_cmd, outfile=vcfbub_path)
 
     # count the lines in the vcf
