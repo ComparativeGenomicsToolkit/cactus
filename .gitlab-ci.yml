@@ -38,7 +38,7 @@ test-job:
     - make -j 8	 
     - numcpu=8 build-tools/downloadPangenomeTools
     - CACTUS_LEGACY_ARCH=1 numcpu=8 build-tools/downloadMafTools	 
-    - python3.9 -m pip install -U .
+    - python3.9 -m pip install --no-build-isolation -U .
     # force local docker image to use legacy mode so tests run
     - sed -i Dockerfile -e 's/ENV avx2 1/ENV CACTUS_LEGACY_ARCH 1/g'
     - make docker
