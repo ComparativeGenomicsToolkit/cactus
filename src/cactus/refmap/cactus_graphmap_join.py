@@ -1476,6 +1476,13 @@ def vcf_cat(job, vcf_tbi_ids, tag, sort=False, fix_ploidies=True):
                                     ['bcftools', 'view', '-S', all_sample_list_path, '-O', 'z']],
                         outfile=updated_vcf_path)
             vcf_paths[i] = updated_vcf_path
+
+    # -a below requires indexes
+    for vcf_path in vcf_paths:
+        try:
+            cactus_call(parameters=['tabix', '-fp', 'vcf', vcf_path])
+        except:
+            cactus_call(parameters=['bcftools', 'index', '-c', vcf_path])
         
     cat_vcf_path = os.path.join(work_dir, '{}vcf.gz'.format(tag))
     cactus_call(parameters=['bcftools', 'concat', '-a', '-O', 'z', '--threads', str(job.cores)] + \
