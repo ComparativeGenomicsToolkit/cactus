@@ -454,6 +454,7 @@
 	<!-- vcfwaveNorm: run bcftools norm -f (left shift) after vcfwave -->
 	<!-- bcftoolsNorm: Run bcftools norm -f (left shifting) on (non-raw, non-wave) VCF output (may result in overlapping variants) -->
 	<!-- mergeDuplicatesOptions: Run merge_duplicates script with these options (empty string means default options) after bcftools norm to prevent multiple entries at the same position.  If "0", merge_duplicates will not be run.  This applies to normalization as toggled by vcfwaveNorm and/or bctoolsNorm (and is ever run after bcftools norm) -->
+	<!-- sometimes vg deconstruct will report "conflict" sites where there are no alt genotypes found.  Setting this flag to 1 will filter these out (except in .raw.vcf.gz) -->
 	<graphmap_join
 		 maxNodeLength="1024"
 		 gfaffix="1"
@@ -473,6 +474,7 @@
 		 vcfwaveNorm="1"
 		 bcftoolsNorm="0"
 		 mergeDuplicatesOptions=""
+		 filterAC0="1"
 		 />
 	<!-- hal2vg options -->
 	<!-- includeMinigraph: include minigraph node sequences as paths in output (note that cactus-graphmap-join will still remove them by default) -->
