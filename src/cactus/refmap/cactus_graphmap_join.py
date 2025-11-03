@@ -1213,15 +1213,13 @@ def vcfnorm(job, config, vcf_ref, vcf_id, vcf_path, tbi_id, fasta_ref_dict):
     job.fileStore.readGlobalFile(fasta_ref_dict[vcf_ref], fa_ref_path)
 
     norm_path = os.path.join(work_dir, 'norm.' + os.path.basename(vcf_path))
-    cactus_call(parameters=['bcftools', 'view', '-h', '-Oz', vcf_path], outfile=norm_path)
-    view_cmd = ['bcftools', 'view', '-H']
+    view_cmd = ['bcftools', 'view']
     if getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "filterAC0", typeFn=bool, default=False):
         view_cmd += ['-e', 'AC=0']
     cactus_call(parameters=[['bcftools', 'norm', '-m', '-any', vcf_path],
                             ['bcftools', 'norm', '-f', fa_ref_path],
                             view_cmd,
-                            ['sort', '-k1,1d', '-k2,2n', '-s', '-T', work_dir],
-                            ['bgzip']], outfile=norm_path, outappend=True)
+                            ['bcftools', 'sort', '-Oz', '-T', work_dir], outfile=norm_path)
     merge_duplicates_opts = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "mergeDuplicatesOptions", typeFn=str, default=None)
     if merge_duplicates_opts not in [None, "0"]:
         #note: merge_duplcates complains about not having a .tbi but I don't think it actually affects anything
@@ -1493,10 +1491,7 @@ def vcf_cat(job, vcf_tbi_ids, tag, sort=False, fix_ploidies=True):
         # stable sort, which is apparently not guaranteed by bcftools sort
         # (this could be useful for merge_duplicates.py)
         sort_vcf_path = os.path.join(work_dir, '{}sort.vcf.gz'.format(tag))
-        cactus_call(parameters=['bcftools', 'view', '-Oz', '-h', cat_vcf_path], outfile=sort_vcf_path)
-        cactus_call(parameters=[['bcftools', 'view', '-H', cat_vcf_path],
-                                ['sort', '-k1,1d', '-k2,2n', '-s', '-T', work_dir],
-                                ['bgzip']], outfile=sort_vcf_path, outappend=True)
+        cactus_call(parameters=['bcftools', 'sort', '-Oz',  '-T', work_dir, cat_vcf_path], outfile=sort_vcf_path)
         cat_vcf_path = sort_vcf_path
 
     if fix_ploidies:
