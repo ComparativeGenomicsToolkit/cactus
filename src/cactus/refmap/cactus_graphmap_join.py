@@ -1219,7 +1219,7 @@ def vcfnorm(job, config, vcf_ref, vcf_id, vcf_path, tbi_id, fasta_ref_dict):
     cactus_call(parameters=[['bcftools', 'norm', '-m', '-any', vcf_path],
                             ['bcftools', 'norm', '-f', fa_ref_path],
                             view_cmd,
-                            ['bcftools', 'sort', '-Oz', '-T', work_dir], outfile=norm_path)
+                            ['bcftools', 'sort', '-Oz', '-T', work_dir]], outfile=norm_path)
     merge_duplicates_opts = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "mergeDuplicatesOptions", typeFn=str, default=None)
     if merge_duplicates_opts not in [None, "0"]:
         #note: merge_duplcates complains about not having a .tbi but I don't think it actually affects anything
