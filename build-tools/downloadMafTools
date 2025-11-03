@@ -34,21 +34,6 @@ fi
 
 # taffy
 cd ${mafBuildDir}
-wget -q https://github.com/samtools/samtools/releases/download/1.11/samtools-1.11.tar.bz2
-tar --no-same-owner -xf samtools-1.11.tar.bz2
-cd samtools-1.11
-SAMTOOLS_CONFIG_OPTS=""
-if [[ $STATIC_CHECK -eq 1 ]]
-then
-	 SAMTOOLS_CONFIG_OPTS="--disable-shared --enable-static"
-fi
-./configure --without-curses --disable-libcurl --enable-configure-htslib $SAMTOOLS_CONFIG_OPTS
-make -j ${numcpu}
-cd htslib-1.11
-make -j ${numcpu} libhts.a
-export HTSLIB_CFLAGS=-I$(pwd)
-export HTSLIB_LIBS="$(pwd)/libhts.a -lbz2 -ldeflate -lm -lpthread -lz -llzma -pthread -lpthread"
-cd ${mafBuildDir}
 git clone https://github.com/ComparativeGenomicsToolkit/taffy.git
 cd taffy
 git checkout 1329d999948ad4acc10116276fa7a9752a749595
