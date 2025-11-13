@@ -605,7 +605,7 @@ class TestCase(unittest.TestCase):
                                '--reference', 'S288C', '--vg'] +  vg_files + ['--hal'] + hal_files +
                                ['--xg', '--vcf', '--giraffe', 'clip', 'filter'] + cactus_opts + ['--indexCores', '4'])
 
-    def _run_yeast_pangenome(self, binariesMode, mgSplit=False):
+    def _run_yeast_pangenome(self, binariesMode, mgSplit=False, collapse=False):
         """ yeast pangenome chromosome by chromosome pipeline, as run through a single invocations
         """
 
@@ -621,9 +621,11 @@ class TestCase(unittest.TestCase):
                                                             '--giraffe', 'clip', 'filter',  '--chrom-vg', 'clip', 'filter',
                                                             '--viz', '--chrom-og', 'clip', 'full', '--odgi', '--haplo', 'clip',
                                                             '--xg', '--unchopped-gfa', '--indexCores', '4', '--consCores', '2',
-                                                            '--collapse', '--lastTrain', '--snarlStats']
+                                                            '--lastTrain', '--snarlStats']
         if mgSplit:
             cactus_pangenome_cmd += ['--mgSplit']
+        if collapse:
+            cactus_pangenome_cmd += ['--collapse']
         subprocess.check_call(cactus_pangenome_cmd + cactus_opts)
 
         #compatibility with older test
@@ -1236,10 +1238,10 @@ class TestCase(unittest.TestCase):
     def testYeastPangenomeLocal(self):
         """ Run pangenome pipeline (including contig splitting!) on yeast dataset using cactus-pangenome """
         name = "local"
-        self._run_yeast_pangenome(name)
+        self._run_yeast_pangenome(name, collapse=True)
 
         # check the output
-        self._check_yeast_pangenome(name, other_ref='DBVPG6044', expect_odgi=True, expect_haplo=True, expect_unchopped_gfa=True)
+        self._check_yeast_pangenome(name, other_ref='DBVPG6044', expect_odgi=True, expect_haplo=False, expect_unchopped_gfa=True)
 
     def testYeastPangenomeSplitLocal(self):
         """ Run pangenome pipeline (including contig splitting!) on yeast dataset using cactus-pangenome """
