@@ -444,7 +444,8 @@ int main(int argc, char *argv[]) {
         stHash *flower_to_length = compute_flower_length_hash(leafFlowers);
         stList_sort2(leafFlowers, flower_lengthCmpFn, flower_to_length); 
         stHash_destruct(flower_to_length);
-        st_logInfo("Ran extended flowers ready for bar, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
+        st_logInfo("Ran extended flowers ready for bar on %" PRIi64 " flowers, %" PRIi64 " seconds have elapsed\n",
+                   stList_length(leafFlowers), time(NULL) - startTime);
 
         bar(leafFlowers, params, cactusDisk, NULL);
         int64_t usePoa = cactusParams_get_int(params, 2, "bar", "partialOrderAlignment");

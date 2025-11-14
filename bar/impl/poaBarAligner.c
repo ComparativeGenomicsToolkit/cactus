@@ -17,9 +17,9 @@
 //#define CACTUS_ABPOA_FROM_COMMAND_LINE
 
 // OpenMP
-//#if defined(_OPENMP)
-//#include <omp.h>
-//#endif
+#if defined(_OPENMP)
+#include <omp.h>
+#endif
 
 abpoa_para_t *abpoaParamaters_constructFromCactusParams(CactusParams *params) {
     abpoa_para_t *abpt = abpoa_init_para();
@@ -754,9 +754,25 @@ Msa **make_consistent_partial_order_alignments(int64_t end_no, int64_t *end_leng
     // Calculate the initial, potentially inconsistent msas and column scores for each msa
     float *column_scores[end_no];
     Msa **msas = st_malloc(sizeof(Msa *) * end_no);
-//#if defined(_OPENMP)
-//#pragma omp parallel for schedule(dynamic)
-//#endif
+
+#if defined(_OPENMP)
+    // Use nested parallelism only for large problems with controlled thread count
+    // to avoid quadratic thread explosion.
+    // When called from bar.c, we're always nested (level 1), so limit inner threads.
+    int nested_threads = 1;
+    int min_ends_for_nesting = 50; // Only use nested parallelism for ≥50 ends
+
+    if (end_no >= min_ends_for_nesting) {
+        int max_threads = omp_get_max_threads();
+        // Assume ~8 large jobs might run concurrently in outer loop
+        // Give each job max_threads/8 inner threads to stay within budget
+        nested_threads = max_threads / 8;
+        if (nested_threads < 2) nested_threads = 2;  // Minimum 2 to be useful
+        if (nested_threads > 16) nested_threads = 16; // Cap to maintain outer concurrency
+    }
+
+#pragma omp parallel for schedule(dynamic) if(end_no >= min_ends_for_nesting) num_threads(nested_threads)
+#endif
     for(int64_t i=0; i<end_no; i++) {
         msas[i] = msa_make_partial_order_alignment(end_strings[i], end_string_lengths[i], end_lengths[i], window_size,
                                                    max_prog_rows, max_prog_length_diff, poa_parameters);
