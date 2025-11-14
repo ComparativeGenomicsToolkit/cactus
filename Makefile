@@ -6,6 +6,7 @@ modules = api setup caf bar hal reference pipeline preprocessor
 
 # submodules are in multiple pass to handle dependencies cactus2hal being dependent on
 # both cactus and sonLib
+# jemalloc is conditionally added based on include.mk settings
 submodules1 = sonLib cPecan hal matchingAndOrdering pinchesAndCacti abPOA lastz paffy red collapse-bubble FASTGA
 submodules2 = cactus2hal
 submodules = ${submodules1} ${submodules2}
@@ -29,7 +30,10 @@ export sonLibRootDir = ${CWD}/submodules/sonLib
 # Building.  First build submodules, then a pass for libs and a pass for bins
 ##
 all:
-	mkdir -p ${BINDIR} ${LIBDIR} ${INCLDIR}	
+	mkdir -p ${BINDIR} ${LIBDIR} ${INCLDIR}
+ifeq ($(jemalloc),on)
+	${MAKE} suball.jemalloc
+endif
 	${MAKE} suball1
 	${MAKE} all_libs
 	${MAKE} all_progs
@@ -245,6 +249,12 @@ suball.sonLib:
 	ln -f submodules/sonLib/bin/[a-zA-Z]* ${BINDIR}
 	ln -f submodules/sonLib/lib/*.a ${LIBDIR}
 
+${LIBDIR}/libjemalloc.a: submodules/jemalloc/src/*.c
+	cd submodules/jemalloc && ./autogen.sh && ./configure --enable-prof --disable-libdl --prefix=${CWD} && ${MAKE} && ${MAKE} install
+	ln -f submodules/jemalloc/lib/libjemalloc.a ${LIBDIR}/
+
+suball.jemalloc: ${LIBDIR}/libjemalloc.a
+
 suball.pinchesAndCacti: suball.sonLib
 	cd submodules/pinchesAndCacti && ${MAKE}
 
@@ -299,6 +309,9 @@ suball.FASTGA:
 	ln -f submodules/FASTGA/FAtoGDB ${BINDIR}
 	ln -f submodules/FASTGA/GIXmake ${BINDIR}
 	ln -f submodules/FASTGA/GIXrm ${BINDIR}
+
+subclean.jemalloc:
+	cd submodules/jemalloc && ${MAKE} clean || true
 
 subclean.%:
 	if [ $(shell ls submodules/$* | grep -i makefile | wc -l) != 0 ]; then cd submodules/$* && ${MAKE} clean; fi

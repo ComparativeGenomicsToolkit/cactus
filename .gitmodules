@@ -37,3 +37,6 @@
 [submodule "submodules/FASTGA"]
 	path = submodules/FASTGA
 	url = https://github.com/thegenemyers/FASTGA.git
+[submodule "submodules/jemalloc"]
+	path = submodules/jemalloc
+	url = https://github.com/jemalloc/jemalloc.git
