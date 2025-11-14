@@ -461,6 +461,7 @@
 		 pathNormalize="1"
 		 clipNonMinigraph="1"		 
 		 minimizerOptions="-k 29 -w 11"
+		 lrMinimizerOptions="-k 31 -w 50 -W"
 		 minFilterFragment="1000"
 		 clipContext="1000"
 		 removeStubs="1"
