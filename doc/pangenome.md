@@ -240,6 +240,8 @@ The different graphs have different uses. For instance, the current version of `
 
 `--giraffe clip filter`: Make the giraffe indexes for both the clipped and filtered graph.
 
+Mapping long reads with giraffe requires a different type of minimizer index, which can be created with the `--lrGiraffe` option.  `--giraffe` and `--lrGiraffe` can be used together or separately.  They create the same `.dist` index which can be used for both short and long read mapping.
+
 The same type of interface applies to all the output specification options: `--vcf`, `--gbz`, `--gfa`, `--xg`, `--giraffe`, `--chrom-vg`, `--odgi`, `--chrom-og`, `--viz`, `--draw`. They can all be used without arguments to apply to the default graph (generally the `clip` graph for everything except `--giraffe` which defaults to the `filter` graph, and anything odgi-related which defaults to `full`), or with any combination of `full`, `clip` and `filter` to be applied to different graphs.
 
 Note that by default, only GFA is output, so the above options need to be used to toggle on any other output types. 

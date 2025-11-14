@@ -603,7 +603,7 @@ class TestCase(unittest.TestCase):
         join_path = os.path.join(self.tempDir, 'join')
         subprocess.check_call(['cactus-graphmap-join', self._job_store(binariesMode), '--outDir', join_path, '--outName', 'yeast',
                                '--reference', 'S288C', '--vg'] +  vg_files + ['--hal'] + hal_files +
-                               ['--xg', '--vcf', '--giraffe', 'clip', 'filter'] + cactus_opts + ['--indexCores', '4'])
+                               ['--xg', '--vcf', '--giraffe', 'clip', 'filter', '--lrGiraffe'] + cactus_opts + ['--indexCores', '4'])
 
     def _run_yeast_pangenome(self, binariesMode, mgSplit=False, collapse=False):
         """ yeast pangenome chromosome by chromosome pipeline, as run through a single invocations
@@ -618,7 +618,7 @@ class TestCase(unittest.TestCase):
         chroms = ['chrI', 'chrII', 'chrIII', 'chrIV', 'chrV', 'chrVI', 'chrVII', 'chrVIII', 'chrIX', 'chrX', 'chrXI', 'chrXIV', 'chrXV']
         cactus_pangenome_cmd = ['cactus-pangenome', self._job_store(binariesMode), orig_seq_file_path, '--outDir', join_path, '--outName', 'yeast',
                                 '--refContigs'] + chroms + ['--reference', 'S288C', 'DBVPG6044', '--vcf', '--vcfReference','DBVPG6044', 'S288C',
-                                                            '--giraffe', 'clip', 'filter',  '--chrom-vg', 'clip', 'filter',
+                                                            '--giraffe', 'clip', 'filter', '--lrGiraffe', '--chrom-vg', 'clip', 'filter',
                                                             '--viz', '--chrom-og', 'clip', 'full', '--odgi', '--haplo', 'clip',
                                                             '--xg', '--unchopped-gfa', '--indexCores', '4', '--consCores', '2',
                                                             '--lastTrain', '--snarlStats']
@@ -688,9 +688,11 @@ class TestCase(unittest.TestCase):
         self.assertLessEqual(num_bases, 11200000)
 
         # make sure we have the giraffe indexes
-        for giraffe_idx in ['yeast.gbz', 'yeast.dist', 'yeast.min', 'yeast.d2.gbz', 'yeast.d2.dist', 'yeast.d2.min']:
+        for giraffe_idx in ['yeast.gbz', 'yeast.dist', 'yeast.min', 'yeast.d2.gbz', 'yeast.d2.dist', 'yeast.d2.min',
+                            'yeast.d2.longread.withzip.min', 'yeast.d2.longread.zipcodes']:
             idx_bytes = os.path.getsize(os.path.join(join_path, giraffe_idx))
-            self.assertGreaterEqual(idx_bytes, 500000)
+            threshold = 500000 if not giraffe_idx.endswith('.zipcodes') else 4
+            self.assertGreaterEqual(idx_bytes, threshold)
 
         if expect_haplo:
             # make sure we have the haplo indexes:

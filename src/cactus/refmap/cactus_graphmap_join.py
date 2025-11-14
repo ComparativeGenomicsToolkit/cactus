@@ -145,6 +145,8 @@ def graphmap_join_options(parser):
         
     parser.add_argument("--giraffe", nargs='*', default=None, help = "Generate Giraffe (.dist, .min) indexes for the given graph type(s). Valid types are 'full', 'clip' and 'filter'. If not type specified, 'filter' will be used (will fall back to 'clip' than full if filtering, clipping disabled, respectively). Multiple types can be provided seperated by a space. NOTE: do not use this option if you want to use haplotype sampling. Use --haplo instead.")
 
+    parser.add_argument("--lrGiraffe", nargs='*', default=None, help = "Generate Long Read Giraffe (.dist, .longread.withzip.min, .longread.zipcodes) indexes for the given graph type(s). Valid types are 'full', 'clip' and 'filter'. If not type specified, 'filter' will be used (will fall back to 'clip' than full if filtering, clipping disabled, respectively). Multiple types can be provided seperated by a space. NOTE: do not use this option if you want to use haplotype sampling. Use --haplo instead.")
+
     parser.add_argument("--haplo", nargs='*', default=None, help = "Generate haplotype subsampling (.ri, .hapl) indexes for the given graph type(s). Haplotype subsampling is a new, better alternative filtering by allele frequency. Valid types are 'full' and 'clip'. If not type specified, 'clip' will be used ('full' will be used if clipping disabled). Multiple types can be provided seperated by a space. NOTE: you normally want to use this option without --giraffe!")
     
     parser.add_argument("--indexCores", type=int, default=None, help = "cores for general indexing and VCF constructions (defaults to the same as --maxCores)")
@@ -338,6 +340,17 @@ def graphmap_join_validate_options(options):
         if giraffe == 'filter' and not options.filter:
             raise RuntimeError('--giraffe cannot be set to filter since filtering is disabled')
 
+    if options.lrGiraffe == []:
+        options.lrGiraffe = ['filter'] if options.filter else ['clip'] if options.clip else ['full']
+    options.lrGiraffe = list(set(options.lrGiraffe)) if options.lrGiraffe else []        
+    for lrGiraffe in options.lrGiraffe:
+        if lrGiraffe not in ['clip', 'filter', 'full']:
+            raise RuntimeError('Unrecognized value for --lrGiraffe: {}. Must be one of {{clip, filter, full}}'.format(lrGiraffe))
+        if lrGiraffe == 'clip' and not options.clip:
+            raise RuntimError('--lrGiraffe cannot be set to clip since clipping is disabled')
+        if lrGiraffe == 'filter' and not options.filter:
+            raise RuntimeError('--lrGiraffe cannot be set to filter since filtering is disabled')        
+
     if options.haplo == []:
         options.haplo = ['clip'] if options.clip else ['full']
     options.haplo = list(set(options.haplo)) if options.haplo else []        
@@ -352,10 +365,10 @@ def graphmap_join_validate_options(options):
             options.gbz.append(haplo)
         
     # Prevent some useless compute due to default param combos
-    if options.clip and 'clip' not in options.gfa + options.gbz + options.odgi + options.chrom_vg + options.chrom_og + options.vcf + options.giraffe + options.viz + options.draw\
-       and 'filter' not in options.gfa + options.gbz + options.odgi + options.chrom_vg + options.chrom_og + options.vcf + options.giraffe + options.viz + options.draw:
+    if options.clip and 'clip' not in options.gfa + options.gbz + options.odgi + options.chrom_vg + options.chrom_og + options.vcf + options.giraffe + options.lrGiraffe + options.viz + options.draw\
+       and 'filter' not in options.gfa + options.gbz + options.odgi + options.chrom_vg + options.chrom_og + options.vcf + options.giraffe + options.lrGiraffe + options.viz + options.draw:
         options.clip = None
-    if options.filter and 'filter' not in options.gfa + options.gbz + options.odgi + options.chrom_vg + options.chrom_og + options.vcf + options.giraffe + options.viz + options.draw:
+    if options.filter and 'filter' not in options.gfa + options.gbz + options.odgi + options.chrom_vg + options.chrom_og + options.vcf + options.giraffe + options.lrGiraffe + options.viz + options.draw:
         options.filter = None
 
     return options
@@ -575,7 +588,7 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids):
         phase_root_job.addFollowOn(gfa_root_job)
         gfa_ids = []
         current_out_dict = None
-        do_gbz = workflow_phase in options.gbz + options.vcf + options.giraffe + options.xg
+        do_gbz = workflow_phase in options.gbz + options.vcf + options.giraffe + options.lrGiraffe + options.xg
         if workflow_phase == 'full' and need_ref_fasta:
             do_gbz = True
         if do_gbz or workflow_phase in options.gfa:
@@ -639,14 +652,16 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids):
                     
         # optional giraffe
         giraffe_job = None
-        if workflow_phase in options.giraffe:
+        if workflow_phase in options.giraffe + options.lrGiraffe:
             giraffe_job = gfa_merge_job.addFollowOnJobFn(make_giraffe_indexes, options, config, current_out_dict,
+                                                         short_read=workflow_phase in options.giraffe,
+                                                         long_read=workflow_phase in options.lrGiraffe,
                                                          tag=workflow_phase + '.',
                                                          cores=options.indexCores,
                                                          disk = sum(f.size for f in vg_ids) * 16,
                                                          memory=index_mem)
             out_dicts.append(giraffe_job.rv())
-
+            
         # optional haplo index
         if workflow_phase in options.haplo:
             prec_job = giraffe_job if giraffe_job else gfa_merge_job
@@ -1555,7 +1570,7 @@ def get_tips(work_dir, graph_path, reference):
             tips.append(lt[1][1])
     return tips
     
-def make_giraffe_indexes(job, options, config, index_dict, tag=''):
+def make_giraffe_indexes(job, options, config, index_dict, short_read, long_read, tag=''):
     """ make giraffe-specific indexes: distance and minimaer """
     work_dir = job.fileStore.getLocalTempDir()
     gbz_path = os.path.join(work_dir, tag + os.path.basename(options.outName) + '.gbz')
@@ -1568,14 +1583,25 @@ def make_giraffe_indexes(job, options, config, index_dict, tag=''):
     for tip in tips:
         dist_cmd += ['-w', str(tip)]    
     cactus_call(parameters=dist_cmd, job_memory=job.memory)
+    out_dict = { '{}dist'.format(tag) : job.fileStore.writeGlobalFile(dist_path) }
 
     # make the minimizer index
-    min_path = os.path.join(work_dir, tag + os.path.basename(options.outName) + '.min')
-    min_opts = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "minimizerOptions", default='').split()
-    cactus_call(parameters=['vg', 'minimizer'] + min_opts + ['-t', str(job.cores), '-d', dist_path, '-o', min_path, gbz_path], job_memory=job.memory)
+    if short_read:
+        min_path = os.path.join(work_dir, tag + os.path.basename(options.outName) + '.min')
+        min_opts = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "minimizerOptions", default='').split()
+        cactus_call(parameters=['vg', 'minimizer'] + min_opts + ['-t', str(job.cores), '-d', dist_path, '-o', min_path, gbz_path], job_memory=job.memory)
+        out_dict['{}min'.format(tag)] = job.fileStore.writeGlobalFile(min_path)
 
-    return { '{}min'.format(tag) : job.fileStore.writeGlobalFile(min_path),
-             '{}dist'.format(tag) : job.fileStore.writeGlobalFile(dist_path) }
+    # make the long-read minimizer index and zipcodes
+    if long_read:
+        lr_min_path = os.path.join(work_dir, tag + os.path.basename(options.outName) + '.longread.withzip.min')
+        lr_zip_path = os.path.join(work_dir, tag + os.path.basename(options.outName) + '.longread.zipcodes')
+        lr_min_opts = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "lrMinimizerOptions", default='').split()
+        cactus_call(parameters=['vg', 'minimizer'] + lr_min_opts + ['-t', str(job.cores), '-d', dist_path, '-o', lr_min_path, '-z', lr_zip_path, gbz_path], job_memory=job.memory)
+        out_dict['{}longread.withzip.min'.format(tag)] = job.fileStore.writeGlobalFile(lr_min_path)
+        out_dict['{}longread.zipcodes'.format(tag)] = job.fileStore.writeGlobalFile(lr_zip_path)
+
+    return out_dict
 
 def make_haplo_index(job, options, config, index_dict, giraffe_dict, tag=''):
     """ make new haplotype subsampling (.hapl) index.  this generally replaces the giraffe (.min .dist) indexes """
