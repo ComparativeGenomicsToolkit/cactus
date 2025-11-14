@@ -38,6 +38,16 @@ include ${sonLibRootDir}/include.mk
 #https://github.com/ComparativeGenomicsToolkit/cactus/issues/235
 CFLAGS += -UNDEBUG
 
+# Control variable for jemalloc
+# Disable on Mac, disable when address sanitizer is active
+jemalloc = on
+ifeq ($(TARGETOS), Darwin)
+	jemalloc = off
+endif
+ifeq (${CGL_DEBUG},ultra)
+	jemalloc = off
+endif
+
 # Hack to include xml2
 ifeq (${CACTUS_LIBXML2_INCLUDE_PATH},)
 CACTUS_LIBXML2_INCLUDE_PATH = /usr/include/libxml2
@@ -103,6 +113,12 @@ CPPFLAGS += ${inclDirs:%=-I${rootPath}/%} -I${LIBDIR} -I${rootPath}/include
 cactusLibs = ${LIBDIR}/stCaf.a ${LIBDIR}/stReference.a ${LIBDIR}/cactusBarLib.a ${LIBDIR}/cactusLib.a
 sonLibLibs = ${sonLibDir}/sonLib.a ${sonLibDir}/cuTest.a
 
+# Add jemalloc if enabled
+ifeq ($(jemalloc),on)
+	jemallocLib = -ljemalloc
+	jemallocDepends = ${LIBDIR}/libjemalloc.a
+endif
+
 # note: the CACTUS_STATIC_LINK_FLAGS below can generally be empty -- it's used by the static builder script only
-LDLIBS += ${cactusLibs} ${sonLibLibs} ${LIBS} -L${rootPath}/lib -Wl,-rpath,${rootPath}/lib -labpoa -lz -lbz2 -lpthread -lm -lstdc++ -lm -lxml2 ${CACTUS_STATIC_LINK_FLAGS}
-LIBDEPENDS = ${sonLibDir}/sonLib.a ${sonLibDir}/cuTest.a
+LDLIBS += ${cactusLibs} ${sonLibLibs} ${LIBS} -L${rootPath}/lib -Wl,-rpath,${rootPath}/lib -labpoa ${jemallocLib} -lz -lbz2 -lpthread -lm -lstdc++ -lm -lxml2 ${CACTUS_STATIC_LINK_FLAGS}
+LIBDEPENDS = ${sonLibDir}/sonLib.a ${sonLibDir}/cuTest.a ${jemallocDepends}
