@@ -688,7 +688,10 @@ class TestCase(unittest.TestCase):
         self.assertLessEqual(num_bases, 11200000)
 
         # make sure we have the giraffe indexes
-        for giraffe_idx in ['yeast.gbz', 'yeast.dist', 'yeast.min', 'yeast.d2.gbz', 'yeast.d2.dist', 'yeast.d2.min',
+        for giraffe_idx in ['yeast.gbz', 'yeast.dist',
+                            'yeast.shortread.withzip.min', 'yeast.shortread.zipcodes',
+                            'yeast.d2.gbz', 'yeast.d2.dist',
+                            'yeast.d2.shortread.withzip.min', 'yeast.d2.shortread.zipcodes',
                             'yeast.d2.longread.withzip.min', 'yeast.d2.longread.zipcodes']:
             idx_bytes = os.path.getsize(os.path.join(join_path, giraffe_idx))
             threshold = 500000 if not giraffe_idx.endswith('.zipcodes') else 4

@@ -143,7 +143,7 @@ def graphmap_join_options(parser):
     parser.add_argument("--vcfwaveMemory", type=human2bytesN, help = "Memory for reach vcfwave job [default=32Gi].", default=32000000000)
     parser.add_argument("--snarlStats", nargs='*', help = "Write a list of snarl statistics for the graph type(s). Valid types are 'full', 'clip' and 'filter'. If no type specified, 'clip' will be used ('full' used if clipping disabled). Multipe types can be provided separated by space")
         
-    parser.add_argument("--giraffe", nargs='*', default=None, help = "Generate Giraffe (.dist, .min) indexes for the given graph type(s). Valid types are 'full', 'clip' and 'filter'. If not type specified, 'filter' will be used (will fall back to 'clip' than full if filtering, clipping disabled, respectively). Multiple types can be provided seperated by a space. NOTE: do not use this option if you want to use haplotype sampling. Use --haplo instead.")
+    parser.add_argument("--giraffe", nargs='*', default=None, help = "Generate Giraffe (.dist, .shortread.withzip.min, .shortread.zipcodes) indexes for the given graph type(s). Valid types are 'full', 'clip' and 'filter'. If not type specified, 'filter' will be used (will fall back to 'clip' than full if filtering, clipping disabled, respectively). Multiple types can be provided seperated by a space. NOTE: do not use this option if you want to use haplotype sampling. Use --haplo instead.")
 
     parser.add_argument("--lrGiraffe", nargs='*', default=None, help = "Generate Long Read Giraffe (.dist, .longread.withzip.min, .longread.zipcodes) indexes for the given graph type(s). Valid types are 'full', 'clip' and 'filter'. If not type specified, 'filter' will be used (will fall back to 'clip' than full if filtering, clipping disabled, respectively). Multiple types can be provided seperated by a space. NOTE: do not use this option if you want to use haplotype sampling. Use --haplo instead.")
 
@@ -1587,10 +1587,12 @@ def make_giraffe_indexes(job, options, config, index_dict, short_read, long_read
 
     # make the minimizer index
     if short_read:
-        min_path = os.path.join(work_dir, tag + os.path.basename(options.outName) + '.min')
+        min_path = os.path.join(work_dir, tag + os.path.basename(options.outName) + '.shortread.withzip.min')
+        zip_path = os.path.join(work_dir, tag + os.path.basename(options.outName) + '.shortread.zipcodes')
         min_opts = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "minimizerOptions", default='').split()
-        cactus_call(parameters=['vg', 'minimizer'] + min_opts + ['-t', str(job.cores), '-d', dist_path, '-o', min_path, gbz_path], job_memory=job.memory)
-        out_dict['{}min'.format(tag)] = job.fileStore.writeGlobalFile(min_path)
+        cactus_call(parameters=['vg', 'minimizer'] + min_opts + ['-t', str(job.cores), '-d', dist_path, '-o', min_path, '-z', zip_path, gbz_path], job_memory=job.memory)
+        out_dict['{}shortread.withzip.min'.format(tag)] = job.fileStore.writeGlobalFile(min_path)
+        out_dict['{}shortread.zipcodes'.format(tag)] = job.fileStore.writeGlobalFile(zip_path)
 
     # make the long-read minimizer index and zipcodes
     if long_read:
