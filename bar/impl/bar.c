@@ -233,8 +233,7 @@ void bar(stList *flowers, CactusParams *params, CactusDisk *cactusDisk, stList *
         } // nowait: don't wait for tasks, let threads immediately join the for loop
 
         // Process small flowers as batched parallel-for (for efficiency)
-        //#pragma omp for schedule(static, smallFlowerChunk)
-        #pragma omp for schedule(dynamic)
+        #pragma omp for schedule(static, smallFlowerChunk)
         for (int64_t j = largeFlowerThreshold; j < numFlowers; j++) {
             Flower *flower = stList_get(flowers, j);
             processFlower(flower, &barParams);
