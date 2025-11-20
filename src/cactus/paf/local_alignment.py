@@ -41,7 +41,7 @@ def run_lastz(job, name_A, genome_A, name_B, genome_B, distance, params):
     lastz_divergence_node = lastz_params_node.find("kegalignArguments" if gpu else "lastzArguments")
     divergences = params.find("constants").find("divergences")
     for i in "one", "two", "three", "four", "five":
-        if distance <= float(divergences.attrib[i]):
+        if i in lastz_divergence_node.attrib and distance <= float(divergences.attrib[i]):
             lastz_params = lastz_divergence_node.attrib[i]
             break
     else:
