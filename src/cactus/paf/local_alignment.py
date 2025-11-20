@@ -21,6 +21,8 @@ from Bio import SeqIO
 from cactus.paf.paf import get_event_pairs, get_leaves, get_node, get_distances
 from cactus.shared.common import cactus_call, getOptionalAttrib
 from cactus.preprocessor.checkUniqueHeaders import sanitize_fasta_headers
+from cactus.preprocessor.unmasking import unmask_contigs_all
+from cactus.preprocessor.cactus_preprocessor import clean_if_different
 from cactus.shared.common import cactus_clamp_memory
 
 def run_lastz(job, name_A, genome_A, name_B, genome_B, distance, params):
@@ -752,6 +754,19 @@ def make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancest
     fastga = getOptionalAttrib(lastz_params_node, 'mapper', typeFn=str) == 'fastga'
     chunk_attr = 'bigChunkSize' if gpu or fastga else 'chunkSize'
 
+    # unmask overly-masked contigs
+    unmask_job = None
+    input_sequence_map = dict(event_names_to_sequences)
+    if getOptionalAttrib(lastz_params_node.find("unmask"), 'action', typeFn=str, default='none') != 'none':
+        ingroups = [ingroup.iD for ingroup in ingroup_events]
+        # Pass a copy of event_names_to_sequences to unmask_job to avoid circular reference
+        unmask_job = root_job.addChildJobFn(unmask_contigs_all, input_sequence_map, ingroups, params)
+        for i,ingroup in enumerate(ingroups):
+            event_names_to_sequences[ingroup] = unmask_job.rv(i)
+        new_root_job = Job()
+        root_job.addFollowOn(new_root_job)
+        root_job = new_root_job
+    
     # for each pair of ingroups make alignments
     ingroup_alignments = []
     # for better logs
@@ -797,9 +812,13 @@ def make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancest
                                          outgroup_alignments, outgroup_alignment_names,
                                          ancestor_event_string, params).rv()
 
-    return job.addFollowOnJobFn(chain_alignments, ingroup_alignments + outgroup_alignments,
-                                ingroup_alignment_names + outgroup_alignment_names,
-                                ancestor_event_string, params).rv()
+    # Delete the unmasked fastas (todo: should we do the unmasking somewhere further upstream?)
+    for ingroup in ingroup_events:
+        root_job.addFollowOnJobFn(clean_if_different, event_names_to_sequences[ingroup.iD], input_sequence_map[ingroup.iD])
+
+    return root_job.addFollowOnJobFn(chain_alignments, ingroup_alignments + outgroup_alignments,
+                                     ingroup_alignment_names + outgroup_alignment_names,
+                                     ancestor_event_string, params).rv()
 
 
 def trim_unaligned_sequences(job, sequences, alignments, params, has_resources=False):
