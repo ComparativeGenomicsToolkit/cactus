@@ -367,6 +367,10 @@ def main():
                         help="Two-column file mapping genome (col 1) to comma-separated list of sex chromosomes. This information "
                         "will be used to guide outgroup selection so that, where possible, all chromosomes are present in"
                         " at least one outgroup.")
+    parser.add_argument("--maskMode", 
+                        help='Masking mode for catus preprocessor, one of {"red", "fastan", "lastz", "none", "default"}.'
+                        ' The "default" mode is to use whatever is active in the config.xml.',
+                        default='default', choices=["red", "fastan", "lastz", "none", "default"])
 
     options = parser.parse_args()
 
@@ -421,6 +425,14 @@ def main():
 
             # apply gpu override
             config_wrapper.initLastz(options)
+
+            # apply masking override (todo, we could support multiple values)
+            if options.maskMode != 'default':
+                config_wrapper.setPreprocessorActive("red", options.maskMode == 'red')
+                config_wrapper.setPreprocessorActive("lastzRepeatMask", options.maskMode == 'lastz')
+                config_wrapper.setPreprocessorActive("dna-brnn", False)
+                config_wrapper.setPreprocessorActive("fastan", options.maskMode == 'fastan')
+
             mc_tree, input_seq_map, og_candidates = parse_seqfile(options.seqFile, config_wrapper, root_name = options.root)
             logger.info('Tree: {}'.format(NXNewick().writeString(mc_tree)))
             og_map = compute_outgroups(mc_tree, config_wrapper, set(og_candidates), options.root,

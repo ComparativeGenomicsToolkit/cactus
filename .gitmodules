@@ -40,3 +40,9 @@
 [submodule "submodules/jemalloc"]
 	path = submodules/jemalloc
 	url = https://github.com/jemalloc/jemalloc.git
+[submodule "submodules/alntools"]
+	path = submodules/alntools
+	url = https://github.com/richarddurbin/alntools.git
+[submodule "submodules/FASTAN"]
+	path = submodules/FASTAN
+	url = https://github.com/thegenemyers/FASTAN.git

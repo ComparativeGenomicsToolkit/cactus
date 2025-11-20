@@ -11,6 +11,7 @@ Please cite the [HAL paper](https://doi.org/10.1093/bioinformatics/btt128) when 
 * [Progressive Cactus Data](#progressive-cactus-data)
 * [Quick-start](#quick-start)
 * [Interface](#interface)
+*    * [Masking](#masking)
 * [Using the HAL Output](#using-the-hal-output)
      * [MAF Export](#maf-export)
 * [Using Docker](#using-docker)
@@ -96,9 +97,15 @@ An optional * can be placed at the beginning of a name to specify that its assem
 * Each name / path pair must be on its own line
 * `http://`, `s3://`, etc. URLs may be used.
 
-Please ensure your genomes are *soft*-masked, ideally with RepeatMasker. We do some basic masking as a preprocessing step to ensure highly repetitive elements are masked when repeat libraries are incomplete, but genomes that aren't properly masked can still take tens of times longer to align that those that are masked. Hard-masking (totally replacing repeats with stretches of Ns) isn't necessary, and is strongly discouraged (you will miss a *lot* of alignments!).
-
 An example seqfile can be found [here](../examples/evolverMammals.txt).
+
+### Masking
+
+Please ensure your genomes are *soft*-masked, ideally with `RepeatMasker`. We do some basic masking as a preprocessing step to ensure highly repetitive elements are masked when repeat libraries are incomplete, but genomes that aren't properly masked can still take tens of times longer to align that those that are masked. Hard-masking (totally replacing repeats with stretches of Ns) isn't necessary, and is strongly discouraged (you will miss a *lot* of alignments!).
+
+You can specify the type of masking that Cactus performs in its preprocessor via the `--maskMode` option (or editing the configuration XML).  The default mode is currently [red](https://github.com/glennhickey/red).  If you are worried about coverage, especially if your genomes have already gone through `RepeatMasker`, you can try `--maskMode fastan` to use [FastAN](https://github.com/thegenemyers/FASTAN/) instead (note: FasTAN is still in the prototype stage).  Another option is using lastz preprocessing (this was Cactus's original pipeline), but it is much slower and does not catch some repeats such as those found in T2T gorilla.
+
+The `--maskMode` option is available in `cactus`, `cactus-preprocess` and `cactus-prepare`.  
 
 ### Sex Chromosomes and Diploid Assemblies
 
