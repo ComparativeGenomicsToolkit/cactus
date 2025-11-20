@@ -6,7 +6,7 @@
   		<defines littleMemory="2000000000" mediumMemory="3500000000" bigMemory="5000000000"/>
   		<!-- These constants are used to control parameters that depend on phylogenetic distance. Setting
   		     useDefault to 0 will force it to use the default divergence controlled parameter -->
-  		<divergences useDefault="0" one="0.1" two="0.15" three="0.2" four="0.25" five="0.35"/>
+		<divergences useDefault="0" one="0.1" two="0.15" three="0.2" four="0.25" five="0.35"/>
 	</constants>
 	<!-- The preprocessor tags are used to modify/check the input sequences before alignment -->
 	<!-- The cutHeaders preprocess modifies fastsa sequence names to help them pass checkUniqueHeaders. -->
@@ -108,21 +108,13 @@
 		within a margin of 0.2% sensitivity, should be very fast for close genomes, these were tuned using the blast/blastParametersScript.py
 		We could go even faster for less than 0.05 divergence using, but want to be robust to poor branch length estimates -->
 		<lastzArguments
-				one="--step=2 --ambiguous=iupac,100,100 --ydrop=3000 --notransition --queryhspbest=100000"
-				two="--step=5 --ambiguous=iupac,100,100 --ydrop=3000 --queryhspbest=100000"
-				three="--step=4 --ambiguous=iupac,100,100 --ydrop=3000 --queryhspbest=100000"
-				four="--step=3 --ambiguous=iupac,100,100 --ydrop=3000 --queryhspbest=100000"
-				five="--step=2 --ambiguous=iupac,100,100 --ydrop=3000 --queryhspbest=100000"
-				default="--step=1 --ambiguous=iupac,100,100 --ydrop=3000 --queryhspbest=100000"
+		    one="--step=2 --ambiguous=iupac,100,100 --inner=2000 --ydrop=5000 --gappedthresh=3000 --hspthresh=2400 --queryhspbest=100000"
+		    default="--step=1 --ambiguous=iupac,100,100 --inner=2000 --ydrop=5000 --gappedthresh=3000 --hspthresh=2400 --queryhspbest=100000"
 		/>
 		<!-- KegAlign doesn't seem to work properly with queryhspbest -->
 		<kegalignArguments
-				one="--step=2 --ambiguous=iupac,100,100 --ydrop=3000 --notransition"
-				two="--step=5 --ambiguous=iupac,100,100 --ydrop=3000"
-				three="--step=4 --ambiguous=iupac,100,100 --ydrop=3000"
-				four="--step=3 --ambiguous=iupac,100,100 --ydrop=3000"
-				five="--step=2 --ambiguous=iupac,100,100 --ydrop=3000"
-				default="--step=1 --ambiguous=iupac,100,100 --ydrop=3000"
+		    one="--step=2 --ambiguous=iupac,100,100 --inner=2000 --ydrop=5000 --gappedthresh=3000 --hspthresh=2400"
+		    default="--step=1 --ambiguous=iupac,100,100 --inner=2000 --ydrop=5000 --gappedthresh=3000 --hspthresh=2400"
 		/>
 	</blast>
 
