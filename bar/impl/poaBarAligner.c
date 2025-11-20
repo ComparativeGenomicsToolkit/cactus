@@ -17,9 +17,9 @@
 //#define CACTUS_ABPOA_FROM_COMMAND_LINE
 
 // OpenMP
-//#if defined(_OPENMP)
-//#include <omp.h>
-//#endif
+#if defined(_OPENMP)
+#include <omp.h>
+#endif
 
 abpoa_para_t *abpoaParamaters_constructFromCactusParams(CactusParams *params) {
     abpoa_para_t *abpt = abpoa_init_para();
@@ -754,9 +754,19 @@ Msa **make_consistent_partial_order_alignments(int64_t end_no, int64_t *end_leng
     // Calculate the initial, potentially inconsistent msas and column scores for each msa
     float *column_scores[end_no];
     Msa **msas = st_malloc(sizeof(Msa *) * end_no);
-//#if defined(_OPENMP)
-//#pragma omp parallel for schedule(dynamic)
-//#endif
+
+#if defined(_OPENMP)
+    // Only use nested parallelism for ≥50 ends
+    int min_ends_for_nesting = 50;
+    int nested_threads = 1;
+    if (end_no >= min_ends_for_nesting) {
+        // never use more than a quarter of our threads    
+        int max_threads = omp_get_max_threads() / 4;
+        nested_threads = end_no < max_threads ? end_no : max_threads;
+    }
+    
+#pragma omp parallel for schedule(dynamic, 1) if(nested_threads > 1) num_threads(nested_threads)
+#endif
     for(int64_t i=0; i<end_no; i++) {
         msas[i] = msa_make_partial_order_alignment(end_strings[i], end_string_lengths[i], end_lengths[i], window_size,
                                                    max_prog_rows, max_prog_length_diff, poa_parameters);

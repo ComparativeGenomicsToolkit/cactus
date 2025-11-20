@@ -83,6 +83,12 @@ void bar(stList *flowers, CactusParams *params, CactusDisk *cactusDisk, stList *
     }
 
 #if defined(_OPENMP)
+    // Enable nested parallelism for large flowers with many ends
+    // Level 0: serial (main thread)
+    // Level 1: this parallel region (flower-level parallelism)
+    // Level 2: nested parallel regions in make_consistent_partial_order_alignments
+    omp_set_max_active_levels(2);
+    
 #pragma omp parallel for schedule(dynamic, 1)
 #endif
     for (int64_t j = 0; j<stList_length(flowers); j++) {
