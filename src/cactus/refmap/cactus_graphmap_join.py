@@ -1024,9 +1024,8 @@ def make_vg_indexes(job, options, config, gfa_ids, tag="", do_gbz=False):
         snarls_path = os.path.join(work_dir, '{}merged.snarls'.format(tag))
         snarls_cmd = ['vg', 'snarls', gbz_path, '-T', '-t', str(job.cores)]
         tips = get_tips(work_dir, gbz_path, options.reference[0])
-        #uncomment after updating vg:
-        #for tip in tips:
-        #    snarls_cmd += ['-w', str(tip)]    
+        for tip in tips:
+            snarls_cmd += ['-w', str(tip)]    
         cactus_call(parameters=snarls_cmd, outfile=snarls_path, job_memory=job.memory)
 
     out_dict = { '{}gfa.gz'.format(tag) : job.fileStore.writeGlobalFile(gfa_path) }
