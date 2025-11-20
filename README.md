@@ -41,11 +41,11 @@ Cactus uses many different algorithms and individual code contributions, princip
 - The vg team for [vg](https://github.com/vgteam/vg), used to process pangenome graphs.
 - The authors of [Mash](https://github.com/marbl/Mash)
 - Andrea Guarracino, Erik Garrison and co-authors for [odgi](https://github.com/pangenome/odgi). Make sure to [cite odgi](https://doi.org/10.1093/bioinformatics/btac308) when using it or its visualizations.
-- Hani Z. Girgis for [RED](http://toolsmith.ens.utulsa.edu/)
+- Hani Z. Girgis for [RED](https://github.com/glennhickey/red)
 - Erik Garrison and co-authors for [vcfwave](https://github.com/vcflib/vcflib/blob/master/doc/vcfwave.md). [vcflib citation](https://doi.org/10.1371/journal.pcbi.1009123)
 - Martin Frith and collaborators for `last-train` from [last](https://gitlab.com/mcfrith/last). [last-train citation](https://academic.oup.com/bioinformatics/article-lookup/doi/10.1093/bioinformatics/btw742)
 - Han Cao for [merge_duplicates](https://github.com/Han-Cao/collapse-bubble) vcf cleanup script
-- Gene Myers, Richard Durbin and Chenxi Zhou for [FastGA](https://github.com/thegenemyers/FASTGA/)
+- Gene Myers, Richard Durbin and Chenxi Zhou for [FastGA](https://github.com/thegenemyers/FASTGA/), [FasTAN](https://github.com/thegenemyers/FASTAN/) and [alntools](https://github.com/richarddurbin/alntools).
 
 ## Installing Manually From Source
 
