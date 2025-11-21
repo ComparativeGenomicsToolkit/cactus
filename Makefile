@@ -320,7 +320,7 @@ suball.FASTGA:
 	ln -f submodules/FASTGA/GIXmake ${BINDIR}
 	ln -f submodules/FASTGA/GIXrm ${BINDIR}
 suball.FASTAN:
-	cd submodules/FASTAN && ${MAKE} || true
+	cd submodules/FASTAN && sed -i Makefile -e 's/-lm -lz/-lm -lpthread -lz/g' && ${MAKE} || true
 	ln -f submodules/FASTAN/FasTAN ${BINDIR}
 suball.alntools:
 	cd submodules/alntools && ${MAKE}
