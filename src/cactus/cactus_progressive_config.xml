@@ -131,14 +131,13 @@
 		/>
 		<!-- Logic to try to rescue contigs in ingroups that would otherwise be ignored due to masking -->
 		<!-- threshold: unamask if less than this fraction of the contig is not masked -->
-		<!-- threshold_bp: unmask if fewer than this many bp of the contig are no masked -->
+		<!-- threshold_bp: unmask if fewer than this many bp of the contig are not masked -->
 		<!-- action to apply if *either* of the above thresholds are met. Can be "none" to do nothing,
-		     "unmask" to unmaks or "remask" to remask.  If the thresholds aren't bet after remasking
-		     then the contig will be unmasked -->
+		     "unmask" to unmaks or "remask" to remask.   -->
 		<unmask
-				threshold="0.02"
+				threshold="0.05"
 				threshold_bp="100000"
-				action="unmask"
+				action="remask"
 		    />
 	</blast>
 
