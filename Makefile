@@ -143,10 +143,10 @@ ${versionPy}:
 	echo "cactus_commit = '${git_commit}'" >$@
 
 ${CWD}/test/mammals-truth.maf:
-	cd ${CWD}/test && wget -q https://raw.githubusercontent.com/UCSantaCruzComputationalGenomicsLab/cactusTestData/master/evolver/mammals/loci1/all.maf -O mammals-truth.maf
+	cd ${CWD}/test && wget -nv https://raw.githubusercontent.com/UCSantaCruzComputationalGenomicsLab/cactusTestData/master/evolver/mammals/loci1/all.maf -O mammals-truth.maf
 
 ${CWD}/test/primates-truth.maf:
-	cd ${CWD}/test && wget -q https://raw.githubusercontent.com/UCSantaCruzComputationalGenomicsLab/cactusTestData/master/evolver/primates/loci1/all.maf -O primates-truth.maf
+	cd ${CWD}/test && wget -nv https://raw.githubusercontent.com/UCSantaCruzComputationalGenomicsLab/cactusTestData/master/evolver/primates/loci1/all.maf -O primates-truth.maf
 
 evolver_test: all ${CWD}/test/mammals-truth.maf ${CWD}/test/primates-truth.maf
 # note: make docker needs to be run beforehand

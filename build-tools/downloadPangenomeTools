@@ -89,7 +89,7 @@ fi
 
 #samtools
 cd ${pangenomeBuildDir}
-wget -q https://github.com/samtools/samtools/releases/download/1.11/samtools-1.11.tar.bz2
+wget -nv --tries=5 --waitretry=3 --timeout=60 --retry-connrefused https://github.com/samtools/samtools/releases/download/1.11/samtools-1.11.tar.bz2
 tar --no-same-owner -xf samtools-1.11.tar.bz2
 cd samtools-1.11
 SAMTOOLS_CONFIG_OPTS=""
@@ -123,7 +123,7 @@ fi
 
 #bcftools
 cd ${pangenomeBuildDir}
-wget -q https://github.com/samtools/bcftools/releases/download/1.19/bcftools-1.19.tar.bz2
+wget -nv --tries=5 --waitretry=3 --timeout=60 --retry-connrefused https://github.com/samtools/bcftools/releases/download/1.19/bcftools-1.19.tar.bz2
 tar --no-same-owner -xf bcftools-1.19.tar.bz2
 cd bcftools-1.19
 SAMTOOLS_CONFIG_OPTS=""
@@ -142,7 +142,7 @@ fi
 
 #bedtools
 cd ${pangenomeBuildDir}
-wget -q https://github.com/arq5x/bedtools2/releases/download/v2.30.0/bedtools.static.binary
+wget -nv --tries=5 --waitretry=3 --timeout=60 --retry-connrefused https://github.com/arq5x/bedtools2/releases/download/v2.30.0/bedtools.static.binary
 mv bedtools.static.binary bedtools
 chmod +x bedtools
 if [[ $STATIC_CHECK -ne 1 || $(ldd bedtools | grep so | wc -l) -eq 0 ]]
@@ -236,7 +236,7 @@ fi
 
 # hal2vg
 cd ${pangenomeBuildDir}
-wget -q https://github.com/ComparativeGenomicsToolkit/hal2vg/releases/download/v1.1.8/hal2vg
+wget -nv --tries=5 --waitretry=3 --timeout=60 --retry-connrefused https://github.com/ComparativeGenomicsToolkit/hal2vg/releases/download/v1.1.8/hal2vg
 chmod +x hal2vg
 if [[ $STATIC_CHECK -ne 1 || $(ldd hal2vg | grep so | wc -l) -eq 0 ]]
 then
@@ -246,7 +246,7 @@ else
 fi
 # clip-vg
 cd ${pangenomeBuildDir}
-wget -q https://github.com/ComparativeGenomicsToolkit/hal2vg/releases/download/v1.1.8/clip-vg
+wget -nv --tries=5 --waitretry=3 --timeout=60 --retry-connrefused https://github.com/ComparativeGenomicsToolkit/hal2vg/releases/download/v1.1.8/clip-vg
 chmod +x clip-vg
 if [[ $STATIC_CHECK -ne 1 || $(ldd clip-vg | grep so | wc -l) -eq 0 ]]
 then
@@ -256,7 +256,7 @@ else
 fi
 # halRemoveDupes
 cd ${pangenomeBuildDir}
-wget -q https://github.com/ComparativeGenomicsToolkit/hal2vg/releases/download/v1.1.8/halRemoveDupes
+wget -nv --tries=5 --waitretry=3 --timeout=60 --retry-connrefused https://github.com/ComparativeGenomicsToolkit/hal2vg/releases/download/v1.1.8/halRemoveDupes
 chmod +x halRemoveDupes
 if [[ $STATIC_CHECK -ne 1 || $(ldd halRemoveDupes | grep so | wc -l) -eq 0 ]]
 then
@@ -266,7 +266,7 @@ else
 fi
 # halMergeChroms
 cd ${pangenomeBuildDir}
-wget -q https://github.com/ComparativeGenomicsToolkit/hal2vg/releases/download/v1.1.8/halMergeChroms
+wget -nv --tries=5 --waitretry=3 --timeout=60 --retry-connrefused https://github.com/ComparativeGenomicsToolkit/hal2vg/releases/download/v1.1.8/halMergeChroms
 chmod +x halMergeChroms
 if [[ $STATIC_CHECK -ne 1 || $(ldd halMergeChroms | grep so | wc -l) -eq 0 ]]
 then
@@ -277,7 +277,7 @@ fi
 
 # halUnclip
 cd ${pangenomeBuildDir}
-wget -q https://github.com/ComparativeGenomicsToolkit/hal2vg/releases/download/v1.1.8/halUnclip
+wget -nv --tries=5 --waitretry=3 --timeout=60 --retry-connrefused https://github.com/ComparativeGenomicsToolkit/hal2vg/releases/download/v1.1.8/halUnclip
 chmod +x halUnclip
 if [[ $STATIC_CHECK -ne 1 || $(ldd halUnclip | grep so | wc -l) -eq 0 ]]
 then
@@ -288,7 +288,7 @@ fi
 
 # filter-paf-deletions
 cd ${pangenomeBuildDir}
-wget -q https://github.com/ComparativeGenomicsToolkit/hal2vg/releases/download/v1.1.8/filter-paf-deletions
+wget -nv --tries=5 --waitretry=3 --timeout=60 --retry-connrefused https://github.com/ComparativeGenomicsToolkit/hal2vg/releases/download/v1.1.8/filter-paf-deletions
 chmod +x filter-paf-deletions
 if [[ $STATIC_CHECK -ne 1 || $(ldd filter-paf-deletions | grep so | wc -l) -eq 0 ]]
 then
@@ -299,7 +299,7 @@ fi
 
 # vg
 cd ${pangenomeBuildDir}
-wget -q https://github.com/vgteam/vg/releases/download/v1.70.0/vg
+wget -nv --tries=5 --waitretry=3 --timeout=60 --retry-connrefused https://github.com/vgteam/vg/releases/download/v1.70.0/vg
 chmod +x vg
 if [[ $STATIC_CHECK -ne 1 || $(ldd vg | grep so | wc -l) -eq 0 ]]
 then
@@ -310,7 +310,7 @@ fi
 
 # gfaffix
 cd ${pangenomeBuildDir}
-wget -q https://github.com/marschall-lab/GFAffix/releases/download/0.2.1/GFAffix-0.2.1_linux_x86_64.tar.gz
+wget -nv --tries=5 --waitretry=3 --timeout=60 --retry-connrefused https://github.com/marschall-lab/GFAffix/releases/download/0.2.1/GFAffix-0.2.1_linux_x86_64.tar.gz
 tar --no-same-owner -xzf GFAffix-0.2.1_linux_x86_64.tar.gz
 chmod +x GFAffix-0.2.1_linux_x86_64/gfaffix
 if [[ $STATIC_CHECK -ne 1 || $(ldd GFAffix-0.2.1_linux_x86_64/gfaffix | grep so | wc -l) -eq 0 ]]
@@ -322,7 +322,7 @@ fi
 
 # vcfbub
 cd ${pangenomeBuildDir}
-wget -q https://github.com/pangenome/vcfbub/releases/download/v0.1.1/vcfbub
+wget -nv --tries=5 --waitretry=3 --timeout=60 --retry-connrefused https://github.com/pangenome/vcfbub/releases/download/v0.1.1/vcfbub
 chmod +x vcfbub
 if [[ $STATIC_CHECK -ne 1 || $(ldd vcfbub | grep so | wc -l) -eq 0 ]]
 then
@@ -333,7 +333,7 @@ fi
 
 # mash
 cd ${pangenomeBuildDir}
-wget -q https://github.com/marbl/Mash/releases/download/v2.3/mash-Linux64-v2.3.tar
+wget -nv --tries=5 --waitretry=3 --timeout=60 --retry-connrefused https://github.com/marbl/Mash/releases/download/v2.3/mash-Linux64-v2.3.tar
 tar --no-same-owner -xf mash-Linux64-v2.3.tar
 cd mash-Linux64-v2.3
 mv mash ${binDir}
@@ -344,7 +344,7 @@ mv mash ${binDir}
 
 # odgi
 cd ${pangenomeBuildDir}
-wget -q https://github.com/pangenome/odgi/releases/download/v0.9.2/odgi-v0.9.2.tar.gz
+wget -nv --tries=5 --waitretry=3 --timeout=60 --retry-connrefused https://github.com/pangenome/odgi/releases/download/v0.9.2/odgi-v0.9.2.tar.gz
 tar --no-same-owner -zxf odgi-v0.9.2.tar.gz
 cd odgi-v0.9.2
 if [[ $STATIC_CHECK -eq 1 ]]
