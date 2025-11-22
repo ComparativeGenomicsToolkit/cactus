@@ -22,7 +22,12 @@
 	<!-- unmask: discard any previous masking on the input fasta, only masking from Red is kept -->
 	<!-- redOpts: any command line options can be passed to Red here -->
 	<!-- redPrefilterOpts: run red prefilter with these options.  -m 20000 -b 0.98 means exclude contigs with length < 20000 and/or a single base comprising 98 pct of the sequence from Red masking, as Red can crash on very small / low-information contigs -->
-	<preprocessor unmask="0" memory="mediumMemory" preprocessJob="red" redOpts="" redPrefilterOpts="-m 20000 -b 0.98" active="1"/>	
+	<preprocessor unmask="0" memory="mediumMemory" preprocessJob="red" redOpts="" redPrefilterOpts="-m 20000 -b 0.98" active="1"/>
+	<!-- Use FasTAN (A Fast Repeat Tandem Repeat Finder) to masks repetitive sequence. -->
+	<!-- unmask: discard any previous masking on the input fasta, only masking from FasTAN is kept -->
+	<!-- fastanOpts: any command line options can be passed to FasTAN here -->
+	<!-- fastanPrefilterOpts: run red prefilter with these options. -m 20000  -b 0.75 means exclude contigs with length < 20000 and/or a single base comprising 75 pct of the sequence from Red masking, as FasTAN/tanbed can crash on very small / low-information contigs -->
+	<preprocessor unmask="0" memory="mediumMemory" preprocessJob="fastan" fastanOpts="" fastanPrefilterOpts="-m 20000 -b 0.75" active="0"/>
 	<!-- The preprocessor for cactus_lastzRepeatMask masks every seed that is part of more than XX other alignments, this stops a combinatorial explosion in pairwise alignments. gpu sets the number of gpus (if >0, use kegalign in stead of lastz. can be set to 'all' for all available GPUs). Note: Setting unmask to 1 will cause an assertion failure if gpu is not 0. -->
 	<preprocessor unmask="0" chunkSize="10000000" proportionToSample="0.2" memory="littleMemory" preprocessJob="lastzRepeatMask" minPeriod="50" lastzOpts='--step=3 --ambiguous=iupac,100,100 --ungapped --queryhsplimit=keep,nowarn:1500' gpu="0" active="0"/>
 	<!-- Softmask alpha-satellite using the dna-brnn tool -->

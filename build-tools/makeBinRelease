@@ -36,11 +36,13 @@ else
 	 export sse41=1
 fi
 
-# hack lastz and FASTGA to build static.
+# hack lastz, FASTGA, FASTAN and alntools to build static.
 # todo: it'd be nice to have this done in cactus's "make static"
 sed -i submodules/lastz/src/Makefile -e 's/CFLAGS = /CFLAGS = -static /g'
 sed -i submodules/lastz/src/Makefile -e 's/-lm/-lm -static/g'
 sed -i submodules/FASTGA/Makefile -e 's/CFLAGS = /CFLAGS = -static /g'
+sed -i submodules/FASTAN/Makefile -e 's/CFLAGS = /CFLAGS = -static /g'
+sed -i submodules/alntools/Makefile -e 's/CFLAGS = /CFLAGS = -static /g'
 
 export CFLAGS="-static"
 export CXXFLAGS="-static"

@@ -186,7 +186,7 @@ class TestCase(unittest.TestCase):
                '-v', '{}:{}'.format(os.getcwd(), '/workdir'), 
                '-u', '{}:{}'.format(os.getuid(), os.getgid()),
                'evolvertestdocker/cactus:latest',
-               'cactus /data/js /workdir/{} /data/{}'.format(seqFile, os.path.basename(out_hal))]
+               'cactus /data/js /workdir/{} /data/{} --maskMode fastan'.format(seqFile, os.path.basename(out_hal))]
         sys.stderr.write('Running {}\n'.format(' '.format(cmd)))
         subprocess.check_call(' '.join(cmd), shell=True)
 
@@ -214,7 +214,7 @@ class TestCase(unittest.TestCase):
         out_seqfile = os.path.join(out_dir, 'evolverMammalsOut.txt')
         in_seqfile = './examples/evolverMammals.txt'
         cmd = ['cactus-prepare', in_seqfile, '--outDir', out_dir, '--outSeqFile', out_seqfile, '--outHal', self._out_hal(name),
-               '--jobStore', self._job_store(name)]
+               '--jobStore', self._job_store(name), '--maskMode', 'fastan']
         bm_flag = '--binariesMode {}'.format(binariesMode)
         if binariesMode == "docker":
             bm_flag += ' --latest'
