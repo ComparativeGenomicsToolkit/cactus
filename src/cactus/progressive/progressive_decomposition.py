@@ -24,7 +24,7 @@ import logging
 import os
 import xml.etree.ElementTree as ET
 import copy
-
+from collections import defaultdict
 from cactus.shared.configWrapper import ConfigWrapper
 from cactus.progressive.multiCactusTree import MultiCactusTree
 from cactus.progressive.outgroup import GreedyOutgroup
@@ -198,6 +198,32 @@ def get_spanning_subtree(mc_tree, root_name, config_wrapper, outgroup_map):
 
     spanning_tree.computeSubtreeRoots()
     return spanning_tree
+
+def get_node_heights(mc_tree, root_name):
+    """
+    get the height of each node (longest distance to leaf below it)
+    """
+    height_map = defaultdict(int)
+    for node in mc_tree.breadthFirstTraversal(mc_tree.getNodeId(root_name)):
+        # for every leaf below root_name
+        if not mc_tree.isLeaf(node):
+            continue
+        dist = 0
+        # walk back up to the root
+        while True:
+            name = mc_tree.getName(node)
+            # only update if we're longer than seen before
+            if dist >= height_map[name]:
+                height_map[name] = dist
+            else:
+                break
+            if not mc_tree.hasParent(node) or (root_name and name == root_name):
+                break
+            # continue up the tree
+            dist += mc_tree.getWeight(mc_tree.getParent(node), node)
+            node = mc_tree.getParent(node)
+
+    return height_map
 
 def get_event_set(mc_tree, config_wrapper, outgroup_map, root_name, subtree=True):
     """
