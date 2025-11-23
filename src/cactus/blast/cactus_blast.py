@@ -11,13 +11,14 @@ from argparse import ArgumentParser
 import xml.etree.ElementTree as ET
 import timeit
 
-from cactus.progressive.progressive_decomposition import compute_outgroups, parse_seqfile, get_subtree, get_spanning_subtree, get_event_set
+from cactus.progressive.progressive_decomposition import compute_outgroups, parse_seqfile, get_subtree, get_spanning_subtree, get_event_set, get_node_heights
 from cactus.shared.common import setupBinaries, importSingularityImage
 from cactus.shared.common import cactusRootPath
 from cactus.shared.configWrapper import ConfigWrapper
 from cactus.shared.common import makeURL, catFiles
 from cactus.shared.common import enableDumpStack
 from cactus.shared.common import cactus_override_toil_options
+from cactus.shared.common import getOptionalAttrib
 from cactus.shared.version import cactus_commit
 from cactus.progressive.cactus_prepare import human2bytesN
 
@@ -124,6 +125,11 @@ def runCactusBlastOnly(options):
 
             # get the spanning tree (which is what it paf aligner wants)
             spanning_tree = get_spanning_subtree(mc_tree, options.root, config_wrapper, og_map)
+
+            height_map = None
+            if getOptionalAttrib(config_node.find('blast'), 'upweightAncestorDistances', typeFn=bool, default=False):
+                # get the heights of each node, to add ancestor divergences
+                height_map = get_node_heights(mc_tree, spanning_tree.getRootName())
                     
             #import the sequences
             input_seq_id_map = {}
@@ -137,7 +143,7 @@ def runCactusBlastOnly(options):
                     input_seq_id_map[genome] = toil.importFile(seq)
 
             paf_id = toil.start(Job.wrapJobFn(sanitize_then_make_paf_alignments, NXNewick().writeString(spanning_tree),
-                                              input_seq_id_map, options.root, config_node))
+                                              input_seq_id_map, options.root, config_node, height_map=height_map))
 
         # export the alignments
         toil.exportFile(paf_id, makeURL(options.outputFile))

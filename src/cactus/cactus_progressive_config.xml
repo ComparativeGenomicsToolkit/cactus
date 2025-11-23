@@ -76,6 +76,7 @@
 	     other ingroups without outgroups, then get the outgroups to pick their primary alignment to the ingroups. If 0
 	     get every sequence to pick its primary alignment without regard to if the other sequence is an ingroup or outgroup -->
 	<!-- slurmChunkScale Multiply chunkSize and divide dechunkBatchSize by this value when running slurm in order to decrease job count -->
+	<!-- upweightAncestorDistances Add the ancestor's height in the tree to any pairwise distance computed with it -->
 	<blast chunkSize="30000000"
 	       bigChunkSize="6000000000"
 		   overlapSize="10000"
@@ -107,6 +108,7 @@
 		   dechunkBatchSize="1000"
 		   pickIngroupPrimaryAlignmentsSeparatelyToOutgroups="1"
 		   slurmChunkScale="3"
+		   upweightAncestorDistances="1"
 		   >
 
 		<!-- The following are parametrised to produce the same results as the default settings,
