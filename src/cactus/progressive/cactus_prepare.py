@@ -83,6 +83,10 @@ def main(toil_mode=False):
     parser.add_argument("--halOptions", type=str, default="--hdf5InMemory", help="options for every hal command")
     parser.add_argument("--cactusOptions", type=str, default="", help="options for every cactus command")
     parser.add_argument("--preprocessOnly", action="store_true", help="only decompose into preprocessor and cactus jobs")
+    parser.add_argument("--maskMode", 
+                        help='Masking mode for catus preprocessor, one of {"red", "fastan", "lastz", "none", "default"}.'
+                        ' The "default" mode is to use whatever is active in the config.xml.',
+                        default='default', choices=["red", "fastan", "lastz", "none", "default"])
     parser.add_argument("--dockerImage", type=str, help="docker image to use as wdl runtime")
     if not toil_mode:
         # no good reason this isn't supported in toil_mode, just time to implement
@@ -481,11 +485,12 @@ def get_plan(options, inSeqFile, outSeqFile, configWrapper, toil):
                                                                           memory=options.preprocessMemory,
                                                                           disk=options.preprocessDisk)
         else:
-            plan += 'cactus-preprocess {} {} {} --inputNames {} {} {}{}{}{}{}\n'.format(
+            plan += 'cactus-preprocess {} {} {} --inputNames {} {} {}{}{}{}{}{}\n'.format(
                 get_jobstore(options), options.seqFile, options.outSeqFile, ' '.join(pre_batch),
                 options.cactusOptions, get_toil_resource_opts(options, 'preprocess'),
                 ' --gpu {}'.format(options.gpu) if options.gpu_preprocessor else '',
-                ' --lastzCores {}'.format(options.lastzCores) if options.lastzCores else '',
+                ' --lastzCores {}'.format(options.lastzCores) if options.lastzCores and options.gpu_preprocessor else '',
+                ' --maskMode {}'.format(options.maskMode) if options.maskMode != 'default' else '',
                 get_log_options(options, 'preprocess', leaves[i]),
                 ' &' if options.script else '')
             if options.script:
@@ -800,9 +805,11 @@ def wdl_task_preprocess(options):
     s += '    command {\n        '
     s += 'cactus-preprocess {} --inPaths ${{sep=\" \" default=\"\" in_files}} ${{sep=\" \" default=\"\" in_urls}}'.format(get_jobstore(options, 'preprocess'))
     s += ' --inputNames ${sep=\" \" default=\"\" in_names}'
-    s += ' --outPaths ${{sep=\" \" out_names}} {} {} {} {}'.format(options.cactusOptions, get_toil_resource_opts(options, 'preprocess'),
-                                                                   ' --gpu {}'.format(options.gpu) if options.gpu else '',
-                                                                   ' --lastzCores {}'.format(options.lastzCores) if options.lastzCores else '')
+    s += ' --outPaths ${{sep=\" \" out_names}} {} {} {} {} {}'.format(
+        options.cactusOptions, get_toil_resource_opts(options, 'preprocess'),
+        ' --gpu {}'.format(options.gpu) if options.gpu and options.gpu_preprocessor else '',
+        ' --lastzCores {}'.format(options.lastzCores) if options.lastzCores and options.gpu_preprocessor else '',
+        ' --maskMode {}'.format(options.maskMode) if options.maskMode != 'default' else '')
     s += ' ${\"--configFile \" + in_config_file}'
     s += '\n'
     s += '    }\n'
@@ -866,6 +873,8 @@ def toil_call_preprocess(job, options, in_seq_file, out_seq_file, name):
         cmd += ['--gpu', options.gpu]
         if options.lastzCores:
             cmd += ['--lastzCores', str(options.lastzCores)]
+    if options.maskMode != 'default':
+        cmd += ['--maskMode', options.maskMode]
     
     cactus_call(parameters=cmd)
 

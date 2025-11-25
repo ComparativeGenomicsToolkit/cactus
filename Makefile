@@ -7,7 +7,7 @@ modules = api setup caf bar hal reference pipeline preprocessor
 # submodules are in multiple pass to handle dependencies cactus2hal being dependent on
 # both cactus and sonLib
 # jemalloc is conditionally added based on include.mk settings
-submodules1 = sonLib cPecan hal matchingAndOrdering pinchesAndCacti abPOA lastz paffy red collapse-bubble FASTGA
+submodules1 = sonLib cPecan hal matchingAndOrdering pinchesAndCacti abPOA lastz paffy red collapse-bubble FASTGA FASTAN alntools
 submodules2 = cactus2hal
 submodules = ${submodules1} ${submodules2}
 
@@ -319,6 +319,12 @@ suball.FASTGA:
 	ln -f submodules/FASTGA/FAtoGDB ${BINDIR}
 	ln -f submodules/FASTGA/GIXmake ${BINDIR}
 	ln -f submodules/FASTGA/GIXrm ${BINDIR}
+suball.FASTAN:
+	cd submodules/FASTAN && sed -i Makefile -e 's/-lm -lz/-lm -lpthread -lz/g' && ${MAKE} || true
+	ln -f submodules/FASTAN/FasTAN ${BINDIR}
+suball.alntools:
+	cd submodules/alntools && ${MAKE}
+	ln -f submodules/alntools/tanbed ${BINDIR}
 
 ifeq ($(jemalloc),on)
 subclean.jemalloc:

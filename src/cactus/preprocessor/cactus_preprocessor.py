@@ -42,6 +42,7 @@ from cactus.preprocessor.lastzRepeatMasking.cactus_lastzRepeatMask import LastzR
 from cactus.preprocessor.lastzRepeatMasking.cactus_lastzRepeatMask import RepeatMaskOptions
 from cactus.preprocessor.dnabrnnMasking import DnabrnnMaskJob, loadDnaBrnnModel
 from cactus.preprocessor.redMasking import RedMaskJob
+from cactus.preprocessor.fastanMasking import FasTANMaskJob
 from cactus.preprocessor.cutHeaders import CutHeadersJob
 from cactus.preprocessor.fileMasking import maskJobOverride, FileMaskingJob
 from cactus.progressive.cactus_prepare import human2bytesN
@@ -50,7 +51,8 @@ class PreprocessorOptions:
     def __init__(self, chunkSize, memory, cpu, check, proportionToSample, unmask,
                  preprocessJob, checkAssemblyHub=None, lastzOptions=None, minPeriod=None,
                  gpu=0, lastz_memory=None, dnabrnnOpts=None,
-                 dnabrnnAction=None, redOpts=None, redPrefilterOpts=None, eventName=None, minLength=None,
+                 dnabrnnAction=None, redOpts=None, redPrefilterOpts=None, fastanOpts=None, fastanPrefilterOpts=None,
+                 eventName=None, minLength=None,
                  cutBefore=None, cutBeforeOcc=None, cutAfter=None, inputBedID=None):
         self.chunkSize = chunkSize
         self.memory = memory
@@ -73,6 +75,8 @@ class PreprocessorOptions:
         assert dnabrnnAction in ('softmask', 'hardmask', 'clip')
         self.redOpts = redOpts
         self.redPrefilterOpts = redPrefilterOpts
+        self.fastanOpts = fastanOpts
+        self.fastanPrefilterOpts = fastanPrefilterOpts        
         self.eventName = eventName
         self.minLength = minLength        
         self.cutBefore = cutBefore
@@ -172,7 +176,13 @@ class PreprocessSequence(RoundedJob):
                               redOpts=self.prepOptions.redOpts,
                               redPrefilterOpts=self.prepOptions.redPrefilterOpts,
                               eventName=self.prepOptions.eventName,
-                              unmask=self.prepOptions.unmask)  
+                              unmask=self.prepOptions.unmask)
+        elif self.prepOptions.preprocessJob == "fastan":
+            return FasTANMaskJob(inChunkID,
+                                 fastanOpts=self.prepOptions.fastanOpts,
+                                 fastanPrefilterOpts=self.prepOptions.fastanPrefilterOpts,
+                                 eventName=self.prepOptions.eventName,
+                                 unmask=self.prepOptions.unmask)          
         elif self.prepOptions.preprocessJob == "cutHeaders":
             return CutHeadersJob(inChunkID,
                                  cutBefore=self.prepOptions.cutBefore,
@@ -276,6 +286,8 @@ class BatchPreprocessor(RoundedJob):
                                               dnabrnnAction = getOptionalAttrib(prepNode, "action", typeFn=str, default="softmask"),
                                               redOpts = getOptionalAttrib(prepNode, "redOpts", default=""),
                                               redPrefilterOpts = getOptionalAttrib(prepNode, "redPrefilterOpts", default=""),
+                                              fastanOpts = getOptionalAttrib(prepNode, "fastanOpts", default=""),
+                                              fastanPrefilterOpts = getOptionalAttrib(prepNode, "fastanPrefilterOpts", default=""),
                                               eventName = getOptionalAttrib(prepNode, "eventName", typeFn=str, default=None),
                                               minLength = getOptionalAttrib(prepNode, "minLength", typeFn=int, default=1),
                                               cutBefore = getOptionalAttrib(prepNode, "cutBefore", typeFn=str, default=None),
@@ -380,13 +392,15 @@ def stageWorkflow(outputSequenceDir, configNode, inputSequences, toil, restart=F
     if configNode.find("constants") != None:
         ConfigWrapper(configNode).substituteAllPredefinedConstantsWithLiterals(options)
     if maskMode:
-        assert maskMode in ['red', 'lastz', 'brnn', 'none']
+        assert maskMode in ['red', 'lastz', 'brnn', 'fastan', 'none']
         red = maskMode == 'red'
         lastz = maskMode == 'lastz'
         brnn = maskMode == 'brnn'
+        fastan = maskMode == 'fastan'
         ConfigWrapper(configNode).setPreprocessorActive("red", red)
         ConfigWrapper(configNode).setPreprocessorActive("lastzRepeatMask", lastz)
         ConfigWrapper(configNode).setPreprocessorActive("dna-brnn", brnn)
+        ConfigWrapper(configNode).setPreprocessorActive("fastan", fastan)
         if brnn and maskAction == 'clip':
             for node in configNode.findall("preprocessor"):
                 if getOptionalAttrib(node, "preprocessJob") == 'dna-brnn':
@@ -444,7 +458,7 @@ def main():
     parser.add_argument("--inputNames", nargs='*', help='input genome names (not paths) to preprocess (all leaves from Input Seq file if none specified)')
     parser.add_argument("--inPaths", nargs='*', help='Space-separated list of input fasta paths (to be used in place of --inSeqFile')
     parser.add_argument("--outPaths", nargs='*', help='Space-separated list of output fasta paths (one for each inPath, used in place of --outSeqFile)')
-    parser.add_argument("--maskMode", type=str, help='Masking mode, one of {"lastz", "brnn", "red", "none", "config"}. Default="config".', default='config')
+    parser.add_argument("--maskMode", type=str, help='Masking mode, one of {"lastz", "brnn", "red", "fastan", "none", "default"}. Default="config".', default='default', choices=["red", "brnn", "fastan", "lastz", "none", "default"])
     parser.add_argument("--maskAction", type=str, help='Masking action, one of {"softmask", "hardmask", "clip"}. Default="softmask"', default='softmask')
     parser.add_argument("--minLength", type=int, help='Minimum interval threshold for masking.  Overrides config')
     parser.add_argument("--maskFile", type=str, help='Add masking from BED or PAF file to sequences, **ignoring all other preprocessors**')
@@ -487,14 +501,14 @@ def main():
             raise RuntimeError('--inputNames must be used in conjunction with --inputPaths to specify (exactly) one event name for each input')
     else:
         raise RuntimeError('--inSeqFile/--outSeqFile/--inputNames or --inPaths/--outPaths required to specify input')
-    if options.maskMode not in ['lastz', 'brnn', 'red', 'none', 'config']:
-        raise RuntimeError('--maskMode must be one of {"lastz", "brnn", "red", "none", "config"}')    
     if options.maskAction not in ['softmask', 'hardmask', 'clip']:
         raise RuntimeError('--maskAction must be one of {"softmask", "hardmask", "clip"}')
     if options.maskMode == 'lastz' and options.maskAction != 'softmask':
         raise RuntimeError('only softmasking is supported with lastz')
     if options.maskMode == 'red' and options.maskAction != 'softmask':
-        raise RuntimeError('only softmasking is supported with red')    
+        raise RuntimeError('only softmasking is supported with red')
+    if options.maskMode == 'fastan' and options.maskAction != 'softmask':
+        raise RuntimeError('only softmasking is supported with fastan')        
     if options.maskFile and options.maskFile.endswith('.paf') and not options.inputNames and not options.inSeqFile:
         raise RuntimeError('paf masking requires event names specified wither with an input seqfile or with --inputNames')
     if options.maskFile and options.minLength is None:
@@ -583,7 +597,7 @@ def main():
                       toil=toil,
                       restart=options.restart,
                       outputSequences=outSeqPaths,
-                      maskMode=options.maskMode if options.maskMode != 'config' else None,
+                      maskMode=options.maskMode if options.maskMode != 'default' else None,
                       maskAction=options.maskAction,
                       minLength=options.minLength,
                       inputEventNames=inNames,
