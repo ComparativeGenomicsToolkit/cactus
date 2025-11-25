@@ -44,6 +44,8 @@ class TestCase(unittest.TestCase):
             cmd += ['--chromInfo', chromInfoName]
         if fastga:
             cmd += ['--fastga']
+        else:
+            cmd += ['--remask']
 
         # todo: it'd be nice to have an interface for setting tag to something not latest or commit
         if binariesMode == 'docker':
@@ -252,7 +254,8 @@ class TestCase(unittest.TestCase):
                '--dockerImage', 'evolvertestdocker/cactus:latest',
                '--preprocessCores', '2',
                '--blastCores', '4',
-               '--alignCores', '4']
+               '--alignCores', '4',
+               '--remaks']
 
         # specify an output directory
         cw_optionsfile = os.path.join(self.tempDir, 'options.json')

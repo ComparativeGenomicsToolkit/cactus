@@ -69,7 +69,10 @@ def main():
     parser.add_argument("--chromInfo",
                         help="Two-column file mapping genome (col 1) to comma-separated list of sex chromosomes. This information "
                         "will be used to guide outgroup selection so that, where possible, all chromosomes are present in"
-                        " at least one outgroup.")    
+                        " at least one outgroup.")
+    parser.add_argument("--remask",
+                        help='Attempt to rescue completely-masked contigs by unmasking then remasking them with the preprocessor.',
+                        action='store_true')    
     
     options = parser.parse_args()
 
@@ -113,7 +116,10 @@ def runCactusBlastOnly(options):
             event_set = get_event_set(mc_tree, config_wrapper, og_map, options.root)
             if options.includeRoot:
                 event_set.add(options.root)
-            
+            # toggle remasking
+            if options.remask:
+                config_node.find("blast").find("unmask").attrib["action"] = "remask"
+                            
             # apply path overrides.  this was necessary for wdl which doesn't take kindly to
             # text files of local paths (ie seqfile).  one way to fix would be to add support
             # for s3 paths and force wdl to use it.  a better way would be a more fundamental
