@@ -371,6 +371,9 @@ def main():
                         help='Masking mode for catus preprocessor, one of {"red", "fastan", "lastz", "none", "default"}.'
                         ' The "default" mode is to use whatever is active in the config.xml.',
                         default='default', choices=["red", "fastan", "lastz", "none", "default"])
+    parser.add_argument("--remask",
+                        help='Attempt to rescue completely-masked contigs by unmasking then remasking them with the preprocessor.',
+                        action='store_true')
 
     options = parser.parse_args()
 
@@ -432,6 +435,10 @@ def main():
                 config_wrapper.setPreprocessorActive("lastzRepeatMask", options.maskMode == 'lastz')
                 config_wrapper.setPreprocessorActive("dna-brnn", False)
                 config_wrapper.setPreprocessorActive("fastan", options.maskMode == 'fastan')
+
+            # toggle remasking
+            if options.remask:
+                config_node.find("blast").find("unmask").attrib["action"] = "remask"
 
             mc_tree, input_seq_map, og_candidates = parse_seqfile(options.seqFile, config_wrapper, root_name = options.root)
             logger.info('Tree: {}'.format(NXNewick().writeString(mc_tree)))

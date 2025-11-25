@@ -137,7 +137,7 @@
 		<unmask
 				threshold="0.05"
 				threshold_bp="100000"
-				action="remask"
+				action="none"
 		    />
 	</blast>
 
