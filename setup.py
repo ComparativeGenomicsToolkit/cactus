@@ -1,5 +1,4 @@
 from setuptools import setup, find_packages
-from setuptools.command.install import install
 import os, sys
 import subprocess
 
@@ -14,13 +13,6 @@ if os.path.exists(readmeFile):
 git_commit = subprocess.check_output(['git', 'rev-parse', 'HEAD'], encoding="ascii").strip()
 with open(versionFile, 'w') as versionFH:
     versionFH.write("cactus_commit = '%s'\n" % git_commit)
-
-class PostInstallCommand(install):
-    """Post-installation customization.  Ensure sonLib submodule in the tree is installed virtual env."""
-
-    def run(self):
-        subprocess.run([sys.executable, "-m", "pip", "install", "submodules/sonLib"], check=True)
-        install.run(self)
 
 setup(
     name = "Cactus",
@@ -38,16 +30,14 @@ setup(
     python_requires = '>=3.9',
 
     install_requires = [
+        'sonlib @ file:./submodules/sonLib',
         'decorator',
         'networkx>=2,<2.8.1',
         'pytest',
         'cigar',
         'biopython',
-        'pysam'], 
+        'pysam'],
 
-    cmdclass = {
-        'install': PostInstallCommand,
-    },
     entry_points= {
         'console_scripts': ['cactus = cactus.progressive.cactus_progressive:main',
                             'cactus-preprocess = cactus.preprocessor.cactus_preprocessor:main',
