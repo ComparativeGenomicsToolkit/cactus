@@ -1,3 +1,22 @@
+# Release 3.1.0 2025-11-27
+
+This release contains several changes to address sensitivity problems with Progressive Cactus.
+
+- Fix bug where `docker run --user $(id -u):$(id -g)` did not work with the cactus release docker images
+- `cactus-update-prepare` regressions fixed (thanks @gwct)
+- Update `vcfwave` to bring in important patch that fixes a genotype-dropping issue
+- Update to vg 1.70.0.  Note that `giraffe` indexes from this vg won't be compatible with older versions
+- Use reference paths to guide snarl-tree construction (this could lead to better VCFs in very complex graphs)
+- Don't bother writing VCF variants with `AC=0`, which can arise in some weird cases.
+- Add `--lrGiraffe` option to produce long-read giraffe indexes
+- Use `jemalloc`, which significantly improves performance when `--consCores` is anything higher than about 20
+- Use nested parallelism in BAR stage (together with jemalloc, I've been getting more than a 2X speedup in `cactus_consolidated`)
+- Add `--maskMode` option that can toggle between `RED` and `FasTAN` for masking in the preprocessor.
+- Update to the latest versions of `KegAlign` and `FastGA`
+- More aggressive `lastz` default parameters.  Also reduce branch length thresholds at which more sensitive parameters kick in.
+- Option to re-mask fully-masked contigs with the preprocessor (`--remask`)
+- 
+
 # Release 3.0.1 2025-10-15
 
 This release patches some bugs in new functionality
