@@ -129,6 +129,16 @@
 				five="--step=2 --ambiguous=iupac,100,100 --ydrop=4000 --hspthresh=2400 --gappedthresh=2600"
 				default="--step=1 --ambiguous=iupac,100,100 --ydrop=4000 --hspthresh=2200 --gappedthresh=2400"
 		/>
+		<!-- Logic to try to rescue contigs in ingroups that would otherwise be ignored due to masking -->
+		<!-- threshold: unamask if less than this fraction of the contig is not masked -->
+		<!-- threshold_bp: unmask if fewer than this many bp of the contig are not masked -->
+		<!-- action to apply if *either* of the above thresholds are met. Can be "none" to do nothing,
+		     "unmask" to unmaks or "remask" to remask.   -->
+		<unmask
+				threshold="0.05"
+				threshold_bp="100000"
+				action="none"
+		    />
 	</blast>
 
 	<setup makeEventHeadersAlphaNumeric="0"/>

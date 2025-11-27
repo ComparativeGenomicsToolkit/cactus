@@ -87,6 +87,9 @@ def main(toil_mode=False):
                         help='Masking mode for catus preprocessor, one of {"red", "fastan", "lastz", "none", "default"}.'
                         ' The "default" mode is to use whatever is active in the config.xml.',
                         default='default', choices=["red", "fastan", "lastz", "none", "default"])
+    parser.add_argument("--remask",
+                        help='Attempt to rescue completely-masked contigs by unmasking then remasking them with the preprocessor.',
+                        action='store_true')    
     parser.add_argument("--dockerImage", type=str, help="docker image to use as wdl runtime")
     if not toil_mode:
         # no good reason this isn't supported in toil_mode, just time to implement
@@ -598,7 +601,7 @@ def get_plan(options, inSeqFile, outSeqFile, configWrapper, toil):
             else:
                 # todo: support cactus interface (it's easy enough here, but cactus_progressive.py needs changes to handle)
                 cactus_options = options.cactusOptions
-                plan += 'cactus-blast {} {} {} --root {} {} {}{}{}{}{}{}{}{}\n'.format(
+                plan += 'cactus-blast {} {} {} --root {} {} {}{}{}{}{}{}{}{}{}\n'.format(
                     get_jobstore(options), options.outSeqFile, cigarPath(event), event,
                     cactus_options, get_toil_resource_opts(options, 'blast'),
                     ' --gpu {}'.format(options.gpu) if options.gpu else '',
@@ -606,6 +609,7 @@ def get_plan(options, inSeqFile, outSeqFile, configWrapper, toil):
                     ' --fastga' if options.fastga else '',
                     ' --includeRoot' if options.includeRoot and event == mc_tree.getRootName() else '',
                     ' --chromInfo {}'.format(options.chromInfo) if options.chromInfo else '',
+                    ' --remask' if options.remask else '',
                     get_log_options(options, 'blast', event),
                     ' && \\' if options.script else '')
                 plan += 'cactus-align {} {} {} {} --root {} {} {}{}{}{}{}\n'.format(
@@ -898,10 +902,11 @@ def wdl_task_blast(options):
     s += '    command {\n        '
     s += 'cactus-blast {} ${{in_seq_file}} ${{out_name}} --root ${{in_root}}'.format(get_jobstore(options, 'blast'))
     s += ' --pathOverrides ${sep=\" \" in_fa_files} ${sep=\" \" in_fa_urls} --pathOverrideNames ${sep=\" \" in_fa_names}'
-    s += ' {} {} {} {} {} ${{\"--configFile \" + in_config_file}} ${{in_options}}'.format(options.cactusOptions, get_toil_resource_opts(options, 'blast'),
+    s += ' {} {} {} {} {} {}${{\"--configFile \" + in_config_file}} ${{in_options}}'.format(options.cactusOptions, get_toil_resource_opts(options, 'blast'),
                                                                                        '--gpu {}'.format(options.gpu) if options.gpu else '',
                                                                                           '--lastzCores {}'.format(options.lastzCores) if options.lastzCores else '',
-                                                                                          '--fastga' if options.fastga else '')
+                                                                                          '--fastga' if options.fastga else '',
+                                                                                          '--remask' if options.remask else '')
     s += ' ${\"--chromInfo \" + in_chrom_info_file}'
     s += '\n    }\n'
     s += '    runtime {\n'
@@ -992,6 +997,8 @@ def toil_call_blast(job, options, seq_file, mc_tree, og_map, event, cigar_name, 
             blast_cmd += ['--lastzCores', str(options.lastzCores)]
     if options.fastga:
         blast_cmd += ['--fastga']
+    if options.remask:
+        blast_cmd += ['--remask']
     if options.chromInfo:
         #todo this won't support distributed execution
         blast_cmd += ['--chromInfo', options.chromInfo]

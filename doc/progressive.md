@@ -105,7 +105,11 @@ Please ensure your genomes are *soft*-masked, ideally with `RepeatMasker`. We do
 
 You can specify the type of masking that Cactus performs in its preprocessor via the `--maskMode` option (or editing the configuration XML).  The default mode is currently [red](https://github.com/glennhickey/red).  If you are worried about coverage, especially if your genomes have already gone through `RepeatMasker`, you can try `--maskMode fastan` to use [FastAN](https://github.com/thegenemyers/FASTAN/) instead (note: FasTAN is still in the prototype stage).  Another option is using lastz preprocessing (this was Cactus's original pipeline), but it is much slower and does not catch some repeats such as those found in T2T gorilla.
 
-The `--maskMode` option is available in `cactus`, `cactus-preprocess` and `cactus-prepare`.  
+The `--maskMode` option is available in `cactus`, `cactus-preprocess` and `cactus-prepare`.
+
+#### "Rescuing" completely-masked contigs
+
+It is possible for Cactus to reconstruct ancestral contigs that are completely masked.  These will effectively be invisible to `lastz` and will never align up the tree.  The experimental `--remask` option is added to detect these contigs, unmask them, then remask them from scratch using the cactus preprocessor.  In practice the end result is that some contigs will end up only partially masked and will have a chance at aligning further up the tree.  The details for exactly how a contig is chosen for remasking can be tuned in the config (see the "unmask" element in "blast").  Using `--remask` will likely increase sensitivity, but this could come at the cost of worse running time and/or memory usuage. 
 
 ### Sex Chromosomes and Diploid Assemblies
 
