@@ -53,7 +53,7 @@ RUN cd /home/cactus && rm -rf cactus_env && \
 	 . cactus_env/bin/activate && \
 	 python3 -m pip install -U setuptools pip && \
 	 python3 -m pip install -U -r ./toil-requirement.txt && \
-	 python3 -m pip install -U --no-build-isolation .
+	 python3 -m pip install -U .
 	 
 # prep the hal python install which is not part of the setup
 RUN rm -rf /home/cactus/hal_lib && \
