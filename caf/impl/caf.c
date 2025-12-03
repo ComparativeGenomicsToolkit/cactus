@@ -164,18 +164,21 @@ void caf(Flower *flower, CactusParams *params, char *alignmentsFile, char *secon
 
     // Pick the annealing round parameter based on the distance
     int64_t annealingRoundsLength;
-    int64_t *annealingRounds;
-    if(max_path_distance < cactusParams_get_float(params, 3, "constants", "divergences", "one")) {
-        annealingRounds = cactusParams_get_ints(params, &annealingRoundsLength, 3, "caf", "annealingRounds", "one");
-    } else if(max_path_distance < cactusParams_get_float(params, 3, "constants", "divergences", "two")) {
-        annealingRounds = cactusParams_get_ints(params, &annealingRoundsLength, 3, "caf", "annealingRounds", "two");
-    } else if(max_path_distance < cactusParams_get_float(params, 3, "constants", "divergences", "three")) {
-        annealingRounds = cactusParams_get_ints(params, &annealingRoundsLength, 3, "caf", "annealingRounds", "three");
-    } else if(max_path_distance < cactusParams_get_float(params, 3, "constants", "divergences", "four")) {
-        annealingRounds = cactusParams_get_ints(params, &annealingRoundsLength, 3, "caf", "annealingRounds", "four");
-    } else if(max_path_distance < cactusParams_get_float(params, 3, "constants", "divergences", "five")) {
-        annealingRounds = cactusParams_get_ints(params, &annealingRoundsLength, 3, "caf", "annealingRounds", "five");
-    } else {
+    int64_t *annealingRounds = NULL;
+    if (cactusParams_get_float(params, 3, "constants", "divergences", "useDefault") == 0) {
+        if(max_path_distance < cactusParams_get_float(params, 3, "constants", "divergences", "one")) {
+            annealingRounds = cactusParams_get_ints(params, &annealingRoundsLength, 3, "caf", "annealingRounds", "one");
+        } else if(max_path_distance < cactusParams_get_float(params, 3, "constants", "divergences", "two")) {
+            annealingRounds = cactusParams_get_ints(params, &annealingRoundsLength, 3, "caf", "annealingRounds", "two");
+        } else if(max_path_distance < cactusParams_get_float(params, 3, "constants", "divergences", "three")) {
+            annealingRounds = cactusParams_get_ints(params, &annealingRoundsLength, 3, "caf", "annealingRounds", "three");
+        } else if(max_path_distance < cactusParams_get_float(params, 3, "constants", "divergences", "four")) {
+            annealingRounds = cactusParams_get_ints(params, &annealingRoundsLength, 3, "caf", "annealingRounds", "four");
+        } else if(max_path_distance < cactusParams_get_float(params, 3, "constants", "divergences", "five")) {
+            annealingRounds = cactusParams_get_ints(params, &annealingRoundsLength, 3, "caf", "annealingRounds", "five");
+        }
+    }
+    if (annealingRounds == NULL) {
         annealingRounds = cactusParams_get_ints(params, &annealingRoundsLength, 3, "caf", "annealingRounds", "default");
     }
 

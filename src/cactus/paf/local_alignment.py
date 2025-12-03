@@ -42,14 +42,14 @@ def run_lastz(job, name_A, genome_A, name_B, genome_B, distance, params):
     cpu = getOptionalAttrib(lastz_params_node, 'cpu', typeFn=int, default=None)        
     lastz_divergence_node = lastz_params_node.find("kegalignArguments" if gpu else "lastzArguments")
     divergences = params.find("constants").find("divergences")
-    for i in "one", "two", "three", "four", "five":
-        if distance <= float(divergences.attrib[i]):
-            lastz_params = lastz_divergence_node.attrib[i]
-            break
-    else:
-        lastz_params = lastz_divergence_node.attrib["default"]
-    logger.info("For distance {} for genomes {}, {} using {} lastz parameters".format(distance, genome_A,
-                                                                                      genome_B, lastz_params))
+    lastz_params = lastz_divergence_node.attrib["default"]
+    if not getOptionalAttrib(divergences, 'useDefault', typeFn=bool, default=False):
+        for i in "one", "two", "three", "four", "five":
+            if distance <= float(divergences.attrib[i]):
+                lastz_params = lastz_divergence_node.attrib[i]
+                break
+        logger.info("For distance {} for genomes {}, {} using {} lastz parameters".format(distance, genome_A,
+                                                                                          genome_B, lastz_params))
     if gpu:
         lastz_bin = 'run_kegalign'
         suffix_a, suffix_b = '', ''
