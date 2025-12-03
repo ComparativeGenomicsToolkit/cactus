@@ -30,25 +30,20 @@ def unmask_contigs_one(job, event, fasta_id, params):
     unmask_threshold = getOptionalAttrib(unmask_params_node, 'threshold', typeFn=float, default=1.0)
     unmask_threshold_bp = getOptionalAttrib(unmask_params_node, 'threshold_bp', typeFn=int, default=0)
     unmask_action = getOptionalAttrib(lastz_params_node.find("unmask"), 'action', typeFn=str, default='none')
+    min_length = getOptionalAttrib(lastz_params_node.find("unmask"), 'min_length', typeFn=int, default=0)
     assert unmask_action in ['unmask', 'remask']
 
     work_dir = job.fileStore.getLocalTempDir()
     fasta_path = os.path.join(work_dir, '{}.fa'.format(event))
     job.fileStore.readGlobalFile(fasta_id, fasta_path)
-    if unmask_action == 'unmask':
-        bed_path = os.path.join(work_dir, '{}.unmasked.bed'.format(event))
-        bed_file = open(bed_path, 'w')
-    else:
-        remask_input_fasta_path = os.path.join(work_dir, '{}.to-remask.fasta'.format(event))
-        remainder_fasta_path = os.path.join(work_dir, '{}.remainder.fasta'.format(event))
-        remask_input_fasta_file = open(remask_input_fasta_path, 'w')
-        remainder_fasta_file = open(remainder_fasta_path, 'w')
 
-    unmasked_bp = 0
+    unmasked_contigs = {} # map name to length
     for seq_record in SeqIO.parse(fasta_path, 'fasta'):
-        header = seq_record.description
         seq = seq_record.seq
         seq_str = str(seq)  # Convert to string once for faster iteration
+        if len(seq_str) < min_length:
+            continue
+        
         threshold = max(unmask_threshold_bp, int(unmask_threshold * len(seq_str)))
         threshold = min(threshold, len(seq_str))
         unmasked_bases = 0
@@ -61,61 +56,82 @@ def unmask_contigs_one(job, event, fasta_id, params):
                     break
         
         if too_masked:
-            unmasked_bp += len(seq_str)
-            if unmask_action == 'unmask':
-                bed_file.write('{}\t0\t{}\n'.format(seq_record.id, len(seq_str)))
-            else:
-                SeqIO.write(seq_record, remask_input_fasta_file, 'fasta')
-        elif unmask_action != 'unmask':
-            SeqIO.write(seq_record, remainder_fasta_file, 'fasta')
-    if unmask_action == 'unmask':
-        bed_file.close()
-    else:
-        remask_input_fasta_file.close()
-        remainder_fasta_file.close()                
+            unmasked_contigs[seq_record.id] = len(seq_str)
 
-    if unmasked_bp > 0:
+    if unmasked_contigs:
+        bed_path = os.path.join(work_dir, '{}.unmasked.bed'.format(event))
+        with open(bed_path, 'w') as bed_file:
+            for contig, length in unmasked_contigs.items():
+                bed_file.write('{}\t0\t{}\n'.format(contig, length))
+        
         if unmask_action == 'unmask':
-            RealtimeLogger.info('Unmasked {} bp of contigs for {} using thresholds {}, {}'.format(
-                unmasked_bp, event, unmask_threshold, unmask_threshold_bp))
             unmasked_fasta_path = os.path.join(work_dir, '{}.unmask.fa'.format(event))
             cactus_call(parameters=['cactus_fasta_softmask_intervals.py', '--origin=zero', '--unmask', bed_path],
-                        infile=fasta_path, outfile=unmasked_fasta_path)
+                    infile=fasta_path, outfile=unmasked_fasta_path)
+            job.fileStore.deleteGlobalFile(fasta_id)
             fasta_id = job.fileStore.writeGlobalFile(unmasked_fasta_path)
+            RealtimeLogger.info('Unmasked {} bp of contigs for {} using thresholds {}, {}'.format(
+                sum(x for x in unmasked_contigs.values()), event, unmask_threshold, unmask_threshold_bp))
         else:
-            RealtimeLogger.info('Remasking {} bp of contigs for {} using thresholds {}, {}'.format(
-                unmasked_bp, event, unmask_threshold, unmask_threshold_bp))
+            active = {}
             for node in params.findall("preprocessor"):
-                if getOptionalAttrib(node, "preprocessJob") in ['cutHeaders', 'checkUniqueHeaders']:
+                # deactivate everything but masking
+                if getOptionalAttrib(node, "preprocessJob") not in  ['lastzRepeatMask', 'red', 'fastan']:
                     node.attrib['active'] = '0'
-                else:
-                    node.attrib['unmask'] = '1'                    
-            remask_fasta_id = job.fileStore.writeGlobalFile(remask_input_fasta_path)
-            remainder_fasta_id = job.fileStore.writeGlobalFile(remainder_fasta_path)
-            # run the preprocessor
-            pp_job = job.addChild(CactusPreprocessor([remask_fasta_id], params, eventNames=[event]))
-            pp_id = pp_job.rv(0)
-            fa_merge_job = pp_job.addFollowOnJobFn(merge_fa, remainder_fasta_id, pp_id)
-            fa_merge_job.addFollowOnJobFn(clean_jobstore_files, file_ids=[remask_fasta_id])
-            fasta_id = fa_merge_job.rv()
+                # figure out which masking needs to unmask first
+                elif getOptionalAttrib(node, 'active', typeFn=bool, default=False):
+                    active[getOptionalAttrib(node, "preprocessJob")] = node
+                    node.attrib['unmask'] = '0'
+            if active:
+                # note: order here must be same as in preprocessor, since we only want to call unmask once
+                for prep in ['lastzRepeatMask', 'red', 'fastan']:
+                    if prep in active:
+                        active[prep].attrib['unmask'] = '1'
+                        break
+                # run the preprocessor on the whole thing
+                pp_job = job.addChild(CactusPreprocessor([fasta_id], params, eventNames=[event]))
+                pp_id = pp_job.rv(0)
+                # Create a preserved copy of the original fasta for the merge job
+                preserved_fasta_id = job.fileStore.writeGlobalFile(fasta_path)
+                # mix in the masking for the to-mask contigs with our original file
+                fa_merge_job = pp_job.addFollowOnJobFn(merge_fa, event, preserved_fasta_id, pp_id, set(unmasked_contigs.keys()),
+                                                       disk=fasta_id.size * 4)
+                fasta_id = fa_merge_job.rv()
+            else:
+                RealtimeLogger.warning('Remasking activated but no maskers active in preprocessor: doing nothing')
 
     return fasta_id
 
-def merge_fa(job, fasta1_id, fasta2_id):
-    """ cat some fastas together """
+def merge_fa(job, event, fasta1_id, fasta2_id, contigs):
+    """ splice two fastas together, taking contigs list from second one """
     work_dir = job.fileStore.getLocalTempDir()
-
+    
     if fasta1_id.size == 0:
         return fasta2_id
     elif fasta2_id.size == 0:
         return fasta1_id
 
-    fa_1 = os.path.join(work_dir, '1.fa')
-    fa_2 = os.path.join(work_dir, '2.fa')
-    fa_merge = os.path.join(work_dir, 'merged.fa')
+    fa_1 = os.path.join(work_dir, '{}.fa'.format(event))
+    fa_2 = os.path.join(work_dir, '{}.fa.pp'.format(event))
     job.fileStore.readGlobalFile(fasta1_id, fa_1)
     job.fileStore.readGlobalFile(fasta2_id, fa_2)
-    catFiles([fa_1, fa_2], fa_merge)
+    fa_merge = os.path.join(work_dir, '{}-remasked.fa'.format(event))
+    with open(fa_merge, 'w') as out_file:
+        for seq_record in SeqIO.parse(fa_1, 'fasta'):
+            if seq_record.id not in contigs:
+                SeqIO.write(seq_record, out_file, 'fasta')
+        for seq_record in SeqIO.parse(fa_2, 'fasta'):
+            if seq_record.id in contigs:
+                SeqIO.write(seq_record, out_file, 'fasta')
+
+    analysisString1 = cactus_call(parameters=["cactus_analyseAssembly", os.path.basename(fa_1)],
+                                 work_dir=work_dir, check_output=True)
+    job.fileStore.logToMaster("Assembly stats before remasking for %s: %s" % (event, analysisString1))
+
+    analysisString2 = cactus_call(parameters=["cactus_analyseAssembly", os.path.basename(fa_merge)],
+                                 work_dir=work_dir, check_output=True)
+    job.fileStore.logToMaster("Assembly stats after remasking for %s: %s" % (event, analysisString2))
+                
     job.fileStore.deleteGlobalFile(fasta1_id)
     job.fileStore.deleteGlobalFile(fasta2_id)
 
