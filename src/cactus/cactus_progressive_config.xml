@@ -4,9 +4,13 @@
 	<constants defaultMemory="mediumMemory" defaultOverlargeMemory="mediumMemory" defaultCpu="1" defaultOverlargeCpu="1">
 		<!-- These constants are used to control the amount of memory and cpu the different jobs in a batch are using. -->
   		<defines littleMemory="2000000000" mediumMemory="3500000000" bigMemory="5000000000"/>
-  		<!-- These constants are used to control parameters that depend on phylogenetic distance. Setting
-  		     useDefault to 0 will force it to use the default divergence controlled parameter -->
-  		<divergences useDefault="0" one="0.05" two="0.10" three="0.15" four="0.20" five="0.25"/>
+  		<!-- These constants are used to control parameters that depend on phylogenetic distance -->
+		<!-- useDefault: set to 1 to ignore the constants and always use the default (most sensitive) values -->
+		<!-- upweightAncestorDistances: Add the ancestor's height in the tree to any pairwise distance computed with it -->
+  		<divergences useDefault="0"
+			     upweightAncestorDistances="1"
+			     one="0.05" two="0.10" three="0.15" four="0.20" five="0.25"
+			     />
 	</constants>
 	<!-- The preprocessor tags are used to modify/check the input sequences before alignment -->
 	<!-- The cutHeaders preprocess modifies fastsa sequence names to help them pass checkUniqueHeaders. -->
@@ -76,7 +80,6 @@
 	     other ingroups without outgroups, then get the outgroups to pick their primary alignment to the ingroups. If 0
 	     get every sequence to pick its primary alignment without regard to if the other sequence is an ingroup or outgroup -->
 	<!-- slurmChunkScale Multiply chunkSize and divide dechunkBatchSize by this value when running slurm in order to decrease job count -->
-	<!-- upweightAncestorDistances Add the ancestor's height in the tree to any pairwise distance computed with it -->
 	<blast chunkSize="30000000"
 	       bigChunkSize="6000000000"
 		   overlapSize="10000"
@@ -108,7 +111,6 @@
 		   dechunkBatchSize="1000"
 		   pickIngroupPrimaryAlignmentsSeparatelyToOutgroups="1"
 		   slurmChunkScale="3"
-		   upweightAncestorDistances="1"
 		   >
 
 		<!-- The following are parametrised to produce the same results as the default settings,

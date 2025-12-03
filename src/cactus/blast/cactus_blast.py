@@ -11,7 +11,7 @@ from argparse import ArgumentParser
 import xml.etree.ElementTree as ET
 import timeit
 
-from cactus.progressive.progressive_decomposition import compute_outgroups, parse_seqfile, get_subtree, get_spanning_subtree, get_event_set, get_node_heights
+from cactus.progressive.progressive_decomposition import compute_outgroups, parse_seqfile, get_subtree, get_spanning_subtree, get_event_set, get_ancestor_scaled_tree
 from cactus.shared.common import setupBinaries, importSingularityImage
 from cactus.shared.common import cactusRootPath
 from cactus.shared.configWrapper import ConfigWrapper
@@ -132,10 +132,10 @@ def runCactusBlastOnly(options):
             # get the spanning tree (which is what it paf aligner wants)
             spanning_tree = get_spanning_subtree(mc_tree, options.root, config_wrapper, og_map)
 
-            height_map = None
-            if getOptionalAttrib(config_node.find('blast'), 'upweightAncestorDistances', typeFn=bool, default=False):
-                # get the heights of each node, to add ancestor divergences
-                height_map = get_node_heights(mc_tree, spanning_tree.getRootName())
+            if getOptionalAttrib(config_node.find('constants').find('divergences'),
+                                 'upweightAncestorDistances', typeFn=bool, default=False):
+                max_div = float(config_node.find('constants').find('divergences').attrib['five'])
+                mc_tree = get_ancestor_scaled_tree(mc_tree, spanning_tree.getRootName(), max_div)
                     
             #import the sequences
             input_seq_id_map = {}
@@ -149,7 +149,7 @@ def runCactusBlastOnly(options):
                     input_seq_id_map[genome] = toil.importFile(seq)
 
             paf_id = toil.start(Job.wrapJobFn(sanitize_then_make_paf_alignments, NXNewick().writeString(spanning_tree),
-                                              input_seq_id_map, options.root, config_node, height_map=height_map))
+                                              input_seq_id_map, options.root, config_node))
 
         # export the alignments
         toil.exportFile(paf_id, makeURL(options.outputFile))
