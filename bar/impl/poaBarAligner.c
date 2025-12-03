@@ -757,12 +757,16 @@ Msa **make_consistent_partial_order_alignments(int64_t end_no, int64_t *end_leng
 
 #if defined(_OPENMP)
     // Only use nested parallelism for ≥50 ends
-    int min_ends_for_nesting = 50;
+    static const int min_ends_for_nesting = 50;
+    static const int max_threads_for_nesting = 8;
     int nested_threads = 1;
     if (end_no >= min_ends_for_nesting) {
-        // never use more than a quarter of our threads    
-        int max_threads = omp_get_max_threads() / 4;
+        // never use more than an eighth of our threads    
+        int max_threads = omp_get_max_threads() / 8;
         nested_threads = end_no < max_threads ? end_no : max_threads;
+        if (nested_threads > max_threads_for_nesting) {
+            nested_threads = max_threads_for_nesting;
+        }
     }
     
 #pragma omp parallel for schedule(dynamic, 1) if(nested_threads > 1) num_threads(nested_threads)
