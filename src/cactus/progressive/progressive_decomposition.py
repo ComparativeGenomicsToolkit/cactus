@@ -199,6 +199,24 @@ def get_spanning_subtree(mc_tree, root_name, config_wrapper, outgroup_map):
     spanning_tree.computeSubtreeRoots()
     return spanning_tree
 
+def get_ancestor_scaled_tree(mc_tree, root_name, max_div):
+    """
+    add the height of each node to its branch-length to its parent.
+    we want to do this only for trees that are used to compute divergence
+    thresholds (which happens in caf and blast) and the idea behind
+    it is to add uncertainty to distances based on ancestors.
+    """
+    node_heights = get_node_heights(mc_tree, root_name)
+    scaled_tree = copy.deepcopy(mc_tree)
+    for node in scaled_tree.breadthFirstTraversal(scaled_tree.getNodeId(root_name)):
+        name = scaled_tree.getName(node)
+        if name in node_heights and scaled_tree.hasParent(node):
+            parent = scaled_tree.getParent(node)
+            length = scaled_tree.getWeight(parent, node)
+            if length < max_div:
+                scaled_tree.setWeight(parent, node, min(max_div, length + node_heights[name]))
+    return scaled_tree
+    
 def get_node_heights(mc_tree, root_name):
     """
     get the height of each node (longest distance to leaf below it)

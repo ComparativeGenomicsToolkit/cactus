@@ -721,16 +721,14 @@ def tile_alignments(job, alignment_files, reference_event_name, params, has_reso
     return job.fileStore.writeGlobalFile(output_alignments_file)  # Copy back
         
 
-def sanitize_then_make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancestor_event_string, params,
-                                      height_map=None):
+def sanitize_then_make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancestor_event_string, params):
     sanitize_job = job.addChildJobFn(sanitize_fasta_headers, event_names_to_sequences)
     paf_job = sanitize_job.addFollowOnJobFn(make_paf_alignments, event_tree_string, sanitize_job.rv(),
-                                            ancestor_event_string, params, height_map)
+                                            ancestor_event_string, params)
     return paf_job.rv()
 
 
-def make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancestor_event_string, params,
-                        height_map=None):
+def make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancestor_event_string, params):
     # a job should never set its own follow-on, so we hang everything off the root_job here to encapsulate
     root_job = Job()
     job.addChild(root_job)
@@ -785,11 +783,6 @@ def make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancest
 
     distances = get_distances(event_tree)  # Distances between all pairs of nodes
 
-    if height_map:
-        # upweight ancestors by their heights
-        for distance in distances:
-            distances[distance] += height_map[distance[0].iD] + height_map[distance[1].iD]
-                                                                       
     # Get the outgroup events
     outgroup_events.sort(key=lambda outgroup: distances[ancestor_event, outgroup])  # Sort from closest to furthest
     logger.info("Got outgroup events: {} for ancestor event: {}".format(" ".join([i.iD for i in outgroup_events]),

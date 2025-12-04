@@ -17,7 +17,7 @@ from operator import itemgetter
 
 from cactus.shared.common import setupBinaries, importSingularityImage
 from cactus.pipeline.cactus_workflow import cactus_cons_with_resources
-from cactus.progressive.progressive_decomposition import compute_outgroups, parse_seqfile, get_subtree, get_spanning_subtree, get_event_set
+from cactus.progressive.progressive_decomposition import compute_outgroups, parse_seqfile, get_subtree, get_spanning_subtree, get_event_set, get_ancestor_scaled_tree
 from cactus.progressive.cactus_progressive import export_hal
 from cactus.shared.common import makeURL, catFiles
 from cactus.shared.common import enableDumpStack
@@ -413,8 +413,15 @@ def cactus_align(job, config_wrapper, mc_tree, input_seq_map, input_seq_id_map, 
         paf_filter_job = head_job.addChildJobFn(filter_paf, paf_id, config_wrapper, disk = paf_id.size * 10, memory=paf_filter_mem)
         paf_id = paf_filter_job.rv()
 
+    # apply tree scaling to reflect uncertainty in ancestor placement/sequences
+    scaled_tree = mc_tree
+    if getOptionalAttrib(config_wrapper.xmlRoot.find('constants').find('divergences'),
+                         'upweightAncestorDistances', typeFn=bool, default=False):
+        max_div = float(config_wrapper.xmlRoot.find('constants').find('divergences').attrib['five'])
+        scaled_tree = get_ancestor_scaled_tree(mc_tree, root_name, max_div)
+
     # get the spanning tree (which is what consolidated wants)
-    spanning_tree = get_spanning_subtree(mc_tree, root_name, config_wrapper, og_map)
+    spanning_tree = get_spanning_subtree(scaled_tree, root_name, config_wrapper, og_map)
 
     # run consolidated
     cons_job = head_job.addFollowOnJobFn(cactus_cons_with_resources, spanning_tree, root_name, config_wrapper.xmlRoot, new_seq_id_map, og_map, paf_id,
