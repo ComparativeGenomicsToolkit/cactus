@@ -310,12 +310,15 @@ def progressive_workflow(job, options, config_node, mc_tree, og_map, input_seq_i
     # then do the progressive workflow
     root_event = options.root if options.root else mc_tree.getRootName()
 
-    # apply tree scaling to reflect uncertainty in ancestor placement/sequences
+    # apply tree scaling to reflect branch scaling and/or uncertainty in ancestor placement/sequences
     scaled_tree = mc_tree
-    if getOptionalAttrib(config_node.find('constants').find('divergences'),
-                         'upweightAncestorDistances', typeFn=bool, default=False):
+    upweight_ancestors = getOptionalAttrib(config_node.find('constants').find('divergences'),
+                                           'upweightAncestorDistances', typeFn=bool, default=False)
+    if options.branchScale != 1.0 or upweight_ancestors:
         max_div = float(config_node.find('constants').find('divergences').attrib['five'])
-        scaled_tree = get_ancestor_scaled_tree(mc_tree, root_event, max_div)
+        scaled_tree = get_ancestor_scaled_tree(mc_tree, root_event, max_div,
+                                               branch_scale=options.branchScale,
+                                               upweight_ancestors=upweight_ancestors)
     progressive_job = sanitize_job.addFollowOnJobFn(progressive_schedule, options, config_node, seq_id_map, scaled_tree, og_map, root_event)
 
     # then do the hal export
@@ -381,6 +384,8 @@ def main():
     parser.add_argument("--remask",
                         help='Attempt to rescue completely-masked contigs by unmasking then remasking them with the preprocessor.',
                         action='store_true')
+    parser.add_argument("--branchScale", type=float, default=1.0,
+                        help="Scale branch lengths by this factor to adjust alignment sensitivity (e.g., 2.0 = treat branches as 2x longer, more sensitive)")
 
     options = parser.parse_args()
 
@@ -430,6 +435,7 @@ def main():
             config_wrapper.substituteAllPredefinedConstantsWithLiterals(options)
             config_wrapper.setSystemMemory(options)
             config_wrapper.applySlurmChunkScaling(options)
+
             if options.maxOutgroups:
                 config_wrapper.setMaxNumOutgroups(options.maxOutgroups)
 
