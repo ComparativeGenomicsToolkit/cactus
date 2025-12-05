@@ -140,7 +140,7 @@
 		<!-- action to apply if *either* of the above thresholds are met. Can be "none" to do nothing,
 		     "unmask" to unmaks or "remask" to remask.   -->
 		<unmask
-				threshold="0.005"
+				threshold="0.20"
 				threshold_bp="100"
 				min_length="20000"
 				action="none"				
