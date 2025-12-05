@@ -530,7 +530,7 @@
 	 	<decomposition
 	 		default_internal_node_prefix="Anc"
 			default_branch_len="1"
-			default_branch_len_pangenome="0.025"
+			default_branch_len_pangenome="0.02"
 			allow_multifurcations="0"
 	 	/>
   	</multi_cactus>
