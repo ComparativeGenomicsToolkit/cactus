@@ -46,6 +46,20 @@ class TestCase(unittest.TestCase):
             cmd += ['--fastga']
         else:
             cmd += ['--remask']
+            if not configFile:
+                # use the same logic cactus does to get default config
+                src_config_path = 'src/cactus/cactus_progressive_config.xml' if not configFile else configFile
+                configFile = os.path.join(self.tempDir, "config.mc.xml")
+                shutil.copyfile(src_config_path, configFile)
+                cmd += ['--configFile', configFile]
+            xml_root = ET.parse(configFile).getroot()
+            # force remasking to happen
+            unmask_elem = xml_root.find("blast").find("unmask")
+            unmask_elem.attrib["threshold"] = "1.0"            
+            with open(configFile, 'w') as mc_config_file:
+                xmlString = ET.tostring(xml_root, encoding='unicode')
+                xmlString = minidom.parseString(xmlString).toprettyxml()
+                mc_config_file.write(xmlString)                
 
         # todo: it'd be nice to have an interface for setting tag to something not latest or commit
         if binariesMode == 'docker':

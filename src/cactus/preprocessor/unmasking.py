@@ -88,15 +88,18 @@ def unmask_contigs_one(job, event, fasta_id, params):
                     if prep in active:
                         active[prep].attrib['unmask'] = '1'
                         break
+                # preprocessor is going to delete the input file. we don't want to do that so send in a copy
+                copy_fasta_id = job.fileStore.writeGlobalFile(fasta_path)                    
                 # run the preprocessor on the whole thing
-                pp_job = job.addChild(CactusPreprocessor([fasta_id], params, eventNames=[event]))
+                pp_job = job.addChild(CactusPreprocessor([copy_fasta_id], params, eventNames=[event]))
                 pp_id = pp_job.rv(0)
-                # Create a preserved copy of the original fasta for the merge job
-                preserved_fasta_id = job.fileStore.writeGlobalFile(fasta_path)
                 # mix in the masking for the to-mask contigs with our original file
-                fa_merge_job = pp_job.addFollowOnJobFn(merge_fa, event, preserved_fasta_id, pp_id, set(unmasked_contigs.keys()),
+                fa_merge_job = pp_job.addFollowOnJobFn(merge_fa, event, fasta_id, pp_id, set(unmasked_contigs.keys()),
                                                        disk=fasta_id.size * 4)
                 fasta_id = fa_merge_job.rv()
+                # delete the pp_id
+                fa_merge_job.addFollowOnJobFn(clean_jobstore_files, file_ids=[pp_id])
+
             else:
                 RealtimeLogger.warning('Remasking activated but no maskers active in preprocessor: doing nothing')
 
@@ -106,11 +109,6 @@ def merge_fa(job, event, fasta1_id, fasta2_id, contigs):
     """ splice two fastas together, taking contigs list from second one """
     work_dir = job.fileStore.getLocalTempDir()
     
-    if fasta1_id.size == 0:
-        return fasta2_id
-    elif fasta2_id.size == 0:
-        return fasta1_id
-
     fa_1 = os.path.join(work_dir, '{}.fa'.format(event))
     fa_2 = os.path.join(work_dir, '{}.fa.pp'.format(event))
     job.fileStore.readGlobalFile(fasta1_id, fa_1)
@@ -132,9 +130,6 @@ def merge_fa(job, event, fasta1_id, fasta2_id, contigs):
                                  work_dir=work_dir, check_output=True)
     job.fileStore.logToMaster("Assembly stats after remasking for %s: %s" % (event, analysisString2))
                 
-    job.fileStore.deleteGlobalFile(fasta1_id)
-    job.fileStore.deleteGlobalFile(fasta2_id)
-
     return job.fileStore.writeGlobalFile(fa_merge)
 
 
