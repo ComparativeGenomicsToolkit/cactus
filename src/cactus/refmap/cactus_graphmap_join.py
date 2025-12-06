@@ -1550,6 +1550,9 @@ def get_tips(work_dir, graph_path, reference):
             path = toks[5]
             nf = path[1:].find('>')
             nr = path[1:].find('<')
+            if nf == -1 and nr == -1:
+                # stable contig, we don't handle
+                continue
             n = max(nf, nr) if nf == -1 or nr == -1 else min(nf, nr)
             tip_1 = int(path[1:n+1])
             pf = path.rfind('>')
