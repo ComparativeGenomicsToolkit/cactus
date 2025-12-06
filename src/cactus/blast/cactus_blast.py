@@ -73,8 +73,10 @@ def main():
                         " at least one outgroup.")
     parser.add_argument("--remask",
                         help='Attempt to rescue completely-masked contigs by unmasking then remasking them with the preprocessor.',
-                        action='store_true')    
-    
+                        action='store_true')
+    parser.add_argument("--branchScale", type=float, default=1.0,
+                        help="Scale branch lengths by this factor to adjust alignment sensitivity (e.g., 2.0 = treat branches as 2x longer, more sensitive)")
+
     options = parser.parse_args()
 
     setupBinaries(options)
@@ -129,14 +131,19 @@ def runCactusBlastOnly(options):
                 for name, override in zip(options.pathOverrideNames, options.pathOverrides):
                     input_seq_map[name] = override
 
-            # get the spanning tree (which is what it paf aligner wants)
-            spanning_tree = get_spanning_subtree(mc_tree, options.root, config_wrapper, og_map)
-
-            if getOptionalAttrib(config_node.find('constants').find('divergences'),
-                                 'upweightAncestorDistances', typeFn=bool, default=False):
+            # apply tree scaling to reflect branch scaling and/or uncertainty in ancestor placement/sequences
+            scaled_tree = mc_tree
+            upweight_ancestors = getOptionalAttrib(config_node.find('constants').find('divergences'),
+                                                   'upweightAncestorDistances', typeFn=bool, default=False)
+            if options.branchScale != 1.0 or upweight_ancestors:
                 max_div = float(config_node.find('constants').find('divergences').attrib['five'])
-                mc_tree = get_ancestor_scaled_tree(mc_tree, spanning_tree.getRootName(), max_div)
-                    
+                scaled_tree = get_ancestor_scaled_tree(mc_tree, options.root, max_div,
+                                                       branch_scale=options.branchScale,
+                                                       upweight_ancestors=upweight_ancestors)
+
+            # get the spanning tree (which is what it paf aligner wants)
+            spanning_tree = get_spanning_subtree(scaled_tree, options.root, config_wrapper, og_map)
+
             #import the sequences
             input_seq_id_map = {}
             for (genome, seq) in input_seq_map.items():

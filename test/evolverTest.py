@@ -45,7 +45,7 @@ class TestCase(unittest.TestCase):
         if fastga:
             cmd += ['--fastga']
         else:
-            cmd += ['--remask']
+            cmd += ['--remask', '--branchScale', '1.25']
 
         # todo: it'd be nice to have an interface for setting tag to something not latest or commit
         if binariesMode == 'docker':
@@ -216,7 +216,7 @@ class TestCase(unittest.TestCase):
         out_seqfile = os.path.join(out_dir, 'evolverMammalsOut.txt')
         in_seqfile = './examples/evolverMammals.txt'
         cmd = ['cactus-prepare', in_seqfile, '--outDir', out_dir, '--outSeqFile', out_seqfile, '--outHal', self._out_hal(name),
-               '--jobStore', self._job_store(name), '--maskMode', 'fastan']
+               '--jobStore', self._job_store(name), '--maskMode', 'fastan', '--branchScale', '1.33']
         bm_flag = '--binariesMode {}'.format(binariesMode)
         if binariesMode == "docker":
             bm_flag += ' --latest'
@@ -255,6 +255,7 @@ class TestCase(unittest.TestCase):
                '--preprocessCores', '2',
                '--blastCores', '4',
                '--alignCores', '4',
+               '--branchScale', '1.67',
                '--remask']
 
         # specify an output directory

@@ -393,4 +393,15 @@ class ConfigWrapper:
                 logger.info('Scaling blast chunkSize up and dechunkBatchSize down by {} to be more cluster-friendly'.format(scale))
                 blast_node.attrib['chunkSize'] = str(scale * int(blast_node.attrib['chunkSize']))
                 blast_node.attrib['dechunkBatchSize'] = str(max(1, int(int(blast_node.attrib['dechunkBatchSize']) / scale)))
-            
+
+    def scaleBranchLengths(self, branch_scale):
+        """ Scale effective branch lengths by dividing divergence thresholds (higher scale = longer branches = more sensitive) """
+        if branch_scale != 1.0:
+            constants = findRequiredNode(self.xmlRoot, "constants")
+            divergences_node = constants.find("divergences")
+            if divergences_node is not None:
+                logger.info('Scaling branch lengths by {} (dividing divergence thresholds)'.format(branch_scale))
+                for attr_name in ['one', 'two', 'three', 'four', 'five']:
+                    if attr_name in divergences_node.attrib:
+                        divergences_node.attrib[attr_name] = str(float(divergences_node.attrib[attr_name]) / branch_scale)
+

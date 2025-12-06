@@ -92,6 +92,10 @@ def main():
     # cactus-graphmap options
     parser.add_argument("--collapseRefPAF", help ="Incorporate given reference self-alignments in PAF format")
 
+    parser.add_argument("--branchScale", type=float, default=1.0,
+                        help="Scale default branch length. This option is more relevant for progressive cactus but larger values can be used here to reduce chaining thresholds in cactus_consolidated.")
+
+
     # cactus-graphmap-join options
     graphmap_join_options(parser)
 

@@ -89,7 +89,9 @@ def main(toil_mode=False):
                         default='default', choices=["red", "fastan", "lastz", "none", "default"])
     parser.add_argument("--remask",
                         help='Attempt to rescue completely-masked contigs by unmasking then remasking them with the preprocessor.',
-                        action='store_true')    
+                        action='store_true')
+    parser.add_argument("--branchScale", type=float, default=None,
+                        help="Scale branch lengths by this factor to adjust alignment sensitivity (e.g., 2.0 = treat branches as 2x longer, more sensitive)")
     parser.add_argument("--dockerImage", type=str, help="docker image to use as wdl runtime")
     if not toil_mode:
         # no good reason this isn't supported in toil_mode, just time to implement
@@ -610,13 +612,15 @@ def get_plan(options, inSeqFile, outSeqFile, configWrapper, toil):
                     ' --includeRoot' if options.includeRoot and event == mc_tree.getRootName() else '',
                     ' --chromInfo {}'.format(options.chromInfo) if options.chromInfo else '',
                     ' --remask' if options.remask else '',
+                    ' --branchScale {}'.format(options.branchScale) if options.branchScale else '',
                     get_log_options(options, 'blast', event),
                     ' && \\' if options.script else '')
-                plan += 'cactus-align {} {} {} {} --root {} {} {}{}{}{}{}\n'.format(
+                plan += 'cactus-align {} {} {} {} --root {} {} {}{}{}{}{}{}\n'.format(
                     get_jobstore(options), options.outSeqFile, cigarPath(event), halPath(event), event,
                     cactus_options, get_toil_resource_opts(options, 'align'),
                     ' --includeRoot' if options.includeRoot and event == mc_tree.getRootName() else '',
                     ' --chromInfo {}'.format(options.chromInfo) if options.chromInfo else '',
+                    ' --branchScale {}'.format(options.branchScale) if options.branchScale else '',
                     get_log_options(options, 'align', event),
                     ' && \\' if options.script else '')
                 plan += 'cactus-hal2fasta {} {} {} {} {} {}{}\n'.format(
@@ -902,11 +906,13 @@ def wdl_task_blast(options):
     s += '    command {\n        '
     s += 'cactus-blast {} ${{in_seq_file}} ${{out_name}} --root ${{in_root}}'.format(get_jobstore(options, 'blast'))
     s += ' --pathOverrides ${sep=\" \" in_fa_files} ${sep=\" \" in_fa_urls} --pathOverrideNames ${sep=\" \" in_fa_names}'
-    s += ' {} {} {} {} {} {}${{\"--configFile \" + in_config_file}} ${{in_options}}'.format(options.cactusOptions, get_toil_resource_opts(options, 'blast'),
-                                                                                       '--gpu {}'.format(options.gpu) if options.gpu else '',
-                                                                                          '--lastzCores {}'.format(options.lastzCores) if options.lastzCores else '',
-                                                                                          '--fastga' if options.fastga else '',
-                                                                                          '--remask' if options.remask else '')
+    s += ' {} {} {} {} {} {} {}${{\"--configFile \" + in_config_file}} ${{in_options}}'.format(
+        options.cactusOptions, get_toil_resource_opts(options, 'blast'),
+        '--gpu {}'.format(options.gpu) if options.gpu else '',
+        '--lastzCores {}'.format(options.lastzCores) if options.lastzCores else '',
+        '--fastga' if options.fastga else '',
+        '--remask' if options.remask else '',
+        '--branchScale {}'.format(options.branchScale) if options.branchScale else '')
     s += ' ${\"--chromInfo \" + in_chrom_info_file}'
     s += '\n    }\n'
     s += '    runtime {\n'
@@ -999,6 +1005,8 @@ def toil_call_blast(job, options, seq_file, mc_tree, og_map, event, cigar_name, 
         blast_cmd += ['--fastga']
     if options.remask:
         blast_cmd += ['--remask']
+    if options.branchScale:
+        blast_cmd += ['--branchScale', str(options.branchScale)]
     if options.chromInfo:
         #todo this won't support distributed execution
         blast_cmd += ['--chromInfo', options.chromInfo]
@@ -1032,7 +1040,8 @@ def wdl_task_align(options):
     s += 'cactus-align {} ${{in_seq_file}} ${{sep=\" \" in_blast_files}} ${{out_hal_name}} --root ${{in_root}}'.format(get_jobstore(options, 'align'))
     s += ' --pathOverrides ${{sep=\" \" in_fa_files}} ${{sep=\" \" in_fa_urls}} --pathOverrideNames ${{sep=\" \" in_fa_names}} {}'.format(options.cactusOptions)
     s += ' ${\"--chromInfo \" + in_chrom_info_file}'
-    s += ' {} ${{\"--configFile \" + in_config_file}} ${{in_options}}'.format(get_toil_resource_opts(options, 'align'))
+    s += ' {} {} ${{\"--configFile \" + in_config_file}} ${{in_options}}'.format(get_toil_resource_opts(options, 'align'),
+                                                                                   '--branchScale {}'.format(options.branchScale) if options.branchScale else '')
     s += '\n        '
     s += 'cactus-hal2fasta {} ${{out_hal_name}} ${{in_root}} ${{out_fa_name}} {}'.format(get_jobstore(options), options.cactusOptions)
     s += '\n    }\n'
@@ -1122,7 +1131,7 @@ def toil_call_align(job, options, seq_file, mc_tree, og_map, event, cigar_name, 
     cactus_call(parameters=['cactus-align', os.path.join(work_dir, 'js'), seq_file_path] + blast_files +
                 [out_hal_path, '--root', event,
                  '--pathOverrides'] + fa_paths + ['--pathOverrideNames'] + dep_names +
-                ['--workDir', work_dir, '--maxCores', str(int(job.cores)), '--maxDisk', bytes2humanN(job.disk), '--maxMemory', bytes2humanN(job.memory)] + options.cactusOptions.strip().split(' ') + (['--chromInfo', options.chromInfo] if options.chromInfo else []))
+                ['--workDir', work_dir, '--maxCores', str(int(job.cores)), '--maxDisk', bytes2humanN(job.disk), '--maxMemory', bytes2humanN(job.memory)] + options.cactusOptions.strip().split(' ') + (['--chromInfo', options.chromInfo] if options.chromInfo else []) + (['--branchScale', str(options.branchScale)] if options.branchScale else []))
 
     out_hal_id = job.fileStore.writeGlobalFile(out_hal_path)
 
