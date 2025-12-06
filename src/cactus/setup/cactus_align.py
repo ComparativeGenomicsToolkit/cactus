@@ -17,7 +17,7 @@ from operator import itemgetter
 
 from cactus.shared.common import setupBinaries, importSingularityImage
 from cactus.pipeline.cactus_workflow import cactus_cons_with_resources
-from cactus.progressive.progressive_decomposition import compute_outgroups, parse_seqfile, get_subtree, get_spanning_subtree, get_event_set
+from cactus.progressive.progressive_decomposition import compute_outgroups, parse_seqfile, get_subtree, get_spanning_subtree, get_event_set, get_ancestor_scaled_tree
 from cactus.progressive.cactus_progressive import export_hal
 from cactus.shared.common import makeURL, catFiles
 from cactus.shared.common import enableDumpStack
@@ -108,7 +108,9 @@ def main():
     parser.add_argument("--chromInfo",
                         help="Two-column file mapping genome (col 1) to comma-separated list of sex chromosomes. This information "
                         "will be used to guide outgroup selection so that, where possible, all chromosomes are present in"
-                        " at least one outgroup.")        
+                        " at least one outgroup.")
+    parser.add_argument("--branchScale", type=float, default=1.0,
+                        help="Scale branch lengths by this factor to adjust alignment sensitivity (e.g., 2.0 = treat branches as 2x longer, more sensitive)")
 
     options = parser.parse_args()
 
@@ -385,11 +387,12 @@ def make_align_job(options, toil, config_wrapper=None, chrom_name=None):
                               cons_memory=options.consMemory,
                               do_filter_paf=options.pangenome,
                               chrom_name=chrom_name,
-                              scores_id=scores_id)
+                              scores_id=scores_id,
+                              branch_scale=options.branchScale)
     return align_job
 
 def cactus_align(job, config_wrapper, mc_tree, input_seq_map, input_seq_id_map, paf_id, root_name, og_map, checkpointInfo, doVG, doGFA, delay=0,
-                 referenceEvents=None, pafMaskFilter=None, paf2Stable=False, cons_cores = None, cons_memory = None, do_filter_paf=False, chrom_name=None, scores_id=None):
+                 referenceEvents=None, pafMaskFilter=None, paf2Stable=False, cons_cores = None, cons_memory = None, do_filter_paf=False, chrom_name=None, scores_id=None, branch_scale=1.0):
     
     head_job = Job()
     job.addChild(head_job)
@@ -413,8 +416,18 @@ def cactus_align(job, config_wrapper, mc_tree, input_seq_map, input_seq_id_map, 
         paf_filter_job = head_job.addChildJobFn(filter_paf, paf_id, config_wrapper, disk = paf_id.size * 10, memory=paf_filter_mem)
         paf_id = paf_filter_job.rv()
 
+    # apply tree scaling to reflect branch scaling and/or uncertainty in ancestor placement/sequences
+    scaled_tree = mc_tree
+    upweight_ancestors = getOptionalAttrib(config_wrapper.xmlRoot.find('constants').find('divergences'),
+                                           'upweightAncestorDistances', typeFn=bool, default=False)
+    if branch_scale != 1.0 or upweight_ancestors:
+        max_div = float(config_wrapper.xmlRoot.find('constants').find('divergences').attrib['five'])
+        scaled_tree = get_ancestor_scaled_tree(mc_tree, root_name, max_div,
+                                               branch_scale=branch_scale,
+                                               upweight_ancestors=upweight_ancestors)
+
     # get the spanning tree (which is what consolidated wants)
-    spanning_tree = get_spanning_subtree(mc_tree, root_name, config_wrapper, og_map)
+    spanning_tree = get_spanning_subtree(scaled_tree, root_name, config_wrapper, og_map)
 
     # run consolidated
     cons_job = head_job.addFollowOnJobFn(cactus_cons_with_resources, spanning_tree, root_name, config_wrapper.xmlRoot, new_seq_id_map, og_map, paf_id,

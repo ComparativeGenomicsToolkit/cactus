@@ -38,7 +38,7 @@ from cactus.shared.common import write_s3
 from cactus.shared.common import cactus_clamp_memory
 from cactus.shared.common import clean_jobstore_files
 from cactus.pipeline.cactus_workflow import cactus_cons_with_resources
-from cactus.progressive.progressive_decomposition import compute_outgroups, parse_seqfile, get_subtree, get_spanning_subtree, get_event_set, get_node_heights
+from cactus.progressive.progressive_decomposition import compute_outgroups, parse_seqfile, get_subtree, get_spanning_subtree, get_event_set, get_ancestor_scaled_tree
 from cactus.preprocessor.cactus_preprocessor import CactusPreprocessor
 from cactus.preprocessor.dnabrnnMasking import loadDnaBrnnModel
 from cactus.preprocessor.checkUniqueHeaders import sanitize_fasta_headers
@@ -172,14 +172,9 @@ def progressive_step(job, options, config_node, seq_id_map, tree, og_map, event)
     # get the spanning tree (which is what consolidated wants)
     spanning_tree = get_spanning_subtree(tree, event, ConfigWrapper(config_node), og_map)
 
-    height_map = None
-    if getOptionalAttrib(config_node.find('blast'), 'upweightAncestorDistances', typeFn=bool, default=False):
-        # get the heights of each node, to add ancestor divergences
-        height_map = get_node_heights(tree, spanning_tree.getRootName())
-    
     # do the blast
     paf_job = job.addChildJobFn(make_paf_alignments, NXNewick().writeString(spanning_tree),
-                                subtree_eventmap, event, config_node, height_map=height_map).encapsulate()
+                                subtree_eventmap, event, config_node).encapsulate()
 
     outgroups = og_map[event] if event in og_map else []
     # trim the outgroups
@@ -314,7 +309,17 @@ def progressive_workflow(job, options, config_node, mc_tree, og_map, input_seq_i
 
     # then do the progressive workflow
     root_event = options.root if options.root else mc_tree.getRootName()
-    progressive_job = sanitize_job.addFollowOnJobFn(progressive_schedule, options, config_node, seq_id_map, mc_tree, og_map, root_event)
+
+    # apply tree scaling to reflect branch scaling and/or uncertainty in ancestor placement/sequences
+    scaled_tree = mc_tree
+    upweight_ancestors = getOptionalAttrib(config_node.find('constants').find('divergences'),
+                                           'upweightAncestorDistances', typeFn=bool, default=False)
+    if options.branchScale != 1.0 or upweight_ancestors:
+        max_div = float(config_node.find('constants').find('divergences').attrib['five'])
+        scaled_tree = get_ancestor_scaled_tree(mc_tree, root_event, max_div,
+                                               branch_scale=options.branchScale,
+                                               upweight_ancestors=upweight_ancestors)
+    progressive_job = sanitize_job.addFollowOnJobFn(progressive_schedule, options, config_node, seq_id_map, scaled_tree, og_map, root_event)
 
     # then do the hal export
     hal_export_job = progressive_job.addFollowOnJobFn(export_hal, mc_tree, config_node, seq_id_map, og_map,
@@ -379,6 +384,8 @@ def main():
     parser.add_argument("--remask",
                         help='Attempt to rescue completely-masked contigs by unmasking then remasking them with the preprocessor.',
                         action='store_true')
+    parser.add_argument("--branchScale", type=float, default=1.0,
+                        help="Scale branch lengths by this factor to adjust alignment sensitivity (e.g., 2.0 = treat branches as 2x longer, more sensitive)")
 
     options = parser.parse_args()
 
@@ -428,6 +435,7 @@ def main():
             config_wrapper.substituteAllPredefinedConstantsWithLiterals(options)
             config_wrapper.setSystemMemory(options)
             config_wrapper.applySlurmChunkScaling(options)
+
             if options.maxOutgroups:
                 config_wrapper.setMaxNumOutgroups(options.maxOutgroups)
 

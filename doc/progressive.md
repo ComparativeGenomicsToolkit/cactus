@@ -12,6 +12,7 @@ Please cite the [HAL paper](https://doi.org/10.1093/bioinformatics/btt128) when 
 * [Quick-start](#quick-start)
 * [Interface](#interface)
 *    * [Masking](#masking)
+*    * [Adjusting Sensitivity](#adjusting-sensitivity)
 * [Using the HAL Output](#using-the-hal-output)
      * [MAF Export](#maf-export)
 * [Using Docker](#using-docker)
@@ -109,7 +110,11 @@ The `--maskMode` option is available in `cactus`, `cactus-preprocess` and `cactu
 
 #### "Rescuing" completely-masked contigs
 
-It is possible for Cactus to reconstruct ancestral contigs that are completely masked.  These will effectively be invisible to `lastz` and will never align up the tree.  The (very) experimental `--remask` option is added to detect these contigs, unmask them, then remask them from scratch using the cactus preprocessor.  In practice the end result is that some contigs will end up only partially masked and will have a chance at aligning further up the tree.  The details for exactly how a contig is chosen for remasking can be tuned in the config (see the "unmask" element in "blast").  Using `--remask` will likely increase sensitivity, but this could come at the cost of worse running time and/or memory usuage. 
+It is possible for Cactus to reconstruct ancestral contigs that are completely masked.  These will effectively be invisible to `lastz` and will never align up the tree.  The (very) experimental `--remask` option is added to detect these contigs, unmask them, then remask them from scratch using the cactus preprocessor.  In practice the end result is that some contigs will end up only partially masked and will have a chance at aligning further up the tree.  The details for exactly how a contig is chosen for remasking can be tuned in the config (see the "unmask" element in "blast").  Using `--remask` will likely increase sensitivity, but this could come at the cost of worse running time and/or memory usuage.
+
+### Adjusting Sensitivity
+
+Cactus uses branch lengths in the guide tree to estimate lastz and chaining parameters.  If there is a bias in the guide tree, say all the branch lengths are too short, then Cactus's sensitivity may be unexpectedly low. You can adjust your tree or twiddle with the parameters in the [config XML]((#advanced-configuration)), but a simpler interface is to use the `--branchScale` option to scale the effective branch lengths.  For example `--branchScale 2.0` will effectively treat the branch lengths as double their actual values, making parameters more sensitive.  You can go in the other direction too:  Use `--branchScale 0.5` to use less-conservative parameters (ie if your branch lengths are too long).  Note that the final HAL output will have the original input tree embedded within it -- the scaling is only used within `cactus_consolidated` and `lastz` alignment. 
 
 ### Sex Chromosomes and Diploid Assemblies
 

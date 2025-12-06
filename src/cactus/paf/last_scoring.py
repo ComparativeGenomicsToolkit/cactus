@@ -154,7 +154,7 @@ def last_train(job, config, seq_order, seq_id_map):
     # it's the furthest in the order that's both greater than 500k and 50% of the size of the first
     rev_order = [seq for seq in reversed(seq_order)]
     for seq in rev_order[1:]:
-        if seq_id_map[seq].size > 500000 and (float(seq_id_map[seq].size) / float(seq_id_map[name1].size) > 0.5):
+        if seq != name1 and seq_id_map[seq].size > 500000 and (float(seq_id_map[seq].size) / float(seq_id_map[name1].size) > 0.5):
             name2 = seq
             break
 

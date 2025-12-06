@@ -199,6 +199,41 @@ def get_spanning_subtree(mc_tree, root_name, config_wrapper, outgroup_map):
     spanning_tree.computeSubtreeRoots()
     return spanning_tree
 
+def get_ancestor_scaled_tree(mc_tree, root_name, max_div, branch_scale=1.0, upweight_ancestors=False):
+    """
+    Scale branch lengths in the tree.
+
+    First, if branch_scale != 1.0, scale all branches by dividing by branch_scale
+    (higher branch_scale = treat branches as longer = more sensitive parameters).
+
+    Then, if upweight_ancestors is True, add the height of each node to its branch-length
+    to its parent to reflect uncertainty in ancestor placement/sequences.
+
+    This is used only for trees that compute divergence thresholds (in caf and blast).
+    """
+    scaled_tree = copy.deepcopy(mc_tree)
+
+    # First apply branch scaling to all branches
+    if branch_scale != 1.0:
+        for node in scaled_tree.breadthFirstTraversal(scaled_tree.getNodeId(root_name)):
+            if scaled_tree.hasParent(node):
+                parent = scaled_tree.getParent(node)
+                length = scaled_tree.getWeight(parent, node)
+                scaled_tree.setWeight(parent, node, length * branch_scale)
+
+    # Then apply ancestor height weighting if requested
+    if upweight_ancestors:
+        node_heights = get_node_heights(scaled_tree, root_name)
+        for node in scaled_tree.breadthFirstTraversal(scaled_tree.getNodeId(root_name)):
+            name = scaled_tree.getName(node)
+            if name in node_heights and scaled_tree.hasParent(node):
+                parent = scaled_tree.getParent(node)
+                length = scaled_tree.getWeight(parent, node)
+                if length < max_div:
+                    scaled_tree.setWeight(parent, node, min(max_div, length + node_heights[name]))
+    RealtimeLogger.info('Scaled Tree: {}'.format(NXNewick().writeString(scaled_tree)))
+    return scaled_tree
+    
 def get_node_heights(mc_tree, root_name):
     """
     get the height of each node (longest distance to leaf below it)
