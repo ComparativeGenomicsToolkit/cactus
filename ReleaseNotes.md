@@ -1,3 +1,16 @@
+# Release 3.1.1 2025-12-09
+
+This release fixes a number of recent bugs, especially from 3.1.0.
+
+- Fix (still very experimental) `--remask` option to consider the whole genome when remasking over-masked contigs.
+- Lower maximum nested parallelism to reduce memory footprint of `cactus_consolidated`
+- Fix automatic branch scaling for ancestors to apply to chaining as well as lastz
+- Add `--branchScale` option to scale branches
+- Fix `--lastTrain` bug that could cause crashes in some cases (ex GRCh38 unplaced contigs)
+- Fix crash where reference-guided snarl building couldn't handle stable gaf
+- Update to hal with fixed `hal2fasta` (when `--start` specified without `--sequence`)
+- Fix bug where `cactus-prepare` could add non-existant `--configFile` option to `cactus-halAppendSubtrees/hal2fasta`
+
 # Release 3.1.0 2025-11-27
 
 This release contains several changes to address sensitivity problems with Progressive Cactus.
@@ -15,7 +28,6 @@ This release contains several changes to address sensitivity problems with Progr
 - Update to the latest versions of `KegAlign` and `FastGA`
 - More aggressive `lastz` default parameters.  Also reduce branch length thresholds at which more sensitive parameters kick in.
 - Option to re-mask fully-masked contigs with the preprocessor (`--remask`)
-- 
 
 # Release 3.0.1 2025-10-15
 
