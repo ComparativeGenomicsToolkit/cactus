@@ -1241,6 +1241,9 @@ def main_hal2fasta():
     parser.add_argument("outputFastaFile", help="Output FASTA file, use .gz suffix to compress")
 
     #Progressive Cactus Options
+    parser.add_argument("--configFile", dest="configFile",
+                        help="Specify cactus configuration file",
+                        default=os.path.join(cactusRootPath(), "cactus_progressive_config.xml"))    
     parser.add_argument("--latest", dest="latest", action="store_true",
                         help="Use the latest version of the docker container "
                         "rather than pulling one matching this version of cactus")
@@ -1305,6 +1308,9 @@ def main_hal_append_subtrees():
     parser.add_argument("outHalFile", help="output HAL file")
 
     #Progressive Cactus Options
+    parser.add_argument("--configFile", dest="configFile",
+                        help="Specify cactus configuration file",
+                        default=os.path.join(cactusRootPath(), "cactus_progressive_config.xml"))    
     parser.add_argument("--latest", dest="latest", action="store_true",
                         help="Use the latest version of the docker container "
                         "rather than pulling one matching this version of cactus")
