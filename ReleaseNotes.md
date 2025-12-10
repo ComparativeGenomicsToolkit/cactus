@@ -1,3 +1,9 @@
+# Release 3.1.2 2025-12-10
+
+This release addresses one bug from the previous release.
+
+- Fix `cactus-prepare --script` regression that caused `cactus-blast` commands to not be run in parallel.
+
 # Release 3.1.1 2025-12-09
 
 This release fixes a number of recent bugs, especially from 3.1.0.
