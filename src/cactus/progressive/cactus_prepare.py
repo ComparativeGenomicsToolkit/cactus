@@ -398,9 +398,8 @@ def cactusPrepare(options):
             logger.warning('Output sequence directory is not writeable: \'{}\''.format(options.outDir))
 
     if options.preprocessOnly:
-        if options.preprocessOnly:
-            # hack the configfile to skip preprocessing and write it to the output dir
-            config.removePreprocessors()
+        # hack the configfile to skip preprocessing and write it to the output dir
+        config.removePreprocessors()
         options.configFile = os.path.join(options.outDir, 'config-prepared.xml')
         sys.stderr.write("configuration saved in {}\n".format(options.configFile))
         config.writeXML(options.configFile)
@@ -553,7 +552,6 @@ def get_plan(options, inSeqFile, outSeqFile, configWrapper, toil):
             return options.outHal
         else:
             return os.path.join(options.outDir, event + '.hal')
-        return os.path.join(options.outDir, event + '.hal')
     def cigarPath(event):
         return os.path.join(options.outDir, event + '.paf')
 
@@ -603,7 +601,7 @@ def get_plan(options, inSeqFile, outSeqFile, configWrapper, toil):
             else:
                 # todo: support cactus interface (it's easy enough here, but cactus_progressive.py needs changes to handle)
                 cactus_options = options.cactusOptions
-                plan += 'cactus-blast {} {} {} --root {} {} {}{}{}{}{}{}{}{}{}\n'.format(
+                plan += 'cactus-blast {} {} {} --root {} {} {}{}{}{}{}{}{}{}{}{}\n'.format(
                     get_jobstore(options), options.outSeqFile, cigarPath(event), event,
                     cactus_options, get_toil_resource_opts(options, 'blast'),
                     ' --gpu {}'.format(options.gpu) if options.gpu else '',
@@ -1123,8 +1121,8 @@ def toil_call_align(job, options, seq_file, mc_tree, og_map, event, cigar_name, 
     # read the fasta files
     assert len(dep_names) == len(dep_fa_ids)
     fa_paths = [os.path.join(work_dir, "{}.pp.fa".format(name)) for name in dep_names]
-    for fa_path, fa_id in zip(fa_paths, dep_fa_ids):
-        job.fileStore.readGlobalFile(fa_id, fa_path)
+    for local_fa_path, fa_id in zip(fa_paths, dep_fa_ids):
+        job.fileStore.readGlobalFile(fa_id, local_fa_path)
 
     # call cactus-align
     out_hal_path = os.path.join(work_dir, os.path.basename(hal_path))
