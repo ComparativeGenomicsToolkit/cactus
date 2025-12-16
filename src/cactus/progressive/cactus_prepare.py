@@ -282,7 +282,7 @@ def get_jobstore(options, task=None):
     options.jobStoreCount += 1
     return js
 
-def get_log_options(options, task, event):
+def get_log_options(options, task, event, redirect=True):
     """ get a name of a logfile: this is only relevant for printed commands (ie not toil/wdl) """
     if options.outDir:
         log_base = os.path.join(options.outDir, 'logs')
@@ -290,7 +290,11 @@ def get_log_options(options, task, event):
             os.makedirs(log_base)
         except:
             pass
-        return ' --logFile {}'.format(os.path.join(log_base, '{}-{}.log'.format(task, event)))
+        log_path = os.path.join(log_base, '{}-{}.log'.format(task, event))
+        if redirect:
+            return ' 2>&1 | tee {}'.format(log_path)
+        else:
+            return ' --logFile {}'.format(log_path)
     return ''
     
 def human2bytesN(s):

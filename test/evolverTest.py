@@ -13,6 +13,22 @@ class TestCase(unittest.TestCase):
         unittest.TestCase.setUp(self)
         self.cromwell = False
 
+    def _insert_options_before_redirect(self, line, options):
+        """Insert options before any redirect/continuation patterns at the end of the line.
+        This handles the case where cactus-prepare generates commands with '2>&1 | tee logfile'
+        at the end, and we need to add options before that redirect, not after.
+        """
+        import re
+        # Match redirect patterns: ' 2>&1 | tee ...', ' && \', or ' &' at the end
+        redirect_pattern = r'( 2>&1 \| tee .+| && \\| &)$'
+        match = re.search(redirect_pattern, line)
+        if match:
+            # Insert options before the redirect pattern
+            return line[:match.start()] + options + match.group(0)
+        else:
+            # No redirect pattern, just append
+            return line + options
+
     def tearDown(self):
         unittest.TestCase.tearDown(self)
         if self.cromwell:
@@ -243,10 +259,10 @@ class TestCase(unittest.TestCase):
             if len(line) > 0 and not line.startswith('#'):
                 # do Anc2 in binariesMode docker to broaden test coverage
                 if 'Anc2' in line and line.startswith('cactus-'):
-                    line += ' --binariesMode docker --latest'
+                    line = self._insert_options_before_redirect(line, ' --binariesMode docker --latest')
                 # make sure lastz preprocessing is somewhere in CI
                 if 'cactus-preprocess' in line:
-                    line += ' --maskMode lastz'
+                    line = self._insert_options_before_redirect(line, ' --maskMode lastz')
                 sys.stderr.write('Running {}\n'.format(line))
                 subprocess.check_call(line, shell=True)
 
@@ -347,9 +363,10 @@ class TestCase(unittest.TestCase):
             if len(line) > 0 and not line.startswith('#'):
                 # todo interface in prepare
                 if line.startswith('cactus-'):
-                    line += ' --binariesMode {}'.format(binariesMode)
+                    options = ' --binariesMode {}'.format(binariesMode)
                     if binariesMode == 'docker':
-                        line += ' --latest'
+                        options += ' --latest'
+                    line = self._insert_options_before_redirect(line, options)
                 if line.startswith('cactus-align'):
                     #Remove all the id prefixes to pretend the cigars came not cactus-blast
                     subprocess.check_call('sed -i -e \'s/id=[0,1]|//g\' {}/Anc0.paf*'.format(out_dir), shell=True)
