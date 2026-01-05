@@ -1022,10 +1022,7 @@ def make_vg_indexes(job, options, config, gfa_ids, tag="", do_gbz=False):
     # make the snarls
     if do_gbz:
         snarls_path = os.path.join(work_dir, '{}merged.snarls'.format(tag))
-        snarls_cmd = ['vg', 'snarls', gbz_path, '-T', '-t', str(job.cores)]
-        tips = get_tips(work_dir, gbz_path, options.reference[0])
-        for tip in tips:
-            snarls_cmd += ['-w', str(tip)]    
+        snarls_cmd = ['vg', 'snarls', gbz_path, '-T', '-P', options.reference[0], '-t', str(job.cores)]
         cactus_call(parameters=snarls_cmd, outfile=snarls_path, job_memory=job.memory)
 
     out_dict = { '{}gfa.gz'.format(tag) : job.fileStore.writeGlobalFile(gfa_path) }
@@ -1536,41 +1533,6 @@ def vcf_cat(job, vcf_tbi_ids, tag, sort=False, fix_ploidies=True):
             job.fileStore.deleteGlobalFile(tbi_id)
 
     return job.fileStore.writeGlobalFile(cat_vcf_path), job.fileStore.writeGlobalFile(tbi_path)
-
-def get_tips(work_dir, graph_path, reference):
-    """ get the ids of the tips of the graph reference paths."""
-    gaf_path = os.path.join(work_dir, '{}.paths.gaf'.format(reference))
-    cactus_call(parameters=['vg', 'paths', '-x', graph_path, '-Q', reference, '-A'], outfile=gaf_path)
-    len_tips = []
-    with open(gaf_path, 'r') as gaf_file:
-        for line in gaf_file:
-            if line.startswith('@'):
-                continue
-            toks = line.split('\t')
-            path = toks[5]
-            nf = path[1:].find('>')
-            nr = path[1:].find('<')
-            if nf == -1 and nr == -1:
-                # stable contig, we don't handle
-                continue
-            n = max(nf, nr) if nf == -1 or nr == -1 else min(nf, nr)
-            tip_1 = int(path[1:n+1])
-            pf = path.rfind('>')
-            pr = path.rfind('<')
-            p = max(pf, pr)
-            assert p >= 0
-            tip_2 = int(path[p+1:])
-            len_tips.append((int(toks[1]), (tip_1, tip_2)))
-
-    if len(len_tips) > 5000:
-        len_tips = sorted(len_tips)[:5000]
-        RealtimeLogger.warning("too many tips found, ({}), using 5k smallest paths for index".format(len(len_tips)))
-    tips = []
-    for lt in len_tips:
-        tips.append(lt[1][0])
-        if lt[1][1] != lt[1][0]:
-            tips.append(lt[1][1])
-    return tips
     
 def make_giraffe_indexes(job, options, config, index_dict, short_read, long_read, tag=''):
     """ make giraffe-specific indexes: distance and minimaer """
@@ -1580,10 +1542,7 @@ def make_giraffe_indexes(job, options, config, index_dict, short_read, long_read
 
     # make the distance index
     dist_path = os.path.join(work_dir, tag + os.path.basename(options.outName) + '.dist')
-    dist_cmd = ['vg', 'index', '-t', str(job.cores), '-j', dist_path, gbz_path]
-    tips = get_tips(work_dir, gbz_path, options.reference[0])
-    for tip in tips:
-        dist_cmd += ['-w', str(tip)]    
+    dist_cmd = ['vg', 'index', '-t', str(job.cores), '-j', dist_path, gbz_path, '-P', options.reference[0]]
     cactus_call(parameters=dist_cmd, job_memory=job.memory)
     out_dict = { '{}dist'.format(tag) : job.fileStore.writeGlobalFile(dist_path) }
 
@@ -1620,10 +1579,7 @@ def make_haplo_index(job, options, config, index_dict, giraffe_dict, tag=''):
     else:
         # note we are using --no-nested-distance here to reduce memory, and its all haplo sampling needs
         dist_path += '1'
-        dist_cmd = ['vg', 'index', '-t', str(job.cores), '-j', dist_path, gbz_path, '--no-nested-distance']        
-        tips = get_tips(work_dir, gbz_path, options.reference[0])
-        for tip in tips:
-            dist_cmd += ['-w', str(tip)]    
+        dist_cmd = ['vg', 'index', '-t', str(job.cores), '-j', dist_path, gbz_path, '--no-nested-distance', '-P', options.reference[0]]
         cactus_call(parameters=dist_cmd, job_memory=job.memory)
         
     # make the r-index
