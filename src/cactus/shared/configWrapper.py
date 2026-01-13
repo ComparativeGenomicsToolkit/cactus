@@ -108,6 +108,24 @@ class ConfigWrapper:
             extraChromOutgroups = int(ogElem.attrib["extra_chrom_outgroups"])
         return extraChromOutgroups
 
+    def getOutgroupTopological(self):
+        ogElem = self.getOutgroupElem()
+        topological = False
+        if (ogElem is not None and\
+            "strategy" in ogElem.attrib and\
+            "topological" in ogElem.attrib):
+            topological = ogElem.attrib["topological"] == "1"
+        return topological
+
+    def getOutgroupMinNovelty(self):
+        ogElem = self.getOutgroupElem()
+        minNovelty = 0.0
+        if (ogElem is not None and\
+            "strategy" in ogElem.attrib and\
+            "min_novelty" in ogElem.attrib):
+            minNovelty = float(ogElem.attrib["min_novelty"])
+        return minNovelty
+
     def getDefaultInternalNodePrefix(self):
         decompElem = self.getDecompositionElem()
         prefix = self.defaultInternalNodePrefix

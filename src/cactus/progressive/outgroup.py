@@ -32,6 +32,7 @@ class GreedyOutgroup(object):
         self.dag = None
         self.dm = None
         self.dmDirected = None
+        self.lcaMap = None
         self.root = None
         self.ogMap = None
         self.mcTree = None
@@ -58,6 +59,8 @@ class GreedyOutgroup(object):
         # undirected distance matrix
         self.dm = dict(NX.algorithms.shortest_paths.weighted.\
         all_pairs_dijkstra_path_length(graph))
+        # LCA map: (node1, node2) -> lowest common ancestor
+        self.lcaMap = dict(NX.tree_all_pairs_lowest_common_ancestor(self.dag, root=self.root))
         # the results: map tree events to otugroups
         self.ogMap = defaultdict(list)
 
@@ -120,7 +123,46 @@ class GreedyOutgroup(object):
                 htable[node] = max([htable[i] for i in children]) + 1
         rec(self.root)
         return htable
-    
+
+    def computeNovelty(self, source, candidate, existing_outgroups):
+        """Compute the novelty fraction of a candidate outgroup relative to existing outgroups.
+
+        Novelty measures how much of the candidate's path to source is NOT shared with
+        existing outgroups' paths. Returns a value between 0 and 1.
+
+        For source X, existing outgroup A, and candidate B:
+        - novel_length = (dist(X,B) - dist(X,A) + dist(A,B)) / 2
+        - novelty_fraction = novel_length / dist(X,B)
+
+        If there are multiple existing outgroups, returns the minimum novelty
+        (candidate must be novel relative to ALL existing outgroups).
+        """
+        if not existing_outgroups:
+            return 1.0  # First outgroup is always 100% novel
+
+        dist_source_candidate = self.dm[source].get(candidate, float('inf'))
+        if dist_source_candidate == 0 or dist_source_candidate == float('inf'):
+            return 0.0
+
+        min_novelty = 1.0
+        for existing_og, _ in existing_outgroups:
+            existing_id = self.mcTree.getNodeId(existing_og)
+            dist_source_existing = self.dm[source].get(existing_id, float('inf'))
+            dist_existing_candidate = self.dm[existing_id].get(candidate, float('inf'))
+
+            if dist_existing_candidate == float('inf') or dist_source_existing == float('inf'):
+                continue
+
+            # novel_length = (dist(X,B) - dist(X,A) + dist(A,B)) / 2
+            novel_length = (dist_source_candidate - dist_source_existing + dist_existing_candidate) / 2.0
+            novelty_fraction = novel_length / dist_source_candidate
+
+            # Clamp to [0, 1] in case of numerical issues
+            novelty_fraction = max(0.0, min(1.0, novelty_fraction))
+            min_novelty = min(min_novelty, novelty_fraction)
+
+        return min_novelty
+
     # check the candidate using the set and and fraction
     def inCandidateSet(self, node, candidateChildFrac):
         if self.candidateMap is None or len(self.candidateMap) == 0:
@@ -289,24 +331,47 @@ class GreedyOutgroup(object):
     # maxNumOutgroups : max number of outgroups to put in each entry of self.ogMap
     # extraChromOutgroups : number of extra outgroups that can be added to attemp
     # to satisfy chromosomes.
+    # topological : if True, sort outgroup candidates by (LCA_height, distance)
+    # instead of just distance. This prefers topologically closer outgroups
+    # (those sharing a more recent common ancestor) over those that happen
+    # to have short branch lengths.
+    # minNovelty : minimum novelty fraction (0-1) for additional outgroups.
+    # Novelty measures how much of an outgroup's path is NOT shared with
+    # existing outgroups. If no candidate meets minNovelty, falls back to
+    # best available candidate (soft constraint).
     def greedy(self, threshold = None, candidateSet = None,
                candidateChildFrac = 2., maxNumOutgroups = 1,
-               extraChromOutgroups = -1):
+               extraChromOutgroups = -1, topological = False,
+               minNovelty = 0.0):
+        # compute height table early (needed for topological sorting and threshold)
+        htable = self.heightTable()
+
         # sort the (undirected) distance map
         orderedPairs = []
         for source, sinks in list(self.dm.items()):
             for sink, dist in list(sinks.items()):
                 if source != self.root and sink != self.root:
                     orderedPairs.append((dist, (source, sink)))
-        orderedPairs.sort(key = lambda x: x[0])
+
+        if topological:
+            # Sort by (LCA_height, distance) tuple to prefer topologically
+            # closer outgroups over those with short branch lengths.
+            # Lower LCA height means a more recent common ancestor.
+            def topo_key(x):
+                dist, (source, sink) = x
+                # lcaMap may have either (source, sink) or (sink, source) as key
+                lca = self.lcaMap.get((source, sink), self.lcaMap.get((sink, source)))
+                return (htable[lca], dist)
+            orderedPairs.sort(key=topo_key)
+        else:
+            orderedPairs.sort(key = lambda x: x[0])
+
         finished = set()
         self.candidateMap = dict()
         if candidateSet is not None:
             assert isinstance(candidateSet, set)
             for candidate in candidateSet:
                 self.candidateMap[candidate] = True
-
-        htable = self.heightTable()
 
         # convert the input (leaf) chroms to id-space
         node_chroms = defaultdict(set)
@@ -342,6 +407,10 @@ class GreedyOutgroup(object):
             # source is the ancestor we're trying to find outgroups for
             source = candidate[1][0]
             ordered_pairs_by_source[source].append(candidate)
+
+        # track fallback candidates when novelty requirement not met
+        # key: source node id, value: list of (sink, sinkName, dist) tuples
+        novelty_fallbacks = defaultdict(list)
 
         # visit the tree bottom up
         for node in self.mcTree.postOrderTraversal():
@@ -400,6 +469,17 @@ class GreedyOutgroup(object):
                             existingOutgroupDist = dict(self.ogMap[sourceName])
                             assert existingOutgroupDist[sinkName] == dist
                             continue
+
+                        # Check novelty requirement for additional outgroups
+                        if minNovelty > 0 and len(self.ogMap[sourceName]) > 0:
+                            novelty = self.computeNovelty(source, sink, self.ogMap[sourceName])
+                            if novelty < minNovelty:
+                                # Store as fallback and undo the edge addition
+                                novelty_fallbacks[source].append((sink, sinkName, dist))
+                                self.dag.remove_edge(source, sink)
+                                htable[source] = max([htable[i] for i in self.dag.successors(source)] + [0]) + 1 if self.dag.out_edges(source) else htable[source]
+                                continue
+
                         self.ogMap[sourceName].append((sinkName, dist))
                         source_satisfied[source] = self.check_chrom_satisfied(source, node_chroms)
                         if len(self.ogMap[sourceName]) >= maxNumOutgroups and source_satisfied[source]:
@@ -407,12 +487,43 @@ class GreedyOutgroup(object):
                     else:
                         self.dag.remove_edge(source, sink)
 
+        # Fallback pass: for sources that didn't get enough outgroups due to
+        # novelty requirement, use the best available fallbacks
+        if minNovelty > 0:
+            for source, fallbacks in novelty_fallbacks.items():
+                sourceName = self.mcTree.getName(source)
+                if len(self.ogMap[sourceName]) < maxNumOutgroups:
+                    for sink, sinkName, dist in fallbacks:
+                        if len(self.ogMap[sourceName]) >= maxNumOutgroups:
+                            break
+                        # Re-check if this fallback is still valid
+                        if any([self.onSamePath(x, sink) for x in self.dag.successors(source)]):
+                            continue
+                        if sinkName in [og[0] for og in self.ogMap[sourceName]]:
+                            continue
+                        # Try to add the edge
+                        self.dag.add_edge(source, sink, weight=dist, info='outgroup')
+                        if NX.is_directed_acyclic_graph(self.dag):
+                            self.ogMap[sourceName].append((sinkName, dist))
+                            htable[source] = max(htable[source], htable[sink] + 1)
+                        else:
+                            self.dag.remove_edge(source, sink)
+
         # Since we could be adding to the ogMap instead of creating
-        # it, sort the outgroups by distance again. Sorting the
-        # outgroups is critical for the multiple-outgroups code to
-        # work well.
-        for node, outgroups in list(self.ogMap.items()):
-            self.ogMap[node] = sorted(outgroups, key=lambda x: x[1])
+        # it, sort the outgroups again. Sorting the outgroups is critical
+        # for the multiple-outgroups code to work well.
+        if topological:
+            # Sort by (LCA_height, distance) to maintain topological preference
+            def topo_sort_key(source_name, og_name, og_dist):
+                source_id = self.mcTree.getNodeId(source_name)
+                sink_id = self.mcTree.getNodeId(og_name)
+                lca = self.lcaMap.get((source_id, sink_id), self.lcaMap.get((sink_id, source_id)))
+                return (htable[lca], og_dist)
+            for node, outgroups in list(self.ogMap.items()):
+                self.ogMap[node] = sorted(outgroups, key=lambda x: topo_sort_key(node, x[0], x[1]))
+        else:
+            for node, outgroups in list(self.ogMap.items()):
+                self.ogMap[node] = sorted(outgroups, key=lambda x: x[1])
 
         # the chromosome specification logic trumps the maximum number of outgroups
         # so we do a second pass to reconcile them (greedily) as best as possible
@@ -434,9 +545,18 @@ def main():
                       help="Maximum number of outgroups to provide if necessitated by --chromInfo", type=int, default=-1)    
     parser.add_option("--chromInfo", dest="chromInfo",
                       help="File mapping genomes to sex chromosome lists")
+    parser.add_option("--topological", dest="topological", action="store_true",
+                      default=False, help="Sort outgroup candidates by (LCA_height, distance) "
+                      "instead of just distance. This prefers topologically closer outgroups "
+                      "(sharing a more recent common ancestor) over those with short branch lengths.")
+    parser.add_option("--minOutgroupNovelty", dest="minNovelty", type='float',
+                      default=0.0, help="Minimum novelty fraction (0-1) for additional outgroups. "
+                      "Novelty measures how much of an outgroup's path is NOT shared with existing "
+                      "outgroups. Higher values ensure more diverse/informative outgroups. "
+                      "Falls back to best available if no candidate meets threshold. (default: 0)")
     parser.add_option("--configFile", dest="configFile",
                       help="Specify cactus configuration file",
-                      default=os.path.join(cactusRootPath(), "cactus_progressive_config.xml"))    
+                      default=os.path.join(cactusRootPath(), "cactus_progressive_config.xml"))
     options, args = parser.parse_args()
 
     options.binariesMode = 'local'
@@ -466,7 +586,9 @@ def main():
     outgroup.greedy(threshold=options.threshold, candidateSet=candidates,
                     candidateChildFrac=1.1,
                     maxNumOutgroups=options.maxNumOutgroups,
-                    extraChromOutgroups=options.extraChromOutgroups)
+                    extraChromOutgroups=options.extraChromOutgroups,
+                    topological=options.topological,
+                    minNovelty=options.minNovelty)
 
     try:
         NX.drawing.nx_agraph.write_dot(outgroup.dag, args[1])

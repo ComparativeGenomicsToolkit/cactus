@@ -515,12 +515,16 @@
 		<!-- ancestor_quality_fraction: min fraction of children of ancestor in candidateSet in order for the ancestor to be an outgroup candidate -->
 		<!-- max_num_outgroups: maximum number of outgroups per alignment job-->
 		<!-- extra_chrom_outgroups: if max_num_outgroups is not sufficent to satisfy sex chromosome requirements of an ancestor while still using nearest species, allow up to this many extra (when -1 set to the number of unique sex chromosomes for the ancestor).  -->
+		<!-- topological: if 1, sort outgroup candidates by (LCA_height, distance) instead of just distance. This prefers topologically closer outgroups over those with short branch lengths. -->
+		<!-- min_novelty: minimum novelty fraction (0-1) for additional outgroups. Novelty measures how much of an outgroup's path is NOT shared with existing outgroups. Falls back to best available if no candidate meets threshold. -->
 		<outgroup
 			strategy="greedyLeavesPreference"
 			threshold="0"
 			ancestor_quality_fraction="0.75"
 			max_num_outgroups="2"
 			extra_chrom_outgroups="-1"
+			topological="1"
+			min_novelty="0.2"
 			/>
 
 		<!-- default_internal_node_prefix: internal nodes of the tree are labeled with this prefix then a BFS order number -->
