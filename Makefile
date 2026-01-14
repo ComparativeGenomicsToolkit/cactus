@@ -313,7 +313,7 @@ suball.collapse-bubble:
 	chmod +x submodules/collapse-bubble/scripts/merge_duplicates.py
 	ln -f submodules/collapse-bubble/scripts/merge_duplicates.py ${BINDIR}
 suball.FASTGA:
-	cd submodules/FASTGA && ${MAKE}
+	cd submodules/FASTGA && sed -i '/-lpthread/!s/-lm -lz/-lpthread -lm -lz/g' Makefile && ${MAKE}
 	ln -f submodules/FASTGA/FastGA ${BINDIR}
 	ln -f submodules/FASTGA/ALNtoPAF ${BINDIR}
 	ln -f submodules/FASTGA/FAtoGDB ${BINDIR}
