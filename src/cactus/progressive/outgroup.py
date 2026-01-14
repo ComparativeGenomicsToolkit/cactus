@@ -104,6 +104,56 @@ class GreedyOutgroup(object):
                 return True
         return False
 
+    def getPath(self, source, sink, graph=None):
+        """Get the path (list of nodes) between source and sink in the undirected tree."""
+        if graph is None:
+            graph = NX.Graph(self.dag)
+        try:
+            return NX.shortest_path(graph, source, sink)
+        except NX.NetworkXNoPath:
+            return []
+
+    def getPathEdges(self, source, sink, graph=None):
+        """Get the edges on the path between source and sink.
+        Returns list of (node1, node2) tuples representing edges."""
+        path = self.getPath(source, sink, graph)
+        if len(path) < 2:
+            return []
+        edges = []
+        for i in range(len(path) - 1):
+            edges.append((path[i], path[i+1]))
+        return edges
+
+    def computeAdjustedDistance(self, source, sink, edge_scales, graph=None):
+        """Compute distance between source and sink, accounting for scaled edges.
+
+        edge_scales: dict mapping frozenset({node1, node2}) -> scale factor
+        Edges not in edge_scales have scale factor 1.0.
+        """
+        if graph is None:
+            graph = NX.Graph(self.dag)
+        path = self.getPath(source, sink, graph)
+        if len(path) < 2:
+            return self.dm[source].get(sink, float('inf'))
+
+        total_dist = 0.0
+        for i in range(len(path) - 1):
+            n1, n2 = path[i], path[i+1]
+            # Get original edge weight
+            edge_data = graph.get_edge_data(n1, n2)
+            if edge_data and 'weight' in edge_data:
+                weight = edge_data['weight']
+            else:
+                # Fallback: compute from distance matrix
+                weight = abs(self.dm[n1].get(n2, 0) if n2 in self.dm.get(n1, {}) else 0)
+
+            # Apply scale factor if this edge has been scaled
+            edge_key = frozenset({n1, n2})
+            scale = edge_scales.get(edge_key, 1.0)
+            total_dist += weight * scale
+
+        return total_dist
+
     # fill up a dictionary of node id -> height in tree where
     # leaves have height = 0
     def heightTable(self):
@@ -123,45 +173,6 @@ class GreedyOutgroup(object):
                 htable[node] = max([htable[i] for i in children]) + 1
         rec(self.root)
         return htable
-
-    def computeNovelty(self, source, candidate, existing_outgroups):
-        """Compute the novelty fraction of a candidate outgroup relative to existing outgroups.
-
-        Novelty measures how much of the candidate's path to source is NOT shared with
-        existing outgroups' paths. Returns a value between 0 and 1.
-
-        For source X, existing outgroup A, and candidate B:
-        - novel_length = (dist(X,B) - dist(X,A) + dist(A,B)) / 2
-        - novelty_fraction = novel_length / dist(X,B)
-
-        If there are multiple existing outgroups, returns the minimum novelty
-        (candidate must be novel relative to ALL existing outgroups).
-        """
-        if not existing_outgroups:
-            return 1.0  # First outgroup is always 100% novel
-
-        dist_source_candidate = self.dm[source].get(candidate, float('inf'))
-        if dist_source_candidate == 0 or dist_source_candidate == float('inf'):
-            return 0.0
-
-        min_novelty = 1.0
-        for existing_og, _ in existing_outgroups:
-            existing_id = self.mcTree.getNodeId(existing_og)
-            dist_source_existing = self.dm[source].get(existing_id, float('inf'))
-            dist_existing_candidate = self.dm[existing_id].get(candidate, float('inf'))
-
-            if dist_existing_candidate == float('inf') or dist_source_existing == float('inf'):
-                continue
-
-            # novel_length = (dist(X,B) - dist(X,A) + dist(A,B)) / 2
-            novel_length = (dist_source_candidate - dist_source_existing + dist_existing_candidate) / 2.0
-            novelty_fraction = novel_length / dist_source_candidate
-
-            # Clamp to [0, 1] in case of numerical issues
-            novelty_fraction = max(0.0, min(1.0, novelty_fraction))
-            min_novelty = min(min_novelty, novelty_fraction)
-
-        return min_novelty
 
     # check the candidate using the set and and fraction
     def inCandidateSet(self, node, candidateChildFrac):
@@ -335,14 +346,15 @@ class GreedyOutgroup(object):
     # instead of just distance. This prefers topologically closer outgroups
     # (those sharing a more recent common ancestor) over those that happen
     # to have short branch lengths.
-    # minNovelty : minimum novelty fraction (0-1) for additional outgroups.
-    # Novelty measures how much of an outgroup's path is NOT shared with
-    # existing outgroups. If no candidate meets minNovelty, falls back to
-    # best available candidate (soft constraint).
+    # overlapPenalty : scale factor for branches already covered by an outgroup.
+    # After selecting an outgroup, all branches on the path from source to
+    # that outgroup are scaled by this factor for subsequent outgroup
+    # computations. This encourages subsequent outgroups to come from
+    # different parts of the tree. Default 0 means disabled.
     def greedy(self, threshold = None, candidateSet = None,
                candidateChildFrac = 2., maxNumOutgroups = 1,
                extraChromOutgroups = -1, topological = False,
-               minNovelty = 0.0):
+               overlapPenalty = 0.0):
         # compute height table early (needed for topological sorting and threshold)
         htable = self.heightTable()
 
@@ -408,15 +420,60 @@ class GreedyOutgroup(object):
             source = candidate[1][0]
             ordered_pairs_by_source[source].append(candidate)
 
-        # track fallback candidates when novelty requirement not met
-        # key: source node id, value: list of (sink, sinkName, dist) tuples
-        novelty_fallbacks = defaultdict(list)
+        # track scaled edges for overlap penalty feature
+        # key: source node id, value: dict of frozenset({n1, n2}) -> cumulative scale factor
+        edge_scales_by_source = defaultdict(dict)
+
+        # cache undirected graph for path computations (will be updated as dag changes)
+        undirected_graph = NX.Graph(self.dag)
+
+        def update_edge_scales(source, sink, scale_factor):
+            """Scale all edges on the path from source to sink by scale_factor."""
+            path_edges = self.getPathEdges(source, sink, undirected_graph)
+            for n1, n2 in path_edges:
+                edge_key = frozenset({n1, n2})
+                current_scale = edge_scales_by_source[source].get(edge_key, 1.0)
+                edge_scales_by_source[source][edge_key] = current_scale * scale_factor
+
+        def get_adjusted_dist(source, sink):
+            """Get distance from source to sink, adjusted for overlap penalty."""
+            if source not in edge_scales_by_source or not edge_scales_by_source[source]:
+                return self.dm[source].get(sink, float('inf'))
+            return self.computeAdjustedDistance(source, sink, edge_scales_by_source[source], undirected_graph)
+
+        def get_adjusted_topo_key(source, sink, original_dist):
+            """Get topological sort key using adjusted distance."""
+            lca = self.lcaMap.get((source, sink), self.lcaMap.get((sink, source)))
+            adj_dist = get_adjusted_dist(source, sink)
+            return (htable[lca], adj_dist)
 
         # visit the tree bottom up
         for node in self.mcTree.postOrderTraversal():
             # visit the candidates in order of increasing distance
             orderedPairs = ordered_pairs_by_source[node]
-            for candidate in orderedPairs:
+
+            # When overlap penalty is enabled, re-sort remaining candidates after each
+            # outgroup is added. Track whether we need to re-sort.
+            needs_resort = False
+
+            def resort_by_adjusted_distance(pairs, source):
+                """Re-sort candidate pairs by adjusted distance for overlap penalty."""
+                if topological:
+                    return sorted(pairs, key=lambda x: get_adjusted_topo_key(source, x[1][1], x[0]))
+                else:
+                    return sorted(pairs, key=lambda x: get_adjusted_dist(source, x[1][1]))
+
+            candidate_idx = 0
+            while candidate_idx < len(orderedPairs):
+                # Re-sort remaining candidates only when flagged (after adding an outgroup)
+                source = orderedPairs[candidate_idx][1][0]
+                if needs_resort and overlapPenalty > 0:
+                    remaining = orderedPairs[candidate_idx:]
+                    orderedPairs = orderedPairs[:candidate_idx] + resort_by_adjusted_distance(remaining, source)
+                    needs_resort = False
+
+                candidate = orderedPairs[candidate_idx]
+                candidate_idx += 1
                 # source is the ancestor we're trying to find outgroups for
                 source = candidate[1][0]
                 # sink it the candidate outgroup
@@ -470,44 +527,16 @@ class GreedyOutgroup(object):
                             assert existingOutgroupDist[sinkName] == dist
                             continue
 
-                        # Check novelty requirement for additional outgroups
-                        if minNovelty > 0 and len(self.ogMap[sourceName]) > 0:
-                            novelty = self.computeNovelty(source, sink, self.ogMap[sourceName])
-                            if novelty < minNovelty:
-                                # Store as fallback and undo the edge addition
-                                novelty_fallbacks[source].append((sink, sinkName, dist))
-                                self.dag.remove_edge(source, sink)
-                                htable[source] = max([htable[i] for i in self.dag.successors(source)] + [0]) + 1 if self.dag.out_edges(source) else htable[source]
-                                continue
-
                         self.ogMap[sourceName].append((sinkName, dist))
+                        # Update edge scales for overlap penalty and flag for re-sort
+                        if overlapPenalty > 0:
+                            update_edge_scales(source, sink, overlapPenalty)
+                            needs_resort = True
                         source_satisfied[source] = self.check_chrom_satisfied(source, node_chroms)
                         if len(self.ogMap[sourceName]) >= maxNumOutgroups and source_satisfied[source]:
                             finished.add(source)
                     else:
                         self.dag.remove_edge(source, sink)
-
-        # Fallback pass: for sources that didn't get enough outgroups due to
-        # novelty requirement, use the best available fallbacks
-        if minNovelty > 0:
-            for source, fallbacks in novelty_fallbacks.items():
-                sourceName = self.mcTree.getName(source)
-                if len(self.ogMap[sourceName]) < maxNumOutgroups:
-                    for sink, sinkName, dist in fallbacks:
-                        if len(self.ogMap[sourceName]) >= maxNumOutgroups:
-                            break
-                        # Re-check if this fallback is still valid
-                        if any([self.onSamePath(x, sink) for x in self.dag.successors(source)]):
-                            continue
-                        if sinkName in [og[0] for og in self.ogMap[sourceName]]:
-                            continue
-                        # Try to add the edge
-                        self.dag.add_edge(source, sink, weight=dist, info='outgroup')
-                        if NX.is_directed_acyclic_graph(self.dag):
-                            self.ogMap[sourceName].append((sinkName, dist))
-                            htable[source] = max(htable[source], htable[sink] + 1)
-                        else:
-                            self.dag.remove_edge(source, sink)
 
         # Since we could be adding to the ogMap instead of creating
         # it, sort the outgroups again. Sorting the outgroups is critical
@@ -549,11 +578,13 @@ def main():
                       default=False, help="Sort outgroup candidates by (LCA_height, distance) "
                       "instead of just distance. This prefers topologically closer outgroups "
                       "(sharing a more recent common ancestor) over those with short branch lengths.")
-    parser.add_option("--minOutgroupNovelty", dest="minNovelty", type='float',
-                      default=0.0, help="Minimum novelty fraction (0-1) for additional outgroups. "
-                      "Novelty measures how much of an outgroup's path is NOT shared with existing "
-                      "outgroups. Higher values ensure more diverse/informative outgroups. "
-                      "Falls back to best available if no candidate meets threshold. (default: 0)")
+    parser.add_option("--overlapPenalty", dest="overlapPenalty", type='float',
+                      default=0.0, help="Scale factor for branches already covered by an outgroup. "
+                      "After selecting an outgroup, all branches on the path from the ancestor to "
+                      "that outgroup are scaled by this factor for subsequent outgroup selection. "
+                      "This encourages subsequent outgroups to come from different parts of the tree. "
+                      "Values > 1 penalize shared paths (e.g., 2.0 doubles the effective distance). "
+                      "(default: 0, disabled)")
     parser.add_option("--configFile", dest="configFile",
                       help="Specify cactus configuration file",
                       default=os.path.join(cactusRootPath(), "cactus_progressive_config.xml"))
@@ -588,7 +619,7 @@ def main():
                     maxNumOutgroups=options.maxNumOutgroups,
                     extraChromOutgroups=options.extraChromOutgroups,
                     topological=options.topological,
-                    minNovelty=options.minNovelty)
+                    overlapPenalty=options.overlapPenalty)
 
     try:
         NX.drawing.nx_agraph.write_dot(outgroup.dag, args[1])

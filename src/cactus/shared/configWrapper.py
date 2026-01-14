@@ -117,14 +117,14 @@ class ConfigWrapper:
             topological = ogElem.attrib["topological"] == "1"
         return topological
 
-    def getOutgroupMinNovelty(self):
+    def getOutgroupOverlapPenalty(self):
         ogElem = self.getOutgroupElem()
-        minNovelty = 0.0
+        overlapPenalty = 0.0
         if (ogElem is not None and\
             "strategy" in ogElem.attrib and\
-            "min_novelty" in ogElem.attrib):
-            minNovelty = float(ogElem.attrib["min_novelty"])
-        return minNovelty
+            "overlap_penalty" in ogElem.attrib):
+            overlapPenalty = float(ogElem.attrib["overlap_penalty"])
+        return overlapPenalty
 
     def getDefaultInternalNodePrefix(self):
         decompElem = self.getDecompositionElem()

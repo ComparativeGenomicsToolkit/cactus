@@ -79,7 +79,7 @@ def compute_outgroups(mc_tree, config_wrapper, outgroup_candidates = set(), root
                         maxNumOutgroups=config_wrapper.getMaxNumOutgroups(),
                         extraChromOutgroups=config_wrapper.getExtraChromOutgroups(),
                         topological=config_wrapper.getOutgroupTopological(),
-                        minNovelty=config_wrapper.getOutgroupMinNovelty())
+                        overlapPenalty=config_wrapper.getOutgroupOverlapPenalty())
     if leaves_only:
         # use all leaves as outgroups, unless outgroup candidates are given
         outgroup.greedy(threshold=config_wrapper.getOutgroupThreshold(),
@@ -88,7 +88,7 @@ def compute_outgroups(mc_tree, config_wrapper, outgroup_candidates = set(), root
                         maxNumOutgroups=config_wrapper.getMaxNumOutgroups(),
                         extraChromOutgroups=config_wrapper.getExtraChromOutgroups(),
                         topological=config_wrapper.getOutgroupTopological(),
-                        minNovelty=config_wrapper.getOutgroupMinNovelty())
+                        overlapPenalty=config_wrapper.getOutgroupOverlapPenalty())
     elif config_wrapper.getOutgroupStrategy() != 'none':
         outgroup.greedy(threshold=config_wrapper.getOutgroupThreshold(),
                         candidateSet=None,
@@ -96,7 +96,7 @@ def compute_outgroups(mc_tree, config_wrapper, outgroup_candidates = set(), root
                         maxNumOutgroups=config_wrapper.getMaxNumOutgroups(),
                         extraChromOutgroups=config_wrapper.getExtraChromOutgroups(),
                         topological=config_wrapper.getOutgroupTopological(),
-                        minNovelty=config_wrapper.getOutgroupMinNovelty())
+                        overlapPenalty=config_wrapper.getOutgroupOverlapPenalty())
     
     if not include_dists:
         for k, v in outgroup.ogMap.items():
