@@ -516,10 +516,10 @@
 		<!-- max_num_outgroups: maximum number of outgroups per alignment job-->
 		<!-- extra_chrom_outgroups: if max_num_outgroups is not sufficent to satisfy sex chromosome requirements of an ancestor while still using nearest species, allow up to this many extra (when -1 set to the number of unique sex chromosomes for the ancestor).  -->
 		<outgroup
-			strategy="greedyLeavesPreference"
+			strategy="greedyPreference"
 			threshold="0"
 			ancestor_quality_fraction="0.75"
-			max_num_outgroups="2"
+			max_num_outgroups="3"
 			extra_chrom_outgroups="-1"
 			/>
 
