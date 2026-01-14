@@ -534,7 +534,13 @@
 			allow_multifurcations="0"
 	 	/>
   	</multi_cactus>
-	<consolidated>
+	<!-- memory_core_scale_pct: percentage to increase memory per core above baseline (default 0.5 means 0.5% more memory per extra core) -->
+	<!-- memory_core_scale_baseline: number of cores at which scaling begins (default 32) -->
+	<!-- Note: scaled memory will never exceed the maximum value in consolidatedMemory (seq_size_10000000000) -->
+	<consolidated
+		 memory_core_scale_pct="0.5"
+		 memory_core_scale_baseline="32"
+		 >
 	       <!-- consolidatedMemory: Specify memory requirement (in bytes) for cactus_conslidated. Each attribute corresponds to an interval start, and must be in the form seq_size_TOTAL_INPUT_SEQUENCE_SIZE=MEMORY.  So if cactus_consolidated is getting N input bytes, the first interval containing N is found, and the value of that attribute is used as the Toil memory. The idea is that it will be easier to fiddle with these than a single polynomial function while attempting to learn decent defaults by trial and error. By default, the memory requirement is linearly interpolated based on the endpoints of the interval.  If consMemory CLI option is used, then it overrides everything here.   -->
 	 	<consolidatedMemory
 	 		seq_size_0="1000000"
