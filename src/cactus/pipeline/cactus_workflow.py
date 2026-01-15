@@ -69,7 +69,22 @@ def cactus_cons_with_resources(job, tree, ancestor_event, config_node, seq_id_ma
         mem = max(mem, int(4e9))
     # add function of paf size
     mem = max(mem, 10 * paf_id.size)
-    
+
+    # scale memory based on number of cores (memory usage increases with more cores)
+    core_scale_pct = getOptionalAttrib(cons_node, 'memory_core_scale_pct', typeFn=float, default=0.5)
+    core_scale_baseline = getOptionalAttrib(cons_node, 'memory_core_scale_baseline', typeFn=int, default=32)
+    core_scale_max_pct = getOptionalAttrib(cons_node, 'memory_core_scale_max_pct', typeFn=float, default=100.0)
+    if cons_cores and cons_cores > core_scale_baseline and core_scale_pct > 0:
+        extra_cores = cons_cores - core_scale_baseline
+        scale_factor = 1.0 + (extra_cores * core_scale_pct / 100.0)
+        # cap scale factor at max percentage increase (default 100% = doubling)
+        scale_factor = min(scale_factor, 1.0 + core_scale_max_pct / 100.0)
+        scaled_mem = int(mem * scale_factor)
+        RealtimeLogger.info('Scaling cactus_consolidated({}) memory by {:.1f}% for {} extra cores (above {} baseline): {} -> {}'.format(
+            chrom_name if chrom_name else ancestor_event, (scale_factor - 1) * 100, extra_cores, core_scale_baseline,
+            bytes2human(mem), bytes2human(scaled_mem)))
+        mem = scaled_mem
+
     RealtimeLogger.info('Estimating cactus_consolidated({}) memory as {} from {} sequences with total-sequence-size {} and paf-size {} using <conslidatedMemory> configuration settings'.format(chrom_name if chrom_name else ancestor_event, bytes2human(mem), len(seq_id_map), bytes2human(total_sequence_size), paf_id.size))
 
     if cons_memory is not None and cons_memory != mem:
