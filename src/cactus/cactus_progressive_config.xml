@@ -111,6 +111,7 @@
 		   dechunkBatchSize="1000"
 		   pickIngroupPrimaryAlignmentsSeparatelyToOutgroups="1"
 		   slurmChunkScale="3"
+		   bigGenomeChunkScale="2"
 		   >
 
 		<!-- The following are parametrised to produce the same results as the default settings,
@@ -550,6 +551,8 @@
 			seq_size_1000000000="128000000000"
 			seq_size_4000000000="256000000000"
 			seq_size_10000000000="512000000000"
+			seq_size_15000000000="999000000000"
+			seq_size_20000000000="1990000000000"
 	 	/>
 	</consolidated>
 	<consolidated2></consolidated2>
