@@ -108,6 +108,24 @@ class ConfigWrapper:
             extraChromOutgroups = int(ogElem.attrib["extra_chrom_outgroups"])
         return extraChromOutgroups
 
+    def getOutgroupTopological(self):
+        ogElem = self.getOutgroupElem()
+        topological = False
+        if (ogElem is not None and\
+            "strategy" in ogElem.attrib and\
+            "topological" in ogElem.attrib):
+            topological = ogElem.attrib["topological"] == "1"
+        return topological
+
+    def getOutgroupOverlapPenalty(self):
+        ogElem = self.getOutgroupElem()
+        overlapPenalty = 0.0
+        if (ogElem is not None and\
+            "strategy" in ogElem.attrib and\
+            "overlap_penalty" in ogElem.attrib):
+            overlapPenalty = float(ogElem.attrib["overlap_penalty"])
+        return overlapPenalty
+
     def getDefaultInternalNodePrefix(self):
         decompElem = self.getDecompositionElem()
         prefix = self.defaultInternalNodePrefix
