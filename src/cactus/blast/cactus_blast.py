@@ -156,7 +156,7 @@ def runCactusBlastOnly(options):
                     input_seq_id_map[genome] = toil.importFile(seq)
 
             paf_id = toil.start(Job.wrapJobFn(sanitize_then_make_paf_alignments, NXNewick().writeString(spanning_tree),
-                                              input_seq_id_map, options.root, config_node))
+                                              input_seq_id_map, options.root, config_node, options.outputFile))
 
         # export the alignments
         toil.exportFile(paf_id, makeURL(options.outputFile))

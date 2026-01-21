@@ -19,7 +19,7 @@ import math
 import copy
 from Bio import SeqIO
 from cactus.paf.paf import get_event_pairs, get_leaves, get_node, get_distances
-from cactus.shared.common import cactus_call, getOptionalAttrib
+from cactus.shared.common import cactus_call, getOptionalAttrib, zip_gz
 from cactus.preprocessor.checkUniqueHeaders import sanitize_fasta_headers
 from cactus.preprocessor.unmasking import unmask_contigs_all
 from cactus.preprocessor.cactus_preprocessor import clean_if_different
@@ -721,10 +721,15 @@ def tile_alignments(job, alignment_files, reference_event_name, params, has_reso
     return job.fileStore.writeGlobalFile(output_alignments_file)  # Copy back
         
 
-def sanitize_then_make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancestor_event_string, params):
+def sanitize_then_make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancestor_event_string, params,
+                                       output_path=None):
     sanitize_job = job.addChildJobFn(sanitize_fasta_headers, event_names_to_sequences)
     paf_job = sanitize_job.addFollowOnJobFn(make_paf_alignments, event_tree_string, sanitize_job.rv(),
                                             ancestor_event_string, params)
+    # gzip the output if requested
+    if output_path and output_path.endswith('.gz'):
+        gzip_job = paf_job.addFollowOnJobFn(zip_gz, output_path, paf_job.rv())
+        return gzip_job.rv()
     return paf_job.rv()
 
 

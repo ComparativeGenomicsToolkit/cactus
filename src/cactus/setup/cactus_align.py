@@ -25,7 +25,7 @@ from cactus.shared.common import cactus_override_toil_options
 from cactus.shared.common import findRequiredNode
 from cactus.shared.common import getOptionalAttrib
 from cactus.shared.common import cactus_call
-from cactus.shared.common import write_s3, has_s3, get_aws_region, unzip_gzs
+from cactus.shared.common import write_s3, has_s3, get_aws_region, unzip_gzs, unzip_gz
 from cactus.shared.common import cactusRootPath
 from cactus.shared.common import cactus_clamp_memory
 from cactus.shared.common import clean_jobstore_files
@@ -375,6 +375,7 @@ def make_align_job(options, toil, config_wrapper=None, chrom_name=None):
                               input_seq_map,
                               input_seq_id_map,
                               paf_id,
+                              options.pafFile,
                               options.root,
                               og_map,
                               checkpointInfo=options.checkpointInfo,
@@ -391,13 +392,18 @@ def make_align_job(options, toil, config_wrapper=None, chrom_name=None):
                               branch_scale=options.branchScale)
     return align_job
 
-def cactus_align(job, config_wrapper, mc_tree, input_seq_map, input_seq_id_map, paf_id, root_name, og_map, checkpointInfo, doVG, doGFA, delay=0,
+def cactus_align(job, config_wrapper, mc_tree, input_seq_map, input_seq_id_map, paf_id, paf_path, root_name, og_map, checkpointInfo, doVG, doGFA, delay=0,
                  referenceEvents=None, pafMaskFilter=None, paf2Stable=False, cons_cores = None, cons_memory = None, do_filter_paf=False, chrom_name=None, scores_id=None, branch_scale=1.0):
-    
+
     head_job = Job()
     job.addChild(head_job)
 
     event_list = input_seq_id_map.keys()
+
+    # unzip the PAF if it's gzipped
+    if paf_path and paf_path.endswith('.gz'):
+        unzip_job = head_job.addChildJobFn(unzip_gz, paf_path, paf_id, disk=10*paf_id.size)
+        paf_id = unzip_job.rv()
 
     # parse the scores file into the config
     if scores_id:
