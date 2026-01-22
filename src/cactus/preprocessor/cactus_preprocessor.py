@@ -90,7 +90,8 @@ class CheckUniqueHeaders(RoundedJob):
     """
     def __init__(self, prepOptions, inChunkID):
         disk = 2*inChunkID.size
-        RoundedJob.__init__(self, memory=prepOptions.memory, cores=prepOptions.cpu, disk=disk,
+        memory = max(prepOptions.memory, inChunkID.size)
+        RoundedJob.__init__(self, memory=memory, cores=prepOptions.cpu, disk=disk,
                      preemptable=True)
         self.prepOptions = prepOptions
         self.inChunkID = inChunkID
