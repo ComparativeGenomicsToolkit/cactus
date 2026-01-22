@@ -77,6 +77,10 @@ def main(toil_mode=False):
         parser.add_argument("--jobStore", type=str, default="./jobstore", help="base directory of jobStores to use in suggested commands")
         parser.add_argument("--seqFileOnly", action="store_true", help="Only create output SeqFile (with no ancestors); do not make plan")
         parser.add_argument("--script", action="store_true", help="print a bash script instead of list of commands")
+        parser.add_argument("--roundBatchSize", type=int, default=30,
+                            help="Maximum number of concurrent alignments per round when using --script. "
+                            "Rounds with more alignments will be split into sub-rounds (e.g., Round 1.0, 1.1, ...) "
+                            "where each sub-round waits for completion before starting the next (default: 30)")
     parser.add_argument("--configFile", default=os.path.join(cactusRootPath(), "cactus_progressive_config.xml"))
     parser.add_argument("--preprocessBatchSize", type=int, default=32, help="size (number of genomes) of preprocessing jobs")
     parser.add_argument("--halAppendBatchSize", type=int, default=50, help="size (number of genomes) of halAppendSubtree jobs (WDL-only)")
@@ -154,6 +158,7 @@ def main(toil_mode=False):
         options.noLocalInputs = False
         options.includeRoot = False
         options.outDir = '.'
+        options.roundBatchSize = None
         setupBinaries(options)
         # need to avoid nested container calls, so set toil-inside-toil jobs to local by default
         if "--binariesMode" not in options.cactusOptions:
@@ -557,84 +562,95 @@ def get_plan(options, inSeqFile, outSeqFile, configWrapper, toil):
         else:
             return os.path.join(options.outDir, event + '.hal')
     def cigarPath(event):
-        return os.path.join(options.outDir, event + '.paf')
+        return os.path.join(options.outDir, event + '.paf.gz')
 
     # alignment groups
     plan += '\n## Alignment'
     for i, group in enumerate(groups):
-        plan += '\n### Round {}\n'.format(i)
-        if options.toil:
-            # advance toil phase
-            # todo: recapitulate exact dependencies
-            parent_job = parent_job.addFollowOn(Job())
-        if options.script:
-            plan += 'pids=()\n'
-        for event in sorted(group):
-            if options.wdl:
-                plan += wdl_call_blast(options, inSeqFile, mc_tree, og_map, event, cigarPath(event))
-                plan += wdl_call_align(options, inSeqFile, mc_tree, og_map, event, cigarPath(event), halPath(event), outSeqFile.pathMap[event])
-            elif options.toil:
-                # promises only get fulfilleed if they are passed directly as arguments to the toil job, so we pull out the ones we need here
-                leaf_deps, anc_deps = get_dep_names(options, mc_tree, og_map, event)
-                fa_promises = [job_idx[("preprocess", dep)].rv() for dep in leaf_deps] + [job_idx[("align", dep)].rv(0) for dep in anc_deps]
-                job_idx[("blast", event)] = parent_job.addChildJobFn(toil_call_blast,
-                                                                     options,
-                                                                     outSeqFile,
-                                                                     mc_tree,
-                                                                     og_map,
-                                                                     event,
-                                                                     cigarPath(event),
-                                                                     leaf_deps + anc_deps,
-                                                                     *fa_promises,
-                                                                     cores=options.blastCores,
-                                                                     memory=options.blastMemory,
-                                                                     disk=options.preprocessDisk)
-                job_idx[("align", event)] = job_idx[("blast", event)].addFollowOnJobFn(toil_call_align,
-                                                                                       options, outSeqFile,
-                                                                                       mc_tree,
-                                                                                       og_map,
-                                                                                       event,
-                                                                                       cigarPath(event),
-                                                                                       halPath(event),
-                                                                                       outSeqFile.pathMap[event],
-                                                                                       job_idx[("blast", event)].rv(),
-                                                                                       leaf_deps + anc_deps, *fa_promises,
-                                                                                       cores=options.alignCores,
-                                                                                       memory=options.alignMemory,
-                                                                                       disk=options.alignDisk)
+        # Split group into sub-rounds if using --script and roundBatchSize is set
+        sorted_group = sorted(group)
+        if options.script and options.roundBatchSize and len(sorted_group) > options.roundBatchSize:
+            sub_groups = [sorted_group[j:j+options.roundBatchSize] for j in range(0, len(sorted_group), options.roundBatchSize)]
+        else:
+            sub_groups = [sorted_group]
+
+        for sub_idx, sub_group in enumerate(sub_groups):
+            if len(sub_groups) > 1:
+                plan += '\n### Round {}.{}\n'.format(i, sub_idx)
             else:
-                # todo: support cactus interface (it's easy enough here, but cactus_progressive.py needs changes to handle)
-                cactus_options = options.cactusOptions
-                plan += 'cactus-blast {} {} {} --root {} {} {}{}{}{}{}{}{}{}{}{}\n'.format(
-                    get_jobstore(options), options.outSeqFile, cigarPath(event), event,
-                    cactus_options, get_toil_resource_opts(options, 'blast'),
-                    ' --gpu {}'.format(options.gpu) if options.gpu else '',
-                    ' --lastzCores {}'.format(options.lastzCores) if options.lastzCores else '',
-                    ' --fastga' if options.fastga else '',
-                    ' --includeRoot' if options.includeRoot and event == mc_tree.getRootName() else '',
-                    ' --chromInfo {}'.format(options.chromInfo) if options.chromInfo else '',
-                    ' --remask' if options.remask else '',
-                    ' --branchScale {}'.format(options.branchScale) if options.branchScale else '',
-                    get_log_options(options, 'blast', event),
-                    ' && \\' if options.script else '')
-                plan += 'cactus-align {} {} {} {} --root {} {} {}{}{}{}{}{}\n'.format(
-                    get_jobstore(options), options.outSeqFile, cigarPath(event), halPath(event), event,
-                    cactus_options, get_toil_resource_opts(options, 'align'),
-                    ' --includeRoot' if options.includeRoot and event == mc_tree.getRootName() else '',
-                    ' --chromInfo {}'.format(options.chromInfo) if options.chromInfo else '',
-                    ' --branchScale {}'.format(options.branchScale) if options.branchScale else '',
-                    get_log_options(options, 'align', event),
-                    ' && \\' if options.script else '')
-                plan += 'cactus-hal2fasta {} {} {} {} {} {}{}\n'.format(
-                    get_jobstore(options), halPath(event), event, outSeqFile.pathMap[event], cactus_options,
-                    get_log_options(options, 'hal2fasta', event),
-                    ' &' if options.script else '')
-                if options.script:
-                    plan += 'pids+=($!)\n'
-                if event != sorted(group)[-1]:
-                    plan += '\n'
-        if options.script:
-            plan += 'for pid in ${pids[*]}; do wait $pid; done\n'
+                plan += '\n### Round {}\n'.format(i)
+            if options.toil and sub_idx == 0:
+                # advance toil phase (only once per original round)
+                # todo: recapitulate exact dependencies
+                parent_job = parent_job.addFollowOn(Job())
+            if options.script:
+                plan += 'pids=()\n'
+            for event in sub_group:
+                if options.wdl:
+                    plan += wdl_call_blast(options, inSeqFile, mc_tree, og_map, event, cigarPath(event))
+                    plan += wdl_call_align(options, inSeqFile, mc_tree, og_map, event, cigarPath(event), halPath(event), outSeqFile.pathMap[event])
+                elif options.toil:
+                    # promises only get fulfilleed if they are passed directly as arguments to the toil job, so we pull out the ones we need here
+                    leaf_deps, anc_deps = get_dep_names(options, mc_tree, og_map, event)
+                    fa_promises = [job_idx[("preprocess", dep)].rv() for dep in leaf_deps] + [job_idx[("align", dep)].rv(0) for dep in anc_deps]
+                    job_idx[("blast", event)] = parent_job.addChildJobFn(toil_call_blast,
+                                                                         options,
+                                                                         outSeqFile,
+                                                                         mc_tree,
+                                                                         og_map,
+                                                                         event,
+                                                                         cigarPath(event),
+                                                                         leaf_deps + anc_deps,
+                                                                         *fa_promises,
+                                                                         cores=options.blastCores,
+                                                                         memory=options.blastMemory,
+                                                                         disk=options.preprocessDisk)
+                    job_idx[("align", event)] = job_idx[("blast", event)].addFollowOnJobFn(toil_call_align,
+                                                                                           options, outSeqFile,
+                                                                                           mc_tree,
+                                                                                           og_map,
+                                                                                           event,
+                                                                                           cigarPath(event),
+                                                                                           halPath(event),
+                                                                                           outSeqFile.pathMap[event],
+                                                                                           job_idx[("blast", event)].rv(),
+                                                                                           leaf_deps + anc_deps, *fa_promises,
+                                                                                           cores=options.alignCores,
+                                                                                           memory=options.alignMemory,
+                                                                                           disk=options.alignDisk)
+                else:
+                    # todo: support cactus interface (it's easy enough here, but cactus_progressive.py needs changes to handle)
+                    cactus_options = options.cactusOptions
+                    plan += 'cactus-blast {} {} {} --root {} {} {}{}{}{}{}{}{}{}{}{}\n'.format(
+                        get_jobstore(options), options.outSeqFile, cigarPath(event), event,
+                        cactus_options, get_toil_resource_opts(options, 'blast'),
+                        ' --gpu {}'.format(options.gpu) if options.gpu else '',
+                        ' --lastzCores {}'.format(options.lastzCores) if options.lastzCores else '',
+                        ' --fastga' if options.fastga else '',
+                        ' --includeRoot' if options.includeRoot and event == mc_tree.getRootName() else '',
+                        ' --chromInfo {}'.format(options.chromInfo) if options.chromInfo else '',
+                        ' --remask' if options.remask else '',
+                        ' --branchScale {}'.format(options.branchScale) if options.branchScale else '',
+                        get_log_options(options, 'blast', event),
+                        ' && \\' if options.script else '')
+                    plan += 'cactus-align {} {} {} {} --root {} {} {}{}{}{}{}{}\n'.format(
+                        get_jobstore(options), options.outSeqFile, cigarPath(event), halPath(event), event,
+                        cactus_options, get_toil_resource_opts(options, 'align'),
+                        ' --includeRoot' if options.includeRoot and event == mc_tree.getRootName() else '',
+                        ' --chromInfo {}'.format(options.chromInfo) if options.chromInfo else '',
+                        ' --branchScale {}'.format(options.branchScale) if options.branchScale else '',
+                        get_log_options(options, 'align', event),
+                        ' && \\' if options.script else '')
+                    plan += 'cactus-hal2fasta {} {} {} {} {} {}{}\n'.format(
+                        get_jobstore(options), halPath(event), event, outSeqFile.pathMap[event], cactus_options,
+                        get_log_options(options, 'hal2fasta', event),
+                        ' &' if options.script else '')
+                    if options.script:
+                        plan += 'pids+=($!)\n'
+                    if event != sub_group[-1]:
+                        plan += '\n'
+            if options.script:
+                plan += 'for pid in ${pids[*]}; do wait $pid; done\n'
 
     # advance toil phase
     if options.toil:
@@ -661,12 +677,20 @@ def get_plan(options, inSeqFile, outSeqFile, configWrapper, toil):
                 output_hal = options.outHal
             else:
                 output_hal = '{}.append.{}'.format(halPath(root), batch_count)
-            plan += 'cactus-halAppendSubtrees {} {} {} {} {} {}\n'.format(get_jobstore(options),
+            plan += 'cactus-halAppendSubtrees {} {} {} {} {} {}'.format(get_jobstore(options),
                                                                           input_hal,
                                                                           ' '.join(halPath(e) for e in event_subset),
                                                                           output_hal,
                                                                           cactus_options,
                                                                           get_log_options(options, 'halAppend', event_subset[0]))
+            # Remove previous intermediate file after successful completion
+            # (only when input_hal is an intermediate file, i.e., batch_count > 0)
+            if batch_count > 0:
+                if options.script:
+                    plan += ' && \\\nrm -f {}'.format(input_hal)
+                else:
+                    plan += '\nrm -f {}'.format(input_hal)
+            plan += '\n'
             prev_event = event_subset[-1]
             idx += options.halAppendBatchSize
             batch_count += 1
