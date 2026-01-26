@@ -519,10 +519,10 @@
 		<!-- topological: if 1, sort outgroup candidates by (LCA_height, distance) instead of just distance. This prefers topologically closer outgroups over those with short branch lengths. -->
 		<!-- overlap_penalty: scale factor for branches already covered by an outgroup. After selecting an outgroup, all branches on the path from the ancestor to that outgroup are scaled by this factor for subsequent outgroup selection. Values > 1 penalize shared paths (e.g., 2.0 doubles the effective distance). 0 means disabled. -->
 		<outgroup
-			strategy="greedyLeavesPreference"
+			strategy="greedyPreference"
 			threshold="0"
 			ancestor_quality_fraction="0.75"
-			max_num_outgroups="2"
+			max_num_outgroups="3"
 			extra_chrom_outgroups="-1"
 			topological="1"
 			overlap_penalty="2"
