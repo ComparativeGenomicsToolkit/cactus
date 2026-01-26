@@ -1,3 +1,16 @@
+# Release 3.1.3 2026-01-26
+
+This release resolves a sensitivity issue in Progressive Cactus in the presence of unexpected branch lengths in the guide tree.
+
+- Take topology into account during greedy outgroup selection.  The distance used is now a tuple of (LCA(x,y), dist(x,y)) when computing the distance between x and y (so even if a candiate outgroup is much closer than another in terms of path length, if its lowest-common-ancestor is higher in the tree, it's still considered further).
+- Take uniqueness into account during greedy outgroup selection.  Now the path between the ingroup and the first outgroup selected is scaled by 2 when selecting the next outgroup, etc.  This is a heuristic to help maximize information in the outgroup set.
+- Revert recent change that only considered leaf nodes for outgroups: ancestors now allowed again.
+- Revert much older change of only using two outgroups: by default three are once again used. 
+- Update to vg v1.71.0 and use its simplified interface for anchoring snarls on reference paths
+- cactus_consolidated jobs will now request more memory the more cores they use
+- memory estimates tweaked a bit to better handle large genomes
+- `cactus-prepare` changed to keep intermediate paf files gzipped, and also to cap the number of tasks in larger alignment rounds.
+
 # Release 3.1.2 2025-12-10
 
 This release addresses one bug from the previous release.
