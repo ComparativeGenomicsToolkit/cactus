@@ -280,7 +280,7 @@ suball.cactus2hal: suball.sonLib suball.hal all_libs.api
 	-ln -f submodules/cactus2hal/bin/* bin/
 
 suball.hal: suball.sonLib
-	cd submodules/hal &&  ${MAKE}
+	cd submodules/hal && LIBS="${jemallocLib}" ${MAKE}
 	-ln -f submodules/hal/bin/* bin/
 	-ln -f submodules/hal/lib/libHal.a submodules/hal/lib/halLib.a
 
@@ -295,11 +295,12 @@ suball.abPOA:
 	rm -fr ${INCLDIR}/simde && cp -r submodules/abPOA/include/simde ${INCLDIR}
 
 suball.lastz:
-	cd submodules/lastz && ${MAKE}
+	cd submodules/lastz/src && sed -i Makefile -e 's/-lm -o/-lm $${LIBS} -o/g'
+	cd submodules/lastz && LIBS="${jemallocLib}" ${MAKE}
 	ln -f submodules/lastz/src/lastz bin
 
 suball.paffy:
-	cd submodules/paffy && ${MAKE}
+	cd submodules/paffy && LIBS="${jemallocLib}" ${MAKE}
 	rm -rf submodules/paffy/bin/*.dSYM
 	ln -f submodules/paffy/bin/[a-zA-Z]* ${BINDIR}
 	ln -f submodules/paffy/lib/*.a ${LIBDIR}
