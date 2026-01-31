@@ -17,6 +17,18 @@ if [ -z ${numcpu+x} ]; then
 fi
 
 set -x
+
+# detect jemalloc for faster memory allocation
+# disable for legacy arch builds (same as include.mk)
+jemallocLib=""
+if [ -z ${CACTUS_LEGACY_ARCH+x} ]; then
+    if pkg-config --exists jemalloc 2>/dev/null; then
+        jemallocLib="-ljemalloc"
+    elif [ -f "$(pwd)/lib/libjemalloc.a" ]; then
+        jemallocLib="-L$(pwd)/lib -ljemalloc"
+    fi
+fi
+
 rm -rf ${mafBuildDir}
 mkdir -p ${mafBuildDir}
 mkdir -p ${binDir}
@@ -54,7 +66,7 @@ cd taffy
 git checkout 1329d999948ad4acc10116276fa7a9752a749595
 git submodule update --init --recursive
 export HALDIR=${CWD}/submodules/hal
-make -j ${numcpu}
+LIBS="${jemallocLib}" make -j ${numcpu}
 if [[ $STATIC_CHECK -ne 1 || $(ldd bin/taffy | grep so | wc -l) -eq 0 ]]
 then
     mv bin/taffy ${binDir}

@@ -31,6 +31,18 @@ if [ -z ${numcpu+x} ]; then
 fi
 
 set -x
+
+# detect jemalloc for faster memory allocation
+# disable for legacy arch builds (same as include.mk)
+jemallocLib=""
+if [ -z ${CACTUS_LEGACY_ARCH+x} ]; then
+    if pkg-config --exists jemalloc 2>/dev/null; then
+        jemallocLib="-ljemalloc"
+    elif [ -f "${libDir}/libjemalloc.a" ]; then
+        jemallocLib="-L${libDir} -ljemalloc"
+    fi
+fi
+
 rm -rf ${pangenomeBuildDir}
 mkdir -p ${pangenomeBuildDir}
 mkdir -p ${binDir}
@@ -63,8 +75,8 @@ git clone https://github.com/lh3/minigraph.git
 pushd minigraph
 git checkout v0.21
 # hack in flags support
-sed -i Makefile -e 's/CFLAGS=/CFLAGS+=/'
-make -j ${numcpu}
+sed -i Makefile -e 's/CFLAGS=/CFLAGS+=/' -e 's/LIBS=/LIBS+=/'
+LIBS="${jemallocLib}" make -j ${numcpu}
 if [[ $STATIC_CHECK -ne 1 || $(ldd minigraph | grep so | wc -l) -eq 0 ]]
 then
 	 mv minigraph ${binDir}
