@@ -118,7 +118,7 @@ sonLibLibs = ${sonLibDir}/sonLib.a ${sonLibDir}/cuTest.a
 
 # Add jemalloc if enabled
 ifeq ($(jemalloc),on)
-	jemallocLib = -ljemalloc
+	jemallocLib = -ljemalloc -lm
 	jemallocDepends = ${LIBDIR}/libjemalloc.a
 endif
 
