@@ -1,3 +1,10 @@
+# Release 3.1.4 2026-02-01
+
+This release patches some binaries to be a bit faster.  It otherwise does not change any logic nor functionality from 3.1.3
+
+- lastz, minigraph, paffy, taffy and hal now linked with jemalloc
+- paffy updated to version with faster I/O handling
+
 # Release 3.1.3 2026-01-26
 
 This release resolves a sensitivity issue in Progressive Cactus in the presence of unexpected branch lengths in the guide tree.
