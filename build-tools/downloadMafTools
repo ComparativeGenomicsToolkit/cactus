@@ -23,9 +23,9 @@ set -x
 jemallocLib=""
 if [ -z ${CACTUS_LEGACY_ARCH+x} ]; then
     if pkg-config --exists jemalloc 2>/dev/null; then
-        jemallocLib="-ljemalloc"
+        jemallocLib="-ljemalloc -lm"
     elif [ -f "$(pwd)/lib/libjemalloc.a" ]; then
-        jemallocLib="-L$(pwd)/lib -ljemalloc"
+        jemallocLib="-L$(pwd)/lib -ljemalloc -lm"
     fi
 fi
 
