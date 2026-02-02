@@ -35,13 +35,22 @@ def cactus_cons_with_resources(job, tree, ancestor_event, config_node, seq_id_ma
                                cons_cores = None, cons_memory = None, intermediate_results_url = None, chrom_name = None):
     ''' run cactus_consolidated as a child job, requesting resources based on input sizes '''
 
+    cons_node = findRequiredNode(config_node, 'consolidated')
+    outgroups = set(og_map[ancestor_event] if ancestor_event in og_map else [])
+    og_size_scale = getOptionalAttrib(cons_node, 'og_size_scale_pct', typeFn=float, default=100.0)
+
     # compute resource requirements
-    total_sequence_size = sum([seq_id.size for seq_id in seq_id_map.values()])
+    total_sequence_size = 0
+    for seq_name, seq_id in seq_id_map.items():
+        seq_size = seq_id.size
+        if seq_name in outgroups:
+            seq_size = int(seq_size * (og_size_scale / 100.))
+        total_sequence_size += seq_size
+        
     disk = 5 * total_sequence_size + 2 * paf_id.size
 
     # get the size from the config
     mem = None
-    cons_node = findRequiredNode(config_node, 'consolidated')
     cons_memory_node = findRequiredNode(cons_node, 'consolidatedMemory')
     cons_memory_intervals = []
     for key, val in cons_memory_node.items():

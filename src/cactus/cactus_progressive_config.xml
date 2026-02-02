@@ -542,10 +542,12 @@
 	<!-- memory_core_scale_pct: percentage to increase memory per core above baseline (default 0.5 means 0.5% more memory per extra core) -->
 	<!-- memory_core_scale_baseline: number of cores at which scaling begins (default 32) -->
 	<!-- memory_core_scale_max_pct: maximum percentage increase allowed (default 100 means memory can at most double) -->
+	<!-- og_size_scale: scale outgroup sizes by this factor (percent) when computing total sequence size -->
 	<consolidated
 		 memory_core_scale_pct="0.5"
 		 memory_core_scale_baseline="32"
 		 memory_core_scale_max_pct="100"
+		 og_size_scale_pct="75"
 		 >
 	       <!-- consolidatedMemory: Specify memory requirement (in bytes) for cactus_conslidated. Each attribute corresponds to an interval start, and must be in the form seq_size_TOTAL_INPUT_SEQUENCE_SIZE=MEMORY.  So if cactus_consolidated is getting N input bytes, the first interval containing N is found, and the value of that attribute is used as the Toil memory. The idea is that it will be easier to fiddle with these than a single polynomial function while attempting to learn decent defaults by trial and error. By default, the memory requirement is linearly interpolated based on the endpoints of the interval.  If consMemory CLI option is used, then it overrides everything here.   -->
 	 	<consolidatedMemory
@@ -555,7 +557,8 @@
 			seq_size_1000000000="128000000000"
 			seq_size_4000000000="256000000000"
 			seq_size_10000000000="512000000000"
-			seq_size_15000000000="999000000000"
+			seq_size_15000000000="1000000000000"
+			seq_size_17500000000="1500000000000"
 			seq_size_20000000000="1990000000000"
 	 	/>
 	</consolidated>
