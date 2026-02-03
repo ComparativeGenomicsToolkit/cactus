@@ -601,7 +601,7 @@ def chain_alignments(job, alignment_files, alignment_names, reference_event_name
         chained_alignment_files.append(root_job.addChildJobFn(chain_one_alignment, alignment_file, alignment_name,
                                                               params, include_inverted_alignments,
                                                               disk=4*alignment_file.size,
-                                                              memory=cactus_clamp_memory(8*alignment_file.size)).rv())
+                                                              memory=cactus_clamp_memory(2*alignment_file.size)).rv())
 
     # do the tiling and filtering
     return root_job.addFollowOnJobFn(tile_alignments, chained_alignment_files, reference_event_name, params,
@@ -651,7 +651,7 @@ def tile_alignments(job, alignment_files, reference_event_name, params, has_reso
         return job.addChildJobFn(tile_alignments, alignment_files, reference_event_name, params, has_resources=True,
                                  total_sequence_size=total_sequence_size,
                                  disk=2*paf_size,
-                                 memory=cactus_clamp_memory(8*paf_size + 2*total_sequence_size)).rv()
+                                 memory=cactus_clamp_memory(2*paf_size + 2*total_sequence_size)).rv()
     
     work_dir = job.fileStore.getLocalTempDir()
 
