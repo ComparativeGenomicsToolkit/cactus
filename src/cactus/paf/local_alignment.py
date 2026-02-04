@@ -452,10 +452,13 @@ def make_ingroup_to_outgroup_alignments_1(job, ingroup_event, outgroup_events, e
                                        disk=4*(event_names_to_sequences[ingroup_event.iD].size+event_names_to_sequences[outgroup.iD].size)).rv()
 
     #  post process the alignments and recursively generate alignments to remaining outgroups
+    # Memory: paffy to_bed creates SequenceCountArray (2 bytes per base) for query (ingroup) sequences
+    ingroup_size = event_names_to_sequences[ingroup_event.iD].size
+    outgroup_size = event_names_to_sequences[outgroup.iD].size
     return root_job.addFollowOnJobFn(make_ingroup_to_outgroup_alignments_2, alignment, ingroup_event, outgroup_events[1:],
                                      event_names_to_sequences, distances, params,
-                                     disk=8*(event_names_to_sequences[ingroup_event.iD].size+event_names_to_sequences[outgroup.iD].size),
-                                     memory=cactus_clamp_memory(8*(event_names_to_sequences[ingroup_event.iD].size+event_names_to_sequences[outgroup.iD].size))).rv() if len(outgroup_events) > 1 else alignment
+                                     disk=4*(ingroup_size + outgroup_size),
+                                     memory=cactus_clamp_memory(4*ingroup_size + 2*outgroup_size)).rv() if len(outgroup_events) > 1 else alignment
 
 
 def make_ingroup_to_outgroup_alignments_2(job, alignments, ingroup_event, outgroup_events,
@@ -556,7 +559,7 @@ def merge_alignments(job, alignment_file1, alignment_file2, has_resources=False)
 
 def chain_alignments_splitting_ingroups_and_outgroups(job, ingroup_alignment_files, ingroup_alignment_names,
                                                       outgroup_alignment_files, outgroup_alignment_names,
-                                                      reference_event_name, params):
+                                                      reference_event_name, params, total_sequence_size=0):
     """ Chains/tiles/etc. the ingroup alignments to each other so that every ingroup sequence has a primary alignment to
     another ingroup sequence, and separately each outgroup sequence has a primary alignment to an ingroup."""
 
@@ -566,14 +569,16 @@ def chain_alignments_splitting_ingroups_and_outgroups(job, ingroup_alignment_fil
 
     # Chain and pick the primary alignments of the ingroups to each other
     chained_ingroup_alignments = job.addChildJobFn(chain_alignments, ingroup_alignment_files,
-                                                   ingroup_alignment_names, reference_event_name, params).rv()
+                                                   ingroup_alignment_names, reference_event_name, params,
+                                                   total_sequence_size=total_sequence_size).rv()
 
     # Separately pick the primary of the outgroups to the ingroups. By setting include_inverted_alignments=False
     # we only get outgroup-to-ingroup alignments and not imgroup-to-ouygroup alignments and therefore primary
     # alignments along the outgroup sequences
     chained_outgroup_alignments = job.addChildJobFn(chain_alignments, outgroup_alignment_files,
                                                     outgroup_alignment_names, reference_event_name, params,
-                                                    include_inverted_alignments=False).rv()
+                                                    include_inverted_alignments=False,
+                                                    total_sequence_size=total_sequence_size).rv()
 
     # Calculate approximately total alignment file size
     total_file_size = sum(alignment_file.size for alignment_file in ingroup_alignment_files + outgroup_alignment_files)
@@ -582,24 +587,25 @@ def chain_alignments_splitting_ingroups_and_outgroups(job, ingroup_alignment_fil
     return job.addFollowOnJobFn(merge_alignments, chained_ingroup_alignments, chained_outgroup_alignments).rv()
 
 def chain_alignments(job, alignment_files, alignment_names, reference_event_name, params,
-                     include_inverted_alignments=True):
+                     include_inverted_alignments=True, total_sequence_size=0):
     """The following recapitulates the pipeline showing in paffy/tests/paf_pipeline_test.sh"""
 
     root_job = Job()
     job.addChild(root_job)
 
     assert len(alignment_files) == len(alignment_names)
-    
+
     # do the chaining
     chained_alignment_files = []
     for alignment_file, alignment_name in zip(alignment_files, alignment_names):
         chained_alignment_files.append(root_job.addChildJobFn(chain_one_alignment, alignment_file, alignment_name,
                                                               params, include_inverted_alignments,
                                                               disk=4*alignment_file.size,
-                                                              memory=cactus_clamp_memory(32*alignment_file.size)).rv())
-        
+                                                              memory=cactus_clamp_memory(2*alignment_file.size)).rv())
+
     # do the tiling and filtering
-    return root_job.addFollowOnJobFn(tile_alignments, chained_alignment_files, reference_event_name, params).rv()
+    return root_job.addFollowOnJobFn(tile_alignments, chained_alignment_files, reference_event_name, params,
+                                     total_sequence_size=total_sequence_size).rv()
 
 
 def chain_one_alignment(job, alignment_file, alignment_name, params, include_inverted_alignments):
@@ -636,13 +642,16 @@ def chain_one_alignment(job, alignment_file, alignment_name, params, include_inv
     return job.fileStore.writeGlobalFile(output_path)
     
     
-def tile_alignments(job, alignment_files, reference_event_name, params, has_resources = False):
+def tile_alignments(job, alignment_files, reference_event_name, params, has_resources=False, total_sequence_size=0):
     # do everything post-chaining
+    # Memory: paffy tile loads all PAFs + creates SequenceCountArray (2 bytes per base of query sequence)
 
     if not has_resources:
+        paf_size = sum([alignment_file.size for alignment_file in alignment_files])
         return job.addChildJobFn(tile_alignments, alignment_files, reference_event_name, params, has_resources=True,
-                                 disk=2*sum([alignment_file.size for alignment_file in alignment_files]),
-                                 memory=cactus_clamp_memory(32*sum([alignment_file.size for alignment_file in alignment_files]))).rv()
+                                 total_sequence_size=total_sequence_size,
+                                 disk=2*paf_size,
+                                 memory=cactus_clamp_memory(2*paf_size + 2*total_sequence_size)).rv()
     
     work_dir = job.fileStore.getLocalTempDir()
 
@@ -817,7 +826,8 @@ def make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancest
         return root_job.addFollowOnJobFn(chain_alignments_splitting_ingroups_and_outgroups,
                                          ingroup_alignments, ingroup_alignment_names,
                                          outgroup_alignments, outgroup_alignment_names,
-                                         ancestor_event_string, params).rv()
+                                         ancestor_event_string, params,
+                                         total_sequence_size=total_sequence_size).rv()
 
     # Delete the unmasked fastas (todo: should we do the unmasking somewhere further upstream?)
     for ingroup in ingroup_events:
@@ -825,15 +835,19 @@ def make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancest
 
     return root_job.addFollowOnJobFn(chain_alignments, ingroup_alignments + outgroup_alignments,
                                      ingroup_alignment_names + outgroup_alignment_names,
-                                     ancestor_event_string, params).rv()
+                                     ancestor_event_string, params,
+                                     total_sequence_size=total_sequence_size).rv()
 
 
 def trim_unaligned_sequences(job, sequences, alignments, params, has_resources=False):
+    # Memory: paffy to_bed with --includeInverted creates SequenceCountArray (2 bytes per base) for both
+    # query and target sequences. faffy extract and paffy upconvert are streaming.
 
     if not has_resources:
+        seq_size = sum([seq.size for seq in sequences])
         return job.addChildJobFn(trim_unaligned_sequences, sequences, alignments, params, has_resources=True,
-                                 disk=8*sum([seq.size for seq in sequences]) + 32*alignments.size,
-                                 memory=cactus_clamp_memory(8*sum([seq.size for seq in sequences]) + 32*alignments.size)).rv()
+                                 disk=4*seq_size + 2*alignments.size,
+                                 memory=cactus_clamp_memory(4*seq_size + 2*alignments.size)).rv()
 
     work_dir = job.fileStore.getLocalTempDir()
     alignments_file = os.path.join(work_dir, 'alignments.paf')    
