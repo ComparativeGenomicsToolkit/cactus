@@ -110,6 +110,7 @@
 		   outputSecondaryAlignments="0"
 		   dechunkBatchSize="1000"
 		   pickIngroupPrimaryAlignmentsSeparatelyToOutgroups="1"
+		   chainSplitQueryLength="10000000"
 		   slurmChunkScale="3"
 		   bigGenomeChunkScale="2"
 		   >
