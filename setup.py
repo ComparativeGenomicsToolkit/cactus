@@ -34,7 +34,6 @@ setup(
         'decorator',
         'networkx>=2,<2.8.1',
         'pytest',
-        'cigar',
         'biopython',
         'pysam'],
 

@@ -3,8 +3,8 @@
 import copy
 import operator
 from toil.job import Job
-from cigar import Cigar
 import collections as col
+import re
 
 def parse_large_mappings(job, paf, min_size_mapping, min_mapq):
     mappings = dict()
@@ -95,7 +95,7 @@ def adjust_mapping(mapping, overlap_region):
     for field in range(len(mapping[12:])):
         field += 12
         if mapping[field][:5] == "cg:Z:":
-            cig = col.deque(Cigar(mapping[field][5:]).items())
+            cig = col.deque((int(m[0]), m[1]) for m in re.findall(r'(\d+)([MIDNSHP=X])', mapping[field][5:]))
             cig_field = field
             break
     # print ("adjusting mapping", cig, "overlap region", overlap_region)
