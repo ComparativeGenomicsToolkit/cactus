@@ -79,6 +79,9 @@
 	<!-- pickIngroupPrimaryAlignmentsSeparatelyToOutgroups Separately make ingroups pick their primary alignment to
 	     other ingroups without outgroups, then get the outgroups to pick their primary alignment to the ingroups. If 0
 	     get every sequence to pick its primary alignment without regard to if the other sequence is an ingroup or outgroup -->
+	<!-- chainSplitQueryLength When running paf chaining pipeline divides pafs by query contig and runs the chaining for each contig
+	     in parallel. To cope with small contigs, contigs smaller than chainSplitQueryLength length are aggregated into collections
+	     of contigs not greater than this length. -->
 	<!-- slurmChunkScale Multiply chunkSize and divide dechunkBatchSize by this value when running slurm in order to decrease job count -->
 	<blast chunkSize="30000000"
 	       bigChunkSize="6000000000"
@@ -110,7 +113,7 @@
 		   outputSecondaryAlignments="0"
 		   dechunkBatchSize="1000"
 		   pickIngroupPrimaryAlignmentsSeparatelyToOutgroups="1"
-		   chainSplitQueryLength="10000000"
+		   chainSplitQueryLength="100000000"
 		   slurmChunkScale="3"
 		   bigGenomeChunkScale="2"
 		   >
