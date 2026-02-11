@@ -637,8 +637,11 @@ def chain_one_alignment(job, alignment_file, alignment_name, params, include_inv
 
     split_query_length = getOptionalAttrib(params.find("blast"), "chainSplitQueryLength",
                                            typeFn=int, default=0)
+    chain_split_min_file_size = getOptionalAttrib(params.find("blast"), "chainSplitMinFileSize",
+                                                   typeFn=int, default=0)
+    paf_file_size = os.path.getsize(alignment_path)
 
-    if split_query_length > 0:
+    if paf_file_size >= chain_split_min_file_size:
         # Split the PAF by query contig
         split_dir = os.path.join(work_dir, 'split')
         os.makedirs(split_dir)

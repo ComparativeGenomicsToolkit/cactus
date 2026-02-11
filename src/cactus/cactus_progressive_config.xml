@@ -82,6 +82,8 @@
 	<!-- chainSplitQueryLength When running paf chaining pipeline divides pafs by query contig and runs the chaining for each contig
 	     in parallel. To cope with small contigs, contigs smaller than chainSplitQueryLength length are aggregated into collections
 	     of contigs not greater than this length. -->
+	<!-- chainSplitMinFileSize PAF files smaller than this size (in bytes) skip the query contig splitting and chain directly.
+	     Set to 0 to always split when chainSplitQueryLength is enabled. -->
 	<!-- slurmChunkScale Multiply chunkSize and divide dechunkBatchSize by this value when running slurm in order to decrease job count -->
 	<blast chunkSize="30000000"
 	       bigChunkSize="6000000000"
@@ -113,7 +115,8 @@
 		   outputSecondaryAlignments="0"
 		   dechunkBatchSize="1000"
 		   pickIngroupPrimaryAlignmentsSeparatelyToOutgroups="1"
-		   chainSplitQueryLength="100000000"
+		   chainSplitQueryLength="1000000000"
+		   chainSplitMinFileSize="100000000"
 		   slurmChunkScale="3"
 		   bigGenomeChunkScale="2"
 		   >
