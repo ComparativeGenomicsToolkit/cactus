@@ -295,7 +295,7 @@ suball.abPOA:
 	rm -fr ${INCLDIR}/simde && cp -r submodules/abPOA/include/simde ${INCLDIR}
 
 suball.lastz:
-	cd submodules/lastz/src && sed -i Makefile -e 's/-lm -o/-lm $${LIBS} -o/g'
+	cd submodules/lastz/src && sed -i -e 's/-lm -o/-lm $${LIBS} -o/g' Makefile
 	cd submodules/lastz && LIBS="${jemallocLib}" ${MAKE}
 	ln -f submodules/lastz/src/lastz bin
 
@@ -321,7 +321,7 @@ suball.FASTGA:
 	ln -f submodules/FASTGA/GIXmake ${BINDIR}
 	ln -f submodules/FASTGA/GIXrm ${BINDIR}
 suball.FASTAN:
-	cd submodules/FASTAN && sed -i Makefile -e 's/-lm -lz/-lm -lpthread -lz/g' && ${MAKE} || true
+	cd submodules/FASTAN && sed -i -e 's/-lm -lz/-lm -lpthread -lz/g' Makefile && ${MAKE} || true
 	ln -f submodules/FASTAN/FasTAN ${BINDIR}
 suball.alntools:
 	cd submodules/alntools && ${MAKE}
