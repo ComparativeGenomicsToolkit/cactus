@@ -5,8 +5,6 @@ variables:
 
 before_script:
   - whoami
-  - sudo apt-get -q -y update
-  - sudo apt-get -q -y install --no-upgrade bcftools parallel libdeflate-dev cmake libjemalloc-dev python3-distutils pybind11-dev autoconf libzstd-dev libhts-dev rsync
   - startdocker || true
   - docker info
 
@@ -20,13 +18,13 @@ test-job:
   stage: test
   script:
     - make clean
-    - virtualenv -p python3.9 venv
+    - virtualenv -p python3.10 venv
     - source venv/bin/activate
-    - python3.9 -m pip install -U pip setuptools    
-    - python3.9 -m pip install -r toil-requirement.txt
-    - python3.9 -m pip install -U .
+    - python3.10 -m pip install -U pip setuptools    
+    - python3.10 -m pip install -r toil-requirement.txt
+    - python3.10 -m pip install -U .
     # downgrad pysam to work around import pysam error: "module 'pysam.libcalignedsegment' has no attribute 'CMATCH'"
-    - python3.9 -m pip install pysam==0.21.0
+    - python3.10 -m pip install pysam==0.21.0
     # these are the old travis tests, followed by its docker push
     - git clone https://github.com/ComparativeGenomicsToolkit/cactusTestData
     - export ASAN_OPTIONS="detect_leaks=0"
@@ -39,7 +37,7 @@ test-job:
     - make -j 8	 
     - numcpu=8 build-tools/downloadPangenomeTools
     - CACTUS_LEGACY_ARCH=1 numcpu=8 build-tools/downloadMafTools	 
-    - python3.9 -m pip install -U .
+    - python3.10 -m pip install -U .
     # force local docker image to use legacy mode so tests run
     - sed -i Dockerfile -e 's/ENV avx2 1/ENV CACTUS_LEGACY_ARCH 1/g'
     - make docker
