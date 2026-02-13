@@ -69,7 +69,7 @@ git clone https://github.com/ComparativeGenomicsToolkit/cactus.git --recursive
 
 ### Creating the Python virtualenv
 
-**Cactus requires Python >= 3.9 along with Python development headers and libraries**
+**Cactus requires Python >= 3.10 along with Python development headers and libraries**
 
 Install virtualenv first if needed with `python3 -m pip install virtualenv`.
 

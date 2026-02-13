@@ -1,2 +1,2 @@
 backports.zoneinfo[tzdata];python_version<"3.9"
-toil[aws]==9.1.2
+toil[aws]==9.2.0
