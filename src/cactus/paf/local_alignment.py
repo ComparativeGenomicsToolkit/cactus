@@ -64,7 +64,7 @@ def run_lastz(job, name_A, genome_A, name_B, genome_B, distance, params):
     lastz_cmd = [lastz_bin,
                  '{}{}'.format(os.path.basename(genome_a_file), suffix_a),
                  '{}{}'.format(os.path.basename(genome_b_file), suffix_b),
-                 '--format=paf:minimap2'] + lastz_params.split(' ')
+                 '--format=paf:wfmash'] + lastz_params.split(' ')
         
     # note: it's very important to set the work_dir here, because cactus_call is not able to
     # sort out the mount directory by itself, presumably due to square brackets...
@@ -92,13 +92,8 @@ def run_lastz(job, name_A, genome_A, name_B, genome_B, distance, params):
             with open(alignment_file, 'w') as alignment_fh:
                 pass
 
-    # Add in mismatches so we can trim alignments later
-    alignment_file_with_mismatches = os.path.join(work_dir, '{}_{}_mismatches.paf'.format(name_A, name_B))
-    cactus_call(parameters=['paffy', 'add_mismatches', "-i", alignment_file, genome_a_file, genome_b_file ],
-                outfile=alignment_file_with_mismatches)
-
     # Return the alignment file
-    return job.fileStore.writeGlobalFile(alignment_file_with_mismatches)
+    return job.fileStore.writeGlobalFile(alignment_file)
 
 
 def run_minimap2(job, name_A, genome_A, name_B, genome_B, distance, params):
