@@ -604,27 +604,86 @@ def chain_alignments(job, alignment_files, alignment_names, reference_event_name
 
 
 def chain_one_alignment(job, alignment_file, alignment_name, params, include_inverted_alignments):
-    """ run paffy chain on one PAF. include_inverted_alignemnts is a flag to control if we additionally include
-    the inverted paf records for chaining.
+    """ run paffy chain on one PAF. include_inverted_alignments is a flag to control if we additionally include
+    the inverted paf records for chaining. If chainSplitQueryLength is set in the config, splits the PAF by query
+    contig and chains each chunk in parallel before concatenating the results.
     """
 
     work_dir = job.fileStore.getLocalTempDir()
     alignment_path = os.path.join(work_dir, alignment_name + '.paf')
-    alignment_inv_path = os.path.join(work_dir, alignment_name + '.inv.paf')
     output_path = os.path.join(work_dir, alignment_name + '.chained.paf')
 
     # Copy the alignments from the job store
     job.fileStore.readGlobalFile(alignment_file, alignment_path)
 
-    # Get the forward and reverse versions of each alignment for symmetry with chaining if include_inverted_alignments
-    # is set
+    # Append inverted alignments BEFORE splitting (inversion swaps query/target)
     if include_inverted_alignments:
+        alignment_inv_path = os.path.join(work_dir, alignment_name + '.inv.paf')
         shutil.copyfile(alignment_path, alignment_inv_path)
         cactus_call(parameters=['paffy', 'invert', "-i", alignment_inv_path], outfile=alignment_path, outappend=True,
                     job_memory=job.memory)
 
-    # Now chain the alignments
-    cactus_call(parameters=['paffy', 'chain', "-i", alignment_path,
+    chain_params = ['paffy', 'chain',
+                    "--maxGapLength", params.find("blast").attrib["chainMaxGapLength"],
+                    "--chainGapOpen", params.find("blast").attrib["chainGapOpen"],
+                    "--chainGapExtend", params.find("blast").attrib["chainGapExtend"],
+                    "--trimFraction", params.find("blast").attrib["chainTrimFraction"],
+                    "--logLevel", getLogLevelString()]
+
+    split_query_length = getOptionalAttrib(params.find("blast"), "chainSplitQueryLength",
+                                           typeFn=int, default=0)
+    chain_split_min_file_size = getOptionalAttrib(params.find("blast"), "chainSplitMinFileSize",
+                                                   typeFn=int, default=0)
+    paf_file_size = os.path.getsize(alignment_path)
+
+    if paf_file_size >= chain_split_min_file_size:
+        # Split the PAF by query contig
+        split_dir = os.path.join(work_dir, 'split')
+        os.makedirs(split_dir)
+        split_prefix = os.path.join(split_dir, 'split_')
+        cactus_call(parameters=['paffy', 'split_file', '-i', alignment_path, '-q',
+                                '-m', str(split_query_length), '-p', split_prefix],
+                    job_memory=job.memory)
+        split_files = [os.path.join(split_dir, f) for f in sorted(os.listdir(split_dir))
+                       if f.endswith('.paf')]
+    else:
+        split_files = []
+
+    if len(split_files) <= 1:
+        # No splitting or only one chunk — chain directly (no fan-out overhead)
+        input_path = split_files[0] if split_files else alignment_path
+        cactus_call(parameters=chain_params + ["-i", input_path],
+                    outfile=output_path, job_memory=job.memory)
+        job.fileStore.deleteGlobalFile(alignment_file)
+        return job.fileStore.writeGlobalFile(output_path)
+
+    # Multiple chunks — fan out parallel chain jobs
+    root_job = Job()
+    job.addChild(root_job)
+
+    chained_chunk_ids = []
+    for split_file in split_files:
+        chunk_size = os.path.getsize(split_file)
+        chunk_file_id = job.fileStore.writeGlobalFile(split_file)
+        chained_chunk_ids.append(
+            root_job.addChildJobFn(chain_one_split_chunk, chunk_file_id, params,
+                                   disk=4 * chunk_size,
+                                   memory=cactus_clamp_memory(2 * chunk_size)).rv())
+
+    job.fileStore.deleteGlobalFile(alignment_file)
+    return root_job.addFollowOnJobFn(concatenate_chained_chunks, chained_chunk_ids,
+                                     disk=2 * alignment_file.size).rv()
+
+
+def chain_one_split_chunk(job, chunk_file_id, params):
+    """Run paffy chain on a single split chunk of a PAF file."""
+    work_dir = job.fileStore.getLocalTempDir()
+    chunk_path = os.path.join(work_dir, 'chunk.paf')
+    output_path = os.path.join(work_dir, 'chained_chunk.paf')
+
+    job.fileStore.readGlobalFile(chunk_file_id, chunk_path)
+
+    cactus_call(parameters=['paffy', 'chain', "-i", chunk_path,
                             "--maxGapLength", params.find("blast").attrib["chainMaxGapLength"],
                             "--chainGapOpen", params.find("blast").attrib["chainGapOpen"],
                             "--chainGapExtend", params.find("blast").attrib["chainGapExtend"],
@@ -632,11 +691,25 @@ def chain_one_alignment(job, alignment_file, alignment_name, params, include_inv
                             "--logLevel", getLogLevelString()],
                 outfile=output_path, job_memory=job.memory)
 
-    job.fileStore.deleteGlobalFile(alignment_file)
+    job.fileStore.deleteGlobalFile(chunk_file_id)
+    return job.fileStore.writeGlobalFile(output_path)
+
+
+def concatenate_chained_chunks(job, chained_chunk_ids):
+    """Concatenate chained PAF chunks back into a single file."""
+    work_dir = job.fileStore.getLocalTempDir()
+    output_path = os.path.join(work_dir, 'chained_combined.paf')
+
+    with open(output_path, 'w') as out_file:
+        for chunk_id in chained_chunk_ids:
+            chunk_path = job.fileStore.readGlobalFile(chunk_id)
+            with open(chunk_path, 'r') as chunk_file:
+                shutil.copyfileobj(chunk_file, out_file)
+            job.fileStore.deleteGlobalFile(chunk_id)
 
     return job.fileStore.writeGlobalFile(output_path)
-    
-    
+
+
 def tile_alignments(job, alignment_files, reference_event_name, params, has_resources=False, total_sequence_size=0):
     # do everything post-chaining
     # Memory: paffy tile loads all PAFs + creates SequenceCountArray (2 bytes per base of query sequence)
