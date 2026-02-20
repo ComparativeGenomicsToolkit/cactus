@@ -1,4 +1,4 @@
-import os, sys
+import os, sys, glob
 import pytest
 import unittest
 import subprocess
@@ -1282,6 +1282,45 @@ class TestCase(unittest.TestCase):
 
         # check the output
         self._check_yeast_pangenome(name, other_ref='DBVPG6044', expect_odgi=True, expect_haplo=False, expect_unchopped_gfa=True)
+
+        # test --vcfOnly mode: re-run VCF generation from the chrom-vg clip output
+        # and verify the VCFs are identical to the original pangenome VCFs
+        join_path = os.path.join(self.tempDir, 'join')
+        vcfonly_path = os.path.join(self.tempDir, 'vcfonly')
+        chroms_path = os.path.join(join_path, 'yeast.chroms')
+
+        # find the clipped chrom vg files (exclude .d2. filter and .full. files)
+        chrom_vgs = sorted([v for v in glob.glob(os.path.join(chroms_path, '*.vg'))
+                            if '.d2.' not in os.path.basename(v) and '.full.' not in os.path.basename(v)])
+        self.assertGreater(len(chrom_vgs), 0)
+
+        cactus_opts = ['--binariesMode', name, '--logInfo', '--workDir', self.tempDir, '--maxCores', '4']
+        vcfonly_cmd = ['cactus-graphmap-join', os.path.join(self.tempDir, 'js-vcfonly'),
+                       '--vg'] + chrom_vgs + \
+                      ['--outDir', vcfonly_path, '--outName', 'yeast-vcfonly',
+                       '--reference', 'S288C', 'DBVPG6044',
+                       '--vcfReference', 'DBVPG6044', 'S288C',
+                       '--vcfOnly', '--indexCores', '4']
+        subprocess.check_call(vcfonly_cmd + cactus_opts)
+
+        # compare VCFs: the vcfOnly output should be identical to the original
+        for orig_name, vcfonly_name in [('yeast.vcf.gz', 'yeast-vcfonly.vcf.gz'),
+                                        ('yeast.raw.vcf.gz', 'yeast-vcfonly.raw.vcf.gz'),
+                                        ('yeast.DBVPG6044.vcf.gz', 'yeast-vcfonly.DBVPG6044.vcf.gz'),
+                                        ('yeast.DBVPG6044.raw.vcf.gz', 'yeast-vcfonly.DBVPG6044.raw.vcf.gz')]:
+            orig_vcf = os.path.join(join_path, orig_name)
+            vcfonly_vcf = os.path.join(vcfonly_path, vcfonly_name)
+            self.assertTrue(os.path.isfile(vcfonly_vcf), 'Missing vcfOnly output: {}'.format(vcfonly_vcf))
+            # compare body lines (skip headers; sort because chromosome order depends on --vg argument order)
+            orig_body = subprocess.check_output('bcftools view -H {} | sort | md5sum'.format(orig_vcf), shell=True)
+            vcfonly_body = subprocess.check_output('bcftools view -H {} | sort | md5sum'.format(vcfonly_vcf), shell=True)
+            self.assertEqual(orig_body, vcfonly_body,
+                             'VCF body mismatch between {} and {}'.format(orig_name, vcfonly_name))
+
+        # verify that non-VCF outputs were not produced
+        for ext in ['gfa.gz', 'gbz', 'hal', 'xg']:
+            self.assertFalse(os.path.isfile(os.path.join(vcfonly_path, 'yeast-vcfonly.{}'.format(ext))),
+                             'vcfOnly should not produce .{} output'.format(ext))
 
     def testYeastPangenomeSplitLocal(self):
         """ Run pangenome pipeline (including contig splitting!) on yeast dataset using cactus-pangenome """

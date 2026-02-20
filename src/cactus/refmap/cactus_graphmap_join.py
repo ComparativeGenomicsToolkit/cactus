@@ -160,6 +160,17 @@ def graphmap_join_options(parser):
 
     parser.add_argument("--delEdgeFilter", type=int, default=None, help = "Remove edges that span more than Nbp on the reference genome (vg clip -D). Applied during clipping.")
 
+    parser.add_argument("--vcfOnly", action='store_true', default=False,
+                        help="Only generate VCFs from the input --vg files, skipping all clipping, "
+                        "filtering, and indexing. Input --vg files should be already-processed "
+                        "per-chromosome graphs (e.g. from a previous run with --chrom-vg). Implies --vcf.")
+
+    parser.add_argument("--refFasta", nargs='+', default=None,
+                        help="Reference FASTA file(s) for bcftools norm (used with --vcfwave or bcftoolsNorm). "
+                        "One per --vcfReference, with sequences named by chromosome (no sample#hap# prefix). "
+                        "If not provided and normalization is needed, sequences are extracted from the input --vg files "
+                        "(only reliable for the primary reference).")
+
 def graphmap_join_validate_options(options):
     """ make sure the options make sense and fill in sensible defaults """
     if options.hal and len(options.hal) != len(options.vg):
@@ -180,6 +191,49 @@ def graphmap_join_validate_options(options):
         if not options.indexCores:
             raise RuntimeError("--indexCores required run *not* running on single machine batch system")
     
+    # handle --vcfOnly mode: disable all non-VCF outputs and return early
+    if hasattr(options, 'vcfOnly') and options.vcfOnly:
+        # Disable all non-VCF outputs
+        options.clip = None
+        options.filter = None
+        for attr in ['gfa', 'unchopped_gfa', 'gbz', 'xg', 'odgi', 'viz', 'draw',
+                     'chrom_vg', 'chrom_og', 'giraffe', 'lrGiraffe', 'haplo', 'snarlStats']:
+            setattr(options, attr, [])
+        options.hal = []
+        options.sv_gfa = []
+        options.collapse = False
+
+        # In vcfOnly mode, inputs are already-processed (typically clipped) graphs.
+        # Treat them as the 'clip' phase so output VCFs get clean names (no phase tag).
+        options.vcf = ['clip']
+
+        # validate reference names
+        check_sample_names(options.reference, options.reference[0])
+
+        # vcfReference defaults
+        if not options.vcfReference:
+            options.vcfReference = [options.reference[0]]
+        else:
+            for vcfref in options.vcfReference:
+                if vcfref not in options.reference:
+                    raise RuntimeError('--vcfReference {} not in --reference'.format(vcfref))
+
+        # Validate --refFasta
+        if hasattr(options, 'refFasta') and options.refFasta:
+            if len(options.refFasta) != len(options.vcfReference):
+                raise RuntimeError('--refFasta count ({}) must match --vcfReference count ({})'.format(
+                    len(options.refFasta), len(options.vcfReference)))
+
+        # clamp vcfwaveCores on single-machine batch systems
+        if options.vcfwave and options.batchSystem == 'single_machine':
+            options.vcfwaveCores = min(options.vcfwaveCores, cactus_cpu_count())
+
+        return options
+
+    # --refFasta is only used with --vcfOnly
+    if hasattr(options, 'refFasta') and options.refFasta:
+        raise RuntimeError('--refFasta can only be used with --vcfOnly')
+
     # sanity check the workflow options and apply defaults
     if options.filter and not options.clip:
         raise RuntimeError('--filter cannot be used without also disabling --clip.')
@@ -394,19 +448,29 @@ def graphmap_join(options):
             vg_ids = []
             for vg_path in options.vg:
                 vg_ids.append(toil.importFile(makeURL(vg_path)))
-                
-            # load up the hals
-            hal_ids = []
-            for hal_path in options.hal:
-                hal_ids.append(toil.importFile(makeURL(hal_path)))
 
-            # load the minigraph gfas
-            sv_gfa_ids = []
-            for sv_gfa_path in options.sv_gfa:
-                sv_gfa_ids.append(toil.importFile(makeURL(sv_gfa_path)))
+            if hasattr(options, 'vcfOnly') and options.vcfOnly:
+                # import ref fastas if provided
+                ref_fasta_ids = None
+                if hasattr(options, 'refFasta') and options.refFasta:
+                    ref_fasta_ids = {}
+                    for vcf_ref, fasta_path in zip(options.vcfReference, options.refFasta):
+                        ref_fasta_ids[vcf_ref] = toil.importFile(makeURL(fasta_path))
+                wf_output = toil.start(Job.wrapJobFn(vcf_only_workflow, options, config,
+                                                      vg_ids, ref_fasta_ids))
+            else:
+                # load up the hals
+                hal_ids = []
+                for hal_path in options.hal:
+                    hal_ids.append(toil.importFile(makeURL(hal_path)))
 
-            # run the workflow
-            wf_output = toil.start(Job.wrapJobFn(graphmap_join_workflow, options, config, vg_ids, hal_ids, sv_gfa_ids))
+                # load the minigraph gfas
+                sv_gfa_ids = []
+                for sv_gfa_path in options.sv_gfa:
+                    sv_gfa_ids.append(toil.importFile(makeURL(sv_gfa_path)))
+
+                # run the workflow
+                wf_output = toil.start(Job.wrapJobFn(graphmap_join_workflow, options, config, vg_ids, hal_ids, sv_gfa_ids))
                 
         #export the split data
         export_join_data(toil, options, wf_output[0], wf_output[1], wf_output[2], wf_output[3], wf_output[4], wf_output[5])
@@ -427,6 +491,66 @@ def vcflib_checks(job, options, config_node):
         job = vcffixup_check_job
     return job
         
+def compute_index_mem(options, config, vg_ids):
+    """ compute memory for vg indexing jobs using a size-based heuristic """
+    if options.indexMemory:
+        index_mem = options.indexMemory
+    else:
+        index_mem = sum(f.size for f in vg_ids)
+        for tot_size, fac in zip([1e6, 1e9, 10e9, 50e9, 100e9, 500e9], [1000, 32, 10, 6, 5, 2]):
+            if index_mem < tot_size:
+                index_mem *= fac
+                break
+    max_system_memory = config.getSystemMemory()
+    if max_system_memory and index_mem > max_system_memory:
+        RealtimeLogger.info("Clamping index memory {} to system limit of {}".format(index_mem, max_system_memory))
+        index_mem = max_system_memory
+    return index_mem
+
+def vcf_only_workflow(job, options, config, vg_ids, ref_fasta_ids=None):
+    """ simplified workflow that only generates VCFs from pre-processed per-chromosome vg files """
+    root_job = Job()
+    job.addChild(root_job)
+
+    root_job = vcflib_checks(root_job, options, config.xmlRoot)
+
+    # get the single machine memory
+    config.setSystemMemory(options)
+
+    index_mem = compute_index_mem(options, config, vg_ids)
+
+    # determine if we need reference FASTA for normalization
+    need_ref_fasta = (options.vcfbub and getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "bcftoolsNorm", typeFn=bool, default=False)) or\
+        (options.vcfwave and getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "vcfwaveNorm", typeFn=bool, default=True))
+
+    ref_fasta_dict = None
+    ref_fasta_job = None
+    if need_ref_fasta:
+        if ref_fasta_ids:
+            # user provided --refFasta, use those directly
+            ref_fasta_dict = ref_fasta_ids
+        else:
+            # extract from vg files -- only works for the primary reference
+            if len(options.vcfReference) > 1:
+                raise RuntimeError('--refFasta is required in --vcfOnly mode when using multiple --vcfReference '
+                                   '(FASTA extraction from vg is only reliable for the primary reference)')
+            ref_fasta_job = root_job.addFollowOnJobFn(extract_vg_fasta, options, vg_ids,
+                                                       disk=sum(f.size for f in vg_ids) * 2,
+                                                       memory=cactus_clamp_memory(sum(f.size for f in vg_ids) * 4))
+            ref_fasta_dict = ref_fasta_job.rv()
+
+    out_dicts = []
+    for vcf_ref in options.vcfReference:
+        vcf_job = root_job.addFollowOnJobFn(make_vcf, config, options, 'clip',
+                                            index_mem, vcf_ref, vg_ids,
+                                            ref_fasta_dict)
+        if ref_fasta_job:
+            ref_fasta_job.addFollowOn(vcf_job)
+        out_dicts.append(vcf_job.rv())
+
+    empty_og_chrom_ids = {'full' : defaultdict(list), 'clip' : defaultdict(list), 'filter' : defaultdict(list)}
+    return vg_ids, [], None, [], out_dicts, empty_og_chrom_ids
+
 def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids):
 
     root_job = Job()
@@ -556,20 +680,7 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids):
         # delete the chromosome gfas
         sv_gfa_merge_job.addFollowOnJobFn(clean_jobstore_files, file_ids=sv_gfa_ids)
 
-    if options.indexMemory:
-        index_mem = options.indexMemory
-    else:
-        # hacky heuristic to get memory for vg jobs, where vg minimizer is tricky as
-        # it's not really based on graph size so much (ie simple graphs can take lots of mem)
-        index_mem = sum(f.size for f in vg_ids)
-        for tot_size, fac in zip([1e6, 1e9, 10e9, 50e9, 100e9, 500e9], [1000, 32, 10, 6, 5, 2]):
-            if index_mem < tot_size:
-                index_mem *= fac
-                break
-    max_system_memory = config.getSystemMemory()
-    if max_system_memory and index_mem > max_system_memory:
-        RealtimeLogger.info("Clamping index memory {} to system limit of {}".format(index_mem, max_system_memory))
-        index_mem = max_system_memory
+    index_mem = compute_index_mem(options, config, vg_ids)
 
     # keep track of unclipped reference fastas for bcftools norm
     need_ref_fasta = (options.vcfbub and getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "bcftoolsNorm", typeFn=bool, default=False)) or\
@@ -1045,6 +1156,37 @@ def extract_gbz_fasta(job, options, index_dict, tag):
                                 ['sed', '-e', 's/{}#.\+#//g'.format(vcf_ref)],
                                 ['bgzip', '--threads', str(job.cores)]],
                     outfile=fa_ref_path)
+        out_dict[vcf_ref] = job.fileStore.writeGlobalFile(fa_ref_path)
+
+    return out_dict
+
+def extract_vg_fasta(job, options, vg_ids):
+    """ get the reference fasta from per-chromosome vg files so it can be used with bcftools norm.
+    This is an alternative to extract_gbz_fasta for --vcfOnly mode where no GBZ is built.
+    Only works for the primary reference (which is protected from clipping).
+    For secondary references, --refFasta must be used instead.
+    """
+    work_dir = job.fileStore.getLocalTempDir()
+
+    assert len(options.vcfReference) == 1 and options.vcfReference[0] == options.reference[0], \
+        'extract_vg_fasta only supports the primary reference. Use --refFasta for secondary references.'
+
+    out_dict = {}
+    for vcf_ref in options.vcfReference:
+        fa_ref_path = os.path.join(work_dir, vcf_ref + '.fa.gz')
+        # concatenate reference sequences from each chromosome vg file
+        chrom_fa_paths = []
+        for vg_path, vg_id in zip(options.vg, vg_ids):
+            vg_local_path = os.path.join(work_dir, os.path.basename(vg_path))
+            job.fileStore.readGlobalFile(vg_id, vg_local_path)
+            chrom_fa_path = os.path.join(work_dir, vcf_ref + '.' + os.path.basename(vg_path) + '.fa')
+            cactus_call(parameters=[['vg', 'paths', '-x', vg_local_path, '-S', vcf_ref, '-F'],
+                                    ['sed', '-e', 's/{}#.\+#//g'.format(vcf_ref)]],
+                        outfile=chrom_fa_path)
+            chrom_fa_paths.append(chrom_fa_path)
+        # concatenate and compress
+        catFiles(chrom_fa_paths, fa_ref_path.replace('.gz', ''))
+        cactus_call(parameters=['bgzip', fa_ref_path.replace('.gz', ''), '--threads', str(job.cores)])
         out_dict[vcf_ref] = job.fileStore.writeGlobalFile(fa_ref_path)
 
     return out_dict

@@ -256,6 +256,34 @@ By default (since version v2.8.2), all non-raw VCF output is normalized with `bc
 
 Also new in v2.8.2, you can use the `--vcfwave` option to create a version of the VCF(s) that has been normalized with [vcfwave](https://github.com/vcflib/vcflib/blob/master/doc/vcfwave.md). `vcfwave` can take a while to run on larger graphs, but it can do a good job of smoothing out small variants in complex regions. `vcfwave` is included in the Cactus docker images but **not** the the Cactus binary release. So you must either run Cactus from inside Docker, or run outside docker with the `--binariesMode docker` option. If you cannot run docker and still want to use `--vcfwave`, you must [build it yourself](https://github.com/vcflib/vcflib) and make sure its on your `PATH` before running cactus. You can set the number of cores used for each `vcfwave` job with `--vcfwaveCores`, and the memory with `--vcfwaveMemory`.
 
+### Re-generating VCFs with `--vcfOnly`
+
+The `--vcfOnly` option for `cactus-graphmap-join` allows VCFs to be regenerated from previously processed per-chromosome vg files without re-running the full pipeline (clipping, filtering, GFA/GBZ construction, indexing, etc.). This is useful when you want to experiment with different VCF settings such as `--vcfbub` or `--vcfwave` without repeating expensive computation.
+
+To use `--vcfOnly`, you must first have per-chromosome vg files from a previous run, produced using `--chrom-vg clip` (or `--chrom-vg filter`).
+
+For example, suppose the original pangenome was built with:
+```
+cactus-pangenome ./js seqfile.txt --outDir pg-out --outName mypg --reference REF --vcf --giraffe --chrom-vg clip
+```
+
+The per-chromosome vg files will be in `pg-out/mypg.chroms/`. You can now regenerate VCFs with different settings:
+```
+cactus-graphmap-join ./js2 --vg pg-out/mypg.chroms/*.vg --outDir pg-vcfonly --outName mypg \
+  --reference REF --vcfOnly --vcfbub 50000
+```
+
+The `--vcfOnly` flag implies `--vcf` and disables all non-VCF outputs (GFA, GBZ, HAL, giraffe indexes, etc.). It accepts all the usual VCF-related options including `--vcfbub`, `--vcfwave`, `--vcfReference`, and `--vcfwaveCores`.
+
+If `--vcfwave` or `bcftoolsNorm` normalization is enabled, a reference FASTA is needed for `bcftools norm`. By default, this is extracted from the input vg files, which only works reliably for the primary reference (since it is protected from clipping). If you are using multiple `--vcfReference` samples with normalization, you must provide a FASTA for each one with `--refFasta`:
+```
+cactus-graphmap-join ./js2 --vg pg-out/mypg.chroms/*.vg --outDir pg-vcfonly --outName mypg \
+  --reference REF OTHER_REF --vcfReference REF OTHER_REF --vcfOnly --vcfwave \
+  --refFasta ref.fa other_ref.fa
+```
+
+Each `--refFasta` file should contain the reference sequences named by chromosome (without the PanSN `SAMPLE#HAP#` prefix).
+
 ### Haplotype Sampling Instead of Filtering (NEW)
 
 The `.dX` graphs created with `--filter` were necessary for read mapping, but now `vg` supports dynamic haplotype subsampling (ie personalized pangenomes) and, in most cases, filtering is no longer necessary. In order to use haplotype sampling, run `cactus-pangenome / cactus-graphmap-join` with the `--haplo` option (and do not use `--giraffe`). This will create the `giraffe` indexes for the special `.hapl` haplotype index which (with the `.gbz`` is all you need to run `vg giraffe` using the current best practices.

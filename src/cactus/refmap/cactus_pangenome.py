@@ -133,6 +133,8 @@ def main():
     options.outGFA = False
     options.minIdentity = None
     options.chromInfo = None
+    options.vcfOnly = False
+    options.refFasta = None
     
     setupBinaries(options)
     set_logging_from_options(options)
