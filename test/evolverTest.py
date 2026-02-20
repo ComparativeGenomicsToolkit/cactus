@@ -1311,9 +1311,9 @@ class TestCase(unittest.TestCase):
             orig_vcf = os.path.join(join_path, orig_name)
             vcfonly_vcf = os.path.join(vcfonly_path, vcfonly_name)
             self.assertTrue(os.path.isfile(vcfonly_vcf), 'Missing vcfOnly output: {}'.format(vcfonly_vcf))
-            # compare body lines (skip headers; sort because chromosome order depends on --vg argument order)
-            orig_body = subprocess.check_output('bcftools view -H {} | sort | md5sum'.format(orig_vcf), shell=True)
-            vcfonly_body = subprocess.check_output('bcftools view -H {} | sort | md5sum'.format(vcfonly_vcf), shell=True)
+            # compare body lines (skip headers)
+            orig_body = subprocess.check_output('bcftools view -H {} | md5sum'.format(orig_vcf), shell=True)
+            vcfonly_body = subprocess.check_output('bcftools view -H {} | md5sum'.format(vcfonly_vcf), shell=True)
             self.assertEqual(orig_body, vcfonly_body,
                              'VCF body mismatch between {} and {}'.format(orig_name, vcfonly_name))
 

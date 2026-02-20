@@ -182,6 +182,18 @@ def graphmap_join_validate_options(options):
             if not svgfa.endswith('.gfa.gz'):
                 raise RuntimeError("Only files ending with .gfa.gz can be input with --sv-gfa")
 
+    # Sort input files by chromosome name (basename without extension) to ensure
+    # deterministic ordering, matching cactus-pangenome's sorted(results_dict.items()).
+    # Guard against None entries used by cactus-pangenome for upfront validation.
+    if len(options.vg) > 1 and options.vg[0] is not None:
+        sort_indices = sorted(range(len(options.vg)),
+                              key=lambda i: os.path.splitext(os.path.basename(options.vg[i]))[0])
+        options.vg = [options.vg[i] for i in sort_indices]
+        if options.hal:
+            options.hal = [options.hal[i] for i in sort_indices]
+        if options.sv_gfa:
+            options.sv_gfa = [options.sv_gfa[i] for i in sort_indices]
+
     # apply cpu override
     if options.batchSystem.lower() in ['single_machine', 'singleMachine']:
         if not options.indexCores:
