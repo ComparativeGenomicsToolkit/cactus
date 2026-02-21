@@ -65,7 +65,14 @@ import pysam
 def main():
     parser = Job.Runner.getDefaultArgumentParser()
 
-    parser.add_argument("--vg", required=True, nargs='+',  help = "Input vg files (PackedGraph or HashGraph format)")
+    parser.add_argument("--vg", required=False, nargs='+', default=None, help = "Input vg files (PackedGraph or HashGraph format)")
+    parser.add_argument("--vgFull", nargs='+', default=None,
+                        help="Pre-processed 'full' phase VG files (from --chrom-vg full). Bypasses all processing. Incompatible with --vg")
+    parser.add_argument("--vgClip", nargs='+', default=None,
+                        help="Pre-processed 'clip' phase VG files (from --chrom-vg clip). Bypasses all processing. Incompatible with --vg")
+    parser.add_argument("--vgFilter", nargs='+', default=None,
+                        help="Pre-processed 'filter' phase VG files (from --chrom-vg filter). Bypasses all processing. "
+                        "Filter threshold inferred from .dX.vg filename pattern. Incompatible with --vg")
     parser.add_argument("--hal", nargs='+', default = [], help = "Input hal files (for merging)")
     parser.add_argument("--sv-gfa", nargs='+', default= [], help = "Input minigraph gfa files to merge (from cactus-minigraph --batch)")
     parser.add_argument("--outDir", required=True, type=str, help = "Output directory")
@@ -162,6 +169,77 @@ def graphmap_join_options(parser):
 
 def graphmap_join_validate_options(options):
     """ make sure the options make sense and fill in sensible defaults """
+
+    # detect bypass mode
+    vg_full = getattr(options, 'vgFull', None)
+    vg_clip = getattr(options, 'vgClip', None)
+    vg_filter = getattr(options, 'vgFilter', None)
+    bypass = bool(vg_full or vg_clip or vg_filter)
+
+    if bypass and options.vg:
+        raise RuntimeError('--vg cannot be used with --vgFull, --vgClip, or --vgFilter')
+    if not bypass and not options.vg:
+        raise RuntimeError('--vg is required (or use --vgFull/--vgClip/--vgFilter to bypass processing)')
+
+    options.bypass = bypass
+
+    if bypass:
+        # All bypass lists must have same length
+        bypass_lists = [('--vgFull', vg_full), ('--vgClip', vg_clip), ('--vgFilter', vg_filter)]
+        bypass_lengths = [(name, len(lst)) for name, lst in bypass_lists if lst]
+        if len(set(l for _, l in bypass_lengths)) > 1:
+            raise RuntimeError('all bypass vg options must specify the same number of files: {}'.format(
+                ', '.join('{} has {}'.format(n, l) for n, l in bypass_lengths)))
+
+        # Infer filter threshold from --vgFilter filenames
+        if vg_filter:
+            inferred_filters = set()
+            for path in vg_filter:
+                m = re.search(r'\.d(\d+)\.vg$', os.path.basename(path))
+                if not m:
+                    raise RuntimeError('--vgFilter file {} does not match expected .dX.vg naming pattern'.format(path))
+                inferred_filters.add(int(m.group(1)))
+            if len(inferred_filters) > 1:
+                raise RuntimeError('--vgFilter files have inconsistent filter thresholds: {}'.format(inferred_filters))
+            options.filter = inferred_filters.pop()
+
+        # Build available_types and store bypass paths
+        options.bypass_available_types = set()
+        options._vgFull_paths = vg_full or []
+        options._vgClip_paths = vg_clip or []
+        options._vgFilter_paths = vg_filter or []
+        if vg_full:
+            options.bypass_available_types.add('full')
+        if vg_clip:
+            options.bypass_available_types.add('clip')
+        if vg_filter:
+            options.bypass_available_types.add('filter')
+
+        # Set options.vg for iteration/naming (use normalized paths from first available bypass)
+        raw_paths = vg_full or vg_clip or vg_filter
+        options.vg = [re.sub(r'\.(full|d\d+)\.vg$', '.vg', p) for p in raw_paths]
+
+        # Set options.clip/options.filter for downstream defaulting logic.
+        # The actual thresholds were already applied to the input files, these just
+        # need to be truthy/falsy for the output type defaults to work correctly.
+        if 'clip' in options.bypass_available_types:
+            options.clip = options.clip if options.clip is not None and options.clip != 0 else 1
+        else:
+            options.clip = 0
+        if 'filter' not in options.bypass_available_types:
+            options.filter = 0
+
+        # Disallow options that don't apply in bypass mode
+        if getattr(options, 'collapse', False):
+            raise RuntimeError('--collapse cannot be used with bypass options (--vgFull/--vgClip/--vgFilter)')
+        if getattr(options, 'delEdgeFilter', None):
+            raise RuntimeError('--delEdgeFilter cannot be used with bypass options')
+    else:
+        options.bypass_available_types = {'full', 'clip', 'filter'}
+        options._vgFull_paths = []
+        options._vgClip_paths = []
+        options._vgFilter_paths = []
+
     if options.hal and len(options.hal) != len(options.vg):
         raise RuntimeError("--hal and --vg should specify the same number of files")
     if options.sv_gfa and len(options.sv_gfa) != len(options.vg):
@@ -179,9 +257,9 @@ def graphmap_join_validate_options(options):
     else:
         if not options.indexCores:
             raise RuntimeError("--indexCores required run *not* running on single machine batch system")
-    
+
     # sanity check the workflow options and apply defaults
-    if options.filter and not options.clip:
+    if options.filter and not options.clip and not options.bypass:
         raise RuntimeError('--filter cannot be used without also disabling --clip.')
 
     # check the reference name suffix
@@ -371,6 +449,32 @@ def graphmap_join_validate_options(options):
     if options.filter and 'filter' not in options.gfa + options.gbz + options.odgi + options.chrom_vg + options.chrom_og + options.vcf + options.giraffe + options.lrGiraffe + options.viz + options.draw:
         options.filter = None
 
+    if options.bypass:
+        # Disallow per-chromosome outputs in bypass mode
+        for opt_name, opt_val in [('--chrom-vg', options.chrom_vg), ('--chrom-og', options.chrom_og),
+                                   ('--viz', options.viz), ('--draw', options.draw),
+                                   ('--odgi', options.odgi)]:
+            if opt_val:
+                raise RuntimeError('{} cannot be used with bypass options (--vgFull/--vgClip/--vgFilter). '
+                                 'You already have the per-chromosome files.'.format(opt_name))
+
+        # Validate all requested output types are available from bypass inputs
+        all_output_types = set()
+        for opt_list in [options.gfa, options.unchopped_gfa, options.gbz, options.xg,
+                         options.odgi, options.vcf, options.giraffe, options.lrGiraffe,
+                         options.haplo, options.snarlStats]:
+            all_output_types.update(opt_list)
+        unavailable = all_output_types - options.bypass_available_types
+        if unavailable:
+            raise RuntimeError('Output type(s) {} requested but not available from bypass inputs. '
+                             'Available types: {}'.format(unavailable, options.bypass_available_types))
+
+        # In bypass mode, VCF normalization extracts fasta from VG files which only
+        # works for the first (primary) reference
+        if options.vcf and options.vcfReference and options.vcfReference != [options.reference[0]]:
+            raise RuntimeError('--vcfReference can only specify the first reference ({}) in bypass mode'.format(
+                options.reference[0]))
+
     return options
     
 def graphmap_join(options):
@@ -389,12 +493,7 @@ def graphmap_join(options):
 
             if options.collapse:
                 findRequiredNode(configNode, "graphmap").attrib["collapse"] = 'all'
-                
-            # load up the vgs
-            vg_ids = []
-            for vg_path in options.vg:
-                vg_ids.append(toil.importFile(makeURL(vg_path)))
-                
+
             # load up the hals
             hal_ids = []
             for hal_path in options.hal:
@@ -405,8 +504,22 @@ def graphmap_join(options):
             for sv_gfa_path in options.sv_gfa:
                 sv_gfa_ids.append(toil.importFile(makeURL(sv_gfa_path)))
 
-            # run the workflow
-            wf_output = toil.start(Job.wrapJobFn(graphmap_join_workflow, options, config, vg_ids, hal_ids, sv_gfa_ids))
+            if options.bypass:
+                bypass_full_ids = [toil.importFile(makeURL(p)) for p in options._vgFull_paths]
+                bypass_clip_ids = [toil.importFile(makeURL(p)) for p in options._vgClip_paths]
+                bypass_filter_ids = [toil.importFile(makeURL(p)) for p in options._vgFilter_paths]
+                vg_ids = bypass_full_ids or bypass_clip_ids or bypass_filter_ids
+                wf_output = toil.start(Job.wrapJobFn(graphmap_join_workflow, options, config,
+                                                      vg_ids, hal_ids, sv_gfa_ids,
+                                                      bypass_full_ids, bypass_clip_ids, bypass_filter_ids))
+            else:
+                # load up the vgs
+                vg_ids = []
+                for vg_path in options.vg:
+                    vg_ids.append(toil.importFile(makeURL(vg_path)))
+
+                # run the workflow
+                wf_output = toil.start(Job.wrapJobFn(graphmap_join_workflow, options, config, vg_ids, hal_ids, sv_gfa_ids))
                 
         #export the split data
         export_join_data(toil, options, wf_output[0], wf_output[1], wf_output[2], wf_output[3], wf_output[4], wf_output[5])
@@ -427,7 +540,8 @@ def vcflib_checks(job, options, config_node):
         job = vcffixup_check_job
     return job
         
-def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids):
+def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
+                           bypass_full_ids=None, bypass_clip_ids=None, bypass_filter_ids=None):
 
     root_job = Job()
     job.addChild(root_job)
@@ -457,81 +571,99 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids):
     og_chrom_ids = {'full' : defaultdict(list), 'clip' : defaultdict(list), 'filter' : defaultdict(list)}
     # have a lot of trouble getting something working for small contigs, hack here:
     og_min_size = max(2**31, int(sum(vg_id.size for vg_id in vg_ids) / len(vg_ids)) * 32)
-    # run the "full" phase to do pre-clipping stuff
-    full_vg_ids = []
-    assert len(options.vg) == len(vg_ids)
-    for vg_path, vg_id in zip(options.vg, vg_ids):
-        full_job = Job.wrapJobFn(clip_vg, options, config, vg_path, vg_id, 'full',
-                                 disk=vg_id.size * 20, memory=max(2**31, min(vg_id.size * 20, max_mem)))
-        root_job.addChild(full_job)
-        full_vg_ids.append(full_job.rv(0))
-        if 'full' in options.odgi + options.chrom_og + options.viz + options.draw:
-            full_og_job = full_job.addFollowOnJobFn(vg_to_og, options, config, vg_path, full_job.rv(0),
-                                                    disk=vg_id.size * 16, memory=min(max(og_min_size, vg_id.size * 32), max_mem))
-            og_chrom_ids['full']['og'].append(full_og_job.rv())
 
-    prev_job = root_job
-    
-    # join the ids
-    join_job = prev_job.addFollowOnJobFn(join_vg, options, config, full_vg_ids,
-                                         disk=sum([f.size for f in vg_ids]),
-                                         memory=min(max([f.size for f in vg_ids]) * 4, max_mem))
-    full_vg_ids = [join_job.rv(i) for i in range(len(vg_ids))]
-    prev_job = join_job
-
-    # take out the _MINIGRAPH_ paths
-    if 'full' in options.chrom_vg:
-        output_full_vg_ids = []
-        for vg_path, vg_id, full_vg_id in zip(options.vg, vg_ids, full_vg_ids):
-            drop_graph_event_job = join_job.addFollowOnJobFn(drop_graph_event, config, vg_path, full_vg_id,
-                                                             disk=vg_id.size * 3, memory=min(vg_id.size * 6, max_mem))
-            output_full_vg_ids.append(drop_graph_event_job.rv())
-    else:
+    if options.bypass:
+        # Use pre-processed VG IDs directly -- skip all processing
+        full_vg_ids = bypass_full_ids or []
         output_full_vg_ids = full_vg_ids
+        clip_vg_ids = bypass_clip_ids or []
+        clipped_stats = None
+        filter_vg_ids = bypass_filter_ids or []
 
-    # run the "clip" phase to do the clip-vg clipping
-    clip_vg_ids = []
-    clipped_stats = None 
-    if options.clip or options.filter:
-        clip_root_job = Job()
-        prev_job.addFollowOn(clip_root_job)
-        clip_vg_stats = []
-        assert len(options.vg) == len(full_vg_ids) == len(vg_ids)
-        for vg_path, vg_id, input_vg_id in zip(options.vg, full_vg_ids, vg_ids):
-            clip_job = Job.wrapJobFn(clip_vg, options, config, vg_path, vg_id, 'clip',
-                                     disk=input_vg_id.size * 20, memory=max(2**31, min(input_vg_id.size * 20, max_mem)))
-            clip_root_job.addChild(clip_job)
-            clip_vg_ids.append(clip_job.rv(0))
-            clip_vg_stats.append(clip_job.rv(1))
-            if 'clip' in options.odgi + options.chrom_og + options.viz + options.draw:
-                clip_og_job = clip_job.addFollowOnJobFn(vg_to_og, options, config, vg_path, clip_job.rv(0),
-                                                        disk=input_vg_id.size * 16,
-                                                        memory=min(max(og_min_size, input_vg_id.size * 32), max_mem))
-                og_chrom_ids['clip']['og'].append(clip_og_job.rv())
+        workflow_phases = []
+        if full_vg_ids:
+            workflow_phases.append(('full', full_vg_ids, root_job))
+        if clip_vg_ids:
+            workflow_phases.append(('clip', clip_vg_ids, root_job))
+        if filter_vg_ids:
+            workflow_phases.append(('filter', filter_vg_ids, root_job))
+        prev_job = root_job
+    else:
+        # run the "full" phase to do pre-clipping stuff
+        full_vg_ids = []
+        assert len(options.vg) == len(vg_ids)
+        for vg_path, vg_id in zip(options.vg, vg_ids):
+            full_job = Job.wrapJobFn(clip_vg, options, config, vg_path, vg_id, 'full',
+                                     disk=vg_id.size * 20, memory=max(2**31, min(vg_id.size * 20, max_mem)))
+            root_job.addChild(full_job)
+            full_vg_ids.append(full_job.rv(0))
+            if 'full' in options.odgi + options.chrom_og + options.viz + options.draw:
+                full_og_job = full_job.addFollowOnJobFn(vg_to_og, options, config, vg_path, full_job.rv(0),
+                                                        disk=vg_id.size * 16, memory=min(max(og_min_size, vg_id.size * 32), max_mem))
+                og_chrom_ids['full']['og'].append(full_og_job.rv())
 
-        # join the stats
-        clipped_stats = clip_root_job.addFollowOnJobFn(cat_stats, clip_vg_stats).rv()
-        prev_job = clip_root_job
+        prev_job = root_job
 
-    # run the "filter" phase to do the vg clip clipping
-    filter_vg_ids = []
-    if options.filter:
-        filter_root_job = Job()
-        prev_job.addFollowOn(filter_root_job)
-        assert len(options.vg) == len(clip_vg_ids) == len(vg_ids)
-        for vg_path, vg_id, input_vg_id in zip(options.vg, clip_vg_ids, vg_ids):
-            filter_job = filter_root_job.addChildJobFn(vg_clip_vg, options, config, vg_path, vg_id, 
-                                                       disk=input_vg_id.size * 20,
-                                                       memory=max(2**31, min(input_vg_id.size * 22, max_mem)))
-            filter_vg_ids.append(filter_job.rv())
-            if 'filter' in options.odgi + options.chrom_og + options.viz + options.draw:
-                filter_og_job = filter_job.addFollowOnJobFn(vg_to_og, options, config, vg_path, filter_job.rv(),
+        # join the ids
+        join_job = prev_job.addFollowOnJobFn(join_vg, options, config, full_vg_ids,
+                                             disk=sum([f.size for f in vg_ids]),
+                                             memory=min(max([f.size for f in vg_ids]) * 4, max_mem))
+        full_vg_ids = [join_job.rv(i) for i in range(len(vg_ids))]
+        prev_job = join_job
+
+        # take out the _MINIGRAPH_ paths
+        if 'full' in options.chrom_vg:
+            output_full_vg_ids = []
+            for vg_path, vg_id, full_vg_id in zip(options.vg, vg_ids, full_vg_ids):
+                drop_graph_event_job = join_job.addFollowOnJobFn(drop_graph_event, config, vg_path, full_vg_id,
+                                                                 disk=vg_id.size * 3, memory=min(vg_id.size * 6, max_mem))
+                output_full_vg_ids.append(drop_graph_event_job.rv())
+        else:
+            output_full_vg_ids = full_vg_ids
+
+        # run the "clip" phase to do the clip-vg clipping
+        clip_vg_ids = []
+        clipped_stats = None
+        if options.clip or options.filter:
+            clip_root_job = Job()
+            prev_job.addFollowOn(clip_root_job)
+            clip_vg_stats = []
+            assert len(options.vg) == len(full_vg_ids) == len(vg_ids)
+            for vg_path, vg_id, input_vg_id in zip(options.vg, full_vg_ids, vg_ids):
+                clip_job = Job.wrapJobFn(clip_vg, options, config, vg_path, vg_id, 'clip',
+                                         disk=input_vg_id.size * 20, memory=max(2**31, min(input_vg_id.size * 20, max_mem)))
+                clip_root_job.addChild(clip_job)
+                clip_vg_ids.append(clip_job.rv(0))
+                clip_vg_stats.append(clip_job.rv(1))
+                if 'clip' in options.odgi + options.chrom_og + options.viz + options.draw:
+                    clip_og_job = clip_job.addFollowOnJobFn(vg_to_og, options, config, vg_path, clip_job.rv(0),
                                                             disk=input_vg_id.size * 16,
-                                                            memory=min(max(og_min_size, input_vg_id.size * 64), max_mem))
-                og_chrom_ids['filter']['og'].append(filter_og_job.rv())                
+                                                            memory=min(max(og_min_size, input_vg_id.size * 32), max_mem))
+                    og_chrom_ids['clip']['og'].append(clip_og_job.rv())
+
+            # join the stats
+            clipped_stats = clip_root_job.addFollowOnJobFn(cat_stats, clip_vg_stats).rv()
+            prev_job = clip_root_job
+
+        # run the "filter" phase to do the vg clip clipping
+        filter_vg_ids = []
+        if options.filter:
+            filter_root_job = Job()
+            prev_job.addFollowOn(filter_root_job)
+            assert len(options.vg) == len(clip_vg_ids) == len(vg_ids)
+            for vg_path, vg_id, input_vg_id in zip(options.vg, clip_vg_ids, vg_ids):
+                filter_job = filter_root_job.addChildJobFn(vg_clip_vg, options, config, vg_path, vg_id,
+                                                           disk=input_vg_id.size * 20,
+                                                           memory=max(2**31, min(input_vg_id.size * 22, max_mem)))
+                filter_vg_ids.append(filter_job.rv())
+                if 'filter' in options.odgi + options.chrom_og + options.viz + options.draw:
+                    filter_og_job = filter_job.addFollowOnJobFn(vg_to_og, options, config, vg_path, filter_job.rv(),
+                                                                disk=input_vg_id.size * 16,
+                                                                memory=min(max(og_min_size, input_vg_id.size * 64), max_mem))
+                    og_chrom_ids['filter']['og'].append(filter_og_job.rv())
 
 
-        prev_job = filter_root_job
+            prev_job = filter_root_job
 
     # set up our whole-genome output
     out_dicts = []
@@ -573,14 +705,22 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids):
 
     # keep track of unclipped reference fastas for bcftools norm
     need_ref_fasta = (options.vcfbub and getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "bcftoolsNorm", typeFn=bool, default=False)) or\
-        (options.vcfwave and getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "vcfwaveNorm", typeFn=bool, default=True))        
+        (options.vcfwave and getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "vcfwaveNorm", typeFn=bool, default=True))
     ref_fasta_job = None
-        
-    workflow_phases = [('full', full_vg_ids, join_job)]
-    if options.clip:
-        workflow_phases.append(('clip', clip_vg_ids, clip_root_job))
-    if options.filter:
-        workflow_phases.append(('filter', filter_vg_ids, filter_root_job))        
+
+    if options.bypass and need_ref_fasta and options.vcf:
+        # in bypass mode, extract reference fasta from the first available bypass vg set
+        ref_vg_ids = bypass_full_ids or bypass_clip_ids or bypass_filter_ids
+        ref_fasta_job = root_job.addFollowOnJobFn(extract_vg_fasta, options, ref_vg_ids,
+                                                   disk=sum(f.size for f in vg_ids) * 2,
+                                                   memory=cactus_clamp_memory(sum(f.size for f in vg_ids) * 4))
+
+    if not options.bypass:
+        workflow_phases = [('full', full_vg_ids, join_job)]
+        if options.clip:
+            workflow_phases.append(('clip', clip_vg_ids, clip_root_job))
+        if options.filter:
+            workflow_phases.append(('filter', filter_vg_ids, filter_root_job))
     for workflow_phase, phase_vg_ids, phase_root_job in workflow_phases:
             
         # make a gfa for each
@@ -589,7 +729,7 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids):
         gfa_ids = []
         current_out_dict = None
         do_gbz = workflow_phase in options.gbz + options.vcf + options.giraffe + options.lrGiraffe + options.xg
-        if workflow_phase == 'full' and need_ref_fasta:
+        if workflow_phase == 'full' and need_ref_fasta and not options.bypass:
             do_gbz = True
         if do_gbz or workflow_phase in options.gfa:
             assert len(options.vg) == len(phase_vg_ids) == len(vg_ids)
@@ -608,7 +748,7 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids):
             out_dicts.append(gfa_merge_job.rv())
             prev_job = gfa_merge_job
             current_out_dict = gfa_merge_job.rv()
-            if workflow_phase == 'full' and need_ref_fasta:
+            if workflow_phase == 'full' and need_ref_fasta and not options.bypass:
                 # we need fasta references from the gbz for vcf normalization
                 ref_fasta_job = gfa_merge_job.addFollowOnJobFn(extract_gbz_fasta, options, current_out_dict,
                                                                tag=workflow_phase + '.',
@@ -1048,6 +1188,31 @@ def extract_gbz_fasta(job, options, index_dict, tag):
         out_dict[vcf_ref] = job.fileStore.writeGlobalFile(fa_ref_path)
 
     return out_dict
+
+def extract_vg_fasta(job, options, vg_ids):
+    """ get the reference fasta from per-chromosome vg files for bcftools norm in bypass mode.
+    only supports the first (primary) reference.
+    """
+    work_dir = job.fileStore.getLocalTempDir()
+    vcf_ref = options.vcfReference[0]
+    fa_ref_path = os.path.join(work_dir, vcf_ref + '.fa.gz')
+
+    # extract reference paths from each chromosome vg and concatenate
+    chrom_fa_paths = []
+    for i, vg_id in enumerate(vg_ids):
+        vg_path = os.path.join(work_dir, 'chr{}.vg'.format(i))
+        job.fileStore.readGlobalFile(vg_id, vg_path)
+        chrom_fa_path = os.path.join(work_dir, 'chr{}.fa'.format(i))
+        cactus_call(parameters=[['vg', 'paths', '-x', vg_path, '-S', vcf_ref, '-F'],
+                                ['sed', '-e', 's/{}#.\+#//g'.format(vcf_ref)]],
+                    outfile=chrom_fa_path)
+        chrom_fa_paths.append(chrom_fa_path)
+
+    catFiles(chrom_fa_paths, fa_ref_path + '.tmp')
+    cactus_call(parameters=['bgzip', '--threads', str(job.cores), '-c', fa_ref_path + '.tmp'],
+                outfile=fa_ref_path)
+
+    return {vcf_ref: job.fileStore.writeGlobalFile(fa_ref_path)}
 
 def make_xg(job, config, out_name, index_dict, tag='', drop_haplotypes=False):
     """ make the xg from the gbz
