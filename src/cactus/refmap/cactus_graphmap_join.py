@@ -106,7 +106,27 @@ def main():
 
     #make sure our options make sense and fill in sensible defaults
     options = graphmap_join_validate_options(options)
-        
+
+    # Sort input files by normalized chromosome name for consistent ordering
+    # regardless of the order they were passed on the command line.
+    # The sort key strips the .vg extension and any .full or .dN suffix.
+    def join_sort_key(path):
+        base = os.path.splitext(os.path.basename(path))[0]
+        return re.sub(r'\.(full|d\d+)$', '', base)
+    sort_order = sorted(range(len(options.vg)), key=lambda i: join_sort_key(options.vg[i]))
+    options.vg = [options.vg[i] for i in sort_order]
+    if options.hal:
+        options.hal = [options.hal[i] for i in sort_order]
+    if options.sv_gfa:
+        options.sv_gfa = [options.sv_gfa[i] for i in sort_order]
+    if options.bypass:
+        if options._vgFull_paths:
+            options._vgFull_paths = [options._vgFull_paths[i] for i in sort_order]
+        if options._vgClip_paths:
+            options._vgClip_paths = [options._vgClip_paths[i] for i in sort_order]
+        if options._vgFilter_paths:
+            options._vgFilter_paths = [options._vgFilter_paths[i] for i in sort_order]
+
     # Mess with some toil options to create useful defaults.
     cactus_override_toil_options(options)
 
