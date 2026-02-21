@@ -1283,6 +1283,71 @@ class TestCase(unittest.TestCase):
         # check the output
         self._check_yeast_pangenome(name, other_ref='DBVPG6044', expect_odgi=True, expect_haplo=False, expect_unchopped_gfa=True)
 
+    def _test_vg_bypass(self, binariesMode):
+        """Test that --vgClip/--vgFilter bypass produces equivalent indexes to the original run"""
+        import glob
+        import re
+
+        join_path = os.path.join(self.tempDir, 'join')
+        bypass_path = os.path.join(self.tempDir, 'bypass')
+
+        # Collect the clip chrom VG files from the previous run
+        chrom_dir = os.path.join(join_path, 'yeast.chroms')
+        clip_vgs = sorted(glob.glob(os.path.join(chrom_dir, '*.vg')))
+        # Filter out .full.vg and .d*.vg files to get only clip VGs
+        clip_vgs = [f for f in clip_vgs if not re.search(r'\.(full|d\d+)\.vg$', f)]
+        self.assertGreater(len(clip_vgs), 0)
+
+        # Also collect filter VGs
+        filter_vgs = sorted(glob.glob(os.path.join(chrom_dir, '*.d2.vg')))
+        self.assertGreater(len(filter_vgs), 0)
+
+        cactus_opts = ['--binariesMode', binariesMode, '--logInfo', '--workDir', self.tempDir, '--maxCores', '4']
+
+        # Run cactus-graphmap-join with --vgClip and --vgFilter bypass
+        bypass_cmd = ['cactus-graphmap-join', self._job_store(binariesMode) + '-bypass',
+                      '--vgClip'] + clip_vgs + ['--vgFilter'] + filter_vgs + [
+                      '--outDir', bypass_path, '--outName', 'yeast',
+                      '--reference', 'S288C', 'DBVPG6044',
+                      '--gbz', 'clip', 'filter', '--gfa', 'clip',
+                      '--vcf', 'clip',
+                      '--indexCores', '4'] + cactus_opts
+        subprocess.check_call(bypass_cmd)
+
+        # Compare GBZ stats: bypass clip GBZ should match original clip GBZ
+        orig_clip_nodes = int(subprocess.check_output(
+            ['vg', 'stats', '-N', os.path.join(join_path, 'yeast.gbz')]).strip())
+        bypass_clip_nodes = int(subprocess.check_output(
+            ['vg', 'stats', '-N', os.path.join(bypass_path, 'yeast.gbz')]).strip())
+        self.assertEqual(orig_clip_nodes, bypass_clip_nodes)
+
+        orig_clip_edges = int(subprocess.check_output(
+            ['vg', 'stats', '-E', os.path.join(join_path, 'yeast.gbz')]).strip())
+        bypass_clip_edges = int(subprocess.check_output(
+            ['vg', 'stats', '-E', os.path.join(bypass_path, 'yeast.gbz')]).strip())
+        self.assertEqual(orig_clip_edges, bypass_clip_edges)
+
+        # Compare filter GBZ stats
+        orig_filter_nodes = int(subprocess.check_output(
+            ['vg', 'stats', '-N', os.path.join(join_path, 'yeast.d2.gbz')]).strip())
+        bypass_filter_nodes = int(subprocess.check_output(
+            ['vg', 'stats', '-N', os.path.join(bypass_path, 'yeast.d2.gbz')]).strip())
+        self.assertEqual(orig_filter_nodes, bypass_filter_nodes)
+
+        # Compare GFA sizes (should be identical)
+        orig_gfa_size = os.path.getsize(os.path.join(join_path, 'yeast.gfa.gz'))
+        bypass_gfa_size = os.path.getsize(os.path.join(bypass_path, 'yeast.gfa.gz'))
+        self.assertEqual(orig_gfa_size, bypass_gfa_size)
+
+        # Compare VCF: bypass clip VCF should have roughly the same number of records
+        orig_vcf_records = int(subprocess.check_output(
+            'bcftools view -H {} | wc -l'.format(os.path.join(join_path, 'yeast.vcf.gz')),
+            shell=True).strip())
+        bypass_vcf_records = int(subprocess.check_output(
+            'bcftools view -H {} | wc -l'.format(os.path.join(bypass_path, 'yeast.vcf.gz')),
+            shell=True).strip())
+        self.assertEqual(orig_vcf_records, bypass_vcf_records)
+
     def testYeastPangenomeSplitLocal(self):
         """ Run pangenome pipeline (including contig splitting!) on yeast dataset using cactus-pangenome """
         name = "local"
@@ -1290,7 +1355,10 @@ class TestCase(unittest.TestCase):
 
         # check the output
         self._check_yeast_pangenome(name, other_ref='DBVPG6044', expect_odgi=True, expect_haplo=True, expect_unchopped_gfa=True)
-        
+
+        # Test bypass re-indexing with --vgClip and --vgFilter
+        self._test_vg_bypass(name)
+
 
 if __name__ == '__main__':
     unittest.main()
