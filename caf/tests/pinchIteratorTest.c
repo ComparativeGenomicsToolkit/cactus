@@ -23,8 +23,8 @@ static void testIterator(CuTest *testCase, stPinchIterator *pinchIterator, stLis
             sscanf(paf->target_name, "%" PRIi64 "", &contigY);
             int64_t x = paf->same_strand ? paf->query_start : paf->query_end;
             int64_t y = paf->target_start;
-            Cigar *c = paf->cigar;
-            while(c != NULL) {
+            for (int64_t ci = 0; ci < cigar_count(paf->cigar); ci++) {
+                CigarRecord *c = cigar_get(paf->cigar, ci);
                 if (c->op == match) {
                     if (c->length > 2 * trim) {
                         stPinch *pinch = stPinchIterator_getNext(pinchIterator, &pinchToFillOut);
@@ -44,7 +44,6 @@ static void testIterator(CuTest *testCase, stPinchIterator *pinchIterator, stLis
                 if (c->op != query_insert) {
                     y += c->length;
                 }
-                c = c->next;
             }
         }
         CuAssertPtrEquals(testCase, NULL, stPinchIterator_getNext(pinchIterator, &pinchToFillOut));
@@ -65,23 +64,32 @@ static stList *getRandomPairwiseAlignments() {
         paf->target_start = st_randomInt(100000, 1000000);
         paf->same_strand = st_random() > 0.5;
         int64_t i = paf->query_start, j = paf->target_start;
-        Cigar **pc = &(paf->cigar);
         CigarOp p_op_type = query_delete; // This is a fudge to ensure that we don't end up with two matches in succession
         // in the cigar - because the pinch iterator will smush them together
+        int64_t capacity = 16, num_recs = 0;
+        CigarRecord *recs = st_malloc(capacity * sizeof(CigarRecord));
         do {
-            Cigar *c = st_calloc(1, sizeof(Cigar));
-            c->length = st_randomInt(1, 10);
-            c->op = st_random() > 0.3 ? ((st_random() > 0.5 && p_op_type != match) ? match : query_insert): query_delete;
-            p_op_type = c->op;
-            if (c->op != query_delete) {
-                i += c->length;
+            if (num_recs == capacity) {
+                capacity *= 2;
+                recs = realloc(recs, capacity * sizeof(CigarRecord));
             }
-            if (c->op != query_insert) {
-                j += c->length;
+            recs[num_recs].length = st_randomInt(1, 10);
+            recs[num_recs].op = st_random() > 0.3 ? ((st_random() > 0.5 && p_op_type != match) ? match : query_insert): query_delete;
+            p_op_type = recs[num_recs].op;
+            if (recs[num_recs].op != query_delete) {
+                i += recs[num_recs].length;
             }
-            *pc = c;
-            pc = &(c->next);
+            if (recs[num_recs].op != query_insert) {
+                j += recs[num_recs].length;
+            }
+            num_recs++;
         } while(st_random() > 0.1 || paf->query_start == i || paf->target_start == j);
+        Cigar *cigar = st_calloc(1, sizeof(Cigar));
+        cigar->recs = recs;
+        cigar->length = num_recs;
+        cigar->start = 0;
+        cigar->capacity = capacity;
+        paf->cigar = cigar;
         paf->query_end = i;
         paf->target_end = j;
         paf->query_length = i;
