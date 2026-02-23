@@ -246,7 +246,19 @@ The same type of interface applies to all the output specification options: `--v
 
 Note that by default, only GFA is output, so the above options need to be used to toggle on any other output types. 
 
-Different clipping and filtering thresholds can be specified using the `--clip` and `--filter` options, respectively. For larger graphs, you probably want to use `--filter N` where `N` represents about 10% of the haplotypes.  It is indeed a shame to remove rarer variants before mapping, but is a necessity to get the best performance out of (the current version) of `vg giraffe`.  
+Different clipping and filtering thresholds can be specified using the `--clip` and `--filter` options, respectively. For larger graphs, you probably want to use `--filter N` where `N` represents about 10% of the haplotypes.  It is indeed a shame to remove rarer variants before mapping, but is a necessity to get the best performance out of (the current version) of `vg giraffe`.
+
+### Re-indexing with Pre-processed Graphs
+
+If you have previously run `cactus-pangenome` or `cactus-graphmap-join` with `--chrom-vg` and want to regenerate indexes without repeating the clipping and filtering steps, you can use the bypass input options: `--vgFull`, `--vgClip`, and/or `--vgFilter` (available only in `cactus-graphmap-join`). Each accepts the per-chromosome VG files from a previous `--chrom-vg full`, `--chrom-vg clip`, or `--chrom-vg filter` output respectively, and skips directly to index building. These are incompatible with `--vg` but can be combined with each other. For example:
+
+`cactus-graphmap-join <jobstore> --vgClip yeast.chroms/chr*.vg --outDir reindex --outName yeast --reference S288C --gbz --giraffe`
+
+This will produce GBZ and Giraffe indexes from the pre-clipped chromosome VGs without re-running any graph processing.
+
+For `--vgFilter`, the filter threshold is inferred from the `.dX.vg` filename pattern (e.g., `chr1.d2.vg` implies a filter of 2). All filter VG files must use the same threshold.
+
+Note: per-chromosome output options (`--chrom-vg`, `--chrom-og`, `--viz`, `--draw`) cannot be used with bypass options, as you already have those files from the previous run. Also, bypass options are not compatible with graphs that were originally built with `--collapse`.
 
 ### VCF Normalization
 
