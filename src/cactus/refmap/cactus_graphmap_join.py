@@ -2089,7 +2089,10 @@ def export_join_data(toil, options, full_ids, clip_ids, clip_stats, filter_ids, 
                     out_ext = out_ext.replace('clip.', '')
                 if 'filter.' in out_ext:
                     out_ext = out_ext.replace('filter.', 'd{}.'.format(options.filter))
-                toil.exportFile(idx_id, makeURL(os.path.join(options.outDir, '{}.{}'.format(options.outName, out_ext))))
+                if idx_id is not None:
+                    toil.exportFile(idx_id, makeURL(os.path.join(options.outDir, '{}.{}'.format(options.outName, out_ext))))
+                else:
+                    logger.warning('Skipping export of {} because no output was generated. This can happen when a secondary --vcfReference or --reference name does not match any path in the input graphs.'.format(makeURL(os.path.join(options.outDir, '{}.{}'.format(options.outName, out_ext)))))
         
 if __name__ == "__main__":
     main()
