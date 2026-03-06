@@ -498,6 +498,8 @@
 		 bcftoolsNorm="0"
 		 mergeDuplicatesOptions=""
 		 filterAC0="1"
+		 minAugRefLen="50"
+		 augRefPrefix="augref_"
 		 />
 	<!-- hal2vg options -->
 	<!-- includeMinigraph: include minigraph node sequences as paths in output (note that cactus-graphmap-join will still remove them by default) -->
