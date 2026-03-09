@@ -1239,7 +1239,7 @@ def make_vg_indexes(job, options, config, gfa_ids, tag="", do_gbz=False):
             with open(merge_gfa_path, 'w') as merge_gfa_file:
                 merge_gfa_file.write('\t'.join(gfa_header) + '\n')
         # strip out header and minigraph paths
-        cmd = ['grep', '-v', '^H\|^W	{}'.format(graph_event), gfa_path]
+        cmd = ['grep', '-v', r'^H\|^W	{}'.format(graph_event), gfa_path]
         cactus_call(parameters=cmd, outfile=merge_gfa_path, outappend=True, job_memory=job.memory)
         job.fileStore.deleteGlobalFile(gfa_id)
 
@@ -1287,7 +1287,7 @@ def extract_gbz_fasta(job, options, index_dict, tag):
     for vcf_ref in options.vcfReference:
         fa_ref_path = os.path.join(work_dir, vcf_ref + '.fa.gz')            
         cactus_call(parameters=[['vg', 'paths', '-x', gbz_path, '-S', vcf_ref, '-F'],
-                                ['sed', '-e', 's/{}#.\+#//g'.format(vcf_ref)],
+                                ['sed', '-e', r's/{}#.\+#//g'.format(vcf_ref)],
                                 ['bgzip', '--threads', str(job.cores)]],
                     outfile=fa_ref_path)
         out_dict[vcf_ref] = job.fileStore.writeGlobalFile(fa_ref_path)
@@ -1310,7 +1310,7 @@ def extract_vg_fasta(job, options, vg_ids, vcf_ref=None):
         job.fileStore.readGlobalFile(vg_id, vg_path)
         chrom_fa_path = os.path.join(work_dir, 'chr{}.fa'.format(i))
         cactus_call(parameters=[['vg', 'paths', '-x', vg_path, '-S', vcf_ref, '-F'],
-                                ['sed', '-e', 's/{}#.\+#//g'.format(vcf_ref)]],
+                                ['sed', '-e', r's/{}#.\+#//g'.format(vcf_ref)]],
                     outfile=chrom_fa_path)
         chrom_fa_paths.append(chrom_fa_path)
 
