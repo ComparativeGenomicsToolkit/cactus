@@ -1404,6 +1404,18 @@ def make_vcf(job, config, options, workflow_phase, index_mem, vcf_ref, vg_ids, r
         
     return out_dict
 
+def index_vcf(vcf_path):
+    """ Index a bgzipped VCF, trying tabix (.tbi) first and falling back to
+    bcftools index (.csi) for chromosomes too large for tabix.
+    Returns the path to the index file.
+    """
+    try:
+        cactus_call(parameters=['tabix', '-fp', 'vcf', vcf_path])
+        return vcf_path + '.tbi'
+    except Exception as e:
+        cactus_call(parameters=['bcftools', 'index', '-c', vcf_path])
+        return vcf_path + '.csi'
+
 def deconstruct(job, config, out_name, vcf_ref, vg_id, tag):
     """ make the raw vcf
     """ 
@@ -1440,12 +1452,7 @@ def deconstruct(job, config, out_name, vcf_ref, vg_id, tag):
     vcf_path = os.path.join(work_dir, os.path.basename(out_name) + '.' + tag + 'raw.vcf.gz')
     decon_cmd = ['vg', 'deconstruct', vg_path, '-P', vcf_ref, '-C', '-a', '-t', str(job.cores)]
     cactus_call(parameters=[decon_cmd, ['bgzip', '--threads', str(job.cores)]], outfile=vcf_path, job_memory=job.memory)
-    try:
-        cactus_call(parameters=['tabix', '-p', 'vcf', vcf_path])
-        tbi_path = vcf_path + '.tbi'
-    except Exception as e:
-        cactus_call(parameters=['bcftools', 'index', '-c', vcf_path])
-        tbi_path = vcf_path + '.csi'        
+    tbi_path = index_vcf(vcf_path)
 
     return job.fileStore.writeGlobalFile(vcf_path), job.fileStore.writeGlobalFile(tbi_path)
 
@@ -1532,19 +1539,14 @@ def vcfbub(job, config, out_name, vcf_ref, vcf_id, tbi_id, max_ref_allele, fasta
             aug_bub_cmd.append(['bcftools', 'view', '-e', 'AC=0'])
         aug_bub_cmd.append(['bgzip'])
         cactus_call(parameters=aug_bub_cmd, outfile=aug_vcf_path)
-        cactus_call(parameters=['tabix', '-p', 'vcf', aug_vcf_path])
-        cactus_call(parameters=['tabix', '-p', 'vcf', vcfbub_path])
+        index_vcf(aug_vcf_path)
+        index_vcf(vcfbub_path)
         merged_path = os.path.join(work_dir, os.path.basename(out_name) + '.' + tag + 'bub.merged.vcf.gz')
         cactus_call(parameters=['bcftools', 'concat', '-a', '-Oz', vcfbub_path, aug_vcf_path],
                     outfile=merged_path)
         vcfbub_path = merged_path
 
-    try:
-        cactus_call(parameters=['tabix', '-p', 'vcf', vcfbub_path])
-        tbi_path = vcfbub_path + '.tbi'
-    except Exception as e:
-        cactus_call(parameters=['bcftools', 'index', '-c', vcfbub_path])
-        tbi_path = vcfbub_path + '.csi'
+    tbi_path = index_vcf(vcfbub_path)
 
     bub_vcf_id = job.fileStore.writeGlobalFile(vcfbub_path)
     bub_tbi_id = job.fileStore.writeGlobalFile(tbi_path)
@@ -1578,10 +1580,7 @@ def run_merge_duplicates(in_vcf_path, out_vcf_path, merge_duplicates_opts, work_
         return
 
     # index for random access with -r
-    try:
-        cactus_call(parameters=['tabix', '-fp', 'vcf', in_vcf_path])
-    except Exception as e:
-        cactus_call(parameters=['bcftools', 'index', '-c', in_vcf_path])
+    index_vcf(in_vcf_path)
 
     # extract header
     header_path = os.path.join(work_dir, 'md_header.vcf.gz')
@@ -1643,16 +1642,11 @@ def vcfnorm(job, config, vcf_ref, vcf_id, vcf_path, tbi_id, fasta_ref_dict):
     postmerge_cmd.append(['bgzip'])
     cactus_call(parameters=postmerge_cmd, outfile=multi_path)
 
-    try:
-        cactus_call(parameters=['tabix', '-p', 'vcf', multi_path])
-        tbi_path = multi_path + '.tbi'
-    except Exception as e:
-        cactus_call(parameters=['bcftools', 'index', '-c', multi_path])
-        tbi_path = multi_path + '.csi'        
+    tbi_path = index_vcf(multi_path)
 
-    job.fileStore.deleteGlobalFile(vcf_id)    
+    job.fileStore.deleteGlobalFile(vcf_id)
     job.fileStore.deleteGlobalFile(tbi_id)
-    
+
     return job.fileStore.writeGlobalFile(multi_path), job.fileStore.writeGlobalFile(tbi_path)
 
 def fix_vcf_ploidies(in_vcf_path, out_vcf_path):
@@ -1763,8 +1757,8 @@ def chunked_vcfwave(job, config, out_name, vcf_ref, vcf_id, tbi_id, max_ref_alle
             aug_bub_cmd.append(['bcftools', 'view', '-e', 'AC=0'])
         aug_bub_cmd.append(['bgzip', '--threads', str(job.cores)])
         cactus_call(parameters=aug_bub_cmd, outfile=aug_vcf_path)
-        cactus_call(parameters=['tabix', '-p', 'vcf', aug_vcf_path])
-        cactus_call(parameters=['tabix', '-p', 'vcf', vcfbub_path])
+        index_vcf(aug_vcf_path)
+        index_vcf(vcfbub_path)
         merged_path = os.path.join(work_dir, os.path.basename(out_name) + '.' + vcf_ref + '.' + tag + 'bub.merged.vcf.gz')
         cactus_call(parameters=['bcftools', 'concat', '-a', '-Oz', vcfbub_path, aug_vcf_path],
                     outfile=merged_path)
@@ -1910,7 +1904,7 @@ def vcf_cat(job, vcf_tbi_ids, tag, sort=False, fix_ploidies=True):
             with open(header_path, 'w') as header_file:
                 header_file.write(header)
             cactus_call(parameters=['bgzip', header_path])
-            cactus_call(parameters=['tabix', '-fp', 'vcf', header_path + '.gz'])
+            index_vcf(header_path + '.gz')
             updated_vcf_path = vcf_path + '.fix'
             cactus_call(parameters=[['bcftools', 'merge', vcf_path, header_path + '.gz'],
                                     ['bcftools', 'view', '-S', all_sample_list_path, '-O', 'z']],
@@ -1937,12 +1931,7 @@ def vcf_cat(job, vcf_tbi_ids, tag, sort=False, fix_ploidies=True):
         fix_vcf_ploidies(cat_vcf_path, ploidy_vcf_path)
         cat_vcf_path = ploidy_vcf_path        
 
-    try:
-        cactus_call(parameters=['tabix', '-p', 'vcf', cat_vcf_path])
-        tbi_path = cat_vcf_path + '.tbi'
-    except Exception as e:
-        cactus_call(parameters=['bcftools', 'index', '-c', cat_vcf_path])
-        tbi_path = cat_vcf_path + '.csi'
+    tbi_path = index_vcf(cat_vcf_path)
 
     for vcf_id, tbi_id in vcf_tbi_ids:
         job.fileStore.deleteGlobalFile(vcf_id)
