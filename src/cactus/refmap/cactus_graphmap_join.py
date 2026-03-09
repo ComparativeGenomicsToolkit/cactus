@@ -936,10 +936,23 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
             aug_vg_ids.append(aug_job.rv(0))
             aug_segs_ids.append(aug_job.rv(1))
 
+        # extract augref reference fasta for vcf normalization (only if needed)
+        aug_ref_fasta_dict = None
+        aug_parent_job = aug_root_job
+        if need_ref_fasta:
+            aug_ref_fasta_job = aug_root_job.addFollowOnJobFn(extract_vg_fasta, options, aug_vg_ids,
+                                                              vcf_ref=aug_sample,
+                                                              disk=sum(f.size for f in vg_ids) * 2,
+                                                              memory=cactus_clamp_memory(sum(f.size for f in vg_ids) * 4))
+            aug_ref_fasta_dict = aug_ref_fasta_job.rv()
+            aug_parent_job = aug_ref_fasta_job
+
         # build GFA, GBZ, VCF, haplo from the augmented VGs
-        aug_out_dicts = build_vg_indexes_and_vcf(aug_root_job, options, config, aug_vg_ids, vg_ids,
+        aug_out_dicts = build_vg_indexes_and_vcf(aug_parent_job, options, config, aug_vg_ids, vg_ids,
                                                  tag='aug.', index_mem=index_mem, max_mem=max_mem,
-                                                 vcf_ref=aug_sample, vcftag='aug', do_haplo=True)
+                                                 vcf_ref=aug_sample, vcftag='aug', do_haplo=True,
+                                                 ref_fasta_dict=aug_ref_fasta_dict,
+                                                 is_augref=True)
         out_dicts.extend(aug_out_dicts)
 
         # merge augref segments
@@ -1281,12 +1294,13 @@ def extract_gbz_fasta(job, options, index_dict, tag):
 
     return out_dict
 
-def extract_vg_fasta(job, options, vg_ids):
-    """ get the reference fasta from per-chromosome vg files for bcftools norm in bypass mode.
-    only supports the first (primary) reference.
+def extract_vg_fasta(job, options, vg_ids, vcf_ref=None):
+    """ get the reference fasta from per-chromosome vg files for bcftools norm.
+    vcf_ref specifies the sample name to extract (default: primary vcfReference).
     """
     work_dir = job.fileStore.getLocalTempDir()
-    vcf_ref = options.vcfReference[0]
+    if vcf_ref is None:
+        vcf_ref = options.vcfReference[0]
     fa_ref_path = os.path.join(work_dir, vcf_ref + '.fa.gz')
 
     # extract reference paths from each chromosome vg and concatenate
@@ -1322,7 +1336,7 @@ def make_xg(job, config, out_name, index_dict, tag='', drop_haplotypes=False):
 
     return { '{}xg'.format(tag) : job.fileStore.writeGlobalFile(xg_path) }
 
-def make_vcf(job, config, options, workflow_phase, index_mem, vcf_ref, vg_ids, ref_fasta_dict, vcftag=None):
+def make_vcf(job, config, options, workflow_phase, index_mem, vcf_ref, vg_ids, ref_fasta_dict, vcftag=None, is_augref=False):
     """ make the raw vcf with deconstruct. optionally add in the bub and wave vcfs too
     this is done in parallel on each chrom .vg graph
     """
@@ -1348,6 +1362,7 @@ def make_vcf(job, config, options, workflow_phase, index_mem, vcf_ref, vg_ids, r
                                                           options.vcfbub,
                                                           ref_fasta_dict,
                                                           tag=os.path.splitext(os.path.basename(vg_path))[0] + '.' + vcftag + '.',
+                                                          is_augref=is_augref,
                                                           disk = vg_id.size * 6,
                                                           memory=cactus_clamp_memory(vg_id.size * 2))
             bub_vcf_id, bub_tbi_id = vcfbub_job.rv(0), vcfbub_job.rv(1)
@@ -1359,6 +1374,7 @@ def make_vcf(job, config, options, workflow_phase, index_mem, vcf_ref, vg_ids, r
                                                            options.vcfbub,
                                                            ref_fasta_dict,
                                                            tag=os.path.splitext(os.path.basename(vg_path))[0] + '.' + vcftag + '.',
+                                                           is_augref=is_augref,
                                                            cores=options.vcfwaveCores,
                                                            disk=vg_id.size * 6,
                                                            memory=cactus_clamp_memory(options.vcfwaveMemory))
@@ -1433,12 +1449,48 @@ def deconstruct(job, config, out_name, vcf_ref, vg_id, tag):
 
     return job.fileStore.writeGlobalFile(vcf_path), job.fileStore.writeGlobalFile(tbi_path)
 
-def vcfbub(job, config, out_name, vcf_ref, vcf_id, tbi_id, max_ref_allele, fasta_ref_dict, tag):
+def split_augref_vcf(vcf_path, work_dir):
+    """ Check if VCF contains augref contigs and split into base/augref BED files.
+    Returns (base_bed_path, aug_bed_path) or (None, None) if no augref contigs found.
+    Uses contig info from the VCF header to build BED files for indexed extraction with bcftools -R.
+    Augref contigs are identified by the _<N>_alt suffix produced by vg paths -u.
+    """
+    header = cactus_call(parameters=['bcftools', 'view', '-h', vcf_path], check_output=True)
+
+    augref_re = re.compile(r'_\d+_alt$')
+
+    base_bed_path = os.path.join(work_dir, 'base_contigs.bed')
+    aug_bed_path = os.path.join(work_dir, 'aug_contigs.bed')
+    has_aug = False
+    with open(base_bed_path, 'w') as base_bed, open(aug_bed_path, 'w') as aug_bed:
+        for line in header.strip().split('\n'):
+            if line.startswith('##contig=<ID='):
+                fields = line[len('##contig=<'):].rstrip('>').split(',')
+                contig_id = None
+                contig_len = None
+                for f in fields:
+                    if f.startswith('ID='):
+                        contig_id = f[3:]
+                    elif f.startswith('length='):
+                        contig_len = f[7:]
+                if contig_id and contig_len:
+                    if augref_re.search(contig_id):
+                        aug_bed.write('{}\t0\t{}\n'.format(contig_id, contig_len))
+                        has_aug = True
+                    else:
+                        base_bed.write('{}\t0\t{}\n'.format(contig_id, contig_len))
+
+    if has_aug:
+        return base_bed_path, aug_bed_path
+    else:
+        return None, None
+
+def vcfbub(job, config, out_name, vcf_ref, vcf_id, tbi_id, max_ref_allele, fasta_ref_dict, tag, is_augref=False):
     """ make the vcfbub vcf
     """
     if vcf_id is None:
         return None, None
-    
+
     work_dir = job.fileStore.getLocalTempDir()
     vcf_path = os.path.join(work_dir, os.path.basename(out_name) + '.' + tag + 'raw.vcf.gz')
     job.fileStore.readGlobalFile(vcf_id, vcf_path)
@@ -1446,18 +1498,47 @@ def vcfbub(job, config, out_name, vcf_ref, vcf_id, tbi_id, max_ref_allele, fasta
 
     # short circuit on empty file (note zcat -> head exits 141, so we can't use cactus_call)
     if int(subprocess.check_output('gzip -dc {} | grep -v ^# | head | wc -l'.format(vcf_path),
-                                   shell=True).decode('utf-8').strip()) == 0:    
-        return vcf_id, tbi_id 
+                                   shell=True).decode('utf-8').strip()) == 0:
+        return vcf_id, tbi_id
 
-    # run vcfbub
+    # split augref contigs so they can be run through vcfbub independently
+    base_bed_path, aug_bed_path = split_augref_vcf(vcf_path, work_dir) if is_augref else (None, None)
+    if base_bed_path:
+        base_vcf_path = os.path.join(work_dir, os.path.basename(out_name) + '.' + tag + 'base.vcf.gz')
+        cactus_call(parameters=['bcftools', 'view', '-R', base_bed_path, '-Oz', vcf_path],
+                    outfile=base_vcf_path)
+        bub_input_path = base_vcf_path
+    else:
+        bub_input_path = vcf_path
+
+    # run vcfbub on base contigs (or all contigs if not augref)
     vcfbub_path = os.path.join(work_dir, os.path.basename(out_name) + '.' + tag + 'bub.vcf.gz')
     assert max_ref_allele
-    bub_cmd = [['vcfbub', '--input', vcf_path, '--max-ref-length', str(max_ref_allele), '--max-level', '0']]
+    bub_cmd = [['vcfbub', '--input', bub_input_path, '--max-ref-length', str(max_ref_allele), '--max-level', '0']]
     if getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "filterAC0", typeFn=bool, default=False):
         bub_cmd.append(['bcftools', 'view', '-e', 'AC=0'])
     bub_cmd.append(['bgzip'])
     cactus_call(parameters = bub_cmd, outfile = vcfbub_path)
-        
+
+    if base_bed_path:
+        # run vcfbub independently on augref contigs with --max-level 1 (augref variants
+        # are nested inside main-ref bubbles so their top-level sites have LV=1) and merge back
+        aug_raw_path = os.path.join(work_dir, os.path.basename(out_name) + '.' + tag + 'aug.raw.vcf.gz')
+        cactus_call(parameters=['bcftools', 'view', '-R', aug_bed_path, '-Oz', vcf_path],
+                    outfile=aug_raw_path)
+        aug_vcf_path = os.path.join(work_dir, os.path.basename(out_name) + '.' + tag + 'aug.bub.vcf.gz')
+        aug_bub_cmd = [['vcfbub', '--input', aug_raw_path, '--max-ref-length', str(max_ref_allele), '--max-level', '1']]
+        if getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "filterAC0", typeFn=bool, default=False):
+            aug_bub_cmd.append(['bcftools', 'view', '-e', 'AC=0'])
+        aug_bub_cmd.append(['bgzip'])
+        cactus_call(parameters=aug_bub_cmd, outfile=aug_vcf_path)
+        cactus_call(parameters=['tabix', '-p', 'vcf', aug_vcf_path])
+        cactus_call(parameters=['tabix', '-p', 'vcf', vcfbub_path])
+        merged_path = os.path.join(work_dir, os.path.basename(out_name) + '.' + tag + 'bub.merged.vcf.gz')
+        cactus_call(parameters=['bcftools', 'concat', '-a', '-Oz', vcfbub_path, aug_vcf_path],
+                    outfile=merged_path)
+        vcfbub_path = merged_path
+
     try:
         cactus_call(parameters=['tabix', '-p', 'vcf', vcfbub_path])
         tbi_path = vcfbub_path + '.tbi'
@@ -1467,13 +1548,63 @@ def vcfbub(job, config, out_name, vcf_ref, vcf_id, tbi_id, max_ref_allele, fasta
 
     bub_vcf_id = job.fileStore.writeGlobalFile(vcfbub_path)
     bub_tbi_id = job.fileStore.writeGlobalFile(tbi_path)
-    
-    if getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "bcftoolsNorm", typeFn=bool, default=False):
+
+    if fasta_ref_dict is not None and \
+       getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "bcftoolsNorm", typeFn=bool, default=False):
         norm_job = job.addChildJobFn(vcfnorm, config, vcf_ref, bub_vcf_id, vcfbub_path, bub_tbi_id, fasta_ref_dict,
                                      disk=bub_vcf_id.size * 6)
         return norm_job.rv()
     else:
         return bub_vcf_id, bub_tbi_id
+
+def run_merge_duplicates(in_vcf_path, out_vcf_path, merge_duplicates_opts, work_dir):
+    """ Run merge_duplicates.py independently on each contig, then concatenate.
+    merge_duplicates.py can interleave records from different contigs that share
+    the same position, breaking contig contiguity required by tabix/bcftools.
+    Running per-contig avoids this.
+    """
+    # get the list of contigs with records, in order of appearance
+    contigs = cactus_call(parameters=[['bcftools', 'view', '-H', in_vcf_path],
+                                      ['cut', '-f1'],
+                                      ['awk', '!seen[$0]++']], check_output=True).strip().split('\n')
+    contigs = [c for c in contigs if c]
+
+    if len(contigs) <= 1:
+        # single contig (common case): run merge_duplicates directly
+        merge_cmd = ['merge_duplicates.py', '-i', in_vcf_path, '-o', out_vcf_path]
+        if merge_duplicates_opts:
+            merge_cmd += merge_duplicates_opts.split(' ')
+        cactus_call(parameters=merge_cmd)
+        return
+
+    # index for random access with -r
+    try:
+        cactus_call(parameters=['tabix', '-fp', 'vcf', in_vcf_path])
+    except Exception as e:
+        cactus_call(parameters=['bcftools', 'index', '-c', in_vcf_path])
+
+    # extract header
+    header_path = os.path.join(work_dir, 'md_header.vcf.gz')
+    cactus_call(parameters=['bcftools', 'view', '-h', '-Oz', in_vcf_path], outfile=header_path)
+
+    # run merge_duplicates on each contig independently
+    contig_merged_paths = []
+    for i, contig in enumerate(contigs):
+        contig_in = os.path.join(work_dir, 'md_contig_{}.vcf.gz'.format(i))
+        contig_out = os.path.join(work_dir, 'md_contig_{}.merged.vcf.gz'.format(i))
+        # extract this contig's records with header
+        cactus_call(parameters=['bcftools', 'view', '-r', contig, '-Oz', in_vcf_path], outfile=contig_in)
+        merge_cmd = ['merge_duplicates.py', '-i', contig_in, '-o', contig_out]
+        if merge_duplicates_opts:
+            merge_cmd += merge_duplicates_opts.split(' ')
+        cactus_call(parameters=merge_cmd)
+        contig_merged_paths.append(contig_out)
+
+    # concatenate: header + records from each contig (stripping their headers)
+    shutil.copy(header_path, out_vcf_path)
+    for contig_out in contig_merged_paths:
+        cactus_call(parameters=[['bcftools', 'view', '-H', contig_out], ['bgzip']],
+                    outfile=out_vcf_path, outappend=True)
 
 def vcfnorm(job, config, vcf_ref, vcf_id, vcf_path, tbi_id, fasta_ref_dict):
     """ run bcftools norm and merge_duplicates.py """
@@ -1498,12 +1629,8 @@ def vcfnorm(job, config, vcf_ref, vcf_id, vcf_path, tbi_id, fasta_ref_dict):
                             ['bgzip']], outfile=norm_path, outappend=True)
     merge_duplicates_opts = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "mergeDuplicatesOptions", typeFn=str, default=None)
     if merge_duplicates_opts not in [None, "0"]:
-        #note: merge_duplcates complains about not having a .tbi but I don't think it actually affects anything
         merge_path = os.path.join(work_dir, 'merge.' + os.path.basename(vcf_path))
-        merge_cmd = ['merge_duplicates.py', '-i', norm_path, '-o', merge_path]
-        if merge_duplicates_opts:
-            merge_cmd.append(merge_duplicates_opts.split(' '))
-        cactus_call(parameters=merge_cmd)
+        run_merge_duplicates(norm_path, merge_path, merge_duplicates_opts, work_dir)
         norm_path = merge_path
 
     multi_path = os.path.join(work_dir, 'multi.' + os.path.basename(vcf_path))
@@ -1513,9 +1640,9 @@ def vcfnorm(job, config, vcf_ref, vcf_id, vcf_path, tbi_id, fasta_ref_dict):
         # and does more, but isn't in the static binary being delivered with cactus so am using vcflib
         # for now (it's not in the binary either, but is already necessary for vcfwave)
         postmerge_cmd.append(['vcffixup', '-'])
-    postmerge_cmd.append(['bgzip'])    
+    postmerge_cmd.append(['bgzip'])
     cactus_call(parameters=postmerge_cmd, outfile=multi_path)
-    
+
     try:
         cactus_call(parameters=['tabix', '-p', 'vcf', multi_path])
         tbi_path = multi_path + '.tbi'
@@ -1586,7 +1713,7 @@ def check_vcffixup(job):
     except:
         raise RuntimeError('vcf normalization with merge_duplicates enabled, but vcffixup tool (used in postprocessing) not found in PATH. vcffixup is *not* included in the cactus binary release, but it is in the cactus Docker image. If you have Docker installed, you can try running again with --binariesMode docker. Or running your whole command with docker run. If you cannot use Docker, then you will need to build vcflib yourself before retrying: source code and details here: https://github.com/vcflib/vcflib. Running the ./build-tools/downloadVCFWave script (from the cactus/ directory) will attemp to download and build vcfwave.')    
     
-def chunked_vcfwave(job, config, out_name, vcf_ref, vcf_id, tbi_id, max_ref_allele, fasta_ref_dict, tag):
+def chunked_vcfwave(job, config, out_name, vcf_ref, vcf_id, tbi_id, max_ref_allele, fasta_ref_dict, tag, is_augref=False):
     """ run vcfwave in parallel chunks """
     if vcf_id is None:
         return None, None
@@ -1598,19 +1725,50 @@ def chunked_vcfwave(job, config, out_name, vcf_ref, vcf_id, tbi_id, max_ref_alle
 
     # short circuit on empty file (note zcat -> head exits 141, so we can't use cactus_call)
     if int(subprocess.check_output('gzip -dc {} | grep -v ^# | head | wc -l'.format(vcf_path),
-                                   shell=True).decode('utf-8').strip()) == 0:    
-        return vcf_id, tbi_id 
+                                   shell=True).decode('utf-8').strip()) == 0:
+        return vcf_id, tbi_id
+
+    # split augref contigs so they can be run through vcfbub/vcfwave independently
+    base_bed_path, aug_bed_path = split_augref_vcf(vcf_path, work_dir) if is_augref else (None, None)
+    if base_bed_path:
+        base_vcf_path = os.path.join(work_dir, os.path.basename(out_name) + '.' + vcf_ref + '.' + tag + 'base.vcf.gz')
+        cactus_call(parameters=['bcftools', 'view', '-R', base_bed_path, '-Oz', vcf_path],
+                    outfile=base_vcf_path)
+        bub_input_path = base_vcf_path
+    else:
+        bub_input_path = vcf_path
 
     # run vcfbub using original HPRC recipe
     # allele splitting added here as vcfwave has history of trouble with multi-allelic sites
     vcfbub_path = os.path.join(work_dir, os.path.basename(out_name) + '.' + vcf_ref + '.' + tag + 'bub.vcf.gz')
-    bub_cmd = [['vcfbub', '--input', vcf_path, '-l', '0', '-a', str(max_ref_allele)],
+    bub_cmd = [['vcfbub', '--input', bub_input_path, '-l', '0', '-a', str(max_ref_allele)],
                ['bcftools', 'annotate', '-x', 'INFO/AT'],
                ['bcftools', 'norm', '-m', '-any']]
     if getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "filterAC0", typeFn=bool, default=False):
         bub_cmd.append(['bcftools', 'view', '-e', 'AC=0'])
     bub_cmd.append(['bgzip', '--threads', str(job.cores)])
     cactus_call(parameters=bub_cmd, outfile=vcfbub_path)
+
+    if base_bed_path:
+        # run vcfbub independently on augref contigs with -l 1 (augref variants
+        # are nested inside main-ref bubbles so their top-level sites have LV=1) and merge back
+        aug_raw_path = os.path.join(work_dir, os.path.basename(out_name) + '.' + vcf_ref + '.' + tag + 'aug.raw.vcf.gz')
+        cactus_call(parameters=['bcftools', 'view', '-R', aug_bed_path, '-Oz', vcf_path],
+                    outfile=aug_raw_path)
+        aug_vcf_path = os.path.join(work_dir, os.path.basename(out_name) + '.' + vcf_ref + '.' + tag + 'aug.bub.vcf.gz')
+        aug_bub_cmd = [['vcfbub', '--input', aug_raw_path, '-l', '1', '-a', str(max_ref_allele)],
+                       ['bcftools', 'annotate', '-x', 'INFO/AT'],
+                       ['bcftools', 'norm', '-m', '-any']]
+        if getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "filterAC0", typeFn=bool, default=False):
+            aug_bub_cmd.append(['bcftools', 'view', '-e', 'AC=0'])
+        aug_bub_cmd.append(['bgzip', '--threads', str(job.cores)])
+        cactus_call(parameters=aug_bub_cmd, outfile=aug_vcf_path)
+        cactus_call(parameters=['tabix', '-p', 'vcf', aug_vcf_path])
+        cactus_call(parameters=['tabix', '-p', 'vcf', vcfbub_path])
+        merged_path = os.path.join(work_dir, os.path.basename(out_name) + '.' + vcf_ref + '.' + tag + 'bub.merged.vcf.gz')
+        cactus_call(parameters=['bcftools', 'concat', '-a', '-Oz', vcfbub_path, aug_vcf_path],
+                    outfile=merged_path)
+        vcfbub_path = merged_path
 
     # count the lines in the vcf
     lines = int(cactus_call(parameters=[['bcftools', 'view', '-H', vcfbub_path], ['wc', '-l']], check_output=True).strip())
@@ -1675,7 +1833,8 @@ def chunked_vcfwave(job, config, out_name, vcf_ref, vcf_id, tbi_id, max_ref_alle
                                                 memory=cactus_clamp_memory(vcf_id.size*5))
 
     # normalize the output
-    if getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "vcfwaveNorm", typeFn=bool, default=True):
+    if fasta_ref_dict is not None and \
+       getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "vcfwaveNorm", typeFn=bool, default=True):
         vcfwave_path = os.path.join(work_dir, os.path.basename(out_name) + '.' + vcf_ref + '.' + tag + 'wave.vcf.gz')
 
         norm_job = vcfwave_cat_job.addFollowOnJobFn(vcfnorm, config, vcf_ref, vcfwave_cat_job.rv(0),
@@ -1936,7 +2095,7 @@ def snarl_stats(job, options, config, vg_path, vg_id):
 
 def build_vg_indexes_and_vcf(parent_job, options, config, phase_vg_ids, vg_ids,
                              tag, index_mem, max_mem, vcf_ref=None, vcftag=None,
-                             ref_fasta_dict=None, do_haplo=False):
+                             ref_fasta_dict=None, do_haplo=False, is_augref=False):
     """ Common workflow: per-chrom VG -> GFA -> GBZ+snarls, with optional VCF and haplo.
     Returns list of output dicts to append to out_dicts.
     """
@@ -1965,7 +2124,8 @@ def build_vg_indexes_and_vcf(parent_job, options, config, phase_vg_ids, vg_ids,
     if vcf_ref:
         vcf_job = gfa_root_job.addFollowOnJobFn(make_vcf, config, options, tag.rstrip('.'),
                                                  index_mem, vcf_ref, phase_vg_ids,
-                                                 ref_fasta_dict, vcftag=vcftag)
+                                                 ref_fasta_dict, vcftag=vcftag,
+                                                 is_augref=is_augref)
         out_dicts.append(vcf_job.rv())
 
     # optional haplo index

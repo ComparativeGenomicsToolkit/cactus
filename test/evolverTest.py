@@ -821,10 +821,26 @@ class TestCase(unittest.TestCase):
             # check that aug raw VCF exists and has some records
             aug_raw_vcf_path = os.path.join(join_path, 'yeast.aug.raw.vcf.gz')
             self.assertTrue(os.path.exists(aug_raw_vcf_path))
-            aug_vcf_records = int(subprocess.check_output(
+            aug_raw_vcf_records = int(subprocess.check_output(
                 'bcftools view -H {} | wc -l'.format(aug_raw_vcf_path),
                 shell=True).strip())
-            self.assertGreater(aug_vcf_records, 0)
+            self.assertGreater(aug_raw_vcf_records, 0)
+
+            # count _alt (augref) records in the raw VCF
+            aug_raw_alt_records = int(subprocess.check_output(
+                'bcftools view -H {} | grep "_alt" | wc -l'.format(aug_raw_vcf_path),
+                shell=True).strip())
+            self.assertGreater(aug_raw_alt_records, 0)
+
+            # check that aug vcfbub VCF exists and augref _alt records survive vcfbub
+            # (augref contigs are split out and run through vcfbub independently so that
+            #  base contig nesting doesn't interfere with augref contig processing)
+            aug_bub_vcf_path = os.path.join(join_path, 'yeast.aug.vcf.gz')
+            self.assertTrue(os.path.exists(aug_bub_vcf_path))
+            aug_bub_alt_records = int(subprocess.check_output(
+                'bcftools view -H {} | grep "_alt" | wc -l'.format(aug_bub_vcf_path),
+                shell=True).strip())
+            self.assertGreater(aug_bub_alt_records, 0)
 
             # check that aug hapl exists
             aug_hapl_path = os.path.join(join_path, 'yeast.aug.hapl')
