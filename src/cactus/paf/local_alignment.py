@@ -643,7 +643,7 @@ def chain_one_alignment(job, alignment_file, alignment_name, params, include_inv
     split_dir = job.fileStore.getLocalTempDir()
     split_prefix = os.path.join(split_dir, 'split_')
     cactus_call(parameters=['paffy', 'split_file', '-i', alignment_path,
-                            '-p', split_prefix, '-m', str(contig_group_size),
+                            '-q', '-p', split_prefix, '-m', str(contig_group_size),
                             '--logLevel', getLogLevelString()],
                 job_memory=job.memory)
 
