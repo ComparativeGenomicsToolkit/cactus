@@ -950,7 +950,7 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
         # build GFA, GBZ, VCF, haplo from the augmented VGs
         aug_out_dicts = build_vg_indexes_and_vcf(aug_parent_job, options, config, aug_vg_ids, vg_ids,
                                                  tag='aug.', index_mem=index_mem, max_mem=max_mem,
-                                                 vcf_ref=aug_sample, vcftag='aug', do_haplo=True,
+                                                 vcf_ref=aug_sample, vcftag='aug', do_haplo=options.augRef in options.haplo,
                                                  ref_fasta_dict=aug_ref_fasta_dict,
                                                  is_augref=True)
         out_dicts.extend(aug_out_dicts)
@@ -1404,16 +1404,16 @@ def make_vcf(job, config, options, workflow_phase, index_mem, vcf_ref, vg_ids, r
         
     return out_dict
 
-def index_vcf(vcf_path):
+def index_vcf(vcf_path, rt_log_cmd=True):
     """ Index a bgzipped VCF, trying tabix (.tbi) first and falling back to
     bcftools index (.csi) for chromosomes too large for tabix.
     Returns the path to the index file.
     """
     try:
-        cactus_call(parameters=['tabix', '-fp', 'vcf', vcf_path])
+        cactus_call(parameters=['tabix', '-fp', 'vcf', vcf_path], rt_log_cmd=rt_log_cmd)
         return vcf_path + '.tbi'
     except Exception as e:
-        cactus_call(parameters=['bcftools', 'index', '-c', vcf_path])
+        cactus_call(parameters=['bcftools', 'index', '-c', vcf_path], rt_log_cmd=rt_log_cmd)
         return vcf_path + '.csi'
 
 def deconstruct(job, config, out_name, vcf_ref, vg_id, tag):
@@ -1559,51 +1559,6 @@ def vcfbub(job, config, out_name, vcf_ref, vcf_id, tbi_id, max_ref_allele, fasta
     else:
         return bub_vcf_id, bub_tbi_id
 
-def run_merge_duplicates(in_vcf_path, out_vcf_path, merge_duplicates_opts, work_dir):
-    """ Run merge_duplicates.py independently on each contig, then concatenate.
-    merge_duplicates.py can interleave records from different contigs that share
-    the same position, breaking contig contiguity required by tabix/bcftools.
-    Running per-contig avoids this.
-    """
-    # get the list of contigs with records, in order of appearance
-    contigs = cactus_call(parameters=[['bcftools', 'view', '-H', in_vcf_path],
-                                      ['cut', '-f1'],
-                                      ['awk', '!seen[$0]++']], check_output=True).strip().split('\n')
-    contigs = [c for c in contigs if c]
-
-    if len(contigs) <= 1:
-        # single contig (common case): run merge_duplicates directly
-        merge_cmd = ['merge_duplicates.py', '-i', in_vcf_path, '-o', out_vcf_path]
-        if merge_duplicates_opts:
-            merge_cmd += merge_duplicates_opts.split(' ')
-        cactus_call(parameters=merge_cmd)
-        return
-
-    # index for random access with -r
-    index_vcf(in_vcf_path)
-
-    # extract header
-    header_path = os.path.join(work_dir, 'md_header.vcf.gz')
-    cactus_call(parameters=['bcftools', 'view', '-h', '-Oz', in_vcf_path], outfile=header_path)
-
-    # run merge_duplicates on each contig independently
-    contig_merged_paths = []
-    for i, contig in enumerate(contigs):
-        contig_in = os.path.join(work_dir, 'md_contig_{}.vcf.gz'.format(i))
-        contig_out = os.path.join(work_dir, 'md_contig_{}.merged.vcf.gz'.format(i))
-        # extract this contig's records with header
-        cactus_call(parameters=['bcftools', 'view', '-r', contig, '-Oz', in_vcf_path], outfile=contig_in)
-        merge_cmd = ['merge_duplicates.py', '-i', contig_in, '-o', contig_out]
-        if merge_duplicates_opts:
-            merge_cmd += merge_duplicates_opts.split(' ')
-        cactus_call(parameters=merge_cmd)
-        contig_merged_paths.append(contig_out)
-
-    # concatenate: header + records from each contig (stripping their headers)
-    shutil.copy(header_path, out_vcf_path)
-    for contig_out in contig_merged_paths:
-        cactus_call(parameters=[['bcftools', 'view', '-H', contig_out], ['bgzip']],
-                    outfile=out_vcf_path, outappend=True)
 
 def vcfnorm(job, config, vcf_ref, vcf_id, vcf_path, tbi_id, fasta_ref_dict):
     """ run bcftools norm and merge_duplicates.py """
@@ -1629,7 +1584,10 @@ def vcfnorm(job, config, vcf_ref, vcf_id, vcf_path, tbi_id, fasta_ref_dict):
     merge_duplicates_opts = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "mergeDuplicatesOptions", typeFn=str, default=None)
     if merge_duplicates_opts not in [None, "0"]:
         merge_path = os.path.join(work_dir, 'merge.' + os.path.basename(vcf_path))
-        run_merge_duplicates(norm_path, merge_path, merge_duplicates_opts, work_dir)
+        merge_cmd = ['merge_duplicates.py', '-i', norm_path, '-o', merge_path]
+        if merge_duplicates_opts:
+            merge_cmd += merge_duplicates_opts.split(' ')
+        cactus_call(parameters=merge_cmd)
         norm_path = merge_path
 
     multi_path = os.path.join(work_dir, 'multi.' + os.path.basename(vcf_path))
