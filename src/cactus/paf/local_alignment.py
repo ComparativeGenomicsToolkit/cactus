@@ -639,7 +639,7 @@ def chain_one_alignment(job, alignment_file, alignment_name, params, include_inv
         job.fileStore.deleteGlobalFile(alignment_file)
         return job.fileStore.writeGlobalFile(output_path)
 
-    # Split by target contig to enable parallel chaining
+    # Split by query contig to enable parallel chaining
     split_dir = job.fileStore.getLocalTempDir()
     split_prefix = os.path.join(split_dir, 'split_')
     cactus_call(parameters=['paffy', 'split_file', '-i', alignment_path,
