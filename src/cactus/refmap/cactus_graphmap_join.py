@@ -776,7 +776,7 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
         phase_root_job.addFollowOn(gfa_root_job)
         gfa_ids = []
         current_out_dict = None
-        do_gbz = workflow_phase in options.gbz + options.vcf + options.giraffe + options.lrGiraffe + options.xg
+        do_gbz = workflow_phase in options.gbz + options.giraffe + options.lrGiraffe + options.xg
         if workflow_phase == 'full' and need_ref_fasta and not options.bypass:
             do_gbz = True
         if do_gbz or workflow_phase in options.gfa:
