@@ -13,6 +13,7 @@ from toil.statsAndLogging import logger
 from toil.lib.bioio import getLogLevelString
 from toil.realtimeLogger import RealtimeLogger
 from sonLib.bioio import newickTreeParser
+import glob
 import os
 import shutil
 import math
@@ -611,7 +612,6 @@ def chain_one_alignment(job, alignment_file, alignment_name, params, include_inv
     work_dir = job.fileStore.getLocalTempDir()
     alignment_path = os.path.join(work_dir, alignment_name + '.paf')
     alignment_inv_path = os.path.join(work_dir, alignment_name + '.inv.paf')
-    output_path = os.path.join(work_dir, alignment_name + '.chained.paf')
 
     # Copy the alignments from the job store
     job.fileStore.readGlobalFile(alignment_file, alignment_path)
@@ -623,16 +623,78 @@ def chain_one_alignment(job, alignment_file, alignment_name, params, include_inv
         cactus_call(parameters=['paffy', 'invert', "-i", alignment_inv_path], outfile=alignment_path, outappend=True,
                     job_memory=job.memory)
 
-    # Now chain the alignments
-    cactus_call(parameters=['paffy', 'chain', "-i", alignment_path,
-                            "--maxGapLength", params.find("blast").attrib["chainMaxGapLength"],
-                            "--chainGapOpen", params.find("blast").attrib["chainGapOpen"],
-                            "--chainGapExtend", params.find("blast").attrib["chainGapExtend"],
-                            "--trimFraction", params.find("blast").attrib["chainTrimFraction"],
-                            "--logLevel", getLogLevelString()],
+    contig_group_size = int(params.find("blast").attrib.get("chainContigGroupSize", "10000000"))
+    chain_split_min_size = int(params.find("blast").attrib.get("chainSplitMinSize", "10000000"))
+
+    # If the file is small enough, chain it directly without splitting
+    if os.path.getsize(alignment_path) <= chain_split_min_size:
+        output_path = os.path.join(work_dir, alignment_name + '.chained.paf')
+        cactus_call(parameters=['paffy', 'chain', '-i', alignment_path,
+                                '--maxGapLength', params.find("blast").attrib["chainMaxGapLength"],
+                                '--chainGapOpen', params.find("blast").attrib["chainGapOpen"],
+                                '--chainGapExtend', params.find("blast").attrib["chainGapExtend"],
+                                '--trimFraction', params.find("blast").attrib["chainTrimFraction"],
+                                '--logLevel', getLogLevelString()],
+                    outfile=output_path, job_memory=job.memory)
+        job.fileStore.deleteGlobalFile(alignment_file)
+        return job.fileStore.writeGlobalFile(output_path)
+
+    # Split by query contig to enable parallel chaining
+    split_dir = job.fileStore.getLocalTempDir()
+    split_prefix = os.path.join(split_dir, 'split_')
+    cactus_call(parameters=['paffy', 'split_file', '-i', alignment_path,
+                            '-q', '-p', split_prefix, '-m', str(contig_group_size),
+                            '--logLevel', getLogLevelString()],
+                job_memory=job.memory)
+
+    # Write each split to global store and spawn a child chain job
+    split_paths = glob.glob(split_prefix + '*.paf')
+    chained_split_rv = []
+    for split_path in split_paths:
+        split_size = os.path.getsize(split_path)
+        split_file_id = job.fileStore.writeGlobalFile(split_path)
+        chained_split_rv.append(
+            job.addChildJobFn(chain_one_contig, split_file_id, params,
+                              disk=2 * split_size,
+                              memory=cactus_clamp_memory(2 * split_size)).rv()
+        )
+
+    # Mark alignment file for cleanup
+    job.fileStore.deleteGlobalFile(alignment_file)
+
+    return job.addFollowOnJobFn(merge_chained_contigs, chained_split_rv).rv()
+
+
+def chain_one_contig(job, split_file_id, params):
+    """Run paffy chain on one contig's worth of alignments."""
+    work_dir = job.fileStore.getLocalTempDir()
+    input_path = os.path.join(work_dir, 'input.paf')
+    output_path = os.path.join(work_dir, 'chained.paf')
+
+    job.fileStore.readGlobalFile(split_file_id, input_path)
+    cactus_call(parameters=['paffy', 'chain', '-i', input_path,
+                            '--maxGapLength', params.find("blast").attrib["chainMaxGapLength"],
+                            '--chainGapOpen', params.find("blast").attrib["chainGapOpen"],
+                            '--chainGapExtend', params.find("blast").attrib["chainGapExtend"],
+                            '--trimFraction', params.find("blast").attrib["chainTrimFraction"],
+                            '--logLevel', getLogLevelString()],
                 outfile=output_path, job_memory=job.memory)
 
-    job.fileStore.deleteGlobalFile(alignment_file)
+    job.fileStore.deleteGlobalFile(split_file_id)
+    return job.fileStore.writeGlobalFile(output_path)
+
+
+def merge_chained_contigs(job, chained_file_ids):
+    """Concatenate all per-contig chained PAF files into one."""
+    work_dir = job.fileStore.getLocalTempDir()
+    output_path = os.path.join(work_dir, 'merged_chained.paf')
+
+    with open(output_path, 'w') as outf:
+        for file_id in chained_file_ids:
+            local_path = job.fileStore.readGlobalFile(file_id)
+            with open(local_path, 'r') as inf:
+                shutil.copyfileobj(inf, outf)
+            job.fileStore.deleteGlobalFile(file_id)
 
     return job.fileStore.writeGlobalFile(output_path)
     
