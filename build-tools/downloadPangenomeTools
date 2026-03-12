@@ -154,8 +154,8 @@ fi
 
 #bedtools
 cd ${pangenomeBuildDir}
-wget -nv --tries=5 --waitretry=3 --timeout=60 --retry-connrefused https://github.com/arq5x/bedtools2/releases/download/v2.31.1/bedtools.static.binary
-mv bedtools.static.binary bedtools
+wget -nv --tries=5 --waitretry=3 --timeout=60 --retry-connrefused https://github.com/arq5x/bedtools2/releases/download/v2.31.0/bedtools.static
+mv bedtools.static bedtools
 chmod +x bedtools
 if [[ $STATIC_CHECK -ne 1 || $(ldd bedtools | grep so | wc -l) -eq 0 ]]
 then
