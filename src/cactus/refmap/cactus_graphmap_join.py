@@ -1673,7 +1673,7 @@ def vcf_cat(job, vcf_tbi_ids, tag, sort=False, fix_ploidies=True):
                                  check_output=True).strip() + '\tFORMAT'
             for s in missing_samples:
                 header += '\t{}'.format(s)
-            header += '\n\n'
+            header += '\n'
             header_path = vcf_path + '.missing-sample-header'
             with open(header_path, 'w') as header_file:
                 header_file.write(header)
