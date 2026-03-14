@@ -1248,7 +1248,8 @@ def make_vg_indexes(job, options, config, gfa_ids, tag="", do_gbz=False):
         gbz_path = os.path.join(work_dir, '{}merged.gbz'.format(tag))
         gbz_cmd = ['vg', 'gbwt', '-G', merge_gfa_path, '--gbz-format', '-g', gbz_path]
         # sanity check to make sure the gbz didn't chop anything
-        check_trans = 0 < getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "maxNodeLength", typeFn=int, default=-1) <= 1024
+        # skip when using --vgClip/--vgFilter/--vgFull bypass as input graphs may not be chopped
+        check_trans = not options.bypass and 0 < getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "maxNodeLength", typeFn=int, default=-1) <= 1024
         if check_trans:
             trans_path = os.path.join(work_dir, '{}merged.gbz.trans'.format(tag))
             gbz_cmd += ['--translation', trans_path]        
@@ -1857,7 +1858,7 @@ def vcf_cat(job, vcf_tbi_ids, tag, sort=False, fix_ploidies=True):
                                  check_output=True).strip() + '\tFORMAT'
             for s in missing_samples:
                 header += '\t{}'.format(s)
-            header += '\n\n'
+            header += '\n'
             header_path = vcf_path + '.missing-sample-header'
             with open(header_path, 'w') as header_file:
                 header_file.write(header)
