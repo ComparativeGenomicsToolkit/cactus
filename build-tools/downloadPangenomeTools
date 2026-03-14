@@ -58,7 +58,7 @@ fi
 cd ${pangenomeBuildDir}
 git clone https://github.com/lh3/minimap2.git
 cd minimap2
-git checkout v2.28
+git checkout v2.30
 # hack in flags support
 sed -i Makefile -e 's/CFLAGS=/CFLAGS+=/'
 make -j ${numcpu} ${MINI_ARM_FLAGS}
@@ -88,7 +88,7 @@ fi
 cd ${pangenomeBuildDir}
 git clone https://github.com/lh3/gfatools.git
 cd gfatools
-git checkout c31be8a62efc6bdea4576029f7fbe84f345a6eed
+git checkout 39c54d5dfe4678d4cfb75b37bd27d4fb21f4de72
 # hack in flags support
 sed -i Makefile -e 's/CFLAGS=/CFLAGS+=/'
 make -j ${numcpu}
@@ -101,9 +101,9 @@ fi
 
 #samtools
 cd ${pangenomeBuildDir}
-wget -nv --tries=5 --waitretry=3 --timeout=60 --retry-connrefused https://github.com/samtools/samtools/releases/download/1.11/samtools-1.11.tar.bz2
-tar --no-same-owner -xf samtools-1.11.tar.bz2
-cd samtools-1.11
+wget -nv --tries=5 --waitretry=3 --timeout=60 --retry-connrefused https://github.com/samtools/samtools/releases/download/1.23/samtools-1.23.tar.bz2
+tar --no-same-owner -xf samtools-1.23.tar.bz2
+cd samtools-1.23
 SAMTOOLS_CONFIG_OPTS=""
 if [[ $STATIC_CHECK -eq 1 ]]
 then
@@ -117,7 +117,7 @@ then
 else
 	 exit 1
 fi
-cd htslib-1.11
+cd htslib-1.23
 make -j ${numcpu} tabix
 make -j ${numcpu} bgzip
 if [[ $STATIC_CHECK -ne 1 || $(ldd tabix | grep so | wc -l) -eq 0 ]]
@@ -135,9 +135,9 @@ fi
 
 #bcftools
 cd ${pangenomeBuildDir}
-wget -nv --tries=5 --waitretry=3 --timeout=60 --retry-connrefused https://github.com/samtools/bcftools/releases/download/1.19/bcftools-1.19.tar.bz2
-tar --no-same-owner -xf bcftools-1.19.tar.bz2
-cd bcftools-1.19
+wget -nv --tries=5 --waitretry=3 --timeout=60 --retry-connrefused https://github.com/samtools/bcftools/releases/download/1.23/bcftools-1.23.tar.bz2
+tar --no-same-owner -xf bcftools-1.23.tar.bz2
+cd bcftools-1.23
 SAMTOOLS_CONFIG_OPTS=""
 if [[ $STATIC_CHECK -eq 1 ]]
 then
@@ -154,8 +154,8 @@ fi
 
 #bedtools
 cd ${pangenomeBuildDir}
-wget -nv --tries=5 --waitretry=3 --timeout=60 --retry-connrefused https://github.com/arq5x/bedtools2/releases/download/v2.30.0/bedtools.static.binary
-mv bedtools.static.binary bedtools
+wget -nv --tries=5 --waitretry=3 --timeout=60 --retry-connrefused https://github.com/arq5x/bedtools2/releases/download/v2.31.0/bedtools.static
+mv bedtools.static bedtools
 chmod +x bedtools
 if [[ $STATIC_CHECK -ne 1 || $(ldd bedtools | grep so | wc -l) -eq 0 ]]
 then
@@ -189,7 +189,7 @@ fi
 cd ${pangenomeBuildDir}
 git clone https://github.com/ComparativeGenomicsToolkit/cactus-gfa-tools.git
 cd cactus-gfa-tools
-git checkout 1121e370880ee187ba2963f0e46e632e0e762cc5
+git checkout f9b999e54c49a05ad6e9d44e1832c4a8421f28f2
 make -j ${numcpu}
 if [[ $STATIC_CHECK -ne 1 || $(ldd paf2lastz | grep so | wc -l) -eq 0 ]]
 then
@@ -356,9 +356,9 @@ mv mash ${binDir}
 
 # odgi
 cd ${pangenomeBuildDir}
-wget -nv --tries=5 --waitretry=3 --timeout=60 --retry-connrefused https://github.com/pangenome/odgi/releases/download/v0.9.2/odgi-v0.9.2.tar.gz
-tar --no-same-owner -zxf odgi-v0.9.2.tar.gz
-cd odgi-v0.9.2
+wget -nv --tries=5 --waitretry=3 --timeout=60 --retry-connrefused https://github.com/pangenome/odgi/releases/download/v0.9.4/odgi-v0.9.4.tar.gz
+tar --no-same-owner -zxf odgi-v0.9.4.tar.gz
+cd odgi-v0.9.4
 if [[ $STATIC_CHECK -eq 1 ]]
 then
     CXXFLAGS="" CFLAGS="" LDFLAGS="" LIBS="" cmake -DBUILD_STATIC=1 -DCMAKE_BUILD_TYPE=Generic -H. -Bbuild && CXXFLAGS="" CFLAGS="" LDFLAGS="" LIBS="" cmake --build build -- -j ${numcpu}
@@ -386,7 +386,7 @@ fi
 cd ${pangenomeBuildDir}
 git clone https://gitlab.com/mcfrith/last.git --recursive
 cd last
-git checkout 1595
+git checkout 1651
 sed -i makefile -e 's/CXXFLAGS=/CXXFLAGS+=/'
 make -j ${numcpu}
 if [[ $STATIC_CHECK -ne 1 || $(ldd bin/lastal | grep so | wc -l) -eq 0 ]]
