@@ -640,7 +640,7 @@ class TestCase(unittest.TestCase):
                                '--reference', 'S288C', '--vg'] +  vg_files + ['--hal'] + hal_files +
                                ['--xg', '--vcf', '--giraffe', 'clip', 'filter', '--lrGiraffe'] + cactus_opts + ['--indexCores', '4'])
 
-    def _run_yeast_pangenome(self, binariesMode, mgSplit=False, collapse=False):
+    def _run_yeast_pangenome(self, binariesMode, mgSplit=False, collapse=False, augRef=None):
         """ yeast pangenome chromosome by chromosome pipeline, as run through a single invocations
         """
 
@@ -661,13 +661,15 @@ class TestCase(unittest.TestCase):
             cactus_pangenome_cmd += ['--mgSplit']
         if collapse:
             cactus_pangenome_cmd += ['--collapse']
+        if augRef:
+            cactus_pangenome_cmd += ['--augRef', augRef]
         subprocess.check_call(cactus_pangenome_cmd + cactus_opts)
 
         #compatibility with older test
         subprocess.check_call(['mkdir', '-p', os.path.join(self.tempDir, 'chroms')])
         subprocess.check_call(['mv', os.path.join(join_path, 'chrom-subproblems', 'contig_sizes.tsv'), os.path.join(self.tempDir, 'chroms')])
 
-    def _check_yeast_pangenome(self, binariesMode, other_ref=None, expect_odgi=False, expect_haplo=False, expect_unchopped_gfa=False):
+    def _check_yeast_pangenome(self, binariesMode, other_ref=None, expect_odgi=False, expect_haplo=False, expect_unchopped_gfa=False, expect_augRef=False):
         """ yeast pangenome chromosome by chromosome pipeline
         """
 
@@ -798,7 +800,60 @@ class TestCase(unittest.TestCase):
                 self.assertGreaterEqual(os.path.getsize(os.path.join(join_path, 'yeast.chroms', chr + '.full.og')), 3000000)
                 self.assertGreaterEqual(os.path.getsize(os.path.join(join_path, 'yeast.chroms', chr + '.og')), 3000000)
 
+        # make sure augmented reference outputs exist and are sane
+        if expect_augRef:
+            # check that aug GBZ exists and has at least as many nodes as the clip GBZ
+            aug_gbz_path = os.path.join(join_path, 'yeast.aug.gbz')
+            self.assertTrue(os.path.exists(aug_gbz_path))
+            aug_nodes = int(subprocess.check_output(['vg', 'stats', '-N', aug_gbz_path]).strip().decode('utf-8'))
+            self.assertGreaterEqual(aug_nodes, clip_nodes)
 
+            # check that aug GFA exists and is non-trivial
+            aug_gfa_path = os.path.join(join_path, 'yeast.aug.gfa.gz')
+            self.assertTrue(os.path.exists(aug_gfa_path))
+            self.assertGreaterEqual(os.path.getsize(aug_gfa_path), 1000000)
+
+            # check that aug snarls exists
+            aug_snarls_path = os.path.join(join_path, 'yeast.aug.snarls')
+            self.assertTrue(os.path.exists(aug_snarls_path))
+            self.assertGreaterEqual(os.path.getsize(aug_snarls_path), 1000)
+
+            # check that aug raw VCF exists and has some records
+            aug_raw_vcf_path = os.path.join(join_path, 'yeast.aug.raw.vcf.gz')
+            self.assertTrue(os.path.exists(aug_raw_vcf_path))
+            aug_raw_vcf_records = int(subprocess.check_output(
+                'bcftools view -H {} | wc -l'.format(aug_raw_vcf_path),
+                shell=True).strip())
+            self.assertGreater(aug_raw_vcf_records, 0)
+
+            # count _alt (augref) records in the raw VCF
+            aug_raw_alt_records = int(subprocess.check_output(
+                'bcftools view -H {} | grep "_alt" | wc -l'.format(aug_raw_vcf_path),
+                shell=True).strip())
+            self.assertGreater(aug_raw_alt_records, 0)
+
+            # check that aug vcfbub VCF exists and augref _alt records survive vcfbub
+            # (augref contigs are split out and run through vcfbub independently so that
+            #  base contig nesting doesn't interfere with augref contig processing)
+            aug_bub_vcf_path = os.path.join(join_path, 'yeast.aug.vcf.gz')
+            self.assertTrue(os.path.exists(aug_bub_vcf_path))
+            aug_bub_alt_records = int(subprocess.check_output(
+                'bcftools view -H {} | grep "_alt" | wc -l'.format(aug_bub_vcf_path),
+                shell=True).strip())
+            self.assertGreater(aug_bub_alt_records, 0)
+
+            # check that aug hapl exists
+            aug_hapl_path = os.path.join(join_path, 'yeast.aug.hapl')
+            self.assertTrue(os.path.exists(aug_hapl_path))
+            self.assertGreaterEqual(os.path.getsize(aug_hapl_path), 1000)
+
+            # check that the augref segments table exists and has content
+            aug_segs_path = os.path.join(join_path, 'yeast.aug.augref-segs.tsv.gz')
+            self.assertTrue(os.path.exists(aug_segs_path))
+            self.assertGreaterEqual(os.path.getsize(aug_segs_path), 100)
+            num_lines = int(subprocess.check_output(
+                'gzip -dc {} | wc -l'.format(aug_segs_path), shell=True).strip())
+            self.assertGreater(num_lines, 1)
 
     def _csvstr_to_table(self, csvstr, header_fields):
         """ Hacky csv parse """
@@ -1278,10 +1333,10 @@ class TestCase(unittest.TestCase):
     def testYeastPangenomeLocal(self):
         """ Run pangenome pipeline (including contig splitting!) on yeast dataset using cactus-pangenome """
         name = "local"
-        self._run_yeast_pangenome(name, collapse=True)
+        self._run_yeast_pangenome(name, augRef='clip')
 
         # check the output
-        self._check_yeast_pangenome(name, other_ref='DBVPG6044', expect_odgi=True, expect_haplo=False, expect_unchopped_gfa=True)
+        self._check_yeast_pangenome(name, other_ref='DBVPG6044', expect_odgi=True, expect_haplo=False, expect_unchopped_gfa=True, expect_augRef=True)
 
     def _test_vg_bypass(self, binariesMode):
         """Test that --vgClip/--vgFilter bypass produces equivalent indexes to the original run"""
@@ -1351,7 +1406,7 @@ class TestCase(unittest.TestCase):
     def testYeastPangenomeSplitLocal(self):
         """ Run pangenome pipeline (including contig splitting!) on yeast dataset using cactus-pangenome """
         name = "local"
-        self._run_yeast_pangenome(name, mgSplit=True)
+        self._run_yeast_pangenome(name, mgSplit=True, collapse=True)
 
         # check the output
         self._check_yeast_pangenome(name, other_ref='DBVPG6044', expect_odgi=True, expect_haplo=True, expect_unchopped_gfa=True)
