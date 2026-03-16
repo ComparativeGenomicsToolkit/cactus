@@ -311,7 +311,8 @@ fi
 
 # vg
 cd ${pangenomeBuildDir}
-wget -nv --tries=5 --waitretry=3 --timeout=60 --retry-connrefused https://github.com/vgteam/vg/releases/download/v1.71.0/vg
+#wget -nv --tries=5 --waitretry=3 --timeout=60 --retry-connrefused https://github.com/vgteam/vg/releases/download/v1.71.0/vg
+wget -nv --tries=5 --waitretry=3 --timeout=60 --retry-connrefused https://public.gi.ucsc.edu/~hickey/vg-patch/vg.b90cb5df90b36a05e443d03006b643b13e9b7204 -O vg
 chmod +x vg
 if [[ $STATIC_CHECK -ne 1 || $(ldd vg | grep so | wc -l) -eq 0 ]]
 then
