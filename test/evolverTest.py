@@ -1333,10 +1333,10 @@ class TestCase(unittest.TestCase):
     def testYeastPangenomeLocal(self):
         """ Run pangenome pipeline (including contig splitting!) on yeast dataset using cactus-pangenome """
         name = "local"
-        self._run_yeast_pangenome(name, augRef='clip')
+        self._run_yeast_pangenome(name, collapse=True)
 
         # check the output
-        self._check_yeast_pangenome(name, other_ref='DBVPG6044', expect_odgi=True, expect_haplo=False, expect_unchopped_gfa=True, expect_augRef=True)
+        self._check_yeast_pangenome(name, other_ref='DBVPG6044', expect_odgi=True, expect_haplo=False, expect_unchopped_gfa=True)
 
     def _test_vg_bypass(self, binariesMode):
         """Test that --vgClip/--vgFilter bypass produces equivalent indexes to the original run"""
@@ -1406,10 +1406,10 @@ class TestCase(unittest.TestCase):
     def testYeastPangenomeSplitLocal(self):
         """ Run pangenome pipeline (including contig splitting!) on yeast dataset using cactus-pangenome """
         name = "local"
-        self._run_yeast_pangenome(name, mgSplit=True, collapse=True)
+        self._run_yeast_pangenome(name, mgSplit=True, augRef='clip')
 
         # check the output
-        self._check_yeast_pangenome(name, other_ref='DBVPG6044', expect_odgi=True, expect_haplo=True, expect_unchopped_gfa=True)
+        self._check_yeast_pangenome(name, other_ref='DBVPG6044', expect_odgi=True, expect_haplo=True, expect_unchopped_gfa=True, expect_augRef=True)
 
         # Test bypass re-indexing with --vgClip and --vgFilter
         self._test_vg_bypass(name)
