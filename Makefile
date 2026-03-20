@@ -300,6 +300,7 @@ suball.lastz:
 	ln -f submodules/lastz/src/lastz bin
 
 suball.paffy:
+	git -C submodules/paffy/submodules/sonLib checkout $$(git -C submodules/sonLib rev-parse HEAD)
 	cd submodules/paffy && LIBS="${jemallocLib}" ${MAKE}
 	rm -rf submodules/paffy/bin/*.dSYM
 	ln -f submodules/paffy/bin/[a-zA-Z]* ${BINDIR}

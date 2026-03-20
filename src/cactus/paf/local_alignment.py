@@ -13,6 +13,7 @@ from toil.statsAndLogging import logger
 from toil.lib.bioio import getLogLevelString
 from toil.realtimeLogger import RealtimeLogger
 from sonLib.bioio import newickTreeParser
+import glob
 import os
 import shutil
 import math
@@ -562,10 +563,15 @@ def chain_alignments_splitting_ingroups_and_outgroups(job, ingroup_alignment_fil
     assert len(ingroup_alignment_files) == len(ingroup_alignment_names)
     assert len(outgroup_alignment_files) == len(outgroup_alignment_names)
 
+    ingroup_size = sum(f.size for f in ingroup_alignment_files)
+    outgroup_size = sum(f.size for f in outgroup_alignment_files)
+
     # Chain and pick the primary alignments of the ingroups to each other
     chained_ingroup_alignments = job.addChildJobFn(chain_alignments, ingroup_alignment_files,
                                                    ingroup_alignment_names, reference_event_name, params,
-                                                   total_sequence_size=total_sequence_size).rv()
+                                                   total_sequence_size=total_sequence_size,
+                                                   disk=6 * ingroup_size,
+                                                   memory=cactus_clamp_memory(2 * ingroup_size)).rv()
 
     # Separately pick the primary of the outgroups to the ingroups. By setting include_inverted_alignments=False
     # we only get outgroup-to-ingroup alignments and not imgroup-to-ouygroup alignments and therefore primary
@@ -573,7 +579,9 @@ def chain_alignments_splitting_ingroups_and_outgroups(job, ingroup_alignment_fil
     chained_outgroup_alignments = job.addChildJobFn(chain_alignments, outgroup_alignment_files,
                                                     outgroup_alignment_names, reference_event_name, params,
                                                     include_inverted_alignments=False,
-                                                    total_sequence_size=total_sequence_size).rv()
+                                                    total_sequence_size=total_sequence_size,
+                                                    disk=6 * outgroup_size,
+                                                    memory=cactus_clamp_memory(2 * outgroup_size)).rv()
 
     # Calculate approximately total alignment file size
     total_file_size = sum(alignment_file.size for alignment_file in ingroup_alignment_files + outgroup_alignment_files)
@@ -581,148 +589,145 @@ def chain_alignments_splitting_ingroups_and_outgroups(job, ingroup_alignment_fil
     # Merge the resulting two alignment files into a single set of alignments
     return job.addFollowOnJobFn(merge_alignments, chained_ingroup_alignments, chained_outgroup_alignments).rv()
 
+def concat_global_files(job, file_ids, output_path):
+    """Download and concatenate file_ids into output_path, deleting each from the job store after use."""
+    with open(output_path, 'wb') as outf:
+        for file_id in file_ids:
+            local_path = job.fileStore.readGlobalFile(file_id)
+            with open(local_path, 'rb') as inf:
+                shutil.copyfileobj(inf, outf)
+            job.fileStore.deleteGlobalFile(file_id)
+
+
 def chain_alignments(job, alignment_files, alignment_names, reference_event_name, params,
                      include_inverted_alignments=True, total_sequence_size=0):
-    """The following recapitulates the pipeline showing in paffy/tests/paf_pipeline_test.sh"""
+    """Merge all input PAFs, split by query contig, run the full chain/tile/trim/filter
+    pipeline per contig in parallel, then merge the results.
 
-    root_job = Job()
-    job.addChild(root_job)
-
-    assert len(alignment_files) == len(alignment_names)
-
-    # do the chaining
-    chained_alignment_files = []
-    for alignment_file, alignment_name in zip(alignment_files, alignment_names):
-        chained_alignment_files.append(root_job.addChildJobFn(chain_one_alignment, alignment_file, alignment_name,
-                                                              params, include_inverted_alignments,
-                                                              disk=4*alignment_file.size,
-                                                              memory=cactus_clamp_memory(2*alignment_file.size)).rv())
-
-    # do the tiling and filtering
-    return root_job.addFollowOnJobFn(tile_alignments, chained_alignment_files, reference_event_name, params,
-                                     total_sequence_size=total_sequence_size).rv()
-
-
-def chain_one_alignment(job, alignment_file, alignment_name, params, include_inverted_alignments):
-    """ run paffy chain on one PAF. include_inverted_alignemnts is a flag to control if we additionally include
-    the inverted paf records for chaining.
+    Recapitulates the pipeline showing in paffy/tests/paf_pipeline_test.sh
     """
-
     work_dir = job.fileStore.getLocalTempDir()
-    alignment_path = os.path.join(work_dir, alignment_name + '.paf')
-    alignment_inv_path = os.path.join(work_dir, alignment_name + '.inv.paf')
-    output_path = os.path.join(work_dir, alignment_name + '.chained.paf')
+    merged_path = os.path.join(work_dir, 'merged.paf')
 
-    # Copy the alignments from the job store
-    job.fileStore.readGlobalFile(alignment_file, alignment_path)
+    concat_global_files(job, alignment_files, merged_path)
 
-    # Get the forward and reverse versions of each alignment for symmetry with chaining if include_inverted_alignments
-    # is set
     if include_inverted_alignments:
-        shutil.copyfile(alignment_path, alignment_inv_path)
-        cactus_call(parameters=['paffy', 'invert', "-i", alignment_inv_path], outfile=alignment_path, outappend=True,
+        inv_path = os.path.join(work_dir, 'merged_copy.paf')
+        shutil.copyfile(merged_path, inv_path)
+        cactus_call(parameters=['paffy', 'invert', '-i', inv_path], outfile=merged_path, outappend=True,
                     job_memory=job.memory)
 
-    # Now chain the alignments
-    cactus_call(parameters=['paffy', 'chain', "-i", alignment_path,
-                            "--maxGapLength", params.find("blast").attrib["chainMaxGapLength"],
-                            "--chainGapOpen", params.find("blast").attrib["chainGapOpen"],
-                            "--chainGapExtend", params.find("blast").attrib["chainGapExtend"],
-                            "--trimFraction", params.find("blast").attrib["chainTrimFraction"],
-                            "--logLevel", getLogLevelString()],
-                outfile=output_path, job_memory=job.memory)
+    merged_size = os.path.getsize(merged_path)
+    chain_split_min_size = int(params.find("blast").attrib.get("chainSplitMinSize", "1000000000"))
 
-    job.fileStore.deleteGlobalFile(alignment_file)
+    if merged_size <= chain_split_min_size:
+        # Small input: run the full pipeline in a single job, no split overhead
+        merged_file_id = job.fileStore.writeGlobalFile(merged_path)
+        return job.addChildJobFn(
+            chain_tile_trim_filter_one_contig, merged_file_id, reference_event_name, params,
+            disk=4 * merged_size,
+            memory=cactus_clamp_memory(4 * merged_size)
+        ).rv()
 
-    return job.fileStore.writeGlobalFile(output_path)
-    
-    
-def tile_alignments(job, alignment_files, reference_event_name, params, has_resources=False, total_sequence_size=0):
-    # do everything post-chaining
-    # Memory: paffy tile loads all PAFs + creates SequenceCountArray (2 bytes per base of query sequence)
+    # Large input: split by query contig and run per-contig jobs in parallel
+    contig_group_size = int(params.find("blast").attrib.get("chainContigGroupSize", "10000000"))
+    split_prefix = os.path.join(work_dir, 'split_')
+    cactus_call(parameters=['paffy', 'split_file', '-i', merged_path,
+                            '-q', '-p', split_prefix, '-m', str(contig_group_size),
+                            '--logLevel', getLogLevelString()],
+                job_memory=job.memory)
 
-    if not has_resources:
-        paf_size = sum([alignment_file.size for alignment_file in alignment_files])
-        return job.addChildJobFn(tile_alignments, alignment_files, reference_event_name, params, has_resources=True,
-                                 total_sequence_size=total_sequence_size,
-                                 disk=2*paf_size,
-                                 memory=cactus_clamp_memory(2*paf_size + 2*total_sequence_size)).rv()
-    
+    split_paths = glob.glob(split_prefix + '*.paf')
+    processed_rvs = []
+    for split_path in split_paths:
+        split_size = os.path.getsize(split_path)
+        split_file_id = job.fileStore.writeGlobalFile(split_path)
+        processed_rvs.append(
+            job.addChildJobFn(chain_tile_trim_filter_one_contig, split_file_id, reference_event_name, params,
+                              disk=4 * split_size,
+                              memory=cactus_clamp_memory(4 * split_size)).rv()
+        )
+
+    return job.addFollowOnJobFn(merge_processed_alignments, processed_rvs).rv()
+
+
+def chain_tile_trim_filter_one_contig(job, split_file_id, reference_event_name, params):
+    """Run the full chain → tile → trim → filter → rechain → filter pipeline on one contig split."""
     work_dir = job.fileStore.getLocalTempDir()
+    input_path = os.path.join(work_dir, 'input.paf')
+    job.fileStore.readGlobalFile(split_file_id, input_path)
 
-    # concatenate the input into one big paf
-    local_paths = [os.path.join(work_dir, 'chained_{}_{}.paf'.format(reference_event_name, i)) for i in range(len(alignment_files))]
-    for local_path, alignment_file in zip(local_paths, alignment_files):
-        job.fileStore.readGlobalFile(alignment_file, local_path)
-    chained_paf_path = os.path.join(work_dir, 'chained_{}'.format(reference_event_name))
-    with open(chained_paf_path, 'a') as chained_paf_file:
-        for local_path in local_paths:
-            with open(local_path, 'r') as local_file:
-                shutil.copyfileobj(local_file, chained_paf_file)
-    for alignment_file in alignment_files:
-        job.fileStore.deleteGlobalFile(alignment_file)
+    blast = params.find("blast").attrib
+    output_path = os.path.join(work_dir, 'output.paf')
+    use_secondary_alignments = int(blast["outputSecondaryAlignments"])
 
-    # Now tile to select the primary alignments
-    tiled_paf_path = os.path.join(work_dir, 'tiled_{}.paf'.format(reference_event_name))
-    cactus_call(parameters=['paffy', 'tile', "-i", chained_paf_path, "--logLevel", getLogLevelString()],
-                           outfile=tiled_paf_path, job_memory=job.memory)
+    chain_cmd = ['paffy', 'chain',
+                 '--maxGapLength', blast["chainMaxGapLength"],
+                 '--chainGapOpen', blast["chainGapOpen"],
+                 '--chainGapExtend', blast["chainGapExtend"],
+                 '--trimFraction', blast["chainTrimFraction"],
+                 '--logLevel', getLogLevelString()]
+    tile_cmd = ['paffy', 'tile', '--logLevel', getLogLevelString()]
+    trim_cmd = ['paffy', 'trim', '--trimIdentity', blast["pafTrimIdentity"]]
+    filter_primary_cmd = ['paffy', 'filter', '--maxTileLevel', '1']
+    filter_score_cmd = ['paffy', 'filter', '--minChainScore', blast["minPrimaryChainScore"]]
 
-    os.remove(chained_paf_path)
-    trimmed_paf_path = os.path.join(work_dir, 'trim_{}.paf'.format(reference_event_name))
+    if not use_secondary_alignments:
+        # Linear pipeline – collapse into one composite piped call, no temp files
+        cactus_call(parameters=[
+            chain_cmd + ['-i', input_path],
+            tile_cmd,
+            trim_cmd,
+            filter_primary_cmd,
+            chain_cmd[:],
+            filter_score_cmd,
+        ], outfile=output_path, job_memory=job.memory)
+    else:
+        # Branch point: filter.paf feeds secondary output AND rechain
+        filter_path = os.path.join(work_dir, 'filter.paf')
+        cactus_call(parameters=[
+            chain_cmd + ['-i', input_path],
+            tile_cmd,
+            trim_cmd,
+            filter_primary_cmd,
+        ], outfile=filter_path, job_memory=job.memory)
 
-    # Trim the poorly aligned tails off the ends of the alignments after tiling - doing so before tiling
-    # can create gaps in alignment chains which allows in spurious chains
-    cactus_call(parameters=['paffy', 'trim', "-i", tiled_paf_path,
-                            "--trimIdentity", params.find("blast").attrib["pafTrimIdentity"]],
-                outfile=trimmed_paf_path, job_memory=job.memory)
+        # Secondary alignments go first in output
+        cactus_call(parameters=[
+            ['paffy', 'filter', '-i', filter_path, '--maxTileLevel', '1', '-x'],
+        ], outfile=output_path, job_memory=job.memory)
 
-    os.remove(tiled_paf_path)
-    filter_paf_path = os.path.join(work_dir, 'filter_{}.paf'.format(reference_event_name))
-                                    
-    # Filter to primary alignments
-    cactus_call(parameters=['paffy', 'filter', "-i", trimmed_paf_path, "--maxTileLevel", "1"],
-                           outfile=filter_paf_path, job_memory=job.memory)
+        # Branch point: primary_chain.paf feeds both primary filter and secondary demote
+        primary_chain_path = os.path.join(work_dir, 'primary_chain.paf')
+        cactus_call(parameters=[
+            chain_cmd + ['-i', filter_path],
+        ], outfile=primary_chain_path, job_memory=job.memory)
 
-    os.remove(trimmed_paf_path)
-    output_alignments_file = os.path.join(work_dir, 'output_alignments.paf')
+        # Filter primaries by chain score
+        cactus_call(parameters=[['paffy', 'filter', '-i', primary_chain_path,
+                                  '--minChainScore', blast["minPrimaryChainScore"]]],
+                    outfile=output_path, outappend=True, job_memory=job.memory)
 
-    # Do we want to include the secondary alignments
-    use_secondary_alignments = int(params.find("blast").attrib["outputSecondaryAlignments"])  # We should really switch to
-    # the empty string being false instead of 0
+        # Demoted primaries become secondaries
+        prim_filter_cmd = [['paffy', 'filter', '-i', primary_chain_path, '-x',
+                            '--minChainScore', blast["minPrimaryChainScore"]],
+                           ['sed', 's/tp:A:P/tp:A:S/'],
+                           ['sed', 's/tl:i:1/tl:i:2/']]
+        cactus_call(parameters=prim_filter_cmd, outfile=output_path, outappend=True)
 
-    if use_secondary_alignments:
-        # Filter to secondary alignments and put in the final output file
-        cactus_call(parameters=['paffy', 'filter', "-i", filter_paf_path, "--maxTileLevel", "1", '-x'],
-                    outfile=output_alignments_file, job_memory=job.memory)
+    processed_alignment_file_id = job.fileStore.writeGlobalFile(output_path)
+    job.fileStore.deleteGlobalFile(split_file_id)  # Cleanup the input file
 
-    primary_chain_paf_path = os.path.join(work_dir, 'primary_chain_{}.paf'.format(reference_event_name))
-    
-    # Rechain the "primary" alignments so we can see how good the chains of the primary alignments are
-    cactus_call(parameters=['paffy', 'chain', "-i", filter_paf_path,
-                            "--maxGapLength", params.find("blast").attrib["chainMaxGapLength"],
-                            "--chainGapOpen", params.find("blast").attrib["chainGapOpen"],
-                            "--chainGapExtend", params.find("blast").attrib["chainGapExtend"],
-                            "--trimFraction", params.find("blast").attrib["chainTrimFraction"],
-                            "--logLevel", getLogLevelString()],
-                outfile=primary_chain_paf_path, job_memory=job.memory)
+    return processed_alignment_file_id
 
-    os.remove(filter_paf_path)
 
-    # Filter primary alignments not in good chains
-    cactus_call(parameters=['paffy', 'filter', "-i", primary_chain_paf_path,
-                            "--minChainScore", params.find("blast").attrib["minPrimaryChainScore"]],
-                outfile=output_alignments_file, outappend=True, job_memory=job.memory)
+def merge_processed_alignments(job, processed_file_ids):
+    """Concatenate all per-contig output PAFs into a single final PAF."""
+    work_dir = job.fileStore.getLocalTempDir()
+    output_path = os.path.join(work_dir, 'final.paf')
 
-    if use_secondary_alignments:
-        # Get the primaries we've filtered and switch them to secondaries in the final output
-        prim_filter_cmd = [['paffy', 'filter', "-i", primary_chain_paf_path, "-x",
-                            "--minChainScore", params.find("blast").attrib["minPrimaryChainScore"]]]
-        prim_filter_cmd += [['sed', 's/tp:A:P/tp:A:S/']]
-        # Switch low score primaries to secondaries
-        prim_filter_cmd += [['sed', 's/tl:i:1/tl:i:2/']]
-        cactus_call(parameters=prim_filter_cmd, outfile=output_alignments_file, outappend=True)
-
-    return job.fileStore.writeGlobalFile(output_alignments_file)  # Copy back
+    concat_global_files(job, processed_file_ids, output_path)
+    return job.fileStore.writeGlobalFile(output_path)
         
 
 def sanitize_then_make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancestor_event_string, params,
@@ -831,7 +836,9 @@ def make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancest
     return root_job.addFollowOnJobFn(chain_alignments, ingroup_alignments + outgroup_alignments,
                                      ingroup_alignment_names + outgroup_alignment_names,
                                      ancestor_event_string, params,
-                                     total_sequence_size=total_sequence_size).rv()
+                                     total_sequence_size=total_sequence_size,
+                                     disk=6 * total_sequence_size,
+                                     memory=cactus_clamp_memory(2 * total_sequence_size)).rv()
 
 
 def trim_unaligned_sequences(job, sequences, alignments, params, has_resources=False):

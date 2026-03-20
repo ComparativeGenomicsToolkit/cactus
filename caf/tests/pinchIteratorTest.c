@@ -23,8 +23,9 @@ static void testIterator(CuTest *testCase, stPinchIterator *pinchIterator, stLis
             sscanf(paf->target_name, "%" PRIi64 "", &contigY);
             int64_t x = paf->same_strand ? paf->query_start : paf->query_end;
             int64_t y = paf->target_start;
-            Cigar *c = paf->cigar;
-            while(c != NULL) {
+            int64_t nc = cigar_count(paf->cigar);
+            for (int64_t ci = 0; ci < nc; ci++) {
+                CigarRecord *c = cigar_get(paf->cigar, ci);
                 if (c->op == match) {
                     if (c->length > 2 * trim) {
                         stPinch *pinch = stPinchIterator_getNext(pinchIterator, &pinchToFillOut);
@@ -44,7 +45,6 @@ static void testIterator(CuTest *testCase, stPinchIterator *pinchIterator, stLis
                 if (c->op != query_insert) {
                     y += c->length;
                 }
-                c = c->next;
             }
         }
         CuAssertPtrEquals(testCase, NULL, stPinchIterator_getNext(pinchIterator, &pinchToFillOut));
@@ -65,22 +65,28 @@ static stList *getRandomPairwiseAlignments() {
         paf->target_start = st_randomInt(100000, 1000000);
         paf->same_strand = st_random() > 0.5;
         int64_t i = paf->query_start, j = paf->target_start;
-        Cigar **pc = &(paf->cigar);
+        Cigar *cigar = st_calloc(1, sizeof(Cigar));
+        int64_t max_ops = 100;
+        cigar->recs = st_calloc(max_ops, sizeof(CigarRecord));
+        cigar->capacity = max_ops;
+        cigar->length = 0;
+        cigar->start = 0;
+        paf->cigar = cigar;
         CigarOp p_op_type = query_delete; // This is a fudge to ensure that we don't end up with two matches in succession
         // in the cigar - because the pinch iterator will smush them together
         do {
-            Cigar *c = st_calloc(1, sizeof(Cigar));
+            assert(cigar->length < cigar->capacity);
+            CigarRecord *c = &cigar->recs[cigar->length];
             c->length = st_randomInt(1, 10);
             c->op = st_random() > 0.3 ? ((st_random() > 0.5 && p_op_type != match) ? match : query_insert): query_delete;
             p_op_type = c->op;
+            cigar->length++;
             if (c->op != query_delete) {
                 i += c->length;
             }
             if (c->op != query_insert) {
                 j += c->length;
             }
-            *pc = c;
-            pc = &(c->next);
         } while(st_random() > 0.1 || paf->query_start == i || paf->target_start == j);
         paf->query_end = i;
         paf->target_end = j;

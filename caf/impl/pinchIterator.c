@@ -43,7 +43,7 @@ typedef struct _pairwiseAlignmentToPinch {
     Paf *(*getPairwiseAlignment)(void *);
     Paf *paf;
     int64_t xCoordinate, yCoordinate, xName, yName;
-    Cigar *op;
+    int64_t op_index;
     bool freeAlignments;
 } PairwiseAlignmentToPinch;
 
@@ -63,43 +63,47 @@ static stPinch *pairwiseAlignmentToPinch_getNext(PairwiseAlignmentToPinch *pA, s
             if (pA->paf == NULL) {
                 return NULL;
             }
-            pA->op = pA->paf->cigar;
+            pA->op_index = 0;
             pA->xCoordinate = pA->paf->same_strand ? pA->paf->query_start : pA->paf->query_end;
             pA->yCoordinate = pA->paf->target_start;
             pA->xName = cactusMisc_stringToName(pA->paf->query_name);
             pA->yName = cactusMisc_stringToName(pA->paf->target_name);
         }
-        while (pA->op != NULL) {
-            assert(pA->op->length >= 1);
-            if (pA->op->op == match || pA->op->op == sequence_match || pA->op->op == sequence_mismatch) { //deal with the possibility of a zero length match (strange, but not illegal)
+        int64_t n = cigar_count(pA->paf->cigar);
+        while (pA->op_index < n) {
+            CigarRecord *rec = cigar_get(pA->paf->cigar, pA->op_index);
+            assert(rec->length >= 1);
+            if (rec->op == match || rec->op == sequence_match || rec->op == sequence_mismatch) {
                 // Make maximal length (in case run of sequence matches and mismatches)
-                int64_t i=0; // Represents the length of the previous matches in the sequence
-                while(pA->op->next != NULL && (pA->op->next->op == match ||
-                                               pA->op->next->op == sequence_match ||
-                                               pA->op->next->op == sequence_mismatch)) {
-                    i+=pA->op->length;
-                    pA->op = pA->op->next;
+                int64_t i = 0; // Represents the length of the previous matches in the sequence
+                while (pA->op_index + 1 < n) {
+                    CigarRecord *next_rec = cigar_get(pA->paf->cigar, pA->op_index + 1);
+                    if (next_rec->op != match && next_rec->op != sequence_match &&
+                        next_rec->op != sequence_mismatch) break;
+                    i += rec->length;
+                    pA->op_index++;
+                    rec = cigar_get(pA->paf->cigar, pA->op_index);
                 }
                 if (pA->paf->same_strand) {
-                    stPinch_fillOut(pinchToFillOut, pA->xName, pA->yName, pA->xCoordinate, pA->yCoordinate, i+pA->op->length,
-                                    1);
-                    pA->xCoordinate += i+pA->op->length;
+                    stPinch_fillOut(pinchToFillOut, pA->xName, pA->yName, pA->xCoordinate,
+                                    pA->yCoordinate, i + rec->length, 1);
+                    pA->xCoordinate += i + rec->length;
                 } else {
-                    pA->xCoordinate -= i+pA->op->length;
-                    stPinch_fillOut(pinchToFillOut, pA->xName, pA->yName, pA->xCoordinate, pA->yCoordinate, i+pA->op->length,
-                                    0);
+                    pA->xCoordinate -= i + rec->length;
+                    stPinch_fillOut(pinchToFillOut, pA->xName, pA->yName, pA->xCoordinate,
+                                    pA->yCoordinate, i + rec->length, 0);
                 }
-                pA->yCoordinate += i+pA->op->length;
-                pA->op = pA->op->next;
+                pA->yCoordinate += i + rec->length;
+                pA->op_index++;
                 return pinchToFillOut;
             }
-            if (pA->op->op != query_delete) {
-                pA->xCoordinate += pA->paf->same_strand ? pA->op->length : -pA->op->length;
+            if (rec->op != query_delete) {
+                pA->xCoordinate += pA->paf->same_strand ? rec->length : -rec->length;
             }
-            if (pA->op->op != query_insert) {
-                pA->yCoordinate += pA->op->length;
+            if (rec->op != query_insert) {
+                pA->yCoordinate += rec->length;
             }
-            pA->op = pA->op->next;
+            pA->op_index++;
         }
         if (pA->paf->same_strand) {
             assert(pA->xCoordinate == pA->paf->query_end);
