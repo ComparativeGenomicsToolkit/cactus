@@ -658,65 +658,65 @@ def chain_tile_trim_filter_one_contig(job, split_file_id, reference_event_name, 
     job.fileStore.readGlobalFile(split_file_id, input_path)
 
     blast = params.find("blast").attrib
-
-    # Chain
-    chained_path = os.path.join(work_dir, 'chained.paf')
-    cactus_call(parameters=['paffy', 'chain', '-i', input_path,
-                            '--maxGapLength', blast["chainMaxGapLength"],
-                            '--chainGapOpen', blast["chainGapOpen"],
-                            '--chainGapExtend', blast["chainGapExtend"],
-                            '--trimFraction', blast["chainTrimFraction"],
-                            '--logLevel', getLogLevelString()],
-                outfile=chained_path, job_memory=job.memory)
-
-    # Tile
-    tiled_path = os.path.join(work_dir, 'tiled.paf')
-    cactus_call(parameters=['paffy', 'tile', '-i', chained_path, '--logLevel', getLogLevelString()],
-                outfile=tiled_path, job_memory=job.memory)
-
-    # Trim
-    trimmed_path = os.path.join(work_dir, 'trimmed.paf')
-    cactus_call(parameters=['paffy', 'trim', '-i', tiled_path, '--trimIdentity', blast["pafTrimIdentity"]],
-                outfile=trimmed_path, job_memory=job.memory)
-
-    # Filter to primary alignments
-    filter_path = os.path.join(work_dir, 'filter.paf')
-    cactus_call(parameters=['paffy', 'filter', '-i', trimmed_path, '--maxTileLevel', '1'],
-                outfile=filter_path, job_memory=job.memory)
-
     output_path = os.path.join(work_dir, 'output.paf')
     use_secondary_alignments = int(blast["outputSecondaryAlignments"])
 
-    if use_secondary_alignments:
+    chain_cmd = ['paffy', 'chain',
+                 '--maxGapLength', blast["chainMaxGapLength"],
+                 '--chainGapOpen', blast["chainGapOpen"],
+                 '--chainGapExtend', blast["chainGapExtend"],
+                 '--trimFraction', blast["chainTrimFraction"],
+                 '--logLevel', getLogLevelString()]
+    tile_cmd = ['paffy', 'tile', '--logLevel', getLogLevelString()]
+    trim_cmd = ['paffy', 'trim', '--trimIdentity', blast["pafTrimIdentity"]]
+    filter_primary_cmd = ['paffy', 'filter', '--maxTileLevel', '1']
+    filter_score_cmd = ['paffy', 'filter', '--minChainScore', blast["minPrimaryChainScore"]]
+
+    if not use_secondary_alignments:
+        # Linear pipeline – collapse into one composite piped call, no temp files
+        cactus_call(parameters=[
+            chain_cmd + ['-i', input_path],
+            tile_cmd,
+            trim_cmd,
+            filter_primary_cmd,
+            chain_cmd[:],
+            filter_score_cmd,
+        ], outfile=output_path, job_memory=job.memory)
+    else:
+        # Branch point: filter.paf feeds secondary output AND rechain
+        filter_path = os.path.join(work_dir, 'filter.paf')
+        cactus_call(parameters=[
+            chain_cmd + ['-i', input_path],
+            tile_cmd,
+            trim_cmd,
+            filter_primary_cmd,
+        ], outfile=filter_path, job_memory=job.memory)
+
         # Secondary alignments go first in output
-        cactus_call(parameters=['paffy', 'filter', '-i', filter_path, '--maxTileLevel', '1', '-x'],
-                    outfile=output_path, job_memory=job.memory)
+        cactus_call(parameters=[
+            ['paffy', 'filter', '-i', filter_path, '--maxTileLevel', '1', '-x'],
+        ], outfile=output_path, job_memory=job.memory)
 
-    # Rechain primary alignments to score chains
-    primary_chain_path = os.path.join(work_dir, 'primary_chain.paf')
-    cactus_call(parameters=['paffy', 'chain', '-i', filter_path,
-                            '--maxGapLength', blast["chainMaxGapLength"],
-                            '--chainGapOpen', blast["chainGapOpen"],
-                            '--chainGapExtend', blast["chainGapExtend"],
-                            '--trimFraction', blast["chainTrimFraction"],
-                            '--logLevel', getLogLevelString()],
-                outfile=primary_chain_path, job_memory=job.memory)
+        # Branch point: primary_chain.paf feeds both primary filter and secondary demote
+        primary_chain_path = os.path.join(work_dir, 'primary_chain.paf')
+        cactus_call(parameters=[
+            chain_cmd + ['-i', filter_path],
+        ], outfile=primary_chain_path, job_memory=job.memory)
 
-    # Filter primaries by chain score
-    cactus_call(parameters=['paffy', 'filter', '-i', primary_chain_path,
-                            '--minChainScore', blast["minPrimaryChainScore"]],
-                outfile=output_path, outappend=True, job_memory=job.memory)
+        # Filter primaries by chain score
+        cactus_call(parameters=[['paffy', 'filter', '-i', primary_chain_path,
+                                  '--minChainScore', blast["minPrimaryChainScore"]]],
+                    outfile=output_path, outappend=True, job_memory=job.memory)
 
-    if use_secondary_alignments:
         # Demoted primaries become secondaries
         prim_filter_cmd = [['paffy', 'filter', '-i', primary_chain_path, '-x',
-                            '--minChainScore', blast["minPrimaryChainScore"]]]
-        prim_filter_cmd += [['sed', 's/tp:A:P/tp:A:S/']]
-        prim_filter_cmd += [['sed', 's/tl:i:1/tl:i:2/']]
+                            '--minChainScore', blast["minPrimaryChainScore"]],
+                           ['sed', 's/tp:A:P/tp:A:S/'],
+                           ['sed', 's/tl:i:1/tl:i:2/']]
         cactus_call(parameters=prim_filter_cmd, outfile=output_path, outappend=True)
 
     processed_alignment_file_id = job.fileStore.writeGlobalFile(output_path)
-    job.fileStore.deleteGlobalFile(split_file_id) # Cleanup the input file
+    job.fileStore.deleteGlobalFile(split_file_id)  # Cleanup the input file
 
     return processed_alignment_file_id
 
