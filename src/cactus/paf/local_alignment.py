@@ -563,15 +563,19 @@ def chain_alignments_splitting_ingroups_and_outgroups(job, ingroup_alignment_fil
     assert len(ingroup_alignment_files) == len(ingroup_alignment_names)
     assert len(outgroup_alignment_files) == len(outgroup_alignment_names)
 
+    # Calculate ingroup / outgroup sizes
+    chain_split_min_size = int(params.find("blast").attrib.get("chainSplitMinSize", "1000000000"))
     ingroup_size = sum(f.size for f in ingroup_alignment_files)
     outgroup_size = sum(f.size for f in outgroup_alignment_files)
 
     # Chain and pick the primary alignments of the ingroups to each other
+    # bound the memory requested by the threshold at which split up the paf file by contig
     chained_ingroup_alignments = job.addChildJobFn(chain_alignments, ingroup_alignment_files,
                                                    ingroup_alignment_names, reference_event_name, params,
                                                    total_sequence_size=total_sequence_size,
                                                    disk=6 * ingroup_size,
-                                                   memory=cactus_clamp_memory(2 * ingroup_size)).rv()
+                                                   memory=cactus_clamp_memory(2 * min(ingroup_size,
+                                                                                      chain_split_min_size))).rv()
 
     # Separately pick the primary of the outgroups to the ingroups. By setting include_inverted_alignments=False
     # we only get outgroup-to-ingroup alignments and not imgroup-to-ouygroup alignments and therefore primary
@@ -581,7 +585,8 @@ def chain_alignments_splitting_ingroups_and_outgroups(job, ingroup_alignment_fil
                                                     include_inverted_alignments=False,
                                                     total_sequence_size=total_sequence_size,
                                                     disk=6 * outgroup_size,
-                                                    memory=cactus_clamp_memory(2 * outgroup_size)).rv()
+                                                    memory=cactus_clamp_memory(2 * min(outgroup_size,
+                                                                                       chain_split_min_size))).rv()
 
     # Calculate approximately total alignment file size
     total_file_size = sum(alignment_file.size for alignment_file in ingroup_alignment_files + outgroup_alignment_files)
@@ -616,6 +621,7 @@ def chain_alignments(job, alignment_files, alignment_names, reference_event_name
         shutil.copyfile(merged_path, inv_path)
         cactus_call(parameters=['paffy', 'invert', '-i', inv_path], outfile=merged_path, outappend=True,
                     job_memory=job.memory)
+        os.remove(inv_path) # Clean up to reduce disk space on large jobs
 
     merged_size = os.path.getsize(merged_path)
     chain_split_min_size = int(params.find("blast").attrib.get("chainSplitMinSize", "1000000000"))
