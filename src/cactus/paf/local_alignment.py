@@ -619,7 +619,7 @@ def chain_alignments(job, alignment_files, alignment_names, reference_event_name
     if include_inverted_alignments:
         inv_path = os.path.join(work_dir, 'merged_copy.paf')
         shutil.copyfile(merged_path, inv_path)
-        cactus_call(parameters=['paffy', 'invert', '-i', inv_path], outfile=merged_path, outappend=True,
+        cactus_call(parameters=['paffy', 'invert', '--inputFile', inv_path], outfile=merged_path, outappend=True,
                     job_memory=job.memory)
         os.remove(inv_path) # Clean up to reduce disk space on large jobs
 
@@ -638,8 +638,8 @@ def chain_alignments(job, alignment_files, alignment_names, reference_event_name
     # Large input: split by query contig and run per-contig jobs in parallel
     contig_group_size = int(params.find("blast").attrib.get("chainContigGroupSize", "10000000"))
     split_prefix = os.path.join(work_dir, 'split_')
-    cactus_call(parameters=['paffy', 'split_file', '-i', merged_path,
-                            '-q', '-p', split_prefix, '-m', str(contig_group_size),
+    cactus_call(parameters=['paffy', 'split_file', '--inputFile', merged_path,
+                            '--query', '--prefix', split_prefix, '--minLength', str(contig_group_size),
                             '--logLevel', getLogLevelString()],
                 job_memory=job.memory)
 
@@ -681,7 +681,7 @@ def chain_tile_trim_filter_one_contig(job, split_file_id, reference_event_name, 
     if not use_secondary_alignments:
         # Linear pipeline – collapse into one composite piped call, no temp files
         cactus_call(parameters=[
-            chain_cmd + ['-i', input_path],
+            chain_cmd + ['--inputFile', input_path],
             tile_cmd,
             trim_cmd,
             filter_primary_cmd,
@@ -692,7 +692,7 @@ def chain_tile_trim_filter_one_contig(job, split_file_id, reference_event_name, 
         # Branch point: filter.paf feeds secondary output AND rechain
         filter_path = os.path.join(work_dir, 'filter.paf')
         cactus_call(parameters=[
-            chain_cmd + ['-i', input_path],
+            chain_cmd + ['--inputFile', input_path],
             tile_cmd,
             trim_cmd,
             filter_primary_cmd,
@@ -700,22 +700,22 @@ def chain_tile_trim_filter_one_contig(job, split_file_id, reference_event_name, 
 
         # Secondary alignments go first in output
         cactus_call(parameters=[
-            ['paffy', 'filter', '-i', filter_path, '--maxTileLevel', '1', '-x'],
+            ['paffy', 'filter', '--inputFile', filter_path, '--maxTileLevel', '1', '--invert'],
         ], outfile=output_path, job_memory=job.memory)
 
         # Branch point: primary_chain.paf feeds both primary filter and secondary demote
         primary_chain_path = os.path.join(work_dir, 'primary_chain.paf')
         cactus_call(parameters=[
-            chain_cmd + ['-i', filter_path],
+            chain_cmd + ['--inputFile', filter_path],
         ], outfile=primary_chain_path, job_memory=job.memory)
 
         # Filter primaries by chain score
-        cactus_call(parameters=[['paffy', 'filter', '-i', primary_chain_path,
+        cactus_call(parameters=[['paffy', 'filter', '--inputFile', primary_chain_path,
                                   '--minChainScore', blast["minPrimaryChainScore"]]],
                     outfile=output_path, outappend=True, job_memory=job.memory)
 
         # Demoted primaries become secondaries
-        prim_filter_cmd = [['paffy', 'filter', '-i', primary_chain_path, '-x',
+        prim_filter_cmd = [['paffy', 'filter', '--inputFile', primary_chain_path, '--invert',
                             '--minChainScore', blast["minPrimaryChainScore"]],
                            ['sed', 's/tp:A:P/tp:A:S/'],
                            ['sed', 's/tl:i:1/tl:i:2/']]
