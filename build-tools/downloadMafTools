@@ -66,7 +66,7 @@ cd taffy
 git checkout 5ab000b8e12bef211352131b9891c8e2cfb94063
 git submodule update --init --recursive
 export HALDIR=${CWD}/submodules/hal
-LIBS="${jemallocLib}" make -j ${numcpu}
+LIBS="${jemallocLib} -llz4 -lzstd" make -j ${numcpu}
 if [[ $STATIC_CHECK -ne 1 || $(ldd bin/taffy | grep so | wc -l) -eq 0 ]]
 then
     mv bin/taffy ${binDir}

@@ -75,7 +75,7 @@ cd libxml2-2.9.12
 ./configure --enable-static --disable-shared --prefix=${DEP_PREFIX} --with-python=no
 make -j $(nproc)
 make install
-export CACTUS_STATIC_LINK_FLAGS="-L${DEP_PREFIX}/lib -lz -lpthread -lm -llzma"
+export CACTUS_STATIC_LINK_FLAGS="-L${DEP_PREFIX}/lib -lz -lpthread -lm -llzma -llz4 -lzstd"
 export CACTUS_LIBXML2_INCLUDE_PATH=${DEP_PREFIX}/include/libxml2
 popd
 

@@ -111,6 +111,8 @@ def main():
                         " at least one outgroup.")
     parser.add_argument("--branchScale", type=float, default=1.0,
                         help="Scale branch lengths by this factor to adjust alignment sensitivity (e.g., 2.0 = treat branches as 2x longer, more sensitive)")
+    parser.add_argument("--hdf5Codec", choices=["deflate", "lz4", "zstd", "none"], default=None,
+                        help="HDF5 compression codec for HAL output (overrides config XML, default=deflate)")
 
     options = parser.parse_args()
 
@@ -274,6 +276,8 @@ def make_align_job(options, toil, config_wrapper=None, chrom_name=None):
         config_wrapper.substituteAllPredefinedConstantsWithLiterals(options)
         if options.collapse:
             findRequiredNode(config_node, "graphmap").attrib["collapse"] = 'all'
+    if hasattr(options, 'hdf5Codec') and options.hdf5Codec:
+        config_node.find("hal").attrib["hdf5Codec"] = options.hdf5Codec
     config_wrapper.setSystemMemory(options)
     mc_tree, input_seq_map, og_candidates = parse_seqfile(options.seqFile, config_wrapper,
                                                           pangenome=options.pangenome)

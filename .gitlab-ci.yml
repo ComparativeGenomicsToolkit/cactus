@@ -5,6 +5,8 @@ variables:
 
 before_script:
   - whoami
+  - sudo apt-get -q -y update
+  - sudo apt-get -q -y install --no-upgrade liblz4-dev libzstd-dev
   - startdocker || true
   - docker info
 
