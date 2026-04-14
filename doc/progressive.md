@@ -275,6 +275,12 @@ By default, chains will be created using `halLiftover` [as in CAT](https://githu
 
 In order to view your chains on the UCSC Genome Browser, you need to [convert to bigChain](https://genome.ucsc.edu/goldenPath/help/bigChain.html).  Use the `--bigChain` flag to have `cactus-hal2chains` produce `bigChain.bb` and `bigChain.link.bb` output files in addtion to `chain.gz`.
 
+For large HAL files on cluster batch systems (slurm, etc.), the HAL copy required by each chain-building job is often the dominant cost. `cactus-hal2chains` groups (query, target) pairs into batches: each batch is a single Toil job that copies the HAL once and then runs many `halLiftover | axtChain` pipelines concurrently via GNU `parallel`. Use `--batchCount` to send the work to *N* cluster nodes (with `--batchCores` cores per node and `--batchParallelHal2chains` concurrent pipelines within each node), or `--batchSize` to pin the number of pairs per batch. E.g. to build 500 chains across 10 nodes with 50 pipelines per node:
+```
+cactus-hal2chains ./js ./big.hal chains-dir --batchCount 10 --batchCores 50 --batchParallelHal2chains 50
+```
+The same batching is applied to the per-genome `halStats`/`hal2fasta` preprocessing, so only one HAL copy per node per stage is needed. Override the per-batch memory with `--batchMemory` if the default estimate isn't right.
+
 
 ### CAT
 

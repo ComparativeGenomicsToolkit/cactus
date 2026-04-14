@@ -23,6 +23,7 @@ from cactus.shared.common import cactus_override_toil_options
 from cactus.shared.common import cactus_call
 from cactus.shared.common import getOptionalAttrib, findRequiredNode
 from cactus.shared.version import cactus_commit
+from cactus.progressive.cactus_prepare import human2bytesN
 from cactus.progressive.multiCactusTree import MultiCactusTree
 from cactus.paf.paf import get_distances
 
@@ -68,7 +69,20 @@ def main():
     parser.add_argument("--inMemory",
                        help="use --inMemory for halLiftover and/or halSynteny",
                        action="store_true")
-    
+
+    # batching options (mirror cactus-hal2maf): each batch is a single toil job that reads the hal
+    # once and runs multiple hal2chains invocations in parallel via GNU parallel. this dramatically
+    # reduces the number of hal copies when running on a cluster.
+    parser.add_argument("--batchSize", type=int, help="Number of (query,target) pairs in each hal2chains batch", default=None)
+    parser.add_argument("--batchCount", type=int, help="Number of hal2chains batches [default 1 unless --batchSize set]", default=None)
+    parser.add_argument("--batchCores", type=int, help="Number of cores for each hal2chains batch.")
+    parser.add_argument("--batchMemory", type=human2bytesN,
+                        help="Memory in bytes for each hal2chains batch (defaults to an estimate based on the input hal size). "
+                        "Standard suffixes like K, Ki, M, Mi, G or Gi are supported (default=bytes)", default=None)
+    parser.add_argument("--batchParallelHal2chains", type=int,
+                        help="Number of hal2chains commands to execute in parallel within a batch. Use to throttle down concurrency "
+                        "to save memory. [default=batchCores]", default=None)
+
     #Progressive Cactus Options
     parser.add_argument("--configFile", dest="configFile",
                         help="Specify cactus configuration file",
@@ -94,7 +108,29 @@ def main():
         raise RuntimeError('--minBlockSize can only be used with --useHalSynteny')
     if options.includeSelfAlignments and options.useHalSynteny:
         raise RuntimeError('--includeSelfAlignments cannot be used with --useHalSynteny')
-    
+
+    if options.batchSize and options.batchCount:
+        raise RuntimeError('Only one of --batchSize and --batchCount can be specified')
+
+    # batchCores default: full cpu count on single_machine, required otherwise
+    if options.batchCores is None:
+        if options.batchSystem.lower() in ['single_machine', 'singlemachine']:
+            options.batchCores = cactus_cpu_count()
+            if options.maxCores:
+                options.batchCores = min(options.batchCores, int(options.maxCores))
+            logger.info('Setting batchCores to {}'.format(options.batchCores))
+        else:
+            raise RuntimeError('--batchCores must be specified for batch systems other than singleMachine')
+
+    if not options.batchParallelHal2chains:
+        options.batchParallelHal2chains = options.batchCores
+    if options.batchParallelHal2chains > options.batchCores:
+        raise RuntimeError('--batchParallelHal2chains cannot exceed the number of batch cores ({})'.format(options.batchCores))
+
+    if not options.batchCount and not options.batchSize:
+        logger.info('Using default batch count of 1')
+        options.batchCount = 1
+
     # Mess with some toil options to create useful defaults.
     cactus_override_toil_options(options)
 
@@ -205,38 +241,80 @@ def hal2chains_get_genomes(job, config, options, hal_id):
     
     return leaf_genomes, distance_matrix
     
-def hal2chains_chrom_info(job, config, options, hal_id, genome):
-    """ get the BED and 2bit file for the genome from the hal """
-    work_dir = job.fileStore.getLocalTempDir()
-    hal_path = os.path.join(work_dir, os.path.basename(options.halFile.replace(' ', '.')))
-    RealtimeLogger.info("Reading HAL file from job store to {}".format(hal_path))    
-    job.fileStore.readGlobalFile(hal_id, hal_path)
-    RealtimeLogger.info("Computing chromosomes and 2bit ref sequence")
+def compute_batches(num_items, options):
+    """ figure out the number of batches and items per batch given --batchSize/--batchCount """
+    if num_items <= 0:
+        return 0, 0
+    if options.batchSize:
+        num_batches = math.ceil(num_items / options.batchSize)
+        batch_size = options.batchSize
+    else:
+        num_batches = max(1, min(options.batchCount or 1, num_items))
+        batch_size = math.ceil(num_items / num_batches)
+    return num_batches, batch_size
 
-    bed_path = os.path.join(work_dir, genome + '.bed')
-    cactus_call(parameters=[['halStats', hal_path, '--chromSizes', genome],
-                            ['awk', '{{print $1 "\t0\t" $2}}']],
-                outfile=bed_path)
-    if options.bigChain:
-        sizes_path = os.path.join(work_dir, genome + '.chrom.sizes')
-        cactus_call(parameters=['halStats', hal_path, '--chromSizes', genome], outfile=sizes_path)
+def lpt_assign(items, num_batches, cost_fn):
+    """ Longest-Processing-Time-first greedy assignment: sort items by cost descending, then
+    repeatedly place the next item into the batch with the smallest running total. Produces
+    a list of num_batches lists of items with roughly equal total cost — good for balancing
+    toil-job completion times when per-item cost varies widely. """
+    import heapq
+    if num_batches <= 0 or not items:
+        return []
+    scored = sorted(items, key=lambda x: -cost_fn(x))
+    heap = [[0.0, i, []] for i in range(num_batches)]
+    heapq.heapify(heap)
+    for item in scored:
+        total, idx, bucket = heapq.heappop(heap)
+        bucket.append(item)
+        heapq.heappush(heap, [total + cost_fn(item), idx, bucket])
+    heap.sort(key=lambda x: x[1])
+    return [bucket for _, _, bucket in heap]
 
-    tbit_path = os.path.join(work_dir, genome + '.2bit')    
-    cactus_call(parameters=[['hal2fasta', hal_path, genome],
-                            ['faToTwoBit', 'stdin', tbit_path]])
+def chain_pair_cost(q, t, chrom_info_dict, distance_matrix, epsilon=0.05):
+    """ Cost proxy for a hal2chains pair: alignment volume is bounded by the smaller 2bit
+    (the column of the alignment) and decreases with tree distance. The small epsilon keeps
+    very-close-sister pairs from blowing up (matches the 577-way data, where d<0.01 pairs are
+    only somewhat slower than d=0.1-0.3 pairs despite being 30x closer). """
+    q_size = chrom_info_dict[q]['2bit'].size
+    t_size = chrom_info_dict[t]['2bit'].size
+    d = distance_matrix[q][t]
+    return min(q_size, t_size) / (d + epsilon)
 
-    out_dict = { 'bed' : job.fileStore.writeGlobalFile(bed_path),
-                 '2bit' : job.fileStore.writeGlobalFile(tbit_path) }
-    if options.bigChain:
-        out_dict['sizes'] = job.fileStore.writeGlobalFile(sizes_path)
-    return out_dict
+def estimate_batch_memory(options, hal_id, pair_2bit_max=0):
+    """ pick a memory request for a hal2chains batch job.
+    Components:
+    - hal overhead: halLiftover/halSynteny use HDF5, which is page-cache-friendly. In non-inMemory
+      mode the cache is shared across concurrent processes and the per-process working set is small
+      (a few hundred MB). In --inMemory mode each process loads the full HAL separately, so the
+      total scales with batchParallel × hal_size.
+    - axtChain: dominates memory. Scales with sum of query+target 2bit sizes.
+    - batchParallel (k): multiplies per-task memory.
+
+    Tuning data from a 577-way vertebrate HAL (~900 GiB) running one pair per toil job:
+        target=hg38:     worst pair used 42 GiB (ratio 26x q+t); old formula requested 106 GiB.
+        target=chicken:  worst pair used 20 GiB (ratio 10x q+t).
+        target=catshark: worst pair used  7.6 GiB (ratio 3.8x q+t).
+    The old `hal_size/10` term (90 GiB for that HAL) was the main over-estimate. We replace it
+    with a small page-cache allowance (~hal/200) and use 30x (q+t) for axtChain to leave headroom
+    over the observed 26x worst case. Users can override via --batchMemory. """
+    if options.batchMemory:
+        return options.batchMemory
+    k = options.batchParallelHal2chains
+    axtchain_per_task = 30 * pair_2bit_max
+    if options.inMemory:
+        # each parallel task holds its own full hal copy
+        per_task_hal = hal_id.size
+        total = k * (per_task_hal + axtchain_per_task)
+    else:
+        # shared OS page cache for the hal (bounded well below hal_size), plus small per-process state
+        shared_hal_cache = max(512 * 1024**2, int(hal_id.size / 200))
+        per_task_state = 256 * 1024**2
+        total = shared_hal_cache + k * (per_task_state + axtchain_per_task)
+    return cactus_clamp_memory(total)
 
 def hal2chains_chrom_info_all(job, config, options, hal_id, genomes):
-    """ get the 2bit and chrom sizes of every relevant genome"""
-
-    # TODO: this is gonna fall down on huge hal files because it runs a separate job
-    # for each pair, and each job is going to require copying the full hal.  only work-around
-    # would be to do something like cacts-hal2maf where jobs are done in multithread batches...
+    """ get the 2bit and chrom sizes of every relevant genome, in batches that each copy the hal once """
 
     # default query / target genome sets to all leaves if they weren't input
     if not options.queryGenomes:
@@ -244,14 +322,86 @@ def hal2chains_chrom_info_all(job, config, options, hal_id, genomes):
     if not options.targetGenomes:
         options.targetGenomes = genomes
 
-    chrom_info_dict = {}
-    for genome in set(options.queryGenomes + options.targetGenomes):
-        chrom_info_dict[genome] = job.addChildJobFn(hal2chains_chrom_info, config, options, hal_id, genome,
-                                                    disk=int(hal_id.size * 1.2)).rv()
-    return chrom_info_dict        
+    all_genomes = sorted(set(options.queryGenomes + options.targetGenomes))
+    num_batches, batch_size = compute_batches(len(all_genomes), options)
 
-def hal2chains_all(job, config, options, hal_id, chrom_info_dict, distance_matrix):    
-    """ convert all the genomes in parallel """
+    # no 2bit sizes available yet — the batch's own job is what generates them.
+    # chrom_info is lighter than chain-building (halStats + hal2fasta|faToTwoBit), so assume
+    # per-task memory is bounded by hal page cache + a little overhead.
+    batch_memory = estimate_batch_memory(options, hal_id)
+
+    chrom_info_dict = {}
+    for i in range(num_batches):
+        batch_genomes = all_genomes[i * batch_size : (i + 1) * batch_size]
+        if not batch_genomes:
+            continue
+        # disk: hal copy + headroom for all the 2bits/beds we'll generate (2bits ~ fasta size ~ hal/ngenomes)
+        batch_disk = int(hal_id.size * 1.2) + int(hal_id.size * 1.5 * len(batch_genomes) / max(1, len(all_genomes)))
+        batch_job = job.addChildJobFn(hal2chains_chrom_info_batch, config, options, hal_id, batch_genomes,
+                                      disk=batch_disk,
+                                      cores=options.batchCores,
+                                      memory=batch_memory)
+        for g in batch_genomes:
+            chrom_info_dict[g] = batch_job.rv(g)
+    return chrom_info_dict
+
+def hal2chains_chrom_info_batch(job, config, options, hal_id, batch_genomes):
+    """ extract chrom info (bed, 2bit, optionally chrom.sizes) for a batch of genomes,
+    running each extraction in parallel via GNU parallel after a single hal copy """
+    work_dir = job.fileStore.getLocalTempDir()
+    hal_path = os.path.join(work_dir, os.path.basename(options.halFile.replace(' ', '.')))
+    RealtimeLogger.info("Reading HAL file from job store to {}".format(hal_path))
+    job.fileStore.readGlobalFile(hal_id, hal_path)
+    hal_base = os.path.basename(hal_path)
+
+    cmds = []
+    for g in batch_genomes:
+        sizes = '{}.chrom.sizes'.format(g)
+        bed = '{}.bed'.format(g)
+        tbit = '{}.2bit'.format(g)
+        err = '{}.chrominfo.stderr'.format(g)
+        cmd = ('set -eo pipefail && '
+               "halStats {hal} --chromSizes {g} > {sizes} && "
+               "awk '{{print $1\"\\t0\\t\"$2}}' {sizes} > {bed} && "
+               "hal2fasta {hal} {g} | faToTwoBit stdin {tbit}"
+               ).format(hal=hal_base, g=g, sizes=sizes, bed=bed, tbit=tbit)
+        cmd += ' 2> {}'.format(err)
+        cmds.append(cmd)
+
+    cmd_path = os.path.join(work_dir, 'chrominfo_cmds.txt')
+    with open(cmd_path, 'w') as f:
+        for c in cmds:
+            f.write(c + '\n')
+
+    parallel_cmd = [['cat', cmd_path],
+                    ['parallel', '-j', str(options.batchParallelHal2chains), '{}']]
+    RealtimeLogger.info('First of {} commands in chrom_info batch: {}'.format(len(cmds), cmds[0]))
+    try:
+        cactus_call(parameters=parallel_cmd, work_dir=work_dir)
+    except Exception as e:
+        logger.error("Parallel chrom_info command failed, dumping all stderr")
+        for g in batch_genomes:
+            err_path = os.path.join(work_dir, '{}.chrominfo.stderr'.format(g))
+            if os.path.isfile(err_path):
+                with open(err_path, 'r') as ef:
+                    for line in ef:
+                        logger.error(line.rstrip())
+        raise e
+
+    out = {}
+    for g in batch_genomes:
+        bed_path = os.path.join(work_dir, '{}.bed'.format(g))
+        tbit_path = os.path.join(work_dir, '{}.2bit'.format(g))
+        info = {'bed': job.fileStore.writeGlobalFile(bed_path),
+                '2bit': job.fileStore.writeGlobalFile(tbit_path)}
+        if options.bigChain:
+            sizes_path = os.path.join(work_dir, '{}.chrom.sizes'.format(g))
+            info['sizes'] = job.fileStore.writeGlobalFile(sizes_path)
+        out[g] = info
+    return out
+
+def hal2chains_all(job, config, options, hal_id, chrom_info_dict, distance_matrix):
+    """ build chains for all (query, target) pairs, in batches that each copy the hal once """
 
     # default query / target genome sets to all leaves if they weren't input
     if not options.queryGenomes:
@@ -259,84 +409,137 @@ def hal2chains_all(job, config, options, hal_id, chrom_info_dict, distance_matri
     if not options.targetGenomes:
         options.targetGenomes = list(chrom_info_dict.keys())
 
-    # TODO: this is gonna fall down on huge hal files because it runs a separate job
-    # for each pair, and each job is going to require copying the full hal.  only work-around
-    # would be to do something like cacts-hal2maf where jobs are done in multithread batches...
-        
+    pairs = []
+    for q in options.queryGenomes:
+        for t in options.targetGenomes:
+            if options.includeSelfAlignments or t != q:
+                pairs.append((q, t))
+
+    num_batches, batch_size = compute_batches(len(pairs), options)
+
+    # Balance batch completion times: LPT-greedy assignment using a cost proxy that tracks
+    # observed runtime on a 577-way vertebrate alignment (r=-0.63 between tree distance and
+    # chain pipeline runtime for target=hg38). Also sort the pairs within each batch by cost
+    # descending so GNU parallel fills its slots with the longest jobs first — this keeps the
+    # tail short (the stragglers finish while later, small jobs are still arriving).
+    cost_fn = lambda p: chain_pair_cost(p[0], p[1], chrom_info_dict, distance_matrix)
+    batches = lpt_assign(pairs, num_batches, cost_fn)
+    for b in batches:
+        b.sort(key=lambda p: -cost_fn(p))
+    RealtimeLogger.info('Assigned {} pairs to {} batches via LPT (cost = min(q_2bit,t_2bit)/(distance+0.05))'.format(
+        len(pairs), len([b for b in batches if b])))
+
     output_dict = {}
-    hal_mem = hal_id.size if options.inMemory else int(hal_id.size / 10)
-    for query_genome in options.queryGenomes:
-        output_dict[query_genome] = {}
-        query_info = chrom_info_dict[query_genome]
-        for target_genome in options.targetGenomes:
-            target_info = chrom_info_dict[target_genome]
-            if options.includeSelfAlignments or target_genome != query_genome:
-                chains_job = job.addChildJobFn(hal2chains_genome, config, options, hal_id,
-                                               query_genome, query_info, target_genome, target_info,
-                                               distance_matrix[query_genome][target_genome],
-                                               disk=int(hal_id.size * 1.2) + query_info['2bit'].size * 10 + target_info['2bit'].size * 10,
-                                               memory=cactus_clamp_memory(query_info['2bit'].size * 10 + target_info['2bit'].size * 10 + hal_mem))
-                output_dict[query_genome][target_genome] = {}
-                output_dict[query_genome][target_genome]['chains'] = chains_job.rv()
-                if options.bigChain:
-                    bigchains_job = chains_job.addFollowOnJobFn(chain2bigchain, options, query_genome,
-                                                                target_genome, chrom_info_dict[target_genome], chains_job.rv(),
-                                                                disk = query_info['2bit'].size * 20 + target_info['2bit'].size * 20,
-                                                                memory = cactus_clamp_memory(query_info['2bit'].size * 10 + target_info['2bit'].size * 10))
-                    output_dict[query_genome][target_genome]['bigChain'] = bigchains_job.rv(0)
-                    output_dict[query_genome][target_genome]['bigLink'] = bigchains_job.rv(1)
+    for batch_pairs in batches:
+        if not batch_pairs:
+            continue
+        batch_genomes = set()
+        for q, t in batch_pairs:
+            batch_genomes.add(q)
+            batch_genomes.add(t)
+        batch_chrom_info = {g: chrom_info_dict[g] for g in batch_genomes}
+        batch_distances = {(q, t): distance_matrix[q][t] for q, t in batch_pairs}
+
+        # size memory/disk using actual 2bit sizes. worst-case pair: max(q_2bit + t_2bit) over batch_pairs
+        pair_2bit_max = max(chrom_info_dict[q]['2bit'].size + chrom_info_dict[t]['2bit'].size
+                             for q, t in batch_pairs)
+        total_2bit = sum(chrom_info_dict[g]['2bit'].size for g in batch_genomes)
+        batch_memory = estimate_batch_memory(options, hal_id, pair_2bit_max=pair_2bit_max)
+        # disk: hal copy + 2bits + bed files + per-pair scratch/outputs (~10x 2bit per pair, as in old code)
+        batch_disk = int(hal_id.size * 1.2) + total_2bit + len(batch_pairs) * 10 * pair_2bit_max
+
+        batch_job = job.addChildJobFn(hal2chains_batch, config, options, hal_id,
+                                      batch_pairs, batch_chrom_info, batch_distances,
+                                      disk=batch_disk,
+                                      cores=options.batchCores,
+                                      memory=batch_memory)
+
+        for q, t in batch_pairs:
+            if q not in output_dict:
+                output_dict[q] = {}
+            output_dict[q][t] = {'chains': batch_job.rv(q, t)}
+            if options.bigChain:
+                bigchains_job = batch_job.addFollowOnJobFn(chain2bigchain, options, q, t,
+                                                           chrom_info_dict[t], batch_job.rv(q, t),
+                                                           disk=max(int(hal_id.size * 0.5), 64 * 1024**2),
+                                                           memory=cactus_clamp_memory(max(hal_id.size // 20, 2 * 1024**3)))
+                output_dict[q][t]['bigChain'] = bigchains_job.rv(0)
+                output_dict[q][t]['bigLink'] = bigchains_job.rv(1)
 
     return output_dict
 
-    
-def hal2chains_genome(job, config, options, hal_id, query_genome, query_info, target_genome, target_info, distance):
-    """ convert one genome to chains """
+
+def hal2chains_batch(job, config, options, hal_id, batch_pairs, batch_chrom_info, batch_distances):
+    """ build chains for a batch of (query, target) pairs: copy hal + 2bit/bed files once,
+    then run all halLiftover|...|axtChain pipelines in parallel via GNU parallel """
     work_dir = job.fileStore.getLocalTempDir()
     hal_path = os.path.join(work_dir, os.path.basename(options.halFile.replace(' ', '.')))
-    RealtimeLogger.info("Reading HAL file from job store to {}".format(hal_path))    
+    RealtimeLogger.info("Reading HAL file from job store to {}".format(hal_path))
     job.fileStore.readGlobalFile(hal_id, hal_path)
-    RealtimeLogger.info("Computing chains for query {} to target {}".format(query_genome, target_genome))
+    hal_base = os.path.basename(hal_path)
 
-    bed_path = os.path.join(work_dir, query_genome + '.bed')
-    job.fileStore.readGlobalFile(query_info['bed'], bed_path)
-    query_2bit_path = os.path.join(work_dir, query_genome + '.2bit')
-    job.fileStore.readGlobalFile(query_info['2bit'], query_2bit_path)
-    target_2bit_path = os.path.join(work_dir, target_genome + '.2bit')
-    job.fileStore.readGlobalFile(target_info['2bit'], target_2bit_path)
+    # pull down the per-genome chrom-info files (beds and 2bits) — one copy per unique genome
+    for g, info in batch_chrom_info.items():
+        job.fileStore.readGlobalFile(info['bed'], os.path.join(work_dir, '{}.bed'.format(g)))
+        job.fileStore.readGlobalFile(info['2bit'], os.path.join(work_dir, '{}.2bit'.format(g)))
 
-    # the output
-    query_chain_path = os.path.join(work_dir, target_genome + '_vs_' + query_genome + '.chain.gz')
+    cmds = []
+    out_names = {}
+    for q, t in batch_pairs:
+        out_name = '{}_vs_{}.chain.gz'.format(t, q)
+        err_name = '{}_vs_{}.chain.stderr'.format(t, q)
+        out_names[(q, t)] = out_name
 
-    # make our hal -> psl -> chain piped command
+        distance = batch_distances[(q, t)]
+        gap = 'medium' if distance < options.linearGapThreshold else 'loose'
 
-    cmd = []
+        if options.useHalSynteny:
+            first = 'halSynteny {hal} /dev/stdout --queryGenome {q} --targetGenome {t}'.format(hal=hal_base, q=q, t=t)
+            if options.inMemory:
+                first += ' --inMemory'
+            if options.maxAnchorDistance:
+                first += ' --maxAnchorDistance {}'.format(options.maxAnchorDistance)
+            if options.minBlockSize:
+                first += ' --minBlockSize {}'.format(options.minBlockSize)
+        else:
+            first = 'halLiftover {hal} {q} {q}.bed {t} /dev/stdout --outPSL'.format(hal=hal_base, q=q, t=t)
+            if options.inMemory:
+                first += ' --inMemory'
 
-    if options.useHalSynteny:
-        hal_synteny_cmd = ['halSynteny', hal_path, '/dev/stdout', '--queryGenome', query_genome, '--targetGenome', target_genome]
-        if options.inMemory:
-            hal_synteny_cmd.append('--inMemory')
-        if options.maxAnchorDistance:
-            hal_synteny_cmd += ['--maxAnchorDistance', str(options.maxAnchorDistance)]
-        if options.minBlockSize:
-            hal_synteny_cmd += ['--minBlockSize', str(options.minBlockSize)]
-        cmd.append(hal_synteny_cmd)
-    else:
-        hal_liftover_cmd = ['halLiftover', hal_path, query_genome, bed_path, target_genome, '/dev/stdout', '--outPSL']
-        if options.inMemory:
-            hal_liftover_cmd.append('--inMemory')
-        cmd.append(hal_liftover_cmd)
+        cmd = ('set -eo pipefail && '
+               '{first} | pslPosTarget /dev/stdin /dev/stdout | '
+               'axtChain -psl -verbose=0 -linearGap={gap} /dev/stdin {t}.2bit {q}.2bit /dev/stdout | '
+               'gzip > {out}').format(first=first, gap=gap, t=t, q=q, out=out_name)
+        cmd += ' 2> {}'.format(err_name)
+        cmds.append(cmd)
 
-    cmd.append(['pslPosTarget', '/dev/stdin', '/dev/stdout'])
+    cmd_path = os.path.join(work_dir, 'chain_cmds.txt')
+    with open(cmd_path, 'w') as f:
+        for c in cmds:
+            f.write(c + '\n')
 
-    gap = 'medium' if distance < options.linearGapThreshold else 'loose'
-    cmd.append(['axtChain', '-psl', '-verbose=0', '-linearGap={}'.format(gap), '/dev/stdin',
-                target_2bit_path, query_2bit_path, '/dev/stdout'])
+    parallel_cmd = [['cat', cmd_path],
+                    ['parallel', '-j', str(options.batchParallelHal2chains), '{}']]
+    RealtimeLogger.info('First of {} commands in chain batch: {}'.format(len(cmds), cmds[0]))
+    try:
+        cactus_call(parameters=parallel_cmd, work_dir=work_dir)
+    except Exception as e:
+        logger.error("Parallel hal2chains command failed, dumping all stderr")
+        for q, t in batch_pairs:
+            err_path = os.path.join(work_dir, '{}_vs_{}.chain.stderr'.format(t, q))
+            if os.path.isfile(err_path):
+                with open(err_path, 'r') as ef:
+                    for line in ef:
+                        logger.error(line.rstrip())
+        raise e
 
-    cmd.append(['gzip'])
-
-    cactus_call(parameters=cmd, outfile = query_chain_path)
-
-    return job.fileStore.writeGlobalFile(query_chain_path)
+    out = {}
+    for q, t in batch_pairs:
+        chain_path = os.path.join(work_dir, out_names[(q, t)])
+        if q not in out:
+            out[q] = {}
+        out[q][t] = job.fileStore.writeGlobalFile(chain_path)
+    return out
 
 # https://raw.githubusercontent.com/ucscGenomeBrowser/kent/cb3cd0e9c5b9006b7d316df7905faa516f880c6b/src/hg/lib/bigChain.as
 bigChain_as = \
