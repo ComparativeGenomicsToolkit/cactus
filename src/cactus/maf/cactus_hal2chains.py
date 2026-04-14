@@ -64,7 +64,7 @@ def main():
     parser.add_argument("--minBlockSize", type=int,
                         help="set --minBlockSize in halSynteny")
     parser.add_argument("--linearGapThreshold", type=float, default=1.0,
-                        help="Use axtChain -linearGap=medium if distance (from tree) is less than this value, and -linearGap=loose otherwise [default=0.7]")
+                        help="Use axtChain -linearGap=medium if the tree distance between query and target is less than this value, and -linearGap=loose otherwise. UCSC's guidance (from doBlastzChainNet.pl) is to use medium for pairs within the same taxonomic class (e.g. mammal-mammal) and loose across class boundaries (e.g. mammal-bird) [default=1.0]")
 
     parser.add_argument("--inMemory",
                        help="use --inMemory for halLiftover and/or halSynteny",
