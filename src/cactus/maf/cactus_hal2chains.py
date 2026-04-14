@@ -382,11 +382,12 @@ def hal2chains_chrom_info_batch(job, config, options, hal_id, batch_genomes):
         logger.error("Parallel chrom_info command failed, dumping all stderr")
         for g in batch_genomes:
             err_path = os.path.join(work_dir, '{}.chrominfo.stderr'.format(g))
-            if os.path.isfile(err_path):
+            if os.path.isfile(err_path) and os.path.getsize(err_path) > 0:
+                logger.error('--- stderr for chrom_info of {} ---'.format(g))
                 with open(err_path, 'r') as ef:
                     for line in ef:
                         logger.error(line.rstrip())
-        raise e
+        raise
 
     out = {}
     for g in batch_genomes:
@@ -527,11 +528,12 @@ def hal2chains_batch(job, config, options, hal_id, batch_pairs, batch_chrom_info
         logger.error("Parallel hal2chains command failed, dumping all stderr")
         for q, t in batch_pairs:
             err_path = os.path.join(work_dir, '{}_vs_{}.chain.stderr'.format(t, q))
-            if os.path.isfile(err_path):
+            if os.path.isfile(err_path) and os.path.getsize(err_path) > 0:
+                logger.error('--- stderr for {} vs {} ---'.format(q, t))
                 with open(err_path, 'r') as ef:
                     for line in ef:
                         logger.error(line.rstrip())
-        raise e
+        raise
 
     out = {}
     for q, t in batch_pairs:
