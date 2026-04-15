@@ -351,10 +351,10 @@ Cactus is already installed.  Activate the environment with
 source /private/groups/cgl/cactus/venv-cactus-latest/bin/activate
 ```
 
-Some recommended options (note that `--coordinationDir /data/tmp` is required): 
+Some recommended options: 
 
 ```
-cactus ./js ./examples/evolverMammals.txt evolverMammals.hal --batchSystem slurm --batchLogsDir batch-logs --coordinationDir /data/tmp --consCores 64 --maxMemory 1.4Ti --doubleMem true --slurmTime 200:00:00
+cactus ./js ./examples/evolverMammals.txt evolverMammals.hal --batchSystem slurm --batchLogsDir batch-logs --consCores 64 --maxMemory 1.4Ti --doubleMem true --slurmTime 200:00:00
 ```
 
 To run the same command step by step,
