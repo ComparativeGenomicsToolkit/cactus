@@ -327,10 +327,11 @@ def hal2chains_chrom_info_all(job, config, options, hal_id, genomes):
     all_genomes = sorted(set(options.queryGenomes + options.targetGenomes))
     num_batches, batch_size = compute_batches(len(all_genomes), options)
 
-    # no 2bit sizes available yet — the batch's own job is what generates them.
-    # chrom_info is lighter than chain-building (halStats + hal2fasta|faToTwoBit), so assume
-    # per-task memory is bounded by hal page cache + a little overhead.
-    batch_memory = estimate_batch_memory(options, hal_id)
+    # chrom_info memory: hal2fasta|faToTwoBit runs k processes in parallel, each streaming
+    # a genome from the HAL. We don't know genome sizes yet (that's what this step computes),
+    # so use the shared HAL cache + a per-process allowance for hal2fasta's working set.
+    shared_hal_cache = max(2 * 1024**3, int(hal_id.size / 200))
+    batch_memory = cactus_clamp_memory(shared_hal_cache + options.batchParallelHal2chains * 2 * 1024**3)
 
     chrom_info_dict = {}
     for i in range(num_batches):
