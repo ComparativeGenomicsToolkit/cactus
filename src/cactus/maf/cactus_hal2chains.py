@@ -313,6 +313,9 @@ def estimate_batch_memory(options, hal_id, pair_2bit_max=0):
         total = k * (hal_id.size + 30 * pair_2bit_max)
     else:
         total = first_task_peak + max(0, k - 1) * additional_per_task
+        # floor: even with tiny genomes, the shared HAL page cache needs real memory
+        shared_hal_cache = max(2 * 1024**3, int(hal_id.size / 200))
+        total = max(total, shared_hal_cache)
     return cactus_clamp_memory(total)
 
 def hal2chains_chrom_info_all(job, config, options, hal_id, genomes):
