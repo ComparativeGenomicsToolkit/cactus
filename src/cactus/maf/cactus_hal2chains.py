@@ -179,7 +179,8 @@ def hal2chains_workflow(job, config, options, hal_id):
     root_job = Job()
     job.addChild(root_job)
     check_tools_job = root_job.addChildJobFn(hal2chains_check_tools, options)
-    get_genomes_job = check_tools_job.addFollowOnJobFn(hal2chains_get_genomes, config, options, hal_id)
+    get_genomes_job = check_tools_job.addFollowOnJobFn(hal2chains_get_genomes, config, options, hal_id,
+                                                       disk=int(hal_id.size * 1.2))
     leaf_genomes = get_genomes_job.rv(0)
     distance_matrix = get_genomes_job.rv(1)
     chrom_info_job = get_genomes_job.addFollowOnJobFn(hal2chains_chrom_info_all, config, options, hal_id, leaf_genomes)
@@ -283,34 +284,35 @@ def chain_pair_cost(q, t, chrom_info_dict, distance_matrix, epsilon=0.05):
 
 def estimate_batch_memory(options, hal_id, pair_2bit_max=0):
     """ pick a memory request for a hal2chains batch job.
-    Components:
-    - hal overhead: halLiftover/halSynteny use HDF5, which is page-cache-friendly. In non-inMemory
-      mode the cache is shared across concurrent processes and the per-process working set is small
-      (a few hundred MB). In --inMemory mode each process loads the full HAL separately, so the
-      total scales with batchParallel × hal_size.
-    - axtChain: dominates memory. Scales with sum of query+target 2bit sizes.
-    - batchParallel (k): multiplies per-task memory.
 
-    Tuning data from a 577-way vertebrate HAL (~900 GiB) running one pair per toil job:
+    Tuning data:
+      Per-pair runs on a 577-way HAL (~900 GiB), one pair per toil job:
         target=hg38:     worst pair used 42 GiB (ratio 26x q+t); old formula requested 106 GiB.
         target=chicken:  worst pair used 20 GiB (ratio 10x q+t).
         target=catshark: worst pair used  7.6 GiB (ratio 3.8x q+t).
-    The old `hal_size/10` term (90 GiB for that HAL) was the main over-estimate. We replace it
-    with a small page-cache allowance (~hal/200) and use 30x (q+t) for axtChain to leave headroom
-    over the observed 26x worst case. Users can override via --batchMemory. """
+      Batched run on same HAL with k=3 parallel mammal-to-hg38 pipelines:
+        batch peak was 41 GiB — virtually identical to the single-pair peak (~40 GiB).
+        Parallel tasks share the HAL page cache; only the per-task axtChain working set adds.
+
+    Model (non-inMemory):
+      total ≈ first_task_peak + (k-1) × per_task_axtchain_working_set
+      first_task_peak absorbs the shared HAL page cache + one task's full working set.
+      We estimate first_task_peak as 30 × pair_2bit_max (covers the 26x observed worst case).
+      Additional tasks add ~15 × pair_2bit_max each (the axtChain DP state without the cache).
+
+    inMemory mode: each task loads its own full HAL copy, so all terms scale with k.
+
+    Users can override via --batchMemory. """
     if options.batchMemory:
         return options.batchMemory
     k = options.batchParallelHal2chains
-    axtchain_per_task = 30 * pair_2bit_max
+    first_task_peak = 30 * pair_2bit_max  # covers shared hal cache + one task's axtChain
+    additional_per_task = 15 * pair_2bit_max  # axtChain working set only (cache already paid for)
     if options.inMemory:
-        # each parallel task holds its own full hal copy
-        per_task_hal = hal_id.size
-        total = k * (per_task_hal + axtchain_per_task)
+        # each task has its own hal copy — nothing is shared
+        total = k * (hal_id.size + 30 * pair_2bit_max)
     else:
-        # shared OS page cache for the hal (bounded well below hal_size), plus small per-process state
-        shared_hal_cache = max(512 * 1024**2, int(hal_id.size / 200))
-        per_task_state = 256 * 1024**2
-        total = shared_hal_cache + k * (per_task_state + axtchain_per_task)
+        total = first_task_peak + max(0, k - 1) * additional_per_task
     return cactus_clamp_memory(total)
 
 def hal2chains_chrom_info_all(job, config, options, hal_id, genomes):
@@ -460,10 +462,14 @@ def hal2chains_all(job, config, options, hal_id, chrom_info_dict, distance_matri
                 output_dict[q] = {}
             output_dict[q][t] = {'chains': batch_job.rv(q, t)}
             if options.bigChain:
+                # bigChain doesn't use the HAL — just the chain.gz + chrom.sizes → bigChain.bb.
+                # disk: chain file + intermediates (~10x target 2bit is generous).
+                # memory: hgLoadChain peak is ~2x uncompressed chain size ≈ a few GiB for big mammals.
+                t_2bit_size = chrom_info_dict[t]['2bit'].size
                 bigchains_job = batch_job.addFollowOnJobFn(chain2bigchain, options, q, t,
                                                            chrom_info_dict[t], batch_job.rv(q, t),
-                                                           disk=max(int(hal_id.size * 0.5), 64 * 1024**2),
-                                                           memory=cactus_clamp_memory(max(hal_id.size // 20, 2 * 1024**3)))
+                                                           disk=max(20 * t_2bit_size, 1024**3),
+                                                           memory=cactus_clamp_memory(max(5 * t_2bit_size, 2 * 1024**3)))
                 output_dict[q][t]['bigChain'] = bigchains_job.rv(0)
                 output_dict[q][t]['bigLink'] = bigchains_job.rv(1)
 
