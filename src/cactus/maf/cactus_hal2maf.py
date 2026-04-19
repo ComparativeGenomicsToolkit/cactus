@@ -352,9 +352,9 @@ def hal2maf_all(job, hal_id, chunks, genome_list, options, config):
         # SLURM cgroup accounting charges mmap'd HAL pages (via HDF5) against the job's
         # memory limit, not just RSS. With many concurrent readers (up to batchParallelHal2maf),
         # the hot page set scales with parallelism — more processes means more of the HAL is
-        # simultaneously in use. Use hal/5 as the page cache base (master used hal/33 × k which
+        # simultaneously in use. Use hal/3 as the page cache base (master used hal/33 × k which
         # was 873 GiB for k=32 on a 900 GiB HAL — correct magnitude but wrong model).
-        hal_page_cache = max(2 * 1024**3, math.ceil(hal_id.size / 5))
+        hal_page_cache = max(2 * 1024**3, math.ceil(hal_id.size / 3))
         h2m_per_process = 64 * 1024**2    # hal2maf streaming working set
         taf_per_process = 256 * 1024**2   # taffy norm working set (reads HAL for gap fill)
         h2m_total = hal_page_cache + options.batchParallelHal2maf * h2m_per_process
