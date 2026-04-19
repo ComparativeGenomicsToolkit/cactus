@@ -285,20 +285,18 @@ def chain_pair_cost(q, t, chrom_info_dict, distance_matrix, epsilon=0.05):
 def estimate_batch_memory(options, hal_id, pair_2bit_max=0):
     """ pick a memory request for a hal2chains batch job.
 
-    Tuning data:
-      Per-pair runs on a 577-way HAL (~900 GiB), one pair per toil job:
-        target=hg38:     worst pair used 42 GiB (ratio 26x q+t); old formula requested 106 GiB.
-        target=chicken:  worst pair used 20 GiB (ratio 10x q+t).
-        target=catshark: worst pair used  7.6 GiB (ratio 3.8x q+t).
-      Batched run on same HAL with k=3 parallel mammal-to-hg38 pipelines:
-        batch peak was 41 GiB — virtually identical to the single-pair peak (~40 GiB).
-        Parallel tasks share the HAL page cache; only the per-task axtChain working set adds.
+    Tuning data from a 577-way HAL (~900 GiB), batched with k=3 on SLURM:
+      - /usr/bin/time reports 40 GiB peak RSS for the process tree.
+      - But SLURM cgroup accounting charges mmap'd page cache (HAL via HDF5)
+        against the job's memory limit. halLiftover reads ~10% of the HAL,
+        adding ~90 GiB of page cache on top of 40 GiB RSS = ~130 GiB total.
+      - A batch requesting 83 GiB was MEMLIMIT-killed; 165 GiB succeeded.
 
     Model (non-inMemory):
-      total ≈ first_task_peak + (k-1) × per_task_axtchain_working_set
-      first_task_peak absorbs the shared HAL page cache + one task's full working set.
-      We estimate first_task_peak as 30 × pair_2bit_max (covers the 26x observed worst case).
-      Additional tasks add ~15 × pair_2bit_max each (the axtChain DP state without the cache).
+      total = axtchain_working_set + hal_page_cache
+      axtchain: first task ~ 30 × pair_2bit_max; each additional ~ 15 × pair_2bit_max.
+      page_cache: ~hal/10 — SLURM cgroups charge this even though it's OS-managed.
+        This is counted once per batch (shared across k concurrent halLiftover processes).
 
     inMemory mode: each task loads its own full HAL copy, so all terms scale with k.
 
@@ -306,16 +304,16 @@ def estimate_batch_memory(options, hal_id, pair_2bit_max=0):
     if options.batchMemory:
         return options.batchMemory
     k = options.batchParallelHal2chains
-    first_task_peak = 30 * pair_2bit_max  # covers shared hal cache + one task's axtChain
-    additional_per_task = 15 * pair_2bit_max  # axtChain working set only (cache already paid for)
     if options.inMemory:
-        # each task has its own hal copy — nothing is shared
         total = k * (hal_id.size + 30 * pair_2bit_max)
     else:
-        total = first_task_peak + max(0, k - 1) * additional_per_task
-        # floor: even with tiny genomes, the shared HAL page cache needs real memory
-        shared_hal_cache = max(2 * 1024**3, int(hal_id.size / 200))
-        total = max(total, shared_hal_cache)
+        first_task_peak = 30 * pair_2bit_max
+        additional_per_task = 15 * pair_2bit_max
+        axt_total = first_task_peak + max(0, k - 1) * additional_per_task
+        # SLURM cgroup charges mmap'd HAL pages against the memory limit.
+        # halLiftover typically touches ~10% of the HAL during a run.
+        hal_page_cache = max(2 * 1024**3, int(hal_id.size / 10))
+        total = axt_total + hal_page_cache
     return cactus_clamp_memory(total)
 
 def hal2chains_chrom_info_all(job, config, options, hal_id, genomes):
@@ -331,10 +329,12 @@ def hal2chains_chrom_info_all(job, config, options, hal_id, genomes):
     num_batches, batch_size = compute_batches(len(all_genomes), options)
 
     # chrom_info memory: hal2fasta|faToTwoBit runs k processes in parallel, each streaming
-    # a genome from the HAL. We don't know genome sizes yet (that's what this step computes),
-    # so use the shared HAL cache + a per-process allowance for hal2fasta's working set.
-    shared_hal_cache = max(2 * 1024**3, int(hal_id.size / 200))
-    batch_memory = cactus_clamp_memory(shared_hal_cache + options.batchParallelHal2chains * 2 * 1024**3)
+    # a genome from the HAL. Unlike halLiftover (which traverses the tree and reads ~10% of
+    # the HAL), hal2fasta reads only the target genome's sequence — much less data.
+    # SLURM cgroups charge mmap'd pages, so we need: page_cache + k × per-process.
+    # Use hal/100 (not hal/10) because chrom_info touches <1% of the HAL.
+    hal_page_cache = max(4 * 1024**3, int(hal_id.size / 100))
+    batch_memory = cactus_clamp_memory(hal_page_cache + options.batchParallelHal2chains * 2 * 1024**3)
 
     chrom_info_dict = {}
     for i in range(num_batches):

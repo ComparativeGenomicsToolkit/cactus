@@ -349,17 +349,15 @@ def hal2maf_all(job, hal_id, chunks, genome_list, options, config):
     if options.batchMemory:
         batch_memory = options.batchMemory
     else:
-        # Tuning from 577-way vertebrate HAL (~900 GiB) with batchParallelHal2maf=96, batchParallelTaf=32:
-        #   hal2maf phase (96 parallel): 3.0 GiB peak total
-        #   taffy  phase (32 parallel): 6.5 GiB peak total
-        # Old formula (hal/200 × k_h2m, hal/33 × k_taf) gave 872 GiB — 134× over actual.
-        # Root cause: all processes share the HAL page cache via OS mmap, so total memory
-        # is shared_cache + k × per_process_working_set, NOT k × (cache + working_set).
-        shared_hal_cache = max(2 * 1024**3, math.ceil(hal_id.size / 200))
+        # SLURM cgroup accounting charges mmap'd HAL pages (via HDF5) against the job's
+        # memory limit, not just RSS. On the 577-way (900 GiB HAL), halLiftover/hal2maf
+        # reads ~10% of the HAL, adding ~90 GiB of page cache that SLURM counts as "used".
+        # So we need hal/10 as a page-cache allowance plus per-process working sets.
+        hal_page_cache = max(2 * 1024**3, math.ceil(hal_id.size / 10))
         h2m_per_process = 64 * 1024**2    # hal2maf streaming working set
         taf_per_process = 256 * 1024**2   # taffy norm working set (reads HAL for gap fill)
-        h2m_total = shared_hal_cache + options.batchParallelHal2maf * h2m_per_process
-        taf_total = shared_hal_cache + options.batchParallelTaf * taf_per_process
+        h2m_total = hal_page_cache + options.batchParallelHal2maf * h2m_per_process
+        taf_total = hal_page_cache + options.batchParallelTaf * taf_per_process
         batch_memory = cactus_clamp_memory(max(h2m_total, taf_total))
         
     chunks_left = len(chunks)
