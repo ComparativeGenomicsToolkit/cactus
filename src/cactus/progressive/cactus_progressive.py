@@ -207,7 +207,7 @@ def progressive_step_2(job, trimmed_outgroups_and_alignments, options, config_no
 
 
 def export_hal(job, mc_tree, config_node, seq_id_map, og_map, results, event=None, cacheBytes=None,
-               cacheMDC=None, cacheRDC=None, cacheW0=None, chunk=None, deflate=None, inMemory=False,
+               cacheMDC=None, cacheRDC=None, cacheW0=None, chunk=None, inMemory=False,
                checkpointInfo=None, acyclicEvent=None, has_resources=False, memory_override=None):
 
     # todo: going through list nonsense because (i think) it helps with promises, should at least clean up
@@ -260,8 +260,11 @@ def export_hal(job, mc_tree, config_node, seq_id_map, og_map, results, event=Non
                     args += ["--cacheW0", cacheW0]
                 if chunk is not None:
                     args += ["--chunk", chunk]
-                if deflate is not None:
-                    args += ["--deflate", deflate]
+                halElem = config_node.find("hal")
+                if halElem is not None:
+                    codec = halElem.attrib.get("hdf5Codec")
+                    if codec:
+                        args += ["--hdf5Codec", codec]
                 if inMemory is True:
                     args += ["--inMemory"]
 
@@ -275,7 +278,7 @@ def export_hal(job, mc_tree, config_node, seq_id_map, og_map, results, event=Non
             mem = memory_override
         return job.addChildJobFn(export_hal, mc_tree, config_node, seq_id_map, og_map, results, event=event,
                                  cacheBytes=cacheBytes, cacheMDC=cacheMDC, cacheRDC=cacheRDC, cacheW0=cacheW0,
-                                 chunk=chunk, deflate=deflate, inMemory=inMemory, checkpointInfo=checkpointInfo,
+                                 chunk=chunk, inMemory=inMemory, checkpointInfo=checkpointInfo,
                                  acyclicEvent=acyclicEvent, has_resources=True,
                                  disk=disk, memory=mem).rv()
 
@@ -386,6 +389,8 @@ def main():
                         action='store_true')
     parser.add_argument("--branchScale", type=float, default=1.0,
                         help="Scale branch lengths by this factor to adjust alignment sensitivity (e.g., 2.0 = treat branches as 2x longer, more sensitive)")
+    parser.add_argument("--hdf5Codec", choices=["deflate", "lz4", "zstd", "none"], default=None,
+                        help="HDF5 compression codec for HAL output (overrides config XML, default=deflate)")
 
     options = parser.parse_args()
 
@@ -452,6 +457,10 @@ def main():
             # toggle remasking
             if options.remask:
                 config_node.find("blast").find("unmask").attrib["action"] = "remask"
+
+            # override hal codec
+            if options.hdf5Codec:
+                config_node.find("hal").attrib["hdf5Codec"] = options.hdf5Codec
 
             mc_tree, input_seq_map, og_candidates = parse_seqfile(options.seqFile, config_wrapper, root_name = options.root)
             logger.info('Tree: {}'.format(NXNewick().writeString(mc_tree)))

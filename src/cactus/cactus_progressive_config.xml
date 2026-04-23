@@ -357,9 +357,13 @@
 	>
 	</check>
 	<!-- The hal tag controls the creation of hal and fasta files from the pipeline. -->
+	<!-- buildHal: toggle creation of output hal alignment [1=enabled] -->
+	<!-- buildFasta: toggle creation of output fasta files [1=enabled] -->
+	<!-- hdf5Codec: HDF5 compression codec for hal output: deflate, lz4, zstd, none -->
 	<hal
 		buildHal="1"
 		buildFasta="1"
+		hdf5Codec="deflate"
 	>
 	</hal>
 	<!-- cactus-graphmap options -->

@@ -109,6 +109,8 @@ def main(toil_mode=False):
     parser.add_argument("--nvidiaDriver", default="470.82.01", help="Nvidia driver version")
     parser.add_argument("--gpuZone", default="us-central1-a", help="zone used for gpu task")
     parser.add_argument("--zone", default="us-west2-a", help="zone used for all but gpu tasks")
+    parser.add_argument("--hdf5Codec", choices=["deflate", "lz4", "zstd", "none"], default=None,
+                        help="HDF5 compression codec for HAL output (overrides config XML, default=deflate)")
 
     if not toil_mode:
         parser.add_argument("--defaultCores", type=int, help="Number of cores for each job unless otherwise specified")
@@ -392,6 +394,8 @@ def cactusPrepare(options):
     seqFile = SeqFile(options.seqFile)
     configNode = ET.parse(options.configFile).getroot()
     config = ConfigWrapper(configNode)
+    if options.hdf5Codec:
+        options.cactusOptions += ' --hdf5Codec {}'.format(options.hdf5Codec)
     options.gpu_preprocessor = options.gpu and config.getPreprocessorActive('lastzRepeatMask')
 
     if not options.wdl and not options.toil:

@@ -14,6 +14,7 @@ Please cite the [HAL paper](https://doi.org/10.1093/bioinformatics/btt128) when 
 *    * [Masking](#masking)
 *    * [Adjusting Sensitivity](#adjusting-sensitivity)
 * [Using the HAL Output](#using-the-hal-output)
+     * [HAL Compression](#hal-compression)
      * [MAF Export](#maf-export)
 * [Using Docker](#using-docker)
 * [Running in the Cloud](#running-on-the-cloud)
@@ -145,6 +146,10 @@ Normally, cactus greedily chooses the N (default=2, override with `cactus --maxO
 The `outputHal` file represents the multiple alignment, including all input and inferred ancestral sequences.  It is stored in HAL format, and can be accessed with [HAL tools](https://github.com/ComparativeGenomicsToolkit/Hal), which are all included in Cactus either as static binaries for the binary release, or within the Docker image for the Docker release.
 
 Please [cite HAL](https://doi.org/10.1093/bioinformatics/btt128).
+
+### HAL Compression
+
+By default, HAL files are compressed with `deflate` (gzip). The `--hdf5Codec` option can be used to select a different HDF5 compression codec. The available codecs are `deflate`, `lz4`, `zstd` and `none`. Using `zstd` is recommended for new alignments: it produces smaller files (ex. 24% smaller on a 12-mammal alignment) and is faster to read than `deflate`.  Note that HAL files written with `lz4` or `zstd` require a version of HAL that includes the corresponding codec support to read them.  The `--hdf5Codec` option is available in `cactus`, `cactus-align` and `cactus-prepare`.
 
 ### MAF Export
 
