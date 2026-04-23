@@ -60,6 +60,10 @@
 	<!-- minimumDistance A minimum for L (see above), so we don't filter out alignments with high identity. -->
 	<!-- gpu Toggle on kegalign instead of lastz and set the number of gpus for each kegalign job. 0: disable kegalign, 'all': use all availabled GPUs-->
 	<!-- lastzMemory The memory to allocate for each blast job -->
+	<!-- chainContigGroupSize Minimum combined target sequence size (bp) for a paffy split_file partition; contigs below
+	     this threshold are grouped together -->
+	<!-- chainSplitMinSize PAF file size in bytes below which splitting is skipped and the file is chained directly
+	     in a single job -->
 	<!-- chainMaxGapLength See paffy chain chainMaxGapLength param -->
 	<!-- chainGapOpen See paffy chain chainGapOpen param -->
 	<!-- chainGapExtend See paffy chain chainGapExtend param -->
@@ -96,6 +100,8 @@
 		   minimumDistance="0.01"
 		   gpu="0"
 		   lastzMemory="littleMemory"
+	       chainContigGroupSize="10000000"
+	       chainSplitMinSize="1000000000"
 	       chainMaxGapLength="1000000"
 		   chainGapOpen="5000"
 		   chainGapExtend="1"
