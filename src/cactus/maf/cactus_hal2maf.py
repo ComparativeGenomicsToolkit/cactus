@@ -349,9 +349,17 @@ def hal2maf_all(job, hal_id, chunks, genome_list, options, config):
     if options.batchMemory:
         batch_memory = options.batchMemory
     else:
-        maf_mem = math.ceil(hal_id.size / 200)
-        taf_mem = math.ceil(hal_id.size / 33)
-        batch_memory = cactus_clamp_memory(max(maf_mem * options.batchParallelHal2maf, taf_mem * options.batchParallelTaf))
+        # SLURM cgroup accounting charges mmap'd HAL pages (via HDF5) against the job's
+        # memory limit, not just RSS. With many concurrent readers (up to batchParallelHal2maf),
+        # the hot page set scales with parallelism — more processes means more of the HAL is
+        # simultaneously in use. Use hal/3 as the page cache base (master used hal/33 × k which
+        # was 873 GiB for k=32 on a 900 GiB HAL — correct magnitude but wrong model).
+        hal_page_cache = max(2 * 1024**3, math.ceil(hal_id.size / 3))
+        h2m_per_process = 64 * 1024**2    # hal2maf streaming working set
+        taf_per_process = 256 * 1024**2   # taffy norm working set (reads HAL for gap fill)
+        h2m_total = hal_page_cache + options.batchParallelHal2maf * h2m_per_process
+        taf_total = hal_page_cache + options.batchParallelTaf * taf_per_process
+        batch_memory = cactus_clamp_memory(max(h2m_total, taf_total))
         
     chunks_left = len(chunks)
     batch_results = []        
@@ -652,7 +660,8 @@ def hal2maf_merge_all(job, output_dicts, options, genome_list):
     for out_type in options.outType:
         maf_ids = [out_dict[out_type] for out_dict in output_dicts]
         maf_size = sum([maf_id.size for maf_id in maf_ids])
-        merge_job = job.addChildJobFn(hal2maf_merge, maf_ids, options)
+        merge_job = job.addChildJobFn(hal2maf_merge, maf_ids, options,
+                                      disk=int(3 * maf_size))
         # we export ASAP
         output_name, output_ext = os.path.splitext(options.outputMAF)
         if output_ext == '.gz':
