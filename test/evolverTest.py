@@ -608,6 +608,7 @@ class TestCase(unittest.TestCase):
         mg_path = os.path.join(self.tempDir, 'yeast.sv.gfa.gz')
         mg_cmd = ['cactus-minigraph', self._job_store(binariesMode), seq_file_path, mg_path, '--reference', 'S288C'] + cactus_opts
         subprocess.check_call(mg_cmd)
+        self._validate_sv_gfa(mg_path)
 
         # run graphmap in base mode
         paf_path = os.path.join(self.tempDir, 'yeast.paf')
@@ -669,6 +670,16 @@ class TestCase(unittest.TestCase):
         subprocess.check_call(['mkdir', '-p', os.path.join(self.tempDir, 'chroms')])
         subprocess.check_call(['mv', os.path.join(join_path, 'chrom-subproblems', 'contig_sizes.tsv'), os.path.join(self.tempDir, 'chroms')])
 
+    def _validate_sv_gfa(self, gfa_path):
+        """ run `zcat <gfa_path> | vg validate -` and assert it passes.
+        catches things like missing edges in the merged minigraph SV GFA.
+        """
+        self.assertTrue(os.path.exists(gfa_path), 'sv.gfa.gz not found at {}'.format(gfa_path))
+        proc = subprocess.run('zcat {} | vg validate -'.format(gfa_path),
+                              shell=True, capture_output=True)
+        self.assertEqual(proc.returncode, 0,
+                         'vg validate failed for {}\nstderr:\n{}'.format(gfa_path, proc.stderr.decode()))
+
     def _check_yeast_pangenome(self, binariesMode, other_ref=None, expect_odgi=False, expect_haplo=False, expect_unchopped_gfa=False, expect_augRef=False):
         """ yeast pangenome chromosome by chromosome pipeline
         """
@@ -684,6 +695,12 @@ class TestCase(unittest.TestCase):
         assert len(events) == 6
 
         join_path = os.path.join(self.tempDir, 'join')
+
+        # validate the minigraph SV GFA: catches dropped/dangling edges
+        # (e.g. the per-chrom merge_sv_gfa bug under --mgSplit)
+        sv_gfa_path = os.path.join(join_path, 'yeast.sv.gfa.gz')
+        if os.path.exists(sv_gfa_path):
+            self._validate_sv_gfa(sv_gfa_path)
         vcf_paths = [os.path.join(join_path, 'yeast.vcf.gz')]
         if other_ref:
             vcf_paths.append(os.path.join(join_path, 'yeast.{}.vcf.gz'.format(other_ref)))
