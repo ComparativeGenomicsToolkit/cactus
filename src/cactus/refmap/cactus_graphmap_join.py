@@ -2210,10 +2210,17 @@ def merge_sv_gfa(job, options, sv_gfa_ids):
                     line = line.decode()
                     if line.startswith('S'):
                         toks = line.split('\t')
-                        seq_id = toks[1]
-                        seq_no = int(seq_id[1:]) + offset
+                        seq_no = int(toks[1][1:]) + offset
                         toks[1] = 's{}'.format(seq_no)
                         cur_max = max(cur_max, seq_no)
+                        merged_gfa_file.write('\t'.join(toks).encode())
+                    elif line.startswith('L'):
+                        # L lines reference segment IDs in toks[1] (from) and toks[3] (to);
+                        # they need the same offset as S lines or edges will silently rewire
+                        # to segments from previously-merged chromosomes
+                        toks = line.split('\t')
+                        toks[1] = 's{}'.format(int(toks[1][1:]) + offset)
+                        toks[3] = 's{}'.format(int(toks[3][1:]) + offset)
                         merged_gfa_file.write('\t'.join(toks).encode())
                     else:
                         merged_gfa_file.write(line.encode())
