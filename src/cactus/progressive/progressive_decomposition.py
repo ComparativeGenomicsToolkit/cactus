@@ -78,8 +78,8 @@ def compute_outgroups(mc_tree, config_wrapper, outgroup_candidates = set(), root
                         candidateChildFrac=config_wrapper.getOutgroupAncestorQualityFraction(),
                         maxNumOutgroups=config_wrapper.getMaxNumOutgroups(),
                         extraChromOutgroups=config_wrapper.getExtraChromOutgroups(),
-                        topological=config_wrapper.getOutgroupTopological(),
-                        overlapPenalty=config_wrapper.getOutgroupOverlapPenalty())
+                        overlapPenalty=config_wrapper.getOutgroupOverlapPenalty(),
+                        cladeDiscount=config_wrapper.getOutgroupCladeDiscount())
     if leaves_only:
         # use all leaves as outgroups, unless outgroup candidates are given
         outgroup.greedy(threshold=config_wrapper.getOutgroupThreshold(),
@@ -87,16 +87,16 @@ def compute_outgroups(mc_tree, config_wrapper, outgroup_candidates = set(), root
                         candidateChildFrac=2.0,
                         maxNumOutgroups=config_wrapper.getMaxNumOutgroups(),
                         extraChromOutgroups=config_wrapper.getExtraChromOutgroups(),
-                        topological=config_wrapper.getOutgroupTopological(),
-                        overlapPenalty=config_wrapper.getOutgroupOverlapPenalty())
+                        overlapPenalty=config_wrapper.getOutgroupOverlapPenalty(),
+                        cladeDiscount=config_wrapper.getOutgroupCladeDiscount())
     elif config_wrapper.getOutgroupStrategy() != 'none':
         outgroup.greedy(threshold=config_wrapper.getOutgroupThreshold(),
                         candidateSet=None,
                         candidateChildFrac=config_wrapper.getOutgroupAncestorQualityFraction(),
                         maxNumOutgroups=config_wrapper.getMaxNumOutgroups(),
                         extraChromOutgroups=config_wrapper.getExtraChromOutgroups(),
-                        topological=config_wrapper.getOutgroupTopological(),
-                        overlapPenalty=config_wrapper.getOutgroupOverlapPenalty())
+                        overlapPenalty=config_wrapper.getOutgroupOverlapPenalty(),
+                        cladeDiscount=config_wrapper.getOutgroupCladeDiscount())
     
     if not include_dists:
         for k, v in outgroup.ogMap.items():

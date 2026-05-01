@@ -528,7 +528,7 @@
 		<!-- ancestor_quality_fraction: min fraction of children of ancestor in candidateSet in order for the ancestor to be an outgroup candidate -->
 		<!-- max_num_outgroups: maximum number of outgroups per alignment job-->
 		<!-- extra_chrom_outgroups: if max_num_outgroups is not sufficent to satisfy sex chromosome requirements of an ancestor while still using nearest species, allow up to this many extra (when -1 set to the number of unique sex chromosomes for the ancestor).  -->
-		<!-- topological: if 1, sort outgroup candidates by (LCA_height, distance) instead of just distance. This prefers topologically closer outgroups over those with short branch lengths. -->
+		<!-- clade_discount: tier-based relative discount needed for an out-of-clade candidate to compete with a closer-tier candidate.  Effective distance = dist / (1 - clade_discount)^(tier - 1) where tier = hops from source up to LCA(source, sink) (1 = sister, 2 = uncle, ...).  E.g. clade_discount=0.30 means a tier-2 candidate must be at least 30% closer in distance than the best tier-1 candidate to win.  0 = pure distance, -> 1 = strict in-clade preference (the previous topological=1 behavior). -->
 		<!-- overlap_penalty: scale factor for branches already covered by an outgroup. After selecting an outgroup, all branches on the path from the ancestor to that outgroup are scaled by this factor for subsequent outgroup selection. Values > 1 penalize shared paths (e.g., 2.0 doubles the effective distance). 0 means disabled. -->
 		<outgroup
 			strategy="greedyPreference"
@@ -536,7 +536,7 @@
 			ancestor_quality_fraction="0.75"
 			max_num_outgroups="3"
 			extra_chrom_outgroups="-1"
-			topological="1"
+			clade_discount="0.3"
 			overlap_penalty="2"
 			/>
 

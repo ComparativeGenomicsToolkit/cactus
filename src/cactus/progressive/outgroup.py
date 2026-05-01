@@ -59,6 +59,9 @@ class GreedyOutgroup(object):
         # undirected distance matrix
         self.dm = dict(NX.algorithms.shortest_paths.weighted.\
         all_pairs_dijkstra_path_length(graph))
+        # unweighted shortest path lengths (number of edges between every pair)
+        self.hopDist = dict(NX.algorithms.shortest_paths.unweighted.\
+        all_pairs_shortest_path_length(graph))
         # LCA map: (node1, node2) -> lowest common ancestor
         self.lcaMap = dict(NX.tree_all_pairs_lowest_common_ancestor(self.dag, root=self.root))
         # the results: map tree events to otugroups
@@ -342,41 +345,51 @@ class GreedyOutgroup(object):
     # maxNumOutgroups : max number of outgroups to put in each entry of self.ogMap
     # extraChromOutgroups : number of extra outgroups that can be added to attemp
     # to satisfy chromosomes.
-    # topological : if True, sort outgroup candidates by (LCA_height, distance)
-    # instead of just distance. This prefers topologically closer outgroups
-    # (those sharing a more recent common ancestor) over those that happen
-    # to have short branch lengths.
     # overlapPenalty : scale factor for branches already covered by an outgroup.
     # After selecting an outgroup, all branches on the path from source to
     # that outgroup are scaled by this factor for subsequent outgroup
     # computations. This encourages subsequent outgroups to come from
     # different parts of the tree. Default 0 means disabled.
+    # cladeDiscount : tier-based relative discount needed for an out-of-clade
+    # candidate to compete with a closer-tier candidate. Effective distance is
+    #   dist / (1 - cladeDiscount)^(tier - 1)
+    # where tier = hops from source up to LCA(source, sink) (1 = sister branch,
+    # 2 = uncle branch, etc.). Equivalently: a tier-(t+1) candidate must be at
+    # least (1 - cladeDiscount) times closer than the best tier-t candidate to
+    # win. cladeDiscount = 0 -> pure distance; cladeDiscount -> 1 -> strict lca
+    # preference. Composes with overlapPenalty: overlap scales path branches
+    # first, then the tier discount is applied to the result.
+    # (default: 0, disabled)
     def greedy(self, threshold = None, candidateSet = None,
                candidateChildFrac = 2., maxNumOutgroups = 1,
-               extraChromOutgroups = -1, topological = False,
-               overlapPenalty = 0.0):
-        # compute height table early (needed for topological sorting and threshold)
+               extraChromOutgroups = -1,
+               overlapPenalty = 0.0, cladeDiscount = 0.0):
+        # height table is used by the threshold check below
         htable = self.heightTable()
 
-        # sort the (undirected) distance map
+        # discount factor per tier above 1; clamp to avoid div-by-zero at beta=1
+        clade_factor = 1.0 - min(cladeDiscount, 0.9999) if cladeDiscount > 0 else 1.0
+
+        def clade_scale(source, sink):
+            """Multiplier on distance: 1 / (1 - beta)^(tier - 1) where
+            tier = hops from source up to LCA(source, sink)."""
+            if cladeDiscount <= 0:
+                return 1.0
+            lca = self.lcaMap.get((source, sink), self.lcaMap.get((sink, source)))
+            if lca is None or lca == source:
+                return 1.0
+            tier = self.hopDist[source].get(lca, 0)
+            if tier <= 1:
+                return 1.0
+            return 1.0 / (clade_factor ** (tier - 1))
+
+        # sort the (undirected) distance map by tier-discounted distance
         orderedPairs = []
         for source, sinks in list(self.dm.items()):
             for sink, dist in list(sinks.items()):
                 if source != self.root and sink != self.root:
                     orderedPairs.append((dist, (source, sink)))
-
-        if topological:
-            # Sort by (LCA_height, distance) tuple to prefer topologically
-            # closer outgroups over those with short branch lengths.
-            # Lower LCA height means a more recent common ancestor.
-            def topo_key(x):
-                dist, (source, sink) = x
-                # lcaMap may have either (source, sink) or (sink, source) as key
-                lca = self.lcaMap.get((source, sink), self.lcaMap.get((sink, source)))
-                return (htable[lca], dist)
-            orderedPairs.sort(key=topo_key)
-        else:
-            orderedPairs.sort(key = lambda x: x[0])
+        orderedPairs.sort(key=lambda x: x[0] * clade_scale(x[1][0], x[1][1]))
 
         finished = set()
         self.candidateMap = dict()
@@ -436,16 +449,17 @@ class GreedyOutgroup(object):
                 edge_scales_by_source[source][edge_key] = current_scale * scale_factor
 
         def get_adjusted_dist(source, sink):
-            """Get distance from source to sink, adjusted for overlap penalty."""
+            """Get distance from source to sink, adjusted for overlap penalty
+            (path-edge scaling) and tier-based clade discount.
+            Order: overlap scales the branch lengths first, then the tier
+            multiplier is applied to the resulting sum."""
             if source not in edge_scales_by_source or not edge_scales_by_source[source]:
-                return self.dm[source].get(sink, float('inf'))
-            return self.computeAdjustedDistance(source, sink, edge_scales_by_source[source], undirected_graph)
-
-        def get_adjusted_topo_key(source, sink, original_dist):
-            """Get topological sort key using adjusted distance."""
-            lca = self.lcaMap.get((source, sink), self.lcaMap.get((sink, source)))
-            adj_dist = get_adjusted_dist(source, sink)
-            return (htable[lca], adj_dist)
+                base = self.dm[source].get(sink, float('inf'))
+            else:
+                base = self.computeAdjustedDistance(source, sink, edge_scales_by_source[source], undirected_graph)
+            if cladeDiscount > 0:
+                base = base * clade_scale(source, sink)
+            return base
 
         # visit the tree bottom up
         for node in self.mcTree.postOrderTraversal():
@@ -457,11 +471,9 @@ class GreedyOutgroup(object):
             needs_resort = False
 
             def resort_by_adjusted_distance(pairs, source):
-                """Re-sort candidate pairs by adjusted distance for overlap penalty."""
-                if topological:
-                    return sorted(pairs, key=lambda x: get_adjusted_topo_key(source, x[1][1], x[0]))
-                else:
-                    return sorted(pairs, key=lambda x: get_adjusted_dist(source, x[1][1]))
+                """Re-sort candidate pairs by adjusted distance (overlap-scaled
+                branch lengths combined with tier-based clade discount)."""
+                return sorted(pairs, key=lambda x: get_adjusted_dist(source, x[1][1]))
 
             candidate_idx = 0
             while candidate_idx < len(orderedPairs):
@@ -541,18 +553,14 @@ class GreedyOutgroup(object):
         # Since we could be adding to the ogMap instead of creating
         # it, sort the outgroups again. Sorting the outgroups is critical
         # for the multiple-outgroups code to work well.
-        if topological:
-            # Sort by (LCA_height, distance) to maintain topological preference
-            def topo_sort_key(source_name, og_name, og_dist):
-                source_id = self.mcTree.getNodeId(source_name)
-                sink_id = self.mcTree.getNodeId(og_name)
-                lca = self.lcaMap.get((source_id, sink_id), self.lcaMap.get((sink_id, source_id)))
-                return (htable[lca], og_dist)
-            for node, outgroups in list(self.ogMap.items()):
-                self.ogMap[node] = sorted(outgroups, key=lambda x: topo_sort_key(node, x[0], x[1]))
-        else:
-            for node, outgroups in list(self.ogMap.items()):
-                self.ogMap[node] = sorted(outgroups, key=lambda x: x[1])
+        def final_sort_key(source_name, og_name, og_dist):
+            if cladeDiscount <= 0:
+                return og_dist
+            source_id = self.mcTree.getNodeId(source_name)
+            sink_id = self.mcTree.getNodeId(og_name)
+            return og_dist * clade_scale(source_id, sink_id)
+        for node, outgroups in list(self.ogMap.items()):
+            self.ogMap[node] = sorted(outgroups, key=lambda x: final_sort_key(node, x[0], x[1]))
 
         # the chromosome specification logic trumps the maximum number of outgroups
         # so we do a second pass to reconcile them (greedily) as best as possible
@@ -574,10 +582,6 @@ def main():
                       help="Maximum number of outgroups to provide if necessitated by --chromInfo", type=int, default=-1)    
     parser.add_option("--chromInfo", dest="chromInfo",
                       help="File mapping genomes to sex chromosome lists")
-    parser.add_option("--topological", dest="topological", action="store_true",
-                      default=False, help="Sort outgroup candidates by (LCA_height, distance) "
-                      "instead of just distance. This prefers topologically closer outgroups "
-                      "(sharing a more recent common ancestor) over those with short branch lengths.")
     parser.add_option("--overlapPenalty", dest="overlapPenalty", type='float',
                       default=0.0, help="Scale factor for branches already covered by an outgroup. "
                       "After selecting an outgroup, all branches on the path from the ancestor to "
@@ -585,6 +589,13 @@ def main():
                       "This encourages subsequent outgroups to come from different parts of the tree. "
                       "Values > 1 penalize shared paths (e.g., 2.0 doubles the effective distance). "
                       "(default: 0, disabled)")
+    parser.add_option("--cladeDiscount", dest="cladeDiscount", type='float',
+                      default=0.0, help="Tier-based discount needed for an out-of-clade candidate "
+                      "to compete with a closer-tier candidate. Effective distance is "
+                      "dist / (1 - cladeDiscount)^(tier - 1) where tier = hops from source to LCA "
+                      "(1 = sister, 2 = uncle, ...). E.g. cladeDiscount=0.1 means a tier-2 candidate "
+                      "must be 10% closer than the best tier-1 to win. cladeDiscount->1 = strict lca; "
+                      "cladeDiscount=0 = pure distance. (default: 0, disabled)")
     parser.add_option("--configFile", dest="configFile",
                       help="Specify cactus configuration file",
                       default=os.path.join(cactusRootPath(), "cactus_progressive_config.xml"))
@@ -618,8 +629,8 @@ def main():
                     candidateChildFrac=1.1,
                     maxNumOutgroups=options.maxNumOutgroups,
                     extraChromOutgroups=options.extraChromOutgroups,
-                    topological=options.topological,
-                    overlapPenalty=options.overlapPenalty)
+                    overlapPenalty=options.overlapPenalty,
+                    cladeDiscount=options.cladeDiscount)
 
     try:
         NX.drawing.nx_agraph.write_dot(outgroup.dag, args[1])
