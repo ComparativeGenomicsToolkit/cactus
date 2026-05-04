@@ -187,13 +187,13 @@ def graphmap_join_options(parser):
 
     parser.add_argument("--delEdgeFilter", type=int, default=None, help = "Remove edges that span more than Nbp on the reference genome (vg clip -D). Applied during clipping.")
 
-    parser.add_argument("--augRef", nargs='?', const='clip', default=None,
-                        help="[EXPERIMENTAL] Generate augmented reference outputs. Adds synthetic "
+    parser.add_argument("--gref", nargs='?', const='clip', default=None,
+                        help="[EXPERIMENTAL] Generate graph reference outputs. Adds synthetic "
                         "reference paths covering non-reference graph regions via vg paths -u, then "
-                        "produces additional .aug.* outputs (gbz, gfa, vcf, hapl). Valid source types "
+                        "produces additional .gref.* outputs (gbz, gfa, vcf, hapl). Valid source types "
                         "are 'full', 'clip', 'filter'. Default: 'clip'. [default: disabled]")
-    parser.add_argument("--minAugRefLen", type=int, default=None,
-                        help="Minimum augmented reference fragment length [default from config: 50]")
+    parser.add_argument("--minGrefLen", type=int, default=None,
+                        help="Minimum graph reference fragment length [default from config: 50]")
 
 def graphmap_join_validate_options(options):
     """ make sure the options make sense and fill in sensible defaults """
@@ -470,26 +470,26 @@ def graphmap_join_validate_options(options):
             logger.warning("Activating --gbz {} since --haplo {} was specified".format(haplo, haplo))
             options.gbz.append(haplo)
         
-    # validate --augRef
-    if options.augRef is not None:
-        if options.augRef not in ['full', 'clip', 'filter']:
-            raise RuntimeError('Unrecognized value for --augRef: {}. Must be one of {{full, clip, filter}}'.format(options.augRef))
-        if options.augRef == 'clip' and not options.clip:
-            raise RuntimeError('--augRef clip requires clipping to be enabled (--clip must not be 0)')
-        if options.augRef == 'filter' and not options.filter:
-            raise RuntimeError('--augRef filter requires filtering to be enabled (--filter must not be 0)')
+    # validate --gref
+    if options.gref is not None:
+        if options.gref not in ['full', 'clip', 'filter']:
+            raise RuntimeError('Unrecognized value for --gref: {}. Must be one of {{full, clip, filter}}'.format(options.gref))
+        if options.gref == 'clip' and not options.clip:
+            raise RuntimeError('--gref clip requires clipping to be enabled (--clip must not be 0)')
+        if options.gref == 'filter' and not options.filter:
+            raise RuntimeError('--gref filter requires filtering to be enabled (--filter must not be 0)')
         if getattr(options, 'collapse', False):
-            raise RuntimeError('--augRef is not compatible with --collapse (vg paths -u requires acyclic reference paths)')
+            raise RuntimeError('--gref is not compatible with --collapse (vg paths -u requires acyclic reference paths)')
 
     # Prevent some useless compute due to default param combos
-    aug_ref_needs_clip = options.augRef in ['clip', 'filter'] if options.augRef else False
-    aug_ref_needs_filter = options.augRef == 'filter' if options.augRef else False
+    gref_needs_clip = options.gref in ['clip', 'filter'] if options.gref else False
+    gref_needs_filter = options.gref == 'filter' if options.gref else False
     if options.clip and 'clip' not in options.gfa + options.gbz + options.odgi + options.chrom_vg + options.chrom_og + options.vcf + options.giraffe + options.lrGiraffe + options.viz + options.draw\
        and 'filter' not in options.gfa + options.gbz + options.odgi + options.chrom_vg + options.chrom_og + options.vcf + options.giraffe + options.lrGiraffe + options.viz + options.draw\
-       and not aug_ref_needs_clip:
+       and not gref_needs_clip:
         options.clip = None
     if options.filter and 'filter' not in options.gfa + options.gbz + options.odgi + options.chrom_vg + options.chrom_og + options.vcf + options.giraffe + options.lrGiraffe + options.viz + options.draw\
-       and not aug_ref_needs_filter:
+       and not gref_needs_filter:
         options.filter = None
 
     if options.bypass:
@@ -512,10 +512,10 @@ def graphmap_join_validate_options(options):
             raise RuntimeError('Output type(s) {} requested but not available from bypass inputs. '
                              'Available types: {}'.format(unavailable, options.bypass_available_types))
 
-        # In bypass mode, validate that augRef source type is available
-        if options.augRef and options.augRef not in options.bypass_available_types:
-            raise RuntimeError('--augRef {} requested but {} was not provided as a bypass input'.format(
-                options.augRef, options.augRef))
+        # In bypass mode, validate that gref source type is available
+        if options.gref and options.gref not in options.bypass_available_types:
+            raise RuntimeError('--gref {} requested but {} was not provided as a bypass input'.format(
+                options.gref, options.gref))
 
         # In bypass mode, VCF normalization extracts fasta from VG files which only
         # works for the first (primary) reference
@@ -903,62 +903,62 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
                                                                   disk=sum(f.size for f in vg_ids) * 2)
             out_dicts.append(snarl_stats_merge_job.rv())
 
-    # optional augmented reference
-    if options.augRef:
+    # optional graph reference
+    if options.gref:
         # find the source phase VG IDs and root job
-        aug_source_vg_ids = None
-        aug_source_root_job = None
+        gref_source_vg_ids = None
+        gref_source_root_job = None
         for wp_name, wp_vg_ids, wp_root_job in workflow_phases:
-            if wp_name == options.augRef:
-                aug_source_vg_ids = wp_vg_ids
-                aug_source_root_job = wp_root_job
+            if wp_name == options.gref:
+                gref_source_vg_ids = wp_vg_ids
+                gref_source_root_job = wp_root_job
                 break
-        assert aug_source_vg_ids is not None, 'augRef source phase {} not found in workflow_phases'.format(options.augRef)
+        assert gref_source_vg_ids is not None, 'gref source phase {} not found in workflow_phases'.format(options.gref)
 
         join_node = findRequiredNode(config.xmlRoot, "graphmap_join")
-        aug_ref_prefix = getOptionalAttrib(join_node, "augRefPrefix", typeFn=str, default="augref_")
+        gref_prefix = getOptionalAttrib(join_node, "grefPrefix", typeFn=str, default="gref_")
 
-        # augRef only works with the primary reference (whose paths are guaranteed acyclic)
+        # gref only works with the primary reference (whose paths are guaranteed acyclic)
         vcf_ref = options.reference[0]
-        aug_sample = aug_ref_prefix + vcf_ref
+        gref_sample = gref_prefix + vcf_ref
 
         # augment each chromosome in parallel
-        aug_root_job = Job()
-        aug_source_root_job.addFollowOn(aug_root_job)
+        gref_root_job = Job()
+        gref_source_root_job.addFollowOn(gref_root_job)
 
-        aug_vg_ids = []
-        aug_segs_ids = []
-        for vg_path, vg_id, input_vg_id in zip(options.vg, aug_source_vg_ids, vg_ids):
-            aug_job = aug_root_job.addChildJobFn(augment_ref_paths, config, options, vg_path, vg_id, vcf_ref,
+        gref_vg_ids = []
+        gref_segs_ids = []
+        for vg_path, vg_id, input_vg_id in zip(options.vg, gref_source_vg_ids, vg_ids):
+            gref_job = gref_root_job.addChildJobFn(compute_gref_paths, config, options, vg_path, vg_id, vcf_ref,
                                                  disk=input_vg_id.size * 20,
                                                  memory=max(2**31, min(input_vg_id.size * 20, max_mem)),
                                                  cores=options.indexCores)
-            aug_vg_ids.append(aug_job.rv(0))
-            aug_segs_ids.append(aug_job.rv(1))
+            gref_vg_ids.append(gref_job.rv(0))
+            gref_segs_ids.append(gref_job.rv(1))
 
-        # extract augref reference fasta for vcf normalization (only if needed)
-        aug_ref_fasta_dict = None
-        aug_parent_job = aug_root_job
+        # extract gref reference fasta for vcf normalization (only if needed)
+        gref_fasta_dict = None
+        gref_parent_job = gref_root_job
         if need_ref_fasta:
-            aug_ref_fasta_job = aug_root_job.addFollowOnJobFn(extract_vg_fasta, options, aug_vg_ids,
-                                                              vcf_ref=aug_sample,
+            gref_fasta_job = gref_root_job.addFollowOnJobFn(extract_vg_fasta, options, gref_vg_ids,
+                                                              vcf_ref=gref_sample,
                                                               disk=sum(f.size for f in vg_ids) * 2,
                                                               memory=cactus_clamp_memory(sum(f.size for f in vg_ids) * 4))
-            aug_ref_fasta_dict = aug_ref_fasta_job.rv()
-            aug_parent_job = aug_ref_fasta_job
+            gref_fasta_dict = gref_fasta_job.rv()
+            gref_parent_job = gref_fasta_job
 
-        # build GFA, GBZ, VCF, haplo from the augmented VGs
-        aug_out_dicts = build_vg_indexes_and_vcf(aug_parent_job, options, config, aug_vg_ids, vg_ids,
-                                                 tag='aug.', index_mem=index_mem, max_mem=max_mem,
-                                                 vcf_ref=aug_sample, vcftag='aug', do_haplo=options.augRef in options.haplo,
-                                                 ref_fasta_dict=aug_ref_fasta_dict,
-                                                 is_augref=True)
-        out_dicts.extend(aug_out_dicts)
+        # build GFA, GBZ, VCF, haplo from the graph-reference VGs
+        gref_out_dicts = build_vg_indexes_and_vcf(gref_parent_job, options, config, gref_vg_ids, vg_ids,
+                                                 tag='gref.', index_mem=index_mem, max_mem=max_mem,
+                                                 vcf_ref=gref_sample, vcftag='gref', do_haplo=options.gref in options.haplo,
+                                                 ref_fasta_dict=gref_fasta_dict,
+                                                 is_gref=True)
+        out_dicts.extend(gref_out_dicts)
 
-        # merge augref segments
-        aug_segs_merge_job = aug_root_job.addFollowOnJobFn(merge_augref_segs, options.vg, aug_segs_ids,
+        # merge gref segments
+        gref_segs_merge_job = gref_root_job.addFollowOnJobFn(merge_gref_segs, options.vg, gref_segs_ids,
                                                             disk=sum(f.size for f in vg_ids))
-        out_dicts.append(aug_segs_merge_job.rv())
+        out_dicts.append(gref_segs_merge_job.rv())
 
     return output_full_vg_ids, clip_vg_ids, clipped_stats, filter_vg_ids, out_dicts, og_chrom_ids
 
@@ -1337,7 +1337,7 @@ def make_xg(job, config, out_name, index_dict, tag='', drop_haplotypes=False):
 
     return { '{}xg'.format(tag) : job.fileStore.writeGlobalFile(xg_path) }
 
-def make_vcf(job, config, options, workflow_phase, index_mem, vcf_ref, vg_ids, ref_fasta_dict, vcftag=None, is_augref=False):
+def make_vcf(job, config, options, workflow_phase, index_mem, vcf_ref, vg_ids, ref_fasta_dict, vcftag=None, is_gref=False):
     """ make the raw vcf with deconstruct. optionally add in the bub and wave vcfs too
     this is done in parallel on each chrom .vg graph
     """
@@ -1363,7 +1363,7 @@ def make_vcf(job, config, options, workflow_phase, index_mem, vcf_ref, vg_ids, r
                                                           options.vcfbub,
                                                           ref_fasta_dict,
                                                           tag=os.path.splitext(os.path.basename(vg_path))[0] + '.' + vcftag + '.',
-                                                          is_augref=is_augref,
+                                                          is_gref=is_gref,
                                                           disk = vg_id.size * 6,
                                                           memory=cactus_clamp_memory(vg_id.size * 2))
             bub_vcf_id, bub_tbi_id = vcfbub_job.rv(0), vcfbub_job.rv(1)
@@ -1375,7 +1375,7 @@ def make_vcf(job, config, options, workflow_phase, index_mem, vcf_ref, vg_ids, r
                                                            options.vcfbub,
                                                            ref_fasta_dict,
                                                            tag=os.path.splitext(os.path.basename(vg_path))[0] + '.' + vcftag + '.',
-                                                           is_augref=is_augref,
+                                                           is_gref=is_gref,
                                                            cores=options.vcfwaveCores,
                                                            disk=vg_id.size * 6,
                                                            memory=cactus_clamp_memory(options.vcfwaveMemory))
@@ -1457,20 +1457,20 @@ def deconstruct(job, config, out_name, vcf_ref, vg_id, tag):
 
     return job.fileStore.writeGlobalFile(vcf_path), job.fileStore.writeGlobalFile(tbi_path)
 
-def split_augref_vcf(vcf_path, work_dir):
-    """ Check if VCF contains augref contigs and split into base/augref BED files.
-    Returns (base_bed_path, aug_bed_path) or (None, None) if no augref contigs found.
+def split_gref_vcf(vcf_path, work_dir):
+    """ Check if VCF contains gref contigs and split into base/gref BED files.
+    Returns (base_bed_path, gref_bed_path) or (None, None) if no gref contigs found.
     Uses contig info from the VCF header to build BED files for indexed extraction with bcftools -R.
     Augref contigs are identified by the _<N>_alt suffix produced by vg paths -u.
     """
     header = cactus_call(parameters=['bcftools', 'view', '-h', vcf_path], check_output=True)
 
-    augref_re = re.compile(r'_\d+_alt$')
+    gref_re = re.compile(r'_\d+_alt$')
 
     base_bed_path = os.path.join(work_dir, 'base_contigs.bed')
-    aug_bed_path = os.path.join(work_dir, 'aug_contigs.bed')
+    gref_bed_path = os.path.join(work_dir, 'gref_contigs.bed')
     has_aug = False
-    with open(base_bed_path, 'w') as base_bed, open(aug_bed_path, 'w') as aug_bed:
+    with open(base_bed_path, 'w') as base_bed, open(gref_bed_path, 'w') as gref_bed:
         for line in header.strip().split('\n'):
             if line.startswith('##contig=<ID='):
                 fields = line[len('##contig=<'):].rstrip('>').split(',')
@@ -1482,18 +1482,18 @@ def split_augref_vcf(vcf_path, work_dir):
                     elif f.startswith('length='):
                         contig_len = f[7:]
                 if contig_id and contig_len:
-                    if augref_re.search(contig_id):
-                        aug_bed.write('{}\t0\t{}\n'.format(contig_id, contig_len))
+                    if gref_re.search(contig_id):
+                        gref_bed.write('{}\t0\t{}\n'.format(contig_id, contig_len))
                         has_aug = True
                     else:
                         base_bed.write('{}\t0\t{}\n'.format(contig_id, contig_len))
 
     if has_aug:
-        return base_bed_path, aug_bed_path
+        return base_bed_path, gref_bed_path
     else:
         return None, None
 
-def vcfbub(job, config, out_name, vcf_ref, vcf_id, tbi_id, max_ref_allele, fasta_ref_dict, tag, is_augref=False):
+def vcfbub(job, config, out_name, vcf_ref, vcf_id, tbi_id, max_ref_allele, fasta_ref_dict, tag, is_gref=False):
     """ make the vcfbub vcf
     """
     if vcf_id is None:
@@ -1509,8 +1509,8 @@ def vcfbub(job, config, out_name, vcf_ref, vcf_id, tbi_id, max_ref_allele, fasta
                                    shell=True).decode('utf-8').strip()) == 0:
         return vcf_id, tbi_id
 
-    # split augref contigs so they can be run through vcfbub independently
-    base_bed_path, aug_bed_path = split_augref_vcf(vcf_path, work_dir) if is_augref else (None, None)
+    # split gref contigs so they can be run through vcfbub independently
+    base_bed_path, gref_bed_path = split_gref_vcf(vcf_path, work_dir) if is_gref else (None, None)
     if base_bed_path:
         base_vcf_path = os.path.join(work_dir, os.path.basename(out_name) + '.' + tag + 'base.vcf.gz')
         cactus_call(parameters=['bcftools', 'view', '-R', base_bed_path, '-Oz', vcf_path],
@@ -1519,7 +1519,7 @@ def vcfbub(job, config, out_name, vcf_ref, vcf_id, tbi_id, max_ref_allele, fasta
     else:
         bub_input_path = vcf_path
 
-    # run vcfbub on base contigs (or all contigs if not augref)
+    # run vcfbub on base contigs (or all contigs if not gref)
     vcfbub_path = os.path.join(work_dir, os.path.basename(out_name) + '.' + tag + 'bub.vcf.gz')
     assert max_ref_allele
     bub_cmd = [['vcfbub', '--input', bub_input_path, '--max-ref-length', str(max_ref_allele), '--max-level', '0']]
@@ -1529,21 +1529,21 @@ def vcfbub(job, config, out_name, vcf_ref, vcf_id, tbi_id, max_ref_allele, fasta
     cactus_call(parameters = bub_cmd, outfile = vcfbub_path)
 
     if base_bed_path:
-        # run vcfbub independently on augref contigs with --max-level 1 (augref variants
+        # run vcfbub independently on gref contigs with --max-level 1 (gref variants
         # are nested inside main-ref bubbles so their top-level sites have LV=1) and merge back
-        aug_raw_path = os.path.join(work_dir, os.path.basename(out_name) + '.' + tag + 'aug.raw.vcf.gz')
-        cactus_call(parameters=['bcftools', 'view', '-R', aug_bed_path, '-Oz', vcf_path],
-                    outfile=aug_raw_path)
-        aug_vcf_path = os.path.join(work_dir, os.path.basename(out_name) + '.' + tag + 'aug.bub.vcf.gz')
-        aug_bub_cmd = [['vcfbub', '--input', aug_raw_path, '--max-ref-length', str(max_ref_allele), '--max-level', '1']]
+        gref_raw_path = os.path.join(work_dir, os.path.basename(out_name) + '.' + tag + 'gref.raw.vcf.gz')
+        cactus_call(parameters=['bcftools', 'view', '-R', gref_bed_path, '-Oz', vcf_path],
+                    outfile=gref_raw_path)
+        gref_vcf_path = os.path.join(work_dir, os.path.basename(out_name) + '.' + tag + 'gref.bub.vcf.gz')
+        gref_bub_cmd = [['vcfbub', '--input', gref_raw_path, '--max-ref-length', str(max_ref_allele), '--max-level', '1']]
         if getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "filterAC0", typeFn=bool, default=False):
-            aug_bub_cmd.append(['bcftools', 'view', '-e', 'AC=0'])
-        aug_bub_cmd.append(['bgzip'])
-        cactus_call(parameters=aug_bub_cmd, outfile=aug_vcf_path)
-        index_vcf(aug_vcf_path)
+            gref_bub_cmd.append(['bcftools', 'view', '-e', 'AC=0'])
+        gref_bub_cmd.append(['bgzip'])
+        cactus_call(parameters=gref_bub_cmd, outfile=gref_vcf_path)
+        index_vcf(gref_vcf_path)
         index_vcf(vcfbub_path)
         merged_path = os.path.join(work_dir, os.path.basename(out_name) + '.' + tag + 'bub.merged.vcf.gz')
-        cactus_call(parameters=['bcftools', 'concat', '-a', '-Oz', vcfbub_path, aug_vcf_path],
+        cactus_call(parameters=['bcftools', 'concat', '-a', '-Oz', vcfbub_path, gref_vcf_path],
                     outfile=merged_path)
         vcfbub_path = merged_path
 
@@ -1666,7 +1666,7 @@ def check_vcffixup(job):
     except:
         raise RuntimeError('vcf normalization with merge_duplicates enabled, but vcffixup tool (used in postprocessing) not found in PATH. vcffixup is *not* included in the cactus binary release, but it is in the cactus Docker image. If you have Docker installed, you can try running again with --binariesMode docker. Or running your whole command with docker run. If you cannot use Docker, then you will need to build vcflib yourself before retrying: source code and details here: https://github.com/vcflib/vcflib. Running the ./build-tools/downloadVCFWave script (from the cactus/ directory) will attemp to download and build vcfwave.')    
     
-def chunked_vcfwave(job, config, out_name, vcf_ref, vcf_id, tbi_id, max_ref_allele, fasta_ref_dict, tag, is_augref=False):
+def chunked_vcfwave(job, config, out_name, vcf_ref, vcf_id, tbi_id, max_ref_allele, fasta_ref_dict, tag, is_gref=False):
     """ run vcfwave in parallel chunks """
     if vcf_id is None:
         return None, None
@@ -1681,8 +1681,8 @@ def chunked_vcfwave(job, config, out_name, vcf_ref, vcf_id, tbi_id, max_ref_alle
                                    shell=True).decode('utf-8').strip()) == 0:
         return vcf_id, tbi_id
 
-    # split augref contigs so they can be run through vcfbub/vcfwave independently
-    base_bed_path, aug_bed_path = split_augref_vcf(vcf_path, work_dir) if is_augref else (None, None)
+    # split gref contigs so they can be run through vcfbub/vcfwave independently
+    base_bed_path, gref_bed_path = split_gref_vcf(vcf_path, work_dir) if is_gref else (None, None)
     if base_bed_path:
         base_vcf_path = os.path.join(work_dir, os.path.basename(out_name) + '.' + vcf_ref + '.' + tag + 'base.vcf.gz')
         cactus_call(parameters=['bcftools', 'view', '-R', base_bed_path, '-Oz', vcf_path],
@@ -1703,23 +1703,23 @@ def chunked_vcfwave(job, config, out_name, vcf_ref, vcf_id, tbi_id, max_ref_alle
     cactus_call(parameters=bub_cmd, outfile=vcfbub_path)
 
     if base_bed_path:
-        # run vcfbub independently on augref contigs with -l 1 (augref variants
+        # run vcfbub independently on gref contigs with -l 1 (gref variants
         # are nested inside main-ref bubbles so their top-level sites have LV=1) and merge back
-        aug_raw_path = os.path.join(work_dir, os.path.basename(out_name) + '.' + vcf_ref + '.' + tag + 'aug.raw.vcf.gz')
-        cactus_call(parameters=['bcftools', 'view', '-R', aug_bed_path, '-Oz', vcf_path],
-                    outfile=aug_raw_path)
-        aug_vcf_path = os.path.join(work_dir, os.path.basename(out_name) + '.' + vcf_ref + '.' + tag + 'aug.bub.vcf.gz')
-        aug_bub_cmd = [['vcfbub', '--input', aug_raw_path, '-l', '1', '-a', str(max_ref_allele)],
+        gref_raw_path = os.path.join(work_dir, os.path.basename(out_name) + '.' + vcf_ref + '.' + tag + 'gref.raw.vcf.gz')
+        cactus_call(parameters=['bcftools', 'view', '-R', gref_bed_path, '-Oz', vcf_path],
+                    outfile=gref_raw_path)
+        gref_vcf_path = os.path.join(work_dir, os.path.basename(out_name) + '.' + vcf_ref + '.' + tag + 'gref.bub.vcf.gz')
+        gref_bub_cmd = [['vcfbub', '--input', gref_raw_path, '-l', '1', '-a', str(max_ref_allele)],
                        ['bcftools', 'annotate', '-x', 'INFO/AT'],
                        ['bcftools', 'norm', '-m', '-any']]
         if getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "filterAC0", typeFn=bool, default=False):
-            aug_bub_cmd.append(['bcftools', 'view', '-e', 'AC=0'])
-        aug_bub_cmd.append(['bgzip', '--threads', str(job.cores)])
-        cactus_call(parameters=aug_bub_cmd, outfile=aug_vcf_path)
-        index_vcf(aug_vcf_path)
+            gref_bub_cmd.append(['bcftools', 'view', '-e', 'AC=0'])
+        gref_bub_cmd.append(['bgzip', '--threads', str(job.cores)])
+        cactus_call(parameters=gref_bub_cmd, outfile=gref_vcf_path)
+        index_vcf(gref_vcf_path)
         index_vcf(vcfbub_path)
         merged_path = os.path.join(work_dir, os.path.basename(out_name) + '.' + vcf_ref + '.' + tag + 'bub.merged.vcf.gz')
-        cactus_call(parameters=['bcftools', 'concat', '-a', '-Oz', vcfbub_path, aug_vcf_path],
+        cactus_call(parameters=['bcftools', 'concat', '-a', '-Oz', vcfbub_path, gref_vcf_path],
                     outfile=merged_path)
         vcfbub_path = merged_path
 
@@ -2043,7 +2043,7 @@ def snarl_stats(job, options, config, vg_path, vg_id):
 
 def build_vg_indexes_and_vcf(parent_job, options, config, phase_vg_ids, vg_ids,
                              tag, index_mem, max_mem, vcf_ref=None, vcftag=None,
-                             ref_fasta_dict=None, do_haplo=False, is_augref=False):
+                             ref_fasta_dict=None, do_haplo=False, is_gref=False):
     """ Common workflow: per-chrom VG -> GFA -> GBZ+snarls, with optional VCF and haplo.
     Returns list of output dicts to append to out_dicts.
     """
@@ -2073,7 +2073,7 @@ def build_vg_indexes_and_vcf(parent_job, options, config, phase_vg_ids, vg_ids,
         vcf_job = gfa_root_job.addFollowOnJobFn(make_vcf, config, options, tag.rstrip('.'),
                                                  index_mem, vcf_ref, phase_vg_ids,
                                                  ref_fasta_dict, vcftag=vcftag,
-                                                 is_augref=is_augref)
+                                                 is_gref=is_gref)
         out_dicts.append(vcf_job.rv())
 
     # optional haplo index
@@ -2087,34 +2087,34 @@ def build_vg_indexes_and_vcf(parent_job, options, config, phase_vg_ids, vg_ids,
 
     return out_dicts
 
-def augment_ref_paths(job, config, options, vg_path, vg_id, vcf_ref):
-    """ run vg paths -u on a single per-chromosome VG to add augmented reference paths """
+def compute_gref_paths(job, config, options, vg_path, vg_id, vcf_ref):
+    """ run vg paths -u on a single per-chromosome VG to add graph reference paths """
     work_dir = job.fileStore.getLocalTempDir()
     vg_path = os.path.join(work_dir, os.path.basename(vg_path))
     job.fileStore.readGlobalFile(vg_id, vg_path)
 
     join_node = findRequiredNode(config.xmlRoot, "graphmap_join")
-    min_aug_ref_len = options.minAugRefLen if options.minAugRefLen is not None else \
-        getOptionalAttrib(join_node, "minAugRefLen", typeFn=int, default=50)
-    aug_ref_prefix = getOptionalAttrib(join_node, "augRefPrefix", typeFn=str, default="augref_")
-    aug_sample = aug_ref_prefix + vcf_ref
+    min_gref_len = options.minGrefLen if options.minGrefLen is not None else \
+        getOptionalAttrib(join_node, "minGrefLen", typeFn=int, default=50)
+    gref_prefix = getOptionalAttrib(join_node, "grefPrefix", typeFn=str, default="gref_")
+    gref_sample = gref_prefix + vcf_ref
 
-    aug_vg_path = vg_path + '.aug'
-    segs_path = vg_path + '.augref-segs.tsv'
+    gref_vg_path = vg_path + '.gref'
+    segs_path = vg_path + '.gref-segs.tsv'
 
     cmd = ['vg', 'paths', '-x', vg_path, '-u', '-Q', vcf_ref,
-           '--min-augref-len', str(min_aug_ref_len),
-           '-N', aug_sample,
+           '--min-augref-len', str(min_gref_len),
+           '-N', gref_sample,
            '--augref-segs', segs_path,
            '-t', str(job.cores)]
-    cactus_call(parameters=cmd, outfile=aug_vg_path, job_memory=job.memory)
+    cactus_call(parameters=cmd, outfile=gref_vg_path, job_memory=job.memory)
 
-    return job.fileStore.writeGlobalFile(aug_vg_path), job.fileStore.writeGlobalFile(segs_path)
+    return job.fileStore.writeGlobalFile(gref_vg_path), job.fileStore.writeGlobalFile(segs_path)
 
-def merge_augref_segs(job, vg_paths, segs_ids):
-    """ concatenate per-chromosome augref segment TSV files, skipping duplicate headers """
+def merge_gref_segs(job, vg_paths, segs_ids):
+    """ concatenate per-chromosome gref segment TSV files, skipping duplicate headers """
     work_dir = job.fileStore.getLocalTempDir()
-    merged_path = os.path.join(work_dir, 'augref-segs.tsv')
+    merged_path = os.path.join(work_dir, 'gref-segs.tsv')
 
     first = True
     with open(merged_path, 'w') as merged_file:
@@ -2131,7 +2131,7 @@ def merge_augref_segs(job, vg_paths, segs_ids):
             first = False
 
     cactus_call(parameters=['bgzip', merged_path, '--threads', str(job.cores)])
-    return { 'aug.augref-segs.tsv.gz' : job.fileStore.writeGlobalFile(merged_path + '.gz') }
+    return { 'gref.gref-segs.tsv.gz' : job.fileStore.writeGlobalFile(merged_path + '.gz') }
 
 def merge_snarl_stats(job, vg_paths, snarl_stats_ids, tag):
     """ sort (decreasing reference interval sizer) and merge the different stats files """
