@@ -22,13 +22,16 @@ python3 -m pip install -U .
 python3 -m pip install -U -r ./toil-requirement.txt
 ```
 
-Some tools required for `hal2assemblyHub.py`, `cactus-hal2chains` and `cactus-maf2bigmaf` are not included and must be downloaded separately.
-They are `wigToBigWig faToTwoBit bedToBigBed bigBedToBed axtChain pslPosTarget bedSort hgGcPercent mafToBigMaf hgLoadMafSummary hgLoadChain`.  More information
-can be found [here](https://hgdownload.cse.ucsc.edu/admin/exe/).  Note that some may require
+Some tools required for `hal2assemblyHub.py`, `cactus-hal2chains`, `cactus-maf2bigmaf`,
+and `cactus-phast` are not included and must be downloaded separately.
+They are `wigToBigWig faToTwoBit bedToBigBed bigBedToBed axtChain pslPosTarget bedSort
+hgGcPercent mafToBigMaf hgLoadMafSummary hgLoadChain genePredSingleCover gff3ToGenePred
+gtfToGenePred`.  More information can be found
+[here](https://hgdownload.cse.ucsc.edu/admin/exe/).  Note that some may require
 a license for commercial use.  Static binaries are not available, but the following command
 should set them up successfully on many 64 bit Linux systems:
 ```
-cd bin && for i in wigToBigWig faToTwoBit bedToBigBed bigBedToBed axtChain pslPosTarget bedSort hgGcPercent mafToBigMaf hgLoadMafSummary hgLoadChain; do wget -q http://hgdownload.cse.ucsc.edu/admin/exe/linux.x86_64/${i}; chmod +x ${i}; done
+cd bin && for i in wigToBigWig faToTwoBit bedToBigBed bigBedToBed axtChain pslPosTarget bedSort hgGcPercent mafToBigMaf hgLoadMafSummary hgLoadChain genePredSingleCover gff3ToGenePred gtfToGenePred; do wget -q http://hgdownload.cse.ucsc.edu/admin/exe/linux.x86_64/${i}; chmod +x ${i}; done
 ```
 
 `vcfwave` isn't included in the release binaries (but is in the docker image).  You can can try building it and adding it to `bin/` with the following command

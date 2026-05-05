@@ -63,7 +63,7 @@ export HTSLIB_LIBS="$(pwd)/libhts.a -lbz2 -ldeflate -lm -lpthread -lz -llzma -pt
 cd ${mafBuildDir}
 git clone https://github.com/ComparativeGenomicsToolkit/taffy.git
 cd taffy
-git checkout 5ab000b8e12bef211352131b9891c8e2cfb94063
+git checkout fd0e04b501ed3d90dffe91a93801a7a7545f2147
 git submodule update --init --recursive
 export HALDIR=${CWD}/submodules/hal
 LIBS="${jemallocLib} -llz4 -lzstd" make -j ${numcpu}

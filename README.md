@@ -51,7 +51,7 @@ Cactus uses many different algorithms and individual code contributions, princip
 
 The instructions below are meant primarily for developers.  Everyone else should try to use the precompiled binaries (Linux X86) or Docker image from [the latest release](https://github.com/ComparativeGenomicsToolkit/cactus/releases) instead. 
 
-The top-level cactus interface (`cactus`, `cactus-pangenome`, `cactus-hal2maf`, etc) is awlays a Python package that is `pip install`ed into a Python virtualenv.  This package runs several other tools as subprocesses, which are compiled into binaries.
+The top-level cactus interface (`cactus`, `cactus-pangenome`, `cactus-hal2maf`, `cactus-phast`, etc) is awlays a Python package that is `pip install`ed into a Python virtualenv.  This package runs several other tools as subprocesses, which are compiled into binaries.
 
 ### Contents
 

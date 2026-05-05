@@ -1081,7 +1081,85 @@ class TestCase(unittest.TestCase):
             self.assertGreaterEqual(bed_acc[0], 1)
             self.assertGreaterEqual(bed_acc[1], 1)
 
-        
+            # cactus-phast smoke test, reusing the simHuman_chr6-rooted MAF
+            # already produced for the subrange checks above.
+            self._check_phast_runs(halPath, ranges_opt_file, binariesMode)
+
+
+    # The smoke test invokes cactus-phast with --binariesMode local; only run
+    # it on local-mode mammals tests, and only once per pytest session.
+    _phast_smoke_done = False
+
+    def _check_phast_runs(self, halPath, maf_path, binariesMode,
+                          refGenome="simHuman_chr6", refContig="simHuman.chr6"):
+        """ Smoke-check cactus-phast on the evolver mammals HAL using a
+        pre-built simHuman_chr6-rooted MAF: build its .tai, run cactus-phast
+        end-to-end with a synthetic CDS annotation and one global + one
+        lineage-specific --subtree track, then verify the six output files
+        are well-formed. Skipped when binariesMode != 'local' (the smoke
+        invokes cactus-phast with --binariesMode local), and only runs once
+        per pytest session — repeating
+        across the 12 mammals tests would just re-exercise the same code. """
+        if binariesMode != 'local':
+            return
+        if TestCase._phast_smoke_done:
+            return
+        TestCase._phast_smoke_done = True
+
+        subprocess.check_call(['taffy', 'index', '-i', maf_path], shell=False)
+        self.assertTrue(os.path.exists(maf_path + '.tai'))
+
+        ann_path = os.path.join(os.getcwd(), 'test', 'evolverMammals.cds.gp')
+        out_wig = os.path.join(self.tempDir, 'phast.wig.gz')
+        # --subtree Anc0 Anc1: Anc0 is the HAL root → emitted as the global
+        # track (no .s tag); Anc1 is the simHuman+mr clade → emitted as the
+        # lineage-specific track (.sAnc1.*). Exercises both code paths.
+        subprocess.check_call(['cactus-phast', self._job_store('phast'), maf_path, halPath, refGenome,
+                               out_wig, '--geneAnnotation', ann_path,
+                               '--subtree', 'Anc0', 'Anc1', '--bigwig',
+                               '--batchSystem', 'single_machine', '--maxCores', '4',
+                               '--chunkCores', '4', '--phyloFitCores', '2',
+                               '--binariesMode', 'local'], shell=False)
+
+        out_base = out_wig[:-len('.wig.gz')]
+        mod_path = out_base + '.mod'
+        ss_path = out_base + '.4d.ss'
+        bw_path = out_base + '.bw'
+        sub_wig = out_base + '.sAnc1.wig.gz'
+        sub_bw = out_base + '.sAnc1.bw'
+        for p in (out_wig, mod_path, ss_path, bw_path, sub_wig, sub_bw):
+            self.assertTrue(os.path.exists(p), 'Missing cactus-phast output: ' + p)
+            self.assertGreater(os.path.getsize(p), 0, 'Empty cactus-phast output: ' + p)
+
+        # phyloFit model: must contain BACKGROUND and RATE_MAT (otherwise phyloFit
+        # silently produced something nonsensical).
+        with open(mod_path) as f:
+            mod_text = f.read()
+        self.assertIn('BACKGROUND:', mod_text)
+        self.assertIn('RATE_MAT:', mod_text)
+
+        # 4d-site SS: msa_view --4d's empty-output failure mode is LENGTH=0,
+        # which would silently downstream into a degenerate model.
+        with open(ss_path) as f:
+            ss_text = f.read()
+        self.assertIn('LENGTH', ss_text)
+        for line in ss_text.splitlines():
+            if line.startswith('LENGTH'):
+                length = int(line.split('=')[1].strip())
+                self.assertGreater(length, 0, '4d.ss has LENGTH=0')
+                break
+
+        # Per-base wigs must decompress and contain at least one fixedStep header.
+        for wig_gz in (out_wig, sub_wig):
+            wig_text = subprocess.check_output(['zcat', wig_gz]).decode('utf-8')
+            self.assertIn('fixedStep chrom={}'.format(refContig), wig_text)
+
+        # bigWig magic: 0x888FFC26 little-endian = 26 fc 8f 88.
+        for bw in (bw_path, sub_bw):
+            with open(bw, 'rb') as f:
+                magic = f.read(4)
+            self.assertEqual(magic, b'\x26\xfc\x8f\x88', 'Bad bigWig magic in ' + bw)
+
     def _check_valid_hal(self, halPath, expected_tree=None):
         """ Make sure a hal passes halValidate and has the given tree """
 

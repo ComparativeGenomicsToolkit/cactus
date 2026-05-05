@@ -81,7 +81,7 @@ popd
 
 # install Phast and enable halPhyloP compilation and copy the phast binaries
 build-tools/downloadPhast 1
-cp submodules/phast/LICENSE.txt ./PHAST.LICENSE.txt
+cp submodules/phast/LICENSE ./PHAST.LICENSE.txt
 export ENABLE_PHYLOP=1
 
 # install UCSC browser libraries to compile UDC

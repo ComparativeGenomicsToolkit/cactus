@@ -1,16 +1,21 @@
 #!/bin/bash
-# Download and statically build Phast, which is required for halPhyloP
-# all binaries get copied into cactus/bin
+# Download and build PHAST, statically linking BLAS / LAPACK / PCRE / gfortran
+# so the binaries can ship in the Cactus binary release without runtime deps.
+# All built binaries get copied into cactus/bin.
 
-# set this to one to make sure everything gets built statically (necessary for binary release)
+# When STATIC_CHECK=1 the script verifies via ldd that no produced binary has
+# unresolved dynamic deps that wouldn't be in the binary release's allowed set.
+
 STATIC_CHECK=$1
 
 set -beEu -o pipefail
-gitrel=85f7ed179dd097a86ba4added22d571785cc3e1d
+
+# v1.9.7 — first release with the cmake build, includes per-node phyloP rescaling
+# (PR #106) which fixes the mm_exp_real / t=nan crashes on shallow-subtree LRTs.
+gitrel=v1.9.7
 
 binDir=$(pwd)/bin
 
-# works on MacOS and Linux
 numcpu=$(getconf _NPROCESSORS_ONLN)
 
 # hal expects phast as a sister directory, so we stick it there
@@ -21,39 +26,168 @@ set -x
 
 mkdir -p ${binDir}
 
-# build clapack
-cd ${submodulesDir}
-rm -rf clapack
-wget -q http://www.netlib.org/clapack/clapack.tgz
-tar -xvzf clapack.tgz
-mv CLAPACK-3.2.1 clapack
-cd clapack
-cp make.inc.example make.inc && make -j ${numcpu} f2clib && make -j ${numcpu} blaslib && make -j ${numcpu} lib
-export CLAPACKPATH=$(pwd)
-cd ..
-
-# build phast
+# Clone + checkout phast
 cd ${submodulesDir}
 rm -rf phast
 git clone https://github.com/CshlSiepelLab/phast.git
 cd phast
 git checkout ${gitrel}
-# hack in flags support
-sed -i src/make-include.mk -e 's/CFLAGS =/CFLAGS +=/' -e 's/LIBS =/LIBS +=/' 
-# note: phast's makefile doesn't support -j (somehow this only came up when upgrading to ubunut 22.04)
-cd src && make
 
-# copy over the binaries
-for PHASTBIN in ../bin/*
-do
-	 if [[ $STATIC_CHECK -ne 1 || $(ldd ${PHASTBIN} | grep so | wc -l) -eq 0 ]]
-	 then
-		  cp ${PHASTBIN} ${binDir}
-	 else
-		  exit 1;
-	 fi
-done
+# Static linking strategy:
+#
+#   v1.9.7's CMakeLists uses find_package(BLAS REQUIRED) / find_package(LAPACK
+#   REQUIRED) and a manual find_path/find_library for PCRE. We pre-populate the
+#   *_LIBRARIES cache vars with full paths to the static .a archives so cmake
+#   skips its own searches and links statically. libblas.a / liblapack.a from
+#   Debian's libblas-dev / liblapack-dev are fortran archives, so we also need
+#   libgfortran.a from libgfortran-N-dev to close the symbol set.
+#
+#   This is platform-specific (Linux x86_64). macOS uses Accelerate.framework
+#   per phast's CMakeLists, which is system-provided and stable; that path
+#   doesn't need our static-linking gymnastics.
+
+OS=$(uname)
+EXTRA_CMAKE_ARGS=()
+if [ "$OS" = "Linux" ]; then
+    LIBDIR=/usr/lib/x86_64-linux-gnu
+    GFORTRAN_A=$(ls /usr/lib/gcc/x86_64-linux-gnu/*/libgfortran.a 2>/dev/null | sort -V | tail -1 || true)
+    if [ -z "${GFORTRAN_A}" ]; then
+        echo "ERROR: libgfortran.a not found. Install libgfortran-N-dev (e.g. libgfortran-13-dev)." >&2
+        exit 1
+    fi
+    # libgfortran.a's float-formatting routines reference libquadmath
+    # (quadmath_snprintf etc.) on gcc 11+. The .a archive is in the same
+    # libgfortran-N-dev package and lives next to libgfortran.a.
+    QUADMATH_A=$(dirname "${GFORTRAN_A}")/libquadmath.a
+    if [ ! -f "${QUADMATH_A}" ]; then
+        echo "ERROR: libquadmath.a not found alongside ${GFORTRAN_A}. " \
+             "Install libgfortran-N-dev (it ships libquadmath.a too)." >&2
+        exit 1
+    fi
+    if [ ! -f "${LIBDIR}/libblas.a" ] || [ ! -f "${LIBDIR}/liblapack.a" ]; then
+        echo "ERROR: libblas.a or liblapack.a not found in ${LIBDIR}. Install libblas-dev liblapack-dev." >&2
+        exit 1
+    fi
+    if [ ! -f "${LIBDIR}/libpcre.a" ]; then
+        echo "ERROR: libpcre.a not found in ${LIBDIR}. Install libpcre3-dev." >&2
+        exit 1
+    fi
+    # libgomp.a is shipped by libgcc-N-dev (or, on some distros, libgomp1-amd64-cross).
+    # phast v1.9.7's CMakeLists does find_package(OpenMP), which on Linux returns
+    # the FULL PATH to libgomp.so as the link target — and that fails when
+    # makeBinRelease's env-level -static is active ('attempted static link of
+    # dynamic object'). Pre-populate the OpenMP cache vars so cmake skips its
+    # find_library call and links libgomp.a directly.
+    LIBGOMP_A=$(dirname "${GFORTRAN_A}")/libgomp.a
+    if [ ! -f "${LIBGOMP_A}" ]; then
+        echo "ERROR: libgomp.a not found alongside ${GFORTRAN_A}. " \
+             "Install libgcc-N-dev (it ships libgomp.a)." >&2
+        exit 1
+    fi
+
+    # libgfortran's atexit-registered _gfortrani_close_units null-derefs in
+    # static builds when no Fortran I/O has occurred (gcc 13). msa_view --4d,
+    # phyloP, and other phast binaries that link libgfortran transitively
+    # (via libblas / liblapack) all SIGSEGV on exit AFTER producing correct
+    # output. Override the broken symbol with a no-op via --whole-archive +
+    # --allow-multiple-definition: the linker pulls our no-op first and
+    # tolerates the duplicate from libgfortran. The atexit handler then
+    # resolves to our no-op since its address was the first definition seen.
+    # (Caveat: --allow-multiple-definition picks the first def; ld behavior
+    # is documented and stable here.)
+    GFORTRAN_STUB_DIR=${submodulesDir}/phast_gfortran_stub
+    rm -rf ${GFORTRAN_STUB_DIR} && mkdir -p ${GFORTRAN_STUB_DIR}
+    cat > ${GFORTRAN_STUB_DIR}/stub.c <<'STUB_EOF'
+/* Override libgfortran's buggy atexit handler with a no-op. See note in
+ * cactus's build-tools/downloadPhast for why. */
+void _gfortrani_close_units(void) { }
+STUB_EOF
+    gcc -c ${GFORTRAN_STUB_DIR}/stub.c -o ${GFORTRAN_STUB_DIR}/stub.o
+    ar rcs ${GFORTRAN_STUB_DIR}/libgfortran_stub.a ${GFORTRAN_STUB_DIR}/stub.o
+    EXTRA_CMAKE_ARGS+=(
+        # Force cmake to use our static archives instead of searching for .so.
+        # BLAS/LAPACK archives need libgfortran.a + libquadmath.a (gcc 11+
+        # libgfortran's float-formatting code references quadmath_snprintf)
+        # plus libm.
+        -DBLAS_LIBRARIES="${LIBDIR}/libblas.a;${GFORTRAN_A};${QUADMATH_A};-lm"
+        -DLAPACK_LIBRARIES="${LIBDIR}/liblapack.a;${LIBDIR}/libblas.a;${GFORTRAN_A};${QUADMATH_A};-lm"
+        # libpcre is a single C archive.
+        -DPCRE_INCLUDE_DIR=/usr/include
+        -DPCRE_LIBRARY=${LIBDIR}/libpcre.a
+        # OpenMP: short-circuit find_package(OpenMP)'s default of returning
+        # libgomp.so as a full-path link target. Pointing OpenMP_gomp_LIBRARY
+        # at libgomp.a makes cmake bake the static archive into the link line.
+        -DOpenMP_C_FLAGS="-fopenmp"
+        -DOpenMP_C_LIB_NAMES="gomp"
+        -DOpenMP_gomp_LIBRARY=${LIBGOMP_A}
+        # Tell the linker to prefer static archives for any other lib it picks up
+        # via -l flags (libm, etc.), but allow falling back to the dynamic
+        # versions of libc-only symbols which have no static counterpart in the
+        # base system.
+        -DCMAKE_EXE_LINKER_FLAGS="-static-libgcc -static-libstdc++ -Wl,--as-needed -Wl,--whole-archive,${GFORTRAN_STUB_DIR}/libgfortran_stub.a,--no-whole-archive,--allow-multiple-definition"
+        # phast's CMakeLists scopes OpenMP::OpenMP_C as PRIVATE on phast_core,
+        # so consumers (phyloFit etc.) don't inherit -fopenmp and the _OPENMP
+        # macro stays undefined — leading to phyloFit's --threads erroring at
+        # runtime with 'requires OpenMP support; rebuild with OpenMP enabled'.
+        # Force -fopenmp on every C compile. Append to (rather than replace)
+        # the env CFLAGS so makeBinRelease's CFLAGS=-static survives.
+        -DCMAKE_C_FLAGS="${CFLAGS:-} -fopenmp"
+    )
+fi
+
+# Configure + build + install. Install puts the executables into ${CWD}/bin.
+# Snapshot ${binDir} before install so the static-linking check below can
+# diff to enumerate exactly which binaries phast added.
+binDirBefore=$(mktemp)
+binDirAfter=$(mktemp)
+trap "rm -f ${binDirBefore} ${binDirAfter}" EXIT
+( cd ${binDir} && find . -maxdepth 1 -type f -printf '%f\n' 2>/dev/null | sort ) > ${binDirBefore}
+cmake -S . -B build \
+      -DCMAKE_BUILD_TYPE=Release \
+      -DCMAKE_INSTALL_PREFIX=${CWD} \
+      "${EXTRA_CMAKE_ARGS[@]}"
+cmake --build build -j ${numcpu}
+cmake --install build
+( cd ${binDir} && find . -maxdepth 1 -type f -printf '%f\n' 2>/dev/null | sort ) > ${binDirAfter}
 
 cd ${CWD}
 
-set +x
+# Copy any binaries that landed in submodules/phast/build but weren't installed
+# (defensive — the cmake install rule covers all PHAST_EXECUTABLES targets).
+
+if [ "${STATIC_CHECK:-0}" = "1" ]; then
+    # The static-linking check: each phast binary that the cmake install just
+    # placed in ${binDir} should have no unresolved dynamic deps on the libs
+    # we intentionally static-linked. Anything else listed by ldd is either a
+    # libc-family lib (allowed) or a regression. The list of phast binaries
+    # comes from diffing ${binDir} pre- vs post-install rather than a
+    # hardcoded subset, so adding/removing PHAST_EXECUTABLES is automatic.
+    set +x
+    echo "STATIC_CHECK: enumerating phast binaries installed into ${binDir}"
+    phast_bins=$(comm -13 ${binDirBefore} ${binDirAfter})
+    if [ -z "${phast_bins}" ]; then
+        echo "ERROR: STATIC_CHECK: no new binaries appeared in ${binDir} after cmake --install" >&2
+        exit 1
+    fi
+    echo "STATIC_CHECK: verifying no .a-statically-linked dep leaks back as .so"
+    for name in ${phast_bins}; do
+        bin=${binDir}/${name}
+        if [ ! -x "${bin}" ]; then
+            echo "ERROR: STATIC_CHECK: phast installed ${name} but ${bin} is not executable" >&2
+            exit 1
+        fi
+        # Match the libs we explicitly static-linked (BLAS/LAPACK + their
+        # fortran-runtime closure + pcre + OpenMP). If any of them appears in
+        # ldd output, the static archive didn't take.
+        leaks=$(ldd "${bin}" 2>/dev/null \
+            | grep -E "(libblas|liblapack|libpcre|libgfortran|libquadmath|libgomp)" \
+            || true)
+        if [ -n "${leaks}" ]; then
+            echo "ERROR: ${bin} has dynamic deps on libs that should have been static:" >&2
+            echo "${leaks}" >&2
+            exit 1
+        fi
+    done
+    echo "STATIC_CHECK: ok ($(echo ${phast_bins} | wc -w) binaries)"
+    set -x
+fi
