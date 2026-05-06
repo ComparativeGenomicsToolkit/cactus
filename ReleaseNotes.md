@@ -1,3 +1,23 @@
+# Release 3.2.0 2026-05-06
+
+This release fixes some serious bugs and introduces new functionality.
+
+- use chunking to parallelize giant paffy jobs. can vastly reduce peak memory and wall time in some cases
+- fix pip install error on newer pythons arising from outdated cigar package dependency (cigar now no longer used)
+- update to latest lastz release
+- update to vg 1.74.0
+- update to Toil 9.3.0
+- add bypass options to cactus-graphmap-join to rerun indexing/vcf generation without re-clipping graphs
+- prototype logic to add graph-reference paths to pangenomes
+- update paffy to use more efficient cigar api
+- update versions of most included tools, ex samtools, odgi, hal, abPOA, red, gfatools, bcftools, bedtools, LAST, taffy
+- add option to toggle hal compression codel (ie use zstd instead of gzip)
+- `cactus-hal2chains` now had batch interface (like `cactus-hal2maf`) for better slurm support
+- fix corrupted minigraph (`.sv.gfa.gz`) output with `--mgSplit` option
+- update `gfaffix` to fix crash on rare edge case
+- tweak outgroup selection algorithm to better reconcile distance and lca inormation during greedy selection.
+- add `cactus-phast` tool for computing PhyloP conservation tracks
+
 # Release 3.1.4 2026-02-01
 
 This release patches some binaries to be a bit faster.  It otherwise does not change any logic nor functionality from 3.1.3
