@@ -6,7 +6,7 @@ variables:
 before_script:
   - whoami
   - sudo apt-get -q -y update
-  - sudo apt-get -q -y install --no-upgrade liblz4-dev libzstd-dev
+  - sudo apt-get -q -y install --no-upgrade liblz4-dev libzstd-dev libblas-dev liblapack-dev libpcre3-dev gfortran
   - startdocker || true
   - docker info
 
@@ -38,7 +38,10 @@ test-job:
     - make clean
     - make -j 8	 
     - numcpu=8 build-tools/downloadPangenomeTools
-    - CACTUS_LEGACY_ARCH=1 numcpu=8 build-tools/downloadMafTools	 
+    - CACTUS_LEGACY_ARCH=1 numcpu=8 build-tools/downloadMafTools
+    - numcpu=8 build-tools/downloadPhast
+    # cactus-phast prerequisites (UCSC tools — same set the production Dockerfile pulls).
+    - for i in wigToBigWig genePredSingleCover gff3ToGenePred gtfToGenePred; do wget -nv http://hgdownload.cse.ucsc.edu/admin/exe/linux.x86_64/${i} -O bin/${i} && chmod +x bin/${i}; done
     - python3.10 -m pip install -U .
     # force local docker image to use legacy mode so tests run
     - sed -i Dockerfile -e 's/ENV avx2 1/ENV CACTUS_LEGACY_ARCH 1/g'

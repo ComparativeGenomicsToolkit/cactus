@@ -17,3 +17,8 @@ cactusSequences
 *~
 .cache
 src/cactus/shared/version.py
+# Created by build-tools/downloadPhast (the phast clone + a tiny one-file
+# library used to override a buggy libgfortran atexit handler). Both are
+# regenerated on every binary release build and never tracked.
+submodules/phast/
+submodules/phast_gfortran_stub/

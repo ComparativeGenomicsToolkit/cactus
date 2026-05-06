@@ -1,7 +1,7 @@
 FROM quay.io/comparative-genomics-toolkit/ubuntu:22.04 AS builder
 
 # apt dependencies for build
-RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y build-essential git python3 python3-dev python3-pip zlib1g-dev wget libbz2-dev pkg-config libhdf5-dev liblzo2-dev libtokyocabinet-dev wget liblzma-dev libxml2-dev libssl-dev libpng-dev uuid-dev libcurl4-gnutls-dev libffi-dev python3-virtualenv rsync python-is-python3 libdeflate-dev cmake libjemalloc-dev python3-distutils pybind11-dev autoconf libzstd-dev liblz4-dev libhts-dev
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y build-essential git python3 python3-dev python3-pip zlib1g-dev wget libbz2-dev pkg-config libhdf5-dev liblzo2-dev libtokyocabinet-dev wget liblzma-dev libxml2-dev libssl-dev libpng-dev uuid-dev libcurl4-gnutls-dev libffi-dev python3-virtualenv rsync python-is-python3 libdeflate-dev cmake libjemalloc-dev python3-distutils pybind11-dev autoconf libzstd-dev liblz4-dev libhts-dev libblas-dev liblapack-dev libpcre3-dev gfortran
 
 # copy cactus
 RUN mkdir -p /home/cactus
@@ -29,8 +29,9 @@ ENV KENTSRC /home/cactus/submodules/kent/src
 # build cactus binaries
 RUN cd /home/cactus && make -j $(nproc)
 
-# download open-licenses kent binaries used by hal for assembly hubs and / or chains
-RUN cd /home/cactus/bin && for i in wigToBigWig faToTwoBit bedToBigBed bigBedToBed axtChain pslPosTarget bedSort hgGcPercent mafToBigMaf hgLoadMafSummary hgLoadChain; do wget -nv http://hgdownload.cse.ucsc.edu/admin/exe/linux.x86_64/${i}; chmod ugo+x ${i}; done
+# download open-licenses kent binaries used by hal for assembly hubs and / or chains,
+# plus tools needed by cactus-phast for annotation preprocessing
+RUN cd /home/cactus/bin && for i in wigToBigWig faToTwoBit bedToBigBed bigBedToBed axtChain pslPosTarget bedSort hgGcPercent mafToBigMaf hgLoadMafSummary hgLoadChain genePredSingleCover gff3ToGenePred gtfToGenePred; do wget -nv http://hgdownload.cse.ucsc.edu/admin/exe/linux.x86_64/${i}; chmod ugo+x ${i}; done
 
 # download tools used for pangenome pipeline
 RUN cd /home/cactus && ./build-tools/downloadPangenomeTools

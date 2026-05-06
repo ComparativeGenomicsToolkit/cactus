@@ -16,6 +16,8 @@ Please cite the [HAL paper](https://doi.org/10.1093/bioinformatics/btt128) when 
 * [Using the HAL Output](#using-the-hal-output)
      * [HAL Compression](#hal-compression)
      * [MAF Export](#maf-export)
+     * [Conservation Scores](#conservation-scores)
+     * [Chains Export](#chains-export)
 * [Using Docker](#using-docker)
 * [Running in the Cloud](#running-on-the-cloud)
 * [Running on a Cluster](#running-on-a-cluster)
@@ -251,7 +253,7 @@ This is an earlier run of the above example on an AWS/EC2 autoscale cluster.
 cactus-hal2maf aws:us-west-2:cactus-hprc-jobstore-cow s3://vg-k8s/users/hickey/zoo/447-mammalian-2022v1.hal s3://vg-k8s/users/hickey/zoo/447-mammalian-2022v1.maf.gz --refGenome Homo_sapiens --noAncestors --chunkSize 5000000 --batchCount 20 --batchCores 32 --batchParallelTaf 8 --batchSystem mesos --provisioner aws --defaultPreemptable --nodeStorage 4000 --maxNodes 20 --nodeTypes r5.8xlarge --logFile 447-mammalian-2022v1.maf.gz.log --retryCount 0 --betaInertia 0 --targetTime 1
 ```
 
-### BigMaf
+#### BigMaf
 
 [UCSC BigMaf](https://genome.ucsc.edu/goldenPath/help/bigMaf.html) is an indexed version of MAF (see above) that can viewed on the Genome Browser. `cactus-maf2bigmaf` can be used to convert MAF (as output by `cactus-hal2maf`) into BigMaf.
 
@@ -265,7 +267,85 @@ This will produce the BigMaf file `evolverMammals.bigmaf.bb` along with the summ
 
 The chromosome sizes of the reference genome must be provided via the original hal file via `--halFile`.
 
-### Chains
+### Conservation Scores
+
+You can compute conservation scores on the MAF or TAF output of `cactus-hal2maf` using `cactus-phast`. `cactus-phast` runs `phyloFit` and `phyloP` from [phast](http://compgen.cshl.edu/phast/) to compute per-baseconservation scores.  This pipeline is modeled on UCSC's [cactus447](https://github.com/ucscGenomeBrowser/kent/blob/master/src/hg/makeDb/doc/hg38/cactus447.txt) recipe.
+
+#### Inputs and outputs
+
+Inputs:
+- the alignment as produced by `cactus-hal2maf` — `.maf`, `.maf.gz`, `.taf`, or `.taf.gz` are all accepted (auto-detected by `taffy`).
+- the original `.hal` (used for the species tree, the species list, and reference chromosome sizes).
+- a reference genome name (must match the s-line prefix used in the MAF).
+- a gene annotation: a local file or an `http(s)` / `ftp` URL pointing at genePred (`.gp`), GFF / GFF3, GTF, or a UCSC `ncbiRefSeq.txt(.gz)`-style dump. The workflow downloads, converts to genePred, filters to records with `cdsEnd > cdsStart`, and runs `genePredSingleCover` for a non-redundant single-cover annotation.
+
+Outputs (all named after the user-supplied output path with `.r<root>` / `.s<subtree>` tokens added per active flag — see the multi-track section below):
+- `<out>.wig.gz` — per-base phyloP scores, anchored at the reference.
+- `<out>.bw` — bigwig of the same, when `--bigwig` is set.
+- `<out>.mod` — the trained neutral model (sibling to the wig).
+- `<out>.4d.ss` — the aggregated 4d-site sufficient-statistics file used to train the model.
+- `<out>.name_map.sed` — only written when at least one HAL genome name contains a `.` (phast strips everything after the first `.` to derive its species label). It's a sed script that maps the canonical phast names back to the original HAL genome names, e.g. for restoring full names in the trained tree: `sed -f <out>.name_map.sed <out>.mod`.
+- `<inMaf>.tai` — exported next to the output if the workflow had to build one.
+
+Two flags control which part of the tree is used for scoring. They answer different questions and can be combined.
+
+- **`--root <NAME>`** restricts the *whole pipeline* to the subtree rooted at the named internal node. `phyloFit` trains only on those leaves; `phyloP` scores using that clade-only model. Use this when you only care about conservation *within* a clade — e.g. "how conserved is each base among primates?" — and want to ignore everything else. Equivalent to running `cactus-phast` on a clade-only MAF.
+
+- **`--subtree <NAME>`** trains on the *full tree* (or the `--root` clade if `--root` is also set) and at each base computes a likelihood-ratio test asking whether the *named subtree alone* is evolving differently from the rest of the tree. Use this for *lineage-specific* conservation or acceleration — e.g. "is this base accelerated specifically in primates compared to the rest of mammals?". The reference must be a leaf descendant of the named subtree so the per-base score has subtree-side data at each reference position.
+
+Concretely, with a tree like `(((primates)apes)mammals)vertebrates`, ref = human:
+- `--root mammals` — train and score within mammals only; non-mammal columns are ignored.
+- `--subtree primates` — train on all vertebrates; at each base, test whether primates are evolving differently from non-primate vertebrates.
+
+`--subtree` accepts multiple values to produce several output tracks in one invocation, all sharing the single trained model. As a special case, naming the (effective) tree root produces the standard whole-tree conservation track (no `phyloP --subtree` flag, no `.s` filename token):
+
+```
+cactus-phast ... out.wig.gz --subtree mammalsRoot primatesAnc squamataAnc
+```
+
+produces three tracks alongside one shared `out.mod` / `out.4d.ss`:
+- `out.wig.gz` — global (mammalsRoot is the tree root → no `.s` token)
+- `out.sPrimatesAnc.wig.gz` — primates-vs-rest LRT
+- `out.sSquamataAnc.wig.gz` — squamates-vs-rest LRT
+
+Combining flags: `--root mammalsRoot --subtree primatesAnc squamataAnc` would produce only the two lineage-specific tracks, restricted to the mammals clade and named `out.rMammalsRoot.sPrimatesAnc.wig.gz` and `out.rMammalsRoot.sSquamataAnc.wig.gz`. Tokens already present in the user-supplied output path aren't duplicated.
+
+#### Phast options
+
+See the phast documentation for more details.
+
+- `--substMod` : substitution model for PhyloFit (default REV)
+- `--precision` : precision for PhyloFit (default HIGH)
+- `--modFreqs` : toggle on `modFreqs` to make make fit model's background frequencies symmetric
+- `--method` : phyloP method (default LRT)
+- `--phyloPMode` phyloP mode (default CONACC)
+
+#### Other options
+
+- `--neutralModel <model.mod>` skips training and reuses a model from a prior run.
+- `--mode phyloFit` trains and exports the model only (no phyloP scoring).
+- `--chunkSize <bp>` (default 1 Mb) sets the per-chunk reference-coordinate size. Smaller chunks → more Toil jobs and finer failure isolation, larger chunks → fewer Toil jobs and lower per-job overhead.
+- `--fitChunkGroup <int>` (default 10, must be ≥ 1) sets how many consecutive chunks are catted together for one 4d-site extraction job, so `msa_view --4d` amortizes its startup over a useful region size.
+- `--chunkCores <int>` number of cores used to chunk up the input MAF
+- `--phyloFitCores <int>` number of cores used to train model with `phyloFit`
+- `--bigwig` output scores in bigwig (in addition to gzipped wig) format
+
+#### Slurm example
+
+For a 577-way alignment with reference hg38 and a gene annotation pulled directly from UCSC:
+
+```
+cactus-phast ./js-vgp \
+    ./vgp-577way-v1-hg38.maf.gz ./vgp-577way-v1.hal GCA_000001405.15 \
+    ./vgp-577way-v1-hg38.phyloP.wig.gz \
+    --geneAnnotation https://hgdownload.soe.ucsc.edu/goldenPath/hg38/database/ncbiRefSeq.txt.gz \
+    --bigwig --batchSystem slurm --chunkCores 32 --phyloFitCores 32 \
+    --substMod REV --modFreqs --precision HIGH \
+    --slurmPartition medium --slurmTime 10:00:00 \
+    --doubleMem true
+```
+
+### Chains Export
 
 The [UCSC Chain Format](https://genome.ucsc.edu/goldenPath/help/chain.html) is a concise way to represent pairwise alignments, and is used by the Genome Browser and some of its tools. HAL files can be converted into sets of Chain files using `cactus-hal2chains`. Use the `--queryGenomes` and `--targetGenomes` flags to specify one or more query and/or target genomes. Chains between all pairs will be computed (so watch out for large alignments!).  If either `--queryGenomes` or `--targetGenomes` is unspecifiefd, then all leaf genomes in the HAL file will be used.
 
@@ -294,10 +374,6 @@ You can use the alignment to generate gene annotatations for your assemblies, us
 ### Assembly Hubs
 
 HAL alignments can also be displayed in the UCSC genome browser via creation of assembly hubs as described [here](https://github.com/ComparativeGenomicsToolkit/hal#displaying-in-the-ucsc-genome-browser-using-assembly-hubs).  `hal2assemblyHub.py` is included in Cactus. 
-
-### Phast
-
-Conservation scores can be computed using [phast](http://compgen.cshl.edu/phast/) either directly from the HAL (`halPhyloP`) or from the MAF. The phast binaries are included in the Cactus releases. 
 
 ## Using Docker
 
