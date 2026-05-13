@@ -641,7 +641,7 @@ class TestCase(unittest.TestCase):
                                '--reference', 'S288C', '--vg'] +  vg_files + ['--hal'] + hal_files +
                                ['--xg', '--vcf', '--giraffe', 'clip', 'filter', '--lrGiraffe'] + cactus_opts + ['--indexCores', '4'])
 
-    def _run_yeast_pangenome(self, binariesMode, mgSplit=False, collapse=False, gref=None):
+    def _run_yeast_pangenome(self, binariesMode, mgSplit=False, collapse=False, gref=None, grefL=None):
         """ yeast pangenome chromosome by chromosome pipeline, as run through a single invocations
         """
 
@@ -664,6 +664,8 @@ class TestCase(unittest.TestCase):
             cactus_pangenome_cmd += ['--collapse']
         if gref:
             cactus_pangenome_cmd += ['--gref', gref]
+        if grefL is not None:
+            cactus_pangenome_cmd += ['--grefL', str(grefL)]
         subprocess.check_call(cactus_pangenome_cmd + cactus_opts)
 
         #compatibility with older test
@@ -680,7 +682,7 @@ class TestCase(unittest.TestCase):
         self.assertEqual(proc.returncode, 0,
                          'vg validate failed for {}\nstderr:\n{}'.format(gfa_path, proc.stderr.decode()))
 
-    def _check_yeast_pangenome(self, binariesMode, other_ref=None, expect_odgi=False, expect_haplo=False, expect_unchopped_gfa=False, expect_gref=False):
+    def _check_yeast_pangenome(self, binariesMode, other_ref=None, expect_odgi=False, expect_haplo=False, expect_unchopped_gfa=False, expect_gref=False, grefL=None):
         """ yeast pangenome chromosome by chromosome pipeline
         """
 
@@ -836,7 +838,9 @@ class TestCase(unittest.TestCase):
             self.assertGreaterEqual(os.path.getsize(gref_snarls_path), 1000)
 
             # check that aug raw VCF exists and has some records
-            gref_raw_vcf_path = os.path.join(join_path, 'yeast.gref.raw.vcf.gz')
+            # (when --grefL is used, the VCF basename gets a gref<NN> suffix)
+            gref_vcf_tag = 'gref' if grefL is None else 'gref{}'.format(int(round(grefL * 100)))
+            gref_raw_vcf_path = os.path.join(join_path, 'yeast.{}.raw.vcf.gz'.format(gref_vcf_tag))
             self.assertTrue(os.path.exists(gref_raw_vcf_path))
             gref_raw_vcf_records = int(subprocess.check_output(
                 'bcftools view -H {} | wc -l'.format(gref_raw_vcf_path),
@@ -852,7 +856,7 @@ class TestCase(unittest.TestCase):
             # check that aug vcfbub VCF exists and gref _alt records survive vcfbub
             # (gref contigs are split out and run through vcfbub independently so that
             #  base contig nesting doesn't interfere with gref contig processing)
-            gref_bub_vcf_path = os.path.join(join_path, 'yeast.gref.vcf.gz')
+            gref_bub_vcf_path = os.path.join(join_path, 'yeast.{}.vcf.gz'.format(gref_vcf_tag))
             self.assertTrue(os.path.exists(gref_bub_vcf_path))
             gref_bub_alt_records = int(subprocess.check_output(
                 'bcftools view -H {} | grep "_alt" | wc -l'.format(gref_bub_vcf_path),
@@ -1501,10 +1505,10 @@ class TestCase(unittest.TestCase):
     def testYeastPangenomeSplitLocal(self):
         """ Run pangenome pipeline (including contig splitting!) on yeast dataset using cactus-pangenome """
         name = "local"
-        self._run_yeast_pangenome(name, mgSplit=True, gref='clip')
+        self._run_yeast_pangenome(name, mgSplit=True, gref='clip', grefL=0.95)
 
         # check the output
-        self._check_yeast_pangenome(name, other_ref='DBVPG6044', expect_odgi=True, expect_haplo=True, expect_unchopped_gfa=True, expect_gref=True)
+        self._check_yeast_pangenome(name, other_ref='DBVPG6044', expect_odgi=True, expect_haplo=True, expect_unchopped_gfa=True, expect_gref=True, grefL=0.95)
 
         # Test bypass re-indexing with --vgClip and --vgFilter
         self._test_vg_bypass(name)

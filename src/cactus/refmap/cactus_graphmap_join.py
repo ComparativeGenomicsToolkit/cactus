@@ -194,6 +194,11 @@ def graphmap_join_options(parser):
                         "are 'full', 'clip', 'filter'. Default: 'clip'. [default: disabled]")
     parser.add_argument("--minGrefLen", type=int, default=None,
                         help="Minimum graph reference fragment length [default from config: 50]")
+    parser.add_argument("--grefL", type=float, default=None,
+                        help="Pass `-L <FLOAT>` to vg deconstruct for the gref VCF only "
+                        "(nested-site threshold). Requires --gref. Value is embedded in the "
+                        "gref VCF filenames as gref<NN> where NN=int(value*100), "
+                        "e.g. 0.95 -> .gref95.vcf.gz.")
 
 def graphmap_join_validate_options(options):
     """ make sure the options make sense and fill in sensible defaults """
@@ -480,6 +485,13 @@ def graphmap_join_validate_options(options):
             raise RuntimeError('--gref filter requires filtering to be enabled (--filter must not be 0)')
         if getattr(options, 'collapse', False):
             raise RuntimeError('--gref is not compatible with --collapse (vg paths -u requires acyclic reference paths)')
+
+    # validate --grefL
+    if options.grefL is not None:
+        if options.gref is None:
+            raise RuntimeError('--grefL requires --gref')
+        if options.grefL <= 0.0 or options.grefL > 1.0:
+            raise RuntimeError('--grefL value must be in (0.0, 1.0], got {}'.format(options.grefL))
 
     # Prevent some useless compute due to default param combos
     gref_needs_clip = options.gref in ['clip', 'filter'] if options.gref else False
@@ -948,11 +960,12 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
             gref_parent_job = gref_fasta_job
 
         # build GFA, GBZ, VCF, haplo from the graph-reference VGs
+        gref_vcftag = 'gref' if options.grefL is None else 'gref{}'.format(int(round(options.grefL * 100)))
         gref_out_dicts = build_vg_indexes_and_vcf(gref_parent_job, options, config, gref_vg_ids, vg_ids,
                                                  tag='gref.', index_mem=index_mem, max_mem=max_mem,
-                                                 vcf_ref=gref_sample, vcftag='gref', do_haplo=options.gref in options.haplo,
+                                                 vcf_ref=gref_sample, vcftag=gref_vcftag, do_haplo=options.gref in options.haplo,
                                                  ref_fasta_dict=gref_fasta_dict,
-                                                 is_gref=True)
+                                                 is_gref=True, decon_L=options.grefL)
         out_dicts.extend(gref_out_dicts)
 
         # merge gref segments
@@ -1337,7 +1350,7 @@ def make_xg(job, config, out_name, index_dict, tag='', drop_haplotypes=False):
 
     return { '{}xg'.format(tag) : job.fileStore.writeGlobalFile(xg_path) }
 
-def make_vcf(job, config, options, workflow_phase, index_mem, vcf_ref, vg_ids, ref_fasta_dict, vcftag=None, is_gref=False):
+def make_vcf(job, config, options, workflow_phase, index_mem, vcf_ref, vg_ids, ref_fasta_dict, vcftag=None, is_gref=False, decon_L=None):
     """ make the raw vcf with deconstruct. optionally add in the bub and wave vcfs too
     this is done in parallel on each chrom .vg graph
     """
@@ -1348,7 +1361,7 @@ def make_vcf(job, config, options, workflow_phase, index_mem, vcf_ref, vg_ids, r
     raw_vcf_tbi_ids, bub_vcf_tbi_ids, wave_vcf_tbi_ids = [], [], []
     for vg_path, vg_id, in zip(options.vg, vg_ids):
         deconstruct_job = root_job.addChildJobFn(deconstruct, config, options.outName,
-                                                 vcf_ref, vg_id,
+                                                 vcf_ref, vg_id, decon_L,
                                                  tag=os.path.splitext(os.path.basename(vg_path))[0] + '.' + vcftag + '.',
                                                  cores=options.indexCores,
                                                  disk = vg_id.size * 6,
@@ -1417,7 +1430,7 @@ def index_vcf(vcf_path, rt_log_cmd=True):
         cactus_call(parameters=['bcftools', 'index', '-c', vcf_path], rt_log_cmd=rt_log_cmd)
         return vcf_path + '.csi'
 
-def deconstruct(job, config, out_name, vcf_ref, vg_id, tag):
+def deconstruct(job, config, out_name, vcf_ref, vg_id, decon_L, tag):
     """ make the raw vcf
     """ 
     work_dir = job.fileStore.getLocalTempDir()
@@ -1452,6 +1465,8 @@ def deconstruct(job, config, out_name, vcf_ref, vg_id, tag):
     # make the vcf
     vcf_path = os.path.join(work_dir, os.path.basename(out_name) + '.' + tag + 'raw.vcf.gz')
     decon_cmd = ['vg', 'deconstruct', vg_path, '-P', vcf_ref, '-C', '-a', '-t', str(job.cores)]
+    if decon_L is not None:
+        decon_cmd += ['-L', str(decon_L)]
     cactus_call(parameters=[decon_cmd, ['bgzip', '--threads', str(job.cores)]], outfile=vcf_path, job_memory=job.memory)
     tbi_path = index_vcf(vcf_path)
 
@@ -2043,7 +2058,8 @@ def snarl_stats(job, options, config, vg_path, vg_id):
 
 def build_vg_indexes_and_vcf(parent_job, options, config, phase_vg_ids, vg_ids,
                              tag, index_mem, max_mem, vcf_ref=None, vcftag=None,
-                             ref_fasta_dict=None, do_haplo=False, is_gref=False):
+                             ref_fasta_dict=None, do_haplo=False, is_gref=False,
+                             decon_L=None):
     """ Common workflow: per-chrom VG -> GFA -> GBZ+snarls, with optional VCF and haplo.
     Returns list of output dicts to append to out_dicts.
     """
@@ -2073,7 +2089,7 @@ def build_vg_indexes_and_vcf(parent_job, options, config, phase_vg_ids, vg_ids,
         vcf_job = gfa_root_job.addFollowOnJobFn(make_vcf, config, options, tag.rstrip('.'),
                                                  index_mem, vcf_ref, phase_vg_ids,
                                                  ref_fasta_dict, vcftag=vcftag,
-                                                 is_gref=is_gref)
+                                                 is_gref=is_gref, decon_L=decon_L)
         out_dicts.append(vcf_job.rv())
 
     # optional haplo index
