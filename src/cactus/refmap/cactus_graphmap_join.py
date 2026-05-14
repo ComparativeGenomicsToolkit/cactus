@@ -2119,9 +2119,9 @@ def compute_gref_paths(job, config, options, vg_path, vg_id, vcf_ref):
     segs_path = vg_path + '.gref-segs.tsv'
 
     cmd = ['vg', 'paths', '-x', vg_path, '-u', '-Q', vcf_ref,
-           '--min-augref-len', str(min_gref_len),
+           '--min-gref-len', str(min_gref_len),
            '-N', gref_sample,
-           '--augref-segs', segs_path,
+           '--gref-segs', segs_path,
            '-t', str(job.cores)]
     cactus_call(parameters=cmd, outfile=gref_vg_path, job_memory=job.memory)
 
