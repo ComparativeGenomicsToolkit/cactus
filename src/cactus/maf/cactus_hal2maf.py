@@ -56,10 +56,14 @@ def main():
     parser.add_argument("--batchParallelHal2maf", type=int, help = "Number of hal2maf commands to be executed in parallel in batch. Use to throttle down number of concurrent jobs to save memory. [default=batchCores]", default=None)
     parser.add_argument("--batchParallelTaf", type=int, help = "Number of taf normalization command chains to be executed in parallel in batch. Use to throttle down number of concurrent jobs to save memory. [default=batchCores]", default=None)    
     parser.add_argument("--onlyOrthologs", action="store_true", help = "Run hal2maf with --onlyOrthologs option which attempts to  keep only duplications that are also separate in ancestor")
+    parser.add_argument("--universal", action="store_true",
+                        help="emit the union of novel-to-parent columns across --refGenome and all of its ancestor descendants."
+                        " produces a single MAF whose blocks come from multiple references (one row per ancestor where each"
+                        " column is novel). requires --refGenome to be an ancestor. forces --outType=raw by default.")
 
     # newer output type selection option
-    parser.add_argument("--outType", nargs='+', default=['norm'], choices=["raw", "norm", "single", "consensus"],
-                        help="Select which kind of postprocessing to apply to the hal2maf output. Multiple selections allowed. raw: return hal2maf output as-is; norm: run taffy normalization to merge adjacent blocks where possible; single: heuristically choose single, most similar homolog for each species for each (normalized) block using mafDuplicateFilter; consensus:  squish all duplicate rows for each (normalized) block into a single conensus row using maf_stream. [default=norm]")
+    parser.add_argument("--outType", nargs='+', default=None, choices=["raw", "norm", "single", "consensus"],
+                        help="Select which kind of postprocessing to apply to the hal2maf output. Multiple selections allowed. raw: return hal2maf output as-is; norm: run taffy normalization to merge adjacent blocks where possible; single: heuristically choose single, most similar homolog for each species for each (normalized) block using mafDuplicateFilter; consensus:  squish all duplicate rows for each (normalized) block into a single conensus row using maf_stream. [default=norm, or raw when --universal]")
     # new dupe-handler option
 
     # toggle taffy indexing
@@ -168,6 +172,20 @@ def main():
     if options.bedRanges and not options.bedRanges.endswith('.bed'):
         raise RuntimeError('file passed to --bedRanges must end with .bed')
 
+    if options.universal:
+        if options.noAncestors:
+            raise RuntimeError('--universal is incompatible with --noAncestors (ancestral rows are the entire output)')
+        if options.refSequence or options.start or options.length or options.bedRanges:
+            raise RuntimeError('--universal is incompatible with --refSequence, --start, --length, --bedRanges'
+                               ' (multi-reference sub-ranging is not supported)')
+        if options.coverage:
+            raise RuntimeError('--universal is incompatible with --coverage (taffy coverage assumes a single reference'
+                               ' and will undercount on multi-reference output)')
+        if options.outType is None:
+            options.outType = ['raw']
+    elif options.outType is None:
+        options.outType = ['norm']
+
     if options.coverageSexChroms or options.coverageGapThresholds:
         logger.warning('Toggling --coverage on because --coverageSexChroms and/or --coverageGapThresholds was set')
         options.coverage = True
@@ -240,71 +258,47 @@ def hal2maf_workflow(job, hal_id, bed_id, options, config):
     hal2maf_ranges_job.addFollowOn(hal2maf_merge_job)
     # note: merge job also handles exporting (and some cleanup), indexing and coverage
 
-def hal2maf_ranges(job, hal_id, bed_id, options):
-    """ get the ranges (in reference *sequence* coordinates) for each hal2maf job """
-    work_dir = job.fileStore.getLocalTempDir()
-    hal_path = os.path.join(work_dir, os.path.basename(options.halFile.replace(' ', '.')))
-    bed_path = os.path.join(work_dir, 'ranges.bed')
-    RealtimeLogger.info("Reading HAL file from job store to {}".format(hal_path))    
-    job.fileStore.readGlobalFile(hal_id, hal_path)
-    if bed_id:
-        job.fileStore.readGlobalFile(bed_id, bed_path)
-    RealtimeLogger.info("Computing range information")
-
-    res = cactus_call(parameters=['halStats', hal_path, '--sequenceStats', options.refGenome], check_output=True)
+def _chunks_for_ref(hal_path, bed_path, ref_genome, options, use_subrange):
+    """ build (ref_genome, seq, start, end) chunk tuples for a single reference genome.
+    use_subrange controls whether options.refSequence/start/length/bedRanges apply
+    (only true for options.refGenome in non-universal mode). """
+    res = cactus_call(parameters=['halStats', hal_path, '--sequenceStats', ref_genome], check_output=True)
     ref_sequence_lengths = {}
     for line in res.strip().split('\n')[1:]:
         tokens = line.strip().split(",")
         if len(tokens) == 4:
             ref_sequence_lengths[tokens[0]] = int(tokens[1])
 
-    # upstream error handling should make sure that start/length, if specified, are 1:1 for refsequences
-    if options.start:
-        assert options.refSequence and options.length and len(options.start) == len(options.refSequence)
-    if options.length:
-        assert options.start and len(options.length) == len(options.start)
-
-    # collect the ranges to convert, which can be specified using various options
     raw_intervals = []
-    if options.start:
-        # from --refSequence --start --length
+    if use_subrange and options.start:
         for seq, start, length in zip(options.refSequence, options.start, options.length):
             raw_intervals.append((seq, start, start + length))
-    elif options.bedRanges:
-        # from BED file with --bedRanges
+    elif use_subrange and options.bedRanges:
         with open(bed_path, 'r') as bed_file:
             for line in bed_file:
                 toks = line.split()
                 if len(toks) >= 3:
                     raw_intervals.append((toks[0], int(toks[1]), int(toks[2])))
+    elif use_subrange and options.refSequence:
+        for seq in options.refSequence:
+            raw_intervals.append((seq, 0, ref_sequence_lengths[seq] if seq in ref_sequence_lengths else -1))
     else:
-        if options.refSequence:
-            # from --refSequence (but not subrange)
-            for seq in options.refSequence:
-                raw_intervals.append((seq, 0, ref_sequence_lengths[seq] if seq in ref_sequence_lengths else -1))
-        else:
-            # default to everything
-            for seq, length in ref_sequence_lengths.items():
-                raw_intervals.append((seq, 0, length))
+        for seq, length in ref_sequence_lengths.items():
+            raw_intervals.append((seq, 0, length))
 
-    # sanity check the invervals
     for seq, start, end in raw_intervals:
         if seq not in ref_sequence_lengths:
-            raise RuntimeError('target reference sequence {} not found in genome {}'.format(seq, options.refGenome))
+            raise RuntimeError('target reference sequence {} not found in genome {}'.format(seq, ref_genome))
         if start < 0:
             raise RuntimeError('negative start value {} not allowed'.format(start))
         if end > ref_sequence_lengths[seq]:
-            raise RuntimeError('invalid range start={} end={} exceeds {} sequence length of {}'.format(start, end, seq, ref_sequence_lengths[seq]))
-                                                                                                          
+            raise RuntimeError('invalid range start={} end={} exceeds {} sequence length of {}'.format(
+                start, end, seq, ref_sequence_lengths[seq]))
 
-    # chunk the intervals
-    # note this breaks up, but doesn't fuse input chunks
-    # todo: if we want to support fusing, then probably need to make sure normalization respects boundaries
     chunks = []
     for seq, start, end in raw_intervals:
         num_chunks = max(1, int((end - start) / options.chunkSize))
         last_chunk_size = int(end - start) - (num_chunks - 1) * options.chunkSize
-        # avoid huge chunks
         if last_chunk_size > options.chunkSize * 1.5 and num_chunks:
             num_chunks += 1
             last_chunk_size = int(end - start) - (num_chunks - 1) * options.chunkSize
@@ -312,12 +306,50 @@ def hal2maf_ranges(job, hal_id, bed_id, options):
             chunk_size = options.chunkSize if i < num_chunks - 1 else last_chunk_size
             chunk_start = start + i * options.chunkSize
             chunk_end = chunk_start + chunk_size
-            chunks.append((seq, chunk_start, chunk_end))
-    assert chunks
+            chunks.append((ref_genome, seq, chunk_start, chunk_end))
+    return chunks
 
-    # get list of genomes sorted by their distance to reference in pre-order traversal
+def hal2maf_ranges(job, hal_id, bed_id, options):
+    """ get the ranges (in reference *sequence* coordinates) for each hal2maf job.
+    chunks are (refGenome, sequence, start, end) tuples; in non-universal mode all
+    chunks share options.refGenome, in --universal mode they span all ancestor refs. """
+    work_dir = job.fileStore.getLocalTempDir()
+    hal_path = os.path.join(work_dir, os.path.basename(options.halFile.replace(' ', '.')))
+    bed_path = os.path.join(work_dir, 'ranges.bed')
+    RealtimeLogger.info("Reading HAL file from job store to {}".format(hal_path))
+    job.fileStore.readGlobalFile(hal_id, hal_path)
+    if bed_id:
+        job.fileStore.readGlobalFile(bed_id, bed_path)
+    RealtimeLogger.info("Computing range information")
+
+    if options.start:
+        assert options.refSequence and options.length and len(options.start) == len(options.refSequence)
+    if options.length:
+        assert options.start and len(options.length) == len(options.start)
+
     tree_str = cactus_call(parameters=['halStats', hal_path, '--tree'], check_output=True).strip()
     mc_tree = MultiCactusTree(NXNewick().parseString(tree_str, addImpliedRoots=False))
+
+    if options.universal:
+        try:
+            ref_id = mc_tree.getNodeId(options.refGenome)
+        except KeyError:
+            raise RuntimeError('--refGenome {} not found in HAL tree'.format(options.refGenome))
+        if mc_tree.isLeaf(ref_id):
+            raise RuntimeError('--universal requires --refGenome to be an ancestor (got leaf: {})'.format(
+                options.refGenome))
+        ref_genomes = [mc_tree.getName(n) for n in mc_tree.preOrderTraversal(ref_id) if not mc_tree.isLeaf(n)]
+        RealtimeLogger.info('--universal: emitting novel-to-parent columns from {} ancestor references: {}'.format(
+            len(ref_genomes), ref_genomes))
+    else:
+        ref_genomes = [options.refGenome]
+
+    chunks = []
+    for ref_genome in ref_genomes:
+        use_subrange = (ref_genome == options.refGenome) and not options.universal
+        chunks.extend(_chunks_for_ref(hal_path, bed_path, ref_genome, options, use_subrange))
+    assert chunks
+
     genome_ranks = {}
     for i, node in enumerate(mc_tree.preOrderTraversal()):
         genome_ranks[mc_tree.getName(node)] = i
@@ -388,16 +420,17 @@ def chunk_name(chunk_num, options, tag=''):
     return '{}_chunk_{}{}{}'.format(bname, chunk_num, tag, ext.replace('taf', 'maf'))
     
 def hal2maf_cmd(hal_path, chunk, chunk_num, options, config):
-    """ make a hal2maf command for a chunk """
+    """ make a hal2maf command for a chunk. chunk = (refGenome, sequence, start, end). """
 
     # we are going to run this relative to work_dir
     hal_path = os.path.basename(hal_path)
 
     time_cmd = '/usr/bin/time -vp' if os.environ.get("CACTUS_LOG_MEMORY") else '(time -p '
     time_end = '' if os.environ.get("CACTUS_LOG_MEMORY") else ')'
-    
+
+    ref_genome, seq, start, end = chunk
     cmd = 'set -eo pipefail && {} hal2maf {} stdout --refGenome {} --refSequence {} --start {} --length {} --maxBlockLen 10000'.format(
-        time_cmd, hal_path, options.refGenome, chunk[0], chunk[1], chunk[2]-chunk[1])
+        time_cmd, hal_path, ref_genome, seq, start, end - start)
     if options.rootGenome:
         cmd += ' --rootGenome {}'.format(options.rootGenome)
     if options.targetGenomes:
@@ -406,6 +439,8 @@ def hal2maf_cmd(hal_path, chunk, chunk_num, options, config):
         cmd += ' --onlyOrthologs'
     if options.noAncestors:
         cmd += ' --noAncestors'
+    if options.universal:
+        cmd += ' --novel'
     cmd += '{} 2> {}.h2m.time'.format(time_end, chunk_num)
     # todo: it would be better to filter this out upstream, but shouldn't make any difference here since we're taf normalizing anyway
     cmd += ' | grep -v "^s	{}"'.format(getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "assemblyName", default="_MINIGRAPH_"))
