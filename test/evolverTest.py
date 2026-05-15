@@ -1123,6 +1123,38 @@ class TestCase(unittest.TestCase):
             self.assertEqual(ref_genomes, {'Anc0', 'Anc1', 'Anc2', 'mr'})
             self.assertEqual(anc0_bases, anc0_length)
 
+            # --universal with --noAncestors: same coverage, but each block must contain
+            # ONLY its reference ancestor (no other/foreign ancestors) plus leaves.
+            universal_na_file = os.path.join(self.tempDir, 'universal_na.maf')
+            subprocess.check_call(['cactus-hal2maf', self._job_store('h2m'), halPath, universal_na_file,
+                                   '--refGenome', 'Anc0', '--universal', '--noAncestors', '--chunkSize', '10000',
+                                   '--binariesMode', binariesMode], shell=False)
+            self.assertGreaterEqual(os.path.getsize(universal_na_file), 100000)
+
+            ancestors = set(parent_of.keys()) | {'Anc0'}
+            na_anc0_bases = 0
+            na_ref_genomes = set()
+            ref_genome = None
+            with open(universal_na_file) as f:
+                for line in f:
+                    if line.startswith('a'):
+                        ref_genome = None
+                    elif line.startswith('s'):
+                        toks = line.split()
+                        genome = toks[1].split('.')[0]
+                        length = int(toks[3])
+                        if ref_genome is None:
+                            ref_genome = genome
+                            na_ref_genomes.add(ref_genome)
+                            self.assertIn(ref_genome, ancestors)
+                        else:
+                            self.assertFalse(genome in ancestors and genome != ref_genome,
+                                             '--noAncestors violation: foreign ancestor {} in {}-ref block'.format(genome, ref_genome))
+                        if genome == 'Anc0':
+                            na_anc0_bases += length
+            self.assertEqual(na_ref_genomes, {'Anc0', 'Anc1', 'Anc2', 'mr'})
+            self.assertEqual(na_anc0_bases, anc0_length)
+
             # cactus-phast smoke test, reusing the simHuman_chr6-rooted MAF
             # already produced for the subrange checks above.
             self._check_phast_runs(halPath, ranges_opt_file, binariesMode)

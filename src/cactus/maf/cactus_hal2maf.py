@@ -97,10 +97,9 @@ def main():
                         "genomes (others are excluded) (vist all if empty)",
                         default=None)
     parser.add_argument("--noAncestors",
-                        help="don't write ancestral sequences. IMPORTANT: "
-                        "Must be used in conjunction with --refGenome"
-                        " to set a non-ancestral genome as the reference"
-                        " because the default reference is the root.",
+                        help="don't write ancestral sequences, except for the reference genome itself."
+                        " if --refGenome is ancestral, the output contains the reference plus leaves"
+                        " but no other ancestors.",
                         action="store_true",
                         default=False)    
     
@@ -173,8 +172,6 @@ def main():
         raise RuntimeError('file passed to --bedRanges must end with .bed')
 
     if options.universal:
-        if options.noAncestors:
-            raise RuntimeError('--universal is incompatible with --noAncestors (ancestral rows are the entire output)')
         if options.refSequence or options.start or options.length or options.bedRanges:
             raise RuntimeError('--universal is incompatible with --refSequence, --start, --length, --bedRanges'
                                ' (multi-reference sub-ranging is not supported)')
