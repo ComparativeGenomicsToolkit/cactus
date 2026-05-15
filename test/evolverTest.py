@@ -1081,6 +1081,48 @@ class TestCase(unittest.TestCase):
             self.assertGreaterEqual(bed_acc[0], 1)
             self.assertGreaterEqual(bed_acc[1], 1)
 
+            # --universal smoke test: emit novel-to-parent columns from every ancestor in the
+            # subtree rooted at --refGenome.  Block refs must span all ancestors, the immediate
+            # parent of a block's ref must never appear inside that block (--novel guarantee),
+            # and every Anc0 base must appear exactly once in the file (universal coverage at root).
+            universal_file = os.path.join(self.tempDir, 'universal.maf')
+            subprocess.check_call(['cactus-hal2maf', self._job_store('h2m'), halPath, universal_file,
+                                   '--refGenome', 'Anc0', '--universal', '--chunkSize', '10000',
+                                   '--binariesMode', binariesMode], shell=False)
+            self.assertGreaterEqual(os.path.getsize(universal_file), 100000)
+
+            anc0_length = None
+            for line in subprocess.check_output(['halStats', halPath]).decode('utf-8').split('\n'):
+                if line.startswith('Anc0,'):
+                    anc0_length = int(line.split(',')[2].strip())
+                    break
+            self.assertTrue(anc0_length)
+
+            parent_of = {'Anc1': 'Anc0', 'Anc2': 'Anc0', 'mr': 'Anc1'}
+            anc0_bases = 0
+            ref_genomes = set()
+            ref_genome, parent = None, None
+            with open(universal_file) as f:
+                for line in f:
+                    if line.startswith('a'):
+                        ref_genome, parent = None, None
+                    elif line.startswith('s'):
+                        toks = line.split()
+                        genome = toks[1].split('.')[0]
+                        length = int(toks[3])
+                        if ref_genome is None:
+                            ref_genome = genome
+                            ref_genomes.add(ref_genome)
+                            self.assertIn(ref_genome, ('Anc0', 'Anc1', 'Anc2', 'mr'))
+                            parent = parent_of.get(ref_genome)
+                        elif parent is not None:
+                            self.assertNotEqual(genome, parent,
+                                                '--novel violation: parent {} present in {}-ref block'.format(parent, ref_genome))
+                        if genome == 'Anc0':
+                            anc0_bases += length
+            self.assertEqual(ref_genomes, {'Anc0', 'Anc1', 'Anc2', 'mr'})
+            self.assertEqual(anc0_bases, anc0_length)
+
             # cactus-phast smoke test, reusing the simHuman_chr6-rooted MAF
             # already produced for the subrange checks above.
             self._check_phast_runs(halPath, ranges_opt_file, binariesMode)
