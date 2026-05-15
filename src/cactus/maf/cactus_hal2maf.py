@@ -436,7 +436,13 @@ def hal2maf_cmd(hal_path, chunk, chunk_num, options, config):
         cmd += ' --onlyOrthologs'
     if options.noAncestors:
         cmd += ' --noAncestors'
-    if options.universal:
+    # in --universal mode every ancestor gets --novel so each column is emitted
+    # once (at the topmost ancestor where it is novel) -- EXCEPT the provided
+    # reference itself.  the top node is exported in full so a stand-alone
+    # subclade export (eg --refGenome Anc1) represents the whole clade, not
+    # just Anc1-novel sequence.  for a root reference this is a no-op (nothing
+    # in the root has a parent, so --novel changes nothing there).
+    if options.universal and ref_genome != options.refGenome:
         cmd += ' --novel'
     cmd += '{} 2> {}.h2m.time'.format(time_end, chunk_num)
     # todo: it would be better to filter this out upstream, but shouldn't make any difference here since we're taf normalizing anyway
