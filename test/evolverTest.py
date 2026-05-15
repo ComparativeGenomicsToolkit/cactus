@@ -1102,14 +1102,18 @@ class TestCase(unittest.TestCase):
             anc0_bases = 0
             ref_genomes = set()
             ref_genome, parent = None, None
+            seq_intervals = {}  # genome.sequence -> list of (fwd_start, fwd_end)
             with open(universal_file) as f:
                 for line in f:
                     if line.startswith('a'):
                         ref_genome, parent = None, None
                     elif line.startswith('s'):
                         toks = line.split()
-                        genome = toks[1].split('.')[0]
-                        length = int(toks[3])
+                        name = toks[1]
+                        genome = name.split('.')[0]
+                        start, length, strand, srcSize = int(toks[2]), int(toks[3]), toks[4], int(toks[5])
+                        fwd = start if strand == '+' else srcSize - start - length
+                        seq_intervals.setdefault(name, []).append((fwd, fwd + length))
                         if ref_genome is None:
                             ref_genome = genome
                             ref_genomes.add(ref_genome)
@@ -1122,6 +1126,27 @@ class TestCase(unittest.TestCase):
                             anc0_bases += length
             self.assertEqual(ref_genomes, {'Anc0', 'Anc1', 'Anc2', 'mr'})
             self.assertEqual(anc0_bases, anc0_length)
+
+            # exactly-once invariant: no base of any genome may appear in more than one
+            # column.  this is the regression guard for the --novel end-of-range
+            # off-by-one (the last column of every chunk used to leak a duplicate base).
+            def union_len(ivs):
+                ivs = sorted(ivs)
+                total = 0
+                ca, cb = ivs[0]
+                for a, b in ivs[1:]:
+                    if a > cb:
+                        total += cb - ca
+                        ca, cb = a, b
+                    else:
+                        cb = max(cb, b)
+                return total + cb - ca
+            for name, ivs in seq_intervals.items():
+                covered = sum(b - a for a, b in ivs)
+                distinct = union_len(ivs)
+                self.assertEqual(covered, distinct,
+                                 'exactly-once violation: {} has {} base-instances over {} distinct positions'
+                                 ' ({} duplicated)'.format(name, covered, distinct, covered - distinct))
 
             # --universal with --noAncestors: same coverage, but each block must contain
             # ONLY its reference ancestor (no other/foreign ancestors) plus leaves.
