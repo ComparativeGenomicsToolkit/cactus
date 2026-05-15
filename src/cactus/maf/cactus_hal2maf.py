@@ -178,6 +178,9 @@ def main():
         if options.coverage:
             raise RuntimeError('--universal is incompatible with --coverage (taffy coverage assumes a single reference'
                                ' and will undercount on multi-reference output)')
+        if options.targetGenomes:
+            raise RuntimeError('--universal is incompatible with --targetGenomes (a per-ancestor reference not in the'
+                               ' target set would be filtered out, producing blocks with no reference row)')
         if options.outType is None:
             options.outType = ['raw']
     elif options.outType is None:
