@@ -463,8 +463,23 @@ def hal2maf_cmd(hal_path, chunk, chunk_num, options, config):
     cmd += '{} 2> {}.h2m.time'.format(time_end, chunk_num)
     # todo: it would be better to filter this out upstream, but shouldn't make any difference here since we're taf normalizing anyway
     cmd += ' | grep -v "^s	{}"'.format(getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "assemblyName", default="_MINIGRAPH_"))
+    if options.universal:
+        # extract the row-0 (block-reference) intervals for the --universal
+        # coordinate-system BED in the SAME stream that writes the chunk MAF
+        # (zero extra passes -- a full Python scan of a huge MAF would take
+        # days).  awk passes every line through unchanged and additionally
+        # writes this chunk's merged row-0 intervals to <chunk>.bedfrag.
+        bedfrag = chunk_name(chunk_num, options) + '.bedfrag'
+        awk_prog = ('{ if ($1=="a") {r=1} '
+                    'else if (r==1 && $1=="s") {r=0; '
+                    'fs=($5=="+")?$3:$6-$3-$4; fe=fs+$4; '
+                    'if ($2==c && fs==e) {e=fe} '
+                    'else {if (c!="") print c"\\t"s"\\t"e > bf; c=$2; s=fs; e=fe}} '
+                    'print } '
+                    'END {if (c!="") print c"\\t"s"\\t"e > bf}')
+        cmd += " | awk -v bf={} '{}'".format(bedfrag, awk_prog)
     if options.outputMAF.endswith('.gz'):
-        cmd += ' | bgzip'        
+        cmd += ' | bgzip'
     cmd += ' > {}'.format(chunk_name(chunk_num, options))
     return cmd
 
@@ -709,8 +724,23 @@ def hal2maf_batch(job, hal_id, batch_chunks, genome_list, options, config):
         # loop re-copies the entire growing MAF into the jobstore every chunk
         # (O(n^2) bytes) -- catastrophic for large --universal runs.
         out_dict['raw'] = job.fileStore.writeGlobalFile(raw_maf_path)
-        
-    return out_dict            
+
+    if options.universal:
+        # concatenate the per-chunk row-0 bedfrags in chunk order (== MAF
+        # order).  these were produced for free in the hal2maf->chunk stream;
+        # the (tiny) cross-chunk merge happens later on the fragment file, not
+        # on the MAF.  chunks with no blocks produce no bedfrag -> skip.
+        import shutil
+        batch_bed_path = os.path.join(work_dir, 'out.universal.bedfrag')
+        with open(batch_bed_path, 'w') as outbed:
+            for i in range(len(batch_chunks)):
+                bf = os.path.join(work_dir, chunk_name(i, options) + '.bedfrag')
+                if os.path.isfile(bf):
+                    with open(bf) as inbed:
+                        shutil.copyfileobj(inbed, outbed)
+        out_dict['bed'] = job.fileStore.writeGlobalFile(batch_bed_path)
+
+    return out_dict
 
 def hal2maf_merge_all(job, output_dicts, options, genome_list):
     """ merge up the batches, where each one is a dictionary """
@@ -733,15 +763,31 @@ def hal2maf_merge_all(job, output_dicts, options, genome_list):
                                                    disk=int(1.1 * maf_size),
                                                    memory=cactus_clamp_memory(maf_size / 10))
             index_job.addFollowOnJobFn(export_file, index_job.rv(), output_name + output_ext + '.tai')
-            
-            
+
         if options.coverage:
             coverage_job = merge_job.addFollowOnJobFn(taffy_coverage, merge_job.rv(), output_name + output_ext,
                                                       genome_list, options,
                                                       disk=int(1.1 * maf_size),
                                                       memory=cactus_clamp_memory(maf_size / 10))
             coverage_job.addFollowOnJobFn(export_file, coverage_job.rv(), output_name + output_ext + '.cov.tsv')
-            
+
+    if options.universal:
+        # build the coordinate-system BED from the per-batch row-0 bedfrags
+        # (small; produced for free in the chunk stream).  independent of the
+        # MAF merge -- no MAF scan.  order == batch order == MAF / .tai order.
+        bed_ids = [out_dict['bed'] for out_dict in output_dicts]
+        bed_size = sum([b.size for b in bed_ids])
+        bname, bext = os.path.splitext(options.outputMAF)
+        if bext == '.gz':
+            bname, bext = os.path.splitext(bname)
+            bext += '.gz'
+        bed_out = bname + ('.bed.gz' if bext.endswith('.gz') else '.bed')
+        bedmerge_job = job.addChildJobFn(merge_universal_bed, bed_ids, options.outputMAF,
+                                         disk=int(3 * bed_size) + 2**20,
+                                         memory=cactus_clamp_memory(max(bed_size, 2**20)))
+        bedmerge_job.addFollowOnJobFn(export_file, bedmerge_job.rv(), bed_out)
+        bedmerge_job.addFollowOnJobFn(clean_jobstore_files, file_ids=bed_ids)
+
     return export_job.rv()
         
 def hal2maf_merge(job, maf_ids, options):
@@ -762,6 +808,44 @@ def hal2maf_merge(job, maf_ids, options):
         merged_path = taf_path
         
     return job.fileStore.writeGlobalFile(merged_path)
+
+def merge_universal_bed(job, bed_ids, output_maf):
+    """ build the final --universal coordinate-system BED from the per-batch
+    row-0 bedfrags (small; produced for free in the chunk stream -- no MAF
+    scan).  concatenate them in batch order (== MAF / .tai order) and
+    stream-merge intervals that are contiguous across chunk/batch boundaries.
+    gzip (bgzip, like the MAF) when the output MAF is gzipped. """
+    import shutil
+    work_dir = job.fileStore.getLocalTempDir()
+    frags_path = os.path.join(work_dir, 'frags.bed')
+    with open(frags_path, 'w') as out:
+        for bid in bed_ids:
+            p = job.fileStore.readGlobalFile(bid)
+            with open(p) as f:
+                shutil.copyfileobj(f, out)
+
+    final_path = os.path.join(work_dir, 'universal.bed')
+    chrom = start = end = None
+    with open(frags_path) as f, open(final_path, 'w') as bed:
+        for line in f:
+            if not line.strip():
+                continue
+            name, a, b = line.split('\t')
+            a, b = int(a), int(b)
+            if name == chrom and a == end:
+                end = b
+            else:
+                if chrom is not None:
+                    bed.write('{}\t{}\t{}\n'.format(chrom, start, end))
+                chrom, start, end = name, a, b
+        if chrom is not None:
+            bed.write('{}\t{}\t{}\n'.format(chrom, start, end))
+
+    if output_maf.endswith('.gz'):
+        cactus_call(parameters=['bgzip', final_path])
+        final_path += '.gz'
+
+    return job.fileStore.writeGlobalFile(final_path)
 
 def taffy_index(job, maf_id, output_path):
     """ run taffy index """
