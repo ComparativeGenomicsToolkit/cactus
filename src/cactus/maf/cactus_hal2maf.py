@@ -692,7 +692,10 @@ def hal2maf_batch(job, hal_id, batch_chunks, genome_list, options, config):
                 cmd += '| bgzip'
             cmd += ' >> {}'.format(raw_maf_path)
             system(cmd)
-            out_dict['raw'] = job.fileStore.writeGlobalFile(raw_maf_path)
+        # import once after all chunks are concatenated.  doing this inside the
+        # loop re-copies the entire growing MAF into the jobstore every chunk
+        # (O(n^2) bytes) -- catastrophic for large --universal runs.
+        out_dict['raw'] = job.fileStore.writeGlobalFile(raw_maf_path)
         
     return out_dict            
 
