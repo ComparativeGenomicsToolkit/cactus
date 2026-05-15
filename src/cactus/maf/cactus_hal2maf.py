@@ -181,6 +181,14 @@ def main():
         if options.targetGenomes:
             raise RuntimeError('--universal is incompatible with --targetGenomes (a per-ancestor reference not in the'
                                ' target set would be filtered out, producing blocks with no reference row)')
+        if options.rootGenome:
+            raise RuntimeError('--universal is incompatible with --rootGenome (it roots every run at --refGenome'
+                               ' so the export is scoped to the reference clade)')
+        # a subclade --universal export is "this clade only": root every hal2maf
+        # run at the provided reference so the iterator never traverses above it.
+        # this both gives the correct subclade-scoped output and eliminates the
+        # upward-mediated paralogy duplication (verified exactly-once on fly).
+        options.rootGenome = options.refGenome
         if options.outType is None:
             options.outType = ['raw']
     elif options.outType is None:
@@ -447,6 +455,11 @@ def hal2maf_cmd(hal_path, chunk, chunk_num, options, config):
     # in the root has a parent, so --novel changes nothing there).
     if options.universal and ref_genome != options.refGenome:
         cmd += ' --novel'
+    # dedupe paralogous reference columns so --universal stays exactly-once.
+    # harmless no-op on the --novel descendant runs (their kept reference rows
+    # are insertions, which cannot be paralogous).
+    if options.universal:
+        cmd += ' --noRefDupes'
     cmd += '{} 2> {}.h2m.time'.format(time_end, chunk_num)
     # todo: it would be better to filter this out upstream, but shouldn't make any difference here since we're taf normalizing anyway
     cmd += ' | grep -v "^s	{}"'.format(getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "assemblyName", default="_MINIGRAPH_"))
