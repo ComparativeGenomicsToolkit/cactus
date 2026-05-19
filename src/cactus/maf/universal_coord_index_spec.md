@@ -123,13 +123,20 @@ ONElib. No Python over the MAF.
 
 1. ONEcode container per `(genome,seq)`.  ONElib's built-in `INT_LIST`
    Huffman was *measured* and is poor on absolute (t,g,len) triples
-   (~13.7 B/run on the 577-way: 1.16 GiB).  So the run-line instead carries
-   an explicit per-sequence codec: consecutive colinear runs merged, then
-   zigzag-delta (t,g carried as running absolutes) + LEB128 varint, then
-   zlib `deflate`; stored as `R = (inflatedLen INT, deflated bytes STRING)`.
-   Measured ~4.2 B/run (≈3.3× smaller, ~355 MB) — zlib (already linked)
-   chosen over zstd/xz (≈10–20 % more) to avoid a new dependency.
-2. Further shrink (PForDelta/bit-packing, ~150–200 MB) only if measured-need.
+   (~13.7 B/run on the 577-way: 1.16 GiB after the colinear merge).  So the
+   run-line instead carries an explicit per-sequence codec: merge colinear
+   runs, then a structure-of-arrays blob — three concatenated LEB128-varint
+   streams `gap | gsk | lenc` where `gap = t-(prevT+prevLen)` (≈0 for ~99% of
+   splits: sequence forward-contiguous, only OTHER lineages' columns
+   intervened → stream ≈ all zeros), `gsk = g-(prevG+prevLen)` (intervening
+   universal columns; the irreducible signal), `lenc = len<<1|strand` —
+   zlib-`deflate`d; stored as `R = (inflatedLen INT, deflated bytes STRING)`,
+   small header carries `m` and the two stream lengths.  Measured 253 MiB on
+   the 577-way (4.4× vs merged-absolute, 6.6× vs original unmerged 1.74 GiB).
+   zlib (already linked) over zstd/xz; PForDelta on `gsk` measured worse
+   (heavy-tailed); lzma ≈15% smaller but new dependency + slow builds.
+2. Further shrink only if a real consumer needs it (lzma; byte-plane
+   transpose of `gsk` ≈8%).
 
 ## Open knobs
 
