@@ -708,18 +708,31 @@ def hal2maf_batch(job, hal_id, batch_chunks, genome_list, options, config):
             os.remove(f)
         out_dict[out_type] = job.fileStore.writeGlobalFile(maf_path)
 
-    # manually stitch together the raw maf because we need to remove the headers from all but first chunk
+    # manually stitch together the raw maf because we need to remove the headers from all but first chunk.
+    # one system() per chunk spawns ~3-4 processes EACH -- with 100k+ chunks that's ~400k spawns and
+    # dominates runtime.  Instead: chunk 0 once (keeps the file header), then ALL remaining chunks in a
+    # single streamed pass (one xargs|decomp|grep|bgzip pipeline, not one per chunk).
     if 'raw' in options.outType:
         raw_maf_path = os.path.join(work_dir, 'out.raw.' + os.path.basename(options.outputMAF)).replace('.taf', '.maf')
-        cat_cmd = 'gzip -dc' if options.outputMAF.endswith('.gz') else 'cat'
-        for i in range(len(batch_chunks)):
-            cmd = '{} {}'.format(cat_cmd, os.path.join(work_dir, '{}'.format(chunk_name(i, options))))
-            if i > 0:
-                cmd += '| grep -v ^#'
-            if options.outputMAF.endswith('.gz'):
-                cmd += '| bgzip'
-            cmd += ' >> {}'.format(raw_maf_path)
-            system(cmd)
+        gz = options.outputMAF.endswith('.gz')
+        decomp = ['gzip', '-dc'] if gz else ['cat']
+        chunk0 = os.path.join(work_dir, '{}'.format(chunk_name(0, options)))
+        # chunk 0: verbatim (file header kept), normalized through decomp(+bgzip)
+        c0 = [decomp + [chunk0]]
+        if gz:
+            c0.append(['bgzip'])
+        cactus_call(parameters=c0 if len(c0) > 1 else c0[0], outfile=raw_maf_path)
+        if len(batch_chunks) > 1:
+            # all remaining chunks in ONE streamed pass (xargs feeds the whole
+            # list to a single decomp), headers stripped, recompressed once.
+            listfile = os.path.join(work_dir, 'rawlist.txt')
+            with open(listfile, 'w') as fh:
+                for i in range(1, len(batch_chunks)):
+                    fh.write(os.path.join(work_dir, '{}'.format(chunk_name(i, options))) + '\n')
+            pipe = [['xargs', '-a', listfile] + decomp, ['grep', '-v', '^#']]
+            if gz:
+                pipe.append(['bgzip'])
+            cactus_call(parameters=pipe, outfile=raw_maf_path, outappend=True)
         # import once after all chunks are concatenated.  doing this inside the
         # loop re-copies the entire growing MAF into the jobstore every chunk
         # (O(n^2) bytes) -- catastrophic for large --universal runs.
