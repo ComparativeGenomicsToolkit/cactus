@@ -13,9 +13,11 @@ Two logical indexes over that space:
 - **Index B** — any genome's coordinates → universal column. Built by one
   streaming scan of the MAF over **all rows** (including row-0). Per-`(genome,
   seq)` run lists.
-- **Index A** — universal column ↔ ancestral coordinate. **Not a separately
-  built structure**: it is a reconstructed in-memory *view* over the
-  **reference-genome** (row-0/ancestral) run lists already inside Index B.
+- **Index A** — universal column ↔ ancestral coordinate. An **explicit
+  reference track** recorded in the container at build time (the canonical
+  `.bed`, materialized): per maximal row-0 segment, in column order,
+  `(colStart, sOrd, row0Start, len)`.  NOT reconstructed from Index B's
+  per-genome runs — that only works under `--noAncestors` (see Index A §).
 
 Consequence: the runtime query system needs only **`.tai` + the ONEcode Index
 B container**. The `.bed` is *not* a runtime input — it reduces to an optional
@@ -58,9 +60,10 @@ MAF. Also the *source* of Index A (its reference-genome subset).
 - Build needs **only a sequential column scan** of the MAF — not the `.bed`,
   not the `.tai`, not Index A. The column id is the running file-order column
   count; that is identical, by construction, to the `.bed`'s `G` numbering.
-- Scan records **every row, including row-0**. The ancestral reference is just
-  another genome; its runs are exactly the Index-A intervals (see Index A).
-  Row-0 is gap-free ⇒ exactly one run per block for it (cheap).
+- Scan records **every row, including row-0**, into Index B. Row-0 is *also*
+  captured separately, in column order, as the explicit **reference track**
+  (Index A) — see Index A §. Row-0 is gap-free ⇒ one segment per block,
+  colinear-merged on the fly (cheap, BED-sized).
 - Per `genome.sequence`: a `t_start`-sorted run list
   `runs[] = (t_start, g_start, length, strand)`. Query `seq:p` →
   binary-search the run with `t_start ≤ p < t_start+length` →
@@ -112,7 +115,7 @@ is one genome at a time.
 ```
 taffy lift-index -i universal.maf [-o out.ucx]   # Phase 1 + Phase 2 -> ONEcode container
 taffy lift  <genome.seq:pos | BED>               # -> universal column(s)
-   composes with reconstructed Index A: column -> (anc.seq,pos) -> .tai -> full column
+   composes with the explicit Index-A track: column -> (anc.seq,pos) -> .tai -> full column
 ```
 
 Depends only on **taffy** (already a streaming, column-oriented MAF/TAF
@@ -149,7 +152,7 @@ ONElib. No Python over the MAF.
 
 ## Test plan
 
-- Sampled `(genome,seq,p)`: `liftB(p)=g`; cross-check via reconstructed Index A
+- Sampled `(genome,seq,p)`: `liftB(p)=g`; cross-check via the Index-A track
   → `.tai` → the column actually contains `genome.seq:p`.
 - Round-trip small case: every base's run-list column == its block's running
   column id.
@@ -173,26 +176,108 @@ coordinate** `(genome.sequence, position)`. Semantics:
 
 Exactly-once ⇒ a clean bijection on the covered set; no multimap.
 
-## Source: reconstructed from Index B's reference-genome runs
+## Source: an EXPLICIT reference track in the container (not reconstructed)
 
-Index A is **not built separately**. The reference (row-0/ancestral) genomes
-are recorded in Index B like any other genome; their runs *are* the Index-A
-intervals (row-0 gap-free ⇒ one run per block; Phase-2 merge yields exactly the
-maximal `.bed` intervals; column ids identical by construction).
+Earlier drafts said Index A is a reconstructed view over Index B's
+reference-genome runs. **That is fragile and is abandoned.** It only works
+under `cactus-hal2maf --noAncestors`:
 
-Reconstruction at load (Index-A-sized = #intervals; cheap):
+- `.tai` (the extraction engine we reuse) is keyed strictly on the literal
+  **row-0 sequence+pos** per block.
+- Index B records *every* genome's column coverage, with only a per-`(genome,
+  seq)` `isRef` boolean — it does **not** mark *which* coverage was row-0.
+- Without `--noAncestors`, an internal ancestor also appears as a **non-row-0
+  row** in other blocks. Its Index-B runs then cover columns where it is *not*
+  the `.tai` key, and ≥2 ancestors' runs cover the same column. "Which
+  ancestor is the row-0 `.tai` indexed here" becomes unrecoverable from Index
+  B → silently wrong / empty extraction (no error). Verified at scale
+  (apes 26.4M blocks: row-0 spans Anc0..Anc6; the clean property held only
+  because those files used `--noAncestors`).
 
-- `ancToCol`: directly the reference genomes' per-`(seq)` `t_start`-sorted run
-  lists already in Index B (binary search by `pos`).
-- `colToAnc`: concatenate the reference genomes' runs, sort by `g_start` once
-  in memory (one-time, BED-sized), binary search by `col`.
+The universal↔row-0 map is **known a priori** — it is exactly the canonical
+`.bed` `cactus-hal2maf --universal` emits, and exactly what the index builder
+sees as it scans blocks in column order (`aln->row` *is* row-0). So **store
+it explicitly**; never infer it. This dissolves the `--noAncestors`
+dependency: the track records the *actual* row-0 per block regardless of
+whether other ancestors are also present as non-row-0 rows.
 
-Ancestral row-0 is always `+` strand, so no reverse-complement wrinkle.
+### Reference track (= Index A, = the `.bed`, materialized)
 
-Identifying the reference genomes: an explicit **reference-genome marker** in
-the container (see schema). Robust fallback: the reference genomes are exactly
-those whose runs tile `[0,T)` with no gaps/overlaps — but the marker is
-cleaner and authoritative.
+In universal-column order, one record per maximal row-0 segment:
+
+    (colStart, sOrd, row0Start, len)        # all INT; strand always '+'
+
+- `colStart` — first universal column of the segment (strictly increasing;
+  segments tile `[0,T)` exactly: every block has exactly one row-0).
+- `sOrd` — directory S-ordinal of the row-0 sequence (resolve to the name via
+  the `d` directory; avoids repeating long ancestor names).
+- `row0Start` — start of the segment in that row-0 sequence's own coords.
+- `len` — column count = row-0 base count (row-0 is gap-free, maxRefGap==0).
+- Strand: row-0 is always `+` (and `tai_create` itself rejects a `-` row-0),
+  so it is asserted at build, not stored. `col∈[colStart,colStart+len)` ⇒
+  `row0pos = row0Start + (col − colStart)` (affine, no RC wrinkle).
+
+Schema addition (one list line, written right after `t`, before `d`):
+
+    D A 1 8 INT_LIST          # [colStart, sOrd, row0Start, len] * nSeg, column-ordered
+
+Start simple: a single `A` INT_LIST. The track is small (merged row-0
+segmentation ≪ the leaf runs; e.g. rodent root `refChr0` = one segment for
+3642 columns). If a real file shows it large, upgrade `A` to the same
+deflated delta+varint blob form as `R` (follow-up, only if measured).
+
+### Builder change (Phase 1, no Phase-2 sort needed)
+
+The Phase-1 scan is already in column order and already visits `aln->row`
+(row-0) per block. Maintain one *open* segment; per block:
+
+- `seg = (colStart = running T, sOrd = dir-ordinal of row0 seq,
+  row0Start = aln->row->start, len = column_number)`;
+  assert `colStart == running T` (columns globally sequential) and
+  `aln->row->strand == '+'`.
+- If it extends the open segment colinearly — same sOrd, same strand,
+  `open.row0Start + open.len == seg.row0Start` (column contiguity is
+  automatic) — grow `open.len += column_number`; else flush `open`, start a
+  new one. Flush the last open segment at end of scan.
+
+On-the-fly merge bounds RAM/size to the *merged* segment count. Emit the
+(already column-ordered, already merged) track as the `A` line in Phase 2.
+
+### Reader / lookup
+
+- `tui_load` additionally reads `A` into a RAM array `RefSeg[]` (sorted by
+  `colStart` by construction) and an `sOrd → name` table from `d`.
+- `colRangeToRef(a, b)`: binary-search `RefSeg` by `colStart`; split `[a,b)`
+  at segment boundaries; per piece emit
+  `(name(sOrd), row0Start + (pieceStart − colStart), pieceLen)`.
+  One universal interval can yield several pieces on **different** ancestors
+  (e.g. `hg38.chr1:1-100 → AncR…  + AncC…`) — handled naturally.
+
+### Step-2 in `taffy view` (replaces the `-U` print-only mode)
+
+`-r ANYGENOME.seq:s-e` →
+1. Index B (step 1, done): → universal intervals.
+2. `colRangeToRef` → `(row0Seq, refStart, refLen)` pieces; merge/dedup
+   per `row0Seq` (a leaf query can produce many tiny universal intervals that
+   fall in the same row-0 block — collapse so `.tai` extracts each block once).
+3. For each piece: existing `tai_iterator` on the existing `.tai`; emit blocks
+   in column order. No ancestor-name heuristics anywhere.
+
+### Validation
+
+- The `A` track must equal the canonical `.bed` `cactus-hal2maf --universal`
+  emitted (same column ids by construction — cross-check on the rodent file).
+- Root-genome region query == plain `taffy view -r root…` (affine identity
+  where row-0 == the queried genome).
+- Rodent + apes: leaf region → step1→step2→extract; the queried genome's row
+  in the output must cover exactly the queried interval.
+
+### Format note
+
+Adding the `A` line is a `.tui` format change ⇒ existing `.tui` files must be
+rebuilt (`taffy index -u`) to gain the track. The builder edit is small; the
+rebuild is the existing ~tens-of-minutes index pass. Independent of MAF
+generation, so it does not block the cluster fish-MAF run.
 
 ## Optional independent path (debug / cross-check, NOT runtime)
 
@@ -263,40 +348,46 @@ ONEcode type-name encoding is length-prefixed (`3 INT`, `6 STRING`,
 `8 INT_LIST`, `4 CHAR`). Provenance/reference are standard header records via
 the API.
 
-```
-P 3 ucx                              universal column coordinate index
+As built (`taffy/impl/tui.c` `TUI_SCHEMA`), with the new Index-A line `A`:
 
-. ---- globals / directory (cheap front-of-file load) ----
-D t 1 3 INT                          total columns T
-D x 1 11 STRING_LIST                 reference (ancestral row-0) genome names
-D d 4 6 STRING 6 STRING 3 INT 3 INT  dir entry: genome, seq, S-ordinal, seqLen
-
-. ---- one uniform model for ALL genomes (ancestral + leaf) ----
-G g 1 6 STRING                       genome name : groups the S objects below
-O S 2 6 STRING 3 INT                 (genome) sequence: name, seqLen ; indexed object (oneGoto unit)
-D R 1 8 INT_LIST                     run list: [t,g,len,strandBit]*nRuns, sorted by t (compressed)
 ```
+P 3 tui                              universal column index
+
+D t 1 3 INT                          total columns T (global)
+D A 1 8 INT_LIST                     Index-A reference track:
+                                       [colStart, sOrd, row0Start, len]*nSeg
+                                       column-ordered, segments tile [0,T)
+D d 4 6 STRING 3 INT 3 INT 3 INT     dir: seqName, S-ordinal, seqLen, isRef
+O S 2 6 STRING 3 INT                 sequence object: seqName, seqLen
+                                       (the oneGoto unit)
+D R 2 3 INT 6 STRING                 runs: inflatedLen, deflate(SoA delta blob)
+```
+
+(Earlier drafts had `P 3 ucx`, a `D x` reference-name list, a `D g` group,
+and `D R … INT_LIST`. Superseded: genome is derived from the seq name
+(`genome_of`); ONElib's `G` group carries object-count semantics we don't
+need; `R` is a per-sequence zigzag-delta+varint+zlib blob, not `INT_LIST`
+(measured ~5× smaller). `x` is gone — `isRef` lives per `d` entry, and Index A
+is now the **explicit `A` track**, not a reconstruction.)
 
 Notes:
-- **No separate Index-A object type.** Index A = the `S`/`R` objects whose
-  genome is in `x` (the reference marker), reinterpreted (`ancToCol` direct;
-  `colToAnc` via one-time `g`-sort of those runs).
-- One compressed `INT_LIST` `R` line per `S` object — minimal records; ONEcode
-  list compression is the deferred delta/varint phase, for free. Expanded
-  per-run ASCII via `ONEview` for debugging.
-- `strandBit` packed into `len`'s high bit.
-- `S` is the only indexed object type → one footer index; `oneGoto(of,'S',k)`
-  seeks the k-th sequence object; `g` group + `d` directory map
-  `(genome,seq) → k`; `x` marks which genomes reconstruct Index A.
+- **`A` is the materialized `.bed`.** `colStart` strictly increasing;
+  segments partition `[0,T)` (every block has exactly one row-0). `sOrd`
+  resolves to a name via `d`. Strand always `+` (asserted at build).
+  Written once, right after `t`, before `d` (front-of-file, cheap load).
+- One deflated SoA blob `R` per `S` object (see the encoding section).
+- `S` is the only indexed object type → one footer index;
+  `oneGoto(of,'S',k)` seeks the k-th sequence object; `d` maps
+  `seqName → k`. (Reader currently re-scans instead of `oneGoto`; baseline.)
 
 ## Access model
 
-- **Load:** read `t`, `x`, `d` (front of file) → `T`, reference set,
-  name→ordinal. Reconstruct Index A in RAM from the reference genomes' `S`/`R`
-  runs (incl. the one-time `g`-sort for `colToAnc`).
-- **Point lift** `genome.seq:p`: dir → ordinal → `oneGoto('S',k)` → its `R`
-  list → bsearch `t` → column → `colToAnc` (reconstructed Index A) → `.tai` →
-  full column.
+- **Load:** read `t`, `A`, `d` (front of file) → `T`, the Index-A segment
+  array (already column-ordered), `seqName ↔ ordinal`. No reconstruction.
+- **Point/range lift** `genome.seq:s-e`: Index B (`R` of that seq) →
+  universal intervals → binary-search `A` (`colRangeToRef`) →
+  `(row0Seq, refStart, refLen)` pieces (possibly several ancestors) →
+  existing `.tai` per piece → full columns.
 - **Bulk lift:** iterate a genome's `S` objects sequentially (ONEcode-native).
 
 ## Open knobs
