@@ -1,3 +1,11 @@
+# Release 3.2.1 2026-05-20
+
+This release patches a critical regression from 3.2.0 that broke gpu support in docker
+
+- Fix `--gref` option name incompatibility between `cactus` / `vg`;  add `--grefL`
+- Fix KegAlign bashlex error by using a slightly older KegAlign commit (same used in previous cactus release)
+- Update to Toil 9.4.1
+
 # Release 3.2.0 2026-05-06
 
 This release fixes some serious bugs and introduces new functionality.
