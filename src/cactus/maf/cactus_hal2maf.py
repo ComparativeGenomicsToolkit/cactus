@@ -67,7 +67,7 @@ def main():
     # new dupe-handler option
 
     # toggle taffy indexing
-    parser.add_argument("--index", action = "store_true", help = "Produce Taffy index (.tai) of the output", default=False)
+    parser.add_argument("--index", action = "store_true", help = "Produce a Taffy index of the output: .tai by default, or the universal-column index .tui when --universal", default=False)
     
     # pass through a subset of hal2maf options
     parser.add_argument("--refGenome", required=True,
@@ -772,10 +772,22 @@ def hal2maf_merge_all(job, output_dicts, options, genome_list):
         export_job = merge_job.addFollowOnJobFn(export_file, merge_job.rv(), output_name + output_ext)
         merge_job.addFollowOnJobFn(clean_jobstore_files, file_ids=maf_ids)
         if options.index:
-            index_job = merge_job.addFollowOnJobFn(taffy_index, merge_job.rv(), output_name + output_ext,
-                                                   disk=int(1.1 * maf_size),
-                                                   memory=cactus_clamp_memory(maf_size / 10))
-            index_job.addFollowOnJobFn(export_file, index_job.rv(), output_name + output_ext + '.tai')
+            if options.universal:
+                # .tui builds spill per-genome run files (~5-8x the input MAF)
+                # and load the biggest single-genome spill into RAM for qsort
+                # during phase 2.  Budget generously so vertebrate-scale builds
+                # don't hit OOM or no-space.
+                tui_job = merge_job.addFollowOnJobFn(taffy_tui_index, merge_job.rv(),
+                                                     output_name + output_ext,
+                                                     disk=int(8 * maf_size) + 2**30,
+                                                     memory=cactus_clamp_memory(max(16 * 2**30,
+                                                                                    int(maf_size / 4))))
+                tui_job.addFollowOnJobFn(export_file, tui_job.rv(), output_name + output_ext + '.tui')
+            else:
+                index_job = merge_job.addFollowOnJobFn(taffy_index, merge_job.rv(), output_name + output_ext,
+                                                       disk=int(1.1 * maf_size),
+                                                       memory=cactus_clamp_memory(maf_size / 10))
+                index_job.addFollowOnJobFn(export_file, index_job.rv(), output_name + output_ext + '.tai')
 
         if options.coverage:
             coverage_job = merge_job.addFollowOnJobFn(taffy_coverage, merge_job.rv(), output_name + output_ext,
@@ -865,10 +877,28 @@ def taffy_index(job, maf_id, output_path):
     work_dir = job.fileStore.getLocalTempDir()
     maf_path = os.path.join(work_dir, os.path.basename(output_path))
     job.fileStore.readGlobalFile(maf_id, maf_path)
-    
+
     cactus_call(parameters=['taffy', 'index', '-i', maf_path])
 
     return job.fileStore.writeGlobalFile(maf_path + '.tai')
+
+def taffy_tui_index(job, maf_id, output_path):
+    """ build the universal-column index (.tui) for a `cactus-hal2maf --universal`
+    MAF/TAF.  Long-running on vertebrate-scale inputs; -l INFO streams per-phase
+    timestamps (phase 1 scan, Index A/X encode, per-genome phase 2) through the
+    Toil realtime logger so progress is visible as it happens, not just at end. """
+    work_dir = job.fileStore.getLocalTempDir()
+    maf_path = os.path.join(work_dir, os.path.basename(output_path))
+    job.fileStore.readGlobalFile(maf_id, maf_path)
+
+    # -u: universal-column index; -T work_dir: keep spill files alongside the
+    # MAF copy (already sized for in cactus_call's disk budget), not /tmp.
+    cactus_call(parameters=['taffy', 'index', '-u', '-l', 'INFO',
+                            '-T', work_dir, '-i', maf_path],
+                realtimeStderrPrefix='[taffy-index-tui]',
+                job_memory=job.memory)
+
+    return job.fileStore.writeGlobalFile(maf_path + '.tui')
     
 def taffy_coverage(job, maf_id, output_path, genome_list, options):
     """ compute coverage with taffy coverage """
