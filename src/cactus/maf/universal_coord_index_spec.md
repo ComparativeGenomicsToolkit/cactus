@@ -185,28 +185,41 @@ commits.
 P 3 tui                              universal column index
 
 D t 1 3 INT                          total columns T (global)
-D A 3 3 INT 3 INT 6 STRING           Index A: inflatedLen, nSeg, deflate(SoA)
 D X 3 3 INT 3 INT 6 STRING           Index X: inflatedLen, nRec, deflate(SoA)
-D d 4 6 STRING 3 INT 3 INT 3 INT     dir: seqName, S-ordinal, seqLen, isRef
+O d 3 6 STRING 3 INT 3 INT           dir: seqName, S-ordinal, seqLen
 O S 2 6 STRING 3 INT                 sequence object: seqName, seqLen
 D R 2 3 INT 6 STRING                 runs: inflatedLen, deflate(SoA delta blob)
 ```
 
-Write order: `t`, `A`, `X` (front-of-file, cheap whole-load), then the `d`
-directory, then per-sequence `S`/`R`. Genome is derived from the seq name
-(`genome_of`), so no genome group/name list. `S` is the only indexed object
-type (one footer index; `oneGoto(of,'S',k)` — the reader currently re-scans,
-a known baseline, not a correctness issue).
+Write order: `t`, `X` (front-of-file, cheap whole-load), then the `d`
+directory in NAME-SORTED order (so the reader can binary-search it by name
+via `oneGoto(of,'d',mid)`), then per-sequence `S`/`R` in genome-major order.
+Genome is derived from the seq name at build (`genome_of`), used only to
+group per-genome spills; the reader does no genome resolution.
+
+`d` and `S` are both indexed object types (each gets a footer index).
+`oneGoto(of,'d',i)` jumps to the i-th name-sorted directory entry;
+`oneGoto(of,'S',k)` jumps to the k-th genome-major sequence's S/R pair.
 
 ### Load / access
 
-- Load `t`, `A`, `X`, `d` (front of file) → `T`, the Index-A segment array,
-  the Index-X anchor arrays, `seqName ↔ ordinal`. Bounded RAM (X ≈ T/10000
-  anchors ≈ tens of MB at vertebrate scale; A ≈ #merged row-0 segments).
-- `-U` query: Index B (`R` of that seq, located via the directory) →
-  universal intervals → Index X anchor + forward column scan (above). No
+- Load `t` and `X` only (front of file).  Bounded RAM (X ≈ T/10000 anchors
+  ≈ tens of MB at vertebrate scale).  The directory and per-sequence runs
+  stay on disk.
+- `-U` query: binary-search the `d` directory by name (~O(log n_seqs)
+  `oneGoto`s) → S-ordinal → `oneGoto(of,'S',ord+1)` for the run blob →
+  universal-column intervals → Index X anchor + forward column scan. No
   `.tai`.
 - Bulk lift: iterate a genome's `S` objects sequentially (ONEcode-native).
+
+### What this format is NOT
+
+The earlier draft used to carry an explicit `Index A` reference track
+(column-ordered row-0 ancestor segments tiling `[0,T)`) used by a since-
+removed step-2 ancestor-coord lookup.  The C1 column-scan extractor
+replaced that path; Index A is no longer recorded.  If ancestor-coord
+output becomes a feature again, it would be added as a new line type
+(probably reusing the same SoA delta-codec).
 
 ---
 
