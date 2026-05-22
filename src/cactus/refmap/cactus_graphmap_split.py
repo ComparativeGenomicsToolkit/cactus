@@ -28,7 +28,7 @@ from cactus.shared.common import cactus_clamp_memory
 from cactus.shared.version import cactus_commit
 from cactus.preprocessor.fileMasking import get_mask_bed_from_fasta
 from cactus.preprocessor.checkUniqueHeaders import sanitize_fasta_headers
-from cactus.refmap.cactus_graphmap import filter_paf
+from cactus.refmap.cactus_graphmap import filter_paf, apply_mgsplit_filter_overrides
 from cactus.refmap.cactus_minigraph import check_sample_names, minigraph_gfa_from_pansn
 from toil.job import Job
 from toil.common import Toil
@@ -54,6 +54,8 @@ def main():
     parser.add_argument("--maskFilter", type=int, help = "Ignore softmasked sequence intervals > Nbp")
     parser.add_argument("--minIdentity", type=float, help = "Ignore PAF lines with identity (column 10/11) < this (overrides minIdentity in <graphmap_split> in config)")
     parser.add_argument("--permissiveContigFilter", nargs='?', const='0.25', default=None, type=float, help = "If specified, override the configuration to accept contigs so long as they have at least given fraction of coverage (0.25 if no fraction specified). This can increase sensitivity of very small, fragmented and/or diverse assemblies.")
+    parser.add_argument("--mgSplit", action="store_true", default=False,
+                        help="Use this when the input PAF was produced against a reference-only minigraph (cactus-pangenome --mgSplit / cactus-minigraph --refOnly): relaxes the block-length and overlap filters so palindromic mappings don't get axed before rgfa-split.")
 
     parser.add_argument("--collapse", help = "Incorporate minimap2 self-alignments.", action='store_true', default=False)
     
@@ -106,6 +108,9 @@ def cactus_graphmap_split(options):
 
         if options.collapse:
             findRequiredNode(config_node, "graphmap").attrib["collapse"] = 'all'
+
+        if options.mgSplit:
+            apply_mgsplit_filter_overrides(config_node)
 
         #Run the workflow
         if options.restart:
