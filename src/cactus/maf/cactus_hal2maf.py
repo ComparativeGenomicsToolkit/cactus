@@ -717,10 +717,14 @@ def hal2maf_batch(job, hal_id, batch_chunks, genome_list, options, config):
         gz = options.outputMAF.endswith('.gz')
         decomp = ['gzip', '-dc'] if gz else ['cat']
         chunk0 = os.path.join(work_dir, '{}'.format(chunk_name(0, options)))
+        # Parallelize bgzip; cap at 16 (gzip -dc on the input becomes the
+        # next bottleneck above that).
+        bgz_threads = max(1, min(16, int(getattr(job, 'cores', 1) or 1)))
+        bgzip_cmd = ['bgzip', '-@', str(bgz_threads)] if bgz_threads > 1 else ['bgzip']
         # chunk 0: verbatim (file header kept), normalized through decomp(+bgzip)
         c0 = [decomp + [chunk0]]
         if gz:
-            c0.append(['bgzip'])
+            c0.append(bgzip_cmd)
         cactus_call(parameters=c0 if len(c0) > 1 else c0[0], outfile=raw_maf_path)
         if len(batch_chunks) > 1:
             # all remaining chunks in ONE streamed pass (xargs feeds the whole
@@ -731,7 +735,7 @@ def hal2maf_batch(job, hal_id, batch_chunks, genome_list, options, config):
                     fh.write(os.path.join(work_dir, '{}'.format(chunk_name(i, options))) + '\n')
             pipe = [['xargs', '-a', listfile] + decomp, ['grep', '-v', '^#']]
             if gz:
-                pipe.append(['bgzip'])
+                pipe.append(bgzip_cmd)
             cactus_call(parameters=pipe, outfile=raw_maf_path, outappend=True)
         # import once after all chunks are concatenated.  doing this inside the
         # loop re-copies the entire growing MAF into the jobstore every chunk
