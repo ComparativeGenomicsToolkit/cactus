@@ -59,6 +59,8 @@ def main():
 
     parser.add_argument("--batch", action="store_true",
                         help="Run independently on set of chromosomea inputs (chromfile as from cactus-minigraph --batch). Note that the output will be a directory and not a PAF")
+    parser.add_argument("--mgSplit", action="store_true", default=False,
+                        help="Relax block-length, overlap and deletion filters because this PAF will only feed cactus-graphmap-split for chromosome binning (matches the cactus-pangenome --mgSplit / cactus-minigraph --refOnly pipeline). Do not use on per-chromosome (--batch) runs.")
 
     #Progressive Cactus Options
     parser.add_argument("--configFile", dest="configFile",
@@ -102,6 +104,9 @@ def main():
 
     if options.batch and options.outputFasta:
         raise RuntimeError("--outputFasta cannot be used with --batch")
+
+    if options.mgSplit and options.batch:
+        raise RuntimeError("--mgSplit is for the whole-genome splitting pass and cannot be used with --batch")
     
     # Mess with some toil options to create useful defaults.
     cactus_override_toil_options(options)
@@ -141,6 +146,10 @@ def graph_map(options):
         else:
             # load the config
             config_wrapper.substituteAllPredefinedConstantsWithLiterals(options)
+
+            # relax splitting-stage filters first; explicit --delFilter / --maskFilter below override
+            if options.mgSplit:
+                apply_mgsplit_filter_overrides(config_node)
 
             #apply the maskfilter override
             if options.maskFilter is not None:
@@ -382,6 +391,7 @@ def minigraph_workflow(job, options, config, seq_id_map, gfa_id, graph_event, sa
     # apply the optional deletion filter
     unfiltered_paf_id = None
     filtered_paf_log = None
+    paf_was_filtered = False
     del_filter = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "delFilter", int, default=-1)
     if del_filter > 0:
         del_filter_threshold = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "delFilterThreshold", float, default=None)
@@ -618,8 +628,21 @@ def self_align(job, config, seq_name, seq_id):
         cactus_call(parameters=cmd, outfile=paf_path, outappend=True)
     return job.fileStore.writeGlobalFile(paf_path)        
 
+def apply_mgsplit_filter_overrides(config_node):
+    """ Disable the overlap/block-length/deletion filters in the <graphmap> config.
+        These filters tidy up alignment blocks but mangle the signal rgfa-split needs
+        when the splitting graph contains only the reference (eg --mgSplit / --refOnly):
+        palindromic mappings against a single-haplotype chrY all look similarly sized
+        and gaffilter axes them.  rgfa-split has its own interval merging.
+        Caller deep-copies the config first if it must be preserved for other branches. """
+    graphmap_node = findRequiredNode(config_node, "graphmap")
+    graphmap_node.attrib["GAFOverlapFilterRatio"] = "0"
+    graphmap_node.attrib["PAFOverlapFilterRatio"] = "0"
+    graphmap_node.attrib["minGAFBlockLength"] = "0"
+    graphmap_node.attrib["delFilter"] = "-1"
+
 def filter_paf(job, paf_id, config, reference=None):
-    """ run basic paf-filtering.  these are quick filters that are best to do on-the-fly when reading the paf and 
+    """ run basic paf-filtering.  these are quick filters that are best to do on-the-fly when reading the paf and
         as such, they are called by cactus-graphmap-split and cactus-align, not here """
     work_dir = job.fileStore.getLocalTempDir()
     paf_path = os.path.join(work_dir, 'mg.paf')

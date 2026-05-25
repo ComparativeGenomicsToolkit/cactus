@@ -44,6 +44,7 @@ from cactus.refmap.cactus_minigraph import minigraph_construct_workflow, minigra
 from cactus.refmap.cactus_minigraph import check_sample_names, read_chromfile
 from cactus.refmap.cactus_minigraph import minigraph_construct_import_sequences, export_minigraph_construct_output
 from cactus.refmap.cactus_graphmap import minigraph_workflow, minigraph_batch_workflow, export_graphmap_output
+from cactus.refmap.cactus_graphmap import apply_mgsplit_filter_overrides
 from cactus.refmap.cactus_graphmap_split import graphmap_split_workflow, export_split_data
 from cactus.setup.cactus_align import make_batch_align_jobs, batch_align_jobs
 from cactus.refmap.cactus_graphmap_join import graphmap_join_workflow, export_join_data, graphmap_join_options, graphmap_join_validate_options, vcflib_checks
@@ -472,8 +473,19 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
     mg_options = copy.deepcopy(options)
     mg_options.refOnly = options.mgSplit
     if mg_options.refOnly:
-        mg_options.lastTrain = False        
-    minigraph_job = sanitize_job.addFollowOnJobFn(minigraph_construct_workflow, mg_options, config_node, seq_id_map, seq_order, sv_gfa_path, sanitize=False)
+        mg_options.lastTrain = False
+    # With --mgSplit, the whole-genome graphmap only feeds rgfa-split for chromosome
+    # binning; the per-chrom graphmap/align below produce the real alignments and
+    # apply default filters.  Deep-copy and relax the splitting-stage config so
+    # the per-chrom branch still sees defaults.
+    if options.mgSplit:
+        split_config_node = copy.deepcopy(config_node)
+        apply_mgsplit_filter_overrides(split_config_node)
+        split_config_wrapper = ConfigWrapper(split_config_node)
+    else:
+        split_config_node = config_node
+        split_config_wrapper = config_wrapper
+    minigraph_job = sanitize_job.addFollowOnJobFn(minigraph_construct_workflow, mg_options, split_config_node, seq_id_map, seq_order, sv_gfa_path, sanitize=False)
     sv_gfa_id = minigraph_job.rv(0)
     pansn_sv_gfa_id = minigraph_job.rv(1)
     if not last_scores_id:
@@ -490,7 +502,7 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
     gm_options = copy.deepcopy(options)
     if options.mgSplit:
         gm_options.collapse = False
-    graphmap_job = minigraph_wrapper_job.addFollowOnJobFn(minigraph_workflow, gm_options, config_wrapper, seq_id_map, sv_gfa_id, graph_event, False, ref_collapse_paf_id, pansn_gfa_input=False)
+    graphmap_job = minigraph_wrapper_job.addFollowOnJobFn(minigraph_workflow, gm_options, split_config_wrapper, seq_id_map, sv_gfa_id, graph_event, False, ref_collapse_paf_id, pansn_gfa_input=False)
     paf_id, gfa_fa_id, gaf_id, unfiltered_paf_id, paf_filter_log = graphmap_job.rv(0), graphmap_job.rv(1), graphmap_job.rv(2), graphmap_job.rv(3), graphmap_job.rv(4)
     graphmap_export_job = graphmap_job.addFollowOnJobFn(export_graphmap_wrapper, options, paf_id, paf_path, gaf_id, unfiltered_paf_id, paf_filter_log)
 
@@ -503,13 +515,13 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
         phony_chromfile_job = update_seqfile_job.addFollowOnJobFn(phony_chromfile, options, paf_path)
         chromfile_path = phony_chromfile_job.rv()
         split_export_job = phony_chromfile_job
-    else:        
+    else:
         # cactus_graphmap_split
-        split_job = update_seqfile_job.addFollowOnJobFn(graphmap_split_workflow, options, config_wrapper, seq_id_map, seq_name_map, sv_gfa_id,
+        split_job = update_seqfile_job.addFollowOnJobFn(graphmap_split_workflow, options, split_config_wrapper, seq_id_map, seq_name_map, sv_gfa_id,
                                                         sv_gfa_path, paf_id, paf_path, sanitize=False, pansn_gfa_input=False)
         wf_output = split_job.rv()
-        split_out_path = os.path.join(options.outDir, 'chrom-subproblems')    
-        split_export_job = split_job.addFollowOnJobFn(export_split_wrapper, wf_output, split_out_path, config_wrapper)        
+        split_out_path = os.path.join(options.outDir, 'chrom-subproblems')
+        split_export_job = split_job.addFollowOnJobFn(export_split_wrapper, wf_output, split_out_path, split_config_wrapper)
         chromfile_path = os.path.join(split_out_path, 'chromfile.txt')
 
     # clean out some jobstore files we no longer need

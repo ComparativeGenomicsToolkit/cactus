@@ -164,8 +164,8 @@ By default, minigraph construction and mapping are performed at the whole-genome
 
 ```
 cactus-minigraph js examples/evolverPrimates.txt ep.sv.gfa.gz --refOnly --reference simChimp 
-cactus-graphmap js examples/evolverPrimates.txt ep.sv.gfa.gz ep.paf --reference simChimp  --outputFasta ep.sv.fa.gz
-cactus-graphmap-split js examples/evolverPrimates.txt ep.sv.gfa.gz ep.paf --reference simChimp  --outDir out-split
+cactus-graphmap js examples/evolverPrimates.txt ep.sv.gfa.gz ep.paf --reference simChimp --mgSplit --outputFasta ep.sv.fa.gz
+cactus-graphmap-split js examples/evolverPrimates.txt ep.sv.gfa.gz ep.paf --reference simChimp --mgSplit --outDir out-split
 cactus-minigraph js ./out-split/chromfile.txt out-construct --reference simChimp --batch
 cactus-graphmap js ./out-construct/chromfile.mg.txt out-map --reference simChimp --batch
 cactus-align js ./out-map/chromfile.gm.txt out-align --reference simChimp --outVG --pangenome --batch
