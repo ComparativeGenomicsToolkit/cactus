@@ -1,11 +1,14 @@
 # Universal Column Coordinate Index (`.tui`) — spec
 
 Status: implemented in `taffy` (`taffy index -u` build, `taffy view -U`
-query), validated on real rodent (TAF) + apes (MAF) universal alignments.
-This doc reflects the implementation at the C1-redesign commit; it supersedes
-all earlier drafts (the older "reconstruct Index A from Index B + drive the
-`.tai` per row-0 piece" query model was found to silently drop blocks and is
-abandoned — see Index X §).
+query, `taffy lift` source-side range + reverse leaf lift), validated on
+rodent (TAF), apes (MAF), and fish (MAF) universal alignments at vertebrate
+scale.  This doc has been re-synced to the implementation after the
+chunked-`R` + per-genome lift redesigns; it supersedes all earlier drafts.
+Previous drafts that described "Index A" as a recorded reference track
+or "reconstruct Index A from Index B + drive the `.tai` per row-0 piece"
+are obsolete — Index A is not recorded and `.tai` is not consulted on the
+`-U` path.
 
 `cactus-hal2maf --universal` produces a MAF/TAF whose alignment columns, in
 file order, form one shared coordinate system: the entire top-node ancestral
@@ -15,15 +18,15 @@ universal **column id** is the k-th alignment column in file order.
 
 The `.tui` is a single provenanced ONEcode container, written next to the
 MAF/TAF (`<file>.tui`), holding three things — and it is the **complete**
-runtime input for `taffy view -U`: **no `.tai` is needed for the universal
-query path.**
+runtime input for `taffy view -U` and `taffy lift`: **no `.tai` is needed
+for the universal query path.**
 
-- **Index B** — any genome's coords → universal column(s).
+- **Index B** — any genome's coords → universal column(s).  Source-side
+  range queries (`tui_query`, `tui_load_seq_runs`).
+- **Index L** — universal column → a target genome's coords + paralog set.
+  Reverse leaf lift (`tui_genome_lift_load` + `tui_genome_lift_column`).
 - **Index X** — universal column → file offset (the random-access engine
   that replaces the `.tai` for `-U`).
-- **Index A** — universal column → row-0 (ancestral) coordinate. A recorded
-  reference track (the materialized canonical `.bed`); used for *reporting
-  which ancestor a column belongs to*, **not** for extraction.
 
 ---
 
@@ -52,38 +55,111 @@ Entry point from any genome's own coordinates into the shared column space
 (`genome.seq:pos → column`), so e.g. `hg38` and `catshark` cross-lift via the
 common space though they never co-occur in a reference-projected MAF.
 
-- Per `genome.sequence`: a `t_start`-sorted run list `(t_start, g_start,
-  length, strand)`. Query `seq:p`: bsearch the run with `t_start ≤ p <
+- Per `genome.sequence`: a chunked run list `(t_start, g_start, length,
+  strand)`.  Query `seq:p`: bsearch the chunk + run with `t_start ≤ p <
   t_start+length` → `g_start + (p − t_start)` (`+`) or
-  `g_start + (t_start+length−1 − p)` (`−`). Gaps between runs = uncovered →
-  unmapped. Partial function, 0-or-1 column/base.
+  `g_start + (t_start+length−1 − p)` (`−`). Gaps between runs = uncovered
+  → unmapped. Partial function, 0-or-1 column/base.
 - Range query `seq:[s,e)` → a sorted, **merged** set of universal-column
-  intervals (`tui_query`).
+  intervals (`tui_query`).  Per-chunk t-range metadata lets the reader skip
+  chunks that don't overlap `[s,e)` without paying the zlib decompress.
+- Batch query "all runs of one seq" returned t-sorted for in-RAM bsearch
+  by callers that do many lookups against the same source seq
+  (`tui_load_seq_runs`).  Skips deliberately not applied here -- the
+  contract is "return ALL runs."
 
-### Build (two-phase, memory-bounded for any #genomes / size)
+### Build (two-phase)
 
-**Phase 1 — one streaming C scan, O(1) RAM.** State = running column counter
-`k` + current block. For every row (incl. row-0) split at internal gaps into
-within-block runs and append `(genome, seq, t_start, g_start, length,
-strand)` to that genome's spill file (in column order). Never Python over the
-MAF (vertebrate scale ⇒ days).
+**Phase 1 — one streaming MAF/TAF scan.** State = running column counter
+`k` + current block.  For every row (incl. row-0) split at internal gaps
+into within-block runs and append `(genome, seq, t_start, g_start, length,
+strand)` to that genome's spill file (in column order).  Never Python
+over the MAF (vertebrate scale ⇒ days).
+
+Per-genome spill file descriptors are managed via a bounded LRU pool so
+the writer never blows past `RLIMIT_NOFILE` at 1k+-genome scale.  See
+`taffy/impl/tui.c` `Phase1::spill_ents` for the eviction logic.
 
 **Phase 2 — per-genome finalize.** Sort each spill by `(seq, t_start)`,
-colinear-merge runs across block boundaries, write the genome's `S`/`R`
-objects. One genome at a time; genomes independent ⇒ parallelizable.
+colinear-merge runs across block boundaries, sort each chunk's runs by
+`g_start`, write the genome's `S` + (`C`, `R`)+ chunk objects.  One genome
+at a time; genomes independent ⇒ parallelizable.
 
-### Run serialization (`R`)
+Memory: bounded PER GENOME by that genome's spill size, not absolutely.
+At vertebrate scale the largest leaf's `Run[]` can be ~1.2 GB; the .tui
+build host budgets accordingly.
 
-ONElib's built-in `INT_LIST` Huffman is poor on absolute `(t,g,len)` triples
-(measured ~13.7 B/run, 1.16 GiB on the rodent subtree after the merge). So
-`R` is an explicit per-sequence codec: merge colinear runs, then a
-structure-of-arrays blob — three concatenated LEB128-varint streams
-`gap | gsk | lenc`, `gap = t-(prevT+prevLen)` (≈0 for ~99 % of splits → ≈
-all-zero stream), `gsk = g-(prevG+prevLen)` (the irreducible signal),
-`lenc = len<<1|strand` — zlib-deflated. `R = (inflatedLen INT, nMeta…,
-deflated STRING)`. Measured 253 MiB on the rodent subtree (4.4× vs
-merged-absolute, 6.6× vs unmerged). zlib (already linked) chosen over
-zstd/xz; PForDelta worse; lzma ≈15 % smaller but a new dependency.
+### Run serialization (`R` blob, per chunk)
+
+Each sequence's runs are split into chunks of `TUI_CHUNK_RUNS` (= 65536)
+runs at write time.  Within a chunk, runs are sorted by `g_start` (tight
+per-chunk `[g_min, g_max)` for the column-keyed lookups in Index L);
+between chunks, runs are still seq-major / t-major in the spill.  Each
+chunk pairs one `C` header object with one `R` payload data record.
+
+`R` is an explicit codec, not ONElib's built-in `INT_LIST` Huffman (which
+was poor on absolute `(t,g,len)` triples — measured ~13.7 B/run, 1.16 GiB
+pre-chunked on the rodent subtree).  A structure-of-arrays blob: three
+concatenated LEB128-varint streams `gap | gsk | lenc`, `gap = t -
+(prevT+prevLen)` (≈0 for ~99 % of splits → ≈ all-zero stream),
+`gsk = g - (prevG+prevLen)` (the irreducible signal),
+`lenc = len<<1|strand` — zlib-deflated.  `R = (inflatedLen INT, deflated
+STRING)`.  Per-chunk metadata (g and t ranges) lives in the `C` header,
+not the `R` payload, so the reader can skip whole chunks without
+decompressing.
+
+### Chunk metadata (`C` header)
+
+```
+O C 6 INT INT INT INT INT INT     # g_min, g_max, parent S-ord, self c_ord,
+                                  # t_min, t_max
+```
+
+`g_min, g_max` are the chunk's universal-column range (used by Index L's
+column-keyed lookup to early-out via `chunk_max_end[]`); `t_min, t_max`
+are the source-coord range (used by `tui_query` to skip non-overlapping
+chunks before decompress); `parent S-ord` ties the chunk back to its
+sequence; `self c_ord` is the file-order `C` ordinal for `oneGoto(C,
+c_ord)` during lazy `R` decode.
+
+---
+
+# Index L — universal column → target genome's coords (reverse leaf lift)
+
+Per-target-genome reverse-direction lookup: given a universal column
+`c`, return every base of the target genome aligned at that column
+(typically 0-1, but multiple under paralog).
+
+Drives `taffy lift -g <target>` (BED-in / wig-in → BED-out / wig-out in
+target coords).  Replaces the prior "scan the whole .tui for every
+column" approach with O(log n_chunks) lookups via the chunked C+R
+layout.
+
+### Load (`tui_genome_lift_load`)
+
+For target `G`: walk the `d` directory entries with prefix `"G."`,
+collect each matching seq's S-ordinal, jump to each S, read every C
+header (NOT the R payloads) into an in-memory `TGLChunk[]` array
+sorted by chunk `g_min`.  Build a running `max(g_max)` prefix array so
+the column-keyed lookup can early-exit when no earlier chunk could
+contain the queried column.  R payloads stay on disk; chunks are
+decoded LAZILY on first column hit (each `TGLChunk` keeps its file
+ordinal for `oneGoto(C, c_ord)` + `oneReadLine R`).
+
+Memory at load: only chunk metadata (small).  Worst case after all
+chunks have been lazily decoded: the full target's lift table in RAM
+(~640 MB for a 3-Gb mammal).  The lift access pattern is a sequential
+sweep, so LRU eviction would thrash; we accept the steady-state ceiling.
+
+### Query (`tui_genome_lift_column`)
+
+For column `c`: binary-search the chunks for the largest chunk with
+`g_min ≤ c`, then walk backward through chunks whose
+`chunk_max_end[j-1] > c` (overlapping candidates).  For each candidate
+chunk, decode its R payload on first hit, then for each run in the
+chunk whose `[g_start, g_start+length)` contains `c`, emit one
+`(seq, pos, strand)` match.  Multiple matches per call = paralogs (the
+same target genome aligns multiple times at this column).
 
 ---
 
@@ -152,22 +228,14 @@ intermediates), so they are written self-contained (`taf_write_block2(NULL,
 
 ---
 
-# Index A — universal column → row-0 ancestor (recorded, not the query path)
+## (Removed: Index A)
 
-A reference track, in universal-column order, one record per maximal row-0
-segment: `(colStart, sOrd, row0Start, len)`, strand always `+` (asserted).
-It is the materialized canonical `.bed`: `colStart` strictly increasing,
-segments tile `[0,T)` exactly (every block has exactly one row-0). Stored
-deflated SoA (`A = (inflatedLen INT, nSeg INT, deflated STRING)`); `colStart`
-is **not** stored (= prefix sum of `len`, since the segments tile). Built in
-the Phase-1 scan (row-0 is `aln->row`), colinear-merged on the fly.
-
-Recorded so a column can be reported as a row-0 `(ancestor.seq, pos)` (e.g.
-"which ancestor does universal column c belong to", debug / future
-`colToAnc`). It is **not** used by `-U` extraction (Index X drives that).
-The old "use Index A to produce row-0 pieces and run `tai_iterator` per
-piece" model is the C1 bug and is gone. `tui_col_range_to_ref` remains
-available for the column→ancestor mapping but is off the extraction path.
+Earlier drafts of this spec described an "Index A" — a recorded column-
+ordered row-0 ancestor track + a `tui_col_range_to_ref` query helper.
+That track is NOT recorded in the on-disk format and the helper does
+not exist.  The column-scan extractor (Index X + `tui_extract_*`) drives
+all extraction; if a column→ancestor reporting feature comes back, it
+would be added as a new line type.
 
 ---
 
@@ -188,38 +256,55 @@ D t 1 3 INT                          total columns T (global)
 D X 3 3 INT 3 INT 6 STRING           Index X: inflatedLen, nRec, deflate(SoA)
 O d 3 6 STRING 3 INT 3 INT           dir: seqName, S-ordinal, seqLen
 O S 2 6 STRING 3 INT                 sequence object: seqName, seqLen
-D R 2 3 INT 6 STRING                 runs: inflatedLen, deflate(SoA delta blob)
+O C 6 3 INT 3 INT 3 INT 3 INT 3 INT 3 INT  chunk header:
+                                     g_min, g_max,
+                                     parent S-ord, self c_ord,
+                                     t_min, t_max
+D R 2 3 INT 6 STRING                 runs (one per chunk):
+                                     inflatedLen, deflate(SoA delta blob)
 ```
 
 Write order: `t`, `X` (front-of-file, cheap whole-load), then the `d`
 directory in NAME-SORTED order (so the reader can binary-search it by name
-via `oneGoto(of,'d',mid)`), then per-sequence `S`/`R` in genome-major order.
-Genome is derived from the seq name at build (`genome_of`), used only to
-group per-genome spills; the reader does no genome resolution.
+via `oneGoto(of,'d',mid)`), then per-sequence `S` followed by (`C`, `R`)+
+chunk pairs in genome-major order.  Genome is derived from the seq name
+at build (`genome_of`), used only to group per-genome spills; the reader
+does no genome resolution.
 
-`d` and `S` are both indexed object types (each gets a footer index).
-`oneGoto(of,'d',i)` jumps to the i-th name-sorted directory entry;
-`oneGoto(of,'S',k)` jumps to the k-th genome-major sequence's S/R pair.
+`d`, `S`, and `C` are all indexed object types (each gets a footer
+index).  `oneGoto(of,'d',i)` jumps to the i-th name-sorted directory
+entry; `oneGoto(of,'S',k)` jumps to the k-th genome-major sequence;
+`oneGoto(of,'C',c_ord)` jumps to a specific chunk header by file-order
+ordinal (used by Index L for lazy `R` decode).
 
 ### Load / access
 
-- Load `t` and `X` only (front of file).  Bounded RAM (X ≈ T/10000 anchors
-  ≈ tens of MB at vertebrate scale).  The directory and per-sequence runs
-  stay on disk.
-- `-U` query: binary-search the `d` directory by name (~O(log n_seqs)
-  `oneGoto`s) → S-ordinal → `oneGoto(of,'S',ord+1)` for the run blob →
-  universal-column intervals → Index X anchor + forward column scan. No
-  `.tai`.
-- Bulk lift: iterate a genome's `S` objects sequentially (ONEcode-native).
+- `tui_load`: read `t` and `X` only (front of file).  Bounded RAM (X ≈
+  T/10000 anchors ≈ tens of MB at vertebrate scale).  Directory size
+  `n_d` is read from the ONElib footer.  The directory and per-sequence
+  chunks stay on disk.
+- `-U` query path: binary-search the `d` directory by name (~O(log
+  n_seqs) `oneGoto`s) → S-ordinal → `oneGoto(of,'S',ord+1)` → walk
+  this seq's `C` headers, decompressing only the chunks whose
+  `[t_min, t_max)` overlaps the query → universal-column intervals →
+  Index X anchor + forward column scan.  No `.tai`.
+- Reverse leaf lift (`taffy lift -g`): `tui_genome_lift_load(G)` walks
+  the `d` directory for the `"G."` prefix, builds the per-target chunk
+  index (metadata only); subsequent `tui_genome_lift_column(c)` calls
+  binary-search by `g_min` + walk back through overlapping chunks,
+  lazy-decoding `R` payloads on first hit per chunk.
 
 ### What this format is NOT
 
-The earlier draft used to carry an explicit `Index A` reference track
-(column-ordered row-0 ancestor segments tiling `[0,T)`) used by a since-
-removed step-2 ancestor-coord lookup.  The C1 column-scan extractor
-replaced that path; Index A is no longer recorded.  If ancestor-coord
-output becomes a feature again, it would be added as a new line type
-(probably reusing the same SoA delta-codec).
+- No explicit `Index A` reference track (column-ordered row-0 ancestor
+  segments).  The column-scan extractor (Index X + `tui_extract_*`)
+  handles all extraction; if a column→ancestor reporting feature comes
+  back, it would be added as a new line type (probably reusing the same
+  SoA delta-codec).
+- No `tui_col_range_to_ref` helper.  Earlier drafts mentioned this; it
+  was never implemented.
+- No `.tai` consultation on the universal query path.  The `-U` query is
+  end-to-end driven by Index B + Index X.
 
 ---
 
@@ -249,19 +334,30 @@ abort loudly rather than emit a silently-truncated index.
 
 # Invariants / open items
 
-- `T` is the canonical column count; Index-A segments tile `[0,T)`; Index-X
-  anchors strictly increasing in (column, file_pos); `idxCol[0] == 0` for
-  MAF and any valid TAF.
-- Format note: the `.tui` schema (`A`, `X`, deflate-`R`) changed during this
-  work — any pre-existing `.tui` must be rebuilt (`taffy index -u`);
-  independent of MAF generation.
+- `T` is the canonical column count; Index-X anchors strictly increasing
+  in `(column, file_pos)`; `idxCol[0] == 0` for MAF and any valid TAF.
+- Per-chunk `(g_min, g_max)` is the tight range of `g` over the chunk's
+  runs after the writer's g-sort; per-chunk `(t_min, t_max)` is the tight
+  range of `t`.  These are written verbatim from the in-memory chunk; the
+  build does not assert tightness post hoc.
+- Format note: the `.tui` schema added per-chunk t-range fields (`O C`
+  went from 4 INTs to 6) and the chunked `(C, R)+` layout in the same
+  re-sync.  Older `.tui` files have a 4-field `C` and no t-range skip;
+  the reader checks `info['C']->nField` at open and falls back to the
+  decode-every-chunk path on the source side.  Newly-built `.tui` files
+  transparently get the skip + reverse-lift speedups.
+- Validation numbers (rodent 1.16 GiB → 253 MiB after delta+deflate)
+  predate the chunked layout; the chunked format adds a tiny per-chunk
+  overhead (16 B for the two new t-range INTs × ~6k-100M chunks at
+  vertebrate scale = 0.02-1% size growth measured), with sublinear
+  decompress cost per query because of the skip.
 - Known low-priority follow-ups (do not affect lift correctness): clipped
   sub-blocks drop per-column `@` tags (N/A for cactus universal raw
-  MAF — no tags); a disk-full idx-spill abort leaves spills (consistent with
-  the deliberate fail-loud spill design); a pathologically sparse-anchor
-  *TAF* (huge/zero `repeat_coordinates_every_n_columns`) makes a `-U` scan
-  start far from the target (perf only, correctness holds; N/A for MAF
-  input); `-n` + `-U` keys `tui_query` on the post-name-map name (pre-existing
-  `-r` semantic).
-- This spec file's home is temporary (`cactus.chain/src/cactus/maf/`) — must
-  be relocated to a proper docs location before any merge.
+  MAF — no tags); a disk-full idx-spill abort leaves spills (consistent
+  with the deliberate fail-loud spill design); a pathologically sparse-
+  anchor *TAF* (huge/zero `repeat_coordinates_every_n_columns`) makes a
+  `-U` scan start far from the target (perf only, correctness holds;
+  N/A for MAF input); `-n` + `-U` keys `tui_query` on the post-name-map
+  name (pre-existing `-r` semantic).
+- This spec file's home is temporary (`cactus.chain/src/cactus/maf/`) —
+  must be relocated to a proper docs location before any merge.
