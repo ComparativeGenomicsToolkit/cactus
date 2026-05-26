@@ -1180,6 +1180,59 @@ class TestCase(unittest.TestCase):
             self.assertEqual(na_ref_genomes, {'Anc0', 'Anc1', 'Anc2', 'mr'})
             self.assertEqual(na_anc0_bases, anc0_length)
 
+            # --universal --refGenome=<sub-ancestor> on the full HAL must produce
+            # the same per-(genome.seq, fwd_pos, strand) row set as the same
+            # invocation on a halExtract'd subtree.  Pre-patch (hal commits
+            # before 05838278 / c736163 / 12b1a179 on hal's unitaf branch) the
+            # full-HAL run dropped rows at positions where mr is a non-canonical
+            # paralog, because halColumnIterator's --noRefDupes and --novel
+            # filters consulted mr's parent (in-HAL but out of --rootGenome
+            # scope) without gating on parentInScope.  Verified on
+            # evolverMammals with refGenome=mr: the bug dropped ~16 KB of rows.
+            mr_extracted = os.path.join(self.tempDir, 'mr_extracted.hal')
+            subprocess.check_call(['halExtract', '--root', 'mr', halPath, mr_extracted],
+                                  shell=False)
+
+            mr_full_uni = os.path.join(self.tempDir, 'mr_full.uni.maf')
+            mr_ext_uni  = os.path.join(self.tempDir, 'mr_ext.uni.maf')
+            for hal_in, out in [(halPath, mr_full_uni), (mr_extracted, mr_ext_uni)]:
+                subprocess.check_call(['cactus-hal2maf', self._job_store('h2m'), hal_in, out,
+                                       '--refGenome', 'mr', '--universal', '--noAncestors',
+                                       '--chunkSize', '10000',
+                                       '--binariesMode', binariesMode], shell=False)
+
+            # Compare per-(genome.seq, fwd_pos, strand) row sets.  Block ordering
+            # and row ordering within blocks can vary between the two runs, but
+            # the union of (seq, fwd_pos, strand) tuples across all rows must
+            # match exactly under the universal-MAF exactly-once invariant.
+            def row_set(path):
+                rows = set()
+                with open(path) as f:
+                    for line in f:
+                        if not line.startswith('s'):
+                            continue
+                        toks = line.split()
+                        seq, start, length, strand, srcSize = (
+                            toks[1], int(toks[2]), int(toks[3]),
+                            toks[4], int(toks[5]))
+                        fwd = start if strand == '+' else srcSize - start - length
+                        # each row contributes (seq, base_pos, strand) for every base
+                        for i in range(length):
+                            rows.add((seq, fwd + i, strand))
+                return rows
+
+            full_rows = row_set(mr_full_uni)
+            ext_rows  = row_set(mr_ext_uni)
+            only_full = full_rows - ext_rows
+            only_ext  = ext_rows - full_rows
+            self.assertEqual(full_rows, ext_rows,
+                             'parent-in-scope regression: --universal --refGenome=mr '
+                             'differs between full HAL and halExtract\'d subtree '
+                             '(full-only={} bases, extracted-only={} bases; '
+                             'first 5 full-only: {})'.format(
+                                 len(only_full), len(only_ext),
+                                 sorted(only_full)[:5]))
+
             # cactus-phast smoke test, reusing the simHuman_chr6-rooted MAF
             # already produced for the subrange checks above.
             self._check_phast_runs(halPath, ranges_opt_file, binariesMode)
