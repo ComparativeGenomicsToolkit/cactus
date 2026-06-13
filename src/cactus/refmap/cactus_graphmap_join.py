@@ -2286,7 +2286,7 @@ def cat_stats(job, stats_dict_list, zip_stats=True):
         merged_dict[key] = os.path.join(work_dir, key)
         catFiles([job.fileStore.readGlobalFile(sd[key]) for sd in stats_dict_list], merged_dict[key])
     if zip_stats:
-        cactus_call(parameters=['tar', 'czf', os.path.join(work_dir, 'stats.tgz')] + list(merged_dict.values()))
+        cactus_call(parameters=['tar', 'czf', os.path.join(work_dir, 'stats.tgz'), '-C', work_dir] + list(merged_dict.keys()))
         return { 'stats.tgz': job.fileStore.writeGlobalFile(os.path.join(work_dir, 'stats.tgz')) }
     else:
         for key in stats_dict_list[0].keys():
