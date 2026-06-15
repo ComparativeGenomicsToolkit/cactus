@@ -530,11 +530,12 @@ def minigraph_map_one(job, config, event_name, fa_file_id, gfa_file_id):
     min_mapq = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "minMAPQ", typeFn=int, default=0)
     min_ident = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "minIdentity", typeFn=float, default=0)    
     overlap_cut = getOptionalAttrib(xml_node, "GAFOverlapFilterCut", typeFn=str, default="0").lower() in ["1", "true", "yes"]
+    overlap_cut_min_mapq = getOptionalAttrib(xml_node, "GAFOverlapFilterCutMinMapq", typeFn=int, default=0)
     if overlap_ratio or overlap_filter_len:
         gaffilter_cmd = ['gaffilter', '-', '-r', str(overlap_ratio), '-m', str(length_ratio), '-q', str(min_mapq),
                          '-b', str(min_block), '-o', str(overlap_filter_len), '-i', str(min_ident)]
         if overlap_cut:
-            gaffilter_cmd.append('-C')
+            gaffilter_cmd += ['-C', '-Q', str(overlap_cut_min_mapq)]
         cmd = [cmd, gaffilter_cmd]
     cactus_call(parameters=cmd, outfile=unstable_gaf_path, job_memory=job.memory)
 
@@ -698,13 +699,14 @@ def filter_paf(job, paf_id, config, reference=None):
     length_ratio = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "PAFOverlapFilterMinLengthRatio", typeFn=float, default=0)
     allow_collapse = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "collapse", typeFn=str, default="none") != "none"
     overlap_cut = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "PAFOverlapFilterCut", typeFn=str, default="0").lower() in ["1", "true", "yes"]
+    overlap_cut_min_mapq = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "PAFOverlapFilterCutMinMapq", typeFn=int, default=0)
 
     if overlap_ratio and not allow_collapse:
         overlap_filter_paf_path = filter_paf_path + ".overlap"
         gaffilter_cmd = ['gaffilter', filter_paf_path, '-p', '-r', str(overlap_ratio), '-m', str(length_ratio),
                          '-b', str(min_block), '-q', str(min_mapq), '-i', str(min_ident)]
         if overlap_cut:
-            gaffilter_cmd.append('-C')
+            gaffilter_cmd += ['-C', '-Q', str(overlap_cut_min_mapq)]
         cactus_call(parameters=gaffilter_cmd, outfile=overlap_filter_paf_path, job_memory=job.memory)
         filter_paf_path = overlap_filter_paf_path
 

@@ -407,6 +407,7 @@
 	<!-- GAFOverlapFilterMinLengthRatio: only consider overlaps (for above) whose lengths represent at least this much (ratio between 0 and 1) of the block length -->
 	<!-- PAFOverlapFilterRatio: Same as GAFOverlapFilterRatio, but applied after conversion to PAF -->
 	<!-- PAFOverlapFilterMinLengthRatio: Same as GAFOverlapFilterMinLengthRatio, but applies after conversion to PAF -->
+	<!-- GAFOverlapFilterCutMinMapq / PAFOverlapFilterCutMinMapq: with the matching ...Cut enabled, gaffilter cut (-C) keeps a non-dominant record only if its own MAPQ at least this value (drops low-mapq paralog/repeat mismappings; gaffilter -Q). 0 = no gate -->
 	<!-- maskFilter: any softmasked sequence intervals > than this many bp will be hardmasked before being read by the minigraph mapper [negative value = disable]-->
 	<!-- delFilter: any deletions implied by split-read mappings greater than this are removed from the paf (by removing all lines of the smallest block bordering deletion)-->
 	<!-- delFilterThreshold: only remove deletion if it costs < delFilterThreshold * deletion-size matches. must be in range (0, 1] -->
@@ -431,8 +432,10 @@
 		 minGAFQueryOverlapFilter="0"
 		 GAFOverlapFilterRatio="5"
 		 GAFOverlapFilterMinLengthRatio="0.25"
+		 GAFOverlapFilterCutMinMapq="0"
 		 PAFOverlapFilterRatio="5"
 		 PAFOverlapFilterMinLengthRatio="0"
+		 PAFOverlapFilterCutMinMapq="0"
 		 maskFilter="-1"
 		 delFilter="10000000"
 		 delFilterThreshold="0.01"
