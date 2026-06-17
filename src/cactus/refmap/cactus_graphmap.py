@@ -531,11 +531,25 @@ def minigraph_map_one(job, config, event_name, fa_file_id, gfa_file_id):
     min_ident = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "minIdentity", typeFn=float, default=0)    
     overlap_cut = getOptionalAttrib(xml_node, "GAFOverlapFilterCut", typeFn=str, default="0").lower() in ["1", "true", "yes"]
     overlap_cut_min_mapq = getOptionalAttrib(xml_node, "GAFOverlapFilterCutMinMapq", typeFn=int, default=0)
+    # optional: restrict --cut to nodes whose rGFA reference position falls in one of these regions
+    # (comma-separated chrom:start-end in the rGFA SN/SO coordinate system; empty = cut everywhere)
+    cut_allow_regions = getOptionalAttrib(xml_node, "GAFOverlapFilterCutAllowRegions", typeFn=str, default="")
     if overlap_ratio or overlap_filter_len:
         gaffilter_cmd = ['gaffilter', '-', '-r', str(overlap_ratio), '-m', str(length_ratio), '-q', str(min_mapq),
                          '-b', str(min_block), '-o', str(overlap_filter_len), '-i', str(min_ident)]
         if overlap_cut:
             gaffilter_cmd += ['-C', '-Q', str(overlap_cut_min_mapq)]
+            if cut_allow_regions:
+                # build a bare-node-id allowlist from the (uncompressed) rGFA: keep nodes whose SN:chrom + SO:offset
+                # is inside an allowed region, and pass it to gaffilter via -A so the cut only fires there.
+                cut_allow_path = gfa_path + '.cutallow.nodes'
+                cut_allow_awk = (
+                    'BEGIN{nr=split(R,_r,","); for(i=1;i<=nr;i++){split(_r[i],_a,"[:-]"); rc[i]=_a[1]; rs[i]=_a[2]+0; re[i]=_a[3]+0}} '
+                    '$1=="S"{node=$2; sn=""; so=-1; '
+                    'for(i=4;i<=NF;i++){if(substr($i,1,5)=="SN:Z:"){sn=substr($i,6); m=split(sn,_p,"#"); sn=_p[m]} else if(substr($i,1,5)=="SO:i:")so=substr($i,6)+0} '
+                    'for(i=1;i<=nr;i++)if(sn==rc[i]&&so>=rs[i]&&so<=re[i]){print node; break}}')
+                cactus_call(parameters=['awk', '-F', '\t', '-v', 'R=' + cut_allow_regions, cut_allow_awk, gfa_path], outfile=cut_allow_path)
+                gaffilter_cmd += ['-A', cut_allow_path]
         cmd = [cmd, gaffilter_cmd]
     cactus_call(parameters=cmd, outfile=unstable_gaf_path, job_memory=job.memory)
 
