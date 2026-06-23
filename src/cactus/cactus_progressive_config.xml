@@ -83,6 +83,9 @@
 	<!-- pickIngroupPrimaryAlignmentsSeparatelyToOutgroups Separately make ingroups pick their primary alignment to
 	     other ingroups without outgroups, then get the outgroups to pick their primary alignment to the ingroups. If 0
 	     get every sequence to pick its primary alignment without regard to if the other sequence is an ingroup or outgroup -->
+	<!-- includeRootAsOutgroup When the root sequence is supplied (cactus-blast/cactus-align with includeRoot), treat it as
+	     an outgroup rather than an ingroup, so that its coverage to its descendants is not starved during chaining. Set
+	     to 0 to restore the old behaviour of treating the pinned root as an ingroup -->
 	<!-- slurmChunkScale Multiply chunkSize and divide dechunkBatchSize by this value when running slurm in order to decrease job count -->
 	<blast chunkSize="30000000"
 	       bigChunkSize="6000000000"
@@ -116,6 +119,7 @@
 		   outputSecondaryAlignments="0"
 		   dechunkBatchSize="1000"
 		   pickIngroupPrimaryAlignmentsSeparatelyToOutgroups="1"
+		   includeRootAsOutgroup="1"
 		   slurmChunkScale="3"
 		   bigGenomeChunkScale="2"
 		   >
