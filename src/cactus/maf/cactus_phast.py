@@ -182,6 +182,13 @@ def main():
                              "per-chunk shards via parallel `taffy view -r`. Required for "
                              "batch systems other than singleMachine; defaults to all "
                              "available cores on singleMachine.")
+    parser.add_argument("--chunkMemory", type=human2bytesN, default=None,
+                        help="Memory for the chunker job. It runs --chunkCores "
+                             "taffy|mafDuplicateFilter|bgzip pipelines at once, so peak memory "
+                             "scales with --chunkCores (~100+ MiB per pipeline on a many-way MAF). "
+                             "If unset, a per-core budget is requested automatically. Override if "
+                             "you still see the job OOM (which surfaces as 'premature end to maf "
+                             "file' from a taffy child being killed mid-stream).")
 
     # phyloFit job sizing
     parser.add_argument("--phyloFitMemory", type=human2bytesN, default=None,
@@ -833,16 +840,27 @@ def phast_workflow(job, config, options, maf_id, tai_id, tai_built, hal_id, ann_
     # they're uploaded, so peak ≈ 2S at the moment parallel finishes. Add
     # 4 GiB slack for taffy scratch and Toil worker overhead.
     chunker_disk = int(maf_id.size * 2.0) + 4 * 1024**3
-    # taffy view is small (~50 MiB peak at 32 cores on a 577-way 300 GB MAF);
-    # default memory is fine. Splice strip + mafDuplicateFilter into the
-    # chunker pipeline so each chunk lands pre-filtered for downstream phast
-    # tools (msa_view --4d and phyloP both need the same filtered MAF, no
-    # point doing it twice per chunk).
+    # Memory: the chunker runs --chunkCores taffy|strip|mafDuplicateFilter|bgzip
+    # pipelines concurrently, so peak memory scales with --chunkCores. A single
+    # fixed default (Toil's ~2 GiB) starves the job at high -j: a taffy child gets
+    # OOM-killed and the truncated stream surfaces downstream as mafDuplicateFilter
+    # "premature end to maf file". Empirically a 577-way run at -j 32 OOMs at 2 GiB
+    # but completes under 4 GiB (~100-130 MiB/pipeline), so budget 128 MiB/core +
+    # a 2 GiB base (~6 GiB at -j 32 for headroom; overridable via --chunkMemory,
+    # and --doubleMem still covers pathologically dense regions).
+    if options.chunkMemory:
+        chunker_memory = cactus_clamp_memory(options.chunkMemory)
+    else:
+        chunker_memory = cactus_clamp_memory(2 * 1024**3 + (options.chunkCores or 1) * 128 * 1024**2)
+    # Splice strip + mafDuplicateFilter into the chunker pipeline so each chunk
+    # lands pre-filtered for downstream phast tools (msa_view --4d and phyloP both
+    # need the same filtered MAF, no point doing it twice per chunk).
     filter_cmd = '{strip} | mafDuplicateFilter -k -m -'.format(strip=make_strip_perl_cmd())
     chunk_job = plan_job.addFollowOnJobFn(chunker_job, options, maf_id, tai_id,
                                           os.path.basename(options.inMaf), chunk_specs,
                                           filter_cmd,
                                           disk=chunker_disk,
+                                          memory=chunker_memory,
                                           cores=options.chunkCores)
     chunks = chunk_job.rv()
 
