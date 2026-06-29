@@ -324,6 +324,7 @@ See the phast documentation for more details.
 
 - `--neutralModel <model.mod>` skips training and reuses a model from a prior run.
 - `--mode phyloFit` trains and exports the model only (no phyloP scoring).
+- `--bedRanges <ranges.bed>` restricts the whole pipeline to the reference ranges in a BED file (same option name and format as `cactus-hal2maf --bedRanges`). Only these ranges are chunked, scored, and (when training) used for 4d-site extraction. Use it to skip contigs you don't want to process — e.g. select only the large chromosomes and leave out tens of thousands of tiny alt/unplaced contigs. BED sequence names must be the reference contig names (the same names used in `--geneAnnotation`), without the genome prefix; coordinates are 0-based half-open and overlapping/touching intervals are merged.
 - `--chunkSize <bp>` (default 1 Mb) sets the per-chunk reference-coordinate size. Smaller chunks → more Toil jobs and finer failure isolation, larger chunks → fewer Toil jobs and lower per-job overhead.
 - `--fitChunkGroup <int>` (default 10, must be ≥ 1) sets how many consecutive chunks are catted together for one 4d-site extraction job, so `msa_view --4d` amortizes its startup over a useful region size.
 - `--chunkCores <int>` number of cores used to chunk up the input MAF
