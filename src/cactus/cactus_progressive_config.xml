@@ -89,7 +89,7 @@
 		   overlapSize="10000"
 		   mapper="lastz"
 		   minimap2_params="-x asm20"
-		   fastga_params="-pafs"
+		   fastga_params="-pafs -M"
 		   fastga_fill="1"
 		   fastga_stats="1"
 		   fastga_minlength="50000"
