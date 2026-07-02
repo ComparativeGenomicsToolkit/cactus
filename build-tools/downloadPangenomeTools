@@ -71,9 +71,9 @@ fi
 
 # minigraph
 cd ${pangenomeBuildDir}
-git clone https://github.com/lh3/minigraph.git
+git clone https://github.com/glennhickey/minigraph.git
 pushd minigraph
-git checkout v0.21
+git checkout 4636f2d42864ee7a32c082d23097fb226acd2a67
 # hack in flags support
 sed -i Makefile -e 's/CFLAGS=/CFLAGS+=/' -e 's/LIBS=/LIBS+=/'
 LIBS="${jemallocLib}" make -j ${numcpu}
