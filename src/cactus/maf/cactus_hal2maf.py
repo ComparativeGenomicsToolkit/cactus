@@ -28,6 +28,7 @@ from cactus.shared.common import clean_jobstore_files
 from cactus.shared.version import cactus_commit
 from cactus.progressive.cactus_prepare import human2bytesN
 from cactus.progressive.multiCactusTree import MultiCactusTree
+from cactus.maf.maf_chunk import parse_bed_ranges
 
 from toil.job import Job
 from toil.common import Toil
@@ -272,11 +273,7 @@ def hal2maf_ranges(job, hal_id, bed_id, options):
             raw_intervals.append((seq, start, start + length))
     elif options.bedRanges:
         # from BED file with --bedRanges
-        with open(bed_path, 'r') as bed_file:
-            for line in bed_file:
-                toks = line.split()
-                if len(toks) >= 3:
-                    raw_intervals.append((toks[0], int(toks[1]), int(toks[2])))
+        raw_intervals = parse_bed_ranges(bed_path)
     else:
         if options.refSequence:
             # from --refSequence (but not subrange)

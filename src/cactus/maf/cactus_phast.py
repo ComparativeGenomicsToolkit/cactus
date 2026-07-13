@@ -36,7 +36,9 @@ from cactus.shared.version import cactus_commit
 from cactus.progressive.cactus_prepare import human2bytesN
 
 from cactus.maf.maf_chunk import (taffy_index_job, get_ref_sequence_lengths,
-                                  plan_chunks, filter_chunks_to_indexed,
+                                  get_aligned_ref_contigs,
+                                  plan_chunks, plan_chunks_in_regions, parse_bed_ranges,
+                                  filter_chunks_to_indexed,
                                   chunker_job, group_chunks_for_fit)
 
 from toil.job import Job
@@ -109,6 +111,30 @@ def main():
                              "sibling exists, an index is built as a sequential pre-pass and "
                              "saved next to the output for re-use.")
 
+    parser.add_argument("--bedRanges",
+                        help="Restrict the analysis to the reference ranges in this BED file "
+                             "(coordinates in --refGenome, as with cactus-hal2maf --bedRanges). "
+                             "Only these ranges are chunked, scored, and (when training) used for "
+                             "4d-site extraction. Use it to skip contigs you don't want to process "
+                             "— e.g. select only the large chromosomes and leave out tens of "
+                             "thousands of tiny alt/unplaced contigs. BED sequence names must be "
+                             "the reference contig names (the same names used in --geneAnnotation), "
+                             "without the genome prefix; coordinates are 0-based half-open and "
+                             "overlapping/touching intervals on a contig are merged. "
+                             "[default: the whole reference]")
+
+    parser.add_argument("--keepUnalignedContigs", action="store_true",
+                        help="By default, when the reference is a leaf genome, cactus-phast queries "
+                             "the HAL (via halAlignedExtract, a single scan of the reference's top "
+                             "segments) for reference contigs that have no alignment to anything — "
+                             "these only ever produce reference-only MAF columns that phyloP cannot "
+                             "score — and excludes them so the chunker doesn't waste time "
+                             "extracting them. This flag disables that check and processes every "
+                             "reference contig. The check is skipped automatically for an "
+                             "internal/ancestral reference (halAlignedExtract reports alignment to "
+                             "the parent only, so it cannot see contigs that align solely to "
+                             "descendants).")
+
     # phyloFit-related options
     parser.add_argument("--substMod", default="REV",
                         help="Substitution model passed to phyloFit --subst-mod. REV is the "
@@ -156,6 +182,13 @@ def main():
                              "per-chunk shards via parallel `taffy view -r`. Required for "
                              "batch systems other than singleMachine; defaults to all "
                              "available cores on singleMachine.")
+    parser.add_argument("--chunkMemory", type=human2bytesN, default=None,
+                        help="Memory for the chunker job. It runs --chunkCores "
+                             "taffy|mafDuplicateFilter|bgzip pipelines at once, so peak memory "
+                             "scales with --chunkCores (~100+ MiB per pipeline on a many-way MAF). "
+                             "If unset, a per-core budget is requested automatically. Override if "
+                             "you still see the job OOM (which surfaces as 'premature end to maf "
+                             "file' from a taffy child being killed mid-stream).")
 
     # phyloFit job sizing
     parser.add_argument("--phyloFitMemory", type=human2bytesN, default=None,
@@ -211,6 +244,8 @@ def main():
         raise RuntimeError('--chunkSize must be positive (got {})'.format(options.chunkSize))
     if options.fitChunkGroup < 1:
         raise RuntimeError('--fitChunkGroup must be >= 1 (got {})'.format(options.fitChunkGroup))
+    if options.bedRanges and not options.bedRanges.endswith('.bed'):
+        raise RuntimeError('file passed to --bedRanges must end with .bed')
 
     # Context-dependent substitution models (U2/U2S/R2/U3/...) need adjacent
     # column context, but our 4d-site extraction collapses each per-chunk SS
@@ -374,9 +409,13 @@ def main():
             model_id = None
             if options.neutralModel:
                 model_id = toil.importFile(makeURL(options.neutralModel))
+            bed_id = None
+            if options.bedRanges:
+                bed_id = toil.importFile(makeURL(options.bedRanges))
 
             toil.start(Job.wrapJobFn(phast_workflow, config, options,
-                                     maf_id, tai_id, tai_built, hal_id, ann_id, model_id))
+                                     maf_id, tai_id, tai_built, hal_id, ann_id, model_id,
+                                     bed_id))
 
     end_time = timeit.default_timer()
     logger.info("cactus-phast finished in {} seconds".format(end_time - start_time))
@@ -741,7 +780,8 @@ def localize_annotation(work_dir, ann_path, contig, ref_genome, idx):
 # Top-level workflow
 # -----------------------------------------------------------------------------
 
-def phast_workflow(job, config, options, maf_id, tai_id, tai_built, hal_id, ann_id, model_id):
+def phast_workflow(job, config, options, maf_id, tai_id, tai_built, hal_id, ann_id, model_id,
+                   bed_id=None):
     """ Orchestrate setup -> index -> plan -> shard -> (phyloFit?) -> (phyloP?) """
 
     # fail fast if any required external binary is missing rather than crashing
@@ -769,6 +809,7 @@ def phast_workflow(job, config, options, maf_id, tai_id, tai_built, hal_id, ann_
     tree_str = setup_job.rv(1)
     ref_seq_lengths = setup_job.rv(2)
     effective_root_name = setup_job.rv(3)
+    aligned_contigs = setup_job.rv(4)
 
     # Convenience sed script: maps phast canonical names back to HAL genome
     # names. Only relevant when at least one HAL genome name contains '.';
@@ -785,7 +826,8 @@ def phast_workflow(job, config, options, maf_id, tai_id, tai_built, hal_id, ann_
     else:
         plan_parent = setup_job
 
-    plan_job = plan_parent.addFollowOnJobFn(plan_chunks_job, options, ref_seq_lengths, tai_id)
+    plan_job = plan_parent.addFollowOnJobFn(plan_chunks_job, options, ref_seq_lengths, tai_id,
+                                            bed_id, aligned_contigs)
     chunk_specs = plan_job.rv()
 
     # The single multi-core chunker job: localizes the source MAF once,
@@ -798,16 +840,27 @@ def phast_workflow(job, config, options, maf_id, tai_id, tai_built, hal_id, ann_
     # they're uploaded, so peak ≈ 2S at the moment parallel finishes. Add
     # 4 GiB slack for taffy scratch and Toil worker overhead.
     chunker_disk = int(maf_id.size * 2.0) + 4 * 1024**3
-    # taffy view is small (~50 MiB peak at 32 cores on a 577-way 300 GB MAF);
-    # default memory is fine. Splice strip + mafDuplicateFilter into the
-    # chunker pipeline so each chunk lands pre-filtered for downstream phast
-    # tools (msa_view --4d and phyloP both need the same filtered MAF, no
-    # point doing it twice per chunk).
+    # Memory: the chunker runs --chunkCores taffy|strip|mafDuplicateFilter|bgzip
+    # pipelines concurrently, so peak memory scales with --chunkCores. A single
+    # fixed default (Toil's ~2 GiB) starves the job at high -j: a taffy child gets
+    # OOM-killed and the truncated stream surfaces downstream as mafDuplicateFilter
+    # "premature end to maf file". Empirically a 577-way run at -j 32 OOMs at 2 GiB
+    # but completes under 4 GiB (~100-130 MiB/pipeline), so budget 128 MiB/core +
+    # a 2 GiB base (~6 GiB at -j 32 for headroom; overridable via --chunkMemory,
+    # and --doubleMem still covers pathologically dense regions).
+    if options.chunkMemory:
+        chunker_memory = cactus_clamp_memory(options.chunkMemory)
+    else:
+        chunker_memory = cactus_clamp_memory(2 * 1024**3 + (options.chunkCores or 1) * 128 * 1024**2)
+    # Splice strip + mafDuplicateFilter into the chunker pipeline so each chunk
+    # lands pre-filtered for downstream phast tools (msa_view --4d and phyloP both
+    # need the same filtered MAF, no point doing it twice per chunk).
     filter_cmd = '{strip} | mafDuplicateFilter -k -m -'.format(strip=make_strip_perl_cmd())
     chunk_job = plan_job.addFollowOnJobFn(chunker_job, options, maf_id, tai_id,
                                           os.path.basename(options.inMaf), chunk_specs,
                                           filter_cmd,
                                           disk=chunker_disk,
+                                          memory=chunker_memory,
                                           cores=options.chunkCores)
     chunks = chunk_job.rv()
 
@@ -1010,31 +1063,125 @@ def phast_setup(job, options, hal_id):
     # to; otherwise it's the HAL tree root.
     effective_root_name = options.root if options.root else mc_tree.getName(mc_tree.rootId)
 
-    return species_list, tree_str, ref_seq_lengths, effective_root_name
+    # While the HAL is already localized in this job (it is the only job that
+    # reads it — copying it again on a cluster would be expensive), find which
+    # reference contigs are actually aligned to anything. Fully-unaligned contigs
+    # only ever yield reference-only MAF columns that phyloP can't score, so we
+    # drop them at planning time unless --keepUnalignedContigs. aligned_contigs
+    # stays None (meaning "don't filter") whenever the check is skipped or fails.
+    #
+    # halAlignedExtract reports only alignment to the PARENT (top segments with
+    # hasParent()). That equals "appears in a scoreable multi-row MAF column" only
+    # for a LEAF reference. An internal/ancestral reference can align to its
+    # descendants (via its bottom segments / the column iterator's parse-down),
+    # which halAlignedExtract does not see, so the filter would wrongly drop
+    # scoreable contigs there. So only run it for a leaf reference (this also
+    # covers the HAL root, which is internal and additionally has no parent).
+    aligned_contigs = None
+    if not options.keepUnalignedContigs:
+        ref_node = mc_tree.nameToId.get(options.refGenome)
+        if ref_node is None or not mc_tree.isLeaf(ref_node):
+            RealtimeLogger.info('Reference {!r} is not a leaf genome (internal/ancestral, or not a '
+                                'named node in the HAL tree); skipping the unaligned-contig check '
+                                '(halAlignedExtract only reports alignment to the parent, not to '
+                                'descendants). Pass --bedRanges to restrict manually if '
+                                'needed.'.format(options.refGenome))
+        else:
+            try:
+                aligned = get_aligned_ref_contigs(hal_path, options.refGenome)
+            except RuntimeError as e:
+                # Don't let an auxiliary optimization break an otherwise-fine run:
+                # degrade to processing every contig (old behavior).
+                aligned = None
+                RealtimeLogger.warning('halAlignedExtract failed ({}); processing all reference '
+                                       'contigs without the unaligned-contig filter.'.format(e))
+            if aligned is not None and not aligned:
+                # Empty result (e.g. a pathological all-unaligned genome, or an
+                # unexpected name mismatch) — skip the filter rather than drop
+                # every contig and hard-fail.
+                RealtimeLogger.warning('halAlignedExtract reported no aligned contigs for {!r}; '
+                                       'processing all reference contigs without the '
+                                       'unaligned-contig filter.'.format(options.refGenome))
+            elif aligned:
+                aligned_contigs = aligned
+                n_unaligned = len(set(ref_seq_lengths) - aligned_contigs)
+                RealtimeLogger.info('halAlignedExtract: {} of {} reference contigs are aligned; '
+                                    '{} unaligned will be skipped (use --keepUnalignedContigs to '
+                                    'keep them).'.format(
+                                        len(aligned_contigs), len(ref_seq_lengths), n_unaligned))
+
+    return species_list, tree_str, ref_seq_lengths, effective_root_name, aligned_contigs
 
 
-def plan_chunks_job(job, options, ref_seq_lengths, tai_id):
-    """ Filter ref_seq_lengths to contigs present in the source .tai, then
-    slice each contig into chunks of --chunkSize. Returns the flat chunk
-    list consumed by chunker_job. """
+def plan_chunks_job(job, options, ref_seq_lengths, tai_id, bed_id=None, aligned_contigs=None):
+    """ Slice the reference into chunks of --chunkSize and filter to contigs
+    present in the source .tai. With --bedRanges, only the BED-selected
+    reference ranges are sliced (rather than every contig). When `aligned_contigs`
+    is given (the default, computed in phast_setup), contigs with no alignment in
+    the HAL are dropped. Returns the flat chunk list consumed by chunker_job. """
     work_dir = job.fileStore.getLocalTempDir()
     tai_path = os.path.join(work_dir, 'in.maf.tai')
     job.fileStore.readGlobalFile(tai_id, tai_path)
 
-    chunks_all = plan_chunks(ref_seq_lengths, options.chunkSize)
+    if bed_id is not None:
+        bed_path = os.path.join(work_dir, 'ranges.bed')
+        job.fileStore.readGlobalFile(bed_id, bed_path)
+        bed_ranges = parse_bed_ranges(bed_path)
+        if not bed_ranges:
+            raise RuntimeError('--bedRanges contained no usable intervals (each line needs at '
+                               'least 3 columns: sequence start end).')
+        chunks_all, dropped, clamped = plan_chunks_in_regions(bed_ranges, ref_seq_lengths,
+                                                              options.chunkSize)
+        if dropped:
+            shown = ', '.join(dropped[:20]) + (' ...' if len(dropped) > 20 else '')
+            RealtimeLogger.info('--bedRanges: {} BED sequence(s) are not sequences of reference '
+                                '{!r}; skipping: {}'.format(len(dropped), options.refGenome, shown))
+        if clamped:
+            shown = ', '.join('{}:{}-{}'.format(c, s, e) for (c, s, e) in clamped[:10]) \
+                + (' ...' if len(clamped) > 10 else '')
+            RealtimeLogger.warning('--bedRanges: {} interval(s) extend past [0, contig length] and '
+                                   'were clamped or dropped — check the BED matches the {!r} '
+                                   'assembly: {}'.format(len(clamped), options.refGenome, shown))
+        if not chunks_all:
+            raise RuntimeError(
+                '--bedRanges selected no reference sequence: none of its sequences are sequences '
+                'of {!r} (or all intervals are empty after clamping to contig lengths). BED '
+                'sequence names must match the reference contig names without the genome '
+                'prefix.'.format(options.refGenome))
+    else:
+        chunks_all = plan_chunks(ref_seq_lengths, options.chunkSize)
+
+    # Drop contigs the HAL says are unaligned (phast_setup computed this from the
+    # already-localized HAL; None means the check was skipped / --keepUnalignedContigs).
+    if aligned_contigs is not None:
+        before = len(chunks_all)
+        unaligned = sorted({c[0] for c in chunks_all} - aligned_contigs)
+        chunks_all = [c for c in chunks_all if c[0] in aligned_contigs]
+        if unaligned:
+            shown = ', '.join(unaligned[:20]) + (' ...' if len(unaligned) > 20 else '')
+            RealtimeLogger.info('Excluding {} unaligned reference contig(s) ({} chunks) with no '
+                                'alignment in the HAL: {}'.format(
+                                    len(unaligned), before - len(chunks_all), shown))
+        if not chunks_all:
+            raise RuntimeError(
+                'All selected reference contigs are unaligned in the HAL — nothing for phyloP to '
+                'score. Use --keepUnalignedContigs to process them anyway.')
+
     chunks = filter_chunks_to_indexed(chunks_all, tai_path, options.refGenome)
     if not chunks:
         raise RuntimeError(
-            'No contigs from {!r} appear in the source MAF .tai. Either the MAF '
-            'is empty or the reference name does not match the MAF s-line '
-            'prefixes.'.format(options.refGenome))
+            'No {} appear in the source MAF .tai. Either the MAF is empty or the reference name '
+            'does not match the MAF s-line prefixes.'.format(
+                'selected --bedRanges sequences' if bed_id is not None
+                else 'contigs from {!r}'.format(options.refGenome)))
     skipped = len(chunks_all) - len(chunks)
     if skipped:
         RealtimeLogger.info('Skipping {} chunks for contigs not present in MAF index '
                             '(unaligned / out-of-MAF reference contigs).'.format(skipped))
     n_contigs = len({c[0] for c in chunks})
-    RealtimeLogger.info('Planned {} chunks of ~{} bp each (covering {} contigs)'.format(
-        len(chunks), options.chunkSize, n_contigs))
+    RealtimeLogger.info('Planned {} chunks of ~{} bp each (covering {} contigs){}'.format(
+        len(chunks), options.chunkSize, n_contigs,
+        ' from --bedRanges' if bed_id is not None else ''))
     return chunks
 
 

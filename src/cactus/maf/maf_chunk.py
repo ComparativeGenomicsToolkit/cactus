@@ -4,9 +4,12 @@
 cactus-phast helpers for chunking a MAF (.maf / .maf.gz / .taf / .taf.gz)
 into reference-coordinate chunks using a taffy index (.tai).
 
-The job functions here read options.refGenome and options.chunkCores off
-the cactus-phast options namespace, so they're not standalone-reusable
-without passing a compatible options object.
+The Toil job functions here read options.refGenome and options.chunkCores off
+the cactus-phast options namespace, so they're not standalone-reusable without
+passing a compatible options object. The pure helpers (parse_bed_ranges,
+_slice_region, plan_chunks, plan_chunks_in_regions) take plain arguments;
+parse_bed_ranges in particular is also imported by cactus-hal2maf so the two
+tools interpret --bedRanges identically.
 
 The model:
   - A single sequential job builds a .tai if the user didn't supply one.
@@ -52,36 +55,133 @@ def get_ref_sequence_lengths(hal_path, ref_genome):
     return lengths
 
 
+def get_aligned_ref_contigs(hal_path, ref_genome):
+    """ Return the set of `ref_genome` sequence names that have at least one base
+    aligned to the parent genome, via halAlignedExtract. Sequences absent from
+    the result are completely unaligned — in the MAF they only ever appear as
+    reference-only columns, which phyloP cannot score. halAlignedExtract is a
+    single linear scan of the reference's top-segment array (it touches no other
+    genome and no bottom segments). The aligned-region BED can be huge, so it's
+    streamed through a single-pass awk that emits each contig name once — no
+    O(n log n) sort. Because halAlignedExtract reports only alignment to the
+    PARENT, this is equivalent to "appears in a multi-row MAF column" only for a
+    LEAF reference; callers must restrict it to leaf references (an internal node
+    can align to its descendants, which this does not see). For a parentless
+    genome (the HAL root) halAlignedExtract exits 0 with empty output — it does
+    not error — so this would return an empty set; callers must guard against
+    that too. """
+    res = cactus_call(parameters=[['halAlignedExtract', hal_path, ref_genome],
+                                  ['awk', '!seen[$1]++{print $1}']],
+                      check_output=True)
+    return set(name for name in res.split('\n') if name.strip())
+
+
+def _slice_region(contig, start, end, chunk_size):
+    """ Slice [start, end) on `contig` into chunks of ~chunk_size bp. The last
+    piece may absorb a small remainder rather than create a tiny tail chunk
+    (only if doing so keeps it under 1.5x chunk_size). Returns a list of
+    (contig, s, e) tuples in ascending order. """
+    L = end - start
+    if L <= 0:
+        return []
+    if L <= chunk_size:
+        return [(contig, start, end)]
+    # L > chunk_size, so n is always >= 1 here.
+    n = L // chunk_size
+    last = L - (n - 1) * chunk_size
+    # Avoid a final chunk much larger than chunk_size; absorbing was for tiny
+    # remainders, but if `last` would exceed 1.5x, split off another chunk.
+    if last > chunk_size * 1.5:
+        n += 1
+        last = L - (n - 1) * chunk_size
+    out = []
+    for i in range(n):
+        s = start + i * chunk_size
+        size = chunk_size if i < n - 1 else last
+        out.append((contig, s, s + size))
+    return out
+
+
 def plan_chunks(ref_sequence_lengths, chunk_size):
     """ Slice each reference contig into chunks of ~chunk_size bp. Big contigs
-    get split; the last piece may absorb a small remainder rather than create
-    a tiny tail chunk (only if doing so keeps it under 1.5x chunk_size). Small
-    contigs become their own single-chunk piece (no cross-contig packing —
-    each chunk is one contiguous range on one contig).
+    get split; small contigs become their own single-chunk piece (no cross-
+    contig packing — each chunk is one contiguous range on one contig).
 
     Returns a list of (contig, start, end) tuples ordered by (contig, start). """
     chunks = []
     for contig in sorted(ref_sequence_lengths.keys()):
-        L = ref_sequence_lengths[contig]
-        if L <= 0:
-            continue
-        if L <= chunk_size:
-            chunks.append((contig, 0, L))
-            continue
-        # L > chunk_size, so n is always >= 1 here.
-        n = L // chunk_size
-        last = L - (n - 1) * chunk_size
-        # Avoid a final chunk much larger than chunk_size; absorbing was for
-        # tiny remainders, but if `last` would exceed 1.5x, split off another
-        # chunk instead.
-        if last > chunk_size * 1.5:
-            n += 1
-            last = L - (n - 1) * chunk_size
-        for i in range(n):
-            start = i * chunk_size
-            size = chunk_size if i < n - 1 else last
-            chunks.append((contig, start, start + size))
+        chunks += _slice_region(contig, 0, ref_sequence_lengths[contig], chunk_size)
     return chunks
+
+
+def parse_bed_ranges(bed_path):
+    """ Parse a BED file into a list of (sequence, start, end) tuples from the
+    first three whitespace-separated columns (0-based, half-open). Blank lines,
+    '#' comments, and 'track'/'browser' header lines (matched on the first token,
+    so a contig literally named e.g. 'track1' is NOT skipped) are ignored, as are
+    lines with fewer than three columns. A line with >=3 columns whose start/end
+    aren't integers is a hard error naming the file and the offending line text
+    (rather than a bare ValueError escaping). Shared by cactus-hal2maf and
+    cactus-phast so both interpret --bedRanges identically. """
+    ranges = []
+    with open(bed_path, 'r') as bed_file:
+        for line in bed_file:
+            if not line.strip() or line.startswith('#'):
+                continue
+            toks = line.split()
+            if toks[0] in ('track', 'browser') or len(toks) < 3:
+                continue
+            try:
+                ranges.append((toks[0], int(toks[1]), int(toks[2])))
+            except ValueError:
+                raise RuntimeError('unparseable BED line in {}: {!r}'.format(
+                    bed_path, line.rstrip('\n')))
+    return ranges
+
+
+def plan_chunks_in_regions(bed_regions, ref_sequence_lengths, chunk_size):
+    """ Like plan_chunks, but restricted to `bed_regions` (a list of
+    (contig, start, end) parsed from a BED). Each region is clamped to its
+    contig's length; regions on the same contig that overlap or touch are merged
+    (so chunks never produce duplicate reference positions); the merged spans are
+    then sliced into chunks of ~chunk_size bp. Regions whose contig is absent
+    from `ref_sequence_lengths` are dropped.
+
+    Returns (chunks, dropped_contigs, clamped) where chunks is the
+    (contig, start)-ordered chunk list, dropped_contigs is the sorted list of BED
+    contigs not present in the reference, and clamped is the list of input
+    (contig, start, end) intervals that extended past [0, contig_length] (so they
+    were clamped, or dropped if nothing remained). Note: in-bounds intervals that
+    are empty (end <= start) are silently dropped and appear in neither list. """
+    by_contig = {}
+    dropped = set()
+    clamped = []
+    for (contig, start, end) in bed_regions:
+        if contig not in ref_sequence_lengths:
+            dropped.add(contig)
+            continue
+        L = ref_sequence_lengths[contig]
+        s = max(0, start)
+        e = min(end, L)
+        if start < 0 or end > L:
+            clamped.append((contig, start, end))
+        if e > s:
+            by_contig.setdefault(contig, []).append((s, e))
+    chunks = []
+    for contig in sorted(by_contig.keys()):
+        spans = sorted(by_contig[contig])
+        cs, ce = spans[0]
+        merged = []
+        for (s, e) in spans[1:]:
+            if s <= ce:            # overlapping or touching -> extend
+                ce = max(ce, e)
+            else:
+                merged.append((cs, ce))
+                cs, ce = s, e
+        merged.append((cs, ce))
+        for (s, e) in merged:
+            chunks += _slice_region(contig, s, e, chunk_size)
+    return chunks, sorted(dropped), clamped
 
 
 def filter_chunks_to_indexed(chunks, tai_path, ref_genome):
