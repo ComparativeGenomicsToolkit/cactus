@@ -760,9 +760,20 @@ def make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancest
     ingroup_events = get_leaves(ancestor_event) # Get the set of ingroup events
     # to be consistent with pre-refactor (and work with updating tests), we include the root when its id is input
     # and just treat it as an ingroup
-    if ancestor_event.iD in event_names_to_sequences and event_names_to_sequences[ancestor_event.iD]:
+    root_provided = ancestor_event.iD in event_names_to_sequences and event_names_to_sequences[ancestor_event.iD]
+    # When the root's sequence is supplied (cactus-blast/cactus-align --includeRoot), treat it as an
+    # outgroup rather than an ingroup, controlled by <blast includeRootAsOutgroup> in the config (on by
+    # default).  As an ingroup the root joins the flat all-against-all chaining and can be starved of
+    # primary alignments by ingroups that align better to each other than to the (often deeper) root,
+    # collapsing the root's coverage to its descendants.  As an outgroup it is instead covered via the
+    # ingroup->outgroup scheme and cannot be starved (see chain_alignments_splitting_ingroups_and_outgroups).
+    pin_root_as_outgroup = root_provided and getOptionalAttrib(
+        params.find("blast"), "includeRootAsOutgroup", typeFn=bool, default=True)
+    if root_provided and not pin_root_as_outgroup:
         ingroup_events.append(ancestor_event)
     outgroup_events = [event for event in get_leaves(event_tree) if event not in ingroup_events]  # Set of outgroups
+    if pin_root_as_outgroup:
+        outgroup_events.append(ancestor_event)
     logger.info("Got ingroup events: {} for ancestor event: {}".format(" ".join([i.iD for i in ingroup_events]),
                                                                        ancestor_event_string))
 

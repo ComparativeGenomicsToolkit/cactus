@@ -91,7 +91,7 @@ def main():
                         " in the output.  If no root is specifed then the root"
                         " of the tree is used. ", default=None)
     parser.add_argument("--includeRoot", action="store_true", help="Include the root's sequence in the alignment"
-                        " (used only when running alignment update recipes)")    
+                        " (used only when running alignment update recipes)")
     parser.add_argument("--latest", dest="latest", action="store_true",
                         help="Use the latest version of the docker container "
                         "rather than pulling one matching this version of cactus")
@@ -292,6 +292,11 @@ def make_align_job(options, toil, config_wrapper=None, chrom_name=None):
         if options.root not in input_seq_map:
             raise RuntimeError("--includeRoot specified but root, {},  not found in input Seqfile".format(options.root))
         event_set.add(options.root)
+        # NOTE: we deliberately do NOT add the root to og_map here. Marking the reference event as an
+        # outgroup of itself flows into cactus_consolidated's --outgroupEvents AND export_hal's
+        # --outgroups, which breaks the c2h/HAL build (the reference is the root whose bottom segments
+        # define the alignment; outgroups have no bottom segments). The root-as-outgroup treatment is
+        # applied only on the cactus-blast side (see make_paf_alignments / <blast includeRootAsOutgroup>).
 
     if options.reference and options.pangenome:
         # validate the sample names

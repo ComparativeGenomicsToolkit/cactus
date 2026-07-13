@@ -51,6 +51,7 @@ setup(
                             'cactus-align = cactus.setup.cactus_align:main',
                             'cactus-align-batch = cactus.setup.cactus_align:main_batch',
                             'cactus-update-prepare = cactus.update.cactus_update_prepare:main',
+                            'cactus-hal2seqfile = cactus.update.cactus_hal2seqfile:main',
                             'cactus-terra-helper = cactus.progressive.cactus_terra_helper:main',
                             'cactus-hal2maf = cactus.maf.cactus_hal2maf:main',
                             'cactus-hal2chains = cactus.maf.cactus_hal2chains:main',
