@@ -200,6 +200,18 @@ def graphmap_join_options(parser):
                         "gref VCF filenames as gref<NN> where NN=int(value*100), "
                         "e.g. 0.95 -> .gref95.vcf.gz.")
 
+def graphmap_join_defaults(options):
+    """ fill in the graphmap-join option defaults for tools (ie cactus-panpatch) that run the join
+    workflow but do not put graphmap_join_options() on their command line.  the defaults are pulled
+    from the parser itself so that this can't silently rot when an option is added above.  options
+    already present (ie declared by the caller) are left alone """
+    parser = ArgumentParser()
+    graphmap_join_options(parser)
+    for name, value in vars(parser.parse_args([])).items():
+        if not hasattr(options, name):
+            setattr(options, name, value)
+    return options
+
 def graphmap_join_validate_options(options):
     """ make sure the options make sense and fill in sensible defaults """
 
@@ -676,7 +688,8 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
             output_full_vg_ids = []
             for vg_path, vg_id, full_vg_id in zip(options.vg, vg_ids, full_vg_ids):
                 drop_graph_event_job = join_job.addFollowOnJobFn(drop_graph_event, config, vg_path, full_vg_id,
-                                                                 disk=vg_id.size * 3, memory=min(vg_id.size * 6, max_mem))
+                                                                 disk=vg_id.size * 3,
+                                                                 memory=cactus_clamp_memory(min(vg_id.size * 6, max_mem)))
                 output_full_vg_ids.append(drop_graph_event_job.rv())
         else:
             output_full_vg_ids = full_vg_ids

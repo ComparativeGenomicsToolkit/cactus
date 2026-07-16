@@ -58,5 +58,6 @@ setup(
                             'cactus-maf2bigmaf = cactus.maf.cactus_maf2bigmaf:main',
                             'cactus-phast = cactus.maf.cactus_phast:main',
                             'cactus-pangenome = cactus.refmap.cactus_pangenome:main',
+                            'cactus-panpatch = cactus.refmap.cactus_panpatch:main',
                             'cactus-hal2fasta = cactus.progressive.cactus_prepare:main_hal2fasta',
                             'cactus-halAppendSubtrees = cactus.progressive.cactus_prepare:main_hal_append_subtrees']},)

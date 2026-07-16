@@ -10,6 +10,8 @@
 # The following tools are included to export and work with pangenome graph formats
 # - hal2vg
 # - vg
+# The following tool is included for cactus-panpatch
+# - panpatch
 # If, updating any versions here, update the release notes as well
 #
 # all binaries get copied into cactus/bin
@@ -318,7 +320,26 @@ then
 	 mv vg ${binDir}
 else
 	 exit 1
-fi	 
+fi
+
+# panpatch
+cd ${pangenomeBuildDir}
+git clone --recursive https://github.com/glennhickey/panpatch.git
+cd panpatch
+git checkout e51b181bf6b8d715b12acc9595194b9407313c99
+git submodule update --init --recursive
+if [[ $STATIC_CHECK -eq 1 ]]
+then
+	 make static -j ${numcpu}
+else
+	 make -j ${numcpu}
+fi
+if [[ $STATIC_CHECK -ne 1 || $(ldd panpatch | grep so | wc -l) -eq 0 ]]
+then
+	 mv panpatch ${binDir}
+else
+	 exit 1
+fi
 
 # gfaffix
 cd ${pangenomeBuildDir}

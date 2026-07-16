@@ -1179,6 +1179,27 @@ def write_s3(local_path, s3_path, region=None):
 
     s3.upload_file(local_path, bucket_name, name_prefix)
 
+def delete_directory(dir_path):
+    """ recursively delete a directory, which can be a local path or an s3:// url.  used to clean
+    intermediate output out of an output directory (see cactus-panpatch) """
+    if dir_path.startswith('s3://'):
+        if not has_s3:
+            raise RuntimeError('boto3 is required to delete {}'.format(dir_path))
+        bucket_name, prefix = dir_path[5:].split('/', 1)
+        if not prefix.endswith('/'):
+            prefix += '/'
+        botocore_session = botocore.session.get_session()
+        botocore_session.get_component('credential_provider').get_provider('assume-role').cache = botocore.credentials.JSONFileCache()
+        s3 = boto3.Session(botocore_session=botocore_session).client('s3')
+        paginator = s3.get_paginator('list_objects_v2')
+        for page in paginator.paginate(Bucket=bucket_name, Prefix=prefix):
+            keys = [{'Key' : obj['Key']} for obj in page.get('Contents', [])]
+            # delete_objects caps out at 1000 keys, which is exactly the page size
+            if keys:
+                s3.delete_objects(Bucket=bucket_name, Delete={'Objects' : keys})
+    elif os.path.isdir(dir_path):
+        shutil.rmtree(dir_path)
+
 def get_faidx_subpath_rename_cmd():
     """
     transform chr1:10-15 (1-based inclusive) into chr1_sub_9_15 (0-based end open)

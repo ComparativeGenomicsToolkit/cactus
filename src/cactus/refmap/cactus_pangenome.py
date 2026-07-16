@@ -49,13 +49,11 @@ from cactus.refmap.cactus_graphmap_split import graphmap_split_workflow, export_
 from cactus.setup.cactus_align import make_batch_align_jobs, batch_align_jobs
 from cactus.refmap.cactus_graphmap_join import graphmap_join_workflow, export_join_data, graphmap_join_options, graphmap_join_validate_options, vcflib_checks
 
-def main():
-    parser = Job.Runner.getDefaultArgumentParser()
-
-    parser.add_argument("seqFile", help = "Seq file (will be modified if necessary to include graph Fasta sequence)")
-    parser.add_argument("--outDir", help = "Output directory", required=True)
-    parser.add_argument("--outName", help = "Output name (without extension)", required=True)
-    parser.add_argument("--reference", required=True, nargs='+', type=str, help = "Reference event name(s). The first will be the \"true\" reference and will be left unclipped and uncollapsed. It also should have been used with --reference in all upstream commands. Other names will be promoted to reference paths in vg") 
+def pangenome_options(parser):
+    """ the options that drive the end-to-end pangenome workflow, everything except the
+    graphmap-join output selection (which lives in graphmap_join_options()) and the
+    seqfile/outDir/outName/reference which each tool declares itself.  these are shared with
+    cactus-panpatch, which runs the same workflow """
 
     # cactus-minigraph options
     parser.add_argument("--mgCores", type=int, help = "Number of cores for minigraph construction (defaults to the same as --maxCores).")
@@ -96,10 +94,6 @@ def main():
     parser.add_argument("--branchScale", type=float, default=1.0,
                         help="Scale default branch length. This option is more relevant for progressive cactus but larger values can be used here to reduce chaining thresholds in cactus_consolidated.")
 
-
-    # cactus-graphmap-join options
-    graphmap_join_options(parser)
-
     #Progressive Cactus Options
     parser.add_argument("--configFile", dest="configFile",
                         help="Specify cactus configuration file",
@@ -112,8 +106,11 @@ def main():
                         "rather than pulling one from quay.io")
     parser.add_argument("--binariesMode", choices=["docker", "local", "singularity"],
                         help="The way to run the Cactus binaries", default=None)
-    
-    options = parser.parse_args()
+
+def pangenome_validate_options(options):
+    """ set the defaults and sanity-check the options for the end-to-end pangenome workflow.  shared
+    with cactus-panpatch.  note that this makes process-global changes (binaries, logging, toil
+    options) so it must be called exactly once, on the options that get passed to Toil() """
 
     # set defaults
     # most are progressive-specific options, or pangenome options that are not longer recommended
@@ -134,14 +131,19 @@ def main():
     options.outGFA = False
     options.minIdentity = None
     options.chromInfo = None
-    
+    # these let cactus-panpatch turn off output it would only throw away (the hal) or write
+    # twice (the chromosome vgs)
+    options.noHal = False
+    options.noJoinExport = False
+
     setupBinaries(options)
     set_logging_from_options(options)
     enableDumpStack()
 
-    if not options.seqFile.startswith('s3://'):
+    # (cactus-panpatch --batch takes a file of seqfiles instead of a seqfile)
+    if options.seqFile and not options.seqFile.startswith('s3://'):
         options.seqFile = os.path.abspath(options.seqFile)
-    
+
     if options.outDir and not options.outDir.startswith('s3://'):
         if not os.path.isdir(options.outDir):
             os.makedirs(options.outDir)
@@ -190,6 +192,46 @@ def main():
     options.sv_gfa = []
     options = graphmap_join_validate_options(options)
 
+    return options
+
+def pangenome_config_overrides(options, config_node):
+    """ push the cpu options into the config, and sort out the minigraph cores.  shared with
+    cactus-panpatch """
+    if options.mapCores is not None:
+        findRequiredNode(config_node, "graphmap").attrib["cpu"] = str(options.mapCores)
+    mg_cores = getOptionalAttrib(findRequiredNode(config_node, "graphmap"), "cpu", typeFn=int, default=1)
+    if options.batchSystem.lower() in ['single_machine', 'singleMachine']:
+        mg_cores = min(mg_cores, cactus_cpu_count(), int(options.maxCores) if options.maxCores else sys.maxsize)
+        findRequiredNode(config_node, "graphmap").attrib["cpu"] = str(mg_cores)
+
+    if options.batchSystem.lower() in ['single_machine', 'singleMachine']:
+        if not options.mgCores:
+            options.mgCores = sys.maxsize
+        options.mgCores = min(options.mgCores, cactus_cpu_count(), int(options.maxCores) if options.maxCores else sys.maxsize)
+    else:
+        if not options.mgCores:
+            raise RuntimeError("--mgCores required run *not* running on single machine batch system")
+
+    if options.collapse:
+        findRequiredNode(config_node, "graphmap").attrib["collapse"] = 'all'
+
+def main():
+    parser = Job.Runner.getDefaultArgumentParser()
+
+    parser.add_argument("seqFile", help = "Seq file (will be modified if necessary to include graph Fasta sequence)")
+    parser.add_argument("--outDir", help = "Output directory", required=True)
+    parser.add_argument("--outName", help = "Output name (without extension)", required=True)
+    parser.add_argument("--reference", required=True, nargs='+', type=str, help = "Reference event name(s). The first will be the \"true\" reference and will be left unclipped and uncollapsed. It also should have been used with --reference in all upstream commands. Other names will be promoted to reference paths in vg")
+
+    pangenome_options(parser)
+
+    # cactus-graphmap-join options
+    graphmap_join_options(parser)
+
+    options = parser.parse_args()
+
+    options = pangenome_validate_options(options)
+
     logger.info('Cactus Command: {}'.format(' '.join(sys.argv)))
     logger.info('Cactus Commit: {}'.format(cactus_commit))
     start_time = timeit.default_timer()
@@ -220,24 +262,8 @@ def main():
                 if seq != options.reference[0]:
                     input_seq_order.append(seq)
             
-            # apply cpu override                
-            if options.mapCores is not None:
-                findRequiredNode(config_node, "graphmap").attrib["cpu"] = str(options.mapCores)
-            mg_cores = getOptionalAttrib(findRequiredNode(config_node, "graphmap"), "cpu", typeFn=int, default=1)
-            if options.batchSystem.lower() in ['single_machine', 'singleMachine']:
-                mg_cores = min(mg_cores, cactus_cpu_count(), int(options.maxCores) if options.maxCores else sys.maxsize)
-                findRequiredNode(config_node, "graphmap").attrib["cpu"] = str(mg_cores)
-
-            if options.batchSystem.lower() in ['single_machine', 'singleMachine']:
-                if not options.mgCores:
-                    options.mgCores = sys.maxsize
-                options.mgCores = min(options.mgCores, cactus_cpu_count(), int(options.maxCores) if options.maxCores else sys.maxsize)
-            else:
-                if not options.mgCores:
-                    raise RuntimeError("--mgCores required run *not* running on single machine batch system")
-                
-            if options.collapse:
-                findRequiredNode(config_node, "graphmap").attrib["collapse"] = 'all'
+            # apply cpu override
+            pangenome_config_overrides(options, config_node)
 
             #import the reference collapse paf
             ref_collapse_paf_id = None
@@ -432,7 +458,10 @@ def export_align_wrapper(job, options, results_dict):
     for chrom, results in sorted(results_dict.items()):
         hal_path = makeURL(os.path.join(chrom_dir, '{}.hal'.format(chrom)))
         vg_path = makeURL(os.path.join(chrom_dir, '{}.vg'.format(chrom)))
-        job.fileStore.exportFile(results[0], hal_path)
+        # the hal paths are still needed (downstream code assumes there's one per vg), but there's
+        # no point writing the files themselves out if we're not going to make a hal (cactus-panpatch)
+        if not options.noHal:
+            job.fileStore.exportFile(results[0], hal_path)
         job.fileStore.exportFile(results[1], vg_path)
         hal_ids.append(results[0])
         hal_paths.append(hal_path)
@@ -575,9 +604,21 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
     join_options, vg_ids, hal_ids = align_export_job.rv(0), align_export_job.rv(1), align_export_job.rv(2)
 
     # cactus_graphmap_join
+    # if we're not making a hal (cactus-panpatch), skip the merge. it's the only thing that reads
+    # hal_ids, and it's also the only thing that frees the chromosome hals from the jobstore, so we
+    # need to do that ourselves here or they'd leak for the rest of the run
     join_job = align_export_job.addFollowOnJobFn(graphmap_join_workflow, join_options, config_wrapper, vg_ids,
-                                                 hal_ids, minigraph_pansn_sv_gfa_ids)
+                                                 [] if options.noHal else hal_ids, minigraph_pansn_sv_gfa_ids)
     join_wf_output = join_job.rv()
-    join_export_job = join_job.addFollowOnJobFn(export_join_wrapper, join_options, join_wf_output)
+    if options.noHal:
+        join_job.addFollowOnJobFn(clean_jobstore_files, file_ids=hal_ids)
+
+    # cactus-panpatch exports the chromosome vgs itself (they're the only thing export_join_data
+    # would write, given it turns every other output off), so let it skip this to avoid writing
+    # the biggest output twice
+    if not options.noJoinExport:
+        join_job.addFollowOnJobFn(export_join_wrapper, join_options, join_wf_output)
+
+    return join_options, join_wf_output, seq_id_map
         
         
