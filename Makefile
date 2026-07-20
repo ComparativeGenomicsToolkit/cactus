@@ -226,6 +226,12 @@ yeast_test_split_local:
 yeast_test_step_by_step_local:
 	PYTHONPATH="${CWD}/submodules/" CACTUS_BINARIES_MODE=local CACTUS_DOCKER_MODE=0 ${PYTHON} -m pytest ${pytestOpts} -s test/evolverTest.py::TestCase::testYeastPangenomeStepByStepLocal
 
+panpatch_test_local:
+	PYTHONPATH="${CWD}/submodules/" CACTUS_BINARIES_MODE=local CACTUS_DOCKER_MODE=0 ${PYTHON} -m pytest ${pytestOpts} -s test/evolverTest.py::TestCase::testYeastPanpatchLocal
+
+panpatch_test_reference_local:
+	PYTHONPATH="${CWD}/submodules/" CACTUS_BINARIES_MODE=local CACTUS_DOCKER_MODE=0 ${PYTHON} -m pytest ${pytestOpts} -s test/evolverTest.py::TestCase::testYeastPanpatchReferenceLocal
+
 ##
 # clean targets
 ##

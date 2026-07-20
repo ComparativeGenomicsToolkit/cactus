@@ -1437,6 +1437,121 @@ class TestCase(unittest.TestCase):
         # check the output
         self._check_yeast_pangenome(name, other_ref='DBVPG6044', expect_odgi=True, expect_haplo=False, expect_unchopped_gfa=True)
 
+    YEAST_URL = 'https://github.com/ComparativeGenomicsToolkit/cactusTestData/raw/master/yeast/{}.fa.gz'
+    PANPATCH_TARGET = 'SK1'
+    PANPATCH_DONOR = 'DBVPG6044'
+    PANPATCH_REFERENCE = 'S288C'
+
+    def _synthetic_contig(self, contig_name, length=60000):
+        """ a fasta record of uniformly-random sequence: no homology to yeast, so minigraph leaves it
+        unmapped and the pangenome drops it -- which is what exercises panpatch's dropped-contig rescue """
+        import random
+        rng = random.Random(1234)   # fixed seed: deterministic across runs
+        seq = ''.join(rng.choice('ACGT') for _ in range(length))
+        lines = ['>{}'.format(contig_name)] + [seq[i:i+80] for i in range(0, len(seq), 80)]
+        return '\n'.join(lines) + '\n'
+
+    def _make_yeast_target_with_dropped_contig(self, url, contig_name):
+        """ download the target strain and append a synthetic unmappable contig, returning a local
+        (uncompressed) fasta.  used to check that a contig the pangenome drops still reaches the output """
+        import urllib.request, gzip
+        local_gz = os.path.join(self.tempDir, 'panpatch_target.fa.gz')
+        urllib.request.urlretrieve(url, local_gz)
+        out_fa = os.path.join(self.tempDir, 'panpatch_target.fa')
+        with gzip.open(local_gz, 'rt') as inp, open(out_fa, 'w') as out:
+            shutil.copyfileobj(inp, out)
+            out.write(self._synthetic_contig(contig_name))
+        return out_fa
+
+    def _run_yeast_panpatch(self, binariesMode, reference=False, dropped_contig=None):
+        """ run cactus-panpatch on a couple of yeast strains (reference-free by default, or against
+        an external reference), returning the output directory """
+        out_dir = os.path.join(self.tempDir, 'panpatch-out')
+
+        rows = []
+        if reference:
+            rows.append((self.PANPATCH_REFERENCE, self.YEAST_URL.format(self.PANPATCH_REFERENCE)))
+        if dropped_contig:
+            target_fa = self._make_yeast_target_with_dropped_contig(
+                self.YEAST_URL.format(self.PANPATCH_TARGET), dropped_contig)
+            rows.append((self.PANPATCH_TARGET, target_fa))
+        else:
+            rows.append((self.PANPATCH_TARGET, self.YEAST_URL.format(self.PANPATCH_TARGET)))
+        rows.append((self.PANPATCH_DONOR, self.YEAST_URL.format(self.PANPATCH_DONOR)))
+
+        seqfile_path = os.path.join(self.tempDir, 'panpatch.seqfile')
+        with open(seqfile_path, 'w') as f:
+            for name, path in rows:
+                f.write('{}\t{}\n'.format(name, path))
+
+        cactus_opts = ['--binariesMode', binariesMode, '--logInfo', '--workDir', self.tempDir,
+                       '--maxCores', '4', '--consCores', '2']
+        cmd = ['cactus-panpatch', self._job_store(binariesMode), seqfile_path, '--outDir', out_dir,
+               '--keepGraphs']
+        if reference:
+            cmd += ['--reference', self.PANPATCH_REFERENCE]
+        subprocess.check_call(cmd + cactus_opts)
+        return out_dir
+
+    def _check_yeast_panpatch(self, out_dir, reference=False, dropped_contig=None):
+        """ check the cactus-panpatch output: a patched fasta carrying the whole target genome, the
+        bed/tsv report, the kept graphs, and (if injected) the dropped contig rescued into the fasta """
+        import gzip, glob
+        target = self.PANPATCH_TARGET
+
+        # reference mode keeps panpatch's haplotype numbering (SK1 is haploid -> hap0); reference-free
+        # names the single output for the sample
+        if reference:
+            fa_paths = sorted(glob.glob(os.path.join(out_dir, '{}.hap*.fa.gz'.format(target))))
+        else:
+            fa_paths = [os.path.join(out_dir, '{}.fa.gz'.format(target))]
+        self.assertTrue(fa_paths, 'no output fasta in {}'.format(out_dir))
+
+        total_len = 0
+        headers = []
+        for fa_path in fa_paths:
+            self.assertTrue(os.path.isfile(fa_path) and os.path.getsize(fa_path) > 0,
+                            'missing/empty output fasta {}'.format(fa_path))
+            with gzip.open(fa_path, 'rt') as f:
+                for line in f:
+                    if line.startswith('>'):
+                        headers.append(line[1:].strip())
+                    else:
+                        total_len += len(line.strip())
+        # the yeast genome is ~12 Mb; panpatch must carry the target's sequence through to the output
+        self.assertGreater(total_len, 10000000, 'patched output is too short ({} bp)'.format(total_len))
+
+        # the bed and tsv reports are always written (possibly empty if nothing was patched)
+        for ext in ('.bed', '.tsv'):
+            report = os.path.join(out_dir, target + ext)
+            self.assertTrue(os.path.isfile(report), 'missing report {}'.format(report))
+
+        # --keepGraphs kept the per-chromosome graphs panpatch ran on
+        self.assertTrue(glob.glob(os.path.join(out_dir, target + '.chroms', '*.full.vg')),
+                        'no kept .full.vg graphs in {}'.format(out_dir))
+
+        if dropped_contig:
+            # the unmappable contig was dropped by the pangenome and rescued verbatim into the output
+            # (panpatch writes it as SAMPLE#HAP#CONTIG), so no assembly sequence is lost
+            self.assertTrue(any(dropped_contig in h for h in headers),
+                            'dropped contig {} not carried through to the output'.format(dropped_contig))
+
+    def testYeastPanpatchLocal(self):
+        """ cactus-panpatch reference-free (the default) on yeast: each target contig is its own
+        "chromosome" and is patched against the donor """
+        name = "local"
+        out_dir = self._run_yeast_panpatch(name)
+        self._check_yeast_panpatch(out_dir)
+
+    def testYeastPanpatchReferenceLocal(self):
+        """ cactus-panpatch against an external reference on yeast, with a synthetic unmappable contig
+        injected into the target: it maps to no reference chromosome, so the pangenome drops it and
+        panpatch's dropped-contig rescue must carry it through to the output """
+        name = "local"
+        dropped = 'synthetic_unplaceable_contig'
+        out_dir = self._run_yeast_panpatch(name, reference=True, dropped_contig=dropped)
+        self._check_yeast_panpatch(out_dir, reference=True, dropped_contig=dropped)
+
     def _test_vg_bypass(self, binariesMode):
         """Test that --vgClip/--vgFilter bypass produces equivalent indexes to the original run"""
         import glob

@@ -11,6 +11,7 @@ Please cite the [Minigraph-Cactus paper](https://doi.org/10.1038/s41587-023-0179
 * [Introduction](#introduction)
 * [Interface](#interface)
 * [Output](#output)
+* [Patching Assemblies (cactus-panpatch)](#patching-assemblies-cactus-panpatch)
 * [Advanced Configuration](#advanced-configuration)
 * [Visualization](#visualization)
 * [Yeast Graph](#yeast-graph)
@@ -303,6 +304,46 @@ As of [v2.9.1](https://github.com/ComparativeGenomicsToolkit/cactus/releases/tag
 If you must have longer node lengths, perhaps for viewing very large simple graphs in BandageNG, then you can use the `--unchopped-gfa` option to produce additional output graph(s), with `.unchopped.gfa.gz` suffix. The node IDs in these graphs will be incompatible with all other output, including VCF.
 
 If you want to revert to the previous logic of only the `vg giraffe`-specific files having chopped IDs, you can do so by setting `<graphmap_join maxNodeLength="-1">` in the configuration XML.  If you do this, then you can still use `vg gbwt -Z graph.gbz --translation mapping.tsv` to recover the translation between the IDs from the GBZ, or `-O` in `vg call/deconstruct` to toggle which IDs to use from the GBZ.
+
+## Patching Assemblies (cactus-panpatch)
+
+[panpatch](https://github.com/glennhickey/panpatch) uses a pangenome graph to patch an assembly into telomere-to-telomere chromosomes — filling N-gaps, scaffolding contigs, and (with `--requireTelomeres`) completing telomeres. `cactus-panpatch` is a Toil workflow that builds the required graphs and runs `panpatch` all in a single script and, with the `--batch` option, can process many samples at once.
+
+`cactus-panpatch` takes a seqfile listing assemblies of the same sample.  The target (to be patched) assembly comes first, with donor assemblies following in priority order.  For example:
+
+```
+PAN028-verkko.1   PAN028.hap1.verkko.fa      # <- the assembly to patch (chromosome-scale)
+PAN028-verkko.2   PAN028.hap2.verkko.fa
+PAN028-hifiasm.1  PAN028.hifiasm.hap1.fa     # <- donor
+PAN028-hifiasm.2  PAN028.hifiasm.hap2.fa
+```
+```
+cactus-panpatch ./js seqfile.txt --outDir patched
+```
+
+By default patching is reference-free: because Minigraph-Cactus references must be haploid, each target haplotype is patched in its own pangenome (so a diploid sample costs N times a single run), and its output is named for it: `patched/PAN028-verkko.hap1.fa.gz`, `patched/PAN028-verkko.hap2.fa.gz`.
+
+If the target assembly is not chromosome scale (you want the patching to scaffold across its contigs), you can include a chromosome-scale reference genome (ex hs1) as the first line of the seqfile, and then flag it as a reference using the `--reference` option (it must be haploid).
+
+### Patching many samples
+
+`--batch` patches many samples in one workflow; the argument is a chromfile with one `<name> <seqfile>` line per sample (as with `cactus-align --batch`), and works with or without `--reference`:
+
+```
+PAN028   PAN028.seqfile.txt
+PAN027   PAN027.seqfile.txt
+```
+```
+cactus-panpatch ./js chromfile.txt --outDir patched --batch
+```
+
+### Cluster example
+
+```
+cactus-panpatch ./js chromfile.txt --outDir patched --batch --requireTelomeres \
+    --batchSystem slurm --slurmTime 10:00:00 --doubleMem true --maxMemory 1.5T --retryCount 10 \
+    --consCores 16 --mgCores 32 --mapCores 16
+```
 
 ## Advanced Configuration
 
