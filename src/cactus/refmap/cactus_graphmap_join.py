@@ -55,6 +55,8 @@ from toil.statsAndLogging import set_logging_from_options
 from toil.realtimeLogger import RealtimeLogger
 from cactus.shared.common import cactus_cpu_count
 from cactus.refmap.cactus_minigraph import check_sample_names
+from cactus.refmap.pangenome_exclusions import path_coverage_job, ref_gaps_job, compute_exclusions_job
+from cactus.refmap.pangenome_exclusions import check_baseline_header
 from cactus.progressive.cactus_prepare import human2bytesN
 
 from sonLib.nxnewick import NXNewick
@@ -130,6 +132,16 @@ def main():
     # Mess with some toil options to create useful defaults.
     cactus_override_toil_options(options)
 
+    # say this up front rather than at the end of the join, when it is too late to add the option.
+    # only reachable here: cactus-pangenome computes the sizes itself and never comes through main()
+    if not options.inputContigSizes:
+        logger.warning(
+            'No --inputContigSizes given, so NO CLIPPING REPORT will be written: measuring how much '
+            'input sequence is missing from the graphs needs the input contig lengths, and the '
+            'graphs alone do not carry them. Pass --inputContigSizes '
+            '<outDir>/<outName>.input-contig-sizes.tsv.gz from the cactus-pangenome run that '
+            'produced these graphs. Reference gaps and the graph statistics are written either way.')
+
     logger.info('Cactus Command: {}'.format(' '.join(sys.argv)))
     logger.info('Cactus Commit: {}'.format(cactus_commit))
     start_time = timeit.default_timer()
@@ -183,6 +195,16 @@ def graphmap_join_options(parser):
                         help="Memory in bytes for each indexing and vcf construction job (defaults to an estimate based on the input data size). If specified will also be used to upper-bound per-chromosome memory estimates -- ie no job will request more than this much memory."
                         "Standard suffixes like K, Ki, M, Mi, G or Gi are supported (default=bytes))", default=None)   
     
+    parser.add_argument("--inputContigSizes", type=str, default=None,
+                        help="Contig size table written by cactus-pangenome as "
+                        "<outDir>/<outName>.input-contig-sizes.tsv.gz. Only needed when running "
+                        "cactus-graphmap-join standalone, where it is the only way to know how much "
+                        "input sequence there was: without it no exclusion report is produced (only "
+                        "the reference gaps, which do not depend on it). Has no effect with "
+                        "--vgFull/--vgClip/--vgFilter, which produce no exclusion report either way. "
+                        "NOTE: this is not the same file as "
+                        "<outDir>/chrom-subproblems/contig_sizes.tsv.")
+
     parser.add_argument("--collapse", help = "Incorporate minimap2 self-alignments.", action='store_true', default=False)
 
     parser.add_argument("--delEdgeFilter", type=int, default=None, help = "Remove edges that span more than Nbp on the reference genome (vg clip -D). Applied during clipping.")
@@ -214,6 +236,12 @@ def graphmap_join_defaults(options):
 
 def graphmap_join_validate_options(options):
     """ make sure the options make sense and fill in sensible defaults """
+
+    # the exclusion report only reads this table in its very last job, so check it here instead:
+    # the easy mistake is passing chrom-subproblems/contig_sizes.tsv, which lives in the same output
+    # tree, and finding out about it after the whole join has run
+    if getattr(options, 'inputContigSizes', None) and not options.inputContigSizes.startswith('s3://'):
+        check_baseline_header(options.inputContigSizes)
 
     # detect bypass mode
     vg_full = getattr(options, 'vgFull', None)
@@ -576,6 +604,11 @@ def graphmap_join(options):
             for sv_gfa_path in options.sv_gfa:
                 sv_gfa_ids.append(toil.importFile(makeURL(sv_gfa_path)))
 
+            # optional baseline for the exclusion report
+            contig_sizes_id = None
+            if options.inputContigSizes:
+                contig_sizes_id = toil.importFile(makeURL(options.inputContigSizes))
+
             if options.bypass:
                 bypass_full_ids = [toil.importFile(makeURL(p)) for p in options._vgFull_paths]
                 bypass_clip_ids = [toil.importFile(makeURL(p)) for p in options._vgClip_paths]
@@ -583,7 +616,8 @@ def graphmap_join(options):
                 vg_ids = bypass_full_ids or bypass_clip_ids or bypass_filter_ids
                 wf_output = toil.start(Job.wrapJobFn(graphmap_join_workflow, options, config,
                                                       vg_ids, hal_ids, sv_gfa_ids,
-                                                      bypass_full_ids, bypass_clip_ids, bypass_filter_ids))
+                                                      bypass_full_ids, bypass_clip_ids, bypass_filter_ids,
+                                                      contig_sizes_id=contig_sizes_id))
             else:
                 # load up the vgs
                 vg_ids = []
@@ -591,10 +625,13 @@ def graphmap_join(options):
                     vg_ids.append(toil.importFile(makeURL(vg_path)))
 
                 # run the workflow
-                wf_output = toil.start(Job.wrapJobFn(graphmap_join_workflow, options, config, vg_ids, hal_ids, sv_gfa_ids))
-                
+                wf_output = toil.start(Job.wrapJobFn(graphmap_join_workflow, options, config, vg_ids,
+                                                     hal_ids, sv_gfa_ids,
+                                                     contig_sizes_id=contig_sizes_id))
+
         #export the split data
-        export_join_data(toil, options, wf_output[0], wf_output[1], wf_output[2], wf_output[3], wf_output[4], wf_output[5])
+        export_join_data(toil, options, wf_output[0], wf_output[1], wf_output[2], wf_output[3], wf_output[4], wf_output[5],
+                         wf_output[6])
 
 def vcflib_checks(job, options, config_node):
     """ run the vcflib checks"""
@@ -613,7 +650,8 @@ def vcflib_checks(job, options, config_node):
     return job
         
 def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
-                           bypass_full_ids=None, bypass_clip_ids=None, bypass_filter_ids=None):
+                           bypass_full_ids=None, bypass_clip_ids=None, bypass_filter_ids=None,
+                           contig_sizes_id=None, split_log_id=None):
 
     root_job = Job()
     job.addChild(root_job)
@@ -794,10 +832,22 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
             workflow_phases.append(('clip', clip_vg_ids, clip_root_job))
         if options.filter:
             workflow_phases.append(('filter', filter_vg_ids, filter_root_job))
+    # Account for input sequence that isn't in the output graphs.  This only ever measures the
+    # phases that were actually built -- it never causes a phase to run.
+    #
+    # Skipped entirely in two cases.  cactus-panpatch throws the join output away, so there is
+    # nothing to measure.  And bypass mode starts from graphs that were already clipped elsewhere:
+    # with no earlier phase to difference against, every class is unmeasurable, and a report saying
+    # so with empty BED files is worse than no report -- it reads as "nothing was excluded" on runs
+    # where megabases were.
+    exclusion_coverage = {}
+    exclusion_refgap_ids = {}
+    do_exclusions = not getattr(options, 'noJoinExport', False) and not options.bypass
+
     for workflow_phase, phase_vg_ids, phase_root_job in workflow_phases:
-            
+
         # make a gfa for each
-        gfa_root_job = Job()        
+        gfa_root_job = Job()
         phase_root_job.addFollowOn(gfa_root_job)
         gfa_ids = []
         current_out_dict = None
@@ -986,7 +1036,60 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
                                                             disk=sum(f.size for f in vg_ids))
         out_dicts.append(gref_segs_merge_job.rv())
 
-    return output_full_vg_ids, clip_vg_ids, clipped_stats, filter_vg_ids, out_dicts, og_chrom_ids
+    # All of the exclusion work hangs off one barrier, and that barrier is a descendant of
+    # root_job -- which is a child of `job`.  That placement is load-bearing: export_join_data is
+    # invoked from a follow-on of `job` (cactus_pangenome.py), and a job's follow-ons only run once
+    # its entire child subtree is done.  Hanging this off `job` directly instead would make the two
+    # siblings in the same phase, and the export would deserialise an unresolved promise and fail.
+    exclusion_ids = None
+    if do_exclusions and workflow_phases:
+        deepest_phase, deepest_vg_ids, deepest_root_job = workflow_phases[-1]
+        excl_root_job = Job()
+        deepest_root_job.addFollowOn(excl_root_job)
+
+        exclusion_coverage = {}
+        for workflow_phase, phase_vg_ids, _phase_root_job in workflow_phases:
+            phase_coverage = []
+            assert len(options.vg) == len(phase_vg_ids)
+            for vg_path, phase_vg_id, input_vg_id in zip(options.vg, phase_vg_ids, vg_ids):
+                chrom_name = os.path.splitext(os.path.basename(vg_path))[0]
+                cov_job = excl_root_job.addChildJobFn(
+                    path_coverage_job, config, vg_path, phase_vg_id, chrom_name, workflow_phase,
+                    disk=input_vg_id.size * 3,
+                    memory=cactus_clamp_memory(min(max(2**31, input_vg_id.size * 6), max_mem)))
+                phase_coverage.append((cov_job.rv(0), cov_job.rv(1), cov_job.rv(2), cov_job.rv(3)))
+            exclusion_coverage[workflow_phase] = phase_coverage
+
+        # the reference is never clipped, so its exclusions can't be measured by absence.  They're
+        # inferred instead as runs with no other assembly aligned, on the deepest graph built.
+        ref_gap_min = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"),
+                                        "refGapMinLength", typeFn=int, default=10000)
+        if ref_gap_min > 0 and options.reference:
+            ref_event = options.reference[0]
+            gap_ids = []
+            for vg_path, phase_vg_id, input_vg_id in zip(options.vg, deepest_vg_ids, vg_ids):
+                chrom_name = os.path.splitext(os.path.basename(vg_path))[0]
+                gap_job = excl_root_job.addChildJobFn(
+                    ref_gaps_job, config, options, vg_path, phase_vg_id, chrom_name, ref_event,
+                    deepest_phase == 'full',
+                    disk=input_vg_id.size * 4,
+                    memory=cactus_clamp_memory(min(max(2**31, input_vg_id.size * 8), max_mem)))
+                gap_ids.append(gap_job.rv())
+            exclusion_refgap_ids[ref_event] = gap_ids
+
+        chrom_names = [os.path.splitext(os.path.basename(p))[0] for p in options.vg]
+        # this job streams one chromosome at a time, so its peak memory tracks the largest
+        # chromosome rather than the whole panel.  the frequency filter can still fragment a
+        # chromosome into ~10^3 intervals per Mbp of reference, hence the generous multiple.
+        exclusion_job = excl_root_job.addFollowOnJobFn(
+            compute_exclusions_job, config, options, exclusion_coverage, contig_sizes_id,
+            split_log_id, exclusion_refgap_ids, chrom_names,
+            disk=sum(f.size for f in vg_ids) * 2,
+            memory=cactus_clamp_memory(min(max(2**31, max(f.size for f in vg_ids) * 16), max_mem)))
+        exclusion_ids = exclusion_job.rv()
+
+    return (output_full_vg_ids, clip_vg_ids, clipped_stats, filter_vg_ids, out_dicts, og_chrom_ids,
+            exclusion_ids)
 
 def clip_vg(job, options, config, vg_path, vg_id, phase):
     """ run clip-vg 
@@ -998,7 +1101,6 @@ def clip_vg(job, options, config, vg_path, vg_id, phase):
     job.fileStore.readGlobalFile(vg_id, vg_path)
 
     clipped_path = vg_path + '.clip'
-    clipped_bed_path = vg_path + '.clip.bed'
 
     join_xml_node = findRequiredNode(config.xmlRoot, "graphmap_join")
     graph_event = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "assemblyName", default="_MINIGRAPH_")
@@ -1041,7 +1143,6 @@ def clip_vg(job, options, config, vg_path, vg_id, phase):
             clip_vg_cmd += ['-u', str(options.clip)]
             if getOptionalAttrib(join_xml_node, "clipNonMinigraph", typeFn=bool, default=True):
                 clip_vg_cmd += ['-a', graph_event]
-            clip_vg_cmd += ['-o', clipped_bed_path]
 
     # disable reference cycle check if desiired
     if getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "collapse", typeFn=str, default="none") in ["all", "reference"]:
@@ -1079,8 +1180,11 @@ def clip_vg(job, options, config, vg_path, vg_id, phase):
             # todo: do we want to add the minigraph prefix to keep stubs from minigraph? but I don't think it makes stubs....
             cmd.append(stub_cmd)
 
-        # Optional deletion-edge filter to go after huge snarls that may negatively impact giraffe
-        if options.delEdgeFilter:
+        # Optional deletion-edge filter to go after huge snarls that may negatively impact giraffe.
+        # clip-phase only: the clip graph is built from the full graph, so running it in both phases
+        # just repeats the same work, and removals made in "full" would be indistinguishable from
+        # sequence that never aligned at all in the exclusion report.
+        if phase == 'clip' and options.delEdgeFilter:
             clip_context = getOptionalAttrib(join_xml_node, "clipContext", typeFn=int, default=0)
             min_fragment = getOptionalAttrib(join_xml_node, "minFilterFragment", typeFn=int, default=0)
             del_clip_cmd = ['vg', 'clip', '-', '-D', str(options.delEdgeFilter), '-P', options.reference[0]]
@@ -1110,35 +1214,23 @@ def clip_vg(job, options, config, vg_path, vg_id, phase):
         cactus_call(parameters=[['vg', 'paths', '-E', '-v', clipped_path],
                                 ['awk', '{{print "{}\t" $0}}'.format(chr_name)]],
                     outfile=path_stats_path)
-        # Nodes, edges and total length
+        # Nodes, edges and total length.  vg prints these one per line; transpose to a single row
+        # per chromosome so the table can be read as a table
         graph_stats_path = vg_path + '.graph-stats.tsv'
-        cactus_call(parameters=[['vg', 'stats', '-l', '-z', clipped_path],
-                                ['awk', '{{print "{}\t" $0}}'.format(chr_name)]],
-                    outfile=graph_stats_path)
-        # Stick the contig identifier onto the clipped regions bed
-        clipped_bed_chr_path = clipped_bed_path + '.named'
-        cactus_call(parameters=['awk',  '{{print $0 "\t{}"}}'.format(chr_name), clipped_bed_path],
-                    outfile=clipped_bed_chr_path)
-        sample_stats_path = vg_path + '.sample-stats.tsv'
-        sample_stats = {}
-        with open(path_stats_path, 'r') as path_stats_file:
-            for line in path_stats_file:
-                toks = line.split()
-                contig_name = toks[1]
-                contig_length = int(toks[2])
-                sample_name = contig_name if '#' not in contig_name else '#'.join(contig_name.split('#')[:2])
-                if sample_name not in sample_stats:
-                    sample_stats[sample_name] = contig_length
-                else:
-                    sample_stats[sample_name] += contig_length
-        with open(sample_stats_path, 'w') as sample_stats_file:
-            for sample in sorted(sample_stats.keys()):
-                sample_stats_file.write("{}\t{}\t{}\n".format(chr_name, sample, sample_stats[sample]))
-
-        out_stats = { 'clip-stats.bed' : job.fileStore.writeGlobalFile(clipped_bed_chr_path),
-                      'path-stats.tsv' : job.fileStore.writeGlobalFile(path_stats_path),
-                      'graph-stats.tsv' : job.fileStore.writeGlobalFile(graph_stats_path),
-                      'sample-stats.tsv' : job.fileStore.writeGlobalFile(sample_stats_path) }
+        vg_stats = cactus_call(parameters=['vg', 'stats', '-l', '-z', clipped_path], check_output=True)
+        stat_of = {}
+        for stat_line in vg_stats.split('\n'):
+            toks = stat_line.split()
+            if len(toks) == 2:
+                stat_of[toks[0]] = toks[1]
+        with open(graph_stats_path, 'w') as graph_stats_file:
+            graph_stats_file.write('{}\t{}\t{}\t{}\n'.format(
+                chr_name, stat_of.get('nodes', 'NA'), stat_of.get('edges', 'NA'),
+                stat_of.get('length', 'NA')))
+        # sample-stats and contig-stats are written by the exclusion report instead: they need the
+        # input contig lengths, which are not available here
+        out_stats = { 'path-stats.tsv' : job.fileStore.writeGlobalFile(path_stats_path),
+                      'graph-stats.tsv' : job.fileStore.writeGlobalFile(graph_stats_path) }
     else:
         out_stats = None
     return job.fileStore.writeGlobalFile(clipped_path), out_stats
@@ -2292,23 +2384,71 @@ def cat_bed_files(job, bed_ids):
             ofile.write(line)    
     return job.fileStore.writeGlobalFile(renamed_bed_path)
 
-def cat_stats(job, stats_dict_list, zip_stats=True):
+# the per-chromosome stats tables have no self-describing columns otherwise, and the tables are
+# concatenated from one file per chromosome, so the header can only be added once at the end
+STATS_HEADERS = {
+    'path-stats.tsv': '#ref_chrom\tpath\tlength',
+    'graph-stats.tsv': '#ref_chrom\tnodes\tedges\tlength',
+}
+
+# path-stats has a row per surviving path fragment, which runs to millions on a filtered graph.
+# graph-stats is one row per chromosome and is handier left readable
+STATS_GZIP = {'path-stats.tsv'}
+
+
+def cat_stats(job, stats_dict_list):
     work_dir = job.fileStore.getLocalTempDir()
+    stats_dir = os.path.join(work_dir, 'stats')
+    os.makedirs(stats_dir, exist_ok=True)
     merged_dict = {}
     for key in stats_dict_list[0].keys():
-        merged_dict[key] = os.path.join(work_dir, key)
+        merged_dict[key] = os.path.join(stats_dir, key)
         catFiles([job.fileStore.readGlobalFile(sd[key]) for sd in stats_dict_list], merged_dict[key])
-    if zip_stats:
-        cactus_call(parameters=['tar', 'czf', os.path.join(work_dir, 'stats.tgz')] + list(merged_dict.values()))
-        return { 'stats.tgz': job.fileStore.writeGlobalFile(os.path.join(work_dir, 'stats.tgz')) }
-    else:
-        for key in stats_dict_list[0].keys():
-            merged_dict[key] = job.fileStore.writeGlobalFile(merged_dict[key])
-        return merged_dict
+        if key in STATS_HEADERS:
+            with open(merged_dict[key], 'r') as body_file:
+                body = body_file.read()
+            with open(merged_dict[key], 'w') as out_file:
+                out_file.write(STATS_HEADERS[key] + '\n')
+                out_file.write(body)
+    out_dict = {}
+    for key in stats_dict_list[0].keys():
+        if key in STATS_GZIP:
+            cactus_call(parameters=['gzip', '-f', merged_dict[key]])
+            out_dict[key + '.gz'] = job.fileStore.writeGlobalFile(merged_dict[key] + '.gz')
+        else:
+            out_dict[key] = job.fileStore.writeGlobalFile(merged_dict[key])
+    return out_dict
 
-def export_join_data(toil, options, full_ids, clip_ids, clip_stats, filter_ids, idx_maps, og_chrom_ids):
+def export_join_data(toil, options, full_ids, clip_ids, clip_stats, filter_ids, idx_maps, og_chrom_ids,
+                     exclusion_ids=None):
     """ download all the output data
     """
+
+    # everything that describes the run rather than being part of the graph goes in one directory.
+    # the per-genome BED archives are the exception: they stay whole at the top level so that "what
+    # is missing from the graph I am using" is a single file to download or pass on.
+    stats_dir = os.path.join(options.outDir, '{}.stats'.format(options.outName))
+    if (clip_stats or exclusion_ids) and not stats_dir.startswith('s3://') \
+       and not os.path.isdir(stats_dir):
+        os.makedirs(stats_dir)
+
+    if exclusion_ids:
+        for name, file_id in exclusion_ids['missing'].items():
+            toil.exportFile(file_id, makeURL(os.path.join(stats_dir, name)))
+        for name, file_id in exclusion_ids['refgaps'].items():
+            toil.exportFile(file_id, makeURL(os.path.join(stats_dir, name)))
+        for name in ['clipped-by-input-contig.tsv.gz', 'clipped-by-reference-contig.tsv']:
+            if exclusion_ids.get(name):
+                toil.exportFile(exclusion_ids[name], makeURL(os.path.join(stats_dir, name)))
+        # absent when there was no input contig-size table to measure the graphs against
+        if exclusion_ids.get('summary.tsv'):
+            toil.exportFile(exclusion_ids['summary.tsv'],
+                            makeURL(os.path.join(stats_dir, 'clipped-by-genome.tsv')))
+        # this one goes at the top level: its whole job is to be impossible to miss, and it only
+        # exists when something in the accounting looks wrong
+        if exclusion_ids.get('WARNING'):
+            toil.exportFile(exclusion_ids['WARNING'],
+                            makeURL(os.path.join(options.outDir, '{}.WARNING'.format(options.outName))))
 
     # make a directory for the chromosomal vgs
     if options.chrom_vg:
@@ -2376,10 +2516,10 @@ def export_join_data(toil, options, full_ids, clip_ids, clip_stats, filter_ids, 
                     draw_name = os.path.splitext(vg_path)[0] + '{}.draw.png'.format('.' + tag if tag != 'clip' else '')
                     toil.exportFile(draw_id, makeURL(os.path.join(viz_base, os.path.basename(draw_name))))
                 
-    # download the stats files
+    # the per-chromosome graph tables join them there
     if clip_stats:
         for stats_file in clip_stats.keys():
-            toil.exportFile(clip_stats[stats_file], makeURL(os.path.join(options.outDir, '{}.{}'.format(options.outName, stats_file))))
+            toil.exportFile(clip_stats[stats_file], makeURL(os.path.join(stats_dir, stats_file)))
         
     # download everything else
     for idx_map in idx_maps:

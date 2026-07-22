@@ -480,6 +480,7 @@
 	<!-- minFilterFragment: discard fragments that result from the vg clip frequency filter if they are smaller than this -->
 	<!-- clipContext: use this many context steps when doing edge clipping (activated via delEdgeFilter cli option) -->	
 	<!-- removeStubs: remove any nodes dangling off reference paths (ie softclips) -->
+	<!-- refGapMinLength: minimum length of a reference gap (run of reference with no other assembly aligned) to report in the exclusion report. set to 0 to skip the reference gap scan entirely -->
 	<!-- odgiVizOptions: options to odgi viz, used for 1d viz -->
 	<!-- odgiLayoutOptions: options to odgi layout, used for 2d viz -->
 	<!-- odgiDrawOptions: options to odgi draw, used for 2d viz -->
@@ -501,6 +502,7 @@
 		 minFilterFragment="1000"
 		 clipContext="1000"
 		 removeStubs="1"
+		 refGapMinLength="10000"
 		 odgiVizOptions="-x 1500 -y 500 -a 10"
 		 odgiLayoutOptions="-x 50"
 		 odgiDrawOptions="-H 1000"

@@ -655,10 +655,17 @@ def filter_paf(job, paf_id, config, reference=None):
     min_score = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "minScore", typeFn=float, default=0)
     max_collapse_ratio = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "maxCollapseDistanceRatio", typeFn=float, default=-1)
     RealtimeLogger.info("Running PAF filter with minBlock={} minMAPQ={} minIdentity={} minScore={} maxCollapseDistanceRatio={}".format(min_block, min_mapq, min_ident, min_score, max_collapse_ratio))
+    # a contig whose alignments are all filtered out here vanishes from everything downstream: it
+    # reaches neither rgfa-split's coverage map nor any chromosome, so it is never assigned, never
+    # binned ambiguous, and never logged.  count what goes in and what survives so it can be said
+    # out loud rather than inferred from a missing output fasta at the end of the run.
+    query_line_counts = {}
+    query_kept_counts = {}
     with open(paf_path, 'r') as paf_file, open(filter_paf_path, 'w') as filter_paf_file:
         for line in paf_file:
             toks = line.split('\t')
             query_name = toks[0]
+            query_line_counts[query_name] = query_line_counts.get(query_name, 0) + 1
             target_name = toks[5]
             is_ref = reference and query_name.startswith('id={}|'.format(reference)) and query_name != target_name
             mapq = int(toks[11])
@@ -689,6 +696,16 @@ def filter_paf(job, paf_id, config, reference=None):
             if is_ref or (mapq >= min_mapq and (bl is None or query_len <= min_block or bl >= min_block) and ident >= min_ident and \
                           (score is None or score >= min_score) and (collapse_ratio is None or collapse_ratio <= max_collapse_ratio)):
                 filter_paf_file.write(line)
+                query_kept_counts[query_name] = query_kept_counts.get(query_name, 0) + 1
+
+    eliminated = sorted(q for q, n in query_line_counts.items() if not query_kept_counts.get(q))
+    if eliminated:
+        RealtimeLogger.warning(
+            'PAF filter removed every alignment of {} query contig(s), which will therefore be '
+            'absent from all output graphs without appearing in any chromosome or in the ambiguous '
+            'bin. The usual cause is minGAFBlockLength={} exceeding the contig\'s longest alignment '
+            'block (contigs shorter than that are exempt). Contigs: {}'.format(
+                len(eliminated), min_block, ', '.join(eliminated[:20])))
 
     overlap_ratio = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "PAFOverlapFilterRatio", typeFn=float, default=0)
     length_ratio = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "PAFOverlapFilterMinLengthRatio", typeFn=float, default=0)

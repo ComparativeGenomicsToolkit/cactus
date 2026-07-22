@@ -81,7 +81,8 @@ testModules = \
     preprocessor/cactus_preprocessorTest.py \
     preprocessor/lastzRepeatMasking/cactus_lastzRepeatMaskTest.py \
     progressive/multiCactusTreeTest.py \
-    refmap/cactus_panpatchTest.py
+    refmap/cactus_panpatchTest.py \
+    refmap/pangenome_exclusionsTest.py
 
 # Unit tests (just collecting everything in bin/ with "test" in the name)
 unitTests = \

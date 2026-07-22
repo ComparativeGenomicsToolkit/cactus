@@ -682,6 +682,215 @@ class TestCase(unittest.TestCase):
         self.assertEqual(proc.returncode, 0,
                          'vg validate failed for {}\nstderr:\n{}'.format(gfa_path, proc.stderr.decode()))
 
+    def _check_exclusion_report(self, join_path, events):
+        """ every input base that is not in a given graph must be accounted for, exactly once, with
+        a cause attached.
+
+        the headline assertion is closure: for every genome, the bases present in the clipped graph
+        plus the bases in that genome's BED must add up to the input length, to the base.  that is
+        what makes this a regression test rather than a smoke test -- any double-counting,
+        coordinate slip or dropped class breaks it.
+
+        absolute bp depend on --refContigs, so only invariants are asserted here; the pinned numbers
+        live in the offline fixture test in pangenome_exclusionsTest.py """
+        import gzip
+        import tarfile
+
+        stats_dir = os.path.join(join_path, 'yeast.stats')
+        self.assertTrue(os.path.isdir(stats_dir), 'no yeast.stats directory')
+
+        def merged_bp(intervals):
+            """ deliberately a second implementation, so this test does not verify the module with
+            the module's own interval arithmetic """
+            total, cur_start, cur_end = 0, None, None
+            for start, end in sorted(intervals):
+                if cur_end is not None and start <= cur_end:
+                    cur_end = max(cur_end, end)
+                else:
+                    if cur_end is not None:
+                        total += cur_end - cur_start
+                    cur_start, cur_end = start, end
+            return total + (cur_end - cur_start if cur_end is not None else 0)
+
+        def read_archive(tag):
+            """ {genome: [(contig, start, end, reason), ...]} out of one clipped archive """
+            path = os.path.join(stats_dir, 'clipped{}.beds.tar.gz'.format(tag))
+            self.assertTrue(os.path.isfile(path), '{} not found'.format(path))
+            out = {}
+            with tarfile.open(path, 'r:gz') as tar:
+                for member in tar.getmembers():
+                    if not member.isfile():
+                        continue
+                    self.assertTrue(member.name.startswith('clipped{}.beds/'.format(tag)),
+                                    'unexpected archive member {}'.format(member.name))
+                    event = os.path.basename(member.name)[:-len('.bed')]
+                    rows = []
+                    for line in tar.extractfile(member).read().decode().splitlines():
+                        contig, start, end, reason = line.split('\t')
+                        rows.append((contig, int(start), int(end), reason))
+                    out[event] = rows
+            return out
+
+        def read_table(name):
+            """ header names -> list of row dicts, for a plain or gzipped stats table """
+            path = os.path.join(stats_dir, name)
+            self.assertTrue(os.path.isfile(path), '{} not found'.format(path))
+            opener = gzip.open if name.endswith('.gz') else open
+            header, rows = None, []
+            with opener(path, 'rt') as in_file:
+                for line in in_file:
+                    line = line.rstrip('\n')
+                    if line.startswith('#'):
+                        # the column header is the last #-line that is tab-separated; the prose
+                        # preamble above it is not
+                        if '\t' in line and ' ' not in line:
+                            header = line[1:].split('\t')
+                        continue
+                    rows.append(dict(zip(header, line.split('\t'))))
+            return header, rows
+
+        summary_header, summary = read_table('clipped-by-genome.tsv')
+        self.assertEqual(summary_header, ['genome', 'reason', 'intervals', 'bp', 'pct_of_input'])
+
+        # only phases that ran are reported.  this test uses --giraffe clip filter, so all three
+        raw_summary = open(os.path.join(stats_dir, 'clipped-by-genome.tsv')).read()
+        self.assertIn('# phases: full,clip,filter', raw_summary)
+        self.assertIn('# outside_baseline_bp: 0', raw_summary)
+        self.assertIn('# orphan_paths: 0', raw_summary)
+        self.assertNotIn('_MINIGRAPH_', raw_summary)
+        self.assertEqual(set(r['genome'] for r in summary) - {'TOTAL'}, set(events))
+
+        full_beds = read_archive('.full')
+        clip_beds = read_archive('')
+        filter_beds = read_archive('.d2')
+        for beds in (full_beds, clip_beds, filter_beds):
+            self.assertEqual(set(beds.keys()), set(events))
+
+        # the baseline, at the top level: it is a pipeline intermediate, not a report
+        sizes_path = os.path.join(join_path, 'yeast.input-contig-sizes.tsv.gz')
+        self.assertTrue(os.path.isfile(sizes_path))
+        baseline, input_bp, event_of = {}, {}, {}
+        with gzip.open(sizes_path, 'rt') as sizes_file:
+            for line in sizes_file:
+                if line.startswith('#'):
+                    continue
+                toks = line.rstrip('\n').split('\t')
+                key = (toks[0], toks[2])
+                baseline[key] = max(baseline.get(key, 0), int(toks[3]) + int(toks[4]))
+                input_bp[toks[0]] = input_bp.get(toks[0], 0) + int(toks[4])
+                event_of[toks[1]] = toks[0]
+        self.assertEqual(set(input_bp.keys()), set(events))
+
+        # what actually survived into the clipped graph, straight off its W-lines
+        coverage = {}
+        with gzip.open(os.path.join(join_path, 'yeast.gfa.gz'), 'rt') as gfa_file:
+            for line in gfa_file:
+                if not line.startswith('W'):
+                    continue
+                fields = line.split('\t')
+                if fields[1] == '_MINIGRAPH_':
+                    continue
+                coverage.setdefault((fields[1] + '#' + fields[2], fields[3]), []).append(
+                    (int(fields[4]), int(fields[5])))
+        graph_bp = {}
+        for (pansn_prefix, contig), intervals in coverage.items():
+            event = event_of[pansn_prefix]
+            graph_bp[event] = graph_bp.get(event, 0) + merged_bp(intervals)
+
+        dropped_reasons = {'ambiguous', 'unassigned', 'no_chromosome_graph', 'unaligned'}
+        for event in events:
+            for beds, allowed in ((full_beds, dropped_reasons),
+                                  (clip_beds, dropped_reasons | {'clip'}),
+                                  (filter_beds, dropped_reasons | {'clip', 'filter'})):
+                for contig, start, end, reason in beds[event]:
+                    self.assertLess(start, end)
+                    self.assertGreaterEqual(start, 0)
+                    self.assertLessEqual(end, baseline[(event, contig)])
+                    self.assertNotEqual(reason, 'refgap')
+                    self.assertIn(reason, allowed,
+                                  '{} in the wrong archive for {}'.format(reason, event))
+            # the archives are cumulative
+            self.assertLessEqual(len(full_beds[event]), len(clip_beds[event]))
+            self.assertLessEqual(len(clip_beds[event]), len(filter_beds[event]))
+
+            # THE closure check, against the graph the unsuffixed archive describes
+            clip_bp = sum(e - s for _c, s, e, _r in clip_beds[event])
+            self.assertEqual(graph_bp.get(event, 0) + clip_bp, input_bp[event],
+                             '{}: clipped graph ({}) + BED ({}) != input ({})'
+                             .format(event, graph_bp.get(event, 0), clip_bp, input_bp[event]))
+
+            # the summary must agree with the deepest archive, reason by reason
+            by_reason = dict((r['reason'], int(r['bp'])) for r in summary
+                             if r['genome'] == event and r['reason'] not in ('TOTAL', 'refgap'))
+            bed_by_reason = {}
+            for _c, start, end, reason in filter_beds[event]:
+                bed_by_reason[reason] = bed_by_reason.get(reason, 0) + end - start
+            self.assertEqual(bed_by_reason, dict((k, v) for k, v in by_reason.items() if v))
+            total_row = [r for r in summary if r['genome'] == event and r['reason'] == 'TOTAL']
+            self.assertEqual(len(total_row), 1)
+            self.assertEqual(int(total_row[0]['bp']), sum(by_reason.values()))
+            # the BED alone accounts for the whole loss: nothing is summarised away
+            self.assertEqual(sum(e - s for _c, s, e, _r in filter_beds[event]),
+                             int(total_row[0]['bp']))
+
+        # the reference is never clipped or frequency-filtered, so it can only lose sequence to a
+        # chromosome that was not built at all (which --refContigs does on purpose)
+        ref_reasons = set(r[3] for r in filter_beds['S288C'])
+        self.assertFalse(ref_reasons - {'no_chromosome_graph'},
+                         'reference lost sequence to {}'.format(ref_reasons))
+
+        # the two roll-up tables must reconcile with the summary and with each other
+        chrom_header, chrom_rows = read_table('clipped-by-reference-contig.tsv')
+        contig_header, contig_rows = read_table('clipped-by-input-contig.tsv.gz')
+        self.assertEqual(chrom_header[:4], ['ref_chrom', 'genome', 'contigs', 'input_bp'])
+        self.assertEqual(contig_header[:4], ['genome', 'contig', 'ref_chrom', 'input_bp'])
+        for phase in ['full', 'clip', 'filter']:
+            for header in (chrom_header, contig_header):
+                self.assertIn('{}_bp'.format(phase), header)
+                self.assertIn('{}_frags'.format(phase), header)
+        for event in events:
+            rolled = sum(int(r['input_bp']) for r in chrom_rows if r['genome'] == event)
+            detail = sum(int(r['input_bp']) for r in contig_rows if r['genome'] == event)
+            self.assertEqual(rolled, input_bp[event])
+            self.assertEqual(detail, input_bp[event])
+            surviving = sum(int(r['filter_bp']) for r in chrom_rows if r['genome'] == event)
+            total_row = [r for r in summary if r['genome'] == event and r['reason'] == 'TOTAL']
+            self.assertEqual(input_bp[event] - surviving, int(total_row[0]['bp']))
+
+        # reference gaps, kept out of the loss totals
+        refgap_path = os.path.join(stats_dir, 'refgaps.bed.gz')
+        self.assertTrue(os.path.isfile(refgap_path))
+        with gzip.open(refgap_path, 'rt') as refgap_file:
+            refgap_rows = [l.rstrip('\n').split('\t') for l in refgap_file]
+        self.assertGreater(len(refgap_rows), 0)
+        for contig, start, end, reason in refgap_rows:
+            self.assertEqual(reason, 'refgap')
+            self.assertGreaterEqual(int(end) - int(start), 10000)
+            self.assertLessEqual(int(end), baseline[('S288C', contig)])
+
+        # the graph tables live here too, with self-describing headers
+        graph_header, graph_rows = read_table('graph-stats.tsv')
+        self.assertEqual(graph_header, ['ref_chrom', 'nodes', 'edges', 'length'])
+        self.assertGreater(len(graph_rows), 0)
+        path_header, _path_rows = read_table('path-stats.tsv.gz')
+        self.assertEqual(path_header, ['ref_chrom', 'path', 'length'])
+        # the old broken clip-vg bed must not have come back
+        self.assertFalse(os.path.exists(os.path.join(join_path, 'yeast.stats.tgz')))
+
+        # UWOPS034614 has inter-chromosomal rearrangements that lose it whole chromosomes during
+        # splitting, so this dataset must trip the warning heuristics.  if it ever stops doing so,
+        # either the detector or the pipeline has changed in a way worth noticing.
+        warning_path = os.path.join(join_path, 'yeast.WARNING')
+        self.assertTrue(os.path.isfile(warning_path),
+                        'expected the yeast run to raise clipping warnings')
+        with open(warning_path, 'r') as warning_file:
+            warning_text = warning_file.read()
+        self.assertIn('UWOPS034614', warning_text)
+        self.assertIn('ambiguous', warning_text)
+        self.assertNotIn('INTERNAL', warning_text)
+        for quiet in ['DBVPG6044', 'Y12', 'YPS128']:
+            self.assertNotIn(quiet + ':', warning_text)
+
     def _check_yeast_pangenome(self, binariesMode, other_ref=None, expect_odgi=False, expect_haplo=False, expect_unchopped_gfa=False, expect_gref=False, grefL=None):
         """ yeast pangenome chromosome by chromosome pipeline
         """
@@ -782,6 +991,8 @@ class TestCase(unittest.TestCase):
         for chr,sizes in contig_sizes.items():
             self.assertEqual(len(sizes), 10)
             self.assertGreaterEqual(int(sizes[9]), 200000)
+
+        self._check_exclusion_report(join_path, events)
 
         # make sure the gbz stats are sane
         clip_degree_dist = subprocess.check_output(['vg', 'stats', '-D', os.path.join(join_path, 'yeast.gbz')]).strip().decode('utf-8')
