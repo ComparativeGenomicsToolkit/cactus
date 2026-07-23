@@ -202,6 +202,7 @@ These issues are all at least partially addressed by a new tool, `cactus-hal2maf
 * "raw": No normalization: return the direct output of `hal2maf`
 * "norm (default)": Run basic `taffy` normalization as parameterized using the normalization options described above.
 * "single" : Uses greedy heuristics to pick the copy for each species that results in fewest mutations and block breaks, in addition to taffy normalization..
+* "single-ref" : Like "single" but only filters duplicates of the *reference* genome (keeping the true reference / first row of each block), leaving all other species untouched. Use this when you only need to guarantee the reference is single-copy but want to preserve every other species' paralogous rows.
 * "consensus" : Uses [maf_stream merge_dups consensus](https://github.com/ComparativeGenomicsToolkit/maf_stream#resolving-duplicated-entries) to make a single "consensus" row for all duplicate rows. This row won't actually reflect a real sequence in the fasta, but the individual columns will be more sensitive to the true coverage than when using "single".  Recommended when only looking for maximum coverage of columns, without considering duplications.
 
 #### TAF output
