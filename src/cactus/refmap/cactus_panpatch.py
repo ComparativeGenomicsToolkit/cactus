@@ -34,6 +34,9 @@ from cactus.shared.common import cactus_call
 from cactus.shared.common import cactus_clamp_memory
 from cactus.shared.common import delete_directory
 from cactus.shared.common import getOptionalAttrib, findRequiredNode
+from cactus.shared.common import cactus_override_toil_options
+from cactus.shared.common import setupBinaries
+from cactus.shared.common import enableDumpStack
 from cactus.shared.configWrapper import ConfigWrapper
 from cactus.shared.version import cactus_commit
 from cactus.refmap.cactus_minigraph import check_sample_names
@@ -42,7 +45,7 @@ from cactus.refmap.cactus_pangenome import pangenome_options, pangenome_validate
 from cactus.refmap.cactus_pangenome import pangenome_config_overrides, pangenome_end_to_end_workflow
 from toil.job import Job
 from toil.common import Toil
-from toil.statsAndLogging import logger
+from toil.statsAndLogging import logger, set_logging_from_options
 from toil.realtimeLogger import RealtimeLogger
 
 def main():
@@ -107,6 +110,10 @@ def main():
 
     options = parser.parse_args()
 
+    setupBinaries(options)
+    set_logging_from_options(options)
+    enableDumpStack()
+
     panpatch_validate_options(options)
 
     # we need the minigraph event name to filter it out of the seqfiles below
@@ -136,6 +143,9 @@ def main():
     # requested, which in turn keeps the clip phase alive.  we want neither: the "full" graphs come
     # out of the join workflow before any clipping or filtering
     disable_pangenome_outputs(options)
+
+    # Mess with some toil options to create useful defaults.
+    cactus_override_toil_options(options)
 
     logger.info('Cactus Command: {}'.format(' '.join(sys.argv)))
     logger.info('Cactus Commit: {}'.format(cactus_commit))
