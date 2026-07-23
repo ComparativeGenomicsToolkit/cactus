@@ -64,8 +64,69 @@ def cactus_cpu_count():
         pass
     return num_cpus
 
+def cactus_slurm_max_memory(options):
+    """ Query the Slurm cluster for the maximum memory (in bytes) available on the nodes that
+    jobs could actually be scheduled onto, or None if it can't be determined.
+
+    This is the Slurm analogue of toil.physicalMemory() on single_machine: it lets us clamp
+    every job's memory request so we never ask for more than a reachable node can provide.
+    Requesting more memory than any eligible node has leaves the job pending forever, which
+    deadlocks the whole workflow.
+
+    A job can only run on a node in its target partition, so we use the Toil slurm options to
+    narrow things down when we can:
+      - if --slurmPartition pins a partition, use that partition's largest node
+      - else if --slurmTime is given, ask Toil which partition it would pick for that time limit
+      - else fall back to the largest node anywhere on the cluster (prevents the common
+        'estimate exceeds every node' deadlock and matches the single_machine behaviour)
+
+    We reuse Toil's own sinfo-based partition parser (PartitionSet), which stores per-node
+    memory in MB and fails safe (all_partitions is None) when sinfo isn't available. """
+    try:
+        from toil.batchSystems.slurm import SlurmBatchSystem
+        partition_set = SlurmBatchSystem.PartitionSet()
+        partitions = partition_set.all_partitions
+    except Exception as e:
+        logger.warning('Unable to query Slurm for node memory ({}); not clamping --maxMemory'.format(e))
+        return None
+    if not partitions:
+        return None
+
+    # largest node memory (in MB) for each partition; %m may carry a trailing '+'
+    partition_max_mb = {}
+    for partition in partitions:
+        try:
+            mb = int(str(partition.memory).rstrip('+'))
+        except (ValueError, TypeError):
+            continue
+        if mb > 0:
+            partition_max_mb[partition.partition_name] = max(partition_max_mb.get(partition.partition_name, 0), mb)
+    if not partition_max_mb:
+        return None
+
+    # narrow to the partition jobs will actually land on, if the options tell us which
+    target_partition = getattr(options, 'slurm_partition', None)
+    if not target_partition and getattr(options, 'slurm_time', None):
+        try:
+            target_partition = partition_set.get_partition(options.slurm_time)
+        except Exception:
+            target_partition = None
+
+    if target_partition and target_partition in partition_max_mb:
+        max_mb = partition_max_mb[target_partition]
+        logger.info('Using Slurm partition "{}" to bound maximum job memory'.format(target_partition))
+    else:
+        max_mb = max(partition_max_mb.values())
+
+    # Slurm reports %m and interprets --mem in binary MB (MiB = 2**20 bytes), and Toil submits
+    # --mem=ceil(request_bytes / 2**20), so we convert with 2**20 to keep the whole chain base-2
+    # consistent and never round a request above a node's real memory.  We then keep only 95% to
+    # leave headroom for memory Slurm reserves per node (e.g. MemSpecLimit); a job asking for a
+    # node's full RealMemory can otherwise sit pending forever.
+    return int(max_mb * 1024 * 1024 * 0.95)
+
 def cactus_override_toil_options(options):
-    """  Mess with some toil options to create useful defaults. """    
+    """  Mess with some toil options to create useful defaults. """
     if options.retryCount is None and options.batchSystem.lower() not in ['single_machine', 'singleMachine']:
         # If the user didn't specify a retryCount value, make it 5
         # instead of Toil's default (1).
@@ -104,6 +165,15 @@ def cactus_override_toil_options(options):
     max_mem = human2bytes(str(options.maxMemory)) if options.maxMemory else sys.maxsize
     if options.batchSystem.lower() in ['single_machine', 'singleMachine']:
         max_mem = min(max_mem, physicalMemory())
+    elif options.batchSystem.lower() == 'slurm':
+        # on slurm, clamp to the largest node available on the cluster (like we do with
+        # physical memory on single_machine) so that no job ever requests more memory than
+        # any node can provide -- which would leave it pending forever and deadlock the run
+        slurm_max_mem = cactus_slurm_max_memory(options)
+        if slurm_max_mem:
+            if max_mem > slurm_max_mem:
+                logger.info('Clamping maximum job memory to {} (95% of the largest usable Slurm node)'.format(bytes2human(slurm_max_mem)))
+            max_mem = min(max_mem, slurm_max_mem)
     os.environ['CACTUS_MAX_MEMORY'] = str(max_mem)
     os.environ['CACTUS_DEFAULT_MEMORY'] = str(human2bytes(str(options.defaultMemory)) if options.defaultMemory else 2**31)
 

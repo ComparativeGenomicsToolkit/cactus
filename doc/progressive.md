@@ -411,7 +411,7 @@ These are the most relevant options for running on a cluster
 * `--doubleMem true` (highly recommended): if slurm kills a job because it used more memory than it asked for, retry it asking for double the memory.
 * `--batchLogsDir` (highly recommended): a scratch directory for additional slurm logging.
 * `--workDir`: a local scratch directory available on each worker node (will default to `TEMPDIR` or `TMPDIR`). This could be on a shared filesystem, but it's much better if it's a local, physical disk on the worker node. 
-* `--maxMemory` (recommended): use this to set the maximum memory you can schedule on your cluster. can help avoid toil making unrunnable jobs in some cases.
+* `--maxMemory` (optional): when running on slurm, Cactus now queries the cluster with `sinfo` at startup and automatically clamps every job's memory request to the largest available node, just as it does using the host's physical memory on `--batchSystem single_machine`. This keeps Toil from scheduling a job that asks for more memory than any node can provide (which would otherwise sit pending forever and stall the workflow), so you no longer need to set this by hand. Pinning `--slurmPartition` (and/or `--slurmTime`) narrows the clamp to the node(s) those jobs will actually run on; you can also still pass `--maxMemory` to impose an even lower ceiling.
 * `--consMemory`: Override the memory for each `cactus_consolidated` job. Can be useful if Cactus's estimates are wrong, but `--maxMemory/--doubleMem` should be enough to work around this type of issue.
 
 On a cluster with partitions and/or time limits, make sure to use
