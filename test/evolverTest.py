@@ -682,9 +682,14 @@ class TestCase(unittest.TestCase):
         self.assertEqual(proc.returncode, 0,
                          'vg validate failed for {}\nstderr:\n{}'.format(gfa_path, proc.stderr.decode()))
 
-    def _check_exclusion_report(self, join_path, events):
+    def _check_exclusion_report(self, join_path, events, expect_report=True):
         """ every input base that is not in a given graph must be accounted for, exactly once, with
         a cause attached.
+
+        expect_report is False for the step-by-step pipeline, whose cactus-graphmap-join runs
+        standalone without --inputContigSizes: with no record of the input contig lengths it
+        correctly writes no clipping report, only the baseline-free outputs (graph stats, refgaps).
+        That case is asserted positively below rather than skipped.
 
         the headline assertion is closure: for every genome, the bases present in the clipped graph
         plus the bases in that genome's BED must add up to the input length, to the base.  that is
@@ -698,6 +703,16 @@ class TestCase(unittest.TestCase):
 
         stats_dir = os.path.join(join_path, 'yeast.stats')
         self.assertTrue(os.path.isdir(stats_dir), 'no yeast.stats directory')
+
+        if not expect_report:
+            # standalone cactus-graphmap-join with no --inputContigSizes: no clipping report, but
+            # the outputs that do not need the input contig lengths must still be there
+            self.assertFalse(os.path.isfile(os.path.join(stats_dir, 'clipped-by-genome.tsv')),
+                             'a clipping report was written without --inputContigSizes')
+            self.assertFalse(os.path.exists(os.path.join(join_path, 'yeast.WARNING')))
+            self.assertTrue(os.path.isfile(os.path.join(stats_dir, 'graph-stats.tsv')))
+            self.assertTrue(os.path.isfile(os.path.join(stats_dir, 'refgaps.bed.gz')))
+            return
 
         def merged_bp(intervals):
             """ deliberately a second implementation, so this test does not verify the module with
@@ -891,7 +906,7 @@ class TestCase(unittest.TestCase):
         for quiet in ['DBVPG6044', 'Y12', 'YPS128']:
             self.assertNotIn(quiet + ':', warning_text)
 
-    def _check_yeast_pangenome(self, binariesMode, other_ref=None, expect_odgi=False, expect_haplo=False, expect_unchopped_gfa=False, expect_gref=False, grefL=None):
+    def _check_yeast_pangenome(self, binariesMode, other_ref=None, expect_odgi=False, expect_haplo=False, expect_unchopped_gfa=False, expect_gref=False, grefL=None, expect_report=True):
         """ yeast pangenome chromosome by chromosome pipeline
         """
 
@@ -992,7 +1007,7 @@ class TestCase(unittest.TestCase):
             self.assertEqual(len(sizes), 10)
             self.assertGreaterEqual(int(sizes[9]), 200000)
 
-        self._check_exclusion_report(join_path, events)
+        self._check_exclusion_report(join_path, events, expect_report=expect_report)
 
         # make sure the gbz stats are sane
         clip_degree_dist = subprocess.check_output(['vg', 'stats', '-D', os.path.join(join_path, 'yeast.gbz')]).strip().decode('utf-8')
@@ -1637,8 +1652,9 @@ class TestCase(unittest.TestCase):
         name = "local"
         self._run_yeast_pangenome_step_by_step(name)
 
-        # check the output
-        self._check_yeast_pangenome(name)
+        # the step-by-step join runs standalone without --inputContigSizes, so it writes no
+        # clipping report -- only the baseline-free stats
+        self._check_yeast_pangenome(name, expect_report=False)
 
     def testYeastPangenomeLocal(self):
         """ Run pangenome pipeline (including contig splitting!) on yeast dataset using cactus-pangenome """
