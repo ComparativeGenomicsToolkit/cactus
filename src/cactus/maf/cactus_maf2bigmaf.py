@@ -14,12 +14,12 @@ import xml.etree.ElementTree as ET
 from operator import itemgetter
 
 from cactus.progressive.seqFile import SeqFile
-from cactus.shared.common import setupBinaries, importSingularityImage
+from cactus.shared.common import setupBinaries, importSingularityImage, cactus_fast_walltime
 from cactus.shared.common import cactusRootPath
 from cactus.shared.configWrapper import ConfigWrapper
 from cactus.shared.common import makeURL, catFiles
 from cactus.shared.common import enableDumpStack
-from cactus.shared.common import cactus_override_toil_options
+from cactus.shared.common import cactus_override_toil_options, add_cactus_toil_options
 from cactus.shared.common import cactus_call
 from cactus.shared.common import getOptionalAttrib, findRequiredNode
 from cactus.shared.common import cactus_clamp_memory
@@ -36,6 +36,7 @@ from sonLib.bioio import getTempDirectory
 
 def main():
     parser = Job.Runner.getDefaultArgumentParser()
+    add_cactus_toil_options(parser)
 
     parser.add_argument("mafFile", help = "MAF file to convert to BigMaf (can be gzipped)")
     parser.add_argument("outFile", help = "Output bigMaf file (.bb)")
@@ -93,7 +94,7 @@ def main():
             if options.halFile:
                 hal_id = toil.importFile(options.halFile)
                 
-            bigmaf_id_dict = toil.start(Job.wrapJobFn(maf2bigmaf_workflow, config, options, maf_id, hal_id))
+            bigmaf_id_dict = toil.start(Job.wrapJobFn(maf2bigmaf_workflow, config, options, maf_id, hal_id, walltime=cactus_fast_walltime()))
 
         #export the big maf
         out_bm_path = makeURL(options.outFile)

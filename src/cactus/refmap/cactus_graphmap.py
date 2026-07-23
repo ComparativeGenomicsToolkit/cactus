@@ -17,12 +17,12 @@ import shutil
 from operator import itemgetter
 
 from cactus.progressive.seqFile import SeqFile
-from cactus.shared.common import setupBinaries, importSingularityImage
+from cactus.shared.common import setupBinaries, importSingularityImage, cactus_fast_walltime
 from cactus.shared.common import cactusRootPath
 from cactus.shared.configWrapper import ConfigWrapper
 from cactus.shared.common import makeURL, catFiles
 from cactus.shared.common import enableDumpStack
-from cactus.shared.common import cactus_override_toil_options
+from cactus.shared.common import cactus_override_toil_options, add_cactus_toil_options
 from cactus.shared.common import cactus_call
 from cactus.shared.common import getOptionalAttrib, findRequiredNode
 from cactus.shared.common import unzip_gz, zip_gz
@@ -42,6 +42,7 @@ from sonLib.bioio import getTempDirectory, getTempFile
 
 def main():
     parser = Job.Runner.getDefaultArgumentParser()
+    add_cactus_toil_options(parser)
 
     parser.add_argument("seqFile", help = "Seq file (will be modified if necessary to include graph Fasta sequence) (or chromfile with --batch)")
     parser.add_argument("minigraphGFA", nargs='?', default='', type=str,
@@ -233,7 +234,7 @@ def graph_map(options):
                 
             # run the workflow
             # output_dict is chrom -> paf_id, gfa_fa_id, gaf_id, unfiltered_paf_id, paf_filter_log, paf_was_filtered
-            output_dict = toil.start(Job.wrapJobFn(minigraph_batch_workflow, options, config_wrapper, input_dict, graph_event, True))
+            output_dict = toil.start(Job.wrapJobFn(minigraph_batch_workflow, options, config_wrapper, input_dict, graph_event, True, walltime=cactus_fast_walltime()))
 
         export_graphmap_output(options, config_node, input_map, output_dict, toil)
 
@@ -304,7 +305,7 @@ def minigraph_batch_workflow(job, options, config, input_dict, graph_event, sani
         else:
             chrom_options = options
         mgwf_job = job.addChildJobFn(minigraph_workflow, chrom_options, config, seq_id_map, gfa_id, graph_event,
-                                     sanitize, ref_collapse_paf_id, pansn_gfa_input)
+                                     sanitize, ref_collapse_paf_id, pansn_gfa_input, walltime=cactus_fast_walltime())
         output_dict[chrom] = mgwf_job.rv()
     return output_dict
 
@@ -325,7 +326,7 @@ def minigraph_workflow(job, options, config, seq_id_map, gfa_id, graph_event, sa
 
     # enforce unique prefixes and unzip fastas
     if sanitize:
-        sanitize_job = root_job.addChildJobFn(sanitize_fasta_headers, seq_id_map, pangenome=True)
+        sanitize_job = root_job.addChildJobFn(sanitize_fasta_headers, seq_id_map, pangenome=True, walltime=cactus_fast_walltime())
         seq_id_map = sanitize_job.rv()
 
     # add unique prefixes to the input PAF
@@ -356,7 +357,7 @@ def minigraph_workflow(job, options, config, seq_id_map, gfa_id, graph_event, sa
         gfa_id = gfa_unzip_job.rv()
         gfa_id_size *= 10
         options.minigraphGFA = options.minigraphGFA[:-3]
-    paf_job = Job.wrapJobFn(minigraph_map_all, options, config, gfa_id, seq_id_map, graph_event)
+    paf_job = Job.wrapJobFn(minigraph_map_all, options, config, gfa_id, seq_id_map, graph_event, walltime=cactus_fast_walltime())
     root_job.addFollowOn(paf_job)
 
     collapse_paf_id = ref_collapse_paf_id
@@ -372,7 +373,7 @@ def minigraph_workflow(job, options, config, seq_id_map, gfa_id, graph_event, sa
             paf_job.addFollowOn(gfa2paf_job)
         collapse_mode = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "collapse", typeFn=str, default="none")
         if collapse_mode in ['reference', 'all', 'nonref']:
-            collapse_job = paf_job.addChildJobFn(self_align_all, config, seq_id_map, options.reference, collapse_mode)
+            collapse_job = paf_job.addChildJobFn(self_align_all, config, seq_id_map, options.reference, collapse_mode, walltime=cactus_fast_walltime())
             
             if ref_collapse_paf_id:
                 collapse_paf_id = collapse_job.addFollowOnJobFn(merge_pafs, {"1":collapse_job.rv(), "2":ref_collapse_paf_id},

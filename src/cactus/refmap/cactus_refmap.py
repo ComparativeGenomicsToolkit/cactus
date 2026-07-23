@@ -36,12 +36,12 @@ from cactus.refmap import paf_to_lastz
 from cactus.refmap import fasta_preprocessing
 from cactus.refmap import apply_dipcall_bed_filter
 
-from cactus.shared.common import setupBinaries, importSingularityImage
+from cactus.shared.common import setupBinaries, importSingularityImage, cactus_fast_walltime
 from cactus.shared.common import makeURL
 from cactus.shared.common import cactus_call
 from cactus.shared.configWrapper import ConfigWrapper
 from cactus.shared.common import cactusRootPath
-from cactus.shared.common import cactus_override_toil_options
+from cactus.shared.common import cactus_override_toil_options, add_cactus_toil_options
 from cactus.progressive.progressive_decomposition import compute_outgroups, parse_seqfile, get_subtree, get_spanning_subtree, get_event_set
 from cactus.preprocessor.checkUniqueHeaders import sanitize_fasta_headers
 
@@ -139,8 +139,8 @@ def run_cactus_reference_align(job, assembly_files, reference, debug_export=Fals
     """
     Preprocesses assemblies, then runs mappings.
     """
-    sanitize_job = job.addChildJobFn(sanitize_fasta_headers, assembly_files)
-    mappings = sanitize_job.addFollowOnJobFn(map_all_to_ref, sanitize_job.rv(), reference, debug_export, dipcall_bed_filter, dipcall_vcf_filter).rv()
+    sanitize_job = job.addChildJobFn(sanitize_fasta_headers, assembly_files, walltime=cactus_fast_walltime())
+    mappings = sanitize_job.addFollowOnJobFn(map_all_to_ref, sanitize_job.rv(), reference, debug_export, dipcall_bed_filter, dipcall_vcf_filter, walltime=cactus_fast_walltime()).rv()
     return mappings
 
 def map_all_to_ref(job, assembly_files, reference, debug_export=False, dipcall_bed_filter=False, dipcall_vcf_filter=False):
@@ -162,7 +162,7 @@ def map_all_to_ref(job, assembly_files, reference, debug_export=False, dipcall_b
                                     * Filters out all mappings below min_var_len=50k and min_mapq=5 from a lastz file
                                      Defaults to False.
     """
-    lead_job = job.addChildJobFn(empty)
+    lead_job = job.addChildJobFn(empty, walltime=cactus_fast_walltime())
 
     # map all assemblies to the reference. Don't map reference to reference, though.
     ref_mappings = dict()
@@ -228,6 +228,7 @@ def map_a_to_b(job, a, b, dipcall_filter):
 
 def get_options():
     parser = Job.Runner.getDefaultArgumentParser()
+    add_cactus_toil_options(parser)
     # addCactusWorkflowOptions(parser)
     
     # ### For quick debugging of apply_dipcall_bed_filter:
@@ -327,7 +328,7 @@ def main():
         
         ## Perform alignments:
         if not toil.options.restart:
-            alignments = toil.start(Job.wrapJobFn(run_cactus_reference_align, input_seq_id_map, options.reference, options.debug_export, options.dipcall_bed_filter, options.dipcall_vcf_filter))
+            alignments = toil.start(Job.wrapJobFn(run_cactus_reference_align, input_seq_id_map, options.reference, options.debug_export, options.dipcall_bed_filter, options.dipcall_vcf_filter, walltime=cactus_fast_walltime()))
 
         else:
             alignments = toil.restart()

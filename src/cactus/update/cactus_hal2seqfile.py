@@ -30,9 +30,9 @@ from toil.common import Toil
 from toil.statsAndLogging import logger
 from toil.statsAndLogging import set_logging_from_options
 
-from cactus.shared.common import setupBinaries, importSingularityImage
+from cactus.shared.common import setupBinaries, importSingularityImage, cactus_fast_walltime
 from cactus.shared.common import enableDumpStack
-from cactus.shared.common import cactus_override_toil_options
+from cactus.shared.common import cactus_override_toil_options, add_cactus_toil_options
 from cactus.shared.common import makeURL, cactus_call, cactus_clamp_memory
 from cactus.shared.version import cactus_commit
 
@@ -117,6 +117,7 @@ def hal2fasta_gz(job, hal_id, hal_name, genome):
 
 def main():
     parser = Job.Runner.getDefaultArgumentParser()
+    add_cactus_toil_options(parser)
 
     parser.add_argument("halFile", help="input HAL alignment")
     parser.add_argument("outDir", help="output directory for the gzipped per-genome FASTAs (created if needed)")
@@ -170,7 +171,7 @@ def main():
             # defaults to symlink=True in Toil, but we set it explicitly so this holds within the tool
             hal_id = toil.importFile(makeURL(options.halFile), symlink=True)
             fa_ids = toil.start(Job.wrapJobFn(export_subtree_fastas, hal_id,
-                                              os.path.basename(options.halFile), genomes, lengths))
+                                              os.path.basename(options.halFile), genomes, lengths, walltime=cactus_fast_walltime()))
 
         # export each gzipped fasta to <outDir>/<genome>.fa.gz
         for genome, fa_id in fa_ids.items():

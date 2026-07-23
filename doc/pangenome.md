@@ -341,7 +341,7 @@ cactus-panpatch ./js chromfile.txt --outDir patched --batch
 
 ```
 cactus-panpatch ./js chromfile.txt --outDir patched --batch --requireTelomeres \
-    --batchSystem slurm --slurmTime 10:00:00 --doubleMem true --maxMemory 1.5T --retryCount 10 \
+    --batchSystem slurm --defaultWalltime 36000 --doubleMem true --maxMemory 1.5T --retryCount 10 \
     --consCores 16 --mgCores 32 --mapCores 16
 ```
 

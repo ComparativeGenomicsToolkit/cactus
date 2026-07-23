@@ -1,2 +1,4 @@
 backports.zoneinfo[tzdata];python_version<"3.9"
-toil[aws]==9.5.0
+# Pinned to Toil master for per-job walltime support (not yet in a release: 9.5.0 lacks it).
+# TODO: revert to a released version (toil[aws]==<release>) once walltime lands in a Toil release.
+toil[aws] @ git+https://github.com/DataBiosphere/toil.git@091ed8861390c06230495819ba0fbef4cc4db5a0

@@ -19,7 +19,7 @@ from toil.statsAndLogging import logger
 from sonLib.bioio import getTempDirectory
 from toil.common import Toil
 from toil.job import Job
-from cactus.shared.common import cactus_call
+from cactus.shared.common import cactus_call, cactus_fast_walltime
 from cactus.shared.common import RoundedJob
 from cactus.shared.common import getOptionalAttrib, findRequiredNode
 from cactus.shared.common import runGetChunks
@@ -36,7 +36,7 @@ from cactus.shared.version import cactus_commit
 from toil.statsAndLogging import set_logging_from_options
 from toil.realtimeLogger import RealtimeLogger
 
-from cactus.shared.common import cactus_override_toil_options
+from cactus.shared.common import cactus_override_toil_options, add_cactus_toil_options
 from cactus.preprocessor.checkUniqueHeaders import checkUniqueHeaders
 from cactus.preprocessor.lastzRepeatMasking.cactus_lastzRepeatMask import LastzRepeatMaskJob
 from cactus.preprocessor.lastzRepeatMasking.cactus_lastzRepeatMask import RepeatMaskOptions
@@ -305,7 +305,7 @@ class BatchPreprocessor(RoundedJob):
 
             ppJob = self.addChild(PreprocessSequence(prepOptions, self.inSequenceID))
             outSeqID = ppJob.rv()
-            self.addFollowOnJobFn(clean_if_different, self.inSequenceID, outSeqID)
+            self.addFollowOnJobFn(clean_if_different, self.inSequenceID, outSeqID, walltime=cactus_fast_walltime())
         else:
             logger.info("Skipping inactive preprocessor {}".format(prepNode.attrib["preprocessJob"]))
             outSeqID = self.inSequenceID
@@ -419,7 +419,7 @@ def stageWorkflow(outputSequenceDir, configNode, inputSequences, toil, restart=F
             inputSequenceIDs.append(toil.importFile(makeURL(seq)))
         maskFileID = toil.importFile(makeURL(maskFile)) if maskFile else None
         unzip_job = Job.wrapJobFn(unzip_then_pp, configNode, inputSequences, inputSequenceIDs, inputEventNames,
-                                  maskFile, maskFileID, maskAction, minLength)
+                                  maskFile, maskFileID, maskAction, minLength, walltime=cactus_fast_walltime())
         outputSequenceIDs = toil.start(unzip_job)
     else:
         outputSequenceIDs = toil.restart()
@@ -435,13 +435,13 @@ def stageWorkflow(outputSequenceDir, configNode, inputSequences, toil, restart=F
 
 def unzip_then_pp(job, config_node, input_fa_paths, input_fa_ids, input_event_names, mask_file_path, mask_file_id, mask_file_action, min_length):
     """ unzip then preprocess """
-    unzip_job = job.addChildJobFn(unzip_gzs, input_fa_paths, input_fa_ids)
+    unzip_job = job.addChildJobFn(unzip_gzs, input_fa_paths, input_fa_ids, walltime=cactus_fast_walltime())
     if mask_file_id is not None:
-        mask_unzip_job = unzip_job.addChildJobFn(unzip_gzs, [mask_file_path], [mask_file_id])
+        mask_unzip_job = unzip_job.addChildJobFn(unzip_gzs, [mask_file_path], [mask_file_id], walltime=cactus_fast_walltime())
         config_node = mask_unzip_job.addFollowOnJobFn(maskJobOverride, config_node, mask_file_path, mask_unzip_job.rv(0), mask_file_action, min_length,
                                                       disk=mask_file_id.size*20).rv()
     pp_job = unzip_job.addFollowOn(CactusPreprocessor([unzip_job.rv(i) for i in range(len(input_fa_ids))], config_node, eventNames=input_event_names))
-    zip_job = pp_job.addFollowOnJobFn(zip_gzs, input_fa_paths,  pp_job.rv(), list_elems = [0])
+    zip_job = pp_job.addFollowOnJobFn(zip_gzs, input_fa_paths,  pp_job.rv(), list_elems = [0], walltime=cactus_fast_walltime())
     return zip_job.rv()
     
 def runCactusPreprocessor(outputSequenceDir, configFile, inputSequences, toilDir):
@@ -453,6 +453,7 @@ def runCactusPreprocessor(outputSequenceDir, configFile, inputSequences, toilDir
 
 def main():
     parser = Job.Runner.getDefaultArgumentParser()
+    add_cactus_toil_options(parser)
     parser.add_argument("inSeqFile", type=str, nargs='?', default=None, help = "Input Seq file")
     parser.add_argument("outSeqFile", type=str, nargs='?', default=None, help = "Output Seq file (ex generated with cactus-prepare)")
     parser.add_argument("--configFile", default=os.path.join(cactusRootPath(), "cactus_progressive_config.xml"))

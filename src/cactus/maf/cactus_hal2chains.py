@@ -14,12 +14,12 @@ import xml.etree.ElementTree as ET
 from operator import itemgetter
 
 from cactus.progressive.seqFile import SeqFile
-from cactus.shared.common import setupBinaries, importSingularityImage
+from cactus.shared.common import setupBinaries, importSingularityImage, cactus_fast_walltime
 from cactus.shared.common import cactusRootPath
 from cactus.shared.configWrapper import ConfigWrapper
 from cactus.shared.common import makeURL, catFiles
 from cactus.shared.common import enableDumpStack
-from cactus.shared.common import cactus_override_toil_options
+from cactus.shared.common import cactus_override_toil_options, add_cactus_toil_options
 from cactus.shared.common import cactus_call
 from cactus.shared.common import getOptionalAttrib, findRequiredNode
 from cactus.shared.version import cactus_commit
@@ -41,6 +41,7 @@ from sonLib.bioio import newickTreeParser
 
 def main():
     parser = Job.Runner.getDefaultArgumentParser()
+    add_cactus_toil_options(parser)
 
     parser.add_argument("halFile", help = "HAL file to convert to MAF")
     parser.add_argument("outDir", help = "Output directory")
@@ -154,7 +155,7 @@ def main():
             config.substituteAllPredefinedConstantsWithLiterals(options)
             
             hal_id = toil.importFile(options.halFile)            
-            chains_id_dict = toil.start(Job.wrapJobFn(hal2chains_workflow, config, options, hal_id))
+            chains_id_dict = toil.start(Job.wrapJobFn(hal2chains_workflow, config, options, hal_id, walltime=cactus_fast_walltime()))
 
         #export the chains
         for query_genome in chains_id_dict.keys():
@@ -183,8 +184,8 @@ def hal2chains_workflow(job, config, options, hal_id):
                                                        disk=int(hal_id.size * 1.2))
     leaf_genomes = get_genomes_job.rv(0)
     distance_matrix = get_genomes_job.rv(1)
-    chrom_info_job = get_genomes_job.addFollowOnJobFn(hal2chains_chrom_info_all, config, options, hal_id, leaf_genomes)
-    hal2chains_all_job = chrom_info_job.addFollowOnJobFn(hal2chains_all, config, options, hal_id, chrom_info_job.rv(), distance_matrix)
+    chrom_info_job = get_genomes_job.addFollowOnJobFn(hal2chains_chrom_info_all, config, options, hal_id, leaf_genomes, walltime=cactus_fast_walltime())
+    hal2chains_all_job = chrom_info_job.addFollowOnJobFn(hal2chains_all, config, options, hal_id, chrom_info_job.rv(), distance_matrix, walltime=cactus_fast_walltime())
     return hal2chains_all_job.rv()
 
 def hal2chains_check_tools(job, options):

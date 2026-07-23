@@ -20,7 +20,7 @@ import math
 import copy
 from Bio import SeqIO
 from cactus.paf.paf import get_event_pairs, get_leaves, get_node, get_distances
-from cactus.shared.common import cactus_call, getOptionalAttrib, zip_gz
+from cactus.shared.common import cactus_call, getOptionalAttrib, zip_gz, cactus_fast_walltime
 from cactus.preprocessor.checkUniqueHeaders import sanitize_fasta_headers
 from cactus.preprocessor.unmasking import unmask_contigs_all
 from cactus.preprocessor.cactus_preprocessor import clean_if_different
@@ -421,7 +421,7 @@ def invert_alignments(job, alignment_file):
 def make_ingroup_to_outgroup_alignments_0(job, ingroup_event, outgroup_events, event_names_to_sequences, distances, params):
     # Generate the alignments fle
     alignment_file = job.addChildJobFn(make_ingroup_to_outgroup_alignments_1, ingroup_event, outgroup_events,
-                                            event_names_to_sequences, distances, params).rv()
+                                            event_names_to_sequences, distances, params, walltime=cactus_fast_walltime()).rv()
 
     # Invert the final alignment so that the query is the outgroup and the target is the ingroup
     return job.addFollowOnJobFn(invert_alignments, alignment_file).rv()
@@ -493,7 +493,7 @@ def make_ingroup_to_outgroup_alignments_2(job, alignments, ingroup_event, outgro
 
     # recursively make alignments with the remaining outgroups
     alignments2 = root_job.addChildJobFn(make_ingroup_to_outgroup_alignments_1, ingroup_event, outgroup_events,
-                                         event_names_to_sequences, distances, params).rv()
+                                         event_names_to_sequences, distances, params, walltime=cactus_fast_walltime()).rv()
 
     return root_job.addFollowOnJobFn(make_ingroup_to_outgroup_alignments_3, ingroup_event, event_names_to_sequences[ingroup_event.iD],
                                      alignments, alignments2).rv()
@@ -654,7 +654,7 @@ def chain_alignments(job, alignment_files, alignment_names, reference_event_name
                               memory=cactus_clamp_memory(4 * split_size)).rv()
         )
 
-    return job.addFollowOnJobFn(merge_processed_alignments, processed_rvs).rv()
+    return job.addFollowOnJobFn(merge_processed_alignments, processed_rvs, walltime=cactus_fast_walltime()).rv()
 
 
 def chain_tile_trim_filter_one_contig(job, split_file_id, reference_event_name, params):
@@ -738,9 +738,9 @@ def merge_processed_alignments(job, processed_file_ids):
 
 def sanitize_then_make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancestor_event_string, params,
                                        output_path=None):
-    sanitize_job = job.addChildJobFn(sanitize_fasta_headers, event_names_to_sequences)
+    sanitize_job = job.addChildJobFn(sanitize_fasta_headers, event_names_to_sequences, walltime=cactus_fast_walltime())
     paf_job = sanitize_job.addFollowOnJobFn(make_paf_alignments, event_tree_string, sanitize_job.rv(),
-                                            ancestor_event_string, params)
+                                            ancestor_event_string, params, walltime=cactus_fast_walltime())
     # gzip the output if requested
     if output_path and output_path.endswith('.gz'):
         gzip_job = paf_job.addFollowOnJobFn(zip_gz, output_path, paf_job.rv())
@@ -792,7 +792,7 @@ def make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancest
     if getOptionalAttrib(lastz_params_node.find("unmask"), 'action', typeFn=str, default='none') != 'none':
         ingroups = [ingroup.iD for ingroup in ingroup_events]
         # Pass a copy of event_names_to_sequences to unmask_job to avoid circular reference
-        unmask_job = root_job.addChildJobFn(unmask_contigs_all, input_sequence_map, ingroups, params)
+        unmask_job = root_job.addChildJobFn(unmask_contigs_all, input_sequence_map, ingroups, params, walltime=cactus_fast_walltime())
         for i,ingroup in enumerate(ingroups):
             event_names_to_sequences[ingroup] = unmask_job.rv(i)
         new_root_job = Job()
@@ -822,7 +822,7 @@ def make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancest
     # for each ingroup make alignments to the outgroups
     if int(params.find("blast").attrib["trimIngroups"]):  # Trim the ingroup sequences
         outgroup_alignments = [root_job.addChildJobFn(make_ingroup_to_outgroup_alignments_0, ingroup, outgroup_events,
-                                                      dict(event_names_to_sequences), distances, params).rv()
+                                                      dict(event_names_to_sequences), distances, params, walltime=cactus_fast_walltime()).rv()
                                 for ingroup in ingroup_events] if len(outgroup_events) > 0 else []
     else:
         outgroup_alignments = [root_job.addChildJobFn(make_chunked_alignments,
@@ -844,11 +844,11 @@ def make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancest
                                          ingroup_alignments, ingroup_alignment_names,
                                          outgroup_alignments, outgroup_alignment_names,
                                          ancestor_event_string, params,
-                                         total_sequence_size=total_sequence_size).rv()
+                                         total_sequence_size=total_sequence_size, walltime=cactus_fast_walltime()).rv()
 
     # Delete the unmasked fastas (todo: should we do the unmasking somewhere further upstream?)
     for ingroup in ingroup_events:
-        root_job.addFollowOnJobFn(clean_if_different, event_names_to_sequences[ingroup.iD], input_sequence_map[ingroup.iD])
+        root_job.addFollowOnJobFn(clean_if_different, event_names_to_sequences[ingroup.iD], input_sequence_map[ingroup.iD], walltime=cactus_fast_walltime())
 
     return root_job.addFollowOnJobFn(chain_alignments, ingroup_alignments + outgroup_alignments,
                                      ingroup_alignment_names + outgroup_alignment_names,

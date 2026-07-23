@@ -12,12 +12,12 @@ import xml.etree.ElementTree as ET
 import timeit
 
 from cactus.progressive.progressive_decomposition import compute_outgroups, parse_seqfile, get_subtree, get_spanning_subtree, get_event_set, get_ancestor_scaled_tree
-from cactus.shared.common import setupBinaries, importSingularityImage
+from cactus.shared.common import setupBinaries, importSingularityImage, cactus_fast_walltime
 from cactus.shared.common import cactusRootPath
 from cactus.shared.configWrapper import ConfigWrapper
 from cactus.shared.common import makeURL, catFiles
 from cactus.shared.common import enableDumpStack
-from cactus.shared.common import cactus_override_toil_options
+from cactus.shared.common import cactus_override_toil_options, add_cactus_toil_options
 from cactus.shared.common import getOptionalAttrib
 from cactus.shared.version import cactus_commit
 from cactus.progressive.cactus_prepare import human2bytesN
@@ -34,6 +34,7 @@ from sonLib.bioio import getTempDirectory, getTempFile
 
 def main():
     parser = Job.Runner.getDefaultArgumentParser()
+    add_cactus_toil_options(parser)
 
     parser.add_argument("seqFile", help="Seq file")
     parser.add_argument("outputFile", type=str, help="Output pairwise alignment file")
@@ -156,7 +157,7 @@ def runCactusBlastOnly(options):
                     input_seq_id_map[genome] = toil.importFile(seq)
 
             paf_id = toil.start(Job.wrapJobFn(sanitize_then_make_paf_alignments, NXNewick().writeString(spanning_tree),
-                                              input_seq_id_map, options.root, config_node, options.outputFile))
+                                              input_seq_id_map, options.root, config_node, options.outputFile, walltime=cactus_fast_walltime()))
 
         # export the alignments
         toil.exportFile(paf_id, makeURL(options.outputFile))

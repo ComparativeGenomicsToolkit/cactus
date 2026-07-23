@@ -35,12 +35,12 @@ from collections import defaultdict
 
 from cactus.progressive.seqFile import SeqFile
 from cactus.progressive.multiCactusTree import MultiCactusTree
-from cactus.shared.common import setupBinaries, importSingularityImage
+from cactus.shared.common import setupBinaries, importSingularityImage, cactus_fast_walltime
 from cactus.shared.common import cactusRootPath
 from cactus.shared.configWrapper import ConfigWrapper
 from cactus.shared.common import makeURL, catFiles
 from cactus.shared.common import enableDumpStack
-from cactus.shared.common import cactus_override_toil_options
+from cactus.shared.common import cactus_override_toil_options, add_cactus_toil_options
 from cactus.shared.common import cactus_call
 from cactus.shared.common import getOptionalAttrib, findRequiredNode
 from cactus.shared.common import unzip_gz, write_s3
@@ -64,6 +64,7 @@ import pysam
 
 def main():
     parser = Job.Runner.getDefaultArgumentParser()
+    add_cactus_toil_options(parser)
 
     parser.add_argument("--vg", required=False, nargs='+', default=None, help = "Input vg files (PackedGraph or HashGraph format)")
     parser.add_argument("--vgFull", nargs='+', default=None,
@@ -583,7 +584,7 @@ def graphmap_join(options):
                 vg_ids = bypass_full_ids or bypass_clip_ids or bypass_filter_ids
                 wf_output = toil.start(Job.wrapJobFn(graphmap_join_workflow, options, config,
                                                       vg_ids, hal_ids, sv_gfa_ids,
-                                                      bypass_full_ids, bypass_clip_ids, bypass_filter_ids))
+                                                      bypass_full_ids, bypass_clip_ids, bypass_filter_ids, walltime=cactus_fast_walltime()))
             else:
                 # load up the vgs
                 vg_ids = []
@@ -591,7 +592,7 @@ def graphmap_join(options):
                     vg_ids.append(toil.importFile(makeURL(vg_path)))
 
                 # run the workflow
-                wf_output = toil.start(Job.wrapJobFn(graphmap_join_workflow, options, config, vg_ids, hal_ids, sv_gfa_ids))
+                wf_output = toil.start(Job.wrapJobFn(graphmap_join_workflow, options, config, vg_ids, hal_ids, sv_gfa_ids, walltime=cactus_fast_walltime()))
                 
         #export the split data
         export_join_data(toil, options, wf_output[0], wf_output[1], wf_output[2], wf_output[3], wf_output[4], wf_output[5])
@@ -750,7 +751,7 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
         hal_id_dict = hal_merge_job.rv()
         out_dicts.append(hal_id_dict)
         # delete the chromosome hals
-        hal_merge_job.addFollowOnJobFn(clean_jobstore_files, file_ids=hal_ids)
+        hal_merge_job.addFollowOnJobFn(clean_jobstore_files, file_ids=hal_ids, walltime=cactus_fast_walltime())
 
     # optional minigraph gfa merge
     if sv_gfa_ids:
@@ -759,7 +760,7 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
         sv_gfa_id_dict = sv_gfa_merge_job.rv()
         out_dicts.append(sv_gfa_id_dict)
         # delete the chromosome gfas
-        sv_gfa_merge_job.addFollowOnJobFn(clean_jobstore_files, file_ids=sv_gfa_ids)
+        sv_gfa_merge_job.addFollowOnJobFn(clean_jobstore_files, file_ids=sv_gfa_ids, walltime=cactus_fast_walltime())
 
     if options.indexMemory:
         index_mem = options.indexMemory
@@ -858,7 +859,7 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
             for vcf_ref in options.vcfReference:
                 vcf_job = gfa_root_job.addFollowOnJobFn(make_vcf, config, options, workflow_phase,
                                                         index_mem, vcf_ref, phase_vg_ids,
-                                                        ref_fasta_job.rv() if ref_fasta_job else None)
+                                                        ref_fasta_job.rv() if ref_fasta_job else None, walltime=cactus_fast_walltime())
                 if ref_fasta_job:
                     ref_fasta_job.addFollowOn(vcf_job)
                 out_dicts.append(vcf_job.rv())
@@ -2102,7 +2103,7 @@ def build_vg_indexes_and_vcf(parent_job, options, config, phase_vg_ids, vg_ids,
         vcf_job = gfa_root_job.addFollowOnJobFn(make_vcf, config, options, tag.rstrip('.'),
                                                  index_mem, vcf_ref, phase_vg_ids,
                                                  ref_fasta_dict, vcftag=vcftag,
-                                                 is_gref=is_gref, decon_L=decon_L)
+                                                 is_gref=is_gref, decon_L=decon_L, walltime=cactus_fast_walltime())
         out_dicts.append(vcf_job.rv())
 
     # optional haplo index

@@ -15,12 +15,12 @@ import xml.etree.ElementTree as ET
 from operator import itemgetter
 
 from cactus.progressive.seqFile import SeqFile
-from cactus.shared.common import setupBinaries, importSingularityImage
+from cactus.shared.common import setupBinaries, importSingularityImage, cactus_fast_walltime
 from cactus.shared.common import cactusRootPath
 from cactus.shared.configWrapper import ConfigWrapper
 from cactus.shared.common import makeURL, catFiles
 from cactus.shared.common import enableDumpStack
-from cactus.shared.common import cactus_override_toil_options
+from cactus.shared.common import cactus_override_toil_options, add_cactus_toil_options
 from cactus.shared.common import cactus_call
 from cactus.shared.common import getOptionalAttrib, findRequiredNode
 from cactus.shared.common import clean_jobstore_files
@@ -44,6 +44,7 @@ from sonLib.nxnewick import NXNewick
 
 def main():
     parser = Job.Runner.getDefaultArgumentParser()
+    add_cactus_toil_options(parser)
 
     parser.add_argument("halFile", help = "HAL file to convert to MAF")
     parser.add_argument("outputMAF", help = "Output MAF (will be gzipped if ends in .gz). Suffix with .taf or .taf.gz if you want TAF output")
@@ -220,7 +221,7 @@ def main():
 
             bed_id = toil.importFile(options.bedRanges) if options.bedRanges else None
             hal_id = toil.importFile(options.halFile)
-            toil.start(Job.wrapJobFn(hal2maf_workflow, hal_id, bed_id, options, config))
+            toil.start(Job.wrapJobFn(hal2maf_workflow, hal_id, bed_id, options, config, walltime=cactus_fast_walltime()))
         
     end_time = timeit.default_timer()
     run_time = end_time - start_time
@@ -235,9 +236,9 @@ def hal2maf_workflow(job, hal_id, bed_id, options, config):
 
     hal2maf_ranges_job = job.addChildJobFn(hal2maf_ranges, hal_id, bed_id, options, cores=1, disk=hal_id.size)
     chunks, genome_list = hal2maf_ranges_job.rv(0), hal2maf_ranges_job.rv(1)
-    hal2maf_all_job = hal2maf_ranges_job.addFollowOnJobFn(hal2maf_all, hal_id, chunks, genome_list, options, config)
+    hal2maf_all_job = hal2maf_ranges_job.addFollowOnJobFn(hal2maf_all, hal_id, chunks, genome_list, options, config, walltime=cactus_fast_walltime())
     hal2maf_merge_job = hal2maf_all_job.addFollowOnJobFn(hal2maf_merge_all, hal2maf_all_job.rv(), options, genome_list,
-                                                         disk=hal_id.size)
+                                                         disk=hal_id.size, walltime=cactus_fast_walltime())
     hal2maf_ranges_job.addFollowOn(hal2maf_merge_job)
     # note: merge job also handles exporting (and some cleanup), indexing and coverage
 
@@ -666,13 +667,13 @@ def hal2maf_merge_all(job, output_dicts, options, genome_list):
             output_ext += '.gz'
         if out_type != 'norm' and len(options.outType) > 1:
             output_name += '.{}'.format(out_type)
-        export_job = merge_job.addFollowOnJobFn(export_file, merge_job.rv(), output_name + output_ext)
-        merge_job.addFollowOnJobFn(clean_jobstore_files, file_ids=maf_ids)
+        export_job = merge_job.addFollowOnJobFn(export_file, merge_job.rv(), output_name + output_ext, walltime=cactus_fast_walltime())
+        merge_job.addFollowOnJobFn(clean_jobstore_files, file_ids=maf_ids, walltime=cactus_fast_walltime())
         if options.index:
             index_job = merge_job.addFollowOnJobFn(taffy_index, merge_job.rv(), output_name + output_ext,
                                                    disk=int(1.1 * maf_size),
                                                    memory=cactus_clamp_memory(maf_size / 10))
-            index_job.addFollowOnJobFn(export_file, index_job.rv(), output_name + output_ext + '.tai')
+            index_job.addFollowOnJobFn(export_file, index_job.rv(), output_name + output_ext + '.tai', walltime=cactus_fast_walltime())
             
             
         if options.coverage:
@@ -680,7 +681,7 @@ def hal2maf_merge_all(job, output_dicts, options, genome_list):
                                                       genome_list, options,
                                                       disk=int(1.1 * maf_size),
                                                       memory=cactus_clamp_memory(maf_size / 10))
-            coverage_job.addFollowOnJobFn(export_file, coverage_job.rv(), output_name + output_ext + '.cov.tsv')
+            coverage_job.addFollowOnJobFn(export_file, coverage_job.rv(), output_name + output_ext + '.cov.tsv', walltime=cactus_fast_walltime())
             
     return export_job.rv()
         

@@ -5,7 +5,7 @@ from Bio import SeqIO
 from Bio.SeqRecord import SeqRecord
 import os
 from toil.job import Job
-from cactus.shared.common import cactus_clamp_memory, catFiles, clean_jobstore_files
+from cactus.shared.common import cactus_clamp_memory, catFiles, clean_jobstore_files, cactus_fast_walltime
 from cactus.shared.common import cactus_call, getOptionalAttrib
 from toil.realtimeLogger import RealtimeLogger
 from cactus.preprocessor.cactus_preprocessor import CactusPreprocessor
@@ -98,7 +98,7 @@ def unmask_contigs_one(job, event, fasta_id, params):
                                                        disk=fasta_id.size * 4)
                 fasta_id = fa_merge_job.rv()
                 # delete the pp_id
-                fa_merge_job.addFollowOnJobFn(clean_jobstore_files, file_ids=[pp_id])
+                fa_merge_job.addFollowOnJobFn(clean_jobstore_files, file_ids=[pp_id], walltime=cactus_fast_walltime())
 
             else:
                 RealtimeLogger.warning('Remasking activated but no maskers active in preprocessor: doing nothing')

@@ -28,7 +28,7 @@ import xml.etree.ElementTree as ET
 
 from cactus.progressive.seqFile import SeqFile
 from cactus.progressive.cactus_prepare import human2bytesN
-from cactus.shared.common import importSingularityImage
+from cactus.shared.common import importSingularityImage, cactus_fast_walltime, add_cactus_toil_options
 from cactus.shared.common import makeURL
 from cactus.shared.common import cactus_call
 from cactus.shared.common import cactus_clamp_memory
@@ -50,6 +50,7 @@ from toil.realtimeLogger import RealtimeLogger
 
 def main():
     parser = Job.Runner.getDefaultArgumentParser()
+    add_cactus_toil_options(parser)
 
     parser.add_argument("seqFile", nargs='?', default=None,
                         help = "Seq file (as with cactus-pangenome), or, with --batch, a chromfile with one "
@@ -222,7 +223,7 @@ def main():
                                    ref_collapse_paf_id, last_scores_id, target_fasta_ids))
 
             toil.start(Job.wrapJobFn(panpatch_batch_workflow, options, config_wrapper, run_inputs,
-                                     exclude_bed_id))
+                                     exclude_bed_id, walltime=cactus_fast_walltime()))
 
     end_time = timeit.default_timer()
     run_time = end_time - start_time
@@ -477,18 +478,18 @@ def panpatch_batch_workflow(job, options, config_wrapper, run_inputs, exclude_be
     for run, pg_options, seq_id_map, seq_path_map, seq_order, ref_collapse_paf_id, last_scores_id, target_fasta_ids in run_inputs:
         job.addChildJobFn(panpatch_run_workflow, options, pg_options, config_wrapper, run, seq_id_map,
                           seq_path_map, seq_order, ref_collapse_paf_id, last_scores_id, exclude_bed_id,
-                          target_fasta_ids)
+                          target_fasta_ids, walltime=cactus_fast_walltime())
 
 def panpatch_run_workflow(job, options, pg_options, config_wrapper, run, seq_id_map, seq_path_map, seq_order,
                           ref_collapse_paf_id, last_scores_id, exclude_bed_id, target_fasta_ids):
     """ cactus-pangenome, then panpatch on the chromosome graphs it made """
     pangenome_job = job.addChildJobFn(pangenome_end_to_end_workflow, pg_options, config_wrapper, seq_id_map,
-                                      seq_path_map, seq_order, ref_collapse_paf_id, last_scores_id)
+                                      seq_path_map, seq_order, ref_collapse_paf_id, last_scores_id, walltime=cactus_fast_walltime())
 
     # a follow-on of the job hosting the pangenome workflow only runs once that job's entire child
     # subtree is done, which is what makes this safe
     pangenome_job.addFollowOnJobFn(panpatch_workflow, options, run, pangenome_job.rv(0), pangenome_job.rv(1),
-                                   pangenome_job.rv(2), exclude_bed_id, target_fasta_ids)
+                                   pangenome_job.rv(2), exclude_bed_id, target_fasta_ids, walltime=cactus_fast_walltime())
 
 def panpatch_workflow(job, options, run, join_options, join_wf_output, seq_id_map, exclude_bed_id, target_fasta_ids):
     """ the pangenome's promises have resolved by now.  run one single-threaded panpatch job per
@@ -526,7 +527,7 @@ def panpatch_workflow(job, options, run, join_options, join_wf_output, seq_id_ma
                                       target_fasta_ids, memory=cactus_clamp_memory(max(2**32, ref_size * 2)),
                                       disk=gather_disk)
     gather_job.addFollowOnJobFn(export_panpatch_wrapper, options, run, gather_job.rv(), full_vg_ids, vg_names,
-                                disk=sum(vg_id.size for vg_id in full_vg_ids) * 2 + 2**30)
+                                disk=sum(vg_id.size for vg_id in full_vg_ids) * 2 + 2**30, walltime=cactus_fast_walltime())
 
 def run_panpatch_chrom(job, options, run, vg_id, vg_name, exclude_bed_id):
     """ run single-threaded panpatch on one chromosome graph.  returns the per-haplotype fastas, the
@@ -720,7 +721,7 @@ def export_panpatch_wrapper(job, options, run, output_id_map, full_vg_ids, vg_na
             job.fileStore.exportFile(vg_id, makeURL(os.path.join(chrom_dir, vg_name)))
 
     if not options.keepPangenome:
-        job.addFollowOnJobFn(cleanup_pangenome_wrapper, options, run)
+        job.addFollowOnJobFn(cleanup_pangenome_wrapper, options, run, walltime=cactus_fast_walltime())
 
 def cleanup_pangenome_wrapper(job, options, run):
     """ the cactus-pangenome output is only ever scratch for us.  everything the user asked for has

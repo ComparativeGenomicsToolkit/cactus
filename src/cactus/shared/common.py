@@ -107,6 +107,13 @@ def cactus_override_toil_options(options):
     os.environ['CACTUS_MAX_MEMORY'] = str(max_mem)
     os.environ['CACTUS_DEFAULT_MEMORY'] = str(human2bytes(str(options.defaultMemory)) if options.defaultMemory else 2**31)
 
+    # store the "fast" walltime (in seconds) for small coordination jobs here so we can get
+    # at it without carrying options around, and so it propagates to workers (see
+    # cactus_fast_walltime).  An explicit --fastWalltime wins over any inherited env var.
+    fast_walltime = getattr(options, 'fastWalltime', None)
+    if fast_walltime:
+        os.environ['CACTUS_FAST_WALLTIME'] = str(int(fast_walltime))
+
     # auto-set cactus_log_memory
     try:
         subprocess.check_call(['/usr/bin/time', '-v', 'ls'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -117,6 +124,29 @@ def cactus_override_toil_options(options):
 def cactus_clamp_memory(memory_bytes):
     """ use the environment variables from --maxMemory and --defaultMemory to clamp a given memory value """
     return max(min(int(os.environ['CACTUS_MAX_MEMORY']), int(memory_bytes)), int(os.environ['CACTUS_DEFAULT_MEMORY']))
+
+def cactus_fast_walltime():
+    """ Walltime, in seconds, to assign to small "coordination" jobs (ones that just schedule
+    other jobs or do trivial work) so that Slurm can route them to a fast partition.  Set via
+    --fastWalltime, which stores CACTUS_FAST_WALLTIME so the value reaches workers just like
+    cactus_clamp_memory (or export CACTUS_FAST_WALLTIME directly).  Returns None (ie no walltime
+    override, so the job falls back to Toil's --defaultWalltime) when it isn't set. """
+    val = os.environ.get('CACTUS_FAST_WALLTIME')
+    if not val:
+        return None
+    seconds = int(val)
+    # treat 0 (or negative) as "disabled" so it stays a no-op rather than requesting a
+    # 0-second job (which Slurm would map to its shortest partition)
+    return seconds if seconds > 0 else None
+
+def add_cactus_toil_options(parser):
+    """ Add cactus-specific options on top of Toil's default argument parser
+    (Job.Runner.getDefaultArgumentParser).  Call this right after creating the parser. """
+    parser.add_argument("--fastWalltime", type=int, default=1800,
+                        help="Walltime, in seconds, to assign to small \"coordination\" jobs so that "
+                             "(on Slurm) Toil can route them to a fast partition [default: 1800 (30 min), "
+                             "which is very conservative for these jobs].  Set to 0 to disable.  Pair with "
+                             "Toil's --defaultWalltime, which sets the walltime for every other job.")
 
 def makeURL(path_or_url):
     if urlparse(path_or_url).scheme == '':
@@ -945,7 +975,7 @@ class RoundedJob(Job):
     # Default rounding amount: 100 MiB
     roundingAmount = 100*1024*1024
     def __init__(self, memory=None, cores=None, disk=None, preemptable=None,
-                 unitName=None, checkpoint=False, accelerators=None):
+                 unitName=None, checkpoint=False, accelerators=None, walltime=None):
         if memory is not None:
             memory = self.roundUp(memory)
         if disk is not None:
@@ -955,7 +985,8 @@ class RoundedJob(Job):
             disk = 1500*1024*1024 + self.roundUp(disk)
         super(RoundedJob, self).__init__(memory=memory, cores=cores, disk=disk,
                                          preemptable=preemptable, unitName=unitName,
-                                         checkpoint=checkpoint, accelerators=accelerators)
+                                         checkpoint=checkpoint, accelerators=accelerators,
+                                         walltime=walltime)
 
     def roundUp(self, bytesRequirement):
         """
@@ -1005,12 +1036,12 @@ class ChildTreeJob(RoundedJob):
     slightly, but reducing the wall-clock time taken dramatically.
     """
     def __init__(self, memory=None, cores=None, disk=None, preemptable=None,
-                 unitName=None, checkpoint=False, maxChildrenPerJob=20):
+                 unitName=None, checkpoint=False, maxChildrenPerJob=20, walltime=None):
         self.queuedChildJobs = []
         self.maxChildrenPerJob = maxChildrenPerJob
         super(ChildTreeJob, self).__init__(memory=memory, cores=cores, disk=disk,
                                            preemptable=preemptable, unitName=unitName,
-                                           checkpoint=checkpoint)
+                                           checkpoint=checkpoint, walltime=walltime)
 
     def addChild(self, job):
         self.queuedChildJobs.append(job)

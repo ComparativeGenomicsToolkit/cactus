@@ -32,7 +32,7 @@ from cactus.shared.version import cactus_commit
 from cactus.shared.common import findRequiredNode
 from cactus.shared.common import makeURL, cactus_call, RoundedJob
 from cactus.shared.common import write_s3, has_s3, get_aws_region
-from cactus.shared.common import cactus_override_toil_options
+from cactus.shared.common import cactus_override_toil_options, add_cactus_toil_options
 from cactus.shared.common import cactus_clamp_memory
 
 from toil.job import Job
@@ -51,6 +51,7 @@ def main(toil_mode=False):
     parser = ArgumentParser()
     if toil_mode:
         parser = Job.Runner.getDefaultArgumentParser()
+        add_cactus_toil_options(parser)
         parser.add_argument("--latest", dest="latest", action="store_true",
                             help="Use the latest version of the docker container "
                             "rather than pulling one matching this version of cactus")
@@ -1265,6 +1266,7 @@ def main_hal2fasta():
     """ cli wrapper for hal2fasta so that cactus-perpare can send it to slurm consistently with other
     cactus commands """
     parser = Job.Runner.getDefaultArgumentParser()
+    add_cactus_toil_options(parser)
 
     parser.add_argument("halFile", help="input HAL file")
     parser.add_argument("genome", help="Genome to convert to FASTA")
@@ -1332,6 +1334,7 @@ def hal2fasta(job, hal_id, hal_path, genome, fa_path):
 def main_hal_append_subtrees():
     """ toil wrapper for halAppendSubtree command(s) """
     parser = Job.Runner.getDefaultArgumentParser()
+    add_cactus_toil_options(parser)
 
     parser.add_argument("tgtFile", help="input HAL file to append to")
     parser.add_argument("subFiles", nargs='+', help="subtree HAL files to append")
