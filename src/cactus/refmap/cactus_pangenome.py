@@ -48,6 +48,7 @@ from cactus.refmap.cactus_graphmap import apply_mgsplit_filter_overrides
 from cactus.refmap.cactus_graphmap_split import graphmap_split_workflow, export_split_data
 from cactus.setup.cactus_align import make_batch_align_jobs, batch_align_jobs
 from cactus.refmap.cactus_graphmap_join import graphmap_join_workflow, export_join_data, graphmap_join_options, graphmap_join_validate_options, vcflib_checks
+from cactus.refmap.pangenome_exclusions import contig_sizes_job
 
 def pangenome_options(parser):
     """ the options that drive the end-to-end pangenome workflow, everything except the
@@ -474,9 +475,17 @@ def export_align_wrapper(job, options, results_dict):
 
     return join_options, vg_ids, hal_ids
 
-def export_join_wrapper(job, options, wf_output):
+def export_join_wrapper(job, options, wf_output, contig_sizes_id=None):
     """ toil join wrapper for cactus_graphmap_join """
-    export_join_data(job.fileStore, options, wf_output[0], wf_output[1], wf_output[2], wf_output[3], wf_output[4], wf_output[5])
+    export_join_data(job.fileStore, options, wf_output[0], wf_output[1], wf_output[2], wf_output[3], wf_output[4], wf_output[5],
+                     wf_output[6])
+    # the baseline table is exported alongside the report so that a later standalone
+    # cactus-graphmap-join can be given it with --inputContigSizes
+    if contig_sizes_id:
+        # top level rather than in stats/: it is an intermediate of the pipeline, not a report,
+        # and it is what --inputContigSizes wants handed back to it
+        sizes_path = os.path.join(options.outDir, '{}.input-contig-sizes.tsv.gz'.format(options.outName))
+        job.fileStore.exportFile(contig_sizes_id, makeURL(sizes_path))
 
 def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_path_map, seq_order, ref_collapse_paf_id,
                                   last_scores_id):
@@ -491,6 +500,21 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
     # sanitize headers (once here, skip in all workflows below)
     sanitize_job = root_job.addFollowOnJobFn(sanitize_fasta_headers, seq_id_map, pangenome=True)
     seq_id_map = sanitize_job.rv()
+
+    # snapshot the input contig sizes while the sanitized fastas still exist: they are the baseline
+    # the exclusion report measures the output graphs against, and they are cleaned out of the
+    # jobstore once splitting is done.  chained (rather than run alongside) so it cannot race that
+    # cleanup.  the graph event isn't in seq_id_map yet -- update_seqfile adds it further down.
+    # skipped when the join output is discarded (cactus-panpatch), where no report is written and
+    # this would be one faidx per genome for nothing.
+    contig_sizes_id = None
+    prev_job = sanitize_job
+    if not options.noJoinExport:
+        prev_job = sanitize_job.addFollowOnJobFn(
+            contig_sizes_job, seq_id_map,
+            getOptionalAttrib(findRequiredNode(config_node, "graphmap"), "assemblyName",
+                              default="_MINIGRAPH_"))
+        contig_sizes_id = prev_job.rv()
 
     assert type(options.reference) == list
 
@@ -514,7 +538,7 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
     else:
         split_config_node = config_node
         split_config_wrapper = config_wrapper
-    minigraph_job = sanitize_job.addFollowOnJobFn(minigraph_construct_workflow, mg_options, split_config_node, seq_id_map, seq_order, sv_gfa_path, sanitize=False)
+    minigraph_job = prev_job.addFollowOnJobFn(minigraph_construct_workflow, mg_options, split_config_node, seq_id_map, seq_order, sv_gfa_path, sanitize=False)
     sv_gfa_id = minigraph_job.rv(0)
     pansn_sv_gfa_id = minigraph_job.rv(1)
     if not last_scores_id:
@@ -544,11 +568,15 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
         phony_chromfile_job = update_seqfile_job.addFollowOnJobFn(phony_chromfile, options, paf_path)
         chromfile_path = phony_chromfile_job.rv()
         split_export_job = phony_chromfile_job
+        # nothing is binned or dropped without a split, so the exclusion report has no split log
+        # to attribute causes with
+        split_log_id = None
     else:
         # cactus_graphmap_split
         split_job = update_seqfile_job.addFollowOnJobFn(graphmap_split_workflow, options, split_config_wrapper, seq_id_map, seq_name_map, sv_gfa_id,
                                                         sv_gfa_path, paf_id, paf_path, sanitize=False, pansn_gfa_input=False)
         wf_output = split_job.rv()
+        split_log_id = split_job.rv(2)
         split_out_path = os.path.join(options.outDir, 'chrom-subproblems')
         split_export_job = split_job.addFollowOnJobFn(export_split_wrapper, wf_output, split_out_path, split_config_wrapper)
         chromfile_path = os.path.join(split_out_path, 'chromfile.txt')
@@ -608,7 +636,9 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
     # hal_ids, and it's also the only thing that frees the chromosome hals from the jobstore, so we
     # need to do that ourselves here or they'd leak for the rest of the run
     join_job = align_export_job.addFollowOnJobFn(graphmap_join_workflow, join_options, config_wrapper, vg_ids,
-                                                 [] if options.noHal else hal_ids, minigraph_pansn_sv_gfa_ids)
+                                                 [] if options.noHal else hal_ids, minigraph_pansn_sv_gfa_ids,
+                                                 contig_sizes_id=contig_sizes_id,
+                                                 split_log_id=split_log_id)
     join_wf_output = join_job.rv()
     if options.noHal:
         join_job.addFollowOnJobFn(clean_jobstore_files, file_ids=hal_ids)
@@ -617,7 +647,8 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
     # would write, given it turns every other output off), so let it skip this to avoid writing
     # the biggest output twice
     if not options.noJoinExport:
-        join_job.addFollowOnJobFn(export_join_wrapper, join_options, join_wf_output)
+        join_job.addFollowOnJobFn(export_join_wrapper, join_options, join_wf_output,
+                                  contig_sizes_id=contig_sizes_id)
 
     return join_options, join_wf_output, seq_id_map
         

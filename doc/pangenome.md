@@ -294,9 +294,134 @@ Further reading:
 * `dist`: Snarl distance index required for `vg giraffe`.
 * `min`: Minimizer index required for `vg giraffe`.
 * `hapl` : Haplotype sampling index. Created with `--haplo` (new alternative to `--filter`) and used for new best practice `vg giraffe` pipeline.
-* `stats.tgz`: Some stats about how much sequence was clipped, including a BED file of the removed sequence.
+* `stats/`: Tables describing the graph and a complete accounting of input sequence that did *not* make it in. See [Statistics and Clipping Reports](#statistics-and-clipping-reports).
 * `og`: [odgi](https://github.com/pangenome/odgi)'s native format, can be read and written by `odgi`. Very useful for [visualization](#visualization).
 * `snarl-stats.tsv.gz`: Table with one row per snarl (bubble) in the graph, sorted in decreasing order of the distance they span on the (first) reference sample.  See the table header for a description of each column, and note that snarls can be nested in eachother.  This table is produced with the `--snarlStats` option.  
+#### Statistics and Clipping Reports
+
+Every run writes a `<outName>.stats/` directory describing what went into the graph and what did
+not, plus two files at the top level:
+
+```
+<outName>.WARNING                    only exists if something looks wrong -- see below
+<outName>.input-contig-sizes.tsv.gz  input contig lengths, as cactus saw them
+<outName>.stats/
+    clipped-by-genome.tsv               one row per input genome and reason
+    clipped-by-reference-contig.tsv     one row per genome per reference contig
+    clipped-by-input-contig.tsv.gz      one row per input contig
+    clipped.beds.tar.gz                 the intervals themselves, for the clipped graph
+    clipped.full.beds.tar.gz            ...for the full graph
+    clipped.d2.beds.tar.gz              ...for the frequency-filtered graph
+    graph-stats.tsv                     one row per reference contig: nodes, edges, length
+    path-stats.tsv.gz                   one row per path in the clipped graph
+    refgaps.bed.gz                      reference regions no other assembly aligns to
+```
+
+##### What "clipped" means here
+
+Any input base that is **not in the output graph**, whatever removed it. That is broader than the
+`--clip` phase alone, and the `reason` column says which stage was responsible:
+
+| reason | meaning |
+|-|-|
+| `ambiguous` | contig binned to `_AMBIGUOUS_` during chromosome splitting |
+| `unassigned` | contig that splitting made no decision about at all |
+| `no_chromosome_graph` | contig assigned to a reference contig no graph was built for (e.g. one left out of `--refContigs`) |
+| `unaligned` | contig reached its chromosome graph, but some of its sequence is not in the `full` graph |
+| `clip` | removed by the clip phase (`--clip`) |
+| `filter` | removed by the allele-frequency filter (`--filter`) |
+
+The first four mean the sequence is absent from **every** graph. Only phases that actually ran are
+reported: with the default options there is no frequency-filtered graph, so there are no `filter`
+rows and no `.d2` files. The report never causes a phase to run.
+
+##### The three tables
+
+They are the same accounting at three zoom levels, and all reconcile with each other.
+`clipped-by-genome.tsv` is the headline:
+
+```
+genome        reason      intervals  bp        pct_of_input
+UWOPS034614   ambiguous   4          3255663   27.714
+UWOPS034614   clip        15         389645    3.317
+UWOPS034614   TOTAL       25390      4067475   34.625
+```
+
+Every reason the run could measure gets a row for every genome, so a `0` means
+measured-and-nothing-lost, while a reason with no rows at all means that phase never ran.
+
+The other two say how much of the input survived into each graph, rather than what was lost, so the
+columns decrease left to right and the loss at any stage is the drop between adjacent `_bp` columns:
+
+```
+#ref_chrom  genome  contigs  input_bp  full_bp  full_frags  clip_bp  clip_frags  filter_bp  filter_frags
+chrI        SK1     1        228861    228861   1           214802   1           191745     869
+```
+
+`_frags` is how many contiguous pieces the sequence is broken into in that graph, so the example
+above shows clipping removing 14,059 bp while leaving one piece, then the frequency filter removing
+another 23,057 and shattering it into 869. A `ref_chrom` of `_NONE_` means the contig reached no
+chromosome graph at all.
+
+`clipped-by-input-contig.tsv.gz` is the same thing one level down, one row per input contig. It is
+most useful for fragmented assemblies, where a genome contributes many contigs to one reference
+contig; where each contig maps to its own reference contig it adds little over the rollup.
+
+##### The BED archives
+
+Each `clipped*.beds.tar.gz` unpacks to a directory of one plain 4-column BED per input genome, in
+input contig coordinates, usable with `bedtools` as-is:
+
+```
+chrVI      0        290867    unassigned
+chrI       0        17071     clip
+```
+
+They are cumulative, since each graph is built from the previous one: everything missing from the
+full graph is also missing from the clipped graph. So `clipped.beds.tar.gz` is what is not in the
+clipped graph -- the default output, and what most people want.
+
+The accounting is measured, not estimated: path coverage is read back out of each graph that was
+built and subtracted from the input contig lengths, so for every genome `bases in the graph + bases
+in that graph's BED == input bases`, exactly.
+
+##### Graph statistics
+
+`graph-stats.tsv` and `path-stats.tsv.gz` describe the clipped graph rather than what was clipped
+from it. `graph-stats.tsv` gives the size and complexity of each chromosome graph, where `length`
+is the total sequence in the graph -- much less than the sum of the inputs, because shared sequence
+is stored once. `path-stats.tsv.gz` has one row per path; a `[start-end]` suffix on a path name
+means it is a fragment of a longer input contig.
+
+##### Reference gaps
+
+`refgaps.bed.gz` is different in kind: the reference is never clipped, so it loses nothing. These
+are instead regions of the reference that **no other assembly aligns to** (runs of at least
+`refGapMinLength`, 10kb by default). This sequence is present in the graph and is never counted as
+clipped.
+
+##### `<outName>.WARNING`
+
+A run can finish successfully and still have gone badly wrong. If the accounting shows one of the
+shapes that usually means something is off, cactus writes `<outName>.WARNING` -- **the file only
+exists when there is something to say**, so its absence is the all-clear. It looks for a genome with
+a large fraction of itself in no graph at all, whole input contigs absent from every graph, one
+genome losing far more than the rest of the panel, a reference little of the panel aligns to, and an
+accounting that fails to add up.
+
+It deliberately stays quiet on losses that are uniform across the panel, since those reflect how the
+run was configured rather than a problem: dropping whole chromosomes with `--refContigs` and removing
+rare alleles with `--filter` both do that. Each note is a heuristic, so check it against your data --
+a genuinely rearranged assembly will trip the first one, correctly.
+
+##### Running `cactus-graphmap-join` on its own
+
+Pass `--inputContigSizes <outName>.input-contig-sizes.tsv.gz` from the `cactus-pangenome` run that
+produced the graphs. It is the only record of how much input sequence there was, so **without it no
+clipping report is written** -- only `refgaps.bed.gz` and the graph statistics, which do not depend
+on it. Measuring the graphs against each other instead would produce the same filenames and column
+names meaning something different, which is worse than producing nothing.
+
 #### Node Chopping
 
 As of [v2.9.1](https://github.com/ComparativeGenomicsToolkit/cactus/releases/tag/v2.9.1), all output graphs will have node IDs of at most 1024bp. This is because the `gbz` and `dist` indexes require this (they use 10bits for node offsets), and as a result so do an increasing number of `vg` tools. There is also a major benefit from the simplicity of having all output files sharing the same ID space.
@@ -586,7 +711,8 @@ ls -hs yeast-pg/yeast-pg*
  21M yeast-pg/yeast-pg.dist      103M yeast-pg/yeast-pg.min             4.3M yeast-pg/yeast-pg.vcf.gz
  38M yeast-pg/yeast-pg.full.hal  4.6M yeast-pg/yeast-pg.raw.vcf.gz      8.0K yeast-pg/yeast-pg.vcf.gz.tbi
  16M yeast-pg/yeast-pg.gbz       8.0K yeast-pg/yeast-pg.raw.vcf.gz.tbi
- 14M yeast-pg/yeast-pg.gfa.gz     16K yeast-pg/yeast-pg.stats.tgz
+ 14M yeast-pg/yeast-pg.gfa.gz     12K yeast-pg/yeast-pg.input-contig-sizes.tsv.gz
+4.0K yeast-pg/yeast-pg.stats
 
 zcat yeast-pg/yeast-pg.gfa.gz | grep '^W' | awk '{print $1 "\t" $2 "\t" $3 "\t" $4 "\t" $5 "\t" $6 }' | grep S288C
 W	S288C	0	chrIII	0	341580
