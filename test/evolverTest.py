@@ -988,10 +988,13 @@ class TestCase(unittest.TestCase):
         # this is downloaded in the Makefile
         ground_truth_file = 'test/{}-truth.maf'.format(dataset)
 
-        # run mafComparator on the evolver output
+        # run mafComparator on the evolver output. also produce a single-ref output (Anc0 is the
+        # reference so it's single-copy regardless, but this exercises the --outType single-ref path)
         subprocess.check_call(['cactus-hal2maf', self._job_store('h2m'), halPath,  halPath + '.maf', '--chunkSize', '10000', '--batchCount', '2',
-                               '--refGenome', 'Anc0', '--outType', 'norm', 'single', '--index', '--binariesMode', binariesMode], shell=False)
-        self.assertGreaterEqual(os.path.getsize(halPath + '.maf.tai'), 50)        
+                               '--refGenome', 'Anc0', '--outType', 'norm', 'single', 'single-ref', '--index', '--binariesMode', binariesMode], shell=False)
+        self.assertGreaterEqual(os.path.getsize(halPath + '.maf.tai'), 50)
+        # make sure the single-ref output was actually produced
+        self.assertGreaterEqual(os.path.getsize(halPath + '.single-ref.maf'), 50)
 
         # run it with --dupeMode consensus just to make sure it doesn't crash
         # (but only if we have maf_stream, which we probably don't on arm)
