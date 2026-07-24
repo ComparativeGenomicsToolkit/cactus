@@ -470,6 +470,8 @@ cactus-panpatch ./js chromfile.txt --outDir patched --batch --requireTelomeres \
     --consCores 16 --mgCores 32 --mapCores 16
 ```
 
+Please cite the [panpatch paper](https://doi.org/10.64898/2025.12.14.693655) when using `cactus-panpatch`.
+
 ## Advanced Configuration
 
 See [here](./progressive.md#advanced-configuration)
