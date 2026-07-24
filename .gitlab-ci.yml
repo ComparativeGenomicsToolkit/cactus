@@ -6,7 +6,7 @@ variables:
 before_script:
   - whoami
   - sudo apt-get -q -y update
-  - sudo apt-get -q -y install --no-upgrade liblz4-dev libzstd-dev libblas-dev liblapack-dev libpcre3-dev gfortran libjansson-dev
+  - sudo apt-get -q -y install --no-upgrade liblz4-dev libzstd-dev libblas-dev liblapack-dev libpcre3-dev gfortran libjansson-dev zstd
   - startdocker || true
   - docker info
 
