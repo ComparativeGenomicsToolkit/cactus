@@ -297,7 +297,7 @@ def disable_pangenome_outputs(options):
                 'vcf', 'giraffe', 'lrGiraffe', 'haplo', 'snarlStats']:
         setattr(options, opt, [])
     options.gref = None
-    options.grefL = None
+    options.vcfL = None
     # with no whole-genome output left, nothing downstream of the "full" phase is needed
     options.clip = None
     options.filter = None

@@ -180,6 +180,20 @@ def graphmap_join_options(parser):
     parser.add_argument("--vcfwave", action='store_true', default=False, help = "Create a vcfwave-normalized VCF. vcfwave realigns alt alleles to the reference, and can help correct messy regions in the VCF. This option will output an additional VCF with 'wave' in its filename, other VCF outputs will not be affected")
     parser.add_argument("--vcfwaveCores", type=int, help = "Number of cores for each vcfwave job [default=4].", default=4)
     parser.add_argument("--vcfwaveMemory", type=human2bytesN, help = "Memory for reach vcfwave job [default=32Gi].", default=32000000000)
+    parser.add_argument("--vcfL", type=float, default=None,
+                        help="[EXPERIMENTAL] Pass `-L <FLOAT>` to vg deconstruct: traversals whose "
+                        "length-weighted Jaccard similarity is at least this are merged into a single "
+                        "allele. Applies to the raw and vcfbub VCFs, including the --gref ones. "
+                        "Merged samples are genotyped as the allele they were merged "
+                        "into (possibly the reference allele), with the discrepancy recorded in the "
+                        "TS/TL FORMAT fields, so the VCF no longer describes the samples exactly. "
+                        "For that reason this only ever ADDS VCFs: the normal outputs are still "
+                        "produced unclustered, and clustered copies appear beside them, named with "
+                        "an L<NN> tag where NN is the value times 100, rounded (e.g. 0.95 -> "
+                        ".L95.vcf.gz). No clustered .wave VCF is made -- -L is never composed with "
+                        "--vcfwave, whose whole job is to undo the allele merging that -L does. "
+                        "Costs an extra vg deconstruct pass per --vcf graph type per --vcfReference, "
+                        "plus one more for --gref; deconstruct is often the priciest job in the join.")
     parser.add_argument("--snarlStats", nargs='*', help = "Write a list of snarl statistics for the graph type(s). Valid types are 'full', 'clip' and 'filter'. If no type specified, 'clip' will be used ('full' used if clipping disabled). Multipe types can be provided separated by space")
         
     parser.add_argument("--giraffe", nargs='*', default=None, help = "Generate Giraffe (.dist, .shortread.withzip.min, .shortread.zipcodes) indexes for the given graph type(s). Valid types are 'full', 'clip' and 'filter'. If not type specified, 'filter' will be used (will fall back to 'clip' than full if filtering, clipping disabled, respectively). Multiple types can be provided seperated by a space. NOTE: do not use this option if you want to use haplotype sampling. Use --haplo instead.")
@@ -216,11 +230,6 @@ def graphmap_join_options(parser):
                         "are 'full', 'clip', 'filter'. Default: 'clip'. [default: disabled]")
     parser.add_argument("--minGrefLen", type=int, default=None,
                         help="Minimum graph reference fragment length [default from config: 50]")
-    parser.add_argument("--grefL", type=float, default=None,
-                        help="Pass `-L <FLOAT>` to vg deconstruct for the gref VCF only "
-                        "(nested-site threshold). Requires --gref. Value is embedded in the "
-                        "gref VCF filenames as gref<NN> where NN=int(value*100), "
-                        "e.g. 0.95 -> .gref95.vcf.gz.")
 
 def graphmap_join_defaults(options):
     """ fill in the graphmap-join option defaults for tools (ie cactus-panpatch) that run the join
@@ -526,12 +535,15 @@ def graphmap_join_validate_options(options):
         if getattr(options, 'collapse', False):
             raise RuntimeError('--gref is not compatible with --collapse (vg paths -u requires acyclic reference paths)')
 
-    # validate --grefL
-    if options.grefL is not None:
-        if options.gref is None:
-            raise RuntimeError('--grefL requires --gref')
-        if options.grefL <= 0.0 or options.grefL > 1.0:
-            raise RuntimeError('--grefL value must be in (0.0, 1.0], got {}'.format(options.grefL))
+    # validate --vcfL
+    if options.vcfL is not None:
+        if options.vcfL <= 0.0 or options.vcfL > 1.0:
+            raise RuntimeError('--vcfL value must be in (0.0, 1.0], got {}'.format(options.vcfL))
+        if not options.vcf and options.gref is None:
+            raise RuntimeError('--vcfL cannot be used without --vcf or --gref')
+        if options.vcfwave:
+            logger.warning('--vcfL is not applied to the --vcfwave output (vcfwave undoes exactly the '
+                           'allele merging that -L does), so the .wave.vcf.gz will be unclustered.')
 
     # Prevent some useless compute due to default param combos
     gref_needs_clip = options.gref in ['clip', 'filter'] if options.gref else False
@@ -912,6 +924,16 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
                 if ref_fasta_job:
                     ref_fasta_job.addFollowOn(vcf_job)
                 out_dicts.append(vcf_job.rv())
+
+                if options.vcfL is not None:
+                    # --vcfL adds a clustered VCF alongside the ones above (see make_vcf)
+                    l_job = gfa_root_job.addFollowOnJobFn(make_vcf, config, options, workflow_phase,
+                                                          index_mem, vcf_ref, phase_vg_ids,
+                                                          ref_fasta_job.rv() if ref_fasta_job else None,
+                                                          decon_L=options.vcfL)
+                    if ref_fasta_job:
+                        ref_fasta_job.addFollowOn(l_job)
+                    out_dicts.append(l_job.rv())
                     
         # optional giraffe
         giraffe_job = None
@@ -1023,12 +1045,11 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
             gref_parent_job = gref_fasta_job
 
         # build GFA, GBZ, VCF, haplo from the graph-reference VGs
-        gref_vcftag = 'gref' if options.grefL is None else 'gref{}'.format(int(round(options.grefL * 100)))
         gref_out_dicts = build_vg_indexes_and_vcf(gref_parent_job, options, config, gref_vg_ids, vg_ids,
                                                  tag='gref.', index_mem=index_mem, max_mem=max_mem,
-                                                 vcf_ref=gref_sample, vcftag=gref_vcftag, do_haplo=options.gref in options.haplo,
+                                                 vcf_ref=gref_sample, vcftag='gref', do_haplo=options.gref in options.haplo,
                                                  ref_fasta_dict=gref_fasta_dict,
-                                                 is_gref=True, decon_L=options.grefL)
+                                                 is_gref=True, decon_L=options.vcfL)
         out_dicts.extend(gref_out_dicts)
 
         # merge gref segments
@@ -1458,11 +1479,20 @@ def make_xg(job, config, out_name, index_dict, tag='', drop_haplotypes=False):
 def make_vcf(job, config, options, workflow_phase, index_mem, vcf_ref, vg_ids, ref_fasta_dict, vcftag=None, is_gref=False, decon_L=None):
     """ make the raw vcf with deconstruct. optionally add in the bub and wave vcfs too
     this is done in parallel on each chrom .vg graph
+
+    a decon_L (--vcfL) run is an extra pass that adds clustered copies of the raw and bub VCFs
+    beside the unclustered ones.  it never makes a wave VCF: vcfwave exists to recover small
+    variants by realigning big alt alleles, and -L has already merged those alleles away, so a
+    clustered wave VCF would be strictly lossy with nothing left in it to say so
     """
     root_job = Job()
     job.addChild(root_job)
     if vcftag is None:
         vcftag = vcf_ref + '.' + workflow_phase if vcf_ref != options.reference[0] else workflow_phase
+    if decon_L is not None:
+        # keep clustered VCFs from being mistaken for the normal ones sitting beside them
+        vcftag += '.L{}'.format(int(round(decon_L * 100)))
+    do_wave = options.vcfwave and decon_L is None
     raw_vcf_tbi_ids, bub_vcf_tbi_ids, wave_vcf_tbi_ids = [], [], []
     for vg_path, vg_id, in zip(options.vg, vg_ids):
         deconstruct_job = root_job.addChildJobFn(deconstruct, config, options.outName,
@@ -1487,7 +1517,7 @@ def make_vcf(job, config, options, workflow_phase, index_mem, vcf_ref, vg_ids, r
             bub_vcf_id, bub_tbi_id = vcfbub_job.rv(0), vcfbub_job.rv(1)
             bub_vcf_tbi_ids.append((bub_vcf_id, bub_tbi_id))
 
-        if options.vcfwave:
+        if do_wave:
             vcfwave_job = deconstruct_job.addFollowOnJobFn(chunked_vcfwave, config, options.outName, vcf_ref,
                                                            raw_vcf_id, raw_tbi_id,
                                                            options.vcfbub,
@@ -2194,8 +2224,17 @@ def build_vg_indexes_and_vcf(parent_job, options, config, phase_vg_ids, vg_ids,
         vcf_job = gfa_root_job.addFollowOnJobFn(make_vcf, config, options, tag.rstrip('.'),
                                                  index_mem, vcf_ref, phase_vg_ids,
                                                  ref_fasta_dict, vcftag=vcftag,
-                                                 is_gref=is_gref, decon_L=decon_L)
+                                                 is_gref=is_gref)
         out_dicts.append(vcf_job.rv())
+
+        if decon_L is not None:
+            # --vcfL adds a clustered VCF alongside the ones above (see make_vcf).  it reuses
+            # vcftag, onto which make_vcf appends the .L<NN> suffix
+            l_job = gfa_root_job.addFollowOnJobFn(make_vcf, config, options, tag.rstrip('.'),
+                                                   index_mem, vcf_ref, phase_vg_ids,
+                                                   ref_fasta_dict, vcftag=vcftag,
+                                                   is_gref=is_gref, decon_L=decon_L)
+            out_dicts.append(l_job.rv())
 
     # optional haplo index
     if do_haplo:

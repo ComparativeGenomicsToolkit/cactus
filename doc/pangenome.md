@@ -10,6 +10,8 @@ Please cite the [Minigraph-Cactus paper](https://doi.org/10.1038/s41587-023-0179
 * [Quick-Start](#quick-start)
 * [Introduction](#introduction)
 * [Interface](#interface)
+* [VCF Output](#vcf-output)
+* [Graph Reference Paths (--gref)](#graph-reference-paths---gref)
 * [Output](#output)
 * [Patching Assemblies (cactus-panpatch)](#patching-assemblies-cactus-panpatch)
 * [Advanced Configuration](#advanced-configuration)
@@ -261,13 +263,65 @@ For `--vgFilter`, the filter threshold is inferred from the `.dX.vg` filename pa
 
 Note: per-chromosome output options (`--chrom-vg`, `--chrom-og`, `--viz`, `--draw`) cannot be used with bypass options, as you already have those files from the previous run. Also, bypass options are not compatible with graphs that were originally built with `--collapse`.
 
-### VCF Normalization
+### VCF Output
 
-The `--vcf` option will produce two VCFs for each selected graph type. One VCF is a "raw" VCF which contains nested variants, indicated by the `LV` and `PS` tags. The second VCF is one that has gone through [vcfbub](https://github.com/pangenome/vcfbub) to remove nested sites, as well as those greater than 100kb.  Unless you want to explicitly handle nested variants, you are probably best to use the `vcfbub` VCF.  Switch off `vcfbub` with `--vcfbub 0` or specify a different threshold with `--vcfbub N`.
+The `--vcf` option runs `vg deconstruct` to represent the graph as sites of variation along a reference. A single run can write several VCFs, all prefixed with `--outName`:
 
-By default (since version v2.8.2), all non-raw VCF output is normalized with `bcftools norm -f` which left-aligns and normalizes indels.  You can turn this off in the config XML by setting `bcftoolsNorm` to `"0"`.
+| Suffix | Enabled by | What it is |
+|--------|------------|------------|
+| `.raw.vcf.gz` | `--vcf` | The `vg deconstruct` output, with sample ploidies padded so they agree across chromosomes. Nested sites are kept, marked with the `LV` (nesting level) and `PS` (parent snarl) tags. |
+| `.vcf.gz` | `--vcf`, `--vcfbub` non-zero | The raw VCF put through [vcfbub](https://github.com/pangenome/vcfbub), which drops sites nested inside a larger site and pops open any site whose **reference** allele is longer than 100kb. **Use this one** unless you want to handle nesting yourself. |
+| `.wave.vcf.gz` | `--vcfwave` | Built from the raw VCF rather than from `.vcf.gz`: its own `vcfbub` pass, filtering on the longest **allele** instead of the reference allele — so it pops strictly more sites — followed by [vcfwave](https://github.com/vcflib/vcflib/blob/master/doc/vcfwave.md), which realigns each alt allele against the reference and breaks it into primitive SNPs and indels. `INFO/AT` is dropped on the way. Do not expect it to be `.vcf.gz` plus realignment; the two are built by different routes. |
+| `.L<NN>.vcf.gz`, `.L<NN>.raw.vcf.gz` | `--vcfL` | Allele-clustered copies of the two VCFs above, written *in addition* to them (see below). |
+| `.gref.*` | `--gref` | The same set over again, deconstructed against the synthetic [graph reference paths](#graph-reference-paths---gref) instead of the reference sample. Experimental. |
+
+Those suffixes attach to a base name that records which graph and which reference the VCF came from:
+
+* the `clip` graph contributes nothing: `<outName>.vcf.gz`. It is what a bare `--vcf` selects, though with `--clip 0` the default becomes `full` instead and `--vcf clip` is rejected outright
+* `--vcf full` contributes `full`: `<outName>.full.vcf.gz`
+* `--vcf filter` contributes `d<N>`, where `N` is the `--filter` threshold: `<outName>.d2.vcf.gz`
+* a `--vcfReference SAMPLE` that is *not* the first `--reference` contributes its sample name: `<outName>.SAMPLE.vcf.gz`. VCFs built on the first reference carry no sample component
+
+These combine, so `--reference CHM13 GRCh38 --vcfReference GRCh38 --vcf filter --vcfwave` writes `<outName>.GRCh38.d2.wave.vcf.gz`.
+
+Switch off `vcfbub` with `--vcfbub 0` or specify a different threshold with `--vcfbub N`.
+
+The `bcftoolsNorm` config attribute runs `bcftools norm -f` over the `vcfbub` VCF, left-aligning and normalizing indels. It ships **off** (`bcftoolsNorm="0"`), since left-shifting can leave overlapping variants behind; set it to `"1"` in the config XML to turn it on. The wave VCF is normalized by default instead, under the separate `vcfwaveNorm` attribute.
 
 Also new in v2.8.2, you can use the `--vcfwave` option to create a version of the VCF(s) that has been normalized with [vcfwave](https://github.com/vcflib/vcflib/blob/master/doc/vcfwave.md). `vcfwave` can take a while to run on larger graphs, but it can do a good job of smoothing out small variants in complex regions. `vcfwave` is included in the Cactus docker images but **not** the the Cactus binary release. So you must either run Cactus from inside Docker, or run outside docker with the `--binariesMode docker` option. If you cannot run docker and still want to use `--vcfwave`, you must [build it yourself](https://github.com/vcflib/vcflib) and make sure its on your `PATH` before running cactus. You can set the number of cores used for each `vcfwave` job with `--vcfwaveCores`, and the memory with `--vcfwaveMemory`.
+
+The experimental `--vcfL` option passes `-L` to `vg deconstruct`, merging alt alleles whose traversals are at least that similar (length-weighted Jaccard) into a single allele, which collapses near-identical alleles in complex bubbles. It is lossy: a sample merged into another allele is genotyped as that allele — possibly the *reference* allele — and the difference survives only in the `TS`/`TL` FORMAT fields. So it never replaces anything. The ordinary VCFs are still written, and clustered copies appear beside them tagged with `L<NN>`, e.g. `--vcfL 0.95` gives `<outName>.L95.vcf.gz`. No clustered `.wave.vcf.gz` is produced, since `vcfwave` exists to undo precisely the allele merging that `-L` does.
+
+### Graph Reference Paths (`--gref`)
+
+**Experimental.** Non-reference sequence reaches a reference-based VCF only as ALT alleles, which leaves you no way to *address* it. Variation sitting inside an insertion or a non-reference SV allele has no reference position of its own to be reported at: it appears in `.raw.vcf.gz` only as nested `LV>0` records hanging off the enclosing bubble, and `vcfbub` drops those from `.vcf.gz` entirely. `--gref` gives that sequence coordinates of its own so it can be addressed directly.
+
+It works by running `vg paths -u`, which computes a *graph reference path cover*: it finds the parts of the graph the reference does not walk through, and promotes fragments of the haplotype paths already covering them into new synthetic reference paths. Those go into a new sample named `gref_<reference>` (`gref_GRCh38`, say), which holds a copy of the original reference paths plus extra fragments, each named for its gref path with a `_<N>_alt` suffix — `gref_GRCh38#0#chr1_1_alt`, and so on. Deconstructing against that sample yields a VCF whose sites include the non-reference material.
+
+```
+cactus-pangenome ./js ./seqfile.txt --outDir pg --outName pg --reference GRCh38 --vcf --gref
+```
+
+`--gref` takes the graph to build from — `full`, `clip` or `filter`, defaulting to `clip` — and `--minGrefLen` sets the shortest fragment worth keeping (default `50`, or the `minGrefLen` config attribute). Only the first `--reference` sample is used, since its paths are the ones guaranteed acyclic. `--gref clip` requires clipping to be on and `--gref filter` requires filtering to be on, and the option cannot be combined with `--collapse`.
+
+Nothing is taken away or altered: the ordinary outputs are written exactly as before, and these appear alongside them.
+
+| File | What it is |
+|------|------------|
+| `<outName>.gref.gbz`, `.gref.gfa.gz`, `.gref.snarls` | The source graph with the `gref_<reference>` sample added. |
+| `<outName>.gref.vcf.gz` etc. | The whole VCF set from the [table above](#vcf-output) — `.raw`, `.wave`, `.L<NN>` and all — deconstructed against `gref_<reference>` rather than the reference sample. These come even without `--vcf`; `.gref.wave.vcf.gz` still needs `--vcfwave`, which itself requires `--vcf`. |
+| `<outName>.gref.hapl` | Haplotype sampling index, when `--haplo` covers the graph `--gref` was built from. |
+| `<outName>.gref.gref-segs.tsv.gz` | Where every synthetic fragment came from (see below). |
+
+The segment table is headerless, tab-separated and BED-like, with one row per fragment: the haplotype path it was taken from and the interval on it, then the new gref path name, then the reference path it hangs off and the span of the enclosing snarl there — flanking nodes included, so the fragment sits strictly inside that span rather than filling it. So
+
+```
+SAMP2#0#chr1    200    700    gref_REF#0#chr1_1_alt    REF#0#chr1    0    901
+```
+
+means the new path `gref_REF#0#chr1_1_alt` is `SAMP2`'s sequence from 200 to 700, attached somewhere within `REF#0#chr1:0-901`. This is the file that maps a gref coordinate back onto a real assembly one. Fragments that could not be placed against the reference at all get `.` and `0 0` in the last three columns.
+
+One implementation note, in case the VCF surprises you: gref contigs are separated out and run through `vcfbub` on their own with `--max-level 1`, because gref sites are by construction nested inside main-reference bubbles and the usual level-0 filter would throw all of them away.
 
 ### Haplotype Sampling Instead of Filtering (NEW)
 
