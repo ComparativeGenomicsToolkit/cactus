@@ -14,6 +14,7 @@ Please cite the [Minigraph-Cactus paper](https://doi.org/10.1038/s41587-023-0179
 * [Patching Assemblies (cactus-panpatch)](#patching-assemblies-cactus-panpatch)
 * [Advanced Configuration](#advanced-configuration)
 * [Visualization](#visualization)
+* [Pangenome Statistics (panacus)](#pangenome-statistics-panacus)
 * [Yeast Graph](#yeast-graph)
 * [MHC Graph](#mhc-graph)
 * [GRCh38 Alts Graph](#grch38-alts-graph)
@@ -581,6 +582,23 @@ vg chunk -x yeast-pg/yeast-pg.gbz -S yeast-pg/yeast-pg.snarls -p S288C#0#chrI:10
 <img src="yeast-pg-chunk-viz.png" height=120% width=100%>
 
 Please cite [vg](https://doi.org/10.1038/nbt.4227) when using these visualizations.
+
+## Pangenome Statistics (panacus)
+
+[panacus](https://github.com/codialab/panacus) computes pangenome coverage and growth statistics: how much sequence is shared across the samples, how the pangenome grows as samples are added, and how big its core is. Passing `--panacus` to `cactus-graphmap-join` (or `cactus-pangenome`) runs panacus on the resulting whole-genome graph and writes both the source table data and a self-contained interactive HTML report of the plots.
+
+```
+cactus-pangenome ./js ./seqfile.txt --outDir ./out --outName mygraph --reference GRCh38 --panacus
+```
+
+`--panacus` takes an optional list of graph types (`clip`, `full`, `filter`); with no argument it defaults to the clipped graph (`full` if clipping is disabled), matching the other graph-type options like `--gfa` and `--vcf`. The results are written into the **`<outName>.stats/` subdirectory** (along with the other run statistics), for example:
+
+* `<outName>.stats/<outName>.panacus.report.html`: a single self-contained interactive report with a section for every requested graph type (`clip`, `full`, `filter`) and count type (`bp`, `node`) — coverage histogram, growth and core-size curves, path-similarity heatmap and node distribution — that opens in any web browser
+* `<outName>.stats/<outName>.panacus.histgrowth.<count>.tsv`: the source coverage/growth tables, one per count type (the `full` and `filter` graphs' tables are named `<outName>.full.panacus.*` and `<outName>.d<N>.panacus.*`)
+
+panacus renders its plots directly from the graph, so no extra plotting dependencies are needed. The count type(s) reported (`bp`, `node`, `edge`) can be changed with the `panacus` element in the [configuration](#advanced-configuration) XML.
+
+Please [cite panacus](https://doi.org/10.1093/bioinformatics/btae720) when using these statistics.
 
 ## Yeast Graph
 

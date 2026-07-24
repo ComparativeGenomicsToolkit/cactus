@@ -12,6 +12,8 @@
 # - vg
 # The following tool is included for cactus-panpatch
 # - panpatch
+# The following tool is included for pangenome coverage/growth statistics (cactus-graphmap-join --panacus)
+# - panacus
 # If, updating any versions here, update the release notes as well
 #
 # all binaries get copied into cactus/bin
@@ -374,6 +376,20 @@ mv mash ${binDir}
 # disabling the static check as this binary is not fully static.
 # but.. I can't figure out how to build proper static binary from
 # source and this one seems broadly compatible with many systems...
+
+# panacus (pangenome coverage/growth statistics with native interactive-html plots)
+# We ship the small (~2MB) bioconda build rather than the ~half-gigabyte upstream release tarball,
+# which bundles large example graphs.  Like mash, this binary is not fully static (glibc-dynamic,
+# built against an old glibc baseline so it is broadly compatible), so we skip the static check.
+# (bumping the version: update the URL below -- the filename includes bioconda's build hash.)
+cd ${pangenomeBuildDir}
+wget -nv --tries=5 --waitretry=3 --timeout=60 --retry-connrefused https://conda.anaconda.org/bioconda/linux-64/panacus-0.5.2-h54198d6_0.conda
+# a .conda package is a zip of zstd-compressed tarballs; pull the binary out of the package layer
+# (python's zipfile avoids needing the unzip tool; zstd is needed to decompress the inner tarball)
+python3 -c "import zipfile,glob; zipfile.ZipFile(glob.glob('panacus-*.conda')[0]).extractall('panacus-conda')"
+zstd -d -f panacus-conda/pkg-panacus-*.tar.zst -o panacus-conda/panacus-pkg.tar
+tar --no-same-owner -xf panacus-conda/panacus-pkg.tar -C panacus-conda bin/panacus
+mv panacus-conda/bin/panacus ${binDir}
 
 # odgi
 cd ${pangenomeBuildDir}
