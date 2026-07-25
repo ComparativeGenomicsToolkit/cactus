@@ -1435,6 +1435,38 @@ def make_vg_indexes(job, options, config, gfa_ids, tag="", do_gbz=False, ref_sam
         out_dict['{}snarls'.format(tag)] =  job.fileStore.writeGlobalFile(snarls_path)
     return out_dict
 
+# rewrite a PanSN path name down to the locus, which is what `vg deconstruct -C` uses for CHROM
+# and therefore what a reference FASTA header has to be.  a plain sed on SAMPLE#...# only works for
+# the 3-field form: 2-field names (SAMPLE#CONTIG, seen on older graphs) do not match it at all and
+# come through with the prefix still attached, and 4-field names (SAMPLE#HAP#CONTIG#PHASE) would
+# lose the wrong part.  subranges are dropped too, since deconstruct reports base contig names
+PANSN_TO_LOCUS_AWK = (r'/^>/ {n = split(substr($0, 2), a, "#"); '
+                      r'locus = (n >= 3 ? a[3] : (n == 2 ? a[2] : a[1])); '
+                      r'sub(/\[[0-9]+-[0-9]+\]$/, "", locus); print ">" locus; next} {print}')
+
+def check_fasta_headers(fa_path, vcf_ref):
+    """ fail here, before anything expensive, if the headers are not bare contig names
+
+    a header that still carries '#' will not match the CHROM that deconstruct emits, and the only
+    symptom downstream is `bcftools norm -f` reporting the contig as missing -- after every
+    deconstruct, vcfbub and vcfwave job has already been paid for
+    """
+    bad = []
+    opener = gzip.open if fa_path.endswith('.gz') else open
+    with opener(fa_path, 'rt') as fa_file:
+        for line in fa_file:
+            if line.startswith('>'):
+                name = line[1:].strip().split()[0]
+                if '#' in name:
+                    bad.append(name)
+    if bad:
+        raise RuntimeError(
+            'could not reduce the {} reference path names to bare contig names for the '
+            'normalization FASTA: got {} (and {} more). This usually means the graph\'s reference '
+            'paths are not valid PanSN (SAMPLE#HAPLOTYPE#CONTIG). vg deconstruct will emit bare '
+            'contig names as CHROM, so bcftools norm would not find them.'.format(
+                vcf_ref, ', '.join(bad[:3]), max(0, len(bad) - 3)))
+
 def extract_gbz_fasta(job, options, index_dict, tag):
     """ get the reference fasta files from the unclipped gbz so they can be used with bcftools norm
     """
@@ -1446,9 +1478,10 @@ def extract_gbz_fasta(job, options, index_dict, tag):
     for vcf_ref in options.vcfReference:
         fa_ref_path = os.path.join(work_dir, vcf_ref + '.fa.gz')            
         cactus_call(parameters=[['vg', 'paths', '-x', gbz_path, '-S', vcf_ref, '-F'],
-                                ['sed', '-e', r's/{}#.\+#//g'.format(vcf_ref)],
+                                ['awk', PANSN_TO_LOCUS_AWK],
                                 ['bgzip', '--threads', str(job.cores)]],
                     outfile=fa_ref_path)
+        check_fasta_headers(fa_ref_path, vcf_ref)
         out_dict[vcf_ref] = job.fileStore.writeGlobalFile(fa_ref_path)
 
     return out_dict
@@ -1469,13 +1502,14 @@ def extract_vg_fasta(job, options, vg_ids, vcf_ref=None):
         job.fileStore.readGlobalFile(vg_id, vg_path)
         chrom_fa_path = os.path.join(work_dir, 'chr{}.fa'.format(i))
         cactus_call(parameters=[['vg', 'paths', '-x', vg_path, '-S', vcf_ref, '-F'],
-                                ['sed', '-e', r's/{}#.\+#//g'.format(vcf_ref)]],
+                                ['awk', PANSN_TO_LOCUS_AWK]],
                     outfile=chrom_fa_path)
         chrom_fa_paths.append(chrom_fa_path)
 
     catFiles(chrom_fa_paths, fa_ref_path + '.tmp')
     cactus_call(parameters=['bgzip', '--threads', str(job.cores), '-c', fa_ref_path + '.tmp'],
                 outfile=fa_ref_path)
+    check_fasta_headers(fa_ref_path, vcf_ref)
 
     return {vcf_ref: job.fileStore.writeGlobalFile(fa_ref_path)}
 
