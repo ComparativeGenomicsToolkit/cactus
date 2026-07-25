@@ -568,7 +568,7 @@ class TestCase(unittest.TestCase):
         out_name = os.path.splitext(os.path.basename(self._out_hal(binariesMode)))[0]
         wave_opts = ['--vcfwave'] if binariesMode == 'docker' else []
         subprocess.check_call(['cactus-graphmap-join', self._job_store(binariesMode),
-                               '--vg', os.path.join(batch_align_path, 'simChimp.chr6.vg'),
+                               '--vg', os.path.join(batch_align_path, 'simChimp.chr6.raw.vg'),
                                '--hal', os.path.join(batch_align_path, 'simChimp.chr6.hal'),
                                '--sv-gfa', os.path.join(batch_mg_path, 'simChimp.chr6.sv.gfa.gz'),
                                '--gbz', '--reference', 'simChimp', '--vcf', 

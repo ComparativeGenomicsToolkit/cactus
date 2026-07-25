@@ -194,6 +194,20 @@ def makeURL(path_or_url):
     else:
         return path_or_url
 
+# cactus-align tags its raw, per-chromosome hal2vg output as <chrom>.raw.vg.  cactus-graphmap-join
+# writes the normalized graphs for the same chromosomes into <outName>.chroms/, and when both were
+# called <chrom>.vg the two were easy to mix up
+RAW_VG_SUFFIX = '.raw'
+
+def vg_chrom_name(vg_path):
+    """ the chromosome name of a per-chromosome vg file: its basename with the .vg extension and
+    the .raw tag stripped.  the tag is only removed if it's there, so alignments made before it
+    existed (and hand-made inputs) still name their chromosomes the same way """
+    base = os.path.splitext(os.path.basename(vg_path))[0]
+    if base.endswith(RAW_VG_SUFFIX):
+        base = base[:-len(RAW_VG_SUFFIX)]
+    return base
+
 def catFiles(filesToCat, catFile):
     """Cats a bunch of files into one file. Ensures a no more than maxCat files
     are concatenated at each step.

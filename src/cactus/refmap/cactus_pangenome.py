@@ -25,6 +25,7 @@ from cactus.shared.common import setupBinaries, importSingularityImage
 from cactus.shared.common import cactusRootPath
 from cactus.shared.configWrapper import ConfigWrapper
 from cactus.shared.common import makeURL, catFiles
+from cactus.shared.common import RAW_VG_SUFFIX
 from cactus.shared.common import enableDumpStack
 from cactus.shared.common import cactus_override_toil_options
 from cactus.shared.common import cactus_call
@@ -458,7 +459,7 @@ def export_align_wrapper(job, options, results_dict):
 
     for chrom, results in sorted(results_dict.items()):
         hal_path = makeURL(os.path.join(chrom_dir, '{}.hal'.format(chrom)))
-        vg_path = makeURL(os.path.join(chrom_dir, '{}.vg'.format(chrom)))
+        vg_path = makeURL(os.path.join(chrom_dir, '{}{}.vg'.format(chrom, RAW_VG_SUFFIX)))
         # the hal paths are still needed (downstream code assumes there's one per vg), but there's
         # no point writing the files themselves out if we're not going to make a hal (cactus-panpatch)
         if not options.noHal:
@@ -467,7 +468,9 @@ def export_align_wrapper(job, options, results_dict):
         hal_ids.append(results[0])
         hal_paths.append(hal_path)
         vg_ids.append(results[1])
-        vg_paths.append(vg_path)
+        # the join gets the file ids directly, and only ever uses these paths to name its outputs,
+        # so hand it the untagged name (as cactus-graphmap-join does with its own inputs)
+        vg_paths.append(makeURL(os.path.join(chrom_dir, '{}.vg'.format(chrom))))
 
     join_options = options
     join_options.hal = hal_paths

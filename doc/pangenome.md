@@ -741,14 +741,16 @@ cactus-align ./jobstore ./yeast-pg/chroms/chromfile.txt yeast-pg/chrom-alignment
 --batch --pangenome --reference S288C --outVG 
 ```
 
-The results are a HAL and VG file for each chromosome:
+The results are a HAL and VG file for each chromosome.  The `.raw.vg` graphs are the direct
+`hal2vg` output: they have not been clipped, filtered or otherwise normalized, which is what
+distinguishes them from the `<outName>.chroms/` graphs that `cactus-graphmap-join` makes below.
 ```
 ls -hs yeast-pg/chrom-alignments/
 total 72M
-920K chrI.hal    2.1M chrII.vg   1.6M chrIX.hal  3.1M chrVII.hal   1.2M chrVI.vg   3.5M chrXII.hal   1.4M chrXI.vg    3.6M chrXV.hal
-2.7M chrII.hal   1.3M chrI.vg    1.7M chrIX.vg   1.6M chrVIII.hal  1.6M chrV.vg    2.9M chrXIII.hal  2.7M chrXIV.hal  3.2M chrXVI.hal
-1.3M chrIII.hal  5.1M chrIV.hal  2.0M chrV.hal   1.3M chrVIII.vg   2.1M chrX.hal   2.2M chrXIII.vg   2.4M chrXIV.vg   2.5M chrXVI.vg
-1.3M chrIII.vg   4.4M chrIV.vg   1.1M chrVI.hal  2.4M chrVII.vg    2.0M chrXI.hal  3.1M chrXII.vg    1.7M chrX.vg     3.1M chrXV.vg
+920K chrI.hal      1.3M chrIII.hal     1.6M chrIX.hal     1.1M chrVI.hal      1.6M chrVIII.hal     2.0M chrXI.hal      2.9M chrXIII.hal     3.6M chrXV.hal
+1.3M chrI.raw.vg   1.3M chrIII.raw.vg  1.7M chrIX.raw.vg  1.2M chrVI.raw.vg   1.3M chrVIII.raw.vg  1.4M chrXI.raw.vg   2.2M chrXIII.raw.vg  3.1M chrXV.raw.vg
+2.7M chrII.hal     5.1M chrIV.hal      2.0M chrV.hal      3.1M chrVII.hal     2.1M chrX.hal        3.5M chrXII.hal     2.7M chrXIV.hal      3.2M chrXVI.hal
+2.1M chrII.raw.vg  4.4M chrIV.raw.vg   1.6M chrV.raw.vg   2.4M chrVII.raw.vg  1.7M chrX.raw.vg     3.1M chrXII.raw.vg  2.4M chrXIV.raw.vg   2.5M chrXVI.raw.vg
 ```
 
 ### Yeast: Joining the Chromosome Alignments

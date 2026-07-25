@@ -39,6 +39,7 @@ from cactus.shared.common import setupBinaries, importSingularityImage
 from cactus.shared.common import cactusRootPath
 from cactus.shared.configWrapper import ConfigWrapper
 from cactus.shared.common import makeURL, catFiles
+from cactus.shared.common import vg_chrom_name
 from cactus.shared.common import enableDumpStack
 from cactus.shared.common import cactus_override_toil_options
 from cactus.shared.common import cactus_call
@@ -111,10 +112,9 @@ def main():
 
     # Sort input files by normalized chromosome name for consistent ordering
     # regardless of the order they were passed on the command line.
-    # The sort key strips the .vg extension and any .full or .dN suffix.
+    # The sort key strips the .vg extension, the .raw tag and any .full or .dN suffix.
     def join_sort_key(path):
-        base = os.path.splitext(os.path.basename(path))[0]
-        return re.sub(r'\.(full|d\d+)$', '', base)
+        return re.sub(r'\.(full|d\d+)$', '', vg_chrom_name(path))
     sort_order = sorted(range(len(options.vg)), key=lambda i: join_sort_key(options.vg[i]))
     options.vg = [options.vg[i] for i in sort_order]
     if options.hal:
@@ -128,6 +128,13 @@ def main():
             options._vgClip_paths = [options._vgClip_paths[i] for i in sort_order]
         if options._vgFilter_paths:
             options._vgFilter_paths = [options._vgFilter_paths[i] for i in sort_order]
+
+    # cactus-align writes its per-chromosome graphs as <chrom>.raw.vg.  importing them is the only
+    # thing that needs the name they have on disk -- everything downstream uses options.vg to name
+    # the outputs -- so keep the real paths aside and drop the tag here.  that keeps every output
+    # named after the chromosome alone, and inputs predating the tag are unaffected
+    options._vgRaw_paths = options.vg
+    options.vg = [os.path.join(os.path.dirname(p), vg_chrom_name(p) + '.vg') for p in options.vg]
 
     # Mess with some toil options to create useful defaults.
     cactus_override_toil_options(options)
@@ -636,9 +643,9 @@ def graphmap_join(options):
                                                       bypass_full_ids, bypass_clip_ids, bypass_filter_ids,
                                                       contig_sizes_id=contig_sizes_id))
             else:
-                # load up the vgs
+                # load up the vgs (from their real paths: options.vg has had the .raw tag stripped)
                 vg_ids = []
-                for vg_path in options.vg:
+                for vg_path in options._vgRaw_paths:
                     vg_ids.append(toil.importFile(makeURL(vg_path)))
 
                 # run the workflow
