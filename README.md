@@ -46,6 +46,7 @@ Cactus uses many different algorithms and individual code contributions, princip
 - Martin Frith and collaborators for `last-train` from [last](https://gitlab.com/mcfrith/last). [last-train citation](https://academic.oup.com/bioinformatics/article-lookup/doi/10.1093/bioinformatics/btw742)
 - Han Cao for [merge_duplicates](https://github.com/Han-Cao/collapse-bubble) vcf cleanup script
 - Gene Myers, Richard Durbin and Chenxi Zhou for [FastGA](https://github.com/thegenemyers/FASTGA/), [FasTAN](https://github.com/thegenemyers/FASTAN/) and [alntools](https://github.com/richarddurbin/alntools).
+- Luca Parmigiani, Erik Garrison, Daniel Doerr and co-authors for [panacus](https://github.com/codialab/panacus), used for optional pangenome coverage and growth statistics (`cactus-graphmap-join --panacus`). Make sure to [cite panacus](https://doi.org/10.1093/bioinformatics/btae720) when using its outputs.
 
 ## Installing Manually From Source
 

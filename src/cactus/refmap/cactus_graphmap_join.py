@@ -55,6 +55,7 @@ from toil.statsAndLogging import set_logging_from_options
 from toil.realtimeLogger import RealtimeLogger
 from cactus.shared.common import cactus_cpu_count
 from cactus.refmap.cactus_minigraph import check_sample_names
+from cactus.refmap.panacus import run_panacus
 from cactus.refmap.pangenome_exclusions import path_coverage_job, ref_gaps_job, compute_exclusions_job
 from cactus.refmap.pangenome_exclusions import check_baseline_header
 from cactus.progressive.cactus_prepare import human2bytesN
@@ -181,7 +182,8 @@ def graphmap_join_options(parser):
     parser.add_argument("--vcfwaveCores", type=int, help = "Number of cores for each vcfwave job [default=4].", default=4)
     parser.add_argument("--vcfwaveMemory", type=human2bytesN, help = "Memory for reach vcfwave job [default=32Gi].", default=32000000000)
     parser.add_argument("--snarlStats", nargs='*', help = "Write a list of snarl statistics for the graph type(s). Valid types are 'full', 'clip' and 'filter'. If no type specified, 'clip' will be used ('full' used if clipping disabled). Multipe types can be provided separated by space")
-        
+    parser.add_argument("--panacus", nargs='*', default=None, help = "Run panacus (pangenome coverage/growth statistics with a native interactive-HTML plot) on the GFA of the given graph type(s). Valid types are 'full', 'clip' and 'filter'. If no type specified, 'clip' will be used ('full' used if clipping disabled). Multiple types can be provided separated by space. Please cite panacus (https://github.com/codialab/panacus) if you use these outputs")
+
     parser.add_argument("--giraffe", nargs='*', default=None, help = "Generate Giraffe (.dist, .shortread.withzip.min, .shortread.zipcodes) indexes for the given graph type(s). Valid types are 'full', 'clip' and 'filter'. If not type specified, 'filter' will be used (will fall back to 'clip' than full if filtering, clipping disabled, respectively). Multiple types can be provided seperated by a space. NOTE: do not use this option if you want to use haplotype sampling. Use --haplo instead.")
 
     parser.add_argument("--lrGiraffe", nargs='*', default=None, help = "Generate Long Read Giraffe (.dist, .longread.withzip.min, .longread.zipcodes) indexes for the given graph type(s). Valid types are 'full', 'clip' and 'filter'. If not type specified, 'filter' will be used (will fall back to 'clip' than full if filtering, clipping disabled, respectively). Multiple types can be provided seperated by a space. NOTE: do not use this option if you want to use haplotype sampling. Use --haplo instead.")
@@ -480,6 +482,17 @@ def graphmap_join_validate_options(options):
         if snarl_stats == 'filter' and not options.filter:
             raise RuntimeError('--snarlStats cannot be set to filter since filtering is disabled')
 
+    if options.panacus == []:
+        options.panacus = ['clip'] if options.clip else ['full']
+    options.panacus = list(set(options.panacus)) if options.panacus else []
+    for panacus_type in options.panacus:
+        if panacus_type not in ['clip', 'filter', 'full']:
+            raise RuntimeError('Unrecognized value for --panacus: {}. Must be one of {{clip, filter, full}}'.format(panacus_type))
+        if panacus_type == 'clip' and not options.clip:
+            raise RuntimeError('--panacus cannot be set to clip since clipping is disabled')
+        if panacus_type == 'filter' and not options.filter:
+            raise RuntimeError('--panacus cannot be set to filter since filtering is disabled')
+
     if options.giraffe == []:
         options.giraffe = ['filter'] if options.filter else ['clip'] if options.clip else ['full']
     options.giraffe = list(set(options.giraffe)) if options.giraffe else []        
@@ -536,11 +549,11 @@ def graphmap_join_validate_options(options):
     # Prevent some useless compute due to default param combos
     gref_needs_clip = options.gref in ['clip', 'filter'] if options.gref else False
     gref_needs_filter = options.gref == 'filter' if options.gref else False
-    if options.clip and 'clip' not in options.gfa + options.gbz + options.odgi + options.chrom_vg + options.chrom_og + options.vcf + options.giraffe + options.lrGiraffe + options.viz + options.draw\
-       and 'filter' not in options.gfa + options.gbz + options.odgi + options.chrom_vg + options.chrom_og + options.vcf + options.giraffe + options.lrGiraffe + options.viz + options.draw\
+    if options.clip and 'clip' not in options.gfa + options.gbz + options.odgi + options.chrom_vg + options.chrom_og + options.vcf + options.giraffe + options.lrGiraffe + options.viz + options.draw + options.panacus\
+       and 'filter' not in options.gfa + options.gbz + options.odgi + options.chrom_vg + options.chrom_og + options.vcf + options.giraffe + options.lrGiraffe + options.viz + options.draw + options.panacus\
        and not gref_needs_clip:
         options.clip = None
-    if options.filter and 'filter' not in options.gfa + options.gbz + options.odgi + options.chrom_vg + options.chrom_og + options.vcf + options.giraffe + options.lrGiraffe + options.viz + options.draw\
+    if options.filter and 'filter' not in options.gfa + options.gbz + options.odgi + options.chrom_vg + options.chrom_og + options.vcf + options.giraffe + options.lrGiraffe + options.viz + options.draw + options.panacus\
        and not gref_needs_filter:
         options.filter = None
 
@@ -557,7 +570,7 @@ def graphmap_join_validate_options(options):
         all_output_types = set()
         for opt_list in [options.gfa, options.unchopped_gfa, options.gbz, options.xg,
                          options.odgi, options.vcf, options.giraffe, options.lrGiraffe,
-                         options.haplo, options.snarlStats]:
+                         options.haplo, options.snarlStats, options.panacus]:
             all_output_types.update(opt_list)
         unavailable = all_output_types - options.bypass_available_types
         if unavailable:
@@ -657,7 +670,7 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
     job.addChild(root_job)
 
     root_job = vcflib_checks(root_job, options, config.xmlRoot)
-        
+
     # make sure reference doesn't have a haplotype suffix, as it will have been changed upstream
     ref_base, ref_ext = os.path.splitext(options.reference[0])
     assert len(ref_base) > 0
@@ -844,6 +857,10 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
     exclusion_refgap_ids = {}
     do_exclusions = not getattr(options, 'noJoinExport', False) and not options.bypass
 
+    # collected across the phase loop; a single combined panacus report is built afterwards
+    panacus_phase_dicts = {}
+    panacus_merge_jobs = []
+
     for workflow_phase, phase_vg_ids, phase_root_job in workflow_phases:
 
         # make a gfa for each
@@ -854,7 +871,7 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
         do_gbz = workflow_phase in options.gbz + options.giraffe + options.lrGiraffe + options.xg
         if workflow_phase == 'full' and need_ref_fasta and not options.bypass:
             do_gbz = True
-        if do_gbz or workflow_phase in options.gfa:
+        if do_gbz or workflow_phase in options.gfa or workflow_phase in options.panacus:
             assert len(options.vg) == len(phase_vg_ids) == len(vg_ids)
             for vg_path, vg_id, input_vg_id in zip(options.vg, phase_vg_ids, vg_ids):
                 gfa_job = gfa_root_job.addChildJobFn(vg_to_gfa, options, config, vg_path, vg_id,
@@ -977,6 +994,25 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
                                                                   tag=workflow_phase + '.',
                                                                   disk=sum(f.size for f in vg_ids) * 2)
             out_dicts.append(snarl_stats_merge_job.rv())
+
+        # collect this phase's merged GFA; a single combined panacus report is built after the loop
+        if workflow_phase in options.panacus:
+            panacus_phase_dicts[workflow_phase] = current_out_dict
+            panacus_merge_jobs.append(gfa_merge_job)
+
+    # one combined panacus report covering every requested graph type (each a distinct !Gfa section).
+    # run_panacus consumes every phase's merged GFA, so it must be a follow-on of *all* their merge
+    # jobs: Toil promises do not by themselves create scheduling edges (a promise only resolves once
+    # its producing job has structurally run before the consumer), so the merge jobs must be real
+    # predecessors here -- otherwise run_panacus can start early and hit an unfulfilled promise.
+    if panacus_phase_dicts:
+        panacus_job = Job.wrapJobFn(run_panacus, options, config, panacus_phase_dicts,
+                                    cores=options.indexCores,
+                                    disk=sum(f.size for f in vg_ids) * 6 * len(panacus_phase_dicts),
+                                    memory=index_mem)
+        for merge_job in panacus_merge_jobs:
+            merge_job.addFollowOn(panacus_job)
+        out_dicts.append(panacus_job.rv())
 
     # optional graph reference
     if options.gref:
@@ -2538,7 +2574,13 @@ def export_join_data(toil, options, full_ids, clip_ids, clip_stats, filter_ids, 
                 if 'filter.' in out_ext:
                     out_ext = out_ext.replace('filter.', 'd{}.'.format(options.filter))
                 if idx_id is not None:
-                    toil.exportFile(idx_id, makeURL(os.path.join(options.outDir, '{}.{}'.format(options.outName, out_ext))))
+                    # panacus reports/tables go in the .stats subdirectory; everything else at top level
+                    dest_dir = options.outDir
+                    if 'panacus' in out_ext:
+                        dest_dir = stats_dir
+                        if not dest_dir.startswith('s3://') and not os.path.isdir(dest_dir):
+                            os.makedirs(dest_dir)
+                    toil.exportFile(idx_id, makeURL(os.path.join(dest_dir, '{}.{}'.format(options.outName, out_ext))))
                 else:
                     logger.warning('Skipping export of {} because no output was generated. This can happen when a secondary --vcfReference or --reference name does not match any path in the input graphs.'.format(makeURL(os.path.join(options.outDir, '{}.{}'.format(options.outName, out_ext)))))
         

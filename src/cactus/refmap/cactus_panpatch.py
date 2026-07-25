@@ -294,7 +294,7 @@ def disable_pangenome_outputs(options):
     graphmap_join_validate_options(), which turns a default GFA back on if it finds no whole-genome
     output selected """
     for opt in ['gfa', 'unchopped_gfa', 'gbz', 'xg', 'odgi', 'viz', 'draw', 'chrom_og',
-                'vcf', 'giraffe', 'lrGiraffe', 'haplo', 'snarlStats']:
+                'vcf', 'giraffe', 'lrGiraffe', 'haplo', 'snarlStats', 'panacus']:
         setattr(options, opt, [])
     options.gref = None
     options.grefL = None

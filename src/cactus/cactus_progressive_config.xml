@@ -528,6 +528,17 @@
 		 prependGenomeNames="1"
 		 hal2vgOptions="--progress --inMemory"
 		 />
+	<!-- panacus options (pangenome coverage/growth statistics with a native interactive-HTML plot) -->
+	<!-- countType: comma-separated graph feature(s) to count, each one of node, bp, edge (a separate report section is made for each) -->
+	<!-- groupBy: how paths are grouped (PanSN-spec), one of haplotype, sample -->
+	<!-- quorum: comma-separated quorum thresholds for the growth curves (0=whole pangenome, 1=core genome) -->
+	<!-- clusterMethod: linkage for the similarity heatmap, one of Single, Complete, Average, Weighted, Ward, Centroid, Median -->
+	<panacus
+		 countType="bp,node"
+		 groupBy="haplotype"
+		 quorum="0,0.1,0.5,1"
+		 clusterMethod="Average"
+		 />
   	<multi_cactus>
 	        <!-- stategy: outgroup selection algorithm, can be one of greedy, greedyPreference, greedyLeaves or greedyLeavesPreference -->
 		<!-- threshold: depth increases by at most k per outgroup -->
