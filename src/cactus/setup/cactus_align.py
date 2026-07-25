@@ -482,7 +482,7 @@ def export_vg(job, hal_id, config_wrapper, doVG, doGFA, referenceEvents, checkpo
     if not resource_spec:
         # caller couldn't figure out the resrouces from hal_id promise.  do that
         # now and try again
-        vg_memory = hal_id.size * 60 if not memory_override else memory_override
+        vg_memory = hal_id.size * 40 if not memory_override else memory_override
         # optional floor from config: hal2vg memory is set from the alignment's cons_memory, which
         # for large unclipped graphs (eg cactus-panpatch reference-free, where a "chromosome" is a
         # whole assembly contig) can be far less than hal2vg --inMemory needs.  cactus-panpatch sets
