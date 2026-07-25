@@ -1517,6 +1517,7 @@ def make_vcf(job, config, options, workflow_phase, index_mem, vcf_ref, vg_ids, r
     for vg_path, vg_id, in zip(options.vg, vg_ids):
         deconstruct_job = root_job.addChildJobFn(deconstruct, config, options.outName,
                                                  vcf_ref, vg_id, decon_L,
+                                                 drop_sample=options.reference[0] if is_gref else None,
                                                  tag=os.path.splitext(os.path.basename(vg_path))[0] + '.' + vcftag + '.',
                                                  cores=options.indexCores,
                                                  disk = vg_id.size * 6,
@@ -1585,12 +1586,24 @@ def index_vcf(vcf_path, rt_log_cmd=True):
         cactus_call(parameters=['bcftools', 'index', '-c', vcf_path], rt_log_cmd=rt_log_cmd)
         return vcf_path + '.csi'
 
-def deconstruct(job, config, out_name, vcf_ref, vg_id, decon_L, tag):
+def deconstruct(job, config, out_name, vcf_ref, vg_id, decon_L, tag, drop_sample=None):
     """ make the raw vcf
     """ 
     work_dir = job.fileStore.getLocalTempDir()
     vg_path = os.path.join(work_dir, os.path.basename(out_name) + '.' + tag + 'vg')    
     job.fileStore.readGlobalFile(vg_id, vg_path)
+
+    # for the gref graph, `vg paths -u` copied the reference into the gref_<ref> sample but left
+    # the original paths behind, so deconstructing against gref_<ref> would report the reference
+    # genome as an ordinary sample -- diluting AC/AN/AF and making the gref VCF incomparable with
+    # the reference VCF from the same run.  drop those paths here, before deconstruct sees them,
+    # so every count is right at source rather than needing to be repaired afterwards.  this is a
+    # local copy: the exported .gref.gbz/.gref.gfa.gz still carry the original paths
+    if drop_sample:
+        drop_vg_path = vg_path + '.nodup'
+        cactus_call(parameters=['vg', 'paths', '-d', '-S', drop_sample, '-x', vg_path],
+                    outfile=drop_vg_path, job_memory=job.memory)
+        vg_path = drop_vg_path
 
     # deconstruct will fail if there are no alt paths.  we check for that here
     graph_paths = cactus_call(parameters=['vg', 'paths', '-x', vg_path, '-L'], check_output=True).split('\n')
