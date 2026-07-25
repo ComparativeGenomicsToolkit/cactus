@@ -1517,7 +1517,6 @@ def make_vcf(job, config, options, workflow_phase, index_mem, vcf_ref, vg_ids, r
     for vg_path, vg_id, in zip(options.vg, vg_ids):
         deconstruct_job = root_job.addChildJobFn(deconstruct, config, options.outName,
                                                  vcf_ref, vg_id, decon_L,
-                                                 drop_sample=options.reference[0] if is_gref else None,
                                                  tag=os.path.splitext(os.path.basename(vg_path))[0] + '.' + vcftag + '.',
                                                  cores=options.indexCores,
                                                  disk = vg_id.size * 6,
@@ -1586,24 +1585,12 @@ def index_vcf(vcf_path, rt_log_cmd=True):
         cactus_call(parameters=['bcftools', 'index', '-c', vcf_path], rt_log_cmd=rt_log_cmd)
         return vcf_path + '.csi'
 
-def deconstruct(job, config, out_name, vcf_ref, vg_id, decon_L, tag, drop_sample=None):
+def deconstruct(job, config, out_name, vcf_ref, vg_id, decon_L, tag):
     """ make the raw vcf
     """ 
     work_dir = job.fileStore.getLocalTempDir()
     vg_path = os.path.join(work_dir, os.path.basename(out_name) + '.' + tag + 'vg')    
     job.fileStore.readGlobalFile(vg_id, vg_path)
-
-    # for the gref graph, `vg paths -u` copied the reference into the gref_<ref> sample but left
-    # the original paths behind, so deconstructing against gref_<ref> would report the reference
-    # genome as an ordinary sample -- diluting AC/AN/AF and making the gref VCF incomparable with
-    # the reference VCF from the same run.  drop those paths here, before deconstruct sees them,
-    # so every count is right at source rather than needing to be repaired afterwards.  this is a
-    # local copy: the exported .gref.gbz/.gref.gfa.gz still carry the original paths
-    if drop_sample:
-        drop_vg_path = vg_path + '.nodup'
-        cactus_call(parameters=['vg', 'paths', '-d', '-S', drop_sample, '-x', vg_path],
-                    outfile=drop_vg_path, job_memory=job.memory)
-        vg_path = drop_vg_path
 
     # deconstruct will fail if there are no alt paths.  we check for that here
     graph_paths = cactus_call(parameters=['vg', 'paths', '-x', vg_path, '-L'], check_output=True).split('\n')
@@ -2395,6 +2382,8 @@ def compute_gref_paths(job, config, options, vg_path, vg_id, vcf_ref):
     join_node = findRequiredNode(config.xmlRoot, "graphmap_join")
     min_gref_len = options.minGrefLen if options.minGrefLen is not None else \
         getOptionalAttrib(join_node, "minGrefLen", typeFn=int, default=50)
+    # vg paths -u names the sample it creates gref_<reference> on its own; this has to derive
+    # the same name, since everything downstream addresses the sample by it
     gref_prefix = getOptionalAttrib(join_node, "grefPrefix", typeFn=str, default="gref_")
     gref_sample = gref_prefix + vcf_ref
 
@@ -2444,10 +2433,21 @@ def compute_gref_paths(job, config, options, vg_path, vg_id, vcf_ref):
 
     cmd = ['vg', 'paths', '-x', vg_path, '-u', '-Q', vcf_ref,
            '--min-gref-len', str(min_gref_len),
-           '-N', gref_sample,
            '--gref-segs', segs_path,
            '-t', str(job.cores)]
     cactus_call(parameters=cmd, outfile=gref_vg_path, job_memory=job.memory)
+
+    # vg names the new sample itself, and every stage after this one addresses it by the name
+    # cactus derived above -- deconstruct -P, extract_vg_fasta -S, the RS tag on the exported
+    # graph.  a mismatch would not fail, it would quietly produce nothing, so check it here
+    gref_paths = cactus_call(parameters=['vg', 'paths', '-x', gref_vg_path, '-L'], check_output=True)
+    if not any(p.strip().startswith(gref_sample + '#') for p in gref_paths.split('\n')):
+        raise RuntimeError(
+            'vg paths -u did not create the expected sample {} in {}. Cactus builds that name from the '
+            'grefPrefix config attribute ("{}") and --reference, and it has to match the name vg assigns. '
+            'Check that vg is new enough to name the gref sample itself (the -N option was removed) and '
+            'that grefPrefix matches its prefix.'.format(
+                gref_sample, os.path.basename(vg_path), gref_prefix))
 
     return job.fileStore.writeGlobalFile(gref_vg_path), job.fileStore.writeGlobalFile(segs_path)
 
