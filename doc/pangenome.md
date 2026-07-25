@@ -321,7 +321,7 @@ SAMP2#0#chr1    200    700    gref_REF#0#chr1_1_alt    REF#0#chr1    0    901
 
 means the new path `gref_REF#0#chr1_1_alt` is `SAMP2`'s sequence from 200 to 700, attached somewhere within `REF#0#chr1:0-901`. This is the file that maps a gref coordinate back onto a real assembly one. Fragments that could not be placed against the reference at all get `.` and `0 0` in the last three columns.
 
-One implementation note, in case the VCF surprises you: gref contigs are separated out and run through `vcfbub` on their own with `--max-level 1`, because gref sites are by construction nested inside main-reference bubbles and the usual level-0 filter would throw all of them away.
+One implementation note, in case the VCF surprises you: gref contigs are separated out and run through `vcfbub` on their own. `vg` reports `LV` as absolute depth in the snarl tree, so a gref site inherits the depth of whatever main-reference bubble encloses it — nest that bubble, or nest one gref fragment inside another, and its sites land at `LV` 2 or deeper. No single `--max-level` is therefore correct for gref contigs. Cactus recounts `LV` per contig first, so that it measures depth *within* the gref contig rather than within the graph as a whole, and then applies the same level-0 filter the main contigs get.
 
 ### Haplotype Sampling Instead of Filtering (NEW)
 

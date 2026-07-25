@@ -1354,9 +1354,16 @@ def vg_to_og(job, options, config, vg_path, vg_id):
                             os.path.basename(og_path), '-t', str(job.cores)], work_dir=work_dir, job_memory=job.memory)
     return job.fileStore.writeGlobalFile(og_path)
 
-def make_vg_indexes(job, options, config, gfa_ids, tag="", do_gbz=False):
+def make_vg_indexes(job, options, config, gfa_ids, tag="", do_gbz=False, ref_samples=None):
     """ merge of the gfas, then make gbz / snarls / trans
+
+    ref_samples overrides which samples the merged GFA declares as reference-sense.  it defaults to
+    --reference, but the gref graph has to add its gref_<reference> sample: leaving it out demotes
+    every synthetic reference path to a haplotype, and the resulting gbz can no longer be
+    deconstructed against the very sample its VCF is built on
     """
+    if ref_samples is None:
+        ref_samples = options.reference
     work_dir = job.fileStore.getLocalTempDir()
     vg_paths = []
     merge_gfa_path = os.path.join(work_dir, '{}merged.gfa'.format(tag))
@@ -1369,12 +1376,12 @@ def make_vg_indexes(job, options, config, gfa_ids, tag="", do_gbz=False):
         gfa_path = os.path.join(work_dir, os.path.basename(vg_path) +  '.gfa')
         job.fileStore.readGlobalFile(gfa_id, gfa_path, mutable=True)
         if i == 0:
-            # make sure RS tag reflects only samples from --reference
+            # make sure RS tag reflects only the reference samples
             cmd = [['head', '-1', gfa_path], ['sed', '-e', '1s/{}//'.format(graph_event)]]
             gfa_header = cactus_call(parameters=cmd, check_output=True).strip().split('\t')
             for i in range(len(gfa_header)):
                 if gfa_header[i].startswith('RS:Z:'):
-                    gfa_header[i] = 'RS:Z:' + ' '.join(options.reference)
+                    gfa_header[i] = 'RS:Z:' + ' '.join(ref_samples)
             with open(merge_gfa_path, 'w') as merge_gfa_file:
                 merge_gfa_file.write('\t'.join(gfa_header) + '\n')
         # strip out header and minigraph paths
@@ -1643,6 +1650,59 @@ def split_gref_vcf(vcf_path, work_dir):
     else:
         return None, None
 
+def reroot_gref_levels(in_vcf_path, out_vcf_path):
+    """ rewrite LV on a gref-contig VCF so that it counts only ancestors on the same contig
+
+    vg sets LV to the absolute depth in the snarl tree, counting every ancestor that made it into
+    the VCF (graph_caller.cpp get_nesting_tags).  a gref site therefore inherits the depth of
+    whatever base-reference bubble encloses it, so its top-level sites are at LV=1 only when that
+    enclosing bubble was itself top-level -- nest the base bubble, or nest one gref fragment inside
+    another, and they land at LV=2 or deeper.  filtering those with a fixed `vcfbub --max-level 1`
+    silently deleted them.
+
+    each gref contig is its own reference sequence, so an ancestor lying on some other contig does
+    not nest the site in this contig's coordinates.  recounting LV that way lets the gref half go
+    through vcfbub -l 0, exactly like the base half.  PS is deliberately left alone so that
+    vcfbub's rescue of children-of-popped-bubbles keeps working.
+    """
+    def info_value(info, key):
+        for field in info.split(';'):
+            if field.startswith(key + '='):
+                return field[len(key) + 1:]
+        return None
+
+    # pass 1: snarl id -> contig it sits on, and the id of its parent snarl
+    contig_of = {}
+    parent_of = {}
+    with gzip.open(in_vcf_path, 'rt') as in_file:
+        for line in in_file:
+            if line.startswith('#'):
+                continue
+            toks = line.rstrip('\n').split('\t', 8)
+            contig_of[toks[2]] = toks[0]
+            parent_of[toks[2]] = info_value(toks[7], 'PS')
+
+    # pass 2: LV := number of ancestors on this record's own contig
+    lv_re = re.compile(r'(^|;)LV=[^;]*')
+    with gzip.open(in_vcf_path, 'rt') as in_file, open(out_vcf_path, 'w') as out_file:
+        for line in in_file:
+            if line.startswith('#'):
+                out_file.write(line)
+                continue
+            toks = line.rstrip('\n').split('\t')
+            snarl_id, chrom = toks[2], toks[0]
+            depth = 0
+            # `seen` guards against a malformed PS cycle rather than an expected one
+            seen = set([snarl_id])
+            ancestor = parent_of.get(snarl_id)
+            while ancestor and ancestor != '.' and ancestor not in seen:
+                seen.add(ancestor)
+                if contig_of.get(ancestor) == chrom:
+                    depth += 1
+                ancestor = parent_of.get(ancestor)
+            toks[7] = lv_re.sub(lambda m: m.group(1) + 'LV=' + str(depth), toks[7], count=1)
+            out_file.write('\t'.join(toks) + '\n')
+
 def vcfbub(job, config, out_name, vcf_ref, vcf_id, tbi_id, max_ref_allele, fasta_ref_dict, tag, is_gref=False):
     """ make the vcfbub vcf
     """
@@ -1674,20 +1734,27 @@ def vcfbub(job, config, out_name, vcf_ref, vcf_id, tbi_id, max_ref_allele, fasta
     assert max_ref_allele
     bub_cmd = [['vcfbub', '--input', bub_input_path, '--max-ref-length', str(max_ref_allele), '--max-level', '0']]
     if getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "filterAC0", typeFn=bool, default=False):
-        bub_cmd.append(['bcftools', 'view', '-e', 'AC=0'])
+        # MAX() because these records are still multi-allelic: bcftools ORs over Number=A fields,
+        # so a plain AC=0 would drop the whole site over one unsupported allele, taking the
+        # supported ones with it
+        bub_cmd.append(['bcftools', 'view', '-e', 'MAX(AC)=0'])
     bub_cmd.append(['bgzip'])
     cactus_call(parameters = bub_cmd, outfile = vcfbub_path)
 
     if base_bed_path:
-        # run vcfbub independently on gref contigs with --max-level 1 (gref variants
-        # are nested inside main-ref bubbles so their top-level sites have LV=1) and merge back
+        # run vcfbub independently on the gref contigs and merge back.  LV has to be recounted
+        # per contig first (see reroot_gref_levels) -- with vg's absolute levels there is no fixed
+        # --max-level that keeps every gref contig's own top-level sites without also keeping
+        # genuinely nested ones
         gref_raw_path = os.path.join(work_dir, os.path.basename(out_name) + '.' + tag + 'gref.raw.vcf.gz')
         cactus_call(parameters=['bcftools', 'view', '-R', gref_bed_path, '-Oz', vcf_path],
                     outfile=gref_raw_path)
+        gref_lv_path = os.path.join(work_dir, os.path.basename(out_name) + '.' + tag + 'gref.lv.vcf')
+        reroot_gref_levels(gref_raw_path, gref_lv_path)
         gref_vcf_path = os.path.join(work_dir, os.path.basename(out_name) + '.' + tag + 'gref.bub.vcf.gz')
-        gref_bub_cmd = [['vcfbub', '--input', gref_raw_path, '--max-ref-length', str(max_ref_allele), '--max-level', '1']]
+        gref_bub_cmd = [['vcfbub', '--input', gref_lv_path, '--max-ref-length', str(max_ref_allele), '--max-level', '0']]
         if getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "filterAC0", typeFn=bool, default=False):
-            gref_bub_cmd.append(['bcftools', 'view', '-e', 'AC=0'])
+            gref_bub_cmd.append(['bcftools', 'view', '-e', 'MAX(AC)=0'])
         gref_bub_cmd.append(['bgzip'])
         cactus_call(parameters=gref_bub_cmd, outfile=gref_vcf_path)
         index_vcf(gref_vcf_path)
@@ -1853,13 +1920,15 @@ def chunked_vcfwave(job, config, out_name, vcf_ref, vcf_id, tbi_id, max_ref_alle
     cactus_call(parameters=bub_cmd, outfile=vcfbub_path)
 
     if base_bed_path:
-        # run vcfbub independently on gref contigs with -l 1 (gref variants
-        # are nested inside main-ref bubbles so their top-level sites have LV=1) and merge back
+        # run vcfbub independently on the gref contigs and merge back, recounting LV per contig
+        # first (see reroot_gref_levels) so that -l 0 keeps each gref contig's own top-level sites
         gref_raw_path = os.path.join(work_dir, os.path.basename(out_name) + '.' + vcf_ref + '.' + tag + 'gref.raw.vcf.gz')
         cactus_call(parameters=['bcftools', 'view', '-R', gref_bed_path, '-Oz', vcf_path],
                     outfile=gref_raw_path)
+        gref_lv_path = os.path.join(work_dir, os.path.basename(out_name) + '.' + vcf_ref + '.' + tag + 'gref.lv.vcf')
+        reroot_gref_levels(gref_raw_path, gref_lv_path)
         gref_vcf_path = os.path.join(work_dir, os.path.basename(out_name) + '.' + vcf_ref + '.' + tag + 'gref.bub.vcf.gz')
-        gref_bub_cmd = [['vcfbub', '--input', gref_raw_path, '-l', '1', '-a', str(max_ref_allele)],
+        gref_bub_cmd = [['vcfbub', '--input', gref_lv_path, '-l', '0', '-a', str(max_ref_allele)],
                        ['bcftools', 'annotate', '-x', 'INFO/AT'],
                        ['bcftools', 'norm', '-m', '-any']]
         if getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "filterAC0", typeFn=bool, default=False):
@@ -1878,6 +1947,10 @@ def chunked_vcfwave(job, config, out_name, vcf_ref, vcf_id, tbi_id, max_ref_alle
 
     # get the chunk size
     chunk_lines = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "vcfwaveChunkLines", typeFn=int, default=None)
+    # "<= 0 to disable chunking" per the config, but a negative value used to sail through the
+    # truthiness checks below and give one chunk -- and so one vcfwave job -- per VCF record
+    if chunk_lines is not None and chunk_lines <= 0:
+        chunk_lines = None
     # sanity check
     if chunk_lines and lines / chunk_lines >= 1000:
         chunk_lines = int(lines / 1000)
@@ -2213,6 +2286,7 @@ def build_vg_indexes_and_vcf(parent_job, options, config, phase_vg_ids, vg_ids,
     # GBZ + snarls from merged GFA
     gbz_job = gfa_root_job.addFollowOnJobFn(make_vg_indexes, options, config, gfa_ids,
                                              tag=tag, do_gbz=True,
+                                             ref_samples=(options.reference + [vcf_ref]) if is_gref else None,
                                              cores=options.indexCores,
                                              disk=sum(f.size for f in vg_ids) * 6,
                                              memory=index_mem)

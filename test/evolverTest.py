@@ -1811,6 +1811,103 @@ class TestCase(unittest.TestCase):
         out_dir = self._run_yeast_panpatch(name, reference=True, dropped_contig=dropped)
         self._check_yeast_panpatch(out_dir, reference=True, dropped_contig=dropped)
 
+    def _write_nested_gref_gfa(self, gfa_path):
+        """ write a graph whose gref fragment sits well below the top level of the snarl tree
+
+        REF walks 1-2-3-7-9.  node 10 gives the outer snarl (1,9) a second traversal, so (2,7) is
+        its child rather than a top-level site.  the A-P/Q-B insertion hangs off (2,7) and the
+        reference never touches it, so it becomes a gref fragment -- and the P/Q bubble inside that
+        fragment therefore sits two snarls deep.  vg reports LV as absolute depth in the snarl
+        tree, so that bubble comes out of deconstruct at LV=2, which a fixed `vcfbub --max-level 1`
+        used to delete from the gref VCF.  a shallower graph (the yeast test, for one) never
+        produces a gref site below LV=1 and so cannot catch that.
+        """
+        import random
+        random.seed(23)
+        def seq(length):
+            return ''.join(random.choice('ACGT') for _ in range(length))
+        node_seq = {'1': seq(200), '2': seq(100), '3': seq(1), '7': seq(100), '9': seq(200),
+                    '10': seq(100), 'A': seq(200), 'P': 'A', 'Q': 'C', 'B': seq(200)}
+        edges = [('1', '2'), ('1', '10'), ('10', '9'), ('2', '3'), ('3', '7'), ('2', 'A'),
+                 ('A', 'P'), ('A', 'Q'), ('P', 'B'), ('Q', 'B'), ('B', '7'), ('7', '9')]
+        walks = [('REF', ['1', '2', '3', '7', '9']),
+                 ('S1', ['1', '2', 'A', 'P', 'B', '7', '9']),
+                 ('S2', ['1', '2', 'A', 'Q', 'B', '7', '9']),
+                 ('S3', ['1', '10', '9'])]
+        with open(gfa_path, 'w') as gfa_file:
+            # RS marks REF reference-sense, the way cactus's own graphs arrive
+            gfa_file.write('H\tVN:Z:1.1\tRS:Z:REF\n')
+            for node, node_str in node_seq.items():
+                gfa_file.write('S\t{}\t{}\n'.format(node, node_str))
+            for src, dest in edges:
+                gfa_file.write('L\t{}\t+\t{}\t+\t0M\n'.format(src, dest))
+            for sample, path in walks:
+                gfa_file.write('W\t{}\t0\tchr1\t0\t{}\t{}\n'.format(
+                    sample, sum(len(node_seq[node]) for node in path),
+                    ''.join('>' + node for node in path)))
+
+    def _vcf_contigs_with_records(self, vcf_path):
+        """ the set of CHROMs that actually carry at least one record """
+        query = subprocess.check_output('bcftools query -f "%CHROM\\n" {}'.format(vcf_path), shell=True)
+        return set(query.decode('utf-8').split())
+
+    def testGrefNestedVcfLocal(self):
+        """ --gref on a deliberately deeply-nested graph: flattening the gref VCF must not empty
+        out a gref contig, and the gref gbz must be able to deconstruct itself """
+        binariesMode = 'local'
+        work_dir = os.path.join(self.tempDir, 'gref-nested')
+        os.makedirs(work_dir)
+        gfa_path = os.path.join(work_dir, 'chr1.gfa')
+        vg_path = os.path.join(work_dir, 'chr1.vg')
+        self._write_nested_gref_gfa(gfa_path)
+        with open(vg_path, 'wb') as vg_file:
+            subprocess.check_call(['vg', 'convert', '-g', gfa_path, '-p'], stdout=vg_file)
+
+        out_dir = os.path.join(work_dir, 'join')
+        join_cmd = ['cactus-graphmap-join', self._job_store(binariesMode) + '-gref',
+                    '--vgFull', vg_path, '--outDir', out_dir, '--outName', 'gt',
+                    '--reference', 'REF', '--vcf', 'full', '--gref', 'full',
+                    '--clip', '0', '--filter', '0',
+                    '--binariesMode', binariesMode, '--logInfo',
+                    '--workDir', self.tempDir, '--maxCores', '4']
+        # vcfwave ships in the docker image but not the binary release, so only cover that path
+        # (which flattens the gref VCF by a second, independent route) when the tool is around
+        do_wave = shutil.which('vcfwave') is not None
+        if do_wave:
+            join_cmd += ['--vcfwave']
+        subprocess.check_call(join_cmd)
+
+        raw_path = os.path.join(out_dir, 'gt.gref.raw.vcf.gz')
+        bub_path = os.path.join(out_dir, 'gt.gref.vcf.gz')
+
+        # guard the fixture itself: if this graph ever stops producing a gref site below the top
+        # level, the test still passes everything below while covering nothing
+        lv_rows = subprocess.check_output(
+            'bcftools query -f "%CHROM\\t%INFO/LV\\n" {}'.format(raw_path), shell=True).decode('utf-8')
+        deep_gref = [row for row in lv_rows.split('\n')
+                     if row.count('\t') == 1 and row.split('\t')[0].endswith('_alt')
+                     and row.split('\t')[1].isdigit() and int(row.split('\t')[1]) >= 2]
+        self.assertGreater(len(deep_gref), 0)
+
+        # the invariant that matters: flattening drops nested sites, but it must never leave a gref
+        # contig with no records at all when the raw VCF had some
+        raw_contigs = self._vcf_contigs_with_records(raw_path)
+        self.assertTrue(any(contig.endswith('_alt') for contig in raw_contigs))
+        self.assertEqual(self._vcf_contigs_with_records(bub_path), raw_contigs)
+        if do_wave:
+            self.assertEqual(self._vcf_contigs_with_records(os.path.join(out_dir, 'gt.gref.wave.vcf.gz')),
+                             raw_contigs)
+
+        # every reference contig in the ordinary VCF must survive into the gref VCF: the gref cover
+        # can otherwise absorb a reference interval into a haplotype one and lose the contig
+        for contig in self._vcf_contigs_with_records(os.path.join(out_dir, 'gt.full.vcf.gz')):
+            self.assertIn(contig, raw_contigs)
+
+        # the gref gbz has to keep the gref sample reference-sense, or it cannot be deconstructed
+        # against the very sample its own VCF is built on
+        subprocess.check_call(['vg', 'deconstruct', os.path.join(out_dir, 'gt.gref.gbz'),
+                               '-P', 'gref_REF', '-C', '-a'], stdout=subprocess.DEVNULL)
+
     def _test_vg_bypass(self, binariesMode):
         """Test that --vgClip/--vgFilter bypass produces equivalent indexes to the original run"""
         import glob
