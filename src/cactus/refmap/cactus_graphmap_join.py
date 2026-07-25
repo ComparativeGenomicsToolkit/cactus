@@ -179,7 +179,7 @@ def graphmap_join_options(parser):
     parser.add_argument("--vcfbub", type=int, default=100000, help = "Use vcfbub to flatten nested sites (sites with reference alleles > this will be replaced by their children)). Setting to 0 will disable, only prudcing full VCF [default=100000].")
     parser.add_argument("--vcfwave", action='store_true', default=False, help = "Create a vcfwave-normalized VCF. vcfwave realigns alt alleles to the reference, and can help correct messy regions in the VCF. This option will output an additional VCF with 'wave' in its filename, other VCF outputs will not be affected")
     parser.add_argument("--vcfwaveCores", type=int, help = "Number of cores for each vcfwave job [default=4].", default=4)
-    parser.add_argument("--vcfwaveMemory", type=human2bytesN, help = "Memory for reach vcfwave job [default=32Gi].", default=32000000000)
+    parser.add_argument("--vcfwaveMemory", type=human2bytesN, help = "Upper bound on the memory reserved for a vcfwave job. Each job actually reserves an amount scaled to the size of the VCF chunk it gets, so only the largest chunks approach this [default=32Gi].", default=32000000000)
     parser.add_argument("--vcfL", type=float, default=None,
                         help="[EXPERIMENTAL] Pass `-L <FLOAT>` to vg deconstruct: traversals whose "
                         "length-weighted Jaccard similarity is at least this are merged into a single "
@@ -2100,8 +2100,19 @@ def chunked_vcfwave(job, config, out_name, vcf_ref, vcf_id, tbi_id, max_ref_alle
     chunk_vcf_tbi_ids = []
     for chunk_path in chunk_paths:
         chunk_id = job.fileStore.writeGlobalFile(chunk_path)
+        # size memory off the chunk, the way disk already is.  chunks are cut at a fixed line
+        # count but their bytes vary ~40x with how long the alleles are, and peak RSS tracks that
+        # closely: measured over 10,670 chunk jobs of a whole-genome HPRC run (plus a chr22 run at
+        # different thread and sample counts) peak/compressed-chunk stayed inside 100-520x with no
+        # trend, median ~300x.  800x is ~2.5x headroom at every quantile.  reserving a flat
+        # --vcfwaveMemory instead meant every job held 32G to use a median of 0.4G, so on any node
+        # vcfwave was memory-bound long before it was core-bound
+        # job.memory is this job's own reservation, i.e. --vcfwaveMemory already clamped, so it
+        # serves as the ceiling without needing options here
+        wave_mem = min(job.memory, max(2 * 2**30, chunk_id.size * 800))
         vcfwave_job = root_job.addChildJobFn(vcfwave, config, chunk_path, chunk_id,
-                                             disk=chunk_id.size * 10, cores=job.cores, memory=job.memory)
+                                             disk=chunk_id.size * 10, cores=job.cores,
+                                             memory=wave_mem)
         chunk_vcf_tbi_ids.append(vcfwave_job.rv())
 
     # combine the chunks
