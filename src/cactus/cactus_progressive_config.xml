@@ -515,7 +515,6 @@
 		 mergeDuplicatesOptions=""
 		 filterAC0="1"
 		 minGrefLen="50"
-		 grefPrefix="gref_"
 		 />
 	<!-- hal2vg options -->
 	<!-- includeMinigraph: include minigraph node sequences as paths in output (note that cactus-graphmap-join will still remove them by default) -->

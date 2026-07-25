@@ -1026,11 +1026,10 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
         assert gref_source_vg_ids is not None, 'gref source phase {} not found in workflow_phases'.format(options.gref)
 
         join_node = findRequiredNode(config.xmlRoot, "graphmap_join")
-        gref_prefix = getOptionalAttrib(join_node, "grefPrefix", typeFn=str, default="gref_")
 
         # gref only works with the primary reference (whose paths are guaranteed acyclic)
         vcf_ref = options.reference[0]
-        gref_sample = gref_prefix + vcf_ref
+        gref_sample = gref_sample_name(vcf_ref)
 
         # augment each chromosome in parallel
         gref_root_job = Job()
@@ -1659,6 +1658,16 @@ def copy_vcf_ids(job, vcf_path):
     if not os.path.isfile(tbi_path):
         tbi_path = index_vcf(vcf_path)
     return job.fileStore.writeGlobalFile(vcf_path), job.fileStore.writeGlobalFile(tbi_path)
+
+def gref_sample_name(reference):
+    """ the sample name `vg paths -u` gives the graph reference paths it creates
+
+    vg builds this itself and cactus cannot influence it, but every stage after the cover has to
+    address the sample by name -- deconstruct -P, extract_vg_fasta -S, the RS tag on the exported
+    graph -- so the convention is reproduced here.  compute_gref_paths checks the sample really
+    turned up, because a mismatch would produce empty output rather than an error.
+    """
+    return 'gref_' + reference
 
 def split_gref_vcf(vcf_path, work_dir):
     """ Check if VCF contains gref contigs and split into base/gref BED files.
@@ -2382,10 +2391,7 @@ def compute_gref_paths(job, config, options, vg_path, vg_id, vcf_ref):
     join_node = findRequiredNode(config.xmlRoot, "graphmap_join")
     min_gref_len = options.minGrefLen if options.minGrefLen is not None else \
         getOptionalAttrib(join_node, "minGrefLen", typeFn=int, default=50)
-    # vg paths -u names the sample it creates gref_<reference> on its own; this has to derive
-    # the same name, since everything downstream addresses the sample by it
-    gref_prefix = getOptionalAttrib(join_node, "grefPrefix", typeFn=str, default="gref_")
-    gref_sample = gref_prefix + vcf_ref
+    gref_sample = gref_sample_name(vcf_ref)
 
     gref_vg_path = vg_path + '.gref'
     segs_path = vg_path + '.gref-segs.tsv'
@@ -2443,11 +2449,11 @@ def compute_gref_paths(job, config, options, vg_path, vg_id, vcf_ref):
     gref_paths = cactus_call(parameters=['vg', 'paths', '-x', gref_vg_path, '-L'], check_output=True)
     if not any(p.strip().startswith(gref_sample + '#') for p in gref_paths.split('\n')):
         raise RuntimeError(
-            'vg paths -u did not create the expected sample {} in {}. Cactus builds that name from the '
-            'grefPrefix config attribute ("{}") and --reference, and it has to match the name vg assigns. '
-            'Check that vg is new enough to name the gref sample itself (the -N option was removed) and '
-            'that grefPrefix matches its prefix.'.format(
-                gref_sample, os.path.basename(vg_path), gref_prefix))
+            'vg paths -u did not create the expected sample {} in {}. Cactus reproduces vg\'s naming '
+            'convention (see gref_sample_name) and addresses the sample by that name everywhere after '
+            'this, so they have to agree. Check that vg is new enough to name the gref sample itself '
+            '(the -N option was removed), and that it still uses this prefix.'.format(
+                gref_sample, os.path.basename(vg_path)))
 
     return job.fileStore.writeGlobalFile(gref_vg_path), job.fileStore.writeGlobalFile(segs_path)
 
