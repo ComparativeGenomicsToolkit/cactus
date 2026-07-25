@@ -1890,33 +1890,79 @@ def fix_vcf_ploidies(in_vcf_path, out_vcf_path):
     across the whole vcf (which you would get if deconstructing the whole genome at once).
     this function smooths it over, by doing two scans. 1) find the max ploidy of each sample
     2) add dots to each GT to make sure each line gets this ploidy
+
+    this works on the text rather than through pysam's record model.  the job is only to count
+    separators in one subfield and append to it, and building a python object per sample per
+    record to do that dominated the runtime: on a whole-genome HPRC-scale VCF the pysam version
+    ran at ~1.8k records/s, which is hours for a single vcf_cat.
     """
-    sample_to_ploidy = {}
-    in_vcf = pysam.VariantFile(in_vcf_path, 'rb')
+    # read with gzip rather than pysam.BGZFile: the latter strips the line terminator on
+    # iteration, and this relies on passing untouched lines straight through.  gzip reads bgzf
+    # fine, and BGZFile is still what writes it so the output stays block-compressed
+    def open_read(path):
+        return gzip.open(path, 'rb') if path.endswith('.gz') else open(path, 'rb')
 
-    # pass 1: find the (max) ploidy of every sample, assuming phased
-    for var in in_vcf.fetch():
-        for sample in var.samples.values():
-            ploidy = len(sample['GT'])
-            cur_ploidy = 0 if sample.name not in sample_to_ploidy else sample_to_ploidy[sample.name]
-            sample_to_ploidy[sample.name] = max(ploidy, cur_ploidy)
+    def open_write(path):
+        return pysam.BGZFile(path, 'wb') if path.endswith('.gz') else open(path, 'wb')
 
-    # pass 2: correct the GTs
-    out_vcf = pysam.VariantFile(out_vcf_path, 'w', header=in_vcf.header)
-    for var in in_vcf.fetch():
-        for sample in var.samples.values():
-            ploidy_delta = sample_to_ploidy[sample.name] - len(sample['GT'])
-            if ploidy_delta > 0:
-                gt = list(sample['GT'])
-                for i in range(ploidy_delta):
-                    gt.append(None)
-                sample['GT'] = tuple(gt)
-                sample.phased = True
+    # the two loops below are inlined rather than factored into helpers: they run once per
+    # sample per record (billions of times on a cohort-scale VCF) and at that count the python
+    # call overhead was costing more than the work itself.  the VCF spec requires GT to be the
+    # first FORMAT subfield, so partition() gets it without building a list
 
-        out_vcf.write(var)
+    # pass 1: the widest genotype each sample column is ever given, and the narrowest, so that
+    # the common case of nothing needing to change can skip the rewrite entirely
+    max_ploidy = []
+    min_ploidy = []
+    with open_read(in_vcf_path) as in_file:
+        for line in in_file:
+            if line.startswith(b'#'):
+                if line.startswith(b'#CHROM'):
+                    n_samples = max(0, len(line.rstrip().split(b'\t')) - 9)
+                    max_ploidy = [0] * n_samples
+                    min_ploidy = [1 << 30] * n_samples
+                continue
+            toks = line.rstrip(b'\n').split(b'\t')
+            if len(toks) < 10:
+                continue
+            if not (toks[8] == b'GT' or toks[8].startswith(b'GT:')):
+                raise RuntimeError('cannot fix ploidies in {}: FORMAT is "{}", but the VCF spec '
+                                   'requires GT to come first'.format(in_vcf_path,
+                                                                      toks[8].decode('utf-8', 'replace')))
+            for i, field in enumerate(toks[9:]):
+                gt = field.partition(b':')[0]
+                ploidy = gt.count(b'|') + gt.count(b'/') + 1
+                if ploidy > max_ploidy[i]:
+                    max_ploidy[i] = ploidy
+                if ploidy < min_ploidy[i]:
+                    min_ploidy[i] = ploidy
 
-    in_vcf.close()
-    out_vcf.close()    
+    # nothing is short, so pass 2 would copy the input through unchanged line by line
+    if all(lo == hi for lo, hi in zip(min_ploidy, max_ploidy)):
+        shutil.copyfile(in_vcf_path, out_vcf_path)
+        return
+
+    # pass 2: pad every short genotype out to that width
+    with open_read(in_vcf_path) as in_file, open_write(out_vcf_path) as out_file:
+        for line in in_file:
+            if line.startswith(b'#') or not max_ploidy:
+                out_file.write(line)
+                continue
+            toks = line.rstrip(b'\n').split(b'\t')
+            if len(toks) < 10:
+                out_file.write(line)
+                continue
+            changed = False
+            for i, field in enumerate(toks[9:]):
+                gt = field.partition(b':')[0]
+                delta = max_ploidy[i] - (gt.count(b'|') + gt.count(b'/') + 1)
+                if delta > 0:
+                    # pysam set .phased when it padded, which rewrote the whole genotype's
+                    # separators; keep doing that so the output matches the old behaviour.
+                    # field[len(gt):] is the untouched remainder, leading ':' included
+                    toks[9 + i] = gt.replace(b'/', b'|') + b'|.' * delta + field[len(gt):]
+                    changed = True
+            out_file.write(b'\t'.join(toks) + b'\n' if changed else line)
 
 def check_vcfwave(job):
     """ check to make sure vcfwave is installed """
