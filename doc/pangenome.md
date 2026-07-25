@@ -292,6 +292,8 @@ Also new in v2.8.2, you can use the `--vcfwave` option to create a version of th
 
 The experimental `--vcfL` option passes `-L` to `vg deconstruct`, merging alt alleles whose traversals are at least that similar (length-weighted Jaccard) into a single allele, which collapses near-identical alleles in complex bubbles. It is lossy: a sample merged into another allele is genotyped as that allele — possibly the *reference* allele — and the difference survives only in the `TS`/`TL` FORMAT fields. So it never replaces anything. The ordinary VCFs are still written, and clustered copies appear beside them tagged with `L<NN>`, e.g. `--vcfL 0.95` gives `<outName>.L95.vcf.gz`. No clustered `.wave.vcf.gz` is produced, since `vcfwave` exists to undo precisely the allele merging that `-L` does.
 
+Whenever normalization runs — so the wave VCF always, and the `vcfbub` VCF only if you turn `bcftoolsNorm` on — the VCF then goes through `merge_duplicates.py` (from the [collapse-bubble](https://github.com/glennhickey/collapse-bubble) submodule), which combines records left at the same position by left-alignment, and finally `vcffixup` to recompute `AC`/`AF`/`AN`. Set `mergeDuplicatesOptions` to `"0"` in the config to skip the merge step.
+
 ### Graph Reference Paths (`--gref`)
 
 **Experimental.** Non-reference sequence reaches a reference-based VCF only as ALT alleles, which leaves you no way to *address* it. Variation sitting inside an insertion or a non-reference SV allele has no reference position of its own to be reported at: it appears in `.raw.vcf.gz` only as nested `LV>0` records hanging off the enclosing bubble, and `vcfbub` drops those from `.vcf.gz` entirely. `--gref` gives that sequence coordinates of its own so it can be addressed directly.
@@ -320,6 +322,8 @@ SAMP2#0#chr1    200    700    gref_REF#0#chr1_1_alt    REF#0#chr1    0    901
 ```
 
 means the new path `gref_REF#0#chr1_1_alt` is `SAMP2`'s sequence from 200 to 700, attached somewhere within `REF#0#chr1:0-901`. This is the file that maps a gref coordinate back onto a real assembly one. Fragments that could not be placed against the reference at all get `.` and `0 0` in the last three columns.
+
+Two things about the gref VCF that will look wrong if you are not expecting them. The original reference paths stay in the graph as ordinary haplotypes when the `gref_<reference>` copy is made, so the reference genome appears in the gref VCF as an extra sample column — haploid, `0` across the base contigs and missing across the gref ones. It is counted in `AC`/`AN`/`AF`, which is why allele frequencies in the gref VCF are not directly comparable with those in the ordinary VCF from the same run. Second, on gref contigs most samples do not traverse the fragment at all, so their genotypes are missing — expect `NS` to be far below the cohort size, and `AN` with it.
 
 One implementation note, in case the VCF surprises you: gref contigs are separated out and run through `vcfbub` on their own. `vg` reports `LV` as absolute depth in the snarl tree, so a gref site inherits the depth of whatever main-reference bubble encloses it — nest that bubble, or nest one gref fragment inside another, and its sites land at `LV` 2 or deeper. No single `--max-level` is therefore correct for gref contigs. Cactus recounts `LV` per contig first, so that it measures depth *within* the gref contig rather than within the graph as a whole, and then applies the same level-0 filter the main contigs get.
 
