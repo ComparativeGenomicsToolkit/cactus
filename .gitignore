@@ -22,3 +22,5 @@ src/cactus/shared/version.py
 # regenerated on every binary release build and never tracked.
 submodules/phast/
 submodules/phast_gfortran_stub/
+# Per-step build logs written by .gitlab-ci.yml (uploaded as job artifacts).
+ci-logs/
