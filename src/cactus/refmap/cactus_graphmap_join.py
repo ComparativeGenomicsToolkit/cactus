@@ -233,7 +233,9 @@ def graphmap_join_options(parser):
     parser.add_argument("--gref", nargs='?', const='clip', default=None,
                         help="[EXPERIMENTAL] Generate graph reference outputs. Adds synthetic "
                         "reference paths covering non-reference graph regions via vg paths -u, then "
-                        "produces additional .gref.* outputs (gbz, gfa, vcf, hapl). Valid source types "
+                        "produces additional .gref.* outputs (gbz, gfa, vcf). The gref graph is "
+                        "topologically identical to the base graph, so the base graph's indexes "
+                        "(snarls, dist, hapl) apply to gref.gbz directly. Valid source types "
                         "are 'full', 'clip', 'filter'. Default: 'clip'. [default: disabled]")
     parser.add_argument("--minGrefLen", type=int, default=None,
                         help="Minimum graph reference fragment length [default from config: 50]")
@@ -1063,10 +1065,12 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
             gref_fasta_dict = gref_fasta_job.rv()
             gref_parent_job = gref_fasta_job
 
-        # build GFA, GBZ, VCF, haplo from the graph-reference VGs
+        # build GFA, GBZ, VCF from the graph-reference VGs.  the gref graph is topologically
+        # identical to the base graph (it only adds paths), so it never gets its own topology
+        # indexes (snarls/dist/hapl): the base graph's indexes are compatible with gref.gbz.
         gref_out_dicts = build_vg_indexes_and_vcf(gref_parent_job, options, config, gref_vg_ids, vg_ids,
                                                  tag='gref.', index_mem=index_mem, max_mem=max_mem,
-                                                 vcf_ref=gref_sample, vcftag='gref', do_haplo=bool(options.haplo),
+                                                 vcf_ref=gref_sample, vcftag='gref', do_haplo=False,
                                                  ref_fasta_dict=gref_fasta_dict,
                                                  is_gref=True, decon_L=options.vcfL)
         out_dicts.extend(gref_out_dicts)
@@ -1373,7 +1377,7 @@ def vg_to_og(job, options, config, vg_path, vg_id):
                             os.path.basename(og_path), '-t', str(job.cores)], work_dir=work_dir, job_memory=job.memory)
     return job.fileStore.writeGlobalFile(og_path)
 
-def make_vg_indexes(job, options, config, gfa_ids, tag="", do_gbz=False, ref_samples=None):
+def make_vg_indexes(job, options, config, gfa_ids, tag="", do_gbz=False, do_snarls=True, ref_samples=None):
     """ merge of the gfas, then make gbz / snarls / trans
 
     ref_samples overrides which samples the merged GFA declares as reference-sense.  it defaults to
@@ -1431,7 +1435,7 @@ def make_vg_indexes(job, options, config, gfa_ids, tag="", do_gbz=False, ref_sam
     gfa_path = merge_gfa_path + '.gz'
 
     # make the snarls
-    if do_gbz:
+    if do_gbz and do_snarls:
         snarls_path = os.path.join(work_dir, '{}merged.snarls'.format(tag))
         snarls_cmd = ['vg', 'snarls', gbz_path, '-T', '-P', options.reference[0], '-t', str(job.cores)]
         cactus_call(parameters=snarls_cmd, outfile=snarls_path, job_memory=job.memory)
@@ -1439,7 +1443,8 @@ def make_vg_indexes(job, options, config, gfa_ids, tag="", do_gbz=False, ref_sam
     out_dict = { '{}gfa.gz'.format(tag) : job.fileStore.writeGlobalFile(gfa_path) }
     if do_gbz:
         out_dict['{}gbz'.format(tag)] = job.fileStore.writeGlobalFile(gbz_path)
-        out_dict['{}snarls'.format(tag)] =  job.fileStore.writeGlobalFile(snarls_path)
+        if do_snarls:
+            out_dict['{}snarls'.format(tag)] =  job.fileStore.writeGlobalFile(snarls_path)
     return out_dict
 
 # rewrite a PanSN path name down to the locus, which is what `vg deconstruct -C` uses for CHROM
@@ -2311,7 +2316,7 @@ def make_giraffe_indexes(job, options, config, index_dict, short_read, long_read
 
     return out_dict
 
-def make_haplo_index(job, options, config, index_dict, giraffe_dict, tag='', ref_sample=None):
+def make_haplo_index(job, options, config, index_dict, giraffe_dict, tag=''):
     """ make new haplotype subsampling (.hapl) index.  this generally replaces the giraffe (.min .dist) indexes """
     work_dir = job.fileStore.getLocalTempDir()
     gbz_path = os.path.join(work_dir, tag + os.path.basename(options.outName) + '.gbz')
@@ -2322,10 +2327,12 @@ def make_haplo_index(job, options, config, index_dict, giraffe_dict, tag='', ref
     if giraffe_dict:
         job.fileStore.readGlobalFile(giraffe_dict['{}dist'.format(tag)], dist_path)
     else:
-        # note we are using --no-nested-distance here to reduce memory, and its all haplo sampling needs
+        # note we are using --no-nested-distance here to reduce memory, and its all haplo sampling needs.
+        # -P always roots the snarl tree on the true reference: it must be an acyclic linear backbone,
+        # so never the graph-reference cover (whose _alt fragments make a top-level chain that loops).
         dist_path += '1'
         dist_cmd = ['vg', 'index', '-t', str(job.cores), '-j', dist_path, gbz_path, '--no-nested-distance',
-                    '-P', ref_sample if ref_sample else options.reference[0]]
+                    '-P', options.reference[0]]
         cactus_call(parameters=dist_cmd, job_memory=job.memory)
         
     # make the r-index
@@ -2426,8 +2433,9 @@ def build_vg_indexes_and_vcf(parent_job, options, config, phase_vg_ids, vg_ids,
                              tag, index_mem, max_mem, vcf_ref=None, vcftag=None,
                              ref_fasta_dict=None, do_haplo=False, is_gref=False,
                              decon_L=None):
-    """ Common workflow: per-chrom VG -> GFA -> GBZ+snarls, with optional VCF and haplo.
-    Returns list of output dicts to append to out_dicts.
+    """ Common workflow: per-chrom VG -> GFA -> GBZ (+snarls unless is_gref), with optional VCF and haplo.
+    For the gref graph (is_gref) the topology matches the base graph, so no snarls/haplo are built;
+    pass do_haplo=False at the call site.  Returns list of output dicts to append to out_dicts.
     """
     out_dicts = []
 
@@ -2441,9 +2449,10 @@ def build_vg_indexes_and_vcf(parent_job, options, config, phase_vg_ids, vg_ids,
                                              memory=min(max(2**31, input_vg_id.size * 16), max_mem))
         gfa_ids.append(gfa_job.rv())
 
-    # GBZ + snarls from merged GFA
+    # GBZ from merged GFA.  the gref graph reuses the base graph's snarls (identical topology),
+    # so skip its snarls build (do_snarls=False) rather than emit a redundant gref.snarls.
     gbz_job = gfa_root_job.addFollowOnJobFn(make_vg_indexes, options, config, gfa_ids,
-                                             tag=tag, do_gbz=True,
+                                             tag=tag, do_gbz=True, do_snarls=not is_gref,
                                              ref_samples=(options.reference + [vcf_ref]) if is_gref else None,
                                              cores=options.indexCores,
                                              disk=sum(f.size for f in vg_ids) * 6,
@@ -2472,7 +2481,6 @@ def build_vg_indexes_and_vcf(parent_job, options, config, phase_vg_ids, vg_ids,
     if do_haplo:
         haplo_job = gbz_job.addFollowOnJobFn(make_haplo_index, options, config, index_dict,
                                               None, tag=tag,
-                                              ref_sample=vcf_ref if is_gref else None,
                                               cores=options.indexCores,
                                               disk=sum(f.size for f in vg_ids) * 16,
                                               memory=index_mem)

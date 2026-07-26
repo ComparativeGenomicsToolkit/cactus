@@ -1058,10 +1058,10 @@ class TestCase(unittest.TestCase):
             self.assertTrue(os.path.exists(gref_gfa_path))
             self.assertGreaterEqual(os.path.getsize(gref_gfa_path), 1000000)
 
-            # check that aug snarls exists
-            gref_snarls_path = os.path.join(join_path, 'yeast.gref.snarls')
-            self.assertTrue(os.path.exists(gref_snarls_path))
-            self.assertGreaterEqual(os.path.getsize(gref_snarls_path), 1000)
+            # the gref graph is topologically identical to the base graph, so it gets no snarls
+            # of its own: the base graph's yeast.snarls applies to yeast.gref.gbz directly
+            self.assertFalse(os.path.exists(os.path.join(join_path, 'yeast.gref.snarls')))
+            self.assertTrue(os.path.exists(os.path.join(join_path, 'yeast.snarls')))
 
             # check that aug raw VCF exists and has some records
             gref_raw_vcf_path = os.path.join(join_path, 'yeast.gref.raw.vcf.gz')
@@ -1087,10 +1087,9 @@ class TestCase(unittest.TestCase):
                 shell=True).strip())
             self.assertGreater(gref_bub_alt_records, 0)
 
-            # check that aug hapl exists
-            gref_hapl_path = os.path.join(join_path, 'yeast.gref.hapl')
-            self.assertTrue(os.path.exists(gref_hapl_path))
-            self.assertGreaterEqual(os.path.getsize(gref_hapl_path), 1000)
+            # likewise no gref-specific haplo index: the base graph's yeast.hapl (checked above
+            # via expect_haplo) is built on identical topology and applies to yeast.gref.gbz
+            self.assertFalse(os.path.exists(os.path.join(join_path, 'yeast.gref.hapl')))
 
             # check that the gref segments table exists and has content
             gref_segs_path = os.path.join(join_path, 'yeast.gref.gref-segs.tsv.gz')

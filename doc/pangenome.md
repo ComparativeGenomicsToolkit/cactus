@@ -308,10 +308,11 @@ cactus-pangenome ./js ./seqfile.txt --outDir pg --outName pg --reference GRCh38 
 
 | File | What it is |
 |------|------------|
-| `<outName>.gref.gbz`, `.gref.gfa.gz`, `.gref.snarls` | The source graph with the `gref_<reference>` sample added. |
+| `<outName>.gref.gbz`, `.gref.gfa.gz` | The source graph with the `gref_<reference>` sample added. |
 | `<outName>.gref.vcf.gz` etc. | The whole VCF set from the [table above](#vcf-output) — `.raw`, `.wave`, `.L<NN>` and all — deconstructed against `gref_<reference>` rather than the reference sample. These come even without `--vcf`; `.gref.wave.vcf.gz` still needs `--vcfwave`, which itself requires `--vcf`. |
-| `<outName>.gref.hapl` | Haplotype sampling index, when `--haplo` is used. |
 | `<outName>.gref.gref-segs.tsv.gz` | Where every synthetic fragment came from (see below). |
+
+The gref graph is topologically identical to the base graph — it only adds paths, no nodes or edges — so it gets no topology indexes of its own. The base graph's `<outName>.snarls`, `.dist` and `.hapl` all apply to `gref.gbz` directly; pair them with `gref.gbz` rather than looking for `.gref.snarls`/`.gref.hapl` (which are no longer produced).
 
 The segment table is headerless, tab-separated and BED-like, with one row per fragment: the haplotype path it was taken from and the interval on it, then the new gref path name, then the reference path it hangs off and the span of the enclosing snarl there — flanking nodes included, so the fragment sits strictly inside that span rather than filling it. So
 
