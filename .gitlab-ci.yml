@@ -2,9 +2,39 @@ image: quay.io/comparative-genomics-toolkit/cactus-ci-base:latest
 
 variables:
   GIT_SUBMODULE_STRATEGY: recursive
+  # GitLab truncates the job log at 4MB ("Job's log exceeded limit of 4194304
+  # bytes"), and the tests run last, so every wasted byte comes out of the test
+  # output we actually need.  FF_TIMESTAMPS prefixes each line with a 32-byte
+  # timestamp that counts against the cap -- that was 20% of the budget.
+  FF_TIMESTAMPS: "false"
+  # How much of a quiet-step log to dump inline when that step fails.  The full
+  # log is in the ci-logs artifact either way; this is just what you get without
+  # having to download anything.
+  CI_LOG_TAIL: "5000"
 
 before_script:
   - whoami
+  - |
+    # Run a noisy build step with its output redirected to ci-logs/<name>.log
+    # instead of the job log, dumping the tail inline if it fails.  Compiling
+    # and packaging used up 3.4MB of the 4MB cap, which truncated the evolver
+    # tests away before they could report why they failed.
+    mkdir -p ci-logs
+    quiet() {
+      local name=$1; shift
+      echo "\$ $* (output -> ci-logs/$name.log)"
+      if "$@" > "ci-logs/$name.log" 2>&1; then
+        echo "  ok: $(wc -l < "ci-logs/$name.log") lines"
+      else
+        local status=$?
+        echo "=== $name FAILED (exit $status) -- last ${CI_LOG_TAIL} lines of ci-logs/$name.log ==="
+        tail -n "${CI_LOG_TAIL}" "ci-logs/$name.log"
+        echo "=== end of ci-logs/$name.log (full log is in the job artifacts) ==="
+        return $status
+      fi
+    }
+  # left as they are: apt is only 18KB of the log, and quieting the install line here would
+  # collide with anything that adds a package to it
   - sudo apt-get -q -y update
   - sudo apt-get -q -y install --no-upgrade liblz4-dev libzstd-dev libblas-dev liblapack-dev libpcre3-dev gfortran libjansson-dev zstd
   - startdocker || true
@@ -12,46 +42,48 @@ before_script:
 
 after_script:
   - stopdocker || true
-  
+
 stages:
   - test
 
 test-job:
   stage: test
   script:
-    - make clean
+    - quiet clean-debug make clean
     - virtualenv -p python3.10 venv
     - source venv/bin/activate
-    - python3.10 -m pip install -U pip setuptools    
-    - python3.10 -m pip install -r toil-requirement.txt
-    - python3.10 -m pip install -U .
+    - python3.10 -m pip install -U pip setuptools
+    - quiet pip-toil python3.10 -m pip install -r toil-requirement.txt
+    - quiet pip-cactus python3.10 -m pip install -U .
     # downgrad pysam to work around import pysam error: "module 'pysam.libcalignedsegment' has no attribute 'CMATCH'"
     - python3.10 -m pip install pysam==0.21.0
     # these are the old travis tests, followed by its docker push
     - git clone https://github.com/ComparativeGenomicsToolkit/cactusTestData
     - export ASAN_OPTIONS="detect_leaks=0"
-    - CGL_DEBUG=ultra make -j 8
+    - quiet build-debug env CGL_DEBUG=ultra make -j 8
     - CACTUS_BINARIES_MODE=local SON_TRACE_DATASETS=$(pwd)/cactusTestData CACTUS_TEST_CHOICE=normal make test
     - pip install -U newick attrs
     - make -j 8 hal_test
     # rebuild without all the debug flags
-    - make clean
-    - make -j 8	 
-    - numcpu=8 build-tools/downloadPangenomeTools
-    - CACTUS_LEGACY_ARCH=1 numcpu=8 build-tools/downloadMafTools
-    - numcpu=8 build-tools/downloadPhast
+    - quiet clean-release make clean
+    - quiet build-release make -j 8
+    - quiet download-pangenome-tools env numcpu=8 build-tools/downloadPangenomeTools
+    - quiet download-maf-tools env CACTUS_LEGACY_ARCH=1 numcpu=8 build-tools/downloadMafTools
+    - quiet download-phast env numcpu=8 build-tools/downloadPhast
     # cactus-phast prerequisites (UCSC tools — same set the production Dockerfile pulls).
     - for i in wigToBigWig genePredSingleCover gff3ToGenePred gtfToGenePred; do wget -nv http://hgdownload.cse.ucsc.edu/admin/exe/linux.x86_64/${i} -O bin/${i} && chmod +x bin/${i}; done
-    - python3.10 -m pip install -U .
+    - quiet pip-cactus-release python3.10 -m pip install -U .
     # force local docker image to use legacy mode so tests run
     - sed -i Dockerfile -e 's/ENV avx2 1/ENV CACTUS_LEGACY_ARCH 1/g'
-    - make docker
+    - quiet make-docker make docker
     - export LD_LIBRARY_PATH=$(pwd)/lib:$LD_LIBRARY_PATH
     - make -j 8 evolver_test
 
   artifacts:
+    when: always
+    expire_in: 1 month
+    paths:
+      - ci-logs/
     # Let Gitlab see the junit report
     #reports:
     #  junit: test-report.xml
-    #when: always
-  

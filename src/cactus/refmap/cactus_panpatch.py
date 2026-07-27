@@ -104,9 +104,9 @@ def main():
 
     # hal2vg (which converts each chromosome alignment to vg) is sized from the alignment's memory,
     # which badly under-estimates it for the large unclipped reference-free graphs here (measured up
-    # to ~27Gi), so floor it.  standard suffixes supported (default=bytes)
-    parser.add_argument("--halExportMemory", type=human2bytesN, default=48 * 2**30,
-                        help="Minimum memory in bytes for each per-chromosome hal2vg job [default=48Gi]")
+    # to ~27Gi with hal2vg 1.1.8, less since), so floor it.  standard suffixes supported (default=bytes)
+    parser.add_argument("--halExportMemory", type=human2bytesN, default=32 * 2**30,
+                        help="Minimum memory in bytes for each per-chromosome hal2vg job [default=32Gi]")
 
     options = parser.parse_args()
 
@@ -297,7 +297,7 @@ def disable_pangenome_outputs(options):
                 'vcf', 'giraffe', 'lrGiraffe', 'haplo', 'snarlStats', 'panacus']:
         setattr(options, opt, [])
     options.gref = None
-    options.grefL = None
+    options.vcfL = None
     # with no whole-genome output left, nothing downstream of the "full" phase is needed
     options.clip = None
     options.filter = None

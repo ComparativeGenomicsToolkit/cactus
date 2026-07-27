@@ -568,7 +568,7 @@ class TestCase(unittest.TestCase):
         out_name = os.path.splitext(os.path.basename(self._out_hal(binariesMode)))[0]
         wave_opts = ['--vcfwave'] if binariesMode == 'docker' else []
         subprocess.check_call(['cactus-graphmap-join', self._job_store(binariesMode),
-                               '--vg', os.path.join(batch_align_path, 'simChimp.chr6.vg'),
+                               '--vg', os.path.join(batch_align_path, 'simChimp.chr6.raw.vg'),
                                '--hal', os.path.join(batch_align_path, 'simChimp.chr6.hal'),
                                '--sv-gfa', os.path.join(batch_mg_path, 'simChimp.chr6.sv.gfa.gz'),
                                '--gbz', '--reference', 'simChimp', '--vcf', 
@@ -632,7 +632,9 @@ class TestCase(unittest.TestCase):
         subprocess.check_call(['cactus-align', self._job_store(binariesMode), chromfile_path, ba_path, '--batch', '--pangenome', '--outVG',
                                '--outVG', '--barMaskFilter', '20000', '--reference', 'S288C', '--binariesMode', binariesMode, '--consCores', '2'])
 
-        vg_files = [os.path.join(ba_path, c) + '.vg' for c in chroms]
+        # cactus-align --batch tags its raw hal2vg output <chrom>.raw.vg; graphmap-join strips
+        # the tag back off when it names its own outputs
+        vg_files = [os.path.join(ba_path, c) + '.raw.vg' for c in chroms]
         hal_files = [os.path.join(ba_path, c) + '.hal' for c in chroms]
 
         # join up the graphs and index for giraffe
@@ -641,7 +643,7 @@ class TestCase(unittest.TestCase):
                                '--reference', 'S288C', '--vg'] +  vg_files + ['--hal'] + hal_files +
                                ['--xg', '--vcf', '--giraffe', 'clip', 'filter', '--lrGiraffe'] + cactus_opts + ['--indexCores', '4'])
 
-    def _run_yeast_pangenome(self, binariesMode, mgSplit=False, collapse=False, gref=None, grefL=None):
+    def _run_yeast_pangenome(self, binariesMode, mgSplit=False, collapse=False, gref=None, vcfL=None):
         """ yeast pangenome chromosome by chromosome pipeline, as run through a single invocations
         """
 
@@ -664,8 +666,8 @@ class TestCase(unittest.TestCase):
             cactus_pangenome_cmd += ['--collapse']
         if gref:
             cactus_pangenome_cmd += ['--gref', gref]
-        if grefL is not None:
-            cactus_pangenome_cmd += ['--grefL', str(grefL)]
+        if vcfL is not None:
+            cactus_pangenome_cmd += ['--vcfL', str(vcfL)]
         subprocess.check_call(cactus_pangenome_cmd + cactus_opts)
 
         #compatibility with older test
@@ -906,7 +908,7 @@ class TestCase(unittest.TestCase):
         for quiet in ['DBVPG6044', 'Y12', 'YPS128']:
             self.assertNotIn(quiet + ':', warning_text)
 
-    def _check_yeast_pangenome(self, binariesMode, other_ref=None, expect_odgi=False, expect_haplo=False, expect_unchopped_gfa=False, expect_gref=False, grefL=None, expect_report=True):
+    def _check_yeast_pangenome(self, binariesMode, other_ref=None, expect_odgi=False, expect_haplo=False, expect_unchopped_gfa=False, expect_gref=False, vcfL=None, expect_report=True):
         """ yeast pangenome chromosome by chromosome pipeline
         """
 
@@ -1058,15 +1060,13 @@ class TestCase(unittest.TestCase):
             self.assertTrue(os.path.exists(gref_gfa_path))
             self.assertGreaterEqual(os.path.getsize(gref_gfa_path), 1000000)
 
-            # check that aug snarls exists
-            gref_snarls_path = os.path.join(join_path, 'yeast.gref.snarls')
-            self.assertTrue(os.path.exists(gref_snarls_path))
-            self.assertGreaterEqual(os.path.getsize(gref_snarls_path), 1000)
+            # the gref graph is topologically identical to the base graph, so it gets no snarls
+            # of its own: the base graph's yeast.snarls applies to yeast.gref.gbz directly
+            self.assertFalse(os.path.exists(os.path.join(join_path, 'yeast.gref.snarls')))
+            self.assertTrue(os.path.exists(os.path.join(join_path, 'yeast.snarls')))
 
             # check that aug raw VCF exists and has some records
-            # (when --grefL is used, the VCF basename gets a gref<NN> suffix)
-            gref_vcf_tag = 'gref' if grefL is None else 'gref{}'.format(int(round(grefL * 100)))
-            gref_raw_vcf_path = os.path.join(join_path, 'yeast.{}.raw.vcf.gz'.format(gref_vcf_tag))
+            gref_raw_vcf_path = os.path.join(join_path, 'yeast.gref.raw.vcf.gz')
             self.assertTrue(os.path.exists(gref_raw_vcf_path))
             gref_raw_vcf_records = int(subprocess.check_output(
                 'bcftools view -H {} | wc -l'.format(gref_raw_vcf_path),
@@ -1082,17 +1082,16 @@ class TestCase(unittest.TestCase):
             # check that aug vcfbub VCF exists and gref _alt records survive vcfbub
             # (gref contigs are split out and run through vcfbub independently so that
             #  base contig nesting doesn't interfere with gref contig processing)
-            gref_bub_vcf_path = os.path.join(join_path, 'yeast.{}.vcf.gz'.format(gref_vcf_tag))
+            gref_bub_vcf_path = os.path.join(join_path, 'yeast.gref.vcf.gz')
             self.assertTrue(os.path.exists(gref_bub_vcf_path))
             gref_bub_alt_records = int(subprocess.check_output(
                 'bcftools view -H {} | grep "_alt" | wc -l'.format(gref_bub_vcf_path),
                 shell=True).strip())
             self.assertGreater(gref_bub_alt_records, 0)
 
-            # check that aug hapl exists
-            gref_hapl_path = os.path.join(join_path, 'yeast.gref.hapl')
-            self.assertTrue(os.path.exists(gref_hapl_path))
-            self.assertGreaterEqual(os.path.getsize(gref_hapl_path), 1000)
+            # likewise no gref-specific haplo index: the base graph's yeast.hapl (checked above
+            # via expect_haplo) is built on identical topology and applies to yeast.gref.gbz
+            self.assertFalse(os.path.exists(os.path.join(join_path, 'yeast.gref.hapl')))
 
             # check that the gref segments table exists and has content
             gref_segs_path = os.path.join(join_path, 'yeast.gref.gref-segs.tsv.gz')
@@ -1101,6 +1100,37 @@ class TestCase(unittest.TestCase):
             num_lines = int(subprocess.check_output(
                 'gzip -dc {} | wc -l'.format(gref_segs_path), shell=True).strip())
             self.assertGreater(num_lines, 1)
+
+        if vcfL is not None:
+            # --vcfL only ever ADDS VCFs: everything checked above must still be there
+            # (it is, or we would not have got here), with clustered copies alongside
+            ltag = 'L{}'.format(int(round(vcfL * 100)))
+            l_vcf_paths = [os.path.join(join_path, 'yeast.{}.vcf.gz'.format(ltag)),
+                           os.path.join(join_path, 'yeast.{}.raw.vcf.gz'.format(ltag))]
+            if expect_gref:
+                l_vcf_paths += [os.path.join(join_path, 'yeast.gref.{}.vcf.gz'.format(ltag)),
+                                os.path.join(join_path, 'yeast.gref.{}.raw.vcf.gz'.format(ltag))]
+            for l_vcf_path in l_vcf_paths:
+                self.assertTrue(os.path.exists(l_vcf_path))
+                l_records = int(subprocess.check_output(
+                    'bcftools view -H {} | wc -l'.format(l_vcf_path), shell=True).strip())
+                self.assertGreater(l_records, 0)
+
+            # -L merges alleles, so it can only ever remove sites, never invent them
+            vcf_pairs = [('yeast.vcf.gz', 'yeast.{}.vcf.gz'.format(ltag))]
+            if expect_gref:
+                vcf_pairs.append(('yeast.gref.vcf.gz', 'yeast.gref.{}.vcf.gz'.format(ltag)))
+            for plain_name, clustered_name in vcf_pairs:
+                def count_records(name):
+                    return int(subprocess.check_output(
+                        'bcftools view -H {} | wc -l'.format(os.path.join(join_path, name)),
+                        shell=True).strip())
+                self.assertLessEqual(count_records(clustered_name), count_records(plain_name))
+
+            # -L is never composed with vcfwave, so a clustered wave VCF must never appear
+            for wave_name in ['yeast.{}.wave.vcf.gz'.format(ltag),
+                              'yeast.gref.{}.wave.vcf.gz'.format(ltag)]:
+                self.assertFalse(os.path.exists(os.path.join(join_path, wave_name)))
 
     def _csvstr_to_table(self, csvstr, header_fields):
         """ Hacky csv parse """
@@ -1782,6 +1812,103 @@ class TestCase(unittest.TestCase):
         out_dir = self._run_yeast_panpatch(name, reference=True, dropped_contig=dropped)
         self._check_yeast_panpatch(out_dir, reference=True, dropped_contig=dropped)
 
+    def _write_nested_gref_gfa(self, gfa_path):
+        """ write a graph whose gref fragment sits well below the top level of the snarl tree
+
+        REF walks 1-2-3-7-9.  node 10 gives the outer snarl (1,9) a second traversal, so (2,7) is
+        its child rather than a top-level site.  the A-P/Q-B insertion hangs off (2,7) and the
+        reference never touches it, so it becomes a gref fragment -- and the P/Q bubble inside that
+        fragment therefore sits two snarls deep.  vg reports LV as absolute depth in the snarl
+        tree, so that bubble comes out of deconstruct at LV=2, which a fixed `vcfbub --max-level 1`
+        used to delete from the gref VCF.  a shallower graph (the yeast test, for one) never
+        produces a gref site below LV=1 and so cannot catch that.
+        """
+        import random
+        random.seed(23)
+        def seq(length):
+            return ''.join(random.choice('ACGT') for _ in range(length))
+        node_seq = {'1': seq(200), '2': seq(100), '3': seq(1), '7': seq(100), '9': seq(200),
+                    '10': seq(100), 'A': seq(200), 'P': 'A', 'Q': 'C', 'B': seq(200)}
+        edges = [('1', '2'), ('1', '10'), ('10', '9'), ('2', '3'), ('3', '7'), ('2', 'A'),
+                 ('A', 'P'), ('A', 'Q'), ('P', 'B'), ('Q', 'B'), ('B', '7'), ('7', '9')]
+        walks = [('REF', ['1', '2', '3', '7', '9']),
+                 ('S1', ['1', '2', 'A', 'P', 'B', '7', '9']),
+                 ('S2', ['1', '2', 'A', 'Q', 'B', '7', '9']),
+                 ('S3', ['1', '10', '9'])]
+        with open(gfa_path, 'w') as gfa_file:
+            # RS marks REF reference-sense, the way cactus's own graphs arrive
+            gfa_file.write('H\tVN:Z:1.1\tRS:Z:REF\n')
+            for node, node_str in node_seq.items():
+                gfa_file.write('S\t{}\t{}\n'.format(node, node_str))
+            for src, dest in edges:
+                gfa_file.write('L\t{}\t+\t{}\t+\t0M\n'.format(src, dest))
+            for sample, path in walks:
+                gfa_file.write('W\t{}\t0\tchr1\t0\t{}\t{}\n'.format(
+                    sample, sum(len(node_seq[node]) for node in path),
+                    ''.join('>' + node for node in path)))
+
+    def _vcf_contigs_with_records(self, vcf_path):
+        """ the set of CHROMs that actually carry at least one record """
+        query = subprocess.check_output('bcftools query -f "%CHROM\\n" {}'.format(vcf_path), shell=True)
+        return set(query.decode('utf-8').split())
+
+    def testGrefNestedVcfLocal(self):
+        """ --gref on a deliberately deeply-nested graph: flattening the gref VCF must not empty
+        out a gref contig, and the gref gbz must be able to deconstruct itself """
+        binariesMode = 'local'
+        work_dir = os.path.join(self.tempDir, 'gref-nested')
+        os.makedirs(work_dir)
+        gfa_path = os.path.join(work_dir, 'chr1.gfa')
+        vg_path = os.path.join(work_dir, 'chr1.vg')
+        self._write_nested_gref_gfa(gfa_path)
+        with open(vg_path, 'wb') as vg_file:
+            subprocess.check_call(['vg', 'convert', '-g', gfa_path, '-p'], stdout=vg_file)
+
+        out_dir = os.path.join(work_dir, 'join')
+        join_cmd = ['cactus-graphmap-join', self._job_store(binariesMode) + '-gref',
+                    '--vgFull', vg_path, '--outDir', out_dir, '--outName', 'gt',
+                    '--reference', 'REF', '--vcf', 'full', '--gref', 'full',
+                    '--clip', '0', '--filter', '0',
+                    '--binariesMode', binariesMode, '--logInfo',
+                    '--workDir', self.tempDir, '--maxCores', '4']
+        # vcfwave ships in the docker image but not the binary release, so only cover that path
+        # (which flattens the gref VCF by a second, independent route) when the tool is around
+        do_wave = shutil.which('vcfwave') is not None
+        if do_wave:
+            join_cmd += ['--vcfwave']
+        subprocess.check_call(join_cmd)
+
+        raw_path = os.path.join(out_dir, 'gt.gref.raw.vcf.gz')
+        bub_path = os.path.join(out_dir, 'gt.gref.vcf.gz')
+
+        # guard the fixture itself: if this graph ever stops producing a gref site below the top
+        # level, the test still passes everything below while covering nothing
+        lv_rows = subprocess.check_output(
+            'bcftools query -f "%CHROM\\t%INFO/LV\\n" {}'.format(raw_path), shell=True).decode('utf-8')
+        deep_gref = [row for row in lv_rows.split('\n')
+                     if row.count('\t') == 1 and row.split('\t')[0].endswith('_alt')
+                     and row.split('\t')[1].isdigit() and int(row.split('\t')[1]) >= 2]
+        self.assertGreater(len(deep_gref), 0)
+
+        # the invariant that matters: flattening drops nested sites, but it must never leave a gref
+        # contig with no records at all when the raw VCF had some
+        raw_contigs = self._vcf_contigs_with_records(raw_path)
+        self.assertTrue(any(contig.endswith('_alt') for contig in raw_contigs))
+        self.assertEqual(self._vcf_contigs_with_records(bub_path), raw_contigs)
+        if do_wave:
+            self.assertEqual(self._vcf_contigs_with_records(os.path.join(out_dir, 'gt.gref.wave.vcf.gz')),
+                             raw_contigs)
+
+        # every reference contig in the ordinary VCF must survive into the gref VCF: the gref cover
+        # can otherwise absorb a reference interval into a haplotype one and lose the contig
+        for contig in self._vcf_contigs_with_records(os.path.join(out_dir, 'gt.full.vcf.gz')):
+            self.assertIn(contig, raw_contigs)
+
+        # the gref gbz has to keep the gref sample reference-sense, or it cannot be deconstructed
+        # against the very sample its own VCF is built on
+        subprocess.check_call(['vg', 'deconstruct', os.path.join(out_dir, 'gt.gref.gbz'),
+                               '-P', 'gref_REF', '-C', '-a'], stdout=subprocess.DEVNULL)
+
     def _test_vg_bypass(self, binariesMode):
         """Test that --vgClip/--vgFilter bypass produces equivalent indexes to the original run"""
         import glob
@@ -1850,10 +1977,10 @@ class TestCase(unittest.TestCase):
     def testYeastPangenomeSplitLocal(self):
         """ Run pangenome pipeline (including contig splitting!) on yeast dataset using cactus-pangenome """
         name = "local"
-        self._run_yeast_pangenome(name, mgSplit=True, gref='clip', grefL=0.95)
+        self._run_yeast_pangenome(name, mgSplit=True, gref='clip', vcfL=0.95)
 
         # check the output
-        self._check_yeast_pangenome(name, other_ref='DBVPG6044', expect_odgi=True, expect_haplo=True, expect_unchopped_gfa=True, expect_gref=True, grefL=0.95)
+        self._check_yeast_pangenome(name, other_ref='DBVPG6044', expect_odgi=True, expect_haplo=True, expect_unchopped_gfa=True, expect_gref=True, vcfL=0.95)
 
         # Test bypass re-indexing with --vgClip and --vgFilter
         self._test_vg_bypass(name)

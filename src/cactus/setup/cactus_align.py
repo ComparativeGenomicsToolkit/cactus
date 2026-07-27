@@ -20,6 +20,7 @@ from cactus.pipeline.cactus_workflow import cactus_cons_with_resources
 from cactus.progressive.progressive_decomposition import compute_outgroups, parse_seqfile, get_subtree, get_spanning_subtree, get_event_set, get_ancestor_scaled_tree
 from cactus.progressive.cactus_progressive import export_hal
 from cactus.shared.common import makeURL, catFiles
+from cactus.shared.common import RAW_VG_SUFFIX
 from cactus.shared.common import enableDumpStack
 from cactus.shared.common import cactus_override_toil_options
 from cactus.shared.common import findRequiredNode
@@ -200,7 +201,7 @@ def main():
                 for chrom, results in results_dict.items():
                     toil.exportFile(results[0], makeURL(os.path.join(options.outHal, '{}.hal'.format(chrom))))
                     if options.outVG:
-                        toil.exportFile(results[1], makeURL(os.path.join(options.outHal, '{}.vg'.format(chrom))))
+                        toil.exportFile(results[1], makeURL(os.path.join(options.outHal, '{}{}.vg'.format(chrom, RAW_VG_SUFFIX))))
                     if options.outGFA:
                         toil.exportFile(results[2], makeURL(os.path.join(options.outHal, '{}.gfa.gz'.format(chrom))))                    
             else:
@@ -464,7 +465,8 @@ def cactus_align(job, config_wrapper, mc_tree, input_seq_map, input_seq_id_map, 
     # optionally create the VG
     if doVG or doGFA:
         vg_export_job = hal_job.addFollowOnJobFn(export_vg, hal_job.rv(), config_wrapper, doVG, doGFA, referenceEvents,
-                                                 checkpointInfo=checkpointInfo, memory_override=cons_memory)
+                                                 checkpointInfo=checkpointInfo, memory_override=cons_memory,
+                                                 vg_tag=RAW_VG_SUFFIX if chrom_name else '')
         vg_file_id, gfa_file_id = vg_export_job.rv(0), vg_export_job.rv(1)
     else:
         vg_file_id, gfa_file_id = None, None
@@ -473,13 +475,14 @@ def cactus_align(job, config_wrapper, mc_tree, input_seq_map, input_seq_id_map, 
 
 
 def export_vg(job, hal_id, config_wrapper, doVG, doGFA, referenceEvents, checkpointInfo=None, resource_spec = False,
-              memory_override=None):
-    """ use hal2vg to convert the HAL to vg format """
+              memory_override=None, vg_tag=''):
+    """ use hal2vg to convert the HAL to vg format.  vg_tag goes between the name and the .vg
+    extension when checkpointing to s3, to match how the file gets named when exported locally """
 
     if not resource_spec:
         # caller couldn't figure out the resrouces from hal_id promise.  do that
         # now and try again
-        vg_memory = hal_id.size * 60 if not memory_override else memory_override
+        vg_memory = hal_id.size * 40 if not memory_override else memory_override
         # optional floor from config: hal2vg memory is set from the alignment's cons_memory, which
         # for large unclipped graphs (eg cactus-panpatch reference-free, where a "chromosome" is a
         # whole assembly contig) can be far less than hal2vg --inMemory needs.  cactus-panpatch sets
@@ -488,7 +491,7 @@ def export_vg(job, hal_id, config_wrapper, doVG, doGFA, referenceEvents, checkpo
         min_memory = getOptionalAttrib(findRequiredNode(config_wrapper.xmlRoot, "hal2vg"), "minMemory",
                                        typeFn=int, default=0)
         return job.addChildJobFn(export_vg, hal_id, config_wrapper, doVG, doGFA, referenceEvents, checkpointInfo,
-                                 resource_spec = True,
+                                 resource_spec = True, vg_tag=vg_tag,
                                  disk=hal_id.size * 3,
                                  memory=cactus_clamp_memory(max(vg_memory, min_memory))).rv()
         
@@ -523,7 +526,7 @@ def export_vg(job, hal_id, config_wrapper, doVG, doGFA, referenceEvents, checkpo
     cactus_call(parameters=cmd, outfile=vg_path, job_memory=job.memory)
 
     if checkpointInfo:
-        write_s3(vg_path, os.path.splitext(checkpointInfo[1])[0] + '.vg', region=checkpointInfo[0])
+        write_s3(vg_path, os.path.splitext(checkpointInfo[1])[0] + vg_tag + '.vg', region=checkpointInfo[0])
 
     gfa_path = os.path.join(work_dir, "out.gfa.gz")
     if doGFA:

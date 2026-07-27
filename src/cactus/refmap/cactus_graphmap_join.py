@@ -39,6 +39,7 @@ from cactus.shared.common import setupBinaries, importSingularityImage
 from cactus.shared.common import cactusRootPath
 from cactus.shared.configWrapper import ConfigWrapper
 from cactus.shared.common import makeURL, catFiles
+from cactus.shared.common import vg_chrom_name
 from cactus.shared.common import enableDumpStack
 from cactus.shared.common import cactus_override_toil_options
 from cactus.shared.common import cactus_call
@@ -112,10 +113,9 @@ def main():
 
     # Sort input files by normalized chromosome name for consistent ordering
     # regardless of the order they were passed on the command line.
-    # The sort key strips the .vg extension and any .full or .dN suffix.
+    # The sort key strips the .vg extension, the .raw tag and any .full or .dN suffix.
     def join_sort_key(path):
-        base = os.path.splitext(os.path.basename(path))[0]
-        return re.sub(r'\.(full|d\d+)$', '', base)
+        return re.sub(r'\.(full|d\d+)$', '', vg_chrom_name(path))
     sort_order = sorted(range(len(options.vg)), key=lambda i: join_sort_key(options.vg[i]))
     options.vg = [options.vg[i] for i in sort_order]
     if options.hal:
@@ -129,6 +129,13 @@ def main():
             options._vgClip_paths = [options._vgClip_paths[i] for i in sort_order]
         if options._vgFilter_paths:
             options._vgFilter_paths = [options._vgFilter_paths[i] for i in sort_order]
+
+    # cactus-align writes its per-chromosome graphs as <chrom>.raw.vg.  importing them is the only
+    # thing that needs the name they have on disk -- everything downstream uses options.vg to name
+    # the outputs -- so keep the real paths aside and drop the tag here.  that keeps every output
+    # named after the chromosome alone, and inputs predating the tag are unaffected
+    options._vgRaw_paths = options.vg
+    options.vg = [os.path.join(os.path.dirname(p), vg_chrom_name(p) + '.vg') for p in options.vg]
 
     # Mess with some toil options to create useful defaults.
     cactus_override_toil_options(options)
@@ -180,7 +187,21 @@ def graphmap_join_options(parser):
     parser.add_argument("--vcfbub", type=int, default=100000, help = "Use vcfbub to flatten nested sites (sites with reference alleles > this will be replaced by their children)). Setting to 0 will disable, only prudcing full VCF [default=100000].")
     parser.add_argument("--vcfwave", action='store_true', default=False, help = "Create a vcfwave-normalized VCF. vcfwave realigns alt alleles to the reference, and can help correct messy regions in the VCF. This option will output an additional VCF with 'wave' in its filename, other VCF outputs will not be affected")
     parser.add_argument("--vcfwaveCores", type=int, help = "Number of cores for each vcfwave job [default=4].", default=4)
-    parser.add_argument("--vcfwaveMemory", type=human2bytesN, help = "Memory for reach vcfwave job [default=32Gi].", default=32000000000)
+    parser.add_argument("--vcfwaveMemory", type=human2bytesN, help = "Upper bound on the memory reserved for a vcfwave job. Each job actually reserves an amount scaled to the size of the VCF chunk it gets, so only the largest chunks approach this [default=32Gi].", default=32000000000)
+    parser.add_argument("--vcfL", type=float, default=None,
+                        help="[EXPERIMENTAL] Pass `-L <FLOAT>` to vg deconstruct: traversals whose "
+                        "length-weighted Jaccard similarity is at least this are merged into a single "
+                        "allele. Applies to the raw and vcfbub VCFs, including the --gref ones. "
+                        "Merged samples are genotyped as the allele they were merged "
+                        "into (possibly the reference allele), with the discrepancy recorded in the "
+                        "TS/TL FORMAT fields, so the VCF no longer describes the samples exactly. "
+                        "For that reason this only ever ADDS VCFs: the normal outputs are still "
+                        "produced unclustered, and clustered copies appear beside them, named with "
+                        "an L<NN> tag where NN is the value times 100, rounded (e.g. 0.95 -> "
+                        ".L95.vcf.gz). No clustered .wave VCF is made -- -L is never composed with "
+                        "--vcfwave, whose whole job is to undo the allele merging that -L does. "
+                        "Costs an extra vg deconstruct pass per --vcf graph type per --vcfReference, "
+                        "plus one more for --gref; deconstruct is often the priciest job in the join.")
     parser.add_argument("--snarlStats", nargs='*', help = "Write a list of snarl statistics for the graph type(s). Valid types are 'full', 'clip' and 'filter'. If no type specified, 'clip' will be used ('full' used if clipping disabled). Multipe types can be provided separated by space")
     parser.add_argument("--panacus", nargs='*', default=None, help = "Run panacus (pangenome coverage/growth statistics with a native interactive-HTML plot) on the GFA of the given graph type(s). Valid types are 'full', 'clip' and 'filter'. If no type specified, 'clip' will be used ('full' used if clipping disabled). Multiple types can be provided separated by space. Please cite panacus (https://github.com/codialab/panacus) if you use these outputs")
 
@@ -214,15 +235,12 @@ def graphmap_join_options(parser):
     parser.add_argument("--gref", nargs='?', const='clip', default=None,
                         help="[EXPERIMENTAL] Generate graph reference outputs. Adds synthetic "
                         "reference paths covering non-reference graph regions via vg paths -u, then "
-                        "produces additional .gref.* outputs (gbz, gfa, vcf, hapl). Valid source types "
+                        "produces additional .gref.* outputs (gbz, gfa, vcf). The gref graph is "
+                        "topologically identical to the base graph, so the base graph's indexes "
+                        "(snarls, dist, hapl) apply to gref.gbz directly. Valid source types "
                         "are 'full', 'clip', 'filter'. Default: 'clip'. [default: disabled]")
     parser.add_argument("--minGrefLen", type=int, default=None,
                         help="Minimum graph reference fragment length [default from config: 50]")
-    parser.add_argument("--grefL", type=float, default=None,
-                        help="Pass `-L <FLOAT>` to vg deconstruct for the gref VCF only "
-                        "(nested-site threshold). Requires --gref. Value is embedded in the "
-                        "gref VCF filenames as gref<NN> where NN=int(value*100), "
-                        "e.g. 0.95 -> .gref95.vcf.gz.")
 
 def graphmap_join_defaults(options):
     """ fill in the graphmap-join option defaults for tools (ie cactus-panpatch) that run the join
@@ -536,15 +554,23 @@ def graphmap_join_validate_options(options):
             raise RuntimeError('--gref clip requires clipping to be enabled (--clip must not be 0)')
         if options.gref == 'filter' and not options.filter:
             raise RuntimeError('--gref filter requires filtering to be enabled (--filter must not be 0)')
-        if getattr(options, 'collapse', False):
-            raise RuntimeError('--gref is not compatible with --collapse (vg paths -u requires acyclic reference paths)')
+        # collapsing makes the reference path self-cyclic, which vg paths -u rejects.  --collapse
+        # and --collapseRefPAF are mutually exclusive, so both have to be checked; a --configFile
+        # that sets graphmap/@collapse directly is caught later, in the workflow, since the config
+        # is not loaded yet here
+        if getattr(options, 'collapse', False) or getattr(options, 'collapseRefPAF', None):
+            raise RuntimeError('--gref is not compatible with --collapse or --collapseRefPAF '
+                               '(vg paths -u requires acyclic reference paths)')
 
-    # validate --grefL
-    if options.grefL is not None:
-        if options.gref is None:
-            raise RuntimeError('--grefL requires --gref')
-        if options.grefL <= 0.0 or options.grefL > 1.0:
-            raise RuntimeError('--grefL value must be in (0.0, 1.0], got {}'.format(options.grefL))
+    # validate --vcfL
+    if options.vcfL is not None:
+        if options.vcfL <= 0.0 or options.vcfL > 1.0:
+            raise RuntimeError('--vcfL value must be in (0.0, 1.0], got {}'.format(options.vcfL))
+        if not options.vcf and options.gref is None:
+            raise RuntimeError('--vcfL cannot be used without --vcf or --gref')
+        if options.vcfwave:
+            logger.warning('--vcfL is not applied to the --vcfwave output (vcfwave undoes exactly the '
+                           'allele merging that -L does), so the .wave.vcf.gz will be unclustered.')
 
     # Prevent some useless compute due to default param combos
     gref_needs_clip = options.gref in ['clip', 'filter'] if options.gref else False
@@ -632,9 +658,9 @@ def graphmap_join(options):
                                                       bypass_full_ids, bypass_clip_ids, bypass_filter_ids,
                                                       contig_sizes_id=contig_sizes_id))
             else:
-                # load up the vgs
+                # load up the vgs (from their real paths: options.vg has had the .raw tag stripped)
                 vg_ids = []
-                for vg_path in options.vg:
+                for vg_path in options._vgRaw_paths:
                     vg_ids.append(toil.importFile(makeURL(vg_path)))
 
                 # run the workflow
@@ -929,6 +955,16 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
                 if ref_fasta_job:
                     ref_fasta_job.addFollowOn(vcf_job)
                 out_dicts.append(vcf_job.rv())
+
+                if options.vcfL is not None:
+                    # --vcfL adds a clustered VCF alongside the ones above (see make_vcf)
+                    l_job = gfa_root_job.addFollowOnJobFn(make_vcf, config, options, workflow_phase,
+                                                          index_mem, vcf_ref, phase_vg_ids,
+                                                          ref_fasta_job.rv() if ref_fasta_job else None,
+                                                          decon_L=options.vcfL)
+                    if ref_fasta_job:
+                        ref_fasta_job.addFollowOn(l_job)
+                    out_dicts.append(l_job.rv())
                     
         # optional giraffe
         giraffe_job = None
@@ -1016,6 +1052,14 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
 
     # optional graph reference
     if options.gref:
+        # the option-level check in graphmap_join_validate_options runs before the config is
+        # loaded, so it cannot see a --configFile (or --collapseRefPAF) that sets this attribute.
+        # catch it here, before any gref work is scheduled, rather than letting every
+        # compute_gref_paths job die on a cyclic reference path
+        if getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "collapse",
+                             typeFn=str, default="none") in ["all", "reference"]:
+            raise RuntimeError('--gref is not compatible with collapsed graphs (graphmap/@collapse '
+                               'is set in the config): vg paths -u requires acyclic reference paths')
         # find the source phase VG IDs and root job
         gref_source_vg_ids = None
         gref_source_root_job = None
@@ -1027,11 +1071,10 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
         assert gref_source_vg_ids is not None, 'gref source phase {} not found in workflow_phases'.format(options.gref)
 
         join_node = findRequiredNode(config.xmlRoot, "graphmap_join")
-        gref_prefix = getOptionalAttrib(join_node, "grefPrefix", typeFn=str, default="gref_")
 
         # gref only works with the primary reference (whose paths are guaranteed acyclic)
         vcf_ref = options.reference[0]
-        gref_sample = gref_prefix + vcf_ref
+        gref_sample = gref_sample_name(vcf_ref)
 
         # augment each chromosome in parallel
         gref_root_job = Job()
@@ -1058,13 +1101,14 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
             gref_fasta_dict = gref_fasta_job.rv()
             gref_parent_job = gref_fasta_job
 
-        # build GFA, GBZ, VCF, haplo from the graph-reference VGs
-        gref_vcftag = 'gref' if options.grefL is None else 'gref{}'.format(int(round(options.grefL * 100)))
+        # build GFA, GBZ, VCF from the graph-reference VGs.  the gref graph is topologically
+        # identical to the base graph (it only adds paths), so it never gets its own topology
+        # indexes (snarls/dist/hapl): the base graph's indexes are compatible with gref.gbz.
         gref_out_dicts = build_vg_indexes_and_vcf(gref_parent_job, options, config, gref_vg_ids, vg_ids,
                                                  tag='gref.', index_mem=index_mem, max_mem=max_mem,
-                                                 vcf_ref=gref_sample, vcftag=gref_vcftag, do_haplo=options.gref in options.haplo,
+                                                 vcf_ref=gref_sample, vcftag='gref', do_haplo=False,
                                                  ref_fasta_dict=gref_fasta_dict,
-                                                 is_gref=True, decon_L=options.grefL)
+                                                 is_gref=True, decon_L=options.vcfL)
         out_dicts.extend(gref_out_dicts)
 
         # merge gref segments
@@ -1369,9 +1413,16 @@ def vg_to_og(job, options, config, vg_path, vg_id):
                             os.path.basename(og_path), '-t', str(job.cores)], work_dir=work_dir, job_memory=job.memory)
     return job.fileStore.writeGlobalFile(og_path)
 
-def make_vg_indexes(job, options, config, gfa_ids, tag="", do_gbz=False):
+def make_vg_indexes(job, options, config, gfa_ids, tag="", do_gbz=False, do_snarls=True, ref_samples=None):
     """ merge of the gfas, then make gbz / snarls / trans
+
+    ref_samples overrides which samples the merged GFA declares as reference-sense.  it defaults to
+    --reference, but the gref graph has to add its gref_<reference> sample: leaving it out demotes
+    every synthetic reference path to a haplotype, and the resulting gbz can no longer be
+    deconstructed against the very sample its VCF is built on
     """
+    if ref_samples is None:
+        ref_samples = options.reference
     work_dir = job.fileStore.getLocalTempDir()
     vg_paths = []
     merge_gfa_path = os.path.join(work_dir, '{}merged.gfa'.format(tag))
@@ -1384,12 +1435,12 @@ def make_vg_indexes(job, options, config, gfa_ids, tag="", do_gbz=False):
         gfa_path = os.path.join(work_dir, os.path.basename(vg_path) +  '.gfa')
         job.fileStore.readGlobalFile(gfa_id, gfa_path, mutable=True)
         if i == 0:
-            # make sure RS tag reflects only samples from --reference
+            # make sure RS tag reflects only the reference samples
             cmd = [['head', '-1', gfa_path], ['sed', '-e', '1s/{}//'.format(graph_event)]]
             gfa_header = cactus_call(parameters=cmd, check_output=True).strip().split('\t')
             for i in range(len(gfa_header)):
                 if gfa_header[i].startswith('RS:Z:'):
-                    gfa_header[i] = 'RS:Z:' + ' '.join(options.reference)
+                    gfa_header[i] = 'RS:Z:' + ' '.join(ref_samples)
             with open(merge_gfa_path, 'w') as merge_gfa_file:
                 merge_gfa_file.write('\t'.join(gfa_header) + '\n')
         # strip out header and minigraph paths
@@ -1420,7 +1471,7 @@ def make_vg_indexes(job, options, config, gfa_ids, tag="", do_gbz=False):
     gfa_path = merge_gfa_path + '.gz'
 
     # make the snarls
-    if do_gbz:
+    if do_gbz and do_snarls:
         snarls_path = os.path.join(work_dir, '{}merged.snarls'.format(tag))
         snarls_cmd = ['vg', 'snarls', gbz_path, '-T', '-P', options.reference[0], '-t', str(job.cores)]
         cactus_call(parameters=snarls_cmd, outfile=snarls_path, job_memory=job.memory)
@@ -1428,8 +1479,41 @@ def make_vg_indexes(job, options, config, gfa_ids, tag="", do_gbz=False):
     out_dict = { '{}gfa.gz'.format(tag) : job.fileStore.writeGlobalFile(gfa_path) }
     if do_gbz:
         out_dict['{}gbz'.format(tag)] = job.fileStore.writeGlobalFile(gbz_path)
-        out_dict['{}snarls'.format(tag)] =  job.fileStore.writeGlobalFile(snarls_path)
+        if do_snarls:
+            out_dict['{}snarls'.format(tag)] =  job.fileStore.writeGlobalFile(snarls_path)
     return out_dict
+
+# rewrite a PanSN path name down to the locus, which is what `vg deconstruct -C` uses for CHROM
+# and therefore what a reference FASTA header has to be.  a plain sed on SAMPLE#...# only works for
+# the 3-field form: 2-field names (SAMPLE#CONTIG, seen on older graphs) do not match it at all and
+# come through with the prefix still attached, and 4-field names (SAMPLE#HAP#CONTIG#PHASE) would
+# lose the wrong part.  subranges are dropped too, since deconstruct reports base contig names
+PANSN_TO_LOCUS_AWK = (r'/^>/ {n = split(substr($0, 2), a, "#"); '
+                      r'locus = (n >= 3 ? a[3] : (n == 2 ? a[2] : a[1])); '
+                      r'sub(/\[[0-9]+-[0-9]+\]$/, "", locus); print ">" locus; next} {print}')
+
+def check_fasta_headers(fa_path, vcf_ref):
+    """ fail here, before anything expensive, if the headers are not bare contig names
+
+    a header that still carries '#' will not match the CHROM that deconstruct emits, and the only
+    symptom downstream is `bcftools norm -f` reporting the contig as missing -- after every
+    deconstruct, vcfbub and vcfwave job has already been paid for
+    """
+    bad = []
+    opener = gzip.open if fa_path.endswith('.gz') else open
+    with opener(fa_path, 'rt') as fa_file:
+        for line in fa_file:
+            if line.startswith('>'):
+                name = line[1:].strip().split()[0]
+                if '#' in name:
+                    bad.append(name)
+    if bad:
+        raise RuntimeError(
+            'could not reduce the {} reference path names to bare contig names for the '
+            'normalization FASTA: got {} (and {} more). This usually means the graph\'s reference '
+            'paths are not valid PanSN (SAMPLE#HAPLOTYPE#CONTIG). vg deconstruct will emit bare '
+            'contig names as CHROM, so bcftools norm would not find them.'.format(
+                vcf_ref, ', '.join(bad[:3]), max(0, len(bad) - 3)))
 
 def extract_gbz_fasta(job, options, index_dict, tag):
     """ get the reference fasta files from the unclipped gbz so they can be used with bcftools norm
@@ -1442,9 +1526,10 @@ def extract_gbz_fasta(job, options, index_dict, tag):
     for vcf_ref in options.vcfReference:
         fa_ref_path = os.path.join(work_dir, vcf_ref + '.fa.gz')            
         cactus_call(parameters=[['vg', 'paths', '-x', gbz_path, '-S', vcf_ref, '-F'],
-                                ['sed', '-e', r's/{}#.\+#//g'.format(vcf_ref)],
+                                ['awk', PANSN_TO_LOCUS_AWK],
                                 ['bgzip', '--threads', str(job.cores)]],
                     outfile=fa_ref_path)
+        check_fasta_headers(fa_ref_path, vcf_ref)
         out_dict[vcf_ref] = job.fileStore.writeGlobalFile(fa_ref_path)
 
     return out_dict
@@ -1465,13 +1550,14 @@ def extract_vg_fasta(job, options, vg_ids, vcf_ref=None):
         job.fileStore.readGlobalFile(vg_id, vg_path)
         chrom_fa_path = os.path.join(work_dir, 'chr{}.fa'.format(i))
         cactus_call(parameters=[['vg', 'paths', '-x', vg_path, '-S', vcf_ref, '-F'],
-                                ['sed', '-e', r's/{}#.\+#//g'.format(vcf_ref)]],
+                                ['awk', PANSN_TO_LOCUS_AWK]],
                     outfile=chrom_fa_path)
         chrom_fa_paths.append(chrom_fa_path)
 
     catFiles(chrom_fa_paths, fa_ref_path + '.tmp')
     cactus_call(parameters=['bgzip', '--threads', str(job.cores), '-c', fa_ref_path + '.tmp'],
                 outfile=fa_ref_path)
+    check_fasta_headers(fa_ref_path, vcf_ref)
 
     return {vcf_ref: job.fileStore.writeGlobalFile(fa_ref_path)}
 
@@ -1494,11 +1580,20 @@ def make_xg(job, config, out_name, index_dict, tag='', drop_haplotypes=False):
 def make_vcf(job, config, options, workflow_phase, index_mem, vcf_ref, vg_ids, ref_fasta_dict, vcftag=None, is_gref=False, decon_L=None):
     """ make the raw vcf with deconstruct. optionally add in the bub and wave vcfs too
     this is done in parallel on each chrom .vg graph
+
+    a decon_L (--vcfL) run is an extra pass that adds clustered copies of the raw and bub VCFs
+    beside the unclustered ones.  it never makes a wave VCF: vcfwave exists to recover small
+    variants by realigning big alt alleles, and -L has already merged those alleles away, so a
+    clustered wave VCF would be strictly lossy with nothing left in it to say so
     """
     root_job = Job()
     job.addChild(root_job)
     if vcftag is None:
         vcftag = vcf_ref + '.' + workflow_phase if vcf_ref != options.reference[0] else workflow_phase
+    if decon_L is not None:
+        # keep clustered VCFs from being mistaken for the normal ones sitting beside them
+        vcftag += '.L{}'.format(int(round(decon_L * 100)))
+    do_wave = options.vcfwave and decon_L is None
     raw_vcf_tbi_ids, bub_vcf_tbi_ids, wave_vcf_tbi_ids = [], [], []
     for vg_path, vg_id, in zip(options.vg, vg_ids):
         deconstruct_job = root_job.addChildJobFn(deconstruct, config, options.outName,
@@ -1523,7 +1618,7 @@ def make_vcf(job, config, options, workflow_phase, index_mem, vcf_ref, vg_ids, r
             bub_vcf_id, bub_tbi_id = vcfbub_job.rv(0), vcfbub_job.rv(1)
             bub_vcf_tbi_ids.append((bub_vcf_id, bub_tbi_id))
 
-        if options.vcfwave:
+        if do_wave:
             vcfwave_job = deconstruct_job.addFollowOnJobFn(chunked_vcfwave, config, options.outName, vcf_ref,
                                                            raw_vcf_id, raw_tbi_id,
                                                            options.vcfbub,
@@ -1609,9 +1704,52 @@ def deconstruct(job, config, out_name, vcf_ref, vg_id, decon_L, tag):
     if decon_L is not None:
         decon_cmd += ['-L', str(decon_L)]
     cactus_call(parameters=[decon_cmd, ['bgzip', '--threads', str(job.cores)]], outfile=vcf_path, job_memory=job.memory)
+
+    # -C asks deconstruct for bare contig names, which is what makes this VCF line up with the
+    # reference FASTA and with the other VCFs from the same run.  vg silently overrides it when it
+    # sees more than one reference sample or haplotype (deconstructor.cpp get_vcf_header), which
+    # happens if any reference-sense path name fails to parse as PanSN -- a malformed gref path is
+    # enough.  the result is a VCF whose CHROMs are full PanSN for this chromosome and bare for
+    # every other one, which nothing downstream detects.  refuse to ship it
+    pansn_contigs = [line[len('##contig=<ID='):].split(',')[0]
+                     for line in cactus_call(parameters=['bcftools', 'view', '-h', vcf_path],
+                                             check_output=True).split('\n')
+                     if line.startswith('##contig=<ID=') and '#' in line[len('##contig=<ID='):].split(',')[0]]
+    if pansn_contigs:
+        raise RuntimeError(
+            'vg deconstruct ignored -C and emitted PanSN contig names for {} (e.g. {}). That means it found '
+            'more than one reference sample or haplotype under -P {}, which normally indicates a reference-sense '
+            'path whose name is not valid PanSN. The resulting VCF would not match the reference FASTA or the '
+            'other VCFs from this run, so it is being rejected rather than written. Check the reference-sense '
+            'path names in {} with `vg paths -L`.'.format(
+                tag.rstrip('.'), pansn_contigs[0], vcf_ref, os.path.basename(vg_path)))
+
     tbi_path = index_vcf(vcf_path)
 
     return job.fileStore.writeGlobalFile(vcf_path), job.fileStore.writeGlobalFile(tbi_path)
+
+def copy_vcf_ids(job, vcf_path):
+    """ write a fresh (vcf, tbi) id pair for a VCF already on local disk
+
+    used by the empty-VCF short circuits.  they used to return the ids they were handed, which
+    aliased one file across the raw/bub/wave branches -- and since vcf_cat deletes every input id
+    and those three cat jobs are siblings, whichever ran first could delete a file the others had
+    not read yet
+    """
+    tbi_path = vcf_path + '.tbi'
+    if not os.path.isfile(tbi_path):
+        tbi_path = index_vcf(vcf_path)
+    return job.fileStore.writeGlobalFile(vcf_path), job.fileStore.writeGlobalFile(tbi_path)
+
+def gref_sample_name(reference):
+    """ the sample name `vg paths -u` gives the graph reference paths it creates
+
+    vg builds this itself and cactus cannot influence it, but every stage after the cover has to
+    address the sample by name -- deconstruct -P, extract_vg_fasta -S, the RS tag on the exported
+    graph -- so the convention is reproduced here.  compute_gref_paths checks the sample really
+    turned up, because a mismatch would produce empty output rather than an error.
+    """
+    return 'gref_' + reference
 
 def split_gref_vcf(vcf_path, work_dir):
     """ Check if VCF contains gref contigs and split into base/gref BED files.
@@ -1649,6 +1787,59 @@ def split_gref_vcf(vcf_path, work_dir):
     else:
         return None, None
 
+def reroot_gref_levels(in_vcf_path, out_vcf_path):
+    """ rewrite LV on a gref-contig VCF so that it counts only ancestors on the same contig
+
+    vg sets LV to the absolute depth in the snarl tree, counting every ancestor that made it into
+    the VCF (graph_caller.cpp get_nesting_tags).  a gref site therefore inherits the depth of
+    whatever base-reference bubble encloses it, so its top-level sites are at LV=1 only when that
+    enclosing bubble was itself top-level -- nest the base bubble, or nest one gref fragment inside
+    another, and they land at LV=2 or deeper.  filtering those with a fixed `vcfbub --max-level 1`
+    silently deleted them.
+
+    each gref contig is its own reference sequence, so an ancestor lying on some other contig does
+    not nest the site in this contig's coordinates.  recounting LV that way lets the gref half go
+    through vcfbub -l 0, exactly like the base half.  PS is deliberately left alone so that
+    vcfbub's rescue of children-of-popped-bubbles keeps working.
+    """
+    def info_value(info, key):
+        for field in info.split(';'):
+            if field.startswith(key + '='):
+                return field[len(key) + 1:]
+        return None
+
+    # pass 1: snarl id -> contig it sits on, and the id of its parent snarl
+    contig_of = {}
+    parent_of = {}
+    with gzip.open(in_vcf_path, 'rt') as in_file:
+        for line in in_file:
+            if line.startswith('#'):
+                continue
+            toks = line.rstrip('\n').split('\t', 8)
+            contig_of[toks[2]] = toks[0]
+            parent_of[toks[2]] = info_value(toks[7], 'PS')
+
+    # pass 2: LV := number of ancestors on this record's own contig
+    lv_re = re.compile(r'(^|;)LV=[^;]*')
+    with gzip.open(in_vcf_path, 'rt') as in_file, open(out_vcf_path, 'w') as out_file:
+        for line in in_file:
+            if line.startswith('#'):
+                out_file.write(line)
+                continue
+            toks = line.rstrip('\n').split('\t')
+            snarl_id, chrom = toks[2], toks[0]
+            depth = 0
+            # `seen` guards against a malformed PS cycle rather than an expected one
+            seen = set([snarl_id])
+            ancestor = parent_of.get(snarl_id)
+            while ancestor and ancestor != '.' and ancestor not in seen:
+                seen.add(ancestor)
+                if contig_of.get(ancestor) == chrom:
+                    depth += 1
+                ancestor = parent_of.get(ancestor)
+            toks[7] = lv_re.sub(lambda m: m.group(1) + 'LV=' + str(depth), toks[7], count=1)
+            out_file.write('\t'.join(toks) + '\n')
+
 def vcfbub(job, config, out_name, vcf_ref, vcf_id, tbi_id, max_ref_allele, fasta_ref_dict, tag, is_gref=False):
     """ make the vcfbub vcf
     """
@@ -1663,7 +1854,10 @@ def vcfbub(job, config, out_name, vcf_ref, vcf_id, tbi_id, max_ref_allele, fasta
     # short circuit on empty file (note zcat -> head exits 141, so we can't use cactus_call)
     if int(subprocess.check_output('gzip -dc {} | grep -v ^# | head | wc -l'.format(vcf_path),
                                    shell=True).decode('utf-8').strip()) == 0:
-        return vcf_id, tbi_id
+        # hand back an independent copy, not the input ids: vcf_cat deletes every id it is given
+        # and the raw/bub/wave cat jobs are siblings, so aliasing them lets one delete a file
+        # another has not read yet
+        return copy_vcf_ids(job, vcf_path)
 
     # split gref contigs so they can be run through vcfbub independently
     base_bed_path, gref_bed_path = split_gref_vcf(vcf_path, work_dir) if is_gref else (None, None)
@@ -1680,20 +1874,27 @@ def vcfbub(job, config, out_name, vcf_ref, vcf_id, tbi_id, max_ref_allele, fasta
     assert max_ref_allele
     bub_cmd = [['vcfbub', '--input', bub_input_path, '--max-ref-length', str(max_ref_allele), '--max-level', '0']]
     if getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "filterAC0", typeFn=bool, default=False):
-        bub_cmd.append(['bcftools', 'view', '-e', 'AC=0'])
+        # MAX() because these records are still multi-allelic: bcftools ORs over Number=A fields,
+        # so a plain AC=0 would drop the whole site over one unsupported allele, taking the
+        # supported ones with it
+        bub_cmd.append(['bcftools', 'view', '-e', 'MAX(AC)=0'])
     bub_cmd.append(['bgzip'])
     cactus_call(parameters = bub_cmd, outfile = vcfbub_path)
 
     if base_bed_path:
-        # run vcfbub independently on gref contigs with --max-level 1 (gref variants
-        # are nested inside main-ref bubbles so their top-level sites have LV=1) and merge back
+        # run vcfbub independently on the gref contigs and merge back.  LV has to be recounted
+        # per contig first (see reroot_gref_levels) -- with vg's absolute levels there is no fixed
+        # --max-level that keeps every gref contig's own top-level sites without also keeping
+        # genuinely nested ones
         gref_raw_path = os.path.join(work_dir, os.path.basename(out_name) + '.' + tag + 'gref.raw.vcf.gz')
         cactus_call(parameters=['bcftools', 'view', '-R', gref_bed_path, '-Oz', vcf_path],
                     outfile=gref_raw_path)
+        gref_lv_path = os.path.join(work_dir, os.path.basename(out_name) + '.' + tag + 'gref.lv.vcf')
+        reroot_gref_levels(gref_raw_path, gref_lv_path)
         gref_vcf_path = os.path.join(work_dir, os.path.basename(out_name) + '.' + tag + 'gref.bub.vcf.gz')
-        gref_bub_cmd = [['vcfbub', '--input', gref_raw_path, '--max-ref-length', str(max_ref_allele), '--max-level', '1']]
+        gref_bub_cmd = [['vcfbub', '--input', gref_lv_path, '--max-ref-length', str(max_ref_allele), '--max-level', '0']]
         if getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "filterAC0", typeFn=bool, default=False):
-            gref_bub_cmd.append(['bcftools', 'view', '-e', 'AC=0'])
+            gref_bub_cmd.append(['bcftools', 'view', '-e', 'MAX(AC)=0'])
         gref_bub_cmd.append(['bgzip'])
         cactus_call(parameters=gref_bub_cmd, outfile=gref_vcf_path)
         index_vcf(gref_vcf_path)
@@ -1736,7 +1937,7 @@ def vcfnorm(job, config, vcf_ref, vcf_id, vcf_path, tbi_id, fasta_ref_dict):
     cactus_call(parameters=[['bcftools', 'norm', '-m', '-any', vcf_path],
                             ['bcftools', 'norm', '-f', fa_ref_path],
                             view_cmd,
-                            ['sort', '-k1,1d', '-k2,2n', '-s', '-T', work_dir],
+                            ['sort', '-k1,1', '-k2,2n', '-s', '-T', work_dir],
                             ['bgzip']], outfile=norm_path, outappend=True)
     merge_duplicates_opts = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "mergeDuplicatesOptions", typeFn=str, default=None)
     if merge_duplicates_opts not in [None, "0"]:
@@ -1771,33 +1972,79 @@ def fix_vcf_ploidies(in_vcf_path, out_vcf_path):
     across the whole vcf (which you would get if deconstructing the whole genome at once).
     this function smooths it over, by doing two scans. 1) find the max ploidy of each sample
     2) add dots to each GT to make sure each line gets this ploidy
+
+    this works on the text rather than through pysam's record model.  the job is only to count
+    separators in one subfield and append to it, and building a python object per sample per
+    record to do that dominated the runtime: on a whole-genome HPRC-scale VCF the pysam version
+    ran at ~1.8k records/s, which is hours for a single vcf_cat.
     """
-    sample_to_ploidy = {}
-    in_vcf = pysam.VariantFile(in_vcf_path, 'rb')
+    # read with gzip rather than pysam.BGZFile: the latter strips the line terminator on
+    # iteration, and this relies on passing untouched lines straight through.  gzip reads bgzf
+    # fine, and BGZFile is still what writes it so the output stays block-compressed
+    def open_read(path):
+        return gzip.open(path, 'rb') if path.endswith('.gz') else open(path, 'rb')
 
-    # pass 1: find the (max) ploidy of every sample, assuming phased
-    for var in in_vcf.fetch():
-        for sample in var.samples.values():
-            ploidy = len(sample['GT'])
-            cur_ploidy = 0 if sample.name not in sample_to_ploidy else sample_to_ploidy[sample.name]
-            sample_to_ploidy[sample.name] = max(ploidy, cur_ploidy)
+    def open_write(path):
+        return pysam.BGZFile(path, 'wb') if path.endswith('.gz') else open(path, 'wb')
 
-    # pass 2: correct the GTs
-    out_vcf = pysam.VariantFile(out_vcf_path, 'w', header=in_vcf.header)
-    for var in in_vcf.fetch():
-        for sample in var.samples.values():
-            ploidy_delta = sample_to_ploidy[sample.name] - len(sample['GT'])
-            if ploidy_delta > 0:
-                gt = list(sample['GT'])
-                for i in range(ploidy_delta):
-                    gt.append(None)
-                sample['GT'] = tuple(gt)
-                sample.phased = True
+    # the two loops below are inlined rather than factored into helpers: they run once per
+    # sample per record (billions of times on a cohort-scale VCF) and at that count the python
+    # call overhead was costing more than the work itself.  the VCF spec requires GT to be the
+    # first FORMAT subfield, so partition() gets it without building a list
 
-        out_vcf.write(var)
+    # pass 1: the widest genotype each sample column is ever given, and the narrowest, so that
+    # the common case of nothing needing to change can skip the rewrite entirely
+    max_ploidy = []
+    min_ploidy = []
+    with open_read(in_vcf_path) as in_file:
+        for line in in_file:
+            if line.startswith(b'#'):
+                if line.startswith(b'#CHROM'):
+                    n_samples = max(0, len(line.rstrip().split(b'\t')) - 9)
+                    max_ploidy = [0] * n_samples
+                    min_ploidy = [1 << 30] * n_samples
+                continue
+            toks = line.rstrip(b'\n').split(b'\t')
+            if len(toks) < 10:
+                continue
+            if not (toks[8] == b'GT' or toks[8].startswith(b'GT:')):
+                raise RuntimeError('cannot fix ploidies in {}: FORMAT is "{}", but the VCF spec '
+                                   'requires GT to come first'.format(in_vcf_path,
+                                                                      toks[8].decode('utf-8', 'replace')))
+            for i, field in enumerate(toks[9:]):
+                gt = field.partition(b':')[0]
+                ploidy = gt.count(b'|') + gt.count(b'/') + 1
+                if ploidy > max_ploidy[i]:
+                    max_ploidy[i] = ploidy
+                if ploidy < min_ploidy[i]:
+                    min_ploidy[i] = ploidy
 
-    in_vcf.close()
-    out_vcf.close()    
+    # nothing is short, so pass 2 would copy the input through unchanged line by line
+    if all(lo == hi for lo, hi in zip(min_ploidy, max_ploidy)):
+        shutil.copyfile(in_vcf_path, out_vcf_path)
+        return
+
+    # pass 2: pad every short genotype out to that width
+    with open_read(in_vcf_path) as in_file, open_write(out_vcf_path) as out_file:
+        for line in in_file:
+            if line.startswith(b'#') or not max_ploidy:
+                out_file.write(line)
+                continue
+            toks = line.rstrip(b'\n').split(b'\t')
+            if len(toks) < 10:
+                out_file.write(line)
+                continue
+            changed = False
+            for i, field in enumerate(toks[9:]):
+                gt = field.partition(b':')[0]
+                delta = max_ploidy[i] - (gt.count(b'|') + gt.count(b'/') + 1)
+                if delta > 0:
+                    # pysam set .phased when it padded, which rewrote the whole genotype's
+                    # separators; keep doing that so the output matches the old behaviour.
+                    # field[len(gt):] is the untouched remainder, leading ':' included
+                    toks[9 + i] = gt.replace(b'/', b'|') + b'|.' * delta + field[len(gt):]
+                    changed = True
+            out_file.write(b'\t'.join(toks) + b'\n' if changed else line)
 
 def check_vcfwave(job):
     """ check to make sure vcfwave is installed """
@@ -1835,7 +2082,10 @@ def chunked_vcfwave(job, config, out_name, vcf_ref, vcf_id, tbi_id, max_ref_alle
     # short circuit on empty file (note zcat -> head exits 141, so we can't use cactus_call)
     if int(subprocess.check_output('gzip -dc {} | grep -v ^# | head | wc -l'.format(vcf_path),
                                    shell=True).decode('utf-8').strip()) == 0:
-        return vcf_id, tbi_id
+        # hand back an independent copy, not the input ids: vcf_cat deletes every id it is given
+        # and the raw/bub/wave cat jobs are siblings, so aliasing them lets one delete a file
+        # another has not read yet
+        return copy_vcf_ids(job, vcf_path)
 
     # split gref contigs so they can be run through vcfbub/vcfwave independently
     base_bed_path, gref_bed_path = split_gref_vcf(vcf_path, work_dir) if is_gref else (None, None)
@@ -1859,13 +2109,15 @@ def chunked_vcfwave(job, config, out_name, vcf_ref, vcf_id, tbi_id, max_ref_alle
     cactus_call(parameters=bub_cmd, outfile=vcfbub_path)
 
     if base_bed_path:
-        # run vcfbub independently on gref contigs with -l 1 (gref variants
-        # are nested inside main-ref bubbles so their top-level sites have LV=1) and merge back
+        # run vcfbub independently on the gref contigs and merge back, recounting LV per contig
+        # first (see reroot_gref_levels) so that -l 0 keeps each gref contig's own top-level sites
         gref_raw_path = os.path.join(work_dir, os.path.basename(out_name) + '.' + vcf_ref + '.' + tag + 'gref.raw.vcf.gz')
         cactus_call(parameters=['bcftools', 'view', '-R', gref_bed_path, '-Oz', vcf_path],
                     outfile=gref_raw_path)
+        gref_lv_path = os.path.join(work_dir, os.path.basename(out_name) + '.' + vcf_ref + '.' + tag + 'gref.lv.vcf')
+        reroot_gref_levels(gref_raw_path, gref_lv_path)
         gref_vcf_path = os.path.join(work_dir, os.path.basename(out_name) + '.' + vcf_ref + '.' + tag + 'gref.bub.vcf.gz')
-        gref_bub_cmd = [['vcfbub', '--input', gref_raw_path, '-l', '1', '-a', str(max_ref_allele)],
+        gref_bub_cmd = [['vcfbub', '--input', gref_lv_path, '-l', '0', '-a', str(max_ref_allele)],
                        ['bcftools', 'annotate', '-x', 'INFO/AT'],
                        ['bcftools', 'norm', '-m', '-any']]
         if getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "filterAC0", typeFn=bool, default=False):
@@ -1884,6 +2136,10 @@ def chunked_vcfwave(job, config, out_name, vcf_ref, vcf_id, tbi_id, max_ref_alle
 
     # get the chunk size
     chunk_lines = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "vcfwaveChunkLines", typeFn=int, default=None)
+    # "<= 0 to disable chunking" per the config, but a negative value used to sail through the
+    # truthiness checks below and give one chunk -- and so one vcfwave job -- per VCF record
+    if chunk_lines is not None and chunk_lines <= 0:
+        chunk_lines = None
     # sanity check
     if chunk_lines and lines / chunk_lines >= 1000:
         chunk_lines = int(lines / 1000)
@@ -1926,16 +2182,24 @@ def chunked_vcfwave(job, config, out_name, vcf_ref, vcf_id, tbi_id, max_ref_alle
     chunk_vcf_tbi_ids = []
     for chunk_path in chunk_paths:
         chunk_id = job.fileStore.writeGlobalFile(chunk_path)
+        # size memory off the chunk, the way disk already is.  chunks are cut at a fixed line
+        # count but their bytes vary ~40x with how long the alleles are, and peak RSS tracks that
+        # closely: measured over 10,670 chunk jobs of a whole-genome HPRC run (plus a chr22 run at
+        # different thread and sample counts) peak/compressed-chunk stayed inside 100-520x with no
+        # trend, median ~300x.  800x is ~2.5x headroom at every quantile.  reserving a flat
+        # --vcfwaveMemory instead meant every job held 32G to use a median of 0.4G, so on any node
+        # vcfwave was memory-bound long before it was core-bound
+        # job.memory is this job's own reservation, i.e. --vcfwaveMemory already clamped, so it
+        # serves as the ceiling without needing options here
+        wave_mem = min(job.memory, max(2 * 2**30, chunk_id.size * 800))
         vcfwave_job = root_job.addChildJobFn(vcfwave, config, chunk_path, chunk_id,
-                                             disk=chunk_id.size * 10, cores=job.cores, memory=job.memory)
+                                             disk=chunk_id.size * 10, cores=job.cores,
+                                             memory=wave_mem)
         chunk_vcf_tbi_ids.append(vcfwave_job.rv())
 
     # combine the chunks
-    ##
-    ## Note: fix_ploidies should be false here.  But due to a bug in deconstrut we set it to true
-    ##       it's resolved here: https://github.com/vgteam/vg/pull/4497
-    ##       so we can toggle it back once cactus is updated to use the next vg release
-    ##
+    # fix_ploidies is off here: vcfwave output is already ploidy-consistent, and the deconstruct
+    # bug that once forced it on is fixed (https://github.com/vgteam/vg/pull/4497)
     vcfwave_cat_job = root_job.addFollowOnJobFn(vcf_cat, chunk_vcf_tbi_ids, tag, sort=True,
                                                 fix_ploidies=False,
                                                 disk=vcf_id.size * 10,
@@ -1963,7 +2227,8 @@ def vcfwave(job, config, vcf_path, vcf_id):
     # short circuit on empty file (note zcat -> head exits 141, so we can't use cactus_call)
     if int(subprocess.check_output('gzip -dc {} | grep -v ^# | head | wc -l'.format(vcf_path),
                                    shell=True).decode('utf-8').strip()) == 0:    
-        return vcf_id, None
+        # independent copy, see copy_vcf_ids
+        return copy_vcf_ids(job, vcf_path)[0], None
 
     # run vcfwave
     vcfwave_path = os.path.join(work_dir, 'wave.{}'.format(os.path.basename(vcf_path)))
@@ -2037,7 +2302,7 @@ def vcf_cat(job, vcf_tbi_ids, tag, sort=False, fix_ploidies=True):
         sort_vcf_path = os.path.join(work_dir, '{}sort.vcf.gz'.format(tag))
         cactus_call(parameters=['bcftools', 'view', '-Oz', '-h', cat_vcf_path], outfile=sort_vcf_path)
         cactus_call(parameters=[['bcftools', 'view', '-H', cat_vcf_path],
-                                ['sort', '-k1,1d', '-k2,2n', '-s', '-T', work_dir],
+                                ['sort', '-k1,1', '-k2,2n', '-s', '-T', work_dir],
                                 ['bgzip']], outfile=sort_vcf_path, outappend=True)
         cat_vcf_path = sort_vcf_path
 
@@ -2098,9 +2363,12 @@ def make_haplo_index(job, options, config, index_dict, giraffe_dict, tag=''):
     if giraffe_dict:
         job.fileStore.readGlobalFile(giraffe_dict['{}dist'.format(tag)], dist_path)
     else:
-        # note we are using --no-nested-distance here to reduce memory, and its all haplo sampling needs
+        # note we are using --no-nested-distance here to reduce memory, and its all haplo sampling needs.
+        # -P always roots the snarl tree on the true reference: it must be an acyclic linear backbone,
+        # so never the graph-reference cover (whose _alt fragments make a top-level chain that loops).
         dist_path += '1'
-        dist_cmd = ['vg', 'index', '-t', str(job.cores), '-j', dist_path, gbz_path, '--no-nested-distance', '-P', options.reference[0]]
+        dist_cmd = ['vg', 'index', '-t', str(job.cores), '-j', dist_path, gbz_path, '--no-nested-distance',
+                    '-P', options.reference[0]]
         cactus_call(parameters=dist_cmd, job_memory=job.memory)
         
     # make the r-index
@@ -2201,8 +2469,9 @@ def build_vg_indexes_and_vcf(parent_job, options, config, phase_vg_ids, vg_ids,
                              tag, index_mem, max_mem, vcf_ref=None, vcftag=None,
                              ref_fasta_dict=None, do_haplo=False, is_gref=False,
                              decon_L=None):
-    """ Common workflow: per-chrom VG -> GFA -> GBZ+snarls, with optional VCF and haplo.
-    Returns list of output dicts to append to out_dicts.
+    """ Common workflow: per-chrom VG -> GFA -> GBZ (+snarls unless is_gref), with optional VCF and haplo.
+    For the gref graph (is_gref) the topology matches the base graph, so no snarls/haplo are built;
+    pass do_haplo=False at the call site.  Returns list of output dicts to append to out_dicts.
     """
     out_dicts = []
 
@@ -2216,9 +2485,11 @@ def build_vg_indexes_and_vcf(parent_job, options, config, phase_vg_ids, vg_ids,
                                              memory=min(max(2**31, input_vg_id.size * 16), max_mem))
         gfa_ids.append(gfa_job.rv())
 
-    # GBZ + snarls from merged GFA
+    # GBZ from merged GFA.  the gref graph reuses the base graph's snarls (identical topology),
+    # so skip its snarls build (do_snarls=False) rather than emit a redundant gref.snarls.
     gbz_job = gfa_root_job.addFollowOnJobFn(make_vg_indexes, options, config, gfa_ids,
-                                             tag=tag, do_gbz=True,
+                                             tag=tag, do_gbz=True, do_snarls=not is_gref,
+                                             ref_samples=(options.reference + [vcf_ref]) if is_gref else None,
                                              cores=options.indexCores,
                                              disk=sum(f.size for f in vg_ids) * 6,
                                              memory=index_mem)
@@ -2230,8 +2501,17 @@ def build_vg_indexes_and_vcf(parent_job, options, config, phase_vg_ids, vg_ids,
         vcf_job = gfa_root_job.addFollowOnJobFn(make_vcf, config, options, tag.rstrip('.'),
                                                  index_mem, vcf_ref, phase_vg_ids,
                                                  ref_fasta_dict, vcftag=vcftag,
-                                                 is_gref=is_gref, decon_L=decon_L)
+                                                 is_gref=is_gref)
         out_dicts.append(vcf_job.rv())
+
+        if decon_L is not None:
+            # --vcfL adds a clustered VCF alongside the ones above (see make_vcf).  it reuses
+            # vcftag, onto which make_vcf appends the .L<NN> suffix
+            l_job = gfa_root_job.addFollowOnJobFn(make_vcf, config, options, tag.rstrip('.'),
+                                                   index_mem, vcf_ref, phase_vg_ids,
+                                                   ref_fasta_dict, vcftag=vcftag,
+                                                   is_gref=is_gref, decon_L=decon_L)
+            out_dicts.append(l_job.rv())
 
     # optional haplo index
     if do_haplo:
@@ -2253,18 +2533,69 @@ def compute_gref_paths(job, config, options, vg_path, vg_id, vcf_ref):
     join_node = findRequiredNode(config.xmlRoot, "graphmap_join")
     min_gref_len = options.minGrefLen if options.minGrefLen is not None else \
         getOptionalAttrib(join_node, "minGrefLen", typeFn=int, default=50)
-    gref_prefix = getOptionalAttrib(join_node, "grefPrefix", typeFn=str, default="gref_")
-    gref_sample = gref_prefix + vcf_ref
+    gref_sample = gref_sample_name(vcf_ref)
 
     gref_vg_path = vg_path + '.gref'
     segs_path = vg_path + '.gref-segs.tsv'
 
+    # vg paths -u treats "no path matches the prefix" as fatal, but every other per-chromosome
+    # consumer of the reference tolerates it (see deconstruct()).  a chromosome with no reference
+    # simply has no cover to compute, which is not a reason to fail a multi-day run, so hand the
+    # graph back untouched instead
+    graph_paths = [p.strip() for p in
+                   cactus_call(parameters=['vg', 'paths', '-x', vg_path, '-L'], check_output=True).split('\n')
+                   if p.strip()]
+    ref_paths = [p for p in graph_paths if p.startswith(vcf_ref + '#')]
+    if not ref_paths:
+        RealtimeLogger.warning('No reference {} found in {}: graph reference paths skipped'.format(
+            vcf_ref, os.path.basename(vg_path)))
+        shutil.copyfile(vg_path, gref_vg_path)
+        with open(segs_path, 'w'):
+            pass
+        return job.fileStore.writeGlobalFile(gref_vg_path), job.fileStore.writeGlobalFile(segs_path)
+
+    # vg paths -u skips any -Q match that already looks like a gref path, so a reference contig
+    # ending in _<N>_alt would be silently dropped from the cover and its name handed to a
+    # synthetic fragment of some other contig.  say so rather than shipping that
+    gref_name_re = re.compile(r'_\d+_alt$')
+    for ref_path in ref_paths:
+        locus = ref_path.split('#')[2] if ref_path.count('#') >= 2 else ref_path
+        if gref_name_re.search(locus):
+            raise RuntimeError(
+                '--gref cannot be used with a reference contig named {} (in {}): the _<N>_alt suffix is '
+                'how cactus and vg identify synthetic graph-reference fragments, so a real contig using '
+                'it would be dropped from the cover and its name reused. Rename the contig, or drop '
+                '--gref.'.format(locus, os.path.basename(vg_path)))
+
+    # the "full" phase graphs still carry minigraph path fragments (clip_vg keeps them, and
+    # drop_graph_event only runs on the copies that get exported). vg paths -u would happily
+    # source a synthetic reference fragment from one, naming a path in the segment table that
+    # exists in nothing the user receives, so take them out first
+    graph_event = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"),
+                                    "assemblyName", default="_MINIGRAPH_")
+    if any(p.startswith(graph_event) for p in graph_paths):
+        nomg_path = vg_path + '.nomg'
+        cactus_call(parameters=['vg', 'paths', '-d', '-S', graph_event, '-x', vg_path],
+                    outfile=nomg_path, job_memory=job.memory)
+        vg_path = nomg_path
+
     cmd = ['vg', 'paths', '-x', vg_path, '-u', '-Q', vcf_ref,
            '--min-gref-len', str(min_gref_len),
-           '-N', gref_sample,
            '--gref-segs', segs_path,
            '-t', str(job.cores)]
     cactus_call(parameters=cmd, outfile=gref_vg_path, job_memory=job.memory)
+
+    # vg names the new sample itself, and every stage after this one addresses it by the name
+    # cactus derived above -- deconstruct -P, extract_vg_fasta -S, the RS tag on the exported
+    # graph.  a mismatch would not fail, it would quietly produce nothing, so check it here
+    gref_paths = cactus_call(parameters=['vg', 'paths', '-x', gref_vg_path, '-L'], check_output=True)
+    if not any(p.strip().startswith(gref_sample + '#') for p in gref_paths.split('\n')):
+        raise RuntimeError(
+            'vg paths -u did not create the expected sample {} in {}. Cactus reproduces vg\'s naming '
+            'convention (see gref_sample_name) and addresses the sample by that name everywhere after '
+            'this, so they have to agree. Check that vg is new enough to name the gref sample itself '
+            '(the -N option was removed), and that it still uses this prefix.'.format(
+                gref_sample, os.path.basename(vg_path)))
 
     return job.fileStore.writeGlobalFile(gref_vg_path), job.fileStore.writeGlobalFile(segs_path)
 
@@ -2273,19 +2604,14 @@ def merge_gref_segs(job, vg_paths, segs_ids):
     work_dir = job.fileStore.getLocalTempDir()
     merged_path = os.path.join(work_dir, 'gref-segs.tsv')
 
-    first = True
+    # vg writes these as headerless 7-column BED-like rows, so this is a straight concatenation
     with open(merged_path, 'w') as merged_file:
         for vg_path, segs_id in zip(vg_paths, segs_ids):
             segs_path = os.path.join(work_dir, os.path.basename(vg_path) + '.segs.tsv')
             job.fileStore.readGlobalFile(segs_id, segs_path)
             with open(segs_path, 'r') as segs_file:
                 for line in segs_file:
-                    if line.startswith('#'):
-                        if first:
-                            merged_file.write(line)
-                    else:
-                        merged_file.write(line)
-            first = False
+                    merged_file.write(line)
 
     cactus_call(parameters=['bgzip', merged_path, '--threads', str(job.cores)])
     return { 'gref.gref-segs.tsv.gz' : job.fileStore.writeGlobalFile(merged_path + '.gz') }
