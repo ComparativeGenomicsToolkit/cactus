@@ -632,7 +632,9 @@ class TestCase(unittest.TestCase):
         subprocess.check_call(['cactus-align', self._job_store(binariesMode), chromfile_path, ba_path, '--batch', '--pangenome', '--outVG',
                                '--outVG', '--barMaskFilter', '20000', '--reference', 'S288C', '--binariesMode', binariesMode, '--consCores', '2'])
 
-        vg_files = [os.path.join(ba_path, c) + '.vg' for c in chroms]
+        # cactus-align --batch tags its raw hal2vg output <chrom>.raw.vg; graphmap-join strips
+        # the tag back off when it names its own outputs
+        vg_files = [os.path.join(ba_path, c) + '.raw.vg' for c in chroms]
         hal_files = [os.path.join(ba_path, c) + '.hal' for c in chroms]
 
         # join up the graphs and index for giraffe
