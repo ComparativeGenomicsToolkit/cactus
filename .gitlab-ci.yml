@@ -33,8 +33,10 @@ before_script:
         return $status
       fi
     }
-  - quiet apt-update sudo apt-get -q -y update
-  - quiet apt-install sudo apt-get -q -y install --no-upgrade liblz4-dev libzstd-dev libblas-dev liblapack-dev libpcre3-dev gfortran libjansson-dev
+  # left as they are: apt is only 18KB of the log, and quieting the install line here would
+  # collide with anything that adds a package to it
+  - sudo apt-get -q -y update
+  - sudo apt-get -q -y install --no-upgrade liblz4-dev libzstd-dev libblas-dev liblapack-dev libpcre3-dev gfortran libjansson-dev
   - startdocker || true
   - docker info
 
