@@ -1080,8 +1080,8 @@ class TestCase(unittest.TestCase):
             self.assertGreater(gref_raw_alt_records, 0)
 
             # check that aug vcfbub VCF exists and gref _alt records survive vcfbub
-            # (gref contigs are split out and run through vcfbub independently so that
-            #  base contig nesting doesn't interfere with gref contig processing)
+            # (vg counts LV within each reference contig, so a gref contig's own top-level sites
+            #  are at LV=0 and survive the same --max-level 0 pass the base contigs get)
             gref_bub_vcf_path = os.path.join(join_path, 'yeast.gref.vcf.gz')
             self.assertTrue(os.path.exists(gref_bub_vcf_path))
             gref_bub_alt_records = int(subprocess.check_output(

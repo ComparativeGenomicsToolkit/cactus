@@ -1577,7 +1577,7 @@ def make_xg(job, config, out_name, index_dict, tag='', drop_haplotypes=False):
 
     return { '{}xg'.format(tag) : job.fileStore.writeGlobalFile(xg_path) }
 
-def make_vcf(job, config, options, workflow_phase, index_mem, vcf_ref, vg_ids, ref_fasta_dict, vcftag=None, is_gref=False, decon_L=None):
+def make_vcf(job, config, options, workflow_phase, index_mem, vcf_ref, vg_ids, ref_fasta_dict, vcftag=None, decon_L=None):
     """ make the raw vcf with deconstruct. optionally add in the bub and wave vcfs too
     this is done in parallel on each chrom .vg graph
 
@@ -1612,7 +1612,6 @@ def make_vcf(job, config, options, workflow_phase, index_mem, vcf_ref, vg_ids, r
                                                           options.vcfbub,
                                                           ref_fasta_dict,
                                                           tag=os.path.splitext(os.path.basename(vg_path))[0] + '.' + vcftag + '.',
-                                                          is_gref=is_gref,
                                                           disk = vg_id.size * 6,
                                                           memory=cactus_clamp_memory(vg_id.size * 2))
             bub_vcf_id, bub_tbi_id = vcfbub_job.rv(0), vcfbub_job.rv(1)
@@ -1624,7 +1623,6 @@ def make_vcf(job, config, options, workflow_phase, index_mem, vcf_ref, vg_ids, r
                                                            options.vcfbub,
                                                            ref_fasta_dict,
                                                            tag=os.path.splitext(os.path.basename(vg_path))[0] + '.' + vcftag + '.',
-                                                           is_gref=is_gref,
                                                            cores=options.vcfwaveCores,
                                                            disk=vg_id.size * 6,
                                                            memory=cactus_clamp_memory(options.vcfwaveMemory))
@@ -1751,97 +1749,12 @@ def gref_sample_name(reference):
     """
     return 'gref_' + reference
 
-def split_gref_vcf(vcf_path, work_dir):
-    """ Check if VCF contains gref contigs and split into base/gref BED files.
-    Returns (base_bed_path, gref_bed_path) or (None, None) if no gref contigs found.
-    Uses contig info from the VCF header to build BED files for indexed extraction with bcftools -R.
-    Augref contigs are identified by the _<N>_alt suffix produced by vg paths -u.
-    """
-    header = cactus_call(parameters=['bcftools', 'view', '-h', vcf_path], check_output=True)
-
-    gref_re = re.compile(r'_\d+_alt$')
-
-    base_bed_path = os.path.join(work_dir, 'base_contigs.bed')
-    gref_bed_path = os.path.join(work_dir, 'gref_contigs.bed')
-    has_aug = False
-    with open(base_bed_path, 'w') as base_bed, open(gref_bed_path, 'w') as gref_bed:
-        for line in header.strip().split('\n'):
-            if line.startswith('##contig=<ID='):
-                fields = line[len('##contig=<'):].rstrip('>').split(',')
-                contig_id = None
-                contig_len = None
-                for f in fields:
-                    if f.startswith('ID='):
-                        contig_id = f[3:]
-                    elif f.startswith('length='):
-                        contig_len = f[7:]
-                if contig_id and contig_len:
-                    if gref_re.search(contig_id):
-                        gref_bed.write('{}\t0\t{}\n'.format(contig_id, contig_len))
-                        has_aug = True
-                    else:
-                        base_bed.write('{}\t0\t{}\n'.format(contig_id, contig_len))
-
-    if has_aug:
-        return base_bed_path, gref_bed_path
-    else:
-        return None, None
-
-def reroot_gref_levels(in_vcf_path, out_vcf_path):
-    """ rewrite LV on a gref-contig VCF so that it counts only ancestors on the same contig
-
-    vg sets LV to the absolute depth in the snarl tree, counting every ancestor that made it into
-    the VCF (graph_caller.cpp get_nesting_tags).  a gref site therefore inherits the depth of
-    whatever base-reference bubble encloses it, so its top-level sites are at LV=1 only when that
-    enclosing bubble was itself top-level -- nest the base bubble, or nest one gref fragment inside
-    another, and they land at LV=2 or deeper.  filtering those with a fixed `vcfbub --max-level 1`
-    silently deleted them.
-
-    each gref contig is its own reference sequence, so an ancestor lying on some other contig does
-    not nest the site in this contig's coordinates.  recounting LV that way lets the gref half go
-    through vcfbub -l 0, exactly like the base half.  PS is deliberately left alone so that
-    vcfbub's rescue of children-of-popped-bubbles keeps working.
-    """
-    def info_value(info, key):
-        for field in info.split(';'):
-            if field.startswith(key + '='):
-                return field[len(key) + 1:]
-        return None
-
-    # pass 1: snarl id -> contig it sits on, and the id of its parent snarl
-    contig_of = {}
-    parent_of = {}
-    with gzip.open(in_vcf_path, 'rt') as in_file:
-        for line in in_file:
-            if line.startswith('#'):
-                continue
-            toks = line.rstrip('\n').split('\t', 8)
-            contig_of[toks[2]] = toks[0]
-            parent_of[toks[2]] = info_value(toks[7], 'PS')
-
-    # pass 2: LV := number of ancestors on this record's own contig
-    lv_re = re.compile(r'(^|;)LV=[^;]*')
-    with gzip.open(in_vcf_path, 'rt') as in_file, open(out_vcf_path, 'w') as out_file:
-        for line in in_file:
-            if line.startswith('#'):
-                out_file.write(line)
-                continue
-            toks = line.rstrip('\n').split('\t')
-            snarl_id, chrom = toks[2], toks[0]
-            depth = 0
-            # `seen` guards against a malformed PS cycle rather than an expected one
-            seen = set([snarl_id])
-            ancestor = parent_of.get(snarl_id)
-            while ancestor and ancestor != '.' and ancestor not in seen:
-                seen.add(ancestor)
-                if contig_of.get(ancestor) == chrom:
-                    depth += 1
-                ancestor = parent_of.get(ancestor)
-            toks[7] = lv_re.sub(lambda m: m.group(1) + 'LV=' + str(depth), toks[7], count=1)
-            out_file.write('\t'.join(toks) + '\n')
-
-def vcfbub(job, config, out_name, vcf_ref, vcf_id, tbi_id, max_ref_allele, fasta_ref_dict, tag, is_gref=False):
+def vcfbub(job, config, out_name, vcf_ref, vcf_id, tbi_id, max_ref_allele, fasta_ref_dict, tag):
     """ make the vcfbub vcf
+
+    gref VCFs go through here unchanged.  vg counts LV within each reference contig, so a gref
+    contig's own top-level sites are at LV=0 just like the base reference's, and one --max-level 0
+    pass covers both halves of the file
     """
     if vcf_id is None:
         return None, None
@@ -1859,20 +1772,9 @@ def vcfbub(job, config, out_name, vcf_ref, vcf_id, tbi_id, max_ref_allele, fasta
         # another has not read yet
         return copy_vcf_ids(job, vcf_path)
 
-    # split gref contigs so they can be run through vcfbub independently
-    base_bed_path, gref_bed_path = split_gref_vcf(vcf_path, work_dir) if is_gref else (None, None)
-    if base_bed_path:
-        base_vcf_path = os.path.join(work_dir, os.path.basename(out_name) + '.' + tag + 'base.vcf.gz')
-        cactus_call(parameters=['bcftools', 'view', '-R', base_bed_path, '-Oz', vcf_path],
-                    outfile=base_vcf_path)
-        bub_input_path = base_vcf_path
-    else:
-        bub_input_path = vcf_path
-
-    # run vcfbub on base contigs (or all contigs if not gref)
     vcfbub_path = os.path.join(work_dir, os.path.basename(out_name) + '.' + tag + 'bub.vcf.gz')
     assert max_ref_allele
-    bub_cmd = [['vcfbub', '--input', bub_input_path, '--max-ref-length', str(max_ref_allele), '--max-level', '0']]
+    bub_cmd = [['vcfbub', '--input', vcf_path, '--max-ref-length', str(max_ref_allele), '--max-level', '0']]
     if getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "filterAC0", typeFn=bool, default=False):
         # MAX() because these records are still multi-allelic: bcftools ORs over Number=A fields,
         # so a plain AC=0 would drop the whole site over one unsupported allele, taking the
@@ -1880,29 +1782,6 @@ def vcfbub(job, config, out_name, vcf_ref, vcf_id, tbi_id, max_ref_allele, fasta
         bub_cmd.append(['bcftools', 'view', '-e', 'MAX(AC)=0'])
     bub_cmd.append(['bgzip'])
     cactus_call(parameters = bub_cmd, outfile = vcfbub_path)
-
-    if base_bed_path:
-        # run vcfbub independently on the gref contigs and merge back.  LV has to be recounted
-        # per contig first (see reroot_gref_levels) -- with vg's absolute levels there is no fixed
-        # --max-level that keeps every gref contig's own top-level sites without also keeping
-        # genuinely nested ones
-        gref_raw_path = os.path.join(work_dir, os.path.basename(out_name) + '.' + tag + 'gref.raw.vcf.gz')
-        cactus_call(parameters=['bcftools', 'view', '-R', gref_bed_path, '-Oz', vcf_path],
-                    outfile=gref_raw_path)
-        gref_lv_path = os.path.join(work_dir, os.path.basename(out_name) + '.' + tag + 'gref.lv.vcf')
-        reroot_gref_levels(gref_raw_path, gref_lv_path)
-        gref_vcf_path = os.path.join(work_dir, os.path.basename(out_name) + '.' + tag + 'gref.bub.vcf.gz')
-        gref_bub_cmd = [['vcfbub', '--input', gref_lv_path, '--max-ref-length', str(max_ref_allele), '--max-level', '0']]
-        if getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "filterAC0", typeFn=bool, default=False):
-            gref_bub_cmd.append(['bcftools', 'view', '-e', 'MAX(AC)=0'])
-        gref_bub_cmd.append(['bgzip'])
-        cactus_call(parameters=gref_bub_cmd, outfile=gref_vcf_path)
-        index_vcf(gref_vcf_path)
-        index_vcf(vcfbub_path)
-        merged_path = os.path.join(work_dir, os.path.basename(out_name) + '.' + tag + 'bub.merged.vcf.gz')
-        cactus_call(parameters=['bcftools', 'concat', '-a', '-Oz', vcfbub_path, gref_vcf_path],
-                    outfile=merged_path)
-        vcfbub_path = merged_path
 
     tbi_path = index_vcf(vcfbub_path)
 
@@ -2069,7 +1948,7 @@ def check_vcffixup(job):
     except:
         raise RuntimeError('vcf normalization with merge_duplicates enabled, but vcffixup tool (used in postprocessing) not found in PATH. vcffixup is *not* included in the cactus binary release, but it is in the cactus Docker image. If you have Docker installed, you can try running again with --binariesMode docker. Or running your whole command with docker run. If you cannot use Docker, then you will need to build vcflib yourself before retrying: source code and details here: https://github.com/vcflib/vcflib. Running the ./build-tools/downloadVCFWave script (from the cactus/ directory) will attemp to download and build vcfwave.')    
     
-def chunked_vcfwave(job, config, out_name, vcf_ref, vcf_id, tbi_id, max_ref_allele, fasta_ref_dict, tag, is_gref=False):
+def chunked_vcfwave(job, config, out_name, vcf_ref, vcf_id, tbi_id, max_ref_allele, fasta_ref_dict, tag):
     """ run vcfwave in parallel chunks """
     if vcf_id is None:
         return None, None
@@ -2087,49 +1966,16 @@ def chunked_vcfwave(job, config, out_name, vcf_ref, vcf_id, tbi_id, max_ref_alle
         # another has not read yet
         return copy_vcf_ids(job, vcf_path)
 
-    # split gref contigs so they can be run through vcfbub/vcfwave independently
-    base_bed_path, gref_bed_path = split_gref_vcf(vcf_path, work_dir) if is_gref else (None, None)
-    if base_bed_path:
-        base_vcf_path = os.path.join(work_dir, os.path.basename(out_name) + '.' + vcf_ref + '.' + tag + 'base.vcf.gz')
-        cactus_call(parameters=['bcftools', 'view', '-R', base_bed_path, '-Oz', vcf_path],
-                    outfile=base_vcf_path)
-        bub_input_path = base_vcf_path
-    else:
-        bub_input_path = vcf_path
-
     # run vcfbub using original HPRC recipe
     # allele splitting added here as vcfwave has history of trouble with multi-allelic sites
     vcfbub_path = os.path.join(work_dir, os.path.basename(out_name) + '.' + vcf_ref + '.' + tag + 'bub.vcf.gz')
-    bub_cmd = [['vcfbub', '--input', bub_input_path, '-l', '0', '-a', str(max_ref_allele)],
+    bub_cmd = [['vcfbub', '--input', vcf_path, '-l', '0', '-a', str(max_ref_allele)],
                ['bcftools', 'annotate', '-x', 'INFO/AT'],
                ['bcftools', 'norm', '-m', '-any']]
     if getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "filterAC0", typeFn=bool, default=False):
         bub_cmd.append(['bcftools', 'view', '-e', 'AC=0'])
     bub_cmd.append(['bgzip', '--threads', str(job.cores)])
     cactus_call(parameters=bub_cmd, outfile=vcfbub_path)
-
-    if base_bed_path:
-        # run vcfbub independently on the gref contigs and merge back, recounting LV per contig
-        # first (see reroot_gref_levels) so that -l 0 keeps each gref contig's own top-level sites
-        gref_raw_path = os.path.join(work_dir, os.path.basename(out_name) + '.' + vcf_ref + '.' + tag + 'gref.raw.vcf.gz')
-        cactus_call(parameters=['bcftools', 'view', '-R', gref_bed_path, '-Oz', vcf_path],
-                    outfile=gref_raw_path)
-        gref_lv_path = os.path.join(work_dir, os.path.basename(out_name) + '.' + vcf_ref + '.' + tag + 'gref.lv.vcf')
-        reroot_gref_levels(gref_raw_path, gref_lv_path)
-        gref_vcf_path = os.path.join(work_dir, os.path.basename(out_name) + '.' + vcf_ref + '.' + tag + 'gref.bub.vcf.gz')
-        gref_bub_cmd = [['vcfbub', '--input', gref_lv_path, '-l', '0', '-a', str(max_ref_allele)],
-                       ['bcftools', 'annotate', '-x', 'INFO/AT'],
-                       ['bcftools', 'norm', '-m', '-any']]
-        if getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "filterAC0", typeFn=bool, default=False):
-            gref_bub_cmd.append(['bcftools', 'view', '-e', 'AC=0'])
-        gref_bub_cmd.append(['bgzip', '--threads', str(job.cores)])
-        cactus_call(parameters=gref_bub_cmd, outfile=gref_vcf_path)
-        index_vcf(gref_vcf_path)
-        index_vcf(vcfbub_path)
-        merged_path = os.path.join(work_dir, os.path.basename(out_name) + '.' + vcf_ref + '.' + tag + 'bub.merged.vcf.gz')
-        cactus_call(parameters=['bcftools', 'concat', '-a', '-Oz', vcfbub_path, gref_vcf_path],
-                    outfile=merged_path)
-        vcfbub_path = merged_path
 
     # count the lines in the vcf
     lines = int(cactus_call(parameters=[['bcftools', 'view', '-H', vcfbub_path], ['wc', '-l']], check_output=True).strip())
@@ -2500,8 +2346,7 @@ def build_vg_indexes_and_vcf(parent_job, options, config, phase_vg_ids, vg_ids,
     if vcf_ref:
         vcf_job = gfa_root_job.addFollowOnJobFn(make_vcf, config, options, tag.rstrip('.'),
                                                  index_mem, vcf_ref, phase_vg_ids,
-                                                 ref_fasta_dict, vcftag=vcftag,
-                                                 is_gref=is_gref)
+                                                 ref_fasta_dict, vcftag=vcftag)
         out_dicts.append(vcf_job.rv())
 
         if decon_L is not None:
@@ -2510,7 +2355,7 @@ def build_vg_indexes_and_vcf(parent_job, options, config, phase_vg_ids, vg_ids,
             l_job = gfa_root_job.addFollowOnJobFn(make_vcf, config, options, tag.rstrip('.'),
                                                    index_mem, vcf_ref, phase_vg_ids,
                                                    ref_fasta_dict, vcftag=vcftag,
-                                                   is_gref=is_gref, decon_L=decon_L)
+                                                   decon_L=decon_L)
             out_dicts.append(l_job.rv())
 
     # optional haplo index
