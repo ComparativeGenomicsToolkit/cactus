@@ -1817,11 +1817,13 @@ class TestCase(unittest.TestCase):
 
         REF walks 1-2-3-7-9.  node 10 gives the outer snarl (1,9) a second traversal, so (2,7) is
         its child rather than a top-level site.  the A-P/Q-B insertion hangs off (2,7) and the
-        reference never touches it, so it becomes a gref fragment -- and the P/Q bubble inside that
-        fragment therefore sits two snarls deep.  vg reports LV as absolute depth in the snarl
-        tree, so that bubble comes out of deconstruct at LV=2, which a fixed `vcfbub --max-level 1`
-        used to delete from the gref VCF.  a shallower graph (the yeast test, for one) never
-        produces a gref site below LV=1 and so cannot catch that.
+        reference never touches it, so it becomes a gref fragment sitting two snarls deep in the
+        graph.  vg counts LV within each reference contig, so the P/Q bubble inside that fragment
+        comes out of deconstruct at LV=0 -- top level of its own contig -- and survives the same
+        `vcfbub --max-level 0` pass the base contigs get.  its PS still names (2,7) on the base
+        contig, which is what records that the fragment is nested at all.  a shallower graph (the
+        yeast test, for one) puts its fragments directly under a top-level bubble and so does not
+        cover the case where the containing bubble is itself nested.
         """
         import random
         random.seed(23)
@@ -1881,13 +1883,26 @@ class TestCase(unittest.TestCase):
         raw_path = os.path.join(out_dir, 'gt.gref.raw.vcf.gz')
         bub_path = os.path.join(out_dir, 'gt.gref.vcf.gz')
 
-        # guard the fixture itself: if this graph ever stops producing a gref site below the top
-        # level, the test still passes everything below while covering nothing
-        lv_rows = subprocess.check_output(
-            'bcftools query -f "%CHROM\\t%INFO/LV\\n" {}'.format(raw_path), shell=True).decode('utf-8')
-        deep_gref = [row for row in lv_rows.split('\n')
-                     if row.count('\t') == 1 and row.split('\t')[0].endswith('_alt')
-                     and row.split('\t')[1].isdigit() and int(row.split('\t')[1]) >= 2]
+        # guard the fixture itself: if this graph ever stops putting a gref fragment below the top
+        # level, the test still passes everything below while covering nothing.  vg counts LV
+        # within each reference contig, so a fragment's own sites are LV=0 however deeply the
+        # bubble holding them is nested -- what marks the fragment as nested is its PS naming a
+        # base-contig site that is itself nested
+        rows = subprocess.check_output(
+            'bcftools query -f "%CHROM\\t%ID\\t%INFO/LV\\t%INFO/PS\\n" {}'.format(raw_path),
+            shell=True).decode('utf-8')
+        level_of = {}
+        gref_parents = []
+        for row in rows.split('\n'):
+            fields = row.split('\t')
+            if len(fields) != 4:
+                continue
+            chrom, snarl_id, level, parent = fields
+            level_of[snarl_id] = level
+            if chrom.endswith('_alt'):
+                gref_parents.append(parent)
+        deep_gref = [parent for parent in gref_parents
+                     if level_of.get(parent, '').isdigit() and int(level_of[parent]) >= 1]
         self.assertGreater(len(deep_gref), 0)
 
         # the invariant that matters: flattening drops nested sites, but it must never leave a gref
