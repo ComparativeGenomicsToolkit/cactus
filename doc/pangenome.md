@@ -299,33 +299,35 @@ Whenever normalization runs — so the wave VCF always, and the `vcfbub` VCF onl
 
 **Experimental.** Non-reference sequence reaches a reference-based VCF only as ALT alleles, so variation *inside* an insertion or a non-reference SV allele has no reference position of its own: it appears in `.raw.vcf.gz` as nested `LV>0` records, which `vcfbub` then drops from `.vcf.gz`. `--gref` gives that sequence coordinates so it can be addressed directly.
 
-It works by running `vg paths -u`, which computes a *graph reference path cover*: it finds the parts of the graph the reference does not walk through, and promotes fragments of the haplotype paths already covering them into new synthetic reference paths. Those go into a new sample named `gref_<reference>`, holding a copy of the reference paths plus extra fragments suffixed `_<N>_alt` (`gref_GRCh38#0#chr1_1_alt`). Deconstructing against that sample yields a VCF whose sites include the non-reference material.
+`vg paths -u` computes a *graph reference path cover*: it finds the parts of the graph the reference does not walk, and promotes fragments of the haplotype paths covering them into synthetic reference paths. These form a new sample, `gref_<reference>`, holding a copy of the reference paths plus fragments suffixed `_<N>_alt` (`gref_GRCh38#0#chr1_1_alt`). Deconstructing against that sample puts the non-reference material in the VCF.
 
 ```
 cactus-pangenome ./js ./seqfile.txt --outDir pg --outName pg --reference GRCh38 --vcf --gref
 ```
 
-`--gref` takes the graph to build from — `full`, `clip` or `filter`, defaulting to `clip` — and `--minGrefLen` sets the shortest fragment worth keeping (default `50`, or the `minGrefLen` config attribute). Only the first `--reference` sample is used, since its paths are the ones guaranteed acyclic. `--gref clip` requires clipping to be on and `--gref filter` requires filtering to be on, and the option cannot be combined with `--collapse`.
+`--gref` takes the graph to build from: `full`, `clip` or `filter`, defaulting to `clip`. `--minGrefLen` sets the minimum fragment length (default `50`, or the `minGrefLen` config attribute). Only the first `--reference` sample is used, as its paths are the ones guaranteed acyclic. `--gref clip` requires clipping to be enabled, `--gref filter` requires filtering to be enabled, and neither can be combined with `--collapse`.
 
 | File | What it is |
 |------|------------|
 | `<outName>.gref.gbz`, `.gref.gfa.gz` | The source graph with the `gref_<reference>` sample added. |
-| `<outName>.gref.vcf.gz` etc. | The whole VCF set from the [table above](#vcf-output) — `.raw`, `.wave`, `.L<NN>` and all — deconstructed against `gref_<reference>` rather than the reference sample. These come even without `--vcf`; `.gref.wave.vcf.gz` still needs `--vcfwave`, which itself requires `--vcf`. |
+| `<outName>.gref.vcf.gz` etc. | The VCF set from the [table above](#vcf-output) (`.raw`, `.wave`, `.L<NN>`), deconstructed against `gref_<reference>` rather than the reference sample. Produced even without `--vcf`; `.gref.wave.vcf.gz` still requires `--vcfwave`, which itself requires `--vcf`. |
 | `<outName>.gref.gref-segs.tsv.gz` | Where every synthetic fragment came from (see below). |
 
-The gref graph is topologically identical to the base graph — it only adds paths, no nodes or edges — so it gets no topology indexes of its own. The base graph's `<outName>.snarls`, `.dist` and `.hapl` all apply to `gref.gbz` directly; pair them with `gref.gbz` rather than looking for `.gref.snarls`/`.gref.hapl` (which are no longer produced).
+The gref graph adds paths only, no nodes or edges, so it is topologically identical to the base graph and gets no topology indexes of its own. Use the base graph's `<outName>.snarls`, `.dist` and `.hapl` with `gref.gbz`. `.gref.snarls` and `.gref.hapl` are not produced.
 
-The segment table is headerless, tab-separated and BED-like, with one row per fragment: the haplotype path it was taken from and the interval on it, then the new gref path name, then the reference path it hangs off and the span of the enclosing snarl there — flanking nodes included, so the fragment sits strictly inside that span rather than filling it. So
+The segment table maps a gref coordinate back onto an assembly one. It is headerless, tab-separated and BED-like, one row per fragment: the source haplotype path and interval, the new gref path name, then the reference path the fragment hangs off and the span of the enclosing snarl there. That span includes the flanking nodes, so the fragment sits strictly inside it rather than filling it.
 
 ```
 SAMP2#0#chr1    200    700    gref_REF#0#chr1_1_alt    REF#0#chr1    0    901
 ```
 
-means the new path `gref_REF#0#chr1_1_alt` is `SAMP2`'s sequence from 200 to 700, attached somewhere within `REF#0#chr1:0-901`. This is the file that maps a gref coordinate back onto a real assembly one. Fragments that could not be placed against the reference at all get `.` and `0 0` in the last three columns.
+`gref_REF#0#chr1_1_alt` is `SAMP2#0#chr1:200-700`, placed within `REF#0#chr1:0-901`. Fragments that could not be placed against the reference get `.` and `0 0` in the last three columns.
 
-The gref VCF holds two coordinate systems at once — records on the reference contigs, and records on the gref contigs — and the same sample sequence appears in both: as an ALT allele at a base-level site, and as the reference that a gref contig's own records are called against. `RC`/`RS`/`RD` are the join. On a gref-contig record they name the base-level site containing it, so `RC=chr22 RS=15470047` on a `chr22_2_alt` record means that fragment is the insertion called at `chr22:15470047`. They survive `vcfbub` and `vcfwave` unchanged; `INFO/AT`, which would say *which* ALT allele at that site, does not — the wave path strips it. Two consequences: do not pool the two kinds of record for allele frequencies or site counts, or that sequence is counted twice; and in `.wave.vcf.gz` match `RS` with a tolerance, since realignment can shift the base-level record a few bases from where `RS` points.
+The gref VCF has records in two coordinate systems: on the reference contigs and on the gref contigs. The same sample sequence appears in both, as an ALT allele at a reference-contig site and as the reference for a gref contig's own records. `RC`/`RS`/`RD` join the two: on a gref-contig record they give the reference-contig site containing it. `RC=chr22 RS=15470047` on a `chr22_2_alt` record means that fragment is the insertion called at `chr22:15470047`. `RC`/`RS`/`RD` survive `vcfbub` and `vcfwave`; `INFO/AT`, which would give the specific ALT allele, is stripped by the wave path.
 
-One implementation note, in case the VCF surprises you: gref contigs are separated out and run through `vcfbub` on their own. `vg` reports `LV` as absolute depth in the snarl tree, so a gref site inherits the depth of whatever main-reference bubble encloses it — nest that bubble, or nest one gref fragment inside another, and its sites land at `LV` 2 or deeper. No single `--max-level` is therefore correct for gref contigs. Cactus recounts `LV` per contig first, so that it measures depth *within* the gref contig rather than within the graph as a whole, and then applies the same level-0 filter the main contigs get.
+Do not pool reference-contig and gref-contig records when computing allele frequencies or site counts, or that sequence is counted twice. In `.wave.vcf.gz`, match `RS` with a tolerance: realignment can shift the reference-contig record a few bases from where `RS` points.
+
+`vg` counts `LV` within each reference contig rather than as absolute depth in the snarl tree, so gref-contig sites reach `LV=0` and the whole VCF goes through a single `vcfbub --max-level 0` pass.
 
 ### Haplotype Sampling Instead of Filtering (NEW)
 
