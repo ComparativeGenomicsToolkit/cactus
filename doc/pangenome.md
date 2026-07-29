@@ -331,7 +331,7 @@ Do not pool reference-contig and gref-contig records when computing allele frequ
 
 ### Haplotype Sampling Instead of Filtering (NEW)
 
-The `.dX` graphs created with `--filter` were necessary for read mapping, but now `vg` supports dynamic haplotype subsampling (ie personalized pangenomes) and, in most cases, filtering is no longer necessary. In order to use haplotype sampling, run `cactus-pangenome / cactus-graphmap-join` with the `--haplo` option (and do not use `--giraffe`). This will create the `giraffe` indexes for the special `.hapl` haplotype index which (with the `.gbz`` is all you need to run `vg giraffe` using the current best practices.
+The `.dX` graphs created with `--filter` were necessary for read mapping, but now `vg` supports dynamic haplotype subsampling (ie personalized pangenomes) and, in most cases, filtering is no longer necessary. In order to use haplotype sampling, run `cactus-pangenome / cactus-graphmap-join` with the `--haplo` option (and do not use `--giraffe`). This will create the `giraffe` indexes for the special `.hapl` haplotype index which (with the `.gbz`) is all you need to run `vg giraffe` using the current best practices.
 
 While this process will give better mapping performance than using the `--filter` graphs there is one downside:
 * Read mapping will now require an invocation of `kmc` to compute a kmer index (see links below). While this adds complexity, it does not seriously affect runtime (the time used making the kmer index and doing the subsampling is balanced out by faster mappings times).
