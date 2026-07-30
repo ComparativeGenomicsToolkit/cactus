@@ -187,7 +187,7 @@ def graphmap_join_options(parser):
     parser.add_argument("--vcfbub", type=int, default=100000, help = "Use vcfbub to flatten nested sites (sites with reference alleles > this will be replaced by their children)). Setting to 0 will disable, only prudcing full VCF [default=100000].")
     parser.add_argument("--vcfwave", action='store_true', default=False, help = "Create a vcfwave-normalized VCF. vcfwave realigns alt alleles to the reference, and can help correct messy regions in the VCF. This option will output an additional VCF with 'wave' in its filename, other VCF outputs will not be affected")
     parser.add_argument("--vcfwaveCores", type=int, help = "Number of cores for each vcfwave job [default=4].", default=4)
-    parser.add_argument("--vcfwaveMemory", type=human2bytesN, help = "Upper bound on the memory reserved for a vcfwave job. Each job actually reserves an amount scaled to the size of the VCF chunk it gets, so only the largest chunks approach this [default=32Gi].", default=32000000000)
+    parser.add_argument("--vcfwaveMemory", type=human2bytesN, help = "Upper bound on the memory reserved for each vcfwave job [default=32Gi].", default=32000000000)
     parser.add_argument("--vcfL", type=float, default=None,
                         help="[EXPERIMENTAL] Pass `-L <FLOAT>` to vg deconstruct: traversals whose "
                         "length-weighted Jaccard similarity is at least this are merged into a single "
@@ -1416,10 +1416,9 @@ def vg_to_og(job, options, config, vg_path, vg_id):
 def make_vg_indexes(job, options, config, gfa_ids, tag="", do_gbz=False, do_snarls=True, ref_samples=None):
     """ merge of the gfas, then make gbz / snarls / trans
 
-    ref_samples overrides which samples the merged GFA declares as reference-sense.  it defaults to
-    --reference, but the gref graph has to add its gref_<reference> sample: leaving it out demotes
-    every synthetic reference path to a haplotype, and the resulting gbz can no longer be
-    deconstructed against the very sample its VCF is built on
+    ref_samples overrides which samples the merged GFA declares as reference-sense (default
+    --reference).  the gref graph must add its gref_<reference> sample, or its synthetic
+    reference paths are demoted to haplotypes and the gbz cannot be deconstructed against them
     """
     if ref_samples is None:
         ref_samples = options.reference
@@ -1495,9 +1494,9 @@ PANSN_TO_LOCUS_AWK = (r'/^>/ {n = split(substr($0, 2), a, "#"); '
 def check_fasta_headers(fa_path, vcf_ref):
     """ fail here, before anything expensive, if the headers are not bare contig names
 
-    a header that still carries '#' will not match the CHROM that deconstruct emits, and the only
-    symptom downstream is `bcftools norm -f` reporting the contig as missing -- after every
-    deconstruct, vcfbub and vcfwave job has already been paid for
+    a header still carrying '#' will not match the CHROM deconstruct emits, and the only symptom
+    is `bcftools norm -f` reporting the contig missing, once every deconstruct, vcfbub and
+    vcfwave job has been paid for
     """
     bad = []
     opener = gzip.open if fa_path.endswith('.gz') else open
@@ -1581,10 +1580,9 @@ def make_vcf(job, config, options, workflow_phase, index_mem, vcf_ref, vg_ids, r
     """ make the raw vcf with deconstruct. optionally add in the bub and wave vcfs too
     this is done in parallel on each chrom .vg graph
 
-    a decon_L (--vcfL) run is an extra pass that adds clustered copies of the raw and bub VCFs
-    beside the unclustered ones.  it never makes a wave VCF: vcfwave exists to recover small
-    variants by realigning big alt alleles, and -L has already merged those alleles away, so a
-    clustered wave VCF would be strictly lossy with nothing left in it to say so
+    a decon_L (--vcfL) run adds clustered copies of the raw and bub VCFs beside the unclustered
+    ones.  it never makes a wave VCF: -L has already merged away the alleles vcfwave would
+    realign
     """
     root_job = Job()
     job.addChild(root_job)
@@ -1729,10 +1727,9 @@ def deconstruct(job, config, out_name, vcf_ref, vg_id, decon_L, tag):
 def copy_vcf_ids(job, vcf_path):
     """ write a fresh (vcf, tbi) id pair for a VCF already on local disk
 
-    used by the empty-VCF short circuits.  they used to return the ids they were handed, which
-    aliased one file across the raw/bub/wave branches -- and since vcf_cat deletes every input id
-    and those three cat jobs are siblings, whichever ran first could delete a file the others had
-    not read yet
+    used by the empty-VCF short circuits.  returning the ids they were handed aliased one file
+    across the raw/bub/wave branches, and vcf_cat deletes every id it is given, so the first of
+    those sibling jobs to run could delete a file the others had not read yet
     """
     tbi_path = vcf_path + '.tbi'
     if not os.path.isfile(tbi_path):
@@ -1742,10 +1739,8 @@ def copy_vcf_ids(job, vcf_path):
 def gref_sample_name(reference):
     """ the sample name `vg paths -u` gives the graph reference paths it creates
 
-    vg builds this itself and cactus cannot influence it, but every stage after the cover has to
-    address the sample by name -- deconstruct -P, extract_vg_fasta -S, the RS tag on the exported
-    graph -- so the convention is reproduced here.  compute_gref_paths checks the sample really
-    turned up, because a mismatch would produce empty output rather than an error.
+    vg picks this, not cactus; compute_gref_paths checks it really turned up, since a mismatch
+    gives empty output rather than an error
     """
     return 'gref_' + reference
 
@@ -1852,10 +1847,8 @@ def fix_vcf_ploidies(in_vcf_path, out_vcf_path):
     this function smooths it over, by doing two scans. 1) find the max ploidy of each sample
     2) add dots to each GT to make sure each line gets this ploidy
 
-    this works on the text rather than through pysam's record model.  the job is only to count
-    separators in one subfield and append to it, and building a python object per sample per
-    record to do that dominated the runtime: on a whole-genome HPRC-scale VCF the pysam version
-    ran at ~1.8k records/s, which is hours for a single vcf_cat.
+    text rather than pysam: a record object per sample dominated the runtime (~1.8k records/s,
+    hours for one vcf_cat)
     """
     # read with gzip rather than pysam.BGZFile: the latter strips the line terminator on
     # iteration, and this relies on passing untouched lines straight through.  gzip reads bgzf
@@ -2028,16 +2021,12 @@ def chunked_vcfwave(job, config, out_name, vcf_ref, vcf_id, tbi_id, max_ref_alle
     chunk_vcf_tbi_ids = []
     for chunk_path in chunk_paths:
         chunk_id = job.fileStore.writeGlobalFile(chunk_path)
-        # size memory off the chunk, the way disk already is.  chunks are cut at a fixed line
-        # count but their bytes vary ~40x with how long the alleles are, and peak RSS tracks that
-        # closely: measured over 10,670 chunk jobs of a whole-genome HPRC run (plus a chr22 run at
-        # different thread and sample counts) peak/compressed-chunk stayed inside 100-520x with no
-        # trend, median ~300x.  800x is ~2.5x headroom at every quantile.  reserving a flat
-        # --vcfwaveMemory instead meant every job held 32G to use a median of 0.4G, so on any node
-        # vcfwave was memory-bound long before it was core-bound
-        # job.memory is this job's own reservation, i.e. --vcfwaveMemory already clamped, so it
-        # serves as the ceiling without needing options here
-        wave_mem = min(job.memory, max(2 * 2**30, chunk_id.size * 800))
+        # 800x the chunk covers the bulk of the distribution, but peak RSS really tracks the
+        # longest alleles vcfwave realigns rather than the chunk's bytes, and each thread pays
+        # that separately -- so the floor catches the tail and scales per thread.  no chunk of
+        # two whole-genome HPRC runs, at 24 and 32 threads, exceeded these values.
+        # job.memory is --vcfwaveMemory, already clamped, and caps all of it
+        wave_mem = min(job.memory, max(6 * 2**30, job.cores * 960 * 2**20, chunk_id.size * 800))
         vcfwave_job = root_job.addChildJobFn(vcfwave, config, chunk_path, chunk_id,
                                              disk=chunk_id.size * 10, cores=job.cores,
                                              memory=wave_mem)
