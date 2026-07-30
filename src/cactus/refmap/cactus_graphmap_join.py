@@ -1153,7 +1153,10 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
                     ref_gaps_job, config, options, vg_path, phase_vg_id, chrom_name, ref_event,
                     deepest_phase == 'full',
                     disk=input_vg_id.size * 4,
-                    memory=cactus_clamp_memory(min(max(2**31, input_vg_id.size * 8), max_mem)))
+                    # `vg depth` loads the whole graph, so size this like the other jobs that do:
+                    # 8x was the lowest multiple in this file and OOMed on a 6-genome GRCh38 run
+                    # even after --doubleMem took it to 4Gi.  20x matches clip_vg
+                    memory=cactus_clamp_memory(min(max(2**31, input_vg_id.size * 20), max_mem)))
                 gap_ids.append(gap_job.rv())
             exclusion_refgap_ids[ref_event] = gap_ids
 
@@ -1217,6 +1220,12 @@ def clip_vg(job, options, config, vg_path, vg_id, phase):
         # but... in the full graph we'll leave the minigraph path fragments that are aligned to anything else in the vg's
         # since we'll need them to run the actual clipping
         clip_vg_cmd += ['-L']
+        # forwardize nodes no path visits forward.  this can rename nodes, which is only safe here:
+        # the full phase ends in `vg ids -s` and is followed by join_vg's `vg ids -j`, so the ids
+        # every later phase sees are assigned after this runs.  the clip phase must never pass -F --
+        # node ids have to mean the same thing in the full, clip and filter graphs, so clipping may
+        # drop an id but never change or add one
+        clip_vg_cmd += ['-F']
 
     if phase == 'clip':
         if options.clip:
@@ -1672,6 +1681,15 @@ def deconstruct(job, config, out_name, vcf_ref, vg_id, decon_L, tag):
     job.fileStore.readGlobalFile(vg_id, vg_path)
 
     # deconstruct will fail if there are no alt paths.  we check for that here
+    #
+    # a path only counts as an alt if vg would genotype it as a sample, and vg never does that for
+    # a reference-sense path -- not only the one -P selects.  ask vg which those are rather than
+    # inferring it: in a gref graph the base reference is reference-sense too, so on a contig that
+    # only the reference has (chrEBV in the GRCh38 analysis set) counting it as an alt let this
+    # check pass and vg then fail with "No paths other than selected reference(s) found"
+    ref_sense_paths = set(p.strip() for p in
+                          cactus_call(parameters=['vg', 'paths', '-x', vg_path, '-L', '-R'],
+                                      check_output=True).split('\n') if p.strip())
     graph_paths = cactus_call(parameters=['vg', 'paths', '-x', vg_path, '-L'], check_output=True).split('\n')
     alt_paths = []
     ref_paths = []
@@ -1680,7 +1698,7 @@ def deconstruct(job, config, out_name, vcf_ref, vg_id, decon_L, tag):
         if graph_path:
             if graph_path.startswith(vcf_ref + '#'):
                 ref_paths.append(graph_path)
-            else:
+            elif graph_path not in ref_sense_paths:
                 alt_paths.append(graph_path)
 
     if len(ref_paths) == 0:
