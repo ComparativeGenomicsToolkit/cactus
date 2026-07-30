@@ -2268,7 +2268,8 @@ def make_haplo_index(job, options, config, index_dict, giraffe_dict, tag=''):
     hapl_path = os.path.join(work_dir, tag + os.path.basename(options.outName) + '.hapl')
     hapl_opts = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "haplOptions", default='').split()
     try:
-        cactus_call(parameters=['vg', 'haplotypes'] + hapl_opts + ['-t', str(job.cores), '-H', hapl_path, '-d', dist_path, '-r', ri_path, gbz_path])
+        cactus_call(parameters=['vg', 'haplotypes'] + hapl_opts + ['-t', str(job.cores), '-H', hapl_path, '-d', dist_path, '-r', ri_path, gbz_path],
+                    job_memory=job.memory)
     except Exception as e:
         if options.collapse:
             RealtimeLogger.warning('Unable to produce .hapl index on graph due to collapsing from --collapse')
