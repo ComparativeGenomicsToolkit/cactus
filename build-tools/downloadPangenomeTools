@@ -252,7 +252,7 @@ fi
 
 # hal2vg
 cd ${pangenomeBuildDir}
-wget -nv --tries=5 --waitretry=3 --timeout=60 --retry-connrefused https://github.com/ComparativeGenomicsToolkit/hal2vg/releases/download/v1.2.0/hal2vg
+wget -nv --tries=5 --waitretry=3 --timeout=60 --retry-connrefused https://github.com/ComparativeGenomicsToolkit/hal2vg/releases/download/v1.2.1/hal2vg
 chmod +x hal2vg
 if [[ $STATIC_CHECK -ne 1 || $(ldd hal2vg | grep so | wc -l) -eq 0 ]]
 then
@@ -262,7 +262,7 @@ else
 fi
 # clip-vg
 cd ${pangenomeBuildDir}
-wget -nv --tries=5 --waitretry=3 --timeout=60 --retry-connrefused https://github.com/ComparativeGenomicsToolkit/hal2vg/releases/download/v1.2.0/clip-vg
+wget -nv --tries=5 --waitretry=3 --timeout=60 --retry-connrefused https://github.com/ComparativeGenomicsToolkit/hal2vg/releases/download/v1.2.1/clip-vg
 chmod +x clip-vg
 if [[ $STATIC_CHECK -ne 1 || $(ldd clip-vg | grep so | wc -l) -eq 0 ]]
 then
@@ -272,7 +272,7 @@ else
 fi
 # halRemoveDupes
 cd ${pangenomeBuildDir}
-wget -nv --tries=5 --waitretry=3 --timeout=60 --retry-connrefused https://github.com/ComparativeGenomicsToolkit/hal2vg/releases/download/v1.2.0/halRemoveDupes
+wget -nv --tries=5 --waitretry=3 --timeout=60 --retry-connrefused https://github.com/ComparativeGenomicsToolkit/hal2vg/releases/download/v1.2.1/halRemoveDupes
 chmod +x halRemoveDupes
 if [[ $STATIC_CHECK -ne 1 || $(ldd halRemoveDupes | grep so | wc -l) -eq 0 ]]
 then
@@ -282,7 +282,7 @@ else
 fi
 # halMergeChroms
 cd ${pangenomeBuildDir}
-wget -nv --tries=5 --waitretry=3 --timeout=60 --retry-connrefused https://github.com/ComparativeGenomicsToolkit/hal2vg/releases/download/v1.2.0/halMergeChroms
+wget -nv --tries=5 --waitretry=3 --timeout=60 --retry-connrefused https://github.com/ComparativeGenomicsToolkit/hal2vg/releases/download/v1.2.1/halMergeChroms
 chmod +x halMergeChroms
 if [[ $STATIC_CHECK -ne 1 || $(ldd halMergeChroms | grep so | wc -l) -eq 0 ]]
 then
@@ -293,7 +293,7 @@ fi
 
 # halUnclip
 cd ${pangenomeBuildDir}
-wget -nv --tries=5 --waitretry=3 --timeout=60 --retry-connrefused https://github.com/ComparativeGenomicsToolkit/hal2vg/releases/download/v1.2.0/halUnclip
+wget -nv --tries=5 --waitretry=3 --timeout=60 --retry-connrefused https://github.com/ComparativeGenomicsToolkit/hal2vg/releases/download/v1.2.1/halUnclip
 chmod +x halUnclip
 if [[ $STATIC_CHECK -ne 1 || $(ldd halUnclip | grep so | wc -l) -eq 0 ]]
 then
@@ -304,7 +304,7 @@ fi
 
 # filter-paf-deletions
 cd ${pangenomeBuildDir}
-wget -nv --tries=5 --waitretry=3 --timeout=60 --retry-connrefused https://github.com/ComparativeGenomicsToolkit/hal2vg/releases/download/v1.2.0/filter-paf-deletions
+wget -nv --tries=5 --waitretry=3 --timeout=60 --retry-connrefused https://github.com/ComparativeGenomicsToolkit/hal2vg/releases/download/v1.2.1/filter-paf-deletions
 chmod +x filter-paf-deletions
 if [[ $STATIC_CHECK -ne 1 || $(ldd filter-paf-deletions | grep so | wc -l) -eq 0 ]]
 then

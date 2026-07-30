@@ -975,7 +975,18 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
                                                          tag=workflow_phase + '.',
                                                          cores=options.indexCores,
                                                          disk = sum(f.size for f in vg_ids) * 16,
-                                                         memory=index_mem)
+                                                         # vg minimizer's memory tracks the graph's
+                                                         # sequence, not the panel: 73.6Gi on a
+                                                         # 6-genome GRCh38 graph and 79.5Gi on all
+                                                         # of HPRC.  index_mem swings 25x between
+                                                         # those two (30.6Gi and 760Gi), so scale it
+                                                         # up to cover the small end and cap it so
+                                                         # the big end stops reserving a terabyte
+                                                         # for an 80Gi job.  a reference much longer
+                                                         # than a human one will exceed the cap and
+                                                         # get there through --doubleMem
+                                                         memory=cactus_clamp_memory(
+                                                             min(index_mem * 3, 128 * 2**30)))
             out_dicts.append(giraffe_job.rv())
             
         # optional haplo index
@@ -986,7 +997,13 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
                                                   tag=workflow_phase + '.',
                                                   cores=options.indexCores,
                                                   disk = sum(f.size for f in vg_ids) * 16,
-                                                  memory=index_mem)
+                                                  # like vg minimizer, vg haplotypes saturates:
+                                                  # 31.8Gi on a 6-genome GRCh38 graph and 73.8Gi
+                                                  # on all of HPRC, against an index_mem of 30.6Gi
+                                                  # and 760Gi.  scale up for the small end, where
+                                                  # it barely overflowed, and cap the big end
+                                                  memory=cactus_clamp_memory(
+                                                      min(int(index_mem * 1.5), 128 * 2**30)))
             out_dicts.append(haplo_job.rv())
 
         # optional full-genome odgi
@@ -1153,7 +1170,16 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
                     ref_gaps_job, config, options, vg_path, phase_vg_id, chrom_name, ref_event,
                     deepest_phase == 'full',
                     disk=input_vg_id.size * 4,
-                    memory=cactus_clamp_memory(min(max(2**31, input_vg_id.size * 8), max_mem)))
+                    # flat, because `vg depth -m0` costs ~53 bytes per base of the reference it
+                    # walks and almost nothing per sample: measured over a 6-genome GRCh38 run it
+                    # took 2.3Gi on chr21 (46.7Mbp) up to 12.3Gi on chr1 (248.9Mbp), within 2% of
+                    # 53 B/base every time, while a 90-sample chr22 whose file was 9.5x larger than
+                    # the 6-genome one cost only 1.3x as much.  so any multiple of the file size is
+                    # measuring the wrong thing -- it under-reserved chrY (smallest file here, but
+                    # a longer reference than chr21) and over-reserves whenever samples are added.
+                    # 16Gi covers the longest human chromosome with headroom; a reference contig
+                    # past ~300Mbp needs more and gets there through --doubleMem
+                    memory=cactus_clamp_memory(min(16 * 2**30, max_mem)))
                 gap_ids.append(gap_job.rv())
             exclusion_refgap_ids[ref_event] = gap_ids
 
@@ -1217,6 +1243,12 @@ def clip_vg(job, options, config, vg_path, vg_id, phase):
         # but... in the full graph we'll leave the minigraph path fragments that are aligned to anything else in the vg's
         # since we'll need them to run the actual clipping
         clip_vg_cmd += ['-L']
+        # forwardize nodes no path visits forward.  this can rename nodes, which is only safe here:
+        # the full phase ends in `vg ids -s` and is followed by join_vg's `vg ids -j`, so the ids
+        # every later phase sees are assigned after this runs.  the clip phase must never pass -F --
+        # node ids have to mean the same thing in the full, clip and filter graphs, so clipping may
+        # drop an id but never change or add one
+        clip_vg_cmd += ['-F']
 
     if phase == 'clip':
         if options.clip:
@@ -1670,6 +1702,15 @@ def deconstruct(job, config, out_name, vcf_ref, vg_id, decon_L, tag):
     job.fileStore.readGlobalFile(vg_id, vg_path)
 
     # deconstruct will fail if there are no alt paths.  we check for that here
+    #
+    # a path only counts as an alt if vg would genotype it as a sample, and vg never does that for
+    # a reference-sense path -- not only the one -P selects.  ask vg which those are rather than
+    # inferring it: in a gref graph the base reference is reference-sense too, so on a contig that
+    # only the reference has (chrEBV in the GRCh38 analysis set) counting it as an alt let this
+    # check pass and vg then fail with "No paths other than selected reference(s) found"
+    ref_sense_paths = set(p.strip() for p in
+                          cactus_call(parameters=['vg', 'paths', '-x', vg_path, '-L', '-R'],
+                                      check_output=True).split('\n') if p.strip())
     graph_paths = cactus_call(parameters=['vg', 'paths', '-x', vg_path, '-L'], check_output=True).split('\n')
     alt_paths = []
     ref_paths = []
@@ -1678,7 +1719,7 @@ def deconstruct(job, config, out_name, vcf_ref, vg_id, decon_L, tag):
         if graph_path:
             if graph_path.startswith(vcf_ref + '#'):
                 ref_paths.append(graph_path)
-            else:
+            elif graph_path not in ref_sense_paths:
                 alt_paths.append(graph_path)
 
     if len(ref_paths) == 0:
@@ -2216,7 +2257,8 @@ def make_haplo_index(job, options, config, index_dict, giraffe_dict, tag=''):
     hapl_path = os.path.join(work_dir, tag + os.path.basename(options.outName) + '.hapl')
     hapl_opts = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "haplOptions", default='').split()
     try:
-        cactus_call(parameters=['vg', 'haplotypes'] + hapl_opts + ['-t', str(job.cores), '-H', hapl_path, '-d', dist_path, '-r', ri_path, gbz_path])
+        cactus_call(parameters=['vg', 'haplotypes'] + hapl_opts + ['-t', str(job.cores), '-H', hapl_path, '-d', dist_path, '-r', ri_path, gbz_path],
+                    job_memory=job.memory)
     except Exception as e:
         if options.collapse:
             RealtimeLogger.warning('Unable to produce .hapl index on graph due to collapsing from --collapse')
@@ -2353,7 +2395,9 @@ def build_vg_indexes_and_vcf(parent_job, options, config, phase_vg_ids, vg_ids,
                                               None, tag=tag,
                                               cores=options.indexCores,
                                               disk=sum(f.size for f in vg_ids) * 16,
-                                              memory=index_mem)
+                                              # see the other make_haplo_index call site
+                                              memory=cactus_clamp_memory(
+                                                  min(int(index_mem * 1.5), 128 * 2**30)))
         out_dicts.append(haplo_job.rv())
 
     return out_dicts
