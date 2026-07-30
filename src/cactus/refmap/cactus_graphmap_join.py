@@ -975,7 +975,18 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
                                                          tag=workflow_phase + '.',
                                                          cores=options.indexCores,
                                                          disk = sum(f.size for f in vg_ids) * 16,
-                                                         memory=index_mem)
+                                                         # vg minimizer's memory tracks the graph's
+                                                         # sequence, not the panel: 73.6Gi on a
+                                                         # 6-genome GRCh38 graph and 79.5Gi on all
+                                                         # of HPRC.  index_mem swings 25x between
+                                                         # those two (30.6Gi and 760Gi), so scale it
+                                                         # up to cover the small end and cap it so
+                                                         # the big end stops reserving a terabyte
+                                                         # for an 80Gi job.  a reference much longer
+                                                         # than a human one will exceed the cap and
+                                                         # get there through --doubleMem
+                                                         memory=cactus_clamp_memory(
+                                                             min(index_mem * 3, 128 * 2**30)))
             out_dicts.append(giraffe_job.rv())
             
         # optional haplo index
@@ -986,7 +997,13 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
                                                   tag=workflow_phase + '.',
                                                   cores=options.indexCores,
                                                   disk = sum(f.size for f in vg_ids) * 16,
-                                                  memory=index_mem)
+                                                  # like vg minimizer, vg haplotypes saturates:
+                                                  # 31.8Gi on a 6-genome GRCh38 graph and 73.8Gi
+                                                  # on all of HPRC, against an index_mem of 30.6Gi
+                                                  # and 760Gi.  scale up for the small end, where
+                                                  # it barely overflowed, and cap the big end
+                                                  memory=cactus_clamp_memory(
+                                                      min(int(index_mem * 1.5), 128 * 2**30)))
             out_dicts.append(haplo_job.rv())
 
         # optional full-genome odgi
@@ -2388,7 +2405,9 @@ def build_vg_indexes_and_vcf(parent_job, options, config, phase_vg_ids, vg_ids,
                                               None, tag=tag,
                                               cores=options.indexCores,
                                               disk=sum(f.size for f in vg_ids) * 16,
-                                              memory=index_mem)
+                                              # see the other make_haplo_index call site
+                                              memory=cactus_clamp_memory(
+                                                  min(int(index_mem * 1.5), 128 * 2**30)))
         out_dicts.append(haplo_job.rv())
 
     return out_dicts
