@@ -1153,10 +1153,16 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
                     ref_gaps_job, config, options, vg_path, phase_vg_id, chrom_name, ref_event,
                     deepest_phase == 'full',
                     disk=input_vg_id.size * 4,
-                    # `vg depth` loads the whole graph, so size this like the other jobs that do:
-                    # 8x was the lowest multiple in this file and OOMed on a 6-genome GRCh38 run
-                    # even after --doubleMem took it to 4Gi.  20x matches clip_vg
-                    memory=cactus_clamp_memory(min(max(2**31, input_vg_id.size * 20), max_mem)))
+                    # flat, because `vg depth -m0` costs ~53 bytes per base of the reference it
+                    # walks and almost nothing per sample: measured over a 6-genome GRCh38 run it
+                    # took 2.3Gi on chr21 (46.7Mbp) up to 12.3Gi on chr1 (248.9Mbp), within 2% of
+                    # 53 B/base every time, while a 90-sample chr22 whose file was 9.5x larger than
+                    # the 6-genome one cost only 1.3x as much.  so any multiple of the file size is
+                    # measuring the wrong thing -- it under-reserved chrY (smallest file here, but
+                    # a longer reference than chr21) and over-reserves whenever samples are added.
+                    # 16Gi covers the longest human chromosome with headroom; a reference contig
+                    # past ~300Mbp needs more and gets there through --doubleMem
+                    memory=cactus_clamp_memory(min(16 * 2**30, max_mem)))
                 gap_ids.append(gap_job.rv())
             exclusion_refgap_ids[ref_event] = gap_ids
 
