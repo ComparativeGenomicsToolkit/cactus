@@ -425,7 +425,7 @@ def export_graphmap_batch_wrapper(job, options, config_node, graphmap_batch_resu
     # put these in easy to delete lists
     output_list = []
     for chrom, gm_output in graphmap_batch_results.items():
-        #chrom -> paf_id, gfa_fa_id, gaf_id, unfiltered_paf_id, paf_filter_log, paf_was_filtered
+        #chrom -> paf_id, gfa_fa_id, gaf_id, unfiltered_paf_id, paf_filter_log, paf_was_filtered, disjoin_log_id
         for fid in gm_output:
             if fid and fid != True:
                 output_list.append(fid)
@@ -613,6 +613,8 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
         graphmap_batch_job = minigraph_batch_export_job.addFollowOnJobFn(minigraph_batch_workflow, options, config_wrapper,
                                                                          graphmap_input_dict, graph_event, sanitize=False,
                                                                          pansn_gfa_input=False)
+        # note minigraph_batch_workflow also holds any multi-reference-contig bin's contigs apart,
+        # so what comes back here is already disjoint
         graphmap_batch_results = graphmap_batch_job.rv()
         graphmap_batch_export_job = graphmap_batch_job.addFollowOnJobFn(export_graphmap_batch_wrapper, options, config_node,
                                                                         graphmap_batch_results, input_seqfiles)

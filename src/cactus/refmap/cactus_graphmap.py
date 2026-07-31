@@ -248,7 +248,9 @@ def export_graphmap_output(options, config_node, input_map, output_dict, toil):
         chromfile = open(chrom_file_temp_path, 'w')
         construct_chromfile = read_chromfile(options.seqFile)
     for chrom, output_ids in output_dict.items():
-        paf_id, gfa_fa_id, gaf_id, unfiltered_paf_id, paf_filter_log, paf_was_filtered = output_ids
+        paf_id, gfa_fa_id, gaf_id, unfiltered_paf_id, paf_filter_log, paf_was_filtered = output_ids[:6]
+        # the batch path appends the log of the pass that holds multi-reference-contig bins apart
+        disjoin_log_id = output_ids[6] if len(output_ids) > 6 else None
         if options.batch:
             paf_path = os.path.join(options.outputPAF, chrom + '.paf')
         else:
@@ -262,6 +264,9 @@ def export_graphmap_output(options, config_node, input_map, output_dict, toil):
         if paf_was_filtered:
             toil.exportFile(unfiltered_paf_id, makeURL(paf_path + ".unfiltered.gz"))
             toil.exportFile(paf_filter_log, makeURL(paf_path + ".filter.log"))
+        if disjoin_log_id:
+            toil.exportFile(disjoin_log_id, makeURL(os.path.join(os.path.dirname(paf_path),
+                                                                 'mgSplit.{}.log'.format(chrom))))
 
         #export the fa and add it to the seqfile
         out_seqfile_path = getTempFile() if options.batch else input_map[chrom][0]
@@ -306,6 +311,15 @@ def minigraph_batch_workflow(job, options, config, input_dict, graph_event, sani
         mgwf_job = job.addChildJobFn(minigraph_workflow, chrom_options, config, seq_id_map, gfa_id, graph_event,
                                      sanitize, ref_collapse_paf_id, pansn_gfa_input)
         output_dict[chrom] = mgwf_job.rv()
+    if options.batch:
+        # a bin can hold more than one reference contig (--otherContig), and the graphmap above can
+        # align a sample contig across two of them.  drop those alignments so the contigs stay in
+        # separate components, as they are when minigraph is run on the whole genome at once.
+        # imported here because cactus_graphmap_split imports this module
+        from cactus.refmap.cactus_graphmap_split import disjoin_ref_contigs_batch
+        reference = options.reference[0] if type(options.reference) is list else options.reference
+        return job.addFollowOnJobFn(disjoin_ref_contigs_batch, config, input_dict, output_dict, reference,
+                                    getattr(options, 'permissiveContigFilter', None)).rv()
     return output_dict
 
 def minigraph_workflow(job, options, config, seq_id_map, gfa_id, graph_event, sanitize, ref_collapse_paf_id, pansn_gfa_input=True):

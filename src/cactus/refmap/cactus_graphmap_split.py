@@ -194,13 +194,8 @@ def graphmap_split_workflow(job, options, config, seq_id_map, seq_name_map, gfa_
     if options.minIdentity is not None:
         findRequiredNode(config.xmlRoot, "graphmap").attrib["minIdentity"] = str(options.minIdentity)
 
-    #override the contig filter parameters with a single value taken from this option
-    #also, disabling the uniqueness threshold
-    if options.permissiveContigFilter is not None:
-        findRequiredNode(config.xmlRoot, "graphmap_split").attrib["minQueryCoverages"] = str(options.permissiveContigFilter)
-        findRequiredNode(config.xmlRoot, "graphmap_split").attrib["minQueryCoverageThresholds"] = ""
-        findRequiredNode(config.xmlRoot, "graphmap_split").attrib["minQueryUniqueness"] = "1"
-    
+    apply_permissive_contig_filter(config, options.permissiveContigFilter)
+
     # get the sizes before we overwrite below
     gfa_size = gfa_id.size
     paf_size = paf_id.size
@@ -343,6 +338,37 @@ def cat_beds(job, bed_ids):
     catFiles(in_beds, out_bed)
     return job.fileStore.writeGlobalFile(out_bed)
     
+def apply_permissive_contig_filter(config, permissive_contig_filter):
+    """ override the contig filter parameters with a single value taken from --permissiveContigFilter,
+    also disabling the uniqueness threshold.  every rgfa-split pass needs this applied, otherwise a
+    later pass undoes with the strict defaults what the user asked to keep """
+    if permissive_contig_filter is not None:
+        findRequiredNode(config.xmlRoot, "graphmap_split").attrib["minQueryCoverages"] = str(permissive_contig_filter)
+        findRequiredNode(config.xmlRoot, "graphmap_split").attrib["minQueryCoverageThresholds"] = ""
+        findRequiredNode(config.xmlRoot, "graphmap_split").attrib["minQueryUniqueness"] = "1"
+
+def get_split_specificity_opts(config):
+    """ the rgfa-split coverage / uniqueness thresholds that decide which reference contig a query
+    belongs to.  returns (coverage options, uniqueness, ambiguous bin name) """
+    query_coverages = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "minQueryCoverages", default=None)
+    query_coverage_thresholds = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "minQueryCoverageThresholds", default=None)
+    coverage_opts = []
+    if query_coverages is not None:
+        try:
+            query_cov_vals = [float(x) for x in query_coverages.split()]
+            query_thresh_vals = [int(x) for x in query_coverage_thresholds.split()]
+            assert len(query_cov_vals) == len(query_thresh_vals) + 1
+            assert sorted(query_thresh_vals) == query_thresh_vals
+            for cv in query_cov_vals:
+                coverage_opts += ['-n', str(cv)]
+            for tv in query_thresh_vals:
+                coverage_opts += ['-T', str(tv)]
+        except:
+            raise RuntimeError("minQueryCoverages and / or minQueryCoverageThresholds malspecified in config")
+    query_uniqueness = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "minQueryUniqueness", default="0")
+    amb_name = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "ambiguousName", default="_AMBIGUOUS_")
+    return coverage_opts, query_uniqueness, amb_name
+
 def split_gfa(job, config, gfa_id, paf_ids, ref_contigs, other_contig, reference_event, mask_bed_id):
     """ Use rgfa-split to divide a GFA and PAF into chromosomes.  The GFA must be in minigraph RGFA output using
     the desired reference. """
@@ -380,23 +406,7 @@ def split_gfa(job, config, gfa_id, paf_ids, ref_contigs, other_contig, reference
     mg_id = graph_event
 
     # get the specificity filters
-    query_coverages = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "minQueryCoverages", default=None)
-    query_coverage_thresholds = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "minQueryCoverageThresholds", default=None)
-    coverage_opts = []
-    if query_coverages is not None:
-        try:
-            query_cov_vals = [float(x) for x in query_coverages.split()]
-            query_thresh_vals = [int(x) for x in query_coverage_thresholds.split()]
-            assert len(query_cov_vals) == len(query_thresh_vals) + 1
-            assert sorted(query_thresh_vals) == query_thresh_vals
-            for cv in query_cov_vals:
-                coverage_opts += ['-n', str(cv)]
-            for tv in query_thresh_vals:
-                coverage_opts += ['-T', str(tv)]
-        except:
-            raise RuntimeError("minQueryCoverages and / or minQueryCoverageThresholds malspecified in config")
-    query_uniqueness = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "minQueryUniqueness", default="0")
-    amb_name = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "ambiguousName", default="_AMBIGUOUS_")
+    coverage_opts, query_uniqueness, amb_name = get_split_specificity_opts(config)
 
     cmd = ['rgfa-split',
            '-p', paf_path,
@@ -455,6 +465,111 @@ def split_gfa(job, config, gfa_id, paf_ids, ref_contigs, other_contig, reference
             output_id_map[name][ext[1:]] = job.fileStore.writeGlobalFile(os.path.join(work_dir, out_name))
             
     return output_id_map, job.fileStore.writeGlobalFile(log_path)
+
+def count_ref_contigs(gfa_path):
+    """ the number of distinct reference contigs in a minigraph GFA, ie its rank-0 (SR:i:0) sources """
+    ref_contigs = set()
+    with open(gfa_path, 'r') as gfa_file:
+        for line in gfa_file:
+            if line.startswith('S\t'):
+                toks = line.rstrip('\n').split('\t')
+                sn = [t[5:] for t in toks if t.startswith('SN:Z:')]
+                sr = [t[5:] for t in toks if t.startswith('SR:i:')]
+                if sn and sr and sr[0] == '0':
+                    ref_contigs.add(sn[0])
+    return len(ref_contigs)
+
+def disjoin_ref_contigs_batch(job, config, graphmap_input_dict, graphmap_batch_results, reference_event,
+                              permissive_contig_filter):
+    """ --otherContig lumps every leftover reference contig into a single bin, so with --mgSplit that
+    bin gets one minigraph covering all of them.  minigraph keeps those contigs disjoint, but the
+    per-chromosome graphmap that follows can align a sample contig across two, which welds them into
+    one component in the final graph.  Run rgfa-split over each bin to hold the contigs apart.
+
+    Appends the rgfa-split log to each chromosome's graphmap results, or None where the pass didn't
+    run, so it can be exported alongside the PAFs. """
+    # the first pass applies this inside its own job, so its copy of the config never reaches us
+    apply_permissive_contig_filter(config, permissive_contig_filter)
+    output_dict = {}
+    for chrom, gm_result in graphmap_batch_results.items():
+        gfa_id = graphmap_input_dict[chrom][1]
+        paf_id = gm_result[0]
+        if not paf_id or not gfa_id:
+            output_dict[chrom] = tuple(gm_result) + (None,)
+            continue
+        # the per-chromosome GFA comes in bgzipped, and we decompress it here: budget for that the
+        # same way the first-pass split does
+        tot_size = gfa_id.size * 10 + paf_id.size
+        output_dict[chrom] = job.addChildJobFn(disjoin_ref_contigs, config, chrom, gfa_id, gm_result, reference_event,
+                                               disk=tot_size * 5,
+                                               memory=cactus_clamp_memory(tot_size * 3)).rv()
+    return output_dict
+
+def disjoin_ref_contigs(job, config, chrom, gfa_id, gm_result, reference_event):
+    """ Use rgfa-split to assign each query in one chromosome's PAF to a single reference contig, and
+    drop the alignments that don't fit that assignment.  Bins with a single reference contig -- every
+    normal chromosome -- are left untouched.  A query that straddles two contigs evenly is ambiguous
+    and loses all its alignments; one with a clear best contig keeps those and loses the rest.  Either
+    way the sequence stays in the bin's fasta, so cactus-align sees it as unaligned and the usual
+    non-minigraph clipping takes it out. """
+    work_dir = job.fileStore.getLocalTempDir()
+    gfa_path = os.path.join(work_dir, 'mg.gfa')
+    paf_path = os.path.join(work_dir, 'mg.paf')
+    out_prefix = os.path.join(work_dir, 'disjoin_')
+    log_path = os.path.join(work_dir, 'disjoin.log')
+    job.fileStore.readGlobalFile(gfa_id, gfa_path)
+    with open(gfa_path, 'rb') as gfa_file:
+        is_gzipped = gfa_file.read(2) == b'\x1f\x8b'
+    if is_gzipped:
+        unzipped_path = os.path.join(work_dir, 'mg.unzipped.gfa')
+        cactus_call(parameters=['gzip', '-dc', os.path.basename(gfa_path)], work_dir=work_dir, outfile=unzipped_path)
+        gfa_path = unzipped_path
+
+    # nothing to hold apart on a normal chromosome: get out before touching the PAF, which is big
+    num_ref_contigs = count_ref_contigs(gfa_path)
+    if num_ref_contigs < 2:
+        return tuple(gm_result) + (None,)
+
+    job.fileStore.readGlobalFile(gm_result[0], paf_path)
+    coverage_opts, query_uniqueness, amb_name = get_split_specificity_opts(config)
+    cmd = ['rgfa-split',
+           '-p', paf_path,
+           '-g', gfa_path,
+           '-b', out_prefix,
+           '-Q', query_uniqueness,
+           '-a', amb_name,
+           '-L', log_path]
+    cmd += coverage_opts
+    if reference_event:
+        cmd += ['-r', 'id={}|'.format(reference_event)]
+    min_mapq = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "minMAPQ")
+    if min_mapq:
+        cmd += ['-A', min_mapq]
+    cactus_call(parameters=cmd, work_dir=work_dir, job_memory=job.memory)
+
+    # stitch the per-contig PAFs back into one: the bin stays whole, but no query is left
+    # straddling two reference contigs.  the ambiguous bin is what we're dropping
+    keep_pafs = []
+    for out_name in sorted(os.listdir(work_dir)):
+        file_name, ext = os.path.splitext(out_name)
+        if ext == '.paf' and file_name.startswith(os.path.basename(out_prefix)) and \
+           os.path.isfile(os.path.join(work_dir, file_name + '.fa_contigs')):
+            name = file_name[len(os.path.basename(out_prefix)):]
+            if name != amb_name:
+                keep_pafs.append(os.path.join(work_dir, out_name))
+
+    disjoint_paf_path = os.path.join(work_dir, 'disjoint.paf')
+    catFiles(keep_pafs, disjoint_paf_path)
+
+    def line_count(path):
+        with open(path, 'r') as paf_file:
+            return sum(1 for line in paf_file if line.strip())
+    before, after = line_count(paf_path), line_count(disjoint_paf_path)
+    RealtimeLogger.info('Disjoining {} reference contigs in {}: kept {} of {} PAF records'.format(
+        num_ref_contigs, chrom, after, before))
+
+    return (job.fileStore.writeGlobalFile(disjoint_paf_path),) + tuple(gm_result[1:]) + \
+        (job.fileStore.writeGlobalFile(log_path),)
 
 def split_fas(job, seq_id_map, seq_name_map, split_id_map):
     """ Use samtools to split a bunch of fasta files into reference contigs, using the output of rgfa-split as a guide"""
