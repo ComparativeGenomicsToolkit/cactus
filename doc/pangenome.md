@@ -310,7 +310,7 @@ cactus-pangenome ./js ./seqfile.txt --outDir pg --outName pg --reference GRCh38 
 | File | What it is |
 |------|------------|
 | `<outName>.gref.gbz`, `.gref.gfa.gz` | The source graph with the `gref_<reference>` sample added. |
-| `<outName>.gref.vcf.gz` etc. | The VCF set from the [table above](#vcf-output) (`.raw`, `.wave`, `.L<NN>`), deconstructed against `gref_<reference>` rather than the reference sample. Produced even without `--vcf`; `.gref.wave.vcf.gz` still requires `--vcfwave`, which itself requires `--vcf`. |
+| `<outName>.gref.vcf.gz` etc. | The VCF set from the [table above](#vcf-output) (`.raw`, `.wave`, `.L<NN>`), deconstructed against `gref_<reference>` rather than the reference sample. |
 | `<outName>.gref.gref-segs.tsv.gz` | Where every synthetic fragment came from (see below). |
 
 The gref graph adds paths only, no nodes or edges, so it is topologically identical to the base graph and gets no topology indexes of its own. Use the base graph's `<outName>.snarls`, `.dist` and `.hapl` with `gref.gbz`. `.gref.snarls` and `.gref.hapl` are not produced.

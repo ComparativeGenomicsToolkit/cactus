@@ -566,8 +566,8 @@ def graphmap_join_validate_options(options):
     if options.vcfL is not None:
         if options.vcfL <= 0.0 or options.vcfL > 1.0:
             raise RuntimeError('--vcfL value must be in (0.0, 1.0], got {}'.format(options.vcfL))
-        if not options.vcf and options.gref is None:
-            raise RuntimeError('--vcfL cannot be used without --vcf or --gref')
+        if not options.vcf:
+            raise RuntimeError('--vcfL cannot be used without --vcf')
         if options.vcfwave:
             logger.warning('--vcfL is not applied to the --vcfwave output (vcfwave undoes exactly the '
                            'allele merging that -L does), so the .wave.vcf.gz will be unclustered.')
@@ -1107,10 +1107,11 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
             gref_vg_ids.append(gref_job.rv(0))
             gref_segs_ids.append(gref_job.rv(1))
 
-        # extract gref reference fasta for vcf normalization (only if needed)
+        # extract gref reference fasta for vcf normalization (only if needed, and only if there is
+        # going to be a gref VCF to normalize)
         gref_fasta_dict = None
         gref_parent_job = gref_root_job
-        if need_ref_fasta:
+        if need_ref_fasta and options.vcf:
             gref_fasta_job = gref_root_job.addFollowOnJobFn(extract_vg_fasta, options, gref_vg_ids,
                                                               vcf_ref=gref_sample,
                                                               disk=sum(f.size for f in vg_ids) * 2,
@@ -1118,9 +1119,9 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
             gref_fasta_dict = gref_fasta_job.rv()
             gref_parent_job = gref_fasta_job
 
-        # build GFA, GBZ, VCF from the graph-reference VGs.  the gref graph is topologically
-        # identical to the base graph (it only adds paths), so it never gets its own topology
-        # indexes (snarls/dist/hapl): the base graph's indexes are compatible with gref.gbz.
+        # build GFA, GBZ and, if VCFs were asked for, a VCF from the graph-reference VGs.  the gref
+        # graph is topologically identical to the base graph (it only adds paths), so it never gets
+        # its own topology indexes (snarls/dist/hapl): the base graph's indexes work on gref.gbz.
         gref_out_dicts = build_vg_indexes_and_vcf(gref_parent_job, options, config, gref_vg_ids, vg_ids,
                                                  tag='gref.', index_mem=index_mem, max_mem=max_mem,
                                                  vcf_ref=gref_sample, vcftag='gref', do_haplo=False,
@@ -2373,8 +2374,9 @@ def build_vg_indexes_and_vcf(parent_job, options, config, phase_vg_ids, vg_ids,
     out_dicts.append(gbz_job.rv())
     index_dict = gbz_job.rv()
 
-    # optional VCF
-    if vcf_ref:
+    # optional VCF.  vcf_ref is also what makes the gref sample reference-sense in the merged GFA
+    # above, so it stays set even when no VCF was asked for -- --vcf is the switch for that
+    if vcf_ref and options.vcf:
         vcf_job = gfa_root_job.addFollowOnJobFn(make_vcf, config, options, tag.rstrip('.'),
                                                  index_mem, vcf_ref, phase_vg_ids,
                                                  ref_fasta_dict, vcftag=vcftag)
