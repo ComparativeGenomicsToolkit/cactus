@@ -46,6 +46,9 @@ from cactus.refmap.cactus_minigraph import check_sample_names, read_chromfile
 from cactus.refmap.cactus_minigraph import minigraph_construct_import_sequences, export_minigraph_construct_output
 from cactus.refmap.cactus_graphmap import minigraph_workflow, minigraph_batch_workflow, export_graphmap_output
 from cactus.refmap.cactus_graphmap import apply_mgsplit_filter_overrides
+from cactus.refmap.cactus_refmap import map_all_to_ref
+from cactus.refmap.rescue_merge import gap_fill, read_paf, build_ref_node_table
+from toil.realtimeLogger import RealtimeLogger
 from cactus.refmap.cactus_graphmap_split import graphmap_split_workflow, export_split_data
 from cactus.setup.cactus_align import make_batch_align_jobs, batch_align_jobs
 from cactus.refmap.cactus_graphmap_join import graphmap_join_workflow, export_join_data, graphmap_join_options, graphmap_join_validate_options, vcflib_checks
@@ -92,6 +95,21 @@ def pangenome_options(parser):
 
     # cactus-graphmap options
     parser.add_argument("--collapseRefPAF", help ="Incorporate given reference self-alignments in PAF format")
+
+    # [Experimental] rescue: resolve conflicting minigraph mappings from direct assembly->reference alignments
+    parser.add_argument("--rescue", action="store_true",
+                        help="[Experimental] Fill query regions minigraph leaves unaligned (coverage gaps, after "
+                             "the normal overlap filter) with direct assembly->reference (minimap2) alignments "
+                             "(cactus-refmap) where the reference maps the gap cleanly. Requires exactly one "
+                             "--reference. Not compatible with --mgSplit.")
+    parser.add_argument("--rescuePreset", default="asm5",
+                        help="minimap2 -x preset used for --rescue reference mapping [asm5]")
+    parser.add_argument("--rescueMinGap", type=int, default=1000,
+                        help="--rescue: minimum unaligned query span (bp) to fill from the reference [1000]")
+    parser.add_argument("--rescueCoverFrac", type=float, default=0.5,
+                        help="--rescue: reference primaries must cover >= this fraction of a gap to fill it [0.5]")
+    parser.add_argument("--rescueSecondaryFrac", type=float, default=0.5,
+                        help="--rescue: a reference secondary covering >= this fraction of a gap blocks the fill [0.5]")
 
     parser.add_argument("--branchScale", type=float, default=1.0,
                         help="Scale default branch length. This option is more relevant for progressive cactus but larger values can be used here to reduce chaining thresholds in cactus_consolidated.")
@@ -179,6 +197,16 @@ def pangenome_validate_options(options):
             raise RuntimeError('--reference must be used with --collapseRefPAF')
         if options.collapse:
             raise RuntimeError('--collapseRefPAF cannot be used with --collapse')
+
+    if options.rescue:
+        if options.mgSplit:
+            raise RuntimeError('--rescue is not compatible with --mgSplit')
+        if options.noSplit:
+            raise RuntimeError('--rescue is not compatible with --noSplit')
+        if len(options.reference) != 1:
+            raise RuntimeError('--rescue requires exactly one --reference')
+        if options.collapse or options.collapseRefPAF:
+            raise RuntimeError('--rescue cannot be combined with --collapse / --collapseRefPAF')
 
     if options.lastTrain and options.scoresFile:
         raise RuntimeError('you cannot use both --lastTrain and --scoresFile together: pick one')
@@ -344,10 +372,40 @@ def phony_chromfile(job, options, paf_path):
     seqfile_path = makeURL(os.path.join(options.outDir, os.path.basename(options.seqFile)))
     # note: this is the same path used in export_graphmap_wrapper()
     paf_path = makeURL(os.path.join(options.outDir, os.path.basename(paf_path)))
-    chromfile_path = os.path.join(options.outDir, 'chromfile.txt')        
+    chromfile_path = os.path.join(options.outDir, 'chromfile.txt')
     with open(chromfile_path, 'w') as chromfile:
         chromfile.write('all\t{}\t{}'.format(seqfile_path, paf_path))
     return chromfile_path
+
+def rescue_graphmap_paf(job, options, paf_id, refmap_paf_id):
+    """--rescue: on the whole-genome graphmap PAF (before split), fill the query coverage gaps
+    minigraph left unaligned with reference (minimap2) alignments, lifted into node coordinates
+    via the reference's own graphmap records.  The fills are node-targeted, so this is just a
+    bigger graphmap PAF -- split and align consume it unchanged.  Returns the merged PAF id."""
+    work_dir = job.fileStore.getLocalTempDir()
+    graphmap_paf = os.path.join(work_dir, 'graphmap.paf')
+    refmap_paf = os.path.join(work_dir, 'refmap.paf')
+    job.fileStore.readGlobalFile(paf_id, graphmap_paf)
+    job.fileStore.readGlobalFile(refmap_paf_id, refmap_paf)
+
+    rescue_dir = os.path.join(options.outDir, 'rescue')
+    if not rescue_dir.startswith('s3://') and not os.path.isdir(rescue_dir):
+        os.makedirs(rescue_dir)
+    # export the reference-mapping PAF so its id=<event>|<contig> names can be checked against
+    # the graphmap PAF (name parity is what lets cactus link the rescued records)
+    job.fileStore.exportFile(refmap_paf_id, makeURL(os.path.join(rescue_dir, 'refmap.paf')))
+
+    # gap-fill: gate on the refmap, then shatter + lift the selected reference records into node
+    # coordinates via the reference's own graphmap records.  gap_fill writes the graphmap PAF
+    # through unchanged plus the node-targeted fills, so its output is the merged PAF.
+    ref_table = build_ref_node_table(graphmap_paf, 'id={}|'.format(options.reference[0]))
+    merged = os.path.join(work_dir, 'graphmap.rescued.paf')
+    st = gap_fill(graphmap_paf, read_paf(refmap_paf), ref_table, merged,
+                  min_gap=options.rescueMinGap,
+                  cover_frac=options.rescueCoverFrac,
+                  secondary_frac=options.rescueSecondaryFrac)
+    RealtimeLogger.info('[rescue] whole-genome: {}'.format(st))
+    return job.fileStore.writeGlobalFile(merged)
 
 def export_split_wrapper(job, wf_output, out_dir, config_node):
     """ toil job wrapper for cactus_graphmap_split's exporter """
@@ -504,6 +562,14 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
     sanitize_job = root_job.addFollowOnJobFn(sanitize_fasta_headers, seq_id_map, pangenome=True)
     seq_id_map = sanitize_job.rv()
 
+    # --rescue: build direct assembly->reference (minimap2) alignments up front, in parallel with
+    # graphmap.  The overlap filter runs normally; later we fill the query regions minigraph leaves
+    # unaligned (coverage gaps) from these reference alignments where the reference maps them cleanly.
+    refmap_paf_id = None
+    if options.rescue:
+        refmap_paf_id = sanitize_job.addFollowOnJobFn(map_all_to_ref, seq_id_map, options.reference[0],
+                                                      options.rescuePreset).rv()
+
     # snapshot the input contig sizes while the sanitized fastas still exist: they are the baseline
     # the exclusion report measures the output graphs against, and they are cleaned out of the
     # jobstore once splitting is done.  chained (rather than run alongside) so it cannot race that
@@ -560,7 +626,15 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
         gm_options.collapse = False
     graphmap_job = minigraph_wrapper_job.addFollowOnJobFn(minigraph_workflow, gm_options, split_config_wrapper, seq_id_map, sv_gfa_id, graph_event, False, ref_collapse_paf_id, pansn_gfa_input=False)
     paf_id, gfa_fa_id, gaf_id, unfiltered_paf_id, paf_filter_log = graphmap_job.rv(0), graphmap_job.rv(1), graphmap_job.rv(2), graphmap_job.rv(3), graphmap_job.rv(4)
-    graphmap_export_job = graphmap_job.addFollowOnJobFn(export_graphmap_wrapper, options, paf_id, paf_path, gaf_id, unfiltered_paf_id, paf_filter_log)
+    # --rescue: fill query coverage gaps in the whole-genome graphmap PAF with reference alignments
+    # (lifted to node coordinates) before split/align -- the same pre-split injection point
+    # --collapseRefPAF uses.  The fills are node-targeted, so split and align handle them unchanged.
+    graphmap_done_job = graphmap_job
+    if options.rescue:
+        rescue_job = graphmap_job.addFollowOnJobFn(rescue_graphmap_paf, options, paf_id, refmap_paf_id)
+        paf_id = rescue_job.rv()
+        graphmap_done_job = rescue_job
+    graphmap_export_job = graphmap_done_job.addFollowOnJobFn(export_graphmap_wrapper, options, paf_id, paf_path, gaf_id, unfiltered_paf_id, paf_filter_log)
 
     # we need to update the seqfile with the phonied in minigraph event
     update_seqfile_job = graphmap_export_job.addFollowOnJobFn(update_seqfile, options, seq_id_map, seq_path_map, seq_order, gfa_fa_id, gfa_fa_path, graph_event)
@@ -625,7 +699,7 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
         clean_jobstore_job = clean_jobstore_job.addFollowOnJobFn(clean_jobstore_files, file_id_maps=minigraph_output_maps,
                                                                  file_ids=minigraph_output_ids, allow_none=True)
         
-    # cactus_align
+    # cactus_align  (--rescue happened pre-split, on the graphmap PAF, so nothing to do here)
     options.scoresFromChromfile = options.lastTrain and options.mgSplit
     align_jobs_make_job = clean_jobstore_job.addFollowOnJobFn(make_batch_align_jobs_wrapper, options, chromfile_path, config_wrapper,
                                                               last_scores_id)
