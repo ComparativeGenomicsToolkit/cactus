@@ -562,13 +562,6 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
     sanitize_job = root_job.addFollowOnJobFn(sanitize_fasta_headers, seq_id_map, pangenome=True)
     seq_id_map = sanitize_job.rv()
 
-    # --rescue: build direct assembly->reference (minimap2) alignments up front, in parallel with
-    # graphmap.  The overlap filter runs normally; later we fill the query regions minigraph leaves
-    # unaligned (coverage gaps) from these reference alignments where the reference maps them cleanly.
-    refmap_paf_id = None
-    if options.rescue:
-        refmap_paf_id = sanitize_job.addFollowOnJobFn(map_all_to_ref, seq_id_map, options.reference[0],
-                                                      options.rescuePreset).rv()
 
     # snapshot the input contig sizes while the sanitized fastas still exist: they are the baseline
     # the exclusion report measures the output graphs against, and they are cleaned out of the
@@ -631,7 +624,12 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
     # --collapseRefPAF uses.  The fills are node-targeted, so split and align handle them unchanged.
     graphmap_done_job = graphmap_job
     if options.rescue:
-        rescue_job = graphmap_job.addFollowOnJobFn(rescue_graphmap_paf, options, paf_id, refmap_paf_id)
+        # run cactus-refmap here (not off sanitize) so the rescue job is a *successor* of it: toil
+        # requires a promise's consumer to be a successor of its producer.  refmap only needs the
+        # sanitized sequences, so this is a job-graph ordering, not a real data dependency.
+        refmap_job = graphmap_job.addFollowOnJobFn(map_all_to_ref, seq_id_map, options.reference[0],
+                                                   options.rescuePreset)
+        rescue_job = refmap_job.addFollowOnJobFn(rescue_graphmap_paf, options, paf_id, refmap_job.rv())
         paf_id = rescue_job.rv()
         graphmap_done_job = rescue_job
     graphmap_export_job = graphmap_done_job.addFollowOnJobFn(export_graphmap_wrapper, options, paf_id, paf_path, gaf_id, unfiltered_paf_id, paf_filter_log)

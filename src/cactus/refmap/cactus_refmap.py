@@ -28,7 +28,7 @@ from toil.job import Job
 
 from cactus.shared.common import (setupBinaries, importSingularityImage, makeURL,
                                    cactus_call, cactusRootPath, cactus_override_toil_options,
-                                   catFiles)
+                                   catFiles, cactus_clamp_memory)
 from cactus.shared.configWrapper import ConfigWrapper
 from cactus.progressive.progressive_decomposition import parse_seqfile, get_event_set
 from cactus.preprocessor.checkUniqueHeaders import sanitize_fasta_headers
@@ -41,21 +41,29 @@ def rescue_refmap_workflow(job, seq_id_map, reference, preset):
     return sanitize_job.addFollowOnJobFn(map_all_to_ref, sanitize_job.rv(), reference, preset).rv()
 
 
+def _empty(job):
+    """No-op child used as a lead, so map_all_to_ref's return value (consolidate) is a descendant
+    of a child rather than a sibling follow-on.  Otherwise a follow-on of map_all_to_ref (the rescue
+    job) could run before consolidate and read an unresolved promise."""
+    return
+
+
 def map_all_to_ref(job, seq_id_map, reference, preset):
     """minimap2 each non-reference event against the reference; consolidate one PAF."""
     if reference not in seq_id_map:
         raise RuntimeError("reference event '{}' not found in seqfile events: {}".format(
             reference, list(seq_id_map.keys())))
     ref_id = seq_id_map[reference]
+    lead_job = job.addChildJobFn(_empty)
     paf_ids = {}
     for event, seq_id in seq_id_map.items():
         if event == reference:
             continue
-        paf_ids[event] = job.addChildJobFn(
-            map_one, event, seq_id, reference, ref_id, preset,
+        paf_ids[event] = lead_job.addChildJobFn(
+            map_one, event, seq_id, reference, ref_id, preset, cores=8,
             disk=4 * (seq_id.size + ref_id.size),
-            memory=max(8 * 2**30, 6 * ref_id.size)).rv()
-    return job.addFollowOnJobFn(consolidate, paf_ids).rv()
+            memory=cactus_clamp_memory(max(32 * 2**30, 16 * ref_id.size))).rv()
+    return lead_job.addFollowOnJobFn(consolidate, paf_ids).rv()
 
 
 def map_one(job, event, asm_id, reference, ref_id, preset):
@@ -67,7 +75,8 @@ def map_one(job, event, asm_id, reference, ref_id, preset):
     raw_paf = job.fileStore.getLocalTempFile()
     # -c emits the base-level CIGAR (cg:Z:) that cactus-align consumes; secondary mappings
     # (tp:A:S) are kept so the gap-fill can tell whether the reference maps a gap uniquely.
-    cactus_call(parameters=["minimap2", "-c", "-x", preset, "-o", raw_paf, ref_path, asm_path])
+    cactus_call(parameters=["minimap2", "-c", "-x", preset, "-t", str(job.cores),
+                            "-o", raw_paf, ref_path, asm_path])
     return job.fileStore.writeGlobalFile(raw_paf)
 
 
