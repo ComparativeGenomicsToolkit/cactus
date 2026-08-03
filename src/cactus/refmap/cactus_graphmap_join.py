@@ -2484,13 +2484,21 @@ def merge_gref_segs(job, vg_paths, segs_ids):
     work_dir = job.fileStore.getLocalTempDir()
     merged_path = os.path.join(work_dir, 'gref-segs.tsv')
 
-    # vg writes these as headerless 7-column BED-like rows, so this is a straight concatenation
+    # vg writes each table with a '#'-prefixed header naming the columns.  Keep the first one
+    # and drop the rest, so the merged file has exactly one header rather than one per
+    # chromosome.  Any '#' line is treated as header: vg emits only the one, and a comment
+    # line would be no more mergeable.
+    wrote_header = False
     with open(merged_path, 'w') as merged_file:
         for vg_path, segs_id in zip(vg_paths, segs_ids):
             segs_path = os.path.join(work_dir, os.path.basename(vg_path) + '.segs.tsv')
             job.fileStore.readGlobalFile(segs_id, segs_path)
             with open(segs_path, 'r') as segs_file:
                 for line in segs_file:
+                    if line.startswith('#'):
+                        if wrote_header:
+                            continue
+                        wrote_header = True
                     merged_file.write(line)
 
     cactus_call(parameters=['bgzip', merged_path, '--threads', str(job.cores)])
