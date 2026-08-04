@@ -137,7 +137,14 @@ def to_bed_gaps(paf_path, min_gap, paffy="paffy", assembly_fa=None):
 def lift_gapless_piece(t, table):
     """Lift one GAPLESS assembly->ref PAF record (query-len == target-len, no indels) to
     assembly->node record(s), splitting at backbone-node boundaries.  Linear 1:1 arithmetic;
-    an inverted piece stays reverse (a reverse traversal of the node)."""
+    an inverted piece stays reverse (a reverse traversal of the node).
+
+    The reference->node table records are NOT guaranteed gapless: minigraph's graphmap can align the
+    reference to a node across an indel, so a record's ref-span (rqe-rqs) can exceed its node-span
+    (nte-nts).  A naive 1:1 lift then runs the node coordinate off the end of the node
+    (n_s = nts + (ov_s-rqs) > nlen), which cactus_consolidated rejects ("Paf target start
+    coordinates are invalid").  So clamp the lifted node interval to the node span and clip the query
+    to keep query-len == node-len -- fills past the node boundary are simply dropped."""
     if len(t) < 9 or t[5] not in table:
         return []
     q, qlen, qs, qe, strand = t[0], t[1], int(t[2]), int(t[3]), t[4]
@@ -148,12 +155,17 @@ def lift_gapless_piece(t, table):
         ov_s, ov_e = max(ts, rqs), min(te, rqe)
         if ov_e <= ov_s:
             continue
-        seg = ov_e - ov_s
-        n_s, n_e = nts + (ov_s - rqs), nts + (ov_e - rqs)
+        n_s = nts + (ov_s - rqs)
+        if n_s >= nte:                       # overlap starts past this node (ref-span > node-span)
+            continue
+        seg = min(ov_e - ov_s, nte - n_s)    # clamp to the node span so we never overrun the node
+        n_e = n_s + seg
         if strand == '+':
-            q_s, q_e = qs + (ov_s - ts), qs + (ov_e - ts)
+            q_s = qs + (ov_s - ts)
+            q_e = q_s + seg
         else:
-            q_s, q_e = qe - (ov_e - ts), qe - (ov_s - ts)
+            q_e = qe - (ov_s - ts)
+            q_s = q_e - seg
         out.append("\t".join([q, qlen, str(q_s), str(q_e), strand, node, str(nlen),
                               str(n_s), str(n_e), str(seg), str(seg), mapq,
                               "tp:A:P", "cg:Z:{}M".format(seg)]) + "\n")
@@ -213,7 +225,21 @@ def gap_fill(minigraph_paf, rm_by_q, ref_table, out_paf, min_gap=1000, cover_fra
             for piece in lift_gapless_piece(line.split("\t"), ref_table):
                 pt = piece.rstrip("\n").split("\t")
                 fills.extend(clip_piece_to_gaps(pt, gaps.get(pt[0], [])))   # keep fills inside the gaps only
+    # final safety net: never emit a fill whose node interval is out of bounds or whose query/node
+    # spans disagree -- cactus_consolidated rejects such records and the whole run dies hours later.
+    # Should be a no-op given lift_gapless_piece clamps to the node, but 200k fills * one bad record
+    # is not worth the risk.
+    valid, dropped = [], 0
+    for line in fills:
+        c = line.rstrip("\n").split("\t")
+        nlen, n_s, n_e = int(c[6]), int(c[7]), int(c[8])
+        if 0 <= n_s < n_e <= nlen and (int(c[3]) - int(c[2])) == (n_e - n_s):
+            valid.append(line)
+        else:
+            dropped += 1
+    fills = valid
     st["fill_records"] = len(fills)
+    st["fill_dropped"] = dropped
     with open(out_paf, "w") as out:
         with _open(minigraph_paf) as f:               # minigraph records pass through unchanged
             for line in f:
