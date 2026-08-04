@@ -41,42 +41,57 @@ def rescue_refmap_workflow(job, seq_id_map, reference, preset):
     return sanitize_job.addFollowOnJobFn(map_all_to_ref, sanitize_job.rv(), reference, preset).rv()
 
 
-def _empty(job):
-    """No-op child used as a lead, so map_all_to_ref's return value (consolidate) is a descendant
-    of a child rather than a sibling follow-on.  Otherwise a follow-on of map_all_to_ref (the rescue
-    job) could run before consolidate and read an unresolved promise."""
-    return
+def index_reference(job, ref_id, preset):
+    """Build the minimap2 index of the reference ONCE (with the preset's -k/-w), so each map_one
+    loads it instead of re-indexing the whole reference per assembly -- indexing dominates a
+    reference-vs-assembly run and is identical every time.  This index job also serves as the lead:
+    its children (the map_one jobs) run after it and read its return value (the .mmi), and its
+    follow-on (consolidate) runs after them, so map_all_to_ref's return resolves before the rescue
+    follow-on -- the same ordering the old _empty lead gave."""
+    ref_path = job.fileStore.readGlobalFile(ref_id)
+    mmi = job.fileStore.getLocalTempFile()
+    cactus_call(parameters=["minimap2", "-x", preset, "-t", str(job.cores), "-d", mmi, ref_path])
+    return job.fileStore.writeGlobalFile(mmi)
 
 
 def map_all_to_ref(job, seq_id_map, reference, preset):
-    """minimap2 each non-reference event against the reference; consolidate one PAF."""
+    """Index the reference once, then minimap2 each non-reference event against that index and
+    consolidate one PAF."""
     if reference not in seq_id_map:
         raise RuntimeError("reference event '{}' not found in seqfile events: {}".format(
             reference, list(seq_id_map.keys())))
     ref_id = seq_id_map[reference]
-    lead_job = job.addChildJobFn(_empty)
+    # index generation (mm_idx_gen) is the memory-hungry step, so the index job gets the big
+    # allocation; the map jobs only LOAD the index, so they get less.
+    index_job = job.addChildJobFn(index_reference, ref_id, preset, cores=8,
+                                  disk=4 * ref_id.size,
+                                  memory=cactus_clamp_memory(max(32 * 2**30, 16 * ref_id.size)))
+    mmi_id = index_job.rv()
     paf_ids = {}
     for event, seq_id in seq_id_map.items():
         if event == reference:
             continue
-        paf_ids[event] = lead_job.addChildJobFn(
-            map_one, event, seq_id, reference, ref_id, preset, cores=8,
+        paf_ids[event] = index_job.addChildJobFn(
+            map_one, event, seq_id, mmi_id, preset, cores=8,
             disk=4 * (seq_id.size + ref_id.size),
-            memory=cactus_clamp_memory(max(32 * 2**30, 16 * ref_id.size))).rv()
-    return lead_job.addFollowOnJobFn(consolidate, paf_ids).rv()
+            memory=cactus_clamp_memory(max(16 * 2**30, 8 * ref_id.size))).rv()
+    return index_job.addFollowOnJobFn(consolidate, paf_ids).rv()
 
 
-def map_one(job, event, asm_id, reference, ref_id, preset):
-    """minimap2 <ref> <asm> -> PAF.  Names already match the graphmap PAF: the fastas were
-    sanitized with pangenome=True, which stamps id=<event>|<contig> onto the headers, so
-    minimap2's query (assembly) and target (reference) columns are already id=<event>|<contig>."""
+def map_one(job, event, asm_id, mmi_id, preset):
+    """minimap2 <ref.mmi> <asm> -> PAF, loading the prebuilt reference index.  Names already match
+    the graphmap PAF: the fastas were sanitized with pangenome=True, which stamps id=<event>|<contig>
+    onto the headers, so minimap2's query (assembly) and target (reference) columns are already
+    id=<event>|<contig>.  The .mmi carries the reference sequence, so -c base-level alignment works
+    exactly as against the fasta (minimap2 warns that -x's indexing params are overridden by the
+    index -- harmless, it was built with this same preset)."""
     asm_path = job.fileStore.readGlobalFile(asm_id)
-    ref_path = job.fileStore.readGlobalFile(ref_id)
+    mmi_path = job.fileStore.readGlobalFile(mmi_id)
     raw_paf = job.fileStore.getLocalTempFile()
     # -c emits the base-level CIGAR (cg:Z:) that cactus-align consumes; secondary mappings
     # (tp:A:S) are kept so the gap-fill can tell whether the reference maps a gap uniquely.
     cactus_call(parameters=["minimap2", "-c", "-x", preset, "-t", str(job.cores),
-                            "-o", raw_paf, ref_path, asm_path])
+                            "-o", raw_paf, mmi_path, asm_path])
     return job.fileStore.writeGlobalFile(raw_paf)
 
 
