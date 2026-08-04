@@ -36,34 +36,40 @@ from cactus.preprocessor.checkUniqueHeaders import sanitize_fasta_headers
 
 def rescue_refmap_workflow(job, seq_id_map, reference, preset):
     """Sanitize headers (pangenome-style, to match graphmap names), then map every
-    non-reference event against the reference and consolidate to a single PAF."""
+    non-reference event against the reference and concatenate to a single PAF."""
     sanitize_job = job.addChildJobFn(sanitize_fasta_headers, seq_id_map, pangenome=True)
     return sanitize_job.addFollowOnJobFn(map_all_to_ref, sanitize_job.rv(), reference, preset).rv()
 
 
-def index_reference(job, ref_id, preset):
+def index_reference(job, ref_id, reference, preset):
     """Build the minimap2 index of the reference ONCE (with the preset's -k/-w), so each map_one
     loads it instead of re-indexing the whole reference per assembly -- indexing dominates a
     reference-vs-assembly run and is identical every time.  This index job also serves as the lead:
     its children (the map_one jobs) run after it and read its return value (the .mmi), and its
-    follow-on (consolidate) runs after them, so map_all_to_ref's return resolves before the rescue
+    follow-on (concat_refmap_pafs) runs after them, so map_all_to_ref's return resolves before rescue
     follow-on -- the same ordering the old _empty lead gave."""
-    ref_path = job.fileStore.readGlobalFile(ref_id)
-    mmi = job.fileStore.getLocalTempFile()
+    work_dir = job.fileStore.getLocalTempDir()
+    # read into named files (e.g. CHM13.fa / CHM13.mmi) so ps/top show something readable instead
+    # of toil's random tmp names
+    ref_path = os.path.join(work_dir, '{}.fa'.format(reference))
+    job.fileStore.readGlobalFile(ref_id, ref_path)
+    mmi = os.path.join(work_dir, '{}.mmi'.format(reference))
     cactus_call(parameters=["minimap2", "-x", preset, "-t", str(job.cores), "-d", mmi, ref_path])
     return job.fileStore.writeGlobalFile(mmi)
 
 
 def map_all_to_ref(job, seq_id_map, reference, preset):
     """Index the reference once, then minimap2 each non-reference event against that index and
-    consolidate one PAF."""
+    concatenate one PAF."""
     if reference not in seq_id_map:
         raise RuntimeError("reference event '{}' not found in seqfile events: {}".format(
             reference, list(seq_id_map.keys())))
     ref_id = seq_id_map[reference]
     # index generation (mm_idx_gen) is the memory-hungry step, so the index job gets the big
-    # allocation; the map jobs only LOAD the index, so they get less.
-    index_job = job.addChildJobFn(index_reference, ref_id, preset, cores=8,
+    # allocation and threads well (cores=8).  the map jobs only LOAD the index (less memory), and
+    # minimap2 parallelizes across query sequences -- one contig per thread -- so on chromosome-scale
+    # assemblies it only uses a couple of cores; hence cores=2 (8 would waste ~6 per map job).
+    index_job = job.addChildJobFn(index_reference, ref_id, reference, preset, cores=8,
                                   disk=4 * ref_id.size,
                                   memory=cactus_clamp_memory(max(32 * 2**30, 16 * ref_id.size)))
     mmi_id = index_job.rv()
@@ -72,22 +78,26 @@ def map_all_to_ref(job, seq_id_map, reference, preset):
         if event == reference:
             continue
         paf_ids[event] = index_job.addChildJobFn(
-            map_one, event, seq_id, mmi_id, preset, cores=8,
+            map_one, event, seq_id, mmi_id, reference, preset, cores=2,
             disk=4 * (seq_id.size + ref_id.size),
             memory=cactus_clamp_memory(max(16 * 2**30, 8 * ref_id.size))).rv()
-    return index_job.addFollowOnJobFn(consolidate, paf_ids).rv()
+    return index_job.addFollowOnJobFn(concat_refmap_pafs, paf_ids).rv()
 
 
-def map_one(job, event, asm_id, mmi_id, preset):
+def map_one(job, event, asm_id, mmi_id, reference, preset):
     """minimap2 <ref.mmi> <asm> -> PAF, loading the prebuilt reference index.  Names already match
     the graphmap PAF: the fastas were sanitized with pangenome=True, which stamps id=<event>|<contig>
     onto the headers, so minimap2's query (assembly) and target (reference) columns are already
     id=<event>|<contig>.  The .mmi carries the reference sequence, so -c base-level alignment works
     exactly as against the fasta (minimap2 warns that -x's indexing params are overridden by the
     index -- harmless, it was built with this same preset)."""
-    asm_path = job.fileStore.readGlobalFile(asm_id)
-    mmi_path = job.fileStore.readGlobalFile(mmi_id)
-    raw_paf = job.fileStore.getLocalTempFile()
+    work_dir = job.fileStore.getLocalTempDir()
+    # read into named files (e.g. HG002.fa / CHM13.mmi -> HG002.paf) so ps/top are readable
+    asm_path = os.path.join(work_dir, '{}.fa'.format(event))
+    mmi_path = os.path.join(work_dir, '{}.mmi'.format(reference))
+    job.fileStore.readGlobalFile(asm_id, asm_path)
+    job.fileStore.readGlobalFile(mmi_id, mmi_path)
+    raw_paf = os.path.join(work_dir, '{}.paf'.format(event))
     # -c emits the base-level CIGAR (cg:Z:) that cactus-align consumes; secondary mappings
     # (tp:A:S) are kept so the gap-fill can tell whether the reference maps a gap uniquely.
     cactus_call(parameters=["minimap2", "-c", "-x", preset, "-t", str(job.cores),
@@ -95,8 +105,9 @@ def map_one(job, event, asm_id, mmi_id, preset):
     return job.fileStore.writeGlobalFile(raw_paf)
 
 
-def consolidate(job, paf_ids):
-    """Concatenate the per-assembly PAFs into a single output PAF."""
+def concat_refmap_pafs(job, paf_ids):
+    """Concatenate the per-assembly minimap2 PAFs into a single reference-mapping PAF.  (Named to
+    avoid collision with cactus_consolidated / the consolidation workflow.)"""
     out_paf = job.fileStore.getLocalTempFile()
     catFiles([job.fileStore.readGlobalFile(pid) for pid in paf_ids.values() if pid is not None], out_paf)
     return job.fileStore.writeGlobalFile(out_paf)
