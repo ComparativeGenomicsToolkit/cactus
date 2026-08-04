@@ -293,7 +293,7 @@ def clip_piece_to_gaps(t, gaps):
 
 
 def gap_fill(minigraph_paf, rm_by_q, ref_table, out_paf, min_gap=1000, cover_frac=0.5,
-             secondary_frac=0.5, paffy="paffy", assembly_fa=None):
+             secondary_frac=0.5, paffy="paffy", assembly_fa=None, min_fill=0):
     """Write out_paf = the minigraph PAF unchanged + node-targeted reference records that fill its
     query coverage gaps.  rm_by_q is the ORIGINAL assembly->reference refmap (read_paf); ref_table
     is the reference->node table (build_ref_node_table).  Returns a stats dict."""
@@ -340,17 +340,20 @@ def gap_fill(minigraph_paf, rm_by_q, ref_table, out_paf, min_gap=1000, cover_fra
     # spans disagree -- cactus_consolidated rejects such records and the whole run dies hours later.
     # Should be a no-op given lift_gapless_piece clamps to the node, but 200k fills * one bad record
     # is not worth the risk.
-    valid, dropped = [], 0
+    valid, dropped, short = [], 0, 0
     for line in fills:
         c = line.rstrip("\n").split("\t")
         nlen, n_s, n_e = int(c[6]), int(c[7]), int(c[8])
-        if 0 <= n_s < n_e <= nlen and (int(c[3]) - int(c[2])) == (n_e - n_s):
-            valid.append(line)
-        else:
+        if not (0 <= n_s < n_e <= nlen and (int(c[3]) - int(c[2])) == (n_e - n_s)):
             dropped += 1
+        elif n_e - n_s < min_fill:                 # tiny node-boundary fragment: a graph node for
+            short += 1                             # near-zero sequence -- drop as noise (min_fill=0 keeps all)
+        else:
+            valid.append(line)
     fills = valid
     st["fill_records"] = len(fills)
     st["fill_dropped"] = dropped
+    st["fill_short"] = short
     with open(out_paf, "w") as out:
         with _open(minigraph_paf) as f:               # minigraph records pass through unchanged
             for line in f:

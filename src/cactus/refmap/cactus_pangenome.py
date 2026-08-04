@@ -111,6 +111,10 @@ def pangenome_options(parser):
                         help="--rescue: reference primaries must cover >= this fraction of a gap to fill it [0.5]")
     parser.add_argument("--rescueSecondaryFrac", type=float, default=0.5,
                         help="--rescue: a reference secondary covering >= this fraction of a gap blocks the fill [0.5]")
+    parser.add_argument("--rescueMinFill", type=int, default=100,
+                        help="--rescue: drop lifted fills shorter than this many bp -- the node-boundary "
+                             "split fragments a fill into one record per backbone node, and tiny fragments "
+                             "cost a graph node for near-zero sequence.  0 disables [100]")
 
     parser.add_argument("--branchScale", type=float, default=1.0,
                         help="Scale default branch length. This option is more relevant for progressive cactus but larger values can be used here to reduce chaining thresholds in cactus_consolidated.")
@@ -422,7 +426,8 @@ def do_gap_fill(job, options, paf_id, refmap_paf_id):
     st = gap_fill(graphmap_paf, read_paf(refmap_paf), ref_table, merged,
                   min_gap=options.rescueMinGap,
                   cover_frac=options.rescueCoverFrac,
-                  secondary_frac=options.rescueSecondaryFrac)
+                  secondary_frac=options.rescueSecondaryFrac,
+                  min_fill=options.rescueMinFill)
     RealtimeLogger.info('[rescue] whole-genome: {}'.format(st))
     return job.fileStore.writeGlobalFile(merged)
 
