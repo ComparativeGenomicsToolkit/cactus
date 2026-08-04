@@ -378,21 +378,23 @@ def phony_chromfile(job, options, paf_path):
         chromfile.write('all\t{}\t{}'.format(seqfile_path, paf_path))
     return chromfile_path
 
-def rescue_graphmap_paf(job, options, paf_id, refmap_paf_id):
+def rescue_graphmap_paf(job, options, paf_id, refmap_paf_id, total_seq_size):
     """--rescue: on the whole-genome graphmap PAF (before split), fill the query coverage gaps
     minigraph left unaligned with reference (minimap2) alignments, lifted into node coordinates
     via the reference's own graphmap records.  The fills are node-targeted, so this is just a
     bigger graphmap PAF -- split and align consume it unchanged.  Returns the merged PAF id.
 
-    Light orchestrator only: the gap-fill itself (paffy to_bed over the whole-genome PAF, plus
-    reading the refmap into memory) is memory-hungry, so it runs in a child sized by the PAF sizes.
-    paf_id/refmap_paf_id are unresolved promises when this graph is built but real FileIDs (with
-    .size) by the time this job runs, which is why the sizing happens here rather than at the call
-    site -- the same way rgfa-split sizes its PAF jobs off the resolved paf_id.size."""
-    paf_size = paf_id.size + refmap_paf_id.size
+    Light orchestrator only: the gap-fill runs in a child sized for its two memory hogs.  paffy
+    to_bed streams the PAF but allocates a 2-bytes-per-base coverage array for every query sequence
+    (paf_to_bed.c: uint16_t counts[query_length]), so it scales with the total query genome
+    (total_seq_size, ~2x the fasta byte size), NOT the PAF size -- matching how cactus sizes its
+    other to_bed job (local_alignment.py: 4*ingroup_size).  read_paf then holds the refmap in a
+    Python dict while to_bed runs, a PAF-sized term on top.  refmap_paf_id is an unresolved promise
+    at graph-build time but a real FileID (with .size) by the time this job runs."""
+    memory = cactus_clamp_memory(max(16 * 2**30, 3 * total_seq_size + 4 * refmap_paf_id.size))
     return job.addChildJobFn(do_gap_fill, options, paf_id, refmap_paf_id,
-                             disk=8 * paf_size,
-                             memory=cactus_clamp_memory(max(16 * 2**30, 16 * paf_size))).rv()
+                             disk=4 * (paf_id.size + refmap_paf_id.size),
+                             memory=memory).rv()
 
 
 def do_gap_fill(job, options, paf_id, refmap_paf_id):
@@ -575,6 +577,11 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
     # make sure this is done up front
     root_job = vcflib_checks(root_job, options, config_node)
     
+    # total input (query) genome size, captured before seq_id_map becomes a promise: the rescue's
+    # paffy to_bed allocates a 2-bytes-per-base coverage array for every query sequence, so its job
+    # is sized off this (the genome), NOT the PAF size (to_bed streams the PAF).
+    total_seq_size = sum(fid.size for fid in seq_id_map.values())
+
     # sanitize headers (once here, skip in all workflows below)
     sanitize_job = root_job.addFollowOnJobFn(sanitize_fasta_headers, seq_id_map, pangenome=True)
     seq_id_map = sanitize_job.rv()
@@ -652,7 +659,8 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
         # rescue depends on both graphmap (paf_id) and refmap (refmap_job.rv()) -- make it a follow-on
         # of BOTH (it's a dependency graph), so refmap runs in parallel with construct/graphmap and
         # rescue is a valid successor of each.
-        rescue_job = graphmap_job.addFollowOnJobFn(rescue_graphmap_paf, options, paf_id, refmap_job.rv())
+        rescue_job = graphmap_job.addFollowOnJobFn(rescue_graphmap_paf, options, paf_id, refmap_job.rv(),
+                                                   total_seq_size)
         refmap_job.addFollowOn(rescue_job)
         paf_id = rescue_job.rv()
         graphmap_done_job = rescue_job
