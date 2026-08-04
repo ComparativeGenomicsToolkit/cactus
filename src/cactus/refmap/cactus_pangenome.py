@@ -39,6 +39,7 @@ from toil.statsAndLogging import logger
 from toil.statsAndLogging import set_logging_from_options
 from toil.realtimeLogger import RealtimeLogger
 from cactus.shared.common import cactus_cpu_count
+from cactus.shared.common import cactus_clamp_memory
 from cactus.progressive.cactus_prepare import human2bytesN
 
 from cactus.refmap.cactus_minigraph import minigraph_construct_workflow, minigraph_construct_batch_workflow
@@ -381,7 +382,23 @@ def rescue_graphmap_paf(job, options, paf_id, refmap_paf_id):
     """--rescue: on the whole-genome graphmap PAF (before split), fill the query coverage gaps
     minigraph left unaligned with reference (minimap2) alignments, lifted into node coordinates
     via the reference's own graphmap records.  The fills are node-targeted, so this is just a
-    bigger graphmap PAF -- split and align consume it unchanged.  Returns the merged PAF id."""
+    bigger graphmap PAF -- split and align consume it unchanged.  Returns the merged PAF id.
+
+    Light orchestrator only: the gap-fill itself (paffy to_bed over the whole-genome PAF, plus
+    reading the refmap into memory) is memory-hungry, so it runs in a child sized by the PAF sizes.
+    paf_id/refmap_paf_id are unresolved promises when this graph is built but real FileIDs (with
+    .size) by the time this job runs, which is why the sizing happens here rather than at the call
+    site -- the same way rgfa-split sizes its PAF jobs off the resolved paf_id.size."""
+    paf_size = paf_id.size + refmap_paf_id.size
+    return job.addChildJobFn(do_gap_fill, options, paf_id, refmap_paf_id,
+                             disk=8 * paf_size,
+                             memory=cactus_clamp_memory(max(16 * 2**30, 16 * paf_size))).rv()
+
+
+def do_gap_fill(job, options, paf_id, refmap_paf_id):
+    """The memory-hungry gap-fill work (sized by rescue_graphmap_paf): paffy to_bed the graphmap
+    PAF for query coverage gaps, gate on the refmap, shatter + lift the selected reference records
+    into node coordinates, and append them to the graphmap PAF.  Returns the merged PAF id."""
     work_dir = job.fileStore.getLocalTempDir()
     graphmap_paf = os.path.join(work_dir, 'graphmap.paf')
     refmap_paf = os.path.join(work_dir, 'refmap.paf')
