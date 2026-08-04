@@ -134,6 +134,25 @@ def to_bed_gaps(paf_path, min_gap, paffy="paffy", assembly_fa=None):
     return gaps
 
 
+def _record_identity(t):
+    """Gap-excluded identity of an assembly->ref PAF record: 1 - de:f: if present, else the reported
+    num_matches / block_length."""
+    for tag in t[12:]:
+        if tag.startswith("de:f:"):
+            return max(0.0, min(1.0, 1.0 - float(tag[5:])))
+    return int(t[9]) / (int(t[10]) or 1) if len(t) > 10 else 1.0
+
+
+def _lookup_pid(pid_by_q, q, qs, qe):
+    """Identity of the selected parent whose query interval contains this shattered piece's midpoint
+    (1.0 if none -- shouldn't happen, since pieces come from shattering the selected parents)."""
+    mid = (qs + qe) // 2
+    for a, b, p in pid_by_q.get(q, []):
+        if a <= mid < b:
+            return p
+    return 1.0
+
+
 def lift_gapless_piece(t, table):
     """Lift one GAPLESS assembly->ref PAF record (query-len == target-len, no indels) to
     assembly->node record(s), splitting at backbone-node boundaries.  Linear 1:1 arithmetic;
@@ -150,6 +169,11 @@ def lift_gapless_piece(t, table):
     q, qlen, qs, qe, strand = t[0], t[1], int(t[2]), int(t[3]), t[4]
     ts, te = int(t[7]), int(t[8])
     mapq = t[11] if len(t) > 11 else "60"
+    # identity carried in via matches/block: gap_fill rewrites each shattered piece's num_matches to
+    # its parent minimap2 record's real identity (paffy shatter itself sets num_matches == length, ie
+    # 100%).  preserving that ratio through the node split makes every fill report honest identity, so
+    # minIdentity can actually tell a good fill from a bad one.
+    pid = int(t[9]) / (int(t[10]) or 1) if len(t) > 10 else 1.0
     out = []
     for (rqs, rqe, node, nlen, nts, nte) in table[t[5]]:
         ov_s, ov_e = max(ts, rqs), min(te, rqe)
@@ -166,15 +190,14 @@ def lift_gapless_piece(t, table):
         else:
             q_e = qe - (ov_s - ts)
             q_s = q_e - seg
-        # AS is a length-proportional score proxy: paffy shatter drops the real minimap2 AS, but a
-        # gapless high-identity block scores ~its length, so this is honest/conservative and, crucially,
-        # keeps the fill above minScore so filter_paf judges it on merit instead of dropping it on a
-        # defaulted AS:i:0.  rs:i:1 marks the record as a rescue fill for traceability through the
-        # filters and into the graph.
+        matches = max(1, round(seg * pid))
+        # AS: length-proportional score proxy (shatter drops the real minimap2 AS) that keeps the fill
+        # above minScore so filter_paf judges on merit, not a defaulted AS:i:0.  num_matches + de:f:
+        # carry the real identity so minIdentity applies.  rs:i:1 marks the record as a rescue fill.
         out.append("\t".join([q, qlen, str(q_s), str(q_e), strand, node, str(nlen),
-                              str(n_s), str(n_e), str(seg), str(seg), mapq,
+                              str(n_s), str(n_e), str(matches), str(seg), mapq,
                               "tp:A:P", "AS:i:{}".format(seg), "rs:i:1",
-                              "cg:Z:{}M".format(seg)]) + "\n")
+                              "de:f:{:.4g}".format(1.0 - pid), "cg:Z:{}M".format(seg)]) + "\n")
     return out
 
 
@@ -185,6 +208,7 @@ def clip_piece_to_gaps(t, gaps):
     Linear 1:1; handles reverse (query up => node down)."""
     qs, qe, strand = int(t[2]), int(t[3]), t[4]
     ns, ne = int(t[7]), int(t[8])
+    pid = int(t[9]) / (int(t[10]) or 1)          # identity carried in from the lifted piece
     out = []
     for gs, ge in gaps:
         iq_s, iq_e = max(qs, gs), min(qe, ge)
@@ -195,12 +219,13 @@ def clip_piece_to_gaps(t, gaps):
         else:
             n_s, n_e = ne - (iq_e - qs), ne - (iq_s - qs)
         seg = iq_e - iq_s
-        # length-proportional AS score proxy + rescue-fill marker (see lift_gapless_piece); this
-        # clipped record is the final fill written to the merged PAF, so the tags must live here too
+        matches = max(1, round(seg * pid))
+        # this clipped record is the final fill written to the merged PAF, so the honest score (AS),
+        # identity (num_matches + de:f:) and rescue marker (rs:i:1) all have to live here too
         out.append("\t".join([t[0], t[1], str(iq_s), str(iq_e), strand, t[5], t[6],
-                              str(n_s), str(n_e), str(seg), str(seg), t[11],
+                              str(n_s), str(n_e), str(matches), str(seg), t[11],
                               "tp:A:P", "AS:i:{}".format(seg), "rs:i:1",
-                              "cg:Z:{}M".format(seg)]) + "\n")
+                              "de:f:{:.4g}".format(1.0 - pid), "cg:Z:{}M".format(seg)]) + "\n")
     return out
 
 
@@ -228,12 +253,26 @@ def gap_fill(minigraph_paf, rm_by_q, ref_table, out_paf, min_gap=1000, cover_fra
         sel_path = out_paf + ".selected.paf"
         with open(sel_path, "w") as f:
             f.writelines(selected)
+        # index each selected parent's real identity (1 - de) by query interval: paffy shatter emits
+        # every piece with num_matches == length (100%), so we correct each piece back to its parent's
+        # identity here.  the gate guarantees selected primaries don't overlap in query, so a piece's
+        # query midpoint maps to exactly one parent.
+        pid_by_q = defaultdict(list)
+        seen = set()
+        for pline in selected:
+            ppt = pline.split("\t")
+            key = (ppt[0], ppt[2], ppt[3])
+            if key not in seen:
+                seen.add(key)
+                pid_by_q[ppt[0]].append((int(ppt[2]), int(ppt[3]), _record_identity(ppt)))
         shattered = subprocess.run([paffy, "shatter", "-i", sel_path],
                                    capture_output=True, text=True, check=True).stdout
         for line in shattered.splitlines():
-            for piece in lift_gapless_piece(line.split("\t"), ref_table):
-                pt = piece.rstrip("\n").split("\t")
-                fills.extend(clip_piece_to_gaps(pt, gaps.get(pt[0], [])))   # keep fills inside the gaps only
+            pt = line.split("\t")
+            pt[9] = str(max(1, round(int(pt[10]) * _lookup_pid(pid_by_q, pt[0], int(pt[2]), int(pt[3])))))
+            for piece in lift_gapless_piece(pt, ref_table):
+                ppt = piece.rstrip("\n").split("\t")
+                fills.extend(clip_piece_to_gaps(ppt, gaps.get(ppt[0], [])))   # keep fills inside the gaps only
     # final safety net: never emit a fill whose node interval is out of bounds or whose query/node
     # spans disagree -- cactus_consolidated rejects such records and the whole run dies hours later.
     # Should be a no-op given lift_gapless_piece clamps to the node, but 200k fills * one bad record
