@@ -62,7 +62,7 @@ fi
 cd ${pangenomeBuildDir}
 git clone https://github.com/lh3/minimap2.git
 cd minimap2
-git checkout v2.30
+git checkout v2.31
 # hack in flags support
 sed -i Makefile -e 's/CFLAGS=/CFLAGS+=/'
 make -j ${numcpu} ${MINI_ARM_FLAGS}
