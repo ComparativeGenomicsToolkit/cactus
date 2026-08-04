@@ -562,6 +562,14 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
     sanitize_job = root_job.addFollowOnJobFn(sanitize_fasta_headers, seq_id_map, pangenome=True)
     seq_id_map = sanitize_job.rv()
 
+    # --rescue: run cactus-refmap (assembly->reference minimap2) in PARALLEL with construct/graphmap.
+    # It only needs the sanitized sequences, so it's a follow-on of sanitize -- not a data dependency
+    # on the graph.  The rescue job (below) is made a follow-on of BOTH this and graphmap.
+    refmap_job = None
+    if options.rescue:
+        refmap_job = sanitize_job.addFollowOnJobFn(map_all_to_ref, seq_id_map, options.reference[0],
+                                                   options.rescuePreset)
+
 
     # snapshot the input contig sizes while the sanitized fastas still exist: they are the baseline
     # the exclusion report measures the output graphs against, and they are cleaned out of the
@@ -624,12 +632,11 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
     # --collapseRefPAF uses.  The fills are node-targeted, so split and align handle them unchanged.
     graphmap_done_job = graphmap_job
     if options.rescue:
-        # run cactus-refmap here (not off sanitize) so the rescue job is a *successor* of it: toil
-        # requires a promise's consumer to be a successor of its producer.  refmap only needs the
-        # sanitized sequences, so this is a job-graph ordering, not a real data dependency.
-        refmap_job = graphmap_job.addFollowOnJobFn(map_all_to_ref, seq_id_map, options.reference[0],
-                                                   options.rescuePreset)
-        rescue_job = refmap_job.addFollowOnJobFn(rescue_graphmap_paf, options, paf_id, refmap_job.rv())
+        # rescue depends on both graphmap (paf_id) and refmap (refmap_job.rv()) -- make it a follow-on
+        # of BOTH (it's a dependency graph), so refmap runs in parallel with construct/graphmap and
+        # rescue is a valid successor of each.
+        rescue_job = graphmap_job.addFollowOnJobFn(rescue_graphmap_paf, options, paf_id, refmap_job.rv())
+        refmap_job.addFollowOn(rescue_job)
         paf_id = rescue_job.rv()
         graphmap_done_job = rescue_job
     graphmap_export_job = graphmap_done_job.addFollowOnJobFn(export_graphmap_wrapper, options, paf_id, paf_path, gaf_id, unfiltered_paf_id, paf_filter_log)
