@@ -166,9 +166,15 @@ def lift_gapless_piece(t, table):
         else:
             q_e = qe - (ov_s - ts)
             q_s = q_e - seg
+        # AS is a length-proportional score proxy: paffy shatter drops the real minimap2 AS, but a
+        # gapless high-identity block scores ~its length, so this is honest/conservative and, crucially,
+        # keeps the fill above minScore so filter_paf judges it on merit instead of dropping it on a
+        # defaulted AS:i:0.  rs:i:1 marks the record as a rescue fill for traceability through the
+        # filters and into the graph.
         out.append("\t".join([q, qlen, str(q_s), str(q_e), strand, node, str(nlen),
                               str(n_s), str(n_e), str(seg), str(seg), mapq,
-                              "tp:A:P", "cg:Z:{}M".format(seg)]) + "\n")
+                              "tp:A:P", "AS:i:{}".format(seg), "rs:i:1",
+                              "cg:Z:{}M".format(seg)]) + "\n")
     return out
 
 
@@ -189,9 +195,12 @@ def clip_piece_to_gaps(t, gaps):
         else:
             n_s, n_e = ne - (iq_e - qs), ne - (iq_s - qs)
         seg = iq_e - iq_s
+        # length-proportional AS score proxy + rescue-fill marker (see lift_gapless_piece); this
+        # clipped record is the final fill written to the merged PAF, so the tags must live here too
         out.append("\t".join([t[0], t[1], str(iq_s), str(iq_e), strand, t[5], t[6],
                               str(n_s), str(n_e), str(seg), str(seg), t[11],
-                              "tp:A:P", "cg:Z:{}M".format(seg)]) + "\n")
+                              "tp:A:P", "AS:i:{}".format(seg), "rs:i:1",
+                              "cg:Z:{}M".format(seg)]) + "\n")
     return out
 
 
