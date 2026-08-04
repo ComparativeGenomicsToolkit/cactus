@@ -5,7 +5,7 @@ overlap filter) with direct assembly->reference alignments (minimap2 / cactus-re
 lifted into graph node coordinates so they merge into the graphmap PAF cleanly.
 
 Pipeline per gap:
-  - `paffy to_bed -f` finds the query coverage gaps in the graphmap PAF.
+  - find_query_gaps finds the query coverage gaps in the graphmap PAF (interval scan, not paffy to_bed).
   - the uniqueness gate (primary cover, no query-overlapping primaries, no strong secondary)
     picks the reference records that map a gap cleanly -- run on the ORIGINAL refmap, which
     still carries the tp:A: tags.
@@ -18,8 +18,10 @@ unchanged), and split/align consume the result normally.
 
 Query names must match between the minigraph PAF and the reference PAF (id=<event>|<contig>).
 """
-import argparse, sys, gzip, subprocess
+import argparse, sys, gzip, subprocess, re
 from collections import defaultdict
+
+_CIGAR_RE = re.compile(r'(\d+)([MIDX=])')
 
 
 def _open(path):
@@ -119,18 +121,79 @@ def rescue_records(ref_recs, cs, ce, cover_frac, secondary_frac, min_overlap):
     return [line for _, _, line in prim]
 
 
-def to_bed_gaps(paf_path, min_gap, paffy="paffy", assembly_fa=None):
-    """{query: [(gap_start, gap_end), ...]} -- query intervals with zero alignment coverage
-    (length >= min_gap), via `paffy to_bed -f`."""
-    cmd = [paffy, "to_bed", "-i", paf_path, "-f", "-m", str(min_gap)]
-    if assembly_fa:
-        cmd += ["-q", assembly_fa]
-    out = subprocess.run(cmd, capture_output=True, text=True, check=True).stdout
+def _covered_query_intervals(qs, qe, strand, cigar):
+    """Query intervals actually ALIGNED by the cigar (maximal runs of M/=/X).  An insertion (I)
+    consumes query without aligning it, so it breaks a run and reads as a coverage gap -- exactly the
+    unaligned query sequence the rescue targets (e.g. an inverted middle minigraph couldn't place).
+    D/N consume target only, so they leave query coverage contiguous.  Reverse strand consumes the
+    query from qe downward, matching paffy's coverage."""
+    ivs = []
+    if strand != '-':
+        q = run_start = qs
+        for n, op in _CIGAR_RE.findall(cigar):
+            n = int(n)
+            if op == 'I':
+                if q > run_start:
+                    ivs.append((run_start, q))
+                q += n
+                run_start = q
+            elif op != 'D':                        # M/=/X advance & cover; D leaves the query alone
+                q += n
+        if q > run_start:
+            ivs.append((run_start, q))
+    else:
+        q = run_end = qe
+        for n, op in _CIGAR_RE.findall(cigar):
+            n = int(n)
+            if op == 'I':
+                if run_end > q:
+                    ivs.append((q, run_end))
+                q -= n
+                run_end = q
+            elif op != 'D':
+                q -= n
+        if run_end > q:
+            ivs.append((q, run_end))
+    return ivs
+
+
+def find_query_gaps(paf_path, min_gap):
+    """{query: [(gap_start, gap_end), ...]} -- maximal query intervals with ZERO alignment coverage
+    and length >= min_gap.  Reproduces `paffy to_bed -f -m <min_gap>` (minus the -q fasta option the
+    rescue never uses) but from the alignment CIGARs instead of a per-base coverage array: to_bed
+    allocates 2 bytes for every base of every query and holds them all at once (~68 GiB on a 7-way,
+    ~TBs at HPRC scale); this is O(records + insertions), not O(query bases).  Coverage is the union
+    of aligned (M/=/X) query intervals, so an unaligned insertion reads as a gap -- the rescue's
+    signal.  It is NOT the raw [qs,qe] span: a record can span a region it doesn't actually align."""
+    covered = defaultdict(list)
+    qlen = {}
+    with _open(paf_path) as f:
+        for line in f:
+            if not line.strip() or line[0] == '@':
+                continue
+            t = line.rstrip("\n").split("\t")
+            if len(t) < 12:
+                continue
+            q, ql, qs, qe, strand = t[0], int(t[1]), int(t[2]), int(t[3]), t[4]
+            qlen[q] = ql
+            cg = next((tag[5:] for tag in t[12:] if tag.startswith("cg:Z:")), None)
+            if cg:
+                covered[q].extend(_covered_query_intervals(qs, qe, strand, cg))
+            else:
+                covered[q].append((qs, qe))        # no cigar: treat the whole span as aligned
     gaps = defaultdict(list)
-    for line in out.splitlines():
-        t = line.split()
-        if len(t) >= 3:
-            gaps[t[0]].append((int(t[1]), int(t[2])))
+    for q, ivs in covered.items():
+        ivs.sort()
+        pos = 0                                    # end of the merged coverage so far
+        for s, e in ivs:
+            if s > pos:                            # [pos, s) is uncovered
+                if s - pos >= min_gap:
+                    gaps[q].append((pos, s))
+                pos = e
+            elif e > pos:
+                pos = e
+        if qlen[q] - pos >= min_gap:               # trailing gap after the last alignment
+            gaps[q].append((pos, qlen[q]))
     return gaps
 
 
@@ -234,7 +297,7 @@ def gap_fill(minigraph_paf, rm_by_q, ref_table, out_paf, min_gap=1000, cover_fra
     """Write out_paf = the minigraph PAF unchanged + node-targeted reference records that fill its
     query coverage gaps.  rm_by_q is the ORIGINAL assembly->reference refmap (read_paf); ref_table
     is the reference->node table (build_ref_node_table).  Returns a stats dict."""
-    gaps = to_bed_gaps(minigraph_paf, min_gap, paffy, assembly_fa)
+    gaps = find_query_gaps(minigraph_paf, min_gap)
     st = dict(gaps=0, filled=0, fill_records=0, unfilled=0)
     # gate on the original refmap (tp:A: tags intact) -> the reference lines that cleanly fill gaps
     selected = []
