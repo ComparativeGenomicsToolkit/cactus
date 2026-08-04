@@ -1096,8 +1096,11 @@ def compute_exclusions_job(job, config, options, phase_coverage, baseline_id, sp
     if result['outside_baseline_bp']:
         RealtimeLogger.warning('exclusion report: {} bp of graph coverage fall outside the input '
                                'contig bounds'.format(result['outside_baseline_bp']))
-    with open(summary_path, 'r') as summary_file:
-        RealtimeLogger.info('Exclusion report:\n' + summary_file.read())
+    # a row per genome per reason is worth having as a file but not worth dumping into the main log:
+    # the warnings above are the part that needs to reach the console.  note graphmap-join exports
+    # this as clipped-by-genome.tsv, which is the name to point at
+    RealtimeLogger.info('Exclusion report written to {}.stats/clipped-by-genome.tsv'.format(
+        getattr(options, 'outName', '<outName>')))
 
     # one tarball per graph, so the common case -- "give me what is missing from the graph I am
     # using" -- is a single download with no post-processing
