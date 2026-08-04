@@ -349,8 +349,10 @@ def minigraph_workflow(job, options, config, seq_id_map, gfa_id, graph_event, sa
 
     # convert the GFA from PanSN to Cactus names
     if pansn_gfa_input:
+        # the renaming pass decompresses the GFA before bgzipping it back up, so it needs room for
+        # the raw copy (reckoned at 10x, as elsewhere) on top of the compressed input and output
         rename_gfa_job = root_job.addChildJobFn(minigraph_gfa_from_pansn, genome_names, options.minigraphGFA, gfa_id,
-                                                disk=gfa_id.size*2)
+                                                disk=gfa_id.size*12)
         new_root_job = Job()
         root_job.addFollowOn(new_root_job)
         root_job = new_root_job
