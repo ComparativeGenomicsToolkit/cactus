@@ -1209,6 +1209,20 @@ def clip_vg(job, options, config, vg_path, vg_id, phase):
 
     clipped_path = vg_path + '.clip'
 
+    # everything below selects on --reference[0], so if it has no path here the graph quietly empties
+    # out and some tool several steps later fails on the empty stream with an error that names
+    # neither the reference nor this file.  say it plainly instead
+    if options.reference:
+        graph_samples = sorted(set(p.split('#')[0] for p in
+                                   cactus_call(parameters=['vg', 'paths', '-x', vg_path, '-L'],
+                                               check_output=True).split('\n') if p.strip()))
+        if options.reference[0] not in graph_samples:
+            raise RuntimeError(
+                'reference sample "{}" has no path in {}. The samples in that graph are: {}. '
+                'Check --reference against the graph: it must name a sample that is actually present, '
+                'and for a per-chromosome run it must be present in this chromosome.'.format(
+                    options.reference[0], os.path.basename(vg_path), ', '.join(graph_samples)))
+
     join_xml_node = findRequiredNode(config.xmlRoot, "graphmap_join")
     graph_event = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "assemblyName", default="_MINIGRAPH_")
 
@@ -1738,7 +1752,14 @@ def deconstruct(job, config, out_name, vcf_ref, vg_id, decon_L, tag):
 
     # make the vcf
     vcf_path = os.path.join(work_dir, os.path.basename(out_name) + '.' + tag + 'raw.vcf.gz')
-    decon_cmd = ['vg', 'deconstruct', vg_path, '-P', vcf_ref, '-C', '-a', '-t', str(job.cores)]
+    # -p with the paths we just found, not -P with the sample name: only --reference[0] is
+    # reference-sense in a per-chromosome graph (hal2vg --refGenomes sets that back in cactus-align,
+    # from cactus-pangenome --reference), and vg >= 1.74 will not match a haplotype-sense path by
+    # prefix.  -p takes the path by name whatever its sense, and gives identical output where -P
+    # works, so any --reference can be deconstructed without having been named at pangenome time
+    decon_cmd = ['vg', 'deconstruct', vg_path, '-C', '-a', '-t', str(job.cores)]
+    for ref_path in ref_paths:
+        decon_cmd += ['-p', ref_path]
     if decon_L is not None:
         decon_cmd += ['-L', str(decon_L)]
     cactus_call(parameters=[decon_cmd, ['bgzip', '--threads', str(job.cores)]], outfile=vcf_path, job_memory=job.memory)
@@ -1756,7 +1777,7 @@ def deconstruct(job, config, out_name, vcf_ref, vg_id, decon_L, tag):
     if pansn_contigs:
         raise RuntimeError(
             'vg deconstruct ignored -C and emitted PanSN contig names for {} (e.g. {}). That means it found '
-            'more than one reference sample or haplotype under -P {}, which normally indicates a reference-sense '
+            'more than one reference sample or haplotype among the paths selected for {}, which normally indicates a reference-sense '
             'path whose name is not valid PanSN. The resulting VCF would not match the reference FASTA or the '
             'other VCFs from this run, so it is being rejected rather than written. Check the reference-sense '
             'path names in {} with `vg paths -L`.'.format(
