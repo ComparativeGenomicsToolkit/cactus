@@ -319,6 +319,10 @@ def gap_fill(minigraph_paf, rm_by_q, ref_table, out_paf, min_gap=1000, cover_fra
     # shatter the selected records into gapless pieces, then lift each to node coordinates
     fills = []
     if selected:
+        # a reference primary that spans several gaps (e.g. an inversion whose reverse core covers many
+        # small gaps) was appended once PER gap -- but shatter + clip_piece_to_gaps already fill ALL of a
+        # piece's gaps from one copy, so dedupe to unique lines, else every fill is emitted N-fold.
+        selected = list(dict.fromkeys(selected))
         sel_path = out_paf + ".selected.paf"
         with open(sel_path, "w") as f:
             f.writelines(selected)
