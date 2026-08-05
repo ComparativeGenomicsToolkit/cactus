@@ -102,8 +102,8 @@ def covered_fraction(intervals, cs, ce):
 
 def rescue_records(ref_recs, cs, ce, cover_frac, secondary_frac, min_overlap):
     """Return the (assembly->reference) refmap lines to fill span [cs,ce], or None if the reference
-    doesn't map it cleanly (needs a primary cover >= cover_frac, no primaries overlapping each
-    other in query, and no strong secondary)."""
+    doesn't map it cleanly (needs a primary cover >= cover_frac, no primaries overlapping each other
+    WITHIN the gap, and no strong secondary)."""
     prim, sec = [], []
     for qs, qe, tp, target, line in ref_recs:
         if min(qe, ce) <= max(qs, cs):
@@ -111,8 +111,14 @@ def rescue_records(ref_recs, cs, ce, cover_frac, secondary_frac, min_overlap):
         (prim if tp in ('P', 'I') else sec).append((qs, qe, line))
     if not prim:
         return None
-    if any(len(c) > 1 for c in cluster_by_overlap([(qs, qe, line) for qs, qe, line in prim], min_overlap)):
-        return None                                   # reference maps the span to >1 place
+    # test "maps to >1 place" on each primary's portion WITHIN the gap, not its full extent: an
+    # SD-mediated inversion aligns the query's inverted core reverse to the reference while its forward
+    # flanks (the inverted-repeat arms) overlap that core OUTSIDE the gap -- clipping to [cs,ce] stops
+    # that spurious overlap from rejecting a clean single-primary fill.  A genuine paralog duplicate
+    # maps two primaries onto the SAME gap span, so it still overlaps in-gap and is still rejected.
+    if any(len(c) > 1 for c in cluster_by_overlap(
+            [(max(qs, cs), min(qe, ce), line) for qs, qe, line in prim], min_overlap)):
+        return None                                   # reference maps the gap to >1 place
     span = ce - cs
     if any((min(qe, ce) - max(qs, cs)) >= secondary_frac * span for qs, qe, _ in sec):
         return None                                   # a strong secondary => ambiguous
