@@ -1752,14 +1752,27 @@ def deconstruct(job, config, out_name, vcf_ref, vg_id, decon_L, tag):
 
     # make the vcf
     vcf_path = os.path.join(work_dir, os.path.basename(out_name) + '.' + tag + 'raw.vcf.gz')
-    # -p with the paths we just found, not -P with the sample name: only --reference[0] is
-    # reference-sense in a per-chromosome graph (hal2vg --refGenomes sets that back in cactus-align,
-    # from cactus-pangenome --reference), and vg >= 1.74 will not match a haplotype-sense path by
-    # prefix.  -p takes the path by name whatever its sense, and gives identical output where -P
-    # works, so any --reference can be deconstructed without having been named at pangenome time
+    # -P names the sample in one argument, but vg >= 1.74 only matches reference-sense paths with
+    # it.  only --reference[0] is reference-sense in a per-chromosome graph (hal2vg --refGenomes
+    # sets that back in cactus-align, from cactus-pangenome --reference), so a reference that was
+    # not one when the graph was built needs -p, which takes paths by name whatever their sense and
+    # gives identical output where -P works.  enumerate only when we have to: a gref graph has an
+    # _alt path per fragment, tens of thousands of them per chromosome, and the whole command goes
+    # to `bash -c` as a single argument that the kernel caps at 128k
     decon_cmd = ['vg', 'deconstruct', vg_path, '-C', '-a', '-t', str(job.cores)]
-    for ref_path in ref_paths:
-        decon_cmd += ['-p', ref_path]
+    if any(ref_path in ref_sense_paths for ref_path in ref_paths):
+        decon_cmd += ['-P', vcf_ref]
+    else:
+        enumerated_len = sum(len(ref_path) + 4 for ref_path in ref_paths)
+        if enumerated_len > 100000:
+            raise RuntimeError(
+                '{} needs its {} reference paths in {} named individually, because none of them is '
+                'reference-sense and vg deconstruct will not match those by prefix, but that command '
+                'would be {} bytes and the limit is about 128k. Pass {} to --reference when building '
+                'the graph so its paths come out reference-sense.'.format(
+                    vcf_ref, len(ref_paths), os.path.basename(vg_path), enumerated_len, vcf_ref))
+        for ref_path in ref_paths:
+            decon_cmd += ['-p', ref_path]
     if decon_L is not None:
         decon_cmd += ['-L', str(decon_L)]
     cactus_call(parameters=[decon_cmd, ['bgzip', '--threads', str(job.cores)]], outfile=vcf_path, job_memory=job.memory)
