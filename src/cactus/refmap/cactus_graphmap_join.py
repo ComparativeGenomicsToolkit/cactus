@@ -725,6 +725,7 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
         # Use pre-processed VG IDs directly -- skip all processing
         full_vg_ids = bypass_full_ids or []
         output_full_vg_ids = full_vg_ids
+        full_vg_empty = [False] * len(output_full_vg_ids)
         clip_vg_ids = bypass_clip_ids or []
         clipped_stats = None
         filter_vg_ids = bypass_filter_ids or []
@@ -761,15 +762,18 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
         prev_job = join_job
 
         # take out the _MINIGRAPH_ paths
+        full_vg_empty = []
         if 'full' in options.chrom_vg:
             output_full_vg_ids = []
             for vg_path, vg_id, full_vg_id in zip(options.vg, vg_ids, full_vg_ids):
                 drop_graph_event_job = join_job.addFollowOnJobFn(drop_graph_event, config, vg_path, full_vg_id,
                                                                  disk=vg_id.size * 3,
                                                                  memory=cactus_clamp_memory(min(vg_id.size * 6, max_mem)))
-                output_full_vg_ids.append(drop_graph_event_job.rv())
+                output_full_vg_ids.append(drop_graph_event_job.rv(0))
+                full_vg_empty.append(drop_graph_event_job.rv(1))
         else:
             output_full_vg_ids = full_vg_ids
+            full_vg_empty = [False] * len(full_vg_ids)
 
         # run the "clip" phase to do the clip-vg clipping
         clip_vg_ids = []
@@ -1196,7 +1200,7 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
         exclusion_ids = exclusion_job.rv()
 
     return (output_full_vg_ids, clip_vg_ids, clipped_stats, filter_vg_ids, out_dicts, og_chrom_ids,
-            exclusion_ids)
+            exclusion_ids, full_vg_empty)
 
 def clip_vg(job, options, config, vg_path, vg_id, phase):
     """ run clip-vg 
@@ -1403,7 +1407,8 @@ def join_vg(job, options, config, clipped_vg_ids):
     return [job.fileStore.writeGlobalFile(f) for f in vg_paths]
 
 def drop_graph_event(job, config, vg_path, full_vg_id):
-    """ take the _MINIGRAPH_ paths out of a chrom-vg full output graph """
+    """ take the _MINIGRAPH_ paths out of a chrom-vg full output graph.  returns (file_id, is_empty):
+    an empty unplaced (chrOther) bin drops to an empty/unloadable graph the caller must skip """
     work_dir = job.fileStore.getLocalTempDir()
     full_vg_path = os.path.join(work_dir, os.path.splitext(os.path.basename(vg_path))[0]) + '.full.vg'
     job.fileStore.readGlobalFile(full_vg_id, full_vg_path)
@@ -1411,7 +1416,23 @@ def drop_graph_event(job, config, vg_path, full_vg_id):
     graph_event = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "assemblyName", default="_MINIGRAPH_")
     
     cactus_call(parameters=['vg', 'paths', '-d', '-S', graph_event, '-x', full_vg_path], outfile=out_path)
-    return job.fileStore.writeGlobalFile(out_path)
+
+    # a "clean" reference-free haplotype can leave an unplaced (chrOther) bin whose only content is
+    # the minigraph, so once that's dropped the graph is empty.  flag an empty/unloadable result --
+    # a 0-byte file, a graph vg can't load ("VPKG::load_one: Correct input type not found"), or a
+    # valid graph with 0 nodes -- so the caller can skip it instead of handing it to panpatch
+    is_empty = os.path.getsize(out_path) == 0
+    if not is_empty:
+        try:
+            node_count = -1
+            for line in cactus_call(parameters=['vg', 'stats', '-z', out_path], check_output=True).split('\n'):
+                toks = line.split()
+                if len(toks) == 2 and toks[0] == 'nodes':
+                    node_count = int(toks[1])
+            is_empty = node_count == 0
+        except RuntimeError:
+            is_empty = True
+    return job.fileStore.writeGlobalFile(out_path), is_empty
     
 def vg_to_gfa(job, options, config, vg_path, vg_id, unchopped=False):
     """ run gfa conversion """
