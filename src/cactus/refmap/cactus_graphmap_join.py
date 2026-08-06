@@ -1213,6 +1213,20 @@ def clip_vg(job, options, config, vg_path, vg_id, phase):
 
     clipped_path = vg_path + '.clip'
 
+    # everything below selects on --reference[0], so if it has no path here the graph quietly empties
+    # out and some tool several steps later fails on the empty stream with an error that names
+    # neither the reference nor this file.  say it plainly instead
+    if options.reference:
+        graph_samples = sorted(set(p.split('#')[0] for p in
+                                   cactus_call(parameters=['vg', 'paths', '-x', vg_path, '-L'],
+                                               check_output=True).split('\n') if p.strip()))
+        if options.reference[0] not in graph_samples:
+            raise RuntimeError(
+                'reference sample "{}" has no path in {}. The samples in that graph are: {}. '
+                'Check --reference against the graph: it must name a sample that is actually present, '
+                'and for a per-chromosome run it must be present in this chromosome.'.format(
+                    options.reference[0], os.path.basename(vg_path), ', '.join(graph_samples)))
+
     join_xml_node = findRequiredNode(config.xmlRoot, "graphmap_join")
     graph_event = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "assemblyName", default="_MINIGRAPH_")
 
@@ -1759,7 +1773,27 @@ def deconstruct(job, config, out_name, vcf_ref, vg_id, decon_L, tag):
 
     # make the vcf
     vcf_path = os.path.join(work_dir, os.path.basename(out_name) + '.' + tag + 'raw.vcf.gz')
-    decon_cmd = ['vg', 'deconstruct', vg_path, '-P', vcf_ref, '-C', '-a', '-t', str(job.cores)]
+    # -P names the sample in one argument, but vg >= 1.74 only matches reference-sense paths with
+    # it.  only --reference[0] is reference-sense in a per-chromosome graph (hal2vg --refGenomes
+    # sets that back in cactus-align, from cactus-pangenome --reference), so a reference that was
+    # not one when the graph was built needs -p, which takes paths by name whatever their sense and
+    # gives identical output where -P works.  enumerate only when we have to: a gref graph has an
+    # _alt path per fragment, tens of thousands of them per chromosome, and the whole command goes
+    # to `bash -c` as a single argument that the kernel caps at 128k
+    decon_cmd = ['vg', 'deconstruct', vg_path, '-C', '-a', '-t', str(job.cores)]
+    if any(ref_path in ref_sense_paths for ref_path in ref_paths):
+        decon_cmd += ['-P', vcf_ref]
+    else:
+        enumerated_len = sum(len(ref_path) + 4 for ref_path in ref_paths)
+        if enumerated_len > 100000:
+            raise RuntimeError(
+                '{} needs its {} reference paths in {} named individually, because none of them is '
+                'reference-sense and vg deconstruct will not match those by prefix, but that command '
+                'would be {} bytes and the limit is about 128k. Pass {} to --reference when building '
+                'the graph so its paths come out reference-sense.'.format(
+                    vcf_ref, len(ref_paths), os.path.basename(vg_path), enumerated_len, vcf_ref))
+        for ref_path in ref_paths:
+            decon_cmd += ['-p', ref_path]
     if decon_L is not None:
         decon_cmd += ['-L', str(decon_L)]
     cactus_call(parameters=[decon_cmd, ['bgzip', '--threads', str(job.cores)]], outfile=vcf_path, job_memory=job.memory)
@@ -1777,7 +1811,7 @@ def deconstruct(job, config, out_name, vcf_ref, vg_id, decon_L, tag):
     if pansn_contigs:
         raise RuntimeError(
             'vg deconstruct ignored -C and emitted PanSN contig names for {} (e.g. {}). That means it found '
-            'more than one reference sample or haplotype under -P {}, which normally indicates a reference-sense '
+            'more than one reference sample or haplotype among the paths selected for {}, which normally indicates a reference-sense '
             'path whose name is not valid PanSN. The resulting VCF would not match the reference FASTA or the '
             'other VCFs from this run, so it is being rejected rather than written. Check the reference-sense '
             'path names in {} with `vg paths -L`.'.format(

@@ -481,7 +481,7 @@ def count_ref_contigs(gfa_path):
                     ref_contigs.add(sn[0])
     return len(ref_contigs)
 
-def disjoin_ref_contigs_batch(job, config, graphmap_input_dict, graphmap_batch_results, reference_event,
+def separate_ref_contigs_batch(job, config, graphmap_input_dict, graphmap_batch_results, reference_event,
                               permissive_contig_filter):
     """ --otherContig lumps every leftover reference contig into a single bin, so with --mgSplit that
     bin gets one minigraph covering all of them.  minigraph keeps those contigs disjoint, but the
@@ -502,12 +502,12 @@ def disjoin_ref_contigs_batch(job, config, graphmap_input_dict, graphmap_batch_r
         # the per-chromosome GFA comes in bgzipped, and we decompress it here: budget for that the
         # same way the first-pass split does
         tot_size = gfa_id.size * 10 + paf_id.size
-        output_dict[chrom] = job.addChildJobFn(disjoin_ref_contigs, config, chrom, gfa_id, gm_result, reference_event,
+        output_dict[chrom] = job.addChildJobFn(separate_ref_contigs, config, chrom, gfa_id, gm_result, reference_event,
                                                disk=tot_size * 5,
                                                memory=cactus_clamp_memory(tot_size * 3)).rv()
     return output_dict
 
-def disjoin_ref_contigs(job, config, chrom, gfa_id, gm_result, reference_event):
+def separate_ref_contigs(job, config, chrom, gfa_id, gm_result, reference_event):
     """ Use rgfa-split to assign each query in one chromosome's PAF to a single reference contig, and
     drop the alignments that don't fit that assignment.  Bins with a single reference contig -- every
     normal chromosome -- are left untouched.  A query that straddles two contigs evenly is ambiguous
@@ -517,8 +517,8 @@ def disjoin_ref_contigs(job, config, chrom, gfa_id, gm_result, reference_event):
     work_dir = job.fileStore.getLocalTempDir()
     gfa_path = os.path.join(work_dir, 'mg.gfa')
     paf_path = os.path.join(work_dir, 'mg.paf')
-    out_prefix = os.path.join(work_dir, 'disjoin_')
-    log_path = os.path.join(work_dir, 'disjoin.log')
+    out_prefix = os.path.join(work_dir, 'separate_')
+    log_path = os.path.join(work_dir, 'separate.log')
     job.fileStore.readGlobalFile(gfa_id, gfa_path)
     with open(gfa_path, 'rb') as gfa_file:
         is_gzipped = gfa_file.read(2) == b'\x1f\x8b'
@@ -560,17 +560,17 @@ def disjoin_ref_contigs(job, config, chrom, gfa_id, gm_result, reference_event):
             if name != amb_name:
                 keep_pafs.append(os.path.join(work_dir, out_name))
 
-    disjoint_paf_path = os.path.join(work_dir, 'disjoint.paf')
-    catFiles(keep_pafs, disjoint_paf_path)
+    separated_paf_path = os.path.join(work_dir, 'separated.paf')
+    catFiles(keep_pafs, separated_paf_path)
 
     def line_count(path):
         with open(path, 'r') as paf_file:
             return sum(1 for line in paf_file if line.strip())
-    before, after = line_count(paf_path), line_count(disjoint_paf_path)
-    RealtimeLogger.info('Disjoining {} reference contigs in {}: kept {} of {} PAF records'.format(
+    before, after = line_count(paf_path), line_count(separated_paf_path)
+    RealtimeLogger.info('Separating {} reference contigs in {}: kept {} of {} PAF records'.format(
         num_ref_contigs, chrom, after, before))
 
-    return (job.fileStore.writeGlobalFile(disjoint_paf_path),) + tuple(gm_result[1:]) + \
+    return (job.fileStore.writeGlobalFile(separated_paf_path),) + tuple(gm_result[1:]) + \
         (job.fileStore.writeGlobalFile(log_path),)
 
 def split_fas(job, seq_id_map, seq_name_map, split_id_map):
