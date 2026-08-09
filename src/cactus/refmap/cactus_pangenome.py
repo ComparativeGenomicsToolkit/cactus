@@ -115,6 +115,23 @@ def pangenome_options(parser):
                         help="--rescue: drop lifted fills shorter than this many bp -- the node-boundary "
                              "split fragments a fill into one record per backbone node, and tiny fragments "
                              "cost a graph node for near-zero sequence.  0 disables [100]")
+    parser.add_argument("--rescueConfidentFilter", action="store_true",
+                        help="--rescue: drop fills whose reference locus is not both-haplotype "
+                             "single-coverage unique -- dipcall's SD-paralog filter, rebuilt from the "
+                             "refmap.  Culls SD-paralog collateral while keeping clean recovery/inversions.")
+    parser.add_argument("--rescueConfidentMinMapq", type=int, default=5,
+                        help="--rescueConfidentFilter: min primary mapQ for an alignment to count toward "
+                             "the both-hap confident set [5]")
+    parser.add_argument("--rescueConfidentMinBlock", type=int, default=0,
+                        help="--rescueConfidentFilter: min alignment block length (bp) to count toward the "
+                             "confident set [0]")
+    parser.add_argument("--rescueConfidentFrac", type=float, default=0.5,
+                        help="--rescueConfidentFilter: keep a fill piece if >= this fraction of it lies in "
+                             "the confident set [0.5]")
+    parser.add_argument("--rescueConfidentFracSamples", type=float, default=None,
+                        help="--rescueConfidentFilter: cohort generalization for non-diploid input -- keep "
+                             "loci where >= this fraction of samples are both-hap unique, instead of "
+                             "per-sample both-hap [off]")
 
     parser.add_argument("--branchScale", type=float, default=1.0,
                         help="Scale default branch length. This option is more relevant for progressive cactus but larger values can be used here to reduce chaining thresholds in cactus_consolidated.")
@@ -427,7 +444,12 @@ def do_gap_fill(job, options, paf_id, refmap_paf_id):
                   min_gap=options.rescueMinGap,
                   cover_frac=options.rescueCoverFrac,
                   secondary_frac=options.rescueSecondaryFrac,
-                  min_fill=options.rescueMinFill)
+                  min_fill=options.rescueMinFill,
+                  confident_filter=options.rescueConfidentFilter,
+                  confident_min_mapq=options.rescueConfidentMinMapq,
+                  confident_min_block=options.rescueConfidentMinBlock,
+                  confident_frac=options.rescueConfidentFrac,
+                  confident_frac_samples=options.rescueConfidentFracSamples)
     RealtimeLogger.info('[rescue] whole-genome: {}'.format(st))
     return job.fileStore.writeGlobalFile(merged)
 

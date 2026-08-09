@@ -10,15 +10,17 @@ Pipeline per gap:
     picks the reference records that map a gap cleanly -- run on the ORIGINAL refmap, which
     still carries the tp:A: tags.
   - `paffy shatter` breaks the selected records into gapless pieces (query-len == target-len).
-  - each gapless piece is lifted to node coordinates against the reference->node table (built
-    from the reference's own graphmap records), splitting at backbone-node boundaries by simple
-    1:1 arithmetic -- an inverted piece becomes a reverse traversal of the backbone node.
+  - each gapless piece is (optionally) gated on the both-haplotype single-coverage confidence set
+    -- dipcall's SD filter, rebuilt from the refmap (build_confident_intervals) -- then lifted to
+    node coordinates against the reference->node table (built from the reference's own graphmap
+    records), splitting at backbone-node boundaries by simple 1:1 arithmetic -- an inverted piece
+    becomes a reverse traversal of the backbone node.
 The lifted, node-targeted fills are appended to the graphmap PAF (its records pass through
 unchanged), and split/align consume the result normally.
 
 Query names must match between the minigraph PAF and the reference PAF (id=<event>|<contig>).
 """
-import argparse, sys, gzip, subprocess, re
+import argparse, sys, gzip, subprocess, re, bisect
 from collections import defaultdict
 
 _CIGAR_RE = re.compile(r'(\d+)([MIDX=])')
@@ -298,13 +300,198 @@ def clip_piece_to_gaps(t, gaps):
     return out
 
 
+# --- dipcall-style both-haplotype single-coverage confidence filter -------------------------------
+# dipcall (github.com/lh3/dipcall) stays clean in SD by trusting a locus only where BOTH haplotypes
+# align uniquely: `samflt` keeps primary, mapQ>=5, long alignments, and the confident BED is the
+# single-coverage `paftools call` R regions INTERSECTED across haplotypes (`bedtk isec`).  We rebuild
+# that here from the rescue's own asm->ref refmap and drop fills whose reference locus is not both-hap
+# unique -- the SD-paralog collateral.  Validated on the 3 inversion carriers: the reconstruction
+# matches dipcall's BED at jaccard~0.98 and culls 57-65% of collateral for ~2% recovery loss, with the
+# flagship inversion 100% retained (carrier-truth/dipfilter/FINDING.md).
+
+def _event_of(query):
+    """`id=<sample>.<hap>|<contig>` -> (sample, event); event = <sample>.<hap>.  Falls back to the
+    whole id if it doesn't parse, so an odd name just forms its own (unpaired) single-event group."""
+    ev = query.split("|", 1)[0]
+    if ev.startswith("id="):
+        ev = ev[3:]
+    sample = ev.rsplit(".", 1)[0] if "." in ev else ev
+    return sample, ev
+
+
+def _merge_intervals(ivs):
+    if not ivs:
+        return []
+    ivs = sorted(ivs)
+    out = [list(ivs[0])]
+    for s, e in ivs[1:]:
+        if s <= out[-1][1]:
+            out[-1][1] = max(out[-1][1], e)
+        else:
+            out.append([s, e])
+    return [(s, e) for s, e in out]
+
+
+def _single_coverage(intervals):
+    """Sub-intervals covered by EXACTLY one of the [s,e) intervals -- paftools `call` single-coverage
+    `R` regions, via a coverage sweep line (emit each maximal run where the running depth is 1)."""
+    pts = []
+    for s, e in intervals:
+        if e > s:
+            pts.append((s, 1))
+            pts.append((e, -1))
+    pts.sort()
+    out, cov, prev, i, n = [], 0, None, 0, len(pts)
+    while i < n:
+        pos = pts[i][0]
+        if prev is not None and pos > prev and cov == 1:
+            out.append((prev, pos))
+        while i < n and pts[i][0] == pos:          # apply every delta at this coordinate together
+            cov += pts[i][1]
+            i += 1
+        prev = pos
+    return _merge_intervals(out)
+
+
+def _intersect_intervals(a, b):
+    """Intersect two sorted, non-overlapping interval lists."""
+    out, i, j = [], 0, 0
+    while i < len(a) and j < len(b):
+        s, e = max(a[i][0], b[j][0]), min(a[i][1], b[j][1])
+        if e > s:
+            out.append((s, e))
+        if a[i][1] <= b[j][1]:
+            i += 1
+        else:
+            j += 1
+    return out
+
+
+def _overlap_len(starts, ivs, s, e):
+    """Total overlap of [s,e) with sorted non-overlapping ivs (starts == [iv[0] for iv in ivs])."""
+    if e <= s or not ivs:
+        return 0
+    i = max(0, bisect.bisect_right(starts, s) - 1)
+    ov = 0
+    while i < len(ivs) and ivs[i][0] < e:
+        lo, hi = max(ivs[i][0], s), min(ivs[i][1], e)
+        if hi > lo:
+            ov += hi - lo
+        i += 1
+    return ov
+
+
+def build_confident_intervals(rm_by_q, min_mapq=5, min_block=0, min_frac_samples=None):
+    """Per sample, the both-haplotype single-coverage intersection of primary refmap alignments in
+    reference coords -- dipcall's confident set, rebuilt from the rescue's own asm->ref refmap.
+    Returns {sample: {ref_target: (starts, [(s,e)])}} for fast _overlap_len lookup.  A locus survives
+    for a sample only if EVERY haplotype/event of that sample maps it with exactly one primary
+    (mapQ>=min_mapq, block>=min_block) alignment, so SD paralogs (multi-coverage or low-mapQ in some
+    hap) drop out.  If min_frac_samples is set (0..1), the per-sample sets are replaced by a single
+    cohort mask kept where >= that fraction of samples are both-hap unique -- the population
+    generalization of dipcall's diploid rule for non-diploid / multi-sample input; the same mask is
+    then returned for every sample so the piece filter is unchanged."""
+    by_event = defaultdict(lambda: defaultdict(list))     # event -> ref_target -> [(ts,te)]
+    event_sample = {}
+    for q, recs in rm_by_q.items():
+        sample, event = _event_of(q)
+        event_sample[event] = sample
+        for qs, qe, tp, target, line in recs:
+            if tp not in ('P', 'I'):
+                continue
+            t = line.rstrip("\n").split("\t")
+            if len(t) < 12 or int(t[11]) < min_mapq or int(t[10]) < min_block:
+                continue
+            by_event[event][target].append((int(t[7]), int(t[8])))
+    event_single = {ev: {c: _single_coverage(ivs) for c, ivs in chroms.items()}
+                    for ev, chroms in by_event.items()}
+    sample_events = defaultdict(list)
+    for ev, sample in event_sample.items():
+        sample_events[sample].append(ev)
+    # per-sample both-hap (all-event) intersection
+    sample_conf = {}                                      # sample -> {chrom: [(s,e)]}
+    for sample, events in sample_events.items():
+        cc = {}
+        chroms = set()
+        for ev in events:
+            chroms |= set(event_single.get(ev, {}).keys())
+        for c in chroms:
+            acc = None
+            for ev in events:
+                s = event_single.get(ev, {}).get(c, [])
+                if not s:                                # a hap with no unique mapping here
+                    acc = None
+                    break
+                acc = s if acc is None else _intersect_intervals(acc, s)
+                if not acc:
+                    break
+            if acc:
+                cc[c] = acc
+        sample_conf[sample] = cc
+    if min_frac_samples is not None and sample_conf:
+        cohort = _cohort_mask(sample_conf, min_frac_samples)
+        sample_conf = {s: cohort for s in sample_conf}
+    return {s: {c: ([iv[0] for iv in ivs], ivs) for c, ivs in cc.items()}
+            for s, cc in sample_conf.items()}
+
+
+def _cohort_mask(sample_conf, min_frac):
+    """Cohort generalization: regions where >= min_frac of the samples are both-hap unique.  Per
+    chrom, sweep every sample's confident intervals and keep the depth >= ceil(min_frac*N) runs."""
+    n = len(sample_conf)
+    need = max(1, (int(min_frac * n * 1000) + 999) // 1000)     # ceil(min_frac*n), no float/import
+    by_chrom = defaultdict(list)
+    for cc in sample_conf.values():
+        for c, ivs in cc.items():
+            by_chrom[c].extend(ivs)
+    mask = {}
+    for c, ivs in by_chrom.items():
+        pts = []
+        for s, e in ivs:
+            if e > s:
+                pts.append((s, 1)); pts.append((e, -1))
+        pts.sort()
+        out, cov, prev, i, m = [], 0, None, 0, len(pts)
+        while i < m:
+            pos = pts[i][0]
+            if prev is not None and pos > prev and cov >= need:
+                out.append((prev, pos))
+            while i < m and pts[i][0] == pos:
+                cov += pts[i][1]
+                i += 1
+            prev = pos
+        merged = _merge_intervals(out)
+        if merged:
+            mask[c] = merged
+    return mask
+
+
+def _piece_confident(pt, confident, frac):
+    """True if >= frac of a shattered asm->ref piece's reference span lies in its sample's both-hap
+    confident set (pt is a PAF field list: pt[0]=query, pt[5]=ref_target, pt[7:9]=ref start/end)."""
+    sample, _ = _event_of(pt[0])
+    entry = confident.get(sample, {}).get(pt[5])
+    if not entry:
+        return False
+    starts, ivs = entry
+    ts, te = int(pt[7]), int(pt[8])
+    return te > ts and _overlap_len(starts, ivs, ts, te) >= frac * (te - ts)
+
+
 def gap_fill(minigraph_paf, rm_by_q, ref_table, out_paf, min_gap=1000, cover_frac=0.5,
-             secondary_frac=0.5, paffy="paffy", assembly_fa=None, min_fill=0):
+             secondary_frac=0.5, paffy="paffy", assembly_fa=None, min_fill=0,
+             confident_filter=False, confident_min_mapq=5, confident_min_block=0,
+             confident_frac=0.5, confident_frac_samples=None):
     """Write out_paf = the minigraph PAF unchanged + node-targeted reference records that fill its
     query coverage gaps.  rm_by_q is the ORIGINAL assembly->reference refmap (read_paf); ref_table
-    is the reference->node table (build_ref_node_table).  Returns a stats dict."""
+    is the reference->node table (build_ref_node_table).  With confident_filter, fills whose reference
+    locus is not in the both-haplotype single-coverage set are dropped (dipcall's SD filter).  Returns
+    a stats dict."""
     gaps = find_query_gaps(minigraph_paf, min_gap)
-    st = dict(gaps=0, filled=0, fill_records=0, unfilled=0)
+    confident = (build_confident_intervals(rm_by_q, confident_min_mapq, confident_min_block,
+                                           confident_frac_samples)
+                 if confident_filter else None)
+    st = dict(gaps=0, filled=0, fill_records=0, unfilled=0, fill_filtered=0)
     # gate on the original refmap (tp:A: tags intact) -> the reference lines that cleanly fill gaps
     selected = []
     for q, ivs in gaps.items():
@@ -342,6 +529,9 @@ def gap_fill(minigraph_paf, rm_by_q, ref_table, out_paf, min_gap=1000, cover_fra
                                    capture_output=True, text=True, check=True).stdout
         for line in shattered.splitlines():
             pt = line.split("\t")
+            if confident is not None and not _piece_confident(pt, confident, confident_frac):
+                st["fill_filtered"] += 1       # ref locus not both-hap unique -> SD-paralog collateral
+                continue
             pt[9] = str(max(1, round(int(pt[10]) * _lookup_pid(pid_by_q, pt[0], int(pt[2]), int(pt[3])))))
             for piece in lift_gapless_piece(pt, ref_table):
                 ppt = piece.rstrip("\n").split("\t")
@@ -374,11 +564,14 @@ def gap_fill(minigraph_paf, rm_by_q, ref_table, out_paf, min_gap=1000, cover_fra
 
 
 def gap_fill_pafs(minigraph_paf, refmap_paf, out_paf, ref_prefix, min_gap=1000, cover_frac=0.5,
-                  secondary_frac=0.5, paffy="paffy", assembly_fa=None):
+                  secondary_frac=0.5, paffy="paffy", assembly_fa=None, min_fill=0,
+                  confident_filter=False, confident_min_mapq=5, confident_min_block=0,
+                  confident_frac=0.5, confident_frac_samples=None):
     """Convenience: build the ref->node table from the minigraph PAF and gap-fill one file."""
     table = build_ref_node_table(minigraph_paf, ref_prefix)
     return gap_fill(minigraph_paf, read_paf(refmap_paf), table, out_paf, min_gap, cover_frac,
-                    secondary_frac, paffy, assembly_fa)
+                    secondary_frac, paffy, assembly_fa, min_fill, confident_filter,
+                    confident_min_mapq, confident_min_block, confident_frac, confident_frac_samples)
 
 
 def main():
@@ -390,13 +583,28 @@ def main():
     ap.add_argument("--min-gap", type=int, default=1000)
     ap.add_argument("--cover-frac", type=float, default=0.5)
     ap.add_argument("--secondary-frac", type=float, default=0.5)
+    ap.add_argument("--min-fill", type=int, default=0, help="drop fills shorter than this many node bp")
     ap.add_argument("--paffy", default="paffy", help="path to the paffy binary [paffy]")
     ap.add_argument("--assembly", default=None, help="query fasta, to also surface fully-missing contigs (paffy -q)")
+    # dipcall-style both-haplotype single-coverage confidence filter (SD-paralog collateral cull)
+    ap.add_argument("--confident-filter", action="store_true",
+                    help="drop fills whose reference locus is not both-haplotype single-coverage unique")
+    ap.add_argument("--confident-min-mapq", type=int, default=5,
+                    help="min primary mapQ for an alignment to count toward the confident set [5]")
+    ap.add_argument("--confident-min-block", type=int, default=0,
+                    help="min alignment block length to count toward the confident set [0]")
+    ap.add_argument("--confident-frac", type=float, default=0.5,
+                    help="min fraction of a fill piece that must lie in the confident set to keep it [0.5]")
+    ap.add_argument("--confident-frac-samples", type=float, default=None,
+                    help="cohort generalization: keep loci where >= this fraction of samples are "
+                         "both-hap unique, instead of per-sample both-hap (for non-diploid input)")
     args = ap.parse_args()
     st = gap_fill_pafs(args.graphmap, args.refmap, args.output, args.ref_prefix, args.min_gap,
-                       args.cover_frac, args.secondary_frac, args.paffy, args.assembly)
+                       args.cover_frac, args.secondary_frac, args.paffy, args.assembly, args.min_fill,
+                       args.confident_filter, args.confident_min_mapq, args.confident_min_block,
+                       args.confident_frac, args.confident_frac_samples)
     sys.stderr.write("[rescue] {gaps} gaps: {filled} filled -> {fill_records} node records, "
-                     "{unfilled} left unfilled\n".format(**st))
+                     "{unfilled} unfilled, {fill_filtered} pieces dropped by confidence filter\n".format(**st))
 
 
 if __name__ == "__main__":
