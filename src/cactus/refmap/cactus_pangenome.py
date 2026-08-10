@@ -132,6 +132,13 @@ def pangenome_options(parser):
                         help="--rescueConfidentFilter: cohort generalization for non-diploid input -- keep "
                              "loci where >= this fraction of samples are both-hap unique, instead of "
                              "per-sample both-hap [off]")
+    parser.add_argument("--rescueMinMapq", type=int, default=0,
+                        help="--rescue: only fill a gap from source alignments with mapQ >= this "
+                             "(dipcall samflt uses 5) [0=off]")
+    parser.add_argument("--rescueMinAlnBlock", type=int, default=0,
+                        help="--rescue: only fill a gap from source alignments with >= this bp of "
+                             "alignment block -- the length filter the minigraph path already uses "
+                             "(dipcall uses 50000) [0=off]")
 
     parser.add_argument("--branchScale", type=float, default=1.0,
                         help="Scale default branch length. This option is more relevant for progressive cactus but larger values can be used here to reduce chaining thresholds in cactus_consolidated.")
@@ -449,7 +456,9 @@ def do_gap_fill(job, options, paf_id, refmap_paf_id):
                   confident_min_mapq=options.rescueConfidentMinMapq,
                   confident_min_block=options.rescueConfidentMinBlock,
                   confident_frac=options.rescueConfidentFrac,
-                  confident_frac_samples=options.rescueConfidentFracSamples)
+                  confident_frac_samples=options.rescueConfidentFracSamples,
+                  min_mapq=options.rescueMinMapq,
+                  min_block=options.rescueMinAlnBlock)
     RealtimeLogger.info('[rescue] whole-genome: {}'.format(st))
     return job.fileStore.writeGlobalFile(merged)
 

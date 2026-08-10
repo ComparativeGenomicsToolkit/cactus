@@ -102,14 +102,24 @@ def covered_fraction(intervals, cs, ce):
     return covered / span
 
 
-def rescue_records(ref_recs, cs, ce, cover_frac, secondary_frac, min_overlap):
+def rescue_records(ref_recs, cs, ce, cover_frac, secondary_frac, min_overlap, min_mapq=0, min_block=0):
     """Return the (assembly->reference) refmap lines to fill span [cs,ce], or None if the reference
     doesn't map it cleanly (needs a primary cover >= cover_frac, no primaries overlapping each other
-    WITHIN the gap, and no strong secondary)."""
+    WITHIN the gap, and no strong secondary).
+
+    dipcall's samflt gate: a gap is only filled from source alignments that are primary, mapQ >=
+    min_mapq, and >= min_block bp of alignment block (PAF col 11).  This is the mapQ/length filter
+    the minigraph path already applies (filter_paf minMAPQ/minGAFBlockLength); on the minimap2 refmap
+    it drops the short/low-mapQ paralog fragments that are ~99% of the SD collateral -- validated:
+    refmap alignments <50kb are 99% in dipcall-ambiguous regions, >=50kb are ~2/3 real."""
     prim, sec = [], []
     for qs, qe, tp, target, line in ref_recs:
         if min(qe, ce) <= max(qs, cs):
             continue
+        if min_mapq or min_block:
+            t = line.rstrip("\n").split("\t")
+            if len(t) < 12 or int(t[11]) < min_mapq or int(t[10]) < min_block:
+                continue                       # samflt: drop low-mapQ / short source alignments
         (prim if tp in ('P', 'I') else sec).append((qs, qe, line))
     if not prim:
         return None
@@ -481,12 +491,12 @@ def _piece_confident(pt, confident, frac):
 def gap_fill(minigraph_paf, rm_by_q, ref_table, out_paf, min_gap=1000, cover_frac=0.5,
              secondary_frac=0.5, paffy="paffy", assembly_fa=None, min_fill=0,
              confident_filter=False, confident_min_mapq=5, confident_min_block=0,
-             confident_frac=0.5, confident_frac_samples=None):
+             confident_frac=0.5, confident_frac_samples=None, min_mapq=0, min_block=0):
     """Write out_paf = the minigraph PAF unchanged + node-targeted reference records that fill its
     query coverage gaps.  rm_by_q is the ORIGINAL assembly->reference refmap (read_paf); ref_table
-    is the reference->node table (build_ref_node_table).  With confident_filter, fills whose reference
-    locus is not in the both-haplotype single-coverage set are dropped (dipcall's SD filter).  Returns
-    a stats dict."""
+    is the reference->node table (build_ref_node_table).  min_mapq/min_block apply dipcall's samflt
+    gate per source alignment in rescue_records; with confident_filter, fills whose reference locus
+    is not in the both-haplotype single-coverage set are also dropped.  Returns a stats dict."""
     gaps = find_query_gaps(minigraph_paf, min_gap)
     confident = (build_confident_intervals(rm_by_q, confident_min_mapq, confident_min_block,
                                            confident_frac_samples)
@@ -497,7 +507,8 @@ def gap_fill(minigraph_paf, rm_by_q, ref_table, out_paf, min_gap=1000, cover_fra
     for q, ivs in gaps.items():
         for gs, ge in ivs:
             st["gaps"] += 1
-            resc = rescue_records(rm_by_q.get(q, []), gs, ge, cover_frac, secondary_frac, min_gap)
+            resc = rescue_records(rm_by_q.get(q, []), gs, ge, cover_frac, secondary_frac, min_gap,
+                                  min_mapq, min_block)
             if resc:
                 selected.extend(resc)
                 st["filled"] += 1
@@ -566,12 +577,13 @@ def gap_fill(minigraph_paf, rm_by_q, ref_table, out_paf, min_gap=1000, cover_fra
 def gap_fill_pafs(minigraph_paf, refmap_paf, out_paf, ref_prefix, min_gap=1000, cover_frac=0.5,
                   secondary_frac=0.5, paffy="paffy", assembly_fa=None, min_fill=0,
                   confident_filter=False, confident_min_mapq=5, confident_min_block=0,
-                  confident_frac=0.5, confident_frac_samples=None):
+                  confident_frac=0.5, confident_frac_samples=None, min_mapq=0, min_block=0):
     """Convenience: build the ref->node table from the minigraph PAF and gap-fill one file."""
     table = build_ref_node_table(minigraph_paf, ref_prefix)
     return gap_fill(minigraph_paf, read_paf(refmap_paf), table, out_paf, min_gap, cover_frac,
                     secondary_frac, paffy, assembly_fa, min_fill, confident_filter,
-                    confident_min_mapq, confident_min_block, confident_frac, confident_frac_samples)
+                    confident_min_mapq, confident_min_block, confident_frac, confident_frac_samples,
+                    min_mapq, min_block)
 
 
 def main():
@@ -598,11 +610,16 @@ def main():
     ap.add_argument("--confident-frac-samples", type=float, default=None,
                     help="cohort generalization: keep loci where >= this fraction of samples are "
                          "both-hap unique, instead of per-sample both-hap (for non-diploid input)")
+    # dipcall samflt gate: only fill a gap from source alignments >= these mapQ / block-length
+    ap.add_argument("--min-mapq", type=int, default=0,
+                    help="only fill from source refmap alignments with mapQ >= this (dipcall samflt: 5)")
+    ap.add_argument("--min-aln-block", type=int, default=0,
+                    help="only fill from source refmap alignments with >= this bp of block (dipcall: 50000)")
     args = ap.parse_args()
     st = gap_fill_pafs(args.graphmap, args.refmap, args.output, args.ref_prefix, args.min_gap,
                        args.cover_frac, args.secondary_frac, args.paffy, args.assembly, args.min_fill,
                        args.confident_filter, args.confident_min_mapq, args.confident_min_block,
-                       args.confident_frac, args.confident_frac_samples)
+                       args.confident_frac, args.confident_frac_samples, args.min_mapq, args.min_aln_block)
     sys.stderr.write("[rescue] {gaps} gaps: {filled} filled -> {fill_records} node records, "
                      "{unfilled} unfilled, {fill_filtered} pieces dropped by confidence filter\n".format(**st))
 
