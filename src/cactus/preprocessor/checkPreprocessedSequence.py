@@ -40,6 +40,17 @@ _BLOCK = 1 << 15
 _checksum = zlib.crc32
 
 
+def preprocessed_fasta_id(seq_id):
+    """Pull the fasta out of whatever a preprocessing step returned.
+
+    dna-brnn and maskFile return (fasta, bed, merged bed); every other
+    preprocessor returns the fasta on its own.  Those two run last in the chain,
+    so before this check existed only the caller at the very end of the pipeline
+    had to know about it.
+    """
+    return seq_id[0] if isinstance(seq_id, (tuple, list)) else seq_id
+
+
 def fasta_digest(path):
     """Return [(name, length, checksum)], one entry per record, in file order.
 

@@ -46,6 +46,7 @@ from cactus.preprocessor.fastanMasking import FasTANMaskJob
 from cactus.preprocessor.cutHeaders import CutHeadersJob
 from cactus.preprocessor.fileMasking import maskJobOverride, FileMaskingJob
 from cactus.preprocessor.checkPreprocessedSequence import check_sequence_preserved
+from cactus.preprocessor.checkPreprocessedSequence import preprocessed_fasta_id
 from cactus.progressive.cactus_prepare import human2bytesN
 
 class PreprocessorOptions:
@@ -271,6 +272,7 @@ class BatchPreprocessor(RoundedJob):
         lastIteration = self.iteration == len(self.prepXmlElems) - 1
 
         prepNode = self.prepXmlElems[self.iteration]
+        checkJob = None
         if getOptionalAttrib(prepNode, "active", typeFn = bool, default=True):
             prepOptions = PreprocessorOptions(chunkSize = int(prepNode.get("chunkSize", default="-1")),
                                               preprocessJob=prepNode.attrib["preprocessJob"],
@@ -319,7 +321,11 @@ class BatchPreprocessor(RoundedJob):
             outSeqID = self.inSequenceID
 
         if lastIteration == False:
-            return self.addFollowOn(BatchPreprocessor(self.prepXmlElems, outSeqID, self.iteration + 1)).rv()
+            # the next step must wait for the check: a preprocessor with unmask set
+            # starts by deleting its input, which is the very file the check reads as
+            # its output, and follow-ons of the same job would otherwise race
+            previous = checkJob if checkJob is not None else self
+            return previous.addFollowOn(BatchPreprocessor(self.prepXmlElems, outSeqID, self.iteration + 1)).rv()
         else:
             return outSeqID
 
@@ -336,8 +342,9 @@ def check_preprocessed_sequence(job, in_seq_id, out_seq_id, step_name, event_nam
         RealtimeLogger.info('Skipping sequence check for {} on {}: clipping removes sequence'.format(
             step_name, event_name))
         return
-    in_path = job.fileStore.readGlobalFile(in_seq_id)
-    out_path = job.fileStore.readGlobalFile(out_seq_id)
+    # dna-brnn and maskFile return (fasta, bed, merged bed) rather than a bare id
+    in_path = job.fileStore.readGlobalFile(preprocessed_fasta_id(in_seq_id))
+    out_path = job.fileStore.readGlobalFile(preprocessed_fasta_id(out_seq_id))
     check_sequence_preserved(in_path, out_path, event_name=event_name, step_name=step_name,
                              allow_hardmask=masking_job and mask_action == 'hardmask')
 
