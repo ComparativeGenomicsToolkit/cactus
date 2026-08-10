@@ -48,6 +48,17 @@ stages:
 
 test-job:
   stage: test
+  # The runner reuses /builds/comparativegenomicstoolkit/cactus across jobs.  "Created
+  # fresh repository" only re-inits .git -- .git/modules/** survives forever, and
+  # `git submodule sync --recursive` only repairs submodules that are still registered
+  # in their parent's config.  An unregistered nested gitdir with a stale local-path
+  # remote.origin.url (paffy's own submodules/sonLib) therefore never gets fixed, and
+  # get_sources dies with "fatal: transport 'file' not allowed" -- reported as the
+  # misleading "Fetched in submodule path 'submodules/paffy', but it did not contain
+  # <sha>", even though the log shows that sha fetched fine a line earlier.
+  hooks:
+    pre_get_sources_script:
+      - rm -rf "$CI_PROJECT_DIR/.git/modules"
   script:
     - quiet clean-debug make clean
     - virtualenv -p python3.10 venv
