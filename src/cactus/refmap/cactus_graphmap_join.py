@@ -1695,23 +1695,31 @@ def make_vcf(job, config, options, workflow_phase, index_mem, vcf_ref, vg_ids, r
             wave_vcf_id, wave_tbi_id = vcfwave_job.rv(0), vcfwave_job.rv(1)
             wave_vcf_tbi_ids.append((wave_vcf_id, wave_tbi_id))
 
+    # a few cores go a long way here and no further: they feed bcftools concat and the bgzip that
+    # fix_vcf_ploidies ends on, neither of which scales past a handful.  the extra 10x of disk is
+    # room for the uncompressed copy that pass leaves for bgzip -- reckoned against the graphs like
+    # the rest of the request, the VCFs themselves still being promises at this point
+    cat_cores = min(options.indexCores, 4)
     merge_vcf_job = root_job.addFollowOnJobFn(vcf_cat, raw_vcf_tbi_ids, vcftag + '.raw.',
                                               fix_ploidies=True,
-                                              disk = sum(f.size for f in vg_ids) * 16,
+                                              cores = cat_cores,
+                                              disk = sum(f.size for f in vg_ids) * 26,
                                               memory = cactus_clamp_memory(sum(f.size for f in vg_ids)))
     out_dict = {'{}.raw.vcf.gz'.format(vcftag) : merge_vcf_job.rv(0),
                 '{}.raw.vcf.gz.tbi'.format(vcftag) : merge_vcf_job.rv(1) }
     if bub_vcf_tbi_ids:
         merge_bub_job = root_job.addFollowOnJobFn(vcf_cat, bub_vcf_tbi_ids, vcftag + '.bub.',
                                                   fix_ploidies=True,
-                                                  disk = sum(f.size for f in vg_ids) * 16,
+                                                  cores = cat_cores,
+                                                  disk = sum(f.size for f in vg_ids) * 26,
                                                   memory = cactus_clamp_memory(sum(f.size for f in vg_ids)))
         out_dict['{}.vcf.gz'.format(vcftag)] = merge_bub_job.rv(0)
         out_dict['{}.vcf.gz.tbi'.format(vcftag)] = merge_bub_job.rv(1)
     if wave_vcf_tbi_ids:
         merge_wave_job = root_job.addFollowOnJobFn(vcf_cat, wave_vcf_tbi_ids, vcftag + '.wave.',
                                                    fix_ploidies=True,
-                                                   disk = sum(f.size for f in vg_ids) * 16,
+                                                   cores = cat_cores,
+                                                   disk = sum(f.size for f in vg_ids) * 26,
                                                    memory = cactus_clamp_memory(sum(f.size for f in vg_ids)))
         out_dict['{}.wave.vcf.gz'.format(vcftag)] = merge_wave_job.rv(0)
         out_dict['{}.wave.vcf.gz.tbi'.format(vcftag)] = merge_wave_job.rv(1)
@@ -1936,7 +1944,7 @@ def vcfnorm(job, config, vcf_ref, vcf_id, vcf_path, tbi_id, fasta_ref_dict):
 
     return job.fileStore.writeGlobalFile(multi_path), job.fileStore.writeGlobalFile(tbi_path)
 
-def fix_vcf_ploidies(in_vcf_path, out_vcf_path):
+def fix_vcf_ploidies(in_vcf_path, out_vcf_path, threads=1):
     """ since we're deconstructing chromosomes independently, we can have cases where a sample
     is haploid in one chromosome (ex Y) but diploid in other chromosomes.  this will almost
     certainly upset some downstream tools, which will be expecting consistent ploidies
@@ -1952,16 +1960,18 @@ def fix_vcf_ploidies(in_vcf_path, out_vcf_path):
     only ever holds a handful of distinct separator patterns (one for the autosomes, one or two
     more for the sex chromosomes).  reducing the sample columns to that pattern is a single
     C-level pass over the line, so the per-sample python loops run once per distinct signature
-    instead of once per record -- ~10x on the scan and a byte-identical result
+    instead of once per record -- ~10x on the scan and an identical result
     """
     # read with gzip rather than pysam.BGZFile: the latter strips the line terminator on
-    # iteration, and this relies on passing untouched lines straight through.  gzip reads bgzf
-    # fine, and BGZFile is still what writes it so the output stays block-compressed
+    # iteration, and this relies on passing untouched lines straight through.  gzip reads bgzf fine
     def open_read(path):
         return gzip.open(path, 'rb') if path.endswith('.gz') else open(path, 'rb')
 
-    def open_write(path):
-        return pysam.BGZFile(path, 'wb') if path.endswith('.gz') else open(path, 'wb')
+    # pass 2 leaves its output uncompressed for bgzip to pick up at the bottom, the same trade
+    # open_gfa_for_rename() makes: compressing in this process (pysam.BGZFile, like python's gzip)
+    # is single threaded, ~16 MB/s, and with the scans above no longer costing anything it is
+    # what the pass now spends its time on.  it buys that with room for the raw copy on disk
+    raw_out_path = out_vcf_path[:-3] if out_vcf_path.endswith('.gz') else out_vcf_path
 
     # strip a line's sample columns down to just the separators that decide ploidy: '\t' between
     # samples, ':' ending the GT subfield, and '|' and '/' within it (folded together, since only
@@ -2020,7 +2030,7 @@ def fix_vcf_ploidies(in_vcf_path, out_vcf_path):
     # at full width, which on a whole-genome VCF is nearly every line
     pads_by_sig = {}
     unseen = object()
-    with open_read(in_vcf_path) as in_file, open_write(out_vcf_path) as out_file:
+    with open_read(in_vcf_path) as in_file, open(raw_out_path, 'wb') as out_file:
         for line in in_file:
             if line.startswith(b'#') or not max_ploidy:
                 out_file.write(line)
@@ -2049,6 +2059,11 @@ def fix_vcf_ploidies(in_vcf_path, out_vcf_path):
                     gt = field.partition(b':')[0]
                     toks[9 + i] = gt.replace(b'/', b'|') + b'|.' * pad + field[len(gt):]
             out_file.write(b'\t'.join(toks) + b'\n')
+
+    if raw_out_path != out_vcf_path:
+        cactus_call(parameters=['bgzip', '--threads', str(threads)], infile=raw_out_path,
+                    outfile=out_vcf_path)
+        os.remove(raw_out_path)
 
 def check_vcfwave(job):
     """ check to make sure vcfwave is installed """
@@ -2275,7 +2290,7 @@ def vcf_cat(job, vcf_tbi_ids, tag, sort=False, fix_ploidies=True):
 
     if fix_ploidies:
         ploidy_vcf_path = os.path.join(work_dir, '{}ploidy.vcf.gz'.format(tag))
-        fix_vcf_ploidies(cat_vcf_path, ploidy_vcf_path)
+        fix_vcf_ploidies(cat_vcf_path, ploidy_vcf_path, threads=job.cores)
         cat_vcf_path = ploidy_vcf_path        
 
     tbi_path = index_vcf(cat_vcf_path)
