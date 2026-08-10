@@ -132,7 +132,10 @@ def cactus_cons(job, tree, ancestor_event, config_node, seq_id_map, og_map, paf_
 
     # Split the alignments file into primary and secondary
     primary_alignment_file = os.path.join(work_dir, f'{ancestor_event}_primary.paf')
-    system(f"grep -v 'tp:A:S' {paf_path} > {primary_alignment_file} || true")  # Alignments that are not-secondaries
+    # grep exits 1 when nothing matched, which is fine and has to be tolerated,
+    # but it exits 2 when the write itself failed.  `|| true` cannot tell those
+    # apart, so a full disk here used to leave a short paf and carry on.
+    system(f"grep -v 'tp:A:S' {paf_path} > {primary_alignment_file} || [ $? -eq 1 ]")  # Alignments that are not-secondaries
 
     # Optionally parse our secondary alignments
     use_secondary_alignments = int(config_node.find("blast").attrib["outputSecondaryAlignments"])  # We should really switch to
@@ -140,7 +143,7 @@ def cactus_cons(job, tree, ancestor_event, config_node, seq_id_map, og_map, paf_
     assert use_secondary_alignments == 0 or use_secondary_alignments == 1
     if use_secondary_alignments:
         secondary_alignment_file = os.path.join(work_dir, f'{ancestor_event}_secondary.paf')
-        system(f"grep 'tp:A:S' {paf_path} > {secondary_alignment_file} || true")  # Alignments that are secondaries
+        system(f"grep 'tp:A:S' {paf_path} > {secondary_alignment_file} || [ $? -eq 1 ]")  # Alignments that are secondaries
 
     # Optionally copy the alignments to a specified location for debug purposes
     if config_node.find("caf").attrib["writeInputAlignmentsTo"]:

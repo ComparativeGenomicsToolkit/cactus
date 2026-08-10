@@ -815,8 +815,24 @@ def cactus_call(tool=None,
     else:
         stdinFileHandle = subprocess.DEVNULL
     stdoutFileHandle = None
-    if outfile:
-        stdoutFileHandle = open(outfile, 'a' if outappend else 'w')
+    outfile_tmp = None
+    outfile_append_size = None
+    # check_output takes stdout for itself below, in which case there is nothing
+    # to stage and opening the file would only strand it
+    if outfile and not check_output:
+        if outappend:
+            # cannot be staged, so remember where the file ended in order to be
+            # able to roll a failed append back off it below
+            outfile_append_size = os.path.getsize(outfile) if os.path.exists(outfile) else 0
+            stdoutFileHandle = open(outfile, 'a')
+        else:
+            # Stage under a temporary name and rename only once the command has
+            # both exited cleanly and had its output confirmed on disk.  Tools
+            # that do not check their own writes exit 0 after a short write, and
+            # the truncated file they leave usually still parses, so the name
+            # appearing at all has to be the signal that the output is whole.
+            outfile_tmp = outfile + '.part'
+            stdoutFileHandle = open(outfile_tmp, 'w')
     if check_output:
         stdoutFileHandle = subprocess.PIPE
 
@@ -939,9 +955,46 @@ def cactus_call(tool=None,
     if output is not None:
         output = output.decode()
 
-    if outfile:
-        stdoutFileHandle.close()
-        
+    if outfile and not check_output:
+        # The child wrote through the descriptor opened above, and stdio in the
+        # child reports a failed write only through an exit status the child is
+        # free to ignore.  Asking the kernel directly also catches a writeback
+        # error deferred past the child's own close, which is the failure that
+        # unchecked tools cannot see at all.  Set CACTUS_NO_FSYNC_OUTPUT to skip
+        # it if waiting for writeback proves too costly somewhere.
+        write_error = None
+        try:
+            stdoutFileHandle.flush()
+            if not os.environ.get("CACTUS_NO_FSYNC_OUTPUT"):
+                os.fsync(stdoutFileHandle.fileno())
+        except OSError as e:
+            # a fifo, a socket or a character device cannot be synchronised at
+            # all, which is not a write failure and must not fail the job
+            if e.errno not in (errno.EINVAL, errno.ENOTSUP):
+                write_error = e
+        try:
+            stdoutFileHandle.close()
+        except OSError as e:
+            write_error = write_error if write_error is not None else e
+
+        if write_error is not None or process.returncode != 0:
+            if outappend:
+                # leave the shared file exactly as this call found it
+                try:
+                    os.truncate(outfile, outfile_append_size)
+                except OSError:
+                    pass
+            else:
+                try:
+                    os.remove(outfile_tmp)
+                except OSError:
+                    pass
+        elif not outappend:
+            os.replace(outfile_tmp, outfile)
+
+        if write_error is not None:
+            raise RuntimeError("Command {} failed to write {}: {}".format(call, outfile, write_error))
+
     if process.returncode == 0 and rt_log_cmd:
         run_time = time.time() - start_time
         if time_v:

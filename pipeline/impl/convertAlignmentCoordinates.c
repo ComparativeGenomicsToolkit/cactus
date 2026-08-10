@@ -99,8 +99,8 @@ void convertAlignmentCoordinates(char *inputAlignmentFile, char *outputAlignment
     stHash *sequenceHeaderToCapHash = makeSequenceHeaderToCapHash(flower);
     st_logDebug("Set up the flower disk and built hash\n");
 
-    FILE *inputAlignmentFileHandle = fopen(inputAlignmentFile, "r");
-    FILE *outputAlignmentFileHandle = fopen(outputAlignmentFile, "w");
+    FILE *inputAlignmentFileHandle = st_fopen(inputAlignmentFile, "r");
+    FILE *outputAlignmentFileHandle = st_fopen(outputAlignmentFile, "w");
     st_logDebug("Opened files for writing\n");
 
     Paf *paf;
@@ -114,6 +114,8 @@ void convertAlignmentCoordinates(char *inputAlignmentFile, char *outputAlignment
 
     //Cleanup
     fclose(inputAlignmentFileHandle);
-    fclose(outputAlignmentFileHandle);
+    // paf_write does not report a short write, and a truncated paf is still a
+    // valid paf, so dropped alignments would otherwise be invisible here
+    st_fclose(outputAlignmentFileHandle, outputAlignmentFile);
     stHash_destruct(sequenceHeaderToCapHash);
 }

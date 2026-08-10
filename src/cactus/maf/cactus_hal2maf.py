@@ -644,7 +644,10 @@ def hal2maf_batch(job, hal_id, batch_chunks, genome_list, options, config):
         raw_maf_path = os.path.join(work_dir, 'out.raw.' + os.path.basename(options.outputMAF)).replace('.taf', '.maf')
         cat_cmd = 'gzip -dc' if options.outputMAF.endswith('.gz') else 'cat'
         for i in range(len(batch_chunks)):
-            cmd = '{} {}'.format(cat_cmd, os.path.join(work_dir, '{}'.format(chunk_name(i, options))))
+            # pipefail as in hal2maf_cmd/taf_cmd above: without it only the last
+            # stage's status is seen, and since each chunk is appended to one
+            # shared maf a single silent failure corrupts the whole stitch
+            cmd = 'set -eo pipefail && {} {}'.format(cat_cmd, os.path.join(work_dir, '{}'.format(chunk_name(i, options))))
             if i > 0:
                 cmd += '| grep -v ^#'
             if options.outputMAF.endswith('.gz'):
