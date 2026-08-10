@@ -1695,11 +1695,12 @@ def make_vcf(job, config, options, workflow_phase, index_mem, vcf_ref, vg_ids, r
             wave_vcf_id, wave_tbi_id = vcfwave_job.rv(0), vcfwave_job.rv(1)
             wave_vcf_tbi_ids.append((wave_vcf_id, wave_tbi_id))
 
-    # a few cores go a long way here and no further: they feed bcftools concat and the bgzip that
-    # fix_vcf_ploidies ends on, neither of which scales past a handful.  the extra 10x of disk is
-    # room for the uncompressed copy that pass leaves for bgzip -- reckoned against the graphs like
-    # the rest of the request, the VCFs themselves still being promises at this point
-    cat_cores = min(options.indexCores, 4)
+    # these feed bcftools concat and the bgzip that fix_vcf_ploidies ends on.  concat is where
+    # most of it goes and it stops getting faster at six threads (3.5x at four, 4.5x at six,
+    # nothing after), so asking for more than that only makes the job harder to schedule.  the
+    # extra 10x of disk is room for the uncompressed copy that pass leaves for bgzip -- reckoned
+    # against the graphs like the rest of the request, the VCFs themselves still being promises here
+    cat_cores = min(options.indexCores, 6)
     merge_vcf_job = root_job.addFollowOnJobFn(vcf_cat, raw_vcf_tbi_ids, vcftag + '.raw.',
                                               fix_ploidies=True,
                                               cores = cat_cores,
@@ -2268,6 +2269,8 @@ def vcf_cat(job, vcf_tbi_ids, tag, sort=False, fix_ploidies=True):
             cactus_call(parameters=['bgzip', header_path])
             index_vcf(header_path + '.gz')
             updated_vcf_path = vcf_path + '.fix'
+            # no --threads on this one: it is bound by the merge upstream of it, which is single
+            # threaded whatever you ask for, so the flag buys nothing and only lands in the header
             cactus_call(parameters=[['bcftools', 'merge', vcf_path, header_path + '.gz'],
                                     ['bcftools', 'view', '-S', all_sample_list_path, '-O', 'z']],
                         outfile=updated_vcf_path)
