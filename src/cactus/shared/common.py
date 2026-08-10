@@ -817,6 +817,13 @@ def cactus_call(tool=None,
     stdoutFileHandle = None
     outfile_tmp = None
     outfile_append_size = None
+    if outfile and (server or soft_timeout is not None):
+        # Both of these return before the staging below is finalised: server
+        # hands back a process that is still running, and a soft timeout
+        # interrupts one on purpose.  The .part file would be left where it is
+        # and outfile would never appear at all, so say so here rather than
+        # lose the output quietly.  Nothing passes either combination today.
+        raise RuntimeError("cactus_call: outfile cannot be combined with server or soft_timeout")
     # check_output takes stdout for itself below, in which case there is nothing
     # to stage and opening the file would only strand it
     if outfile and not check_output:
