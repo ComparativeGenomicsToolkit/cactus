@@ -2,6 +2,20 @@ image: quay.io/comparative-genomics-toolkit/cactus-ci-base:latest
 
 variables:
   GIT_SUBMODULE_STRATEGY: recursive
+  # Discard the build directory every job instead of fetching into it.  The runners
+  # reuse /builds/comparativegenomicstoolkit/cactus, and "Created fresh repository"
+  # only re-inits .git -- .git/modules/** survives indefinitely.  `git submodule sync
+  # --recursive` only repairs submodules still registered in their parent's config, so
+  # a nested gitdir that lost its submodule.<name>.url but kept a stale local-path
+  # remote.origin.url (paffy's own submodules/sonLib) is beyond repair: it failed with
+  # "fatal: transport 'file' not allowed", surfaced as the misleading "Fetched in
+  # submodule path 'submodules/paffy', but it did not contain <sha>" even though the
+  # line above showed that sha fetched fine.  Deleting just .git/modules is not enough
+  # either -- the submodule worktrees persist and their .git gitfiles then dangle
+  # ("fatal: not a git repository: submodules/FASTAN/../../.git/modules/...").  Only
+  # removing the whole directory clears it, and each runner slot has its own copy to
+  # clear.  Costs a re-clone per job, but that was already the cost of the submodules.
+  GIT_STRATEGY: clone
   # GitLab truncates the job log at 4MB ("Job's log exceeded limit of 4194304
   # bytes"), and the tests run last, so every wasted byte comes out of the test
   # output we actually need.  FF_TIMESTAMPS prefixes each line with a 32-byte
@@ -48,17 +62,6 @@ stages:
 
 test-job:
   stage: test
-  # The runner reuses /builds/comparativegenomicstoolkit/cactus across jobs.  "Created
-  # fresh repository" only re-inits .git -- .git/modules/** survives forever, and
-  # `git submodule sync --recursive` only repairs submodules that are still registered
-  # in their parent's config.  An unregistered nested gitdir with a stale local-path
-  # remote.origin.url (paffy's own submodules/sonLib) therefore never gets fixed, and
-  # get_sources dies with "fatal: transport 'file' not allowed" -- reported as the
-  # misleading "Fetched in submodule path 'submodules/paffy', but it did not contain
-  # <sha>", even though the log shows that sha fetched fine a line earlier.
-  hooks:
-    pre_get_sources_script:
-      - rm -rf "$CI_PROJECT_DIR/.git/modules"
   script:
     - quiet clean-debug make clean
     - virtualenv -p python3.10 venv
