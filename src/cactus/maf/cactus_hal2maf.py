@@ -6,6 +6,7 @@ needed toil autoscale, and it'll be easier to keep all dependencies managed in s
 """
 
 import os, sys
+import shlex
 from argparse import ArgumentParser
 import copy
 import timeit, time
@@ -644,16 +645,25 @@ def hal2maf_batch(job, hal_id, batch_chunks, genome_list, options, config):
         raw_maf_path = os.path.join(work_dir, 'out.raw.' + os.path.basename(options.outputMAF)).replace('.taf', '.maf')
         cat_cmd = 'gzip -dc' if options.outputMAF.endswith('.gz') else 'cat'
         for i in range(len(batch_chunks)):
-            # pipefail as in hal2maf_cmd/taf_cmd above: without it only the last
-            # stage's status is seen, and since each chunk is appended to one
-            # shared maf a single silent failure corrupts the whole stitch
-            cmd = 'set -eo pipefail && {} {}'.format(cat_cmd, os.path.join(work_dir, '{}'.format(chunk_name(i, options))))
+            cmd = '{} {}'.format(cat_cmd, os.path.join(work_dir, '{}'.format(chunk_name(i, options))))
             if i > 0:
-                cmd += '| grep -v ^#'
+                # sed rather than "grep -v ^#": same lines removed, but grep
+                # exits 1 when every line matched, and with pipefail now
+                # actually in effect that would fail the stitch on a chunk that
+                # happens to contain nothing but headers
+                cmd += "| sed '/^#/d'"
             if options.outputMAF.endswith('.gz'):
                 cmd += '| bgzip'
             cmd += ' >> {}'.format(raw_maf_path)
-            system(cmd)
+            # pipefail as in hal2maf_cmd/taf_cmd above: without it only the last
+            # stage's status is seen, and since each chunk is appended to one
+            # shared maf a single silent failure corrupts the whole stitch.
+            # Those two are safe to write the option inline because cactus_call
+            # runs them under bash; this one goes through toil's system(), which
+            # is /bin/sh, and that is dash on debian and ubuntu -- including our
+            # own container -- where "set -o pipefail" is an illegal option and
+            # aborts the shell before the command runs.  So ask for bash here.
+            system('bash -c ' + shlex.quote('set -eo pipefail && ' + cmd))
             out_dict['raw'] = job.fileStore.writeGlobalFile(raw_maf_path)
         
     return out_dict            
