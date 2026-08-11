@@ -424,13 +424,18 @@ def rescue_graphmap_paf(job, options, paf_id, refmap_paf_id, total_seq_size):
     via the reference's own graphmap records.  The fills are node-targeted, so this is just a
     bigger graphmap PAF -- split and align consume it unchanged.  Returns the merged PAF id.
 
-    Light orchestrator only: the gap-fill runs in a child sized for its two memory hogs.  paffy
-    to_bed streams the PAF but allocates a 2-bytes-per-base coverage array for every query sequence
-    (paf_to_bed.c: uint16_t counts[query_length]), so it scales with the total query genome
-    (total_seq_size, ~2x the fasta byte size), NOT the PAF size -- matching how cactus sizes its
-    other to_bed job (local_alignment.py: 4*ingroup_size).  read_paf then holds the refmap in a
-    Python dict while to_bed runs, a PAF-sized term on top.  refmap_paf_id is an unresolved promise
-    at graph-build time but a real FileID (with .size) by the time this job runs."""
+    Light orchestrator only: the gap-fill runs in a child sized for its memory hog -- read_paf holds
+    the entire refmap in a Python dict (raw lines + parsed tuples, several x its byte size), and the
+    graphmap-side structures (find_query_gaps coverage intervals, build_ref_node_table) are O(records)
+    on top.  (The gap finder is a pure-Python CIGAR scan: commit f953d94b replaced the old paffy
+    to_bed, whose 2-byte/base coverage array is what the genome-scaled term below was originally
+    covering.)  We size by total_seq_size as a deliberately CONSERVATIVE upper bound -- asm->ref PAF
+    <= genome at high identity, so the genome dwarfs the refmap-in-Python peak; over-provisioned but
+    safe at supported scale.  Do NOT shrink this term on the grounds that to_bed is gone: it is the
+    only thing covering the Python structures.  At HPRC scale (hundreds of haplotypes, whole genome)
+    it over-provisions to unschedulable -- the fix there is to partition the gap-fill per query event,
+    not to re-tune this.  refmap_paf_id is an unresolved promise at graph-build time but a real FileID
+    (with .size) by the time this job runs."""
     memory = cactus_clamp_memory(max(16 * 2**30, 3 * total_seq_size + 4 * refmap_paf_id.size))
     return job.addChildJobFn(do_gap_fill, options, paf_id, refmap_paf_id,
                              disk=4 * (paf_id.size + refmap_paf_id.size),
@@ -438,9 +443,9 @@ def rescue_graphmap_paf(job, options, paf_id, refmap_paf_id, total_seq_size):
 
 
 def do_gap_fill(job, options, paf_id, refmap_paf_id):
-    """The memory-hungry gap-fill work (sized by rescue_graphmap_paf): paffy to_bed the graphmap
-    PAF for query coverage gaps, gate on the refmap, shatter + lift the selected reference records
-    into node coordinates, and append them to the graphmap PAF.  Returns the merged PAF id."""
+    """The memory-hungry gap-fill work (sized by rescue_graphmap_paf): scan the graphmap PAF for
+    query coverage gaps (find_query_gaps), gate on the refmap, shatter + lift the selected reference
+    records into node coordinates, and append them to the graphmap PAF.  Returns the merged PAF id."""
     work_dir = job.fileStore.getLocalTempDir()
     graphmap_paf = os.path.join(work_dir, 'graphmap.paf')
     refmap_paf = os.path.join(work_dir, 'refmap.paf')

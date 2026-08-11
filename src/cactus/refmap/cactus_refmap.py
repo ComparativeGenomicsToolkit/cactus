@@ -81,7 +81,13 @@ def map_all_to_ref(job, seq_id_map, reference, preset):
             map_one, event, seq_id, mmi_id, reference, preset, cores=2,
             disk=4 * (seq_id.size + ref_id.size),
             memory=cactus_clamp_memory(max(16 * 2**30, 8 * ref_id.size))).rv()
-    return index_job.addFollowOnJobFn(concat_refmap_pafs, paf_ids).rv()
+    # concat localizes every per-assembly PAF and writes their concatenation -- ~2x the summed PAF
+    # size on local disk.  Unsized it falls back to toil's ~2 GiB default and is killed on
+    # enforced-disk clusters; asm->ref PAF <= genome at high identity, so 3x the summed non-reference
+    # sequence size is a safe bound (the PAF sizes are unresolved promises here, the sequence sizes
+    # are known FileIDs).
+    concat_disk = max(4 * 2**30, 3 * sum(sz.size for ev, sz in seq_id_map.items() if ev != reference))
+    return index_job.addFollowOnJobFn(concat_refmap_pafs, paf_ids, disk=concat_disk).rv()
 
 
 def map_one(job, event, asm_id, mmi_id, reference, preset):

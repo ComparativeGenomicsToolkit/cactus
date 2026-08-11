@@ -536,8 +536,13 @@ def gap_fill(minigraph_paf, rm_by_q, ref_table, out_paf, min_gap=1000, cover_fra
                                            confident_frac_samples)
                  if (confident_filter or competitive) else None)
     st = dict(gaps=0, filled=0, fill_records=0, unfilled=0, fill_filtered=0, detours=0, reanchored=0)
-    # gate on the original refmap (tp:A: tags intact) -> the reference lines that cleanly fill gaps
-    gap_selected = []
+    # gate on the original refmap (tp:A: tags intact) -> the reference lines that cleanly fill gaps.
+    # gap_selected is a flat pool of accepted primaries, so clip fills to the ACCEPTED gaps only: a
+    # primary chosen for a clean gap can also span a REJECTED (ambiguous) gap of the same contig, and
+    # clipping to all gaps would then fill the rejected one too -- reintroducing the SD collateral the
+    # uniqueness gate just excluded.  (Safe: a primary overlapping another accepted gap in-gap would
+    # have caused that gap's rejection, so accepted-only clipping never drops a legitimate fill.)
+    gap_selected, accepted = [], defaultdict(list)
     for q, ivs in gaps.items():
         for gs, ge in ivs:
             st["gaps"] += 1
@@ -545,6 +550,7 @@ def gap_fill(minigraph_paf, rm_by_q, ref_table, out_paf, min_gap=1000, cover_fra
                                   min_mapq, min_block)
             if resc:
                 gap_selected.extend(resc)
+                accepted[q].append((gs, ge))
                 st["filled"] += 1
             else:
                 st["unfilled"] += 1
@@ -603,7 +609,7 @@ def gap_fill(minigraph_paf, rm_by_q, ref_table, out_paf, min_gap=1000, cover_fra
 
     # gap fills: confident-filter ONLY if --rescueConfidentFilter -- competitive alone must not change
     # the gap path (build_confident_intervals is built for competitive, but the gap fills don't consult it).
-    gap_fills, nf = _shatter_lift(gap_selected, confident_filter, gaps, "sel")
+    gap_fills, nf = _shatter_lift(gap_selected, confident_filter, accepted, "sel")
     st["fill_filtered"] += nf
     # competitive fills: copy-number guard ALWAYS on.  Then remove a detour ONLY where a surviving fill
     # covers >= cover_frac of it (a killed fill never leaves the span unanchored), and emit only fills
