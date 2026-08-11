@@ -103,5 +103,7 @@ int main(int argc, char *argv[]) {
         fclose(fileHandle);
     }
 
+    st_fcheck(stdout, "standard output");
+
     return 0;
 }

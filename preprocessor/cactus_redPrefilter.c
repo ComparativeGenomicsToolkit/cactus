@@ -136,5 +136,9 @@ int main(int argc, char *argv[]) {
         fastaReadToFunction(fileHandle, &min_length, redfilter);
     }
 
+    // both halves of the split genome go to stdout, so a lost write here drops
+    // sequence that Red is then never asked about, or never gets added back
+    st_fcheck(stdout, "standard output");
+
     return 0;
 }
