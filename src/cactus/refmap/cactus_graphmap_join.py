@@ -1695,23 +1695,32 @@ def make_vcf(job, config, options, workflow_phase, index_mem, vcf_ref, vg_ids, r
             wave_vcf_id, wave_tbi_id = vcfwave_job.rv(0), vcfwave_job.rv(1)
             wave_vcf_tbi_ids.append((wave_vcf_id, wave_tbi_id))
 
+    # these feed bcftools concat and the bgzip that fix_vcf_ploidies ends on.  concat is where
+    # most of it goes and it stops getting faster at six threads (3.5x at four, 4.5x at six,
+    # nothing after), so asking for more than that only makes the job harder to schedule.  the
+    # extra 10x of disk is room for the uncompressed copy that pass leaves for bgzip -- reckoned
+    # against the graphs like the rest of the request, the VCFs themselves still being promises here
+    cat_cores = min(options.indexCores, 6)
     merge_vcf_job = root_job.addFollowOnJobFn(vcf_cat, raw_vcf_tbi_ids, vcftag + '.raw.',
                                               fix_ploidies=True,
-                                              disk = sum(f.size for f in vg_ids) * 16,
+                                              cores = cat_cores,
+                                              disk = sum(f.size for f in vg_ids) * 26,
                                               memory = cactus_clamp_memory(sum(f.size for f in vg_ids)))
     out_dict = {'{}.raw.vcf.gz'.format(vcftag) : merge_vcf_job.rv(0),
                 '{}.raw.vcf.gz.tbi'.format(vcftag) : merge_vcf_job.rv(1) }
     if bub_vcf_tbi_ids:
         merge_bub_job = root_job.addFollowOnJobFn(vcf_cat, bub_vcf_tbi_ids, vcftag + '.bub.',
                                                   fix_ploidies=True,
-                                                  disk = sum(f.size for f in vg_ids) * 16,
+                                                  cores = cat_cores,
+                                                  disk = sum(f.size for f in vg_ids) * 26,
                                                   memory = cactus_clamp_memory(sum(f.size for f in vg_ids)))
         out_dict['{}.vcf.gz'.format(vcftag)] = merge_bub_job.rv(0)
         out_dict['{}.vcf.gz.tbi'.format(vcftag)] = merge_bub_job.rv(1)
     if wave_vcf_tbi_ids:
         merge_wave_job = root_job.addFollowOnJobFn(vcf_cat, wave_vcf_tbi_ids, vcftag + '.wave.',
                                                    fix_ploidies=True,
-                                                   disk = sum(f.size for f in vg_ids) * 16,
+                                                   cores = cat_cores,
+                                                   disk = sum(f.size for f in vg_ids) * 26,
                                                    memory = cactus_clamp_memory(sum(f.size for f in vg_ids)))
         out_dict['{}.wave.vcf.gz'.format(vcftag)] = merge_wave_job.rv(0)
         out_dict['{}.wave.vcf.gz.tbi'.format(vcftag)] = merge_wave_job.rv(1)
@@ -1936,7 +1945,7 @@ def vcfnorm(job, config, vcf_ref, vcf_id, vcf_path, tbi_id, fasta_ref_dict):
 
     return job.fileStore.writeGlobalFile(multi_path), job.fileStore.writeGlobalFile(tbi_path)
 
-def fix_vcf_ploidies(in_vcf_path, out_vcf_path):
+def fix_vcf_ploidies(in_vcf_path, out_vcf_path, threads=1):
     """ since we're deconstructing chromosomes independently, we can have cases where a sample
     is haploid in one chromosome (ex Y) but diploid in other chromosomes.  this will almost
     certainly upset some downstream tools, which will be expecting consistent ploidies
@@ -1946,25 +1955,43 @@ def fix_vcf_ploidies(in_vcf_path, out_vcf_path):
 
     text rather than pysam: a record object per sample dominated the runtime (~1.8k records/s,
     hours for one vcf_cat)
+
+    both scans key off a line's ploidy *signature* rather than walking its samples: the ploidy
+    of every column is fixed by where the '|' and '/' separators fall, and a whole-genome VCF
+    only ever holds a handful of distinct separator patterns (one for the autosomes, one or two
+    more for the sex chromosomes).  reducing the sample columns to that pattern is a single
+    C-level pass over the line, so the per-sample python loops run once per distinct signature
+    instead of once per record -- ~10x on the scan and an identical result
     """
     # read with gzip rather than pysam.BGZFile: the latter strips the line terminator on
-    # iteration, and this relies on passing untouched lines straight through.  gzip reads bgzf
-    # fine, and BGZFile is still what writes it so the output stays block-compressed
+    # iteration, and this relies on passing untouched lines straight through.  gzip reads bgzf fine
     def open_read(path):
         return gzip.open(path, 'rb') if path.endswith('.gz') else open(path, 'rb')
 
-    def open_write(path):
-        return pysam.BGZFile(path, 'wb') if path.endswith('.gz') else open(path, 'wb')
+    # pass 2 leaves its output uncompressed for bgzip to pick up at the bottom, the same trade
+    # open_gfa_for_rename() makes: compressing in this process (pysam.BGZFile, like python's gzip)
+    # is single threaded, ~16 MB/s, and with the scans above no longer costing anything it is
+    # what the pass now spends its time on.  it buys that with room for the raw copy on disk
+    raw_out_path = out_vcf_path[:-3] if out_vcf_path.endswith('.gz') else out_vcf_path
 
-    # the two loops below are inlined rather than factored into helpers: they run once per
-    # sample per record (billions of times on a cohort-scale VCF) and at that count the python
-    # call overhead was costing more than the work itself.  the VCF spec requires GT to be the
-    # first FORMAT subfield, so partition() gets it without building a list
+    # strip a line's sample columns down to just the separators that decide ploidy: '\t' between
+    # samples, ':' ending the GT subfield, and '|' and '/' within it (folded together, since only
+    # how many there are matters).  translate() checks the delete set against the original byte,
+    # so '/' has to survive it to reach the table
+    sep_table = bytes.maketrans(b'/', b'|')
+    sep_drop = bytes(b for b in range(256) if b not in b'\t:|/')
+
+    def signature_ploidies(sig):
+        """ per-sample ploidy of a signature.  the VCF spec requires GT to be the first FORMAT
+        subfield, so partition() takes it without building a list.  called once per distinct
+        signature, so it is free to be a helper rather than inlined """
+        return [gt.partition(b':')[0].count(b'|') + 1 for gt in sig.split(b'\t')]
 
     # pass 1: the widest genotype each sample column is ever given, and the narrowest, so that
     # the common case of nothing needing to change can skip the rewrite entirely
     max_ploidy = []
     min_ploidy = []
+    seen_sigs = set()
     with open_read(in_vcf_path) as in_file:
         for line in in_file:
             if line.startswith(b'#'):
@@ -1973,16 +2000,22 @@ def fix_vcf_ploidies(in_vcf_path, out_vcf_path):
                     max_ploidy = [0] * n_samples
                     min_ploidy = [1 << 30] * n_samples
                 continue
-            toks = line.rstrip(b'\n').split(b'\t')
+            # maxsplit stops once the sample columns are reached: they stay one blob for
+            # translate(), and the fields before them are never looked at past FORMAT
+            toks = line.split(b'\t', 9)
             if len(toks) < 10:
                 continue
             if not (toks[8] == b'GT' or toks[8].startswith(b'GT:')):
                 raise RuntimeError('cannot fix ploidies in {}: FORMAT is "{}", but the VCF spec '
                                    'requires GT to come first'.format(in_vcf_path,
                                                                       toks[8].decode('utf-8', 'replace')))
-            for i, field in enumerate(toks[9:]):
-                gt = field.partition(b':')[0]
-                ploidy = gt.count(b'|') + gt.count(b'/') + 1
+            sig = toks[9].translate(sep_table, sep_drop)
+            # a repeat signature carries the ploidies of one already folded in, so it cannot
+            # move either bound
+            if sig in seen_sigs:
+                continue
+            seen_sigs.add(sig)
+            for i, ploidy in enumerate(signature_ploidies(sig)):
                 if ploidy > max_ploidy[i]:
                     max_ploidy[i] = ploidy
                 if ploidy < min_ploidy[i]:
@@ -1993,27 +2026,45 @@ def fix_vcf_ploidies(in_vcf_path, out_vcf_path):
         shutil.copyfile(in_vcf_path, out_vcf_path)
         return
 
-    # pass 2: pad every short genotype out to that width
-    with open_read(in_vcf_path) as in_file, open_write(out_vcf_path) as out_file:
+    # pass 2: pad every short genotype out to that width.  a signature fixes how much padding
+    # each column needs, so cache that per signature -- None for the signatures that are already
+    # at full width, which on a whole-genome VCF is nearly every line
+    pads_by_sig = {}
+    unseen = object()
+    with open_read(in_vcf_path) as in_file, open(raw_out_path, 'wb') as out_file:
         for line in in_file:
             if line.startswith(b'#') or not max_ploidy:
                 out_file.write(line)
                 continue
-            toks = line.rstrip(b'\n').split(b'\t')
+            toks = line.split(b'\t', 9)
             if len(toks) < 10:
                 out_file.write(line)
                 continue
-            changed = False
-            for i, field in enumerate(toks[9:]):
-                gt = field.partition(b':')[0]
-                delta = max_ploidy[i] - (gt.count(b'|') + gt.count(b'/') + 1)
-                if delta > 0:
+            sig = toks[9].translate(sep_table, sep_drop)
+            pads = pads_by_sig.get(sig, unseen)
+            if pads is unseen:
+                pads = [hi - ploidy for hi, ploidy in zip(max_ploidy, signature_ploidies(sig))]
+                if not any(pad > 0 for pad in pads):
+                    pads = None
+                pads_by_sig[sig] = pads
+            if pads is None:
+                out_file.write(line)
+                continue
+            toks = line.rstrip(b'\n').split(b'\t')
+            for i, pad in enumerate(pads):
+                if pad > 0:
                     # pysam set .phased when it padded, which rewrote the whole genotype's
                     # separators; keep doing that so the output matches the old behaviour.
                     # field[len(gt):] is the untouched remainder, leading ':' included
-                    toks[9 + i] = gt.replace(b'/', b'|') + b'|.' * delta + field[len(gt):]
-                    changed = True
-            out_file.write(b'\t'.join(toks) + b'\n' if changed else line)
+                    field = toks[9 + i]
+                    gt = field.partition(b':')[0]
+                    toks[9 + i] = gt.replace(b'/', b'|') + b'|.' * pad + field[len(gt):]
+            out_file.write(b'\t'.join(toks) + b'\n')
+
+    if raw_out_path != out_vcf_path:
+        cactus_call(parameters=['bgzip', '--threads', str(threads)], infile=raw_out_path,
+                    outfile=out_vcf_path)
+        os.remove(raw_out_path)
 
 def check_vcfwave(job):
     """ check to make sure vcfwave is installed """
@@ -2218,6 +2269,8 @@ def vcf_cat(job, vcf_tbi_ids, tag, sort=False, fix_ploidies=True):
             cactus_call(parameters=['bgzip', header_path])
             index_vcf(header_path + '.gz')
             updated_vcf_path = vcf_path + '.fix'
+            # no --threads on this one: it is bound by the merge upstream of it, which is single
+            # threaded whatever you ask for, so the flag buys nothing and only lands in the header
             cactus_call(parameters=[['bcftools', 'merge', vcf_path, header_path + '.gz'],
                                     ['bcftools', 'view', '-S', all_sample_list_path, '-O', 'z']],
                         outfile=updated_vcf_path)
@@ -2240,7 +2293,7 @@ def vcf_cat(job, vcf_tbi_ids, tag, sort=False, fix_ploidies=True):
 
     if fix_ploidies:
         ploidy_vcf_path = os.path.join(work_dir, '{}ploidy.vcf.gz'.format(tag))
-        fix_vcf_ploidies(cat_vcf_path, ploidy_vcf_path)
+        fix_vcf_ploidies(cat_vcf_path, ploidy_vcf_path, threads=job.cores)
         cat_vcf_path = ploidy_vcf_path        
 
     tbi_path = index_vcf(cat_vcf_path)
