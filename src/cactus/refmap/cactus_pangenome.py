@@ -139,6 +139,18 @@ def pangenome_options(parser):
                         help="--rescue: only fill a gap from source alignments with >= this bp of "
                              "alignment block -- the length filter the minigraph path already uses "
                              "(dipcall uses 50000) [0=off]")
+    parser.add_argument("--rescueCompetitive", action="store_true",
+                        help="--rescue: also RE-ANCHOR insertion-node detours to the reference where the "
+                             "refmap maps them cleanly -- collapses iterative-construction under-alignment "
+                             "(a genome stranded on its own redundant node instead of the identical "
+                             "backbone).  The both-hap confident copy-number guard is forced on, so it "
+                             "never collapses true insertions.")
+    parser.add_argument("--rescueCompetitiveMinMapq", type=int, default=30,
+                        help="--rescueCompetitive: min source mapQ for a backbone re-anchor [30]")
+    parser.add_argument("--rescueCompetitiveMinId", type=float, default=0.95,
+                        help="--rescueCompetitive: min source identity for a backbone re-anchor [0.95]")
+    parser.add_argument("--rescueCompetitiveMinBlock", type=int, default=0,
+                        help="--rescueCompetitive: min source block length for a backbone re-anchor [0]")
 
     parser.add_argument("--branchScale", type=float, default=1.0,
                         help="Scale default branch length. This option is more relevant for progressive cactus but larger values can be used here to reduce chaining thresholds in cactus_consolidated.")
@@ -458,7 +470,11 @@ def do_gap_fill(job, options, paf_id, refmap_paf_id):
                   confident_frac=options.rescueConfidentFrac,
                   confident_frac_samples=options.rescueConfidentFracSamples,
                   min_mapq=options.rescueMinMapq,
-                  min_block=options.rescueMinAlnBlock)
+                  min_block=options.rescueMinAlnBlock,
+                  competitive=options.rescueCompetitive,
+                  comp_min_mapq=options.rescueCompetitiveMinMapq,
+                  comp_min_id=options.rescueCompetitiveMinId,
+                  comp_min_block=options.rescueCompetitiveMinBlock)
     RealtimeLogger.info('[rescue] whole-genome: {}'.format(st))
     return job.fileStore.writeGlobalFile(merged)
 

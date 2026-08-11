@@ -215,6 +215,31 @@ def find_query_gaps(paf_path, min_gap):
     return gaps
 
 
+def find_insertion_segments(paf_path, backbone_nodes, min_seg):
+    """{query: [(qs, qe, key)]} -- the query span of every minigraph record whose target node is NOT a
+    reference-backbone node (a haplotype segment parked on an insertion node, a candidate detour),
+    length >= min_seg.  `key` = (query, qs, qe, node) identifies the exact record so competitive
+    re-anchoring can drop it from the pass-through if it re-anchors to the backbone.
+
+    This is the OTHER half of the rescue's signal: find_query_gaps finds where the graph aligned
+    NOTHING; this finds where it aligned to an insertion node instead of the reference it matches --
+    the iterative-construction artifact (a genome that built its own node during construct and never
+    aligned back to the identical backbone).  Backbone nodes are exactly the nodes the reference itself
+    traverses (build_ref_node_table); anything else is rank>0 insertion sequence."""
+    segs = defaultdict(list)
+    with _open(paf_path) as f:
+        for line in f:
+            if not line.strip() or line[0] == '@':
+                continue
+            t = line.rstrip("\n").split("\t")
+            if len(t) < 12 or t[5] in backbone_nodes:
+                continue                               # already on the reference backbone
+            qs, qe = int(t[2]), int(t[3])
+            if qe - qs >= min_seg:
+                segs[t[0]].append((qs, qe, (t[0], qs, qe, t[5])))
+    return segs
+
+
 def _record_identity(t):
     """Gap-excluded identity of an assembly->ref PAF record: 1 - de:f: if present, else the reported
     num_matches / block_length."""
@@ -491,62 +516,114 @@ def _piece_confident(pt, confident, frac):
 def gap_fill(minigraph_paf, rm_by_q, ref_table, out_paf, min_gap=1000, cover_frac=0.5,
              secondary_frac=0.5, paffy="paffy", assembly_fa=None, min_fill=0,
              confident_filter=False, confident_min_mapq=5, confident_min_block=0,
-             confident_frac=0.5, confident_frac_samples=None, min_mapq=0, min_block=0):
-    """Write out_paf = the minigraph PAF unchanged + node-targeted reference records that fill its
-    query coverage gaps.  rm_by_q is the ORIGINAL assembly->reference refmap (read_paf); ref_table
-    is the reference->node table (build_ref_node_table).  min_mapq/min_block apply dipcall's samflt
-    gate per source alignment in rescue_records; with confident_filter, fills whose reference locus
-    is not in the both-haplotype single-coverage set are also dropped.  Returns a stats dict."""
+             confident_frac=0.5, confident_frac_samples=None, min_mapq=0, min_block=0,
+             competitive=False, comp_min_mapq=30, comp_min_id=0.95, comp_min_block=0):
+    """Write out_paf = the minigraph PAF (records pass through) + node-targeted reference records that
+    fill its query coverage gaps.  rm_by_q is the ORIGINAL assembly->reference refmap (read_paf);
+    ref_table is the reference->node table (build_ref_node_table).  min_mapq/min_block apply dipcall's
+    samflt gate per source alignment in rescue_records; with confident_filter, fills whose reference
+    locus is not in the both-haplotype single-coverage set are also dropped.
+
+    With competitive=True, ALSO re-anchor: any graphmap record that parked a haplotype segment on an
+    insertion node is DROPPED and replaced by a backbone anchor when the refmap maps that segment
+    cleanly to the reference (rescue_records' uniqueness gate + the confident both-hap single-coverage
+    copy-number guard + comp_min_mapq/comp_min_id).  This collapses the iterative-construction
+    under-alignment (a genome stranded on its own redundant node); the confident filter is what keeps
+    it from collapsing true insertions (a true insertion's ref locus is multi-covered -> not confident,
+    so it survives).  Returns a stats dict."""
     gaps = find_query_gaps(minigraph_paf, min_gap)
     confident = (build_confident_intervals(rm_by_q, confident_min_mapq, confident_min_block,
                                            confident_frac_samples)
-                 if confident_filter else None)
-    st = dict(gaps=0, filled=0, fill_records=0, unfilled=0, fill_filtered=0)
+                 if (confident_filter or competitive) else None)
+    st = dict(gaps=0, filled=0, fill_records=0, unfilled=0, fill_filtered=0, detours=0, reanchored=0)
     # gate on the original refmap (tp:A: tags intact) -> the reference lines that cleanly fill gaps
-    selected = []
+    gap_selected = []
     for q, ivs in gaps.items():
         for gs, ge in ivs:
             st["gaps"] += 1
             resc = rescue_records(rm_by_q.get(q, []), gs, ge, cover_frac, secondary_frac, min_gap,
                                   min_mapq, min_block)
             if resc:
-                selected.extend(resc)
+                gap_selected.extend(resc)
                 st["filled"] += 1
             else:
                 st["unfilled"] += 1
-    # shatter the selected records into gapless pieces, then lift each to node coordinates
-    fills = []
-    if selected:
-        # a reference primary that spans several gaps (e.g. an inversion whose reverse core covers many
-        # small gaps) was appended once PER gap -- but shatter + clip_piece_to_gaps already fill ALL of a
-        # piece's gaps from one copy, so dedupe to unique lines, else every fill is emitted N-fold.
+    # competitive re-anchoring: the same gate, on insertion-node detours instead of gaps.  A detour whose
+    # refmap alignment maps cleanly (unique, comp_min_mapq/id) to the backbone is only a CANDIDATE here;
+    # whether its graphmap line is dropped is decided BELOW, once a surviving backbone fill actually
+    # covers it -- so a candidate the confident copy-number guard or the node-boundary lift later kills
+    # keeps its detour (never unanchored).  Backbone nodes = the nodes the reference itself traverses.
+    comp_selected, candidates, detour_by_q = [], [], defaultdict(list)
+    if competitive:
+        backbone_nodes = {node for entries in ref_table.values()
+                          for (_rqs, _rqe, node, _nl, _nts, _nte) in entries}
+        for q, seglist in find_insertion_segments(minigraph_paf, backbone_nodes, min_gap).items():
+            for qs, qe, key in seglist:
+                st["detours"] += 1
+                resc = rescue_records(rm_by_q.get(q, []), qs, qe, cover_frac, secondary_frac, min_gap,
+                                      comp_min_mapq, comp_min_block)
+                if not resc or any(_record_identity(l.rstrip("\n").split("\t")) < comp_min_id
+                                   for l in resc):
+                    continue                           # no clean unique backbone home for this detour
+                comp_selected.extend(resc)
+                candidates.append((key, q, qs, qe))
+                detour_by_q[q].append((qs, qe))
+
+    def _shatter_lift(selected, apply_confident, clip_regions, tag):
+        """selected asm->ref lines -> node-targeted, query-clipped fills.  paffy shatter -> gapless
+        pieces; each is (optionally) confident-filtered, its identity corrected back to its parent's
+        (shatter emits every piece at 100%), lifted to node coords, and clipped to clip_regions.  Dedupe
+        first: a parent spanning several targets is appended once each.  (fills, n_confident_filtered)."""
+        out_f, nfilt = [], 0
+        if not selected:
+            return out_f, nfilt
         selected = list(dict.fromkeys(selected))
-        sel_path = out_paf + ".selected.paf"
-        with open(sel_path, "w") as f:
-            f.writelines(selected)
-        # index each selected parent's real identity (1 - de) by query interval: paffy shatter emits
-        # every piece with num_matches == length (100%), so we correct each piece back to its parent's
-        # identity here.  the gate guarantees selected primaries don't overlap in query, so a piece's
-        # query midpoint maps to exactly one parent.
-        pid_by_q = defaultdict(list)
-        seen = set()
+        sel_path = out_paf + "." + tag + ".paf"
+        with open(sel_path, "w") as fh:
+            fh.writelines(selected)
+        pid_by_q, seen = defaultdict(list), set()
         for pline in selected:
             ppt = pline.split("\t")
-            key = (ppt[0], ppt[2], ppt[3])
-            if key not in seen:
-                seen.add(key)
+            k = (ppt[0], ppt[2], ppt[3])
+            if k not in seen:
+                seen.add(k)
                 pid_by_q[ppt[0]].append((int(ppt[2]), int(ppt[3]), _record_identity(ppt)))
         shattered = subprocess.run([paffy, "shatter", "-i", sel_path],
                                    capture_output=True, text=True, check=True).stdout
         for line in shattered.splitlines():
             pt = line.split("\t")
-            if confident is not None and not _piece_confident(pt, confident, confident_frac):
-                st["fill_filtered"] += 1       # ref locus not both-hap unique -> SD-paralog collateral
+            if apply_confident and confident is not None and not _piece_confident(pt, confident, confident_frac):
+                nfilt += 1                             # ref locus not both-hap unique -> SD-paralog collateral
                 continue
             pt[9] = str(max(1, round(int(pt[10]) * _lookup_pid(pid_by_q, pt[0], int(pt[2]), int(pt[3])))))
             for piece in lift_gapless_piece(pt, ref_table):
                 ppt = piece.rstrip("\n").split("\t")
-                fills.extend(clip_piece_to_gaps(ppt, gaps.get(ppt[0], [])))   # keep fills inside the gaps only
+                out_f.extend(clip_piece_to_gaps(ppt, clip_regions.get(ppt[0], [])))
+        return out_f, nfilt
+
+    # gap fills: confident-filter ONLY if --rescueConfidentFilter -- competitive alone must not change
+    # the gap path (build_confident_intervals is built for competitive, but the gap fills don't consult it).
+    gap_fills, nf = _shatter_lift(gap_selected, confident_filter, gaps, "sel")
+    st["fill_filtered"] += nf
+    # competitive fills: copy-number guard ALWAYS on.  Then remove a detour ONLY where a surviving fill
+    # covers >= cover_frac of it (a killed fill never leaves the span unanchored), and emit only fills
+    # landing in a removed detour (else the kept detour + fill would double-anchor the span).
+    remove, comp_fills = set(), []
+    if comp_selected:
+        cf, nf = _shatter_lift(comp_selected, True, detour_by_q, "comp")
+        st["fill_filtered"] += nf
+        cov = defaultdict(list)
+        for f in cf:
+            c = f.split("\t"); cov[c[0]].append((int(c[2]), int(c[3])))
+        kept = defaultdict(list)
+        for key, q, qs, qe in candidates:
+            if covered_fraction(cov.get(q, []), qs, qe) >= cover_frac:
+                remove.add(key); kept[q].append((qs, qe)); st["reanchored"] += 1
+        for f in cf:
+            c = f.split("\t"); mid = (int(c[2]) + int(c[3])) // 2
+            if any(a <= mid < b for a, b in kept.get(c[0], [])):
+                comp_fills.append(f)
+    fills = gap_fills + comp_fills
     # final safety net: never emit a fill whose node interval is out of bounds or whose query/node
     # spans disagree -- cactus_consolidated rejects such records and the whole run dies hours later.
     # Should be a no-op given lift_gapless_piece clamps to the node, but 200k fills * one bad record
@@ -566,8 +643,13 @@ def gap_fill(minigraph_paf, rm_by_q, ref_table, out_paf, min_gap=1000, cover_fra
     st["fill_dropped"] = dropped
     st["fill_short"] = short
     with open(out_paf, "w") as out:
-        with _open(minigraph_paf) as f:               # minigraph records pass through unchanged
+        with _open(minigraph_paf) as f:               # minigraph records pass through (minus re-anchored detours)
             for line in f:
+                if remove:
+                    t = line.rstrip("\n").split("\t")
+                    if (len(t) >= 12 and t[2].isdigit() and t[3].isdigit()
+                            and (t[0], int(t[2]), int(t[3]), t[5]) in remove):
+                        continue                        # this detour was competitively re-anchored to the backbone
                 out.write(line if line.endswith("\n") else line + "\n")
         for line in fills:
             out.write(line)
@@ -577,13 +659,14 @@ def gap_fill(minigraph_paf, rm_by_q, ref_table, out_paf, min_gap=1000, cover_fra
 def gap_fill_pafs(minigraph_paf, refmap_paf, out_paf, ref_prefix, min_gap=1000, cover_frac=0.5,
                   secondary_frac=0.5, paffy="paffy", assembly_fa=None, min_fill=0,
                   confident_filter=False, confident_min_mapq=5, confident_min_block=0,
-                  confident_frac=0.5, confident_frac_samples=None, min_mapq=0, min_block=0):
+                  confident_frac=0.5, confident_frac_samples=None, min_mapq=0, min_block=0,
+                  competitive=False, comp_min_mapq=30, comp_min_id=0.95, comp_min_block=0):
     """Convenience: build the ref->node table from the minigraph PAF and gap-fill one file."""
     table = build_ref_node_table(minigraph_paf, ref_prefix)
     return gap_fill(minigraph_paf, read_paf(refmap_paf), table, out_paf, min_gap, cover_frac,
                     secondary_frac, paffy, assembly_fa, min_fill, confident_filter,
                     confident_min_mapq, confident_min_block, confident_frac, confident_frac_samples,
-                    min_mapq, min_block)
+                    min_mapq, min_block, competitive, comp_min_mapq, comp_min_id, comp_min_block)
 
 
 def main():
@@ -615,13 +698,26 @@ def main():
                     help="only fill from source refmap alignments with mapQ >= this (dipcall samflt: 5)")
     ap.add_argument("--min-aln-block", type=int, default=0,
                     help="only fill from source refmap alignments with >= this bp of block (dipcall: 50000)")
+    # competitive re-anchoring: move insertion-node detours onto the reference backbone
+    ap.add_argument("--competitive", action="store_true",
+                    help="re-anchor insertion-node detours to the reference where the refmap maps them "
+                         "cleanly (collapses iterative-construction under-alignment; confident guard forced on)")
+    ap.add_argument("--competitive-min-mapq", type=int, default=30,
+                    help="min source mapQ for a competitive backbone re-anchor [30]")
+    ap.add_argument("--competitive-min-id", type=float, default=0.95,
+                    help="min source identity for a competitive backbone re-anchor [0.95]")
+    ap.add_argument("--competitive-min-block", type=int, default=0,
+                    help="min source block length for a competitive backbone re-anchor [0]")
     args = ap.parse_args()
     st = gap_fill_pafs(args.graphmap, args.refmap, args.output, args.ref_prefix, args.min_gap,
                        args.cover_frac, args.secondary_frac, args.paffy, args.assembly, args.min_fill,
                        args.confident_filter, args.confident_min_mapq, args.confident_min_block,
-                       args.confident_frac, args.confident_frac_samples, args.min_mapq, args.min_aln_block)
+                       args.confident_frac, args.confident_frac_samples, args.min_mapq, args.min_aln_block,
+                       args.competitive, args.competitive_min_mapq, args.competitive_min_id,
+                       args.competitive_min_block)
     sys.stderr.write("[rescue] {gaps} gaps: {filled} filled -> {fill_records} node records, "
-                     "{unfilled} unfilled, {fill_filtered} pieces dropped by confidence filter\n".format(**st))
+                     "{unfilled} unfilled, {fill_filtered} pieces dropped by confidence filter; "
+                     "{detours} detours: {reanchored} re-anchored to backbone\n".format(**st))
 
 
 if __name__ == "__main__":
