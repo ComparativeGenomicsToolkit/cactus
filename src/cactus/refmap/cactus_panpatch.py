@@ -499,7 +499,19 @@ def panpatch_workflow(job, options, run, join_options, join_wf_output, seq_id_ma
     # the "full" chromosome graphs (cactus-pangenome was run with --chrom-vg full), named the same
     # way cactus-graphmap-join names them on disk
     full_vg_ids = join_wf_output[0]
+    full_vg_empty = join_wf_output[7]
     vg_names = [os.path.splitext(os.path.basename(vg_path))[0] + '.full.vg' for vg_path in join_options.vg]
+
+    # drop empty chromosome graphs: a "clean" reference-free haplotype can leave an unplaced
+    # (chrOther) bin that is only minigraph, so once drop_graph_event strips it the graph is
+    # empty/unloadable.  filter it here so it is neither handed to panpatch (which would crash
+    # loading it) nor written out by the --keepGraphs export
+    kept = [(vid, name) for vid, name, empty in zip(full_vg_ids, vg_names, full_vg_empty) if not empty]
+    if len(kept) < len(full_vg_ids):
+        RealtimeLogger.info('cactus-panpatch: skipping {} empty chromosome graph(s) for {}'.format(
+            len(full_vg_ids) - len(kept), run['name']))
+    full_vg_ids = [k[0] for k in kept]
+    vg_names = [k[1] for k in kept]
 
     if not full_vg_ids:
         # nothing to patch: the pangenome produced no chromosome graphs (eg the reference had no

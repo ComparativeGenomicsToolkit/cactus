@@ -193,7 +193,7 @@ fi
 cd ${pangenomeBuildDir}
 git clone https://github.com/ComparativeGenomicsToolkit/cactus-gfa-tools.git
 cd cactus-gfa-tools
-git checkout f9b999e54c49a05ad6e9d44e1832c4a8421f28f2
+git checkout b37287b132686c00b7c4b5e875689065f700c66a
 make -j ${numcpu}
 if [[ $STATIC_CHECK -ne 1 || $(ldd paf2lastz | grep so | wc -l) -eq 0 ]]
 then
@@ -315,7 +315,8 @@ fi
 
 # vg
 cd ${pangenomeBuildDir}
-wget -nv --tries=5 --waitretry=3 --timeout=60 --retry-connrefused https://github.com/vgteam/vg/releases/download/v1.76.1/vg
+#wget -nv --tries=5 --waitretry=3 --timeout=60 --retry-connrefused https://github.com/vgteam/vg/releases/download/v1.76.1/vg
+wget -nv --tries=5 --waitretry=3 --timeout=60 --retry-connrefused https://public.gi.ucsc.edu/~ghickey/vg-patch/vg.f2ed0bbd4f7d1e7f8c8f4df4a84018f388194d51 -O vg
 chmod +x vg
 if [[ $STATIC_CHECK -ne 1 || $(ldd vg | grep so | wc -l) -eq 0 ]]
 then
@@ -328,7 +329,7 @@ fi
 cd ${pangenomeBuildDir}
 git clone --recursive https://github.com/glennhickey/panpatch.git
 cd panpatch
-git checkout e51b181bf6b8d715b12acc9595194b9407313c99
+git checkout cb4ee0ea0e272f763bc40a2c5ab9165a8dbd7619
 git submodule update --init --recursive
 if [[ $STATIC_CHECK -eq 1 ]]
 then

@@ -315,15 +315,18 @@ cactus-pangenome ./js ./seqfile.txt --outDir pg --outName pg --reference GRCh38 
 
 The gref graph adds paths only, no nodes or edges, so it is topologically identical to the base graph and gets no topology indexes of its own. Use the base graph's `<outName>.snarls`, `.dist` and `.hapl` with `gref.gbz`. `.gref.snarls` and `.gref.hapl` are not produced.
 
-The segment table maps a gref coordinate back onto an assembly one. It is headerless, tab-separated and BED-like, one row per fragment: the source haplotype path and interval, the new gref path name, then the reference path the fragment hangs off and the span of the enclosing snarl there. That span includes the flanking nodes, so the fragment sits strictly inside it rather than filling it.
+The segment table maps a gref coordinate back onto an assembly one. Tab-separated, one row per fragment, with a header naming the columns; the first six are a valid BED6.
 
 ```
-SAMP2#0#chr1    200    700    gref_REF#0#chr1_1_alt    REF#0#chr1    0    901
+#source_path   source_start source_end gref_contig             level strand ref_contig    ref_start ref_end top_level_snarl
+SAMP2#0#chr1   200          700        gref_REF#0#chr1_1_alt   1     +      REF#0#chr1    0         901     >12>34
 ```
 
-`gref_REF#0#chr1_1_alt` is `SAMP2#0#chr1:200-700`, placed within `REF#0#chr1:0-901`. Fragments that could not be placed against the reference get `.` and `0 0` in the last three columns.
+`gref_REF#0#chr1_1_alt` is `SAMP2#0#chr1:200-700`, placed within `REF#0#chr1:0-901`. `level` is the fragment's nesting depth and `top_level_snarl` the enclosing snarl, spelled as the VCF record ID. The reference span includes the flanking nodes, so the fragment sits strictly inside it rather than filling it. A fragment that could not be traced to the reference gets `.` and `0 0` for `ref_contig`/`ref_start`/`ref_end`, and one that sits on a chain spine rather than inside a snarl gets `.` for `top_level_snarl`.
 
-The gref VCF holds two coordinate systems, and the same sample sequence appears in both: as an ALT allele at a reference-contig site, and as the reference for a gref contig's own records. `RC`/`RS`/`RD` join them, giving the reference-contig site that contains a gref-contig record. `RC=chr22 RS=15470047` on a `chr22_2_alt` record means that fragment is the insertion called at `chr22:15470047`. They survive `vcfbub` and `vcfwave`; `INFO/AT` does not.
+Two things to know before joining this table to the VCF. `gref_contig` is a full path name while the VCF's CHROM is the bare contig, so strip the `gref_<SAMPLE>#<HAP>#` prefix to match them. And most fragments have no VCF contig at all: a fragment with no variation among the samples produces no record, and so no `##contig` line. The VCF's gref contigs are a subset of this table's, not the same set.
+
+The gref VCF holds two coordinate systems, and the same sample sequence appears in both: as an ALT allele at a reference-contig site, and as the reference for a gref contig's own records. `RC`/`RS`/`RD` join them, giving the reference-contig site that contains a gref-contig record. `RC=chr22 RS=15470047` on a `chr22_2_alt` record means that fragment sits in the site called at `chr22:15470047`. `RS` is that site's position, not the fragment's own extent, so it can fall before the fragment's `ref_start` in the segment table. The tags survive `vcfbub` and `vcfwave` (`INFO/AT` does not), but the record they name may not be in the file. `vcfbub` may have dropped it, the containing site being the larger one and `--vcfbub` popping sites above its length limit; and a site that only the reference and its own gref copy span has no variant to report, so it never had a record to drop. The tags still give its position either way.
 
 Do not pool reference-contig and gref-contig records when computing allele frequencies or site counts, or that sequence is counted twice. In `.wave.vcf.gz`, match `RS` with a tolerance: realignment can shift the reference-contig record a few bases from where `RS` points.
 

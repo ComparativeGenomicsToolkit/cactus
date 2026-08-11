@@ -46,10 +46,9 @@ from cactus.refmap.cactus_minigraph import minigraph_construct_workflow, minigra
 from cactus.refmap.cactus_minigraph import check_sample_names, read_chromfile
 from cactus.refmap.cactus_minigraph import minigraph_construct_import_sequences, export_minigraph_construct_output
 from cactus.refmap.cactus_graphmap import minigraph_workflow, minigraph_batch_workflow, export_graphmap_output
-from cactus.refmap.cactus_graphmap import apply_mgsplit_filter_overrides
+from cactus.refmap.cactus_graphmap import apply_mgsplit_filter_overrides, add_separate_ref_contigs_job
 from cactus.refmap.cactus_refmap import map_all_to_ref
 from cactus.refmap.rescue_merge import gap_fill, read_paf, build_ref_node_table
-from toil.realtimeLogger import RealtimeLogger
 from cactus.refmap.cactus_graphmap_split import graphmap_split_workflow, export_split_data
 from cactus.setup.cactus_align import make_batch_align_jobs, batch_align_jobs
 from cactus.refmap.cactus_graphmap_join import graphmap_join_workflow, export_join_data, graphmap_join_options, graphmap_join_validate_options, vcflib_checks
@@ -559,7 +558,7 @@ def export_graphmap_batch_wrapper(job, options, config_node, graphmap_batch_resu
     # put these in easy to delete lists
     output_list = []
     for chrom, gm_output in graphmap_batch_results.items():
-        #chrom -> paf_id, gfa_fa_id, gaf_id, unfiltered_paf_id, paf_filter_log, paf_was_filtered, disjoin_log_id
+        #chrom -> paf_id, gfa_fa_id, gaf_id, unfiltered_paf_id, paf_filter_log, paf_was_filtered, separate_log_id
         for fid in gm_output:
             if fid and fid != True:
                 output_list.append(fid)
@@ -774,10 +773,12 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
         graphmap_batch_job = minigraph_batch_export_job.addFollowOnJobFn(minigraph_batch_workflow, options, config_wrapper,
                                                                          graphmap_input_dict, graph_event, sanitize=False,
                                                                          pansn_gfa_input=False)
-        # note minigraph_batch_workflow also holds any multi-reference-contig bin's contigs apart,
-        # so what comes back here is already disjoint
-        graphmap_batch_results = graphmap_batch_job.rv()
-        graphmap_batch_export_job = graphmap_batch_job.addFollowOnJobFn(export_graphmap_batch_wrapper, options, config_node,
+        # hold the contigs of any multi-reference-contig bin apart.  the export has to be chained
+        # onto this job, not onto graphmap_batch_job alongside it, or it runs while the separation
+        # pass's children are still going and reads their promises unresolved
+        separate_job = add_separate_ref_contigs_job(graphmap_batch_job, options, config_wrapper, graphmap_input_dict)
+        graphmap_batch_results = separate_job.rv()
+        graphmap_batch_export_job = separate_job.addFollowOnJobFn(export_graphmap_batch_wrapper, options, config_node,
                                                                         graphmap_batch_results, input_seqfiles)
         graphmap_file_ids = graphmap_batch_export_job.rv(0)
         chromfile_path = graphmap_batch_export_job.rv(1)

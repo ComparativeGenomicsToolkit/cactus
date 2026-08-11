@@ -45,6 +45,8 @@ from cactus.preprocessor.redMasking import RedMaskJob
 from cactus.preprocessor.fastanMasking import FasTANMaskJob
 from cactus.preprocessor.cutHeaders import CutHeadersJob
 from cactus.preprocessor.fileMasking import maskJobOverride, FileMaskingJob
+from cactus.preprocessor.checkPreprocessedSequence import check_sequence_preserved
+from cactus.preprocessor.checkPreprocessedSequence import preprocessed_fasta_id
 from cactus.progressive.cactus_prepare import human2bytesN
 
 class PreprocessorOptions:
@@ -270,6 +272,7 @@ class BatchPreprocessor(RoundedJob):
         lastIteration = self.iteration == len(self.prepXmlElems) - 1
 
         prepNode = self.prepXmlElems[self.iteration]
+        checkJob = None
         if getOptionalAttrib(prepNode, "active", typeFn = bool, default=True):
             prepOptions = PreprocessorOptions(chunkSize = int(prepNode.get("chunkSize", default="-1")),
                                               preprocessJob=prepNode.attrib["preprocessJob"],
@@ -305,15 +308,45 @@ class BatchPreprocessor(RoundedJob):
 
             ppJob = self.addChild(PreprocessSequence(prepOptions, self.inSequenceID))
             outSeqID = ppJob.rv()
-            self.addFollowOnJobFn(clean_if_different, self.inSequenceID, outSeqID)
+            # make sure the step only masked/renamed, and did not corrupt the sequence.
+            # this has to run before clean_if_different, which drops the input file.
+            inSize = self.inSequenceID.size if hasattr(self.inSequenceID, "size") else None
+            checkJob = self.addFollowOnJobFn(check_preprocessed_sequence, self.inSequenceID, outSeqID,
+                                             prepOptions.preprocessJob, prepOptions.eventName,
+                                             prepOptions.dnabrnnAction,
+                                             disk=3*inSize if inSize else None)
+            checkJob.addFollowOnJobFn(clean_if_different, self.inSequenceID, outSeqID)
         else:
             logger.info("Skipping inactive preprocessor {}".format(prepNode.attrib["preprocessJob"]))
             outSeqID = self.inSequenceID
 
         if lastIteration == False:
-            return self.addFollowOn(BatchPreprocessor(self.prepXmlElems, outSeqID, self.iteration + 1)).rv()
+            # the next step must wait for the check: a preprocessor with unmask set
+            # starts by deleting its input, which is the very file the check reads as
+            # its output, and follow-ons of the same job would otherwise race
+            previous = checkJob if checkJob is not None else self
+            return previous.addFollowOn(BatchPreprocessor(self.prepXmlElems, outSeqID, self.iteration + 1)).rv()
         else:
             return outSeqID
+
+def check_preprocessed_sequence(job, in_seq_id, out_seq_id, step_name, event_name, mask_action):
+    """ fail as soon as a preprocessing step changes the sequence itself, rather than
+    just its name, case or line wrapping.  runs on the whole genome, so it also covers
+    the chunk/merge round trip of the chunked preprocessors. """
+    if in_seq_id == out_seq_id:
+        return
+    # dna-brnn and maskFile are the only jobs that read "action"; clipping removes
+    # sequence by design and hard-masking turns bases into N
+    masking_job = step_name in ('dna-brnn', 'maskFile')
+    if masking_job and mask_action == 'clip':
+        RealtimeLogger.info('Skipping sequence check for {} on {}: clipping removes sequence'.format(
+            step_name, event_name))
+        return
+    # dna-brnn and maskFile return (fasta, bed, merged bed) rather than a bare id
+    in_path = job.fileStore.readGlobalFile(preprocessed_fasta_id(in_seq_id))
+    out_path = job.fileStore.readGlobalFile(preprocessed_fasta_id(out_seq_id))
+    check_sequence_preserved(in_path, out_path, event_name=event_name, step_name=step_name,
+                             allow_hardmask=masking_job and mask_action == 'hardmask')
 
 def clean_if_different(job, file_id, other_file_id):
     """ remove file_id from jobstore if its differetn from other_file_id"""

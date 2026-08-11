@@ -516,9 +516,12 @@ int main(int argc, char *argv[]) {
     //////////////////////////////////////////////
 
     rh = doBottomUpTraversal(flowerLayers, callHalFn, (void *)referenceEventName);
-    FILE *fileHandle = fopen(outputFile, "w");
+    // c2h is line oriented and self delimiting, so a truncated one parses
+    // perfectly and simply describes fewer threads -- it has to be checked here
+    // because nothing downstream can tell it apart from a complete file
+    FILE *fileHandle = st_fopen(outputFile, "w");
     makeHalFormatNoDb(flower, rh, referenceEventName, fileHandle);
-    fclose(fileHandle);
+    st_fclose(fileHandle, outputFile);
     assert(recordHolder_size(rh) == 0);
     recordHolder_destruct(rh);
     st_logInfo("Ran cactus to hal stage, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
@@ -528,16 +531,16 @@ int main(int argc, char *argv[]) {
     //////////////////////////////////////////////
 
     if(outputHalFastaFile != NULL) {
-        fileHandle = fopen(outputHalFastaFile, "w");
+        fileHandle = st_fopen(outputHalFastaFile, "w");
         printFastaSequences(flower, fileHandle, referenceEventName);
-        fclose(fileHandle);
+        st_fclose(fileHandle, outputHalFastaFile);
         st_logInfo("Dumped sequences for hal file, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
     }
 
     if(outputReferenceFile != NULL) {
-        fileHandle = fopen(outputReferenceFile, "w");
+        fileHandle = st_fopen(outputReferenceFile, "w");
         getReferenceSequences(fileHandle, flower, referenceEventString);
-        fclose(fileHandle);
+        st_fclose(fileHandle, outputReferenceFile);
         st_logInfo("Dumped reference sequences, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
     }
 

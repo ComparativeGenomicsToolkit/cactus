@@ -430,6 +430,11 @@ int main
     if (endComment)
         printf ("# covered_intervals end-of-file\n");
 
+    // the intervals are the whole point of the run, and a short list just looks
+    // like a genome with fewer repeats in it, so the write has to be checked
+    // before we can claim success
+    st_fcheck (stdout, "standard output");
+
     return EXIT_SUCCESS;
 
     //////////

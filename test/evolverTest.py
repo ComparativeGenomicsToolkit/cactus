@@ -639,8 +639,13 @@ class TestCase(unittest.TestCase):
 
         # join up the graphs and index for giraffe
         join_path = os.path.join(self.tempDir, 'join')
+        # UWOPS034614 is a second reference here but was not one when the graphs above were built,
+        # so its paths are haplotype-sense.  that is the case cactus-graphmap-join has to handle on
+        # its own, and it is not covered by the tests that pass both references to cactus-pangenome.
+        # it is also absent from several chromosomes, which exercises the skip-and-warn path
         subprocess.check_call(['cactus-graphmap-join', self._job_store(binariesMode), '--outDir', join_path, '--outName', 'yeast',
-                               '--reference', 'S288C', '--vg'] +  vg_files + ['--hal'] + hal_files +
+                               '--reference', 'S288C', 'UWOPS034614', '--vcfReference', 'S288C', 'UWOPS034614',
+                               '--vg'] +  vg_files + ['--hal'] + hal_files +
                                ['--xg', '--vcf', '--giraffe', 'clip', 'filter', '--lrGiraffe'] + cactus_opts + ['--indexCores', '4'])
 
     def _run_yeast_pangenome(self, binariesMode, mgSplit=False, collapse=False, gref=None, vcfL=None):
@@ -1687,7 +1692,7 @@ class TestCase(unittest.TestCase):
 
         # the step-by-step join runs standalone without --inputContigSizes, so it writes no
         # clipping report -- only the baseline-free stats
-        self._check_yeast_pangenome(name, expect_report=False)
+        self._check_yeast_pangenome(name, other_ref='UWOPS034614', expect_report=False)
 
     def testYeastPangenomeLocal(self):
         """ Run pangenome pipeline (including contig splitting!) on yeast dataset using cactus-pangenome """
