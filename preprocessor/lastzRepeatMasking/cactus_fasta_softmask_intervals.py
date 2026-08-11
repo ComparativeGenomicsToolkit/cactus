@@ -136,6 +136,12 @@ def main():
 
 		prevEnd = 0
 		for (start,end) in chromToIntervals[chrom]:
+			# python slicing would quietly clip an interval that runs off the end,
+			# losing the masking without a word.  the length assertion below cannot
+			# see it, since it compares against the sequence we were handed.
+			assert (end <= len(seq)), \
+			      "interval %s %d %d extends past the end of the %d bp sequence" \
+			      % (chrom,start,end,len(seq))
 			if (prevEnd < start):  newSeq += [seq[prevEnd:start]]
 			if (maskChar == None): newSeq += [seq[start:end].lower()]
 			else:                  newSeq += [maskChar*(end-start)]
