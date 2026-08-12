@@ -611,40 +611,52 @@ def gap_fill(minigraph_paf, rm_by_q, ref_table, out_paf, min_gap=1000, cover_fra
     # the gap path (build_confident_intervals is built for competitive, but the gap fills don't consult it).
     gap_fills, nf = _shatter_lift(gap_selected, confident_filter, accepted, "sel")
     st["fill_filtered"] += nf
-    # competitive fills: copy-number guard ALWAYS on.  Then remove a detour ONLY where a surviving fill
-    # covers >= cover_frac of it (a killed fill never leaves the span unanchored), and emit only fills
-    # landing in a removed detour (else the kept detour + fill would double-anchor the span).
+    # bounds safety net: never emit a fill whose node interval is out of bounds or whose query/node
+    # spans disagree -- cactus_consolidated rejects such records and the whole run dies hours later.
+    def _bounds_ok(c):
+        nlen, n_s, n_e = int(c[6]), int(c[7]), int(c[8])
+        return 0 <= n_s < n_e <= nlen and (int(c[3]) - int(c[2])) == (n_e - n_s)
+
+    # gap fills: bounds net + the min_fill noise filter (drops tiny node-boundary fragments).
+    gap_valid, dropped, short = [], 0, 0
+    for line in gap_fills:
+        c = line.rstrip("\n").split("\t")
+        if not _bounds_ok(c):
+            dropped += 1
+        elif int(c[8]) - int(c[7]) < min_fill:     # tiny node-boundary fragment -> drop as noise
+            short += 1
+        else:
+            gap_valid.append(line)
+
+    # competitive fills: copy-number guard ALWAYS on.  Remove a detour ONLY where a piece that will
+    # actually be EMITTED covers >= cover_frac of it, and emit only pieces landing in a removed detour
+    # (else the kept detour + fill would double-anchor the span).  Competitive pieces are deliberately
+    # NOT min_fill-filtered: a re-anchor legitimately tiles many short backbone nodes, so applying the
+    # gap path's per-piece min_fill would drop them AND -- because the detour is then removed on their
+    # coverage -- strand the detour's whole span unanchored, which the clip phase deletes.  So gate the
+    # removal and the emission on the same bounds-valid (min_fill-exempt) pieces.
     remove, comp_fills = set(), []
     if comp_selected:
         cf, nf = _shatter_lift(comp_selected, True, detour_by_q, "comp")
         st["fill_filtered"] += nf
-        cov = defaultdict(list)
+        surviving = []
         for f in cf:
+            if _bounds_ok(f.rstrip("\n").split("\t")):
+                surviving.append(f)
+            else:
+                dropped += 1
+        cov = defaultdict(list)
+        for f in surviving:
             c = f.split("\t"); cov[c[0]].append((int(c[2]), int(c[3])))
         kept = defaultdict(list)
         for key, q, qs, qe in candidates:
             if covered_fraction(cov.get(q, []), qs, qe) >= cover_frac:
                 remove.add(key); kept[q].append((qs, qe)); st["reanchored"] += 1
-        for f in cf:
+        for f in surviving:
             c = f.split("\t"); mid = (int(c[2]) + int(c[3])) // 2
             if any(a <= mid < b for a, b in kept.get(c[0], [])):
                 comp_fills.append(f)
-    fills = gap_fills + comp_fills
-    # final safety net: never emit a fill whose node interval is out of bounds or whose query/node
-    # spans disagree -- cactus_consolidated rejects such records and the whole run dies hours later.
-    # Should be a no-op given lift_gapless_piece clamps to the node, but 200k fills * one bad record
-    # is not worth the risk.
-    valid, dropped, short = [], 0, 0
-    for line in fills:
-        c = line.rstrip("\n").split("\t")
-        nlen, n_s, n_e = int(c[6]), int(c[7]), int(c[8])
-        if not (0 <= n_s < n_e <= nlen and (int(c[3]) - int(c[2])) == (n_e - n_s)):
-            dropped += 1
-        elif n_e - n_s < min_fill:                 # tiny node-boundary fragment: a graph node for
-            short += 1                             # near-zero sequence -- drop as noise (min_fill=0 keeps all)
-        else:
-            valid.append(line)
-    fills = valid
+    fills = gap_valid + comp_fills
     st["fill_records"] = len(fills)
     st["fill_dropped"] = dropped
     st["fill_short"] = short
