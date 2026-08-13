@@ -215,6 +215,66 @@ def find_query_gaps(paf_path, min_gap):
     return gaps
 
 
+def find_flanked_gaps(paf_path, min_gap):
+    """find_query_gaps + each gap's immediate flank lengths: {query: [(gs, ge, lflank, rflank)]}.
+    lflank/rflank = bp of the covered (M/=/X) interval abutting the gap on that side (0 at a contig
+    end).  --rescueCompleteOnly uses these to demand a refmap alignment that reaches into BOTH flanks:
+    a fill contiguous across gap+flanks HEALS the gap (recovers the sequence with no new path break),
+    where an island fill -- covering only the gap middle -- leaves residual unrepresented query on each
+    side and so adds a path fragment.  Same coverage definition as find_query_gaps."""
+    covered = defaultdict(list)
+    qlen = {}
+    with _open(paf_path) as f:
+        for line in f:
+            if not line.strip() or line[0] == '@':
+                continue
+            t = line.rstrip("\n").split("\t")
+            if len(t) < 12:
+                continue
+            q, ql, qs, qe, strand = t[0], int(t[1]), int(t[2]), int(t[3]), t[4]
+            qlen[q] = ql
+            cg = next((tag[5:] for tag in t[12:] if tag.startswith("cg:Z:")), None)
+            if cg:
+                covered[q].extend(_covered_query_intervals(qs, qe, strand, cg))
+            else:
+                covered[q].append((qs, qe))
+    out = defaultdict(list)
+    for q, ivs in covered.items():
+        ivs.sort()
+        merged = []
+        for s, e in ivs:                           # union the aligned intervals
+            if merged and s <= merged[-1][1]:
+                merged[-1][1] = max(merged[-1][1], e)
+            else:
+                merged.append([s, e])
+        pos, lflank = 0, 0                          # lflank = length of the covered run ending at pos
+        for s, e in merged:
+            if s - pos >= min_gap:
+                out[q].append((pos, s, lflank, e - s))
+            pos, lflank = e, e - s
+        if qlen[q] - pos >= min_gap:               # trailing gap: no right flank (contig end)
+            out[q].append((pos, qlen[q], lflank, 0))
+    return out
+
+
+def _spans_contiguous(lines, a, b):
+    """True if the query spans of these refmap lines, unioned, cover [a,b] in a SINGLE gapless run --
+    the reference alignment is contiguous across [a,b] (no hole), so a fill clipped from it reaches both
+    flanks and heals the gap instead of islanding inside it."""
+    ivs = sorted((int(l.split("\t")[2]), int(l.split("\t")[3])) for l in lines)
+    cs = ce = None
+    for s, e in ivs:
+        if ce is None:
+            cs, ce = s, e
+        elif s <= ce:                              # overlap or abut -> same run
+            ce = max(ce, e)
+        else:
+            if cs <= a and ce >= b:
+                return True
+            cs, ce = s, e
+    return ce is not None and cs <= a and ce >= b
+
+
 def find_insertion_segments(paf_path, backbone_nodes, min_seg):
     """{query: [(qs, qe, key)]} -- the query span of every minigraph record whose target node is NOT a
     reference-backbone node (a haplotype segment parked on an insertion node, a candidate detour),
@@ -517,7 +577,8 @@ def gap_fill(minigraph_paf, rm_by_q, ref_table, out_paf, min_gap=1000, cover_fra
              secondary_frac=0.5, paffy="paffy", assembly_fa=None, min_fill=0,
              confident_filter=False, confident_min_mapq=5, confident_min_block=0,
              confident_frac=0.5, confident_frac_samples=None, min_mapq=0, min_block=0,
-             competitive=False, comp_min_mapq=30, comp_min_id=0.95, comp_min_block=0):
+             competitive=False, comp_min_mapq=30, comp_min_id=0.95, comp_min_block=0,
+             complete_only=False, complete_flank=1000):
     """Write out_paf = the minigraph PAF (records pass through) + node-targeted reference records that
     fill its query coverage gaps.  rm_by_q is the ORIGINAL assembly->reference refmap (read_paf);
     ref_table is the reference->node table (build_ref_node_table).  min_mapq/min_block apply dipcall's
@@ -530,8 +591,16 @@ def gap_fill(minigraph_paf, rm_by_q, ref_table, out_paf, min_gap=1000, cover_fra
     copy-number guard + comp_min_mapq/comp_min_id).  This collapses the iterative-construction
     under-alignment (a genome stranded on its own redundant node); the confident filter is what keeps
     it from collapsing true insertions (a true insertion's ref locus is multi-covered -> not confident,
-    so it survives).  Returns a stats dict."""
-    gaps = find_query_gaps(minigraph_paf, min_gap)
+    so it survives).
+
+    With complete_only=True, the gap path fills ONLY gaps a refmap alignment crosses contiguously into
+    both flanks (find_flanked_gaps + _spans_contiguous): the fill abuts the flanking minigraph nodes and
+    heals the gap, so recovery costs no new path fragment.  Island gaps -- where even the refmap breaks
+    at the flanks -- are skipped.  Flank-anchoring is the confidence signal, so these fills bypass the
+    min_block gate (which drops the very records that span the flanks), the confident filter, and the
+    min_fill noise cut (their short node-boundary tiles ARE the heal; dropping them re-opens the gap).
+    complete_flank = bp the alignment must reach into each flank.  Returns a stats dict."""
+    gaps = None if complete_only else find_query_gaps(minigraph_paf, min_gap)
     confident = (build_confident_intervals(rm_by_q, confident_min_mapq, confident_min_block,
                                            confident_frac_samples)
                  if (confident_filter or competitive) else None)
@@ -543,17 +612,36 @@ def gap_fill(minigraph_paf, rm_by_q, ref_table, out_paf, min_gap=1000, cover_fra
     # uniqueness gate just excluded.  (Safe: a primary overlapping another accepted gap in-gap would
     # have caused that gap's rejection, so accepted-only clipping never drops a legitimate fill.)
     gap_selected, accepted = [], defaultdict(list)
-    for q, ivs in gaps.items():
-        for gs, ge in ivs:
-            st["gaps"] += 1
-            resc = rescue_records(rm_by_q.get(q, []), gs, ge, cover_frac, secondary_frac, min_gap,
-                                  min_mapq, min_block)
-            if resc:
-                gap_selected.extend(resc)
-                accepted[q].append((gs, ge))
-                st["filled"] += 1
-            else:
-                st["unfilled"] += 1
+    if complete_only:
+        # complete-only: fill a gap ONLY when a refmap alignment is contiguous across it AND reaches
+        # >= complete_flank into BOTH minigraph-aligned flanks -- a fill that heals the gap instead of
+        # islanding inside it.  Flank-anchoring is the confidence, so DROP the min_block gate here (it
+        # kills the very records that span the flanks -- a ~31kb complete gap aligns a block under a
+        # 50kb --rescueMinAlnBlock); rescue_records' uniqueness/secondary gates still apply.
+        for q, ivs in find_flanked_gaps(minigraph_paf, min_gap).items():
+            recs = rm_by_q.get(q, [])
+            for gs, ge, lflank, rflank in ivs:
+                st["gaps"] += 1
+                fl, fr = min(complete_flank, lflank), min(complete_flank, rflank)
+                resc = rescue_records(recs, gs, ge, cover_frac, secondary_frac, min_gap, min_mapq, 0)
+                if resc and _spans_contiguous(resc, gs - fl, ge + fr):
+                    gap_selected.extend(resc)
+                    accepted[q].append((gs, ge))
+                    st["filled"] += 1
+                else:
+                    st["unfilled"] += 1
+    else:
+        for q, ivs in gaps.items():
+            for gs, ge in ivs:
+                st["gaps"] += 1
+                resc = rescue_records(rm_by_q.get(q, []), gs, ge, cover_frac, secondary_frac, min_gap,
+                                      min_mapq, min_block)
+                if resc:
+                    gap_selected.extend(resc)
+                    accepted[q].append((gs, ge))
+                    st["filled"] += 1
+                else:
+                    st["unfilled"] += 1
     # competitive re-anchoring: the same gate, on insertion-node detours instead of gaps.  A detour whose
     # refmap alignment maps cleanly (unique, comp_min_mapq/id) to the backbone is only a CANDIDATE here;
     # whether its graphmap line is dropped is decided BELOW, once a surviving backbone fill actually
@@ -609,7 +697,9 @@ def gap_fill(minigraph_paf, rm_by_q, ref_table, out_paf, min_gap=1000, cover_fra
 
     # gap fills: confident-filter ONLY if --rescueConfidentFilter -- competitive alone must not change
     # the gap path (build_confident_intervals is built for competitive, but the gap fills don't consult it).
-    gap_fills, nf = _shatter_lift(gap_selected, confident_filter, accepted, "sel")
+    # complete-only bypasses it too: flank-anchoring is the gate, and dropping interior pieces would
+    # re-open a healed gap.
+    gap_fills, nf = _shatter_lift(gap_selected, confident_filter and not complete_only, accepted, "sel")
     st["fill_filtered"] += nf
     # bounds safety net: never emit a fill whose node interval is out of bounds or whose query/node
     # spans disagree -- cactus_consolidated rejects such records and the whole run dies hours later.
@@ -623,9 +713,9 @@ def gap_fill(minigraph_paf, rm_by_q, ref_table, out_paf, min_gap=1000, cover_fra
         c = line.rstrip("\n").split("\t")
         if not _bounds_ok(c):
             dropped += 1
-        elif int(c[8]) - int(c[7]) < min_fill:     # tiny node-boundary fragment -> drop as noise
-            short += 1
-        else:
+        elif not complete_only and int(c[8]) - int(c[7]) < min_fill:   # tiny node-boundary fragment ->
+            short += 1                                                 # drop as noise (complete-only's
+        else:                                                          # tiles heal the gap: keep them)
             gap_valid.append(line)
 
     # competitive fills: copy-number guard ALWAYS on.  Remove a detour ONLY where a piece that will
@@ -678,13 +768,15 @@ def gap_fill_pafs(minigraph_paf, refmap_paf, out_paf, ref_prefix, min_gap=1000, 
                   secondary_frac=0.5, paffy="paffy", assembly_fa=None, min_fill=0,
                   confident_filter=False, confident_min_mapq=5, confident_min_block=0,
                   confident_frac=0.5, confident_frac_samples=None, min_mapq=0, min_block=0,
-                  competitive=False, comp_min_mapq=30, comp_min_id=0.95, comp_min_block=0):
+                  competitive=False, comp_min_mapq=30, comp_min_id=0.95, comp_min_block=0,
+                  complete_only=False, complete_flank=1000):
     """Convenience: build the ref->node table from the minigraph PAF and gap-fill one file."""
     table = build_ref_node_table(minigraph_paf, ref_prefix)
     return gap_fill(minigraph_paf, read_paf(refmap_paf), table, out_paf, min_gap, cover_frac,
                     secondary_frac, paffy, assembly_fa, min_fill, confident_filter,
                     confident_min_mapq, confident_min_block, confident_frac, confident_frac_samples,
-                    min_mapq, min_block, competitive, comp_min_mapq, comp_min_id, comp_min_block)
+                    min_mapq, min_block, competitive, comp_min_mapq, comp_min_id, comp_min_block,
+                    complete_only, complete_flank)
 
 
 def main():
@@ -726,13 +818,20 @@ def main():
                     help="min source identity for a competitive backbone re-anchor [0.95]")
     ap.add_argument("--competitive-min-block", type=int, default=0,
                     help="min source block length for a competitive backbone re-anchor [0]")
+    # complete-only: fill only gaps a refmap alignment crosses contiguously into both flanks
+    ap.add_argument("--complete-only", action="store_true",
+                    help="fill only gaps a refmap alignment crosses contiguously into both flanks "
+                         "(heals the gap, no new path fragment); skip island gaps.  min_block / min_fill "
+                         "exempt, confident filter bypassed -- flank-anchoring is the gate")
+    ap.add_argument("--complete-flank", type=int, default=1000,
+                    help="--complete-only: bp a refmap alignment must reach into each flank [1000]")
     args = ap.parse_args()
     st = gap_fill_pafs(args.graphmap, args.refmap, args.output, args.ref_prefix, args.min_gap,
                        args.cover_frac, args.secondary_frac, args.paffy, args.assembly, args.min_fill,
                        args.confident_filter, args.confident_min_mapq, args.confident_min_block,
                        args.confident_frac, args.confident_frac_samples, args.min_mapq, args.min_aln_block,
                        args.competitive, args.competitive_min_mapq, args.competitive_min_id,
-                       args.competitive_min_block)
+                       args.competitive_min_block, args.complete_only, args.complete_flank)
     sys.stderr.write("[rescue] {gaps} gaps: {filled} filled -> {fill_records} node records, "
                      "{unfilled} unfilled, {fill_filtered} pieces dropped by confidence filter; "
                      "{detours} detours: {reanchored} re-anchored to backbone\n".format(**st))

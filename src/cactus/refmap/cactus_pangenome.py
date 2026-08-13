@@ -150,6 +150,15 @@ def pangenome_options(parser):
                         help="--rescueCompetitive: min source identity for a backbone re-anchor [0.95]")
     parser.add_argument("--rescueCompetitiveMinBlock", type=int, default=0,
                         help="--rescueCompetitive: min source block length for a backbone re-anchor [0]")
+    parser.add_argument("--rescueCompleteOnly", action="store_true",
+                        help="--rescue: fill only gaps a refmap alignment crosses CONTIGUOUSLY into both "
+                             "minigraph-aligned flanks -- the fill abuts the flanks and heals the gap, so "
+                             "recovery adds no path fragment.  Island gaps (refmap also breaks at the "
+                             "flanks) are skipped.  Flank-anchoring replaces the min_block / confident / "
+                             "min_fill gates for these fills.")
+    parser.add_argument("--rescueCompleteFlank", type=int, default=1000,
+                        help="--rescueCompleteOnly: bp a refmap alignment must reach into each flank to "
+                             "count a gap as completely fillable [1000]")
 
     parser.add_argument("--branchScale", type=float, default=1.0,
                         help="Scale default branch length. This option is more relevant for progressive cactus but larger values can be used here to reduce chaining thresholds in cactus_consolidated.")
@@ -478,7 +487,9 @@ def do_gap_fill(job, options, paf_id, refmap_paf_id):
                   competitive=options.rescueCompetitive,
                   comp_min_mapq=options.rescueCompetitiveMinMapq,
                   comp_min_id=options.rescueCompetitiveMinId,
-                  comp_min_block=options.rescueCompetitiveMinBlock)
+                  comp_min_block=options.rescueCompetitiveMinBlock,
+                  complete_only=options.rescueCompleteOnly,
+                  complete_flank=options.rescueCompleteFlank)
     RealtimeLogger.info('[rescue] whole-genome: {}'.format(st))
     return job.fileStore.writeGlobalFile(merged)
 
