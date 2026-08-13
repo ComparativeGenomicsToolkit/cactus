@@ -794,8 +794,12 @@ def filter_paf(job, paf_id, config, reference=None):
     # -x is only used here and not at the gaf stage in minigraph_map_one.  the two stages remove
     # different things: there a losing record is deleted whole, here the paf has already been split
     # at minigraph node boundaries so only the lines inside the contested span go, leaving the rest
-    # of the record.  measured on a whole-genome hprc sample, every cross-contig case is an end-trim
-    # (0 of 69 would punch a hole) and 77% of the affected sequence survives.
+    # of the record.  that is only true if PAFOverlapFilterMinLengthRatio keeps the deletion
+    # proportionate to the overlap -- gaffilter's unit of removal is the whole line however small
+    # the contested span, so at 0 a sliver deletes a line that is mostly uncontested.  measured on
+    # yeast.paf, -m 0 makes -x 60 drop 41 lines / 100 kb of which 71% loses all coverage across 9
+    # interior holes; -m 0.25 drops 5 lines / 7.8 kb, 1 hole.  the same-contig side loses nothing
+    # worth having (this stage removes at most 1 line of 8034 either way).
     cross_contig_mapq = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "crossContigFilterMaxMAPQ", typeFn=int, default=0)
 
     if overlap_ratio and not allow_collapse:
