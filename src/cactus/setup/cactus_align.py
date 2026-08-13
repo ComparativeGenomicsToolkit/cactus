@@ -62,6 +62,7 @@ def main():
                         " The overridden configuration will be saved in <outHal>.pg-conf.xml")
 
     parser.add_argument("--collapse", help = "Incorporate minimap2 self-alignments.", action='store_true', default=False)
+    parser.add_argument("--minIdentity", type=float, help = "Ignore PAF lines with identity (column 10/11) < this (overrides minIdentity in <graphmap> in config)")
     parser.add_argument("--scoresFile", type=str,
                         help = "File containing scoring parameters (output of last-train / cactus-minigraphr --lastTrain)")
     parser.add_argument("--scoresFromChromfile", action="store_true", default=False,
@@ -277,6 +278,8 @@ def make_align_job(options, toil, config_wrapper=None, chrom_name=None):
         config_wrapper.substituteAllPredefinedConstantsWithLiterals(options)
         if options.collapse:
             findRequiredNode(config_node, "graphmap").attrib["collapse"] = 'all'
+        if getattr(options, 'minIdentity', None) is not None:
+            findRequiredNode(config_node, "graphmap").attrib["minIdentity"] = str(options.minIdentity)
     if hasattr(options, 'hdf5Codec') and options.hdf5Codec:
         config_node.find("hal").attrib["hdf5Codec"] = options.hdf5Codec
     config_wrapper.setSystemMemory(options)

@@ -79,6 +79,7 @@ def pangenome_options(parser):
     parser.add_argument("--otherContig", type=str, help = "Lump all reference contigs unselected by above options into single one with this name")
     parser.add_argument("--permissiveContigFilter", nargs='?', const='0.25', default=None, type=float, help = "If specified, override the configuration to accept contigs so long as they have at least given fraction of coverage (0.25 if no fraction specified). This can increase sensitivity of very small, fragmented and/or diverse assemblies.")
     parser.add_argument("--noSplit", action='store_true', help = "Do not split by ref chromsome. This will require much more memory and potentially produce a more complex graph")
+    parser.add_argument("--minIdentity", type=float, help = "Ignore PAF lines with identity (column 10/11) < this (overrides minIdentity in <graphmap> in config)")
 
     # cactus-align options
     # note: when changing this, make sure to keep option in cactus-align consistent
@@ -131,7 +132,6 @@ def pangenome_validate_options(options):
     options.pafMaskFilter = None
     options.outVG = True
     options.outGFA = False
-    options.minIdentity = None
     options.chromInfo = None
     # these let cactus-panpatch turn off output it would only throw away (the hal) or write
     # twice (the chromosome vgs)
@@ -216,6 +216,12 @@ def pangenome_config_overrides(options, config_node):
 
     if options.collapse:
         findRequiredNode(config_node, "graphmap").attrib["collapse"] = 'all'
+
+    # written here, before the --mgSplit deep-copy below, so that the one flag reaches all three
+    # consumers: gaffilter -i in cactus-graphmap, and the filter_paf line filter in both
+    # cactus-graphmap-split and cactus-align
+    if options.minIdentity is not None:
+        findRequiredNode(config_node, "graphmap").attrib["minIdentity"] = str(options.minIdentity)
 
 def main():
     parser = Job.Runner.getDefaultArgumentParser()
