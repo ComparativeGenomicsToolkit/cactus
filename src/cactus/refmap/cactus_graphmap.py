@@ -774,11 +774,20 @@ def filter_paf(job, paf_id, config, reference=None):
     length_ratio = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "PAFOverlapFilterMinLengthRatio", typeFn=float, default=0)
     allow_collapse = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "collapse", typeFn=str, default="none") != "none"
 
+    # -x is only used here and not at the gaf stage in minigraph_map_one.  the two stages remove
+    # different things: there a losing record is deleted whole, here the paf has already been split
+    # at minigraph node boundaries so only the lines inside the contested span go, leaving the rest
+    # of the record.  measured on a whole-genome hprc sample, every cross-contig case is an end-trim
+    # (0 of 69 would punch a hole) and 77% of the affected sequence survives.
+    cross_contig_mapq = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "crossContigFilterMaxMAPQ", typeFn=int, default=0)
+
     if overlap_ratio and not allow_collapse:
         overlap_filter_paf_path = filter_paf_path + ".overlap"
-        cactus_call(parameters=['gaffilter', filter_paf_path, '-p', '-r', str(overlap_ratio), '-m', str(length_ratio),
-                                '-b', str(min_block), '-q', str(min_mapq), '-i', str(min_ident)],
-                    outfile=overlap_filter_paf_path, job_memory=job.memory)
+        overlap_cmd = ['gaffilter', filter_paf_path, '-p', '-r', str(overlap_ratio), '-m', str(length_ratio),
+                       '-b', str(min_block), '-q', str(min_mapq), '-i', str(min_ident)]
+        if cross_contig_mapq > 0:
+            overlap_cmd += ['-x', str(cross_contig_mapq)]
+        cactus_call(parameters=overlap_cmd, outfile=overlap_filter_paf_path, job_memory=job.memory)
         filter_paf_path = overlap_filter_paf_path
 
     return job.fileStore.writeGlobalFile(filter_paf_path)    
