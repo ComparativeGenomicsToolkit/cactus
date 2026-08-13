@@ -416,7 +416,24 @@ def minigraph_workflow(job, options, config, seq_id_map, gfa_id, graph_event, sa
     else:
         out_paf_id = paf_job.rv(0)
         prev_job = paf_job
-    
+
+    # correct this chromosome's mappings against what the whole-genome pass knew.  the track is only
+    # ever set by cactus-pangenome --mgSplit, where a single-chromosome graph makes both the MAPQ and
+    # the choice of reference contig unreliable.  it has to run before the deletion filter, which
+    # reads gaps between consecutive PAF lines and so should see the final set of them
+    placement_track_id = getattr(options, 'mg_placement_track_id', None)
+    if placement_track_id:
+        graphmap_node = findRequiredNode(config.xmlRoot, "graphmap")
+        do_placement = getOptionalAttrib(graphmap_node, "mgSplitPlacementFilter", typeFn=bool, default=True)
+        do_mapq_floor = getOptionalAttrib(graphmap_node, "mgSplitMapqFloor", typeFn=bool, default=True)
+        min_placement_mapq = getOptionalAttrib(graphmap_node, "mgSplitPlacementMinMAPQ", typeFn=int, default=60)
+        if do_placement or do_mapq_floor:
+            track_job = prev_job.addFollowOnJobFn(apply_placement_track, out_paf_id, placement_track_id,
+                                                  do_placement, do_mapq_floor, min_placement_mapq,
+                                                  reference=options.reference, disk=4*gfa_id_size)
+            out_paf_id = track_job.rv()
+            prev_job = track_job
+
     # apply the optional deletion filter
     unfiltered_paf_id = None
     filtered_paf_log = None
@@ -791,6 +808,184 @@ def filter_paf(job, paf_id, config, reference=None):
         filter_paf_path = overlap_filter_paf_path
 
     return job.fileStore.writeGlobalFile(filter_paf_path)    
+
+def make_placement_track(job, paf_id):
+    """ project a whole-genome PAF down to where each query interval was placed
+
+    Under --mgSplit the second pass maps each chromosome's contigs against a graph containing only
+    that chromosome, so minigraph cannot see the rest of the genome: a repeat that is ambiguous
+    genome-wide comes back uniquely mapped, and sequence whose real home is another chromosome gets
+    placed somewhere on this one because there is nowhere else for it to go.  Both are fixed by
+    remembering what the whole-genome pass already knew.
+
+    Emits query_contig, start, end, ref_contig, mapq -- one row per (query, reference contig)
+    interval, merging the per-node PAF lines a record is split into.  rc:Z: is already on every line
+    (gaf2unstable writes it when a record stays within one rank-0 contig), so this is a projection
+    rather than a computation.  Records that span several reference contigs carry no rc and are
+    skipped: they have nothing to say about where the sequence belongs. """
+    work_dir = job.fileStore.getLocalTempDir()
+    paf_path = os.path.join(work_dir, 'pass1.paf')
+    track_path = os.path.join(work_dir, 'pass1-placements.tsv')
+    job.fileStore.readGlobalFile(paf_id, paf_path)
+
+    def flush(rows, out_file):
+        # merge overlapping/abutting intervals, per (reference contig, mapq).  merging collapses the
+        # per-node PAF lines one record is split into, which all share a mapq.  keying on mapq as
+        # well stops a confident record from swallowing an overlapping unconfident one and
+        # extending its mapq over territory it never covered -- the consumer takes the max over
+        # everything that really covers a line, so nothing is lost by keeping them apart
+        by_key = {}
+        for start, end, rc, mapq in rows:
+            by_key.setdefault((rc, mapq), []).append((start, end))
+        for (rc, mapq), ivs in by_key.items():
+            ivs.sort()
+            cur_start, cur_end = ivs[0]
+            for start, end in ivs[1:]:
+                if start <= cur_end:
+                    cur_end = max(cur_end, end)
+                else:
+                    out_file.write('{}\t{}\t{}\t{}\t{}\n'.format(query, cur_start, cur_end, rc, mapq))
+                    cur_start, cur_end = start, end
+            out_file.write('{}\t{}\t{}\t{}\t{}\n'.format(query, cur_start, cur_end, rc, mapq))
+
+    n_rows = 0
+    with open(paf_path, 'r') as paf_file, open(track_path, 'w') as out_file:
+        query = None
+        rows = []
+        for line in paf_file:
+            toks = line.split('\t')
+            rc = None
+            for tok in toks[12:]:
+                if tok.startswith('rc:Z:'):
+                    rc = tok[5:].strip()
+                    break
+            if rc is None:
+                continue
+            if toks[0] != query:
+                if rows:
+                    flush(rows, out_file)
+                query = toks[0]
+                rows = []
+            rows.append((int(toks[2]), int(toks[3]), rc, int(toks[11])))
+            n_rows += 1
+        if rows:
+            flush(rows, out_file)
+
+    RealtimeLogger.info('Placement track: {} PAF lines projected onto {} intervals'.format(
+        n_rows, sum(1 for _ in open(track_path))))
+    return job.fileStore.writeGlobalFile(track_path)
+
+def apply_placement_track(job, paf_id, track_id, do_placement, do_mapq_floor, min_placement_mapq=0,
+                          reference=None):
+    """ correct a --mgSplit second-pass PAF against what the whole-genome pass knew
+
+    Two independent corrections, either can be turned off in the config:
+
+    placement -- drop a line whose query interval was placed by the whole-genome pass, but never on
+    any reference contig in this bin.  That sequence's real home is a chromosome this subproblem
+    does not contain, so whatever it matched here was the best of a bad set.  Membership, not
+    equality: an acrocentric contig genuinely has several reference contigs in pass 1, and a pass-2
+    placement on any of them is legitimate.
+
+    The absence of this bin's contigs is only evidence if pass 1 knew where the sequence went, so
+    the off-bin placement has to clear min_placement_mapq.  Below that, minigraph found several
+    equally good placements and printed one of them: this bin's contig may well have been a
+    co-equal it simply did not report, and reading its silence as a verdict is reading noise.
+
+    mapq floor -- take min(pass 2, pass 1).  Pass 2 measured against a single chromosome, so a
+    repeat that is ambiguous genome-wide can come back uniquely mapped.  The original is kept in
+    om:i: so nothing is lost and the two can be compared afterwards.  Note the two mapqs are not
+    quite the same quantity (pass 1 is against a reference-only graph, pass 2 against a full
+    pangenome one), so the minimum is the conservative reading rather than the obviously right one.
+
+    A query interval the whole-genome pass never covered is left alone: there is nothing to say
+    about it, and guessing would be worse than leaving it.
+
+    The reference genome is exempt from both, matching filter_paf.  Its alignment reaches the PAF
+    from two places -- minigraph, and rgfa2paf straight off the rGFA tags -- and only the first
+    carries rc:Z:, so the track sees the minigraph copy (mapq 0 for a self-mapping) while the bin
+    holds the rgfa2paf copy (mapq 60).  Crossing the two would floor the reference to 0 and get it
+    filtered out downstream. """
+    work_dir = job.fileStore.getLocalTempDir()
+    paf_path = os.path.join(work_dir, 'pass2.paf')
+    track_path = os.path.join(work_dir, 'pass1-placements.tsv')
+    out_path = os.path.join(work_dir, 'pass2.corrected.paf')
+    job.fileStore.readGlobalFile(paf_id, paf_path)
+    job.fileStore.readGlobalFile(track_id, track_path)
+
+    # the reference contigs this bin actually contains, straight from its own rc:Z: tags.  taking
+    # them from the data rather than from the bin's name is what makes lumped bins (chrOther) work
+    bin_contigs = set()
+    with open(paf_path, 'r') as paf_file:
+        for line in paf_file:
+            for tok in line.split('\t')[12:]:
+                if tok.startswith('rc:Z:'):
+                    bin_contigs.add(tok[5:].strip())
+                    break
+    if not bin_contigs:
+        RealtimeLogger.warning('Placement track: no rc:Z: tags in the PAF, so no bin reference '
+                               'contigs to check against.  Leaving it alone.')
+        return paf_id
+
+    track = {}
+    with open(track_path, 'r') as track_file:
+        for line in track_file:
+            query, start, end, rc, mapq = line.rstrip('\n').split('\t')
+            track.setdefault(query, []).append((int(start), int(end), rc, int(mapq)))
+
+    n_dropped = 0
+    n_floored = 0
+    n_total = 0
+    n_ref = 0
+    n_unsure = 0
+    seen_queries = set()
+    kept_queries = set()
+    with open(paf_path, 'r') as paf_file, open(out_path, 'w') as out_file:
+        for line in paf_file:
+            n_total += 1
+            toks = line.rstrip('\n').split('\t')
+            query, qs, qe = toks[0], int(toks[2]), int(toks[3])
+            seen_queries.add(query)
+            if reference and query.startswith('id={}|'.format(reference)):
+                out_file.write('\t'.join(toks) + '\n')
+                kept_queries.add(query)
+                n_ref += 1
+                continue
+            in_bin_mapq = -1
+            off_bin_mapq = -1
+            for start, end, rc, mapq in track.get(query, []):
+                if start < qe and qs < end:
+                    if rc in bin_contigs:
+                        in_bin_mapq = max(in_bin_mapq, mapq)
+                    else:
+                        off_bin_mapq = max(off_bin_mapq, mapq)
+            if do_placement and in_bin_mapq < 0 and off_bin_mapq >= 0:
+                if off_bin_mapq >= min_placement_mapq:
+                    n_dropped += 1
+                    continue
+                n_unsure += 1
+            if do_mapq_floor and in_bin_mapq >= 0 and in_bin_mapq < int(toks[11]):
+                # keep cg:Z: last, which is what everything else in this pipeline emits
+                pos = next((i for i, t in enumerate(toks) if t.startswith('cg:Z:')), len(toks))
+                toks.insert(pos, 'om:i:{}'.format(toks[11]))
+                toks[11] = str(in_bin_mapq)
+                n_floored += 1
+            out_file.write('\t'.join(toks) + '\n')
+            kept_queries.add(query)
+
+    lost = seen_queries - kept_queries
+    RealtimeLogger.info('Placement track applied to {}: {} of {} lines dropped as placed outside '
+                        'this bin, {} spared because the whole-genome placement was itself unsure '
+                        '(MAPQ < {}), {} had MAPQ lowered to the whole-genome value, {} reference '
+                        'lines left alone'.format(
+                            ','.join(sorted(bin_contigs)), n_dropped, n_total, n_unsure,
+                            min_placement_mapq, n_floored, n_ref))
+    if lost:
+        # a contig that loses every line vanishes from this subproblem without being reported
+        # anywhere, which is the failure mode the eliminated-contig warning in filter_paf exists for
+        RealtimeLogger.warning('Placement track removed every line of {} query contig(s) in {}: {}'.format(
+            len(lost), ','.join(sorted(bin_contigs)), ', '.join(sorted(lost)[:10])))
+    return job.fileStore.writeGlobalFile(out_path)
 
 def filter_paf_deletions(job, paf_id, gfa_id, max_deletion, filter_threshold, filter_query_size_threshold):
     """ run filter-paf-deletions on a paf to break out giant-snarl-making edges """

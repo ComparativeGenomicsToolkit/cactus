@@ -46,6 +46,7 @@ from cactus.refmap.cactus_minigraph import check_sample_names, read_chromfile
 from cactus.refmap.cactus_minigraph import minigraph_construct_import_sequences, export_minigraph_construct_output
 from cactus.refmap.cactus_graphmap import minigraph_workflow, minigraph_batch_workflow, export_graphmap_output
 from cactus.refmap.cactus_graphmap import apply_mgsplit_filter_overrides, add_separate_ref_contigs_job
+from cactus.refmap.cactus_graphmap import make_placement_track
 from cactus.refmap.cactus_graphmap_split import graphmap_split_workflow, export_split_data
 from cactus.setup.cactus_align import make_batch_align_jobs, batch_align_jobs
 from cactus.refmap.cactus_graphmap_join import graphmap_join_workflow, export_join_data, graphmap_join_options, graphmap_join_validate_options, vcflib_checks
@@ -590,6 +591,18 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
         split_export_job = split_job.addFollowOnJobFn(export_split_wrapper, wf_output, split_out_path, split_config_wrapper)
         chromfile_path = os.path.join(split_out_path, 'chromfile.txt')
 
+    # under --mgSplit everything below is redone against single-chromosome graphs, which cannot see
+    # the rest of the genome.  boil the whole-genome PAF down to where it placed each query interval
+    # first -- it is deleted by the cleanup job immediately after this
+    placement_track_id = None
+    if options.mgSplit:
+        graphmap_node = findRequiredNode(config_node, "graphmap")
+        if getOptionalAttrib(graphmap_node, "mgSplitPlacementFilter", typeFn=bool, default=True) or \
+           getOptionalAttrib(graphmap_node, "mgSplitMapqFloor", typeFn=bool, default=True):
+            placement_track_job = split_export_job.addFollowOnJobFn(make_placement_track, paf_id)
+            placement_track_id = placement_track_job.rv()
+            split_export_job = placement_track_job
+
     # clean out some jobstore files we no longer need
     clean_jobstore_job = split_export_job.addFollowOnJobFn(clean_jobstore_files, file_id_maps=[seq_id_map] if not options.noSplit else None,
                                                            file_ids=[sv_gfa_id, paf_id])
@@ -616,7 +629,12 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
         minigraph_output_maps = minigraph_batch_export_job.rv(1)
         minigraph_output_ids = minigraph_batch_export_job.rv(2)
         minigraph_pansn_sv_gfa_ids = minigraph_batch_export_job.rv(3)
-        graphmap_batch_job = minigraph_batch_export_job.addFollowOnJobFn(minigraph_batch_workflow, options, config_wrapper,
+        # the track rides in on its own copy of the options: mutating the shared object would hand
+        # the promise to jobs added before it, which Toil rejects as a non-successor
+        graphmap_batch_options = copy.deepcopy(options)
+        graphmap_batch_options.mg_placement_track_id = placement_track_id
+        graphmap_batch_job = minigraph_batch_export_job.addFollowOnJobFn(minigraph_batch_workflow, graphmap_batch_options,
+                                                                         config_wrapper,
                                                                          graphmap_input_dict, graph_event, sanitize=False,
                                                                          pansn_gfa_input=False)
         # hold the contigs of any multi-reference-contig bin apart.  the export has to be chained

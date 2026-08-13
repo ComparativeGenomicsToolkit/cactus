@@ -394,6 +394,9 @@
 	<!-- PAFOverlapFilterRatio: Same as GAFOverlapFilterRatio, but applied after conversion to PAF -->
 	<!-- PAFOverlapFilterMinLengthRatio: Same as GAFOverlapFilterMinLengthRatio, but applies after conversion to PAF -->
 	<!-- crossContigFilterMaxMAPQ: overlapping records on *different* reference contigs are normally never compared (that call belongs to rgfa-split, which needs both coverages to bin the contig).  With this set, such a record may remove an overlapping one, but only if it strictly wins and the loser's MAPQ is below this value.  Cross-contig ties never remove either side.  PAF stage only, where removal trims the contested span rather than deleting the whole record.  0 = disable -->
+	<!-- mgSplitPlacementFilter: mgSplit only. The second pass maps each chromosome's contigs against a graph holding only that chromosome, so sequence whose real home is elsewhere is placed here regardless. Drop a second-pass line whose query interval the whole-genome first pass placed, but never on any reference contig in this bin. Intervals the first pass did not cover are left alone, and the reference is exempt. [0=disable] -->
+	<!-- mgSplitPlacementMinMAPQ: minimum MAPQ of the whole-genome placement that mgSplitPlacementFilter acts on. Below this, minigraph found several equally good placements and printed one, so this bin's contig may have been a co-equal it never reported and its absence means nothing. 0 = act on any placement -->
+	<!-- mgSplitMapqFloor: mgSplit only. Replace each second-pass MAPQ with min(second pass, whole-genome first pass), keeping the original in om:i:. A repeat that is ambiguous genome-wide maps uniquely against a single chromosome, so second-pass MAPQ is inflated exactly where it is least trustworthy. [0=disable] -->
 	<!-- maskFilter: any softmasked sequence intervals > than this many bp will be hardmasked before being read by the minigraph mapper [negative value = disable]-->
 	<!-- delFilter: any deletions implied by split-read mappings greater than this are removed from the paf (by removing all lines of the smallest block bordering deletion)-->
 	<!-- delFilterThreshold: only remove deletion if it costs < delFilterThreshold * deletion-size matches. must be in range (0, 1] -->
@@ -420,6 +423,9 @@
 		 PAFOverlapFilterRatio="5"
 		 PAFOverlapFilterMinLengthRatio="0"
 		 crossContigFilterMaxMAPQ="60"
+		 mgSplitPlacementFilter="1"
+		 mgSplitPlacementMinMAPQ="60"
+		 mgSplitMapqFloor="1"
 		 maskFilter="-1"
 		 delFilter="10000000"
 		 delFilterThreshold="0.01"
