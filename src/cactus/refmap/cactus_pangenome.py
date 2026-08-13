@@ -599,7 +599,11 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
         graphmap_node = findRequiredNode(config_node, "graphmap")
         if getOptionalAttrib(graphmap_node, "mgSplitPlacementFilter", typeFn=bool, default=True) or \
            getOptionalAttrib(graphmap_node, "mgSplitMapqFloor", typeFn=bool, default=True):
-            placement_track_job = split_export_job.addFollowOnJobFn(make_placement_track_wrapper, paf_id)
+            # split_config_wrapper, not config_wrapper: the track has to see exactly what
+            # graphmap_split_workflow's own filter_paf leaves for rgfa-split
+            placement_track_job = split_export_job.addFollowOnJobFn(
+                make_placement_track_wrapper, paf_id, split_config_wrapper,
+                reference=options.reference[0] if type(options.reference) is list else options.reference)
             placement_track_id = placement_track_job.rv()
             split_export_job = placement_track_job
 

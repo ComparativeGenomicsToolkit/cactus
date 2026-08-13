@@ -825,11 +825,21 @@ def filter_paf(job, paf_id, config, reference=None):
 
     return job.fileStore.writeGlobalFile(filter_paf_path)    
 
-def make_placement_track_wrapper(job, paf_id):
-    """ size the track job off the resolved PAF.  the caller only has a promise, and the whole-genome
-    PAF is multi-GB on a full panel, so a default 2 GiB scratch request would land it on a node that
-    cannot even hold the download """
-    return job.addChildJobFn(make_placement_track, paf_id, disk=3*paf_id.size).rv()
+def make_placement_track_wrapper(job, paf_id, config, reference=None):
+    """ build the track from the PAF rgfa-split actually bins on, not the raw graphmap output
+
+    graphmap_split_workflow runs filter_paf before rgfa-split, which drops 43 of 253 lines on
+    yeast.  Among them are MAPQ-60 records at identity 0.25 -- evidence the pipeline has already
+    judged unfit to bin with, which has no business deciding that a second-pass alignment belongs
+    on a different chromosome.  Reading the raw PAF instead made 6 of 32 drops and 2 of 3 mapq
+    floors rest on exactly two such records.
+
+    Also sizes both jobs off the resolved FileID, which the caller cannot do because it only holds
+    a promise, and the whole-genome PAF is multi-GB on a full panel. """
+    filter_job = job.addChildJobFn(filter_paf, paf_id, config, reference=reference,
+                                   disk=3*paf_id.size, memory=cactus_clamp_memory(4*paf_id.size))
+    return filter_job.addFollowOnJobFn(make_placement_track, filter_job.rv(),
+                                       disk=3*paf_id.size).rv()
 
 def make_placement_track(job, paf_id):
     """ project a whole-genome PAF down to where each query interval was placed
