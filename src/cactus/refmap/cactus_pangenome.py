@@ -46,7 +46,7 @@ from cactus.refmap.cactus_minigraph import check_sample_names, read_chromfile
 from cactus.refmap.cactus_minigraph import minigraph_construct_import_sequences, export_minigraph_construct_output
 from cactus.refmap.cactus_graphmap import minigraph_workflow, minigraph_batch_workflow, export_graphmap_output
 from cactus.refmap.cactus_graphmap import apply_mgsplit_filter_overrides, add_separate_ref_contigs_job
-from cactus.refmap.cactus_graphmap import make_placement_track
+from cactus.refmap.cactus_graphmap import make_placement_track_wrapper
 from cactus.refmap.cactus_graphmap_split import graphmap_split_workflow, export_split_data
 from cactus.setup.cactus_align import make_batch_align_jobs, batch_align_jobs
 from cactus.refmap.cactus_graphmap_join import graphmap_join_workflow, export_join_data, graphmap_join_options, graphmap_join_validate_options, vcflib_checks
@@ -599,7 +599,7 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
         graphmap_node = findRequiredNode(config_node, "graphmap")
         if getOptionalAttrib(graphmap_node, "mgSplitPlacementFilter", typeFn=bool, default=True) or \
            getOptionalAttrib(graphmap_node, "mgSplitMapqFloor", typeFn=bool, default=True):
-            placement_track_job = split_export_job.addFollowOnJobFn(make_placement_track, paf_id)
+            placement_track_job = split_export_job.addFollowOnJobFn(make_placement_track_wrapper, paf_id)
             placement_track_id = placement_track_job.rv()
             split_export_job = placement_track_job
 

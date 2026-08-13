@@ -18,6 +18,7 @@ import gzip
 
 from cactus.progressive.seqFile import SeqFile
 from cactus.shared.common import setupBinaries, importSingularityImage
+from cactus.refmap.pangenome_exclusions import event_to_pansn_prefix
 from cactus.shared.common import cactusRootPath
 from cactus.shared.configWrapper import ConfigWrapper
 from cactus.shared.common import makeURL, catFiles, write_s3
@@ -589,14 +590,11 @@ def minigraph_gfa_to_pansn(names, gfa_path, out_gfa_path, threads=1):
                     assert barpos > 8
                     name = tok[8:barpos]
                     assert name in names
-                    dotpos = name.rfind('.')
-                    if dotpos > 0:
-                        hap = name[dotpos+1:]
-                        name = name[:dotpos]
-                    else:
-                        # add #0 to names without haplotype to make valid PAN-SN
-                        hap = '0'
-                    toks[4+i] = 'SN:Z:{}#{}#{}'.format(name, hap, tok[barpos+1:])
+                    # one splitter for every artifact: this GFA, the GAF that indexes into it,
+                    # and hal2vg's final graph.  splitting here on the last '.' verbatim instead
+                    # gave HG002.01 -> HG002#01# against the GAF's HG002#1#, and HG002.pat ->
+                    # HG002#pat#, which is not a PanSN haplotype at all
+                    toks[4+i] = 'SN:Z:{}#{}'.format(event_to_pansn_prefix(name), tok[barpos+1:])
                     break
             out_file.write(('\t'.join(toks) + '\n').encode())
         else:

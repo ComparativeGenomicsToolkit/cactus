@@ -427,10 +427,19 @@ def minigraph_workflow(job, options, config, seq_id_map, gfa_id, graph_event, sa
         do_placement = getOptionalAttrib(graphmap_node, "mgSplitPlacementFilter", typeFn=bool, default=True)
         do_mapq_floor = getOptionalAttrib(graphmap_node, "mgSplitMapqFloor", typeFn=bool, default=True)
         min_placement_mapq = getOptionalAttrib(graphmap_node, "mgSplitPlacementMinMAPQ", typeFn=int, default=60)
+        min_overlap_frac = getOptionalAttrib(graphmap_node, "mgSplitPlacementMinOverlap", typeFn=float, default=0.25)
+        # the floor must not push a line under the value filter_paf later deletes at
+        min_mapq = getOptionalAttrib(graphmap_node, "minMAPQ", typeFn=int, default=0)
         if do_placement or do_mapq_floor:
+            # the track is whole-genome, so it dominates the cost for every bin but the largest --
+            # sizing off this chromosome's gfa alone starves the small bins (chrOther is 97 bytes)
+            track_size = placement_track_id.size
             track_job = prev_job.addFollowOnJobFn(apply_placement_track, out_paf_id, placement_track_id,
                                                   do_placement, do_mapq_floor, min_placement_mapq,
-                                                  reference=options.reference, disk=4*gfa_id_size)
+                                                  min_overlap_frac, min_mapq,
+                                                  reference=options.reference,
+                                                  disk=4*gfa_id_size + 3*track_size,
+                                                  memory=cactus_clamp_memory(8*track_size))
             out_paf_id = track_job.rv()
             prev_job = track_job
 
@@ -537,7 +546,10 @@ def export_gaf_dir(job, gaf_id_map, gaf_dir):
         job.fileStore.exportFile(gaf_id, makeURL(os.path.join(gaf_dir, '{}.gaf'.format(event_name))))
 
 # id=EVENT|CONTIG, as it appears in a stable GAF's query column and in each of its path segments
-gaf_pansn_re = re.compile(r'id=([^|\t\n<>]+)\|')
+# anchored to a field start (line start or tab) or a path-segment orientation mark, because
+# "id=" is only a name prefix in those positions.  unanchored it also fires inside a contig
+# name that happens to contain id=...|, rewriting a name that exists in no graph and no input
+gaf_pansn_re = re.compile(r'(^|[\t><])id=([^|\t\n<>]+)\|')
 
 def gaf_to_pansn(gaf_path, out_path):
     """ rewrite cactus's internal id=EVENT|CONTIG names as PanSN SAMPLE#HAP#CONTIG
@@ -549,7 +561,7 @@ def gaf_to_pansn(gaf_path, out_path):
     nowhere else in the record, so a single substitution over the line covers it. """
     with open(gaf_path, 'r') as in_file, open(out_path, 'w') as out_file:
         for line in in_file:
-            out_file.write(gaf_pansn_re.sub(lambda m: event_to_pansn_prefix(m.group(1)) + '#', line))
+            out_file.write(gaf_pansn_re.sub(lambda m: m.group(1) + event_to_pansn_prefix(m.group(2)) + '#', line))
 
 def minigraph_map_one(job, config, event_name, fa_file_id, gfa_file_id):
     """ Run minigraph to map a Fasta file to a GFA graph, producing a GAF output """
@@ -813,6 +825,12 @@ def filter_paf(job, paf_id, config, reference=None):
 
     return job.fileStore.writeGlobalFile(filter_paf_path)    
 
+def make_placement_track_wrapper(job, paf_id):
+    """ size the track job off the resolved PAF.  the caller only has a promise, and the whole-genome
+    PAF is multi-GB on a full panel, so a default 2 GiB scratch request would land it on a node that
+    cannot even hold the download """
+    return job.addChildJobFn(make_placement_track, paf_id, disk=3*paf_id.size).rv()
+
 def make_placement_track(job, paf_id):
     """ project a whole-genome PAF down to where each query interval was placed
 
@@ -880,7 +898,7 @@ def make_placement_track(job, paf_id):
     return job.fileStore.writeGlobalFile(track_path)
 
 def apply_placement_track(job, paf_id, track_id, do_placement, do_mapq_floor, min_placement_mapq=0,
-                          reference=None):
+                          min_overlap_frac=0.0, min_mapq=0, reference=None):
     """ correct a --mgSplit second-pass PAF against what the whole-genome pass knew
 
     Two independent corrections, either can be turned off in the config:
@@ -896,11 +914,12 @@ def apply_placement_track(job, paf_id, track_id, do_placement, do_mapq_floor, mi
     equally good placements and printed one of them: this bin's contig may well have been a
     co-equal it simply did not report, and reading its silence as a verdict is reading noise.
 
-    mapq floor -- take min(pass 2, pass 1).  Pass 2 measured against a single chromosome, so a
-    repeat that is ambiguous genome-wide can come back uniquely mapped.  The original is kept in
-    om:i: so nothing is lost and the two can be compared afterwards.  Note the two mapqs are not
-    quite the same quantity (pass 1 is against a reference-only graph, pass 2 against a full
-    pangenome one), so the minimum is the conservative reading rather than the obviously right one.
+    mapq floor -- take min(pass 2, pass 1), clamped at min_mapq so it can only ever de-weight and
+    never delete.  Pass 2 measured against a single chromosome, so a repeat that is ambiguous
+    genome-wide can come back uniquely mapped.  The original is kept in om:i: so the two can be
+    compared afterwards.  Note the two mapqs are not quite the same quantity (pass 1 is against a
+    reference-only graph, pass 2 against a full pangenome one), so the minimum is the conservative
+    reading rather than the obviously right one.
 
     A query interval the whole-genome pass never covered is left alone: there is nothing to say
     about it, and guessing would be worse than leaving it.
@@ -957,23 +976,38 @@ def apply_placement_track(job, paf_id, track_id, do_placement, do_mapq_floor, mi
                 continue
             in_bin_mapq = -1
             off_bin_mapq = -1
+            off_bin_overlap = 0
             for start, end, rc, mapq in track.get(query, []):
                 if start < qe and qs < end:
                     if rc in bin_contigs:
+                        # any contact at all rescues the line: it is much worse to drop sequence
+                        # that belongs here than to keep sequence that does not
                         in_bin_mapq = max(in_bin_mapq, mapq)
                     else:
                         off_bin_mapq = max(off_bin_mapq, mapq)
+                        if mapq >= min_placement_mapq:
+                            off_bin_overlap = max(off_bin_overlap, min(end, qe) - max(start, qs))
             if do_placement and in_bin_mapq < 0 and off_bin_mapq >= 0:
-                if off_bin_mapq >= min_placement_mapq:
+                # the evidence has to cover a real part of the line rather than touch it.  the unit
+                # of removal is the whole line, so without this a single base of pass-1 overlap
+                # deletes an arbitrarily long pass-2 alignment -- the same disproportion that
+                # PAFOverlapFilterMinLengthRatio exists to stop in the cross-contig filter
+                if off_bin_mapq >= min_placement_mapq and off_bin_overlap >= min_overlap_frac * (qe - qs):
                     n_dropped += 1
                     continue
                 n_unsure += 1
-            if do_mapq_floor and in_bin_mapq >= 0 and in_bin_mapq < int(toks[11]):
-                # keep cg:Z: last, which is what everything else in this pipeline emits
-                pos = next((i for i, t in enumerate(toks) if t.startswith('cg:Z:')), len(toks))
-                toks.insert(pos, 'om:i:{}'.format(toks[11]))
-                toks[11] = str(in_bin_mapq)
-                n_floored += 1
+            if do_mapq_floor and in_bin_mapq >= 0:
+                # never floor below the value filter_paf deletes at.  the floor exists to undo the
+                # second pass's mapq inflation, and deleting is the placement filter's job -- it has
+                # a confidence guard and this does not.  unclamped, a pass-1 mapq of 0 silently
+                # removes the line downstream and takes the om:i: record of the original with it
+                floored = max(min(in_bin_mapq, int(toks[11])), min_mapq)
+                if floored < int(toks[11]):
+                    # keep cg:Z: last, which is what everything else in this pipeline emits
+                    pos = next((i for i, t in enumerate(toks) if t.startswith('cg:Z:')), len(toks))
+                    toks.insert(pos, 'om:i:{}'.format(toks[11]))
+                    toks[11] = str(floored)
+                    n_floored += 1
             out_file.write('\t'.join(toks) + '\n')
             kept_queries.add(query)
 
