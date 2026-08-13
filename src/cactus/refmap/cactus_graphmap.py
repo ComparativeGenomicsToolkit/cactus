@@ -51,6 +51,7 @@ def main():
     parser.add_argument("--outputFasta", type=str, help = "Output graph sequence file in FASTA format (required if not present in seqFile)")
     parser.add_argument("--maskFilter", type=int, help = "Ignore softmasked sequence intervals > Nbp (overrides config option of same name)")
     parser.add_argument("--delFilter", type=int, help = "Filter out split-mapping-implied deletions > Nbp (default will be \"delFilter\" from the config")
+    parser.add_argument("--minIdentity", type=float, help = "Ignore PAF lines with identity (column 10/11) < this (overrides minIdentity in <graphmap> in config)")
     parser.add_argument("--outputGAFDir", type=str, help = "Output GAF alignments (raw minigraph output before PAF conversion) to this directory")
     parser.add_argument("--reference", nargs='+', type=str, help = "Reference genome name.  MAPQ filter will not be applied to it")
     parser.add_argument("--refFromGFA", action="store_true", help = "Do not align reference (--reference) from seqfile, and instead extract its alignment from the rGFA tags (must have been used as reference for minigraph GFA construction)")
@@ -157,6 +158,8 @@ def graph_map(options):
                 findRequiredNode(config_node, "graphmap").attrib["maskFilter"] = str(options.maskFilter)
             if options.delFilter is not None:
                 findRequiredNode(config_node, "graphmap").attrib["delFilter"] = str(options.delFilter)
+            if options.minIdentity is not None:
+                findRequiredNode(config_node, "graphmap").attrib["minIdentity"] = str(options.minIdentity)
 
             # apply cpu override                
             if options.mapCores is not None:

@@ -52,7 +52,7 @@ def main():
     parser.add_argument("--otherContig", type=str, help = "Lump all reference contigs unselected by above options into single one with this name")
     parser.add_argument("--reference", required=True, nargs='+', type=str, help = "Name of reference (in seqFile).  Ambiguity filters will not be applied to it")
     parser.add_argument("--maskFilter", type=int, help = "Ignore softmasked sequence intervals > Nbp")
-    parser.add_argument("--minIdentity", type=float, help = "Ignore PAF lines with identity (column 10/11) < this (overrides minIdentity in <graphmap_split> in config)")
+    parser.add_argument("--minIdentity", type=float, help = "Ignore PAF lines with identity (column 10/11) < this (overrides minIdentity in <graphmap> in config)")
     parser.add_argument("--permissiveContigFilter", nargs='?', const='0.25', default=None, type=float, help = "If specified, override the configuration to accept contigs so long as they have at least given fraction of coverage (0.25 if no fraction specified). This can increase sensitivity of very small, fragmented and/or diverse assemblies.")
     parser.add_argument("--mgSplit", action="store_true", default=False,
                         help="Use this when the input PAF was produced against a reference-only minigraph (cactus-pangenome --mgSplit / cactus-minigraph --refOnly): relaxes the block-length and overlap filters so palindromic mappings don't get axed before rgfa-split.")
