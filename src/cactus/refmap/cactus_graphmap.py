@@ -820,6 +820,12 @@ def filter_paf(job, paf_id, config, reference=None):
                        '-b', str(min_block), '-q', str(min_mapq), '-i', str(min_ident)]
         if cross_contig_mapq > 0:
             overlap_cmd += ['-x', str(cross_contig_mapq)]
+        if reference:
+            # the line filter above exempts the reference; without this the overlap pass would
+            # undo that, since gaffilter has no notion of a reference of its own.  -x makes it
+            # sharper: the reference aligns to itself at MAPQ 0 across rDNA and acrocentric arms,
+            # so it would keep an off-target placement and lose its own on-target one
+            overlap_cmd += ['-P', 'id={}|'.format(reference)]
         cactus_call(parameters=overlap_cmd, outfile=overlap_filter_paf_path, job_memory=job.memory)
         filter_paf_path = overlap_filter_paf_path
 
