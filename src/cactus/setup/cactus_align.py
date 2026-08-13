@@ -426,10 +426,17 @@ def cactus_align(job, config_wrapper, mc_tree, input_seq_map, input_seq_id_map, 
     sanitize_job = head_job.addChildJobFn(sanitize_fasta_headers, input_seq_id_map, pangenome=doVG or doGFA or do_filter_paf)
     new_seq_id_map = sanitize_job.rv()
 
-    # run pangenome-specific paf filter
+    # run pangenome-specific paf filter.  this also runs in cactus-graphmap-split, but that stage is
+    # skipped by --noSplit (and by anyone running step-by-step without it), so this call cannot assume
+    # it has already happened.  running it in both places is harmless: the line filter is stateless
+    # per line, and the overlap filter is idempotent -- gaffilter drops a record only when a competitor
+    # beats it, so a second pass over its own output has nothing left to remove.  what matters is that
+    # both call sites pass the same arguments, hence reference= here to match cactus-graphmap-split.
     if do_filter_paf:
         paf_filter_mem = max(paf_id.size * 10, 2**32)
-        paf_filter_job = head_job.addChildJobFn(filter_paf, paf_id, config_wrapper, disk = paf_id.size * 10, memory=paf_filter_mem)
+        paf_filter_job = head_job.addChildJobFn(filter_paf, paf_id, config_wrapper,
+                                                reference=referenceEvents[0] if referenceEvents else None,
+                                                disk = paf_id.size * 10, memory=paf_filter_mem)
         paf_id = paf_filter_job.rv()
 
     # apply tree scaling to reflect branch scaling and/or uncertainty in ancestor placement/sequences

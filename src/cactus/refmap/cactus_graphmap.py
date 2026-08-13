@@ -698,7 +698,11 @@ def apply_mgsplit_filter_overrides(config_node):
 
 def filter_paf(job, paf_id, config, reference=None):
     """ run basic paf-filtering.  these are quick filters that are best to do on-the-fly when reading the paf and
-        as such, they are called by cactus-graphmap-split and cactus-align, not here """
+        as such, they are called by cactus-graphmap-split and cactus-align, not here
+
+        both callers must pass the same arguments: depending on --noSplit and on how a step-by-step
+        run is driven, this may run before the split, before cactus-align, or both, and those three
+        need to agree """
     work_dir = job.fileStore.getLocalTempDir()
     paf_path = os.path.join(work_dir, 'mg.paf')
     filter_paf_path = os.path.join(work_dir, 'mg.paf.filter')
