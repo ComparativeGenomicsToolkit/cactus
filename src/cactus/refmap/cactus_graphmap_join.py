@@ -2072,7 +2072,7 @@ def fix_vcf_ploidies(in_vcf_path, out_vcf_path, threads=1):
             out_file.write(b'\t'.join(toks) + b'\n')
 
     if raw_out_path != out_vcf_path:
-        cactus_call(parameters=['bgzip', '--threads', str(threads)], infile=raw_out_path,
+        cactus_call(parameters=['bgzip', raw_out_path, '--threads', str(threads)], infile=raw_out_path,
                     outfile=out_vcf_path)
         os.remove(raw_out_path)
 
