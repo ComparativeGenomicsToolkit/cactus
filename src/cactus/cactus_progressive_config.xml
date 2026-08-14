@@ -491,7 +491,7 @@
 	<!-- vcfwaveNorm: run bcftools norm -f (left shift) after vcfwave -->
 	<!-- bcftoolsNorm: Run bcftools norm -f (left shifting) on (non-raw, non-wave) VCF output (may result in overlapping variants) -->
 	<!-- mergeDuplicatesOptions: Run merge_duplicates script with these options (empty string means default options) after bcftools norm to prevent multiple entries at the same position.  If "0", merge_duplicates will not be run.  This applies to normalization as toggled by vcfwaveNorm and/or bctoolsNorm (and is ever run after bcftools norm) -->
-	<!-- sometimes vg deconstruct will report "conflict" sites where there are no alt genotypes found.  Setting this flag to 1 will filter these out (except in .raw.vcf.gz) -->
+	<!-- filterAC0: sometimes vg deconstruct will report "conflict" sites where there are no alt genotypes found.  Setting this flag to 1 will filter these out: a site with no carried allele at all is dropped, and any allele nothing carries is trimmed off the sites that remain, so a big bubble is reported with just the alleles its samples actually take.  Never applies to .raw.vcf.gz, which keeps every traversal the graph has -->
 	<graphmap_join
 		 maxNodeLength="1024"
 		 gfaffix="1"
