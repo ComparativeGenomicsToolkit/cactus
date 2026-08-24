@@ -1880,6 +1880,17 @@ def vcfbub(job, config, out_name, vcf_ref, vcf_id, tbi_id, max_ref_allele, fasta
         # so a plain AC=0 would drop the whole site over one unsupported allele, taking the
         # supported ones with it
         bub_cmd.append(['bcftools', 'view', '-e', 'MAX(AC)=0'])
+        # ...but -e only decides whether to emit the row, so the unsupported alleles are still
+        # sitting in the ones it keeps.  -a drops them, and since vg declares AC/AF Number=A and
+        # AT Number=R, bcftools subsets all three in step with ALT and renumbers the GT indices.
+        # AN/NS stay right without a fixup pass: trimming changes which alleles ALT lists, not
+        # which samples are called.  this matters most at the big tangled sites, where a bubble
+        # can carry hundreds of traversals and one called genotype
+        #
+        # order is load-bearing.  -a first would trim every allele off an all-unsupported site,
+        # leaving ALT=. with no AC at all -- and MAX(AC)=0 does not match a missing tag, so the
+        # empty record would survive the filter that exists to remove it
+        bub_cmd.append(['bcftools', 'view', '-a'])
     bub_cmd.append(['bgzip'])
     cactus_call(parameters = bub_cmd, outfile = vcfbub_path)
 
@@ -2061,7 +2072,7 @@ def fix_vcf_ploidies(in_vcf_path, out_vcf_path, threads=1):
             out_file.write(b'\t'.join(toks) + b'\n')
 
     if raw_out_path != out_vcf_path:
-        cactus_call(parameters=['bgzip', '--threads', str(threads)], infile=raw_out_path,
+        cactus_call(parameters=['bgzip', raw_out_path, '--threads', str(threads)], infile=raw_out_path,
                     outfile=out_vcf_path)
         os.remove(raw_out_path)
 
