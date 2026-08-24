@@ -43,17 +43,55 @@ void cactusDisk_removeSequence(CactusDisk *cactusDisk, Sequence *sequence) {
 
 /*
  * Functions for strings
+ *
+ * Sequence is held two bases to the byte rather than one. Every sequence reaching this point is
+ * drawn from {A,C,G,T,N} in either case: cactus_sanitizeFastaHeaders folds the IUPAC ambiguity
+ * codes to N and rejects anything else, and the ancestral base caller in blockMLString.c emits the
+ * same alphabet. Ten symbols fit in a nibble with room to spare, so a genome costs half of what it
+ * used to, for the whole life of the process.
  */
+
+// Code 0 means "not a base we can store", so an unexpected character is caught rather than
+// silently read back as an A.
+static const uint8_t cactusDisk_baseToCode[256] = {
+    ['A'] = 1, ['C'] = 2, ['G'] = 3, ['T'] = 4, ['N'] = 5,
+    ['a'] = 6, ['c'] = 7, ['g'] = 8, ['t'] = 9, ['n'] = 10
+};
+
+static const char cactusDisk_codeToBase[16] = {
+    0, 'A', 'C', 'G', 'T', 'N', 'a', 'c', 'g', 't', 'n', 0, 0, 0, 0, 0
+};
+
+typedef struct _packedString {
+    int64_t length;
+    uint8_t bases[]; // Base i is in the low nibble of bases[i/2] if i is even, the high nibble if odd
+} PackedString;
 
 Name cactusDisk_addString(CactusDisk *cactusDisk, const char *string) {
     /*
      * Adds a string to the database.
      */
     Name name = cactusDisk_getUniqueID(cactusDisk);
+    int64_t length = strlen(string);
+    PackedString *packedString = st_malloc(sizeof(PackedString) + (length + 1) / 2);
+    packedString->length = length;
+    for (int64_t i = 0; i < length; i++) {
+        uint8_t code = cactusDisk_baseToCode[(unsigned char) string[i]];
+        if (code == 0) {
+            st_errAbort("Sequence contains '%c' (0x%02x) at position %" PRIi64 ", but only A, C, G, T "
+                        "and N, in either case, can be stored", string[i], (unsigned char) string[i], i);
+        }
+        if (i % 2 == 0) {
+            packedString->bases[i / 2] = code; // Also zeroes the high nibble, so a trailing odd base
+                                               // leaves the byte in a defined state
+        } else {
+            packedString->bases[i / 2] |= code << 4;
+        }
+    }
 #if defined(_OPENMP)
     omp_set_lock(&(cactusDisk->writelock));
 #endif
-    stHash_insert(cactusDisk->allStrings, (void *)name, stString_copy(string)); // Cheeky 64bit to pointer conversion
+    stHash_insert(cactusDisk->allStrings, (void *)name, packedString); // Cheeky 64bit to pointer conversion
 #if defined(_OPENMP)
     omp_unset_lock(&(cactusDisk->writelock));
 #endif
@@ -74,13 +112,21 @@ char *cactusDisk_getString(CactusDisk *cactusDisk, Name name, int64_t start, int
 #if defined(_OPENMP)
     omp_set_lock(&(cactusDisk->writelock));
 #endif
-    char *string = stHash_search(cactusDisk->allStrings, (void *)name); // Cheeky 64bit int to pointer conversion
+    PackedString *packedString = stHash_search(cactusDisk->allStrings, (void *)name); // Cheeky 64bit int to pointer conversion
 #if defined(_OPENMP)
     omp_unset_lock(&(cactusDisk->writelock));
 #endif
 
-    assert(string != NULL);
-    string = stString_getSubString(string, start, length);
+    assert(packedString != NULL);
+    assert(start >= 0);
+    assert(start + length <= packedString->length);
+    char *string = st_malloc(length + 1);
+    for (int64_t i = 0; i < length; i++) {
+        int64_t j = start + i;
+        uint8_t byte = packedString->bases[j / 2];
+        string[i] = cactusDisk_codeToBase[j % 2 == 0 ? (byte & 0x0f) : (byte >> 4)];
+    }
+    string[length] = '\0';
     if(!strand) {
         char *reverseComplement = stString_reverseComplementString(string);
         free(string);
