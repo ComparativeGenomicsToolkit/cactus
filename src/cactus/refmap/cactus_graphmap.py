@@ -972,45 +972,139 @@ def apply_placement_track(job, paf_id, track_id, do_placement, do_mapq_floor, mi
             query, start, end, rc, mapq = line.rstrip('\n').split('\t')
             track.setdefault(query, []).append((int(start), int(end), rc, int(mapq)))
 
+    def verdict(toks):
+        """ would this line be dropped, considered on its own?  depends only on the track, so it is
+        cheaper to recompute in the second pass than to remember for every line """
+        qs, qe = int(toks[2]), int(toks[3])
+        in_bin_mapq = -1
+        off_bin_mapq = -1
+        off_bin_overlap = 0
+        for start, end, rc, mapq in track.get(toks[0], []):
+            if start < qe and qs < end:
+                if rc in bin_contigs:
+                    # any contact at all rescues the line: it is much worse to drop sequence
+                    # that belongs here than to keep sequence that does not
+                    in_bin_mapq = max(in_bin_mapq, mapq)
+                else:
+                    off_bin_mapq = max(off_bin_mapq, mapq)
+                    if mapq >= min_placement_mapq:
+                        off_bin_overlap = max(off_bin_overlap, min(end, qe) - max(start, qs))
+        # the evidence has to cover a real part of the line rather than touch it.  the unit of
+        # removal is the whole line, so without this a single base of pass-1 overlap deletes an
+        # arbitrarily long pass-2 alignment -- the same disproportion that
+        # PAFOverlapFilterMinLengthRatio exists to stop in the cross-contig filter
+        drop = (do_placement and in_bin_mapq < 0 and off_bin_mapq >= min_placement_mapq and
+                off_bin_overlap >= min_overlap_frac * (qe - qs))
+        unsure = do_placement and in_bin_mapq < 0 and off_bin_mapq >= 0 and not drop
+        return drop, unsure, in_bin_mapq
+
+    def merge(ivs):
+        out = []
+        for s, e in sorted(ivs):
+            if out and s <= out[-1][1]:
+                out[-1][1] = max(out[-1][1], e)
+            else:
+                out.append([s, e])
+        return out
+
+    def subtract(a, b):
+        """ the parts of intervals a that no interval in b covers """
+        out = []
+        for s, e in a:
+            rem = [(s, e)]
+            for bs, be in b:
+                nxt = []
+                for rs, re_ in rem:
+                    if be <= rs or re_ <= bs:
+                        nxt.append((rs, re_))
+                        continue
+                    if rs < bs:
+                        nxt.append((rs, bs))
+                    if be < re_:
+                        nxt.append((be, re_))
+                rem = nxt
+            out += rem
+        return out
+
+    def is_ref(query):
+        return bool(reference) and query.startswith('id={}|'.format(reference))
+
+    # pass 1: work out where the drops would fall, keeping only intervals rather than lines.  the
+    # lists are merged once they get long so this stays bounded on a full panel
+    kept_iv = {}
+    drop_iv = {}
+    n_total = 0
+    with open(paf_path, 'r') as paf_file:
+        for line in paf_file:
+            n_total += 1
+            toks = line.split('\t')
+            query, qs, qe = toks[0], int(toks[2]), int(toks[3])
+            drop = False if is_ref(query) else verdict(toks)[0]
+            bucket = drop_iv if drop else kept_iv
+            ivs = bucket.setdefault(query, [])
+            ivs.append((qs, qe))
+            if len(ivs) > 4096:
+                bucket[query] = [tuple(x) for x in merge(ivs)]
+
+    # the filter may trim, but it must not perforate.  every drop above is individually justified,
+    # but a run of adjacent ones with alignment still standing on both sides punches a hole into the
+    # middle of a contig, inventing a breakpoint where the assembly has none -- on hprc chr21 that
+    # came to 476 holes and 93.8 Mb, one of them 3.36 Mb.  the guards above cannot see this: they
+    # judge one line at a time, and each line in such a run really is placed off-bin.  rescue whole.
+    rescue = {}
+    n_holes = 0
+    hole_bp = 0
+    for query, ivs in drop_iv.items():
+        kept = merge(kept_iv.get(query, []))
+        if not kept:
+            continue
+        dropped = merge(ivs)
+        saved = []
+        # a hole is measured against coverage, not run boundaries, because a dropped interval can
+        # partly overlap a kept one.  and rescuing a run adds coverage, which can turn what was an
+        # end trim into an interior gap, so this has to reach a fixpoint rather than pass once
+        for _ in range(16):
+            gaps = [(s, e) for s, e in subtract(dropped, kept)
+                    if any(ke <= s for ks, ke in kept) and any(ks >= e for ks, ke in kept)]
+            if not gaps:
+                break
+            newly = [iv for iv in dropped
+                     if any(gs < iv[1] and iv[0] < ge for gs, ge in gaps)]
+            if not newly:
+                break
+            n_holes += len(gaps)
+            hole_bp += sum(e - s for s, e in gaps)
+            saved += newly
+            kept = merge(kept + newly)
+            dropped = [iv for iv in dropped if iv not in newly]
+        if saved:
+            rescue[query] = merge(saved)
+
     n_dropped = 0
     n_floored = 0
-    n_total = 0
     n_ref = 0
     n_unsure = 0
+    n_rescued = 0
     seen_queries = set()
     kept_queries = set()
     with open(paf_path, 'r') as paf_file, open(out_path, 'w') as out_file:
         for line in paf_file:
-            n_total += 1
             toks = line.rstrip('\n').split('\t')
             query, qs, qe = toks[0], int(toks[2]), int(toks[3])
             seen_queries.add(query)
-            if reference and query.startswith('id={}|'.format(reference)):
+            if is_ref(query):
                 out_file.write('\t'.join(toks) + '\n')
                 kept_queries.add(query)
                 n_ref += 1
                 continue
-            in_bin_mapq = -1
-            off_bin_mapq = -1
-            off_bin_overlap = 0
-            for start, end, rc, mapq in track.get(query, []):
-                if start < qe and qs < end:
-                    if rc in bin_contigs:
-                        # any contact at all rescues the line: it is much worse to drop sequence
-                        # that belongs here than to keep sequence that does not
-                        in_bin_mapq = max(in_bin_mapq, mapq)
-                    else:
-                        off_bin_mapq = max(off_bin_mapq, mapq)
-                        if mapq >= min_placement_mapq:
-                            off_bin_overlap = max(off_bin_overlap, min(end, qe) - max(start, qs))
-            if do_placement and in_bin_mapq < 0 and off_bin_mapq >= 0:
-                # the evidence has to cover a real part of the line rather than touch it.  the unit
-                # of removal is the whole line, so without this a single base of pass-1 overlap
-                # deletes an arbitrarily long pass-2 alignment -- the same disproportion that
-                # PAFOverlapFilterMinLengthRatio exists to stop in the cross-contig filter
-                if off_bin_mapq >= min_placement_mapq and off_bin_overlap >= min_overlap_frac * (qe - qs):
+            drop, unsure, in_bin_mapq = verdict(toks)
+            if drop:
+                if any(s < qe and qs < e for s, e in rescue.get(query, [])):
+                    n_rescued += 1
+                else:
                     n_dropped += 1
                     continue
+            if unsure:
                 n_unsure += 1
             if do_mapq_floor and in_bin_mapq >= 0:
                 # never floor below the value filter_paf deletes at.  the floor exists to undo the
@@ -1030,10 +1124,11 @@ def apply_placement_track(job, paf_id, track_id, do_placement, do_mapq_floor, mi
     lost = seen_queries - kept_queries
     RealtimeLogger.info('Placement track applied to {}: {} of {} lines dropped as placed outside '
                         'this bin, {} spared because the whole-genome placement was itself unsure '
-                        '(MAPQ < {}), {} had MAPQ lowered to the whole-genome value, {} reference '
-                        'lines left alone'.format(
+                        '(MAPQ < {}), {} lines ({} bp in {} runs) spared because dropping them would '
+                        'have punched a hole into the middle of a contig, {} had MAPQ lowered to the '
+                        'whole-genome value, {} reference lines left alone'.format(
                             ','.join(sorted(bin_contigs)), n_dropped, n_total, n_unsure,
-                            min_placement_mapq, n_floored, n_ref))
+                            min_placement_mapq, n_rescued, hole_bp, n_holes, n_floored, n_ref))
     if lost:
         # a contig that loses every line vanishes from this subproblem without being reported
         # anywhere, which is the failure mode the eliminated-contig warning in filter_paf exists for
