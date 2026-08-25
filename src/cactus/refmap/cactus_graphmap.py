@@ -1054,31 +1054,40 @@ def apply_placement_track(job, paf_id, track_id, do_placement, do_mapq_floor, mi
     rescue = {}
     n_holes = 0
     hole_bp = 0
+    n_unconverged = 0
     for query, ivs in drop_iv.items():
         kept = merge(kept_iv.get(query, []))
         if not kept:
+            # nothing survives on this query at all, so there is no hole to punch.  losing every
+            # line is its own failure mode and the warning below reports it
             continue
-        dropped = merge(ivs)
-        saved = []
+        dropped = [tuple(iv) for iv in merge(ivs)]
+        saved = set()
         # a hole is measured against coverage, not run boundaries, because a dropped interval can
         # partly overlap a kept one.  and rescuing a run adds coverage, which can turn what was an
         # end trim into an interior gap, so this has to reach a fixpoint rather than pass once
-        for _ in range(16):
+        converged = False
+        for _ in range(32):
             gaps = [(s, e) for s, e in subtract(dropped, kept)
                     if any(ke <= s for ks, ke in kept) and any(ks >= e for ks, ke in kept)]
             if not gaps:
+                converged = True
                 break
             newly = [iv for iv in dropped
                      if any(gs < iv[1] and iv[0] < ge for gs, ge in gaps)]
             if not newly:
+                converged = True
                 break
-            n_holes += len(gaps)
-            hole_bp += sum(e - s for s, e in gaps)
-            saved += newly
-            kept = merge(kept + newly)
-            dropped = [iv for iv in dropped if iv not in newly]
+            saved.update(newly)
+            kept = merge(kept + [list(iv) for iv in newly])
+            dropped = [iv for iv in dropped if iv not in saved]
+        if not converged:
+            n_unconverged += 1
         if saved:
-            rescue[query] = merge(saved)
+            runs = merge([list(iv) for iv in saved])
+            rescue[query] = runs
+            n_holes += len(runs)
+            hole_bp += sum(e - s for s, e in runs)
 
     n_dropped = 0
     n_floored = 0
@@ -1129,6 +1138,13 @@ def apply_placement_track(job, paf_id, track_id, do_placement, do_mapq_floor, mi
                         'whole-genome value, {} reference lines left alone'.format(
                             ','.join(sorted(bin_contigs)), n_dropped, n_total, n_unsure,
                             min_placement_mapq, n_rescued, hole_bp, n_holes, n_floored, n_ref))
+    if n_unconverged:
+        # the fixpoint above is what guarantees no hole survives; if it ever runs out of rounds the
+        # guarantee is gone, and silently shipping a perforated PAF is exactly what this exists to
+        # stop.  has never fired in practice -- two rounds is typical -- but say so if it does
+        RealtimeLogger.warning('Placement track: hole-avoidance did not converge for {} query '
+                               'contig(s) in {}; some interior gaps may remain'.format(
+                                   n_unconverged, ','.join(sorted(bin_contigs))))
     if lost:
         # a contig that loses every line vanishes from this subproblem without being reported
         # anywhere, which is the failure mode the eliminated-contig warning in filter_paf exists for
