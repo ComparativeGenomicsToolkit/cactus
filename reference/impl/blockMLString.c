@@ -225,7 +225,9 @@ static void multiply(double *baseProbs1, double *baseProbs2, int64_t blockLength
 static int getFirstSegmentMatchingEvent(const void *a, const void *b) {
     Event *e1 = (Event *)a, *e2 = segment_getEvent((Segment *)b);
     assert(e1 != NULL && e2 != NULL);
-    return e1 < e2 ? -1 : (e1 > e2 ? 1 : 0);
+    // Must order events the same way sortByEvent does, as this searches the list
+    // it produced
+    return cactusMisc_nameCompare(event_getName(e1), event_getName(e2));
 }
 
 static double *computeBaseProbs(stTree *tree, stList *eventSortedSegments, int64_t blockLength) {
@@ -315,7 +317,14 @@ void maskAncestralRepeatBases(Block *block, stList *segments, char *mlString) {
 static int sortByEvent(const void *a, const void *b) {
     Event *e1 = segment_getEvent((Segment *)a), *e2 = segment_getEvent((Segment *)b);
     assert(e1 != NULL && e2 != NULL);
-    return e1 < e2 ? -1 : (e1 > e2 ? 1 : 0);
+    // By name rather than by address: the addresses order the events differently
+    // from one run to the next, and the order the segments are summed in decides
+    // the ancestral bases.  Segment name breaks ties, so the order is total.
+    int i = cactusMisc_nameCompare(event_getName(e1), event_getName(e2));
+    if (i != 0) {
+        return i;
+    }
+    return cactusMisc_nameCompare(segment_getName((Segment *)a), segment_getName((Segment *)b));
 }
 
 static stList *segmentsSortedByEvent(Block *block) {

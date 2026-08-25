@@ -1320,13 +1320,42 @@ void cactus_make_reference(stList *flowers, char *referenceEventString,
 
     double (*temperatureFn)(double) = useSimulatedAnnealing ? exponentiallyDecreasingTemperatureFn : constantTemperatureFn;
 
+    /*
+     * Give each flower its own interval of names, so that the reference caps and
+     * segments built below are named from the flower's position in the list rather
+     * than from the order the threads happen to reach it.  Per flower this adds at
+     * most a cap per end, a segment (three names) per block, and a block plus an end
+     * per group for the scaffold gaps.
+     */
+    int64_t flowerNumber = stList_length(flowers);
+    int64_t *nameOffsets = st_malloc(sizeof(int64_t) * (flowerNumber + 1));
 #pragma omp parallel for schedule(dynamic, 1)
-    for(int64_t i=0; i<stList_length(flowers); i++) {
+    for (int64_t i = 0; i < flowerNumber; i++) {
+        Flower *flower = stList_get(flowers, i);
+        nameOffsets[i] = 8 * (flower_getEndNumber(flower) + flower_getBlockNumber(flower) +
+                              flower_getGroupNumber(flower) + flower_getCapNumber(flower)) + 4096;
+    }
+    int64_t nameTotal = 0; // Turn the sizes into offsets
+    for (int64_t i = 0; i < flowerNumber; i++) {
+        int64_t size = nameOffsets[i];
+        nameOffsets[i] = nameTotal;
+        nameTotal += size;
+    }
+    nameOffsets[flowerNumber] = nameTotal;
+    Name nameBase = cactusDisk_reserveNames(cactusDisk, nameTotal);
+
+#pragma omp parallel for schedule(dynamic, 1)
+    for(int64_t i=0; i<flowerNumber; i++) {
         Flower *flower = stList_get(flowers, i);
         st_logDebug("Processing flower %" PRIi64 "\n", flower_getName(flower));
+        cactusDisk_pushNameInterval(cactusDisk, nameBase + nameOffsets[i], nameOffsets[i+1] - nameOffsets[i]);
+        st_randomSeed(flower_getName(flower)); // The reference ordering is randomised: make it the flower's own
+        // sequence of random choices, so it does not depend on the thread it runs on
         buildReferenceTopDown(flower, referenceEventString, permutations, matchingAlgorithm, temperatureFn, theta,
                               phi, maxWalkForCalculatingZ, ignoreUnalignedGaps, wiggle, numberOfNsForScaffoldGap,
                               minNumberOfSequencesToSupportAdjacency, makeScaffolds,
                               minimumNestedBasesToBreakAdjacency, maximumChainBasesToBreakAdjacency);
+        cactusDisk_popNameInterval(cactusDisk);
     }
+    free(nameOffsets);
 }

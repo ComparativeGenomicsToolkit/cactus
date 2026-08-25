@@ -82,6 +82,35 @@ void bar(stList *flowers, CactusParams *params, CactusDisk *cactusDisk, stList *
         st_errAbort("We have precomputed alignments but %" PRIi64 " flowers to align.\n", stList_length(flowers));
     }
 
+    /*
+     * Give each flower its own interval of names, so that the names of the blocks,
+     * segments and so on that get built below depend on the flower's position in
+     * the list and not on the order the threads happen to reach it.
+     *
+     * The bound: every base in the flower can end up in a pinch segment of its own,
+     * each segment costs three names (itself and its two caps), and there is at most
+     * one block per segment, at three names again.  Doubling that covers the ends,
+     * groups, chains and nested flowers, which are all bounded by the number of
+     * blocks.  A flower's bases are its unaligned length plus two per adjacency.
+     */
+    int64_t flowerNumber = stList_length(flowers);
+    int64_t *nameOffsets = st_malloc(sizeof(int64_t) * (flowerNumber + 1));
+#if defined(_OPENMP)
+#pragma omp parallel for schedule(dynamic, 1)
+#endif
+    for (int64_t j = 0; j < flowerNumber; j++) {
+        Flower *flower = stList_get(flowers, j);
+        nameOffsets[j] = 12 * (flower_getTotalBaseLength(flower) + flower_getCapNumber(flower)) + 4096;
+    }
+    int64_t nameTotal = 0; // Turn the sizes into offsets
+    for (int64_t j = 0; j < flowerNumber; j++) {
+        int64_t size = nameOffsets[j];
+        nameOffsets[j] = nameTotal;
+        nameTotal += size;
+    }
+    nameOffsets[flowerNumber] = nameTotal;
+    Name nameBase = cactusDisk_reserveNames(cactusDisk, nameTotal);
+
 #if defined(_OPENMP)
     // Enable nested parallelism for large flowers with many ends
     // Level 0: serial (main thread)
@@ -93,6 +122,9 @@ void bar(stList *flowers, CactusParams *params, CactusDisk *cactusDisk, stList *
 #endif
     for (int64_t j = 0; j<stList_length(flowers); j++) {
         Flower *flower = stList_get(flowers, j);
+
+        cactusDisk_pushNameInterval(cactusDisk, nameBase + nameOffsets[j], nameOffsets[j+1] - nameOffsets[j]);
+        st_randomSeed(flower_getName(flower)); // Any random choices below are the flower's own, not the thread's
 
         // These are all variables used by the filter fns
         FilterArgs *fa = st_calloc(1, sizeof(FilterArgs));
@@ -160,8 +192,11 @@ void bar(stList *flowers, CactusParams *params, CactusDisk *cactusDisk, stList *
         }
         free(fa);
 
+        cactusDisk_popNameInterval(cactusDisk);
+
         st_logDebug("Finished filling in the alignments for the flower\n");
     }
+    free(nameOffsets);
 
     //////////////////////////////////////////////
     //Clean up
