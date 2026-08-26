@@ -382,9 +382,13 @@ def make_chunked_alignments(job, event_a, genome_a, event_b, genome_b, distance,
                            '-o', params.find("blast").attrib["overlapSize"],
                            '--dir', output_chunks_dir,
                            job.fileStore.readGlobalFile(genome)]
-        cactus_call(parameters=fasta_chunk_cmd)
-        return [job.fileStore.writeGlobalFile(os.path.join(output_chunks_dir, chunk), cleanup=True)
-                for chunk in os.listdir(output_chunks_dir)]
+        # faffy prints the path of each chunk as it finishes it, in the order the chunks
+        # tile the input.  Use that rather than os.listdir, whose order is arbitrary:
+        # it decides which piece of sequence is chunk i, and so what the lastz job named
+        # <event>_i actually aligned.  Sorting the names would not fix it either, since
+        # they are 0.fa, 1.fa, ... 10.fa and sort lexicographically.
+        chunk_paths = cactus_call(parameters=fasta_chunk_cmd, check_output=True).split()
+        return [job.fileStore.writeGlobalFile(chunk_path, cleanup=True) for chunk_path in chunk_paths]
     # Chunk each input genome
     chunks_a = make_chunks(genome_a)
     chunks_b = make_chunks(genome_b)

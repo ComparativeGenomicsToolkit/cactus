@@ -597,8 +597,10 @@ def main():
                 except:
                     pass
                 assert os.path.isdir(inPath) == os.path.isdir(outPath)
-                inSeqPaths += [os.path.join(inPath, seqPath) for seqPath in os.listdir(inPath)]
-                outSeqPaths += [os.path.join(outPath, seqPath) for seqPath in os.listdir(inPath)]
+                # sorted so the two lists pair up the same way on every run, and so a
+                # directory of fastas is preprocessed in a stable order
+                inSeqPaths += [os.path.join(inPath, seqPath) for seqPath in sorted(os.listdir(inPath))]
+                outSeqPaths += [os.path.join(outPath, seqPath) for seqPath in sorted(os.listdir(inPath))]
             else:
                 inSeqPaths += [inPath]
                 outSeqPaths += [outPath]

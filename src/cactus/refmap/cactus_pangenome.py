@@ -287,7 +287,7 @@ def main():
                 if genome != graph_event and genome in leaves:
                     if os.path.isdir(seq):
                         tmpSeq = getTempFile()
-                        catFiles([os.path.join(seq, subSeq) for subSeq in os.listdir(seq)], tmpSeq)
+                        catFiles([os.path.join(seq, subSeq) for subSeq in sorted(os.listdir(seq))], tmpSeq)
                         seq = tmpSeq
                     seq = makeURL(seq)
                     input_seq_id_map[genome] = toil.importFile(seq)
