@@ -520,7 +520,10 @@ def export_gaf_dir(job, gaf_id_map, gaf_dir):
         job.fileStore.exportFile(gaf_id, makeURL(os.path.join(gaf_dir, '{}.gaf'.format(event_name))))
 
 # id=EVENT|CONTIG, as it appears in a stable GAF's query column and in each of its path segments
-gaf_pansn_re = re.compile(r'id=([^|\t\n<>]+)\|')
+# anchored to a field start (line start or tab) or a path-segment orientation mark, because
+# "id=" is only a name prefix in those positions.  unanchored it also fires inside a contig
+# name that happens to contain id=...|, rewriting a name that exists in no graph and no input
+gaf_pansn_re = re.compile(r'(^|[\t><])id=([^|\t\n<>]+)\|')
 
 def gaf_to_pansn(gaf_path, out_path):
     """ rewrite cactus's internal id=EVENT|CONTIG names as PanSN SAMPLE#HAP#CONTIG
@@ -532,7 +535,7 @@ def gaf_to_pansn(gaf_path, out_path):
     nowhere else in the record, so a single substitution over the line covers it. """
     with open(gaf_path, 'r') as in_file, open(out_path, 'w') as out_file:
         for line in in_file:
-            out_file.write(gaf_pansn_re.sub(lambda m: event_to_pansn_prefix(m.group(1)) + '#', line))
+            out_file.write(gaf_pansn_re.sub(lambda m: m.group(1) + event_to_pansn_prefix(m.group(2)) + '#', line))
 
 def minigraph_map_one(job, config, event_name, fa_file_id, gfa_file_id):
     """ Run minigraph to map a Fasta file to a GFA graph, producing a GAF output """
