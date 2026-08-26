@@ -433,8 +433,14 @@ def cactus_align(job, config_wrapper, mc_tree, input_seq_map, input_seq_id_map, 
     # skipped by --noSplit (and by anyone running step-by-step without it), so this call cannot assume
     # it has already happened.  running it in both places is harmless: the line filter is stateless
     # per line, and the overlap filter is idempotent -- gaffilter drops a record only when a competitor
-    # beats it, so a second pass over its own output has nothing left to remove.  what matters is that
-    # both call sites pass the same arguments, hence reference= here to match cactus-graphmap-split.
+    # beats it, so a second pass over its own output has nothing left to remove.
+    #
+    # what is not harmless is the two call sites disagreeing on arguments.  cactus-graphmap-split
+    # passes reference=, which exempts queries belonging to the reference genome from the MAPQ,
+    # block-length, identity and score thresholds; this call passed nothing, so an ordinary split
+    # run spent the split stage preserving those reference alignments and then dropped them here
+    # anyway.  that is the common path, not just --noSplit.  referenceEvents[0] matches the "first
+    # reference" convention cactus-graphmap-split already normalises to.
     if do_filter_paf:
         paf_filter_mem = max(paf_id.size * 10, 2**32)
         paf_filter_job = head_job.addChildJobFn(filter_paf, paf_id, config_wrapper,
