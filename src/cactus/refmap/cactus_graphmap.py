@@ -7,7 +7,7 @@
             by the rest of cactus)
 
 """
-import os, sys
+import os, sys, re
 from argparse import ArgumentParser
 import xml.etree.ElementTree as ET
 import copy
@@ -28,6 +28,7 @@ from cactus.shared.common import getOptionalAttrib, findRequiredNode
 from cactus.shared.common import unzip_gz, zip_gz
 from cactus.shared.version import cactus_commit
 from cactus.preprocessor.checkUniqueHeaders import sanitize_fasta_headers
+from cactus.refmap.pangenome_exclusions import event_to_pansn_prefix
 from toil.job import Job
 from toil.common import Toil
 from toil.statsAndLogging import logger
@@ -459,7 +460,7 @@ def make_minigraph_fasta(job, gfa_file_id, gfa_file_path, name):
     job.fileStore.readGlobalFile(gfa_file_id, gfa_path)
     cmd = [["gfatools", "gfa2fa", gfa_path]]
     if name:
-        cmd.append(["sed", "-e", "s/^>\(.\)/>id={}|\\1/g".format(name)])
+        cmd.append(["sed", "-e", r"s/^>\(.\)/>id={}|\1/g".format(name)])
     if gfa_file_path.endswith('.gz'):
         cmd.append(['bgzip', '--threads', str(job.cores)])
         fa_path += '.gz'
@@ -477,11 +478,6 @@ def minigraph_map_all(job, options, config, gfa_id, fa_id_map, graph_event):
 
     mg_cores = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "cpu", typeFn=int, default=1)
 
-    # doing the paf conversion is more efficient when done separately for each genome.  we can get away
-    # with doing this if the universal filter (which needs to process everything at once) is disabled
-    xml_node = findRequiredNode(config.xmlRoot, "graphmap")
-    paf_per_genome = not getOptionalAttrib(xml_node, "universalMZFilter", float)
-    
     # do the mapping
     gaf_id_map = {}
     paf_id_map = {}
@@ -496,14 +492,44 @@ def minigraph_map_all(job, options, config, gfa_id, fa_id_map, graph_event):
         minigraph_map_job = top_job.addChildJobFn(minigraph_map_one, config, event_name, fa_id, gfa_id,
                                                   cores=mg_cores, disk=5*fa_id.size + gfa_id.size,
                                                   memory=cactus_clamp_memory(mem))
-        gaf_id_map[event] = minigraph_map_job.rv(0)
-        paf_id_map[event] = minigraph_map_job.rv(1)
+        # keyed by event_name, not event, so that --batch runs (where event_name carries the
+        # chromosome) get distinct filenames in --outputGAFDir.  merge_pafs uses only the values.
+        gaf_id_map[event_name] = minigraph_map_job.rv(0)
+        paf_id_map[event_name] = minigraph_map_job.rv(1)
 
     # merge up
     paf_merge_job = top_job.addFollowOnJobFn(merge_pafs, paf_id_map)
     gaf_merge_job = top_job.addFollowOnJobFn(merge_pafs, gaf_id_map, gzip=True)
-    
+
+    # cactus-pangenome's options object doesn't carry outputGAFDir, hence the getattr
+    gaf_dir = getattr(options, 'outputGAFDir', None)
+    if gaf_dir:
+        top_job.addFollowOnJobFn(export_gaf_dir, gaf_id_map, gaf_dir)
+
     return paf_merge_job.rv(), gaf_merge_job.rv()
+
+def export_gaf_dir(job, gaf_id_map, gaf_dir):
+    """ write the per-genome GAFs out to --outputGAFDir
+
+    the merged GAF is exported by default, but the option promised the unmerged ones and was
+    never implemented beyond creating the directory. """
+    for event_name, gaf_id in gaf_id_map.items():
+        job.fileStore.exportFile(gaf_id, makeURL(os.path.join(gaf_dir, '{}.gaf'.format(event_name))))
+
+# id=EVENT|CONTIG, as it appears in a stable GAF's query column and in each of its path segments
+gaf_pansn_re = re.compile(r'id=([^|\t\n<>]+)\|')
+
+def gaf_to_pansn(gaf_path, out_path):
+    """ rewrite cactus's internal id=EVENT|CONTIG names as PanSN SAMPLE#HAP#CONTIG
+
+    minigraph_gfa_to_pansn() converts the GFA on the way out, but the GAF was left in cactus
+    naming, so the two published artifacts sat in different namespaces and nothing downstream
+    (gaf2unstable included) could resolve a GAF path segment against the graph it came from.
+    Both the query column and the path column are rewritten: id=EVENT| appears in each and
+    nowhere else in the record, so a single substitution over the line covers it. """
+    with open(gaf_path, 'r') as in_file, open(out_path, 'w') as out_file:
+        for line in in_file:
+            out_file.write(gaf_pansn_re.sub(lambda m: event_to_pansn_prefix(m.group(1)) + '#', line))
 
 def minigraph_map_one(job, config, event_name, fa_file_id, gfa_file_id):
     """ Run minigraph to map a Fasta file to a GFA graph, producing a GAF output """
@@ -550,13 +576,12 @@ def minigraph_map_one(job, config, event_name, fa_file_id, gfa_file_id):
     # optional gaf overlap filter
     overlap_ratio = getOptionalAttrib(xml_node, "GAFOverlapFilterRatio", typeFn=float, default=0)
     length_ratio = getOptionalAttrib(xml_node, "GAFOverlapFilterMinLengthRatio", typeFn=float, default=0)
-    overlap_filter_len = getOptionalAttrib(xml_node, "minGAFQueryOverlapFilter", int, default=0)    
     min_block = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "minGAFBlockLength", typeFn=int, default=0)
     min_mapq = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "minMAPQ", typeFn=int, default=0)
     min_ident = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "minIdentity", typeFn=float, default=0)    
-    if overlap_ratio or overlap_filter_len:
+    if overlap_ratio:
         cmd = [cmd, ['gaffilter', '-', '-r', str(overlap_ratio), '-m', str(length_ratio), '-q', str(min_mapq),
-                     '-b', str(min_block), '-o', str(overlap_filter_len), '-i', str(min_ident)]]
+                     '-b', str(min_block), '-i', str(min_ident)]]
     cactus_call(parameters=cmd, outfile=unstable_gaf_path, job_memory=job.memory)
 
     # convert the unstable gaf into unstable paf, which is what cactus expects
@@ -567,8 +592,13 @@ def minigraph_map_one(job, config, event_name, fa_file_id, gfa_file_id):
                         ['awk', 'BEGIN{{OFS=\"	\"}} {{$6="id={}|"$6; print}}'.format(graph_event)]]
     cactus_call(parameters=unstable_paf_cmd, outfile=unstable_paf_path, job_memory=job.memory)
 
+    # the gaf is published as-is, so put it in PanSN to match the exported minigraph GFA
+    # (the filtering chain above has already consumed gaf_path in its cactus-named form)
+    pansn_gaf_path = gaf_path + '.pansn'
+    gaf_to_pansn(gaf_path, pansn_gaf_path)
+
     # return the stable gaf (minigraph output) and the unstable paf
-    return job.fileStore.writeGlobalFile(gaf_path), job.fileStore.writeGlobalFile(unstable_paf_path)
+    return job.fileStore.writeGlobalFile(pansn_gaf_path), job.fileStore.writeGlobalFile(unstable_paf_path)
 
 def merge_pafs(job, paf_file_id_map, gzip=False):
     """ merge up some pafs """
@@ -704,9 +734,10 @@ def filter_paf(job, paf_id, config, reference=None):
                 # we use it to be able to filter by the gaf block even after it's been broken in the paf
                 if tok.startswith('gl:i:'):
                     bl = int(tok[5:])
-                # we can also get the identity of the parent gaf block 
-                if tok.startswith('gi:i:'):
-                    ident = min(ident, float(toks[5:]))
+                # we can also get the identity of the parent gaf block
+                # (gaf2paf writes this as a float, gi:f:, not gi:i:)
+                if tok.startswith('gi:f:'):
+                    ident = min(ident, float(tok[5:]))
                 if tok.startswith('AS:i:'):
                     score = int(tok[5:])
             if query_name == target_name and max_collapse_ratio >= 0:
