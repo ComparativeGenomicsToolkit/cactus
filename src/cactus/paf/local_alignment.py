@@ -685,7 +685,7 @@ def chain_alignments(job, alignment_files, alignment_names, reference_event_name
                               memory=cactus_clamp_memory(4 * split_size)).rv()
         )
 
-    return job.addFollowOnJobFn(merge_processed_alignments, processed_rvs).rv()
+    return job.addFollowOnJobFn(merge_processed_alignments, processed_rvs, disk=2 * merged_size).rv()
 
 
 def chain_tile_trim_filter_one_contig(job, split_file_id, reference_event_name, params):
