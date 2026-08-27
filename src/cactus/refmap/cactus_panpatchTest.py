@@ -20,7 +20,7 @@ from cactus.refmap.cactus_panpatch import sanitize_contig_name, sample_base, sam
 from cactus.refmap.cactus_panpatch import make_runs, panpatch_validate_options
 from cactus.refmap.cactus_panpatch import read_error_bed_manifest, parse_error_bed, intervals_overlap, revcomp
 from cactus.refmap.cactus_panpatch import parse_bed_blocks, mask_assembly_errors, revert_target_to_original
-from cactus.refmap.cactus_panpatch import tag_report_gap_origin
+from cactus.refmap.cactus_panpatch import tag_report_gap_origin, summarize_report, write_batch_summary
 
 GRAPH_EVENT = '_MINIGRAPH_'
 
@@ -235,6 +235,10 @@ class _FakeFileStore:
         dst = self._fresh('stored')
         shutil.copyfile(path, dst)
         return dst
+
+    def exportFile(self, file_id, url):
+        # makeURL gives file://<abspath> for a local path
+        shutil.copyfile(file_id, url[len('file://'):] if url.startswith('file://') else url)
 
 class _FakeJob:
     def __init__(self, root):
@@ -534,6 +538,58 @@ class TestPanpatchErrorBeds(unittest.TestCase):
         options2 = self._options_with_beds(seqfile, errmap2, reference=['CHM13'])
         with self.assertRaises(RuntimeError):
             make_runs(options2, GRAPH_EVENT)
+
+
+    # ---- batch summary (summarize_report / write_batch_summary) ----
+
+    def _report(self, name, rows, contigs):
+        """ write a per-sample panpatch report (header + gap_origin column + rows + #Contig cap lines).
+        rows: (type, decision, gap_origin) tuples; contigs: (left_yes, right_yes) tuples """
+        hdr = _REPORT_HEADER + '\tgap_origin'
+        def row(typ, decision, gap_origin):
+            return '\t'.join(['chr1', '1', typ, 'TGT#1#chr1', '100', 'DON#1#d', '20', '0',
+                              '.', '100.0', '100.0', decision, '.', '10', '20', gap_origin])
+        lines = [hdr] + [row(*r) for r in rows]
+        for i, (l, r) in enumerate(contigs):
+            lines.append('#Contig TGT#1#c{} len=90000bp left={}(0.9) right={}(0.9)'.format(
+                i, 'YES' if l else 'NO', 'YES' if r else 'NO'))
+        return self._write(name, '\n'.join(lines) + '\n')
+
+    def test_summarize_report(self):
+        rep = self._report('a.tsv',
+                           [('gap-fill', 'accepted', 'bed-gap'),
+                            ('gap-fill', 'accepted', 'N-gap'),
+                            ('scaffold', 'accepted', '.'),
+                            ('telomere', 'accepted', '.'),
+                            ('gap-fill', 'rejected', 'N-gap'),     # rejected -> not counted
+                            ('passthrough', 'accepted', '.')],     # passthrough -> not a patch
+                           [(True, True), (True, False), (False, True)])  # only the first is T2T
+        s = summarize_report(rep)
+        self.assertEqual(s['counts'], {'gap-fill': 2, 'bed-gap': 1, 'scaffold': 1, 'telomere': 1})
+        self.assertEqual(s['t2t'], 1)
+        self.assertEqual(s['contigs'], 3)
+
+    def test_write_batch_summary(self):
+        a = self._report('A.tsv',
+                         [('gap-fill', 'accepted', 'bed-gap'), ('gap-fill', 'accepted', 'N-gap'),
+                          ('scaffold', 'accepted', '.')],
+                         [(True, True), (True, True), (False, True)])          # 2 T2T of 3
+        b = self._report('B.tsv',
+                         [('gap-fill', 'accepted', 'N-gap'), ('telomere', 'accepted', '.')],
+                         [(True, True), (False, False)])                       # 1 T2T of 2
+        summaries = [('A', {'A.tsv': a}), ('B', {'B.tsv': b}),
+                     ('SKIP', None), ('SKIP2', {'other.fa': a})]               # runs with no report -> skipped
+        options = Namespace(outDir=self.tempDir)
+        write_batch_summary(self.job, options, summaries)
+
+        with open(os.path.join(self.tempDir, 'panpatch-summary.tsv')) as f:
+            lines = [l.rstrip('\n') for l in f if not l.startswith('#')]
+        table = {c.split('\t')[0]: c.split('\t')[1:] for c in lines[1:]}   # skip the column header
+        self.assertEqual(lines[0], 'sample\tgap_fill\tbed_gap\tscaffold\ttelomere\tpatches\tt2t_contigs\tcontigs_analyzed')
+        self.assertEqual(table['A'], ['2', '1', '1', '0', '3', '2', '3'])
+        self.assertEqual(table['B'], ['1', '0', '0', '1', '2', '1', '2'])
+        self.assertEqual(table['TOTAL'], ['3', '1', '1', '1', '5', '3', '5'])
+        self.assertNotIn('SKIP', table)                                    # runs without a report are omitted
 
 
 if __name__ == '__main__':

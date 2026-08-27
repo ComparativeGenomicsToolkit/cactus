@@ -522,6 +522,8 @@ PAN027   PAN027.seqfile.txt
 cactus-panpatch ./js chromfile.txt --outDir patched --batch
 ```
 
+Each sample writes its own patched FASTA(s), `<name>.bed`, and per-patch report `<name>.tsv` into `--outDir`. Across all samples, a single `panpatch-summary.tsv` rolls those reports up: one row per sample with accepted patches by category (`gap_fill`, `scaffold`, `telomere`, and the error-BED `bed_gap` subset), telomere-to-telomere output contigs, and a `TOTAL` row.
+
 ### Masking assembly errors
 
 If you have BED files of *suspected assembly errors* — for the target, for donors, or for any subset of them — `--assemblyErrorBeds` will steer patching away from them. The argument is a manifest with one `<seqfile-event-name> <bed-path>` line per assembly (a subset is fine); the event name is the assembly's first-column name in the seqfile (e.g. `PAN028-verkko.1`), so a single manifest covers every sample in a `--batch`:

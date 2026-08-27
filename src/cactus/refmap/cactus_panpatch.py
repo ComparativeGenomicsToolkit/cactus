@@ -591,10 +591,14 @@ def pangenome_dir(options, run):
 def panpatch_batch_workflow(job, options, config_wrapper, run_inputs, exclude_bed_id):
     """ patch each sample.  the runs are completely independent of each other: they share no input
     files in the jobstore (see the import loop in main()) """
+    summaries = []
     for run, pg_options, seq_id_map, seq_path_map, seq_order, ref_collapse_paf_id, last_scores_id, target_fasta_ids, mask_bed_ids, target_error_bed_ids in run_inputs:
-        job.addChildJobFn(panpatch_run_workflow, options, pg_options, config_wrapper, run, seq_id_map,
-                          seq_path_map, seq_order, ref_collapse_paf_id, last_scores_id, exclude_bed_id,
-                          target_fasta_ids, mask_bed_ids, target_error_bed_ids)
+        run_job = job.addChildJobFn(panpatch_run_workflow, options, pg_options, config_wrapper, run, seq_id_map,
+                                    seq_path_map, seq_order, ref_collapse_paf_id, last_scores_id, exclude_bed_id,
+                                    target_fasta_ids, mask_bed_ids, target_error_bed_ids)
+        summaries.append((run['name'], run_job.rv()))
+    # once every sample is done, roll the per-sample reports up into one cross-sample summary
+    job.addFollowOnJobFn(write_batch_summary, options, summaries)
 
 def mask_assembly_errors(job, fasta_id, bed_id):
     """ return a copy of an input assembly fasta with each error-BED interval replaced by an equal-length
@@ -670,8 +674,10 @@ def panpatch_run_workflow(job, options, pg_options, config_wrapper, run, seq_id_
     # done, which is what makes panpatch_workflow safe
     pangenome_job = job.addFollowOnJobFn(pangenome_end_to_end_workflow, pg_options, config_wrapper, masked,
                                          seq_path_map, seq_order, ref_collapse_paf_id, last_scores_id)
-    pangenome_job.addFollowOnJobFn(panpatch_workflow, options, run, pangenome_job.rv(0), pangenome_job.rv(1),
-                                   pangenome_job.rv(2), exclude_bed_id, target_fasta_ids, target_error_bed_ids)
+    # return the run's output-file map (its report id feeds the cross-sample batch summary)
+    return pangenome_job.addFollowOnJobFn(panpatch_workflow, options, run, pangenome_job.rv(0), pangenome_job.rv(1),
+                                          pangenome_job.rv(2), exclude_bed_id, target_fasta_ids,
+                                          target_error_bed_ids).rv()
 
 def panpatch_workflow(job, options, run, join_options, join_wf_output, seq_id_map, exclude_bed_id, target_fasta_ids,
                       target_error_bed_ids):
@@ -728,6 +734,8 @@ def panpatch_workflow(job, options, run, join_options, join_wf_output, seq_id_ma
                                       disk=gather_disk)
     gather_job.addFollowOnJobFn(export_panpatch_wrapper, options, run, gather_job.rv(), full_vg_ids, vg_names,
                                 disk=sum(vg_id.size for vg_id in full_vg_ids) * 2 + 2**30)
+    # surface this run's output-file map (incl. its report id) up to the cross-sample batch summary
+    return gather_job.rv()
 
 def tag_report_gap_origin(job, report_path, target_error_bed_ids):
     """ add a 'gap_origin' column to panpatch's per-chromosome report, distinguishing a genuine N-gap
@@ -1100,6 +1108,80 @@ def export_panpatch_wrapper(job, options, run, output_id_map, full_vg_ids, vg_na
 
     if not options.keepPangenome:
         job.addFollowOnJobFn(cleanup_pangenome_wrapper, options, run)
+
+def summarize_report(report_path):
+    """ tally one sample's panpatch report: accepted patches by category (and how many gap-fills were
+    error-BED 'bed-gap' fills), plus telomere-to-telomere output contigs from the '#Contig' cap lines
+    (both tips capped).  rejected candidates and passthrough (unpatched) rows are not patches """
+    counts = {'gap-fill': 0, 'bed-gap': 0, 'scaffold': 0, 'telomere': 0}
+    t2t, contigs = 0, 0
+    idx = None
+    with open(report_path) as f:
+        for line in f:
+            line = line.rstrip('\n')
+            if line.startswith('#Contig'):                 # per-output-contig telomere cap status
+                contigs += 1
+                if 'left=YES' in line and 'right=YES' in line:
+                    t2t += 1
+                continue
+            if not line or line.startswith('#'):
+                continue
+            if idx is None:                                # the header (first non-comment line)
+                idx = {c: i for i, c in enumerate(line.split('\t'))}
+                continue
+            f2 = line.split('\t')
+            d, t = idx.get('decision'), idx.get('type')
+            if d is None or d >= len(f2) or f2[d] != 'accepted':
+                continue
+            typ = f2[t] if t is not None and t < len(f2) else ''
+            if typ in ('gap-fill', 'scaffold', 'telomere'):
+                counts[typ] += 1
+                g = idx.get('gap_origin')
+                if typ == 'gap-fill' and g is not None and g < len(f2) and f2[g] == 'bed-gap':
+                    counts['bed-gap'] += 1
+    return {'counts': counts, 't2t': t2t, 'contigs': contigs}
+
+def write_batch_summary(job, options, summaries):
+    """ roll the per-sample panpatch reports up into one cross-sample summary
+    (outDir/panpatch-summary.tsv): a row of accepted patches by category + T2T output contigs per sample,
+    then a TOTAL row.  the per-sample <name>.tsv reports are left unchanged.  summaries is a list of
+    (run name, that run's output-file-id map) """
+    work_dir = job.fileStore.getLocalTempDir()
+    rows = []
+    for name, output_id_map in summaries:
+        report_id = output_id_map.get(name + '.tsv') if output_id_map else None
+        if report_id is None:                              # a run that produced no report (skipped)
+            continue
+        p = os.path.join(work_dir, 'r.tsv')
+        job.fileStore.readGlobalFile(report_id, p)
+        rows.append((name, summarize_report(p)))
+        os.remove(p)
+
+    total = {'gap-fill': 0, 'bed-gap': 0, 'scaffold': 0, 'telomere': 0, 't2t': 0, 'contigs': 0}
+    summary_path = os.path.join(work_dir, 'panpatch-summary.tsv')
+    with open(summary_path, 'w') as out:
+        out.write('# cactus-panpatch batch summary -- {} sample(s); "patches" = accepted gap_fill + '
+                  'scaffold + telomere (bed_gap is the error-BED subset of gap_fill)\n'.format(len(rows)))
+        out.write('sample\tgap_fill\tbed_gap\tscaffold\ttelomere\tpatches\tt2t_contigs\tcontigs_analyzed\n')
+        for name, s in rows:
+            c = s['counts']
+            patches = c['gap-fill'] + c['scaffold'] + c['telomere']
+            out.write('{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(
+                name, c['gap-fill'], c['bed-gap'], c['scaffold'], c['telomere'], patches, s['t2t'], s['contigs']))
+            for k in ('gap-fill', 'bed-gap', 'scaffold', 'telomere'):
+                total[k] += c[k]
+            total['t2t'] += s['t2t']
+            total['contigs'] += s['contigs']
+        out.write('TOTAL\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(
+            total['gap-fill'], total['bed-gap'], total['scaffold'], total['telomere'],
+            total['gap-fill'] + total['scaffold'] + total['telomere'], total['t2t'], total['contigs']))
+
+    RealtimeLogger.info('cactus-panpatch summary: {} sample(s), {} accepted patches (gap-fill {}, '
+                        'scaffold {}, telomere {}; {} bed-gap), {} T2T contigs'.format(
+                            len(rows), total['gap-fill'] + total['scaffold'] + total['telomere'],
+                            total['gap-fill'], total['scaffold'], total['telomere'], total['bed-gap'], total['t2t']))
+    job.fileStore.exportFile(job.fileStore.writeGlobalFile(summary_path),
+                             makeURL(os.path.join(options.outDir, 'panpatch-summary.tsv')))
 
 def cleanup_pangenome_wrapper(job, options, run):
     """ the cactus-pangenome output is only ever scratch for us.  everything the user asked for has
