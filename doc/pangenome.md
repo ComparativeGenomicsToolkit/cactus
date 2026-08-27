@@ -522,6 +522,27 @@ PAN027   PAN027.seqfile.txt
 cactus-panpatch ./js chromfile.txt --outDir patched --batch
 ```
 
+### Masking assembly errors
+
+If you have BED files of *suspected assembly errors* — for the target, for donors, or for any subset of them — `--assemblyErrorBeds` will steer patching away from them. The argument is a manifest with one `<seqfile-event-name> <bed-path>` line per assembly (a subset is fine); the event name is the assembly's first-column name in the seqfile (e.g. `PAN028-verkko.1`), so a single manifest covers every sample in a `--batch`:
+
+```
+PAN028-verkko.1   errors/PAN028.hap1.bed     # <- target haplotype 1
+PAN028-hifiasm.2  errors/hifiasm.hap2.bed     # <- a donor
+```
+```
+cactus-panpatch ./js chromfile.txt --outDir patched --batch --assemblyErrorBeds manifest.txt
+```
+
+Each interval is treated almost like a run of `N`s:
+
+* In a **donor**, the region is never used to patch — its sequence is kept out of every output.
+* In the **target**, the region is patched (replaced with a donor) when a donor spans it, exactly as a gap would be; when it *can't* be patched it is left as the **original sequence** (never `N`, so the result is non-destructive).
+
+BED contig names are the assembly's own fasta-header first token, with coordinates 0-based half-open in that assembly's frame. This is distinct from `--excludeBed`, which protects a region of the target from being touched at all and is given in graph path-name coordinates.
+
+Because a masked target error looks like a gap, the per-patch report distinguishes the two with a `gap_origin` column: `bed-gap` for a fill over an error interval, `N-gap` for a genuine pre-existing `N` gap (`.` for non-gap patches). This column is always present in the report — without `--assemblyErrorBeds` every gap-fill is simply an `N-gap`. The reference is never masked.
+
 ### Cluster example
 
 ```

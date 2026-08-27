@@ -80,6 +80,13 @@ def main():
                         "(panpatch -M) [default=500000]")
     parser.add_argument("--excludeBed", default=None,
                         help = "BED file of target regions to leave untouched (panpatch -b)")
+    parser.add_argument("--assemblyErrorBeds", default=None,
+                        help = "Manifest of per-assembly error BEDs: one \"<seqfile-event-name>\\t<bed-path>\" line "
+                        "per assembly (a subset is fine). Intervals are treated almost like runs of Ns: in a DONOR "
+                        "assembly they are never used to patch; in the TARGET they are patched like gaps when possible "
+                        "and otherwise left as the original sequence (never N). BED contig names are the assembly's own "
+                        "fasta-header first token, coordinates 0-based half-open in that assembly's frame. Distinct from "
+                        "--excludeBed (which protects target regions and uses full graph path names)")
     parser.add_argument("--defaultSample", default=None,
                         help = "Use this sample's contig when a patch is rejected (panpatch -e)")
     parser.add_argument("--panpatchOptions", type=str, default=None,
@@ -115,6 +122,11 @@ def main():
     enableDumpStack()
 
     panpatch_validate_options(options)
+
+    # per-assembly error BEDs (treated almost like runs of Ns): parse the manifest up front so run
+    # construction (make_seqfile_runs) can attach each BED to its assembly, and so a typo'd event name
+    # is caught before anything expensive runs
+    options.errorBedMap = read_error_bed_manifest(options.assemblyErrorBeds) if options.assemblyErrorBeds else {}
 
     # we need the minigraph event name to filter it out of the seqfiles below
     graph_event = getOptionalAttrib(findRequiredNode(ET.parse(options.configFile).getroot(), "graphmap"),
@@ -205,6 +217,15 @@ def main():
                 # (deleted) by sanitize_fasta_header during construction
                 target_fasta_ids = {hap: toil.importFile(makeURL(path)) for hap, path in run['target_haps']}
 
+                # per-assembly error BEDs: import each path once, then key it by seq_rows sample name
+                # (for masking the pangenome inputs) and by graph haplotype for the target (for report
+                # tagging in run_panpatch_chrom)
+                error_bed_id_cache = {}
+                for bed_path in set(run['mask_beds'].values()) | set(run['target_error_beds'].values()):
+                    error_bed_id_cache[bed_path] = toil.importFile(makeURL(bed_path))
+                mask_bed_ids = {sample: error_bed_id_cache[p] for sample, p in run['mask_beds'].items()}
+                target_error_bed_ids = {hap: error_bed_id_cache[p] for hap, p in run['target_error_beds'].items()}
+
                 pg_options = copy.deepcopy(options)
                 pg_options.outDir = pangenome_dir(options, run)
                 pg_options.outName = run['name']
@@ -219,7 +240,8 @@ def main():
                     os.makedirs(pg_options.outDir, exist_ok=True)
 
                 run_inputs.append((run, pg_options, seq_id_map, seq_path_map, seq_order,
-                                   ref_collapse_paf_id, last_scores_id, target_fasta_ids))
+                                   ref_collapse_paf_id, last_scores_id, target_fasta_ids,
+                                   mask_bed_ids, target_error_bed_ids))
 
             toil.start(Job.wrapJobFn(panpatch_batch_workflow, options, config_wrapper, run_inputs,
                                      exclude_bed_id))
@@ -259,6 +281,56 @@ def sanitize_contig_name(header):
         name = name.replace(':', '_')
     return name
 
+def read_error_bed_manifest(path):
+    """ read the --assemblyErrorBeds manifest: one "<seqfile-event-name>\t<bed-path>" line per assembly
+    (a subset of the assemblies is fine).  returns {event_name: absolute_bed_path} """
+    error_beds = {}
+    with open(path, 'r') as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith('#'):
+                continue
+            toks = line.split()
+            if len(toks) != 2:
+                raise RuntimeError('--assemblyErrorBeds lines must be "<event> <bedpath>", got: {}'.format(line))
+            event, bed_path = toks[0], toks[1]
+            if event in error_beds:
+                raise RuntimeError('--assemblyErrorBeds has more than one entry for {}'.format(event))
+            if not os.path.isfile(bed_path):
+                raise RuntimeError('--assemblyErrorBeds file for {} not found: {}'.format(event, bed_path))
+            error_beds[event] = os.path.abspath(bed_path)
+    return error_beds
+
+def parse_error_bed(bed_path, sanitize=False):
+    """ read a 3-column error BED into {contig: [(start, end), ...]} (0-based half-open).  with
+    sanitize=True the contig names are put through sanitize_contig_name so they line up with the graph
+    CONTIG field (used when comparing against panpatch's report/output coordinates) """
+    intervals = {}
+    with open(bed_path) as f:
+        for line in f:
+            line = line.rstrip('\n')
+            if not line or line[0] == '#' or line.startswith('track') or line.startswith('browser'):
+                continue
+            toks = line.split()
+            if len(toks) < 3:
+                continue
+            contig, start, end = toks[0], int(toks[1]), int(toks[2])
+            if start < 0 or end < 0 or start >= end:
+                continue
+            if sanitize:
+                contig = sanitize_contig_name(contig)
+            intervals.setdefault(contig, []).append((start, end))
+    return intervals
+
+_REVCOMP = bytes.maketrans(b'ACGTNacgtnMRWSYKVHDBmrwsykvhdb', b'TGCANtgcanKYWSRMBDHVkywsrmbdhv')
+def revcomp(seq):
+    """ reverse-complement a bytes sequence (IUPAC-aware) """
+    return seq.translate(_REVCOMP)[::-1]
+
+def intervals_overlap(a_start, a_end, intervals):
+    """ does [a_start, a_end) overlap any [s, e) in the list of half-open intervals? """
+    return any(s < a_end and a_start < e for s, e in intervals)
+
 def panpatch_validate_options(options):
     """ check the cactus-panpatch options before doing anything expensive """
 
@@ -270,6 +342,12 @@ def panpatch_validate_options(options):
         for opt, val in [('--sample', options.sample), ('--outName', options.outName)]:
             if val:
                 raise RuntimeError('{} cannot be used with --batch (the chromfile provides it for each sample)'.format(opt))
+
+    # per-assembly error BEDs default to none, so make_runs / make_seqfile_runs can read errorBedMap
+    # even when main has not parsed a manifest (e.g. the offline unit tests); main overwrites this with
+    # the parsed manifest right after calling us
+    if not hasattr(options, 'errorBedMap'):
+        options.errorBedMap = {}
 
     # reference-free (each haplotype patched against itself) is the default; giving --reference
     # switches to external-reference mode
@@ -357,6 +435,20 @@ def make_runs(options, graph_event):
         # let them wander out of --outDir
         if os.path.basename(run_name) != run_name or run_name.startswith('.'):
             raise RuntimeError('Invalid output name "{}": it cannot contain "/" or begin with "."'.format(run_name))
+
+    # every event named in --assemblyErrorBeds must have matched an assembly in some run, else it's a
+    # typo (or a reference, which is never masked) -- catch it before anything expensive runs.  compare
+    # by the consumed event names (run['error_events']), not by bed path: two events may share one bed
+    # file, and the reference-free target's mask_beds key is its graph_name, not its manifest event name
+    if options.errorBedMap:
+        matched = set()
+        for run in runs:
+            matched.update(run['error_events'])
+        unmatched = sorted(set(options.errorBedMap) - matched)
+        if unmatched:
+            raise RuntimeError('--assemblyErrorBeds event(s) did not match any patchable assembly (the target or a '
+                               'donor) in any seqfile -- check the names (the reference is never masked): {}'.format(
+                                   ', '.join(unmatched)))
     return runs
 
 def make_seqfile_runs(options, name, seqfile_path, graph_event):
@@ -412,6 +504,14 @@ def make_seqfile_runs(options, name, seqfile_path, graph_event):
         # (haploid) target -- which is the number panpatch actually writes (.hap0)
         target_haps = [(sample_hap(row[0]) if sample_hap(row[0]) is not None else 0, row[1])
                        for row in target_rows]
+        # attach per-assembly error BEDs (see make_seqfile_runs's --referenceFree branch for the keying
+        # rationale).  in reference mode the seq_rows keys are the original event names, so mask_beds is
+        # keyed by those; target_error_beds is keyed by graph haplotype for report tagging
+        errmap = options.errorBedMap
+        mask_beds = {row[0]: errmap[row[0]] for row in target_rows + donor_rows if row[0] in errmap}
+        error_events = {row[0] for row in target_rows + donor_rows if row[0] in errmap}
+        target_error_beds = {(sample_hap(row[0]) if sample_hap(row[0]) is not None else 0): errmap[row[0]]
+                             for row in target_rows if row[0] in errmap}
         return [{'name' : name if name else target,
                  'seqFile' : seqfile_path,
                  'seq_rows' : seq_rows,
@@ -420,6 +520,9 @@ def make_seqfile_runs(options, name, seqfile_path, graph_event):
                  'samples' : [target] + donors,
                  'defaultSample' : resolve_default_sample(options, target, donors, target),
                  'target_haps' : target_haps,
+                 'mask_beds' : mask_beds,
+                 'error_events' : error_events,
+                 'target_error_beds' : target_error_beds,
                  'ploidy' : len(target_rows),
                  'referenceFree' : False,
                  'hap' : None}]
@@ -430,6 +533,7 @@ def make_seqfile_runs(options, name, seqfile_path, graph_event):
     # build a separate graph -- and run panpatch -- for each haplotype of the target. the other
     # haplotypes of the target (and anything else in the seqfile) are left out of the graph
     runs = []
+    errmap = options.errorBedMap
     for target_row in target_rows:
         hap = sample_hap(target_row[0])
         # the "." is what cactus uses to mark a haplotype, so it can't survive into the new name:
@@ -437,6 +541,16 @@ def make_seqfile_runs(options, name, seqfile_path, graph_event):
         # one is the haplotype), and those have to go too, or check_sample_names would read the
         # result as a bogus haplotype suffix (ex HG002.verkko.1 -> HG002_verkko_1)
         graph_name = target.replace('.', '_') if hap is None else '{}_{}'.format(target.replace('.', '_'), hap)
+        # per-assembly error BEDs.  the target is renamed to graph_name in seq_rows so its mask BED is
+        # keyed by graph_name; donors keep their original names.  the reference-free target is graph
+        # haplotype 0, so its report-tagging BED is keyed by 0
+        mask_beds = {dr[0]: errmap[dr[0]] for dr in donor_rows if dr[0] in errmap}
+        error_events = {dr[0] for dr in donor_rows if dr[0] in errmap}
+        target_error_beds = {}
+        if target_row[0] in errmap:
+            mask_beds[graph_name] = errmap[target_row[0]]
+            target_error_beds[0] = errmap[target_row[0]]
+            error_events.add(target_row[0])
         # the renamed target is a suffix-free (haploid) sample, so it is PanSN haplotype 0 in the
         # graph, and panpatch names its single output file hap0 (mapped to the user haplotype in
         # run_panpatch).  target_haps carries the input fasta for the contig rescue there
@@ -448,6 +562,9 @@ def make_seqfile_runs(options, name, seqfile_path, graph_event):
                      'samples' : [graph_name] + donors,
                      'defaultSample' : resolve_default_sample(options, target, donors, graph_name),
                      'target_haps' : [(0, target_row[1])],
+                     'mask_beds' : mask_beds,
+                     'error_events' : error_events,
+                     'target_error_beds' : target_error_beds,
                      'ploidy' : 1,
                      'referenceFree' : True,
                      'hap' : hap})
@@ -474,23 +591,90 @@ def pangenome_dir(options, run):
 def panpatch_batch_workflow(job, options, config_wrapper, run_inputs, exclude_bed_id):
     """ patch each sample.  the runs are completely independent of each other: they share no input
     files in the jobstore (see the import loop in main()) """
-    for run, pg_options, seq_id_map, seq_path_map, seq_order, ref_collapse_paf_id, last_scores_id, target_fasta_ids in run_inputs:
+    for run, pg_options, seq_id_map, seq_path_map, seq_order, ref_collapse_paf_id, last_scores_id, target_fasta_ids, mask_bed_ids, target_error_bed_ids in run_inputs:
         job.addChildJobFn(panpatch_run_workflow, options, pg_options, config_wrapper, run, seq_id_map,
                           seq_path_map, seq_order, ref_collapse_paf_id, last_scores_id, exclude_bed_id,
-                          target_fasta_ids)
+                          target_fasta_ids, mask_bed_ids, target_error_bed_ids)
+
+def mask_assembly_errors(job, fasta_id, bed_id):
+    """ return a copy of an input assembly fasta with each error-BED interval replaced by an equal-length
+    run of N (length-preserving, so downstream coordinates are unchanged).  operates on the raw fasta --
+    headers untouched, sequence only -- before cactus sanitizes it, matching each BED contig to the fasta
+    header's first whitespace token (the user's own contig names).  masking a target region makes it a gap
+    panpatch can fill (and revert if it can't); masking a donor region breaks that donor's path so its
+    error sequence can never be selected """
+    work_dir = job.fileStore.getLocalTempDir()
+    in_fa = os.path.join(work_dir, 'in.fa')
+    job.fileStore.readGlobalFile(fasta_id, in_fa)
+    bed_path = os.path.join(work_dir, 'errors.bed')
+    job.fileStore.readGlobalFile(bed_id, bed_path)
+    intervals = parse_error_bed(bed_path)   # {raw_contig_name: [(start, end)]}
+
+    with open(in_fa, 'rb') as fh:
+        is_gzipped = fh.read(2) == b'\x1f\x8b'
+    in_opener = gzip.open if is_gzipped else open
+
+    # the masked file's only consumer is the pangenome's sanitize step, which detects compression by
+    # magic bytes (checkUniqueHeaders.py sniffs the first two bytes), so we always emit plaintext: it is
+    # simpler and avoids recompressing a multi-GB assembly that sanitize immediately decompresses again
+    out_fa = os.path.join(work_dir, 'masked.fa')
+    width = 80
+    masked_bp = [0]
+
+    def emit(out, header, seq):
+        if header is None:
+            return
+        hparts = header[1:].split()
+        contig = hparts[0] if hparts else ''
+        for s, e in intervals.get(contig, []):
+            e = min(e, len(seq))
+            if 0 <= s < e:
+                seq[s:e] = b'N' * (e - s)
+                masked_bp[0] += e - s
+        out.write(header.encode('utf-8') + b'\n')
+        for i in range(0, len(seq), width):
+            out.write(bytes(seq[i:i + width]) + b'\n')
+
+    with in_opener(in_fa, 'rt') as inp, open(out_fa, 'wb') as out:
+        header, seq = None, bytearray()
+        for line in inp:
+            if line.startswith('>'):
+                emit(out, header, seq)
+                header, seq = line.rstrip('\n'), bytearray()
+            else:
+                seq += line.strip().encode('ascii')
+        emit(out, header, seq)
+
+    RealtimeLogger.info('mask_assembly_errors: masked {} bp across {} contig(s)'.format(masked_bp[0], len(intervals)))
+    return job.fileStore.writeGlobalFile(out_fa)
 
 def panpatch_run_workflow(job, options, pg_options, config_wrapper, run, seq_id_map, seq_path_map, seq_order,
-                          ref_collapse_paf_id, last_scores_id, exclude_bed_id, target_fasta_ids):
-    """ cactus-pangenome, then panpatch on the chromosome graphs it made """
-    pangenome_job = job.addChildJobFn(pangenome_end_to_end_workflow, pg_options, config_wrapper, seq_id_map,
-                                      seq_path_map, seq_order, ref_collapse_paf_id, last_scores_id)
+                          ref_collapse_paf_id, last_scores_id, exclude_bed_id, target_fasta_ids,
+                          mask_bed_ids, target_error_bed_ids):
+    """ (optionally mask assembly-error intervals to N, then) cactus-pangenome, then panpatch on the
+    chromosome graphs it made """
+    # mask any assembly-error intervals to N in the pangenome's inputs, before it is built.  masking a
+    # target error region turns it into a genuine gap (filled if a donor spans it, otherwise reverted to
+    # the original sequence in gather_panpatch); masking a donor error region breaks that donor's path
+    # there so its error sequence can never be selected.  the pristine target (target_fasta_ids) is not
+    # masked -- it is what the revert reaches back to
+    masked = dict(seq_id_map)
+    for sample, bed_id in mask_bed_ids.items():
+        mask_job = job.addChildJobFn(mask_assembly_errors, seq_id_map[sample], bed_id,
+                                     disk=seq_id_map[sample].size * 4 + 2**30,
+                                     memory=cactus_clamp_memory(max(2**32, seq_id_map[sample].size * 2)))
+        masked[sample] = mask_job.rv()
 
-    # a follow-on of the job hosting the pangenome workflow only runs once that job's entire child
-    # subtree is done, which is what makes this safe
+    # the pangenome runs as a follow-on so any masking children have completed first (their promises
+    # resolved); a follow-on of the job hosting the pangenome then runs once its entire child subtree is
+    # done, which is what makes panpatch_workflow safe
+    pangenome_job = job.addFollowOnJobFn(pangenome_end_to_end_workflow, pg_options, config_wrapper, masked,
+                                         seq_path_map, seq_order, ref_collapse_paf_id, last_scores_id)
     pangenome_job.addFollowOnJobFn(panpatch_workflow, options, run, pangenome_job.rv(0), pangenome_job.rv(1),
-                                   pangenome_job.rv(2), exclude_bed_id, target_fasta_ids)
+                                   pangenome_job.rv(2), exclude_bed_id, target_fasta_ids, target_error_bed_ids)
 
-def panpatch_workflow(job, options, run, join_options, join_wf_output, seq_id_map, exclude_bed_id, target_fasta_ids):
+def panpatch_workflow(job, options, run, join_options, join_wf_output, seq_id_map, exclude_bed_id, target_fasta_ids,
+                      target_error_bed_ids):
     """ the pangenome's promises have resolved by now.  run one single-threaded panpatch job per
     chromosome graph -- panpatch handles each graph independently, so this matches running it over
     all of them at once, but lets toil spread the chromosomes over the cluster -- then gather the
@@ -526,6 +710,7 @@ def panpatch_workflow(job, options, run, join_options, join_wf_output, seq_id_ma
         if options.indexMemory:
             mem = min(mem, options.indexMemory)
         cj = job.addChildJobFn(run_panpatch_chrom, options, run, vg_id, vg_name, exclude_bed_id,
+                               target_error_bed_ids,
                                cores=1, memory=mem, disk=vg_id.size * 4 + 2**30)
         chrom_jobs.append(cj)
 
@@ -534,13 +719,66 @@ def panpatch_workflow(job, options, run, join_options, join_wf_output, seq_id_ma
     # size is the genome size
     ref_size = seq_id_map[run['reference'][0]].size
     gather_disk = int(run['ploidy'] * ref_size * 3) + sum(fid.size for fid in target_fasta_ids.values()) + 2**30
+    # reverting target bytes to the original loads one pristine target haplotype into memory, so give
+    # gather more headroom when a revert will actually run
+    gather_mem = ref_size * (3 if target_error_bed_ids else 2)
     gather_job = job.addFollowOnJobFn(gather_panpatch, options, run, [cj.rv() for cj in chrom_jobs],
-                                      target_fasta_ids, memory=cactus_clamp_memory(max(2**32, ref_size * 2)),
+                                      target_fasta_ids, target_error_bed_ids,
+                                      memory=cactus_clamp_memory(max(2**32, gather_mem)),
                                       disk=gather_disk)
     gather_job.addFollowOnJobFn(export_panpatch_wrapper, options, run, gather_job.rv(), full_vg_ids, vg_names,
                                 disk=sum(vg_id.size for vg_id in full_vg_ids) * 2 + 2**30)
 
-def run_panpatch_chrom(job, options, run, vg_id, vg_name, exclude_bed_id):
+def tag_report_gap_origin(job, report_path, target_error_bed_ids):
+    """ add a 'gap_origin' column to panpatch's per-chromosome report, distinguishing a genuine N-gap
+    fill ('N-gap') from an error-BED-induced fill ('bed-gap'); '.' for non-gap-fill rows.  panpatch
+    cannot tell them apart (both are just Ns in the graph) -- we can, because we masked the bed-gaps: a
+    gap-fill row is a bed-gap iff its replaced target span overlaps a target error interval.  the column
+    is appended so existing column positions are unchanged """
+    # target error intervals per graph haplotype, in sanitized (graph) contig coordinates
+    err_by_hap = {}
+    if target_error_bed_ids:
+        work_dir = job.fileStore.getLocalTempDir()
+        for hap, bed_id in target_error_bed_ids.items():
+            p = os.path.join(work_dir, 'target_err_{}.bed'.format(hap))
+            job.fileStore.readGlobalFile(bed_id, p)
+            err_by_hap[hap] = parse_error_bed(p, sanitize=True)
+
+    with open(report_path) as f:
+        lines = f.readlines()
+    out_lines = []
+    cols = None
+    idx = {}
+    for line in lines:
+        stripped = line.rstrip('\n')
+        if stripped.startswith('#') or not stripped:
+            out_lines.append(line)
+            continue
+        if cols is None:
+            # the header (first non-comment line)
+            cols = stripped.split('\t')
+            idx = {c: i for i, c in enumerate(cols)}
+            out_lines.append(stripped + '\tgap_origin\n')
+            continue
+        fields = stripped.split('\t')
+        origin = '.'
+        if len(fields) == len(cols) and fields[idx['type']] == 'gap-fill':
+            origin = 'N-gap'
+            try:
+                hap = int(fields[idx['hap']])
+                tgt = fields[idx['target']]
+                contig = tgt.split('#')[2] if tgt.count('#') >= 2 else tgt
+                ts, te = fields[idx['target_start']], fields[idx['target_end']]
+                if ts not in ('.', '') and te not in ('.', '') \
+                   and intervals_overlap(int(ts), int(te), err_by_hap.get(hap, {}).get(contig, [])):
+                    origin = 'bed-gap'
+            except (ValueError, KeyError, IndexError):
+                pass
+        out_lines.append(stripped + '\t' + origin + '\n')
+    with open(report_path, 'w') as f:
+        f.writelines(out_lines)
+
+def run_panpatch_chrom(job, options, run, vg_id, vg_name, exclude_bed_id, target_error_bed_ids):
     """ run single-threaded panpatch on one chromosome graph.  returns the per-haplotype fastas, the
     bed and report, and the set of target contigs this graph held (for the dropped-contig rescue) """
     work_dir = job.fileStore.getLocalTempDir()
@@ -599,6 +837,9 @@ def run_panpatch_chrom(job, options, run, vg_id, vg_name, exclude_bed_id):
 
     cactus_call(parameters=cmd, outfile=report_path, job_memory=job.memory)
 
+    # tag each gap-fill row as a genuine N-gap or an error-BED-induced ('bed-gap') fill
+    tag_report_gap_origin(job, report_path, target_error_bed_ids)
+
     # one fasta per haplotype panpatch found target paths for, keyed by the PanSN haplotype number
     fastas = {}
     for hap_fasta in glob.glob(os.path.join(work_dir, 'panpatch.hap*.fa')):
@@ -610,9 +851,125 @@ def run_panpatch_chrom(job, options, run, vg_id, vg_name, exclude_bed_id):
             'report' : job.fileStore.writeGlobalFile(report_path),
             'seen' : sorted(target_contigs)}
 
-def gather_panpatch(job, options, run, chrom_results, target_fasta_ids):
-    """ concatenate the per-chromosome panpatch outputs (in chromosome order, as panpatch itself
-    would), rescue any target contig the pangenome dropped, bgzip, and return the output file map """
+def parse_bed_blocks(bed_path):
+    """ parse a panpatch --bed into {(locus, hap): [(path_name, start, end, strand), ...]}, one entry per
+    '#Patched assembly on <locus> for <sample>#<hap>:' block.  the target revert walks a patched record's
+    intervals with this; passthrough / reverted records are handled whole-contig by name and their blocks
+    are simply never looked up """
+    blocks = {}
+    cur = None
+    with open(bed_path) as f:
+        for line in f:
+            line = line.rstrip('\n')
+            if line.startswith('#Patched assembly on '):
+                rest = line[len('#Patched assembly on '):]      # "<locus> for <sample>#<hap>:"
+                if ' for ' in rest:
+                    locus, after = rest.rsplit(' for ', 1)
+                    cur = (locus, after.rstrip(':').split('#')[-1])
+                    blocks.setdefault(cur, [])
+                else:
+                    cur = None
+            elif line.startswith('#') or not line:
+                cur = None
+            elif cur is not None:
+                toks = line.split('\t')
+                if len(toks) >= 4:
+                    blocks[cur].append((toks[0], int(toks[1]), int(toks[2]), toks[3]))
+    return blocks
+
+def revert_target_to_original(job, combined_fasta, patched_blocks, pristine_target_id, target_sample, hap):
+    """ rewrite a panpatch output haplotype so every target-sample byte comes from the original (unmasked)
+    assembly, while donor bytes are kept verbatim.  this restores a masked-but-unpatched error region (and
+    any reverted / passthrough target contig, whose graph copy may carry masked Ns) to its original
+    sequence -- never N.  driven by the panpatch --bed, which is a byte-exact description of the output:
+    output = original_contig[start:end] (revcomp iff strand '-'), concatenated in order """
+    work_dir = job.fileStore.getLocalTempDir()
+    pristine_fa = os.path.join(work_dir, 'pristine_target.fa')
+    job.fileStore.readGlobalFile(pristine_target_id, pristine_fa)
+    with open(pristine_fa, 'rb') as fh:
+        is_gzipped = fh.read(2) == b'\x1f\x8b'
+    opener = gzip.open if is_gzipped else open
+
+    # load the pristine target haplotype, keyed by the graph CONTIG name (sanitized the way cactus did),
+    # so it lines up with the PanSN path names in the panpatch bed / fasta (exactly as rescue does)
+    pristine = {}
+    with opener(pristine_fa, 'rt') as inp:
+        cname, parts = None, []
+        for line in inp:
+            if line.startswith('>'):
+                if cname is not None:
+                    pristine[cname] = b''.join(parts)
+                cname, parts = sanitize_contig_name(line[1:]), []
+            else:
+                parts.append(line.strip().encode('ascii'))
+        if cname is not None:
+            pristine[cname] = b''.join(parts)
+
+    def contig_of(path_name):
+        # SAMPLE#HAP#CONTIG -> CONTIG (sanitize stripped through the last '#', so CONTIG has none)
+        return path_name.split('#', 2)[2] if path_name.count('#') >= 2 else path_name
+
+    def is_target(path_name):
+        # sample must match AND the contig must be one we hold, so a donor contig that happens to share a
+        # target contig's bare name is never mistaken for the target
+        return path_name.split('#')[0] == target_sample and contig_of(path_name) in pristine
+
+    out_path = combined_fasta + '.reverted'
+    width, reverted_bp = 80, [0]
+    with open(combined_fasta) as inp, open(out_path, 'wb') as out:
+        name, seq_parts = None, []
+
+        def flush():
+            if name is None:
+                return
+            if '#' in name:
+                # a reverted / passthrough record: one whole target contig, restored from the original
+                if is_target(name):
+                    new = pristine[contig_of(name)]
+                    reverted_bp[0] += len(new)
+                else:
+                    new = ''.join(seq_parts).encode('ascii')
+            else:
+                # a patched record "<locus>_hap_<hap>": rebuild from its bed block -- target spans from the
+                # pristine assembly, donor spans kept verbatim from panpatch's own emitted bytes
+                raw = ''.join(seq_parts).encode('ascii')
+                lines = patched_blocks.get((name[:name.rfind('_hap_')], str(hap)))
+                if lines is None:
+                    new = raw
+                else:
+                    cursor, chunks = 0, []
+                    for (path_name, s, e, strand) in lines:
+                        length = e - s
+                        if is_target(path_name):
+                            seg = pristine[contig_of(path_name)][s:e]
+                            chunks.append(revcomp(seg) if strand == '-' else seg)
+                            reverted_bp[0] += length
+                        else:
+                            chunks.append(raw[cursor:cursor + length])
+                        cursor += length
+                    if cursor != len(raw):
+                        raise RuntimeError('panpatch revert: bed length {} != fasta record length {} for {} (hap {})'.format(
+                            cursor, len(raw), name, hap))
+                    new = b''.join(chunks)
+            out.write(('>' + name + '\n').encode('utf-8'))
+            for i in range(0, len(new), width):
+                out.write(new[i:i + width] + b'\n')
+
+        for line in inp:
+            if line.startswith('>'):
+                flush()
+                name, seq_parts = line[1:].rstrip('\n'), []
+            else:
+                seq_parts.append(line.strip())
+        flush()
+    os.replace(out_path, combined_fasta)
+    RealtimeLogger.info('panpatch revert: restored {} target bp from the original assembly in hap {}'.format(
+        reverted_bp[0], hap))
+
+def gather_panpatch(job, options, run, chrom_results, target_fasta_ids, target_error_bed_ids):
+    """ concatenate the per-chromosome panpatch outputs (in chromosome order, as panpatch itself would),
+    revert target bytes to the original assembly where the target was masked, rescue any target contig the
+    pangenome dropped, bgzip, and return the output file map """
     work_dir = job.fileStore.getLocalTempDir()
 
     # every target contig panpatch saw across all the chromosome graphs.  a contig the pangenome
@@ -635,28 +992,9 @@ def gather_panpatch(job, options, run, chrom_results, target_fasta_ids):
             haps, run['name']))
 
     output_id_map = {}
-    for hap in haps:
-        combined = os.path.join(work_dir, 'hap{}.fa'.format(hap))
-        with open(combined, 'wb') as out:
-            for res in chrom_results:   # chromosome order
-                if hap in res['fastas']:
-                    chrom_fa = os.path.join(work_dir, 'chrom.fa')
-                    job.fileStore.readGlobalFile(res['fastas'][hap], chrom_fa)
-                    with open(chrom_fa, 'rb') as f:
-                        shutil.copyfileobj(f, out)
-                    os.remove(chrom_fa)
 
-        # rescue any target contig the pangenome dropped, appending it verbatim from the input assembly
-        if hap in target_fasta_ids:
-            rescue_dropped_contigs(job, combined, target_fasta_ids[hap], seen_contigs, run['samples'][0], hap)
-
-        # in reference-free mode the single (hap0) output is named for the user's haplotype (already
-        # in the run name); otherwise keep panpatch's haplotype numbering
-        output_name = (run['name'] + '.fa.gz') if run['referenceFree'] else (run['name'] + '.hap{}.fa.gz'.format(hap))
-        cactus_call(parameters=['bgzip', combined, '--threads', str(int(job.cores))])
-        output_id_map[output_name] = job.fileStore.writeGlobalFile(combined + '.gz')
-
-    # concatenate the beds (in chromosome order; a skipped graph has no bed)
+    # concatenate the beds first (chromosome order; a skipped graph has no bed).  the bed is a byte-exact
+    # description of the output and drives the per-haplotype target revert below
     bed_out = os.path.join(work_dir, 'patched.bed')
     with open(bed_out, 'wb') as out:
         for res in chrom_results:
@@ -668,6 +1006,35 @@ def gather_panpatch(job, options, run, chrom_results, target_fasta_ids):
                 shutil.copyfileobj(f, out)
             os.remove(p)
     output_id_map[run['name'] + '.bed'] = job.fileStore.writeGlobalFile(bed_out)
+    patched_blocks = parse_bed_blocks(bed_out) if target_error_bed_ids else {}
+
+    for hap in haps:
+        combined = os.path.join(work_dir, 'hap{}.fa'.format(hap))
+        with open(combined, 'wb') as out:
+            for res in chrom_results:   # chromosome order
+                if hap in res['fastas']:
+                    chrom_fa = os.path.join(work_dir, 'chrom.fa')
+                    job.fileStore.readGlobalFile(res['fastas'][hap], chrom_fa)
+                    with open(chrom_fa, 'rb') as f:
+                        shutil.copyfileobj(f, out)
+                    os.remove(chrom_fa)
+
+        # revert target-sample bytes to the original (unmasked) assembly, so a masked-but-unpatched error
+        # region comes back as its original sequence -- never N.  only for a haplotype whose target was
+        # masked; donor bytes stay exactly as panpatch emitted them
+        if hap in target_error_bed_ids and hap in target_fasta_ids:
+            revert_target_to_original(job, combined, patched_blocks, target_fasta_ids[hap],
+                                      run['samples'][0], hap)
+
+        # rescue any target contig the pangenome dropped, appending it verbatim from the input assembly
+        if hap in target_fasta_ids:
+            rescue_dropped_contigs(job, combined, target_fasta_ids[hap], seen_contigs, run['samples'][0], hap)
+
+        # in reference-free mode the single (hap0) output is named for the user's haplotype (already
+        # in the run name); otherwise keep panpatch's haplotype numbering
+        output_name = (run['name'] + '.fa.gz') if run['referenceFree'] else (run['name'] + '.hap{}.fa.gz'.format(hap))
+        cactus_call(parameters=['bgzip', combined, '--threads', str(int(job.cores))])
+        output_id_map[output_name] = job.fileStore.writeGlobalFile(combined + '.gz')
 
     # concatenate the reports: the TSV header from the first chromosome that has one, then every
     # chromosome's rows (a skipped graph has no report)
