@@ -889,16 +889,21 @@ def taffy_index(job, maf_id, output_path):
 def taffy_tui_index(job, maf_id, output_path):
     """ build the universal-column index (.tui) for a `cactus-hal2maf --universal`
     MAF/TAF.  Long-running on vertebrate-scale inputs; -l INFO streams per-phase
-    timestamps (phase 1 scan, Index A/X encode, per-genome phase 2) through the
+    timestamps (phase 1 scan, Index X encode, per-genome phase 2) through the
     Toil realtime logger so progress is visible as it happens, not just at end. """
     work_dir = job.fileStore.getLocalTempDir()
     maf_path = os.path.join(work_dir, os.path.basename(output_path))
     job.fileStore.readGlobalFile(maf_id, maf_path)
 
-    # -u: universal-column index; -T work_dir: keep spill files alongside the
+    # -u: universal-column index; -d work_dir: keep spill files alongside the
     # MAF copy (already sized for in cactus_call's disk budget), not /tmp.
+    # NB: the spill dir was -T before taffy d86aed1 (the origin/main merge that
+    # brought in the global -T/--threads); -T is now --threads (phase-2
+    # OpenMP workers, each holding one genome's runs[] in RAM: peak ~ N * 40 GB
+    # for vertebrate-scale giants).  Left at the default 1 to keep this job's
+    # memory footprint unchanged.
     cactus_call(parameters=['taffy', 'index', '-u', '-l', 'INFO',
-                            '-T', work_dir, '-i', maf_path],
+                            '-d', work_dir, '-i', maf_path],
                 realtimeStderrPrefix='[taffy-index-tui]',
                 job_memory=job.memory)
 
