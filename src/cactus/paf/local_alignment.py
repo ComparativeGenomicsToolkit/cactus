@@ -222,8 +222,12 @@ def run_fastga(job, name_A, genome_A, name_B, genome_B, distance, params):
         params_lastz = copy.deepcopy(params)
         params_lastz.find('blast').attrib['mapper'] = 'lastz'
         params_lastz.find('blast').attrib['cpu'] = '1'
-        lastz_job = root.addChildJobFn(make_chunked_alignments, name_A, job.fileStore.writeGlobalFile(unaligned_fasta_a_file),
-                                       name_B, job.fileStore.writeGlobalFile(unaligned_fasta_b_file), distance, params_lastz)
+        unaligned_fasta_a_id = job.fileStore.writeGlobalFile(unaligned_fasta_a_file)
+        unaligned_fasta_b_id = job.fileStore.writeGlobalFile(unaligned_fasta_b_file)
+        lastz_job = root.addChildJobFn(make_chunked_alignments, name_A, unaligned_fasta_a_id,
+                                       name_B, unaligned_fasta_b_id, distance, params_lastz,
+                                       memory=chunked_alignment_memory(unaligned_fasta_a_id, unaligned_fasta_b_id,
+                                                                       params_lastz))
         # run paffy dechunk a second time, since they contigs were chunked both by extract and chunk
         dechunk_job = root.addFollowOnJobFn(combine_chunks, [lastz_job.rv()], 1)
             
@@ -367,6 +371,28 @@ def merge_combined_chunks(job, combined_chunks):
     return job.fileStore.writeGlobalFile(output_path)
 
 
+def chunked_alignment_memory(genome_a, genome_b, params):
+    """ Memory for a make_chunked_alignments job.
+
+    faffy chunk holds a whole sequence in memory at a time -- fasta_chunk.c reads through
+    fastaReadToFunction, which hands the callback one complete record -- and sonLib grows that
+    buffer by allocate-copy-free, so the peak is a few times the LONGEST SEQUENCE rather than the
+    chunk size. A chromosome-scale assembly has sequences hundreds of times bigger than a chunk, so
+    sizing this off chunkSize under-asks by that same factor and the job gets killed.
+
+    Scale with the input instead, which covers any assembly whose longest sequence is under about a
+    quarter of it. The two genomes are chunked one after the other, so take the larger rather than
+    the sum. There are only a handful of these jobs per run, so over-asking is cheap next to a
+    failed one.
+    """
+    blast_node = params.find("blast")
+    gpu = getOptionalAttrib(blast_node, 'gpu', typeFn=int, default=0)
+    fastga = getOptionalAttrib(blast_node, 'mapper', typeFn=str) == 'fastga'
+    chunk_attr = 'bigChunkSize' if gpu or fastga else 'chunkSize'
+    return cactus_clamp_memory(max(1.2 * float(blast_node.attrib[chunk_attr]),
+                                   genome_a.size, genome_b.size))
+
+
 def make_chunked_alignments(job, event_a, genome_a, event_b, genome_b, distance, params):
     lastz_params_node = params.find("blast")
     gpu = getOptionalAttrib(lastz_params_node, 'gpu', typeFn=int, default=0)
@@ -432,19 +458,14 @@ def make_ingroup_to_outgroup_alignments_1(job, ingroup_event, outgroup_events, e
     root_job = Job()
     job.addChild(root_job)
 
-    # override chunk size 
-    lastz_params_node = params.find("blast")
-    gpu = getOptionalAttrib(lastz_params_node, 'gpu', typeFn=int, default=0)
-    fastga = getOptionalAttrib(lastz_params_node, 'mapper', typeFn=str) == 'fastga'
-    chunk_attr = 'bigChunkSize' if gpu or fastga else 'chunkSize'
-    
     #  align ingroup to first outgroup to produce paf alignments
     outgroup = outgroup_events[0] # The first outgroup
     logger.info("Building alignment between ingroup event: {} and outgroup event: {}".format(ingroup_event.iD, outgroup.iD))
     alignment = root_job.addChildJobFn(make_chunked_alignments,
                                        outgroup.iD, event_names_to_sequences[outgroup.iD],
                                        ingroup_event.iD, event_names_to_sequences[ingroup_event.iD], distances[ingroup_event, outgroup], params,
-                                       memory=cactus_clamp_memory(1.2 * float(params.find("blast").attrib[chunk_attr])),
+                                       memory=chunked_alignment_memory(event_names_to_sequences[outgroup.iD],
+                                                                       event_names_to_sequences[ingroup_event.iD], params),
                                        disk=4*(event_names_to_sequences[ingroup_event.iD].size+event_names_to_sequences[outgroup.iD].size)).rv()
 
     #  post process the alignments and recursively generate alignments to remaining outgroups
@@ -780,11 +801,7 @@ def make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancest
     # Calculate the total sequence size
     total_sequence_size = sum(event_names_to_sequences[event.iD].size for event in get_leaves(event_tree))
 
-    # override chunk size 
     lastz_params_node = params.find("blast")
-    gpu = getOptionalAttrib(lastz_params_node, 'gpu', typeFn=int, default=0)
-    fastga = getOptionalAttrib(lastz_params_node, 'mapper', typeFn=str) == 'fastga'
-    chunk_attr = 'bigChunkSize' if gpu or fastga else 'chunkSize'
 
     # unmask overly-masked contigs
     unmask_job = None
@@ -808,7 +825,12 @@ def make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancest
         ingroup_alignments.append(root_job.addChildJobFn(make_chunked_alignments,
                                                          ingroup.iD, event_names_to_sequences[ingroup.iD],
                                                          ingroup2.iD, event_names_to_sequences[ingroup2.iD], distance_a_b, params,
-                                                         memory=cactus_clamp_memory(1.2 * float(lastz_params_node.attrib[chunk_attr])),
+                                                         # sized off input_sequence_map, not event_names_to_sequences:
+                                                         # unmasking replaces the latter with promises, which have no
+                                                         # size until they resolve. Unmasking only changes case, so the
+                                                         # pre-unmask size is the right number anyway.
+                                                         memory=chunked_alignment_memory(input_sequence_map[ingroup.iD],
+                                                                                         input_sequence_map[ingroup2.iD], params),
                                                          disk=2*total_sequence_size).rv())
         ingroup_alignment_names.append('{}-{}_vs_{}'.format(ancestor_event_string, ingroup.iD, ingroup2.iD))
 
@@ -830,7 +852,8 @@ def make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancest
                                                       ingroup.iD, event_names_to_sequences[ingroup.iD],
                                                       outgroup.iD, event_names_to_sequences[outgroup.iD],
                                                       distances[ingroup, outgroup], params,
-                                                      memory=cactus_clamp_memory(1.2 * float(lastz_params_node.attrib[chunk_attr])),
+                                                      memory=chunked_alignment_memory(input_sequence_map[ingroup.iD],
+                                                                                      input_sequence_map[outgroup.iD], params),
                                                       disk=2*total_sequence_size).rv()
                                for ingroup in ingroup_events for outgroup in outgroup_events]
     # for better logs

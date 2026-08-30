@@ -19,7 +19,7 @@ struct _cactusDisk {
 #if defined(_OPENMP)
     omp_lock_t writelock; // This lock used to gate access to concurrently accessed variables
 #endif
-    stHash *allStrings; // If the strings are being all stored in memory, a map of names to strings
+    stHash *allStrings; // A map of names to sequence, held packed two bases to the byte (see cactusDisk.c)
     Name currentName; // Used as a counter for issuing names
 };
 
