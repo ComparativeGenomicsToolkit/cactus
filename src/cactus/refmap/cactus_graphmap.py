@@ -411,7 +411,28 @@ def minigraph_workflow(job, options, config, seq_id_map, gfa_id, graph_event, sa
     else:
         out_paf_id = paf_job.rv(0)
         prev_job = paf_job
-    
+
+    # hold this chromosome's MAPQ to what the whole-genome pass measured.  the track is only ever
+    # set by cactus-pangenome --mgSplit, where a single-chromosome graph inflates it.  this runs
+    # before the collapse PAF is merged in: those are minimap2 self-alignments whose MAPQ is a
+    # different quantity, and the track would floor them against a minigraph number
+    mapq_track_id = getattr(options, 'mg_mapq_track_id', None)
+    if mapq_track_id:
+        graphmap_node = findRequiredNode(config.xmlRoot, "graphmap")
+        if getOptionalAttrib(graphmap_node, "mgSplitMapqFloor", typeFn=bool, default=True):
+            # reported in the log so the number of lines this pushes under the filter is visible;
+            # it does not clamp, and changes nothing about what is written
+            min_mapq = getOptionalAttrib(graphmap_node, "minMAPQ", typeFn=int, default=0)
+            # the track is whole-genome, so it dominates the cost for every bin but the largest --
+            # sizing off this chromosome's gfa alone starves the small bins (chrOther is 97 bytes)
+            track_size = mapq_track_id.size
+            floor_job = prev_job.addFollowOnJobFn(apply_mapq_floor, out_paf_id, mapq_track_id,
+                                                  min_mapq, reference=options.reference,
+                                                  disk=4*gfa_id_size + 3*track_size,
+                                                  memory=cactus_clamp_memory(8*track_size))
+            out_paf_id = floor_job.rv()
+            prev_job = floor_job
+
     # apply the optional deletion filter
     unfiltered_paf_id = None
     filtered_paf_log = None
@@ -772,6 +793,169 @@ def filter_paf(job, paf_id, config, reference=None):
         filter_paf_path = overlap_filter_paf_path
 
     return job.fileStore.writeGlobalFile(filter_paf_path)    
+
+def make_mapq_track_wrapper(job, paf_id):
+    """ size the projection off the resolved FileID, which the caller cannot do because it only
+    holds a promise and the whole-genome PAF is multi-GB on a full panel """
+    # the peak is one query contig's rows, not the whole file, so this scales well below the input
+    return job.addChildJobFn(make_mapq_track, paf_id, disk=3*paf_id.size,
+                             memory=cactus_clamp_memory(max(2**32, paf_id.size))).rv()
+
+def make_mapq_track(job, paf_id):
+    """ project a whole-genome PAF down to the MAPQ it gave each query interval
+
+    Under --mgSplit the second pass maps each chromosome's contigs against a graph containing only
+    that chromosome, so a repeat that is ambiguous genome-wide has nothing left to be ambiguous
+    with and comes back uniquely mapped.  The second pass inflates MAPQ exactly where it is least
+    trustworthy.
+
+    Adding sequence to a graph only lowers MAPQ and removing it only raises it, so each pass is an
+    upper bound on the MAPQ the sequence would earn against a whole-genome pangenome: the first has
+    fewer competitors in the graph and more in the genome, the second the reverse.  The minimum of
+    the two is therefore the tightest bound available, not merely the cautious reading, and it is
+    what apply_mapq_floor writes.
+
+    Emits query, start, end, ref_contig, mapq -- one row per query interval, merging the per-node
+    PAF lines a record is split into.  Read from the raw PAF, not filter_paf's output: that deletes
+    everything under minMAPQ, which is the strongest evidence the floor has.  rc:Z: is carried for
+    diagnostics only and never filtered on -- a record spanning several reference contigs has no
+    rc, and is exactly the ambiguity worth keeping. """
+    work_dir = job.fileStore.getLocalTempDir()
+    paf_path = os.path.join(work_dir, 'pass1.paf')
+    track_path = os.path.join(work_dir, 'pass1-mapq.tsv')
+    job.fileStore.readGlobalFile(paf_id, paf_path)
+
+    def flush(query, rows, out_file):
+        # merge overlapping/abutting intervals, per (reference contig, mapq).  merging collapses the
+        # per-node PAF lines one record is split into, which all share a mapq.  keying on mapq as
+        # well stops a confident record from swallowing an overlapping unconfident one and
+        # extending its mapq over territory it never covered -- the consumer takes the max over
+        # everything that really covers a line, so nothing is lost by keeping them apart
+        by_key = {}
+        for start, end, rc, mapq in rows:
+            by_key.setdefault((rc, mapq), []).append((start, end))
+        for (rc, mapq), ivs in by_key.items():
+            ivs.sort()
+            cur_start, cur_end = ivs[0]
+            for start, end in ivs[1:]:
+                if start <= cur_end:
+                    cur_end = max(cur_end, end)
+                else:
+                    out_file.write('{}\t{}\t{}\t{}\t{}\n'.format(query, cur_start, cur_end, rc, mapq))
+                    cur_start, cur_end = start, end
+            out_file.write('{}\t{}\t{}\t{}\t{}\n'.format(query, cur_start, cur_end, rc, mapq))
+
+    n_rows = 0
+    n_intervals = 0
+    with open(paf_path, 'r') as paf_file, open(track_path, 'w') as out_file:
+        query = None
+        rows = []
+        for line in paf_file:
+            toks = line.split('\t')
+            rc = '.'
+            for tok in toks[12:]:
+                if tok.startswith('rc:Z:'):
+                    rc = tok[5:].strip()
+                    break
+            if toks[0] != query:
+                if rows:
+                    flush(query, rows, out_file)
+                query = toks[0]
+                rows = []
+            rows.append((int(toks[2]), int(toks[3]), rc, int(toks[11])))
+            n_rows += 1
+        if rows:
+            flush(query, rows, out_file)
+
+    with open(track_path, 'r') as track_file:
+        n_intervals = sum(1 for _ in track_file)
+    RealtimeLogger.info('MAPQ track: {} whole-genome PAF lines projected onto {} query intervals'.format(
+        n_rows, n_intervals))
+    return job.fileStore.writeGlobalFile(track_path)
+
+def apply_mapq_floor(job, paf_id, track_id, min_mapq=0, reference=None):
+    """ hold a --mgSplit second-pass PAF's MAPQ to what the whole-genome pass measured
+
+    Rewrites each MAPQ as min(second pass, whole-genome pass), keeping the original in om:i:.  See
+    make_mapq_track for why the minimum is the tightest available bound rather than a hedge.
+
+    The whole-genome MAPQ of a line is the maximum over every track interval that overlaps it,
+    wherever the first pass put the sequence.  What is being bounded is how sure minigraph was
+    about this query interval, not which reference contig it picked: a repeat with one copy here
+    and one on another chromosome is rightly MAPQ 0 whichever of the two the first pass printed.
+    A query interval the whole-genome pass never covered is left alone -- there is nothing to say
+    about it, and guessing would be worse than leaving it.
+
+    Nothing is clamped: a whole-genome MAPQ of 0 writes 0, and filter_paf deletes the line when
+    cactus-align reads it.  That is not a new filter.  It is the one a whole-genome run already
+    applies and that --mgSplit loses by hiding the competing chromosome from the mapper.  min_mapq
+    is reported so the size of that effect is visible in the log; it changes nothing here.
+
+    The reference genome is exempt.  Its alignment reaches the PAF from two places -- minigraph,
+    and rgfa2paf straight off the rGFA tags -- and only the first carries a whole-genome MAPQ, so
+    the track holds the minigraph copy (0 for a self-mapping) while the bin holds the rgfa2paf copy
+    (60).  Crossing the two would zero the reference and get it filtered out downstream. """
+    work_dir = job.fileStore.getLocalTempDir()
+    paf_path = os.path.join(work_dir, 'pass2.paf')
+    track_path = os.path.join(work_dir, 'pass1-mapq.tsv')
+    out_path = os.path.join(work_dir, 'pass2.floored.paf')
+    job.fileStore.readGlobalFile(paf_id, paf_path)
+    job.fileStore.readGlobalFile(track_id, track_path)
+
+    track = {}
+    with open(track_path, 'r') as track_file:
+        for line in track_file:
+            query, start, end, rc, mapq = line.rstrip('\n').split('\t')
+            track.setdefault(query, []).append((int(start), int(end), int(mapq)))
+
+    ref_prefix = 'id={}|'.format(reference) if reference else None
+    n_total = n_ref = n_floored = n_below_min = n_uncovered = 0
+    seen_queries = set()
+    covered_queries = set()
+
+    with open(paf_path, 'r') as paf_file, open(out_path, 'w') as out_file:
+        for line in paf_file:
+            n_total += 1
+            toks = line.rstrip('\n').split('\t')
+            query = toks[0]
+            if ref_prefix and query.startswith(ref_prefix):
+                n_ref += 1
+                out_file.write('\t'.join(toks) + '\n')
+                continue
+            seen_queries.add(query)
+            qs, qe = int(toks[2]), int(toks[3])
+            pass1_mapq = -1
+            for start, end, mapq in track.get(query, ()):
+                if start < qe and qs < end:
+                    pass1_mapq = max(pass1_mapq, mapq)
+            if pass1_mapq < 0:
+                n_uncovered += 1
+            else:
+                covered_queries.add(query)
+                mapq = int(toks[11])
+                if pass1_mapq < mapq:
+                    # keep cg:Z: last, which is what everything else in this pipeline emits.  the
+                    # tags start at 12, so inserting one never shifts the mapq column
+                    pos = next((i for i, t in enumerate(toks) if t.startswith('cg:Z:')), len(toks))
+                    toks.insert(pos, 'om:i:{}'.format(mapq))
+                    toks[11] = str(pass1_mapq)
+                    n_floored += 1
+                    if pass1_mapq < min_mapq:
+                        n_below_min += 1
+            out_file.write('\t'.join(toks) + '\n')
+
+    RealtimeLogger.info('MAPQ floor: {} of {} lines lowered to the whole-genome value, {} of those '
+                        'below minMAPQ={} (cactus-align drops those, as a whole-genome run would '
+                        'have), {} lines left alone for want of whole-genome coverage, {} reference '
+                        'lines left alone'.format(n_floored, n_total, n_below_min, min_mapq,
+                                                  n_uncovered, n_ref))
+    if seen_queries and not covered_queries:
+        # the lookup is by contig name, so a rename anywhere between the two passes turns this
+        # whole step into a silent no-op rather than an error.  say so instead of shipping nothing
+        RealtimeLogger.warning('MAPQ floor: the whole-genome track covers none of the {} non-reference '
+                               'query contig(s) in this PAF, so nothing was floored.  The two passes '
+                               'disagree on contig names.'.format(len(seen_queries)))
+    return job.fileStore.writeGlobalFile(out_path)
 
 def filter_paf_deletions(job, paf_id, gfa_id, max_deletion, filter_threshold, filter_query_size_threshold):
     """ run filter-paf-deletions on a paf to break out giant-snarl-making edges """
