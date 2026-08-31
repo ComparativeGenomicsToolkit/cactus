@@ -4,6 +4,7 @@
  * Released under the MIT license, see LICENSE.txt
  */
 
+#include <limits.h>
 #include "abpoa.h"
 #include "poaBarAligner.h"
 #include "flowerAligner.h"
@@ -814,7 +815,7 @@ void alignmentBlock_destruct(AlignmentBlock *alignmentBlock) {
     }
 }
 
-char *get_adjacency_string(Cap *cap, int *length, bool return_string) {
+char *get_adjacency_string(Cap *cap, int64_t *length, bool return_string) {
     assert(!cap_getSide(cap));
     Sequence *sequence = cap_getSequence(cap);
     assert(sequence != NULL);
@@ -834,6 +835,27 @@ char *get_adjacency_string(Cap *cap, int *length, bool return_string) {
     }
 }
 
+/*
+ * Materialises [offset, offset+length) of the adjacency without building the whole thing. An
+ * adjacency can span most of a chromosome, which is gigabytes of ASCII, and BAR holds one per
+ * thread.
+ */
+static char *get_adjacency_substring(Cap *cap, int64_t offset, int64_t length) {
+    assert(!cap_getSide(cap));
+    assert(offset >= 0 && length >= 0);
+    Sequence *sequence = cap_getSequence(cap);
+    Cap *cap2 = cap_getAdjacency(cap);
+    if (cap_getStrand(cap)) {
+        // base i of the adjacency is at coordinate cap+1+i
+        return sequence_getString(sequence, cap_getCoordinate(cap) + 1 + offset, length, 1);
+    }
+    // on the reverse strand the adjacency is the reverse complement of [cap2+1, cap-1], so base i
+    // is at coordinate cap-1-i and the window we want starts that far in from the other end
+    int64_t total = cap_getCoordinate(cap) - cap_getCoordinate(cap2) - 1;
+    assert(offset + length <= total);
+    return sequence_getString(sequence, cap_getCoordinate(cap2) + 1 + (total - offset - length), length, 0);
+}
+
 /**
  * Used to find where a run of masked (hard or soft) of at least mask_filter bases starts
  * @param seq : The string
@@ -843,7 +865,7 @@ char *get_adjacency_string(Cap *cap, int *length, bool return_string) {
  * @param mask_filter : Cut a string as soon as we hit more than this many hard or softmasked bases (cut is before first masked base)
  * @return length of the filtered string
  */
-static int get_unmasked_length(char* seq, int64_t seq_length, int64_t length, bool reversed, int64_t mask_filter) {
+static int64_t get_unmasked_length(char* seq, int64_t seq_length, int64_t length, bool reversed, int64_t mask_filter) {
     if (mask_filter >= 0) {
         int64_t run_start = -1;
         for (int64_t i = 0; i < length; ++i) {
@@ -855,14 +877,14 @@ static int get_unmasked_length(char* seq, int64_t seq_length, int64_t length, bo
                 }
                 if (i + 1 - run_start > mask_filter) {
                     // our run exceeds the mask_filter, cap before the first masked base
-                    return (int)run_start;
+                    return run_start;
                 }
             } else {
                 run_start = -1;
             }
         }
     }
-    return (int)length;
+    return length;
 }
 
 /**
@@ -874,35 +896,48 @@ static int get_unmasked_length(char* seq, int64_t seq_length, int64_t length, bo
  * @return
  */
 char *get_adjacency_string_and_overlap(Cap *cap, int *length, int64_t *overlap, int64_t max_seq_length, int64_t mask_filter) {
-    // Get the complete adjacency string
-    int seq_length;
-    char *adjacency_string = get_adjacency_string(cap, &seq_length, 1);
+    // Take the adjacency's length without materialising it: only the prefix we keep, and the
+    // suffix the mask filter scans, are ever fetched.
+    int64_t seq_length;
+    get_adjacency_string(cap, &seq_length, 0);
     assert(seq_length >= 0);
 
-    // Calculate the length of the prefix up to max_seq_length
-    *length = seq_length > max_seq_length ? max_seq_length : seq_length;
-    assert(*length >= 0);
-    int length_backward = *length;
+    // The prefix, up to max_seq_length
+    int64_t length_forward = seq_length > max_seq_length ? max_seq_length : seq_length;
+    bool have_whole_adjacency = length_forward == seq_length;
+    char *adjacency_string = get_adjacency_substring(cap, 0, length_forward);
+    int64_t length_backward = length_forward;
 
     if (mask_filter >= 0) {
         // apply the mask filter on the forward strand
-        *length = get_unmasked_length(adjacency_string, seq_length, *length, false, mask_filter);
-        length_backward = get_unmasked_length(adjacency_string, seq_length, *length, true, mask_filter);
+        length_forward = get_unmasked_length(adjacency_string, length_forward, length_forward, false, mask_filter);
+        if (have_whole_adjacency) {
+            length_backward = get_unmasked_length(adjacency_string, seq_length, length_forward, true, mask_filter);
+        } else {
+            // the backward scan reads the last length_forward bases, which are not in the prefix
+            char *suffix = get_adjacency_substring(cap, seq_length - length_forward, length_forward);
+            length_backward = get_unmasked_length(suffix, length_forward, length_forward, true, mask_filter);
+            free(suffix);
+        }
     }
 
     // Cleanup the string
-    adjacency_string[*length] = '\0'; // Terminate the string at the given length
+    adjacency_string[length_forward] = '\0'; // Terminate the string at the given length
     char *c = stString_copy(adjacency_string);
     free(adjacency_string);
     adjacency_string = c;
 
     // Calculate the overlap with the reverse complement
-    if (*length + length_backward > seq_length) { // There is overlap
-        *overlap = *length + length_backward - seq_length;
+    if (length_forward + length_backward > seq_length) { // There is overlap
+        *overlap = length_forward + length_backward - seq_length;
         assert(*overlap >= 0);
     } else { // There is no overlap
         *overlap = 0;
     }
+
+    // Bounded by max_seq_length (<bar bandingLimit>), and abpoa takes its lengths as int
+    assert(length_forward <= INT_MAX);
+    *length = (int)length_forward;
 
     return adjacency_string;
 }
@@ -1052,7 +1087,7 @@ void create_alignment_blocks(Msa *msa, Cap **row_indexes_to_caps, stList *alignm
 
 
 int caps_comp_by_adjacency_length(const void *a, const void *b) {
-    int length1, length2;
+    int64_t length1, length2;
     get_adjacency_string((Cap *)a, &length1, 0);
     get_adjacency_string((Cap *)b, &length2, 0);
     if (length1 != length2) {
@@ -1107,7 +1142,7 @@ int64_t getMaxSequenceLength(End *end) {
         if (cap_getSide(cap)) {
             cap = cap_getReverse(cap);
         }
-        int length;
+        int64_t length;
         get_adjacency_string(cap, &length, 0);
         if(length > max_length) {
             max_length = length;

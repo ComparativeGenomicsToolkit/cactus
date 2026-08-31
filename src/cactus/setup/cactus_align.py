@@ -62,6 +62,7 @@ def main():
                         " The overridden configuration will be saved in <outHal>.pg-conf.xml")
 
     parser.add_argument("--collapse", help = "Incorporate minimap2 self-alignments.", action='store_true', default=False)
+    parser.add_argument("--minIdentity", type=float, help = "Ignore PAF lines with identity (column 10/11) < this (overrides minIdentity in <graphmap> in config)")
     parser.add_argument("--scoresFile", type=str,
                         help = "File containing scoring parameters (output of last-train / cactus-minigraphr --lastTrain)")
     parser.add_argument("--scoresFromChromfile", action="store_true", default=False,
@@ -277,6 +278,8 @@ def make_align_job(options, toil, config_wrapper=None, chrom_name=None):
         config_wrapper.substituteAllPredefinedConstantsWithLiterals(options)
         if options.collapse:
             findRequiredNode(config_node, "graphmap").attrib["collapse"] = 'all'
+        if getattr(options, 'minIdentity', None) is not None:
+            findRequiredNode(config_node, "graphmap").attrib["minIdentity"] = str(options.minIdentity)
     if hasattr(options, 'hdf5Codec') and options.hdf5Codec:
         config_node.find("hal").attrib["hdf5Codec"] = options.hdf5Codec
     config_wrapper.setSystemMemory(options)
@@ -426,10 +429,23 @@ def cactus_align(job, config_wrapper, mc_tree, input_seq_map, input_seq_id_map, 
     sanitize_job = head_job.addChildJobFn(sanitize_fasta_headers, input_seq_id_map, pangenome=doVG or doGFA or do_filter_paf)
     new_seq_id_map = sanitize_job.rv()
 
-    # run pangenome-specific paf filter
+    # run pangenome-specific paf filter.  this also runs in cactus-graphmap-split, but that stage is
+    # skipped by --noSplit (and by anyone running step-by-step without it), so this call cannot assume
+    # it has already happened.  running it in both places is harmless: the line filter is stateless
+    # per line, and the overlap filter is idempotent -- gaffilter drops a record only when a competitor
+    # beats it, so a second pass over its own output has nothing left to remove.
+    #
+    # what is not harmless is the two call sites disagreeing on arguments.  cactus-graphmap-split
+    # passes reference=, which exempts queries belonging to the reference genome from the MAPQ,
+    # block-length, identity and score thresholds; this call passed nothing, so an ordinary split
+    # run spent the split stage preserving those reference alignments and then dropped them here
+    # anyway.  that is the common path, not just --noSplit.  referenceEvents[0] matches the "first
+    # reference" convention cactus-graphmap-split already normalises to.
     if do_filter_paf:
         paf_filter_mem = max(paf_id.size * 10, 2**32)
-        paf_filter_job = head_job.addChildJobFn(filter_paf, paf_id, config_wrapper, disk = paf_id.size * 10, memory=paf_filter_mem)
+        paf_filter_job = head_job.addChildJobFn(filter_paf, paf_id, config_wrapper,
+                                                reference=referenceEvents[0] if referenceEvents else None,
+                                                disk = paf_id.size * 10, memory=paf_filter_mem)
         paf_id = paf_filter_job.rv()
 
     # apply tree scaling to reflect branch scaling and/or uncertainty in ancestor placement/sequences

@@ -2072,7 +2072,10 @@ def fix_vcf_ploidies(in_vcf_path, out_vcf_path, threads=1):
             out_file.write(b'\t'.join(toks) + b'\n')
 
     if raw_out_path != out_vcf_path:
-        cactus_call(parameters=['bgzip', raw_out_path, '--threads', str(threads)], infile=raw_out_path,
+        # no filename argument: bgzip given one compresses in place, writing raw_out_path.gz and
+        # deleting the original, so out_vcf_path would get an empty stdout and the remove below
+        # would fail.  it has to stay a stdin/stdout filter, as in minigraph_gfa_to_pansn
+        cactus_call(parameters=['bgzip', '--threads', str(threads)], infile=raw_out_path,
                     outfile=out_vcf_path)
         os.remove(raw_out_path)
 
