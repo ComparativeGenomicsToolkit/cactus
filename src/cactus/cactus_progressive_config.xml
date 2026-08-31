@@ -457,6 +457,8 @@
 	<!-- gfaffix: toggle gfaffix normalization on/off -->
 	<!-- pathNormalize: toggle path normalization (merge equivalent paths through same site) on/off -->
 	<!-- clipNonMinigraph: clip out regions if the don't align to minigraph (if disabled, clip if they don't align to anything) -->
+	<!-- clipFlank: trim the fringe an aligner leaves where it extended anchors into a repeat, outward from each clipped interval by up to this many bp, for as long as unaligned sequence stays dense.  0 disables.  This value is the main control: inside a repeat the gate seldom closes on its own, so the cap decides how much goes.  Measured on a 124-haplotype chrY, 3.4% of edges at 20000, 9.4% at 50000, 29.4% at 200000.  50000 is the value benchmarked whole-genome (231/231 samples improved on F1); lowering it does not sharpen the trim, it just removes less -->
+	<!-- clipFlankThreshold: advanced.  keep trimming while more than this fraction of bases are unaligned, by the same test the clipping itself uses.  Negative calibrates per graph, which is almost always what you want: over 24 human chromosomes the calibrated value ran from 0.054 to 0.230, a 4.3x spread that tracks neither haplotype count nor chromosome size -->
 	<!-- minimizerOptions: options for vg minimizer -->
 	<!-- minFilterFragment: discard fragments that result from the vg clip frequency filter if they are smaller than this -->
 	<!-- clipContext: use this many context steps when doing edge clipping (activated via delEdgeFilter cli option) -->	
@@ -477,7 +479,9 @@
 		 maxNodeLength="1024"
 		 gfaffix="1"
 		 pathNormalize="1"
-		 clipNonMinigraph="1"		 
+		 clipNonMinigraph="1"
+		 clipFlank="50000"
+		 clipFlankThreshold="-1"
 		 minimizerOptions="-k 29 -w 11"
 		 lrMinimizerOptions="-k 31 -w 50 -W"
 		 minFilterFragment="1000"
