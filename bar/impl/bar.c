@@ -17,6 +17,12 @@
 #include <omp.h>
 #endif
 
+#include <sys/resource.h>
+#include <time.h>
+
+// How often to report progress through the flower list, in seconds.
+#define BAR_PROGRESS_INTERVAL 60
+
 PairwiseAlignmentParameters *pairwiseAlignmentParameters_constructFromCactusParams(CactusParams *params) {
     PairwiseAlignmentParameters *p = pairwiseAlignmentBandingParameters_construct();
     p->gapGamma = cactusParams_get_float(params, 3, "bar", "pecan", "gapGamma");
@@ -92,15 +98,24 @@ void bar(stList *flowers, CactusParams *params, CactusDisk *cactusDisk, stList *
      * one block per segment, at three names again.  Doubling that covers the ends,
      * groups, chains and nested flowers, which are all bounded by the number of
      * blocks.  A flower's bases are its unaligned length plus two per adjacency.
+     *
+     * The same pass totals the bases, for the progress report below.  The list is
+     * sorted largest-first, so the fraction of flowers done is a poor guide to the
+     * fraction of work done -- the first flowers are enormous and the last millions
+     * are tiny -- and weighting by sequence tracks it far better.  The length is
+     * already being read here, so the total costs nothing.
      */
     int64_t flowerNumber = stList_length(flowers);
     int64_t *nameOffsets = st_malloc(sizeof(int64_t) * (flowerNumber + 1));
+    int64_t totalBases = 0;
 #if defined(_OPENMP)
-#pragma omp parallel for schedule(dynamic, 1)
+#pragma omp parallel for schedule(dynamic, 1) reduction(+:totalBases)
 #endif
     for (int64_t j = 0; j < flowerNumber; j++) {
         Flower *flower = stList_get(flowers, j);
-        nameOffsets[j] = 12 * (flower_getTotalBaseLength(flower) + flower_getCapNumber(flower)) + 4096;
+        int64_t flowerBaseLength = flower_getTotalBaseLength(flower);
+        nameOffsets[j] = 12 * (flowerBaseLength + flower_getCapNumber(flower)) + 4096;
+        totalBases += flowerBaseLength;
     }
     int64_t nameTotal = 0; // Turn the sizes into offsets
     for (int64_t j = 0; j < flowerNumber; j++) {
@@ -110,6 +125,12 @@ void bar(stList *flowers, CactusParams *params, CactusDisk *cactusDisk, stList *
     }
     nameOffsets[flowerNumber] = nameTotal;
     Name nameBase = cactusDisk_reserveNames(cactusDisk, nameTotal);
+
+    const bool reportProgress = st_getLogLevel() >= info && flowerNumber > 1;
+    const time_t barStartTime = time(NULL);
+    time_t lastReportTime = barStartTime;
+    int64_t lastReportBases = 0;
+    int64_t flowersDone = 0, basesDone = 0;
 
 #if defined(_OPENMP)
     // Enable nested parallelism for large flowers with many ends
@@ -125,6 +146,9 @@ void bar(stList *flowers, CactusParams *params, CactusDisk *cactusDisk, stList *
 
         cactusDisk_pushNameInterval(cactusDisk, nameBase + nameOffsets[j], nameOffsets[j+1] - nameOffsets[j]);
         st_randomSeed(flower_getName(flower)); // Any random choices below are the flower's own, not the thread's
+
+        // Must be read before stCaf_finish, which adds block ends to the flower
+        const int64_t flowerBases = reportProgress ? flower_getTotalBaseLength(flower) : 0;
 
         // These are all variables used by the filter fns
         FilterArgs *fa = st_calloc(1, sizeof(FilterArgs));
@@ -195,6 +219,48 @@ void bar(stList *flowers, CactusParams *params, CactusDisk *cactusDisk, stList *
         cactusDisk_popNameInterval(cactusDisk);
 
         st_logDebug("Finished filling in the alignments for the flower\n");
+
+        if (reportProgress) {
+            int64_t done, bases;
+#pragma omp atomic capture
+            done = ++flowersDone;
+#pragma omp atomic capture
+            { basesDone += flowerBases; bases = basesDone; }
+
+            time_t now = time(NULL), lastSeen;
+#pragma omp atomic read
+            lastSeen = lastReportTime;
+            if (now - lastSeen >= BAR_PROGRESS_INTERVAL) {
+#if defined(_OPENMP)
+#pragma omp critical(barProgress)
+#endif
+                {
+                    // re-check now that we hold the lock, so only one thread reports
+                    if (now - lastReportTime >= BAR_PROGRESS_INTERVAL) {
+                        lastReportTime = now;
+                        struct rusage ru;
+                        getrusage(RUSAGE_SELF, &ru);
+#ifdef __APPLE__
+                        int64_t peakMemMB = ru.ru_maxrss / (1024 * 1024); // bytes on macOS
+#else
+                        int64_t peakMemMB = ru.ru_maxrss / 1024;          // kilobytes on Linux
+#endif
+                        int64_t elapsed = now - barStartTime;
+                        double baseFraction = totalBases > 0 ? (double)bases / (double)totalBases : 0.0;
+                        // an eta is meaningless until enough sequence has gone through to
+                        // give a stable rate, and the size sort makes the early rate a lie
+                        int64_t eta = (baseFraction >= 0.01 && elapsed > 0) ?
+                            (int64_t)(elapsed / baseFraction) - elapsed : -1;
+                        st_logInfo("Bar progress: %" PRIi64 "/%" PRIi64 " flowers (%.2f%%), "
+                                   "%" PRIi64 "/%" PRIi64 " bases (%.2f%%), %" PRIi64 " seconds in bar, "
+                                   "eta %" PRIi64 " seconds, peak memory %" PRIi64 " MB\n",
+                                   done, flowerNumber, 100.0 * (double)done / (double)flowerNumber,
+                                   bases, totalBases, 100.0 * baseFraction,
+                                   elapsed, eta, peakMemMB);
+                    }
+                }
+            }
+        }
     }
     free(nameOffsets);
 
