@@ -48,7 +48,7 @@ from cactus.refmap.cactus_graphmap import minigraph_workflow, minigraph_batch_wo
 from cactus.refmap.cactus_graphmap import apply_mgsplit_filter_overrides, add_separate_ref_contigs_job
 from cactus.refmap.cactus_graphmap_split import graphmap_split_workflow, export_split_data
 from cactus.setup.cactus_align import make_batch_align_jobs, batch_align_jobs
-from cactus.refmap.cactus_graphmap_join import graphmap_join_workflow, export_join_data, graphmap_join_options, graphmap_join_validate_options, vcflib_checks
+from cactus.refmap.cactus_graphmap_join import graphmap_join_workflow, export_join_data, graphmap_join_options, graphmap_join_validate_options, graphmap_join_config_overrides, vcflib_checks
 from cactus.refmap.pangenome_exclusions import contig_sizes_job
 
 def pangenome_options(parser):
@@ -222,6 +222,8 @@ def pangenome_config_overrides(options, config_node):
     # cactus-graphmap-split and cactus-align
     if options.minIdentity is not None:
         findRequiredNode(config_node, "graphmap").attrib["minIdentity"] = str(options.minIdentity)
+
+    graphmap_join_config_overrides(options, config_node)
 
 def main():
     parser = Job.Runner.getDefaultArgumentParser()
