@@ -431,7 +431,19 @@ cd ${pangenomeBuildDir}
 git clone https://gitlab.com/mcfrith/last.git --recursive
 cd last
 git checkout 1651
-sed -i makefile -e 's/CXXFLAGS=/CXXFLAGS+=/'
+# last writes "CXXFLAGS = ..." with spaces around the '=', so the old
+# 's/CXXFLAGS=/CXXFLAGS+=/' never matched line 1.  What it did match was the sub-make
+# override on line 3 ($(MAKE) CXXFLAGS="$(CXXFLAGS)" -> CXXFLAGS+="$(CXXFLAGS)"), which only
+# doubled last's own flags while its line-1 assignment carried on clobbering ours -- so
+# nothing cactus sets has ever reached lastal/lastdb.  Anchor to the line start and allow the
+# spaces; leave line 3 alone, since that override is how src/makefile receives the value.
+# Guarded: this sed was silently a no-op for years, which is exactly what we don't want twice.
+grep -qE '^CXXFLAGS *=' makefile || {
+    echo "ERROR: last: no 'CXXFLAGS =' assignment at the start of a line in makefile." >&2
+    echo "       Upstream changed its build; re-check that cactus's CXXFLAGS reach lastal." >&2
+    exit 1
+}
+sed -i makefile -e 's/^CXXFLAGS *= */CXXFLAGS += /'
 # last has no LIBS variable, so add one after the objects.  Order matters: a static archive
 # named before the objects resolves nothing and is discarded, and lastal would silently fall
 # back to glibc's allocator.
