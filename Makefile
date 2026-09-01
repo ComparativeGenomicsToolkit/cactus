@@ -304,7 +304,15 @@ suball.abPOA:
 	rm -fr ${INCLDIR}/simde && cp -r submodules/abPOA/include/simde ${INCLDIR}
 
 suball.lastz: suball.jemalloc
-	cd submodules/lastz/src && sed -i -e 's/-lm -o/-lm $${LIBS} -o/g' Makefile
+# Inject ${LIBS} into lastz's link lines so jemalloc reaches it.  This must not assume the
+# link line is still pristine: makeBinRelease seds 's/-lm/-lm -static/g' into this same file
+# *before* make runs, and the old pattern here ('-lm -o') then no longer matched, so ${LIBS}
+# was silently never injected and every release shipped a lastz without jemalloc.  It looked
+# fine in developer trees only because a previous build had already patched the file, which
+# is why it survived local testing.  Match around whatever sits between -lm and -o instead,
+# skip lines that already have LIBS so repeated builds stay idempotent, and verify.
+	cd submodules/lastz/src && sed -i -e '/LIBS/!s/-lm\(.*\) -o \$$@/-lm\1 $${LIBS} -o $$@/' Makefile \
+	  && grep -q 'LIBS' Makefile
 	cd submodules/lastz && LIBS="${jemallocSubLibs}" ${MAKE}
 	ln -f submodules/lastz/src/lastz bin
 

@@ -47,6 +47,23 @@ if [ -z ${CACTUS_LEGACY_ARCH+x} ]; then
     fi
 fi
 
+# CPU baseline, mirroring include.mk (hand-kept in sync, like the jemalloc block above).
+# Needed because CACTUS_ARCH_FLAGS is a make variable and this is a shell script, so without
+# it nothing built here -- minigraph, minimap2, gfatools, last, samtools/bcftools -- sees an
+# arch flag at all.  Confirmed against the v3.3.0 tarball: minigraph carried zero AVX2 in its
+# own code, only glibc's runtime-dispatched string routines.
+if [ -z ${CACTUS_ARCH_FLAGS+x} ]; then
+    if [ -n "${arm+x}" ]; then
+        CACTUS_ARCH_FLAGS="-march=armv8-a+simd"
+    elif [ -n "${CACTUS_LEGACY_ARCH+x}" ]; then
+        CACTUS_ARCH_FLAGS="-msse2"
+    else
+        CACTUS_ARCH_FLAGS="-march=x86-64-v3"
+    fi
+fi
+export CFLAGS="${CFLAGS:-} ${CACTUS_ARCH_FLAGS}"
+export CXXFLAGS="${CXXFLAGS:-} ${CACTUS_ARCH_FLAGS}"
+
 rm -rf ${pangenomeBuildDir}
 mkdir -p ${pangenomeBuildDir}
 mkdir -p ${binDir}
@@ -405,9 +422,9 @@ cd odgi-v0.9.4
 # would drop the -fopenmp that Generic does supply through it.
 if [[ $STATIC_CHECK -eq 1 ]]
 then
-    CXXFLAGS="" CFLAGS="" LDFLAGS="" LIBS="" cmake -DBUILD_STATIC=1 -DCMAKE_BUILD_TYPE=Generic -DCMAKE_C_FLAGS_GENERIC=-O3 -DCMAKE_CXX_FLAGS_GENERIC=-O3 -H. -Bbuild && CXXFLAGS="" CFLAGS="" LDFLAGS="" LIBS="" cmake --build build -- -j ${numcpu}
+    CXXFLAGS="" CFLAGS="" LDFLAGS="" LIBS="" cmake -DBUILD_STATIC=1 -DCMAKE_BUILD_TYPE=Generic -DCMAKE_C_FLAGS_GENERIC="-O3 ${CACTUS_ARCH_FLAGS}" -DCMAKE_CXX_FLAGS_GENERIC="-O3 ${CACTUS_ARCH_FLAGS}" -H. -Bbuild && CXXFLAGS="" CFLAGS="" LDFLAGS="" LIBS="" cmake --build build -- -j ${numcpu}
 else
-    cmake -H. -Bbuild -DCMAKE_BUILD_TYPE=Generic -DCMAKE_C_FLAGS_GENERIC=-O3 -DCMAKE_CXX_FLAGS_GENERIC=-O3 && cmake --build build -- -j ${numcpu}
+    cmake -H. -Bbuild -DCMAKE_BUILD_TYPE=Generic -DCMAKE_C_FLAGS_GENERIC="-O3 ${CACTUS_ARCH_FLAGS}" -DCMAKE_CXX_FLAGS_GENERIC="-O3 ${CACTUS_ARCH_FLAGS}" && cmake --build build -- -j ${numcpu}
 fi
 if [[ $STATIC_CHECK -ne 1 || $(ldd bin/odgi | grep so | wc -l) -eq 0 ]]
 then
