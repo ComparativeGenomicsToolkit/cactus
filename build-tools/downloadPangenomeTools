@@ -64,8 +64,8 @@ git clone https://github.com/lh3/minimap2.git
 cd minimap2
 git checkout v2.30
 # hack in flags support
-sed -i Makefile -e 's/CFLAGS=/CFLAGS+=/'
-make -j ${numcpu} ${MINI_ARM_FLAGS}
+sed -i Makefile -e 's/CFLAGS=/CFLAGS+=/' -e 's/LIBS=/LIBS+=/'
+LIBS="${jemallocLib}" make -j ${numcpu} ${MINI_ARM_FLAGS}
 if [[ $STATIC_CHECK -ne 1 || $(ldd minimap2 | grep so | wc -l) -eq 0 ]]
 then
 	 mv minimap2 ${binDir}
@@ -432,7 +432,11 @@ git clone https://gitlab.com/mcfrith/last.git --recursive
 cd last
 git checkout 1651
 sed -i makefile -e 's/CXXFLAGS=/CXXFLAGS+=/'
-make -j ${numcpu}
+# last has no LIBS variable, so add one after the objects.  Order matters: a static archive
+# named before the objects resolves nothing and is discarded, and lastal would silently fall
+# back to glibc's allocator.
+sed -i src/makefile -e '/LIBS/!s/ -lz$/ -lz $(LIBS)/'
+LIBS="${jemallocLib}" make -j ${numcpu}
 if [[ $STATIC_CHECK -ne 1 || $(ldd bin/lastal | grep so | wc -l) -eq 0 ]]
 then
     mv bin/lastal ${binDir}

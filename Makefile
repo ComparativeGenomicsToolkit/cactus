@@ -303,9 +303,9 @@ suball.abPOA:
 	ln -f submodules/abPOA/include/*.h ${INCLDIR}
 	rm -fr ${INCLDIR}/simde && cp -r submodules/abPOA/include/simde ${INCLDIR}
 
-suball.lastz:
+suball.lastz: suball.jemalloc
 	cd submodules/lastz/src && sed -i -e 's/-lm -o/-lm $${LIBS} -o/g' Makefile
-	cd submodules/lastz && LIBS="${jemallocLib}" ${MAKE}
+	cd submodules/lastz && LIBS="${jemallocSubLibs}" ${MAKE}
 	ln -f submodules/lastz/src/lastz bin
 
 suball.paffy:
@@ -316,22 +316,23 @@ suball.paffy:
 	ln -f submodules/paffy/lib/*.a ${LIBDIR}
 	ln -f submodules/paffy/inc/*.h ${INCLDIR}
 
-suball.red:
-	cd submodules/red && ${MAKE}
+suball.red: suball.jemalloc
+	cd submodules/red && sed -i -e '/LIBS/!s/-o \$$(TRed) \$$(OBJS)/-o $$(TRed) $$(OBJS) $$(LIBS)/' src/Makefile
+	cd submodules/red && LIBS="${jemallocSubLibs}" ${MAKE}
 	ln -f submodules/red/bin/Red ${BINDIR}
 
 suball.collapse-bubble:
 	chmod +x submodules/collapse-bubble/scripts/merge_duplicates.py
 	ln -f submodules/collapse-bubble/scripts/merge_duplicates.py ${BINDIR}
-suball.FASTGA:
-	cd submodules/FASTGA && sed -i '/-lpthread/!s/-lm -lz/-lpthread -lm -lz/g' Makefile && ${MAKE}
+suball.FASTGA: suball.jemalloc
+	cd submodules/FASTGA && sed -i -e '/-lpthread/!s/-lm -lz/-lpthread -lm -lz/g' -e '/LIBS/!s/-lpthread -lm -lz/-lpthread -lm -lz $$(LIBS)/g' Makefile && LIBS="${jemallocSubLibs}" ${MAKE}
 	ln -f submodules/FASTGA/FastGA ${BINDIR}
 	ln -f submodules/FASTGA/ALNtoPAF ${BINDIR}
 	ln -f submodules/FASTGA/FAtoGDB ${BINDIR}
 	ln -f submodules/FASTGA/GIXmake ${BINDIR}
 	ln -f submodules/FASTGA/GIXrm ${BINDIR}
-suball.FASTAN:
-	cd submodules/FASTAN && sed -i -e 's/-lm -lz/-lm -lpthread -lz/g' Makefile && ${MAKE} || true
+suball.FASTAN: suball.jemalloc
+	cd submodules/FASTAN && sed -i -e 's/-lm -lz/-lm -lpthread -lz/g' -e '/LIBS/!s/-lm -lpthread -lz/-lm -lpthread -lz $$(LIBS)/g' Makefile && LIBS="${jemallocSubLibs}" ${MAKE} || true
 	ln -f submodules/FASTAN/FasTAN ${BINDIR}
 suball.alntools:
 	cd submodules/alntools && ${MAKE}

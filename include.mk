@@ -122,6 +122,13 @@ ifeq ($(jemalloc),on)
 	jemallocDepends = ${LIBDIR}/libjemalloc.a
 endif
 
+# jemalloc flags for submodules that are built by cd'ing into their own tree.  jemallocLib
+# deliberately carries no -L, because cactus's own link lines pick up -L${LIBDIR} from LDLIBS
+# below -- but a submodule that has already cd'd elsewhere cannot resolve a bare -ljemalloc
+# against the copy we build into lib/, and ${LIBDIR} is relative to the cactus root so it
+# would point at the wrong directory from there.  Empty when jemalloc is off.
+jemallocSubLibs = $(if ${jemallocLib},-L$(abspath ${LIBDIR}) ${jemallocLib})
+
 # note: the CACTUS_STATIC_LINK_FLAGS below can generally be empty -- it's used by the static builder script only
 LDLIBS += ${cactusLibs} ${sonLibLibs} ${LIBS} -L${rootPath}/lib -Wl,-rpath,${rootPath}/lib -labpoa ${jemallocLib} -lz -lbz2 -lpthread -lm -lstdc++ -lm -lxml2 ${CACTUS_STATIC_LINK_FLAGS}
 LIBDEPENDS = ${sonLibDir}/sonLib.a ${sonLibDir}/cuTest.a ${jemallocDepends}
