@@ -22,6 +22,17 @@ numcpu=$(getconf _NPROCESSORS_ONLN)
 submodulesDir=$(pwd)/submodules
 CWD=$(pwd)
 
+# CPU baseline.  include.mk is the single source of truth; ask make for it rather than
+# duplicating the arm/legacy/x86 selection here, where it would silently drift.
+# MAKEFLAGS is cleared because "make binRelease" reaches this from inside a make recipe.
+CACTUS_ARCH_FLAGS="${CACTUS_ARCH_FLAGS:-$(env -u MAKEFLAGS make -s -C "${CWD}" arch-flags)}"
+if [ -z "${CACTUS_ARCH_FLAGS}" ]; then
+    echo "ERROR: 'make arch-flags' returned nothing; cannot determine the CPU baseline." >&2
+    exit 1
+fi
+export CFLAGS="${CFLAGS:-} ${CACTUS_ARCH_FLAGS}"
+export CXXFLAGS="${CXXFLAGS:-} ${CACTUS_ARCH_FLAGS}"
+
 set -x
 
 mkdir -p ${binDir}

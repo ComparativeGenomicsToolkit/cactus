@@ -47,19 +47,16 @@ if [ -z ${CACTUS_LEGACY_ARCH+x} ]; then
     fi
 fi
 
-# CPU baseline, mirroring include.mk (hand-kept in sync, like the jemalloc block above).
-# Needed because CACTUS_ARCH_FLAGS is a make variable and this is a shell script, so without
-# it nothing built here -- minigraph, minimap2, gfatools, last, samtools/bcftools -- sees an
-# arch flag at all.  Confirmed against the v3.3.0 tarball: minigraph carried zero AVX2 in its
-# own code, only glibc's runtime-dispatched string routines.
-if [ -z ${CACTUS_ARCH_FLAGS+x} ]; then
-    if [ -n "${arm+x}" ]; then
-        CACTUS_ARCH_FLAGS="-march=armv8-a+simd"
-    elif [ -n "${CACTUS_LEGACY_ARCH+x}" ]; then
-        CACTUS_ARCH_FLAGS="-msse2"
-    else
-        CACTUS_ARCH_FLAGS="-march=x86-64-v3"
-    fi
+# CPU baseline.  include.mk is the single source of truth; ask make for it rather than
+# duplicating the arm/legacy/x86 selection here, where it would silently drift.  Without this
+# nothing built by this script -- minigraph, minimap2, gfatools, last, samtools/bcftools --
+# gets an arch flag at all: confirmed against the v3.3.0 tarball, where minigraph carried zero
+# AVX2 in its own code, only glibc's runtime-dispatched string routines.
+# MAKEFLAGS is cleared because "make binRelease" reaches this from inside a make recipe.
+CACTUS_ARCH_FLAGS="${CACTUS_ARCH_FLAGS:-$(env -u MAKEFLAGS make -s -C "${CWD}" arch-flags)}"
+if [ -z "${CACTUS_ARCH_FLAGS}" ]; then
+    echo "ERROR: 'make arch-flags' returned nothing; cannot determine the CPU baseline." >&2
+    exit 1
 fi
 export CFLAGS="${CFLAGS:-} ${CACTUS_ARCH_FLAGS}"
 export CXXFLAGS="${CXXFLAGS:-} ${CACTUS_ARCH_FLAGS}"

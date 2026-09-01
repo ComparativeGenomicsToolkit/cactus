@@ -24,7 +24,14 @@ CWD = ${PWD}
 
 # these must be absolute, as used in submodules.
 export sonLibRootDir = ${CWD}/submodules/sonLib
-.PHONY: all all.% clean clean.% selfClean suball suball.% subclean.%
+.PHONY: all all.% clean clean.% selfClean suball suball.% subclean.% arch-flags
+
+# The CPU baseline, for the build-tools/download* shell scripts.  They build tools that end
+# up in the same release as everything make builds, so they need the same flags -- but they
+# are shell, and CACTUS_ARCH_FLAGS is a make variable set in include.mk.  Rather than have
+# each script re-implement the arm/legacy/x86 selection and drift out of sync, they ask here.
+arch-flags:
+	@echo '${CACTUS_ARCH_FLAGS}'
 
 ##
 # Building.  First build submodules, then a pass for libs and a pass for bins
