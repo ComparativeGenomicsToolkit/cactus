@@ -63,8 +63,24 @@ sed -i submodules/FASTGA/Makefile -e 's/CFLAGS = /CFLAGS = -static /g'
 sed -i submodules/FASTAN/Makefile -e 's/CFLAGS = /CFLAGS = -static /g'
 sed -i submodules/alntools/Makefile -e 's/CFLAGS = /CFLAGS = -static /g'
 
-export CFLAGS="-static"
-export CXXFLAGS="-static"
+# The -O2 is here because of autoconf, not because we are picking an optimisation level.
+# AC_PROG_CC supplies its default "-g -O2" only when CFLAGS is *unset*; setting CFLAGS to
+# anything -- even "-static", which says nothing about optimisation -- suppresses it.
+# bcftools' own Makefile does set "CFLAGS = -g -Wall -O2" (:29), but "include config.mk"
+# (:110) reassigns it from what configure recorded, so upstream's -O2 is overwritten rather
+# than appended to.  Without the -O2 below, every binary release shipped samtools, bcftools,
+# tabix and bgzip compiled at -O0.  Confirmed against the shipped v3.3.0 tarball, whose
+# main_vcfnorm, vcf_parse and main_vcfview match an -O0 build of bcftools 1.23 byte for byte,
+# and which still contains normalize_vcf and bcf_hdr_register_hrec as standalone symbols --
+# functions that -O2 inlines away entirely.  Measured: "bcftools norm -m +any" over 120k
+# records x 60 samples, 0.91s at -O0 vs 0.41s at -O2.
+#
+# Only the tarball was ever affected: the Dockerfile never exports CFLAGS, so the image got
+# autoconf's -O2 and this never showed up in Docker-based testing.  Tools built from plain
+# Makefiles were never affected either -- downloadPangenomeTools seds their "CFLAGS=" to
+# "CFLAGS+=", so their own -O2/-O3 lands after this and wins.
+export CFLAGS="-static -O2"
+export CXXFLAGS="-static -O2"
 export LDFLAGS="-static"
 export LIBS="-static"
 

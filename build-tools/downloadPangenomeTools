@@ -397,11 +397,17 @@ cd ${pangenomeBuildDir}
 wget -nv --tries=5 --waitretry=3 --timeout=60 --retry-connrefused https://github.com/pangenome/odgi/releases/download/v0.9.4/odgi-v0.9.4.tar.gz
 tar --no-same-owner -zxf odgi-v0.9.4.tar.gz
 cd odgi-v0.9.4
+# "Generic" is odgi's portable build type -- it exists to dodge the -Ofast -march=native
+# that CMAKE_BUILD_TYPE=Release injects (odgi CMakeLists.txt:77-91).  But odgi only sets
+# CMAKE_CXX_FLAGS under Release/RelWithDebInfo, and CMake has no CMAKE_CXX_FLAGS_GENERIC of
+# its own, so Generic ended up with no -O flag at all and odgi shipped at -O0.  Supplying
+# CMAKE_CXX_FLAGS_GENERIC adds -O3 for that config only; overriding CMAKE_CXX_FLAGS instead
+# would drop the -fopenmp that Generic does supply through it.
 if [[ $STATIC_CHECK -eq 1 ]]
 then
-    CXXFLAGS="" CFLAGS="" LDFLAGS="" LIBS="" cmake -DBUILD_STATIC=1 -DCMAKE_BUILD_TYPE=Generic -H. -Bbuild && CXXFLAGS="" CFLAGS="" LDFLAGS="" LIBS="" cmake --build build -- -j ${numcpu}
+    CXXFLAGS="" CFLAGS="" LDFLAGS="" LIBS="" cmake -DBUILD_STATIC=1 -DCMAKE_BUILD_TYPE=Generic -DCMAKE_C_FLAGS_GENERIC=-O3 -DCMAKE_CXX_FLAGS_GENERIC=-O3 -H. -Bbuild && CXXFLAGS="" CFLAGS="" LDFLAGS="" LIBS="" cmake --build build -- -j ${numcpu}
 else
-    cmake -H. -Bbuild -DCMAKE_BUILD_TYPE=Generic && cmake --build build -- -j ${numcpu}
+    cmake -H. -Bbuild -DCMAKE_BUILD_TYPE=Generic -DCMAKE_C_FLAGS_GENERIC=-O3 -DCMAKE_CXX_FLAGS_GENERIC=-O3 && cmake --build build -- -j ${numcpu}
 fi
 if [[ $STATIC_CHECK -ne 1 || $(ldd bin/odgi | grep so | wc -l) -eq 0 ]]
 then

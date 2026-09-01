@@ -33,6 +33,23 @@ git clone https://github.com/CshlSiepelLab/phast.git
 cd phast
 git checkout ${gitrel}
 
+# phast passes "-g -fno-inline -Wall -fno-strict-aliasing" to add_compile_options(), which
+# CMake places *after* CMAKE_C_FLAGS_RELEASE on the compile line, so -fno-inline beats the
+# Release build's -O3 and inlining is off across the whole suite.  Drop just that one flag;
+# -fno-strict-aliasing is deliberate and stays.
+#
+# Guarded, because a sed that silently stops matching is exactly how the unoptimised releases
+# went unnoticed in the first place.  If phast reformats the line we want to hear about it
+# here rather than quietly ship -fno-inline again; if they drop the flag themselves, this
+# block has done its job and can go.
+grep -q -- ' -fno-inline' CMakeLists.txt || {
+    echo "ERROR: phast ${gitrel} CMakeLists.txt no longer contains ' -fno-inline'." >&2
+    echo "       Check whether upstream still disables inlining under a Release build." >&2
+    echo "       If it no longer does, delete this check and the sed below." >&2
+    exit 1
+}
+sed -i CMakeLists.txt -e 's/ -fno-inline//'
+
 # Static linking strategy:
 #
 #   v1.9.7's CMakeLists uses find_package(BLAS REQUIRED) / find_package(LAPACK
