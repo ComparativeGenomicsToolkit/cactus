@@ -739,10 +739,12 @@ def panpatch_workflow(job, options, run, join_options, join_wf_output, seq_id_ma
 
 def tag_report_gap_origin(job, report_path, target_error_bed_ids):
     """ add a 'gap_origin' column to panpatch's per-chromosome report, distinguishing a genuine N-gap
-    fill ('N-gap') from an error-BED-induced fill ('bed-gap'); '.' for non-gap-fill rows.  panpatch
+    fill ('N-gap') from an error-BED-induced fill ('bed-gap'); '.' for rows with no gap origin.  panpatch
     cannot tell them apart (both are just Ns in the graph) -- we can, because we masked the bed-gaps: a
-    gap-fill row is a bed-gap iff its replaced target span overlaps a target error interval.  the column
-    is appended so existing column positions are unchanged """
+    gap-fill OR telomere row is 'bed-gap' iff its replaced target span overlaps a target error interval,
+    which is how a telomere completed over a bed-masked tip becomes self-evident in the report.  a
+    gap-fill with no overlap is a genuine 'N-gap'; a telomere with no overlap capped a non-masked end and
+    stays '.'.  the column is appended so existing column positions are unchanged """
     # target error intervals per graph haplotype, in sanitized (graph) contig coordinates
     err_by_hap = {}
     if target_error_bed_ids:
@@ -770,8 +772,13 @@ def tag_report_gap_origin(job, report_path, target_error_bed_ids):
             continue
         fields = stripped.split('\t')
         origin = '.'
-        if len(fields) == len(cols) and fields[idx['type']] == 'gap-fill':
-            origin = 'N-gap'
+        rtype = fields[idx['type']] if len(fields) == len(cols) else None
+        if rtype in ('gap-fill', 'telomere'):
+            # both a gap-fill and a telomere completion replace a target span; the span is 'bed-gap' iff it
+            # overlaps a target error interval we masked.  a gap-fill sits on an N gap by construction, so
+            # with no overlap it is a genuine 'N-gap'; a telomere completion may instead cap a non-masked
+            # (truncated/absent-telomere) end, which is no gap at all, so with no overlap it stays '.'
+            origin = 'N-gap' if rtype == 'gap-fill' else '.'
             try:
                 hap = int(fields[idx['hap']])
                 tgt = fields[idx['target']]
@@ -914,8 +921,12 @@ def revert_target_to_original(job, combined_fasta, patched_blocks, pristine_targ
             pristine[cname] = b''.join(parts)
 
     def contig_of(path_name):
-        # SAMPLE#HAP#CONTIG -> CONTIG (sanitize stripped through the last '#', so CONTIG has none)
-        return path_name.split('#', 2)[2] if path_name.count('#') >= 2 else path_name
+        # graph paths are SAMPLE#HAP#CONTIG, or SAMPLE#HAP#CONTIG#OFFSET in the "full" graphs (a subrange
+        # offset, 0 for a whole contig).  the contig is field 2 (sanitize strips any '#' from the contig
+        # itself, so it never contains one); take exactly that field, NOT the '#'-joined remainder, or the
+        # trailing #OFFSET leaks in and the pristine lookup (keyed by the bare contig) never matches
+        parts = path_name.split('#')
+        return parts[2] if len(parts) >= 3 else path_name
 
     def is_target(path_name):
         # sample must match AND the contig must be one we hold, so a donor contig that happens to share a

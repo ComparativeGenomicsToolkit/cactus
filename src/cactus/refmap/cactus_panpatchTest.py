@@ -438,6 +438,22 @@ class TestPanpatchErrorBeds(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             revert_target_to_original(self.job, combined, blocks, pristine, 'TGT', 1)
 
+    def test_revert_matches_4field_offset_path(self):
+        # cactus "full" graphs name paths SAMPLE#HAP#CONTIG#OFFSET (a trailing #0 subrange field). the
+        # revert must still match the contig to the pristine dict (keyed by the bare contig); otherwise
+        # is_target is always false, the revert is a silent no-op, and panpatch's masked (N) bytes -- e.g.
+        # N'd telomere tips -- are kept instead of restored to the original. this is the bug that dropped
+        # telomeres in the pilot.
+        pristine = self._write('p4.fa', '>chr1\n{}\n'.format('T'*20 + 'C'*60 + 'G'*20))  # tips T.../G...
+        masked = 'N'*20 + 'C'*60 + 'N'*20                                                # panpatch: tips N'd
+        combined = self._write('h4.fa', '>chrX_hap_1\n{}\n'.format(masked))
+        bed = '#Patched assembly on chrX for TGT#1:\nTGT#1#chr1#0\t0\t100\t+\n'          # 4-field path
+        blocks = parse_bed_blocks(self._write('h4.bed', bed))
+        revert_target_to_original(self.job, combined, blocks, pristine, 'TGT', 1)
+        recs = _read_fasta_bytes(combined)
+        self.assertEqual(recs['chrX_hap_1'], b'T'*20 + b'C'*60 + b'G'*20)               # restored, not N
+        self.assertNotIn(b'N', recs['chrX_hap_1'])
+
     # ---- tag_report_gap_origin ----
 
     def test_tag_report_gap_origin(self):
@@ -451,7 +467,8 @@ class TestPanpatchErrorBeds(unittest.TestCase):
         report = self._write('report.tsv', _REPORT_HEADER + '\n'
                              + row('chr1', 1, 'gap-fill', 'TGT#1#chr1', 35, 45) + '\n'    # overlaps -> bed-gap
                              + row('chr1', 1, 'gap-fill', 'TGT#1#chr1', 70, 80) + '\n'    # no overlap -> N-gap
-                             + row('chr1', 1, 'telomere', 'TGT#1#chr1', 0, 10) + '\n'     # not gap-fill -> .
+                             + row('chr1', 1, 'telomere', 'TGT#1#chr1', 35, 45) + '\n'    # overlaps (masked tip) -> bed-gap
+                             + row('chr1', 1, 'telomere', 'TGT#1#chr1', 0, 10) + '\n'     # no overlap (non-masked end) -> .
                              + row('chr1', 2, 'gap-fill', 'TGT#2#chr1', 35, 45) + '\n'    # hap 2 has no bed -> N-gap
                              + '#Contig TGT#1#chr1 len=100\n')
 
@@ -462,9 +479,10 @@ class TestPanpatchErrorBeds(unittest.TestCase):
         self.assertEqual(lines[0], _REPORT_HEADER + '\tgap_origin')
         self.assertTrue(lines[1].endswith('\tbed-gap'))
         self.assertTrue(lines[2].endswith('\tN-gap'))
-        self.assertTrue(lines[3].endswith('\t.'))          # telomere row
-        self.assertTrue(lines[4].endswith('\tN-gap'))      # hap 2, no error bed
-        self.assertEqual(lines[5], '#Contig TGT#1#chr1 len=100')   # comment passes through, no column
+        self.assertTrue(lines[3].endswith('\tbed-gap'))    # telomere over a masked tip
+        self.assertTrue(lines[4].endswith('\t.'))          # telomere over a non-masked end
+        self.assertTrue(lines[5].endswith('\tN-gap'))      # hap 2, no error bed
+        self.assertEqual(lines[6], '#Contig TGT#1#chr1 len=100')   # comment passes through, no column
 
     def test_tag_report_no_beds_still_adds_column(self):
         # with no target error beds, every gap-fill is a genuine N-gap but the column is still added
