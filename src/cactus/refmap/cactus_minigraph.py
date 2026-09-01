@@ -214,8 +214,13 @@ def export_minigraph_construct_output(options, input_seqfiles, output_dict, toil
             train_path = gfa_path.replace('.gfa.gz', '.gfa').replace('.gfa', '.train')
         else:
             train_path = None
-        #export the gfa            
-        toil.exportFile(pansn_gfa_id, makeURL(gfa_path))
+        #export the gfa
+        # with --mgSplitWholeGenomeRef this graph is still whole-genome: it only becomes
+        # chromosome-only after the post-mapping prune, which writes it to this same path
+        # (export_pruned_minigraph_gfa_wrapper in cactus_pangenome.py).  the chromfile below is
+        # still written now -- downstream only ever reads its .train column
+        if not getattr(options, 'mgSplitWholeGenomeRef', False):
+            toil.exportFile(pansn_gfa_id, makeURL(gfa_path))
         if train_path:
             # export the scoring model (.train)
             toil.exportFile(train_id, makeURL(train_path))
@@ -255,23 +260,45 @@ def check_sample_names(sample_names, references):
         if sample_ext and (len(sample_ext) == 1 or not sample_ext[1:].isnumeric()):
             raise RuntimeError("Sample name {} with \"{}\" suffix is not supported. You must either remove this suffix or use .N where N is an integer to specify haplotype".format(sample, sample_ext))
 
-def minigraph_construct_batch_workflow(job, options, config_node, input_dict, gfa_path, sanitize=True):
-    """ run the construction workflow on individual chromosomes """
+def minigraph_construct_batch_workflow(job, options, config_node, input_dict, gfa_path, sanitize=True,
+                                       construct_ref_id_map=None):
+    """ run the construction workflow on individual chromosomes.  construct_ref_id_map, if given,
+    swaps the whole-genome reference fastas in for the chromosome's own slice of them (--mgSplit
+    --mgSplitWholeGenomeRef).  the merge happens here rather than inside minigraph_construct_workflow
+    because both dicts are resolved job arguments at this point, whereas the sanitized map down there
+    can still be an unresolved promise """
     output_dict = {}
     for chrom, input_info in input_dict.items():
         seq_id_map, seq_order = input_info
+        construct_seq_id_map = None
+        if construct_ref_id_map:
+            construct_seq_id_map = dict(seq_id_map)
+            construct_seq_id_map.update(construct_ref_id_map)
         if options.batch:
             gfa_path = os.path.join(options.outputGFA, '{}.gfa.gz'.format(chrom))
         else:
             gfa_path = options.outputGFA
-        mgwf_job = job.addChildJobFn(minigraph_construct_workflow, options, config_node, seq_id_map, seq_order, gfa_path, sanitize)
+        mgwf_job = job.addChildJobFn(minigraph_construct_workflow, options, config_node, seq_id_map, seq_order, gfa_path, sanitize,
+                                     construct_seq_id_map=construct_seq_id_map)
         output_dict[chrom] = mgwf_job.rv()
     return output_dict
                                     
-def minigraph_construct_workflow(job, options, config_node, seq_id_map, seq_order, gfa_path, sanitize=True):
-    """ minigraph can handle bgzipped files but not gzipped; so unzip everything in case before running"""
+def minigraph_construct_workflow(job, options, config_node, seq_id_map, seq_order, gfa_path, sanitize=True,
+                                 construct_seq_id_map=None):
+    """ minigraph can handle bgzipped files but not gzipped; so unzip everything in case before running
+
+    construct_seq_id_map, when given, replaces seq_id_map for the graph construction alone.  it is how
+    --mgSplitWholeGenomeRef hands each chromosome the whole reference: mash sorting and last-training
+    (and the size estimate for last-training's own job) keep using the chromosome's own much smaller
+    reference slice, since training against a whole genome would be both expensive and
+    cross-chromosome contaminated -- and would silently produce no model at all, as last_train()
+    requires its partner sequence to be at least half the size of the database it trains against.
+    The construction job itself is sized off the substituted map, since that is what it runs on. """
     assert type(options.reference) is list
     assert options.reference[0] == seq_order[0]
+    # the substituted map is a plain dict here, but sanitized_seq_id_map below is a promise when
+    # sanitize is on, so the two can't be reconciled in this job
+    assert not (construct_seq_id_map and sanitize)
     if options.refOnly:
         refonly_seq_id_map = {}
         refonly_seq_order = []
@@ -280,6 +307,8 @@ def minigraph_construct_workflow(job, options, config_node, seq_id_map, seq_orde
                 refonly_seq_order.append(seq)
                 refonly_seq_id_map[seq] = seq_id_map[seq]
         seq_id_map, seq_order = refonly_seq_id_map, refonly_seq_order
+        if construct_seq_id_map:
+            construct_seq_id_map = {seq: construct_seq_id_map[seq] for seq in refonly_seq_order}
     ref_size = seq_id_map[options.reference[0]].size
     if sanitize:
         sanitize_job = job.addChildJobFn(sanitize_fasta_headers, seq_id_map, pangenome=True)
@@ -296,7 +325,10 @@ def minigraph_construct_workflow(job, options, config_node, seq_id_map, seq_orde
         prev_job = sort_job
     else:
         prev_job = sanitize_job
-    minigraph_job = prev_job.addFollowOnJobFn(minigraph_construct_in_batches, options, config_node, sanitized_seq_id_map, seq_order, gfa_path)
+    minigraph_job = prev_job.addFollowOnJobFn(minigraph_construct_in_batches, options, config_node,
+                                              construct_seq_id_map if construct_seq_id_map else sanitized_seq_id_map,
+                                              seq_order, gfa_path,
+                                              whole_genome_ref=bool(construct_seq_id_map))
     train_id = None
     if options.lastTrain and len(seq_id_map) > 1:
         # note: somehow last training memory overruns don't seem to be detected by slurm so we
@@ -449,14 +481,21 @@ def mash_distance_order(job, options, config_node, seq_order, mash_output_maps):
 
     return mash_order
             
-def minigraph_construct_in_batches(job, options, config_node, seq_id_map, seq_order, gfa_path):
+def minigraph_construct_in_batches(job, options, config_node, seq_id_map, seq_order, gfa_path, whole_genome_ref=False):
     """ Make minigraph in sequential batches"""
 
     max_size = max([x.size for x in seq_id_map.values()])
     total_size = sum([x.size for x in seq_id_map.values()])
     disk = total_size * 2
     mem = cactus_clamp_memory(60 * max_size + int(total_size / 4))
-    if options.batch:
+    if whole_genome_ref:
+        # with --mgSplitWholeGenomeRef the largest input is the whole reference, so the estimate above
+        # is already the whole-genome one, calibrated against a graph carrying far more sample
+        # material than one chromosome's.  applying the batch multiple on top would ask for more
+        # memory than most machines have.  --mgMemory overrides either way
+        RealtimeLogger.info('Sizing whole-genome-reference minigraph_construct for {} at {}'.format(
+            os.path.basename(gfa_path), bytes2human(mem)))
+    elif options.batch:
         # the memory heuristc seems to drastically underestimate some chromosomes in batch mode...
         mem *= 3
     if options.mgMemory is not None:

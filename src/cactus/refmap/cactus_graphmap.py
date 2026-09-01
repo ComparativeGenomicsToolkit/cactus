@@ -321,7 +321,8 @@ def add_separate_ref_contigs_job(batch_job, options, config, input_dict):
     from cactus.refmap.cactus_graphmap_split import separate_ref_contigs_batch
     reference = options.reference[0] if type(options.reference) is list else options.reference
     return batch_job.addFollowOnJobFn(separate_ref_contigs_batch, config, input_dict, batch_job.rv(), reference,
-                                      getattr(options, 'permissiveContigFilter', None))
+                                      getattr(options, 'permissiveContigFilter', None),
+                                      whole_genome_ref=getattr(options, 'mgSplitWholeGenomeRef', False))
 
 def minigraph_batch_separate_workflow(job, options, config, input_dict, graph_event, sanitize, pansn_gfa_input=True):
     """ minigraph_batch_workflow followed by the separation pass, for callers that just want the final
@@ -480,8 +481,15 @@ def minigraph_map_all(job, options, config, gfa_id, fa_id_map, graph_event):
     gaf_id_map = {}
     paf_id_map = {}
                 
+    # the estimate below is anchored on the query, which holds while the graph is no bigger than the
+    # chromosome the query came from.  the --mgSplitWholeGenomeRef second pass breaks that -- the graph
+    # is whole-genome while the query stays one chromosome, so the index dominates and the graph term
+    # has to carry it: measured at ~5.5x the (already decompressed) GFA on HPRC, against the 2x below.
+    # it must be gated on batch as well as the option: the option's own first pass maps whole-genome
+    # queries against a whole-genome graph, where the query anchor still holds and 2x is right
+    gfa_coefficient = 6 if options.batch and getattr(options, 'mgSplitWholeGenomeRef', False) else 2
     for event, fa_id in fa_id_map.items():
-        mem = 72*fa_id.size + 2*gfa_id.size
+        mem = 72*fa_id.size + gfa_coefficient*gfa_id.size
         event_name = event
         if options.batch:
             # the memory heuristc seems to drastically underestimate some chromosomes in batch mode...
