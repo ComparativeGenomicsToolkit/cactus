@@ -1090,7 +1090,12 @@ int caps_comp_by_adjacency_length(const void *a, const void *b) {
     int64_t length1, length2;
     get_adjacency_string((Cap *)a, &length1, 0);
     get_adjacency_string((Cap *)b, &length2, 0);
-    return length1 > length2 ? -1 : (length1 < length2 ? 1 : 0); // sort in descending order of length
+    if (length1 != length2) {
+        return length1 > length2 ? -1 : 1; // sort in descending order of length
+    }
+    // Equal lengths are common, and the row order decides the alignment, so
+    // separate them by name instead of leaving it to whatever qsort does
+    return cactusMisc_nameCompare(cap_getName((Cap *)a), cap_getName((Cap *)b));
 }
 
 /*

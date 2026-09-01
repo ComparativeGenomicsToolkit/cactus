@@ -126,6 +126,9 @@ static RecordHolder *doBottomUpTraversal(stList *flowerLayers,
 #pragma omp parallel for schedule(dynamic)
 #endif
         for (int64_t j = 0; j < stList_length(flowers); j++) {
+            // Ancestral base calling breaks ties randomly: seed from the flower so the
+            // draws are the flower's own and not a slice of one sequence shared by the threads
+            st_randomSeed(flower_getName(stList_get(flowers, j)));
             stList_set(recordHoldersForFlowers, j, getMergedRecordHolders(recordHolders, stList_get(flowers, j)));
             bottomUpFn(stList_get(flowers, j), stList_get(recordHoldersForFlowers, j), extraArgs);
         }
@@ -176,17 +179,24 @@ stHash *compute_flower_length_hash(stList *flowers) {
     return flower_to_length;
 }
 
+// Flowers of equal size are ordered by name.  The sort decides which flower gets
+// which interval of names, so leaving equal-sized flowers to be separated by
+// whatever qsort does with them would tie the output to the C library's sort.
+static int flower_nameCmpFn(const void *a, const void *b) {
+    return cactusMisc_nameCompare(flower_getName((Flower *)a), flower_getName((Flower *)b));
+}
+
 int flower_lengthCmpFn(const void *a, const void *b, void *flower_to_length_hash) {
     // Sort by hashed length value of the flowers
     int64_t i = (int64_t)stHash_search((stHash*)flower_to_length_hash, (void*)a);
     int64_t j = (int64_t)stHash_search((stHash*)flower_to_length_hash, (void*)b);
-    return i < j ? 1 : (i > j ? -1 : 0); // Sort in descending order
+    return i < j ? 1 : (i > j ? -1 : flower_nameCmpFn(a, b)); // Sort in descending order
 }
 
 int flower_sizeCmpFn(const void *a, const void *b) {
     // Sort by number of caps the flowers contains
     int64_t i = flower_getCapNumber((Flower *)a), j = flower_getCapNumber((Flower *)b);
-    return i < j ? 1 : (i > j ? -1 : 0); // Sort in descending order
+    return i < j ? 1 : (i > j ? -1 : flower_nameCmpFn(a, b)); // Sort in descending order
 }
 
 int main(int argc, char *argv[]) {
@@ -486,6 +496,9 @@ int main(int argc, char *argv[]) {
 
         // Bottom-up reference coordinates phase
         RecordHolder *rh = doBottomUpTraversal(flowerLayers, callBottomUp, (void *)referenceEventName);
+        // The traversal above left this thread's generator wherever the flowers it
+        // happened to be handed took it, so seed the root flower like any other
+        st_randomSeed(flower_getName(flower));
         bottomUpNoDb(flower, rh, referenceEventName, 1, generateJukesCantorMatrix);
         assert(recordHolder_size(rh) == 0);
         recordHolder_destruct(rh);

@@ -166,7 +166,7 @@ def cactus_graphmap_split(options):
                 if genome in leaves:
                     if os.path.isdir(seq):
                         tmpSeq = getTempFile()
-                        catFiles([os.path.join(seq, subSeq) for subSeq in os.listdir(seq)], tmpSeq)
+                        catFiles([os.path.join(seq, subSeq) for subSeq in sorted(os.listdir(seq))], tmpSeq)
                         seq = tmpSeq
                     seq = makeURL(seq)
                     input_seq_id_map[genome] = toil.importFile(seq)
@@ -446,7 +446,7 @@ def split_gfa(job, config, gfa_id, paf_ids, ref_contigs, other_contig, reference
     cactus_call(parameters=cmd, work_dir=work_dir, job_memory=job.memory)
 
     output_id_map = {}
-    for out_name in os.listdir(work_dir):
+    for out_name in sorted(os.listdir(work_dir)):
         file_name, ext = os.path.splitext(out_name)
         if file_name.startswith(os.path.basename(out_prefix)) and ext in [".gfa", ".paf", ".fa_contigs"] and \
            os.path.isfile(os.path.join(work_dir, file_name + ".fa_contigs")):

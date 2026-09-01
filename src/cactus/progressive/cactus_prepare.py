@@ -1045,7 +1045,7 @@ def toil_call_blast(job, options, seq_file, mc_tree, og_map, event, cigar_name, 
 
     # scrape the output files out of the workdir
     out_nameids = []
-    for out_file in [f for f in os.listdir(work_dir) if os.path.isfile(os.path.join(work_dir, f))]:
+    for out_file in sorted(f for f in os.listdir(work_dir) if os.path.isfile(os.path.join(work_dir, f))):
         if out_file.startswith(os.path.basename(cigar_name)):
             out_nameids.append((os.path.basename(out_file), job.fileStore.writeGlobalFile(os.path.join(work_dir, out_file))))
             

@@ -376,7 +376,7 @@ def make_align_job(options, toil, config_wrapper=None, chrom_name=None):
         if genome in event_set:
             if os.path.isdir(seq):
                 tmpSeq = getTempFile()
-                catFiles([os.path.join(seq, subSeq) for subSeq in os.listdir(seq)], tmpSeq)
+                catFiles([os.path.join(seq, subSeq) for subSeq in sorted(os.listdir(seq))], tmpSeq)
                 seq = tmpSeq
             seq = makeURL(seq)
             input_seq_id_map[genome] = toil.importFile(seq)

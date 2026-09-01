@@ -253,7 +253,35 @@ void cactusDisk_setEventTree(CactusDisk *cactusDisk, EventTree *eventTree) {
  * Function to get unique ID.
  */
 
+/*
+ * The interval a parallel loop has handed to this thread, if any.  See
+ * cactusDisk_pushNameInterval in cactusDisk.h.
+ */
+#if defined(__GNUC__) || defined(__clang__)
+#define CACTUS_THREAD_LOCAL __thread
+#else
+#define CACTUS_THREAD_LOCAL
+#endif
+
+static CACTUS_THREAD_LOCAL Name intervalNext = 0;
+static CACTUS_THREAD_LOCAL int64_t intervalRemaining = 0;
+static CACTUS_THREAD_LOCAL bool intervalActive = 0;
+
 int64_t cactusDisk_getUniqueIDInterval(CactusDisk *cactusDisk, int64_t intervalSize) {
+    if (intervalRemaining >= intervalSize) { // Thread has names of its own left, so no lock and no shared state
+        Name n = intervalNext;
+        intervalNext += intervalSize;
+        intervalRemaining -= intervalSize;
+        return n;
+    }
+    if (intervalActive) { // Ran out: correct, but the names stop being reproducible from here on
+        static bool warned = 0;
+        if (!warned) {
+            warned = 1;
+            st_logCritical("Warning: ran out of reserved names in a parallel region, so names, and any "
+                           "output containing them, will not be identical from run to run\n");
+        }
+    }
 #if defined(_OPENMP)
     omp_set_lock(&(cactusDisk->writelock));
 #endif
@@ -267,6 +295,36 @@ int64_t cactusDisk_getUniqueIDInterval(CactusDisk *cactusDisk, int64_t intervalS
 
 int64_t cactusDisk_getUniqueID(CactusDisk *cactusDisk) {
     return cactusDisk_getUniqueIDInterval(cactusDisk, 1);
+}
+
+Name cactusDisk_reserveNames(CactusDisk *cactusDisk, int64_t nameNumber) {
+    assert(nameNumber >= 0);
+    assert(!intervalActive); // Reserving is done outside the parallel loop that uses the names
+#if defined(_OPENMP)
+    omp_set_lock(&(cactusDisk->writelock));
+#endif
+    Name n = cactusDisk->currentName;
+    cactusDisk->currentName += nameNumber;
+    assert(cactusDisk->currentName > n || nameNumber == 0); // Overflow of the name space
+#if defined(_OPENMP)
+    omp_unset_lock(&(cactusDisk->writelock));
+#endif
+    return n;
+}
+
+void cactusDisk_pushNameInterval(CactusDisk *cactusDisk, Name start, int64_t nameNumber) {
+    assert(nameNumber >= 0);
+    assert(!intervalActive); // Intervals do not nest
+    intervalNext = start;
+    intervalRemaining = nameNumber;
+    intervalActive = 1;
+}
+
+void cactusDisk_popNameInterval(CactusDisk *cactusDisk) {
+    assert(intervalActive);
+    intervalNext = 0;
+    intervalRemaining = 0;
+    intervalActive = 0;
 }
 
 EventTree *cactusDisk_getEventTree(CactusDisk *cactusDisk) {

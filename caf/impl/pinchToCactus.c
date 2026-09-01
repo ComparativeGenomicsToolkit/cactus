@@ -105,10 +105,26 @@ static void attachThreadToDeadEndComponent(stPinchThread *thread, stList *deadEn
     }
 }
 
+static int comparePinchThreadsByName(const void *a, const void *b) {
+    int64_t i = stPinchThread_getName((stPinchThread *) a);
+    int64_t j = stPinchThread_getName((stPinchThread *) b);
+    return i > j ? 1 : (i < j ? -1 : 0);
+}
+
 int comparePinchThreadsByLength(const void *a, const void *b) {
     int64_t i = stPinchThread_getLength((stPinchThread *) a);
     int64_t j = stPinchThread_getLength((stPinchThread *) b);
-    return i > j ? 1 : (i < j ? -1 : 0);
+    if (i != j) {
+        return i > j ? 1 : -1;
+    }
+    return comparePinchThreadsByName(a, b); // Break ties by name: which of two equally long
+    // threads gets attached first has to be decided the same way on every run
+}
+
+static int compareThreadComponentsByFirstThread(const void *a, const void *b) {
+    // The components are disjoint and thread names are unique, so comparing their
+    // lowest-named thread is a total order over the components
+    return comparePinchThreadsByName(stList_get((stList *) a, 0), stList_get((stList *) b, 0));
 }
 
 static void attachThreadComponentToDeadEndComponent(stList *threadComponent, stList *deadEndComponent,
@@ -220,13 +236,23 @@ static void stCaf_attachUnattachedThreadComponents(Flower *flower, stPinchThread
     }
     stSortedSet *threadComponents = stPinchThreadSet_getThreadComponents(threadSet);
     assert(stSortedSet_size(threadComponents) > 0);
-    stSortedSetIterator *threadIt = stSortedSet_getIterator(threadComponents);
-    stList *threadComponent;
-    while ((threadComponent = stSortedSet_getNext(threadIt)) != NULL) {
-        attachThreadComponentToDeadEndComponent(threadComponent, deadEndComponent, pinchEndsToAdjacencyComponents, markEndsAttached,
+    /*
+     * The set holds the components in address order, and each component holds its
+     * threads in whatever order the union-find produced them.  Which threads get
+     * attached to the root depends on the order they are visited in, so put both
+     * into name order first, which is the same on every run.
+     */
+    stList *threadComponents2 = stSortedSet_getList(threadComponents);
+    for (int64_t i = 0; i < stList_length(threadComponents2); i++) {
+        stList_sort(stList_get(threadComponents2, i), comparePinchThreadsByName);
+    }
+    stList_sort(threadComponents2, compareThreadComponentsByFirstThread);
+    for (int64_t i = 0; i < stList_length(threadComponents2); i++) {
+        attachThreadComponentToDeadEndComponent(stList_get(threadComponents2, i), deadEndComponent,
+                pinchEndsToAdjacencyComponents, markEndsAttached,
                 minLengthForChromosome, proportionOfUnalignedBasesForNewChromosome, flower);
     }
-    stSortedSet_destructIterator(threadIt);
+    stList_destruct(threadComponents2);
     stSortedSet_destruct(threadComponents);
 }
 
