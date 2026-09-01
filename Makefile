@@ -26,6 +26,10 @@ CWD = ${PWD}
 export sonLibRootDir = ${CWD}/submodules/sonLib
 .PHONY: all all.% clean clean.% selfClean suball suball.% subclean.% arch-flags
 
+# Pinned, because make's default goal is whatever rule comes first and a helper target
+# above "all" would silently turn a bare "make" into a no-op that still exits 0.
+.DEFAULT_GOAL := all
+
 # The CPU baseline, for the build-tools/download* shell scripts.  They build tools that end
 # up in the same release as everything make builds, so they need the same flags -- but they
 # are shell, and CACTUS_ARCH_FLAGS is a make variable set in include.mk.  Rather than have
