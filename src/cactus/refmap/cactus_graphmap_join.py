@@ -162,6 +162,8 @@ def graphmap_join_options(parser):
     """ we share these options with cactus-pangenome """
     parser.add_argument("--clip", type=int, default=10000, help = "Generate clipped graph by removing anything longer than this amount that is unaligned to the underlying minigraph. Set to 0 to disable (must also set --filter 0 as well). [default=10000]")
     
+    parser.add_argument("--clipFlank", type=int, help = "Trim the tangled fringe outward from each clipped interval by up to this many bp. 0 to disable (overrides config option of same name)")
+
     parser.add_argument("--filter", type=int, default=2, help = "Generate a frequency filtered graph (from the clipped graph) by removing any sequence present in fewer than this many sequences. Set to 0 to disable. [default=2]")
 
     parser.add_argument("--gfa", nargs='*', default=None, help = "Produce a GFA for given graph type(s) if specified. Valid types are 'full', 'clip', and 'filter'. If no type specified 'clip' will be used ('full' used if clipping disabled). Multiple types can be provided separated by a space. [--gfa clip assumed by default]")
@@ -253,6 +255,12 @@ def graphmap_join_defaults(options):
         if not hasattr(options, name):
             setattr(options, name, value)
     return options
+
+def graphmap_join_config_overrides(options, config_node):
+    """ apply the command-line options that override <graphmap_join> config attributes.
+    shared by cactus-graphmap-join and cactus-pangenome, which load the config separately """
+    if getattr(options, 'clipFlank', None) is not None:
+        findRequiredNode(config_node, "graphmap_join").attrib["clipFlank"] = str(options.clipFlank)
 
 def graphmap_join_validate_options(options):
     """ make sure the options make sense and fill in sensible defaults """
@@ -354,6 +362,15 @@ def graphmap_join_validate_options(options):
     # sanity check the workflow options and apply defaults
     if options.filter and not options.clip and not options.bypass:
         raise RuntimeError('--filter cannot be used without also disabling --clip.')
+
+    # 0 disables the flank trim; a negative would too, but only by falling through the same test,
+    # so say so rather than let it look like the negative clipFlankThreshold that means "calibrate"
+    if getattr(options, 'clipFlank', None) is not None:
+        if options.clipFlank < 0:
+            raise RuntimeError('--clipFlank cannot be negative (0 disables it).')
+        if options.clipFlank and not options.clip and not options.bypass:
+            raise RuntimeError('--clipFlank cannot be used with --clip disabled: it trims outward '
+                               'from the intervals --clip removes.')
 
     # check the reference name suffix
     check_sample_names(options.reference, options.reference[0])
@@ -632,6 +649,8 @@ def graphmap_join(options):
 
             if options.collapse:
                 findRequiredNode(configNode, "graphmap").attrib["collapse"] = 'all'
+
+            graphmap_join_config_overrides(options, configNode)
 
             # load up the hals
             hal_ids = []
@@ -1273,6 +1292,12 @@ def clip_vg(job, options, config, vg_path, vg_id, phase):
             clip_vg_cmd += ['-u', str(options.clip)]
             if getOptionalAttrib(join_xml_node, "clipNonMinigraph", typeFn=bool, default=True):
                 clip_vg_cmd += ['-a', graph_event]
+            # trim the tangled fringe left where an aligner extended anchors into a repeat
+            flank = getOptionalAttrib(join_xml_node, "clipFlank", typeFn=int, default=0)
+            if flank > 0:
+                clip_vg_cmd += ['-k', str(flank),
+                                '-T', str(getOptionalAttrib(join_xml_node, "clipFlankThreshold",
+                                                            typeFn=float, default=-1.0))]
 
     # disable reference cycle check if desiired
     if getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "collapse", typeFn=str, default="none") in ["all", "reference"]:
@@ -1328,7 +1353,8 @@ def clip_vg(job, options, config, vg_path, vg_id, phase):
     if phase == 'full':
         cmd.append(['vg', 'ids', '-s', '-'])
         
-    cactus_call(parameters=cmd, outfile=clipped_path, job_memory=job.memory)
+    clip_stderr = cactus_call(parameters=cmd, outfile=clipped_path, job_memory=job.memory,
+                              returnStdErr=True)
 
     # worth it
     cactus_call(parameters=['vg', 'validate', clipped_path])
@@ -1359,8 +1385,25 @@ def clip_vg(job, options, config, vg_path, vg_id, phase):
                 stat_of.get('length', 'NA')))
         # sample-stats and contig-stats are written by the exclusion report instead: they need the
         # input contig lengths, which are not available here
+        # -T calibrates against each graph, and the threshold it lands on decides how much
+        # sequence -k removes.  It is reported on clip-vg's stderr, which cactus_call only surfaces
+        # when a command fails, so record it here or it is lost.  The threshold gets its own column
+        # because that is the number worth reading down; the whole message is kept beside it so a
+        # rewording upstream costs the column rather than the record.
+        flank_stats_path = vg_path + '.flank-stats.tsv'
+        calib_line, threshold = 'flank trimming not run', 'NA'
+        for err_line in (clip_stderr or '').split('\n'):
+            if 'Flank calibration' in err_line:
+                calib_line = err_line.split(']:', 1)[-1].strip()
+                match = re.search(r'using threshold ([0-9.eE+-]+)', calib_line)
+                if match:
+                    threshold = match.group(1)
+                break
+        with open(flank_stats_path, 'w') as flank_stats_file:
+            flank_stats_file.write('{}\t{}\t{}\n'.format(chr_name, threshold, calib_line))
         out_stats = { 'path-stats.tsv' : job.fileStore.writeGlobalFile(path_stats_path),
-                      'graph-stats.tsv' : job.fileStore.writeGlobalFile(graph_stats_path) }
+                      'graph-stats.tsv' : job.fileStore.writeGlobalFile(graph_stats_path),
+                      'flank-stats.tsv' : job.fileStore.writeGlobalFile(flank_stats_path) }
     else:
         out_stats = None
     return job.fileStore.writeGlobalFile(clipped_path), out_stats
@@ -2760,6 +2803,7 @@ def cat_bed_files(job, bed_ids):
 STATS_HEADERS = {
     'path-stats.tsv': '#ref_chrom\tpath\tlength',
     'graph-stats.tsv': '#ref_chrom\tnodes\tedges\tlength',
+    'flank-stats.tsv': '#ref_chrom\tflank_threshold\tcalibration',
 }
 
 # path-stats has a row per surviving path fragment, which runs to millions on a filtered graph.
