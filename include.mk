@@ -79,23 +79,47 @@ endif
 ifeq ($(shell arch || true), arm64)
 	arm=1
 endif
+# CPU baseline for the code we generate.  Override for a machine-specific build:
+#   CACTUS_ARCH_FLAGS="-march=native" make
+#   CACTUS_ARCH_FLAGS="-march=x86-64-v3 -mtune=znver3" make
+#
+# x86-64-v3 rather than the bare -mavx2 this used to be.  That is not a portability change:
+# the release has required AVX2 since 2021, and the shipped v3.3.0 cactus_consolidated proves
+# it -- simd_abpoa_align_sequence_to_subgraph and paf_write_to_buffer carry unguarded AVX2,
+# so it already SIGILLs on anything pre-Haswell.  v3 is exactly that AVX2 baseline plus the
+# rest of the same CPU generation (FMA, BMI1/2, LZCNT, MOVBE, F16C), which every AVX2-capable
+# CPU has.  Measured: minigraph 1.3% faster, lastz 2.1%, output byte-identical in both.
+#
+# Deliberately NOT x86-64-v4.  AVX-512 would emit binaries that will not run on the
+# Skylake-class machines we develop and test on, and it is worth little anyway: abPOA is the
+# only hand-vectorised code in the tree, and doubling its vector width 128->256 bits bought
+# 8.8%, so 256->512 would be a few percent at best, before AVX-512 downclocking.
+#
+# No -mtune here.  -mtune=skylake measured a further 2.7% on minigraph and emits no new
+# instructions, so it costs no portability -- but it is a bet on one microarchitecture that
+# may go the other way on AMD, which we have not measured.  Set it per-cluster via the knob.
 ifdef arm
 #	flags to build abpoa
 	export armv8 = 1
 	export aarch64 = 1
 #	flags to include simde abpoa in cactus on ARM
-	CFLAGS+= -march=armv8-a+simd
+	CACTUS_ARCH_FLAGS ?= -march=armv8-a+simd
+else ifdef CACTUS_LEGACY_ARCH
+	export sse2 = 1
+	CACTUS_ARCH_FLAGS ?= -msse2
 else
-	ifdef CACTUS_LEGACY_ARCH
-		export sse2 = 1
-		CFLAGS+= -msse2
-	else
-#		flags to build abpoa
-		export avx2 = 1
-#		flags to include simde abpoa in cactus on X86
-		CFLAGS+= -mavx2
+#	flags to build abpoa
+	export avx2 = 1
+#	flags to include simde abpoa in cactus on X86
+	CACTUS_ARCH_FLAGS ?= -march=x86-64-v3
 endif
-endif
+
+# Both, deliberately.  Until now only CFLAGS carried an arch flag, so Red, hal's C++ and
+# cactus2hal were built at the plain x86-64 baseline -- confirmed against the shipped
+# binaries, where Red's only AVX2 is glibc's runtime-dispatched strcasecmp, never its own
+# code.  They are the components with the most headroom here, having had none at all.
+CFLAGS   += ${CACTUS_ARCH_FLAGS}
+CXXFLAGS += ${CACTUS_ARCH_FLAGS}
 
 # flags needed to include simde abpoa in cactus on any architecture
 ifdef CACTUS_LEGACY_ARCH

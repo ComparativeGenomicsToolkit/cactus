@@ -318,24 +318,24 @@ suball.paffy:
 
 suball.red: suball.jemalloc
 	cd submodules/red && sed -i -e '/LIBS/!s/-o \$$(TRed) \$$(OBJS)/-o $$(TRed) $$(OBJS) $$(LIBS)/' src/Makefile
-	cd submodules/red && LIBS="${jemallocSubLibs}" ${MAKE}
+	cd submodules/red && CXXFLAGS="$${CXXFLAGS} ${CACTUS_ARCH_FLAGS}" LIBS="${jemallocSubLibs}" ${MAKE}
 	ln -f submodules/red/bin/Red ${BINDIR}
 
 suball.collapse-bubble:
 	chmod +x submodules/collapse-bubble/scripts/merge_duplicates.py
 	ln -f submodules/collapse-bubble/scripts/merge_duplicates.py ${BINDIR}
 suball.FASTGA: suball.jemalloc
-	cd submodules/FASTGA && sed -i -e '/-lpthread/!s/-lm -lz/-lpthread -lm -lz/g' -e '/LIBS/!s/-lpthread -lm -lz/-lpthread -lm -lz $$(LIBS)/g' Makefile && LIBS="${jemallocSubLibs}" ${MAKE}
+	cd submodules/FASTGA && sed -i -e '/-lpthread/!s/-lm -lz/-lpthread -lm -lz/g' -e '/LIBS/!s/-lpthread -lm -lz/-lpthread -lm -lz $$(LIBS)/g' Makefile && LIBS="${jemallocSubLibs}" ${MAKE} CC="$${CC:-gcc} ${CACTUS_ARCH_FLAGS}"
 	ln -f submodules/FASTGA/FastGA ${BINDIR}
 	ln -f submodules/FASTGA/ALNtoPAF ${BINDIR}
 	ln -f submodules/FASTGA/FAtoGDB ${BINDIR}
 	ln -f submodules/FASTGA/GIXmake ${BINDIR}
 	ln -f submodules/FASTGA/GIXrm ${BINDIR}
 suball.FASTAN: suball.jemalloc
-	cd submodules/FASTAN && sed -i -e 's/-lm -lz/-lm -lpthread -lz/g' -e '/LIBS/!s/-lm -lpthread -lz/-lm -lpthread -lz $$(LIBS)/g' Makefile && LIBS="${jemallocSubLibs}" ${MAKE} || true
+	cd submodules/FASTAN && sed -i -e 's/-lm -lz/-lm -lpthread -lz/g' -e '/LIBS/!s/-lm -lpthread -lz/-lm -lpthread -lz $$(LIBS)/g' Makefile && LIBS="${jemallocSubLibs}" ${MAKE} CC="$${CC:-gcc} ${CACTUS_ARCH_FLAGS}" || true
 	ln -f submodules/FASTAN/FasTAN ${BINDIR}
 suball.alntools:
-	cd submodules/alntools && ${MAKE}
+	cd submodules/alntools && ${MAKE} CC="$${CC:-gcc} ${CACTUS_ARCH_FLAGS}"
 	ln -f submodules/alntools/tanbed ${BINDIR}
 
 ifeq ($(jemalloc),on)
