@@ -121,6 +121,20 @@ endif
 CFLAGS   += ${CACTUS_ARCH_FLAGS}
 CXXFLAGS += ${CACTUS_ARCH_FLAGS}
 
+# ...but only for what this makefile compiles itself.  CFLAGS and CXXFLAGS are ordinary make
+# variables here, not exported, so "cd submodules/x && ${MAKE}" starts a make that re-derives
+# them from sonLib's include.mk and sees no arch flag at all.  Only the release build ever
+# propagated them, by way of the "static:" target putting them in the environment -- so in a
+# plain build sonLib, cPecan, pinchesAndCacti, matchingAndOrdering, paffy, lastz, hal and
+# cactus2hal were all still at the bare baseline, which is most of the tree.
+#
+# Prefix a sub-make with ${archEnv} to hand them over.  Every submodule we do this for appends
+# with +=, so its own -O3 and include paths survive; the arch flags simply land in front.
+# Deliberately not "export CFLAGS": that would also push --pedantic, -D__AVX2__ -DUSE_SIMDE
+# and our libxml2 include path into every submodule, and abPOA already has to filter
+# --pedantic back out.  This hands over the baseline and nothing else.
+archEnv = CFLAGS="$${CFLAGS} ${CACTUS_ARCH_FLAGS}" CXXFLAGS="$${CXXFLAGS} ${CACTUS_ARCH_FLAGS}"
+
 # flags needed to include simde abpoa in cactus on any architecture
 ifdef CACTUS_LEGACY_ARCH
 	CFLAGS+= -D__SSE2__ -DUSE_SIMDE -DSIMDE_ENABLE_NATIVE_ALIASES

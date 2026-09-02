@@ -264,7 +264,7 @@ suball1: ${submodules1:%=suball.%}
 suball2: ${submodules2:%=suball.%}
 
 suball.sonLib:
-	cd submodules/sonLib && PKG_CONFIG_PATH=${CWD}/lib/pkgconfig:${PKG_CONFIG_PATH} ${MAKE}
+	cd submodules/sonLib && PKG_CONFIG_PATH=${CWD}/lib/pkgconfig:${PKG_CONFIG_PATH} ${archEnv} ${MAKE}
 	rm -rf submodules/sonLib/bin/*.dSYM
 	ln -f submodules/sonLib/bin/[a-zA-Z]* ${BINDIR}
 	ln -f submodules/sonLib/lib/*.a ${LIBDIR}
@@ -286,21 +286,21 @@ suball.jemalloc:
 endif
 
 suball.pinchesAndCacti: suball.sonLib
-	cd submodules/pinchesAndCacti && ${MAKE}
+	cd submodules/pinchesAndCacti && ${archEnv} ${MAKE}
 
 suball.matchingAndOrdering: suball.sonLib
-	cd submodules/matchingAndOrdering && ${MAKE}
+	cd submodules/matchingAndOrdering && ${archEnv} ${MAKE}
 
 suball.cPecan: suball.sonLib
-	cd submodules/cPecan && ${MAKE}
+	cd submodules/cPecan && ${archEnv} ${MAKE}
 	rm -f ${BINDIR}/cPecanLastz*
 
 suball.cactus2hal: suball.sonLib suball.hal all_libs.api
-	cd submodules/cactus2hal && ${MAKE}
+	cd submodules/cactus2hal && ${archEnv} ${MAKE}
 	-ln -f submodules/cactus2hal/bin/* bin/
 
 suball.hal: suball.sonLib
-	cd submodules/hal && LIBS="${jemallocLib}" ${MAKE}
+	cd submodules/hal && ${archEnv} LIBS="${jemallocLib}" ${MAKE}
 	-ln -f submodules/hal/bin/* bin/
 	-ln -f submodules/hal/lib/libHal.a submodules/hal/lib/halLib.a
 
@@ -324,12 +324,12 @@ suball.lastz: suball.jemalloc
 # skip lines that already have LIBS so repeated builds stay idempotent, and verify.
 	cd submodules/lastz/src && sed -i -e '/LIBS/!s/-lm\(.*\) -o \$$@/-lm\1 $${LIBS} -o $$@/' Makefile \
 	  && grep -q 'LIBS' Makefile
-	cd submodules/lastz && LIBS="${jemallocSubLibs}" ${MAKE}
+	cd submodules/lastz && ${archEnv} LIBS="${jemallocSubLibs}" ${MAKE}
 	ln -f submodules/lastz/src/lastz bin
 
 suball.paffy:
 	git -C submodules/paffy/submodules/sonLib checkout $$(git -C submodules/sonLib rev-parse HEAD)
-	cd submodules/paffy && LIBS="${jemallocLib}" ${MAKE}
+	cd submodules/paffy && ${archEnv} LIBS="${jemallocLib}" ${MAKE}
 	rm -rf submodules/paffy/bin/*.dSYM
 	ln -f submodules/paffy/bin/[a-zA-Z]* ${BINDIR}
 	ln -f submodules/paffy/lib/*.a ${LIBDIR}
