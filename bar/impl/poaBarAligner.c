@@ -749,6 +749,25 @@ Msa *msa_make_partial_order_alignment(char **seqs, int *seq_lens, int64_t seq_no
     return output_msa;
 }
 
+/*
+ * How many ends a flower has decides whether the partial order alignments below run
+ * nested, and nesting multiplies the number of concurrent abPOA instances -- which is
+ * what sets this phase's peak memory.  Nothing recorded that, so whether the threshold
+ * was ever crossed on a given dataset could only be answered by instrumenting a build.
+ */
+static int64_t poa_max_end_no = 0;
+static int64_t poa_nested_flowers = 0;
+static int64_t poa_nested_threads_max = 0;
+
+void poa_get_nesting_stats(int64_t *max_end_no, int64_t *nested_flowers, int64_t *max_nested_threads) {
+#pragma omp atomic read
+    *max_end_no = poa_max_end_no;
+#pragma omp atomic read
+    *nested_flowers = poa_nested_flowers;
+#pragma omp atomic read
+    *max_nested_threads = poa_nested_threads_max;
+}
+
 Msa **make_consistent_partial_order_alignments(int64_t end_no, int64_t *end_lengths, char ***end_strings,
         int **end_string_lengths, int64_t **right_end_indexes, int64_t **right_end_row_indexes, int64_t **overlaps,
         int64_t window_size, int64_t max_prog_rows, double max_prog_length_diff, abpoa_para_t *poa_parameters) {
@@ -769,7 +788,27 @@ Msa **make_consistent_partial_order_alignments(int64_t end_no, int64_t *end_leng
             nested_threads = max_threads_for_nesting;
         }
     }
-    
+
+    {   // record what the nesting decision was, so it is visible without a special build
+        int64_t seen;
+#pragma omp atomic read
+        seen = poa_max_end_no;
+        if (end_no > seen) {
+#pragma omp critical(poaNestingStats)
+            if (end_no > poa_max_end_no) poa_max_end_no = end_no;
+        }
+        if (nested_threads > 1) {
+#pragma omp atomic
+            ++poa_nested_flowers;
+#pragma omp atomic read
+            seen = poa_nested_threads_max;
+            if (nested_threads > seen) {
+#pragma omp critical(poaNestingStats)
+                if (nested_threads > poa_nested_threads_max) poa_nested_threads_max = nested_threads;
+            }
+        }
+    }
+
 #pragma omp parallel for schedule(dynamic, 1) if(nested_threads > 1) num_threads(nested_threads)
 #endif
     for(int64_t i=0; i<end_no; i++) {

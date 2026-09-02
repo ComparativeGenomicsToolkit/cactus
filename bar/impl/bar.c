@@ -261,12 +261,16 @@ void bar(stList *flowers, CactusParams *params, CactusDisk *cactusDisk, stList *
                          */
                         int64_t eta = (windowSeconds > 0 && windowBases > 0) ?
                             (int64_t)((double)(totalBases - bases) * windowSeconds / windowBases) : -1;
+                        int64_t maxEnds, nestedFlowers, maxNestedThreads;
+                        poa_get_nesting_stats(&maxEnds, &nestedFlowers, &maxNestedThreads);
                         st_logInfo("Bar progress: %" PRIi64 "/%" PRIi64 " flowers (%.2f%%), "
                                    "%" PRIi64 "/%" PRIi64 " bases (%.2f%%), %" PRIi64 " seconds in bar, "
-                                   "eta %" PRIi64 " seconds, peak memory %" PRIi64 " MB\n",
+                                   "eta %" PRIi64 " seconds, peak memory %" PRIi64 " MB, "
+                                   "max ends %" PRIi64 ", nested on %" PRIi64 " flowers with up to %" PRIi64 " threads\n",
                                    done, flowerNumber, 100.0 * (double)done / (double)flowerNumber,
                                    bases, totalBases, 100.0 * baseFraction,
-                                   elapsed, eta, peakMemMB);
+                                   elapsed, eta, peakMemMB,
+                                   maxEnds, nestedFlowers, maxNestedThreads);
                     }
                 }
             }

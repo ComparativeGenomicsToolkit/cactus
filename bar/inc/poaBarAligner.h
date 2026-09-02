@@ -105,6 +105,13 @@ Msa *msa_make_partial_order_alignment(char **seqs,
  * @param poa_parameters abpoa parameters
  * @return A consistent Msa for each end
  */
+/*
+ * Peak ends seen in a flower, how many flowers crossed the nesting threshold, and the
+ * largest nested team used.  Concurrent abPOA instances -- and so this phase's peak
+ * memory -- are the outer thread count times that team size.
+ */
+void poa_get_nesting_stats(int64_t *max_end_no, int64_t *nested_flowers, int64_t *max_nested_threads);
+
 Msa **make_consistent_partial_order_alignments(int64_t end_no, int64_t *end_lengths, char ***end_strings,
         int **end_string_lengths, int64_t **right_end_indexes, int64_t **right_end_row_indexes, int64_t **overlaps,
         int64_t window_size, int64_t max_prog_rows, double max_prog_length_diff, abpoa_para_t *poa_parameters);
