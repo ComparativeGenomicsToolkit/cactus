@@ -46,6 +46,9 @@ REL_TAG=$(getLatestReleaseTag)
 git checkout "${REL_TAG}"
 git submodule update --init --recursive
 
+# This build gets shipped, so take include.mk's portable baseline rather than -march=native.
+export CACTUS_PORTABLE_BUILD=1
+
 if [ -z ${CACTUS_LEGACY_ARCH+x} ]
 then
 # Make sure abpoa doesn't build with -march=native, but something more portable

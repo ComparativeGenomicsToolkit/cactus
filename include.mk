@@ -98,20 +98,42 @@ endif
 # No -mtune here.  -mtune=skylake measured a further 2.7% on minigraph and emits no new
 # instructions, so it costs no portability -- but it is a bet on one microarchitecture that
 # may go the other way on AMD, which we have not measured.  Set it per-cluster via the knob.
+# Two baselines, and which you get depends on whether the build will be shipped.
+#
+# PORTABLE is for anything we distribute.  NATIVE is for a plain "make", which is someone
+# compiling cactus for the machine in front of them and should use that machine.  Anything
+# that ships its output sets CACTUS_PORTABLE_BUILD=1 -- makeBinRelease and the Dockerfile
+# both do -- so the portable value lives in exactly one place and cannot drift.
+#
+# -march=native is not reliably faster: measured here it gained 4.6% on minigraph and lost
+# 5.7% on lastz, the loss isolating to -mtune, which native implies.  It is still the right
+# default for a machine-specific build; measure on your own hardware if it matters.
+#
+# NOT native on ARM: Apple's clang spells it -mcpu=native and rejects -march=native.
+# NOT native for CACTUS_LEGACY_ARCH either: that build exists precisely to be portable.
 ifdef arm
 #	flags to build abpoa
 	export armv8 = 1
 	export aarch64 = 1
 #	flags to include simde abpoa in cactus on ARM
-	CACTUS_ARCH_FLAGS ?= -march=armv8-a+simd
+	CACTUS_PORTABLE_ARCH_FLAGS = -march=armv8-a+simd
+	CACTUS_NATIVE_ARCH_FLAGS = ${CACTUS_PORTABLE_ARCH_FLAGS}
 else ifdef CACTUS_LEGACY_ARCH
 	export sse2 = 1
-	CACTUS_ARCH_FLAGS ?= -msse2
+	CACTUS_PORTABLE_ARCH_FLAGS = -msse2
+	CACTUS_NATIVE_ARCH_FLAGS = ${CACTUS_PORTABLE_ARCH_FLAGS}
 else
 #	flags to build abpoa
 	export avx2 = 1
 #	flags to include simde abpoa in cactus on X86
-	CACTUS_ARCH_FLAGS ?= -march=x86-64-v3
+	CACTUS_PORTABLE_ARCH_FLAGS = -march=x86-64-v3
+	CACTUS_NATIVE_ARCH_FLAGS = -march=native
+endif
+
+ifdef CACTUS_PORTABLE_BUILD
+	CACTUS_ARCH_FLAGS ?= ${CACTUS_PORTABLE_ARCH_FLAGS}
+else
+	CACTUS_ARCH_FLAGS ?= ${CACTUS_NATIVE_ARCH_FLAGS}
 endif
 
 # Both, deliberately.  Until now only CFLAGS carried an arch flag, so Red, hal's C++ and
