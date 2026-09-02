@@ -155,6 +155,7 @@ void bar(stList *flowers, CactusParams *params, CactusDisk *cactusDisk, stList *
     time_t lastReportTime = barStartTime;
     int64_t lastReportBases = 0;
     int64_t flowersDone = 0, basesDone = 0;
+    int64_t flowersInFlight = 0;   // started but not finished: below the outer team size means the tail
 
 #if defined(_OPENMP)
     // Enable nested parallelism for large flowers with many ends
@@ -193,6 +194,10 @@ void bar(stList *flowers, CactusParams *params, CactusDisk *cactusDisk, stList *
 
         // Must be read before stCaf_finish, which adds block ends to the flower
         const int64_t flowerBases = reportProgress ? flower_getTotalBaseLength(flower) : 0;
+        if (reportProgress) {
+#pragma omp atomic
+            ++flowersInFlight;
+        }
 
         // These are all variables used by the filter fns
         FilterArgs *fa = st_calloc(1, sizeof(FilterArgs));
@@ -265,7 +270,9 @@ void bar(stList *flowers, CactusParams *params, CactusDisk *cactusDisk, stList *
         st_logDebug("Finished filling in the alignments for the flower\n");
 
         if (reportProgress) {
-            int64_t done, bases;
+            int64_t done, bases, inFlight;
+#pragma omp atomic capture
+            { --flowersInFlight; inFlight = flowersInFlight; }
 #pragma omp atomic capture
             done = ++flowersDone;
 #pragma omp atomic capture
@@ -310,10 +317,11 @@ void bar(stList *flowers, CactusParams *params, CactusDisk *cactusDisk, stList *
                         st_logInfo("Bar progress: %" PRIi64 "/%" PRIi64 " flowers (%.2f%%), "
                                    "%" PRIi64 "/%" PRIi64 " bases (%.2f%%), %" PRIi64 " seconds in bar, "
                                    "eta %" PRIi64 " seconds, peak memory %" PRIi64 " MB, "
+                                   "%" PRIi64 " in flight, "
                                    "max ends %" PRIi64 ", nested on %" PRIi64 " flowers with up to %" PRIi64 " threads\n",
                                    done, flowerNumber, 100.0 * (double)done / (double)flowerNumber,
                                    bases, totalBases, 100.0 * baseFraction,
-                                   elapsed, eta, peakMemMB,
+                                   elapsed, eta, peakMemMB, inFlight,
                                    maxEnds, nestedFlowers, maxNestedThreads);
                     }
                 }
