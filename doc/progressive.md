@@ -14,6 +14,7 @@ Please cite the [HAL paper](https://doi.org/10.1093/bioinformatics/btt128) when 
 *    * [Masking](#masking)
 *    * [Adjusting Sensitivity](#adjusting-sensitivity)
 * [Using the HAL Output](#using-the-hal-output)
+     * [Validating the Output](#validating-the-output)
      * [HAL Compression](#hal-compression)
      * [MAF Export](#maf-export)
      * [Conservation Scores](#conservation-scores)
@@ -148,6 +149,18 @@ Normally, cactus greedily chooses the N (default=2, override with `cactus --maxO
 The `outputHal` file represents the multiple alignment, including all input and inferred ancestral sequences.  It is stored in HAL format, and can be accessed with [HAL tools](https://github.com/ComparativeGenomicsToolkit/Hal), which are all included in Cactus either as static binaries for the binary release, or within the Docker image for the Docker release.
 
 Please [cite HAL](https://doi.org/10.1093/bioinformatics/btt128).
+
+### Validating the Output
+
+Cactus builds the HAL from `cactus_consolidated`'s output rather than from the input fasta, so nothing normally compares the two -- a sequence truncated on the way in makes a perfectly valid HAL.  The `--validate` option checks every genome in the finished HAL base for base against the sequence that was aligned, and fails the alignment if they differ.  Differences in soft-masking and in sequence naming are expected and ignored.  It is available in `cactus`, `cactus-align` and `cactus-pangenome`, and `cactus-prepare` puts it on the `cactus-align` commands it writes by default (`--noValidate` turns that off).
+
+The same check runs on its own against an alignment you already have:
+
+```
+cactus-validate ./jobstore seqfile.txt alignment.hal
+```
+
+See `cactus-validate --help` for the options, notably `--lengthsOnly` (much faster, and still catches truncation) and `--allowMissing`.
 
 ### HAL Compression
 

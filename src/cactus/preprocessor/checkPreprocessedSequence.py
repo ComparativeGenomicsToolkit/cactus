@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Verify that a preprocessing step did not alter the underlying sequence.
+"""Verify that a pipeline step did not alter the underlying sequence.
+
+This is the preprocessor's guard; cactus.hal.cactus_validate reuses the same
+digest and the same comparison to check a finished HAL against its input.
 
 Preprocessors are allowed to rename sequences, change the case of bases (this is
 how soft-masking is represented), re-wrap the fasta at a different line length,
@@ -33,11 +36,25 @@ from collections import Counter
 _UPPER = bytes(range(256)).upper()
 _STRIP = b'\r\n'
 
+# same table, but also folding the IUPAC ambiguity codes to N.  That is what
+# cactus_sanitizeFastaHeaders does to every base on the way in, so a caller
+# comparing an untouched input fasta against something downstream of the
+# sanitizer has to do it too.  Preprocessors see already-sanitized sequence on
+# both sides and must not use this.
+_UPPER_FOLD = bytearray(_UPPER)
+for _code in b'UWSMKRYBDHVuwsmkrybdhv':
+    _UPPER_FOLD[_code] = ord('N')
+_UPPER_FOLD = bytes(_UPPER_FOLD)
+
 # small enough that each block stays in cache across the translate and the
 # checksum; measured ~650 MB/s here, against ~170 MB/s for megabyte blocks.
 _BLOCK = 1 << 15
 
 _checksum = zlib.crc32
+
+# the same checksum under a public name, for callers that build digest records
+# of their own (the HAL validator checksums slices of a clipped contig)
+sequence_checksum = _checksum
 
 
 def preprocessed_fasta_id(seq_id):
@@ -51,52 +68,59 @@ def preprocessed_fasta_id(seq_id):
     return seq_id[0] if isinstance(seq_id, (tuple, list)) else seq_id
 
 
-def fasta_digest(path):
+def fasta_digest(path, fold_ambiguity=False):
     """Return [(name, length, checksum)], one entry per record, in file order.
 
     Length and checksum are over the upper-cased sequence with all whitespace
-    removed, so both are invariant to soft-masking and to line wrapping.
+    removed, so both are invariant to soft-masking and to line wrapping.  With
+    fold_ambiguity the IUPAC codes are additionally folded to N.
     """
+    with open(path, 'rb') as f:
+        return digest_stream(f, path, fold_ambiguity=fold_ambiguity)
+
+
+def digest_stream(f, source, fold_ambiguity=False):
+    """fasta_digest over an already-open binary stream.  source names it in errors."""
+    upper = _UPPER_FOLD if fold_ambiguity else _UPPER
     records = []
     name = None
     crc = 0
     length = 0
     leftover = b''
-    with open(path, 'rb') as f:
-        while True:
-            block = f.read(_BLOCK)
-            if not block:
-                break
-            data = leftover + block if leftover else block
-            cut = data.rfind(b'\n')
-            if cut < 0:
-                leftover = data
-                continue
-            leftover = data[cut + 1:]
-            if cut + 1 != len(data):
-                data = data[:cut + 1]
-            # headers are rare, so the whole block is usually pure sequence
-            if b'>' not in data:
+    while True:
+        block = f.read(_BLOCK)
+        if not block:
+            break
+        data = leftover + block if leftover else block
+        cut = data.rfind(b'\n')
+        if cut < 0:
+            leftover = data
+            continue
+        leftover = data[cut + 1:]
+        if cut + 1 != len(data):
+            data = data[:cut + 1]
+        # headers are rare, so the whole block is usually pure sequence
+        if b'>' not in data:
+            if name is None:
+                raise RuntimeError('{}: sequence data before the first header'.format(source))
+            bases = data.translate(upper, _STRIP)
+            crc = _checksum(bases, crc)
+            length += len(bases)
+            continue
+        for line in data.splitlines():
+            if line.startswith(b'>'):
+                if name is not None:
+                    records.append((name, length, crc))
+                fields = line[1:].split()
+                name = fields[0].decode('utf-8', 'replace') if fields else ''
+                crc = 0
+                length = 0
+            elif line:
                 if name is None:
-                    raise RuntimeError('{}: sequence data before the first header'.format(path))
-                bases = data.translate(_UPPER, _STRIP)
+                    raise RuntimeError('{}: sequence data before the first header'.format(source))
+                bases = line.translate(upper, _STRIP)
                 crc = _checksum(bases, crc)
                 length += len(bases)
-                continue
-            for line in data.splitlines():
-                if line.startswith(b'>'):
-                    if name is not None:
-                        records.append((name, length, crc))
-                    fields = line[1:].split()
-                    name = fields[0].decode('utf-8', 'replace') if fields else ''
-                    crc = 0
-                    length = 0
-                elif line:
-                    if name is None:
-                        raise RuntimeError('{}: sequence data before the first header'.format(path))
-                    bases = line.translate(_UPPER, _STRIP)
-                    crc = _checksum(bases, crc)
-                    length += len(bases)
     if leftover:
         # final line of a file that does not end in a newline
         if leftover.startswith(b'>'):
@@ -107,7 +131,7 @@ def fasta_digest(path):
             crc = 0
             length = 0
         elif name is not None:
-            bases = leftover.translate(_UPPER, _STRIP)
+            bases = leftover.translate(upper, _STRIP)
             crc = _checksum(bases, crc)
             length += len(bases)
     if name is not None:
@@ -115,23 +139,31 @@ def fasta_digest(path):
     return records
 
 
-def iter_fasta(path):
+def iter_fasta(path, fold_ambiguity=False):
     """Yield (name, upper-cased sequence) one record at a time.
 
-    Only used by the hard-masking path, which needs the bases themselves.
+    Used by the hard-masking path and by the subpath check in the HAL
+    validator, both of which need the bases themselves.
     """
+    with open(path, 'rb') as f:
+        for record in iter_fasta_stream(f, fold_ambiguity=fold_ambiguity):
+            yield record
+
+
+def iter_fasta_stream(f, fold_ambiguity=False):
+    """iter_fasta over an already-open binary stream."""
+    upper = _UPPER_FOLD if fold_ambiguity else _UPPER
     name = None
     chunks = []
-    with open(path, 'rb') as f:
-        for line in f:
-            if line.startswith(b'>'):
-                if name is not None:
-                    yield name, b''.join(chunks)
-                fields = line[1:].split()
-                name = fields[0].decode('utf-8', 'replace') if fields else ''
-                chunks = []
-            elif name is not None:
-                chunks.append(line.translate(_UPPER, _STRIP))
+    for line in f:
+        if line.startswith(b'>'):
+            if name is not None:
+                yield name, b''.join(chunks)
+            fields = line[1:].split()
+            name = fields[0].decode('utf-8', 'replace') if fields else ''
+            chunks = []
+        elif name is not None:
+            chunks.append(line.translate(upper, _STRIP))
     if name is not None:
         yield name, b''.join(chunks)
 
@@ -171,9 +203,21 @@ def check_sequence_preserved(in_path, out_path, event_name=None, step_name=None,
     if event_name:
         context += ' on genome "{}"'.format(event_name)
 
-    in_records = fasta_digest(in_path)
-    out_records = fasta_digest(out_path)
+    check_digests_match(fasta_digest(in_path), fasta_digest(out_path), context,
+                        allow_hardmask=allow_hardmask,
+                        in_seqs=lambda: iter_fasta(in_path),
+                        out_seqs=lambda: iter_fasta(out_path))
 
+
+def check_digests_match(in_records, out_records, context, allow_hardmask=False,
+                        in_seqs=None, out_seqs=None):
+    """Raise RuntimeError unless the two digests describe the same sequences.
+
+    context names the step being checked and opens every error message.  The
+    hard-masking fall-back needs the bases themselves, so in_seqs and out_seqs
+    are callables returning fresh (name, upper-cased sequence) iterators; they
+    are only required when allow_hardmask is set.
+    """
     # fast path: the same multiset of sequences, whatever the names or the order
     if (Counter((l, c) for _, l, c in in_records) ==
             Counter((l, c) for _, l, c in out_records)):
@@ -222,8 +266,7 @@ def check_sequence_preserved(in_path, out_path, event_name=None, step_name=None,
         # this needs the bases themselves, and relies on the order being
         # unchanged, which holds for every preprocessor that can hard-mask.
         bad = []
-        for (in_name, in_seq), (_, out_seq) in zip(iter_fasta(in_path),
-                                                   iter_fasta(out_path)):
+        for (in_name, in_seq), (_, out_seq) in zip(in_seqs(), out_seqs()):
             if not hardmask_ok(in_seq, out_seq):
                 bad.append(in_name)
                 if len(bad) >= 10:

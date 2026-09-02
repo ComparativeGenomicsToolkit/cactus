@@ -518,6 +518,10 @@ Further reading:
 * `stats/`: Tables describing the graph and a complete accounting of input sequence that did *not* make it in. See [Statistics and Clipping Reports](#statistics-and-clipping-reports).
 * `og`: [odgi](https://github.com/pangenome/odgi)'s native format, can be read and written by `odgi`. Very useful for [visualization](#visualization).
 * `snarl-stats.tsv.gz`: Table with one row per snarl (bubble) in the graph, sorted in decreasing order of the distance they span on the (first) reference sample.  See the table header for a description of each column, and note that snarls can be nested in eachother.  This table is produced with the `--snarlStats` option.  
+#### Validating the Output
+
+`--validate` checks each chromosome alignment against the sequence that went into it -- see [Validating the Output](./progressive.md#validating-the-output).  `cactus-validate` recognises a pangenome from the HAL itself, so it needs no extra options, but checking the merged `<outName>.full.hal` against your original seqfile needs `--allowMissing`: contigs that were not binned to a reference chromosome are left out of the alignment, and `_MINIGRAPH_` is removed from the merged HAL.
+
 #### Statistics and Clipping Reports
 
 Every run writes a `<outName>.stats/` directory describing what went into the graph and what did

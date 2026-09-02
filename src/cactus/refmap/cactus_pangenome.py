@@ -109,6 +109,11 @@ def pangenome_options(parser):
     parser.add_argument("--consRetainPages", choices=['auto', '0', '1'], default=None,
                         help="Whether cactus_consolidated keeps the memory pages jemalloc frees, which is much faster but takes 2-3x the peak memory. "
                         "auto (the default, from <consolidated retain_pages> in the config) keeps them unless the memory estimate exceeds what the job can be given")
+    parser.add_argument("--validate", action="store_true",
+                        help="Before writing each chromosome alignment, check that every sequence in "
+                        "its HAL is still identical (modulo soft-masking) to the sequence that was "
+                        "aligned. Costs one extra pass over each alignment; cactus-validate runs the "
+                        "same check by hand later.")
 
     # cactus-graphmap options
     parser.add_argument("--collapseRefPAF", help ="Incorporate given reference self-alignments in PAF format")

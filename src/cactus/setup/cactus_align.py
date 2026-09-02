@@ -118,6 +118,11 @@ def main():
                         help="Scale branch lengths by this factor to adjust alignment sensitivity (e.g., 2.0 = treat branches as 2x longer, more sensitive)")
     parser.add_argument("--hdf5Codec", choices=["deflate", "lz4", "zstd", "none"], default=None,
                         help="HDF5 compression codec for HAL output (overrides config XML, default=deflate)")
+    parser.add_argument("--validate", action="store_true",
+                        help="Before writing the output, check that every sequence in the HAL is "
+                        "still identical (modulo soft-masking) to the sequence that was aligned. "
+                        "Costs one extra pass over the alignment; cactus-validate runs the same "
+                        "check by hand later.")
 
     options = parser.parse_args()
 
@@ -406,11 +411,13 @@ def make_align_job(options, toil, config_wrapper=None, chrom_name=None):
                               do_filter_paf=options.pangenome,
                               chrom_name=chrom_name,
                               scores_id=scores_id,
-                              branch_scale=options.branchScale)
+                              branch_scale=options.branchScale,
+                              validate=getattr(options, 'validate', False))
     return align_job
 
 def cactus_align(job, config_wrapper, mc_tree, input_seq_map, input_seq_id_map, paf_id, paf_path, root_name, og_map, checkpointInfo, doVG, doGFA, delay=0,
-                 referenceEvents=None, pafMaskFilter=None, paf2Stable=False, cons_cores = None, cons_memory = None, cons_retain_pages = None, do_filter_paf=False, chrom_name=None, scores_id=None, branch_scale=1.0):
+                 referenceEvents=None, pafMaskFilter=None, paf2Stable=False, cons_cores = None, cons_memory = None, cons_retain_pages = None, do_filter_paf=False, chrom_name=None, scores_id=None, branch_scale=1.0,
+                 validate=False):
 
     head_job = Job()
     job.addChild(head_job)
@@ -478,7 +485,7 @@ def cactus_align(job, config_wrapper, mc_tree, input_seq_map, input_seq_id_map, 
     allow_collapse = getOptionalAttrib(findRequiredNode(config_wrapper.xmlRoot, "graphmap"), "collapse", typeFn=str, default="none") in ['reference', 'all']
     hal_job = cons_job.addFollowOnJobFn(export_hal, sub_tree, config_wrapper.xmlRoot, new_seq_id_map, og_map, results, event=root_name, inMemory=True,
                                         checkpointInfo=checkpointInfo, acyclicEvent=referenceEvents[0] if referenceEvents and not allow_collapse else None,
-                                        memory_override=cons_memory)
+                                        memory_override=cons_memory, validate=validate)
 
     # clean out some of the  intermediate jobstore files
     hal_job.addFollowOnJobFn(clean_jobstore_files, file_id_maps=[new_seq_id_map], file_ids=[paf_id])
