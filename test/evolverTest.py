@@ -648,7 +648,7 @@ class TestCase(unittest.TestCase):
                                '--vg'] +  vg_files + ['--hal'] + hal_files +
                                ['--xg', '--vcf', '--giraffe', 'clip', 'filter', '--lrGiraffe'] + cactus_opts + ['--indexCores', '4'])
 
-    def _run_yeast_pangenome(self, binariesMode, mgSplit=False, collapse=False, gref=None, vcfL=None):
+    def _run_yeast_pangenome(self, binariesMode, mgSplit=False, wholeGenomeRef=False, collapse=False, gref=None, vcfL=None):
         """ yeast pangenome chromosome by chromosome pipeline, as run through a single invocations
         """
 
@@ -667,6 +667,9 @@ class TestCase(unittest.TestCase):
                                                             '--lastTrain', '--snarlStats']
         if mgSplit:
             cactus_pangenome_cmd += ['--mgSplit']
+        if wholeGenomeRef:
+            # implies --mgSplit
+            cactus_pangenome_cmd += ['--mgSplitWholeGenomeRef']
         if collapse:
             cactus_pangenome_cmd += ['--collapse']
         if gref:
@@ -912,6 +915,34 @@ class TestCase(unittest.TestCase):
         self.assertNotIn('INTERNAL', warning_text)
         for quiet in ['DBVPG6044', 'Y12', 'YPS128']:
             self.assertNotIn(quiet + ':', warning_text)
+
+    def _check_pruned_chrom_minigraphs(self, join_path):
+        """ --mgSplitWholeGenomeRef builds each chromosome's minigraph against the whole reference and
+        prunes it back afterwards.  a prune that silently did nothing would leave every chromosome's
+        published graph carrying all 16 S288C contigs, and the rest of the pipeline would not notice,
+        so this is what separates the option working from the option merely running. """
+        import gzip
+        mg_dir = os.path.join(join_path, 'chrom-minigraph')
+        self.assertTrue(os.path.isdir(mg_dir), 'no chrom-minigraph directory in {}'.format(join_path))
+        gfa_names = sorted(f for f in os.listdir(mg_dir) if f.endswith('.sv.gfa.gz'))
+        self.assertTrue(gfa_names, 'no per-chromosome minigraphs in {}'.format(mg_dir))
+        for gfa_name in gfa_names:
+            chrom = gfa_name[:-len('.sv.gfa.gz')]
+            ref_contigs = set()
+            with gzip.open(os.path.join(mg_dir, gfa_name), 'rt') as gfa_file:
+                for line in gfa_file:
+                    if not line.startswith('S\t'):
+                        continue
+                    toks = line.rstrip('\n').split('\t')
+                    sn = [t[5:] for t in toks if t.startswith('SN:Z:')]
+                    if sn and 'SR:i:0' in toks:
+                        ref_contigs.add(sn[0])
+            self.assertTrue(ref_contigs, '{} has no rank-0 reference contigs'.format(gfa_name))
+            # names are PanSN here (S288C#0#chrI), so match on the contig suffix
+            self.assertEqual(len(ref_contigs), 1,
+                             '{} was not pruned back to one reference contig: {}'.format(gfa_name, sorted(ref_contigs)))
+            self.assertTrue(next(iter(ref_contigs)).endswith('#' + chrom),
+                            '{} kept the wrong reference contig: {}'.format(gfa_name, sorted(ref_contigs)))
 
     def _check_yeast_pangenome(self, binariesMode, other_ref=None, expect_odgi=False, expect_haplo=False, expect_unchopped_gfa=False, expect_gref=False, vcfL=None, expect_report=True):
         """ yeast pangenome chromosome by chromosome pipeline
@@ -1995,12 +2026,17 @@ class TestCase(unittest.TestCase):
         self.assertEqual(orig_vcf_records, bypass_vcf_records)
 
     def testYeastPangenomeSplitLocal(self):
-        """ Run pangenome pipeline (including contig splitting!) on yeast dataset using cactus-pangenome """
+        """ Run pangenome pipeline (including contig splitting!) on yeast dataset using cactus-pangenome.
+
+        Uses --mgSplitWholeGenomeRef, which implies --mgSplit: it runs everything the plain option
+        does and adds the whole-genome reference substitution and the prune that undoes it, so it is
+        the stricter of the two to keep in CI. """
         name = "local"
-        self._run_yeast_pangenome(name, mgSplit=True, gref='clip', vcfL=0.95)
+        self._run_yeast_pangenome(name, wholeGenomeRef=True, gref='clip', vcfL=0.95)
 
         # check the output
         self._check_yeast_pangenome(name, other_ref='DBVPG6044', expect_odgi=True, expect_haplo=True, expect_unchopped_gfa=True, expect_gref=True, vcfL=0.95)
+        self._check_pruned_chrom_minigraphs(os.path.join(self.tempDir, 'join'))
 
         # Test bypass re-indexing with --vgClip and --vgFilter
         self._test_vg_bypass(name)

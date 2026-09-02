@@ -68,6 +68,8 @@ def pangenome_options(parser):
                         help = "File containing scoring parameters (output of last-train)")
     parser.add_argument("--mgSplit", action="store_true", default=False,
                         help = "Run minigraph construction and mapping independently on each chromosome")                        
+    parser.add_argument("--mgSplitWholeGenomeRef", action="store_true", default=False,
+                        help = "Implies --mgSplit, and builds each chromosome's second-pass minigraph against the whole reference genome(s) rather than just that chromosome, so off-chromosome mappings can compete and be filtered the way they are in the whole-genome pipeline. The off-chromosome material is pruned back out before cactus-align.")
 
     # cactus-graphmap options
     parser.add_argument("--mapCores", type=int, help = "Number of cores for minigraph map.  Overrides graphmap cpu in configuration")
@@ -182,6 +184,13 @@ def pangenome_validate_options(options):
 
     if options.lastTrain and options.scoresFile:
         raise RuntimeError('you cannot use both --lastTrain and --scoresFile together: pick one')
+
+    if options.mgSplitWholeGenomeRef:
+        # it only elaborates the second minigraph pass, so it turns that on rather than making you
+        # ask for both
+        if options.noSplit:
+            raise RuntimeError('you cannot use both --mgSplitWholeGenomeRef and --noSplit together: pick one')
+        options.mgSplit = True
 
     if options.mgSplit and options.noSplit:
         raise RuntimeError('you cannot use both --mgSplit and --noSplit together: pick one')
@@ -357,6 +366,24 @@ def phony_chromfile(job, options, paf_path):
         chromfile.write('all\t{}\t{}'.format(seqfile_path, paf_path))
     return chromfile_path
 
+def split_reference_ids(job, seq_id_map, references):
+    """ separate the whole-genome reference fastas from everything else, so --mgSplitWholeGenomeRef
+    can hold them back from the post-split cleanup and build the second-pass minigraphs against them.
+
+    every --reference goes in, matching the first pass: --refOnly builds that graph from all of them,
+    and it is the graph the chromosome bins were decided against.  only reference[0] is rank-0, but a
+    secondary reference still carries sequence the primary lacks, and minigraph maps against the whole
+    graph -- so it contributes competition for exactly the off-chromosome material this is here to
+    catch, and leaving it out would let the two passes disagree about what a chromosome contains.
+
+    they are already sanitized, and they must also bypass sanitize_fasta_headers_batch below: that
+    deletes its input (sanitize_fasta_header in checkUniqueHeaders.py), and every chromosome shares
+    one file id here, so the first chromosome to sanitize would destroy the reference the other
+    chromosomes' construct jobs are still waiting on """
+    refs = set(references)
+    return {k: v for k, v in seq_id_map.items() if k in refs}, \
+           {k: v for k, v in seq_id_map.items() if k not in refs}
+
 def export_split_wrapper(job, wf_output, out_dir, config_node):
     """ toil job wrapper for cactus_graphmap_split's exporter """
     if not out_dir.startswith('s3://') and not os.path.isdir(out_dir):
@@ -402,6 +429,7 @@ def export_minigraph_batch_wrapper(job, options, config_node, input_seqfiles, in
     # regualar gfas
     output_dict = {}
     pansn_gfas = []
+    unpruned_pansn_gfas = {}
     output_file_ids = []
     output_file_maps = []
     for chrom, val in minigraph_batch_results.items():
@@ -410,10 +438,16 @@ def export_minigraph_batch_wrapper(job, options, config_node, input_seqfiles, in
                               os.path.join(out_dir, chrom + '.sv.gfa.gz'))
         output_file_maps += [input_seqid_map[chrom][0]]
         output_file_ids += [val[0]]
-        pansn_gfas += [val[1]]
+        if options.mgSplitWholeGenomeRef:
+            # this graph still carries the whole reference, so the join gets the pruned one the
+            # separation pass makes.  it's kept as the fallback for a chromosome that pass bypasses,
+            # and export_pruned_minigraph_gfa_wrapper frees whichever copies go unused
+            unpruned_pansn_gfas[chrom] = val[1]
+        else:
+            pansn_gfas += [val[1]]
         if options.lastTrain:
             output_file_ids += [val[2]]
-    return output_dict, output_file_maps, output_file_ids, pansn_gfas
+    return output_dict, output_file_maps, output_file_ids, pansn_gfas, unpruned_pansn_gfas
 
 def export_graphmap_batch_wrapper(job, options, config_node, graphmap_batch_results, input_seqfiles):
     """ export the graphmap results, which are another chromfile alongside new seqfiles and a bunch
@@ -434,12 +468,43 @@ def export_graphmap_batch_wrapper(job, options, config_node, graphmap_batch_resu
     output_list = []
     for chrom, gm_output in graphmap_batch_results.items():
         #chrom -> paf_id, gfa_fa_id, gaf_id, unfiltered_paf_id, paf_filter_log, paf_was_filtered, separate_log_id
-        for fid in gm_output:
+        # anything past that is the pruned PanSN GFA the join has yet to merge: leave it alone
+        for fid in gm_output[:7]:
             if fid and fid != True:
                 output_list.append(fid)
 
     return output_list, chromfile_path    
     
+def export_pruned_minigraph_gfa_wrapper(job, options, graphmap_batch_results, unpruned_pansn_gfas):
+    """ with --mgSplitWholeGenomeRef the per-chromosome graph is only chromosome-only once the
+    separation pass has cut the rest of the reference out of it, so it's written here rather than in
+    export_minigraph_batch_wrapper.  same paths chromfile.mg.txt already names """
+    out_dir = os.path.join(options.outDir, 'chrom-minigraph')
+    if not out_dir.startswith('s3://') and not os.path.isdir(out_dir):
+        os.makedirs(out_dir)
+    pansn_gfa_ids = []
+    unused_ids = []
+    for chrom, gm_output in sorted(graphmap_batch_results.items()):
+        pansn_gfa_id = gm_output[7] if len(gm_output) > 7 else None
+        if pansn_gfa_id:
+            unused_ids.append(unpruned_pansn_gfas.get(chrom))
+        else:
+            # the separation pass bypassed this chromosome -- a single-contig reference has nothing
+            # off-chromosome to prune -- so the graph as built is already the right one
+            pansn_gfa_id = unpruned_pansn_gfas.get(chrom)
+        if not pansn_gfa_id:
+            # chromfile.mg.txt already names this path, and graphmap-join is about to merge whatever
+            # is here, so a chromosome silently missing its graph would leave both wrong
+            raise RuntimeError('no minigraph GFA to publish for {}: neither the separation pass nor '
+                               'the construction it prunes produced one'.format(chrom))
+        job.fileStore.exportFile(pansn_gfa_id, makeURL(os.path.join(out_dir, chrom + '.sv.gfa.gz')))
+        pansn_gfa_ids.append(pansn_gfa_id)
+    # the whole-genome graphs the pruned ones replaced.  freed from a follow-on rather than inline so
+    # a retry of this job doesn't trip over its own delete
+    if unused_ids:
+        job.addFollowOnJobFn(clean_jobstore_files, file_ids=unused_ids, allow_none=True)
+    return pansn_gfa_ids
+
 def make_batch_align_jobs_wrapper(job, options, chromfile_path, config_wrapper, last_scores_id):
     """ toil job wrapper for make_batch_align_jobs from cactus_align """
     work_dir = job.fileStore.getLocalTempDir()
@@ -592,8 +657,17 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
         split_export_job = split_job.addFollowOnJobFn(export_split_wrapper, wf_output, split_out_path, split_config_wrapper)
         chromfile_path = os.path.join(split_out_path, 'chromfile.txt')
 
+    # with --mgSplitWholeGenomeRef the second pass builds each chromosome's graph against the whole
+    # reference, so hold the (already sanitized) reference fastas back from the cleanup just below
+    wg_ref_id_map = None
+    clean_seq_id_map = seq_id_map
+    if options.mgSplitWholeGenomeRef:
+        split_ref_job = split_export_job.addFollowOnJobFn(split_reference_ids, seq_id_map, options.reference)
+        wg_ref_id_map, clean_seq_id_map = split_ref_job.rv(0), split_ref_job.rv(1)
+        split_export_job = split_ref_job
+
     # clean out some jobstore files we no longer need
-    clean_jobstore_job = split_export_job.addFollowOnJobFn(clean_jobstore_files, file_id_maps=[seq_id_map] if not options.noSplit else None,
+    clean_jobstore_job = split_export_job.addFollowOnJobFn(clean_jobstore_files, file_id_maps=[clean_seq_id_map] if not options.noSplit else None,
                                                            file_ids=[sv_gfa_id, paf_id])
 
     options.batch = True
@@ -608,7 +682,8 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
         input_map = sanitize_job.rv()
         options.outputGFA=''
         minigraph_batch_job = sanitize_job.addFollowOnJobFn(minigraph_construct_batch_workflow, options, config_node,
-                                                            input_map, None,  sanitize=False)
+                                                            input_map, None,  sanitize=False,
+                                                            construct_ref_id_map=wg_ref_id_map)
         minigraph_batch_results = minigraph_batch_job.rv()
         minigraph_batch_export_job = minigraph_batch_job.addFollowOnJobFn(export_minigraph_batch_wrapper, options, config_node,
                                                                           input_seqfiles, input_map, minigraph_batch_results)
@@ -618,6 +693,7 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
         minigraph_output_maps = minigraph_batch_export_job.rv(1)
         minigraph_output_ids = minigraph_batch_export_job.rv(2)
         minigraph_pansn_sv_gfa_ids = minigraph_batch_export_job.rv(3)
+        unpruned_pansn_sv_gfa_map = minigraph_batch_export_job.rv(4)
         graphmap_batch_job = minigraph_batch_export_job.addFollowOnJobFn(minigraph_batch_workflow, options, config_wrapper,
                                                                          graphmap_input_dict, graph_event, sanitize=False,
                                                                          pansn_gfa_input=False)
@@ -626,7 +702,15 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
         # pass's children are still going and reads their promises unresolved
         separate_job = add_separate_ref_contigs_job(graphmap_batch_job, options, config_wrapper, graphmap_input_dict)
         graphmap_batch_results = separate_job.rv()
-        graphmap_batch_export_job = separate_job.addFollowOnJobFn(export_graphmap_batch_wrapper, options, config_node,
+        prev_batch_job = separate_job
+        if options.mgSplitWholeGenomeRef:
+            # that pass is what cut the rest of the reference out of each chromosome's graph, so the
+            # published .sv.gfa.gz files only exist to write once it's done
+            pruned_gfa_export_job = separate_job.addFollowOnJobFn(export_pruned_minigraph_gfa_wrapper, options,
+                                                                  graphmap_batch_results, unpruned_pansn_sv_gfa_map)
+            minigraph_pansn_sv_gfa_ids = pruned_gfa_export_job.rv()
+            prev_batch_job = pruned_gfa_export_job
+        graphmap_batch_export_job = prev_batch_job.addFollowOnJobFn(export_graphmap_batch_wrapper, options, config_node,
                                                                         graphmap_batch_results, input_seqfiles)
         graphmap_file_ids = graphmap_batch_export_job.rv(0)
         chromfile_path = graphmap_batch_export_job.rv(1)
@@ -634,6 +718,11 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
         clean_jobstore_job = graphmap_batch_export_job.addFollowOnJobFn(clean_jobstore_files, file_ids=graphmap_file_ids)
         clean_jobstore_job = clean_jobstore_job.addFollowOnJobFn(clean_jobstore_files, file_id_maps=minigraph_output_maps,
                                                                  file_ids=minigraph_output_ids, allow_none=True)
+        if options.mgSplitWholeGenomeRef:
+            # the whole-genome reference fastas held back above: every construct that wanted them
+            # has long since run by here
+            clean_jobstore_job = clean_jobstore_job.addFollowOnJobFn(clean_jobstore_files,
+                                                                     file_id_maps=[wg_ref_id_map], allow_none=True)
         
     # cactus_align
     options.scoresFromChromfile = options.lastTrain and options.mgSplit

@@ -321,7 +321,8 @@ def add_separate_ref_contigs_job(batch_job, options, config, input_dict):
     from cactus.refmap.cactus_graphmap_split import separate_ref_contigs_batch
     reference = options.reference[0] if type(options.reference) is list else options.reference
     return batch_job.addFollowOnJobFn(separate_ref_contigs_batch, config, input_dict, batch_job.rv(), reference,
-                                      getattr(options, 'permissiveContigFilter', None))
+                                      getattr(options, 'permissiveContigFilter', None),
+                                      whole_genome_ref=getattr(options, 'mgSplitWholeGenomeRef', False))
 
 def minigraph_batch_separate_workflow(job, options, config, input_dict, graph_event, sanitize, pansn_gfa_input=True):
     """ minigraph_batch_workflow followed by the separation pass, for callers that just want the final
@@ -480,8 +481,15 @@ def minigraph_map_all(job, options, config, gfa_id, fa_id_map, graph_event):
     gaf_id_map = {}
     paf_id_map = {}
                 
+    # the estimate below is anchored on the query, which holds while the graph is no bigger than the
+    # chromosome the query came from.  the --mgSplitWholeGenomeRef second pass breaks that -- the graph
+    # is whole-genome while the query stays one chromosome, so the index dominates and the graph term
+    # has to carry it: measured at ~5.5x the (already decompressed) GFA on HPRC, against the 2x below.
+    # it must be gated on batch as well as the option: the option's own first pass maps whole-genome
+    # queries against a whole-genome graph, where the query anchor still holds and 2x is right
+    gfa_coefficient = 6 if options.batch and getattr(options, 'mgSplitWholeGenomeRef', False) else 2
     for event, fa_id in fa_id_map.items():
-        mem = 72*fa_id.size + 2*gfa_id.size
+        mem = 72*fa_id.size + gfa_coefficient*gfa_id.size
         event_name = event
         if options.batch:
             # the memory heuristc seems to drastically underestimate some chromosomes in batch mode...
@@ -493,9 +501,15 @@ def minigraph_map_all(job, options, config, gfa_id, fa_id_map, graph_event):
         gaf_id_map[event] = minigraph_map_job.rv(0)
         paf_id_map[event] = minigraph_map_job.rv(1)
 
-    # merge up
-    paf_merge_job = top_job.addFollowOnJobFn(merge_pafs, paf_id_map)
-    gaf_merge_job = top_job.addFollowOnJobFn(merge_pafs, gaf_id_map, gzip=True)
+    # merge up.  these two are the merges whose inputs scale with the number of genomes, so they get
+    # sized off them rather than taking the default; the GAF one also bgzips, so give it the mapping
+    # cores instead of leaving bgzip single-threaded
+    merge_name = getattr(options, 'mg_chrom_name', None) if options.batch else None
+    merge_name = merge_name if merge_name else 'merged'
+    paf_merge_job = top_job.addFollowOnJobFn(merge_pafs_sized, paf_id_map,
+                                             name='{}.paf'.format(merge_name))
+    gaf_merge_job = top_job.addFollowOnJobFn(merge_pafs_sized, gaf_id_map, gzip=True,
+                                             name='{}.gaf'.format(merge_name), cores=mg_cores)
 
     return paf_merge_job.rv(), gaf_merge_job.rv()
 
@@ -593,15 +607,24 @@ def minigraph_map_one(job, config, event_name, fa_file_id, gfa_file_id):
     # return the stable gaf (minigraph output) and the unstable paf
     return job.fileStore.writeGlobalFile(pansn_gaf_path), job.fileStore.writeGlobalFile(unstable_paf_path)
 
-def merge_pafs(job, paf_file_id_map, gzip=False):
-    """ merge up some pafs """
+def merge_pafs(job, paf_file_id_map, gzip=False, name=None):
+    """ merge up some pafs.  name is what the merged file is called on disk: getLocalTempFile() would
+    give it an anonymous .tmp, which is all anyone reading the log of the bgzip below would see """
     paf_paths = [job.fileStore.readGlobalFile(paf_id) for paf_id in paf_file_id_map.values()]
-    merged_path = job.fileStore.getLocalTempFile()
+    merged_path = os.path.join(job.fileStore.getLocalTempDir(), name if name else 'merged.paf')
     catFiles(paf_paths, merged_path)
     if gzip:
         cactus_call(parameters=['bgzip', merged_path, '--threads', str(job.cores)])
         merged_path += '.gz'                    
     return job.fileStore.writeGlobalFile(merged_path)
+
+def merge_pafs_sized(job, paf_file_id_map, gzip=False, name=None, cores=1):
+    """ merge_pafs, sized off its inputs.  callers upstream of the mapping jobs hold promises and so
+    cannot measure them; by the time this job runs they are resolved.  the merge holds every input
+    plus the merged copy, and bgzip then writes a compressed copy alongside """
+    total_size = sum(paf_id.size for paf_id in paf_file_id_map.values() if paf_id)
+    return job.addChildJobFn(merge_pafs, paf_file_id_map, gzip=gzip, name=name,
+                             cores=cores, disk=max(total_size * 3, 2**31)).rv()
 
 def extract_paf_from_gfa(job, gfa_id, gfa_path, ref_event, graph_event, ignore_paf_id):
     """ make a paf directly from the rGFA tags.  rgfa2paf supports other ranks, but we're only
