@@ -755,6 +755,32 @@ Msa *msa_make_partial_order_alignment(char **seqs, int *seq_lens, int64_t seq_no
  * what sets this phase's peak memory.  Nothing recorded that, so whether the threshold
  * was ever crossed on a given dataset could only be answered by instrumenting a build.
  */
+/*
+ * The nesting policy, made settable so a run can be tuned without a rebuild.  Defaults
+ * reproduce the historical behaviour exactly: nest for flowers with at least 50 ends,
+ * using at most an eighth of the thread count and never more than 8.
+ *
+ * Note the total is the OUTER team size times these, not bounded by it: a nested
+ * num_threads(k) region creates k new threads per outer thread rather than subdividing
+ * the outer team, so -T N can run N*k threads.  bar_outer_threads exists so a caller
+ * that wants a bounded total can set outer = N/k explicitly.
+ */
+static int64_t bar_nested_min_ends = 50;
+static int64_t bar_nested_divisor = 8;
+static int64_t bar_nested_max = 8;
+
+void bar_set_nesting(int64_t min_ends, int64_t divisor, int64_t max_nested) {
+    if (min_ends >= 0) bar_nested_min_ends = min_ends;
+    if (divisor > 0) bar_nested_divisor = divisor;
+    if (max_nested > 0) bar_nested_max = max_nested;
+}
+
+void bar_get_nesting(int64_t *min_ends, int64_t *divisor, int64_t *max_nested) {
+    *min_ends = bar_nested_min_ends;
+    *divisor = bar_nested_divisor;
+    *max_nested = bar_nested_max;
+}
+
 static int64_t poa_max_end_no = 0;
 static int64_t poa_nested_flowers = 0;
 static int64_t poa_nested_threads_max = 0;
@@ -777,15 +803,17 @@ Msa **make_consistent_partial_order_alignments(int64_t end_no, int64_t *end_leng
 
 #if defined(_OPENMP)
     // Only use nested parallelism for ≥50 ends
-    static const int min_ends_for_nesting = 50;
-    static const int max_threads_for_nesting = 8;
     int nested_threads = 1;
-    if (end_no >= min_ends_for_nesting) {
-        // never use more than an eighth of our threads    
-        int max_threads = omp_get_max_threads() / 8;
+    if (bar_nested_max > 1 && end_no >= bar_nested_min_ends) {
+        // a share of the thread count, but see the note on bar_set_nesting: this is a
+        // share per outer thread, so it multiplies rather than divides the total
+        int max_threads = omp_get_max_threads() / bar_nested_divisor;
         nested_threads = end_no < max_threads ? end_no : max_threads;
-        if (nested_threads > max_threads_for_nesting) {
-            nested_threads = max_threads_for_nesting;
+        if (nested_threads > bar_nested_max) {
+            nested_threads = bar_nested_max;
+        }
+        if (nested_threads < 1) {
+            nested_threads = 1;  // num_threads(0) is undefined behaviour
         }
     }
 

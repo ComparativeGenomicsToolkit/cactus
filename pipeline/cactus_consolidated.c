@@ -232,6 +232,14 @@ int main(int argc, char *argv[]) {
         return 0;
     }
 
+    // bar OpenMP tuning, applied once the whole command line has been read
+    int cons_num_threads = 1;
+    int64_t bar_outer_threads_opt = 0;   // 0 = OpenMP default (the thread count)
+    int64_t bar_nested_opt = -1;         // -1 = leave at the built-in default
+    int64_t bar_min_ends_opt = -1;
+    int64_t bar_divisor_opt = -1;
+    bool bar_bound_threads_opt = false;
+
     while (1) {
         static struct option long_options[] = { { "logLevel", required_argument, 0, 'l' },
                 { "params", required_argument, 0, 'p' },
@@ -248,7 +256,13 @@ int main(int argc, char *argv[]) {
                 { "help", no_argument, 0, 'h' },
                 { "referenceEvent", required_argument, 0, 'r' },
                 { "runChecks", no_argument, 0, 't' },
-                { "threads", required_argument, 0, 'T' }, 
+                { "threads", required_argument, 0, 'T' },
+                // bar OpenMP tuning; see bar_set_nesting/bar_set_outer_threads
+                { "barOuterThreads", required_argument, 0, 1001 },
+                { "barNestedThreads", required_argument, 0, 1002 },
+                { "barNestedMinEnds", required_argument, 0, 1003 },
+                { "barNestedDivisor", required_argument, 0, 1004 },
+                { "barBoundThreads", no_argument, 0, 1005 },
                 { 0, 0, 0, 0 } };
 
         int option_index = 0;
@@ -304,12 +318,39 @@ int main(int argc, char *argv[]) {
                 break;
             case 'T':
             {
-                int num_threads = 0;
-                int si = sscanf(optarg, "%d", &num_threads);
-                assert(si == 1 && num_threads > 0);
-                omp_set_num_threads(num_threads);
+                int si = sscanf(optarg, "%d", &cons_num_threads);
+                assert(si == 1 && cons_num_threads > 0);
+                omp_set_num_threads(cons_num_threads);
                 break;
             }
+            case 1001:
+            {
+                int64_t n = 0; int si = sscanf(optarg, "%" PRIi64 "", &n);
+                assert(si == 1 && n > 0);
+                bar_outer_threads_opt = n;
+                break;
+            }
+            case 1002:
+            {
+                int si = sscanf(optarg, "%" PRIi64 "", &bar_nested_opt);
+                assert(si == 1 && bar_nested_opt > 0);
+                break;
+            }
+            case 1003:
+            {
+                int si = sscanf(optarg, "%" PRIi64 "", &bar_min_ends_opt);
+                assert(si == 1 && bar_min_ends_opt >= 0);
+                break;
+            }
+            case 1004:
+            {
+                int si = sscanf(optarg, "%" PRIi64 "", &bar_divisor_opt);
+                assert(si == 1 && bar_divisor_opt > 0);
+                break;
+            }
+            case 1005:
+                bar_bound_threads_opt = true;
+                break;
             case 'h':
                 usage();
                 return 0;
@@ -318,6 +359,29 @@ int main(int argc, char *argv[]) {
                 return 1;
         }
     }
+
+    /*
+     * Apply the bar threading options.  --barBoundThreads is the one that makes -T mean
+     * what it says: a nested num_threads(k) region creates k threads per outer thread, so
+     * the total is outer*k.  Setting outer to threads/k bounds it at the thread count, at
+     * the cost of running fewer flowers at once.
+     */
+    bar_set_nesting(bar_min_ends_opt, bar_divisor_opt, bar_nested_opt);
+    if (bar_bound_threads_opt) {
+        int64_t minEnds, divisor, maxNested;
+        bar_get_nesting(&minEnds, &divisor, &maxNested);
+        int64_t nested = maxNested > 1 ? maxNested : 1;
+        int64_t outer = cons_num_threads / nested;
+        if (outer < 1) {
+            outer = 1;
+        }
+        if (bar_outer_threads_opt > 0 && bar_outer_threads_opt != outer) {
+            st_logCritical("--barBoundThreads overrides --barOuterThreads %" PRIi64 " with %" PRIi64 "\n",
+                           bar_outer_threads_opt, outer);
+        }
+        bar_outer_threads_opt = outer;
+    }
+    bar_set_outer_threads(bar_outer_threads_opt);
 
     ///////////////////////////////////////////////////////////////////////////
     // (0) Check the inputs.

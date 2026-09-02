@@ -23,6 +23,13 @@
 // How often to report progress through the flower list, in seconds.
 #define BAR_PROGRESS_INTERVAL 600
 
+// Outer team size for the flower loop; 0 means take the OpenMP default (the thread count).
+static int64_t bar_outer_threads = 0;
+
+void bar_set_outer_threads(int64_t n) {
+    bar_outer_threads = n;
+}
+
 PairwiseAlignmentParameters *pairwiseAlignmentParameters_constructFromCactusParams(CactusParams *params) {
     PairwiseAlignmentParameters *p = pairwiseAlignmentBandingParameters_construct();
     p->gapGamma = cactusParams_get_float(params, 3, "bar", "pecan", "gapGamma");
@@ -138,8 +145,26 @@ void bar(stList *flowers, CactusParams *params, CactusDisk *cactusDisk, stList *
     // Level 1: this parallel region (flower-level parallelism)
     // Level 2: nested parallel regions in make_consistent_partial_order_alignments
     omp_set_max_active_levels(2);
-    
-#pragma omp parallel for schedule(dynamic, 1)
+
+    /*
+     * The outer team size is settable so the total can be bounded.  A nested
+     * num_threads(k) region creates k threads per outer thread rather than taking them
+     * from the outer team, so the total is outer*k, not the thread count: bounding it
+     * means setting outer to threads/k here rather than relying on the nested share.
+     */
+    int barOuterThreads = bar_outer_threads > 0 ? (int)bar_outer_threads : omp_get_max_threads();
+    {
+        int64_t minEnds, divisor, maxNested;
+        bar_get_nesting(&minEnds, &divisor, &maxNested);
+        int64_t nestedCap = maxNested > 1 ? maxNested : 1;
+        st_logInfo("Bar threading: %d outer threads, up to %" PRIi64 " nested for flowers with "
+                   ">= %" PRIi64 " ends (thread share 1/%" PRIi64 "), so at most %" PRIi64
+                   " threads and as many concurrent abpoa alignments\n",
+                   barOuterThreads, nestedCap, minEnds, divisor,
+                   (int64_t)barOuterThreads * nestedCap);
+    }
+
+#pragma omp parallel for schedule(dynamic, 1) num_threads(barOuterThreads)
 #endif
     for (int64_t j = 0; j<stList_length(flowers); j++) {
         Flower *flower = stList_get(flowers, j);

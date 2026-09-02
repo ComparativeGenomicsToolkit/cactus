@@ -10,6 +10,7 @@
 import os
 import sys
 import bisect
+import shlex
 from toil.lib.bioio import system
 from toil.lib.bioio import getLogLevelString
 from toil.realtimeLogger import RealtimeLogger
@@ -32,7 +33,8 @@ from cactus.shared.common import cactus_clamp_memory
 ############################################################
 
 def cactus_cons_with_resources(job, tree, ancestor_event, config_node, seq_id_map, og_map, paf_id,
-                               cons_cores = None, cons_memory = None, intermediate_results_url = None, chrom_name = None):
+                               cons_cores = None, cons_memory = None, intermediate_results_url = None, chrom_name = None,
+                               cons_options = None):
     ''' run cactus_consolidated as a child job, requesting resources based on input sizes '''
 
     cons_node = findRequiredNode(config_node, 'consolidated')
@@ -109,11 +111,11 @@ def cactus_cons_with_resources(job, tree, ancestor_event, config_node, seq_id_ma
 
     cons_job = job.addChildJobFn(cactus_cons, tree, ancestor_event, config_node, seq_id_map, og_map, paf_id,
                                  intermediate_results_url=intermediate_results_url, chrom_name=chrom_name, cores = cons_cores,
-                                 memory=cactus_clamp_memory(mem), disk=disk)
+                                 memory=cactus_clamp_memory(mem), disk=disk, cons_options=cons_options)
     return cons_job.rv()
 
 def cactus_cons(job, tree, ancestor_event, config_node, seq_id_map, og_map, paf_id,
-                intermediate_results_url = None, chrom_name = None):
+                intermediate_results_url = None, chrom_name = None, cons_options = None):
     ''' run cactus_consolidated '''
 
     # Build up a genome -> fasta map.
@@ -171,6 +173,9 @@ def cactus_cons(job, tree, ancestor_event, config_node, seq_id_map, og_map, paf_
             "--referenceEvent", ancestor_event, "--threads", str(job.cores)]
     if use_secondary_alignments:  # Optionally add the secondary alignments
         args += ["--secondaryAlignments", secondary_alignment_file]
+    if cons_options:
+        # verbatim pass-through, for tuning cactus_consolidated without plumbing every flag
+        args += shlex.split(cons_options)
 
     messages = cactus_call(check_output=True, returnStdErr=True,
                            realtimeStderrPrefix=f'cactus_consolidated({chrom_name if chrom_name else ancestor_event})',

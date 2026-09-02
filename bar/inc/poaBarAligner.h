@@ -106,6 +106,19 @@ Msa *msa_make_partial_order_alignment(char **seqs,
  * @return A consistent Msa for each end
  */
 /*
+ * Set the nesting policy for bar's partial order alignments.  Any argument <= 0 (or < 0 for
+ * min_ends) leaves that setting alone.  max_nested of 1 disables nesting entirely.
+ */
+void bar_set_nesting(int64_t min_ends, int64_t divisor, int64_t max_nested);
+
+/*
+ * Outer team size for bar's flower loop.  0 (the default) takes the OpenMP thread count.
+ * Set this to threads/max_nested for a total bounded by the thread count.
+ */
+void bar_set_outer_threads(int64_t n);
+void bar_get_nesting(int64_t *min_ends, int64_t *divisor, int64_t *max_nested);
+
+/*
  * Peak ends seen in a flower, how many flowers crossed the nesting threshold, and the
  * largest nested team used.  Concurrent abPOA instances -- and so this phase's peak
  * memory -- are the outer thread count times that team size.
