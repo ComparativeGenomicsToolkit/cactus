@@ -43,11 +43,23 @@
  * up rather than linked: builds with jemalloc off (Mac, CGL_DEBUG=ultra, legacy arch) then
  * simply find nothing and carry on.
  */
+// A weak reference resolves to jemalloc's mallctl when it is linked and stays null when it
+// is not, with no dlfcn and no _GNU_SOURCE (RTLD_DEFAULT is a GNU extension, and defining
+// _GNU_SOURCE for this one call would change other declarations in this file).
+extern int mallctl(const char *, void *, size_t *, void *, size_t) __attribute__((weak));
+
 static void cactus_jemalloc_retain_muzzy(void) {
-    int (*mallctl_fn)(const char *, void *, size_t *, void *, size_t) =
-        (int (*)(const char *, void *, size_t *, void *, size_t)) dlsym(RTLD_DEFAULT, "mallctl");
+    int (*mallctl_fn)(const char *, void *, size_t *, void *, size_t) = mallctl;
     if (mallctl_fn == NULL) {
-        st_logCritical("--jemallocRetainMuzzy had no effect: this build has no jemalloc\n");
+        // a statically linked jemalloc may not pull ctl.o in on a weak reference alone,
+        // so ask the dynamic loader before giving up.  dlopen(NULL) and RTLD_LAZY are POSIX.
+        void *self = dlopen(NULL, RTLD_LAZY);
+        if (self != NULL) {
+            *(void **)(&mallctl_fn) = dlsym(self, "mallctl");
+        }
+    }
+    if (mallctl_fn == NULL) {
+        st_logCritical("--jemallocRetainMuzzy had no effect: no jemalloc in this build\n");
         return;
     }
     ssize_t never = -1;
