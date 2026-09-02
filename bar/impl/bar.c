@@ -21,7 +21,7 @@
 #include <time.h>
 
 // How often to report progress through the flower list, in seconds.
-#define BAR_PROGRESS_INTERVAL 60
+#define BAR_PROGRESS_INTERVAL 600
 
 PairwiseAlignmentParameters *pairwiseAlignmentParameters_constructFromCactusParams(CactusParams *params) {
     PairwiseAlignmentParameters *p = pairwiseAlignmentBandingParameters_construct();
@@ -237,7 +237,11 @@ void bar(stList *flowers, CactusParams *params, CactusDisk *cactusDisk, stList *
                 {
                     // re-check now that we hold the lock, so only one thread reports
                     if (now - lastReportTime >= BAR_PROGRESS_INTERVAL) {
+                        // capture the window before advancing the marks
+                        int64_t windowSeconds = now - lastReportTime;
+                        int64_t windowBases = bases - lastReportBases;
                         lastReportTime = now;
+                        lastReportBases = bases;
                         struct rusage ru;
                         getrusage(RUSAGE_SELF, &ru);
 #ifdef __APPLE__
@@ -247,10 +251,16 @@ void bar(stList *flowers, CactusParams *params, CactusDisk *cactusDisk, stList *
 #endif
                         int64_t elapsed = now - barStartTime;
                         double baseFraction = totalBases > 0 ? (double)bases / (double)totalBases : 0.0;
-                        // an eta is meaningless until enough sequence has gone through to
-                        // give a stable rate, and the size sort makes the early rate a lie
-                        int64_t eta = (baseFraction >= 0.01 && elapsed > 0) ?
-                            (int64_t)(elapsed / baseFraction) - elapsed : -1;
+                        /*
+                         * Estimate from the rate over the last interval, not from the average
+                         * since the phase began.  The list is sorted largest-first, so the
+                         * average is dominated by the huge flowers at the head and stays
+                         * pessimistic for hours -- and while one of those is in flight nothing
+                         * completes at all, which an average reads as "slow" rather than as
+                         * "no information".  A zero-progress interval gives no estimate.
+                         */
+                        int64_t eta = (windowSeconds > 0 && windowBases > 0) ?
+                            (int64_t)((double)(totalBases - bases) * windowSeconds / windowBases) : -1;
                         st_logInfo("Bar progress: %" PRIi64 "/%" PRIi64 " flowers (%.2f%%), "
                                    "%" PRIi64 "/%" PRIi64 " bases (%.2f%%), %" PRIi64 " seconds in bar, "
                                    "eta %" PRIi64 " seconds, peak memory %" PRIi64 " MB\n",
