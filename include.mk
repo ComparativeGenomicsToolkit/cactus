@@ -157,6 +157,22 @@ CXXFLAGS += ${CACTUS_ARCH_FLAGS}
 # --pedantic back out.  This hands over the baseline and nothing else.
 archEnv = CFLAGS="$${CFLAGS} ${CACTUS_ARCH_FLAGS}" CXXFLAGS="$${CXXFLAGS} ${CACTUS_ARCH_FLAGS}"
 
+# ...but CFLAGS specifically must not be handed to a submodule that recursively builds bundled
+# third-party C.  Doing so makes CFLAGS environment-origin, and make then exports it onward
+# from that submodule's own make, carrying sonLib's -Werror --pedantic down into code that has
+# never compiled clean under them: sonLib/quicktree, sonLib/cutest, cPecan/lastz,
+# pinchesAndCacti/threeEdgeConnected and matchingAndOrdering/matchGraph are all in that
+# position, and CGL_DEBUG=ultra then fails on unrelated fscanf and format warnings -- which is
+# how CI broke.  paffy is in the same position at one remove: it builds its own nested
+# sonLib, quicktree and all.  Bundled C++ (blossom) is fine, since CXXFLAGS_ultraDbg
+# carries no -Werror.
+#
+# Hand the baseline to those four through CC instead.  A command-line override reaches the
+# nested makes through MAKEFLAGS just as effectively, but carries nothing but the arch flag.
+# Not CXX, which would clobber sonLib's own clang++/g++ selection.
+archEnvExt = CXXFLAGS="$${CXXFLAGS} ${CACTUS_ARCH_FLAGS}"
+archCC = CC="$${CC:-cc} ${CACTUS_ARCH_FLAGS}"
+
 # flags needed to include simde abpoa in cactus on any architecture
 ifdef CACTUS_LEGACY_ARCH
 	CFLAGS+= -D__SSE2__ -DUSE_SIMDE -DSIMDE_ENABLE_NATIVE_ALIASES

@@ -264,7 +264,7 @@ suball1: ${submodules1:%=suball.%}
 suball2: ${submodules2:%=suball.%}
 
 suball.sonLib:
-	cd submodules/sonLib && PKG_CONFIG_PATH=${CWD}/lib/pkgconfig:${PKG_CONFIG_PATH} ${archEnv} ${MAKE}
+	cd submodules/sonLib && PKG_CONFIG_PATH=${CWD}/lib/pkgconfig:${PKG_CONFIG_PATH} ${archEnvExt} ${MAKE} ${archCC}
 	rm -rf submodules/sonLib/bin/*.dSYM
 	ln -f submodules/sonLib/bin/[a-zA-Z]* ${BINDIR}
 	ln -f submodules/sonLib/lib/*.a ${LIBDIR}
@@ -286,13 +286,13 @@ suball.jemalloc:
 endif
 
 suball.pinchesAndCacti: suball.sonLib
-	cd submodules/pinchesAndCacti && ${archEnv} ${MAKE}
+	cd submodules/pinchesAndCacti && ${archEnvExt} ${MAKE} ${archCC}
 
 suball.matchingAndOrdering: suball.sonLib
-	cd submodules/matchingAndOrdering && ${archEnv} ${MAKE}
+	cd submodules/matchingAndOrdering && ${archEnvExt} ${MAKE} ${archCC}
 
 suball.cPecan: suball.sonLib
-	cd submodules/cPecan && ${archEnv} ${MAKE}
+	cd submodules/cPecan && ${archEnvExt} ${MAKE} ${archCC}
 	rm -f ${BINDIR}/cPecanLastz*
 
 suball.cactus2hal: suball.sonLib suball.hal all_libs.api
@@ -329,7 +329,7 @@ suball.lastz: suball.jemalloc
 
 suball.paffy:
 	git -C submodules/paffy/submodules/sonLib checkout $$(git -C submodules/sonLib rev-parse HEAD)
-	cd submodules/paffy && ${archEnv} LIBS="${jemallocLib}" ${MAKE}
+	cd submodules/paffy && ${archEnvExt} LIBS="${jemallocLib}" ${MAKE} ${archCC}
 	rm -rf submodules/paffy/bin/*.dSYM
 	ln -f submodules/paffy/bin/[a-zA-Z]* ${BINDIR}
 	ln -f submodules/paffy/lib/*.a ${LIBDIR}
