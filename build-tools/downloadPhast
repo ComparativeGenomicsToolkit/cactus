@@ -30,8 +30,14 @@ if [ -z "${CACTUS_ARCH_FLAGS}" ]; then
     echo "ERROR: 'make arch-flags' returned nothing; cannot determine the CPU baseline." >&2
     exit 1
 fi
-export CFLAGS="${CFLAGS:-} ${CACTUS_ARCH_FLAGS}"
-export CXXFLAGS="${CXXFLAGS:-} ${CACTUS_ARCH_FLAGS}"
+# autoconf's AC_PROG_CC supplies its default "-g -O2" only when CFLAGS is *unset*.  Setting
+# CFLAGS below to carry the arch flags therefore suppresses it, which would silently drop
+# samtools, bcftools and htslib to -O0 in any build that had not already chosen a level --
+# i.e. every non-release build, including the Docker image.  Choose the level here instead.
+case " ${CFLAGS:-} " in *" -O"*) ;; *) CFLAGS="${CFLAGS:-} -O2" ;; esac
+case " ${CXXFLAGS:-} " in *" -O"*) ;; *) CXXFLAGS="${CXXFLAGS:-} -O2" ;; esac
+export CFLAGS="${CFLAGS} ${CACTUS_ARCH_FLAGS}"
+export CXXFLAGS="${CXXFLAGS} ${CACTUS_ARCH_FLAGS}"
 
 set -x
 
