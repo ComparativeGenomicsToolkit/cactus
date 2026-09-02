@@ -115,14 +115,31 @@ void bar(stList *flowers, CactusParams *params, CactusDisk *cactusDisk, stList *
     int64_t flowerNumber = stList_length(flowers);
     int64_t *nameOffsets = st_malloc(sizeof(int64_t) * (flowerNumber + 1));
     int64_t totalBases = 0;
+    /*
+     * A flower's end count decides whether its alignments run nested, and nesting is what
+     * multiplies the concurrent abPOA instances that set this phase's peak memory.  The
+     * count is just stList_length(flower->ends), so the whole distribution is free here --
+     * which means the answer is known before any alignment runs, rather than accumulating
+     * over the phase and only appearing in the first progress report ten minutes later.
+     */
+    int64_t barMinEnds, barDivisor, barMaxNested;
+    bar_get_nesting(&barMinEnds, &barDivisor, &barMaxNested);
+    int64_t maxEnds = 0, willNest = 0;
 #if defined(_OPENMP)
-#pragma omp parallel for schedule(dynamic, 1) reduction(+:totalBases)
+#pragma omp parallel for schedule(dynamic, 1) reduction(+:totalBases) reduction(max:maxEnds) reduction(+:willNest)
 #endif
     for (int64_t j = 0; j < flowerNumber; j++) {
         Flower *flower = stList_get(flowers, j);
         int64_t flowerBaseLength = flower_getTotalBaseLength(flower);
         nameOffsets[j] = 12 * (flowerBaseLength + flower_getCapNumber(flower)) + 4096;
         totalBases += flowerBaseLength;
+        int64_t ends = flower_getEndNumber(flower);
+        if (ends > maxEnds) {
+            maxEnds = ends;
+        }
+        if (barMaxNested > 1 && ends >= barMinEnds) {
+            willNest++;
+        }
     }
     int64_t nameTotal = 0; // Turn the sizes into offsets
     for (int64_t j = 0; j < flowerNumber; j++) {
@@ -154,14 +171,16 @@ void bar(stList *flowers, CactusParams *params, CactusDisk *cactusDisk, stList *
      */
     int barOuterThreads = bar_outer_threads > 0 ? (int)bar_outer_threads : omp_get_max_threads();
     {
-        int64_t minEnds, divisor, maxNested;
-        bar_get_nesting(&minEnds, &divisor, &maxNested);
-        int64_t nestedCap = maxNested > 1 ? maxNested : 1;
+        int64_t nestedCap = barMaxNested > 1 ? barMaxNested : 1;
         st_logInfo("Bar threading: %d outer threads, up to %" PRIi64 " nested for flowers with "
                    ">= %" PRIi64 " ends (thread share 1/%" PRIi64 "), so at most %" PRIi64
                    " threads and as many concurrent abpoa alignments\n",
-                   barOuterThreads, nestedCap, minEnds, divisor,
+                   barOuterThreads, nestedCap, barMinEnds, barDivisor,
                    (int64_t)barOuterThreads * nestedCap);
+        st_logInfo("Bar ends: largest flower has %" PRIi64 " ends; %" PRIi64 " of %" PRIi64
+                   " flowers reach the nesting threshold of %" PRIi64 ", so nesting %s\n",
+                   maxEnds, willNest, flowerNumber, barMinEnds,
+                   willNest > 0 ? "will engage" : "will never engage on this data");
     }
 
 #pragma omp parallel for schedule(dynamic, 1) num_threads(barOuterThreads)
