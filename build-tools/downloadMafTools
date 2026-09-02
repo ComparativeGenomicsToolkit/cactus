@@ -29,6 +29,23 @@ if [ -z ${CACTUS_LEGACY_ARCH+x} ]; then
     fi
 fi
 
+# CPU baseline.  include.mk is the single source of truth; ask make for it rather than
+# duplicating the arm/legacy/x86 selection here, where it would silently drift.
+# MAKEFLAGS is cleared because "make binRelease" reaches this from inside a make recipe.
+CACTUS_ARCH_FLAGS="${CACTUS_ARCH_FLAGS:-$(env -u MAKEFLAGS make -s -C "${CWD}" arch-flags)}"
+if [ -z "${CACTUS_ARCH_FLAGS}" ]; then
+    echo "ERROR: 'make arch-flags' returned nothing; cannot determine the CPU baseline." >&2
+    exit 1
+fi
+# autoconf's AC_PROG_CC supplies its default "-g -O2" only when CFLAGS is *unset*.  Setting
+# CFLAGS below to carry the arch flags therefore suppresses it, which would silently drop
+# samtools, bcftools and htslib to -O0 in any build that had not already chosen a level --
+# i.e. every non-release build, including the Docker image.  Choose the level here instead.
+case " ${CFLAGS:-} " in *" -O"*) ;; *) CFLAGS="${CFLAGS:-} -O2" ;; esac
+case " ${CXXFLAGS:-} " in *" -O"*) ;; *) CXXFLAGS="${CXXFLAGS:-} -O2" ;; esac
+export CFLAGS="${CFLAGS} ${CACTUS_ARCH_FLAGS}"
+export CXXFLAGS="${CXXFLAGS} ${CACTUS_ARCH_FLAGS}"
+
 rm -rf ${mafBuildDir}
 mkdir -p ${mafBuildDir}
 mkdir -p ${binDir}

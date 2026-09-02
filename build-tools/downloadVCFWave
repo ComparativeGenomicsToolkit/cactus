@@ -11,6 +11,19 @@ libDir=$(pwd)/lib
 # just use cactusRootPath for now
 dataDir=$(pwd)/src/cactus
 CWD=$(pwd)
+
+# CPU baseline.  include.mk is the single source of truth; ask make for it rather than
+# duplicating the arm/legacy/x86 selection here, where it would silently drift.
+# MAKEFLAGS is cleared because "make binRelease" reaches this from inside a make recipe.
+CACTUS_ARCH_FLAGS="${CACTUS_ARCH_FLAGS:-$(env -u MAKEFLAGS make -s -C "${CWD}" arch-flags)}"
+if [ -z "${CACTUS_ARCH_FLAGS}" ]; then
+    echo "ERROR: 'make arch-flags' returned nothing; cannot determine the CPU baseline." >&2
+    exit 1
+fi
+# vcflib's RelWithDebInfo supplies its own -O2, so unlike the other download scripts this one
+# does not need to pick an optimisation level, only to hand over the baseline.
+export CFLAGS="${CFLAGS:-} ${CACTUS_ARCH_FLAGS}"
+export CXXFLAGS="${CXXFLAGS:-} ${CACTUS_ARCH_FLAGS}"
 # works on MacOS and Linux
 if [ -z ${numcpu+x} ]; then
 	 numcpu=$(getconf _NPROCESSORS_ONLN)
@@ -28,7 +41,13 @@ cd vcflib
 git checkout 44eb97462eedc59365e8739103e2d5f7e2c76803
 mkdir build
 cd build
-cmake -DZIG=OFF -DWFA_GITMODULE=ON -DCMAKE_BUILD_TYPE=Debug ..
+# RelWithDebInfo, not Debug: Debug is -g with no -O, which built vcffixup, vcfwave and the
+# bundled WFA2-lib (vcfwave's alignment engine, an add_subdirectory so it inherits this) at
+# -O0.  Measured: vcffixup over 120k records x 60 samples, 53.2s at Debug vs 14.5s at
+# RelWithDebInfo, byte-identical output.  Not Release -- that injects -march=native
+# (vcflib CMakeLists.txt:77-78), which we cannot ship.  vcflib's own CMakeLists.txt:4
+# recommends RelWithDebInfo.
+cmake -DZIG=OFF -DWFA_GITMODULE=ON -DCMAKE_BUILD_TYPE=RelWithDebInfo ..
 cmake --build . -- -j ${numcpu}
 mv vcfwave vcfcreatemulti vcfbreakmulti vcfuniq vcffixup ${binDir}
 mv ./contrib/WFA2-lib/libwfa2.so.0 ${libDir}

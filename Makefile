@@ -24,7 +24,18 @@ CWD = ${PWD}
 
 # these must be absolute, as used in submodules.
 export sonLibRootDir = ${CWD}/submodules/sonLib
-.PHONY: all all.% clean clean.% selfClean suball suball.% subclean.%
+.PHONY: all all.% clean clean.% selfClean suball suball.% subclean.% arch-flags
+
+# Pinned, because make's default goal is whatever rule comes first and a helper target
+# above "all" would silently turn a bare "make" into a no-op that still exits 0.
+.DEFAULT_GOAL := all
+
+# The CPU baseline, for the build-tools/download* shell scripts.  They build tools that end
+# up in the same release as everything make builds, so they need the same flags -- but they
+# are shell, and CACTUS_ARCH_FLAGS is a make variable set in include.mk.  Rather than have
+# each script re-implement the arm/legacy/x86 selection and drift out of sync, they ask here.
+arch-flags:
+	@echo '${CACTUS_ARCH_FLAGS}'
 
 ##
 # Building.  First build submodules, then a pass for libs and a pass for bins
@@ -253,7 +264,7 @@ suball1: ${submodules1:%=suball.%}
 suball2: ${submodules2:%=suball.%}
 
 suball.sonLib:
-	cd submodules/sonLib && PKG_CONFIG_PATH=${CWD}/lib/pkgconfig:${PKG_CONFIG_PATH} ${MAKE}
+	cd submodules/sonLib && PKG_CONFIG_PATH=${CWD}/lib/pkgconfig:${PKG_CONFIG_PATH} ${archEnvExt} ${MAKE} ${archCC}
 	rm -rf submodules/sonLib/bin/*.dSYM
 	ln -f submodules/sonLib/bin/[a-zA-Z]* ${BINDIR}
 	ln -f submodules/sonLib/lib/*.a ${LIBDIR}
@@ -275,21 +286,21 @@ suball.jemalloc:
 endif
 
 suball.pinchesAndCacti: suball.sonLib
-	cd submodules/pinchesAndCacti && ${MAKE}
+	cd submodules/pinchesAndCacti && ${archEnvExt} ${MAKE} ${archCC}
 
 suball.matchingAndOrdering: suball.sonLib
-	cd submodules/matchingAndOrdering && ${MAKE}
+	cd submodules/matchingAndOrdering && ${archEnvExt} ${MAKE} ${archCC}
 
 suball.cPecan: suball.sonLib
-	cd submodules/cPecan && ${MAKE}
+	cd submodules/cPecan && ${archEnvExt} ${MAKE} ${archCC}
 	rm -f ${BINDIR}/cPecanLastz*
 
 suball.cactus2hal: suball.sonLib suball.hal all_libs.api
-	cd submodules/cactus2hal && ${MAKE}
+	cd submodules/cactus2hal && ${archEnv} ${MAKE}
 	-ln -f submodules/cactus2hal/bin/* bin/
 
 suball.hal: suball.sonLib
-	cd submodules/hal && LIBS="${jemallocLib}" ${MAKE}
+	cd submodules/hal && ${archEnv} LIBS="${jemallocLib}" ${MAKE}
 	-ln -f submodules/hal/bin/* bin/
 	-ln -f submodules/hal/lib/libHal.a submodules/hal/lib/halLib.a
 
@@ -303,38 +314,47 @@ suball.abPOA:
 	ln -f submodules/abPOA/include/*.h ${INCLDIR}
 	rm -fr ${INCLDIR}/simde && cp -r submodules/abPOA/include/simde ${INCLDIR}
 
-suball.lastz:
-	cd submodules/lastz/src && sed -i -e 's/-lm -o/-lm $${LIBS} -o/g' Makefile
-	cd submodules/lastz && LIBS="${jemallocLib}" ${MAKE}
+suball.lastz: suball.jemalloc
+# Inject ${LIBS} into lastz's link lines so jemalloc reaches it.  This must not assume the
+# link line is still pristine: makeBinRelease seds 's/-lm/-lm -static/g' into this same file
+# *before* make runs, and the old pattern here ('-lm -o') then no longer matched, so ${LIBS}
+# was silently never injected and every release shipped a lastz without jemalloc.  It looked
+# fine in developer trees only because a previous build had already patched the file, which
+# is why it survived local testing.  Match around whatever sits between -lm and -o instead,
+# skip lines that already have LIBS so repeated builds stay idempotent, and verify.
+	cd submodules/lastz/src && sed -i -e '/LIBS/!s/-lm\(.*\) -o \$$@/-lm\1 $${LIBS} -o $$@/' Makefile \
+	  && grep -q 'LIBS' Makefile
+	cd submodules/lastz && ${archEnv} LIBS="${jemallocSubLibs}" ${MAKE}
 	ln -f submodules/lastz/src/lastz bin
 
 suball.paffy:
 	git -C submodules/paffy/submodules/sonLib checkout $$(git -C submodules/sonLib rev-parse HEAD)
-	cd submodules/paffy && LIBS="${jemallocLib}" ${MAKE}
+	cd submodules/paffy && ${archEnvExt} LIBS="${jemallocLib}" ${MAKE} ${archCC}
 	rm -rf submodules/paffy/bin/*.dSYM
 	ln -f submodules/paffy/bin/[a-zA-Z]* ${BINDIR}
 	ln -f submodules/paffy/lib/*.a ${LIBDIR}
 	ln -f submodules/paffy/inc/*.h ${INCLDIR}
 
-suball.red:
-	cd submodules/red && ${MAKE}
+suball.red: suball.jemalloc
+	cd submodules/red && sed -i -e '/LIBS/!s/-o \$$(TRed) \$$(OBJS)/-o $$(TRed) $$(OBJS) $$(LIBS)/' src/Makefile
+	cd submodules/red && CXXFLAGS="$${CXXFLAGS} ${CACTUS_ARCH_FLAGS}" LIBS="${jemallocSubLibs}" ${MAKE}
 	ln -f submodules/red/bin/Red ${BINDIR}
 
 suball.collapse-bubble:
 	chmod +x submodules/collapse-bubble/scripts/merge_duplicates.py
 	ln -f submodules/collapse-bubble/scripts/merge_duplicates.py ${BINDIR}
-suball.FASTGA:
-	cd submodules/FASTGA && sed -i '/-lpthread/!s/-lm -lz/-lpthread -lm -lz/g' Makefile && ${MAKE}
+suball.FASTGA: suball.jemalloc
+	cd submodules/FASTGA && sed -i -e '/-lpthread/!s/-lm -lz/-lpthread -lm -lz/g' -e '/LIBS/!s/-lpthread -lm -lz/-lpthread -lm -lz $$(LIBS)/g' Makefile && LIBS="${jemallocSubLibs}" ${MAKE} CC="$${CC:-gcc} ${CACTUS_ARCH_FLAGS}"
 	ln -f submodules/FASTGA/FastGA ${BINDIR}
 	ln -f submodules/FASTGA/ALNtoPAF ${BINDIR}
 	ln -f submodules/FASTGA/FAtoGDB ${BINDIR}
 	ln -f submodules/FASTGA/GIXmake ${BINDIR}
 	ln -f submodules/FASTGA/GIXrm ${BINDIR}
-suball.FASTAN:
-	cd submodules/FASTAN && sed -i -e 's/-lm -lz/-lm -lpthread -lz/g' Makefile && ${MAKE} || true
+suball.FASTAN: suball.jemalloc
+	cd submodules/FASTAN && sed -i -e 's/-lm -lz/-lm -lpthread -lz/g' -e '/LIBS/!s/-lm -lpthread -lz/-lm -lpthread -lz $$(LIBS)/g' Makefile && LIBS="${jemallocSubLibs}" ${MAKE} CC="$${CC:-gcc} ${CACTUS_ARCH_FLAGS}" || true
 	ln -f submodules/FASTAN/FasTAN ${BINDIR}
 suball.alntools:
-	cd submodules/alntools && ${MAKE}
+	cd submodules/alntools && ${MAKE} CC="$${CC:-gcc} ${CACTUS_ARCH_FLAGS}"
 	ln -f submodules/alntools/tanbed ${BINDIR}
 
 ifeq ($(jemalloc),on)

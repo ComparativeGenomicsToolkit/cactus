@@ -53,7 +53,11 @@ static void redfilter(void* min_length_p, const char* name, const char* seq, int
         ++base_hist[c];
     }
     bool is_monomer = length == 0;
-    char monomer;
+    // initialised because length == 0 sets is_monomer without the search loop ever running,
+    // so monomer is formally live-uninitialised at the read below.  Harmless in practice --
+    // that read sits inside a "i < length" loop that cannot execute when length is 0 -- but
+    // -Werror=maybe-uninitialized rightly objects under CGL_DEBUG.
+    char monomer = 0;
     for (int64_t i = 0; i < 256 && !is_monomer; ++i) {
         if ((double)base_hist[i] / (double)length > max_base_frac) {
             is_monomer = true;

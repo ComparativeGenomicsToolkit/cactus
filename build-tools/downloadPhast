@@ -22,6 +22,23 @@ numcpu=$(getconf _NPROCESSORS_ONLN)
 submodulesDir=$(pwd)/submodules
 CWD=$(pwd)
 
+# CPU baseline.  include.mk is the single source of truth; ask make for it rather than
+# duplicating the arm/legacy/x86 selection here, where it would silently drift.
+# MAKEFLAGS is cleared because "make binRelease" reaches this from inside a make recipe.
+CACTUS_ARCH_FLAGS="${CACTUS_ARCH_FLAGS:-$(env -u MAKEFLAGS make -s -C "${CWD}" arch-flags)}"
+if [ -z "${CACTUS_ARCH_FLAGS}" ]; then
+    echo "ERROR: 'make arch-flags' returned nothing; cannot determine the CPU baseline." >&2
+    exit 1
+fi
+# autoconf's AC_PROG_CC supplies its default "-g -O2" only when CFLAGS is *unset*.  Setting
+# CFLAGS below to carry the arch flags therefore suppresses it, which would silently drop
+# samtools, bcftools and htslib to -O0 in any build that had not already chosen a level --
+# i.e. every non-release build, including the Docker image.  Choose the level here instead.
+case " ${CFLAGS:-} " in *" -O"*) ;; *) CFLAGS="${CFLAGS:-} -O2" ;; esac
+case " ${CXXFLAGS:-} " in *" -O"*) ;; *) CXXFLAGS="${CXXFLAGS:-} -O2" ;; esac
+export CFLAGS="${CFLAGS} ${CACTUS_ARCH_FLAGS}"
+export CXXFLAGS="${CXXFLAGS} ${CACTUS_ARCH_FLAGS}"
+
 set -x
 
 mkdir -p ${binDir}
@@ -32,6 +49,23 @@ rm -rf phast
 git clone https://github.com/CshlSiepelLab/phast.git
 cd phast
 git checkout ${gitrel}
+
+# phast passes "-g -fno-inline -Wall -fno-strict-aliasing" to add_compile_options(), which
+# CMake places *after* CMAKE_C_FLAGS_RELEASE on the compile line, so -fno-inline beats the
+# Release build's -O3 and inlining is off across the whole suite.  Drop just that one flag;
+# -fno-strict-aliasing is deliberate and stays.
+#
+# Guarded, because a sed that silently stops matching is exactly how the unoptimised releases
+# went unnoticed in the first place.  If phast reformats the line we want to hear about it
+# here rather than quietly ship -fno-inline again; if they drop the flag themselves, this
+# block has done its job and can go.
+grep -q -- ' -fno-inline' CMakeLists.txt || {
+    echo "ERROR: phast ${gitrel} CMakeLists.txt no longer contains ' -fno-inline'." >&2
+    echo "       Check whether upstream still disables inlining under a Release build." >&2
+    echo "       If it no longer does, delete this check and the sed below." >&2
+    exit 1
+}
+sed -i CMakeLists.txt -e 's/ -fno-inline//'
 
 # Static linking strategy:
 #
