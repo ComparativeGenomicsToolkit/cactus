@@ -4,6 +4,8 @@
 
 #include <time.h>
 #include <getopt.h>
+#include <dlfcn.h>
+#include <sys/types.h>
 #include "sonLib.h"
 #include "cactus.h"
 #include "cactus_setup.h"
@@ -28,6 +30,54 @@
  * cleanup input alignment format
  *
  */
+
+/*
+ * Stop jemalloc returning muzzy pages to the OS.  abPOA allocates its DP matrix with
+ * posix_memalign at gigabyte sizes and frees it per window, and jemalloc's default is to
+ * hand those pages back after ten seconds -- so the next window faults them all in again.
+ * Measured on gigabyte posix_memalign traffic, retaining them was ~30x faster AND ~9%
+ * lower peak RSS, since a reused extent needs no new pages.
+ *
+ * MALLOC_CONF only takes effect before main, and an environment variable set by a Toil
+ * leader may not reach the worker, so this is done at runtime instead.  mallctl is looked
+ * up rather than linked: builds with jemalloc off (Mac, CGL_DEBUG=ultra, legacy arch) then
+ * simply find nothing and carry on.
+ */
+static void cactus_jemalloc_retain_muzzy(void) {
+    int (*mallctl_fn)(const char *, void *, size_t *, void *, size_t) =
+        (int (*)(const char *, void *, size_t *, void *, size_t)) dlsym(RTLD_DEFAULT, "mallctl");
+    if (mallctl_fn == NULL) {
+        st_logCritical("--jemallocRetainMuzzy had no effect: this build has no jemalloc\n");
+        return;
+    }
+    ssize_t never = -1;
+    // the default every arena created from here on inherits -- most of them, since arenas
+    // are made lazily as threads first allocate, and the OpenMP threads do not exist yet
+    int rc_default = mallctl_fn("arenas.muzzy_decay_ms", NULL, NULL, &never, sizeof(never));
+
+    // and the handful that already exist, set one at a time: MALLCTL_ARENAS_ALL is
+    // rejected here (EFAULT), so relying on it would silently leave them purging
+    unsigned narenas = 0;
+    size_t nsz = sizeof(narenas);
+    int set = 0, failed = 0;
+    if (mallctl_fn("arenas.narenas", &narenas, &nsz, NULL, 0) == 0) {
+        for (unsigned i = 0; i < narenas; i++) {
+            char key[64];
+            snprintf(key, sizeof(key), "arena.%u.muzzy_decay_ms", i);
+            if (mallctl_fn(key, NULL, NULL, &never, sizeof(never)) == 0) {
+                set++;
+            } else {
+                failed++;  // uninitialised arenas refuse, which is harmless: they inherit
+            }
+        }
+    }
+    ssize_t readback = 0;
+    size_t sz = sizeof(readback);
+    mallctl_fn("arenas.muzzy_decay_ms", &readback, &sz, NULL, 0);
+    st_logInfo("jemalloc muzzy_decay_ms set to -1: default for new arenas rc=%i (reads back %" PRIi64 "), "
+               "%i of %u existing arenas set, %i declined\n",
+               rc_default, (int64_t)readback, set, narenas, failed);
+}
 
 void usage() {
     fprintf(stderr, "cactus_consolidated, version 0.2\n");
@@ -239,6 +289,7 @@ int main(int argc, char *argv[]) {
     int64_t bar_min_ends_opt = -1;
     int64_t bar_divisor_opt = -1;
     bool bar_bound_threads_opt = false;
+    bool jemalloc_retain_muzzy_opt = false;
 
     while (1) {
         static struct option long_options[] = { { "logLevel", required_argument, 0, 'l' },
@@ -263,6 +314,7 @@ int main(int argc, char *argv[]) {
                 { "barNestedMinEnds", required_argument, 0, 1003 },
                 { "barNestedDivisor", required_argument, 0, 1004 },
                 { "barBoundThreads", no_argument, 0, 1005 },
+                { "jemallocRetainMuzzy", no_argument, 0, 1006 },
                 { 0, 0, 0, 0 } };
 
         int option_index = 0;
@@ -351,6 +403,9 @@ int main(int argc, char *argv[]) {
             case 1005:
                 bar_bound_threads_opt = true;
                 break;
+            case 1006:
+                jemalloc_retain_muzzy_opt = true;
+                break;
             case 'h':
                 usage();
                 return 0;
@@ -360,28 +415,6 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    /*
-     * Apply the bar threading options.  --barBoundThreads is the one that makes -T mean
-     * what it says: a nested num_threads(k) region creates k threads per outer thread, so
-     * the total is outer*k.  Setting outer to threads/k bounds it at the thread count, at
-     * the cost of running fewer flowers at once.
-     */
-    bar_set_nesting(bar_min_ends_opt, bar_divisor_opt, bar_nested_opt);
-    if (bar_bound_threads_opt) {
-        int64_t minEnds, divisor, maxNested;
-        bar_get_nesting(&minEnds, &divisor, &maxNested);
-        int64_t nested = maxNested > 1 ? maxNested : 1;
-        int64_t outer = cons_num_threads / nested;
-        if (outer < 1) {
-            outer = 1;
-        }
-        if (bar_outer_threads_opt > 0 && bar_outer_threads_opt != outer) {
-            st_logCritical("--barBoundThreads overrides --barOuterThreads %" PRIi64 " with %" PRIi64 "\n",
-                           bar_outer_threads_opt, outer);
-        }
-        bar_outer_threads_opt = outer;
-    }
-    bar_set_outer_threads(bar_outer_threads_opt);
 
     ///////////////////////////////////////////////////////////////////////////
     // (0) Check the inputs.
@@ -414,6 +447,33 @@ int main(int argc, char *argv[]) {
     //////////////////////////////////////////////
 
     st_setLogLevelFromString(logLevelString);
+
+    /*
+     * Apply the bar threading options.  --barBoundThreads is the one that makes -T mean
+     * what it says: a nested num_threads(k) region creates k threads per outer thread, so
+     * the total is outer*k.  Setting outer to threads/k bounds it at the thread count, at
+     * the cost of running fewer flowers at once.
+     */
+    if (jemalloc_retain_muzzy_opt) {
+        cactus_jemalloc_retain_muzzy();
+    }
+
+    bar_set_nesting(bar_min_ends_opt, bar_divisor_opt, bar_nested_opt);
+    if (bar_bound_threads_opt) {
+        int64_t minEnds, divisor, maxNested;
+        bar_get_nesting(&minEnds, &divisor, &maxNested);
+        int64_t nested = maxNested > 1 ? maxNested : 1;
+        int64_t outer = cons_num_threads / nested;
+        if (outer < 1) {
+            outer = 1;
+        }
+        if (bar_outer_threads_opt > 0 && bar_outer_threads_opt != outer) {
+            st_logCritical("--barBoundThreads overrides --barOuterThreads %" PRIi64 " with %" PRIi64 "\n",
+                           bar_outer_threads_opt, outer);
+        }
+        bar_outer_threads_opt = outer;
+    }
+    bar_set_outer_threads(bar_outer_threads_opt);
 
     //////////////////////////////////////////////
     //Log the inputs
