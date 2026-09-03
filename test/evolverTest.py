@@ -213,12 +213,13 @@ class TestCase(unittest.TestCase):
 
     def _run_evolver_in_docker(self, seqFile = './examples/evolverMammals.txt'):
 
+        # --maskMode red: only test that runs cactus inside the released image
         out_hal = self._out_hal('in_docker')
         cmd = ['docker', 'run', '--rm', '-v', '{}:{}'.format(os.path.dirname(out_hal), '/data'),
                '-v', '{}:{}'.format(os.getcwd(), '/workdir'), 
                '-u', '{}:{}'.format(os.getuid(), os.getgid()),
                'evolvertestdocker/cactus:latest',
-               'cactus /data/js /workdir/{} /data/{} --maskMode fastan'.format(seqFile, os.path.basename(out_hal))]
+               'cactus /data/js /workdir/{} /data/{} --maskMode red'.format(seqFile, os.path.basename(out_hal))]
         sys.stderr.write('Running {}\n'.format(' '.format(cmd)))
         subprocess.check_call(' '.join(cmd), shell=True)
 
