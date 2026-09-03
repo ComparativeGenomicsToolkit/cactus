@@ -48,7 +48,9 @@
 // _GNU_SOURCE for this one call would change other declarations in this file).
 extern int mallctl(const char *, void *, size_t *, void *, size_t) __attribute__((weak));
 
-static void cactus_jemalloc_retain_muzzy(void) {
+#define JEMALLOC_UNSET (-2)   // -1 means "never purge", so the sentinel has to be something else
+
+static void cactus_jemalloc_tune(int64_t dirty_ms, int64_t muzzy_ms, int64_t oversize) {
     int (*mallctl_fn)(const char *, void *, size_t *, void *, size_t) = mallctl;
     if (mallctl_fn == NULL) {
         // a statically linked jemalloc may not pull ctl.o in on a weak reference alone,
@@ -62,33 +64,63 @@ static void cactus_jemalloc_retain_muzzy(void) {
         st_logCritical("--jemallocRetainMuzzy had no effect: no jemalloc in this build\n");
         return;
     }
-    ssize_t never = -1;
-    // the default every arena created from here on inherits -- most of them, since arenas
-    // are made lazily as threads first allocate, and the OpenMP threads do not exist yet
-    int rc_default = mallctl_fn("arenas.muzzy_decay_ms", NULL, NULL, &never, sizeof(never));
-
-    // and the handful that already exist, set one at a time: MALLCTL_ARENAS_ALL is
-    // rejected here (EFAULT), so relying on it would silently leave them purging
-    unsigned narenas = 0;
-    size_t nsz = sizeof(narenas);
-    int set = 0, failed = 0;
-    if (mallctl_fn("arenas.narenas", &narenas, &nsz, NULL, 0) == 0) {
-        for (unsigned i = 0; i < narenas; i++) {
-            char key[64];
-            snprintf(key, sizeof(key), "arena.%u.muzzy_decay_ms", i);
-            if (mallctl_fn(key, NULL, NULL, &never, sizeof(never)) == 0) {
-                set++;
-            } else {
-                failed++;  // uninitialised arenas refuse, which is harmless: they inherit
-            }
+    // oversize_threshold routes allocations above it to a dedicated, eagerly purged arena.
+    // abPOA's DP matrices are gigabytes, so they land there by default; raising it above the
+    // matrix size keeps them in ordinary arenas under ordinary decay.
+    if (oversize != JEMALLOC_UNSET) {
+        size_t v = (size_t)oversize, rb = 0, sz = sizeof(rb);
+        int rc = mallctl_fn("arenas.oversize_threshold", NULL, NULL, &v, sizeof(v));
+        mallctl_fn("arenas.oversize_threshold", &rb, &sz, NULL, 0);
+        if (rc != 0 || rb != v) {
+            // jemalloc treats this one as read-only after startup, so it can only be set
+            // through MALLOC_CONF in the environment before main runs
+            st_logCritical("--jemallocOversizeThreshold had no effect (rc=%i, reads back %" PRIi64 "): "
+                           "jemalloc only accepts oversize_threshold at startup. Use "
+                           "MALLOC_CONF=oversize_threshold:%" PRIi64 " in the environment instead.\n",
+                           rc, (int64_t)rb, oversize);
+        } else {
+            st_logInfo("jemalloc oversize_threshold set to %" PRIi64 "\n", oversize);
         }
     }
-    ssize_t readback = 0;
-    size_t sz = sizeof(readback);
-    mallctl_fn("arenas.muzzy_decay_ms", &readback, &sz, NULL, 0);
-    st_logInfo("jemalloc muzzy_decay_ms set to -1: default for new arenas rc=%i (reads back %" PRIi64 "), "
-               "%i of %u existing arenas set, %i declined\n",
-               rc_default, (int64_t)readback, set, narenas, failed);
+
+    // The decay settings are milliseconds: -1 never purges, 0 purges at once, and the
+    // default is 10000.  Anything between trades memory back for re-faulting.
+    const char *names[2] = { "dirty_decay_ms", "muzzy_decay_ms" };
+    int64_t vals[2] = { dirty_ms, muzzy_ms };
+    for (int w = 0; w < 2; w++) {
+        if (vals[w] == JEMALLOC_UNSET) {
+            continue;
+        }
+        ssize_t v = (ssize_t)vals[w];
+        char key[64];
+        // the default every arena created from here on inherits -- most of them, since
+        // arenas are made lazily as threads first allocate and the OMP threads do not exist yet
+        snprintf(key, sizeof(key), "arenas.%s", names[w]);
+        int rc_default = mallctl_fn(key, NULL, NULL, &v, sizeof(v));
+
+        // and the handful that already exist, one at a time: MALLCTL_ARENAS_ALL is
+        // rejected here (EFAULT), so relying on it would silently leave them purging
+        unsigned narenas = 0;
+        size_t nsz = sizeof(narenas);
+        int set = 0, declined = 0;
+        if (mallctl_fn("arenas.narenas", &narenas, &nsz, NULL, 0) == 0) {
+            for (unsigned i = 0; i < narenas; i++) {
+                snprintf(key, sizeof(key), "arena.%u.%s", i, names[w]);
+                if (mallctl_fn(key, NULL, NULL, &v, sizeof(v)) == 0) {
+                    set++;
+                } else {
+                    declined++;   // uninitialised arenas refuse, harmlessly: they inherit
+                }
+            }
+        }
+        ssize_t readback = 0;
+        size_t sz = sizeof(readback);
+        snprintf(key, sizeof(key), "arenas.%s", names[w]);
+        mallctl_fn(key, &readback, &sz, NULL, 0);
+        st_logInfo("jemalloc %s set to %" PRIi64 ": default for new arenas rc=%i (reads back %" PRIi64 "), "
+                   "%i of %u existing arenas set, %i declined\n",
+                   names[w], vals[w], rc_default, (int64_t)readback, set, narenas, declined);
+    }
 }
 
 void usage() {
@@ -301,7 +333,9 @@ int main(int argc, char *argv[]) {
     int64_t bar_min_ends_opt = -1;
     int64_t bar_divisor_opt = -1;
     bool bar_bound_threads_opt = false;
-    bool jemalloc_retain_muzzy_opt = false;
+    int64_t jemalloc_muzzy_ms_opt = JEMALLOC_UNSET;
+    int64_t jemalloc_dirty_ms_opt = JEMALLOC_UNSET;
+    int64_t jemalloc_oversize_opt = JEMALLOC_UNSET;
 
     while (1) {
         static struct option long_options[] = { { "logLevel", required_argument, 0, 'l' },
@@ -327,6 +361,9 @@ int main(int argc, char *argv[]) {
                 { "barNestedDivisor", required_argument, 0, 1004 },
                 { "barBoundThreads", no_argument, 0, 1005 },
                 { "jemallocRetainMuzzy", no_argument, 0, 1006 },
+                { "jemallocMuzzyDecayMs", required_argument, 0, 1007 },
+                { "jemallocDirtyDecayMs", required_argument, 0, 1008 },
+                { "jemallocOversizeThreshold", required_argument, 0, 1009 },
                 { 0, 0, 0, 0 } };
 
         int option_index = 0;
@@ -415,9 +452,27 @@ int main(int argc, char *argv[]) {
             case 1005:
                 bar_bound_threads_opt = true;
                 break;
-            case 1006:
-                jemalloc_retain_muzzy_opt = true;
+            case 1006:   // kept as an alias for --jemallocMuzzyDecayMs -1
+                jemalloc_muzzy_ms_opt = -1;
                 break;
+            case 1007:
+            {
+                int si = sscanf(optarg, "%" PRIi64 "", &jemalloc_muzzy_ms_opt);
+                assert(si == 1 && jemalloc_muzzy_ms_opt >= -1);
+                break;
+            }
+            case 1008:
+            {
+                int si = sscanf(optarg, "%" PRIi64 "", &jemalloc_dirty_ms_opt);
+                assert(si == 1 && jemalloc_dirty_ms_opt >= -1);
+                break;
+            }
+            case 1009:
+            {
+                int si = sscanf(optarg, "%" PRIi64 "", &jemalloc_oversize_opt);
+                assert(si == 1 && jemalloc_oversize_opt >= 0);
+                break;
+            }
             case 'h':
                 usage();
                 return 0;
@@ -466,8 +521,9 @@ int main(int argc, char *argv[]) {
      * the total is outer*k.  Setting outer to threads/k bounds it at the thread count, at
      * the cost of running fewer flowers at once.
      */
-    if (jemalloc_retain_muzzy_opt) {
-        cactus_jemalloc_retain_muzzy();
+    if (jemalloc_muzzy_ms_opt != JEMALLOC_UNSET || jemalloc_dirty_ms_opt != JEMALLOC_UNSET
+        || jemalloc_oversize_opt != JEMALLOC_UNSET) {
+        cactus_jemalloc_tune(jemalloc_dirty_ms_opt, jemalloc_muzzy_ms_opt, jemalloc_oversize_opt);
     }
 
     bar_set_nesting(bar_min_ends_opt, bar_divisor_opt, bar_nested_opt);
