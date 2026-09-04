@@ -324,7 +324,27 @@ suball.lastz: suball.jemalloc
 # skip lines that already have LIBS so repeated builds stay idempotent, and verify.
 	cd submodules/lastz/src && sed -i -e '/LIBS/!s/-lm\(.*\) -o \$$@/-lm\1 $${LIBS} -o $$@/' Makefile \
 	  && grep -q 'LIBS' Makefile
+ifeq ($(lastzPgo),on)
+# Profile-guided build: instrument, train on generated input covering each
+# parameter bucket, rebuild using the profile.  Worth 8-16%, most of it on the
+# --notransition bucket, where the pinned lastz's own optimisations help least.
+# buildLastzPgo verifies that a profile was actually produced before the final
+# compile -- without that check a failed training run rebuilds cleanly under
+# -Wno-missing-profile and silently ships an unprofiled binary.  Any failure
+# falls back to a plain build, because a slower lastz beats no lastz.
+	@if LASTZ_DIR=$(CURDIR)/submodules/lastz PROFDIR=$(CURDIR)/submodules/lastz/pgo \
+	    MAKE="${MAKE}" LIBS="${jemallocSubLibs}" \
+	    CFLAGS="$${CFLAGS:-} ${CACTUS_ARCH_FLAGS}" ./build-tools/buildLastzPgo ; then \
+	    : ; \
+	else \
+	    echo "lastz: profile-guided build failed, falling back to a plain build" ; \
+	    ${MAKE} -C submodules/lastz/src clean >/dev/null 2>&1 || true ; \
+	    cd $(CURDIR)/submodules/lastz && ${archEnv} LIBS="${jemallocSubLibs}" ${MAKE} ; \
+	fi
+	@rm -rf submodules/lastz/pgo submodules/lastz/pgo-train
+else
 	cd submodules/lastz && ${archEnv} LIBS="${jemallocSubLibs}" ${MAKE}
+endif
 	ln -f submodules/lastz/src/lastz bin
 
 suball.paffy:
