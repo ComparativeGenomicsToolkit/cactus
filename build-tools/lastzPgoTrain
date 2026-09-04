@@ -1,0 +1,91 @@
+#!/bin/bash
+# Generate synthetic training input for a lastz profile-guided build, and run it
+# through each of the parameter buckets cactus_progressive_config.xml selects
+# between.  Writes a gcov profile into $2 for a -fprofile-use rebuild.
+#
+# Synthetic rather than real sequence on purpose.  What PGO needs from the
+# training run is that lastz's seed position table reaches realistic bucket
+# occupancy and that the chain-walk and x-drop branches see realistic statistics
+# -- not that the sequence resembles any particular genome.  Measured against
+# training on 2 Mb of real newt, synthetic input captured 81-93% of the benefit,
+# while lastz's own bundled test_data (10-155 KB) captured none of it: too small
+# to fill the table.  Using synthetic input keeps the build self-contained.
+#
+# Training on all four buckets rather than one is worth about another point,
+# because --notransition and the different --step values take measurably
+# different paths through the scan loop.
+
+set -beEu -o pipefail
+
+LASTZ="$1"
+PROFDIR="$2"
+WORK="$(dirname "${PROFDIR}")/pgo-train"
+
+mkdir -p "${WORK}" "${PROFDIR}"
+
+python3 - "${WORK}" <<'PY'
+import random, sys, os
+out = sys.argv[1]
+random.seed(20260904)                      # fixed, so the build is reproducible
+N = 2_000_000
+
+# A repeat library, so the position table gets realistic bucket occupancy: a
+# uniformly random sequence would leave almost every seed word a singleton and
+# the chain walk would never be exercised.
+lib = [''.join(random.choice('ACGT') for _ in range(random.randint(150, 900)))
+       for _ in range(40)]
+
+def make(n):
+    out, L = [], 0
+    while L < n:
+        if random.random() < 0.55:         # ~55% repeat-derived, as in a real genome
+            r = random.choice(lib)
+            r = ''.join(c if random.random() > 0.12 else random.choice('ACGT') for c in r)
+            out.append(r.lower())          # repeats soft-masked, as RepeatMasker leaves them
+            L += len(r)
+        else:
+            k = random.randint(200, 1500)
+            out.append(''.join(random.choice('ACGT') for _ in range(k)))
+            L += k
+    return ''.join(out)[:n]
+
+t = make(N)
+# Query: mostly ~86% identity, with a few near-identical stretches, so both the
+# "extends a long way" and "dies immediately" paths through x-drop are trained.
+q = []
+for i in range(0, N, 50_000):
+    blk = t[i:i+50_000]
+    d = 0.02 if random.random() < 0.2 else 0.14
+    q.append(''.join(c if random.random() > d
+                     else random.choice('acgt' if c.islower() else 'ACGT') for c in blk))
+q = ''.join(q)
+
+for name, seq in (('train_target', t), ('train_query', q)):
+    with open(os.path.join(out, name + '.fa'), 'w') as f:
+        f.write('>%s\n' % name)
+        for i in range(0, len(seq), 60):
+            f.write(seq[i:i+60] + '\n')
+PY
+
+T="${WORK}/train_target.fa"
+Q="${WORK}/train_query.fa"
+
+# the four distinct shapes in <lastzArguments>;  three, four and five differ from
+# two only in thresholds, which do not change which code paths run
+for opts in \
+    "--step=2 --ambiguous=iupac,100,100 --ydrop=3000 --notransition --queryhspbest=100000" \
+    "--step=5 --ambiguous=iupac,100,100 --ydrop=3000 --queryhspbest=100000" \
+    "--step=2 --ambiguous=iupac,100,100 --ydrop=4000 --hspthresh=2400 --gappedthresh=2600 --queryhspbest=100000" \
+    "--step=1 --ambiguous=iupac,100,100 --ydrop=4000 --hspthresh=2200 --gappedthresh=2400 --queryhspbest=100000" ; do
+    # stderr to a log, not the build output: the synthetic query has a few
+    # near-identical stretches, which make long alignments and provoke lastz's
+    # traceback-truncation warnings.  Harmless for training, noisy in a build.
+    "${LASTZ}" "${T}[multiple][nameparse=darkspace]" "${Q}[nameparse=darkspace]" \
+               --format=paf:wfmash ${opts} > /dev/null 2>> "${WORK}/train.log"
+done
+
+# the profile is only useful if the instrumented runs actually wrote one
+if ! ls "${PROFDIR}"/*.gcda >/dev/null 2>&1; then
+    echo "lastzPgoTrain: no .gcda written into ${PROFDIR}" >&2
+    exit 1
+fi
