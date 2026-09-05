@@ -125,11 +125,15 @@ static int compareThreadComponentsByFirstThread(const void *a, const void *b) {
 
 static void attachThreadComponentToDeadEndComponent(stList *threadComponent, stList *deadEndComponent,
         bool markEndsAttached, int64_t minLengthForChromosome,
-        double proportionOfUnalignedBasesForNewChromosome, Flower *flower) {
+        double proportionOfUnalignedBasesForNewChromosome, Flower *flower, int64_t *basesAligned) {
     /*
      * Algorithm walks the threads in the connected component, in descending order of length and
      * for each thread attaches it to the dead-end component if its length of bases in blocks not contained in chromosome
      * length fragments.
+     *
+     * basesAligned is indexed by thread index and shared between the components: the blocks of a component only
+     * ever hold that component's threads, so each entry is touched by one component and can start at zero.
+     * Blocks already counted are marked in the data slot of their first end, which the caller clears afterwards.
      */
 
     //First get threads in order, already attached first then unattached, sorted by descending length
@@ -150,8 +154,6 @@ static void attachThreadComponentToDeadEndComponent(stList *threadComponent, stL
     stList_destruct(l2);
 
     //Now iterate on threads, attaching as needed.
-    stSet *blocksSeen = stSet_construct();
-    stHash *basesAligned = stHash_construct2(NULL, free);
     while (stList_length(l) > 0) {
         stPinchThread *pinchThread = stList_pop(l);
         if(markEndsAttached) {
@@ -169,8 +171,7 @@ static void attachThreadComponentToDeadEndComponent(stList *threadComponent, stL
         if (stPinchThread_getLength(pinchThread) < minLengthForChromosome && !first) { // If too short and nothing in the component is attached
             continue;
         }
-        int64_t *i = stHash_search(basesAligned, pinchThread);
-        int64_t basesAlignedToChromosomeThreads = i != NULL ? *i : 0; //This is the number of bases already aligned in threads with attached ends (chromosomes);
+        int64_t basesAlignedToChromosomeThreads = basesAligned[stPinchThread_getIndex(pinchThread)]; //This is the number of bases already aligned in threads with attached ends (chromosomes);
         assert(basesAlignedToChromosomeThreads >= 0);
         //Walk the thread
         stPinchSegment *segment = stPinchThread_getFirst(pinchThread);
@@ -178,18 +179,16 @@ static void attachThreadComponentToDeadEndComponent(stList *threadComponent, stL
         assert(stPinchSegment_get5Prime(segment) == NULL);
         do {
             stPinchBlock *block;
-            if ((block = stPinchSegment_getBlock(segment)) != NULL && !stSet_search(blocksSeen, block)) {
-                stSet_insert(blocksSeen, block);
-                stPinchBlockIt segIt = stPinchBlock_getSegmentIterator(block);
-                stPinchSegment *segment2;
-                while ((segment2 = stPinchBlockIt_getNext(&segIt)) != NULL) {
-                    stPinchThread *pinchThread2 = stPinchSegment_getThread(segment2);
-                    int64_t *i = stHash_search(basesAligned, pinchThread2);
-                    if (i == NULL) {
-                        i = st_calloc(1, sizeof(int64_t));
-                        stHash_insert(basesAligned, pinchThread2, i);
+            if ((block = stPinchSegment_getBlock(segment)) != NULL) {
+                stPinchEnd *seenMark = stPinchBlock_getEnd(block, 0);
+                assert(seenMark != NULL);
+                if (stPinchEnd_getData(seenMark) == NULL) {
+                    stPinchEnd_setData(seenMark, block); //any non-NULL value marks the block as counted
+                    stPinchBlockIt segIt = stPinchBlock_getSegmentIterator(block);
+                    stPinchSegment *segment2;
+                    while ((segment2 = stPinchBlockIt_getNext(&segIt)) != NULL) {
+                        basesAligned[stPinchThread_getIndex(stPinchSegment_getThread(segment2))] += stPinchBlock_getLength(block);
                     }
-                    *i += stPinchBlock_getLength(block);
                 }
             }
             segment = stPinchSegment_get3Prime(segment);
@@ -197,8 +196,7 @@ static void attachThreadComponentToDeadEndComponent(stList *threadComponent, stL
         if (threadIsAttachedToDeadEndComponent(pinchThread, deadEndComponent)) { //If this is already attached we can stop at this point
             continue;
         }
-        i = stHash_search(basesAligned, pinchThread);
-        int64_t totalBasesAligned = i != NULL ? *i : 0; //This is the number of bases already aligned in chromosomes;
+        int64_t totalBasesAligned = basesAligned[stPinchThread_getIndex(pinchThread)]; //This is the number of bases already aligned in chromosomes;
         assert(totalBasesAligned >= basesAlignedToChromosomeThreads);
         if((totalBasesAligned - basesAlignedToChromosomeThreads) >= proportionOfUnalignedBasesForNewChromosome * totalBasesAligned || first) { // Attach if sufficiently distinct or nothing is yet attached
             attachThreadToDeadEndComponent(pinchThread, deadEndComponent, markEndsAttached, flower);
@@ -216,8 +214,6 @@ static void attachThreadComponentToDeadEndComponent(stList *threadComponent, stL
         }
     }
     stList_destruct(l);
-    stSet_destruct(blocksSeen);
-    stHash_destruct(basesAligned);
 }
 
 static void stCaf_attachUnattachedThreadComponents(Flower *flower, stPinchThreadSet *threadSet, stList *deadEndComponent,
@@ -243,11 +239,14 @@ static void stCaf_attachUnattachedThreadComponents(Flower *flower, stPinchThread
         stList_sort(stList_get(threadComponents2, i), comparePinchThreadsByName);
     }
     stList_sort(threadComponents2, compareThreadComponentsByFirstThread);
+    int64_t *basesAligned = st_calloc(stPinchThreadSet_getSize(threadSet), sizeof(int64_t));
     for (int64_t i = 0; i < stList_length(threadComponents2); i++) {
         attachThreadComponentToDeadEndComponent(stList_get(threadComponents2, i), deadEndComponent,
                 markEndsAttached,
-                minLengthForChromosome, proportionOfUnalignedBasesForNewChromosome, flower);
+                minLengthForChromosome, proportionOfUnalignedBasesForNewChromosome, flower, basesAligned);
     }
+    free(basesAligned);
+    stPinchThreadSet_clearEndData(threadSet); //the blocks-seen marks; the cactus graph construction needs the slots empty
     stList_destruct(threadComponents2);
     stSortedSet_destruct(threadComponents);
 }
@@ -308,11 +307,8 @@ static bool stCaf_reversalAtEnd(stCactusEdgeEnd *cactusEdgeEnd, void *extraArg) 
 static bool stCaf_breakAtTooGreatEnoughMedianSeparation(stCactusEdgeEnd *cactusEdgeEnd, void *extraArg) {
     int64_t maximumMedianSpacingBetweenLinkedEnds = *(int64_t *)extraArg;
     assert(maximumMedianSpacingBetweenLinkedEnds >= 0 && maximumMedianSpacingBetweenLinkedEnds < INT64_MAX);
-    stList *lengths = stPinchEnd_getSubSequenceLengthsConnectingEnds(stCactusEdgeEnd_getObject(cactusEdgeEnd), stCactusEdgeEnd_getObject(stCactusEdgeEnd_getLink(cactusEdgeEnd)));
-    stList_sort(lengths, (int (*)(const void *, const void *))stIntTuple_cmpFn);
-    bool b = stList_length(lengths) > 0 && stIntTuple_get(stList_get(lengths, stList_length(lengths)/2), 0) > maximumMedianSpacingBetweenLinkedEnds;
-    stList_destruct(lengths);
-    return b;
+    int64_t median = stPinchEnd_getMedianSubSequenceLengthConnectingEnds(stCactusEdgeEnd_getObject(cactusEdgeEnd), stCactusEdgeEnd_getObject(stCactusEdgeEnd_getLink(cactusEdgeEnd)));
+    return median >= 0 && median > maximumMedianSpacingBetweenLinkedEnds;
 }
 
 /*
