@@ -74,9 +74,11 @@ typedef struct _filterArgs {
 } FilterArgs;
 
 /*
- * Removes homologies from the graph.
+ * Removes homologies from the graph. Returns the number of blocks destroyed by the minimum chain
+ * length filter (0 when minimumChainLength <= 1); note the graph may still have changed through
+ * trimming or the block filter regardless of the returned count.
  */
-void stCaf_melt(Flower *flower, stPinchThreadSet *threadSet, bool blockFilterfn(stPinchBlock *, void *extraArg), void *extraArg,
+int64_t stCaf_melt(Flower *flower, stPinchThreadSet *threadSet, bool blockFilterfn(stPinchBlock *, void *extraArg), void *extraArg,
                 int64_t blockEndTrim, int64_t minimumChainLength,
                 bool breakChainsAtReverseTandems, int64_t maximumMedianSpacingBetweenLinkedEnds);
 
@@ -84,8 +86,9 @@ void stCaf_melt(Flower *flower, stPinchThreadSet *threadSet, bool blockFilterfn(
  * Removes any recoverable chains (those expected to be picked up by
  * bar phase) from the graph. Only chains that are recoverable *and*
  * where the "recoverabilityFilter" function returns 1 are removed.
+ * Returns the total number of blocks destroyed over all iterations.
  */
-void stCaf_meltRecoverableChains(Flower *flower, stPinchThreadSet *threadSet, bool breakChainsAtReverseTandems, int64_t maximumMedianSpacingBetweenLinkedEnds, bool (*recoverabilityFilter)(stCactusEdgeEnd *, Flower *), int64_t maxNumIterations, int64_t maxRecoverableChainLength);
+int64_t stCaf_meltRecoverableChains(Flower *flower, stPinchThreadSet *threadSet, bool breakChainsAtReverseTandems, int64_t maximumMedianSpacingBetweenLinkedEnds, bool (*recoverabilityFilter)(stCactusEdgeEnd *, Flower *), int64_t maxNumIterations, int64_t maxRecoverableChainLength);
 
 /*
  * Simply returns the average degree of the blocks in the list.
@@ -112,6 +115,12 @@ void *stCaf_mergeNodeObjects(void *a, void *b);
 stCactusGraph *stCaf_getCactusGraphForThreadSet(Flower *flower, stPinchThreadSet *threadSet, stCactusNode **startCactusNode,
         stList **deadEndComponent, bool attachEndsInFlower, int64_t minLengthForChromosome, double proportionOfUnalignedBasesForNewChromosome,
         bool breakChainsAtReverseTandems, int64_t maximumMedianSpacingBetweenLinkedEnds);
+
+/*
+ * Destroys a cactus graph made by stCaf_getCactusGraphForThreadSet and releases the block end records it
+ * attached to the thread set. Must be called before the pinch graph is next pinched or its boundaries joined.
+ */
+void stCaf_destructCactusGraph(stCactusGraph *cactusGraph, stPinchThreadSet *threadSet);
 
 ///////////////////////////////////////////////////////////////////////////
 // Finishing: Converting a pinch graph into the flower hierarchy
@@ -256,5 +265,11 @@ bool stCaf_treeCoverage(stPinchBlock *pinchBlock, Flower *flower);
  * Short way to get the event corresponding to a given segment.
  */
 Event *stCaf_getEvent(stPinchSegment *segment, Flower *flower);
+
+/*
+ * The 5' cap of the thread the segment is on, as stored by stCaf_setup, or looked up in the flower by name if
+ * the thread set was built some other way.
+ */
+Cap *stCaf_getThreadCap(stPinchSegment *segment, Flower *flower);
 
 #endif /* STCAF_H_ */

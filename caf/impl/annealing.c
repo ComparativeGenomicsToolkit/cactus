@@ -154,11 +154,12 @@ static void alignSameComponents(stPinch *pinch, stPinchThreadSet *threadSet, stS
 }
 
 static stSortedSet *getAdjacencyComponentIntervals(stPinchThreadSet *threadSet, stList **adjacencyComponents) {
-    stHash *pinchEndsToAdjacencyComponents;
-    *adjacencyComponents = stPinchThreadSet_getAdjacencyComponents2(threadSet, &pinchEndsToAdjacencyComponents);
-    stSortedSet *adjacencyComponentIntervals = stPinchThreadSet_getLabelIntervals(threadSet,
-            pinchEndsToAdjacencyComponents);
-    stHash_destruct(pinchEndsToAdjacencyComponents);
+    stPinchThreadSet_attachEnds(threadSet);
+    *adjacencyComponents = stPinchThreadSet_getAdjacencyComponents(threadSet);
+    stSortedSet *adjacencyComponentIntervals = stPinchThreadSet_getLabelIntervals(threadSet);
+    // The records must go before the pinching starts; the interval labels (component list pointers) are
+    // only ever compared, never dereferenced, so the lists can outlive the ends they hold.
+    stPinchThreadSet_detachEnds(threadSet);
     return adjacencyComponentIntervals;
 }
 

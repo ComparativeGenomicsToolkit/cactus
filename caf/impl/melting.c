@@ -109,7 +109,7 @@ static void filterAlignments(stPinchThreadSet *threadSet, bool(*blockFilterFn)(s
     }
 }
 
-void stCaf_melt(Flower *flower, stPinchThreadSet *threadSet, bool blockFilterfn(stPinchBlock *, void *extraArg),
+int64_t stCaf_melt(Flower *flower, stPinchThreadSet *threadSet, bool blockFilterfn(stPinchBlock *, void *extraArg),
                 void *extraArg, int64_t blockEndTrim, int64_t minimumChainLength,
                 bool breakChainsAtReverseTandems, int64_t maximumMedianSpacingBetweenLinkedEnds) {
     double t = stCaf_now(), trimTime = 0.0, filterTime = 0.0, graphTime = 0.0, scanTime = 0.0, deleteTime = 0.0;
@@ -149,7 +149,7 @@ void stCaf_melt(Flower *flower, stPinchThreadSet *threadSet, bool blockFilterfn(
                minimumChainLength, stCaf_totalAlignedBases(blocksToDelete));
 
         //Cleanup cactus
-        stCactusGraph_destruct(cactusGraph);
+        stCaf_destructCactusGraph(cactusGraph, threadSet);
         stList_destruct(blocksToDelete); //This will destroy the blocks
         deleteTime = stCaf_now() - t;
         t = stCaf_now();
@@ -158,16 +158,17 @@ void stCaf_melt(Flower *flower, stPinchThreadSet *threadSet, bool blockFilterfn(
     stCaf_joinTrivialBoundaries(threadSet);
     st_logInfo("caf-timing: melt minChain=%" PRIi64 " trim %.3fs filter %.3fs graph %.3fs scan %.3fs delete %.3fs join %.3fs destroyed %" PRIi64 "\n",
                minimumChainLength, trimTime, filterTime, graphTime, scanTime, deleteTime, stCaf_now() - t, blocksDestroyed);
+    return blocksDestroyed;
 }
 
-static bool isTelomere(stPinchEnd *end, stSet *deadEndComponent) {
+static bool isTelomere(stPinchEnd *end, stList *deadEndComponent) {
     stPinchSegment *segment = stPinchBlock_getFirst(end->block);
     bool atEndOfThread = stPinchThread_getFirst(stPinchSegment_getThread(segment)) == segment || stPinchThread_getLast(stPinchSegment_getThread(segment)) == segment;
-    bool inDeadEndComponent = stSet_search(deadEndComponent, end);
+    bool inDeadEndComponent = stPinchEnd_getComponent(end) == deadEndComponent;
     return atEndOfThread || inDeadEndComponent;
 }
 
-static bool endSetContainsTelomere(stSet *endSet, stSet *deadEndComponent) {
+static bool endSetContainsTelomere(stSet *endSet, stList *deadEndComponent) {
     stSetIterator *it = stSet_getIterator(endSet);
     bool containsTelomere = false;
     stPinchEnd *end;
@@ -210,7 +211,7 @@ static bool endsDoNotHaveSameThreadComposition(stPinchEnd *end1, stPinchEnd *end
     return !sameThreadComposition;
 }
 
-static bool chainConnectsToTelomere(stCactusEdgeEnd *chainEnd, stSet *deadEndComponent) {
+static bool chainConnectsToTelomere(stCactusEdgeEnd *chainEnd, stList *deadEndComponent) {
     stPinchEnd *end1 = stCactusEdgeEnd_getObject(chainEnd);
     stPinchEnd *end2 = stCactusEdgeEnd_getObject(stCactusEdgeEnd_getLink(chainEnd));
 
@@ -237,7 +238,7 @@ static bool chainConnectsToTelomere(stCactusEdgeEnd *chainEnd, stSet *deadEndCom
 
 // Determine whether the chain is recoverable (i.e. will bar phase be
 // expected to pick it back up?).
-static bool chainIsRecoverable(stCactusEdgeEnd *chainEnd, stSet *deadEndComponent) {
+static bool chainIsRecoverable(stCactusEdgeEnd *chainEnd, stList *deadEndComponent) {
     stPinchEnd *end1 = stCactusEdgeEnd_getObject(chainEnd);
     stPinchEnd *end2 = stCactusEdgeEnd_getObject(stCactusEdgeEnd_getLink(chainEnd));
 
@@ -269,14 +270,13 @@ static bool chainIsRecoverable(stCactusEdgeEnd *chainEnd, stSet *deadEndComponen
 }
 
 // Abstracts out getting the only corresponding chain end from a set of pinch ends of size 1.
-static stCactusEdgeEnd *getChainEndFromSingletonSet(stSet *ends,
-                                                    stHash *pinchEndToChainEnd) {
+static stCactusEdgeEnd *getChainEndFromSingletonSet(stSet *ends) {
     assert(stSet_size(ends) == 1);
     stSetIterator *it = stSet_getIterator(ends);
     stPinchEnd *connectedPinchEnd = stSet_getNext(it);
     stSet_destructIterator(it);
 
-    stCactusEdgeEnd *chainEnd = stHash_search(pinchEndToChainEnd, connectedPinchEnd);
+    stCactusEdgeEnd *chainEnd = stPinchEnd_getData(connectedPinchEnd);
     assert(chainEnd != NULL);
     if (!stCactusEdgeEnd_getLinkOrientation(chainEnd)) {
         chainEnd = stCactusEdgeEnd_getLink(chainEnd);
@@ -286,7 +286,6 @@ static stCactusEdgeEnd *getChainEndFromSingletonSet(stSet *ends,
 
 // Mark down which chain(s) this (recoverable) chain is recoverable given.
 static void markRecoverableAdjacencies(stCactusEdgeEnd *recoverableChainEnd,
-                                       stHash *pinchEndToChainEnd,
                                        stHash *chainToRecoverableAdjacencies) {
     stPinchEnd *end1 = stCactusEdgeEnd_getObject(recoverableChainEnd);
     stPinchEnd *end2 = stCactusEdgeEnd_getObject(stCactusEdgeEnd_getLink(recoverableChainEnd));
@@ -300,14 +299,12 @@ static void markRecoverableAdjacencies(stCactusEdgeEnd *recoverableChainEnd,
     // there is only one connected end. If so, this chain is
     // recoverable given the other.
     if (stSet_size(connectedEnds1) == 1) {
-        stCactusEdgeEnd *connectedChainEnd = getChainEndFromSingletonSet(connectedEnds1,
-                                                                         pinchEndToChainEnd);
+        stCactusEdgeEnd *connectedChainEnd = getChainEndFromSingletonSet(connectedEnds1);
         stList_append(recoverableAdjacencies, connectedChainEnd);
     }
 
     if (stSet_size(connectedEnds2) == 1) {
-        stCactusEdgeEnd *connectedChainEnd = getChainEndFromSingletonSet(connectedEnds2,
-                                                                         pinchEndToChainEnd);
+        stCactusEdgeEnd *connectedChainEnd = getChainEndFromSingletonSet(connectedEnds2);
         stList_append(recoverableAdjacencies, connectedChainEnd);
     }
 
@@ -318,11 +315,11 @@ static void markRecoverableAdjacencies(stCactusEdgeEnd *recoverableChainEnd,
 }
 
 /*
- * Get a mapping from pinch ends to the canonical chain end for their chain.
+ * Record on each pinch end (in its data slot) the canonical chain end for its chain.
  */
 
-static stHash *getPinchEndToChainEndHash(stCactusGraph *cactusGraph) {
-    stHash *pinchEndToChainEnd = stHash_construct3(stPinchEnd_hashFn, stPinchEnd_equalsFn, NULL, NULL);
+static void setPinchEndToChainEnd(stCactusGraph *cactusGraph, stPinchThreadSet *threadSet) {
+    stPinchThreadSet_clearEndData(threadSet); //the slots held the cactus nodes while the graph was built
     stCactusGraphNodeIt *nodeIt = stCactusGraphNodeIterator_construct(cactusGraph);
     stCactusNode *cactusNode;
     while ((cactusNode = stCactusGraphNodeIterator_getNext(nodeIt)) != NULL) {
@@ -337,7 +334,7 @@ static stHash *getPinchEndToChainEndHash(stCactusGraph *cactusGraph) {
                 stCactusEdgeEnd *curEnd = cactusEdgeEnd;
                 do {
                     stPinchEnd *pinchEnd = stCactusEdgeEnd_getObject(curEnd);
-                    stHash_insert(pinchEndToChainEnd, pinchEnd, chainEnd);
+                    stPinchEnd_setData(pinchEnd, chainEnd);
                     if (stCactusEdgeEnd_getLinkOrientation(curEnd)) {
                         curEnd = stCactusEdgeEnd_getLink(curEnd);
                     } else {
@@ -348,13 +345,12 @@ static stHash *getPinchEndToChainEndHash(stCactusGraph *cactusGraph) {
         }
     }
     stCactusGraphNodeIterator_destruct(nodeIt);
-    return pinchEndToChainEnd;
 }
 
 // For a given cactus node, recurse through all nodes below it and
 // find recoverable chains below them. Then find recoverable chains
 // below the current node given its parent chain.
-static void getRecoverableChains_R(stCactusNode *cactusNode, stCactusEdgeEnd *parentChain, stSet *deadEndComponent, Flower *flower, bool (*recoverabilityFilter)(stCactusEdgeEnd *, Flower *), stHash *pinchEndToChainEnd, stSet *recoverableChains, stList *telomereAdjacentChains, stHash *chainToRecoverableAdjacencies) {
+static void getRecoverableChains_R(stCactusNode *cactusNode, stCactusEdgeEnd *parentChain, stList *deadEndComponent, Flower *flower, bool (*recoverabilityFilter)(stCactusEdgeEnd *, Flower *), stSet *recoverableChains, stList *telomereAdjacentChains, stHash *chainToRecoverableAdjacencies) {
     while(1) {
         stCactusNodeEdgeEndIt cactusEdgeEndIt = stCactusNode_getEdgeEndIt(cactusNode);
         stCactusEdgeEnd *cactusEdgeEnd;
@@ -371,7 +367,6 @@ static void getRecoverableChains_R(stCactusNode *cactusNode, stCactusEdgeEnd *pa
                                        deadEndComponent,
                                        flower,
                                        recoverabilityFilter,
-                                       pinchEndToChainEnd,
                                        recoverableChains,
                                        telomereAdjacentChains,
                                        chainToRecoverableAdjacencies);
@@ -384,7 +379,7 @@ static void getRecoverableChains_R(stCactusNode *cactusNode, stCactusEdgeEnd *pa
                 if ((recoverabilityFilter == NULL || recoverabilityFilter(cactusEdgeEnd, flower)) &&
                     chainIsRecoverable(cactusEdgeEnd, deadEndComponent)) {
                     stSet_insert(recoverableChains, cactusEdgeEnd);
-                    markRecoverableAdjacencies(cactusEdgeEnd, pinchEndToChainEnd, chainToRecoverableAdjacencies);
+                    markRecoverableAdjacencies(cactusEdgeEnd, chainToRecoverableAdjacencies);
                     if (chainConnectsToTelomere(cactusEdgeEnd, deadEndComponent)) {
                         stList_append(telomereAdjacentChains, cactusEdgeEnd);
                     }
@@ -407,13 +402,13 @@ static void getRecoverableChains_R(stCactusNode *cactusNode, stCactusEdgeEnd *pa
     }
 }
 
-static stList *getRecoverableChains(stCactusGraph *cactusGraph, stCactusNode *startCactusNode, stSet *deadEndComponent, Flower *flower, bool (*recoverabilityFilter)(stCactusEdgeEnd *, Flower *)) {
-    stHash *pinchEndToChainEnd = getPinchEndToChainEndHash(cactusGraph);
+static stList *getRecoverableChains(stCactusGraph *cactusGraph, stCactusNode *startCactusNode, stList *deadEndComponent, Flower *flower, bool (*recoverabilityFilter)(stCactusEdgeEnd *, Flower *), stPinchThreadSet *threadSet) {
+    setPinchEndToChainEnd(cactusGraph, threadSet);
 
     stSet *recoverableChainSet = stSet_construct();
     stList *telomereAdjacentChains = stList_construct();
     stHash *chainToRecoverableAdjacencies = stHash_construct2(NULL, (void (*)(void *)) stList_destruct);
-    getRecoverableChains_R(startCactusNode, NULL, deadEndComponent, flower, recoverabilityFilter, pinchEndToChainEnd, recoverableChainSet, telomereAdjacentChains, chainToRecoverableAdjacencies);
+    getRecoverableChains_R(startCactusNode, NULL, deadEndComponent, flower, recoverabilityFilter, recoverableChainSet, telomereAdjacentChains, chainToRecoverableAdjacencies);
 
     // Remove anchors that are connected to telomeres and are not
     // transitively connected to an unrecoverable chain. This ensures
@@ -463,7 +458,6 @@ static stList *getRecoverableChains(stCactusGraph *cactusGraph, stCactusNode *st
     }
     stSet_destructIterator(it);
     stSet_destruct(recoverableChainSet);
-    stHash_destruct(pinchEndToChainEnd);
     return recoverableChains;
 }
 
@@ -485,8 +479,8 @@ static int64_t totalAlignedBases(stList *blocks) {
     return total;
 }
 
-void stCaf_meltRecoverableChains(Flower *flower, stPinchThreadSet *threadSet, bool breakChainsAtReverseTandems, int64_t maximumMedianSpacingBetweenLinkedEnds, bool (*recoverabilityFilter)(stCactusEdgeEnd *, Flower *), int64_t maxNumIterations, int64_t maxRecoverableChainLength) {
-    int64_t iteration = 0;
+int64_t stCaf_meltRecoverableChains(Flower *flower, stPinchThreadSet *threadSet, bool breakChainsAtReverseTandems, int64_t maximumMedianSpacingBetweenLinkedEnds, bool (*recoverabilityFilter)(stCactusEdgeEnd *, Flower *), int64_t maxNumIterations, int64_t maxRecoverableChainLength) {
+    int64_t iteration = 0, totalBlocksDestroyed = 0;
     while (maxNumIterations-- > 0) {
         double t = stCaf_now();
         stCactusNode *startCactusNode;
@@ -499,16 +493,9 @@ void stCaf_meltRecoverableChains(Flower *flower, stPinchThreadSet *threadSet, bo
                                                                       0.0, breakChainsAtReverseTandems, maximumMedianSpacingBetweenLinkedEnds);
         double graphTime = stCaf_now() - t;
         t = stCaf_now();
+        double endSetTime = 0.0; //dead end membership is now read off the block end records
 
-        // Construct a queryable set of stub ends.
-        stSet *deadEndComponentSet = stSet_construct3(stPinchEnd_hashFn, stPinchEnd_equalsFn, NULL);
-        for (int64_t i = 0; i < stList_length(deadEndComponent); i++) {
-            stSet_insert(deadEndComponentSet, stList_get(deadEndComponent, i));
-        }
-        double endSetTime = stCaf_now() - t;
-        t = stCaf_now();
-
-        stList *recoverableChains = getRecoverableChains(cactusGraph, startCactusNode, deadEndComponentSet, flower, recoverabilityFilter);
+        stList *recoverableChains = getRecoverableChains(cactusGraph, startCactusNode, deadEndComponent, flower, recoverabilityFilter, threadSet);
 
         stList *blocksToDelete = stList_construct3(0, (void(*)(void *)) stPinchBlock_destruct);
         for (int64_t i = 0; i < stList_length(recoverableChains); i++) {
@@ -525,10 +512,10 @@ void stCaf_meltRecoverableChains(Flower *flower, stPinchThreadSet *threadSet, bo
         stList_destruct(recoverableChains);
         stList_destruct(blocksToDelete);
 
-        stCactusGraph_destruct(cactusGraph);
-        stSet_destruct(deadEndComponentSet);
+        stCaf_destructCactusGraph(cactusGraph, threadSet);
         st_logInfo("caf-timing: recoverable iter %" PRIi64 " graph %.3fs endset %.3fs find %.3fs delete %.3fs destroyed %" PRIi64 "\n",
                    iteration++, graphTime, endSetTime, findTime, stCaf_now() - t, numRecoverableBlocks);
+        totalBlocksDestroyed += numRecoverableBlocks;
 
         if (numRecoverableBlocks == 0) {
             // We didn't delete anything this round; we can safely
@@ -536,6 +523,7 @@ void stCaf_meltRecoverableChains(Flower *flower, stPinchThreadSet *threadSet, bo
             break;
         }
     }
+    return totalBlocksDestroyed;
 }
 
 ///////////////////////////////////////////////////////////////////////////

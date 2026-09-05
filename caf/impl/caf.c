@@ -32,20 +32,7 @@ static bool blockFilterFn(stPinchBlock *pinchBlock, void *extraArg) {
 }
 
 static uint64_t choose2(uint64_t n) {
-#define CHOOSE_TWO_CACHE_LEN 256
-    int64_t chooseTwoCache[256] = {0}; // removing static variable, even if fast
-    if (n <= 1) {
-        return 0;
-    } else if (n >= CHOOSE_TWO_CACHE_LEN) {
-        return n * (n - 1) / 2;
-    } else {
-        if (chooseTwoCache[n] != 0) {
-            return chooseTwoCache[n];
-        } else {
-            chooseTwoCache[n] = n * (n - 1) / 2;
-            return chooseTwoCache[n];
-        }
-    }
+    return n <= 1 ? 0 : n * (n - 1) / 2;
 }
 
 // Get the number of possible pairwise alignments that could support
@@ -56,9 +43,7 @@ static uint64_t numPossibleSupportingHomologies(stPinchBlock *block, Flower *flo
     stPinchBlockIt segIt = stPinchBlock_getSegmentIterator(block);
     stPinchSegment *segment;
     while ((segment = stPinchBlockIt_getNext(&segIt)) != NULL) {
-        Name capName = stPinchSegment_getName(segment);
-        Cap *cap = flower_getCap(flower, capName);
-        Event *event = cap_getEvent(cap);
+        Event *event = stCaf_getEvent(segment, flower);
         if (event_isOutgroup(event)) {
             outgroupDegree++;
         } else {
@@ -427,7 +412,9 @@ void caf(Flower *flower, CactusParams *params, char *alignmentsFile, char *secon
             double statsTime = stCaf_now() - t;
             t = stCaf_now();
 
-            if (minimumBlockHomologySupport > 0) {
+            // The support test below is only ever true for blocks with a degree above
+            // minimumBlockDegreeToCheckSupport, so with that unset there is nothing to look for
+            if (minimumBlockHomologySupport > 0 && minimumBlockDegreeToCheckSupport > 0) {
                 // Check for poorly-supported blocks--those that have
                 // been transitively aligned together but with very
                 // few homologies supporting the transitive

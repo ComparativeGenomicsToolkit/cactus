@@ -1530,7 +1530,7 @@ stSet *stCaf_getHomologyUnits(Flower *flower, stPinchThreadSet *threadSet, stHas
                 }
             }
         }
-        stCactusGraph_destruct(cactusGraph);
+        stCaf_destructCactusGraph(cactusGraph, threadSet);
     }
     return homologyUnits;
 }
