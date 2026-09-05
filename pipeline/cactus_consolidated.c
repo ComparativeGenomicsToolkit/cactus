@@ -442,6 +442,13 @@ int main(int argc, char *argv[]) {
         st_logInfo("Checked the flowers in the hierarchy created by CAF, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
     }
 
+    // Benchmarking/profiling hook: stop here so that a run is not dominated by bar and reference.
+    // No output files are written, so this must never be set in a real pipeline run.
+    if (getenv("CACTUS_CAF_ONLY") != NULL) {
+        st_logCritical("CACTUS_CAF_ONLY is set: stopping after caf, no output files will be written\n");
+        return 0;
+    }
+
     //////////////////////////////////////////////
     //Call cactus bar
     //////////////////////////////////////////////

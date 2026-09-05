@@ -112,14 +112,21 @@ static void filterAlignments(stPinchThreadSet *threadSet, bool(*blockFilterFn)(s
 void stCaf_melt(Flower *flower, stPinchThreadSet *threadSet, bool blockFilterfn(stPinchBlock *, void *extraArg),
                 void *extraArg, int64_t blockEndTrim, int64_t minimumChainLength,
                 bool breakChainsAtReverseTandems, int64_t maximumMedianSpacingBetweenLinkedEnds) {
+    double t = stCaf_now(), trimTime = 0.0, filterTime = 0.0, graphTime = 0.0, scanTime = 0.0, deleteTime = 0.0;
+    int64_t blocksDestroyed = 0;
+
     //First trim
     if (blockEndTrim > 0) {
         trimAlignments(threadSet, blockEndTrim);
+        trimTime = stCaf_now() - t;
+        t = stCaf_now();
     }
 
     //Then filter blocks
     if (blockFilterfn != NULL) {
         filterAlignments(threadSet, blockFilterfn, extraArg);
+        filterTime = stCaf_now() - t;
+        t = stCaf_now();
     }
 
     //Now apply the minimum chain length filter
@@ -128,7 +135,12 @@ void stCaf_melt(Flower *flower, stPinchThreadSet *threadSet, bool blockFilterfn(
         stList *deadEndComponent;
         stCactusGraph *cactusGraph = stCaf_getCactusGraphForThreadSet(flower, threadSet, &startCactusNode, &deadEndComponent, 0, INT64_MAX,
                 0.0, breakChainsAtReverseTandems, maximumMedianSpacingBetweenLinkedEnds);
+        graphTime = stCaf_now() - t;
+        t = stCaf_now();
         stList *blocksToDelete = stCaf_getBlocksInChainsLessThanGivenLength(cactusGraph, minimumChainLength);
+        scanTime = stCaf_now() - t;
+        t = stCaf_now();
+        blocksDestroyed = stList_length(blocksToDelete);
 
         st_logInfo("A melting round is destroying %" PRIi64 " blocks with an average degree "
                "of %lf from chains with length less than %" PRIi64 ". Total aligned bases"
@@ -139,9 +151,13 @@ void stCaf_melt(Flower *flower, stPinchThreadSet *threadSet, bool blockFilterfn(
         //Cleanup cactus
         stCactusGraph_destruct(cactusGraph);
         stList_destruct(blocksToDelete); //This will destroy the blocks
+        deleteTime = stCaf_now() - t;
+        t = stCaf_now();
     }
     //Now heal up the trivial boundaries
     stCaf_joinTrivialBoundaries(threadSet);
+    st_logInfo("caf-timing: melt minChain=%" PRIi64 " trim %.3fs filter %.3fs graph %.3fs scan %.3fs delete %.3fs join %.3fs destroyed %" PRIi64 "\n",
+               minimumChainLength, trimTime, filterTime, graphTime, scanTime, deleteTime, stCaf_now() - t, blocksDestroyed);
 }
 
 static bool isTelomere(stPinchEnd *end, stSet *deadEndComponent) {
@@ -470,7 +486,9 @@ static int64_t totalAlignedBases(stList *blocks) {
 }
 
 void stCaf_meltRecoverableChains(Flower *flower, stPinchThreadSet *threadSet, bool breakChainsAtReverseTandems, int64_t maximumMedianSpacingBetweenLinkedEnds, bool (*recoverabilityFilter)(stCactusEdgeEnd *, Flower *), int64_t maxNumIterations, int64_t maxRecoverableChainLength) {
+    int64_t iteration = 0;
     while (maxNumIterations-- > 0) {
+        double t = stCaf_now();
         stCactusNode *startCactusNode;
         stList *deadEndComponent;
         // FIXME: We shouldn't really have to rebuild the cactus graph
@@ -479,12 +497,16 @@ void stCaf_meltRecoverableChains(Flower *flower, stPinchThreadSet *threadSet, bo
         // whose underlying blocks we've already deleted.
         stCactusGraph *cactusGraph = stCaf_getCactusGraphForThreadSet(flower, threadSet, &startCactusNode, &deadEndComponent, 0, 0,
                                                                       0.0, breakChainsAtReverseTandems, maximumMedianSpacingBetweenLinkedEnds);
+        double graphTime = stCaf_now() - t;
+        t = stCaf_now();
 
         // Construct a queryable set of stub ends.
         stSet *deadEndComponentSet = stSet_construct3(stPinchEnd_hashFn, stPinchEnd_equalsFn, NULL);
         for (int64_t i = 0; i < stList_length(deadEndComponent); i++) {
             stSet_insert(deadEndComponentSet, stList_get(deadEndComponent, i));
         }
+        double endSetTime = stCaf_now() - t;
+        t = stCaf_now();
 
         stList *recoverableChains = getRecoverableChains(cactusGraph, startCactusNode, deadEndComponentSet, flower, recoverabilityFilter);
 
@@ -495,6 +517,8 @@ void stCaf_meltRecoverableChains(Flower *flower, stPinchThreadSet *threadSet, bo
                 addChainBlocksToBlocksToDelete(chainEnd, blocksToDelete);
             }
         }
+        double findTime = stCaf_now() - t;
+        t = stCaf_now();
         int64_t numRecoverableBlocks = stList_length(blocksToDelete);
         st_logInfo("Destroying %" PRIi64 " recoverable blocks\n", numRecoverableBlocks);
         st_logInfo("The blocks covered %" PRIi64 " columns for a total of %" PRIi64 " aligned bases\n", numColumns(blocksToDelete), totalAlignedBases(blocksToDelete));
@@ -503,6 +527,8 @@ void stCaf_meltRecoverableChains(Flower *flower, stPinchThreadSet *threadSet, bo
 
         stCactusGraph_destruct(cactusGraph);
         stSet_destruct(deadEndComponentSet);
+        st_logInfo("caf-timing: recoverable iter %" PRIi64 " graph %.3fs endset %.3fs find %.3fs delete %.3fs destroyed %" PRIi64 "\n",
+                   iteration++, graphTime, endSetTime, findTime, stCaf_now() - t, numRecoverableBlocks);
 
         if (numRecoverableBlocks == 0) {
             // We didn't delete anything this round; we can safely

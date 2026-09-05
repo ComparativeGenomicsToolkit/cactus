@@ -19,6 +19,11 @@
  */
 void caf(Flower *flower, CactusParams *params, char *alignmentsFile, char *secondaryAlignmentsFile, char *constraintsFile, Event *referenceEvent);
 
+/*
+ * Wall-clock seconds from an arbitrary origin, for the "caf-timing:" log lines.
+ */
+double stCaf_now(void);
+
 ///////////////////////////////////////////////////////////////////////////
 // Setup the pinch graph from a cactus graph
 ///////////////////////////////////////////////////////////////////////////

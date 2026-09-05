@@ -5,6 +5,18 @@
 #include "stPinchIterator.h"
 #include "stGiantComponent.h"
 #include "stCafPhylogeny.h"
+#include <time.h>
+#if defined(_OPENMP)
+#include <omp.h>
+#endif
+
+double stCaf_now(void) {
+#if defined(_OPENMP)
+    return omp_get_wtime();
+#else
+    return ((double) clock()) / CLOCKS_PER_SEC;
+#endif
+}
 
 static bool blockFilterFn(stPinchBlock *pinchBlock, void *extraArg) {
     FilterArgs *f = extraArg;
@@ -332,12 +344,14 @@ void caf(Flower *flower, CactusParams *params, char *alignmentsFile, char *secon
 
     if (!flower_builtBlocks(flower)) { // Do nothing if the flower already has defined blocks
         st_logDebug("Processing flower: %lli\n", flower_getName(flower));
+        double cafStartTime = stCaf_now(), t = cafStartTime;
 
         //Set up the graph and add the initial alignments
         stPinchThreadSet *threadSet = stCaf_setup(flower);
 
         //Build the set of outgroup threads
         stSet *outgroupThreads = stCaf_getOutgroupThreads(flower, threadSet);
+        st_logInfo("caf-timing: setup %.3fs\n", stCaf_now() - t);
 
         // Set the single copy event
         if (singleCopyEventName != NULL) {
@@ -388,13 +402,16 @@ void caf(Flower *flower, CactusParams *params, char *alignmentsFile, char *secon
             }
 
             //Do the annealing
+            t = stCaf_now();
             if (annealingRound == 0) {
                 stCaf_anneal(threadSet, pinchIterator, filterFn, flower);
             } else {
                 stCaf_annealBetweenAdjacencyComponents(threadSet, pinchIterator, filterFn, flower);
             }
+            double primaryAnnealTime = stCaf_now() - t;
 
             // Do the secondary annealing
+            t = stCaf_now();
             if(secondaryPinchIterator != NULL) {
                 if (annealingRound == 0) {
                     stCaf_anneal(threadSet, secondaryPinchIterator, secondaryFilterFn, flower);
@@ -402,9 +419,13 @@ void caf(Flower *flower, CactusParams *params, char *alignmentsFile, char *secon
                     stCaf_annealBetweenAdjacencyComponents(threadSet, secondaryPinchIterator, secondaryFilterFn, flower);
                 }
             }
+            double secondaryAnnealTime = stCaf_now() - t;
 
+            t = stCaf_now();
             st_logInfo("Sequence graph statistics after annealing:\n");
             printThreadSetStatistics(threadSet, flower, stderr);
+            double statsTime = stCaf_now() - t;
+            t = stCaf_now();
 
             if (minimumBlockHomologySupport > 0) {
                 // Check for poorly-supported blocks--those that have
@@ -438,6 +459,8 @@ void caf(Flower *flower, CactusParams *params, char *alignmentsFile, char *secon
                              num_megablocks_destroyed, num_homologies_destroyed);
                 }
             }
+            st_logInfo("caf-timing: anneal round %" PRIi64 " minChain=%" PRIi64 " primary %.3fs secondary %.3fs stats %.3fs megablocks %.3fs\n",
+                       annealingRound, minimumChainLength, primaryAnnealTime, secondaryAnnealTime, statsTime, stCaf_now() - t);
 
             //Do the melting rounds
             for (int64_t meltingRound = 0; meltingRound < meltingRoundsLength; meltingRound++) {
@@ -454,24 +477,34 @@ void caf(Flower *flower, CactusParams *params, char *alignmentsFile, char *secon
         }
 
         if (removeRecoverableChains) {
+            t = stCaf_now();
             stCaf_meltRecoverableChains(flower, threadSet, breakChainsAtReverseTandems, maximumMedianSequenceLengthBetweenLinkedEnds, recoverableChainsFilter, maxRecoverableChainsIterations, maxRecoverableChainLength);
+            st_logInfo("caf-timing: recoverable total %.3fs\n", stCaf_now() - t);
         }
 
+        t = stCaf_now();
         st_logInfo("Sequence graph statistics after melting:\n");
         printThreadSetStatistics(threadSet, flower, stderr);
+        st_logInfo("caf-timing: stats %.3fs\n", stCaf_now() - t);
 
         //Sort out case when we allow blocks of degree 1
+        t = stCaf_now();
         if (fa->minimumDegree < 2) {
             st_logDebug("Creating degree 1 blocks\n");
             stCaf_makeDegreeOneBlocks(threadSet);
             stCaf_melt(flower, threadSet, blockFilterFn, fa, blockTrim, 0, 0, INT64_MAX);
+            st_logInfo("caf-timing: degree-one %.3fs\n", stCaf_now() - t);
         } else if (maximumAdjacencyComponentSizeRatio < INT64_MAX) { //Deal with giant components
             st_logDebug("Breaking up components greedily\n");
             stCaf_breakupComponentsGreedily(threadSet, maximumAdjacencyComponentSizeRatio);
+            st_logInfo("caf-timing: breakup-components %.3fs\n", stCaf_now() - t);
         }
 
         //Finish up
+        t = stCaf_now();
         stCaf_finish(flower, threadSet, minLengthForChromosome, proportionOfUnalignedBasesForNewChromosome);
+        st_logInfo("caf-timing: finish %.3fs\n", stCaf_now() - t);
+        st_logInfo("caf-timing: caf total %.3fs\n", stCaf_now() - cafStartTime);
         st_logDebug("Ran the cactus core script\n");
 
         //Cleanup

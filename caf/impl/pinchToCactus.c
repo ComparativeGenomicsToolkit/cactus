@@ -312,12 +312,66 @@ static bool stCaf_breakAtTooGreatEnoughMedianSeparation(stCactusEdgeEnd *cactusE
     return b;
 }
 
+/*
+ * Per-phase wall-clock times of one pinch graph -> cactus graph build, for the caf-timing log line.
+ */
+typedef struct _stCafBuildTiming {
+    double adjacency, deadEnd, attach, build, collapse, bridges, tandems, median;
+    int64_t ends, nodesBeforeCollapse, nodesAfterCollapse;
+} stCafBuildTiming;
+
+/*
+ * Debugging aid: with CACTUS_CAF_DUMP_CACTUS=<dir> set, every cactus graph built is written to <dir>/cactus-<n>.txt in
+ * iteration order, so that a change which alters iteration order (which feeds the names in the output) shows up as a diff
+ * even before it changes the c2h.
+ */
+static void stCaf_dumpCactusGraph(stCactusGraph *cactusGraph, stCactusNode *startCactusNode) {
+    const char *dir = getenv("CACTUS_CAF_DUMP_CACTUS");
+    if (dir == NULL) {
+        return;
+    }
+    static int64_t buildCount = 0;
+    char *path = stString_print("%s/cactus-%" PRIi64 ".txt", dir, buildCount++);
+    FILE *f = fopen(path, "w");
+    if (f == NULL) {
+        st_errAbort("Could not open %s for the cactus graph dump", path);
+    }
+    stCactusGraphNodeIt *nodeIt = stCactusGraphNodeIterator_construct(cactusGraph);
+    stCactusNode *cactusNode;
+    int64_t nodeIndex = 0;
+    while ((cactusNode = stCactusGraphNodeIterator_getNext(nodeIt)) != NULL) {
+        fprintf(f, "node %" PRIi64 "%s\n", nodeIndex++, cactusNode == startCactusNode ? " start" : "");
+        stCactusNodeEdgeEndIt edgeEndIt = stCactusNode_getEdgeEndIt(cactusNode);
+        stCactusEdgeEnd *edgeEnd;
+        while ((edgeEnd = stCactusNodeEdgeEndIt_getNext(&edgeEndIt)) != NULL) {
+            stPinchEnd *end = stCactusEdgeEnd_getObject(edgeEnd);
+            stPinchSegment *segment = stPinchBlock_getFirst(stPinchEnd_getBlock(end));
+            fprintf(f, " %" PRIi64 ":%" PRIi64 ":%" PRIi64 ":%i lo=%i ce=%i", stPinchSegment_getName(segment), stPinchSegment_getStart(segment),
+                    stPinchBlock_getLength(stPinchEnd_getBlock(end)), stPinchEnd_getOrientation(end),
+                    stCactusEdgeEnd_getLinkOrientation(edgeEnd), stCactusEdgeEnd_isChainEnd(edgeEnd));
+            stCactusEdgeEnd *link = stCactusEdgeEnd_getLink(edgeEnd);
+            if (link != NULL) {
+                stPinchEnd *linkEnd = stCactusEdgeEnd_getObject(link);
+                stPinchSegment *linkSegment = stPinchBlock_getFirst(stPinchEnd_getBlock(linkEnd));
+                fprintf(f, " link=%" PRIi64 ":%" PRIi64 ":%i", stPinchSegment_getName(linkSegment), stPinchSegment_getStart(linkSegment),
+                        stPinchEnd_getOrientation(linkEnd));
+            }
+            fprintf(f, "\n");
+        }
+    }
+    stCactusGraphNodeIterator_destruct(nodeIt);
+    fclose(f);
+    free(path);
+}
+
 static stCactusGraph *stCaf_constructCactusGraph(stList *deadEndComponent, stHash *pinchEndsToAdjacencyComponents,
-        stCactusNode **startCactusNode, bool breakChainsAtReverseTandems, int64_t maximumMedianSpacingBetweenLinkedEnds) {
+        stCactusNode **startCactusNode, bool breakChainsAtReverseTandems, int64_t maximumMedianSpacingBetweenLinkedEnds,
+        stCafBuildTiming *timing) {
     /*
      * Constructs a cactus graph from a set of pinch graph components, including the dead end component. Returns a cactus
      * graph, and assigns 'startCactusNode' to the cactus node containing the dead end component.
      */
+    double t = stCaf_now();
     stCactusGraph *cactusGraph = stCactusGraph_construct2((void(*)(void *)) stList_destruct, NULL);
     stHash *adjacencyComponentsToCactusNodes = stHash_construct();
     stHash *pinchEndsToNonStaticPinchEnds = stHash_construct3(stPinchEnd_hashFn, stPinchEnd_equalsFn, NULL, NULL);
@@ -372,16 +426,28 @@ static stCactusGraph *stCaf_constructCactusGraph(stList *deadEndComponent, stHas
     stHash_destructIterator(pinchEndIt);
     stHash_destruct(pinchEndsToNonStaticPinchEnds);
     stHash_destruct(adjacencyComponentsToCactusNodes);
+    timing->ends = stHash_size(pinchEndsToAdjacencyComponents);
+    timing->nodesBeforeCollapse = stCactusGraph_getNodeNumber(cactusGraph);
+    timing->build = stCaf_now() - t;
+    t = stCaf_now();
 
     //Run the cactus-ifying functions
     stCactusGraph_collapseToCactus(cactusGraph, stCaf_mergeNodeObjects, *startCactusNode);
+    timing->collapse = stCaf_now() - t;
+    t = stCaf_now();
     stCactusGraph_collapseBridges(cactusGraph, *startCactusNode, stCaf_mergeNodeObjects);
+    timing->bridges = stCaf_now() - t;
+    t = stCaf_now();
     if(breakChainsAtReverseTandems) {
         *startCactusNode = stCactusGraph_breakChainsByEndsNotInChains(cactusGraph, *startCactusNode, stCaf_mergeNodeObjects, stCaf_reversalAtEnd, NULL);
     }
+    timing->tandems = stCaf_now() - t;
+    t = stCaf_now();
     if(maximumMedianSpacingBetweenLinkedEnds < INT64_MAX) {
         *startCactusNode = stCactusGraph_breakChainsByEndsNotInChains(cactusGraph, *startCactusNode, stCaf_mergeNodeObjects, stCaf_breakAtTooGreatEnoughMedianSeparation, &maximumMedianSpacingBetweenLinkedEnds);
     }
+    timing->median = stCaf_now() - t;
+    timing->nodesAfterCollapse = stCactusGraph_getNodeNumber(cactusGraph);
 
     return cactusGraph;
 }
@@ -394,25 +460,38 @@ stCactusGraph *stCaf_getCactusGraphForThreadSet(Flower *flower, stPinchThreadSet
         stList **deadEndComponent, bool attachEndsInFlower, int64_t minLengthForChromosome,
         double proportionOfUnalignedBasesForNewChromosome,
         bool breakChainsAtReverseTandems, int64_t maximumMedianSpacingBetweenLinkedEnds) {
+    stCafBuildTiming timing;
+    double t = stCaf_now();
+
     //Get adjacency components
     stHash *pinchEndsToAdjacencyComponents;
     stList *adjacencyComponents = stPinchThreadSet_getAdjacencyComponents2(threadSet, &pinchEndsToAdjacencyComponents);
     stList_setDestructor(adjacencyComponents, NULL);
     stList_destruct(adjacencyComponents);
+    timing.adjacency = stCaf_now() - t;
+    t = stCaf_now();
 
     //Merge together dead end component
     *deadEndComponent = stCaf_constructDeadEndComponent(flower, threadSet, pinchEndsToAdjacencyComponents);
+    timing.deadEnd = stCaf_now() - t;
+    t = stCaf_now();
 
     //Join unattached components of graph by dead ends to dead end component, and make other ends 'attached' if necessary
     stCaf_attachUnattachedThreadComponents(flower, threadSet, *deadEndComponent, pinchEndsToAdjacencyComponents, attachEndsInFlower,
             minLengthForChromosome, proportionOfUnalignedBasesForNewChromosome);
+    timing.attach = stCaf_now() - t;
 
     //Create cactus
     stCactusGraph *cactusGraph = stCaf_constructCactusGraph(*deadEndComponent, pinchEndsToAdjacencyComponents, startCactusNode,
-            breakChainsAtReverseTandems, maximumMedianSpacingBetweenLinkedEnds);
+            breakChainsAtReverseTandems, maximumMedianSpacingBetweenLinkedEnds, &timing);
 
     //Cleanup (the memory is owned by the cactus graph, so this does not break anything)
     stHash_destruct(pinchEndsToAdjacencyComponents);
+
+    st_logInfo("caf-timing: cactus-graph ends=%" PRIi64 " adjacency %.3fs deadend %.3fs attach %.3fs build %.3fs collapse %.3fs bridges %.3fs tandems %.3fs median %.3fs nodes %" PRIi64 "->%" PRIi64 "\n",
+               timing.ends, timing.adjacency, timing.deadEnd, timing.attach, timing.build, timing.collapse, timing.bridges, timing.tandems, timing.median,
+               timing.nodesBeforeCollapse, timing.nodesAfterCollapse);
+    stCaf_dumpCactusGraph(cactusGraph, *startCactusNode);
 
     return cactusGraph;
 }

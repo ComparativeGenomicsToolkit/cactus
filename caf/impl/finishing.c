@@ -407,13 +407,22 @@ static void fillOutFlowers(stCactusNode *cactusNode, Flower *flower, bool orient
 
 static void stCaf_convertCactusGraphToFlowers(stPinchThreadSet *threadSet, stCactusNode *startCactusNode,
                                               Flower *parentFlower, stList *deadEndComponent) {
+    double t = stCaf_now();
     stHash *pinchEndsToEnds = getPinchEndsToEndsHash(threadSet, parentFlower);
     stHash *cactusNodesToFlowers = stHash_construct();
+    double endsHashTime = stCaf_now() - t;
+    t = stCaf_now();
     makeEmptyFlowers(startCactusNode, parentFlower, threadSet, pinchEndsToEnds, cactusNodesToFlowers, 1);
+    double emptyFlowersTime = stCaf_now() - t;
+    t = stCaf_now();
     fillOutFlowers(startCactusNode, parentFlower, 1, threadSet, parentFlower, deadEndComponent,
                    pinchEndsToEnds, cactusNodesToFlowers);
+    double fillOutTime = stCaf_now() - t;
+    t = stCaf_now();
     stHash_destruct(pinchEndsToEnds);
     stHash_destruct(cactusNodesToFlowers);
+    st_logInfo("caf-timing: convert endsHash %.3fs emptyFlowers %.3fs fillOut %.3fs cleanup %.3fs\n",
+               endsHashTime, emptyFlowersTime, fillOutTime, stCaf_now() - t);
 }
 
 ///////////////////////////////////////////////////////////////////////////
@@ -439,12 +448,18 @@ void stCaf_finish(Flower *flower, stPinchThreadSet *threadSet, int64_t minLength
                   double proportionOfUnalignedBasesForNewChromosome) {
     stCactusNode *startCactusNode;
     stList *deadEndComponent;
+    double t = stCaf_now();
     stCactusGraph *cactusGraph = stCaf_getCactusGraphForThreadSet(flower, threadSet, &startCactusNode, &deadEndComponent, 1, minLengthForChromosome,
                                                                   proportionOfUnalignedBasesForNewChromosome, 0, INT64_MAX);
+    double graphTime = stCaf_now() - t;
+    t = stCaf_now();
 
     //Convert cactus graph/pinch graph to API
     stCaf_convertCactusGraphToFlowers(threadSet, startCactusNode, flower, deadEndComponent);
+    double convertTime = stCaf_now() - t;
+    t = stCaf_now();
 
     //Cleanup
     stCactusGraph_destruct(cactusGraph);
+    st_logInfo("caf-timing: finish graph %.3fs convert %.3fs destruct %.3fs\n", graphTime, convertTime, stCaf_now() - t);
 }
