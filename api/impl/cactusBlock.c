@@ -62,9 +62,9 @@ Block *block_construct(int64_t length, Flower *flower) {
     assert(!end_getSide(block_get3End(block)));
     assert(!end_getSide(end_getReverse(block_get5End(block))));
     assert(end_getSide(end_getReverse(block_get3End(block))));
-    assert(flower_getBlock(flower, name+1) == block);
-    assert(flower_getEnd(flower, name) == block_get5End(block));
-    assert(flower_getEnd(flower, name+2) == block_get3End(block));
+    cactus_assertExpensive(flower_getBlock(flower, name+1) == block);
+    cactus_assertExpensive(flower_getEnd(flower, name) == block_get5End(block));
+    cactus_assertExpensive(flower_getEnd(flower, name+2) == block_get3End(block));
 
 	return block;
 }

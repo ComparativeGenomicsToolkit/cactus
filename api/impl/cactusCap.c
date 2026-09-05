@@ -162,9 +162,9 @@ static Cap *cap_construct5(Name instance, Event *event, End *end, bool setFlower
     assert(cap_getEvent(cap_getReverse(cap)) == event);
     assert(cap_getEnd(cap_getReverse(cap)) == end_getReverse(end));
     if(setFlower) {
-        assert(end_getInstance(end, instance) == cap);
-        assert(end_getInstance(end_getReverse(end), instance) == cap_getReverse(cap));
-        assert(flower_getCap(end_getFlower(end), instance) == cap_getPositiveOrientation(cap));
+        cactus_assertExpensive(end_getInstance(end, instance) == cap);
+        cactus_assertExpensive(end_getInstance(end_getReverse(end), instance) == cap_getReverse(cap));
+        cactus_assertExpensive(flower_getCap(end_getFlower(end), instance) == cap_getPositiveOrientation(cap));
     }
 
     return cap;

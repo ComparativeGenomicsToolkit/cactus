@@ -165,7 +165,7 @@ static End *end_construct4(Name name, int64_t isAttached,
     assert(end_isStubEnd(end));
     assert(end_isStubEnd(end_getReverse(end)));
     if(addToFlower) {
-        assert(flower_getEnd(flower, end_getName(end)) == end);
+        cactus_assertExpensive(flower_getEnd(flower, end_getName(end)) == end);
     }
 
     return end;
@@ -215,7 +215,7 @@ stList *end_bulkCopyConstruct(stList *ends, Flower *newFlower) {
 
 End *end_copyConstruct(End *end, Flower *newFlower) {
     end = end_getPositiveOrientation(end);
-    assert(flower_getEnd(newFlower, end_getName(end)) == NULL);
+    cactus_assertExpensive(flower_getEnd(newFlower, end_getName(end)) == NULL);
 
     End *end2 = end_construct3(end_getName(end), end_isBlockEnd(end) ? 1
             : end_isAttached(end), end_getSide(end), newFlower);
