@@ -185,7 +185,9 @@ static End *convertPinchBlockEndToEnd(stPinchEnd *pinchEnd, Flower *flower) {
     if (end == NULL) { //Happens if pinch end represents end of a block in flower that has not yet been defined.
         return NULL;
     }
-    End *end2 = flower_getEnd(flower, end_getName(end));
+    // The recorded end is the one in the flower that made the block, so most of the time it is the end
+    // wanted and the lookup by name in the flower can be skipped
+    End *end2 = end_getFlower(end) == flower ? end_getPositiveOrientation(end) : flower_getEnd(flower, end_getName(end));
     assert(end2 != NULL);
     assert(end_getOrientation(end2));
     return end_getOrientation(end) ? end2 : end_getReverse(end2);
