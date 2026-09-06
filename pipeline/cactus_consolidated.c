@@ -4,6 +4,8 @@
 
 #include <time.h>
 #include <getopt.h>
+#include <dlfcn.h>
+#include <sys/types.h>
 #include "sonLib.h"
 #include "cactus.h"
 #include "cactus_setup.h"
@@ -28,6 +30,92 @@
  * cleanup input alignment format
  *
  */
+
+/*
+ * Retain freed pages instead of returning them to the OS.  abPOA allocates its DP matrix
+ * with posix_memalign at gigabyte sizes and frees it per alignment window; by default
+ * jemalloc hands those pages back and the next window faults them all in again.  Keeping
+ * them trades memory for that fault traffic, and on real workloads the trade is lopsided.
+ *
+ * Every setting below was measured on VGP data (cactus_consolidated wall time, 64 cores,
+ * nesting off).  The two marked "chosen" are what this function sets.
+ *
+ *   MammalsAnc0  dirty 10s  muzzy 0   (stock)      13433 s    90 GiB
+ *                dirty 10s  muzzy 30s..5min     17700-19552 s ~92 GiB   REJECTED: slower than stock
+ *                dirty 10s  muzzy -1               5573 s   282 GiB    2.4x
+ *                dirty -1   muzzy -1               3224 s   299 GiB    4.2x   chosen
+ *   AnuraAnc6    dirty -1   muzzy 0                9726 s   702 GiB   REJECTED: all the memory, half the speed
+ *                dirty -1   muzzy -1               5483 s   686 GiB    1.8x   chosen
+ *   oversize_threshold raised above the matrix size          +66% memory, +25% time   REJECTED
+ *
+ * Why the positive muzzy values lose to stock 0: a page then pays MADV_FREE *and* later
+ * MADV_DONTNEED and still refaults, so it is strictly worse than either extreme.  Note the
+ * stock muzzy_decay_ms in this build really is 0, not the 10000 the jemalloc docs suggest --
+ * an explicit 10000 is the *worst* case, not a no-op.  Both decays are set because dirty
+ * alone carries the entire memory cost for under half the speed, and muzzy on top of it is
+ * nearly free.  oversize_threshold is additionally read-only after startup.
+ *
+ * On salamander Anc3 (22 Gb genomes) this and the nesting removal together took bar from
+ * 76130 s to 6031 s and, unexpectedly, CAF from 29767 s to 23866 s.
+ *
+ * MALLOC_CONF only takes effect before main, and an environment variable set by a Toil
+ * leader may not reach the worker, so this is done at runtime instead.  mallctl is looked
+ * up rather than linked: builds with jemalloc off (Mac, CGL_DEBUG=ultra, legacy arch) then
+ * simply find nothing and carry on.
+ */
+// A weak reference resolves to jemalloc's mallctl when it is linked and stays null when it
+// is not, with no dlfcn and no _GNU_SOURCE (RTLD_DEFAULT is a GNU extension, and defining
+// _GNU_SOURCE for this one call would change other declarations in this file).
+extern int mallctl(const char *, void *, size_t *, void *, size_t) __attribute__((weak));
+
+static void cactus_jemalloc_retain_pages(void) {
+    int (*mallctl_fn)(const char *, void *, size_t *, void *, size_t) = mallctl;
+    if (mallctl_fn == NULL) {
+        // a statically linked jemalloc may not pull ctl.o in on a weak reference alone,
+        // so ask the dynamic loader before giving up.  dlopen(NULL) and RTLD_LAZY are POSIX.
+        void *self = dlopen(NULL, RTLD_LAZY);
+        if (self != NULL) {
+            *(void **)(&mallctl_fn) = dlsym(self, "mallctl");
+        }
+    }
+    if (mallctl_fn == NULL) {
+        st_logInfo("no jemalloc in this build, so page retention is not available\n");
+        return;
+    }
+
+    const char *names[2] = { "dirty_decay_ms", "muzzy_decay_ms" };
+    for (int w = 0; w < 2; w++) {
+        ssize_t v = -1;   // never purge
+        char key[64];
+        // the default every arena created from here on inherits -- most of them, since
+        // arenas are made lazily as threads first allocate and the OMP threads do not exist yet
+        snprintf(key, sizeof(key), "arenas.%s", names[w]);
+        int rc_default = mallctl_fn(key, NULL, NULL, &v, sizeof(v));
+
+        // and the handful that already exist, one at a time: MALLCTL_ARENAS_ALL is
+        // rejected here (EFAULT), so relying on it would silently leave them purging
+        unsigned narenas = 0;
+        size_t nsz = sizeof(narenas);
+        int set = 0, declined = 0;
+        if (mallctl_fn("arenas.narenas", &narenas, &nsz, NULL, 0) == 0) {
+            for (unsigned i = 0; i < narenas; i++) {
+                snprintf(key, sizeof(key), "arena.%u.%s", i, names[w]);
+                if (mallctl_fn(key, NULL, NULL, &v, sizeof(v)) == 0) {
+                    set++;
+                } else {
+                    declined++;   // uninitialised arenas refuse, harmlessly: they inherit
+                }
+            }
+        }
+        ssize_t readback = 0;
+        size_t sz = sizeof(readback);
+        snprintf(key, sizeof(key), "arenas.%s", names[w]);
+        mallctl_fn(key, &readback, &sz, NULL, 0);
+        st_logInfo("jemalloc %s set to -1: default for new arenas rc=%i (reads back %" PRIi64 "), "
+                   "%i of %u existing arenas set, %i declined\n",
+                   names[w], rc_default, (int64_t)readback, set, narenas, declined);
+    }
+}
 
 void usage() {
     fprintf(stderr, "cactus_consolidated, version 0.2\n");
@@ -350,6 +438,8 @@ int main(int argc, char *argv[]) {
     //////////////////////////////////////////////
 
     st_setLogLevelFromString(logLevelString);
+
+    cactus_jemalloc_retain_pages();
 
     //////////////////////////////////////////////
     //Log the inputs
