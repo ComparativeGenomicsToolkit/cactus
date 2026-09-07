@@ -4,6 +4,7 @@
 
 #include <time.h>
 #include <getopt.h>
+#include <string.h>
 #include <dlfcn.h>
 #include <sys/types.h>
 #include "sonLib.h"
@@ -69,6 +70,13 @@
 extern int mallctl(const char *, void *, size_t *, void *, size_t) __attribute__((weak));
 
 static void cactus_jemalloc_retain_pages(void) {
+    // Retaining pages trades memory for speed and is sized for cluster nodes; on a small machine
+    // (a laptop, a benchmark harness) it can exhaust memory, so it can be switched off.
+    const char *retain = getenv("CACTUS_JEMALLOC_RETAIN");
+    if (retain != NULL && strcmp(retain, "0") == 0) {
+        st_logInfo("jemalloc page retention disabled by CACTUS_JEMALLOC_RETAIN=0\n");
+        return;
+    }
     int (*mallctl_fn)(const char *, void *, size_t *, void *, size_t) = mallctl;
     if (mallctl_fn == NULL) {
         // a statically linked jemalloc may not pull ctl.o in on a weak reference alone,
