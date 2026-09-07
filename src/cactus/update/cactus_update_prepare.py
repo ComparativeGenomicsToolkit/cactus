@@ -262,6 +262,8 @@ def remove_unnecessary_cactus_preprocess(plan, input_names):
     plan = plan.split("\n")
     edited_plan = []
 
+    to_remove = set(input_names)
+
     idx = 0
     for idx, line in enumerate(plan):
 
@@ -269,7 +271,9 @@ def remove_unnecessary_cactus_preprocess(plan, input_names):
         if "## Alignment" in line:
             break
 
-        input_name_pattern = "-{2}inputNames\\s{0,}.*?\\s{0,1}(?=-{2}|$)"
+        # capture only the genome names given to --inputNames: the list ends at
+        # the next option or at the shell redirection/pipe suffix of the command
+        input_name_pattern = "-{2}inputNames\\s+(?P<names>.*?)(?=\\s+-{2}|\\s+\\d*>|\\s*\\||$)"
 
         # search for --inputNames where unnecessary cactus_preprocess must be removed
         search = re.search(input_name_pattern, line, re.IGNORECASE)
@@ -277,23 +281,23 @@ def remove_unnecessary_cactus_preprocess(plan, input_names):
         # if there is a hit
         if search:
             # get the inputNames list
-            existing_input_names = (
-                search.group(0).strip("--").strip("inputNames").strip().split()
-            )
+            existing_input_names = search.group("names").split()
 
-            # remove the names that already exists
-            cleaned = set(existing_input_names) - set(input_names)
+            # remove the names that already exists (keeping the original order)
+            cleaned = [
+                name for name in existing_input_names if name not in to_remove
+            ]
 
             # it becomes an useless cactus-preprocess job and it must be removed (no copy)
             if len(cleaned) == 0:
                 continue
 
-            # modify the current line
-            line = re.sub(
-                input_name_pattern,
-                "--inputNames " + " ".join(cleaned) + " ",
-                line,
-            ).strip()  # remove extra spaces
+            # modify the current line, touching the genome names only
+            line = (
+                line[: search.start("names")]
+                + " ".join(cleaned)
+                + line[search.end("names") :]
+            )
 
         # just copy as normal
         edited_plan.append(line)
