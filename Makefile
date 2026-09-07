@@ -328,7 +328,10 @@ suball.lastz: suball.jemalloc
 	ln -f submodules/lastz/src/lastz bin
 
 suball.paffy:
-	git -C submodules/paffy/submodules/sonLib checkout $$(git -C submodules/sonLib rev-parse HEAD)
+	# paffy carries its own sonLib clone, which is put at the commit cactus pins. That clone has only
+	# fetched what its own pin needed, so bring the commit over from cactus's checkout first.
+	git -C submodules/paffy/submodules/sonLib fetch -q $(CURDIR)/submodules/sonLib HEAD
+	git -C submodules/paffy/submodules/sonLib checkout -q $$(git -C submodules/sonLib rev-parse HEAD)
 	cd submodules/paffy && ${archEnvExt} LIBS="${jemallocLib}" ${MAKE} ${archCC}
 	rm -rf submodules/paffy/bin/*.dSYM
 	ln -f submodules/paffy/bin/[a-zA-Z]* ${BINDIR}
