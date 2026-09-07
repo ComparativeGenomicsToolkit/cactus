@@ -40,11 +40,25 @@ void stCaf_joinTrivialBoundaries(stPinchThreadSet *threadSet) {
 // Basic annealing function
 ///////////////////////////////////////////////////////////////////////////
 
+/*
+ * The pinches of one alignment all name the same two threads, so the thread found for the previous
+ * pinch is kept and reused while the name is unchanged, which spares the two hash lookups per pinch.
+ */
+static stPinchThread *getThreadCached(stPinchThreadSet *threadSet, int64_t name, int64_t *cachedName, stPinchThread **cachedThread) {
+    if (*cachedThread == NULL || *cachedName != name) {
+        *cachedThread = stPinchThreadSet_getThread(threadSet, name);
+        *cachedName = name;
+    }
+    return *cachedThread;
+}
+
 void stCaf_anneal2(stPinchThreadSet *threadSet, stPinch *(*pinchIterator)(void *, stPinch *), void *extraArg) {
     stPinch *pinch, pinchToFillOut;
+    int64_t name1 = 0, name2 = 0;
+    stPinchThread *thread1 = NULL, *thread2 = NULL;
     while ((pinch = pinchIterator(extraArg, &pinchToFillOut)) != NULL) {
-        stPinchThread *thread1 = stPinchThreadSet_getThread(threadSet, pinch->name1);
-        stPinchThread *thread2 = stPinchThreadSet_getThread(threadSet, pinch->name2);
+        thread1 = getThreadCached(threadSet, pinch->name1, &name1, &thread1);
+        thread2 = getThreadCached(threadSet, pinch->name2, &name2, &thread2);
         assert(thread1 != NULL && thread2 != NULL);
         stPinchThread_pinch(thread1, thread2, pinch->start1, pinch->start2, pinch->length, pinch->strand);
     }
@@ -53,9 +67,11 @@ void stCaf_anneal2(stPinchThreadSet *threadSet, stPinch *(*pinchIterator)(void *
 static void stCaf_annealWithFilter2(stPinchThreadSet *threadSet, stPinch *(*pinchIterator)(void *, stPinch *), void *extraArg,
                                     bool (*filterFn)(stPinchSegment *, stPinchSegment *, Flower *), Flower *flower) {
     stPinch *pinch, pinchToFillOut;
+    int64_t name1 = 0, name2 = 0;
+    stPinchThread *thread1 = NULL, *thread2 = NULL;
     while ((pinch = pinchIterator(extraArg, &pinchToFillOut)) != NULL) {
-        stPinchThread *thread1 = stPinchThreadSet_getThread(threadSet, pinch->name1);
-        stPinchThread *thread2 = stPinchThreadSet_getThread(threadSet, pinch->name2);
+        thread1 = getThreadCached(threadSet, pinch->name1, &name1, &thread1);
+        thread2 = getThreadCached(threadSet, pinch->name2, &name2, &thread2);
         assert(thread1 != NULL && thread2 != NULL);
         stPinchThread_filterPinch(thread1, thread2, pinch->start1, pinch->start2, pinch->length, pinch->strand,
                                   (bool(*)(stPinchSegment *, stPinchSegment *, void *))filterFn, flower);
