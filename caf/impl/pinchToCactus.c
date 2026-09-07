@@ -321,7 +321,7 @@ static bool isDeadEndStubComponent(stPinchComponent *adjacencyComponent, stPinch
 static int64_t reversalAtEndCalls = 0, reversalAtEndCached = 0;
 
 static bool stCaf_reversalAtEnd(stCactusEdgeEnd *cactusEdgeEnd, void *extraArg) {
-    assert(extraArg == NULL);
+    stPinchSortedSegmentsCache *cache = extraArg; //the far block's sorted segments carry over to the next link
     assert(stCactusEdgeEnd_getObject(cactusEdgeEnd) != NULL);
     assert(stCactusEdgeEnd_getLink(cactusEdgeEnd) != NULL);
     assert(stCactusEdgeEnd_getObject(stCactusEdgeEnd_getLink(cactusEdgeEnd)) != NULL);
@@ -334,15 +334,21 @@ static bool stCaf_reversalAtEnd(stCactusEdgeEnd *cactusEdgeEnd, void *extraArg) 
         reversalAtEndCached++;
         return memo & (uintptr_t) 1;
     }
-    bool reversal = stPinchEnd_hasSelfLoopWithRespectToOtherBlock(end, otherBlock);
+    bool reversal = stPinchEnd_hasSelfLoopWithRespectToOtherBlock2(end, otherBlock, cache);
     stPinchEnd_setData(end, (void *) ((uintptr_t) otherBlock | (uintptr_t) 2 | (reversal ? (uintptr_t) 1 : (uintptr_t) 0)));
     return reversal;
 }
 
+typedef struct _medianBreakArgs {
+    int64_t maximumMedianSpacingBetweenLinkedEnds;
+    stPinchSortedSegmentsCache *cache;
+} MedianBreakArgs;
+
 static bool stCaf_breakAtTooGreatEnoughMedianSeparation(stCactusEdgeEnd *cactusEdgeEnd, void *extraArg) {
-    int64_t maximumMedianSpacingBetweenLinkedEnds = *(int64_t *)extraArg;
+    MedianBreakArgs *args = extraArg;
+    int64_t maximumMedianSpacingBetweenLinkedEnds = args->maximumMedianSpacingBetweenLinkedEnds;
     assert(maximumMedianSpacingBetweenLinkedEnds >= 0 && maximumMedianSpacingBetweenLinkedEnds < INT64_MAX);
-    int64_t median = stPinchEnd_getMedianSubSequenceLengthConnectingEnds(stCactusEdgeEnd_getObject(cactusEdgeEnd), stCactusEdgeEnd_getObject(stCactusEdgeEnd_getLink(cactusEdgeEnd)));
+    int64_t median = stPinchEnd_getMedianSubSequenceLengthConnectingEnds2(stCactusEdgeEnd_getObject(cactusEdgeEnd), stCactusEdgeEnd_getObject(stCactusEdgeEnd_getLink(cactusEdgeEnd)), args->cache);
     return median >= 0 && median > maximumMedianSpacingBetweenLinkedEnds;
 }
 
@@ -351,7 +357,7 @@ static bool stCaf_breakAtTooGreatEnoughMedianSeparation(stCactusEdgeEnd *cactusE
  */
 typedef struct _stCafBuildTiming {
     double adjacency, deadEnd, attach, build, collapse, bridges, tandems, median;
-    int64_t ends, nodesBeforeCollapse, nodesAfterCollapse, tandemCalls, tandemCached;
+    int64_t ends, nodesBeforeCollapse, nodesAfterCollapse, tandemCalls, tandemCached, blockReads;
 } stCafBuildTiming;
 
 /*
@@ -482,18 +488,24 @@ static stCactusGraph *stCaf_constructCactusGraph(stPinchThreadSet *threadSet, st
     timing->bridges = stCaf_now() - t;
     t = stCaf_now();
     reversalAtEndCalls = reversalAtEndCached = 0;
+    int64_t blockReads = stPinchSortedSegmentsCache_getBlockReads();
     if(breakChainsAtReverseTandems) {
         stPinchThreadSet_clearEndData(threadSet); //the slots held the cactus nodes, no longer needed; the predicate memoises in them
-        *startCactusNode = stCactusGraph_breakChainsByEndsNotInChains(cactusGraph, *startCactusNode, stCaf_mergeNodeObjects, stCaf_reversalAtEnd, NULL);
+        stPinchSortedSegmentsCache *cache = stPinchSortedSegmentsCache_construct();
+        *startCactusNode = stCactusGraph_breakChainsByEndsNotInChains(cactusGraph, *startCactusNode, stCaf_mergeNodeObjects, stCaf_reversalAtEnd, cache);
+        stPinchSortedSegmentsCache_destruct(cache);
     }
     timing->tandems = stCaf_now() - t;
     timing->tandemCalls = reversalAtEndCalls;
     timing->tandemCached = reversalAtEndCached;
     t = stCaf_now();
     if(maximumMedianSpacingBetweenLinkedEnds < INT64_MAX) {
-        *startCactusNode = stCactusGraph_breakChainsByEndsNotInChains(cactusGraph, *startCactusNode, stCaf_mergeNodeObjects, stCaf_breakAtTooGreatEnoughMedianSeparation, &maximumMedianSpacingBetweenLinkedEnds);
+        MedianBreakArgs args = { maximumMedianSpacingBetweenLinkedEnds, stPinchSortedSegmentsCache_construct() };
+        *startCactusNode = stCactusGraph_breakChainsByEndsNotInChains(cactusGraph, *startCactusNode, stCaf_mergeNodeObjects, stCaf_breakAtTooGreatEnoughMedianSeparation, &args);
+        stPinchSortedSegmentsCache_destruct(args.cache);
     }
     timing->median = stCaf_now() - t;
+    timing->blockReads = stPinchSortedSegmentsCache_getBlockReads() - blockReads;
     timing->nodesAfterCollapse = stCactusGraph_getNodeNumber(cactusGraph);
 
     return cactusGraph;
@@ -531,9 +543,9 @@ stCactusGraph *stCaf_getCactusGraphForThreadSet(Flower *flower, stPinchThreadSet
     stCactusGraph *cactusGraph = stCaf_constructCactusGraph(threadSet, *deadEndComponent, adjacencyComponents, startCactusNode,
             breakChainsAtReverseTandems, maximumMedianSpacingBetweenLinkedEnds, &timing);
 
-    st_logInfo("caf-timing: cactus-graph ends=%" PRIi64 " adjacency %.3fs deadend %.3fs attach %.3fs build %.3fs collapse %.3fs bridges %.3fs tandems %.3fs median %.3fs nodes %" PRIi64 "->%" PRIi64 " tandem-calls %" PRIi64 " cached %" PRIi64 "\n",
+    st_logInfo("caf-timing: cactus-graph ends=%" PRIi64 " adjacency %.3fs deadend %.3fs attach %.3fs build %.3fs collapse %.3fs bridges %.3fs tandems %.3fs median %.3fs nodes %" PRIi64 "->%" PRIi64 " tandem-calls %" PRIi64 " cached %" PRIi64 " block-reads %" PRIi64 "\n",
                timing.ends, timing.adjacency, timing.deadEnd, timing.attach, timing.build, timing.collapse, timing.bridges, timing.tandems, timing.median,
-               timing.nodesBeforeCollapse, timing.nodesAfterCollapse, timing.tandemCalls, timing.tandemCached);
+               timing.nodesBeforeCollapse, timing.nodesAfterCollapse, timing.tandemCalls, timing.tandemCached, timing.blockReads);
     stCaf_dumpCactusGraph(cactusGraph, *startCactusNode);
 
     return cactusGraph;
