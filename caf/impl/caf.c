@@ -113,9 +113,13 @@ static void printThreadSetStatistics(stPinchThreadSet *threadSet, Flower *flower
     double *supports = NULL;
     uint64_t supportsCapacity = 0;
 
-    stPinchThreadSetBlockIt it = stPinchThreadSet_getBlockIt(threadSet);
+    // The blocks are reached through their end records, which are contiguous, rather than by walking
+    // every segment of every thread; the attach makes the records if the graph changed since they were
+    // last made and is otherwise free, and the cactus graph build that follows reuses them.
+    stPinchThreadSet_attachEnds(threadSet);
+    stPinchThreadSetAttachedBlockIt it = stPinchThreadSet_getAttachedBlockIt(threadSet);
     stPinchBlock *block;
-    while ((block = stPinchThreadSetBlockIt_getNext(&it)) != NULL) {
+    while ((block = stPinchThreadSetAttachedBlockIt_getNext(&it)) != NULL) {
         uint64_t degree = stPinchBlock_getDegree(block);
         totalDegree += degree;
         if (degree >= degreeHistogramSize) {

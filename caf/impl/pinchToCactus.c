@@ -538,5 +538,6 @@ stCactusGraph *stCaf_getCactusGraphForThreadSet(Flower *flower, stPinchThreadSet
 
 void stCaf_destructCactusGraph(stCactusGraph *cactusGraph, stPinchThreadSet *threadSet) {
     stCactusGraph_destruct(cactusGraph);
-    stPinchThreadSet_detachEnds(threadSet);
+    //The block end records are left attached: the next build's attach reuses them when no block has been
+    //made in between, which is the case between consecutive melting rounds, and remakes them otherwise
 }

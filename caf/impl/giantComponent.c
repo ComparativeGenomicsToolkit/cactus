@@ -185,12 +185,13 @@ static void breakEdges(stPinchThreadSet *threadSet, stPinchEnd *pinchEnd1, stPin
 }
 
 void stCaf_breakupComponentsGreedily(stPinchThreadSet *threadSet, float maximumAdjacencyComponentSizeRatio) {
+    //Attach first so that the block count comes from the records rather than a walk over every segment
+    stPinchThreadSet_attachEnds(threadSet);
     int64_t maximumAdjacencyComponentSize = maximumAdjacencyComponentSizeRatio * log(stPinchThreadSet_getTotalBlockNumber(threadSet) * 2);
     if (maximumAdjacencyComponentSize < 10) {
         maximumAdjacencyComponentSize = 10;
     }
     //Get adjacency components
-    stPinchThreadSet_attachEnds(threadSet);
     stList *adjacencyComponents = stPinchThreadSet_getAdjacencyComponents(threadSet);
     for (int64_t i = 0; i < stList_length(adjacencyComponents); i++) {
         stList *adjacencyComponent = stList_get(adjacencyComponents, i);
