@@ -129,7 +129,7 @@ void *stCaf_mergeNodeObjects(void *a, void *b);
  * Functions which converts a pinch graph into a cactus graph.
  */
 stCactusGraph *stCaf_getCactusGraphForThreadSet(Flower *flower, stPinchThreadSet *threadSet, stCactusNode **startCactusNode,
-        stList **deadEndComponent, bool attachEndsInFlower, int64_t minLengthForChromosome, double proportionOfUnalignedBasesForNewChromosome,
+        stPinchComponent **deadEndComponent, bool attachEndsInFlower, int64_t minLengthForChromosome, double proportionOfUnalignedBasesForNewChromosome,
         bool breakChainsAtReverseTandems, int64_t maximumMedianSpacingBetweenLinkedEnds);
 
 /*

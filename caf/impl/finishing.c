@@ -117,15 +117,13 @@ static stList *makeEmptyFlowers(stCactusNode *cactusNode, Flower *flower, stPinc
         assert(flower_getEndNumber(flower) == 0);
 
         // Add in the stub ends that are contained in this flower
-        stList *adjacencyComponents = stCactusNode_getObject(cactusNode);
-        for (int64_t i = 0; i < stList_length(adjacencyComponents); i++) {
-            stList *adjacencyComponent = stList_get(adjacencyComponents, i);
-            for(int64_t j=0; j<stList_length(adjacencyComponent); j++) {
-                stPinchEnd *pinchEnd = stList_get(adjacencyComponent, j);
+        for (stPinchComponent *adjacencyComponent = stCactusNode_getObject(cactusNode); adjacencyComponent != NULL; adjacencyComponent = adjacencyComponent->next) {
+            for(int64_t j=0; j<adjacencyComponent->length; j++) {
+                stPinchEnd *pinchEnd = adjacencyComponent->ends[j];
                 End *end = stPinchEnd_getData(pinchEnd);
                 if(end != NULL) {
                     // Deal with components for dead ends of free stubs
-                    if (stList_length(adjacencyComponent) == 1 && !end_getOrientation(end)) {
+                    if (adjacencyComponent->length == 1 && !end_getOrientation(end)) {
                         continue;
                     }
                     stList_append(containedStubEnds, pinchEnd);
@@ -234,11 +232,11 @@ static void makeBlock(stCactusEdgeEnd *cactusEdgeEnd, Flower *parentFlower, Flow
 //Functions to generate the chains of a flower
 
 static void fillOutFlowers(stCactusNode *cactusNode, Flower *flower, bool orientation, stPinchThreadSet *threadSet,
-                           Flower *parentFlower, stList *deadEndComponent,
+                           Flower *parentFlower, stPinchComponent *deadEndComponent,
                            stHash *cactusNodesToFlowers);
 
 static void fillOutChain(stCactusEdgeEnd *cactusEdgeEnd, Flower *flower, bool orientation,
-                         stPinchThreadSet *threadSet,  Flower *parentFlower, stList *deadEndComponent,
+                         stPinchThreadSet *threadSet,  Flower *parentFlower, stPinchComponent *deadEndComponent,
                          stHash *cactusNodesToFlowers, bool fillOutNestedFlowers) {
     cactusEdgeEnd = stCactusEdgeEnd_getOtherEdgeEnd(cactusEdgeEnd);
     if (!stCactusEdgeEnd_isChainEnd(cactusEdgeEnd)) { //We have a non-trivial chain
@@ -302,7 +300,7 @@ static void fillOutChain(stCactusEdgeEnd *cactusEdgeEnd, Flower *flower, bool or
 
 static void fillOutChains(stCactusNode *cactusNode, Flower *flower, bool orientation,
                           stPinchThreadSet *threadSet,  Flower *parentFlower,
-                          stList *deadEndComponent, stHash *cactusNodesToFlowers, bool fillOutNestedFlowers) {
+                          stPinchComponent *deadEndComponent, stHash *cactusNodesToFlowers, bool fillOutNestedFlowers) {
     stCactusNodeEdgeEndIt cactusEdgeEndIt = stCactusNode_getEdgeEndIt(cactusNode);
     stCactusEdgeEnd *cactusEdgeEnd;
     while ((cactusEdgeEnd = stCactusNodeEdgeEndIt_getNext(&cactusEdgeEndIt))) {
@@ -354,21 +352,19 @@ static void fillOutChains(stCactusNode *cactusNode, Flower *flower, bool orienta
 /*
  * Adds in groups for the tangles (groups not contained as a link in a chain) in the flower.
  */
-static void makeTangles(stCactusNode *cactusNode, Flower *flower, stList *deadEndComponent) {
-    stList *adjacencyComponents = stCactusNode_getObject(cactusNode);
-    for (int64_t i = 0; i < stList_length(adjacencyComponents); i++) {
-        stList *adjacencyComponent = stList_get(adjacencyComponents, i);
+static void makeTangles(stCactusNode *cactusNode, Flower *flower, stPinchComponent *deadEndComponent) {
+    for (stPinchComponent *adjacencyComponent = stCactusNode_getObject(cactusNode); adjacencyComponent != NULL; adjacencyComponent = adjacencyComponent->next) {
         if (adjacencyComponent != deadEndComponent) {
-            if (stList_length(adjacencyComponent) == 1) { //Deal with components for dead ends of free stubs
-                End *end = convertPinchBlockEndToEnd(stList_get(adjacencyComponent, 0), flower);
+            if (adjacencyComponent->length == 1) { //Deal with components for dead ends of free stubs
+                End *end = convertPinchBlockEndToEnd(adjacencyComponent->ends[0], flower);
                 assert(end != NULL);
                 if (!end_getOrientation(end)) {
                     continue;
                 }
             }
             Group *group = group_construct2(flower);
-            for (int64_t j = 0; j < stList_length(adjacencyComponent); j++) {
-                End *end = convertPinchBlockEndToEnd(stList_get(adjacencyComponent, j), flower);
+            for (int64_t j = 0; j < adjacencyComponent->length; j++) {
+                End *end = convertPinchBlockEndToEnd(adjacencyComponent->ends[j], flower);
                 assert(end != NULL);
                 assert(end_getOrientation(end));
                 assert(end_getGroup(end) == NULL);
@@ -388,7 +384,7 @@ static void makeTangles(stCactusNode *cactusNode, Flower *flower, stList *deadEn
  * Adds in the chains and completes the groups for the flower and its nested flowers, recursively.
  */
 static void fillOutFlowers(stCactusNode *cactusNode, Flower *flower, bool orientation, stPinchThreadSet *threadSet,
-                           Flower *parentFlower, stList *deadEndComponent, stHash *cactusNodesToFlowers) {
+                           Flower *parentFlower, stPinchComponent *deadEndComponent, stHash *cactusNodesToFlowers) {
     assert(flower_getAttachedStubEndNumber(flower) > 0);
     fillOutChains(cactusNode, flower, orientation, threadSet, parentFlower, deadEndComponent,
                   cactusNodesToFlowers, 0);
@@ -407,7 +403,7 @@ static void fillOutFlowers(stCactusNode *cactusNode, Flower *flower, bool orient
 //Main function
 
 static void stCaf_convertCactusGraphToFlowers(stPinchThreadSet *threadSet, stCactusNode *startCactusNode,
-                                              Flower *parentFlower, stList *deadEndComponent) {
+                                              Flower *parentFlower, stPinchComponent *deadEndComponent) {
     double t = stCaf_now();
     setPinchEndsToEnds(threadSet, parentFlower);
     stHash *cactusNodesToFlowers = stHash_construct();
@@ -447,7 +443,7 @@ void stCaf_makeDegreeOneBlocks(stPinchThreadSet *threadSet) {
 void stCaf_finish(Flower *flower, stPinchThreadSet *threadSet, int64_t minLengthForChromosome,
                   double proportionOfUnalignedBasesForNewChromosome) {
     stCactusNode *startCactusNode;
-    stList *deadEndComponent;
+    stPinchComponent *deadEndComponent;
     double t = stCaf_now();
     stCactusGraph *cactusGraph = stCaf_getCactusGraphForThreadSet(flower, threadSet, &startCactusNode, &deadEndComponent, 1, minLengthForChromosome,
                                                                   proportionOfUnalignedBasesForNewChromosome, 0, INT64_MAX);

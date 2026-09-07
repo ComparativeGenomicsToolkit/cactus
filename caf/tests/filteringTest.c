@@ -128,7 +128,7 @@ static void testChainHasUnequalNumberOfIngroupCopies(CuTest *testCase) {
     // these blocks (which are guaranteed to end up in separate
     // chains) correctly.
     stCactusNode *startCactusNode;
-    stList *deadEndComponent;
+    stPinchComponent *deadEndComponent;
     stCactusGraph *cactusGraph = stCaf_getCactusGraphForThreadSet(flower, threadSet, &startCactusNode, &deadEndComponent, 0, 0,
                                                                   0.0, true, 0);
 
@@ -204,7 +204,7 @@ static void testChainHasUnequalNumberOfIngroupCopiesOrNoOutgroup(CuTest *testCas
     // these blocks (which are guaranteed to end up in separate
     // chains) correctly.
     stCactusNode *startCactusNode;
-    stList *deadEndComponent;
+    stPinchComponent *deadEndComponent;
     stCactusGraph *cactusGraph = stCaf_getCactusGraphForThreadSet(flower, threadSet, &startCactusNode, &deadEndComponent, 0, 0,
                                                                   0.0, true, 0);
 
@@ -268,7 +268,7 @@ static void testChainHasUnequalNumberOfIngroupCopiesOrNoOutgroup_noOutgroups(CuT
     // these blocks (which are guaranteed to end up in separate
     // chains) correctly.
     stCactusNode *startCactusNode;
-    stList *deadEndComponent;
+    stPinchComponent *deadEndComponent;
     stCactusGraph *cactusGraph = stCaf_getCactusGraphForThreadSet(flower, threadSet, &startCactusNode, &deadEndComponent, 0, 0,
                                                                   0.0, true, 0);
 

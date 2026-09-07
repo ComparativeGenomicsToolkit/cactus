@@ -133,7 +133,7 @@ int64_t stCaf_melt(Flower *flower, stPinchThreadSet *threadSet, bool blockFilter
     //Now apply the minimum chain length filter
     if (minimumChainLength > 1) {
         stCactusNode *startCactusNode;
-        stList *deadEndComponent;
+        stPinchComponent *deadEndComponent;
         stCactusGraph *cactusGraph = stCaf_getCactusGraphForThreadSet(flower, threadSet, &startCactusNode, &deadEndComponent, 0, INT64_MAX,
                 0.0, breakChainsAtReverseTandems, maximumMedianSpacingBetweenLinkedEnds);
         graphTime = stCaf_now() - t;
@@ -266,7 +266,7 @@ int64_t stCaf_meltChains(Flower *flower, stPinchThreadSet *threadSet, int64_t mi
     assert(minimumChainLength > 1);
     double t = stCaf_now();
     stCactusNode *startCactusNode;
-    stList *deadEndComponent;
+    stPinchComponent *deadEndComponent;
     stCactusGraph *cactusGraph = stCaf_getCactusGraphForThreadSet(flower, threadSet, &startCactusNode, &deadEndComponent, 0, INT64_MAX,
             0.0, breakChainsAtReverseTandems, maximumMedianSpacingBetweenLinkedEnds);
     double graphTime = stCaf_now() - t;
@@ -309,14 +309,14 @@ int64_t stCaf_meltChains(Flower *flower, stPinchThreadSet *threadSet, int64_t mi
     return blocksDestroyed;
 }
 
-static bool isTelomere(stPinchEnd *end, stList *deadEndComponent) {
+static bool isTelomere(stPinchEnd *end, stPinchComponent *deadEndComponent) {
     stPinchSegment *segment = stPinchBlock_getFirst(end->block);
     bool atEndOfThread = stPinchThread_getFirst(stPinchSegment_getThread(segment)) == segment || stPinchThread_getLast(stPinchSegment_getThread(segment)) == segment;
     bool inDeadEndComponent = stPinchEnd_getComponent(end) == deadEndComponent;
     return atEndOfThread || inDeadEndComponent;
 }
 
-static bool endSetContainsTelomere(stSet *endSet, stList *deadEndComponent) {
+static bool endSetContainsTelomere(stSet *endSet, stPinchComponent *deadEndComponent) {
     stSetIterator *it = stSet_getIterator(endSet);
     bool containsTelomere = false;
     stPinchEnd *end;
@@ -359,7 +359,7 @@ static bool endsDoNotHaveSameThreadComposition(stPinchEnd *end1, stPinchEnd *end
     return !sameThreadComposition;
 }
 
-static bool chainConnectsToTelomere(stCactusEdgeEnd *chainEnd, stList *deadEndComponent) {
+static bool chainConnectsToTelomere(stCactusEdgeEnd *chainEnd, stPinchComponent *deadEndComponent) {
     stPinchEnd *end1 = stCactusEdgeEnd_getObject(chainEnd);
     stPinchEnd *end2 = stCactusEdgeEnd_getObject(stCactusEdgeEnd_getLink(chainEnd));
 
@@ -386,7 +386,7 @@ static bool chainConnectsToTelomere(stCactusEdgeEnd *chainEnd, stList *deadEndCo
 
 // Determine whether the chain is recoverable (i.e. will bar phase be
 // expected to pick it back up?).
-static bool chainIsRecoverable(stCactusEdgeEnd *chainEnd, stList *deadEndComponent) {
+static bool chainIsRecoverable(stCactusEdgeEnd *chainEnd, stPinchComponent *deadEndComponent) {
     stPinchEnd *end1 = stCactusEdgeEnd_getObject(chainEnd);
     stPinchEnd *end2 = stCactusEdgeEnd_getObject(stCactusEdgeEnd_getLink(chainEnd));
 
@@ -498,7 +498,7 @@ static void setPinchEndToChainEnd(stCactusGraph *cactusGraph, stPinchThreadSet *
 // For a given cactus node, recurse through all nodes below it and
 // find recoverable chains below them. Then find recoverable chains
 // below the current node given its parent chain.
-static void getRecoverableChains_R(stCactusNode *cactusNode, stCactusEdgeEnd *parentChain, stList *deadEndComponent, Flower *flower, bool (*recoverabilityFilter)(stCactusEdgeEnd *, Flower *), stSet *recoverableChains, stList *telomereAdjacentChains, stHash *chainToRecoverableAdjacencies) {
+static void getRecoverableChains_R(stCactusNode *cactusNode, stCactusEdgeEnd *parentChain, stPinchComponent *deadEndComponent, Flower *flower, bool (*recoverabilityFilter)(stCactusEdgeEnd *, Flower *), stSet *recoverableChains, stList *telomereAdjacentChains, stHash *chainToRecoverableAdjacencies) {
     while(1) {
         stCactusNodeEdgeEndIt cactusEdgeEndIt = stCactusNode_getEdgeEndIt(cactusNode);
         stCactusEdgeEnd *cactusEdgeEnd;
@@ -550,7 +550,7 @@ static void getRecoverableChains_R(stCactusNode *cactusNode, stCactusEdgeEnd *pa
     }
 }
 
-static stList *getRecoverableChains(stCactusGraph *cactusGraph, stCactusNode *startCactusNode, stList *deadEndComponent, Flower *flower, bool (*recoverabilityFilter)(stCactusEdgeEnd *, Flower *), stPinchThreadSet *threadSet) {
+static stList *getRecoverableChains(stCactusGraph *cactusGraph, stCactusNode *startCactusNode, stPinchComponent *deadEndComponent, Flower *flower, bool (*recoverabilityFilter)(stCactusEdgeEnd *, Flower *), stPinchThreadSet *threadSet) {
     setPinchEndToChainEnd(cactusGraph, threadSet);
 
     stSet *recoverableChainSet = stSet_construct();
@@ -632,7 +632,7 @@ int64_t stCaf_meltRecoverableChains(Flower *flower, stPinchThreadSet *threadSet,
     while (maxNumIterations-- > 0) {
         double t = stCaf_now();
         stCactusNode *startCactusNode;
-        stList *deadEndComponent;
+        stPinchComponent *deadEndComponent;
         // FIXME: We shouldn't really have to rebuild the cactus graph
         // every time. Instead we should just be able to do multiple
         // iterations over the same graph, keeping track of the chains
