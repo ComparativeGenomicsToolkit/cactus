@@ -552,28 +552,41 @@
 			allow_multifurcations="0"
 	 	/>
   	</multi_cactus>
-	<!-- memory_core_scale_pct: percentage to increase memory per core above baseline (default 0.5 means 0.5% more memory per extra core) -->
-	<!-- memory_core_scale_baseline: number of cores at which scaling begins (default 32) -->
-	<!-- memory_core_scale_max_pct: maximum percentage increase allowed (default 100 means memory can at most double) -->
+	<!-- cactus_consolidated memory is estimated as
+	     memory_coefficient_gb * (paf_GB + total_sequence_GB)^memory_input_exponent,
+	     then scaled for the poa window and the core count.  Fitted to 575 VGP alignments
+	     (64 cores, stock bar parameters).  The exponent is well under 1 because peak memory
+	     saturates: it is set by the largest flowers bar builds rather than by input volume.
+	     AnuraAnc6 with a 0.44 GB paf peaked at 685.9 GiB and salamander Anc3 with a 45x larger
+	     19.8 GB paf peaked at 682.3 GiB, so anything linear in the input overshoots badly on
+	     large genomes. -->
+	<!-- memory_ramp_gb: taper the estimate to zero below this much input.  The smallest
+	     alignment in the fit had 0.027 GB, so below that the power law is extrapolation and
+	     would hand a toy test tens of GiB.  Set under every point in the fit, so it moves none
+	     of them. -->
+	<!-- memory_core_scale_pct: percent memory change per core away from the baseline, applied in
+	     both directions.  Concurrent abpoa instances equal the core count, so fewer cores really
+	     do need less memory.  0.65 measured on AnuraAnc6: 465.5 GiB at 24 cores, 542.2 at 32,
+	     685.9 at 64 -->
+	<!-- memory_core_scale_baseline: core count the estimate is calibrated at (the fit data was
+	     all run at 64) -->
+	<!-- memory_core_scale_max_pct: cap on the increase (100 = memory can at most double) -->
+	<!-- memory_poa_window_exponent: memory scales as (window/10000)^this.  NOT quadratic despite
+	     what the poa comment says: halving the window to 5000 measured 858.4 -> 639.4 GiB, since
+	     halving it also halves the number of windows.  Nothing is subtracted for
+	     partialOrderAlignmentMaskFilter, which matters more but was disabled in all the fit
+	     data, so enabling it only makes the estimate conservative -->
 	<!-- og_size_scale: scale outgroup sizes by this factor (percent) when computing total sequence size -->
 	<consolidated
-		 memory_core_scale_pct="0.5"
-		 memory_core_scale_baseline="32"
+		 memory_coefficient_gb="220"
+		 memory_input_exponent="0.30"
+		 memory_ramp_gb="0.02"
+		 memory_core_scale_pct="0.65"
+		 memory_core_scale_baseline="64"
 		 memory_core_scale_max_pct="100"
+		 memory_poa_window_exponent="0.43"
 		 og_size_scale_pct="75"
 		 >
-	       <!-- consolidatedMemory: Specify memory requirement (in bytes) for cactus_conslidated. Each attribute corresponds to an interval start, and must be in the form seq_size_TOTAL_INPUT_SEQUENCE_SIZE=MEMORY.  So if cactus_consolidated is getting N input bytes, the first interval containing N is found, and the value of that attribute is used as the Toil memory. The idea is that it will be easier to fiddle with these than a single polynomial function while attempting to learn decent defaults by trial and error. By default, the memory requirement is linearly interpolated based on the endpoints of the interval.  If consMemory CLI option is used, then it overrides everything here.   -->
-	 	<consolidatedMemory
-	 		seq_size_0="1000000"
-			seq_size_10000000="16000000000"
-			seq_size_50000000="64000000000"
-			seq_size_1000000000="128000000000"
-			seq_size_4000000000="256000000000"
-			seq_size_10000000000="512000000000"
-			seq_size_15000000000="1000000000000"
-			seq_size_17500000000="1500000000000"
-			seq_size_20000000000="1990000000000"
-	 	/>
 	</consolidated>
 	<consolidated2></consolidated2>
 </cactusWorkflowConfig>

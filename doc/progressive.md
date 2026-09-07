@@ -408,12 +408,13 @@ Cactus supports [SLURM](https://github.com/SchedMD/slurm) since [version 2.6.1](
 These are the most relevant options for running on a cluster
 
 * `--batchSystem slurm` (required): enable slurm.
-* `--consCores` (required): set the number of cores for each `cactus_consolidated` job. 64 is usually a good value here, but you cannot exceed what's available on your system.
+* `--consCores` (required): set the number of cores for each `cactus_consolidated` job. 64 is usually a good value here, but you cannot exceed what's available on your system. Memory rises with the core count while runtime barely improves above about 24, so use fewer cores if you are memory-limited.
 * `--doubleMem true` (highly recommended): if slurm kills a job because it used more memory than it asked for, retry it asking for double the memory.
 * `--batchLogsDir` (highly recommended): a scratch directory for additional slurm logging.
 * `--workDir`: a local scratch directory available on each worker node (will default to `TEMPDIR` or `TMPDIR`). This could be on a shared filesystem, but it's much better if it's a local, physical disk on the worker node. 
 * `--maxMemory` (optional): when running on slurm, Cactus now queries the cluster with `sinfo` at startup and automatically clamps every job's memory request to the largest available node, just as it does using the host's physical memory on `--batchSystem single_machine`. This keeps Toil from scheduling a job that asks for more memory than any node can provide (which would otherwise sit pending forever and stall the workflow), so you no longer need to set this by hand. Pinning `--slurmPartition` (and/or `--slurmTime`) narrows the clamp to the node(s) those jobs will actually run on; you can also still pass `--maxMemory` to impose an even lower ceiling.
 * `--consMemory`: Override the memory for each `cactus_consolidated` job. Can be useful if Cactus's estimates are wrong, but `--maxMemory/--doubleMem` should be enough to work around this type of issue.
+* **Large, repeat-rich genomes**: turn on `partialOrderAlignmentMaskFilter` in the `<bar><poa>` section of the config (e.g. `1000`; the default `-1` is off). On 20-30 Gb salamander genomes, leaving it off cost ~38x the BAR time and ran out of memory on a 2 TB node; with it on, BAR took under an hour. `partialOrderAlignmentWindow` is a far cheaper lever: halving it to `5000` saved ~25% memory and ~30% BAR time.
 
 On a cluster with partitions and/or time limits, make sure to use
 

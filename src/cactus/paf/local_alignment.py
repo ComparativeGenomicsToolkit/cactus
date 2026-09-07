@@ -453,8 +453,14 @@ def make_ingroup_to_outgroup_alignments_0(job, ingroup_event, outgroup_events, e
     alignment_file = job.addChildJobFn(make_ingroup_to_outgroup_alignments_1, ingroup_event, outgroup_events,
                                             event_names_to_sequences, distances, params).rv()
 
-    # Invert the final alignment so that the query is the outgroup and the target is the ingroup
-    return job.addFollowOnJobFn(invert_alignments, alignment_file).rv()
+    # Invert the final alignment so that the query is the outgroup and the target is the ingroup.
+    # paffy invert holds the alignment and its inverse on local disk at once. The alignment's size
+    # is a promise here, so estimate it from the sequence that went into it: on a repeat-rich
+    # genome the ingroup-to-outgroups paf runs to several times the sequence, and this job
+    # otherwise falls back on the 2 Gi default and overruns it by orders of magnitude.
+    alignment_disk = 10 * (event_names_to_sequences[ingroup_event.iD].size +
+                           sum(event_names_to_sequences[outgroup.iD].size for outgroup in outgroup_events))
+    return job.addFollowOnJobFn(invert_alignments, alignment_file, disk=alignment_disk).rv()
 
 
 def make_ingroup_to_outgroup_alignments_1(job, ingroup_event, outgroup_events, event_names_to_sequences, distances, params):
@@ -679,7 +685,7 @@ def chain_alignments(job, alignment_files, alignment_names, reference_event_name
                               memory=cactus_clamp_memory(4 * split_size)).rv()
         )
 
-    return job.addFollowOnJobFn(merge_processed_alignments, processed_rvs).rv()
+    return job.addFollowOnJobFn(merge_processed_alignments, processed_rvs, disk=2 * merged_size).rv()
 
 
 def chain_tile_trim_filter_one_contig(job, split_file_id, reference_event_name, params):
