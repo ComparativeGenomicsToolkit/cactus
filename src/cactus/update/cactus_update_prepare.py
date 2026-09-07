@@ -309,6 +309,45 @@ def remove_unnecessary_cactus_preprocess(plan, input_names):
     return "\n".join(edited_plan)
 
 
+def find_cactus_jobs(lines, job_pattern):
+    """Finds the lines holding a given cactus job
+
+    Args:
+        lines (List[str]): the plan split into lines
+        job_pattern (str): a regex matching the job's command name
+
+    Returns:
+        List[int]: indexes of the matching lines, in plan order
+    """
+    # job_pattern is wrapped so that a bare alternation ("a|b") cannot leak
+    # out and swallow the surrounding anchors
+    regex = re.compile(r"\s*(?:" + job_pattern + r")\s", re.IGNORECASE)
+    return [idx for idx, line in enumerate(lines) if regex.match(line)]
+
+
+def add_cactus_job_option(line, option):
+    """Adds an option to a cactus job command line
+
+    The option is placed before the shell redirection/pipe suffix
+    (e.g. "2>&1 | tee <log>") that cactus-prepare appends to every job,
+    so that it is passed to the cactus command instead of to tee.
+
+    Args:
+        line (str): a cactus job command line
+        option (str): the option to add (e.g. "--includeRoot")
+
+    Returns:
+        str: the command line with the option added
+    """
+    # first whitespace introducing a redirection ("2>&1") or a pipe ("|")
+    suffix = re.search(r"\s(?=\d*>|\|)", line)
+
+    if suffix:
+        return line[: suffix.start()] + " " + option + line[suffix.start() :]
+
+    return line.rstrip() + " " + option
+
+
 def make_plan_amendments(plan, update_cmds, validation_cmds):
     """Amends the given plan with updates and validation command lines
 
@@ -385,30 +424,33 @@ def make_plan(
     # clean up cactus-preprocess jobs for existing children
     plan = remove_unnecessary_cactus_preprocess(plan, preprocess_to_remove)
 
+    # work on the plan line-by-line: command lines carry shell metacharacters
+    # ("|", ">", ".") which must never be fed back to re.sub as a pattern
+    lines = plan.split("\n")
+
     # add --includeRoot option into Round #1's cactus-blast and cactus-align jobs only
     # the --includeRoot option includes the root's sequence in the alignment
-    for cactus_job in re.findall(
-        r"cactus-(?:blast|align) .*?(?=\s{0,}\n)",
-        plan,
-        re.IGNORECASE | re.MULTILINE,
-    )[-2:]:
-        plan = re.sub(
-            cactus_job,
-            cactus_job + " --includeRoot",
-            plan,
-            re.IGNORECASE | re.MULTILINE,
-        )
+    for idx in find_cactus_jobs(lines, "cactus-(?:blast|align)")[-2:]:
+        lines[idx] = add_cactus_job_option(lines[idx], "--includeRoot")
 
     # removing "## HAL merging" as there is no merging while performing alignment updates
-    plan = re.sub("\n## HAL merging\n", "", plan, re.IGNORECASE | re.MULTILINE)
+    merged_plan = []
+    for line in lines:
+        if line.strip() == "## HAL merging":
+            if merged_plan and not merged_plan[-1].strip():
+                merged_plan.pop()
+            continue
 
-    # remove the last hal2fasta as it will
-    hal2fasta_job = re.findall(
-        r"cactus-hal2fasta .*?(?=\s{0,})\n", plan, re.IGNORECASE | re.MULTILINE
-    )[-1]
-    plan = re.sub(hal2fasta_job, "", plan, re.IGNORECASE | re.MULTILINE)
+        merged_plan.append(line)
+    lines = merged_plan
 
-    return plan
+    # remove the last hal2fasta as its output is not used by the update
+    # (line indexes must be looked up again: the filtering above shifted them)
+    hal2fasta_jobs = find_cactus_jobs(lines, "cactus-hal2fasta")
+    if hal2fasta_jobs:
+        del lines[hal2fasta_jobs[-1]]
+
+    return "\n".join(lines)
 
 
 def get_plan_adding2node(
