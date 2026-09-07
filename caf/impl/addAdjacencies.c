@@ -59,7 +59,20 @@ void stCaf_addAdjacencies(Flower *flower) {
     flower_destructEndIterator(endIterator);
     assert(capNumber % 2 == 0);
     //Sort the caps (the key is a total order over the caps of a flower, so the sort algorithm does not matter).
-    qsort(caps, capNumber, sizeof(CapWithKey), addAdjacenciesPP);
+    //Most flowers are small nested ones with a few caps, where qsort's overhead dominated the sort.
+    if (capNumber <= 32) {
+        for (int64_t i = 1; i < capNumber; i++) {
+            CapWithKey cap = caps[i];
+            int64_t j = i;
+            while (j > 0 && addAdjacenciesPP(&caps[j - 1], &cap) > 0) {
+                caps[j] = caps[j - 1];
+                j--;
+            }
+            caps[j] = cap;
+        }
+    } else {
+        qsort(caps, capNumber, sizeof(CapWithKey), addAdjacenciesPP);
+    }
     //Now make the adjacencies.
     for (int64_t i = 1; i < capNumber; i += 2) {
         cap_makeAdjacent(caps[i - 1].cap, caps[i].cap);

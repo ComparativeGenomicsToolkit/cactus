@@ -281,7 +281,8 @@ void *stCaf_mergeNodeObjects(void *a, void *b) {
 }
 
 static void *makeNodeObject(stList *adjacencyComponent) {
-    stList *adjacencyComponents = stList_construct3(0, (void(*)(void *)) stList_destruct);
+    //Most nodes keep a single component; room for two spares the growth of an empty list on the append
+    stList *adjacencyComponents = stList_constructWithCapacity(2, (void(*)(void *)) stList_destruct);
     stList_append(adjacencyComponents, adjacencyComponent);
     return adjacencyComponents;
 }
