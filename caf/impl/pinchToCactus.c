@@ -295,13 +295,33 @@ static bool isDeadEndStubComponent(stList *adjacencyComponent, stPinchEnd *pinch
             : stPinchSegment_get3Prime(pinchSegment)) == NULL;
 }
 
+/*
+ * stCactusGraph_breakChainsByEndsNotInChains rescans a chain from its start after every merge it makes,
+ * so on a long chain the predicate is asked the same question many times over. The answer depends only
+ * on the pinch graph, which does not change during the pass, and on which block the end is currently
+ * linked to, so it is remembered in the end's data slot as that block's pointer tagged with the answer
+ * (blocks are 16 byte aligned, so the low bits are free; the tag bit tells a memo from anything else
+ * the slot may have held). The counters go into the caf-timing line.
+ */
+static int64_t reversalAtEndCalls = 0, reversalAtEndCached = 0;
+
 static bool stCaf_reversalAtEnd(stCactusEdgeEnd *cactusEdgeEnd, void *extraArg) {
     assert(extraArg == NULL);
     assert(stCactusEdgeEnd_getObject(cactusEdgeEnd) != NULL);
     assert(stCactusEdgeEnd_getLink(cactusEdgeEnd) != NULL);
     assert(stCactusEdgeEnd_getObject(stCactusEdgeEnd_getLink(cactusEdgeEnd)) != NULL);
-    return stPinchEnd_hasSelfLoopWithRespectToOtherBlock(stCactusEdgeEnd_getObject(cactusEdgeEnd),
-            stPinchEnd_getBlock(stCactusEdgeEnd_getObject(stCactusEdgeEnd_getLink(cactusEdgeEnd))));
+    stPinchEnd *end = stCactusEdgeEnd_getObject(cactusEdgeEnd);
+    stPinchBlock *otherBlock = stPinchEnd_getBlock(stCactusEdgeEnd_getObject(stCactusEdgeEnd_getLink(cactusEdgeEnd)));
+    assert(((uintptr_t) otherBlock & (uintptr_t) 3) == 0);
+    uintptr_t memo = (uintptr_t) stPinchEnd_getData(end);
+    reversalAtEndCalls++;
+    if ((memo & (uintptr_t) 2) && (memo & ~(uintptr_t) 3) == (uintptr_t) otherBlock) {
+        reversalAtEndCached++;
+        return memo & (uintptr_t) 1;
+    }
+    bool reversal = stPinchEnd_hasSelfLoopWithRespectToOtherBlock(end, otherBlock);
+    stPinchEnd_setData(end, (void *) ((uintptr_t) otherBlock | (uintptr_t) 2 | (reversal ? (uintptr_t) 1 : (uintptr_t) 0)));
+    return reversal;
 }
 
 static bool stCaf_breakAtTooGreatEnoughMedianSeparation(stCactusEdgeEnd *cactusEdgeEnd, void *extraArg) {
@@ -316,7 +336,7 @@ static bool stCaf_breakAtTooGreatEnoughMedianSeparation(stCactusEdgeEnd *cactusE
  */
 typedef struct _stCafBuildTiming {
     double adjacency, deadEnd, attach, build, collapse, bridges, tandems, median;
-    int64_t ends, nodesBeforeCollapse, nodesAfterCollapse;
+    int64_t ends, nodesBeforeCollapse, nodesAfterCollapse, tandemCalls, tandemCached;
 } stCafBuildTiming;
 
 /*
@@ -397,7 +417,7 @@ static void makeCactusEdgeForEnd(stCactusGraph *cactusGraph, stPinchEnd *pinchEn
     }
 }
 
-static stCactusGraph *stCaf_constructCactusGraph(stList *deadEndComponent, stList *adjacencyComponents,
+static stCactusGraph *stCaf_constructCactusGraph(stPinchThreadSet *threadSet, stList *deadEndComponent, stList *adjacencyComponents,
         stCactusNode **startCactusNode, bool breakChainsAtReverseTandems, int64_t maximumMedianSpacingBetweenLinkedEnds,
         stCafBuildTiming *timing) {
     /*
@@ -449,10 +469,14 @@ static stCactusGraph *stCaf_constructCactusGraph(stList *deadEndComponent, stLis
     stCactusGraph_collapseBridges(cactusGraph, *startCactusNode, stCaf_mergeNodeObjects);
     timing->bridges = stCaf_now() - t;
     t = stCaf_now();
+    reversalAtEndCalls = reversalAtEndCached = 0;
     if(breakChainsAtReverseTandems) {
+        stPinchThreadSet_clearEndData(threadSet); //the slots held the cactus nodes, no longer needed; the predicate memoises in them
         *startCactusNode = stCactusGraph_breakChainsByEndsNotInChains(cactusGraph, *startCactusNode, stCaf_mergeNodeObjects, stCaf_reversalAtEnd, NULL);
     }
     timing->tandems = stCaf_now() - t;
+    timing->tandemCalls = reversalAtEndCalls;
+    timing->tandemCached = reversalAtEndCached;
     t = stCaf_now();
     if(maximumMedianSpacingBetweenLinkedEnds < INT64_MAX) {
         *startCactusNode = stCactusGraph_breakChainsByEndsNotInChains(cactusGraph, *startCactusNode, stCaf_mergeNodeObjects, stCaf_breakAtTooGreatEnoughMedianSeparation, &maximumMedianSpacingBetweenLinkedEnds);
@@ -491,7 +515,7 @@ stCactusGraph *stCaf_getCactusGraphForThreadSet(Flower *flower, stPinchThreadSet
     timing.attach = stCaf_now() - t;
 
     //Create cactus
-    stCactusGraph *cactusGraph = stCaf_constructCactusGraph(*deadEndComponent, adjacencyComponents, startCactusNode,
+    stCactusGraph *cactusGraph = stCaf_constructCactusGraph(threadSet, *deadEndComponent, adjacencyComponents, startCactusNode,
             breakChainsAtReverseTandems, maximumMedianSpacingBetweenLinkedEnds, &timing);
 
     //Cleanup: the non-empty components now belong to the cactus nodes; the ones emptied by the dead end merging do not
@@ -504,9 +528,9 @@ stCactusGraph *stCaf_getCactusGraphForThreadSet(Flower *flower, stPinchThreadSet
     stList_setDestructor(adjacencyComponents, NULL);
     stList_destruct(adjacencyComponents);
 
-    st_logInfo("caf-timing: cactus-graph ends=%" PRIi64 " adjacency %.3fs deadend %.3fs attach %.3fs build %.3fs collapse %.3fs bridges %.3fs tandems %.3fs median %.3fs nodes %" PRIi64 "->%" PRIi64 "\n",
+    st_logInfo("caf-timing: cactus-graph ends=%" PRIi64 " adjacency %.3fs deadend %.3fs attach %.3fs build %.3fs collapse %.3fs bridges %.3fs tandems %.3fs median %.3fs nodes %" PRIi64 "->%" PRIi64 " tandem-calls %" PRIi64 " cached %" PRIi64 "\n",
                timing.ends, timing.adjacency, timing.deadEnd, timing.attach, timing.build, timing.collapse, timing.bridges, timing.tandems, timing.median,
-               timing.nodesBeforeCollapse, timing.nodesAfterCollapse);
+               timing.nodesBeforeCollapse, timing.nodesAfterCollapse, timing.tandemCalls, timing.tandemCached);
     stCaf_dumpCactusGraph(cactusGraph, *startCactusNode);
 
     return cactusGraph;

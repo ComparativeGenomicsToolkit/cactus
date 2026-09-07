@@ -5,6 +5,7 @@
 #include "stPinchIterator.h"
 #include "stGiantComponent.h"
 #include "stCafPhylogeny.h"
+#include <string.h>
 #include <time.h>
 #if defined(_OPENMP)
 #include <omp.h>
@@ -57,80 +58,127 @@ static uint64_t numPossibleSupportingHomologies(stPinchBlock *block, Flower *flo
     return choose2(ingroupDegree) * 2 + ingroupDegree * outgroupDegree;
 }
 
-// for printThreadSetStatistics
-static int uint64_cmp(const uint64_t *x, const uint64_t *y) {
-    if (*x < *y) {
-        return -1;
-    } else if (*x == *y) {
-        return 0;
-    } else {
-        return 1;
+/*
+ * The k-th smallest (counting from 0) of n doubles, i.e. what an ascending sort would leave at index k,
+ * found by quickselect in expected O(n). The array is reordered.
+ */
+static double selectKthSmallest(double *a, int64_t n, int64_t k) {
+    int64_t left = 0, right = n - 1;
+    while (right > left) {
+        int64_t mid = left + (right - left) / 2;
+        double t;
+        if (a[mid] < a[left]) { t = a[mid]; a[mid] = a[left]; a[left] = t; }
+        if (a[right] < a[left]) { t = a[right]; a[right] = a[left]; a[left] = t; }
+        if (a[right] < a[mid]) { t = a[right]; a[right] = a[mid]; a[mid] = t; }
+        double pivot = a[mid];
+        int64_t i = left, j = right;
+        while (i <= j) {
+            while (a[i] < pivot) {
+                i++;
+            }
+            while (a[j] > pivot) {
+                j--;
+            }
+            if (i <= j) {
+                t = a[i]; a[i] = a[j]; a[j] = t;
+                i++;
+                j--;
+            }
+        }
+        if (k <= j) {
+            right = j;
+        } else if (k >= i) {
+            left = i;
+        } else {
+            return a[k]; //everything between j and i equals the pivot
+        }
     }
-}
-
-// for printThreadSetStatistics
-static int double_cmp(const double *x, const double *y) {
-    if (*x < *y) {
-        return -1;
-    } else if (*x == *y) {
-        return 0;
-    } else {
-        return 1;
-    }
+    return a[k];
 }
 
 // Print a set of statistics (avg, median, max, min) for degree and
 // support percentage in the pinch graph.
 static void printThreadSetStatistics(stPinchThreadSet *threadSet, Flower *flower, FILE *f)
 {
-    // Naively finds the max, median, and min by sorting: the lists
-    // will have "only" millions of elements, so they should fit
-    // comfortably into tens of MB of memory.
-
-    uint64_t numBlocks = stPinchThreadSet_getTotalBlockNumber(threadSet);
-
-    uint64_t *blockDegrees = malloc(numBlocks * sizeof(uint64_t));
-    double totalDegree = 0.0;
-    double *blockSupports = malloc(numBlocks * sizeof(double));
-    double totalSupport = 0.0;
-
+    // One pass over the blocks. The degree median comes from a histogram and the support median from
+    // an O(n) selection; sorting two arrays with an entry per block, as this used to, was most of the
+    // cost of the diagnostic once the graph reached hundreds of millions of blocks.
+    uint64_t numBlocks = 0;
+    double totalDegree = 0.0, totalSupport = 0.0;
     uint64_t totalAlignedBases = 0;
+    uint64_t minDegree = UINT64_MAX, maxDegree = 0;
+    double minSupport = 0.0, maxSupport = 0.0;
+    uint64_t *degreeHistogram = NULL;
+    uint64_t degreeHistogramSize = 0;
+    double *supports = NULL;
+    uint64_t supportsCapacity = 0;
 
     stPinchThreadSetBlockIt it = stPinchThreadSet_getBlockIt(threadSet);
-    uint64_t i = 0;
     stPinchBlock *block;
     while ((block = stPinchThreadSetBlockIt_getNext(&it)) != NULL) {
-        blockDegrees[i] = stPinchBlock_getDegree(block);
-        totalDegree += stPinchBlock_getDegree(block);
+        uint64_t degree = stPinchBlock_getDegree(block);
+        totalDegree += degree;
+        if (degree >= degreeHistogramSize) {
+            uint64_t newSize = degreeHistogramSize == 0 ? 256 : degreeHistogramSize;
+            while (newSize <= degree) {
+                newSize *= 2;
+            }
+            degreeHistogram = st_realloc(degreeHistogram, newSize * sizeof(uint64_t));
+            memset(degreeHistogram + degreeHistogramSize, 0, (newSize - degreeHistogramSize) * sizeof(uint64_t));
+            degreeHistogramSize = newSize;
+        }
+        degreeHistogram[degree]++;
+        if (degree < minDegree) {
+            minDegree = degree;
+        }
+        if (degree > maxDegree) {
+            maxDegree = degree;
+        }
         uint64_t supportingHomologies = stPinchBlock_getNumSupportingHomologies(block);
         uint64_t possibleSupportingHomologies = numPossibleSupportingHomologies(block, flower);
         double support = 0.0;
         if (possibleSupportingHomologies != 0) {
             support = ((double) supportingHomologies) / possibleSupportingHomologies;
         }
-        blockSupports[i] = support;
+        if (numBlocks == supportsCapacity) {
+            supportsCapacity = supportsCapacity == 0 ? 1024 : supportsCapacity * 2;
+            supports = st_realloc(supports, supportsCapacity * sizeof(double));
+        }
+        supports[numBlocks] = support;
         totalSupport += support;
+        if (numBlocks == 0 || support < minSupport) {
+            minSupport = support;
+        }
+        if (numBlocks == 0 || support > maxSupport) {
+            maxSupport = support;
+        }
 
-        totalAlignedBases += stPinchBlock_getLength(block) * stPinchBlock_getDegree(block);
+        totalAlignedBases += stPinchBlock_getLength(block) * degree;
 
-        i++;
+        numBlocks++;
     }
 
     fprintf(f, "There were %" PRIu64 " blocks in the sequence graph, representing %" PRIi64
     " total aligned bases\n", numBlocks, totalAlignedBases);
 
-    qsort(blockDegrees, numBlocks, sizeof(uint64_t),
-          (int (*)(const void *, const void *)) uint64_cmp);
-    qsort(blockSupports, numBlocks, sizeof(double),
-          (int (*)(const void *, const void *)) double_cmp);
-    fprintf(f, "Block degree stats: min %" PRIu64 ", avg %lf, median %" PRIu64 ", max %" PRIu64 "\n",
-            blockDegrees[0], totalDegree/numBlocks, blockDegrees[(numBlocks - 1) / 2],
-            blockDegrees[numBlocks - 1]);
-    fprintf(f, "Block support stats: min %lf, avg %lf, median %lf, max %lf\n",
-           blockSupports[0], totalSupport/numBlocks, blockSupports[(numBlocks - 1) / 2],
-           blockSupports[numBlocks - 1]);
-    free(blockDegrees);
-    free(blockSupports);
+    if (numBlocks > 0) {
+        // The medians are what the ascending sorts used to leave at index (numBlocks - 1) / 2
+        uint64_t medianIndex = (numBlocks - 1) / 2, seen = 0, medianDegree = 0;
+        for (uint64_t degree = 0; degree < degreeHistogramSize; degree++) {
+            seen += degreeHistogram[degree];
+            if (seen > medianIndex) {
+                medianDegree = degree;
+                break;
+            }
+        }
+        double medianSupport = selectKthSmallest(supports, numBlocks, medianIndex);
+        fprintf(f, "Block degree stats: min %" PRIu64 ", avg %lf, median %" PRIu64 ", max %" PRIu64 "\n",
+                minDegree, totalDegree/numBlocks, medianDegree, maxDegree);
+        fprintf(f, "Block support stats: min %lf, avg %lf, median %lf, max %lf\n",
+               minSupport, totalSupport/numBlocks, medianSupport, maxSupport);
+    }
+    free(degreeHistogram);
+    free(supports);
 }
 
 void caf(Flower *flower, CactusParams *params, char *alignmentsFile, char *secondaryAlignmentsFile, char *constraintsFile,
