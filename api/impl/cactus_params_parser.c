@@ -118,6 +118,18 @@ static char *cactusParams_get_string2(CactusParams *p, int num, va_list *args) {
     return v;
 }
 
+bool cactusParams_has(CactusParams *p, int num, ...) {
+    va_list args;
+    va_start(args, num);
+    xmlNodePtr c = get_descendant_node(p->cur, num-1, &args);
+    const char *attribute_name = NULL;
+    for (int64_t i = 0; i < num; i++) { // Loop to discard the earlier strings in the input
+        attribute_name = va_arg(args, char *);
+    }
+    va_end(args);
+    return c != NULL && xmlHasProp(c, (const xmlChar *)attribute_name) != NULL;
+}
+
 char *cactusParams_get_string(CactusParams *p, int num, ...) {
     va_list args;
     va_start(args, num);

@@ -69,13 +69,27 @@
 // _GNU_SOURCE for this one call would change other declarations in this file).
 extern int mallctl(const char *, void *, size_t *, void *, size_t) __attribute__((weak));
 
-static void cactus_jemalloc_retain_pages(void) {
+static void cactus_jemalloc_retain_pages(CactusParams *params) {
     // Retaining pages trades memory for speed and is sized for cluster nodes; on a small machine
-    // (a laptop, a benchmark harness) it can exhaust memory, so it can be switched off.
+    // it can exhaust memory (a caf-only run of a 5-genome fish ancestor went from 10 GB to 18 GB).
+    // The <consolidated retain_pages> parameter decides: "0" leaves jemalloc's purging alone,
+    // "1" retains, and "auto" (the shipped default) is resolved by the workflow against the memory
+    // the job can get, and written as "0" or "1" into the config it hands this program; run by
+    // hand with "auto" still present, retention is on. CACTUS_JEMALLOC_RETAIN=0 in the
+    // environment switches it off regardless, for a benchmark harness.
     const char *retain = getenv("CACTUS_JEMALLOC_RETAIN");
     if (retain != NULL && strcmp(retain, "0") == 0) {
         st_logInfo("jemalloc page retention disabled by CACTUS_JEMALLOC_RETAIN=0\n");
         return;
+    }
+    if (cactusParams_has(params, 2, "consolidated", "retain_pages")) {
+        char *setting = cactusParams_get_string(params, 2, "consolidated", "retain_pages");
+        bool off = strcmp(setting, "0") == 0;
+        st_logInfo("<consolidated retain_pages=\"%s\">: jemalloc page retention %s\n", setting, off ? "off" : "on");
+        free(setting);
+        if (off) {
+            return;
+        }
     }
     int (*mallctl_fn)(const char *, void *, size_t *, void *, size_t) = mallctl;
     if (mallctl_fn == NULL) {
@@ -447,8 +461,6 @@ int main(int argc, char *argv[]) {
 
     st_setLogLevelFromString(logLevelString);
 
-    cactus_jemalloc_retain_pages();
-
     //////////////////////////////////////////////
     //Log the inputs
     //////////////////////////////////////////////
@@ -471,6 +483,8 @@ int main(int argc, char *argv[]) {
 
     // Load the params file
     CactusParams *params = cactusParams_load(paramsFile);
+
+    cactus_jemalloc_retain_pages(params);
     st_logInfo("Loaded the parameters files, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
 
     // Load the cactus disk

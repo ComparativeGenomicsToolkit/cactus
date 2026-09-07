@@ -107,6 +107,9 @@ def main():
     parser.add_argument("--consMemory", type=human2bytesN,
                         help="Memory in bytes for each cactus_consolidated job (defaults to an estimate based on the input data size). "
                         "Standard suffixes like K, Ki, M, Mi, G or Gi are supported (default=bytes))", default=None)
+    parser.add_argument("--consRetainPages", choices=['auto', '0', '1'], default=None,
+                        help="Whether cactus_consolidated keeps the memory pages jemalloc frees, which is much faster but takes 2-3x the peak memory. "
+                        "auto (the default, from <consolidated retain_pages> in the config) keeps them unless the memory estimate exceeds what the job can be given")
     parser.add_argument("--chromInfo",
                         help="Two-column file mapping genome (col 1) to comma-separated list of sex chromosomes. This information "
                         "will be used to guide outgroup selection so that, where possible, all chromosomes are present in"
@@ -399,6 +402,7 @@ def make_align_job(options, toil, config_wrapper=None, chrom_name=None):
                               paf2Stable=paf_to_stable,
                               cons_cores=options.consCores,
                               cons_memory=options.consMemory,
+                              cons_retain_pages=getattr(options, 'consRetainPages', None),
                               do_filter_paf=options.pangenome,
                               chrom_name=chrom_name,
                               scores_id=scores_id,
@@ -406,7 +410,7 @@ def make_align_job(options, toil, config_wrapper=None, chrom_name=None):
     return align_job
 
 def cactus_align(job, config_wrapper, mc_tree, input_seq_map, input_seq_id_map, paf_id, paf_path, root_name, og_map, checkpointInfo, doVG, doGFA, delay=0,
-                 referenceEvents=None, pafMaskFilter=None, paf2Stable=False, cons_cores = None, cons_memory = None, do_filter_paf=False, chrom_name=None, scores_id=None, branch_scale=1.0):
+                 referenceEvents=None, pafMaskFilter=None, paf2Stable=False, cons_cores = None, cons_memory = None, cons_retain_pages = None, do_filter_paf=False, chrom_name=None, scores_id=None, branch_scale=1.0):
 
     head_job = Job()
     job.addChild(head_job)
@@ -463,7 +467,8 @@ def cactus_align(job, config_wrapper, mc_tree, input_seq_map, input_seq_id_map, 
 
     # run consolidated
     cons_job = head_job.addFollowOnJobFn(cactus_cons_with_resources, spanning_tree, root_name, config_wrapper.xmlRoot, new_seq_id_map, og_map, paf_id,
-                                         cons_cores = cons_cores, cons_memory=cons_memory, chrom_name=chrom_name)
+                                         cons_cores = cons_cores, cons_memory=cons_memory, chrom_name=chrom_name,
+                                         cons_retain_pages=cons_retain_pages)
     results = {root_name : (cons_job.rv(1), cons_job.rv(2))}
 
     # get the immediate subtree (which is all export_hal can use)
