@@ -492,6 +492,9 @@ void caf(Flower *flower, CactusParams *params, char *alignmentsFile, char *secon
                 if (num_megablocks_destroyed > 0) {
                   st_logInfo("Destroyed %" PRIi64 " megablocks with a total of %" PRIi64 " supporting homologies\n",
                              num_megablocks_destroyed, num_homologies_destroyed);
+                  // The melting rounds below join boundaries only where their own deletions reach, so the
+                  // graph has to be at a join fixpoint when they start
+                  stCaf_joinTrivialBoundaries(threadSet);
                 }
             }
             st_logInfo("caf-timing: anneal round %" PRIi64 " minChain=%" PRIi64 " primary %.3fs secondary %.3fs stats %.3fs megablocks %.3fs\n",
@@ -504,9 +507,9 @@ void caf(Flower *flower, CactusParams *params, char *alignmentsFile, char *secon
                 if (minimumChainLengthForMeltingRound >= minimumChainLength) {
                     break;
                 }
-                stCaf_melt(flower, threadSet, NULL, NULL, 0, minimumChainLengthForMeltingRound, 0, INT64_MAX);
+                stCaf_meltChains(flower, threadSet, minimumChainLengthForMeltingRound, 0, INT64_MAX);
             } st_logDebug("Last melting round of cycle with a minimum chain length of %" PRIi64 " \n", minimumChainLength);
-            stCaf_melt(flower, threadSet, NULL, NULL, 0, minimumChainLength, breakChainsAtReverseTandems, maximumMedianSequenceLengthBetweenLinkedEnds);
+            stCaf_meltChains(flower, threadSet, minimumChainLength, breakChainsAtReverseTandems, maximumMedianSequenceLengthBetweenLinkedEnds);
             //This does the filtering of blocks that do not have the required species/tree-coverage/degree.
             stCaf_melt(flower, threadSet, blockFilterFn, fa, blockTrim, 0, 0, INT64_MAX);
         }

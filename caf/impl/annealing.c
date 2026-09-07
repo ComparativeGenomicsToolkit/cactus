@@ -10,16 +10,24 @@
 // respecting end blocks.
 ///////////////////////////////////////////////////////////////////////////
 
-static void stCaf_ensureEndsAreDistinct(stPinchThreadSet *threadSet) {
+void stCaf_ensureEndsAreDistinct(stPinchThreadSet *threadSet) {
     /*
-     * Ensures the blocks at the ends of threads are distinct.
+     * Ensures the blocks at the ends of threads are distinct, by splitting off the first and last base
+     * of every thread. The two segments are reached from the thread's ends rather than through the
+     * coordinate index, which is stale after a boundary join and would be rebuilt by a walk over the
+     * whole thread.
      */
     stPinchThread *thread;
     stPinchThreadSetIt threadIt = stPinchThreadSet_getIt(threadSet);
     while ((thread = stPinchThreadSetIt_getNext(&threadIt)) != NULL) {
-        stPinchThread_split(thread, stPinchThread_getStart(thread));
-        assert(stPinchThread_getLength(thread) > 1);
-        stPinchThread_split(thread, stPinchThread_getStart(thread) + stPinchThread_getLength(thread) - 2);
+        int64_t start = stPinchThread_getStart(thread), length = stPinchThread_getLength(thread);
+        assert(length > 1);
+        stPinchSegment_split(stPinchThread_getFirst(thread), start); //the first segment holds the first base
+        stPinchSegment *last = stPinchThread_getLast(thread);
+        //the second to last base is in the last segment unless that is the last base alone
+        stPinchSegment *segment = stPinchSegment_getStart(last) <= start + length - 2 ? last : stPinchSegment_get5Prime(last);
+        assert(segment != NULL && stPinchSegment_getStart(segment) <= start + length - 2);
+        stPinchSegment_split(segment, start + length - 2);
     }
 }
 

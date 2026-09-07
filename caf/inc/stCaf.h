@@ -60,6 +60,12 @@ void stCaf_annealBetweenAdjacencyComponents(stPinchThreadSet *threadSet, stPinch
  */
 void stCaf_joinTrivialBoundaries(stPinchThreadSet *threadSet);
 
+/*
+ * Splits the first and last base of every thread into their own segments, so the blocks at the ends of
+ * threads stay distinct. Part of stCaf_joinTrivialBoundaries.
+ */
+void stCaf_ensureEndsAreDistinct(stPinchThreadSet *threadSet);
+
 ///////////////////////////////////////////////////////////////////////////
 // Melting fuctions -- removing alignments from the pinch graph
 ///////////////////////////////////////////////////////////////////////////
@@ -80,6 +86,16 @@ typedef struct _filterArgs {
  */
 int64_t stCaf_melt(Flower *flower, stPinchThreadSet *threadSet, bool blockFilterfn(stPinchBlock *, void *extraArg), void *extraArg,
                 int64_t blockEndTrim, int64_t minimumChainLength,
+                bool breakChainsAtReverseTandems, int64_t maximumMedianSpacingBetweenLinkedEnds);
+
+/*
+ * As stCaf_melt with only the minimum chain length filter, for a graph whose trivial boundaries are
+ * already joined: the boundaries are re-joined only where the deletions can have changed them, which
+ * gives the same graph as a full join at a fraction of the cost. Returns the number of blocks destroyed.
+ * With CACTUS_CAF_CHECK_JOIN set in the environment a full join is run afterwards and the run aborts if
+ * it changes anything.
+ */
+int64_t stCaf_meltChains(Flower *flower, stPinchThreadSet *threadSet, int64_t minimumChainLength,
                 bool breakChainsAtReverseTandems, int64_t maximumMedianSpacingBetweenLinkedEnds);
 
 /*

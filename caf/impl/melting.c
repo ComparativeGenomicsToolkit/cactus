@@ -1,3 +1,4 @@
+#include <stdlib.h>
 #include "sonLib.h"
 #include "cactus.h"
 #include "stPinchGraphs.h"
@@ -158,6 +159,153 @@ int64_t stCaf_melt(Flower *flower, stPinchThreadSet *threadSet, bool blockFilter
     stCaf_joinTrivialBoundaries(threadSet);
     st_logInfo("caf-timing: melt minChain=%" PRIi64 " trim %.3fs filter %.3fs graph %.3fs scan %.3fs delete %.3fs join %.3fs destroyed %" PRIi64 "\n",
                minimumChainLength, trimTime, filterTime, graphTime, scanTime, deleteTime, stCaf_now() - t, blocksDestroyed);
+    return blocksDestroyed;
+}
+
+///////////////////////////////////////////////////////////////////////////
+// Melting by chain length alone, with a join confined to what the deletions touched
+///////////////////////////////////////////////////////////////////////////
+
+/*
+ * A deleted block's segment with the coordinates it had, so that a segment already absorbed into a
+ * merged run (and freed) can be recognised and skipped without being read.
+ */
+typedef struct _deletedSegment {
+    stPinchSegment *segment;
+    int64_t threadIndex, start;
+} DeletedSegment;
+
+static int deletedSegment_cmp(const void *a, const void *b) {
+    const DeletedSegment *x = a, *y = b;
+    if (x->threadIndex != y->threadIndex) {
+        return x->threadIndex < y->threadIndex ? -1 : 1;
+    }
+    return x->start < y->start ? -1 : (x->start > y->start ? 1 : 0);
+}
+
+/*
+ * Destroys the blocks and merges every run of block-less segments the deletions created or extended,
+ * leaving the graph as the per-thread pass of stPinchThreadSet_joinTrivialBoundaries would: each run
+ * merged into its leftmost segment. Only the deleted segments and their runs are touched.
+ */
+static void destroyBlocksJoiningRuns(stList *blocksToDelete) {
+    DeletedSegment stackSegments[64];
+    for (int64_t i = 0; i < stList_length(blocksToDelete); i++) {
+        stPinchBlock *block = stList_get(blocksToDelete, i);
+        int64_t degree = stPinchBlock_getDegree(block);
+        DeletedSegment *segments = degree <= 64 ? stackSegments : st_malloc(degree * sizeof(DeletedSegment));
+        int64_t n = 0;
+        stPinchBlockIt segmentIt = stPinchBlock_getSegmentIterator(block);
+        stPinchSegment *segment;
+        while ((segment = stPinchBlockIt_getNext(&segmentIt)) != NULL) {
+            segments[n].segment = segment;
+            segments[n].threadIndex = stPinchThread_getIndex(stPinchSegment_getThread(segment));
+            segments[n].start = stPinchSegment_getStart(segment);
+            n++;
+        }
+        assert(n == degree);
+        // In thread order, so that a segment absorbed into the run of an earlier one is recognised by
+        // lying inside that run's extent
+        qsort(segments, n, sizeof(DeletedSegment), deletedSegment_cmp);
+        stPinchBlock_destruct(block);
+        int64_t survivorThread = -1, survivorEnd = 0;
+        for (int64_t j = 0; j < n; j++) {
+            if (segments[j].threadIndex == survivorThread && segments[j].start < survivorEnd) {
+                continue; //absorbed into the previous run, and freed
+            }
+            stPinchSegment *survivor = stPinchSegment_joinTrivialBoundaries(segments[j].segment);
+            survivorThread = segments[j].threadIndex;
+            survivorEnd = stPinchSegment_getStart(survivor) + stPinchSegment_getLength(survivor);
+        }
+        if (segments != stackSegments) {
+            free(segments);
+        }
+    }
+    stList_setDestructor(blocksToDelete, NULL); //the blocks are gone
+}
+
+/*
+ * The block-end pass of stPinchThreadSet_joinTrivialBoundaries, restricted to the blocks at the ends
+ * of threads. After a melt those are the only blocks whose boundaries can be trivial: a boundary is
+ * trivial only where two blocks meet with no segment between them, deleting blocks only ever puts
+ * block-less segments between blocks, and the graph was at a join fixpoint before the melt except for
+ * the thread-end splits stCaf_ensureEndsAreDistinct made after the previous join. Each block is
+ * visited once, when its head segment is reached, as the full pass would visit it.
+ */
+static int64_t joinTrivialBoundariesAtThreadEnds(stPinchThreadSet *threadSet) {
+    int64_t joins = 0;
+    stPinchThreadSetIt threadIt = stPinchThreadSet_getIt(threadSet);
+    stPinchThread *thread;
+    while ((thread = stPinchThreadSetIt_getNext(&threadIt)) != NULL) {
+        stPinchSegment *first = stPinchThread_getFirst(thread);
+        stPinchBlock *block = stPinchSegment_getBlock(first);
+        if (block != NULL && stPinchBlock_getFirst(block) == first) {
+            joins += stPinchBlock_joinTrivialBoundaries(block);
+        }
+        stPinchSegment *last = stPinchThread_getLast(thread); //read after the join above, which may have changed it
+        block = stPinchSegment_getBlock(last);
+        if (block != NULL && stPinchBlock_getFirst(block) == last) {
+            joins += stPinchBlock_joinTrivialBoundaries(block);
+        }
+    }
+    return joins;
+}
+
+static int64_t totalSegmentCount(stPinchThreadSet *threadSet) {
+    int64_t count = 0;
+    stPinchThreadSetIt threadIt = stPinchThreadSet_getIt(threadSet);
+    stPinchThread *thread;
+    while ((thread = stPinchThreadSetIt_getNext(&threadIt)) != NULL) {
+        count += stPinchThread_getSegmentCount(thread);
+    }
+    return count;
+}
+
+int64_t stCaf_meltChains(Flower *flower, stPinchThreadSet *threadSet, int64_t minimumChainLength,
+                bool breakChainsAtReverseTandems, int64_t maximumMedianSpacingBetweenLinkedEnds) {
+    assert(minimumChainLength > 1);
+    double t = stCaf_now();
+    stCactusNode *startCactusNode;
+    stList *deadEndComponent;
+    stCactusGraph *cactusGraph = stCaf_getCactusGraphForThreadSet(flower, threadSet, &startCactusNode, &deadEndComponent, 0, INT64_MAX,
+            0.0, breakChainsAtReverseTandems, maximumMedianSpacingBetweenLinkedEnds);
+    double graphTime = stCaf_now() - t;
+    t = stCaf_now();
+    stList *blocksToDelete = stCaf_getBlocksInChainsLessThanGivenLength(cactusGraph, minimumChainLength);
+    double scanTime = stCaf_now() - t;
+    t = stCaf_now();
+    int64_t blocksDestroyed = stList_length(blocksToDelete);
+
+    st_logInfo("A melting round is destroying %" PRIi64 " blocks with an average degree "
+           "of %lf from chains with length less than %" PRIi64 ". Total aligned bases"
+           " lost: %" PRIu64 "\n",
+           stList_length(blocksToDelete), stCaf_averageBlockDegree(blocksToDelete),
+           minimumChainLength, stCaf_totalAlignedBases(blocksToDelete));
+
+    stCaf_destructCactusGraph(cactusGraph, threadSet);
+    destroyBlocksJoiningRuns(blocksToDelete);
+    stList_destruct(blocksToDelete);
+    double deleteTime = stCaf_now() - t;
+    t = stCaf_now();
+    int64_t joins = joinTrivialBoundariesAtThreadEnds(threadSet);
+    stCaf_ensureEndsAreDistinct(threadSet);
+    double joinTime = stCaf_now() - t;
+    st_logInfo("caf-timing: melt minChain=%" PRIi64 " trim 0.000s filter 0.000s graph %.3fs scan %.3fs delete %.3fs join %.3fs destroyed %" PRIi64 " end-joins %" PRIi64 "\n",
+               minimumChainLength, graphTime, scanTime, deleteTime, joinTime, blocksDestroyed, joins);
+
+    if (getenv("CACTUS_CAF_CHECK_JOIN") != NULL) {
+        // The full join must now find nothing to do
+        int64_t segmentsBefore = totalSegmentCount(threadSet);
+        int64_t changes = stPinchThreadSet_joinTrivialBoundaries(threadSet);
+        stCaf_ensureEndsAreDistinct(threadSet);
+        int64_t segmentsAfter = totalSegmentCount(threadSet);
+        if (changes != 0 || segmentsAfter != segmentsBefore) {
+            st_errAbort("CACTUS_CAF_CHECK_JOIN: the full join after the melt with minimum chain length %" PRIi64
+                        " made %" PRIi64 " changes and took the segment count from %" PRIi64 " to %" PRIi64 "\n",
+                        minimumChainLength, changes, segmentsBefore, segmentsAfter);
+        }
+        st_logInfo("caf-timing: check-join ok\n");
+    }
     return blocksDestroyed;
 }
 
