@@ -1,0 +1,54 @@
+#!/bin/bash
+# Build lastz with profile-guided optimisation.  Exits non-zero if anything goes
+# wrong, so the caller can fall back to a plain build;  it must never leave a
+# half-built or silently un-profiled binary behind, so the profile is verified
+# before the final compile and the binary is verified after it.
+#
+# Environment: LASTZ_DIR, PROFDIR, MAKE, LIBS, and whatever CFLAGS/CXXFLAGS the
+# caller wants handed to the sub-make.
+
+set -beEu -o pipefail
+
+LASTZ_DIR="${LASTZ_DIR:?}"
+PROFDIR="${PROFDIR:?}"
+MAKE="${MAKE:-make}"
+CC_BASE="${CC:-gcc}"
+HERE="$(cd "$(dirname "$0")/.." && pwd)"
+
+# gcc only: clang wants -fprofile-instr-generate and an llvm-profdata merge.
+if ! ${CC_BASE} --version 2>/dev/null | head -1 | grep -qi gcc ; then
+    echo "buildLastzPgo: ${CC_BASE} is not gcc" >&2
+    exit 1
+fi
+
+rm -rf "${PROFDIR}"
+mkdir -p "${PROFDIR}"
+
+# 1. instrumented build.  Only the integer-scoring binary, which is what trains.
+${MAKE} -C "${LASTZ_DIR}/src" clean >/dev/null 2>&1 || true
+${MAKE} -C "${LASTZ_DIR}/src" lastz \
+        CC="${CC_BASE} -fprofile-generate -fprofile-dir=${PROFDIR}" \
+        LIBS="${LIBS:-}" >/dev/null
+
+# 2. train
+"${HERE}/build-tools/lastzPgoTrain" "${LASTZ_DIR}/src/lastz" "${PROFDIR}"
+
+# 3. the profile must actually exist, or the rebuild would silently be a plain
+#    build with -Wno-missing-profile hiding it.  That failure mode is real: it is
+#    what an earlier version of this script did.
+gcda=$(ls "${PROFDIR}"/*.gcda 2>/dev/null | wc -l)
+if [ "${gcda}" -lt 20 ] ; then
+    echo "buildLastzPgo: only ${gcda} .gcda files, expected one per object" >&2
+    exit 1
+fi
+
+# 4. optimised rebuild, default target so lastz_D is built too.  lastz_D has no
+#    profile of its own (training runs the integer build), hence the warning
+#    suppression;  -fprofile-correction covers counter races.
+${MAKE} -C "${LASTZ_DIR}/src" clean >/dev/null 2>&1 || true
+${MAKE} -C "${LASTZ_DIR}" \
+        CC="${CC_BASE} -fprofile-use -fprofile-dir=${PROFDIR} -fprofile-correction -Wno-missing-profile" \
+        LIBS="${LIBS:-}" >/dev/null
+
+test -x "${LASTZ_DIR}/src/lastz"
+echo "lastz: profile-guided build succeeded (${gcda} profile files)"
