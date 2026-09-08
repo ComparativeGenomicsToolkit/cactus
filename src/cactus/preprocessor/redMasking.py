@@ -2,6 +2,7 @@
 """Uses RED to mask repeats
 """
 
+import math
 import os
 import re
 import sys
@@ -26,9 +27,52 @@ from cactus.preprocessor.maskingCommon import log_masking_delta
 from toil.realtimeLogger import RealtimeLogger
 
 
+def red_memory_estimate(fasta_size, longest_record_bytes):
+    """Peak memory Red needs for a fasta of this shape, in bytes.
+
+    Red's footprint is the k-mer table plus a fixed cost per base of the *longest
+    single sequence*, not of the genome.  It reads one sequence at a time and,
+    while scanning one, holds it three times over -- the raw record, the encoded
+    copy it scans, and the original bases it writes back out -- plus a four-byte
+    score per base, so about seven bytes per base of that one sequence.  The table
+    is four bytes per k-mer with k = floor(log4(genome size)) clamped to [12, 15],
+    so it tops out at 4 GiB however large the genome gets.
+
+    longest_record_bytes is a record of the fasta including its header and
+    newlines, so it already runs a little above the base count; the multiplier
+    below adds the rest of the margin.  Checked against Red at 27e4480, where
+    table + 7 * longest lands within 4% of the real peak at every scale and the
+    multiplier leaves about 30% on top of that:
+
+        genome                    k   longest   table+7L    estimate   measured
+        chr14, 101 Mbp, 1 seq    13    101 Mb     0.99 GB     1.37 GB    1.03 GB
+        chr15-19, 422 Mbp, 5     14    100 Mb     1.78 GB     2.35 GB    1.82 GB
+        chr1-6, 1.24 Gbp, 6      15    248 Mb     6.06 GB     7.88 GB    6.10 GB
+
+    The estimate used to be 12 * the fasta size, from before Red was rewritten to
+    stream sequences and to stop building a Viterbi matrix it never read.  On a
+    chromosome-scale assembly that overshoots badly, because the whole genome
+    stands in for what is really the longest chromosome: the salamander fastas in
+    the VGP runs asked for 231-331 GiB, used 57-73 GiB, and should now want tens of
+    GB.  Over about 2.5 GB of input this estimate is below the old one even in the
+    worst case, a genome delivered as a single sequence, where the two agree that
+    the longest sequence is the whole thing.
+    """
+    # Red picks k from the non-N genome size; using the file size can only round it
+    # up, which errs towards a bigger table than Red will really allocate.
+    k = min(15, max(12, int(math.log(max(fasta_size, 4), 4))))
+    table_bytes = 4 * (4 ** k)
+    return int(1.25 * (table_bytes + 8 * longest_record_bytes))
+
+
 class RedMaskJob(RoundedJob):
-    def __init__(self, fastaID, redOpts, redPrefilterOpts, eventName=None, unmask=False):
-        memory = cactus_clamp_memory(12*fastaID.size)
+    def __init__(self, fastaID, redOpts, redPrefilterOpts, eventName=None, unmask=False,
+                 longestRecordSize=None):
+        # Without a measurement, fall back to assuming the whole input is one
+        # sequence, which is the worst case for Red's memory.
+        if longestRecordSize is None:
+            longestRecordSize = fastaID.size
+        memory = cactus_clamp_memory(red_memory_estimate(fastaID.size, longestRecordSize))
         disk = 5*(fastaID.size)
         RoundedJob.__init__(self, memory=memory, disk=disk, preemptable=True)
         self.fastaID = fastaID
