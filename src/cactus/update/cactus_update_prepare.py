@@ -249,23 +249,22 @@ def get_tree_patch(node_name, top_weight, children_length_map, close=True):
     return patch
 
 
-def remove_unnecessary_cactus_preprocess(plan, input_names):
+def remove_unnecessary_cactus_preprocess(lines, input_names):
     """Removes cactus-preprocess jobs from the given plan
 
     Args:
-        plan (str): a plan given by cactus-prepare
+        lines (List[str]): a plan given by cactus-prepare, split into lines
         input_names (List[str]): A list of sequence names that doesn't to be preprocessed
 
     Returns:
-        str: plan without some cactus-preprocess jobs
+        List[str]: plan lines without some cactus-preprocess jobs
     """
-    plan = plan.split("\n")
     edited_plan = []
 
     to_remove = set(input_names)
 
     idx = 0
-    for idx, line in enumerate(plan):
+    for idx, line in enumerate(lines):
 
         # job done as the rest of the plan is the from this point
         if "## Alignment" in line:
@@ -303,10 +302,10 @@ def remove_unnecessary_cactus_preprocess(plan, input_names):
         edited_plan.append(line)
 
     # copy the rest of the plan
-    edited_plan = edited_plan + plan[idx:-1]
+    edited_plan = edited_plan + lines[idx:-1]
 
     # job done
-    return "\n".join(edited_plan)
+    return edited_plan
 
 
 def find_cactus_jobs(lines, job_pattern):
@@ -421,12 +420,12 @@ def make_plan(
     # attach new header
     plan = header + plan
 
-    # clean up cactus-preprocess jobs for existing children
-    plan = remove_unnecessary_cactus_preprocess(plan, preprocess_to_remove)
-
     # work on the plan line-by-line: command lines carry shell metacharacters
     # ("|", ">", ".") which must never be fed back to re.sub as a pattern
     lines = plan.split("\n")
+
+    # clean up cactus-preprocess jobs for existing children
+    lines = remove_unnecessary_cactus_preprocess(lines, preprocess_to_remove)
 
     # add --includeRoot option into Round #1's cactus-blast and cactus-align jobs only
     # the --includeRoot option includes the root's sequence in the alignment
