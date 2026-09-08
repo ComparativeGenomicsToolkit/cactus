@@ -2,11 +2,15 @@
  * Released under the MIT license, see LICENSE.txt
  */
 
+// gethostname and sysconf are POSIX, and this file is compiled as strict c99, which declares
+// neither.  Ask for POSIX 2001 only; _GNU_SOURCE would also change declarations already in use here.
+#define _POSIX_C_SOURCE 200112L
 #include <time.h>
 #include <getopt.h>
 #include <string.h>
 #include <dlfcn.h>
 #include <sys/types.h>
+#include <unistd.h>
 #include "sonLib.h"
 #include "cactus.h"
 #include "cactus_setup.h"
@@ -137,6 +141,47 @@ static void cactus_jemalloc_retain_pages(CactusParams *params) {
                    "%i of %u existing arenas set, %i declined\n",
                    names[w], rc_default, (int64_t)readback, set, narenas, declined);
     }
+}
+
+/*
+ * Which machine this ran on. A run's phase timings are only comparable with another run's when
+ * both ran on the same kind of node, and a heterogeneous cluster makes that easy to get wrong:
+ * the batch system knows, but nothing it records reaches this log.
+ */
+static void cactus_log_host(void) {
+    char hostname[256];
+    if (gethostname(hostname, sizeof(hostname)) != 0) {
+        strncpy(hostname, "unknown", sizeof(hostname));
+    }
+    hostname[sizeof(hostname) - 1] = '\0';
+
+    char *model = NULL;
+    FILE *cpuinfo = fopen("/proc/cpuinfo", "r"); // Linux only; elsewhere the model is simply not reported
+    if (cpuinfo != NULL) {
+        char line[512];
+        while (fgets(line, sizeof(line), cpuinfo) != NULL) {
+            if (strncmp(line, "model name", strlen("model name")) == 0) {
+                char *value = strchr(line, ':');
+                if (value != NULL) {
+                    value++;
+                    while (*value == ' ' || *value == '\t') {
+                        value++;
+                    }
+                    size_t length = strlen(value);
+                    while (length > 0 && (value[length - 1] == '\n' || value[length - 1] == ' ')) {
+                        value[--length] = '\0';
+                    }
+                    model = stString_copy(value);
+                }
+                break;
+            }
+        }
+        fclose(cpuinfo);
+    }
+
+    long processors = sysconf(_SC_NPROCESSORS_ONLN);
+    st_logInfo("caf-host: %s cpu \"%s\" processors %ld\n", hostname, model != NULL ? model : "unknown", processors);
+    free(model);
 }
 
 void usage() {
@@ -460,6 +505,8 @@ int main(int argc, char *argv[]) {
     //////////////////////////////////////////////
 
     st_setLogLevelFromString(logLevelString);
+
+    cactus_log_host();
 
     //////////////////////////////////////////////
     //Log the inputs
