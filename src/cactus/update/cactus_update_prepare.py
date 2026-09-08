@@ -263,16 +263,16 @@ def remove_unnecessary_cactus_preprocess(lines, input_names):
 
     to_remove = set(input_names)
 
+    # capture only the genome names given to --inputNames: the list ends at
+    # the next option or at the shell redirection/pipe suffix of the command
+    input_name_pattern = "-{2}inputNames\\s+(?P<names>.*?)(?=\\s+-{2}|\\s+\\d*>|\\s*\\||$)"
+
     idx = 0
     for idx, line in enumerate(lines):
 
         # job done as the rest of the plan is the from this point
         if "## Alignment" in line:
             break
-
-        # capture only the genome names given to --inputNames: the list ends at
-        # the next option or at the shell redirection/pipe suffix of the command
-        input_name_pattern = "-{2}inputNames\\s+(?P<names>.*?)(?=\\s+-{2}|\\s+\\d*>|\\s*\\||$)"
 
         # search for --inputNames where unnecessary cactus_preprocess must be removed
         search = re.search(input_name_pattern, line, re.IGNORECASE)
