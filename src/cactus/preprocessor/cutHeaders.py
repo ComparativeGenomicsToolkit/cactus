@@ -18,7 +18,7 @@ class CutHeadersJob(RoundedJob):
     def __init__(self, fastaID, cutBefore, cutBeforeOcc, cutAfter):
         disk = 2*(fastaID.size)
         memory = fastaID.size
-        RoundedJob.__init__(self, disk=disk, preemptable=True)
+        RoundedJob.__init__(self, memory=memory, disk=disk, preemptable=True)
         self.fastaID = fastaID
         self.cutBefore = cutBefore
         self.cutBeforeOcc = cutBeforeOcc
