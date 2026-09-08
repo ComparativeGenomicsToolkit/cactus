@@ -20,7 +20,7 @@ from cactus.refmap.cactus_panpatch import sanitize_contig_name, sample_base, sam
 from cactus.refmap.cactus_panpatch import make_runs, panpatch_validate_options
 from cactus.refmap.cactus_panpatch import read_error_bed_manifest, parse_error_bed, intervals_overlap, revcomp
 from cactus.refmap.cactus_panpatch import parse_bed_blocks, mask_assembly_errors, revert_target_to_original
-from cactus.refmap.cactus_panpatch import tag_report_gap_origin, summarize_report, write_batch_summary
+from cactus.refmap.cactus_panpatch import tag_report_gap_origin, summarize_report, write_batch_summary, concat_reports
 
 GRAPH_EVENT = '_MINIGRAPH_'
 
@@ -586,6 +586,39 @@ class TestPanpatchErrorBeds(unittest.TestCase):
         self.assertEqual(s['counts'], {'gap-fill': 2, 'bed-gap': 1, 'scaffold': 1, 'telomere': 1})
         self.assertEqual(s['t2t'], 1)
         self.assertEqual(s['contigs'], 3)
+
+    def test_concat_reports_replaces_stale_cap_lines(self):
+        # two per-chromosome reports, each carrying panpatch's own per-path cap lines (which describe
+        # contributing graph paths before the target revert, donors included), plus the cap lines the
+        # caller measured on the finished assembly.  The concatenation must keep one header, keep every
+        # patch row, drop ALL of panpatch's cap lines, and end with exactly the measured ones -- so a
+        # summary built from it counts output contigs and post-revert telomeres.
+        hdr = _REPORT_HEADER + '\tgap_origin'
+        def row(chrom, typ):
+            return '\t'.join([chrom, '1', typ, 'TGT#1#c', '100', 'DON#1#d', '20', '0',
+                              '.', '100.0', '100.0', 'accepted', '.', '10', '20', 'N-gap'])
+        c1 = self._write('chr1.tsv', hdr + '\n' + row('chr1', 'gap-fill') + '\n'
+                         + '#Contig TGT#1#c#0 len=100bp left=NO(0.001) right=YES(0.9)\n'
+                         + '#Contig DON#1#d#0 len=20bp left=NO(0.0) right=NO(0.0)\n')
+        c2 = self._write('chr2.tsv', hdr + '\n' + row('chr2', 'telomere') + '\n'
+                         + '#Contig TGT#1#c2#0 len=50bp left=NO(0.0) right=NO(0.0)\n')
+        measured = ['#Contig chr1_hap_1 len=120bp left=YES(0.95) right=YES(0.93)',
+                    '#Contig chr2_hap_1 len=60bp left=YES(0.91) right=NO(0.02)']
+        out = os.path.join(self.tempDir, 'joined.tsv')
+        concat_reports([c1, c2], measured, out)
+
+        lines = [l.rstrip('\n') for l in open(out)]
+        self.assertEqual(lines.count(hdr), 1)                       # header exactly once
+        self.assertIn(row('chr1', 'gap-fill'), lines)                # every patch row survives
+        self.assertIn(row('chr2', 'telomere'), lines)
+        caps = [l for l in lines if l.startswith('#Contig')]
+        self.assertEqual(caps, measured)                             # only the measured caps remain
+        self.assertNotIn('DON#1#d#0', '\n'.join(caps))               # donor path line is gone
+
+        # and the summary built from it reports output contigs / post-revert T2T
+        s = summarize_report(out)
+        self.assertEqual(s['contigs'], 2)
+        self.assertEqual(s['t2t'], 1)
 
     def test_write_batch_summary(self):
         a = self._report('A.tsv',

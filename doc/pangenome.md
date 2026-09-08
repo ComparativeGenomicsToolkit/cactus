@@ -524,6 +524,8 @@ cactus-panpatch ./js chromfile.txt --outDir patched --batch
 
 Each sample writes its own patched FASTA(s), `<name>.bed`, and per-patch report `<name>.tsv` into `--outDir`. Across all samples, a single `panpatch-summary.tsv` rolls those reports up: one row per sample with accepted patches by category (`gap_fill`, `scaffold`, `telomere`, and the error-BED `bed_gap` subset), telomere-to-telomere output contigs, and a `TOTAL` row.
 
+The `t2t_contigs` / `contigs_analyzed` columns, and the `#Contig` lines at the end of each `<name>.tsv`, describe the assembly that was actually written: one line per output record, with its telomere cap status measured on the final sequence after any error-BED regions were reverted. (You can reproduce them for any assembly with `panpatch --telomere-report <assembly.fa[.gz]>`.)
+
 ### Masking assembly errors
 
 If you have BED files of *suspected assembly errors* — for the target, for donors, or for any subset of them — `--assemblyErrorBeds` will steer patching away from them. The argument is a manifest with one `<seqfile-event-name> <bed-path>` line per assembly (a subset is fine); the event name is the assembly's first-column name in the seqfile (e.g. `PAN028-verkko.1`), so a single manifest covers every sample in a `--batch`:
@@ -544,6 +546,11 @@ Each interval is treated almost like a run of `N`s:
 BED contig names are the assembly's own fasta-header first token, with coordinates 0-based half-open in that assembly's frame. This is distinct from `--excludeBed`, which protects a region of the target from being touched at all and is given in graph path-name coordinates.
 
 Because a masked target error looks like a gap, the per-patch report distinguishes the two with a `gap_origin` column: `bed-gap` for a fill over an error interval, `N-gap` for a genuine pre-existing `N` gap (`.` for non-gap patches). This column is always present in the report — without `--assemblyErrorBeds` every gap-fill is simply an `N-gap`. The reference is never masked.
+
+Two things to expect when you turn this on:
+
+* **The pangenome takes considerably longer to build.** Masking replaces each error interval with `N`, and `minigraph` emits no minimizers inside a run of `N`s, so the region becomes one long unanchored gap that base alignment then has to cross. In a 19-sample pilot this took the median `minigraph_construct` job from ~22 minutes to ~6.4 hours, and the downstream map-back alignments pay the same tax. Budget for it — in particular give the run a generous `--slurmTime`, since a job killed at a wall limit will simply retry and be killed again. (The same effect makes a gapped reference like GRCh38 slower to build against than a gapless one like CHM13.)
+* **Error intervals at contig tips interact with telomere patching.** Error BEDs frequently flag the first or last interval of a contig, and masking one takes that contig's telomere with it — so panpatch sees a capless end and may complete it from a donor even where the original tip was fine. The result is still non-destructive (an end that cannot be completed reverts to the original sequence), but a telomere *replaced* this way is a real change to the assembly. If you are measuring whether patching improved telomere completeness, compare against the **unmasked** assembly: measured against the masked input, the masking's own damage shows up as an improvement.
 
 ### Cluster example
 

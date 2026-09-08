@@ -1012,6 +1012,16 @@ def gather_panpatch(job, options, run, chrom_results, target_fasta_ids, target_e
 
     output_id_map = {}
 
+    # panpatch's telomere threshold, if the user overrode it, so our post-revert measurement below calls
+    # a telomere exactly the way the run that produced these patches did
+    telo_opts = []
+    if options.panpatchOptions:
+        popts = shlex.split(options.panpatchOptions)
+        for i, o in enumerate(popts):
+            if o == '--telomere-threshold' and i + 1 < len(popts):
+                telo_opts = ['--telomere-threshold', popts[i + 1]]
+    cap_lines = []   # "#Contig" cap status of the assembly we actually deliver (filled per haplotype)
+
     # concatenate the beds first (chromosome order; a skipped graph has no bed).  the bed is a byte-exact
     # description of the output and drives the per-haplotype target revert below
     bed_out = os.path.join(work_dir, 'patched.bed')
@@ -1049,6 +1059,18 @@ def gather_panpatch(job, options, run, chrom_results, target_fasta_ids, target_e
         if hap in target_fasta_ids:
             rescue_dropped_contigs(job, combined, target_fasta_ids[hap], seen_contigs, run['samples'][0], hap)
 
+        # Measure telomere completeness on the assembly we are actually delivering.  panpatch's own
+        # "#Contig" lines describe the paths it stitched together inside the graph: they are emitted per
+        # *contributing path* (so donor paths are listed alongside target contigs, with a len= that is
+        # the sum of that path's intervals), and they are measured before this function reverts masked
+        # target regions to their original sequence.  Both make them a poor description of the finished
+        # file -- with --assemblyErrorBeds especially, a fully capped output contig can show up as
+        # several uncapped path lines.  Re-measure the finished FASTA with panpatch's own detector
+        # (--telomere-report, which shares seq_has_telomere with the in-graph check) and use those lines.
+        cap_out = cactus_call(parameters=['panpatch', '--telomere-report', combined] + telo_opts,
+                              check_output=True)
+        cap_lines += [l for l in cap_out.split('\n') if l.startswith('#Contig')]
+
         # in reference-free mode the single (hap0) output is named for the user's haplotype (already
         # in the run name); otherwise keep panpatch's haplotype numbering
         output_name = (run['name'] + '.fa.gz') if run['referenceFree'] else (run['name'] + '.hap{}.fa.gz'.format(hap))
@@ -1058,18 +1080,16 @@ def gather_panpatch(job, options, run, chrom_results, target_fasta_ids, target_e
     # concatenate the reports: the TSV header from the first chromosome that has one, then every
     # chromosome's rows (a skipped graph has no report)
     report_out = os.path.join(work_dir, 'patched.tsv')
-    with open(report_out, 'w') as out:
-        wrote_header = False
-        for res in chrom_results:
-            if res['report'] is None:
-                continue
-            p = os.path.join(work_dir, 'c.tsv')
-            job.fileStore.readGlobalFile(res['report'], p)
-            with open(p) as f:
-                lines = f.readlines()
-            out.writelines(lines if not wrote_header else lines[1:])
-            wrote_header = True
-            os.remove(p)
+    chrom_report_paths = []
+    for i, res in enumerate(chrom_results):
+        if res['report'] is None:
+            continue
+        p = os.path.join(work_dir, 'c{}.tsv'.format(i))
+        job.fileStore.readGlobalFile(res['report'], p)
+        chrom_report_paths.append(p)
+    concat_reports(chrom_report_paths, cap_lines, report_out)
+    for p in chrom_report_paths:
+        os.remove(p)
     output_id_map[run['name'] + '.tsv'] = job.fileStore.writeGlobalFile(report_out)
 
     return output_id_map
@@ -1120,10 +1140,33 @@ def export_panpatch_wrapper(job, options, run, output_id_map, full_vg_ids, vg_na
     if not options.keepPangenome:
         job.addFollowOnJobFn(cleanup_pangenome_wrapper, options, run)
 
+def concat_reports(chrom_report_paths, cap_lines, out_path):
+    """ concatenate the per-chromosome panpatch reports (in the order given) into one sample report:
+    the TSV header once, then every chromosome's patch rows, then the '#Contig' telomere cap lines.
+
+    panpatch's own cap lines are dropped and replaced by cap_lines, which the caller measured on the
+    finished assembly.  panpatch emits one line per graph path that contributed intervals -- donor paths
+    included, with len= the sum of that path's intervals -- and measures them before the wrapper reverts
+    masked target regions, so they describe neither the records nor the sequence the user receives. """
+    with open(out_path, 'w') as out:
+        wrote_header = False
+        for p in chrom_report_paths:
+            with open(p) as f:
+                lines = f.readlines()
+            if wrote_header:
+                lines = lines[1:]                      # header only once
+            out.writelines([l for l in lines if not l.startswith('#Contig')])
+            wrote_header = True
+        for l in cap_lines:
+            out.write(l.rstrip('\n') + '\n')
+
 def summarize_report(report_path):
     """ tally one sample's panpatch report: accepted patches by category (and how many gap-fills were
     error-BED 'bed-gap' fills), plus telomere-to-telomere output contigs from the '#Contig' cap lines
-    (both tips capped).  rejected candidates and passthrough (unpatched) rows are not patches """
+    (both tips capped).  rejected candidates and passthrough (unpatched) rows are not patches.
+    gather_panpatch rewrites those '#Contig' lines to describe the delivered assembly -- one line per
+    output record, measured after the target revert -- so the counts here are output contigs, not the
+    contributing graph paths panpatch itself reports """
     counts = {'gap-fill': 0, 'bed-gap': 0, 'scaffold': 0, 'telomere': 0}
     t2t, contigs = 0, 0
     idx = None
