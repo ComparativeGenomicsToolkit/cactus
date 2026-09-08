@@ -1729,7 +1729,57 @@ class TestCase(unittest.TestCase):
             out.write(self._synthetic_contig(contig_name))
         return out_fa
 
-    def _run_yeast_panpatch(self, binariesMode, reference=False, dropped_contig=None):
+    def _fetch_yeast_target(self):
+        """ download the target strain uncompressed, so a test can read its original sequence """
+        import urllib.request, gzip
+        local_gz = os.path.join(self.tempDir, 'panpatch_orig_target.fa.gz')
+        urllib.request.urlretrieve(self.YEAST_URL.format(self.PANPATCH_TARGET), local_gz)
+        out_fa = os.path.join(self.tempDir, 'panpatch_orig_target.fa')
+        with gzip.open(local_gz, 'rt') as inp, open(out_fa, 'w') as out:
+            shutil.copyfileobj(inp, out)
+        return out_fa
+
+    def _read_fasta(self, path):
+        """ {record name (first token): sequence} for a plain or gzipped fasta """
+        import gzip
+        opener = gzip.open if path.endswith('.gz') else open
+        recs, name, parts = {}, None, []
+        with opener(path, 'rt') as f:
+            for line in f:
+                if line.startswith('>'):
+                    if name is not None:
+                        recs[name] = ''.join(parts)
+                    name, parts = line[1:].split()[0], []
+                else:
+                    parts.append(line.strip())
+        if name is not None:
+            recs[name] = ''.join(parts)
+        return recs
+
+    def _make_yeast_error_beds(self, target_fa):
+        """ write an --assemblyErrorBeds manifest flagging an interior slice of each large target
+        contig, returning (manifest path, {contig: (start, end)}).  These stand in for suspected
+        assembly errors: cactus-panpatch masks them to N before building the pangenome, and every one
+        that does not get patched from the donor has to come back as its original sequence.
+
+        The intervals are placed away from the contig tips on purpose -- masking a tip takes that
+        contig's telomere with it, which exercises telomere completion rather than the interior
+        gap-fill this is meant to cover. """
+        seqs = self._read_fasta(target_fa)
+        intervals = {c: (100000, 120000) for c, s in seqs.items() if len(s) > 200000}
+        self.assertTrue(intervals, 'no target contig long enough to hold an error interval')
+
+        bed_path = os.path.join(self.tempDir, 'panpatch_errors.bed')
+        with open(bed_path, 'w') as f:
+            for contig, (start, end) in sorted(intervals.items()):
+                f.write('{}\t{}\t{}\n'.format(contig, start, end))
+        manifest_path = os.path.join(self.tempDir, 'panpatch_errors.manifest')
+        with open(manifest_path, 'w') as f:
+            f.write('{}\t{}\n'.format(self.PANPATCH_TARGET, bed_path))
+        return manifest_path, intervals
+
+    def _run_yeast_panpatch(self, binariesMode, reference=False, dropped_contig=None,
+                            error_bed_manifest=None):
         """ run cactus-panpatch on a couple of yeast strains (reference-free by default, or against
         an external reference), returning the output directory """
         out_dir = os.path.join(self.tempDir, 'panpatch-out')
@@ -1756,6 +1806,8 @@ class TestCase(unittest.TestCase):
                '--keepGraphs']
         if reference:
             cmd += ['--reference', self.PANPATCH_REFERENCE]
+        if error_bed_manifest:
+            cmd += ['--assemblyErrorBeds', error_bed_manifest]
         subprocess.check_call(cmd + cactus_opts)
         return out_dir
 
@@ -1817,6 +1869,59 @@ class TestCase(unittest.TestCase):
         dropped = 'synthetic_unplaceable_contig'
         out_dir = self._run_yeast_panpatch(name, reference=True, dropped_contig=dropped)
         self._check_yeast_panpatch(out_dir, reference=True, dropped_contig=dropped)
+
+    def testYeastPanpatchErrorBedsLocal(self):
+        """ cactus-panpatch --assemblyErrorBeds on yeast: interior slices of the target are flagged as
+        suspected assembly errors, so they are masked to N before the pangenome and either patched from
+        the donor or reverted.  Checks the property the whole feature rests on -- masking must never
+        leave N behind -- plus the gap_origin tagging and the cap lines describing the output. """
+        name = "local"
+        orig_target = self._fetch_yeast_target()
+        manifest, intervals = self._make_yeast_error_beds(orig_target)
+        out_dir = self._run_yeast_panpatch(name, error_bed_manifest=manifest)
+        self._check_yeast_panpatch(out_dir)
+
+        target = self.PANPATCH_TARGET
+        out_fa = os.path.join(out_dir, '{}.fa.gz'.format(target))
+        original = self._read_fasta(orig_target)
+        patched = self._read_fasta(out_fa)
+
+        # Non-destructive: masking is an input-side trick, so it must not put N into the output.  A
+        # masked region is either patched with donor sequence or reverted to its original bases; if the
+        # revert regressed, these intervals would come back as the 20kb runs of N they were masked to.
+        orig_n = sum(s.upper().count('N') for s in original.values())
+        out_n = sum(s.upper().count('N') for s in patched.values())
+        self.assertLessEqual(out_n, orig_n,
+                             'masking added {} N to the output ({} -> {}): the target revert is not '
+                             'restoring masked regions'.format(out_n - orig_n, orig_n, out_n))
+
+        # and specifically: none of the masked intervals survives as a run of N
+        longest_orig_n = max([self._longest_n_run(s) for s in original.values()] or [0])
+        longest_out_n = max([self._longest_n_run(s) for s in patched.values()] or [0])
+        self.assertLessEqual(longest_out_n, max(longest_orig_n, 1000),
+                             'output has a {}bp run of N (input longest was {}bp), consistent with a '
+                             'masked interval left unreverted'.format(longest_out_n, longest_orig_n))
+
+        report = os.path.join(out_dir, target + '.tsv')
+        with open(report) as f:
+            report_lines = [l.rstrip('\n') for l in f]
+        header = next((l for l in report_lines if l.startswith('chrom\t')), None)
+        self.assertIsNotNone(header, 'no header in {}'.format(report))
+        self.assertIn('gap_origin', header.split('\t'),
+                      'the gap_origin column is missing with --assemblyErrorBeds')
+
+        # the cap lines must describe the delivered assembly: one per output record, measured after the
+        # revert -- not the contributing graph paths panpatch reports (which include donor paths)
+        cap_names = [l.split()[1] for l in report_lines if l.startswith('#Contig')]
+        self.assertTrue(cap_names, 'no #Contig cap lines in {}'.format(report))
+        self.assertEqual(sorted(cap_names), sorted(patched.keys()),
+                         'cap lines do not match the output records')
+
+    def _longest_n_run(self, seq):
+        """ length of the longest run of N in seq (0 if none) """
+        import re
+        runs = re.findall('[Nn]+', seq)
+        return max((len(r) for r in runs), default=0)
 
     def _write_nested_gref_gfa(self, gfa_path):
         """ write a graph whose gref fragment sits well below the top level of the snarl tree
