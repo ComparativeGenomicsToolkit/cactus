@@ -432,15 +432,37 @@ def make_plan(
     for idx in find_cactus_jobs(lines, "cactus-(?:blast|align)")[-2:]:
         lines[idx] = add_cactus_job_option(lines[idx], "--includeRoot")
 
-    # removing "## HAL merging" as there is no merging while performing alignment updates
+    # removing "## HAL merging" as there is no merging while performing alignment
+    # updates: the update amends the existing HAL in place (see make_plan_amendments)
+    # instead of stitching a new one together.  The whole section goes, not just its
+    # heading: cactus-prepare emits one "cactus-halAppendSubtrees" line per batch of
+    # genomes there, plus the "rm -f" lines cleaning up the intermediate HALs.
     merged_plan = []
+    in_hal_merging = False
     for line in lines:
-        if line.strip() == "## HAL merging":
+        stripped = line.strip()
+
+        if stripped == "## HAL merging":
             if merged_plan and not merged_plan[-1].strip():
                 merged_plan.pop()
+            in_hal_merging = True
             continue
 
+        if in_hal_merging:
+            # the section runs up to the next heading; it is currently the last one
+            # of the plan, so in practice this runs up to the end of the plan
+            if stripped.startswith("##") and not stripped.startswith("###"):
+                in_hal_merging = False
+            else:
+                continue
+
         merged_plan.append(line)
+
+    if in_hal_merging and merged_plan and merged_plan[-1].strip():
+        # the section ran up to the end of the plan: keep the trailing newline so
+        # that make_plan_amendments still starts its section on a blank line
+        merged_plan.append("")
+
     lines = merged_plan
 
     # remove the last hal2fasta as its output is not used by the update
