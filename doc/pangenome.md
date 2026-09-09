@@ -523,6 +523,33 @@ PAN027   PAN027.seqfile.txt
 cactus-panpatch ./js chromfile.txt --outDir patched --batch
 ```
 
+Each sample writes its own patched FASTA(s), `<name>.bed`, and per-patch report `<name>.tsv` into `--outDir`. Across all samples, a single `panpatch-summary.tsv` rolls those reports up: one row per sample with accepted patches by category (`gap_fill`, `scaffold`, `telomere`, and the error-BED `bed_gap` subset), telomere-to-telomere output contigs, and a `TOTAL` row.
+
+The `t2t_contigs` / `contigs_analyzed` columns, and the `#Contig` lines at the end of each `<name>.tsv`, describe the assembly that was actually written: one line per output record, with its telomere cap status measured on the final sequence after any error-BED regions were reverted. (You can reproduce them for any assembly with `panpatch --telomere-report <assembly.fa[.gz]>`.)
+
+### Masking assembly errors
+
+If you have BED files of *suspected assembly errors* — for the target, for donors, or for any subset of them — `--assemblyErrorBeds` will steer patching away from them. The argument is a manifest with one `<seqfile-event-name> <bed-path>` line per assembly (a subset is fine); the event name is the assembly's first-column name in the seqfile (e.g. `PAN028-verkko.1`), so a single manifest covers every sample in a `--batch`:
+
+```
+PAN028-verkko.1   errors/PAN028.hap1.bed     # <- target haplotype 1
+PAN028-hifiasm.2  errors/hifiasm.hap2.bed     # <- a donor
+```
+```
+cactus-panpatch ./js chromfile.txt --outDir patched --batch --assemblyErrorBeds manifest.txt
+```
+
+Each interval is treated almost like a run of `N`s:
+
+* In a **donor**, the region is never used to patch — its sequence is kept out of every output.
+* In the **target**, the region is patched (replaced with a donor) when a donor spans it, exactly as a gap would be; when it *can't* be patched it is left as the **original sequence** (never `N`, so the result is non-destructive).
+
+BED contig names are the assembly's own fasta-header first token, with coordinates 0-based half-open in that assembly's frame. This is distinct from `--excludeBed`, which protects a region of the target from being touched at all and is given in graph path-name coordinates.
+
+Because a masked target error looks like a gap, the per-patch report distinguishes the two with a `gap_origin` column: `bed-gap` for a fill over an error interval, `N-gap` for a genuine pre-existing `N` gap (`.` for non-gap patches). This column is always present in the report — without `--assemblyErrorBeds` every gap-fill is simply an `N-gap`. The reference is never masked.
+
+One thing to watch out for: **error intervals at contig tips interact with telomere patching.** Error BEDs frequently flag the first or last interval of a contig, and masking one takes that contig's telomere with it — so panpatch sees a capless end and may complete it from a donor even where the original tip was fine. The result is still non-destructive (an end that cannot be completed reverts to the original sequence), and the flagged sequence is genuinely replaced rather than merely extended, so the end still carries a telomere. But it is now the donor's telomere, which is a real change to the assembly. If you are measuring whether patching improved telomere completeness, compare against the **unmasked** assembly: measured against the masked input, the masking's own effect shows up as an improvement.
+
 ### Cluster example
 
 ```

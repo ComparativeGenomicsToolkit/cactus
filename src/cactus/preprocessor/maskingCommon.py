@@ -30,6 +30,42 @@ def prefilter_cmd(raw_fa_path, prefilter_opts):
     return cmd
 
 
+def longest_record_size(fa_path):
+    """Size in bytes of the largest record in a fasta, headers and newlines included.
+
+    This is an upper bound on the longest single sequence, which is what the memory
+    estimates want, and it is far cheaper to get than an exact base count: it only
+    looks for record boundaries and never at the sequence itself, so it runs at
+    roughly memory bandwidth even on a twenty-gigabyte assembly.
+    """
+    BLOCK = 8 << 20
+    longest = 0
+    record_start = 0      # absolute offset of the current record
+    offset = 0            # absolute offset of the end of the last block read
+    prev_last_byte = b''  # so a '\n>' straddling a block boundary is still seen
+
+    with open(fa_path, 'rb') as f:
+        while True:
+            block = f.read(BLOCK)
+            if not block:
+                break
+            hay = prev_last_byte + block
+            base = offset - len(prev_last_byte)
+            pos = 0
+            while True:
+                i = hay.find(b'\n>', pos)
+                if i < 0:
+                    break
+                start = base + i + 1
+                longest = max(longest, start - record_start)
+                record_start = start
+                pos = i + 1
+            offset += len(block)
+            prev_last_byte = block[-1:]
+
+    return max(longest, offset - record_start)
+
+
 def masked_base_count(fa_path):
     """Number of masked bases in a fasta.
 

@@ -42,6 +42,7 @@ from cactus.preprocessor.lastzRepeatMasking.cactus_lastzRepeatMask import LastzR
 from cactus.preprocessor.lastzRepeatMasking.cactus_lastzRepeatMask import RepeatMaskOptions
 from cactus.preprocessor.dnabrnnMasking import DnabrnnMaskJob, loadDnaBrnnModel
 from cactus.preprocessor.redMasking import RedMaskJob
+from cactus.preprocessor.maskingCommon import longest_record_size
 from cactus.preprocessor.fastanMasking import FasTANMaskJob
 from cactus.preprocessor.cutHeaders import CutHeadersJob
 from cactus.preprocessor.fileMasking import maskJobOverride, FileMaskingJob
@@ -149,9 +150,13 @@ class PreprocessSequence(RoundedJob):
         self.inSequenceID = inSequenceID
         self.chunksToCompute = chunksToCompute
 
-    def getChunkedJobForCurrentStage(self, seqIDs, proportionSampled, inChunkID, chunk_i):
+    def getChunkedJobForCurrentStage(self, seqIDs, proportionSampled, inChunkID, chunk_i,
+                                     inChunkPath=None):
         """
         Give the chunked work to the appropriate job.
+
+        inChunkPath is the local copy of inChunkID, for the jobs whose resource
+        requirements depend on something inside the file rather than just its size.
         """
         if self.prepOptions.preprocessJob == "checkUniqueHeaders":
             return CheckUniqueHeaders(self.prepOptions, inChunkID)
@@ -175,11 +180,15 @@ class PreprocessSequence(RoundedJob):
                                   eventName=self.prepOptions.eventName,
                                   cpu=self.prepOptions.cpu)
         elif self.prepOptions.preprocessJob == "red":
+            # Red's memory is set by the longest sequence, not by the total size, so
+            # it is worth the one scan of the chunk to find out what that is.
             return RedMaskJob(inChunkID,
                               redOpts=self.prepOptions.redOpts,
                               redPrefilterOpts=self.prepOptions.redPrefilterOpts,
                               eventName=self.prepOptions.eventName,
-                              unmask=self.prepOptions.unmask)
+                              unmask=self.prepOptions.unmask,
+                              longestRecordSize=longest_record_size(inChunkPath)
+                              if inChunkPath else None)
         elif self.prepOptions.preprocessJob == "fastan":
             return FasTANMaskJob(inChunkID,
                                  fastanOpts=self.prepOptions.fastanOpts,
@@ -240,7 +249,7 @@ class PreprocessSequence(RoundedJob):
             else:
                 # otherwise, it's taken from the ratio of chunks
                 proportionSampled = float(inChunkNumber)/len(inChunkIDList)
-            outChunkIDList.append(self.addChild(self.getChunkedJobForCurrentStage(inChunkIDs, proportionSampled, inChunkIDList[i], i)).rv())
+            outChunkIDList.append(self.addChild(self.getChunkedJobForCurrentStage(inChunkIDs, proportionSampled, inChunkIDList[i], i, inChunkList[i])).rv())
 
         if chunked:
             # Merge results of the chunking process back into a genome-wide file
