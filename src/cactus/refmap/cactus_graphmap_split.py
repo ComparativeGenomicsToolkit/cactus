@@ -29,6 +29,7 @@ from cactus.shared.version import cactus_commit
 from cactus.preprocessor.fileMasking import get_mask_bed_from_fasta
 from cactus.preprocessor.checkUniqueHeaders import sanitize_fasta_headers
 from cactus.refmap.cactus_graphmap import filter_paf, apply_mgsplit_filter_overrides
+from cactus.refmap.cactus_graphmap import FILTER_PAF_SECS_PER_GB, GFA_RENAME_SECS_PER_GB, RAW_BYTES_PER_GZ_BYTE
 from cactus.refmap.cactus_minigraph import check_sample_names, minigraph_gfa_from_pansn
 from toil.job import Job
 from toil.common import Toil
@@ -181,10 +182,16 @@ def cactus_graphmap_split(options):
         #export the split data
         export_split_data(toil, wf_output[0], wf_output[1], wf_output[2], wf_output[3], options.outDir, config)
 
+# Seconds per GB of GFA-plus-PAF for rgfa-split: 1220s to split the 8.3 GiB GFA and 34.4 GiB PAF
+# of the HPRC v2.0 whole panel, ie ~27 s/GB, with the per-chromosome sed renames that follow adding
+# ~130s more.  This is the heaviest job in cactus-graphmap-split, and separate_ref_contigs runs the
+# same binary on the same kind of input.
+RGFA_SPLIT_SECS_PER_GB = 32
+
 def graphmap_split_workflow(job, options, config, seq_id_map, seq_name_map, gfa_id, gfa_path, paf_id, paf_path, sanitize=True,
                             pansn_gfa_input=True):
 
-    root_job = Job()
+    root_job = Job(walltime=cactus_walltime())
     job.addChild(root_job)
 
     # can be a list coming in from cactus-pangenome, but we only need first item
@@ -207,12 +214,17 @@ def graphmap_split_workflow(job, options, config, seq_id_map, seq_name_map, gfa_
         sanitize_job = root_job.addChildJobFn(sanitize_fasta_headers, seq_id_map, pangenome=True, walltime=cactus_walltime())
         seq_id_map = sanitize_job.rv()
     else:
-        sanitize_job = Job()
+        sanitize_job = Job(walltime=cactus_walltime())
         root_job.addChild(sanitize_job)
 
     # auto-set --refContigs
     if not options.refContigs:
-        refcontig_job = sanitize_job.addFollowOnJobFn(detect_ref_contigs, config, options, seq_id_map)
+        # samtools faidx of a whole reference is 21s measured; the rest is downloading the fasta,
+        # whose size is not in scope here (seq_id_map is a promise), so it goes in the constant --
+        # 600s is a ~3 GB reference downloaded on a badly contended filesystem, and a bigger one
+        # still fits inside the safety factor
+        refcontig_job = sanitize_job.addFollowOnJobFn(detect_ref_contigs, config, options, seq_id_map,
+                                                     walltime=cactus_walltime(600))
         ref_contigs = refcontig_job.rv()
         options.otherContig = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "otherContigName", typeFn=str, default="chrOther")
         sanitize_job = refcontig_job
@@ -225,24 +237,33 @@ def graphmap_split_workflow(job, options, config, seq_id_map, seq_name_map, gfa_
         # the renaming pass decompresses the GFA before bgzipping it back up, so it needs room for
         # the raw copy (reckoned at 10x, as below) on top of the compressed input and output
         rename_gfa_job = root_job.addChildJobFn(minigraph_gfa_from_pansn, genome_names, gfa_path, gfa_id,
-                                                disk=gfa_size*12)
-        new_root_job = Job()
+                                                disk=gfa_size*12,
+                                                walltime=cactus_walltime(GFA_RENAME_SECS_PER_GB * gfa_size / 1e9,
+                                                                         io_bytes=2*gfa_size))
+        new_root_job = Job(walltime=cactus_walltime())
         root_job.addFollowOn(new_root_job)
         root_job = new_root_job
         gfa_id = rename_gfa_job.rv()
             
     # use file extension to sniff out compressed input
     if gfa_path.endswith(".gz"):
-        gfa_id = root_job.addChildJobFn(unzip_gz, gfa_path, gfa_id, delete_original=False, disk=gfa_size * 10).rv()
+        # gunzip is fast (27s for the 0.83 GiB compressed whole-panel GFA); the cost is writing the
+        # ~10x bigger raw file back to the jobstore, which is what io_bytes is counting
+        gfa_id = root_job.addChildJobFn(unzip_gz, gfa_path, gfa_id, delete_original=False, disk=gfa_size * 10,
+                                        walltime=cactus_walltime(60, io_bytes=(1 + RAW_BYTES_PER_GZ_BYTE) * gfa_size)).rv()
         gfa_size *= 10
     if paf_path.endswith(".gz"):
-        paf_id = root_job.addChildJobFn(unzip_gz, paf_path, paf_id, delete_original=False, disk=paf_id.size * 10).rv()
+        # the same, but on a PAF that reaches 34 GiB raw at panel scale
+        paf_id = root_job.addChildJobFn(unzip_gz, paf_path, paf_id, delete_original=False, disk=paf_id.size * 10,
+                                        walltime=cactus_walltime(120, io_bytes=(1 + RAW_BYTES_PER_GZ_BYTE) * paf_size)).rv()
         paf_size *= 10
 
     # do some basic paf filtering
     paf_filter_mem = max(paf_id.size * 10, 2**32)
     paf_filter_job = root_job.addFollowOnJobFn(filter_paf, paf_id, config, reference=options.reference,
-                                               disk = paf_id.size * 10, memory=cactus_clamp_memory(paf_filter_mem))
+                                               disk = paf_id.size * 10, memory=cactus_clamp_memory(paf_filter_mem),
+                                               walltime=cactus_walltime(60 + FILTER_PAF_SECS_PER_GB * paf_size / 1e9,
+                                                                        io_bytes=2*paf_size))
     paf_id = paf_filter_job.rv()
     root_job = paf_filter_job
 
@@ -254,7 +275,9 @@ def graphmap_split_workflow(job, options, config, seq_id_map, seq_name_map, gfa_
     split_gfa_job = root_job.addFollowOnJobFn(split_gfa, config, gfa_id, [paf_id], ref_contigs,
                                               options.otherContig, options.reference, mask_bed_id,
                                               disk=(gfa_size + paf_size) * 5,
-                                              memory=cactus_clamp_memory((gfa_size + paf_size) * 3))
+                                              memory=cactus_clamp_memory((gfa_size + paf_size) * 3),
+                                              walltime=cactus_walltime(120 + RGFA_SPLIT_SECS_PER_GB * (gfa_size + paf_size) / 1e9,
+                                                                       io_bytes=2 * (gfa_size + paf_size)))
 
     # use the output of the above splitting to do the fasta splitting
     split_fas_job = split_gfa_job.addFollowOnJobFn(split_fas, seq_id_map, seq_name_map, split_gfa_job.rv(0), walltime=cactus_walltime())
@@ -333,8 +356,14 @@ def get_mask_bed(job, seq_id_map, min_length):
     for event in seq_id_map.keys():
         fa_id = seq_id_map[event]
         fa_path = '{}.fa'.format(event) 
-        beds.append(job.addChildJobFn(get_mask_bed_from_fasta, event, fa_id, fa_path, min_length, disk=fa_id.size * 5).rv())
-    return job.addFollowOnJobFn(cat_beds, beds).rv()
+        # cactus_softmask2hardmask scanning a vertebrate genome is p99 51s / max 89s over the 625
+        # runs of the VGP 577-way; the rest is the fasta in and the BED out
+        beds.append(job.addChildJobFn(get_mask_bed_from_fasta, event, fa_id, fa_path, min_length, disk=fa_id.size * 5,
+                                      walltime=cactus_walltime(120, io_bytes=2*fa_id.size)).rv())
+    # one BED per genome -- order tens of GiB across a whole panel -- concatenated and written back.
+    # bed_ids are promises and no fasta size is in scope either, so the whole cost has to be a
+    # constant: 1200s is ~30 GiB of round-trip staging at a pessimistic 30 MB/s
+    return job.addFollowOnJobFn(cat_beds, beds, walltime=cactus_walltime(1200)).rv()
 
 def cat_beds(job, bed_ids):
     in_beds = [job.fileStore.readGlobalFile(bed_id) for bed_id in bed_ids]
@@ -506,7 +535,9 @@ def separate_ref_contigs_batch(job, config, graphmap_input_dict, graphmap_batch_
         tot_size = gfa_id.size * 10 + paf_id.size
         output_dict[chrom] = job.addChildJobFn(separate_ref_contigs, config, chrom, gfa_id, gm_result, reference_event,
                                                disk=tot_size * 5,
-                                               memory=cactus_clamp_memory(tot_size * 3)).rv()
+                                               memory=cactus_clamp_memory(tot_size * 3),
+                                               walltime=cactus_walltime(120 + RGFA_SPLIT_SECS_PER_GB * tot_size / 1e9,
+                                                                        io_bytes=tot_size)).rv()
     return output_dict
 
 def separate_ref_contigs(job, config, chrom, gfa_id, gm_result, reference_event):
@@ -575,13 +606,20 @@ def separate_ref_contigs(job, config, chrom, gfa_id, gm_result, reference_event)
     return (job.fileStore.writeGlobalFile(separated_paf_path),) + tuple(gm_result[1:]) + \
         (job.fileStore.writeGlobalFile(log_path),)
 
+# Seconds per reference contig for split_fa_into_contigs.  Grouping the HPRC toil-rt lines by job
+# gives ~330s per job for the 23-26 reference contigs of a CHM13/GRCh38 split, with a ceiling of
+# 396s across 465 jobs in each of the two runs, ie ~13 s/contig.  The contig count is the driver
+# rather than the fasta size because each contig costs its own faidx and bgzip, and <graphmap_split
+# maxRefContigs> defaults to 128 -- five times the human case.
+SPLIT_FA_SECS_PER_REF_CONTIG = 15
+
 def split_fas(job, seq_id_map, seq_name_map, split_id_map):
     """ Use samtools to split a bunch of fasta files into reference contigs, using the output of rgfa-split as a guide"""
 
     if (seq_id_map, split_id_map) == (None, None):
         return None
 
-    root_job = Job()
+    root_job = Job(walltime=cactus_walltime())
     job.addChild(root_job)
 
     # map event name to dict of contgs.  ex fa_contigs["CHM13"]["chr13"] = file_id
@@ -596,7 +634,9 @@ def split_fas(job, seq_id_map, seq_name_map, split_id_map):
         if fa_id.size:
             split_job = root_job.addChildJobFn(split_fa_into_contigs, event, fa_id, fa_path, split_id_map,
                                                strip_prefix=False, 
-                                               disk=fa_id.size * 3)
+                                               disk=fa_id.size * 3,
+                                               walltime=cactus_walltime(60 + SPLIT_FA_SECS_PER_REF_CONTIG * len(split_id_map),
+                                                                        io_bytes=2*fa_id.size))
             fa_contigs[event] = split_job.rv(0)
             fa_contig_sizes[event] = split_job.rv(1)
 

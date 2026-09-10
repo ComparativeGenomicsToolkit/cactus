@@ -505,7 +505,7 @@ def export_join_wrapper(job, options, wf_output, contig_sizes_id=None):
 def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_path_map, seq_order, ref_collapse_paf_id,
                                   last_scores_id):
     """ chain the entire workflow together, doing exports after each step to mitigate annoyance of failures """
-    root_job = Job()
+    root_job = Job(walltime=cactus_walltime())
     job.addChild(root_job)
     config_node = config_wrapper.xmlRoot
 
@@ -514,7 +514,10 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
     # size.  The assemblies that went in are the one real size we have here, and since the
     # pangenome collapses the sequence they share, every one of those outputs is smaller than
     # their total.  So it is used as the bound for the export jobs' I/O below: generous for the
-    # small ones, but these run once per workflow, and the alternative is guessing.
+    # small ones, but these run once per workflow, and the alternative is guessing.  The two jobs
+    # that pull the split tree back into the jobstore (import_minigraph_batch_wrapper and
+    # make_batch_align_jobs_wrapper) move the same sequence in the other direction, so they use it
+    # too.
     input_seq_bytes = sum(seq_id.size for seq_id in seq_id_map.values())
 
     # make sure this is done up front
@@ -536,7 +539,7 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
         prev_job = sanitize_job.addFollowOnJobFn(
             contig_sizes_job, seq_id_map,
             getOptionalAttrib(findRequiredNode(config_node, "graphmap"), "assemblyName",
-                              default="_MINIGRAPH_"))
+                              default="_MINIGRAPH_"), walltime=cactus_walltime())
         contig_sizes_id = prev_job.rv()
 
     assert type(options.reference) == list
@@ -604,7 +607,8 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
         wf_output = split_job.rv()
         split_log_id = split_job.rv(2)
         split_out_path = os.path.join(options.outDir, 'chrom-subproblems')
-        split_export_job = split_job.addFollowOnJobFn(export_split_wrapper, wf_output, split_out_path, split_config_wrapper, walltime=cactus_walltime())
+        split_export_job = split_job.addFollowOnJobFn(export_split_wrapper, wf_output, split_out_path, split_config_wrapper,
+                                                      walltime=cactus_walltime(0, io_bytes=2 * input_seq_bytes))
         chromfile_path = os.path.join(split_out_path, 'chromfile.txt')
 
     # clean out some jobstore files we no longer need
@@ -616,7 +620,8 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
     if options.mgSplit:
         # rerun cactus_minigraph but on a per-chromosome basis
         minigraph_batch_import_job = clean_jobstore_job.addFollowOnJobFn(import_minigraph_batch_wrapper, options, config_wrapper,
-                                                                         chromfile_path)
+                                                                         chromfile_path,
+                                                                         walltime=cactus_walltime(0, io_bytes=2 * input_seq_bytes))
         input_seqfiles = minigraph_batch_import_job.rv(0)
         raw_input_map = minigraph_batch_import_job.rv(1)
         sanitize_job = minigraph_batch_import_job.addFollowOnJobFn(sanitize_fasta_headers_batch, raw_input_map, walltime=cactus_walltime())
@@ -626,7 +631,8 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
                                                             input_map, None,  sanitize=False, walltime=cactus_walltime())
         minigraph_batch_results = minigraph_batch_job.rv()
         minigraph_batch_export_job = minigraph_batch_job.addFollowOnJobFn(export_minigraph_batch_wrapper, options, config_node,
-                                                                          input_seqfiles, input_map, minigraph_batch_results, walltime=cactus_walltime())
+                                                                          input_seqfiles, input_map, minigraph_batch_results,
+                                                                          walltime=cactus_walltime(0, io_bytes=2 * input_seq_bytes))
 
         # now rerun cactus_graphmap but on a per-chromosome bassis
         graphmap_input_dict = minigraph_batch_export_job.rv(0)
@@ -643,7 +649,7 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
         graphmap_batch_results = separate_job.rv()
         graphmap_batch_export_job = separate_job.addFollowOnJobFn(export_graphmap_batch_wrapper, options, config_node,
                                                                         graphmap_batch_results, input_seqfiles,
-                                                                        walltime=cactus_walltime())
+                                                                        walltime=cactus_walltime(0, io_bytes=2 * input_seq_bytes))
         graphmap_file_ids = graphmap_batch_export_job.rv(0)
         chromfile_path = graphmap_batch_export_job.rv(1)
         # clean out the jobstore, as cactus_align reads everything from disk
@@ -654,12 +660,14 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
     # cactus_align
     options.scoresFromChromfile = options.lastTrain and options.mgSplit
     align_jobs_make_job = clean_jobstore_job.addFollowOnJobFn(make_batch_align_jobs_wrapper, options, chromfile_path, config_wrapper,
-                                                              last_scores_id)
+                                                              last_scores_id,
+                                                              walltime=cactus_walltime(0, io_bytes=2 * input_seq_bytes))
     
     align_jobs = align_jobs_make_job.rv()
     align_job = align_jobs_make_job.addFollowOnJobFn(batch_align_jobs, align_jobs, walltime=cactus_walltime())
     results_dict = align_job.rv()
-    align_export_job = align_job.addFollowOnJobFn(export_align_wrapper, options, results_dict)
+    align_export_job = align_job.addFollowOnJobFn(export_align_wrapper, options, results_dict,
+                                                  walltime=cactus_walltime(0, io_bytes=2 * input_seq_bytes))
     join_options, vg_ids, hal_ids = align_export_job.rv(0), align_export_job.rv(1), align_export_job.rv(2)
 
     # cactus_graphmap_join

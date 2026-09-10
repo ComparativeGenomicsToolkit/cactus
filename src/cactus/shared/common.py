@@ -1396,6 +1396,25 @@ def enableDumpStack(sig=signal.SIGUSR1):
     """enable dumping stacks when the specified signal is received"""
     signal.signal(sig, dumpStacksHandler)
 
+# Single-threaded gzip/bgzip, in bytes of *input* per second.  Compression measured at 21-27
+# MB/s on the HPRC PAFs: 1727 s to gzip the 34.4 GiB whole-panel PAF and 868 s to bgzip its
+# GAF, against medians of 79 s and 50 s per chromosome.  Decompression at ~38 MB/s of
+# compressed input, over the 576 VGP alignments' gzipped PAFs.  Both are rates over whatever
+# gzip is handed, so the compressed side of each pair is the smaller number of bytes.
+GZIP_COMPRESS_BYTES_PER_SEC = 21e6
+GZIP_DECOMPRESS_BYTES_PER_SEC = 38e6
+
+def unzip_gz_walltime(compressed_bytes):
+    """ walltime for an unzip_gz job on a file of compressed_bytes.  It writes the decompressed
+    file back to the jobstore, which for a PAF or fasta is roughly 3x what it read. """
+    return cactus_walltime(compressed_bytes / GZIP_DECOMPRESS_BYTES_PER_SEC,
+                           io_bytes=4 * compressed_bytes)
+
+def zip_gz_walltime(uncompressed_bytes):
+    """ walltime for a zip_gz job on a file of uncompressed_bytes """
+    return cactus_walltime(uncompressed_bytes / GZIP_COMPRESS_BYTES_PER_SEC,
+                           io_bytes=2 * uncompressed_bytes)
+
 def unzip_gzs(job, input_paths, input_ids, delete_original=True):
     """ go through a list of files and unzip any that end with .gz and return a list 
     of updated ids.  files that don't end in .gz are just passed through.  relying on the extension
@@ -1404,7 +1423,8 @@ def unzip_gzs(job, input_paths, input_ids, delete_original=True):
     for input_path, input_id in zip(input_paths, input_ids):
         if input_path.endswith('.gz'):
             unzip_job = job.addChildJobFn(unzip_gz, input_path, input_id, delete_original=delete_original,
-                                          disk=10*input_id.size)
+                                          disk=10*input_id.size,
+                                          walltime=unzip_gz_walltime(input_id.size))
             unzipped_ids.append(unzip_job.rv())
         else:
             unzipped_ids.append(input_id)
@@ -1433,13 +1453,15 @@ def zip_gzs(job, input_paths, input_ids, list_elems = None, delete_original=True
                 for i, elem in enumerate(input_list):
                     if not list_elems or i in list_elems:
                         output_list.append(job.addChildJobFn(zip_gz, input_path, elem, delete_original=delete_original,
-                                                             disk=2*elem.size).rv())
+                                                             disk=2*elem.size,
+                                                             walltime=zip_gz_walltime(elem.size)).rv())
                     else:
                         output_list.append(elem)
                 zipped_ids.append(output_list)
             else:
                 zipped_ids.append(job.addChildJobFn(zip_gz, input_path, input_list, delete_original=delete_original,
-                                                    disk=2*input_list.size).rv())
+                                                    disk=2*input_list.size,
+                                                    walltime=zip_gz_walltime(input_list.size)).rv())
         else:
             zipped_ids.append(input_list)
     return zipped_ids

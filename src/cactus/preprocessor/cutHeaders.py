@@ -12,13 +12,24 @@ from Bio import SeqIO
 from Bio.SeqRecord import SeqRecord
 
 from cactus.shared.common import RoundedJob
+from cactus.shared.common import cactus_walltime
 from toil.realtimeLogger import RealtimeLogger
+
+# Seconds per GB of input fasta for the Bio.SeqIO parse-and-rewrite this job does.
+# Micro-benchmarked at 8-9 s/GB on a 210 MB fasta, and the same on a 52-scaffold and on a
+# 10309-contig version of it, so the record count does not matter.  Rounded up to 12 for the
+# benchmark being one file on one machine; the cluster margin is --walltimeFactor's job.  This
+# one really does run on every genome of every --pangenome run, where the VGP 577-way issued
+# 635 of them over inputs with a p99 of 9.2 GB.
+CUT_HEADERS_SECS_PER_GB = 12
 
 class CutHeadersJob(RoundedJob):
     def __init__(self, fastaID, cutBefore, cutBeforeOcc, cutAfter):
         disk = 2*(fastaID.size)
         memory = fastaID.size
-        RoundedJob.__init__(self, memory=memory, disk=disk, preemptable=True)
+        RoundedJob.__init__(self, memory=memory, disk=disk, preemptable=True,
+                            walltime=cactus_walltime(CUT_HEADERS_SECS_PER_GB * fastaID.size / 1e9,
+                                                     io_bytes=2 * fastaID.size))
         self.fastaID = fastaID
         self.cutBefore = cutBefore
         self.cutBeforeOcc = cutBeforeOcc

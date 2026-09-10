@@ -25,7 +25,7 @@ import os
 import re
 import shutil
 
-from cactus.shared.common import cactus_call, getOptionalAttrib, findRequiredNode
+from cactus.shared.common import cactus_call, getOptionalAttrib, findRequiredNode, cactus_walltime
 from toil.realtimeLogger import RealtimeLogger
 
 logger = logging.getLogger(__name__)
@@ -1134,9 +1134,13 @@ def contig_sizes_job(job, seq_id_map, graph_event):
             continue
         safe_event_filename(event)
         fa_id = seq_id_map[event]
+        # samtools faidx of a whole genome is 21s measured; the rest is downloading the fasta
         per_event[event] = job.addChildJobFn(contig_sizes_for_event, fa_id, event,
-                                             disk=fa_id.size * 3).rv()
-    return job.addFollowOnJobFn(merge_contig_sizes, per_event).rv()
+                                             disk=fa_id.size * 3,
+                                             walltime=cactus_walltime(60, io_bytes=fa_id.size)).rv()
+    # the rows arrive through promises, so this stages no file at all: it deserialises a few
+    # million tuples and writes one small gzipped TSV.  no size is in scope to key off
+    return job.addFollowOnJobFn(merge_contig_sizes, per_event, walltime=cactus_walltime(300)).rv()
 
 
 def contig_sizes_for_event(job, fa_id, event):

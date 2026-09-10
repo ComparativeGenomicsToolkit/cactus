@@ -50,6 +50,33 @@ from toil.realtimeLogger import RealtimeLogger
 from toil.lib.humanize import bytes2human
 
 
+# Core-seconds of chunker_job per GB of source MAF.  The chunker runs one `taffy view` per
+# chunk under GNU parallel; across 18 cactus-phast runs of the VGP 577-way MAF (28 to 208 GB,
+# every one of them at --chunkCores 32) it ran at 10.7 to 23.5 seconds per GB of wall time,
+# i.e. 340 to 750 core-s/GB.  Only 32-core runs were measured, so dividing by the core count is
+# an assumption -- a conservative one at 32, and at --chunkCores 1 it correctly asks for the
+# ~40 hours a single-threaded pass over a 208 GB MAF really takes.
+CHUNKER_CORE_SECS_PER_GB = 700
+
+# Seconds of 4d-site extraction per GB of (compressed) chunk in the group.  `msa_view --4d` was
+# p50 39.7s / p99 147.4s / max 193.2s across the 5024 group jobs of those 18 runs, whose groups
+# ran up to ~700 MB of compressed MAF -- so this is a little above the worst rate seen.
+EXTRACT_4D_SECS_PER_GB = 500
+
+# Core-seconds of phyloFit per species in the tree.  The 18 fits of the 577-way 4d SS took 1917
+# to 15143 s at --phyloFitCores 64, i.e. up to 969000 core-s over 577 species = 1680 core-s per
+# species.  EM cost is really n_species x n_4d_sites x iterations, but the SS is a promise where
+# this is needed and the site count is set by the annotation rather than the tree, so the
+# species count carries the scaling.
+PHYLOFIT_CORE_SECS_PER_SPECIES = 2000
+
+# Seconds of phyloP per MB of the (bgzipped) chunk it scores.  Back-solving each run's issued
+# per-chunk disk against its phyloP times over 42234 chunk runs put 15 of the 18 runs at 60-81
+# s/MB at p50/p90/p99 (hg38 73/81/77), and the single worst chunk in the corpus at 216 s/MB --
+# which cactus_walltime()'s factor covers from here.
+PHYLOP_SECS_PER_MB = 100
+
+
 def main():
     parser = Job.Runner.getDefaultArgumentParser()
     add_cactus_toil_options(parser)
@@ -788,7 +815,10 @@ def phast_workflow(job, config, options, maf_id, tai_id, tai_built, hal_id, ann_
 
     # fail fast if any required external binary is missing rather than crashing
     # mid-workflow on a remote worker after hours of localization
-    check_job = job.addChildJobFn(phast_check_tools, options)
+    # 13 no-arg tool probes: 0.54s for all of them with the binaries on the PATH.  The estimate
+    # is for --binariesMode docker/singularity, where each probe is a container start and the
+    # first one may pull the image.
+    check_job = job.addChildJobFn(phast_check_tools, options, walltime=cactus_walltime(300))
 
     # Normalize the annotation up front: convert to genePred, filter to
     # CDS-bearing transcripts, single-cover. Only matters when we'll train.
@@ -798,15 +828,26 @@ def phast_workflow(job, config, options, maf_id, tai_id, tai_built, hal_id, ann_
     if need_train and ann_id is not None:
         # Annotations are tiny relative to MAF/HAL; default memory is plenty
         # for a human-scale ncbiRefSeq.txt.gz (~10 MB compressed).
+        #
+        # gtfToGenePred was p50 7.4s / max 14.3s on a human GTF across the 18 phast runs and
+        # genePredSingleCover under a second; the rest is a python decompress, filter and sort of
+        # the same file, and the io term is the compressed annotation in and the genePred out.
         prep_job = check_job.addFollowOnJobFn(prep_annotation, options, ann_id,
-                                              disk=max(2 * 1024**3, int(ann_id.size * 20)))
+                                              disk=max(2 * 1024**3, int(ann_id.size * 20)),
+                                              walltime=cactus_walltime(120, io_bytes=10 * ann_id.size))
         ann_id = prep_job.rv()
         setup_parent = prep_job
     else:
         setup_parent = check_job
 
+    # halStats is seconds even on the 577-way (--genomes 5.6s, everything else under 0.1s), so
+    # what this job costs is the HAL copy plus halAlignedExtract, which scans the reference's
+    # top segments and streams a BED of them through awk.  That scan tracks the size of the
+    # REFERENCE, which the HAL's own size says nothing about (a two-genome HAL can have the same
+    # 3 Gb reference as the 577-way), so it goes in the constant rather than in io_bytes.
     setup_job = setup_parent.addFollowOnJobFn(phast_setup, options, hal_id,
-                                              disk=int(hal_id.size * 1.1))
+                                              disk=int(hal_id.size * 1.1),
+                                              walltime=cactus_walltime(1800, io_bytes=hal_id.size))
     species_list = setup_job.rv(0)
     tree_str = setup_job.rv(1)
     ref_seq_lengths = setup_job.rv(2)
@@ -861,12 +902,17 @@ def phast_workflow(job, config, options, maf_id, tai_id, tai_built, hal_id, ann_
     # lands pre-filtered for downstream phast tools (msa_view --4d and phyloP both
     # need the same filtered MAF, no point doing it twice per chunk).
     filter_cmd = '{strip} | mafDuplicateFilter -k -m -'.format(strip=make_strip_perl_cmd())
+    # io_bytes charges the source MAF in and every chunk back out again -- neither shows up in
+    # the parallel command's runtime, and on the 208 GB MAF that is as much time as the chunking.
+    chunker_secs = CHUNKER_CORE_SECS_PER_GB * (maf_id.size / 1e9) / max(1, options.chunkCores or 1)
     chunk_job = plan_job.addFollowOnJobFn(chunker_job, options, maf_id, tai_id,
                                           os.path.basename(options.inMaf), chunk_specs,
                                           filter_cmd,
                                           disk=chunker_disk,
                                           memory=chunker_memory,
-                                          cores=options.chunkCores)
+                                          cores=options.chunkCores,
+                                          walltime=cactus_walltime(chunker_secs,
+                                                                   io_bytes=2 * maf_id.size))
     chunks = chunk_job.rv()
 
     # ----- phyloFit branch (also runs in phyloP mode if no model was given) -----
@@ -1311,15 +1357,25 @@ def train_workflow(job, options, chunks, species_list, tree_str, ann_id):
 
     # 4d-site SS files are tiny even at 447-way (~300 MB aggregated). 4 GiB
     # disk covers concat scratch comfortably.
+    # msa_view --aggregate itself was p50 3.3s / max 8.5s over the 18 phast runs; the job's real
+    # cost is staging the 135-2414 per-group SS files.  ss_results is a promise here, so that
+    # goes in as a constant -- the 4 GiB disk above is the bound on how much there can be.
     aggregate_job = extract_job.addFollowOnJobFn(aggregate_4d, options, ss_results,
                                                  species_list, tree_str,
-                                                 disk=4 * 1024**3)
+                                                 disk=4 * 1024**3,
+                                                 walltime=cactus_walltime(300, io_bytes=2 * 1024**3))
     aggregate_id = aggregate_job.rv()
     aggregate_job.addFollowOnJobFn(export_file, aggregate_id, ss_export_path(options), walltime=cactus_walltime())
 
     # phyloFit on 577-way × 1.4 GB SS peaked at ~300 MiB; default memory is
     # fine unless the user overrides via --phyloFitMemory.
-    fit_kwargs = dict(disk=4 * 1024**3, cores=options.phyloFitCores)
+    #
+    # The thread divisor is capped at 64 because that is the only setting the 18 runs used, and
+    # phast's scaling above it is unmeasured.
+    fit_secs = (PHYLOFIT_CORE_SECS_PER_SPECIES * max(1, len(species_list))
+                / max(1, min(options.phyloFitCores or 1, 64)))
+    fit_kwargs = dict(disk=4 * 1024**3, cores=options.phyloFitCores,
+                      walltime=cactus_walltime(fit_secs))
     if options.phyloFitMemory:
         fit_kwargs['memory'] = cactus_clamp_memory(options.phyloFitMemory)
     fit_job = aggregate_job.addFollowOnJobFn(phyloFit_job, options, aggregate_id,
@@ -1327,8 +1383,10 @@ def train_workflow(job, options, chunks, species_list, tree_str, ann_id):
     model_id = fit_job.rv()
 
     if options.modFreqs:
+        # modFreqs was 17 ms at worst; a phast .mod is 30 KB even at 577 species
         mf_job = fit_job.addFollowOnJobFn(mod_freqs_job, options, model_id,
-                                          disk=2 * 1024**3)
+                                          disk=2 * 1024**3,
+                                          walltime=cactus_walltime())
         model_id = mf_job.rv()
         export_parent = mf_job
     else:
@@ -1361,9 +1419,15 @@ def extract_4d_all(job, options, chunks, ann_id, species_list, leaves_csv):
         # tracks the aligned-column count over the (small) CDS subset, which
         # is bounded by the reference-coordinate window per group. Observed
         # ~700 MiB on a 577-way ~10 Mb chunk-group; default memory is fine.
+        #
+        # Walltime: the 120s on top of the rate is the python gunzip+cat of the group's chunks,
+        # which no command timing sees.
         rvs.append(job.addChildJobFn(extract_4d_chunk_group, options, group, ann_id,
                                      leaves_csv,
-                                     disk=per_disk, cores=1).rv())
+                                     disk=per_disk, cores=1,
+                                     walltime=cactus_walltime(
+                                         EXTRACT_4D_SECS_PER_GB * (group_compressed / 1e9) + 120,
+                                         io_bytes=group_compressed + ann_id.size)).rv())
     return rvs
 
 
@@ -1587,9 +1651,16 @@ def phyloP_workflow(job, options, chunks, model_id, ref_seq_lengths, species_lis
     # bgzip on the concatenated wig is CPU-bound and parallelizable. 8 cores is
     # enough to be much faster than single-threaded without monopolizing a node.
     merge_cores = min(options.chunkCores or 8, 8)
+    # bgzip of the merged wig took 129s on hg38's 3.1 Gb reference at 8 threads (p50 7.4s, max
+    # 162.7s over the 18 runs); the rest of the job is catFiles pulling the 1000-4800 per-chunk
+    # wigs in and writing the merged one back, which io_bytes charges at ~10 bytes of wig text
+    # per reference base each way.
+    merge_secs = 5e-8 * total_ref_bp * 8.0 / merge_cores
     merge_job = score_job.addFollowOnJobFn(phyloP_merge, options, per_chunk_wigs,
                                            disk=merge_disk,
-                                           cores=merge_cores)
+                                           cores=merge_cores,
+                                           walltime=cactus_walltime(merge_secs,
+                                                                    io_bytes=20 * total_ref_bp))
     wig_id = merge_job.rv()
     # the merged wig is a promise, but its size follows the reference: ~10 bytes/bp of wig text,
     # which bgzip takes down to roughly a byte a base (see the disk estimate above)
@@ -1605,10 +1676,15 @@ def phyloP_workflow(job, options, chunks, model_id, ref_seq_lengths, species_lis
         # leaves comfortable headroom; floor at 8 GiB so smaller tests don't
         # over-request.
         bw_mem = max(8 * 1024**3, 24 * total_ref_bp)
+        # wigToBigWig was 1461.5s on hg38's 3.1 Gb reference (p50 534s over the 18 runs), i.e.
+        # 4.7e-7 s per reference base; the wig it reads is ~10 bytes/ref_bp and the .bw it writes
+        # back is only megabytes.
         bw_job = merge_job.addFollowOnJobFn(wig_to_bigwig_job, options, wig_id, ref_seq_lengths,
                                             disk=bw_disk,
                                             memory=cactus_clamp_memory(bw_mem),
-                                            cores=merge_cores)
+                                            cores=merge_cores,
+                                            walltime=cactus_walltime(6e-7 * total_ref_bp,
+                                                                     io_bytes=10 * total_ref_bp))
         bw_job.addFollowOnJobFn(export_file, bw_job.rv(),
                                 bigwig_export_path(options, track_subtree),
                                 walltime=cactus_walltime(0, io_bytes=2 * total_ref_bp))
@@ -1629,7 +1705,10 @@ def phyloP_all(job, options, chunks, model_id, species_list, subtree):
         # memory is fine.
         rvs.append(job.addChildJobFn(phyloP_chunk, options, chunk_spec, model_id,
                                      subtree,
-                                     disk=per_disk, cores=1).rv())
+                                     disk=per_disk, cores=1,
+                                     walltime=cactus_walltime(
+                                         PHYLOP_SECS_PER_MB * (chunk_id.size / 1e6),
+                                         io_bytes=chunk_id.size)).rv())
     return rvs
 
 

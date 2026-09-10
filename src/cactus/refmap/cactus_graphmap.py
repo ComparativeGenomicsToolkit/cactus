@@ -18,6 +18,7 @@ from operator import itemgetter
 
 from cactus.progressive.seqFile import SeqFile
 from cactus.shared.common import setupBinaries, importSingularityImage, cactus_walltime
+from cactus.shared.common import GZIP_COMPRESS_BYTES_PER_SEC
 from cactus.shared.common import cactusRootPath
 from cactus.shared.configWrapper import ConfigWrapper
 from cactus.shared.common import makeURL, catFiles
@@ -322,14 +323,47 @@ def add_separate_ref_contigs_job(batch_job, options, config, input_dict):
     from cactus.refmap.cactus_graphmap_split import separate_ref_contigs_batch
     reference = options.reference[0] if type(options.reference) is list else options.reference
     return batch_job.addFollowOnJobFn(separate_ref_contigs_batch, config, input_dict, batch_job.rv(), reference,
-                                      getattr(options, 'permissiveContigFilter', None))
+                                      getattr(options, 'permissiveContigFilter', None), walltime=cactus_walltime())
 
 def minigraph_batch_separate_workflow(job, options, config, input_dict, graph_event, sanitize, pansn_gfa_input=True):
     """ minigraph_batch_workflow followed by the separation pass, for callers that just want the final
     result and add nothing after it """
     batch_job = job.addChildJobFn(minigraph_batch_workflow, options, config, input_dict, graph_event, sanitize,
-                                  pansn_gfa_input)
+                                  pansn_gfa_input, walltime=cactus_walltime())
     return add_separate_ref_contigs_job(batch_job, options, config, input_dict).rv()
+
+# Walltime estimates for the graphmap jobs.  Everything below was measured on the two HPRC
+# pangenome runs, the biggest graphmaps we have logs for: the whole-panel pass of v2.0 (one 8.3
+# GiB raw GFA, a 34.4 GiB merged PAF) and the per-chromosome pass of v2.1 (~0.6 GiB of GFA and
+# ~2.2 GiB of PAF each).
+
+# The merged minigraph PAF comes out at about 4x the raw GFA it was mapped against: 34.4 GiB
+# against 8.3 GiB whole-panel, 2.2 GiB against 0.6 GiB per chromosome.  The PAF is only a promise
+# while the workflow is being built, so this is how its size reaches the walltimes of the jobs
+# that make it, read it and copy it.
+PAF_BYTES_PER_GFA_BYTE = 4
+
+# A bgzipped GFA or PAF decompresses to about 10x its size, the figure the disk requests here are
+# already reckoned at.
+RAW_BYTES_PER_GZ_BYTE = 10
+
+# Seconds per GB of *compressed* GFA to rename it between PanSN and Cactus.  Nothing measures this
+# one directly -- cactus-pangenome passes pansn_gfa_input=False, so it only runs from the
+# standalone cactus-graphmap and cactus-graphmap-split entry points and it fired in none of the
+# runs we have logs for.  It rewrites every S-line of the decompressed GFA in python (~40 MB/s) and
+# bgzips the result back up (~25 MB/s, the rate of the whole-panel bgzips that were measured), both
+# single-threaded and both over a raw GFA ~10x the compressed input it is handed.
+GFA_RENAME_SECS_PER_GB = 700
+
+# Seconds per GB of raw GFA for rgfa2paf: 402s on the 8.3 GiB whole-panel GFA against a 112s worst
+# case on the 0.6 GiB per-chromosome ones, ie ~40 s/GB on top of a ~90s fixed cost.
+RGFA2PAF_SECS_PER_GB = 40
+
+# Seconds per GB of raw GFA for filter_paf_deletions: 4337s for filter-paf-deletions plus ~500s
+# for the vg convert that precedes it on the whole-panel GFA, against 802s worst case on the
+# per-chromosome ones.
+FILTER_PAF_DELETIONS_SECS_PER_GB = 500
+
 
 def minigraph_workflow(job, options, config, seq_id_map, gfa_id, graph_event, sanitize, ref_collapse_paf_id, pansn_gfa_input=True):
     """ Overall workflow takes command line options and returns (paf-id, (optional) fa-id) """
@@ -341,7 +375,7 @@ def minigraph_workflow(job, options, config, seq_id_map, gfa_id, graph_event, sa
     if type(options.reference) is list:
         options.reference = options.reference[0]
 
-    root_job = Job()
+    root_job = Job(walltime=cactus_walltime())
     job.addChild(root_job)
 
     mg_cores = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "cpu", typeFn=int, default=1)
@@ -353,16 +387,22 @@ def minigraph_workflow(job, options, config, seq_id_map, gfa_id, graph_event, sa
 
     # add unique prefixes to the input PAF
     if ref_collapse_paf_id:
+        # one awk pass over the PAF, then staging it in and out.  --collapseRefPAF was not used in
+        # any of the runs we have logs for, so the ~50 MB/s awk rate is inferred, not measured
         ref_collapse_paf_id = root_job.addChildJobFn(add_paf_prefixes, ref_collapse_paf_id, options.reference,
-                                                     disk=2*ref_collapse_paf_id.size).rv()
+                                                     disk=2*ref_collapse_paf_id.size,
+                                                     walltime=cactus_walltime(20 * ref_collapse_paf_id.size / 1e9,
+                                                                              io_bytes=2*ref_collapse_paf_id.size)).rv()
 
     # convert the GFA from PanSN to Cactus names
     if pansn_gfa_input:
         # the renaming pass decompresses the GFA before bgzipping it back up, so it needs room for
         # the raw copy (reckoned at 10x, as elsewhere) on top of the compressed input and output
         rename_gfa_job = root_job.addChildJobFn(minigraph_gfa_from_pansn, genome_names, options.minigraphGFA, gfa_id,
-                                                disk=gfa_id.size*12)
-        new_root_job = Job()
+                                                disk=gfa_id.size*12,
+                                                walltime=cactus_walltime(GFA_RENAME_SECS_PER_GB * gfa_id.size / 1e9,
+                                                                         io_bytes=2*gfa_id.size))
+        new_root_job = Job(walltime=cactus_walltime())
         root_job.addFollowOn(new_root_job)
         root_job = new_root_job
         gfa_id = rename_gfa_job.rv()
@@ -371,16 +411,26 @@ def minigraph_workflow(job, options, config, seq_id_map, gfa_id, graph_event, sa
     if options.outputFasta:
         # convert GFA to fasta
         scale = 5 if zipped_gfa else 1
+        # gfatools barely scales with GFA size -- 199s on the whole-panel GFA against a 239s worst
+        # case per chromosome -- so a flat compute term plus the staging is the honest shape
         fa_job = root_job.addChildJobFn(make_minigraph_fasta, gfa_id, options.outputFasta, graph_event,
-                                        disk=scale*2*gfa_id_size, memory=cactus_clamp_memory(2*scale*gfa_id_size))
+                                        disk=scale*2*gfa_id_size, memory=cactus_clamp_memory(2*scale*gfa_id_size),
+                                        walltime=cactus_walltime(300, io_bytes=2*gfa_id_size))
         fa_id = fa_job.rv()
 
     if zipped_gfa:
         # gaf2paf needs unzipped gfa, so we take care of that upfront
-        gfa_unzip_job = root_job.addChildJobFn(unzip_gz, options.minigraphGFA, gfa_id, delete_original=False, disk=5*gfa_id_size)
+        # gunzip itself is fast (27s for the 0.83 GiB compressed whole-panel GFA); what costs is
+        # writing the ~10x bigger raw GFA back to the jobstore
+        gfa_unzip_job = root_job.addChildJobFn(unzip_gz, options.minigraphGFA, gfa_id, delete_original=False, disk=5*gfa_id_size,
+                                               walltime=cactus_walltime(60, io_bytes=(1 + RAW_BYTES_PER_GZ_BYTE) * gfa_id_size))
         gfa_id = gfa_unzip_job.rv()
         gfa_id_size *= 10
         options.minigraphGFA = options.minigraphGFA[:-3]
+
+    # size of the merged PAF every job below either makes, reads or copies
+    paf_bytes = PAF_BYTES_PER_GFA_BYTE * gfa_id_size
+
     paf_job = Job.wrapJobFn(minigraph_map_all, options, config, gfa_id, seq_id_map, graph_event, walltime=cactus_walltime())
     root_job.addFollowOn(paf_job)
 
@@ -390,7 +440,9 @@ def minigraph_workflow(job, options, config, seq_id_map, gfa_id, graph_event, sa
         # if --refFromGFA is specified, we get the entire alignment from that, otherwise we just take contigs
         # that didn't get mapped by anything else
         gfa2paf_job = Job.wrapJobFn(extract_paf_from_gfa, gfa_id, options.minigraphGFA, options.reference, graph_event, paf_job.rv(0) if not options.refFromGFA else None,
-                                    disk=gfa_id_size, memory=cactus_clamp_memory(gfa_id_size))
+                                    disk=gfa_id_size, memory=cactus_clamp_memory(gfa_id_size),
+                                    walltime=cactus_walltime(120 + RGFA2PAF_SECS_PER_GB * gfa_id_size / 1e9,
+                                                             io_bytes=gfa_id_size + (0 if options.refFromGFA else paf_bytes)))
         if options.refFromGFA:
             root_job.addChild(gfa2paf_job)
         else:
@@ -401,10 +453,12 @@ def minigraph_workflow(job, options, config, seq_id_map, gfa_id, graph_event, sa
             
             if ref_collapse_paf_id:
                 collapse_paf_id = collapse_job.addFollowOnJobFn(merge_pafs, {"1":collapse_job.rv(), "2":ref_collapse_paf_id},
-                                                                disk=gfa_id_size).rv()
+                                                                disk=gfa_id_size,
+                                                                walltime=merge_pafs_walltime(paf_bytes)).rv()
             else:
                 collapse_paf_id = collapse_job.rv()
-        merge_paf_job = Job.wrapJobFn(merge_pafs,  {"1" : paf_job.rv(0), "2" : gfa2paf_job.rv()}, disk=gfa_id_size)
+        merge_paf_job = Job.wrapJobFn(merge_pafs,  {"1" : paf_job.rv(0), "2" : gfa2paf_job.rv()}, disk=gfa_id_size,
+                                      walltime=merge_pafs_walltime(paf_bytes))
         paf_job.addFollowOn(merge_paf_job)
         gfa2paf_job.addFollowOn(merge_paf_job)
         out_paf_id = merge_paf_job.rv()
@@ -424,9 +478,15 @@ def minigraph_workflow(job, options, config, seq_id_map, gfa_id, graph_event, sa
         del_filter_job = prev_job.addFollowOnJobFn(filter_paf_deletions, out_paf_id, gfa_id, del_filter, del_filter_threshold,
                                                    del_size_threshold,
                                                    disk=8*gfa_id_size, cores=mg_cores,
-                                                   memory=cactus_clamp_memory(30*gfa_id_size))
+                                                   memory=cactus_clamp_memory(30*gfa_id_size),
+                                                   walltime=cactus_walltime(600 + FILTER_PAF_DELETIONS_SECS_PER_GB * gfa_id_size / 1e9,
+                                                                            io_bytes=gfa_id_size + 2*paf_bytes))
+        # the 600s floor is for the tail: per chromosome this gzip has a 79s median but a 1390s
+        # worst case, which is contention on the shared filesystem, not PAF size
         unfiltered_paf_id = prev_job.addFollowOnJobFn(zip_gz, 'mg.paf.unfiltered', out_paf_id, delete_original=False,
-                                                      disk=gfa_id_size).rv()
+                                                      disk=gfa_id_size,
+                                                      walltime=cactus_walltime(600 + paf_bytes / GZIP_COMPRESS_BYTES_PER_SEC,
+                                                                               io_bytes=2*paf_bytes)).rv()
         out_paf_id = del_filter_job.rv(0)
         filtered_paf_log = del_filter_job.rv(1)
         paf_was_filtered = del_filter_job.rv(2)
@@ -434,7 +494,8 @@ def minigraph_workflow(job, options, config, seq_id_map, gfa_id, graph_event, sa
 
     if collapse_paf_id:
         # note: the collapse paf doesn't get merged into unfiltered_paf
-        merge_collapse_job = prev_job.addFollowOnJobFn(merge_pafs, {"1" : out_paf_id, "2" : collapse_paf_id}, disk=gfa_id_size)
+        merge_collapse_job = prev_job.addFollowOnJobFn(merge_pafs, {"1" : out_paf_id, "2" : collapse_paf_id}, disk=gfa_id_size,
+                                                       walltime=merge_pafs_walltime(paf_bytes))
         out_paf_id = merge_collapse_job.rv()
 
     return out_paf_id, fa_id if options.outputFasta else None, paf_job.rv(1), unfiltered_paf_id, filtered_paf_log, paf_was_filtered
@@ -469,10 +530,26 @@ def make_minigraph_fasta(job, gfa_file_id, gfa_file_path, name):
 
     return job.fileStore.writeGlobalFile(fa_path)
 
+# minigraph mapping, per job and per GB of sanitized fasta.  Grouping the HPRC toil-rt lines by
+# job gives p90 4062s for a whole-genome haplotype (v2.0, n=474, ~3.1 GB of fasta) against a p99
+# of ~1200s for a per-chromosome one (v2.1, ~0.12 GB), which is a line at ~1200 s/GB.  The
+# intercept is raised to 1500 to cover the per-chromosome tail (max 3521s, 3x its own p99), which
+# is cluster contention rather than anything the fasta size can see.
+MINIGRAPH_MAP_SECS = 1500
+MINIGRAPH_MAP_SECS_PER_GB = 1200
+
+# What a genome's minigraph output weighs as a fraction of the fasta it was mapped from: the v2.0
+# whole panel merged ~1.4 TB of sanitized fasta into a 34.4 GiB PAF (2.6%) and a GAF whose
+# single-threaded bgzip took 649s (v2.0) / 868s (v2.1) at ~25 MB/s, ie ~16-22 GB (~1.5%); per
+# chromosome on v2.1 the PAF ratio is 4.3%.  Both merges are handed promises, so the fastas are the
+# only handle on how much they move.
+PAF_BYTES_PER_FASTA_BYTE = 0.05
+GAF_BYTES_PER_FASTA_BYTE = 0.025
+
 def minigraph_map_all(job, options, config, gfa_id, fa_id_map, graph_event):
     """ top-level job to run the minigraph mapping in parallel, returns paf """
     # hang everything on this job, to self-contain workflow
-    top_job = Job()
+    top_job = Job(walltime=cactus_walltime())
     job.addChild(top_job)
 
     mg_cores = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "cpu", typeFn=int, default=1)
@@ -490,13 +567,19 @@ def minigraph_map_all(job, options, config, gfa_id, fa_id_map, graph_event):
             event_name = '{}.{}'.format(event, options.mg_chrom_name)
         minigraph_map_job = top_job.addChildJobFn(minigraph_map_one, config, event_name, fa_id, gfa_id,
                                                   cores=mg_cores, disk=5*fa_id.size + gfa_id.size,
-                                                  memory=cactus_clamp_memory(mem))
+                                                  memory=cactus_clamp_memory(mem),
+                                                  walltime=cactus_walltime(MINIGRAPH_MAP_SECS + MINIGRAPH_MAP_SECS_PER_GB * fa_id.size / 1e9,
+                                                                           io_bytes=2*fa_id.size + gfa_id.size))
         gaf_id_map[event] = minigraph_map_job.rv(0)
         paf_id_map[event] = minigraph_map_job.rv(1)
 
-    # merge up
-    paf_merge_job = top_job.addFollowOnJobFn(merge_pafs, paf_id_map)
-    gaf_merge_job = top_job.addFollowOnJobFn(merge_pafs, gaf_id_map, gzip=True)
+    # merge up.  these two concatenate every genome's output, so they are the biggest movers in
+    # the workflow: the whole-panel PAF merge is 34.4 GiB out
+    fa_bytes = sum(fa_id.size for fa_id in fa_id_map.values())
+    paf_merge_job = top_job.addFollowOnJobFn(merge_pafs, paf_id_map,
+                                             walltime=merge_pafs_walltime(PAF_BYTES_PER_FASTA_BYTE * fa_bytes))
+    gaf_merge_job = top_job.addFollowOnJobFn(merge_pafs, gaf_id_map, gzip=True,
+                                             walltime=merge_pafs_walltime(GAF_BYTES_PER_FASTA_BYTE * fa_bytes, gzip=True))
 
     return paf_merge_job.rv(), gaf_merge_job.rv()
 
@@ -594,6 +677,19 @@ def minigraph_map_one(job, config, event_name, fa_file_id, gfa_file_id):
     # return the stable gaf (minigraph output) and the unstable paf
     return job.fileStore.writeGlobalFile(pansn_gaf_path), job.fileStore.writeGlobalFile(unstable_paf_path)
 
+# What is left of a merge_pafs job once its staging is accounted for: catFiles runs no command, so
+# this is worker startup and the python copy loop.
+MERGE_PAF_SECS = 60
+
+def merge_pafs_walltime(merged_bytes, gzip=False):
+    """ walltime for a merge_pafs job whose output comes to roughly merged_bytes.  The job is all
+    I/O -- every input is read out of the jobstore and the concatenation written back -- except
+    with gzip=True, which bgzips the result single-threaded on the way out. """
+    secs = MERGE_PAF_SECS
+    if gzip:
+        secs += merged_bytes / GZIP_COMPRESS_BYTES_PER_SEC
+    return cactus_walltime(secs, io_bytes=2*merged_bytes)
+
 def merge_pafs(job, paf_file_id_map, gzip=False):
     """ merge up some pafs """
     paf_paths = [job.fileStore.readGlobalFile(paf_id) for paf_id in paf_file_id_map.values()]
@@ -629,11 +725,17 @@ def extract_paf_from_gfa(job, gfa_id, gfa_path, ref_event, graph_event, ignore_p
     cactus_call(parameters=cmd, outfile=paf_path)
     return job.fileStore.writeGlobalFile(paf_path)
 
+# Seconds per GB of fasta for a minimap2 -xasm5 self-alignment.  There is no measurement behind
+# this one: <graphmap collapse> defaults to "none", so self_align ran in none of the runs we have
+# logs for.  It is minigraph's own mapping rate standing in, and wants replacing with a
+# measurement the first time --collapse is used at panel scale.
+SELF_ALIGN_SECS_PER_GB = 1200
+
 def self_align_all(job, config, seq_id_map, reference, collapse_mode):
     """ run self-alignment. if reference event given, just run on that, otherwise do all genomes """
     assert collapse_mode in ['reference', 'all', 'nonref']
     assert reference or collapse_mode == 'all'
-    root_job = Job()
+    root_job = Job(walltime=cactus_walltime())
     job.addChild(root_job)
     events = []
     for event in seq_id_map.keys():
@@ -648,11 +750,14 @@ def self_align_all(job, config, seq_id_map, reference, collapse_mode):
         collapse_job = root_job.addChildJobFn(self_align, config, event, seq_id_map[event],
                                               disk=4*seq_id_map[event].size,
                                               memory=4*seq_id_map[event].size,
-                                              cores=mg_cores)
+                                              cores=mg_cores,
+                                              walltime=cactus_walltime(600 + SELF_ALIGN_SECS_PER_GB * seq_id_map[event].size / 1e9,
+                                                                       io_bytes=2*seq_id_map[event].size))
         paf_dict[event] = collapse_job.rv()
 
     merge_paf_job = root_job.addFollowOnJobFn(merge_pafs,  paf_dict,
-                                              disk=4*paf_size)
+                                              disk=4*paf_size,
+                                              walltime=merge_pafs_walltime(PAF_BYTES_PER_FASTA_BYTE * paf_size))
     return merge_paf_job.rv()
 
 def self_align(job, config, seq_name, seq_id):
@@ -689,6 +794,12 @@ def apply_mgsplit_filter_overrides(config_node):
     graphmap_node.attrib["PAFOverlapFilterRatio"] = "0"
     graphmap_node.attrib["minGAFBlockLength"] = "0"
     graphmap_node.attrib["delFilter"] = "-1"
+
+# Seconds per GB of PAF for filter_paf: gaffilter is measured at 1475s on the 34.4 GiB whole-panel
+# PAF and 270s worst case on the 2.2 GiB per-chromosome ones, and the python line-by-line pass that
+# always runs adds about as much again at ~60 MB/s.  Lives here, next to the job, because
+# cactus-graphmap-split and cactus-align both schedule it.
+FILTER_PAF_SECS_PER_GB = 60
 
 def filter_paf(job, paf_id, config, reference=None):
     """ run basic paf-filtering.  these are quick filters that are best to do on-the-fly when reading the paf and

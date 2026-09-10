@@ -66,12 +66,16 @@ def red_memory_estimate(fasta_size, longest_record_bytes):
     return int(1.25 * (table_bytes + 8 * longest_record_bytes))
 
 
+# How much faster Red is than it was when the VGP 577-way logs were made.  Named because
+# FasTAN borrows Red's rate and has to multiply this back out -- it got no such speedup.
+RED_SPEEDUP = 3.0
+
 # Seconds of Red per GB of input fasta.  Across the 625 Red runs of the VGP 577-way (0.13 to
-# 10 Gb of genome) the p99 was 2799 s/Gb and the worst 5147 s/Gb; Red is about 3x faster than
-# it was for those, hence the /3.  Everything else this job runs -- the prefilter, the
-# softmask/hardmask conversions, extracting and applying the intervals -- came to well under
-# 100 s each even on the largest genome, and is covered by cactus_walltime()'s safety factor.
-RED_SECS_PER_GB = 2799 / 3.0
+# 10 Gb of genome) the p99 was 2799 s/Gb and the worst 5147 s/Gb.  Everything else this job
+# runs -- the prefilter, the softmask/hardmask conversions, extracting and applying the
+# intervals -- came to well under 100 s each even on the largest genome, and is covered by
+# cactus_walltime()'s safety factor.
+RED_SECS_PER_GB = 2799 / RED_SPEEDUP
 
 
 class RedMaskJob(RoundedJob):

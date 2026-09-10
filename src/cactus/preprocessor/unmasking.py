@@ -10,15 +10,34 @@ from cactus.shared.common import cactus_call, getOptionalAttrib
 from toil.realtimeLogger import RealtimeLogger
 from cactus.preprocessor.cactus_preprocessor import CactusPreprocessor
 
+# Seconds per GB of input fasta for the unmask scan.  The inner loop below walks every base of
+# every contig in python (`for c in seq_str: ... c.isupper()`), micro-benchmarked at 131 s/GB on
+# a 210 MB fasta -- by far the slowest per-byte operation in the preprocessor, ~15x the
+# Bio.SeqIO parse-and-rewrite rate on the same file.  Rounded up to 150 because the benchmark
+# was one file on one machine; the margin for a contended worker is --walltimeFactor's job, not
+# this constant's.  Two mitigations are deliberately not priced in: the loop stops early once
+# threshold unmasked bases are seen, and contigs under min_length are skipped -- but the
+# heavily-masked contigs this job exists to find are exactly the ones scanned to the end.
+UNMASK_SCAN_SECS_PER_GB = 150
+
+# Seconds per GB of fasta for merge_fa: two Bio.SeqIO parse-and-write passes (8-12 s/GB each,
+# micro-benchmarked) plus two whole-genome cactus_analyseAssembly runs, which dominate and whose
+# tail under heavy concurrency is the worst part of the picture -- n=11392, p99 270 s, max 367 s
+# in the HPRC v2.0 pangenome.
+MERGE_FA_SECS_PER_GB = 120
+
 def unmask_contigs_all(job, event_names_to_sequences, ingroup_events, params):
     """ unmask the given events and return and updated fasta ids for each ingroup as list """
-    root_job = Job()
+    root_job = Job(walltime=cactus_walltime())
     job.addChild(root_job)
     output_ids = []
     for event in ingroup_events:
+        event_size = event_names_to_sequences[event].size
         unmask_job = root_job.addChildJobFn(unmask_contigs_one, event, event_names_to_sequences[event], params,
-                                            memory=event_names_to_sequences[event].size * 2,
-                                            disk=event_names_to_sequences[event].size * 5)
+                                            memory=event_size * 2,
+                                            disk=event_size * 5,
+                                            walltime=cactus_walltime(UNMASK_SCAN_SECS_PER_GB * event_size / 1e9,
+                                                                     io_bytes=3 * event_size))
         output_ids.append(unmask_job.rv())
        
     return output_ids
@@ -94,8 +113,12 @@ def unmask_contigs_one(job, event, fasta_id, params):
                 pp_job = job.addChild(CactusPreprocessor([copy_fasta_id], params, eventNames=[event]))
                 pp_id = pp_job.rv(0)
                 # mix in the masking for the to-mask contigs with our original file
+                # pp_id is a promise, but it is a preprocessed copy of the same genome, so
+                # fasta_id.size sizes both: two reads in and one write out, plus margin
                 fa_merge_job = pp_job.addFollowOnJobFn(merge_fa, event, fasta_id, pp_id, set(unmasked_contigs.keys()),
-                                                       disk=fasta_id.size * 4)
+                                                       disk=fasta_id.size * 4,
+                                                       walltime=cactus_walltime(MERGE_FA_SECS_PER_GB * fasta_id.size / 1e9,
+                                                                                io_bytes=4 * fasta_id.size))
                 fasta_id = fa_merge_job.rv()
                 # delete the pp_id
                 fa_merge_job.addFollowOnJobFn(clean_jobstore_files, file_ids=[pp_id], walltime=cactus_walltime())

@@ -90,16 +90,30 @@ def get_subtree(tree_string, root):
     return to_newick(root_id) + ';', genome_names(root_id)
 
 
+# Seconds of hal2fasta|bgzip per Gb of extracted genome.  Across the 576 per-ancestor exports
+# of the VGP 577-way (genomes of 0.007 to 4.3 Gb) the p99 was 57 s/Gb and the worst 70 s/Gb.
+HAL2FASTA_SECS_PER_GB = 60
+
+
 def export_subtree_fastas(job, hal_id, hal_name, genomes, lengths):
     """Fan out one hal2fasta|bgzip job per genome (run in parallel by Toil).
     Returns a {genome: fasta file id} map."""
     fa_ids = {}
     for genome in genomes:
-        # the HAL is read by symlink (below), so each job only needs disk for its own FASTA
-        length = lengths.get(genome, hal_id.size)
+        # the HAL is read by symlink (below), so each job only needs disk for its own FASTA.
+        # A genome missing from `lengths` falls back to the whole HAL for disk, which is merely
+        # wasteful, but as a walltime it would ask for the entire alignment's worth of time for
+        # one genome -- so an unknown length gets no estimate at all instead.
+        length = lengths.get(genome)
+        disk_length = length if length is not None else hal_id.size
         fa_ids[genome] = job.addChildJobFn(hal2fasta_gz, hal_id, hal_name, genome,
                                             memory=cactus_clamp_memory(3000000000),
-                                            disk=max(int(length * 2), 2**20)).rv()
+                                            disk=max(int(disk_length * 2), 2**20),
+                                            # only the bgzipped FASTA is written back; the HAL
+                                            # arrives by symlink and is not staged
+                                            walltime=cactus_walltime(HAL2FASTA_SECS_PER_GB * length / 1e9,
+                                                                     io_bytes=length // 4)
+                                                     if length is not None else cactus_walltime(None)).rv()
     return fa_ids
 
 

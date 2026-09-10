@@ -177,15 +177,27 @@ def main():
 
 
 def hal2chains_workflow(job, config, options, hal_id):
-    root_job = Job()
+    root_job = Job(walltime=cactus_walltime())
     job.addChild(root_job)
-    check_tools_job = root_job.addChildJobFn(hal2chains_check_tools, options)
+    # three (five with --bigChain) no-arg tool probes: half a second with the binaries on the
+    # PATH.  The estimate is for --binariesMode docker/singularity, where each probe is a
+    # container start and the first one may pull the image.
+    check_tools_job = root_job.addChildJobFn(hal2chains_check_tools, options, walltime=cactus_walltime(180))
+    # halStats --tree is 0.01s on the 577-way and the all-pairs distance matrix is a few seconds
+    # of python on its ~1150 nodes; on a HAL of any size this job is a HAL copy and little else
     get_genomes_job = check_tools_job.addFollowOnJobFn(hal2chains_get_genomes, config, options, hal_id,
-                                                       disk=int(hal_id.size * 1.2))
+                                                       disk=int(hal_id.size * 1.2),
+                                                       walltime=cactus_walltime(300, io_bytes=hal_id.size))
     leaf_genomes = get_genomes_job.rv(0)
     distance_matrix = get_genomes_job.rv(1)
     chrom_info_job = get_genomes_job.addFollowOnJobFn(hal2chains_chrom_info_all, config, options, hal_id, leaf_genomes, walltime=cactus_walltime())
-    hal2chains_all_job = chrom_info_job.addFollowOnJobFn(hal2chains_all, config, options, hal_id, chrom_info_job.rv(), distance_matrix, walltime=cactus_walltime())
+    # not the coordination tier: what this job costs is toil job-graph construction, and that is
+    # |queryGenomes| x |targetGenomes|.  It took 5s to issue the 576 pairs of the 577-way hg38
+    # chains run (with --bigChain, so a follow-on per pair as well), and a default all-vs-all
+    # 577-way is 577x576 = 332352 pairs, i.e. the better part of an hour.  Neither genome list is
+    # known here -- both come out of hal2chains_get_genomes -- so this has to be a constant.
+    hal2chains_all_job = chrom_info_job.addFollowOnJobFn(hal2chains_all, config, options, hal_id, chrom_info_job.rv(), distance_matrix,
+                                                        walltime=cactus_walltime(1800))
     return hal2chains_all_job.rv()
 
 def hal2chains_check_tools(job, options):
@@ -294,9 +306,17 @@ CHAIN_SECS_PER_COST = 1.783e-05
 def estimate_batch_walltime(options, batch_pairs, chrom_info_dict, distance_matrix):
     """ estimated seconds for one hal2chains batch: the batch's total pair cost spread over
     the GNU parallel slots it will actually use """
+    if not batch_pairs:
+        return 0.0
     total_cost = sum(chain_pair_cost(q, t, chrom_info_dict, distance_matrix) for q, t in batch_pairs)
     slots = max(1, min(options.batchParallelHal2chains or 1, len(batch_pairs)))
-    return CHAIN_SECS_PER_COST * total_cost / slots
+    # A batch can never finish faster than its single longest pair, and the mean rate is a poor
+    # predictor of one pair: across those 1719 runs p99/p50 was 7.3x and max/p50 19.3x.  With a
+    # small --batchSize the sum is only a few pairs and that spread shows straight through, so
+    # floor the estimate at the worst pair in the batch charged at 5x the mean rate.
+    worst_cost = max(chain_pair_cost(q, t, chrom_info_dict, distance_matrix) for q, t in batch_pairs)
+    return max(CHAIN_SECS_PER_COST * total_cost / slots,
+               5.0 * CHAIN_SECS_PER_COST * worst_cost)
 
 
 def estimate_batch_memory(options, hal_id, pair_2bit_max=0):

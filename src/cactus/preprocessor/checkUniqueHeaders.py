@@ -6,6 +6,16 @@ from Bio.SeqRecord import SeqRecord
 import os
 from cactus.shared.common import cactus_call
 from cactus.shared.common import cactus_clamp_memory
+from cactus.shared.common import cactus_walltime
+
+# Seconds per GB of *input* fasta for sanitize_fasta_header, the busiest job this module
+# defines.  Rank-pairing its command time against its input size gives 42-49 s/GB at the median
+# in three independent runs (VGP 577-way n=5748, HPRC v2.1 n=22221, HPRC v2.0 n=11385), but the
+# tail under heavy concurrency is what a walltime has to survive: in HPRC v2.0 the two commands
+# this job runs peaked at 367 s and 223 s over ~0.98 GB gzipped inputs.  Those maxima are from
+# different instances, so their sum is an upper bound rather than one job's time; 250 s/GB is
+# aimed at that bound rather than at the median.
+SANITIZE_SECS_PER_GB = 250
 
 def checkUniqueHeaders(inputFile, outputFile, eventName, checkAlphaNumeric=False, checkUCSC=False, checkAssemblyHub=True):
     """Check that headers are unique and meet certain requirements."""
@@ -39,9 +49,13 @@ def sanitize_fasta_headers(job, fasta_id_map, pangenome=False, log_stats=True):
     """ input must be map of event -> fasta id"""
     out_fasta_id_map = {}
     for event, fasta_id in fasta_id_map.items():
+        # fasta_id.size is the compressed size when the input is gzipped, while the job writes
+        # the fasta back out uncompressed -- the same reason disk is 7x -- so io_bytes is 4x
         out_fasta_id_map[event] = job.addChildJobFn(sanitize_fasta_header, fasta_id, event, pangenome, log_stats,
                                                     memory=cactus_clamp_memory(fasta_id.size * 4),
-                                                    disk=fasta_id.size*7).rv()
+                                                    disk=fasta_id.size*7,
+                                                    walltime=cactus_walltime(SANITIZE_SECS_PER_GB * fasta_id.size / 1e9,
+                                                                             io_bytes=4 * fasta_id.size)).rv()
     return out_fasta_id_map
 
 def sanitize_fasta_header(job, fasta_id, event, pangenome, log_stats):

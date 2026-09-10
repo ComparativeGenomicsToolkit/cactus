@@ -66,6 +66,177 @@ from sonLib.bioio import getTempDirectory, getTempFile, catFiles
 
 import pysam
 
+# --- per-job walltime estimates ---------------------------------------------------------------
+#
+# Nearly every job below scales with the size of the per-chromosome VG files that came in, so the
+# estimates are expressed as seconds per GB of those files.  They were fit on three whole-genome
+# HPRC runs -- hprc-v2.0-mc-chm13-join, hprc-v2.1-mc-chm13 and its eval variant -- each 25
+# chromosomes of 0.005 to 33.4 GB summing to 408 GB, by grouping every logged command by the
+# worker temp dir it ran in to recover per-job totals.  Each number sits at or just above the
+# worst per-GB ratio the three produced; --walltimeFactor is the margin on top of that.  They are
+# also all 64-core measurements, so a run with far fewer --indexCores is slower than this and
+# gets there through --doubleTime.
+
+def scaled_walltime(secs_per_gb, size_bytes, io_multiple=2):
+    """ Walltime for a job whose cost tracks the size of what it reads: secs_per_gb of compute per
+    GB of size_bytes -- one chromosome's graph, or the sum over all of them -- plus io_multiple
+    times that many bytes staged through the jobstore.  size_bytes must be a real FileID size (a
+    promise has none). """
+    return cactus_walltime(secs_per_gb * size_bytes / 1e9, io_bytes=int(size_bytes * io_multiple))
+
+# clip_vg, the whole load/GFAffix/clip/normalise/validate pipeline.  n=75: the 'full' phase (the
+# only one that runs GFAffix) came to 597-630 s/GB at p50 and 729-951 s/GB at p99, the 'clip'
+# phase to 336-443 and 454-590.  the largest chromosome, 33.4 GB, took 6.1 hours in 'full'
+CLIP_VG_SECS_PER_GB = {'full' : 800, 'clip' : 600}
+
+# vg_clip_vg: vg clip three times plus vg validate.  n=75, 292-349 s/GB at p50, 382-440 at the max
+VG_CLIP_VG_SECS_PER_GB = 450
+
+# vg_to_og: vg convert -f | grep, then odgi build.  n=75, 307-310 s/GB at p50, 357-370 at the max
+VG_TO_OG_SECS_PER_GB = 400
+
+# vg_to_gfa: vg convert -f.  n=225 (25 chromosomes x 3 phases), 161-196 s/GB at p99 and 212-228 at
+# the max.  the unchopped variant streams through an extra vg mod -u, which no logged run
+# exercised, so its +40% is a guess.  the GFA written back is several times the VG, hence the
+# wider I/O multiple at those call sites
+VG_TO_GFA_SECS_PER_GB = 250
+VG_TO_GFA_UNCHOPPED_SECS_PER_GB = 350
+
+# drop_graph_event: one vg paths -d over the full-phase graph, written back out.  it post-dates
+# these logs, so it is taken from vg convert -f on the same graphs, which loads and re-serialises
+# the same way at 36-230 s/GB, at the fast end of that since -d does much less in between
+DROP_GRAPH_EVENT_SECS_PER_GB = 60
+
+# snarl_stats: vg stats -R --snarl-sample.  n=75, 24-26 s/GB at p50 and 38-64 at p99 (the high
+# ratios are the small chromosomes, where fixed overhead dominates); the max was 1119 s on 33.4 GB
+SNARL_STATS_SECS_PER_GB = 60
+
+# make_odgi_viz: odgi sort, odgi paths -L and odgi viz.  n=75, 76-83 s/GB at p50, 132-158 at p99.
+# --draw instead runs odgi layout and odgi draw, which the option's own help calls very slow and
+# which appear in no log at all, so 4x the viz number is a guess
+ODGI_VIZ_SECS_PER_GB = 150
+ODGI_DRAW_SECS_PER_GB = 600
+
+# compute_gref_paths: vg paths -L, -d and -u, then a rewritten graph.  --gref was in no logged
+# run; this is below the measured band for the per-chromosome jobs that load, modify and
+# re-serialise a graph (292-590 s/GB), because it gets --indexCores and can short-circuit
+COMPUTE_GREF_PATHS_SECS_PER_GB = 200
+
+# path_coverage_job: vg paths -E -v (n=75, ~20 s/GB at the top) followed by interval merging in
+# python, which issues no command and so is invisible in the logs.  3x the measured half
+PATH_COVERAGE_SECS_PER_GB = 60
+
+# ref_gaps_job: vg depth -m0, in no logged run.  its real driver is the length of the reference
+# contig -- it emits one line per reference base -- and that is not in scope at the call site, so
+# this is per GB of VG instead, at ~5x the slowest per-chromosome vg command measured on this data
+REF_GAPS_SECS_PER_GB = 150
+
+# deconstruct, keyed on the phase graph (make_vcf is itself a job, so its ids are resolved).
+# n=75, 59-80 s/GB at p50 but 127-256 at the max: the spread is wide because deconstruct tracks
+# snarl and allele structure, not just bytes
+DECONSTRUCT_SECS_PER_GB = 300
+
+# vcfbub and chunked_vcfwave, per GB of the graph deconstruct ran on -- the VCFs they read are
+# promises at the call site, but scale with the same panel.  n=75 each: vcfbub 7-10 s/GB at p50
+# and 11-24 at the max; chunked_vcfwave (its own bcftools pipeline and chunk bgzips, not the
+# vcfwave jobs it fans out to) 11-24 at p50 and 13-37 at p99
+VCFBUB_SECS_PER_GB = 20
+CHUNKED_VCFWAVE_SECS_PER_GB = 40
+
+# join_vg: one vg ids -j over every chromosome, 3308-4909 s on 408 GB of graph (8-12 s/GB).  it
+# reads all of them mutable and writes all of them back, so the staging term is the bigger half
+JOIN_VG_SECS_PER_GB = 15
+
+# make_vg_indexes: merge the per-chromosome GFAs, then vg gbwt --gbz-format, bgzip and vg snarls.
+# n=9, 7.0-9.1 ks over 408 GB, i.e. ~22 s/GB, at 64 cores.  the unchopped call site asks for one
+# core, and its bgzip of a whole-genome GFA is what does not survive that (371-553 s at 64
+# threads), hence the separate single-core number
+MAKE_VG_INDEXES_SECS_PER_GB = 25
+MAKE_VG_INDEXES_1CORE_SECS_PER_GB = 60
+
+# extract_gbz_fasta: vg paths -F over the whole-genome GBZ, once per --vcfReference.  508-522 s
+# over 408 GB in all three runs (1.27 s/GB); 4x that covers staging the GBZ, which is a promise
+# here and so cannot go in io_bytes
+EXTRACT_GBZ_FASTA_SECS_PER_GB = 5
+
+# extract_vg_fasta: the same extraction done as one vg paths -F per chromosome, staging every
+# chromosome VG first.  neither call site was exercised, so the compute term is 25 graph loads
+# benchmarked against vg paths -E -v on the same graphs (86-666 s each); the staging is the
+# honest dominant term and is exactly known here
+EXTRACT_VG_FASTA_SECS_PER_GB = 20
+
+# make_xg: vg convert -x, in no logged run.  this is just above the top of the range of the
+# whole-genome index builds measured on the identical GBZ (vg gbwt, vg index -j, vg snarls, vg
+# haplotypes: 5-19 s/GB), XG being the largest of those formats
+MAKE_XG_SECS_PER_GB = 30
+
+# make_giraffe_indexes: vg index -j and vg minimizer.  n=3, 2604-3279 s over 408 GB (6.4-8.0
+# s/GB) at 64 cores.  12 leaves room for the second, long-read minimizer pass --lrGiraffe adds,
+# which none of the runs built
+MAKE_GIRAFFE_INDEXES_SECS_PER_GB = 12
+
+# make_haplo_index: vg index -j, vg gbwt -r and vg haplotypes -H.  n=3, 8.5-12.1 ks over 408 GB
+# (21-30 s/GB) at 64 cores
+MAKE_HAPLO_INDEX_SECS_PER_GB = 35
+
+# odgi_squeeze: no logged run asked for a whole-genome --odgi.  squeeze concatenates graphs that
+# are already built, so it belongs at the odgi sort end of the measured odgi work (286-707 s per
+# chromosome) rather than the odgi build end (4.2-9.8 ks); staging every .og dominates either way
+ODGI_SQUEEZE_SECS_PER_GB = 10
+
+# merge_snarl_stats and merge_gref_segs: concatenate the per-chromosome TSVs, sort, compress.
+# merge_snarl_stats was measured once at 177 s over 408 GB of graph (0.43 s/GB).  the real driver
+# is the TSV bytes, which are promises here, so this is per GB of graph at ~5x that observation
+MERGE_CHROM_TSV_SECS_PER_GB = 2
+
+# run_panacus, per GB of graph and per phase: no logged run passed --panacus.  each phase is one
+# bgzip -d of a merged GFA that make_vg_indexes' own bgzip and grep passes put at 400-550 GB,
+# then one panacus histgrowth pass over it per countType (2 by default)
+PANACUS_SECS_PER_GB = 20
+
+# compute_exclusions_job: interval work in python over every chromosome's coverage table, whose
+# only command is a tar.  it post-dates these logs, so this is reasoned from shape, not measured
+COMPUTE_EXCLUSIONS_SECS_PER_GB = 15
+
+# vcf_cat over a whole genome, per GB of graph -- the per-chromosome VCFs are promises, which is
+# why the disk request is reckoned the same way.  measured: bcftools query/merge/concat came to
+# 10-13 ks on the raw VCFs, 2.3-3.2 ks on the bub ones and ~0.8 ks on the wave ones, up to ~30
+# s/GB.  the rest covers fix_vcf_ploidies, which is pure python and so absent from the logs
+VCF_CAT_SECS_PER_GB = 45
+
+# merge_hal, per GB of HAL: the longest job in the module, measured four times at 43.9-47.7 ks
+# over ~445 GB of chromosome HALs (~103 s/GB), with ~2.5 ks of halRemoveGenome on top
+MERGE_HAL_SECS_PER_GB = 110
+
+# merge_sv_gfa, per GB of gzipped minigraph GFA: pure python, so it issues no command and is
+# invisible in the logs.  a gzipped GFA expands ~8x, and re-compressing that in-process runs at
+# the ~16 MB/s this file already measures for python gzip (see fix_vcf_ploidies)
+MERGE_SV_GFA_SECS_PER_GB = 500
+
+# vcf_cat of the vcfwave chunks, per GB of the raw VCF they were cut from.  n=75, 205-272 s/GB at
+# p50 and 289-341 at the max, single-core (that call site asks for no cores)
+VCF_CAT_CHUNK_SECS_PER_GB = 400
+
+# vcfnorm, per GB of the VCF that drives it.  the vcfwave site is measured n=75 at 4.9-6.7 ks per
+# GB of raw VCF at p50 and 5.9-7.9 at p99, nearly all of it in the closing bcftools norm |
+# vcffixup | bgzip.  the vcfbub site (bcftoolsNorm, off in every logged run) keys off the bub VCF
+# instead, which is only ~0.6x the raw one at HPRC scale, so its number is scaled up to match
+VCFNORM_WAVE_SECS_PER_GB = 7000
+VCFNORM_BUB_SECS_PER_GB = 12000
+
+# vcfwave, per MB of its bgzipped chunk and per core.  pooled over the 5577 chunks of three runs:
+# 25998 MB in 1835 hours, i.e. 254 s/MB.  that is ~5x the median rate, because those runs used
+# the vcflib build from before commit 8f76312f, whose pathological tail is baked into the
+# aggregate; that build also ignored --vcfwaveCores, which is why this is a single-thread rate
+VCFWAVE_SECS_PER_MB = 254
+
+# cat_stats: concatenate the per-chromosome clip and path stats and gzip them.  those TSVs are
+# promises at the call site and nothing in scope stands in for them, so this is a flat number.
+# it is well above what the logs imply (the equivalent tar there ran in 1.4-2.1 s) because
+# path-stats can reach millions of rows on a heavily fragmented panel
+CAT_STATS_SECS = 600
+
+
 def main():
     parser = Job.Runner.getDefaultArgumentParser()
     add_cactus_toil_options(parser)
@@ -699,7 +870,7 @@ def vcflib_checks(job, options, config_node):
     """ run the vcflib checks"""
         # vcfwave isn't included in the static binary release, so we start by checking it's available
     if options.vcfwave and options.vcf:
-        vcfwave_check_job = job.addFollowOnJobFn(check_vcfwave)
+        vcfwave_check_job = job.addFollowOnJobFn(check_vcfwave, walltime=cactus_walltime())
         job = vcfwave_check_job
 
     # vcffixup isn't included in the static binary release, so we start by checking it's available
@@ -707,7 +878,7 @@ def vcflib_checks(job, options, config_node):
     wave_norm = getOptionalAttrib(findRequiredNode(config_node, "graphmap_join"), "vcfwaveNorm", typeFn=bool, default=True)
     bub_norm = getOptionalAttrib(findRequiredNode(config_node, "graphmap_join"), "bcftoolsNorm", typeFn=bool, default=False)
     if options.vcf and merge_dup and (bub_norm or (options.vcfwave and wave_norm)):
-        vcffixup_check_job = job.addFollowOnJobFn(check_vcffixup)
+        vcffixup_check_job = job.addFollowOnJobFn(check_vcffixup, walltime=cactus_walltime())
         job = vcffixup_check_job
     return job
         
@@ -715,7 +886,7 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
                            bypass_full_ids=None, bypass_clip_ids=None, bypass_filter_ids=None,
                            contig_sizes_id=None, split_log_id=None):
 
-    root_job = Job()
+    root_job = Job(walltime=cactus_walltime())
     job.addChild(root_job)
 
     root_job = vcflib_checks(root_job, options, config.xmlRoot)
@@ -767,12 +938,14 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
         assert len(options.vg) == len(vg_ids)
         for vg_path, vg_id in zip(options.vg, vg_ids):
             full_job = Job.wrapJobFn(clip_vg, options, config, vg_path, vg_id, 'full',
-                                     disk=vg_id.size * 20, memory=max(2**31, min(vg_id.size * 20, max_mem)))
+                                     disk=vg_id.size * 20, memory=max(2**31, min(vg_id.size * 20, max_mem)),
+                                     walltime=scaled_walltime(CLIP_VG_SECS_PER_GB['full'], vg_id.size))
             root_job.addChild(full_job)
             full_vg_ids.append(full_job.rv(0))
             if 'full' in options.odgi + options.chrom_og + options.viz + options.draw:
                 full_og_job = full_job.addFollowOnJobFn(vg_to_og, options, config, vg_path, full_job.rv(0),
-                                                        disk=vg_id.size * 16, memory=min(max(og_min_size, vg_id.size * 32), max_mem))
+                                                        disk=vg_id.size * 16, memory=min(max(og_min_size, vg_id.size * 32), max_mem),
+                                                        walltime=scaled_walltime(VG_TO_OG_SECS_PER_GB, vg_id.size, io_multiple=3))
                 og_chrom_ids['full']['og'].append(full_og_job.rv())
 
         prev_job = root_job
@@ -780,7 +953,9 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
         # join the ids
         join_job = prev_job.addFollowOnJobFn(join_vg, options, config, full_vg_ids,
                                              disk=sum([f.size for f in vg_ids]),
-                                             memory=min(max([f.size for f in vg_ids]) * 4, max_mem))
+                                             memory=min(max([f.size for f in vg_ids]) * 4, max_mem),
+                                             walltime=scaled_walltime(JOIN_VG_SECS_PER_GB,
+                                                                      sum(f.size for f in vg_ids)))
         full_vg_ids = [join_job.rv(i) for i in range(len(vg_ids))]
         prev_job = join_job
 
@@ -791,7 +966,9 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
             for vg_path, vg_id, full_vg_id in zip(options.vg, vg_ids, full_vg_ids):
                 drop_graph_event_job = join_job.addFollowOnJobFn(drop_graph_event, config, vg_path, full_vg_id,
                                                                  disk=vg_id.size * 3,
-                                                                 memory=cactus_clamp_memory(min(vg_id.size * 6, max_mem)))
+                                                                 memory=cactus_clamp_memory(min(vg_id.size * 6, max_mem)),
+                                                                 walltime=scaled_walltime(DROP_GRAPH_EVENT_SECS_PER_GB,
+                                                                                          vg_id.size))
                 output_full_vg_ids.append(drop_graph_event_job.rv(0))
                 full_vg_empty.append(drop_graph_event_job.rv(1))
         else:
@@ -802,41 +979,49 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
         clip_vg_ids = []
         clipped_stats = None
         if options.clip or options.filter:
-            clip_root_job = Job()
+            clip_root_job = Job(walltime=cactus_walltime())
             prev_job.addFollowOn(clip_root_job)
             clip_vg_stats = []
             assert len(options.vg) == len(full_vg_ids) == len(vg_ids)
             for vg_path, vg_id, input_vg_id in zip(options.vg, full_vg_ids, vg_ids):
                 clip_job = Job.wrapJobFn(clip_vg, options, config, vg_path, vg_id, 'clip',
-                                         disk=input_vg_id.size * 20, memory=max(2**31, min(input_vg_id.size * 20, max_mem)))
+                                         disk=input_vg_id.size * 20, memory=max(2**31, min(input_vg_id.size * 20, max_mem)),
+                                         walltime=scaled_walltime(CLIP_VG_SECS_PER_GB['clip'], input_vg_id.size))
                 clip_root_job.addChild(clip_job)
                 clip_vg_ids.append(clip_job.rv(0))
                 clip_vg_stats.append(clip_job.rv(1))
                 if 'clip' in options.odgi + options.chrom_og + options.viz + options.draw:
                     clip_og_job = clip_job.addFollowOnJobFn(vg_to_og, options, config, vg_path, clip_job.rv(0),
                                                             disk=input_vg_id.size * 16,
-                                                            memory=min(max(og_min_size, input_vg_id.size * 32), max_mem))
+                                                            memory=min(max(og_min_size, input_vg_id.size * 32), max_mem),
+                                                            walltime=scaled_walltime(VG_TO_OG_SECS_PER_GB,
+                                                                                     input_vg_id.size, io_multiple=3))
                     og_chrom_ids['clip']['og'].append(clip_og_job.rv())
 
             # join the stats
-            clipped_stats = clip_root_job.addFollowOnJobFn(cat_stats, clip_vg_stats).rv()
+            clipped_stats = clip_root_job.addFollowOnJobFn(cat_stats, clip_vg_stats,
+                                                           walltime=cactus_walltime(CAT_STATS_SECS)).rv()
             prev_job = clip_root_job
 
         # run the "filter" phase to do the vg clip clipping
         filter_vg_ids = []
         if options.filter:
-            filter_root_job = Job()
+            filter_root_job = Job(walltime=cactus_walltime())
             prev_job.addFollowOn(filter_root_job)
             assert len(options.vg) == len(clip_vg_ids) == len(vg_ids)
             for vg_path, vg_id, input_vg_id in zip(options.vg, clip_vg_ids, vg_ids):
                 filter_job = filter_root_job.addChildJobFn(vg_clip_vg, options, config, vg_path, vg_id,
                                                            disk=input_vg_id.size * 20,
-                                                           memory=max(2**31, min(input_vg_id.size * 22, max_mem)))
+                                                           memory=max(2**31, min(input_vg_id.size * 22, max_mem)),
+                                                           walltime=scaled_walltime(VG_CLIP_VG_SECS_PER_GB,
+                                                                                    input_vg_id.size))
                 filter_vg_ids.append(filter_job.rv())
                 if 'filter' in options.odgi + options.chrom_og + options.viz + options.draw:
                     filter_og_job = filter_job.addFollowOnJobFn(vg_to_og, options, config, vg_path, filter_job.rv(),
                                                                 disk=input_vg_id.size * 16,
-                                                                memory=min(max(og_min_size, input_vg_id.size * 64), max_mem))
+                                                                memory=min(max(og_min_size, input_vg_id.size * 64), max_mem),
+                                                                walltime=scaled_walltime(VG_TO_OG_SECS_PER_GB,
+                                                                                         input_vg_id.size, io_multiple=3))
                     og_chrom_ids['filter']['og'].append(filter_og_job.rv())
 
 
@@ -850,7 +1035,9 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
         hal_merge_job = job.addChildJobFn(merge_hal, options, config, hal_ids,
                                           cores = 1,
                                           disk=sum(f.size for f in hal_ids) * 2,
-                                          memory=min(max(f.size for f in hal_ids) * 2, max_mem))
+                                          memory=min(max(f.size for f in hal_ids) * 2, max_mem),
+                                          walltime=scaled_walltime(MERGE_HAL_SECS_PER_GB,
+                                                                   sum(f.size for f in hal_ids)))
         hal_id_dict = hal_merge_job.rv()
         out_dicts.append(hal_id_dict)
         # delete the chromosome hals
@@ -859,7 +1046,9 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
     # optional minigraph gfa merge
     if sv_gfa_ids:
         sv_gfa_merge_job = job.addChildJobFn(merge_sv_gfa, options, sv_gfa_ids,
-                                             disk=sum(f.size for f in sv_gfa_ids) * 3)
+                                             disk=sum(f.size for f in sv_gfa_ids) * 3,
+                                             walltime=scaled_walltime(MERGE_SV_GFA_SECS_PER_GB,
+                                                                      sum(f.size for f in sv_gfa_ids)))
         sv_gfa_id_dict = sv_gfa_merge_job.rv()
         out_dicts.append(sv_gfa_id_dict)
         # delete the chromosome gfas
@@ -890,7 +1079,10 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
         ref_vg_ids = bypass_full_ids or bypass_clip_ids or bypass_filter_ids
         ref_fasta_job = root_job.addFollowOnJobFn(extract_vg_fasta, options, ref_vg_ids,
                                                    disk=sum(f.size for f in vg_ids) * 2,
-                                                   memory=cactus_clamp_memory(sum(f.size for f in vg_ids) * 4))
+                                                   memory=cactus_clamp_memory(sum(f.size for f in vg_ids) * 4),
+                                                   walltime=scaled_walltime(EXTRACT_VG_FASTA_SECS_PER_GB,
+                                                                            sum(f.size for f in vg_ids),
+                                                                            io_multiple=1))
 
     if not options.bypass:
         workflow_phases = [('full', full_vg_ids, join_job)]
@@ -917,7 +1109,7 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
     for workflow_phase, phase_vg_ids, phase_root_job in workflow_phases:
 
         # make a gfa for each
-        gfa_root_job = Job()
+        gfa_root_job = Job(walltime=cactus_walltime())
         phase_root_job.addFollowOn(gfa_root_job)
         gfa_ids = []
         current_out_dict = None
@@ -929,7 +1121,9 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
             for vg_path, vg_id, input_vg_id in zip(options.vg, phase_vg_ids, vg_ids):
                 gfa_job = gfa_root_job.addChildJobFn(vg_to_gfa, options, config, vg_path, vg_id,
                                                      disk=input_vg_id.size * 10,
-                                                     memory=min(max(2**31, input_vg_id.size * 16), max_mem))
+                                                     memory=min(max(2**31, input_vg_id.size * 16), max_mem),
+                                                     walltime=scaled_walltime(VG_TO_GFA_SECS_PER_GB,
+                                                                              input_vg_id.size, io_multiple=5))
                 gfa_ids.append(gfa_job.rv())
 
             gfa_merge_job = gfa_root_job.addFollowOnJobFn(make_vg_indexes, options, config, gfa_ids,
@@ -937,7 +1131,9 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
                                                           do_gbz=do_gbz,
                                                           cores=options.indexCores,
                                                           disk=sum(f.size for f in vg_ids) * 6,
-                                                          memory=index_mem)
+                                                          memory=index_mem,
+                                                          walltime=scaled_walltime(MAKE_VG_INDEXES_SECS_PER_GB,
+                                                                                   sum(f.size for f in vg_ids)))
             out_dicts.append(gfa_merge_job.rv())
             prev_job = gfa_merge_job
             current_out_dict = gfa_merge_job.rv()
@@ -946,21 +1142,29 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
                 ref_fasta_job = gfa_merge_job.addFollowOnJobFn(extract_gbz_fasta, options, current_out_dict,
                                                                tag=workflow_phase + '.',
                                                                memory=index_mem,
-                                                               disk=sum(f.size for f in vg_ids) * 2)
+                                                               disk=sum(f.size for f in vg_ids) * 2,
+                                                               # one vg paths -F pass per --vcfReference
+                                                               walltime=scaled_walltime(
+                                                                   EXTRACT_GBZ_FASTA_SECS_PER_GB * max(1, len(options.vcfReference or [])),
+                                                                   sum(f.size for f in vg_ids), io_multiple=0.5))
         # optional unchopped gfa
         if workflow_phase in options.unchopped_gfa:
             unchopped_gfa_ids = []
             for vg_path, vg_id, input_vg_id in zip(options.vg, phase_vg_ids, vg_ids):
                 unchopped_gfa_job = gfa_root_job.addChildJobFn(vg_to_gfa, options, config, vg_path, vg_id, unchopped=True,
                                                                disk=input_vg_id.size * 10,
-                                                               memory=min(max(2**31, input_vg_id.size * 16), max_mem))
+                                                               memory=min(max(2**31, input_vg_id.size * 16), max_mem),
+                                                               walltime=scaled_walltime(VG_TO_GFA_UNCHOPPED_SECS_PER_GB,
+                                                                                        input_vg_id.size, io_multiple=5))
                 unchopped_gfa_ids.append(unchopped_gfa_job.rv())
 
             unchopped_gfa_merge_job = gfa_root_job.addFollowOnJobFn(make_vg_indexes, options, config, unchopped_gfa_ids,
                                                                     tag=workflow_phase + '.unchopped.',
                                                                     do_gbz=False,
                                                                     cores=1,
-                                                                    disk=sum(f.size for f in vg_ids) * 3)
+                                                                    disk=sum(f.size for f in vg_ids) * 3,
+                                                                    walltime=scaled_walltime(MAKE_VG_INDEXES_1CORE_SECS_PER_GB,
+                                                                                             sum(f.size for f in vg_ids)))
             out_dicts.append(unchopped_gfa_merge_job.rv())                
             
 
@@ -970,7 +1174,10 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
                                                tag=workflow_phase + '.',
                                                cores=max(options.indexCores, 4),
                                                disk = sum(f.size for f in vg_ids) * 10,
-                                               memory=index_mem)
+                                               memory=index_mem,
+                                               walltime=scaled_walltime(MAKE_XG_SECS_PER_GB,
+                                                                        sum(f.size for f in vg_ids),
+                                                                        io_multiple=1))
             out_dicts.append(xg_job.rv())
 
         # optional vcf
@@ -988,7 +1195,7 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
                     l_job = gfa_root_job.addFollowOnJobFn(make_vcf, config, options, workflow_phase,
                                                           index_mem, vcf_ref, phase_vg_ids,
                                                           ref_fasta_job.rv() if ref_fasta_job else None,
-                                                          decon_L=options.vcfL)
+                                                          decon_L=options.vcfL, walltime=cactus_walltime())
                     if ref_fasta_job:
                         ref_fasta_job.addFollowOn(l_job)
                     out_dicts.append(l_job.rv())
@@ -1013,7 +1220,10 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
                                                          # than a human one will exceed the cap and
                                                          # get there through --doubleMem
                                                          memory=cactus_clamp_memory(
-                                                             min(index_mem * 3, 128 * 2**30)))
+                                                             min(index_mem * 3, 128 * 2**30)),
+                                                         walltime=scaled_walltime(MAKE_GIRAFFE_INDEXES_SECS_PER_GB,
+                                                                                  sum(f.size for f in vg_ids),
+                                                                                  io_multiple=0.5))
             out_dicts.append(giraffe_job.rv())
             
         # optional haplo index
@@ -1030,14 +1240,19 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
                                                   # and 760Gi.  scale up for the small end, where
                                                   # it barely overflowed, and cap the big end
                                                   memory=cactus_clamp_memory(
-                                                      min(int(index_mem * 1.5), 128 * 2**30)))
+                                                      min(int(index_mem * 1.5), 128 * 2**30)),
+                                                  walltime=scaled_walltime(MAKE_HAPLO_INDEX_SECS_PER_GB,
+                                                                           sum(f.size for f in vg_ids),
+                                                                           io_multiple=0.5))
             out_dicts.append(haplo_job.rv())
 
         # optional full-genome odgi
         if workflow_phase in options.odgi:
             odgi_job = gfa_root_job.addChildJobFn(odgi_squeeze, config, options.vg, og_chrom_ids[workflow_phase]['og'],
                                                   tag=workflow_phase + '.', disk=sum(f.size for f in vg_ids) *4,
-                                                  memory=index_mem, cores=options.indexCores)
+                                                  memory=index_mem, cores=options.indexCores,
+                                                  walltime=scaled_walltime(ODGI_SQUEEZE_SECS_PER_GB,
+                                                                           sum(f.size for f in vg_ids)))
             out_dicts.append(odgi_job.rv())                                                  
 
         # optional viz
@@ -1051,7 +1266,10 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
                     viz_job = gfa_root_job.addChildJobFn(make_odgi_viz, config, options, vg_path, og_id, tag=workflow_phase,
                                                          viz=do_viz, draw=do_draw,                                                     
                                                          cores=options.indexCores, disk = input_vg_id.size * 10,
-                                                         memory=min(max(og_min_size, input_vg_id.size * 32), max_mem))
+                                                         memory=min(max(og_min_size, input_vg_id.size * 32), max_mem),
+                                                         walltime=scaled_walltime(ODGI_DRAW_SECS_PER_GB if do_draw
+                                                                                  else ODGI_VIZ_SECS_PER_GB,
+                                                                                  input_vg_id.size))
                 else:
                     viz_job = None
                 if do_viz:
@@ -1067,12 +1285,17 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
                 snarl_stats_job = gfa_root_job.addChildJobFn(snarl_stats, options, config, vg_path, vg_id,
                                                              disk=input_vg_id.size * 2,
                                                              memory=cactus_clamp_memory(input_vg_id.size * 10),
-                                                             cores=options.indexCores)
+                                                             cores=options.indexCores,
+                                                             walltime=scaled_walltime(SNARL_STATS_SECS_PER_GB,
+                                                                                      input_vg_id.size))
                 snarl_stats_ids.append(snarl_stats_job.rv())
 
             snarl_stats_merge_job = gfa_root_job.addFollowOnJobFn(merge_snarl_stats, options.vg, snarl_stats_ids,
                                                                   tag=workflow_phase + '.',
-                                                                  disk=sum(f.size for f in vg_ids) * 2)
+                                                                  disk=sum(f.size for f in vg_ids) * 2,
+                                                                  walltime=scaled_walltime(MERGE_CHROM_TSV_SECS_PER_GB,
+                                                                                           sum(f.size for f in vg_ids),
+                                                                                           io_multiple=0.1))
             out_dicts.append(snarl_stats_merge_job.rv())
 
         # collect this phase's merged GFA; a single combined panacus report is built after the loop
@@ -1089,7 +1312,11 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
         panacus_job = Job.wrapJobFn(run_panacus, options, config, panacus_phase_dicts,
                                     cores=options.indexCores,
                                     disk=sum(f.size for f in vg_ids) * 6 * len(panacus_phase_dicts),
-                                    memory=index_mem)
+                                    memory=index_mem,
+                                    # every phase is a full decompress-and-scan of its own merged GFA
+                                    walltime=scaled_walltime(PANACUS_SECS_PER_GB * len(panacus_phase_dicts),
+                                                             sum(f.size for f in vg_ids),
+                                                             io_multiple=0.5 * len(panacus_phase_dicts)))
         for merge_job in panacus_merge_jobs:
             merge_job.addFollowOn(panacus_job)
         out_dicts.append(panacus_job.rv())
@@ -1121,7 +1348,7 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
         gref_sample = gref_sample_name(vcf_ref)
 
         # augment each chromosome in parallel
-        gref_root_job = Job()
+        gref_root_job = Job(walltime=cactus_walltime())
         gref_source_root_job.addFollowOn(gref_root_job)
 
         gref_vg_ids = []
@@ -1130,7 +1357,9 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
             gref_job = gref_root_job.addChildJobFn(compute_gref_paths, config, options, vg_path, vg_id, vcf_ref,
                                                  disk=input_vg_id.size * 20,
                                                  memory=max(2**31, min(input_vg_id.size * 20, max_mem)),
-                                                 cores=options.indexCores)
+                                                 cores=options.indexCores,
+                                                 walltime=scaled_walltime(COMPUTE_GREF_PATHS_SECS_PER_GB,
+                                                                          input_vg_id.size))
             gref_vg_ids.append(gref_job.rv(0))
             gref_segs_ids.append(gref_job.rv(1))
 
@@ -1142,7 +1371,10 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
             gref_fasta_job = gref_root_job.addFollowOnJobFn(extract_vg_fasta, options, gref_vg_ids,
                                                               vcf_ref=gref_sample,
                                                               disk=sum(f.size for f in vg_ids) * 2,
-                                                              memory=cactus_clamp_memory(sum(f.size for f in vg_ids) * 4))
+                                                              memory=cactus_clamp_memory(sum(f.size for f in vg_ids) * 4),
+                                                              walltime=scaled_walltime(EXTRACT_VG_FASTA_SECS_PER_GB,
+                                                                                       sum(f.size for f in vg_ids),
+                                                                                       io_multiple=1))
             gref_fasta_dict = gref_fasta_job.rv()
             gref_parent_job = gref_fasta_job
 
@@ -1158,7 +1390,10 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
 
         # merge gref segments
         gref_segs_merge_job = gref_root_job.addFollowOnJobFn(merge_gref_segs, options.vg, gref_segs_ids,
-                                                            disk=sum(f.size for f in vg_ids))
+                                                            disk=sum(f.size for f in vg_ids),
+                                                            walltime=scaled_walltime(MERGE_CHROM_TSV_SECS_PER_GB,
+                                                                                     sum(f.size for f in vg_ids),
+                                                                                     io_multiple=0.1))
         out_dicts.append(gref_segs_merge_job.rv())
 
     # All of the exclusion work hangs off one barrier, and that barrier is a descendant of
@@ -1169,7 +1404,7 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
     exclusion_ids = None
     if do_exclusions and workflow_phases:
         deepest_phase, deepest_vg_ids, deepest_root_job = workflow_phases[-1]
-        excl_root_job = Job()
+        excl_root_job = Job(walltime=cactus_walltime())
         deepest_root_job.addFollowOn(excl_root_job)
 
         exclusion_coverage = {}
@@ -1181,7 +1416,8 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
                 cov_job = excl_root_job.addChildJobFn(
                     path_coverage_job, config, vg_path, phase_vg_id, chrom_name, workflow_phase,
                     disk=input_vg_id.size * 3,
-                    memory=cactus_clamp_memory(min(max(2**31, input_vg_id.size * 6), max_mem)))
+                    memory=cactus_clamp_memory(min(max(2**31, input_vg_id.size * 6), max_mem)),
+                    walltime=scaled_walltime(PATH_COVERAGE_SECS_PER_GB, input_vg_id.size))
                 phase_coverage.append((cov_job.rv(0), cov_job.rv(1), cov_job.rv(2), cov_job.rv(3)))
             exclusion_coverage[workflow_phase] = phase_coverage
 
@@ -1206,7 +1442,8 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
                     # with ~30% headroom while 16Gi covers the walk to a 324Mbp reference contig.
                     # a longer contig than that still gets there through --doubleMem
                     memory=cactus_clamp_memory(min(16 * 2**30 + int(input_vg_id.size * 1.75),
-                                                   max_mem)))
+                                                   max_mem)),
+                    walltime=scaled_walltime(REF_GAPS_SECS_PER_GB, input_vg_id.size))
                 gap_ids.append(gap_job.rv())
             exclusion_refgap_ids[ref_event] = gap_ids
 
@@ -1218,7 +1455,9 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
             compute_exclusions_job, config, options, exclusion_coverage, contig_sizes_id,
             split_log_id, exclusion_refgap_ids, chrom_names,
             disk=sum(f.size for f in vg_ids) * 2,
-            memory=cactus_clamp_memory(min(max(2**31, max(f.size for f in vg_ids) * 16), max_mem)))
+            memory=cactus_clamp_memory(min(max(2**31, max(f.size for f in vg_ids) * 16), max_mem)),
+            walltime=scaled_walltime(COMPUTE_EXCLUSIONS_SECS_PER_GB, sum(f.size for f in vg_ids),
+                                     io_multiple=0.25))
         exclusion_ids = exclusion_job.rv()
 
     return (output_full_vg_ids, clip_vg_ids, clipped_stats, filter_vg_ids, out_dicts, og_chrom_ids,
@@ -1698,7 +1937,7 @@ def make_vcf(job, config, options, workflow_phase, index_mem, vcf_ref, vg_ids, r
     ones.  it never makes a wave VCF: -L has already merged away the alleles vcfwave would
     realign
     """
-    root_job = Job()
+    root_job = Job(walltime=cactus_walltime())
     job.addChild(root_job)
     if vcftag is None:
         vcftag = vcf_ref + '.' + workflow_phase if vcf_ref != options.reference[0] else workflow_phase
@@ -1713,7 +1952,8 @@ def make_vcf(job, config, options, workflow_phase, index_mem, vcf_ref, vg_ids, r
                                                  tag=os.path.splitext(os.path.basename(vg_path))[0] + '.' + vcftag + '.',
                                                  cores=options.indexCores,
                                                  disk = vg_id.size * 6,
-                                                 memory=index_mem)
+                                                 memory=index_mem,
+                                                 walltime=scaled_walltime(DECONSTRUCT_SECS_PER_GB, vg_id.size))
 
         raw_vcf_id, raw_tbi_id = deconstruct_job.rv(0), deconstruct_job.rv(1)
         raw_vcf_tbi_ids.append((raw_vcf_id, raw_tbi_id))
@@ -1725,7 +1965,9 @@ def make_vcf(job, config, options, workflow_phase, index_mem, vcf_ref, vg_ids, r
                                                           ref_fasta_dict,
                                                           tag=os.path.splitext(os.path.basename(vg_path))[0] + '.' + vcftag + '.',
                                                           disk = vg_id.size * 6,
-                                                          memory=cactus_clamp_memory(vg_id.size * 2))
+                                                          memory=cactus_clamp_memory(vg_id.size * 2),
+                                                          walltime=scaled_walltime(VCFBUB_SECS_PER_GB, vg_id.size,
+                                                                                   io_multiple=0.5))
             bub_vcf_id, bub_tbi_id = vcfbub_job.rv(0), vcfbub_job.rv(1)
             bub_vcf_tbi_ids.append((bub_vcf_id, bub_tbi_id))
 
@@ -1737,7 +1979,9 @@ def make_vcf(job, config, options, workflow_phase, index_mem, vcf_ref, vg_ids, r
                                                            tag=os.path.splitext(os.path.basename(vg_path))[0] + '.' + vcftag + '.',
                                                            cores=options.vcfwaveCores,
                                                            disk=vg_id.size * 6,
-                                                           memory=cactus_clamp_memory(options.vcfwaveMemory))
+                                                           memory=cactus_clamp_memory(options.vcfwaveMemory),
+                                                           walltime=scaled_walltime(CHUNKED_VCFWAVE_SECS_PER_GB,
+                                                                                    vg_id.size, io_multiple=0.5))
             wave_vcf_id, wave_tbi_id = vcfwave_job.rv(0), vcfwave_job.rv(1)
             wave_vcf_tbi_ids.append((wave_vcf_id, wave_tbi_id))
 
@@ -1751,7 +1995,10 @@ def make_vcf(job, config, options, workflow_phase, index_mem, vcf_ref, vg_ids, r
                                               fix_ploidies=True,
                                               cores = cat_cores,
                                               disk = sum(f.size for f in vg_ids) * 26,
-                                              memory = cactus_clamp_memory(sum(f.size for f in vg_ids)))
+                                              memory = cactus_clamp_memory(sum(f.size for f in vg_ids)),
+                                              walltime=scaled_walltime(VCF_CAT_SECS_PER_GB,
+                                                                       sum(f.size for f in vg_ids),
+                                                                       io_multiple=0.125))
     out_dict = {'{}.raw.vcf.gz'.format(vcftag) : merge_vcf_job.rv(0),
                 '{}.raw.vcf.gz.tbi'.format(vcftag) : merge_vcf_job.rv(1) }
     if bub_vcf_tbi_ids:
@@ -1759,7 +2006,10 @@ def make_vcf(job, config, options, workflow_phase, index_mem, vcf_ref, vg_ids, r
                                                   fix_ploidies=True,
                                                   cores = cat_cores,
                                                   disk = sum(f.size for f in vg_ids) * 26,
-                                                  memory = cactus_clamp_memory(sum(f.size for f in vg_ids)))
+                                                  memory = cactus_clamp_memory(sum(f.size for f in vg_ids)),
+                                                  walltime=scaled_walltime(VCF_CAT_SECS_PER_GB,
+                                                                           sum(f.size for f in vg_ids),
+                                                                           io_multiple=0.125))
         out_dict['{}.vcf.gz'.format(vcftag)] = merge_bub_job.rv(0)
         out_dict['{}.vcf.gz.tbi'.format(vcftag)] = merge_bub_job.rv(1)
     if wave_vcf_tbi_ids:
@@ -1767,7 +2017,10 @@ def make_vcf(job, config, options, workflow_phase, index_mem, vcf_ref, vg_ids, r
                                                    fix_ploidies=True,
                                                    cores = cat_cores,
                                                    disk = sum(f.size for f in vg_ids) * 26,
-                                                   memory = cactus_clamp_memory(sum(f.size for f in vg_ids)))
+                                                   memory = cactus_clamp_memory(sum(f.size for f in vg_ids)),
+                                                   walltime=scaled_walltime(VCF_CAT_SECS_PER_GB,
+                                                                            sum(f.size for f in vg_ids),
+                                                                            io_multiple=0.125))
         out_dict['{}.wave.vcf.gz'.format(vcftag)] = merge_wave_job.rv(0)
         out_dict['{}.wave.vcf.gz.tbi'.format(vcftag)] = merge_wave_job.rv(1)
         
@@ -1949,7 +2202,9 @@ def vcfbub(job, config, out_name, vcf_ref, vcf_id, tbi_id, max_ref_allele, fasta
     if fasta_ref_dict is not None and \
        getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "bcftoolsNorm", typeFn=bool, default=False):
         norm_job = job.addChildJobFn(vcfnorm, config, vcf_ref, bub_vcf_id, vcfbub_path, bub_tbi_id, fasta_ref_dict,
-                                     disk=bub_vcf_id.size * 6)
+                                     disk=bub_vcf_id.size * 6,
+                                     walltime=scaled_walltime(VCFNORM_BUB_SECS_PER_GB, bub_vcf_id.size,
+                                                              io_multiple=6))
         return norm_job.rv()
     else:
         return bub_vcf_id, bub_tbi_id
@@ -2224,7 +2479,7 @@ def chunked_vcfwave(job, config, out_name, vcf_ref, vcf_id, tbi_id, max_ref_alle
         chunk_paths = [vcfbub_path]
             
     # distribute on the chunks
-    root_job = Job()
+    root_job = Job(walltime=cactus_walltime())
     job.addChild(root_job)
     chunk_vcf_tbi_ids = []
     for chunk_path in chunk_paths:
@@ -2237,7 +2492,10 @@ def chunked_vcfwave(job, config, out_name, vcf_ref, vcf_id, tbi_id, max_ref_alle
         wave_mem = min(job.memory, max(6 * 2**30, job.cores * 960 * 2**20, chunk_id.size * 800))
         vcfwave_job = root_job.addChildJobFn(vcfwave, config, chunk_path, chunk_id,
                                              disk=chunk_id.size * 10, cores=job.cores,
-                                             memory=wave_mem)
+                                             memory=wave_mem,
+                                             walltime=cactus_walltime(
+                                                 VCFWAVE_SECS_PER_MB * chunk_id.size / 1e6 / job.cores,
+                                                 io_bytes=chunk_id.size * 4))
         chunk_vcf_tbi_ids.append(vcfwave_job.rv())
 
     # combine the chunks
@@ -2246,7 +2504,9 @@ def chunked_vcfwave(job, config, out_name, vcf_ref, vcf_id, tbi_id, max_ref_alle
     vcfwave_cat_job = root_job.addFollowOnJobFn(vcf_cat, chunk_vcf_tbi_ids, tag, sort=True,
                                                 fix_ploidies=False,
                                                 disk=vcf_id.size * 10,
-                                                memory=cactus_clamp_memory(vcf_id.size*5))
+                                                memory=cactus_clamp_memory(vcf_id.size*5),
+                                                walltime=scaled_walltime(VCF_CAT_CHUNK_SECS_PER_GB, vcf_id.size,
+                                                                         io_multiple=4))
 
     # normalize the output
     if fasta_ref_dict is not None and \
@@ -2256,7 +2516,9 @@ def chunked_vcfwave(job, config, out_name, vcf_ref, vcf_id, tbi_id, max_ref_alle
         norm_job = vcfwave_cat_job.addFollowOnJobFn(vcfnorm, config, vcf_ref, vcfwave_cat_job.rv(0),
                                                     vcfwave_path, vcfwave_cat_job.rv(1), fasta_ref_dict,
                                                     disk=vcf_id.size*12,
-                                                    memory=cactus_clamp_memory(vcf_id.size*5))
+                                                    memory=cactus_clamp_memory(vcf_id.size*5),
+                                                    walltime=scaled_walltime(VCFNORM_WAVE_SECS_PER_GB, vcf_id.size,
+                                                                             io_multiple=6))
         return norm_job.rv()
     else:
         return vcfwave_cat_job.rv()
@@ -2522,13 +2784,15 @@ def build_vg_indexes_and_vcf(parent_job, options, config, phase_vg_ids, vg_ids,
     out_dicts = []
 
     # per-chromosome GFA conversion
-    gfa_root_job = Job()
+    gfa_root_job = Job(walltime=cactus_walltime())
     parent_job.addFollowOn(gfa_root_job)
     gfa_ids = []
     for vg_path, vg_id, input_vg_id in zip(options.vg, phase_vg_ids, vg_ids):
         gfa_job = gfa_root_job.addChildJobFn(vg_to_gfa, options, config, vg_path, vg_id,
                                              disk=input_vg_id.size * 10,
-                                             memory=min(max(2**31, input_vg_id.size * 16), max_mem))
+                                             memory=min(max(2**31, input_vg_id.size * 16), max_mem),
+                                             walltime=scaled_walltime(VG_TO_GFA_SECS_PER_GB,
+                                                                      input_vg_id.size, io_multiple=5))
         gfa_ids.append(gfa_job.rv())
 
     # GBZ from merged GFA.  the gref graph reuses the base graph's snarls (identical topology),
@@ -2538,7 +2802,9 @@ def build_vg_indexes_and_vcf(parent_job, options, config, phase_vg_ids, vg_ids,
                                              ref_samples=(options.reference + [vcf_ref]) if is_gref else None,
                                              cores=options.indexCores,
                                              disk=sum(f.size for f in vg_ids) * 6,
-                                             memory=index_mem)
+                                             memory=index_mem,
+                                             walltime=scaled_walltime(MAKE_VG_INDEXES_SECS_PER_GB,
+                                                                      sum(f.size for f in vg_ids)))
     out_dicts.append(gbz_job.rv())
     index_dict = gbz_job.rv()
 
@@ -2556,7 +2822,7 @@ def build_vg_indexes_and_vcf(parent_job, options, config, phase_vg_ids, vg_ids,
             l_job = gfa_root_job.addFollowOnJobFn(make_vcf, config, options, tag.rstrip('.'),
                                                    index_mem, vcf_ref, phase_vg_ids,
                                                    ref_fasta_dict, vcftag=vcftag,
-                                                   decon_L=decon_L)
+                                                   decon_L=decon_L, walltime=cactus_walltime())
             out_dicts.append(l_job.rv())
 
     # optional haplo index
@@ -2567,7 +2833,10 @@ def build_vg_indexes_and_vcf(parent_job, options, config, phase_vg_ids, vg_ids,
                                               disk=sum(f.size for f in vg_ids) * 16,
                                               # see the other make_haplo_index call site
                                               memory=cactus_clamp_memory(
-                                                  min(int(index_mem * 1.5), 128 * 2**30)))
+                                                  min(int(index_mem * 1.5), 128 * 2**30)),
+                                              walltime=scaled_walltime(MAKE_HAPLO_INDEX_SECS_PER_GB,
+                                                                       sum(f.size for f in vg_ids),
+                                                                       io_multiple=0.5))
         out_dicts.append(haplo_job.rv())
 
     return out_dicts
