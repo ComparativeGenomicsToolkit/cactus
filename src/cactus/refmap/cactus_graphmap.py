@@ -533,9 +533,10 @@ def make_minigraph_fasta(job, gfa_file_id, gfa_file_path, name):
 # minigraph mapping, per job and per GB of sanitized fasta.  Grouping the HPRC toil-rt lines by
 # job gives p90 4062s for a whole-genome haplotype (v2.0, n=474, ~3.1 GB of fasta) against a p99
 # of ~1200s for a per-chromosome one (v2.1, ~0.12 GB), which is a line at ~1200 s/GB.  The
-# intercept is raised to 1500 to cover the per-chromosome tail (max 3521s, 3x its own p99), which
-# is cluster contention rather than anything the fasta size can see.
-MINIGRAPH_MAP_SECS = 1500
+# intercept covers the per-chromosome tail (max 3521s over 11,390 invocations, 3x its own p99),
+# which is cluster contention rather than anything the fasta size can see.  2000 leaves ~50%
+# over that max once the factor is applied; 1500 left 17%, which is not a tail allowance.
+MINIGRAPH_MAP_SECS = 2000
 MINIGRAPH_MAP_SECS_PER_GB = 1200
 
 # What a genome's minigraph output weighs as a fraction of the fasta it was mapped from: the v2.0
@@ -684,11 +685,15 @@ MERGE_PAF_SECS = 60
 def merge_pafs_walltime(merged_bytes, gzip=False):
     """ walltime for a merge_pafs job whose output comes to roughly merged_bytes.  The job is all
     I/O -- every input is read out of the jobstore and the concatenation written back -- except
-    with gzip=True, which bgzips the result single-threaded on the way out. """
+    with gzip=True, which bgzips the result single-threaded on the way out.
+
+    io_bytes is 4x rather than 2x because the bytes move twice: once staging in and out of the
+    jobstore, and again locally, where catFiles reads every input back and writes the joined
+    file.  At 2x the whole-panel merge of the HPRC v2.0 PAF came to under half an hour. """
     secs = MERGE_PAF_SECS
     if gzip:
         secs += merged_bytes / GZIP_COMPRESS_BYTES_PER_SEC
-    return cactus_walltime(secs, io_bytes=2*merged_bytes)
+    return cactus_walltime(secs, io_bytes=4*merged_bytes)
 
 def merge_pafs(job, paf_file_id_map, gzip=False):
     """ merge up some pafs """

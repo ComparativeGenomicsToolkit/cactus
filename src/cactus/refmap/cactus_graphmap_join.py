@@ -2494,7 +2494,7 @@ def chunked_vcfwave(job, config, out_name, vcf_ref, vcf_id, tbi_id, max_ref_alle
                                              disk=chunk_id.size * 10, cores=job.cores,
                                              memory=wave_mem,
                                              walltime=cactus_walltime(
-                                                 VCFWAVE_SECS_PER_MB * chunk_id.size / 1e6 / job.cores,
+                                                 VCFWAVE_SECS_PER_MB * chunk_id.size / 1e6 / max(1, job.cores or 1),
                                                  io_bytes=chunk_id.size * 4))
         chunk_vcf_tbi_ids.append(vcfwave_job.rv())
 
