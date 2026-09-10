@@ -224,8 +224,18 @@ def cactus_override_toil_options(options):
         # estimates at what the cluster will actually accept
         slurm_max_walltime = cactus_slurm_max_walltime(options)
         if slurm_max_walltime:
-            logger.info('Clamping maximum job walltime to {} seconds (the longest Slurm partition time limit)'.format(slurm_max_walltime))
             max_walltime = slurm_max_walltime
+            if getattr(options, 'doubleTime', False):
+                # ...and that raise happens on the batch system's own thread, which takes the
+                # whole workflow down with it, not just the job.  --doubleTime retries a job
+                # Slurm killed for running over with twice the walltime, so an estimate sitting
+                # at the longest partition's limit turns its own first retry into exactly that
+                # crash.  Keep half the ceiling in reserve so the retry still has somewhere to
+                # go; a job that needs more than half the longest partition was going to end up
+                # there regardless, and only pays for one attempt on the way.
+                max_walltime = int(max_walltime / WALLTIME_DOUBLETIME_RESERVE)
+            logger.info('Clamping maximum job walltime to {} seconds (from the longest Slurm partition time limit of {})'.format(
+                max_walltime, slurm_max_walltime))
     os.environ['CACTUS_MAX_WALLTIME'] = str(int(max_walltime))
 
     # auto-set cactus_log_memory
@@ -273,6 +283,10 @@ WALLTIME_FACTOR = 2.5
 # asking Slurm for less: worker startup, jobstore round-trips and Slurm's own granularity
 # swamp it, and a too-short request just buys a --doubleTime retry.
 WALLTIME_MIN = 600
+
+# How much of the longest Slurm partition to keep in reserve for --doubleTime to retry into.
+# 2 leaves room for exactly one doubling; see cactus_override_toil_options.
+WALLTIME_DOUBLETIME_RESERVE = 2
 
 def cactus_walltime(seconds=WALLTIME_COORDINATION, io_bytes=0):
     """ Turn an estimate of how long a job takes into the walltime to request for it.
