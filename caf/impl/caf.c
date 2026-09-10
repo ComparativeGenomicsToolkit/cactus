@@ -5,6 +5,19 @@
 #include "stPinchIterator.h"
 #include "stGiantComponent.h"
 #include "stCafPhylogeny.h"
+#include <string.h>
+#include <time.h>
+#if defined(_OPENMP)
+#include <omp.h>
+#endif
+
+double stCaf_now(void) {
+#if defined(_OPENMP)
+    return omp_get_wtime();
+#else
+    return ((double) clock()) / CLOCKS_PER_SEC;
+#endif
+}
 
 static bool blockFilterFn(stPinchBlock *pinchBlock, void *extraArg) {
     FilterArgs *f = extraArg;
@@ -20,20 +33,7 @@ static bool blockFilterFn(stPinchBlock *pinchBlock, void *extraArg) {
 }
 
 static uint64_t choose2(uint64_t n) {
-#define CHOOSE_TWO_CACHE_LEN 256
-    int64_t chooseTwoCache[256] = {0}; // removing static variable, even if fast
-    if (n <= 1) {
-        return 0;
-    } else if (n >= CHOOSE_TWO_CACHE_LEN) {
-        return n * (n - 1) / 2;
-    } else {
-        if (chooseTwoCache[n] != 0) {
-            return chooseTwoCache[n];
-        } else {
-            chooseTwoCache[n] = n * (n - 1) / 2;
-            return chooseTwoCache[n];
-        }
-    }
+    return n <= 1 ? 0 : n * (n - 1) / 2;
 }
 
 // Get the number of possible pairwise alignments that could support
@@ -44,9 +44,7 @@ static uint64_t numPossibleSupportingHomologies(stPinchBlock *block, Flower *flo
     stPinchBlockIt segIt = stPinchBlock_getSegmentIterator(block);
     stPinchSegment *segment;
     while ((segment = stPinchBlockIt_getNext(&segIt)) != NULL) {
-        Name capName = stPinchSegment_getName(segment);
-        Cap *cap = flower_getCap(flower, capName);
-        Event *event = cap_getEvent(cap);
+        Event *event = stCaf_getEvent(segment, flower);
         if (event_isOutgroup(event)) {
             outgroupDegree++;
         } else {
@@ -60,80 +58,131 @@ static uint64_t numPossibleSupportingHomologies(stPinchBlock *block, Flower *flo
     return choose2(ingroupDegree) * 2 + ingroupDegree * outgroupDegree;
 }
 
-// for printThreadSetStatistics
-static int uint64_cmp(const uint64_t *x, const uint64_t *y) {
-    if (*x < *y) {
-        return -1;
-    } else if (*x == *y) {
-        return 0;
-    } else {
-        return 1;
+/*
+ * The k-th smallest (counting from 0) of n doubles, i.e. what an ascending sort would leave at index k,
+ * found by quickselect in expected O(n). The array is reordered.
+ */
+static double selectKthSmallest(double *a, int64_t n, int64_t k) {
+    int64_t left = 0, right = n - 1;
+    while (right > left) {
+        int64_t mid = left + (right - left) / 2;
+        double t;
+        if (a[mid] < a[left]) { t = a[mid]; a[mid] = a[left]; a[left] = t; }
+        if (a[right] < a[left]) { t = a[right]; a[right] = a[left]; a[left] = t; }
+        if (a[right] < a[mid]) { t = a[right]; a[right] = a[mid]; a[mid] = t; }
+        double pivot = a[mid];
+        int64_t i = left, j = right;
+        while (i <= j) {
+            while (a[i] < pivot) {
+                i++;
+            }
+            while (a[j] > pivot) {
+                j--;
+            }
+            if (i <= j) {
+                t = a[i]; a[i] = a[j]; a[j] = t;
+                i++;
+                j--;
+            }
+        }
+        if (k <= j) {
+            right = j;
+        } else if (k >= i) {
+            left = i;
+        } else {
+            return a[k]; //everything between j and i equals the pivot
+        }
     }
-}
-
-// for printThreadSetStatistics
-static int double_cmp(const double *x, const double *y) {
-    if (*x < *y) {
-        return -1;
-    } else if (*x == *y) {
-        return 0;
-    } else {
-        return 1;
-    }
+    return a[k];
 }
 
 // Print a set of statistics (avg, median, max, min) for degree and
 // support percentage in the pinch graph.
 static void printThreadSetStatistics(stPinchThreadSet *threadSet, Flower *flower, FILE *f)
 {
-    // Naively finds the max, median, and min by sorting: the lists
-    // will have "only" millions of elements, so they should fit
-    // comfortably into tens of MB of memory.
-
-    uint64_t numBlocks = stPinchThreadSet_getTotalBlockNumber(threadSet);
-
-    uint64_t *blockDegrees = malloc(numBlocks * sizeof(uint64_t));
-    double totalDegree = 0.0;
-    double *blockSupports = malloc(numBlocks * sizeof(double));
-    double totalSupport = 0.0;
-
+    // One pass over the blocks. The degree median comes from a histogram and the support median from
+    // an O(n) selection; sorting two arrays with an entry per block, as this used to, was most of the
+    // cost of the diagnostic once the graph reached hundreds of millions of blocks.
+    uint64_t numBlocks = 0;
+    double totalDegree = 0.0, totalSupport = 0.0;
     uint64_t totalAlignedBases = 0;
+    uint64_t minDegree = UINT64_MAX, maxDegree = 0;
+    double minSupport = 0.0, maxSupport = 0.0;
+    uint64_t *degreeHistogram = NULL;
+    uint64_t degreeHistogramSize = 0;
+    double *supports = NULL;
+    uint64_t supportsCapacity = 0;
 
-    stPinchThreadSetBlockIt it = stPinchThreadSet_getBlockIt(threadSet);
-    uint64_t i = 0;
+    // The blocks are reached through their end records, which are contiguous, rather than by walking
+    // every segment of every thread; the attach makes the records if the graph changed since they were
+    // last made and is otherwise free, and the cactus graph build that follows reuses them.
+    stPinchThreadSet_attachEnds(threadSet);
+    stPinchThreadSetAttachedBlockIt it = stPinchThreadSet_getAttachedBlockIt(threadSet);
     stPinchBlock *block;
-    while ((block = stPinchThreadSetBlockIt_getNext(&it)) != NULL) {
-        blockDegrees[i] = stPinchBlock_getDegree(block);
-        totalDegree += stPinchBlock_getDegree(block);
+    while ((block = stPinchThreadSetAttachedBlockIt_getNext(&it)) != NULL) {
+        uint64_t degree = stPinchBlock_getDegree(block);
+        totalDegree += degree;
+        if (degree >= degreeHistogramSize) {
+            uint64_t newSize = degreeHistogramSize == 0 ? 256 : degreeHistogramSize;
+            while (newSize <= degree) {
+                newSize *= 2;
+            }
+            degreeHistogram = st_realloc(degreeHistogram, newSize * sizeof(uint64_t));
+            memset(degreeHistogram + degreeHistogramSize, 0, (newSize - degreeHistogramSize) * sizeof(uint64_t));
+            degreeHistogramSize = newSize;
+        }
+        degreeHistogram[degree]++;
+        if (degree < minDegree) {
+            minDegree = degree;
+        }
+        if (degree > maxDegree) {
+            maxDegree = degree;
+        }
         uint64_t supportingHomologies = stPinchBlock_getNumSupportingHomologies(block);
         uint64_t possibleSupportingHomologies = numPossibleSupportingHomologies(block, flower);
         double support = 0.0;
         if (possibleSupportingHomologies != 0) {
             support = ((double) supportingHomologies) / possibleSupportingHomologies;
         }
-        blockSupports[i] = support;
+        if (numBlocks == supportsCapacity) {
+            supportsCapacity = supportsCapacity == 0 ? 1024 : supportsCapacity * 2;
+            supports = st_realloc(supports, supportsCapacity * sizeof(double));
+        }
+        supports[numBlocks] = support;
         totalSupport += support;
+        if (numBlocks == 0 || support < minSupport) {
+            minSupport = support;
+        }
+        if (numBlocks == 0 || support > maxSupport) {
+            maxSupport = support;
+        }
 
-        totalAlignedBases += stPinchBlock_getLength(block) * stPinchBlock_getDegree(block);
+        totalAlignedBases += stPinchBlock_getLength(block) * degree;
 
-        i++;
+        numBlocks++;
     }
 
     fprintf(f, "There were %" PRIu64 " blocks in the sequence graph, representing %" PRIi64
     " total aligned bases\n", numBlocks, totalAlignedBases);
 
-    qsort(blockDegrees, numBlocks, sizeof(uint64_t),
-          (int (*)(const void *, const void *)) uint64_cmp);
-    qsort(blockSupports, numBlocks, sizeof(double),
-          (int (*)(const void *, const void *)) double_cmp);
-    fprintf(f, "Block degree stats: min %" PRIu64 ", avg %lf, median %" PRIu64 ", max %" PRIu64 "\n",
-            blockDegrees[0], totalDegree/numBlocks, blockDegrees[(numBlocks - 1) / 2],
-            blockDegrees[numBlocks - 1]);
-    fprintf(f, "Block support stats: min %lf, avg %lf, median %lf, max %lf\n",
-           blockSupports[0], totalSupport/numBlocks, blockSupports[(numBlocks - 1) / 2],
-           blockSupports[numBlocks - 1]);
-    free(blockDegrees);
-    free(blockSupports);
+    if (numBlocks > 0) {
+        // The medians are what the ascending sorts used to leave at index (numBlocks - 1) / 2
+        uint64_t medianIndex = (numBlocks - 1) / 2, seen = 0, medianDegree = 0;
+        for (uint64_t degree = 0; degree < degreeHistogramSize; degree++) {
+            seen += degreeHistogram[degree];
+            if (seen > medianIndex) {
+                medianDegree = degree;
+                break;
+            }
+        }
+        double medianSupport = selectKthSmallest(supports, numBlocks, medianIndex);
+        fprintf(f, "Block degree stats: min %" PRIu64 ", avg %lf, median %" PRIu64 ", max %" PRIu64 "\n",
+                minDegree, totalDegree/numBlocks, medianDegree, maxDegree);
+        fprintf(f, "Block support stats: min %lf, avg %lf, median %lf, max %lf\n",
+               minSupport, totalSupport/numBlocks, medianSupport, maxSupport);
+    }
+    free(degreeHistogram);
+    free(supports);
 }
 
 void caf(Flower *flower, CactusParams *params, char *alignmentsFile, char *secondaryAlignmentsFile, char *constraintsFile,
@@ -332,12 +381,14 @@ void caf(Flower *flower, CactusParams *params, char *alignmentsFile, char *secon
 
     if (!flower_builtBlocks(flower)) { // Do nothing if the flower already has defined blocks
         st_logDebug("Processing flower: %lli\n", flower_getName(flower));
+        double cafStartTime = stCaf_now(), t = cafStartTime;
 
         //Set up the graph and add the initial alignments
         stPinchThreadSet *threadSet = stCaf_setup(flower);
 
         //Build the set of outgroup threads
         stSet *outgroupThreads = stCaf_getOutgroupThreads(flower, threadSet);
+        st_logInfo("caf-timing: setup %.3fs\n", stCaf_now() - t);
 
         // Set the single copy event
         if (singleCopyEventName != NULL) {
@@ -388,13 +439,16 @@ void caf(Flower *flower, CactusParams *params, char *alignmentsFile, char *secon
             }
 
             //Do the annealing
+            t = stCaf_now();
             if (annealingRound == 0) {
                 stCaf_anneal(threadSet, pinchIterator, filterFn, flower);
             } else {
                 stCaf_annealBetweenAdjacencyComponents(threadSet, pinchIterator, filterFn, flower);
             }
+            double primaryAnnealTime = stCaf_now() - t;
 
             // Do the secondary annealing
+            t = stCaf_now();
             if(secondaryPinchIterator != NULL) {
                 if (annealingRound == 0) {
                     stCaf_anneal(threadSet, secondaryPinchIterator, secondaryFilterFn, flower);
@@ -402,11 +456,17 @@ void caf(Flower *flower, CactusParams *params, char *alignmentsFile, char *secon
                     stCaf_annealBetweenAdjacencyComponents(threadSet, secondaryPinchIterator, secondaryFilterFn, flower);
                 }
             }
+            double secondaryAnnealTime = stCaf_now() - t;
 
+            t = stCaf_now();
             st_logInfo("Sequence graph statistics after annealing:\n");
             printThreadSetStatistics(threadSet, flower, stderr);
+            double statsTime = stCaf_now() - t;
+            t = stCaf_now();
 
-            if (minimumBlockHomologySupport > 0) {
+            // The support test below is only ever true for blocks with a degree above
+            // minimumBlockDegreeToCheckSupport, so with that unset there is nothing to look for
+            if (minimumBlockHomologySupport > 0 && minimumBlockDegreeToCheckSupport > 0) {
                 // Check for poorly-supported blocks--those that have
                 // been transitively aligned together but with very
                 // few homologies supporting the transitive
@@ -436,8 +496,13 @@ void caf(Flower *flower, CactusParams *params, char *alignmentsFile, char *secon
                 if (num_megablocks_destroyed > 0) {
                   st_logInfo("Destroyed %" PRIi64 " megablocks with a total of %" PRIi64 " supporting homologies\n",
                              num_megablocks_destroyed, num_homologies_destroyed);
+                  // The melting rounds below join boundaries only where their own deletions reach, so the
+                  // graph has to be at a join fixpoint when they start
+                  stCaf_joinTrivialBoundaries(threadSet);
                 }
             }
+            st_logInfo("caf-timing: anneal round %" PRIi64 " minChain=%" PRIi64 " primary %.3fs secondary %.3fs stats %.3fs megablocks %.3fs\n",
+                       annealingRound, minimumChainLength, primaryAnnealTime, secondaryAnnealTime, statsTime, stCaf_now() - t);
 
             //Do the melting rounds
             for (int64_t meltingRound = 0; meltingRound < meltingRoundsLength; meltingRound++) {
@@ -446,32 +511,42 @@ void caf(Flower *flower, CactusParams *params, char *alignmentsFile, char *secon
                 if (minimumChainLengthForMeltingRound >= minimumChainLength) {
                     break;
                 }
-                stCaf_melt(flower, threadSet, NULL, NULL, 0, minimumChainLengthForMeltingRound, 0, INT64_MAX);
+                stCaf_meltChains(flower, threadSet, minimumChainLengthForMeltingRound, 0, INT64_MAX);
             } st_logDebug("Last melting round of cycle with a minimum chain length of %" PRIi64 " \n", minimumChainLength);
-            stCaf_melt(flower, threadSet, NULL, NULL, 0, minimumChainLength, breakChainsAtReverseTandems, maximumMedianSequenceLengthBetweenLinkedEnds);
+            stCaf_meltChains(flower, threadSet, minimumChainLength, breakChainsAtReverseTandems, maximumMedianSequenceLengthBetweenLinkedEnds);
             //This does the filtering of blocks that do not have the required species/tree-coverage/degree.
             stCaf_melt(flower, threadSet, blockFilterFn, fa, blockTrim, 0, 0, INT64_MAX);
         }
 
         if (removeRecoverableChains) {
+            t = stCaf_now();
             stCaf_meltRecoverableChains(flower, threadSet, breakChainsAtReverseTandems, maximumMedianSequenceLengthBetweenLinkedEnds, recoverableChainsFilter, maxRecoverableChainsIterations, maxRecoverableChainLength);
+            st_logInfo("caf-timing: recoverable total %.3fs\n", stCaf_now() - t);
         }
 
+        t = stCaf_now();
         st_logInfo("Sequence graph statistics after melting:\n");
         printThreadSetStatistics(threadSet, flower, stderr);
+        st_logInfo("caf-timing: stats %.3fs\n", stCaf_now() - t);
 
         //Sort out case when we allow blocks of degree 1
+        t = stCaf_now();
         if (fa->minimumDegree < 2) {
             st_logDebug("Creating degree 1 blocks\n");
             stCaf_makeDegreeOneBlocks(threadSet);
             stCaf_melt(flower, threadSet, blockFilterFn, fa, blockTrim, 0, 0, INT64_MAX);
+            st_logInfo("caf-timing: degree-one %.3fs\n", stCaf_now() - t);
         } else if (maximumAdjacencyComponentSizeRatio < INT64_MAX) { //Deal with giant components
             st_logDebug("Breaking up components greedily\n");
             stCaf_breakupComponentsGreedily(threadSet, maximumAdjacencyComponentSizeRatio);
+            st_logInfo("caf-timing: breakup-components %.3fs\n", stCaf_now() - t);
         }
 
         //Finish up
+        t = stCaf_now();
         stCaf_finish(flower, threadSet, minLengthForChromosome, proportionOfUnalignedBasesForNewChromosome);
+        st_logInfo("caf-timing: finish %.3fs\n", stCaf_now() - t);
+        st_logInfo("caf-timing: caf total %.3fs\n", stCaf_now() - cafStartTime);
         st_logDebug("Ran the cactus core script\n");
 
         //Cleanup

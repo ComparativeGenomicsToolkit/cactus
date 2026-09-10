@@ -577,7 +577,19 @@
 	     partialOrderAlignmentMaskFilter, which matters more but was disabled in all the fit
 	     data, so enabling it only makes the estimate conservative -->
 	<!-- og_size_scale: scale outgroup sizes by this factor (percent) when computing total sequence size -->
+	<!-- retain_pages: whether cactus_consolidated keeps the pages jemalloc frees instead of
+	     returning them to the OS.  Keeping them is much faster (bar 12x and caf 1.25x on
+	     salamander Anc3) at a 2-3x higher peak memory (MammalsAnc0 90 -> 299 GiB).  "1" always,
+	     "0" never, "auto" keeps them unless the retained memory estimate is more than the job can
+	     be given (the system memory on a single machine, or the maxMemory option), in which case the
+	     estimate is divided by memory_retain_ratio and the pages are not kept.  The memory fit
+	     above was measured with retention on.  The consRetainPages command line option overrides. -->
+	<!-- memory_retain_ratio: peak memory with retention over peak without, used to shrink the
+	     estimate when retention is switched off: 1.8 (fish Anc48 caf), 2.0 (yeast bar),
+	     3.3 (MammalsAnc0) -->
 	<consolidated
+		 retain_pages="auto"
+		 memory_retain_ratio="2.5"
 		 memory_coefficient_gb="220"
 		 memory_input_exponent="0.30"
 		 memory_ramp_gb="0.02"

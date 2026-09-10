@@ -4,6 +4,7 @@
  * Released under the MIT license, see LICENSE.txt
  */
 
+#include <string.h>
 #include "cactusGlobalsPrivate.h"
 
 ////////////////////////////////////////////////
@@ -165,7 +166,7 @@ static End *end_construct4(Name name, int64_t isAttached,
     assert(end_isStubEnd(end));
     assert(end_isStubEnd(end_getReverse(end)));
     if(addToFlower) {
-        assert(flower_getEnd(flower, end_getName(end)) == end);
+        cactus_assertExpensive(flower_getEnd(flower, end_getName(end)) == end);
     }
 
     return end;
@@ -178,6 +179,10 @@ End *end_construct3(Name name, int64_t isAttached,
 
 static int sort_caps(const void *a, const void *b) {
     return cactusMisc_nameCompare(cap_getName((Cap*)a), cap_getName((Cap*)b));
+}
+
+static int sort_capsP(const void *a, const void *b) {
+    return sort_caps(*(Cap * const *) a, *(Cap * const *) b);
 }
 
 stList *end_bulkCopyConstruct(stList *ends, Flower *newFlower) {
@@ -215,23 +220,49 @@ stList *end_bulkCopyConstruct(stList *ends, Flower *newFlower) {
 
 End *end_copyConstruct(End *end, Flower *newFlower) {
     end = end_getPositiveOrientation(end);
-    assert(flower_getEnd(newFlower, end_getName(end)) == NULL);
+    cactus_assertExpensive(flower_getEnd(newFlower, end_getName(end)) == NULL);
 
     End *end2 = end_construct3(end_getName(end), end_isBlockEnd(end) ? 1
             : end_isAttached(end), end_getSide(end), newFlower);
-    //Copy the instances, adding them in order
+    //Copy the instances, adding them in name order. An end has a handful of instances, so they go in
+    //a stack array and an insertion sort; names are distinct so any sort gives the same order.
+    Cap *stackCaps[32];
+    Cap **caps = stackCaps;
+    int64_t capNumber = 0, capCapacity = 32;
     End_InstanceIterator *iterator = end_getInstanceIterator(end);
     Cap *cap;
-    stList *caps = stList_construct();
     while ((cap = end_getNext(iterator)) != NULL) {
-        stList_append(caps, cap);
+        if (capNumber == capCapacity) {
+            capCapacity *= 2;
+            Cap **caps2 = st_malloc(capCapacity * sizeof(Cap *));
+            memcpy(caps2, caps, capNumber * sizeof(Cap *));
+            if (caps != stackCaps) {
+                free(caps);
+            }
+            caps = caps2;
+        }
+        caps[capNumber++] = cap;
     }
     end_destructInstanceIterator(iterator);
-    stList_sort(caps, sort_caps);
-    for(int64_t i=0; i<stList_length(caps); i++) {
-        cap_copyConstruct(end2, stList_get(caps, i));
+    if (capNumber <= 32) {
+        for (int64_t i = 1; i < capNumber; i++) {
+            Cap *cap2 = caps[i];
+            int64_t j = i;
+            while (j > 0 && cactusMisc_nameCompare(cap_getName(caps[j - 1]), cap_getName(cap2)) > 0) {
+                caps[j] = caps[j - 1];
+                j--;
+            }
+            caps[j] = cap2;
+        }
+    } else {
+        qsort(caps, capNumber, sizeof(Cap *), sort_capsP);
     }
-    stList_destruct(caps);
+    for(int64_t i=0; i<capNumber; i++) {
+        cap_copyConstruct(end2, caps[i]);
+    }
+    if (caps != stackCaps) {
+        free(caps);
+    }
 
     return end2;
 }

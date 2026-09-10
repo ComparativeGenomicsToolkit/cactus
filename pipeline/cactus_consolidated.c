@@ -2,10 +2,15 @@
  * Released under the MIT license, see LICENSE.txt
  */
 
+// gethostname and sysconf are POSIX, and this file is compiled as strict c99, which declares
+// neither.  Ask for POSIX 2001 only; _GNU_SOURCE would also change declarations already in use here.
+#define _POSIX_C_SOURCE 200112L
 #include <time.h>
 #include <getopt.h>
+#include <string.h>
 #include <dlfcn.h>
 #include <sys/types.h>
+#include <unistd.h>
 #include "sonLib.h"
 #include "cactus.h"
 #include "cactus_setup.h"
@@ -68,7 +73,28 @@
 // _GNU_SOURCE for this one call would change other declarations in this file).
 extern int mallctl(const char *, void *, size_t *, void *, size_t) __attribute__((weak));
 
-static void cactus_jemalloc_retain_pages(void) {
+static void cactus_jemalloc_retain_pages(CactusParams *params) {
+    // Retaining pages trades memory for speed and is sized for cluster nodes; on a small machine
+    // it can exhaust memory (a caf-only run of a 5-genome fish ancestor went from 10 GB to 18 GB).
+    // The <consolidated retain_pages> parameter decides: "0" leaves jemalloc's purging alone,
+    // "1" retains, and "auto" (the shipped default) is resolved by the workflow against the memory
+    // the job can get, and written as "0" or "1" into the config it hands this program; run by
+    // hand with "auto" still present, retention is on. CACTUS_JEMALLOC_RETAIN=0 in the
+    // environment switches it off regardless, for a benchmark harness.
+    const char *retain = getenv("CACTUS_JEMALLOC_RETAIN");
+    if (retain != NULL && strcmp(retain, "0") == 0) {
+        st_logInfo("jemalloc page retention disabled by CACTUS_JEMALLOC_RETAIN=0\n");
+        return;
+    }
+    if (cactusParams_has(params, 2, "consolidated", "retain_pages")) {
+        char *setting = cactusParams_get_string(params, 2, "consolidated", "retain_pages");
+        bool off = strcmp(setting, "0") == 0;
+        st_logInfo("<consolidated retain_pages=\"%s\">: jemalloc page retention %s\n", setting, off ? "off" : "on");
+        free(setting);
+        if (off) {
+            return;
+        }
+    }
     int (*mallctl_fn)(const char *, void *, size_t *, void *, size_t) = mallctl;
     if (mallctl_fn == NULL) {
         // a statically linked jemalloc may not pull ctl.o in on a weak reference alone,
@@ -115,6 +141,47 @@ static void cactus_jemalloc_retain_pages(void) {
                    "%i of %u existing arenas set, %i declined\n",
                    names[w], rc_default, (int64_t)readback, set, narenas, declined);
     }
+}
+
+/*
+ * Which machine this ran on. A run's phase timings are only comparable with another run's when
+ * both ran on the same kind of node, and a heterogeneous cluster makes that easy to get wrong:
+ * the batch system knows, but nothing it records reaches this log.
+ */
+static void cactus_log_host(void) {
+    char hostname[256];
+    if (gethostname(hostname, sizeof(hostname)) != 0) {
+        strncpy(hostname, "unknown", sizeof(hostname));
+    }
+    hostname[sizeof(hostname) - 1] = '\0';
+
+    char *model = NULL;
+    FILE *cpuinfo = fopen("/proc/cpuinfo", "r"); // Linux only; elsewhere the model is simply not reported
+    if (cpuinfo != NULL) {
+        char line[512];
+        while (fgets(line, sizeof(line), cpuinfo) != NULL) {
+            if (strncmp(line, "model name", strlen("model name")) == 0) {
+                char *value = strchr(line, ':');
+                if (value != NULL) {
+                    value++;
+                    while (*value == ' ' || *value == '\t') {
+                        value++;
+                    }
+                    size_t length = strlen(value);
+                    while (length > 0 && (value[length - 1] == '\n' || value[length - 1] == ' ')) {
+                        value[--length] = '\0';
+                    }
+                    model = stString_copy(value);
+                }
+                break;
+            }
+        }
+        fclose(cpuinfo);
+    }
+
+    long processors = sysconf(_SC_NPROCESSORS_ONLN);
+    st_logInfo("caf-host: %s cpu \"%s\" processors %ld\n", hostname, model != NULL ? model : "unknown", processors);
+    free(model);
 }
 
 void usage() {
@@ -439,7 +506,7 @@ int main(int argc, char *argv[]) {
 
     st_setLogLevelFromString(logLevelString);
 
-    cactus_jemalloc_retain_pages();
+    cactus_log_host();
 
     //////////////////////////////////////////////
     //Log the inputs
@@ -463,6 +530,8 @@ int main(int argc, char *argv[]) {
 
     // Load the params file
     CactusParams *params = cactusParams_load(paramsFile);
+
+    cactus_jemalloc_retain_pages(params);
     st_logInfo("Loaded the parameters files, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
 
     // Load the cactus disk
@@ -530,6 +599,13 @@ int main(int argc, char *argv[]) {
     if(runChecks) {
         flower_checkRecursive(flower);
         st_logInfo("Checked the flowers in the hierarchy created by CAF, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
+    }
+
+    // Benchmarking/profiling hook: stop here so that a run is not dominated by bar and reference.
+    // No output files are written, so this must never be set in a real pipeline run.
+    if (getenv("CACTUS_CAF_ONLY") != NULL) {
+        st_logCritical("CACTUS_CAF_ONLY is set: stopping after caf, no output files will be written\n");
+        return 0;
     }
 
     //////////////////////////////////////////////

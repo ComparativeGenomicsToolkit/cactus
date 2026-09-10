@@ -186,7 +186,7 @@ def progressive_step(job, options, config_node, seq_id_map, tree, og_map, event)
         
     else:  # Without outgroup trimming (or if there are no outgroups to trim)
         cons_job = paf_job.addChildJobFn(cactus_cons_with_resources, spanning_tree, event, config_node, subtree_eventmap,
-                                         og_map, paf_job.rv(), cons_cores=options.consCores, cons_memory=options.consMemory,
+                                         og_map, paf_job.rv(), cons_cores=options.consCores, cons_memory=options.consMemory, cons_retain_pages=getattr(options, 'consRetainPages', None),
                                          intermediate_results_url=options.intermediateResultsUrl)
     # erase the paf since its now longer needed
     cons_job.addFollowOnJobFn(clean_jobstore_files, file_ids=[paf_job.rv()])
@@ -202,7 +202,7 @@ def progressive_step_2(job, trimmed_outgroups_and_alignments, options, config_no
 
     # now do consolidated
     return job.addChildJobFn(cactus_cons_with_resources, spanning_tree, event, config_node, subtree_eventmap, og_map,
-                             pafs, cons_cores=options.consCores, cons_memory=options.consMemory,
+                             pafs, cons_cores=options.consCores, cons_memory=options.consMemory, cons_retain_pages=getattr(options, 'consRetainPages', None),
                              intermediate_results_url=options.intermediateResultsUrl).rv()
 
 
@@ -366,6 +366,9 @@ def main():
     parser.add_argument("--consMemory", type=human2bytesN,
                         help="Memory in bytes for each cactus_consolidated job (defaults to an estimate based on the input data size). "
                         "Standard suffixes like K, Ki, M, Mi, G or Gi are supported (default=bytes))", default=None)
+    parser.add_argument("--consRetainPages", choices=['auto', '0', '1'], default=None,
+                        help="Whether cactus_consolidated keeps the memory pages jemalloc frees, which is much faster but takes 2-3x the peak memory. "
+                        "auto (the default, from <consolidated retain_pages> in the config) keeps them unless the memory estimate exceeds what the job can be given")
     parser.add_argument("--intermediateResultsUrl",
                         help="URL prefix to save intermediate results like DB dumps to (e.g. "
                         "prefix-dump-caf, prefix-dump-avg, etc.)", default=None)

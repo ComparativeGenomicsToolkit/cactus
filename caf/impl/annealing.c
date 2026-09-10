@@ -10,16 +10,24 @@
 // respecting end blocks.
 ///////////////////////////////////////////////////////////////////////////
 
-static void stCaf_ensureEndsAreDistinct(stPinchThreadSet *threadSet) {
+void stCaf_ensureEndsAreDistinct(stPinchThreadSet *threadSet) {
     /*
-     * Ensures the blocks at the ends of threads are distinct.
+     * Ensures the blocks at the ends of threads are distinct, by splitting off the first and last base
+     * of every thread. The two segments are reached from the thread's ends rather than through the
+     * coordinate index, which is stale after a boundary join and would be rebuilt by a walk over the
+     * whole thread.
      */
     stPinchThread *thread;
     stPinchThreadSetIt threadIt = stPinchThreadSet_getIt(threadSet);
     while ((thread = stPinchThreadSetIt_getNext(&threadIt)) != NULL) {
-        stPinchThread_split(thread, stPinchThread_getStart(thread));
-        assert(stPinchThread_getLength(thread) > 1);
-        stPinchThread_split(thread, stPinchThread_getStart(thread) + stPinchThread_getLength(thread) - 2);
+        int64_t start = stPinchThread_getStart(thread), length = stPinchThread_getLength(thread);
+        assert(length > 1);
+        stPinchSegment_split(stPinchThread_getFirst(thread), start); //the first segment holds the first base
+        stPinchSegment *last = stPinchThread_getLast(thread);
+        //the second to last base is in the last segment unless that is the last base alone
+        stPinchSegment *segment = stPinchSegment_getStart(last) <= start + length - 2 ? last : stPinchSegment_get5Prime(last);
+        assert(segment != NULL && stPinchSegment_getStart(segment) <= start + length - 2);
+        stPinchSegment_split(segment, start + length - 2);
     }
 }
 
@@ -32,11 +40,25 @@ void stCaf_joinTrivialBoundaries(stPinchThreadSet *threadSet) {
 // Basic annealing function
 ///////////////////////////////////////////////////////////////////////////
 
+/*
+ * The pinches of one alignment all name the same two threads, so the thread found for the previous
+ * pinch is kept and reused while the name is unchanged, which spares the two hash lookups per pinch.
+ */
+static stPinchThread *getThreadCached(stPinchThreadSet *threadSet, int64_t name, int64_t *cachedName, stPinchThread **cachedThread) {
+    if (*cachedThread == NULL || *cachedName != name) {
+        *cachedThread = stPinchThreadSet_getThread(threadSet, name);
+        *cachedName = name;
+    }
+    return *cachedThread;
+}
+
 void stCaf_anneal2(stPinchThreadSet *threadSet, stPinch *(*pinchIterator)(void *, stPinch *), void *extraArg) {
     stPinch *pinch, pinchToFillOut;
+    int64_t name1 = 0, name2 = 0;
+    stPinchThread *thread1 = NULL, *thread2 = NULL;
     while ((pinch = pinchIterator(extraArg, &pinchToFillOut)) != NULL) {
-        stPinchThread *thread1 = stPinchThreadSet_getThread(threadSet, pinch->name1);
-        stPinchThread *thread2 = stPinchThreadSet_getThread(threadSet, pinch->name2);
+        thread1 = getThreadCached(threadSet, pinch->name1, &name1, &thread1);
+        thread2 = getThreadCached(threadSet, pinch->name2, &name2, &thread2);
         assert(thread1 != NULL && thread2 != NULL);
         stPinchThread_pinch(thread1, thread2, pinch->start1, pinch->start2, pinch->length, pinch->strand);
     }
@@ -45,9 +67,11 @@ void stCaf_anneal2(stPinchThreadSet *threadSet, stPinch *(*pinchIterator)(void *
 static void stCaf_annealWithFilter2(stPinchThreadSet *threadSet, stPinch *(*pinchIterator)(void *, stPinch *), void *extraArg,
                                     bool (*filterFn)(stPinchSegment *, stPinchSegment *, Flower *), Flower *flower) {
     stPinch *pinch, pinchToFillOut;
+    int64_t name1 = 0, name2 = 0;
+    stPinchThread *thread1 = NULL, *thread2 = NULL;
     while ((pinch = pinchIterator(extraArg, &pinchToFillOut)) != NULL) {
-        stPinchThread *thread1 = stPinchThreadSet_getThread(threadSet, pinch->name1);
-        stPinchThread *thread2 = stPinchThreadSet_getThread(threadSet, pinch->name2);
+        thread1 = getThreadCached(threadSet, pinch->name1, &name1, &thread1);
+        thread2 = getThreadCached(threadSet, pinch->name2, &name2, &thread2);
         assert(thread1 != NULL && thread2 != NULL);
         stPinchThread_filterPinch(thread1, thread2, pinch->start1, pinch->start2, pinch->length, pinch->strand,
                                   (bool(*)(stPinchSegment *, stPinchSegment *, void *))filterFn, flower);
@@ -154,11 +178,12 @@ static void alignSameComponents(stPinch *pinch, stPinchThreadSet *threadSet, stS
 }
 
 static stSortedSet *getAdjacencyComponentIntervals(stPinchThreadSet *threadSet, stList **adjacencyComponents) {
-    stHash *pinchEndsToAdjacencyComponents;
-    *adjacencyComponents = stPinchThreadSet_getAdjacencyComponents2(threadSet, &pinchEndsToAdjacencyComponents);
-    stSortedSet *adjacencyComponentIntervals = stPinchThreadSet_getLabelIntervals(threadSet,
-            pinchEndsToAdjacencyComponents);
-    stHash_destruct(pinchEndsToAdjacencyComponents);
+    stPinchThreadSet_attachEnds(threadSet);
+    *adjacencyComponents = stPinchThreadSet_getAdjacencyComponents(threadSet);
+    stSortedSet *adjacencyComponentIntervals = stPinchThreadSet_getLabelIntervals(threadSet);
+    // The records must go before the pinching starts; the interval labels (component list pointers) are
+    // only ever compared, never dereferenced, so the lists can outlive the ends they hold.
+    stPinchThreadSet_detachEnds(threadSet);
     return adjacencyComponentIntervals;
 }
 

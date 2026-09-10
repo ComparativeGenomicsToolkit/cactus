@@ -8,6 +8,7 @@
 """
 
 import os
+import copy
 import sys
 from toil.lib.bioio import system
 from toil.lib.bioio import getLogLevelString
@@ -31,10 +32,12 @@ from cactus.shared.common import cactus_clamp_memory
 ############################################################
 
 def cactus_cons_with_resources(job, tree, ancestor_event, config_node, seq_id_map, og_map, paf_id,
-                               cons_cores = None, cons_memory = None, intermediate_results_url = None, chrom_name = None):
+                               cons_cores = None, cons_memory = None, intermediate_results_url = None, chrom_name = None,
+                               cons_retain_pages = None):
     ''' run cactus_consolidated as a child job, requesting resources based on input sizes '''
 
     cons_node = findRequiredNode(config_node, 'consolidated')
+    name = chrom_name if chrom_name else ancestor_event
     outgroups = set(og_map[ancestor_event] if ancestor_event in og_map else [])
     og_size_scale = getOptionalAttrib(cons_node, 'og_size_scale_pct', typeFn=float, default=100.0)
 
@@ -121,19 +124,50 @@ def cactus_cons_with_resources(job, tree, ancestor_event, config_node, seq_id_ma
         mem = cons_memory
 
     max_system_memory = ConfigWrapper(config_node).getSystemMemory()
+
+    # Whether cactus_consolidated keeps the pages jemalloc frees (see <consolidated retain_pages>).
+    # The memory fit above was made with retention on, so when it is off the estimate is scaled
+    # down by memory_retain_ratio.  "auto" keeps the pages unless the retained estimate exceeds
+    # what the job can be given: the system memory on a single machine, or --maxMemory.
+    retain_pages = cons_retain_pages if cons_retain_pages is not None else getOptionalAttrib(cons_node, 'retain_pages', default='auto')
+    retain_pages = str(retain_pages).lower()
+    if retain_pages not in ['auto', '0', '1']:
+        raise RuntimeError('<consolidated retain_pages> / --consRetainPages must be auto, 0 or 1, not {}'.format(retain_pages))
+    retain_ratio = getOptionalAttrib(cons_node, 'memory_retain_ratio', typeFn=float, default=2.5)
+    if retain_pages == 'auto':
+        limits = [l for l in [max_system_memory, int(os.environ['CACTUS_MAX_MEMORY']) if 'CACTUS_MAX_MEMORY' in os.environ else None] if l]
+        limit = min(limits) if limits else None
+        if limit and mem > limit:
+            RealtimeLogger.info('cactus_consolidated({}): the memory estimate of {} with jemalloc page retention exceeds the {} the job can be given, so the pages will not be retained'.format(
+                name, bytes2human(mem), bytes2human(limit)))
+            retain_pages = '0'
+        else:
+            retain_pages = '1'
+    if retain_pages == '0' and cons_memory is None and retain_ratio > 1:
+        RealtimeLogger.info('cactus_consolidated({}): scaling the memory estimate of {} by 1/{} for running without jemalloc page retention: {}'.format(
+            name, bytes2human(mem), retain_ratio, bytes2human(int(mem / retain_ratio))))
+        mem = int(mem / retain_ratio)
+    RealtimeLogger.info('cactus_consolidated({}): jemalloc page retention {}'.format(name, 'on' if retain_pages == '1' else 'off'))
+
     if max_system_memory and mem > max_system_memory:
         RealtimeLogger.info('Clamping cactus_conslidated({}) memory estimate of {} to maximum system memory {}'.format(
-            chrom_name if chrom_name else ancestor_event, bytes2human(mem), bytes2human(max_system_memory)))
+            name, bytes2human(mem), bytes2human(max_system_memory)))
         mem = max_system_memory
 
     cons_job = job.addChildJobFn(cactus_cons, tree, ancestor_event, config_node, seq_id_map, og_map, paf_id,
                                  intermediate_results_url=intermediate_results_url, chrom_name=chrom_name, cores = cons_cores,
-                                 memory=cactus_clamp_memory(mem), disk=disk)
+                                 memory=cactus_clamp_memory(mem), disk=disk, retain_pages=retain_pages)
     return cons_job.rv()
 
 def cactus_cons(job, tree, ancestor_event, config_node, seq_id_map, og_map, paf_id,
-                intermediate_results_url = None, chrom_name = None):
+                intermediate_results_url = None, chrom_name = None, retain_pages = None):
     ''' run cactus_consolidated '''
+
+    # cactus_consolidated reads its settings from the config, so the resolved page retention
+    # goes into the copy it is given (this job's copy of the node, so nothing else sees it)
+    if retain_pages is not None:
+        config_node = copy.deepcopy(config_node)
+        findRequiredNode(config_node, 'consolidated').set('retain_pages', str(retain_pages))
 
     # Build up a genome -> fasta map.
     work_dir = job.fileStore.getLocalTempDir()

@@ -1,3 +1,5 @@
+#define _DEFAULT_SOURCE //for setenv
+#include <stdlib.h>
 #include "CuTest.h"
 #include "sonLib.h"
 #include "stCaf.h"
@@ -118,10 +120,56 @@ static void testRecoverableTelomereAdjacentChainsNotKept(CuTest *testCase) {
     cactusDisk_destruct(cactusDisk);
 }
 
+// stCaf_meltChains joins trivial boundaries only where its deletions reach, on the argument that a
+// chain melt cannot create any elsewhere. With CACTUS_CAF_CHECK_JOIN set it runs the full join after
+// its own and aborts if that changes anything, so random graphs melted that way check the argument,
+// including the boundaries at thread ends that stCaf_ensureEndsAreDistinct splits after every join.
+static void testMeltChainsLeavesNoTrivialBoundary(CuTest *testCase) {
+    setenv("CACTUS_CAF_CHECK_JOIN", "1", 1);
+    for (int64_t test = 0; test < 100; test++) {
+        CactusDisk *cactusDisk = cactusDisk_construct();
+        eventTree_construct2(cactusDisk);
+        Flower *flower = flower_construct2(0, cactusDisk);
+        group_construct2(flower);
+        int64_t threadNumber = st_randomInt(2, 6);
+        Name threadNames[6];
+        for (int64_t i = 0; i < threadNumber; i++) {
+            char *header = stString_print("thread%" PRIi64, i);
+            threadNames[i] = testCommon_addThreadToFlower(flower, header, st_randomInt(20, 200));
+            free(header);
+        }
+        stPinchThreadSet *threadSet = stCaf_setup(flower);
+        int64_t pinchNumber = st_randomInt(1, 60);
+        for (int64_t i = 0; i < pinchNumber; i++) {
+            stPinchThread *thread1 = stPinchThreadSet_getThread(threadSet, threadNames[st_randomInt(0, threadNumber)]);
+            stPinchThread *thread2 = stPinchThreadSet_getThread(threadSet, threadNames[st_randomInt(0, threadNumber)]);
+            // Leave the first and last base of each thread alone, as real alignments do: those are the
+            // stub ends that stand for the caps
+            int64_t start1 = st_randomInt(stPinchThread_getStart(thread1) + 1, stPinchThread_getStart(thread1) + stPinchThread_getLength(thread1) - 1);
+            int64_t start2 = st_randomInt(stPinchThread_getStart(thread2) + 1, stPinchThread_getStart(thread2) + stPinchThread_getLength(thread2) - 1);
+            int64_t maxLength = stPinchThread_getStart(thread1) + stPinchThread_getLength(thread1) - 1 - start1;
+            int64_t maxLength2 = stPinchThread_getStart(thread2) + stPinchThread_getLength(thread2) - 1 - start2;
+            if (maxLength2 < maxLength) {
+                maxLength = maxLength2;
+            }
+            stPinchThread_pinch(thread1, thread2, start1, start2, st_randomInt(0, maxLength + 1), st_random() > 0.5);
+        }
+        stCaf_joinTrivialBoundaries(threadSet); //as after annealing
+        int64_t blockNumber = stPinchThreadSet_getTotalBlockNumber(threadSet);
+        stCaf_meltChains(flower, threadSet, 2, 0, INT64_MAX);
+        int64_t destroyed = stCaf_meltChains(flower, threadSet, st_randomInt(3, 40), 1, st_randomInt(1, 100));
+        CuAssertTrue(testCase, stPinchThreadSet_getTotalBlockNumber(threadSet) <= blockNumber - destroyed);
+        stPinchThreadSet_destruct(threadSet);
+        cactusDisk_destruct(cactusDisk);
+    }
+    unsetenv("CACTUS_CAF_CHECK_JOIN");
+}
+
 CuSuite *recoverableChainsTestSuite(void) {
     CuSuite *suite = CuSuiteNew();
     SUITE_ADD_TEST(suite, testDoesNotRemoveIsolatedChain);
     SUITE_ADD_TEST(suite, testRemovesIndel);
     SUITE_ADD_TEST(suite, testRecoverableTelomereAdjacentChainsNotKept);
+    SUITE_ADD_TEST(suite, testMeltChainsLeavesNoTrivialBoundary);
     return suite;
 }
