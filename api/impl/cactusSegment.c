@@ -96,13 +96,13 @@ Segment *segment_construct(Block *block, Event *event) {
     assert(cap_getAdjacency(cap_getReverse(cap_getOtherSegmentCap(cap))) == NULL);
 
     // Check indexes
-    assert(flower_getCap(block_getFlower(block), instance) == cap_getPositiveOrientation(cap));
+    cactus_assertExpensive(flower_getCap(block_getFlower(block), instance) == cap_getPositiveOrientation(cap));
     assert(block_getInstance(block, instance+1) == cap_getSegment(cap));
     assert(block_getInstance(block_getReverse(block), instance+1) == segment_getReverse(cap_getSegment(cap)));
-    assert(end_getInstance(block_get5End(block), instance) == cap);
-    assert(end_getInstance(end_getReverse(block_get5End(block)), instance) == cap_getReverse(cap));
-    assert(end_getInstance(block_get3End(block), instance+2) == cap_getOtherSegmentCap(cap));
-    assert(end_getInstance(end_getReverse(block_get3End(block)), instance+2) == cap_getReverse(cap_getOtherSegmentCap(cap)));
+    cactus_assertExpensive(end_getInstance(block_get5End(block), instance) == cap);
+    cactus_assertExpensive(end_getInstance(end_getReverse(block_get5End(block)), instance) == cap_getReverse(cap));
+    cactus_assertExpensive(end_getInstance(block_get3End(block), instance+2) == cap_getOtherSegmentCap(cap));
+    cactus_assertExpensive(end_getInstance(end_getReverse(block_get3End(block)), instance+2) == cap_getReverse(cap_getOtherSegmentCap(cap)));
 
     return cap_getSegment(cap);
 }

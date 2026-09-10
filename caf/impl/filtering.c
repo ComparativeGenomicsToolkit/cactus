@@ -1,3 +1,4 @@
+#include <string.h>
 #include "cactus.h"
 #include "sonLib.h"
 #include "commonC.h"
@@ -7,8 +8,19 @@
  * Functions used for prefiltering the alignments.
  */
 
+Cap *stCaf_getThreadCap(stPinchSegment *segment, Flower *flower) {
+    // stCaf_setup stores the thread's 5' cap on the thread; anything else that builds a thread
+    // set (tests, random graphs) leaves it NULL and goes through the name lookup as before
+    Cap *cap = stPinchThread_getUserData(stPinchSegment_getThread(segment));
+    if (cap == NULL) {
+        cap = flower_getCap(flower, stPinchSegment_getName(segment));
+    }
+    assert(cap != NULL);
+    return cap;
+}
+
 Event *stCaf_getEvent(stPinchSegment *segment, Flower *flower) {
-    Event *event = cap_getEvent(flower_getCap(flower, stPinchSegment_getName(segment)));
+    Event *event = cap_getEvent(stCaf_getThreadCap(segment, flower));
     assert(event != NULL);
     return event;
 }
@@ -358,21 +370,54 @@ bool stCaf_filterToEnsureCycleFreeIsolatedComponents(stPinchSegment *segment1,
  * Functions used for filtering blocks/chains on certain criteria.
  */
 
+/*
+ * Per-event copy counts for one block, kept in a small array rather than a hash: a block rarely
+ * holds more than a handful of distinct events, and this runs once per chain per melting iteration.
+ */
+typedef struct _eventCount {
+    Event *event;
+    uint64_t count;
+} EventCount;
+
+#define EVENT_COUNT_STACK_SIZE 64
+
+static int64_t findEventCount(EventCount *counts, int64_t numCounts, Event *event) {
+    for (int64_t i = 0; i < numCounts; i++) {
+        if (counts[i].event == event) {
+            return i;
+        }
+    }
+    return -1;
+}
+
 bool stCaf_chainHasUnequalNumberOfIngroupCopies(stCactusEdgeEnd *chainEnd,
                                                 Flower *flower) {
     stPinchEnd *end = stCactusEdgeEnd_getObject(chainEnd);
     stPinchBlockIt it = stPinchBlock_getSegmentIterator(end->block);
     stPinchSegment *segment;
-    stHash *ingroupToNumCopies = stHash_construct2(NULL, free);
+    EventCount stackCounts[EVENT_COUNT_STACK_SIZE];
+    EventCount *counts = stackCounts;
+    int64_t numCounts = 0, capacity = EVENT_COUNT_STACK_SIZE;
     while ((segment = stPinchBlockIt_getNext(&it)) != NULL) {
-        Cap *cap = flower_getCap(flower, stPinchSegment_getName(segment));
-        Event *event = cap_getEvent(cap);
+        Event *event = stCaf_getEvent(segment, flower);
         if (!event_isOutgroup(event)) {
-            if (stHash_search(ingroupToNumCopies, event) == NULL) {
-                stHash_insert(ingroupToNumCopies, event, calloc(1, sizeof(uint64_t)));
+            int64_t i = findEventCount(counts, numCounts, event);
+            if (i >= 0) {
+                counts[i].count++;
+            } else {
+                if (numCounts == capacity) { // More distinct events than the stack array holds
+                    capacity *= 2;
+                    EventCount *counts2 = st_malloc(capacity * sizeof(EventCount));
+                    memcpy(counts2, counts, numCounts * sizeof(EventCount));
+                    if (counts != stackCounts) {
+                        free(counts);
+                    }
+                    counts = counts2;
+                }
+                counts[numCounts].event = event;
+                counts[numCounts].count = 1;
+                numCounts++;
             }
-            uint64_t *numCopies = stHash_search(ingroupToNumCopies, event);
-            (*numCopies)++;
         }
     }
 
@@ -385,21 +430,23 @@ bool stCaf_chainHasUnequalNumberOfIngroupCopies(stCactusEdgeEnd *chainEnd,
         if (event_isOutgroup(event) || event_getChildNumber(event) != 0) {
             continue;
         }
-        uint64_t *count = stHash_search(ingroupToNumCopies, event);
-        if (count == NULL) {
+        int64_t i = findEventCount(counts, numCounts, event);
+        if (i < 0) {
             equalNumIngroupCopies = false;
             break;
         }
         if (prevCount == 0) {
-            prevCount = *count;
-        } else if (prevCount != *count) {
+            prevCount = counts[i].count;
+        } else if (prevCount != counts[i].count) {
             equalNumIngroupCopies = false;
             break;
         }
     }
 
     eventTree_destructIterator(eventIt);
-    stHash_destruct(ingroupToNumCopies);
+    if (counts != stackCounts) {
+        free(counts);
+    }
     return !equalNumIngroupCopies;
 }
 
@@ -421,9 +468,7 @@ bool stCaf_chainHasUnequalNumberOfIngroupCopiesOrNoOutgroup(stCactusEdgeEnd *cha
     stPinchBlockIt it = stPinchBlock_getSegmentIterator(end->block);
     stPinchSegment *segment;
     while ((segment = stPinchBlockIt_getNext(&it)) != NULL) {
-        Cap *cap = flower_getCap(flower, stPinchSegment_getName(segment));
-        Event *event = cap_getEvent(cap);
-        if (event_isOutgroup(event)) {
+        if (event_isOutgroup(stCaf_getEvent(segment, flower))) {
             numOutgroupCopies++;
         }
     }
@@ -439,7 +484,10 @@ bool stCaf_containsRequiredSpecies(stPinchBlock *pinchBlock,
                                    int64_t minimumOutgroupDegree,
                                    int64_t minimumDegree,
                                    int64_t minimumNumberOfSpecies) {
-    stSet *seenEvents = stSet_construct();
+    // Distinct events seen so far: a small array, falling back to a set only for a block that
+    // spans more species than the array holds. This runs once per block in the filter melt.
+    Event *seenEvents[EVENT_COUNT_STACK_SIZE];
+    stSet *seenEventsSet = NULL;
     int64_t numberOfSpecies = 0;
     int64_t outgroupSequences = 0;
     int64_t ingroupSequences = 0;
@@ -447,8 +495,32 @@ bool stCaf_containsRequiredSpecies(stPinchBlock *pinchBlock,
     stPinchSegment *segment;
     while ((segment = stPinchBlockIt_getNext(&segmentIt)) != NULL) {
         Event *event = stCaf_getEvent(segment, flower);
-        if (!stSet_search(seenEvents, event)) {
-            stSet_insert(seenEvents, event);
+        bool seen = false;
+        if (seenEventsSet != NULL) {
+            seen = stSet_search(seenEventsSet, event) != NULL;
+            if (!seen) {
+                stSet_insert(seenEventsSet, event);
+            }
+        } else {
+            for (int64_t i = 0; i < numberOfSpecies; i++) {
+                if (seenEvents[i] == event) {
+                    seen = true;
+                    break;
+                }
+            }
+            if (!seen) {
+                if (numberOfSpecies < EVENT_COUNT_STACK_SIZE) {
+                    seenEvents[numberOfSpecies] = event;
+                } else {
+                    seenEventsSet = stSet_construct();
+                    for (int64_t i = 0; i < numberOfSpecies; i++) {
+                        stSet_insert(seenEventsSet, seenEvents[i]);
+                    }
+                    stSet_insert(seenEventsSet, event);
+                }
+            }
+        }
+        if (!seen) {
             numberOfSpecies++;
         }
         if (event_isOutgroup(event)) {
@@ -457,7 +529,9 @@ bool stCaf_containsRequiredSpecies(stPinchBlock *pinchBlock,
             ingroupSequences++;
         }
     }
-    stSet_destruct(seenEvents);
+    if (seenEventsSet != NULL) {
+        stSet_destruct(seenEventsSet);
+    }
     return ingroupSequences >= minimumIngroupDegree &&
         outgroupSequences >= minimumOutgroupDegree &&
         outgroupSequences + ingroupSequences >= minimumDegree &&

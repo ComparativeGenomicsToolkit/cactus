@@ -29,6 +29,23 @@ if [ -z ${CACTUS_LEGACY_ARCH+x} ]; then
     fi
 fi
 
+# CPU baseline.  include.mk is the single source of truth; ask make for it rather than
+# duplicating the arm/legacy/x86 selection here, where it would silently drift.
+# MAKEFLAGS is cleared because "make binRelease" reaches this from inside a make recipe.
+CACTUS_ARCH_FLAGS="${CACTUS_ARCH_FLAGS:-$(env -u MAKEFLAGS make -s -C "${CWD}" arch-flags)}"
+if [ -z "${CACTUS_ARCH_FLAGS}" ]; then
+    echo "ERROR: 'make arch-flags' returned nothing; cannot determine the CPU baseline." >&2
+    exit 1
+fi
+# autoconf's AC_PROG_CC supplies its default "-g -O2" only when CFLAGS is *unset*.  Setting
+# CFLAGS below to carry the arch flags therefore suppresses it, which would silently drop
+# samtools, bcftools and htslib to -O0 in any build that had not already chosen a level --
+# i.e. every non-release build, including the Docker image.  Choose the level here instead.
+case " ${CFLAGS:-} " in *" -O"*) ;; *) CFLAGS="${CFLAGS:-} -O2" ;; esac
+case " ${CXXFLAGS:-} " in *" -O"*) ;; *) CXXFLAGS="${CXXFLAGS:-} -O2" ;; esac
+export CFLAGS="${CFLAGS} ${CACTUS_ARCH_FLAGS}"
+export CXXFLAGS="${CXXFLAGS} ${CACTUS_ARCH_FLAGS}"
+
 rm -rf ${mafBuildDir}
 mkdir -p ${mafBuildDir}
 mkdir -p ${binDir}
@@ -63,7 +80,7 @@ export HTSLIB_LIBS="$(pwd)/libhts.a -lbz2 -ldeflate -lm -lpthread -lz -llzma -pt
 cd ${mafBuildDir}
 git clone https://github.com/ComparativeGenomicsToolkit/taffy.git
 cd taffy
-git checkout fd0e04b501ed3d90dffe91a93801a7a7545f2147
+git checkout 46a2184d31e2d0a2433665d69f8b65b60a492f8c
 git submodule update --init --recursive
 export HALDIR=${CWD}/submodules/hal
 LIBS="${jemallocLib} -llz4 -lzstd" make -j ${numcpu}
@@ -78,7 +95,7 @@ fi
 cd ${mafBuildDir}
 git clone https://github.com/ComparativeGenomicsToolkit/mafTools.git
 cd mafTools
-git checkout 46479b60592c22708abfa6ed901d9d6ecf10d395
+git checkout b78eda613f7045421434cc3835ef9b49d6885bd8
 find . -name "*.mk" | xargs sed -ie "s/-Werror//g"
 find . -name "Makefile*" | xargs sed -ie "s/-Werror//g"
 # hack in flags support

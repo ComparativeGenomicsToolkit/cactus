@@ -1516,7 +1516,7 @@ stSet *stCaf_getHomologyUnits(Flower *flower, stPinchThreadSet *threadSet, stHas
     } else {
         assert(type == CHAIN);
         stCactusNode *startCactusNode;
-        stList *deadEndComponent;
+        stPinchComponent *deadEndComponent;
         stCactusGraph *cactusGraph = stCaf_getCactusGraphForThreadSet(flower, threadSet, &startCactusNode, &deadEndComponent, 0, 0,
                                                                       0.0, true, 100000);
         stList *chains = getChainsFromCactusGraph(cactusGraph, startCactusNode);
@@ -1530,7 +1530,7 @@ stSet *stCaf_getHomologyUnits(Flower *flower, stPinchThreadSet *threadSet, stHas
                 }
             }
         }
-        stCactusGraph_destruct(cactusGraph);
+        stCaf_destructCactusGraph(cactusGraph, threadSet);
     }
     return homologyUnits;
 }

@@ -32,6 +32,7 @@ stPinchThreadSet *stCaf_constructEmptyPinchGraph(Flower *flower) {
                 assert(cap_getCoordinate(cap) < cap_getCoordinate(adjacentCap));
                 stPinchThread *thread = stPinchThreadSet_addThread(threadSet, cap_getName(cap), cap_getCoordinate(cap),
                         cap_getCoordinate(adjacentCap) - cap_getCoordinate(cap) + 1);
+                stPinchThread_setUserData(thread, cap); // read back by stCaf_getThreadCap: saves a cap lookup per segment later
                 stPinchThread_split(thread, cap_getCoordinate(cap));
                 stPinchThread_split(thread, cap_getCoordinate(adjacentCap) - 1);
                 stPinchSegment *_5PrimeSegment = stPinchThread_getFirst(thread);

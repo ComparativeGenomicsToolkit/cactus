@@ -37,6 +37,12 @@ CactusParams *cactusParams_load(char *file_name);
 void cactusParams_set_root(CactusParams *p, int num, ...);
 
 /*
+ * Whether the parameter is present: the node path exists and the attribute is set on it.
+ * The other getters abort on a missing parameter, so check first for an optional one.
+ */
+bool cactusParams_has(CactusParams *p, int, ...);
+
+/*
  * Get a string parameter.
  */
 char *cactusParams_get_string(CactusParams *p, int, ...);

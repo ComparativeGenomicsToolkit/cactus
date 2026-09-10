@@ -42,9 +42,12 @@ from cactus.preprocessor.lastzRepeatMasking.cactus_lastzRepeatMask import LastzR
 from cactus.preprocessor.lastzRepeatMasking.cactus_lastzRepeatMask import RepeatMaskOptions
 from cactus.preprocessor.dnabrnnMasking import DnabrnnMaskJob, loadDnaBrnnModel
 from cactus.preprocessor.redMasking import RedMaskJob
+from cactus.preprocessor.maskingCommon import longest_record_size
 from cactus.preprocessor.fastanMasking import FasTANMaskJob
 from cactus.preprocessor.cutHeaders import CutHeadersJob
 from cactus.preprocessor.fileMasking import maskJobOverride, FileMaskingJob
+from cactus.preprocessor.checkPreprocessedSequence import check_sequence_preserved
+from cactus.preprocessor.checkPreprocessedSequence import preprocessed_fasta_id
 from cactus.progressive.cactus_prepare import human2bytesN
 
 class PreprocessorOptions:
@@ -147,9 +150,13 @@ class PreprocessSequence(RoundedJob):
         self.inSequenceID = inSequenceID
         self.chunksToCompute = chunksToCompute
 
-    def getChunkedJobForCurrentStage(self, seqIDs, proportionSampled, inChunkID, chunk_i):
+    def getChunkedJobForCurrentStage(self, seqIDs, proportionSampled, inChunkID, chunk_i,
+                                     inChunkPath=None):
         """
         Give the chunked work to the appropriate job.
+
+        inChunkPath is the local copy of inChunkID, for the jobs whose resource
+        requirements depend on something inside the file rather than just its size.
         """
         if self.prepOptions.preprocessJob == "checkUniqueHeaders":
             return CheckUniqueHeaders(self.prepOptions, inChunkID)
@@ -173,11 +180,15 @@ class PreprocessSequence(RoundedJob):
                                   eventName=self.prepOptions.eventName,
                                   cpu=self.prepOptions.cpu)
         elif self.prepOptions.preprocessJob == "red":
+            # Red's memory is set by the longest sequence, not by the total size, so
+            # it is worth the one scan of the chunk to find out what that is.
             return RedMaskJob(inChunkID,
                               redOpts=self.prepOptions.redOpts,
                               redPrefilterOpts=self.prepOptions.redPrefilterOpts,
                               eventName=self.prepOptions.eventName,
-                              unmask=self.prepOptions.unmask)
+                              unmask=self.prepOptions.unmask,
+                              longestRecordSize=longest_record_size(inChunkPath)
+                              if inChunkPath else None)
         elif self.prepOptions.preprocessJob == "fastan":
             return FasTANMaskJob(inChunkID,
                                  fastanOpts=self.prepOptions.fastanOpts,
@@ -238,7 +249,7 @@ class PreprocessSequence(RoundedJob):
             else:
                 # otherwise, it's taken from the ratio of chunks
                 proportionSampled = float(inChunkNumber)/len(inChunkIDList)
-            outChunkIDList.append(self.addChild(self.getChunkedJobForCurrentStage(inChunkIDs, proportionSampled, inChunkIDList[i], i)).rv())
+            outChunkIDList.append(self.addChild(self.getChunkedJobForCurrentStage(inChunkIDs, proportionSampled, inChunkIDList[i], i, inChunkList[i])).rv())
 
         if chunked:
             # Merge results of the chunking process back into a genome-wide file
@@ -270,6 +281,7 @@ class BatchPreprocessor(RoundedJob):
         lastIteration = self.iteration == len(self.prepXmlElems) - 1
 
         prepNode = self.prepXmlElems[self.iteration]
+        checkJob = None
         if getOptionalAttrib(prepNode, "active", typeFn = bool, default=True):
             prepOptions = PreprocessorOptions(chunkSize = int(prepNode.get("chunkSize", default="-1")),
                                               preprocessJob=prepNode.attrib["preprocessJob"],
@@ -305,15 +317,46 @@ class BatchPreprocessor(RoundedJob):
 
             ppJob = self.addChild(PreprocessSequence(prepOptions, self.inSequenceID))
             outSeqID = ppJob.rv()
-            self.addFollowOnJobFn(clean_if_different, self.inSequenceID, outSeqID, walltime=cactus_fast_walltime())
+            # make sure the step only masked/renamed, and did not corrupt the sequence.
+            # this has to run before clean_if_different, which drops the input file.
+            inSize = self.inSequenceID.size if hasattr(self.inSequenceID, "size") else None
+            checkJob = self.addFollowOnJobFn(check_preprocessed_sequence, self.inSequenceID, outSeqID,
+                                             prepOptions.preprocessJob, prepOptions.eventName,
+                                             prepOptions.dnabrnnAction,
+                                             disk=3*inSize if inSize else None)
+            checkJob.addFollowOnJobFn(clean_if_different, self.inSequenceID, outSeqID,
+                                      walltime=cactus_fast_walltime())
         else:
             logger.info("Skipping inactive preprocessor {}".format(prepNode.attrib["preprocessJob"]))
             outSeqID = self.inSequenceID
 
         if lastIteration == False:
-            return self.addFollowOn(BatchPreprocessor(self.prepXmlElems, outSeqID, self.iteration + 1)).rv()
+            # the next step must wait for the check: a preprocessor with unmask set
+            # starts by deleting its input, which is the very file the check reads as
+            # its output, and follow-ons of the same job would otherwise race
+            previous = checkJob if checkJob is not None else self
+            return previous.addFollowOn(BatchPreprocessor(self.prepXmlElems, outSeqID, self.iteration + 1)).rv()
         else:
             return outSeqID
+
+def check_preprocessed_sequence(job, in_seq_id, out_seq_id, step_name, event_name, mask_action):
+    """ fail as soon as a preprocessing step changes the sequence itself, rather than
+    just its name, case or line wrapping.  runs on the whole genome, so it also covers
+    the chunk/merge round trip of the chunked preprocessors. """
+    if in_seq_id == out_seq_id:
+        return
+    # dna-brnn and maskFile are the only jobs that read "action"; clipping removes
+    # sequence by design and hard-masking turns bases into N
+    masking_job = step_name in ('dna-brnn', 'maskFile')
+    if masking_job and mask_action == 'clip':
+        RealtimeLogger.info('Skipping sequence check for {} on {}: clipping removes sequence'.format(
+            step_name, event_name))
+        return
+    # dna-brnn and maskFile return (fasta, bed, merged bed) rather than a bare id
+    in_path = job.fileStore.readGlobalFile(preprocessed_fasta_id(in_seq_id))
+    out_path = job.fileStore.readGlobalFile(preprocessed_fasta_id(out_seq_id))
+    check_sequence_preserved(in_path, out_path, event_name=event_name, step_name=step_name,
+                             allow_hardmask=masking_job and mask_action == 'hardmask')
 
 def clean_if_different(job, file_id, other_file_id):
     """ remove file_id from jobstore if its differetn from other_file_id"""
@@ -565,8 +608,10 @@ def main():
                 except:
                     pass
                 assert os.path.isdir(inPath) == os.path.isdir(outPath)
-                inSeqPaths += [os.path.join(inPath, seqPath) for seqPath in os.listdir(inPath)]
-                outSeqPaths += [os.path.join(outPath, seqPath) for seqPath in os.listdir(inPath)]
+                # sorted so the two lists pair up the same way on every run, and so a
+                # directory of fastas is preprocessed in a stable order
+                inSeqPaths += [os.path.join(inPath, seqPath) for seqPath in sorted(os.listdir(inPath))]
+                outSeqPaths += [os.path.join(outPath, seqPath) for seqPath in sorted(os.listdir(inPath))]
             else:
                 inSeqPaths += [inPath]
                 outSeqPaths += [outPath]

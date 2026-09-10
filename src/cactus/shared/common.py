@@ -64,8 +64,69 @@ def cactus_cpu_count():
         pass
     return num_cpus
 
+def cactus_slurm_max_memory(options):
+    """ Query the Slurm cluster for the maximum memory (in bytes) available on the nodes that
+    jobs could actually be scheduled onto, or None if it can't be determined.
+
+    This is the Slurm analogue of toil.physicalMemory() on single_machine: it lets us clamp
+    every job's memory request so we never ask for more than a reachable node can provide.
+    Requesting more memory than any eligible node has leaves the job pending forever, which
+    deadlocks the whole workflow.
+
+    A job can only run on a node in its target partition, so we use the Toil slurm options to
+    narrow things down when we can:
+      - if --slurmPartition pins a partition, use that partition's largest node
+      - else if --slurmTime is given, ask Toil which partition it would pick for that time limit
+      - else fall back to the largest node anywhere on the cluster (prevents the common
+        'estimate exceeds every node' deadlock and matches the single_machine behaviour)
+
+    We reuse Toil's own sinfo-based partition parser (PartitionSet), which stores per-node
+    memory in MB and fails safe (all_partitions is None) when sinfo isn't available. """
+    try:
+        from toil.batchSystems.slurm import SlurmBatchSystem
+        partition_set = SlurmBatchSystem.PartitionSet()
+        partitions = partition_set.all_partitions
+    except Exception as e:
+        logger.warning('Unable to query Slurm for node memory ({}); not clamping --maxMemory'.format(e))
+        return None
+    if not partitions:
+        return None
+
+    # largest node memory (in MB) for each partition; %m may carry a trailing '+'
+    partition_max_mb = {}
+    for partition in partitions:
+        try:
+            mb = int(str(partition.memory).rstrip('+'))
+        except (ValueError, TypeError):
+            continue
+        if mb > 0:
+            partition_max_mb[partition.partition_name] = max(partition_max_mb.get(partition.partition_name, 0), mb)
+    if not partition_max_mb:
+        return None
+
+    # narrow to the partition jobs will actually land on, if the options tell us which
+    target_partition = getattr(options, 'slurm_partition', None)
+    if not target_partition and getattr(options, 'slurm_time', None):
+        try:
+            target_partition = partition_set.get_partition(options.slurm_time)
+        except Exception:
+            target_partition = None
+
+    if target_partition and target_partition in partition_max_mb:
+        max_mb = partition_max_mb[target_partition]
+        logger.info('Using Slurm partition "{}" to bound maximum job memory'.format(target_partition))
+    else:
+        max_mb = max(partition_max_mb.values())
+
+    # Slurm reports %m and interprets --mem in binary MB (MiB = 2**20 bytes), and Toil submits
+    # --mem=ceil(request_bytes / 2**20), so we convert with 2**20 to keep the whole chain base-2
+    # consistent and never round a request above a node's real memory.  We then keep only 95% to
+    # leave headroom for memory Slurm reserves per node (e.g. MemSpecLimit); a job asking for a
+    # node's full RealMemory can otherwise sit pending forever.
+    return int(max_mb * 1024 * 1024 * 0.95)
+
 def cactus_override_toil_options(options):
-    """  Mess with some toil options to create useful defaults. """    
+    """  Mess with some toil options to create useful defaults. """
     if options.retryCount is None and options.batchSystem.lower() not in ['single_machine', 'singleMachine']:
         # If the user didn't specify a retryCount value, make it 5
         # instead of Toil's default (1).
@@ -104,6 +165,15 @@ def cactus_override_toil_options(options):
     max_mem = human2bytes(str(options.maxMemory)) if options.maxMemory else sys.maxsize
     if options.batchSystem.lower() in ['single_machine', 'singleMachine']:
         max_mem = min(max_mem, physicalMemory())
+    elif options.batchSystem.lower() == 'slurm':
+        # on slurm, clamp to the largest node available on the cluster (like we do with
+        # physical memory on single_machine) so that no job ever requests more memory than
+        # any node can provide -- which would leave it pending forever and deadlock the run
+        slurm_max_mem = cactus_slurm_max_memory(options)
+        if slurm_max_mem:
+            if max_mem > slurm_max_mem:
+                logger.info('Clamping maximum job memory to {} (95% of the largest usable Slurm node)'.format(bytes2human(slurm_max_mem)))
+            max_mem = min(max_mem, slurm_max_mem)
     os.environ['CACTUS_MAX_MEMORY'] = str(max_mem)
     os.environ['CACTUS_DEFAULT_MEMORY'] = str(human2bytes(str(options.defaultMemory)) if options.defaultMemory else 2**31)
 
@@ -153,6 +223,20 @@ def makeURL(path_or_url):
         return "file://" + os.path.abspath(path_or_url)
     else:
         return path_or_url
+
+# cactus-align tags its raw, per-chromosome hal2vg output as <chrom>.raw.vg.  cactus-graphmap-join
+# writes the normalized graphs for the same chromosomes into <outName>.chroms/, and when both were
+# called <chrom>.vg the two were easy to mix up
+RAW_VG_SUFFIX = '.raw'
+
+def vg_chrom_name(vg_path):
+    """ the chromosome name of a per-chromosome vg file: its basename with the .vg extension and
+    the .raw tag stripped.  the tag is only removed if it's there, so alignments made before it
+    existed (and hand-made inputs) still name their chromosomes the same way """
+    base = os.path.splitext(os.path.basename(vg_path))[0]
+    if base.endswith(RAW_VG_SUFFIX):
+        base = base[:-len(RAW_VG_SUFFIX)]
+    return base
 
 def catFiles(filesToCat, catFile):
     """Cats a bunch of files into one file. Ensures a no more than maxCat files
@@ -350,7 +434,7 @@ def getDockerTag(gpu=False):
         return "latest"    
     else:
         # must be manually kept current with each release        
-        return 'v3.2.1' + ('-gpu' if gpu else '')
+        return 'v3.3.0' + ('-gpu' if gpu else '')
 
 def getDockerImage(gpu=False):
     """Get fully specified Docker image name."""
@@ -761,8 +845,31 @@ def cactus_call(tool=None,
     else:
         stdinFileHandle = subprocess.DEVNULL
     stdoutFileHandle = None
-    if outfile:
-        stdoutFileHandle = open(outfile, 'a' if outappend else 'w')
+    outfile_tmp = None
+    outfile_append_size = None
+    if outfile and (server or soft_timeout is not None):
+        # Both of these return before the staging below is finalised: server
+        # hands back a process that is still running, and a soft timeout
+        # interrupts one on purpose.  The .part file would be left where it is
+        # and outfile would never appear at all, so say so here rather than
+        # lose the output quietly.  Nothing passes either combination today.
+        raise RuntimeError("cactus_call: outfile cannot be combined with server or soft_timeout")
+    # check_output takes stdout for itself below, in which case there is nothing
+    # to stage and opening the file would only strand it
+    if outfile and not check_output:
+        if outappend:
+            # cannot be staged, so remember where the file ended in order to be
+            # able to roll a failed append back off it below
+            outfile_append_size = os.path.getsize(outfile) if os.path.exists(outfile) else 0
+            stdoutFileHandle = open(outfile, 'a')
+        else:
+            # Stage under a temporary name and rename only once the command has
+            # both exited cleanly and had its output confirmed on disk.  Tools
+            # that do not check their own writes exit 0 after a short write, and
+            # the truncated file they leave usually still parses, so the name
+            # appearing at all has to be the signal that the output is whole.
+            outfile_tmp = outfile + '.part'
+            stdoutFileHandle = open(outfile_tmp, 'w')
     if check_output:
         stdoutFileHandle = subprocess.PIPE
 
@@ -885,9 +992,46 @@ def cactus_call(tool=None,
     if output is not None:
         output = output.decode()
 
-    if outfile:
-        stdoutFileHandle.close()
-        
+    if outfile and not check_output:
+        # The child wrote through the descriptor opened above, and stdio in the
+        # child reports a failed write only through an exit status the child is
+        # free to ignore.  Asking the kernel directly also catches a writeback
+        # error deferred past the child's own close, which is the failure that
+        # unchecked tools cannot see at all.  Set CACTUS_NO_FSYNC_OUTPUT to skip
+        # it if waiting for writeback proves too costly somewhere.
+        write_error = None
+        try:
+            stdoutFileHandle.flush()
+            if not os.environ.get("CACTUS_NO_FSYNC_OUTPUT"):
+                os.fsync(stdoutFileHandle.fileno())
+        except OSError as e:
+            # a fifo, a socket or a character device cannot be synchronised at
+            # all, which is not a write failure and must not fail the job
+            if e.errno not in (errno.EINVAL, errno.ENOTSUP):
+                write_error = e
+        try:
+            stdoutFileHandle.close()
+        except OSError as e:
+            write_error = write_error if write_error is not None else e
+
+        if write_error is not None or process.returncode != 0:
+            if outappend:
+                # leave the shared file exactly as this call found it
+                try:
+                    os.truncate(outfile, outfile_append_size)
+                except OSError:
+                    pass
+            else:
+                try:
+                    os.remove(outfile_tmp)
+                except OSError:
+                    pass
+        elif not outappend:
+            os.replace(outfile_tmp, outfile)
+
+        if write_error is not None:
+            raise RuntimeError("Command {} failed to write {}: {}".format(call, outfile, write_error))
+
     if process.returncode == 0 and rt_log_cmd:
         run_time = time.time() - start_time
         if time_v:

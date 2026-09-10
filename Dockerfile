@@ -1,7 +1,7 @@
 FROM quay.io/comparative-genomics-toolkit/ubuntu:22.04 AS builder
 
 # apt dependencies for build
-RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y build-essential git python3 python3-dev python3-pip zlib1g-dev wget libbz2-dev pkg-config libhdf5-dev liblzo2-dev libtokyocabinet-dev wget liblzma-dev libxml2-dev libssl-dev libpng-dev uuid-dev libcurl4-gnutls-dev libffi-dev python3-virtualenv rsync python-is-python3 libdeflate-dev cmake libjemalloc-dev python3-distutils pybind11-dev autoconf libzstd-dev liblz4-dev libhts-dev libblas-dev liblapack-dev libpcre3-dev gfortran libjansson-dev
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y build-essential git python3 python3-dev python3-pip zlib1g-dev wget libbz2-dev pkg-config libhdf5-dev liblzo2-dev libtokyocabinet-dev wget liblzma-dev libxml2-dev libssl-dev libpng-dev uuid-dev libcurl4-gnutls-dev libffi-dev python3-virtualenv rsync python-is-python3 libdeflate-dev cmake libjemalloc-dev python3-distutils pybind11-dev autoconf libzstd-dev liblz4-dev libhts-dev libblas-dev liblapack-dev libpcre3-dev gfortran libjansson-dev zstd
 
 # copy cactus
 RUN mkdir -p /home/cactus
@@ -15,6 +15,11 @@ RUN find /home/cactus -name include.local.mk -exec rm -f {} \; && \
 # Todo: It would be more portable to use "sse41", but that leads to segfaults in rare cases
 # https://github.com/yangao07/abPOA/issues/26
 ENV avx2 1
+
+# This image is distributed, so build it the way the binary release is built: include.mk's
+# portable baseline rather than the -march=native a plain "make" would otherwise pick.  The
+# value itself stays in include.mk; this only selects it.
+ENV CACTUS_PORTABLE_BUILD 1
 
 # install Phast and enable halPhyloP compilation
 RUN cd /home/cactus && ./build-tools/downloadPhast

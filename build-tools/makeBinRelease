@@ -12,6 +12,25 @@ if [ $1 -eq '--keep' ] ; then
 fi
 set -beEu -o pipefail
 
+# Scrub the invoking checkout out of the environment before anything is built.
+# "make binRelease" runs this from the cactus root, and that make exports
+# absolute paths rooted there -- sonLibRootDir, PYTHONPATH, and a PATH with its
+# own bin prepended (Makefile lines 23-26 and 114-115).  Make exports reach a
+# recipe as environment, so they are inherited by everything below, including
+# the pristine clone in bin-tmp that this script goes to the trouble of making.
+#
+# taffy's include.mk takes sonLibRootDir with ?=, which means an inherited one
+# wins over its own submodule: it then builds and links the *invoking* tree's
+# sonLib rather than the clone's.  That quietly produces a release built
+# against whatever the developer happened to have checked out, and fails
+# outright when the two disagree -- which is how it first showed up, as an
+# undefined reference to st_fclose against a working tree whose submodules
+# predated it, while the correct library sat unused in bin-tmp.
+unset sonLibRootDir PYTHONPATH
+# the Makefile prepends exactly "${CWD}/bin:", so take that one prefix back off
+PATH=${PATH#"$(pwd)/bin:"}
+export PATH
+
 buildDir=$(realpath -m build)
 binBuildDir="${buildDir}/bin-tmp"
 
@@ -26,6 +45,9 @@ git fetch --tags origin
 REL_TAG=$(getLatestReleaseTag)
 git checkout "${REL_TAG}"
 git submodule update --init --recursive
+
+# This build gets shipped, so take include.mk's portable baseline rather than -march=native.
+export CACTUS_PORTABLE_BUILD=1
 
 if [ -z ${CACTUS_LEGACY_ARCH+x} ]
 then
@@ -44,14 +66,48 @@ sed -i submodules/FASTGA/Makefile -e 's/CFLAGS = /CFLAGS = -static /g'
 sed -i submodules/FASTAN/Makefile -e 's/CFLAGS = /CFLAGS = -static /g'
 sed -i submodules/alntools/Makefile -e 's/CFLAGS = /CFLAGS = -static /g'
 
-export CFLAGS="-static"
-export CXXFLAGS="-static"
+# The -O2 is here because of autoconf, not because we are picking an optimisation level.
+# AC_PROG_CC supplies its default "-g -O2" only when CFLAGS is *unset*; setting CFLAGS to
+# anything -- even "-static", which says nothing about optimisation -- suppresses it.
+# bcftools' own Makefile does set "CFLAGS = -g -Wall -O2" (:29), but "include config.mk"
+# (:110) reassigns it from what configure recorded, so upstream's -O2 is overwritten rather
+# than appended to.  Without the -O2 below, every binary release shipped samtools, bcftools,
+# tabix and bgzip compiled at -O0.  Confirmed against the shipped v3.3.0 tarball, whose
+# main_vcfnorm, vcf_parse and main_vcfview match an -O0 build of bcftools 1.23 byte for byte,
+# and which still contains normalize_vcf and bcf_hdr_register_hrec as standalone symbols --
+# functions that -O2 inlines away entirely.  Measured: "bcftools norm -m +any" over 120k
+# records x 60 samples, 0.91s at -O0 vs 0.41s at -O2.
+#
+# Only the tarball was ever affected: the Dockerfile never exports CFLAGS, so the image got
+# autoconf's -O2 and this never showed up in Docker-based testing.  Tools built from plain
+# Makefiles were never affected either -- downloadPangenomeTools seds their "CFLAGS=" to
+# "CFLAGS+=", so their own -O2/-O3 lands after this and wins.
+export CFLAGS="-static -O2"
+export CXXFLAGS="-static -O2"
 export LDFLAGS="-static"
 export LIBS="-static"
 
-# throw in gnu parallel since cactus-hal2maf depends on it
+# throw in gnu parallel since cactus-hal2maf depends on it.
+#
+# From a pinned release tarball on ftp.gnu.org rather than parallel.git's cgit
+# "plain" endpoint.  That URL redirects to cgit.git.savannah.gnu.org, which
+# balances across backends that disagree with each other -- three identical
+# consecutive requests returned 404, 200, 404, and others hung -- so the
+# download failed intermittently.  It also served master, so two releases built
+# on different days need not have contained the same parallel.
+#
+# The checksum matters more than usual here: -O truncates the destination
+# before the fetch is known to have worked, and a backend answering 200 with an
+# error page would leave wget exiting 0 and this chmod +x'ing HTML into the
+# release, to be discovered by whoever ran it.
+parallelVersion=20260722
+parallelSha256=afe4b572a4334aac3a002a080ad618249f00b84d7659d03e77412727d18f1ad6
 mkdir -p bin
-wget -q http://git.savannah.gnu.org/cgit/parallel.git/plain/src/parallel -O bin/parallel
+wget -q --timeout=30 --tries=3 -O parallel.tar.bz2 \
+     https://ftp.gnu.org/gnu/parallel/parallel-${parallelVersion}.tar.bz2
+echo "${parallelSha256}  parallel.tar.bz2" | sha256sum --check --status
+tar -xjf parallel.tar.bz2 --wildcards -O '*/src/parallel' > bin/parallel
+rm parallel.tar.bz2
 chmod +x bin/parallel
 
 # build a couple dependencies from source because versions from awk don't support static linking

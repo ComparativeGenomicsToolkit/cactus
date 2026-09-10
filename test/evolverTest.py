@@ -213,12 +213,13 @@ class TestCase(unittest.TestCase):
 
     def _run_evolver_in_docker(self, seqFile = './examples/evolverMammals.txt'):
 
+        # --maskMode red: only test that runs cactus inside the released image
         out_hal = self._out_hal('in_docker')
         cmd = ['docker', 'run', '--rm', '-v', '{}:{}'.format(os.path.dirname(out_hal), '/data'),
                '-v', '{}:{}'.format(os.getcwd(), '/workdir'), 
                '-u', '{}:{}'.format(os.getuid(), os.getgid()),
                'evolvertestdocker/cactus:latest',
-               'cactus /data/js /workdir/{} /data/{} --maskMode fastan'.format(seqFile, os.path.basename(out_hal))]
+               'cactus /data/js /workdir/{} /data/{} --maskMode red'.format(seqFile, os.path.basename(out_hal))]
         sys.stderr.write('Running {}\n'.format(' '.format(cmd)))
         subprocess.check_call(' '.join(cmd), shell=True)
 
@@ -568,7 +569,7 @@ class TestCase(unittest.TestCase):
         out_name = os.path.splitext(os.path.basename(self._out_hal(binariesMode)))[0]
         wave_opts = ['--vcfwave'] if binariesMode == 'docker' else []
         subprocess.check_call(['cactus-graphmap-join', self._job_store(binariesMode),
-                               '--vg', os.path.join(batch_align_path, 'simChimp.chr6.vg'),
+                               '--vg', os.path.join(batch_align_path, 'simChimp.chr6.raw.vg'),
                                '--hal', os.path.join(batch_align_path, 'simChimp.chr6.hal'),
                                '--sv-gfa', os.path.join(batch_mg_path, 'simChimp.chr6.sv.gfa.gz'),
                                '--gbz', '--reference', 'simChimp', '--vcf', 
@@ -632,16 +633,23 @@ class TestCase(unittest.TestCase):
         subprocess.check_call(['cactus-align', self._job_store(binariesMode), chromfile_path, ba_path, '--batch', '--pangenome', '--outVG',
                                '--outVG', '--barMaskFilter', '20000', '--reference', 'S288C', '--binariesMode', binariesMode, '--consCores', '2'])
 
-        vg_files = [os.path.join(ba_path, c) + '.vg' for c in chroms]
+        # cactus-align --batch tags its raw hal2vg output <chrom>.raw.vg; graphmap-join strips
+        # the tag back off when it names its own outputs
+        vg_files = [os.path.join(ba_path, c) + '.raw.vg' for c in chroms]
         hal_files = [os.path.join(ba_path, c) + '.hal' for c in chroms]
 
         # join up the graphs and index for giraffe
         join_path = os.path.join(self.tempDir, 'join')
+        # UWOPS034614 is a second reference here but was not one when the graphs above were built,
+        # so its paths are haplotype-sense.  that is the case cactus-graphmap-join has to handle on
+        # its own, and it is not covered by the tests that pass both references to cactus-pangenome.
+        # it is also absent from several chromosomes, which exercises the skip-and-warn path
         subprocess.check_call(['cactus-graphmap-join', self._job_store(binariesMode), '--outDir', join_path, '--outName', 'yeast',
-                               '--reference', 'S288C', '--vg'] +  vg_files + ['--hal'] + hal_files +
+                               '--reference', 'S288C', 'UWOPS034614', '--vcfReference', 'S288C', 'UWOPS034614',
+                               '--vg'] +  vg_files + ['--hal'] + hal_files +
                                ['--xg', '--vcf', '--giraffe', 'clip', 'filter', '--lrGiraffe'] + cactus_opts + ['--indexCores', '4'])
 
-    def _run_yeast_pangenome(self, binariesMode, mgSplit=False, collapse=False, gref=None, grefL=None):
+    def _run_yeast_pangenome(self, binariesMode, mgSplit=False, collapse=False, gref=None, vcfL=None):
         """ yeast pangenome chromosome by chromosome pipeline, as run through a single invocations
         """
 
@@ -664,8 +672,8 @@ class TestCase(unittest.TestCase):
             cactus_pangenome_cmd += ['--collapse']
         if gref:
             cactus_pangenome_cmd += ['--gref', gref]
-        if grefL is not None:
-            cactus_pangenome_cmd += ['--grefL', str(grefL)]
+        if vcfL is not None:
+            cactus_pangenome_cmd += ['--vcfL', str(vcfL)]
         subprocess.check_call(cactus_pangenome_cmd + cactus_opts)
 
         #compatibility with older test
@@ -682,7 +690,231 @@ class TestCase(unittest.TestCase):
         self.assertEqual(proc.returncode, 0,
                          'vg validate failed for {}\nstderr:\n{}'.format(gfa_path, proc.stderr.decode()))
 
-    def _check_yeast_pangenome(self, binariesMode, other_ref=None, expect_odgi=False, expect_haplo=False, expect_unchopped_gfa=False, expect_gref=False, grefL=None):
+    def _check_exclusion_report(self, join_path, events, expect_report=True):
+        """ every input base that is not in a given graph must be accounted for, exactly once, with
+        a cause attached.
+
+        expect_report is False for the step-by-step pipeline, whose cactus-graphmap-join runs
+        standalone without --inputContigSizes: with no record of the input contig lengths it
+        correctly writes no clipping report, only the baseline-free outputs (graph stats, refgaps).
+        That case is asserted positively below rather than skipped.
+
+        the headline assertion is closure: for every genome, the bases present in the clipped graph
+        plus the bases in that genome's BED must add up to the input length, to the base.  that is
+        what makes this a regression test rather than a smoke test -- any double-counting,
+        coordinate slip or dropped class breaks it.
+
+        absolute bp depend on --refContigs, so only invariants are asserted here; the pinned numbers
+        live in the offline fixture test in pangenome_exclusionsTest.py """
+        import gzip
+        import tarfile
+
+        stats_dir = os.path.join(join_path, 'yeast.stats')
+        self.assertTrue(os.path.isdir(stats_dir), 'no yeast.stats directory')
+
+        if not expect_report:
+            # standalone cactus-graphmap-join with no --inputContigSizes: no clipping report, but
+            # the outputs that do not need the input contig lengths must still be there
+            self.assertFalse(os.path.isfile(os.path.join(stats_dir, 'clipped-by-genome.tsv')),
+                             'a clipping report was written without --inputContigSizes')
+            self.assertFalse(os.path.exists(os.path.join(join_path, 'yeast.WARNING')))
+            self.assertTrue(os.path.isfile(os.path.join(stats_dir, 'graph-stats.tsv')))
+            self.assertTrue(os.path.isfile(os.path.join(stats_dir, 'refgaps.bed.gz')))
+            return
+
+        def merged_bp(intervals):
+            """ deliberately a second implementation, so this test does not verify the module with
+            the module's own interval arithmetic """
+            total, cur_start, cur_end = 0, None, None
+            for start, end in sorted(intervals):
+                if cur_end is not None and start <= cur_end:
+                    cur_end = max(cur_end, end)
+                else:
+                    if cur_end is not None:
+                        total += cur_end - cur_start
+                    cur_start, cur_end = start, end
+            return total + (cur_end - cur_start if cur_end is not None else 0)
+
+        def read_archive(tag):
+            """ {genome: [(contig, start, end, reason), ...]} out of one clipped archive """
+            path = os.path.join(stats_dir, 'clipped{}.beds.tar.gz'.format(tag))
+            self.assertTrue(os.path.isfile(path), '{} not found'.format(path))
+            out = {}
+            with tarfile.open(path, 'r:gz') as tar:
+                for member in tar.getmembers():
+                    if not member.isfile():
+                        continue
+                    self.assertTrue(member.name.startswith('clipped{}.beds/'.format(tag)),
+                                    'unexpected archive member {}'.format(member.name))
+                    event = os.path.basename(member.name)[:-len('.bed')]
+                    rows = []
+                    for line in tar.extractfile(member).read().decode().splitlines():
+                        contig, start, end, reason = line.split('\t')
+                        rows.append((contig, int(start), int(end), reason))
+                    out[event] = rows
+            return out
+
+        def read_table(name):
+            """ header names -> list of row dicts, for a plain or gzipped stats table """
+            path = os.path.join(stats_dir, name)
+            self.assertTrue(os.path.isfile(path), '{} not found'.format(path))
+            opener = gzip.open if name.endswith('.gz') else open
+            header, rows = None, []
+            with opener(path, 'rt') as in_file:
+                for line in in_file:
+                    line = line.rstrip('\n')
+                    if line.startswith('#'):
+                        # the column header is the last #-line that is tab-separated; the prose
+                        # preamble above it is not
+                        if '\t' in line and ' ' not in line:
+                            header = line[1:].split('\t')
+                        continue
+                    rows.append(dict(zip(header, line.split('\t'))))
+            return header, rows
+
+        summary_header, summary = read_table('clipped-by-genome.tsv')
+        self.assertEqual(summary_header, ['genome', 'reason', 'intervals', 'bp', 'pct_of_input'])
+
+        # only phases that ran are reported.  this test uses --giraffe clip filter, so all three
+        raw_summary = open(os.path.join(stats_dir, 'clipped-by-genome.tsv')).read()
+        self.assertIn('# phases: full,clip,filter', raw_summary)
+        self.assertIn('# outside_baseline_bp: 0', raw_summary)
+        self.assertIn('# orphan_paths: 0', raw_summary)
+        self.assertNotIn('_MINIGRAPH_', raw_summary)
+        self.assertEqual(set(r['genome'] for r in summary) - {'TOTAL'}, set(events))
+
+        full_beds = read_archive('.full')
+        clip_beds = read_archive('')
+        filter_beds = read_archive('.d2')
+        for beds in (full_beds, clip_beds, filter_beds):
+            self.assertEqual(set(beds.keys()), set(events))
+
+        # the baseline, at the top level: it is a pipeline intermediate, not a report
+        sizes_path = os.path.join(join_path, 'yeast.input-contig-sizes.tsv.gz')
+        self.assertTrue(os.path.isfile(sizes_path))
+        baseline, input_bp, event_of = {}, {}, {}
+        with gzip.open(sizes_path, 'rt') as sizes_file:
+            for line in sizes_file:
+                if line.startswith('#'):
+                    continue
+                toks = line.rstrip('\n').split('\t')
+                key = (toks[0], toks[2])
+                baseline[key] = max(baseline.get(key, 0), int(toks[3]) + int(toks[4]))
+                input_bp[toks[0]] = input_bp.get(toks[0], 0) + int(toks[4])
+                event_of[toks[1]] = toks[0]
+        self.assertEqual(set(input_bp.keys()), set(events))
+
+        # what actually survived into the clipped graph, straight off its W-lines
+        coverage = {}
+        with gzip.open(os.path.join(join_path, 'yeast.gfa.gz'), 'rt') as gfa_file:
+            for line in gfa_file:
+                if not line.startswith('W'):
+                    continue
+                fields = line.split('\t')
+                if fields[1] == '_MINIGRAPH_':
+                    continue
+                coverage.setdefault((fields[1] + '#' + fields[2], fields[3]), []).append(
+                    (int(fields[4]), int(fields[5])))
+        graph_bp = {}
+        for (pansn_prefix, contig), intervals in coverage.items():
+            event = event_of[pansn_prefix]
+            graph_bp[event] = graph_bp.get(event, 0) + merged_bp(intervals)
+
+        dropped_reasons = {'ambiguous', 'unassigned', 'no_chromosome_graph', 'unaligned'}
+        for event in events:
+            for beds, allowed in ((full_beds, dropped_reasons),
+                                  (clip_beds, dropped_reasons | {'clip'}),
+                                  (filter_beds, dropped_reasons | {'clip', 'filter'})):
+                for contig, start, end, reason in beds[event]:
+                    self.assertLess(start, end)
+                    self.assertGreaterEqual(start, 0)
+                    self.assertLessEqual(end, baseline[(event, contig)])
+                    self.assertNotEqual(reason, 'refgap')
+                    self.assertIn(reason, allowed,
+                                  '{} in the wrong archive for {}'.format(reason, event))
+            # the archives are cumulative
+            self.assertLessEqual(len(full_beds[event]), len(clip_beds[event]))
+            self.assertLessEqual(len(clip_beds[event]), len(filter_beds[event]))
+
+            # THE closure check, against the graph the unsuffixed archive describes
+            clip_bp = sum(e - s for _c, s, e, _r in clip_beds[event])
+            self.assertEqual(graph_bp.get(event, 0) + clip_bp, input_bp[event],
+                             '{}: clipped graph ({}) + BED ({}) != input ({})'
+                             .format(event, graph_bp.get(event, 0), clip_bp, input_bp[event]))
+
+            # the summary must agree with the deepest archive, reason by reason
+            by_reason = dict((r['reason'], int(r['bp'])) for r in summary
+                             if r['genome'] == event and r['reason'] not in ('TOTAL', 'refgap'))
+            bed_by_reason = {}
+            for _c, start, end, reason in filter_beds[event]:
+                bed_by_reason[reason] = bed_by_reason.get(reason, 0) + end - start
+            self.assertEqual(bed_by_reason, dict((k, v) for k, v in by_reason.items() if v))
+            total_row = [r for r in summary if r['genome'] == event and r['reason'] == 'TOTAL']
+            self.assertEqual(len(total_row), 1)
+            self.assertEqual(int(total_row[0]['bp']), sum(by_reason.values()))
+            # the BED alone accounts for the whole loss: nothing is summarised away
+            self.assertEqual(sum(e - s for _c, s, e, _r in filter_beds[event]),
+                             int(total_row[0]['bp']))
+
+        # the reference is never clipped or frequency-filtered, so it can only lose sequence to a
+        # chromosome that was not built at all (which --refContigs does on purpose)
+        ref_reasons = set(r[3] for r in filter_beds['S288C'])
+        self.assertFalse(ref_reasons - {'no_chromosome_graph'},
+                         'reference lost sequence to {}'.format(ref_reasons))
+
+        # the two roll-up tables must reconcile with the summary and with each other
+        chrom_header, chrom_rows = read_table('clipped-by-reference-contig.tsv')
+        contig_header, contig_rows = read_table('clipped-by-input-contig.tsv.gz')
+        self.assertEqual(chrom_header[:4], ['ref_chrom', 'genome', 'contigs', 'input_bp'])
+        self.assertEqual(contig_header[:4], ['genome', 'contig', 'ref_chrom', 'input_bp'])
+        for phase in ['full', 'clip', 'filter']:
+            for header in (chrom_header, contig_header):
+                self.assertIn('{}_bp'.format(phase), header)
+                self.assertIn('{}_frags'.format(phase), header)
+        for event in events:
+            rolled = sum(int(r['input_bp']) for r in chrom_rows if r['genome'] == event)
+            detail = sum(int(r['input_bp']) for r in contig_rows if r['genome'] == event)
+            self.assertEqual(rolled, input_bp[event])
+            self.assertEqual(detail, input_bp[event])
+            surviving = sum(int(r['filter_bp']) for r in chrom_rows if r['genome'] == event)
+            total_row = [r for r in summary if r['genome'] == event and r['reason'] == 'TOTAL']
+            self.assertEqual(input_bp[event] - surviving, int(total_row[0]['bp']))
+
+        # reference gaps, kept out of the loss totals
+        refgap_path = os.path.join(stats_dir, 'refgaps.bed.gz')
+        self.assertTrue(os.path.isfile(refgap_path))
+        with gzip.open(refgap_path, 'rt') as refgap_file:
+            refgap_rows = [l.rstrip('\n').split('\t') for l in refgap_file]
+        self.assertGreater(len(refgap_rows), 0)
+        for contig, start, end, reason in refgap_rows:
+            self.assertEqual(reason, 'refgap')
+            self.assertGreaterEqual(int(end) - int(start), 10000)
+            self.assertLessEqual(int(end), baseline[('S288C', contig)])
+
+        # the graph tables live here too, with self-describing headers
+        graph_header, graph_rows = read_table('graph-stats.tsv')
+        self.assertEqual(graph_header, ['ref_chrom', 'nodes', 'edges', 'length'])
+        self.assertGreater(len(graph_rows), 0)
+        path_header, _path_rows = read_table('path-stats.tsv.gz')
+        self.assertEqual(path_header, ['ref_chrom', 'path', 'length'])
+        # the old broken clip-vg bed must not have come back
+        self.assertFalse(os.path.exists(os.path.join(join_path, 'yeast.stats.tgz')))
+
+        # UWOPS034614 has inter-chromosomal rearrangements that lose it whole chromosomes during
+        # splitting, so this dataset must trip the warning heuristics.  if it ever stops doing so,
+        # either the detector or the pipeline has changed in a way worth noticing.
+        warning_path = os.path.join(join_path, 'yeast.WARNING')
+        self.assertTrue(os.path.isfile(warning_path),
+                        'expected the yeast run to raise clipping warnings')
+        with open(warning_path, 'r') as warning_file:
+            warning_text = warning_file.read()
+        self.assertIn('UWOPS034614', warning_text)
+        self.assertIn('ambiguous', warning_text)
+        self.assertNotIn('INTERNAL', warning_text)
+        for quiet in ['DBVPG6044', 'Y12', 'YPS128']:
+            self.assertNotIn(quiet + ':', warning_text)
+
+    def _check_yeast_pangenome(self, binariesMode, other_ref=None, expect_odgi=False, expect_haplo=False, expect_unchopped_gfa=False, expect_gref=False, vcfL=None, expect_report=True):
         """ yeast pangenome chromosome by chromosome pipeline
         """
 
@@ -783,6 +1015,8 @@ class TestCase(unittest.TestCase):
             self.assertEqual(len(sizes), 10)
             self.assertGreaterEqual(int(sizes[9]), 200000)
 
+        self._check_exclusion_report(join_path, events, expect_report=expect_report)
+
         # make sure the gbz stats are sane
         clip_degree_dist = subprocess.check_output(['vg', 'stats', '-D', os.path.join(join_path, 'yeast.gbz')]).strip().decode('utf-8')
         clip_degree_dist = len(clip_degree_dist.strip().split('\n'))
@@ -832,15 +1066,13 @@ class TestCase(unittest.TestCase):
             self.assertTrue(os.path.exists(gref_gfa_path))
             self.assertGreaterEqual(os.path.getsize(gref_gfa_path), 1000000)
 
-            # check that aug snarls exists
-            gref_snarls_path = os.path.join(join_path, 'yeast.gref.snarls')
-            self.assertTrue(os.path.exists(gref_snarls_path))
-            self.assertGreaterEqual(os.path.getsize(gref_snarls_path), 1000)
+            # the gref graph is topologically identical to the base graph, so it gets no snarls
+            # of its own: the base graph's yeast.snarls applies to yeast.gref.gbz directly
+            self.assertFalse(os.path.exists(os.path.join(join_path, 'yeast.gref.snarls')))
+            self.assertTrue(os.path.exists(os.path.join(join_path, 'yeast.snarls')))
 
             # check that aug raw VCF exists and has some records
-            # (when --grefL is used, the VCF basename gets a gref<NN> suffix)
-            gref_vcf_tag = 'gref' if grefL is None else 'gref{}'.format(int(round(grefL * 100)))
-            gref_raw_vcf_path = os.path.join(join_path, 'yeast.{}.raw.vcf.gz'.format(gref_vcf_tag))
+            gref_raw_vcf_path = os.path.join(join_path, 'yeast.gref.raw.vcf.gz')
             self.assertTrue(os.path.exists(gref_raw_vcf_path))
             gref_raw_vcf_records = int(subprocess.check_output(
                 'bcftools view -H {} | wc -l'.format(gref_raw_vcf_path),
@@ -854,19 +1086,18 @@ class TestCase(unittest.TestCase):
             self.assertGreater(gref_raw_alt_records, 0)
 
             # check that aug vcfbub VCF exists and gref _alt records survive vcfbub
-            # (gref contigs are split out and run through vcfbub independently so that
-            #  base contig nesting doesn't interfere with gref contig processing)
-            gref_bub_vcf_path = os.path.join(join_path, 'yeast.{}.vcf.gz'.format(gref_vcf_tag))
+            # (vg counts LV within each reference contig, so a gref contig's own top-level sites
+            #  are at LV=0 and survive the same --max-level 0 pass the base contigs get)
+            gref_bub_vcf_path = os.path.join(join_path, 'yeast.gref.vcf.gz')
             self.assertTrue(os.path.exists(gref_bub_vcf_path))
             gref_bub_alt_records = int(subprocess.check_output(
                 'bcftools view -H {} | grep "_alt" | wc -l'.format(gref_bub_vcf_path),
                 shell=True).strip())
             self.assertGreater(gref_bub_alt_records, 0)
 
-            # check that aug hapl exists
-            gref_hapl_path = os.path.join(join_path, 'yeast.gref.hapl')
-            self.assertTrue(os.path.exists(gref_hapl_path))
-            self.assertGreaterEqual(os.path.getsize(gref_hapl_path), 1000)
+            # likewise no gref-specific haplo index: the base graph's yeast.hapl (checked above
+            # via expect_haplo) is built on identical topology and applies to yeast.gref.gbz
+            self.assertFalse(os.path.exists(os.path.join(join_path, 'yeast.gref.hapl')))
 
             # check that the gref segments table exists and has content
             gref_segs_path = os.path.join(join_path, 'yeast.gref.gref-segs.tsv.gz')
@@ -875,6 +1106,37 @@ class TestCase(unittest.TestCase):
             num_lines = int(subprocess.check_output(
                 'gzip -dc {} | wc -l'.format(gref_segs_path), shell=True).strip())
             self.assertGreater(num_lines, 1)
+
+        if vcfL is not None:
+            # --vcfL only ever ADDS VCFs: everything checked above must still be there
+            # (it is, or we would not have got here), with clustered copies alongside
+            ltag = 'L{}'.format(int(round(vcfL * 100)))
+            l_vcf_paths = [os.path.join(join_path, 'yeast.{}.vcf.gz'.format(ltag)),
+                           os.path.join(join_path, 'yeast.{}.raw.vcf.gz'.format(ltag))]
+            if expect_gref:
+                l_vcf_paths += [os.path.join(join_path, 'yeast.gref.{}.vcf.gz'.format(ltag)),
+                                os.path.join(join_path, 'yeast.gref.{}.raw.vcf.gz'.format(ltag))]
+            for l_vcf_path in l_vcf_paths:
+                self.assertTrue(os.path.exists(l_vcf_path))
+                l_records = int(subprocess.check_output(
+                    'bcftools view -H {} | wc -l'.format(l_vcf_path), shell=True).strip())
+                self.assertGreater(l_records, 0)
+
+            # -L merges alleles, so it can only ever remove sites, never invent them
+            vcf_pairs = [('yeast.vcf.gz', 'yeast.{}.vcf.gz'.format(ltag))]
+            if expect_gref:
+                vcf_pairs.append(('yeast.gref.vcf.gz', 'yeast.gref.{}.vcf.gz'.format(ltag)))
+            for plain_name, clustered_name in vcf_pairs:
+                def count_records(name):
+                    return int(subprocess.check_output(
+                        'bcftools view -H {} | wc -l'.format(os.path.join(join_path, name)),
+                        shell=True).strip())
+                self.assertLessEqual(count_records(clustered_name), count_records(plain_name))
+
+            # -L is never composed with vcfwave, so a clustered wave VCF must never appear
+            for wave_name in ['yeast.{}.wave.vcf.gz'.format(ltag),
+                              'yeast.gref.{}.wave.vcf.gz'.format(ltag)]:
+                self.assertFalse(os.path.exists(os.path.join(join_path, wave_name)))
 
     def _csvstr_to_table(self, csvstr, header_fields):
         """ Hacky csv parse """
@@ -988,10 +1250,13 @@ class TestCase(unittest.TestCase):
         # this is downloaded in the Makefile
         ground_truth_file = 'test/{}-truth.maf'.format(dataset)
 
-        # run mafComparator on the evolver output
+        # run mafComparator on the evolver output. also produce a single-ref output (Anc0 is the
+        # reference so it's single-copy regardless, but this exercises the --outType single-ref path)
         subprocess.check_call(['cactus-hal2maf', self._job_store('h2m'), halPath,  halPath + '.maf', '--chunkSize', '10000', '--batchCount', '2',
-                               '--refGenome', 'Anc0', '--outType', 'norm', 'single', '--index', '--binariesMode', binariesMode], shell=False)
-        self.assertGreaterEqual(os.path.getsize(halPath + '.maf.tai'), 50)        
+                               '--refGenome', 'Anc0', '--outType', 'norm', 'single', 'single-ref', '--index', '--binariesMode', binariesMode], shell=False)
+        self.assertGreaterEqual(os.path.getsize(halPath + '.maf.tai'), 50)
+        # make sure the single-ref output was actually produced
+        self.assertGreaterEqual(os.path.getsize(halPath + '.single-ref.maf'), 50)
 
         # run it with --dupeMode consensus just to make sure it doesn't crash
         # (but only if we have maf_stream, which we probably don't on arm)
@@ -1426,8 +1691,9 @@ class TestCase(unittest.TestCase):
         name = "local"
         self._run_yeast_pangenome_step_by_step(name)
 
-        # check the output
-        self._check_yeast_pangenome(name)
+        # the step-by-step join runs standalone without --inputContigSizes, so it writes no
+        # clipping report -- only the baseline-free stats
+        self._check_yeast_pangenome(name, other_ref='UWOPS034614', expect_report=False)
 
     def testYeastPangenomeLocal(self):
         """ Run pangenome pipeline (including contig splitting!) on yeast dataset using cactus-pangenome """
@@ -1463,7 +1729,57 @@ class TestCase(unittest.TestCase):
             out.write(self._synthetic_contig(contig_name))
         return out_fa
 
-    def _run_yeast_panpatch(self, binariesMode, reference=False, dropped_contig=None):
+    def _fetch_yeast_target(self):
+        """ download the target strain uncompressed, so a test can read its original sequence """
+        import urllib.request, gzip
+        local_gz = os.path.join(self.tempDir, 'panpatch_orig_target.fa.gz')
+        urllib.request.urlretrieve(self.YEAST_URL.format(self.PANPATCH_TARGET), local_gz)
+        out_fa = os.path.join(self.tempDir, 'panpatch_orig_target.fa')
+        with gzip.open(local_gz, 'rt') as inp, open(out_fa, 'w') as out:
+            shutil.copyfileobj(inp, out)
+        return out_fa
+
+    def _read_fasta(self, path):
+        """ {record name (first token): sequence} for a plain or gzipped fasta """
+        import gzip
+        opener = gzip.open if path.endswith('.gz') else open
+        recs, name, parts = {}, None, []
+        with opener(path, 'rt') as f:
+            for line in f:
+                if line.startswith('>'):
+                    if name is not None:
+                        recs[name] = ''.join(parts)
+                    name, parts = line[1:].split()[0], []
+                else:
+                    parts.append(line.strip())
+        if name is not None:
+            recs[name] = ''.join(parts)
+        return recs
+
+    def _make_yeast_error_beds(self, target_fa):
+        """ write an --assemblyErrorBeds manifest flagging an interior slice of each large target
+        contig, returning (manifest path, {contig: (start, end)}).  These stand in for suspected
+        assembly errors: cactus-panpatch masks them to N before building the pangenome, and every one
+        that does not get patched from the donor has to come back as its original sequence.
+
+        The intervals are placed away from the contig tips on purpose -- masking a tip takes that
+        contig's telomere with it, which exercises telomere completion rather than the interior
+        gap-fill this is meant to cover. """
+        seqs = self._read_fasta(target_fa)
+        intervals = {c: (100000, 120000) for c, s in seqs.items() if len(s) > 200000}
+        self.assertTrue(intervals, 'no target contig long enough to hold an error interval')
+
+        bed_path = os.path.join(self.tempDir, 'panpatch_errors.bed')
+        with open(bed_path, 'w') as f:
+            for contig, (start, end) in sorted(intervals.items()):
+                f.write('{}\t{}\t{}\n'.format(contig, start, end))
+        manifest_path = os.path.join(self.tempDir, 'panpatch_errors.manifest')
+        with open(manifest_path, 'w') as f:
+            f.write('{}\t{}\n'.format(self.PANPATCH_TARGET, bed_path))
+        return manifest_path, intervals
+
+    def _run_yeast_panpatch(self, binariesMode, reference=False, dropped_contig=None,
+                            error_bed_manifest=None):
         """ run cactus-panpatch on a couple of yeast strains (reference-free by default, or against
         an external reference), returning the output directory """
         out_dir = os.path.join(self.tempDir, 'panpatch-out')
@@ -1490,6 +1806,8 @@ class TestCase(unittest.TestCase):
                '--keepGraphs']
         if reference:
             cmd += ['--reference', self.PANPATCH_REFERENCE]
+        if error_bed_manifest:
+            cmd += ['--assemblyErrorBeds', error_bed_manifest]
         subprocess.check_call(cmd + cactus_opts)
         return out_dir
 
@@ -1551,6 +1869,171 @@ class TestCase(unittest.TestCase):
         dropped = 'synthetic_unplaceable_contig'
         out_dir = self._run_yeast_panpatch(name, reference=True, dropped_contig=dropped)
         self._check_yeast_panpatch(out_dir, reference=True, dropped_contig=dropped)
+
+    def testYeastPanpatchErrorBedsLocal(self):
+        """ cactus-panpatch --assemblyErrorBeds on yeast: interior slices of the target are flagged as
+        suspected assembly errors, so they are masked to N before the pangenome and either patched from
+        the donor or reverted.  Checks the property the whole feature rests on -- masking must never
+        leave N behind -- plus the gap_origin tagging and the cap lines describing the output. """
+        name = "local"
+        orig_target = self._fetch_yeast_target()
+        manifest, intervals = self._make_yeast_error_beds(orig_target)
+        out_dir = self._run_yeast_panpatch(name, error_bed_manifest=manifest)
+        self._check_yeast_panpatch(out_dir)
+
+        target = self.PANPATCH_TARGET
+        out_fa = os.path.join(out_dir, '{}.fa.gz'.format(target))
+        original = self._read_fasta(orig_target)
+        patched = self._read_fasta(out_fa)
+
+        # Non-destructive: masking is an input-side trick, so it must not put N into the output.  A
+        # masked region is either patched with donor sequence or reverted to its original bases; if the
+        # revert regressed, these intervals would come back as the 20kb runs of N they were masked to.
+        orig_n = sum(s.upper().count('N') for s in original.values())
+        out_n = sum(s.upper().count('N') for s in patched.values())
+        self.assertLessEqual(out_n, orig_n,
+                             'masking added {} N to the output ({} -> {}): the target revert is not '
+                             'restoring masked regions'.format(out_n - orig_n, orig_n, out_n))
+
+        # and specifically: none of the masked intervals survives as a run of N
+        longest_orig_n = max([self._longest_n_run(s) for s in original.values()] or [0])
+        longest_out_n = max([self._longest_n_run(s) for s in patched.values()] or [0])
+        self.assertLessEqual(longest_out_n, max(longest_orig_n, 1000),
+                             'output has a {}bp run of N (input longest was {}bp), consistent with a '
+                             'masked interval left unreverted'.format(longest_out_n, longest_orig_n))
+
+        report = os.path.join(out_dir, target + '.tsv')
+        with open(report) as f:
+            report_lines = [l.rstrip('\n') for l in f]
+        header = next((l for l in report_lines if l.startswith('chrom\t')), None)
+        self.assertIsNotNone(header, 'no header in {}'.format(report))
+        self.assertIn('gap_origin', header.split('\t'),
+                      'the gap_origin column is missing with --assemblyErrorBeds')
+
+        # the cap lines must describe the delivered assembly: one per output record, measured after the
+        # revert -- not the contributing graph paths panpatch reports (which include donor paths)
+        cap_names = [l.split()[1] for l in report_lines if l.startswith('#Contig')]
+        self.assertTrue(cap_names, 'no #Contig cap lines in {}'.format(report))
+        self.assertEqual(sorted(cap_names), sorted(patched.keys()),
+                         'cap lines do not match the output records')
+
+    def _longest_n_run(self, seq):
+        """ length of the longest run of N in seq (0 if none) """
+        import re
+        runs = re.findall('[Nn]+', seq)
+        return max((len(r) for r in runs), default=0)
+
+    def _write_nested_gref_gfa(self, gfa_path):
+        """ write a graph whose gref fragment sits well below the top level of the snarl tree
+
+        REF walks 1-2-3-7-9.  node 10 gives the outer snarl (1,9) a second traversal, so (2,7) is
+        its child rather than a top-level site.  the A-P/Q-B insertion hangs off (2,7) and the
+        reference never touches it, so it becomes a gref fragment sitting two snarls deep in the
+        graph.  vg counts LV within each reference contig, so the P/Q bubble inside that fragment
+        comes out of deconstruct at LV=0 -- top level of its own contig -- and survives the same
+        `vcfbub --max-level 0` pass the base contigs get.  its PS still names (2,7) on the base
+        contig, which is what records that the fragment is nested at all.  a shallower graph (the
+        yeast test, for one) puts its fragments directly under a top-level bubble and so does not
+        cover the case where the containing bubble is itself nested.
+        """
+        import random
+        random.seed(23)
+        def seq(length):
+            return ''.join(random.choice('ACGT') for _ in range(length))
+        node_seq = {'1': seq(200), '2': seq(100), '3': seq(1), '7': seq(100), '9': seq(200),
+                    '10': seq(100), 'A': seq(200), 'P': 'A', 'Q': 'C', 'B': seq(200)}
+        edges = [('1', '2'), ('1', '10'), ('10', '9'), ('2', '3'), ('3', '7'), ('2', 'A'),
+                 ('A', 'P'), ('A', 'Q'), ('P', 'B'), ('Q', 'B'), ('B', '7'), ('7', '9')]
+        walks = [('REF', ['1', '2', '3', '7', '9']),
+                 ('S1', ['1', '2', 'A', 'P', 'B', '7', '9']),
+                 ('S2', ['1', '2', 'A', 'Q', 'B', '7', '9']),
+                 ('S3', ['1', '10', '9'])]
+        with open(gfa_path, 'w') as gfa_file:
+            # RS marks REF reference-sense, the way cactus's own graphs arrive
+            gfa_file.write('H\tVN:Z:1.1\tRS:Z:REF\n')
+            for node, node_str in node_seq.items():
+                gfa_file.write('S\t{}\t{}\n'.format(node, node_str))
+            for src, dest in edges:
+                gfa_file.write('L\t{}\t+\t{}\t+\t0M\n'.format(src, dest))
+            for sample, path in walks:
+                gfa_file.write('W\t{}\t0\tchr1\t0\t{}\t{}\n'.format(
+                    sample, sum(len(node_seq[node]) for node in path),
+                    ''.join('>' + node for node in path)))
+
+    def _vcf_contigs_with_records(self, vcf_path):
+        """ the set of CHROMs that actually carry at least one record """
+        query = subprocess.check_output('bcftools query -f "%CHROM\\n" {}'.format(vcf_path), shell=True)
+        return set(query.decode('utf-8').split())
+
+    def testGrefNestedVcfLocal(self):
+        """ --gref on a deliberately deeply-nested graph: flattening the gref VCF must not empty
+        out a gref contig, and the gref gbz must be able to deconstruct itself """
+        binariesMode = 'local'
+        work_dir = os.path.join(self.tempDir, 'gref-nested')
+        os.makedirs(work_dir)
+        gfa_path = os.path.join(work_dir, 'chr1.gfa')
+        vg_path = os.path.join(work_dir, 'chr1.vg')
+        self._write_nested_gref_gfa(gfa_path)
+        with open(vg_path, 'wb') as vg_file:
+            subprocess.check_call(['vg', 'convert', '-g', gfa_path, '-p'], stdout=vg_file)
+
+        out_dir = os.path.join(work_dir, 'join')
+        join_cmd = ['cactus-graphmap-join', self._job_store(binariesMode) + '-gref',
+                    '--vgFull', vg_path, '--outDir', out_dir, '--outName', 'gt',
+                    '--reference', 'REF', '--vcf', 'full', '--gref', 'full',
+                    '--clip', '0', '--filter', '0',
+                    '--binariesMode', binariesMode, '--logInfo',
+                    '--workDir', self.tempDir, '--maxCores', '4']
+        # vcfwave ships in the docker image but not the binary release, so only cover that path
+        # (which flattens the gref VCF by a second, independent route) when the tool is around
+        do_wave = shutil.which('vcfwave') is not None
+        if do_wave:
+            join_cmd += ['--vcfwave']
+        subprocess.check_call(join_cmd)
+
+        raw_path = os.path.join(out_dir, 'gt.gref.raw.vcf.gz')
+        bub_path = os.path.join(out_dir, 'gt.gref.vcf.gz')
+
+        # guard the fixture itself: if this graph ever stops putting a gref fragment below the top
+        # level, the test still passes everything below while covering nothing.  vg counts LV
+        # within each reference contig, so a fragment's own sites are LV=0 however deeply the
+        # bubble holding them is nested -- what marks the fragment as nested is its PS naming a
+        # base-contig site that is itself nested
+        rows = subprocess.check_output(
+            'bcftools query -f "%CHROM\\t%ID\\t%INFO/LV\\t%INFO/PS\\n" {}'.format(raw_path),
+            shell=True).decode('utf-8')
+        level_of = {}
+        gref_parents = []
+        for row in rows.split('\n'):
+            fields = row.split('\t')
+            if len(fields) != 4:
+                continue
+            chrom, snarl_id, level, parent = fields
+            level_of[snarl_id] = level
+            if chrom.endswith('_alt'):
+                gref_parents.append(parent)
+        deep_gref = [parent for parent in gref_parents
+                     if level_of.get(parent, '').isdigit() and int(level_of[parent]) >= 1]
+        self.assertGreater(len(deep_gref), 0)
+
+        # the invariant that matters: flattening drops nested sites, but it must never leave a gref
+        # contig with no records at all when the raw VCF had some
+        raw_contigs = self._vcf_contigs_with_records(raw_path)
+        self.assertTrue(any(contig.endswith('_alt') for contig in raw_contigs))
+        self.assertEqual(self._vcf_contigs_with_records(bub_path), raw_contigs)
+        if do_wave:
+            self.assertEqual(self._vcf_contigs_with_records(os.path.join(out_dir, 'gt.gref.wave.vcf.gz')),
+                             raw_contigs)
+
+        # every reference contig in the ordinary VCF must survive into the gref VCF: the gref cover
+        # can otherwise absorb a reference interval into a haplotype one and lose the contig
+        for contig in self._vcf_contigs_with_records(os.path.join(out_dir, 'gt.full.vcf.gz')):
+            self.assertIn(contig, raw_contigs)
+
+        # the gref gbz has to keep the gref sample reference-sense, or it cannot be deconstructed
+        # against the very sample its own VCF is built on
+        subprocess.check_call(['vg', 'deconstruct', os.path.join(out_dir, 'gt.gref.gbz'),
+                               '-P', 'gref_REF', '-C', '-a'], stdout=subprocess.DEVNULL)
 
     def _test_vg_bypass(self, binariesMode):
         """Test that --vgClip/--vgFilter bypass produces equivalent indexes to the original run"""
@@ -1620,10 +2103,10 @@ class TestCase(unittest.TestCase):
     def testYeastPangenomeSplitLocal(self):
         """ Run pangenome pipeline (including contig splitting!) on yeast dataset using cactus-pangenome """
         name = "local"
-        self._run_yeast_pangenome(name, mgSplit=True, gref='clip', grefL=0.95)
+        self._run_yeast_pangenome(name, mgSplit=True, gref='clip', vcfL=0.95)
 
         # check the output
-        self._check_yeast_pangenome(name, other_ref='DBVPG6044', expect_odgi=True, expect_haplo=True, expect_unchopped_gfa=True, expect_gref=True, grefL=0.95)
+        self._check_yeast_pangenome(name, other_ref='DBVPG6044', expect_odgi=True, expect_haplo=True, expect_unchopped_gfa=True, expect_gref=True, vcfL=0.95)
 
         # Test bypass re-indexing with --vgClip and --vgFilter
         self._test_vg_bypass(name)

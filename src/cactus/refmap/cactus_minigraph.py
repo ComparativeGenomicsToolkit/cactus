@@ -18,6 +18,7 @@ import gzip
 
 from cactus.progressive.seqFile import SeqFile
 from cactus.shared.common import setupBinaries, importSingularityImage, cactus_fast_walltime
+from cactus.refmap.pangenome_exclusions import event_to_pansn_prefix
 from cactus.shared.common import cactusRootPath
 from cactus.shared.configWrapper import ConfigWrapper
 from cactus.shared.common import makeURL, catFiles, write_s3
@@ -185,7 +186,7 @@ def minigraph_construct_import_sequences(options, config_wrapper, input_seqfiles
             if genome != graph_event and genome in leaves:                
                 if os.path.isdir(seq):
                     tmpSeq = getTempFile()
-                    catFiles([os.path.join(seq, subSeq) for subSeq in os.listdir(seq)], tmpSeq)
+                    catFiles([os.path.join(seq, subSeq) for subSeq in sorted(os.listdir(seq))], tmpSeq)
                     seq = tmpSeq
                 seq = makeURL(seq)
                 input_seq_id_map[genome] = file_store.importFile(seq)
@@ -548,25 +549,37 @@ def minigraph_construct(job, options, config_node, seq_id_map, seq_order, gfa_pa
     if pan_sn_output:
         # rename to pan-sn before serializing, so it's more useful (ie for anything except cactus)
         pansn_gfa_path = os.path.join(work_dir, 'pan-sn.' + os.path.basename(gfa_path))
-        minigraph_gfa_to_pansn(set(seq_id_map.keys()), gfa_path, pansn_gfa_path)
+        minigraph_gfa_to_pansn(set(seq_id_map.keys()), gfa_path, pansn_gfa_path, job.cores)
         pansn_gfa_out_id = job.fileStore.writeGlobalFile(pansn_gfa_path)
         return gfa_out_id, pansn_gfa_out_id
     else:
         return gfa_out_id
 
-def minigraph_gfa_to_pansn(names, gfa_path, out_gfa_path):
+def open_gfa_for_rename(gfa_path, out_gfa_path):
+    """ open a GFA and its renamed copy.  the copy is left uncompressed here and bgzipped by
+    bgzip_gfa_rename() below: python's gzip module is single threaded and defaults to the slowest
+    compression level, which otherwise takes well over 90% of the runtime of these renaming passes """
+    if gfa_path.endswith('.gz'):
+        in_file = gzip.open(gfa_path, 'rb')
+    else:
+        in_file = open(gfa_path, 'rb')
+    raw_out_path = out_gfa_path[:-3] if out_gfa_path.endswith('.gz') else out_gfa_path
+    return in_file, open(raw_out_path, 'wb'), raw_out_path
+
+def bgzip_gfa_rename(raw_out_path, out_gfa_path, threads):
+    """ compress what open_gfa_for_rename() left uncompressed, if the output wanted compressing """
+    if raw_out_path != out_gfa_path:
+        cactus_call(parameters=['bgzip', '--threads', str(threads)], infile=raw_out_path, outfile=out_gfa_path)
+        os.remove(raw_out_path)
+
+def minigraph_gfa_to_pansn(names, gfa_path, out_gfa_path, threads=1):
     """ hack to convert cactus names like id=simChimp.0|simChimp.chr6 to PanSN simChimp#0#simpChimp.chr6
     so that minigraph GFA file can be used outside of catus
 
     todo: Cactus should probably be changed to just use PanSN internally as well, but that's a much
     bigger lift
     """
-    if gfa_path.endswith('.gz'):
-        in_file = gzip.open(gfa_path, 'rb')
-        out_file = gzip.open(out_gfa_path, 'wb')
-    else:
-        in_file = open(gfa_path, 'rb')
-        out_file = open(out_gfa_path, 'wb')
+    in_file, out_file, raw_out_path = open_gfa_for_rename(gfa_path, out_gfa_path)
 
     for line in in_file:
         line = line.decode()
@@ -578,14 +591,11 @@ def minigraph_gfa_to_pansn(names, gfa_path, out_gfa_path):
                     assert barpos > 8
                     name = tok[8:barpos]
                     assert name in names
-                    dotpos = name.rfind('.')
-                    if dotpos > 0:
-                        hap = name[dotpos+1:]
-                        name = name[:dotpos]
-                    else:
-                        # add #0 to names without haplotype to make valid PAN-SN
-                        hap = '0'
-                    toks[4+i] = 'SN:Z:{}#{}#{}'.format(name, hap, tok[barpos+1:])
+                    # one splitter for every artifact: this GFA, the GAF that indexes into it,
+                    # and hal2vg's final graph.  splitting here on the last '.' verbatim instead
+                    # gave HG002.01 -> HG002#01# against the GAF's HG002#1#, and HG002.pat ->
+                    # HG002#pat#, which is not a PanSN haplotype at all
+                    toks[4+i] = 'SN:Z:{}#{}'.format(event_to_pansn_prefix(name), tok[barpos+1:])
                     break
             out_file.write(('\t'.join(toks) + '\n').encode())
         else:
@@ -593,6 +603,7 @@ def minigraph_gfa_to_pansn(names, gfa_path, out_gfa_path):
 
     in_file.close()
     out_file.close()
+    bgzip_gfa_rename(raw_out_path, out_gfa_path, threads)
 
 def minigraph_gfa_from_pansn(job, names, gfa_path, gfa_id):
     """ hack to convert PanSN names like simChimp#0#simpChimp.chr6 to Cactus names like id=simChimp.0|simChimp.chr6
@@ -605,13 +616,8 @@ def minigraph_gfa_from_pansn(job, names, gfa_path, gfa_id):
     gfa_path = os.path.join(work_dir, os.path.basename(gfa_path))
     job.fileStore.readGlobalFile(gfa_id, gfa_path)
     out_gfa_path = os.path.join(work_dir, 'cactus.' + os.path.basename(gfa_path))
-    
-    if gfa_path.endswith('.gz'):
-        in_file = gzip.open(gfa_path, 'rb')
-        out_file = gzip.open(out_gfa_path, 'wb')
-    else:
-        in_file = open(gfa_path, 'rb')
-        out_file = open(out_gfa_path, 'wb')
+
+    in_file, out_file, raw_out_path = open_gfa_for_rename(gfa_path, out_gfa_path)
 
     for line in in_file:
         line = line.decode()
@@ -643,6 +649,7 @@ def minigraph_gfa_from_pansn(job, names, gfa_path, gfa_id):
 
     in_file.close()
     out_file.close()
+    bgzip_gfa_rename(raw_out_path, out_gfa_path, job.cores)
 
     return job.fileStore.writeGlobalFile(out_gfa_path)
 

@@ -378,21 +378,6 @@
 	</hal>
 	<!-- cactus-graphmap options -->
 	<!-- assemblyName: special name of "virtual" minigraph assembly, which is just the list of sequences from the graph. -->
-	<!-- universalMZFilter: only use minimizers who appear in this proportion (1.0 == 100%) of sequences that map over them. -->
-	<!-- nodeBasedUniversal: universal filter calculated in terms of nodes istead of mapped regions. -->
-	<!-- minMZBlockLength: only use minimizers that form contiguous blocks at least this long -->
-	<!-- minMAPQ: ignore minigraph alignments with mapping quality less than this -->
-	<!-- minGAFBlockLength: ignore minigraph alignments with block length less than this -->
-	<!-- minGAFNodeLength: ignore minigraph nodes with length less than this -->
-	<!-- minGAFQueryOverlapFilter: if 2 or more query regions in blocks of at least this size, filter them out. -->
-	<!--                           if 1 query region in a block of at least this size overlaps query regions in blocks smaller than this, filter out the smaller ones -->
-	<!--                           Filter is disabled when set to 0.  Any non-zero value will prevent query overlaps -->
-	<!-- maskFilter: any softmasked sequence intervals > than this many bp will be hardmasked before being read by the minigraph mapper [negative value = disable]-->
-	<!-- delFilter: any deletions implied by split-read mappings greater than this are removed from the paf (by removing all lines of the smallest block bordering deletion)-->
-	<!-- removeMinigraphFromPAF: replace all minigraph contigs with transitive alignments in cactus-align-->
-	<!-- cpu: use up to this many cpus for each minigraph command. -->
-	<!-- cactus-graphmap options -->
-	<!-- assemblyName: special name of "virtual" minigraph assembly, which is just the list of sequences from the graph. -->
 	<!-- minigraphMapOptions: flags to pass to minigraph for mapping -->
 	<!-- minigraphConstructOptions: flags to pass to minigraph for construction -->
 	<!-- minigraphConstructBatchSize: break minigraph construction into chunks of this size. this allows recovering from a failure during graph construction, and avoiding really long argument lists for each job. -->
@@ -404,9 +389,6 @@
 	<!-- minigraphSortBySample: Toggle weather mash distances are considered at the sample (1) or haplotype level (0). By default it's set to "nonbatch" which defaults to 1 unless the batch/mgsplit option is used then 0 -->
 	<!-- minMAPQ: ignore minigraph alignments with mapping quality less than this -->
 	<!-- minGAFBlockLength: ignore minigraph alignments with block length less than this -->
-	<!-- minGAFQueryOverlapFilter: if 2 or more query regions in blocks of at least this size, filter them out. -->
-	<!--                           if 1 query region in a block of at least this size overlaps query regions in blocks smaller than this, filter out the smaller ones -->
-	<!--                           Filter is disabled when set to 0.  Any non-zero value will prevent query overlaps [NOTE:holdover from pre-cigar days; should probably remove -->		  
 	<!-- GAFOverlapFilterRatio: filter overlapping (by query) gaf records. keep records if their MAPQ or query length are <ratio> bigger than overlapping interval (see gaffilter -r) [0=disable] -->
 	<!-- GAFOverlapFilterMinLengthRatio: only consider overlaps (for above) whose lengths represent at least this much (ratio between 0 and 1) of the block length -->
 	<!-- PAFOverlapFilterRatio: Same as GAFOverlapFilterRatio, but applied after conversion to PAF -->
@@ -432,7 +414,6 @@
 		 minigraphSortBySample="nonbatch"
 		 minMAPQ="5"
 		 minGAFBlockLength="250000"
-		 minGAFQueryOverlapFilter="0"
 		 GAFOverlapFilterRatio="5"
 		 GAFOverlapFilterMinLengthRatio="0.25"
 		 PAFOverlapFilterRatio="5"
@@ -476,10 +457,13 @@
 	<!-- gfaffix: toggle gfaffix normalization on/off -->
 	<!-- pathNormalize: toggle path normalization (merge equivalent paths through same site) on/off -->
 	<!-- clipNonMinigraph: clip out regions if the don't align to minigraph (if disabled, clip if they don't align to anything) -->
+	<!-- clipFlank: trim the fringe an aligner leaves where it extended anchors into a repeat, outward from each clipped interval by up to this many bp, for as long as unaligned sequence stays dense.  0 disables.  This value is the main control: inside a repeat the gate seldom closes on its own, so the cap decides how much goes.  Measured on a 124-haplotype chrY, 3.4% of edges at 20000, 9.4% at 50000, 29.4% at 200000.  50000 is the value benchmarked whole-genome (231/231 samples improved on F1); lowering it does not sharpen the trim, it just removes less -->
+	<!-- clipFlankThreshold: advanced.  keep trimming while more than this fraction of bases are unaligned, by the same test the clipping itself uses.  Negative calibrates per graph, which is almost always what you want: over 24 human chromosomes the calibrated value ran from 0.054 to 0.230, a 4.3x spread that tracks neither haplotype count nor chromosome size -->
 	<!-- minimizerOptions: options for vg minimizer -->
 	<!-- minFilterFragment: discard fragments that result from the vg clip frequency filter if they are smaller than this -->
 	<!-- clipContext: use this many context steps when doing edge clipping (activated via delEdgeFilter cli option) -->	
 	<!-- removeStubs: remove any nodes dangling off reference paths (ie softclips) -->
+	<!-- refGapMinLength: minimum length of a reference gap (run of reference with no other assembly aligned) to report in the exclusion report. set to 0 to skip the reference gap scan entirely -->
 	<!-- odgiVizOptions: options to odgi viz, used for 1d viz -->
 	<!-- odgiLayoutOptions: options to odgi layout, used for 2d viz -->
 	<!-- odgiDrawOptions: options to odgi draw, used for 2d viz -->
@@ -490,17 +474,20 @@
 	<!-- vcfwaveNorm: run bcftools norm -f (left shift) after vcfwave -->
 	<!-- bcftoolsNorm: Run bcftools norm -f (left shifting) on (non-raw, non-wave) VCF output (may result in overlapping variants) -->
 	<!-- mergeDuplicatesOptions: Run merge_duplicates script with these options (empty string means default options) after bcftools norm to prevent multiple entries at the same position.  If "0", merge_duplicates will not be run.  This applies to normalization as toggled by vcfwaveNorm and/or bctoolsNorm (and is ever run after bcftools norm) -->
-	<!-- sometimes vg deconstruct will report "conflict" sites where there are no alt genotypes found.  Setting this flag to 1 will filter these out (except in .raw.vcf.gz) -->
+	<!-- filterAC0: sometimes vg deconstruct will report "conflict" sites where there are no alt genotypes found.  Setting this flag to 1 will filter these out: a site with no carried allele at all is dropped, and any allele nothing carries is trimmed off the sites that remain, so a big bubble is reported with just the alleles its samples actually take.  Never applies to .raw.vcf.gz, which keeps every traversal the graph has -->
 	<graphmap_join
 		 maxNodeLength="1024"
 		 gfaffix="1"
 		 pathNormalize="1"
-		 clipNonMinigraph="1"		 
+		 clipNonMinigraph="1"
+		 clipFlank="50000"
+		 clipFlankThreshold="-1"
 		 minimizerOptions="-k 29 -w 11"
 		 lrMinimizerOptions="-k 31 -w 50 -W"
 		 minFilterFragment="1000"
 		 clipContext="1000"
 		 removeStubs="1"
+		 refGapMinLength="10000"
 		 odgiVizOptions="-x 1500 -y 500 -a 10"
 		 odgiLayoutOptions="-x 50"
 		 odgiDrawOptions="-H 1000"
@@ -513,7 +500,6 @@
 		 mergeDuplicatesOptions=""
 		 filterAC0="1"
 		 minGrefLen="50"
-		 grefPrefix="gref_"
 		 />
 	<!-- hal2vg options -->
 	<!-- includeMinigraph: include minigraph node sequences as paths in output (note that cactus-graphmap-join will still remove them by default) -->
@@ -525,6 +511,17 @@
 		 includeAncestor="0"
 		 prependGenomeNames="1"
 		 hal2vgOptions="--progress --inMemory"
+		 />
+	<!-- panacus options (pangenome coverage/growth statistics with a native interactive-HTML plot) -->
+	<!-- countType: comma-separated graph feature(s) to count, each one of node, bp, edge (a separate report section is made for each) -->
+	<!-- groupBy: how paths are grouped (PanSN-spec), one of haplotype, sample -->
+	<!-- quorum: comma-separated quorum thresholds for the growth curves (0=whole pangenome, 1=core genome) -->
+	<!-- clusterMethod: linkage for the similarity heatmap, one of Single, Complete, Average, Weighted, Ward, Centroid, Median -->
+	<panacus
+		 countType="bp,node"
+		 groupBy="haplotype"
+		 quorum="0,0.1,0.5,1"
+		 clusterMethod="Average"
 		 />
   	<multi_cactus>
 	        <!-- stategy: outgroup selection algorithm, can be one of greedy, greedyPreference, greedyLeaves or greedyLeavesPreference -->
@@ -555,28 +552,53 @@
 			allow_multifurcations="0"
 	 	/>
   	</multi_cactus>
-	<!-- memory_core_scale_pct: percentage to increase memory per core above baseline (default 0.5 means 0.5% more memory per extra core) -->
-	<!-- memory_core_scale_baseline: number of cores at which scaling begins (default 32) -->
-	<!-- memory_core_scale_max_pct: maximum percentage increase allowed (default 100 means memory can at most double) -->
+	<!-- cactus_consolidated memory is estimated as
+	     memory_coefficient_gb * (paf_GB + total_sequence_GB)^memory_input_exponent,
+	     then scaled for the poa window and the core count.  Fitted to 575 VGP alignments
+	     (64 cores, stock bar parameters).  The exponent is well under 1 because peak memory
+	     saturates: it is set by the largest flowers bar builds rather than by input volume.
+	     AnuraAnc6 with a 0.44 GB paf peaked at 685.9 GiB and salamander Anc3 with a 45x larger
+	     19.8 GB paf peaked at 682.3 GiB, so anything linear in the input overshoots badly on
+	     large genomes. -->
+	<!-- memory_ramp_gb: taper the estimate to zero below this much input.  The smallest
+	     alignment in the fit had 0.027 GB, so below that the power law is extrapolation and
+	     would hand a toy test tens of GiB.  Set under every point in the fit, so it moves none
+	     of them. -->
+	<!-- memory_core_scale_pct: percent memory change per core away from the baseline, applied in
+	     both directions.  Concurrent abpoa instances equal the core count, so fewer cores really
+	     do need less memory.  0.65 measured on AnuraAnc6: 465.5 GiB at 24 cores, 542.2 at 32,
+	     685.9 at 64 -->
+	<!-- memory_core_scale_baseline: core count the estimate is calibrated at (the fit data was
+	     all run at 64) -->
+	<!-- memory_core_scale_max_pct: cap on the increase (100 = memory can at most double) -->
+	<!-- memory_poa_window_exponent: memory scales as (window/10000)^this.  NOT quadratic despite
+	     what the poa comment says: halving the window to 5000 measured 858.4 -> 639.4 GiB, since
+	     halving it also halves the number of windows.  Nothing is subtracted for
+	     partialOrderAlignmentMaskFilter, which matters more but was disabled in all the fit
+	     data, so enabling it only makes the estimate conservative -->
 	<!-- og_size_scale: scale outgroup sizes by this factor (percent) when computing total sequence size -->
+	<!-- retain_pages: whether cactus_consolidated keeps the pages jemalloc frees instead of
+	     returning them to the OS.  Keeping them is much faster (bar 12x and caf 1.25x on
+	     salamander Anc3) at a 2-3x higher peak memory (MammalsAnc0 90 -> 299 GiB).  "1" always,
+	     "0" never, "auto" keeps them unless the retained memory estimate is more than the job can
+	     be given (the system memory on a single machine, or the maxMemory option), in which case the
+	     estimate is divided by memory_retain_ratio and the pages are not kept.  The memory fit
+	     above was measured with retention on.  The consRetainPages command line option overrides. -->
+	<!-- memory_retain_ratio: peak memory with retention over peak without, used to shrink the
+	     estimate when retention is switched off: 1.8 (fish Anc48 caf), 2.0 (yeast bar),
+	     3.3 (MammalsAnc0) -->
 	<consolidated
-		 memory_core_scale_pct="0.5"
-		 memory_core_scale_baseline="32"
+		 retain_pages="auto"
+		 memory_retain_ratio="2.5"
+		 memory_coefficient_gb="220"
+		 memory_input_exponent="0.30"
+		 memory_ramp_gb="0.02"
+		 memory_core_scale_pct="0.65"
+		 memory_core_scale_baseline="64"
 		 memory_core_scale_max_pct="100"
+		 memory_poa_window_exponent="0.43"
 		 og_size_scale_pct="75"
 		 >
-	       <!-- consolidatedMemory: Specify memory requirement (in bytes) for cactus_conslidated. Each attribute corresponds to an interval start, and must be in the form seq_size_TOTAL_INPUT_SEQUENCE_SIZE=MEMORY.  So if cactus_consolidated is getting N input bytes, the first interval containing N is found, and the value of that attribute is used as the Toil memory. The idea is that it will be easier to fiddle with these than a single polynomial function while attempting to learn decent defaults by trial and error. By default, the memory requirement is linearly interpolated based on the endpoints of the interval.  If consMemory CLI option is used, then it overrides everything here.   -->
-	 	<consolidatedMemory
-	 		seq_size_0="1000000"
-			seq_size_10000000="16000000000"
-			seq_size_50000000="64000000000"
-			seq_size_1000000000="128000000000"
-			seq_size_4000000000="256000000000"
-			seq_size_10000000000="512000000000"
-			seq_size_15000000000="1000000000000"
-			seq_size_17500000000="1500000000000"
-			seq_size_20000000000="1990000000000"
-	 	/>
 	</consolidated>
 	<consolidated2></consolidated2>
 </cactusWorkflowConfig>

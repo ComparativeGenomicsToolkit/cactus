@@ -91,14 +91,12 @@ stList *stCaf_breakupComponentGreedily(stList *nodes, stList *edges, int64_t max
 }
 
 static void convertToNodesAndEdges(stList *adjacencyComponent, stList **nodes, stList **edges) {
-    //Make nodes
+    //Make nodes, recording each end's node in the end's data slot (the walks below only ever reach ends of this component)
     *nodes = stList_construct3(0, (void(*)(void *)) stIntTuple_destruct);
-    stHash *pinchEndsToNodesHash = stHash_construct3(stPinchEnd_hashFn, stPinchEnd_equalsFn, NULL, NULL);
     for (int64_t i = 0; i < stList_length(adjacencyComponent); i++) {
         stIntTuple *node = stIntTuple_construct1(i);
         stList_append(*nodes, node);
-        assert(stHash_search(pinchEndsToNodesHash, stList_get(adjacencyComponent, i)) == NULL);
-        stHash_insert(pinchEndsToNodesHash, stList_get(adjacencyComponent, i), node);
+        stPinchEnd_setData(stList_get(adjacencyComponent, i), node);
     }
     //Make edges
 
@@ -108,7 +106,7 @@ static void convertToNodesAndEdges(stList *adjacencyComponent, stList **nodes, s
             (void(*)(void *)) stIntTuple_destruct);
     for (int64_t i = 0; i < stList_length(adjacencyComponent); i++) {
         stPinchEnd *pinchEnd1 = stList_get(adjacencyComponent, i);
-        int64_t node1 = stIntTuple_get(stHash_search(pinchEndsToNodesHash, pinchEnd1), 0);
+        int64_t node1 = stIntTuple_get(stPinchEnd_getData(pinchEnd1), 0);
         stPinchBlockIt segmentIt = stPinchBlock_getSegmentIterator(stPinchEnd_getBlock(pinchEnd1));
         stPinchSegment *segment;
         while ((segment = stPinchBlockIt_getNext(&segmentIt)) != NULL) {
@@ -118,8 +116,8 @@ static void convertToNodesAndEdges(stList *adjacencyComponent, stList **nodes, s
                 if (stPinchSegment_getBlock(segment2) != NULL) {
                     stPinchEnd pinchEnd2 = stPinchEnd_constructStatic(stPinchSegment_getBlock(segment2),
                             stPinchEnd_endOrientation(traverse5Prime, segment2));
-                    assert(stHash_search(pinchEndsToNodesHash, &pinchEnd2) != NULL);
-                    int64_t node2 = stIntTuple_get(stHash_search(pinchEndsToNodesHash, &pinchEnd2), 0);
+                    assert(stPinchEnd_getData(&pinchEnd2) != NULL);
+                    int64_t node2 = stIntTuple_get(stPinchEnd_getData(&pinchEnd2), 0);
                     if (node1 != node2) { //Ignore self edges
                         stIntTuple *edge = node1 < node2 ? stIntTuple_construct2(node1, node2) : stIntTuple_construct2(node2, node1);
                         int64_t multiplicity = 1;
@@ -147,7 +145,6 @@ static void convertToNodesAndEdges(stList *adjacencyComponent, stList **nodes, s
     }
 
     //Cleanup
-    stHash_destruct(pinchEndsToNodesHash);
     stHash_destruct(edgesToMultiplicityHash);
 }
 
@@ -188,6 +185,8 @@ static void breakEdges(stPinchThreadSet *threadSet, stPinchEnd *pinchEnd1, stPin
 }
 
 void stCaf_breakupComponentsGreedily(stPinchThreadSet *threadSet, float maximumAdjacencyComponentSizeRatio) {
+    //Attach first so that the block count comes from the records rather than a walk over every segment
+    stPinchThreadSet_attachEnds(threadSet);
     int64_t maximumAdjacencyComponentSize = maximumAdjacencyComponentSizeRatio * log(stPinchThreadSet_getTotalBlockNumber(threadSet) * 2);
     if (maximumAdjacencyComponentSize < 10) {
         maximumAdjacencyComponentSize = 10;
@@ -227,4 +226,5 @@ void stCaf_breakupComponentsGreedily(stPinchThreadSet *threadSet, float maximumA
         }
     }
     stList_destruct(adjacencyComponents);
+    stPinchThreadSet_detachEnds(threadSet);
 }

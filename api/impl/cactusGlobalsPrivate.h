@@ -53,4 +53,17 @@
 #include "cactusFlowerPrivate.h"
 #include "cactusTestCommon.h"
 
+/*
+ * Constructors check that the object they just inserted can be found again by name. Each such check is
+ * a binary search over the flower's caps or ends with a comparator that goes through several accessor
+ * calls, and because cactus builds with asserts on they ran in production: on the caf stage they were a
+ * quarter of the time spent converting the pinch graph into flowers. They are compiled in only when
+ * CACTUS_EXPENSIVE_ASSERTS is defined; every other assert is untouched.
+ */
+#ifdef CACTUS_EXPENSIVE_ASSERTS
+#define cactus_assertExpensive(x) assert(x)
+#else
+#define cactus_assertExpensive(x) ((void) 0)
+#endif
+
 #endif

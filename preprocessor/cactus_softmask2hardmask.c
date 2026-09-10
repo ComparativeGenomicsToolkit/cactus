@@ -118,5 +118,10 @@ int main(int argc, char *argv[]) {
         fastaReadToFunction(fileHandle, &min_length, hardmask);
     }
 
+    // stdout is either the hardmasked fasta or the bed of masked intervals; a
+    // short bed silently under-masks, and it is applied to a different file, so
+    // nothing downstream can notice the missing lines
+    st_fcheck(stdout, "standard output");
+
     return 0;
 }

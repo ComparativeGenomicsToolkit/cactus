@@ -6,6 +6,7 @@ needed toil autoscale, and it'll be easier to keep all dependencies managed in s
 """
 
 import os, sys
+import shlex
 from argparse import ArgumentParser
 import copy
 import timeit, time
@@ -60,8 +61,8 @@ def main():
     parser.add_argument("--onlyOrthologs", action="store_true", help = "Run hal2maf with --onlyOrthologs option which attempts to  keep only duplications that are also separate in ancestor")
 
     # newer output type selection option
-    parser.add_argument("--outType", nargs='+', default=['norm'], choices=["raw", "norm", "single", "consensus"],
-                        help="Select which kind of postprocessing to apply to the hal2maf output. Multiple selections allowed. raw: return hal2maf output as-is; norm: run taffy normalization to merge adjacent blocks where possible; single: heuristically choose single, most similar homolog for each species for each (normalized) block using mafDuplicateFilter; consensus:  squish all duplicate rows for each (normalized) block into a single conensus row using maf_stream. [default=norm]")
+    parser.add_argument("--outType", nargs='+', default=['norm'], choices=["raw", "norm", "single", "single-ref", "consensus"],
+                        help="Select which kind of postprocessing to apply to the hal2maf output. Multiple selections allowed. raw: return hal2maf output as-is; norm: run taffy normalization to merge adjacent blocks where possible; single: heuristically choose single, most similar homolog for each species for each (normalized) block using mafDuplicateFilter; single-ref: like single but only filter duplicates of the reference genome (keeping the true reference / first row), leaving all other species untouched; consensus:  squish all duplicate rows for each (normalized) block into a single conensus row using maf_stream. [default=norm]")
     # new dupe-handler option
 
     # toggle taffy indexing
@@ -441,7 +442,10 @@ def taf_cmd(hal_path, chunk, chunk_num, genome_list_path, sed_script_paths, opti
     if genome_list_path:
         cmd += ' | taffy view | taffy sort -n {} | taffy view -m'.format(os.path.basename(genome_list_path), chunk_num)        
     if out_type == 'single':
-        cmd += ' | mafDuplicateFilter -m - -k'                                               
+        cmd += ' | mafDuplicateFilter -m - -k'
+    elif out_type == 'single-ref':
+        # -r: only collapse duplicates of the reference genome; -k: keep the first (true reference) row
+        cmd += ' | mafDuplicateFilter -m - -k -r'
     elif out_type == 'consensus':
         cmd += ' | maf_stream merge_dups consensus'
         # need to resort after merge_dups
@@ -644,11 +648,23 @@ def hal2maf_batch(job, hal_id, batch_chunks, genome_list, options, config):
         for i in range(len(batch_chunks)):
             cmd = '{} {}'.format(cat_cmd, os.path.join(work_dir, '{}'.format(chunk_name(i, options))))
             if i > 0:
-                cmd += '| grep -v ^#'
+                # sed rather than "grep -v ^#": same lines removed, but grep
+                # exits 1 when every line matched, and with pipefail now
+                # actually in effect that would fail the stitch on a chunk that
+                # happens to contain nothing but headers
+                cmd += "| sed '/^#/d'"
             if options.outputMAF.endswith('.gz'):
                 cmd += '| bgzip'
             cmd += ' >> {}'.format(raw_maf_path)
-            system(cmd)
+            # pipefail as in hal2maf_cmd/taf_cmd above: without it only the last
+            # stage's status is seen, and since each chunk is appended to one
+            # shared maf a single silent failure corrupts the whole stitch.
+            # Those two are safe to write the option inline because cactus_call
+            # runs them under bash; this one goes through toil's system(), which
+            # is /bin/sh, and that is dash on debian and ubuntu -- including our
+            # own container -- where "set -o pipefail" is an illegal option and
+            # aborts the shell before the command runs.  So ask for bash here.
+            system('bash -c ' + shlex.quote('set -eo pipefail && ' + cmd))
             out_dict['raw'] = job.fileStore.writeGlobalFile(raw_maf_path)
         
     return out_dict            

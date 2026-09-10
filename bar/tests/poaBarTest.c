@@ -200,7 +200,7 @@ void test_make_flower_alignment_poa(CuTest *testCase) {
             if (cap_getSide(cap)) {
                 cap = cap_getReverse(cap);
             }
-            int length;
+            int64_t length;
             char *s = get_adjacency_string(cap, &length, 1);
             Cap *adjacentCap = cap_getAdjacency(cap);
 #ifdef stderr_logging            
@@ -223,6 +223,81 @@ void test_make_flower_alignment_poa(CuTest *testCase) {
     }
 
     abpoa_free_para(abpt);
+    teardown(testCase);
+}
+
+
+/*
+ * Reference implementation of the mask-filter scan, run over the whole adjacency. This is what
+ * get_adjacency_string_and_overlap used to do before it started fetching bounded windows.
+ */
+static int64_t ref_unmasked_length(const char *seq, int64_t seq_length, int64_t length, bool reversed, int64_t mask_filter) {
+    if (mask_filter >= 0) {
+        int64_t run_start = -1;
+        for (int64_t i = 0; i < length; ++i) {
+            char base = reversed ? seq[seq_length - 1 - i] : seq[i];
+            if (islower(base) || base == 'N') {
+                if (run_start == -1) {
+                    run_start = i;
+                }
+                if (i + 1 - run_start > mask_filter) {
+                    return run_start;
+                }
+            } else {
+                run_start = -1;
+            }
+        }
+    }
+    return length;
+}
+
+/*
+ * get_adjacency_string_and_overlap fetches only the prefix it keeps and the suffix the mask filter
+ * scans, rather than materialising the whole adjacency. Check that agrees with slicing the whole
+ * thing, at every truncation point and on both strands -- the reverse strand takes its window from
+ * the far end, which is where this is easy to get wrong.
+ */
+void test_get_adjacency_string_and_overlap_bounded(CuTest *testCase) {
+    setup(testCase);
+    End *end;
+    Flower_EndIterator *endIterator = flower_getEndIterator(flower);
+    while ((end = flower_getNextEnd(endIterator)) != NULL) {
+        Cap *cap;
+        End_InstanceIterator *capIterator = end_getInstanceIterator(end);
+        while ((cap = end_getNext(capIterator)) != NULL) {
+            if (cap_getSide(cap)) {
+                cap = cap_getReverse(cap);
+            }
+            int64_t seq_length;
+            char *whole = get_adjacency_string(cap, &seq_length, 1);
+            CuAssertTrue(testCase, (int64_t) strlen(whole) == seq_length);
+
+            for (int64_t max_len = 0; max_len <= seq_length + 1; max_len++) {
+                for (int64_t mask_filter = -1; mask_filter <= 3; mask_filter++) {
+                    int length;
+                    int64_t overlap;
+                    char *got = get_adjacency_string_and_overlap(cap, &length, &overlap, max_len, mask_filter);
+
+                    int64_t forward = seq_length > max_len ? max_len : seq_length;
+                    int64_t backward = forward;
+                    if (mask_filter >= 0) {
+                        forward = ref_unmasked_length(whole, seq_length, forward, false, mask_filter);
+                        backward = ref_unmasked_length(whole, seq_length, forward, true, mask_filter);
+                    }
+                    int64_t expected_overlap = forward + backward > seq_length ? forward + backward - seq_length : 0;
+
+                    CuAssertTrue(testCase, length == forward);
+                    CuAssertTrue(testCase, overlap == expected_overlap);
+                    CuAssertTrue(testCase, (int64_t) strlen(got) == forward);
+                    CuAssertTrue(testCase, strncmp(got, whole, forward) == 0);
+                    free(got);
+                }
+            }
+            free(whole);
+        }
+        end_destructInstanceIterator(capIterator);
+    }
+    flower_destructEndIterator(endIterator);
     teardown(testCase);
 }
 
@@ -269,6 +344,7 @@ CuSuite* poaBarAlignerTestSuite(void) {
     SUITE_ADD_TEST(suite, test_make_partial_order_alignment);
     SUITE_ADD_TEST(suite, test_make_consistent_partial_order_alignments_two_ends);
     SUITE_ADD_TEST(suite, test_make_flower_alignment_poa);
+    SUITE_ADD_TEST(suite, test_get_adjacency_string_and_overlap_bounded);
     SUITE_ADD_TEST(suite, test_alignment_block_iterator);
     return suite;
 }

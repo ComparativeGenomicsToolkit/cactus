@@ -4,6 +4,7 @@
  * Released under the MIT license, see LICENSE.txt
  */
 
+#include <limits.h>
 #include "abpoa.h"
 #include "poaBarAligner.h"
 #include "flowerAligner.h"
@@ -748,6 +749,17 @@ Msa *msa_make_partial_order_alignment(char **seqs, int *seq_lens, int64_t seq_no
     return output_msa;
 }
 
+/*
+ * The partial order alignments below used to run under a nested OpenMP region for flowers
+ * with at least 50 ends.  That is gone.  A nested num_threads(k) region creates k new
+ * threads per outer thread rather than subdividing the outer team, so it multiplied the
+ * number of concurrent abPOA instances -- and with them this phase's peak memory -- while
+ * buying no wall-clock time.  Measured on VGP data at equal runtime: 2.2x the memory on
+ * MammalsAnc0 (208 ends at most) and 4.9x on AnuraAnc6 (847 ends), the penalty growing
+ * with flower size, so it cost most on exactly the largest problems.  The parallelism
+ * belongs in the flower loop in bar.c, which already saturates the thread count.
+ */
+
 Msa **make_consistent_partial_order_alignments(int64_t end_no, int64_t *end_lengths, char ***end_strings,
         int **end_string_lengths, int64_t **right_end_indexes, int64_t **right_end_row_indexes, int64_t **overlaps,
         int64_t window_size, int64_t max_prog_rows, double max_prog_length_diff, abpoa_para_t *poa_parameters) {
@@ -755,22 +767,6 @@ Msa **make_consistent_partial_order_alignments(int64_t end_no, int64_t *end_leng
     float *column_scores[end_no];
     Msa **msas = st_malloc(sizeof(Msa *) * end_no);
 
-#if defined(_OPENMP)
-    // Only use nested parallelism for ≥50 ends
-    static const int min_ends_for_nesting = 50;
-    static const int max_threads_for_nesting = 8;
-    int nested_threads = 1;
-    if (end_no >= min_ends_for_nesting) {
-        // never use more than an eighth of our threads    
-        int max_threads = omp_get_max_threads() / 8;
-        nested_threads = end_no < max_threads ? end_no : max_threads;
-        if (nested_threads > max_threads_for_nesting) {
-            nested_threads = max_threads_for_nesting;
-        }
-    }
-    
-#pragma omp parallel for schedule(dynamic, 1) if(nested_threads > 1) num_threads(nested_threads)
-#endif
     for(int64_t i=0; i<end_no; i++) {
         msas[i] = msa_make_partial_order_alignment(end_strings[i], end_string_lengths[i], end_lengths[i], window_size,
                                                    max_prog_rows, max_prog_length_diff, poa_parameters);
@@ -814,7 +810,7 @@ void alignmentBlock_destruct(AlignmentBlock *alignmentBlock) {
     }
 }
 
-char *get_adjacency_string(Cap *cap, int *length, bool return_string) {
+char *get_adjacency_string(Cap *cap, int64_t *length, bool return_string) {
     assert(!cap_getSide(cap));
     Sequence *sequence = cap_getSequence(cap);
     assert(sequence != NULL);
@@ -834,6 +830,27 @@ char *get_adjacency_string(Cap *cap, int *length, bool return_string) {
     }
 }
 
+/*
+ * Materialises [offset, offset+length) of the adjacency without building the whole thing. An
+ * adjacency can span most of a chromosome, which is gigabytes of ASCII, and BAR holds one per
+ * thread.
+ */
+static char *get_adjacency_substring(Cap *cap, int64_t offset, int64_t length) {
+    assert(!cap_getSide(cap));
+    assert(offset >= 0 && length >= 0);
+    Sequence *sequence = cap_getSequence(cap);
+    Cap *cap2 = cap_getAdjacency(cap);
+    if (cap_getStrand(cap)) {
+        // base i of the adjacency is at coordinate cap+1+i
+        return sequence_getString(sequence, cap_getCoordinate(cap) + 1 + offset, length, 1);
+    }
+    // on the reverse strand the adjacency is the reverse complement of [cap2+1, cap-1], so base i
+    // is at coordinate cap-1-i and the window we want starts that far in from the other end
+    int64_t total = cap_getCoordinate(cap) - cap_getCoordinate(cap2) - 1;
+    assert(offset + length <= total);
+    return sequence_getString(sequence, cap_getCoordinate(cap2) + 1 + (total - offset - length), length, 0);
+}
+
 /**
  * Used to find where a run of masked (hard or soft) of at least mask_filter bases starts
  * @param seq : The string
@@ -843,7 +860,7 @@ char *get_adjacency_string(Cap *cap, int *length, bool return_string) {
  * @param mask_filter : Cut a string as soon as we hit more than this many hard or softmasked bases (cut is before first masked base)
  * @return length of the filtered string
  */
-static int get_unmasked_length(char* seq, int64_t seq_length, int64_t length, bool reversed, int64_t mask_filter) {
+static int64_t get_unmasked_length(char* seq, int64_t seq_length, int64_t length, bool reversed, int64_t mask_filter) {
     if (mask_filter >= 0) {
         int64_t run_start = -1;
         for (int64_t i = 0; i < length; ++i) {
@@ -855,14 +872,14 @@ static int get_unmasked_length(char* seq, int64_t seq_length, int64_t length, bo
                 }
                 if (i + 1 - run_start > mask_filter) {
                     // our run exceeds the mask_filter, cap before the first masked base
-                    return (int)run_start;
+                    return run_start;
                 }
             } else {
                 run_start = -1;
             }
         }
     }
-    return (int)length;
+    return length;
 }
 
 /**
@@ -874,35 +891,48 @@ static int get_unmasked_length(char* seq, int64_t seq_length, int64_t length, bo
  * @return
  */
 char *get_adjacency_string_and_overlap(Cap *cap, int *length, int64_t *overlap, int64_t max_seq_length, int64_t mask_filter) {
-    // Get the complete adjacency string
-    int seq_length;
-    char *adjacency_string = get_adjacency_string(cap, &seq_length, 1);
+    // Take the adjacency's length without materialising it: only the prefix we keep, and the
+    // suffix the mask filter scans, are ever fetched.
+    int64_t seq_length;
+    get_adjacency_string(cap, &seq_length, 0);
     assert(seq_length >= 0);
 
-    // Calculate the length of the prefix up to max_seq_length
-    *length = seq_length > max_seq_length ? max_seq_length : seq_length;
-    assert(*length >= 0);
-    int length_backward = *length;
+    // The prefix, up to max_seq_length
+    int64_t length_forward = seq_length > max_seq_length ? max_seq_length : seq_length;
+    bool have_whole_adjacency = length_forward == seq_length;
+    char *adjacency_string = get_adjacency_substring(cap, 0, length_forward);
+    int64_t length_backward = length_forward;
 
     if (mask_filter >= 0) {
         // apply the mask filter on the forward strand
-        *length = get_unmasked_length(adjacency_string, seq_length, *length, false, mask_filter);
-        length_backward = get_unmasked_length(adjacency_string, seq_length, *length, true, mask_filter);
+        length_forward = get_unmasked_length(adjacency_string, length_forward, length_forward, false, mask_filter);
+        if (have_whole_adjacency) {
+            length_backward = get_unmasked_length(adjacency_string, seq_length, length_forward, true, mask_filter);
+        } else {
+            // the backward scan reads the last length_forward bases, which are not in the prefix
+            char *suffix = get_adjacency_substring(cap, seq_length - length_forward, length_forward);
+            length_backward = get_unmasked_length(suffix, length_forward, length_forward, true, mask_filter);
+            free(suffix);
+        }
     }
 
     // Cleanup the string
-    adjacency_string[*length] = '\0'; // Terminate the string at the given length
+    adjacency_string[length_forward] = '\0'; // Terminate the string at the given length
     char *c = stString_copy(adjacency_string);
     free(adjacency_string);
     adjacency_string = c;
 
     // Calculate the overlap with the reverse complement
-    if (*length + length_backward > seq_length) { // There is overlap
-        *overlap = *length + length_backward - seq_length;
+    if (length_forward + length_backward > seq_length) { // There is overlap
+        *overlap = length_forward + length_backward - seq_length;
         assert(*overlap >= 0);
     } else { // There is no overlap
         *overlap = 0;
     }
+
+    // Bounded by max_seq_length (<bar bandingLimit>), and abpoa takes its lengths as int
+    assert(length_forward <= INT_MAX);
+    *length = (int)length_forward;
 
     return adjacency_string;
 }
@@ -1052,10 +1082,15 @@ void create_alignment_blocks(Msa *msa, Cap **row_indexes_to_caps, stList *alignm
 
 
 int caps_comp_by_adjacency_length(const void *a, const void *b) {
-    int length1, length2;
+    int64_t length1, length2;
     get_adjacency_string((Cap *)a, &length1, 0);
     get_adjacency_string((Cap *)b, &length2, 0);
-    return length1 > length2 ? -1 : (length1 < length2 ? 1 : 0); // sort in descending order of length
+    if (length1 != length2) {
+        return length1 > length2 ? -1 : 1; // sort in descending order of length
+    }
+    // Equal lengths are common, and the row order decides the alignment, so
+    // separate them by name instead of leaving it to whatever qsort does
+    return cactusMisc_nameCompare(cap_getName((Cap *)a), cap_getName((Cap *)b));
 }
 
 /*
@@ -1102,7 +1137,7 @@ int64_t getMaxSequenceLength(End *end) {
         if (cap_getSide(cap)) {
             cap = cap_getReverse(cap);
         }
-        int length;
+        int64_t length;
         get_adjacency_string(cap, &length, 0);
         if(length > max_length) {
             max_length = length;

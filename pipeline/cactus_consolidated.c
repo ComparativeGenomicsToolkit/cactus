@@ -2,8 +2,15 @@
  * Released under the MIT license, see LICENSE.txt
  */
 
+// gethostname and sysconf are POSIX, and this file is compiled as strict c99, which declares
+// neither.  Ask for POSIX 2001 only; _GNU_SOURCE would also change declarations already in use here.
+#define _POSIX_C_SOURCE 200112L
 #include <time.h>
 #include <getopt.h>
+#include <string.h>
+#include <dlfcn.h>
+#include <sys/types.h>
+#include <unistd.h>
 #include "sonLib.h"
 #include "cactus.h"
 #include "cactus_setup.h"
@@ -28,6 +35,154 @@
  * cleanup input alignment format
  *
  */
+
+/*
+ * Retain freed pages instead of returning them to the OS.  abPOA allocates its DP matrix
+ * with posix_memalign at gigabyte sizes and frees it per alignment window; by default
+ * jemalloc hands those pages back and the next window faults them all in again.  Keeping
+ * them trades memory for that fault traffic, and on real workloads the trade is lopsided.
+ *
+ * Every setting below was measured on VGP data (cactus_consolidated wall time, 64 cores,
+ * nesting off).  The two marked "chosen" are what this function sets.
+ *
+ *   MammalsAnc0  dirty 10s  muzzy 0   (stock)      13433 s    90 GiB
+ *                dirty 10s  muzzy 30s..5min     17700-19552 s ~92 GiB   REJECTED: slower than stock
+ *                dirty 10s  muzzy -1               5573 s   282 GiB    2.4x
+ *                dirty -1   muzzy -1               3224 s   299 GiB    4.2x   chosen
+ *   AnuraAnc6    dirty -1   muzzy 0                9726 s   702 GiB   REJECTED: all the memory, half the speed
+ *                dirty -1   muzzy -1               5483 s   686 GiB    1.8x   chosen
+ *   oversize_threshold raised above the matrix size          +66% memory, +25% time   REJECTED
+ *
+ * Why the positive muzzy values lose to stock 0: a page then pays MADV_FREE *and* later
+ * MADV_DONTNEED and still refaults, so it is strictly worse than either extreme.  Note the
+ * stock muzzy_decay_ms in this build really is 0, not the 10000 the jemalloc docs suggest --
+ * an explicit 10000 is the *worst* case, not a no-op.  Both decays are set because dirty
+ * alone carries the entire memory cost for under half the speed, and muzzy on top of it is
+ * nearly free.  oversize_threshold is additionally read-only after startup.
+ *
+ * On salamander Anc3 (22 Gb genomes) this and the nesting removal together took bar from
+ * 76130 s to 6031 s and, unexpectedly, CAF from 29767 s to 23866 s.
+ *
+ * MALLOC_CONF only takes effect before main, and an environment variable set by a Toil
+ * leader may not reach the worker, so this is done at runtime instead.  mallctl is looked
+ * up rather than linked: builds with jemalloc off (Mac, CGL_DEBUG=ultra, legacy arch) then
+ * simply find nothing and carry on.
+ */
+// A weak reference resolves to jemalloc's mallctl when it is linked and stays null when it
+// is not, with no dlfcn and no _GNU_SOURCE (RTLD_DEFAULT is a GNU extension, and defining
+// _GNU_SOURCE for this one call would change other declarations in this file).
+extern int mallctl(const char *, void *, size_t *, void *, size_t) __attribute__((weak));
+
+static void cactus_jemalloc_retain_pages(CactusParams *params) {
+    // Retaining pages trades memory for speed and is sized for cluster nodes; on a small machine
+    // it can exhaust memory (a caf-only run of a 5-genome fish ancestor went from 10 GB to 18 GB).
+    // The <consolidated retain_pages> parameter decides: "0" leaves jemalloc's purging alone,
+    // "1" retains, and "auto" (the shipped default) is resolved by the workflow against the memory
+    // the job can get, and written as "0" or "1" into the config it hands this program; run by
+    // hand with "auto" still present, retention is on. CACTUS_JEMALLOC_RETAIN=0 in the
+    // environment switches it off regardless, for a benchmark harness.
+    const char *retain = getenv("CACTUS_JEMALLOC_RETAIN");
+    if (retain != NULL && strcmp(retain, "0") == 0) {
+        st_logInfo("jemalloc page retention disabled by CACTUS_JEMALLOC_RETAIN=0\n");
+        return;
+    }
+    if (cactusParams_has(params, 2, "consolidated", "retain_pages")) {
+        char *setting = cactusParams_get_string(params, 2, "consolidated", "retain_pages");
+        bool off = strcmp(setting, "0") == 0;
+        st_logInfo("<consolidated retain_pages=\"%s\">: jemalloc page retention %s\n", setting, off ? "off" : "on");
+        free(setting);
+        if (off) {
+            return;
+        }
+    }
+    int (*mallctl_fn)(const char *, void *, size_t *, void *, size_t) = mallctl;
+    if (mallctl_fn == NULL) {
+        // a statically linked jemalloc may not pull ctl.o in on a weak reference alone,
+        // so ask the dynamic loader before giving up.  dlopen(NULL) and RTLD_LAZY are POSIX.
+        void *self = dlopen(NULL, RTLD_LAZY);
+        if (self != NULL) {
+            *(void **)(&mallctl_fn) = dlsym(self, "mallctl");
+        }
+    }
+    if (mallctl_fn == NULL) {
+        st_logInfo("no jemalloc in this build, so page retention is not available\n");
+        return;
+    }
+
+    const char *names[2] = { "dirty_decay_ms", "muzzy_decay_ms" };
+    for (int w = 0; w < 2; w++) {
+        ssize_t v = -1;   // never purge
+        char key[64];
+        // the default every arena created from here on inherits -- most of them, since
+        // arenas are made lazily as threads first allocate and the OMP threads do not exist yet
+        snprintf(key, sizeof(key), "arenas.%s", names[w]);
+        int rc_default = mallctl_fn(key, NULL, NULL, &v, sizeof(v));
+
+        // and the handful that already exist, one at a time: MALLCTL_ARENAS_ALL is
+        // rejected here (EFAULT), so relying on it would silently leave them purging
+        unsigned narenas = 0;
+        size_t nsz = sizeof(narenas);
+        int set = 0, declined = 0;
+        if (mallctl_fn("arenas.narenas", &narenas, &nsz, NULL, 0) == 0) {
+            for (unsigned i = 0; i < narenas; i++) {
+                snprintf(key, sizeof(key), "arena.%u.%s", i, names[w]);
+                if (mallctl_fn(key, NULL, NULL, &v, sizeof(v)) == 0) {
+                    set++;
+                } else {
+                    declined++;   // uninitialised arenas refuse, harmlessly: they inherit
+                }
+            }
+        }
+        ssize_t readback = 0;
+        size_t sz = sizeof(readback);
+        snprintf(key, sizeof(key), "arenas.%s", names[w]);
+        mallctl_fn(key, &readback, &sz, NULL, 0);
+        st_logInfo("jemalloc %s set to -1: default for new arenas rc=%i (reads back %" PRIi64 "), "
+                   "%i of %u existing arenas set, %i declined\n",
+                   names[w], rc_default, (int64_t)readback, set, narenas, declined);
+    }
+}
+
+/*
+ * Which machine this ran on. A run's phase timings are only comparable with another run's when
+ * both ran on the same kind of node, and a heterogeneous cluster makes that easy to get wrong:
+ * the batch system knows, but nothing it records reaches this log.
+ */
+static void cactus_log_host(void) {
+    char hostname[256];
+    if (gethostname(hostname, sizeof(hostname)) != 0) {
+        strncpy(hostname, "unknown", sizeof(hostname));
+    }
+    hostname[sizeof(hostname) - 1] = '\0';
+
+    char *model = NULL;
+    FILE *cpuinfo = fopen("/proc/cpuinfo", "r"); // Linux only; elsewhere the model is simply not reported
+    if (cpuinfo != NULL) {
+        char line[512];
+        while (fgets(line, sizeof(line), cpuinfo) != NULL) {
+            if (strncmp(line, "model name", strlen("model name")) == 0) {
+                char *value = strchr(line, ':');
+                if (value != NULL) {
+                    value++;
+                    while (*value == ' ' || *value == '\t') {
+                        value++;
+                    }
+                    size_t length = strlen(value);
+                    while (length > 0 && (value[length - 1] == '\n' || value[length - 1] == ' ')) {
+                        value[--length] = '\0';
+                    }
+                    model = stString_copy(value);
+                }
+                break;
+            }
+        }
+        fclose(cpuinfo);
+    }
+
+    long processors = sysconf(_SC_NPROCESSORS_ONLN);
+    st_logInfo("caf-host: %s cpu \"%s\" processors %ld\n", hostname, model != NULL ? model : "unknown", processors);
+    free(model);
+}
 
 void usage() {
     fprintf(stderr, "cactus_consolidated, version 0.2\n");
@@ -126,6 +281,9 @@ static RecordHolder *doBottomUpTraversal(stList *flowerLayers,
 #pragma omp parallel for schedule(dynamic)
 #endif
         for (int64_t j = 0; j < stList_length(flowers); j++) {
+            // Ancestral base calling breaks ties randomly: seed from the flower so the
+            // draws are the flower's own and not a slice of one sequence shared by the threads
+            st_randomSeed(flower_getName(stList_get(flowers, j)));
             stList_set(recordHoldersForFlowers, j, getMergedRecordHolders(recordHolders, stList_get(flowers, j)));
             bottomUpFn(stList_get(flowers, j), stList_get(recordHoldersForFlowers, j), extraArgs);
         }
@@ -176,17 +334,24 @@ stHash *compute_flower_length_hash(stList *flowers) {
     return flower_to_length;
 }
 
+// Flowers of equal size are ordered by name.  The sort decides which flower gets
+// which interval of names, so leaving equal-sized flowers to be separated by
+// whatever qsort does with them would tie the output to the C library's sort.
+static int flower_nameCmpFn(const void *a, const void *b) {
+    return cactusMisc_nameCompare(flower_getName((Flower *)a), flower_getName((Flower *)b));
+}
+
 int flower_lengthCmpFn(const void *a, const void *b, void *flower_to_length_hash) {
     // Sort by hashed length value of the flowers
     int64_t i = (int64_t)stHash_search((stHash*)flower_to_length_hash, (void*)a);
     int64_t j = (int64_t)stHash_search((stHash*)flower_to_length_hash, (void*)b);
-    return i < j ? 1 : (i > j ? -1 : 0); // Sort in descending order
+    return i < j ? 1 : (i > j ? -1 : flower_nameCmpFn(a, b)); // Sort in descending order
 }
 
 int flower_sizeCmpFn(const void *a, const void *b) {
     // Sort by number of caps the flowers contains
     int64_t i = flower_getCapNumber((Flower *)a), j = flower_getCapNumber((Flower *)b);
-    return i < j ? 1 : (i > j ? -1 : 0); // Sort in descending order
+    return i < j ? 1 : (i > j ? -1 : flower_nameCmpFn(a, b)); // Sort in descending order
 }
 
 int main(int argc, char *argv[]) {
@@ -341,6 +506,8 @@ int main(int argc, char *argv[]) {
 
     st_setLogLevelFromString(logLevelString);
 
+    cactus_log_host();
+
     //////////////////////////////////////////////
     //Log the inputs
     //////////////////////////////////////////////
@@ -363,6 +530,8 @@ int main(int argc, char *argv[]) {
 
     // Load the params file
     CactusParams *params = cactusParams_load(paramsFile);
+
+    cactus_jemalloc_retain_pages(params);
     st_logInfo("Loaded the parameters files, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
 
     // Load the cactus disk
@@ -432,6 +601,13 @@ int main(int argc, char *argv[]) {
         st_logInfo("Checked the flowers in the hierarchy created by CAF, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
     }
 
+    // Benchmarking/profiling hook: stop here so that a run is not dominated by bar and reference.
+    // No output files are written, so this must never be set in a real pipeline run.
+    if (getenv("CACTUS_CAF_ONLY") != NULL) {
+        st_logCritical("CACTUS_CAF_ONLY is set: stopping after caf, no output files will be written\n");
+        return 0;
+    }
+
     //////////////////////////////////////////////
     //Call cactus bar
     //////////////////////////////////////////////
@@ -486,6 +662,9 @@ int main(int argc, char *argv[]) {
 
         // Bottom-up reference coordinates phase
         RecordHolder *rh = doBottomUpTraversal(flowerLayers, callBottomUp, (void *)referenceEventName);
+        // The traversal above left this thread's generator wherever the flowers it
+        // happened to be handed took it, so seed the root flower like any other
+        st_randomSeed(flower_getName(flower));
         bottomUpNoDb(flower, rh, referenceEventName, 1, generateJukesCantorMatrix);
         assert(recordHolder_size(rh) == 0);
         recordHolder_destruct(rh);
@@ -516,9 +695,12 @@ int main(int argc, char *argv[]) {
     //////////////////////////////////////////////
 
     rh = doBottomUpTraversal(flowerLayers, callHalFn, (void *)referenceEventName);
-    FILE *fileHandle = fopen(outputFile, "w");
+    // c2h is line oriented and self delimiting, so a truncated one parses
+    // perfectly and simply describes fewer threads -- it has to be checked here
+    // because nothing downstream can tell it apart from a complete file
+    FILE *fileHandle = st_fopen(outputFile, "w");
     makeHalFormatNoDb(flower, rh, referenceEventName, fileHandle);
-    fclose(fileHandle);
+    st_fclose(fileHandle, outputFile);
     assert(recordHolder_size(rh) == 0);
     recordHolder_destruct(rh);
     st_logInfo("Ran cactus to hal stage, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
@@ -528,16 +710,16 @@ int main(int argc, char *argv[]) {
     //////////////////////////////////////////////
 
     if(outputHalFastaFile != NULL) {
-        fileHandle = fopen(outputHalFastaFile, "w");
+        fileHandle = st_fopen(outputHalFastaFile, "w");
         printFastaSequences(flower, fileHandle, referenceEventName);
-        fclose(fileHandle);
+        st_fclose(fileHandle, outputHalFastaFile);
         st_logInfo("Dumped sequences for hal file, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
     }
 
     if(outputReferenceFile != NULL) {
-        fileHandle = fopen(outputReferenceFile, "w");
+        fileHandle = st_fopen(outputReferenceFile, "w");
         getReferenceSequences(fileHandle, flower, referenceEventString);
-        fclose(fileHandle);
+        st_fclose(fileHandle, outputReferenceFile);
         st_logInfo("Dumped reference sequences, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
     }
 

@@ -200,7 +200,10 @@ int main(int argc, char *argv[]) {
         fprintf(stderr, "Error: No fasta sequences found in input FASTA file %s for %s\n", argv[1], argv[2]);
         exit(1);
     }
-    fflush(stdout);    
+    // stdout here is the whole sanitized genome, redirected into a file by the
+    // caller, so an unchecked write failure is a silently truncated fasta that
+    // every downstream stage would accept
+    st_fcheck(stdout, "standard output");
     stSet_destruct(header_set);
 
     return 0;

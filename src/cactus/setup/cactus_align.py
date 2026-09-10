@@ -20,6 +20,7 @@ from cactus.pipeline.cactus_workflow import cactus_cons_with_resources
 from cactus.progressive.progressive_decomposition import compute_outgroups, parse_seqfile, get_subtree, get_spanning_subtree, get_event_set, get_ancestor_scaled_tree
 from cactus.progressive.cactus_progressive import export_hal
 from cactus.shared.common import makeURL, catFiles
+from cactus.shared.common import RAW_VG_SUFFIX
 from cactus.shared.common import enableDumpStack
 from cactus.shared.common import cactus_override_toil_options, add_cactus_toil_options
 from cactus.shared.common import findRequiredNode
@@ -62,6 +63,7 @@ def main():
                         " The overridden configuration will be saved in <outHal>.pg-conf.xml")
 
     parser.add_argument("--collapse", help = "Incorporate minimap2 self-alignments.", action='store_true', default=False)
+    parser.add_argument("--minIdentity", type=float, help = "Ignore PAF lines with identity (column 10/11) < this (overrides minIdentity in <graphmap> in config)")
     parser.add_argument("--scoresFile", type=str,
                         help = "File containing scoring parameters (output of last-train / cactus-minigraphr --lastTrain)")
     parser.add_argument("--scoresFromChromfile", action="store_true", default=False,
@@ -106,6 +108,9 @@ def main():
     parser.add_argument("--consMemory", type=human2bytesN,
                         help="Memory in bytes for each cactus_consolidated job (defaults to an estimate based on the input data size). "
                         "Standard suffixes like K, Ki, M, Mi, G or Gi are supported (default=bytes))", default=None)
+    parser.add_argument("--consRetainPages", choices=['auto', '0', '1'], default=None,
+                        help="Whether cactus_consolidated keeps the memory pages jemalloc frees, which is much faster but takes 2-3x the peak memory. "
+                        "auto (the default, from <consolidated retain_pages> in the config) keeps them unless the memory estimate exceeds what the job can be given")
     parser.add_argument("--chromInfo",
                         help="Two-column file mapping genome (col 1) to comma-separated list of sex chromosomes. This information "
                         "will be used to guide outgroup selection so that, where possible, all chromosomes are present in"
@@ -201,7 +206,7 @@ def main():
                 for chrom, results in results_dict.items():
                     toil.exportFile(results[0], makeURL(os.path.join(options.outHal, '{}.hal'.format(chrom))))
                     if options.outVG:
-                        toil.exportFile(results[1], makeURL(os.path.join(options.outHal, '{}.vg'.format(chrom))))
+                        toil.exportFile(results[1], makeURL(os.path.join(options.outHal, '{}{}.vg'.format(chrom, RAW_VG_SUFFIX))))
                     if options.outGFA:
                         toil.exportFile(results[2], makeURL(os.path.join(options.outHal, '{}.gfa.gz'.format(chrom))))                    
             else:
@@ -277,6 +282,8 @@ def make_align_job(options, toil, config_wrapper=None, chrom_name=None):
         config_wrapper.substituteAllPredefinedConstantsWithLiterals(options)
         if options.collapse:
             findRequiredNode(config_node, "graphmap").attrib["collapse"] = 'all'
+        if getattr(options, 'minIdentity', None) is not None:
+            findRequiredNode(config_node, "graphmap").attrib["minIdentity"] = str(options.minIdentity)
     if hasattr(options, 'hdf5Codec') and options.hdf5Codec:
         config_node.find("hal").attrib["hdf5Codec"] = options.hdf5Codec
     config_wrapper.setSystemMemory(options)
@@ -373,7 +380,7 @@ def make_align_job(options, toil, config_wrapper=None, chrom_name=None):
         if genome in event_set:
             if os.path.isdir(seq):
                 tmpSeq = getTempFile()
-                catFiles([os.path.join(seq, subSeq) for subSeq in os.listdir(seq)], tmpSeq)
+                catFiles([os.path.join(seq, subSeq) for subSeq in sorted(os.listdir(seq))], tmpSeq)
                 seq = tmpSeq
             seq = makeURL(seq)
             input_seq_id_map[genome] = toil.importFile(seq)
@@ -396,6 +403,7 @@ def make_align_job(options, toil, config_wrapper=None, chrom_name=None):
                               paf2Stable=paf_to_stable,
                               cons_cores=options.consCores,
                               cons_memory=options.consMemory,
+                              cons_retain_pages=getattr(options, 'consRetainPages', None),
                               do_filter_paf=options.pangenome,
                               chrom_name=chrom_name,
                               scores_id=scores_id,
@@ -403,7 +411,7 @@ def make_align_job(options, toil, config_wrapper=None, chrom_name=None):
     return align_job
 
 def cactus_align(job, config_wrapper, mc_tree, input_seq_map, input_seq_id_map, paf_id, paf_path, root_name, og_map, checkpointInfo, doVG, doGFA, delay=0,
-                 referenceEvents=None, pafMaskFilter=None, paf2Stable=False, cons_cores = None, cons_memory = None, do_filter_paf=False, chrom_name=None, scores_id=None, branch_scale=1.0):
+                 referenceEvents=None, pafMaskFilter=None, paf2Stable=False, cons_cores = None, cons_memory = None, cons_retain_pages = None, do_filter_paf=False, chrom_name=None, scores_id=None, branch_scale=1.0):
 
     head_job = Job()
     job.addChild(head_job)
@@ -426,10 +434,23 @@ def cactus_align(job, config_wrapper, mc_tree, input_seq_map, input_seq_id_map, 
     sanitize_job = head_job.addChildJobFn(sanitize_fasta_headers, input_seq_id_map, pangenome=doVG or doGFA or do_filter_paf, walltime=cactus_fast_walltime())
     new_seq_id_map = sanitize_job.rv()
 
-    # run pangenome-specific paf filter
+    # run pangenome-specific paf filter.  this also runs in cactus-graphmap-split, but that stage is
+    # skipped by --noSplit (and by anyone running step-by-step without it), so this call cannot assume
+    # it has already happened.  running it in both places is harmless: the line filter is stateless
+    # per line, and the overlap filter is idempotent -- gaffilter drops a record only when a competitor
+    # beats it, so a second pass over its own output has nothing left to remove.
+    #
+    # what is not harmless is the two call sites disagreeing on arguments.  cactus-graphmap-split
+    # passes reference=, which exempts queries belonging to the reference genome from the MAPQ,
+    # block-length, identity and score thresholds; this call passed nothing, so an ordinary split
+    # run spent the split stage preserving those reference alignments and then dropped them here
+    # anyway.  that is the common path, not just --noSplit.  referenceEvents[0] matches the "first
+    # reference" convention cactus-graphmap-split already normalises to.
     if do_filter_paf:
         paf_filter_mem = max(paf_id.size * 10, 2**32)
-        paf_filter_job = head_job.addChildJobFn(filter_paf, paf_id, config_wrapper, disk = paf_id.size * 10, memory=paf_filter_mem)
+        paf_filter_job = head_job.addChildJobFn(filter_paf, paf_id, config_wrapper,
+                                                reference=referenceEvents[0] if referenceEvents else None,
+                                                disk = paf_id.size * 10, memory=paf_filter_mem)
         paf_id = paf_filter_job.rv()
 
     # apply tree scaling to reflect branch scaling and/or uncertainty in ancestor placement/sequences
@@ -447,7 +468,8 @@ def cactus_align(job, config_wrapper, mc_tree, input_seq_map, input_seq_id_map, 
 
     # run consolidated
     cons_job = head_job.addFollowOnJobFn(cactus_cons_with_resources, spanning_tree, root_name, config_wrapper.xmlRoot, new_seq_id_map, og_map, paf_id,
-                                         cons_cores = cons_cores, cons_memory=cons_memory, chrom_name=chrom_name, walltime=cactus_fast_walltime())
+                                         cons_cores = cons_cores, cons_memory=cons_memory, chrom_name=chrom_name,
+                                         cons_retain_pages=cons_retain_pages, walltime=cactus_fast_walltime())
     results = {root_name : (cons_job.rv(1), cons_job.rv(2))}
 
     # get the immediate subtree (which is all export_hal can use)
@@ -465,7 +487,8 @@ def cactus_align(job, config_wrapper, mc_tree, input_seq_map, input_seq_id_map, 
     # optionally create the VG
     if doVG or doGFA:
         vg_export_job = hal_job.addFollowOnJobFn(export_vg, hal_job.rv(), config_wrapper, doVG, doGFA, referenceEvents,
-                                                 checkpointInfo=checkpointInfo, memory_override=cons_memory)
+                                                 checkpointInfo=checkpointInfo, memory_override=cons_memory,
+                                                 vg_tag=RAW_VG_SUFFIX if chrom_name else '')
         vg_file_id, gfa_file_id = vg_export_job.rv(0), vg_export_job.rv(1)
     else:
         vg_file_id, gfa_file_id = None, None
@@ -474,13 +497,14 @@ def cactus_align(job, config_wrapper, mc_tree, input_seq_map, input_seq_id_map, 
 
 
 def export_vg(job, hal_id, config_wrapper, doVG, doGFA, referenceEvents, checkpointInfo=None, resource_spec = False,
-              memory_override=None):
-    """ use hal2vg to convert the HAL to vg format """
+              memory_override=None, vg_tag=''):
+    """ use hal2vg to convert the HAL to vg format.  vg_tag goes between the name and the .vg
+    extension when checkpointing to s3, to match how the file gets named when exported locally """
 
     if not resource_spec:
         # caller couldn't figure out the resrouces from hal_id promise.  do that
         # now and try again
-        vg_memory = hal_id.size * 60 if not memory_override else memory_override
+        vg_memory = hal_id.size * 40 if not memory_override else memory_override
         # optional floor from config: hal2vg memory is set from the alignment's cons_memory, which
         # for large unclipped graphs (eg cactus-panpatch reference-free, where a "chromosome" is a
         # whole assembly contig) can be far less than hal2vg --inMemory needs.  cactus-panpatch sets
@@ -489,7 +513,7 @@ def export_vg(job, hal_id, config_wrapper, doVG, doGFA, referenceEvents, checkpo
         min_memory = getOptionalAttrib(findRequiredNode(config_wrapper.xmlRoot, "hal2vg"), "minMemory",
                                        typeFn=int, default=0)
         return job.addChildJobFn(export_vg, hal_id, config_wrapper, doVG, doGFA, referenceEvents, checkpointInfo,
-                                 resource_spec = True,
+                                 resource_spec = True, vg_tag=vg_tag,
                                  disk=hal_id.size * 3,
                                  memory=cactus_clamp_memory(max(vg_memory, min_memory))).rv()
         
@@ -524,7 +548,7 @@ def export_vg(job, hal_id, config_wrapper, doVG, doGFA, referenceEvents, checkpo
     cactus_call(parameters=cmd, outfile=vg_path, job_memory=job.memory)
 
     if checkpointInfo:
-        write_s3(vg_path, os.path.splitext(checkpointInfo[1])[0] + '.vg', region=checkpointInfo[0])
+        write_s3(vg_path, os.path.splitext(checkpointInfo[1])[0] + vg_tag + '.vg', region=checkpointInfo[0])
 
     gfa_path = os.path.join(work_dir, "out.gfa.gz")
     if doGFA:

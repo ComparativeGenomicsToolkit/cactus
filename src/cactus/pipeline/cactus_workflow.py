@@ -8,8 +8,8 @@
 """
 
 import os
+import copy
 import sys
-import bisect
 from toil.lib.bioio import system
 from toil.lib.bioio import getLogLevelString
 from toil.realtimeLogger import RealtimeLogger
@@ -32,10 +32,12 @@ from cactus.shared.common import cactus_clamp_memory
 ############################################################
 
 def cactus_cons_with_resources(job, tree, ancestor_event, config_node, seq_id_map, og_map, paf_id,
-                               cons_cores = None, cons_memory = None, intermediate_results_url = None, chrom_name = None):
+                               cons_cores = None, cons_memory = None, intermediate_results_url = None, chrom_name = None,
+                               cons_retain_pages = None):
     ''' run cactus_consolidated as a child job, requesting resources based on input sizes '''
 
     cons_node = findRequiredNode(config_node, 'consolidated')
+    name = chrom_name if chrom_name else ancestor_event
     outgroups = set(og_map[ancestor_event] if ancestor_event in og_map else [])
     og_size_scale = getOptionalAttrib(cons_node, 'og_size_scale_pct', typeFn=float, default=100.0)
 
@@ -49,52 +51,72 @@ def cactus_cons_with_resources(job, tree, ancestor_event, config_node, seq_id_ma
         
     disk = 5 * total_sequence_size + 2 * paf_id.size
 
-    # get the size from the config
-    mem = None
-    cons_memory_node = findRequiredNode(cons_node, 'consolidatedMemory')
-    cons_memory_intervals = []
-    for key, val in cons_memory_node.items():
-        try:
-            assert key.startswith('seq_size_')
-            interval_start = int(key[len('seq_size_'):])
-            interval_mem = int(val)
-            cons_memory_intervals.append((interval_start, interval_mem))
-        except:
-            raise RuntimeError('Unable to parse attribute {}={} from <consolidatedMemory> node in configuration XML'.format(key, value))
-    cons_memory_intervals = sorted(cons_memory_intervals)
-    interval_idx = bisect.bisect(cons_memory_intervals, (total_sequence_size + 0.5, 0)) - 1
-    interval = cons_memory_intervals[interval_idx]
-    mem = interval[1]
-    if interval_idx < len(cons_memory_intervals) - 1:
-        next_interval = cons_memory_intervals[interval_idx + 1]
-        interval_delta = (next_interval[0] - interval[0], next_interval[1] - interval[1])
-        mem += int(((total_sequence_size - interval[0]) / interval_delta[0]) * interval_delta[1])
-    
-    if not mem:
-        raise RuntimeError('Unable to parse memory requirement from <consolidatedMemory> node in configuration XML')
-    
-    # abPOA needs a bunch of memory for its table, even for tiny alignments
-    if getOptionalAttrib(findRequiredNode(config_node, 'bar'), 'partialOrderAlignment', typeFn=bool, default=True):
-        mem = max(mem, int(4e9))
-    # add function of paf size
-    mem = max(mem, 10 * paf_id.size)
+    # Peak memory saturates: it is set by the largest flowers bar builds, not by input volume.
+    # AnuraAnc6 (0.44 GB paf) peaked at 685.9 GiB and salamander Anc3 (19.8 GB paf, 45x larger)
+    # at 682.3 GiB.  So the estimate is a power of the input, not linear in it -- a linear term
+    # fitted on the VGP range extrapolates to roughly double the truth at salamander scale.
+    #
+    # Fitted to 575 VGP alignments (64 cores, stock bar parameters), against the old table:
+    #
+    #   old seq_size table   14.3% under-provisioned, 1.7% still short at 2x, 2.37x allocated
+    #   this model           14.3% under-provisioned, 0.7% still short at 2x, 1.85x allocated
+    #
+    # The middle column is the one that costs a run: --doubleMem retries at twice the request,
+    # so an under-estimate only loses the work when 2x misses too.  The old table keyed off
+    # total sequence size, which correlates just 0.27 with peak -- two of those alignments
+    # peaked within 1% of each other (989 and 980 GiB) and were estimated 2150 and 373 GiB
+    # purely on their sequence sizes.  Held-out check: this predicts salamander Anc3 at 1.01x
+    # its measured peak, where the table gave 3.15x.
+    mem_coef = getOptionalAttrib(cons_node, 'memory_coefficient_gb', typeFn=float, default=220.0)
+    mem_exp = getOptionalAttrib(cons_node, 'memory_input_exponent', typeFn=float, default=0.30)
+    mem_ramp_gb = getOptionalAttrib(cons_node, 'memory_ramp_gb', typeFn=float, default=0.02)
+    input_gb = (paf_id.size + total_sequence_size) / 1e9
+    # Below the smallest alignment in the fit (0.027 GB of input) the power law is pure
+    # extrapolation and would hand an evolver-sized test tens of GiB, so taper it to zero.
+    # The taper ends at 0.02 GB, under every point in the fit, so it changes none of them.
+    ramp = min(1.0, input_gb / mem_ramp_gb) if mem_ramp_gb > 0 else 1.0
+    mem = int(mem_coef * (input_gb ** mem_exp) * ramp * 2**30) if input_gb > 0 else 0
 
-    # scale memory based on number of cores (memory usage increases with more cores)
-    core_scale_pct = getOptionalAttrib(cons_node, 'memory_core_scale_pct', typeFn=float, default=0.5)
-    core_scale_baseline = getOptionalAttrib(cons_node, 'memory_core_scale_baseline', typeFn=int, default=32)
+    # Memory is *not* quadratic in the poa window, whatever the config comment says: halving it
+    # from 10000 to 5000 measured 858.4 -> 639.4 GiB on salamander Anc3, a 0.745x ratio, because
+    # halving the window also halves the number of windows and peak is bounded by how many run
+    # at once.  That ratio is an exponent of 0.43, not 2.  Nothing is subtracted for
+    # partialOrderAlignmentMaskFilter even though it matters more, because every alignment in
+    # the fit ran with it disabled -- so enabling it can only make the estimate conservative.
+    poa_node = findRequiredNode(config_node, 'bar').find('poa')
+    poa_window = getOptionalAttrib(poa_node, 'partialOrderAlignmentWindow', typeFn=int, default=10000) if poa_node is not None else 10000
+    window_exp = getOptionalAttrib(cons_node, 'memory_poa_window_exponent', typeFn=float, default=0.43)
+    if poa_window > 0 and poa_window != 10000:
+        mem = int(mem * (poa_window / 10000.0) ** window_exp)
+
+    # Scale with the core count in BOTH directions.  Concurrent abPOA instances now equal
+    # the core count exactly (bar's nested parallelism is gone), so a job given fewer cores
+    # genuinely needs less memory and should say so -- the old form only ever scaled up, so a
+    # 24-core job asked for the 32-core figure.  Measured on AnuraAnc6 with the current
+    # defaults: 465.5 GiB at 24 cores, 542.2 at 32, 685.9 at 64, which is ~0.65%/core against
+    # a 64-core baseline (exact at 32, 9% conservative at 24).  The baseline is 64 because
+    # that is where the 575 alignments the model was fitted to were run.
+    core_scale_pct = getOptionalAttrib(cons_node, 'memory_core_scale_pct', typeFn=float, default=0.65)
+    core_scale_baseline = getOptionalAttrib(cons_node, 'memory_core_scale_baseline', typeFn=int, default=64)
     core_scale_max_pct = getOptionalAttrib(cons_node, 'memory_core_scale_max_pct', typeFn=float, default=100.0)
-    if cons_cores and cons_cores > core_scale_baseline and core_scale_pct > 0:
+    if cons_cores and cons_cores != core_scale_baseline and core_scale_pct > 0:
         extra_cores = cons_cores - core_scale_baseline
         scale_factor = 1.0 + (extra_cores * core_scale_pct / 100.0)
-        # cap scale factor at max percentage increase (default 100% = doubling)
+        # cap the increase (default 100% = doubling); never scale below a quarter
         scale_factor = min(scale_factor, 1.0 + core_scale_max_pct / 100.0)
+        scale_factor = max(scale_factor, 0.25)
         scaled_mem = int(mem * scale_factor)
-        RealtimeLogger.info('Scaling cactus_consolidated({}) memory by {:.1f}% for {} extra cores (above {} baseline): {} -> {}'.format(
-            chrom_name if chrom_name else ancestor_event, (scale_factor - 1) * 100, extra_cores, core_scale_baseline,
+        RealtimeLogger.info('Scaling cactus_consolidated({}) memory by {:.1f}% for {} cores ({:+d} against the {} baseline): {} -> {}'.format(
+            chrom_name if chrom_name else ancestor_event, (scale_factor - 1) * 100, cons_cores, extra_cores, core_scale_baseline,
             bytes2human(mem), bytes2human(scaled_mem)))
         mem = scaled_mem
 
-    RealtimeLogger.info('Estimating cactus_consolidated({}) memory as {} from {} sequences with total-sequence-size {} and paf-size {} using <conslidatedMemory> configuration settings'.format(chrom_name if chrom_name else ancestor_event, bytes2human(mem), len(seq_id_map), bytes2human(total_sequence_size), paf_id.size))
+    # abPOA needs a table even for tiny alignments; apply the floor last so neither the window
+    # nor the core scaling can push a small job below it
+    if getOptionalAttrib(findRequiredNode(config_node, 'bar'), 'partialOrderAlignment', typeFn=bool, default=True):
+        mem = max(mem, int(4e9))
+
+    RealtimeLogger.info('Estimating cactus_consolidated({}) memory as {} from {} sequences with total-sequence-size {} and paf-size {} using <consolidated> configuration settings'.format(chrom_name if chrom_name else ancestor_event, bytes2human(mem), len(seq_id_map), bytes2human(total_sequence_size), paf_id.size))
 
     if cons_memory is not None and cons_memory != mem:
         RealtimeLogger.info('Overriding cactus_conslidated({}) memory estimate of {} with {} value {} from --consMemory'.format(
@@ -102,19 +124,50 @@ def cactus_cons_with_resources(job, tree, ancestor_event, config_node, seq_id_ma
         mem = cons_memory
 
     max_system_memory = ConfigWrapper(config_node).getSystemMemory()
+
+    # Whether cactus_consolidated keeps the pages jemalloc frees (see <consolidated retain_pages>).
+    # The memory fit above was made with retention on, so when it is off the estimate is scaled
+    # down by memory_retain_ratio.  "auto" keeps the pages unless the retained estimate exceeds
+    # what the job can be given: the system memory on a single machine, or --maxMemory.
+    retain_pages = cons_retain_pages if cons_retain_pages is not None else getOptionalAttrib(cons_node, 'retain_pages', default='auto')
+    retain_pages = str(retain_pages).lower()
+    if retain_pages not in ['auto', '0', '1']:
+        raise RuntimeError('<consolidated retain_pages> / --consRetainPages must be auto, 0 or 1, not {}'.format(retain_pages))
+    retain_ratio = getOptionalAttrib(cons_node, 'memory_retain_ratio', typeFn=float, default=2.5)
+    if retain_pages == 'auto':
+        limits = [l for l in [max_system_memory, int(os.environ['CACTUS_MAX_MEMORY']) if 'CACTUS_MAX_MEMORY' in os.environ else None] if l]
+        limit = min(limits) if limits else None
+        if limit and mem > limit:
+            RealtimeLogger.info('cactus_consolidated({}): the memory estimate of {} with jemalloc page retention exceeds the {} the job can be given, so the pages will not be retained'.format(
+                name, bytes2human(mem), bytes2human(limit)))
+            retain_pages = '0'
+        else:
+            retain_pages = '1'
+    if retain_pages == '0' and cons_memory is None and retain_ratio > 1:
+        RealtimeLogger.info('cactus_consolidated({}): scaling the memory estimate of {} by 1/{} for running without jemalloc page retention: {}'.format(
+            name, bytes2human(mem), retain_ratio, bytes2human(int(mem / retain_ratio))))
+        mem = int(mem / retain_ratio)
+    RealtimeLogger.info('cactus_consolidated({}): jemalloc page retention {}'.format(name, 'on' if retain_pages == '1' else 'off'))
+
     if max_system_memory and mem > max_system_memory:
         RealtimeLogger.info('Clamping cactus_conslidated({}) memory estimate of {} to maximum system memory {}'.format(
-            chrom_name if chrom_name else ancestor_event, bytes2human(mem), bytes2human(max_system_memory)))
+            name, bytes2human(mem), bytes2human(max_system_memory)))
         mem = max_system_memory
 
     cons_job = job.addChildJobFn(cactus_cons, tree, ancestor_event, config_node, seq_id_map, og_map, paf_id,
                                  intermediate_results_url=intermediate_results_url, chrom_name=chrom_name, cores = cons_cores,
-                                 memory=cactus_clamp_memory(mem), disk=disk)
+                                 memory=cactus_clamp_memory(mem), disk=disk, retain_pages=retain_pages)
     return cons_job.rv()
 
 def cactus_cons(job, tree, ancestor_event, config_node, seq_id_map, og_map, paf_id,
-                intermediate_results_url = None, chrom_name = None):
+                intermediate_results_url = None, chrom_name = None, retain_pages = None):
     ''' run cactus_consolidated '''
+
+    # cactus_consolidated reads its settings from the config, so the resolved page retention
+    # goes into the copy it is given (this job's copy of the node, so nothing else sees it)
+    if retain_pages is not None:
+        config_node = copy.deepcopy(config_node)
+        findRequiredNode(config_node, 'consolidated').set('retain_pages', str(retain_pages))
 
     # Build up a genome -> fasta map.
     work_dir = job.fileStore.getLocalTempDir()
@@ -132,7 +185,10 @@ def cactus_cons(job, tree, ancestor_event, config_node, seq_id_map, og_map, paf_
 
     # Split the alignments file into primary and secondary
     primary_alignment_file = os.path.join(work_dir, f'{ancestor_event}_primary.paf')
-    system(f"grep -v 'tp:A:S' {paf_path} > {primary_alignment_file} || true")  # Alignments that are not-secondaries
+    # grep exits 1 when nothing matched, which is fine and has to be tolerated,
+    # but it exits 2 when the write itself failed.  `|| true` cannot tell those
+    # apart, so a full disk here used to leave a short paf and carry on.
+    system(f"grep -v 'tp:A:S' {paf_path} > {primary_alignment_file} || [ $? -eq 1 ]")  # Alignments that are not-secondaries
 
     # Optionally parse our secondary alignments
     use_secondary_alignments = int(config_node.find("blast").attrib["outputSecondaryAlignments"])  # We should really switch to
@@ -140,7 +196,7 @@ def cactus_cons(job, tree, ancestor_event, config_node, seq_id_map, og_map, paf_
     assert use_secondary_alignments == 0 or use_secondary_alignments == 1
     if use_secondary_alignments:
         secondary_alignment_file = os.path.join(work_dir, f'{ancestor_event}_secondary.paf')
-        system(f"grep 'tp:A:S' {paf_path} > {secondary_alignment_file} || true")  # Alignments that are secondaries
+        system(f"grep 'tp:A:S' {paf_path} > {secondary_alignment_file} || [ $? -eq 1 ]")  # Alignments that are secondaries
 
     # Optionally copy the alignments to a specified location for debug purposes
     if config_node.find("caf").attrib["writeInputAlignmentsTo"]:

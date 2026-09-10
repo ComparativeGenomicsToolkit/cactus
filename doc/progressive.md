@@ -202,6 +202,7 @@ These issues are all at least partially addressed by a new tool, `cactus-hal2maf
 * "raw": No normalization: return the direct output of `hal2maf`
 * "norm (default)": Run basic `taffy` normalization as parameterized using the normalization options described above.
 * "single" : Uses greedy heuristics to pick the copy for each species that results in fewest mutations and block breaks, in addition to taffy normalization..
+* "single-ref" : Like "single" but only filters duplicates of the *reference* genome (keeping the true reference / first row of each block), leaving all other species untouched. Use this when you only need to guarantee the reference is single-copy but want to preserve every other species' paralogous rows.
 * "consensus" : Uses [maf_stream merge_dups consensus](https://github.com/ComparativeGenomicsToolkit/maf_stream#resolving-duplicated-entries) to make a single "consensus" row for all duplicate rows. This row won't actually reflect a real sequence in the fasta, but the individual columns will be more sensitive to the true coverage than when using "single".  Recommended when only looking for maximum coverage of columns, without considering duplications.
 
 #### TAF output
@@ -382,12 +383,12 @@ The Cactus Docker image contains everything you need to run Cactus (python envir
 
 ```
 wget -q https://raw.githubusercontent.com/ComparativeGenomicsToolkit/cactus/master/examples/evolverMammals.txt -O evolverMammals.txt
-docker run --user $(id -u):$(id -g) -v $(pwd):/data --rm -it quay.io/comparative-genomics-toolkit/cactus:v3.2.1 cactus /data/jobStore /data/evolverMammals.txt /data/evolverMammals.hal
+docker run --user $(id -u):$(id -g) -v $(pwd):/data --rm -it quay.io/comparative-genomics-toolkit/cactus:v3.3.0 cactus /data/jobStore /data/evolverMammals.txt /data/evolverMammals.hal
 ```
 
 Or you can proceed interactively by running
 ```
-docker run -v $(pwd):/data --rm -it quay.io/comparative-genomics-toolkit/cactus:v3.2.1 bash
+docker run -v $(pwd):/data --rm -it quay.io/comparative-genomics-toolkit/cactus:v3.3.0 bash
 cactus /data/jobStore /data/evolverMammals.txt /data/evolverMammals.hal
 
 ```
@@ -407,12 +408,14 @@ Cactus supports [SLURM](https://github.com/SchedMD/slurm) since [version 2.6.1](
 These are the most relevant options for running on a cluster
 
 * `--batchSystem slurm` (required): enable slurm.
-* `--consCores` (required): set the number of cores for each `cactus_consolidated` job. 64 is usually a good value here, but you cannot exceed what's available on your system.
+* `--consCores` (required): set the number of cores for each `cactus_consolidated` job. 64 is usually a good value here, but you cannot exceed what's available on your system. Memory rises with the core count while runtime barely improves above about 24, so use fewer cores if you are memory-limited.
 * `--doubleMem true` (highly recommended): if slurm kills a job because it used more memory than it asked for, retry it asking for double the memory.
 * `--batchLogsDir` (highly recommended): a scratch directory for additional slurm logging.
 * `--workDir`: a local scratch directory available on each worker node (will default to `TEMPDIR` or `TMPDIR`). This could be on a shared filesystem, but it's much better if it's a local, physical disk on the worker node. 
-* `--maxMemory` (recommended): use this to set the maximum memory you can schedule on your cluster. can help avoid toil making unrunnable jobs in some cases.
+* `--maxMemory` (optional): when running on slurm, Cactus now queries the cluster with `sinfo` at startup and automatically clamps every job's memory request to the largest available node, just as it does using the host's physical memory on `--batchSystem single_machine`. This keeps Toil from scheduling a job that asks for more memory than any node can provide (which would otherwise sit pending forever and stall the workflow), so you no longer need to set this by hand. Pinning `--slurmPartition` (and/or `--slurmTime`) narrows the clamp to the node(s) those jobs will actually run on; you can also still pass `--maxMemory` to impose an even lower ceiling.
 * `--consMemory`: Override the memory for each `cactus_consolidated` job. Can be useful if Cactus's estimates are wrong, but `--maxMemory/--doubleMem` should be enough to work around this type of issue.
+* `--consRetainPages`: Whether `cactus_consolidated` keeps the memory pages it frees rather than returning them to the system (`auto`, `1` or `0`). Keeping them is much faster but takes 2-3x the peak memory. The default, `auto`, keeps them unless the memory estimate is more than the job can be given (the system memory on a single machine, or `--maxMemory`), in which case the estimate is scaled down and the pages are not kept. Corresponds to `<consolidated retain_pages>` in the configuration.
+* **Large, repeat-rich genomes**: turn on `partialOrderAlignmentMaskFilter` in the `<bar><poa>` section of the config (e.g. `1000`; the default `-1` is off). On 20-30 Gb salamander genomes, leaving it off cost ~38x the BAR time and ran out of memory on a 2 TB node; with it on, BAR took under an hour. `partialOrderAlignmentWindow` is a far cheaper lever: halving it to `5000` saved ~25% memory and ~30% BAR time.
 
 On a cluster with partitions and/or time limits, make sure to use
 
@@ -606,7 +609,7 @@ cp <CACTUS-INSTALLATION-DIR>/src/cactus_progressive_config.xml ./config.xml
 If you are running cactus directly from `docker run`, then do (making sure to use the same docker image that you will use to run cactus):
 
 ```
-docker run --user $(id -u):$(id -g) -v $(pwd):/data --rm -it quay.io/comparative-genomics-toolkit/cactus:v3.2.1 cp /home/cactus/cactus_env/lib/python3.10/site-packages/cactus/cactus_progressive_config.xml /data/config.xml
+docker run --user $(id -u):$(id -g) -v $(pwd):/data --rm -it quay.io/comparative-genomics-toolkit/cactus:v3.3.0 cp /home/cactus/cactus_env/lib/python3.10/site-packages/cactus/cactus_progressive_config.xml /data/config.xml
 ```
 
 You can then edit `config.xml` and use it to override cactus's defaults by adding `--configFile config.xml` to any cactus command.  If you are using `docker run -v $(pwd):/data` then you would add `--configFile /data/config.xml` to your command instead. 

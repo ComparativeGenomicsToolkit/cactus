@@ -158,6 +158,7 @@ static void testBreakUpPinchGraphAdjacencyComponentsGreedily(CuTest *testCase) {
         if (maximumAdjacencyComponentSize < 2) {
             maximumAdjacencyComponentSize = 2;
         }
+        stPinchThreadSet_attachEnds(threadSet);
         stList *adjacencyComponents = stPinchThreadSet_getAdjacencyComponents(threadSet);
         int64_t largestAdjacencyComponentSizeInGraph = getSizeOfLargestAdjacencyComponent(adjacencyComponents);
         st_logInfo(
@@ -165,8 +166,10 @@ static void testBreakUpPinchGraphAdjacencyComponentsGreedily(CuTest *testCase) {
                 totalNodes, stList_length(adjacencyComponents), largestAdjacencyComponentSizeInGraph, maximumAdjacencyComponentSizeRatio,
                 maximumAdjacencyComponentSize, largestAdjacencyComponentSizeInGraph > maximumAdjacencyComponentSize);
         stList_destruct(adjacencyComponents);
+        stPinchThreadSet_detachEnds(threadSet);
         //Now do the actual breaking up
         stCaf_breakupComponentsGreedily(threadSet, maximumAdjacencyComponentSizeRatio);
+        stPinchThreadSet_attachEnds(threadSet);
         adjacencyComponents = stPinchThreadSet_getAdjacencyComponents(threadSet);
         int64_t largestAdjacencyComponentSizeInGraphAfterBreakup = getSizeOfLargestAdjacencyComponent(adjacencyComponents);
         totalNodes = 2 * stPinchThreadSet_getTotalBlockNumber(threadSet);
@@ -176,6 +179,7 @@ static void testBreakUpPinchGraphAdjacencyComponentsGreedily(CuTest *testCase) {
                 maximumAdjacencyComponentSizeRatio, maximumAdjacencyComponentSize);
         //Cleanup
         stList_destruct(adjacencyComponents);
+        stPinchThreadSet_detachEnds(threadSet);
         stPinchThreadSet_destruct(threadSet);
     }
 }

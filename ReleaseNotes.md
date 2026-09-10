@@ -1,3 +1,29 @@
+# Release 3.3.0 2026-08-11
+
+This release a few general patches and  new pangenome functionality such as graph reference (gref), panacus and panpatch support.
+
+- Fix `--mgSplit` bug that could cause entire contigs to get erroneously filtered when single `--reference` provided.
+- Genome passed to `--includeRoot` treated as outgroup and not ingroup
+- `cactus-hal2seqfile` tool added to help with custom alignment updates
+- `cactus-phast` faster on fragmented genomes
+- Update to newer `FastGA`
+- `cactus-panpatch` tool added to do assembly patching with pangenome alignments of different assemblies of the same sample.
+- Increasing `--vcfwaveCores` now actually speeds up `vcfwave` (nearly linearly).
+- Update Toil to `v9.5.0`
+- `cactus-pangenome` now produces cleaner, more useful stats.  Including reports and bed files of everything that was clipped and where.
+- `maxMemory` automatically inferred on Slurm
+- `cactus-hal2maf` `single-ref` output type added to get single-copy reference for each block but multicopy everything else.
+- `--panacus` option added to `cactus-pangenome` to automatically generate a panacus report.
+- `--gref` option cleaned up and improved in terms of the computed cover and the output VCFs (still experimental).
+- `--vcfL` option added to cluster similar VCF alleles (experimental).
+- Update to new vg (a bit past v1.76.1)
+- Fix `--mgSplit` bug where reference contigs in chrOther could align together sometimes.
+- `hal2vg` now takes about 30% less memory
+- `--vcfReference` can select any genome, not just reference.
+- Long pause at the end of minigraph construct fixed, it was due to Python being very slow at zipping the file.
+- Explicit check that preprocessor does not alter sequence content
+- Check for output write errors throughout pipeline to prevent silent file corruption from, ex, full scratch disks.
+
 # Release 3.2.1 2026-05-20
 
 This release patches a critical regression from 3.2.0 that broke gpu support in docker

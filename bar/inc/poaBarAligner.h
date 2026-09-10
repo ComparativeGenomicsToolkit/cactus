@@ -133,7 +133,14 @@ void alignmentBlock_print(AlignmentBlock *ab, FILE *f);
  * Get the string connecting two ends for the given cap. If return_string is 0 then does not return the string,
  * just calculates the length of the string.
  */
-char *get_adjacency_string(Cap *cap, int *length, bool return_string);
+char *get_adjacency_string(Cap *cap, int64_t *length, bool return_string);
+
+/**
+ * Get the prefix of the adjacency string for the given cap, up to max_seq_length and up to the
+ * first run of more than mask_filter masked bases (mask_filter < 0 disables that). Returns the
+ * retained length in *length and, in *overlap, how far it overlaps its own reverse complement.
+ */
+char *get_adjacency_string_and_overlap(Cap *cap, int *length, int64_t *overlap, int64_t max_seq_length, int64_t mask_filter);
 
 /**
  * Makes alignments of the the unaligned sequence using the bar algorithm.

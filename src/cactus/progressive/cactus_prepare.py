@@ -1046,7 +1046,7 @@ def toil_call_blast(job, options, seq_file, mc_tree, og_map, event, cigar_name, 
 
     # scrape the output files out of the workdir
     out_nameids = []
-    for out_file in [f for f in os.listdir(work_dir) if os.path.isfile(os.path.join(work_dir, f))]:
+    for out_file in sorted(f for f in os.listdir(work_dir) if os.path.isfile(os.path.join(work_dir, f))):
         if out_file.startswith(os.path.basename(cigar_name)):
             out_nameids.append((os.path.basename(out_file), job.fileStore.writeGlobalFile(os.path.join(work_dir, out_file))))
             
@@ -1068,6 +1068,9 @@ def wdl_task_align(options):
     s += '        String out_fa_name\n'
     s += '    }\n'
     s += '    command {\n        '
+    # two commands run here, so without set -e a failed cactus-align would be
+    # masked by whatever cactus-hal2fasta returns afterwards
+    s += 'set -eo pipefail\n        '
     s += 'cactus-align {} ${{in_seq_file}} ${{sep=\" \" in_blast_files}} ${{out_hal_name}} --root ${{in_root}}'.format(get_jobstore(options, 'align'))
     s += ' --pathOverrides ${{sep=\" \" in_fa_files}} ${{sep=\" \" in_fa_urls}} --pathOverrideNames ${{sep=\" \" in_fa_names}} {}'.format(options.cactusOptions)
     s += ' ${\"--chromInfo \" + in_chrom_info_file}'
@@ -1183,7 +1186,11 @@ def wdl_task_hal_append(options):
     s += '    }\n'
     s += '    String parent_name = basename("${in_hal_parent}")\n'
     s += '    command <<<\n'
-    
+    # the loop below appends every child into one hal, and without set -e a
+    # failure part way through would keep going and exit with the status of the
+    # last iteration, yielding a hal quietly missing a whole subtree
+    s += '        set -eo pipefail\n'
+
     # note: I've been unable to modify an input file then return it as an output
     #       so we explicitly copy it into a local string here first
     s += '        cp ~{in_hal_parent} ./~{parent_name}\n'

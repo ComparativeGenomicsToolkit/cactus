@@ -10,10 +10,13 @@ Please cite the [Minigraph-Cactus paper](https://doi.org/10.1038/s41587-023-0179
 * [Quick-Start](#quick-start)
 * [Introduction](#introduction)
 * [Interface](#interface)
+* [VCF Output](#vcf-output)
+* [Graph Reference Paths (--gref)](#graph-reference-paths---gref)
 * [Output](#output)
 * [Patching Assemblies (cactus-panpatch)](#patching-assemblies-cactus-panpatch)
 * [Advanced Configuration](#advanced-configuration)
 * [Visualization](#visualization)
+* [Pangenome Statistics (panacus)](#pangenome-statistics-panacus)
 * [Yeast Graph](#yeast-graph)
 * [MHC Graph](#mhc-graph)
 * [GRCh38 Alts Graph](#grch38-alts-graph)
@@ -161,7 +164,7 @@ Note: if you are using the step by step interface instead of `cactus-pangenome`,
 
 ### Running Minigraph on Chromosomes Independently
 
-By default, minigraph construction and mapping are performed at the whole-genome level.  The results are then split by (reference) chromosome so that Cactus (and some subsequent processing) can be run one chromosome at a time.  The `cactus-pangenome --mgSplit` option was introduced to run the minigraph construction and mapping independently at the chromosome level instead.  The intention is that by allowing the pipeline to choose a different ordering for minigraph construction for each chromosome, the accuracy of the output can be improved.  This comes at the cost of extra computation (minigraph construction and mapping run twice).  The step-by-step interface is likewise supported to support this and, using the small included example, would look like
+By default, minigraph construction and mapping are performed at the whole-genome level, then split by (reference) chromosome so that Cactus (and some subsequent processing) can be run one chromosome at a time.  The `cactus-pangenome --mgSplit` option runs construction and mapping independently at the chromosome level instead, letting each chromosome pick its own minigraph construction ordering, which can improve accuracy.  It costs extra computation, since construction and mapping run twice.  The step-by-step interface supports this too, and on the small included example would look like
 
 ```
 cactus-minigraph js examples/evolverPrimates.txt ep.sv.gfa.gz --refOnly --reference simChimp 
@@ -183,9 +186,10 @@ The Minigraph-Cactus pipeline is run via the `cactus-pangenome` command. It cons
 * `--mgMemory` the amount of memory for `minigraph` construction. The default estimate can be quite conservative (ie high), so if it is too high for your system, you can lower it with this option (default: estimate based on input size). 
 * `--mapCores` the number of cores for each `minigraph` mapping job (default: up to 6)
 * `--consCores` the number of cores for each `cactus-consolidated` job (default: all available)
-* `--consMemory` the amount of memory for each `cactus-consolidated` job. By default, it is estimated from the data but these estimates being wrong can be catastrophic on [SLURM](./progressive.md#running-on-a-cluster). Consider setting to the maximum memory you have available when running on a cluster to be extra safe (seems to be more of an issue for non-human data)
+* `--consMemory` the amount of memory for each `cactus-consolidated` job. By default, it is estimated from the data. When running on [SLURM](./progressive.md#running-on-a-cluster), Cactus now automatically clamps this (and every other) memory request down to the largest available node, so an over-large estimate will no longer leave the job unschedulable. You can still set `--consMemory` explicitly if an estimate comes out *too low* and the job runs out of memory, though `--doubleMem` usually handles that (this seems to be more of an issue for non-human data).
 * `--indexCores` the number of cores for each `vg` indexing job (default: all available - 1)
 * `--indexMemory` Like `--consMemory` above, you may want to set this when running on a cluster.
+* `--consRetainPages`: Whether `cactus-consolidated` keeps the memory pages it frees rather than returning them to the system (`auto`, `1` or `0`). Keeping them is much faster but takes 2-3x the peak memory. The default, `auto`, keeps them unless the memory estimate is more than the job can be given (the system memory on a single machine, or `--maxMemory`), in which case the estimate is scaled down and the pages are not kept. Corresponds to `<consolidated retain_pages>` in the configuration.
 * The various output options: `--gbz`, `--gfa`, `--giraffe`, `--vcf`, `--odgi`, etc. which are explained in detail below. If you forget to add one of these and are missing the corresponding output, you will need to rerun `cactus-graphmap-join` (or use `vg` to manually make the file yourself).
 
 **PLEASE NOTE** While many Minigraph-Cactus parameters' default values were tuned on high-quality human assemblies from the HPRC where ample benchmarking data was available, we believe they will be suitable for other datasets and species, so long as the contigs can be mapped with [minigraph](https://github.com/lh3/minigraph). By default, [small contigs are filtered out](https://github.com/ComparativeGenomicsToolkit/cactus/blob/v2.4.4/src/cactus/cactus_progressive_config.xml#L319-L335) during chromosome assignment using more stringent thresholds. This might lead to a surprisingly low sensitivity on small, fragmented, diverse assemblies or difficult-to-assemble regions. Users wishing to *keep* these contigs in their graph can use the following option:
@@ -261,17 +265,77 @@ For `--vgFilter`, the filter threshold is inferred from the `.dX.vg` filename pa
 
 Note: per-chromosome output options (`--chrom-vg`, `--chrom-og`, `--viz`, `--draw`) cannot be used with bypass options, as you already have those files from the previous run. Also, bypass options are not compatible with graphs that were originally built with `--collapse`.
 
-### VCF Normalization
+### VCF Output
 
-The `--vcf` option will produce two VCFs for each selected graph type. One VCF is a "raw" VCF which contains nested variants, indicated by the `LV` and `PS` tags. The second VCF is one that has gone through [vcfbub](https://github.com/pangenome/vcfbub) to remove nested sites, as well as those greater than 100kb.  Unless you want to explicitly handle nested variants, you are probably best to use the `vcfbub` VCF.  Switch off `vcfbub` with `--vcfbub 0` or specify a different threshold with `--vcfbub N`.
+The `--vcf` option runs `vg deconstruct` to represent the graph as sites of variation along a reference. A single run can write several VCFs, all prefixed with `--outName`:
 
-By default (since version v2.8.2), all non-raw VCF output is normalized with `bcftools norm -f` which left-aligns and normalizes indels.  You can turn this off in the config XML by setting `bcftoolsNorm` to `"0"`.
+| Suffix | Enabled by | What it is |
+|--------|------------|------------|
+| `.raw.vcf.gz` | `--vcf` | The `vg deconstruct` output, with sample ploidies padded so they agree across chromosomes. Nested sites are kept, marked with the `LV` (nesting level) and `PS` (parent snarl) tags. |
+| `.vcf.gz` | `--vcf`, `--vcfbub` non-zero | The raw VCF put through [vcfbub](https://github.com/pangenome/vcfbub), which drops sites nested inside a larger site and pops open any site whose **reference** allele is longer than 100kb. **Use this one** unless you want to handle nesting yourself. |
+| `.wave.vcf.gz` | `--vcfwave` | [vcfwave](https://github.com/vcflib/vcflib/blob/master/doc/vcfwave.md) realigns each alt allele against the reference and breaks it into primitive SNPs and indels. Built from the raw VCF, not from `.vcf.gz`: it runs its own `vcfbub` filtering on the longest **allele** rather than the reference allele, so it pops more sites and drops `INFO/AT`. |
+| `.L<NN>.vcf.gz`, `.L<NN>.raw.vcf.gz` | `--vcfL` | Allele-clustered copies of the two VCFs above, written *in addition* to them (see below). |
+| `.gref.*` | `--gref` | The same set over again, deconstructed against the synthetic [graph reference paths](#graph-reference-paths---gref) instead of the reference sample. Experimental. |
 
-Also new in v2.8.2, you can use the `--vcfwave` option to create a version of the VCF(s) that has been normalized with [vcfwave](https://github.com/vcflib/vcflib/blob/master/doc/vcfwave.md). `vcfwave` can take a while to run on larger graphs, but it can do a good job of smoothing out small variants in complex regions. `vcfwave` is included in the Cactus docker images but **not** the the Cactus binary release. So you must either run Cactus from inside Docker, or run outside docker with the `--binariesMode docker` option. If you cannot run docker and still want to use `--vcfwave`, you must [build it yourself](https://github.com/vcflib/vcflib) and make sure its on your `PATH` before running cactus. You can set the number of cores used for each `vcfwave` job with `--vcfwaveCores`, and the memory with `--vcfwaveMemory`.
+Those suffixes attach to a base name that records which graph and which reference the VCF came from:
+
+* the `clip` graph contributes nothing: `<outName>.vcf.gz`. A bare `--vcf` selects it, except under `--clip 0`, where the default becomes `full`
+* `--vcf full` contributes `full`: `<outName>.full.vcf.gz`
+* `--vcf filter` contributes `d<N>`, where `N` is the `--filter` threshold: `<outName>.d2.vcf.gz`
+* a `--vcfReference SAMPLE` that is *not* the first `--reference` contributes its sample name: `<outName>.SAMPLE.vcf.gz`. VCFs built on the first reference carry no sample component
+
+These combine, so `--reference CHM13 GRCh38 --vcfReference GRCh38 --vcf filter --vcfwave` writes `<outName>.GRCh38.d2.wave.vcf.gz`.
+
+Switch off `vcfbub` with `--vcfbub 0` or specify a different threshold with `--vcfbub N`.
+
+The `bcftoolsNorm` config attribute left-aligns indels in the `vcfbub` VCF. It is **off** by default, since left-shifting can leave overlapping variants behind. The wave VCF is normalized by default instead, under `vcfwaveNorm`.
+
+Also new in v2.8.2, the `--vcfwave` option writes an additional VCF normalized with [vcfwave](https://github.com/vcflib/vcflib/blob/master/doc/vcfwave.md), which does a good job of smoothing out small variants in complex regions but can take a while on larger graphs. `vcfwave` is included in the Cactus docker images but **not** the Cactus binary release, so you must either run Cactus from inside Docker, run outside it with `--binariesMode docker`, or [build vcfwave yourself](https://github.com/vcflib/vcflib) and put it on your `PATH`. Use `--vcfwaveCores` and `--vcfwaveMemory` to set the cores and memory for each `vcfwave` job.
+
+The experimental `--vcfL` option passes `-L` to `vg deconstruct`, merging alt alleles whose traversals are at least that similar (length-weighted Jaccard). It is lossy: a merged sample is genotyped as the allele it was merged into, possibly the reference allele, and the difference survives only in the `TS`/`TL` FORMAT fields. So it never replaces the ordinary VCFs; clustered copies appear beside them tagged `L<NN>`, e.g. `--vcfL 0.95` gives `<outName>.L95.vcf.gz`. No clustered `.wave.vcf.gz` is written, since `vcfwave` undoes the merging `-L` does.
+
+A normalized VCF then goes through `merge_duplicates.py` (from the [collapse-bubble](https://github.com/glennhickey/collapse-bubble) submodule), which combines records left at the same position by left-alignment, and `vcffixup` to recompute `AC`/`AF`/`AN`. Set `mergeDuplicatesOptions` to `"0"` to skip the merge.
+
+### Graph Reference Paths (`--gref`)
+
+**Experimental.** Non-reference sequence reaches a reference-based VCF only as ALT alleles, so variation *inside* an insertion or a non-reference SV allele has no reference position of its own: it appears in `.raw.vcf.gz` as nested `LV>0` records, which `vcfbub` then drops from `.vcf.gz`. `--gref` gives that sequence coordinates so it can be addressed directly.
+
+`vg paths -u` computes a *graph reference path cover*: it finds the parts of the graph the reference does not walk, and promotes fragments of the haplotype paths covering them into synthetic reference paths. These form a new sample, `gref_<reference>`, holding a copy of the reference paths plus fragments suffixed `_<N>_alt` (`gref_GRCh38#0#chr1_1_alt`). Deconstructing against that sample puts the non-reference material in the VCF.
+
+```
+cactus-pangenome ./js ./seqfile.txt --outDir pg --outName pg --reference GRCh38 --vcf --gref
+```
+
+`--gref` takes the graph to build from: `full`, `clip` or `filter`, defaulting to `clip`. `--minGrefLen` sets the minimum fragment length (default `50`, or the `minGrefLen` config attribute). Only the first `--reference` sample is used, as its paths are the ones guaranteed acyclic. `--gref clip` requires clipping to be enabled, `--gref filter` requires filtering to be enabled, and neither can be combined with `--collapse`.
+
+| File | What it is |
+|------|------------|
+| `<outName>.gref.gbz`, `.gref.gfa.gz` | The source graph with the `gref_<reference>` sample added. |
+| `<outName>.gref.vcf.gz` etc. | The VCF set from the [table above](#vcf-output) (`.raw`, `.wave`, `.L<NN>`), deconstructed against `gref_<reference>` rather than the reference sample. |
+| `<outName>.gref.gref-segs.tsv.gz` | Where every synthetic fragment came from (see below). |
+
+The gref graph adds paths only, no nodes or edges, so it is topologically identical to the base graph and gets no topology indexes of its own. Use the base graph's `<outName>.snarls`, `.dist` and `.hapl` with `gref.gbz`. `.gref.snarls` and `.gref.hapl` are not produced.
+
+The segment table maps a gref coordinate back onto an assembly one. Tab-separated, one row per fragment, with a header naming the columns; the first six are a valid BED6.
+
+```
+#source_path   source_start source_end gref_contig             level strand ref_contig    ref_start ref_end top_level_snarl
+SAMP2#0#chr1   200          700        gref_REF#0#chr1_1_alt   1     +      REF#0#chr1    0         901     >12>34
+```
+
+`gref_REF#0#chr1_1_alt` is `SAMP2#0#chr1:200-700`, placed within `REF#0#chr1:0-901`. `level` is the fragment's nesting depth and `top_level_snarl` the enclosing snarl, spelled as the VCF record ID. The reference span includes the flanking nodes, so the fragment sits strictly inside it rather than filling it. A fragment that could not be traced to the reference gets `.` and `0 0` for `ref_contig`/`ref_start`/`ref_end`, and one that sits on a chain spine rather than inside a snarl gets `.` for `top_level_snarl`.
+
+Two things to know before joining this table to the VCF. `gref_contig` is a full path name while the VCF's CHROM is the bare contig, so strip the `gref_<SAMPLE>#<HAP>#` prefix to match them. And most fragments have no VCF contig at all: a fragment with no variation among the samples produces no record, and so no `##contig` line. The VCF's gref contigs are a subset of this table's, not the same set.
+
+The gref VCF holds two coordinate systems, and the same sample sequence appears in both: as an ALT allele at a reference-contig site, and as the reference for a gref contig's own records. `RC`/`RS`/`RD` join them, giving the reference-contig site that contains a gref-contig record. `RC=chr22 RS=15470047` on a `chr22_2_alt` record means that fragment sits in the site called at `chr22:15470047`. `RS` is that site's position, not the fragment's own extent, so it can fall before the fragment's `ref_start` in the segment table. The tags survive `vcfbub` and `vcfwave` (`INFO/AT` does not), but the record they name may not be in the file. `vcfbub` may have dropped it, the containing site being the larger one and `--vcfbub` popping sites above its length limit; and a site that only the reference and its own gref copy span has no variant to report, so it never had a record to drop. The tags still give its position either way.
+
+Do not pool reference-contig and gref-contig records when computing allele frequencies or site counts, or that sequence is counted twice. In `.wave.vcf.gz`, match `RS` with a tolerance: realignment can shift the reference-contig record a few bases from where `RS` points.
+
+`vg` counts `LV` within each reference contig rather than as absolute depth in the snarl tree, so gref-contig sites reach `LV=0` and the whole VCF goes through a single `vcfbub --max-level 0` pass.
 
 ### Haplotype Sampling Instead of Filtering (NEW)
 
-The `.dX` graphs created with `--filter` were necessary for read mapping, but now `vg` supports dynamic haplotype subsampling (ie personalized pangenomes) and, in most cases, filtering is no longer necessary. In order to use haplotype sampling, run `cactus-pangenome / cactus-graphmap-join` with the `--haplo` option (and do not use `--giraffe`). This will create the `giraffe` indexes for the special `.hapl` haplotype index which (with the `.gbz`` is all you need to run `vg giraffe` using the current best practices.
+The `.dX` graphs created with `--filter` were necessary for read mapping, but now `vg` supports dynamic haplotype subsampling (ie personalized pangenomes) and, in most cases, filtering is no longer necessary. In order to use haplotype sampling, run `cactus-pangenome / cactus-graphmap-join` with the `--haplo` option (and do not use `--giraffe`). This will create the `giraffe` indexes for the special `.hapl` haplotype index which (with the `.gbz`) is all you need to run `vg giraffe` using the current best practices.
 
 While this process will give better mapping performance than using the `--filter` graphs there is one downside:
 * Read mapping will now require an invocation of `kmc` to compute a kmer index (see links below). While this adds complexity, it does not seriously affect runtime (the time used making the kmer index and doing the subsampling is balanced out by faster mappings times).
@@ -294,9 +358,131 @@ Further reading:
 * `dist`: Snarl distance index required for `vg giraffe`.
 * `min`: Minimizer index required for `vg giraffe`.
 * `hapl` : Haplotype sampling index. Created with `--haplo` (new alternative to `--filter`) and used for new best practice `vg giraffe` pipeline.
-* `stats.tgz`: Some stats about how much sequence was clipped, including a BED file of the removed sequence.
+* `stats/`: Tables describing the graph and a complete accounting of input sequence that did *not* make it in. See [Statistics and Clipping Reports](#statistics-and-clipping-reports).
 * `og`: [odgi](https://github.com/pangenome/odgi)'s native format, can be read and written by `odgi`. Very useful for [visualization](#visualization).
 * `snarl-stats.tsv.gz`: Table with one row per snarl (bubble) in the graph, sorted in decreasing order of the distance they span on the (first) reference sample.  See the table header for a description of each column, and note that snarls can be nested in eachother.  This table is produced with the `--snarlStats` option.  
+#### Statistics and Clipping Reports
+
+Every run writes a `<outName>.stats/` directory describing what went into the graph and what did
+not, plus two files at the top level:
+
+```
+<outName>.WARNING                    only exists if something looks wrong -- see below
+<outName>.input-contig-sizes.tsv.gz  input contig lengths, as cactus saw them
+<outName>.stats/
+    clipped-by-genome.tsv               one row per input genome and reason
+    clipped-by-reference-contig.tsv     one row per genome per reference contig
+    clipped-by-input-contig.tsv.gz      one row per input contig
+    clipped.beds.tar.gz                 the intervals themselves, for the clipped graph
+    clipped.full.beds.tar.gz            ...for the full graph
+    clipped.d2.beds.tar.gz              ...for the frequency-filtered graph
+    graph-stats.tsv                     one row per reference contig: nodes, edges, length
+    path-stats.tsv.gz                   one row per path in the clipped graph
+    refgaps.bed.gz                      reference regions no other assembly aligns to
+```
+
+##### What "clipped" means here
+
+Any input base that is **not in the output graph**, whatever removed it. That is broader than the
+`--clip` phase alone, and the `reason` column says which stage was responsible:
+
+| reason | meaning |
+|-|-|
+| `ambiguous` | contig binned to `_AMBIGUOUS_` during chromosome splitting |
+| `unassigned` | contig that splitting made no decision about at all |
+| `no_chromosome_graph` | contig assigned to a reference contig no graph was built for (e.g. one left out of `--refContigs`) |
+| `unaligned` | contig reached its chromosome graph, but some of its sequence is not in the `full` graph |
+| `clip` | removed by the clip phase (`--clip`) |
+| `filter` | removed by the allele-frequency filter (`--filter`) |
+
+The first four mean the sequence is absent from **every** graph. Only phases that actually ran are
+reported: with the default options there is no frequency-filtered graph, so there are no `filter`
+rows and no `.d2` files. The report never causes a phase to run.
+
+##### The three tables
+
+They are the same accounting at three zoom levels, and all reconcile with each other.
+`clipped-by-genome.tsv` is the headline:
+
+```
+genome        reason      intervals  bp        pct_of_input
+UWOPS034614   ambiguous   4          3255663   27.714
+UWOPS034614   clip        15         389645    3.317
+UWOPS034614   TOTAL       25390      4067475   34.625
+```
+
+Every reason the run could measure gets a row for every genome, so a `0` means
+measured-and-nothing-lost, while a reason with no rows at all means that phase never ran.
+
+The other two say how much of the input survived into each graph, rather than what was lost, so the
+columns decrease left to right and the loss at any stage is the drop between adjacent `_bp` columns:
+
+```
+#ref_chrom  genome  contigs  input_bp  full_bp  full_frags  clip_bp  clip_frags  filter_bp  filter_frags
+chrI        SK1     1        228861    228861   1           214802   1           191745     869
+```
+
+`_frags` is how many contiguous pieces the sequence is broken into in that graph, so the example
+above shows clipping removing 14,059 bp while leaving one piece, then the frequency filter removing
+another 23,057 and shattering it into 869. A `ref_chrom` of `_NONE_` means the contig reached no
+chromosome graph at all.
+
+`clipped-by-input-contig.tsv.gz` is the same thing one level down, one row per input contig. It is
+most useful for fragmented assemblies, where a genome contributes many contigs to one reference
+contig; where each contig maps to its own reference contig it adds little over the rollup.
+
+##### The BED archives
+
+Each `clipped*.beds.tar.gz` unpacks to a directory of one plain 4-column BED per input genome, in
+input contig coordinates, usable with `bedtools` as-is:
+
+```
+chrVI      0        290867    unassigned
+chrI       0        17071     clip
+```
+
+They are cumulative, since each graph is built from the previous one: everything missing from the
+full graph is also missing from the clipped graph. So `clipped.beds.tar.gz` is what is not in the
+clipped graph -- the default output, and what most people want.
+
+The accounting is measured, not estimated: path coverage is read back out of each graph that was
+built and subtracted from the input contig lengths, so for every genome `bases in the graph + bases
+in that graph's BED == input bases`, exactly.
+
+##### Graph statistics
+
+`graph-stats.tsv` and `path-stats.tsv.gz` describe the clipped graph rather than what was clipped
+from it. `graph-stats.tsv` gives the size and complexity of each chromosome graph, where `length`
+is the total sequence in the graph -- much less than the sum of the inputs, because shared sequence
+is stored once. `path-stats.tsv.gz` has one row per path; a `[start-end]` suffix on a path name
+means it is a fragment of a longer input contig.
+
+##### Reference gaps
+
+`refgaps.bed.gz` is different in kind: the reference is never clipped, so it loses nothing. These
+are instead regions of the reference that **no other assembly aligns to** (runs of at least
+`refGapMinLength`, 10kb by default). This sequence is present in the graph and is never counted as
+clipped.
+
+##### `<outName>.WARNING`
+
+Cactus writes `<outName>.WARNING` when the accounting looks wrong: a genome largely absent from
+every graph, whole input contigs absent, one genome losing far more than the rest of the panel, a
+reference little of the panel aligns to, or an accounting that fails to add up. **The file only
+exists when there is something to say**, so its absence is the all-clear.
+
+It deliberately stays quiet on losses that are uniform across the panel, since those reflect how the
+run was configured rather than a problem: dropping whole chromosomes with `--refContigs` and removing
+rare alleles with `--filter` both do that. Each note is a heuristic, so check it against your data --
+a genuinely rearranged assembly will trip the first one, correctly.
+
+##### Running `cactus-graphmap-join` on its own
+
+Pass `--inputContigSizes <outName>.input-contig-sizes.tsv.gz` from the `cactus-pangenome` run that
+produced the graphs. It is the only record of how much input sequence there was, so **without it no
+clipping report is written** -- only `refgaps.bed.gz` and the graph statistics, which do not depend
+on it.
+
 #### Node Chopping
 
 As of [v2.9.1](https://github.com/ComparativeGenomicsToolkit/cactus/releases/tag/v2.9.1), all output graphs will have node IDs of at most 1024bp. This is because the `gbz` and `dist` indexes require this (they use 10bits for node offsets), and as a result so do an increasing number of `vg` tools. There is also a major benefit from the simplicity of having all output files sharing the same ID space.
@@ -337,6 +523,33 @@ PAN027   PAN027.seqfile.txt
 cactus-panpatch ./js chromfile.txt --outDir patched --batch
 ```
 
+Each sample writes its own patched FASTA(s), `<name>.bed`, and per-patch report `<name>.tsv` into `--outDir`. Across all samples, a single `panpatch-summary.tsv` rolls those reports up: one row per sample with accepted patches by category (`gap_fill`, `scaffold`, `telomere`, and the error-BED `bed_gap` subset), telomere-to-telomere output contigs, and a `TOTAL` row.
+
+The `t2t_contigs` / `contigs_analyzed` columns, and the `#Contig` lines at the end of each `<name>.tsv`, describe the assembly that was actually written: one line per output record, with its telomere cap status measured on the final sequence after any error-BED regions were reverted. (You can reproduce them for any assembly with `panpatch --telomere-report <assembly.fa[.gz]>`.)
+
+### Masking assembly errors
+
+If you have BED files of *suspected assembly errors* — for the target, for donors, or for any subset of them — `--assemblyErrorBeds` will steer patching away from them. The argument is a manifest with one `<seqfile-event-name> <bed-path>` line per assembly (a subset is fine); the event name is the assembly's first-column name in the seqfile (e.g. `PAN028-verkko.1`), so a single manifest covers every sample in a `--batch`:
+
+```
+PAN028-verkko.1   errors/PAN028.hap1.bed     # <- target haplotype 1
+PAN028-hifiasm.2  errors/hifiasm.hap2.bed     # <- a donor
+```
+```
+cactus-panpatch ./js chromfile.txt --outDir patched --batch --assemblyErrorBeds manifest.txt
+```
+
+Each interval is treated almost like a run of `N`s:
+
+* In a **donor**, the region is never used to patch — its sequence is kept out of every output.
+* In the **target**, the region is patched (replaced with a donor) when a donor spans it, exactly as a gap would be; when it *can't* be patched it is left as the **original sequence** (never `N`, so the result is non-destructive).
+
+BED contig names are the assembly's own fasta-header first token, with coordinates 0-based half-open in that assembly's frame. This is distinct from `--excludeBed`, which protects a region of the target from being touched at all and is given in graph path-name coordinates.
+
+Because a masked target error looks like a gap, the per-patch report distinguishes the two with a `gap_origin` column: `bed-gap` for a fill over an error interval, `N-gap` for a genuine pre-existing `N` gap (`.` for non-gap patches). This column is always present in the report — without `--assemblyErrorBeds` every gap-fill is simply an `N-gap`. The reference is never masked.
+
+One thing to watch out for: **error intervals at contig tips interact with telomere patching.** Error BEDs frequently flag the first or last interval of a contig, and masking one takes that contig's telomere with it — so panpatch sees a capless end and may complete it from a donor even where the original tip was fine. The result is still non-destructive (an end that cannot be completed reverts to the original sequence), and the flagged sequence is genuinely replaced rather than merely extended, so the end still carries a telomere. But it is now the donor's telomere, which is a real change to the assembly. If you are measuring whether patching improved telomere completeness, compare against the **unmasked** assembly: measured against the masked input, the masking's own effect shows up as an improvement.
+
 ### Cluster example
 
 ```
@@ -344,6 +557,8 @@ cactus-panpatch ./js chromfile.txt --outDir patched --batch --requireTelomeres \
     --batchSystem slurm --defaultWalltime 36000 --doubleMem true --maxMemory 1.5T --retryCount 10 \
     --consCores 16 --mgCores 32 --mapCores 16
 ```
+
+Please cite the [panpatch paper](https://doi.org/10.64898/2025.12.14.693655) when using `cactus-panpatch`.
 
 ## Advanced Configuration
 
@@ -377,7 +592,7 @@ Please cite [Bandage-NG](https://github.com/asl/BandageNG) for images your creat
 * `--odgi` : Output the graph to odgi (.og) format.  Valid options are `full` and/or `clip`, with the default being `full` if none are specified (there is no reason to output the `filter` graphs to odgi, and the tiny path fragments can potentially make conversion very slow).
 * `--chrom-og`: Output each graph chromosome in odgi (.og) format.  This is recommended if you want to run `odgi` yourself to do any visualization, since you will generally want to deal with one chromosome at a time.  As above, valid options are `full` and `clip`, defaulting to `full` if none specified.
 
-Unlike some of the related options such as `--gbz`, `--xg`, `--chrom-vg`, `--gfa`, etc, the odgi options above default to working on the `full` graph as opposed the the `clip` graphs.  As such, the output (by default) will contain the unaligned chromosomes.  The rationale is that these unaligned sequences do not seem to hinder visualization, whereas the path fragments that arise from clipping can bog odgi down a little bit (ex: chr1 from the clipped 10-chicken pangenome takes several hours to convert to odgi, but the full graph is fine). Also, odgi's coordinate system does not support path fragments, so its extraction tools etc. will only work properly on the full graphs.  This is still a work in progress, so you can use, say, `--chrom-og clip full` to experiment with both.
+Unlike related options such as `--gbz`, `--xg`, `--chrom-vg` and `--gfa`, the odgi options above default to the `full` graph rather than the `clip` graphs, so the output will contain the unaligned chromosomes.  Those do not seem to hinder visualization, whereas the path fragments that come out of clipping can bog odgi down: chr1 from the clipped 10-chicken pangenome takes several hours to convert, while the full graph is fine.  odgi's coordinate system also does not support path fragments, so its extraction tools only work properly on the full graphs.  This is still a work in progress -- use `--chrom-og clip full` to experiment with both.
 
 #### ODGI Viz
 
@@ -456,6 +671,23 @@ vg chunk -x yeast-pg/yeast-pg.gbz -S yeast-pg/yeast-pg.snarls -p S288C#0#chrI:10
 <img src="yeast-pg-chunk-viz.png" height=120% width=100%>
 
 Please cite [vg](https://doi.org/10.1038/nbt.4227) when using these visualizations.
+
+## Pangenome Statistics (panacus)
+
+[panacus](https://github.com/codialab/panacus) computes pangenome coverage and growth statistics: how much sequence is shared across the samples, how the pangenome grows as samples are added, and how big its core is. Passing `--panacus` to `cactus-graphmap-join` (or `cactus-pangenome`) runs panacus on the resulting whole-genome graph and writes both the source table data and a self-contained interactive HTML report of the plots.
+
+```
+cactus-pangenome ./js ./seqfile.txt --outDir ./out --outName mygraph --reference GRCh38 --panacus
+```
+
+`--panacus` takes an optional list of graph types (`clip`, `full`, `filter`); with no argument it defaults to the clipped graph (`full` if clipping is disabled), matching the other graph-type options like `--gfa` and `--vcf`. The results are written into the **`<outName>.stats/` subdirectory** (along with the other run statistics), for example:
+
+* `<outName>.stats/<outName>.panacus.report.html`: a self-contained interactive report, with a section per requested graph type and count type (`bp`, `node`) holding the coverage histogram, growth and core-size curves, path-similarity heatmap and node distribution
+* `<outName>.stats/<outName>.panacus.histgrowth.<count>.tsv`: the source coverage/growth tables, one per count type (the `full` and `filter` graphs' tables are named `<outName>.full.panacus.*` and `<outName>.d<N>.panacus.*`)
+
+panacus renders its plots directly from the graph, so no extra plotting dependencies are needed. The count type(s) reported (`bp`, `node`, `edge`) can be changed with the `panacus` element in the [configuration](#advanced-configuration) XML.
+
+Please [cite panacus](https://doi.org/10.1093/bioinformatics/btae720) when using these statistics.
 
 ## Yeast Graph
 
@@ -560,14 +792,16 @@ cactus-align ./jobstore ./yeast-pg/chroms/chromfile.txt yeast-pg/chrom-alignment
 --batch --pangenome --reference S288C --outVG 
 ```
 
-The results are a HAL and VG file for each chromosome:
+The results are a HAL and VG file for each chromosome.  The `.raw.vg` graphs are the direct
+`hal2vg` output: they have not been clipped, filtered or otherwise normalized, which is what
+distinguishes them from the `<outName>.chroms/` graphs that `cactus-graphmap-join` makes below.
 ```
 ls -hs yeast-pg/chrom-alignments/
 total 72M
-920K chrI.hal    2.1M chrII.vg   1.6M chrIX.hal  3.1M chrVII.hal   1.2M chrVI.vg   3.5M chrXII.hal   1.4M chrXI.vg    3.6M chrXV.hal
-2.7M chrII.hal   1.3M chrI.vg    1.7M chrIX.vg   1.6M chrVIII.hal  1.6M chrV.vg    2.9M chrXIII.hal  2.7M chrXIV.hal  3.2M chrXVI.hal
-1.3M chrIII.hal  5.1M chrIV.hal  2.0M chrV.hal   1.3M chrVIII.vg   2.1M chrX.hal   2.2M chrXIII.vg   2.4M chrXIV.vg   2.5M chrXVI.vg
-1.3M chrIII.vg   4.4M chrIV.vg   1.1M chrVI.hal  2.4M chrVII.vg    2.0M chrXI.hal  3.1M chrXII.vg    1.7M chrX.vg     3.1M chrXV.vg
+920K chrI.hal      1.3M chrIII.hal     1.6M chrIX.hal     1.1M chrVI.hal      1.6M chrVIII.hal     2.0M chrXI.hal      2.9M chrXIII.hal     3.6M chrXV.hal
+1.3M chrI.raw.vg   1.3M chrIII.raw.vg  1.7M chrIX.raw.vg  1.2M chrVI.raw.vg   1.3M chrVIII.raw.vg  1.4M chrXI.raw.vg   2.2M chrXIII.raw.vg  3.1M chrXV.raw.vg
+2.7M chrII.hal     5.1M chrIV.hal      2.0M chrV.hal      3.1M chrVII.hal     2.1M chrX.hal        3.5M chrXII.hal     2.7M chrXIV.hal      3.2M chrXVI.hal
+2.1M chrII.raw.vg  4.4M chrIV.raw.vg   1.6M chrV.raw.vg   2.4M chrVII.raw.vg  1.7M chrX.raw.vg     3.1M chrXII.raw.vg  2.4M chrXIV.raw.vg   2.5M chrXVI.raw.vg
 ```
 
 ### Yeast: Joining the Chromosome Alignments
@@ -586,7 +820,8 @@ ls -hs yeast-pg/yeast-pg*
  21M yeast-pg/yeast-pg.dist      103M yeast-pg/yeast-pg.min             4.3M yeast-pg/yeast-pg.vcf.gz
  38M yeast-pg/yeast-pg.full.hal  4.6M yeast-pg/yeast-pg.raw.vcf.gz      8.0K yeast-pg/yeast-pg.vcf.gz.tbi
  16M yeast-pg/yeast-pg.gbz       8.0K yeast-pg/yeast-pg.raw.vcf.gz.tbi
- 14M yeast-pg/yeast-pg.gfa.gz     16K yeast-pg/yeast-pg.stats.tgz
+ 14M yeast-pg/yeast-pg.gfa.gz     12K yeast-pg/yeast-pg.input-contig-sizes.tsv.gz
+4.0K yeast-pg/yeast-pg.stats
 
 zcat yeast-pg/yeast-pg.gfa.gz | grep '^W' | awk '{print $1 "\t" $2 "\t" $3 "\t" $4 "\t" $5 "\t" $6 }' | grep S288C
 W	S288C	0	chrIII	0	341580
@@ -966,7 +1201,7 @@ A: So current toolchains can work with your graphs.  But clipping and filtering 
 
 **Q**: Some contigs or even entire samples are getting mysteriously dropped from my output. What happened?
 
-**A**: This is probably due to the reference contig assignment thresholds. The defaults (found in `minQueryCoverages` and `minQueryCoverageThresholds` in the cactus_progressive_config.xml configuration file) are quite stringent for tiny contigs.  For example, with the current defaults (circa v2.6.7), a contig shorter than 100kb would need to map with at least 75% of its bases to a reference graph component in order to be included. For diverse inputs and / or very fragmented assemblies, this may be too strict.  You can inspect which of your contigs were filtered and why by looking at `chrom-subproblems/minigraph-split-log` in your output directory. In most cases, you can resolve this by using the `--permissiveContigFilter` option, which by default, applies a 25% threshold to all contig sizes (you can further lower it by passing in a value, ex `--permissiveContigFilter 0.1`. This option (available in `cactus-pangenome` and `cactus-graphmap-split`) is also mentioned in the Yeast example above.
+**A**: This is probably due to the reference contig assignment thresholds, which are stringent for tiny contigs (`minQueryCoverages` and `minQueryCoverageThresholds` in cactus_progressive_config.xml). With the defaults circa v2.6.7, a contig shorter than 100kb needs at least 75% of its bases mapping to a reference graph component to be included, which can be too strict for diverse inputs or very fragmented assemblies. `chrom-subproblems/minigraph-split-log` in your output directory shows which contigs were filtered and why. Usually `--permissiveContigFilter` resolves it: it applies a 25% threshold at all contig sizes, and takes an optional lower value, ex `--permissiveContigFilter 0.1`. It is available in `cactus-pangenome` and `cactus-graphmap-split`, and is also used in the Yeast example above.
 **
 
 **Q**: Can I adjust the `minigraph` parameters?
