@@ -14,7 +14,7 @@ import xml.etree.ElementTree as ET
 from operator import itemgetter
 
 from cactus.progressive.seqFile import SeqFile
-from cactus.shared.common import setupBinaries, importSingularityImage, cactus_fast_walltime
+from cactus.shared.common import setupBinaries, importSingularityImage, cactus_walltime
 from cactus.shared.common import cactusRootPath
 from cactus.shared.configWrapper import ConfigWrapper
 from cactus.shared.common import makeURL, catFiles
@@ -155,7 +155,7 @@ def main():
             config.substituteAllPredefinedConstantsWithLiterals(options)
             
             hal_id = toil.importFile(options.halFile)            
-            chains_id_dict = toil.start(Job.wrapJobFn(hal2chains_workflow, config, options, hal_id, walltime=cactus_fast_walltime()))
+            chains_id_dict = toil.start(Job.wrapJobFn(hal2chains_workflow, config, options, hal_id, walltime=cactus_walltime()))
 
         #export the chains
         for query_genome in chains_id_dict.keys():
@@ -184,8 +184,8 @@ def hal2chains_workflow(job, config, options, hal_id):
                                                        disk=int(hal_id.size * 1.2))
     leaf_genomes = get_genomes_job.rv(0)
     distance_matrix = get_genomes_job.rv(1)
-    chrom_info_job = get_genomes_job.addFollowOnJobFn(hal2chains_chrom_info_all, config, options, hal_id, leaf_genomes, walltime=cactus_fast_walltime())
-    hal2chains_all_job = chrom_info_job.addFollowOnJobFn(hal2chains_all, config, options, hal_id, chrom_info_job.rv(), distance_matrix, walltime=cactus_fast_walltime())
+    chrom_info_job = get_genomes_job.addFollowOnJobFn(hal2chains_chrom_info_all, config, options, hal_id, leaf_genomes, walltime=cactus_walltime())
+    hal2chains_all_job = chrom_info_job.addFollowOnJobFn(hal2chains_all, config, options, hal_id, chrom_info_job.rv(), distance_matrix, walltime=cactus_walltime())
     return hal2chains_all_job.rv()
 
 def hal2chains_check_tools(job, options):
@@ -283,6 +283,22 @@ def chain_pair_cost(q, t, chrom_info_dict, distance_matrix, epsilon=0.05):
     d = distance_matrix[q][t]
     return min(q_size, t_size) / (d + epsilon)
 
+# Seconds of chain pipeline per unit of chain_pair_cost.  Calibrated against the 1719
+# halLiftover|pslPosTarget|axtChain runs of the VGP 577-way: total time / total cost.  The
+# proxy is noisy per pair (log-log r=0.56, and the worst single pair is 26x the p50 rate), but
+# a batch sums many pairs and the noise averages out -- replaying that LPT assignment, the
+# predicted batch time is within 1.02x of the truth at 3 batches and 1.55x at 64.
+CHAIN_SECS_PER_COST = 1.783e-05
+
+
+def estimate_batch_walltime(options, batch_pairs, chrom_info_dict, distance_matrix):
+    """ estimated seconds for one hal2chains batch: the batch's total pair cost spread over
+    the GNU parallel slots it will actually use """
+    total_cost = sum(chain_pair_cost(q, t, chrom_info_dict, distance_matrix) for q, t in batch_pairs)
+    slots = max(1, min(options.batchParallelHal2chains or 1, len(batch_pairs)))
+    return CHAIN_SECS_PER_COST * total_cost / slots
+
+
 def estimate_batch_memory(options, hal_id, pair_2bit_max=0):
     """ pick a memory request for a hal2chains batch job.
 
@@ -344,10 +360,16 @@ def hal2chains_chrom_info_all(job, config, options, hal_id, genomes):
             continue
         # disk: hal copy + headroom for all the 2bits/beds we'll generate (2bits ~ fasta size ~ hal/ngenomes)
         batch_disk = int(hal_id.size * 1.2) + int(hal_id.size * 1.5 * len(batch_genomes) / max(1, len(all_genomes)))
+        # hal2fasta|faToTwoBit was p50 20s / p99 82s per genome across the 577-way, run
+        # batchParallelHal2chains at a time -- but on a HAL that size the job spends most of
+        # its life copying the HAL, which is what io_bytes accounts for
+        batch_slots = max(1, min(options.batchParallelHal2chains or 1, len(batch_genomes)))
+        chrom_info_secs = 100.0 * len(batch_genomes) / batch_slots
         batch_job = job.addChildJobFn(hal2chains_chrom_info_batch, config, options, hal_id, batch_genomes,
                                       disk=batch_disk,
                                       cores=options.batchCores,
-                                      memory=batch_memory)
+                                      memory=batch_memory,
+                                      walltime=cactus_walltime(chrom_info_secs, io_bytes=hal_id.size))
         for g in batch_genomes:
             chrom_info_dict[g] = batch_job.rv(g)
     return chrom_info_dict
@@ -460,7 +482,10 @@ def hal2chains_all(job, config, options, hal_id, chrom_info_dict, distance_matri
                                       batch_pairs, batch_chrom_info, batch_distances,
                                       disk=batch_disk,
                                       cores=options.batchCores,
-                                      memory=batch_memory)
+                                      memory=batch_memory,
+                                      walltime=cactus_walltime(
+                                          estimate_batch_walltime(options, batch_pairs, chrom_info_dict, distance_matrix),
+                                          io_bytes=hal_id.size + total_2bit))
 
         for q, t in batch_pairs:
             if q not in output_dict:
@@ -471,10 +496,14 @@ def hal2chains_all(job, config, options, hal_id, chrom_info_dict, distance_matri
                 # disk: chain file + intermediates (~10x target 2bit is generous).
                 # memory: hgLoadChain peak is ~2x uncompressed chain size ≈ a few GiB for big mammals.
                 t_2bit_size = chrom_info_dict[t]['2bit'].size
+                # every command here was under two minutes across the 577-way's 1719 bigChains
+                # (bedToBigBed p99 63s, hgLoadChain p99 15s); the chain it reads is the only
+                # thing that grows, and it is small next to the 2bit
                 bigchains_job = batch_job.addFollowOnJobFn(chain2bigchain, options, q, t,
                                                            chrom_info_dict[t], batch_job.rv(q, t),
                                                            disk=max(20 * t_2bit_size, 1024**3),
-                                                           memory=cactus_clamp_memory(max(5 * t_2bit_size, 2 * 1024**3)))
+                                                           memory=cactus_clamp_memory(max(5 * t_2bit_size, 2 * 1024**3)),
+                                                           walltime=cactus_walltime(300, io_bytes=2 * t_2bit_size))
                 output_dict[q][t]['bigChain'] = bigchains_job.rv(0)
                 output_dict[q][t]['bigLink'] = bigchains_job.rv(1)
 

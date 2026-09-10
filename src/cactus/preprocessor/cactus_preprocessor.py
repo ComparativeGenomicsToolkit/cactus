@@ -19,7 +19,7 @@ from toil.statsAndLogging import logger
 from sonLib.bioio import getTempDirectory
 from toil.common import Toil
 from toil.job import Job
-from cactus.shared.common import cactus_call, cactus_fast_walltime
+from cactus.shared.common import cactus_call, cactus_walltime
 from cactus.shared.common import RoundedJob
 from cactus.shared.common import getOptionalAttrib, findRequiredNode
 from cactus.shared.common import runGetChunks
@@ -325,7 +325,7 @@ class BatchPreprocessor(RoundedJob):
                                              prepOptions.dnabrnnAction,
                                              disk=3*inSize if inSize else None)
             checkJob.addFollowOnJobFn(clean_if_different, self.inSequenceID, outSeqID,
-                                      walltime=cactus_fast_walltime())
+                                      walltime=cactus_walltime())
         else:
             logger.info("Skipping inactive preprocessor {}".format(prepNode.attrib["preprocessJob"]))
             outSeqID = self.inSequenceID
@@ -462,7 +462,7 @@ def stageWorkflow(outputSequenceDir, configNode, inputSequences, toil, restart=F
             inputSequenceIDs.append(toil.importFile(makeURL(seq)))
         maskFileID = toil.importFile(makeURL(maskFile)) if maskFile else None
         unzip_job = Job.wrapJobFn(unzip_then_pp, configNode, inputSequences, inputSequenceIDs, inputEventNames,
-                                  maskFile, maskFileID, maskAction, minLength, walltime=cactus_fast_walltime())
+                                  maskFile, maskFileID, maskAction, minLength, walltime=cactus_walltime())
         outputSequenceIDs = toil.start(unzip_job)
     else:
         outputSequenceIDs = toil.restart()
@@ -478,13 +478,13 @@ def stageWorkflow(outputSequenceDir, configNode, inputSequences, toil, restart=F
 
 def unzip_then_pp(job, config_node, input_fa_paths, input_fa_ids, input_event_names, mask_file_path, mask_file_id, mask_file_action, min_length):
     """ unzip then preprocess """
-    unzip_job = job.addChildJobFn(unzip_gzs, input_fa_paths, input_fa_ids, walltime=cactus_fast_walltime())
+    unzip_job = job.addChildJobFn(unzip_gzs, input_fa_paths, input_fa_ids, walltime=cactus_walltime())
     if mask_file_id is not None:
-        mask_unzip_job = unzip_job.addChildJobFn(unzip_gzs, [mask_file_path], [mask_file_id], walltime=cactus_fast_walltime())
+        mask_unzip_job = unzip_job.addChildJobFn(unzip_gzs, [mask_file_path], [mask_file_id], walltime=cactus_walltime())
         config_node = mask_unzip_job.addFollowOnJobFn(maskJobOverride, config_node, mask_file_path, mask_unzip_job.rv(0), mask_file_action, min_length,
                                                       disk=mask_file_id.size*20).rv()
     pp_job = unzip_job.addFollowOn(CactusPreprocessor([unzip_job.rv(i) for i in range(len(input_fa_ids))], config_node, eventNames=input_event_names))
-    zip_job = pp_job.addFollowOnJobFn(zip_gzs, input_fa_paths,  pp_job.rv(), list_elems = [0], walltime=cactus_fast_walltime())
+    zip_job = pp_job.addFollowOnJobFn(zip_gzs, input_fa_paths,  pp_job.rv(), list_elems = [0], walltime=cactus_walltime())
     return zip_job.rv()
     
 def runCactusPreprocessor(outputSequenceDir, configFile, inputSequences, toilDir):

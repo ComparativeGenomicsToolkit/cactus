@@ -23,7 +23,7 @@ import shutil
 import timeit
 import xml.etree.ElementTree as ET
 
-from cactus.shared.common import setupBinaries, importSingularityImage, cactus_fast_walltime
+from cactus.shared.common import setupBinaries, importSingularityImage, cactus_walltime
 from cactus.shared.common import cactusRootPath
 from cactus.shared.configWrapper import ConfigWrapper
 from cactus.shared.common import makeURL, catFiles
@@ -35,7 +35,8 @@ from cactus.shared.common import cactus_cpu_count
 from cactus.shared.version import cactus_commit
 from cactus.progressive.cactus_prepare import human2bytesN
 
-from cactus.maf.maf_chunk import (taffy_index_job, get_ref_sequence_lengths,
+from cactus.maf.maf_chunk import (taffy_walltime_secs, TAFFY_SIDE_OUTPUT_FRACTION,
+                                  taffy_index_job, get_ref_sequence_lengths,
                                   get_aligned_ref_contigs,
                                   plan_chunks, plan_chunks_in_regions, parse_bed_ranges,
                                   filter_chunks_to_indexed,
@@ -416,7 +417,7 @@ def main():
 
             toil.start(Job.wrapJobFn(phast_workflow, config, options,
                                      maf_id, tai_id, tai_built, hal_id, ann_id, model_id,
-                                     bed_id, walltime=cactus_fast_walltime()))
+                                     bed_id, walltime=cactus_walltime()))
 
     end_time = timeit.default_timer()
     logger.info("cactus-phast finished in {} seconds".format(end_time - start_time))
@@ -815,20 +816,23 @@ def phast_workflow(job, config, options, maf_id, tai_id, tai_built, hal_id, ann_
     # Convenience sed script: maps phast canonical names back to HAL genome
     # names. Only relevant when at least one HAL genome name contains '.';
     # the job no-ops otherwise.
-    setup_job.addFollowOnJobFn(export_name_map_job, options, species_list, walltime=cactus_fast_walltime())
+    setup_job.addFollowOnJobFn(export_name_map_job, options, species_list, walltime=cactus_walltime())
 
     # build .tai if missing, else just chain through the existing one
     if tai_built:
         idx_job = setup_job.addFollowOnJobFn(taffy_index_job, maf_id, os.path.basename(options.inMaf),
-                                             disk=int(maf_id.size * 1.1))
+                                             disk=int(maf_id.size * 1.1),
+                                             walltime=cactus_walltime(taffy_walltime_secs(maf_id.size),
+                                                                      io_bytes=maf_id.size))
         tai_id = idx_job.rv()
-        idx_job.addFollowOnJobFn(export_file, tai_id, tai_export_path(options), walltime=cactus_fast_walltime())
+        idx_job.addFollowOnJobFn(export_file, tai_id, tai_export_path(options),
+                                 walltime=cactus_walltime(0, io_bytes=2 * TAFFY_SIDE_OUTPUT_FRACTION * maf_id.size))
         plan_parent = idx_job
     else:
         plan_parent = setup_job
 
     plan_job = plan_parent.addFollowOnJobFn(plan_chunks_job, options, ref_seq_lengths, tai_id,
-                                            bed_id, aligned_contigs, walltime=cactus_fast_walltime())
+                                            bed_id, aligned_contigs, walltime=cactus_walltime())
     chunk_specs = plan_job.rv()
 
     # The single multi-core chunker job: localizes the source MAF once,
@@ -868,7 +872,7 @@ def phast_workflow(job, config, options, maf_id, tai_id, tai_built, hal_id, ann_
     # ----- phyloFit branch (also runs in phyloP mode if no model was given) -----
     if need_train:
         train_job = chunk_job.addFollowOnJobFn(train_workflow, options, chunks,
-                                               species_list, tree_str, ann_id, walltime=cactus_fast_walltime())
+                                               species_list, tree_str, ann_id, walltime=cactus_walltime())
         # train_workflow returns the model file id
         trained_model_id = train_job.rv()
         if options.mode == 'phyloFit':
@@ -891,7 +895,7 @@ def phast_workflow(job, config, options, maf_id, tai_id, tai_built, hal_id, ann_
     for sub in track_inputs:
         score_job = score_parent.addFollowOnJobFn(phyloP_workflow, options, chunks,
                                                   model_id, ref_seq_lengths, species_list,
-                                                  sub, effective_root_name, walltime=cactus_fast_walltime())
+                                                  sub, effective_root_name, walltime=cactus_walltime())
         track_rvs.append(score_job.rv())
     return track_rvs
 
@@ -1302,7 +1306,7 @@ def train_workflow(job, options, chunks, species_list, tree_str, ann_id):
     # projection); with --root, it's restricted to clade leaves.
     leaves_csv = ','.join(phast_name(g) for g in newick_leaves(tree_str))
     extract_job = job.addChildJobFn(extract_4d_all, options, chunks, ann_id,
-                                    species_list, leaves_csv, walltime=cactus_fast_walltime())
+                                    species_list, leaves_csv, walltime=cactus_walltime())
     ss_results = extract_job.rv()  # flat list of ss file ids (one per chunk-group)
 
     # 4d-site SS files are tiny even at 447-way (~300 MB aggregated). 4 GiB
@@ -1311,7 +1315,7 @@ def train_workflow(job, options, chunks, species_list, tree_str, ann_id):
                                                  species_list, tree_str,
                                                  disk=4 * 1024**3)
     aggregate_id = aggregate_job.rv()
-    aggregate_job.addFollowOnJobFn(export_file, aggregate_id, ss_export_path(options), walltime=cactus_fast_walltime())
+    aggregate_job.addFollowOnJobFn(export_file, aggregate_id, ss_export_path(options), walltime=cactus_walltime())
 
     # phyloFit on 577-way × 1.4 GB SS peaked at ~300 MiB; default memory is
     # fine unless the user overrides via --phyloFitMemory.
@@ -1330,7 +1334,7 @@ def train_workflow(job, options, chunks, species_list, tree_str, ann_id):
     else:
         export_parent = fit_job
 
-    export_parent.addFollowOnJobFn(export_file, model_id, model_export_path(options), walltime=cactus_fast_walltime())
+    export_parent.addFollowOnJobFn(export_file, model_id, model_export_path(options), walltime=cactus_walltime())
     return model_id
 
 
@@ -1572,7 +1576,7 @@ def phyloP_workflow(job, options, chunks, model_id, ref_seq_lengths, species_lis
     else:
         RealtimeLogger.info('phyloP track: global conservation (no --subtree)')
     score_job = job.addChildJobFn(phyloP_all, options, chunks, model_id, species_list,
-                                  track_subtree, walltime=cactus_fast_walltime())
+                                  track_subtree, walltime=cactus_walltime())
     per_chunk_wigs = score_job.rv()  # flat list of (contig, start, wig_id_or_None) per chunk
 
     # disk estimates: per-base wig text is ~10 bytes/ref_bp uncompressed; bgzip
@@ -1587,7 +1591,10 @@ def phyloP_workflow(job, options, chunks, model_id, ref_seq_lengths, species_lis
                                            disk=merge_disk,
                                            cores=merge_cores)
     wig_id = merge_job.rv()
-    merge_job.addFollowOnJobFn(export_file, wig_id, wig_export_path(options, track_subtree), walltime=cactus_fast_walltime())
+    # the merged wig is a promise, but its size follows the reference: ~10 bytes/bp of wig text,
+    # which bgzip takes down to roughly a byte a base (see the disk estimate above)
+    merge_job.addFollowOnJobFn(export_file, wig_id, wig_export_path(options, track_subtree),
+                               walltime=cactus_walltime(0, io_bytes=2 * total_ref_bp))
 
     if options.bigwig:
         # decompressed wig + .bw output + bbiFile scratch
@@ -1603,7 +1610,8 @@ def phyloP_workflow(job, options, chunks, model_id, ref_seq_lengths, species_lis
                                             memory=cactus_clamp_memory(bw_mem),
                                             cores=merge_cores)
         bw_job.addFollowOnJobFn(export_file, bw_job.rv(),
-                                bigwig_export_path(options, track_subtree), walltime=cactus_fast_walltime())
+                                bigwig_export_path(options, track_subtree),
+                                walltime=cactus_walltime(0, io_bytes=2 * total_ref_bp))
 
     return wig_id
 

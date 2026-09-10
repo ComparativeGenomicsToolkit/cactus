@@ -16,7 +16,7 @@ import xml.etree.ElementTree as ET
 from operator import itemgetter
 
 from cactus.progressive.seqFile import SeqFile
-from cactus.shared.common import setupBinaries, importSingularityImage, cactus_fast_walltime
+from cactus.shared.common import setupBinaries, importSingularityImage, cactus_walltime
 from cactus.shared.common import cactusRootPath
 from cactus.shared.configWrapper import ConfigWrapper
 from cactus.shared.common import makeURL, catFiles
@@ -30,6 +30,7 @@ from cactus.shared.version import cactus_commit
 from cactus.progressive.cactus_prepare import human2bytesN
 from cactus.progressive.multiCactusTree import MultiCactusTree
 from cactus.maf.maf_chunk import parse_bed_ranges
+from cactus.maf.maf_chunk import taffy_walltime_secs, TAFFY_SIDE_OUTPUT_FRACTION
 
 from toil.job import Job
 from toil.common import Toil
@@ -222,11 +223,36 @@ def main():
 
             bed_id = toil.importFile(options.bedRanges) if options.bedRanges else None
             hal_id = toil.importFile(options.halFile)
-            toil.start(Job.wrapJobFn(hal2maf_workflow, hal_id, bed_id, options, config, walltime=cactus_fast_walltime()))
+            toil.start(Job.wrapJobFn(hal2maf_workflow, hal_id, bed_id, options, config, walltime=cactus_walltime()))
         
     end_time = timeit.default_timer()
     run_time = end_time - start_time
     logger.info("cactus-hal2maf has finished after {} seconds".format(run_time))
+
+# Core-seconds of hal2maf-plus-taffy per chunk per genome in the alignment.  Fitted to the 824
+# batch jobs of the VGP 577-way MAF export (31 references, 209k chunks, 22153 CPU-hours): the
+# work in a chunk is set by how many genomes align there, not by how many bases the chunk spans
+# -- a fit against chunk length comes out with a negative slope.
+HAL2MAF_CORE_SECS_PER_CHUNK_PER_GENOME = 1.2
+
+# A batch cannot finish faster than its slowest single chunk, and chunk cost varies enormously
+# (per-chunk hal2maf was p50 71s against p99 1570s on that alignment).  Dividing the total work
+# by the core count assumes a balance that does not exist when a batch holds only a few chunks
+# per core, which is where every badly-underestimated batch in the fit came from.  This term is
+# one slow chunk's worth, again per genome.
+HAL2MAF_SLOW_CHUNK_CORE_SECS_PER_GENOME = 2.0
+
+
+def hal2maf_batch_walltime(batch_chunks, genome_list, options):
+    """ estimated seconds for one hal2maf batch: its total work spread over the cores it has,
+    plus the one slow chunk that sets the tail.  Covers 98% of the 824 VGP batches once
+    cactus_walltime()'s factor is applied; the rest are what --doubleTime is for. """
+    n_chunks = len(batch_chunks)
+    n_genomes = max(1, len(genome_list))
+    slots = max(1, min(options.batchCores or 1, n_chunks))
+    return (HAL2MAF_CORE_SECS_PER_CHUNK_PER_GENOME * n_genomes * n_chunks / slots +
+            HAL2MAF_SLOW_CHUNK_CORE_SECS_PER_GENOME * n_genomes)
+
 
 def export_file(job, file_id, out_path):
     """ run toil export in its own job in order to a) do it right away but b) in a separate job (in case it fails) """
@@ -235,11 +261,13 @@ def export_file(job, file_id, out_path):
     
 def hal2maf_workflow(job, hal_id, bed_id, options, config):
 
-    hal2maf_ranges_job = job.addChildJobFn(hal2maf_ranges, hal_id, bed_id, options, cores=1, disk=hal_id.size)
+    # halStats itself is seconds; on a HAL of any size this job is a HAL copy and little else
+    hal2maf_ranges_job = job.addChildJobFn(hal2maf_ranges, hal_id, bed_id, options, cores=1, disk=hal_id.size,
+                                           walltime=cactus_walltime(300, io_bytes=hal_id.size))
     chunks, genome_list = hal2maf_ranges_job.rv(0), hal2maf_ranges_job.rv(1)
-    hal2maf_all_job = hal2maf_ranges_job.addFollowOnJobFn(hal2maf_all, hal_id, chunks, genome_list, options, config, walltime=cactus_fast_walltime())
+    hal2maf_all_job = hal2maf_ranges_job.addFollowOnJobFn(hal2maf_all, hal_id, chunks, genome_list, options, config, walltime=cactus_walltime())
     hal2maf_merge_job = hal2maf_all_job.addFollowOnJobFn(hal2maf_merge_all, hal2maf_all_job.rv(), options, genome_list,
-                                                         disk=hal_id.size, walltime=cactus_fast_walltime())
+                                                         disk=hal_id.size, walltime=cactus_walltime())
     hal2maf_ranges_job.addFollowOn(hal2maf_merge_job)
     # note: merge job also handles exporting (and some cleanup), indexing and coverage
 
@@ -366,10 +394,14 @@ def hal2maf_all(job, hal_id, chunks, genome_list, options, config):
         cur_chunk = i * batch_size
         cur_batch_size = min(chunks_left, batch_size)
         if cur_batch_size:
-            batch_results.append(job.addChildJobFn(hal2maf_batch, hal_id, chunks[cur_chunk:cur_chunk+cur_batch_size],
+            batch_chunks = chunks[cur_chunk:cur_chunk+cur_batch_size]
+            batch_results.append(job.addChildJobFn(hal2maf_batch, hal_id, batch_chunks,
                                                    genome_list, options, config,
                                                    disk=math.ceil((1 + 1.5 / num_batches)*hal_id.size), cores=options.batchCores,
-                                                   memory=batch_memory).rv())
+                                                   memory=batch_memory,
+                                                   walltime=cactus_walltime(
+                                                       hal2maf_batch_walltime(batch_chunks, genome_list, options),
+                                                       io_bytes=hal_id.size)).rv())
         chunks_left -= cur_batch_size
     assert chunks_left == 0
     
@@ -674,8 +706,12 @@ def hal2maf_merge_all(job, output_dicts, options, genome_list):
     for out_type in options.outType:
         maf_ids = [out_dict[out_type] for out_dict in output_dicts]
         maf_size = sum([maf_id.size for maf_id in maf_ids])
+        # a cat of every chunk MAF, so it is pure I/O -- unless the output is TAF, which adds a
+        # taffy view pass over the merged file
+        merge_secs = taffy_walltime_secs(maf_size) if options.outputMAF.endswith(('.taf', '.taf.gz')) else 0
         merge_job = job.addChildJobFn(hal2maf_merge, maf_ids, options,
-                                      disk=int(3 * maf_size))
+                                      disk=int(3 * maf_size),
+                                      walltime=cactus_walltime(merge_secs, io_bytes=2 * maf_size))
         # we export ASAP
         output_name, output_ext = os.path.splitext(options.outputMAF)
         if output_ext == '.gz':
@@ -683,21 +719,30 @@ def hal2maf_merge_all(job, output_dicts, options, genome_list):
             output_ext += '.gz'
         if out_type != 'norm' and len(options.outType) > 1:
             output_name += '.{}'.format(out_type)
-        export_job = merge_job.addFollowOnJobFn(export_file, merge_job.rv(), output_name + output_ext, walltime=cactus_fast_walltime())
-        merge_job.addFollowOnJobFn(clean_jobstore_files, file_ids=maf_ids, walltime=cactus_fast_walltime())
+        # the merged MAF is a promise, so it has no size here; it is a concatenation of the
+        # chunk MAFs, so their total is the right stand-in (an upper bound once it is gzipped)
+        export_job = merge_job.addFollowOnJobFn(export_file, merge_job.rv(), output_name + output_ext,
+                                                walltime=cactus_walltime(0, io_bytes=2 * maf_size))
+        merge_job.addFollowOnJobFn(clean_jobstore_files, file_ids=maf_ids, walltime=cactus_walltime())
         if options.index:
             index_job = merge_job.addFollowOnJobFn(taffy_index, merge_job.rv(), output_name + output_ext,
                                                    disk=int(1.1 * maf_size),
-                                                   memory=cactus_clamp_memory(maf_size / 10))
-            index_job.addFollowOnJobFn(export_file, index_job.rv(), output_name + output_ext + '.tai', walltime=cactus_fast_walltime())
+                                                   memory=cactus_clamp_memory(maf_size / 10),
+                                                   walltime=cactus_walltime(taffy_walltime_secs(maf_size),
+                                                                            io_bytes=maf_size))
+            index_job.addFollowOnJobFn(export_file, index_job.rv(), output_name + output_ext + '.tai',
+                                       walltime=cactus_walltime(0, io_bytes=2 * TAFFY_SIDE_OUTPUT_FRACTION * maf_size))
             
             
         if options.coverage:
             coverage_job = merge_job.addFollowOnJobFn(taffy_coverage, merge_job.rv(), output_name + output_ext,
                                                       genome_list, options,
                                                       disk=int(1.1 * maf_size),
-                                                      memory=cactus_clamp_memory(maf_size / 10))
-            coverage_job.addFollowOnJobFn(export_file, coverage_job.rv(), output_name + output_ext + '.cov.tsv', walltime=cactus_fast_walltime())
+                                                      memory=cactus_clamp_memory(maf_size / 10),
+                                                      walltime=cactus_walltime(taffy_walltime_secs(maf_size),
+                                                                               io_bytes=maf_size))
+            coverage_job.addFollowOnJobFn(export_file, coverage_job.rv(), output_name + output_ext + '.cov.tsv',
+                                          walltime=cactus_walltime(0, io_bytes=2 * TAFFY_SIDE_OUTPUT_FRACTION * maf_size))
             
     return export_job.rv()
         

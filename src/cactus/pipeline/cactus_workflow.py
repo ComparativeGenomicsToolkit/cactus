@@ -20,6 +20,7 @@ from cactus.shared.common import cactus_call
 from cactus.shared.configWrapper import ConfigWrapper
 from cactus.shared.common import findRequiredNode, getOptionalAttrib
 from cactus.shared.common import cactus_clamp_memory
+from cactus.shared.common import cactus_walltime
 
 ############################################################
 ############################################################
@@ -154,9 +155,28 @@ def cactus_cons_with_resources(job, tree, ancestor_event, config_node, seq_id_ma
             name, bytes2human(mem), bytes2human(max_system_memory)))
         mem = max_system_memory
 
+    # Runtime, unlike peak memory, tracks input volume closely: fitted to the same 576 VGP
+    # alignments, secs = 800 * (disk/1e9)**0.95 lands within 65-75% of the walltime every one
+    # of them actually needed, once cactus_walltime()'s safety factor is applied on top and the
+    # 2x cactus_consolidated speedup since those logs is taken out.  `disk` is used as the size
+    # term because it already combines the sequence and paf sizes in the proportions that drive
+    # the work (5:2), so there is one number to key off rather than two.
+    wt_coef = getOptionalAttrib(cons_node, 'walltime_coefficient_secs', typeFn=float, default=800.0)
+    wt_exp = getOptionalAttrib(cons_node, 'walltime_input_exponent', typeFn=float, default=0.95)
+    walltime_secs = wt_coef * ((disk / 1e9) ** wt_exp) if disk > 0 else 0
+    # bar is 63.5% of consolidated's time across those 576 alignments, caf 20.3%, reference
+    # 15.4%; the parallel part of that stops improving somewhere around 24 cores (which is why
+    # --consCores above ~24 buys memory, not speed), so scale up only when a job is given fewer
+    # than that.  The fit's own jobs all ran at 64 cores, i.e. already on the plateau.
+    wt_core_baseline = getOptionalAttrib(cons_node, 'walltime_core_scale_baseline', typeFn=int, default=24)
+    wt_parallel = getOptionalAttrib(cons_node, 'walltime_parallel_fraction', typeFn=float, default=0.64)
+    if cons_cores and 0 < cons_cores < wt_core_baseline:
+        walltime_secs *= (1.0 - wt_parallel) + wt_parallel * (float(wt_core_baseline) / cons_cores)
+
     cons_job = job.addChildJobFn(cactus_cons, tree, ancestor_event, config_node, seq_id_map, og_map, paf_id,
                                  intermediate_results_url=intermediate_results_url, chrom_name=chrom_name, cores = cons_cores,
-                                 memory=cactus_clamp_memory(mem), disk=disk, retain_pages=retain_pages)
+                                 memory=cactus_clamp_memory(mem), disk=disk, retain_pages=retain_pages,
+                                 walltime=cactus_walltime(walltime_secs))
     return cons_job.rv()
 
 def cactus_cons(job, tree, ancestor_event, config_node, seq_id_map, og_map, paf_id,

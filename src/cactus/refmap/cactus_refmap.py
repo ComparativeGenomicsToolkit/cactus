@@ -36,7 +36,7 @@ from cactus.refmap import paf_to_lastz
 from cactus.refmap import fasta_preprocessing
 from cactus.refmap import apply_dipcall_bed_filter
 
-from cactus.shared.common import setupBinaries, importSingularityImage, cactus_fast_walltime
+from cactus.shared.common import setupBinaries, importSingularityImage, cactus_walltime
 from cactus.shared.common import makeURL
 from cactus.shared.common import cactus_call
 from cactus.shared.configWrapper import ConfigWrapper
@@ -139,8 +139,12 @@ def run_cactus_reference_align(job, assembly_files, reference, debug_export=Fals
     """
     Preprocesses assemblies, then runs mappings.
     """
-    sanitize_job = job.addChildJobFn(sanitize_fasta_headers, assembly_files, walltime=cactus_fast_walltime())
-    mappings = sanitize_job.addFollowOnJobFn(map_all_to_ref, sanitize_job.rv(), reference, debug_export, dipcall_bed_filter, dipcall_vcf_filter, walltime=cactus_fast_walltime()).rv()
+    # map_all_to_ref reads every assembly out of the jobstore before it schedules anything, so
+    # it is bounded by the inputs; sanitizing does not change their size
+    input_seq_bytes = sum(seq_id.size for seq_id in assembly_files.values())
+    sanitize_job = job.addChildJobFn(sanitize_fasta_headers, assembly_files, walltime=cactus_walltime())
+    mappings = sanitize_job.addFollowOnJobFn(map_all_to_ref, sanitize_job.rv(), reference, debug_export, dipcall_bed_filter, dipcall_vcf_filter,
+                                             walltime=cactus_walltime(0, io_bytes=input_seq_bytes)).rv()
     return mappings
 
 def map_all_to_ref(job, assembly_files, reference, debug_export=False, dipcall_bed_filter=False, dipcall_vcf_filter=False):
@@ -162,7 +166,7 @@ def map_all_to_ref(job, assembly_files, reference, debug_export=False, dipcall_b
                                     * Filters out all mappings below min_var_len=50k and min_mapq=5 from a lastz file
                                      Defaults to False.
     """
-    lead_job = job.addChildJobFn(empty, walltime=cactus_fast_walltime())
+    lead_job = job.addChildJobFn(empty, walltime=cactus_walltime())
 
     # map all assemblies to the reference. Don't map reference to reference, though.
     ref_mappings = dict()
@@ -328,7 +332,7 @@ def main():
         
         ## Perform alignments:
         if not toil.options.restart:
-            alignments = toil.start(Job.wrapJobFn(run_cactus_reference_align, input_seq_id_map, options.reference, options.debug_export, options.dipcall_bed_filter, options.dipcall_vcf_filter, walltime=cactus_fast_walltime()))
+            alignments = toil.start(Job.wrapJobFn(run_cactus_reference_align, input_seq_id_map, options.reference, options.debug_export, options.dipcall_bed_filter, options.dipcall_vcf_filter, walltime=cactus_walltime()))
 
         else:
             alignments = toil.restart()

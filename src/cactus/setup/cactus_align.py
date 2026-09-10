@@ -15,7 +15,7 @@ import time
 import multiprocessing
 from operator import itemgetter
 
-from cactus.shared.common import setupBinaries, importSingularityImage, cactus_fast_walltime
+from cactus.shared.common import setupBinaries, importSingularityImage, cactus_walltime
 from cactus.pipeline.cactus_workflow import cactus_cons_with_resources
 from cactus.progressive.progressive_decomposition import compute_outgroups, parse_seqfile, get_subtree, get_spanning_subtree, get_event_set, get_ancestor_scaled_tree
 from cactus.progressive.cactus_progressive import export_hal
@@ -196,7 +196,7 @@ def main():
             results_dict = toil.restart()
         else:
             align_jobs = make_batch_align_jobs(options, toil)
-            results_dict = toil.start(Job.wrapJobFn(batch_align_jobs, align_jobs, walltime=cactus_fast_walltime()))
+            results_dict = toil.start(Job.wrapJobFn(batch_align_jobs, align_jobs, walltime=cactus_walltime()))
 
         # when using s3 output urls, things get checkpointed as they're made so no reason to export
         # todo: make a more unified interface throughout cactus for this
@@ -407,7 +407,7 @@ def make_align_job(options, toil, config_wrapper=None, chrom_name=None):
                               do_filter_paf=options.pangenome,
                               chrom_name=chrom_name,
                               scores_id=scores_id,
-                              branch_scale=options.branchScale, walltime=cactus_fast_walltime())
+                              branch_scale=options.branchScale, walltime=cactus_walltime())
     return align_job
 
 def cactus_align(job, config_wrapper, mc_tree, input_seq_map, input_seq_id_map, paf_id, paf_path, root_name, og_map, checkpointInfo, doVG, doGFA, delay=0,
@@ -431,7 +431,7 @@ def cactus_align(job, config_wrapper, mc_tree, input_seq_map, input_seq_id_map, 
         apply_scores_to_config(score_dict, config_wrapper.xmlRoot)
 
     # unzip the input sequences and enforce unique header prefixes
-    sanitize_job = head_job.addChildJobFn(sanitize_fasta_headers, input_seq_id_map, pangenome=doVG or doGFA or do_filter_paf, walltime=cactus_fast_walltime())
+    sanitize_job = head_job.addChildJobFn(sanitize_fasta_headers, input_seq_id_map, pangenome=doVG or doGFA or do_filter_paf, walltime=cactus_walltime())
     new_seq_id_map = sanitize_job.rv()
 
     # run pangenome-specific paf filter.  this also runs in cactus-graphmap-split, but that stage is
@@ -469,7 +469,7 @@ def cactus_align(job, config_wrapper, mc_tree, input_seq_map, input_seq_id_map, 
     # run consolidated
     cons_job = head_job.addFollowOnJobFn(cactus_cons_with_resources, spanning_tree, root_name, config_wrapper.xmlRoot, new_seq_id_map, og_map, paf_id,
                                          cons_cores = cons_cores, cons_memory=cons_memory, chrom_name=chrom_name,
-                                         cons_retain_pages=cons_retain_pages, walltime=cactus_fast_walltime())
+                                         cons_retain_pages=cons_retain_pages, walltime=cactus_walltime())
     results = {root_name : (cons_job.rv(1), cons_job.rv(2))}
 
     # get the immediate subtree (which is all export_hal can use)
@@ -482,7 +482,7 @@ def cactus_align(job, config_wrapper, mc_tree, input_seq_map, input_seq_id_map, 
                                         memory_override=cons_memory)
 
     # clean out some of the  intermediate jobstore files
-    hal_job.addFollowOnJobFn(clean_jobstore_files, file_id_maps=[new_seq_id_map], file_ids=[paf_id], walltime=cactus_fast_walltime())
+    hal_job.addFollowOnJobFn(clean_jobstore_files, file_id_maps=[new_seq_id_map], file_ids=[paf_id], walltime=cactus_walltime())
 
     # optionally create the VG
     if doVG or doGFA:
@@ -656,7 +656,7 @@ def main_batch():
                         chrom_dict[chrom] = toil.importFile(makeURL(seqfile)), toil.importFile(makeURL(alnFile))
                         if chrom in options.configOverrides:
                             options.configOverrides[chrom][1] = toil.importFile(makeURL(options.configOverrides[chrom][0]))
-            results_dict = toil.start(Job.wrapJobFn(align_toil_batch, chrom_dict, config_id, options, walltime=cactus_fast_walltime()))
+            results_dict = toil.start(Job.wrapJobFn(align_toil_batch, chrom_dict, config_id, options, walltime=cactus_walltime()))
 
         # when using s3 output urls, things get checkpointed as they're made so no reason to export
         # todo: make a more unified interface throughout cactus for this

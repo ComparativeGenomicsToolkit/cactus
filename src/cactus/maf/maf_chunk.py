@@ -32,6 +32,33 @@ from toil.realtimeLogger import RealtimeLogger
 from cactus.shared.common import cactus_call
 
 
+# One sequential taffy pass over a MAF, as seconds plus seconds per GB.  Fitted to the 94
+# taffy index and taffy coverage jobs of the VGP 577-way MAF export, whose MAFs ran from 4.5 to
+# 351 GB and whose runtimes ran from 16 minutes to 19 hours.  The intercept is what makes this
+# work: cost per GB is far higher on a small MAF (169 s/GB at the median against 608 at the
+# worst), so a slope-only model tuned to cover the small ones asks three times too much of the
+# big ones.  These values leave every one of the 94 inside its request once cactus_walltime()'s
+# factor is applied.  taffy view gets the same treatment -- it is the same single pass.
+TAFFY_SECS_BASE = 3000
+TAFFY_SECS_PER_GB = 200
+
+# Smallest MAF in that fit.  Below it the intercept is pure extrapolation and would hand an
+# evolver-sized test MAF the better part of an hour, so it is tapered to zero.
+TAFFY_RAMP_GB = 4.5
+
+
+def taffy_walltime_secs(maf_bytes):
+    """ estimated seconds for one sequential taffy pass (index, coverage, view) over a MAF """
+    maf_gb = maf_bytes / 1e9
+    ramp = min(1.0, maf_gb / TAFFY_RAMP_GB) if TAFFY_RAMP_GB > 0 else 1.0
+    return TAFFY_SECS_BASE * ramp + TAFFY_SECS_PER_GB * maf_gb
+
+# The .tai index and .cov.tsv that taffy writes beside a MAF are small next to the MAF itself:
+# the largest coverage table of that export was 560 MB against a 386 GB MAF.  Jobs that only
+# move one of those get a size in this proportion rather than the MAF's own.
+TAFFY_SIDE_OUTPUT_FRACTION = 0.01
+
+
 def taffy_index_job(job, maf_id, maf_basename):
     """ Build a .tai for the given source MAF. Single sequential pass. """
     work_dir = job.fileStore.getLocalTempDir()

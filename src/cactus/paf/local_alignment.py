@@ -20,11 +20,52 @@ import math
 import copy
 from Bio import SeqIO
 from cactus.paf.paf import get_event_pairs, get_leaves, get_node, get_distances
-from cactus.shared.common import cactus_call, getOptionalAttrib, zip_gz, cactus_fast_walltime
+from cactus.shared.common import cactus_call, getOptionalAttrib, zip_gz, cactus_walltime
 from cactus.preprocessor.checkUniqueHeaders import sanitize_fasta_headers
 from cactus.preprocessor.unmasking import unmask_contigs_all
 from cactus.preprocessor.cactus_preprocessor import clean_if_different
 from cactus.shared.common import cactus_clamp_memory
+
+def get_divergence_class(distance, params):
+    """ The <constants><divergences> bucket a pair at the given distance falls in ("one" through
+    "five", or "default" for anything more diverged).  It selects the lastz parameters, and with
+    them most of the runtime, so the walltime estimate keys off the same bucket. """
+    divergences = params.find("constants").find("divergences")
+    if getOptionalAttrib(divergences, 'useDefault', typeFn=bool, default=False):
+        return "default"
+    for i in "one", "two", "three", "four", "five":
+        if distance <= float(divergences.attrib[i]):
+            return i
+    return "default"
+
+
+def get_lastz_walltime(distance, params, chunk_a, chunk_b):
+    """ Estimated seconds for one lastz/kegalign job on this pair of chunks.
+
+    <blast><lastzWalltime> holds the per-divergence-class time for a pair of full-sized chunks;
+    we scale it by how big these two chunks actually are, so a small genome (whose whole
+    sequence is one short chunk) gets a short time rather than the 577-way figure.
+
+    The table was measured on lastz, and is used for whichever mapper is configured: minimap2
+    and FastGA are both faster, so it is conservative for them rather than wrong. """
+    lastz_params_node = params.find("blast")
+    walltime_node = lastz_params_node.find("lastzWalltime")
+    if walltime_node is None:
+        return None
+    lastz_class = get_divergence_class(distance, params)
+    base = getOptionalAttrib(walltime_node, lastz_class, typeFn=float, default=None)
+    if base is None:
+        return None
+    gpu = getOptionalAttrib(lastz_params_node, 'gpu', typeFn=int, default=0)
+    fastga = getOptionalAttrib(lastz_params_node, 'mapper', typeFn=str) == 'fastga'
+    chunk_attr = 'bigChunkSize' if gpu or fastga else 'chunkSize'
+    chunk_size = getOptionalAttrib(lastz_params_node, chunk_attr, typeFn=float, default=None)
+    if chunk_size and chunk_size > 0:
+        # the table was measured on a pair of full chunks; lastz time is roughly linear in the
+        # sequence it is handed, so a pair that is half that size gets half the time
+        base *= (chunk_a.size + chunk_b.size) / (2.0 * chunk_size)
+    return base
+
 
 def run_lastz(job, name_A, genome_A, name_B, genome_B, distance, params):
     # Create a local temporary file to put the alignments in.
@@ -43,12 +84,8 @@ def run_lastz(job, name_A, genome_A, name_B, genome_B, distance, params):
     cpu = getOptionalAttrib(lastz_params_node, 'cpu', typeFn=int, default=None)        
     lastz_divergence_node = lastz_params_node.find("kegalignArguments" if gpu else "lastzArguments")
     divergences = params.find("constants").find("divergences")
-    lastz_params = lastz_divergence_node.attrib["default"]
+    lastz_params = lastz_divergence_node.attrib[get_divergence_class(distance, params)]
     if not getOptionalAttrib(divergences, 'useDefault', typeFn=bool, default=False):
-        for i in "one", "two", "three", "four", "five":
-            if distance <= float(divergences.attrib[i]):
-                lastz_params = lastz_divergence_node.attrib[i]
-                break
         logger.info("For distance {} for genomes {}, {} using {} lastz parameters".format(distance, genome_A,
                                                                                           genome_B, lastz_params))
     if gpu:
@@ -432,7 +469,8 @@ def make_chunked_alignments(job, event_a, genome_a, event_b, genome_b, distance,
                                                              cores=lastz_cores,
                                                              disk=max(4*(chunk_a.size+chunk_b.size), memory),
                                                              memory=cactus_clamp_memory(memory),
-                                                             accelerators=accelerators).rv())
+                                                             accelerators=accelerators,
+                                                             walltime=cactus_walltime(get_lastz_walltime(distance, params, chunk_a, chunk_b))).rv())
 
     dechunk_batch_size = getOptionalAttrib(lastz_params_node, 'dechunkBatchSize', typeFn=int, default=1e9)
     return job.addFollowOnJobFn(combine_chunks, chunked_alignment_files, dechunk_batch_size).rv()  # Combine the chunked alignment files
@@ -451,7 +489,7 @@ def invert_alignments(job, alignment_file):
 def make_ingroup_to_outgroup_alignments_0(job, ingroup_event, outgroup_events, event_names_to_sequences, distances, params):
     # Generate the alignments fle
     alignment_file = job.addChildJobFn(make_ingroup_to_outgroup_alignments_1, ingroup_event, outgroup_events,
-                                            event_names_to_sequences, distances, params, walltime=cactus_fast_walltime()).rv()
+                                            event_names_to_sequences, distances, params, walltime=cactus_walltime()).rv()
 
     # Invert the final alignment so that the query is the outgroup and the target is the ingroup.
     # paffy invert holds the alignment and its inverse on local disk at once. The alignment's size
@@ -524,7 +562,7 @@ def make_ingroup_to_outgroup_alignments_2(job, alignments, ingroup_event, outgro
 
     # recursively make alignments with the remaining outgroups
     alignments2 = root_job.addChildJobFn(make_ingroup_to_outgroup_alignments_1, ingroup_event, outgroup_events,
-                                         event_names_to_sequences, distances, params, walltime=cactus_fast_walltime()).rv()
+                                         event_names_to_sequences, distances, params, walltime=cactus_walltime()).rv()
 
     return root_job.addFollowOnJobFn(make_ingroup_to_outgroup_alignments_3, ingroup_event, event_names_to_sequences[ingroup_event.iD],
                                      alignments, alignments2).rv()
@@ -686,7 +724,7 @@ def chain_alignments(job, alignment_files, alignment_names, reference_event_name
         )
 
     return job.addFollowOnJobFn(merge_processed_alignments, processed_rvs, disk=2 * merged_size,
-                                walltime=cactus_fast_walltime()).rv()
+                                walltime=cactus_walltime(0, io_bytes=2 * merged_size)).rv()
 
 
 def chain_tile_trim_filter_one_contig(job, split_file_id, reference_event_name, params):
@@ -770,9 +808,9 @@ def merge_processed_alignments(job, processed_file_ids):
 
 def sanitize_then_make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancestor_event_string, params,
                                        output_path=None):
-    sanitize_job = job.addChildJobFn(sanitize_fasta_headers, event_names_to_sequences, walltime=cactus_fast_walltime())
+    sanitize_job = job.addChildJobFn(sanitize_fasta_headers, event_names_to_sequences, walltime=cactus_walltime())
     paf_job = sanitize_job.addFollowOnJobFn(make_paf_alignments, event_tree_string, sanitize_job.rv(),
-                                            ancestor_event_string, params, walltime=cactus_fast_walltime())
+                                            ancestor_event_string, params, walltime=cactus_walltime())
     # gzip the output if requested
     if output_path and output_path.endswith('.gz'):
         gzip_job = paf_job.addFollowOnJobFn(zip_gz, output_path, paf_job.rv())
@@ -820,7 +858,7 @@ def make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancest
     if getOptionalAttrib(lastz_params_node.find("unmask"), 'action', typeFn=str, default='none') != 'none':
         ingroups = [ingroup.iD for ingroup in ingroup_events]
         # Pass a copy of event_names_to_sequences to unmask_job to avoid circular reference
-        unmask_job = root_job.addChildJobFn(unmask_contigs_all, input_sequence_map, ingroups, params, walltime=cactus_fast_walltime())
+        unmask_job = root_job.addChildJobFn(unmask_contigs_all, input_sequence_map, ingroups, params, walltime=cactus_walltime())
         for i,ingroup in enumerate(ingroups):
             event_names_to_sequences[ingroup] = unmask_job.rv(i)
         new_root_job = Job()
@@ -855,7 +893,7 @@ def make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancest
     # for each ingroup make alignments to the outgroups
     if int(params.find("blast").attrib["trimIngroups"]):  # Trim the ingroup sequences
         outgroup_alignments = [root_job.addChildJobFn(make_ingroup_to_outgroup_alignments_0, ingroup, outgroup_events,
-                                                      dict(event_names_to_sequences), distances, params, walltime=cactus_fast_walltime()).rv()
+                                                      dict(event_names_to_sequences), distances, params, walltime=cactus_walltime()).rv()
                                 for ingroup in ingroup_events] if len(outgroup_events) > 0 else []
     else:
         outgroup_alignments = [root_job.addChildJobFn(make_chunked_alignments,
@@ -878,11 +916,11 @@ def make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancest
                                          ingroup_alignments, ingroup_alignment_names,
                                          outgroup_alignments, outgroup_alignment_names,
                                          ancestor_event_string, params,
-                                         total_sequence_size=total_sequence_size, walltime=cactus_fast_walltime()).rv()
+                                         total_sequence_size=total_sequence_size, walltime=cactus_walltime()).rv()
 
     # Delete the unmasked fastas (todo: should we do the unmasking somewhere further upstream?)
     for ingroup in ingroup_events:
-        root_job.addFollowOnJobFn(clean_if_different, event_names_to_sequences[ingroup.iD], input_sequence_map[ingroup.iD], walltime=cactus_fast_walltime())
+        root_job.addFollowOnJobFn(clean_if_different, event_names_to_sequences[ingroup.iD], input_sequence_map[ingroup.iD], walltime=cactus_walltime())
 
     return root_job.addFollowOnJobFn(chain_alignments, ingroup_alignments + outgroup_alignments,
                                      ingroup_alignment_names + outgroup_alignment_names,

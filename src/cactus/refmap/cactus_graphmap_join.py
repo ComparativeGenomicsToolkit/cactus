@@ -35,7 +35,7 @@ from collections import defaultdict
 
 from cactus.progressive.seqFile import SeqFile
 from cactus.progressive.multiCactusTree import MultiCactusTree
-from cactus.shared.common import setupBinaries, importSingularityImage, cactus_fast_walltime
+from cactus.shared.common import setupBinaries, importSingularityImage, cactus_walltime
 from cactus.shared.common import cactusRootPath
 from cactus.shared.configWrapper import ConfigWrapper
 from cactus.shared.common import makeURL, catFiles
@@ -677,7 +677,7 @@ def graphmap_join(options):
                                                       vg_ids, hal_ids, sv_gfa_ids,
                                                       bypass_full_ids, bypass_clip_ids, bypass_filter_ids,
                                                       contig_sizes_id=contig_sizes_id,
-                                                      walltime=cactus_fast_walltime()))
+                                                      walltime=cactus_walltime()))
             else:
                 # load up the vgs (from their real paths: options.vg has had the .raw tag stripped)
                 vg_ids = []
@@ -688,7 +688,7 @@ def graphmap_join(options):
                 wf_output = toil.start(Job.wrapJobFn(graphmap_join_workflow, options, config, vg_ids,
                                                      hal_ids, sv_gfa_ids,
                                                      contig_sizes_id=contig_sizes_id,
-                                                     walltime=cactus_fast_walltime()))
+                                                     walltime=cactus_walltime()))
 
 
         #export the split data
@@ -854,7 +854,7 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
         hal_id_dict = hal_merge_job.rv()
         out_dicts.append(hal_id_dict)
         # delete the chromosome hals
-        hal_merge_job.addFollowOnJobFn(clean_jobstore_files, file_ids=hal_ids, walltime=cactus_fast_walltime())
+        hal_merge_job.addFollowOnJobFn(clean_jobstore_files, file_ids=hal_ids, walltime=cactus_walltime())
 
     # optional minigraph gfa merge
     if sv_gfa_ids:
@@ -863,7 +863,7 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
         sv_gfa_id_dict = sv_gfa_merge_job.rv()
         out_dicts.append(sv_gfa_id_dict)
         # delete the chromosome gfas
-        sv_gfa_merge_job.addFollowOnJobFn(clean_jobstore_files, file_ids=sv_gfa_ids, walltime=cactus_fast_walltime())
+        sv_gfa_merge_job.addFollowOnJobFn(clean_jobstore_files, file_ids=sv_gfa_ids, walltime=cactus_walltime())
 
     if options.indexMemory:
         index_mem = options.indexMemory
@@ -978,7 +978,7 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
             for vcf_ref in options.vcfReference:
                 vcf_job = gfa_root_job.addFollowOnJobFn(make_vcf, config, options, workflow_phase,
                                                         index_mem, vcf_ref, phase_vg_ids,
-                                                        ref_fasta_job.rv() if ref_fasta_job else None, walltime=cactus_fast_walltime())
+                                                        ref_fasta_job.rv() if ref_fasta_job else None, walltime=cactus_walltime())
                 if ref_fasta_job:
                     ref_fasta_job.addFollowOn(vcf_job)
                 out_dicts.append(vcf_job.rv())
@@ -2547,7 +2547,7 @@ def build_vg_indexes_and_vcf(parent_job, options, config, phase_vg_ids, vg_ids,
     if vcf_ref and options.vcf:
         vcf_job = gfa_root_job.addFollowOnJobFn(make_vcf, config, options, tag.rstrip('.'),
                                                  index_mem, vcf_ref, phase_vg_ids,
-                                                 ref_fasta_dict, vcftag=vcftag, walltime=cactus_fast_walltime())
+                                                 ref_fasta_dict, vcftag=vcftag, walltime=cactus_walltime())
         out_dicts.append(vcf_job.rv())
 
         if decon_L is not None:

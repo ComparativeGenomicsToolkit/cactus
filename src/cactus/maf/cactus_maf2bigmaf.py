@@ -14,7 +14,7 @@ import xml.etree.ElementTree as ET
 from operator import itemgetter
 
 from cactus.progressive.seqFile import SeqFile
-from cactus.shared.common import setupBinaries, importSingularityImage, cactus_fast_walltime
+from cactus.shared.common import setupBinaries, importSingularityImage, cactus_walltime
 from cactus.shared.common import cactusRootPath
 from cactus.shared.configWrapper import ConfigWrapper
 from cactus.shared.common import makeURL, catFiles
@@ -94,7 +94,7 @@ def main():
             if options.halFile:
                 hal_id = toil.importFile(options.halFile)
                 
-            bigmaf_id_dict = toil.start(Job.wrapJobFn(maf2bigmaf_workflow, config, options, maf_id, hal_id, walltime=cactus_fast_walltime()))
+            bigmaf_id_dict = toil.start(Job.wrapJobFn(maf2bigmaf_workflow, config, options, maf_id, hal_id, walltime=cactus_walltime()))
 
         #export the big maf
         out_bm_path = makeURL(options.outFile)

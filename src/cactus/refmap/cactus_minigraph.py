@@ -17,7 +17,7 @@ from operator import itemgetter
 import gzip
 
 from cactus.progressive.seqFile import SeqFile
-from cactus.shared.common import setupBinaries, importSingularityImage, cactus_fast_walltime
+from cactus.shared.common import setupBinaries, importSingularityImage, cactus_walltime
 from cactus.refmap.pangenome_exclusions import event_to_pansn_prefix
 from cactus.shared.common import cactusRootPath
 from cactus.shared.configWrapper import ConfigWrapper
@@ -126,7 +126,7 @@ def main():
             input_dict = minigraph_construct_import_sequences(options, config_wrapper, input_seqfiles, toil)
                 
             # output_dict:  chrom-> (gfa_id, pansn_gfa_id, train_id)
-            output_dict = toil.start(Job.wrapJobFn(minigraph_construct_batch_workflow, options, config_node, input_dict, options.outputGFA, walltime=cactus_fast_walltime()))
+            output_dict = toil.start(Job.wrapJobFn(minigraph_construct_batch_workflow, options, config_node, input_dict, options.outputGFA, walltime=cactus_walltime()))
 
         export_minigraph_construct_output(options, input_seqfiles, output_dict, toil)
         
@@ -265,7 +265,7 @@ def minigraph_construct_batch_workflow(job, options, config_node, input_dict, gf
             gfa_path = os.path.join(options.outputGFA, '{}.gfa.gz'.format(chrom))
         else:
             gfa_path = options.outputGFA
-        mgwf_job = job.addChildJobFn(minigraph_construct_workflow, options, config_node, seq_id_map, seq_order, gfa_path, sanitize, walltime=cactus_fast_walltime())
+        mgwf_job = job.addChildJobFn(minigraph_construct_workflow, options, config_node, seq_id_map, seq_order, gfa_path, sanitize, walltime=cactus_walltime())
         output_dict[chrom] = mgwf_job.rv()
     return output_dict
                                     
@@ -283,7 +283,7 @@ def minigraph_construct_workflow(job, options, config_node, seq_id_map, seq_orde
         seq_id_map, seq_order = refonly_seq_id_map, refonly_seq_order
     ref_size = seq_id_map[options.reference[0]].size
     if sanitize:
-        sanitize_job = job.addChildJobFn(sanitize_fasta_headers, seq_id_map, pangenome=True, walltime=cactus_fast_walltime())
+        sanitize_job = job.addChildJobFn(sanitize_fasta_headers, seq_id_map, pangenome=True, walltime=cactus_walltime())
         sanitized_seq_id_map = sanitize_job.rv()
     else:
         sanitized_seq_id_map = seq_id_map
@@ -292,12 +292,12 @@ def minigraph_construct_workflow(job, options, config_node, seq_id_map, seq_orde
     xml_node = findRequiredNode(config_node, "graphmap")
     sort_type = getOptionalAttrib(xml_node, "minigraphSortInput", str, default=None)
     if sort_type == "mash" and len(seq_id_map) > 2:
-        sort_job = sanitize_job.addFollowOnJobFn(sort_minigraph_input_with_mash, options, config_node, sanitized_seq_id_map, seq_order, walltime=cactus_fast_walltime())
+        sort_job = sanitize_job.addFollowOnJobFn(sort_minigraph_input_with_mash, options, config_node, sanitized_seq_id_map, seq_order, walltime=cactus_walltime())
         seq_order = sort_job.rv()
         prev_job = sort_job
     else:
         prev_job = sanitize_job
-    minigraph_job = prev_job.addFollowOnJobFn(minigraph_construct_in_batches, options, config_node, sanitized_seq_id_map, seq_order, gfa_path, walltime=cactus_fast_walltime())
+    minigraph_job = prev_job.addFollowOnJobFn(minigraph_construct_in_batches, options, config_node, sanitized_seq_id_map, seq_order, gfa_path, walltime=cactus_walltime())
     train_id = None
     if options.lastTrain and len(seq_id_map) > 1:
         # note: somehow last training memory overruns don't seem to be detected by slurm so we
@@ -346,7 +346,7 @@ def sort_minigraph_input_with_mash(job, options, config_node, seq_id_map, seq_or
                                                disk = 2 * sum(seq_id_map[x].size for x in names) + seq_id_map[seq_order[0]].size).rv()
         dist_maps.append(dist_map)
             
-    return dist_root_job.addFollowOnJobFn(mash_distance_order, options, config_node, seq_order, dist_maps, walltime=cactus_fast_walltime()).rv()
+    return dist_root_job.addFollowOnJobFn(mash_distance_order, options, config_node, seq_order, dist_maps, walltime=cactus_walltime()).rv()
 
 def mash_sketch(job, ref_seq, seq_id_map):
     """ get the sketch """
@@ -497,7 +497,7 @@ def minigraph_construct_in_batches(job, options, config_node, seq_id_map, seq_or
         if prev_job:
             prev_job.addFollowOn(minigraph_job)
             # delete the output of the previous batch from the job store            
-            minigraph_job.addFollowOnJobFn(clean_jobstore_files, file_ids=[prev_job.rv()], walltime=cactus_fast_walltime())
+            minigraph_job.addFollowOnJobFn(clean_jobstore_files, file_ids=[prev_job.rv()], walltime=cactus_walltime())
         else:
             job.addChild(minigraph_job)
         prev_job = minigraph_job

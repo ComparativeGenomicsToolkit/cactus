@@ -19,6 +19,7 @@ from cactus.shared.common import getOptionalAttrib
 from cactus.shared.common import makeURL
 from cactus.shared.common import get_faidx_subpath_rename_cmd
 from cactus.shared.common import cactus_clamp_memory
+from cactus.shared.common import cactus_walltime
 from cactus.preprocessor.checkPreprocessedSequence import check_sequence_preserved
 from cactus.preprocessor.maskingCommon import prefilter_cmd, masked_base_count
 from cactus.preprocessor.maskingCommon import extract_masking_bed, soft_mask_intervals
@@ -65,6 +66,14 @@ def red_memory_estimate(fasta_size, longest_record_bytes):
     return int(1.25 * (table_bytes + 8 * longest_record_bytes))
 
 
+# Seconds of Red per GB of input fasta.  Across the 625 Red runs of the VGP 577-way (0.13 to
+# 10 Gb of genome) the p99 was 2799 s/Gb and the worst 5147 s/Gb; Red is about 3x faster than
+# it was for those, hence the /3.  Everything else this job runs -- the prefilter, the
+# softmask/hardmask conversions, extracting and applying the intervals -- came to well under
+# 100 s each even on the largest genome, and is covered by cactus_walltime()'s safety factor.
+RED_SECS_PER_GB = 2799 / 3.0
+
+
 class RedMaskJob(RoundedJob):
     def __init__(self, fastaID, redOpts, redPrefilterOpts, eventName=None, unmask=False,
                  longestRecordSize=None):
@@ -74,7 +83,9 @@ class RedMaskJob(RoundedJob):
             longestRecordSize = fastaID.size
         memory = cactus_clamp_memory(red_memory_estimate(fastaID.size, longestRecordSize))
         disk = 5*(fastaID.size)
-        RoundedJob.__init__(self, memory=memory, disk=disk, preemptable=True)
+        RoundedJob.__init__(self, memory=memory, disk=disk, preemptable=True,
+                            walltime=cactus_walltime(RED_SECS_PER_GB * fastaID.size / 1e9,
+                                                     io_bytes=2 * fastaID.size))
         self.fastaID = fastaID
         self.redOpts = redOpts
         self.redPrefilterOpts = redPrefilterOpts

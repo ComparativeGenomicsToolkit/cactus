@@ -14,7 +14,7 @@ from operator import itemgetter
 
 from cactus.progressive.seqFile import SeqFile
 from cactus.progressive.multiCactusTree import MultiCactusTree
-from cactus.shared.common import setupBinaries, importSingularityImage, cactus_fast_walltime
+from cactus.shared.common import setupBinaries, importSingularityImage, cactus_walltime
 from cactus.shared.common import cactusRootPath
 from cactus.shared.configWrapper import ConfigWrapper
 from cactus.shared.common import makeURL, catFiles
@@ -176,7 +176,7 @@ def cactus_graphmap_split(options):
             # run the workflow
             wf_output = toil.start(Job.wrapJobFn(graphmap_split_workflow, options, config, input_seq_id_map, input_name_map,
                                                  gfa_id, options.minigraphGFA,
-                                                 paf_id, options.graphmapPAF, walltime=cactus_fast_walltime()))
+                                                 paf_id, options.graphmapPAF, walltime=cactus_walltime()))
 
         #export the split data
         export_split_data(toil, wf_output[0], wf_output[1], wf_output[2], wf_output[3], options.outDir, config)
@@ -204,7 +204,7 @@ def graphmap_split_workflow(job, options, config, seq_id_map, seq_name_map, gfa_
 
     # fix up the headers
     if sanitize:
-        sanitize_job = root_job.addChildJobFn(sanitize_fasta_headers, seq_id_map, pangenome=True, walltime=cactus_fast_walltime())
+        sanitize_job = root_job.addChildJobFn(sanitize_fasta_headers, seq_id_map, pangenome=True, walltime=cactus_walltime())
         seq_id_map = sanitize_job.rv()
     else:
         sanitize_job = Job()
@@ -248,7 +248,7 @@ def graphmap_split_workflow(job, options, config, seq_id_map, seq_name_map, gfa_
 
     mask_bed_id = None
     if options.maskFilter:
-        mask_bed_id = sanitize_job.addFollowOnJobFn(get_mask_bed, seq_id_map, options.maskFilter, walltime=cactus_fast_walltime()).rv()
+        mask_bed_id = sanitize_job.addFollowOnJobFn(get_mask_bed, seq_id_map, options.maskFilter, walltime=cactus_walltime()).rv()
         
     # use rgfa-split to split the gfa and paf up by contig
     split_gfa_job = root_job.addFollowOnJobFn(split_gfa, config, gfa_id, [paf_id], ref_contigs,
@@ -257,14 +257,15 @@ def graphmap_split_workflow(job, options, config, seq_id_map, seq_name_map, gfa_
                                               memory=cactus_clamp_memory((gfa_size + paf_size) * 3))
 
     # use the output of the above splitting to do the fasta splitting
-    split_fas_job = split_gfa_job.addFollowOnJobFn(split_fas, seq_id_map, seq_name_map, split_gfa_job.rv(0), walltime=cactus_fast_walltime())
+    split_fas_job = split_gfa_job.addFollowOnJobFn(split_fas, seq_id_map, seq_name_map, split_gfa_job.rv(0), walltime=cactus_walltime())
 
     # gather everythign up into a table
-    gather_fas_job = split_fas_job.addFollowOnJobFn(gather_fas, split_gfa_job.rv(0), split_fas_job.rv(0), split_fas_job.rv(1), walltime=cactus_fast_walltime())
+    gather_fas_job = split_fas_job.addFollowOnJobFn(gather_fas, split_gfa_job.rv(0), split_fas_job.rv(0), split_fas_job.rv(1), walltime=cactus_walltime())
 
     # lump "other" contigs together into one file (to make fewer align jobs downstream)
     bin_other_job = gather_fas_job.addFollowOnJobFn(bin_other_contigs, config, ref_contigs, options.otherContig, gather_fas_job.rv(0),
-                                                    disk=(gfa_size + paf_size) * 2, walltime=cactus_fast_walltime())
+                                                    disk=(gfa_size + paf_size) * 2,
+                                                    walltime=cactus_walltime(0, io_bytes=(gfa_size + paf_size) * 2))
 
     # return all the files, as well as the 2 split logs
     return (seq_name_map, bin_other_job.rv(), split_gfa_job.rv(1), gather_fas_job.rv(1))

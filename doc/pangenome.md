@@ -554,7 +554,7 @@ One thing to watch out for: **error intervals at contig tips interact with telom
 
 ```
 cactus-panpatch ./js chromfile.txt --outDir patched --batch --requireTelomeres \
-    --batchSystem slurm --defaultWalltime 36000 --doubleMem true --maxMemory 1.5T --retryCount 10 \
+    --batchSystem slurm --doubleMem true --maxMemory 1.5T --retryCount 10 \
     --consCores 16 --mgCores 32 --mapCores 16
 ```
 
