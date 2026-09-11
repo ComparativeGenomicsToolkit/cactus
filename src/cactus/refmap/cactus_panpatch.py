@@ -366,6 +366,14 @@ def panpatch_validate_options(options):
         # the unpatched input
         raise RuntimeError('--noSplit cannot be used with cactus-panpatch: panpatch needs one graph per reference chromosome')
 
+    # getattr because the unit tests build a minimal namespace rather than going through the parser
+    if getattr(options, 'extendGFA', None) or getattr(options, 'extendGAF', None) or getattr(options, 'remap', False):
+        # these come in via pangenome_options(), which panpatch shares.  the graph panpatch builds
+        # is a throwaway, built per sample out of that sample and its donors, so there is nothing
+        # an earlier run could usefully be extended from
+        raise RuntimeError('--extendGFA / --extendGAF / --remap cannot be used with cactus-panpatch: it builds a fresh '
+                           'graph per sample being patched, which is not an extension of anything')
+
 def disable_pangenome_outputs(options):
     """ switch off every graphmap-join output except the chromosome vgs, so that we don't spend
     hours building indexes, VCFs and GFAs that get thrown away.  must be called *after*

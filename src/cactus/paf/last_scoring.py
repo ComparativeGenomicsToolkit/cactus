@@ -137,12 +137,19 @@ def apply_scores_to_config(score_dict, config_xml):
         poa_node.attrib['partialOrderAlignmentGapExtensionPenalty2'],
         poa_node.attrib['partialOrderAlignmentSubMatrix']))
 
-def last_train(job, config, seq_order, seq_id_map):
-    """ run last_train on a pair of fasta files, using the first as the database """
+def last_train(job, config, seq_order, seq_id_map, ref_name=None):
+    """ run last_train on a pair of fasta files, using the first as the database.
 
-    assert len(seq_order) > 1
+    ref_name names the database genome when it is not seq_order[0], as when extending an existing
+    minigraph where the order holds only the genomes being added """
 
-    name1 = seq_order[0]
+    if ref_name is None:
+        assert len(seq_order) > 1
+        ref_name = seq_order[0]
+    elif ref_name not in seq_order:
+        seq_order = [ref_name] + list(seq_order)
+
+    name1 = ref_name
     name2 = None
 
     # short circuit if ref sequence is too small to have a hope of training        

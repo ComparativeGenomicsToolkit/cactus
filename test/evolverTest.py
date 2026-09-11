@@ -223,13 +223,39 @@ class TestCase(unittest.TestCase):
         sys.stderr.write('Running {}\n'.format(' '.format(cmd)))
         subprocess.check_call(' '.join(cmd), shell=True)
 
-    def _write_primates_seqfile(self, seq_file_path):
-        """ create the primates seqfile at given path"""
+    PRIMATES = ['simHuman', 'simChimp', 'simGorilla', 'simOrang']
+
+    def _write_primates_seqfile(self, seq_file_path, genomes=None):
+        """ create the primates seqfile at given path, optionally for a subset of the genomes """
+        url = 'https://raw.githubusercontent.com/UCSantaCruzComputationalGenomicsLab/cactusTestData/master/evolver/primates/loci1/{}.chr6'
         with open(seq_file_path, 'w') as seq_file:
-            seq_file.write('simHuman\thttps://raw.githubusercontent.com/UCSantaCruzComputationalGenomicsLab/cactusTestData/master/evolver/primates/loci1/simHuman.chr6\n')
-            seq_file.write('simChimp\thttps://raw.githubusercontent.com/UCSantaCruzComputationalGenomicsLab/cactusTestData/master/evolver/primates/loci1/simChimp.chr6\n')
-            seq_file.write('simGorilla\thttps://raw.githubusercontent.com/UCSantaCruzComputationalGenomicsLab/cactusTestData/master/evolver/primates/loci1/simGorilla.chr6\n')
-            seq_file.write('simOrang\thttps://raw.githubusercontent.com/UCSantaCruzComputationalGenomicsLab/cactusTestData/master/evolver/primates/loci1/simOrang.chr6\n')
+            for genome in genomes if genomes is not None else self.PRIMATES:
+                seq_file.write('{}\t{}\n'.format(genome, url.format(genome)))
+
+    def _write_seqfile_subset(self, in_path, out_path, genomes):
+        """ copy a seqfile keeping only the named genomes, in the order they appear in it """
+        keep = set(genomes)
+        with open(in_path) as in_file, open(out_path, 'w') as out_file:
+            for line in in_file:
+                toks = line.split()
+                if toks and toks[0] in keep:
+                    out_file.write('{}\t{}\n'.format(toks[0], toks[1]))
+
+    def _write_pangenome_config(self, name, graphmap_attribs=None, graphmap_join_attribs=None):
+        """ write a copy of the default config with the given <graphmap> / <graphmap_join>
+        attribute overrides applied, and return its path """
+        # use the same logic cactus does to get default config
+        config_path = 'src/cactus/cactus_progressive_config.xml'
+        xml_root = ET.parse(config_path).getroot()
+        for elem_name, attribs in [("graphmap", graphmap_attribs), ("graphmap_join", graphmap_join_attribs)]:
+            if attribs:
+                xml_root.find(elem_name).attrib.update(attribs)
+        out_path = os.path.join(self.tempDir, "config.{}.xml".format(name))
+        with open(out_path, 'w') as config_file:
+            xmlString = ET.tostring(xml_root, encoding='unicode')
+            xmlString = minidom.parseString(xmlString).toprettyxml()
+            config_file.write(xmlString)
+        return out_path
 
     def _run_evolver_primates_star(self, binariesMode, configFile = None):
         """ Run cactus on the evolver primates with a star topology
@@ -477,8 +503,12 @@ class TestCase(unittest.TestCase):
         subprocess.check_call(['cactus-align', self._job_store(binariesMode), seq_file_fix_path, paf_path, self._out_hal(binariesMode),
                                '--pangenome', '--outVG', '--outGFA', '--pafMaskFilter', '10000', '--barMaskFilter', '10000'] + cactus_opts)
         
-    def _run_evolver_primates_pangenome(self, binariesMode, mgSplit = False):
-        """ run the primates start in using high-level cactus-pangenome interface """
+    def _run_evolver_primates_pangenome(self, binariesMode, mgSplit = False, extend = False):
+        """ run the primates start in using high-level cactus-pangenome interface.
+
+        with extend, half the genomes are built into a graph with the step-by-step tools first and
+        cactus-pangenome --extendGFA adds the rest, which also checks that a graph made one way can
+        be extended the other """
         # borrow seqfile from other primates test
         # todo: make a seqfile and add it to the repo
         seq_file_path = os.path.join(self.tempDir, 'primates.txt')
@@ -491,26 +521,22 @@ class TestCase(unittest.TestCase):
             # tack on a vcfwave test for docker binaries
             cactus_opts += ['--vcf', '--vcfReference', 'simChimp', '--clip', '1000', '--vcfwave']
 
-        # use the same logic cactus does to get default config
-        config_path = 'src/cactus/cactus_progressive_config.xml'
-        xml_root = ET.parse(config_path).getroot()
-        graphmap_elem = xml_root.find("graphmap")
-        graphmap_join_elem = xml_root.find("graphmap_join")
-        # force cactus to use minigraph chunking
-        graphmap_elem.attrib["minigraphConstructBatchSize"] = "2"
-        # force cactus use vcfwave chunking
-        graphmap_join_elem.attrib["vcfwaveChunkLines"] = "1000"
-        mc_config_path = os.path.join(self.tempDir, "config.mc.xml")
-        with open(mc_config_path, 'w') as mc_config_file:
-            xmlString = ET.tostring(xml_root, encoding='unicode')
-            xmlString = minidom.parseString(xmlString).toprettyxml()
-            mc_config_file.write(xmlString)
+        # force cactus to use minigraph chunking, and vcfwave chunking
+        mc_config_path = self._write_pangenome_config('mc',
+                                                      graphmap_attribs={"minigraphConstructBatchSize": "2"},
+                                                      graphmap_join_attribs={"vcfwaveChunkLines": "1000"})
         cactus_opts += ['--configFile', mc_config_path]
             
         out_dir = os.path.dirname(self._out_hal(binariesMode))
         out_name = os.path.splitext(os.path.basename(self._out_hal(binariesMode)))[0]
         cactus_pangenome_cmd = ['cactus-pangenome', self._job_store(binariesMode), seq_file_path, '--reference', 'simHuman', 'simChimp',
-                                '--outDir', out_dir, '--outName', out_name, '--odgi', '--chrom-og', '--viz', '--draw', '--haplo', '--collapse', '--lastTrain']
+                                '--outDir', out_dir, '--outName', out_name, '--odgi', '--chrom-og', '--viz', '--draw', '--haplo', '--lastTrain']
+        if not extend:
+            # collapse self-alignments are not derived from the GAF, so they cannot be reused
+            cactus_pangenome_cmd += ['--collapse']
+        else:
+            base = self._build_primates_base_graph(binariesMode, mc_config_path, ['simHuman', 'simChimp'])
+            cactus_pangenome_cmd += ['--extendGFA', base['gfa'], '--extendGAF', base['gaf']]
         if mgSplit:
             cactus_pangenome_cmd += ['--mgSplit']
         else:
@@ -524,6 +550,103 @@ class TestCase(unittest.TestCase):
         if binariesMode == 'docker':
             wave_vcf_bytes = os.path.getsize(os.path.join(out_dir, out_name + '.simChimp.wave.vcf.gz'))
             self.assertGreaterEqual(wave_vcf_bytes, 300000)
+
+        if extend:
+            # the genomes added on top of the base graph are in the graph it was extended into
+            self.assertEqual(self._gfa_genomes(os.path.join(out_dir, out_name + '.sv.gfa.gz')), set(self.PRIMATES))
+
+    def _build_primates_base_graph(self, binariesMode, config_path, genomes):
+        """ build the graph and mappings for a subset of the primates with the step-by-step tools,
+        for a later run to extend.  returns the gfa/gaf paths """
+        work_dir = os.path.join(self.tempDir, 'extend-base')
+        os.makedirs(work_dir, exist_ok=True)
+        seqfile = os.path.join(work_dir, 'primates.txt')
+        self._write_primates_seqfile(seqfile, genomes)
+        base = {'gfa': os.path.join(work_dir, 'base.sv.gfa.gz'),
+                'gaf': os.path.join(work_dir, 'base.gaf.gz'),
+                'paf': os.path.join(work_dir, 'base.paf'),
+                'fa': os.path.join(work_dir, 'base.sv.gfa.fa.gz')}
+        cactus_opts = ['--binariesMode', binariesMode, '--logInfo', '--workDir', self.tempDir,
+                       '--configFile', config_path]
+        subprocess.check_call(['cactus-minigraph', os.path.join(self.tempDir, 'js-extend-base-mg'), seqfile, base['gfa'],
+                               '--reference', 'simHuman', 'simChimp'] + cactus_opts)
+        subprocess.check_call(['cactus-graphmap', os.path.join(self.tempDir, 'js-extend-base-gm'), seqfile, base['gfa'],
+                               base['paf'], '--outputFasta', base['fa'],
+                               '--reference', 'simHuman', 'simChimp'] + cactus_opts)
+        return base
+
+    def _gfa_text(self, gfa_path):
+        """ the decompressed contents of a (bgzipped) GFA.  compared instead of the file itself
+        because bgzip block boundaries depend on the thread count, so two byte-identical graphs
+        can have different .gz bytes """
+        self.assertTrue(os.path.exists(gfa_path), '{} not found'.format(gfa_path))
+        return subprocess.check_output('zcat {}'.format(gfa_path), shell=True)
+
+    def _gfa_genomes(self, gfa_path):
+        """ the set of genomes an rGFA's SN tags name """
+        genomes = set()
+        for line in self._gfa_text(gfa_path).decode().split('\n'):
+            if line.startswith('S'):
+                for tok in line.split('\t')[4:]:
+                    if tok.startswith('SN:Z:'):
+                        genomes.add(tok[5:].split('#')[0])
+                        break
+        return genomes
+
+    def _run_primates_extend_steps(self, binariesMode, seqfile_genomes, extend_genomes, config_path, out_prefix):
+        """ cactus-minigraph + cactus-graphmap on seqfile_genomes, then the same two commands again
+        on extend_genomes with --extendGFA/--extendGAF pointed at the first run's output.
+
+        returns (base outputs, extended outputs) as dicts of gfa/paf/gaf paths.  only the two
+        stages that --extendGFA/--extendGAF touch are run: split/align/join are unchanged by them
+        and are covered by the end-to-end test below """
+        cactus_opts = ['--binariesMode', binariesMode, '--logInfo', '--workDir', self.tempDir,
+                       '--configFile', config_path]
+
+        def run_stage(tag, genomes, extend_from):
+            out = {}
+            work_dir = os.path.join(self.tempDir, '{}-{}'.format(out_prefix, tag))
+            os.makedirs(work_dir, exist_ok=True)
+            # cactus-graphmap edits the seqfile it is given in place (to add _MINIGRAPH_), so each
+            # stage gets its own copy
+            seqfile = os.path.join(work_dir, 'primates.txt')
+            self._write_primates_seqfile(seqfile, genomes)
+            out['gfa'] = os.path.join(work_dir, 'pg.sv.gfa.gz')
+            out['paf'] = os.path.join(work_dir, 'pg.paf')
+            out['gaf'] = os.path.join(work_dir, 'pg.gaf.gz')
+            out['fa'] = os.path.join(work_dir, 'pg.sv.gfa.fa.gz')
+
+            mg_cmd = ['cactus-minigraph', os.path.join(self.tempDir, 'js-{}-{}-mg'.format(out_prefix, tag)),
+                      seqfile, out['gfa'], '--reference', 'simChimp']
+            gm_cmd = ['cactus-graphmap', os.path.join(self.tempDir, 'js-{}-{}-gm'.format(out_prefix, tag)),
+                      seqfile, out['gfa'], out['paf'], '--outputFasta', out['fa'], '--reference', 'simChimp']
+            if extend_from:
+                mg_cmd += ['--extendGFA', extend_from['gfa']]
+                gm_cmd += ['--extendGAF', extend_from['gaf']]
+            subprocess.check_call(mg_cmd + cactus_opts)
+            subprocess.check_call(gm_cmd + cactus_opts)
+            return out
+
+        base = run_stage('base', seqfile_genomes, None)
+        extended = run_stage('ext', extend_genomes, base)
+        extended['cactus_opts'] = cactus_opts
+        extended['genomes'] = extend_genomes
+        return base, extended
+
+    def _remap_onto_extended(self, extended, out_prefix):
+        """ re-run cactus-graphmap on an extended graph with --remap, which maps every genome
+        instead of reusing any.  returns the PAF path """
+        work_dir = os.path.join(self.tempDir, '{}-remap'.format(out_prefix))
+        os.makedirs(work_dir, exist_ok=True)
+        seqfile = os.path.join(work_dir, 'primates.txt')
+        self._write_primates_seqfile(seqfile, extended['genomes'])
+        paf = os.path.join(work_dir, 'pg.paf')
+        subprocess.check_call(['cactus-graphmap', os.path.join(self.tempDir, 'js-{}-remap'.format(out_prefix)),
+                               seqfile, extended['gfa'], paf,
+                               '--outputFasta', os.path.join(work_dir, 'pg.sv.gfa.fa.gz'),
+                               '--reference', 'simChimp', '--extendGAF', extended['gaf'], '--remap']
+                              + extended['cactus_opts'])
+        return paf
 
     def _run_evolver_primates_step_by_step_mgsplit(self, binariesMode, train=False):
         """ primates star test but using graphmap pangenome pipeline with chromosome splitting
@@ -649,8 +772,13 @@ class TestCase(unittest.TestCase):
                                '--vg'] +  vg_files + ['--hal'] + hal_files +
                                ['--xg', '--vcf', '--giraffe', 'clip', 'filter', '--lrGiraffe'] + cactus_opts + ['--indexCores', '4'])
 
-    def _run_yeast_pangenome(self, binariesMode, mgSplit=False, collapse=False, gref=None, vcfL=None):
-        """ yeast pangenome chromosome by chromosome pipeline, as run through a single invocations
+    def _run_yeast_pangenome(self, binariesMode, mgSplit=False, collapse=False, gref=None, vcfL=None, extend=None):
+        """ yeast pangenome chromosome by chromosome pipeline, as run through a single invocations.
+
+        extend, if given, is the list of genomes to build a graph out of first, with the
+        step-by-step tools, for the run below to extend with --extendGFA.  unlike the primates
+        tests this exercises the translated PAF through cactus-graphmap-split, which is the one
+        downstream stage that reads it before cactus-align
         """
 
         orig_seq_file_path = './examples/yeastPangenome.txt'
@@ -674,11 +802,33 @@ class TestCase(unittest.TestCase):
             cactus_pangenome_cmd += ['--gref', gref]
         if vcfL is not None:
             cactus_pangenome_cmd += ['--vcfL', str(vcfL)]
+        if extend:
+            base = self._build_yeast_base_graph(binariesMode, orig_seq_file_path, extend)
+            cactus_pangenome_cmd += ['--extendGFA', base['gfa'], '--extendGAF', base['gaf']]
         subprocess.check_call(cactus_pangenome_cmd + cactus_opts)
 
         #compatibility with older test
         subprocess.check_call(['mkdir', '-p', os.path.join(self.tempDir, 'chroms')])
         subprocess.check_call(['mv', os.path.join(join_path, 'chrom-subproblems', 'contig_sizes.tsv'), os.path.join(self.tempDir, 'chroms')])
+
+    def _build_yeast_base_graph(self, binariesMode, seqfile_path, genomes):
+        """ build the graph and mappings for a subset of the yeast strains with the step-by-step
+        tools, for the run above to extend.  returns the gfa/gaf paths """
+        work_dir = os.path.join(self.tempDir, 'extend-base')
+        os.makedirs(work_dir, exist_ok=True)
+        seqfile = os.path.join(work_dir, 'yeast.txt')
+        self._write_seqfile_subset(seqfile_path, seqfile, genomes)
+        base = {'gfa': os.path.join(work_dir, 'base.sv.gfa.gz'),
+                'gaf': os.path.join(work_dir, 'base.gaf.gz'),
+                'paf': os.path.join(work_dir, 'base.paf'),
+                'fa': os.path.join(work_dir, 'base.sv.gfa.fa.gz')}
+        cactus_opts = ['--binariesMode', binariesMode, '--logInfo', '--workDir', self.tempDir, '--maxCores', '4']
+        subprocess.check_call(['cactus-minigraph', os.path.join(self.tempDir, 'js-yeast-base-mg'), seqfile, base['gfa'],
+                               '--reference', 'S288C', 'DBVPG6044'] + cactus_opts)
+        subprocess.check_call(['cactus-graphmap', os.path.join(self.tempDir, 'js-yeast-base-gm'), seqfile, base['gfa'],
+                               base['paf'], '--outputFasta', base['fa'],
+                               '--reference', 'S288C', 'DBVPG6044'] + cactus_opts)
+        return base
 
     def _validate_sv_gfa(self, gfa_path):
         """ run `zcat <gfa_path> | vg validate -` and assert it passes.
@@ -1666,6 +1816,121 @@ class TestCase(unittest.TestCase):
         # todo: tune config so that delta can be reduced
         self._check_maf_accuracy(self._out_hal("local"), delta=(0.025,0.025), dataset='primates')
         
+    def testPangenomeExtendNullLocal(self):
+        """ Extending a pangenome by nothing must reproduce it exactly.
+
+        This is the load-bearing test for reusing mappings: minigraph GAF is in stable coordinates,
+        so a genome's existing mappings can be re-derived against the extended graph rather than
+        recomputed.  Feeding the graph back unchanged makes "re-derived" and "as originally mapped"
+        the same thing, so anything the round trip through PanSN naming, the per-genome GAF split,
+        or gaf2unstable/gaf2paf loses shows up here as a difference. """
+        config_path = self._write_pangenome_config('extend-null',
+                                                   graphmap_attribs={"minigraphConstructBatchSize": "2"})
+        genomes = ['simHuman', 'simChimp']
+        base, extended = self._run_primates_extend_steps('local', genomes, genomes, config_path, 'null')
+
+        # no genomes were added, so the graph is the input passed straight through
+        self.assertEqual(self._gfa_text(extended['gfa']), self._gfa_text(base['gfa']))
+        # the mappings were re-derived from the published GAF rather than remapped, and came out
+        # byte for byte the same as minigraph's
+        with open(base['paf'], 'rb') as base_paf, open(extended['paf'], 'rb') as ext_paf:
+            self.assertEqual(ext_paf.read(), base_paf.read())
+        # and the republished GAF is intact, so the extended run can itself be extended
+        self.assertEqual(subprocess.check_output('zcat {}'.format(extended['gaf']), shell=True),
+                         subprocess.check_output('zcat {}'.format(base['gaf']), shell=True))
+
+        # an unchanged graph is the one graph construction hands back without writing it, so it is
+        # the one that can come out at the compression of the file it was read from rather than of
+        # the file it is being written to.  everything downstream reads the output suffix
+        plain_dir = os.path.join(self.tempDir, 'null-plain')
+        os.makedirs(plain_dir, exist_ok=True)
+        plain_seqfile = os.path.join(plain_dir, 'primates.txt')
+        self._write_primates_seqfile(plain_seqfile, genomes)
+        plain_gfa = os.path.join(plain_dir, 'pg.sv.gfa')
+        subprocess.check_call(['cactus-minigraph', os.path.join(self.tempDir, 'js-null-plain'),
+                               plain_seqfile, plain_gfa, '--reference', 'simChimp',
+                               '--extendGFA', base['gfa'],
+                               '--binariesMode', 'local', '--logInfo', '--workDir', self.tempDir,
+                               '--configFile', config_path])
+        with open(plain_gfa, 'rb') as plain_file:
+            plain_bytes = plain_file.read()
+        self.assertFalse(plain_bytes.startswith(b'\x1f\x8b'),
+                         'a .gfa output path got gzip bytes: the seed graph kept its input compression')
+        self.assertEqual(plain_bytes, self._gfa_text(base['gfa']))
+
+    def testPangenomeExtendConstructionLocal(self):
+        """ Extending a graph must build the same graph as constructing it in one go.
+
+        minigraph construction is sequential -- each genome is added to the graph built from the
+        ones before it -- which is the whole reason extending is possible.  With the input order
+        pinned (minigraphSortInput=none), adding simGorilla and simOrang to a simChimp+simHuman
+        graph is the same command sequence cactus already runs when it batches construction, so the
+        two graphs should be identical.  If this ever stops holding, the cost model behind
+        --extendGFA needs revisiting. """
+        config_path = self._write_pangenome_config('extend-construct',
+                                                   graphmap_attribs={"minigraphConstructBatchSize": "2",
+                                                                     "minigraphSortInput": "none"})
+        base, extended = self._run_primates_extend_steps('local', ['simHuman', 'simChimp'], self.PRIMATES,
+                                                         config_path, 'construct')
+
+        # the same four genomes, built in the same order, in one run
+        scratch_dir = os.path.join(self.tempDir, 'construct-scratch')
+        os.makedirs(scratch_dir, exist_ok=True)
+        scratch_seqfile = os.path.join(scratch_dir, 'primates.txt')
+        self._write_primates_seqfile(scratch_seqfile, self.PRIMATES)
+        scratch_gfa = os.path.join(scratch_dir, 'pg.sv.gfa.gz')
+        subprocess.check_call(['cactus-minigraph', os.path.join(self.tempDir, 'js-construct-scratch'),
+                               scratch_seqfile, scratch_gfa, '--reference', 'simChimp',
+                               '--binariesMode', 'local', '--logInfo', '--workDir', self.tempDir,
+                               '--configFile', config_path])
+
+        self.assertEqual(self._gfa_genomes(extended['gfa']), set(self.PRIMATES))
+        self.assertEqual(self._gfa_text(extended['gfa']), self._gfa_text(scratch_gfa))
+        self._validate_sv_gfa(extended['gfa'])
+
+        # the extended graph is strictly bigger than the one it came from, and every genome has
+        # mappings in the PAF
+        self.assertGreater(len(self._gfa_text(extended['gfa'])), len(self._gfa_text(base['gfa'])))
+        with open(extended['paf']) as paf_file:
+            paf_queries = set(line.split('\t')[0].split('|')[0] for line in paf_file)
+        self.assertEqual(paf_queries, set('id=' + genome for genome in self.PRIMATES))
+
+        # the reused mappings put every alignment at the same place a fresh mapping does.  the
+        # graph is identical either way, so the only thing being compared is what reuse did to the
+        # coordinates -- the nodes an existing genome was mapped to have been split underneath it
+        scratch_paf = os.path.join(scratch_dir, 'pg.paf')
+        subprocess.check_call(['cactus-graphmap', os.path.join(self.tempDir, 'js-construct-scratch-gm'),
+                               scratch_seqfile, scratch_gfa, scratch_paf,
+                               '--outputFasta', os.path.join(scratch_dir, 'pg.sv.gfa.fa.gz'),
+                               '--reference', 'simChimp'] + extended['cactus_opts'])
+        self.assertEqual(self._paf_coords(extended['paf']), self._paf_coords(scratch_paf))
+
+        # and --remap, which maps everything instead of reusing anything, gives back exactly the
+        # from-scratch PAF: same graph, same mappings, nothing carried over
+        self.assertEqual(self._paf_bytes(self._remap_onto_extended(extended, 'construct')),
+                         self._paf_bytes(scratch_paf))
+
+    def _paf_coords(self, paf_path):
+        """ the set of (query, target, coordinate) tuples in a PAF, ignoring the tags.  two PAFs
+        that agree here place every alignment identically; only the cigars can still differ, and
+        those differ by indel placement in ambiguous runs """
+        with open(paf_path) as paf_file:
+            return set(tuple(line.rstrip('\n').split('\t')[:12]) for line in paf_file)
+
+    def _paf_bytes(self, paf_path):
+        with open(paf_path, 'rb') as paf_file:
+            return paf_file.read()
+
+    def testEvolverPrimatesPangenomeExtendLocal(self):
+        """ Evolver (star) primates built two genomes at a time with cactus-pangenome --extendGFA,
+        checked against the same accuracy baseline as the from-scratch run """
+        name = "local"
+        self._run_evolver_primates_pangenome(name, extend=True)
+
+        # check the output
+        # todo: tune config so that delta can be reduced
+        self._check_maf_accuracy(self._out_hal("local"), delta=(0.025,0.025), dataset='primates')
+
     def testEvolverPrimatesPangenomeStepByStepSplitLocal(self):
         """ Evolver primates but using the step-by-step cactus-pangenome interface with splitting
         """
@@ -1702,6 +1967,20 @@ class TestCase(unittest.TestCase):
 
         # check the output
         self._check_yeast_pangenome(name, other_ref='DBVPG6044', expect_odgi=True, expect_haplo=False, expect_unchopped_gfa=True)
+
+    def testYeastPangenomeExtendLocal(self):
+        """ Yeast pangenome built three strains at a time with cactus-pangenome --extendGFA.
+
+        Unlike the primates extend tests, this one splits by chromosome, so the reused mappings go
+        through cactus-graphmap-split -- the one stage downstream of cactus-graphmap that reads the
+        PAF before cactus-align does.  It is checked against exactly the same pinned graph
+        statistics as the from-scratch yeast run, because the graph covers the same six strains. """
+        name = "local"
+        self._run_yeast_pangenome(name, extend=['S288C', 'DBVPG6044', 'SK1'])
+
+        # check the output
+        self._check_yeast_pangenome(name, other_ref='DBVPG6044', expect_odgi=True, expect_haplo=False,
+                                    expect_unchopped_gfa=True)
 
     YEAST_URL = 'https://github.com/ComparativeGenomicsToolkit/cactusTestData/raw/master/yeast/{}.fa.gz'
     PANPATCH_TARGET = 'SK1'

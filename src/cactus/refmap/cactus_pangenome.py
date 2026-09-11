@@ -68,6 +68,19 @@ def pangenome_options(parser):
                         help = "File containing scoring parameters (output of last-train)")
     parser.add_argument("--mgSplit", action="store_true", default=False,
                         help = "Run minigraph construction and mapping independently on each chromosome")                        
+    parser.add_argument("--extendGFA", type=str, default=None,
+                        help = "Add genomes to this existing pangenome's minigraph GFA (<outName>.sv.gfa.gz from a previous run, or a "
+                        "published release) instead of building one from scratch. The seqFile must list every genome in the graph as "
+                        "well as the ones being added: genomes cannot be removed from a minigraph. Only the new genomes are constructed "
+                        "in, which is where nearly all of the minigraph cost is. Everything from cactus-graphmap-split on is recomputed")
+    parser.add_argument("--extendGAF", type=str, default=None,
+                        help = "Reuse the mappings in this GAF (<outName>.gaf.gz from the same run that produced --extendGFA) rather than "
+                        "re-running minigraph for the genomes it covers. Minigraph GAF is in stable coordinates, which adding genomes to "
+                        "a graph does not change, so they are simply re-derived against the extended graph. Without this, every genome is "
+                        "mapped again (see --remap)")
+    parser.add_argument("--remap", action="store_true", default=False,
+                        help = "With --extendGAF, map every genome with minigraph anyway. Costs the full mapping stage, but the existing "
+                        "genomes then see the nodes contributed by the newly added ones, as they would in a from-scratch run")
 
     # cactus-graphmap options
     parser.add_argument("--mapCores", type=int, help = "Number of cores for minigraph map.  Overrides graphmap cpu in configuration")
@@ -189,6 +202,20 @@ def pangenome_validate_options(options):
     if options.mgSplit and options.noSplit:
         raise RuntimeError('you cannot use both --mgSplit and --noSplit together: pick one')
 
+    if options.extendGFA:
+        if options.mgSplit:
+            raise RuntimeError('--extendGFA cannot (yet) be used with --mgSplit: the per-chromosome graphs and mappings would '
+                               'need extending too')
+        if options.collapse or options.collapseRefPAF:
+            raise RuntimeError('--extendGFA cannot be used with --collapse or --collapseRefPAF: collapse PAFs are minimap2 '
+                               'self-alignments and are not derived from the GAF')
+    else:
+        if options.extendGAF:
+            raise RuntimeError('--extendGAF requires --extendGFA: reusing mappings only makes sense against the graph they '
+                               'were made from')
+        if options.remap:
+            raise RuntimeError('--remap only means something with --extendGAF, which is what it overrides')
+
     # Sort out the graphmap-join options, which can be rather complex
     # pass in dummy values for now, they will get filled in later
     # (but we want to do as much error-checking upfront as possible)
@@ -290,6 +317,17 @@ def main():
             if options.scoresFile:
                 last_scores_id = toil.importFile(makeURL(options.scoresFile))
 
+            #import the pangenome being extended
+            extend_gfa_id, extend_gaf_id = None, None
+            if options.extendGFA:
+                if '://' not in options.extendGFA:
+                    options.extendGFA = os.path.abspath(options.extendGFA)
+                extend_gfa_id = toil.importFile(makeURL(options.extendGFA))
+                if options.extendGAF and not options.remap:
+                    if '://' not in options.extendGAF:
+                        options.extendGAF = os.path.abspath(options.extendGAF)
+                    extend_gaf_id = toil.importFile(makeURL(options.extendGAF))
+
             #import the sequences
             input_seq_id_map = {}
             input_path_map = {}
@@ -306,7 +344,8 @@ def main():
                 elif genome in input_seq_order:
                     input_seq_order.remove(genome)                    
             
-            toil.start(Job.wrapJobFn(pangenome_end_to_end_workflow, options, config_wrapper, input_seq_id_map, input_path_map, input_seq_order, ref_collapse_paf_id, last_scores_id))
+            toil.start(Job.wrapJobFn(pangenome_end_to_end_workflow, options, config_wrapper, input_seq_id_map, input_path_map, input_seq_order, ref_collapse_paf_id, last_scores_id,
+                                     extend_gfa_id=extend_gfa_id, extend_gaf_id=extend_gaf_id))
         
     end_time = timeit.default_timer()
     run_time = end_time - start_time
@@ -502,7 +541,7 @@ def export_join_wrapper(job, options, wf_output, contig_sizes_id=None):
         job.fileStore.exportFile(contig_sizes_id, makeURL(sizes_path))
 
 def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_path_map, seq_order, ref_collapse_paf_id,
-                                  last_scores_id):
+                                  last_scores_id, extend_gfa_id=None, extend_gaf_id=None):
     """ chain the entire workflow together, doing exports after each step to mitigate annoyance of failures """
     root_job = Job()
     job.addChild(root_job)
@@ -552,7 +591,8 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
     else:
         split_config_node = config_node
         split_config_wrapper = config_wrapper
-    minigraph_job = prev_job.addFollowOnJobFn(minigraph_construct_workflow, mg_options, split_config_node, seq_id_map, seq_order, sv_gfa_path, sanitize=False)
+    minigraph_job = prev_job.addFollowOnJobFn(minigraph_construct_workflow, mg_options, split_config_node, seq_id_map, seq_order, sv_gfa_path, sanitize=False,
+                                              extend_gfa_id=extend_gfa_id)
     sv_gfa_id = minigraph_job.rv(0)
     pansn_sv_gfa_id = minigraph_job.rv(1)
     if not last_scores_id:
@@ -569,7 +609,8 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
     gm_options = copy.deepcopy(options)
     if options.mgSplit:
         gm_options.collapse = False
-    graphmap_job = minigraph_wrapper_job.addFollowOnJobFn(minigraph_workflow, gm_options, split_config_wrapper, seq_id_map, sv_gfa_id, graph_event, False, ref_collapse_paf_id, pansn_gfa_input=False)
+    graphmap_job = minigraph_wrapper_job.addFollowOnJobFn(minigraph_workflow, gm_options, split_config_wrapper, seq_id_map, sv_gfa_id, graph_event, False, ref_collapse_paf_id, pansn_gfa_input=False,
+                                                          extend_gaf_id=extend_gaf_id)
     paf_id, gfa_fa_id, gaf_id, unfiltered_paf_id, paf_filter_log = graphmap_job.rv(0), graphmap_job.rv(1), graphmap_job.rv(2), graphmap_job.rv(3), graphmap_job.rv(4)
     graphmap_export_job = graphmap_job.addFollowOnJobFn(export_graphmap_wrapper, options, paf_id, paf_path, gaf_id, unfiltered_paf_id, paf_filter_log)
 

@@ -265,6 +265,113 @@ For `--vgFilter`, the filter threshold is inferred from the `.dX.vg` filename pa
 
 Note: per-chromosome output options (`--chrom-vg`, `--chrom-og`, `--viz`, `--draw`) cannot be used with bypass options, as you already have those files from the previous run. Also, bypass options are not compatible with graphs that were originally built with `--collapse`.
 
+### Adding Genomes to an Existing Pangenome
+
+`cactus-pangenome --extendGFA` adds genomes to a pangenome you have already built, instead of
+rebuilding it from scratch:
+
+```
+cactus-pangenome ./js ./seqfile.txt --reference GRCh38 --outDir pg2 --outName pg \
+  --extendGFA pg1/pg.sv.gfa.gz --extendGAF pg1/pg.gaf.gz
+```
+
+`seqfile.txt` lists **every** genome, the ones already in the graph as well as the ones being
+added. Cactus works out which are which; the genomes that are already there are left exactly where
+they are in the graph, and only the new ones are constructed in. A genome cannot be *removed* from
+a minigraph, so leaving one out of the seqfile is an error rather than a way to drop it.
+
+This matters because `minigraph` construction is iterative in the input genomes and dominates the
+wall time of a large run — weeks, for an HPRC-scale release. Adding 50 genomes to a graph of 450
+costs 50 genomes' worth of construction, not 500.
+
+The step-by-step interface has the same two options, and they interoperate with the one-shot one in
+both directions:
+
+```
+cactus-minigraph ./js ./seqfile.txt pg2/pg.sv.gfa.gz --reference GRCh38 \
+  --extendGFA pg1/pg.sv.gfa.gz
+cactus-graphmap  ./js ./seqfile.txt pg2/pg.sv.gfa.gz pg2/pg.paf --reference GRCh38 \
+  --outputFasta pg2/pg.sv.gfa.fa.gz --extendGAF pg1/pg.gaf.gz
+```
+
+Everything after these two stages — `cactus-graphmap-split`, `cactus-align`, and especially
+`cactus-graphmap-join`'s `vg` indexing — is recomputed in full, and the output of an extended run
+is an ordinary pangenome that can itself be extended again.
+
+#### What `--extendGAF` does
+
+`cactus-graphmap` runs `minigraph` without `--vc`, so the GAF it publishes as `<outName>.gaf.gz` is
+in *stable* coordinates: rGFA `SN`/`SO` sequence names and offsets. Adding genomes to a graph never
+moves those. New nodes are appended and existing ones are only ever split, so the stable sequence a
+node covers stays exactly where it was.
+
+That means an existing genome's mappings do not have to be recomputed against the extended graph —
+they can be re-derived from the published GAF by the same `gaf2unstable` / `gaf2paf` conversion that
+produced the PAF in the first place, which resolves the stable coordinates into the new, finer node
+ids for free. `--extendGAF` is the option that does this, and it turns the mapping stage from hours
+of `minigraph` into minutes of file conversion.
+
+`--extendGAF` is optional. Without it — extending a published release for which only the GFA is
+available, say — every genome is mapped again, which is the fallback and costs a full mapping stage.
+
+#### Why an extended pangenome is not identical to one built all at once
+
+There are exactly two sources of difference, and it is worth being precise about which is which.
+
+**1. Construction order.** `minigraph` construction is iterative in the input genomes, so the order
+they go in decides the graph. Building `A B C D` in one go sorts all four by mash distance to the
+reference; building `A C` and then extending with `B D` gives the effective order `A C B D`,
+because the genomes already in the graph cannot be reordered around the ones being added. There is
+no way around this, and it is why an extended graph is not the graph you would have got from
+scratch.
+
+It is the *only* construction-side difference, though: with the order pinned
+(`minigraphSortInput="none"` in the config), extending and building in one go produce a **byte
+identical** graph. That equivalence is what `make pangenome_extend_construction_test_local` checks,
+on `A B` + `C D` versus `A B C D`.
+
+**2. Reused mappings.** The genomes being *added* are mapped against the whole extended graph, so
+they are mapped exactly as a from-scratch run would map them. The genomes already in the graph are
+not: their alignments are the ones they had against the graph before it, re-expressed, so they
+never see nodes contributed by the newly added genomes.
+
+This is largely self-limiting — a node is only in the graph because some genome carries that
+allele, and an existing genome carrying it would have contributed it when the graph was first built
+— but it is not nothing, and where it bites is near-identical alleles, where an existing genome
+might now prefer a new genome's node. Measured against a from-scratch mapping on the very same
+graph:
+
+| | agreement |
+|---|---|
+| evolver primates, 2 extended by 2 | all 1183 alignments at identical coordinates; 5 CIGARs differ by a 2bp indel shift |
+| yeast, 3 strains extended by 3 | 97.8% of alignments at identical coordinates; the reused genomes' aligned bases differ by at most 0.09% |
+
+In both, the genomes that were *added* come out identical to a from-scratch mapping, because they
+are mapped against the whole extended graph. All the divergence is in the reused ones.
+
+`--remap` removes this second difference entirely: every genome is mapped against the extended
+graph, which reproduces a from-scratch mapping byte for byte, leaving construction order as the
+only thing that differs. It costs the full mapping stage — which, unlike construction, is
+embarrassingly parallel.
+
+#### Other caveats
+
+* The graph must have been built with a compatible configuration (`minigraphConstructOptions`, the
+  `<graphmap>` `assemblyName`) and with the same `--reference`.
+* `--mgSplit` and `--collapse` are not supported with `--extendGFA`. `--mgSplit` has per-chromosome
+  graphs and mappings that would need extending as well; `--collapse` self-alignments come from
+  `minimap2` rather than from the GAF, so there is nothing in the GAF to reuse.
+* Standalone `cactus-graphmap --extendGAF` still imports and sanitizes every genome's FASTA even
+  though the reused ones are not mapped. On the `cactus-pangenome` path that work is not wasted —
+  `cactus-align` needs those FASTAs anyway.
+* A reused GAF needs one adjustment beyond re-running the conversion, handled by
+  `trim_unstable_gaf` in `cactus_graphmap.py`: `gaf2paf` reads a record's path start as an offset
+  into its *first* step, and splitting a node makes the steps finer while leaving the offset where
+  it was, so the offset can end up past the first of the nodes that replaced it. The steps it
+  reaches past hold none of the alignment, so they are taken off the front and back. This belongs
+  in `gaf2unstable`, which is the thing changing the granularity; it is done in cactus so that
+  reusing mappings does not wait on a `cactus-gfa-tools` release.
+
 ### VCF Output
 
 The `--vcf` option runs `vg deconstruct` to represent the graph as sites of variation along a reference. A single run can write several VCFs, all prefixed with `--outName`:

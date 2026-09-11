@@ -8,6 +8,7 @@
 
 """
 import os, sys, re
+import gzip
 from argparse import ArgumentParser
 import xml.etree.ElementTree as ET
 import copy
@@ -57,6 +58,14 @@ def main():
     parser.add_argument("--mapCores", type=int, help = "Number of cores for minigraph.  Overrides graphmap cpu in configuration")
     parser.add_argument("--collapse", help = "Incorporate minimap2 self-alignments.", action='store_true', default=False)
     parser.add_argument("--collapseRefPAF", help ="Incorporate given (reference-only) self-alignments in PAF format [Experimental]")
+    parser.add_argument("--extendGAF", type=str, default=None,
+                        help = "Reuse the mappings in this GAF (as published by a previous cactus-graphmap or cactus-pangenome run) "
+                        "instead of re-running minigraph for the genomes it covers. Minigraph GAF is in stable coordinates, which "
+                        "node splitting does not change, so these mappings are simply re-derived against the given (extended) graph. "
+                        "Only genomes that are not in the GAF are mapped. Intended for use with cactus-minigraph --extendGFA")
+    parser.add_argument("--remap", action="store_true", default=False,
+                        help = "Map every genome with minigraph even if --extendGAF already covers it. Slower, but the existing "
+                        "genomes then see the nodes contributed by the newly added ones, as they would in a from-scratch run")
 
     parser.add_argument("--batch", action="store_true",
                         help="Run independently on set of chromosomea inputs (chromfile as from cactus-minigraph --batch). Note that the output will be a directory and not a PAF")
@@ -104,6 +113,15 @@ def main():
 
     if options.mgSplit and options.batch:
         raise RuntimeError("--mgSplit is for the whole-genome splitting pass and cannot be used with --batch")
+
+    if options.extendGAF:
+        if options.batch:
+            raise RuntimeError("--extendGAF cannot be used with --batch")
+        if options.collapse or options.collapseRefPAF:
+            raise RuntimeError("--extendGAF cannot be used with --collapse or --collapseRefPAF: collapse PAFs are minimap2 "
+                               "self-alignments and are not derived from the GAF")
+    elif options.remap:
+        raise RuntimeError("--remap only means something with --extendGAF, which is what it overrides")
     
     # Mess with some toil options to create useful defaults.
     cactus_override_toil_options(options)
@@ -230,9 +248,13 @@ def graph_map(options):
 
                 input_dict[chrom] = seq_id_map, gfa_id, ref_collapse_paf_id, input_map[chrom][0], input_map[chrom][1]
                 
+            #import the mappings to reuse
+            extend_gaf_id = toil.importFile(makeURL(options.extendGAF)) if options.extendGAF and not options.remap else None
+
             # run the workflow
             # output_dict is chrom -> paf_id, gfa_fa_id, gaf_id, unfiltered_paf_id, paf_filter_log, paf_was_filtered
-            output_dict = toil.start(Job.wrapJobFn(minigraph_batch_separate_workflow, options, config_wrapper, input_dict, graph_event, True))
+            output_dict = toil.start(Job.wrapJobFn(minigraph_batch_separate_workflow, options, config_wrapper, input_dict, graph_event, True,
+                                                   extend_gaf_id=extend_gaf_id))
 
         export_graphmap_output(options, config_node, input_map, output_dict, toil)
 
@@ -293,7 +315,7 @@ def export_graphmap_output(options, config_node, input_map, output_dict, toil):
         if chrom_file_path.startswith('s3://'):
             write_s3(chrom_file_temp_path, chrom_file_path)
 
-def minigraph_batch_workflow(job, options, config, input_dict, graph_event, sanitize, pansn_gfa_input=True):
+def minigraph_batch_workflow(job, options, config, input_dict, graph_event, sanitize, pansn_gfa_input=True, extend_gaf_id=None):
     """ Batch wrapper to run grpahmap independently at the chromosome level."""
     output_dict = {}
     options.mg_chrom_name = None
@@ -308,7 +330,7 @@ def minigraph_batch_workflow(job, options, config, input_dict, graph_event, sani
         else:
             chrom_options = options
         mgwf_job = job.addChildJobFn(minigraph_workflow, chrom_options, config, seq_id_map, gfa_id, graph_event,
-                                     sanitize, ref_collapse_paf_id, pansn_gfa_input)
+                                     sanitize, ref_collapse_paf_id, pansn_gfa_input, extend_gaf_id=extend_gaf_id)
         output_dict[chrom] = mgwf_job.rv()
     return output_dict
 
@@ -323,14 +345,15 @@ def add_separate_ref_contigs_job(batch_job, options, config, input_dict):
     return batch_job.addFollowOnJobFn(separate_ref_contigs_batch, config, input_dict, batch_job.rv(), reference,
                                       getattr(options, 'permissiveContigFilter', None))
 
-def minigraph_batch_separate_workflow(job, options, config, input_dict, graph_event, sanitize, pansn_gfa_input=True):
+def minigraph_batch_separate_workflow(job, options, config, input_dict, graph_event, sanitize, pansn_gfa_input=True, extend_gaf_id=None):
     """ minigraph_batch_workflow followed by the separation pass, for callers that just want the final
     result and add nothing after it """
     batch_job = job.addChildJobFn(minigraph_batch_workflow, options, config, input_dict, graph_event, sanitize,
-                                  pansn_gfa_input)
+                                  pansn_gfa_input, extend_gaf_id=extend_gaf_id)
     return add_separate_ref_contigs_job(batch_job, options, config, input_dict).rv()
 
-def minigraph_workflow(job, options, config, seq_id_map, gfa_id, graph_event, sanitize, ref_collapse_paf_id, pansn_gfa_input=True):
+def minigraph_workflow(job, options, config, seq_id_map, gfa_id, graph_event, sanitize, ref_collapse_paf_id, pansn_gfa_input=True,
+                       extend_gaf_id=None):
     """ Overall workflow takes command line options and returns (paf-id, (optional) fa-id) """
     fa_id = None
     gfa_id_size = gfa_id.size
@@ -364,7 +387,15 @@ def minigraph_workflow(job, options, config, seq_id_map, gfa_id, graph_event, sa
         new_root_job = Job()
         root_job.addFollowOn(new_root_job)
         root_job = new_root_job
-        gfa_id = rename_gfa_job.rv()
+        gfa_id = rename_gfa_job.rv(0)
+
+    # split up any mappings we've been given to reuse, so each genome's re-derivation is its own
+    # job just as its mapping would have been
+    extend_gaf_map = None
+    if extend_gaf_id:
+        split_gaf_job = root_job.addChildJobFn(split_gaf_by_event, extend_gaf_id, genome_names, options.extendGAF,
+                                               disk=12*extend_gaf_id.size)
+        extend_gaf_map = split_gaf_job.rv()
 
     zipped_gfa = options.minigraphGFA.endswith('.gz')
     if options.outputFasta:
@@ -380,7 +411,7 @@ def minigraph_workflow(job, options, config, seq_id_map, gfa_id, graph_event, sa
         gfa_id = gfa_unzip_job.rv()
         gfa_id_size *= 10
         options.minigraphGFA = options.minigraphGFA[:-3]
-    paf_job = Job.wrapJobFn(minigraph_map_all, options, config, gfa_id, seq_id_map, graph_event)
+    paf_job = Job.wrapJobFn(minigraph_map_all, options, config, gfa_id, seq_id_map, graph_event, extend_gaf_map)
     root_job.addFollowOn(paf_job)
 
     collapse_paf_id = ref_collapse_paf_id
@@ -468,8 +499,11 @@ def make_minigraph_fasta(job, gfa_file_id, gfa_file_path, name):
 
     return job.fileStore.writeGlobalFile(fa_path)
 
-def minigraph_map_all(job, options, config, gfa_id, fa_id_map, graph_event):
-    """ top-level job to run the minigraph mapping in parallel, returns paf """
+def minigraph_map_all(job, options, config, gfa_id, fa_id_map, graph_event, extend_gaf_map=None):
+    """ top-level job to run the minigraph mapping in parallel, returns paf.
+
+    a genome that extend_gaf_map already has mappings for has its PAF re-derived from them rather
+    than being mapped again -- see translate_gaf_one() """
     # hang everything on this job, to self-contain workflow
     top_job = Job()
     job.addChild(top_job)
@@ -480,6 +514,11 @@ def minigraph_map_all(job, options, config, gfa_id, fa_id_map, graph_event):
     gaf_id_map = {}
     paf_id_map = {}
                 
+    # every genome whose contigs can name a step in the GAF's paths, which is more than the
+    # genomes being mapped: --refFromGFA takes the reference out of the sequence map
+    genome_names = set(fa_id_map.keys())
+    if options.reference:
+        genome_names.add(options.reference if type(options.reference) is str else options.reference[0])
     for event, fa_id in fa_id_map.items():
         mem = 72*fa_id.size + 2*gfa_id.size
         event_name = event
@@ -487,11 +526,19 @@ def minigraph_map_all(job, options, config, gfa_id, fa_id_map, graph_event):
             # the memory heuristc seems to drastically underestimate some chromosomes in batch mode...
             mem *= 2
             event_name = '{}.{}'.format(event, options.mg_chrom_name)
-        minigraph_map_job = top_job.addChildJobFn(minigraph_map_one, config, event_name, fa_id, gfa_id,
-                                                  cores=mg_cores, disk=5*fa_id.size + gfa_id.size,
-                                                  memory=cactus_clamp_memory(mem))
-        gaf_id_map[event] = minigraph_map_job.rv(0)
-        paf_id_map[event] = minigraph_map_job.rv(1)
+        if extend_gaf_map and event in extend_gaf_map:
+            # no minigraph, and no input fasta: gaf2unstable/gaffilter/gaf2paf against the new graph
+            # is the whole job.  gaffilter reads its input into memory, as it does when mapping
+            gaf_shard_id = extend_gaf_map[event]
+            map_job = top_job.addChildJobFn(translate_gaf_one, config, event_name, gaf_shard_id, gfa_id, genome_names,
+                                            disk=12*gaf_shard_id.size + 2*gfa_id.size,
+                                            memory=cactus_clamp_memory(24*gaf_shard_id.size + 4*gfa_id.size))
+        else:
+            map_job = top_job.addChildJobFn(minigraph_map_one, config, event_name, fa_id, gfa_id,
+                                            cores=mg_cores, disk=5*fa_id.size + gfa_id.size,
+                                            memory=cactus_clamp_memory(mem))
+        gaf_id_map[event] = map_job.rv(0)
+        paf_id_map[event] = map_job.rv(1)
 
     # merge up
     paf_merge_job = top_job.addFollowOnJobFn(merge_pafs, paf_id_map)
@@ -504,6 +551,120 @@ def minigraph_map_all(job, options, config, gfa_id, fa_id_map, graph_event):
 # "id=" is only a name prefix in those positions.  unanchored it also fires inside a contig
 # name that happens to contain id=...|, rewriting a name that exists in no graph and no input
 gaf_pansn_re = re.compile(r'(^|[\t><])id=([^|\t\n<>]+)\|')
+
+def pansn_to_event_map(names):
+    """ SAMPLE#HAP -> seqfile event, for the genomes in names.  event_to_pansn_prefix is lossy
+    (both S288C and S288C.0 give S288C#0), so going back needs the event names to hand """
+    prefix_map = {}
+    for event in names:
+        prefix_map.setdefault(event_to_pansn_prefix(event), event)
+    return prefix_map
+
+# SAMPLE#HAP, as it appears in a published (PanSN) GAF's query column and in each of its path
+# segments.  anchored like gaf_pansn_re above, and stopping at the second '#' so that a PanSN
+# phase block (SAMPLE#HAP#CONTIG#PHASEBLOCK) is left in the contig part where it belongs
+pansn_gaf_re = re.compile(r'(^|[\t><])([^|\t\n<>#]+#[^|\t\n<>#]+)#')
+
+def gaf_from_pansn(names, gaf_path, out_path):
+    """ the inverse of gaf_to_pansn(): rewrite a published GAF's PanSN SAMPLE#HAP#CONTIG names back
+    to cactus's id=EVENT|CONTIG, so it can be resolved against a cactus-named GFA again.
+
+    a prefix that is not one of the seqfile's genomes is left alone rather than mangled, which
+    covers both an already-cactus-named GAF (from a cactus old enough to have published one) and
+    any contig name that happens to look like a PanSN prefix """
+    prefix_map = pansn_to_event_map(names)
+
+    def replace(m):
+        event = prefix_map.get(m.group(2))
+        if event is None:
+            return m.group(0)
+        return '{}id={}|'.format(m.group(1), event)
+
+    with open(gaf_path, 'r') as in_file, open(out_path, 'w') as out_file:
+        for line in in_file:
+            out_file.write(pansn_gaf_re.sub(replace, line))
+
+def split_gaf_by_event(job, gaf_id, names, gaf_path):
+    """ split a published (merged) GAF into one file per genome, returning {event: file id} """
+    work_dir = job.fileStore.getLocalTempDir()
+    local_gaf_path = os.path.join(work_dir, 'extend.gaf.gz' if gaf_path.endswith('.gz') else 'extend.gaf')
+    job.fileStore.readGlobalFile(gaf_id, local_gaf_path)
+    shard_dir = os.path.join(work_dir, 'shards')
+    os.makedirs(shard_dir)
+
+    shard_paths, dropped = split_gaf_file_by_event(local_gaf_path, names, shard_dir)
+
+    if dropped:
+        RealtimeLogger.info('Ignoring mappings in {} for {}name(s) not in the seqfile: {}'.format(
+            gaf_path, 'at least ' if len(dropped) >= MAX_DROPPED_NAMES_REPORTED else '{} '.format(len(dropped)),
+            ' '.join(sorted(dropped))))
+    RealtimeLogger.info('Reusing mappings for {} genome(s) from {}'.format(len(shard_paths), gaf_path))
+
+    return {event: job.fileStore.writeGlobalFile(shard_path) for event, shard_path in shard_paths.items()}
+
+# how many unrecognised names a split reports before it stops collecting them.  the genome part of
+# a name is normally one of a handful, but a name in neither naming falls back to its contig
+MAX_DROPPED_NAMES_REPORTED = 20
+
+def split_gaf_file_by_event(gaf_path, names, shard_dir):
+    """ split a published (merged) GAF into one file per genome, returning ({event: path}, dropped names).
+
+    the merged GAF is a concatenation of the per-genome files, so this puts each genome's mappings
+    back exactly as minigraph_map_one() left them -- which is what lets the reused mappings be
+    re-derived by the very same code that produced them in the first place.
+
+    genomes in the GAF that are not in names are dropped, not an error: --refFromGFA legitimately
+    takes the reference out of the sequence map.  cactus-minigraph --extendGFA is where a genome
+    missing from the seqfile is caught, because there it is unrecoverable """
+    prefix_map = pansn_to_event_map(names)
+
+    def event_of(query_name):
+        """ the seqfile event a GAF query column belongs to, or None """
+        if query_name.startswith('id='):
+            barpos = query_name.find('|')
+            event = query_name[3:barpos] if barpos > 3 else None
+            return event if event in names else None
+        hashpos = query_name.find('#')
+        if hashpos < 0:
+            return None
+        hashpos2 = query_name.find('#', hashpos + 1)
+        if hashpos2 < 0:
+            return None
+        return prefix_map.get(query_name[:hashpos2])
+
+    shard_paths = {}
+    dropped = set()
+    # the merged GAF groups each genome's records together, so one handle at a time is enough.
+    # append mode keeps it correct even if some other producer interleaved them
+    cur_event, cur_file = None, None
+    opener = gzip.open if gaf_path.endswith('.gz') else open
+    with opener(gaf_path, 'rt') as gaf_file:
+        for line in gaf_file:
+            tab = line.find('\t')
+            if tab < 0:
+                continue
+            query_name = line[:tab]
+            event = event_of(query_name)
+            if event is None:
+                # report the genome part of the name, in whichever naming it is in.  a name that
+                # carries no genome at all falls back to the whole contig, so this is bounded by
+                # contig count rather than genome count and needs a cap of its own
+                if len(dropped) < MAX_DROPPED_NAMES_REPORTED:
+                    dropped.add(query_name[3:query_name.find('|')] if query_name.startswith('id=') and '|' in query_name
+                                else query_name.split('#')[0])
+                continue
+            if event != cur_event:
+                if cur_file:
+                    cur_file.close()
+                if event not in shard_paths:
+                    shard_paths[event] = os.path.join(shard_dir, '{}.gaf'.format(event))
+                cur_file = open(shard_paths[event], 'a')
+                cur_event = event
+            cur_file.write(line)
+    if cur_file:
+        cur_file.close()
+
+    return shard_paths, dropped
 
 def gaf_to_pansn(gaf_path, out_path):
     """ rewrite cactus's internal id=EVENT|CONTIG names as PanSN SAMPLE#HAP#CONTIG
@@ -557,6 +718,119 @@ def minigraph_map_one(job, config, event_name, fa_file_id, gfa_file_id):
 
     cactus_call(parameters=cmd, job_memory=job.memory)
 
+    return stable_gaf_to_paf(job, config, gaf_path, gfa_path)
+
+def translate_gaf_one(job, config, event_name, gaf_file_id, gfa_file_id, genome_names):
+    """ Re-derive one genome's PAF from mappings it already has, against a (possibly extended) graph.
+
+    minigraph GAF is in stable coordinates -- rGFA SN/SO names and offsets -- which adding genomes
+    to a graph does not change: new nodes are appended and existing ones are only ever split, so
+    the stable sequence a node covers stays exactly where it was.  That makes re-deriving the PAF a
+    matter of running the same gaf2unstable/gaf2paf chain minigraph_map_one() runs, against the new
+    graph, which gaf2unstable resolves into the new (finer) node ids for free.
+
+    the graph the genome was originally mapped to is not needed, and neither is minigraph """
+
+    work_dir = job.fileStore.getLocalTempDir()
+    gfa_path = os.path.join(work_dir, "mg.gfa")
+    gaf_path = os.path.join(work_dir, "{}.gaf".format(event_name))
+    job.fileStore.readGlobalFile(gfa_file_id, gfa_path)
+
+    # the published GAF is PanSN, but gaf2unstable resolves it against the cactus-named GFA.
+    # gaf_from_pansn passes through anything already in cactus naming.  note the input cannot be
+    # named <gaf>.pansn: that is where stable_gaf_to_paf() writes the copy it publishes
+    in_gaf_path = os.path.join(work_dir, "{}.in.gaf".format(event_name))
+    job.fileStore.readGlobalFile(gaf_file_id, in_gaf_path)
+    gaf_from_pansn(genome_names, in_gaf_path, gaf_path)
+
+    # the reused GAF is published back (PanSN in, PanSN out, unchanged), so a run that extends a
+    # pangenome can itself be extended
+    return stable_gaf_to_paf(job, config, gaf_path, gfa_path, regranulated=True)
+
+# a GAF path step: an orientation mark followed by a name that runs to the next mark
+gaf_step_re = re.compile(r'[<>][^<>]+')
+
+def trim_unstable_gaf(gaf_path, out_path, node_lengths_path):
+    """ drop the path steps of each record that carry none of its alignment, moving the path
+    offsets along with them.
+
+    gaf2paf reads a record's path start as an offset into its *first* step.  That holds for a GAF
+    gaf2unstable resolved against the graph it was mapped to, where each of minigraph's stable
+    steps is one node.  Against a graph that has since been extended, the same stable step resolves
+    into the several finer nodes it was split into, and the offset can now reach past the first of
+    them -- which gaf2paf asserts on rather than handles.
+
+    The steps it reaches past hold no aligned bases, and gaf2paf emits nothing for them even when it
+    does cope, so taking them off the front and back restores the shape gaf2paf expects without
+    changing the alignment at all.  When nothing needs trimming -- every mapping that was made
+    against the graph it is being resolved against -- every line is passed through untouched.
+
+    This belongs in gaf2unstable, which is the thing changing the granularity; it lives here so
+    that reusing mappings does not depend on a new cactus-gfa-tools release. """
+    node_len = {}
+    with open(node_lengths_path) as lengths_file:
+        for line in lengths_file:
+            toks = line.split()
+            if len(toks) >= 2:
+                node_len[toks[0]] = int(toks[1])
+
+    def first_step_len(path):
+        end = path.find('>', 1)
+        alt = path.find('<', 1)
+        if alt != -1 and (end == -1 or alt < end):
+            end = alt
+        return node_len[path[1:] if end == -1 else path[1:end]]
+
+    def last_step_len(path):
+        start = max(path.rfind('>'), path.rfind('<'))
+        return node_len[path[start + 1:]]
+
+    trimmed_records = 0
+    with open(gaf_path) as in_file, open(out_path, 'w') as out_file:
+        for line in in_file:
+            toks = line.rstrip('\n').split('\t')
+            if len(toks) < 12 or not toks[5] or toks[5][0] not in '<>':
+                out_file.write(line)
+                continue
+            path, path_len, path_start, path_end = toks[5], int(toks[6]), int(toks[7]), int(toks[8])
+            # the overwhelming majority of records need nothing done, and deciding that needs only
+            # the two end steps: with the offsets inside them, nothing in between can be outside
+            if path_start < first_step_len(path) and path_end > path_len - last_step_len(path):
+                out_file.write(line)
+                continue
+            steps = gaf_step_re.findall(path)
+            lo, hi = 0, len(steps)
+            while lo < hi - 1 and node_len[steps[lo][1:]] <= path_start:
+                dropped = node_len[steps[lo][1:]]
+                path_start -= dropped
+                path_end -= dropped
+                path_len -= dropped
+                lo += 1
+            while hi - 1 > lo and path_len - node_len[steps[hi - 1][1:]] >= path_end:
+                path_len -= node_len[steps[hi - 1][1:]]
+                hi -= 1
+            if lo == 0 and hi == len(steps):
+                # nothing was outside the alignment after all, so the record stands as it is
+                out_file.write(line)
+                continue
+            toks[5], toks[6], toks[7], toks[8] = ''.join(steps[lo:hi]), str(path_len), str(path_start), str(path_end)
+            out_file.write('\t'.join(toks) + '\n')
+            trimmed_records += 1
+
+    return trimmed_records
+
+def stable_gaf_to_paf(job, config, gaf_path, gfa_path, regranulated=False):
+    """ Turn a stable-coordinate (ie minigraph output) GAF into the node-coordinate PAF cactus
+    consumes, returning (published PanSN gaf id, paf id).  Shared by mapping and by reuse of an
+    existing mapping, so that the two produce identical output for identical input.
+
+    regranulated says the GAF was made against a coarser version of this graph, so its path offsets
+    have to be brought back inside their first and last steps -- see trim_unstable_gaf().  It is a
+    no-op when the graph has not changed, but it is only asked for on the reuse path so that
+    mapping keeps running exactly the commands it always has """
+
+    xml_node = findRequiredNode(config.xmlRoot, "graphmap")
+
     # convert the gaf into unstable gaf (targets are node sequences)
     # note: the gfa needs to be uncompressed for this tool to work
     mg_lengths_path = gfa_path + '.node_lengths.tsv'
@@ -572,7 +846,23 @@ def minigraph_map_one(job, config, event_name, fa_file_id, gfa_file_id):
     if overlap_ratio:
         cmd = [cmd, ['gaffilter', '-', '-r', str(overlap_ratio), '-m', str(length_ratio), '-q', str(min_mapq),
                      '-b', str(min_block), '-i', str(min_ident)]]
-    cactus_call(parameters=cmd, outfile=unstable_gaf_path, job_memory=job.memory)
+    try:
+        cactus_call(parameters=cmd, outfile=unstable_gaf_path, job_memory=job.memory)
+    except RuntimeError as e:
+        if not regranulated:
+            raise
+        # gaf2unstable asserts, rather than reporting, when a record names stable sequence the
+        # graph does not have.  Mapping cannot reach that -- the GAF came from this graph -- but
+        # reuse can, and the assertion on its own says nothing about which input is wrong
+        raise RuntimeError('Failed to resolve reused mappings against this graph. If the GAF names sequence the graph '
+                           'does not have, it was made against a different pangenome: the GAF must come from the run '
+                           'that produced the graph being extended. Underlying error: {}'.format(e))
+
+    if regranulated:
+        trimmed_path = unstable_gaf_path + '.trimmed'
+        trimmed = trim_unstable_gaf(unstable_gaf_path, trimmed_path, mg_lengths_path)
+        RealtimeLogger.info('Moved the path offsets of {} reused GAF record(s) back inside their end steps'.format(trimmed))
+        os.replace(trimmed_path, unstable_gaf_path)
 
     # convert the unstable gaf into unstable paf, which is what cactus expects
     # also tack on the unique id to the target column
