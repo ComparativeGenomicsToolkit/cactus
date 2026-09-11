@@ -228,7 +228,7 @@ def graphmap_split_workflow(job, options, config, seq_id_map, seq_name_map, gfa_
         new_root_job = Job()
         root_job.addFollowOn(new_root_job)
         root_job = new_root_job
-        gfa_id = rename_gfa_job.rv()
+        gfa_id = rename_gfa_job.rv(0)
             
     # use file extension to sniff out compressed input
     if gfa_path.endswith(".gz"):
