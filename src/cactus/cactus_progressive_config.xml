@@ -380,6 +380,8 @@
 	<!-- assemblyName: special name of "virtual" minigraph assembly, which is just the list of sequences from the graph. -->
 	<!-- minigraphMapOptions: flags to pass to minigraph for mapping -->
 	<!-- minigraphConstructOptions: flags to pass to minigraph for construction -->
+	<!-- par-align is output-preserving, ~1.3x on whole-genome construction for ~10% more CPU.
+	     Needs the glennhickey/minigraph fork; stock minigraph exits on the unknown option. -->
 	<!-- minigraphConstructBatchSize: break minigraph construction into chunks of this size. this allows recovering from a failure during graph construction, and avoiding really long argument lists for each job. -->
 	<!-- minimapCollapseOptions: options for minimap2 when using it for  self-alignments. Note these were inspired in part by https://github.com/lh3/minimap2/issues/106 !-->
 	<!-- collapse: Toggles self-alignment logic. Supported values are "none" and "all". Experimental values "reference" and "nonref" can also be tried.  -->
@@ -403,8 +405,8 @@
 	<!-- cpu: use up to this many cpus for each minigraph command. -->
 	<graphmap
 		 assemblyName="_MINIGRAPH_"
-		 minigraphMapOptions="-c -xasm"
-		 minigraphConstructOptions="-c -xggs"
+		 minigraphMapOptions="-c -xasm --par-align"
+		 minigraphConstructOptions="-c -xggs --par-align"
 		 minimapCollapseOptions="-c -D -xasm5 -m500"
 		 collapse="none"
 		 maxCollapseDistanceRatio="5"
