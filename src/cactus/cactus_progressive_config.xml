@@ -425,6 +425,8 @@
 		 minIdentity="0.5"
 		 minScore="1"
 		 removeMinigraphFromPAF="0"
+		 collapseInversions="0"
+		 collapseOptions="-k 300 -b 5000 -i 0.95"
 		 cpu="6"
 		 />
 	<!-- cactus-graphmap-split options -->
