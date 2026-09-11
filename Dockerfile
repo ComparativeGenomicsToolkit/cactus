@@ -16,9 +16,10 @@ RUN find /home/cactus -name include.local.mk -exec rm -f {} \; && \
 # https://github.com/yangao07/abPOA/issues/26
 ENV avx2 1
 
-# This image is distributed, so build it the way the binary release is built: include.mk's
-# portable baseline rather than the -march=native a plain "make" would otherwise pick.  The
-# value itself stays in include.mk; this only selects it.
+# This image is distributed, so pin include.mk's portable baseline explicitly rather than
+# leaning on it being the default: it says what this build requires, it keeps the image and
+# the binary release selecting the same thing, and it beats CACTUS_NATIVE_BUILD if that ever
+# arrives from the environment.  The value itself stays in include.mk; this only selects it.
 ENV CACTUS_PORTABLE_BUILD 1
 
 # install Phast and enable halPhyloP compilation

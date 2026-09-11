@@ -112,6 +112,12 @@ If you want to work with MAF, including running `cactus-hal2maf`, you must also 
 build-tools/downloadMafTools
 ```
 
+These compile for a portable CPU baseline, so the binaries run on any reasonably modern
+machine and not just the one that built them.  To target the build machine specifically,
+`export CACTUS_NATIVE_BUILD=1` first; that binary will not run on an older CPU, though, such
+as a cluster node older than the head node you built on.  `make arch-flags` prints the
+baseline you will get, and DEVELOPMENT.md documents the rest of the build variables.
+
 In order to toggle between local and Docker binaries, use the `--binariesMode` command line option. If `--binariesMode` is not specified, local binaries will be used if found in `PATH`, otherwise a Docker image will be used.
 
 ### Building on Mac
