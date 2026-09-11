@@ -93,6 +93,7 @@ testModules = \
     preprocessor/checkPreprocessedSequenceTest.py \
     preprocessor/lastzRepeatMasking/cactus_lastzRepeatMaskTest.py \
     progressive/multiCactusTreeTest.py \
+    refmap/cactus_graphmap_extendTest.py \
     refmap/cactus_panpatchTest.py \
     refmap/pangenome_exclusionsTest.py \
     update/cactus_update_prepareTest.py
@@ -229,6 +230,18 @@ evolver_test_primates_pangenome_steps_mgsplit_local: all ${CWD}/test/primates-tr
 evolver_test_primates_pangenome_steps_mgsplit_docker: all ${CWD}/test/primates-truth.maf
 	PYTHONPATH="${CWD}/submodules/" CACTUS_BINARIES_MODE=docker CACTUS_DOCKER_MODE=1 ${PYTHON} -m pytest ${pytestOpts} -s test/evolverTest.py::TestCase::testEvolverPrimatesPangenomeStepByStepSplitDocker
 
+
+pangenome_extend_null_test_local:
+	PYTHONPATH="${CWD}/submodules/" CACTUS_BINARIES_MODE=local CACTUS_DOCKER_MODE=0 ${PYTHON} -m pytest ${pytestOpts} -s test/evolverTest.py::TestCase::testPangenomeExtendNullLocal
+
+pangenome_extend_construction_test_local:
+	PYTHONPATH="${CWD}/submodules/" CACTUS_BINARIES_MODE=local CACTUS_DOCKER_MODE=0 ${PYTHON} -m pytest ${pytestOpts} -s test/evolverTest.py::TestCase::testPangenomeExtendConstructionLocal
+
+yeast_test_extend_local:
+	PYTHONPATH="${CWD}/submodules/" CACTUS_BINARIES_MODE=local CACTUS_DOCKER_MODE=0 ${PYTHON} -m pytest ${pytestOpts} -s test/evolverTest.py::TestCase::testYeastPangenomeExtendLocal
+
+evolver_test_primates_pangenome_extend_local: all ${CWD}/test/primates-truth.maf
+	PYTHONPATH="${CWD}/submodules/" CACTUS_BINARIES_MODE=local CACTUS_DOCKER_MODE=0 ${PYTHON} -m pytest ${pytestOpts} -s test/evolverTest.py::TestCase::testEvolverPrimatesPangenomeExtendLocal
 
 evolver_test_all_local: evolver_test_local evolver_test_prepare_toil evolver_test_decomposed_local evolver_test_prepare_no_outgroup_local evolver_test_poa_local evolver_test_refmap_local evolver_test_minigraph_local
 
