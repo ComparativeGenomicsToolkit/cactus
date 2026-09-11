@@ -356,10 +356,7 @@ class BatchPreprocessor(RoundedJob):
                 fileStore.deleteGlobalFile(self.inSequenceID)
                 self.inSequenceID = fileStore.writeGlobalFile(unmaskedInputFile)
 
-            # the size has to be handed over separately: PreprocessSequence sets its own walltime
-            # in __init__, and self.inSequenceID is a promise on every iteration after the first
-            ppJob = self.addChild(PreprocessSequence(prepOptions, self.inSequenceID,
-                                                     inSequenceSize=getattr(self.inSequenceID, 'size', None)))
+            ppJob = self.addChild(PreprocessSequence(prepOptions, self.inSequenceID))
             outSeqID = ppJob.rv()
             # make sure the step only masked/renamed, and did not corrupt the sequence.
             # this has to run before clean_if_different, which drops the input file.
