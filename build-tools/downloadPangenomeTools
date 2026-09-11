@@ -239,6 +239,12 @@ then
 else
 	 exit 1
 fi
+if [[ $STATIC_CHECK -ne 1 || $(ldd rgfa-collapse | grep so | wc -l) -eq 0 ]]
+then
+	 mv rgfa-collapse ${binDir}
+else
+	 exit 1
+fi
 if [[ $STATIC_CHECK -ne 1 || $(ldd rgfa-split | grep so | wc -l) -eq 0 ]]
 then
 	 mv rgfa-split ${binDir}
