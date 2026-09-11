@@ -20,6 +20,7 @@ from cactus.shared.common import cactus_call
 from cactus.shared.configWrapper import ConfigWrapper
 from cactus.shared.common import findRequiredNode, getOptionalAttrib
 from cactus.shared.common import cactus_clamp_memory
+from cactus.shared.common import cactus_walltime
 
 ############################################################
 ############################################################
@@ -30,6 +31,20 @@ from cactus.shared.common import cactus_clamp_memory
 ############################################################
 ############################################################
 ############################################################
+
+# bar is 63.5% of cactus_consolidated's time across the 576 VGP alignments, caf 20.3%,
+# reference 15.4%.  The parallel part stops improving somewhere around 24 cores -- which is why
+# --consCores above that buys memory rather than speed -- so a job given fewer than that, and
+# only then, takes proportionally longer.  The fits themselves all ran at 64 cores, on the
+# plateau.
+CONS_CORE_BASELINE = 24
+CONS_PARALLEL_FRACTION = 0.64
+
+def cons_core_scale(cores, baseline=CONS_CORE_BASELINE, parallel=CONS_PARALLEL_FRACTION):
+    """ how much longer cactus_consolidated takes when given `cores` rather than a full node """
+    if cores and 0 < cores < baseline:
+        return (1.0 - parallel) + parallel * (float(baseline) / cores)
+    return 1.0
 
 def cactus_cons_with_resources(job, tree, ancestor_event, config_node, seq_id_map, og_map, paf_id,
                                cons_cores = None, cons_memory = None, intermediate_results_url = None, chrom_name = None,
@@ -154,9 +169,56 @@ def cactus_cons_with_resources(job, tree, ancestor_event, config_node, seq_id_ma
             name, bytes2human(mem), bytes2human(max_system_memory)))
         mem = max_system_memory
 
+    # Runtime has two regimes, and which one you are in is decided by <bar bandingLimit> (what
+    # --maxLen sets).  They are different in shape, not just in scale:
+    #
+    #   unbanded, 1 Mb (progressive)   secs = 214 * disk_gb**0.906   r = 0.64
+    #   banded,  10 kb (pangenome)     secs = 2522 * disk_gb**0.251  r = 0.26
+    #
+    # fitted to 576 VGP 577-way alignments and to the 50 chromosome alignments of two HPRC
+    # pangenomes.  Banding to 10 kb bounds bar's work per column, so the cost follows the number
+    # of reference columns rather than the sequence volume -- which is why the pangenome
+    # exponent is nearly flat, and why adding haplotypes barely moves it even though it moves
+    # `disk` a great deal.  Applying the progressive fit to a pangenome chromosome overshoots by
+    # 13-17x at the median: HPRC chr5 takes 4.1 h and would have been given 312.
+    #
+    # The coefficients below are the fits scaled so that cactus_walltime()'s factor covers the
+    # worst residual, then divided by 4: the 2x cactus_consolidated speedup that has already
+    # landed since both sets of logs, and a further 2x that is expected but NOT yet measured
+    # here.  If that second 2x underdelivers the cost is small and bounded -- replaying the
+    # fits against today's times, 5 of 576 progressive and 3 of 50 pangenome alignments would
+    # run over, none by more than 1.5x, so a single --doubleTime retry rescues every one.  The
+    # gain is not small: it takes the median progressive request from 15.6 h to 7.8 h and the
+    # number of them over 24 h from 181 to 7.  Raise these two attributes if that turns out to
+    # be optimistic.  `disk` is the size term because it already combines the sequence and paf
+    # sizes in the proportions that drive the work (5:2).
+    #
+    # Only the two measured banding values are in real use, so this selects between them rather
+    # than interpolating a curve through data that does not exist.  Anything between them takes
+    # the unbanded model, which is the conservative side.
+    banding_limit = getOptionalAttrib(findRequiredNode(config_node, 'bar'), 'bandingLimit', typeFn=int, default=0)
+    banding_threshold = getOptionalAttrib(cons_node, 'walltime_banding_threshold', typeFn=int, default=100000)
+    if banding_limit and banding_limit < banding_threshold:
+        wt_coef = getOptionalAttrib(cons_node, 'walltime_banded_coefficient_secs', typeFn=float, default=550.0)
+        wt_exp = getOptionalAttrib(cons_node, 'walltime_banded_exponent', typeFn=float, default=0.35)
+    else:
+        wt_coef = getOptionalAttrib(cons_node, 'walltime_coefficient_secs', typeFn=float, default=400.0)
+        wt_exp = getOptionalAttrib(cons_node, 'walltime_input_exponent', typeFn=float, default=0.95)
+    walltime_secs = wt_coef * ((disk / 1e9) ** wt_exp) if disk > 0 else 0
+    # bar is 63.5% of consolidated's time across those 576 alignments, caf 20.3%, reference
+    # 15.4%; the parallel part of that stops improving somewhere around 24 cores (which is why
+    # --consCores above ~24 buys memory, not speed), so scale up only when a job is given fewer
+    # than that.  The fit's own jobs all ran at 64 cores, i.e. already on the plateau.
+    walltime_secs *= cons_core_scale(cons_cores,
+                                     getOptionalAttrib(cons_node, 'walltime_core_scale_baseline', typeFn=int,
+                                                       default=CONS_CORE_BASELINE),
+                                     getOptionalAttrib(cons_node, 'walltime_parallel_fraction', typeFn=float,
+                                                       default=CONS_PARALLEL_FRACTION))
+
     cons_job = job.addChildJobFn(cactus_cons, tree, ancestor_event, config_node, seq_id_map, og_map, paf_id,
                                  intermediate_results_url=intermediate_results_url, chrom_name=chrom_name, cores = cons_cores,
-                                 memory=cactus_clamp_memory(mem), disk=disk, retain_pages=retain_pages)
+                                 memory=cactus_clamp_memory(mem), disk=disk, retain_pages=retain_pages,
+                                 walltime=cactus_walltime(walltime_secs))
     return cons_job.rv()
 
 def cactus_cons(job, tree, ancestor_event, config_node, seq_id_map, og_map, paf_id,

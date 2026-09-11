@@ -15,20 +15,22 @@ import time
 import multiprocessing
 from operator import itemgetter
 
-from cactus.shared.common import setupBinaries, importSingularityImage
+from cactus.shared.common import setupBinaries, importSingularityImage, cactus_walltime
 from cactus.pipeline.cactus_workflow import cactus_cons_with_resources
 from cactus.progressive.progressive_decomposition import compute_outgroups, parse_seqfile, get_subtree, get_spanning_subtree, get_event_set, get_ancestor_scaled_tree
 from cactus.progressive.cactus_progressive import export_hal
 from cactus.shared.common import makeURL, catFiles
 from cactus.shared.common import RAW_VG_SUFFIX
 from cactus.shared.common import enableDumpStack
-from cactus.shared.common import cactus_override_toil_options
+from cactus.shared.common import cactus_override_toil_options, add_cactus_toil_options
 from cactus.shared.common import findRequiredNode
 from cactus.shared.common import getOptionalAttrib
 from cactus.shared.common import cactus_call
 from cactus.shared.common import write_s3, has_s3, get_aws_region, unzip_gzs, unzip_gz
 from cactus.shared.common import cactusRootPath
 from cactus.shared.common import cactus_clamp_memory
+from cactus.shared.common import unzip_gz_walltime
+from cactus.pipeline.cactus_workflow import cons_core_scale
 from cactus.shared.common import clean_jobstore_files
 from cactus.shared.version import cactus_commit
 from cactus.shared.configWrapper import ConfigWrapper
@@ -47,8 +49,37 @@ from cactus.progressive.cactus_prepare import human2bytesN
 from sonLib.nxnewick import NXNewick
 from sonLib.bioio import getTempDirectory, getTempFile
 
+# How much bigger a PAF gets when it is unzipped.  Measured over the 576 VGP 577-way
+# alignments, whose gzipped PAFs decompress to about three times their compressed size.
+PAF_GZIP_RATIO = 3
+
+# align_toil hosts a whole nested cactus-align on one node.  The size term borrows the
+# <consolidated> runtime fit's exponent and raises its coefficient for the HAL export and
+# optional hal2vg the nested run also pays for; the startup term is nested-Toil startup alone.
+ALIGN_TOIL_STARTUP_SECS = 600
+ALIGN_TOIL_SECS_PER_GB = 8000
+ALIGN_TOIL_EXPONENT = 0.78
+
+# The pangenome PAF filter, in seconds per GB of PAF.  Two sequential passes over every line.
+# The python filter loop in filter_paf() runs no subprocess and so is timed in no log; at ~150
+# bytes a line and a split()/int()/float() per line it does ~20 MiB/s, i.e. ~48 s/GB.  The
+# optional `gaffilter` overlap pass on top of it measures 45 s/GB across the 52 HPRC v2.0 and
+# v2.1 chromosomes (1.46 GB in 66.5 s at the median, 34.4 GB in 1475 s at the worst).
+FILTER_PAF_SECS_PER_GB = 95
+
+# hal2vg, in seconds per GB of HAL.  Across the 50 hal2vg jobs of two HPRC pangenomes (177 h
+# over 1.1 TB of HAL) the cost per GB is flat: 566 s/GB in aggregate, and the slowest run --
+# 8.5 h -- was at most 830 s/GB against the largest HAL in either run, 36.7 GB.  600 puts the
+# largest of them at 1.8x what it took.  HAL sizes here are recovered from each job's disk
+# request, which is exactly 3x the HAL; the memory request is not usable for this because
+# cactus_clamp_memory bounds it, which flattens the small end and manufactures a superlinear
+# trend that is not there.  The `vg view -g | gzip` that --outGFA adds ran in none of the
+# logged runs, so cactus_walltime()'s factor is what covers it.
+HAL2VG_SECS_PER_GB = 600
+
 def main():
     parser = Job.Runner.getDefaultArgumentParser()
+    add_cactus_toil_options(parser)
 
     parser.add_argument("seqFile", help = "Seq file (or chromfile with --batch)")
     parser.add_argument("pafFile", nargs='?', default='', type=str, help = "Pairiwse aliginments (from cactus-blast, cactus-refmap or cactus-graphmap)")
@@ -195,7 +226,7 @@ def main():
             results_dict = toil.restart()
         else:
             align_jobs = make_batch_align_jobs(options, toil)
-            results_dict = toil.start(Job.wrapJobFn(batch_align_jobs, align_jobs))
+            results_dict = toil.start(Job.wrapJobFn(batch_align_jobs, align_jobs, walltime=cactus_walltime()))
 
         # when using s3 output urls, things get checkpointed as they're made so no reason to export
         # todo: make a more unified interface throughout cactus for this
@@ -406,21 +437,28 @@ def make_align_job(options, toil, config_wrapper=None, chrom_name=None):
                               do_filter_paf=options.pangenome,
                               chrom_name=chrom_name,
                               scores_id=scores_id,
-                              branch_scale=options.branchScale)
+                              branch_scale=options.branchScale, walltime=cactus_walltime())
     return align_job
 
 def cactus_align(job, config_wrapper, mc_tree, input_seq_map, input_seq_id_map, paf_id, paf_path, root_name, og_map, checkpointInfo, doVG, doGFA, delay=0,
                  referenceEvents=None, pafMaskFilter=None, paf2Stable=False, cons_cores = None, cons_memory = None, cons_retain_pages = None, do_filter_paf=False, chrom_name=None, scores_id=None, branch_scale=1.0):
 
-    head_job = Job()
+    head_job = Job(walltime=cactus_walltime())
     job.addChild(head_job)
 
     event_list = input_seq_id_map.keys()
 
-    # unzip the PAF if it's gzipped
+    # unzip the PAF if it's gzipped.  Hold on to the size the alignment will actually have once
+    # unzipped: paf_id becomes a promise below, and a promise has no .size, so everything after
+    # this point has to size itself from paf_size instead.  (filter_paf's disk and memory were
+    # already reading paf_id.size past this rebinding, so a gzipped PAF with --pangenome raised
+    # an AttributeError before it ever got as far as scheduling the job.)
+    paf_size = paf_id.size
     if paf_path and paf_path.endswith('.gz'):
-        unzip_job = head_job.addChildJobFn(unzip_gz, paf_path, paf_id, disk=10*paf_id.size)
+        unzip_job = head_job.addChildJobFn(unzip_gz, paf_path, paf_id, disk=10*paf_id.size,
+                                           walltime=unzip_gz_walltime(paf_id.size))
         paf_id = unzip_job.rv()
+        paf_size = int(paf_size * PAF_GZIP_RATIO)
 
     # parse the scores file into the config
     if scores_id:
@@ -430,7 +468,7 @@ def cactus_align(job, config_wrapper, mc_tree, input_seq_map, input_seq_id_map, 
         apply_scores_to_config(score_dict, config_wrapper.xmlRoot)
 
     # unzip the input sequences and enforce unique header prefixes
-    sanitize_job = head_job.addChildJobFn(sanitize_fasta_headers, input_seq_id_map, pangenome=doVG or doGFA or do_filter_paf)
+    sanitize_job = head_job.addChildJobFn(sanitize_fasta_headers, input_seq_id_map, pangenome=doVG or doGFA or do_filter_paf, walltime=cactus_walltime())
     new_seq_id_map = sanitize_job.rv()
 
     # run pangenome-specific paf filter.  this also runs in cactus-graphmap-split, but that stage is
@@ -446,10 +484,12 @@ def cactus_align(job, config_wrapper, mc_tree, input_seq_map, input_seq_id_map, 
     # anyway.  that is the common path, not just --noSplit.  referenceEvents[0] matches the "first
     # reference" convention cactus-graphmap-split already normalises to.
     if do_filter_paf:
-        paf_filter_mem = max(paf_id.size * 10, 2**32)
+        paf_filter_mem = max(paf_size * 10, 2**32)
         paf_filter_job = head_job.addChildJobFn(filter_paf, paf_id, config_wrapper,
                                                 reference=referenceEvents[0] if referenceEvents else None,
-                                                disk = paf_id.size * 10, memory=paf_filter_mem)
+                                                disk = paf_size * 10, memory=paf_filter_mem,
+                                                walltime=cactus_walltime(FILTER_PAF_SECS_PER_GB * paf_size / 1e9,
+                                                                         io_bytes=2 * paf_size))
         paf_id = paf_filter_job.rv()
 
     # apply tree scaling to reflect branch scaling and/or uncertainty in ancestor placement/sequences
@@ -468,7 +508,7 @@ def cactus_align(job, config_wrapper, mc_tree, input_seq_map, input_seq_id_map, 
     # run consolidated
     cons_job = head_job.addFollowOnJobFn(cactus_cons_with_resources, spanning_tree, root_name, config_wrapper.xmlRoot, new_seq_id_map, og_map, paf_id,
                                          cons_cores = cons_cores, cons_memory=cons_memory, chrom_name=chrom_name,
-                                         cons_retain_pages=cons_retain_pages)
+                                         cons_retain_pages=cons_retain_pages, walltime=cactus_walltime())
     results = {root_name : (cons_job.rv(1), cons_job.rv(2))}
 
     # get the immediate subtree (which is all export_hal can use)
@@ -476,18 +516,23 @@ def cactus_align(job, config_wrapper, mc_tree, input_seq_map, input_seq_id_map, 
     
     # run the hal export
     allow_collapse = getOptionalAttrib(findRequiredNode(config_wrapper.xmlRoot, "graphmap"), "collapse", typeFn=str, default="none") in ['reference', 'all']
+    # export_hal called without has_resources stages no file: it resolves the c2h/fasta promises
+    # into sizes and re-dispatches itself with them, so this pass is coordination.  halAppendCactusSubtree
+    # runs in the resourced pass, which sizes its own walltime.
     hal_job = cons_job.addFollowOnJobFn(export_hal, sub_tree, config_wrapper.xmlRoot, new_seq_id_map, og_map, results, event=root_name, inMemory=True,
                                         checkpointInfo=checkpointInfo, acyclicEvent=referenceEvents[0] if referenceEvents and not allow_collapse else None,
-                                        memory_override=cons_memory)
+                                        memory_override=cons_memory, walltime=cactus_walltime())
 
     # clean out some of the  intermediate jobstore files
-    hal_job.addFollowOnJobFn(clean_jobstore_files, file_id_maps=[new_seq_id_map], file_ids=[paf_id])
+    hal_job.addFollowOnJobFn(clean_jobstore_files, file_id_maps=[new_seq_id_map], file_ids=[paf_id], walltime=cactus_walltime())
 
     # optionally create the VG
     if doVG or doGFA:
+        # as with export_hal above, the pass without a resource_spec only sizes the HAL promise and
+        # re-dispatches itself; hal2vg runs in the second pass
         vg_export_job = hal_job.addFollowOnJobFn(export_vg, hal_job.rv(), config_wrapper, doVG, doGFA, referenceEvents,
                                                  checkpointInfo=checkpointInfo, memory_override=cons_memory,
-                                                 vg_tag=RAW_VG_SUFFIX if chrom_name else '')
+                                                 vg_tag=RAW_VG_SUFFIX if chrom_name else '', walltime=cactus_walltime())
         vg_file_id, gfa_file_id = vg_export_job.rv(0), vg_export_job.rv(1)
     else:
         vg_file_id, gfa_file_id = None, None
@@ -514,7 +559,9 @@ def export_vg(job, hal_id, config_wrapper, doVG, doGFA, referenceEvents, checkpo
         return job.addChildJobFn(export_vg, hal_id, config_wrapper, doVG, doGFA, referenceEvents, checkpointInfo,
                                  resource_spec = True, vg_tag=vg_tag,
                                  disk=hal_id.size * 3,
-                                 memory=cactus_clamp_memory(max(vg_memory, min_memory))).rv()
+                                 memory=cactus_clamp_memory(max(vg_memory, min_memory)),
+                                 walltime=cactus_walltime(HAL2VG_SECS_PER_GB * hal_id.size / 1e9,
+                                                          io_bytes=3 * hal_id.size)).rv()
         
     work_dir = job.fileStore.getLocalTempDir()
     hal_path = os.path.join(work_dir, "out.hal")
@@ -570,6 +617,7 @@ def main_batch():
     cons: less efficient use of resources
     """
     parser = Job.Runner.getDefaultArgumentParser()
+    add_cactus_toil_options(parser)
 
     parser.add_argument("chromFile", help = "chroms file")
     parser.add_argument("outHal", type=str, help = "Output directory (can be s3://)")
@@ -654,7 +702,7 @@ def main_batch():
                         chrom_dict[chrom] = toil.importFile(makeURL(seqfile)), toil.importFile(makeURL(alnFile))
                         if chrom in options.configOverrides:
                             options.configOverrides[chrom][1] = toil.importFile(makeURL(options.configOverrides[chrom][0]))
-            results_dict = toil.start(Job.wrapJobFn(align_toil_batch, chrom_dict, config_id, options))
+            results_dict = toil.start(Job.wrapJobFn(align_toil_batch, chrom_dict, config_id, options, walltime=cactus_walltime()))
 
         # when using s3 output urls, things get checkpointed as they're made so no reason to export
         # todo: make a more unified interface throughout cactus for this
@@ -688,8 +736,22 @@ def align_toil_batch(job, chrom_dict, config_id, options):
         options.configFile = options.configOverrides[chrom][0] if chrom in options.configOverrides else orig_config
         config_id = options.configOverrides[chrom][1] if chrom in options.configOverrides else orig_config_id
         # spawn the chromosome job
+        # this job hosts an entire nested cactus-align on one node, so its walltime covers that whole
+        # pipeline -- consolidated, the HAL export, optionally hal2vg -- run one after another with no
+        # cluster to fan out onto.  Only the paf size is in scope (seq_file_id is the seqfile *text*,
+        # a few hundred bytes), so the estimate keys off it, with the exponent of the <consolidated>
+        # runtime fit and a coefficient raised over it for the export stages the nested run also pays
+        # for.  The nested run is handed --consCores, so it takes the same core scaling.
+        # ALIGN_TOIL_STARTUP_SECS is nested-Toil startup only -- deliberately not a floor for the
+        # work, which would hand an evolver-sized test PAF hours it cannot use.  It is the roughest
+        # estimate here: the seq:paf ratio it assumes is 8x in VGP but 43x in the HPRC pangenome.
         align_job = job.addChildJobFn(align_toil, chrom, seq_file_id, paf_file_id, config_id, options,
-                                      cores=options.alignCores)
+                                      cores=options.alignCores,
+                                      walltime=cactus_walltime(
+                                          ALIGN_TOIL_STARTUP_SECS +
+                                          ALIGN_TOIL_SECS_PER_GB * (paf_file_id.size / 1e9) ** ALIGN_TOIL_EXPONENT
+                                          * cons_core_scale(options.alignCores),
+                                          io_bytes=4 * paf_file_id.size))
         results_dict[chrom] = align_job.rv()
 
     return results_dict

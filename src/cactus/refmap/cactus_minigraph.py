@@ -17,13 +17,13 @@ from operator import itemgetter
 import gzip
 
 from cactus.progressive.seqFile import SeqFile
-from cactus.shared.common import setupBinaries, importSingularityImage
+from cactus.shared.common import setupBinaries, importSingularityImage, cactus_walltime
 from cactus.refmap.pangenome_exclusions import event_to_pansn_prefix
 from cactus.shared.common import cactusRootPath
 from cactus.shared.configWrapper import ConfigWrapper
 from cactus.shared.common import makeURL, catFiles, write_s3
 from cactus.shared.common import enableDumpStack
-from cactus.shared.common import cactus_override_toil_options
+from cactus.shared.common import cactus_override_toil_options, add_cactus_toil_options
 from cactus.shared.common import cactus_call
 from cactus.shared.common import getOptionalAttrib, findRequiredNode
 from cactus.shared.common import clean_jobstore_files
@@ -44,6 +44,7 @@ from sonLib.bioio import getTempDirectory, getTempFile
 
 def main():
     parser = Job.Runner.getDefaultArgumentParser()
+    add_cactus_toil_options(parser)
 
     parser.add_argument("seqFile", help = "Seq file (or chromfile with --batch)")
     parser.add_argument("outputGFA", help = "Output Minigraph GFA (or directory in --batch mode)")
@@ -125,7 +126,7 @@ def main():
             input_dict = minigraph_construct_import_sequences(options, config_wrapper, input_seqfiles, toil)
                 
             # output_dict:  chrom-> (gfa_id, pansn_gfa_id, train_id)
-            output_dict = toil.start(Job.wrapJobFn(minigraph_construct_batch_workflow, options, config_node, input_dict, options.outputGFA))
+            output_dict = toil.start(Job.wrapJobFn(minigraph_construct_batch_workflow, options, config_node, input_dict, options.outputGFA, walltime=cactus_walltime()))
 
         export_minigraph_construct_output(options, input_seqfiles, output_dict, toil)
         
@@ -264,7 +265,7 @@ def minigraph_construct_batch_workflow(job, options, config_node, input_dict, gf
             gfa_path = os.path.join(options.outputGFA, '{}.gfa.gz'.format(chrom))
         else:
             gfa_path = options.outputGFA
-        mgwf_job = job.addChildJobFn(minigraph_construct_workflow, options, config_node, seq_id_map, seq_order, gfa_path, sanitize)
+        mgwf_job = job.addChildJobFn(minigraph_construct_workflow, options, config_node, seq_id_map, seq_order, gfa_path, sanitize, walltime=cactus_walltime())
         output_dict[chrom] = mgwf_job.rv()
     return output_dict
                                     
@@ -282,32 +283,53 @@ def minigraph_construct_workflow(job, options, config_node, seq_id_map, seq_orde
         seq_id_map, seq_order = refonly_seq_id_map, refonly_seq_order
     ref_size = seq_id_map[options.reference[0]].size
     if sanitize:
-        sanitize_job = job.addChildJobFn(sanitize_fasta_headers, seq_id_map, pangenome=True)
+        sanitize_job = job.addChildJobFn(sanitize_fasta_headers, seq_id_map, pangenome=True, walltime=cactus_walltime())
         sanitized_seq_id_map = sanitize_job.rv()
     else:
         sanitized_seq_id_map = seq_id_map
-        sanitize_job = Job()
+        sanitize_job = Job(walltime=cactus_walltime())
         job.addChild(sanitize_job)
     xml_node = findRequiredNode(config_node, "graphmap")
     sort_type = getOptionalAttrib(xml_node, "minigraphSortInput", str, default=None)
     if sort_type == "mash" and len(seq_id_map) > 2:
-        sort_job = sanitize_job.addFollowOnJobFn(sort_minigraph_input_with_mash, options, config_node, sanitized_seq_id_map, seq_order)
+        sort_job = sanitize_job.addFollowOnJobFn(sort_minigraph_input_with_mash, options, config_node, sanitized_seq_id_map, seq_order, walltime=cactus_walltime())
         seq_order = sort_job.rv()
         prev_job = sort_job
     else:
         prev_job = sanitize_job
-    minigraph_job = prev_job.addFollowOnJobFn(minigraph_construct_in_batches, options, config_node, sanitized_seq_id_map, seq_order, gfa_path)
+    minigraph_job = prev_job.addFollowOnJobFn(minigraph_construct_in_batches, options, config_node, sanitized_seq_id_map, seq_order, gfa_path, walltime=cactus_walltime())
     train_id = None
     if options.lastTrain and len(seq_id_map) > 1:
         # note: somehow last training memory overruns don't seem to be detected by slurm so we
         # give 12G at least whenever possible, as --doubleMem won't help...
+        # lastdb dominates the runtime and is erratic: over the 24 per-chromosome runs of the
+        # HPRC v2.1 pangenome (2.0e8-byte reference, 8 cores) it took 55 s at the p50 but
+        # 3934 s at the worst, while the 16x bigger whole-genome reference of HPRC v2.0
+        # (32 cores) took 2821 s.  last-train itself adds 409-680 s on top.  So the estimate is
+        # mostly a flat allowance for that tail, with a small linear term so that small inputs
+        # aren't over-provisioned.  The I/O is the reference plus the training partner, which
+        # last_train() only picks inside the job but constrains to at least half the reference.
         last_train_job = prev_job.addFollowOnJobFn(last_train, config_node, seq_order, sanitized_seq_id_map, 
                                                    cores=options.mgCores,
                                                    disk=8*ref_size,
-                                                   memory=cactus_clamp_memory(max(8*ref_size, 12*10**9)))
+                                                   memory=cactus_clamp_memory(max(8*ref_size, 12*10**9)),
+                                                   walltime=cactus_walltime(3000 + ref_size / 1e6,
+                                                                            io_bytes=3 * ref_size))
         train_id = last_train_job.rv()
         
     return minigraph_job.rv(0), minigraph_job.rv(1), train_id
+
+# Bytes of reference fasta `mash sketch` gets through per second.  It took 225 s on the whole
+# 3.15e9-byte CHM13 of HPRC v2.0 (1.4e7 B/s) and a p50 of 3.4 s on the ~1.3e8-byte chromosome
+# references of HPRC v2.1 (3.9e7 B/s); this is the slow end of that.
+MASH_SKETCH_BYTES_PER_SEC = 1e7
+
+# Bytes of query fasta one mash_dist job gets through per second.  `mash dist` alone runs at
+# 7e6-1.9e7 B/s (694 calls over the 232 mash_dist jobs of HPRC v2.0: p50 168 s, p99 429 s for a
+# 3.1e9-byte haplotype), but the job also concatenates the sample's haplotypes and counts every
+# base of each with Bio.SeqIO.parse, neither of which shows up in the logs as its own command.
+# Budgeting those two at ~2e7 and ~2e8 B/s respectively lands the whole job here.
+MASH_DIST_BYTES_PER_SEC = 3e6
 
 def sort_minigraph_input_with_mash(job, options, config_node, seq_id_map, seq_order):
     """ Sort the input """
@@ -315,11 +337,14 @@ def sort_minigraph_input_with_mash(job, options, config_node, seq_id_map, seq_or
     # assumption : reference is first
     mash_dists = [(0, sys.maxsize)]
     # start by sketching the reference to avoid a bunch of recomputation
+    ref_bytes = seq_id_map[seq_order[0]].size
     sketch_job = job.addChildJobFn(mash_sketch, seq_order[0], seq_id_map,
-                                   disk = seq_id_map[seq_order[0]].size * 2)
+                                   disk = ref_bytes * 2,
+                                   walltime=cactus_walltime(ref_bytes / MASH_SKETCH_BYTES_PER_SEC,
+                                                            io_bytes=ref_bytes))
     ref_sketch_id = sketch_job.rv()
 
-    dist_root_job = Job()
+    dist_root_job = Job(walltime=cactus_walltime())
     sketch_job.addFollowOn(dist_root_job)
 
     xml_node = findRequiredNode(config_node, "graphmap")
@@ -341,11 +366,14 @@ def sort_minigraph_input_with_mash(job, options, config_node, seq_id_map, seq_or
     # list of dictionary (promises) that map genome name to mash distance output
     dist_maps = []
     for sample, names in seq_by_sample.items():
+        sample_bytes = sum(seq_id_map[x].size for x in names)
         dist_map = dist_root_job.addChildJobFn(mash_dist, names, seq_order[0], seq_id_map, ref_sketch_id,
-                                               disk = 2 * sum(seq_id_map[x].size for x in names) + seq_id_map[seq_order[0]].size).rv()
+                                               disk = 2 * sample_bytes + ref_bytes,
+                                               walltime=cactus_walltime(sample_bytes / MASH_DIST_BYTES_PER_SEC,
+                                                                        io_bytes=sample_bytes)).rv()
         dist_maps.append(dist_map)
             
-    return dist_root_job.addFollowOnJobFn(mash_distance_order, options, config_node, seq_order, dist_maps).rv()
+    return dist_root_job.addFollowOnJobFn(mash_distance_order, options, config_node, seq_order, dist_maps, walltime=cactus_walltime()).rv()
 
 def mash_sketch(job, ref_seq, seq_id_map):
     """ get the sketch """
@@ -449,6 +477,21 @@ def mash_distance_order(job, options, config_node, seq_order, mash_output_maps):
 
     return mash_order
             
+# Bytes of input fasta `minigraph -xggs` gets through per second per core.  From the 237
+# construct commands of the HPRC v2.1 pangenome (8 cores, 50 sequences of up to 2.5e8 bytes per
+# batch): p50 14681 s, p99 36241 s, max 41592 s, which is 4.3e4 B/s/core at the p99.  The 11
+# whole-genome batches of HPRC v2.0 (32 cores, ~1.5e11 bytes per batch) give 5.9e4 B/s/core at
+# their worst, so dividing by the core count is what reconciles two very differently shaped
+# runs.  (These are not the `minigraph|bgzip` rows of the aggregated evidence, which only catch
+# the last batch of each chain -- the rest land in the `minigraph` row alongside the mapping.)
+MINIGRAPH_CONSTRUCT_BYTES_PER_SEC_PER_CORE = 4e4
+
+# Fixed cost of a construct batch on top of the alignment itself: staging in the previous
+# batch's GFA, which is a promise here and so cannot be sized, and -- on the final batch only --
+# the in-python PanSN rename plus its bgzip, which is under 310 s even for the 830 MB
+# whole-genome GFA of HPRC v2.0.
+MINIGRAPH_CONSTRUCT_OVERHEAD_SECS = 600
+
 def minigraph_construct_in_batches(job, options, config_node, seq_id_map, seq_order, gfa_path):
     """ Make minigraph in sequential batches"""
 
@@ -489,14 +532,18 @@ def minigraph_construct_in_batches(job, options, config_node, seq_id_map, seq_or
             else:
                 out_gfa_path = '{}.{}'.format(gfa_path, i)
             pan_sn_output = False
+        batch_bytes = sum(seq_id_map[e].size for e in input_seq_order)
         minigraph_job = Job.wrapJobFn(minigraph_construct, options, config_node, seq_id_map, input_seq_order, out_gfa_path,
                                       prev_job.rv() if prev_job else None, prev_gfa_path,
                                       pan_sn_output,
-                                      disk=disk, memory=mem, cores=options.mgCores)
+                                      disk=disk, memory=mem, cores=options.mgCores,
+                                      walltime=cactus_walltime(MINIGRAPH_CONSTRUCT_OVERHEAD_SECS +
+                                                               batch_bytes / (MINIGRAPH_CONSTRUCT_BYTES_PER_SEC_PER_CORE * options.mgCores),
+                                                               io_bytes=batch_bytes))
         if prev_job:
             prev_job.addFollowOn(minigraph_job)
             # delete the output of the previous batch from the job store            
-            minigraph_job.addFollowOnJobFn(clean_jobstore_files, file_ids=[prev_job.rv()])
+            minigraph_job.addFollowOnJobFn(clean_jobstore_files, file_ids=[prev_job.rv()], walltime=cactus_walltime())
         else:
             job.addChild(minigraph_job)
         prev_job = minigraph_job

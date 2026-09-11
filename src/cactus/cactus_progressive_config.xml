@@ -135,6 +135,20 @@
 				five="--step=2 --ambiguous=iupac,100,100 --ydrop=4000 --hspthresh=2400 --gappedthresh=2600 --queryhspbest=100000"
 				default="--step=1 --ambiguous=iupac,100,100 --ydrop=4000 --hspthresh=2200 --gappedthresh=2400 --queryhspbest=100000"
 		/>
+		<!-- Estimated runtime, in seconds, of one lastz job in each divergence class, for a
+		     pair of full-sized (chunkSize) chunks.  These are the p99 of 827k lastz runs from
+		     the VGP 577-way alignment, halved for the 2x lastz speedup since; Cactus scales
+		     them by the actual chunk sizes and applies the walltime factor on top.  Slurm picks a
+		     partition from the time limit, so these being per-class rather than one global
+		     number is what keeps the 147k closely-related pairs out of the long queue. -->
+		<lastzWalltime
+				one="350"
+				two="1400"
+				three="1650"
+				four="2000"
+				five="2800"
+				default="4300"
+		/>
 		<!-- KegAlign doesn't seem to work properly with queryhspbest -->
 		<kegalignArguments
 				one="--step=2 --ambiguous=iupac,100,100 --ydrop=3000 --notransition"
@@ -597,6 +611,13 @@
 		 memory_core_scale_baseline="64"
 		 memory_core_scale_max_pct="100"
 		 memory_poa_window_exponent="0.43"
+		 walltime_coefficient_secs="400"
+		 walltime_input_exponent="0.95"
+		 walltime_banded_coefficient_secs="550"
+		 walltime_banded_exponent="0.35"
+		 walltime_banding_threshold="100000"
+		 walltime_core_scale_baseline="24"
+		 walltime_parallel_fraction="0.64"
 		 og_size_scale_pct="75"
 		 >
 	</consolidated>

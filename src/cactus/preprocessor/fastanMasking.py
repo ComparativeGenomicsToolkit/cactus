@@ -18,17 +18,30 @@ from cactus.shared.common import getOptionalAttrib
 from cactus.shared.common import makeURL
 from cactus.shared.common import get_faidx_subpath_rename_cmd
 from cactus.shared.common import cactus_clamp_memory
+from cactus.shared.common import cactus_walltime
 from cactus.preprocessor.maskingCommon import prefilter_cmd, masked_base_count
 from cactus.preprocessor.maskingCommon import soft_mask_intervals, log_masking_delta
+from cactus.preprocessor.redMasking import RED_SECS_PER_GB, RED_SPEEDUP
 
 from toil.realtimeLogger import RealtimeLogger
+
+
+# FasTAN is active="0" by default and has never run in a logged workflow, so there is no rate
+# for it.  This job is RedMaskJob's twin -- same prefilter, same bed extraction, same interval
+# application, one different repeat masker in the middle -- so Red's measured rate stands in.
+# RED_SECS_PER_GB has Red's 3x speedup divided out of it, and FasTAN has no claim to that
+# discount, so it is multiplied back: this is Red's rate as measured, before Red got faster.
+# --doubleTime buys the retry if FasTAN turns out slower still.
+FASTAN_SECS_PER_GB = RED_SECS_PER_GB * RED_SPEEDUP
 
 
 class FasTANMaskJob(RoundedJob):
     def __init__(self, fastaID, fastanOpts, fastanPrefilterOpts, eventName=None, unmask=False):
         memory = cactus_clamp_memory(12*fastaID.size)
         disk = 5*(fastaID.size)
-        RoundedJob.__init__(self, memory=memory, disk=disk, preemptable=True)
+        RoundedJob.__init__(self, memory=memory, disk=disk, preemptable=True,
+                            walltime=cactus_walltime(FASTAN_SECS_PER_GB * fastaID.size / 1e9,
+                                                     io_bytes=2 * fastaID.size))
         self.fastaID = fastaID
         self.fastanOpts = fastanOpts
         self.fastanPrefilterOpts = fastanPrefilterOpts

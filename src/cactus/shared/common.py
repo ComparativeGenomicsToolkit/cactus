@@ -125,6 +125,42 @@ def cactus_slurm_max_memory(options):
     # node's full RealMemory can otherwise sit pending forever.
     return int(max_mb * 1024 * 1024 * 0.95)
 
+def cactus_slurm_max_walltime(options):
+    """ Query the Slurm cluster for the longest walltime any reachable partition will accept,
+    in seconds, or None if it can't be determined (or if some partition takes unlimited jobs).
+
+    This is the walltime analogue of cactus_slurm_max_memory, and it matters more than it looks:
+    when Toil cannot find a partition that fits a job's walltime it does not fall back to a
+    default, it raises, which kills the workflow at submission time.  So we clamp every walltime
+    estimate to what the cluster can actually run, exactly as we clamp memory to what the biggest
+    node can actually provide.
+
+    As with memory, we narrow to the partition jobs will actually land on when --slurmPartition
+    pins one. """
+    try:
+        from toil.batchSystems.slurm import SlurmBatchSystem
+        partition_set = SlurmBatchSystem.PartitionSet()
+        partitions = partition_set.all_partitions
+    except Exception as e:
+        logger.warning('Unable to query Slurm for partition time limits ({}); not clamping walltime'.format(e))
+        return None
+    if not partitions:
+        return None
+
+    target_partition = getattr(options, 'slurm_partition', None)
+    if target_partition:
+        limits = [p.time_limit for p in partitions if p.partition_name == target_partition]
+    else:
+        limits = [p.time_limit for p in partitions]
+    limits = [t for t in limits if t and t > 0]
+    if not limits:
+        return None
+    max_time = max(limits)
+    if math.isinf(max_time):
+        # some partition takes unlimited jobs, so there is nothing to clamp to
+        return None
+    return int(max_time)
+
 def cactus_override_toil_options(options):
     """  Mess with some toil options to create useful defaults. """
     if options.retryCount is None and options.batchSystem.lower() not in ['single_machine', 'singleMachine']:
@@ -177,6 +213,31 @@ def cactus_override_toil_options(options):
     os.environ['CACTUS_MAX_MEMORY'] = str(max_mem)
     os.environ['CACTUS_DEFAULT_MEMORY'] = str(human2bytes(str(options.defaultMemory)) if options.defaultMemory else 2**31)
 
+    # store the walltime knobs here so cactus_walltime() can get at them without carrying
+    # options around, and so they propagate to workers just like the memory limits above
+    os.environ['CACTUS_WALLTIME_FACTOR'] = str(getattr(options, 'walltimeFactor', WALLTIME_FACTOR))
+    os.environ['CACTUS_MIN_WALLTIME'] = str(getattr(options, 'minWalltime', WALLTIME_MIN))
+    max_walltime = getattr(options, 'maxWalltime', 0) or 0
+    if not max_walltime and options.batchSystem.lower() == 'slurm':
+        # no partition can run a job for longer than its time limit, and Toil raises (rather
+        # than falling back to a default) when it can't find one that fits, so cap our
+        # estimates at what the cluster will actually accept
+        slurm_max_walltime = cactus_slurm_max_walltime(options)
+        if slurm_max_walltime:
+            max_walltime = slurm_max_walltime
+            if getattr(options, 'doubleTime', False):
+                # ...and that raise happens on the batch system's own thread, which takes the
+                # whole workflow down with it, not just the job.  --doubleTime retries a job
+                # Slurm killed for running over with twice the walltime, so an estimate sitting
+                # at the longest partition's limit turns its own first retry into exactly that
+                # crash.  Keep half the ceiling in reserve so the retry still has somewhere to
+                # go; a job that needs more than half the longest partition was going to end up
+                # there regardless, and only pays for one attempt on the way.
+                max_walltime = int(max_walltime / WALLTIME_DOUBLETIME_RESERVE)
+            logger.info('Clamping maximum job walltime to {} seconds (from the longest Slurm partition time limit of {})'.format(
+                max_walltime, slurm_max_walltime))
+    os.environ['CACTUS_MAX_WALLTIME'] = str(int(max_walltime))
+
     # auto-set cactus_log_memory
     try:
         subprocess.check_call(['/usr/bin/time', '-v', 'ls'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -187,6 +248,106 @@ def cactus_override_toil_options(options):
 def cactus_clamp_memory(memory_bytes):
     """ use the environment variables from --maxMemory and --defaultMemory to clamp a given memory value """
     return max(min(int(os.environ['CACTUS_MAX_MEMORY']), int(memory_bytes)), int(os.environ['CACTUS_DEFAULT_MEMORY']))
+
+# ---------------------------------------------------------------------------
+# Per-job walltime
+# ---------------------------------------------------------------------------
+# Slurm picks each job's partition from its time limit, so one global walltime
+# (--slurmTime 100:00:00) drops every job -- including the many thousands that finish in
+# seconds -- into the slowest queue.  So Cactus estimates a walltime per job, the same way
+# it estimates memory, and turns on Toil's --doubleTime so a job that overruns is retried
+# with twice the time instead of failing the run.
+#
+# Call sites pass their best estimate of how long the job actually takes.  The safety
+# margin (--walltimeFactor) and the [--minWalltime, --maxWalltime] bounds are applied here,
+# centrally, so there is one place to tune and one place for a cluster-specific override.
+
+# Estimated runtime, in seconds, of a job that only schedules other jobs and stages no
+# large file.  These finish in well under a second; the number is worker startup overhead
+# (and, with --binariesMode singularity, cooking the image).  This is the default, so a
+# bare cactus_walltime() is the right call for a coordination job.
+WALLTIME_COORDINATION = 120
+
+# Assumed jobstore throughput, in bytes/second, for the io_bytes term.  Staging is what
+# makes an otherwise trivial job slow, and a shared cluster filesystem with a few hundred
+# concurrent Cactus jobs on it goes nowhere near its headline number.  WALLTIME_FACTOR is
+# applied on top of this, so the effective worst case is a good deal slower again.
+WALLTIME_IO_RATE = 100 * 1024**2
+
+# Multiplier applied to every estimate, overridable with --walltimeFactor.  The estimates
+# at the call sites aim at roughly the p99 of what we have measured on the largest runs we
+# have logs for, so this is headroom on top of that.
+WALLTIME_FACTOR = 2.5
+
+# Floor for any walltime request, overridable with --minWalltime.  Nothing is gained by
+# asking Slurm for less: worker startup, jobstore round-trips and Slurm's own granularity
+# swamp it, and a too-short request just buys a --doubleTime retry.
+WALLTIME_MIN = 600
+
+# How much of the longest Slurm partition to keep in reserve for --doubleTime to retry into.
+# 2 leaves room for exactly one doubling; see cactus_override_toil_options.
+WALLTIME_DOUBLETIME_RESERVE = 2
+
+def cactus_walltime(seconds=WALLTIME_COORDINATION, io_bytes=0):
+    """ Turn an estimate of how long a job takes into the walltime to request for it.
+
+    seconds:  estimated compute time, in seconds.  Defaults to the coordination tier, so a
+              bare cactus_walltime() is what a job that only schedules other jobs wants.
+              Pass None to say the estimate is *unknown* -- that returns None, leaving the
+              job on Toil's --defaultWalltime rather than guessing.  A job whose cost is all
+              I/O should pass 0 and use io_bytes.
+    io_bytes: bytes the job stages in and out of the jobstore, which on a busy shared
+              filesystem routinely dwarfs the compute.  Pass real sizes here (a Toil
+              FileID has .size); a promise has no size at scheduling time, so where the
+              inputs are promises fold the I/O into a constant `seconds` instead.
+
+    Returns None -- meaning no per-job walltime, so the job falls back to Toil's
+    --defaultWalltime -- when estimation is turned off with --walltimeFactor 0.
+
+    Mirrors cactus_clamp_memory: the value travels to workers through the environment (see
+    cactus_override_toil_options), so this works on the leader and in a worker alike. """
+    if seconds is None:
+        return None
+    factor = float(os.environ.get('CACTUS_WALLTIME_FACTOR', WALLTIME_FACTOR))
+    if factor <= 0:
+        return None
+    estimate = float(seconds)
+    if io_bytes:
+        estimate += float(io_bytes) / WALLTIME_IO_RATE
+    estimate *= factor
+    estimate = max(estimate, float(os.environ.get('CACTUS_MIN_WALLTIME', WALLTIME_MIN)))
+    max_walltime = float(os.environ.get('CACTUS_MAX_WALLTIME', 0))
+    if max_walltime > 0:
+        estimate = min(estimate, max_walltime)
+    return int(math.ceil(estimate))
+
+def add_cactus_toil_options(parser):
+    """ Add cactus-specific options on top of Toil's default argument parser
+    (Job.Runner.getDefaultArgumentParser).  Call this right after creating the parser. """
+    parser.add_argument("--walltimeFactor", type=float, default=WALLTIME_FACTOR,
+                        help="Safety multiplier applied to every per-job walltime Cactus estimates "
+                             "[default: {}].  Raise it if jobs are being killed for running over "
+                             "(a slower cluster than the estimates were tuned on); pass 0 to switch "
+                             "per-job walltimes off entirely, leaving every job on Toil's "
+                             "--defaultWalltime.".format(WALLTIME_FACTOR))
+    parser.add_argument("--minWalltime", type=int, default=WALLTIME_MIN,
+                        help="Floor, in seconds, for any walltime Cactus requests [default: {}].  "
+                             "Cactus schedules many jobs that finish in under a second; this keeps "
+                             "worker startup and jobstore I/O from pushing them over their "
+                             "limit.".format(WALLTIME_MIN))
+    parser.add_argument("--maxWalltime", type=int, default=0,
+                        help="Ceiling, in seconds, for any walltime Cactus requests [default: on "
+                             "Slurm, the longest time limit of any partition the jobs could land "
+                             "on; otherwise none].  This matters because Toil raises, rather than "
+                             "falling back to a default, when no partition can fit a job's "
+                             "walltime.")
+
+    # --doubleTime is what makes tight per-job walltimes safe: a job Slurm kills for running
+    # over is retried with twice the time rather than failing the run.  Default it on the way
+    # retryCount is defaulted up, while still letting "--doubleTime false" win.  Guarded
+    # because it only exists in Toil newer than 9.5.0 (see toil-requirement.txt).
+    if any('--doubleTime' in (action.option_strings or []) for action in parser._actions):
+        parser.set_defaults(doubleTime=True)
 
 def makeURL(path_or_url):
     if urlparse(path_or_url).scheme == '':
@@ -1089,7 +1250,7 @@ class RoundedJob(Job):
     # Default rounding amount: 100 MiB
     roundingAmount = 100*1024*1024
     def __init__(self, memory=None, cores=None, disk=None, preemptable=None,
-                 unitName=None, checkpoint=False, accelerators=None):
+                 unitName=None, checkpoint=False, accelerators=None, walltime=None):
         if memory is not None:
             memory = self.roundUp(memory)
         if disk is not None:
@@ -1099,7 +1260,8 @@ class RoundedJob(Job):
             disk = 1500*1024*1024 + self.roundUp(disk)
         super(RoundedJob, self).__init__(memory=memory, cores=cores, disk=disk,
                                          preemptable=preemptable, unitName=unitName,
-                                         checkpoint=checkpoint, accelerators=accelerators)
+                                         checkpoint=checkpoint, accelerators=accelerators,
+                                         walltime=walltime)
 
     def roundUp(self, bytesRequirement):
         """
@@ -1149,12 +1311,12 @@ class ChildTreeJob(RoundedJob):
     slightly, but reducing the wall-clock time taken dramatically.
     """
     def __init__(self, memory=None, cores=None, disk=None, preemptable=None,
-                 unitName=None, checkpoint=False, maxChildrenPerJob=20):
+                 unitName=None, checkpoint=False, maxChildrenPerJob=20, walltime=None):
         self.queuedChildJobs = []
         self.maxChildrenPerJob = maxChildrenPerJob
         super(ChildTreeJob, self).__init__(memory=memory, cores=cores, disk=disk,
                                            preemptable=preemptable, unitName=unitName,
-                                           checkpoint=checkpoint)
+                                           checkpoint=checkpoint, walltime=walltime)
 
     def addChild(self, job):
         self.queuedChildJobs.append(job)
@@ -1234,6 +1396,25 @@ def enableDumpStack(sig=signal.SIGUSR1):
     """enable dumping stacks when the specified signal is received"""
     signal.signal(sig, dumpStacksHandler)
 
+# Single-threaded gzip/bgzip, in bytes of *input* per second.  Compression measured at 21-27
+# MB/s on the HPRC PAFs: 1727 s to gzip the 34.4 GiB whole-panel PAF and 868 s to bgzip its
+# GAF, against medians of 79 s and 50 s per chromosome.  Decompression at ~38 MB/s of
+# compressed input, over the 576 VGP alignments' gzipped PAFs.  Both are rates over whatever
+# gzip is handed, so the compressed side of each pair is the smaller number of bytes.
+GZIP_COMPRESS_BYTES_PER_SEC = 21e6
+GZIP_DECOMPRESS_BYTES_PER_SEC = 38e6
+
+def unzip_gz_walltime(compressed_bytes):
+    """ walltime for an unzip_gz job on a file of compressed_bytes.  It writes the decompressed
+    file back to the jobstore, which for a PAF or fasta is roughly 3x what it read. """
+    return cactus_walltime(compressed_bytes / GZIP_DECOMPRESS_BYTES_PER_SEC,
+                           io_bytes=4 * compressed_bytes)
+
+def zip_gz_walltime(uncompressed_bytes):
+    """ walltime for a zip_gz job on a file of uncompressed_bytes """
+    return cactus_walltime(uncompressed_bytes / GZIP_COMPRESS_BYTES_PER_SEC,
+                           io_bytes=2 * uncompressed_bytes)
+
 def unzip_gzs(job, input_paths, input_ids, delete_original=True):
     """ go through a list of files and unzip any that end with .gz and return a list 
     of updated ids.  files that don't end in .gz are just passed through.  relying on the extension
@@ -1242,7 +1423,8 @@ def unzip_gzs(job, input_paths, input_ids, delete_original=True):
     for input_path, input_id in zip(input_paths, input_ids):
         if input_path.endswith('.gz'):
             unzip_job = job.addChildJobFn(unzip_gz, input_path, input_id, delete_original=delete_original,
-                                          disk=10*input_id.size)
+                                          disk=10*input_id.size,
+                                          walltime=unzip_gz_walltime(input_id.size))
             unzipped_ids.append(unzip_job.rv())
         else:
             unzipped_ids.append(input_id)
@@ -1271,13 +1453,15 @@ def zip_gzs(job, input_paths, input_ids, list_elems = None, delete_original=True
                 for i, elem in enumerate(input_list):
                     if not list_elems or i in list_elems:
                         output_list.append(job.addChildJobFn(zip_gz, input_path, elem, delete_original=delete_original,
-                                                             disk=2*elem.size).rv())
+                                                             disk=2*elem.size,
+                                                             walltime=zip_gz_walltime(elem.size)).rv())
                     else:
                         output_list.append(elem)
                 zipped_ids.append(output_list)
             else:
                 zipped_ids.append(job.addChildJobFn(zip_gz, input_path, input_list, delete_original=delete_original,
-                                                    disk=2*input_list.size).rv())
+                                                    disk=2*input_list.size,
+                                                    walltime=zip_gz_walltime(input_list.size)).rv())
         else:
             zipped_ids.append(input_list)
     return zipped_ids

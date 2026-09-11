@@ -17,8 +17,19 @@ from cactus.shared.common import cactusRootPath
 from cactus.shared.common import getOptionalAttrib
 from cactus.shared.common import makeURL
 from cactus.shared.common import get_faidx_subpath_rename_cmd
+from cactus.shared.common import cactus_walltime
 
 from toil.realtimeLogger import RealtimeLogger
+
+# Seconds per GB of input fasta for dna-brnn.  No direct evidence: dna-brnn is active="0" in the
+# default config (--maskMode brnn turns it on) and did not run in any of the mined logs.  This is
+# from first principles -- dna-brnn is a recurrent-network base classifier that streams the
+# genome, and the job asks for a flat 4 GiB and 2 cores, so it is CPU-bound and roughly linear in
+# genome size.  With cactus_walltime's factor the effective allowance is 1500 s/GB, ~1.3 hours
+# for a 3 Gbp genome and ~4.4 hours for the largest VGP one.  The bedtools sort/merge/subtract
+# and cactus_fasta_softmask_intervals.py tail that follows is a rounding error next to that: the
+# latter was p99 181 s over genomes up to 10.5 GB in the VGP 577-way.
+DNABRNN_SECS_PER_GB = 600
 
 def loadDnaBrnnModel(toil, configNode, maskAlpha = False):
     """ store the model in a toil file id so it can be used in any workflow """
@@ -37,7 +48,9 @@ class DnabrnnMaskJob(RoundedJob):
         memory = 4*1024*1024*1024
         disk = 2*(fastaID.size)
         cores = min(cactus_cpu_count(), cpu)
-        RoundedJob.__init__(self, memory=memory, disk=disk, cores=cores, preemptable=True)
+        RoundedJob.__init__(self, memory=memory, disk=disk, cores=cores, preemptable=True,
+                            walltime=cactus_walltime(DNABRNN_SECS_PER_GB * fastaID.size / 1e9,
+                                                     io_bytes=3 * fastaID.size))
         self.fastaID = fastaID
         self.minLength = minLength
         self.action = action

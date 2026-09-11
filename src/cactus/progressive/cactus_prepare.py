@@ -32,8 +32,10 @@ from cactus.shared.version import cactus_commit
 from cactus.shared.common import findRequiredNode
 from cactus.shared.common import makeURL, cactus_call, RoundedJob
 from cactus.shared.common import write_s3, has_s3, get_aws_region
-from cactus.shared.common import cactus_override_toil_options
+from cactus.shared.common import cactus_override_toil_options, add_cactus_toil_options
+from cactus.pipeline.cactus_workflow import cons_core_scale
 from cactus.shared.common import cactus_clamp_memory
+from cactus.shared.common import cactus_walltime
 
 from toil.job import Job
 from toil.common import Toil
@@ -44,6 +46,56 @@ from toil.realtimeLogger import RealtimeLogger
 from toil.lib.conversions import human2bytes, bytes2human
 from toil.lib.accelerators import count_nvidia_gpus
 
+# --toil mode runs each cactus-* command as a nested single-node Toil workflow, so these are
+# estimates for a whole command rather than for one of the jobs inside it.  All of them come
+# from the VGP 577-way, which was run through cactus-prepare's script mode: 576 cactus-blast
+# runs, 576 cactus-align runs, one cactus-preprocess run over all 577 genomes.  Those nested
+# workflows were given 64 cores.
+
+# In toil mode this parser is Toil's own, so --defaultCores is Toil's option and defaults to 1.
+# main() copies it into blastCores/alignCores/preprocessCores when they are unset, so the
+# default cactus-prepare-toil invocation runs these nested workflows at a single core -- which
+# is what the estimates below have to assume unless the user says otherwise.
+
+def prepare_cores(cores):
+    """ cores for a nested cactus-* workflow, as a number the estimates can divide by """
+    try:
+        return max(1, int(cores or 1))
+    except (TypeError, ValueError):
+        return 1
+
+# Per-ancestor lastz CPU-seconds for cactus-blast: the p50 of the summed command time of those
+# 576 blast logs, 99.7% of it lastz, halved for the 2x lastz speedup since.  lastz is the one
+# command here that is embarrassingly parallel (827k independent jobs in that run), so dividing
+# by the cores the nested workflow gets is the right model.  The p50 rather than the p99
+# because cactus_walltime multiplies by 2.5 on top and --doubleTime takes the tail: at the p99
+# (12.1M CPU-seconds) the single-core default asks for 173 days, which no partition can run.
+BLAST_CPU_SECS = 4.6e5
+
+# cactus-align is cactus_consolidated and little else: it ran p50 10,014 s, p90 34,771 and p99
+# 120,138 over those 576 ancestors -- halve for the 2x consolidated speedup -- while everything
+# else in the phase (the paf ops, export_hal, cactus-hal2fasta) summed to under 1,500 s even at
+# the p99.  The p90 is the anchor, on the same reasoning as blast.  Scaled by cores with the
+# same model cactus_cons itself uses, because those 576 jobs ran at 64 cores while the default
+# here is one.
+ALIGN_SECS = 17400
+
+# One genome through cactus-preprocess.  Grouping the 577-way preprocess log by genome gives
+# p50 2,835 s, p90 7,172, p99 11,420; taking the 3x Red speedup out of the Red component of
+# each (Red is 88% of the total) leaves p50 1,218, p90 2,859, p99 4,776.
+# Red is 88% of that and is multithreaded, so it takes the same core scaling as consolidated.
+PREPROCESS_SECS = 4800
+
+# Seconds per halAppendSubtree.  The 12 cactus-halAppendSubtrees runs of the 577-way did 578
+# appends in 346,706 s of command time -- 600 s each, and flat across batches of 25 to 53.
+HAL_APPEND_SECS_PER_SUBTREE = 600
+
+# Extra seconds per append for staging, for the call site where the sizes are promises and so
+# cannot go in io_bytes.  Those same 12 runs took 414,562 s of wall against 346,706 s of
+# command time: 117 s per append of pulling the target HAL and the subtree HALs down and
+# pushing the grown target back up.
+HAL_APPEND_STAGING_SECS_PER_SUBTREE = 120
+
 def main_toil():
     return main(toil_mode=True)
 
@@ -51,6 +103,7 @@ def main(toil_mode=False):
     parser = ArgumentParser()
     if toil_mode:
         parser = Job.Runner.getDefaultArgumentParser()
+        add_cactus_toil_options(parser)
         parser.add_argument("--latest", dest="latest", action="store_true",
                             help="Use the latest version of the docker container "
                             "rather than pulling one matching this version of cactus")
@@ -456,6 +509,14 @@ def cactusPrepare(options):
 
     # write the instructions
     if options.toil:
+        # this is the one Toil-launching path in the module that never did this, and the plan
+        # below now depends on it: cactus_override_toil_options is what exports
+        # CACTUS_MAX_WALLTIME, without which nothing clamps a walltime to what the cluster's
+        # partitions will actually accept -- and Toil raises, on the batch system's own thread,
+        # when it cannot find one that fits.  It is also what makes --walltimeFactor,
+        # --minWalltime and --maxWalltime (added to this parser by add_cactus_toil_options)
+        # mean anything here at all.
+        cactus_override_toil_options(options)
         with Toil(options) as toil:
             if options.restart:
                 toil.restart()
@@ -480,7 +541,7 @@ def get_plan(options, inSeqFile, outSeqFile, configWrapper, toil):
         # kick things off with an empty job which we will hook subsequent jobs onto
         # (using RoundedJob because root job must be sublcass of Job,
         #  https://github.com/ComparativeGenomicsToolkit/cactus/pull/284#issuecomment-684125478)
-        start_job = RoundedJob()
+        start_job = RoundedJob(walltime=cactus_walltime())
         parent_job = start_job
         job_idx = {}
 
@@ -500,7 +561,8 @@ def get_plan(options, inSeqFile, outSeqFile, configWrapper, toil):
             job_idx[("preprocess", leaves[i])] = parent_job.addChildJobFn(toil_call_preprocess, options, inSeqFile, outSeqFile, leaves[i],
                                                                           cores=options.preprocessCores,
                                                                           memory=options.preprocessMemory,
-                                                                          disk=options.preprocessDisk)
+                                                                          disk=options.preprocessDisk,
+                                                                          walltime=cactus_walltime(PREPROCESS_SECS * cons_core_scale(prepare_cores(options.preprocessCores))))
         else:
             plan += 'cactus-preprocess {} {} {} --inputNames {} {} {}{}{}{}{}{}\n'.format(
                 get_jobstore(options), options.seqFile, options.outSeqFile, ' '.join(pre_batch),
@@ -586,7 +648,7 @@ def get_plan(options, inSeqFile, outSeqFile, configWrapper, toil):
             if options.toil and sub_idx == 0:
                 # advance toil phase (only once per original round)
                 # todo: recapitulate exact dependencies
-                parent_job = parent_job.addFollowOn(Job())
+                parent_job = parent_job.addFollowOn(Job(walltime=cactus_walltime()))
             if options.script:
                 plan += 'pids=()\n'
             for event in sub_group:
@@ -608,7 +670,8 @@ def get_plan(options, inSeqFile, outSeqFile, configWrapper, toil):
                                                                          *fa_promises,
                                                                          cores=options.blastCores,
                                                                          memory=options.blastMemory,
-                                                                         disk=options.preprocessDisk)
+                                                                         disk=options.preprocessDisk,
+                                                                         walltime=cactus_walltime(BLAST_CPU_SECS / prepare_cores(options.blastCores)))
                     job_idx[("align", event)] = job_idx[("blast", event)].addFollowOnJobFn(toil_call_align,
                                                                                            options, outSeqFile,
                                                                                            mc_tree,
@@ -621,7 +684,8 @@ def get_plan(options, inSeqFile, outSeqFile, configWrapper, toil):
                                                                                            leaf_deps + anc_deps, *fa_promises,
                                                                                            cores=options.alignCores,
                                                                                            memory=options.alignMemory,
-                                                                                           disk=options.alignDisk)
+                                                                                           disk=options.alignDisk,
+                                                                                           walltime=cactus_walltime(ALIGN_SECS * cons_core_scale(prepare_cores(options.alignCores))))
                 else:
                     # todo: support cactus interface (it's easy enough here, but cactus_progressive.py needs changes to handle)
                     cactus_options = options.cactusOptions
@@ -658,7 +722,7 @@ def get_plan(options, inSeqFile, outSeqFile, configWrapper, toil):
 
     # advance toil phase
     if options.toil:
-        parent_job = parent_job.addFollowOn(Job())
+        parent_job = parent_job.addFollowOn(Job(walltime=cactus_walltime()))
                 
     # stitch together the final tree
     plan += '\n## HAL merging\n'
@@ -710,7 +774,9 @@ def get_plan(options, inSeqFile, outSeqFile, configWrapper, toil):
                                                          *[job_idx[('align', e)].rv(1) for e in event_list],
                                                          cores=1,
                                                          memory=options.alignMemory,
-                                                         disk=options.halAppendDisk)
+                                                         disk=options.halAppendDisk,
+                                                         walltime=cactus_walltime((HAL_APPEND_SECS_PER_SUBTREE +
+                                                                                   HAL_APPEND_STAGING_SECS_PER_SUBTREE) * len(event_list)))
 
     if options.wdl:
         prev_event = mc_tree.getRootName()
@@ -1272,6 +1338,7 @@ def main_hal2fasta():
     """ cli wrapper for hal2fasta so that cactus-perpare can send it to slurm consistently with other
     cactus commands """
     parser = Job.Runner.getDefaultArgumentParser()
+    add_cactus_toil_options(parser)
 
     parser.add_argument("halFile", help="input HAL file")
     parser.add_argument("genome", help="Genome to convert to FASTA")
@@ -1310,9 +1377,14 @@ def main_hal2fasta():
             fa_id = toil.restart()
         else:
             hal_id = toil.importFile(options.halFile)
+            # hal2fasta itself is trivial -- 576 runs on the VGP 577-way were p99 120 s, max
+            # 167 s -- so the job is really the HAL coming down and the (bgzipped) fasta going
+            # back up.  cactus-prepare emits one of these per ancestor, so it is worth keeping
+            # them out of a long partition.
             fa_id = toil.start(Job.wrapJobFn(hal2fasta, hal_id, options.halFile, options.genome, options.outputFastaFile,
                                              memory=cactus_clamp_memory(3000000000),
-                                             disk=int(hal_id.size * 1.3)))
+                                             disk=int(hal_id.size * 1.3),
+                                             walltime=cactus_walltime(200, io_bytes=int(1.5 * hal_id.size))))
 
         # export the alignments
         toil.exportFile(fa_id, makeURL(options.outputFastaFile))            
@@ -1339,6 +1411,7 @@ def hal2fasta(job, hal_id, hal_path, genome, fa_path):
 def main_hal_append_subtrees():
     """ toil wrapper for halAppendSubtree command(s) """
     parser = Job.Runner.getDefaultArgumentParser()
+    add_cactus_toil_options(parser)
 
     parser.add_argument("tgtFile", help="input HAL file to append to")
     parser.add_argument("subFiles", nargs='+', help="subtree HAL files to append")
@@ -1378,9 +1451,16 @@ def main_hal_append_subtrees():
         else:
             hal_id = toil.importFile(options.tgtFile)
             sub_hal_ids = [toil.importFile(sub_hal) for sub_hal in options.subFiles]
+            # halAppendSubtree averaged 600 s over the 578 appends of the 577-way, and this job
+            # runs one per subtree in a serial loop; io_bytes is the target HAL coming down
+            # mutable, every subtree HAL coming down, and the grown target going back up, which
+            # is what dominates once the target is a few hundred GiB.
+            sub_hal_bytes = sum([f.size for f in sub_hal_ids])
             out_hal_id = toil.start(Job.wrapJobFn(hal_append_subtrees, hal_id, sub_hal_ids, options,
                                                   memory=cactus_clamp_memory(10 * max([f.size for f in sub_hal_ids])),
-                                                  disk=2 * (hal_id.size + sum([f.size for f in sub_hal_ids]))))
+                                                  disk=2 * (hal_id.size + sub_hal_bytes),
+                                                  walltime=cactus_walltime(HAL_APPEND_SECS_PER_SUBTREE * len(sub_hal_ids),
+                                                                           io_bytes=2 * (hal_id.size + sub_hal_bytes))))
 
         # export the alignments
         toil.exportFile(out_hal_id, makeURL(options.outHalFile))  

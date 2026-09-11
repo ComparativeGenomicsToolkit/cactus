@@ -232,7 +232,7 @@ cactus-hal2maf ./js evolverMammals.hal evolverMammals.maf.gz --refGenome simHuma
 Exporting a MAF for each reference in an 8-way [ape alignment](https://cglgenomics.ucsc.edu/february-2024-t2t-apes/) on UCSC Slurm cluster:
 
 ```
-for i in hs1 hg38 GCA_028858775.2 GCA_028885655.2 GCA_028885625.2 GCA_028878055.2 GCA_029281585.2 GCA_029289425.2; do cactus-hal2maf ./js_hal2maf8 ./8-t2t-apes-2023v2.hal ./8-t2t-apes-2023v2.${i}.maf.gz --filterGapCausingDupes --outType norm single --refGenome $i --chunkSize 500000 --batchCores 64 --noAncestors --batchCount 16  --batchSystem slurm --logFile ./8-t2t-apes-2023v2.${i}.gz.log --batchLogsDir batch-logs-8apes --slurmTime 200:00:00 --slurmPartition long;done
+for i in hs1 hg38 GCA_028858775.2 GCA_028885655.2 GCA_028885625.2 GCA_028878055.2 GCA_029281585.2 GCA_029289425.2; do cactus-hal2maf ./js_hal2maf8 ./8-t2t-apes-2023v2.hal ./8-t2t-apes-2023v2.${i}.maf.gz --filterGapCausingDupes --outType norm single --refGenome $i --chunkSize 500000 --batchCores 64 --noAncestors --batchCount 16  --batchSystem slurm --logFile ./8-t2t-apes-2023v2.${i}.gz.log --batchLogsDir batch-logs-8apes --slurmPartition long;done
 ```
 
 Note that this invocation creates two MAFs per reference (as dictated by the `--outType` option).  Notably, the `.single.maf.gz` files will be filtered so that each genome appears at most once per block, which is often required by browsers and other MAF-reading tools.
@@ -343,7 +343,7 @@ cactus-phast ./js-vgp \
     --geneAnnotation https://hgdownload.soe.ucsc.edu/goldenPath/hg38/database/ncbiRefSeq.txt.gz \
     --bigwig --batchSystem slurm --chunkCores 32 --phyloFitCores 32 \
     --substMod REV --modFreqs --precision HIGH \
-    --slurmPartition medium --slurmTime 10:00:00 \
+    --slurmPartition medium \
     --doubleMem true
 ```
 
@@ -419,8 +419,15 @@ These are the most relevant options for running on a cluster
 
 On a cluster with partitions and/or time limits, make sure to use
 
-* `--slurmTime` to specify the time for each job.  Unfortunately cactus does not yet try to set this itself, so you need to give one value that will be applied to all jobs, ex `--slurmTime 200:00:00`
-* `--slurmPartition / --slurmGPUPartition` to specify the slurm partition where CPU / GPU jobs end up on.  Cactus will try to figure this out on its own using the `--slurmTime` value along with whether or not the job needs GPU.  But this option will allow you to override that.
+Slurm chooses a job's partition from its time limit, so giving every job one big time (the old `--slurmTime 200:00:00` advice) puts even the thousands of jobs that finish in seconds into the slowest queue.  **Cactus now estimates a walltime for each job itself**, from the size of that job's inputs, the same way it estimates memory.  There is nothing you need to set for this: the defaults below are the knobs for when the estimates do not suit your cluster.
+
+* `--doubleTime true` is **on by default** (Cactus turns it on the way it raises `--retryCount` to 5).  It is the time analogue of `--doubleMem`: if slurm kills a job for running past its walltime, it is retried with double the walltime.  This is what makes tight per-job estimates safe -- an occasional underestimate costs one retry, not the run.  Pass `--doubleTime false` to turn it off.
+* `--walltimeFactor` is the safety multiplier applied to every estimate (default `2.5`).  Raise it if your cluster is slower than the ones the estimates were measured on and jobs are being killed for running over.  Pass `--walltimeFactor 0` to switch per-job walltimes off entirely, which puts every job back on `--defaultWalltime`.
+* `--minWalltime` is the floor for any request, in seconds (default `600`).  Cactus schedules a great many jobs that finish in well under a second; this keeps worker startup and jobstore I/O from pushing them over their limit.
+* `--maxWalltime` is the ceiling, in seconds.  By default, on Slurm, Cactus queries `sinfo` and caps every request at *half* the longest time limit of any partition your jobs could land on.  This matters more than it looks: when Toil cannot find a partition that fits a job's walltime it raises rather than falling back to a default, and it does so on the batch system's own thread, taking the whole workflow down rather than just the job.  Since `--doubleTime` retries a killed job with twice the walltime, an estimate sitting at the longest partition's limit would turn its own first retry into exactly that crash -- hence the half.  A job needing more than half your longest partition still gets there, it just spends one attempt on the way.  With `--doubleTime false` there is nothing to retry into and the full limit is used.
+* `--defaultWalltime` is Toil's fallback for jobs Cactus did not estimate a time for.  With the estimates on there is very little left for it to cover, so you can usually leave it alone.
+* `--slurmPartition / --slurmGPUPartition` to specify the slurm partition where CPU / GPU jobs end up on.  Cactus will try to figure this out on its own from each job's walltime along with whether or not the job needs GPU.  But this option will allow you to override that.
+* `--slurmTime` is a global override that forces a single time onto *every* job, ignoring the per-job estimates above (so it also disables the partition routing they exist for, and `--doubleTime` along with it).  Reach for it only as an escape hatch, e.g. if a job's time estimate turns out too low and it keeps getting killed: `--slurmTime 200:00:00`.
 
 You can also use
 
@@ -439,13 +446,13 @@ source /private/groups/cgl/cactus/venv-cactus-latest/bin/activate
 Some recommended options: 
 
 ```
-cactus ./js ./examples/evolverMammals.txt evolverMammals.hal --batchSystem slurm --batchLogsDir batch-logs --consCores 64 --maxMemory 1.4Ti --doubleMem true --slurmTime 200:00:00
+cactus ./js ./examples/evolverMammals.txt evolverMammals.hal --batchSystem slurm --batchLogsDir batch-logs --consCores 64 --maxMemory 1.4Ti --doubleMem true
 ```
 
 To run the same command step by step,
 
 ```
-cactus-prepare ./examples/evolverMammals.txt --outDir mammals-prepare --outHal mammals-prepare/evolverMammals.hal --cactusOptions "--maxMemory 1.4Ti --doubleMem true --slurmTime 200:00:00 --batchSystem slurm" --alignCores 64 --script > mammals.sh
+cactus-prepare ./examples/evolverMammals.txt --outDir mammals-prepare --outHal mammals-prepare/evolverMammals.hal --cactusOptions "--maxMemory 1.4Ti --doubleMem true --batchSystem slurm" --alignCores 64 --script > mammals.sh
 chmod+x mammals.sh
 ./mammals.sh
 ```

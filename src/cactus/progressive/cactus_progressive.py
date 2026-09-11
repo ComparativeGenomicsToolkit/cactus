@@ -18,7 +18,7 @@ from argparse import ArgumentParser
 from base64 import b64encode
 
 from toil.lib.bioio import getTempFile
-from cactus.shared.common import cactus_cpu_count
+from cactus.shared.common import cactus_cpu_count, cactus_walltime
 from toil.statsAndLogging import logger
 from toil.statsAndLogging import set_logging_from_options
 from toil.realtimeLogger import RealtimeLogger
@@ -33,7 +33,7 @@ from cactus.shared.common import cactus_call
 from cactus.shared.version import cactus_commit
 from cactus.shared.common import cactusRootPath
 from cactus.shared.common import enableDumpStack
-from cactus.shared.common import cactus_override_toil_options
+from cactus.shared.common import cactus_override_toil_options, add_cactus_toil_options
 from cactus.shared.common import write_s3
 from cactus.shared.common import cactus_clamp_memory
 from cactus.shared.common import clean_jobstore_files
@@ -51,6 +51,14 @@ from cactus.progressive.cactus_prepare import human2bytesN
 from sonLib.nxnewick import NXNewick
 from sonLib.bioio import getTempDirectory
 
+# Seconds of halAppendCactusSubtree per GiB of the c2h + fasta it reads.  The cost per GiB is
+# steady across two very different data sets: the VGP 577-way spent 64.0 h appending ~7.0 TiB
+# in 576 subtrees (33 s/GiB on average, p90 41), and the HPRC v2.1 pangenome's 25 chromosome
+# subtrees ran p50 2570 s on ~90 GiB apiece (29 s/GiB, p99 61).  export_hal appends every
+# subtree of its tree in one serial loop, so it is the average, not the per-append tail, that
+# sets a whole-tree export's runtime.
+HAL_APPEND_SECS_PER_GIB = 45
+
 def logAssemblyStats(job, message, name, sequenceID, preemptable=True):
     sequenceFile = job.fileStore.readGlobalFile(sequenceID)
     analysisString = cactus_call(parameters=["cactus_analyseAssembly", sequenceFile], check_output=True)
@@ -58,7 +66,7 @@ def logAssemblyStats(job, message, name, sequenceID, preemptable=True):
 
 def preprocess_all(job, options, config_node, input_seq_id_map):
     ''' run prepreprocessor on every input sequence '''
-    root_job = Job()
+    root_job = Job(walltime=cactus_walltime())
     job.addChild(root_job)
     events = list(input_seq_id_map.keys())
     seq_ids = list(input_seq_id_map.values())
@@ -67,8 +75,12 @@ def preprocess_all(job, options, config_node, input_seq_id_map):
     for i, event in enumerate(events):
         pp_seq_ids[event] = preprocessor_job.rv(i)
 
-    # do the logging and checkpointing
-    root_job.addFollowOnJobFn(save_preprocessed_files, options, config_node, pp_seq_ids)
+    # do the logging and checkpointing.  with --intermediateResultsUrl this copies every
+    # preprocessed sequence out of the jobstore, so it is an I/O job, not a coordination one;
+    # masking does not change a sequence's length, so the inputs are the right size for it
+    input_seq_bytes = sum(seq_id.size for seq_id in input_seq_id_map.values())
+    root_job.addFollowOnJobFn(save_preprocessed_files, options, config_node, pp_seq_ids,
+                              walltime=cactus_walltime(0, io_bytes=2 * input_seq_bytes))
     
     return pp_seq_ids
 
@@ -81,12 +93,15 @@ def save_preprocessed_files(job, options, config_node, seq_id_map):
 
     # Log the stats for the preprocessed assemblies
     for name, sequence in list(seq_id_map.items()):
-        job.addChildJobFn(logAssemblyStats, "After preprocessing", name, sequence)
+        # cactus_analyseAssembly never took more than 121 s in 27,938 runs across the VGP
+        # 577-way and the HPRC v2.1 pangenome; downloading the sequence is the rest of the job
+        job.addChildJobFn(logAssemblyStats, "After preprocessing", name, sequence,
+                          walltime=cactus_walltime(120, io_bytes=sequence.size))
 
 def progressive_schedule(job, options, config_node, seq_id_map, tree, og_map, root_event):
     ''' create job for every internal node, use child dependencies to make tree (+ outgroups)'''
 
-    root_job = Job()
+    root_job = Job(walltime=cactus_walltime())
     job.addChild(root_job)
 
     config_wrapper = ConfigWrapper(config_node)
@@ -137,7 +152,7 @@ def progressive_schedule(job, options, config_node, seq_id_map, tree, og_map, ro
                 # to be consistent with pre-refactor (and work with updating tests), we include the root when its id is input
                 if event in seq_id_map and seq_id_map[event]:
                     event_id_map[event] = seq_id_map[event]                    
-                event_job = Job.wrapJobFn(progressive_step, options, config_node, event_id_map, tree, og_map, event)
+                event_job = Job.wrapJobFn(progressive_step, options, config_node, event_id_map, tree, og_map, event, walltime=cactus_walltime())
                 job_table[event] = event_job
                 for dep in dep_table[event]:
                     if dep in job_table:
@@ -174,22 +189,23 @@ def progressive_step(job, options, config_node, seq_id_map, tree, og_map, event)
 
     # do the blast
     paf_job = job.addChildJobFn(make_paf_alignments, NXNewick().writeString(spanning_tree),
-                                subtree_eventmap, event, config_node).encapsulate()
+                                subtree_eventmap, event, config_node, walltime=cactus_walltime()).encapsulate()
 
     outgroups = og_map[event] if event in og_map else []
     # trim the outgroups
     if outgroups and int(config_node.find("blast").attrib["trimOutgroups"]):  # Trim the outgroup sequences
         trim_sequences = paf_job.addChildJobFn(trim_unaligned_sequences,
-                                               [subtree_eventmap[i] for i in outgroups], paf_job.rv(), config_node)
+                                               [subtree_eventmap[i] for i in outgroups], paf_job.rv(), config_node,
+                                               walltime=cactus_walltime())
         cons_job = paf_job.addFollowOnJobFn(progressive_step_2, trim_sequences.rv(), options, config_node, subtree_eventmap,
-                                            spanning_tree, og_map, event)
+                                            spanning_tree, og_map, event, walltime=cactus_walltime())
         
     else:  # Without outgroup trimming (or if there are no outgroups to trim)
         cons_job = paf_job.addChildJobFn(cactus_cons_with_resources, spanning_tree, event, config_node, subtree_eventmap,
                                          og_map, paf_job.rv(), cons_cores=options.consCores, cons_memory=options.consMemory, cons_retain_pages=getattr(options, 'consRetainPages', None),
-                                         intermediate_results_url=options.intermediateResultsUrl)
+                                         intermediate_results_url=options.intermediateResultsUrl, walltime=cactus_walltime())
     # erase the paf since its now longer needed
-    cons_job.addFollowOnJobFn(clean_jobstore_files, file_ids=[paf_job.rv()])
+    cons_job.addFollowOnJobFn(clean_jobstore_files, file_ids=[paf_job.rv()], walltime=cactus_walltime())
     return cons_job.rv()
 
 
@@ -203,7 +219,7 @@ def progressive_step_2(job, trimmed_outgroups_and_alignments, options, config_no
     # now do consolidated
     return job.addChildJobFn(cactus_cons_with_resources, spanning_tree, event, config_node, subtree_eventmap, og_map,
                              pafs, cons_cores=options.consCores, cons_memory=options.consMemory, cons_retain_pages=getattr(options, 'consRetainPages', None),
-                             intermediate_results_url=options.intermediateResultsUrl).rv()
+                             intermediate_results_url=options.intermediateResultsUrl, walltime=cactus_walltime()).rv()
 
 
 def export_hal(job, mc_tree, config_node, seq_id_map, og_map, results, event=None, cacheBytes=None,
@@ -271,16 +287,23 @@ def export_hal(job, mc_tree, config_node, seq_id_map, og_map, results, event=Non
                 cactus_call(parameters=args, job_memory=job.memory)
 
     if not has_resources:
-        disk = 3 * sum([file_id.size for file_id in fa_file_ids + c2h_file_ids])
+        total_size = sum([file_id.size for file_id in fa_file_ids + c2h_file_ids])
+        disk = 3 * total_size
         mem = cactus_clamp_memory(5 * (max([file_id.size for file_id in fa_file_ids]) + max([file_id.size for file_id in c2h_file_ids])))
         # allows pass-through of memory override from --consMemory
         if memory_override:
             mem = memory_override
+        # this is the pass that actually runs halAppendCactusSubtree, once per subtree root, so
+        # its cost is the whole c2h+fa volume rather than any one subtree's.  io_bytes reads all
+        # of that back out of the jobstore and writes the merged HAL, which came to ~13% of the
+        # input on the 577-way.
         return job.addChildJobFn(export_hal, mc_tree, config_node, seq_id_map, og_map, results, event=event,
                                  cacheBytes=cacheBytes, cacheMDC=cacheMDC, cacheRDC=cacheRDC, cacheW0=cacheW0,
                                  chunk=chunk, inMemory=inMemory, checkpointInfo=checkpointInfo,
                                  acyclicEvent=acyclicEvent, has_resources=True,
-                                 disk=disk, memory=mem).rv()
+                                 disk=disk, memory=mem,
+                                 walltime=cactus_walltime(HAL_APPEND_SECS_PER_GIB * total_size / 2**30,
+                                                          io_bytes=int(1.2 * total_size))).rv()
 
     cactus_call(parameters=["halSetMetadata", hal_path, "CACTUS_COMMIT", cactus_commit])
     config_path = os.path.join(work_dir, 'config.xml')
@@ -300,11 +323,11 @@ def progressive_workflow(job, options, config_node, mc_tree, og_map, input_seq_i
     ''' run the entire progressive workflow '''
 
     # run the usual unzip / rename, even before preprocessing
-    sanitize_job = job.addChildJobFn(sanitize_fasta_headers, input_seq_id_map)
+    sanitize_job = job.addChildJobFn(sanitize_fasta_headers, input_seq_id_map, walltime=cactus_walltime())
     
     # start with the preprocessor
     if not options.skipPreprocessor:
-        pp_job = sanitize_job.addFollowOnJobFn(preprocess_all, options, config_node, sanitize_job.rv())
+        pp_job = sanitize_job.addFollowOnJobFn(preprocess_all, options, config_node, sanitize_job.rv(), walltime=cactus_walltime())
         seq_id_map = pp_job.rv()
         sanitize_job = pp_job
     else:
@@ -322,16 +345,25 @@ def progressive_workflow(job, options, config_node, mc_tree, og_map, input_seq_i
         scaled_tree = get_ancestor_scaled_tree(mc_tree, root_event, max_div,
                                                branch_scale=options.branchScale,
                                                upweight_ancestors=upweight_ancestors)
-    progressive_job = sanitize_job.addFollowOnJobFn(progressive_schedule, options, config_node, seq_id_map, scaled_tree, og_map, root_event)
+    # progressive_schedule builds one job per ancestor, and the get_subtree() it does for each
+    # is O(tree size): 31 ms per ancestor measured on the 577-way's 1153-node tree, so ~18 s for
+    # the whole of it, plus Toil writing out the 576 job descriptions.  Keying off the ancestor
+    # count keeps a tree much bigger than that from being clipped; anything ordinary floors.
+    progressive_job = sanitize_job.addFollowOnJobFn(progressive_schedule, options, config_node, seq_id_map, scaled_tree, og_map, root_event,
+                                                    walltime=cactus_walltime(0.2 * len(scaled_tree.getSubtreeRootNames())))
 
     # then do the hal export
+    # the first export_hal pass stages nothing: it resolves the c2h/fasta promises into sizes and
+    # re-dispatches itself with them, and that resourced pass sizes its own walltime
     hal_export_job = progressive_job.addFollowOnJobFn(export_hal, mc_tree, config_node, seq_id_map, og_map,
-                                                      progressive_job.rv(), event=root_event, memory_override=options.consMemory)
+                                                      progressive_job.rv(), event=root_event, memory_override=options.consMemory,
+                                                      walltime=cactus_walltime())
 
     return hal_export_job.rv()
 
 def main():
     parser = Job.Runner.getDefaultArgumentParser()
+    add_cactus_toil_options(parser)
 
     parser.add_argument("seqFile", help = "Seq file")
     parser.add_argument("outputHal", type=str, help = "Output HAL file")
@@ -496,7 +528,7 @@ def main():
             loadDnaBrnnModel(toil, config_node)
 
             # run the whole workflow
-            hal_id = toil.start(Job.wrapJobFn(progressive_workflow, options, config_node, mc_tree, og_map, input_seq_id_map))
+            hal_id = toil.start(Job.wrapJobFn(progressive_workflow, options, config_node, mc_tree, og_map, input_seq_id_map, walltime=cactus_walltime()))
 
         toil.exportFile(hal_id, makeURL(options.outputHal))
     

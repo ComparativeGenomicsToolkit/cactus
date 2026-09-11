@@ -28,7 +28,7 @@ import xml.etree.ElementTree as ET
 
 from cactus.progressive.seqFile import SeqFile
 from cactus.progressive.cactus_prepare import human2bytesN
-from cactus.shared.common import importSingularityImage
+from cactus.shared.common import importSingularityImage, cactus_walltime, add_cactus_toil_options
 from cactus.shared.common import makeURL
 from cactus.shared.common import cactus_call
 from cactus.shared.common import cactus_clamp_memory
@@ -50,6 +50,7 @@ from toil.realtimeLogger import RealtimeLogger
 
 def main():
     parser = Job.Runner.getDefaultArgumentParser()
+    add_cactus_toil_options(parser)
 
     parser.add_argument("seqFile", nargs='?', default=None,
                         help = "Seq file (as with cactus-pangenome), or, with --batch, a chromfile with one "
@@ -244,7 +245,7 @@ def main():
                                    mask_bed_ids, target_error_bed_ids))
 
             toil.start(Job.wrapJobFn(panpatch_batch_workflow, options, config_wrapper, run_inputs,
-                                     exclude_bed_id))
+                                     exclude_bed_id, walltime=cactus_walltime()))
 
     end_time = timeit.default_timer()
     run_time = end_time - start_time
@@ -588,6 +589,31 @@ def pangenome_dir(options, run):
     """ where a run's intermediate cactus-pangenome output goes (deleted on success) """
     return os.path.join(options.outDir, run['name'] + '.cactus-scratch')
 
+# Walltime estimates for the jobs below.  cactus-panpatch is newer than any run we have logs for,
+# so none of these three rates was measured on it: each is the slow end of the nearest thing that
+# was measured, and each covers one job per sample or one per chromosome graph.
+
+# Bytes of input assembly per second for the error-masking pass, which rewrites the whole assembly
+# in a pure-python per-line loop -- an order of magnitude slower per byte than the compiled
+# cactus_sanitizeFastaHeaders that reads its output.  Reckoned against the FileID's size, which is
+# the *compressed* size when the input is gzipped even though the loop runs over the ~3x larger
+# sequence, so keep it pessimistic.
+MASK_FASTA_BYTES_PER_SEC = 4e6
+
+# Bytes of chromosome graph per second for one single-threaded panpatch job.  panpatch itself takes
+# a couple of minutes on a whole human pangenome (see the module docstring); what dominates is
+# loading the graph, and it gets loaded twice -- once by the `vg paths -L -x` that lists the samples
+# in it, once by panpatch.  20 MB/s is the slow end of the vg graph loads measured on the HPRC v2.1
+# chromosome graphs (`vg paths` p90 165s, `vg paths|awk` p90 471s, on graphs of ~24 GiB).
+PANPATCH_BYTES_PER_SEC = 20e6
+
+# Bytes of output assembly per second for the gather pass: single-threaded bgzip of each output
+# haplotype (21-27 MB/s, measured on the HPRC PAFs -- see GZIP_COMPRESS_BYTES_PER_SEC in
+# cactus.shared.common),
+# plus two whole-genome python passes over it (the masked-target revert and the dropped-contig
+# rescue) plus panpatch's telomere report over each finished fasta.
+GATHER_BYTES_PER_SEC = 8e6
+
 def panpatch_batch_workflow(job, options, config_wrapper, run_inputs, exclude_bed_id):
     """ patch each sample.  the runs are completely independent of each other: they share no input
     files in the jobstore (see the import loop in main()) """
@@ -595,10 +621,11 @@ def panpatch_batch_workflow(job, options, config_wrapper, run_inputs, exclude_be
     for run, pg_options, seq_id_map, seq_path_map, seq_order, ref_collapse_paf_id, last_scores_id, target_fasta_ids, mask_bed_ids, target_error_bed_ids in run_inputs:
         run_job = job.addChildJobFn(panpatch_run_workflow, options, pg_options, config_wrapper, run, seq_id_map,
                                     seq_path_map, seq_order, ref_collapse_paf_id, last_scores_id, exclude_bed_id,
-                                    target_fasta_ids, mask_bed_ids, target_error_bed_ids)
+                                    target_fasta_ids, mask_bed_ids, target_error_bed_ids,
+                                    walltime=cactus_walltime())
         summaries.append((run['name'], run_job.rv()))
     # once every sample is done, roll the per-sample reports up into one cross-sample summary
-    job.addFollowOnJobFn(write_batch_summary, options, summaries)
+    job.addFollowOnJobFn(write_batch_summary, options, summaries, walltime=cactus_walltime())
 
 def mask_assembly_errors(job, fasta_id, bed_id):
     """ return a copy of an input assembly fasta with each error-BED interval replaced by an equal-length
@@ -666,18 +693,21 @@ def panpatch_run_workflow(job, options, pg_options, config_wrapper, run, seq_id_
     for sample, bed_id in mask_bed_ids.items():
         mask_job = job.addChildJobFn(mask_assembly_errors, seq_id_map[sample], bed_id,
                                      disk=seq_id_map[sample].size * 4 + 2**30,
-                                     memory=cactus_clamp_memory(max(2**32, seq_id_map[sample].size * 2)))
+                                     memory=cactus_clamp_memory(max(2**32, seq_id_map[sample].size * 2)),
+                                     walltime=cactus_walltime(seq_id_map[sample].size / MASK_FASTA_BYTES_PER_SEC,
+                                                              io_bytes=seq_id_map[sample].size * 4))
         masked[sample] = mask_job.rv()
 
     # the pangenome runs as a follow-on so any masking children have completed first (their promises
     # resolved); a follow-on of the job hosting the pangenome then runs once its entire child subtree is
     # done, which is what makes panpatch_workflow safe
     pangenome_job = job.addFollowOnJobFn(pangenome_end_to_end_workflow, pg_options, config_wrapper, masked,
-                                         seq_path_map, seq_order, ref_collapse_paf_id, last_scores_id)
+                                         seq_path_map, seq_order, ref_collapse_paf_id, last_scores_id,
+                                         walltime=cactus_walltime())
     # return the run's output-file map (its report id feeds the cross-sample batch summary)
     return pangenome_job.addFollowOnJobFn(panpatch_workflow, options, run, pangenome_job.rv(0), pangenome_job.rv(1),
                                           pangenome_job.rv(2), exclude_bed_id, target_fasta_ids,
-                                          target_error_bed_ids).rv()
+                                          target_error_bed_ids, walltime=cactus_walltime()).rv()
 
 def panpatch_workflow(job, options, run, join_options, join_wf_output, seq_id_map, exclude_bed_id, target_fasta_ids,
                       target_error_bed_ids):
@@ -717,7 +747,9 @@ def panpatch_workflow(job, options, run, join_options, join_wf_output, seq_id_ma
             mem = min(mem, options.indexMemory)
         cj = job.addChildJobFn(run_panpatch_chrom, options, run, vg_id, vg_name, exclude_bed_id,
                                target_error_bed_ids,
-                               cores=1, memory=mem, disk=vg_id.size * 4 + 2**30)
+                               cores=1, memory=mem, disk=vg_id.size * 4 + 2**30,
+                               walltime=cactus_walltime(vg_id.size / PANPATCH_BYTES_PER_SEC,
+                                                        io_bytes=vg_id.size))
         chrom_jobs.append(cj)
 
     # gather the per-chromosome outputs, rescue dropped contigs, and bgzip.  the concatenated fastas
@@ -731,9 +763,15 @@ def panpatch_workflow(job, options, run, join_options, join_wf_output, seq_id_ma
     gather_job = job.addFollowOnJobFn(gather_panpatch, options, run, [cj.rv() for cj in chrom_jobs],
                                       target_fasta_ids, target_error_bed_ids,
                                       memory=cactus_clamp_memory(max(2**32, gather_mem)),
-                                      disk=gather_disk)
+                                      disk=gather_disk,
+                                      walltime=cactus_walltime(run['ploidy'] * ref_size / GATHER_BYTES_PER_SEC,
+                                                               io_bytes=gather_disk))
+    # this copies the patched assemblies out, and with --keepGraphs every chromosome graph too,
+    # so it is bounded by the same bytes its disk request is
+    export_bytes = sum(vg_id.size for vg_id in full_vg_ids) * 2 + 2**30
     gather_job.addFollowOnJobFn(export_panpatch_wrapper, options, run, gather_job.rv(), full_vg_ids, vg_names,
-                                disk=sum(vg_id.size for vg_id in full_vg_ids) * 2 + 2**30)
+                                disk=export_bytes,
+                                walltime=cactus_walltime(0, io_bytes=export_bytes))
     # surface this run's output-file map (incl. its report id) up to the cross-sample batch summary
     return gather_job.rv()
 
@@ -1138,7 +1176,10 @@ def export_panpatch_wrapper(job, options, run, output_id_map, full_vg_ids, vg_na
             job.fileStore.exportFile(vg_id, makeURL(os.path.join(chrom_dir, vg_name)))
 
     if not options.keepPangenome:
-        job.addFollowOnJobFn(cleanup_pangenome_wrapper, options, run)
+        # deleting the scratch tree costs one operation per file (~n_chroms * n_genomes of them),
+        # not one per byte: seconds of rmtree locally, but a serial paginated delete loop on an
+        # s3:// outDir, which is why it is off the coordination tier
+        job.addFollowOnJobFn(cleanup_pangenome_wrapper, options, run, walltime=cactus_walltime(600))
 
 def concat_reports(chrom_report_paths, cap_lines, out_path):
     """ concatenate the per-chromosome panpatch reports (in the order given) into one sample report:

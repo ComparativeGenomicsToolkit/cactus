@@ -19,7 +19,7 @@ from toil.statsAndLogging import logger
 from sonLib.bioio import getTempDirectory
 from toil.common import Toil
 from toil.job import Job
-from cactus.shared.common import cactus_call
+from cactus.shared.common import cactus_call, cactus_walltime, WALLTIME_COORDINATION
 from cactus.shared.common import RoundedJob
 from cactus.shared.common import getOptionalAttrib, findRequiredNode
 from cactus.shared.common import runGetChunks
@@ -36,7 +36,7 @@ from cactus.shared.version import cactus_commit
 from toil.statsAndLogging import set_logging_from_options
 from toil.realtimeLogger import RealtimeLogger
 
-from cactus.shared.common import cactus_override_toil_options
+from cactus.shared.common import cactus_override_toil_options, add_cactus_toil_options
 from cactus.preprocessor.checkUniqueHeaders import checkUniqueHeaders
 from cactus.preprocessor.lastzRepeatMasking.cactus_lastzRepeatMask import LastzRepeatMaskJob
 from cactus.preprocessor.lastzRepeatMasking.cactus_lastzRepeatMask import RepeatMaskOptions
@@ -49,6 +49,30 @@ from cactus.preprocessor.fileMasking import maskJobOverride, FileMaskingJob
 from cactus.preprocessor.checkPreprocessedSequence import check_sequence_preserved
 from cactus.preprocessor.checkPreprocessedSequence import preprocessed_fasta_id
 from cactus.progressive.cactus_prepare import human2bytesN
+
+# Seconds per GB of fasta for the jobs here that make one linear pass over a whole genome.
+# Micro-benchmarked on a 210 MB fasta, and unchanged between a 52-scaffold and a 10309-contig
+# version of it: the Bio.SeqIO parse-and-rewrite of CheckUniqueHeaders 12 s/GB, the unmaskFasta
+# uppercase loop 9 s/GB, checkPreprocessedSequence's crc32 digest 1.5 s/GB per file.  The one
+# tool in the group, `faffy merge`, is covered too: faffy chunk and faffy extract managed
+# ~33 s/GB across the VGP 577-way (n=8040, p99 67 s on ~2 GB genomes).  40 is the slowest of
+# those with margin for a contended cluster worker; cactus_walltime's factor takes the
+# effective allowance to 100 s/GB.
+FASTA_PASS_SECS_PER_GB = 40
+
+# Seconds per GB of a --maskFile.  See the call site in maskJobOverride below for provenance.
+MASK_FILE_SECS_PER_GB = 300
+
+def fasta_pass_walltime(size, passes=1, io_multiple=2):
+    """ Walltime for a job that makes `passes` linear passes over a fasta of `size` bytes and
+    stages `io_multiple` times that size through the jobstore.
+
+    size is None where the input is still a promise, which has no size at scheduling time; that
+    gives no estimate at all rather than a wrong one, leaving the job on --defaultWalltime. """
+    if not size:
+        return cactus_walltime(None)
+    return cactus_walltime(passes * FASTA_PASS_SECS_PER_GB * size / 1e9,
+                           io_bytes=io_multiple * size)
 
 class PreprocessorOptions:
     def __init__(self, chunkSize, memory, cpu, check, proportionToSample, unmask,
@@ -95,7 +119,8 @@ class CheckUniqueHeaders(RoundedJob):
         disk = 2*inChunkID.size
         memory = max(prepOptions.memory, inChunkID.size)
         RoundedJob.__init__(self, memory=memory, cores=prepOptions.cpu, disk=disk,
-                     preemptable=True)
+                     preemptable=True,
+                     walltime=fasta_pass_walltime(inChunkID.size))
         self.prepOptions = prepOptions
         self.inChunkID = inChunkID
 
@@ -111,7 +136,7 @@ class CheckUniqueHeaders(RoundedJob):
 
 class MergeChunks(RoundedJob):
     def __init__(self, prepOptions, chunkIDList):
-        RoundedJob.__init__(self, preemptable=True)
+        RoundedJob.__init__(self, preemptable=True, walltime=cactus_walltime())
         self.prepOptions = prepOptions
         self.chunkIDList = chunkIDList
 
@@ -121,9 +146,11 @@ class MergeChunks(RoundedJob):
 class MergeChunks2(RoundedJob):
     """merge a list of chunks into a fasta file"""
     def __init__(self, prepOptions, chunkIDList):
-        disk = 2*sum([chunkID.size for chunkID in chunkIDList])
+        total_size = sum([chunkID.size for chunkID in chunkIDList])
+        disk = 2*total_size
         RoundedJob.__init__(self, cores=prepOptions.cpu, memory=prepOptions.memory, disk=disk,
-                     preemptable=True)
+                     preemptable=True,
+                     walltime=fasta_pass_walltime(total_size))
         self.prepOptions = prepOptions
         self.chunkIDList = chunkIDList
 
@@ -143,9 +170,16 @@ class PreprocessSequence(RoundedJob):
     """Cut a sequence into chunks, process, then merge
     """
     def __init__(self, prepOptions, inSequenceID, chunksToCompute=None):
-        disk = 3*inSequenceID.size if hasattr(inSequenceID, "size") else None
+        in_size = inSequenceID.size if hasattr(inSequenceID, "size") else None
+        disk = 3*in_size if in_size else None
+        # in the default unchunked config this job is only a genome-sized jobstore round trip,
+        # but Toil chains its single mask-job child into it whenever the child's memory, cores
+        # and disk fit: the VGP 577-way preprocess log demanded 577 CheckUniqueHeaders and only
+        # ever issued 259 of them as batch jobs, so the other ~318 ran inside their parent.  So
+        # it has to carry that child's fasta pass and its output as well as our own staging.
         RoundedJob.__init__(self, memory=prepOptions.memory, disk=disk,
-                     preemptable=True)
+                     preemptable=True,
+                     walltime=fasta_pass_walltime(in_size, passes=2, io_multiple=3))
         self.prepOptions = prepOptions
         self.inSequenceID = inSequenceID
         self.chunksToCompute = chunksToCompute
@@ -268,11 +302,17 @@ def unmaskFasta(inFasta, outFasta):
                 out.write(line)
 
 class BatchPreprocessor(RoundedJob):
-    def __init__(self, prepXmlElems, inSequenceID, iteration = 0):
+    def __init__(self, prepXmlElems, inSequenceID, iteration = 0, inSequenceSize=None):
         self.prepXmlElems = prepXmlElems
         self.inSequenceID = inSequenceID
         self.iteration = iteration
-        RoundedJob.__init__(self, preemptable=True)
+        if inSequenceSize is None and hasattr(inSequenceID, "size"):
+            inSequenceSize = inSequenceID.size
+        # not the coordination tier: a preprocessor with unmask="1" -- dna-brnn in the default
+        # config, and whichever masker unmasking.py picks in remask mode -- reads the whole
+        # genome out of the jobstore, uppercases it in python and writes it back
+        RoundedJob.__init__(self, preemptable=True,
+                            walltime=fasta_pass_walltime(inSequenceSize))
 
     def run(self, fileStore):
         # Parse the "preprocessor" config xml element
@@ -282,6 +322,7 @@ class BatchPreprocessor(RoundedJob):
 
         prepNode = self.prepXmlElems[self.iteration]
         checkJob = None
+        inSize = self.inSequenceID.size if hasattr(self.inSequenceID, "size") else None
         if getOptionalAttrib(prepNode, "active", typeFn = bool, default=True):
             prepOptions = PreprocessorOptions(chunkSize = int(prepNode.get("chunkSize", default="-1")),
                                               preprocessJob=prepNode.attrib["preprocessJob"],
@@ -319,12 +360,15 @@ class BatchPreprocessor(RoundedJob):
             outSeqID = ppJob.rv()
             # make sure the step only masked/renamed, and did not corrupt the sequence.
             # this has to run before clean_if_different, which drops the input file.
-            inSize = self.inSequenceID.size if hasattr(self.inSequenceID, "size") else None
+            # it pulls both whole genomes out of the jobstore before either crc32 pass starts,
+            # so it is an I/O job rather than a coordination one
             checkJob = self.addFollowOnJobFn(check_preprocessed_sequence, self.inSequenceID, outSeqID,
                                              prepOptions.preprocessJob, prepOptions.eventName,
                                              prepOptions.dnabrnnAction,
-                                             disk=3*inSize if inSize else None)
-            checkJob.addFollowOnJobFn(clean_if_different, self.inSequenceID, outSeqID)
+                                             disk=3*inSize if inSize else None,
+                                             walltime=fasta_pass_walltime(inSize))
+            checkJob.addFollowOnJobFn(clean_if_different, self.inSequenceID, outSeqID,
+                                      walltime=cactus_walltime())
         else:
             logger.info("Skipping inactive preprocessor {}".format(prepNode.attrib["preprocessJob"]))
             outSeqID = self.inSequenceID
@@ -334,7 +378,10 @@ class BatchPreprocessor(RoundedJob):
             # starts by deleting its input, which is the very file the check reads as
             # its output, and follow-ons of the same job would otherwise race
             previous = checkJob if checkJob is not None else self
-            return previous.addFollowOn(BatchPreprocessor(self.prepXmlElems, outSeqID, self.iteration + 1)).rv()
+            # outSeqID is a promise, so the next iteration cannot size itself off it; no
+            # preprocessor changes the sequence length except by clipping, so our input stands in
+            return previous.addFollowOn(BatchPreprocessor(self.prepXmlElems, outSeqID, self.iteration + 1,
+                                                          inSequenceSize=inSize)).rv()
         else:
             return outSeqID
 
@@ -374,7 +421,22 @@ class CactusPreprocessor(RoundedJob):
     """Modifies the input genomes, doing things like masking/checking, etc.
     """
     def __init__(self, inputSequenceIDs, configNode, eventNames=[]):
-        RoundedJob.__init__(self, disk=sum([id.size for id in inputSequenceIDs if hasattr(id, 'size')]), preemptable=True)
+        in_bytes = sum([id.size for id in inputSequenceIDs if hasattr(id, 'size')])
+        # run() only deepcopies the config and adds one child per genome -- it stages nothing.
+        # In the VGP 577-way preprocess log this job was issued at 20:58:28 and its 577 children
+        # at 21:00:05: 97 s covering the Slurm queue, worker startup and 577 child
+        # serializations, so ~0.1 s per child.  0.25 s per child is twice that, and below ~1900
+        # genomes it is indistinguishable from the bare coordination tier.
+        #
+        # The exception is a one-genome fan-out (unmasking.py's remask, cactus_progressive.py's
+        # per-ingroup preprocess): Toil chains a lone successor into the same worker, so there
+        # the parent has to cover the child's pass over the fasta as well.  A real fan-out does
+        # not, and must not price in every genome it schedules.
+        chained_bytes = in_bytes if len(inputSequenceIDs) == 1 else 0
+        RoundedJob.__init__(self, disk=in_bytes, preemptable=True,
+                            walltime=cactus_walltime(WALLTIME_COORDINATION + 0.25 * len(inputSequenceIDs)
+                                                     + FASTA_PASS_SECS_PER_GB * chained_bytes / 1e9,
+                                                     io_bytes=2 * chained_bytes))
         self.inputSequenceIDs = inputSequenceIDs
         self.configNode = configNode
         self.eventNames = eventNames
@@ -406,7 +468,12 @@ class CactusPreprocessor(RoundedJob):
 
 class CactusPreprocessor2(RoundedJob):
     def __init__(self, inputSequenceID, configNode):
-        RoundedJob.__init__(self, preemptable=True)
+        # the body only adds one BatchPreprocessor child, but Toil chains a single successor
+        # into its predecessor when the successor's memory, cores and disk fit, and these two
+        # both take the defaults -- so this has to cover a BatchPreprocessor iteration, which
+        # reads and rewrites the whole genome when the preprocessor it runs has unmask="1"
+        in_size = inputSequenceID.size if hasattr(inputSequenceID, "size") else None
+        RoundedJob.__init__(self, preemptable=True, walltime=fasta_pass_walltime(in_size))
         self.inputSequenceID = inputSequenceID
         self.configNode = configNode
 
@@ -461,7 +528,7 @@ def stageWorkflow(outputSequenceDir, configNode, inputSequences, toil, restart=F
             inputSequenceIDs.append(toil.importFile(makeURL(seq)))
         maskFileID = toil.importFile(makeURL(maskFile)) if maskFile else None
         unzip_job = Job.wrapJobFn(unzip_then_pp, configNode, inputSequences, inputSequenceIDs, inputEventNames,
-                                  maskFile, maskFileID, maskAction, minLength)
+                                  maskFile, maskFileID, maskAction, minLength, walltime=cactus_walltime())
         outputSequenceIDs = toil.start(unzip_job)
     else:
         outputSequenceIDs = toil.restart()
@@ -477,13 +544,20 @@ def stageWorkflow(outputSequenceDir, configNode, inputSequences, toil, restart=F
 
 def unzip_then_pp(job, config_node, input_fa_paths, input_fa_ids, input_event_names, mask_file_path, mask_file_id, mask_file_action, min_length):
     """ unzip then preprocess """
-    unzip_job = job.addChildJobFn(unzip_gzs, input_fa_paths, input_fa_ids)
+    unzip_job = job.addChildJobFn(unzip_gzs, input_fa_paths, input_fa_ids, walltime=cactus_walltime())
     if mask_file_id is not None:
-        mask_unzip_job = unzip_job.addChildJobFn(unzip_gzs, [mask_file_path], [mask_file_id])
+        mask_unzip_job = unzip_job.addChildJobFn(unzip_gzs, [mask_file_path], [mask_file_id], walltime=cactus_walltime())
+        # a PAF mask file gets one pafcoverage scan of the whole thing; the nearest measured
+        # analogue is filter-paf-deletions over a whole-pangenome PAF (HPRC v2.1, n=26, p99
+        # 701 s), hence MASK_FILE_SECS_PER_GB.  mask_file_id.size is the *compressed* size when
+        # the mask file is gzipped, which is why the rate is this high and why disk is 20x.  For
+        # a plain BED the job is pure XML rewriting and this collapses to the walltime floor.
         config_node = mask_unzip_job.addFollowOnJobFn(maskJobOverride, config_node, mask_file_path, mask_unzip_job.rv(0), mask_file_action, min_length,
-                                                      disk=mask_file_id.size*20).rv()
+                                                      disk=mask_file_id.size*20,
+                                                      walltime=cactus_walltime(MASK_FILE_SECS_PER_GB * mask_file_id.size / 1e9,
+                                                                               io_bytes=4 * mask_file_id.size)).rv()
     pp_job = unzip_job.addFollowOn(CactusPreprocessor([unzip_job.rv(i) for i in range(len(input_fa_ids))], config_node, eventNames=input_event_names))
-    zip_job = pp_job.addFollowOnJobFn(zip_gzs, input_fa_paths,  pp_job.rv(), list_elems = [0])
+    zip_job = pp_job.addFollowOnJobFn(zip_gzs, input_fa_paths,  pp_job.rv(), list_elems = [0], walltime=cactus_walltime())
     return zip_job.rv()
     
 def runCactusPreprocessor(outputSequenceDir, configFile, inputSequences, toilDir):
@@ -495,6 +569,7 @@ def runCactusPreprocessor(outputSequenceDir, configFile, inputSequences, toilDir
 
 def main():
     parser = Job.Runner.getDefaultArgumentParser()
+    add_cactus_toil_options(parser)
     parser.add_argument("inSeqFile", type=str, nargs='?', default=None, help = "Input Seq file")
     parser.add_argument("outSeqFile", type=str, nargs='?', default=None, help = "Output Seq file (ex generated with cactus-prepare)")
     parser.add_argument("--configFile", default=os.path.join(cactusRootPath(), "cactus_progressive_config.xml"))
