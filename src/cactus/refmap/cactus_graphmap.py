@@ -569,9 +569,32 @@ def minigraph_map_one(job, config, event_name, fa_file_id, gfa_file_id):
     min_block = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "minGAFBlockLength", typeFn=int, default=0)
     min_mapq = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "minMAPQ", typeFn=int, default=0)
     min_ident = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "minIdentity", typeFn=float, default=0)    
+    overlap_trim = getOptionalAttrib(xml_node, "GAFOverlapFilterTrim", typeFn=bool, default=False)
+    trim_min_gap = getOptionalAttrib(xml_node, "GAFOverlapFilterTrimMinGap", typeFn=int, default=10000)
+    trim_length_ratio = getOptionalAttrib(xml_node, "GAFOverlapFilterTrimMinLengthRatio", typeFn=float,
+                                          default=0)
+    trim_rescue = getOptionalAttrib(xml_node, "GAFOverlapFilterTrimRescueWeak", typeFn=bool, default=False)
     if overlap_ratio:
-        cmd = [cmd, ['gaffilter', '-', '-r', str(overlap_ratio), '-m', str(length_ratio), '-q', str(min_mapq),
-                     '-b', str(min_block), '-i', str(min_ident)]]
+        if overlap_trim:
+            # GAFOverlapFilterMinLengthRatio exists because deletion is expensive: it stops a small
+            # overlap from destroying a whole record.  A trim costs only the contested span, so the
+            # guard has nothing left to protect and instead leaves small conflicts between long
+            # contigs unadjudicated -- measured on a 12-sample chr15 graph, keeping it at 0.25 while
+            # trimming doubly places 409,584 bp on one segmental-duplication pair that 0 does not.
+            # So the trim takes its own ratio, defaulting to 0, rather than silently inheriting one
+            # that was tuned for the other action.
+            length_ratio = trim_length_ratio
+        overlap_cmd = ['gaffilter', '-', '-r', str(overlap_ratio), '-m', str(length_ratio), '-q', str(min_mapq),
+                       '-b', str(min_block), '-i', str(min_ident)]
+        if overlap_trim:
+            # cut the contested span out of a losing record instead of deleting the record whole.
+            # -l: the unstable GAF names bare nodes, so gaffilter needs their lengths to shorten a
+            # path.  gaf2unstable writes that file in full before it emits its first GAF line, so
+            # it is complete by the time gaffilter, which reads all of its input first, opens it.
+            overlap_cmd += ['-t', '-g', str(trim_min_gap), '-l', mg_lengths_path]
+            if trim_rescue:
+                overlap_cmd += ['-R']
+        cmd = [cmd, overlap_cmd]
     cactus_call(parameters=cmd, outfile=unstable_gaf_path, job_memory=job.memory)
 
     # convert the unstable gaf into unstable paf, which is what cactus expects
