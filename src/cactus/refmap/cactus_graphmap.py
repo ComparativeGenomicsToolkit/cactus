@@ -574,6 +574,7 @@ def minigraph_map_one(job, config, event_name, fa_file_id, gfa_file_id):
     trim_length_ratio = getOptionalAttrib(xml_node, "GAFOverlapFilterTrimMinLengthRatio", typeFn=float,
                                           default=0)
     trim_rescue = getOptionalAttrib(xml_node, "GAFOverlapFilterTrimRescueWeak", typeFn=bool, default=False)
+    trim_edge = getOptionalAttrib(xml_node, "GAFOverlapFilterTrimEdge", typeFn=int, default=5000)
     if overlap_ratio:
         if overlap_trim:
             # GAFOverlapFilterMinLengthRatio exists because deletion is expensive: it stops a small
@@ -591,7 +592,8 @@ def minigraph_map_one(job, config, event_name, fa_file_id, gfa_file_id):
             # -l: the unstable GAF names bare nodes, so gaffilter needs their lengths to shorten a
             # path.  gaf2unstable writes that file in full before it emits its first GAF line, so
             # it is complete by the time gaffilter, which reads all of its input first, opens it.
-            overlap_cmd += ['-t', '-g', str(trim_min_gap), '-l', mg_lengths_path]
+            overlap_cmd += ['-t', '-g', str(trim_min_gap), '-e', str(trim_edge),
+                            '-l', mg_lengths_path]
             if trim_rescue:
                 overlap_cmd += ['-R']
         cmd = [cmd, overlap_cmd]
