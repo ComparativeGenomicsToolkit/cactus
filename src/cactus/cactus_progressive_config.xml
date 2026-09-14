@@ -394,11 +394,8 @@
 	<!-- GAFOverlapFilterRatio: filter overlapping (by query) gaf records. keep records if their MAPQ or query length are <ratio> bigger than overlapping interval (see gaffilter -r) [0=disable] -->
 	<!-- GAFOverlapFilterMinLengthRatio: only consider overlaps (for above) whose lengths represent at least this much (ratio between 0 and 1) of the block length -->
 	<!-- GAFOverlapFilterTrim: when a gaf record loses an overlap, cut the contested span out of it and keep the rest, instead of deleting the whole record (see gaffilter -t). The record's uncontested flanks are not what the overlap was about, and on contiguous assemblies they are most of it [0=disable]. REQUIRES a gaffilter built with -t: the commit pinned in build-tools/downloadPangenomeTools must be at or after the one adding it, otherwise every minigraph_map_one job fails on the unknown option -->
-	<!-- GAFOverlapFilterTrimMinLengthRatio: GAFOverlapFilterMinLengthRatio, but used when GAFOverlapFilterTrim is on. Defaults to 0: that guard exists because deleting a whole record is expensive, and a trim is not, so with trimming on it only leaves small conflicts between long contigs unadjudicated -->
 	<!-- GAFOverlapFilterTrimMinMAPQ: with trimming on, a record that loses an overlap and whose own mapq is under this is deleted whole, as it would be with trimming off. Losing an overlap was always evidence about the whole record and not only about the overlapping part, so the trim is confined to records that stand up on their own. Measured on HPRC v2.1 at 20: chr15 loses 0.04% of what the trim keeps, chr9 5%, chr21 19%, i.e. it is free where the recovery is and bites only where the survivors look unreliable -->
 	<!-- GAFOverlapFilterTrimEdge: with trimming on, also cut this many bases beyond each side of a contested span. The bases butting up against an overlap are the least certain part of the alignment. 5000 is deliberately half the cactus-graphmap-join clip threshold: where only the losing record pulls back, the gap it leaves is this size and is therefore carried rather than clipped -->
-	<!-- GAFOverlapFilterTrimMinGap: with trimming on, only an unaligned hole longer than this, with alignment still standing on both sides, is worth closing at all. Matches the cactus-graphmap-join clip option, which only breaks a path on unaligned stretches longer than its own threshold -->
-	<!-- GAFOverlapFilterTrimRescueWeak: close such a hole by handing the span to the best claimant. Off by default, and deliberately: no such choice can meet the bar GAFOverlapFilterRatio sets, so leaving the hole is the conservative action. A hole clips sequence out of the graph; a wrong placement puts a wrong alignment into it -->
 	<!-- PAFOverlapFilterRatio: Same as GAFOverlapFilterRatio, but applied after conversion to PAF -->
 	<!-- PAFOverlapFilterMinLengthRatio: Same as GAFOverlapFilterMinLengthRatio, but applies after conversion to PAF -->
 	<!-- maskFilter: any softmasked sequence intervals > than this many bp will be hardmasked before being read by the minigraph mapper [negative value = disable]-->
@@ -425,11 +422,8 @@
 		 GAFOverlapFilterRatio="5"
 		 GAFOverlapFilterMinLengthRatio="0.25"
 		 GAFOverlapFilterTrim="0"
-		 GAFOverlapFilterTrimMinLengthRatio="0"
 		 GAFOverlapFilterTrimMinMAPQ="20"
 		 GAFOverlapFilterTrimEdge="5000"
-		 GAFOverlapFilterTrimMinGap="10000"
-		 GAFOverlapFilterTrimRescueWeak="0"
 		 PAFOverlapFilterRatio="5"
 		 PAFOverlapFilterMinLengthRatio="0"
 		 maskFilter="-1"
