@@ -9,6 +9,7 @@ import copy
 import timeit
 import shutil
 import re
+import gzip
 
 from operator import itemgetter
 
@@ -25,11 +26,12 @@ from cactus.shared.common import getOptionalAttrib, findRequiredNode
 from cactus.shared.common import unzip_gz, write_s3
 from cactus.shared.common import get_faidx_subpath_rename_cmd
 from cactus.shared.common import cactus_clamp_memory
+from cactus.shared.common import clean_jobstore_files
 from cactus.shared.version import cactus_commit
 from cactus.preprocessor.fileMasking import get_mask_bed_from_fasta
 from cactus.preprocessor.checkUniqueHeaders import sanitize_fasta_headers
 from cactus.refmap.cactus_graphmap import filter_paf, apply_mgsplit_filter_overrides
-from cactus.refmap.cactus_minigraph import check_sample_names, minigraph_gfa_from_pansn
+from cactus.refmap.cactus_minigraph import check_sample_names, minigraph_gfa_from_pansn, minigraph_gfa_to_pansn
 from toil.job import Job
 from toil.common import Toil
 from toil.statsAndLogging import logger
@@ -468,8 +470,8 @@ def split_gfa(job, config, gfa_id, paf_ids, ref_contigs, other_contig, reference
             
     return output_id_map, job.fileStore.writeGlobalFile(log_path)
 
-def count_ref_contigs(gfa_path):
-    """ the number of distinct reference contigs in a minigraph GFA, ie its rank-0 (SR:i:0) sources """
+def ref_contig_names(gfa_path):
+    """ the distinct reference contigs in a minigraph GFA, ie its rank-0 (SR:i:0) sources """
     ref_contigs = set()
     with open(gfa_path, 'r') as gfa_file:
         for line in gfa_file:
@@ -479,46 +481,126 @@ def count_ref_contigs(gfa_path):
                 sr = [t[5:] for t in toks if t.startswith('SR:i:')]
                 if sn and sr and sr[0] == '0':
                     ref_contigs.add(sn[0])
-    return len(ref_contigs)
+    return ref_contigs
+
+def strip_event_prefix(name):
+    """ turn an rgfa-split bin name like id=CHM13|chr2 into chr2, the way split_gfa does """
+    if name.startswith('id=') and name.find('|') > 3:
+        return name[name.find('|') + 1:]
+    return name
+
+def cat_paths(in_paths, out_path):
+    """ catFiles() interpolates its arguments into a shell command unquoted, so it cannot take a path
+    holding a shell metacharacter.  these paths are rgfa-split bins, named after reference contigs
+    whose sanitized form is id=EVENT|CONTIG -- don't make the concatenation depend on whether the
+    prefix survives into the filename """
+    with open(out_path, 'wb') as out_file:
+        for in_path in in_paths:
+            with open(in_path, 'rb') as in_file:
+                shutil.copyfileobj(in_file, out_file)
+
+def read_fasta_names(path):
+    """ the sequence names in a fasta, which may or may not be compressed """
+    with open(path, 'rb') as fa_file:
+        is_gzipped = fa_file.read(2) == b'\x1f\x8b'
+    opener = gzip.open if is_gzipped else open
+    names = set()
+    with opener(path, 'rt') as fa_file:
+        for line in fa_file:
+            if line.startswith('>'):
+                names.add(line[1:].split()[0])
+    return names
+
+def bins_for_chrom(chrom, ref_contigs, bin_ref_contigs):
+    """ which of a graph's reference contigs belong to one chromosome's bin.  a normal chromosome owns
+    the contig it is named after; the --otherContig lump owns whichever reference contigs its own
+    fasta holds.  only needed when the graph holds more of the reference than the chromosome it was
+    built for, ie under --mgSplitWholeGenomeRef.
+
+    the lump is read off its fasta rather than inferred from the surviving bin names because the two
+    disagree: export_split_data drops a reference contig that fewer than two genomes align to
+    ("Omitting reference contig ..."), so it names no bin, and inferring would hand it to the lump --
+    whose seqfile has no fasta for it, leaving cactus-align with PAF rows for an absent query """
+    stripped = set(strip_event_prefix(name) for name in ref_contigs)
+    if chrom in stripped:
+        return {chrom}
+    return stripped & set(strip_event_prefix(name) for name in (bin_ref_contigs or set()))
 
 def separate_ref_contigs_batch(job, config, graphmap_input_dict, graphmap_batch_results, reference_event,
-                              permissive_contig_filter):
+                              permissive_contig_filter, whole_genome_ref=False):
     """ --otherContig lumps every leftover reference contig into a single bin, so with --mgSplit that
     bin gets one minigraph covering all of them.  minigraph keeps those contigs disjoint, but the
     per-chromosome graphmap that follows can align a sample contig across two, which welds them into
     one component in the final graph.  Run rgfa-split over each bin to hold the contigs apart.
 
+    With --mgSplitWholeGenomeRef every bin's graph carries the whole reference, so this pass runs on
+    all of them and does the real work of the option: dropping the mappings that landed on another
+    chromosome, and cutting the graph artifacts back down to this chromosome.
+
     Appends the rgfa-split log to each chromosome's graphmap results, or None where the pass didn't
-    run, so it can be exported alongside the PAFs. """
+    run, so it can be exported alongside the PAFs, and (in whole-genome-reference mode) the pruned
+    PanSN GFA after it. """
     # the first pass applies this inside its own job, so its copy of the config never reaches us
     apply_permissive_contig_filter(config, permissive_contig_filter)
+    # the pruned fasta's bgzip and the PanSN rename both compress a whole-genome-scale GFA here
+    mg_cores = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "cpu", typeFn=int, default=1)
     output_dict = {}
     for chrom, gm_result in graphmap_batch_results.items():
-        gfa_id = graphmap_input_dict[chrom][1]
+        seq_id_map, gfa_id = graphmap_input_dict[chrom][0], graphmap_input_dict[chrom][1]
         paf_id = gm_result[0]
         if not paf_id or not gfa_id:
+            if whole_genome_ref:
+                # every artifact this chromosome has is still whole-genome, and passing them through
+                # would publish a whole reference under its name and hand cactus-align the same.
+                # there is no correct thing to emit here, so say so rather than emit the wrong thing
+                raise RuntimeError('{} reached the separation pass with no {}, so its whole-genome '
+                                   'reference cannot be pruned away'.format(chrom, 'PAF' if not paf_id else 'GFA'))
             output_dict[chrom] = tuple(gm_result) + (None,)
             continue
         # the per-chromosome GFA comes in bgzipped, and we decompress it here: budget for that the
-        # same way the first-pass split does
+        # same way the first-pass split does.  rgfa-split's working set is what sets the memory, so
+        # the extra whole-genome-reference files below are added to the disk budget alone -- this job
+        # writes the minigraph fasta and streams the reference fasta for its names, it holds neither
         tot_size = gfa_id.size * 10 + paf_id.size
+        disk_size = tot_size
+        ref_fa_id = None
+        if whole_genome_ref:
+            disk_size += (gm_result[1].size if gm_result[1] else 0) * 10
+            ref_fa_id = seq_id_map.get(reference_event) if reference_event else None
+            disk_size += (ref_fa_id.size if ref_fa_id else 0) * 4
         output_dict[chrom] = job.addChildJobFn(separate_ref_contigs, config, chrom, gfa_id, gm_result, reference_event,
-                                               disk=tot_size * 5,
+                                               whole_genome_ref=whole_genome_ref, ref_fa_id=ref_fa_id,
+                                               genome_names=sorted(seq_id_map.keys()),
+                                               cores=mg_cores,
+                                               disk=disk_size * 5,
                                                memory=cactus_clamp_memory(tot_size * 3)).rv()
     return output_dict
 
-def separate_ref_contigs(job, config, chrom, gfa_id, gm_result, reference_event):
+def separate_ref_contigs(job, config, chrom, gfa_id, gm_result, reference_event,
+                         whole_genome_ref=False, ref_fa_id=None, genome_names=None):
     """ Use rgfa-split to assign each query in one chromosome's PAF to a single reference contig, and
     drop the alignments that don't fit that assignment.  Bins with a single reference contig -- every
     normal chromosome -- are left untouched.  A query that straddles two contigs evenly is ambiguous
     and loses all its alignments; one with a clear best contig keeps those and loses the rest.  Either
     way the sequence stays in the bin's fasta, so cactus-align sees it as unaligned and the usual
-    non-minigraph clipping takes it out. """
+    non-minigraph clipping takes it out.
+
+    Under --mgSplitWholeGenomeRef the graph holds the whole reference rather than one chromosome, so
+    every bin lands here with something to do: a query that maps better to another chromosome loses
+    its alignments to this one, which is the inter-chromosome competition the whole-genome pipeline
+    gets for free.  In that mode this pass is required for correctness, not just quality:
+    extract_paf_from_gfa synthesizes rGFA-derived rows for every reference contig genome-wide, and it
+    is the binning here that keeps the ones belonging to other chromosomes out of this PAF.  Only the bins this chromosome owns are kept, and the minigraph fasta and PanSN
+    GFA are rebuilt off the pruned graph so nothing off-chromosome reaches cactus-align or the
+    merged .sv.gfa.gz. """
     work_dir = job.fileStore.getLocalTempDir()
     gfa_path = os.path.join(work_dir, 'mg.gfa')
     paf_path = os.path.join(work_dir, 'mg.paf')
     out_prefix = os.path.join(work_dir, 'separate_')
     log_path = os.path.join(work_dir, 'separate.log')
+    # what a bypass returns: the results as they came in, plus the log slot, plus (in whole-genome
+    # reference mode) the pruned PanSN GFA slot
+    passthrough = tuple(gm_result) + (None,) + ((None,) if whole_genome_ref else ())
     job.fileStore.readGlobalFile(gfa_id, gfa_path)
     with open(gfa_path, 'rb') as gfa_file:
         is_gzipped = gfa_file.read(2) == b'\x1f\x8b'
@@ -527,10 +609,13 @@ def separate_ref_contigs(job, config, chrom, gfa_id, gm_result, reference_event)
         cactus_call(parameters=['gzip', '-dc', os.path.basename(gfa_path)], work_dir=work_dir, outfile=unzipped_path)
         gfa_path = unzipped_path
 
-    # nothing to hold apart on a normal chromosome: get out before touching the PAF, which is big
-    num_ref_contigs = count_ref_contigs(gfa_path)
+    # nothing to hold apart on a normal chromosome: get out before touching the PAF, which is big.
+    # a single-contig reference has nothing off-chromosome to prune either, so this is still the
+    # right bypass in whole-genome reference mode
+    ref_contigs = ref_contig_names(gfa_path)
+    num_ref_contigs = len(ref_contigs)
     if num_ref_contigs < 2:
-        return tuple(gm_result) + (None,)
+        return passthrough
 
     job.fileStore.readGlobalFile(gm_result[0], paf_path)
     coverage_opts, query_uniqueness, amb_name = get_split_specificity_opts(config)
@@ -542,6 +627,9 @@ def separate_ref_contigs(job, config, chrom, gfa_id, gm_result, reference_event)
            '-a', amb_name,
            '-L', log_path]
     cmd += coverage_opts
+    if whole_genome_ref:
+        # we need the per-bin GFAs too, to cut the whole reference back down to this chromosome
+        cmd += ['-G']
     if reference_event:
         cmd += ['-r', 'id={}|'.format(reference_event)]
     min_mapq = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "minMAPQ")
@@ -549,29 +637,82 @@ def separate_ref_contigs(job, config, chrom, gfa_id, gm_result, reference_event)
         cmd += ['-A', min_mapq]
     cactus_call(parameters=cmd, work_dir=work_dir, job_memory=job.memory)
 
+    # which bins belong to this chromosome?  normally every non-ambiguous one: the bin was a
+    # chromosome going in and rgfa-split only subdivided it.  with the whole reference in the graph
+    # it split by every reference contig, so keep this chromosome's own contig -- or, for the
+    # --otherContig lump, every reference contig that isn't some other chromosome's
+    keep_names = None
+    if whole_genome_ref:
+        bin_ref_contigs = None
+        if chrom not in set(strip_event_prefix(name) for name in ref_contigs) and ref_fa_id:
+            bin_ref_path = os.path.join(work_dir, 'bin_reference.fa')
+            job.fileStore.readGlobalFile(ref_fa_id, bin_ref_path)
+            bin_ref_contigs = read_fasta_names(bin_ref_path)
+        keep_names = bins_for_chrom(chrom, ref_contigs, bin_ref_contigs)
+
     # stitch the per-contig PAFs back into one: the bin stays whole, but no query is left
     # straddling two reference contigs.  the ambiguous bin is what we're dropping
-    keep_pafs = []
+    keep_pafs, keep_gfas = [], []
     for out_name in sorted(os.listdir(work_dir)):
         file_name, ext = os.path.splitext(out_name)
-        if ext == '.paf' and file_name.startswith(os.path.basename(out_prefix)) and \
+        if ext in ['.paf', '.gfa'] and file_name.startswith(os.path.basename(out_prefix)) and \
            os.path.isfile(os.path.join(work_dir, file_name + '.fa_contigs')):
             name = file_name[len(os.path.basename(out_prefix)):]
-            if name != amb_name:
-                keep_pafs.append(os.path.join(work_dir, out_name))
+            if name == amb_name:
+                continue
+            if keep_names is not None and strip_event_prefix(name) not in keep_names:
+                continue
+            (keep_pafs if ext == '.paf' else keep_gfas).append(os.path.join(work_dir, out_name))
 
     separated_paf_path = os.path.join(work_dir, 'separated.paf')
-    catFiles(keep_pafs, separated_paf_path)
+    cat_paths(keep_pafs, separated_paf_path)
 
     def line_count(path):
         with open(path, 'r') as paf_file:
             return sum(1 for line in paf_file if line.strip())
     before, after = line_count(paf_path), line_count(separated_paf_path)
-    RealtimeLogger.info('Separating {} reference contigs in {}: kept {} of {} PAF records'.format(
-        num_ref_contigs, chrom, after, before))
+    RealtimeLogger.info('Separating {} reference contigs in {}: kept {} of them and {} of {} PAF records'.format(
+        num_ref_contigs, chrom, len(keep_pafs), after, before))
 
-    return (job.fileStore.writeGlobalFile(separated_paf_path),) + tuple(gm_result[1:]) + \
-        (job.fileStore.writeGlobalFile(log_path),)
+    out_fa_id, pansn_gfa_id = gm_result[1], None
+    if whole_genome_ref:
+        if not keep_gfas:
+            raise RuntimeError('rgfa-split left no reference contig assigned to {}: it cannot be pruned back '
+                               'to a chromosome'.format(chrom))
+        # a contig we meant to keep but that rgfa-split gave no bin contributes no rank-0 backbone to
+        # the pruned graph, while the bin's seqfile still carries its fasta.  every reference contig
+        # should have at least its own rgfa2paf row and so a bin, but say so rather than drop it quietly
+        missing = keep_names - set(strip_event_prefix(os.path.splitext(os.path.basename(g))[0][len(os.path.basename(out_prefix)):])
+                                   for g in keep_gfas)
+        if missing:
+            RealtimeLogger.warning('No rgfa-split bin for reference contig(s) {} in {}: they are absent from its '
+                                   'pruned graph and minigraph fasta'.format(sorted(missing), chrom))
+        graph_event = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "assemblyName", default="_MINIGRAPH_")
+        # rgfa-split's GFA splitter re-emits only S and L lines, which is all minigraph wrote: its
+        # GFAs carry no header, here or in any other run
+        separated_gfa_path = os.path.join(work_dir, 'separated.gfa')
+        cat_paths(keep_gfas, separated_gfa_path)
+
+        # the minigraph fasta cactus-align consumes has to describe the pruned graph, not the
+        # whole-genome one it was made from.  same command as make_minigraph_fasta()
+        if gm_result[1]:
+            out_fa_path = os.path.join(work_dir, 'separated.sv.gfa.fa.gz')
+            cactus_call(outfile=out_fa_path,
+                        parameters=[['gfatools', 'gfa2fa', separated_gfa_path],
+                                    ['sed', '-e', r's/^>\(.\)/>id={}|\1/g'.format(graph_event)],
+                                    ['bgzip', '--threads', str(job.cores)]])
+            out_fa_id = job.fileStore.writeGlobalFile(out_fa_path)
+            # the whole-genome one it replaces is nobody's input from here on.  deleted from a
+            # follow-on rather than inline so a retry of this job doesn't trip over its own delete
+            job.addFollowOnJobFn(clean_jobstore_files, file_ids=[gm_result[1]])
+
+        # and the published per-chromosome graph, which graphmap-join merges
+        pansn_gfa_path = os.path.join(work_dir, 'separated.sv.gfa.gz')
+        minigraph_gfa_to_pansn(set(genome_names or []), separated_gfa_path, pansn_gfa_path, job.cores)
+        pansn_gfa_id = job.fileStore.writeGlobalFile(pansn_gfa_path)
+
+    return (job.fileStore.writeGlobalFile(separated_paf_path), out_fa_id) + tuple(gm_result[2:]) + \
+        (job.fileStore.writeGlobalFile(log_path),) + ((pansn_gfa_id,) if whole_genome_ref else ())
 
 def split_fas(job, seq_id_map, seq_name_map, split_id_map):
     """ Use samtools to split a bunch of fasta files into reference contigs, using the output of rgfa-split as a guide"""

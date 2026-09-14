@@ -26,6 +26,7 @@ import re
 import shutil
 
 from cactus.shared.common import cactus_call, getOptionalAttrib, findRequiredNode
+from cactus.shared.common import cactus_clamp_memory
 from toil.realtimeLogger import RealtimeLogger
 
 logger = logging.getLogger(__name__)
@@ -1134,7 +1135,13 @@ def contig_sizes_job(job, seq_id_map, graph_event):
             continue
         safe_event_filename(event)
         fa_id = seq_id_map[event]
+        # samtools faidx itself needs almost nothing (a few MiB), but the job stages the whole
+        # sanitized fasta first, and cgroup accounting charges that page cache to the job -- which is
+        # what killed one of these with MEMLIMIT on a 3GB genome under the 2GiB default.  size it off
+        # the fasta the way sanitize_fasta_header, which stages the same file, already does, but keep
+        # the old default as a floor: scaling alone would ask a small genome for less than the worker
         per_event[event] = job.addChildJobFn(contig_sizes_for_event, fa_id, event,
+                                             memory=cactus_clamp_memory(max(fa_id.size * 2, 2**31)),
                                              disk=fa_id.size * 3).rv()
     return job.addFollowOnJobFn(merge_contig_sizes, per_event).rv()
 
