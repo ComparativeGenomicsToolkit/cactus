@@ -366,8 +366,14 @@ def collapse_inversions(job, options, config_node, pansn_gfa_id, gfa_path):
 
     out_gfa = os.path.join(work_dir, 'collapsed.gfa')
     report = os.path.join(work_dir, 'collapse.tsv')
-    # one minimap2 per chunk of sites, a few chunks at a time
-    jobs = max(1, int(job.cores) // 2)
+    # Bias toward threads-per-minimap2 rather than concurrent invocations.  Runtime is dominated
+    # by a few enormous single alignments -- on CHM13 chr9 individual minimap2 calls ran over
+    # three hours at -t 2 -- and those cannot be spread across concurrent chunks, so a wide -j
+    # leaves cores idle waiting on the tail (measured average utilisation 3.25 of 8 requested at
+    # -j 4 -t 2).  A chunk holds ~200 query sequences, so minimap2 keeps a high -t busy on its
+    # own.  Note minimap2 runs about two threads more than -t asks for, so this deliberately
+    # leaves headroom rather than saturating.
+    jobs = min(8, max(1, int(job.cores) // 8))
     threads = max(1, int(job.cores) // jobs)
     cmd = ['rgfa-collapse'] + opts.split() + \
           ['-j', str(jobs), '-t', str(threads), '-r', os.path.basename(report),
