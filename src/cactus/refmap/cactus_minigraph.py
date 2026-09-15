@@ -57,11 +57,11 @@ def main():
                         help="Use last-train to estimate scoring matrix from input data", default=False)
     parser.add_argument("--refOnly", action="store_true",
                         help="Only build the graph out of reference genome(s). Can be used when it will only be used for chromosome-splitting, for example")
-    parser.add_argument("--extendGFA", type=str, default=None,
-                        help="Extend this existing minigraph GFA (as made by a previous cactus-minigraph or cactus-pangenome run) "
+    parser.add_argument("--inGFA", type=str, default=None,
+                        help="Start from this existing minigraph GFA (as made by a previous cactus-minigraph or cactus-pangenome run) "
                         "instead of building from scratch. Only the seqFile genomes that are not already in the graph get added, in "
-                        "mash-distance order among themselves. The seqFile must still contain every genome in the graph: genomes "
-                        "cannot be removed from a minigraph")
+                        "mash-distance order among themselves; if there are none, the graph is passed through untouched. The seqFile "
+                        "must still contain every genome in the graph: genomes cannot be removed from a minigraph")
     parser.add_argument("--batch", action="store_true",
                         help="Run independently on set of chromosomea inputs (chromfile as from cactus-graphmap-split). Note that the output will be a directory and not a GFA")
         
@@ -126,22 +126,22 @@ def main():
             if '://' not in options.outputGFA:
                 options.outputGFA = os.path.abspath(options.outputGFA)
 
-            extend_gfa_id = None
-            if options.extendGFA:
+            in_gfa_id = None
+            if options.inGFA:
                 if options.batch:
-                    raise RuntimeError('--extendGFA cannot be used with --batch')
+                    raise RuntimeError('--inGFA cannot be used with --batch')
                 if options.refOnly:
-                    raise RuntimeError('--extendGFA cannot be used with --refOnly')
-                if '://' not in options.extendGFA:
-                    options.extendGFA = os.path.abspath(options.extendGFA)
-                extend_gfa_id = toil.importFile(makeURL(options.extendGFA))
+                    raise RuntimeError('--inGFA cannot be used with --refOnly')
+                if '://' not in options.inGFA:
+                    options.inGFA = os.path.abspath(options.inGFA)
+                in_gfa_id = toil.importFile(makeURL(options.inGFA))
 
             # maps name -> input_seq_id_map, input_seq_order
             input_dict = minigraph_construct_import_sequences(options, config_wrapper, input_seqfiles, toil)
                 
             # output_dict:  chrom-> (gfa_id, pansn_gfa_id, train_id)
             output_dict = toil.start(Job.wrapJobFn(minigraph_construct_batch_workflow, options, config_node, input_dict, options.outputGFA,
-                                                   extend_gfa_id=extend_gfa_id))
+                                                   in_gfa_id=in_gfa_id))
 
         export_minigraph_construct_output(options, input_seqfiles, output_dict, toil)
         
@@ -277,7 +277,7 @@ def check_sample_names(sample_names, references):
             raise RuntimeError("Sample name {} with \"{}\" suffix is not supported. You must either remove this suffix or use .N where N is an integer to specify haplotype".format(sample, sample_ext))
 
 def minigraph_construct_batch_workflow(job, options, config_node, input_dict, gfa_path, sanitize=True,
-                                       construct_ref_id_map=None, extend_gfa_id=None):
+                                       construct_ref_id_map=None, in_gfa_id=None):
     """ run the construction workflow on individual chromosomes.  construct_ref_id_map, if given,
     swaps the whole-genome reference fastas in for the chromosome's own slice of them (--mgSplit
     --mgSplitWholeGenomeRef).  the merge happens here rather than inside minigraph_construct_workflow
@@ -295,12 +295,12 @@ def minigraph_construct_batch_workflow(job, options, config_node, input_dict, gf
         else:
             gfa_path = options.outputGFA
         mgwf_job = job.addChildJobFn(minigraph_construct_workflow, options, config_node, seq_id_map, seq_order, gfa_path, sanitize,
-                                     construct_seq_id_map=construct_seq_id_map, extend_gfa_id=extend_gfa_id)
+                                     construct_seq_id_map=construct_seq_id_map, in_gfa_id=in_gfa_id)
         output_dict[chrom] = mgwf_job.rv()
     return output_dict
                                     
 def minigraph_construct_workflow(job, options, config_node, seq_id_map, seq_order, gfa_path, sanitize=True,
-                                 construct_seq_id_map=None, extend_gfa_id=None):
+                                 construct_seq_id_map=None, in_gfa_id=None):
     """ minigraph can handle bgzipped files but not gzipped; so unzip everything in case before running
 
     construct_seq_id_map, when given, replaces seq_id_map for the graph construction alone.  it is how
@@ -313,17 +313,17 @@ def minigraph_construct_workflow(job, options, config_node, seq_id_map, seq_orde
 
     with a graph to extend, which genomes still need constructing is not known until that graph's
     SN tags have been read, so the rest of the workflow is deferred behind the job that reads them """
-    if not extend_gfa_id:
+    if not in_gfa_id:
         return minigraph_construct_run(job, options, config_node, seq_id_map, seq_order, gfa_path, sanitize,
                                        construct_seq_id_map=construct_seq_id_map)
 
     # the renaming pass decompresses the GFA before bgzipping it back up, so it needs room for
     # the raw copy (reckoned at 10x, as elsewhere) on top of the compressed input and output
-    rename_job = job.addChildJobFn(minigraph_gfa_from_pansn, set(seq_id_map.keys()), options.extendGFA, extend_gfa_id,
-                                   disk=extend_gfa_id.size*12)
+    rename_job = job.addChildJobFn(minigraph_gfa_from_pansn, set(seq_id_map.keys()), options.inGFA, in_gfa_id,
+                                   disk=in_gfa_id.size*12)
     run_job = rename_job.addFollowOnJobFn(minigraph_construct_run, options, config_node, seq_id_map, seq_order, gfa_path,
                                           sanitize, construct_seq_id_map,
-                                          rename_job.rv(0), rename_job.rv(1), extend_gfa_id)
+                                          rename_job.rv(0), rename_job.rv(1), in_gfa_id)
     return run_job.rv(0), run_job.rv(1), run_job.rv(2)
 
 def minigraph_construct_run(job, options, config_node, seq_id_map, seq_order, gfa_path, sanitize=True,
@@ -336,29 +336,44 @@ def minigraph_construct_run(job, options, config_node, seq_id_map, seq_order, gf
     # the PanSN rename at the end of construction has to resolve every SN tag in the finished
     # graph, which on the extend path is more genomes than minigraph is being given
     graph_names = set(seq_id_map.keys())
+    # last-training is over fastas, so it wants every genome, not just the ones still to construct
+    train_seq_id_map, train_seq_order = seq_id_map, seq_order
     if seed_events is not None:
         if options.reference[0] not in seed_events:
             # it would otherwise be constructed in last, at the highest rGFA rank rather than rank 0,
             # and every rank-0 assumption downstream would be reading the wrong genome
-            raise RuntimeError('Reference {} is not in the graph being extended, whose genomes are: {}. A graph can only be '
-                               'extended with the reference it was built on'.format(options.reference[0],
-                                                                                    ' '.join(sorted(seed_events))))
+            raise RuntimeError('Reference {} is not in {}, whose genomes are: {}. A graph can only be reused with the '
+                               'reference it was built on'.format(options.reference[0], options.inGFA,
+                                                                  ' '.join(sorted(seed_events))))
         # everything already in the seed graph is left alone: minigraph only gets the genomes that
         # are new to it, appended after the ones the graph was built from.  the reference is kept in
         # the sequence map (but not the order) because the mash sort below still sketches against it
         seq_order = [seq for seq in seq_order if seq not in seed_events]
         seq_id_map = {name: fa_id for name, fa_id in seq_id_map.items()
                       if name not in seed_events or name == options.reference[0]}
-        RealtimeLogger.info('Extending a graph of {} genomes with {}: {}'.format(
-            len(seed_events), len(seq_order), ' '.join(seq_order) if seq_order else '(nothing)'))
-        if not seq_order:
-            # nothing to add, so the graph handed back is the one --extendGFA was given.  its
-            # compression follows the input name, and everything downstream reads the *output*
-            # name to decide whether to unzip, so it has to be re-emitted to match
+        if seq_order:
+            RealtimeLogger.info('Extending the {} genomes in {} with {}: {}'.format(
+                len(seed_events), options.inGFA, len(seq_order), ' '.join(seq_order)))
+        else:
+            # the seqfile asks for exactly the genomes the graph already holds, so there is nothing
+            # to construct and the run resumes from it.  the graph handed back is the one --inGFA
+            # was given, but its compression follows the *input* name while everything downstream
+            # reads the output name to decide whether to unzip, so it is re-emitted to match
+            RealtimeLogger.info('Resuming from the {} genomes in {}: nothing left to construct'.format(
+                len(seed_events), options.inGFA))
             match_job = job.addChildJobFn(match_gfa_compression, seed_gfa_id, seed_pansn_gfa_id,
-                                          options.extendGFA, gfa_path,
+                                          options.inGFA, gfa_path,
                                           disk=12 * (seed_gfa_id.size if hasattr(seed_gfa_id, 'size') else 0))
-            return match_job.rv(0), match_job.rv(1), None
+            # last_train reads fastas, not the graph, so resuming is no reason to skip it: without
+            # this --lastTrain would quietly fall back to the default scoring matrix
+            train_id = None
+            if options.lastTrain and len(train_seq_id_map) > 1:
+                train_job = job.addChildJobFn(last_train, config_node, train_seq_order, train_seq_id_map,
+                                              ref_name=options.reference[0],
+                                              cores=options.mgCores, disk=8*ref_size,
+                                              memory=cactus_clamp_memory(max(8*ref_size, 12*10**9)))
+                train_id = train_job.rv()
+            return match_job.rv(0), match_job.rv(1), train_id
     else:
         assert options.reference[0] == seq_order[0]
     if options.refOnly:
@@ -627,7 +642,7 @@ def minigraph_construct_in_batches(job, options, config_node, seq_id_map, seq_or
     if seed_gfa_id:
         # minigraph_construct() only uses this to name its local copy, but keep the compression
         # suffix honest since that is what says whether the file it reads is bgzipped
-        seed_gfa_path = 'extend.gfa.gz' if options.extendGFA.endswith('.gz') else 'extend.gfa'
+        seed_gfa_path = 'extend.gfa.gz' if options.inGFA.endswith('.gz') else 'extend.gfa'
     for i in range(num_batches):        
         batch_size = len(seq_order) - i * max_batch_size if i == num_batches - 1 else max_batch_size
         input_seq_order = seq_order[i * max_batch_size : (i * max_batch_size) + batch_size]
@@ -766,7 +781,7 @@ def minigraph_gfa_from_pansn(job, names, gfa_path, gfa_id):
     so that a minigrpah GFA (as converted panSN by minigraph_gfa_to_pansn() above) can be read back into Cactus
 
     returns (converted gfa id, set of genomes the graph was built from).  the genome set is what
-    --extendGFA needs to work out which of the seqfile's genomes are new to the graph, and it comes
+    --inGFA needs to work out which of the seqfile's genomes are new to the graph, and it comes
     free with the pass that has to read every SN tag anyway.
 
     a GFA that is already in cactus naming -- from a cactus old enough to have published one, or
@@ -815,7 +830,7 @@ def minigraph_gfa_from_pansn(job, names, gfa_path, gfa_id):
                         if '{}.{}'.format(name, hap) in names:
                             name = '{}.{}'.format(name, hap)
                         else:
-                            # collected rather than asserted on: with --extendGFA this is usually
+                            # collected rather than asserted on: with --inGFA this is usually
                             # the user leaving a genome out of the seqfile, which deserves to be
                             # named.  the whole tag goes in the message because the other way to
                             # land here is an SN tag that is not SAMPLE#HAP#CONTIG at all, and

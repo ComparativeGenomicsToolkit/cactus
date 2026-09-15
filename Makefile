@@ -240,6 +240,9 @@ pangenome_extend_construction_test_local:
 yeast_test_extend_local:
 	PYTHONPATH="${CWD}/submodules/" CACTUS_BINARIES_MODE=local CACTUS_DOCKER_MODE=0 ${PYTHON} -m pytest ${pytestOpts} -s test/evolverTest.py::TestCase::testYeastPangenomeExtendLocal
 
+evolver_test_primates_pangenome_resume_local: all ${CWD}/test/primates-truth.maf
+	PYTHONPATH="${CWD}/submodules/" CACTUS_BINARIES_MODE=local CACTUS_DOCKER_MODE=0 ${PYTHON} -m pytest ${pytestOpts} -s test/evolverTest.py::TestCase::testEvolverPrimatesPangenomeResumeLocal
+
 evolver_test_primates_pangenome_extend_local: all ${CWD}/test/primates-truth.maf
 	PYTHONPATH="${CWD}/submodules/" CACTUS_BINARIES_MODE=local CACTUS_DOCKER_MODE=0 ${PYTHON} -m pytest ${pytestOpts} -s test/evolverTest.py::TestCase::testEvolverPrimatesPangenomeExtendLocal
 
