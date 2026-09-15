@@ -583,9 +583,31 @@ def minigraph_map_one(job, config, event_name, fa_file_id, gfa_file_id):
     min_block = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "minGAFBlockLength", typeFn=int, default=0)
     min_mapq = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "minMAPQ", typeFn=int, default=0)
     min_ident = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "minIdentity", typeFn=float, default=0)    
+    overlap_trim = getOptionalAttrib(xml_node, "GAFOverlapFilterTrim", typeFn=bool, default=False)
+    trim_edge = getOptionalAttrib(xml_node, "GAFOverlapFilterTrimEdge", typeFn=int, default=5000)
+    trim_min_mapq = getOptionalAttrib(xml_node, "GAFOverlapFilterTrimMinMAPQ", typeFn=int, default=20)
     if overlap_ratio:
-        cmd = [cmd, ['gaffilter', '-', '-r', str(overlap_ratio), '-m', str(length_ratio), '-q', str(min_mapq),
-                     '-b', str(min_block), '-i', str(min_ident)]]
+        if overlap_trim:
+            # GAFOverlapFilterMinLengthRatio exists because deleting a record is expensive: it stops
+            # a small overlap from destroying a whole one.  A trim costs only the contested span, so
+            # the guard has nothing left to protect and only leaves small conflicts between long
+            # contigs unadjudicated -- measured on a 12-sample chr15 graph, trimming with it at 0.25
+            # doubly places 409,584 bp on one segmental-duplication pair that 0 does not.  There is
+            # no setting of it that helps while trimming, so it is not a knob here.
+            length_ratio = 0
+        overlap_cmd = ['gaffilter', '-', '-r', str(overlap_ratio), '-m', str(length_ratio), '-q', str(min_mapq),
+                       '-b', str(min_block), '-i', str(min_ident)]
+        if overlap_trim:
+            # cut the contested span out of a losing record instead of deleting the record whole.
+            # -l: the unstable GAF names bare nodes, so gaffilter needs their lengths to shorten a
+            # path.  gaf2unstable writes that file in full before it emits its first GAF line, so
+            # it is complete by the time gaffilter, which reads all of its input first, opens it.
+            # gaffilter's -g/--close-holes are deliberately not exposed: --close-holes is off and
+            # cannot be justified (no claimant to a hole can meet the bar -r sets), and with it off
+            # -g provably does not change the output.
+            overlap_cmd += ['-t', '-e', str(trim_edge), '-Q', str(trim_min_mapq),
+                            '-l', mg_lengths_path]
+        cmd = [cmd, overlap_cmd]
     cactus_call(parameters=cmd, outfile=unstable_gaf_path, job_memory=job.memory)
 
     # convert the unstable gaf into unstable paf, which is what cactus expects
