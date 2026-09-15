@@ -95,9 +95,13 @@ fi
 
 # minigraph
 cd ${pangenomeBuildDir}
-git clone https://github.com/lh3/minigraph.git
+git clone https://github.com/glennhickey/minigraph.git
 pushd minigraph
-git checkout v0.21
+# ai-make-faster: 13 commits on lh3's 0.21-r606 (2f569eb). Byte-identical output by default;
+# everything that can change a graph is behind an opt-in flag that defaults off. Chromosome-scale
+# construction is ~4.5x faster, whole-genome ~2-2.9x, because stock runs one thread per query
+# contig and so cannot use more than ~1 core on a chromosome or ~6.5 on a whole genome.
+git checkout 78e9266477f1ff392146df3a5fe9a0b895a51a27
 # hack in flags support
 sed -i Makefile -e 's/CFLAGS=/CFLAGS+=/' -e 's/LIBS=/LIBS+=/'
 LIBS="${jemallocLib}" make -j ${numcpu}
@@ -213,7 +217,7 @@ fi
 cd ${pangenomeBuildDir}
 git clone https://github.com/ComparativeGenomicsToolkit/cactus-gfa-tools.git
 cd cactus-gfa-tools
-git checkout 2851444fe5188bff63434fc4bf602b28e4745863
+git checkout 0e3c952027ad6864414b50bde378568bb138fc60
 make -j ${numcpu}
 if [[ $STATIC_CHECK -ne 1 || $(ldd paf2lastz | grep so | wc -l) -eq 0 ]]
 then
