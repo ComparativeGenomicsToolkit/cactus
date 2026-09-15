@@ -2164,6 +2164,20 @@ class TestCase(unittest.TestCase):
             shell=True).strip())
         self.assertEqual(orig_vcf_records, bypass_vcf_records)
 
+    def testYeastPangenomeMgSplitLocal(self):
+        """ Run the pangenome pipeline on yeast with plain --mgSplit and the rgfa-collapse
+        postprocessor on.
+
+        testYeastPangenomeSplitLocal covers --mgSplitWholeGenomeRef, which takes a different route
+        through the export (the whole-genome graph only reaches its final path after the prune).
+        This covers the plain option: the collapse is skipped on the reference-only first pass and
+        runs on each all-sample chromosome graph. """
+        name = "local"
+        self._run_yeast_pangenome(name, mgSplit=True, collapseInversions=True)
+
+        # check the output
+        self._check_yeast_pangenome(name, other_ref='DBVPG6044', expect_odgi=True, expect_haplo=False, expect_unchopped_gfa=True)
+
     def testYeastPangenomeSplitLocal(self):
         """ Run pangenome pipeline (including contig splitting!) on yeast dataset using cactus-pangenome.
 
@@ -2171,7 +2185,7 @@ class TestCase(unittest.TestCase):
         does and adds the whole-genome reference substitution and the prune that undoes it, so it is
         the stricter of the two to keep in CI. """
         name = "local"
-        self._run_yeast_pangenome(name, wholeGenomeRef=True, gref='clip', vcfL=0.95)
+        self._run_yeast_pangenome(name, wholeGenomeRef=True, gref='clip', vcfL=0.95, collapseInversions=True)
 
         # check the output
         self._check_yeast_pangenome(name, other_ref='DBVPG6044', expect_odgi=True, expect_haplo=True, expect_unchopped_gfa=True, expect_gref=True, vcfL=0.95)
