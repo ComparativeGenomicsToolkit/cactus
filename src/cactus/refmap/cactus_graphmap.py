@@ -412,6 +412,17 @@ def minigraph_workflow(job, options, config, seq_id_map, gfa_id, graph_event, sa
         gfa_id = gfa_unzip_job.rv()
         gfa_id_size *= 10
         options.minigraphGFA = options.minigraphGFA[:-3]
+    if extend_gaf_id:
+        # resolving a reused GAF is the same work for every genome, so a GAF that does not belong
+        # to this graph fails identically in all of them -- once per genome, after the fan-out, and
+        # again on every Toil retry.  Checking a sample up front turns that into one quick failure
+        # with something actionable in it.  chained onto the unzip (when there is one) because it
+        # needs the same uncompressed graph the per-genome jobs use
+        check_parent = gfa_unzip_job if zipped_gfa else root_job
+        check_parent.addFollowOnJobFn(check_reusable_gaf, config, extend_gaf_id, gfa_id, genome_names,
+                                      options.extendGAF, options.minigraphGFA,
+                                      disk=4*gfa_id_size, memory=cactus_clamp_memory(2*gfa_id_size))
+
     paf_job = Job.wrapJobFn(minigraph_map_all, options, config, gfa_id, seq_id_map, graph_event, extend_gaf_map)
     root_job.addFollowOn(paf_job)
 
@@ -734,6 +745,60 @@ def minigraph_map_one(job, config, event_name, fa_file_id, gfa_file_id):
     cactus_call(parameters=cmd, job_memory=job.memory)
 
     return stable_gaf_to_paf(job, config, gaf_path, gfa_path)
+
+# how many reused GAF records the up-front check resolves before trusting the rest
+GAF_REUSE_CHECK_RECORDS = 1000
+
+def check_reusable_gaf(job, config, gaf_file_id, gfa_file_id, genome_names, gaf_path, gfa_path):
+    """ Resolve the first few reused mappings against the graph, and fail with a diagnosis if they
+    do not fit.
+
+    The pair has to come from the same graphmap run.  The trap is that a --mgSplit run publishes
+    <outName>.sv.gfa.gz and <outName>.gaf.gz that look like a pair and are not: the GAF is the
+    whole-genome pass against the reference-only first-pass graph, while the GFA is the merged
+    per-chromosome graphs.  Same stable coordinates, different node boundaries, so gaf2unstable
+    fails on the tiling rather than on a name and the mismatch is not obvious from the error. """
+    work_dir = job.fileStore.getLocalTempDir()
+    gfa_local = os.path.join(work_dir, 'mg.gfa')
+    job.fileStore.readGlobalFile(gfa_file_id, gfa_local)
+    pansn_head = os.path.join(work_dir, 'check.pansn.gaf')
+    head = os.path.join(work_dir, 'check.gaf')
+    job.fileStore.readGlobalFile(gaf_file_id, pansn_head + '.full')
+    with open(pansn_head, 'w') as out_file:
+        opener = gzip.open if gaf_path.endswith('.gz') else open
+        with opener(pansn_head + '.full', 'rt') as in_file:
+            for i, line in enumerate(in_file):
+                if i >= GAF_REUSE_CHECK_RECORDS: break
+                out_file.write(line)
+    os.remove(pansn_head + '.full')
+    gaf_from_pansn(genome_names, pansn_head, head)
+
+    try:
+        cactus_call(parameters=['gaf2unstable', head, '-g', gfa_local, '-o', os.path.join(work_dir, 'lens.tsv')],
+                    outfile=os.path.join(work_dir, 'check.unstable.gaf'), job_memory=job.memory)
+    except RuntimeError as e:
+        # name the genomes each side actually talks about: the mismatch above shows up as a GAF
+        # whose paths only ever name the references while the graph is full of samples
+        step_genomes = set()
+        with open(head) as in_file:
+            for line in in_file:
+                toks = line.split('\t')
+                if len(toks) > 5:
+                    for step in gaf_step_re.findall(toks[5]):
+                        name = step[1:].rsplit(':', 1)[0] if ':' in step else step[1:]
+                        step_genomes.add(name[3:name.find('|')] if name.startswith('id=') and '|' in name else name)
+        raise RuntimeError(
+            'The mappings in {} do not resolve against {}: the two must come from the same graphmap run.\n'
+            'The first {} records only ever walk through: {}.\n'
+            'A --mgSplit run is the usual way to get a mismatched pair that looks like a matching one: its '
+            '<outName>.gaf.gz is the whole-genome pass against the reference-only first-pass graph, while its '
+            '<outName>.sv.gfa.gz is the merged per-chromosome graphs.  Drop --extendGAF to map every genome '
+            'against the extended graph instead -- --extendGFA still saves the construction, which is the '
+            'expensive half.\nUnderlying error: {}'.format(
+                gaf_path, gfa_path, GAF_REUSE_CHECK_RECORDS,
+                ' '.join(sorted(step_genomes)[:12]) or '(nothing)', e))
+
+    RealtimeLogger.info('Reused mappings from {} resolve against the graph'.format(gaf_path))
 
 def translate_gaf_one(job, config, event_name, gaf_file_id, gfa_file_id, genome_names):
     """ Re-derive one genome's PAF from mappings it already has, against a (possibly extended) graph.

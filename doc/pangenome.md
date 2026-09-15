@@ -316,6 +316,20 @@ of `minigraph` into minutes of file conversion.
 `--extendGAF` is optional. Without it — extending a published release for which only the GFA is
 available, say — every genome is mapped again, which is the fallback and costs a full mapping stage.
 
+**The GFA and the GAF must come from the same graphmap run.** They describe the same node
+boundaries, and reusing mappings against a graph that has different ones fails. There is one way to
+get a mismatched pair that looks like a matching one: a **`--mgSplit` run publishes an
+`<outName>.sv.gfa.gz` and an `<outName>.gaf.gz` that are not a pair.** Its GAF is the whole-genome
+first pass, mapped against the *reference-only* graph `cactus-minigraph --refOnly` builds, while its
+GFA is the merged per-chromosome graphs. The giveaway is that such a GAF's paths only ever walk
+through the reference genomes, however many samples the graph holds.
+
+So a pangenome built with `--mgSplit` can be extended with `--extendGFA`, but not with
+`--extendGAF`. That costs the mapping stage and keeps the saving that matters, since construction
+is the expensive half. A sample of the reused mappings is resolved against the graph before
+anything else runs, so a mismatched pair fails in one job with a diagnosis rather than in every
+per-genome job after the fan-out.
+
 #### Why an extended pangenome is not identical to one built all at once
 
 There are exactly two sources of difference, and it is worth being precise about which is which.
