@@ -70,6 +70,20 @@ def pangenome_options(parser):
                         help = "Run minigraph construction and mapping independently on each chromosome")                        
     parser.add_argument("--mgSplitWholeGenomeRef", action="store_true", default=False,
                         help = "Implies --mgSplit, and builds each chromosome's second-pass minigraph against the whole reference genome(s) rather than just that chromosome, so off-chromosome mappings can compete and be filtered the way they are in the whole-genome pipeline. The off-chromosome material is pruned back out before cactus-align.")
+    parser.add_argument("--inGFA", type=str, default=None,
+                        help = "Start from this existing minigraph GFA (<outName>.sv.gfa.gz from a previous run, or a published release) "
+                        "rather than building one. If the seqFile names genomes the graph does not have, they are constructed into it and "
+                        "the rest is left alone; if it names exactly the genomes the graph already holds, nothing is constructed and the "
+                        "run resumes from it. Either way the seqFile must list every genome in the graph, since genomes cannot be removed "
+                        "from a minigraph. Construction is where nearly all of the minigraph cost is")
+    parser.add_argument("--inGAF", type=str, default=None,
+                        help = "Reuse the mappings in this GAF (<outName>.gaf.gz from the run that produced --inGFA) rather than re-running "
+                        "minigraph for the genomes it covers. Minigraph GAF is in stable coordinates, which adding genomes to a graph does "
+                        "not change, so they are re-derived against the graph instead. With a graph that needs nothing constructed this "
+                        "skips straight to cactus-graphmap-split. Without it, every genome is mapped again (see --remap)")
+    parser.add_argument("--remap", action="store_true", default=False,
+                        help = "With --inGAF, map every genome with minigraph anyway. Costs the full mapping stage, but every genome then "
+                        "sees the whole graph, as it would in a from-scratch run")
 
     # cactus-graphmap options
     parser.add_argument("--mapCores", type=int, help = "Number of cores for minigraph map.  Overrides graphmap cpu in configuration")
@@ -198,6 +212,20 @@ def pangenome_validate_options(options):
     if options.mgSplit and options.noSplit:
         raise RuntimeError('you cannot use both --mgSplit and --noSplit together: pick one')
 
+    if options.inGFA:
+        if options.mgSplit:
+            raise RuntimeError('--inGFA cannot (yet) be used with --mgSplit: the per-chromosome graphs and mappings would '
+                               'have to be carried over too')
+        if options.collapse or options.collapseRefPAF:
+            raise RuntimeError('--inGFA cannot be used with --collapse or --collapseRefPAF: collapse PAFs are minimap2 '
+                               'self-alignments and are not derived from the GAF')
+    else:
+        if options.inGAF:
+            raise RuntimeError('--inGAF requires --inGFA: reusing mappings only makes sense against the graph they '
+                               'were made from')
+        if options.remap:
+            raise RuntimeError('--remap only means something with --inGAF, which is what it overrides')
+
     # Sort out the graphmap-join options, which can be rather complex
     # pass in dummy values for now, they will get filled in later
     # (but we want to do as much error-checking upfront as possible)
@@ -299,6 +327,17 @@ def main():
             if options.scoresFile:
                 last_scores_id = toil.importFile(makeURL(options.scoresFile))
 
+            #import the pangenome being extended
+            in_gfa_id, in_gaf_id = None, None
+            if options.inGFA:
+                if '://' not in options.inGFA:
+                    options.inGFA = os.path.abspath(options.inGFA)
+                in_gfa_id = toil.importFile(makeURL(options.inGFA))
+                if options.inGAF and not options.remap:
+                    if '://' not in options.inGAF:
+                        options.inGAF = os.path.abspath(options.inGAF)
+                    in_gaf_id = toil.importFile(makeURL(options.inGAF))
+
             #import the sequences
             input_seq_id_map = {}
             input_path_map = {}
@@ -315,7 +354,8 @@ def main():
                 elif genome in input_seq_order:
                     input_seq_order.remove(genome)                    
             
-            toil.start(Job.wrapJobFn(pangenome_end_to_end_workflow, options, config_wrapper, input_seq_id_map, input_path_map, input_seq_order, ref_collapse_paf_id, last_scores_id))
+            toil.start(Job.wrapJobFn(pangenome_end_to_end_workflow, options, config_wrapper, input_seq_id_map, input_path_map, input_seq_order, ref_collapse_paf_id, last_scores_id,
+                                     in_gfa_id=in_gfa_id, in_gaf_id=in_gaf_id))
         
     end_time = timeit.default_timer()
     run_time = end_time - start_time
@@ -567,7 +607,7 @@ def export_join_wrapper(job, options, wf_output, contig_sizes_id=None):
         job.fileStore.exportFile(contig_sizes_id, makeURL(sizes_path))
 
 def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_path_map, seq_order, ref_collapse_paf_id,
-                                  last_scores_id):
+                                  last_scores_id, in_gfa_id=None, in_gaf_id=None):
     """ chain the entire workflow together, doing exports after each step to mitigate annoyance of failures """
     root_job = Job()
     job.addChild(root_job)
@@ -598,7 +638,14 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
     assert type(options.reference) == list
 
     # cactus_minigraph
-    sv_gfa_path = os.path.join(options.outDir, options.outName + '.sv.gfa.gz')
+    # with --mgSplit the whole-genome pass is a means to an end: cactus-minigraph runs --refOnly, so
+    # its graph holds the references alone and the mappings below are against that graph.  The real
+    # per-chromosome graphs and mappings land in chrom-minigraph/ and chrom-graphmap/, and at the end
+    # of the run cactus-graphmap-join merges the former back onto <outName>.sv.gfa.gz.  Published
+    # under the plain name these first-pass files would be silently replaced by, or left beside, a
+    # graph they do not describe -- so they get a prefix that says what they are
+    first_pass_name = options.outName + ('.refonly' if options.mgSplit else '')
+    sv_gfa_path = os.path.join(options.outDir, first_pass_name + '.sv.gfa.gz')
 
     options.batch = False
     options.refOnly = False
@@ -617,7 +664,8 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
     else:
         split_config_node = config_node
         split_config_wrapper = config_wrapper
-    minigraph_job = prev_job.addFollowOnJobFn(minigraph_construct_workflow, mg_options, split_config_node, seq_id_map, seq_order, sv_gfa_path, sanitize=False)
+    minigraph_job = prev_job.addFollowOnJobFn(minigraph_construct_workflow, mg_options, split_config_node, seq_id_map, seq_order, sv_gfa_path, sanitize=False,
+                                              in_gfa_id=in_gfa_id)
     sv_gfa_id = minigraph_job.rv(0)
     pansn_sv_gfa_id = minigraph_job.rv(1)
     if not last_scores_id:
@@ -626,15 +674,16 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
     minigraph_wrapper_job = minigraph_job.addFollowOnJobFn(export_minigraph_wrapper, options, pansn_sv_gfa_id, sv_gfa_path, last_scores_id)
 
     # cactus_graphmap
-    paf_path = os.path.join(options.outDir, options.outName + '.paf')
-    gfa_fa_path = os.path.join(options.outDir, options.outName + '.sv.gfa.fa.gz')
+    paf_path = os.path.join(options.outDir, first_pass_name + '.paf')
+    gfa_fa_path = os.path.join(options.outDir, first_pass_name + '.sv.gfa.fa.gz')
     options.minigraphGFA = sv_gfa_path
     options.outputFasta = gfa_fa_path
     graph_event = getOptionalAttrib(findRequiredNode(config_node, "graphmap"), "assemblyName", default="_MINIGRAPH_")
     gm_options = copy.deepcopy(options)
     if options.mgSplit:
         gm_options.collapse = False
-    graphmap_job = minigraph_wrapper_job.addFollowOnJobFn(minigraph_workflow, gm_options, split_config_wrapper, seq_id_map, sv_gfa_id, graph_event, False, ref_collapse_paf_id, pansn_gfa_input=False)
+    graphmap_job = minigraph_wrapper_job.addFollowOnJobFn(minigraph_workflow, gm_options, split_config_wrapper, seq_id_map, sv_gfa_id, graph_event, False, ref_collapse_paf_id, pansn_gfa_input=False,
+                                                          in_gaf_id=in_gaf_id)
     paf_id, gfa_fa_id, gaf_id, unfiltered_paf_id, paf_filter_log = graphmap_job.rv(0), graphmap_job.rv(1), graphmap_job.rv(2), graphmap_job.rv(3), graphmap_job.rv(4)
     graphmap_export_job = graphmap_job.addFollowOnJobFn(export_graphmap_wrapper, options, paf_id, paf_path, gaf_id, unfiltered_paf_id, paf_filter_log)
 
