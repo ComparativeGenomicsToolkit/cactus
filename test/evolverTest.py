@@ -555,6 +555,20 @@ class TestCase(unittest.TestCase):
             # the genomes added on top of the base graph are in the graph it was extended into
             self.assertEqual(self._gfa_genomes(os.path.join(out_dir, out_name + '.sv.gfa.gz')), set(self.PRIMATES))
 
+        if mgSplit:
+            # the whole-genome first pass is reference-only, and cactus-graphmap-join later writes
+            # the merged per-chromosome graph to <outName>.sv.gfa.gz.  Both have to survive under
+            # names that say which is which, or the first pass's mappings are left beside a graph
+            # they do not describe -- which is exactly what breaks --extendGAF
+            refonly_gfa = os.path.join(out_dir, out_name + '.refonly.sv.gfa.gz')
+            self.assertTrue(os.path.exists(refonly_gfa), 'no {} from the --mgSplit first pass'.format(refonly_gfa))
+            self.assertEqual(self._gfa_genomes(refonly_gfa), {'simHuman', 'simChimp'})
+            self.assertEqual(self._gfa_genomes(os.path.join(out_dir, out_name + '.sv.gfa.gz')), set(self.PRIMATES))
+            # the first pass's other artifacts travel with it rather than sitting under the plain name
+            for ext in ['.paf', '.gaf.gz', '.sv.gfa.fa.gz']:
+                self.assertTrue(os.path.exists(os.path.join(out_dir, out_name + '.refonly' + ext)),
+                                'first-pass {} not published under the .refonly prefix'.format(ext))
+
     def _build_primates_base_graph(self, binariesMode, config_path, genomes):
         """ build the graph and mappings for a subset of the primates with the step-by-step tools,
         for a later run to extend.  returns the gfa/gaf paths """

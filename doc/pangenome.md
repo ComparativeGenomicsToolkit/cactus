@@ -317,18 +317,23 @@ of `minigraph` into minutes of file conversion.
 available, say — every genome is mapped again, which is the fallback and costs a full mapping stage.
 
 **The GFA and the GAF must come from the same graphmap run.** They describe the same node
-boundaries, and reusing mappings against a graph that has different ones fails. There is one way to
-get a mismatched pair that looks like a matching one: a **`--mgSplit` run publishes an
-`<outName>.sv.gfa.gz` and an `<outName>.gaf.gz` that are not a pair.** Its GAF is the whole-genome
-first pass, mapped against the *reference-only* graph `cactus-minigraph --refOnly` builds, while its
-GFA is the merged per-chromosome graphs. The giveaway is that such a GAF's paths only ever walk
-through the reference genomes, however many samples the graph holds.
+boundaries, and reusing mappings against a graph that has different ones fails.
 
-So a pangenome built with `--mgSplit` can be extended with `--extendGFA`, but not with
-`--extendGAF`. That costs the mapping stage and keeps the saving that matters, since construction
-is the expensive half. A sample of the reused mappings is resolved against the graph before
-anything else runs, so a mismatched pair fails in one job with a diagnosis rather than in every
-per-genome job after the fan-out.
+With `--mgSplit` that means the `.refonly.` files, not the plain ones. Such a run has two
+construction passes: a whole-genome one that `cactus-minigraph --refOnly` builds from the
+references alone, and the per-chromosome one whose graphs `cactus-graphmap-join` merges into
+`<outName>.sv.gfa.gz` at the end of the run. The first pass therefore publishes its graph, mappings
+and node fasta under a `<outName>.refonly.` prefix — `refonly.sv.gfa.gz`, `refonly.gaf.gz`,
+`refonly.paf`, `refonly.sv.gfa.fa.gz` — so that they are not mistaken for, or overwritten by, the
+merged graph they do not describe. `<outName>.refonly.sv.gfa.gz` and `<outName>.refonly.gaf.gz` are
+a genuine pair and can be extended together; the merged `<outName>.sv.gfa.gz` has no GAF to go with
+it, so extend it with `--extendGFA` alone. That still keeps the saving that matters, since
+construction is the expensive half.
+
+A sample of the reused mappings is resolved against the graph before anything else runs, so a
+mismatched pair fails in one job with a diagnosis rather than in every per-genome job after the
+fan-out. The tell is a GAF whose paths only ever walk through the reference genomes, however many
+samples the graph holds.
 
 #### Why an extended pangenome is not identical to one built all at once
 

@@ -637,7 +637,14 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
     assert type(options.reference) == list
 
     # cactus_minigraph
-    sv_gfa_path = os.path.join(options.outDir, options.outName + '.sv.gfa.gz')
+    # with --mgSplit the whole-genome pass is a means to an end: cactus-minigraph runs --refOnly, so
+    # its graph holds the references alone and the mappings below are against that graph.  The real
+    # per-chromosome graphs and mappings land in chrom-minigraph/ and chrom-graphmap/, and at the end
+    # of the run cactus-graphmap-join merges the former back onto <outName>.sv.gfa.gz.  Published
+    # under the plain name these first-pass files would be silently replaced by, or left beside, a
+    # graph they do not describe -- so they get a prefix that says what they are
+    first_pass_name = options.outName + ('.refonly' if options.mgSplit else '')
+    sv_gfa_path = os.path.join(options.outDir, first_pass_name + '.sv.gfa.gz')
 
     options.batch = False
     options.refOnly = False
@@ -666,8 +673,8 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
     minigraph_wrapper_job = minigraph_job.addFollowOnJobFn(export_minigraph_wrapper, options, pansn_sv_gfa_id, sv_gfa_path, last_scores_id)
 
     # cactus_graphmap
-    paf_path = os.path.join(options.outDir, options.outName + '.paf')
-    gfa_fa_path = os.path.join(options.outDir, options.outName + '.sv.gfa.fa.gz')
+    paf_path = os.path.join(options.outDir, first_pass_name + '.paf')
+    gfa_fa_path = os.path.join(options.outDir, first_pass_name + '.sv.gfa.fa.gz')
     options.minigraphGFA = sv_gfa_path
     options.outputFasta = gfa_fa_path
     graph_event = getOptionalAttrib(findRequiredNode(config_node, "graphmap"), "assemblyName", default="_MINIGRAPH_")
