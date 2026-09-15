@@ -649,8 +649,12 @@ class TestCase(unittest.TestCase):
                                '--vg'] +  vg_files + ['--hal'] + hal_files +
                                ['--xg', '--vcf', '--giraffe', 'clip', 'filter', '--lrGiraffe'] + cactus_opts + ['--indexCores', '4'])
 
-    def _run_yeast_pangenome(self, binariesMode, mgSplit=False, wholeGenomeRef=False, collapse=False, gref=None, vcfL=None):
+    def _run_yeast_pangenome(self, binariesMode, mgSplit=False, wholeGenomeRef=False, collapse=False, gref=None,
+                             vcfL=None, collapseInversions=False):
         """ yeast pangenome chromosome by chromosome pipeline, as run through a single invocations
+
+        note that collapseInversions (the rgfa-collapse postprocessor, a config attribute) is a
+        different feature from collapse (--collapse, which incorporates minimap2 self-alignments).
         """
 
         orig_seq_file_path = './examples/yeastPangenome.txt'
@@ -677,6 +681,16 @@ class TestCase(unittest.TestCase):
             cactus_pangenome_cmd += ['--gref', gref]
         if vcfL is not None:
             cactus_pangenome_cmd += ['--vcfL', str(vcfL)]
+        if collapseInversions:
+            # there is no command-line flag for it, so edit the config the way _run_evolver does
+            config_path = os.path.join(self.tempDir, 'config.collapse.xml')
+            shutil.copyfile('src/cactus/cactus_progressive_config.xml', config_path)
+            xml_root = ET.parse(config_path).getroot()
+            xml_root.find('graphmap').attrib['collapseInversions'] = '1'
+            with open(config_path, 'w') as config_file:
+                config_file.write(minidom.parseString(
+                    ET.tostring(xml_root, encoding='unicode')).toprettyxml())
+            cactus_pangenome_cmd += ['--configFile', config_path]
         subprocess.check_call(cactus_pangenome_cmd + cactus_opts)
 
         #compatibility with older test
@@ -944,6 +958,24 @@ class TestCase(unittest.TestCase):
                              '{} was not pruned back to one reference contig: {}'.format(gfa_name, sorted(ref_contigs)))
             self.assertTrue(next(iter(ref_contigs)).endswith('#' + chrom),
                             '{} kept the wrong reference contig: {}'.format(gfa_name, sorted(ref_contigs)))
+
+    def _check_collapse_output(self, join_path, gfa_name='yeast.sv.gfa.gz'):
+        """ with collapseInversions on, the minigraph job exports the collapsed graph to the
+        normal path and keeps the input beside it, plus a per-call TSV.  assert all three exist and
+        that the collapsed graph is structurally sound.  this holds whether or not the dataset
+        happens to contain a collapsible allele -- what it pins down is the integration: config
+        read, job scheduled, rgfa-collapse invoked, outputs exported.
+        """
+        collapsed = os.path.join(join_path, gfa_name)
+        uncollapsed = collapsed.replace('.sv.gfa.gz', '.sv.uncollapsed.gfa.gz')
+        report = collapsed.replace('.sv.gfa.gz', '.sv.collapse.tsv')
+        self.assertTrue(os.path.exists(collapsed), 'collapsed graph missing: {}'.format(collapsed))
+        self.assertTrue(os.path.exists(uncollapsed),
+                        'collapseInversions is on but the uncollapsed graph was not kept: {}'.format(uncollapsed))
+        self.assertTrue(os.path.exists(report),
+                        'collapseInversions is on but no per-call report was written: {}'.format(report))
+        # the collapse rewires edges, so a bad one shows up as a dangling or duplicate link
+        self._validate_sv_gfa(collapsed)
 
     def _check_yeast_pangenome(self, binariesMode, other_ref=None, expect_odgi=False, expect_haplo=False, expect_unchopped_gfa=False, expect_gref=False, vcfL=None, expect_report=True):
         """ yeast pangenome chromosome by chromosome pipeline
@@ -1729,10 +1761,11 @@ class TestCase(unittest.TestCase):
     def testYeastPangenomeLocal(self):
         """ Run pangenome pipeline (including contig splitting!) on yeast dataset using cactus-pangenome """
         name = "local"
-        self._run_yeast_pangenome(name, collapse=True)
+        self._run_yeast_pangenome(name, collapse=True, collapseInversions=True)
 
         # check the output
         self._check_yeast_pangenome(name, other_ref='DBVPG6044', expect_odgi=True, expect_haplo=False, expect_unchopped_gfa=True)
+        self._check_collapse_output(os.path.join(self.tempDir, 'join'))
 
     YEAST_URL = 'https://github.com/ComparativeGenomicsToolkit/cactusTestData/raw/master/yeast/{}.fa.gz'
     PANPATCH_TARGET = 'SK1'
