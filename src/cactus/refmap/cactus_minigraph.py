@@ -345,7 +345,11 @@ def minigraph_construct_workflow(job, options, config_node, seq_id_map, seq_orde
     run_job = rename_job.addFollowOnJobFn(minigraph_construct_run, options, config_node, seq_id_map, seq_order, gfa_path,
                                           sanitize, construct_seq_id_map,
                                           rename_job.rv(0), rename_job.rv(1), in_gfa_id)
-    return run_job.rv(0), run_job.rv(1), run_job.rv(2)
+    # all five slots: minigraph_construct_run returns
+    # (gfa, pansn_gfa, uncollapsed_pansn_gfa, collapse_report, train).  Truncating here to three
+    # left cactus_pangenome's rv(3)/rv(4) reading off the end of the tuple, which Toil reports as
+    # "IndexError: tuple index out of range" from _fulfillPromises, nowhere near the cause.
+    return run_job.rv(0), run_job.rv(1), run_job.rv(2), run_job.rv(3), run_job.rv(4)
 
 def minigraph_construct_run(job, options, config_node, seq_id_map, seq_order, gfa_path, sanitize=True,
                             construct_seq_id_map=None, seed_gfa_id=None, seed_events=None, seed_pansn_gfa_id=None):
@@ -394,7 +398,9 @@ def minigraph_construct_run(job, options, config_node, seq_id_map, seq_order, gf
                                               cores=options.mgCores, disk=8*ref_size,
                                               memory=cactus_clamp_memory(max(8*ref_size, 12*10**9)))
                 train_id = train_job.rv()
-            return match_job.rv(0), match_job.rv(1), train_id
+            # same five slots as the constructing path below.  nothing was constructed, so there
+            # is no pre-collapse graph and no report: the graph handed back is the seed as it was.
+            return match_job.rv(0), match_job.rv(1), None, None, train_id
     else:
         assert options.reference[0] == seq_order[0]
     if options.refOnly:
@@ -462,7 +468,10 @@ def minigraph_construct_run(job, options, config_node, seq_id_map, seq_order, gf
                                                    memory=cactus_clamp_memory(4*ref_size))
         uncollapsed_pansn_gfa_id = minigraph_job.rv(1)
         collapse_report_id = collapse_job.rv(1)
-        gfa_ids = (rename_job.rv(), collapse_job.rv(0))
+        # rv(0), not rv(): master's minigraph_gfa_from_pansn returns
+        # (converted gfa id, set of genomes the graph was built from), and handing the whole tuple
+        # on made graphmap fail with "'tuple' object has no attribute 'size'"
+        gfa_ids = (rename_job.rv(0), collapse_job.rv(0))
     else:
         gfa_ids = (minigraph_job.rv(0), minigraph_job.rv(1))
 

@@ -239,6 +239,18 @@ def pangenome_validate_options(options):
 def pangenome_config_overrides(options, config_node):
     """ push the cpu options into the config, and sort out the minigraph cores.  shared with
     cactus-panpatch """
+    # Collapsing splits nodes at alignment-block boundaries and rewires the edges around them, so
+    # a GAF made against the pre-collapse graph no longer tiles it.  Left alone this surfaces much
+    # later as a gaf2unstable tiling assertion inside check_reusable_gaf, whose diagnosis points at
+    # --mgSplit rather than at the collapse.
+    # getattr, not attribute access: cactus-panpatch shares this function and defines neither option
+    if getattr(options, 'inGAF', None) and not getattr(options, 'remap', False) and getOptionalAttrib(
+            findRequiredNode(config_node, "graphmap"), "collapseInversions", typeFn=bool, default=False):
+        raise RuntimeError(
+            'collapseInversions cannot be used with --inGAF: the collapse rewrites node boundaries, so the '
+            'mappings in {} no longer resolve against the extended graph.  Either drop --inGAF (--inGFA still '
+            'saves the construction, which is the expensive half), add --remap to map every genome against the '
+            'collapsed graph, or turn collapseInversions off in the config.'.format(getattr(options, 'inGAF', '?')))
     if options.mapCores is not None:
         findRequiredNode(config_node, "graphmap").attrib["cpu"] = str(options.mapCores)
     mg_cores = getOptionalAttrib(findRequiredNode(config_node, "graphmap"), "cpu", typeFn=int, default=1)
