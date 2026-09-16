@@ -26,7 +26,15 @@ set -beEu -o pipefail
 # outright when the two disagree -- which is how it first showed up, as an
 # undefined reference to st_fclose against a working tree whose submodules
 # predated it, while the correct library sat unused in bin-tmp.
-unset sonLibRootDir PYTHONPATH
+#
+# The two arch knobs go for a different reason: they are not exported by the
+# invoking make, but they are exactly the kind of thing a developer keeps
+# exported in their own shell, and this script runs in that shell.  Either one
+# would end up in a public tarball -- CACTUS_ARCH_FLAGS in particular outranks
+# the CACTUS_PORTABLE_BUILD set below, so it would also strip the legacy
+# tarball of the -msse2 that is its only reason to exist.  CACTUS_LEGACY_ARCH
+# is deliberately not in this list: "make binRelease" passes it in on purpose.
+unset sonLibRootDir PYTHONPATH CACTUS_ARCH_FLAGS CACTUS_NATIVE_BUILD
 # the Makefile prepends exactly "${CWD}/bin:", so take that one prefix back off
 PATH=${PATH#"$(pwd)/bin:"}
 export PATH
@@ -46,7 +54,9 @@ REL_TAG=$(getLatestReleaseTag)
 git checkout "${REL_TAG}"
 git submodule update --init --recursive
 
-# This build gets shipped, so take include.mk's portable baseline rather than -march=native.
+# This build gets shipped, so pin include.mk's portable baseline.  That is the default now,
+# and the scrub above has already dropped the two knobs that could change it, but this is the
+# one build whose output goes to other people's machines, so say it rather than inherit it.
 export CACTUS_PORTABLE_BUILD=1
 
 if [ -z ${CACTUS_LEGACY_ARCH+x} ]

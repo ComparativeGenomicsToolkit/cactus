@@ -95,9 +95,13 @@ fi
 
 # minigraph
 cd ${pangenomeBuildDir}
-git clone https://github.com/lh3/minigraph.git
+git clone https://github.com/glennhickey/minigraph.git
 pushd minigraph
-git checkout v0.21
+# ai-make-faster: 13 commits on lh3's 0.21-r606 (2f569eb). Byte-identical output by default;
+# everything that can change a graph is behind an opt-in flag that defaults off. Chromosome-scale
+# construction is ~4.5x faster, whole-genome ~2-2.9x, because stock runs one thread per query
+# contig and so cannot use more than ~1 core on a chromosome or ~6.5 on a whole genome.
+git checkout 78e9266477f1ff392146df3a5fe9a0b895a51a27
 # hack in flags support
 sed -i Makefile -e 's/CFLAGS=/CFLAGS+=/' -e 's/LIBS=/LIBS+=/'
 LIBS="${jemallocLib}" make -j ${numcpu}
@@ -213,7 +217,7 @@ fi
 cd ${pangenomeBuildDir}
 git clone https://github.com/ComparativeGenomicsToolkit/cactus-gfa-tools.git
 cd cactus-gfa-tools
-git checkout b37287b132686c00b7c4b5e875689065f700c66a
+git checkout a32588c32fc22652c55f7bfe00d240e16ec96598
 make -j ${numcpu}
 if [[ $STATIC_CHECK -ne 1 || $(ldd paf2lastz | grep so | wc -l) -eq 0 ]]
 then
@@ -272,7 +276,7 @@ fi
 
 # hal2vg
 cd ${pangenomeBuildDir}
-wget -nv --tries=5 --waitretry=3 --timeout=60 --retry-connrefused https://github.com/ComparativeGenomicsToolkit/hal2vg/releases/download/v1.2.2/hal2vg
+wget -nv --tries=5 --waitretry=3 --timeout=60 --retry-connrefused https://github.com/ComparativeGenomicsToolkit/hal2vg/releases/download/v1.2.3/hal2vg
 chmod +x hal2vg
 if [[ $STATIC_CHECK -ne 1 || $(ldd hal2vg | grep so | wc -l) -eq 0 ]]
 then
@@ -282,7 +286,7 @@ else
 fi
 # clip-vg
 cd ${pangenomeBuildDir}
-wget -nv --tries=5 --waitretry=3 --timeout=60 --retry-connrefused https://github.com/ComparativeGenomicsToolkit/hal2vg/releases/download/v1.2.2/clip-vg
+wget -nv --tries=5 --waitretry=3 --timeout=60 --retry-connrefused https://github.com/ComparativeGenomicsToolkit/hal2vg/releases/download/v1.2.3/clip-vg
 chmod +x clip-vg
 if [[ $STATIC_CHECK -ne 1 || $(ldd clip-vg | grep so | wc -l) -eq 0 ]]
 then
@@ -292,7 +296,7 @@ else
 fi
 # halRemoveDupes
 cd ${pangenomeBuildDir}
-wget -nv --tries=5 --waitretry=3 --timeout=60 --retry-connrefused https://github.com/ComparativeGenomicsToolkit/hal2vg/releases/download/v1.2.2/halRemoveDupes
+wget -nv --tries=5 --waitretry=3 --timeout=60 --retry-connrefused https://github.com/ComparativeGenomicsToolkit/hal2vg/releases/download/v1.2.3/halRemoveDupes
 chmod +x halRemoveDupes
 if [[ $STATIC_CHECK -ne 1 || $(ldd halRemoveDupes | grep so | wc -l) -eq 0 ]]
 then
@@ -302,7 +306,7 @@ else
 fi
 # halMergeChroms
 cd ${pangenomeBuildDir}
-wget -nv --tries=5 --waitretry=3 --timeout=60 --retry-connrefused https://github.com/ComparativeGenomicsToolkit/hal2vg/releases/download/v1.2.2/halMergeChroms
+wget -nv --tries=5 --waitretry=3 --timeout=60 --retry-connrefused https://github.com/ComparativeGenomicsToolkit/hal2vg/releases/download/v1.2.3/halMergeChroms
 chmod +x halMergeChroms
 if [[ $STATIC_CHECK -ne 1 || $(ldd halMergeChroms | grep so | wc -l) -eq 0 ]]
 then
@@ -313,7 +317,7 @@ fi
 
 # halUnclip
 cd ${pangenomeBuildDir}
-wget -nv --tries=5 --waitretry=3 --timeout=60 --retry-connrefused https://github.com/ComparativeGenomicsToolkit/hal2vg/releases/download/v1.2.2/halUnclip
+wget -nv --tries=5 --waitretry=3 --timeout=60 --retry-connrefused https://github.com/ComparativeGenomicsToolkit/hal2vg/releases/download/v1.2.3/halUnclip
 chmod +x halUnclip
 if [[ $STATIC_CHECK -ne 1 || $(ldd halUnclip | grep so | wc -l) -eq 0 ]]
 then
@@ -324,7 +328,7 @@ fi
 
 # filter-paf-deletions
 cd ${pangenomeBuildDir}
-wget -nv --tries=5 --waitretry=3 --timeout=60 --retry-connrefused https://github.com/ComparativeGenomicsToolkit/hal2vg/releases/download/v1.2.2/filter-paf-deletions
+wget -nv --tries=5 --waitretry=3 --timeout=60 --retry-connrefused https://github.com/ComparativeGenomicsToolkit/hal2vg/releases/download/v1.2.3/filter-paf-deletions
 chmod +x filter-paf-deletions
 if [[ $STATIC_CHECK -ne 1 || $(ldd filter-paf-deletions | grep so | wc -l) -eq 0 ]]
 then

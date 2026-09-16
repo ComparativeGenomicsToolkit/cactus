@@ -8,6 +8,7 @@
 
 """
 import os, sys, re
+import gzip
 from argparse import ArgumentParser
 import xml.etree.ElementTree as ET
 import copy
@@ -39,6 +40,7 @@ from cactus.shared.common import cactus_cpu_count
 from cactus.shared.common import cactus_clamp_memory
 from cactus.progressive.progressive_decomposition import compute_outgroups, parse_seqfile, get_subtree, get_spanning_subtree, get_event_set
 from cactus.refmap.cactus_minigraph import check_sample_names, minigraph_gfa_from_pansn, read_chromfile
+from cactus.refmap.cactus_minigraph import GFA_RENAME_SECS_PER_GB, RAW_BYTES_PER_GZ_BYTE
 from sonLib.nxnewick import NXNewick
 from sonLib.bioio import getTempDirectory, getTempFile
 
@@ -59,6 +61,14 @@ def main():
     parser.add_argument("--mapCores", type=int, help = "Number of cores for minigraph.  Overrides graphmap cpu in configuration")
     parser.add_argument("--collapse", help = "Incorporate minimap2 self-alignments.", action='store_true', default=False)
     parser.add_argument("--collapseRefPAF", help ="Incorporate given (reference-only) self-alignments in PAF format [Experimental]")
+    parser.add_argument("--inGAF", type=str, default=None,
+                        help = "Reuse the mappings in this GAF (as published by a previous cactus-graphmap or cactus-pangenome run) "
+                        "instead of re-running minigraph for the genomes it covers. Minigraph GAF is in stable coordinates, which "
+                        "node splitting does not change, so these mappings are re-derived against the given graph instead. Only "
+                        "genomes the GAF does not cover are mapped. Intended for use with cactus-minigraph --inGFA")
+    parser.add_argument("--remap", action="store_true", default=False,
+                        help = "Map every genome with minigraph even if --inGAF already covers it. Slower, but the existing "
+                        "genomes then see the nodes contributed by the newly added ones, as they would in a from-scratch run")
 
     parser.add_argument("--batch", action="store_true",
                         help="Run independently on set of chromosomea inputs (chromfile as from cactus-minigraph --batch). Note that the output will be a directory and not a PAF")
@@ -106,6 +116,15 @@ def main():
 
     if options.mgSplit and options.batch:
         raise RuntimeError("--mgSplit is for the whole-genome splitting pass and cannot be used with --batch")
+
+    if options.inGAF:
+        if options.batch:
+            raise RuntimeError("--inGAF cannot be used with --batch")
+        if options.collapse or options.collapseRefPAF:
+            raise RuntimeError("--inGAF cannot be used with --collapse or --collapseRefPAF: collapse PAFs are minimap2 "
+                               "self-alignments and are not derived from the GAF")
+    elif options.remap:
+        raise RuntimeError("--remap only means something with --inGAF, which is what it overrides")
     
     # Mess with some toil options to create useful defaults.
     cactus_override_toil_options(options)
@@ -232,9 +251,13 @@ def graph_map(options):
 
                 input_dict[chrom] = seq_id_map, gfa_id, ref_collapse_paf_id, input_map[chrom][0], input_map[chrom][1]
                 
+            #import the mappings to reuse
+            in_gaf_id = toil.importFile(makeURL(options.inGAF)) if options.inGAF and not options.remap else None
+
             # run the workflow
             # output_dict is chrom -> paf_id, gfa_fa_id, gaf_id, unfiltered_paf_id, paf_filter_log, paf_was_filtered
-            output_dict = toil.start(Job.wrapJobFn(minigraph_batch_separate_workflow, options, config_wrapper, input_dict, graph_event, True, walltime=cactus_walltime()))
+            output_dict = toil.start(Job.wrapJobFn(minigraph_batch_separate_workflow, options, config_wrapper, input_dict, graph_event, True,
+                                                   in_gaf_id=in_gaf_id, walltime=cactus_walltime()))
 
         export_graphmap_output(options, config_node, input_map, output_dict, toil)
 
@@ -295,7 +318,7 @@ def export_graphmap_output(options, config_node, input_map, output_dict, toil):
         if chrom_file_path.startswith('s3://'):
             write_s3(chrom_file_temp_path, chrom_file_path)
 
-def minigraph_batch_workflow(job, options, config, input_dict, graph_event, sanitize, pansn_gfa_input=True):
+def minigraph_batch_workflow(job, options, config, input_dict, graph_event, sanitize, pansn_gfa_input=True, in_gaf_id=None):
     """ Batch wrapper to run grpahmap independently at the chromosome level."""
     output_dict = {}
     options.mg_chrom_name = None
@@ -310,7 +333,8 @@ def minigraph_batch_workflow(job, options, config, input_dict, graph_event, sani
         else:
             chrom_options = options
         mgwf_job = job.addChildJobFn(minigraph_workflow, chrom_options, config, seq_id_map, gfa_id, graph_event,
-                                     sanitize, ref_collapse_paf_id, pansn_gfa_input, walltime=cactus_walltime())
+                                     sanitize, ref_collapse_paf_id, pansn_gfa_input, in_gaf_id=in_gaf_id,
+                                     walltime=cactus_walltime())
         output_dict[chrom] = mgwf_job.rv()
     return output_dict
 
@@ -323,13 +347,15 @@ def add_separate_ref_contigs_job(batch_job, options, config, input_dict):
     from cactus.refmap.cactus_graphmap_split import separate_ref_contigs_batch
     reference = options.reference[0] if type(options.reference) is list else options.reference
     return batch_job.addFollowOnJobFn(separate_ref_contigs_batch, config, input_dict, batch_job.rv(), reference,
-                                      getattr(options, 'permissiveContigFilter', None), walltime=cactus_walltime())
+                                      getattr(options, 'permissiveContigFilter', None),
+                                      whole_genome_ref=getattr(options, 'mgSplitWholeGenomeRef', False),
+                                      walltime=cactus_walltime())
 
-def minigraph_batch_separate_workflow(job, options, config, input_dict, graph_event, sanitize, pansn_gfa_input=True):
+def minigraph_batch_separate_workflow(job, options, config, input_dict, graph_event, sanitize, pansn_gfa_input=True, in_gaf_id=None):
     """ minigraph_batch_workflow followed by the separation pass, for callers that just want the final
     result and add nothing after it """
     batch_job = job.addChildJobFn(minigraph_batch_workflow, options, config, input_dict, graph_event, sanitize,
-                                  pansn_gfa_input, walltime=cactus_walltime())
+                                  pansn_gfa_input, in_gaf_id=in_gaf_id, walltime=cactus_walltime())
     return add_separate_ref_contigs_job(batch_job, options, config, input_dict).rv()
 
 # Walltime estimates for the graphmap jobs.  Everything below was measured on the two HPRC
@@ -343,18 +369,6 @@ def minigraph_batch_separate_workflow(job, options, config, input_dict, graph_ev
 # that make it, read it and copy it.
 PAF_BYTES_PER_GFA_BYTE = 4
 
-# A bgzipped GFA or PAF decompresses to about 10x its size, the figure the disk requests here are
-# already reckoned at.
-RAW_BYTES_PER_GZ_BYTE = 10
-
-# Seconds per GB of *compressed* GFA to rename it between PanSN and Cactus.  Nothing measures this
-# one directly -- cactus-pangenome passes pansn_gfa_input=False, so it only runs from the
-# standalone cactus-graphmap and cactus-graphmap-split entry points and it fired in none of the
-# runs we have logs for.  It rewrites every S-line of the decompressed GFA in python (~40 MB/s) and
-# bgzips the result back up (~25 MB/s, the rate of the whole-panel bgzips that were measured), both
-# single-threaded and both over a raw GFA ~10x the compressed input it is handed.
-GFA_RENAME_SECS_PER_GB = 700
-
 # Seconds per GB of raw GFA for rgfa2paf: 402s on the 8.3 GiB whole-panel GFA against a 112s worst
 # case on the 0.6 GiB per-chromosome ones, ie ~40 s/GB on top of a ~90s fixed cost.
 RGFA2PAF_SECS_PER_GB = 40
@@ -365,7 +379,8 @@ RGFA2PAF_SECS_PER_GB = 40
 FILTER_PAF_DELETIONS_SECS_PER_GB = 500
 
 
-def minigraph_workflow(job, options, config, seq_id_map, gfa_id, graph_event, sanitize, ref_collapse_paf_id, pansn_gfa_input=True):
+def minigraph_workflow(job, options, config, seq_id_map, gfa_id, graph_event, sanitize, ref_collapse_paf_id, pansn_gfa_input=True,
+                       in_gaf_id=None):
     """ Overall workflow takes command line options and returns (paf-id, (optional) fa-id) """
     fa_id = None
     gfa_id_size = gfa_id.size
@@ -405,7 +420,17 @@ def minigraph_workflow(job, options, config, seq_id_map, gfa_id, graph_event, sa
         new_root_job = Job(walltime=cactus_walltime())
         root_job.addFollowOn(new_root_job)
         root_job = new_root_job
-        gfa_id = rename_gfa_job.rv()
+        gfa_id = rename_gfa_job.rv(0)
+
+    # split up any mappings we've been given to reuse, so each genome's re-derivation is its own
+    # job just as its mapping would have been
+    in_gaf_map = None
+    if in_gaf_id:
+        # one pass over the reused GAF, splitting it per genome: I/O rather than compute
+        split_gaf_job = root_job.addChildJobFn(split_gaf_by_event, in_gaf_id, genome_names, options.inGAF,
+                                               disk=12*in_gaf_id.size,
+                                               walltime=cactus_walltime(0, io_bytes=RAW_BYTES_PER_GZ_BYTE * in_gaf_id.size))
+        in_gaf_map = split_gaf_job.rv()
 
     zipped_gfa = options.minigraphGFA.endswith('.gz')
     if options.outputFasta:
@@ -431,7 +456,20 @@ def minigraph_workflow(job, options, config, seq_id_map, gfa_id, graph_event, sa
     # size of the merged PAF every job below either makes, reads or copies
     paf_bytes = PAF_BYTES_PER_GFA_BYTE * gfa_id_size
 
-    paf_job = Job.wrapJobFn(minigraph_map_all, options, config, gfa_id, seq_id_map, graph_event, walltime=cactus_walltime())
+    if in_gaf_id:
+        # resolving a reused GAF is the same work for every genome, so a GAF that does not belong
+        # to this graph fails identically in all of them -- once per genome, after the fan-out, and
+        # again on every Toil retry.  Checking a sample up front turns that into one quick failure
+        # with something actionable in it.  chained onto the unzip (when there is one) because it
+        # needs the same uncompressed graph the per-genome jobs use
+        check_parent = gfa_unzip_job if zipped_gfa else root_job
+        check_parent.addFollowOnJobFn(check_reusable_gaf, config, in_gaf_id, gfa_id, genome_names,
+                                      options.inGAF, options.minigraphGFA,
+                                      disk=4*gfa_id_size, memory=cactus_clamp_memory(2*gfa_id_size),
+                                      walltime=cactus_walltime(GAF_CHECK_SECS, io_bytes=gfa_id_size + in_gaf_id.size))
+
+    paf_job = Job.wrapJobFn(minigraph_map_all, options, config, gfa_id, seq_id_map, graph_event, in_gaf_map,
+                            walltime=cactus_walltime())
     root_job.addFollowOn(paf_job)
 
     collapse_paf_id = ref_collapse_paf_id
@@ -539,16 +577,20 @@ def make_minigraph_fasta(job, gfa_file_id, gfa_file_path, name):
 MINIGRAPH_MAP_SECS = 2000
 MINIGRAPH_MAP_SECS_PER_GB = 1200
 
-# What a genome's minigraph output weighs as a fraction of the fasta it was mapped from: the v2.0
-# whole panel merged ~1.4 TB of sanitized fasta into a 34.4 GiB PAF (2.6%) and a GAF whose
-# single-threaded bgzip took 649s (v2.0) / 868s (v2.1) at ~25 MB/s, ie ~16-22 GB (~1.5%); per
-# chromosome on v2.1 the PAF ratio is 4.3%.  Both merges are handed promises, so the fastas are the
-# only handle on how much they move.
-PAF_BYTES_PER_FASTA_BYTE = 0.05
-GAF_BYTES_PER_FASTA_BYTE = 0.025
+# Re-deriving one genome's PAF from a GAF it already has (--inGAF): the same gaf2unstable/gaffilter/
+# gaf2paf chain minigraph_map_one runs, without the minigraph.  Those three came to p99 18s and max
+# 29s per genome across the HPRC runs (gaf2unstable|gaffilter n=11380), so this is the GAF read and
+# the graph load rather than the chain itself, keyed off the shard the way the memory request is.
+TRANSLATE_GAF_SECS_PER_GB = 400
 
-def minigraph_map_all(job, options, config, gfa_id, fa_id_map, graph_event):
-    """ top-level job to run the minigraph mapping in parallel, returns paf """
+# check_reusable_gaf loads the graph and resolves a sample of records against it.
+GAF_CHECK_SECS = 600
+
+def minigraph_map_all(job, options, config, gfa_id, fa_id_map, graph_event, in_gaf_map=None):
+    """ top-level job to run the minigraph mapping in parallel, returns paf.
+
+    a genome that in_gaf_map already has mappings for has its PAF re-derived from them rather
+    than being mapped again -- see translate_gaf_one() """
     # hang everything on this job, to self-contain workflow
     top_job = Job(walltime=cactus_walltime())
     job.addChild(top_job)
@@ -559,28 +601,55 @@ def minigraph_map_all(job, options, config, gfa_id, fa_id_map, graph_event):
     gaf_id_map = {}
     paf_id_map = {}
                 
+    # the estimate below is anchored on the query, which holds while the graph is no bigger than the
+    # chromosome the query came from.  the --mgSplitWholeGenomeRef second pass breaks that -- the graph
+    # is whole-genome while the query stays one chromosome, so the index dominates and the graph term
+    # has to carry it: measured at ~5.5x the (already decompressed) GFA on HPRC, against the 2x below.
+    # it must be gated on batch as well as the option: the option's own first pass maps whole-genome
+    # queries against a whole-genome graph, where the query anchor still holds and 2x is right
+    gfa_coefficient = 6 if options.batch and getattr(options, 'mgSplitWholeGenomeRef', False) else 2
+
+    # every genome whose contigs can name a step in the GAF's paths, which is more than the
+    # genomes being mapped: --refFromGFA takes the reference out of the sequence map
+    genome_names = set(fa_id_map.keys())
+    if options.reference:
+        genome_names.add(options.reference if type(options.reference) is str else options.reference[0])
     for event, fa_id in fa_id_map.items():
-        mem = 72*fa_id.size + 2*gfa_id.size
+        mem = 72*fa_id.size + gfa_coefficient*gfa_id.size
         event_name = event
         if options.batch:
             # the memory heuristc seems to drastically underestimate some chromosomes in batch mode...
             mem *= 2
             event_name = '{}.{}'.format(event, options.mg_chrom_name)
-        minigraph_map_job = top_job.addChildJobFn(minigraph_map_one, config, event_name, fa_id, gfa_id,
-                                                  cores=mg_cores, disk=5*fa_id.size + gfa_id.size,
-                                                  memory=cactus_clamp_memory(mem),
-                                                  walltime=cactus_walltime(MINIGRAPH_MAP_SECS + MINIGRAPH_MAP_SECS_PER_GB * fa_id.size / 1e9,
-                                                                           io_bytes=2*fa_id.size + gfa_id.size))
-        gaf_id_map[event] = minigraph_map_job.rv(0)
-        paf_id_map[event] = minigraph_map_job.rv(1)
+        if in_gaf_map and event in in_gaf_map:
+            # no minigraph, and no input fasta: gaf2unstable/gaffilter/gaf2paf against the new graph
+            # is the whole job.  gaffilter reads its input into memory, as it does when mapping
+            gaf_shard_id = in_gaf_map[event]
+            map_job = top_job.addChildJobFn(translate_gaf_one, config, event_name, gaf_shard_id, gfa_id, genome_names,
+                                            disk=12*gaf_shard_id.size + 2*gfa_id.size,
+                                            memory=cactus_clamp_memory(24*gaf_shard_id.size + 4*gfa_id.size),
+                                            walltime=cactus_walltime(TRANSLATE_GAF_SECS_PER_GB * gaf_shard_id.size / 1e9,
+                                                                     io_bytes=2*gaf_shard_id.size + gfa_id.size))
+        else:
+            map_job = top_job.addChildJobFn(minigraph_map_one, config, event_name, fa_id, gfa_id,
+                                            cores=mg_cores, disk=5*fa_id.size + gfa_id.size,
+                                            memory=cactus_clamp_memory(mem),
+                                            walltime=cactus_walltime(MINIGRAPH_MAP_SECS + MINIGRAPH_MAP_SECS_PER_GB * fa_id.size / 1e9,
+                                                                     io_bytes=2*fa_id.size + gfa_id.size))
+        gaf_id_map[event] = map_job.rv(0)
+        paf_id_map[event] = map_job.rv(1)
 
-    # merge up.  these two concatenate every genome's output, so they are the biggest movers in
-    # the workflow: the whole-panel PAF merge is 34.4 GiB out
-    fa_bytes = sum(fa_id.size for fa_id in fa_id_map.values())
-    paf_merge_job = top_job.addFollowOnJobFn(merge_pafs, paf_id_map,
-                                             walltime=merge_pafs_walltime(PAF_BYTES_PER_FASTA_BYTE * fa_bytes))
-    gaf_merge_job = top_job.addFollowOnJobFn(merge_pafs, gaf_id_map, gzip=True,
-                                             walltime=merge_pafs_walltime(GAF_BYTES_PER_FASTA_BYTE * fa_bytes, gzip=True))
+    # merge up.  these two are the merges whose inputs scale with the number of genomes, so they get
+    # sized off them rather than taking the default; the GAF one also bgzips, so give it the mapping
+    # cores instead of leaving bgzip single-threaded.  merge_pafs_sized resolves the promises and
+    # sets the real disk and walltime from them, so these two are just the coordination job
+    merge_name = getattr(options, 'mg_chrom_name', None) if options.batch else None
+    merge_name = merge_name if merge_name else 'merged'
+    paf_merge_job = top_job.addFollowOnJobFn(merge_pafs_sized, paf_id_map,
+                                             name='{}.paf'.format(merge_name), walltime=cactus_walltime())
+    gaf_merge_job = top_job.addFollowOnJobFn(merge_pafs_sized, gaf_id_map, gzip=True,
+                                             name='{}.gaf'.format(merge_name), cores=mg_cores,
+                                             walltime=cactus_walltime())
 
     return paf_merge_job.rv(), gaf_merge_job.rv()
 
@@ -589,6 +658,120 @@ def minigraph_map_all(job, options, config, gfa_id, fa_id_map, graph_event):
 # "id=" is only a name prefix in those positions.  unanchored it also fires inside a contig
 # name that happens to contain id=...|, rewriting a name that exists in no graph and no input
 gaf_pansn_re = re.compile(r'(^|[\t><])id=([^|\t\n<>]+)\|')
+
+def pansn_to_event_map(names):
+    """ SAMPLE#HAP -> seqfile event, for the genomes in names.  event_to_pansn_prefix is lossy
+    (both S288C and S288C.0 give S288C#0), so going back needs the event names to hand """
+    prefix_map = {}
+    for event in names:
+        prefix_map.setdefault(event_to_pansn_prefix(event), event)
+    return prefix_map
+
+# SAMPLE#HAP, as it appears in a published (PanSN) GAF's query column and in each of its path
+# segments.  anchored like gaf_pansn_re above, and stopping at the second '#' so that a PanSN
+# phase block (SAMPLE#HAP#CONTIG#PHASEBLOCK) is left in the contig part where it belongs
+pansn_gaf_re = re.compile(r'(^|[\t><])([^|\t\n<>#]+#[^|\t\n<>#]+)#')
+
+def gaf_from_pansn(names, gaf_path, out_path):
+    """ the inverse of gaf_to_pansn(): rewrite a published GAF's PanSN SAMPLE#HAP#CONTIG names back
+    to cactus's id=EVENT|CONTIG, so it can be resolved against a cactus-named GFA again.
+
+    a prefix that is not one of the seqfile's genomes is left alone rather than mangled, which
+    covers both an already-cactus-named GAF (from a cactus old enough to have published one) and
+    any contig name that happens to look like a PanSN prefix """
+    prefix_map = pansn_to_event_map(names)
+
+    def replace(m):
+        event = prefix_map.get(m.group(2))
+        if event is None:
+            return m.group(0)
+        return '{}id={}|'.format(m.group(1), event)
+
+    with open(gaf_path, 'r') as in_file, open(out_path, 'w') as out_file:
+        for line in in_file:
+            out_file.write(pansn_gaf_re.sub(replace, line))
+
+def split_gaf_by_event(job, gaf_id, names, gaf_path):
+    """ split a published (merged) GAF into one file per genome, returning {event: file id} """
+    work_dir = job.fileStore.getLocalTempDir()
+    local_gaf_path = os.path.join(work_dir, 'extend.gaf.gz' if gaf_path.endswith('.gz') else 'extend.gaf')
+    job.fileStore.readGlobalFile(gaf_id, local_gaf_path)
+    shard_dir = os.path.join(work_dir, 'shards')
+    os.makedirs(shard_dir)
+
+    shard_paths, dropped = split_gaf_file_by_event(local_gaf_path, names, shard_dir)
+
+    if dropped:
+        RealtimeLogger.info('Ignoring mappings in {} for {}name(s) not in the seqfile: {}'.format(
+            gaf_path, 'at least ' if len(dropped) >= MAX_DROPPED_NAMES_REPORTED else '{} '.format(len(dropped)),
+            ' '.join(sorted(dropped))))
+    RealtimeLogger.info('Reusing mappings for {} genome(s) from {}'.format(len(shard_paths), gaf_path))
+
+    return {event: job.fileStore.writeGlobalFile(shard_path) for event, shard_path in shard_paths.items()}
+
+# how many unrecognised names a split reports before it stops collecting them.  the genome part of
+# a name is normally one of a handful, but a name in neither naming falls back to its contig
+MAX_DROPPED_NAMES_REPORTED = 20
+
+def split_gaf_file_by_event(gaf_path, names, shard_dir):
+    """ split a published (merged) GAF into one file per genome, returning ({event: path}, dropped names).
+
+    the merged GAF is a concatenation of the per-genome files, so this puts each genome's mappings
+    back exactly as minigraph_map_one() left them -- which is what lets the reused mappings be
+    re-derived by the very same code that produced them in the first place.
+
+    genomes in the GAF that are not in names are dropped, not an error: --refFromGFA legitimately
+    takes the reference out of the sequence map.  cactus-minigraph --inGFA is where a genome
+    missing from the seqfile is caught, because there it is unrecoverable """
+    prefix_map = pansn_to_event_map(names)
+
+    def event_of(query_name):
+        """ the seqfile event a GAF query column belongs to, or None """
+        if query_name.startswith('id='):
+            barpos = query_name.find('|')
+            event = query_name[3:barpos] if barpos > 3 else None
+            return event if event in names else None
+        hashpos = query_name.find('#')
+        if hashpos < 0:
+            return None
+        hashpos2 = query_name.find('#', hashpos + 1)
+        if hashpos2 < 0:
+            return None
+        return prefix_map.get(query_name[:hashpos2])
+
+    shard_paths = {}
+    dropped = set()
+    # the merged GAF groups each genome's records together, so one handle at a time is enough.
+    # append mode keeps it correct even if some other producer interleaved them
+    cur_event, cur_file = None, None
+    opener = gzip.open if gaf_path.endswith('.gz') else open
+    with opener(gaf_path, 'rt') as gaf_file:
+        for line in gaf_file:
+            tab = line.find('\t')
+            if tab < 0:
+                continue
+            query_name = line[:tab]
+            event = event_of(query_name)
+            if event is None:
+                # report the genome part of the name, in whichever naming it is in.  a name that
+                # carries no genome at all falls back to the whole contig, so this is bounded by
+                # contig count rather than genome count and needs a cap of its own
+                if len(dropped) < MAX_DROPPED_NAMES_REPORTED:
+                    dropped.add(query_name[3:query_name.find('|')] if query_name.startswith('id=') and '|' in query_name
+                                else query_name.split('#')[0])
+                continue
+            if event != cur_event:
+                if cur_file:
+                    cur_file.close()
+                if event not in shard_paths:
+                    shard_paths[event] = os.path.join(shard_dir, '{}.gaf'.format(event))
+                cur_file = open(shard_paths[event], 'a')
+                cur_event = event
+            cur_file.write(line)
+    if cur_file:
+        cur_file.close()
+
+    return shard_paths, dropped
 
 def gaf_to_pansn(gaf_path, out_path):
     """ rewrite cactus's internal id=EVENT|CONTIG names as PanSN SAMPLE#HAP#CONTIG
@@ -642,6 +825,175 @@ def minigraph_map_one(job, config, event_name, fa_file_id, gfa_file_id):
 
     cactus_call(parameters=cmd, job_memory=job.memory)
 
+    return stable_gaf_to_paf(job, config, gaf_path, gfa_path)
+
+# how many reused GAF records the up-front check resolves before trusting the rest
+GAF_REUSE_CHECK_RECORDS = 1000
+
+def check_reusable_gaf(job, config, gaf_file_id, gfa_file_id, genome_names, gaf_path, gfa_path):
+    """ Resolve the first few reused mappings against the graph, and fail with a diagnosis if they
+    do not fit.
+
+    The pair has to come from the same graphmap run.  The trap is that a --mgSplit run publishes
+    <outName>.sv.gfa.gz and <outName>.gaf.gz that look like a pair and are not: the GAF is the
+    whole-genome pass against the reference-only first-pass graph, while the GFA is the merged
+    per-chromosome graphs.  Same stable coordinates, different node boundaries, so gaf2unstable
+    fails on the tiling rather than on a name and the mismatch is not obvious from the error. """
+    work_dir = job.fileStore.getLocalTempDir()
+    gfa_local = os.path.join(work_dir, 'mg.gfa')
+    job.fileStore.readGlobalFile(gfa_file_id, gfa_local)
+    pansn_head = os.path.join(work_dir, 'check.pansn.gaf')
+    head = os.path.join(work_dir, 'check.gaf')
+    job.fileStore.readGlobalFile(gaf_file_id, pansn_head + '.full')
+    with open(pansn_head, 'w') as out_file:
+        opener = gzip.open if gaf_path.endswith('.gz') else open
+        with opener(pansn_head + '.full', 'rt') as in_file:
+            for i, line in enumerate(in_file):
+                if i >= GAF_REUSE_CHECK_RECORDS: break
+                out_file.write(line)
+    os.remove(pansn_head + '.full')
+    gaf_from_pansn(genome_names, pansn_head, head)
+
+    try:
+        cactus_call(parameters=['gaf2unstable', head, '-g', gfa_local, '-o', os.path.join(work_dir, 'lens.tsv')],
+                    outfile=os.path.join(work_dir, 'check.unstable.gaf'), job_memory=job.memory)
+    except RuntimeError as e:
+        # name the genomes each side actually talks about: the mismatch above shows up as a GAF
+        # whose paths only ever name the references while the graph is full of samples
+        step_genomes = set()
+        with open(head) as in_file:
+            for line in in_file:
+                toks = line.split('\t')
+                if len(toks) > 5:
+                    for step in gaf_step_re.findall(toks[5]):
+                        name = step[1:].rsplit(':', 1)[0] if ':' in step else step[1:]
+                        step_genomes.add(name[3:name.find('|')] if name.startswith('id=') and '|' in name else name)
+        raise RuntimeError(
+            'The mappings in {} do not resolve against {}: the two must come from the same graphmap run.\n'
+            'The first {} records only ever walk through: {}.\n'
+            'A --mgSplit run is the usual way to get a mismatched pair that looks like a matching one: its '
+            '<outName>.gaf.gz is the whole-genome pass against the reference-only first-pass graph, while its '
+            '<outName>.sv.gfa.gz is the merged per-chromosome graphs.  Drop --inGAF to map every genome '
+            'against the extended graph instead -- --inGFA still saves the construction, which is the '
+            'expensive half.\nUnderlying error: {}'.format(
+                gaf_path, gfa_path, GAF_REUSE_CHECK_RECORDS,
+                ' '.join(sorted(step_genomes)[:12]) or '(nothing)', e))
+
+    RealtimeLogger.info('Reused mappings from {} resolve against the graph'.format(gaf_path))
+
+def translate_gaf_one(job, config, event_name, gaf_file_id, gfa_file_id, genome_names):
+    """ Re-derive one genome's PAF from mappings it already has, against a (possibly extended) graph.
+
+    minigraph GAF is in stable coordinates -- rGFA SN/SO names and offsets -- which adding genomes
+    to a graph does not change: new nodes are appended and existing ones are only ever split, so
+    the stable sequence a node covers stays exactly where it was.  That makes re-deriving the PAF a
+    matter of running the same gaf2unstable/gaf2paf chain minigraph_map_one() runs, against the new
+    graph, which gaf2unstable resolves into the new (finer) node ids for free.
+
+    the graph the genome was originally mapped to is not needed, and neither is minigraph """
+
+    work_dir = job.fileStore.getLocalTempDir()
+    gfa_path = os.path.join(work_dir, "mg.gfa")
+    gaf_path = os.path.join(work_dir, "{}.gaf".format(event_name))
+    job.fileStore.readGlobalFile(gfa_file_id, gfa_path)
+
+    # the published GAF is PanSN, but gaf2unstable resolves it against the cactus-named GFA.
+    # gaf_from_pansn passes through anything already in cactus naming.  note the input cannot be
+    # named <gaf>.pansn: that is where stable_gaf_to_paf() writes the copy it publishes
+    in_gaf_path = os.path.join(work_dir, "{}.in.gaf".format(event_name))
+    job.fileStore.readGlobalFile(gaf_file_id, in_gaf_path)
+    gaf_from_pansn(genome_names, in_gaf_path, gaf_path)
+
+    # the reused GAF is published back (PanSN in, PanSN out, unchanged), so a run that extends a
+    # pangenome can itself be extended
+    return stable_gaf_to_paf(job, config, gaf_path, gfa_path, regranulated=True)
+
+# a GAF path step: an orientation mark followed by a name that runs to the next mark
+gaf_step_re = re.compile(r'[<>][^<>]+')
+
+def trim_unstable_gaf(gaf_path, out_path, node_lengths_path):
+    """ drop the path steps of each record that carry none of its alignment, moving the path
+    offsets along with them.
+
+    gaf2paf reads a record's path start as an offset into its *first* step.  That holds for a GAF
+    gaf2unstable resolved against the graph it was mapped to, where each of minigraph's stable
+    steps is one node.  Against a graph that has since been extended, the same stable step resolves
+    into the several finer nodes it was split into, and the offset can now reach past the first of
+    them -- which gaf2paf asserts on rather than handles.
+
+    The steps it reaches past hold no aligned bases, and gaf2paf emits nothing for them even when it
+    does cope, so taking them off the front and back restores the shape gaf2paf expects without
+    changing the alignment at all.  When nothing needs trimming -- every mapping that was made
+    against the graph it is being resolved against -- every line is passed through untouched.
+
+    Nothing in cactus-gfa-tools does this today.  gaffilter's rebase_path() is the same algorithm in
+    C++, but it runs only on the records -t actually trims, and only when trimming is on at all, so
+    it never sees the reuse case.  gaf2unstable, which is the thing changing the granularity, is
+    where this belongs if it ever moves. """
+    node_len = {}
+    with open(node_lengths_path) as lengths_file:
+        for line in lengths_file:
+            toks = line.split()
+            if len(toks) >= 2:
+                node_len[toks[0]] = int(toks[1])
+
+    def first_step_len(path):
+        end = path.find('>', 1)
+        alt = path.find('<', 1)
+        if alt != -1 and (end == -1 or alt < end):
+            end = alt
+        return node_len[path[1:] if end == -1 else path[1:end]]
+
+    def last_step_len(path):
+        start = max(path.rfind('>'), path.rfind('<'))
+        return node_len[path[start + 1:]]
+
+    trimmed_records = 0
+    with open(gaf_path) as in_file, open(out_path, 'w') as out_file:
+        for line in in_file:
+            toks = line.rstrip('\n').split('\t')
+            if len(toks) < 12 or not toks[5] or toks[5][0] not in '<>':
+                out_file.write(line)
+                continue
+            path, path_len, path_start, path_end = toks[5], int(toks[6]), int(toks[7]), int(toks[8])
+            # the overwhelming majority of records need nothing done, and deciding that needs only
+            # the two end steps: with the offsets inside them, nothing in between can be outside
+            if path_start < first_step_len(path) and path_end > path_len - last_step_len(path):
+                out_file.write(line)
+                continue
+            steps = gaf_step_re.findall(path)
+            lo, hi = 0, len(steps)
+            while lo < hi - 1 and node_len[steps[lo][1:]] <= path_start:
+                dropped = node_len[steps[lo][1:]]
+                path_start -= dropped
+                path_end -= dropped
+                path_len -= dropped
+                lo += 1
+            while hi - 1 > lo and path_len - node_len[steps[hi - 1][1:]] >= path_end:
+                path_len -= node_len[steps[hi - 1][1:]]
+                hi -= 1
+            if lo == 0 and hi == len(steps):
+                # nothing was outside the alignment after all, so the record stands as it is
+                out_file.write(line)
+                continue
+            toks[5], toks[6], toks[7], toks[8] = ''.join(steps[lo:hi]), str(path_len), str(path_start), str(path_end)
+            out_file.write('\t'.join(toks) + '\n')
+            trimmed_records += 1
+
+    return trimmed_records
+
+def stable_gaf_to_paf(job, config, gaf_path, gfa_path, regranulated=False):
+    """ Turn a stable-coordinate (ie minigraph output) GAF into the node-coordinate PAF cactus
+    consumes, returning (published PanSN gaf id, paf id).  Shared by mapping and by reuse of an
+    existing mapping, so that the two produce identical output for identical input.
+
+    regranulated says the GAF was made against a coarser version of this graph, so its path offsets
+    have to be brought back inside their first and last steps -- see trim_unstable_gaf().  It is a
+    no-op when the graph has not changed, but it is only asked for on the reuse path so that
+    mapping keeps running exactly the commands it always has """
+
+    xml_node = findRequiredNode(config.xmlRoot, "graphmap")
+
     # convert the gaf into unstable gaf (targets are node sequences)
     # note: the gfa needs to be uncompressed for this tool to work
     mg_lengths_path = gfa_path + '.node_lengths.tsv'
@@ -654,10 +1006,48 @@ def minigraph_map_one(job, config, event_name, fa_file_id, gfa_file_id):
     min_block = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "minGAFBlockLength", typeFn=int, default=0)
     min_mapq = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "minMAPQ", typeFn=int, default=0)
     min_ident = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "minIdentity", typeFn=float, default=0)    
+    overlap_trim = getOptionalAttrib(xml_node, "GAFOverlapFilterTrim", typeFn=bool, default=False)
+    trim_edge = getOptionalAttrib(xml_node, "GAFOverlapFilterTrimEdge", typeFn=int, default=5000)
+    trim_min_mapq = getOptionalAttrib(xml_node, "GAFOverlapFilterTrimMinMAPQ", typeFn=int, default=20)
     if overlap_ratio:
-        cmd = [cmd, ['gaffilter', '-', '-r', str(overlap_ratio), '-m', str(length_ratio), '-q', str(min_mapq),
-                     '-b', str(min_block), '-i', str(min_ident)]]
-    cactus_call(parameters=cmd, outfile=unstable_gaf_path, job_memory=job.memory)
+        if overlap_trim:
+            # GAFOverlapFilterMinLengthRatio exists because deleting a record is expensive: it stops
+            # a small overlap from destroying a whole one.  A trim costs only the contested span, so
+            # the guard has nothing left to protect and only leaves small conflicts between long
+            # contigs unadjudicated -- measured on a 12-sample chr15 graph, trimming with it at 0.25
+            # doubly places 409,584 bp on one segmental-duplication pair that 0 does not.  There is
+            # no setting of it that helps while trimming, so it is not a knob here.
+            length_ratio = 0
+        overlap_cmd = ['gaffilter', '-', '-r', str(overlap_ratio), '-m', str(length_ratio), '-q', str(min_mapq),
+                       '-b', str(min_block), '-i', str(min_ident)]
+        if overlap_trim:
+            # cut the contested span out of a losing record instead of deleting the record whole.
+            # -l: the unstable GAF names bare nodes, so gaffilter needs their lengths to shorten a
+            # path.  gaf2unstable writes that file in full before it emits its first GAF line, so
+            # it is complete by the time gaffilter, which reads all of its input first, opens it.
+            # gaffilter's -g/--close-holes are deliberately not exposed: --close-holes is off and
+            # cannot be justified (no claimant to a hole can meet the bar -r sets), and with it off
+            # -g provably does not change the output.
+            overlap_cmd += ['-t', '-e', str(trim_edge), '-Q', str(trim_min_mapq),
+                            '-l', mg_lengths_path]
+        cmd = [cmd, overlap_cmd]
+    try:
+        cactus_call(parameters=cmd, outfile=unstable_gaf_path, job_memory=job.memory)
+    except RuntimeError as e:
+        if not regranulated:
+            raise
+        # gaf2unstable asserts, rather than reporting, when a record names stable sequence the
+        # graph does not have.  Mapping cannot reach that -- the GAF came from this graph -- but
+        # reuse can, and the assertion on its own says nothing about which input is wrong
+        raise RuntimeError('Failed to resolve reused mappings against this graph. If the GAF names sequence the graph '
+                           'does not have, it was made against a different pangenome: the GAF must come from the run '
+                           'that produced the graph being reused. Underlying error: {}'.format(e))
+
+    if regranulated:
+        trimmed_path = unstable_gaf_path + '.trimmed'
+        trimmed = trim_unstable_gaf(unstable_gaf_path, trimmed_path, mg_lengths_path)
+        RealtimeLogger.info('Moved the path offsets of {} reused GAF record(s) back inside their end steps'.format(trimmed))
+        os.replace(trimmed_path, unstable_gaf_path)
 
     # convert the unstable gaf into unstable paf, which is what cactus expects
     # also tack on the unique id to the target column
@@ -682,28 +1072,38 @@ def minigraph_map_one(job, config, event_name, fa_file_id, gfa_file_id):
 # this is worker startup and the python copy loop.
 MERGE_PAF_SECS = 60
 
-def merge_pafs_walltime(merged_bytes, gzip=False):
+def merge_pafs_walltime(merged_bytes, gzip=False, cores=1):
     """ walltime for a merge_pafs job whose output comes to roughly merged_bytes.  The job is all
     I/O -- every input is read out of the jobstore and the concatenation written back -- except
-    with gzip=True, which bgzips the result single-threaded on the way out.
+    with gzip=True, which bgzips the result on the way out, threaded when it is given cores.
 
     io_bytes is 4x rather than 2x because the bytes move twice: once staging in and out of the
     jobstore, and again locally, where catFiles reads every input back and writes the joined
     file.  At 2x the whole-panel merge of the HPRC v2.0 PAF came to under half an hour. """
     secs = MERGE_PAF_SECS
     if gzip:
-        secs += merged_bytes / GZIP_COMPRESS_BYTES_PER_SEC
+        secs += merged_bytes / (GZIP_COMPRESS_BYTES_PER_SEC * max(1, cores))
     return cactus_walltime(secs, io_bytes=4*merged_bytes)
 
-def merge_pafs(job, paf_file_id_map, gzip=False):
-    """ merge up some pafs """
+def merge_pafs(job, paf_file_id_map, gzip=False, name=None):
+    """ merge up some pafs.  name is what the merged file is called on disk: getLocalTempFile() would
+    give it an anonymous .tmp, which is all anyone reading the log of the bgzip below would see """
     paf_paths = [job.fileStore.readGlobalFile(paf_id) for paf_id in paf_file_id_map.values()]
-    merged_path = job.fileStore.getLocalTempFile()
+    merged_path = os.path.join(job.fileStore.getLocalTempDir(), name if name else 'merged.paf')
     catFiles(paf_paths, merged_path)
     if gzip:
         cactus_call(parameters=['bgzip', merged_path, '--threads', str(job.cores)])
         merged_path += '.gz'                    
     return job.fileStore.writeGlobalFile(merged_path)
+
+def merge_pafs_sized(job, paf_file_id_map, gzip=False, name=None, cores=1):
+    """ merge_pafs, sized off its inputs.  callers upstream of the mapping jobs hold promises and so
+    cannot measure them; by the time this job runs they are resolved.  the merge holds every input
+    plus the merged copy, and bgzip then writes a compressed copy alongside """
+    total_size = sum(paf_id.size for paf_id in paf_file_id_map.values() if paf_id)
+    return job.addChildJobFn(merge_pafs, paf_file_id_map, gzip=gzip, name=name,
+                             cores=cores, disk=max(total_size * 3, 2**31),
+                             walltime=merge_pafs_walltime(total_size, gzip=gzip, cores=cores)).rv()
 
 def extract_paf_from_gfa(job, gfa_id, gfa_path, ref_event, graph_event, ignore_paf_id):
     """ make a paf directly from the rGFA tags.  rgfa2paf supports other ranks, but we're only

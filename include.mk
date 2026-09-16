@@ -97,8 +97,15 @@ endif
 ifeq ($(shell arch || true), arm64)
 	arm=1
 endif
-# CPU baseline for the code we generate.  Override for a machine-specific build:
-#   CACTUS_ARCH_FLAGS="-march=native" make
+# CPU baseline for the code we generate.  A plain "make" is portable.  Opt into a
+# machine-specific build, for binaries that will only ever run on the machine that compiled
+# them:
+#   CACTUS_NATIVE_BUILD=1 make
+# or, per-checkout and with no shell state to remember, put
+#   CACTUS_NATIVE_BUILD = 1
+# in include.local.mk, which is included at the top of this file, before the choice below is
+# made.  To pin an exact baseline by hand -- this beats both knobs, since CACTUS_ARCH_FLAGS
+# is taken with ?= below:
 #   CACTUS_ARCH_FLAGS="-march=x86-64-v3 -mtune=znver3" make
 #
 # x86-64-v3 rather than the bare -mavx2 this used to be.  That is not a portability change:
@@ -108,6 +115,16 @@ endif
 # rest of the same CPU generation (FMA, BMI1/2, LZCNT, MOVBE, F16C), which every AVX2-capable
 # CPU has.  Measured: minigraph 1.3% faster, lastz 2.1%, output byte-identical in both.
 #
+# The psABI level names -march=x86-64-v2/v3/v4 only arrived in gcc 11 and clang 12, and an
+# -march value the compiler does not recognise is a hard error rather than a warning, so
+# anything older falls back to the bare -mavx2 this baseline replaced.  That matters now that
+# portable is what a plain "make" gets: before, x86-64-v3 was reached only by builds we ship,
+# which are built on 22.04, whereas the README still names Ubuntu 20.04, whose gcc is 9.  The
+# fallback is safe to take silently because it cannot weaken the portability contract -- both
+# spellings require AVX2 and nothing newer, so the oldest CPU that can run the result is the
+# same either way.  What is lost is the rest of the v3 generation, i.e. the 1-2% above.
+# "make arch-flags" prints which one you got.
+#
 # Deliberately NOT x86-64-v4.  AVX-512 would emit binaries that will not run on the
 # Skylake-class machines we develop and test on, and it is worth little anyway: abPOA is the
 # only hand-vectorised code in the tree, and doubling its vector width 128->256 bits bought
@@ -115,20 +132,32 @@ endif
 #
 # No -mtune here.  -mtune=skylake measured a further 2.7% on minigraph and emits no new
 # instructions, so it costs no portability -- but it is a bet on one microarchitecture that
-# may go the other way on AMD, which we have not measured.  Set it per-cluster via the knob.
-# Two baselines, and which you get depends on whether the build will be shipped.
+# may go the other way on AMD, which we have not measured.  Set it per-cluster with
+# CACTUS_ARCH_FLAGS.
 #
-# PORTABLE is for anything we distribute.  NATIVE is for a plain "make", which is someone
-# compiling cactus for the machine in front of them and should use that machine.  Anything
-# that ships its output sets CACTUS_PORTABLE_BUILD=1 -- makeBinRelease and the Dockerfile
-# both do -- so the portable value lives in exactly one place and cannot drift.
+# Two baselines.  PORTABLE is the default; NATIVE is opt-in.
+#
+# PORTABLE, because a development build is not usually run where it was built.  Compiling on a
+# cluster head node and running on whatever worker picks up the job is the normal case, and an
+# -march=native binary SIGILLs on any worker older than the head node -- which is most of a
+# heterogeneous cluster, and a confusing failure to read when it happens.  It is also what the
+# README tells a from-source user to type, so what a bare "make" emits has to be the safe
+# thing.  NATIVE is for binaries that stay on the machine that built them.
+#
+# CACTUS_PORTABLE_BUILD=1 forces PORTABLE and beats CACTUS_NATIVE_BUILD, so makeBinRelease and
+# the Dockerfile -- which both still set it -- ship the portable baseline even when a developer
+# has the native knob exported.  Both are now defence in depth rather than the only barrier --
+# a docker build inherits nothing from the shell that started it, and makeBinRelease unsets
+# the arch knobs itself -- but what we distribute is worth saying twice, and the portable value
+# lives in exactly one place either way and cannot drift.
 #
 # -march=native is not reliably faster: measured here it gained 4.6% on minigraph and lost
-# 5.7% on lastz, the loss isolating to -mtune, which native implies.  It is still the right
-# default for a machine-specific build; measure on your own hardware if it matters.
+# 5.7% on lastz, the loss isolating to -mtune, which native implies.  So it is worth asking
+# for only when the binaries stay put; measure on your own hardware if it matters.
 #
-# NOT native on ARM: Apple's clang spells it -mcpu=native and rejects -march=native.
-# NOT native for CACTUS_LEGACY_ARCH either: that build exists precisely to be portable.
+# NATIVE is just PORTABLE on ARM: Apple's clang spells it -mcpu=native and rejects
+# -march=native.  Same under CACTUS_LEGACY_ARCH, which exists precisely to be portable.  On
+# both, CACTUS_NATIVE_BUILD=1 is accepted and changes nothing.
 ifdef arm
 #	flags to build abpoa
 	export armv8 = 1
@@ -144,14 +173,26 @@ else
 #	flags to build abpoa
 	export avx2 = 1
 #	flags to include simde abpoa in cactus on X86
-	CACTUS_PORTABLE_ARCH_FLAGS = -march=x86-64-v3
+	archV3 := $(shell ${CC} -march=x86-64-v3 -E -x c /dev/null > /dev/null 2>&1 && echo 1)
+	CACTUS_PORTABLE_ARCH_FLAGS = $(if ${archV3},-march=x86-64-v3,-mavx2)
 	CACTUS_NATIVE_ARCH_FLAGS = -march=native
 endif
 
+# PORTABLE tested first, so it beats the native knob: a shipping build stays portable however
+# CACTUS_NATIVE_BUILD is set.  An explicit CACTUS_ARCH_FLAGS still wins over both -- see the
+# ?= below, which is what allows that and so must stay on every branch.
+#
+# The native knob is tested for exactly 1, not with ifdef, which is true of any non-empty
+# value: CACTUS_NATIVE_BUILD=0 under ifdef would select native.  The same misparse of
+# CACTUS_PORTABLE_BUILD lands on the portable side, which is why that one can stay an ifdef,
+# but here it would hand you the dangerous answer for a value that plainly means "no".
+# Anything but 1, unset and 0 included, is portable.
 ifdef CACTUS_PORTABLE_BUILD
 	CACTUS_ARCH_FLAGS ?= ${CACTUS_PORTABLE_ARCH_FLAGS}
-else
+else ifeq ($(strip ${CACTUS_NATIVE_BUILD}),1)
 	CACTUS_ARCH_FLAGS ?= ${CACTUS_NATIVE_ARCH_FLAGS}
+else
+	CACTUS_ARCH_FLAGS ?= ${CACTUS_PORTABLE_ARCH_FLAGS}
 endif
 
 # Both, deliberately.  Until now only CFLAGS carried an arch flag, so Red, hal's C++ and
