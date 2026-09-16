@@ -236,9 +236,10 @@
 	<!-- bandingLimit is the maximum sequence size fed into the multiple aligner.  Sequences longer than this are trimmed accordingly -->
     <!-- baseAligner selects the core multiple alignment algorithm: "pecan", "abpoa" or "minipoa".
     abpoa is much faster than pecan but not as reliable for diverged sequences.  minipoa is a
-    minimizer-based POA that partitions the graph on its consensus path; it uses far less memory
-    than abpoa on long windows, which is why it can afford a much bigger <minipoa minipoaWindow>
-    than abpoa's <poa partialOrderAlignmentWindow>.  minipoa shares abpoa's substitution matrix
+    minimizer-based POA that uses roughly half abpoa's memory and is somewhat faster at the same
+    window size.  It does NOT afford a larger window: measured on human/chimp chr10, its memory
+    grows about as window x (bandConstant + bandFraction x window), so 10kb costs 3.5GB and 50kb
+    is already over 23GB and gets OOM-killed.  minipoa shares abpoa's substitution matrix
     (from <poa partialOrderAlignmentSubMatrix>) but has its own gap penalties in <minipoa>, which
     are deliberately different - see the note there for why. -->
     <!-- partialOrderAlignment is the older boolean form of the same choice, kept so that configs
@@ -361,8 +362,11 @@
 		worth revisiting against other datasets. -->
 		<!-- minipoaGapOpenPenalty minipoa gap open penalty -->
 		<!-- minipoaGapExtensionPenalty minipoa gap extension penalty -->
-		<!-- minipoaWindow sliding window size, as for abpoa but far larger: minipoa's memory is not
-		the constraint that forced abpoa down to 10000 -->
+		<!-- minipoaWindow sliding window size.  Same 10000 as abpoa, and for the same reason: memory
+		is quadratic-ish in it.  On human/chimp chr10 at 8 cores, 10kb/15kb/20kb/30kb cost
+		3.5/5.9/9.3/15.1 GB and 50kb upwards is killed, while BAR time is flat across that range - so
+		a larger window buys nothing and costs a great deal.  Raising it needs both memory headroom
+		and a reason; neither seeding nor a tighter band rescued 100kb. -->
 		<!-- minipoaMaskFilter trim input sequences as soon as more than this many soft or hard masked bases are encountered (-1=disabled) -->
 		<!-- minipoaBandConstant band half-width is <minipoaBandConstant> + <minipoaBandFraction>*<Length>, the same form as abpoa's wb/wf -->
 		<!-- minipoaBandFraction second band parameter (see above).  minipoa stores this as an integer
@@ -380,11 +384,13 @@
 		which is the consensus length over 24, clamped to [500, 20000]) -->
 		<!-- minipoaProgressiveMode use a guide tree from a minimizer jaccard distance matrix to choose the
 		order sequences are added to the graph, as <poa partialOrderAlignmentProgressiveMode> does for abpoa.
-		Insertion order matters a great deal for POA on diverged sequences, so this is on by default to match -->
+		Off by default: insertion order matters for POA in principle, but this tree has not earned its
+		cost on anything measured - bit-identical output on evolver, and 7% more memory plus 2% more
+		time on human/chimp chr10.  Worth revisiting on more diverged input. -->
 		<!-- minipoaProgressiveMaxRows disable progressive mode above this many rows: the guide tree is
 		quadratic in both time and memory (a dense NxN matrix of doubles) -->
 		<minipoa
-			minipoaWindow="100000"
+			minipoaWindow="10000"
 			minipoaMaskFilter="-1"
 			minipoaBandConstant="1000"
 			minipoaBandFraction="0.1"
@@ -396,7 +402,7 @@
 			minipoaSubMatrix=""
 			minipoaGapOpenPenalty="600"
 			minipoaGapExtensionPenalty="4"
-			minipoaProgressiveMode="1"
+			minipoaProgressiveMode="0"
 			minipoaProgressiveMaxRows="5000"
 		/>
 	</bar>

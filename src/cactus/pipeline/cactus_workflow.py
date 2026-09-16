@@ -85,17 +85,17 @@ def cactus_cons_with_resources(job, tree, ancestor_event, config_node, seq_id_ma
     # the fit ran with it disabled -- so enabling it can only make the estimate conservative.
     #
     # The window comes from whichever base aligner is selected.  The exponent above was fitted to
-    # abPOA runs, so applying it to minipoa's much larger window over-requests -- by roughly 7x at
-    # a 100kb window.  That is deliberate until someone fits an exponent from real minipoa runs and
-    # records it: over-requesting wastes cluster share, under-requesting gets the largest ancestors
-    # OOM-killed, and those are the very jobs minipoa is for.
+    # abPOA runs.  minipoa ships the same 10000 window, so the exponent is applied to the same
+    # number and nothing changes -- but if anyone raises minipoaWindow, note that minipoa's measured
+    # curve is far steeper than 0.43 in that range (about 1.35 on human/chimp chr10), so this
+    # estimate would under-request, which is the dangerous direction.
     bar_node = findRequiredNode(config_node, 'bar')
     base_aligner = getOptionalAttrib(bar_node, 'baseAligner', typeFn=str, default=None)
     if base_aligner is None:
         base_aligner = 'abpoa' if getOptionalAttrib(bar_node, 'partialOrderAlignment', typeFn=bool, default=True) else 'pecan'
     if base_aligner == 'minipoa':
         engine_node = bar_node.find('minipoa')
-        poa_window = getOptionalAttrib(engine_node, 'minipoaWindow', typeFn=int, default=100000) if engine_node is not None else 100000
+        poa_window = getOptionalAttrib(engine_node, 'minipoaWindow', typeFn=int, default=10000) if engine_node is not None else 10000
     else:
         poa_node = bar_node.find('poa')
         poa_window = getOptionalAttrib(poa_node, 'partialOrderAlignmentWindow', typeFn=int, default=10000) if poa_node is not None else 10000

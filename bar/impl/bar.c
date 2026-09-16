@@ -77,8 +77,8 @@ void bar(stList *flowers, CactusParams *params, CactusDisk *cactusDisk, stList *
     bool pruneOutStubAlignments = cactusParams_get_int(params, 3, "bar", "pecan", "pruneOutStubAlignments");
 
     // Poa params.  The window and the mask filter come from whichever engine is selected:
-    // abpoa's memory is quadratic in the window so it is held to 10s of kb, while minipoa is the
-    // reason to have a second engine at all and can take a much larger one.
+    // Both engines are held to 10s of kb: memory is quadratic-ish in the window for either.
+    // minipoa's advantage is per-window cost, not a bigger window.
     int64_t poaWindow, maskFilter;
     if (engine == BASE_ALIGNER_MINIPOA) {
         poaWindow = cactusParams_get_int(params, 3, "bar", "minipoa", "minipoaWindow");
