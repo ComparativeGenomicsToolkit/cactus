@@ -139,7 +139,7 @@ def main():
             # maps name -> input_seq_id_map, input_seq_order
             input_dict = minigraph_construct_import_sequences(options, config_wrapper, input_seqfiles, toil)
                 
-            # output_dict:  chrom-> (gfa_id, pansn_gfa_id, train_id)
+            # output_dict:  chrom-> (gfa_id, pansn_gfa_id, uncollapsed_pansn_gfa_id, collapse_report_id, train_id)
             output_dict = toil.start(Job.wrapJobFn(minigraph_construct_batch_workflow, options, config_node, input_dict, options.outputGFA,
                                                    in_gfa_id=in_gfa_id))
 
@@ -212,6 +212,23 @@ def minigraph_construct_import_sequences(options, config_wrapper, input_seqfiles
         
     return input_dict
 
+def collapse_artifact_paths(gfa_path):
+    """ the two side artifacts a collapse run leaves beside <x>.sv.gfa.gz:
+    <x>.sv.uncollapsed.gfa.gz (the graph as minigraph built it) and <x>.sv.collapse.tsv """
+    uncollapsed_path = gfa_path.replace('.gfa', '.uncollapsed.gfa') if '.gfa' in gfa_path \
+                       else gfa_path + '.uncollapsed'
+    report_path = gfa_path.replace('.gfa.gz', '').replace('.gfa', '') + '.collapse.tsv'
+    return uncollapsed_path, report_path
+
+def export_collapse_artifacts(exporter, gfa_path, uncollapsed_pansn_gfa_id, collapse_report_id):
+    """ write the pre-collapse graph and the per-call report beside the collapsed graph.  `exporter`
+    is anything with exportFile: a Toil object at the top level, or job.fileStore inside a job """
+    uncollapsed_path, report_path = collapse_artifact_paths(gfa_path)
+    if uncollapsed_pansn_gfa_id:
+        exporter.exportFile(uncollapsed_pansn_gfa_id, makeURL(uncollapsed_path))
+    if collapse_report_id:
+        exporter.exportFile(collapse_report_id, makeURL(report_path))
+
 def export_minigraph_construct_output(options, input_seqfiles, output_dict, toil):
     if options.batch:
         chrom_file_path = os.path.join(options.outputGFA, 'chromfile.mg.txt')
@@ -221,7 +238,7 @@ def export_minigraph_construct_output(options, input_seqfiles, output_dict, toil
             chrom_file_temp_path = chrom_file_path                    
         chromfile = open(chrom_file_temp_path, 'w')
     for chrom, output_ids in output_dict.items():
-        gfa_id, pansn_gfa_id, train_id = output_ids
+        gfa_id, pansn_gfa_id, uncollapsed_pansn_gfa_id, collapse_report_id, train_id = output_ids
         if options.batch:
             gfa_path = os.path.join(options.outputGFA, chrom + '.sv.gfa.gz')
         else:
@@ -236,7 +253,11 @@ def export_minigraph_construct_output(options, input_seqfiles, output_dict, toil
         # (export_pruned_minigraph_gfa_wrapper in cactus_pangenome.py).  the chromfile below is
         # still written now -- downstream only ever reads its .train column
         if not getattr(options, 'mgSplitWholeGenomeRef', False):
+            # pansn_gfa_id is already the collapsed graph when collapseInversions is on, so the
+            # main export is unconditional; the pre-collapse graph and the per-call report are
+            # extra artifacts kept beside it for comparison
             toil.exportFile(pansn_gfa_id, makeURL(gfa_path))
+            export_collapse_artifacts(toil, gfa_path, uncollapsed_pansn_gfa_id, collapse_report_id)
         if train_path:
             # export the scoring model (.train)
             toil.exportFile(train_id, makeURL(train_path))
@@ -324,7 +345,11 @@ def minigraph_construct_workflow(job, options, config_node, seq_id_map, seq_orde
     run_job = rename_job.addFollowOnJobFn(minigraph_construct_run, options, config_node, seq_id_map, seq_order, gfa_path,
                                           sanitize, construct_seq_id_map,
                                           rename_job.rv(0), rename_job.rv(1), in_gfa_id)
-    return run_job.rv(0), run_job.rv(1), run_job.rv(2)
+    # all five slots: minigraph_construct_run returns
+    # (gfa, pansn_gfa, uncollapsed_pansn_gfa, collapse_report, train).  Truncating here to three
+    # left cactus_pangenome's rv(3)/rv(4) reading off the end of the tuple, which Toil reports as
+    # "IndexError: tuple index out of range" from _fulfillPromises, nowhere near the cause.
+    return run_job.rv(0), run_job.rv(1), run_job.rv(2), run_job.rv(3), run_job.rv(4)
 
 def minigraph_construct_run(job, options, config_node, seq_id_map, seq_order, gfa_path, sanitize=True,
                             construct_seq_id_map=None, seed_gfa_id=None, seed_events=None, seed_pansn_gfa_id=None):
@@ -373,7 +398,9 @@ def minigraph_construct_run(job, options, config_node, seq_id_map, seq_order, gf
                                               cores=options.mgCores, disk=8*ref_size,
                                               memory=cactus_clamp_memory(max(8*ref_size, 12*10**9)))
                 train_id = train_job.rv()
-            return match_job.rv(0), match_job.rv(1), train_id
+            # same five slots as the constructing path below.  nothing was constructed, so there
+            # is no pre-collapse graph and no report: the graph handed back is the seed as it was.
+            return match_job.rv(0), match_job.rv(1), None, None, train_id
     else:
         assert options.reference[0] == seq_order[0]
     if options.refOnly:
@@ -407,6 +434,47 @@ def minigraph_construct_run(job, options, config_node, seq_id_map, seq_order, gf
                                               seq_order, gfa_path,
                                               whole_genome_ref=bool(construct_seq_id_map),
                                               seed_gfa_id=seed_gfa_id, graph_names=graph_names)
+
+    # optionally rewrite inverted alleles stored as novel sequence into inversion edges.  when this
+    # runs, the collapsed graph REPLACES the constructed one in both namings: it is what graphmap,
+    # rgfa-split and the join all have to see, since a graph they map against that still carries the
+    # uncollapsed alt would defeat the point.  the originals are returned alongside so the export can
+    # keep them for comparison.
+    #
+    # rgfa-collapse needs the PanSN graph, not the cactus-named one: it locates sites with
+    # `vg snarls -n -P <reference sample>`, and cactus names (id=EVENT|CONTIG) carry no PanSN sample
+    # for -P to match -- with the wrong -P, vg skips every snarl as a non-reference boundary and the
+    # tool silently finds nothing.  So collapse the PanSN graph and rename the result back.
+    #
+    # skipped on the --mgSplit reference-only first pass: that graph has no non-reference nodes, so
+    # there is nothing to collapse and the snarl decomposition would be pure cost.  it still runs on
+    # the per-chromosome all-sample graphs, which is where the alleles are.
+    uncollapsed_pansn_gfa_id, collapse_report_id = None, None
+    if getOptionalAttrib(xml_node, "collapseInversions", typeFn=bool, default=False) and \
+       not getattr(options, 'refOnly', False):
+        collapse_job = minigraph_job.addFollowOnJobFn(collapse_inversions, options, config_node,
+                                                      minigraph_job.rv(1), gfa_path,
+                                                      cores=options.mgCores,
+                                                      disk=8*ref_size,
+                                                      memory=cactus_clamp_memory(8*ref_size))
+        # graph_names, the same set the forward rename uses, and for the same reason its comment
+        # gives: it has to resolve every SN tag in the finished graph, which on the --inGFA extend
+        # path is more genomes than minigraph is given.  It is captured above before seq_id_map is
+        # trimmed to the new genomes, so using seq_id_map here would drop the seed graph's events
+        # and minigraph_gfa_from_pansn would assert on the first one it met.
+        rename_job = collapse_job.addFollowOnJobFn(minigraph_gfa_from_pansn, graph_names,
+                                                   gfa_path, collapse_job.rv(0),
+                                                   disk=12*ref_size,
+                                                   memory=cactus_clamp_memory(4*ref_size))
+        uncollapsed_pansn_gfa_id = minigraph_job.rv(1)
+        collapse_report_id = collapse_job.rv(1)
+        # rv(0), not rv(): master's minigraph_gfa_from_pansn returns
+        # (converted gfa id, set of genomes the graph was built from), and handing the whole tuple
+        # on made graphmap fail with "'tuple' object has no attribute 'size'"
+        gfa_ids = (rename_job.rv(0), collapse_job.rv(0))
+    else:
+        gfa_ids = (minigraph_job.rv(0), minigraph_job.rv(1))
+
     train_id = None
     if options.lastTrain and len(seq_id_map) > 1:
         # note: somehow last training memory overruns don't seem to be detected by slurm so we
@@ -418,7 +486,66 @@ def minigraph_construct_run(job, options, config_node, seq_id_map, seq_order, gf
                                                    memory=cactus_clamp_memory(max(8*ref_size, 12*10**9)))
         train_id = last_train_job.rv()
         
-    return minigraph_job.rv(0), minigraph_job.rv(1), train_id
+    # (cactus-named graph, PanSN graph, the PanSN graph before collapsing or None, per-call report
+    #  or None, LAST scoring model or None).  slots 0 and 1 are the graph the pipeline uses.
+    return gfa_ids[0], gfa_ids[1], uncollapsed_pansn_gfa_id, collapse_report_id, train_id
+
+def collapse_inversions(job, options, config_node, pansn_gfa_id, gfa_path):
+    """ rewrite inverted alleles that minigraph stored as novel sequence into proper inversion
+    edges through the reference.
+
+    minigraph sometimes cannot align a haplotype's inverted copy of a region back to the
+    reference copy and keeps it as an alt node.  Downstream that is an insertion, not an
+    inversion: cactus-align cannot merge two separate backbone nodes and vcfbub flattens the
+    giant allele, so the inversion never reaches the VCF.  rgfa-collapse finds these and rewires
+    them.  Sites come from vg's snarl decomposition, hence the vg calls here.
+
+    Returns (collapsed_gfa_id, report_id).  The uncollapsed graph is exported alongside so the
+    two can be compared.
+    """
+    work_dir = job.fileStore.getLocalTempDir()
+    gzipped = gfa_path.endswith('.gz')
+    in_gfa = os.path.join(work_dir, 'in.gfa')
+    job.fileStore.readGlobalFile(pansn_gfa_id, in_gfa + ('.gz' if gzipped else ''))
+    if gzipped:
+        cactus_call(parameters=['bgzip', '-d', '--threads', str(job.cores), in_gfa + '.gz'],
+                    work_dir=work_dir)
+
+    xml_node = findRequiredNode(config_node, "graphmap")
+    opts = getOptionalAttrib(xml_node, "collapseOptions", str, default="")
+
+    # snarls: -P orients the snarl tree along the reference.  A minigraph rGFA imports with only
+    # the reference as a path so this is a no-op there, but it is correct for graphs that carry
+    # more, and vg is already a pipeline dependency.
+    snarls = os.path.join(work_dir, 'snarls.json')
+    cactus_call(parameters=[['vg', 'snarls', '-n', '-P', options.reference[0], '-t', str(job.cores),
+                             os.path.basename(in_gfa)],
+                            ['vg', 'view', '-Rj', '-']],
+                outfile=snarls, work_dir=work_dir)
+
+    out_gfa = os.path.join(work_dir, 'collapsed.gfa')
+    report = os.path.join(work_dir, 'collapse.tsv')
+    # Bias toward threads-per-minimap2 rather than concurrent invocations.  Runtime is dominated
+    # by a few enormous single alignments -- on CHM13 chr9 individual minimap2 calls ran over
+    # three hours at -t 2 -- and those cannot be spread across concurrent chunks, so a wide -j
+    # leaves cores idle waiting on the tail (measured average utilisation 3.25 of 8 requested at
+    # -j 4 -t 2).  A chunk holds ~200 query sequences, so minimap2 keeps a high -t busy on its
+    # own.  Note minimap2 runs about two threads more than -t asks for, so this deliberately
+    # leaves headroom rather than saturating.
+    jobs = min(8, max(1, int(job.cores) // 8))
+    threads = max(1, int(job.cores) // jobs)
+    cmd = ['rgfa-collapse'] + opts.split() + \
+          ['-j', str(jobs), '-t', str(threads), '-r', os.path.basename(report),
+           os.path.basename(in_gfa), os.path.basename(snarls)]
+    prefix = '[rgfa-collapse-{}]'.format(os.path.basename(gfa_path).replace('.gz', '').replace('.gfa', ''))
+    cactus_call(parameters=cmd, outfile=out_gfa, work_dir=work_dir,
+                realtimeStderrPrefix=prefix, job_memory=job.memory)
+
+    if gzipped:
+        cactus_call(parameters=['bgzip', '--threads', str(job.cores)], infile=out_gfa,
+                    outfile=out_gfa + '.gz')
+        out_gfa += '.gz'
+    return job.fileStore.writeGlobalFile(out_gfa), job.fileStore.writeGlobalFile(report)
 
 def match_gfa_compression(job, gfa_id, pansn_gfa_id, in_path, out_path):
     """ re-emit an unchanged seed graph at the compression its output path asks for.
