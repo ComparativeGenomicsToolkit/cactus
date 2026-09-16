@@ -176,7 +176,7 @@ cactus-align js ./out-map/chromfile.gm.txt out-align --reference simChimp --outV
 cactus-graphmap-join js --vg out-align/*.vg --hal out-align/*.hal --sv-gfa out-construct/*.gfa.gz --reference simChimp --outDir out-join --outName ep --gb
 ```
 
-Splitting this way costs some inter-chromosome context: a region homologous to several chromosomes (the acrocentric short arms, say) has nothing to compete against in a chromosome-level graph, where the whole-genome pipeline would have filtered it out as ambiguous.  `cactus-pangenome --mgSplitWholeGenomeRef` (which implies `--mgSplit`, and has no step-by-step equivalent) builds each chromosome's second-pass minigraph against the whole reference genome(s) instead, restoring that competition and pruning the off-chromosome material back out before `cactus-align`, at the cost of indexing a whole reference per chromosome.
+Splitting this way costs some inter-chromosome context: a region homologous to several chromosomes (the acrocentric short arms, say) has nothing to compete against in a chromosome-level graph, where the whole-genome pipeline would have filtered it out as ambiguous.  `cactus-pangenome --mgSplitWholeGenomeRef` (which implies `--mgSplit`, and has no step-by-step equivalent) builds each chromosome's second-pass minigraph against the whole primary reference genome instead, restoring that competition and pruning the off-chromosome material back out before `cactus-align`, at the cost of indexing a whole reference per chromosome.
 
 ### Pipeline
 
