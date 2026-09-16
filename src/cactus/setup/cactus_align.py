@@ -71,7 +71,7 @@ def main():
     parser.add_argument("--singleCopySpecies", type=str,
                         help="Filter out all self-alignments in given species")
     parser.add_argument("--barMaskFilter", type=int, default=None,
-                        help="BAR's POA aligner will ignore softmasked regions greater than this length. (overrides partialOrderAlignmentMaskFilter in config)")
+                        help="BAR's POA aligner will ignore softmasked regions greater than this length. (overrides the mask-filter attribute of whichever base aligner is selected)")
     parser.add_argument("--pafMaskFilter", type=int, default=None,
                         help="softmasked (query) regions greather than this length will be removed from the input PAF before it is processed")
     # note: when changing this, make sure to keep version in cactus-pangenome consistent
@@ -344,10 +344,17 @@ def make_align_job(options, toil, config_wrapper=None, chrom_name=None):
     cafNode = findRequiredNode(config_node, "caf")
     barNode = findRequiredNode(config_node, "bar")
     poaNode = findRequiredNode(barNode, "poa")
+    # The engine-specific nodes are named differently, so an override has to know which engine is
+    # selected -- writing only to <poa> would make --barMaskFilter a silent no-op under minipoa,
+    # and that is the lever that decides whether a repeat-rich run finishes at all.
+    engineNode, maskFilterAttr, seedingAttr = poaNode, "partialOrderAlignmentMaskFilter", "partialOrderAlignmentDisableSeeding"
+    if getOptionalAttrib(barNode, "baseAligner", typeFn=str, default="abpoa") == "minipoa":
+        engineNode = findRequiredNode(barNode, "minipoa")
+        maskFilterAttr, seedingAttr = "minipoaMaskFilter", "minipoaDisableSeeding"
     if options.singleCopySpecies:
         cafNode.attrib["alignmentFilter"] = "singleCopyEvent:{}".format(options.singleCopySpecies)
     if options.barMaskFilter:
-        poaNode.attrib["partialOrderAlignmentMaskFilter"] = str(options.barMaskFilter)
+        engineNode.attrib[maskFilterAttr] = str(options.barMaskFilter)
 
     if options.maxLen is None and options.pangenome:
         # consistent behaviour with cactus-pangenome
@@ -368,7 +375,7 @@ def make_align_job(options, toil, config_wrapper=None, chrom_name=None):
         # turn down minimum block degree to get a fat ancestor
         barNode.attrib["minimumBlockDegree"] = "1"
         # turn off POA seeding
-        poaNode.attrib["partialOrderAlignmentDisableSeeding"] = "1"
+        engineNode.attrib[seedingAttr] = "1"
 
     # import the PAF alignments
     paf_id = toil.importFile(makeURL(options.pafFile))

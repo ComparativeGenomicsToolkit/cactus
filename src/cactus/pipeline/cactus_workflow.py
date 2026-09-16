@@ -83,8 +83,22 @@ def cactus_cons_with_resources(job, tree, ancestor_event, config_node, seq_id_ma
     # at once.  That ratio is an exponent of 0.43, not 2.  Nothing is subtracted for
     # partialOrderAlignmentMaskFilter even though it matters more, because every alignment in
     # the fit ran with it disabled -- so enabling it can only make the estimate conservative.
-    poa_node = findRequiredNode(config_node, 'bar').find('poa')
-    poa_window = getOptionalAttrib(poa_node, 'partialOrderAlignmentWindow', typeFn=int, default=10000) if poa_node is not None else 10000
+    #
+    # The window comes from whichever base aligner is selected.  The exponent above was fitted to
+    # abPOA runs, so applying it to minipoa's much larger window over-requests -- by roughly 7x at
+    # a 100kb window.  That is deliberate until someone fits an exponent from real minipoa runs and
+    # records it: over-requesting wastes cluster share, under-requesting gets the largest ancestors
+    # OOM-killed, and those are the very jobs minipoa is for.
+    bar_node = findRequiredNode(config_node, 'bar')
+    base_aligner = getOptionalAttrib(bar_node, 'baseAligner', typeFn=str, default=None)
+    if base_aligner is None:
+        base_aligner = 'abpoa' if getOptionalAttrib(bar_node, 'partialOrderAlignment', typeFn=bool, default=True) else 'pecan'
+    if base_aligner == 'minipoa':
+        engine_node = bar_node.find('minipoa')
+        poa_window = getOptionalAttrib(engine_node, 'minipoaWindow', typeFn=int, default=100000) if engine_node is not None else 100000
+    else:
+        poa_node = bar_node.find('poa')
+        poa_window = getOptionalAttrib(poa_node, 'partialOrderAlignmentWindow', typeFn=int, default=10000) if poa_node is not None else 10000
     window_exp = getOptionalAttrib(cons_node, 'memory_poa_window_exponent', typeFn=float, default=0.43)
     if poa_window > 0 and poa_window != 10000:
         mem = int(mem * (poa_window / 10000.0) ** window_exp)
@@ -111,9 +125,9 @@ def cactus_cons_with_resources(job, tree, ancestor_event, config_node, seq_id_ma
             bytes2human(mem), bytes2human(scaled_mem)))
         mem = scaled_mem
 
-    # abPOA needs a table even for tiny alignments; apply the floor last so neither the window
-    # nor the core scaling can push a small job below it
-    if getOptionalAttrib(findRequiredNode(config_node, 'bar'), 'partialOrderAlignment', typeFn=bool, default=True):
+    # A POA aligner needs a table even for tiny alignments; apply the floor last so neither the
+    # window nor the core scaling can push a small job below it
+    if base_aligner != 'pecan':
         mem = max(mem, int(4e9))
 
     RealtimeLogger.info('Estimating cactus_consolidated({}) memory as {} from {} sequences with total-sequence-size {} and paf-size {} using <consolidated> configuration settings'.format(chrom_name if chrom_name else ancestor_event, bytes2human(mem), len(seq_id_map), bytes2human(total_sequence_size), paf_id.size))

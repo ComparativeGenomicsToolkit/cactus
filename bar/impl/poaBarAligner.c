@@ -6,15 +6,40 @@
 
 #include <limits.h>
 #include "abpoa.h"
+#ifdef HAVE_MINIPOA
+#include "minipoa_c.h"
+#endif
 #include "poaBarAligner.h"
 #include "flowerAligner.h"
 
 #include <stdio.h>
 #include <ctype.h>
+#include <unistd.h>
 
-// FOR DEBUGGING ONLY: Specify directory where abpoa inputs get dumped
-//#define CACTUS_ABPOA_MSA_DUMP_DIR "/home/hickey/dev/cactus/dump"
-// FOR DEBUGGING ONLY: Run abpoa from command line instead of via API (only works with CACTUS_ABPOA_MSA_DUMP_DIR defined)
+/*
+ * Set CACTUS_BAR_DUMP_DIR in the environment and every window handed to the base aligner is
+ * written there as a FASTA, alongside the substitution matrix and a command line that replays it.
+ * That is how a suspect alignment gets out of a 64-thread run and onto a developer's laptop.
+ *
+ * This used to be a commented-out #define that also deleted its own output on success, so using
+ * it meant editing and rebuilding, and the files were gone by the time you looked.  Read once in
+ * bar(), before the flower loop, so the OpenMP region never calls getenv.
+ */
+static const char *bar_dump_dir = NULL;
+static int64_t bar_dump_counter = 0;
+
+void bar_dump_dir_init(void) {
+    bar_dump_dir = getenv("CACTUS_BAR_DUMP_DIR");
+    if (bar_dump_dir != NULL && bar_dump_dir[0] == '\0') {
+        bar_dump_dir = NULL; // set-but-empty means off, not a dump into the current directory
+    }
+    if (bar_dump_dir != NULL) {
+        st_logInfo("bar: dumping base-aligner windows to %s\n", bar_dump_dir);
+    }
+}
+
+// FOR DEBUGGING ONLY: run abpoa from the command line instead of via the API.
+// Requires CACTUS_BAR_DUMP_DIR to be set at run time.
 //#define CACTUS_ABPOA_FROM_COMMAND_LINE
 
 // OpenMP
@@ -167,7 +192,79 @@ static inline uint8_t msa_to_rc(uint8_t n) {
     return rc_table[n];
 }
 
-#ifdef CACTUS_ABPOA_MSA_DUMP_DIR
+/*
+ * Write the window as FASTA plus its 5x5 matrix.  The matrix file format is the one both abpoa -t
+ * and minipoa -m read, so either aligner can be pointed straight at it.
+ */
+static void dump_window_fasta_and_matrix(Msa *msa, uint8_t **bseqs, const int *mat,
+                                         const char *input_path, const char *matrix_path) {
+    FILE *mat_file = fopen(matrix_path, "w");
+    if (mat_file != NULL) {
+        fprintf(mat_file, "\tA\tC\tG\tT\tN\n");
+        for (size_t i = 0; i < 5; ++i) {
+            fprintf(mat_file, "%c", "ACGTN"[i]);
+            for (size_t j = 0; j < 5; ++j) {
+                fprintf(mat_file, "\t%d", mat[i * 5 + j]);
+            }
+            fprintf(mat_file, "\n");
+        }
+        fclose(mat_file);
+    }
+    FILE *fa_file = fopen(input_path, "w");
+    if (fa_file == NULL) {
+        return;
+    }
+    for (int64_t i = 0; i < msa->seq_no; ++i) {
+        fprintf(fa_file, ">%" PRIi64 "\n", i);
+        for (int64_t j = 0; j < msa->seq_lens[i]; ++j) {
+            fputc(msa_to_base(bseqs[i][j]), fa_file);
+        }
+        fputc('\n', fa_file);
+    }
+    fclose(fa_file);
+}
+
+/*
+ * A command line that replays this window through minipoa.  Gap penalties are negated: minipoa
+ * maximises, so penalties are negative there, while cactus and abpoa carry them positive.
+ */
+static char *dump_minipoa_input(Msa *msa, PoaParameters *pp, uint8_t **bseqs, char *input_path,
+                                char *matrix_path, char *command_path, char *output_path) {
+    dump_window_fasta_and_matrix(msa, bseqs, pp->mat, input_path, matrix_path);
+
+    int f = pp->bandFraction > 0.0 ? (int)(1.0 / pp->bandFraction + 0.5) : 0;
+    char *command = st_malloc(4096 * sizeof(char));
+    sprintf(command, "minipoa %s -m %s -O -%d -E -%d -b %d -f %d -r 1 -t 1",
+            input_path, matrix_path, pp->gapOpen, pp->gapExt, pp->bandConstant, f);
+    if (pp->seeding) {
+        char kw_opts[128];
+        sprintf(kw_opts, " -S -k %d -w %d", pp->minimizerK, pp->minimizerW);
+        strcat(command, kw_opts);
+        if (pp->anchorWindow > 0) {
+            sprintf(kw_opts, " -W %d", pp->anchorWindow);
+            strcat(command, kw_opts);
+        }
+    }
+    // -p and -B are on in the shipped config, and progressive ordering in particular changes the
+    // alignment, so a replay that omitted them would not reproduce the window it is meant to
+    // explain.
+    if (pp->progressive) {
+        strcat(command, " -p");
+    }
+    if (pp->adaptiveBand) {
+        strcat(command, " -B");
+    }
+    strcat(command, " > ");
+    strcat(command, output_path);
+
+    FILE *cmd_file = fopen(command_path, "w");
+    if (cmd_file != NULL) {
+        fprintf(cmd_file, "%s\n", command);
+        fclose(cmd_file);
+    }
+    return command;
+}
+
 // dump the abpoa input to files, and return a command line for running abpoa on them
 char* dump_abpoa_input(Msa* msa, abpoa_para_t* abpt, uint8_t **bseqs, char* abpoa_input_path, char* abpoa_matrix_path,
                        char* abpoa_command_path, char* abpoa_output_path) {
@@ -227,7 +324,6 @@ char* dump_abpoa_input(Msa* msa, abpoa_para_t* abpt, uint8_t **bseqs, char* abpo
 
     return abpoa_command;
 }
-#endif
 
 #ifdef CACTUS_ABPOA_FROM_COMMAND_LINE
 void abpoa_msa_from_command_line(char* abpoa_command_line, char* abpoa_output_path, uint8_t*** msa_seq, int* col_no) {
@@ -461,8 +557,364 @@ static void msa_fix_trimmed(Msa* msa) {
     msa->column_no -= empty_columns;
 }
 
+/*
+ * <bar baseAligner="..."> picks the engine.  It is read with cactusParams_has so that a config
+ * predating the attribute -- including any a user has saved -- still selects what it used to via
+ * the older <bar partialOrderAlignment="0|1"> boolean.
+ */
+BaseAligner baseAligner_constructFromCactusParams(CactusParams *params) {
+    /*
+     * Both attributes are optional, in both directions.  An old config has only
+     * partialOrderAlignment; a config written from now on may reasonably have only baseAligner --
+     * including one produced by following the warning below, which tells the user to delete the
+     * legacy attribute.  Reading either unguarded would st_errAbort on the other's config.
+     */
+    bool hasLegacy = cactusParams_has(params, 2, "bar", "partialOrderAlignment");
+    int64_t usePoa = hasLegacy ? cactusParams_get_int(params, 2, "bar", "partialOrderAlignment") : 1;
+    if (!cactusParams_has(params, 2, "bar", "baseAligner")) {
+        return usePoa ? BASE_ALIGNER_ABPOA : BASE_ALIGNER_PECAN;
+    }
+    char *name = cactusParams_get_string(params, 2, "bar", "baseAligner");
+    BaseAligner engine;
+    if (strcmp(name, "pecan") == 0) {
+        engine = BASE_ALIGNER_PECAN;
+    } else if (strcmp(name, "abpoa") == 0) {
+        engine = BASE_ALIGNER_ABPOA;
+    } else if (strcmp(name, "minipoa") == 0) {
+        engine = BASE_ALIGNER_MINIPOA;
+    } else {
+        st_errAbort("Unknown <bar baseAligner=\"%s\">; expected pecan, abpoa or minipoa", name);
+        engine = BASE_ALIGNER_ABPOA; /* not reached */
+    }
+    free(name);
+
+    /*
+     * Both attributes present and disagreeing is worth saying out loud.  partialOrderAlignment="0"
+     * is how the config has always documented "use pecan", so someone who sets it and gets abpoa
+     * anyway should not have to discover that from the alignment.
+     */
+    bool poaImplied = engine != BASE_ALIGNER_PECAN;
+    if (hasLegacy && (usePoa != 0) != poaImplied) {
+        st_logCritical("Warning: <bar baseAligner=\"%s\"> overrides <bar partialOrderAlignment=\"%" PRIi64
+                       "\">, which asks for the opposite. baseAligner wins; remove the other to silence this.\n",
+                       baseAligner_toString(engine), usePoa);
+    }
+    return engine;
+}
+
+const char *baseAligner_toString(BaseAligner engine) {
+    switch (engine) {
+        case BASE_ALIGNER_PECAN: return "pecan";
+        case BASE_ALIGNER_ABPOA: return "abpoa";
+        case BASE_ALIGNER_MINIPOA: return "minipoa";
+    }
+    return "unknown";
+}
+
+/*
+ * minipoa's substitution matrix comes from <bar><poa>; its gap penalties do not.
+ *
+ * Sharing the matrix keeps the two engines scoring substitutions identically, and means
+ * last_scoring.py's learned matrix reaches both (it writes into <poa>, which local_alignment.py
+ * also reads to score FastGA PAFs).
+ *
+ * The gaps have to be separate.  abPOA's gap model is convex -- min(open1 + L*ext1, open2 +
+ * L*ext2) -- so with the shipped 400/30 and 1200/1 its effective extension beyond L~28 is 1.
+ * minipoa has a single affine piece, so handing it abPOA's first-piece extension of 30 prices
+ * long gaps about 30x above what abPOA charges, and it responds by packing bases into shared
+ * columns instead of opening a gap.  That cost about six points of mafComparator accuracy on
+ * evolver mammals.
+ *
+ * last-train reaches minipoa too: it fits a single affine model, which is minipoa's model
+ * exactly, so last_scoring.py writes the learned open/extend straight into <minipoa>.  The
+ * GapOpen2/GapExtend2 pair it synthesises for abPOA is a stability workaround for that aligner
+ * and is deliberately not passed on.
+ */
+#ifdef HAVE_MINIPOA
+static minipoa_para_t *minipoaParameters_constructFromCactusParams(CactusParams *params, PoaParameters *out) {
+    minipoa_para_t *mpt = minipoa_init_para();
+    if (mpt == NULL) {
+        st_errAbort("Failed to allocate minipoa parameters: %s", minipoa_last_error());
+    }
+
+    /*
+     * minipoa's own matrix, falling back to abPOA's when it is left empty -- that fallback is the
+     * only way to get last-train's learned scores into minipoa, since last_scoring.py writes into
+     * <poa>.
+     */
+    char *submat_string = cactusParams_get_string(params, 3, "bar", "minipoa", "minipoaSubMatrix");
+    if (submat_string == NULL || strlen(submat_string) == 0) {
+        free(submat_string);
+        submat_string = cactusParams_get_string(params, 3, "bar", "poa", "partialOrderAlignmentSubMatrix");
+    }
+    if (submat_string != NULL && strlen(submat_string) > 0) {
+        int mat[25];
+        int count = 0;
+        for (char *val = strtok(submat_string, " "); val != NULL && count < 25; val = strtok(NULL, " ")) {
+            mat[count++] = atoi(val);
+        }
+        if (count != 25) {
+            st_errAbort("<bar><poa partialOrderAlignmentSubMatrix> needs 25 values, got %d", count);
+        }
+        minipoa_set_score_matrix(mpt, mat);
+        memcpy(out->mat, mat, sizeof(mat));
+    }
+    free(submat_string);
+
+    /*
+     * Only the first gap piece.  abPOA takes min(open1 + L*ext1, open2 + L*ext2) and minipoa has
+     * no second piece at all, so gaps longer than where the two cross (~28bp with the shipped
+     * 400/30 and 1200/1) are penalised more heavily here than abPOA would.
+     */
+    out->gapOpen = cactusParams_get_int(params, 3, "bar", "minipoa", "minipoaGapOpenPenalty");
+    out->gapExt = cactusParams_get_int(params, 3, "bar", "minipoa", "minipoaGapExtensionPenalty");
+    minipoa_set_gap(mpt, out->gapOpen, out->gapExt);
+
+    out->bandConstant = cactusParams_get_int(params, 3, "bar", "minipoa", "minipoaBandConstant");
+    out->bandFraction = cactusParams_get_float(params, 3, "bar", "minipoa", "minipoaBandFraction");
+    minipoa_set_band(mpt, out->bandConstant, out->bandFraction);
+    out->adaptiveBand = cactusParams_get_int(params, 3, "bar", "minipoa", "minipoaAdaptiveBand");
+    minipoa_set_adaptive_band(mpt, out->adaptiveBand);
+
+    out->seeding = !cactusParams_get_int(params, 3, "bar", "minipoa", "minipoaDisableSeeding");
+    out->minimizerK = cactusParams_get_int(params, 3, "bar", "minipoa", "minipoaMinimizerK");
+    out->minimizerW = cactusParams_get_int(params, 3, "bar", "minipoa", "minipoaMinimizerW");
+    out->anchorWindow = cactusParams_get_int(params, 3, "bar", "minipoa", "minipoaAnchorWindow");
+    minipoa_set_seeding(mpt, out->seeding, out->minimizerK, out->minimizerW, out->anchorWindow);
+
+    /*
+     * Progressive ordering, on by default, because abPOA runs with it on
+     * (<poa partialOrderAlignmentProgressiveMode>) and the order sequences are added to a POA
+     * graph changes the alignment -- markedly so on diverged input.  Leaving it off here was worth
+     * about six points of mafComparator accuracy on the evolver mammals set.
+     */
+    out->progressive = cactusParams_get_int(params, 3, "bar", "minipoa", "minipoaProgressiveMode");
+    out->progressiveMaxRows = cactusParams_get_int(params, 3, "bar", "minipoa", "minipoaProgressiveMaxRows");
+    minipoa_set_progressive(mpt, out->progressive);
+    return mpt;
+}
+#else
+/*
+ * minipoa=off in include.mk.  Selecting it is a configuration error rather than a crash, and the
+ * message has to name the build switch -- the config is portable between machines, the build is
+ * not.
+ */
+static void *minipoaParameters_constructFromCactusParams(CactusParams *params, PoaParameters *out) {
+    (void)params; (void)out;
+    st_errAbort("<bar baseAligner=\"minipoa\"> was selected, but this cactus was built with "
+                "minipoa=off (see include.mk). Rebuild with minipoa=on, or choose abpoa or pecan.");
+    return NULL;
+}
+#endif
+
+PoaParameters *poaParameters_constructFromCactusParams(CactusParams *params, BaseAligner engine) {
+    if (engine == BASE_ALIGNER_PECAN) {
+        return NULL;
+    }
+    PoaParameters *poaParameters = st_calloc(1, sizeof(PoaParameters));
+    poaParameters->engine = engine;
+    if (engine == BASE_ALIGNER_ABPOA) {
+        poaParameters->abpt = abpoaParamaters_constructFromCactusParams(params);
+    } else {
+        poaParameters->mpt = minipoaParameters_constructFromCactusParams(params, poaParameters);
+#ifdef HAVE_MINIPOA
+        if (poaParameters->progressive) {
+            // Same settings with the guide tree off, for windows too wide to afford a dense NxN
+            // distance matrix.  abPOA caps this the same way, via partialOrderAlignmentProgressiveMaxRows.
+            PoaParameters scratch = *poaParameters;
+            minipoa_para_t *plain = minipoaParameters_constructFromCactusParams(params, &scratch);
+            minipoa_set_progressive(plain, 0);
+            poaParameters->mptNoProgressive = plain;
+        }
+#endif
+    }
+    return poaParameters;
+}
+
+void poaParameters_destruct(PoaParameters *poaParameters) {
+    if (poaParameters == NULL) {
+        return;
+    }
+    if (poaParameters->abpt != NULL) {
+        abpoa_free_para(poaParameters->abpt);
+    }
+#ifdef HAVE_MINIPOA
+    if (poaParameters->mpt != NULL) {
+        minipoa_free_para((minipoa_para_t *)poaParameters->mpt);
+    }
+    if (poaParameters->mptNoProgressive != NULL) {
+        minipoa_free_para((minipoa_para_t *)poaParameters->mptNoProgressive);
+    }
+#endif
+    free(poaParameters);
+}
+
+/*
+ * The minipoa half of run_poa_window().
+ *
+ * minipoa_msa() returns a status rather than exiting: its internal band/backtrack traps used to
+ * call exit(0) -- a success code -- which from here is indistinguishable from a clean run with
+ * truncated output.  A failure here is fatal for the job either way, but it says which window and
+ * leaves it on disk when dumping is on, which is the difference between a bug report and a shrug.
+ */
+static void run_minipoa_window(Msa *msa, uint8_t **bseqs, PoaParameters *poa_parameters) {
+#ifndef HAVE_MINIPOA
+    (void)msa; (void)bseqs; (void)poa_parameters;
+    st_errAbort("minipoa was selected but this cactus was built with minipoa=off (see include.mk)");
+#else
+    char input_path[1024], matrix_path[1024], command_path[1024], output_path[1024];
+    char *command_line = NULL;
+    if (bar_dump_dir != NULL) {
+        int64_t dump_id;
+#if defined(_OPENMP)
+#pragma omp atomic capture
+#endif
+        dump_id = ++bar_dump_counter;
+        sprintf(input_path, "%s/bar_window_%d_%" PRIi64 ".fa", bar_dump_dir, (int)getpid(), dump_id);
+        sprintf(matrix_path, "%s.mat", input_path);
+        sprintf(command_path, "%s.cmd", input_path);
+        sprintf(output_path, "%s.out", input_path);
+        command_line = dump_minipoa_input(msa, poa_parameters, bseqs, input_path, matrix_path,
+                                          command_path, output_path);
+    }
+
+    const minipoa_para_t *mpt = (const minipoa_para_t *)poa_parameters->mpt;
+    if (poa_parameters->mptNoProgressive != NULL && msa->seq_no > poa_parameters->progressiveMaxRows) {
+        mpt = (const minipoa_para_t *)poa_parameters->mptNoProgressive;
+    }
+
+    int column_no = 0;
+    uint8_t **msa_seq = NULL;
+    int ret = minipoa_msa(mpt, (int)msa->seq_no, msa->seq_lens, bseqs, &msa_seq, &column_no);
+    if (ret != 0) {
+        st_errAbort("minipoa failed on a %" PRIi64 " x %d window: %s. %s",
+                    msa->seq_no, msa->seq_lens[0], minipoa_last_error(),
+                    command_line != NULL
+                        ? command_path
+                        : "Set CACTUS_BAR_DUMP_DIR to capture the window that did this.");
+    }
+    msa->msa_seq = msa_seq;
+    msa->column_no = column_no;
+    /*
+     * A global alignment cannot have fewer columns than its longest input row, so this catches a
+     * truncated or empty result -- which is the shape minipoa failures take when they do not
+     * return an error.  O(rows), next to nothing against the DP, and worth it: an all-gap MSA
+     * produces zero alignment blocks and BAR would otherwise drop the flower in silence.
+     */
+    int longest = 0;
+    for (int64_t i = 0; i < msa->seq_no; i++) {
+        if (msa->seq_lens[i] > longest) {
+            longest = msa->seq_lens[i];
+        }
+    }
+    if (column_no < longest) {
+        st_errAbort("minipoa returned %d columns for a %" PRIi64 " x %d window, which cannot be a "
+                    "global alignment of it. %s", column_no, msa->seq_no, longest,
+                    command_line != NULL
+                        ? command_path
+                        : "Set CACTUS_BAR_DUMP_DIR to capture the window that did this.");
+    }
+    if (command_line != NULL) {
+        free(command_line);
+    }
+#endif
+}
+
+/*
+ * Align one window with whichever engine was selected, filling msa->msa_seq and msa->column_no.
+ *
+ * The contract both engines meet: seq_no rows of column_no bytes, one malloc per row plus one for
+ * the row array (msa_destruct frees them that way), rows in input order, values 0-4 for ACGTN and
+ * 5 for a gap.  Everything around this -- the sliding window, the empty-sequence hack, trimming,
+ * stitching, block extraction -- is engine-neutral and shared.
+ *
+ * max_prog_rows and max_prog_length_diff are abPOA's progressive-mode guards; minipoa has no
+ * equivalent knob, so they are inert for it.
+ */
+static void run_poa_window(Msa *msa, uint8_t **bseqs, PoaParameters *poa_parameters,
+                           int64_t max_prog_rows, double max_prog_length_diff) {
+    if (poa_parameters->engine == BASE_ALIGNER_MINIPOA) {
+        run_minipoa_window(msa, bseqs, poa_parameters);
+        return;
+    }
+
+    // init abpoa
+    abpoa_t *ab = abpoa_init();
+    abpoa_para_t *abpt = copy_abpoa_params(poa_parameters->abpt);
+    if (msa->seq_no > max_prog_rows ||
+        // note: these are sorted by length excep in unit tests
+        (1. - (double)msa->seq_lens[msa->seq_no-1] / (double)msa->seq_lens[0] > max_prog_length_diff)) {
+        abpt->progressive_poa = 0;
+    }
+    
+    // dump the input to file, if asked to at run time
+    char abpoa_input_path[1024], abpoa_matrix_path[1024], abpoa_command_path[1024], abpoa_output_path[1024];
+    char *abpoa_command_line = NULL;
+    if (bar_dump_dir != NULL) {
+        // The old name keyed off the Msa pointer, so two windows that reused the same freed
+        // allocation silently overwrote each other.  pid + counter is unique for the run.
+        int64_t dump_id;
+#if defined(_OPENMP)
+#pragma omp atomic capture
+#endif
+        dump_id = ++bar_dump_counter;
+        sprintf(abpoa_input_path, "%s/bar_window_%d_%" PRIi64 ".fa", bar_dump_dir, (int)getpid(), dump_id);
+        sprintf(abpoa_matrix_path, "%s.mat", abpoa_input_path);
+        sprintf(abpoa_command_path, "%s.cmd", abpoa_input_path);
+        sprintf(abpoa_output_path, "%s.out", abpoa_input_path);
+        abpoa_command_line = dump_abpoa_input(msa, abpt, bseqs,
+                                              abpoa_input_path, abpoa_matrix_path, abpoa_command_path, abpoa_output_path);
+    }
+
+#ifdef CACTUS_ABPOA_FROM_COMMAND_LINE
+    // run abpoa from the command line
+    if (abpoa_command_line == NULL) {
+        st_errAbort("CACTUS_ABPOA_FROM_COMMAND_LINE needs CACTUS_BAR_DUMP_DIR set in the environment");
+    }
+    abpoa_msa_from_command_line(abpoa_command_line, abpoa_output_path, &(msa->msa_seq), &(msa->column_no));
+
+    int test_cols = 0;
+    uint8_t** test_msa = NULL;
+    abpoa_msa(ab, abpt, msa->seq_no, NULL, msa->seq_lens, bseqs, NULL, NULL);
+    // abpoa's interface has changed a bit -- instead of passing in pointers to the results, they
+    // end up in the ab->abc struct -- we extract them here
+    test_msa = ab->abc->msa_base;
+    ab->abc->msa_base = NULL;
+    test_cols = ab->abc->msa_len;
+
+    // sanity check to make sure we get the same output
+    assert(msa->column_no == test_cols);        
+    for (int i = 0; i < msa->seq_no; ++i) {
+      for (int j = 0; j < test_cols; ++j) {
+          //todo: not sure why this doesn't work anymore !!!!
+          //assert(test_msa[i][j] == msa->msa_seq[i][j]);
+      }
+      free(test_msa[i]);
+    }
+    free(test_msa);
+#else
+    // perform abpoa-msa
+    abpoa_msa(ab, abpt, msa->seq_no, NULL, msa->seq_lens, bseqs, NULL, NULL);
+    // abpoa's interface has changed a bit -- instead of passing in pointers to the results, they
+    // end up in the ab->abc struct -- we extract them here
+    msa->msa_seq = ab->abc->msa_base;
+    ab->abc->msa_base = NULL;
+    msa->column_no = ab->abc->msa_len;
+#endif
+
+    // The dumps are kept.  Deleting them on success made the switch useless for its main
+    // job -- looking at a window that aligned badly rather than one that crashed.
+    if (abpoa_command_line != NULL) {
+        free(abpoa_command_line);
+    }
+
+    // free abpoa
+    abpoa_free(ab);
+    abpoa_free_para(abpt);
+}
+
 Msa *msa_make_partial_order_alignment(char **seqs, int *seq_lens, int64_t seq_no, int64_t window_size,
-                                      int64_t max_prog_rows, double max_prog_length_diff, abpoa_para_t *poa_parameters) {
+                                      int64_t max_prog_rows, double max_prog_length_diff, PoaParameters *poa_parameters) {
 
     assert(seq_no > 0);
 
@@ -562,71 +1014,7 @@ Msa *msa_make_partial_order_alignment(char **seqs, int *seq_lens, int64_t seq_no
             }
         }
 
-        // init abpoa
-        abpoa_t *ab = abpoa_init();
-        abpoa_para_t *abpt = copy_abpoa_params(poa_parameters);
-        if (msa->seq_no > max_prog_rows ||
-            // note: these are sorted by length excep in unit tests
-            (1. - (double)msa->seq_lens[msa->seq_no-1] / (double)msa->seq_lens[0] > max_prog_length_diff)) {
-            abpt->progressive_poa = 0;
-        }
-        
-#ifdef CACTUS_ABPOA_MSA_DUMP_DIR
-        // dump the input to file
-        char abpoa_input_path[1024], abpoa_matrix_path[1024], abpoa_command_path[1024], abpoa_output_path[1024];
-        sprintf(abpoa_input_path, "%s/ap_in_%ld.fa", CACTUS_ABPOA_MSA_DUMP_DIR, (int64_t)msa);
-        sprintf(abpoa_matrix_path, "%s.mat", abpoa_input_path);
-        sprintf(abpoa_command_path, "%s.cmd", abpoa_input_path);
-        sprintf(abpoa_output_path, "%s.out", abpoa_input_path);
-        char* abpoa_command_line = dump_abpoa_input(msa, abpt, bseqs,
-                                                    abpoa_input_path, abpoa_matrix_path, abpoa_command_path, abpoa_output_path);
-#endif
-
-#ifdef CACTUS_ABPOA_FROM_COMMAND_LINE
-        // run abpoa from the command line
-        abpoa_msa_from_command_line(abpoa_command_line, abpoa_output_path, &(msa->msa_seq), &(msa->column_no));
-
-        int test_cols = 0;
-        uint8_t** test_msa = NULL;
-        abpoa_msa(ab, abpt, msa->seq_no, NULL, msa->seq_lens, bseqs, NULL, NULL);
-        // abpoa's interface has changed a bit -- instead of passing in pointers to the results, they
-        // end up in the ab->abc struct -- we extract them here
-        test_msa = ab->abc->msa_base;
-        ab->abc->msa_base = NULL;
-        test_cols = ab->abc->msa_len;
-
-        // sanity check to make sure we get the same output
-        assert(msa->column_no == test_cols);        
-        for (int i = 0; i < msa->seq_no; ++i) {
-          for (int j = 0; j < test_cols; ++j) {
-              //todo: not sure why this doesn't work anymore !!!!
-              //assert(test_msa[i][j] == msa->msa_seq[i][j]);
-          }
-          free(test_msa[i]);
-        }
-        free(test_msa);
-#else
-        // perform abpoa-msa
-        abpoa_msa(ab, abpt, msa->seq_no, NULL, msa->seq_lens, bseqs, NULL, NULL);
-        // abpoa's interface has changed a bit -- instead of passing in pointers to the results, they
-        // end up in the ab->abc struct -- we extract them here
-        msa->msa_seq = ab->abc->msa_base;
-        ab->abc->msa_base = NULL;
-        msa->column_no = ab->abc->msa_len;
-#endif
-
-#ifdef CACTUS_ABPOA_MSA_DUMP_DIR
-        // we got this far without crashing, so delete the dumped file (they can really pile up otherwise)
-        remove(abpoa_input_path);
-        remove(abpoa_matrix_path);
-        remove(abpoa_command_path);
-        remove(abpoa_output_path);
-        free(abpoa_command_line);
-#endif
-
-        // free abpoa
-        abpoa_free(ab);
-        abpoa_free_para(abpt);
+        run_poa_window(msa, bseqs, poa_parameters, max_prog_rows, max_prog_length_diff);
 
         // mask out empty sequences that were phonied in as Ns above
         for (int64_t i = 0; i < msa->seq_no && emptyCount > 0; ++i) {
@@ -762,7 +1150,7 @@ Msa *msa_make_partial_order_alignment(char **seqs, int *seq_lens, int64_t seq_no
 
 Msa **make_consistent_partial_order_alignments(int64_t end_no, int64_t *end_lengths, char ***end_strings,
         int **end_string_lengths, int64_t **right_end_indexes, int64_t **right_end_row_indexes, int64_t **overlaps,
-        int64_t window_size, int64_t max_prog_rows, double max_prog_length_diff, abpoa_para_t *poa_parameters) {
+        int64_t window_size, int64_t max_prog_rows, double max_prog_length_diff, PoaParameters *poa_parameters) {
     // Calculate the initial, potentially inconsistent msas and column scores for each msa
     float *column_scores[end_no];
     Msa **msas = st_malloc(sizeof(Msa *) * end_no);
@@ -1148,7 +1536,7 @@ int64_t getMaxSequenceLength(End *end) {
 }
 
 stList *make_flower_alignment_poa(Flower *flower, int64_t max_seq_length, int64_t window_size, int64_t mask_filter,
-                                  int64_t max_prog_rows, double max_prog_length_diff, abpoa_para_t * poa_parameters) {
+                                  int64_t max_prog_rows, double max_prog_length_diff, PoaParameters *poa_parameters) {
     End *dominantEnd = getDominantEnd(flower);
     int64_t seq_no = dominantEnd != NULL ? end_getInstanceNumber(dominantEnd) : -1;
     if(dominantEnd != NULL && getMaxSequenceLength(dominantEnd) < max_seq_length) {

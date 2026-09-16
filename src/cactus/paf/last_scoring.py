@@ -97,7 +97,10 @@ def apply_scores_to_config(score_dict, config_xml):
     # that's applied to the trained gap parameters
     long_gap_open_factor = int(poa_node.attrib['partialOrderAlignmentTrainedGapOpen2Factor'])
     long_gap_extend_factor = int(poa_node.attrib['partialOrderAlignmentTrainedGapExtension2Factor'])
-    apply_long_gap(score_dict, long_gap_extend_factor, long_gap_extend_factor)
+    # the open factor was being passed the extend factor, so TrainedGapOpen2Factor was read and
+    # then discarded.  Both default to 3, so the shipped config is unaffected; setting them to
+    # different values silently did the wrong thing.
+    apply_long_gap(score_dict, long_gap_open_factor, long_gap_extend_factor)
     
     poa_node.attrib['partialOrderAlignmentGapOpenPenalty1'] = str(score_dict['GAP-OPEN'])
     poa_node.attrib['partialOrderAlignmentGapExtensionPenalty1'] = str(score_dict['GAP-EXTEND'])
@@ -129,6 +132,19 @@ def apply_scores_to_config(score_dict, config_xml):
     score_string += str(min_match)
             
     poa_node.attrib['partialOrderAlignmentSubMatrix'] = score_string
+
+    # minipoa gets the learned gaps verbatim.  last-train fits a single affine gap model, which is
+    # exactly minipoa's model -- the GAP-OPEN-2/GAP-EXTEND-2 pair above is a synthesised second
+    # piece that exists only because abPOA is unstable without one, so it would be wrong to hand it
+    # on.  minipoaSubMatrix is left alone: empty means inherit <poa>'s matrix, which is the learned
+    # one we just wrote, so the trained substitution scores reach minipoa too.
+    minipoa_node = bar_node.find("minipoa")
+    if minipoa_node is not None:
+        minipoa_node.attrib['minipoaGapOpenPenalty'] = str(score_dict['GAP-OPEN'])
+        minipoa_node.attrib['minipoaGapExtensionPenalty'] = str(score_dict['GAP-EXTEND'])
+        RealtimeLogger.info("Overriding minipoa scores with trained values: GapOpen {}; GapExtend {} (single affine, as trained)".format(
+            minipoa_node.attrib['minipoaGapOpenPenalty'],
+            minipoa_node.attrib['minipoaGapExtensionPenalty']))
 
     RealtimeLogger.info("Overriding abPOA scores with trained values: GapOpen {}; GapExtend {}; GapOpen2 {}; GapExtend2 {}; SubMatrix {}".format(
         poa_node.attrib['partialOrderAlignmentGapOpenPenalty1'],
