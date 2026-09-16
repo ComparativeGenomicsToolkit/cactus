@@ -268,21 +268,27 @@ def cactus_clamp_memory(memory_bytes):
 # bare cactus_walltime() is the right call for a coordination job.
 WALLTIME_COORDINATION = 120
 
-# Assumed jobstore throughput, in bytes/second, for the io_bytes term.  Staging is what
-# makes an otherwise trivial job slow, and a shared cluster filesystem with a few hundred
-# concurrent Cactus jobs on it goes nowhere near its headline number.  WALLTIME_FACTOR is
-# applied on top of this, so the effective worst case is a good deal slower again.
-WALLTIME_IO_RATE = 100 * 1024**2
+# Assumed jobstore throughput, in bytes/second, for the io_bytes term.  Staging is what makes an
+# otherwise trivial job slow, and a shared cluster filesystem with a few hundred concurrent
+# Cactus jobs on it goes nowhere near its headline number: in the first at-scale Slurm run with
+# walltimes on (HPRC, 519 concurrent sanitize_fasta_header jobs) the ones that overran were
+# spending upwards of 900 s moving ~4 GB each, while their own commands took 240 s.  100 MiB/s
+# was the first guess and it was an order of magnitude out under that load.
+WALLTIME_IO_RATE = 25 * 1024**2
 
 # Multiplier applied to every estimate, overridable with --walltimeFactor.  The estimates
 # at the call sites aim at roughly the p99 of what we have measured on the largest runs we
 # have logs for, so this is headroom on top of that.
 WALLTIME_FACTOR = 2.5
 
-# Floor for any walltime request, overridable with --minWalltime.  Nothing is gained by
-# asking Slurm for less: worker startup, jobstore round-trips and Slurm's own granularity
-# swamp it, and a too-short request just buys a --doubleTime retry.
-WALLTIME_MIN = 600
+# Floor for any walltime request, overridable with --minWalltime.  A short partition is an hour
+# on the clusters this runs on, so every request below that routes the same way and precision
+# under it buys nothing -- while a request that is too short by a minute costs a whole
+# --doubleTime retry.  600 was too tight for exactly that reason: 60 of the 519
+# sanitize_fasta_header jobs of the run above were killed at ~620 s, and every one then
+# succeeded when --doubleTime handed it ~1250 s.  Half the short partition leaves room for the
+# staging tail that no size model sees, and still lands in it.
+WALLTIME_MIN = 1800
 
 # How much of the longest Slurm partition to keep in reserve for --doubleTime to retry into.
 # 2 leaves room for exactly one doubling; see cactus_override_toil_options.
