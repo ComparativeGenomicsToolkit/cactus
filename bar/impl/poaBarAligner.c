@@ -316,6 +316,41 @@ static void msa_fix_trimmed(Msa* msa) {
 /* ============================================================================ */
 
 /*
+ * Build the four file names for one dumped window.  False when dumping is off.
+ *
+ * snprintf plus memcpy rather than sprintf: the compiler cannot prove the directory is short
+ * enough, and CGL_DEBUG=ultra builds with -Werror, so plain sprintf into a fixed buffer fails the
+ * build.  A directory long enough to overflow gets no dump at all rather than a truncated name
+ * that could collide with another window's files.
+ */
+#define BAR_DUMP_PATH_MAX 1024
+
+static bool next_dump_paths(char *fa, char *mat, char *cmd, char *out) {
+    if (bar_dump_dir == NULL) {
+        return false;
+    }
+    int64_t dump_id;
+#if defined(_OPENMP)
+#pragma omp atomic capture
+#endif
+    /*
+     * The old name keyed off the Msa pointer, so two windows that reused the same freed
+     * allocation silently overwrote each other.  pid + counter is unique for the run.
+     */
+    dump_id = ++bar_dump_counter;
+    int len = snprintf(fa, BAR_DUMP_PATH_MAX - 5, "%s/bar_window_%d_%" PRIi64 ".fa",
+                       bar_dump_dir, (int)getpid(), dump_id);
+    if (len < 0 || len >= BAR_DUMP_PATH_MAX - 5) {
+        st_logCritical("bar: CACTUS_BAR_DUMP_DIR is too long to name window files; not dumping\n");
+        return false;
+    }
+    memcpy(mat, fa, (size_t)len); memcpy(mat + len, ".mat", 5);
+    memcpy(cmd, fa, (size_t)len); memcpy(cmd + len, ".cmd", 5);
+    memcpy(out, fa, (size_t)len); memcpy(out + len, ".out", 5);
+    return true;
+}
+
+/*
  * Write the window as FASTA plus its 5x5 matrix.  The matrix file format is the one both abpoa -t
  * and minipoa -m read, so either aligner can be pointed straight at it.
  */
@@ -559,20 +594,10 @@ static void run_abpoa_window(Msa *msa, uint8_t **bseqs, PoaParameters *poa_param
     }
     
     // dump the input to file, if asked to at run time
-    char abpoa_input_path[1024], abpoa_matrix_path[1024], abpoa_command_path[1024], abpoa_output_path[1024];
+    char abpoa_input_path[BAR_DUMP_PATH_MAX], abpoa_matrix_path[BAR_DUMP_PATH_MAX];
+    char abpoa_command_path[BAR_DUMP_PATH_MAX], abpoa_output_path[BAR_DUMP_PATH_MAX];
     char *abpoa_command_line = NULL;
-    if (bar_dump_dir != NULL) {
-        // The old name keyed off the Msa pointer, so two windows that reused the same freed
-        // allocation silently overwrote each other.  pid + counter is unique for the run.
-        int64_t dump_id;
-#if defined(_OPENMP)
-#pragma omp atomic capture
-#endif
-        dump_id = ++bar_dump_counter;
-        sprintf(abpoa_input_path, "%s/bar_window_%d_%" PRIi64 ".fa", bar_dump_dir, (int)getpid(), dump_id);
-        sprintf(abpoa_matrix_path, "%s.mat", abpoa_input_path);
-        sprintf(abpoa_command_path, "%s.cmd", abpoa_input_path);
-        sprintf(abpoa_output_path, "%s.out", abpoa_input_path);
+    if (next_dump_paths(abpoa_input_path, abpoa_matrix_path, abpoa_command_path, abpoa_output_path)) {
         abpoa_command_line = dump_abpoa_input(msa, abpt, bseqs,
                                               abpoa_input_path, abpoa_matrix_path, abpoa_command_path, abpoa_output_path);
     }
@@ -778,18 +803,10 @@ static void run_minipoa_window(Msa *msa, uint8_t **bseqs, PoaParameters *poa_par
     (void)msa; (void)bseqs; (void)poa_parameters;
     st_errAbort("minipoa was selected but this cactus was built with minipoa=off (see include.mk)");
 #else
-    char input_path[1024], matrix_path[1024], command_path[1024], output_path[1024];
+    char input_path[BAR_DUMP_PATH_MAX], matrix_path[BAR_DUMP_PATH_MAX];
+    char command_path[BAR_DUMP_PATH_MAX], output_path[BAR_DUMP_PATH_MAX];
     char *command_line = NULL;
-    if (bar_dump_dir != NULL) {
-        int64_t dump_id;
-#if defined(_OPENMP)
-#pragma omp atomic capture
-#endif
-        dump_id = ++bar_dump_counter;
-        sprintf(input_path, "%s/bar_window_%d_%" PRIi64 ".fa", bar_dump_dir, (int)getpid(), dump_id);
-        sprintf(matrix_path, "%s.mat", input_path);
-        sprintf(command_path, "%s.cmd", input_path);
-        sprintf(output_path, "%s.out", input_path);
+    if (next_dump_paths(input_path, matrix_path, command_path, output_path)) {
         command_line = dump_minipoa_input(msa, poa_parameters, bseqs, input_path, matrix_path,
                                           command_path, output_path);
     }
