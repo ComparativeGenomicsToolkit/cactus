@@ -155,8 +155,10 @@ def cactus_cons_with_resources(job, tree, ancestor_event, config_node, seq_id_ma
         # this job's core count, and 14% of VGP alignments came in over their estimate -- so asking
         # it to fit in a fraction of what the job can be given means a miss still has somewhere to
         # land.  Without the fraction, any under-estimate at the ceiling OOMs the whole alignment.
-        budget = limit * retain_fraction if limit else None
-        if budget and mem > budget:
+        # `budget is not None`, not `budget`: a fraction of 0 means never retain, and a bare
+        # truthiness test would make 0.0 falsy and fall through to retaining every time.
+        budget = limit * retain_fraction if limit is not None else None
+        if budget is not None and mem > budget:
             RealtimeLogger.info('cactus_consolidated({}): the memory estimate of {} with jemalloc page retention exceeds {:g} of the {} the job can be given, so the pages will not be retained'.format(
                 name, bytes2human(mem), retain_fraction, bytes2human(limit)))
             retain_pages = '0'
@@ -192,8 +194,9 @@ def cactus_cons(job, tree, ancestor_event, config_node, seq_id_map, og_map, paf_
             findRequiredNode(config_node, 'consolidated').set('retain_pages', str(retain_pages))
         # the estimator resolved the window (it may have been lowered for a giant genome), and the
         # estimate it produced only holds if cactus_consolidated uses that same value
-        if poa_window is not None:
-            findRequiredNode(config_node, 'bar').find('poa').set('partialOrderAlignmentWindow', str(poa_window))
+        poa_node = findRequiredNode(config_node, 'bar').find('poa')
+        if poa_window is not None and poa_node is not None:
+            poa_node.set('partialOrderAlignmentWindow', str(poa_window))
 
     # Build up a genome -> fasta map.
     work_dir = job.fileStore.getLocalTempDir()
@@ -252,17 +255,19 @@ def cactus_cons(job, tree, ancestor_event, config_node, seq_id_map, og_map, paf_
         args += ["--secondaryAlignments", secondary_alignment_file]
 
     # jemalloc reads MALLOC_CONF once, before main, so transparent huge pages cannot be switched on
-    # through mallctl the way page retention is -- it has to be in the environment cactus_consolidated
-    # inherits.  Measured on salamander Anc3 without page retention, same processor model, 44398 ->
-    # 33124 seconds for 0.9% more peak (347.0 -> 350.0 GiB).  An existing MALLOC_CONF wins, so the
-    # setting stays overridable from the command line.
+    # through mallctl the way page retention is.  Prefixing `env` puts it in front of this one
+    # process rather than in the worker's own environment, which a follow-on job would inherit --
+    # and it travels into the container, which an exported variable does not, since dockerCommand
+    # passes no -e.  Measured on salamander Anc3 without page retention, same processor model,
+    # 44398 -> 33124 seconds for 0.9% more peak (347.0 -> 350.0 GiB).  An existing MALLOC_CONF wins.
+    thp_prefix = []
     if getOptionalAttrib(findRequiredNode(config_node, 'consolidated'), 'transparent_huge_pages', typeFn=bool, default=True) \
        and 'MALLOC_CONF' not in os.environ:
-        os.environ['MALLOC_CONF'] = 'thp:always'
+        thp_prefix = ['env', 'MALLOC_CONF=thp:always']
 
     messages = cactus_call(check_output=True, returnStdErr=True,
                            realtimeStderrPrefix=f'cactus_consolidated({chrom_name if chrom_name else ancestor_event})',
-                           parameters=["cactus_consolidated"] + args,
+                           parameters=thp_prefix + ["cactus_consolidated"] + args,
                            work_dir=work_dir,
                            job_memory=job.memory)[1]  # Get just the standard error output
 

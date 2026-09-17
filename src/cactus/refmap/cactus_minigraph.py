@@ -453,26 +453,24 @@ def minigraph_construct_run(job, options, config_node, seq_id_map, seq_order, gf
     uncollapsed_pansn_gfa_id, collapse_report_id = None, None
     if getOptionalAttrib(xml_node, "collapseInversions", typeFn=bool, default=False) and \
        not getattr(options, 'refOnly', False):
-        # resolved here, not in the lambda: toil evaluates a PromisedRequirement inside a wrapper
-        # job on a worker, and cactus_clamp_memory reads CACTUS_MAX_MEMORY out of the environment,
-        # which is only set on the leader.
-        mem_cap = cactus_clamp_memory(sys.maxsize)
         collapse_job = minigraph_job.addFollowOnJobFn(collapse_inversions, options, config_node,
                                                       minigraph_job.rv(1), gfa_path,
                                                       cores=options.mgCores,
                                                       # sized from the graph it collapses, not the
                                                       # reference: rgfa-collapse's cost is almost all
                                                       # fixed.  Over 24 HPRC chromosomes it used
-                                                      # 5.9-6.0 GiB and 2.9 GiB disk while the gfa
-                                                      # spanned 6000x (0.03 MB to 190 MB), so the
-                                                      # floors are what is measured and the per-byte
-                                                      # terms are headroom for graphs larger than any
-                                                      # seen.  8*ref_size asked ~180 GiB for this.
+                                                      # 5.9-6.0 GiB of memory and up to 6.57 GiB of
+                                                      # disk while the gfa spanned 6000x (0.03 MB to
+                                                      # 190 MB).  Both are flat in graph size, so the
+                                                      # floors are what is measured -- roughly 2x the
+                                                      # observed peak each -- and the per-byte terms
+                                                      # only bite above them, as insurance for graphs
+                                                      # larger than any seen.
                                                       disk=PromisedRequirement(
-                                                          lambda gfa: max(8 * gfa.size, 8 * 2**30),
+                                                          lambda gfa: max(24 * gfa.size, 16 * 2**30),
                                                           minigraph_job.rv(1)),
                                                       memory=PromisedRequirement(
-                                                          lambda gfa: min(max(64 * gfa.size, 12 * 2**30), mem_cap),
+                                                          lambda gfa: cactus_clamp_memory(max(64 * gfa.size, 12 * 2**30)),
                                                           minigraph_job.rv(1)))
         # graph_names, the same set the forward rename uses, and for the same reason its comment
         # gives: it has to resolve every SN tag in the finished graph, which on the --inGFA extend

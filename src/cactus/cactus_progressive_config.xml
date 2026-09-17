@@ -605,13 +605,13 @@
 	     memory on a single machine, or the maxMemory option), otherwise divide the estimate by
 	     memory_retain_ratio and do not keep them.  The memory fit above was measured with retention
 	     on.  The consRetainPages command line option overrides. -->
-	<!-- transparent_huge_pages: put thp:always in MALLOC_CONF for cactus_consolidated, so jemalloc
-	     backs its extents with huge pages.  It has to go in the environment because jemalloc reads
-	     MALLOC_CONF before main and it cannot be changed through mallctl afterwards.  Measured on
-	     salamander Anc3 without page retention, same processor model on both runs: 44398 -> 33124
-	     seconds, for 0.9% more peak (347.0 -> 350.0 GiB).  Only bites where the kernel is in madvise
-	     mode, which is the usual setting; it is a no-op under never.  A MALLOC_CONF already in the
-	     environment is left alone. -->
+	<!-- transparent_huge_pages: run cactus_consolidated under `env MALLOC_CONF=thp:always`, so
+	     jemalloc backs its extents with huge pages.  It has to reach the process through the
+	     environment because jemalloc reads MALLOC_CONF before main and mallctl cannot change it
+	     afterwards.  Measured on salamander Anc3 without page retention, same processor model on
+	     both runs: 44398 -> 33124 seconds, for 0.9% more peak (347.0 -> 350.0 GiB).  Only bites
+	     where the kernel has transparent huge pages in madvise mode, which is the usual setting;
+	     it is a no-op under never.  A MALLOC_CONF already in the environment is left alone. -->
 	<!-- memory_retain_auto_fraction: how much of the available memory the retained estimate is
 	     allowed to take before auto gives up on retention.  0.5 only attempts retention when we
 	     think it fits in half of what the job can be given, so a 2x under-estimate still lands.
