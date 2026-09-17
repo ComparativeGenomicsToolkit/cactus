@@ -140,7 +140,7 @@ def main():
                         "Standard suffixes like K, Ki, M, Mi, G or Gi are supported (default=bytes))", default=None)
     parser.add_argument("--consRetainPages", choices=['auto', '0', '1'], default=None,
                         help="Whether cactus_consolidated keeps the memory pages jemalloc frees, which is much faster but takes 2-3x the peak memory. "
-                        "auto (the default, from <consolidated retain_pages> in the config) keeps them unless the memory estimate exceeds what the job can be given")
+                        "auto (the default, from <consolidated retain_pages> in the config) keeps them only when the estimate fits in memory_retain_auto_fraction of what the job can be given")
     parser.add_argument("--chromInfo",
                         help="Two-column file mapping genome (col 1) to comma-separated list of sex chromosomes. This information "
                         "will be used to guide outgroup selection so that, where possible, all chromosomes are present in"
@@ -521,7 +521,7 @@ def cactus_align(job, config_wrapper, mc_tree, input_seq_map, input_seq_id_map, 
     # runs in the resourced pass, which sizes its own walltime.
     hal_job = cons_job.addFollowOnJobFn(export_hal, sub_tree, config_wrapper.xmlRoot, new_seq_id_map, og_map, results, event=root_name, inMemory=True,
                                         checkpointInfo=checkpointInfo, acyclicEvent=referenceEvents[0] if referenceEvents and not allow_collapse else None,
-                                        memory_override=cons_memory, walltime=cactus_walltime())
+                                        walltime=cactus_walltime())
 
     # clean out some of the  intermediate jobstore files
     hal_job.addFollowOnJobFn(clean_jobstore_files, file_id_maps=[new_seq_id_map], file_ids=[paf_id], walltime=cactus_walltime())

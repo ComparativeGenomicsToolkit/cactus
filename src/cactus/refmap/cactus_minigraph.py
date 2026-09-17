@@ -32,6 +32,7 @@ from cactus.progressive.cactus_prepare import human2bytesN
 from cactus.preprocessor.checkUniqueHeaders import sanitize_fasta_headers
 from cactus.paf.last_scoring import last_train
 from toil.job import Job
+from toil.job import PromisedRequirement
 from toil.common import Toil
 from toil.statsAndLogging import logger
 from toil.statsAndLogging import set_logging_from_options
@@ -471,11 +472,28 @@ def minigraph_construct_run(job, options, config_node, seq_id_map, seq_order, gf
         collapse_job = minigraph_job.addFollowOnJobFn(collapse_inversions, options, config_node,
                                                       minigraph_job.rv(1), gfa_path,
                                                       cores=options.mgCores,
-                                                      disk=8*ref_size,
-                                                      memory=cactus_clamp_memory(8*ref_size),
-                                                      walltime=cactus_walltime(
-                                                          collapse_inversions_walltime(ref_size, options.mgCores),
-                                                          io_bytes=4 * ref_size))
+                                                      # sized from the graph it collapses, not the
+                                                      # reference: rgfa-collapse's cost is almost all
+                                                      # fixed.  Over 24 HPRC chromosomes it used
+                                                      # 5.9-6.0 GiB of memory and up to 6.57 GiB of
+                                                      # disk while the gfa spanned 6000x (0.03 MB to
+                                                      # 190 MB).  Both are flat in graph size, so the
+                                                      # floors are what is measured -- roughly 2x the
+                                                      # observed peak each -- and the per-byte terms
+                                                      # only bite above them, as insurance for graphs
+                                                      # larger than any seen.  The walltime follows
+                                                      # the same shape, and off the same promise.
+                                                      disk=PromisedRequirement(
+                                                          lambda gfa: max(24 * gfa.size, 16 * 2**30),
+                                                          minigraph_job.rv(1)),
+                                                      memory=PromisedRequirement(
+                                                          lambda gfa: cactus_clamp_memory(max(64 * gfa.size, 12 * 2**30)),
+                                                          minigraph_job.rv(1)),
+                                                      walltime=PromisedRequirement(
+                                                          lambda gfa: cactus_walltime(
+                                                              collapse_inversions_walltime(gfa.size, options.mgCores),
+                                                              io_bytes=4 * gfa.size),
+                                                          minigraph_job.rv(1)))
         # graph_names, the same set the forward rename uses, and for the same reason its comment
         # gives: it has to resolve every SN tag in the finished graph, which on the --inGFA extend
         # path is more genomes than minigraph is given.  It is captured above before seq_id_map is
@@ -528,8 +546,9 @@ def minigraph_construct_run(job, options, config_node, seq_id_map, seq_order, gf
 COLLAPSE_TAIL_THREAD_SECS = 25200
 
 # The bulk on top of that tail: the vg snarl decomposition and the many small alignments, per GB
-# of reference.  These do use the full -j x -t width.
-COLLAPSE_INVERSIONS_SECS_PER_GB = 2000
+# of the graph being collapsed.  Small, because rgfa-collapse's cost turns out to be almost all
+# fixed -- over 24 HPRC chromosomes its memory and disk barely moved while the graph spanned
+# 6000x -- so this is insurance for graphs larger than any of those rather than the main term.
 
 def collapse_minimap2_threads(cores):
     """ threads rgfa-collapse gives each minimap2 -- the same split collapse_inversions makes, kept
@@ -538,10 +557,12 @@ def collapse_minimap2_threads(cores):
     jobs = min(8, max(1, cores // 8))
     return max(1, cores // jobs)
 
-def collapse_inversions_walltime(ref_size, cores):
-    """ estimated seconds for one collapse_inversions job """
+COLLAPSE_INVERSIONS_SECS_PER_GB = 2000
+
+def collapse_inversions_walltime(gfa_size, cores):
+    """ estimated seconds for one collapse_inversions job, from the graph it is handed """
     return (COLLAPSE_TAIL_THREAD_SECS / collapse_minimap2_threads(cores) +
-            COLLAPSE_INVERSIONS_SECS_PER_GB * ref_size / 1e9)
+            COLLAPSE_INVERSIONS_SECS_PER_GB * gfa_size / 1e9)
 
 def collapse_inversions(job, options, config_node, pansn_gfa_id, gfa_path):
     """ rewrite inverted alleles that minigraph stored as novel sequence into proper inversion

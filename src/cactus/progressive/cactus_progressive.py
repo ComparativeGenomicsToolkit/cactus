@@ -224,7 +224,7 @@ def progressive_step_2(job, trimmed_outgroups_and_alignments, options, config_no
 
 def export_hal(job, mc_tree, config_node, seq_id_map, og_map, results, event=None, cacheBytes=None,
                cacheMDC=None, cacheRDC=None, cacheW0=None, chunk=None, inMemory=False,
-               checkpointInfo=None, acyclicEvent=None, has_resources=False, memory_override=None):
+               checkpointInfo=None, acyclicEvent=None, has_resources=False):
 
     # todo: going through list nonsense because (i think) it helps with promises, should at least clean up
     work_dir = job.fileStore.getLocalTempDir()
@@ -289,10 +289,10 @@ def export_hal(job, mc_tree, config_node, seq_id_map, og_map, results, event=Non
     if not has_resources:
         total_size = sum([file_id.size for file_id in fa_file_ids + c2h_file_ids])
         disk = 3 * total_size
-        mem = cactus_clamp_memory(5 * (max([file_id.size for file_id in fa_file_ids]) + max([file_id.size for file_id in c2h_file_ids])))
-        # allows pass-through of memory override from --consMemory
-        if memory_override:
-            mem = memory_override
+        # 2x the largest subtree's inputs: halAppendCactusSubtree peaked at 1.15x of that across
+        # 576 VGP alignments, and never used more than 23% of the old 5x.  --doubleMem covers a
+        # workload outside that envelope.
+        mem = cactus_clamp_memory(2 * (max([file_id.size for file_id in fa_file_ids]) + max([file_id.size for file_id in c2h_file_ids])))
         # this is the pass that actually runs halAppendCactusSubtree, once per subtree root, so
         # its cost is the whole c2h+fa volume rather than any one subtree's.  io_bytes reads all
         # of that back out of the jobstore and writes the merged HAL, which came to ~13% of the
@@ -356,8 +356,7 @@ def progressive_workflow(job, options, config_node, mc_tree, og_map, input_seq_i
     # the first export_hal pass stages nothing: it resolves the c2h/fasta promises into sizes and
     # re-dispatches itself with them, and that resourced pass sizes its own walltime
     hal_export_job = progressive_job.addFollowOnJobFn(export_hal, mc_tree, config_node, seq_id_map, og_map,
-                                                      progressive_job.rv(), event=root_event, memory_override=options.consMemory,
-                                                      walltime=cactus_walltime())
+                                                      progressive_job.rv(), event=root_event, walltime=cactus_walltime())
 
     return hal_export_job.rv()
 
@@ -400,7 +399,7 @@ def main():
                         "Standard suffixes like K, Ki, M, Mi, G or Gi are supported (default=bytes))", default=None)
     parser.add_argument("--consRetainPages", choices=['auto', '0', '1'], default=None,
                         help="Whether cactus_consolidated keeps the memory pages jemalloc frees, which is much faster but takes 2-3x the peak memory. "
-                        "auto (the default, from <consolidated retain_pages> in the config) keeps them unless the memory estimate exceeds what the job can be given")
+                        "auto (the default, from <consolidated retain_pages> in the config) keeps them only when the estimate fits in memory_retain_auto_fraction of what the job can be given")
     parser.add_argument("--intermediateResultsUrl",
                         help="URL prefix to save intermediate results like DB dumps to (e.g. "
                         "prefix-dump-caf, prefix-dump-avg, etc.)", default=None)
