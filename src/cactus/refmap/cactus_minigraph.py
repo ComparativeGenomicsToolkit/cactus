@@ -802,11 +802,48 @@ def mash_distance_order(job, options, config_node, seq_order, mash_output_maps, 
 # the last batch of each chain -- the rest land in the `minigraph` row alongside the mapping.)
 MINIGRAPH_CONSTRUCT_BYTES_PER_SEC_PER_CORE = 4e4
 
+# ...but not linearly.  minigraph parallelises over query contigs, and the faster fork adds more
+# parallel sections on top of that, but parts of construction remain single-threaded -- so it is
+# Amdahl's law rather than a hard ceiling, and how far it scales depends on the data.  Measured
+# from the CPU factor minigraph reports itself (cputime/elapsed, the `*N` in its
+# [M::ggen_map::T*N] lines), time-weighted over every construct process of an HPRC run: at
+# --mgCores 64 on the current fork it averages 7.96 cores busy, which is a serial fraction of
+# 0.112 and an asymptote near nine cores.
+#
+# Fitted at one core count, so the asymptote is measured and the shape is Amdahl's assumption.
+# It matters most in the middle: at --mgCores 8 this gives 4.5 effective cores where crediting
+# the request in full would give 8, and simply capping at the asymptote would too.
+MINIGRAPH_SERIAL_FRACTION = 0.112
+
+def minigraph_effective_cores(cores):
+    """ cores minigraph construction can actually keep busy at this core count, by Amdahl's law """
+    cores = max(1, int(cores or 1))
+    s = MINIGRAPH_SERIAL_FRACTION
+    return 1.0 / (s + (1.0 - s) / cores)
+
 # Fixed cost of a construct batch on top of the alignment itself: staging in the previous
 # batch's GFA (or the seed graph when extending), which is a promise here and so cannot be
 # sized, and -- on the final batch only -- the in-python PanSN rename plus its bgzip, which is
 # under 310 s even for the 830 MB whole-genome GFA of HPRC v2.0.
 MINIGRAPH_CONSTRUCT_OVERHEAD_SECS = 600
+
+# Each batch aligns its genomes against everything the batches before it already put in the
+# graph, so the same amount of new sequence costs more the later it arrives.  Measured over 23
+# chromosomes of an HPRC run, as batch i's wall time against batch 0's: the p90 runs 1.23, 1.58,
+# 1.81, 1.92, 2.08 for i = 1..5 and then flattens, so the growth saturates rather than
+# compounding.  Keyed off the bytes already in the graph rather than the batch index, so uneven
+# batches and the --inGFA seed graph are handled the same way.
+#
+# The graph itself is the better predictor, but it reaches this point as prev_job.rv(), a promise
+# with no size, so the sequence that went into it is the closest thing in scope.
+MINIGRAPH_GRAPH_GROWTH = 0.25
+MINIGRAPH_GRAPH_GROWTH_MAX = 2.5
+
+def minigraph_graph_growth(prior_bytes, batch_bytes):
+    """ how much slower this batch is than the first, for the graph already built ahead of it """
+    if batch_bytes <= 0:
+        return 1.0
+    return min(1.0 + MINIGRAPH_GRAPH_GROWTH * (prior_bytes / batch_bytes), MINIGRAPH_GRAPH_GROWTH_MAX)
 
 def minigraph_construct_in_batches(job, options, config_node, seq_id_map, seq_order, gfa_path, whole_genome_ref=False,
                                    seed_gfa_id=None, graph_names=None):
@@ -870,14 +907,19 @@ def minigraph_construct_in_batches(job, options, config_node, seq_id_map, seq_or
                 out_gfa_path = '{}.{}'.format(gfa_path, i)
             pan_sn_output = False
         batch_bytes = sum(seq_id_map[e].size for e in input_seq_order)
+        # everything already in the graph this batch has to align against
+        prior_bytes = sum(seq_id_map[e].size for e in seq_order[:i * max_batch_size])
         minigraph_job = Job.wrapJobFn(minigraph_construct, options, config_node, seq_id_map, input_seq_order, out_gfa_path,
                                       prev_job.rv() if prev_job else seed_gfa_id,
                                       prev_gfa_path if prev_job else seed_gfa_path,
                                       pan_sn_output, graph_names,
                                       disk=disk, memory=mem, cores=options.mgCores,
-                                      walltime=cactus_walltime(MINIGRAPH_CONSTRUCT_OVERHEAD_SECS +
-                                                               batch_bytes / (MINIGRAPH_CONSTRUCT_BYTES_PER_SEC_PER_CORE * options.mgCores),
-                                                               io_bytes=batch_bytes))
+                                      walltime=cactus_walltime(
+                                          MINIGRAPH_CONSTRUCT_OVERHEAD_SECS +
+                                          batch_bytes * minigraph_graph_growth(prior_bytes, batch_bytes) /
+                                          (MINIGRAPH_CONSTRUCT_BYTES_PER_SEC_PER_CORE *
+                                           minigraph_effective_cores(options.mgCores)),
+                                          io_bytes=batch_bytes))
         if prev_job:
             prev_job.addFollowOn(minigraph_job)
             # delete the output of the previous batch from the job store            
