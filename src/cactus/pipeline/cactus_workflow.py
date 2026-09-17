@@ -85,6 +85,19 @@ def cactus_cons_with_resources(job, tree, ancestor_event, config_node, seq_id_ma
     # the fit ran with it disabled -- so enabling it can only make the estimate conservative.
     poa_node = findRequiredNode(config_node, 'bar').find('poa')
     poa_window = getOptionalAttrib(poa_node, 'partialOrderAlignmentWindow', typeFn=int, default=10000) if poa_node is not None else 10000
+
+    # Giant genomes get a smaller poa window.  The window is the only bound on the DP once the
+    # sequence is long and repeat-rich, and on 22 Gb salamanders halving it took bar's peak from
+    # 798.5 to 368.7 GiB and doubled throughput, for 0.06 points of recall on evolver mammals.
+    # Ingroups only: an outgroup contributes alignment but is not what makes the flowers huge.
+    big_window = getOptionalAttrib(poa_node, 'partialOrderAlignmentWindowBigGenome', typeFn=int, default=0) if poa_node is not None else 0
+    big_threshold = getOptionalAttrib(poa_node, 'partialOrderAlignmentWindowBigGenomeThreshold', typeFn=float, default=0) if poa_node is not None else 0
+    if big_window > 0 and big_threshold > 0:
+        biggest_ingroup = max([seq_id.size for seq_name, seq_id in seq_id_map.items() if seq_name not in outgroups] or [0])
+        if biggest_ingroup >= big_threshold and big_window < poa_window:
+            RealtimeLogger.info('cactus_consolidated({}): largest ingroup is {}, at or above the {} threshold, so the poa window drops from {} to {}'.format(
+                name, bytes2human(biggest_ingroup), bytes2human(int(big_threshold)), poa_window, big_window))
+            poa_window = big_window
     window_exp = getOptionalAttrib(cons_node, 'memory_poa_window_exponent', typeFn=float, default=0.43)
     if poa_window > 0 and poa_window != 10000:
         mem = int(mem * (poa_window / 10000.0) ** window_exp)
@@ -134,12 +147,18 @@ def cactus_cons_with_resources(job, tree, ancestor_event, config_node, seq_id_ma
     if retain_pages not in ['auto', '0', '1']:
         raise RuntimeError('<consolidated retain_pages> / --consRetainPages must be auto, 0 or 1, not {}'.format(retain_pages))
     retain_ratio = getOptionalAttrib(cons_node, 'memory_retain_ratio', typeFn=float, default=2.5)
+    retain_fraction = getOptionalAttrib(cons_node, 'memory_retain_auto_fraction', typeFn=float, default=0.5)
     if retain_pages == 'auto':
         limits = [l for l in [max_system_memory, int(os.environ['CACTUS_MAX_MEMORY']) if 'CACTUS_MAX_MEMORY' in os.environ else None] if l]
         limit = min(limits) if limits else None
-        if limit and mem > limit:
-            RealtimeLogger.info('cactus_consolidated({}): the memory estimate of {} with jemalloc page retention exceeds the {} the job can be given, so the pages will not be retained'.format(
-                name, bytes2human(mem), bytes2human(limit)))
+        # Retention is only attempted with room to be wrong.  mem here is the retained estimate for
+        # this job's core count, and 14% of VGP alignments came in over their estimate -- so asking
+        # it to fit in a fraction of what the job can be given means a miss still has somewhere to
+        # land.  Without the fraction, any under-estimate at the ceiling OOMs the whole alignment.
+        budget = limit * retain_fraction if limit else None
+        if budget and mem > budget:
+            RealtimeLogger.info('cactus_consolidated({}): the memory estimate of {} with jemalloc page retention exceeds {:g} of the {} the job can be given, so the pages will not be retained'.format(
+                name, bytes2human(mem), retain_fraction, bytes2human(limit)))
             retain_pages = '0'
         else:
             retain_pages = '1'
@@ -156,18 +175,25 @@ def cactus_cons_with_resources(job, tree, ancestor_event, config_node, seq_id_ma
 
     cons_job = job.addChildJobFn(cactus_cons, tree, ancestor_event, config_node, seq_id_map, og_map, paf_id,
                                  intermediate_results_url=intermediate_results_url, chrom_name=chrom_name, cores = cons_cores,
-                                 memory=cactus_clamp_memory(mem), disk=disk, retain_pages=retain_pages)
+                                 memory=cactus_clamp_memory(mem), disk=disk, retain_pages=retain_pages,
+                                 poa_window=poa_window)
     return cons_job.rv()
 
 def cactus_cons(job, tree, ancestor_event, config_node, seq_id_map, og_map, paf_id,
-                intermediate_results_url = None, chrom_name = None, retain_pages = None):
+                intermediate_results_url = None, chrom_name = None, retain_pages = None,
+                poa_window = None):
     ''' run cactus_consolidated '''
 
     # cactus_consolidated reads its settings from the config, so the resolved page retention
     # goes into the copy it is given (this job's copy of the node, so nothing else sees it)
-    if retain_pages is not None:
+    if retain_pages is not None or poa_window is not None:
         config_node = copy.deepcopy(config_node)
-        findRequiredNode(config_node, 'consolidated').set('retain_pages', str(retain_pages))
+        if retain_pages is not None:
+            findRequiredNode(config_node, 'consolidated').set('retain_pages', str(retain_pages))
+        # the estimator resolved the window (it may have been lowered for a giant genome), and the
+        # estimate it produced only holds if cactus_consolidated uses that same value
+        if poa_window is not None:
+            findRequiredNode(config_node, 'bar').find('poa').set('partialOrderAlignmentWindow', str(poa_window))
 
     # Build up a genome -> fasta map.
     work_dir = job.fileStore.getLocalTempDir()
