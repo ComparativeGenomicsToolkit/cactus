@@ -157,7 +157,7 @@ int64_t stCaf_melt(Flower *flower, stPinchThreadSet *threadSet, bool blockFilter
     }
     //Now heal up the trivial boundaries
     stCaf_joinTrivialBoundaries(threadSet);
-    st_logInfo("caf-timing: melt minChain=%" PRIi64 " trim %.3fs filter %.3fs graph %.3fs scan %.3fs delete %.3fs join %.3fs destroyed %" PRIi64 "\n",
+    st_logDebug("caf-timing: melt minChain=%" PRIi64 " trim %.3fs filter %.3fs graph %.3fs scan %.3fs delete %.3fs join %.3fs destroyed %" PRIi64 "\n",
                minimumChainLength, trimTime, filterTime, graphTime, scanTime, deleteTime, stCaf_now() - t, blocksDestroyed);
     return blocksDestroyed;
 }
@@ -290,7 +290,7 @@ int64_t stCaf_meltChains(Flower *flower, stPinchThreadSet *threadSet, int64_t mi
     int64_t joins = joinTrivialBoundariesAtThreadEnds(threadSet);
     stCaf_ensureEndsAreDistinct(threadSet);
     double joinTime = stCaf_now() - t;
-    st_logInfo("caf-timing: melt minChain=%" PRIi64 " trim 0.000s filter 0.000s graph %.3fs scan %.3fs delete %.3fs join %.3fs destroyed %" PRIi64 " end-joins %" PRIi64 "\n",
+    st_logDebug("caf-timing: melt minChain=%" PRIi64 " trim 0.000s filter 0.000s graph %.3fs scan %.3fs delete %.3fs join %.3fs destroyed %" PRIi64 " end-joins %" PRIi64 "\n",
                minimumChainLength, graphTime, scanTime, deleteTime, joinTime, blocksDestroyed, joins);
 
     if (getenv("CACTUS_CAF_CHECK_JOIN") != NULL) {
