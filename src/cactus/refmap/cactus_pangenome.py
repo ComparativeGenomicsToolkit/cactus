@@ -69,7 +69,7 @@ def pangenome_options(parser):
     parser.add_argument("--mgSplit", action="store_true", default=False,
                         help = "Run minigraph construction and mapping independently on each chromosome")                        
     parser.add_argument("--mgSplitWholeGenomeRef", action="store_true", default=False,
-                        help = "Implies --mgSplit, and builds each chromosome's second-pass minigraph against the whole reference genome(s) rather than just that chromosome, so off-chromosome mappings can compete and be filtered the way they are in the whole-genome pipeline. The off-chromosome material is pruned back out before cactus-align.")
+                        help = "Implies --mgSplit, and builds each chromosome's second-pass minigraph against the whole primary reference genome rather than just that chromosome, so off-chromosome mappings can compete and be filtered the way they are in the whole-genome pipeline. The off-chromosome material is pruned back out before cactus-align.")
     parser.add_argument("--inGFA", type=str, default=None,
                         help = "Start from this existing minigraph GFA (<outName>.sv.gfa.gz from a previous run, or a published release) "
                         "rather than building one. If the seqFile names genomes the graph does not have, they are constructed into it and "
@@ -430,11 +430,17 @@ def split_reference_ids(job, seq_id_map, references):
     """ separate the whole-genome reference fastas from everything else, so --mgSplitWholeGenomeRef
     can hold them back from the post-split cleanup and build the second-pass minigraphs against them.
 
-    every --reference goes in, matching the first pass: --refOnly builds that graph from all of them,
-    and it is the graph the chromosome bins were decided against.  only reference[0] is rank-0, but a
-    secondary reference still carries sequence the primary lacks, and minigraph maps against the whole
-    graph -- so it contributes competition for exactly the off-chromosome material this is here to
-    catch, and leaving it out would let the two passes disagree about what a chromosome contains.
+    only --reference[0] belongs here, and putting a secondary reference in is a decomposition bug.
+    everything the split produces is binned to exactly one chromosome; reference[0] is exempt only
+    because it *defines* the chromosomes, entering minigraph first and so carrying rank 0 everywhere.
+    a whole-genome input at rank > 0 is not chromosome-assigned, and rgfa-split bins its segments by
+    the reference contig they align to -- so CHM13's chr13 sequence lands in chr21's subproblem on
+    acrocentric homology while its own chr13 subproblem keeps the rest.  the same contig then exists
+    in two per-chromosome graphs, at whichever rank the mash ordering gave that construct, and
+    merge_sv_gfa (which renumbers segment ids but not ranks) emits it with conflicting SR:i:.
+    observed on a 459-genome GRCh38 run: 5 CHM13 contigs, e.g. CHM13#0#chr13 at rank 192 in chr13
+    and 335 in chr21.  samples never do this -- they come in pre-split by chromosome, and the
+    off-chromosome part of a sample contig is dropped rather than kept in a second subproblem.
 
     they are already sanitized, and they must also bypass sanitize_fasta_headers_batch below: that
     deletes its input (sanitize_fasta_header in checkUniqueHeaders.py), and every chromosome shares
@@ -735,7 +741,7 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
     wg_ref_id_map = None
     clean_seq_id_map = seq_id_map
     if options.mgSplitWholeGenomeRef:
-        split_ref_job = split_export_job.addFollowOnJobFn(split_reference_ids, seq_id_map, options.reference)
+        split_ref_job = split_export_job.addFollowOnJobFn(split_reference_ids, seq_id_map, options.reference[:1])
         wg_ref_id_map, clean_seq_id_map = split_ref_job.rv(0), split_ref_job.rv(1)
         split_export_job = split_ref_job
 

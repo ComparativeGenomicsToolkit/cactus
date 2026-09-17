@@ -566,9 +566,10 @@ def minigraph_map_all(job, options, config, gfa_id, fa_id_map, graph_event, in_g
     merge_name = getattr(options, 'mg_chrom_name', None) if options.batch else None
     merge_name = merge_name if merge_name else 'merged'
     paf_merge_job = top_job.addFollowOnJobFn(merge_pafs_sized, paf_id_map,
-                                             name='{}.paf'.format(merge_name))
+                                             merged_name='{}.paf'.format(merge_name))
     gaf_merge_job = top_job.addFollowOnJobFn(merge_pafs_sized, gaf_id_map, gzip=True,
-                                             name='{}.gaf'.format(merge_name), cores=mg_cores)
+                                             merged_name='{}.gaf'.format(merge_name),
+                                             gzip_cores=mg_cores)
 
     return paf_merge_job.rv(), gaf_merge_job.rv()
 
@@ -987,24 +988,32 @@ def stable_gaf_to_paf(job, config, gaf_path, gfa_path, regranulated=False):
     # return the stable gaf (minigraph output) and the unstable paf
     return job.fileStore.writeGlobalFile(pansn_gaf_path), job.fileStore.writeGlobalFile(unstable_paf_path)
 
-def merge_pafs(job, paf_file_id_map, gzip=False, name=None):
-    """ merge up some pafs.  name is what the merged file is called on disk: getLocalTempFile() would
-    give it an anonymous .tmp, which is all anyone reading the log of the bgzip below would see """
+def merge_pafs(job, paf_file_id_map, gzip=False, merged_name=None):
+    """ merge up some pafs.  merged_name is what the merged file is called on disk: getLocalTempFile()
+    would give it an anonymous .tmp, which is all anyone reading the log of the bgzip below would see.
+
+    it is NOT called "name": toil's FunctionWrappingJob pops memory/cores/disk/accelerators/
+    preemptible/checkpoint/name out of the kwargs of addChildJobFn before the function is called, and
+    uses "name" as the job's unitName.  a parameter with any of those names is silently swallowed """
     paf_paths = [job.fileStore.readGlobalFile(paf_id) for paf_id in paf_file_id_map.values()]
-    merged_path = os.path.join(job.fileStore.getLocalTempDir(), name if name else 'merged.paf')
+    merged_path = os.path.join(job.fileStore.getLocalTempDir(), merged_name if merged_name else 'merged.paf')
     catFiles(paf_paths, merged_path)
     if gzip:
         cactus_call(parameters=['bgzip', merged_path, '--threads', str(job.cores)])
         merged_path += '.gz'                    
     return job.fileStore.writeGlobalFile(merged_path)
 
-def merge_pafs_sized(job, paf_file_id_map, gzip=False, name=None, cores=1):
+def merge_pafs_sized(job, paf_file_id_map, gzip=False, merged_name=None, gzip_cores=1):
     """ merge_pafs, sized off its inputs.  callers upstream of the mapping jobs hold promises and so
     cannot measure them; by the time this job runs they are resolved.  the merge holds every input
-    plus the merged copy, and bgzip then writes a compressed copy alongside """
+    plus the merged copy, and bgzip then writes a compressed copy alongside.
+
+    gzip_cores is not called "cores" for the reason in merge_pafs above: toil would eat it as this
+    job's own resource request and the function would keep its default, leaving the bgzip on one
+    thread.  it is passed on as the child's cores, where toil eating it is exactly what we want """
     total_size = sum(paf_id.size for paf_id in paf_file_id_map.values() if paf_id)
-    return job.addChildJobFn(merge_pafs, paf_file_id_map, gzip=gzip, name=name,
-                             cores=cores, disk=max(total_size * 3, 2**31)).rv()
+    return job.addChildJobFn(merge_pafs, paf_file_id_map, gzip=gzip, merged_name=merged_name,
+                             cores=gzip_cores, disk=max(total_size * 3, 2**31)).rv()
 
 def extract_paf_from_gfa(job, gfa_id, gfa_path, ref_event, graph_event, ignore_paf_id):
     """ make a paf directly from the rGFA tags.  rgfa2paf supports other ranks, but we're only
