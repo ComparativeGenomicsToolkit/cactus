@@ -477,8 +477,7 @@ def cactus_align(job, config_wrapper, mc_tree, input_seq_map, input_seq_id_map, 
     # run the hal export
     allow_collapse = getOptionalAttrib(findRequiredNode(config_wrapper.xmlRoot, "graphmap"), "collapse", typeFn=str, default="none") in ['reference', 'all']
     hal_job = cons_job.addFollowOnJobFn(export_hal, sub_tree, config_wrapper.xmlRoot, new_seq_id_map, og_map, results, event=root_name, inMemory=True,
-                                        checkpointInfo=checkpointInfo, acyclicEvent=referenceEvents[0] if referenceEvents and not allow_collapse else None,
-                                        memory_override=cons_memory)
+                                        checkpointInfo=checkpointInfo, acyclicEvent=referenceEvents[0] if referenceEvents and not allow_collapse else None)
 
     # clean out some of the  intermediate jobstore files
     hal_job.addFollowOnJobFn(clean_jobstore_files, file_id_maps=[new_seq_id_map], file_ids=[paf_id])

@@ -208,7 +208,7 @@ def progressive_step_2(job, trimmed_outgroups_and_alignments, options, config_no
 
 def export_hal(job, mc_tree, config_node, seq_id_map, og_map, results, event=None, cacheBytes=None,
                cacheMDC=None, cacheRDC=None, cacheW0=None, chunk=None, inMemory=False,
-               checkpointInfo=None, acyclicEvent=None, has_resources=False, memory_override=None):
+               checkpointInfo=None, acyclicEvent=None, has_resources=False):
 
     # todo: going through list nonsense because (i think) it helps with promises, should at least clean up
     work_dir = job.fileStore.getLocalTempDir()
@@ -272,10 +272,10 @@ def export_hal(job, mc_tree, config_node, seq_id_map, og_map, results, event=Non
 
     if not has_resources:
         disk = 3 * sum([file_id.size for file_id in fa_file_ids + c2h_file_ids])
-        mem = cactus_clamp_memory(5 * (max([file_id.size for file_id in fa_file_ids]) + max([file_id.size for file_id in c2h_file_ids])))
-        # allows pass-through of memory override from --consMemory
-        if memory_override:
-            mem = memory_override
+        # 2x the largest subtree's inputs: halAppendCactusSubtree peaked at 1.15x of that across
+        # 576 VGP alignments, and never used more than 23% of the old 5x.  --doubleMem covers a
+        # workload outside that envelope.
+        mem = cactus_clamp_memory(2 * (max([file_id.size for file_id in fa_file_ids]) + max([file_id.size for file_id in c2h_file_ids])))
         return job.addChildJobFn(export_hal, mc_tree, config_node, seq_id_map, og_map, results, event=event,
                                  cacheBytes=cacheBytes, cacheMDC=cacheMDC, cacheRDC=cacheRDC, cacheW0=cacheW0,
                                  chunk=chunk, inMemory=inMemory, checkpointInfo=checkpointInfo,
@@ -326,7 +326,7 @@ def progressive_workflow(job, options, config_node, mc_tree, og_map, input_seq_i
 
     # then do the hal export
     hal_export_job = progressive_job.addFollowOnJobFn(export_hal, mc_tree, config_node, seq_id_map, og_map,
-                                                      progressive_job.rv(), event=root_event, memory_override=options.consMemory)
+                                                      progressive_job.rv(), event=root_event)
 
     return hal_export_job.rv()
 
