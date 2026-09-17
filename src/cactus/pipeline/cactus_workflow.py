@@ -251,6 +251,15 @@ def cactus_cons(job, tree, ancestor_event, config_node, seq_id_map, og_map, paf_
     if use_secondary_alignments:  # Optionally add the secondary alignments
         args += ["--secondaryAlignments", secondary_alignment_file]
 
+    # jemalloc reads MALLOC_CONF once, before main, so transparent huge pages cannot be switched on
+    # through mallctl the way page retention is -- it has to be in the environment cactus_consolidated
+    # inherits.  Measured on salamander Anc3 without page retention, same processor model, 44398 ->
+    # 33124 seconds for 0.9% more peak (347.0 -> 350.0 GiB).  An existing MALLOC_CONF wins, so the
+    # setting stays overridable from the command line.
+    if getOptionalAttrib(findRequiredNode(config_node, 'consolidated'), 'transparent_huge_pages', typeFn=bool, default=True) \
+       and 'MALLOC_CONF' not in os.environ:
+        os.environ['MALLOC_CONF'] = 'thp:always'
+
     messages = cactus_call(check_output=True, returnStdErr=True,
                            realtimeStderrPrefix=f'cactus_consolidated({chrom_name if chrom_name else ancestor_event})',
                            parameters=["cactus_consolidated"] + args,
