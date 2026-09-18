@@ -109,6 +109,14 @@ static void cactus_jemalloc_retain_pages(CactusParams *params) {
         return;
     }
 
+    // Which jemalloc actually got loaded.  It is linked dynamically and the runpath is
+    // relative, so LD_LIBRARY_PATH or the system library can change it without a rebuild.
+    const char *je_version = NULL;
+    size_t je_version_sz = sizeof(je_version);
+    if (mallctl_fn("version", &je_version, &je_version_sz, NULL, 0) == 0 && je_version != NULL) {
+        st_logInfo("jemalloc version %s\n", je_version);
+    }
+
     const char *names[2] = { "dirty_decay_ms", "muzzy_decay_ms" };
     bool applied = true;
     for (int w = 0; w < 2; w++) {
