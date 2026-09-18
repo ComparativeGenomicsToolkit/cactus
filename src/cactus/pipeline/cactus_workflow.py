@@ -260,9 +260,15 @@ def cactus_cons(job, tree, ancestor_event, config_node, seq_id_map, og_map, paf_
     # and it travels into the container, which an exported variable does not, since dockerCommand
     # passes no -e.  Measured on salamander Anc3 without page retention, same processor model,
     # 44398 -> 33124 seconds for 0.9% more peak (347.0 -> 350.0 GiB).  An existing MALLOC_CONF wins.
+    #
+    # Only when the pages are being returned to the OS.  The measurement above is a retention-off
+    # pair, and retention-on is where huge pages are most dangerous: nothing is ever handed back,
+    # so a partly-used 2 MB page keeps all 2 MB for the life of the process.  A salamander Anc3 run
+    # with both on was OOM-killed in bar at an estimate that pre-THP measurements say should have
+    # been ample, which is what this guard is for.  Worth revisiting once the pair is measured.
     thp_prefix = []
     if getOptionalAttrib(findRequiredNode(config_node, 'consolidated'), 'transparent_huge_pages', typeFn=bool, default=True) \
-       and 'MALLOC_CONF' not in os.environ:
+       and str(retain_pages) == '0' and 'MALLOC_CONF' not in os.environ:
         thp_prefix = ['env', 'MALLOC_CONF=thp:always']
 
     messages = cactus_call(check_output=True, returnStdErr=True,

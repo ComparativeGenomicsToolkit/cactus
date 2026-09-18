@@ -609,9 +609,12 @@
 	     jemalloc backs its extents with huge pages.  It has to reach the process through the
 	     environment because jemalloc reads MALLOC_CONF before main and mallctl cannot change it
 	     afterwards.  Measured on salamander Anc3 without page retention, same processor model on
-	     both runs: 44398 -> 33124 seconds, for 0.9% more peak (347.0 -> 350.0 GiB).  Only bites
-	     where the kernel has transparent huge pages in madvise mode, which is the usual setting;
-	     it is a no-op under never.  A MALLOC_CONF already in the environment is left alone. -->
+	     both runs: 44398 -> 33124 seconds, for 0.9% more peak (347.0 -> 350.0 GiB).  Applied only
+	     when retain_pages resolves to off, because that is the pair that was measured and because
+	     retention is where huge pages cost most: nothing is handed back, so a partly-used 2 MB page
+	     holds all 2 MB until the process exits.  Only bites where the kernel has transparent huge
+	     pages in madvise mode, which is the usual setting; it is a no-op under never.  A
+	     MALLOC_CONF already in the environment is left alone. -->
 	<!-- memory_retain_auto_fraction: how much of the available memory the retained estimate is
 	     allowed to take before auto gives up on retention.  0.5 only attempts retention when we
 	     think it fits in half of what the job can be given, so a 2x under-estimate still lands.
