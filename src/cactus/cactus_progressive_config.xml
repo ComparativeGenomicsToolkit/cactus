@@ -625,14 +625,22 @@
 	     Retention is the fast path, but a job that OOMs has to redo the whole alignment, and the
 	     estimate is wrong often enough (14% of VGP alignments) that the timid default earns its
 	     keep. -->
-	<!-- memory_retain_ratio: peak memory with retention over peak without, used to shrink the
-	     estimate when retention is switched off: 1.8 (fish Anc48 caf), 2.0 (yeast bar),
-	     2.2 (salamander Anc3, 769.0 -> 350.0 GiB), 3.3 (MammalsAnc0) -->
+	<!-- retain_pages_max_input_gb: auto never retains above this much input (paf plus sequence).
+	     The memory fit's largest alignment is 33 GB; past that the retained figure is
+	     extrapolation, and retention is the mode that punishes a wrong one, since it returns
+	     nothing and the peak tracks cumulative churn rather than saturating. -->
+	<!-- memory_retain_ratio: peak with retention over peak without, used to shrink the estimate
+	     when retention is off: 1.8 (fish Anc48 caf), 2.0 (yeast bar), 2.2 (salamander Anc3,
+	     769.0 -> 350.0 GiB), 3.3 (MammalsAnc0).  Set at the conservative end of that range, not
+	     the middle: dividing by too much under-provisions, and an OOM costs the whole alignment.
+	     Applied to the unscaled estimate, because with retention off the peak is caf's, which the
+	     window and core factors do not touch. -->
 	<consolidated
 		 retain_pages="auto"
 		 transparent_huge_pages="1"
 		 memory_retain_auto_fraction="0.5"
-		 memory_retain_ratio="2.5"
+		 retain_pages_max_input_gb="35"
+		 memory_retain_ratio="2.0"
 		 memory_coefficient_gb="220"
 		 memory_input_exponent="0.30"
 		 memory_ramp_gb="0.02"

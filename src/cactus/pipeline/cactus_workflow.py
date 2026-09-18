@@ -76,6 +76,10 @@ def cactus_cons_with_resources(job, tree, ancestor_event, config_node, seq_id_ma
     # The taper ends at 0.02 GB, under every point in the fit, so it changes none of them.
     ramp = min(1.0, input_gb / mem_ramp_gb) if mem_ramp_gb > 0 else 1.0
     mem = int(mem_coef * (input_gb ** mem_exp) * ramp * 2**30) if input_gb > 0 else 0
+    # the window and core factors below scale bar's working set.  With retention off the peak is
+    # caf's instead -- measured at 350.0 GiB on five salamander runs with different filters,
+    # windows and core counts -- so the unscaled figure is what that path uses.
+    unscaled_mem = mem
 
     # Memory is *not* quadratic in the poa window, whatever the poa comment says: halving it from
     # 10000 to 5000 measured 858.4 -> 639.4 GiB on salamander Anc3, a 0.745x ratio, because halving
@@ -152,7 +156,17 @@ def cactus_cons_with_resources(job, tree, ancestor_event, config_node, seq_id_ma
     retain_pages = str(retain_pages).lower()
     if retain_pages not in ['auto', '0', '1']:
         raise RuntimeError('<consolidated retain_pages> / --consRetainPages must be auto, 0 or 1, not {}'.format(retain_pages))
-    retain_ratio = getOptionalAttrib(cons_node, 'memory_retain_ratio', typeFn=float, default=2.5)
+    retain_ratio = getOptionalAttrib(cons_node, 'memory_retain_ratio', typeFn=float, default=2.0)
+    # Above the fit's range the retained estimate is extrapolation, and retention is the mode whose
+    # cost is unbounded when the extrapolation is wrong: it never returns a page, so the peak tracks
+    # cumulative churn and does not saturate the way the fit assumes.  Salamander Anc3 (122 GB in,
+    # 3.7x the largest alignment fitted) was estimated 809 GiB and was still climbing past 794 at
+    # 40% of bases.  Past the data, take the mode that is measured to work.
+    retain_max_input_gb = getOptionalAttrib(cons_node, 'retain_pages_max_input_gb', typeFn=float, default=35.0)
+    if retain_pages == 'auto' and retain_max_input_gb > 0 and input_gb > retain_max_input_gb:
+        RealtimeLogger.info('cactus_consolidated({}): {:.0f} GB of input is beyond the {:.0f} GB the memory model was fitted to, so the pages will not be retained'.format(
+            name, input_gb, retain_max_input_gb))
+        retain_pages = '0'
     retain_fraction = getOptionalAttrib(cons_node, 'memory_retain_auto_fraction', typeFn=float, default=0.5)
     if retain_pages == 'auto':
         limits = [l for l in [max_system_memory, int(os.environ['CACTUS_MAX_MEMORY']) if 'CACTUS_MAX_MEMORY' in os.environ else None] if l]
@@ -171,9 +185,9 @@ def cactus_cons_with_resources(job, tree, ancestor_event, config_node, seq_id_ma
         else:
             retain_pages = '1'
     if retain_pages == '0' and cons_memory is None and retain_ratio > 1:
-        RealtimeLogger.info('cactus_consolidated({}): scaling the memory estimate of {} by 1/{} for running without jemalloc page retention: {}'.format(
-            name, bytes2human(mem), retain_ratio, bytes2human(int(mem / retain_ratio))))
-        mem = int(mem / retain_ratio)
+        RealtimeLogger.info('cactus_consolidated({}): without jemalloc page retention the estimate is {}, from the unscaled {} over {}'.format(
+            name, bytes2human(int(unscaled_mem / retain_ratio)), bytes2human(unscaled_mem), retain_ratio))
+        mem = int(unscaled_mem / retain_ratio)
     RealtimeLogger.info('cactus_consolidated({}): jemalloc page retention {}'.format(name, 'on' if retain_pages == '1' else 'off'))
 
     if max_system_memory and mem > max_system_memory:
