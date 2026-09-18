@@ -375,11 +375,17 @@ RGFA2PAF_SECS_PER_GB = 40
 
 # Seconds per GB of raw GFA for filter_paf_deletions: 4337s for filter-paf-deletions plus ~500s
 # for the vg convert that precedes it on the whole-panel GFA, against 802s worst case on the
-# per-chromosome ones.  Re-fitted on the two HPRC v2.1 runs, where the whole job -- the vg convert,
-# the filter and the two wc -l -- came to a worst of 563 s (sep16) and 544 s (sep17) over 50 jobs,
-# against a graph term the old rate put at 4380 s.  120 leaves the estimate at 1507 s, still 2.7x
-# the worst measured, before the factor is applied.
-FILTER_PAF_DELETIONS_SECS_PER_GB = 120
+# per-chromosome ones.
+#
+# This looks far too high under --mgSplitWholeGenomeRef, where the whole job came to 563 s over
+# 50 jobs against a graph term of 4386 s.  Do not cut the rate to close that gap: the rate is
+# right and the size it is applied to is wrong.  gfa_id_size is the compressed GFA expanded by
+# the hardcoded 10 above, which the whole-panel measurement supports (0.83 GiB gz to 8.3 GiB raw)
+# but these runs do not -- their 27 unzip_gz jobs report 3.12 GB of raw GFA from a 757 MB input,
+# a ratio of 4.12.  Cutting the rate to 120 fits the split runs and leaves the whole-panel case
+# asking 1669 s for work that was measured at 4837 s, which is the wrong trade.  The expansion
+# ratio is the thing to fix, once it is known why the two graphs differ by 2.4x.
+FILTER_PAF_DELETIONS_SECS_PER_GB = 500
 
 
 def minigraph_workflow(job, options, config, seq_id_map, gfa_id, graph_event, sanitize, ref_collapse_paf_id, pansn_gfa_input=True,
