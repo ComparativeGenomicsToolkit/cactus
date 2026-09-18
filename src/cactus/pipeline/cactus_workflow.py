@@ -91,29 +91,41 @@ def cactus_cons_with_resources(job, tree, ancestor_event, config_node, seq_id_ma
     # The taper ends at 0.02 GB, under every point in the fit, so it changes none of them.
     ramp = min(1.0, input_gb / mem_ramp_gb) if mem_ramp_gb > 0 else 1.0
     mem = int(mem_coef * (input_gb ** mem_exp) * ramp * 2**30) if input_gb > 0 else 0
+    # the window and core factors below scale bar's working set.  With retention off the peak is
+    # caf's instead -- measured at 350.0 GiB on five salamander runs with different filters,
+    # windows and core counts -- so the unscaled figure is what that path uses.
+    unscaled_mem = mem
 
-    # Memory is *not* quadratic in the poa window, whatever the config comment says: halving it
-    # from 10000 to 5000 measured 858.4 -> 639.4 GiB on salamander Anc3, a 0.745x ratio, because
-    # halving the window also halves the number of windows and peak is bounded by how many run
-    # at once.  That ratio is an exponent of 0.43, not 2.  Nothing is subtracted for
-    # partialOrderAlignmentMaskFilter even though it matters more, because every alignment in
-    # the fit ran with it disabled -- so enabling it can only make the estimate conservative.
+    # Memory is *not* quadratic in the poa window, whatever the poa comment says: halving it from
+    # 10000 to 5000 measured 858.4 -> 639.4 GiB on salamander Anc3, a 0.745x ratio, because halving
+    # the window also halves the number of windows and peak is bounded by how many run at once.
+    #
+    # The exponent is deliberately gentler than that ratio.  0.745 is the ratio of two *peaks*, and
+    # a peak carries a large component that the window does not touch -- caf's own high water is
+    # most of it -- so applying the full ratio to the whole estimate reduces the part that does not
+    # scale.  At 0.43 a salamander at 64 cores was estimated 690 GiB against a measured 639 and was
+    # OOM-killed in bar; the retry cost a day.  0.20 leaves ~27% instead of ~8%.  Over-estimating
+    # costs queue time, under-estimating costs the whole alignment, and these are the jobs where
+    # that trade is most lopsided.  Nothing is subtracted for partialOrderAlignmentMaskFilter even
+    # though it matters more, because every alignment in the fit ran with it disabled.
     poa_node = findRequiredNode(config_node, 'bar').find('poa')
     poa_window = getOptionalAttrib(poa_node, 'partialOrderAlignmentWindow', typeFn=int, default=10000) if poa_node is not None else 10000
 
     # Giant genomes get a smaller poa window.  The window is the only bound on the DP once the
     # sequence is long and repeat-rich, and on 22 Gb salamanders halving it took bar's peak from
     # 798.5 to 368.7 GiB and doubled throughput, for 0.06 points of recall on evolver mammals.
-    # Ingroups only: an outgroup contributes alignment but is not what makes the flowers huge.
+    # Any role, not just ingroups.  Bar aligns an outgroup's sequence too, and lungfish Anc2 is the
+    # case that shows it: a 40 GB outgroup against two ingroups of 1 and 2 GB, 91% of the input,
+    # and the job was OOM-killed.  An ingroup test sees 2 GB there and does nothing.
     big_window = getOptionalAttrib(poa_node, 'partialOrderAlignmentWindowBigGenome', typeFn=int, default=0) if poa_node is not None else 0
     big_threshold = getOptionalAttrib(poa_node, 'partialOrderAlignmentWindowBigGenomeThreshold', typeFn=float, default=0) if poa_node is not None else 0
     if big_window > 0 and big_threshold > 0:
-        biggest_ingroup = max([seq_id.size for seq_name, seq_id in seq_id_map.items() if seq_name not in outgroups] or [0])
-        if biggest_ingroup >= big_threshold and big_window < poa_window:
-            RealtimeLogger.info('cactus_consolidated({}): largest ingroup is {}, at or above the {} threshold, so the poa window drops from {} to {}'.format(
-                name, bytes2human(biggest_ingroup), bytes2human(int(big_threshold)), poa_window, big_window))
+        biggest_genome = max([seq_id.size for seq_id in seq_id_map.values()] or [0])
+        if biggest_genome >= big_threshold and big_window < poa_window:
+            RealtimeLogger.info('cactus_consolidated({}): largest genome is {}, at or above the {} threshold, so the poa window drops from {} to {}'.format(
+                name, bytes2human(biggest_genome), bytes2human(int(big_threshold)), poa_window, big_window))
             poa_window = big_window
-    window_exp = getOptionalAttrib(cons_node, 'memory_poa_window_exponent', typeFn=float, default=0.43)
+    window_exp = getOptionalAttrib(cons_node, 'memory_poa_window_exponent', typeFn=float, default=0.20)
     if poa_window > 0 and poa_window != 10000:
         mem = int(mem * (poa_window / 10000.0) ** window_exp)
 
@@ -126,13 +138,9 @@ def cactus_cons_with_resources(job, tree, ancestor_event, config_node, seq_id_ma
     # that is where the 575 alignments the model was fitted to were run.
     core_scale_pct = getOptionalAttrib(cons_node, 'memory_core_scale_pct', typeFn=float, default=0.65)
     core_scale_baseline = getOptionalAttrib(cons_node, 'memory_core_scale_baseline', typeFn=int, default=64)
-    core_scale_max_pct = getOptionalAttrib(cons_node, 'memory_core_scale_max_pct', typeFn=float, default=100.0)
     if cons_cores and cons_cores != core_scale_baseline and core_scale_pct > 0:
         extra_cores = cons_cores - core_scale_baseline
         scale_factor = 1.0 + (extra_cores * core_scale_pct / 100.0)
-        # cap the increase (default 100% = doubling); never scale below a quarter
-        scale_factor = min(scale_factor, 1.0 + core_scale_max_pct / 100.0)
-        scale_factor = max(scale_factor, 0.25)
         scaled_mem = int(mem * scale_factor)
         RealtimeLogger.info('Scaling cactus_consolidated({}) memory by {:.1f}% for {} cores ({:+d} against the {} baseline): {} -> {}'.format(
             chrom_name if chrom_name else ancestor_event, (scale_factor - 1) * 100, cons_cores, extra_cores, core_scale_baseline,
@@ -161,7 +169,7 @@ def cactus_cons_with_resources(job, tree, ancestor_event, config_node, seq_id_ma
     retain_pages = str(retain_pages).lower()
     if retain_pages not in ['auto', '0', '1']:
         raise RuntimeError('<consolidated retain_pages> / --consRetainPages must be auto, 0 or 1, not {}'.format(retain_pages))
-    retain_ratio = getOptionalAttrib(cons_node, 'memory_retain_ratio', typeFn=float, default=2.5)
+    retain_ratio = getOptionalAttrib(cons_node, 'memory_retain_ratio', typeFn=float, default=2.0)
     retain_fraction = getOptionalAttrib(cons_node, 'memory_retain_auto_fraction', typeFn=float, default=0.5)
     if retain_pages == 'auto':
         limits = [l for l in [max_system_memory, int(os.environ['CACTUS_MAX_MEMORY']) if 'CACTUS_MAX_MEMORY' in os.environ else None] if l]
@@ -180,9 +188,9 @@ def cactus_cons_with_resources(job, tree, ancestor_event, config_node, seq_id_ma
         else:
             retain_pages = '1'
     if retain_pages == '0' and cons_memory is None and retain_ratio > 1:
-        RealtimeLogger.info('cactus_consolidated({}): scaling the memory estimate of {} by 1/{} for running without jemalloc page retention: {}'.format(
-            name, bytes2human(mem), retain_ratio, bytes2human(int(mem / retain_ratio))))
-        mem = int(mem / retain_ratio)
+        RealtimeLogger.info('cactus_consolidated({}): without jemalloc page retention the estimate is {}, from the unscaled {} over {}'.format(
+            name, bytes2human(int(unscaled_mem / retain_ratio)), bytes2human(unscaled_mem), retain_ratio))
+        mem = int(unscaled_mem / retain_ratio)
     RealtimeLogger.info('cactus_consolidated({}): jemalloc page retention {}'.format(name, 'on' if retain_pages == '1' else 'off'))
 
     if max_system_memory and mem > max_system_memory:
@@ -326,14 +334,29 @@ def cactus_cons(job, tree, ancestor_event, config_node, seq_id_map, og_map, paf_
     # and it travels into the container, which an exported variable does not, since dockerCommand
     # passes no -e.  Measured on salamander Anc3 without page retention, same processor model,
     # 44398 -> 33124 seconds for 0.9% more peak (347.0 -> 350.0 GiB).  An existing MALLOC_CONF wins.
-    thp_prefix = []
+    #
+    # Only when the pages are being returned to the OS.  The measurement above is a retention-off
+    # pair, and retention-on is where huge pages are most dangerous: nothing is ever handed back,
+    # so a partly-used 2 MB page keeps all 2 MB for the life of the process.  A salamander Anc3 run
+    # with both on was OOM-killed in bar at an estimate that pre-THP measurements say should have
+    # been ample, which is what this guard is for.  Worth revisiting once the pair is measured.
+    env_prefix = []
     if getOptionalAttrib(findRequiredNode(config_node, 'consolidated'), 'transparent_huge_pages', typeFn=bool, default=True) \
-       and 'MALLOC_CONF' not in os.environ:
-        thp_prefix = ['env', 'MALLOC_CONF=thp:always']
+       and str(retain_pages) == '0' and 'MALLOC_CONF' not in os.environ:
+        env_prefix = ['env', 'MALLOC_CONF=thp:always']
+
+    # A way out if the estimate was wrong: bar hands the pages back rather than being OOM-killed.
+    # Only with retention on -- with it off there is nothing to hand back.
+    guard_pct = getOptionalAttrib(findRequiredNode(config_node, 'consolidated'), 'retain_pages_release_pct', typeFn=float, default=65.0)
+    if str(retain_pages) == '1' and guard_pct > 0 and job.memory:
+        limit_mb = int(job.memory * guard_pct / 100.0 / 2**20)
+        if not env_prefix:
+            env_prefix = ['env']
+        env_prefix.append('CACTUS_BAR_RETENTION_OFF_MB={}'.format(limit_mb))
 
     messages = cactus_call(check_output=True, returnStdErr=True,
                            realtimeStderrPrefix=f'cactus_consolidated({chrom_name if chrom_name else ancestor_event})',
-                           parameters=thp_prefix + ["cactus_consolidated"] + args,
+                           parameters=env_prefix + ["cactus_consolidated"] + args,
                            work_dir=work_dir,
                            job_memory=job.memory)[1]  # Get just the standard error output
 

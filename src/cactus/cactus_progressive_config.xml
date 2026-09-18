@@ -315,21 +315,22 @@
 		<!-- partialOrderAlignmentMinimizerK abpoa kmer size for minimizer seeding. -->
 		<!-- partialOrderAlignmentMinimizerW abpoa window size for minimizer seeding. -->
 		<!-- partialOrderAlignmentMinimizerMinW abpoa minimum window size. -->
-		<!-- partialOrderAlignmentWindowBigGenome: window to use instead when the largest ingroup is at
+		<!-- partialOrderAlignmentWindowBigGenome: window to use instead when the largest genome is at
 		     least partialOrderAlignmentWindowBigGenomeThreshold bases.  Once sequence is long and
 		     repeat-rich the window is the only thing bounding the DP: on 22 Gb salamanders halving it
 		     took bar's peak from 798.5 to 368.7 GiB and roughly doubled throughput, while costing
 		     0.06 points of recall on evolver mammals (measured against the mafComparator truth set,
-		     where the curve stays flat to 2000 and only degrades below it).  Ingroups only, since an
-		     outgroup adds alignment but is not what makes the flowers enormous.  Set the threshold
-		     to 0 to disable. -->
+		     where the curve stays flat to 2000 and only degrades below it).  The largest genome of
+		     any role, outgroups included: bar aligns their sequence too, and lungfish Anc2 pairs a
+		     40 GB outgroup with 1 and 2 GB ingroups.  The threshold is per genome and not a total,
+		     so a typical vgp alignment of five 3 GB genomes is nowhere near it.  0 to disable. -->
 		<!-- partialOrderAlignmentProgressiveMode use guide tree from jaccard distance matrix to determine poa order -->
 		<!-- partialOrderAlignmentProgressiveMaxRows disable progressive mode if there are more than this many rows to align -->
 		<!-- partialOrderAlignmentProgressiveMaxLengthDif disable progressive mode if 1 - len(smallest seq) / len(biggest seq) is greater than this number. in other words, we stick with sorting by length unless the lengths are all really similar -->
 		<poa
 			partialOrderAlignmentWindow="10000"
 			partialOrderAlignmentWindowBigGenome="5000"
-			partialOrderAlignmentWindowBigGenomeThreshold="10000000000"
+			partialOrderAlignmentWindowBigGenomeThreshold="15000000000"
 			partialOrderAlignmentMaskFilter="-1"
 			partialOrderAlignmentBandConstant="1000"
 			partialOrderAlignmentBandFraction="0.1"
@@ -604,12 +605,15 @@
 	     685.9 at 64 -->
 	<!-- memory_core_scale_baseline: core count the estimate is calibrated at (the fit data was
 	     all run at 64) -->
-	<!-- memory_core_scale_max_pct: cap on the increase (100 = memory can at most double) -->
 	<!-- memory_poa_window_exponent: memory scales as (window/10000)^this.  NOT quadratic despite
 	     what the poa comment says: halving the window to 5000 measured 858.4 -> 639.4 GiB, since
-	     halving it also halves the number of windows.  Nothing is subtracted for
-	     partialOrderAlignmentMaskFilter, which matters more but was disabled in all the fit
-	     data, so enabling it only makes the estimate conservative -->
+	     halving it also halves the number of windows.  Deliberately gentler than that 0.745 ratio
+	     would imply, because it is a ratio of two peaks and a peak is largely made of things the
+	     window does not touch, caf's own high water most of all, so the full ratio shrinks the
+	     part that does not scale.  At 0.43 a salamander at 64 cores was estimated 690 GiB against
+	     a measured 639 and was OOM-killed in bar; 0.20 leaves ~27% margin instead of ~8%.  Nothing
+	     is subtracted for partialOrderAlignmentMaskFilter, which matters more but was disabled in
+	     all the fit data, so enabling it only makes the estimate conservative -->
 	<!-- og_size_scale: scale outgroup sizes by this factor (percent) when computing total sequence size -->
 	<!-- retain_pages: whether cactus_consolidated keeps the pages jemalloc frees instead of
 	     returning them to the OS.  Keeping them is much faster (bar 12x and caf 1.25x on
@@ -623,30 +627,42 @@
 	     jemalloc backs its extents with huge pages.  It has to reach the process through the
 	     environment because jemalloc reads MALLOC_CONF before main and mallctl cannot change it
 	     afterwards.  Measured on salamander Anc3 without page retention, same processor model on
-	     both runs: 44398 -> 33124 seconds, for 0.9% more peak (347.0 -> 350.0 GiB).  Only bites
-	     where the kernel has transparent huge pages in madvise mode, which is the usual setting;
-	     it is a no-op under never.  A MALLOC_CONF already in the environment is left alone. -->
+	     both runs: 44398 -> 33124 seconds, for 0.9% more peak (347.0 -> 350.0 GiB).  Applied only
+	     when retain_pages resolves to off, because that is the pair that was measured and because
+	     retention is where huge pages cost most: nothing is handed back, so a partly-used 2 MB page
+	     holds all 2 MB until the process exits.  Only bites where the kernel has transparent huge
+	     pages in madvise mode, which is the usual setting; it is a no-op under never.  A
+	     MALLOC_CONF already in the environment is left alone. -->
 	<!-- memory_retain_auto_fraction: how much of the available memory the retained estimate is
 	     allowed to take before auto gives up on retention.  0.5 only attempts retention when we
 	     think it fits in half of what the job can be given, so a 2x under-estimate still lands.
 	     Retention is the fast path, but a job that OOMs has to redo the whole alignment, and the
 	     estimate is wrong often enough (14% of VGP alignments) that the timid default earns its
 	     keep. -->
-	<!-- memory_retain_ratio: peak memory with retention over peak without, used to shrink the
-	     estimate when retention is switched off: 1.8 (fish Anc48 caf), 2.0 (yeast bar),
-	     2.2 (salamander Anc3, 769.0 -> 350.0 GiB), 3.3 (MammalsAnc0) -->
+	<!-- retain_pages_release_pct: with retention on, bar hands the pages back for good once rss
+	     reaches this percentage of the job's memory.  A wrong retained estimate does not run slow,
+	     it dies, and this turns that into a slow run instead.  One way: purging repeatedly to hold
+	     a target was measured and lost, but paying it once to save a job is a different bargain.
+	     Checked from the poa window loop, the one place that keeps running while every thread is
+	     inside a giant flower.  0 disables. -->
+	<!-- memory_retain_ratio: peak with retention over peak without, used to shrink the estimate
+	     when retention is off: 1.8 (fish Anc48 caf), 2.0 (yeast bar), 2.2 (salamander Anc3,
+	     769.0 -> 350.0 GiB), 3.3 (MammalsAnc0).  Set at the conservative end of that range, not
+	     the middle: dividing by too much under-provisions, and an OOM costs the whole alignment.
+	     Applied to the unscaled estimate, because with retention off the peak is caf's, which the
+	     window and core factors do not touch. -->
 	<consolidated
 		 retain_pages="auto"
 		 transparent_huge_pages="1"
 		 memory_retain_auto_fraction="0.5"
-		 memory_retain_ratio="2.5"
+		 retain_pages_release_pct="65"
+		 memory_retain_ratio="2.0"
 		 memory_coefficient_gb="220"
 		 memory_input_exponent="0.30"
 		 memory_ramp_gb="0.02"
 		 memory_core_scale_pct="0.65"
 		 memory_core_scale_baseline="64"
-		 memory_core_scale_max_pct="100"
-		 memory_poa_window_exponent="0.43"
+		 memory_poa_window_exponent="0.20"
 		 walltime_coefficient_secs="400"
 		 walltime_banded_coefficient_secs="550"
 		 walltime_banded_exponent="0.35"
