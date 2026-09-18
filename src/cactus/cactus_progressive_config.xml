@@ -301,21 +301,22 @@
 		<!-- partialOrderAlignmentMinimizerK abpoa kmer size for minimizer seeding. -->
 		<!-- partialOrderAlignmentMinimizerW abpoa window size for minimizer seeding. -->
 		<!-- partialOrderAlignmentMinimizerMinW abpoa minimum window size. -->
-		<!-- partialOrderAlignmentWindowBigGenome: window to use instead when the largest ingroup is at
+		<!-- partialOrderAlignmentWindowBigGenome: window to use instead when the largest genome is at
 		     least partialOrderAlignmentWindowBigGenomeThreshold bases.  Once sequence is long and
 		     repeat-rich the window is the only thing bounding the DP: on 22 Gb salamanders halving it
 		     took bar's peak from 798.5 to 368.7 GiB and roughly doubled throughput, while costing
 		     0.06 points of recall on evolver mammals (measured against the mafComparator truth set,
-		     where the curve stays flat to 2000 and only degrades below it).  Ingroups only, since an
-		     outgroup adds alignment but is not what makes the flowers enormous.  Set the threshold
-		     to 0 to disable. -->
+		     where the curve stays flat to 2000 and only degrades below it).  The largest genome of
+		     any role, outgroups included: bar aligns their sequence too, and lungfish Anc2 pairs a
+		     40 GB outgroup with 1 and 2 GB ingroups.  The threshold is per genome and not a total,
+		     so a typical vgp alignment of five 3 GB genomes is nowhere near it.  0 to disable. -->
 		<!-- partialOrderAlignmentProgressiveMode use guide tree from jaccard distance matrix to determine poa order -->
 		<!-- partialOrderAlignmentProgressiveMaxRows disable progressive mode if there are more than this many rows to align -->
 		<!-- partialOrderAlignmentProgressiveMaxLengthDif disable progressive mode if 1 - len(smallest seq) / len(biggest seq) is greater than this number. in other words, we stick with sorting by length unless the lengths are all really similar -->
 		<poa
 			partialOrderAlignmentWindow="10000"
 			partialOrderAlignmentWindowBigGenome="5000"
-			partialOrderAlignmentWindowBigGenomeThreshold="10000000000"
+			partialOrderAlignmentWindowBigGenomeThreshold="15000000000"
 			partialOrderAlignmentMaskFilter="-1"
 			partialOrderAlignmentBandConstant="1000"
 			partialOrderAlignmentBandFraction="0.1"

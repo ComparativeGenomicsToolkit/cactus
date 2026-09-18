@@ -99,14 +99,16 @@ def cactus_cons_with_resources(job, tree, ancestor_event, config_node, seq_id_ma
     # Giant genomes get a smaller poa window.  The window is the only bound on the DP once the
     # sequence is long and repeat-rich, and on 22 Gb salamanders halving it took bar's peak from
     # 798.5 to 368.7 GiB and doubled throughput, for 0.06 points of recall on evolver mammals.
-    # Ingroups only: an outgroup contributes alignment but is not what makes the flowers huge.
+    # Any role, not just ingroups.  Bar aligns an outgroup's sequence too, and lungfish Anc2 is the
+    # case that shows it: a 40 GB outgroup against two ingroups of 1 and 2 GB, 91% of the input,
+    # and the job was OOM-killed.  An ingroup test sees 2 GB there and does nothing.
     big_window = getOptionalAttrib(poa_node, 'partialOrderAlignmentWindowBigGenome', typeFn=int, default=0) if poa_node is not None else 0
     big_threshold = getOptionalAttrib(poa_node, 'partialOrderAlignmentWindowBigGenomeThreshold', typeFn=float, default=0) if poa_node is not None else 0
     if big_window > 0 and big_threshold > 0:
-        biggest_ingroup = max([seq_id.size for seq_name, seq_id in seq_id_map.items() if seq_name not in outgroups] or [0])
-        if biggest_ingroup >= big_threshold and big_window < poa_window:
-            RealtimeLogger.info('cactus_consolidated({}): largest ingroup is {}, at or above the {} threshold, so the poa window drops from {} to {}'.format(
-                name, bytes2human(biggest_ingroup), bytes2human(int(big_threshold)), poa_window, big_window))
+        biggest_genome = max([seq_id.size for seq_id in seq_id_map.values()] or [0])
+        if biggest_genome >= big_threshold and big_window < poa_window:
+            RealtimeLogger.info('cactus_consolidated({}): largest genome is {}, at or above the {} threshold, so the poa window drops from {} to {}'.format(
+                name, bytes2human(biggest_genome), bytes2human(int(big_threshold)), poa_window, big_window))
             poa_window = big_window
     window_exp = getOptionalAttrib(cons_node, 'memory_poa_window_exponent', typeFn=float, default=0.20)
     if poa_window > 0 and poa_window != 10000:
