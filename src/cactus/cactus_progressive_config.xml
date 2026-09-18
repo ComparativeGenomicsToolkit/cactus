@@ -591,7 +591,6 @@
 	     685.9 at 64 -->
 	<!-- memory_core_scale_baseline: core count the estimate is calibrated at (the fit data was
 	     all run at 64) -->
-	<!-- memory_core_scale_max_pct: cap on the increase (100 = memory can at most double) -->
 	<!-- memory_poa_window_exponent: memory scales as (window/10000)^this.  NOT quadratic despite
 	     what the poa comment says: halving the window to 5000 measured 858.4 -> 639.4 GiB, since
 	     halving it also halves the number of windows.  Deliberately gentler than that 0.745 ratio
@@ -649,7 +648,6 @@
 		 memory_ramp_gb="0.02"
 		 memory_core_scale_pct="0.65"
 		 memory_core_scale_baseline="64"
-		 memory_core_scale_max_pct="100"
 		 memory_poa_window_exponent="0.20"
 		 og_size_scale_pct="75"
 		 >

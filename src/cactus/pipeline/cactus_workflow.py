@@ -123,13 +123,9 @@ def cactus_cons_with_resources(job, tree, ancestor_event, config_node, seq_id_ma
     # that is where the 575 alignments the model was fitted to were run.
     core_scale_pct = getOptionalAttrib(cons_node, 'memory_core_scale_pct', typeFn=float, default=0.65)
     core_scale_baseline = getOptionalAttrib(cons_node, 'memory_core_scale_baseline', typeFn=int, default=64)
-    core_scale_max_pct = getOptionalAttrib(cons_node, 'memory_core_scale_max_pct', typeFn=float, default=100.0)
     if cons_cores and cons_cores != core_scale_baseline and core_scale_pct > 0:
         extra_cores = cons_cores - core_scale_baseline
         scale_factor = 1.0 + (extra_cores * core_scale_pct / 100.0)
-        # cap the increase (default 100% = doubling); never scale below a quarter
-        scale_factor = min(scale_factor, 1.0 + core_scale_max_pct / 100.0)
-        scale_factor = max(scale_factor, 0.25)
         scaled_mem = int(mem * scale_factor)
         RealtimeLogger.info('Scaling cactus_consolidated({}) memory by {:.1f}% for {} cores ({:+d} against the {} baseline): {} -> {}'.format(
             chrom_name if chrom_name else ancestor_event, (scale_factor - 1) * 100, cons_cores, extra_cores, core_scale_baseline,
