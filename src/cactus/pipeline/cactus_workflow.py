@@ -77,12 +77,18 @@ def cactus_cons_with_resources(job, tree, ancestor_event, config_node, seq_id_ma
     ramp = min(1.0, input_gb / mem_ramp_gb) if mem_ramp_gb > 0 else 1.0
     mem = int(mem_coef * (input_gb ** mem_exp) * ramp * 2**30) if input_gb > 0 else 0
 
-    # Memory is *not* quadratic in the poa window, whatever the config comment says: halving it
-    # from 10000 to 5000 measured 858.4 -> 639.4 GiB on salamander Anc3, a 0.745x ratio, because
-    # halving the window also halves the number of windows and peak is bounded by how many run
-    # at once.  That ratio is an exponent of 0.43, not 2.  Nothing is subtracted for
-    # partialOrderAlignmentMaskFilter even though it matters more, because every alignment in
-    # the fit ran with it disabled -- so enabling it can only make the estimate conservative.
+    # Memory is *not* quadratic in the poa window, whatever the poa comment says: halving it from
+    # 10000 to 5000 measured 858.4 -> 639.4 GiB on salamander Anc3, a 0.745x ratio, because halving
+    # the window also halves the number of windows and peak is bounded by how many run at once.
+    #
+    # The exponent is deliberately gentler than that ratio.  0.745 is the ratio of two *peaks*, and
+    # a peak carries a large component that the window does not touch -- caf's own high water is
+    # most of it -- so applying the full ratio to the whole estimate reduces the part that does not
+    # scale.  At 0.43 a salamander at 64 cores was estimated 690 GiB against a measured 639 and was
+    # OOM-killed in bar; the retry cost a day.  0.20 leaves ~27% instead of ~8%.  Over-estimating
+    # costs queue time, under-estimating costs the whole alignment, and these are the jobs where
+    # that trade is most lopsided.  Nothing is subtracted for partialOrderAlignmentMaskFilter even
+    # though it matters more, because every alignment in the fit ran with it disabled.
     poa_node = findRequiredNode(config_node, 'bar').find('poa')
     poa_window = getOptionalAttrib(poa_node, 'partialOrderAlignmentWindow', typeFn=int, default=10000) if poa_node is not None else 10000
 
@@ -98,7 +104,7 @@ def cactus_cons_with_resources(job, tree, ancestor_event, config_node, seq_id_ma
             RealtimeLogger.info('cactus_consolidated({}): largest ingroup is {}, at or above the {} threshold, so the poa window drops from {} to {}'.format(
                 name, bytes2human(biggest_ingroup), bytes2human(int(big_threshold)), poa_window, big_window))
             poa_window = big_window
-    window_exp = getOptionalAttrib(cons_node, 'memory_poa_window_exponent', typeFn=float, default=0.43)
+    window_exp = getOptionalAttrib(cons_node, 'memory_poa_window_exponent', typeFn=float, default=0.20)
     if poa_window > 0 and poa_window != 10000:
         mem = int(mem * (poa_window / 10000.0) ** window_exp)
 

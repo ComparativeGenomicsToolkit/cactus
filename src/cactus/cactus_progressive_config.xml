@@ -593,9 +593,13 @@
 	<!-- memory_core_scale_max_pct: cap on the increase (100 = memory can at most double) -->
 	<!-- memory_poa_window_exponent: memory scales as (window/10000)^this.  NOT quadratic despite
 	     what the poa comment says: halving the window to 5000 measured 858.4 -> 639.4 GiB, since
-	     halving it also halves the number of windows.  Nothing is subtracted for
-	     partialOrderAlignmentMaskFilter, which matters more but was disabled in all the fit
-	     data, so enabling it only makes the estimate conservative -->
+	     halving it also halves the number of windows.  Deliberately gentler than that 0.745 ratio
+	     would imply, because it is a ratio of two peaks and a peak is largely made of things the
+	     window does not touch, caf's own high water most of all, so the full ratio shrinks the
+	     part that does not scale.  At 0.43 a salamander at 64 cores was estimated 690 GiB against
+	     a measured 639 and was OOM-killed in bar; 0.20 leaves ~27% margin instead of ~8%.  Nothing
+	     is subtracted for partialOrderAlignmentMaskFilter, which matters more but was disabled in
+	     all the fit data, so enabling it only makes the estimate conservative -->
 	<!-- og_size_scale: scale outgroup sizes by this factor (percent) when computing total sequence size -->
 	<!-- retain_pages: whether cactus_consolidated keeps the pages jemalloc frees instead of
 	     returning them to the OS.  Keeping them is much faster (bar 12x and caf 1.25x on
@@ -635,7 +639,7 @@
 		 memory_core_scale_pct="0.65"
 		 memory_core_scale_baseline="64"
 		 memory_core_scale_max_pct="100"
-		 memory_poa_window_exponent="0.43"
+		 memory_poa_window_exponent="0.20"
 		 og_size_scale_pct="75"
 		 >
 	</consolidated>
