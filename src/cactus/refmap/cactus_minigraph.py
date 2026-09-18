@@ -821,13 +821,21 @@ def mash_distance_order(job, options, config_node, seq_order, mash_output_maps, 
 #
 # The old value of 4e4 came from the slower fork (8- and 32-core runs of HPRC v2.0/v2.1), and
 # carrying it over asked 29 h for a chr1 batch that now takes 2.3 h and 72 h for the last one --
-# every construct into the longest partition, which is the opposite of the point.  2e5 is set
-# below the worst measured point rather than at the median, because the spread is real and not
-# predictable from bytes: the slow batches are the ones that parallelise badly (chr2 holds a CPU
-# factor of 2.5 and chrY 3.7, against a p50 of 7.6), and nothing in scope here can see that
-# coming.  It covers all eight batches that Slurm killed in that run, chrY -- the worst of the
-# 207 -- with 1.1x to spare and the rest with 2.5-7.5x.
-MINIGRAPH_CONSTRUCT_BYTES_PER_SEC_PER_CORE = 2e5
+# every construct into the longest partition, which is the opposite of the point.
+#
+# The value is set by chrY and nothing else.  Solving both runs for the rate at which each batch's
+# ask would exactly equal its observed time, the four tightest points of 307 are all chrY (1.8e5
+# to 2.4e5) and the next is chr16 at 6.3e5, against a p50 of 4.1e6 -- so any value that covers
+# chrY leaves every other chromosome several times over-provisioned, and there is no way to tell
+# them apart from bytes.  chrY is slow because it parallelises badly: it holds a CPU factor of 3.9
+# against a p50 of 7.6, and chr2, the next worst, holds 3.2.
+#
+# 1.5e5 clears chrY's worst observed run by 1.3x, which is the margin that matters because chrY
+# swung 14% between the two runs.  The cost of covering it is what pushes the median construct to
+# 8 h and 46 of 207 batches past 12 h; 2e5 would leave only 14 past 12 h but clears chrY by 1.0x,
+# which is to say it times out.  Nothing reaches even the shorter of the two ceilings these runs
+# saw (84 h), and --doubleTime covers a third run worse than either of these.
+MINIGRAPH_CONSTRUCT_BYTES_PER_SEC_PER_CORE = 1.5e5
 
 # ...but not linearly.  minigraph parallelises over query contigs, and the faster fork adds more
 # parallel sections on top of that, but parts of construction remain single-threaded -- so it is
@@ -921,6 +929,17 @@ def minigraph_construct_in_batches(job, options, config_node, seq_id_map, seq_or
         # minigraph_construct() only uses this to name its local copy, but keep the compression
         # suffix honest since that is what says whether the file it reads is bgzipped
         seed_gfa_path = 'extend.gfa.gz' if options.inGFA.endswith('.gz') else 'extend.gfa'
+    def batch_construct_work(i):
+        """ (bytes batch i adds to the graph, seconds minigraph spends adding them) """
+        start = i * max_batch_size
+        batch_size = len(seq_order) - start if i == num_batches - 1 else max_batch_size
+        batch_bytes = sum(seq_id_map[e].size for e in seq_order[start:start + batch_size])
+        # everything already in the graph this batch has to align against
+        prior_bytes = sum(seq_id_map[e].size for e in seq_order[:start])
+        return batch_bytes, (batch_bytes * minigraph_graph_growth(prior_bytes, batch_bytes) /
+                             (MINIGRAPH_CONSTRUCT_BYTES_PER_SEC_PER_CORE *
+                              minigraph_effective_cores(options.mgCores)))
+
     for i in range(num_batches):        
         batch_size = len(seq_order) - i * max_batch_size if i == num_batches - 1 else max_batch_size
         input_seq_order = seq_order[i * max_batch_size : (i * max_batch_size) + batch_size]
@@ -933,20 +952,25 @@ def minigraph_construct_in_batches(job, options, config_node, seq_id_map, seq_or
             else:
                 out_gfa_path = '{}.{}'.format(gfa_path, i)
             pan_sn_output = False
-        batch_bytes = sum(seq_id_map[e].size for e in input_seq_order)
-        # everything already in the graph this batch has to align against
-        prior_bytes = sum(seq_id_map[e].size for e in seq_order[:i * max_batch_size])
+        # batch 0 pays for batch 1 as well.  Toil chains a job into its predecessor's allocation
+        # whenever the successor's memory, cores and disk all fit -- walltime is not among the
+        # things nextChainable() looks at -- so a chained pair runs under the *first* job's Slurm
+        # time limit.  Every batch of a chromosome is issued with identical requirements, and
+        # batch 0 is the only one whose sole successor is the next batch: from batch 1 on, each
+        # also carries the clean_jobstore_files follow-on below, and two successors end the chain.
+        # So batches 0 and 1 always share one allocation, and asking only for batch 0 is what
+        # killed chrY's first batch in both of the runs these estimates are drawn from.
+        chained = [i] + ([1] if i == 0 and num_batches > 1 else [])
+        work = [batch_construct_work(j) for j in chained]
         minigraph_job = Job.wrapJobFn(minigraph_construct, options, config_node, seq_id_map, input_seq_order, out_gfa_path,
                                       prev_job.rv() if prev_job else seed_gfa_id,
                                       prev_gfa_path if prev_job else seed_gfa_path,
                                       pan_sn_output, graph_names,
                                       disk=disk, memory=mem, cores=options.mgCores,
                                       walltime=cactus_walltime(
-                                          MINIGRAPH_CONSTRUCT_OVERHEAD_SECS +
-                                          batch_bytes * minigraph_graph_growth(prior_bytes, batch_bytes) /
-                                          (MINIGRAPH_CONSTRUCT_BYTES_PER_SEC_PER_CORE *
-                                           minigraph_effective_cores(options.mgCores)),
-                                          io_bytes=batch_bytes))
+                                          MINIGRAPH_CONSTRUCT_OVERHEAD_SECS * len(chained) +
+                                          sum(secs for _, secs in work),
+                                          io_bytes=sum(nbytes for nbytes, _ in work)))
         if prev_job:
             prev_job.addFollowOn(minigraph_job)
             # delete the output of the previous batch from the job store            
