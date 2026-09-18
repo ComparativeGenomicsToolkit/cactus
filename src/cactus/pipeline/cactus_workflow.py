@@ -223,18 +223,23 @@ def cactus_cons_with_resources(job, tree, ancestor_event, config_node, seq_id_ma
         wt_coef = getOptionalAttrib(cons_node, 'walltime_banded_coefficient_secs', typeFn=float, default=550.0)
         wt_exp = getOptionalAttrib(cons_node, 'walltime_banded_exponent', typeFn=float, default=0.35)
     else:
+        # the progressive fit's exponent was 0.906 and rounded to 0.95 here, which is near enough
+        # to linear that carrying it as a tunable was not worth the knob: over sizes from 0.1 to
+        # 50 GB and core counts from 8 to 64, dropping it moves 3 of 36 jobs across a partition
+        # boundary, and always upward.  The banded exponent below is a different matter -- 0.35 is
+        # genuinely concave, and linearising it either under-provisions the middle of the range by
+        # 1.7x or over-provisions the top by 4.4x -- so that one stays.
         wt_coef = getOptionalAttrib(cons_node, 'walltime_coefficient_secs', typeFn=float, default=400.0)
-        wt_exp = getOptionalAttrib(cons_node, 'walltime_input_exponent', typeFn=float, default=0.95)
+        wt_exp = 1.0
     walltime_secs = wt_coef * ((disk / 1e9) ** wt_exp) if disk > 0 else 0
     # bar is 63.5% of consolidated's time across those 576 alignments, caf 20.3%, reference
     # 15.4%; the parallel part of that stops improving somewhere around 24 cores (which is why
     # --consCores above ~24 buys memory, not speed), so scale up only when a job is given fewer
     # than that.  The fit's own jobs all ran at 64 cores, i.e. already on the plateau.
-    walltime_secs *= cons_core_scale(cons_cores,
-                                     getOptionalAttrib(cons_node, 'walltime_core_scale_baseline', typeFn=int,
-                                                       default=CONS_CORE_BASELINE),
-                                     getOptionalAttrib(cons_node, 'walltime_parallel_fraction', typeFn=float,
-                                                       default=CONS_PARALLEL_FRACTION))
+    # CONS_CORE_BASELINE and CONS_PARALLEL_FRACTION rather than config attributes: they describe
+    # how cactus_consolidated parallelises, not anything about a particular alignment, and the
+    # three other callers of cons_core_scale already take them from the module.
+    walltime_secs *= cons_core_scale(cons_cores)
 
     cons_job = job.addChildJobFn(cactus_cons, tree, ancestor_event, config_node, seq_id_map, og_map, paf_id,
                                  intermediate_results_url=intermediate_results_url, chrom_name=chrom_name, cores = cons_cores,
