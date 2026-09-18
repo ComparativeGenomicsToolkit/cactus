@@ -732,7 +732,7 @@ def align_toil_batch(job, chrom_dict, config_id, options):
     for chrom in chrom_dict.keys():
         seq_file_id, paf_file_id = chrom_dict[chrom]
         # apply the overrides from --alignCoresOverrides and --configOverrides
-        options.aligCores = options.alignCoresOverrides[chrom] if chrom in options.alignCoresOverrides else orig_cores
+        options.alignCores = options.alignCoresOverrides[chrom] if chrom in options.alignCoresOverrides else orig_cores
         options.configFile = options.configOverrides[chrom][0] if chrom in options.configOverrides else orig_config
         config_id = options.configOverrides[chrom][1] if chrom in options.configOverrides else orig_config_id
         # spawn the chromosome job
