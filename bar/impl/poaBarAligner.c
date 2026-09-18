@@ -537,7 +537,7 @@ static void barGuardCheckMemory(void) {
     }
     st_logCritical("bar: rss reached %" PRIi64 " MB against a %" PRIi64 " MB limit, so jemalloc page "
                    "retention is now off for the rest of this run (rss %" PRIi64 " MB after). "
-                   "The memory estimate for this job was too low.\n",
+                   "The difference was pages jemalloc had not handed back, not live data.\n",
                    rss, barGuardLimitMb, barGuardRssMb());
 }
 
