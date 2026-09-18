@@ -157,16 +157,6 @@ def cactus_cons_with_resources(job, tree, ancestor_event, config_node, seq_id_ma
     if retain_pages not in ['auto', '0', '1']:
         raise RuntimeError('<consolidated retain_pages> / --consRetainPages must be auto, 0 or 1, not {}'.format(retain_pages))
     retain_ratio = getOptionalAttrib(cons_node, 'memory_retain_ratio', typeFn=float, default=2.0)
-    # Above the fit's range the retained estimate is extrapolation, and retention is the mode whose
-    # cost is unbounded when the extrapolation is wrong: it never returns a page, so the peak tracks
-    # cumulative churn and does not saturate the way the fit assumes.  Salamander Anc3 (122 GB in,
-    # 3.7x the largest alignment fitted) was estimated 809 GiB and was still climbing past 794 at
-    # 40% of bases.  Past the data, take the mode that is measured to work.
-    retain_max_input_gb = getOptionalAttrib(cons_node, 'retain_pages_max_input_gb', typeFn=float, default=35.0)
-    if retain_pages == 'auto' and retain_max_input_gb > 0 and input_gb > retain_max_input_gb:
-        RealtimeLogger.info('cactus_consolidated({}): {:.0f} GB of input is beyond the {:.0f} GB the memory model was fitted to, so the pages will not be retained'.format(
-            name, input_gb, retain_max_input_gb))
-        retain_pages = '0'
     retain_fraction = getOptionalAttrib(cons_node, 'memory_retain_auto_fraction', typeFn=float, default=0.5)
     if retain_pages == 'auto':
         limits = [l for l in [max_system_memory, int(os.environ['CACTUS_MAX_MEMORY']) if 'CACTUS_MAX_MEMORY' in os.environ else None] if l]
@@ -286,14 +276,23 @@ def cactus_cons(job, tree, ancestor_event, config_node, seq_id_map, og_map, paf_
     # so a partly-used 2 MB page keeps all 2 MB for the life of the process.  A salamander Anc3 run
     # with both on was OOM-killed in bar at an estimate that pre-THP measurements say should have
     # been ample, which is what this guard is for.  Worth revisiting once the pair is measured.
-    thp_prefix = []
+    env_prefix = []
     if getOptionalAttrib(findRequiredNode(config_node, 'consolidated'), 'transparent_huge_pages', typeFn=bool, default=True) \
        and str(retain_pages) == '0' and 'MALLOC_CONF' not in os.environ:
-        thp_prefix = ['env', 'MALLOC_CONF=thp:always']
+        env_prefix = ['env', 'MALLOC_CONF=thp:always']
+
+    # A way out if the estimate was wrong: bar hands the pages back rather than being OOM-killed.
+    # Only with retention on -- with it off there is nothing to hand back.
+    guard_pct = getOptionalAttrib(findRequiredNode(config_node, 'consolidated'), 'retain_pages_release_pct', typeFn=float, default=65.0)
+    if str(retain_pages) == '1' and guard_pct > 0 and job.memory:
+        limit_mb = int(job.memory * guard_pct / 100.0 / 2**20)
+        if not env_prefix:
+            env_prefix = ['env']
+        env_prefix.append('CACTUS_BAR_RETENTION_OFF_MB={}'.format(limit_mb))
 
     messages = cactus_call(check_output=True, returnStdErr=True,
                            realtimeStderrPrefix=f'cactus_consolidated({chrom_name if chrom_name else ancestor_event})',
-                           parameters=thp_prefix + ["cactus_consolidated"] + args,
+                           parameters=env_prefix + ["cactus_consolidated"] + args,
                            work_dir=work_dir,
                            job_memory=job.memory)[1]  # Get just the standard error output
 
