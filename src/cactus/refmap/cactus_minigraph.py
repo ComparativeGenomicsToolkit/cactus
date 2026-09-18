@@ -814,14 +814,20 @@ def mash_distance_order(job, options, config_node, seq_order, mash_output_maps, 
 
     return mash_order[1:] if trim_ref else mash_order
             
-# Bytes of input fasta `minigraph -xggs` gets through per second per core.  From the 237
-# construct commands of the HPRC v2.1 pangenome (8 cores, 50 sequences of up to 2.5e8 bytes per
-# batch): p50 14681 s, p99 36241 s, max 41592 s, which is 4.3e4 B/s/core at the p99.  The 11
-# whole-genome batches of HPRC v2.0 (32 cores, ~1.5e11 bytes per batch) give 5.9e4 B/s/core at
-# their worst, so dividing by the core count is what reconciles two very differently shaped
-# runs.  (These are not the `minigraph|bgzip` rows of the aggregated evidence, which only catch
-# the last batch of each chain -- the rest land in the `minigraph` row alongside the mapping.)
-MINIGRAPH_CONSTRUCT_BYTES_PER_SEC_PER_CORE = 4e4
+# Bytes of input fasta `minigraph -xggs` gets through per second per core.  Re-fitted on the
+# 207 batch constructs of an HPRC v2.1 run (64 cores, 24 chromosomes, 2.7-13.0 GB per batch),
+# which is the first at-scale run of the faster minigraph: dividing the batch bytes by the
+# observed seconds gives p50 7.5e5, p10 3.3e5 and a single worst point of 7.9e4 B/s/core.
+#
+# The old value of 4e4 came from the slower fork (8- and 32-core runs of HPRC v2.0/v2.1), and
+# carrying it over asked 29 h for a chr1 batch that now takes 2.3 h and 72 h for the last one --
+# every construct into the longest partition, which is the opposite of the point.  2e5 is set
+# below the worst measured point rather than at the median, because the spread is real and not
+# predictable from bytes: the slow batches are the ones that parallelise badly (chr2 holds a CPU
+# factor of 2.5 and chrY 3.7, against a p50 of 7.6), and nothing in scope here can see that
+# coming.  It covers all eight batches that Slurm killed in that run, chrY -- the worst of the
+# 207 -- with 1.1x to spare and the rest with 2.5-7.5x.
+MINIGRAPH_CONSTRUCT_BYTES_PER_SEC_PER_CORE = 2e5
 
 # ...but not linearly.  minigraph parallelises over query contigs, and the faster fork adds more
 # parallel sections on top of that, but parts of construction remain single-threaded -- so it is

@@ -568,14 +568,24 @@ def make_minigraph_fasta(job, gfa_file_id, gfa_file_path, name):
 
     return job.fileStore.writeGlobalFile(fa_path)
 
-# minigraph mapping, per job and per GB of sanitized fasta.  Grouping the HPRC toil-rt lines by
-# job gives p90 4062s for a whole-genome haplotype (v2.0, n=474, ~3.1 GB of fasta) against a p99
-# of ~1200s for a per-chromosome one (v2.1, ~0.12 GB), which is a line at ~1200 s/GB.  The
-# intercept covers the per-chromosome tail (max 3521s over 11,390 invocations, 3x its own p99),
-# which is cluster contention rather than anything the fasta size can see.  2000 leaves ~50%
-# over that max once the factor is applied; 1500 left 17%, which is not a tail allowance.
-MINIGRAPH_MAP_SECS = 2000
-MINIGRAPH_MAP_SECS_PER_GB = 1200
+# minigraph mapping, per job and per GB of sanitized fasta.  Both re-fitted on the 27,097
+# mappings of an HPRC v2.1 run, the first at scale with the faster minigraph, which separate
+# cleanly into the two populations the line was drawn through: 456 whole-genome haplotypes
+# (~3.1 GB of fasta, p50 712 s, p90 1053 s, max 1499 s) and 26,641 per-chromosome ones
+# (0.05-0.26 GB, p50 100 s, p99 440 s, max 713 s).  Through those the slope is 250 s/GB at the
+# p90 and 330 s/GB at the p99, so 400 sits above the measurement everywhere; 1200 came from the
+# slower fork, where the same whole-genome mapping ran to a p90 of 4062 s.
+#
+# The intercept is the tail allowance, and it used to be sized against a per-chromosome max of
+# 3521 s over 11,390 invocations -- 3x its own p99, taken to be cluster contention rather than
+# anything the fasta size can see.  That tail is now 713 s against a p99 of 440 s, 1.6x rather
+# than 3x, so 2000 was buying a cushion that costs more than it is worth: it put all 18,927
+# mapping jobs of that run above an hour, which on a cluster whose shortest partition is an hour
+# is the entire scheduling decision.  600 holds every per-chromosome mapping under the hour while
+# still covering the observed worst by 3x, and leaves the whole-genome pass -- where the per-GB
+# term dominates anyway -- around 2 h against a 1499 s worst.
+MINIGRAPH_MAP_SECS = 600
+MINIGRAPH_MAP_SECS_PER_GB = 400
 
 # Re-deriving one genome's PAF from a GAF it already has (--inGAF): the same gaf2unstable/gaffilter/
 # gaf2paf chain minigraph_map_one runs, without the minigraph.  Those three came to p99 18s and max
