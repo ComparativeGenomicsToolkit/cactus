@@ -410,7 +410,7 @@ def minigraph_construct_run(job, options, config_node, seq_id_map, seq_order, gf
                                               ref_name=options.reference[0],
                                               cores=options.mgCores, disk=8*ref_size,
                                               memory=cactus_clamp_memory(max(8*ref_size, 12*10**9)),
-                                              walltime=cactus_walltime(3000 + ref_size / 1e6,
+                                              walltime=cactus_walltime(LAST_TRAIN_SECS + ref_size / 1e6,
                                                                        io_bytes=3 * ref_size))
                 train_id = train_job.rv()
             # same five slots as the constructing path below.  nothing was constructed, so there
@@ -530,7 +530,7 @@ def minigraph_construct_run(job, options, config_node, seq_id_map, seq_order, gf
                                                    cores=options.mgCores,
                                                    disk=8*ref_size,
                                                    memory=cactus_clamp_memory(max(8*ref_size, 12*10**9)),
-                                                   walltime=cactus_walltime(3000 + ref_size / 1e6,
+                                                   walltime=cactus_walltime(LAST_TRAIN_SECS + ref_size / 1e6,
                                                                             io_bytes=3 * ref_size))
         train_id = last_train_job.rv()
         
@@ -558,6 +558,22 @@ def collapse_minimap2_threads(cores):
     return max(1, cores // jobs)
 
 COLLAPSE_INVERSIONS_SECS_PER_GB = 2000
+
+# Fixed seconds for a last_train job.  last-train's cost is set by how divergent the pair it picks
+# is, not by how big the reference is, and the two are close to anti-correlated here: over the 27
+# per-chromosome buckets of two HPRC v2.1 runs the median job took 130 s and the largest reference
+# (chr1) finished in 188 s, while the *second smallest* -- the unplaced/unlocalized bucket -- ran
+# 9807 s in one run and 6931 s in the other.  last_train() picks the furthest genome in the mash
+# order that clears its size floor, and that bucket's mash distances span the whole range, so its
+# pick sits at 0.106 against 0.0007-0.0037 for a real chromosome.
+#
+# ref_size is therefore the wrong regressor and this flat term is what carries the pathology.  The
+# old 3000 asked 2:05:30 for that job; it ran 2:43:26 and survived only because the partition it
+# was in did not enforce the limit (its two retries doubled memory, correctly leaving the walltime
+# alone -- both failures were MEMLIMIT).  6000 asks 4:10:32, which clears the worse of the two runs
+# by 1.5x, enough for the 41% they differed by.  It costs the other 26 jobs nothing that matters:
+# they already ask over two hours, so none of them changes partition.
+LAST_TRAIN_SECS = 6000
 
 def collapse_inversions_walltime(gfa_size, cores):
     """ estimated seconds for one collapse_inversions job, from the graph it is handed """

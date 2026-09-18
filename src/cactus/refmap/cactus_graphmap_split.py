@@ -748,12 +748,20 @@ def separate_ref_contigs(job, config, chrom, gfa_id, gm_result, reference_event,
     return (job.fileStore.writeGlobalFile(separated_paf_path), out_fa_id) + tuple(gm_result[2:]) + \
         (job.fileStore.writeGlobalFile(log_path),) + ((pansn_gfa_id,) if whole_genome_ref else ())
 
-# Seconds per reference contig for split_fa_into_contigs.  Grouping the HPRC toil-rt lines by job
-# gives ~330s per job for the 23-26 reference contigs of a CHM13/GRCh38 split, with a ceiling of
-# 396s across 465 jobs in each of the two runs, ie ~13 s/contig.  The contig count is the driver
-# rather than the fasta size because each contig costs its own faidx and bgzip, and <graphmap_split
+# Seconds per reference contig for split_fa_into_contigs.  The contig count is the driver rather
+# than the fasta size because each contig costs its own faidx and bgzip, and <graphmap_split
 # maxRefContigs> defaults to 128 -- five times the human case.
-SPLIT_FA_SECS_PER_REF_CONTIG = 15
+#
+# Re-measured by grouping every timed command in the two HPRC v2.1 runs by the job work directory
+# it ran in: 459 jobs per run, ~50 commands each, summing to a p99 of 646 s (sep16) and 604 s
+# (sep17) against a worst of 654 s, over a 196-contig GRCh38 split.  That is 3 s/contig at the
+# p99, which is the convention WALLTIME_FACTOR's comment sets for these constants.  The earlier
+# 13 s/contig came from grouping by a 23-26 contig split, where the per-job fixed cost is spread
+# over a fifth as many contigs and so lands in the slope.
+#
+# The difference is worth the re-fit because of how many of these there are: at 15 all 459 asked
+# 2.1 h each, and at 3 they ask 37 min, which is the side of the one-hour partition they belong on.
+SPLIT_FA_SECS_PER_REF_CONTIG = 3
 
 def split_fas(job, seq_id_map, seq_name_map, split_id_map):
     """ Use samtools to split a bunch of fasta files into reference contigs, using the output of rgfa-split as a guide"""

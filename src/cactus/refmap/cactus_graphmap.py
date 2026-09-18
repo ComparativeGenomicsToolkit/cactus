@@ -375,8 +375,11 @@ RGFA2PAF_SECS_PER_GB = 40
 
 # Seconds per GB of raw GFA for filter_paf_deletions: 4337s for filter-paf-deletions plus ~500s
 # for the vg convert that precedes it on the whole-panel GFA, against 802s worst case on the
-# per-chromosome ones.
-FILTER_PAF_DELETIONS_SECS_PER_GB = 500
+# per-chromosome ones.  Re-fitted on the two HPRC v2.1 runs, where the whole job -- the vg convert,
+# the filter and the two wc -l -- came to a worst of 563 s (sep16) and 544 s (sep17) over 50 jobs,
+# against a graph term the old rate put at 4380 s.  120 leaves the estimate at 1507 s, still 2.7x
+# the worst measured, before the factor is applied.
+FILTER_PAF_DELETIONS_SECS_PER_GB = 120
 
 
 def minigraph_workflow(job, options, config, seq_id_map, gfa_id, graph_event, sanitize, ref_collapse_paf_id, pansn_gfa_input=True,
