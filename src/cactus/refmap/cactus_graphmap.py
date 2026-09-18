@@ -1167,9 +1167,7 @@ def self_align_all(job, config, seq_id_map, reference, collapse_mode):
             events.append(event)
     mg_cores = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "cpu", typeFn=int, default=1)
     paf_dict = {}
-    paf_size = 0
     for event in events:
-        paf_size += seq_id_map[event].size
         collapse_job = root_job.addChildJobFn(self_align, config, event, seq_id_map[event],
                                               disk=4*seq_id_map[event].size,
                                               memory=4*seq_id_map[event].size,
@@ -1178,9 +1176,11 @@ def self_align_all(job, config, seq_id_map, reference, collapse_mode):
                                                                        io_bytes=2*seq_id_map[event].size))
         paf_dict[event] = collapse_job.rv()
 
-    merge_paf_job = root_job.addFollowOnJobFn(merge_pafs,  paf_dict,
-                                              disk=4*paf_size,
-                                              walltime=merge_pafs_walltime(PAF_BYTES_PER_FASTA_BYTE * paf_size))
+    # every input here is a promise, so the merge is sized the same way the mapping merges are: by
+    # a coordination job that runs once they have resolved and can read their real sizes.  what a
+    # self-alignment PAF comes to as a fraction of the fasta it came from has never been measured
+    # -- <graphmap collapse> defaults to "none" -- and this way it does not have to be guessed
+    merge_paf_job = root_job.addFollowOnJobFn(merge_pafs_sized, paf_dict, walltime=cactus_walltime())
     return merge_paf_job.rv()
 
 def self_align(job, config, seq_name, seq_id):
