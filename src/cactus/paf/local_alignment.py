@@ -20,11 +20,52 @@ import math
 import copy
 from Bio import SeqIO
 from cactus.paf.paf import get_event_pairs, get_leaves, get_node, get_distances
-from cactus.shared.common import cactus_call, getOptionalAttrib, zip_gz
+from cactus.shared.common import cactus_call, getOptionalAttrib, zip_gz, cactus_walltime
 from cactus.preprocessor.checkUniqueHeaders import sanitize_fasta_headers
 from cactus.preprocessor.unmasking import unmask_contigs_all
 from cactus.preprocessor.cactus_preprocessor import clean_if_different
 from cactus.shared.common import cactus_clamp_memory
+
+def get_divergence_class(distance, params):
+    """ The <constants><divergences> bucket a pair at the given distance falls in ("one" through
+    "five", or "default" for anything more diverged).  It selects the lastz parameters, and with
+    them most of the runtime, so the walltime estimate keys off the same bucket. """
+    divergences = params.find("constants").find("divergences")
+    if getOptionalAttrib(divergences, 'useDefault', typeFn=bool, default=False):
+        return "default"
+    for i in "one", "two", "three", "four", "five":
+        if distance <= float(divergences.attrib[i]):
+            return i
+    return "default"
+
+
+def get_lastz_walltime(distance, params, chunk_a, chunk_b):
+    """ Estimated seconds for one lastz/kegalign job on this pair of chunks.
+
+    <blast><lastzWalltime> holds the per-divergence-class time for a pair of full-sized chunks;
+    we scale it by how big these two chunks actually are, so a small genome (whose whole
+    sequence is one short chunk) gets a short time rather than the 577-way figure.
+
+    The table was measured on lastz, and is used for whichever mapper is configured: minimap2
+    and FastGA are both faster, so it is conservative for them rather than wrong. """
+    lastz_params_node = params.find("blast")
+    walltime_node = lastz_params_node.find("lastzWalltime")
+    if walltime_node is None:
+        return None
+    lastz_class = get_divergence_class(distance, params)
+    base = getOptionalAttrib(walltime_node, lastz_class, typeFn=float, default=None)
+    if base is None:
+        return None
+    gpu = getOptionalAttrib(lastz_params_node, 'gpu', typeFn=int, default=0)
+    fastga = getOptionalAttrib(lastz_params_node, 'mapper', typeFn=str) == 'fastga'
+    chunk_attr = 'bigChunkSize' if gpu or fastga else 'chunkSize'
+    chunk_size = getOptionalAttrib(lastz_params_node, chunk_attr, typeFn=float, default=None)
+    if chunk_size and chunk_size > 0:
+        # the table was measured on a pair of full chunks; lastz time is roughly linear in the
+        # sequence it is handed, so a pair that is half that size gets half the time
+        base *= (chunk_a.size + chunk_b.size) / (2.0 * chunk_size)
+    return base
+
 
 def run_lastz(job, name_A, genome_A, name_B, genome_B, distance, params):
     # Create a local temporary file to put the alignments in.
@@ -43,12 +84,8 @@ def run_lastz(job, name_A, genome_A, name_B, genome_B, distance, params):
     cpu = getOptionalAttrib(lastz_params_node, 'cpu', typeFn=int, default=None)        
     lastz_divergence_node = lastz_params_node.find("kegalignArguments" if gpu else "lastzArguments")
     divergences = params.find("constants").find("divergences")
-    lastz_params = lastz_divergence_node.attrib["default"]
+    lastz_params = lastz_divergence_node.attrib[get_divergence_class(distance, params)]
     if not getOptionalAttrib(divergences, 'useDefault', typeFn=bool, default=False):
-        for i in "one", "two", "three", "four", "five":
-            if distance <= float(divergences.attrib[i]):
-                lastz_params = lastz_divergence_node.attrib[i]
-                break
         logger.info("For distance {} for genomes {}, {} using {} lastz parameters".format(distance, genome_A,
                                                                                           genome_B, lastz_params))
     if gpu:
@@ -217,7 +254,7 @@ def run_fastga(job, name_A, genome_A, name_B, genome_B, distance, params):
                     outfile=unaligned_fasta_b_file, job_memory=job.memory)
 
         # flip back to the lastz aligner
-        root = Job()
+        root = Job(walltime=cactus_walltime())
         job.addChild(root)
         params_lastz = copy.deepcopy(params)
         params_lastz.find('blast').attrib['mapper'] = 'lastz'
@@ -227,17 +264,32 @@ def run_fastga(job, name_A, genome_A, name_B, genome_B, distance, params):
         lastz_job = root.addChildJobFn(make_chunked_alignments, name_A, unaligned_fasta_a_id,
                                        name_B, unaligned_fasta_b_id, distance, params_lastz,
                                        memory=chunked_alignment_memory(unaligned_fasta_a_id, unaligned_fasta_b_id,
-                                                                       params_lastz))
+                                                                       params_lastz),
+                                       walltime=chunked_alignment_walltime(unaligned_fasta_a_id,
+                                                                           unaligned_fasta_b_id))
         # run paffy dechunk a second time, since they contigs were chunked both by extract and chunk
-        dechunk_job = root.addFollowOnJobFn(combine_chunks, [lastz_job.rv()], 1)
+        # this is one dechunk of a whole paf rather than of a chunk of one, and the worst such call
+        # in the 577-way blast logs took 600s.  The paf is a promise, so the bytes it stages are
+        # proxied by the unaligned sequence that went into it.
+        unaligned_size = unaligned_fasta_a_id.size + unaligned_fasta_b_id.size
+        dechunk_job = root.addFollowOnJobFn(combine_chunks, [lastz_job.rv()], 1,
+                                            walltime=cactus_walltime(300, io_bytes=4 * unaligned_size))
             
         # merge the fastga and lastz alignments together
-        merge_job = dechunk_job.addFollowOnJobFn(merge_alignments, job.fileStore.writeGlobalFile(alignment_file), dechunk_job.rv())
+        # (merge_alignments without has_resources only re-schedules itself, so it is coordination)
+        merge_job = dechunk_job.addFollowOnJobFn(merge_alignments, job.fileStore.writeGlobalFile(alignment_file), dechunk_job.rv(),
+                                                 walltime=cactus_walltime())
 
         if getOptionalAttrib(params.find('blast'), 'fastga_stats', typeFn=bool, default=False):
             merge_job.addFollowOnJobFn(log_paf_stats, merge_job.rv(), name_A, genome_A, name_B, genome_B, distance, 'after-lastz',
                                        memory=cactus_clamp_memory(2 * (genome_A.size + genome_B.size)),
-                                       disk=2*(genome_A.size + genome_B.size))
+                                       disk=2*(genome_A.size + genome_B.size),
+                                       # paffy view streams the whole paf against both genomes, the
+                                       # same shape as paffy to_bed, which ran at 99 s/GB of paf at
+                                       # p99 in the 577-way blast logs.  The paf is a promise here,
+                                       # so the estimate scales off the genomes instead.
+                                       walltime=cactus_walltime(120 * (genome_A.size + genome_B.size) / 1e9,
+                                                                io_bytes=3 * (genome_A.size + genome_B.size)))
         
         return merge_job.rv()
 
@@ -337,18 +389,32 @@ def log_paf_stats(job, alignment, name_A, genome_A, name_B, genome_B, distance, 
         stats = "EMPTY"
     RealtimeLogger.info('paf-stats\t{}\t{}\t{}\t{}\t{}'.format(tag, name_B, name_A, distance,
                                                                '\t'.join(stats.strip().split())))    
+# Seconds for one paffy dechunk call, of which combine_chunks makes one per chunk paf it is
+# handed.  The 577-way blast logs have 49536 of them averaging 0.5s (p90 0.5s, p99 7.8s), so a
+# second a chunk is twice the mean before --walltimeFactor.  What makes these jobs slow is
+# downloading the chunks, not dechunking them, and that is the io_bytes term.
+DECHUNK_SECS_PER_CHUNK = 1
+
+
 def combine_chunks(job, chunked_alignment_files, batch_size):
     if len(chunked_alignment_files) >= 2 * batch_size:
         # run combine_chunks in batches
-        root_job = Job()
+        root_job = Job(walltime=cactus_walltime())
         job.addChild(root_job)
         batch_results = []
         for chunk_idx in range(math.ceil(len(chunked_alignment_files) / batch_size)):
             batch = chunked_alignment_files[chunk_idx * batch_size : chunk_idx * batch_size + batch_size]
+            batch_bytes = sum([f.size for f in batch])
             batch_results.append(root_job.addChildJobFn(combine_chunks, batch, batch_size,
-                                                        disk=sum([f.size for f in batch])).rv())
+                                                        disk=batch_bytes,
+                                                        walltime=cactus_walltime(DECHUNK_SECS_PER_CHUNK * len(batch),
+                                                                                 io_bytes=2 * batch_bytes)).rv())
+        # merge_combined_chunks runs no command at all -- it is a copyfileobj of each batch result --
+        # so its time is the staging, which was 23 GB at p90 in the 577-way logs
+        total_bytes = sum([f.size for f in chunked_alignment_files])
         return root_job.addFollowOnJobFn(merge_combined_chunks, batch_results,
-                                         disk=2*sum([f.size for f in chunked_alignment_files])).rv()
+                                         disk=2*total_bytes,
+                                         walltime=cactus_walltime(30, io_bytes=2 * total_bytes)).rv()
     else:
         # Make combined alignments file
         alignment_file = job.fileStore.getLocalTempFile()
@@ -393,6 +459,21 @@ def chunked_alignment_memory(genome_a, genome_b, params):
                                    genome_a.size, genome_b.size))
 
 
+# Seconds of faffy chunk per GB of input fasta.  The 577-way blast logs have 8040 chunk calls
+# (two per make_chunked_alignments) topping out at 174s, against genomes of up to 10 Gb -- about
+# 17 s/Gb at the worst.
+CHUNK_SECS_PER_GB = 20
+
+
+def chunked_alignment_walltime(genome_a, genome_b):
+    """ Walltime for a make_chunked_alignments job: one faffy chunk pass over each genome, then a
+    writeGlobalFile per chunk.  Both terms scale with the two genomes, which are real FileIDs at
+    every call site -- where unmasking has replaced them with promises, pass the pre-unmask sizes,
+    which are the same bytes since unmasking only changes case. """
+    seq_size = genome_a.size + genome_b.size
+    return cactus_walltime(CHUNK_SECS_PER_GB * seq_size / 1e9, io_bytes=2 * seq_size)
+
+
 def make_chunked_alignments(job, event_a, genome_a, event_b, genome_b, distance, params):
     lastz_params_node = params.find("blast")
     gpu = getOptionalAttrib(lastz_params_node, 'gpu', typeFn=int, default=0)
@@ -432,10 +513,17 @@ def make_chunked_alignments(job, event_a, genome_a, event_b, genome_b, distance,
                                                              cores=lastz_cores,
                                                              disk=max(4*(chunk_a.size+chunk_b.size), memory),
                                                              memory=cactus_clamp_memory(memory),
-                                                             accelerators=accelerators).rv())
+                                                             accelerators=accelerators,
+                                                             walltime=cactus_walltime(get_lastz_walltime(distance, params, chunk_a, chunk_b))).rv())
 
     dechunk_batch_size = getOptionalAttrib(lastz_params_node, 'dechunkBatchSize', typeFn=int, default=1e9)
-    return job.addFollowOnJobFn(combine_chunks, chunked_alignment_files, dechunk_batch_size).rv()  # Combine the chunked alignment files
+    # combine_chunks either dechunks the chunk pafs itself or fans them out in batches, so it never
+    # runs more than a batch's worth of dechunks.  The chunk pafs are promises here, so the bytes it
+    # stages are proxied by the sequence they came from (the paf is about 2x the sequence at p90).
+    dechunks = min(len(chunked_alignment_files), 2 * dechunk_batch_size)
+    return job.addFollowOnJobFn(combine_chunks, chunked_alignment_files, dechunk_batch_size,
+                                walltime=cactus_walltime(DECHUNK_SECS_PER_CHUNK * dechunks,
+                                                         io_bytes=8 * (genome_a.size + genome_b.size))).rv()  # Combine the chunked alignment files
 
 
 def invert_alignments(job, alignment_file):
@@ -451,21 +539,27 @@ def invert_alignments(job, alignment_file):
 def make_ingroup_to_outgroup_alignments_0(job, ingroup_event, outgroup_events, event_names_to_sequences, distances, params):
     # Generate the alignments fle
     alignment_file = job.addChildJobFn(make_ingroup_to_outgroup_alignments_1, ingroup_event, outgroup_events,
-                                            event_names_to_sequences, distances, params).rv()
+                                            event_names_to_sequences, distances, params, walltime=cactus_walltime()).rv()
 
     # Invert the final alignment so that the query is the outgroup and the target is the ingroup.
     # paffy invert holds the alignment and its inverse on local disk at once. The alignment's size
     # is a promise here, so estimate it from the sequence that went into it: on a repeat-rich
     # genome the ingroup-to-outgroups paf runs to several times the sequence, and this job
     # otherwise falls back on the 2 Gi default and overruns it by orders of magnitude.
-    alignment_disk = 10 * (event_names_to_sequences[ingroup_event.iD].size +
-                           sum(event_names_to_sequences[outgroup.iD].size for outgroup in outgroup_events))
-    return job.addFollowOnJobFn(invert_alignments, alignment_file, disk=alignment_disk).rv()
+    alignment_seq_size = (event_names_to_sequences[ingroup_event.iD].size +
+                          sum(event_names_to_sequences[outgroup.iD].size for outgroup in outgroup_events))
+    alignment_disk = 10 * alignment_seq_size
+    # The walltime uses the same proxy for the same reason: paffy invert ran at 65 s/GB of paf at
+    # p90 across the 1726 inverts in the 577-way blast logs, and the paf is about 2x its sequence
+    # at p90, so ~150 s/GB of sequence.
+    return job.addFollowOnJobFn(invert_alignments, alignment_file, disk=alignment_disk,
+                                walltime=cactus_walltime(150 * alignment_seq_size / 1e9,
+                                                         io_bytes=4 * alignment_seq_size)).rv()
 
 
 def make_ingroup_to_outgroup_alignments_1(job, ingroup_event, outgroup_events, event_names_to_sequences, distances, params):
     #  a job should never set its own follow-on, so we hang everything off root_job here to encapsulate
-    root_job = Job()
+    root_job = Job(walltime=cactus_walltime())
     job.addChild(root_job)
 
     #  align ingroup to first outgroup to produce paf alignments
@@ -476,7 +570,9 @@ def make_ingroup_to_outgroup_alignments_1(job, ingroup_event, outgroup_events, e
                                        ingroup_event.iD, event_names_to_sequences[ingroup_event.iD], distances[ingroup_event, outgroup], params,
                                        memory=chunked_alignment_memory(event_names_to_sequences[outgroup.iD],
                                                                        event_names_to_sequences[ingroup_event.iD], params),
-                                       disk=4*(event_names_to_sequences[ingroup_event.iD].size+event_names_to_sequences[outgroup.iD].size)).rv()
+                                       disk=4*(event_names_to_sequences[ingroup_event.iD].size+event_names_to_sequences[outgroup.iD].size),
+                                       walltime=chunked_alignment_walltime(event_names_to_sequences[outgroup.iD],
+                                                                           event_names_to_sequences[ingroup_event.iD])).rv()
 
     #  post process the alignments and recursively generate alignments to remaining outgroups
     # Memory: paffy to_bed creates SequenceCountArray (2 bytes per base) for query (ingroup) sequences
@@ -485,14 +581,20 @@ def make_ingroup_to_outgroup_alignments_1(job, ingroup_event, outgroup_events, e
     return root_job.addFollowOnJobFn(make_ingroup_to_outgroup_alignments_2, alignment, ingroup_event, outgroup_events[1:],
                                      event_names_to_sequences, distances, params,
                                      disk=4*(ingroup_size + outgroup_size),
-                                     memory=cactus_clamp_memory(4*ingroup_size + 2*outgroup_size)).rv() if len(outgroup_events) > 1 else alignment
+                                     memory=cactus_clamp_memory(4*ingroup_size + 2*outgroup_size),
+                                     # _2 runs paffy to_bed over the ingroup-to-outgroup paf and then
+                                     # faffy extract over the ingroup fasta: 43 s/GB of (ingroup +
+                                     # outgroup) sequence at p99 in the 577-way blast logs, on top of
+                                     # staging the paf and the fasta.  The paf is a promise here.
+                                     walltime=cactus_walltime(100 * (ingroup_size + outgroup_size) / 1e9,
+                                                              io_bytes=3 * (ingroup_size + outgroup_size))).rv() if len(outgroup_events) > 1 else alignment
 
 
 def make_ingroup_to_outgroup_alignments_2(job, alignments, ingroup_event, outgroup_events,
                                           event_names_to_sequences, distances, params):
     
     # a job should never set its own follow-on, so we hang everything off root_job here to encapsulate
-    root_job = Job()
+    root_job = Job(walltime=cactus_walltime())
     job.addChild(root_job)
 
     # identify all ingroup sub-sequences that remain unaligned longer than a threshold as follows:
@@ -524,10 +626,12 @@ def make_ingroup_to_outgroup_alignments_2(job, alignments, ingroup_event, outgro
 
     # recursively make alignments with the remaining outgroups
     alignments2 = root_job.addChildJobFn(make_ingroup_to_outgroup_alignments_1, ingroup_event, outgroup_events,
-                                         event_names_to_sequences, distances, params).rv()
+                                         event_names_to_sequences, distances, params, walltime=cactus_walltime()).rv()
 
+    # _3 with has_resources unset only re-schedules itself once the two pafs have resolved, so it
+    # is coordination; the instance that does the merging is sized below
     return root_job.addFollowOnJobFn(make_ingroup_to_outgroup_alignments_3, ingroup_event, event_names_to_sequences[ingroup_event.iD],
-                                     alignments, alignments2).rv()
+                                     alignments, alignments2, walltime=cactus_walltime()).rv()
 
 
 def make_ingroup_to_outgroup_alignments_3(job, ingroup_event, ingroup_seq_file, alignments, alignments2, has_resources=False):
@@ -535,8 +639,12 @@ def make_ingroup_to_outgroup_alignments_3(job, ingroup_event, ingroup_seq_file, 
 
     if not has_resources:
         # unpack promises for disk requirement
+        paf_size = alignments.size + alignments2.size
+        # a paffy dechunk of alignments2 then a cat of both.  cat measured 10 s/GB of paf at p99 in
+        # the 577-way blast logs, so staging the two pafs in and the merged one out is the bigger half
         return job.addChildJobFn(make_ingroup_to_outgroup_alignments_3, ingroup_event, ingroup_seq_file, alignments,
-                                 alignments2, has_resources=True, disk=3*(alignments.size + alignments2.size)).rv()
+                                 alignments2, has_resources=True, disk=3*paf_size,
+                                 walltime=cactus_walltime(30 * paf_size / 1e9, io_bytes=3 * paf_size)).rv()
 
     alignments = job.fileStore.readGlobalFile(alignments)  # Copy the global alignment files locally
     alignments2 = job.fileStore.readGlobalFile(alignments2)
@@ -561,8 +669,12 @@ def merge_alignments(job, alignment_file1, alignment_file2, has_resources=False)
     """" Merge together two alignment files """
     if not has_resources:
         # unpack promises for disk requirement
+        paf_size = alignment_file1.size + alignment_file2.size
+        # one cat, so this is almost all staging: cat itself was 10 s/GB of paf at p99 in the
+        # 577-way blast logs against 30 s/GB for reading both pafs and writing the merge
         return job.addChildJobFn(merge_alignments, alignment_file1, alignment_file2, has_resources=True,
-                                 disk = 2 * (alignment_file1.size + alignment_file2.size)).rv()
+                                 disk = 2 * paf_size,
+                                 walltime=cactus_walltime(20 * paf_size / 1e9, io_bytes=3 * paf_size)).rv()
         
     # Get a temporary directory to work in
     work_dir = job.fileStore.getLocalTempDir()
@@ -606,7 +718,14 @@ def chain_alignments_splitting_ingroups_and_outgroups(job, ingroup_alignment_fil
                                                    total_sequence_size=total_sequence_size,
                                                    disk=6 * ingroup_size,
                                                    memory=cactus_clamp_memory(2 * min(ingroup_size,
-                                                                                      chain_split_min_size))).rv()
+                                                                                      chain_split_min_size)),
+                                                   # concat every input paf, paffy invert it (65 s/GB
+                                                   # of paf at p99 in the 577-way blast logs) and
+                                                   # paffy split_file the result (~69 s/GB, taken
+                                                   # from the measured paffy filter, which is the
+                                                   # closest thing to it we have timings for)
+                                                   walltime=cactus_walltime(200 * ingroup_size / 1e9,
+                                                                            io_bytes=4 * ingroup_size)).rv()
 
     # Separately pick the primary of the outgroups to the ingroups. By setting include_inverted_alignments=False
     # we only get outgroup-to-ingroup alignments and not imgroup-to-ouygroup alignments and therefore primary
@@ -617,13 +736,20 @@ def chain_alignments_splitting_ingroups_and_outgroups(job, ingroup_alignment_fil
                                                     total_sequence_size=total_sequence_size,
                                                     disk=6 * outgroup_size,
                                                     memory=cactus_clamp_memory(2 * min(outgroup_size,
-                                                                                       chain_split_min_size))).rv()
+                                                                                       chain_split_min_size)),
+                                                    # same pipeline as the ingroup side above, minus
+                                                    # the paffy invert
+                                                    walltime=cactus_walltime(120 * outgroup_size / 1e9,
+                                                                             io_bytes=3 * outgroup_size)).rv()
 
     # Calculate approximately total alignment file size
     total_file_size = sum(alignment_file.size for alignment_file in ingroup_alignment_files + outgroup_alignment_files)
 
     # Merge the resulting two alignment files into a single set of alignments
-    return job.addFollowOnJobFn(merge_alignments, chained_ingroup_alignments, chained_outgroup_alignments).rv()
+    # (both inputs are promises, so this is merge_alignments' coordination instance -- it schedules
+    # the sized one, which is where the merging happens)
+    return job.addFollowOnJobFn(merge_alignments, chained_ingroup_alignments, chained_outgroup_alignments,
+                                walltime=cactus_walltime()).rv()
 
 def concat_global_files(job, file_ids, output_path):
     """Download and concatenate file_ids into output_path, deleting each from the job store after use."""
@@ -633,6 +759,13 @@ def concat_global_files(job, file_ids, output_path):
             with open(local_path, 'rb') as inf:
                 shutil.copyfileobj(inf, outf)
             job.fileStore.deleteGlobalFile(file_id)
+
+
+# Seconds per GB of input paf for the whole chain -> tile -> trim -> filter -> rechain -> filter
+# pipeline of chain_tile_trim_filter_one_contig.  Pairing per-command seconds against paf bytes in
+# 444 of the 577-way blast logs gives 240 s/GB at p90, 351 at p99 and 722 at the worst -- and that
+# worst case is a 1.7 GB input, i.e. it is the fixed cost showing through rather than a slow rate.
+CHAIN_SECS_PER_GB = 400
 
 
 def chain_alignments(job, alignment_files, alignment_names, reference_event_name, params,
@@ -663,7 +796,8 @@ def chain_alignments(job, alignment_files, alignment_names, reference_event_name
         return job.addChildJobFn(
             chain_tile_trim_filter_one_contig, merged_file_id, reference_event_name, params,
             disk=4 * merged_size,
-            memory=cactus_clamp_memory(4 * merged_size)
+            memory=cactus_clamp_memory(4 * merged_size),
+            walltime=cactus_walltime(CHAIN_SECS_PER_GB * merged_size / 1e9, io_bytes=2 * merged_size)
         ).rv()
 
     # Large input: split by query contig and run per-contig jobs in parallel
@@ -682,10 +816,13 @@ def chain_alignments(job, alignment_files, alignment_names, reference_event_name
         processed_rvs.append(
             job.addChildJobFn(chain_tile_trim_filter_one_contig, split_file_id, reference_event_name, params,
                               disk=4 * split_size,
-                              memory=cactus_clamp_memory(4 * split_size)).rv()
+                              memory=cactus_clamp_memory(4 * split_size),
+                              walltime=cactus_walltime(CHAIN_SECS_PER_GB * split_size / 1e9,
+                                                       io_bytes=2 * split_size)).rv()
         )
 
-    return job.addFollowOnJobFn(merge_processed_alignments, processed_rvs, disk=2 * merged_size).rv()
+    return job.addFollowOnJobFn(merge_processed_alignments, processed_rvs, disk=2 * merged_size,
+                                walltime=cactus_walltime(0, io_bytes=2 * merged_size)).rv()
 
 
 def chain_tile_trim_filter_one_contig(job, split_file_id, reference_event_name, params):
@@ -769,19 +906,23 @@ def merge_processed_alignments(job, processed_file_ids):
 
 def sanitize_then_make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancestor_event_string, params,
                                        output_path=None):
-    sanitize_job = job.addChildJobFn(sanitize_fasta_headers, event_names_to_sequences)
+    sanitize_job = job.addChildJobFn(sanitize_fasta_headers, event_names_to_sequences, walltime=cactus_walltime())
     paf_job = sanitize_job.addFollowOnJobFn(make_paf_alignments, event_tree_string, sanitize_job.rv(),
-                                            ancestor_event_string, params)
+                                            ancestor_event_string, params, walltime=cactus_walltime())
     # gzip the output if requested
     if output_path and output_path.endswith('.gz'):
-        gzip_job = paf_job.addFollowOnJobFn(zip_gz, output_path, paf_job.rv())
+        # gzipping the final paf: one per run in the 577-way blast logs, p50 165s, p99 575s, max
+        # 788s.  A constant rather than a formula because the only input here is paf_job.rv(),
+        # a promise, which has no size until it resolves.
+        gzip_job = paf_job.addFollowOnJobFn(zip_gz, output_path, paf_job.rv(),
+                                            walltime=cactus_walltime(900))
         return gzip_job.rv()
     return paf_job.rv()
 
 
 def make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancestor_event_string, params):
     # a job should never set its own follow-on, so we hang everything off the root_job here to encapsulate
-    root_job = Job()
+    root_job = Job(walltime=cactus_walltime())
     job.addChild(root_job)
 
     logger.info("Parsing species tree: {}".format(event_tree_string))
@@ -819,10 +960,10 @@ def make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancest
     if getOptionalAttrib(lastz_params_node.find("unmask"), 'action', typeFn=str, default='none') != 'none':
         ingroups = [ingroup.iD for ingroup in ingroup_events]
         # Pass a copy of event_names_to_sequences to unmask_job to avoid circular reference
-        unmask_job = root_job.addChildJobFn(unmask_contigs_all, input_sequence_map, ingroups, params)
+        unmask_job = root_job.addChildJobFn(unmask_contigs_all, input_sequence_map, ingroups, params, walltime=cactus_walltime())
         for i,ingroup in enumerate(ingroups):
             event_names_to_sequences[ingroup] = unmask_job.rv(i)
-        new_root_job = Job()
+        new_root_job = Job(walltime=cactus_walltime())
         root_job.addFollowOn(new_root_job)
         root_job = new_root_job
     
@@ -841,7 +982,9 @@ def make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancest
                                                          # pre-unmask size is the right number anyway.
                                                          memory=chunked_alignment_memory(input_sequence_map[ingroup.iD],
                                                                                          input_sequence_map[ingroup2.iD], params),
-                                                         disk=2*total_sequence_size).rv())
+                                                         disk=2*total_sequence_size,
+                                                         walltime=chunked_alignment_walltime(input_sequence_map[ingroup.iD],
+                                                                                             input_sequence_map[ingroup2.iD])).rv())
         ingroup_alignment_names.append('{}-{}_vs_{}'.format(ancestor_event_string, ingroup.iD, ingroup2.iD))
 
     distances = get_distances(event_tree)  # Distances between all pairs of nodes
@@ -854,7 +997,7 @@ def make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancest
     # for each ingroup make alignments to the outgroups
     if int(params.find("blast").attrib["trimIngroups"]):  # Trim the ingroup sequences
         outgroup_alignments = [root_job.addChildJobFn(make_ingroup_to_outgroup_alignments_0, ingroup, outgroup_events,
-                                                      dict(event_names_to_sequences), distances, params).rv()
+                                                      dict(event_names_to_sequences), distances, params, walltime=cactus_walltime()).rv()
                                 for ingroup in ingroup_events] if len(outgroup_events) > 0 else []
     else:
         outgroup_alignments = [root_job.addChildJobFn(make_chunked_alignments,
@@ -864,7 +1007,9 @@ def make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancest
                                                       distances[ingroup, outgroup], params,
                                                       memory=chunked_alignment_memory(input_sequence_map[ingroup.iD],
                                                                                       input_sequence_map[outgroup.iD], params),
-                                                      disk=2*total_sequence_size).rv()
+                                                      disk=2*total_sequence_size,
+                                                      walltime=chunked_alignment_walltime(input_sequence_map[ingroup.iD],
+                                                                                          input_sequence_map[outgroup.iD])).rv()
                                for ingroup in ingroup_events for outgroup in outgroup_events]
     # for better logs
     outgroup_alignment_names = ['{}-og_{}'.format(ancestor_event_string, i) for i in range(len(outgroup_alignments))]
@@ -877,18 +1022,23 @@ def make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancest
                                          ingroup_alignments, ingroup_alignment_names,
                                          outgroup_alignments, outgroup_alignment_names,
                                          ancestor_event_string, params,
-                                         total_sequence_size=total_sequence_size).rv()
+                                         total_sequence_size=total_sequence_size, walltime=cactus_walltime()).rv()
 
     # Delete the unmasked fastas (todo: should we do the unmasking somewhere further upstream?)
     for ingroup in ingroup_events:
-        root_job.addFollowOnJobFn(clean_if_different, event_names_to_sequences[ingroup.iD], input_sequence_map[ingroup.iD])
+        root_job.addFollowOnJobFn(clean_if_different, event_names_to_sequences[ingroup.iD], input_sequence_map[ingroup.iD], walltime=cactus_walltime())
 
     return root_job.addFollowOnJobFn(chain_alignments, ingroup_alignments + outgroup_alignments,
                                      ingroup_alignment_names + outgroup_alignment_names,
                                      ancestor_event_string, params,
                                      total_sequence_size=total_sequence_size,
                                      disk=6 * total_sequence_size,
-                                     memory=cactus_clamp_memory(2 * total_sequence_size)).rv()
+                                     memory=cactus_clamp_memory(2 * total_sequence_size),
+                                     # every alignment file here is a promise, so the sequence is the
+                                     # only size in scope: 600 s/GB of it covers the concat, invert
+                                     # and split_file at the p99 paf-to-sequence ratio of about 7
+                                     walltime=cactus_walltime(600 * total_sequence_size / 1e9,
+                                                              io_bytes=8 * total_sequence_size)).rv()
 
 
 def trim_unaligned_sequences(job, sequences, alignments, params, has_resources=False):
@@ -897,9 +1047,14 @@ def trim_unaligned_sequences(job, sequences, alignments, params, has_resources=F
 
     if not has_resources:
         seq_size = sum([seq.size for seq in sequences])
+        # paffy to_bed --includeInverted over the paf, which is the heavier both-ends variant of the
+        # 99 s/GB-of-paf p99 measured in the 577-way blast logs, then one faffy extract per sequence
+        # and a paffy upconvert, both of which stream at a few s/GB
         return job.addChildJobFn(trim_unaligned_sequences, sequences, alignments, params, has_resources=True,
                                  disk=4*seq_size + 2*alignments.size,
-                                 memory=cactus_clamp_memory(4*seq_size + 2*alignments.size)).rv()
+                                 memory=cactus_clamp_memory(4*seq_size + 2*alignments.size),
+                                 walltime=cactus_walltime(150 * alignments.size / 1e9 + 10 * seq_size / 1e9,
+                                                          io_bytes=2 * seq_size + 2 * alignments.size)).rv()
 
     work_dir = job.fileStore.getLocalTempDir()
     alignments_file = os.path.join(work_dir, 'alignments.paf')    

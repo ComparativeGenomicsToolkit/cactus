@@ -110,6 +110,7 @@ static void cactus_jemalloc_retain_pages(CactusParams *params) {
     }
 
     const char *names[2] = { "dirty_decay_ms", "muzzy_decay_ms" };
+    bool applied = true;
     for (int w = 0; w < 2; w++) {
         ssize_t v = -1;   // never purge
         char key[64];
@@ -137,9 +138,24 @@ static void cactus_jemalloc_retain_pages(CactusParams *params) {
         size_t sz = sizeof(readback);
         snprintf(key, sizeof(key), "arenas.%s", names[w]);
         mallctl_fn(key, &readback, &sz, NULL, 0);
-        st_logInfo("jemalloc %s set to -1: default for new arenas rc=%i (reads back %" PRIi64 "), "
-                   "%i of %u existing arenas set, %i declined\n",
-                   names[w], rc_default, (int64_t)readback, set, narenas, declined);
+        // "declined" is the healthy case, not a failure: jemalloc pre-allocates arena slots but
+        // only initialises the ones in use, and an uninitialised slot refuses the write -- it
+        // inherits the default above when it is eventually created.  Only the default taking
+        // matters, so that is what the one line reports; the rest is for --logDebug.
+        if (rc_default != 0 || readback != -1) {
+            applied = false;
+        }
+        st_logDebug("jemalloc %s: default rc=%i (reads back %" PRIi64 "), "
+                    "%i of %u existing arenas set, %i declined\n",
+                    names[w], rc_default, (int64_t)readback, set, narenas, declined);
+    }
+    // report by exception: the workflow has already logged which way it decided, so this only
+    // speaks up when the decision could not be carried out.
+    if (applied) {
+        st_logDebug("jemalloc page retention applied: dirty_decay_ms and muzzy_decay_ms set to -1\n");
+    } else {
+        st_logInfo("jemalloc page retention was requested but could NOT be applied; "
+                   "pages will be returned to the OS\n");
     }
 }
 

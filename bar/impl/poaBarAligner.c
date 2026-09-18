@@ -5,6 +5,8 @@
  */
 
 #include <limits.h>
+#include <unistd.h>
+#include <time.h>
 #include "abpoa.h"
 #include "poaBarAligner.h"
 #include "flowerAligner.h"
@@ -461,6 +463,84 @@ static void msa_fix_trimmed(Msa* msa) {
     msa->column_no -= empty_columns;
 }
 
+/*
+ * Retention makes bar fast by never returning a freed page, but its peak follows cumulative churn
+ * rather than the working set, so an estimate that is too low does not run slow -- it dies.  This
+ * gives the process a way out: when rss passes CACTUS_BAR_RETENTION_OFF_MB, hand the pages back and
+ * leave decay at stock for the rest of the run.
+ *
+ * One way only.  Purging repeatedly to hold a memory target was measured and lost -- 3666 s for
+ * 73.5 GiB, a worse trade than never retaining at all -- but paying that once to save a job that
+ * would otherwise be killed is a different bargain.
+ *
+ * Called from the window loop because that is the one place that keeps running: bar sorts flowers
+ * largest-first, so early on every thread is inside one enormous flower and anything checking
+ * between flowers sees nothing for hours.  No lock: the flip is idempotent, and a race costs at
+ * worst a second purge.
+ */
+extern int mallctl(const char *, void *, size_t *, void *, size_t) __attribute__((weak));
+static volatile int barGuardTripped = 0;
+static volatile time_t barGuardLastCheck = 0;
+static int64_t barGuardLimitMb = -1;   // -1 unread, 0 disabled
+
+static int64_t barGuardRssMb(void) {
+    FILE *f = fopen("/proc/self/statm", "r");
+    if (f == NULL) return -1;
+    long size = 0, resident = 0;
+    if (fscanf(f, "%ld %ld", &size, &resident) != 2) resident = 0;
+    fclose(f);
+    return (int64_t)resident * (sysconf(_SC_PAGESIZE) / 1024) / 1024;
+}
+
+static void barGuardCheckMemory(void) {
+    if (barGuardTripped || barGuardLimitMb == 0 || mallctl == NULL) {
+        return;
+    }
+    if (barGuardLimitMb < 0) {
+        const char *env = getenv("CACTUS_BAR_RETENTION_OFF_MB");
+        barGuardLimitMb = env != NULL ? atoll(env) : 0;
+        if (barGuardLimitMb <= 0) {
+            barGuardLimitMb = 0;
+            return;
+        }
+    }
+    time_t now = time(NULL);
+    if (now == barGuardLastCheck) {   // at most once a second, racy on purpose
+        return;
+    }
+    barGuardLastCheck = now;
+
+    int64_t rss = barGuardRssMb();
+    if (rss < barGuardLimitMb) {
+        return;
+    }
+    barGuardTripped = 1;
+
+    ssize_t stock[2] = { 10000, 0 };
+    const char *names[2] = { "dirty_decay_ms", "muzzy_decay_ms" };
+    unsigned narenas = 0;
+    size_t nsz = sizeof(narenas);
+    mallctl("arenas.narenas", &narenas, &nsz, NULL, 0);
+    for (int w = 0; w < 2; w++) {
+        char key[64];
+        snprintf(key, sizeof(key), "arenas.%s", names[w]);
+        mallctl(key, NULL, NULL, &stock[w], sizeof(stock[w]));
+        for (unsigned i = 0; i < narenas; i++) {
+            snprintf(key, sizeof(key), "arena.%u.%s", i, names[w]);
+            mallctl(key, NULL, NULL, &stock[w], sizeof(stock[w]));
+        }
+    }
+    for (unsigned i = 0; i < narenas; i++) {
+        char key[64];
+        snprintf(key, sizeof(key), "arena.%u.purge", i);
+        mallctl(key, NULL, NULL, NULL, 0);
+    }
+    st_logCritical("bar: rss reached %" PRIi64 " MB against a %" PRIi64 " MB limit, so jemalloc page "
+                   "retention is now off for the rest of this run (rss %" PRIi64 " MB after). "
+                   "The memory estimate for this job was too low.\n",
+                   rss, barGuardLimitMb, barGuardRssMb());
+}
+
 Msa *msa_make_partial_order_alignment(char **seqs, int *seq_lens, int64_t seq_no, int64_t window_size,
                                       int64_t max_prog_rows, double max_prog_length_diff, abpoa_para_t *poa_parameters) {
 
@@ -515,6 +595,7 @@ Msa *msa_make_partial_order_alignment(char **seqs, int *seq_lens, int64_t seq_no
     
     int64_t prev_bases_remaining = bases_remaining;
     for (int64_t iteration = 0; bases_remaining > 0; ++iteration) {
+        barGuardCheckMemory();
 
         // compute the number of bases this msa will overlap with the previous msa per row,
         // assuming that the alignments overlap by window_overlap_size

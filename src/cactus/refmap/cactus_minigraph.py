@@ -17,13 +17,13 @@ from operator import itemgetter
 import gzip
 
 from cactus.progressive.seqFile import SeqFile
-from cactus.shared.common import setupBinaries, importSingularityImage
+from cactus.shared.common import setupBinaries, importSingularityImage, cactus_walltime
 from cactus.refmap.pangenome_exclusions import event_to_pansn_prefix
 from cactus.shared.common import cactusRootPath
 from cactus.shared.configWrapper import ConfigWrapper
 from cactus.shared.common import makeURL, catFiles, write_s3
 from cactus.shared.common import enableDumpStack
-from cactus.shared.common import cactus_override_toil_options
+from cactus.shared.common import cactus_override_toil_options, add_cactus_toil_options
 from cactus.shared.common import cactus_call
 from cactus.shared.common import getOptionalAttrib, findRequiredNode
 from cactus.shared.common import clean_jobstore_files
@@ -32,6 +32,7 @@ from cactus.progressive.cactus_prepare import human2bytesN
 from cactus.preprocessor.checkUniqueHeaders import sanitize_fasta_headers
 from cactus.paf.last_scoring import last_train
 from toil.job import Job
+from toil.job import PromisedRequirement
 from toil.common import Toil
 from toil.statsAndLogging import logger
 from toil.statsAndLogging import set_logging_from_options
@@ -39,11 +40,13 @@ from toil.realtimeLogger import RealtimeLogger
 from toil.lib.conversions import bytes2human
 from cactus.shared.common import cactus_cpu_count
 from cactus.shared.common import cactus_clamp_memory
+from cactus.shared.common import GZIP_COMPRESS_BYTES_PER_SEC
 from cactus.progressive.multiCactusTree import MultiCactusTree
 from sonLib.bioio import getTempDirectory, getTempFile
 
 def main():
     parser = Job.Runner.getDefaultArgumentParser()
+    add_cactus_toil_options(parser)
 
     parser.add_argument("seqFile", help = "Seq file (or chromfile with --batch)")
     parser.add_argument("outputGFA", help = "Output Minigraph GFA (or directory in --batch mode)")
@@ -141,7 +144,7 @@ def main():
                 
             # output_dict:  chrom-> (gfa_id, pansn_gfa_id, uncollapsed_pansn_gfa_id, collapse_report_id, train_id)
             output_dict = toil.start(Job.wrapJobFn(minigraph_construct_batch_workflow, options, config_node, input_dict, options.outputGFA,
-                                                   in_gfa_id=in_gfa_id))
+                                                   in_gfa_id=in_gfa_id, walltime=cactus_walltime()))
 
         export_minigraph_construct_output(options, input_seqfiles, output_dict, toil)
         
@@ -316,7 +319,8 @@ def minigraph_construct_batch_workflow(job, options, config_node, input_dict, gf
         else:
             gfa_path = options.outputGFA
         mgwf_job = job.addChildJobFn(minigraph_construct_workflow, options, config_node, seq_id_map, seq_order, gfa_path, sanitize,
-                                     construct_seq_id_map=construct_seq_id_map, in_gfa_id=in_gfa_id)
+                                     construct_seq_id_map=construct_seq_id_map, in_gfa_id=in_gfa_id,
+                                     walltime=cactus_walltime())
         output_dict[chrom] = mgwf_job.rv()
     return output_dict
                                     
@@ -341,10 +345,13 @@ def minigraph_construct_workflow(job, options, config_node, seq_id_map, seq_orde
     # the renaming pass decompresses the GFA before bgzipping it back up, so it needs room for
     # the raw copy (reckoned at 10x, as elsewhere) on top of the compressed input and output
     rename_job = job.addChildJobFn(minigraph_gfa_from_pansn, set(seq_id_map.keys()), options.inGFA, in_gfa_id,
-                                   disk=in_gfa_id.size*12)
+                                   disk=in_gfa_id.size*12,
+                                   walltime=cactus_walltime(GFA_RENAME_SECS_PER_GB * in_gfa_id.size / 1e9,
+                                                            io_bytes=RAW_BYTES_PER_GZ_BYTE * in_gfa_id.size))
     run_job = rename_job.addFollowOnJobFn(minigraph_construct_run, options, config_node, seq_id_map, seq_order, gfa_path,
                                           sanitize, construct_seq_id_map,
-                                          rename_job.rv(0), rename_job.rv(1), in_gfa_id)
+                                          rename_job.rv(0), rename_job.rv(1), in_gfa_id,
+                                          walltime=cactus_walltime())
     # all five slots: minigraph_construct_run returns
     # (gfa, pansn_gfa, uncollapsed_pansn_gfa, collapse_report, train).  Truncating here to three
     # left cactus_pangenome's rv(3)/rv(4) reading off the end of the tuple, which Toil reports as
@@ -386,9 +393,15 @@ def minigraph_construct_run(job, options, config_node, seq_id_map, seq_order, gf
             # reads the output name to decide whether to unzip, so it is re-emitted to match
             RealtimeLogger.info('Resuming from the {} genomes in {}: nothing left to construct'.format(
                 len(seed_events), options.inGFA))
+            # one bgzip or gunzip of each of the two seed graphs, so it is the compression rate
+            # over a raw GFA ~10x the compressed input
+            seed_gfa_size = seed_gfa_id.size if hasattr(seed_gfa_id, 'size') else 0
             match_job = job.addChildJobFn(match_gfa_compression, seed_gfa_id, seed_pansn_gfa_id,
                                           options.inGFA, gfa_path,
-                                          disk=12 * (seed_gfa_id.size if hasattr(seed_gfa_id, 'size') else 0))
+                                          disk=12 * seed_gfa_size,
+                                          walltime=cactus_walltime(
+                                              2 * RAW_BYTES_PER_GZ_BYTE * seed_gfa_size / GZIP_COMPRESS_BYTES_PER_SEC,
+                                              io_bytes=4 * seed_gfa_size))
             # last_train reads fastas, not the graph, so resuming is no reason to skip it: without
             # this --lastTrain would quietly fall back to the default scoring matrix
             train_id = None
@@ -396,7 +409,9 @@ def minigraph_construct_run(job, options, config_node, seq_id_map, seq_order, gf
                 train_job = job.addChildJobFn(last_train, config_node, train_seq_order, train_seq_id_map,
                                               ref_name=options.reference[0],
                                               cores=options.mgCores, disk=8*ref_size,
-                                              memory=cactus_clamp_memory(max(8*ref_size, 12*10**9)))
+                                              memory=cactus_clamp_memory(max(8*ref_size, 12*10**9)),
+                                              walltime=cactus_walltime(LAST_TRAIN_SECS + ref_size / 1e6,
+                                                                       io_bytes=3 * ref_size))
                 train_id = train_job.rv()
             # same five slots as the constructing path below.  nothing was constructed, so there
             # is no pre-collapse graph and no report: the graph handed back is the seed as it was.
@@ -414,17 +429,18 @@ def minigraph_construct_run(job, options, config_node, seq_id_map, seq_order, gf
         if construct_seq_id_map:
             construct_seq_id_map = {seq: construct_seq_id_map[seq] for seq in refonly_seq_order}
     if sanitize:
-        sanitize_job = job.addChildJobFn(sanitize_fasta_headers, seq_id_map, pangenome=True)
+        sanitize_job = job.addChildJobFn(sanitize_fasta_headers, seq_id_map, pangenome=True, walltime=cactus_walltime())
         sanitized_seq_id_map = sanitize_job.rv()
     else:
         sanitized_seq_id_map = seq_id_map
-        sanitize_job = Job()
+        sanitize_job = Job(walltime=cactus_walltime())
         job.addChild(sanitize_job)
     xml_node = findRequiredNode(config_node, "graphmap")
     sort_type = getOptionalAttrib(xml_node, "minigraphSortInput", str, default=None)
     if sort_type == "mash" and len(seq_id_map) > 2:
         sort_job = sanitize_job.addFollowOnJobFn(sort_minigraph_input_with_mash, options, config_node, sanitized_seq_id_map, seq_order,
-                                                 ref_name=options.reference[0] if seed_events is not None else None)
+                                                 ref_name=options.reference[0] if seed_events is not None else None,
+                                                 walltime=cactus_walltime())
         seq_order = sort_job.rv()
         prev_job = sort_job
     else:
@@ -433,7 +449,8 @@ def minigraph_construct_run(job, options, config_node, seq_id_map, seq_order, gf
                                               construct_seq_id_map if construct_seq_id_map else sanitized_seq_id_map,
                                               seq_order, gfa_path,
                                               whole_genome_ref=bool(construct_seq_id_map),
-                                              seed_gfa_id=seed_gfa_id, graph_names=graph_names)
+                                              seed_gfa_id=seed_gfa_id, graph_names=graph_names,
+                                              walltime=cactus_walltime())
 
     # optionally rewrite inverted alleles stored as novel sequence into inversion edges.  when this
     # runs, the collapsed graph REPLACES the constructed one in both namings: it is what graphmap,
@@ -455,8 +472,28 @@ def minigraph_construct_run(job, options, config_node, seq_id_map, seq_order, gf
         collapse_job = minigraph_job.addFollowOnJobFn(collapse_inversions, options, config_node,
                                                       minigraph_job.rv(1), gfa_path,
                                                       cores=options.mgCores,
-                                                      disk=8*ref_size,
-                                                      memory=cactus_clamp_memory(8*ref_size))
+                                                      # sized from the graph it collapses, not the
+                                                      # reference: rgfa-collapse's cost is almost all
+                                                      # fixed.  Over 24 HPRC chromosomes it used
+                                                      # 5.9-6.0 GiB of memory and up to 6.57 GiB of
+                                                      # disk while the gfa spanned 6000x (0.03 MB to
+                                                      # 190 MB).  Both are flat in graph size, so the
+                                                      # floors are what is measured -- roughly 2x the
+                                                      # observed peak each -- and the per-byte terms
+                                                      # only bite above them, as insurance for graphs
+                                                      # larger than any seen.  The walltime follows
+                                                      # the same shape, and off the same promise.
+                                                      disk=PromisedRequirement(
+                                                          lambda gfa: max(24 * gfa.size, 16 * 2**30),
+                                                          minigraph_job.rv(1)),
+                                                      memory=PromisedRequirement(
+                                                          lambda gfa: cactus_clamp_memory(max(64 * gfa.size, 12 * 2**30)),
+                                                          minigraph_job.rv(1)),
+                                                      walltime=PromisedRequirement(
+                                                          lambda gfa: cactus_walltime(
+                                                              collapse_inversions_walltime(gfa.size, options.mgCores),
+                                                              io_bytes=4 * gfa.size),
+                                                          minigraph_job.rv(1)))
         # graph_names, the same set the forward rename uses, and for the same reason its comment
         # gives: it has to resolve every SN tag in the finished graph, which on the --inGFA extend
         # path is more genomes than minigraph is given.  It is captured above before seq_id_map is
@@ -465,7 +502,9 @@ def minigraph_construct_run(job, options, config_node, seq_id_map, seq_order, gf
         rename_job = collapse_job.addFollowOnJobFn(minigraph_gfa_from_pansn, graph_names,
                                                    gfa_path, collapse_job.rv(0),
                                                    disk=12*ref_size,
-                                                   memory=cactus_clamp_memory(4*ref_size))
+                                                   memory=cactus_clamp_memory(4*ref_size),
+                                                   walltime=cactus_walltime(GFA_RENAME_SECS_PER_GB * ref_size / 1e9,
+                                                                            io_bytes=RAW_BYTES_PER_GZ_BYTE * ref_size))
         uncollapsed_pansn_gfa_id = minigraph_job.rv(1)
         collapse_report_id = collapse_job.rv(1)
         # rv(0), not rv(): master's minigraph_gfa_from_pansn returns
@@ -479,16 +518,67 @@ def minigraph_construct_run(job, options, config_node, seq_id_map, seq_order, gf
     if options.lastTrain and len(seq_id_map) > 1:
         # note: somehow last training memory overruns don't seem to be detected by slurm so we
         # give 12G at least whenever possible, as --doubleMem won't help...
+        # lastdb dominates the runtime and is erratic: over the 24 per-chromosome runs of the
+        # HPRC v2.1 pangenome (2.0e8-byte reference, 8 cores) it took 55 s at the p50 but
+        # 3934 s at the worst, while the 16x bigger whole-genome reference of HPRC v2.0
+        # (32 cores) took 2821 s.  last-train itself adds 409-680 s on top.  So the estimate is
+        # mostly a flat allowance for that tail, with a small linear term so that small inputs
+        # aren't over-provisioned.  The I/O is the reference plus the training partner, which
+        # last_train() only picks inside the job but constrains to at least half the reference.
         last_train_job = prev_job.addFollowOnJobFn(last_train, config_node, seq_order, sanitized_seq_id_map,
                                                    ref_name=options.reference[0] if seed_events is not None else None,
                                                    cores=options.mgCores,
                                                    disk=8*ref_size,
-                                                   memory=cactus_clamp_memory(max(8*ref_size, 12*10**9)))
+                                                   memory=cactus_clamp_memory(max(8*ref_size, 12*10**9)),
+                                                   walltime=cactus_walltime(LAST_TRAIN_SECS + ref_size / 1e6,
+                                                                            io_bytes=3 * ref_size))
         train_id = last_train_job.rv()
         
     # (cactus-named graph, PanSN graph, the PanSN graph before collapsing or None, per-call report
     #  or None, LAST scoring model or None).  slots 0 and 1 are the graph the pipeline uses.
     return gfa_ids[0], gfa_ids[1], uncollapsed_pansn_gfa_id, collapse_report_id, train_id
+
+# rgfa-collapse's runtime is set by its slowest single minimap2 alignment, not by the total work:
+# the note in collapse_inversions records individual calls running over three hours at -t 2 on
+# CHM13 chr9, and a wide -j cannot spread one alignment across chunks.  So the estimate is keyed
+# on the threads that one alignment gets rather than on the core count.  3.5 h x 2 threads is the
+# measured tail; minimap2 scales well within an alignment, so more threads buy it back.
+COLLAPSE_TAIL_THREAD_SECS = 25200
+
+# The bulk on top of that tail: the vg snarl decomposition and the many small alignments, per GB
+# of the graph being collapsed.  Small, because rgfa-collapse's cost turns out to be almost all
+# fixed -- over 24 HPRC chromosomes its memory and disk barely moved while the graph spanned
+# 6000x -- so this is insurance for graphs larger than any of those rather than the main term.
+
+def collapse_minimap2_threads(cores):
+    """ threads rgfa-collapse gives each minimap2 -- the same split collapse_inversions makes, kept
+    here so the walltime estimate and the job itself cannot drift apart """
+    cores = max(1, int(cores or 1))
+    jobs = min(8, max(1, cores // 8))
+    return max(1, cores // jobs)
+
+COLLAPSE_INVERSIONS_SECS_PER_GB = 2000
+
+# Fixed seconds for a last_train job.  last-train's cost is set by how divergent the pair it picks
+# is, not by how big the reference is, and the two are close to anti-correlated here: over the 27
+# per-chromosome buckets of two HPRC v2.1 runs the median job took 130 s and the largest reference
+# (chr1) finished in 188 s, while the *second smallest* -- the unplaced/unlocalized bucket -- ran
+# 9807 s in one run and 6931 s in the other.  last_train() picks the furthest genome in the mash
+# order that clears its size floor, and that bucket's mash distances span the whole range, so its
+# pick sits at 0.106 against 0.0007-0.0037 for a real chromosome.
+#
+# ref_size is therefore the wrong regressor and this flat term is what carries the pathology.  The
+# old 3000 asked 2:05:30 for that job; it ran 2:43:26 and survived only because the partition it
+# was in did not enforce the limit (its two retries doubled memory, correctly leaving the walltime
+# alone -- both failures were MEMLIMIT).  6000 asks 4:10:32, which clears the worse of the two runs
+# by 1.5x, enough for the 41% they differed by.  It costs the other 26 jobs nothing that matters:
+# they already ask over two hours, so none of them changes partition.
+LAST_TRAIN_SECS = 6000
+
+def collapse_inversions_walltime(gfa_size, cores):
+    """ estimated seconds for one collapse_inversions job, from the graph it is handed """
+    return (COLLAPSE_TAIL_THREAD_SECS / collapse_minimap2_threads(cores) +
+            COLLAPSE_INVERSIONS_SECS_PER_GB * gfa_size / 1e9)
 
 def collapse_inversions(job, options, config_node, pansn_gfa_id, gfa_path):
     """ rewrite inverted alleles that minigraph stored as novel sequence into proper inversion
@@ -532,8 +622,8 @@ def collapse_inversions(job, options, config_node, pansn_gfa_id, gfa_path):
     # -j 4 -t 2).  A chunk holds ~200 query sequences, so minimap2 keeps a high -t busy on its
     # own.  Note minimap2 runs about two threads more than -t asks for, so this deliberately
     # leaves headroom rather than saturating.
-    jobs = min(8, max(1, int(job.cores) // 8))
-    threads = max(1, int(job.cores) // jobs)
+    threads = collapse_minimap2_threads(job.cores)
+    jobs = max(1, int(job.cores) // threads)
     cmd = ['rgfa-collapse'] + opts.split() + \
           ['-j', str(jobs), '-t', str(threads), '-r', os.path.basename(report),
            os.path.basename(in_gfa), os.path.basename(snarls)]
@@ -546,6 +636,18 @@ def collapse_inversions(job, options, config_node, pansn_gfa_id, gfa_path):
                     outfile=out_gfa + '.gz')
         out_gfa += '.gz'
     return job.fileStore.writeGlobalFile(out_gfa), job.fileStore.writeGlobalFile(report)
+
+# Bytes of reference fasta `mash sketch` gets through per second.  It took 225 s on the whole
+# 3.15e9-byte CHM13 of HPRC v2.0 (1.4e7 B/s) and a p50 of 3.4 s on the ~1.3e8-byte chromosome
+# references of HPRC v2.1 (3.9e7 B/s); this is the slow end of that.
+MASH_SKETCH_BYTES_PER_SEC = 1e7
+
+# Bytes of query fasta one mash_dist job gets through per second.  `mash dist` alone runs at
+# 7e6-1.9e7 B/s (694 calls over the 232 mash_dist jobs of HPRC v2.0: p50 168 s, p99 429 s for a
+# 3.1e9-byte haplotype), but the job also concatenates the sample's haplotypes and counts every
+# base of each with Bio.SeqIO.parse, neither of which shows up in the logs as its own command.
+# Budgeting those two at ~2e7 and ~2e8 B/s respectively lands the whole job here.
+MASH_DIST_BYTES_PER_SEC = 3e6
 
 def match_gfa_compression(job, gfa_id, pansn_gfa_id, in_path, out_path):
     """ re-emit an unchanged seed graph at the compression its output path asks for.
@@ -585,11 +687,14 @@ def sort_minigraph_input_with_mash(job, options, config_node, seq_id_map, seq_or
     # assumption : reference is first
     mash_dists = [(0, sys.maxsize)]
     # start by sketching the reference to avoid a bunch of recomputation
+    ref_bytes = seq_id_map[seq_order[0]].size
     sketch_job = job.addChildJobFn(mash_sketch, seq_order[0], seq_id_map,
-                                   disk = seq_id_map[seq_order[0]].size * 2)
+                                   disk = ref_bytes * 2,
+                                   walltime=cactus_walltime(ref_bytes / MASH_SKETCH_BYTES_PER_SEC,
+                                                            io_bytes=ref_bytes))
     ref_sketch_id = sketch_job.rv()
 
-    dist_root_job = Job()
+    dist_root_job = Job(walltime=cactus_walltime())
     sketch_job.addFollowOn(dist_root_job)
 
     xml_node = findRequiredNode(config_node, "graphmap")
@@ -611,11 +716,15 @@ def sort_minigraph_input_with_mash(job, options, config_node, seq_id_map, seq_or
     # list of dictionary (promises) that map genome name to mash distance output
     dist_maps = []
     for sample, names in seq_by_sample.items():
+        sample_bytes = sum(seq_id_map[x].size for x in names)
         dist_map = dist_root_job.addChildJobFn(mash_dist, names, seq_order[0], seq_id_map, ref_sketch_id,
-                                               disk = 2 * sum(seq_id_map[x].size for x in names) + seq_id_map[seq_order[0]].size).rv()
+                                               disk = 2 * sample_bytes + ref_bytes,
+                                               walltime=cactus_walltime(sample_bytes / MASH_DIST_BYTES_PER_SEC,
+                                                                        io_bytes=sample_bytes)).rv()
         dist_maps.append(dist_map)
             
-    return dist_root_job.addFollowOnJobFn(mash_distance_order, options, config_node, seq_order, dist_maps, trim_ref).rv()
+    return dist_root_job.addFollowOnJobFn(mash_distance_order, options, config_node, seq_order, dist_maps, trim_ref,
+                                          walltime=cactus_walltime()).rv()
 
 def mash_sketch(job, ref_seq, seq_id_map):
     """ get the sketch """
@@ -721,6 +830,72 @@ def mash_distance_order(job, options, config_node, seq_order, mash_output_maps, 
 
     return mash_order[1:] if trim_ref else mash_order
             
+# Bytes of input fasta `minigraph -xggs` gets through per second per core.  Re-fitted on the
+# 207 batch constructs of an HPRC v2.1 run (64 cores, 24 chromosomes, 2.7-13.0 GB per batch),
+# which is the first at-scale run of the faster minigraph: dividing the batch bytes by the
+# observed seconds gives p50 7.5e5, p10 3.3e5 and a single worst point of 7.9e4 B/s/core.
+#
+# The old value of 4e4 came from the slower fork (8- and 32-core runs of HPRC v2.0/v2.1), and
+# carrying it over asked 29 h for a chr1 batch that now takes 2.3 h and 72 h for the last one --
+# every construct into the longest partition, which is the opposite of the point.
+#
+# The value is set by chrY and nothing else.  Solving both runs for the rate at which each batch's
+# ask would exactly equal its observed time, the four tightest points of 307 are all chrY (1.8e5
+# to 2.4e5) and the next is chr16 at 6.3e5, against a p50 of 4.1e6 -- so any value that covers
+# chrY leaves every other chromosome several times over-provisioned, and there is no way to tell
+# them apart from bytes.  chrY is slow because it parallelises badly: it holds a CPU factor of 3.9
+# against a p50 of 7.6, and chr2, the next worst, holds 3.2.
+#
+# 1.5e5 clears chrY's worst observed run by 1.3x, which is the margin that matters because chrY
+# swung 14% between the two runs.  The cost of covering it is what pushes the median construct to
+# 8 h and 46 of 207 batches past 12 h; 2e5 would leave only 14 past 12 h but clears chrY by 1.0x,
+# which is to say it times out.  Nothing reaches even the shorter of the two ceilings these runs
+# saw (84 h), and --doubleTime covers a third run worse than either of these.
+MINIGRAPH_CONSTRUCT_BYTES_PER_SEC_PER_CORE = 1.5e5
+
+# ...but not linearly.  minigraph parallelises over query contigs, and the faster fork adds more
+# parallel sections on top of that, but parts of construction remain single-threaded -- so it is
+# Amdahl's law rather than a hard ceiling, and how far it scales depends on the data.  Measured
+# from the CPU factor minigraph reports itself (cputime/elapsed, the `*N` in its
+# [M::ggen_map::T*N] lines), time-weighted over every construct process of an HPRC run: at
+# --mgCores 64 on the current fork it averages 7.96 cores busy, which is a serial fraction of
+# 0.112 and an asymptote near nine cores.
+#
+# Fitted at one core count, so the asymptote is measured and the shape is Amdahl's assumption.
+# It matters most in the middle: at --mgCores 8 this gives 4.5 effective cores where crediting
+# the request in full would give 8, and simply capping at the asymptote would too.
+MINIGRAPH_SERIAL_FRACTION = 0.112
+
+def minigraph_effective_cores(cores):
+    """ cores minigraph construction can actually keep busy at this core count, by Amdahl's law """
+    cores = max(1, int(cores or 1))
+    s = MINIGRAPH_SERIAL_FRACTION
+    return 1.0 / (s + (1.0 - s) / cores)
+
+# Fixed cost of a construct batch on top of the alignment itself: staging in the previous
+# batch's GFA (or the seed graph when extending), which is a promise here and so cannot be
+# sized, and -- on the final batch only -- the in-python PanSN rename plus its bgzip, which is
+# under 310 s even for the 830 MB whole-genome GFA of HPRC v2.0.
+MINIGRAPH_CONSTRUCT_OVERHEAD_SECS = 600
+
+# Each batch aligns its genomes against everything the batches before it already put in the
+# graph, so the same amount of new sequence costs more the later it arrives.  Measured over 23
+# chromosomes of an HPRC run, as batch i's wall time against batch 0's: the p90 runs 1.23, 1.58,
+# 1.81, 1.92, 2.08 for i = 1..5 and then flattens, so the growth saturates rather than
+# compounding.  Keyed off the bytes already in the graph rather than the batch index, so uneven
+# batches and the --inGFA seed graph are handled the same way.
+#
+# The graph itself is the better predictor, but it reaches this point as prev_job.rv(), a promise
+# with no size, so the sequence that went into it is the closest thing in scope.
+MINIGRAPH_GRAPH_GROWTH = 0.25
+MINIGRAPH_GRAPH_GROWTH_MAX = 2.5
+
+def minigraph_graph_growth(prior_bytes, batch_bytes):
+    """ how much slower this batch is than the first, for the graph already built ahead of it """
+    if batch_bytes <= 0:
+        return 1.0
+    return min(1.0 + MINIGRAPH_GRAPH_GROWTH * (prior_bytes / batch_bytes), MINIGRAPH_GRAPH_GROWTH_MAX)
+
 def minigraph_construct_in_batches(job, options, config_node, seq_id_map, seq_order, gfa_path, whole_genome_ref=False,
                                    seed_gfa_id=None, graph_names=None):
     """ Make minigraph in sequential batches.
@@ -770,6 +945,17 @@ def minigraph_construct_in_batches(job, options, config_node, seq_id_map, seq_or
         # minigraph_construct() only uses this to name its local copy, but keep the compression
         # suffix honest since that is what says whether the file it reads is bgzipped
         seed_gfa_path = 'extend.gfa.gz' if options.inGFA.endswith('.gz') else 'extend.gfa'
+    def batch_construct_work(i):
+        """ (bytes batch i adds to the graph, seconds minigraph spends adding them) """
+        start = i * max_batch_size
+        batch_size = len(seq_order) - start if i == num_batches - 1 else max_batch_size
+        batch_bytes = sum(seq_id_map[e].size for e in seq_order[start:start + batch_size])
+        # everything already in the graph this batch has to align against
+        prior_bytes = sum(seq_id_map[e].size for e in seq_order[:start])
+        return batch_bytes, (batch_bytes * minigraph_graph_growth(prior_bytes, batch_bytes) /
+                             (MINIGRAPH_CONSTRUCT_BYTES_PER_SEC_PER_CORE *
+                              minigraph_effective_cores(options.mgCores)))
+
     for i in range(num_batches):        
         batch_size = len(seq_order) - i * max_batch_size if i == num_batches - 1 else max_batch_size
         input_seq_order = seq_order[i * max_batch_size : (i * max_batch_size) + batch_size]
@@ -782,15 +968,29 @@ def minigraph_construct_in_batches(job, options, config_node, seq_id_map, seq_or
             else:
                 out_gfa_path = '{}.{}'.format(gfa_path, i)
             pan_sn_output = False
+        # batch 0 pays for batch 1 as well.  Toil chains a job into its predecessor's allocation
+        # whenever the successor's memory, cores and disk all fit -- walltime is not among the
+        # things nextChainable() looks at -- so a chained pair runs under the *first* job's Slurm
+        # time limit.  Every batch of a chromosome is issued with identical requirements, and
+        # batch 0 is the only one whose sole successor is the next batch: from batch 1 on, each
+        # also carries the clean_jobstore_files follow-on below, and two successors end the chain.
+        # So batches 0 and 1 always share one allocation, and asking only for batch 0 is what
+        # killed chrY's first batch in both of the runs these estimates are drawn from.
+        chained = [i] + ([1] if i == 0 and num_batches > 1 else [])
+        work = [batch_construct_work(j) for j in chained]
         minigraph_job = Job.wrapJobFn(minigraph_construct, options, config_node, seq_id_map, input_seq_order, out_gfa_path,
                                       prev_job.rv() if prev_job else seed_gfa_id,
                                       prev_gfa_path if prev_job else seed_gfa_path,
                                       pan_sn_output, graph_names,
-                                      disk=disk, memory=mem, cores=options.mgCores)
+                                      disk=disk, memory=mem, cores=options.mgCores,
+                                      walltime=cactus_walltime(
+                                          MINIGRAPH_CONSTRUCT_OVERHEAD_SECS * len(chained) +
+                                          sum(secs for _, secs in work),
+                                          io_bytes=sum(nbytes for nbytes, _ in work)))
         if prev_job:
             prev_job.addFollowOn(minigraph_job)
             # delete the output of the previous batch from the job store            
-            minigraph_job.addFollowOnJobFn(clean_jobstore_files, file_ids=[prev_job.rv()])
+            minigraph_job.addFollowOnJobFn(clean_jobstore_files, file_ids=[prev_job.rv()], walltime=cactus_walltime())
         else:
             job.addChild(minigraph_job)
         prev_job = minigraph_job
@@ -902,6 +1102,18 @@ def minigraph_gfa_to_pansn(names, gfa_path, out_gfa_path, threads=1):
     in_file.close()
     out_file.close()
     bgzip_gfa_rename(raw_out_path, out_gfa_path, threads)
+
+# A bgzipped GFA or PAF decompresses to about 10x its size, the figure the disk requests here are
+# already reckoned at.
+RAW_BYTES_PER_GZ_BYTE = 10
+
+# Seconds per GB of *compressed* GFA to rename it between PanSN and Cactus.  Nothing measures this
+# one directly -- cactus-pangenome passes pansn_gfa_input=False, so it only runs from the
+# standalone cactus-graphmap and cactus-graphmap-split entry points and it fired in none of the
+# runs we have logs for.  It rewrites every S-line of the decompressed GFA in python (~40 MB/s) and
+# bgzips the result back up (~25 MB/s, the rate of the whole-panel bgzips that were measured), both
+# single-threaded and both over a raw GFA ~10x the compressed input it is handed.
+GFA_RENAME_SECS_PER_GB = 700
 
 def minigraph_gfa_from_pansn(job, names, gfa_path, gfa_id):
     """ hack to convert PanSN names like simChimp#0#simpChimp.chr6 to Cactus names like id=simChimp.0|simChimp.chr6
