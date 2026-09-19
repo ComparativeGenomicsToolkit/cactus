@@ -1851,6 +1851,47 @@ class TestCase(unittest.TestCase):
         # check the output
         self._check_maf_accuracy(self._out_hal("local"), delta=(0.0025,0.0075), dataset='primates')
 
+    def _write_base_aligner_config(self, base_aligner, star=False):
+        """ Copy the shipped config, point <bar> at the given base aligner, and return the path.
+        Returns the path so a test can hand it to --configFile.
+        """
+        config_path = 'src/cactus/cactus_progressive_config.xml'
+        xml_root = ET.parse(config_path).getroot()
+        bar_elem = xml_root.find("bar")
+        bar_elem.attrib["baseAligner"] = base_aligner
+        # keep the legacy boolean consistent, so nothing still reading it disagrees
+        bar_elem.attrib["partialOrderAlignment"] = "0" if base_aligner == "pecan" else "1"
+        if star:
+            # force cactus to accept multifurcation in tree
+            xml_root.find("multi_cactus").find("decomposition").attrib["allow_multifurcations"] = "1"
+        out_path = os.path.join(self.tempDir, "config.{}.xml".format(base_aligner))
+        with open(out_path, 'w') as out_file:
+            xmlString = ET.tostring(xml_root, encoding='unicode')
+            xmlString = minidom.parseString(xmlString).toprettyxml()
+            out_file.write(xmlString)
+        return out_path
+
+    def testEvolverMinipoaLocal(self):
+        """ Same shape as testEvolverPOALocal, but with minipoa as the base aligner instead of
+        abpoa.  Same dataset and same tolerance, so the two are directly comparable: this is the
+        sharpest accuracy instrument in the suite.
+        """
+        minipoa_config_path = self._write_base_aligner_config("minipoa", star=True)
+        name = "local"
+        self._run_evolver_primates_star(name, configFile = minipoa_config_path)
+        self._check_maf_accuracy(self._out_hal("local"), delta=(0.0025,0.0075), dataset='primates')
+
+    def testEvolverMinipoaMammalsLocal(self):
+        """ The mammals head-to-head: testEvolverLocal runs the same data through abpoa (the
+        shipped default), so running it again with baseAligner="minipoa" and the same tolerance
+        compares the two engines and nothing else.
+        """
+        minipoa_config_path = self._write_base_aligner_config("minipoa")
+        name = "local"
+        self._run_evolver(name, configFile = minipoa_config_path,
+                          chromInfoDict = {'simChow' : 'X,Y',  'simDog' : 'X', 'simRat' : 'Y', 'simHuman' : 'X,Y,Z'})
+        self._check_maf_accuracy(self._out_hal(name), delta=(0.05,0.13))
+
     def testEvolverRefmapLocal(self):
         """ Use the new minimap pangenome pipeline to create an alignment of the primates, then compare with the baseline
         """

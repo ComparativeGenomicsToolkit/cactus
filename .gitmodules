@@ -46,3 +46,7 @@
 [submodule "submodules/FASTAN"]
 	path = submodules/FASTAN
 	url = https://github.com/thegenemyers/FASTAN.git
+[submodule "submodules/minipoa"]
+	path = submodules/minipoa
+	url = https://github.com/ComparativeGenomicsToolkit/minipoa.git
+	branch = cactus-integration

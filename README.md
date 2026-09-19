@@ -36,6 +36,7 @@ Cactus uses many different algorithms and individual code contributions, princip
 - Melissa Jane Hubiz and Adam Siepel for halPhyloP and [Phast](http://compgen.cshl.edu/phast/).
 - B Gulhan, R Burhans, R Harris, M Kandemir, M Haeussler, A Nekrutenko for [KegAlign](https://github.com/galaxyproject/KegAlign), the GPU-accelerated version of LastZ.
 - Yan Gao et al. for [abPOA](https://github.com/yangao07/abPOA)
+- Haodong Liu et al. for [minipoa](https://github.com/NCl3-lhd/minipoa), an optional alternative base aligner in BAR: "Minipoa: A minimizer-based method for fast and memory-efficient partial order alignment" ([doi:10.64898/2026.02.18.706716](https://doi.org/10.64898/2026.02.18.706716))
 - Heng Li for [minigraph](https://github.com/lh3/minigraph), [minimap2](https://github.com/lh3/minimap2), [gfatools](https://github.com/lh3/gfatools) and [dna-brnn](https://github.com/lh3/dna-rnn)
 - Dany Doerr for [GFAffix](https://github.com/marschall-lab/GFAffix), used to optionally clean pangenome graphs.
 - The vg team for [vg](https://github.com/vgteam/vg), used to process pangenome graphs.
