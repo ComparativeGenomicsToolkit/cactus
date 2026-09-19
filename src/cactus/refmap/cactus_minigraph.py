@@ -32,6 +32,7 @@ from cactus.progressive.cactus_prepare import human2bytesN
 from cactus.preprocessor.checkUniqueHeaders import sanitize_fasta_headers
 from cactus.paf.last_scoring import last_train
 from toil.job import Job
+from toil.job import PromisedRequirement
 from toil.common import Toil
 from toil.statsAndLogging import logger
 from toil.statsAndLogging import set_logging_from_options
@@ -455,8 +456,22 @@ def minigraph_construct_run(job, options, config_node, seq_id_map, seq_order, gf
         collapse_job = minigraph_job.addFollowOnJobFn(collapse_inversions, options, config_node,
                                                       minigraph_job.rv(1), gfa_path,
                                                       cores=options.mgCores,
-                                                      disk=8*ref_size,
-                                                      memory=cactus_clamp_memory(8*ref_size))
+                                                      # sized from the graph it collapses, not the
+                                                      # reference: rgfa-collapse's cost is almost all
+                                                      # fixed.  Over 24 HPRC chromosomes it used
+                                                      # 5.9-6.0 GiB of memory and up to 6.57 GiB of
+                                                      # disk while the gfa spanned 6000x (0.03 MB to
+                                                      # 190 MB).  Both are flat in graph size, so the
+                                                      # floors are what is measured -- roughly 2x the
+                                                      # observed peak each -- and the per-byte terms
+                                                      # only bite above them, as insurance for graphs
+                                                      # larger than any seen.
+                                                      disk=PromisedRequirement(
+                                                          lambda gfa: max(24 * gfa.size, 16 * 2**30),
+                                                          minigraph_job.rv(1)),
+                                                      memory=PromisedRequirement(
+                                                          lambda gfa: cactus_clamp_memory(max(64 * gfa.size, 12 * 2**30)),
+                                                          minigraph_job.rv(1)))
         # graph_names, the same set the forward rename uses, and for the same reason its comment
         # gives: it has to resolve every SN tag in the finished graph, which on the --inGFA extend
         # path is more genomes than minigraph is given.  It is captured above before seq_id_map is

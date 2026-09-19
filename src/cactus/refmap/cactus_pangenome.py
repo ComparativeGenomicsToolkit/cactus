@@ -108,7 +108,7 @@ def pangenome_options(parser):
                         "Standard suffixes like K, Ki, M, Mi, G or Gi are supported (default=bytes))", default=None)   
     parser.add_argument("--consRetainPages", choices=['auto', '0', '1'], default=None,
                         help="Whether cactus_consolidated keeps the memory pages jemalloc frees, which is much faster but takes 2-3x the peak memory. "
-                        "auto (the default, from <consolidated retain_pages> in the config) keeps them unless the memory estimate exceeds what the job can be given")
+                        "auto (the default, from <consolidated retain_pages> in the config) keeps them only when the estimate fits in memory_retain_auto_fraction of what the job can be given")
 
     # cactus-graphmap options
     parser.add_argument("--collapseRefPAF", help ="Incorporate given reference self-alignments in PAF format")
