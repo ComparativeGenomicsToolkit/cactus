@@ -538,8 +538,27 @@ def collapse_inversions(job, options, config_node, pansn_gfa_id, gfa_path):
           ['-j', str(jobs), '-t', str(threads), '-r', os.path.basename(report),
            os.path.basename(in_gfa), os.path.basename(snarls)]
     prefix = '[rgfa-collapse-{}]'.format(os.path.basename(gfa_path).replace('.gz', '').replace('.gfa', ''))
-    cactus_call(parameters=cmd, outfile=out_gfa, work_dir=work_dir,
+    try:
+        cactus_call(parameters=cmd, outfile=out_gfa, work_dir=work_dir,
                 realtimeStderrPrefix=prefix, job_memory=job.memory)
+    except RuntimeError as e:
+        # Keep the exact input so the failure can be reproduced.  rgfa-collapse refuses to emit a
+        # graph rgfa-split could not process, and the case that needs it is one the local test
+        # graphs did not contain -- by the time anyone looks, the job's temp dir is gone and the
+        # only copy is buried in the jobstore.  Export the uncompressed GFA it was given, and the
+        # snarls it computed, beside the output that was expected.
+        debug_dir = os.path.join(os.path.dirname(gfa_path) or '.', 'collapse-failed')
+        if '://' not in debug_dir:
+            os.makedirs(debug_dir, exist_ok=True)
+        base = os.path.basename(gfa_path).replace('.gz', '').replace('.gfa', '')
+        cactus_call(parameters=['bgzip', '--threads', str(job.cores)], infile=in_gfa, outfile=in_gfa + '.gz')
+        saved = []
+        for local, name in ((in_gfa + '.gz', base + '.collapse-input.gfa.gz'),
+                            (snarls, base + '.collapse-input.snarls.json')):
+            dest = os.path.join(debug_dir, name)
+            job.fileStore.exportFile(job.fileStore.writeGlobalFile(local), makeURL(dest))
+            saved.append(dest)
+        raise RuntimeError('{}\nrgfa-collapse input saved for reproduction: {}'.format(e, ' '.join(saved)))
 
     if gzipped:
         cactus_call(parameters=['bgzip', '--threads', str(job.cores)], infile=out_gfa,
