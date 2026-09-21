@@ -20,6 +20,18 @@
 #include <sys/resource.h>
 #include <time.h>
 
+/* Minutes below an hour, hours above it: a bar phase runs from seconds on a test to two days
+ * on a 22 Gb genome, and "2418m elapsed" helps nobody. */
+static void bar_format_duration(char *buf, size_t n, int64_t seconds) {
+    if (seconds < 0) {
+        snprintf(buf, n, "?");
+    } else if (seconds < 3600) {
+        snprintf(buf, n, "%" PRIi64 "m", (seconds + 30) / 60);
+    } else {
+        snprintf(buf, n, "%.1fh", seconds / 3600.0);
+    }
+}
+
 // How often to report progress through the flower list, in seconds.
 #define BAR_PROGRESS_INTERVAL 600
 
@@ -151,8 +163,9 @@ void bar(stList *flowers, CactusParams *params, CactusDisk *cactusDisk, stList *
     const time_t barStartTime = time(NULL);
     time_t lastReportTime = barStartTime;
     int64_t lastReportBases = 0;
-    int64_t flowersDone = 0, basesDone = 0;
-    int64_t flowersInFlight = 0;   // started but not finished: below the outer team size means the tail
+    int64_t basesDone = 0;
+    int64_t flowersDone = 0;
+    int64_t flowersInFlight = 0;
 
 #if defined(_OPENMP)
 #pragma omp parallel for schedule(dynamic, 1)
@@ -165,9 +178,10 @@ void bar(stList *flowers, CactusParams *params, CactusDisk *cactusDisk, stList *
 
         // Must be read before stCaf_finish, which adds block ends to the flower
         const int64_t flowerBases = reportProgress ? flower_getTotalBaseLength(flower) : 0;
+
         if (reportProgress) {
-#pragma omp atomic
-            ++flowersInFlight;
+#pragma omp atomic update
+            flowersInFlight++;
         }
 
         // These are all variables used by the filter fns
@@ -241,13 +255,13 @@ void bar(stList *flowers, CactusParams *params, CactusDisk *cactusDisk, stList *
         st_logDebug("Finished filling in the alignments for the flower\n");
 
         if (reportProgress) {
-            int64_t done, bases, inFlight;
-#pragma omp atomic capture
-            { --flowersInFlight; inFlight = flowersInFlight; }
-#pragma omp atomic capture
-            done = ++flowersDone;
+            int64_t bases, done, inFlight;
 #pragma omp atomic capture
             { basesDone += flowerBases; bases = basesDone; }
+#pragma omp atomic capture
+            { flowersDone++; done = flowersDone; }
+#pragma omp atomic capture
+            { flowersInFlight--; inFlight = flowersInFlight; }
 
             time_t now = time(NULL), lastSeen;
 #pragma omp atomic read
@@ -284,13 +298,21 @@ void bar(stList *flowers, CactusParams *params, CactusDisk *cactusDisk, stList *
                          */
                         int64_t eta = (windowSeconds > 0 && windowBases > 0) ?
                             (int64_t)((double)(totalBases - bases) * windowSeconds / windowBases) : -1;
-                        st_logInfo("Bar progress: %" PRIi64 "/%" PRIi64 " flowers (%.2f%%), "
-                                   "%" PRIi64 "/%" PRIi64 " bases (%.2f%%), %" PRIi64 " seconds in bar, "
-                                   "eta %" PRIi64 " seconds, peak memory %" PRIi64 " MB, "
-                                   "%" PRIi64 " in flight\n",
-                                   done, flowerNumber, 100.0 * (double)done / (double)flowerNumber,
-                                   bases, totalBases, 100.0 * baseFraction,
-                                   elapsed, eta, peakMemMB, inFlight);
+                        // Progress is by bases, not flowers: the list is sorted largest-first,
+                        // so 0.02% of flowers can be 40% of the sequence.  The flower count is
+                        // still worth printing beside it, and the in-flight count more so -- it
+                        // is what separates a saturated phase from its tail.  While it sits at
+                        // the thread count every core is busy; once it drops to a handful the run
+                        // is waiting on a few enormous flowers and nothing else can help, which
+                        // is otherwise only visible by going and looking at top.  eta is omitted
+                        // rather than guessed when nothing finished in the interval.
+                        char etaBuf[32], elapsedBuf[32];
+                        bar_format_duration(etaBuf, sizeof(etaBuf), eta);
+                        bar_format_duration(elapsedBuf, sizeof(elapsedBuf), elapsed);
+                        st_logInfo("Bar progress: %.1f%% of bases, %" PRIi64 "/%" PRIi64 " flowers, "
+                                   "%" PRIi64 " in flight, %s elapsed, eta %s, peak %.1f GiB\n",
+                                   100.0 * baseFraction, done, flowerNumber, inFlight,
+                                   elapsedBuf, etaBuf, peakMemMB / 1024.0);
                     }
                 }
             }

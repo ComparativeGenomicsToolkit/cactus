@@ -417,7 +417,7 @@ static void stCaf_convertCactusGraphToFlowers(stPinchThreadSet *threadSet, stCac
     double fillOutTime = stCaf_now() - t;
     t = stCaf_now();
     stHash_destruct(cactusNodesToFlowers);
-    st_logInfo("caf-timing: convert endsHash %.3fs emptyFlowers %.3fs fillOut %.3fs cleanup %.3fs\n",
+    st_logDebug("caf-timing: convert endsHash %.3fs emptyFlowers %.3fs fillOut %.3fs cleanup %.3fs\n",
                endsHashTime, emptyFlowersTime, fillOutTime, stCaf_now() - t);
 }
 
@@ -457,5 +457,5 @@ void stCaf_finish(Flower *flower, stPinchThreadSet *threadSet, int64_t minLength
 
     //Cleanup
     stCaf_destructCactusGraph(cactusGraph, threadSet);
-    st_logInfo("caf-timing: finish graph %.3fs convert %.3fs destruct %.3fs\n", graphTime, convertTime, stCaf_now() - t);
+    st_logDebug("caf-timing: finish graph %.3fs convert %.3fs destruct %.3fs\n", graphTime, convertTime, stCaf_now() - t);
 }
