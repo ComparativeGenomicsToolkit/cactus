@@ -456,8 +456,8 @@ def minigraph_construct_run(job, options, config_node, seq_id_map, seq_order, gf
         # chromosome's slice, but with --mgSplitWholeGenomeRef construct_seq_id_map swaps in the
         # whole-genome reference, so every per-chromosome graph carries all of it.  On a 460-
         # haplotype human run 8x the slice came to 2 GiB, vg snarls alone peaks at 2.0-2.4 GiB
-        # and rgfa-collapse at 4-6 GiB: every chromosome OOM'd (exit 137 in vg snarls) and only
-        # passed on Toil's third doubling, at 8 GiB.
+        # and rgfa-collapse at 4-6 GiB: every chromosome OOM'd (exit 137 in vg snarls) and passed
+        # only after Toil had doubled it to 8 GiB, or 16 GiB for chr6, chr17 and chrX.
         collapse_ref_size = (construct_seq_id_map or seq_id_map)[options.reference[0]].size
         collapse_job = minigraph_job.addFollowOnJobFn(collapse_inversions, options, config_node,
                                                       minigraph_job.rv(1), gfa_path,
