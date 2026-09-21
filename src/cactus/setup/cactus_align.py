@@ -109,7 +109,7 @@ def main():
                         "Standard suffixes like K, Ki, M, Mi, G or Gi are supported (default=bytes))", default=None)
     parser.add_argument("--consRetainPages", choices=['auto', '0', '1'], default=None,
                         help="Whether cactus_consolidated keeps the memory pages jemalloc frees, which is much faster but takes 2-3x the peak memory. "
-                        "auto (the default, from <consolidated retain_pages> in the config) keeps them unless the memory estimate exceeds what the job can be given")
+                        "auto (the default, from <consolidated retain_pages> in the config) keeps them when memory_retain_multiple times the estimate, plus one further estimate of headroom, fits what the job can be given, and asks for that multiple; where that ceiling is unknown (any batch system but single_machine and slurm, unless --maxMemory is given) the pages are returned")
     parser.add_argument("--chromInfo",
                         help="Two-column file mapping genome (col 1) to comma-separated list of sex chromosomes. This information "
                         "will be used to guide outgroup selection so that, where possible, all chromosomes are present in"
