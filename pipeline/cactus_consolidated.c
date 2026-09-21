@@ -110,7 +110,9 @@ static void cactus_jemalloc_retain_pages(CactusParams *params) {
     if (cactusParams_has(params, 2, "consolidated", "retain_pages")) {
         char *setting = cactusParams_get_string(params, 2, "consolidated", "retain_pages");
         bool off = strcmp(setting, "0") == 0;
-        st_logInfo("<consolidated retain_pages=\"%s\">: jemalloc page retention %s\n", setting, off ? "off" : "on");
+        // The workflow already logs this decision, with the resulting request beside it, which is
+        // the part a reader can act on.  Report by exception here, as the failure path below does.
+        st_logDebug("<consolidated retain_pages=\"%s\">: jemalloc page retention %s\n", setting, off ? "off" : "on");
         free(setting);
         if (off) {
             return;
@@ -623,6 +625,9 @@ int main(int argc, char *argv[]) {
     caf(flower, params, alignmentsFile, secondaryAlignmentsFile, constraintAlignmentsFile, referenceEvent);
     assert(flower_builtBlocks(flower));
     st_logInfo("Ran cactus caf, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
+    // Caf's melting rounds check the guard themselves, but stCaf_finish runs after the last of
+    // them and is where salamander Anc3 crossed the limit unnoticed.
+    cactus_retentionGuard();
 
     if(runChecks) {
         flower_checkRecursive(flower);
@@ -650,6 +655,9 @@ int main(int argc, char *argv[]) {
         stHash_destruct(flower_to_length);
         st_logInfo("Ran extended flowers ready for bar on %" PRIi64 " flowers, %" PRIi64 " seconds have elapsed\n",
                    stList_length(leafFlowers), time(NULL) - startTime);
+        // Last chance before bar starts allocating: extending and sorting 18M flowers is minutes
+        // of work with no other check in it.
+        cactus_retentionGuard();
 
         bar(leafFlowers, params, cactusDisk, NULL);
         // optional: a config may carry only <bar baseAligner>, with no legacy boolean at all

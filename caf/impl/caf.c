@@ -512,16 +512,19 @@ void caf(Flower *flower, CactusParams *params, char *alignmentsFile, char *secon
                     break;
                 }
                 stCaf_meltChains(flower, threadSet, minimumChainLengthForMeltingRound, 0, INT64_MAX);
+                cactus_retentionGuard();
             } st_logDebug("Last melting round of cycle with a minimum chain length of %" PRIi64 " \n", minimumChainLength);
             stCaf_meltChains(flower, threadSet, minimumChainLength, breakChainsAtReverseTandems, maximumMedianSequenceLengthBetweenLinkedEnds);
             //This does the filtering of blocks that do not have the required species/tree-coverage/degree.
             stCaf_melt(flower, threadSet, blockFilterFn, fa, blockTrim, 0, 0, INT64_MAX);
+            cactus_retentionGuard();
         }
 
         if (removeRecoverableChains) {
             t = stCaf_now();
             stCaf_meltRecoverableChains(flower, threadSet, breakChainsAtReverseTandems, maximumMedianSequenceLengthBetweenLinkedEnds, recoverableChainsFilter, maxRecoverableChainsIterations, maxRecoverableChainLength);
             st_logInfo("caf-timing: recoverable total %.3fs\n", stCaf_now() - t);
+            cactus_retentionGuard();
         }
 
         t = stCaf_now();
