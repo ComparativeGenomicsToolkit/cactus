@@ -452,11 +452,18 @@ def minigraph_construct_run(job, options, config_node, seq_id_map, seq_order, gf
     uncollapsed_pansn_gfa_id, collapse_report_id = None, None
     if getOptionalAttrib(xml_node, "collapseInversions", typeFn=bool, default=False) and \
        not getattr(options, 'refOnly', False):
+        # Size on the reference the graph was actually built from.  ref_size above is the
+        # chromosome's slice, but with --mgSplitWholeGenomeRef construct_seq_id_map swaps in the
+        # whole-genome reference, so every per-chromosome graph carries all of it.  On a 460-
+        # haplotype human run 8x the slice came to 2 GiB, vg snarls alone peaks at 2.0-2.4 GiB
+        # and rgfa-collapse at 4-6 GiB: every chromosome OOM'd (exit 137 in vg snarls) and passed
+        # only after Toil had doubled it to 8 GiB, or 16 GiB for chr6, chr17 and chrX.
+        collapse_ref_size = (construct_seq_id_map or seq_id_map)[options.reference[0]].size
         collapse_job = minigraph_job.addFollowOnJobFn(collapse_inversions, options, config_node,
                                                       minigraph_job.rv(1), gfa_path,
                                                       cores=options.mgCores,
-                                                      disk=8*ref_size,
-                                                      memory=cactus_clamp_memory(8*ref_size))
+                                                      disk=8*collapse_ref_size,
+                                                      memory=cactus_clamp_memory(8*collapse_ref_size))
         # graph_names, the same set the forward rename uses, and for the same reason its comment
         # gives: it has to resolve every SN tag in the finished graph, which on the --inGFA extend
         # path is more genomes than minigraph is given.  It is captured above before seq_id_map is
@@ -538,8 +545,31 @@ def collapse_inversions(job, options, config_node, pansn_gfa_id, gfa_path):
           ['-j', str(jobs), '-t', str(threads), '-r', os.path.basename(report),
            os.path.basename(in_gfa), os.path.basename(snarls)]
     prefix = '[rgfa-collapse-{}]'.format(os.path.basename(gfa_path).replace('.gz', '').replace('.gfa', ''))
-    cactus_call(parameters=cmd, outfile=out_gfa, work_dir=work_dir,
+    try:
+        cactus_call(parameters=cmd, outfile=out_gfa, work_dir=work_dir,
                 realtimeStderrPrefix=prefix, job_memory=job.memory)
+    except RuntimeError as e:
+        # Keep the exact input so the failure can be reproduced.  rgfa-collapse refuses to emit a
+        # graph rgfa-split could not process, and the case that needs it is one the local test
+        # graphs did not contain -- by the time anyone looks, the job's temp dir is gone and the
+        # only copy is buried in the jobstore.  Export the uncompressed GFA it was given, and the
+        # snarls it computed, beside the output that was expected.
+        # Under --mgSplit options.outputGFA is '' and gfa_path is a bare filename, so its dirname
+        # is the worker's cwd and the files vanish with the job -- sep20 logged 32 saves and left
+        # nothing on disk.  Anchor on --outDir when the pipeline has one.
+        out_root = getattr(options, 'outDir', None) or os.path.dirname(gfa_path) or '.'
+        debug_dir = os.path.join(out_root, 'collapse-failed')
+        if '://' not in debug_dir:
+            os.makedirs(debug_dir, exist_ok=True)
+        base = os.path.basename(gfa_path).replace('.gz', '').replace('.gfa', '')
+        cactus_call(parameters=['bgzip', '--threads', str(job.cores)], infile=in_gfa, outfile=in_gfa + '.gz')
+        saved = []
+        for local, name in ((in_gfa + '.gz', base + '.collapse-input.gfa.gz'),
+                            (snarls, base + '.collapse-input.snarls.json')):
+            dest = os.path.join(debug_dir, name)
+            job.fileStore.exportFile(job.fileStore.writeGlobalFile(local), makeURL(dest))
+            saved.append(dest)
+        raise RuntimeError('{}\nrgfa-collapse input saved for reproduction: {}'.format(e, ' '.join(saved)))
 
     if gzipped:
         cactus_call(parameters=['bgzip', '--threads', str(job.cores)], infile=out_gfa,
