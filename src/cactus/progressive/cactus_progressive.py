@@ -42,6 +42,8 @@ from cactus.progressive.progressive_decomposition import compute_outgroups, pars
 from cactus.preprocessor.cactus_preprocessor import CactusPreprocessor
 from cactus.preprocessor.dnabrnnMasking import loadDnaBrnnModel
 from cactus.preprocessor.checkUniqueHeaders import sanitize_fasta_headers
+from cactus.preprocessor.checkPreprocessedSequence import preprocessed_fasta_id
+from cactus.hal.cactus_validate import fail_hal_validation, validate_hal_export
 from cactus.paf.local_alignment import make_paf_alignments, trim_unaligned_sequences
 from cactus.shared.configWrapper import ConfigWrapper
 from cactus.progressive.multiCactusTree import MultiCactusTree
@@ -208,7 +210,8 @@ def progressive_step_2(job, trimmed_outgroups_and_alignments, options, config_no
 
 def export_hal(job, mc_tree, config_node, seq_id_map, og_map, results, event=None, cacheBytes=None,
                cacheMDC=None, cacheRDC=None, cacheW0=None, chunk=None, inMemory=False,
-               checkpointInfo=None, acyclicEvent=None, has_resources=False, memory_override=None):
+               checkpointInfo=None, acyclicEvent=None, has_resources=False, memory_override=None,
+               validate=False):
 
     # todo: going through list nonsense because (i think) it helps with promises, should at least clean up
     work_dir = job.fileStore.getLocalTempDir()
@@ -272,6 +275,11 @@ def export_hal(job, mc_tree, config_node, seq_id_map, og_map, results, event=Non
 
     if not has_resources:
         disk = 3 * sum([file_id.size for file_id in fa_file_ids + c2h_file_ids])
+        if validate:
+            # the check works through one genome at a time, holding its input fasta
+            # and the copy extracted back out of the hal on disk together
+            seq_sizes = [preprocessed_fasta_id(file_id).size for file_id in seq_id_map.values() if file_id]
+            disk += 2 * max(seq_sizes) if seq_sizes else 0
         mem = cactus_clamp_memory(5 * (max([file_id.size for file_id in fa_file_ids]) + max([file_id.size for file_id in c2h_file_ids])))
         # allows pass-through of memory override from --consMemory
         if memory_override:
@@ -279,7 +287,7 @@ def export_hal(job, mc_tree, config_node, seq_id_map, og_map, results, event=Non
         return job.addChildJobFn(export_hal, mc_tree, config_node, seq_id_map, og_map, results, event=event,
                                  cacheBytes=cacheBytes, cacheMDC=cacheMDC, cacheRDC=cacheRDC, cacheW0=cacheW0,
                                  chunk=chunk, inMemory=inMemory, checkpointInfo=checkpointInfo,
-                                 acyclicEvent=acyclicEvent, has_resources=True,
+                                 acyclicEvent=acyclicEvent, has_resources=True, validate=validate,
                                  disk=disk, memory=mem).rv()
 
     cactus_call(parameters=["halSetMetadata", hal_path, "CACTUS_COMMIT", cactus_commit])
@@ -291,10 +299,22 @@ def export_hal(job, mc_tree, config_node, seq_id_map, og_map, results, event=Non
     if acyclicEvent:
         cactus_call(parameters=["halRemoveDupes", hal_path, acyclicEvent], job_memory=job.memory)
 
-    if checkpointInfo:
+    # check the finished file before anyone else can see it, and in particular
+    # before it is checkpointed to s3
+    problems = validate_hal_export(job, hal_path, work_dir, mc_tree, root_node, seq_id_map) \
+        if validate else []
+
+    if checkpointInfo and not problems:
         write_s3(hal_path, checkpointInfo[1], region=checkpointInfo[0])
 
-    return job.fileStore.writeGlobalFile(hal_path)
+    hal_id = job.fileStore.writeGlobalFile(hal_path)
+    if problems:
+        # fail from a follow-on rather than from here.  The alignment does not
+        # match its input however many times it is rebuilt, so raising in this
+        # job would only have toil redo the whole export five times before
+        # giving up.  The workflow still fails, and nothing was published.
+        job.addFollowOnJobFn(fail_hal_validation, os.path.basename(hal_path), problems)
+    return hal_id
     
 def progressive_workflow(job, options, config_node, mc_tree, og_map, input_seq_id_map):
     ''' run the entire progressive workflow '''
@@ -326,7 +346,8 @@ def progressive_workflow(job, options, config_node, mc_tree, og_map, input_seq_i
 
     # then do the hal export
     hal_export_job = progressive_job.addFollowOnJobFn(export_hal, mc_tree, config_node, seq_id_map, og_map,
-                                                      progressive_job.rv(), event=root_event, memory_override=options.consMemory)
+                                                      progressive_job.rv(), event=root_event, memory_override=options.consMemory,
+                                                      validate=options.validate)
 
     return hal_export_job.rv()
 
@@ -394,6 +415,11 @@ def main():
                         help="Scale branch lengths by this factor to adjust alignment sensitivity (e.g., 2.0 = treat branches as 2x longer, more sensitive)")
     parser.add_argument("--hdf5Codec", choices=["deflate", "lz4", "zstd", "none"], default=None,
                         help="HDF5 compression codec for HAL output (overrides config XML, default=deflate)")
+    parser.add_argument("--validate", action="store_true",
+                        help="Before writing the output, check that every sequence in the HAL is "
+                        "still identical (modulo soft-masking) to the sequence that was aligned. "
+                        "Costs one extra pass over the alignment; cactus-validate runs the same "
+                        "check by hand later.")
 
     options = parser.parse_args()
 

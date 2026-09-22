@@ -89,6 +89,7 @@ all_libs.blastLib: all_libs.api
 # Python tests
 testModules = \
     progressive/outgroupTest.py \
+    hal/cactus_validateTest.py \
     preprocessor/cactus_preprocessorTest.py \
     preprocessor/checkPreprocessedSequenceTest.py \
     preprocessor/lastzRepeatMasking/cactus_lastzRepeatMaskTest.py \

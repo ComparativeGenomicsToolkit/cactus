@@ -45,11 +45,13 @@ class TestCase(unittest.TestCase):
         return os.path.join(self.tempDir, 'evolver-{}.hal'.format(binariesMode))
 
     def _run_evolver(self, binariesMode, configFile = None, seqFile = './examples/evolverMammals.txt', chromInfoDict={},
-                     fastga=False):
+                     fastga=False, validate=True):
         """ Run the full evolver test, putting the jobstore and output in tempDir
         """
         cmd = ['cactus', self._job_store(binariesMode), seqFile, self._out_hal(binariesMode),
                         '--binariesMode', binariesMode, '--logInfo', '--workDir', self.tempDir]
+        if validate:
+            cmd += ['--validate']
         if configFile:
             cmd += ['--configFile', configFile]
         if chromInfoDict:
@@ -356,8 +358,11 @@ class TestCase(unittest.TestCase):
         out_dir = os.path.join(self.tempDir, 'output')
         out_seqfile = os.path.join(out_dir, 'evolverMammalsOut.txt')
         in_seqfile = './examples/evolverMammals.txt'
+        # --noValidate here (cactus-prepare turns --validate on for its cactus-align
+        # commands by default) so that the recipe without it stays under test
         cmd = ['cactus-prepare', in_seqfile, '--outDir', out_dir, '--outSeqFile', out_seqfile, '--outHal', self._out_hal(name),
-               '--jobStore', self._job_store(name), '--alignCores', '2', '--halAppendBatchSize', '2', '--script']
+               '--jobStore', self._job_store(name), '--alignCores', '2', '--halAppendBatchSize', '2', '--script',
+               '--noValidate']
         bm_flag = '--binariesMode {}'.format(binariesMode)
         if binariesMode == "docker":
             bm_flag += ' --latest'
@@ -1665,6 +1670,19 @@ class TestCase(unittest.TestCase):
                 magic = f.read(4)
             self.assertEqual(magic, b'\x26\xfc\x8f\x88', 'Bad bigWig magic in ' + bw)
 
+    def _check_validate(self, halPath, name, seqFile = './examples/evolverMammals.txt',
+                        binariesMode = 'local'):
+        """ Run cactus-validate over a finished alignment and insist it is clean.
+
+        This is the standalone command rather than the --validate that ran
+        inside the alignment: it reaches the HAL from the outside, replays the
+        sequence renaming itself, and has to agree with the original seqfile
+        rather than with the preprocessed sequence cactus handed to the aligner.
+        """
+        subprocess.check_call(['cactus-validate', self._job_store(name + '-validate'),
+                               seqFile, halPath, '--binariesMode', binariesMode,
+                               '--workDir', self.tempDir])
+
     def _check_valid_hal(self, halPath, expected_tree=None):
         """ Make sure a hal passes halValidate and has the given tree """
 
@@ -1681,6 +1699,9 @@ class TestCase(unittest.TestCase):
         name = "local"
         self._run_evolver(name, chromInfoDict = {'simChow' : 'X,Y',  'simDog' : 'X', 'simRat' : 'Y', 'simHuman' : 'X,Y,Z'})
 
+        # the alignment still holds the sequence it was given
+        self._check_validate(self._out_hal(name), name)
+
         # check the output
         #self._check_stats(self._out_hal(name), delta_pct=0.25)
         #self._check_coverage(self._out_hal(name), delta_pct=0.20)
@@ -1690,9 +1711,11 @@ class TestCase(unittest.TestCase):
         """ Check that the output of halStats on a hal file produced by running cactus with --binariesMode local is
         is reasonable with fastga alignments
         """
-        # run cactus directly, the old school way
+        # run cactus directly, the old school way.  This is the one evolver run
+        # left without --validate, so that the workflow without it stays under
+        # test and the check cannot become load-bearing by accident.
         name = "local"
-        self._run_evolver(name, fastga = True)
+        self._run_evolver(name, fastga = True, validate = False)
 
         # check the output
         #self._check_stats(self._out_hal(name), delta_pct=0.25)

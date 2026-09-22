@@ -111,6 +111,13 @@ def main(toil_mode=False):
     parser.add_argument("--zone", default="us-west2-a", help="zone used for all but gpu tasks")
     parser.add_argument("--hdf5Codec", choices=["deflate", "lz4", "zstd", "none"], default=None,
                         help="HDF5 compression codec for HAL output (overrides config XML, default=deflate)")
+    parser.add_argument("--noValidate", action="store_true",
+                        help="Do not pass --validate to the cactus-align commands. They check "
+                        "each HAL against the sequence that was aligned before writing it out, "
+                        "which is on by default here because the step-by-step recipes are what "
+                        "long cluster runs use, and a truncated input is exactly what goes "
+                        "unnoticed in one. Note this cannot go through --cactusOptions, which "
+                        "every command sees, not just cactus-align.")
 
     if not toil_mode:
         parser.add_argument("--defaultCores", type=int, help="Number of cores for each job unless otherwise specified")
@@ -637,12 +644,13 @@ def get_plan(options, inSeqFile, outSeqFile, configWrapper, toil):
                         ' --branchScale {}'.format(options.branchScale) if options.branchScale else '',
                         get_log_options(options, 'blast', event),
                         ' && \\' if options.script else '')
-                    plan += 'cactus-align {} {} {} {} --root {} {} {}{}{}{}{}{}\n'.format(
+                    plan += 'cactus-align {} {} {} {} --root {} {} {}{}{}{}{}{}{}\n'.format(
                         get_jobstore(options), options.outSeqFile, cigarPath(event), halPath(event), event,
                         cactus_options, get_toil_resource_opts(options, 'align'),
                         ' --includeRoot' if options.includeRoot and event == mc_tree.getRootName() else '',
                         ' --chromInfo {}'.format(options.chromInfo) if options.chromInfo else '',
                         ' --branchScale {}'.format(options.branchScale) if options.branchScale else '',
+                        '' if options.noValidate else ' --validate',
                         get_log_options(options, 'align', event),
                         ' && \\' if options.script else '')
                     plan += 'cactus-hal2fasta {} {} {} {} {} {}{}\n'.format(
@@ -1073,8 +1081,9 @@ def wdl_task_align(options):
     s += 'cactus-align {} ${{in_seq_file}} ${{sep=\" \" in_blast_files}} ${{out_hal_name}} --root ${{in_root}}'.format(get_jobstore(options, 'align'))
     s += ' --pathOverrides ${{sep=\" \" in_fa_files}} ${{sep=\" \" in_fa_urls}} --pathOverrideNames ${{sep=\" \" in_fa_names}} {}'.format(options.cactusOptions)
     s += ' ${\"--chromInfo \" + in_chrom_info_file}'
-    s += ' {} {} ${{\"--configFile \" + in_config_file}} ${{in_options}}'.format(get_toil_resource_opts(options, 'align'),
-                                                                                   '--branchScale {}'.format(options.branchScale) if options.branchScale else '')
+    s += ' {} {}{} ${{\"--configFile \" + in_config_file}} ${{in_options}}'.format(get_toil_resource_opts(options, 'align'),
+                                                                                   '--branchScale {}'.format(options.branchScale) if options.branchScale else '',
+                                                                                   '' if options.noValidate else ' --validate')
     s += '\n        '
     s += 'cactus-hal2fasta {} ${{out_hal_name}} ${{in_root}} ${{out_fa_name}} {}'.format(get_jobstore(options), options.cactusOptions)
     s += '\n    }\n'
@@ -1164,7 +1173,7 @@ def toil_call_align(job, options, seq_file, mc_tree, og_map, event, cigar_name, 
     cactus_call(parameters=['cactus-align', os.path.join(work_dir, 'js'), seq_file_path] + blast_files +
                 [out_hal_path, '--root', event,
                  '--pathOverrides'] + fa_paths + ['--pathOverrideNames'] + dep_names +
-                ['--workDir', work_dir, '--maxCores', str(int(job.cores)), '--maxDisk', bytes2humanN(job.disk), '--maxMemory', bytes2humanN(job.memory)] + options.cactusOptions.strip().split(' ') + (['--chromInfo', options.chromInfo] if options.chromInfo else []) + (['--branchScale', str(options.branchScale)] if options.branchScale else []))
+                ['--workDir', work_dir, '--maxCores', str(int(job.cores)), '--maxDisk', bytes2humanN(job.disk), '--maxMemory', bytes2humanN(job.memory)] + options.cactusOptions.strip().split(' ') + (['--chromInfo', options.chromInfo] if options.chromInfo else []) + (['--branchScale', str(options.branchScale)] if options.branchScale else []) + ([] if options.noValidate else ['--validate']))
 
     out_hal_id = job.fileStore.writeGlobalFile(out_hal_path)
 
