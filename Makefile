@@ -8,6 +8,9 @@ modules = api setup caf bar hal reference pipeline preprocessor
 # both cactus and sonLib
 # jemalloc is conditionally added based on include.mk settings
 submodules1 = sonLib cPecan hal matchingAndOrdering pinchesAndCacti abPOA lastz paffy red collapse-bubble FASTGA FASTAN alntools
+ifeq ($(minipoa),on)
+submodules1 += minipoa
+endif
 submodules2 = cactus2hal
 submodules = ${submodules1} ${submodules2}
 
@@ -210,6 +213,14 @@ evolver_test_update_branch_local: ${CWD}/test/mammals-truth.maf
 evolver_test_poa_local: all ${CWD}/test/primates-truth.maf
 	PYTHONPATH="${CWD}/submodules/" CACTUS_BINARIES_MODE=local CACTUS_DOCKER_MODE=0 ${PYTHON} -m pytest ${pytestOpts} -s test/evolverTest.py::TestCase::testEvolverPOALocal
 
+# minipoa, same dataset and tolerance as evolver_test_poa_local, so the two are comparable
+evolver_test_minipoa_local: all ${CWD}/test/primates-truth.maf
+	PYTHONPATH="${CWD}/submodules/" CACTUS_BINARIES_MODE=local CACTUS_DOCKER_MODE=0 ${PYTHON} -m pytest ${pytestOpts} -s test/evolverTest.py::TestCase::testEvolverMinipoaLocal
+
+# the mammals head-to-head against evolver_test_local, which runs the same data through abpoa
+evolver_test_minipoa_mammals_local: all ${CWD}/test/mammals-truth.maf
+	PYTHONPATH="${CWD}/submodules/" CACTUS_BINARIES_MODE=local CACTUS_DOCKER_MODE=0 ${PYTHON} -m pytest ${pytestOpts} -s test/evolverTest.py::TestCase::testEvolverMinipoaMammalsLocal
+
 evolver_test_refmap_local: all ${CWD}/test/primates-truth.maf
 	PYTHONPATH="${CWD}/submodules/" CACTUS_BINARIES_MODE=local CACTUS_DOCKER_MODE=0 ${PYTHON} -m pytest ${pytestOpts} -s test/evolverTest.py::TestCase::testEvolverRefmapLocal
 
@@ -247,7 +258,7 @@ evolver_test_primates_pangenome_resume_local: all ${CWD}/test/primates-truth.maf
 evolver_test_primates_pangenome_extend_local: all ${CWD}/test/primates-truth.maf
 	PYTHONPATH="${CWD}/submodules/" CACTUS_BINARIES_MODE=local CACTUS_DOCKER_MODE=0 ${PYTHON} -m pytest ${pytestOpts} -s test/evolverTest.py::TestCase::testEvolverPrimatesPangenomeExtendLocal
 
-evolver_test_all_local: evolver_test_local evolver_test_prepare_toil evolver_test_decomposed_local evolver_test_prepare_no_outgroup_local evolver_test_poa_local evolver_test_refmap_local evolver_test_minigraph_local
+evolver_test_all_local: evolver_test_local evolver_test_prepare_toil evolver_test_decomposed_local evolver_test_prepare_no_outgroup_local evolver_test_poa_local evolver_test_minipoa_local evolver_test_minipoa_mammals_local evolver_test_refmap_local evolver_test_minigraph_local
 
 yeast_test_local:
 	PYTHONPATH="${CWD}/submodules/" CACTUS_BINARIES_MODE=local CACTUS_DOCKER_MODE=0 ${PYTHON} -m pytest ${pytestOpts} -s test/evolverTest.py::TestCase::testYeastPangenomeLocal
@@ -334,6 +345,16 @@ suball.abPOA:
 	if [ -f submodules/abPOA/lib/libabpoa.a ]; then ln -f submodules/abPOA/lib/libabpoa.a ${LIBDIR}/libabpoa.a; fi
 	ln -f submodules/abPOA/include/*.h ${INCLDIR}
 	rm -fr ${INCLDIR}/simde && cp -r submodules/abPOA/include/simde ${INCLDIR}
+
+# minipoa carries a plain Makefile for this, because cactus does not drive cmake and because
+# upstream's CMakeLists picks its SIMD backend by probing the build host.  It reads the same
+# avx2/sse41/sse2/armv8 environment variables include.mk already exports for abPOA, and produces a
+# fixed archive name, so there is no need for abPOA's cascade of if-file-exists links.
+# Only minipoa_c.h is published: the rest of minipoa's headers are C++ and bar is C.
+suball.minipoa:
+	cd submodules/minipoa && ${MAKE}
+	ln -f submodules/minipoa/lib/libminipoa.a ${LIBDIR}/libminipoa.a
+	ln -f submodules/minipoa/include/minipoa_c.h ${INCLDIR}
 
 suball.lastz: suball.jemalloc
 # Inject ${LIBS} into lastz's link lines so jemalloc reaches it.  This must not assume the

@@ -1,3 +1,4 @@
+#define _GNU_SOURCE /* mkstemp, under -std=c99 */
 /*
  * Copyright (C) 2009-2011 by Benedict Paten (benedictpaten@gmail.com)
  *
@@ -7,11 +8,51 @@
 #include "flowersShared.h"
 #include "randomSequences.h"
 #include "poaBarAligner.h"
+#ifdef HAVE_MINIPOA
+#include "minipoa_c.h"
+#endif
 #include "stCaf.h"
 #include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
 #include <ctype.h>
 
 //#define stderr_logging
+/*
+ * Every test below runs against both MSA engines.  The parameters mirror what the config would
+ * produce, modulo the deliberately tiny band the tests use to keep the random cases quick.
+ */
+static const BaseAligner TEST_ENGINES[] = {
+    BASE_ALIGNER_ABPOA,
+#ifdef HAVE_MINIPOA
+    BASE_ALIGNER_MINIPOA,
+#endif
+};
+#define TEST_ENGINE_NO ((int64_t)(sizeof(TEST_ENGINES) / sizeof(TEST_ENGINES[0])))
+
+static PoaParameters *test_poa_params(BaseAligner engine) {
+    PoaParameters *poaParams = st_calloc(1, sizeof(PoaParameters));
+    poaParams->engine = engine;
+    if (engine == BASE_ALIGNER_ABPOA) {
+        abpoa_para_t *abpt = abpoa_init_para();
+        abpt->wb = 10;
+        abpt->wf = 0.01;
+        abpoa_post_set_para(abpt);
+        poaParams->abpt = abpt;
+    }
+#ifdef HAVE_MINIPOA
+    else {
+        minipoa_para_t *mpt = minipoa_init_para();
+        minipoa_set_band(mpt, 10, 0.01);
+        minipoa_set_adaptive_band(mpt, 0);
+        minipoa_set_seeding(mpt, 0, 19, 10, 0);
+        minipoa_set_progressive(mpt, 0);
+        poaParams->mpt = mpt;
+    }
+#endif
+    return poaParams;
+}
+
 /**
  * Validate MSA. Lengths is an array that is populated with the lengths of the
  * sequences found on the MSA.
@@ -34,10 +75,8 @@ void validate_msa(CuTest *testCase, Msa *msa, int64_t *lengths) {
  * Repeatedly generate random sets of closely related strings and test that returned msa is valid
  */
 void test_make_partial_order_alignment(CuTest *testCase) {
-    abpoa_para_t *abpt = abpoa_init_para();
-    abpt->wb = 10;
-    abpt->wf = 0.01;
-    abpoa_post_set_para(abpt);
+  for (int64_t engine_i = 0; engine_i < TEST_ENGINE_NO; engine_i++) {
+    PoaParameters *poaParams = test_poa_params(TEST_ENGINES[engine_i]);
     for(int64_t test=0; test<100; test++) {
         for (int64_t poa_window_size = 5; poa_window_size < 120; poa_window_size += 15) {
 #ifdef stderr_logging
@@ -65,7 +104,7 @@ void test_make_partial_order_alignment(CuTest *testCase) {
             }
 
             // generate the alignment
-            Msa *msa = msa_make_partial_order_alignment(seqs, seq_lens, seq_no, poa_window_size, 1000, 0.02, abpt);
+            Msa *msa = msa_make_partial_order_alignment(seqs, seq_lens, seq_no, poa_window_size, 1000, 0.02, poaParams);
 
             // print the msa
 #ifdef stderr_logging
@@ -84,18 +123,17 @@ void test_make_partial_order_alignment(CuTest *testCase) {
             free(parent_string);
         }
     }
-    abpoa_free_para(abpt);
+    poaParameters_destruct(poaParams);
+  }
 }
 
 /**
  * Repeatedly generate random sets of two ends connected by set of strings, check that the resulting msa is valid
  */
 void test_make_consistent_partial_order_alignments_two_ends(CuTest *testCase) {
-    abpoa_para_t *abpt = abpoa_init_para();
-    abpt->wb = 10;
-    abpt->wf = 0.01;
-    abpoa_post_set_para(abpt);
-    
+  for (int64_t engine_i = 0; engine_i < TEST_ENGINE_NO; engine_i++) {
+    PoaParameters *poaParams = test_poa_params(TEST_ENGINES[engine_i]);
+
     for(int64_t test=0; test<100; test++) {
 #ifdef stderr_logging
         fprintf(stderr, "Running test_make_consistent_partial_order_alignments_two_ends, test %i\n", (int)test);
@@ -146,7 +184,7 @@ void test_make_consistent_partial_order_alignments_two_ends(CuTest *testCase) {
         // generate the alignments
         Msa **msas = make_consistent_partial_order_alignments(end_no, end_lengths, end_strings, end_string_lengths,
                                                               right_end_indexes, right_end_row_indexes, overlaps,
-                                                              1000000, 100, 0.02, abpt);
+                                                              1000000, 100, 0.02, poaParams);
 
         // print the msas
 #ifdef stderr_logging
@@ -175,16 +213,14 @@ void test_make_consistent_partial_order_alignments_two_ends(CuTest *testCase) {
         free(msas);
         free(parent_string);
     }
-    abpoa_free_para(abpt);
+    poaParameters_destruct(poaParams);
+  }
 }
 
 void test_make_flower_alignment_poa(CuTest *testCase) {
+  for (int64_t engine_i = 0; engine_i < TEST_ENGINE_NO; engine_i++) {
     setup(testCase);
-
-    abpoa_para_t *abpt = abpoa_init_para();
-    abpt->wb = 10;
-    abpt->wf = 0.01;
-    abpoa_post_set_para(abpt);
+    PoaParameters *poaParams = test_poa_params(TEST_ENGINES[engine_i]);
 #ifdef stderr_logging
     fprintf(stderr, "There are %i ends in the flower\n", (int)flower_getEndNumber(flower));
 #endif
@@ -213,7 +249,7 @@ void test_make_flower_alignment_poa(CuTest *testCase) {
     }
     flower_destructEndIterator(endIterator);
 
-    stList *alignment_blocks = make_flower_alignment_poa(flower, 2, 1000000, 5, 1000, 0.02, abpt);
+    stList *alignment_blocks = make_flower_alignment_poa(flower, 2, 1000000, 5, 1000, 0.02, poaParams);
 
     for(int64_t i=0; i<stList_length(alignment_blocks); i++) {
         AlignmentBlock *b = stList_get(alignment_blocks, i);
@@ -222,8 +258,9 @@ void test_make_flower_alignment_poa(CuTest *testCase) {
 #endif
     }
 
-    abpoa_free_para(abpt);
+    poaParameters_destruct(poaParams);
     teardown(testCase);
+  }
 }
 
 
@@ -302,16 +339,13 @@ void test_get_adjacency_string_and_overlap_bounded(CuTest *testCase) {
 }
 
 void test_alignment_block_iterator(CuTest *testCase) {
+  for (int64_t engine_i = 0; engine_i < TEST_ENGINE_NO; engine_i++) {
     setup(testCase);
+    PoaParameters *poaParams = test_poa_params(TEST_ENGINES[engine_i]);
 
-    abpoa_para_t *abpt = abpoa_init_para();
-    abpt->wb = 10;
-    abpt->wf = 0.01;
-    abpoa_post_set_para(abpt);
+    stList *alignment_blocks = make_flower_alignment_poa(flower, 10000, 1000000, 5, 50, 0.05, poaParams);
 
-    stList *alignment_blocks = make_flower_alignment_poa(flower, 10000, 1000000, 5, 50, 0.05, abpt);
-
-    abpoa_free_para(abpt);
+    poaParameters_destruct(poaParams);
 #ifdef stderr_logging
     for(int64_t i=0; i<stList_length(alignment_blocks); i++) {
         AlignmentBlock *b = stList_get(alignment_blocks, i);
@@ -337,10 +371,101 @@ void test_alignment_block_iterator(CuTest *testCase) {
     stPinchIterator_destruct(it);
 
     teardown(testCase);
+  }
+}
+
+/*
+ * <bar baseAligner> is new; <bar partialOrderAlignment> is what every config written before it
+ * says.  The fallback between them is the whole backwards-compatibility guarantee of this change,
+ * so it gets a test of its own -- including the case that actually bites, a config carrying both
+ * because it was copied from the shipped one and then edited.
+ */
+static BaseAligner engine_for_config(CuTest *testCase, const char *bar_attrs) {
+    const char *tmp = getenv("TMPDIR");
+    char path[1024];
+    snprintf(path, sizeof path, "%s/cactus_baseAlignerTestXXXXXX", (tmp && *tmp) ? tmp : "/tmp");
+    int fd = mkstemp(path);
+    CuAssertTrue(testCase, fd >= 0);
+    FILE *f = fdopen(fd, "w");
+    CuAssertPtrNotNull(testCase, f);
+    fprintf(f, "<cactusWorkflowConfig><bar %s><poa/><minipoa/></bar></cactusWorkflowConfig>\n", bar_attrs);
+    fclose(f);
+    CactusParams *params = cactusParams_load(path);
+    BaseAligner engine = baseAligner_constructFromCactusParams(params);
+    cactusParams_destruct(params);
+    remove(path);
+    return engine;
+}
+
+void test_baseAligner_selection(CuTest *testCase) {
+    // No baseAligner at all: the old boolean decides, as every pre-existing config expects.
+    CuAssertIntEquals(testCase, BASE_ALIGNER_ABPOA, engine_for_config(testCase, "partialOrderAlignment=\"1\""));
+    CuAssertIntEquals(testCase, BASE_ALIGNER_PECAN, engine_for_config(testCase, "partialOrderAlignment=\"0\""));
+
+    // baseAligner present: it decides, and all three values resolve.
+    CuAssertIntEquals(testCase, BASE_ALIGNER_PECAN,
+                      engine_for_config(testCase, "partialOrderAlignment=\"1\" baseAligner=\"pecan\""));
+    CuAssertIntEquals(testCase, BASE_ALIGNER_ABPOA,
+                      engine_for_config(testCase, "partialOrderAlignment=\"1\" baseAligner=\"abpoa\""));
+    CuAssertIntEquals(testCase, BASE_ALIGNER_MINIPOA,
+                      engine_for_config(testCase, "partialOrderAlignment=\"1\" baseAligner=\"minipoa\""));
+
+    // Only baseAligner, no legacy boolean.  This is what the warning below tells users to write,
+    // and reading partialOrderAlignment unguarded used to st_errAbort on exactly this config.
+    CuAssertIntEquals(testCase, BASE_ALIGNER_MINIPOA, engine_for_config(testCase, "baseAligner=\"minipoa\""));
+    CuAssertIntEquals(testCase, BASE_ALIGNER_ABPOA, engine_for_config(testCase, "baseAligner=\"abpoa\""));
+    CuAssertIntEquals(testCase, BASE_ALIGNER_PECAN, engine_for_config(testCase, "baseAligner=\"pecan\""));
+
+    // Disagreeing: baseAligner wins (and the C code logs about it).  This is the trap -- the
+    // shipped config now carries baseAligner="abpoa", so someone who copies it and sets
+    // partialOrderAlignment="0" the documented way would otherwise silently keep abpoa.
+    CuAssertIntEquals(testCase, BASE_ALIGNER_MINIPOA,
+                      engine_for_config(testCase, "partialOrderAlignment=\"0\" baseAligner=\"minipoa\""));
+    CuAssertIntEquals(testCase, BASE_ALIGNER_PECAN,
+                      engine_for_config(testCase, "partialOrderAlignment=\"1\" baseAligner=\"pecan\""));
+}
+
+/*
+ * Parse the config cactus actually ships and read every <bar> attribute the C side depends on.
+ *
+ * Nothing else does this: the build does not look at the XML, and the other tests here write
+ * their own.  A stray "--" inside an XML comment got all the way past a clean build and a green
+ * suite before an alignment run caught it, which is too late and too indirect.
+ */
+void test_shipped_config_is_loadable(CuTest *testCase) {
+    const char *path = "src/cactus/cactus_progressive_config.xml";
+    FILE *f = fopen(path, "r");
+    if (f == NULL) {
+        // run from somewhere other than the repo root; nothing to check
+        return;
+    }
+    fclose(f);
+    CactusParams *params = cactusParams_load((char *)path);
+    CuAssertPtrNotNull(testCase, params);
+
+    CuAssertIntEquals(testCase, BASE_ALIGNER_ABPOA, baseAligner_constructFromCactusParams(params));
+
+    // every attribute poaBarAligner.c reads; the getters st_errAbort on a missing one
+    PoaParameters *abpoa = poaParameters_constructFromCactusParams(params, BASE_ALIGNER_ABPOA);
+    CuAssertPtrNotNull(testCase, abpoa);
+    poaParameters_destruct(abpoa);
+#ifdef HAVE_MINIPOA
+    PoaParameters *minipoa = poaParameters_constructFromCactusParams(params, BASE_ALIGNER_MINIPOA);
+    CuAssertPtrNotNull(testCase, minipoa);
+    CuAssertTrue(testCase, minipoa->gapOpen > 0);
+    CuAssertTrue(testCase, minipoa->gapExt > 0);
+    CuAssertTrue(testCase, minipoa->mat[0] > 0);   // A/A must be a match
+    CuAssertTrue(testCase, minipoa->mat[1] < 0);   // A/C must be a mismatch
+    CuAssertTrue(testCase, minipoa->mat[24] > minipoa->mat[4]); // minipoa requires N/N > N/other
+    poaParameters_destruct(minipoa);
+#endif
+    cactusParams_destruct(params);
 }
 
 CuSuite* poaBarAlignerTestSuite(void) {
     CuSuite* suite = CuSuiteNew();
+    SUITE_ADD_TEST(suite, test_shipped_config_is_loadable);
+    SUITE_ADD_TEST(suite, test_baseAligner_selection);
     SUITE_ADD_TEST(suite, test_make_partial_order_alignment);
     SUITE_ADD_TEST(suite, test_make_consistent_partial_order_alignments_two_ends);
     SUITE_ADD_TEST(suite, test_make_flower_alignment_poa);

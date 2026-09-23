@@ -60,8 +60,13 @@ void bar(stList *flowers, CactusParams *params, CactusDisk *cactusDisk, stList *
     //Parse the many, many necessary parameters from the params file
     //////////////////////////////////////////////
 
+    bar_dump_dir_init(); // before any thread starts, so the flower loop never calls getenv
+
     int64_t maximumLength = cactusParams_get_int(params, 2, "bar", "bandingLimit");
-    int64_t usePoa = cactusParams_get_int(params, 2, "bar", "partialOrderAlignment");
+    BaseAligner engine = baseAligner_constructFromCactusParams(params);
+    // Every site that used to ask "poa or pecan?" still only needs that much.  abpoa and minipoa
+    // both produce an MSA and so share the AlignmentBlock/stPinch path; only pecan differs.
+    bool usePoa = engine != BASE_ALIGNER_PECAN;
 
     // Pecan prams
     int64_t spanningTrees = cactusParams_get_int(params, 3, "bar", "pecan", "spanningTrees");
@@ -71,14 +76,30 @@ void bar(stList *flowers, CactusParams *params, CactusDisk *cactusDisk, stList *
     StateMachine *sM = stateMachine5_construct(fiveState);
     bool pruneOutStubAlignments = cactusParams_get_int(params, 3, "bar", "pecan", "pruneOutStubAlignments");
 
-    // Poa params
-    // toggle from pecan to abpoa for multiple alignment, by setting to non-zero
-    // Note that poa uses about N^2 memory, so maximum value is generally in 10s of kb
-    int64_t poaWindow = cactusParams_get_int(params, 3, "bar", "poa", "partialOrderAlignmentWindow");
-    int64_t maskFilter = cactusParams_get_int(params, 3, "bar", "poa", "partialOrderAlignmentMaskFilter");
+    // Poa params.  The window and the mask filter come from whichever engine is selected:
+    // Both engines are held to 10s of kb: memory is quadratic-ish in the window for either.
+    // minipoa's advantage is per-window cost, not a bigger window.
+    int64_t poaWindow, maskFilter;
+    if (engine == BASE_ALIGNER_MINIPOA) {
+        poaWindow = cactusParams_get_int(params, 3, "bar", "minipoa", "minipoaWindow");
+        maskFilter = cactusParams_get_int(params, 3, "bar", "minipoa", "minipoaMaskFilter");
+    } else {
+        poaWindow = cactusParams_get_int(params, 3, "bar", "poa", "partialOrderAlignmentWindow");
+        maskFilter = cactusParams_get_int(params, 3, "bar", "poa", "partialOrderAlignmentMaskFilter");
+    }
+    // abpoa-only progressive-mode guards; inert for minipoa, which has no such mode enabled.
     int64_t poaMaxProgRows = cactusParams_get_int(params, 3, "bar", "poa", "partialOrderAlignmentProgressiveMaxRows");
     double poaMaxLenDiff = cactusParams_get_float(params, 3, "bar", "poa", "partialOrderAlignmentProgressiveMaxLengthDiff");
-    abpoa_para_t *poaParameters = usePoa ? abpoaParamaters_constructFromCactusParams(params) : NULL;
+    PoaParameters *poaParameters = poaParameters_constructFromCactusParams(params, engine);
+
+    // Say which aligner ran.  Without this a report of a suspect alignment cannot be tied back to
+    // the engine or the settings that produced it.
+    if (usePoa) {
+        st_logInfo("bar: base aligner %s, window %" PRIi64 ", maskFilter %" PRIi64 ", bandingLimit %" PRIi64 "\n",
+                   baseAligner_toString(engine), poaWindow, maskFilter, maximumLength);
+    } else {
+        st_logInfo("bar: base aligner pecan, bandingLimit %" PRIi64 "\n", maximumLength);
+    }
 
     //////////////////////////////////////////////
     //Run the bar algorithm
@@ -160,7 +181,7 @@ void bar(stList *flowers, CactusParams *params, CactusDisk *cactusDisk, stList *
         void *alignments;
         if (usePoa) {
             /*
-             * This makes a consistent set of alignments using abPoa.
+             * This makes a consistent set of alignments using the selected POA engine.
              *
              * It does not use any precomputed alignments, if they are provided they will be ignored
              */
@@ -284,7 +305,5 @@ void bar(stList *flowers, CactusParams *params, CactusDisk *cactusDisk, stList *
     pairwiseAlignmentBandingParameters_destruct(pairwiseAlignmentParameters);
     stateMachine_destruct(sM);
 
-    if (poaParameters) {
-        abpoa_free_para(poaParameters);
-    }
+    poaParameters_destruct(poaParameters);
 }

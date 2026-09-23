@@ -97,6 +97,25 @@ endif
 ifeq ($(shell arch || true), arm64)
 	arm=1
 endif
+
+# Control variable for minipoa, the optional third base aligner in bar.
+#
+# Off means the submodule is not built, -lminipoa is not linked, and selecting
+# <bar baseAligner="minipoa"> aborts with a message saying so.  abpoa and pecan are unaffected,
+# so a tree that cannot build minipoa still builds cactus -- which matters because minipoa is a
+# young single-maintainer library and nobody who never selects it should be held up by it.
+#
+# Off on ARM until minipoa's simde/NEON path has been proven there: upstream has no ARM build and
+# no CI that would catch a regression in one.
+#
+# This has to sit BELOW the arm detection above.  make evaluates conditionals as it reads the
+# file, so testing `ifdef arm` before those three shell probes assign it left minipoa on for every
+# machine that did not pass arm=1 explicitly -- i.e. exactly the ARM machines the detection exists
+# to catch.
+minipoa = on
+ifdef arm
+	minipoa = off
+endif
 # CPU baseline for the code we generate.  A plain "make" is portable.  Opt into a
 # machine-specific build, for binaries that will only ever run on the machine that compiled
 # them:
@@ -265,5 +284,13 @@ endif
 jemallocSubLibs = $(if ${jemallocLib},-L$(abspath ${LIBDIR}) ${jemallocLib})
 
 # note: the CACTUS_STATIC_LINK_FLAGS below can generally be empty -- it's used by the static builder script only
-LDLIBS += ${cactusLibs} ${sonLibLibs} ${LIBS} -L${rootPath}/lib -Wl,-rpath,${rootPath}/lib -labpoa ${jemallocLib} -lz -lbz2 -lpthread -lm -lstdc++ -lm -lxml2 ${CACTUS_STATIC_LINK_FLAGS}
+# -lminipoa sits next to -labpoa, i.e. ahead of -lz: ld resolves archives left to right and
+# libminipoa.a has undefined references into zlib (its kseq reader and klib's err_* wrappers are
+# linked in regardless of whether we call them).  Putting it after -lz fails the static release
+# link, and fails the ordinary one too wherever --as-needed is the default.
+ifeq ($(minipoa),on)
+	minipoaLib = -lminipoa
+	CFLAGS += -DHAVE_MINIPOA
+endif
+LDLIBS += ${cactusLibs} ${sonLibLibs} ${LIBS} -L${rootPath}/lib -Wl,-rpath,${rootPath}/lib -labpoa ${minipoaLib} ${jemallocLib} -lz -lbz2 -lpthread -lm -lstdc++ -lm -lxml2 ${CACTUS_STATIC_LINK_FLAGS}
 LIBDEPENDS = ${sonLibDir}/sonLib.a ${sonLibDir}/cuTest.a ${jemallocDepends}

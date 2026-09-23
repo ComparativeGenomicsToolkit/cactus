@@ -234,8 +234,17 @@
 	<!-- The bar tag contains parameters for the bar algorithm. -->
 	<!-- runBar Toggle the bar stage on or off. Turned off you get a sparse alignment just using the CAF phase-->
 	<!-- bandingLimit is the maximum sequence size fed into the multiple aligner.  Sequences longer than this are trimmed accordingly -->
-    <!-- partialOrderAlignment toggles between cPecan and abpoa for the core multiple alignment algorithm.
-    abpoa is much faster but not as reliable for diverged sequences -->
+    <!-- baseAligner selects the core multiple alignment algorithm: "pecan", "abpoa" or "minipoa".
+    abpoa is much faster than pecan but not as reliable for diverged sequences.  minipoa is a
+    minimizer-based POA that uses roughly half abpoa's memory and is somewhat faster at the same
+    window size.  It does NOT afford a larger window: measured on human/chimp chr10, its memory
+    grows about as window x (bandConstant + bandFraction x window), so 10kb costs 3.5GB and 50kb
+    is already over 23GB and gets OOM-killed.  minipoa shares abpoa's substitution matrix
+    (from <poa partialOrderAlignmentSubMatrix>) but has its own gap penalties in <minipoa>, which
+    are deliberately different - see the note there for why. -->
+    <!-- partialOrderAlignment is the older boolean form of the same choice, kept so that configs
+    written before baseAligner existed still work: with no baseAligner attribute, 1 means abpoa and
+    0 means pecan.  When both are present baseAligner wins and a warning is logged. -->
 	<!-- minimumBlockDegree The minimum number of sequences to form a block in the ancestor -->
 	<!-- minimumIngroupDegree The minimum number ingroup sequences to form a block in the ancestor -->
 	<!-- minimumOutgroupDegree The minimum number of outgroup sequences to form a block in the ancestor -->
@@ -243,6 +252,7 @@
 	<bar
 		runBar="1"
 		bandingLimit="1000000"
+		baseAligner="abpoa"
 		partialOrderAlignment="1"
 		minimumBlockDegree="2"
 		minimumIngroupDegree="1"
@@ -323,6 +333,77 @@
 			partialOrderAlignmentProgressiveMode="1"
 			partialOrderAlignmentProgressiveMaxRows="5000"
 			partialOrderAlignmentProgressiveMaxLengthDiff="1.0"
+		/>
+
+		<!-- Parameters for using minipoa to generate MSAs.  Only used when baseAligner="minipoa". -->
+		<!-- minipoaSubMatrix minipoa's own 5x5 ACGTN substitution matrix.  Empty by default, which means inherit <poa
+		partialOrderAlignmentSubMatrix> - that is what last-train writes into and what the FastGA PAF
+		scoring reads, so sharing it keeps the engines consistent and lets last-train reach minipoa.
+		Set it to override.  lastz's own default matrix (HOXD70 with -31 transitions rather than the
+		-61 abpoa is given) was measured here and is a wash: slightly better precision, slightly worse
+		recall on evolver mammals. -->
+		<!-- The GAP penalties are separate, and deliberately different from abpoa's, because the same
+		nominal values do not produce the same alignment in the two aligners.  abpoa's model is convex:
+		min(open1 + L*ext1, open2 + L*ext2), which with the shipped 400/30 and 1200/1 means its
+		effective extension past L~28 is 1, not 30.  minipoa has only one gap piece (its para_t
+		declares gap_open2/gap_ext2 but the DP never reads them), so charging it abpoa's first-piece
+		extension of 30 makes long gaps roughly 30x dearer than abpoa treats them, and it collapses
+		bases into shared columns rather than opening a gap.  Measured on evolver mammals: 0.79 with
+		ext=30 against abpoa's 0.85, recovering to 0.85 around open=600 ext=4.
+		Why this matters so much here: 94% of the gap bases in the evolver mammals truth sit in runs
+		of 28bp or longer, so the long-gap regime is not a corner case on that data.  It may well be
+		on others - human pangenome alignments, for instance, are mostly short gaps, where the two
+		models differ far less.
+		With last-train (the cactus -lastTrain option) these defaults are replaced by trained values, and that is a better fit for
+		minipoa than for abpoa: last-train fits a single affine gap model, which is exactly minipoa's
+		model, whereas abpoa has to be given a synthesised second piece to stay stable.
+		CAVEAT: absent last-train, these defaults are fitted to the evolver mammals accuracy test,
+		which is known to be sensitive to scoring.  They are not derived from first principles and are
+		worth revisiting against other datasets. -->
+		<!-- minipoaGapOpenPenalty minipoa gap open penalty -->
+		<!-- minipoaGapExtensionPenalty minipoa gap extension penalty -->
+		<!-- minipoaWindow sliding window size.  Same 10000 as abpoa, and for the same reason: memory
+		is quadratic-ish in it.  On human/chimp chr10 at 8 cores, 10kb/15kb/20kb/30kb cost
+		3.5/5.9/9.3/15.1 GB and 50kb upwards is killed, while BAR time is flat across that range - so
+		a larger window buys nothing and costs a great deal.  Raising it needs both memory headroom
+		and a reason; neither seeding nor a tighter band rescued 100kb. -->
+		<!-- minipoaMaskFilter trim input sequences as soon as more than this many soft or hard masked bases are encountered (-1=disabled) -->
+		<!-- minipoaBandConstant band half-width is <minipoaBandConstant> + <minipoaBandFraction>*<Length>, the same form as abpoa's wb/wf -->
+		<!-- minipoaBandFraction second band parameter (see above).  minipoa stores this as an integer
+		divisor internally, so only fractions of the form 1/n are exactly representable; 0 disables
+		banding and runs full DP -->
+		<!-- minipoaAdaptiveBand use minipoa's adaptive band.  Off by default and rarely worth turning on:
+		the adaptive path sizes its scratch for the full matrix before narrowing the band, so it buys
+		speed rather than memory -->
+		<!-- minipoaDisableSeeding minimizer seeding and anchoring.  Off by default for the same reason
+		abpoa's is: a false-positive anchor becomes a forced match and the alignment cannot recover from
+		it.  Turning it on is what makes minipoa's memory flat on very long windows -->
+		<!-- minipoaMinimizerK kmer size for minimizer seeding -->
+		<!-- minipoaMinimizerW window size for minimizer seeding -->
+		<!-- minipoaAnchorWindow minimum distance between adjacent anchors (0 = use minipoa's own default,
+		which is the consensus length over 24, clamped to [500, 20000]) -->
+		<!-- minipoaProgressiveMode use a guide tree from a minimizer jaccard distance matrix to choose the
+		order sequences are added to the graph, as <poa partialOrderAlignmentProgressiveMode> does for abpoa.
+		Off by default: insertion order matters for POA in principle, but this tree has not earned its
+		cost on anything measured - bit-identical output on evolver, and 7% more memory plus 2% more
+		time on human/chimp chr10.  Worth revisiting on more diverged input. -->
+		<!-- minipoaProgressiveMaxRows disable progressive mode above this many rows: the guide tree is
+		quadratic in both time and memory (a dense NxN matrix of doubles) -->
+		<minipoa
+			minipoaWindow="10000"
+			minipoaMaskFilter="-1"
+			minipoaBandConstant="1000"
+			minipoaBandFraction="0.1"
+			minipoaAdaptiveBand="0"
+			minipoaDisableSeeding="1"
+			minipoaMinimizerK="19"
+			minipoaMinimizerW="10"
+			minipoaAnchorWindow="0"
+			minipoaSubMatrix=""
+			minipoaGapOpenPenalty="600"
+			minipoaGapExtensionPenalty="4"
+			minipoaProgressiveMode="0"
+			minipoaProgressiveMaxRows="5000"
 		/>
 	</bar>
 

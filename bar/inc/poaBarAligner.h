@@ -21,9 +21,80 @@
 void bar(stList *flowers, CactusParams *p, CactusDisk *cactusDisk, stList *listOfEndAlignmentFiles);
 
 /*
+ * Read CACTUS_BAR_DUMP_DIR once, before any alignment runs.  When set, every window handed to the
+ * base aligner is dumped there with a command line that replays it.
+ */
+void bar_dump_dir_init(void);
+
+/*
  * Construct a pairwise alignment parameters object parsing the cactus params specified parameters.
  */
 PairwiseAlignmentParameters *pairwiseAlignmentParameters_constructFromCactusParams(CactusParams *params);
+
+/**
+ * Which engine computes the base-level multiple alignment.
+ *
+ * Selected by <bar baseAligner="pecan|abpoa|minipoa">.  Configs written before that attribute
+ * existed fall back to the older <bar partialOrderAlignment="0|1"> boolean, so nothing needs
+ * rewriting.
+ */
+typedef enum {
+    BASE_ALIGNER_PECAN = 0,
+    BASE_ALIGNER_ABPOA = 1,
+    BASE_ALIGNER_MINIPOA = 2
+} BaseAligner;
+
+/**
+ * Read the selected engine out of the cactus params.
+ */
+BaseAligner baseAligner_constructFromCactusParams(CactusParams *params);
+
+/**
+ * Name of an engine, for logging and error messages.
+ */
+const char *baseAligner_toString(BaseAligner engine);
+
+/**
+ * Engine-agnostic handle for whatever the chosen aligner needs.
+ *
+ * mpt is void* rather than minipoa_para_t* on purpose: this header is included by C code that
+ * is compiled whether or not minipoa was built (see the minipoa=on|off switch in include.mk),
+ * and nothing outside poaBarAligner.c ever dereferences it.
+ */
+typedef struct _PoaParameters {
+    BaseAligner engine;
+    abpoa_para_t *abpt; /* engine == BASE_ALIGNER_ABPOA */
+    void *mpt;          /* engine == BASE_ALIGNER_MINIPOA, a minipoa_para_t * */
+    /*
+     * The same minipoa parameters with progressive ordering forced off, for windows with too many
+     * rows to afford the guide tree.  abPOA applies that cap by deep-copying its params per
+     * window; minipoa's handle is immutable from here, so keeping a second one is simpler and
+     * costs a few hundred bytes for the whole run.  NULL when progressive is off anyway.
+     */
+    void *mptNoProgressive;
+    int64_t progressiveMaxRows;
+    /*
+     * The same settings again, in plain scalars, purely so a dumped window can carry a command
+     * line that replays it.  minipoa's handle is opaque and abPOA's are spread over abpoa_para_t;
+     * keeping a copy here is cheaper than accessors on both, and it is written once per run.
+     */
+    int mat[25];
+    int gapOpen, gapExt;
+    int bandConstant;
+    double bandFraction;
+    bool seeding;
+    bool adaptiveBand;
+    bool progressive;
+    int minimizerK, minimizerW, anchorWindow;
+} PoaParameters;
+
+/**
+ * Build the parameters for the given engine from the cactus params.  Returns NULL for
+ * BASE_ALIGNER_PECAN, which has its own parameters.  Free with poaParameters_destruct().
+ */
+PoaParameters *poaParameters_constructFromCactusParams(CactusParams *params, BaseAligner engine);
+
+void poaParameters_destruct(PoaParameters *poaParameters);
 
 /**
  * Construct the abpoa parameters object parsing the cactus params specified parameters.
@@ -70,7 +141,7 @@ void msa_print(Msa *msa, FILE *f);
  * @param window_size Sliding window size which limits length of poa sub-alignments.  Memory usage is quardatic in this. 
  * @param max_prog_rows Disable abpoas progressive alignment if there are more than this many rows (avoid quadratic dist mat blowup)
  * @param max_prog_length_diff Disable abpoa's progresive alignment if the 1 - shortest (last) sequence / longest (first) sequence is more than this 
- * @param poa_parameters abpoa parameters
+ * @param poa_parameters base aligner parameters
  * @return An msa of the strings.
  */
 Msa *msa_make_partial_order_alignment(char **seqs,
@@ -79,7 +150,7 @@ Msa *msa_make_partial_order_alignment(char **seqs,
                                       int64_t window_size,
                                       int64_t max_prog_rows,
                                       double max_prog_length_diff,
-                                      abpoa_para_t *poa_parameters);
+                                      PoaParameters *poa_parameters);
 
 /**
  * Takes a set of ends and returns a set of consistent multiple alignments,
@@ -102,12 +173,12 @@ Msa *msa_make_partial_order_alignment(char **seqs,
  * @param window_size Sliding window size which limits length of poa sub-alignments.  Memory usage is quardatic in this. 
  * @param max_prog_rows Disable abpoas progressive alignment if there are more than this many rows (avoid quadratic dist mat blowup)
  * @param max_prog_length_diff Disable abpoa's progresive alignment if the 1 - shortest (last) sequence / longest (first) sequence is more than this 
- * @param poa_parameters abpoa parameters
+ * @param poa_parameters base aligner parameters
  * @return A consistent Msa for each end
  */
 Msa **make_consistent_partial_order_alignments(int64_t end_no, int64_t *end_lengths, char ***end_strings,
         int **end_string_lengths, int64_t **right_end_indexes, int64_t **right_end_row_indexes, int64_t **overlaps,
-        int64_t window_size, int64_t max_prog_rows, double max_prog_length_diff, abpoa_para_t *poa_parameters);
+        int64_t window_size, int64_t max_prog_rows, double max_prog_length_diff, PoaParameters *poa_parameters);
 
 /**
  * Represents a gapless alignment of a set of sequences.
@@ -151,7 +222,7 @@ char *get_adjacency_string_and_overlap(Cap *cap, int *length, int64_t *overlap, 
  * @param mask_filter Trim input sequences if encountering this many consecutive soft of hard masked bases (0 = disabled)
  * @param max_prog_rows Disable abpoa's progressive alignment if there are more than this many rows (avoid quadratic dist mat blowup)
  * @param max_prog_length_diff Disable abpoa's progresive alignment if the 1 - shortest (last) sequence / longest (first) sequence is more than this
- * @param poa_parameters abpoa parameters
+ * @param poa_parameters base aligner parameters
  */
 stList *make_flower_alignment_poa(Flower *flower,
                                   int64_t max_seq_length,
@@ -159,7 +230,7 @@ stList *make_flower_alignment_poa(Flower *flower,
                                   int64_t mask_filter,
                                   int64_t max_prog_rows,
                                   double max_prog_length_diff,
-                                  abpoa_para_t * poa_parameters);
+                                  PoaParameters *poa_parameters);
 
 /**
  * Create a pinch iterator for a list of alignment blocks.

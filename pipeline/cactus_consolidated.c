@@ -624,7 +624,9 @@ int main(int argc, char *argv[]) {
                    stList_length(leafFlowers), time(NULL) - startTime);
 
         bar(leafFlowers, params, cactusDisk, NULL);
-        int64_t usePoa = cactusParams_get_int(params, 2, "bar", "partialOrderAlignment");
+        // optional: a config may carry only <bar baseAligner>, with no legacy boolean at all
+        int64_t usePoa = cactusParams_has(params, 2, "bar", "partialOrderAlignment")
+                             ? cactusParams_get_int(params, 2, "bar", "partialOrderAlignment") : 1;
         st_logInfo("Ran cactus bar (use poa:%i), %" PRIi64 " seconds have elapsed\n", (int)usePoa, time(NULL) - startTime);
 
         stList_destruct(leafFlowers);
