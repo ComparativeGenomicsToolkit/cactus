@@ -132,6 +132,13 @@ def cactus_override_toil_options(options):
         # instead of Toil's default (1).
         options.retryCount = 5
 
+    # --doubleMem on unless the user said otherwise: most of cactus's memory requests are
+    # estimates, and a retry at twice the memory turns a wrong one into a slower run rather than
+    # a failed one.  Toil's default is False, which is indistinguishable after parsing from an
+    # explicit "--doubleMem false", so look at the command line for the flag itself.
+    if not any(arg == '--doubleMem' or arg.startswith('--doubleMem=') for arg in sys.argv[1:]):
+        options.doubleMem = True
+
     if 'CACTUS_INSIDE_CONTAINER' in os.environ and str(os.environ['CACTUS_INSIDE_CONTAINER']) == '1':
         # some people get confused when trying to use their cluster from inside the cactus
         # docker. it doesn't work (without tons of hackery) since slurm isnt in the image
