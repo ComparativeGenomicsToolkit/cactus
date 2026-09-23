@@ -280,7 +280,10 @@ def export_hal(job, mc_tree, config_node, seq_id_map, og_map, results, event=Non
             # and the copy extracted back out of the hal on disk together
             seq_sizes = [preprocessed_fasta_id(file_id).size for file_id in seq_id_map.values() if file_id]
             disk += 2 * max(seq_sizes) if seq_sizes else 0
-        mem = cactus_clamp_memory(5 * (max([file_id.size for file_id in fa_file_ids]) + max([file_id.size for file_id in c2h_file_ids])))
+        # 2x the largest subtree's inputs: halAppendCactusSubtree peaked at 1.15x of that across
+        # 576 VGP alignments, and never used more than 23% of the old 5x.  --doubleMem covers a
+        # workload outside that envelope.
+        mem = cactus_clamp_memory(2 * (max([file_id.size for file_id in fa_file_ids]) + max([file_id.size for file_id in c2h_file_ids])))
         # allows pass-through of memory override from --consMemory
         if memory_override:
             mem = memory_override
