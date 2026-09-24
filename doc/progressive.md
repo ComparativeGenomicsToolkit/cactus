@@ -356,8 +356,7 @@ cactus-phast ./js-vgp \
     --geneAnnotation https://hgdownload.soe.ucsc.edu/goldenPath/hg38/database/ncbiRefSeq.txt.gz \
     --bigwig --batchSystem slurm --chunkCores 32 --phyloFitCores 32 \
     --substMod REV --modFreqs --precision HIGH \
-    --slurmPartition medium --slurmTime 10:00:00 \
-    --doubleMem true
+    --slurmPartition medium --slurmTime 10:00:00
 ```
 
 ### Chains Export
@@ -422,12 +421,11 @@ These are the most relevant options for running on a cluster
 
 * `--batchSystem slurm` (required): enable slurm.
 * `--consCores` (required): set the number of cores for each `cactus_consolidated` job. 64 is usually a good value here, but you cannot exceed what's available on your system. Memory rises with the core count while runtime barely improves above about 24, so use fewer cores if you are memory-limited.
-* `--doubleMem true` (highly recommended): if slurm kills a job because it used more memory than it asked for, retry it asking for double the memory.
 * `--batchLogsDir` (highly recommended): a scratch directory for additional slurm logging.
 * `--workDir`: a local scratch directory available on each worker node (will default to `TEMPDIR` or `TMPDIR`). This could be on a shared filesystem, but it's much better if it's a local, physical disk on the worker node. 
 * `--maxMemory` (optional): when running on slurm, Cactus now queries the cluster with `sinfo` at startup and automatically clamps every job's memory request to the largest available node, just as it does using the host's physical memory on `--batchSystem single_machine`. This keeps Toil from scheduling a job that asks for more memory than any node can provide (which would otherwise sit pending forever and stall the workflow), so you no longer need to set this by hand. Pinning `--slurmPartition` (and/or `--slurmTime`) narrows the clamp to the node(s) those jobs will actually run on; you can also still pass `--maxMemory` to impose an even lower ceiling.
-* `--consMemory`: Override the memory for each `cactus_consolidated` job. Can be useful if Cactus's estimates are wrong, but `--maxMemory/--doubleMem` should be enough to work around this type of issue.
-* `--consRetainPages`: Whether `cactus_consolidated` keeps the memory pages it frees rather than returning them to the system (`auto`, `1` or `0`). Keeping them is much faster but takes 2-3x the peak memory. The default, `auto`, keeps them unless the memory estimate is more than the job can be given (the system memory on a single machine, or `--maxMemory`), in which case the estimate is scaled down and the pages are not kept. Corresponds to `<consolidated retain_pages>` in the configuration.
+* `--consMemory`: Override the memory for each `cactus_consolidated` job. Can be useful if Cactus's estimates are wrong, but a job that runs out of memory is already retried with double the memory by default, so this is rarely needed.
+* `--consRetainPages`: Whether `cactus_consolidated` keeps the memory pages it frees rather than returning them to the system (`auto`, `1` or `0`). Keeping them is much faster but takes 2-3x the peak memory. The default, `auto`, keeps them when twice the memory estimate, plus one further estimate of headroom, fits what the job can be given (the system memory on a single machine, or `--maxMemory`), and then requests twice the estimate; otherwise the pages are returned and the request is the estimate itself. Where that ceiling is not known, the pages are returned. Corresponds to `<consolidated retain_pages>` in the configuration.
 * **Large, repeat-rich genomes**: turn on `partialOrderAlignmentMaskFilter` in the `<bar><poa>` section of the config (e.g. `1000`; the default `-1` is off). On 20-30 Gb salamander genomes, leaving it off cost ~38x the BAR time and ran out of memory on a 2 TB node; with it on, BAR took under an hour. `partialOrderAlignmentWindow` is a far cheaper lever: halving it to `5000` saved ~25% memory and ~30% BAR time.
 * **Which base aligner**: `<bar baseAligner>` selects it -- `abpoa` (the default), `minipoa`, or the deprecated `pecan`. The two levers above live in `<bar><poa>` and apply to **abpoa only**; under `minipoa` the equivalents are `minipoaMaskFilter` and `minipoaWindow` in `<bar><minipoa>` (and `--barMaskFilter` writes to whichever engine is selected). minipoa uses roughly half abpoa's memory at the *same* window, and ships the same `10000`: its memory is quadratic-ish in the window as well, and on human/chimp chr10 a 50 kb window is already OOM-killed while BAR time is flat from 10 kb to 30 kb. Raising `minipoaWindow` buys nothing measured and costs a lot; if you do raise it, note the `cactus_consolidated` memory estimate uses abpoa's fitted exponent, which under-requests badly for minipoa at larger windows. minipoa shares abpoa's substitution matrix (from `<bar><poa>`) but has its own gap penalties, `minipoaGapOpenPenalty`/`minipoaGapExtensionPenalty` in `<bar><minipoa>`. They are deliberately much lower than abpoa's: abpoa's gap model is convex, so past roughly 28bp its effective extension is 1 rather than 30, and giving minipoa's single affine piece abpoa's first-piece value of 30 prices long gaps about 30x too high. `--lastTrain` reaches both engines: it fits a single affine gap model, which is minipoa's model exactly, so minipoa gets the learned open/extend verbatim while abPOA additionally gets the synthesised second piece it needs to stay stable. minipoa inherits the learned substitution matrix too, via the empty `minipoaSubMatrix`.
 
@@ -453,13 +451,13 @@ source /private/groups/cgl/cactus/venv-cactus-latest/bin/activate
 Some recommended options: 
 
 ```
-cactus ./js ./examples/evolverMammals.txt evolverMammals.hal --batchSystem slurm --batchLogsDir batch-logs --consCores 64 --maxMemory 1.4Ti --doubleMem true --slurmTime 200:00:00
+cactus ./js ./examples/evolverMammals.txt evolverMammals.hal --batchSystem slurm --batchLogsDir batch-logs --consCores 64 --maxMemory 1.4Ti --slurmTime 200:00:00
 ```
 
 To run the same command step by step,
 
 ```
-cactus-prepare ./examples/evolverMammals.txt --outDir mammals-prepare --outHal mammals-prepare/evolverMammals.hal --cactusOptions "--maxMemory 1.4Ti --doubleMem true --slurmTime 200:00:00 --batchSystem slurm" --alignCores 64 --script > mammals.sh
+cactus-prepare ./examples/evolverMammals.txt --outDir mammals-prepare --outHal mammals-prepare/evolverMammals.hal --cactusOptions "--maxMemory 1.4Ti --slurmTime 200:00:00 --batchSystem slurm" --alignCores 64 --script > mammals.sh
 chmod+x mammals.sh
 ./mammals.sh
 ```

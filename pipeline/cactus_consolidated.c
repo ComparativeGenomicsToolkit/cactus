@@ -74,6 +74,27 @@
 extern int mallctl(const char *, void *, size_t *, void *, size_t) __attribute__((weak));
 
 static void cactus_jemalloc_retain_pages(CactusParams *params) {
+    // Which jemalloc actually got loaded.  Reported before anything below can return early:
+    // retention off is exactly where an allocator comparison needs this, and it was the one
+    // path that never reached it.  jemalloc is linked dynamically and its runpath is relative,
+    // so LD_LIBRARY_PATH decides, and nothing else in the log records the outcome.
+    int (*mallctl_fn)(const char *, void *, size_t *, void *, size_t) = mallctl;
+    if (mallctl_fn == NULL) {
+        // a statically linked jemalloc may not pull ctl.o in on a weak reference alone,
+        // so ask the dynamic loader before giving up.  dlopen(NULL) and RTLD_LAZY are POSIX.
+        void *self = dlopen(NULL, RTLD_LAZY);
+        if (self != NULL) {
+            *(void **)(&mallctl_fn) = dlsym(self, "mallctl");
+        }
+    }
+    if (mallctl_fn != NULL) {
+        const char *je_version = NULL;
+        size_t je_version_sz = sizeof(je_version);
+        if (mallctl_fn("version", &je_version, &je_version_sz, NULL, 0) == 0 && je_version != NULL) {
+            st_logInfo("jemalloc version %s\n", je_version);
+        }
+    }
+
     // Retaining pages trades memory for speed and is sized for cluster nodes; on a small machine
     // it can exhaust memory (a caf-only run of a 5-genome fish ancestor went from 10 GB to 18 GB).
     // The <consolidated retain_pages> parameter decides: "0" leaves jemalloc's purging alone,
@@ -89,19 +110,12 @@ static void cactus_jemalloc_retain_pages(CactusParams *params) {
     if (cactusParams_has(params, 2, "consolidated", "retain_pages")) {
         char *setting = cactusParams_get_string(params, 2, "consolidated", "retain_pages");
         bool off = strcmp(setting, "0") == 0;
-        st_logInfo("<consolidated retain_pages=\"%s\">: jemalloc page retention %s\n", setting, off ? "off" : "on");
+        // The workflow already logs this decision, with the resulting request beside it, which is
+        // the part a reader can act on.  Report by exception here, as the failure path below does.
+        st_logDebug("<consolidated retain_pages=\"%s\">: jemalloc page retention %s\n", setting, off ? "off" : "on");
         free(setting);
         if (off) {
             return;
-        }
-    }
-    int (*mallctl_fn)(const char *, void *, size_t *, void *, size_t) = mallctl;
-    if (mallctl_fn == NULL) {
-        // a statically linked jemalloc may not pull ctl.o in on a weak reference alone,
-        // so ask the dynamic loader before giving up.  dlopen(NULL) and RTLD_LAZY are POSIX.
-        void *self = dlopen(NULL, RTLD_LAZY);
-        if (self != NULL) {
-            *(void **)(&mallctl_fn) = dlsym(self, "mallctl");
         }
     }
     if (mallctl_fn == NULL) {
@@ -110,6 +124,7 @@ static void cactus_jemalloc_retain_pages(CactusParams *params) {
     }
 
     const char *names[2] = { "dirty_decay_ms", "muzzy_decay_ms" };
+    bool applied = true;
     for (int w = 0; w < 2; w++) {
         ssize_t v = -1;   // never purge
         char key[64];
@@ -137,9 +152,24 @@ static void cactus_jemalloc_retain_pages(CactusParams *params) {
         size_t sz = sizeof(readback);
         snprintf(key, sizeof(key), "arenas.%s", names[w]);
         mallctl_fn(key, &readback, &sz, NULL, 0);
-        st_logInfo("jemalloc %s set to -1: default for new arenas rc=%i (reads back %" PRIi64 "), "
-                   "%i of %u existing arenas set, %i declined\n",
-                   names[w], rc_default, (int64_t)readback, set, narenas, declined);
+        // "declined" is the healthy case, not a failure: jemalloc pre-allocates arena slots but
+        // only initialises the ones in use, and an uninitialised slot refuses the write -- it
+        // inherits the default above when it is eventually created.  Only the default taking
+        // matters, so that is what the one line reports; the rest is for --logDebug.
+        if (rc_default != 0 || readback != -1) {
+            applied = false;
+        }
+        st_logDebug("jemalloc %s: default rc=%i (reads back %" PRIi64 "), "
+                    "%i of %u existing arenas set, %i declined\n",
+                    names[w], rc_default, (int64_t)readback, set, narenas, declined);
+    }
+    // report by exception: the workflow has already logged which way it decided, so this only
+    // speaks up when the decision could not be carried out.
+    if (applied) {
+        st_logDebug("jemalloc page retention applied: dirty_decay_ms and muzzy_decay_ms set to -1\n");
+    } else {
+        st_logInfo("jemalloc page retention was requested but could NOT be applied; "
+                   "pages will be returned to the OS\n");
     }
 }
 
@@ -595,6 +625,9 @@ int main(int argc, char *argv[]) {
     caf(flower, params, alignmentsFile, secondaryAlignmentsFile, constraintAlignmentsFile, referenceEvent);
     assert(flower_builtBlocks(flower));
     st_logInfo("Ran cactus caf, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
+    // Caf's melting rounds check the guard themselves, but stCaf_finish runs after the last of
+    // them and is where salamander Anc3 crossed the limit unnoticed.
+    cactus_retentionGuard();
 
     if(runChecks) {
         flower_checkRecursive(flower);
@@ -622,6 +655,9 @@ int main(int argc, char *argv[]) {
         stHash_destruct(flower_to_length);
         st_logInfo("Ran extended flowers ready for bar on %" PRIi64 " flowers, %" PRIi64 " seconds have elapsed\n",
                    stList_length(leafFlowers), time(NULL) - startTime);
+        // Last chance before bar starts allocating: extending and sorting 18M flowers is minutes
+        // of work with no other check in it.
+        cactus_retentionGuard();
 
         bar(leafFlowers, params, cactusDisk, NULL);
         // optional: a config may carry only <bar baseAligner>, with no legacy boolean at all

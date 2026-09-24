@@ -543,7 +543,7 @@ stCactusGraph *stCaf_getCactusGraphForThreadSet(Flower *flower, stPinchThreadSet
     stCactusGraph *cactusGraph = stCaf_constructCactusGraph(threadSet, *deadEndComponent, adjacencyComponents, startCactusNode,
             breakChainsAtReverseTandems, maximumMedianSpacingBetweenLinkedEnds, &timing);
 
-    st_logInfo("caf-timing: cactus-graph ends=%" PRIi64 " adjacency %.3fs deadend %.3fs attach %.3fs build %.3fs collapse %.3fs bridges %.3fs tandems %.3fs median %.3fs nodes %" PRIi64 "->%" PRIi64 " tandem-calls %" PRIi64 " cached %" PRIi64 " block-reads %" PRIi64 "\n",
+    st_logDebug("caf-timing: cactus-graph ends=%" PRIi64 " adjacency %.3fs deadend %.3fs attach %.3fs build %.3fs collapse %.3fs bridges %.3fs tandems %.3fs median %.3fs nodes %" PRIi64 "->%" PRIi64 " tandem-calls %" PRIi64 " cached %" PRIi64 " block-reads %" PRIi64 "\n",
                timing.ends, timing.adjacency, timing.deadEnd, timing.attach, timing.build, timing.collapse, timing.bridges, timing.tandems, timing.median,
                timing.nodesBeforeCollapse, timing.nodesAfterCollapse, timing.tandemCalls, timing.tandemCached, timing.blockReads);
     stCaf_dumpCactusGraph(cactusGraph, *startCactusNode);

@@ -280,7 +280,10 @@ def export_hal(job, mc_tree, config_node, seq_id_map, og_map, results, event=Non
             # and the copy extracted back out of the hal on disk together
             seq_sizes = [preprocessed_fasta_id(file_id).size for file_id in seq_id_map.values() if file_id]
             disk += 2 * max(seq_sizes) if seq_sizes else 0
-        mem = cactus_clamp_memory(5 * (max([file_id.size for file_id in fa_file_ids]) + max([file_id.size for file_id in c2h_file_ids])))
+        # 2x the largest subtree's inputs: halAppendCactusSubtree peaked at 1.15x of that across
+        # 576 VGP alignments, and never used more than 23% of the old 5x.  --doubleMem covers a
+        # workload outside that envelope.
+        mem = cactus_clamp_memory(2 * (max([file_id.size for file_id in fa_file_ids]) + max([file_id.size for file_id in c2h_file_ids])))
         # allows pass-through of memory override from --consMemory
         if memory_override:
             mem = memory_override
@@ -389,7 +392,7 @@ def main():
                         "Standard suffixes like K, Ki, M, Mi, G or Gi are supported (default=bytes))", default=None)
     parser.add_argument("--consRetainPages", choices=['auto', '0', '1'], default=None,
                         help="Whether cactus_consolidated keeps the memory pages jemalloc frees, which is much faster but takes 2-3x the peak memory. "
-                        "auto (the default, from <consolidated retain_pages> in the config) keeps them unless the memory estimate exceeds what the job can be given")
+                        "auto (the default, from <consolidated retain_pages> in the config) keeps them when memory_retain_multiple times the estimate, plus one further estimate of headroom, fits what the job can be given, and asks for that multiple; where that ceiling is unknown (any batch system but single_machine and slurm, unless --maxMemory is given) the pages are returned")
     parser.add_argument("--intermediateResultsUrl",
                         help="URL prefix to save intermediate results like DB dumps to (e.g. "
                         "prefix-dump-caf, prefix-dump-avg, etc.)", default=None)

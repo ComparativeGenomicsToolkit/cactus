@@ -10,6 +10,7 @@
 #include "minipoa_c.h"
 #endif
 #include "poaBarAligner.h"
+#include "cactusMisc.h"
 #include "flowerAligner.h"
 
 #include <stdio.h>
@@ -1040,6 +1041,7 @@ Msa *msa_make_partial_order_alignment(char **seqs, int *seq_lens, int64_t seq_no
     
     int64_t prev_bases_remaining = bases_remaining;
     for (int64_t iteration = 0; bases_remaining > 0; ++iteration) {
+        cactus_retentionGuard();
 
         // compute the number of bases this msa will overlap with the previous msa per row,
         // assuming that the alignments overlap by window_overlap_size

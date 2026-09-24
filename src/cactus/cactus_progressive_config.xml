@@ -311,11 +311,22 @@
 		<!-- partialOrderAlignmentMinimizerK abpoa kmer size for minimizer seeding. -->
 		<!-- partialOrderAlignmentMinimizerW abpoa window size for minimizer seeding. -->
 		<!-- partialOrderAlignmentMinimizerMinW abpoa minimum window size. -->
+		<!-- partialOrderAlignmentWindowBigGenome: window to use instead when the largest genome is at
+		     least partialOrderAlignmentWindowBigGenomeThreshold bases.  Once sequence is long and
+		     repeat-rich the window is the only thing bounding the DP: on 22 Gb salamanders halving it
+		     took bar's peak from 798.5 to 368.7 GiB and roughly doubled throughput, while costing
+		     0.06 points of recall on evolver mammals (measured against the mafComparator truth set,
+		     where the curve stays flat to 2000 and only degrades below it).  The largest genome of
+		     any role, outgroups included: bar aligns their sequence too, and lungfish Anc2 pairs a
+		     40 GB outgroup with 1 and 2 GB ingroups.  The threshold is per genome and not a total,
+		     so a typical vgp alignment of five 3 GB genomes is nowhere near it.  0 to disable. -->
 		<!-- partialOrderAlignmentProgressiveMode use guide tree from jaccard distance matrix to determine poa order -->
 		<!-- partialOrderAlignmentProgressiveMaxRows disable progressive mode if there are more than this many rows to align -->
 		<!-- partialOrderAlignmentProgressiveMaxLengthDif disable progressive mode if 1 - len(smallest seq) / len(biggest seq) is greater than this number. in other words, we stick with sorting by length unless the lengths are all really similar -->
 		<poa
 			partialOrderAlignmentWindow="10000"
+			partialOrderAlignmentWindowBigGenome="5000"
+			partialOrderAlignmentWindowBigGenomeThreshold="15000000000"
 			partialOrderAlignmentMaskFilter="-1"
 			partialOrderAlignmentBandConstant="1000"
 			partialOrderAlignmentBandFraction="0.1"
@@ -643,51 +654,75 @@
 			allow_multifurcations="0"
 	 	/>
   	</multi_cactus>
-	<!-- cactus_consolidated memory is estimated as
-	     memory_coefficient_gb * (paf_GB + total_sequence_GB)^memory_input_exponent,
-	     then scaled for the poa window and the core count.  Fitted to 575 VGP alignments
-	     (64 cores, stock bar parameters).  The exponent is well under 1 because peak memory
-	     saturates: it is set by the largest flowers bar builds rather than by input volume.
-	     AnuraAnc6 with a 0.44 GB paf peaked at 685.9 GiB and salamander Anc3 with a 45x larger
-	     19.8 GB paf peaked at 682.3 GiB, so anything linear in the input overshoots badly on
-	     large genomes. -->
-	<!-- memory_ramp_gb: taper the estimate to zero below this much input.  The smallest
-	     alignment in the fit had 0.027 GB, so below that the power law is extrapolation and
-	     would hand a toy test tens of GiB.  Set under every point in the fit, so it moves none
-	     of them. -->
-	<!-- memory_core_scale_pct: percent memory change per core away from the baseline, applied in
-	     both directions.  Concurrent abpoa instances equal the core count, so fewer cores really
-	     do need less memory.  0.65 measured on AnuraAnc6: 465.5 GiB at 24 cores, 542.2 at 32,
-	     685.9 at 64 -->
-	<!-- memory_core_scale_baseline: core count the estimate is calibrated at (the fit data was
-	     all run at 64) -->
-	<!-- memory_core_scale_max_pct: cap on the increase (100 = memory can at most double) -->
-	<!-- memory_poa_window_exponent: memory scales as (window/10000)^this.  NOT quadratic despite
-	     what the poa comment says: halving the window to 5000 measured 858.4 -> 639.4 GiB, since
-	     halving it also halves the number of windows.  Nothing is subtracted for
-	     partialOrderAlignmentMaskFilter, which matters more but was disabled in all the fit
-	     data, so enabling it only makes the estimate conservative -->
-	<!-- og_size_scale: scale outgroup sizes by this factor (percent) when computing total sequence size -->
+	<!-- cactus_consolidated memory.  One number is estimated: the peak with jemalloc page retention
+	     OFF.  That peak is caf's, not bar's (350.0 GiB across five salamander Anc3 runs with
+	     different filters, windows and core counts), so it answers to input size and to nothing
+	     bar does: memory_coefficient_gb * (paf_GB + total_sequence_GB)^memory_input_exponent.  The
+	     exponent is well under 1: the two workloads measured for this quantity under the same
+	     configuration are MammalsAnc0 at 122.5 GiB on 4.3 GB of input and salamander Anc3 at 350.0
+	     on 122 GB, 28x the input for 2.9x the peak, an exponent of 0.31.  Fitted to 575 VGP
+	     alignments from the 577way run, which predate page retention and still had bar's nested
+	     parallelism in, so the fitted 220 is scaled down to 175, where the three retention-off
+	     peaks measured under the shipped configuration (huge pages on) put it: MammalsAnc0 122.5
+	     GiB (2.2x under the estimate), AnuraAnc6 265.1 (1.14x), salamander 350.0 (2.1x).
+	     AnuraAnc6 sets it: its flowers run to 847 ends against MammalsAnc0's 208, so it peaks 2.2x
+	     higher on 1.5x the input, which no power of the input can follow.  Below 0.02 GB of input
+	     the estimate tapers to zero. -->
+	<!-- og_size_scale_pct: scale outgroup sizes by this factor (percent) when computing total sequence size -->
 	<!-- retain_pages: whether cactus_consolidated keeps the pages jemalloc frees instead of
-	     returning them to the OS.  Keeping them is much faster (bar 12x and caf 1.25x on
-	     salamander Anc3) at a 2-3x higher peak memory (MammalsAnc0 90 -> 299 GiB).  "1" always,
-	     "0" never, "auto" keeps them unless the retained memory estimate is more than the job can
-	     be given (the system memory on a single machine, or the maxMemory option), in which case the
-	     estimate is divided by memory_retain_ratio and the pages are not kept.  The memory fit
-	     above was measured with retention on.  The consRetainPages command line option overrides. -->
-	<!-- memory_retain_ratio: peak memory with retention over peak without, used to shrink the
-	     estimate when retention is switched off: 1.8 (fish Anc48 caf), 2.0 (yeast bar),
-	     3.3 (MammalsAnc0) -->
+	     returning them to the OS.  Keeping them makes bar 2 to 2.5x faster (MammalsAnc0 on jemalloc
+	     5.3.1 with huge pages: 1837 s against 4517 s) at 2.4 to 2.6x the peak (117 to 299 GiB), and
+	     that peak follows cumulative churn rather than the working set, so it is not estimated: it
+	     is given room.  "1" always, "0" never, "auto" keeps the pages when memory_retain_multiple
+	     times the estimate, plus one further estimate of headroom, fits what the job can be given
+	     (the system memory on a single machine, or the maxMemory option), and then asks for that
+	     multiple; otherwise the pages are returned and the request is the estimate itself.  Where
+	     that ceiling is not known at all, which is every batch system but single_machine and slurm
+	     unless maxMemory is given, the pages are returned: an unschedulable request costs more than
+	     the speed does.  The consRetainPages command line option overrides. -->
+	<!-- memory_retain_multiple: how many times the retention-off estimate a retained job asks
+	     for.  The request is not a prediction of the retention peak, which follows cumulative
+	     churn and has no ceiling of its own; it is what retention is allowed to grow into before
+	     retain_pages_release_pct hands the pages back.  So it only has to leave the guard
+	     somewhere sensible: 2 puts the trip point at 1.6 times the estimate, which on MammalsAnc0
+	     is 433.1 GiB, above that job's retention peak under this configuration (271.4 GiB) by
+	     1.60x and above the highest ever measured for it (319.9, on jemalloc 5.3.0 without huge
+	     pages) by 1.35x; on lungfish Anc2 it is 821.1 against a 331.7 peak, 2.48x.  Losing
+	     retention to a guard that fires too early is expensive,
+	     2.8x on MammalsAnc0's bar.  Larger is not free: at 4 MammalsAnc0 queued 13.5 hours for a
+	     job that ran in two, asking 928 GiB to peak at 271, and at 3 lungfish Anc2 asked 1293 to
+	     peak at 332.
+	     Retention also requires a whole further estimate of headroom beyond the request.  That is
+	     a tuned exclusion threshold, not something the mechanism implies (the guard already bounds
+	     a retained job inside its request), and what it is tuned to exclude is salamander
+	     Anc3, which would otherwise ask 1479 GiB of a 1700 GiB ceiling to buy a caf 10% faster and
+	     a guard that fires either way.  It is therefore sensitive to node size: a ceiling of
+	     2219 GiB or more re-admits that job. -->
+	<!-- transparent_huge_pages: run cactus_consolidated under `env MALLOC_CONF=thp:always`, so
+	     jemalloc backs its extents with huge pages.  It has to reach the process through the
+	     environment because jemalloc reads MALLOC_CONF before main.  Applied in both retention
+	     modes.  Off: 44398 -> 33124 s on salamander Anc3 for 0.9% more peak.  On: measured on
+	     MammalsAnc0 as the fastest cell of its round with the least retention memory (4580 s /
+	     269 GiB, against 6536 s / 289 GiB without); and once the release guard has turned
+	     retention off mid-run, huge pages are the difference between the ~4100 s stock-decay mode
+	     and the 13433 s one.  A no-op where the kernel has THP set to never.  A MALLOC_CONF
+	     already in the environment is left alone. -->
+	<!-- retain_pages_release_pct: with retention on, the pages are handed back for good once rss
+	     reaches this percentage of the job's memory, and the run continues in stock decay.  A wrong
+	     guess then runs slower instead of dying.  Checked from caf's melting rounds, after caf and
+	     after the flowers are extended, and from bar's poa loop; the first time it fired it was 67
+	     seconds into bar, on 540 GiB that was all caf's.  80 rather than something smaller because
+	     the request is sized from it: rss overshoots the trip point by 0 to 12.2% across the runs
+	     measured, so 80 leaves rss at 90% of the request in the worst of them, while 65 would waste
+	     a quarter of every retained job's request.  One way only: purging repeatedly to hold a
+	     target was measured and lost.  0 disables. -->
 	<consolidated
 		 retain_pages="auto"
-		 memory_retain_ratio="2.5"
-		 memory_coefficient_gb="220"
+		 memory_retain_multiple="2"
+		 transparent_huge_pages="1"
+		 retain_pages_release_pct="80"
+		 memory_coefficient_gb="175"
 		 memory_input_exponent="0.30"
-		 memory_ramp_gb="0.02"
-		 memory_core_scale_pct="0.65"
-		 memory_core_scale_baseline="64"
-		 memory_core_scale_max_pct="100"
-		 memory_poa_window_exponent="0.43"
 		 og_size_scale_pct="75"
 		 >
 	</consolidated>
