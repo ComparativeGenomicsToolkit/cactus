@@ -78,9 +78,7 @@ def cactus_cons_with_resources(job, tree, ancestor_event, config_node, seq_id_ma
     estimate = int(mem_coef * (input_gb ** mem_exp) * ramp * 2**30) if input_gb > 0 else 0
     # A POA aligner (abPOA or minipoa) needs a table even for tiny alignments
     bar_node = findRequiredNode(config_node, 'bar')
-    base_aligner = getOptionalAttrib(bar_node, 'baseAligner', typeFn=str, default=None)
-    if base_aligner is None:
-        base_aligner = 'abpoa' if getOptionalAttrib(bar_node, 'partialOrderAlignment', typeFn=bool, default=True) else 'pecan'
+    base_aligner = getOptionalAttrib(bar_node, 'baseAligner', typeFn=str, default='abpoa')
     if base_aligner != 'pecan':
         estimate = max(estimate, int(4e9))
 

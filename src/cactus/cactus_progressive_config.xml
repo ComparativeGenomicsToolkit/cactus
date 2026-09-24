@@ -242,9 +242,6 @@
     is already over 23GB and gets OOM-killed.  minipoa shares abpoa's substitution matrix
     (from <poa partialOrderAlignmentSubMatrix>) but has its own gap penalties in <minipoa>, which
     are deliberately different - see the note there for why. -->
-    <!-- partialOrderAlignment is the older boolean form of the same choice, kept so that configs
-    written before baseAligner existed still work: with no baseAligner attribute, 1 means abpoa and
-    0 means pecan.  When both are present baseAligner wins and a warning is logged. -->
 	<!-- minimumBlockDegree The minimum number of sequences to form a block in the ancestor -->
 	<!-- minimumIngroupDegree The minimum number ingroup sequences to form a block in the ancestor -->
 	<!-- minimumOutgroupDegree The minimum number of outgroup sequences to form a block in the ancestor -->
@@ -253,7 +250,6 @@
 		runBar="1"
 		bandingLimit="1000000"
 		baseAligner="abpoa"
-		partialOrderAlignment="1"
 		minimumBlockDegree="2"
 		minimumIngroupDegree="1"
 		minimumOutgroupDegree="0"

@@ -859,21 +859,11 @@ static void run_minipoa_window(Msa *msa, uint8_t **bseqs, PoaParameters *poa_par
 /* ============================================================================ */
 
 /*
- * <bar baseAligner="..."> picks the engine.  It is read with cactusParams_has so that a config
- * predating the attribute -- including any a user has saved -- still selects what it used to via
- * the older <bar partialOrderAlignment="0|1"> boolean.
+ * <bar baseAligner="..."> picks the engine, abpoa when the attribute is absent.
  */
 BaseAligner baseAligner_constructFromCactusParams(CactusParams *params) {
-    /*
-     * Both attributes are optional, in both directions.  An old config has only
-     * partialOrderAlignment; a config written from now on may reasonably have only baseAligner --
-     * including one produced by following the warning below, which tells the user to delete the
-     * legacy attribute.  Reading either unguarded would st_errAbort on the other's config.
-     */
-    bool hasLegacy = cactusParams_has(params, 2, "bar", "partialOrderAlignment");
-    int64_t usePoa = hasLegacy ? cactusParams_get_int(params, 2, "bar", "partialOrderAlignment") : 1;
     if (!cactusParams_has(params, 2, "bar", "baseAligner")) {
-        return usePoa ? BASE_ALIGNER_ABPOA : BASE_ALIGNER_PECAN;
+        return BASE_ALIGNER_ABPOA;
     }
     char *name = cactusParams_get_string(params, 2, "bar", "baseAligner");
     BaseAligner engine;
@@ -888,18 +878,6 @@ BaseAligner baseAligner_constructFromCactusParams(CactusParams *params) {
         engine = BASE_ALIGNER_ABPOA; /* not reached */
     }
     free(name);
-
-    /*
-     * Both attributes present and disagreeing is worth saying out loud.  partialOrderAlignment="0"
-     * is how the config has always documented "use pecan", so someone who sets it and gets abpoa
-     * anyway should not have to discover that from the alignment.
-     */
-    bool poaImplied = engine != BASE_ALIGNER_PECAN;
-    if (hasLegacy && (usePoa != 0) != poaImplied) {
-        st_logCritical("Warning: <bar baseAligner=\"%s\"> overrides <bar partialOrderAlignment=\"%" PRIi64
-                       "\">, which asks for the opposite. baseAligner wins; remove the other to silence this.\n",
-                       baseAligner_toString(engine), usePoa);
-    }
     return engine;
 }
 
