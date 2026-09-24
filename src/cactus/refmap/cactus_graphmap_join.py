@@ -1535,6 +1535,10 @@ def clip_vg(job, options, config, vg_path, vg_id, phase):
             clip_vg_cmd += ['-u', str(options.clip)]
             if getOptionalAttrib(join_xml_node, "clipNonMinigraph", typeFn=bool, default=True):
                 clip_vg_cmd += ['-a', graph_event]
+            # sever inversions that clipping left with one junction (see the config)
+            inversion_min = getOptionalAttrib(join_xml_node, "clipInversionMin", typeFn=int, default=0)
+            if inversion_min > 0:
+                clip_vg_cmd += ['-I', str(inversion_min)]
             # trim the tangled fringe left where an aligner extended anchors into a repeat
             flank = getOptionalAttrib(join_xml_node, "clipFlank", typeFn=int, default=0)
             if flank > 0:
@@ -1644,9 +1648,24 @@ def clip_vg(job, options, config, vg_path, vg_id, phase):
                 break
         with open(flank_stats_path, 'w') as flank_stats_file:
             flank_stats_file.write('{}\t{}\t{}\n'.format(chr_name, threshold, calib_line))
+        # -I (clipInversionMin) likewise says on stderr how many one-sided inversions it found and
+        # severed, and how much sequence that cut.  Same treatment: the counts get columns, the
+        # message rides along
+        inversion_stats_path = vg_path + '.inversion-stats.tsv'
+        severed, found, bases_clipped, severed_line = 'NA', 'NA', 'NA', 'inversion severing not run'
+        for err_line in (clip_stderr or '').split('\n'):
+            if 'Severed' in err_line and 'reverse-strand runs' in err_line:
+                severed_line = err_line.split(']:', 1)[-1].strip()
+                match = re.search(r'Severed (\d+) of (\d+) reverse-strand runs.*clipping (\d+) more bases', severed_line)
+                if match:
+                    severed, found, bases_clipped = match.groups()
+                break
+        with open(inversion_stats_path, 'w') as inversion_stats_file:
+            inversion_stats_file.write('{}\t{}\t{}\t{}\t{}\n'.format(chr_name, severed, found, bases_clipped, severed_line))
         out_stats = { 'path-stats.tsv' : job.fileStore.writeGlobalFile(path_stats_path),
                       'graph-stats.tsv' : job.fileStore.writeGlobalFile(graph_stats_path),
-                      'flank-stats.tsv' : job.fileStore.writeGlobalFile(flank_stats_path) }
+                      'flank-stats.tsv' : job.fileStore.writeGlobalFile(flank_stats_path),
+                      'inversion-stats.tsv' : job.fileStore.writeGlobalFile(inversion_stats_path) }
     else:
         out_stats = None
     return job.fileStore.writeGlobalFile(clipped_path), out_stats
@@ -3077,6 +3096,7 @@ STATS_HEADERS = {
     'path-stats.tsv': '#ref_chrom\tpath\tlength',
     'graph-stats.tsv': '#ref_chrom\tnodes\tedges\tlength',
     'flank-stats.tsv': '#ref_chrom\tflank_threshold\tcalibration',
+    'inversion-stats.tsv': '#ref_chrom\tsevered\tfound\tbases_clipped\tmessage',
 }
 
 # path-stats has a row per surviving path fragment, which runs to millions on a filtered graph.

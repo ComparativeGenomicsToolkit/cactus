@@ -522,8 +522,10 @@ def minigraph_workflow(job, options, config, seq_id_map, gfa_id, graph_event, sa
     if del_filter > 0:
         del_filter_threshold = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "delFilterThreshold", float, default=None)
         del_size_threshold = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "delFilterQuerySizeThreshold", float, default=None)
+        del_max_remove = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "delFilterMaxRemove", int, default=None)
+        del_min_support = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "delFilterMinSupport", int, default=None)
         del_filter_job = prev_job.addFollowOnJobFn(filter_paf_deletions, out_paf_id, gfa_id, del_filter, del_filter_threshold,
-                                                   del_size_threshold,
+                                                   del_size_threshold, del_max_remove, del_min_support,
                                                    disk=8*gfa_id_size, cores=mg_cores,
                                                    memory=cactus_clamp_memory(30*gfa_id_size),
                                                    walltime=cactus_walltime(600 + FILTER_PAF_DELETIONS_SECS_PER_GB * gfa_id_size / 1e9,
@@ -1317,7 +1319,7 @@ def filter_paf(job, paf_id, config, reference=None):
 
     return job.fileStore.writeGlobalFile(filter_paf_path)    
 
-def filter_paf_deletions(job, paf_id, gfa_id, max_deletion, filter_threshold, filter_query_size_threshold):
+def filter_paf_deletions(job, paf_id, gfa_id, max_deletion, filter_threshold, filter_query_size_threshold, max_remove=None, min_support=None):
     """ run filter-paf-deletions on a paf to break out giant-snarl-making edges """
     work_dir = job.fileStore.getLocalTempDir()
     paf_path = os.path.join(work_dir, 'mg.paf')
@@ -1340,6 +1342,11 @@ def filter_paf_deletions(job, paf_id, gfa_id, max_deletion, filter_threshold, fi
         filter_paf_cmd += ['-m', str(filter_threshold)]
     if filter_query_size_threshold:
         filter_paf_cmd += ['-s', str(filter_query_size_threshold)]
+    if max_remove is not None and max_remove >= 0:
+        # the absolute budget for deletions fewer than min_support contigs assert (see the config)
+        filter_paf_cmd += ['-M', str(max_remove)]
+        if min_support:
+            filter_paf_cmd += ['-S', str(min_support)]
     filter_stdout, filter_stderr = cactus_call(parameters=filter_paf_cmd, check_output=True, returnStdErr=True, job_memory=job.memory)
     with open(filter_log_path, 'w') as filter_log_file:
         for line in filter_stderr:
