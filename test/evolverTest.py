@@ -1155,6 +1155,19 @@ class TestCase(unittest.TestCase):
         # the collapse rewires edges, so a bad one shows up as a dangling or duplicate link
         self._validate_sv_gfa(collapsed)
 
+    def _check_chrom_collapse_output(self, join_path):
+        """ under --mgSplit the collapse runs on each all-sample chromosome graph, so every
+        chrom-minigraph/<chrom>.sv.gfa.gz needs its pre-collapse graph and per-call report beside
+        it.  With --mgSplitWholeGenomeRef the main export of that graph is deferred to the prune,
+        and the artifacts were deferred with it and then never written at all: a 460-haplotype run
+        finished with 25 collapsed chromosomes and not one report on disk.  The reference-only
+        first-pass graph is not collapsed and lives outside chrom-minigraph, so it is not checked. """
+        mg_dir = os.path.join(join_path, 'chrom-minigraph')
+        gfa_names = sorted(f for f in os.listdir(mg_dir) if f.endswith('.sv.gfa.gz'))
+        self.assertTrue(gfa_names, 'no per-chromosome minigraphs in {}'.format(mg_dir))
+        for gfa_name in gfa_names:
+            self._check_collapse_output(mg_dir, gfa_name=gfa_name)
+
     def _check_yeast_pangenome(self, binariesMode, other_ref=None, expect_odgi=False, expect_haplo=False, expect_unchopped_gfa=False, expect_gref=False, vcfL=None, expect_report=True):
         """ yeast pangenome chromosome by chromosome pipeline
         """
@@ -2554,6 +2567,7 @@ class TestCase(unittest.TestCase):
 
         # check the output
         self._check_yeast_pangenome(name, other_ref='DBVPG6044', expect_odgi=True, expect_haplo=False, expect_unchopped_gfa=True)
+        self._check_chrom_collapse_output(os.path.join(self.tempDir, 'join'))
 
     def testYeastPangenomeSplitLocal(self):
         """ Run pangenome pipeline (including contig splitting!) on yeast dataset using cactus-pangenome.
@@ -2567,6 +2581,7 @@ class TestCase(unittest.TestCase):
         # check the output
         self._check_yeast_pangenome(name, other_ref='DBVPG6044', expect_odgi=True, expect_haplo=True, expect_unchopped_gfa=True, expect_gref=True, vcfL=0.95)
         self._check_pruned_chrom_minigraphs(os.path.join(self.tempDir, 'join'))
+        self._check_chrom_collapse_output(os.path.join(self.tempDir, 'join'))
 
         # Test bypass re-indexing with --vgClip and --vgFilter
         self._test_vg_bypass(name)
