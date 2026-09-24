@@ -14,12 +14,12 @@ import xml.etree.ElementTree as ET
 from operator import itemgetter
 
 from cactus.progressive.seqFile import SeqFile
-from cactus.shared.common import setupBinaries, importSingularityImage
+from cactus.shared.common import setupBinaries, importSingularityImage, cactus_walltime
 from cactus.shared.common import cactusRootPath
 from cactus.shared.configWrapper import ConfigWrapper
 from cactus.shared.common import makeURL, catFiles
 from cactus.shared.common import enableDumpStack
-from cactus.shared.common import cactus_override_toil_options
+from cactus.shared.common import cactus_override_toil_options, add_cactus_toil_options
 from cactus.shared.common import cactus_call
 from cactus.shared.common import getOptionalAttrib, findRequiredNode
 from cactus.shared.common import cactus_clamp_memory
@@ -36,6 +36,7 @@ from sonLib.bioio import getTempDirectory
 
 def main():
     parser = Job.Runner.getDefaultArgumentParser()
+    add_cactus_toil_options(parser)
 
     parser.add_argument("mafFile", help = "MAF file to convert to BigMaf (can be gzipped)")
     parser.add_argument("outFile", help = "Output bigMaf file (.bb)")
@@ -93,7 +94,7 @@ def main():
             if options.halFile:
                 hal_id = toil.importFile(options.halFile)
                 
-            bigmaf_id_dict = toil.start(Job.wrapJobFn(maf2bigmaf_workflow, config, options, maf_id, hal_id))
+            bigmaf_id_dict = toil.start(Job.wrapJobFn(maf2bigmaf_workflow, config, options, maf_id, hal_id, walltime=cactus_walltime()))
 
         #export the big maf
         out_bm_path = makeURL(options.outFile)
@@ -109,27 +110,62 @@ def main():
     logger.info("cactus-maf2bigmaf has finished after {} seconds".format(run_time))
 
 
+# How much bigger a MAF gets when it is unzipped.  Not measured directly, but it is what the
+# disk model below has always implied: a gzipped MAF asks for 7x its own size of local disk to
+# hold the compressed input plus the uncompressed stream.
+MAF_GZIP_RATIO = 6
+
+# Seconds per GB of *uncompressed* MAF for one run of the UCSC/mafTools chain
+# (mafDuplicateFilter | mafFilter | mafToBigMaf | sort | bedToBigBed).  cactus-maf2bigmaf
+# appears in none of the mined cluster logs, so this is anchored on the one measured sequential
+# pass over a MAF of this kind -- taffy, at 200s per GB of *gzipped* MAF (see
+# maf_chunk.TAFFY_SECS_PER_GB), which is ~35s per GB uncompressed -- and scaled up 3x for
+# mafTools being slower per byte than taffy and for the external sort, which is a genuine extra
+# pass over the whole file rather than another stage of the pipeline.  (cactus_call builds the
+# mafTools stages as one shell pipeline, so they overlap rather than running end to end.)  The
+# sort is the superlinear step: if these jobs start retrying, raise this rather than widening
+# --walltimeFactor for the whole run.
+MAF2BIGMAF_SECS_PER_UNCOMPRESSED_GB = 100
+
+# hgLoadMafSummary is the heavier of the pair -- the job's own memory model says so, asking
+# mem_mult 1.1 of the MAF against maf2bigmaf's maf_id.size/20.
+MAF2BIGMAF_SUMMARY_SECS_PER_UNCOMPRESSED_GB = 130
+
+
 def maf2bigmaf_workflow(job, config, options, maf_id, hal_id):
-    root_job = Job()
+    root_job = Job(walltime=cactus_walltime())
     job.addChild(root_job)
-    check_tools_job = root_job.addChildJobFn(maf2bigmaf_check_tools)
+    check_tools_job = root_job.addChildJobFn(maf2bigmaf_check_tools, walltime=cactus_walltime())
     genomes_list = None
+    # halStats is a metadata read and takes seconds; on a HAL of any size this job is a HAL copy
+    # and little else (same shape as hal2maf_ranges)
     chrom_sizes_job = check_tools_job.addFollowOnJobFn(maf2bigmaf_chrom_sizes, options, hal_id,
-                                                       disk=hal_id.size)
+                                                       disk=hal_id.size,
+                                                       walltime=cactus_walltime(300, io_bytes=hal_id.size))
     chrom_sizes_id = chrom_sizes_job.rv(0)
     genomes_list = chrom_sizes_job.rv(1)
     if options.mafFile.endswith('.gz'):
         disk_mult = 7
         mem_mult = 1.1
+        gzip_ratio = MAF_GZIP_RATIO
     else:
         disk_mult = 3
         mem_mult = 0.3
+        gzip_ratio = 1
+    # the two jobs below stream the whole MAF through uncompressed, so that is the volume that
+    # sets their runtime.  Not disk_mult, which is peak local disk -- input plus intermediates
+    # plus output -- and so counts the same bytes several times over.
+    uncompressed_gb = gzip_ratio * maf_id.size / 1e9
     bigmaf_job = chrom_sizes_job.addFollowOnJobFn(maf2bigmaf, maf_id, chrom_sizes_id, genomes_list, options,
                                                   disk=disk_mult * maf_id.size,
-                                                  memory=cactus_clamp_memory(maf_id.size / 20))
+                                                  memory=cactus_clamp_memory(maf_id.size / 20),
+                                                  walltime=cactus_walltime(MAF2BIGMAF_SECS_PER_UNCOMPRESSED_GB * uncompressed_gb,
+                                                                           io_bytes=2 * maf_id.size))
     bigmaf_summary_job = chrom_sizes_job.addFollowOnJobFn(maf2bigmaf_summary, maf_id, chrom_sizes_id, genomes_list, options,
                                                           disk=disk_mult * maf_id.size,
-                                                          memory=cactus_clamp_memory(maf_id.size * mem_mult))
+                                                          memory=cactus_clamp_memory(maf_id.size * mem_mult),
+                                                          walltime=cactus_walltime(MAF2BIGMAF_SUMMARY_SECS_PER_UNCOMPRESSED_GB * uncompressed_gb,
+                                                                                   io_bytes=2 * maf_id.size))
     
     return { 'bb' : bigmaf_job.rv(),  'summary.bb' : bigmaf_summary_job.rv() }
 

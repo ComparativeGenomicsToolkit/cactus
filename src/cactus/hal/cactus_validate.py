@@ -56,6 +56,7 @@ from cactus.progressive.multiCactusTree import MultiCactusTree
 from cactus.progressive.seqFile import SeqFile
 from cactus.shared.common import cactus_call
 from cactus.shared.common import cactus_clamp_memory
+from cactus.shared.common import cactus_walltime
 from cactus.shared.common import cactus_override_toil_options
 from cactus.shared.common import cactusRootPath
 from cactus.shared.common import catFiles
@@ -505,6 +506,8 @@ def validate_hal_export(job, hal_path, work_dir, mc_tree, root_node, seq_id_map)
     return []
 
 
+VALIDATE_SECS_PER_GB = 150
+
 def fail_hal_validation(job, hal_name, problems):
     """Fail the workflow because the HAL did not match its input.
 
@@ -520,9 +523,10 @@ def validate_workflow(job, hal_id, seq_id_map, seq_paths, unreadable, options, c
     # the plan job only reads the alignment's tree, which is metadata: no page-cache
     # allowance needed, unlike the batches below
     plan_job = job.addChildJobFn(validate_plan, hal_id, sorted(seq_id_map), unreadable,
-                                 options, config, cores=1, disk=int(hal_id.size * 1.1))
+                                 options, config, cores=1, disk=int(hal_id.size * 1.1),
+                                 walltime=cactus_walltime())
     return plan_job.addFollowOnJobFn(validate_all, hal_id, seq_id_map, seq_paths,
-                                     plan_job.rv(), options).rv()
+                                     plan_job.rv(), options, walltime=cactus_walltime()).rv()
 
 
 def validate_plan(job, hal_id, seqfile_genomes, unreadable, options, config):
@@ -621,10 +625,17 @@ def validate_all(job, hal_id, seq_id_map, seq_paths, plan, options):
         # in memory and so is bounded by the largest chromosome, not the genome.
         memory = options.validateMemory if options.validateMemory else \
             cactus_clamp_memory(4 * 1024**3)
+        # two passes over the genome: hal2fasta streams it out of the HAL and the check reads it
+        # back against the input fasta.  hal2fasta alone measured 60 s/GB at the p99 over the 576
+        # per-ancestor exports of the VGP 577-way (HAL2FASTA_SECS_PER_GB in cactus_hal2seqfile),
+        # and the comparison is the cheaper half.  The HAL arrives by symlink, so only the input
+        # fasta and the extracted copy are I/O.
         results.append(job.addChildJobFn(validate_one, hal_id, seq_id_map[genome],
                                          seq_paths.get(genome), genome, pangenome, options,
-                                         cores=1, disk=disk, memory=memory).rv())
-    return job.addFollowOnJobFn(gather_problems, problems, results).rv()
+                                         cores=1, disk=disk, memory=memory,
+                                         walltime=cactus_walltime(VALIDATE_SECS_PER_GB * length / 1e9,
+                                                                  io_bytes=2 * length)).rv())
+    return job.addFollowOnJobFn(gather_problems, problems, results, walltime=cactus_walltime()).rv()
 
 
 def gather_problems(job, problems, results):
@@ -743,7 +754,8 @@ def main():
             if not seq_id_map and not unreadable:
                 raise RuntimeError('no sequences found in seqfile {}'.format(options.seqFile))
             problems = toil.start(Job.wrapJobFn(validate_workflow, hal_id, seq_id_map,
-                                                seq_paths, unreadable, options, config))
+                                                seq_paths, unreadable, options, config,
+                                                walltime=cactus_walltime()))
 
     end_time = timeit.default_timer()
     logger.info("cactus-validate has finished after {} seconds".format(end_time - start_time))
