@@ -34,9 +34,7 @@ PairwiseAlignmentParameters *pairwiseAlignmentParameters_constructFromCactusPara
 /**
  * Which engine computes the base-level multiple alignment.
  *
- * Selected by <bar baseAligner="pecan|abpoa|minipoa">.  Configs written before that attribute
- * existed fall back to the older <bar partialOrderAlignment="0|1"> boolean, so nothing needs
- * rewriting.
+ * Selected by <bar baseAligner="pecan|abpoa|minipoa">, abpoa when absent.
  */
 typedef enum {
     BASE_ALIGNER_PECAN = 0,
