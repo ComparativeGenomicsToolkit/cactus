@@ -175,6 +175,15 @@ def cactus_override_toil_options(options):
     if not any(arg == '--doubleMem' or arg.startswith('--doubleMem=') for arg in sys.argv[1:]):
         options.doubleMem = True
 
+    # --doubleTime likewise, and for the same reason: every job's walltime is an estimate too, and
+    # a job Slurm kills for running over is retried with twice the time rather than failing the
+    # run.  It has to be decided here, before the walltime ceiling below, which keeps room in the
+    # longest partition for exactly that retry.  hasattr because only Toil newer than 9.5.0 has
+    # the option (see toil-requirement.txt).
+    if hasattr(options, 'doubleTime') and \
+       not any(arg == '--doubleTime' or arg.startswith('--doubleTime=') for arg in sys.argv[1:]):
+        options.doubleTime = True
+
     if 'CACTUS_INSIDE_CONTAINER' in os.environ and str(os.environ['CACTUS_INSIDE_CONTAINER']) == '1':
         # some people get confused when trying to use their cluster from inside the cactus
         # docker. it doesn't work (without tons of hackery) since slurm isnt in the image
@@ -355,12 +364,6 @@ def add_cactus_toil_options(parser):
                              "falling back to a default, when no partition can fit a job's "
                              "walltime.")
 
-    # --doubleTime is what makes tight per-job walltimes safe: a job Slurm kills for running
-    # over is retried with twice the time rather than failing the run.  Default it on the way
-    # retryCount is defaulted up, while still letting "--doubleTime false" win.  Guarded
-    # because it only exists in Toil newer than 9.5.0 (see toil-requirement.txt).
-    if any('--doubleTime' in (action.option_strings or []) for action in parser._actions):
-        parser.set_defaults(doubleTime=True)
 
 def makeURL(path_or_url):
     if urlparse(path_or_url).scheme == '':
