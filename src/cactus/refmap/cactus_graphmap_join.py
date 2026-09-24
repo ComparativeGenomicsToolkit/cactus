@@ -1535,6 +1535,10 @@ def clip_vg(job, options, config, vg_path, vg_id, phase):
             clip_vg_cmd += ['-u', str(options.clip)]
             if getOptionalAttrib(join_xml_node, "clipNonMinigraph", typeFn=bool, default=True):
                 clip_vg_cmd += ['-a', graph_event]
+            # sever inversions that clipping left with one junction (see the config)
+            inversion_min = getOptionalAttrib(join_xml_node, "clipInversionMin", typeFn=int, default=0)
+            if inversion_min > 0:
+                clip_vg_cmd += ['-I', str(inversion_min)]
             # trim the tangled fringe left where an aligner extended anchors into a repeat
             flank = getOptionalAttrib(join_xml_node, "clipFlank", typeFn=int, default=0)
             if flank > 0:
