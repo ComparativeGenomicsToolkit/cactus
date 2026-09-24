@@ -21,14 +21,27 @@ from cactus.shared.common import RoundedJob
 from cactus.shared.common import getOptionalAttrib
 from cactus.shared.common import makeURL
 from cactus.shared.common import get_faidx_subpath_rename_cmd
+from cactus.shared.common import cactus_walltime
 
 from toil.realtimeLogger import RealtimeLogger
+
+# Seconds per GB of input fasta for FileMaskingJob.  The --maskFile path did not run in any of
+# the mined logs, but its two dominant commands did, in the VGP 577-way preprocess log:
+# cactus_softmask2hardmask n=601 p99 51 s over genomes up to 10.5 GB (~10 s/GB) and
+# cactus_fasta_softmask_intervals.py n=577 p99 181 s (~30 s/GB).  80 doubles that sum to cover
+# the bed merge loop, which is pure python and has been observed in no log; the margin beyond
+# that is --walltimeFactor's job.  Caveat for whoever tunes this: the input BED/PAF arrives as an XML
+# attribute, so its size is not in scope here at all -- a pathological mask file is invisible to
+# this formula and only --doubleTime would save the job.
+FILE_MASKING_SECS_PER_GB = 80
 
 class FileMaskingJob(RoundedJob):
     def __init__(self, fastaID, minLength=None, action=None, inputBedID=None, eventName=None):
         disk = 2*(fastaID.size)
         memory = fastaID.size
-        RoundedJob.__init__(self, disk=disk, memory=memory, preemptable=True)
+        RoundedJob.__init__(self, disk=disk, memory=memory, preemptable=True,
+                            walltime=cactus_walltime(FILE_MASKING_SECS_PER_GB * fastaID.size / 1e9,
+                                                     io_bytes=3 * fastaID.size))
         self.fastaID = fastaID
         self.minLength = minLength
         self.action = action
