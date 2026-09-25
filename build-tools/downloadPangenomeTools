@@ -288,11 +288,14 @@ git clone https://github.com/ComparativeGenomicsToolkit/hal2vg.git
 cd hal2vg
 git checkout 80112aa3de68be015093bb88c784f7911a74b09d
 git submodule update --init --recursive
+# makeBinRelease exports ENABLE_PHYLOP=1 for cactus's own hal, whose phast sits beside it.
+# hal2vg builds a second hal, with no phast beside it, so the flag has to be kept from it or
+# that hal tries to build halPhyloP and the release stops here.
 if [[ $STATIC_CHECK -eq 1 ]]
 then
-	 make -j ${numcpu} static
+	 env -u ENABLE_PHYLOP make -j ${numcpu} static
 else
-	 make -j ${numcpu}
+	 env -u ENABLE_PHYLOP make -j ${numcpu}
 fi
 for tool in hal2vg clip-vg halRemoveDupes halMergeChroms halUnclip filter-paf-deletions
 do
