@@ -907,6 +907,20 @@ class TestCase(unittest.TestCase):
         stats_dir = os.path.join(join_path, 'yeast.stats')
         self.assertTrue(os.path.isdir(stats_dir), 'no yeast.stats directory')
 
+        # clip-vg -I says on stderr how many one-sided inversions it found and severed; the join
+        # parses that line into inversion-stats.tsv.  The default config turns -I on, so every row
+        # must carry numbers: NA there means the line was not printed or not parsed
+        inversion_stats = os.path.join(stats_dir, 'inversion-stats.tsv')
+        self.assertTrue(os.path.isfile(inversion_stats), 'no inversion-stats.tsv in {}'.format(stats_dir))
+        with open(inversion_stats) as inversion_file:
+            rows = [line.rstrip('\n').split('\t') for line in inversion_file]
+        self.assertEqual(rows[0], ['#ref_chrom', 'severed', 'found', 'bases_clipped', 'message'])
+        self.assertTrue(len(rows) > 1, 'inversion-stats.tsv has no chromosome rows')
+        for row in rows[1:]:
+            self.assertEqual(len(row), 5, row)
+            for col in row[1:4]:
+                self.assertTrue(col.isdigit(), 'clip-vg -I summary not recorded: {}'.format(row))
+
         if not expect_report:
             # standalone cactus-graphmap-join with no --inputContigSizes: no clipping report, but
             # the outputs that do not need the input contig lengths must still be there
