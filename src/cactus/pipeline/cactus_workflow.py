@@ -319,7 +319,8 @@ def cactus_cons(job, tree, ancestor_event, config_node, seq_id_map, og_map, paf_
         env_prefix = ['env', 'MALLOC_CONF=thp:always']
 
     # A way out if the estimate was wrong: the pages are handed back rather than the job being
-    # OOM-killed.  Checked from caf's melting rounds and bar's poa loop.  Only with retention on.
+    # OOM-killed.  Checked from caf's melting rounds and from bar, per flower for
+    # every base aligner.  Only with retention on.
     guard_pct = getOptionalAttrib(findRequiredNode(config_node, 'consolidated'), 'retain_pages_release_pct', typeFn=float, default=80.0)
     if str(retain_pages) == '1' and guard_pct > 0 and job.memory:
         limit_mb = int(job.memory * guard_pct / 100.0 / 2**20)
