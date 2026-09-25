@@ -222,6 +222,8 @@ void usage() {
     fprintf(stderr, "-f --outputFile : [Required] The file to write the combined cactus to hal output\n");
     fprintf(stderr, "-F --outputHalFastaFile : The file to write the sequences in to build the hal file.\n");
     fprintf(stderr, "-G --outputReferenceFile : The file to write the sequences of the reference in (used in the progressive recursion).\n");
+    fprintf(stderr, "-O --outputLikelihoodFile : The file to write the likelihood vectors of the reference in (used in the progressive recursion).\n");
+    fprintf(stderr, "-i --inputLikelihoodFile : Likelihood vectors to use in place of the bases of input sequences when calling ancestral bases. Can be given more than once.\n");
     fprintf(stderr, "-s --sequences [Required unless --seqFile given] : eventName fastaFile/Directory]xN: The sequences\n");
     fprintf(stderr, "-e --seqFile [Required unless --sequences and --speciesTree give] : seqfile containing tree and sequences\n"); 
     fprintf(stderr, "-a --alignments : [Required] The alignments file\n");
@@ -396,6 +398,8 @@ int main(int argc, char *argv[]) {
     char *outputFile = NULL;
     char *outputHalFastaFile = NULL;
     char *outputReferenceFile = NULL;
+    char *outputLikelihoodFile = NULL;
+    stList *inputLikelihoodFiles = stList_construct();
     char *sequenceFilesAndEvents = NULL;
     char *seqFile = NULL;
     char *alignmentsFile = NULL;
@@ -424,6 +428,8 @@ int main(int argc, char *argv[]) {
                 { "outputFile", required_argument, 0, 'f' },
                 { "outputHalFastaFile", required_argument, 0, 'F' },
                 { "outputReferenceFile", required_argument, 0, 'G' },
+                { "outputLikelihoodFile", required_argument, 0, 'O' },
+                { "inputLikelihoodFile", required_argument, 0, 'i' },
                 { "sequences", required_argument, 0, 's' },
                 { "seqFile", required_argument, 0, 'e' },
                 { "alignments", required_argument, 0, 'a' },
@@ -439,7 +445,7 @@ int main(int argc, char *argv[]) {
 
         int option_index = 0;
 
-        int64_t key = getopt_long(argc, argv, "l:p:s:a:S:e:c:g:o:hr:F:G:tT:", long_options, &option_index);
+        int64_t key = getopt_long(argc, argv, "l:p:s:a:S:e:c:g:o:hr:F:G:O:i:tT:", long_options, &option_index);
 
         if (key == -1) {
             break;
@@ -460,6 +466,12 @@ int main(int argc, char *argv[]) {
                 break;
             case 'G':
                 outputReferenceFile = optarg;
+                break;
+            case 'O':
+                outputLikelihoodFile = optarg;
+                break;
+            case 'i':
+                stList_append(inputLikelihoodFiles, optarg);
                 break;
             case 's':
                 sequenceFilesAndEvents = optarg;
@@ -547,6 +559,10 @@ int main(int argc, char *argv[]) {
     st_logInfo("Output file string : %s\n", outputFile);
     st_logInfo("Output hal fasta file string : %s\n", outputHalFastaFile);
     st_logInfo("Output reference fasta file string : %s\n", outputReferenceFile);
+    st_logInfo("Output likelihood file string : %s\n", outputLikelihoodFile);
+    for (int64_t i = 0; i < stList_length(inputLikelihoodFiles); i++) {
+        st_logInfo("Input likelihood file: %s\n", (char *)stList_get(inputLikelihoodFiles, i));
+    }
     st_logInfo("Sequence files and events: %s\n", sequenceFilesAndEvents);
     st_logInfo("Alignments file: %s\n", alignmentsFile);
     st_logInfo("Secondary alignments file: %s\n", secondaryAlignmentsFile);
@@ -636,6 +652,12 @@ int main(int argc, char *argv[]) {
 
     stripUniqueIdsFromLeafSequences(flower);
     st_logInfo("Stripped any unique IDs, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
+
+    // Matched to the sequences by name, so this has to follow the stripping
+    if (stList_length(inputLikelihoodFiles) > 0) {
+        setInputAncestralLikelihoods(flower, inputLikelihoodFiles);
+        st_logInfo("Loaded the input likelihood vectors, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
+    }
 
     //////////////////////////////////////////////
     //Call cactus caf
@@ -737,6 +759,13 @@ int main(int argc, char *argv[]) {
             }
         }
         st_logInfo("Ran cactus make reference top down coordinates, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
+
+        if (outputLikelihoodFile != NULL) {
+            FILE *likelihoodHandle = st_fopen(outputLikelihoodFile, "wb");
+            writeAncestralLikelihoods(flowerLayers, flower, referenceEvent, generateJukesCantorMatrix, likelihoodHandle);
+            st_fclose(likelihoodHandle, outputLikelihoodFile);
+            st_logInfo("Wrote the reference likelihood vectors, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
+        }
     } else {
         st_logInfo("Skipped reference phase because input sequence was provided for %s\n", referenceEventString);
     }

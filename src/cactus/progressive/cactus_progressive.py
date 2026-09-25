@@ -134,6 +134,8 @@ def progressive_schedule(job, options, config_node, seq_id_map, tree, og_map, ro
     # todo: can speed up with better indexing/updating
     job_table = {}
     fasta_results = seq_id_map
+    # ancestor -> likelihood vectors of its bases (see <reference ancestralLikelihoods>)
+    likelihood_results = {}
     hal_results = {}
     while len(job_table) != len(dep_table):
         num_jobs_at_iteration_start = len(job_table)
@@ -154,7 +156,14 @@ def progressive_schedule(job, options, config_node, seq_id_map, tree, og_map, ro
                 # to be consistent with pre-refactor (and work with updating tests), we include the root when its id is input
                 if event in seq_id_map and seq_id_map[event]:
                     event_id_map[event] = seq_id_map[event]                    
-                event_job = Job.wrapJobFn(progressive_step, options, config_node, event_id_map, tree, og_map, event, walltime=cactus_walltime())
+                # only the children's: the outgroups may be trimmed, which renames their sequences
+                likelihood_id_map = {}
+                for child_id in tree.getChildren(tree.getNodeId(event)):
+                    child = tree.getName(child_id)
+                    if child in likelihood_results:
+                        likelihood_id_map[child] = likelihood_results[child]
+                event_job = Job.wrapJobFn(progressive_step, options, config_node, event_id_map, tree, og_map, event,
+                                          likelihood_id_map=likelihood_id_map, walltime=cactus_walltime())
                 job_table[event] = event_job
                 for dep in dep_table[event]:
                     if dep in job_table:
@@ -162,6 +171,7 @@ def progressive_schedule(job, options, config_node, seq_id_map, tree, og_map, ro
                         job_table[dep].addFollowOn(event_job)
                 hal_results[event] = (event_job.rv(1), event_job.rv(2))
                 fasta_results[event] = event_job.rv(3)
+                likelihood_results[event] = event_job.rv(4)
         if len(job_table) == num_jobs_at_iteration_start and len(job_table) != len(dep_table):
             raise RuntimeError("Unable to schedule job dependencies.  Please file a bug report on github")
 
@@ -171,7 +181,7 @@ def progressive_schedule(job, options, config_node, seq_id_map, tree, og_map, ro
             
     return hal_results
                 
-def progressive_step(job, options, config_node, seq_id_map, tree, og_map, event):
+def progressive_step(job, options, config_node, seq_id_map, tree, og_map, event, likelihood_id_map=None):
     ''' run the blast -> consolidated workflow on an event'''
 
     # get our subtree (just ingroups and outgroups)
@@ -200,19 +210,21 @@ def progressive_step(job, options, config_node, seq_id_map, tree, og_map, event)
                                                [subtree_eventmap[i] for i in outgroups], paf_job.rv(), config_node,
                                                walltime=cactus_walltime())
         cons_job = paf_job.addFollowOnJobFn(progressive_step_2, trim_sequences.rv(), options, config_node, subtree_eventmap,
-                                            spanning_tree, og_map, event, walltime=cactus_walltime())
+                                            spanning_tree, og_map, event, likelihood_id_map=likelihood_id_map,
+                                            walltime=cactus_walltime())
         
     else:  # Without outgroup trimming (or if there are no outgroups to trim)
         cons_job = paf_job.addChildJobFn(cactus_cons_with_resources, spanning_tree, event, config_node, subtree_eventmap,
                                          og_map, paf_job.rv(), cons_cores=options.consCores, cons_memory=options.consMemory, cons_retain_pages=getattr(options, 'consRetainPages', None),
-                                         intermediate_results_url=options.intermediateResultsUrl, walltime=cactus_walltime())
+                                         intermediate_results_url=options.intermediateResultsUrl, likelihood_id_map=likelihood_id_map,
+                                         walltime=cactus_walltime())
     # erase the paf since its now longer needed
     cons_job.addFollowOnJobFn(clean_jobstore_files, file_ids=[paf_job.rv()], walltime=cactus_walltime())
     return cons_job.rv()
 
 
 def progressive_step_2(job, trimmed_outgroups_and_alignments, options, config_node, subtree_eventmap,
-                       spanning_tree, og_map, event):
+                       spanning_tree, og_map, event, likelihood_id_map=None):
     trimmed_outgroup_seqs, pafs = trimmed_outgroups_and_alignments  # unpack the pafs and outgroup sequences
     # set the outgroup seqs
     for outgroup, sequence in zip(og_map[event] if event in og_map else [], trimmed_outgroup_seqs):
@@ -221,7 +233,8 @@ def progressive_step_2(job, trimmed_outgroups_and_alignments, options, config_no
     # now do consolidated
     return job.addChildJobFn(cactus_cons_with_resources, spanning_tree, event, config_node, subtree_eventmap, og_map,
                              pafs, cons_cores=options.consCores, cons_memory=options.consMemory, cons_retain_pages=getattr(options, 'consRetainPages', None),
-                             intermediate_results_url=options.intermediateResultsUrl, walltime=cactus_walltime()).rv()
+                             intermediate_results_url=options.intermediateResultsUrl, likelihood_id_map=likelihood_id_map,
+                             walltime=cactus_walltime()).rv()
 
 
 def export_hal(job, mc_tree, config_node, seq_id_map, og_map, results, event=None, cacheBytes=None,

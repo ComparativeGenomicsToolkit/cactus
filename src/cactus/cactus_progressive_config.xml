@@ -446,7 +446,11 @@
 	<!-- maximumChainBasesToBreakAdjacency The maximum length, in terms of bases, of a parent chain for an
 	     adjacency in a nested flower (snarl) to be considered for breaking. -->
 	<!-- phi is the coefficient used to control how much weight to place on an adjacency given its phylogenetic distance from the reference node -->
+	<!-- ancestralLikelihoods: when calling an ancestor's bases, use the likelihood of the genomes below each of its child ancestors'
+	     bases (written by the child's own cactus_consolidated) instead of the child's called bases.  This makes each call exact
+	     over every leaf below the ancestor, rather than over its children's calls.  Progressive mode only. [EXPERIMENTAL] -->
 	<reference
+		ancestralLikelihoods="0"
 		matchingAlgorithm="blossom5"
 		reference="reference"
 		useSimulatedAnnealing="1"

@@ -48,8 +48,10 @@ def cons_core_scale(cores, baseline=CONS_CORE_BASELINE, parallel=CONS_PARALLEL_F
 
 def cactus_cons_with_resources(job, tree, ancestor_event, config_node, seq_id_map, og_map, paf_id,
                                cons_cores = None, cons_memory = None, intermediate_results_url = None, chrom_name = None,
-                               cons_retain_pages = None):
-    ''' run cactus_consolidated as a child job, requesting resources based on input sizes '''
+                               cons_retain_pages = None, likelihood_id_map = None):
+    ''' run cactus_consolidated as a child job, requesting resources based on input sizes.
+    likelihood_id_map, if given, maps child ancestors to the likelihood vectors their own
+    cactus_consolidated wrote (see <reference ancestralLikelihoods>) '''
 
     cons_node = findRequiredNode(config_node, 'consolidated')
     name = chrom_name if chrom_name else ancestor_event
@@ -224,13 +226,15 @@ def cactus_cons_with_resources(job, tree, ancestor_event, config_node, seq_id_ma
     cons_job = job.addChildJobFn(cactus_cons, tree, ancestor_event, config_node, seq_id_map, og_map, paf_id,
                                  intermediate_results_url=intermediate_results_url, chrom_name=chrom_name, cores = cons_cores,
                                  memory=cactus_clamp_memory(mem), disk=disk, retain_pages=retain_pages,
-                                 poa_window=poa_window, walltime=cactus_walltime(walltime_secs))
+                                 poa_window=poa_window, likelihood_id_map=likelihood_id_map,
+                                 walltime=cactus_walltime(walltime_secs))
     return cons_job.rv()
 
 def cactus_cons(job, tree, ancestor_event, config_node, seq_id_map, og_map, paf_id,
                 intermediate_results_url = None, chrom_name = None, retain_pages = None,
-                poa_window = None):
-    ''' run cactus_consolidated '''
+                poa_window = None, likelihood_id_map = None):
+    ''' run cactus_consolidated.  Returns (event, c2h, hal fasta, reference fasta, likelihoods),
+    where the likelihoods are None unless <reference ancestralLikelihoods> is on '''
 
     # cactus_consolidated reads its settings from the config, so the resolved page retention
     # goes into the copy it is given (this job's copy of the node, so nothing else sees it)
@@ -300,6 +304,19 @@ def cactus_cons(job, tree, ancestor_event, config_node, seq_id_map, og_map, paf_
     if use_secondary_alignments:  # Optionally add the secondary alignments
         args += ["--secondaryAlignments", secondary_alignment_file]
 
+    # Carry the likelihood of the genomes below each ancestral base up the tree, rather than only
+    # the called base: write this ancestor's, and use its child ancestors' in place of their bases
+    use_likelihoods = getOptionalAttrib(findRequiredNode(config_node, 'reference'), 'ancestralLikelihoods', typeFn=bool, default=False)
+    tmpLikelihoods = os.path.join(work_dir, f'{ancestor_event}.lik')
+    if use_likelihoods:
+        args += ["--outputLikelihoodFile", tmpLikelihoods]
+        for event, likelihood_id in (likelihood_id_map or {}).items():
+            if likelihood_id:
+                likelihood_path = os.path.join(work_dir, f'{event}.input.lik')
+                job.fileStore.readGlobalFile(likelihood_id, likelihood_path)
+                # relative, like the seqfile's paths, for docker support
+                args += ["--inputLikelihoodFile", os.path.basename(likelihood_path)]
+
     # jemalloc reads MALLOC_CONF once, before main, so transparent huge pages cannot be switched on
     # through mallctl the way page retention is.  Prefixing `env` puts it in front of this one
     # process rather than in the worker's own environment, and it travels into a container, which
@@ -346,6 +363,8 @@ def cactus_cons(job, tree, ancestor_event, config_node, seq_id_map, og_map, paf_
     halID = job.fileStore.writeGlobalFile(tmpHal)
     fastaID = job.fileStore.writeGlobalFile(tmpFasta)
     referenceID = job.fileStore.writeGlobalFile(tmpRef)
+    # not written when the reference phase is skipped because the ancestor was given as input
+    likelihoodID = job.fileStore.writeGlobalFile(tmpLikelihoods) if use_likelihoods and os.path.isfile(tmpLikelihoods) else None
 
     if intermediate_results_url is not None:
         # The user requested to keep the c2h files in a separate place. Export it there.
@@ -360,7 +379,10 @@ def cactus_cons(job, tree, ancestor_event, config_node, seq_id_map, og_map, paf_
         url = intermediate_results_url + ".reference.fa"
         job.fileStore.exportFile(referenceID, makeURL(url))
 
-    return (ancestor_event, halID, fastaID, referenceID)
+        if likelihoodID:
+            job.fileStore.exportFile(likelihoodID, makeURL(intermediate_results_url + ".lik"))
+
+    return (ancestor_event, halID, fastaID, referenceID, likelihoodID)
 
 
 if __name__ == '__main__':

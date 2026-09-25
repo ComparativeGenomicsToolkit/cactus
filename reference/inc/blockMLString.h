@@ -37,4 +37,17 @@ void setReconstructionTree(const char *newick);
  */
 double getReconstructionBranchLength(Event *event);
 
+/*
+ * Load likelihood vectors (as written by writeAncestralLikelihoods) for input sequences of the
+ * flower, to be used in place of their bases in ancestral base calling.
+ */
+void setInputAncestralLikelihoods(Flower *flower, stList *likelihoodFiles);
+
+/*
+ * Write, for each non-trivial sequence of the reference event, the likelihood of the genomes
+ * below it given each base at each position.  Must be run after the reference phase.
+ */
+void writeAncestralLikelihoods(stList *flowerLayers, Flower *flower, Event *referenceEvent,
+                               stMatrix *(*generateSubstitutionMatrix)(double), FILE *fileHandle);
+
 #endif /* BLOCKMLSTRING_H_ */

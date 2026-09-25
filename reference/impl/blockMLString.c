@@ -2,6 +2,7 @@
 #include <ctype.h>
 #include "cactus.h"
 #include "sonLib.h"
+#include "bioioC.h"
 
 // OpenMP
 #if defined(_OPENMP)
@@ -31,6 +32,7 @@ Event *getEvent(stTree *tree) {
 
 // The whole alignment's tree, with the branch lengths reconstruction should use (see setReconstructionTree),
 // and its nodes by name.  Set once, before any reconstruction, and only read after that.
+// Likelihood vectors need these lengths too: they already carry the ancestor's uncertainty.
 static stTree *reconstructionTree = NULL;
 static stHash *reconstructionNodes = NULL;
 
@@ -216,11 +218,152 @@ double *getEmptyBaseProbsString(int64_t length) {
     return baseProbs;
 }
 
+/////
+// Likelihood vectors for ancestral sequences.
+//
+// A called ancestral base throws away how sure the call was, and the progressive alignment
+// then treats that ancestor as a leaf when it builds the next one up.  Instead an ancestor can
+// carry, at each position, P(bases of the genomes below it | its base) -- Felsenstein's upward
+// message restricted to its children -- and its parent can use that in place of the one-hot
+// vector of the called base.  Chained up the tree, this is exact pruning over all the leaves
+// below each ancestor.  The vector must exclude the ancestor's outgroups: its parent sees
+// those lineages again, and a posterior would count their evidence twice.
+//
+// Vectors are scaled so the largest of the four at each position is 1 (only their ratios
+// matter), and are 1,1,1,1 where there is no information (e.g. scaffold gaps).
+//
+// File format, per sequence: a text line ">header\tlength\n", then length * 4 native float32s
+// in A,C,G,T order.
+/////
+
+typedef struct {
+    int64_t length;
+    float *probs;
+} LikelihoodVector;
+
+static void likelihoodVector_destruct(LikelihoodVector *vector) {
+    free(vector->probs);
+    free(vector);
+}
+
+// Sequence -> LikelihoodVector for the input sequences whose bases are replaced by their
+// likelihoods.  Set before the reference phase and only read during it.
+static stHash *inputLikelihoods = NULL;
+
+// The name the sequence is written under in the reference fasta (see getReferenceSequences.c),
+// which is the name the parent will know it by.
+static char *likelihoodSequenceName(Sequence *sequence) {
+    const char *header = sequence_getHeader(sequence);
+    if (strlen(header) > 0) {
+        char *name = st_malloc(strlen(header) + 1);
+        sscanf(header, "%s", name);
+        return name;
+    }
+    return cactusMisc_nameToString(sequence_getName(sequence));
+}
+
+static void readLikelihoodFile(const char *path, stHash *nameToVector) {
+    FILE *fh = st_fopen(path, "rb");
+    int64_t bufSize = 1024;
+    char *buf = st_malloc(bufSize);
+    while (benLine(&buf, &bufSize, fh) != -1) {
+        if (strlen(buf) == 0) {
+            continue;
+        }
+        char *tab = strchr(buf, '\t');
+        if (buf[0] != '>' || tab == NULL) {
+            st_errAbort("Malformed header line in likelihood file %s: %s", path, buf);
+        }
+        *tab = '\0';
+        LikelihoodVector *vector = st_malloc(sizeof(LikelihoodVector));
+        if (sscanf(tab + 1, "%" SCNi64, &vector->length) != 1 || vector->length < 0) {
+            st_errAbort("Malformed length in likelihood file %s for %s", path, buf + 1);
+        }
+        vector->probs = st_malloc(sizeof(float) * 4 * (vector->length > 0 ? vector->length : 1));
+        if (fread(vector->probs, sizeof(float), 4 * vector->length, fh) != (size_t)(4 * vector->length)) {
+            st_errAbort("Likelihood file %s is truncated in %s", path, buf + 1);
+        }
+        if (stHash_search(nameToVector, buf + 1) != NULL) {
+            st_errAbort("Sequence %s appears twice in the likelihood files (second time in %s)", buf + 1, path);
+        }
+        stHash_insert(nameToVector, stString_copy(buf + 1), vector);
+    }
+    free(buf);
+    st_fclose(fh, (char *)path);
+}
+
+void setInputAncestralLikelihoods(Flower *flower, stList *likelihoodFiles) {
+    // name -> vector.  The vectors are handed over to inputLikelihoods as they are matched.
+    stHash *nameToVector = stHash_construct3(stHash_stringKey, stHash_stringEqualKey, free, NULL);
+    for (int64_t i = 0; i < stList_length(likelihoodFiles); i++) {
+        readLikelihoodFile(stList_get(likelihoodFiles, i), nameToVector);
+    }
+
+    // Resolve names to sequences once, so the base calling looks up by pointer
+    inputLikelihoods = stHash_construct2(NULL, (void (*)(void *))likelihoodVector_destruct);
+    Flower_SequenceIterator *seqIt = flower_getSequenceIterator(flower);
+    Sequence *sequence;
+    while ((sequence = flower_getNextSequence(seqIt)) != NULL) {
+        char *name = likelihoodSequenceName(sequence);
+        LikelihoodVector *vector = stHash_search(nameToVector, name);
+        if (vector != NULL) {
+            if (vector->length != sequence_getLength(sequence)) {
+                st_errAbort("Likelihood vector for %s has length %" PRIi64 " but the sequence has length %" PRIi64,
+                            name, vector->length, sequence_getLength(sequence));
+            }
+            stHash_removeAndFreeKey(nameToVector, name); // frees the stored name, returns the vector
+            stHash_insert(inputLikelihoods, sequence, vector);
+        }
+        free(name);
+    }
+    flower_destructSequenceIterator(seqIt);
+
+    if (stHash_size(nameToVector) > 0) {
+        stList *missing = stHash_getKeys(nameToVector);
+        st_errAbort("%" PRIi64 " sequences in the likelihood files are not in the input, e.g. %s",
+                    stList_length(missing), (char *)stList_get(missing, 0));
+    }
+    stHash_destruct(nameToVector);
+    st_logInfo("Using likelihood vectors in place of the bases of %" PRIi64 " sequences\n", stHash_size(inputLikelihoods));
+}
+
+static double *getInputLikelihoods(Segment *segment) {
+    /*
+     * The loaded likelihoods of the segment, in the segment's orientation, or NULL if it has none.
+     */
+    if (inputLikelihoods == NULL) {
+        return NULL;
+    }
+    LikelihoodVector *vector = stHash_search(inputLikelihoods, segment_getSequence(segment));
+    if (vector == NULL) {
+        return NULL;
+    }
+    bool strand = segment_getStrand(segment);
+    int64_t start = segment_getStart(strand ? segment : segment_getReverse(segment)) -
+                    sequence_getStart(segment_getSequence(segment));
+    int64_t length = segment_getLength(segment);
+    assert(start >= 0 && start + length <= vector->length);
+    double *baseProbs = st_malloc(length * 4 * sizeof(double));
+    for (int64_t i = 0; i < length; i++) {
+        for (int64_t j = 0; j < 4; j++) {
+            // on the reverse strand, position i is the complement of base (length-1-i), and in
+            // A,C,G,T order the complement of base j is base 3-j
+            baseProbs[i * 4 + j] = strand ? vector->probs[(start + i) * 4 + j]
+                                          : vector->probs[(start + length - 1 - i) * 4 + 3 - j];
+        }
+    }
+    return baseProbs;
+}
+
 double *getBaseProbsString(Segment *segment) {
     /*
      * Gets an array of base probs, as described in getMaxLikelihoodString, representing
-     * the input string.
+     * the input string, or its likelihood vector if one was loaded.
      */
+    double *likelihoods = getInputLikelihoods(segment);
+    if (likelihoods != NULL) {
+        return likelihoods;
+    }
     char *string = segment_getString(segment);
     int64_t length = segment_getLength(segment);
     double *baseProbs = st_calloc(length * 4, sizeof(double)); //Gets the initial array initialised to 0.0 values
@@ -418,4 +561,148 @@ char *getMaximumLikelihoodString(stTree *tree, Block *block) {
         stList_destruct(eventSortedSegments);
     }
     return mlString;
+}
+
+////
+// The following computes and writes the likelihood vectors of the reference (ancestral) event.
+////
+
+static double *computeChildLikelihoods(stTree *tree, stList *eventSortedSegments, int64_t blockLength) {
+    /*
+     * The upward message at the root of the tree made by getPhylogeneticTreeRootedAtGivenEvent:
+     * computeBaseProbs over its children, leaving out the child that carries the rest of the event
+     * tree (the outgroups).  NULL if none of the children has a segment in the block.
+     */
+    Event *parentEvent = event_getParent(getEvent(tree));
+    double *baseProbs = NULL;
+    for (int64_t i = 0; i < stTree_getChildNumber(tree); i++) {
+        stTree *child = stTree_getChild(tree, i);
+        if (parentEvent != NULL && getEvent(child) == parentEvent) {
+            continue;
+        }
+        double *childProbs = computeBaseProbs(child, eventSortedSegments, blockLength);
+        if (childProbs == NULL) {
+            continue;
+        }
+        if (baseProbs == NULL) {
+            baseProbs = childProbs;
+        } else {
+            multiply(baseProbs, childProbs, blockLength);
+        }
+    }
+    return baseProbs;
+}
+
+static void setReferenceLikelihoods(Block *block, Event *referenceEvent, stTree *tree, stHash *sequenceToVector) {
+    stList *eventSortedSegments = segmentsSortedByEvent(block);
+    int64_t length = block_getLength(block);
+    double *baseProbs = NULL;
+    bool computed = 0;
+    for (int64_t k = 0; k < stList_length(eventSortedSegments); k++) {
+        Segment *segment = stList_get(eventSortedSegments, k);
+        if (segment_getEvent(segment) != referenceEvent) {
+            continue;
+        }
+        LikelihoodVector *vector = stHash_search(sequenceToVector, segment_getSequence(segment));
+        assert(vector != NULL);
+        if (!computed) {
+            computed = 1;
+            baseProbs = computeChildLikelihoods(tree, eventSortedSegments, length);
+            if (baseProbs == NULL) {
+                break; // nothing below the ancestor here, so the vector stays at no information
+            }
+            for (int64_t i = 0; i < length; i++) {
+                double m = 0.0;
+                for (int64_t j = 0; j < 4; j++) {
+                    m = baseProbs[i * 4 + j] > m ? baseProbs[i * 4 + j] : m;
+                }
+                for (int64_t j = 0; j < 4; j++) {
+                    baseProbs[i * 4 + j] = m > 0.0 ? baseProbs[i * 4 + j] / m : 1.0;
+                }
+            }
+        }
+        bool strand = segment_getStrand(segment);
+        int64_t start = segment_getStart(strand ? segment : segment_getReverse(segment)) -
+                        sequence_getStart(segment_getSequence(segment));
+        assert(start >= 0 && start + length <= vector->length);
+        for (int64_t i = 0; i < length; i++) {
+            for (int64_t j = 0; j < 4; j++) {
+                // the inverse of the reverse strand mapping in getInputLikelihoods
+                if (strand) {
+                    vector->probs[(start + i) * 4 + j] = baseProbs[i * 4 + j];
+                } else {
+                    vector->probs[(start + length - 1 - i) * 4 + 3 - j] = baseProbs[i * 4 + j];
+                }
+            }
+        }
+    }
+    free(baseProbs);
+    stList_destruct(eventSortedSegments);
+}
+
+void writeAncestralLikelihoods(stList *flowerLayers, Flower *flower, Event *referenceEvent,
+                               stMatrix *(*generateSubstitutionMatrix)(double), FILE *fileHandle) {
+    stTree *tree = getPhylogeneticTreeRootedAtGivenEvent(referenceEvent, generateSubstitutionMatrix);
+
+    // A vector for each sequence of the reference event, starting at no information
+    stHash *sequenceToVector = stHash_construct2(NULL, (void (*)(void *))likelihoodVector_destruct);
+    stList *sequences = stList_construct();
+    Flower_SequenceIterator *seqIt = flower_getSequenceIterator(flower);
+    Sequence *sequence;
+    while ((sequence = flower_getNextSequence(seqIt)) != NULL) {
+        if (sequence_getEvent(sequence) == referenceEvent) {
+            LikelihoodVector *vector = st_malloc(sizeof(LikelihoodVector));
+            vector->length = sequence_getLength(sequence);
+            vector->probs = st_malloc(sizeof(float) * 4 * (vector->length > 0 ? vector->length : 1));
+            for (int64_t i = 0; i < 4 * vector->length; i++) {
+                vector->probs[i] = 1.0;
+            }
+            stHash_insert(sequenceToVector, sequence, vector);
+            stList_append(sequences, sequence);
+        }
+    }
+    flower_destructSequenceIterator(seqIt);
+
+    // Every ancestral base is in the reference segment of exactly one block, so the flowers can
+    // fill in their parts of the vectors in parallel
+    stList *flowers = stList_construct();
+    for (int64_t i = 0; i < stList_length(flowerLayers); i++) {
+        stList_appendAll(flowers, stList_get(flowerLayers, i));
+    }
+#if defined(_OPENMP)
+#pragma omp parallel for schedule(dynamic)
+#endif
+    for (int64_t i = 0; i < stList_length(flowers); i++) {
+        // a flower has no block iterator, so visit each block from its 5' end
+        Flower_EndIterator *endIt = flower_getEndIterator(stList_get(flowers, i));
+        End *end;
+        while ((end = flower_getNextEnd(endIt)) != NULL) {
+            if (end_isBlockEnd(end)) {
+                Block *block = block_getPositiveOrientation(end_getBlock(end));
+                if (end_getPositiveOrientation(end) == block_get5End(block)) {
+                    setReferenceLikelihoods(block, referenceEvent, tree, sequenceToVector);
+                }
+            }
+        }
+        flower_destructEndIterator(endIt);
+    }
+    stList_destruct(flowers);
+
+    // The same sequences, under the same names, as getReferenceSequences writes
+    for (int64_t i = 0; i < stList_length(sequences); i++) {
+        sequence = stList_get(sequences, i);
+        if (sequence_getLength(sequence) > 0 && !sequence_isTrivialSequence(sequence)) {
+            LikelihoodVector *vector = stHash_search(sequenceToVector, sequence);
+            char *name = likelihoodSequenceName(sequence);
+            fprintf(fileHandle, ">%s\t%" PRIi64 "\n", name, vector->length);
+            if (fwrite(vector->probs, sizeof(float), 4 * vector->length, fileHandle) != (size_t)(4 * vector->length)) {
+                st_errAbort("Failed to write the likelihood vector of %s", name);
+            }
+            free(name);
+        }
+    }
+
+    stList_destruct(sequences);
+    stHash_destruct(sequenceToVector);
+    cleanupPhylogeneticTree(tree);
 }
