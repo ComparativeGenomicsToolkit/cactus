@@ -287,7 +287,10 @@ selfClean: ${modules:%=clean.%}
 clean.%:
 	cd $* && ${MAKE} clean
 
-clean: selfClean ${submodules:%=subclean.%}
+# jemalloc is not in ${submodules} (it is built by its own rule above, not suball), so it has
+# to be named here or make clean leaves its objects and dependency files behind -- and then
+# removes lib/libjemalloc.a, so the next make reconfigures jemalloc on top of them.
+clean: selfClean ${submodules:%=subclean.%} subclean.jemalloc
 
 ##
 # submodules
