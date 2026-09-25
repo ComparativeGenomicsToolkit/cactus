@@ -30,8 +30,8 @@ Event *getEvent(stTree *tree) {
 }
 
 // Event header -> length of the branch above it, used in place of the event tree's in base calling.
-// The workflow may have lengthened the event tree's branches above ancestors to make caf more
-// sensitive around them, which says nothing about how far apart their bases are.
+// The workflow may have lengthened the event tree's branches above ancestors (upweightAncestorDistances)
+// to make caf more sensitive around them, which says nothing about how far apart their bases are.
 static stHash *baseCallingBranchLengths = NULL;
 
 static void addBaseCallingBranchLengths(stTree *tree) {

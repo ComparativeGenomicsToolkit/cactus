@@ -146,7 +146,7 @@ def main():
                         "will be used to guide outgroup selection so that, where possible, all chromosomes are present in"
                         " at least one outgroup.")
     parser.add_argument("--branchScale", type=float, default=1.0,
-                        help="Scale branch lengths by this factor to adjust alignment sensitivity (e.g., 2.0 = treat branches as 2x longer, more sensitive)")
+                        help="Scale branch lengths by this factor to adjust alignment sensitivity (e.g., 2.0 = treat branches as 2x longer, more sensitive).  Ancestral base calling uses the scaled lengths too")
     parser.add_argument("--hdf5Codec", choices=["deflate", "lz4", "zstd", "none"], default=None,
                         help="HDF5 compression codec for HAL output (overrides config XML, default=deflate)")
     parser.add_argument("--validate", action="store_true",
@@ -508,8 +508,10 @@ def cactus_align(job, config_wrapper, mc_tree, input_seq_map, input_seq_id_map, 
 
     # apply tree scaling to reflect branch scaling and/or uncertainty in ancestor placement/sequences
     scaled_tree = mc_tree
-    # the scaling is for alignment sensitivity only: ancestral base calling keeps the tree's own lengths
-    findRequiredNode(config_wrapper.xmlRoot, 'reference').set('baseCallingTree', NXNewick().writeString(mc_tree))
+    # ancestral base calling takes --branchScale but not the upweighting, which is for alignment sensitivity only
+    base_calling_tree = mc_tree if branch_scale == 1.0 else \
+        get_ancestor_scaled_tree(mc_tree, root_name, None, branch_scale=branch_scale)
+    findRequiredNode(config_wrapper.xmlRoot, 'reference').set('baseCallingTree', NXNewick().writeString(base_calling_tree))
     upweight_ancestors = getOptionalAttrib(config_wrapper.xmlRoot.find('constants').find('divergences'),
                                            'upweightAncestorDistances', typeFn=bool, default=False)
     if branch_scale != 1.0 or upweight_ancestors:
