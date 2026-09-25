@@ -286,7 +286,7 @@ fi
 cd ${pangenomeBuildDir}
 git clone https://github.com/ComparativeGenomicsToolkit/hal2vg.git
 cd hal2vg
-git checkout 32dcc2772da8db9d2633a4ed9c8727231498b5e3
+git checkout f8a09cff1b351f624c69c4575439b034308ff6b7
 git submodule update --init --recursive
 if [[ $STATIC_CHECK -eq 1 ]]
 then

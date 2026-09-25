@@ -1345,7 +1345,7 @@ def filter_paf_deletions(job, paf_id, gfa_id, max_deletion, filter_threshold, fi
     if max_remove is not None and max_remove >= 0:
         # the absolute budget for deletions fewer than min_support contigs assert (see the config)
         filter_paf_cmd += ['-M', str(max_remove)]
-        if min_support:
+        if min_support is not None:
             filter_paf_cmd += ['-S', str(min_support)]
     filter_stdout, filter_stderr = cactus_call(parameters=filter_paf_cmd, check_output=True, returnStdErr=True, job_memory=job.memory)
     with open(filter_log_path, 'w') as filter_log_file:
