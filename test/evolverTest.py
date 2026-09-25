@@ -914,11 +914,11 @@ class TestCase(unittest.TestCase):
         self.assertTrue(os.path.isfile(inversion_stats), 'no inversion-stats.tsv in {}'.format(stats_dir))
         with open(inversion_stats) as inversion_file:
             rows = [line.rstrip('\n').split('\t') for line in inversion_file]
-        self.assertEqual(rows[0], ['#ref_chrom', 'severed', 'found', 'bases_clipped', 'message'])
+        self.assertEqual(rows[0], ['#ref_chrom', 'severed', 'found', 'message'])
         self.assertTrue(len(rows) > 1, 'inversion-stats.tsv has no chromosome rows')
         for row in rows[1:]:
-            self.assertEqual(len(row), 5, row)
-            for col in row[1:4]:
+            self.assertEqual(len(row), 4, row)
+            for col in row[1:3]:
                 self.assertTrue(col.isdigit(), 'clip-vg -I summary not recorded: {}'.format(row))
 
         if not expect_report:
