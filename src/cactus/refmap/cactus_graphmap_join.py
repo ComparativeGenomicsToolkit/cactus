@@ -1648,20 +1648,19 @@ def clip_vg(job, options, config, vg_path, vg_id, phase):
                 break
         with open(flank_stats_path, 'w') as flank_stats_file:
             flank_stats_file.write('{}\t{}\t{}\n'.format(chr_name, threshold, calib_line))
-        # -I (clipInversionMin) likewise says on stderr how many one-sided inversions it found and
-        # severed, and how much sequence that cut.  Same treatment: the counts get columns, the
-        # message rides along
+        # -I (clipInversionMin) likewise says on stderr how many one-sided inversions it found and how
+        # many it severed.  Same treatment: the counts get columns, the message rides along
         inversion_stats_path = vg_path + '.inversion-stats.tsv'
-        severed, found, bases_clipped, severed_line = 'NA', 'NA', 'NA', 'inversion severing not run'
+        severed, found, severed_line = 'NA', 'NA', 'inversion severing not run'
         for err_line in (clip_stderr or '').split('\n'):
             if 'Severed' in err_line and 'reverse-strand runs' in err_line:
                 severed_line = err_line.split(']:', 1)[-1].strip()
-                match = re.search(r'Severed (\d+) of (\d+) reverse-strand runs.*clipping (\d+) more bases', severed_line)
+                match = re.search(r'Severed (\d+) of (\d+) reverse-strand runs', severed_line)
                 if match:
-                    severed, found, bases_clipped = match.groups()
+                    severed, found = match.groups()
                 break
         with open(inversion_stats_path, 'w') as inversion_stats_file:
-            inversion_stats_file.write('{}\t{}\t{}\t{}\t{}\n'.format(chr_name, severed, found, bases_clipped, severed_line))
+            inversion_stats_file.write('{}\t{}\t{}\t{}\n'.format(chr_name, severed, found, severed_line))
         out_stats = { 'path-stats.tsv' : job.fileStore.writeGlobalFile(path_stats_path),
                       'graph-stats.tsv' : job.fileStore.writeGlobalFile(graph_stats_path),
                       'flank-stats.tsv' : job.fileStore.writeGlobalFile(flank_stats_path),
@@ -3096,7 +3095,7 @@ STATS_HEADERS = {
     'path-stats.tsv': '#ref_chrom\tpath\tlength',
     'graph-stats.tsv': '#ref_chrom\tnodes\tedges\tlength',
     'flank-stats.tsv': '#ref_chrom\tflank_threshold\tcalibration',
-    'inversion-stats.tsv': '#ref_chrom\tsevered\tfound\tbases_clipped\tmessage',
+    'inversion-stats.tsv': '#ref_chrom\tsevered\tfound\tmessage',
 }
 
 # path-stats has a row per surviving path fragment, which runs to millions on a filtered graph.
@@ -3109,9 +3108,13 @@ def cat_stats(job, stats_dict_list):
     stats_dir = os.path.join(work_dir, 'stats')
     os.makedirs(stats_dir, exist_ok=True)
     merged_dict = {}
-    for key in stats_dict_list[0].keys():
+    # a chromosome whose clip job ran under an older cactus (a --restart after an upgrade) may lack
+    # a table the others wrote: take the union of tables and leave that chromosome out of the ones
+    # it has no row for, rather than fail here after the clipping that produced them
+    keys = sorted(set(key for sd in stats_dict_list for key in sd.keys()))
+    for key in keys:
         merged_dict[key] = os.path.join(stats_dir, key)
-        catFiles([job.fileStore.readGlobalFile(sd[key]) for sd in stats_dict_list], merged_dict[key])
+        catFiles([job.fileStore.readGlobalFile(sd[key]) for sd in stats_dict_list if key in sd], merged_dict[key])
         if key in STATS_HEADERS:
             with open(merged_dict[key], 'r') as body_file:
                 body = body_file.read()
@@ -3119,7 +3122,7 @@ def cat_stats(job, stats_dict_list):
                 out_file.write(STATS_HEADERS[key] + '\n')
                 out_file.write(body)
     out_dict = {}
-    for key in stats_dict_list[0].keys():
+    for key in keys:
         if key in STATS_GZIP:
             cactus_call(parameters=['gzip', '-f', merged_dict[key]])
             out_dict[key + '.gz'] = job.fileStore.writeGlobalFile(merged_dict[key] + '.gz')
