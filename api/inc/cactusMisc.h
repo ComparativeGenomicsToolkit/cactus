@@ -58,7 +58,8 @@ void cactusCheck2(bool condition, char *string, ...);
  * With jemalloc page retention on, hand every retained page back and run in stock decay for
  * the rest of the process once rss reaches CACTUS_RETENTION_OFF_MB.  Cheap enough for inner
  * loops: one clock read, /proc at most once a second.  A no-op without jemalloc, without the
- * variable, or once it has fired.  Called from caf's melting rounds and bar's poa loop.
+ * variable, or once it has fired.  Called from caf's melting rounds, once per flower in bar
+ * (every base aligner) and once per window in the poa engines.
  */
 void cactus_retentionGuard(void);
 
