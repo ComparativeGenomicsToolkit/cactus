@@ -280,68 +280,32 @@ else
 	 exit 1
 fi
 
-# hal2vg
+# hal2vg, and the tools that ship with it: clip-vg, halRemoveDupes, halMergeChroms, halUnclip,
+# filter-paf-deletions.  Built from a pinned commit rather than a release: it is self-contained
+# through its submodules, and its own static build (make static) is what its releases use.
 cd ${pangenomeBuildDir}
-wget -nv --tries=5 --waitretry=3 --timeout=60 --retry-connrefused https://github.com/ComparativeGenomicsToolkit/hal2vg/releases/download/v1.2.3/hal2vg
-chmod +x hal2vg
-if [[ $STATIC_CHECK -ne 1 || $(ldd hal2vg | grep so | wc -l) -eq 0 ]]
+git clone https://github.com/ComparativeGenomicsToolkit/hal2vg.git
+cd hal2vg
+git checkout 80112aa3de68be015093bb88c784f7911a74b09d
+git submodule update --init --recursive
+# makeBinRelease exports ENABLE_PHYLOP=1 for cactus's own hal, whose phast sits beside it.
+# hal2vg builds a second hal, with no phast beside it, so the flag has to be kept from it or
+# that hal tries to build halPhyloP and the release stops here.
+if [[ $STATIC_CHECK -eq 1 ]]
 then
-	 mv hal2vg ${binDir}
+	 env -u ENABLE_PHYLOP make -j ${numcpu} static
 else
-	 exit 1
+	 env -u ENABLE_PHYLOP make -j ${numcpu}
 fi
-# clip-vg
-cd ${pangenomeBuildDir}
-wget -nv --tries=5 --waitretry=3 --timeout=60 --retry-connrefused https://github.com/ComparativeGenomicsToolkit/hal2vg/releases/download/v1.2.3/clip-vg
-chmod +x clip-vg
-if [[ $STATIC_CHECK -ne 1 || $(ldd clip-vg | grep so | wc -l) -eq 0 ]]
-then
-	 mv clip-vg ${binDir}
-else
-	 exit 1
-fi
-# halRemoveDupes
-cd ${pangenomeBuildDir}
-wget -nv --tries=5 --waitretry=3 --timeout=60 --retry-connrefused https://github.com/ComparativeGenomicsToolkit/hal2vg/releases/download/v1.2.3/halRemoveDupes
-chmod +x halRemoveDupes
-if [[ $STATIC_CHECK -ne 1 || $(ldd halRemoveDupes | grep so | wc -l) -eq 0 ]]
-then
-	 mv halRemoveDupes ${binDir}
-else
-	 exit 1
-fi
-# halMergeChroms
-cd ${pangenomeBuildDir}
-wget -nv --tries=5 --waitretry=3 --timeout=60 --retry-connrefused https://github.com/ComparativeGenomicsToolkit/hal2vg/releases/download/v1.2.3/halMergeChroms
-chmod +x halMergeChroms
-if [[ $STATIC_CHECK -ne 1 || $(ldd halMergeChroms | grep so | wc -l) -eq 0 ]]
-then
-	 mv halMergeChroms ${binDir}
-else
-	 exit 1
-fi
-
-# halUnclip
-cd ${pangenomeBuildDir}
-wget -nv --tries=5 --waitretry=3 --timeout=60 --retry-connrefused https://github.com/ComparativeGenomicsToolkit/hal2vg/releases/download/v1.2.3/halUnclip
-chmod +x halUnclip
-if [[ $STATIC_CHECK -ne 1 || $(ldd halUnclip | grep so | wc -l) -eq 0 ]]
-then
-	 mv halUnclip ${binDir}
-else
-	 exit 1
-fi
-
-# filter-paf-deletions
-cd ${pangenomeBuildDir}
-wget -nv --tries=5 --waitretry=3 --timeout=60 --retry-connrefused https://github.com/ComparativeGenomicsToolkit/hal2vg/releases/download/v1.2.3/filter-paf-deletions
-chmod +x filter-paf-deletions
-if [[ $STATIC_CHECK -ne 1 || $(ldd filter-paf-deletions | grep so | wc -l) -eq 0 ]]
-then
-	 mv filter-paf-deletions ${binDir}
-else
-	 exit 1
-fi
+for tool in hal2vg clip-vg halRemoveDupes halMergeChroms halUnclip filter-paf-deletions
+do
+	 if [[ $STATIC_CHECK -ne 1 || $(ldd ${tool} | grep so | wc -l) -eq 0 ]]
+	 then
+		  mv ${tool} ${binDir}
+	 else
+		  exit 1
+	 fi
+done
 
 # vg
 cd ${pangenomeBuildDir}

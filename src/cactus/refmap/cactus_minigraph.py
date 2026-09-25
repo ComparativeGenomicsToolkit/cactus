@@ -257,10 +257,14 @@ def export_minigraph_construct_output(options, input_seqfiles, output_dict, toil
         # still written now -- downstream only ever reads its .train column
         if not getattr(options, 'mgSplitWholeGenomeRef', False):
             # pansn_gfa_id is already the collapsed graph when collapseInversions is on, so the
-            # main export is unconditional; the pre-collapse graph and the per-call report are
-            # extra artifacts kept beside it for comparison
+            # main export is unconditional
             toil.exportFile(pansn_gfa_id, makeURL(gfa_path))
-            export_collapse_artifacts(toil, gfa_path, uncollapsed_pansn_gfa_id, collapse_report_id)
+        # the pre-collapse graph and the per-call report are extra artifacts kept beside the graph
+        # for comparison.  They go out even when the main export above is deferred to the prune:
+        # the prune never touches them, and keeping them inside that branch left a 460-haplotype
+        # --mgSplitWholeGenomeRef run with 25 collapsed chromosomes and not one report on disk.
+        # In that mode the uncollapsed graph is the unpruned, whole-reference one.
+        export_collapse_artifacts(toil, gfa_path, uncollapsed_pansn_gfa_id, collapse_report_id)
         if train_path:
             # export the scoring model (.train)
             toil.exportFile(train_id, makeURL(train_path))

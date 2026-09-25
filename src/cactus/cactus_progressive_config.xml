@@ -503,6 +503,8 @@
 	<!-- maskFilter: any softmasked sequence intervals > than this many bp will be hardmasked before being read by the minigraph mapper [negative value = disable]-->
 	<!-- delFilter: any deletions implied by split-read mappings greater than this are removed from the paf (by removing all lines of the smallest block bordering deletion)-->
 	<!-- delFilterThreshold: only remove deletion if it costs < delFilterThreshold * deletion-size matches. must be in range (0, 1] -->
+	<!-- delFilterMaxRemove: a deletion that delFilterThreshold refuses to resolve is still resolved, removing up to this many matched bases, when fewer than delFilterMinSupport query contigs assert it once everything else is filtered.  The relative threshold scales its budget with the deletion, so the biggest false joins (one contig carrying a distant paralog, implying a 40Mb deletion) are the ones it never fixes; a few hundred kb of alignment undoes them.  Deletions many contigs make the same way (every haplotype spanning a reference gap) keep the relative threshold's protection.  -1 disables -->
+	<!-- delFilterMinSupport: with delFilterMaxRemove, the number of distinct query contigs whose surviving deletions reciprocally overlap a deletion by at least half for it to count as supported -->
 	<!-- delFilterQuerySizeThreshold: deletion removed if the supporting query contig has length < delFilterQuerySizeThreshold * deletion-size --> 
 	<!-- minIdentity: ignore PAF lines with identity (col 10 / col 11) is less than this -->
 	<!-- minScore: ignore PAF lines with score (AS:i) less than this (adding this to filter negative-scoring minimap2 lines) -->
@@ -532,6 +534,8 @@
 		 delFilter="10000000"
 		 delFilterThreshold="0.01"
 		 delFilterQuerySizeThreshold="2"
+		 delFilterMaxRemove="1000000"
+		 delFilterMinSupport="2"
 		 minIdentity="0.5"
 		 minScore="1"
 		 removeMinigraphFromPAF="0"
@@ -570,6 +574,7 @@
 	<!-- pathNormalize: toggle path normalization (merge equivalent paths through same site) on/off -->
 	<!-- clipNonMinigraph: clip out regions if the don't align to minigraph (if disabled, clip if they don't align to anything) -->
 	<!-- clipFlank: trim the fringe an aligner leaves where it extended anchors into a repeat, outward from each clipped interval by up to this many bp, for as long as unaligned sequence stays dense.  0 disables.  This value is the main control: inside a repeat the gate seldom closes on its own, so the cap decides how much goes.  Measured on a 124-haplotype chrY, 3.4% of edges at 20000, 9.4% at 50000, 29.4% at 200000.  50000 is the value benchmarked whole-genome (231/231 samples improved on F1); lowering it does not sharpen the trim, it just removes less -->
+	<!-- clipInversionMin: sever one-sided inversions when clipping.  A run of at least this many bp of reference nodes that a haplotype walks backwards is an inversion allele; when clipping has removed its junction with the forward reference at one end but not the other, the surviving junction is clipped too, so the inverted run becomes its own path fragment instead of an edge into the reverse strand with no way out (a 4.9Mb one-contig bubble on HPRC chr9).  Needs clip-vg >= 1.2.4.  0 disables -->
 	<!-- clipFlankThreshold: advanced.  keep trimming while more than this fraction of bases are unaligned, by the same test the clipping itself uses.  Negative calibrates per graph, which is almost always what you want: over 24 human chromosomes the calibrated value ran from 0.054 to 0.230, a 4.3x spread that tracks neither haplotype count nor chromosome size -->
 	<!-- minimizerOptions: options for vg minimizer -->
 	<!-- minFilterFragment: discard fragments that result from the vg clip frequency filter if they are smaller than this -->
@@ -594,6 +599,7 @@
 		 clipNonMinigraph="1"
 		 clipFlank="50000"
 		 clipFlankThreshold="-1"
+		 clipInversionMin="100000"
 		 minimizerOptions="-k 29 -w 11"
 		 lrMinimizerOptions="-k 31 -w 50 -W"
 		 minFilterFragment="1000"
