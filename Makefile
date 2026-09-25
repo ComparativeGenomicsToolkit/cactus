@@ -302,8 +302,14 @@ suball.sonLib:
 	ln -f submodules/sonLib/lib/*.a ${LIBDIR}
 
 ifeq ($(jemalloc),on)
+# The clean first: jemalloc's build records each object's header dependencies in src/*.d,
+# and a checkout that moves the submodule to another release (5.3.0 -> 5.3.1 dropped
+# activity_callback.h) leaves those files naming headers that no longer exist, which the
+# next make reports as "No rule to make target ... needed by src/jemalloc.sym.o" after
+# configure has run.  The stale Makefile knows what it built; let it remove it.
 ${LIBDIR}/libjemalloc.a: submodules/jemalloc/src/*.c
 	+cd submodules/jemalloc && \
+	  (test -f Makefile && ${MAKE} clean || true) && \
 	  env CFLAGS="-O3 -g" CXXFLAGS="-O3 -g" LDFLAGS="" LIBS="" \
 	  ./autogen.sh && \
 	  env CFLAGS="-O3 -g" CXXFLAGS="-O3 -g" LDFLAGS="" LIBS="" \
