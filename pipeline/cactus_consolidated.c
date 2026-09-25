@@ -8,6 +8,7 @@
 #include <time.h>
 #include <getopt.h>
 #include <string.h>
+#include <math.h>
 #include <dlfcn.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -562,6 +563,13 @@ int main(int argc, char *argv[]) {
     CactusParams *params = cactusParams_load(paramsFile);
 
     cactus_jemalloc_retain_pages(params);
+
+    if (cactusParams_has(params, 2, "reference", "reconstructionTree")) {
+        char *reconstructionTree = cactusParams_get_string(params, 2, "reference", "reconstructionTree");
+        st_logInfo("Taking the reconstruction branch lengths from %s\n", reconstructionTree);
+        setReconstructionTree(reconstructionTree);
+        free(reconstructionTree);
+    }
     st_logInfo("Loaded the parameters files, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
 
     // Load the cactus disk
@@ -580,6 +588,18 @@ int main(int argc, char *argv[]) {
 
     Flower *flower = cactus_setup_first_flower(cactusDisk, params, speciesTree, outgroupEvents, sequenceFilesAndEvents);
     st_logInfo("Established the first Flower in the hierarchy, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
+
+    // The alignment sees the event tree's branch lengths and the reconstruction sees these
+    EventTree_Iterator *eventIt = eventTree_getIterator(flower_getEventTree(flower));
+    Event *event;
+    while ((event = eventTree_getNext(eventIt)) != NULL) {
+        // (the event tree keeps its lengths as floats)
+        if (event_getParent(event) != NULL && fabs(getReconstructionBranchLength(event) - event_getBranchLength(event)) > 1e-6) {
+            st_logInfo("Branch above %s: %g for alignment, %g for reconstruction\n", event_getHeader(event),
+                       event_getBranchLength(event), getReconstructionBranchLength(event));
+        }
+    }
+    eventTree_destructIterator(eventIt);
 
     if(runChecks) {
         flower_checkRecursive(flower);

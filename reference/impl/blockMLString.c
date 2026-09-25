@@ -29,11 +29,53 @@ Event *getEvent(stTree *tree) {
     return ((void **) stTree_getClientData(tree))[1];
 }
 
+// The whole alignment's tree, with the branch lengths reconstruction should use (see setReconstructionTree),
+// and its nodes by name.  Set once, before any reconstruction, and only read after that.
+static stTree *reconstructionTree = NULL;
+static stHash *reconstructionNodes = NULL;
+
+static void addReconstructionNodes(stTree *tree) {
+    if (stTree_getLabel(tree) != NULL) {
+        stHash_insert(reconstructionNodes, (void *)stTree_getLabel(tree), tree);
+    }
+    for (int64_t i = 0; i < stTree_getChildNumber(tree); i++) {
+        addReconstructionNodes(stTree_getChild(tree, i));
+    }
+}
+
+void setReconstructionTree(const char *newick) {
+    reconstructionTree = stTree_parseNewickString(newick);
+    reconstructionNodes = stHash_construct3(stHash_stringKey, stHash_stringEqualKey, NULL, NULL);
+    addReconstructionNodes(reconstructionTree);
+}
+
+double getReconstructionBranchLength(Event *event) {
+    /*
+     * The event tree is the part of the whole tree that spans this alignment's genomes, with each
+     * ancestor that is left with a single child removed and its branch added to the child's.  So the
+     * branch above an event is the path from its node up to its parent's in the whole tree.
+     */
+    Event *parent = event_getParent(event);
+    stTree *node = reconstructionNodes == NULL ? NULL : stHash_search(reconstructionNodes, (void *)event_getHeader(event));
+    stTree *parentNode = node == NULL || parent == NULL ? NULL
+                         : stHash_search(reconstructionNodes, (void *)event_getHeader(parent));
+    if (parentNode != NULL) {
+        double length = 0.0;
+        for (; node != NULL && node != parentNode; node = stTree_getParent(node)) {
+            length += stTree_getBranchLength(node); // INFINITY where the tree gives no length
+        }
+        if (node == parentNode && length != INFINITY) {
+            return length;
+        }
+    }
+    return event_getBranchLength(event);
+}
+
 static stTree *getPhylogeneticTree(Event *event, Event *eventToTreatAsParent,
         stMatrix *(*generateSubstitutionMatrix)(double)) {
     stTree *tree = stTree_construct();
     stMatrix *matrix = generateSubstitutionMatrix(
-            event_getBranchLength(eventToTreatAsParent == NULL ? event : eventToTreatAsParent));
+            getReconstructionBranchLength(eventToTreatAsParent == NULL ? event : eventToTreatAsParent));
     void **attributes = st_malloc(sizeof(void *) * 2);
     attributes[0] = matrix;
     attributes[1] = event;
