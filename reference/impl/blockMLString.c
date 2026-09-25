@@ -29,11 +29,40 @@ Event *getEvent(stTree *tree) {
     return ((void **) stTree_getClientData(tree))[1];
 }
 
+// Event header -> length of the branch above it, used in place of the event tree's in base calling.
+// The workflow may have lengthened the event tree's branches above ancestors to make caf more
+// sensitive around them, which says nothing about how far apart their bases are.
+static stHash *baseCallingBranchLengths = NULL;
+
+static void addBaseCallingBranchLengths(stTree *tree) {
+    if (stTree_getLabel(tree) != NULL && stTree_getBranchLength(tree) != INFINITY) {
+        double *length = st_malloc(sizeof(double));
+        *length = stTree_getBranchLength(tree);
+        stHash_insert(baseCallingBranchLengths, stString_copy(stTree_getLabel(tree)), length);
+    }
+    for (int64_t i = 0; i < stTree_getChildNumber(tree); i++) {
+        addBaseCallingBranchLengths(stTree_getChild(tree, i));
+    }
+}
+
+void setBaseCallingTree(const char *newick) {
+    stTree *tree = stTree_parseNewickString(newick);
+    baseCallingBranchLengths = stHash_construct3(stHash_stringKey, stHash_stringEqualKey, free, free);
+    addBaseCallingBranchLengths(tree);
+    stTree_destruct(tree);
+}
+
+static double getBaseCallingBranchLength(Event *event) {
+    double *length = baseCallingBranchLengths == NULL ? NULL
+                     : stHash_search(baseCallingBranchLengths, (void *)event_getHeader(event));
+    return length != NULL ? *length : event_getBranchLength(event);
+}
+
 static stTree *getPhylogeneticTree(Event *event, Event *eventToTreatAsParent,
         stMatrix *(*generateSubstitutionMatrix)(double)) {
     stTree *tree = stTree_construct();
     stMatrix *matrix = generateSubstitutionMatrix(
-            event_getBranchLength(eventToTreatAsParent == NULL ? event : eventToTreatAsParent));
+            getBaseCallingBranchLength(eventToTreatAsParent == NULL ? event : eventToTreatAsParent));
     void **attributes = st_malloc(sizeof(void *) * 2);
     attributes[0] = matrix;
     attributes[1] = event;

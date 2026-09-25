@@ -562,6 +562,13 @@ int main(int argc, char *argv[]) {
     CactusParams *params = cactusParams_load(paramsFile);
 
     cactus_jemalloc_retain_pages(params);
+
+    if (cactusParams_has(params, 2, "reference", "baseCallingTree")) {
+        char *baseCallingTree = cactusParams_get_string(params, 2, "reference", "baseCallingTree");
+        st_logInfo("Taking the base calling branch lengths from %s\n", baseCallingTree);
+        setBaseCallingTree(baseCallingTree);
+        free(baseCallingTree);
+    }
     st_logInfo("Loaded the parameters files, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
 
     // Load the cactus disk

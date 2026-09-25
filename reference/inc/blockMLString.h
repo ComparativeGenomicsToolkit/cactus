@@ -22,4 +22,10 @@ void cleanupPhylogeneticTree(stTree *tree);
 
 void maskAncestralRepeatBases(Block *block, char *mlString);
 
+/*
+ * Take the branch lengths used in base calling from this tree (matched to events by name) rather than
+ * from the event tree.
+ */
+void setBaseCallingTree(const char *newick);
+
 #endif /* BLOCKMLSTRING_H_ */

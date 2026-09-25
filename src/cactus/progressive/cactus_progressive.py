@@ -363,6 +363,8 @@ def progressive_workflow(job, options, config_node, mc_tree, og_map, input_seq_i
 
     # apply tree scaling to reflect branch scaling and/or uncertainty in ancestor placement/sequences
     scaled_tree = mc_tree
+    # the scaling is for alignment sensitivity only: ancestral base calling keeps the tree's own lengths
+    findRequiredNode(config_node, 'reference').set('baseCallingTree', NXNewick().writeString(mc_tree))
     upweight_ancestors = getOptionalAttrib(config_node.find('constants').find('divergences'),
                                            'upweightAncestorDistances', typeFn=bool, default=False)
     if options.branchScale != 1.0 or upweight_ancestors:

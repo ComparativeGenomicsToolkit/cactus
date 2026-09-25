@@ -508,6 +508,8 @@ def cactus_align(job, config_wrapper, mc_tree, input_seq_map, input_seq_id_map, 
 
     # apply tree scaling to reflect branch scaling and/or uncertainty in ancestor placement/sequences
     scaled_tree = mc_tree
+    # the scaling is for alignment sensitivity only: ancestral base calling keeps the tree's own lengths
+    findRequiredNode(config_wrapper.xmlRoot, 'reference').set('baseCallingTree', NXNewick().writeString(mc_tree))
     upweight_ancestors = getOptionalAttrib(config_wrapper.xmlRoot.find('constants').find('divergences'),
                                            'upweightAncestorDistances', typeFn=bool, default=False)
     if branch_scale != 1.0 or upweight_ancestors:
