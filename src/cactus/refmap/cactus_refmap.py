@@ -36,12 +36,12 @@ from cactus.refmap import paf_to_lastz
 from cactus.refmap import fasta_preprocessing
 from cactus.refmap import apply_dipcall_bed_filter
 
-from cactus.shared.common import setupBinaries, importSingularityImage
+from cactus.shared.common import setupBinaries, importSingularityImage, cactus_walltime
 from cactus.shared.common import makeURL
 from cactus.shared.common import cactus_call
 from cactus.shared.configWrapper import ConfigWrapper
 from cactus.shared.common import cactusRootPath
-from cactus.shared.common import cactus_override_toil_options
+from cactus.shared.common import cactus_override_toil_options, add_cactus_toil_options
 from cactus.progressive.progressive_decomposition import compute_outgroups, parse_seqfile, get_subtree, get_spanning_subtree, get_event_set
 from cactus.preprocessor.checkUniqueHeaders import sanitize_fasta_headers
 
@@ -139,8 +139,12 @@ def run_cactus_reference_align(job, assembly_files, reference, debug_export=Fals
     """
     Preprocesses assemblies, then runs mappings.
     """
-    sanitize_job = job.addChildJobFn(sanitize_fasta_headers, assembly_files)
-    mappings = sanitize_job.addFollowOnJobFn(map_all_to_ref, sanitize_job.rv(), reference, debug_export, dipcall_bed_filter, dipcall_vcf_filter).rv()
+    # map_all_to_ref reads every assembly out of the jobstore before it schedules anything, so
+    # it is bounded by the inputs; sanitizing does not change their size
+    input_seq_bytes = sum(seq_id.size for seq_id in assembly_files.values())
+    sanitize_job = job.addChildJobFn(sanitize_fasta_headers, assembly_files, walltime=cactus_walltime())
+    mappings = sanitize_job.addFollowOnJobFn(map_all_to_ref, sanitize_job.rv(), reference, debug_export, dipcall_bed_filter, dipcall_vcf_filter,
+                                             walltime=cactus_walltime(0, io_bytes=input_seq_bytes)).rv()
     return mappings
 
 def map_all_to_ref(job, assembly_files, reference, debug_export=False, dipcall_bed_filter=False, dipcall_vcf_filter=False):
@@ -162,7 +166,16 @@ def map_all_to_ref(job, assembly_files, reference, debug_export=False, dipcall_b
                                     * Filters out all mappings below min_var_len=50k and min_mapq=5 from a lastz file
                                      Defaults to False.
     """
-    lead_job = job.addChildJobFn(empty)
+    lead_job = job.addChildJobFn(empty, walltime=cactus_walltime())
+
+    # None of the runs we have logs for exercise cactus-refmap, so the walltimes below are sized
+    # from the input assemblies rather than measured.  minimap2 asm5 is budgeted at 5e5 bytes of
+    # combined input a second: the whole-genome minigraph mapping rate (1.3e6 B/s at 8 cores)
+    # halved, since this job asks for no cores and minimap2 defaults to 3 threads.  The python
+    # passes downstream of it are sized off the assembly too -- the pafs they actually read are
+    # promises here and have no size at scheduling time -- taking a paf to be a fifth of the
+    # bytes of the assembly that produced it and a line-by-line python pass to run at ~5e7 B/s.
+    total_bytes = sum(seq_id.size for seq_id in assembly_files.values())
 
     # map all assemblies to the reference. Don't map reference to reference, though.
     ref_mappings = dict()
@@ -172,14 +185,26 @@ def map_all_to_ref(job, assembly_files, reference, debug_export=False, dipcall_b
         if assembly != reference:
             # map to a to b
             print("about to run map a to b. a:", assembly, job.fileStore.readGlobalFile(assembly_file), "b (ref):", reference, job.fileStore.readGlobalFile(assembly_files[reference]))
-            map_job = lead_job.addChildJobFn(map_a_to_b, assembly_file, assembly_files[reference], (dipcall_bed_filter or dipcall_vcf_filter))
+            pair_bytes = assembly_file.size + assembly_files[reference].size
+            map_job = lead_job.addChildJobFn(map_a_to_b, assembly_file, assembly_files[reference], (dipcall_bed_filter or dipcall_vcf_filter),
+                                             walltime=cactus_walltime(pair_bytes / 5e5, io_bytes=pair_bytes))
             ref_mappings[assembly] = map_job.rv()
 
             if dipcall_bed_filter:
-                secondaries_filter_job = map_job.addFollowOnJobFn(filter_out_secondaries_from_paf, ref_mappings[assembly])
+                secondaries_filter_job = map_job.addFollowOnJobFn(filter_out_secondaries_from_paf, ref_mappings[assembly],
+                                                                  walltime=cactus_walltime(assembly_file.size / 2.5e8,
+                                                                                           io_bytes=2 * assembly_file.size / 5))
                 primary_paf = secondaries_filter_job.rv()
 
-                dipcall_bed_filter_job = secondaries_filter_job.addFollowOnJobFn(apply_dipcall_bed_filter.apply_dipcall_bed_filter, primary_paf)
+                # the bed filter is not a pass over the paf at all: extract_single_mappings()
+                # scans every single-mapping region for every large mapping (its own todo at
+                # the top of apply_dipcall_bed_filter.py), so it is quadratic in the mappings
+                # of a chromosome, and it print()s the whole region dict into the worker log
+                # on the way.  A rate per byte of assembly is only a stand-in for that, so it
+                # is a slow one -- ~3100 s for a human assembly.
+                dipcall_bed_filter_job = secondaries_filter_job.addFollowOnJobFn(apply_dipcall_bed_filter.apply_dipcall_bed_filter, primary_paf,
+                                                                                 walltime=cactus_walltime(assembly_file.size / 1e6,
+                                                                                                          io_bytes=2 * assembly_file.size / 5))
                 bed_filtered_primary_mappings = dipcall_bed_filter_job.rv()
                 paf_mappings = bed_filtered_primary_mappings
             else:
@@ -191,7 +216,9 @@ def map_all_to_ref(job, assembly_files, reference, debug_export=False, dipcall_b
             secondary_mappings[assembly] = None
 
     # consolidate the primary mappings into a single file; same for secondary mappings.
-    all_primary = lead_job.addFollowOnJobFn(consolidate_mappings, primary_mappings).rv()
+    all_primary = lead_job.addFollowOnJobFn(consolidate_mappings, primary_mappings,
+                                            walltime=cactus_walltime(total_bytes / 2.5e8,
+                                                                     io_bytes=2 * total_bytes / 5)).rv()
     return all_primary
 
 def map_a_to_b(job, a, b, dipcall_filter):
@@ -228,6 +255,7 @@ def map_a_to_b(job, a, b, dipcall_filter):
 
 def get_options():
     parser = Job.Runner.getDefaultArgumentParser()
+    add_cactus_toil_options(parser)
     # addCactusWorkflowOptions(parser)
     
     # ### For quick debugging of apply_dipcall_bed_filter:
@@ -327,14 +355,19 @@ def main():
         
         ## Perform alignments:
         if not toil.options.restart:
-            alignments = toil.start(Job.wrapJobFn(run_cactus_reference_align, input_seq_id_map, options.reference, options.debug_export, options.dipcall_bed_filter, options.dipcall_vcf_filter))
+            alignments = toil.start(Job.wrapJobFn(run_cactus_reference_align, input_seq_id_map, options.reference, options.debug_export, options.dipcall_bed_filter, options.dipcall_vcf_filter, walltime=cactus_walltime()))
 
         else:
             alignments = toil.restart()
 
         ## Save alignments:
         if options.dipcall_vcf_filter: # this is substantially less restrictive than the dipcall_bed_filter. 
-            dipcall_filtered = toil.start(Job.wrapJobFn(apply_dipcall_vcf_filter, alignments))
+            # variation_length() print()s once per cigar token of every line and the toil worker
+            # captures all of it, so this job is paced by the printing, not by the parsing:
+            # reckon on ~1e6 bytes of input a second until that print goes away.
+            dipcall_filtered = toil.start(Job.wrapJobFn(apply_dipcall_vcf_filter, alignments,
+                                                        walltime=cactus_walltime(alignments.size / 1e6,
+                                                                                 io_bytes=2 * alignments.size)))
             toil.exportFile(dipcall_filtered, makeURL(options.outputFile))
         else:
             toil.exportFile(alignments, makeURL(options.outputFile))

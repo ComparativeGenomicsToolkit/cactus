@@ -13,7 +13,20 @@ from sonLib.bioio import catFiles
 
 from cactus.shared.common import cactus_call
 from cactus.shared.common import RoundedJob
+from cactus.shared.common import cactus_walltime
 from toil.realtimeLogger import RealtimeLogger
+
+# Estimated seconds for one repeat-masking lastz.  This preprocessor is deprecated and
+# active="0", so it never ran in any mined log; the stand-in is the blast phase's lastz, whose
+# p99 across the VGP 577-way (n=826872) was 7469 s, or ~3700 s for the 2x-faster lastz we ship
+# now.  That is generous, which is the point: this job aligns one chunk (10 MB from the config,
+# forced to 6 GB in gpu mode) against proportionToSample of the genome, a smaller job than a
+# blast-phase chunk pair.  Scaled by what this job is actually handed, the same way
+# get_lastz_walltime scales the blast phase's own table: the p99 above was measured on a pair of
+# full 90 MB chunks, so a repeat-mask job aligning the config's 10 MB chunk against a sampled
+# target set is a fraction of it.
+LASTZ_REPEAT_MASK_SECS = 3700
+LASTZ_REPEAT_MASK_REFERENCE_BYTES = 2 * 90e6
 
 class RepeatMaskOptions:
     def __init__(self,
@@ -59,7 +72,10 @@ class LastzRepeatMaskJob(RoundedJob):
         disk = max(4*(queryID.size + targetsSize), memory)
         cores = repeatMaskOptions.cpu
         accelerators = ['cuda:{}'.format(repeatMaskOptions.gpu)] if repeatMaskOptions.gpu else None            
-        RoundedJob.__init__(self, memory=memory, disk=disk, cores=cores, accelerators=accelerators, preemptable=True)
+        RoundedJob.__init__(self, memory=memory, disk=disk, cores=cores, accelerators=accelerators, preemptable=True,
+                            walltime=cactus_walltime(LASTZ_REPEAT_MASK_SECS *
+                                                     (queryID.size + targetsSize) / LASTZ_REPEAT_MASK_REFERENCE_BYTES,
+                                                     io_bytes=2 * (queryID.size + targetsSize)))
         self.repeatMaskOptions = repeatMaskOptions
         self.queryID = queryID
         self.targetIDs = targetIDs

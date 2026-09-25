@@ -25,7 +25,7 @@ import os
 import re
 import shutil
 
-from cactus.shared.common import cactus_call, getOptionalAttrib, findRequiredNode
+from cactus.shared.common import cactus_call, getOptionalAttrib, findRequiredNode, cactus_walltime
 from cactus.shared.common import cactus_clamp_memory
 from toil.realtimeLogger import RealtimeLogger
 
@@ -1139,11 +1139,15 @@ def contig_sizes_job(job, seq_id_map, graph_event):
         # sanitized fasta first, and cgroup accounting charges that page cache to the job -- which is
         # what killed one of these with MEMLIMIT on a 3GB genome under the 2GiB default.  size it off
         # the fasta the way sanitize_fasta_header, which stages the same file, already does, but keep
-        # the old default as a floor: scaling alone would ask a small genome for less than the worker
+        # the old default as a floor: scaling alone would ask a small genome for less than the worker.
+        # the faidx is 21s measured, so the walltime is the staging of that same fasta
         per_event[event] = job.addChildJobFn(contig_sizes_for_event, fa_id, event,
                                              memory=cactus_clamp_memory(max(fa_id.size * 2, 2**31)),
-                                             disk=fa_id.size * 3).rv()
-    return job.addFollowOnJobFn(merge_contig_sizes, per_event).rv()
+                                             disk=fa_id.size * 3,
+                                             walltime=cactus_walltime(60, io_bytes=fa_id.size)).rv()
+    # the rows arrive through promises, so this stages no file at all: it deserialises a few
+    # million tuples and writes one small gzipped TSV.  no size is in scope to key off
+    return job.addFollowOnJobFn(merge_contig_sizes, per_event, walltime=cactus_walltime(300)).rv()
 
 
 def contig_sizes_for_event(job, fa_id, event):
