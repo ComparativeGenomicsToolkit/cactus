@@ -29,40 +29,53 @@ Event *getEvent(stTree *tree) {
     return ((void **) stTree_getClientData(tree))[1];
 }
 
-// Event header -> length of the branch above it, used in place of the event tree's in base calling.
-// The workflow may have lengthened the event tree's branches above ancestors (upweightAncestorDistances)
-// to make caf more sensitive around them, which says nothing about how far apart their bases are.
-static stHash *baseCallingBranchLengths = NULL;
+// The whole alignment's tree, with the branch lengths reconstruction should use (see setReconstructionTree),
+// and its nodes by name.  Set once, before any reconstruction, and only read after that.
+static stTree *reconstructionTree = NULL;
+static stHash *reconstructionNodes = NULL;
 
-static void addBaseCallingBranchLengths(stTree *tree) {
-    if (stTree_getLabel(tree) != NULL && stTree_getBranchLength(tree) != INFINITY) {
-        double *length = st_malloc(sizeof(double));
-        *length = stTree_getBranchLength(tree);
-        stHash_insert(baseCallingBranchLengths, stString_copy(stTree_getLabel(tree)), length);
+static void addReconstructionNodes(stTree *tree) {
+    if (stTree_getLabel(tree) != NULL) {
+        stHash_insert(reconstructionNodes, (void *)stTree_getLabel(tree), tree);
     }
     for (int64_t i = 0; i < stTree_getChildNumber(tree); i++) {
-        addBaseCallingBranchLengths(stTree_getChild(tree, i));
+        addReconstructionNodes(stTree_getChild(tree, i));
     }
 }
 
-void setBaseCallingTree(const char *newick) {
-    stTree *tree = stTree_parseNewickString(newick);
-    baseCallingBranchLengths = stHash_construct3(stHash_stringKey, stHash_stringEqualKey, free, free);
-    addBaseCallingBranchLengths(tree);
-    stTree_destruct(tree);
+void setReconstructionTree(const char *newick) {
+    reconstructionTree = stTree_parseNewickString(newick);
+    reconstructionNodes = stHash_construct3(stHash_stringKey, stHash_stringEqualKey, NULL, NULL);
+    addReconstructionNodes(reconstructionTree);
 }
 
-static double getBaseCallingBranchLength(Event *event) {
-    double *length = baseCallingBranchLengths == NULL ? NULL
-                     : stHash_search(baseCallingBranchLengths, (void *)event_getHeader(event));
-    return length != NULL ? *length : event_getBranchLength(event);
+double getReconstructionBranchLength(Event *event) {
+    /*
+     * The event tree is the part of the whole tree that spans this alignment's genomes, with each
+     * ancestor that is left with a single child removed and its branch added to the child's.  So the
+     * branch above an event is the path from its node up to its parent's in the whole tree.
+     */
+    Event *parent = event_getParent(event);
+    stTree *node = reconstructionNodes == NULL ? NULL : stHash_search(reconstructionNodes, (void *)event_getHeader(event));
+    stTree *parentNode = node == NULL || parent == NULL ? NULL
+                         : stHash_search(reconstructionNodes, (void *)event_getHeader(parent));
+    if (parentNode != NULL) {
+        double length = 0.0;
+        for (; node != NULL && node != parentNode; node = stTree_getParent(node)) {
+            length += stTree_getBranchLength(node); // INFINITY where the tree gives no length
+        }
+        if (node == parentNode && length != INFINITY) {
+            return length;
+        }
+    }
+    return event_getBranchLength(event);
 }
 
 static stTree *getPhylogeneticTree(Event *event, Event *eventToTreatAsParent,
         stMatrix *(*generateSubstitutionMatrix)(double)) {
     stTree *tree = stTree_construct();
     stMatrix *matrix = generateSubstitutionMatrix(
-            getBaseCallingBranchLength(eventToTreatAsParent == NULL ? event : eventToTreatAsParent));
+            getReconstructionBranchLength(eventToTreatAsParent == NULL ? event : eventToTreatAsParent));
     void **attributes = st_malloc(sizeof(void *) * 2);
     attributes[0] = matrix;
     attributes[1] = event;

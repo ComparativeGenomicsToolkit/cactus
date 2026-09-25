@@ -5,6 +5,7 @@
 #include "stCheckEdges.h"
 #include "stMatchingAlgorithms.h"
 #include "stReferenceProblem2.h"
+#include "blockMLString.h"
 #include <math.h>
 
 // OpenMP
@@ -220,8 +221,8 @@ static void getEventWeightingP(Event *pEvent, Event *event,
 
             if(multiplicity > 0) { // Don't traverse paths not leading to interesting events
                 getEventWeightingP(event, nEvent,
-                                   pathLength + event_getBranchLength(nEvent),
-                                   adjustedPathLength + event_getBranchLength(nEvent)/multiplicity,
+                                   pathLength + getReconstructionBranchLength(nEvent),
+                                   adjustedPathLength + getReconstructionBranchLength(nEvent)/multiplicity,
                                    branchesToMultiplicity, eventToWeights, phi,
                                    chosenEvents);
             }
@@ -233,8 +234,8 @@ static void getEventWeightingP(Event *pEvent, Event *event,
         int64_t multiplicity = stIntTuple_get(stHash_search(branchesToMultiplicity, nEvent), 0);
         if(multiplicity > 0) {
             getEventWeightingP(event, nEvent,
-                    pathLength + event_getBranchLength(event),
-                    adjustedPathLength + event_getBranchLength(event)/multiplicity,
+                    pathLength + getReconstructionBranchLength(event),
+                    adjustedPathLength + getReconstructionBranchLength(event)/multiplicity,
                     branchesToMultiplicity, eventToWeights, phi, chosenEvents);
         }
     }
