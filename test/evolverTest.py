@@ -454,7 +454,7 @@ class TestCase(unittest.TestCase):
 
         xml_root = ET.parse(config_path).getroot()
         bar_elem = xml_root.find("bar")
-        bar_elem.attrib["partialOrderAlignment"] = "1"
+        bar_elem.attrib["baseAligner"] = "abpoa"
         bar_elem.attrib["partialOrderAlignmentMaskFilter"] = "1"
         
         # force cactus to accept multifurcation in tree
@@ -1856,7 +1856,7 @@ class TestCase(unittest.TestCase):
 
         xml_root = ET.parse(config_path).getroot()
         bar_elem = xml_root.find("bar")
-        bar_elem.attrib["partialOrderAlignment"] = "1"
+        bar_elem.attrib["baseAligner"] = "abpoa"
         decomp_elem = xml_root.find("multi_cactus").find("decomposition")
         # force cactus to accept multifurcation in tree
         decomp_elem.attrib["allow_multifurcations"] = "1"
@@ -1882,8 +1882,6 @@ class TestCase(unittest.TestCase):
         xml_root = ET.parse(config_path).getroot()
         bar_elem = xml_root.find("bar")
         bar_elem.attrib["baseAligner"] = base_aligner
-        # keep the legacy boolean consistent, so nothing still reading it disagrees
-        bar_elem.attrib["partialOrderAlignment"] = "0" if base_aligner == "pecan" else "1"
         if star:
             # force cactus to accept multifurcation in tree
             xml_root.find("multi_cactus").find("decomposition").attrib["allow_multifurcations"] = "1"

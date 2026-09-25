@@ -375,10 +375,8 @@ void test_alignment_block_iterator(CuTest *testCase) {
 }
 
 /*
- * <bar baseAligner> is new; <bar partialOrderAlignment> is what every config written before it
- * says.  The fallback between them is the whole backwards-compatibility guarantee of this change,
- * so it gets a test of its own -- including the case that actually bites, a config carrying both
- * because it was copied from the shipped one and then edited.
+ * <bar baseAligner> alone selects the engine; the <bar partialOrderAlignment> boolean it replaced
+ * is not read at all, so a copy of an old config that still carries it must not change the result.
  */
 static BaseAligner engine_for_config(CuTest *testCase, const char *bar_attrs) {
     const char *tmp = getenv("TMPDIR");
@@ -398,31 +396,18 @@ static BaseAligner engine_for_config(CuTest *testCase, const char *bar_attrs) {
 }
 
 void test_baseAligner_selection(CuTest *testCase) {
-    // No baseAligner at all: the old boolean decides, as every pre-existing config expects.
-    CuAssertIntEquals(testCase, BASE_ALIGNER_ABPOA, engine_for_config(testCase, "partialOrderAlignment=\"1\""));
-    CuAssertIntEquals(testCase, BASE_ALIGNER_PECAN, engine_for_config(testCase, "partialOrderAlignment=\"0\""));
-
-    // baseAligner present: it decides, and all three values resolve.
-    CuAssertIntEquals(testCase, BASE_ALIGNER_PECAN,
-                      engine_for_config(testCase, "partialOrderAlignment=\"1\" baseAligner=\"pecan\""));
-    CuAssertIntEquals(testCase, BASE_ALIGNER_ABPOA,
-                      engine_for_config(testCase, "partialOrderAlignment=\"1\" baseAligner=\"abpoa\""));
-    CuAssertIntEquals(testCase, BASE_ALIGNER_MINIPOA,
-                      engine_for_config(testCase, "partialOrderAlignment=\"1\" baseAligner=\"minipoa\""));
-
-    // Only baseAligner, no legacy boolean.  This is what the warning below tells users to write,
-    // and reading partialOrderAlignment unguarded used to st_errAbort on exactly this config.
-    CuAssertIntEquals(testCase, BASE_ALIGNER_MINIPOA, engine_for_config(testCase, "baseAligner=\"minipoa\""));
-    CuAssertIntEquals(testCase, BASE_ALIGNER_ABPOA, engine_for_config(testCase, "baseAligner=\"abpoa\""));
+    // baseAligner decides, and all three values resolve
     CuAssertIntEquals(testCase, BASE_ALIGNER_PECAN, engine_for_config(testCase, "baseAligner=\"pecan\""));
+    CuAssertIntEquals(testCase, BASE_ALIGNER_ABPOA, engine_for_config(testCase, "baseAligner=\"abpoa\""));
+    CuAssertIntEquals(testCase, BASE_ALIGNER_MINIPOA, engine_for_config(testCase, "baseAligner=\"minipoa\""));
 
-    // Disagreeing: baseAligner wins (and the C code logs about it).  This is the trap -- the
-    // shipped config now carries baseAligner="abpoa", so someone who copies it and sets
-    // partialOrderAlignment="0" the documented way would otherwise silently keep abpoa.
+    // absent: abpoa
+    CuAssertIntEquals(testCase, BASE_ALIGNER_ABPOA, engine_for_config(testCase, ""));
+
+    // the old boolean is ignored, alone or alongside baseAligner
+    CuAssertIntEquals(testCase, BASE_ALIGNER_ABPOA, engine_for_config(testCase, "partialOrderAlignment=\"0\""));
     CuAssertIntEquals(testCase, BASE_ALIGNER_MINIPOA,
                       engine_for_config(testCase, "partialOrderAlignment=\"0\" baseAligner=\"minipoa\""));
-    CuAssertIntEquals(testCase, BASE_ALIGNER_PECAN,
-                      engine_for_config(testCase, "partialOrderAlignment=\"1\" baseAligner=\"pecan\""));
 }
 
 /*
