@@ -720,8 +720,9 @@
 	<!-- retain_pages_release_pct: with retention on, the pages are handed back for good once rss
 	     reaches this percentage of the job's memory, and the run continues in stock decay.  A wrong
 	     guess then runs slower instead of dying.  Checked from caf's melting rounds, after caf and
-	     after the flowers are extended, and from bar's poa loop; the first time it fired it was 67
-	     seconds into bar, on 540 GiB that was all caf's.  80 rather than something smaller because
+	     after the flowers are extended, and from bar once per flower for every base aligner (it
+	     used to be only bar's poa loop, which left pecan unguarded); the first time it fired it
+	     was 67 seconds into bar, on 540 GiB that was all caf's.  80 rather than something smaller because
 	     the request is sized from it: rss overshoots the trip point by 0 to 12.2% across the runs
 	     measured, so 80 leaves rss at 90% of the request in the worst of them, while 65 would waste
 	     a quarter of every retained job's request.  One way only: purging repeatedly to hold a

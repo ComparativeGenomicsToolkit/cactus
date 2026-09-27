@@ -173,6 +173,12 @@ void bar(stList *flowers, CactusParams *params, CactusDisk *cactusDisk, stList *
     for (int64_t j = 0; j<stList_length(flowers); j++) {
         Flower *flower = stList_get(flowers, j);
 
+        // Once per flower, whatever the base aligner.  The poa engines also check once per window,
+        // for the rare flower long enough to cross the limit on its own, but pecan has no loop of
+        // its own to check from: with the guard only in the poa path, retention ran unchecked
+        // through bar and OOM-killed pecan at MammalsAnc1 at 654 GiB and again at 1.3 TiB.
+        cactus_retentionGuard();
+
         cactusDisk_pushNameInterval(cactusDisk, nameBase + nameOffsets[j], nameOffsets[j+1] - nameOffsets[j]);
         st_randomSeed(flower_getName(flower)); // Any random choices below are the flower's own, not the thread's
 
