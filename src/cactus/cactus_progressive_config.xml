@@ -255,12 +255,13 @@
     0.869/0.666 against abpoa's 0.853/0.652, evolver primates 0.9977/0.9846 against 0.9973/0.9844, and on
     8Mb of human/mouse bar took 26s and 0.5GB against abpoa's 59s and 6.7GB while aligning slightly more
     of human to mouse.  On evolver mammals it takes about twice abpoa's CPU time in bar.  minipoa is a
-    minimizer-based POA that uses roughly half abpoa's memory and is somewhat faster at the same
-    window size.  It does NOT afford a larger window: measured on human/chimp chr10, its memory
-    grows about as window x (bandConstant + bandFraction x window), so 10kb costs 3.5GB and 50kb
-    is already over 23GB and gets OOM-killed.  minipoa shares abpoa's substitution matrix
-    (from <poa partialOrderAlignmentSubMatrix>) but has its own gap penalties in <minipoa>, which
-    are deliberately different - see the note there for why. -->
+    POA like abpoa, with a static band and a vectorised dp that streams its matrices, and with the
+    shipped <minipoa> settings (the same convex gaps as abpoa, and a guide tree) it is as accurate:
+    evolver mammals 0.854/0.652 against abpoa's 0.853/0.652, primates equal.  On 8Mb of human/mouse
+    at 8 threads its bar took 14s and 5.8GB against abpoa's 59s and 6.7GB (9s and 3.5GB with a
+    single affine gap).  Its memory still grows about as window x (bandConstant + bandFraction x
+    window), so it does not afford a much larger window.  minipoa shares abpoa's substitution matrix
+    (from <poa partialOrderAlignmentSubMatrix>) but has its own gap penalties in <minipoa>. -->
 	<!-- deepAligner, deepAlignerDivergence: use deepAligner instead of baseAligner for the ancestors whose ingroups are at
 	least deepAlignerDivergence apart: the sum of the ancestor's two longest child branches, in the same scaled tree cactus
 	takes its other divergence-dependent settings from, i.e. after branchScale and, with <divergences
@@ -393,26 +394,25 @@
 		Set it to override.  lastz's own default matrix (HOXD70 with -31 transitions rather than the
 		-61 abpoa is given) was measured here and is a wash: slightly better precision, slightly worse
 		recall on evolver mammals. -->
-		<!-- The GAP penalties are separate, and deliberately different from abpoa's, because the same
-		nominal values do not produce the same alignment in the two aligners.  abpoa's model is convex:
-		min(open1 + L*ext1, open2 + L*ext2), which with the shipped 400/30 and 1200/1 means its
-		effective extension past L~28 is 1, not 30.  minipoa has only one gap piece (its para_t
-		declares gap_open2/gap_ext2 but the DP never reads them), so charging it abpoa's first-piece
-		extension of 30 makes long gaps roughly 30x dearer than abpoa treats them, and it collapses
-		bases into shared columns rather than opening a gap.  Measured on evolver mammals: 0.79 with
-		ext=30 against abpoa's 0.85, recovering to 0.85 around open=600 ext=4.
-		Why this matters so much here: 94% of the gap bases in the evolver mammals truth sit in runs
-		of 28bp or longer, so the long-gap regime is not a corner case on that data.  It may well be
-		on others - human pangenome alignments, for instance, are mostly short gaps, where the two
-		models differ far less.
-		With last-train (the cactus -lastTrain option) these defaults are replaced by trained values, and that is a better fit for
-		minipoa than for abpoa: last-train fits a single affine gap model, which is exactly minipoa's
-		model, whereas abpoa has to be given a synthesised second piece to stay stable.
-		CAVEAT: absent last-train, these defaults are fitted to the evolver mammals accuracy test,
-		which is known to be sensitive to scoring.  They are not derived from first principles and are
-		worth revisiting against other datasets. -->
+		<!-- GAP penalties.  minipoa's gap cost can be convex, exactly as abpoa's is: a gap of length L
+		costs min(open + L*ext, open2 + L*ext2).  The defaults are abpoa's shipped values, 400/30 and
+		1200/1, so beyond L~28 a gap extends for 1.  Setting minipoaGapOpenPenalty2 and
+		minipoaGapExtensionPenalty2 to 0 leaves a single affine piece, cheaper by two dp matrices
+		(about a third less memory and time).  A single piece cannot price short and long gaps well
+		at once: with only 400/30 long gaps cost ~30x what abpoa charges and bases get packed into
+		shared columns (0.79 on evolver mammals); the best single piece found, 600/4, makes short
+		gaps dearer instead.  Measured on evolver mammals (mafComparator): single 600/4 0.846/0.646,
+		convex 0.852/0.650, convex with minipoaProgressiveMode 0.854/0.652, against abpoa's
+		0.853/0.652.  94% of the gap bases in the evolver mammals truth sit in runs of 28bp or
+		longer, which is why the long-gap price matters so much there.
+		With last-train (the cactus -lastTrain option) the first piece is replaced by the trained
+		single affine model and the second piece is turned off, so minipoa runs the model exactly as
+		trained.  -->
 		<!-- minipoaGapOpenPenalty minipoa gap open penalty -->
 		<!-- minipoaGapExtensionPenalty minipoa gap extension penalty -->
+		<!-- minipoaGapOpenPenalty2 open penalty of the second, convex gap piece (0 with
+		minipoaGapExtensionPenalty2 0 = single affine piece) -->
+		<!-- minipoaGapExtensionPenalty2 extension penalty of the second gap piece -->
 		<!-- minipoaWindow sliding window size.  Same 10000 as abpoa, and for the same reason: memory
 		is quadratic-ish in it.  On human/chimp chr10 at 8 cores, 10kb/15kb/20kb/30kb cost
 		3.5/5.9/9.3/15.1 GB and 50kb upwards is killed, while BAR time is flat across that range - so
@@ -435,9 +435,11 @@
 		which is the consensus length over 24, clamped to [500, 20000]) -->
 		<!-- minipoaProgressiveMode use a guide tree from a minimizer jaccard distance matrix to choose the
 		order sequences are added to the graph, as <poa partialOrderAlignmentProgressiveMode> does for abpoa.
-		Off by default: insertion order matters for POA in principle, but this tree has not earned its
-		cost on anything measured - bit-identical output on evolver, and 7% more memory plus 2% more
-		time on human/chimp chr10.  Worth revisiting on more diverged input. -->
+		On a tree-shaped window - two sister ingroups and outgroups, as progressive cactus aligns - adding
+		the closest sequences first raised recall of simulated truth by 1-2 points at moderate divergence
+		and 7-13 at high divergence, and was worth 0.2/0.2 on evolver mammals on top of the convex gap.
+		(Earlier measurements that found it a no-op predate a fix: below 8 sequences the tree was
+		built from no minimizers at all and came out as the input order.) -->
 		<!-- minipoaProgressiveMaxRows disable progressive mode above this many rows: the guide tree is
 		quadratic in both time and memory (a dense NxN matrix of doubles) -->
 		<minipoa
@@ -451,9 +453,11 @@
 			minipoaMinimizerW="10"
 			minipoaAnchorWindow="0"
 			minipoaSubMatrix=""
-			minipoaGapOpenPenalty="600"
-			minipoaGapExtensionPenalty="4"
-			minipoaProgressiveMode="0"
+			minipoaGapOpenPenalty="400"
+			minipoaGapExtensionPenalty="30"
+			minipoaGapOpenPenalty2="1200"
+			minipoaGapExtensionPenalty2="1"
+			minipoaProgressiveMode="1"
 			minipoaProgressiveMaxRows="5000"
 		/>
 	</bar>

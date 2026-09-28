@@ -133,15 +133,19 @@ def apply_scores_to_config(score_dict, config_xml):
             
     poa_node.attrib['partialOrderAlignmentSubMatrix'] = score_string
 
-    # minipoa gets the learned gaps verbatim.  last-train fits a single affine gap model, which is
-    # exactly minipoa's model -- the GAP-OPEN-2/GAP-EXTEND-2 pair above is a synthesised second
-    # piece that exists only because abPOA is unstable without one, so it would be wrong to hand it
-    # on.  minipoaSubMatrix is left alone: empty means inherit <poa>'s matrix, which is the learned
-    # one we just wrote, so the trained substitution scores reach minipoa too.
+    # minipoa gets the learned gaps verbatim, as a single affine piece: last-train fits a single
+    # affine gap model, and the GAP-OPEN-2/GAP-EXTEND-2 pair above is a synthesised second piece
+    # that exists only because abPOA is unstable without one, so it would be wrong to hand it on.
+    # minipoa's own second piece is turned off too: its shipped values are priced against the
+    # shipped first piece, not the learned one.  minipoaSubMatrix is left alone: empty
+    # means inherit <poa>'s matrix, which is the learned one we just wrote, so the trained
+    # substitution scores reach minipoa too.
     minipoa_node = bar_node.find("minipoa")
     if minipoa_node is not None:
         minipoa_node.attrib['minipoaGapOpenPenalty'] = str(score_dict['GAP-OPEN'])
         minipoa_node.attrib['minipoaGapExtensionPenalty'] = str(score_dict['GAP-EXTEND'])
+        minipoa_node.attrib['minipoaGapOpenPenalty2'] = '0'
+        minipoa_node.attrib['minipoaGapExtensionPenalty2'] = '0'
         RealtimeLogger.info("Overriding minipoa scores with trained values: GapOpen {}; GapExtend {} (single affine, as trained)".format(
             minipoa_node.attrib['minipoaGapOpenPenalty'],
             minipoa_node.attrib['minipoaGapExtensionPenalty']))
