@@ -258,7 +258,7 @@
     POA like abpoa, with a static band and a vectorised dp that streams its matrices, and with the
     shipped <minipoa> settings (the same convex gaps as abpoa, and a guide tree) it is as accurate:
     evolver mammals 0.854/0.652 against abpoa's 0.853/0.652, primates equal.  On 8Mb of human/mouse
-    at 8 threads its bar took 14s and 5.8GB against abpoa's 59s and 6.7GB (9s and 3.5GB with a
+    at 8 threads its bar took 12s and 4GB against abpoa's 59s and 6.7GB (9s and 2.8GB with a
     single affine gap).  Its memory still grows about as window x (bandConstant + bandFraction x
     window), so it does not afford a much larger window.  minipoa shares abpoa's substitution matrix
     (from <poa partialOrderAlignmentSubMatrix>) but has its own gap penalties in <minipoa>. -->
@@ -397,8 +397,8 @@
 		<!-- GAP penalties.  minipoa's gap cost can be convex, exactly as abpoa's is: a gap of length L
 		costs min(open + L*ext, open2 + L*ext2).  The defaults are abpoa's shipped values, 400/30 and
 		1200/1, so beyond L~28 a gap extends for 1.  Setting minipoaGapOpenPenalty2 and
-		minipoaGapExtensionPenalty2 to 0 leaves a single affine piece, cheaper by two dp matrices
-		(about a third less memory and time).  A single piece cannot price short and long gaps well
+		minipoaGapExtensionPenalty2 to 0 leaves a single affine piece, which needs about a quarter
+		less memory and time.  A single piece cannot price short and long gaps well
 		at once: with only 400/30 long gaps cost ~30x what abpoa charges and bases get packed into
 		shared columns (0.79 on evolver mammals); the best single piece found, 600/4, makes short
 		gaps dearer instead.  Measured on evolver mammals (mafComparator): single 600/4 0.846/0.646,
