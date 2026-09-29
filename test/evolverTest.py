@@ -536,7 +536,7 @@ class TestCase(unittest.TestCase):
         out_dir = os.path.dirname(self._out_hal(binariesMode))
         out_name = os.path.splitext(os.path.basename(self._out_hal(binariesMode)))[0]
         cactus_pangenome_cmd = ['cactus-pangenome', self._job_store(binariesMode), seq_file_path, '--reference', 'simHuman', 'simChimp',
-                                '--outDir', out_dir, '--outName', out_name, '--odgi', '--chrom-og', '--viz', '--draw', '--haplo', '--lastTrain']
+                                '--outDir', out_dir, '--outName', out_name, '--odgi', '--chrom-og', '--viz', '--draw', '--haplo']
         if not extend and not resume:
             # collapse self-alignments are not derived from the GAF, so they cannot be reused
             cactus_pangenome_cmd += ['--collapse']
@@ -701,7 +701,14 @@ class TestCase(unittest.TestCase):
                                '--reference', 'simChimp', '--outDir', split_path] + cactus_opts)
 
         batch_mg_path = os.path.join(self.tempDir, 'chrom-minigraph')
-        train_opts = ['--lastTrain'] if train else []
+        train_opts = []
+        if not train:
+            # training is on by default, so the untrained variant switches it off in the config
+            no_train_config_path = os.path.join(self.tempDir, 'config.notrain.xml')
+            xml_root = ET.parse('src/cactus/cactus_progressive_config.xml').getroot()
+            xml_root.find('graphmap').attrib['lastTrain'] = '0'
+            ET.ElementTree(xml_root).write(no_train_config_path)
+            train_opts = ['--configFile', no_train_config_path]
         subprocess.check_call(['cactus-minigraph', self._job_store(binariesMode), chromfile_path, batch_mg_path,  
                                '--reference', 'simChimp', '--batch'] + cactus_opts + train_opts)
 
@@ -825,7 +832,7 @@ class TestCase(unittest.TestCase):
                                                             '--giraffe', 'clip', 'filter', '--lrGiraffe', '--chrom-vg', 'clip', 'filter',
                                                             '--viz', '--chrom-og', 'clip', 'full', '--odgi', '--haplo', 'clip',
                                                             '--xg', '--unchopped-gfa', '--indexCores', '4', '--consCores', '2',
-                                                            '--lastTrain', '--snarlStats']
+                                                            '--snarlStats']
         if mgSplit:
             cactus_pangenome_cmd += ['--mgSplit']
         if wholeGenomeRef:

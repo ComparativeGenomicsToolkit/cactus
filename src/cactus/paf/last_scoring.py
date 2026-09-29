@@ -179,42 +179,75 @@ def last_train(job, config, seq_order, seq_id_map, ref_name=None):
         RealtimeLogger.warning('Input fasta for {} too small to train scoring model on.  Will fall back to defaults'.format(os.path.basename(name1)))
         return None
     
-    # determine sequence to compare to compare
-    # it's the furthest in the order that's both greater than 500k and 50% of the size of the first.
-    # the whole order is scanned from its far end: starting at rev_order[1] skipped the furthest
-    # genome itself, which is the one the original seq_order[-1] choice trained on
-    rev_order = [seq for seq in reversed(seq_order)]
-    for seq in rev_order:
-        if seq != name1 and seq_id_map[seq].size > 500000 and (float(seq_id_map[seq].size) / float(seq_id_map[name1].size) > 0.5):
-            name2 = seq
-            break
+    name2 = pick_train_partner(name1, seq_order, seq_id_map)
 
     # short circuit if we can't find anything to train on
     if name2 is None:
        RealtimeLogger.warning('Unable to find sequence to train scoring model on for {}.  Will fall back to defaults'.format(os.path.basename(name1)))
        return None
-                
-    # sometimes the s
+
     fa1_id, fa2_id = seq_id_map[name1], seq_id_map[name2]
     work_dir = job.fileStore.getLocalTempDir()
     fa1_path = os.path.join(work_dir, name1 + '.fa')
     job.fileStore.readGlobalFile(fa1_id, fa1_path)
     fa2_path = os.path.join(work_dir, name2 + '.fa')
     job.fileStore.readGlobalFile(fa2_id, fa2_path)
-        
-    # make the database
-    cactus_call(parameters=['lastdb', name1 + '_db', fa1_path, '-P', str(job.cores)])
 
-    # do the training
     # note: there are some specific options for distant genomes that should be
     # incorporated if/when this ever gets used in progressive cactus
     train_cmd = ['last-train', '--revsym', '--matsym', '--gapsym',
                  '-P', str(job.cores), name1 + '_db', fa2_path]
-
     train_file = os.path.join(work_dir, '{}_{}.train'.format(name1, name2))
-    cactus_call(parameters=train_cmd, outfile=train_file)
 
+    # a model is an optimization, not a requirement: whatever goes wrong here (last-train failing
+    # to converge on too little alignment, or writing something parse_train_file won't accept),
+    # the alignment falls back to the default scores, or to another chromosome's model in batch mode
+    try:
+        cactus_call(parameters=['lastdb', name1 + '_db', fa1_path, '-P', str(job.cores)])
+        cactus_call(parameters=train_cmd, outfile=train_file)
+        parse_train_file(train_file)
+    except Exception as e:
+        RealtimeLogger.warning('Training scoring model for {} against {} failed, so it will fall back to defaults: {}'.format(
+            os.path.basename(name1), os.path.basename(name2), e))
+        return None
+
+    RealtimeLogger.info('Trained scoring model for {} against {}'.format(os.path.basename(name1), os.path.basename(name2)))
     return job.fileStore.writeGlobalFile(train_file)
+
+def pick_train_partner(name1, seq_order, seq_id_map, min_size=500000, min_ref_frac=0.5, size_band=2.0):
+    """ choose the genome to train name1's model against.
+
+    The candidates are the genomes big enough to hold a meaningful amount of alignment: over
+    min_size and over min_ref_frac of name1.  Of those, only the ones within size_band of their
+    median size are kept, so that a fragmented or oversized (contaminated, or whole-genome instead
+    of one chromosome) assembly doesn't set the model for everything.  The pick is then the middle
+    of these in seq_order, which is by mash distance to the reference when minigraph sorts it: the
+    furthest genome is by construction the outlier, and trained models barely depend on the partner
+    anyway (gap open 42-45, extend 1 across the HPRC partners tried), so a typical one is the
+    safest bet. """
+    ref_size = seq_id_map[name1].size
+    candidates = [seq for seq in seq_order if seq != name1 and seq in seq_id_map and
+                  seq_id_map[seq].size > min_size and float(seq_id_map[seq].size) / float(ref_size) > min_ref_frac]
+    if not candidates:
+        return None
+    sizes = sorted(seq_id_map[seq].size for seq in candidates)
+    median_size = sizes[len(sizes) // 2]
+    typical = [seq for seq in candidates if median_size / size_band <= seq_id_map[seq].size <= median_size * size_band]
+    if typical:
+        candidates = typical
+    return candidates[len(candidates) // 2]
+
+def last_train_enabled(options, config_node):
+    """ training is switched on and off by graphmap's lastTrain attribute.  --lastTrain is
+    deprecated and only turns it on; --scoresFile turns it off since its model would be ignored """
+    graphmap_node = findRequiredNode(config_node, "graphmap")
+    if getattr(options, 'lastTrain', False):
+        logger.warning('--lastTrain is deprecated: training is now on by default, and is toggled with the lastTrain '
+                       'attribute of <graphmap> in the config')
+        graphmap_node.attrib['lastTrain'] = '1'
+    if getattr(options, 'scoresFile', None):
+        return False
+    return getOptionalAttrib(graphmap_node, 'lastTrain', typeFn=bool, default=False)
     
 
     
