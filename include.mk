@@ -266,6 +266,12 @@ inclDirs = hal/inc api/inc setup/inc bar/inc caf/inc paf/inc hal/inc reference/i
 
 CPPFLAGS += ${inclDirs:%=-I${rootPath}/%} -I${LIBDIR} -I${rootPath}/include
 
+# HAL format 3, from the hal submodule (built before cactus's own modules): its C
+# interface, hal3/hal3_c.h, which hal/ uses to write alignment fragments
+hal3Dir = ${rootPath}/submodules/hal
+hal3Libs = ${hal3Dir}/lib/libHal3.a ${hal3Dir}/submodules/twobit64/libtwobit64.a ${hal3Dir}/submodules/liftmap/libliftmap.a
+CPPFLAGS += -I${hal3Dir}/format3/inc
+
 # libraries can't be added until they are build, so add as to LDLIBS until needed
 cactusLibs = ${LIBDIR}/stCaf.a ${LIBDIR}/stReference.a ${LIBDIR}/cactusBarLib.a ${LIBDIR}/cactusLib.a
 sonLibLibs = ${sonLibDir}/sonLib.a ${sonLibDir}/cuTest.a
@@ -292,5 +298,5 @@ ifeq ($(minipoa),on)
 	minipoaLib = -lminipoa
 	CFLAGS += -DHAVE_MINIPOA
 endif
-LDLIBS += ${cactusLibs} ${sonLibLibs} ${LIBS} -L${rootPath}/lib -Wl,-rpath,${rootPath}/lib -labpoa ${minipoaLib} ${jemallocLib} -lz -lbz2 -lpthread -lm -lstdc++ -lm -lxml2 ${CACTUS_STATIC_LINK_FLAGS}
+LDLIBS += ${cactusLibs} ${hal3Libs} ${sonLibLibs} ${LIBS} -L${rootPath}/lib -Wl,-rpath,${rootPath}/lib -labpoa ${minipoaLib} ${jemallocLib} -lz -lbz2 -lpthread -lm -lstdc++ -lm -lxml2 ${CACTUS_STATIC_LINK_FLAGS}
 LIBDEPENDS = ${sonLibDir}/sonLib.a ${sonLibDir}/cuTest.a ${jemallocDepends}

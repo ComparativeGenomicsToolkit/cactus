@@ -3,10 +3,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <inttypes.h>
+#include <string.h>
 
 #include "cactus.h"
 #include "sonLib.h"
 #include "recursiveThreadBuilder.h"
+#include "hal3/hal3_c.h"
 
 static Name globalReferenceEventName;
 
@@ -189,13 +191,29 @@ void makeHalFormat(Flower *flower, stKVDatabase *database, Name referenceEventNa
 }
 
 void makeHalFormatNoDb(Flower *flower, RecordHolder *rh, Name referenceEventName, FILE *fileHandle) {
+    if (fileHandle == NULL) {
+        globalReferenceEventName = referenceEventName;
+        stList *caps = getCaps(flower);
+        buildRecursiveThreadsNoDb(rh, caps, writeSegment, writeTerminalAdjacency, NULL);
+        stList_destruct(caps);
+    } else {
+        makeHalOutputNoDb(flower, rh, referenceEventName, fileHandle, NULL, NULL);
+    }
+}
+
+static void hal3Check(int rc, char *err, const char *fragmentDir) {
+    if (rc != 0) {
+        st_errAbort("writing the HAL format 3 fragment %s: %s", fragmentDir, err ? err : "unknown error");
+    }
+}
+
+void makeHalOutputNoDb(Flower *flower, RecordHolder *rh, Name referenceEventName, FILE *fileHandle,
+                       const char *fragmentDir, const char *fragmentTree) {
     globalReferenceEventName = referenceEventName;
     stList *caps = getCaps(flower);
-    if (fileHandle == NULL) {
-        buildRecursiveThreadsNoDb(rh, caps, writeSegment, writeTerminalAdjacency, NULL);
-    } else {
-        stList *threadStrings = buildRecursiveThreadsInListNoDb(rh, caps, writeSegment, writeTerminalAdjacency, NULL);
-        assert(stList_length(threadStrings) == stList_length(caps));
+    stList *threadStrings = buildRecursiveThreadsInListNoDb(rh, caps, writeSegment, writeTerminalAdjacency, NULL);
+    assert(stList_length(threadStrings) == stList_length(caps));
+    if (fileHandle != NULL) {
         for (int64_t i = 0; i < stList_length(threadStrings); i++) {
             Cap *cap = stList_get(caps, i);
             if(!sequence_isTrivialSequence(cap_getSequence(cap))) {
@@ -204,7 +222,36 @@ void makeHalFormatNoDb(Flower *flower, RecordHolder *rh, Name referenceEventName
                 fprintf(fileHandle, "%s\n", threadString);
             }
         }
-        stList_destruct(threadStrings);
     }
+    if (fragmentDir != NULL) {
+        // the same sequences, in the same order, as the .c2h: every one's length first,
+        // then each one's segment lines and DNA
+        char *err = NULL;
+        hal3_c2h *h = hal3_c2h_open(fragmentDir, fragmentTree, 1, &err);
+        hal3Check(h == NULL ? -1 : 0, err, fragmentDir);
+        for (int64_t pass = 0; pass < 2; pass++) {
+            for (int64_t i = 0; i < stList_length(threadStrings); i++) {
+                Sequence *sequence = cap_getSequence((Cap *)stList_get(caps, i));
+                if (sequence_isTrivialSequence(sequence)) {
+                    continue;
+                }
+                Event *event = sequence_getEvent(sequence);
+                const char *genome = event_getHeader(event), *name = sequence_getHeader(sequence);
+                int64_t length = sequence_getLength(sequence);
+                if (pass == 0) {
+                    hal3Check(hal3_c2h_declare(h, genome, name, event_getName(event) == referenceEventName, length, &err),
+                              err, fragmentDir);
+                } else {
+                    char *threadString = stList_get(threadStrings, i);
+                    char *dna = sequence_getString(sequence, sequence_getStart(sequence), length, 1);
+                    hal3Check(hal3_c2h_sequence(h, genome, name, threadString, strlen(threadString), dna, length, &err),
+                              err, fragmentDir);
+                    free(dna);
+                }
+            }
+        }
+        hal3Check(hal3_c2h_finish(h, &err), err, fragmentDir);
+    }
+    stList_destruct(threadStrings);
     stList_destruct(caps);
 }
