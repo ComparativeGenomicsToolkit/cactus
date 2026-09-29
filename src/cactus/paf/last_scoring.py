@@ -72,18 +72,24 @@ def parse_train_file(train_file_path):
     return score_dict
 
 def apply_long_gap(score_dict, open_factor, extend_factor):
-    """ make a long gap open that's open_factor more expensive to open, but extend_factor cheaper to extend """
+    """ make a long gap open that's open_factor more expensive to open, but extend_factor cheaper to extend
+
+    last-train's scores are small integers (its gap extension is typically 1), so the long-gap
+    extension can only be made extend_factor times cheaper after scaling the whole model up by
+    extend_factor.  The substitution scores and both gap costs are scaled together, which leaves the
+    trained model unchanged, and the long-gap extension is then exactly the trained one.  (The
+    matrix used to be scaled only when the trained extension was below extend_factor while the gaps
+    were always scaled, so a model with a larger extension reached the aligner with its gaps
+    extend_factor times too dear relative to its substitutions.) """
     assert open_factor > 1 and extend_factor >= 1
-    # multiply everything else so we can make a smaller big gap extend
-    if score_dict['GAP-EXTEND'] < extend_factor:
-        for i in ['A', 'C', 'G', 'T']:
-            for j in ['A', 'C', 'G', 'T']:
-                score_dict[i][j] *= extend_factor
+    for i in ['A', 'C', 'G', 'T']:
+        for j in ['A', 'C', 'G', 'T']:
+            score_dict[i][j] *= extend_factor
     score_dict['GAP-OPEN'] *= extend_factor
     score_dict['GAP-EXTEND'] *= extend_factor
 
     score_dict['GAP-OPEN-2'] = score_dict['GAP-OPEN'] * open_factor
-    score_dict['GAP-EXTEND-2'] = max(1, int(score_dict['GAP-EXTEND'] / extend_factor))            
+    score_dict['GAP-EXTEND-2'] = max(1, score_dict['GAP-EXTEND'] // extend_factor)
 
 def apply_scores_to_config(score_dict, config_xml):
     """ load the score dict into the config.  since last won't train long gaps,
@@ -174,9 +180,11 @@ def last_train(job, config, seq_order, seq_id_map, ref_name=None):
         return None
     
     # determine sequence to compare to compare
-    # it's the furthest in the order that's both greater than 500k and 50% of the size of the first
+    # it's the furthest in the order that's both greater than 500k and 50% of the size of the first.
+    # the whole order is scanned from its far end: starting at rev_order[1] skipped the furthest
+    # genome itself, which is the one the original seq_order[-1] choice trained on
     rev_order = [seq for seq in reversed(seq_order)]
-    for seq in rev_order[1:]:
+    for seq in rev_order:
         if seq != name1 and seq_id_map[seq].size > 500000 and (float(seq_id_map[seq].size) / float(seq_id_map[name1].size) > 0.5):
             name2 = seq
             break
