@@ -349,16 +349,18 @@ def cactus_cons(job, tree, ancestor_event, config_node, seq_id_map, og_map, paf_
     referenceID = job.fileStore.writeGlobalFile(tmpRef)
 
     if intermediate_results_url is not None:
-        # The user requested to keep the c2h files in a separate place. Export it there.
-        url = intermediate_results_url + ".c2h"
+        # The user requested to keep the c2h files in a separate place. Export it there, named
+        # by the subproblem's ancestor (every subproblem shares the prefix).
+        prefix = intermediate_results_url + "-" + ancestor_event
+        url = prefix + ".c2h"
         job.fileStore.exportFile(halID, makeURL(url))
 
         # The user requested to keep the hal fasta files in a separate place. Export it there.
-        url = intermediate_results_url + ".hal.fa"
+        url = prefix + ".hal.fa"
         job.fileStore.exportFile(fastaID, makeURL(url))
 
         # The user requested to keep the reference fasta files in a separate place. Export it there.
-        url = intermediate_results_url + ".reference.fa"
+        url = prefix + ".reference.fa"
         job.fileStore.exportFile(referenceID, makeURL(url))
 
     return (ancestor_event, halID, fastaID, referenceID)
