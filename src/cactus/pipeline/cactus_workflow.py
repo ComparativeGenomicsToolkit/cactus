@@ -227,6 +227,12 @@ def cactus_cons_with_resources(job, tree, ancestor_event, config_node, seq_id_ma
                                  poa_window=poa_window, walltime=cactus_walltime(walltime_secs))
     return cons_job.rv()
 
+def hal_format(config_node):
+    """ "3" (HAL format 3: each subproblem writes a fragment, and one hal merge makes the
+    alignment) or "hdf5" (a .c2h per subproblem, appended one by one into an HDF5 HAL) """
+    hal_elem = config_node.find("hal")
+    return hal_elem.attrib.get("format", "hdf5") if hal_elem is not None else "hdf5"
+
 def cactus_cons(job, tree, ancestor_event, config_node, seq_id_map, og_map, paf_id,
                 intermediate_results_url = None, chrom_name = None, retain_pages = None,
                 poa_window = None):
@@ -294,9 +300,18 @@ def cactus_cons(job, tree, ancestor_event, config_node, seq_id_map, og_map, paf_
             seqFile.write(f'{genome}\t{os.path.basename(faPath)}\n')
             
     args = ["--seqFile", tmpSeqFilePath, "--logLevel", getLogLevelString(),
-            "--alignments", primary_alignment_file, "--params", tmpConfig, "--outputFile", tmpHal,
-            "--outputHalFastaFile", tmpFasta, "--outputReferenceFile", tmpRef, "--outgroupEvents", " ".join(outgroups),
+            "--alignments", primary_alignment_file, "--params", tmpConfig,
+            "--outputReferenceFile", tmpRef, "--outgroupEvents", " ".join(outgroups),
             "--referenceEvent", ancestor_event, "--threads", str(job.cores)]
+    format3 = hal_format(config_node) == "3"
+    if format3:
+        # the subproblem as a HAL format 3 fragment: the ancestor and its ingroup children
+        # (the branch lengths come at the merge, from the input tree)
+        tmpFragment = os.path.join(work_dir, f'{ancestor_event}.fragment')
+        ingroups = [tree.getName(c) for c in tree.getChildren(tree.getNodeId(ancestor_event)) if tree.getName(c) not in outgroups]
+        args += ["--outputHalFragment", tmpFragment, "--halFragmentTree", "({}){};".format(",".join(ingroups), ancestor_event)]
+    else:
+        args += ["--outputFile", tmpHal, "--outputHalFastaFile", tmpFasta]
     if use_secondary_alignments:  # Optionally add the secondary alignments
         args += ["--secondaryAlignments", secondary_alignment_file]
 
@@ -342,22 +357,29 @@ def cactus_cons(job, tree, ancestor_event, config_node, seq_id_map, og_map, paf_
     else:
         job.fileStore.logToMaster("Ran cactus consolidated okay")
 
-    # Write the temporary output files to the final output
-    # At top level--have the final .c2h file
-    halID = job.fileStore.writeGlobalFile(tmpHal)
-    fastaID = job.fileStore.writeGlobalFile(tmpFasta)
+    # Write the temporary output files to the final output: the .c2h and its fasta, or the
+    # fragment as a single file (a pack) and no fasta (its DNA is in it)
+    if format3:
+        tmpPack = tmpFragment + '.hal'
+        cactus_call(parameters=["hal", "pack", tmpFragment, tmpPack])
+        halID = job.fileStore.writeGlobalFile(tmpPack)
+        fastaID = None
+    else:
+        halID = job.fileStore.writeGlobalFile(tmpHal)
+        fastaID = job.fileStore.writeGlobalFile(tmpFasta)
     referenceID = job.fileStore.writeGlobalFile(tmpRef)
 
     if intermediate_results_url is not None:
-        # The user requested to keep the c2h files in a separate place. Export it there, named
-        # by the subproblem's ancestor (every subproblem shares the prefix).
+        # The user requested to keep the c2h files (or fragments) in a separate place. Export
+        # them there, named by the subproblem's ancestor (every subproblem shares the prefix).
         prefix = intermediate_results_url + "-" + ancestor_event
-        url = prefix + ".c2h"
+        url = prefix + (".fragment.hal" if format3 else ".c2h")
         job.fileStore.exportFile(halID, makeURL(url))
 
         # The user requested to keep the hal fasta files in a separate place. Export it there.
-        url = prefix + ".hal.fa"
-        job.fileStore.exportFile(fastaID, makeURL(url))
+        if fastaID is not None:
+            url = prefix + ".hal.fa"
+            job.fileStore.exportFile(fastaID, makeURL(url))
 
         # The user requested to keep the reference fasta files in a separate place. Export it there.
         url = prefix + ".reference.fa"

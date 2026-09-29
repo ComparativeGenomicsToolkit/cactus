@@ -37,7 +37,7 @@ from cactus.shared.common import cactus_override_toil_options, add_cactus_toil_o
 from cactus.shared.common import write_s3
 from cactus.shared.common import cactus_clamp_memory
 from cactus.shared.common import clean_jobstore_files
-from cactus.pipeline.cactus_workflow import cactus_cons_with_resources
+from cactus.pipeline.cactus_workflow import cactus_cons_with_resources, hal_format
 from cactus.progressive.progressive_decomposition import compute_outgroups, parse_seqfile, get_subtree, get_spanning_subtree, get_event_set, get_ancestor_scaled_tree
 from cactus.preprocessor.cactus_preprocessor import CactusPreprocessor
 from cactus.preprocessor.dnabrnnMasking import loadDnaBrnnModel
@@ -243,6 +243,50 @@ def export_hal(job, mc_tree, config_node, seq_id_map, og_map, results, event=Non
         root_node = mc_tree.nameToId[event]
 
     hal_path = os.path.join(work_dir, '{}.hal'.format(event if event else mc_tree.getRootName()))
+
+    if hal_format(config_node) == "3":
+        # HAL format 3: every subproblem wrote a fragment; one hal merge makes the alignment,
+        # with the input tree's branch lengths
+        if acyclicEvent:
+            raise RuntimeError("--halFormat 3 cannot yet remove the duplications of {} (halRemoveDupes): "
+                               "use --halFormat hdf5".format(acyclicEvent))
+        fragment_ids = [(mc_tree.getName(node), results[mc_tree.getName(node)][0]) for node in mc_tree.breadthFirstTraversal(root_node)
+                        if mc_tree.getName(node) in subtree_roots]
+        if not has_resources:
+            total_size = sum([file_id.size for _, file_id in fragment_ids])
+            # the fragments in, the alignment out (about their total), and room to spare;
+            # the merge streams, so memory does not grow with the alignment
+            return job.addChildJobFn(export_hal, mc_tree, config_node, seq_id_map, og_map, results, event=event,
+                                     checkpointInfo=checkpointInfo, has_resources=True, validate=validate,
+                                     disk=3 * total_size, memory=memory_override if memory_override else cactus_clamp_memory(2**31),
+                                     walltime=cactus_walltime(600, io_bytes=int(2.2 * total_size))).rv()
+        fragment_paths = []
+        for genome_name, file_id in fragment_ids:
+            path = os.path.join(work_dir, '{}.fragment.hal'.format(genome_name))
+            job.fileStore.readGlobalFile(file_id, path)
+            fragment_paths.append(path)
+        # the whole tree below the root, with the input's branch lengths (extractSubTree gives
+        # only a node and its children)
+        def newick(node):
+            kids = mc_tree.getChildren(node)
+            text = '(' + ','.join(newick(c) + ('' if mc_tree.getWeight(node, c) is None else ':' + repr(mc_tree.getWeight(node, c)))
+                                  for c in kids) + ')' if kids else ''
+            return text + mc_tree.getName(node)
+        tree = newick(root_node if root_node is not None else mc_tree.getRootId()) + ';'
+        config_path = os.path.join(work_dir, 'config.xml')
+        ConfigWrapper(config_node).writeXML(config_path)
+        with open(config_path, 'rb') as configFile:
+            config_b64 = b64encode(configFile.read()).decode()
+        cactus_call(parameters=["hal", "merge", hal_path] + fragment_paths +
+                    ["--tree", tree, "--meta", "CACTUS_COMMIT=" + cactus_commit,
+                     "--meta", "CACTUS_CONFIG=" + config_b64], job_memory=job.memory)
+        for path in fragment_paths:
+            os.remove(path)
+        if validate:
+            cactus_call(parameters=["hal", "validate", hal_path])
+        if checkpointInfo:
+            write_s3(hal_path, checkpointInfo[1], region=checkpointInfo[0])
+        return job.fileStore.writeGlobalFile(hal_path)
 
     if not has_resources:
         fa_file_ids = []
@@ -454,6 +498,9 @@ def main():
                         action='store_true')
     parser.add_argument("--branchScale", type=float, default=1.0,
                         help="Scale branch lengths by this factor to adjust alignment sensitivity (e.g., 2.0 = treat branches as 2x longer, more sensitive).  Ancestral reconstruction uses the scaled lengths too")
+    parser.add_argument("--halFormat", choices=["hdf5", "3"], default=None,
+                        help="Output HAL format: hdf5 (the default), or 3 (HAL format 3: each subproblem "
+                        "is written as a fragment and one hal merge makes the alignment)")
     parser.add_argument("--hdf5Codec", choices=["deflate", "lz4", "zstd", "none"], default=None,
                         help="HDF5 compression codec for HAL output (overrides config XML, default=deflate)")
     parser.add_argument("--validate", action="store_true",
@@ -531,6 +578,8 @@ def main():
             # override hal codec
             if options.hdf5Codec:
                 config_node.find("hal").attrib["hdf5Codec"] = options.hdf5Codec
+            if options.halFormat:
+                config_node.find("hal").attrib["format"] = options.halFormat
 
             mc_tree, input_seq_map, og_candidates = parse_seqfile(options.seqFile, config_wrapper, root_name = options.root)
             logger.info('Tree: {}'.format(NXNewick().writeString(mc_tree)))

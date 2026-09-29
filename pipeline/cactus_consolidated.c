@@ -219,7 +219,9 @@ void usage() {
     fprintf(stderr, "cactus_consolidated, version 0.2\n");
     fprintf(stderr, "-l --logLevel : Set the log level\n");
     fprintf(stderr, "-p --params : [Required] The cactus config file\n");
-    fprintf(stderr, "-f --outputFile : [Required] The file to write the combined cactus to hal output\n");
+    fprintf(stderr, "-f --outputFile : The file to write the combined cactus to hal output (.c2h)\n");
+    fprintf(stderr, "--outputHalFragment : A new directory to write the output to as a HAL format 3 fragment\n");
+    fprintf(stderr, "--halFragmentTree : With --outputHalFragment, the subproblem's ancestor and its ingroup children, as Newick\n");
     fprintf(stderr, "-F --outputHalFastaFile : The file to write the sequences in to build the hal file.\n");
     fprintf(stderr, "-G --outputReferenceFile : The file to write the sequences of the reference in (used in the progressive recursion).\n");
     fprintf(stderr, "-s --sequences [Required unless --seqFile given] : eventName fastaFile/Directory]xN: The sequences\n");
@@ -394,6 +396,7 @@ int main(int argc, char *argv[]) {
     char *logLevelString = NULL;
     char *paramsFile = NULL;
     char *outputFile = NULL;
+    char *outputHalFragment = NULL, *halFragmentTree = NULL;
     char *outputHalFastaFile = NULL;
     char *outputReferenceFile = NULL;
     char *sequenceFilesAndEvents = NULL;
@@ -434,7 +437,9 @@ int main(int argc, char *argv[]) {
                 { "help", no_argument, 0, 'h' },
                 { "referenceEvent", required_argument, 0, 'r' },
                 { "runChecks", no_argument, 0, 't' },
-                { "threads", required_argument, 0, 'T' }, 
+                { "threads", required_argument, 0, 'T' },
+                { "outputHalFragment", required_argument, 0, 'X' },
+                { "halFragmentTree", required_argument, 0, 'Y' },
                 { 0, 0, 0, 0 } };
 
         int option_index = 0;
@@ -454,6 +459,12 @@ int main(int argc, char *argv[]) {
                 break;
             case 'f':
                 outputFile = optarg;
+                break;
+            case 'X':
+                outputHalFragment = optarg;
+                break;
+            case 'Y':
+                halFragmentTree = optarg;
                 break;
             case 'F':
                 outputHalFastaFile = optarg;
@@ -512,8 +523,11 @@ int main(int argc, char *argv[]) {
     if (paramsFile == NULL) {
         st_errAbort("must supply --params (-p)");
     }
-    if (outputFile == NULL) {
-        st_errAbort("must supply --outputFile (-f))");
+    if (outputFile == NULL && outputHalFragment == NULL) {
+        st_errAbort("must supply --outputFile (-f) or --outputHalFragment");
+    }
+    if ((outputHalFragment == NULL) != (halFragmentTree == NULL)) {
+        st_errAbort("--outputHalFragment and --halFragmentTree go together");
     }
     if (sequenceFilesAndEvents == NULL && seqFile == NULL) {
         st_errAbort("must supply --sequences (-s) OR --seqFile (-e)");
@@ -754,9 +768,11 @@ int main(int argc, char *argv[]) {
     // c2h is line oriented and self delimiting, so a truncated one parses
     // perfectly and simply describes fewer threads -- it has to be checked here
     // because nothing downstream can tell it apart from a complete file
-    FILE *fileHandle = st_fopen(outputFile, "w");
-    makeHalFormatNoDb(flower, rh, referenceEventName, fileHandle);
-    st_fclose(fileHandle, outputFile);
+    FILE *fileHandle = outputFile != NULL ? st_fopen(outputFile, "w") : NULL;
+    makeHalOutputNoDb(flower, rh, referenceEventName, fileHandle, outputHalFragment, halFragmentTree);
+    if (fileHandle != NULL) {
+        st_fclose(fileHandle, outputFile);
+    }
     assert(recordHolder_size(rh) == 0);
     recordHolder_destruct(rh);
     st_logInfo("Ran cactus to hal stage, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
