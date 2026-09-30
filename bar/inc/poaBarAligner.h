@@ -106,6 +106,24 @@ typedef struct _PoaParameters {
     /* <bar poaOrientation> and <bar poaReferenceEvent>, the event header REFERENCE goes by (NULL if none) */
     PoaOrientation orientation;
     char *referenceEvent;
+    /*
+     * Per-row scoring, abPOA only.  <poa partialOrderAlignmentRowModels="N"> switches it on, and its
+     * children <rowModel0> .. <rowModelN-1> each carry a maxDistance and their own
+     * partialOrderAlignmentSubMatrix and gap penalties, in ascending maxDistance.  A row is scored
+     * with the first whose maxDistance is at least the distance from its genome to the nearest other
+     * genome in the same alignment; rows beyond the last, or with no other genome, keep abpt.
+     * Distances are on <reference reconstructionTree> (the unscaled tree), falling back to the event
+     * tree for a genome it does not name.  rowModelNo is 0 when the config has no row models.
+     * With rowModelToIngroups (partialOrderAlignmentRowModelDistance="ingroup") the distance is to the
+     * nearest other ingroup genome instead, so an outgroup is scored for how far it is from what is
+     * being reconstructed rather than from another outgroup.
+     */
+    int64_t rowModelNo;
+    bool rowModelToIngroups;
+    double *rowModelMaxDistance;
+    abpoa_para_t **rowModelAbpt;
+    stTree *distanceTree;
+    stHash *distanceNodes; // node label -> stTree node of distanceTree
 } PoaParameters;
 
 /**
@@ -182,6 +200,23 @@ Msa *msa_make_oriented_partial_order_alignment(char **seqs, int *seq_lens, int64
                                                double max_prog_length_diff, PoaParameters *poa_parameters);
 
 /**
+ * As msa_make_partial_order_alignment, with row_models[i] naming the poa_parameters row model
+ * that scores row i (-1 for the default).  row_models may be NULL.
+ */
+Msa *msa_make_partial_order_alignment_with_row_models(char **seqs, int *seq_lens, int64_t seq_no, int64_t window_size,
+                                                      int64_t max_prog_rows, double max_prog_length_diff,
+                                                      PoaParameters *poa_parameters, int *row_models);
+
+/**
+ * Both: msa_make_oriented_partial_order_alignment with row models.  Reverse complementing leaves each sequence
+ * in its row, so row_models applies either way round.
+ */
+Msa *msa_make_oriented_partial_order_alignment_with_row_models(char **seqs, int *seq_lens, int64_t seq_no, bool flip,
+                                                               int64_t window_size, int64_t max_prog_rows,
+                                                               double max_prog_length_diff,
+                                                               PoaParameters *poa_parameters, int *row_models);
+
+/**
  * Takes a set of ends and returns a set of consistent multiple alignments,
  * one for each of them.
  *
@@ -210,6 +245,15 @@ Msa **make_consistent_partial_order_alignments(int64_t end_no, int64_t *end_leng
         int **end_string_lengths, int64_t **right_end_indexes, int64_t **right_end_row_indexes, int64_t **overlaps,
         int64_t window_size, int64_t max_prog_rows, double max_prog_length_diff, PoaParameters *poa_parameters,
         bool *flips);
+
+/**
+ * As make_consistent_partial_order_alignments, with row_models[i] the row models for end i (see
+ * msa_make_partial_order_alignment_with_row_models).  row_models, or any entry of it, may be NULL.
+ */
+Msa **make_consistent_partial_order_alignments_with_row_models(int64_t end_no, int64_t *end_lengths, char ***end_strings,
+        int **end_string_lengths, int64_t **right_end_indexes, int64_t **right_end_row_indexes, int64_t **overlaps,
+        int64_t window_size, int64_t max_prog_rows, double max_prog_length_diff, PoaParameters *poa_parameters,
+        bool *flips, int **row_models);
 
 /**
  * Represents a gapless alignment of a set of sequences.

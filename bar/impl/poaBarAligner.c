@@ -387,7 +387,23 @@ static void dump_window_fasta_and_matrix(Msa *msa, uint8_t **bseqs, const int *m
 /* abPOA backend                                                                */
 /* ============================================================================ */
 
-abpoa_para_t *abpoaParamaters_constructFromCactusParams(CactusParams *params) {
+// A scoring attribute of <poa>, or of its <model> child (a row model) when model is not NULL
+static int64_t poa_scoring_int(CactusParams *params, const char *model, const char *name) {
+    return model == NULL ? cactusParams_get_int(params, 3, "bar", "poa", name)
+                         : cactusParams_get_int(params, 4, "bar", "poa", model, name);
+}
+
+static char *poa_scoring_string(CactusParams *params, const char *model, const char *name) {
+    return model == NULL ? cactusParams_get_string(params, 3, "bar", "poa", name)
+                         : cactusParams_get_string(params, 4, "bar", "poa", model, name);
+}
+
+/*
+ * abPOA parameters from <poa>, with the gap penalties and substitution matrix taken from its
+ * <model> child instead when model is not NULL.  Everything else (banding, seeding, progressive
+ * mode) always comes from <poa>, so row models differ from the default only in how they score.
+ */
+static abpoa_para_t *abpoaParameters_construct(CactusParams *params, const char *model) {
     abpoa_para_t *abpt = abpoa_init_para();
 
     // output options
@@ -403,10 +419,10 @@ abpoa_para_t *abpoaParamaters_constructFromCactusParams(CactusParams *params) {
     abpt->wf = cactusParams_get_float(params, 3, "bar", "poa", "partialOrderAlignmentBandFraction");
 
     // gap scoring model
-    abpt->gap_open1 = cactusParams_get_int(params, 3, "bar", "poa", "partialOrderAlignmentGapOpenPenalty1");
-    abpt->gap_ext1 = cactusParams_get_int(params, 3, "bar", "poa", "partialOrderAlignmentGapExtensionPenalty1");
-    abpt->gap_open2 = cactusParams_get_int(params, 3, "bar", "poa", "partialOrderAlignmentGapOpenPenalty2");
-    abpt->gap_ext2 = cactusParams_get_int(params, 3, "bar", "poa", "partialOrderAlignmentGapExtensionPenalty2");
+    abpt->gap_open1 = poa_scoring_int(params, model, "partialOrderAlignmentGapOpenPenalty1");
+    abpt->gap_ext1 = poa_scoring_int(params, model, "partialOrderAlignmentGapExtensionPenalty1");
+    abpt->gap_open2 = poa_scoring_int(params, model, "partialOrderAlignmentGapOpenPenalty2");
+    abpt->gap_ext2 = poa_scoring_int(params, model, "partialOrderAlignmentGapExtensionPenalty2");
     
     // seeding paramters
     abpt->disable_seeding = cactusParams_get_int(params, 3, "bar", "poa", "partialOrderAlignmentDisableSeeding");
@@ -423,7 +439,7 @@ abpoa_para_t *abpoaParamaters_constructFromCactusParams(CactusParams *params) {
     abpoa_post_set_para(abpt);
 
     // optionally override the substitution matrix
-    char *submat_string = cactusParams_get_string(params, 3, "bar", "poa", "partialOrderAlignmentSubMatrix");
+    char *submat_string = poa_scoring_string(params, model, "partialOrderAlignmentSubMatrix");
     if (submat_string && strlen(submat_string) > 0) {
         // Note, this will be used to explicitly override abpoa's subsitution matrix just before aligning
         abpt->use_score_matrix = 1;
@@ -444,6 +460,10 @@ abpoa_para_t *abpoaParamaters_constructFromCactusParams(CactusParams *params) {
     free(submat_string);    
 
     return abpt;
+}
+
+abpoa_para_t *abpoaParamaters_constructFromCactusParams(CactusParams *params) {
+    return abpoaParameters_construct(params, NULL);
 }
 
 // It turns out abpoa can write to these, so we make a quick copy before using
@@ -584,7 +604,7 @@ void abpoa_msa_from_command_line(char* abpoa_command_line, char* abpoa_output_pa
  * The abPOA backend.  Fills msa->msa_seq and msa->column_no for one window.
  */
 static void run_abpoa_window(Msa *msa, uint8_t **bseqs, PoaParameters *poa_parameters,
-                             int64_t max_prog_rows, double max_prog_length_diff) {
+                             int64_t max_prog_rows, double max_prog_length_diff, int *row_models) {
     // init abpoa
     abpoa_t *ab = abpoa_init();
     abpoa_para_t *abpt = copy_abpoa_params(poa_parameters->abpt);
@@ -592,6 +612,23 @@ static void run_abpoa_window(Msa *msa, uint8_t **bseqs, PoaParameters *poa_param
         // note: these are sorted by length excep in unit tests
         (1. - (double)msa->seq_lens[msa->seq_no-1] / (double)msa->seq_lens[0] > max_prog_length_diff)) {
         abpt->progressive_poa = 0;
+    }
+
+    // per-row scoring: copies, like abpt's, since abpoa can write to its params and they are shared
+    // between threads
+    abpoa_para_t **model_copies = NULL;
+    if (row_models != NULL && poa_parameters->rowModelNo > 0) {
+        model_copies = st_calloc(poa_parameters->rowModelNo, sizeof(abpoa_para_t *));
+        abpt->read_abpt = st_calloc(msa->seq_no, sizeof(void *));
+        for (int64_t i = 0; i < msa->seq_no; ++i) {
+            int m = row_models[i];
+            if (m >= 0) {
+                if (model_copies[m] == NULL) {
+                    model_copies[m] = copy_abpoa_params(poa_parameters->rowModelAbpt[m]);
+                }
+                abpt->read_abpt[i] = model_copies[m];
+            }
+        }
     }
     
     // dump the input to file, if asked to at run time
@@ -647,6 +684,15 @@ static void run_abpoa_window(Msa *msa, uint8_t **bseqs, PoaParameters *poa_param
 
     // free abpoa
     abpoa_free(ab);
+    if (model_copies != NULL) {
+        for (int64_t m = 0; m < poa_parameters->rowModelNo; ++m) {
+            if (model_copies[m] != NULL) {
+                abpoa_free_para(model_copies[m]);
+            }
+        }
+        free(model_copies);
+        free(abpt->read_abpt);
+    }
     abpoa_free_para(abpt);
 }
 
@@ -895,6 +941,145 @@ const char *baseAligner_toString(BaseAligner engine) {
     return "unknown";
 }
 
+static void addDistanceNodes(stHash *nodes, stTree *tree) {
+    if (stTree_getLabel(tree) != NULL) {
+        stHash_insert(nodes, (void *)stTree_getLabel(tree), tree);
+    }
+    for (int64_t i = 0; i < stTree_getChildNumber(tree); i++) {
+        addDistanceNodes(nodes, stTree_getChild(tree, i));
+    }
+}
+
+/*
+ * <poa partialOrderAlignmentRowModels="N"> and its children <rowModel0> .. <rowModelN-1> (see
+ * PoaParameters).  A count rather than probing for the children, because asking CactusParams about
+ * a child that is not there prints an error.
+ */
+static void rowModels_load(CactusParams *params, PoaParameters *pp) {
+    pp->rowModelNo = cactusParams_has(params, 3, "bar", "poa", "partialOrderAlignmentRowModels") ?
+        cactusParams_get_int(params, 3, "bar", "poa", "partialOrderAlignmentRowModels") : 0;
+    if (pp->rowModelNo <= 0) {
+        pp->rowModelNo = 0;
+        return;
+    }
+    if (cactusParams_has(params, 3, "bar", "poa", "partialOrderAlignmentRowModelDistance")) {
+        char *rule = cactusParams_get_string(params, 3, "bar", "poa", "partialOrderAlignmentRowModelDistance");
+        if (strcmp(rule, "ingroup") == 0) {
+            pp->rowModelToIngroups = true;
+        } else if (strcmp(rule, "nearest") != 0) {
+            st_errAbort("partialOrderAlignmentRowModelDistance must be nearest or ingroup, not %s", rule);
+        }
+        free(rule);
+    }
+    pp->rowModelMaxDistance = st_malloc(sizeof(double) * pp->rowModelNo);
+    pp->rowModelAbpt = st_malloc(sizeof(abpoa_para_t *) * pp->rowModelNo);
+    for (int64_t m = 0; m < pp->rowModelNo; ++m) {
+        char *name = stString_print("rowModel%" PRIi64, m);
+        pp->rowModelMaxDistance[m] = cactusParams_get_float(params, 4, "bar", "poa", name, "maxDistance");
+        if (m > 0 && pp->rowModelMaxDistance[m] < pp->rowModelMaxDistance[m-1]) {
+            st_errAbort("bar row models must be in ascending maxDistance, but %s has %f after %f", name,
+                        pp->rowModelMaxDistance[m], pp->rowModelMaxDistance[m-1]);
+        }
+        pp->rowModelAbpt[m] = abpoaParameters_construct(params, name);
+        free(name);
+    }
+    if (cactusParams_has(params, 2, "reference", "reconstructionTree")) {
+        char *newick = cactusParams_get_string(params, 2, "reference", "reconstructionTree");
+        pp->distanceTree = stTree_parseNewickString(newick);
+        pp->distanceNodes = stHash_construct3(stHash_stringKey, stHash_stringEqualKey, NULL, NULL);
+        addDistanceNodes(pp->distanceNodes, pp->distanceTree);
+        free(newick);
+    }
+    st_logInfo("bar: %" PRIi64 " row models, distances to the nearest %s on the %s tree\n", pp->rowModelNo,
+               pp->rowModelToIngroups ? "ingroup" : "genome", pp->distanceTree != NULL ? "reconstruction" : "event");
+}
+
+/*
+ * Path length between two genomes, on the reconstruction tree when it names both, else on the event
+ * tree (whose branches are the ones scaled for alignment sensitivity).
+ */
+static double rowModels_distance(PoaParameters *pp, Event *event1, Event *event2) {
+    stTree *node1 = pp->distanceNodes == NULL ? NULL : stHash_search(pp->distanceNodes, (void *)event_getHeader(event1));
+    stTree *node2 = pp->distanceNodes == NULL ? NULL : stHash_search(pp->distanceNodes, (void *)event_getHeader(event2));
+    if (node1 != NULL && node2 != NULL) {
+        double d1 = 0.0;
+        for (stTree *a = node1; a != NULL; a = stTree_getParent(a)) {
+            double d2 = 0.0;
+            for (stTree *b = node2; b != NULL; b = stTree_getParent(b)) {
+                if (a == b) {
+                    return d1 + d2;
+                }
+                d2 += stTree_getBranchLength(b);
+            }
+            d1 += stTree_getBranchLength(a);
+        }
+    }
+    Event *ancestor = eventTree_getCommonAncestor(event1, event2);
+    double d = 0.0;
+    for (Event *e = event1; e != ancestor; e = event_getParent(e)) {
+        d += event_getBranchLength(e);
+    }
+    for (Event *e = event2; e != ancestor; e = event_getParent(e)) {
+        d += event_getBranchLength(e);
+    }
+    return d;
+}
+
+/*
+ * The row model for each row of an end's alignment (-1 for the default), from the distance between
+ * the row's genome and the nearest other genome among the rows (the nearest other ingroup genome with
+ * rowModelToIngroups).  NULL when there are no row models.
+ */
+static int *rowModels_assign(PoaParameters *pp, Cap **caps, int64_t row_no) {
+    if (pp == NULL || pp->rowModelNo == 0) {
+        return NULL;
+    }
+    // distances between the distinct genomes only: rows are often several copies of a few genomes
+    Event **events = st_malloc(sizeof(Event *) * row_no);
+    int64_t *row_event = st_malloc(sizeof(int64_t) * row_no);
+    int64_t event_no = 0;
+    for (int64_t i = 0; i < row_no; ++i) {
+        Event *event = cap_getEvent(caps[i]);
+        int64_t j = 0;
+        while (j < event_no && events[j] != event) {
+            ++j;
+        }
+        if (j == event_no) {
+            events[event_no++] = event;
+        }
+        row_event[i] = j;
+    }
+    double *nearest = st_malloc(sizeof(double) * event_no);
+    for (int64_t j = 0; j < event_no; ++j) {
+        nearest[j] = INFINITY;
+    }
+    for (int64_t j = 0; j < event_no; ++j) {
+        for (int64_t k = j + 1; k < event_no; ++k) {
+            double d = rowModels_distance(pp, events[j], events[k]);
+            if (!pp->rowModelToIngroups || !event_isOutgroup(events[k])) {
+                nearest[j] = d < nearest[j] ? d : nearest[j];
+            }
+            if (!pp->rowModelToIngroups || !event_isOutgroup(events[j])) {
+                nearest[k] = d < nearest[k] ? d : nearest[k];
+            }
+        }
+    }
+    int *models = st_malloc(sizeof(int) * row_no);
+    for (int64_t i = 0; i < row_no; ++i) {
+        models[i] = -1;
+        for (int64_t m = 0; m < pp->rowModelNo; ++m) {
+            if (nearest[row_event[i]] <= pp->rowModelMaxDistance[m]) {
+                models[i] = (int)m;
+                break;
+            }
+        }
+    }
+    free(events);
+    free(row_event);
+    free(nearest);
+    return models;
+}
+
 PoaParameters *poaParameters_constructFromCactusParams(CactusParams *params, BaseAligner engine) {
     if (engine == BASE_ALIGNER_PECAN) {
         return NULL;
@@ -903,6 +1088,7 @@ PoaParameters *poaParameters_constructFromCactusParams(CactusParams *params, Bas
     poaParameters->engine = engine;
     if (engine == BASE_ALIGNER_ABPOA) {
         poaParameters->abpt = abpoaParamaters_constructFromCactusParams(params);
+        rowModels_load(params, poaParameters);
     } else {
         poaParameters->mpt = minipoaParameters_constructFromCactusParams(params, poaParameters);
 #ifdef HAVE_MINIPOA
@@ -948,6 +1134,15 @@ void poaParameters_destruct(PoaParameters *poaParameters) {
         abpoa_free_para(poaParameters->abpt);
     }
     free(poaParameters->referenceEvent);
+    for (int64_t m = 0; m < poaParameters->rowModelNo; ++m) {
+        abpoa_free_para(poaParameters->rowModelAbpt[m]);
+    }
+    free(poaParameters->rowModelAbpt);
+    free(poaParameters->rowModelMaxDistance);
+    if (poaParameters->distanceTree != NULL) {
+        stHash_destruct(poaParameters->distanceNodes);
+        stTree_destruct(poaParameters->distanceTree);
+    }
 #ifdef HAVE_MINIPOA
     if (poaParameters->mpt != NULL) {
         minipoa_free_para((minipoa_para_t *)poaParameters->mpt);
@@ -968,10 +1163,10 @@ void poaParameters_destruct(PoaParameters *poaParameters) {
  * trimming, stitching, block extraction -- is engine-neutral and shared.
  */
 static void run_poa_window(Msa *msa, uint8_t **bseqs, PoaParameters *poa_parameters,
-                           int64_t max_prog_rows, double max_prog_length_diff) {
+                           int64_t max_prog_rows, double max_prog_length_diff, int *row_models) {
     switch (poa_parameters->engine) {
         case BASE_ALIGNER_ABPOA:
-            run_abpoa_window(msa, bseqs, poa_parameters, max_prog_rows, max_prog_length_diff);
+            run_abpoa_window(msa, bseqs, poa_parameters, max_prog_rows, max_prog_length_diff, row_models);
             break;
         case BASE_ALIGNER_MINIPOA:
             run_minipoa_window(msa, bseqs, poa_parameters);
@@ -994,6 +1189,13 @@ static void run_poa_window(Msa *msa, uint8_t **bseqs, PoaParameters *poa_paramet
 
 Msa *msa_make_partial_order_alignment(char **seqs, int *seq_lens, int64_t seq_no, int64_t window_size,
                                       int64_t max_prog_rows, double max_prog_length_diff, PoaParameters *poa_parameters) {
+    return msa_make_partial_order_alignment_with_row_models(seqs, seq_lens, seq_no, window_size, max_prog_rows,
+                                                            max_prog_length_diff, poa_parameters, NULL);
+}
+
+Msa *msa_make_partial_order_alignment_with_row_models(char **seqs, int *seq_lens, int64_t seq_no, int64_t window_size,
+                                                      int64_t max_prog_rows, double max_prog_length_diff,
+                                                      PoaParameters *poa_parameters, int *row_models) {
 
     assert(seq_no > 0);
 
@@ -1094,7 +1296,7 @@ Msa *msa_make_partial_order_alignment(char **seqs, int *seq_lens, int64_t seq_no
             }
         }
 
-        run_poa_window(msa, bseqs, poa_parameters, max_prog_rows, max_prog_length_diff);
+        run_poa_window(msa, bseqs, poa_parameters, max_prog_rows, max_prog_length_diff, row_models);
 
         // mask out empty sequences that were phonied in as Ns above
         for (int64_t i = 0; i < msa->seq_no && emptyCount > 0; ++i) {
@@ -1306,13 +1508,22 @@ static bool poa_should_flip(Flower *flower, Cap **caps, char **strings, int *len
 Msa *msa_make_oriented_partial_order_alignment(char **seqs, int *seq_lens, int64_t seq_no, bool flip,
                                                int64_t window_size, int64_t max_prog_rows,
                                                double max_prog_length_diff, PoaParameters *poa_parameters) {
+    return msa_make_oriented_partial_order_alignment_with_row_models(seqs, seq_lens, seq_no, flip, window_size,
+                                                                     max_prog_rows, max_prog_length_diff,
+                                                                     poa_parameters, NULL);
+}
+
+Msa *msa_make_oriented_partial_order_alignment_with_row_models(char **seqs, int *seq_lens, int64_t seq_no, bool flip,
+                                                               int64_t window_size, int64_t max_prog_rows,
+                                                               double max_prog_length_diff,
+                                                               PoaParameters *poa_parameters, int *row_models) {
     if (flip) {
         for (int64_t i = 0; i < seq_no; i++) {
             reverse_complement_in_place(seqs[i], seq_lens[i]);
         }
     }
-    Msa *msa = msa_make_partial_order_alignment(seqs, seq_lens, seq_no, window_size, max_prog_rows,
-                                                max_prog_length_diff, poa_parameters);
+    Msa *msa = msa_make_partial_order_alignment_with_row_models(seqs, seq_lens, seq_no, window_size, max_prog_rows,
+                                                                max_prog_length_diff, poa_parameters, row_models);
     if (flip) {
         flip_msa_seq(msa);
         for (int64_t i = 0; i < seq_no; i++) {
@@ -1337,14 +1548,26 @@ Msa **make_consistent_partial_order_alignments(int64_t end_no, int64_t *end_leng
         int **end_string_lengths, int64_t **right_end_indexes, int64_t **right_end_row_indexes, int64_t **overlaps,
         int64_t window_size, int64_t max_prog_rows, double max_prog_length_diff, PoaParameters *poa_parameters,
         bool *flips) {
+    return make_consistent_partial_order_alignments_with_row_models(end_no, end_lengths, end_strings, end_string_lengths,
+                                                                    right_end_indexes, right_end_row_indexes, overlaps,
+                                                                    window_size, max_prog_rows, max_prog_length_diff,
+                                                                    poa_parameters, flips, NULL);
+}
+
+Msa **make_consistent_partial_order_alignments_with_row_models(int64_t end_no, int64_t *end_lengths, char ***end_strings,
+        int **end_string_lengths, int64_t **right_end_indexes, int64_t **right_end_row_indexes, int64_t **overlaps,
+        int64_t window_size, int64_t max_prog_rows, double max_prog_length_diff, PoaParameters *poa_parameters,
+        bool *flips, int **row_models) {
     // Calculate the initial, potentially inconsistent msas and column scores for each msa
     float *column_scores[end_no];
     Msa **msas = st_malloc(sizeof(Msa *) * end_no);
 
     for(int64_t i=0; i<end_no; i++) {
-        msas[i] = msa_make_oriented_partial_order_alignment(end_strings[i], end_string_lengths[i], end_lengths[i],
-                                                            flips != NULL && flips[i], window_size,
-                                                            max_prog_rows, max_prog_length_diff, poa_parameters);
+        msas[i] = msa_make_oriented_partial_order_alignment_with_row_models(end_strings[i], end_string_lengths[i],
+                                                                            end_lengths[i], flips != NULL && flips[i],
+                                                                            window_size, max_prog_rows,
+                                                                            max_prog_length_diff, poa_parameters,
+                                                                            row_models == NULL ? NULL : row_models[i]);
         column_scores[i] = make_column_scores(msas[i]);
     }
 
@@ -1750,8 +1973,12 @@ stList *make_flower_alignment_poa(Flower *flower, int64_t max_seq_length, int64_
 
         get_end_sequences(dominantEnd, end_strings, end_string_lengths, overlaps, indices_to_caps, max_seq_length, mask_filter);
         bool flip = poa_should_flip(flower, indices_to_caps, end_strings, end_string_lengths, seq_no, poa_parameters);
-        Msa *msa = msa_make_oriented_partial_order_alignment(end_strings, end_string_lengths, seq_no, flip, window_size,
-                                                             max_prog_rows, max_prog_length_diff, poa_parameters);
+        int *row_models = rowModels_assign(poa_parameters, indices_to_caps, seq_no);
+        Msa *msa = msa_make_oriented_partial_order_alignment_with_row_models(end_strings, end_string_lengths, seq_no, flip,
+                                                                             window_size, max_prog_rows,
+                                                                             max_prog_length_diff, poa_parameters,
+                                                                             row_models);
+        free(row_models);
 
         //Now convert to set of alignment blocks
         stList *alignment_blocks = stList_construct3(0, (void (*)(void *))alignmentBlock_destruct);
@@ -1831,9 +2058,17 @@ stList *make_flower_alignment_poa(Flower *flower, int64_t max_seq_length, int64_
     }
 
     // Now make the consistent MSAs
-    Msa **msas = make_consistent_partial_order_alignments(end_no, end_lengths, end_strings, end_string_lengths,
-                                                          right_end_indexes, right_end_row_indexes, overlaps, window_size,
-                                                          max_prog_rows, max_prog_length_diff, poa_parameters, flips);
+    int *row_models[end_no];
+    for(int64_t i=0; i<end_no; i++) {
+        row_models[i] = rowModels_assign(poa_parameters, indices_to_caps[i], end_lengths[i]);
+    }
+    Msa **msas = make_consistent_partial_order_alignments_with_row_models(end_no, end_lengths, end_strings, end_string_lengths,
+                                                                          right_end_indexes, right_end_row_indexes, overlaps,
+                                                                          window_size, max_prog_rows, max_prog_length_diff,
+                                                                          poa_parameters, flips, row_models);
+    for(int64_t i=0; i<end_no; i++) {
+        free(row_models[i]);
+    }
 
     // Temp debug output
     //for(int64_t i=0; i<end_no; i++) {
