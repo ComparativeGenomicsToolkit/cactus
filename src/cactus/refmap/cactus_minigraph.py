@@ -30,7 +30,7 @@ from cactus.shared.common import clean_jobstore_files
 from cactus.shared.version import cactus_commit
 from cactus.progressive.cactus_prepare import human2bytesN
 from cactus.preprocessor.checkUniqueHeaders import sanitize_fasta_headers
-from cactus.paf.last_scoring import last_train
+from cactus.paf.last_scoring import last_train, last_train_enabled
 from toil.job import Job
 from toil.job import PromisedRequirement
 from toil.common import Toil
@@ -57,7 +57,8 @@ def main():
                         help="Memory in bytes for the minigraph construction job (defaults to an estimate based on the input data size). "
                         "Standard suffixes like K, Ki, M, Mi, G or Gi are supported (default=bytes))", default=None)
     parser.add_argument("--lastTrain", action="store_true",
-                        help="Use last-train to estimate scoring matrix from input data", default=False)
+                        help="Deprecated: last-train is now on by default. Use the lastTrain attribute of <graphmap> "
+                        "in the config to turn it off", default=False)
     parser.add_argument("--refOnly", action="store_true",
                         help="Only build the graph out of reference genome(s). Can be used when it will only be used for chromosome-splitting, for example")
     parser.add_argument("--inGFA", type=str, default=None,
@@ -116,6 +117,9 @@ def main():
             config_node = ET.parse(options.configFile).getroot()
             config_wrapper = ConfigWrapper(config_node)
             config_wrapper.substituteAllPredefinedConstantsWithLiterals(options)
+            # from here on options.lastTrain is the config's say, not the deprecated flag's.  a
+            # --refOnly graph is only used for splitting, so no alignment will read its model
+            options.lastTrain = last_train_enabled(options, config_node) and not options.refOnly
 
             # apply cpu override
             if options.batchSystem.lower() in ['single_machine', 'singleMachine']:
@@ -322,6 +326,30 @@ def minigraph_construct_batch_workflow(job, options, config_node, input_dict, gf
                                      construct_seq_id_map=construct_seq_id_map, in_gfa_id=in_gfa_id,
                                      walltime=cactus_walltime())
         output_dict[chrom] = mgwf_job.rv()
+    if options.lastTrain and len(input_dict) > 1:
+        # sized off the chromosome's own reference slice, which is what it trains on
+        ref_sizes = {chrom: input_info[0][options.reference[0]].size for chrom, input_info in input_dict.items()
+                     if options.reference[0] in input_info[0]}
+        return job.addFollowOnJobFn(borrow_last_train_models, output_dict, ref_sizes).rv()
+    return output_dict
+
+def borrow_last_train_models(job, output_dict, ref_sizes):
+    """ a chromosome that couldn't train its own scoring model (too small, no partner, or last-train
+    failed) gets another chromosome's instead of falling back to the default scores: a model trained
+    on the same genomes is much closer to right than HOXD70 is.  The donor is the chromosome with a
+    model whose reference size is the median of those that have one, as neither the smallest (least
+    data) nor the largest is typical.  The borrowed model is the same file id, so it is exported
+    under each chromosome's own name """
+    trained = sorted([chrom for chrom, val in output_dict.items() if val[4]], key=lambda c: (ref_sizes.get(c, 0), c))
+    if not trained or len(trained) == len(output_dict):
+        return output_dict
+    donor = trained[len(trained) // 2]
+    borrowers = sorted(chrom for chrom, val in output_dict.items() if not val[4])
+    RealtimeLogger.info('Borrowing the scoring model of {} for {} chromosome(s) that could not train their own: {}'.format(
+        donor, len(borrowers), ' '.join(borrowers)))
+    output_dict = dict(output_dict)
+    for chrom in borrowers:
+        output_dict[chrom] = tuple(output_dict[chrom][:4]) + (output_dict[donor][4],)
     return output_dict
                                     
 def minigraph_construct_workflow(job, options, config_node, seq_id_map, seq_order, gfa_path, sanitize=True,

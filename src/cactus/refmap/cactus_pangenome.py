@@ -41,6 +41,7 @@ from toil.realtimeLogger import RealtimeLogger
 from cactus.shared.common import cactus_cpu_count
 from cactus.progressive.cactus_prepare import human2bytesN
 
+from cactus.paf.last_scoring import last_train_enabled
 from cactus.refmap.cactus_minigraph import minigraph_construct_workflow, minigraph_construct_batch_workflow
 from cactus.refmap.cactus_minigraph import check_sample_names, read_chromfile
 from cactus.refmap.cactus_minigraph import minigraph_construct_import_sequences, export_minigraph_construct_output, export_collapse_artifacts
@@ -63,7 +64,8 @@ def pangenome_options(parser):
                         help="Memory in bytes for the minigraph construction job (defaults to an estimate based on the input data size). "
                         "Standard suffixes like K, Ki, M, Mi, G or Gi are supported (default=bytes))", default=None)
     parser.add_argument("--lastTrain", action="store_true",
-                        help="Use last-train to estimate scoring matrix from input data", default=False)
+                        help="Deprecated: last-train is now on by default. Use the lastTrain attribute of <graphmap> "
+                        "in the config to turn it off", default=False)
     parser.add_argument("--scoresFile", type=str,
                         help = "File containing scoring parameters (output of last-train)")
     parser.add_argument("--mgSplit", action="store_true", default=False,
@@ -204,9 +206,6 @@ def pangenome_validate_options(options):
         if options.collapse:
             raise RuntimeError('--collapseRefPAF cannot be used with --collapse')
 
-    if options.lastTrain and options.scoresFile:
-        raise RuntimeError('you cannot use both --lastTrain and --scoresFile together: pick one')
-
     if options.mgSplitWholeGenomeRef:
         # it only elaborates the second minigraph pass, so it turns that on rather than making you
         # ask for both
@@ -314,6 +313,9 @@ def main():
             config_node = ET.parse(options.configFile).getroot()
             config_wrapper = ConfigWrapper(config_node)
             config_wrapper.substituteAllPredefinedConstantsWithLiterals(options)
+            # from here on options.lastTrain is the config's say, not the deprecated flag's.
+            # --scoresFile turns it off, as a trained model would only be overridden by it
+            options.lastTrain = last_train_enabled(options, config_node)
             graph_event = getOptionalAttrib(findRequiredNode(config_node, "graphmap"), "assemblyName", default="_MINIGRAPH_")
 
             # load the seqfile
@@ -517,7 +519,8 @@ def export_minigraph_batch_wrapper(job, options, config_node, input_seqfiles, in
             unpruned_pansn_gfas[chrom] = val[1]
         else:
             pansn_gfas += [val[1]]
-        if options.lastTrain:
+        # a model borrowed by other chromosomes is one file id, so it's only listed (and deleted) once
+        if options.lastTrain and val[4] and val[4] not in output_file_ids:
             output_file_ids += [val[4]]
     return output_dict, output_file_maps, output_file_ids, pansn_gfas, unpruned_pansn_gfas
 

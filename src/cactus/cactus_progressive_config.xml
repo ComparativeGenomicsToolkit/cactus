@@ -316,7 +316,7 @@
 		<!-- partialOrderAlignmentGapOpenPenalty2 abpoa second gap open penalty (convex mode takes the minimum of both gap models, 0 disables convex) -->
 		<!-- partialOrderAlignmentGapExtensionPenalty abpoa second gap extension penalty (convex mode takes the minimum of both gap models) -->
 		<!-- partialOrderAlignmentTrainedGapOpen2Factor when learning scores last-train, set a gap-open-2 penalty that's this many times bigger than the learned gap penalty (last-train only learns one gap parameter but abpoa crashes unless it gets both) -->
-		<!-- partialOrderAlignmentTrainedGapExtension2Factor when learning scores last-train, set a gap-extend-2 penalty that's this many times smaller than the learned gap penalty (last-train only learns one gap parameter but abpoa crashes unless it gets both) -->
+		<!-- partialOrderAlignmentTrainedGapExtension2Factor when learning scores last-train, set a gap-extend-2 penalty that's this many times smaller than the learned gap penalty (last-train only learns one gap parameter but abpoa crashes unless it gets both).  30 matches the ratio of the untrained defaults above (30 and 1).  At 3, long indels cost three times more relative to a match than with the defaults (a 1 kb gap ~73 matches against ~23); measured with abPOA on 285 HPRC chr10 windows (137 STR sites, 148 other indels, 12 haplotypes each), 30 gives fewer gap runs and mismatches than 3 in 47 windows and more in 15, and both beat the untrained defaults in 273 of 285 -->
 		<!-- partialOrderAlignmentDisableSeeding abpoa disable minimizer seeding. toggling this on to disable seeding will slightly increase accuracy and robustness, at the cost of speed in the BAR phase on some inputs -->
 		<!-- partialOrderAlignmentMinimizerK abpoa kmer size for minimizer seeding. -->
 		<!-- partialOrderAlignmentMinimizerW abpoa window size for minimizer seeding. -->
@@ -346,7 +346,7 @@
 			partialOrderAlignmentGapOpenPenalty2="1200"
 			partialOrderAlignmentGapExtensionPenalty2="1"
 			partialOrderAlignmentTrainedGapOpen2Factor="3"
-			partialOrderAlignmentTrainedGapExtension2Factor="3"
+			partialOrderAlignmentTrainedGapExtension2Factor="30"
 			partialOrderAlignmentDisableSeeding="1"
 			partialOrderAlignmentMinimizerK="15"
 			partialOrderAlignmentMinimizerW="5"
@@ -508,6 +508,7 @@
 	<!-- minScore: ignore PAF lines with score (AS:i) less than this (adding this to filter negative-scoring minimap2 lines) -->
 	<!-- removeMinigraphFromPAF: replace all minigraph contigs with transitive alignments in cactus-align-->
 	<!-- cpu: use up to this many cpus for each minigraph command. -->
+	<!-- lastTrain: train the abPOA scoring model with last-train, on the reference against a typical-sized genome from the middle of the mash order, instead of using the default (HOXD70) scores. With mgSplit, each chromosome gets its own model, and one that can't be trained borrows another chromosome's. Training failures only ever fall back, never fail the run. Ignored with scoresFile. [0: off, 1: on] -->
 	<graphmap
 		 assemblyName="_MINIGRAPH_"
 		 minigraphMapOptions="-c -xasm --par-align"
@@ -538,6 +539,7 @@
 		 collapseInversions="0"
 		 collapseOptions="-k 300 -b 5000 -i 0.95 -D -A 3 -x asm20 -M 1.05"
 		 cpu="6"
+		 lastTrain="1"
 		 />
 	<!-- cactus-graphmap-split options -->
 	<!-- minQueryCoverages: (space-separated) At least this fraction of input contig must align to reference contig for it to be assigned. -->
