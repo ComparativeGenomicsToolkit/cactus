@@ -195,7 +195,17 @@ def last_train(job, config, seq_order, seq_id_map, ref_name=None):
 
     # note: there are some specific options for distant genomes that should be
     # incorporated if/when this ever gets used in progressive cactus
-    train_cmd = ['last-train', '--revsym', '--matsym', '--gapsym',
+    #
+    # -C2 (with lastdb -c below) is LAST's own recipe for genome-genome training: without them each
+    # lastal pass spends most of its time aligning tandem repeats every which way.  lastdb -c stops
+    # them seeding (its default -R01 marks them with tantan; the input's own soft-masking is not
+    # used), and -C2 drops gapless alignments nested in two others.  Measured with 4 threads and
+    # last-train's 1 Mb sample against an 83 Mb chr17 database, in lastal CPU seconds per pass:
+    # CHM13 against GRCh38, centromere included, went from 2831 to 207 for the first pass (run with
+    # LAST's default HUMSUM scores, far too loose for so close a pair) and from ~350 to ~60 for each
+    # pass after it; human against mouse chr11 went from ~440 to ~105.  The trained model came out
+    # the same both times, to within the jitter between last-train's own iterations.
+    train_cmd = ['last-train', '--revsym', '--matsym', '--gapsym', '-C2',
                  '-P', str(job.cores), name1 + '_db', fa2_path]
     train_file = os.path.join(work_dir, '{}_{}.train'.format(name1, name2))
 
@@ -203,7 +213,7 @@ def last_train(job, config, seq_order, seq_id_map, ref_name=None):
     # to converge on too little alignment, or writing something parse_train_file won't accept),
     # the alignment falls back to the default scores, or to another chromosome's model in batch mode
     try:
-        cactus_call(parameters=['lastdb', name1 + '_db', fa1_path, '-P', str(job.cores)])
+        cactus_call(parameters=['lastdb', '-c', name1 + '_db', fa1_path, '-P', str(job.cores)])
         cactus_call(parameters=train_cmd, outfile=train_file)
         parse_train_file(train_file)
     except Exception as e:
