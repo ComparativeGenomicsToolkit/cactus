@@ -28,7 +28,7 @@ from cactus.preprocessor.maskingCommon import log_masking_delta
 from toil.realtimeLogger import RealtimeLogger
 
 
-def red_memory_estimate(fasta_size, longest_record_bytes):
+def red_memory_estimate(fasta_size, longest_record_bytes, count_cap=False):
     """Peak memory Red needs for a fasta of this shape, in bytes.
 
     Red's footprint is the k-mer table plus a fixed cost per base of the *longest
@@ -58,11 +58,17 @@ def red_memory_estimate(fasta_size, longest_record_bytes):
     GB.  Over about 2.5 GB of input this estimate is below the old one even in the
     worst case, a genome delivered as a single sequence, where the two agree that
     the longest sequence is the whole thing.
+
+    With -cap (count_cap), Red also keeps one bit per table entry flagging the
+    k-mers counted above the cap, 1/32 of the table: 128 MiB at k=15.  Measured on
+    CHM13 chr15-19 at k=14, the peak went from 1.78 GB to 1.81 GB.
     """
     # Red picks k from the non-N genome size; using the file size can only round it
     # up, which errs towards a bigger table than Red will really allocate.
     k = min(15, max(12, int(math.log(max(fasta_size, 4), 4))))
     table_bytes = 4 * (4 ** k)
+    if count_cap:
+        table_bytes += (4 ** k) // 8
     return int(1.25 * (table_bytes + 8 * longest_record_bytes))
 
 
@@ -77,6 +83,10 @@ RED_SPEEDUP = 3.0
 # cactus_walltime()'s safety factor.
 RED_SECS_PER_GB = 2799 / RED_SPEEDUP
 
+# Red -cap took 21% longer than Red without it on CHM13 chr15-19 (90 s -> 108 s, k=14).  The
+# rate above predates -cap, so its p99 cannot be counted on to absorb a cost every run pays.
+RED_CAP_SLOWDOWN = 1.25
+
 
 class RedMaskJob(RoundedJob):
     def __init__(self, fastaID, redOpts, redPrefilterOpts, eventName=None, unmask=False,
@@ -85,10 +95,13 @@ class RedMaskJob(RoundedJob):
         # sequence, which is the worst case for Red's memory.
         if longestRecordSize is None:
             longestRecordSize = fastaID.size
-        memory = cactus_clamp_memory(red_memory_estimate(fastaID.size, longestRecordSize))
+        count_cap = redOpts is not None and '-cap' in redOpts.split()
+        memory = cactus_clamp_memory(red_memory_estimate(fastaID.size, longestRecordSize,
+                                                         count_cap=count_cap))
         disk = 5*(fastaID.size)
+        secs_per_gb = RED_SECS_PER_GB * (RED_CAP_SLOWDOWN if count_cap else 1.0)
         RoundedJob.__init__(self, memory=memory, disk=disk, preemptable=True,
-                            walltime=cactus_walltime(RED_SECS_PER_GB * fastaID.size / 1e9,
+                            walltime=cactus_walltime(secs_per_gb * fastaID.size / 1e9,
                                                      io_bytes=2 * fastaID.size))
         self.fastaID = fastaID
         self.redOpts = redOpts
