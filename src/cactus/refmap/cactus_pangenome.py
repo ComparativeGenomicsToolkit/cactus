@@ -488,8 +488,10 @@ def sanitize_fasta_headers_batch(job, chromfile_id_map):
             out_id_map[chrom] = sanitize_job.rv()
     return out_id_map
             
-def export_minigraph_batch_wrapper(job, options, config_node, input_seqfiles, input_seqid_map, minigraph_batch_results):
-    """ export the output dictionary from minigraph batch construction """
+def export_minigraph_batch_wrapper(job, options, config_node, input_seqfiles, input_seqid_map, minigraph_batch_results,
+                                   scores_id=None):
+    """ export the output dictionary from minigraph batch construction.  scores_id is a model to use
+    for every chromosome (from --scoresFile), in place of the ones they trained """
     out_dir = os.path.join(options.outDir, 'chrom-minigraph')
     if not out_dir.startswith('s3://') and not os.path.isdir(out_dir):
         os.makedirs(out_dir)
@@ -506,6 +508,7 @@ def export_minigraph_batch_wrapper(job, options, config_node, input_seqfiles, in
     unpruned_pansn_gfas = {}
     output_file_ids = []
     output_file_maps = []
+    scores_id_map = {} # chrom -> the scoring model its mapping uses
     for chrom, val in minigraph_batch_results.items():
         # output_dict maps chrom -> seq_id_map, gfa_id, ref_collapse_paf_id, seqfile, gfa
         output_dict[chrom] = (input_seqid_map[chrom][0], val[0], None, input_seqfiles[chrom][0], 
@@ -522,7 +525,9 @@ def export_minigraph_batch_wrapper(job, options, config_node, input_seqfiles, in
         # a model borrowed by other chromosomes is one file id, so it's only listed (and deleted) once
         if options.lastTrain and val[4] and val[4] not in output_file_ids:
             output_file_ids += [val[4]]
-    return output_dict, output_file_maps, output_file_ids, pansn_gfas, unpruned_pansn_gfas
+        if scores_id or val[4]:
+            scores_id_map[chrom] = scores_id if scores_id else val[4]
+    return output_dict, output_file_maps, output_file_ids, pansn_gfas, unpruned_pansn_gfas, scores_id_map
 
 def export_graphmap_batch_wrapper(job, options, config_node, graphmap_batch_results, input_seqfiles):
     """ export the graphmap results, which are another chromfile alongside new seqfiles and a bunch
@@ -731,8 +736,9 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
     gm_options = copy.deepcopy(options)
     if options.mgSplit:
         gm_options.collapse = False
+    # with --mgSplit this is the reference-only splitting pass, which trains no model: it only gets one from --scoresFile
     graphmap_job = minigraph_wrapper_job.addFollowOnJobFn(minigraph_workflow, gm_options, split_config_wrapper, seq_id_map, sv_gfa_id, graph_event, False, ref_collapse_paf_id, pansn_gfa_input=False,
-                                                          in_gaf_id=in_gaf_id, walltime=cactus_walltime())
+                                                          in_gaf_id=in_gaf_id, scores_id=last_scores_id, walltime=cactus_walltime())
     paf_id, gfa_fa_id, gaf_id, unfiltered_paf_id, paf_filter_log = graphmap_job.rv(0), graphmap_job.rv(1), graphmap_job.rv(2), graphmap_job.rv(3), graphmap_job.rv(4)
     graphmap_export_job = graphmap_job.addFollowOnJobFn(export_graphmap_wrapper, options, paf_id, paf_path, gaf_id, unfiltered_paf_id, paf_filter_log,
                                                         walltime=cactus_walltime(0, io_bytes=2 * input_seq_bytes))
@@ -794,6 +800,7 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
         minigraph_batch_results = minigraph_batch_job.rv()
         minigraph_batch_export_job = minigraph_batch_job.addFollowOnJobFn(export_minigraph_batch_wrapper, options, config_node,
                                                                           input_seqfiles, input_map, minigraph_batch_results,
+                                                                          scores_id=last_scores_id if options.scoresFile else None,
                                                                           walltime=cactus_walltime(0, io_bytes=2 * input_seq_bytes))
 
         # now rerun cactus_graphmap but on a per-chromosome bassis
@@ -804,7 +811,9 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
         unpruned_pansn_sv_gfa_map = minigraph_batch_export_job.rv(4)
         graphmap_batch_job = minigraph_batch_export_job.addFollowOnJobFn(minigraph_batch_workflow, options, config_wrapper,
                                                                          graphmap_input_dict, graph_event, sanitize=False,
-                                                                         pansn_gfa_input=False, walltime=cactus_walltime())
+                                                                         pansn_gfa_input=False,
+                                                                         scores_id_map=minigraph_batch_export_job.rv(5),
+                                                                         walltime=cactus_walltime())
         # hold the contigs of any multi-reference-contig bin apart.  the export has to be chained
         # onto this job, not onto graphmap_batch_job alongside it, or it runs while the separation
         # pass's children are still going and reads their promises unresolved

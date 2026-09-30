@@ -101,7 +101,9 @@ pushd minigraph
 # everything that can change a graph is behind an opt-in flag that defaults off. Chromosome-scale
 # construction is ~4.5x faster, whole-genome ~2-2.9x, because stock runs one thread per query
 # contig and so cannot use more than ~1 core on a chromosome or ~6.5 on a whole genome.
-git checkout 78e9266477f1ff392146df3a5fe9a0b895a51a27
+# wfa-scoring: on top of that, --wfa-pen to set the base-alignment penalties, which graphmap
+# derives from the last-train model (<graphmap lastTrainMap>).
+git checkout cbf90510aa047ee375ab2574dbcf970321f0453d
 # hack in flags support
 sed -i Makefile -e 's/CFLAGS=/CFLAGS+=/' -e 's/LIBS=/LIBS+=/'
 LIBS="${jemallocLib}" make -j ${numcpu}

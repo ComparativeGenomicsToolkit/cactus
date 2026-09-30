@@ -159,6 +159,35 @@ def apply_scores_to_config(score_dict, config_xml):
         poa_node.attrib['partialOrderAlignmentGapExtensionPenalty2'],
         poa_node.attrib['partialOrderAlignmentSubMatrix']))
 
+def minigraph_wfa_penalties(score_dict):
+    """ convert a last-train model into minigraph's base-alignment penalties, as (x, o, e) for
+    its --wfa-pen option.
+
+    minigraph fills the gaps between its chain anchors with WFA, which scores a match as 0, so only
+    one match score M (the mean of the diagonal) and one mismatch score X (the mean of the rest)
+    survive: there is no room for the transition/transversion split.  The Smith-Waterman to WFA
+    transform is then x = 2(M + X), o = 2*open, e = 2*extend + M (doubled to stay integral).
+    last-train fits a single affine gap, and with gap extension already cheap next to M (1 against
+    ~6.5 on human), a cheaper long-gap piece would have no room either, so --wfa-pen gets just the
+    one piece.
+
+    WFA works through every score up to the alignment's, so its cost grows with the size of the
+    penalties: they are scaled so that e, much the smallest, is 1.  Human models come out at about
+    8,11,1 against minigraph's default of 4,4,2 (plus a 15,1 long-gap piece), which is to say that
+    mismatches and gap opens cost a bit more and gap extension an order of magnitude less.
+
+    score_dict is as parse_train_file() returns it, and is not modified """
+    bases = ['A', 'C', 'G', 'T']
+    match = sum(score_dict[a][a] for a in bases) / 4.
+    mismatch = -sum(score_dict[a][b] for a in bases for b in bases if a != b) / 12.
+    x = 2. * (match + mismatch)
+    o = 2. * score_dict['GAP-OPEN']
+    e = 2. * score_dict['GAP-EXTEND'] + match
+    if x <= 0 or o < 0 or e <= 0:
+        raise RuntimeError('Scoring model does not convert to minigraph penalties: match {} mismatch {} gap open {} extend {}'.format(
+            match, -mismatch, score_dict['GAP-OPEN'], score_dict['GAP-EXTEND']))
+    return max(1, round(x / e)), round(o / e), 1
+
 def last_train(job, config, seq_order, seq_id_map, ref_name=None):
     """ run last_train on a pair of fasta files, using the first as the database.
 

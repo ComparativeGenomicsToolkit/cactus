@@ -31,6 +31,7 @@ from cactus.shared.common import unzip_gz, zip_gz
 from cactus.shared.version import cactus_commit
 from cactus.preprocessor.checkUniqueHeaders import sanitize_fasta_headers
 from cactus.refmap.pangenome_exclusions import event_to_pansn_prefix
+from cactus.paf.last_scoring import parse_train_file, minigraph_wfa_penalties
 from toil.job import Job
 from toil.common import Toil
 from toil.statsAndLogging import logger
@@ -70,6 +71,11 @@ def main():
                         help = "Map every genome with minigraph even if --inGAF already covers it. Slower, but the existing "
                         "genomes then see the nodes contributed by the newly added ones, as they would in a from-scratch run")
 
+    parser.add_argument("--scoresFile", type=str,
+                        help = "Scoring model (output of last-train, as cactus-minigraph writes it next to the graph) to derive "
+                        "minigraph's base-alignment penalties from. With --batch, the models in the chromfile's fourth column "
+                        "are used without this option, and this one overrides them. Toggled with the lastTrainMap attribute of "
+                        "<graphmap> in the config")
     parser.add_argument("--batch", action="store_true",
                         help="Run independently on set of chromosomea inputs (chromfile as from cactus-minigraph --batch). Note that the output will be a directory and not a PAF")
     parser.add_argument("--mgSplit", action="store_true", default=False,
@@ -202,6 +208,7 @@ def graph_map(options):
                                 
             # load up the chromfile / seqfiles
             input_dict = {} # chrom -> seq_id_map, gfa_id, ref_collapse_paf_id, seqfile_path, gfa_path
+            scores_id_map = {} # chrom -> last-train model
             for chrom, inputs in input_map.items():
                 input_seqfile, input_gfa = inputs[0], inputs[1]
             
@@ -250,6 +257,14 @@ def graph_map(options):
                         fa_id_map[genome] = seq
 
                 input_dict[chrom] = seq_id_map, gfa_id, ref_collapse_paf_id, input_map[chrom][0], input_map[chrom][1]
+
+                # the scoring model for minigraph's base alignment: a batch chromfile from cactus-minigraph
+                # lists each chromosome's in its fourth column ('*' when it has none)
+                scores_path = options.scoresFile
+                if not scores_path and options.batch and len(input_map[chrom]) > 2 and input_map[chrom][2] != '*':
+                    scores_path = input_map[chrom][2]
+                if scores_path:
+                    scores_id_map[chrom] = toil.importFile(makeURL(scores_path))
                 
             #import the mappings to reuse
             in_gaf_id = toil.importFile(makeURL(options.inGAF)) if options.inGAF and not options.remap else None
@@ -257,7 +272,7 @@ def graph_map(options):
             # run the workflow
             # output_dict is chrom -> paf_id, gfa_fa_id, gaf_id, unfiltered_paf_id, paf_filter_log, paf_was_filtered
             output_dict = toil.start(Job.wrapJobFn(minigraph_batch_separate_workflow, options, config_wrapper, input_dict, graph_event, True,
-                                                   in_gaf_id=in_gaf_id, walltime=cactus_walltime()))
+                                                   in_gaf_id=in_gaf_id, scores_id_map=scores_id_map, walltime=cactus_walltime()))
 
         export_graphmap_output(options, config_node, input_map, output_dict, toil)
 
@@ -318,8 +333,10 @@ def export_graphmap_output(options, config_node, input_map, output_dict, toil):
         if chrom_file_path.startswith('s3://'):
             write_s3(chrom_file_temp_path, chrom_file_path)
 
-def minigraph_batch_workflow(job, options, config, input_dict, graph_event, sanitize, pansn_gfa_input=True, in_gaf_id=None):
-    """ Batch wrapper to run grpahmap independently at the chromosome level."""
+def minigraph_batch_workflow(job, options, config, input_dict, graph_event, sanitize, pansn_gfa_input=True, in_gaf_id=None,
+                             scores_id_map=None):
+    """ Batch wrapper to run grpahmap independently at the chromosome level.  scores_id_map maps a
+    chromosome to the last-train model its mapping should use, if any """
     output_dict = {}
     options.mg_chrom_name = None
     for chrom, input_info in input_dict.items():
@@ -334,6 +351,7 @@ def minigraph_batch_workflow(job, options, config, input_dict, graph_event, sani
             chrom_options = options
         mgwf_job = job.addChildJobFn(minigraph_workflow, chrom_options, config, seq_id_map, gfa_id, graph_event,
                                      sanitize, ref_collapse_paf_id, pansn_gfa_input, in_gaf_id=in_gaf_id,
+                                     scores_id=scores_id_map.get(chrom) if scores_id_map else None,
                                      walltime=cactus_walltime())
         output_dict[chrom] = mgwf_job.rv()
     return output_dict
@@ -351,11 +369,12 @@ def add_separate_ref_contigs_job(batch_job, options, config, input_dict):
                                       whole_genome_ref=getattr(options, 'mgSplitWholeGenomeRef', False),
                                       walltime=cactus_walltime())
 
-def minigraph_batch_separate_workflow(job, options, config, input_dict, graph_event, sanitize, pansn_gfa_input=True, in_gaf_id=None):
+def minigraph_batch_separate_workflow(job, options, config, input_dict, graph_event, sanitize, pansn_gfa_input=True, in_gaf_id=None,
+                                      scores_id_map=None):
     """ minigraph_batch_workflow followed by the separation pass, for callers that just want the final
     result and add nothing after it """
     batch_job = job.addChildJobFn(minigraph_batch_workflow, options, config, input_dict, graph_event, sanitize,
-                                  pansn_gfa_input, in_gaf_id=in_gaf_id, walltime=cactus_walltime())
+                                  pansn_gfa_input, in_gaf_id=in_gaf_id, scores_id_map=scores_id_map, walltime=cactus_walltime())
     return add_separate_ref_contigs_job(batch_job, options, config, input_dict).rv()
 
 # Walltime estimates for the graphmap jobs.  Everything below was measured on the two HPRC
@@ -389,8 +408,9 @@ FILTER_PAF_DELETIONS_SECS_PER_GB = 500
 
 
 def minigraph_workflow(job, options, config, seq_id_map, gfa_id, graph_event, sanitize, ref_collapse_paf_id, pansn_gfa_input=True,
-                       in_gaf_id=None):
-    """ Overall workflow takes command line options and returns (paf-id, (optional) fa-id) """
+                       in_gaf_id=None, scores_id=None):
+    """ Overall workflow takes command line options and returns (paf-id, (optional) fa-id).  scores_id
+    is a last-train model to derive minigraph's base-alignment penalties from """
     fa_id = None
     gfa_id_size = gfa_id.size
     genome_names = set(seq_id_map.keys())
@@ -478,7 +498,7 @@ def minigraph_workflow(job, options, config, seq_id_map, gfa_id, graph_event, sa
                                       walltime=cactus_walltime(GAF_CHECK_SECS, io_bytes=gfa_id_size + in_gaf_id.size))
 
     paf_job = Job.wrapJobFn(minigraph_map_all, options, config, gfa_id, seq_id_map, graph_event, in_gaf_map,
-                            walltime=cactus_walltime())
+                            scores_id=scores_id, walltime=cactus_walltime())
     root_job.addFollowOn(paf_job)
 
     collapse_paf_id = ref_collapse_paf_id
@@ -605,7 +625,7 @@ TRANSLATE_GAF_SECS_PER_GB = 400
 # check_reusable_gaf loads the graph and resolves a sample of records against it.
 GAF_CHECK_SECS = 600
 
-def minigraph_map_all(job, options, config, gfa_id, fa_id_map, graph_event, in_gaf_map=None):
+def minigraph_map_all(job, options, config, gfa_id, fa_id_map, graph_event, in_gaf_map=None, scores_id=None):
     """ top-level job to run the minigraph mapping in parallel, returns paf.
 
     a genome that in_gaf_map already has mappings for has its PAF re-derived from them rather
@@ -650,7 +670,7 @@ def minigraph_map_all(job, options, config, gfa_id, fa_id_map, graph_event, in_g
                                             walltime=cactus_walltime(TRANSLATE_GAF_SECS_PER_GB * gaf_shard_id.size / 1e9,
                                                                      io_bytes=2*gaf_shard_id.size + gfa_id.size))
         else:
-            map_job = top_job.addChildJobFn(minigraph_map_one, config, event_name, fa_id, gfa_id,
+            map_job = top_job.addChildJobFn(minigraph_map_one, config, event_name, fa_id, gfa_id, scores_id=scores_id,
                                             cores=mg_cores, disk=5*fa_id.size + gfa_id.size,
                                             memory=cactus_clamp_memory(mem),
                                             walltime=cactus_walltime(MINIGRAPH_MAP_SECS + MINIGRAPH_MAP_SECS_PER_GB * fa_id.size / 1e9,
@@ -808,8 +828,9 @@ def gaf_to_pansn(gaf_path, out_path):
         for line in in_file:
             out_file.write(gaf_pansn_re.sub(lambda m: m.group(1) + event_to_pansn_prefix(m.group(2)) + '#', line))
 
-def minigraph_map_one(job, config, event_name, fa_file_id, gfa_file_id):
-    """ Run minigraph to map a Fasta file to a GFA graph, producing a GAF output """
+def minigraph_map_one(job, config, event_name, fa_file_id, gfa_file_id, scores_id=None):
+    """ Run minigraph to map a Fasta file to a GFA graph, producing a GAF output.  scores_id is a
+    last-train model to derive minigraph's base-alignment penalties from """
 
     work_dir = job.fileStore.getLocalTempDir()
     gfa_path = os.path.join(work_dir, "mg.gfa")
@@ -830,6 +851,11 @@ def minigraph_map_one(job, config, event_name, fa_file_id, gfa_file_id):
         opts_list += ["-c"]
     if "-t" not in opts_list:
         opts_list += ["-t", str(int(job.cores))]
+    # penalties given in minigraphMapOptions win over the trained ones
+    if scores_id and "--wfa-pen" not in opts_list and getOptionalAttrib(xml_node, "lastTrainMap", typeFn=bool, default=False):
+        scores_path = os.path.join(work_dir, "mg.train")
+        job.fileStore.readGlobalFile(scores_id, scores_path)
+        opts_list += ["--wfa-pen", ",".join(str(p) for p in minigraph_wfa_penalties(parse_train_file(scores_path)))]
 
     cmd = []
 
