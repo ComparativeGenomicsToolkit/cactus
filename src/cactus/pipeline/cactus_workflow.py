@@ -46,6 +46,31 @@ def cons_core_scale(cores, baseline=CONS_CORE_BASELINE, parallel=CONS_PARALLEL_F
         return (1.0 - parallel) + parallel * (float(baseline) / cores)
     return 1.0
 
+def ingroup_divergence(tree, ancestor_event):
+    """ How far apart the genomes bar aligns into an ancestor are: the distance in the tree between its
+    two farthest-apart children, i.e. its two longest child branches.  The tree is the one the workflow
+    hands consolidated, which is scaled by --branchScale and, with upweightAncestorDistances, has each
+    ancestral child's height added to its branch -- so this is measured as cactus's other
+    divergence-dependent settings are. """
+    node = tree.getNodeId(ancestor_event)
+    lengths = sorted([tree.getWeight(node, child) for child in tree.getChildren(node)], reverse=True)
+    return sum(lengths[:2]) if len(lengths) >= 2 else 0.0
+
+def bar_base_aligner(tree, ancestor_event, config_node, name=None):
+    """ The base aligner bar uses for this ancestor: <bar deepAligner> when its ingroups are at least
+    <bar deepAlignerDivergence> apart, else <bar baseAligner>. """
+    bar_node = findRequiredNode(config_node, 'bar')
+    base_aligner = getOptionalAttrib(bar_node, 'baseAligner', typeFn=str, default='abpoa')
+    deep_aligner = getOptionalAttrib(bar_node, 'deepAligner', typeFn=str, default='')
+    deep_divergence = getOptionalAttrib(bar_node, 'deepAlignerDivergence', typeFn=float, default=0.0)
+    if deep_aligner and deep_aligner != base_aligner and deep_divergence > 0:
+        divergence = ingroup_divergence(tree, ancestor_event)
+        if divergence >= deep_divergence:
+            RealtimeLogger.info('cactus_consolidated({}): ingroups {:g} apart, at or above deepAlignerDivergence {:g}, so bar uses {} rather than {}'.format(
+                name if name else ancestor_event, divergence, deep_divergence, deep_aligner, base_aligner))
+            return deep_aligner
+    return base_aligner
+
 def cactus_cons_with_resources(job, tree, ancestor_event, config_node, seq_id_map, og_map, paf_id,
                                cons_cores = None, cons_memory = None, intermediate_results_url = None, chrom_name = None,
                                cons_retain_pages = None):
@@ -92,8 +117,7 @@ def cactus_cons_with_resources(job, tree, ancestor_event, config_node, seq_id_ma
     ramp = min(1.0, input_gb / 0.02)
     estimate = int(mem_coef * (input_gb ** mem_exp) * ramp * 2**30) if input_gb > 0 else 0
     # A POA aligner (abPOA or minipoa) needs a table even for tiny alignments
-    bar_node = findRequiredNode(config_node, 'bar')
-    base_aligner = getOptionalAttrib(bar_node, 'baseAligner', typeFn=str, default='abpoa')
+    base_aligner = bar_base_aligner(tree, ancestor_event, config_node, name)
     if base_aligner != 'pecan':
         estimate = max(estimate, int(4e9))
 
@@ -224,17 +248,17 @@ def cactus_cons_with_resources(job, tree, ancestor_event, config_node, seq_id_ma
     cons_job = job.addChildJobFn(cactus_cons, tree, ancestor_event, config_node, seq_id_map, og_map, paf_id,
                                  intermediate_results_url=intermediate_results_url, chrom_name=chrom_name, cores = cons_cores,
                                  memory=cactus_clamp_memory(mem), disk=disk, retain_pages=retain_pages,
-                                 poa_window=poa_window, walltime=cactus_walltime(walltime_secs))
+                                 poa_window=poa_window, base_aligner=base_aligner, walltime=cactus_walltime(walltime_secs))
     return cons_job.rv()
 
 def cactus_cons(job, tree, ancestor_event, config_node, seq_id_map, og_map, paf_id,
                 intermediate_results_url = None, chrom_name = None, retain_pages = None,
-                poa_window = None):
+                poa_window = None, base_aligner = None):
     ''' run cactus_consolidated '''
 
     # cactus_consolidated reads its settings from the config, so the resolved page retention
     # goes into the copy it is given (this job's copy of the node, so nothing else sees it)
-    if retain_pages is not None or poa_window is not None:
+    if retain_pages is not None or poa_window is not None or base_aligner is not None:
         config_node = copy.deepcopy(config_node)
         if retain_pages is not None:
             findRequiredNode(config_node, 'consolidated').set('retain_pages', str(retain_pages))
@@ -243,6 +267,9 @@ def cactus_cons(job, tree, ancestor_event, config_node, seq_id_map, og_map, paf_
         poa_node = findRequiredNode(config_node, 'bar').find('poa')
         if poa_window is not None and poa_node is not None:
             poa_node.set('partialOrderAlignmentWindow', str(poa_window))
+        # likewise the base aligner, if <bar deepAligner> chose it for this ancestor
+        if base_aligner is not None:
+            findRequiredNode(config_node, 'bar').set('baseAligner', base_aligner)
 
     # Build up a genome -> fasta map.
     work_dir = job.fileStore.getLocalTempDir()

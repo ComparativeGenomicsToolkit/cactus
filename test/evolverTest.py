@@ -1920,6 +1920,25 @@ class TestCase(unittest.TestCase):
                           chromInfoDict = {'simChow' : 'X,Y',  'simDog' : 'X', 'simRat' : 'Y', 'simHuman' : 'X,Y,Z'})
         self._check_maf_accuracy(self._out_hal(name), delta=(0.05,0.13))
 
+    def testEvolverPecanLocal(self):
+        """ testEvolverPOALocal with baseAligner="pecan": the same data and tolerance, so the two
+        engines are directly comparable.
+        """
+        pecan_config_path = self._write_base_aligner_config("pecan", star=True)
+        name = "local"
+        self._run_evolver_primates_star(name, configFile = pecan_config_path)
+        self._check_maf_accuracy(self._out_hal("local"), delta=(0.0025,0.0075), dataset='primates')
+
+    def testEvolverPecanMammalsLocal(self):
+        """ The mammals head-to-head with baseAligner="pecan", as testEvolverMinipoaMammalsLocal is
+        for minipoa.
+        """
+        pecan_config_path = self._write_base_aligner_config("pecan")
+        name = "local"
+        self._run_evolver(name, configFile = pecan_config_path,
+                          chromInfoDict = {'simChow' : 'X,Y',  'simDog' : 'X', 'simRat' : 'Y', 'simHuman' : 'X,Y,Z'})
+        self._check_maf_accuracy(self._out_hal(name), delta=(0.05,0.13))
+
     def testEvolverRefmapLocal(self):
         """ Use the new minimap pangenome pipeline to create an alignment of the primates, then compare with the baseline
         """

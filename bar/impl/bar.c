@@ -49,6 +49,28 @@ PairwiseAlignmentParameters *pairwiseAlignmentParameters_constructFromCactusPara
     p->alignAmbiguityCharacters = cactusParams_get_int(params, 3, "bar", "pecan", "alignAmbiguityCharacters");
     p->useMumAnchors = cactusParams_get_int(params, 3, "bar", "pecan", "useMumAnchors");
     p->recursiveMums = cactusParams_get_int(params, 3, "bar", "pecan", "recursiveMums");
+    // anchorMethod supersedes useMumAnchors when it is given; without it, useMumAnchors decides as it always has
+    if (cactusParams_has(params, 3, "bar", "pecan", "anchorMethod")) {
+        char *method = cactusParams_get_string(params, 3, "bar", "pecan", "anchorMethod");
+        if (strcmp(method, "seed") == 0) {
+            p->anchorMethod = PAIRWISE_ANCHOR_SEED;
+        } else if (strcmp(method, "mum") == 0 || strcmp(method, "lastz") == 0) {
+            p->anchorMethod = PAIRWISE_ANCHOR_LEGACY;
+            p->useMumAnchors = strcmp(method, "mum") == 0;
+        } else {
+            st_errAbort("Unknown <pecan anchorMethod=\"%s\">; expected seed, mum or lastz", method);
+        }
+        free(method);
+    }
+    if (cactusParams_has(params, 3, "bar", "pecan", "seedHspThreshold")) {
+        p->seedHspThreshold = cactusParams_get_int(params, 3, "bar", "pecan", "seedHspThreshold");
+    }
+    if (cactusParams_has(params, 3, "bar", "pecan", "seedHspThresholdMin")) {
+        p->seedHspThresholdMin = cactusParams_get_int(params, 3, "bar", "pecan", "seedHspThresholdMin");
+    }
+    if (cactusParams_has(params, 3, "bar", "pecan", "seedRecursionDepth")) {
+        p->seedRecursionDepth = cactusParams_get_int(params, 3, "bar", "pecan", "seedRecursionDepth");
+    }
     return p;
 }
 
@@ -110,7 +132,9 @@ void bar(stList *flowers, CactusParams *params, CactusDisk *cactusDisk, stList *
         st_logInfo("bar: base aligner %s, window %" PRIi64 ", maskFilter %" PRIi64 ", bandingLimit %" PRIi64 "\n",
                    baseAligner_toString(engine), poaWindow, maskFilter, maximumLength);
     } else {
-        st_logInfo("bar: base aligner pecan, bandingLimit %" PRIi64 "\n", maximumLength);
+        st_logInfo("bar: base aligner pecan, anchors %s, bandingLimit %" PRIi64 "\n",
+                   pairwiseAlignmentParameters->anchorMethod == PAIRWISE_ANCHOR_SEED ? "seed" :
+                   (pairwiseAlignmentParameters->useMumAnchors ? "mum" : "lastz"), maximumLength);
     }
 
     //////////////////////////////////////////////

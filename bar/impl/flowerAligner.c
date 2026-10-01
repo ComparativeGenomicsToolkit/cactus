@@ -5,6 +5,7 @@
  */
 
 #include "endAligner.h"
+#include "flowerAligner.h" // so the compiler holds the definitions here to the declarations
 #include "cactus.h"
 #include "sonLib.h"
 #include "adjacencySequences.h"
@@ -505,7 +506,11 @@ static stSortedSet *getEndsToAlign(Flower *flower, int64_t maxSequenceLength) {
      */
     stSortedSet *endsToAlign = stSortedSet_construct();
     End *dominantEnd = getDominantEnd(flower); //an end to which all adjacencies are incident
-    if (dominantEnd != NULL && getMaxAdjacencyLength(flower) <= 2 * maxSequenceLength) {
+    // Aligning only the dominant end is a saving only if it loses nothing.  Its alignment reaches
+    // maxSequenceLength into each adjacency, from its own side, where aligning every end reaches
+    // that far from both sides -- so an adjacency longer than maxSequenceLength (this used to allow
+    // twice that) would have its far part left unaligned.  The poa path makes the same test.
+    if (dominantEnd != NULL && getMaxAdjacencyLength(flower) <= maxSequenceLength) {
         stSortedSet_insert(endsToAlign, dominantEnd);
     } else {
         End *end;
@@ -555,7 +560,7 @@ static void computeMissingEndAlignments(StateMachine *sM, Flower *flower, stHash
 
 stSortedSet *makeFlowerAlignment(StateMachine *sM, Flower *flower, int64_t spanningTrees, int64_t maxSequenceLength,
         bool useProgressiveMerging, float gapGamma,
-        PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters, bool pruneOutStubAlignments, int64_t poaWindow) {
+        PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters, bool pruneOutStubAlignments) {
     stHash *endAlignments = stHash_construct2(NULL, (void(*)(void *)) stSortedSet_destruct);
     computeMissingEndAlignments(sM, flower, endAlignments, spanningTrees, maxSequenceLength,
             useProgressiveMerging, gapGamma, pairwiseAlignmentBandingParameters);
