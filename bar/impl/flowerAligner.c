@@ -528,7 +528,7 @@ static stSortedSet *getEndsToAlign(Flower *flower, int64_t maxSequenceLength) {
  * then call the makeFlowerAlignment2 consistency generating function.
  */
 
-static void computeMissingEndAlignments(StateMachine *sM, Flower *flower, stHash *endAlignments, int64_t spanningTrees,
+static void computeMissingEndAlignments(StateMachine *sM, PecanPairModels *pairModels, Flower *flower, stHash *endAlignments, int64_t spanningTrees,
         int64_t maxSequenceLength, bool useProgressiveMerging, float gapGamma,
         PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters) {
     /*
@@ -546,7 +546,7 @@ static void computeMissingEndAlignments(StateMachine *sM, Flower *flower, stHash
                 stHash_insert(
                         endAlignments,
                         end,
-                        makeEndAlignment(sM, end, spanningTrees, maxSequenceLength,
+                        makeEndAlignmentWithPairModels(sM, pairModels, end, spanningTrees, maxSequenceLength,
                                 useProgressiveMerging, gapGamma,
                                 pairwiseAlignmentBandingParameters));
             } else {
@@ -562,7 +562,7 @@ stSortedSet *makeFlowerAlignment(StateMachine *sM, Flower *flower, int64_t spann
         bool useProgressiveMerging, float gapGamma,
         PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters, bool pruneOutStubAlignments) {
     stHash *endAlignments = stHash_construct2(NULL, (void(*)(void *)) stSortedSet_destruct);
-    computeMissingEndAlignments(sM, flower, endAlignments, spanningTrees, maxSequenceLength,
+    computeMissingEndAlignments(sM, NULL, flower, endAlignments, spanningTrees, maxSequenceLength,
             useProgressiveMerging, gapGamma, pairwiseAlignmentBandingParameters);
     return makeFlowerAlignment2(flower, endAlignments, pruneOutStubAlignments);
 }
@@ -583,14 +583,14 @@ static void loadEndAlignments(Flower *flower, stHash *endAlignments, stList *lis
     }
 }
 
-stSortedSet *makeFlowerAlignment3(StateMachine *sM, Flower *flower, stList *listOfEndAlignmentFiles, int64_t spanningTrees,
+stSortedSet *makeFlowerAlignment3(StateMachine *sM, PecanPairModels *pairModels, Flower *flower, stList *listOfEndAlignmentFiles, int64_t spanningTrees,
         int64_t maxSequenceLength, bool useProgressiveMerging, float gapGamma,
         PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters, bool pruneOutStubAlignments) {
     stHash *endAlignments = stHash_construct2(NULL, (void(*)(void *)) stSortedSet_destruct);
     if(listOfEndAlignmentFiles != NULL) {
         loadEndAlignments(flower, endAlignments, listOfEndAlignmentFiles);
     }
-    computeMissingEndAlignments(sM, flower, endAlignments, spanningTrees, maxSequenceLength,
+    computeMissingEndAlignments(sM, pairModels, flower, endAlignments, spanningTrees, maxSequenceLength,
             useProgressiveMerging, gapGamma, pairwiseAlignmentBandingParameters);
     return makeFlowerAlignment2(flower, endAlignments, pruneOutStubAlignments);
 }

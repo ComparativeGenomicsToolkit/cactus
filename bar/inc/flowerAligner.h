@@ -15,6 +15,7 @@
 #define FLOWER_ALIGNER_H_
 
 #include "pairwiseAligner.h"
+#include "endAligner.h"
 
 /*
  * Constructs an alignment for the flower by constructing an alignment for each end
@@ -28,9 +29,9 @@ stSortedSet *makeFlowerAlignment(StateMachine *sM, Flower *flower, int64_t spann
         PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters, bool pruneOutStubAlignments);
 
 /*
- * As above, but including alignments from disk.
+ * As above, but including alignments from disk, and with per-pair pecan models (pairModels may be NULL).
  */
-stSortedSet *makeFlowerAlignment3(StateMachine *sM, Flower *flower, stList *listOfEndAlignmentFiles, int64_t spanningTrees,
+stSortedSet *makeFlowerAlignment3(StateMachine *sM, PecanPairModels *pairModels, Flower *flower, stList *listOfEndAlignmentFiles, int64_t spanningTrees,
         int64_t maxSequenceLength, bool useProgressiveMerging, float gapGamma,
         PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters, bool pruneOutStubAlignments);
 

@@ -123,8 +123,7 @@ typedef struct _PoaParameters {
     bool rowModelToIngroups;
     double *rowModelMaxDistance;
     abpoa_para_t **rowModelAbpt;
-    stTree *distanceTree;
-    stHash *distanceNodes; // node label -> stTree node of distanceTree
+    BarDistances *distances; // NULL when there are no row models
 } PoaParameters;
 
 /**

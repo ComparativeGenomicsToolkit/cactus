@@ -52,8 +52,157 @@ int alignedPair_cmpFn(const AlignedPair *alignedPair1, const AlignedPair *aligne
     return i;
 }
 
+struct _barDistances {
+    stTree *tree;   // the reconstruction tree, or NULL
+    stHash *nodes;  // its nodes by label
+};
+
+static void barDistances_addNodes(stHash *nodes, stTree *tree) {
+    if (stTree_getLabel(tree) != NULL) {
+        stHash_insert(nodes, (void *)stTree_getLabel(tree), tree);
+    }
+    for (int64_t i = 0; i < stTree_getChildNumber(tree); i++) {
+        barDistances_addNodes(nodes, stTree_getChild(tree, i));
+    }
+}
+
+BarDistances *barDistances_constructFromCactusParams(CactusParams *params) {
+    BarDistances *distances = st_calloc(1, sizeof(BarDistances));
+    if (cactusParams_has(params, 2, "reference", "reconstructionTree")) {
+        char *newick = cactusParams_get_string(params, 2, "reference", "reconstructionTree");
+        distances->tree = stTree_parseNewickString(newick);
+        distances->nodes = stHash_construct3(stHash_stringKey, stHash_stringEqualKey, NULL, NULL);
+        barDistances_addNodes(distances->nodes, distances->tree);
+        free(newick);
+    }
+    return distances;
+}
+
+bool barDistances_hasReconstructionTree(BarDistances *distances) {
+    return distances->tree != NULL;
+}
+
+double barDistances_get(BarDistances *distances, Event *event1, Event *event2) {
+    stTree *node1 = distances->nodes == NULL ? NULL : stHash_search(distances->nodes, (void *)event_getHeader(event1));
+    stTree *node2 = distances->nodes == NULL ? NULL : stHash_search(distances->nodes, (void *)event_getHeader(event2));
+    if (node1 != NULL && node2 != NULL) {
+        double d1 = 0.0;
+        for (stTree *a = node1; a != NULL; a = stTree_getParent(a)) {
+            double d2 = 0.0;
+            for (stTree *b = node2; b != NULL; b = stTree_getParent(b)) {
+                if (a == b) {
+                    return d1 + d2;
+                }
+                d2 += stTree_getBranchLength(b);
+            }
+            d1 += stTree_getBranchLength(a);
+        }
+    }
+    Event *ancestor = eventTree_getCommonAncestor(event1, event2);
+    double d = 0.0;
+    for (Event *e = event1; e != ancestor; e = event_getParent(e)) {
+        d += event_getBranchLength(e);
+    }
+    for (Event *e = event2; e != ancestor; e = event_getParent(e)) {
+        d += event_getBranchLength(e);
+    }
+    return d;
+}
+
+void barDistances_destruct(BarDistances *distances) {
+    if (distances->tree != NULL) {
+        stHash_destruct(distances->nodes);
+        stTree_destruct(distances->tree);
+    }
+    free(distances);
+}
+
+struct _pecanPairModels {
+    int64_t modelNo;
+    double *maxDistance;
+    StateMachine **stateMachines;
+    BarDistances *distances;
+};
+
+PecanPairModels *pecanPairModels_constructFromCactusParams(CactusParams *params) {
+    int64_t modelNo = cactusParams_has(params, 3, "bar", "pecan", "pecanPairModels") ?
+        cactusParams_get_int(params, 3, "bar", "pecan", "pecanPairModels") : 0;
+    if (modelNo <= 0) {
+        return NULL;
+    }
+    PecanPairModels *pairModels = st_calloc(1, sizeof(PecanPairModels));
+    pairModels->modelNo = modelNo;
+    pairModels->maxDistance = st_malloc(sizeof(double) * modelNo);
+    pairModels->stateMachines = st_malloc(sizeof(StateMachine *) * modelNo);
+    for (int64_t m = 0; m < modelNo; m++) {
+        char *name = stString_print("pairModel%" PRIi64, m);
+        pairModels->maxDistance[m] = cactusParams_get_float(params, 4, "bar", "pecan", name, "maxDistance");
+        if (m > 0 && pairModels->maxDistance[m] < pairModels->maxDistance[m - 1]) {
+            st_errAbort("pecan pair models must be in ascending maxDistance, but %s has %f after %f", name,
+                        pairModels->maxDistance[m], pairModels->maxDistance[m - 1]);
+        }
+        char *json = cactusParams_get_string(params, 4, "bar", "pecan", name, "hmm");
+        Hmm *hmm = hmm_jsonParse(json, strlen(json));
+        if (hmm->type != fiveState) {
+            st_errAbort("pecan pair model %s is a type %i HMM; bar's pecan uses the five-state model (type %i)",
+                        name, (int)hmm->type, (int)fiveState);
+        }
+        pairModels->stateMachines[m] = hmm_getStateMachine(hmm);
+        hmm_destruct(hmm);
+        free(json);
+        free(name);
+    }
+    pairModels->distances = barDistances_constructFromCactusParams(params);
+    st_logInfo("bar: %" PRIi64 " pecan pair models, distances on the %s tree\n", modelNo,
+               barDistances_hasReconstructionTree(pairModels->distances) ? "reconstruction" : "event");
+    return pairModels;
+}
+
+void pecanPairModels_destruct(PecanPairModels *pairModels) {
+    if (pairModels == NULL) {
+        return;
+    }
+    for (int64_t m = 0; m < pairModels->modelNo; m++) {
+        stateMachine_destruct(pairModels->stateMachines[m]);
+    }
+    free(pairModels->stateMachines);
+    free(pairModels->maxDistance);
+    barDistances_destruct(pairModels->distances);
+    free(pairModels);
+}
+
+/*
+ * cPecan's per-pair callback: the model for the distance between the two sequences' genomes.
+ */
+typedef struct {
+    PecanPairModels *pairModels;
+    stList *events; // the genome of each sequence, by its index in the alignment
+} PairModelChoice;
+
+static StateMachine *choosePairModel(int64_t seqX, int64_t seqY, void *extraArgs) {
+    PairModelChoice *choice = extraArgs;
+    Event *eventX = stList_get(choice->events, seqX), *eventY = stList_get(choice->events, seqY);
+    if (eventX == eventY) {
+        return NULL;
+    }
+    double distance = barDistances_get(choice->pairModels->distances, eventX, eventY);
+    for (int64_t m = 0; m < choice->pairModels->modelNo; m++) {
+        if (distance <= choice->pairModels->maxDistance[m]) {
+            return choice->pairModels->stateMachines[m];
+        }
+    }
+    return NULL;
+}
+
 stSortedSet *makeEndAlignment(StateMachine *sM, End *end, int64_t spanningTrees, int64_t maxSequenceLength,
         bool useProgressiveMerging, float gapGamma,
+        PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters) {
+    return makeEndAlignmentWithPairModels(sM, NULL, end, spanningTrees, maxSequenceLength, useProgressiveMerging, gapGamma,
+                                          pairwiseAlignmentBandingParameters);
+}
+
+stSortedSet *makeEndAlignmentWithPairModels(StateMachine *sM, PecanPairModels *pairModels, End *end, int64_t spanningTrees,
+        int64_t maxSequenceLength, bool useProgressiveMerging, float gapGamma,
         PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters) {
     //Make an alignment of the sequences in the ends
 
@@ -62,6 +211,7 @@ stSortedSet *makeEndAlignment(StateMachine *sM, End *end, int64_t spanningTrees,
     End_InstanceIterator *it = end_getInstanceIterator(end);
     stList *sequences = stList_construct3(0, (void (*)(void *))adjacencySequence_destruct);
     stList *seqFrags = stList_construct3(0, (void (*)(void *))seqFrag_destruct);
+    stList *events = stList_construct();
     stHash *endInstanceNumbers = stHash_construct2(NULL, free);
     while((cap = end_getNext(it)) != NULL) {
         if(cap_getSide(cap)) {
@@ -72,6 +222,7 @@ stSortedSet *makeEndAlignment(StateMachine *sM, End *end, int64_t spanningTrees,
         assert(cap_getAdjacency(cap) != NULL);
         End *otherEnd = end_getPositiveOrientation(cap_getEnd(cap_getAdjacency(cap)));
         stList_append(seqFrags, seqFrag_construct(adjacencySequence->string, 0, end_getName(otherEnd)));
+        stList_append(events, cap_getEvent(cap));
         //Increase count of seqfrags with a given end.
         int64_t *c = stHash_search(endInstanceNumbers, otherEnd);
         if(c == NULL) {
@@ -84,7 +235,10 @@ stSortedSet *makeEndAlignment(StateMachine *sM, End *end, int64_t spanningTrees,
     end_destructInstanceIterator(it);
 
     //Get the alignment.
-    MultipleAlignment *mA  = makeAlignment(sM, seqFrags, spanningTrees, 100000000, useProgressiveMerging, gapGamma, pairwiseAlignmentBandingParameters);
+    PairModelChoice choice = { pairModels, events };
+    MultipleAlignment *mA  = makeAlignmentWithPairStateMachines(sM, pairModels == NULL ? NULL : choosePairModel, &choice,
+            seqFrags, spanningTrees, 100000000, useProgressiveMerging, gapGamma, pairwiseAlignmentBandingParameters);
+    stList_destruct(events);
 
     //Build an array of weights to reweight pairs in the alignment.
     int64_t *pairwiseAlignmentsPerSequenceNonCommonEnds = st_calloc(stList_length(seqFrags), sizeof(int64_t));
