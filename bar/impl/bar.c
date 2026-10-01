@@ -108,6 +108,8 @@ void bar(stList *flowers, CactusParams *params, CactusDisk *cactusDisk, stList *
     float matchGamma = cactusParams_get_float(params, 3, "bar", "pecan", "matchGamma");
     PairwiseAlignmentParameters *pairwiseAlignmentParameters = pairwiseAlignmentParameters_constructFromCactusParams(params);
     StateMachine *sM = stateMachine5_construct(fiveState);
+    // per-pair pecan models, if the config has any (see endAligner.h)
+    PecanPairModels *pecanPairModels = usePoa ? NULL : pecanPairModels_constructFromCactusParams(params);
     bool pruneOutStubAlignments = cactusParams_get_int(params, 3, "bar", "pecan", "pruneOutStubAlignments");
 
     // Poa params.  The window and the mask filter come from whichever engine is selected:
@@ -233,7 +235,7 @@ void bar(stList *flowers, CactusParams *params, CactusDisk *cactusDisk, stList *
                                                    poaMaxProgRows, poaMaxLenDiff, poaParameters);
             st_logDebug("Created the poa alignments: %" PRIi64 " poa alignment blocks for flower\n", stList_length(alignments));
         } else {
-            alignments = makeFlowerAlignment3(sM, flower, listOfEndAlignmentFiles, spanningTrees, maximumLength,
+            alignments = makeFlowerAlignment3(sM, pecanPairModels, flower, listOfEndAlignmentFiles, spanningTrees, maximumLength,
                                               useProgressiveMerging, matchGamma, pairwiseAlignmentParameters,
                                               pruneOutStubAlignments);
             st_logDebug("Created the alignment: %" PRIi64 " pairs for flower\n", stSortedSet_size(alignments));
@@ -356,6 +358,7 @@ void bar(stList *flowers, CactusParams *params, CactusDisk *cactusDisk, stList *
 
     pairwiseAlignmentBandingParameters_destruct(pairwiseAlignmentParameters);
     stateMachine_destruct(sM);
+    pecanPairModels_destruct(pecanPairModels);
 
     poaParameters_destruct(poaParameters);
 }

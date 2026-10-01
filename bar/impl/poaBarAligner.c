@@ -941,15 +941,6 @@ const char *baseAligner_toString(BaseAligner engine) {
     return "unknown";
 }
 
-static void addDistanceNodes(stHash *nodes, stTree *tree) {
-    if (stTree_getLabel(tree) != NULL) {
-        stHash_insert(nodes, (void *)stTree_getLabel(tree), tree);
-    }
-    for (int64_t i = 0; i < stTree_getChildNumber(tree); i++) {
-        addDistanceNodes(nodes, stTree_getChild(tree, i));
-    }
-}
-
 /*
  * <poa partialOrderAlignmentRowModels="N"> and its children <rowModel0> .. <rowModelN-1> (see
  * PoaParameters).  A count rather than probing for the children, because asking CactusParams about
@@ -983,46 +974,10 @@ static void rowModels_load(CactusParams *params, PoaParameters *pp) {
         pp->rowModelAbpt[m] = abpoaParameters_construct(params, name);
         free(name);
     }
-    if (cactusParams_has(params, 2, "reference", "reconstructionTree")) {
-        char *newick = cactusParams_get_string(params, 2, "reference", "reconstructionTree");
-        pp->distanceTree = stTree_parseNewickString(newick);
-        pp->distanceNodes = stHash_construct3(stHash_stringKey, stHash_stringEqualKey, NULL, NULL);
-        addDistanceNodes(pp->distanceNodes, pp->distanceTree);
-        free(newick);
-    }
+    pp->distances = barDistances_constructFromCactusParams(params);
     st_logInfo("bar: %" PRIi64 " row models, distances to the nearest %s on the %s tree\n", pp->rowModelNo,
-               pp->rowModelToIngroups ? "ingroup" : "genome", pp->distanceTree != NULL ? "reconstruction" : "event");
-}
-
-/*
- * Path length between two genomes, on the reconstruction tree when it names both, else on the event
- * tree (whose branches are the ones scaled for alignment sensitivity).
- */
-static double rowModels_distance(PoaParameters *pp, Event *event1, Event *event2) {
-    stTree *node1 = pp->distanceNodes == NULL ? NULL : stHash_search(pp->distanceNodes, (void *)event_getHeader(event1));
-    stTree *node2 = pp->distanceNodes == NULL ? NULL : stHash_search(pp->distanceNodes, (void *)event_getHeader(event2));
-    if (node1 != NULL && node2 != NULL) {
-        double d1 = 0.0;
-        for (stTree *a = node1; a != NULL; a = stTree_getParent(a)) {
-            double d2 = 0.0;
-            for (stTree *b = node2; b != NULL; b = stTree_getParent(b)) {
-                if (a == b) {
-                    return d1 + d2;
-                }
-                d2 += stTree_getBranchLength(b);
-            }
-            d1 += stTree_getBranchLength(a);
-        }
-    }
-    Event *ancestor = eventTree_getCommonAncestor(event1, event2);
-    double d = 0.0;
-    for (Event *e = event1; e != ancestor; e = event_getParent(e)) {
-        d += event_getBranchLength(e);
-    }
-    for (Event *e = event2; e != ancestor; e = event_getParent(e)) {
-        d += event_getBranchLength(e);
-    }
-    return d;
+               pp->rowModelToIngroups ? "ingroup" : "genome",
+               barDistances_hasReconstructionTree(pp->distances) ? "reconstruction" : "event");
 }
 
 /*
@@ -1057,7 +1012,7 @@ static int *rowModels_assign(PoaParameters *pp, Cap **caps, int64_t row_no) {
     }
     for (int64_t j = 0; j < event_no; ++j) {
         for (int64_t k = j + 1; k < event_no; ++k) {
-            double d = rowModels_distance(pp, events[j], events[k]);
+            double d = barDistances_get(pp->distances, events[j], events[k]);
             nearest[j] = d < nearest[j] ? d : nearest[j];
             nearest[k] = d < nearest[k] ? d : nearest[k];
             if (!event_isOutgroup(events[k])) {
@@ -1131,9 +1086,8 @@ void poaParameters_destruct(PoaParameters *poaParameters) {
     }
     free(poaParameters->rowModelAbpt);
     free(poaParameters->rowModelMaxDistance);
-    if (poaParameters->distanceTree != NULL) {
-        stHash_destruct(poaParameters->distanceNodes);
-        stTree_destruct(poaParameters->distanceTree);
+    if (poaParameters->distances != NULL) {
+        barDistances_destruct(poaParameters->distances);
     }
 #ifdef HAVE_MINIPOA
     if (poaParameters->mpt != NULL) {
