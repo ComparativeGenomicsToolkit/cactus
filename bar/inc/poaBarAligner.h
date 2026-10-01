@@ -116,7 +116,8 @@ typedef struct _PoaParameters {
      * tree for a genome it does not name.  rowModelNo is 0 when the config has no row models.
      * With rowModelToIngroups (partialOrderAlignmentRowModelDistance="ingroup") the distance is to the
      * nearest other ingroup genome instead, so an outgroup is scored for how far it is from what is
-     * being reconstructed rather than from another outgroup.
+     * being reconstructed rather than from another outgroup; a row with no other ingroup genome in the
+     * alignment falls back to the nearest genome of any kind.
      */
     int64_t rowModelNo;
     bool rowModelToIngroups;

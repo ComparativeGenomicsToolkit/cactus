@@ -1049,18 +1049,31 @@ static int *rowModels_assign(PoaParameters *pp, Cap **caps, int64_t row_no) {
         }
         row_event[i] = j;
     }
+    // nearest other genome, and nearest other ingroup genome
     double *nearest = st_malloc(sizeof(double) * event_no);
+    double *nearestIngroup = st_malloc(sizeof(double) * event_no);
     for (int64_t j = 0; j < event_no; ++j) {
-        nearest[j] = INFINITY;
+        nearest[j] = nearestIngroup[j] = INFINITY;
     }
     for (int64_t j = 0; j < event_no; ++j) {
         for (int64_t k = j + 1; k < event_no; ++k) {
             double d = rowModels_distance(pp, events[j], events[k]);
-            if (!pp->rowModelToIngroups || !event_isOutgroup(events[k])) {
-                nearest[j] = d < nearest[j] ? d : nearest[j];
+            nearest[j] = d < nearest[j] ? d : nearest[j];
+            nearest[k] = d < nearest[k] ? d : nearest[k];
+            if (!event_isOutgroup(events[k])) {
+                nearestIngroup[j] = d < nearestIngroup[j] ? d : nearestIngroup[j];
             }
-            if (!pp->rowModelToIngroups || !event_isOutgroup(events[j])) {
-                nearest[k] = d < nearest[k] ? d : nearest[k];
+            if (!event_isOutgroup(events[j])) {
+                nearestIngroup[k] = d < nearestIngroup[k] ? d : nearestIngroup[k];
+            }
+        }
+    }
+    // with rowModelToIngroups, rows that have another ingroup among them are measured to the nearest one,
+    // and the rest (only one ingroup genome, or none, in this alignment) to the nearest genome of any kind
+    if (pp->rowModelToIngroups) {
+        for (int64_t j = 0; j < event_no; ++j) {
+            if (nearestIngroup[j] != INFINITY) {
+                nearest[j] = nearestIngroup[j];
             }
         }
     }
@@ -1077,6 +1090,7 @@ static int *rowModels_assign(PoaParameters *pp, Cap **caps, int64_t row_no) {
     free(events);
     free(row_event);
     free(nearest);
+    free(nearestIngroup);
     return models;
 }
 
