@@ -509,6 +509,7 @@
 	<!-- removeMinigraphFromPAF: replace all minigraph contigs with transitive alignments in cactus-align-->
 	<!-- cpu: use up to this many cpus for each minigraph command. -->
 	<!-- lastTrain: train the abPOA scoring model with last-train, on the reference against a typical-sized genome from the middle of the mash order, instead of using the default (HOXD70) scores. With mgSplit, each chromosome gets its own model, and one that can't be trained borrows another chromosome's. Training failures only ever fall back, never fail the run. Ignored with scoresFile. [0: off, 1: on] -->
+	<!-- lastTrainMap: also derive minigraph's base-alignment penalties (its wfa-pen option) from the trained (or scoresFile) model when mapping. minigraph's aligner scores a match as 0 and has one mismatch penalty, so only the mean match and mismatch scores and the gap costs carry over. A human model gives mismatch 8, gap open 11, gap extend 1, against minigraph's 4, 4 and 2. Mapping HG01978 chr20 to a CHM13+HG01978.1 graph, this dropped 9-11% of the mismatches (for 10-20% more gap bases), and only 33-37% of the dropped ones were transitions, which is what random mismatches give, against 57-58% of the ones kept. Chaining is unaffected, so the mappings themselves are the same. Has no effect when minigraphMapOptions already sets wfa-pen. [0: off, 1: on] -->
 	<graphmap
 		 assemblyName="_MINIGRAPH_"
 		 minigraphMapOptions="-c -xasm --par-align"
@@ -540,6 +541,7 @@
 		 collapseOptions="-k 300 -b 5000 -i 0.95 -D -A 3 -x asm20 -M 1.05"
 		 cpu="6"
 		 lastTrain="1"
+		 lastTrainMap="1"
 		 />
 	<!-- cactus-graphmap-split options -->
 	<!-- minQueryCoverages: (space-separated) At least this fraction of input contig must align to reference contig for it to be assigned. -->
