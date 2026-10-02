@@ -124,14 +124,19 @@ def train_lastz_score_model(job, event_a, genome_a, event_b, genome_b, params):
     trained_gaps = getOptionalAttrib(params.find("blast"), 'lastzTrainGaps', typeFn=bool, default=True)
 
     # lastdb -c and -C2 are LAST's recipe for training on genomes: -c keeps masked letters out of the seeds, and
-    # -C2 drops gapless alignments nested in two others
+    # -C2 drops gapless alignments nested in two others.  -R10 makes the masked letters the inputs' soft-masking
+    # (cactus's Red), which masks repeats from seeding as it does for lastz, in place of LAST's default of masking
+    # only simple repeats with tantan (lastal follows lastdb's -R).  That makes lastdb ~3x and training ~10x cheaper
+    # on a mammal genome (human against mouse: 991 rather than 4494 CPU-s in all), and keeps interspersed repeats
+    # out of the model: two mouse assemblies trained to 99.35% identity without, from alignments between repeat
+    # copies, and 100.00% with.
     train_cmd = ['last-train', '--revsym', '--matsym', '--gapsym', '-C2', '-P', str(job.cores)]
     if last_train_has_tolerance():
         train_cmd.append('--tolerance=1')
     train_cmd += ['db', local_fastas[1]]
     train_file = os.path.join(work_dir, 'pair.train')
     try:
-        cactus_call(parameters=['lastdb', '-c', '-P', str(job.cores), 'db', local_fastas[0]], work_dir=work_dir)
+        cactus_call(parameters=['lastdb', '-c', '-R10', '-P', str(job.cores), 'db', local_fastas[0]], work_dir=work_dir)
         with open(os.path.join(work_dir, 'db.prj')) as prj:
             db_letters = int(next(line for line in prj if line.startswith('numofletters=')).split('=')[1])
         if db_letters < 500000:
