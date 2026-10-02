@@ -145,6 +145,12 @@
 				five="--step=2 --ambiguous=iupac,100,100 --ydrop=4000 --hspthresh=2400 --gappedthresh=2600 --queryhspbest=300000"
 				default="--step=1 --ambiguous=iupac,100,100 --ydrop=4000 --hspthresh=2200 --gappedthresh=2400 --queryhspbest=300000"
 		/>
+		<!-- lastz scores by divergence, in place of its default HOXD70 (none by default).  Any number of
+		     <lastzScoreModel maxDistance="D" matrix="M" gapOpen="O" gapExtend="E"/>, where M is 16 scores, rows and
+		     columns A, C, G, T, and a gap of length k costs O + k*E, as with lastz's gap penalties.  A pair is
+		     aligned with the model of smallest maxDistance its distance (the one that picks its lastzArguments above)
+		     is within, and with HOXD70 when past them all.  Keep a model on HOXD70's scale (its lambda): the
+		     thresholds above, and the chaining's, are in HOXD70's units.  Not supported with KegAlign. -->
 		<!-- Estimated runtime, in seconds, of one lastz job in each divergence class, for a
 		     pair of full-sized (chunkSize, 90 Mbp) chunks.  These are the p99 of 827k lastz runs from
 		     the VGP 577-way alignment (90 Mbp chunks, queryhspbest 100000, so they predate 300000), halved for the 2x lastz speedup since; Cactus scales

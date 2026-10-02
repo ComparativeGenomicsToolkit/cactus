@@ -39,6 +39,32 @@ def get_divergence_class(distance, params):
     return "default"
 
 
+def get_lastz_score_model(distance, params):
+    """ The <blast><lastzScoreModel> lastz aligns a pair at the given distance with: the one with the
+    smallest maxDistance the distance is within, or None, leaving lastz its default (HOXD70), when there
+    are none or the distance is past them all.  The distance is the one the divergence class is chosen by. """
+    models = params.find("blast").findall("lastzScoreModel")
+    for model in sorted(models, key=lambda m: float(m.attrib["maxDistance"])):
+        if distance <= float(model.attrib["maxDistance"]):
+            return model
+    return None
+
+
+def write_lastz_scores(model, path):
+    """ A <blast><lastzScoreModel> as a lastz scores file: its substitution matrix (rows and columns A, C,
+    G, T) and gap penalties, a gap of length k costing gapOpen + k * gapExtend, as with lastz's --gap.
+    Anything else the file could set is left to the command line. """
+    matrix = [int(s) for s in model.attrib["matrix"].split()]
+    if len(matrix) != 16:
+        raise RuntimeError("lastzScoreModel matrix has {} scores, not 16".format(len(matrix)))
+    with open(path, 'w') as scores_file:
+        scores_file.write('gap_open_penalty = {}\n'.format(int(model.attrib["gapOpen"])))
+        scores_file.write('gap_extend_penalty = {}\n'.format(int(model.attrib["gapExtend"])))
+        scores_file.write('  A C G T\n')
+        for i, base in enumerate('ACGT'):
+            scores_file.write('{} {}\n'.format(base, ' '.join(str(s) for s in matrix[4 * i:4 * i + 4])))
+
+
 def get_lastz_walltime(distance, params, chunk_a, chunk_b):
     """ Estimated seconds for one lastz/kegalign job on this pair of chunks.
 
@@ -85,9 +111,20 @@ def run_lastz(job, name_A, genome_A, name_B, genome_B, distance, params):
     lastz_divergence_node = lastz_params_node.find("kegalignArguments" if gpu else "lastzArguments")
     divergences = params.find("constants").find("divergences")
     lastz_params = lastz_divergence_node.attrib[get_divergence_class(distance, params)]
+    score_model = get_lastz_score_model(distance, params)
+    if score_model is not None:
+        if gpu:
+            raise RuntimeError("<blast><lastzScoreModel> is not supported with KegAlign")
+        # cactus_call runs lastz in work_dir
+        write_lastz_scores(score_model, os.path.join(work_dir, 'lastz.scores'))
+        lastz_params += ' --scores=lastz.scores'
     if not getOptionalAttrib(divergences, 'useDefault', typeFn=bool, default=False):
         logger.info("For distance {} for genomes {}, {} using {} lastz parameters".format(distance, genome_A,
                                                                                           genome_B, lastz_params))
+    if score_model is not None:
+        logger.info("Scoring with the lastzScoreModel for distances up to {}: {}, gap {}+{}k".format(
+            score_model.attrib["maxDistance"], score_model.attrib["matrix"], score_model.attrib["gapOpen"],
+            score_model.attrib["gapExtend"]))
     if gpu:
         lastz_bin = 'run_kegalign'
         suffix_a, suffix_b = '', ''
