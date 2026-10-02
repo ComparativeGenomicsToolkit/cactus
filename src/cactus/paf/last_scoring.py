@@ -217,9 +217,9 @@ def implied_lambda(matrix, freqs):
 def parse_train_model(train_file_path):
     """ last-train's final model at the scale it trains at (parse_train_file reads the integer one it ends
     with, whose scores are too coarse to rescale): matrix rows and columns A, C, G, T, the gap existence and
-    extension costs, the query's base frequencies and the substitution identity.  The training scale differs
-    from one run to the next (last-train raises it 10% at a time when rounding gets too coarse), so the
-    numbers are only comparable between runs once rescaled. """
+    extension costs, the query's base frequencies and the identity of the last pass's alignments.  The
+    training scale differs from one run to the next (last-train raises it 10% at a time when rounding gets
+    too coarse), so the numbers are only comparable between runs once rescaled. """
     with open(train_file_path) as train_file:
         txt = train_file.read()
     header = '# score matrix (query letters = columns, reference letters = rows):'
@@ -230,15 +230,17 @@ def parse_train_model(train_file_path):
     for line in blocks[-2].splitlines()[2:6]:
         toks = line.split()
         rows[toks[1]] = [int(x) for x in toks[2:6]]
-    def last_value(key):
-        values = re.findall(r'# {}: ([-\d.eE+]+)'.format(key), txt)
-        if not values:
+    def values(key):
+        found = re.findall(r'# {}: ([-\d.eE+]+)'.format(key), txt)
+        if not found:
             raise RuntimeError('no {} in {}'.format(key, train_file_path))
-        return values[-1]
+        return found
+    # the last identity printed is the one the final integer scores imply, whose rounding can move it by
+    # several points; the one before is the last pass's, from the alignments it counted
     return {'matrix': [rows[b] for b in 'ACGT'],
-            'open': int(last_value('delExistCost')), 'extend': int(last_value('delExtendCost')),
+            'open': int(values('delExistCost')[-1]), 'extend': int(values('delExtendCost')[-1]),
             'freqs': [float(x) / 100 for x in re.findall(r'# qry letter %: (.*)', txt)[-1].split()],
-            'identity': float(last_value('substitution percent identity'))}
+            'identity': float(values('substitution percent identity')[-2])}
 
 def lastz_scores_from_train(train_file_path, trained_gaps=True):
     """ the model last-train fitted, as lastz scores on HOXD70's scale: a dict of a <blast><lastzScoreModel>'s

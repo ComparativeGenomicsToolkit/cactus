@@ -81,6 +81,16 @@ def lastz_train_enabled(params):
     return True
 
 
+def fasta_is_gzipped(job, genome):
+    with job.fileStore.readGlobalFileStream(genome) as stream:
+        return stream.read(2) == b'\x1f\x8b'
+
+
+def fasta_letters_estimate(job, genome):
+    """ About how many bases a fasta file holds: its size, or four times that when it is gzipped """
+    return genome.size * (4 if fasta_is_gzipped(job, genome) else 1)
+
+
 def lastz_pair_key(event_a, event_b):
     """ The key of a pair of genomes' trained lastz model, whichever way round they are aligned """
     return ' '.join(sorted([event_a, event_b]))
@@ -99,13 +109,10 @@ def train_lastz_score_model(job, event_a, genome_a, event_b, genome_b, params):
     """ A scoring model for lastz to align a pair of genomes with, trained on the pair with last-train, as
     lastz_scores_from_train makes it -- or None, leaving the pair to the lastzScoreModel table or HOXD70,
     when the smaller genome has under 500kb to train on or training fails. """
-    # lastdb is most of the work, so the smaller genome is the database, judged by file size, a gzipped fasta
-    # (as an ancestor's is) holding about four times its size
+    # lastdb is most of the work, so the smaller genome is the database (an ancestor's fasta is gzipped)
     genomes = []
     for event, genome in (event_a, genome_a), (event_b, genome_b):
-        with job.fileStore.readGlobalFileStream(genome) as stream:
-            gzipped = stream.read(2) == b'\x1f\x8b'
-        genomes.append((genome.size * (4 if gzipped else 1), event, genome, gzipped))
+        genomes.append((fasta_letters_estimate(job, genome), event, genome, fasta_is_gzipped(job, genome)))
     genomes.sort(key=lambda g: (g[0], g[1]))
     db_event, query_event = genomes[0][1], genomes[1][1]
     work_dir = job.fileStore.getLocalTempDir()
@@ -1121,16 +1128,20 @@ def make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancest
         train_cores = getOptionalAttrib(lastz_params_node, 'lastzTrainCores', typeFn=int, default=4)
         pairs = [(ingroup, ingroup2) for ingroup, ingroup2, _ in get_event_pairs(ancestor_event, ingroup_events)] + \
                 [(ingroup, outgroup) for ingroup in ingroup_events for outgroup in outgroup_events]
+        letters = {event.iD: fasta_letters_estimate(job, input_sequence_map[event.iD])
+                   for pair in pairs for event in pair}
         for event_a, event_b in pairs:
             genome_a, genome_b = input_sequence_map[event_a.iD], input_sequence_map[event_b.iD]
-            # lastdb takes the smaller genome, and its index is several times the sequence (more for a gzipped one)
-            db_size = min(genome_a.size, genome_b.size)
+            # lastdb takes the smaller genome.  Its database is about 4.6 bytes per base (6.3 GB for a 1.4 Gb fish
+            # genome), and lastdb, and lastal in training, hold it all.  With 4 threads lastdb took 6 minutes on the
+            # fish genome and 34 on a mouse one (split into volumes), and training took 2 to 17 minutes.
+            db_letters = min(letters[event_a.iD], letters[event_b.iD])
             score_models[lastz_pair_key(event_a.iD, event_b.iD)] = root_job.addChildJobFn(
                 train_lastz_score_model, event_a.iD, genome_a, event_b.iD, genome_b, params,
                 cores=train_cores,
-                memory=cactus_clamp_memory(int(2e9 + 20 * db_size)),
-                disk=int(2e9 + 25 * db_size + 2 * max(genome_a.size, genome_b.size)),
-                walltime=cactus_walltime(1800 + 7200 * db_size / 1e9, io_bytes=genome_a.size + genome_b.size)).rv()
+                memory=cactus_clamp_memory(int(1e9 + 5.5 * db_letters)),
+                disk=int(2e9 + 5 * db_letters + genome_a.size + genome_b.size),
+                walltime=cactus_walltime(1800 + 1500 * db_letters / 1e9, io_bytes=genome_a.size + genome_b.size)).rv()
 
     if unmask_job is not None or score_models:
         new_root_job = Job(walltime=cactus_walltime())
