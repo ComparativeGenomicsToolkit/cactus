@@ -536,7 +536,7 @@ class TestCase(unittest.TestCase):
         out_dir = os.path.dirname(self._out_hal(binariesMode))
         out_name = os.path.splitext(os.path.basename(self._out_hal(binariesMode)))[0]
         cactus_pangenome_cmd = ['cactus-pangenome', self._job_store(binariesMode), seq_file_path, '--reference', 'simHuman', 'simChimp',
-                                '--outDir', out_dir, '--outName', out_name, '--odgi', '--chrom-og', '--viz', '--draw', '--haplo', '--lastTrain']
+                                '--outDir', out_dir, '--outName', out_name, '--odgi', '--chrom-og', '--viz', '--draw', '--haplo']
         if not extend and not resume:
             # collapse self-alignments are not derived from the GAF, so they cannot be reused
             cactus_pangenome_cmd += ['--collapse']
@@ -701,7 +701,14 @@ class TestCase(unittest.TestCase):
                                '--reference', 'simChimp', '--outDir', split_path] + cactus_opts)
 
         batch_mg_path = os.path.join(self.tempDir, 'chrom-minigraph')
-        train_opts = ['--lastTrain'] if train else []
+        train_opts = []
+        if not train:
+            # training is on by default, so the untrained variant switches it off in the config
+            no_train_config_path = os.path.join(self.tempDir, 'config.notrain.xml')
+            xml_root = ET.parse('src/cactus/cactus_progressive_config.xml').getroot()
+            xml_root.find('graphmap').attrib['lastTrain'] = '0'
+            ET.ElementTree(xml_root).write(no_train_config_path)
+            train_opts = ['--configFile', no_train_config_path]
         subprocess.check_call(['cactus-minigraph', self._job_store(binariesMode), chromfile_path, batch_mg_path,  
                                '--reference', 'simChimp', '--batch'] + cactus_opts + train_opts)
 
@@ -825,7 +832,7 @@ class TestCase(unittest.TestCase):
                                                             '--giraffe', 'clip', 'filter', '--lrGiraffe', '--chrom-vg', 'clip', 'filter',
                                                             '--viz', '--chrom-og', 'clip', 'full', '--odgi', '--haplo', 'clip',
                                                             '--xg', '--unchopped-gfa', '--indexCores', '4', '--consCores', '2',
-                                                            '--lastTrain', '--snarlStats']
+                                                            '--snarlStats']
         if mgSplit:
             cactus_pangenome_cmd += ['--mgSplit']
         if wholeGenomeRef:
@@ -906,6 +913,20 @@ class TestCase(unittest.TestCase):
 
         stats_dir = os.path.join(join_path, 'yeast.stats')
         self.assertTrue(os.path.isdir(stats_dir), 'no yeast.stats directory')
+
+        # clip-vg -I says on stderr how many one-sided inversions it found and severed; the join
+        # parses that line into inversion-stats.tsv.  The default config turns -I on, so every row
+        # must carry numbers: NA there means the line was not printed or not parsed
+        inversion_stats = os.path.join(stats_dir, 'inversion-stats.tsv')
+        self.assertTrue(os.path.isfile(inversion_stats), 'no inversion-stats.tsv in {}'.format(stats_dir))
+        with open(inversion_stats) as inversion_file:
+            rows = [line.rstrip('\n').split('\t') for line in inversion_file]
+        self.assertEqual(rows[0], ['#ref_chrom', 'severed', 'found', 'message'])
+        self.assertTrue(len(rows) > 1, 'inversion-stats.tsv has no chromosome rows')
+        for row in rows[1:]:
+            self.assertEqual(len(row), 4, row)
+            for col in row[1:3]:
+                self.assertTrue(col.isdigit(), 'clip-vg -I summary not recorded: {}'.format(row))
 
         if not expect_report:
             # standalone cactus-graphmap-join with no --inputContigSizes: no clipping report, but
@@ -1154,6 +1175,19 @@ class TestCase(unittest.TestCase):
                         'collapseInversions is on but no per-call report was written: {}'.format(report))
         # the collapse rewires edges, so a bad one shows up as a dangling or duplicate link
         self._validate_sv_gfa(collapsed)
+
+    def _check_chrom_collapse_output(self, join_path):
+        """ under --mgSplit the collapse runs on each all-sample chromosome graph, so every
+        chrom-minigraph/<chrom>.sv.gfa.gz needs its pre-collapse graph and per-call report beside
+        it.  With --mgSplitWholeGenomeRef the main export of that graph is deferred to the prune,
+        and the artifacts were deferred with it and then never written at all: a 460-haplotype run
+        finished with 25 collapsed chromosomes and not one report on disk.  The reference-only
+        first-pass graph is not collapsed and lives outside chrom-minigraph, so it is not checked. """
+        mg_dir = os.path.join(join_path, 'chrom-minigraph')
+        gfa_names = sorted(f for f in os.listdir(mg_dir) if f.endswith('.sv.gfa.gz'))
+        self.assertTrue(gfa_names, 'no per-chromosome minigraphs in {}'.format(mg_dir))
+        for gfa_name in gfa_names:
+            self._check_collapse_output(mg_dir, gfa_name=gfa_name)
 
     def _check_yeast_pangenome(self, binariesMode, other_ref=None, expect_odgi=False, expect_haplo=False, expect_unchopped_gfa=False, expect_gref=False, vcfL=None, expect_report=True):
         """ yeast pangenome chromosome by chromosome pipeline
@@ -2573,6 +2607,7 @@ class TestCase(unittest.TestCase):
 
         # check the output
         self._check_yeast_pangenome(name, other_ref='DBVPG6044', expect_odgi=True, expect_haplo=False, expect_unchopped_gfa=True)
+        self._check_chrom_collapse_output(os.path.join(self.tempDir, 'join'))
 
     def testYeastPangenomeSplitLocal(self):
         """ Run pangenome pipeline (including contig splitting!) on yeast dataset using cactus-pangenome.
@@ -2586,6 +2621,7 @@ class TestCase(unittest.TestCase):
         # check the output
         self._check_yeast_pangenome(name, other_ref='DBVPG6044', expect_odgi=True, expect_haplo=True, expect_unchopped_gfa=True, expect_gref=True, vcfL=0.95)
         self._check_pruned_chrom_minigraphs(os.path.join(self.tempDir, 'join'))
+        self._check_chrom_collapse_output(os.path.join(self.tempDir, 'join'))
 
         # Test bypass re-indexing with --vgClip and --vgFilter
         self._test_vg_bypass(name)

@@ -72,18 +72,24 @@ def parse_train_file(train_file_path):
     return score_dict
 
 def apply_long_gap(score_dict, open_factor, extend_factor):
-    """ make a long gap open that's open_factor more expensive to open, but extend_factor cheaper to extend """
+    """ make a long gap open that's open_factor more expensive to open, but extend_factor cheaper to extend
+
+    last-train's scores are small integers (its gap extension is typically 1), so the long-gap
+    extension can only be made extend_factor times cheaper after scaling the whole model up by
+    extend_factor.  The substitution scores and both gap costs are scaled together, which leaves the
+    trained model unchanged, and the long-gap extension is then exactly the trained one.  (The
+    matrix used to be scaled only when the trained extension was below extend_factor while the gaps
+    were always scaled, so a model with a larger extension reached the aligner with its gaps
+    extend_factor times too dear relative to its substitutions.) """
     assert open_factor > 1 and extend_factor >= 1
-    # multiply everything else so we can make a smaller big gap extend
-    if score_dict['GAP-EXTEND'] < extend_factor:
-        for i in ['A', 'C', 'G', 'T']:
-            for j in ['A', 'C', 'G', 'T']:
-                score_dict[i][j] *= extend_factor
+    for i in ['A', 'C', 'G', 'T']:
+        for j in ['A', 'C', 'G', 'T']:
+            score_dict[i][j] *= extend_factor
     score_dict['GAP-OPEN'] *= extend_factor
     score_dict['GAP-EXTEND'] *= extend_factor
 
     score_dict['GAP-OPEN-2'] = score_dict['GAP-OPEN'] * open_factor
-    score_dict['GAP-EXTEND-2'] = max(1, int(score_dict['GAP-EXTEND'] / extend_factor))            
+    score_dict['GAP-EXTEND-2'] = max(1, score_dict['GAP-EXTEND'] // extend_factor)
 
 def apply_scores_to_config(score_dict, config_xml):
     """ load the score dict into the config.  since last won't train long gaps,
@@ -157,6 +163,35 @@ def apply_scores_to_config(score_dict, config_xml):
         poa_node.attrib['partialOrderAlignmentGapExtensionPenalty2'],
         poa_node.attrib['partialOrderAlignmentSubMatrix']))
 
+def minigraph_wfa_penalties(score_dict):
+    """ convert a last-train model into minigraph's base-alignment penalties, as (x, o, e) for
+    its --wfa-pen option.
+
+    minigraph fills the gaps between its chain anchors with WFA, which scores a match as 0, so only
+    one match score M (the mean of the diagonal) and one mismatch score X (the mean of the rest)
+    survive: there is no room for the transition/transversion split.  The Smith-Waterman to WFA
+    transform is then x = 2(M + X), o = 2*open, e = 2*extend + M (doubled to stay integral).
+    last-train fits a single affine gap, and with gap extension already cheap next to M (1 against
+    ~6.5 on human), a cheaper long-gap piece would have no room either, so --wfa-pen gets just the
+    one piece.
+
+    WFA works through every score up to the alignment's, so its cost grows with the size of the
+    penalties: they are scaled so that e, much the smallest, is 1.  Human models come out at about
+    8,11,1 against minigraph's default of 4,4,2 (plus a 15,1 long-gap piece), which is to say that
+    mismatches and gap opens cost a bit more and gap extension an order of magnitude less.
+
+    score_dict is as parse_train_file() returns it, and is not modified """
+    bases = ['A', 'C', 'G', 'T']
+    match = sum(score_dict[a][a] for a in bases) / 4.
+    mismatch = -sum(score_dict[a][b] for a in bases for b in bases if a != b) / 12.
+    x = 2. * (match + mismatch)
+    o = 2. * score_dict['GAP-OPEN']
+    e = 2. * score_dict['GAP-EXTEND'] + match
+    if x <= 0 or o < 0 or e <= 0:
+        raise RuntimeError('Scoring model does not convert to minigraph penalties: match {} mismatch {} gap open {} extend {}'.format(
+            match, -mismatch, score_dict['GAP-OPEN'], score_dict['GAP-EXTEND']))
+    return max(1, round(x / e)), round(o / e), 1
+
 def last_train(job, config, seq_order, seq_id_map, ref_name=None):
     """ run last_train on a pair of fasta files, using the first as the database.
 
@@ -177,40 +212,75 @@ def last_train(job, config, seq_order, seq_id_map, ref_name=None):
         RealtimeLogger.warning('Input fasta for {} too small to train scoring model on.  Will fall back to defaults'.format(os.path.basename(name1)))
         return None
     
-    # determine sequence to compare to compare
-    # it's the furthest in the order that's both greater than 500k and 50% of the size of the first
-    rev_order = [seq for seq in reversed(seq_order)]
-    for seq in rev_order[1:]:
-        if seq != name1 and seq_id_map[seq].size > 500000 and (float(seq_id_map[seq].size) / float(seq_id_map[name1].size) > 0.5):
-            name2 = seq
-            break
+    name2 = pick_train_partner(name1, seq_order, seq_id_map)
 
     # short circuit if we can't find anything to train on
     if name2 is None:
        RealtimeLogger.warning('Unable to find sequence to train scoring model on for {}.  Will fall back to defaults'.format(os.path.basename(name1)))
        return None
-                
-    # sometimes the s
+
     fa1_id, fa2_id = seq_id_map[name1], seq_id_map[name2]
     work_dir = job.fileStore.getLocalTempDir()
     fa1_path = os.path.join(work_dir, name1 + '.fa')
     job.fileStore.readGlobalFile(fa1_id, fa1_path)
     fa2_path = os.path.join(work_dir, name2 + '.fa')
     job.fileStore.readGlobalFile(fa2_id, fa2_path)
-        
-    # make the database
-    cactus_call(parameters=['lastdb', name1 + '_db', fa1_path, '-P', str(job.cores)])
 
-    # do the training
     # note: there are some specific options for distant genomes that should be
     # incorporated if/when this ever gets used in progressive cactus
     train_cmd = ['last-train', '--revsym', '--matsym', '--gapsym',
                  '-P', str(job.cores), name1 + '_db', fa2_path]
-
     train_file = os.path.join(work_dir, '{}_{}.train'.format(name1, name2))
-    cactus_call(parameters=train_cmd, outfile=train_file)
 
+    # a model is an optimization, not a requirement: whatever goes wrong here (last-train failing
+    # to converge on too little alignment, or writing something parse_train_file won't accept),
+    # the alignment falls back to the default scores, or to another chromosome's model in batch mode
+    try:
+        cactus_call(parameters=['lastdb', name1 + '_db', fa1_path, '-P', str(job.cores)])
+        cactus_call(parameters=train_cmd, outfile=train_file)
+        parse_train_file(train_file)
+    except Exception as e:
+        RealtimeLogger.warning('Training scoring model for {} against {} failed, so it will fall back to defaults: {}'.format(
+            os.path.basename(name1), os.path.basename(name2), e))
+        return None
+
+    RealtimeLogger.info('Trained scoring model for {} against {}'.format(os.path.basename(name1), os.path.basename(name2)))
     return job.fileStore.writeGlobalFile(train_file)
+
+def pick_train_partner(name1, seq_order, seq_id_map, min_size=500000, min_ref_frac=0.5, size_band=2.0):
+    """ choose the genome to train name1's model against.
+
+    The candidates are the genomes big enough to hold a meaningful amount of alignment: over
+    min_size and over min_ref_frac of name1.  Of those, only the ones within size_band of their
+    median size are kept, so that a fragmented or oversized (contaminated, or whole-genome instead
+    of one chromosome) assembly doesn't set the model for everything.  The pick is then the middle
+    of these in seq_order, which is by mash distance to the reference when minigraph sorts it: the
+    furthest genome is by construction the outlier, and trained models barely depend on the partner
+    anyway (gap open 42-45, extend 1 across the HPRC partners tried), so a typical one is the
+    safest bet. """
+    ref_size = seq_id_map[name1].size
+    candidates = [seq for seq in seq_order if seq != name1 and seq in seq_id_map and
+                  seq_id_map[seq].size > min_size and float(seq_id_map[seq].size) / float(ref_size) > min_ref_frac]
+    if not candidates:
+        return None
+    sizes = sorted(seq_id_map[seq].size for seq in candidates)
+    median_size = sizes[len(sizes) // 2]
+    typical = [seq for seq in candidates if median_size / size_band <= seq_id_map[seq].size <= median_size * size_band]
+    if typical:
+        candidates = typical
+    return candidates[len(candidates) // 2]
+
+def last_train_enabled(options, config_node):
+    """ training is switched on and off by graphmap's lastTrain attribute.  --lastTrain is
+    deprecated and only turns it on; --scoresFile turns it off since its model would be ignored """
+    graphmap_node = findRequiredNode(config_node, "graphmap")
+    if getattr(options, 'lastTrain', False):
+        logger.warning('--lastTrain is deprecated: training is now on by default, and is toggled with the lastTrain '
+                       'attribute of <graphmap> in the config')
+        graphmap_node.attrib['lastTrain'] = '1'
+    if getattr(options, 'scoresFile', None):
+        return False
+    return getOptionalAttrib(graphmap_node, 'lastTrain', typeFn=bool, default=False)
     
 
     

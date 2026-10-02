@@ -347,7 +347,7 @@
 		<!-- partialOrderAlignmentGapOpenPenalty2 abpoa second gap open penalty (convex mode takes the minimum of both gap models, 0 disables convex) -->
 		<!-- partialOrderAlignmentGapExtensionPenalty abpoa second gap extension penalty (convex mode takes the minimum of both gap models) -->
 		<!-- partialOrderAlignmentTrainedGapOpen2Factor when learning scores last-train, set a gap-open-2 penalty that's this many times bigger than the learned gap penalty (last-train only learns one gap parameter but abpoa crashes unless it gets both) -->
-		<!-- partialOrderAlignmentTrainedGapExtension2Factor when learning scores last-train, set a gap-extend-2 penalty that's this many times smaller than the learned gap penalty (last-train only learns one gap parameter but abpoa crashes unless it gets both) -->
+		<!-- partialOrderAlignmentTrainedGapExtension2Factor when learning scores last-train, set a gap-extend-2 penalty that's this many times smaller than the learned gap penalty (last-train only learns one gap parameter but abpoa crashes unless it gets both).  30 matches the ratio of the untrained defaults above (30 and 1).  At 3, long indels cost three times more relative to a match than with the defaults (a 1 kb gap ~73 matches against ~23); measured with abPOA on 285 HPRC chr10 windows (137 STR sites, 148 other indels, 12 haplotypes each), 30 gives fewer gap runs and mismatches than 3 in 47 windows and more in 15, and both beat the untrained defaults in 273 of 285 -->
 		<!-- partialOrderAlignmentDisableSeeding abpoa disable minimizer seeding. toggling this on to disable seeding will slightly increase accuracy and robustness, at the cost of speed in the BAR phase on some inputs -->
 		<!-- partialOrderAlignmentMinimizerK abpoa kmer size for minimizer seeding. -->
 		<!-- partialOrderAlignmentMinimizerW abpoa window size for minimizer seeding. -->
@@ -377,7 +377,7 @@
 			partialOrderAlignmentGapOpenPenalty2="1200"
 			partialOrderAlignmentGapExtensionPenalty2="1"
 			partialOrderAlignmentTrainedGapOpen2Factor="3"
-			partialOrderAlignmentTrainedGapExtension2Factor="3"
+			partialOrderAlignmentTrainedGapExtension2Factor="30"
 			partialOrderAlignmentDisableSeeding="1"
 			partialOrderAlignmentMinimizerK="15"
 			partialOrderAlignmentMinimizerW="5"
@@ -537,11 +537,15 @@
 	<!-- maskFilter: any softmasked sequence intervals > than this many bp will be hardmasked before being read by the minigraph mapper [negative value = disable]-->
 	<!-- delFilter: any deletions implied by split-read mappings greater than this are removed from the paf (by removing all lines of the smallest block bordering deletion)-->
 	<!-- delFilterThreshold: only remove deletion if it costs < delFilterThreshold * deletion-size matches. must be in range (0, 1] -->
+	<!-- delFilterMaxRemove: a deletion that delFilterThreshold refuses to resolve is still resolved, removing up to this many matched bases, when fewer than delFilterMinSupport query contigs assert it once everything else is filtered.  The relative threshold scales its budget with the deletion, so the biggest false joins (one contig carrying a distant paralog, implying a 40Mb deletion) are the ones it never fixes; a few hundred kb of alignment undoes them.  Deletions many contigs make the same way (every haplotype spanning a reference gap) keep the relative threshold's protection.  -1 disables -->
+	<!-- delFilterMinSupport: with delFilterMaxRemove, the number of distinct query contigs whose surviving deletions reciprocally overlap a deletion by at least half for it to count as supported -->
 	<!-- delFilterQuerySizeThreshold: deletion removed if the supporting query contig has length < delFilterQuerySizeThreshold * deletion-size --> 
 	<!-- minIdentity: ignore PAF lines with identity (col 10 / col 11) is less than this -->
 	<!-- minScore: ignore PAF lines with score (AS:i) less than this (adding this to filter negative-scoring minimap2 lines) -->
 	<!-- removeMinigraphFromPAF: replace all minigraph contigs with transitive alignments in cactus-align-->
 	<!-- cpu: use up to this many cpus for each minigraph command. -->
+	<!-- lastTrain: train the abPOA scoring model with last-train, on the reference against a typical-sized genome from the middle of the mash order, instead of using the default (HOXD70) scores. With mgSplit, each chromosome gets its own model, and one that can't be trained borrows another chromosome's. Training failures only ever fall back, never fail the run. Ignored with scoresFile. [0: off, 1: on] -->
+	<!-- lastTrainMap: also derive minigraph's base-alignment penalties (its wfa-pen option) from the trained (or scoresFile) model when mapping. minigraph's aligner scores a match as 0 and has one mismatch penalty, so only the mean match and mismatch scores and the gap costs carry over. A human model gives mismatch 8, gap open 11, gap extend 1, against minigraph's 4, 4 and 2. Mapping HG01978 chr20 to a CHM13+HG01978.1 graph, this dropped 9-11% of the mismatches (for 10-20% more gap bases), and only 33-37% of the dropped ones were transitions, which is what random mismatches give, against 57-58% of the ones kept. Chaining is unaffected, so the mappings themselves are the same. Has no effect when minigraphMapOptions already sets wfa-pen. [0: off, 1: on] -->
 	<graphmap
 		 assemblyName="_MINIGRAPH_"
 		 minigraphMapOptions="-c -xasm --par-align"
@@ -566,12 +570,16 @@
 		 delFilter="10000000"
 		 delFilterThreshold="0.01"
 		 delFilterQuerySizeThreshold="2"
+		 delFilterMaxRemove="1000000"
+		 delFilterMinSupport="2"
 		 minIdentity="0.5"
 		 minScore="1"
 		 removeMinigraphFromPAF="0"
 		 collapseInversions="0"
 		 collapseOptions="-k 300 -b 5000 -i 0.95 -D -A 3 -x asm20 -M 1.05"
 		 cpu="6"
+		 lastTrain="1"
+		 lastTrainMap="1"
 		 />
 	<!-- cactus-graphmap-split options -->
 	<!-- minQueryCoverages: (space-separated) At least this fraction of input contig must align to reference contig for it to be assigned. -->
@@ -604,6 +612,7 @@
 	<!-- pathNormalize: toggle path normalization (merge equivalent paths through same site) on/off -->
 	<!-- clipNonMinigraph: clip out regions if the don't align to minigraph (if disabled, clip if they don't align to anything) -->
 	<!-- clipFlank: trim the fringe an aligner leaves where it extended anchors into a repeat, outward from each clipped interval by up to this many bp, for as long as unaligned sequence stays dense.  0 disables.  This value is the main control: inside a repeat the gate seldom closes on its own, so the cap decides how much goes.  Measured on a 124-haplotype chrY, 3.4% of edges at 20000, 9.4% at 50000, 29.4% at 200000.  50000 is the value benchmarked whole-genome (231/231 samples improved on F1); lowering it does not sharpen the trim, it just removes less -->
+	<!-- clipInversionMin: sever one-sided inversions when clipping.  A run of at least this many bp of reference nodes that a haplotype walks backwards is an inversion allele; when clipping has removed its junction with the forward reference at one end but not the other, the surviving junction is clipped too, so the inverted run becomes its own path fragment instead of an edge into the reverse strand with no way out (a 4.9Mb one-contig bubble on HPRC chr9).  Needs clip-vg >= 1.2.4.  0 disables -->
 	<!-- clipFlankThreshold: advanced.  keep trimming while more than this fraction of bases are unaligned, by the same test the clipping itself uses.  Negative calibrates per graph, which is almost always what you want: over 24 human chromosomes the calibrated value ran from 0.054 to 0.230, a 4.3x spread that tracks neither haplotype count nor chromosome size -->
 	<!-- minimizerOptions: options for vg minimizer -->
 	<!-- minFilterFragment: discard fragments that result from the vg clip frequency filter if they are smaller than this -->
@@ -628,6 +637,7 @@
 		 clipNonMinigraph="1"
 		 clipFlank="50000"
 		 clipFlankThreshold="-1"
+		 clipInversionMin="100000"
 		 minimizerOptions="-k 29 -w 11"
 		 lrMinimizerOptions="-k 31 -w 50 -W"
 		 minFilterFragment="1000"

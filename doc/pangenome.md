@@ -142,11 +142,15 @@ It is therefore extremely important that the reference sample's assembly be **ch
 
 ### Multiple Alignment Scoring Parameters
 
-The `--lastTrain` option, added as an experimental prototype in [v2.9.3](https://github.com/ComparativeGenomicsToolkit/cactus/releases/tag/v2.9.3), can be used to train substitution, match and gap scores from the input data using `last-train`.  The model is inferred from an alignment between the (first) referene sample and the most diverged input genome from it in the minigraph construct phase, and these scores are then used in the cactus alignment phase to compute the base-level multiple alignment.
+By default, the substitution, match and gap scores are trained from the input data using `last-train`.  The model is inferred in the minigraph construct phase from an alignment between the (first) reference sample and a typical input genome: the middle of the minigraph (mash distance) order, among the genomes whose size is within 2x of the median.  These scores are then used in the cactus alignment phase to compute the base-level multiple alignment.  With `--mgSplit`, each chromosome is trained separately, and a chromosome that can't be (too small, or `last-train` fails on it) borrows the model of a typical-sized chromosome that was.  Training never fails the run: without any model, the default scores are used.
+
+The same model also sets minigraph's base-alignment penalties in the graphmap phase (its `--wfa-pen` option).  minigraph's aligner scores a match as 0 and has a single mismatch penalty, so only the average match and mismatch scores and the gap costs carry over, not the rest of the matrix.  This is toggled separately with the `lastTrainMap` attribute of `<graphmap>`, and has no effect if `minigraphMapOptions` already sets `--wfa-pen`.  `cactus-graphmap` takes the model with `--scoresFile`, or, with `--batch`, from the chromfile `cactus-minigraph --batch` writes.
+
+Training is toggled with the `lastTrain` attribute of `<graphmap>` in the config (`lastTrain="0"` turns it off).  The `--lastTrain` option, which turned it on when it was an experimental prototype (added in [v2.9.3](https://github.com/ComparativeGenomicsToolkit/cactus/releases/tag/v2.9.3)), is deprecated and does nothing more than print a warning.
 
 The default scoring parameters, found in the config XML file, are derived from the HOXD70 matrix used in `lastz` and are most appropriate for very diverged genomes. But for pangenomes these scores can lead to, for example, long runs of transitions that really should be gaps. In this case, using the data-derived scores should be beneficial.
 
-You can also use the `--scoresFile` to input any `.train` file from `last-train` and use the scores contained in it to override cactus's defaults.  Be careful: only fully symmetric scoring matrices are accepted.
+You can also use the `--scoresFile` to input any `.train` file from `last-train` and use the scores contained in it to override cactus's defaults (training is then skipped).  Be careful: only fully symmetric scoring matrices are accepted.
 
 ### Self-Alignment and the Collapse Option
 

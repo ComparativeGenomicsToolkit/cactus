@@ -95,9 +95,9 @@ def main():
     parser.add_argument("--collapse", help = "Incorporate minimap2 self-alignments.", action='store_true', default=False)
     parser.add_argument("--minIdentity", type=float, help = "Ignore PAF lines with identity (column 10/11) < this (overrides minIdentity in <graphmap> in config)")
     parser.add_argument("--scoresFile", type=str,
-                        help = "File containing scoring parameters (output of last-train / cactus-minigraphr --lastTrain)")
+                        help = "File containing scoring parameters (output of last-train, as made by cactus-minigraph by default)")
     parser.add_argument("--scoresFromChromfile", action="store_true", default=False,
-                        help = "Load scoring parameters from the 4th column of chromfile (as made from cactus-minigraph --batch --lastTrain")
+                        help = "Load scoring parameters from the 4th column of chromfile (as made by cactus-minigraph --batch)")
     
     parser.add_argument("--singleCopySpecies", type=str,
                         help="Filter out all self-alignments in given species")
