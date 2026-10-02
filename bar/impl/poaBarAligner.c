@@ -661,15 +661,14 @@ static void run_abpoa_window(Msa *msa, uint8_t **bseqs, PoaParameters *poa_param
  * last_scoring.py's learned matrix reaches both (it writes into <poa>, which local_alignment.py
  * also reads to score FastGA PAFs).
  *
- * The gaps have to be separate.  abPOA's gap model is convex -- min(open1 + L*ext1, open2 +
- * L*ext2) -- so with the shipped 400/30 and 1200/1 its effective extension beyond L~28 is 1.
- * minipoa has a single affine piece, so handing it abPOA's first-piece extension of 30 prices
- * long gaps about 30x above what abPOA charges, and it responds by packing bases into shared
- * columns instead of opening a gap.  That cost about six points of mafComparator accuracy on
- * evolver mammals.
+ * The gaps are separate so each engine can be priced for itself.  Both can be convex --
+ * min(open1 + L*ext1, open2 + L*ext2) -- and <minipoa> ships abPOA's 400/30 and 1200/1.  With
+ * the second piece off, minipoa has a single affine piece, and abPOA's first piece alone prices
+ * long gaps about 30x above what abPOA charges: it packs bases into shared columns instead of
+ * opening a gap, which cost about six points of mafComparator accuracy on evolver mammals.
  *
- * last-train reaches minipoa too: it fits a single affine model, which is minipoa's model
- * exactly, so last_scoring.py writes the learned open/extend straight into <minipoa>.  The
+ * last-train reaches minipoa too: it fits a single affine model, so last_scoring.py writes the
+ * learned open/extend into <minipoa>'s first piece and turns the second off.  The
  * GapOpen2/GapExtend2 pair it synthesises for abPOA is a stability workaround for that aligner
  * and is deliberately not passed on.
  */
@@ -704,14 +703,16 @@ static minipoa_para_t *minipoaParameters_constructFromCactusParams(CactusParams 
     }
     free(submat_string);
 
-    /*
-     * Only the first gap piece.  abPOA takes min(open1 + L*ext1, open2 + L*ext2) and minipoa has
-     * no second piece at all, so gaps longer than where the two cross (~28bp with the shipped
-     * 400/30 and 1200/1) are penalised more heavily here than abPOA would.
-     */
     out->gapOpen = cactusParams_get_int(params, 3, "bar", "minipoa", "minipoaGapOpenPenalty");
     out->gapExt = cactusParams_get_int(params, 3, "bar", "minipoa", "minipoaGapExtensionPenalty");
     minipoa_set_gap(mpt, out->gapOpen, out->gapExt);
+    // The optional second piece, which makes the gap model convex, as abPOA's is.  Absent or 0 is
+    // the single piece above.
+    out->gapOpen2 = cactusParams_has(params, 3, "bar", "minipoa", "minipoaGapOpenPenalty2") ?
+        cactusParams_get_int(params, 3, "bar", "minipoa", "minipoaGapOpenPenalty2") : 0;
+    out->gapExt2 = cactusParams_has(params, 3, "bar", "minipoa", "minipoaGapExtensionPenalty2") ?
+        cactusParams_get_int(params, 3, "bar", "minipoa", "minipoaGapExtensionPenalty2") : 0;
+    minipoa_set_gap2(mpt, out->gapOpen2, out->gapExt2);
 
     out->bandConstant = cactusParams_get_int(params, 3, "bar", "minipoa", "minipoaBandConstant");
     out->bandFraction = cactusParams_get_float(params, 3, "bar", "minipoa", "minipoaBandFraction");
@@ -726,10 +727,9 @@ static minipoa_para_t *minipoaParameters_constructFromCactusParams(CactusParams 
     minipoa_set_seeding(mpt, out->seeding, out->minimizerK, out->minimizerW, out->anchorWindow);
 
     /*
-     * Progressive ordering, on by default, because abPOA runs with it on
-     * (<poa partialOrderAlignmentProgressiveMode>) and the order sequences are added to a POA
-     * graph changes the alignment -- markedly so on diverged input.  Leaving it off here was worth
-     * about six points of mafComparator accuracy on the evolver mammals set.
+     * Progressive ordering, as abPOA does it (<poa partialOrderAlignmentProgressiveMode>): the
+     * order sequences are added to a POA graph changes the alignment, markedly so on diverged
+     * input, and adding the closest pair first is what a guide tree buys.
      */
     out->progressive = cactusParams_get_int(params, 3, "bar", "minipoa", "minipoaProgressiveMode");
     out->progressiveMaxRows = cactusParams_get_int(params, 3, "bar", "minipoa", "minipoaProgressiveMaxRows");
@@ -762,6 +762,11 @@ static char *dump_minipoa_input(Msa *msa, PoaParameters *pp, uint8_t **bseqs, ch
     char *command = st_malloc(4096 * sizeof(char));
     sprintf(command, "minipoa %s -m %s -O -%d -E -%d -b %d -f %d -r 1 -t 1",
             input_path, matrix_path, pp->gapOpen, pp->gapExt, pp->bandConstant, f);
+    if (pp->gapOpen2 != 0 || pp->gapExt2 != 0) {
+        char gap2_opts[128];
+        sprintf(gap2_opts, " --gap_open2 -%d --gap_ext2 -%d", pp->gapOpen2, pp->gapExt2);
+        strcat(command, gap2_opts);
+    }
     if (pp->seeding) {
         char kw_opts[128];
         sprintf(kw_opts, " -S -k %d -w %d", pp->minimizerK, pp->minimizerW);

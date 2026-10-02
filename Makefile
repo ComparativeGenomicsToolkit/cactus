@@ -221,6 +221,14 @@ evolver_test_minipoa_local: all ${CWD}/test/primates-truth.maf
 evolver_test_minipoa_mammals_local: all ${CWD}/test/mammals-truth.maf
 	PYTHONPATH="${CWD}/submodules/" CACTUS_BINARIES_MODE=local CACTUS_DOCKER_MODE=0 ${PYTHON} -m pytest ${pytestOpts} -s test/evolverTest.py::TestCase::testEvolverMinipoaMammalsLocal
 
+# pecan, same dataset and tolerance as evolver_test_poa_local, so the two are comparable
+evolver_test_pecan_local: all ${CWD}/test/primates-truth.maf
+	PYTHONPATH="${CWD}/submodules/" CACTUS_BINARIES_MODE=local CACTUS_DOCKER_MODE=0 ${PYTHON} -m pytest ${pytestOpts} -s test/evolverTest.py::TestCase::testEvolverPecanLocal
+
+# the mammals head-to-head against evolver_test_local, which runs the same data through abpoa
+evolver_test_pecan_mammals_local: all ${CWD}/test/mammals-truth.maf
+	PYTHONPATH="${CWD}/submodules/" CACTUS_BINARIES_MODE=local CACTUS_DOCKER_MODE=0 ${PYTHON} -m pytest ${pytestOpts} -s test/evolverTest.py::TestCase::testEvolverPecanMammalsLocal
+
 evolver_test_refmap_local: all ${CWD}/test/primates-truth.maf
 	PYTHONPATH="${CWD}/submodules/" CACTUS_BINARIES_MODE=local CACTUS_DOCKER_MODE=0 ${PYTHON} -m pytest ${pytestOpts} -s test/evolverTest.py::TestCase::testEvolverRefmapLocal
 
@@ -258,7 +266,7 @@ evolver_test_primates_pangenome_resume_local: all ${CWD}/test/primates-truth.maf
 evolver_test_primates_pangenome_extend_local: all ${CWD}/test/primates-truth.maf
 	PYTHONPATH="${CWD}/submodules/" CACTUS_BINARIES_MODE=local CACTUS_DOCKER_MODE=0 ${PYTHON} -m pytest ${pytestOpts} -s test/evolverTest.py::TestCase::testEvolverPrimatesPangenomeExtendLocal
 
-evolver_test_all_local: evolver_test_local evolver_test_prepare_toil evolver_test_decomposed_local evolver_test_prepare_no_outgroup_local evolver_test_poa_local evolver_test_minipoa_local evolver_test_minipoa_mammals_local evolver_test_refmap_local evolver_test_minigraph_local
+evolver_test_all_local: evolver_test_local evolver_test_prepare_toil evolver_test_decomposed_local evolver_test_prepare_no_outgroup_local evolver_test_poa_local evolver_test_minipoa_local evolver_test_minipoa_mammals_local evolver_test_pecan_local evolver_test_pecan_mammals_local evolver_test_refmap_local evolver_test_minigraph_local
 
 yeast_test_local:
 	PYTHONPATH="${CWD}/submodules/" CACTUS_BINARIES_MODE=local CACTUS_DOCKER_MODE=0 ${PYTHON} -m pytest ${pytestOpts} -s test/evolverTest.py::TestCase::testYeastPangenomeLocal
