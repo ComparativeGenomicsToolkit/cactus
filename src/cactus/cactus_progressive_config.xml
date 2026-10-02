@@ -89,6 +89,13 @@
 	     an outgroup rather than an ingroup, so that its coverage to its descendants is not starved during chaining. Set
 	     to 0 to restore the old behaviour of treating the pinned root as an ingroup -->
 	<!-- leftAlign: move each indel in the lastz alignments along its repeat without changing the alignment's score (paffy left_align). "none", or "canonical" (default): at whichever end makes the repeat read smaller than its reverse complement, which gives every pairwise alignment through a repeat the same placement whatever the pair or strand, so they agree when pinched together. "left" (left on the target) only makes alignments agree when no sequence is aligned on its reverse strand, and makes things worse otherwise; it is here for comparison. lastz only -->
+	<!-- lastzTrain Train lastz's scores on each pair of genomes it aligns with last-train (needs LAST), on the whole
+	     genomes, and align the pair with them, rescaled to HOXD70's units (see lastzScoreModel below).  A pair that
+	     cannot be trained (the smaller genome under 500kb, or last-train failing) falls back to the lastzScoreModel
+	     table, else HOXD70.  Not supported with KegAlign -->
+	<!-- lastzTrainGaps With lastzTrain, use the trained gap penalties; 0 keeps HOXD70's (400 and 30) with the trained
+	     substitution scores -->
+	<!-- lastzTrainCores Cores for each pair's training -->
 	<blast chunkSize="90000000"
 	       bigChunkSize="6000000000"
 		   overlapSize="10000"
@@ -124,6 +131,9 @@
 		   pickIngroupPrimaryAlignmentsSeparatelyToOutgroups="1"
 		   includeRootAsOutgroup="1"
 		   bigGenomeChunkScale="2"
+		   lastzTrain="0"
+		   lastzTrainGaps="1"
+		   lastzTrainCores="4"
 		   >
 
 		<!-- The following are parametrised to produce the same results as the default settings,
@@ -149,8 +159,9 @@
 		     <lastzScoreModel maxDistance="D" matrix="M" gapOpen="O" gapExtend="E"/>, where M is 16 scores, rows and
 		     columns A, C, G, T, and a gap of length k costs O + k*E, as with lastz's gap penalties.  A pair is
 		     aligned with the model of smallest maxDistance its distance (the one that picks its lastzArguments above)
-		     is within, and with HOXD70 when past them all.  Keep a model on HOXD70's scale (its lambda): the
-		     thresholds above, and the chaining's, are in HOXD70's units.  Not supported with KegAlign. -->
+		     is within, and with HOXD70 when past them all; with lastzTrain, a pair's trained model comes first and
+		     this table is its fallback.  Keep a model on HOXD70's scale (its lambda): the thresholds above, and the
+		     chaining's, are in HOXD70's units.  Not supported with KegAlign. -->
 		<!-- Estimated runtime, in seconds, of one lastz job in each divergence class, for a
 		     pair of full-sized (chunkSize, 90 Mbp) chunks.  These are the p99 of 827k lastz runs from
 		     the VGP 577-way alignment (90 Mbp chunks, queryhspbest 100000, so they predate 300000), halved for the 2x lastz speedup since; Cactus scales

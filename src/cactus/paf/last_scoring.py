@@ -14,6 +14,7 @@ from toil.lib.bioio import getLogLevelString
 from sonLib.bioio import newickTreeParser
 from toil.realtimeLogger import RealtimeLogger
 import os
+import re
 import math
 from cactus.shared.common import cactus_call, getOptionalAttrib
 from cactus.shared.common import cactus_clamp_memory
@@ -191,6 +192,67 @@ def minigraph_wfa_penalties(score_dict):
         raise RuntimeError('Scoring model does not convert to minigraph penalties: match {} mismatch {} gap open {} extend {}'.format(
             match, -mismatch, score_dict['GAP-OPEN'], score_dict['GAP-EXTEND']))
     return max(1, round(x / e)), round(o / e), 1
+
+# lastz's default scores, HOXD70, and the base frequencies its scale is measured with.  A model trained for
+# lastz is put on the same scale (lambda): lastz's thresholds, and the chaining's, are in HOXD70's units.
+HOXD70 = [[91, -114, -31, -123], [-114, 100, -125, -31], [-31, -125, 100, -114], [-123, -31, -114, 91]]
+HOXD70_FREQS = [0.26585, 0.23415, 0.23415, 0.26585]
+
+def implied_lambda(matrix, freqs):
+    """ the lambda with sum_ij f_i f_j exp(lambda s_ij) = 1: the scale of a score matrix, in nats per unit """
+    def excess(lam):
+        return sum(freqs[i] * freqs[j] * math.exp(lam * matrix[i][j]) for i in range(4) for j in range(4)) - 1
+    # last-train's matrices are at ~80 units per nat, its integer ones at ~4: lambda ~0.01 to ~0.25
+    lo, hi = 1e-6, 1.0
+    if not (excess(lo) < 0 < excess(hi)):
+        raise RuntimeError('score matrix {} has no positive lambda'.format(matrix))
+    for _ in range(200):
+        mid = (lo + hi) / 2
+        if excess(mid) < 0:
+            lo = mid
+        else:
+            hi = mid
+    return (lo + hi) / 2
+
+def parse_train_model(train_file_path):
+    """ last-train's final model at the scale it trains at (parse_train_file reads the integer one it ends
+    with, whose scores are too coarse to rescale): matrix rows and columns A, C, G, T, the gap existence and
+    extension costs, the query's base frequencies and the substitution identity.  The training scale differs
+    from one run to the next (last-train raises it 10% at a time when rounding gets too coarse), so the
+    numbers are only comparable between runs once rescaled. """
+    with open(train_file_path) as train_file:
+        txt = train_file.read()
+    header = '# score matrix (query letters = columns, reference letters = rows):'
+    blocks = txt.split(header)
+    if len(blocks) < 3 or '#last -t' not in txt:
+        raise RuntimeError('{} is not a finished last-train run'.format(train_file_path))
+    rows = {}
+    for line in blocks[-2].splitlines()[2:6]:
+        toks = line.split()
+        rows[toks[1]] = [int(x) for x in toks[2:6]]
+    def last_value(key):
+        values = re.findall(r'# {}: ([-\d.eE+]+)'.format(key), txt)
+        if not values:
+            raise RuntimeError('no {} in {}'.format(key, train_file_path))
+        return values[-1]
+    return {'matrix': [rows[b] for b in 'ACGT'],
+            'open': int(last_value('delExistCost')), 'extend': int(last_value('delExtendCost')),
+            'freqs': [float(x) / 100 for x in re.findall(r'# qry letter %: (.*)', txt)[-1].split()],
+            'identity': float(last_value('substitution percent identity'))}
+
+def lastz_scores_from_train(train_file_path, trained_gaps=True):
+    """ the model last-train fitted, as lastz scores on HOXD70's scale: a dict of a <blast><lastzScoreModel>'s
+    matrix, gapOpen and gapExtend (see local_alignment.write_lastz_scores), plus the trained identity.  Without
+    trained_gaps the gap penalties are HOXD70's, 400 and 30, as lastz has them by default. """
+    model = parse_train_model(train_file_path)
+    scale = implied_lambda(model['matrix'], model['freqs']) / implied_lambda(HOXD70, HOXD70_FREQS)
+    matrix = [int(round(s * scale)) for row in model['matrix'] for s in row]
+    if any(matrix[5 * i] <= 0 for i in range(4)):
+        raise RuntimeError('trained matrix {} has a non-positive match score'.format(matrix))
+    return {'matrix': ' '.join(str(s) for s in matrix),
+            'gapOpen': str(int(round(model['open'] * scale))) if trained_gaps else '400',
+            'gapExtend': str(max(1, int(round(model['extend'] * scale)))) if trained_gaps else '30',
+            'identity': model['identity']}
 
 def last_train(job, config, seq_order, seq_id_map, ref_name=None):
     """ run last_train on a pair of fasta files, using the first as the database.
