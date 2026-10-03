@@ -627,11 +627,17 @@ TRANSLATE_GAF_SECS_PER_GB = 400
 # check_reusable_gaf loads the graph and resolves a sample of records against it.
 GAF_CHECK_SECS = 600
 
-def minigraph_map_all(job, options, config, gfa_id, fa_id_map, graph_event, in_gaf_map=None, scores_id=None):
+def minigraph_map_all(job, options, config, gfa_id, fa_id_map, graph_event, in_gaf_map=None, scores_id=None,
+                      gaf_only=False):
     """ top-level job to run the minigraph mapping in parallel, returns paf.
 
     a genome that in_gaf_map already has mappings for has its PAF re-derived from them rather
-    than being mapped again -- see translate_gaf_one() """
+    than being mapped again -- see translate_gaf_one()
+
+    gaf_only maps every genome exactly the same way but stops at the GAF, returning (None, merged
+    PanSN GAF).  It is how zipAlleles with zipWalks="gaf" gets the walks graphmap would see on the
+    graph before it is zipped (cactus_minigraph.zip_alleles_workflow) """
+    assert not (gaf_only and in_gaf_map)
     # hang everything on this job, to self-contain workflow
     top_job = Job(walltime=cactus_walltime())
     job.addChild(top_job)
@@ -673,6 +679,7 @@ def minigraph_map_all(job, options, config, gfa_id, fa_id_map, graph_event, in_g
                                                                      io_bytes=2*gaf_shard_id.size + gfa_id.size))
         else:
             map_job = top_job.addChildJobFn(minigraph_map_one, config, event_name, fa_id, gfa_id, scores_id=scores_id,
+                                            gaf_only=gaf_only,
                                             cores=mg_cores, disk=5*fa_id.size + gfa_id.size,
                                             memory=cactus_clamp_memory(mem),
                                             walltime=cactus_walltime(MINIGRAPH_MAP_SECS + MINIGRAPH_MAP_SECS_PER_GB * fa_id.size / 1e9,
@@ -686,13 +693,15 @@ def minigraph_map_all(job, options, config, gfa_id, fa_id_map, graph_event, in_g
     # sets the real disk and walltime from them, so these two are just the coordination job
     merge_name = getattr(options, 'mg_chrom_name', None) if options.batch else None
     merge_name = merge_name if merge_name else 'merged'
-    paf_merge_job = top_job.addFollowOnJobFn(merge_pafs_sized, paf_id_map,
-                                             merged_name='{}.paf'.format(merge_name), walltime=cactus_walltime())
+    paf_merge_job = None
+    if not gaf_only:
+        paf_merge_job = top_job.addFollowOnJobFn(merge_pafs_sized, paf_id_map,
+                                                 merged_name='{}.paf'.format(merge_name), walltime=cactus_walltime())
     gaf_merge_job = top_job.addFollowOnJobFn(merge_pafs_sized, gaf_id_map, gzip=True,
                                              merged_name='{}.gaf'.format(merge_name),
                                              gzip_cores=mg_cores, walltime=cactus_walltime())
 
-    return paf_merge_job.rv(), gaf_merge_job.rv()
+    return paf_merge_job.rv() if paf_merge_job else None, gaf_merge_job.rv()
 
 # id=EVENT|CONTIG, as it appears in a stable GAF's query column and in each of its path segments
 # anchored to a field start (line start or tab) or a path-segment orientation mark, because
@@ -830,9 +839,10 @@ def gaf_to_pansn(gaf_path, out_path):
         for line in in_file:
             out_file.write(gaf_pansn_re.sub(lambda m: m.group(1) + event_to_pansn_prefix(m.group(2)) + '#', line))
 
-def minigraph_map_one(job, config, event_name, fa_file_id, gfa_file_id, scores_id=None):
+def minigraph_map_one(job, config, event_name, fa_file_id, gfa_file_id, scores_id=None, gaf_only=False):
     """ Run minigraph to map a Fasta file to a GFA graph, producing a GAF output.  scores_id is a
-    last-train model to derive minigraph's base-alignment penalties from """
+    last-train model to derive minigraph's base-alignment penalties from.  gaf_only returns
+    (PanSN GAF, None): the same GAF as the mapping publishes, without deriving a PAF from it """
 
     work_dir = job.fileStore.getLocalTempDir()
     gfa_path = os.path.join(work_dir, "mg.gfa")
@@ -871,6 +881,12 @@ def minigraph_map_one(job, config, event_name, fa_file_id, gfa_file_id, scores_i
     cmd += [["minigraph", gfa_path, fa_path, "-o", gaf_path] + opts_list]
 
     cactus_call(parameters=cmd, job_memory=job.memory)
+
+    if gaf_only:
+        # what stable_gaf_to_paf() below publishes: minigraph's own GAF, renamed to PanSN
+        pansn_gaf_path = gaf_path + '.pansn'
+        gaf_to_pansn(gaf_path, pansn_gaf_path)
+        return job.fileStore.writeGlobalFile(pansn_gaf_path), None
 
     return stable_gaf_to_paf(job, config, gaf_path, gfa_path)
 

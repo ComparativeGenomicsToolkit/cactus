@@ -4,7 +4,8 @@
 build a minigraph in Toil, using a cactus seqfile as input
 """
 
-import os, sys
+import os, sys, re
+import signal
 from argparse import ArgumentParser
 import xml.etree.ElementTree as ET
 import copy
@@ -26,7 +27,7 @@ from cactus.shared.common import enableDumpStack
 from cactus.shared.common import cactus_override_toil_options, add_cactus_toil_options
 from cactus.shared.common import cactus_call
 from cactus.shared.common import getOptionalAttrib, findRequiredNode
-from cactus.shared.common import clean_jobstore_files
+from cactus.shared.common import clean_jobstore_files, unzip_gz
 from cactus.shared.version import cactus_commit
 from cactus.progressive.cactus_prepare import human2bytesN
 from cactus.preprocessor.checkUniqueHeaders import sanitize_fasta_headers
@@ -117,6 +118,8 @@ def main():
             config_node = ET.parse(options.configFile).getroot()
             config_wrapper = ConfigWrapper(config_node)
             config_wrapper.substituteAllPredefinedConstantsWithLiterals(options)
+            # a zip or collapse setting that cannot run should fail here, not after construction
+            check_graph_rewrite_config(config_node)
             # from here on options.lastTrain is the config's say, not the deprecated flag's.  a
             # --refOnly graph is only used for splitting, so no alignment will read its model
             options.lastTrain = last_train_enabled(options, config_node) and not options.refOnly
@@ -126,6 +129,10 @@ def main():
                 if not options.mgCores:
                     options.mgCores = sys.maxsize
                 options.mgCores = min(options.mgCores, cactus_cpu_count(), int(options.maxCores) if options.maxCores else sys.maxsize)
+                # zipWalks="gaf" maps with graphmap's per-job cores, so they get the clamp cactus-graphmap gives them
+                graphmap_node = findRequiredNode(config_node, "graphmap")
+                graphmap_node.attrib["cpu"] = str(min(getOptionalAttrib(graphmap_node, "cpu", typeFn=int, default=1),
+                                                      options.mgCores))
             else:
                 if not options.mgCores:
                     raise RuntimeError("--mgCores required run *not* running on single machine batch system")
@@ -146,7 +153,7 @@ def main():
             # maps name -> input_seq_id_map, input_seq_order
             input_dict = minigraph_construct_import_sequences(options, config_wrapper, input_seqfiles, toil)
                 
-            # output_dict:  chrom-> (gfa_id, pansn_gfa_id, uncollapsed_pansn_gfa_id, collapse_report_id, train_id)
+            # output_dict:  chrom-> (gfa_id, pansn_gfa_id, input_pansn_gfa_id, rewrite_artifacts, train_id)
             output_dict = toil.start(Job.wrapJobFn(minigraph_construct_batch_workflow, options, config_node, input_dict, options.outputGFA,
                                                    in_gfa_id=in_gfa_id, walltime=cactus_walltime()))
 
@@ -219,22 +226,47 @@ def minigraph_construct_import_sequences(options, config_wrapper, input_seqfiles
         
     return input_dict
 
-def collapse_artifact_paths(gfa_path):
-    """ the two side artifacts a collapse run leaves beside <x>.sv.gfa.gz:
-    <x>.sv.uncollapsed.gfa.gz (the graph as minigraph built it) and <x>.sv.collapse.tsv """
-    uncollapsed_path = gfa_path.replace('.gfa', '.uncollapsed.gfa') if '.gfa' in gfa_path \
-                       else gfa_path + '.uncollapsed'
-    report_path = gfa_path.replace('.gfa.gz', '').replace('.gfa', '') + '.collapse.tsv'
-    return uncollapsed_path, report_path
+def rewrite_artifact_paths(gfa_path, kind):
+    """ the side artifacts a post-construction rewrite of <x>.sv.gfa.gz leaves beside it.
 
-def export_collapse_artifacts(exporter, gfa_path, uncollapsed_pansn_gfa_id, collapse_report_id):
-    """ write the pre-collapse graph and the per-call report beside the collapsed graph.  `exporter`
-    is anything with exportFile: a Toil object at the top level, or job.fileStore inside a job """
-    uncollapsed_path, report_path = collapse_artifact_paths(gfa_path)
-    if uncollapsed_pansn_gfa_id:
-        exporter.exportFile(uncollapsed_pansn_gfa_id, makeURL(uncollapsed_path))
-    if collapse_report_id:
-        exporter.exportFile(collapse_report_id, makeURL(report_path))
+    kind 'zip' (rgfa-zip, <graphmap zipAlleles>):
+        input_gfa  <x>.sv.unzipped.gfa.gz   the graph as minigraph built it
+        report     <x>.sv.zip.tsv           rgfa-zip's report, one row per candidate and skipped site
+        walks_gaf  <x>.sv.unzipped.gaf.gz   zipWalks="gaf" only: every genome mapped to the unzipped
+                                            graph, which is where rgfa-zip read its walks
+    kind 'collapse' (the deprecated rgfa-collapse, <graphmap collapseInversions>):
+        input_gfa  <x>.sv.uncollapsed.gfa.gz
+        report     <x>.sv.collapse.tsv
+
+    only the file name is rewritten, so a '.gfa' in a directory name is left alone """
+    out_dir, name = gfa_path[:gfa_path.rfind('/') + 1], gfa_path[gfa_path.rfind('/') + 1:]
+    stem, ext = name, ''
+    for suffix in ('.gfa.gz', '.gfa'):
+        if name.endswith(suffix):
+            stem, ext = name[:-len(suffix)], suffix
+            break
+    if kind == 'zip':
+        return {'input_gfa': out_dir + stem + '.unzipped' + ext,
+                'report': out_dir + stem + '.zip.tsv',
+                'walks_gaf': out_dir + stem + '.unzipped.gaf.gz'}
+    assert kind == 'collapse'
+    return {'input_gfa': out_dir + stem + '.uncollapsed' + ext,
+            'report': out_dir + stem + '.collapse.tsv'}
+
+def export_rewrite_artifacts(exporter, gfa_path, input_pansn_gfa_id, rewrite_artifacts):
+    """ write what a zip or collapse leaves beside the graph it rewrote: the graph as minigraph built
+    it, the report, and with zipWalks="gaf" the mappings the zip read its walks from.
+    rewrite_artifacts is the fourth slot minigraph_construct_run returns: None when nothing was
+    rewritten, else a dict naming the kind and the files.  `exporter` is anything with exportFile: a
+    Toil object at the top level, or job.fileStore inside a job """
+    if not rewrite_artifacts:
+        return
+    paths = rewrite_artifact_paths(gfa_path, rewrite_artifacts['kind'])
+    if input_pansn_gfa_id:
+        exporter.exportFile(input_pansn_gfa_id, makeURL(paths['input_gfa']))
+    for key in ('report', 'walks_gaf'):
+        if rewrite_artifacts.get(key):
+            exporter.exportFile(rewrite_artifacts[key], makeURL(paths[key]))
 
 def export_minigraph_construct_output(options, input_seqfiles, output_dict, toil):
     if options.batch:
@@ -245,7 +277,7 @@ def export_minigraph_construct_output(options, input_seqfiles, output_dict, toil
             chrom_file_temp_path = chrom_file_path                    
         chromfile = open(chrom_file_temp_path, 'w')
     for chrom, output_ids in output_dict.items():
-        gfa_id, pansn_gfa_id, uncollapsed_pansn_gfa_id, collapse_report_id, train_id = output_ids
+        gfa_id, pansn_gfa_id, input_pansn_gfa_id, rewrite_artifacts, train_id = output_ids
         if options.batch:
             gfa_path = os.path.join(options.outputGFA, chrom + '.sv.gfa.gz')
         else:
@@ -260,15 +292,16 @@ def export_minigraph_construct_output(options, input_seqfiles, output_dict, toil
         # (export_pruned_minigraph_gfa_wrapper in cactus_pangenome.py).  the chromfile below is
         # still written now -- downstream only ever reads its .train column
         if not getattr(options, 'mgSplitWholeGenomeRef', False):
-            # pansn_gfa_id is already the collapsed graph when collapseInversions is on, so the
-            # main export is unconditional
+            # pansn_gfa_id is already the zipped (or collapsed) graph when zipAlleles (or
+            # collapseInversions) is on, so the main export is unconditional
             toil.exportFile(pansn_gfa_id, makeURL(gfa_path))
-        # the pre-collapse graph and the per-call report are extra artifacts kept beside the graph
-        # for comparison.  They go out even when the main export above is deferred to the prune:
-        # the prune never touches them, and keeping them inside that branch left a 460-haplotype
-        # --mgSplitWholeGenomeRef run with 25 collapsed chromosomes and not one report on disk.
-        # In that mode the uncollapsed graph is the unpruned, whole-reference one.
-        export_collapse_artifacts(toil, gfa_path, uncollapsed_pansn_gfa_id, collapse_report_id)
+        # the pre-zip graph, the report and (zipWalks="gaf") the walks GAF are extra artifacts kept
+        # beside the graph for comparison.  They go out even when the main export above is deferred
+        # to the prune: the prune never touches them, and keeping them inside that branch left a
+        # 460-haplotype --mgSplitWholeGenomeRef run with 25 collapsed chromosomes and not one report
+        # on disk.  In that mode the unzipped graph is the unpruned, whole-reference one, and the
+        # walks GAF is against it.
+        export_rewrite_artifacts(toil, gfa_path, input_pansn_gfa_id, rewrite_artifacts)
         if train_path:
             # export the scoring model (.train)
             toil.exportFile(train_id, makeURL(train_path))
@@ -309,12 +342,20 @@ def check_sample_names(sample_names, references):
             raise RuntimeError("Sample name {} with \"{}\" suffix is not supported. You must either remove this suffix or use .N where N is an integer to specify haplotype".format(sample, sample_ext))
 
 def minigraph_construct_batch_workflow(job, options, config_node, input_dict, gfa_path, sanitize=True,
-                                       construct_ref_id_map=None, in_gfa_id=None):
+                                       construct_ref_id_map=None, in_gfa_id=None, scores_id=None):
     """ run the construction workflow on individual chromosomes.  construct_ref_id_map, if given,
     swaps the whole-genome reference fastas in for the chromosome's own slice of them (--mgSplit
     --mgSplitWholeGenomeRef).  the merge happens here rather than inside minigraph_construct_workflow
     because both dicts are resolved job arguments at this point, whereas the sanitized map down there
-    can still be an unresolved promise """
+    can still be an unresolved promise.  scores_id is a --scoresFile model, which the mapping that
+    zipWalks="gaf" runs before the zip uses as graphmap will """
+    # everything hangs off a child, so that borrow_last_train_models, a follow-on, is done before
+    # any follow-on of this job starts.  As a follow-on of this job it ran alongside cactus-pangenome's
+    # export_minigraph_batch_wrapper, the follow-on that reads its result, which then failed on the
+    # unresolved promise whenever it started first ("This job was passed promise ... that wasn't yet
+    # resolved"), and only got through by being retried
+    root_job = Job(walltime=cactus_walltime())
+    job.addChild(root_job)
     output_dict = {}
     for chrom, input_info in input_dict.items():
         seq_id_map, seq_order = input_info
@@ -326,15 +367,16 @@ def minigraph_construct_batch_workflow(job, options, config_node, input_dict, gf
             gfa_path = os.path.join(options.outputGFA, '{}.gfa.gz'.format(chrom))
         else:
             gfa_path = options.outputGFA
-        mgwf_job = job.addChildJobFn(minigraph_construct_workflow, options, config_node, seq_id_map, seq_order, gfa_path, sanitize,
-                                     construct_seq_id_map=construct_seq_id_map, in_gfa_id=in_gfa_id,
-                                     walltime=cactus_walltime())
+        mgwf_job = root_job.addChildJobFn(minigraph_construct_workflow, options, config_node, seq_id_map, seq_order, gfa_path,
+                                          sanitize, construct_seq_id_map=construct_seq_id_map, in_gfa_id=in_gfa_id,
+                                          scores_id=scores_id, walltime=cactus_walltime())
         output_dict[chrom] = mgwf_job.rv()
     if options.lastTrain and len(input_dict) > 1:
         # sized off the chromosome's own reference slice, which is what it trains on
         ref_sizes = {chrom: input_info[0][options.reference[0]].size for chrom, input_info in input_dict.items()
                      if options.reference[0] in input_info[0]}
-        return job.addFollowOnJobFn(borrow_last_train_models, output_dict, ref_sizes).rv()
+        return root_job.addFollowOnJobFn(borrow_last_train_models, output_dict, ref_sizes,
+                                         walltime=cactus_walltime()).rv()
     return output_dict
 
 def borrow_last_train_models(job, output_dict, ref_sizes):
@@ -357,7 +399,7 @@ def borrow_last_train_models(job, output_dict, ref_sizes):
     return output_dict
                                     
 def minigraph_construct_workflow(job, options, config_node, seq_id_map, seq_order, gfa_path, sanitize=True,
-                                 construct_seq_id_map=None, in_gfa_id=None):
+                                 construct_seq_id_map=None, in_gfa_id=None, scores_id=None):
     """ minigraph can handle bgzipped files but not gzipped; so unzip everything in case before running
 
     construct_seq_id_map, when given, replaces seq_id_map for the graph construction alone.  it is how
@@ -369,10 +411,12 @@ def minigraph_construct_workflow(job, options, config_node, seq_id_map, seq_orde
     The construction job itself is sized off the substituted map, since that is what it runs on.
 
     with a graph to extend, which genomes still need constructing is not known until that graph's
-    SN tags have been read, so the rest of the workflow is deferred behind the job that reads them """
+    SN tags have been read, so the rest of the workflow is deferred behind the job that reads them
+
+    scores_id is a --scoresFile model, only read by zipAlleles' zipWalks="gaf" mapping """
     if not in_gfa_id:
         return minigraph_construct_run(job, options, config_node, seq_id_map, seq_order, gfa_path, sanitize,
-                                       construct_seq_id_map=construct_seq_id_map)
+                                       construct_seq_id_map=construct_seq_id_map, scores_id=scores_id)
 
     # the renaming pass decompresses the GFA before bgzipping it back up, so it needs room for
     # the raw copy (reckoned at 10x, as elsewhere) on top of the compressed input and output
@@ -383,15 +427,16 @@ def minigraph_construct_workflow(job, options, config_node, seq_id_map, seq_orde
     run_job = rename_job.addFollowOnJobFn(minigraph_construct_run, options, config_node, seq_id_map, seq_order, gfa_path,
                                           sanitize, construct_seq_id_map,
                                           rename_job.rv(0), rename_job.rv(1), in_gfa_id,
-                                          walltime=cactus_walltime())
+                                          scores_id=scores_id, walltime=cactus_walltime())
     # all five slots: minigraph_construct_run returns
-    # (gfa, pansn_gfa, uncollapsed_pansn_gfa, collapse_report, train).  Truncating here to three
+    # (gfa, pansn_gfa, input_pansn_gfa, rewrite_artifacts, train).  Truncating here to three
     # left cactus_pangenome's rv(3)/rv(4) reading off the end of the tuple, which Toil reports as
     # "IndexError: tuple index out of range" from _fulfillPromises, nowhere near the cause.
     return run_job.rv(0), run_job.rv(1), run_job.rv(2), run_job.rv(3), run_job.rv(4)
 
 def minigraph_construct_run(job, options, config_node, seq_id_map, seq_order, gfa_path, sanitize=True,
-                            construct_seq_id_map=None, seed_gfa_id=None, seed_events=None, seed_pansn_gfa_id=None):
+                            construct_seq_id_map=None, seed_gfa_id=None, seed_events=None, seed_pansn_gfa_id=None,
+                            scores_id=None):
     assert type(options.reference) is list
     # the substituted map is a plain dict here, but sanitized_seq_id_map below is a promise when
     # sanitize is on, so the two can't be reconciled in this job
@@ -445,8 +490,13 @@ def minigraph_construct_run(job, options, config_node, seq_id_map, seq_order, gf
                                               walltime=cactus_walltime(LAST_TRAIN_SECS + ref_size / 1e6,
                                                                        io_bytes=3 * ref_size))
                 train_id = train_job.rv()
-            # same five slots as the constructing path below.  nothing was constructed, so there
-            # is no pre-collapse graph and no report: the graph handed back is the seed as it was.
+            # same five slots as the constructing path below.  nothing was constructed, so nothing
+            # is zipped (or collapsed) and there is no report: the graph handed back is the seed as
+            # it was.  a seed published with zipAlleles on is already zipped
+            if graph_rewrite_mode(config_node):
+                RealtimeLogger.info('Not running {} on {}: resuming constructs nothing, so the graph is passed on '
+                                    'as it was given'.format('rgfa-zip' if graph_rewrite_mode(config_node) == 'zip'
+                                                             else 'rgfa-collapse', options.inGFA))
             return match_job.rv(0), match_job.rv(1), None, None, train_id
     else:
         assert options.reference[0] == seq_order[0]
@@ -484,30 +534,98 @@ def minigraph_construct_run(job, options, config_node, seq_id_map, seq_order, gf
                                               seed_gfa_id=seed_gfa_id, graph_names=graph_names,
                                               walltime=cactus_walltime())
 
-    # optionally rewrite inverted alleles stored as novel sequence into inversion edges.  when this
-    # runs, the collapsed graph REPLACES the constructed one in both namings: it is what graphmap,
-    # rgfa-split and the join all have to see, since a graph they map against that still carries the
-    # uncollapsed alt would defeat the point.  the originals are returned alongside so the export can
-    # keep them for comparison.
+    # last-train is scheduled ahead of the graph rewrite below only because zipWalks="gaf" maps with
+    # its model, and so has to wait for it.  It still runs alongside construction either way
+    train_id, last_train_job = None, None
+    if options.lastTrain and len(seq_id_map) > 1:
+        # note: somehow last training memory overruns don't seem to be detected by slurm so we
+        # give 12G at least whenever possible, as --doubleMem won't help...
+        # lastdb dominates the runtime and is erratic: over the 24 per-chromosome runs of the
+        # HPRC v2.1 pangenome (2.0e8-byte reference, 8 cores) it took 55 s at the p50 but
+        # 3934 s at the worst, while the 16x bigger whole-genome reference of HPRC v2.0
+        # (32 cores) took 2821 s.  last-train itself adds 409-680 s on top.  So the estimate is
+        # mostly a flat allowance for that tail, with a small linear term so that small inputs
+        # aren't over-provisioned.  The I/O is the reference plus the training partner, which
+        # last_train() only picks inside the job but constrains to at least half the reference.
+        last_train_job = prev_job.addFollowOnJobFn(last_train, config_node, seq_order, sanitized_seq_id_map,
+                                                   ref_name=options.reference[0] if seed_events is not None else None,
+                                                   cores=options.mgCores,
+                                                   disk=8*ref_size,
+                                                   memory=cactus_clamp_memory(max(8*ref_size, 12*10**9)),
+                                                   walltime=cactus_walltime(LAST_TRAIN_SECS + ref_size / 1e6,
+                                                                            io_bytes=3 * ref_size))
+        train_id = last_train_job.rv()
+
+    # optionally rewrite the alleles minigraph stored as novel sequence where they duplicate the
+    # reference (or each other): zipAlleles runs rgfa-zip, and the deprecated collapseInversions the
+    # frozen rgfa-collapse it replaces.  when either runs, the rewritten graph REPLACES the
+    # constructed one in both namings: it is what graphmap, rgfa-split and the join all have to
+    # see, since a graph they map against that still carries the duplicated alt would defeat the
+    # point.  the originals are returned alongside so the export can keep them for comparison.
     #
-    # rgfa-collapse needs the PanSN graph, not the cactus-named one: it locates sites with
+    # both tools need the PanSN graph, not the cactus-named one: they locate sites with
     # `vg snarls -n -P <reference sample>`, and cactus names (id=EVENT|CONTIG) carry no PanSN sample
     # for -P to match -- with the wrong -P, vg skips every snarl as a non-reference boundary and the
-    # tool silently finds nothing.  So collapse the PanSN graph and rename the result back.
+    # tool silently finds nothing.  So rewrite the PanSN graph and rename the result back.
     #
     # skipped on the --mgSplit reference-only first pass: that graph has no non-reference nodes, so
-    # there is nothing to collapse and the snarl decomposition would be pure cost.  it still runs on
-    # the per-chromosome all-sample graphs, which is where the alleles are.
-    uncollapsed_pansn_gfa_id, collapse_report_id = None, None
-    if getOptionalAttrib(xml_node, "collapseInversions", typeFn=bool, default=False) and \
-       not getattr(options, 'refOnly', False):
-        # Size on the reference the graph was actually built from.  ref_size above is the
-        # chromosome's slice, but with --mgSplitWholeGenomeRef construct_seq_id_map swaps in the
-        # whole-genome reference, so every per-chromosome graph carries all of it.  On a 460-
-        # haplotype human run 8x the slice came to 2 GiB, vg snarls alone peaks at 2.0-2.4 GiB
-        # and rgfa-collapse at 4-6 GiB: every chromosome OOM'd (exit 137 in vg snarls) and passed
-        # only after Toil had doubled it to 8 GiB, or 16 GiB for chr6, chr17 and chrX.
-        collapse_ref_size = (construct_seq_id_map or seq_id_map)[options.reference[0]].size
+    # there is nothing to rewrite and the snarl decomposition would be pure cost.  it still runs on
+    # the per-chromosome all-sample graphs, which is where the alleles are.  With
+    # --mgSplitWholeGenomeRef those graphs hold the whole reference until the prune after graphmap,
+    # so that is the graph rewritten: graphmap maps to it, and the prune then cuts the rewritten
+    # graph back to the chromosome.
+    rewrite_mode = None if getattr(options, 'refOnly', False) else graph_rewrite_mode(config_node)
+    # Size on the reference the graph was actually built from.  ref_size above is the
+    # chromosome's slice, but with --mgSplitWholeGenomeRef construct_seq_id_map swaps in the
+    # whole-genome reference, so every per-chromosome graph carries all of it.  On a 460-
+    # haplotype human run 8x the slice came to 2 GiB, vg snarls alone peaks at 2.0-2.4 GiB
+    # and rgfa-collapse at 4-6 GiB: every chromosome OOM'd (exit 137 in vg snarls) and passed
+    # only after Toil had doubled it to 8 GiB, or 16 GiB for chr6, chr17 and chrX.
+    if rewrite_mode:
+        rewrite_ref_size = (construct_seq_id_map or seq_id_map)[options.reference[0]].size
+    input_pansn_gfa_id, rewrite_artifacts = None, None
+    if rewrite_mode == 'zip':
+        gaf_seq_id_maps, zip_scores_id, wait_for_training = None, None, False
+        if zip_walks_mode(config_node) == 'gaf':
+            # every genome in the graph is mapped, the way graphmap will map them: rgfa-zip trusts
+            # these walks to be all the haplotypes there are.  Extending a graph adds genomes to it
+            # without the seed's own genomes passing through construction, so those are added back
+            # (sanitizing them first if this run sanitizes, which construction never needed to)
+            gaf_seq_id_maps = [sanitized_seq_id_map]
+            seed_only = {name: fa_id for name, fa_id in train_seq_id_map.items()
+                         if name not in seq_id_map} if seed_events is not None else {}
+            if seed_only and sanitize:
+                # a child of construction, so it is done before construction's follow-on, the zip
+                seed_sanitize_job = minigraph_job.addChildJobFn(sanitize_fasta_headers, seed_only, pangenome=True,
+                                                                walltime=cactus_walltime())
+                gaf_seq_id_maps.append(seed_sanitize_job.rv())
+            elif seed_only:
+                gaf_seq_id_maps.append(seed_only)
+            # the model graphmap will map with: --scoresFile's, or the one trained on this graph's
+            # genomes, which means waiting for last-train.  A --mgSplit chromosome that trains no
+            # model of its own borrows one only once every chromosome is built, which is after its
+            # zip, so its walks are mapped with minigraph's default penalties.  They only change the
+            # base-level alignment, not the chaining that picks the walk
+            if getOptionalAttrib(xml_node, "lastTrainMap", typeFn=bool, default=False):
+                if scores_id:
+                    zip_scores_id = scores_id
+                elif last_train_job:
+                    zip_scores_id = train_id
+                    wait_for_training = True
+        zip_job = minigraph_job.addFollowOnJobFn(zip_alleles_workflow, options, config_node,
+                                                 minigraph_job.rv(0), minigraph_job.rv(1), gfa_path, graph_names,
+                                                 rewrite_ref_size, gaf_seq_id_maps=gaf_seq_id_maps,
+                                                 scores_id=zip_scores_id, walltime=cactus_walltime())
+        if wait_for_training:
+            # a second predecessor: the zip starts once both construction and training are done
+            last_train_job.addFollowOn(zip_job)
+        input_pansn_gfa_id = minigraph_job.rv(1)
+        rewrite_artifacts = zip_job.rv(2)
+        gfa_ids = (zip_job.rv(0), zip_job.rv(1))
+    elif rewrite_mode == 'collapse':
+        # the frozen rgfa-collapse, kept unchanged (resources included) for comparison runs until
+        # zipAlleles replaces it; check_graph_rewrite_config warned about it at startup
+        collapse_ref_size = rewrite_ref_size
         collapse_job = minigraph_job.addFollowOnJobFn(collapse_inversions, options, config_node,
                                                       minigraph_job.rv(1), gfa_path,
                                                       cores=options.mgCores,
@@ -533,8 +651,8 @@ def minigraph_construct_run(job, options, config_node, seq_id_map, seq_order, gf
                                                    memory=cactus_clamp_memory(4*ref_size),
                                                    walltime=cactus_walltime(GFA_RENAME_SECS_PER_GB * ref_size / 1e9,
                                                                             io_bytes=RAW_BYTES_PER_GZ_BYTE * ref_size))
-        uncollapsed_pansn_gfa_id = minigraph_job.rv(1)
-        collapse_report_id = collapse_job.rv(1)
+        input_pansn_gfa_id = minigraph_job.rv(1)
+        rewrite_artifacts = {'kind': 'collapse', 'report': collapse_job.rv(1)}
         # rv(0), not rv(): master's minigraph_gfa_from_pansn returns
         # (converted gfa id, set of genomes the graph was built from), and handing the whole tuple
         # on made graphmap fail with "'tuple' object has no attribute 'size'"
@@ -542,29 +660,10 @@ def minigraph_construct_run(job, options, config_node, seq_id_map, seq_order, gf
     else:
         gfa_ids = (minigraph_job.rv(0), minigraph_job.rv(1))
 
-    train_id = None
-    if options.lastTrain and len(seq_id_map) > 1:
-        # note: somehow last training memory overruns don't seem to be detected by slurm so we
-        # give 12G at least whenever possible, as --doubleMem won't help...
-        # lastdb dominates the runtime and is erratic: over the 24 per-chromosome runs of the
-        # HPRC v2.1 pangenome (2.0e8-byte reference, 8 cores) it took 55 s at the p50 but
-        # 3934 s at the worst, while the 16x bigger whole-genome reference of HPRC v2.0
-        # (32 cores) took 2821 s.  last-train itself adds 409-680 s on top.  So the estimate is
-        # mostly a flat allowance for that tail, with a small linear term so that small inputs
-        # aren't over-provisioned.  The I/O is the reference plus the training partner, which
-        # last_train() only picks inside the job but constrains to at least half the reference.
-        last_train_job = prev_job.addFollowOnJobFn(last_train, config_node, seq_order, sanitized_seq_id_map,
-                                                   ref_name=options.reference[0] if seed_events is not None else None,
-                                                   cores=options.mgCores,
-                                                   disk=8*ref_size,
-                                                   memory=cactus_clamp_memory(max(8*ref_size, 12*10**9)),
-                                                   walltime=cactus_walltime(LAST_TRAIN_SECS + ref_size / 1e6,
-                                                                            io_bytes=3 * ref_size))
-        train_id = last_train_job.rv()
-        
-    # (cactus-named graph, PanSN graph, the PanSN graph before collapsing or None, per-call report
-    #  or None, LAST scoring model or None).  slots 0 and 1 are the graph the pipeline uses.
-    return gfa_ids[0], gfa_ids[1], uncollapsed_pansn_gfa_id, collapse_report_id, train_id
+    # (cactus-named graph, PanSN graph, the PanSN graph before zipping or collapsing or None, the
+    #  rewrite's artifacts or None, LAST scoring model or None).  slots 0 and 1 are the graph the
+    #  pipeline uses; slot 3 is the dict export_rewrite_artifacts() reads
+    return gfa_ids[0], gfa_ids[1], input_pansn_gfa_id, rewrite_artifacts, train_id
 
 # rgfa-collapse's runtime is set by its slowest single minimap2 alignment, not by the total work:
 # the note in collapse_inversions records individual calls running over three hours at -t 2 on
@@ -620,6 +719,9 @@ def collapse_inversions(job, options, config_node, pansn_gfa_id, gfa_path):
 
     Returns (collapsed_gfa_id, report_id).  The uncollapsed graph is exported alongside so the
     two can be compared.
+
+    Deprecated (<graphmap collapseInversions>): rgfa-zip, run by zip_alleles below, replaces
+    rgfa-collapse.  This is kept frozen, resources included, until the comparison runs are in.
     """
     work_dir = job.fileStore.getLocalTempDir()
     gzipped = gfa_path.endswith('.gz')
@@ -685,6 +787,484 @@ def collapse_inversions(job, options, config_node, pansn_gfa_id, gfa_path):
     if gzipped:
         cactus_call(parameters=['bgzip', '--threads', str(job.cores)], infile=out_gfa,
                     outfile=out_gfa + '.gz')
+        out_gfa += '.gz'
+    return job.fileStore.writeGlobalFile(out_gfa), job.fileStore.writeGlobalFile(report)
+
+# Zipping alleles (<graphmap zipAlleles>): rgfa-zip aligns every allele minigraph stored as novel
+# sequence to the reference window it bypasses, on both strands, and to a parallel allele that
+# shares its bounding handles, and where the homology is confident (5 kb at 95% gap-compressed
+# identity, a unique placement, an unfragmented chain) replaces the allele by the sequence it
+# duplicates.  It replaces rgfa-collapse.  The three versions being compared are options of it:
+#   v1  zipOptions with --no-alt: the reference pass only
+#   v2  the default: the reference pass, then alt-vs-alt
+#   v3  zipWalks="gaf": as v2, but with walks observed by mapping every genome to the unzipped graph
+
+# rgfa-zip's walk sources.  creator (the default) and witness are rebuilt from the graph alone; gaf
+# reads them from a GAF that zip_alleles_workflow makes by mapping every genome to the graph
+ZIP_WALKS = ('creator', 'witness', 'gaf')
+
+# zipOptions that cactus owns: the output files, and the walk source, which is zipWalks
+ZIP_RESERVED_OPTIONS = ('-o', '-r', '--walks')
+
+# rgfa-zip's exit codes other than 0, as its CLI contract defines them.  Nothing is written on any
+# of them, so each fails the job
+ZIP_EXIT_CODES = {2: 'invalid input: an option it does not take (see zipOptions), or the graph, its snarls or the walks '
+                     'failed its input checks',
+                  3: 'invariant failure: an edit failed validation and could not be undone',
+                  4: 'systemic aligner failure: minimap2 failed on more than 5% of windows, or was killed twice '
+                     'on one (an out-of-memory kill is a signal too)',
+                  5: 'I/O error writing the output'}
+
+# How zip_alleles runs rgfa-zip: bash -c ZIP_LOG_TEE rgfa-zip <the rgfa-zip command>.  Its log still
+# reaches the job log line by line as it is written (it is the job's stderr), and tee keeps a copy
+# in zip.log, which the summary reads rgfa-zip's totals from.  Its stdout is passed through as it
+# was, and pipefail hands back its exit status, or 128 + the signal if one killed it
+ZIP_LOG_TEE = 'exec 3>&1; set -o pipefail; "$@" 2>&1 >&3 3>&- | tee zip.log >&2'
+
+# Memory.  rgfa-zip's own peak (its RUSAGE_SELF, which leaves out the aligners it runs) against the
+# uncompressed GFA it reads.  With the options cactus runs it with: 1.08x on a 30-way CHM13
+# --mgSplitWholeGenomeRef graph, which carries the whole reference (chr1's: 3.15 GiB on 3.13 GB),
+# and 3.4x and 4.3x on the GRCh38-464 chr1 and chr20 graphs.  The sweep runs, with --dump keeping
+# every alignment record, give 1.1-1.9x on the 30-way chromosome graphs, 1.2-3.4x on most of
+# GRCh38-464's, and up to 5.4-6.7x on chr1, chr18, chr20 and chrY.  What pushes it up is the big
+# sites rather than the graph (chr1:2.65's alt-vs-alt pass alone holds about 1 GB), so the ratio is
+# highest on a small graph with a tangle in it.  6x is the worst of the runs without --dump with 40%
+# to spare
+ZIP_GFA_MEMORY_FACTOR = 6
+# each minimap2 it runs peaked at 1.34 GiB at most over the same runs (30-way chr17, with rgfa-zip
+# itself at 0.16 GiB: a child's peak RSS counts its parent's at the spawn, so where rgfa-zip is big
+# the minimap2 peaks it logs are really rgfa-zip's), and rgfa-zip lowers -j until j x 1.5e9 bytes
+# fits --mem, so that is what each aligner process gets
+ZIP_ALIGNER_MEMORY = int(1.5e9)
+# vg snarls runs first, on its own, and keeps the floor collapse_inversions has always had, 8x the
+# reference.  It peaks at 2.3-2.5 GiB on a 30-way CHM13 --mgSplitWholeGenomeRef chromosome graph,
+# where this floor is 25 GB
+ZIP_SNARLS_MEMORY_PER_REF_BYTE = 8
+# The job takes --mgCores, up to this many.  Every core adds a site thread and an aligner process,
+# and so 1.5 GB to the request, while the work is small: production GRCh38-464 chr1 is 2,042 CPU-s,
+# and past a few cores its wall time is set by what does not divide: chr1:2.65's single-threaded
+# alt-vs-alt pass (270 s), vg snarls (single-threaded in practice: 457 s on a whole-reference graph
+# at -t 4) and reading and writing the graph.  The --mgCores 64 of the GRCh38-464 runs would
+# otherwise ask 96 GB for aligners that never all run at once
+ZIP_MAX_CORES = 16
+
+# Walltime, from the spec's cost tests: a fixed 900 s, 600 s per GB of reference (vg snarls, reading
+# and writing the graph), and the CPU the array tangles cost spread over the cores.  The tangles are
+# what dominates: 2-3.5 CPU-hours over all of GRCh38-464, nearly all of it at 23 sites (chr1:2.65 alone
+# 1,628 s, chr20:28.95 1,022 s), so the top of that range is allowed for every graph, which is
+# exactly right for a whole-genome one and leaves a chromosome room to hold most of the tangles.
+# Unlike rgfa-collapse there is no single-alignment tail to allow for: rgfa-zip caps every query and
+# window at 5 Mb and screens out the satellite windows that ran for hours.  Measured since, the worst
+# whole chromosome is GRCh38-464 chr1: 3,056 CPU-s and 17:35 wall at -t 3 -j 3 with --check, 3,296
+# CPU-s with zipWalks="gaf" (which aligns more units, up to 8x as many on chr21, but adds little CPU
+# where the tangles are), and vg snarls takes 460-515 s on a whole-reference chromosome graph, so
+# even at 16 cores this asks several times what the slowest chromosome needs
+ZIP_ALLELES_BASE_SECS = 900
+ZIP_ALLELES_SECS_PER_GB = 600
+ZIP_TANGLE_CPU_SECS = 12600
+
+# rgfa-zip's own totals, from the summary lines that end its log (summarize_zip_log):
+#   accepted N chain(s), M bp zipped; R reverted[; K of the chain(s) zip bp of their own, ...]
+#                                                            ("would zip ..." under --detect-only)
+#   alt-vs-alt: ...; X zipped (Y bp), Z refused, W reverted; V near-parallel    (not with --no-alt)
+#   done in T s, peak RSS P GB                               (P is GiB: its kB / 1048576)
+ZIP_LOG_TOTALS_RE = re.compile(r'\b(accepted|would zip) (\d+) chain\(s\), (-?\d+) bp(?: zipped)?; (\d+) reverted'
+                               r'(?:; (\d+) of the chain\(s\) zip bp of their own)?')
+ZIP_LOG_ALT_RE = re.compile(r'\balt-vs-alt: .*; (\d+) zipped \((-?\d+) bp\), (\d+) refused, (\d+) reverted; '
+                            r'(\d+) near-parallel')
+ZIP_LOG_DONE_RE = re.compile(r'\bdone in ([0-9.]+) s, peak RSS ([0-9.]+) GB')
+
+def graph_rewrite_mode(config_node):
+    """ the post-construction rewrite <graphmap> asks for: 'zip' (zipAlleles, rgfa-zip), 'collapse'
+    (collapseInversions, the deprecated rgfa-collapse) or None.  Both is an error: they are two
+    rewrites of the same alleles, and the second would run on the output of the first """
+    xml_node = findRequiredNode(config_node, "graphmap")
+    zip_on = getOptionalAttrib(xml_node, "zipAlleles", typeFn=bool, default=False)
+    collapse_on = getOptionalAttrib(xml_node, "collapseInversions", typeFn=bool, default=False)
+    if zip_on and collapse_on:
+        raise RuntimeError('zipAlleles and collapseInversions are both set in <graphmap>: rgfa-zip replaces '
+                           'rgfa-collapse, so set at most one of them (collapseInversions="1" alone still runs the '
+                           'old, deprecated rgfa-collapse)')
+    return 'zip' if zip_on else 'collapse' if collapse_on else None
+
+def zip_walks_mode(config_node):
+    """ <graphmap zipWalks>: where rgfa-zip gets its haplotype walks.  'creator' (the default) """
+    walks = getOptionalAttrib(findRequiredNode(config_node, "graphmap"), "zipWalks", str, default="creator")
+    walks = walks.strip() if walks else "creator"
+    if walks not in ZIP_WALKS:
+        raise RuntimeError('<graphmap zipWalks="{}"> is not one of {}'.format(walks, ', '.join(ZIP_WALKS)))
+    return walks
+
+def zip_options_list(config_node):
+    """ <graphmap zipOptions>, split.  Passed through to rgfa-zip as they are, except that the output
+    files and the walk source belong to cactus """
+    opts = getOptionalAttrib(findRequiredNode(config_node, "graphmap"), "zipOptions", str, default="").split()
+    for opt in opts:
+        if opt in ZIP_RESERVED_OPTIONS or opt.startswith('--walks='):
+            raise RuntimeError('<graphmap zipOptions> cannot contain {}: cactus sets {}, and the walk source with '
+                               'zipWalks'.format(opt, ' '.join(ZIP_RESERVED_OPTIONS[:2])))
+    if opts and opts[-1] == '-m':
+        raise RuntimeError('<graphmap zipOptions> ends in -m, which needs the path of a minimap2 after it')
+    return opts
+
+def check_graph_rewrite_config(config_node):
+    """ check the zip / collapse settings up front, so a config that cannot run fails before the
+    hours of construction that come before the rewrite, and warn about the deprecated one """
+    mode = graph_rewrite_mode(config_node)
+    if mode == 'zip':
+        zip_walks_mode(config_node)
+        zip_options_list(config_node)
+    elif mode == 'collapse':
+        logger.warning('<graphmap collapseInversions> is deprecated: it runs rgfa-collapse, which is frozen and will be '
+                       'removed.  Use zipAlleles (rgfa-zip), its replacement, instead')
+    return mode
+
+def graph_rewrite_name(gfa_path):
+    """ what a graph is called in log prefixes and saved inputs: the chromosome with --mgSplit
+    (whose construction paths are <chrom>.gfa.gz), the output name otherwise """
+    return os.path.basename(gfa_path).replace('.gz', '').replace('.gfa', '')
+
+def zip_alleles_workflow(job, options, config_node, gfa_id, pansn_gfa_id, gfa_path, graph_names, ref_size,
+                         gaf_seq_id_maps=None, scores_id=None):
+    """ zip the alleles of a freshly constructed graph, returning (cactus-named zipped graph, PanSN
+    zipped graph, artifacts), where artifacts is the dict export_rewrite_artifacts() reads.
+
+    gaf_seq_id_maps, given only with zipWalks="gaf", hold the (sanitized) fasta of every genome in
+    the graph.  Each is then mapped to the unzipped graph exactly the way cactus-graphmap maps it to
+    the zipped one afterwards -- minigraph_map_all, the same options, the same last-train model
+    (scores_id) -- and rgfa-zip reads its walks from the merged GAF.  The graph mapped to is always
+    the one this zip is about to rewrite, so the GAF and the graph match in every mode:
+      whole-genome           the whole-genome graph and every genome
+      --mgSplit              this chromosome's graph and the genomes binned to it
+      --mgSplitWholeGenomeRef  this chromosome's graph as built, before graphmap's prune: the whole
+                             reference plus the genomes binned to the chromosome, of which the
+                             reference is mapped as its chromosome slice, as graphmap maps it """
+    gaf_id = None
+    if gaf_seq_id_maps is not None:
+        # cactus_graphmap imports this module
+        from cactus.refmap.cactus_graphmap import minigraph_map_all
+        seq_id_map = {}
+        for id_map in gaf_seq_id_maps:
+            seq_id_map.update(id_map)
+        graph_event = getOptionalAttrib(findRequiredNode(config_node, "graphmap"), "assemblyName", default="_MINIGRAPH_")
+        # with --batch graphmap names its per-genome GAFs and their merge after the chromosome
+        map_options = copy.deepcopy(options)
+        map_options.mg_chrom_name = graph_rewrite_name(gfa_path)
+        RealtimeLogger.info('Mapping {} genomes to the unzipped {} for rgfa-zip\'s walks{}'.format(
+            len(seq_id_map), graph_rewrite_name(gfa_path), ' (with the last-train model)' if scores_id else ''))
+        if gfa_path.endswith('.gz'):
+            # graphmap maps to the decompressed graph and sizes its mapping jobs from it, so do the same
+            unzip_job = job.addChildJobFn(unzip_gz, gfa_path, gfa_id, delete_original=False, disk=5*gfa_id.size,
+                                          walltime=cactus_walltime(60, io_bytes=(1 + RAW_BYTES_PER_GZ_BYTE) * gfa_id.size))
+            map_job = unzip_job.addFollowOnJobFn(minigraph_map_all, map_options, ConfigWrapper(config_node),
+                                                 unzip_job.rv(), seq_id_map, graph_event, scores_id=scores_id,
+                                                 gaf_only=True, walltime=cactus_walltime())
+            map_job.addFollowOnJobFn(clean_jobstore_files, file_ids=[unzip_job.rv()], walltime=cactus_walltime())
+        else:
+            map_job = job.addChildJobFn(minigraph_map_all, map_options, ConfigWrapper(config_node),
+                                        gfa_id, seq_id_map, graph_event, scores_id=scores_id,
+                                        gaf_only=True, walltime=cactus_walltime())
+        gaf_id = map_job.rv(1)
+        schedule_job = map_job.addFollowOnJobFn(zip_alleles_schedule, options, config_node, pansn_gfa_id, gfa_path,
+                                                graph_names, ref_size, gaf_id, walltime=cactus_walltime())
+    else:
+        schedule_job = job.addChildJobFn(zip_alleles_schedule, options, config_node, pansn_gfa_id, gfa_path,
+                                         graph_names, ref_size, None, walltime=cactus_walltime())
+    return schedule_job.rv(0), schedule_job.rv(1), schedule_job.rv(2)
+
+def zip_alleles_walltime(ref_size, cores):
+    """ estimated seconds for one zip_alleles job, from the reference its graph carries """
+    return (ZIP_ALLELES_BASE_SECS + ZIP_ALLELES_SECS_PER_GB * ref_size / 1e9 +
+            ZIP_TANGLE_CPU_SECS / max(1, int(cores or 1)))
+
+def zip_alleles_cores(mg_cores):
+    """ cores for one zip_alleles job: --mgCores, up to ZIP_MAX_CORES """
+    return max(1, min(int(mg_cores or 1), ZIP_MAX_CORES))
+
+def zip_alleles_memory(raw_gfa_bytes, ref_size, cores):
+    """ memory for one zip_alleles job, before clamping: vg snarls, which runs first and on its own,
+    or rgfa-zip holding the uncompressed graph plus an aligner process per core, whichever is more """
+    return max(ZIP_SNARLS_MEMORY_PER_REF_BYTE * ref_size,
+               ZIP_GFA_MEMORY_FACTOR * raw_gfa_bytes + ZIP_ALIGNER_MEMORY * cores)
+
+def zip_aligner_memory(job_memory, raw_gfa_bytes):
+    """ rgfa-zip's --mem: what the job has left for aligner processes once rgfa-zip holds the graph,
+    from the size of the graph it was actually given.  The job is sized from the same size, so this
+    leaves the aligner per core it asked for unless the request was clamped; rgfa-zip lowers -j to
+    fit whatever it gets, never below one aligner """
+    return max(int(job_memory) - ZIP_GFA_MEMORY_FACTOR * int(raw_gfa_bytes), ZIP_ALIGNER_MEMORY)
+
+def gfa_raw_bytes(job, gfa_id, gzipped):
+    """ how big a GFA in the jobstore is once decompressed, counted by streaming it through zlib.
+    Memory is sized off 6x this, and the RAW_BYTES_PER_GZ_BYTE guess the disk requests use is 10x the
+    compressed size where minigraph graphs inflate only 4.1-4.6x (GRCh38-464 and 30-way CHM13 graphs;
+    yeast 3.8x), which would double the request.  Takes about 1 s per 400 MB it inflates to """
+    if not gzipped:
+        return gfa_id.size
+    raw_bytes = 0
+    with job.fileStore.readGlobalFileStream(gfa_id) as gfa_stream:
+        # GzipFile reads every gzip member in turn, and a bgzipped file is many of them
+        with gzip.GzipFile(fileobj=gfa_stream) as gfa_file:
+            while True:
+                chunk = gfa_file.read(1 << 24)
+                if not chunk:
+                    return raw_bytes
+                raw_bytes += len(chunk)
+
+def zip_alleles_schedule(job, options, config_node, pansn_gfa_id, gfa_path, graph_names, ref_size, gaf_id=None):
+    """ size and schedule rgfa-zip and the rename back to cactus naming.  A job of its own because the
+    graph and the walks GAF only have sizes once they exist.  Returns what zip_alleles_workflow does """
+    cores = zip_alleles_cores(options.mgCores)
+    gfa_bytes = pansn_gfa_id.size
+    raw_gfa_bytes = gfa_raw_bytes(job, pansn_gfa_id, gfa_path.endswith('.gz'))
+    gaf_bytes = gaf_id.size if gaf_id else 0
+    raw_gaf_bytes = RAW_BYTES_PER_GZ_BYTE * gaf_bytes
+    memory = cactus_clamp_memory(zip_alleles_memory(raw_gfa_bytes, ref_size, cores))
+    # the graph compressed and not, the snarls, the zipped graph compressed and not, and the GAF
+    # compressed and not; the 8x reference floor collapse_inversions has always had
+    disk = max(8 * ref_size, 2 * gfa_bytes + 3 * raw_gfa_bytes + gaf_bytes + raw_gaf_bytes)
+    RealtimeLogger.info('Scheduling rgfa-zip on {}: {} cores, {} memory, {} disk, for a {} GFA ({} compressed)'.format(
+        graph_rewrite_name(gfa_path), cores, bytes2human(memory), bytes2human(disk), bytes2human(raw_gfa_bytes),
+        bytes2human(gfa_bytes)))
+    zip_job = job.addChildJobFn(zip_alleles, options, config_node, pansn_gfa_id, gfa_path, gaf_id,
+                                cores=cores, memory=memory, disk=disk,
+                                walltime=cactus_walltime(zip_alleles_walltime(ref_size, cores),
+                                                         io_bytes=2 * gfa_bytes + gaf_bytes))
+    # graph_names, the same set the forward rename uses: it has to resolve every SN tag in the
+    # finished graph, which on the --inGFA extend path is more genomes than minigraph is given
+    rename_job = zip_job.addFollowOnJobFn(minigraph_gfa_from_pansn, graph_names, gfa_path, zip_job.rv(0),
+                                          disk=12 * gfa_bytes,
+                                          walltime=cactus_walltime(GFA_RENAME_SECS_PER_GB * gfa_bytes / 1e9,
+                                                                   io_bytes=RAW_BYTES_PER_GZ_BYTE * gfa_bytes))
+    # rv(0): minigraph_gfa_from_pansn returns (gfa id, genome set)
+    return rename_job.rv(0), zip_job.rv(0), {'kind': 'zip', 'report': zip_job.rv(1), 'walks_gaf': gaf_id}
+
+def zip_minimap2(work_dir):
+    """ the minimap2 rgfa-zip aligns with, as an absolute path where the binaries run (here, or in
+    the container).  rgfa-zip has no PATH default because placements differ between minimap2
+    versions -- on chr19 2.17 made 1,280 calls where 2.30 made 753 -- so this is cactus's own copy,
+    the one build-tools/downloadPangenomeTools installs beside cactus_consolidated.  A minimap2 that
+    is only on the PATH is used with a warning, and the version is logged either way (rgfa-zip also
+    writes it into its report) """
+    script = ('b=$(command -v cactus_consolidated || true); '
+              'if [ -n "$b" ] && [ -x "$(dirname "$b")/minimap2" ]; then '
+              'echo "bundled $(cd "$(dirname "$b")" && pwd)/minimap2"; '
+              'else echo "path $(command -v minimap2 || true)"; fi')
+    found = cactus_call(parameters=['bash', '-c', script], check_output=True, work_dir=work_dir).strip().split(None, 1)
+    if len(found) < 2 or not found[1]:
+        raise RuntimeError('rgfa-zip needs minimap2, and there is none beside cactus_consolidated or on the PATH')
+    source, path = found
+    if source != 'bundled':
+        RealtimeLogger.warning('No minimap2 beside cactus_consolidated, so rgfa-zip is aligning with {} from the '
+                               'PATH: zip placements depend on the minimap2 version'.format(path))
+    version = cactus_call(parameters=[path, '--version'], check_output=True, work_dir=work_dir).strip()
+    RealtimeLogger.info('rgfa-zip aligner: {} (minimap2 {})'.format(path, version))
+    return path
+
+def summarize_zip_report(report_path):
+    """ (rows zipped, rows reverted) in an rgfa-zip report.  Read off the outcome values themselves
+    rather than a column number, so a column added to the report cannot break it.  These count
+    chains, one row each, not what the zip did to the graph: chains that agree on an edit each get a
+    row for it, which is why the bp are taken from rgfa-zip's log instead (summarize_zip_log) """
+    zipped, reverted = 0, 0
+    with open(report_path) as report_file:
+        for line in report_file:
+            if line.startswith('#') or not line.strip():
+                continue
+            fields = line.rstrip('\n').split('\t')
+            if 'zipped' in fields:
+                zipped += 1
+            if any(field.startswith('reverted:') for field in fields):
+                reverted += 1
+    return zipped, reverted
+
+def summarize_zip_log(log_path):
+    """ rgfa-zip's own totals, from the summary lines that end its log (ZIP_LOG_*_RE), as a dict
+    holding whichever were found: 'chains', 'bp' and 'reverted' over both passes ('detect_only' if
+    it only said what it would zip, and 'own_chains', the chains that zip bp no earlier chain did,
+    where rgfa-zip says), 'alt_chains', 'alt_bp' and 'alt_reverted' for the alt-vs-alt pass, and
+    'secs' and 'peak_rss' (bytes) for the whole run.  bp is what the zip took out of the graph.
+    The last of each line wins """
+    totals = {}
+    with open(log_path, errors='replace') as log_file:
+        for line in log_file:
+            match = ZIP_LOG_TOTALS_RE.search(line)
+            if match:
+                totals.update(detect_only=match.group(1) == 'would zip', chains=int(match.group(2)),
+                              bp=int(match.group(3)), reverted=int(match.group(4)))
+                if match.group(5) is not None:
+                    totals['own_chains'] = int(match.group(5))
+                continue
+            match = ZIP_LOG_ALT_RE.search(line)
+            if match:
+                totals.update(alt_chains=int(match.group(1)), alt_bp=int(match.group(2)),
+                              alt_reverted=int(match.group(4)))
+                continue
+            match = ZIP_LOG_DONE_RE.search(line)
+            if match:
+                totals.update(secs=float(match.group(1)), peak_rss=int(float(match.group(2)) * 2**30))
+    return totals
+
+def zip_failure_meaning(error_text):
+    """ what a failed rgfa-zip call means, from cactus_call's error: rgfa-zip's own exit status
+    (ZIP_EXIT_CODES), or the signal that killed it, which bash (ZIP_LOG_TEE) reports as 128 + the
+    signal number """
+    exited = re.search(r'\bexited (\d+)', error_text)
+    if not exited:
+        return 'killed by a signal' if re.search(r'\bsignaled \w+', error_text) else 'failed'
+    status = int(exited.group(1))
+    if status in ZIP_EXIT_CODES:
+        return ZIP_EXIT_CODES[status]
+    if status in (126, 127):
+        return 'rgfa-zip could not be run (exit status {}: not found, or not executable)'.format(status)
+    if status > 128:
+        try:
+            sig_name = signal.Signals(status - 128).name
+        except ValueError:
+            sig_name = 'signal {}'.format(status - 128)
+        return 'killed by {}{}'.format(sig_name, ' (out of memory, most likely)' if status - 128 == signal.SIGKILL else '')
+    return 'unexpected exit status {}'.format(status)
+
+def zip_summary_line(name, totals, report_zipped, report_reverted, raw_gfa_bytes):
+    """ the line the job log gets for one zip: chains and bp from rgfa-zip's own totals, split into
+    the reference and alt-vs-alt passes, and its peak memory as a multiple of the GFA it read.  Falls
+    back to the report's row counts when the log has no totals line """
+    if 'chains' not in totals:
+        return ('rgfa-zip on {}: {} zipped and {} reverted row(s) in its report (no totals line in its log, so '
+                'no bp)'.format(name, report_zipped, report_reverted))
+    line = 'rgfa-zip on {}: {} {} chain(s), {} bp'.format(
+        name, 'would zip' if totals['detect_only'] else 'zipped', totals['chains'], totals['bp'])
+    if 'alt_chains' in totals:
+        line += ' ({} chain(s), {} bp onto the reference, {} chain(s), {} bp alt-vs-alt)'.format(
+            totals['chains'] - totals['alt_chains'], totals['bp'] - totals['alt_bp'],
+            totals['alt_chains'], totals['alt_bp'])
+    else:
+        line += ' (all onto the reference: no alt-vs-alt pass)'
+    line += '; {} reverted'.format(totals['reverted'])
+    if 'own_chains' in totals and totals['own_chains'] != totals['chains']:
+        line += '; {} chain(s) only agree with an earlier one\'s edit'.format(totals['chains'] - totals['own_chains'])
+    if 'peak_rss' in totals:
+        line += '; peak RSS {} in {:.0f} s'.format(bytes2human(totals['peak_rss']), totals['secs'])
+        if raw_gfa_bytes:
+            # the job allows it ZIP_GFA_MEMORY_FACTOR x; zip_alleles warns when that mattered
+            line += ', {:.2f}x its {} GFA'.format(totals['peak_rss'] / raw_gfa_bytes, bytes2human(raw_gfa_bytes))
+    return line
+
+def zip_alleles(job, options, config_node, pansn_gfa_id, gfa_path, gaf_id=None):
+    """ run rgfa-zip on a PanSN minigraph GFA (see the notes above ZIP_WALKS).  Its sites are vg's
+    top-level snarls with reference boundaries, hence the vg calls, which are the ones
+    collapse_inversions has always made.  gaf_id is the walks GAF (zipWalks="gaf").
+
+    Returns (zipped gfa id, report id).  Any non-zero exit fails the job, after saving the inputs
+    and rgfa-zip's log under <outDir>/zip-failed/ so the failure can be reproduced; chains that
+    rgfa-zip reverts are counted and logged as warnings.  The job log gets rgfa-zip's log as it runs
+    and then one summary line, with the chains and bp zipped (zip_summary_line) """
+    work_dir = job.fileStore.getLocalTempDir()
+    gzipped = gfa_path.endswith('.gz')
+    name = graph_rewrite_name(gfa_path)
+    in_gfa = os.path.join(work_dir, 'in.gfa')
+    job.fileStore.readGlobalFile(pansn_gfa_id, in_gfa + ('.gz' if gzipped else ''))
+    if gzipped:
+        cactus_call(parameters=['bgzip', '-d', '--threads', str(job.cores), in_gfa + '.gz'], work_dir=work_dir)
+
+    # -P orients the snarl tree along the reference.  A minigraph rGFA imports with only the
+    # reference as a path, so this is a no-op there, but it is correct for graphs that carry more
+    snarls = os.path.join(work_dir, 'snarls.json')
+    cactus_call(parameters=[['vg', 'snarls', '-n', '-P', options.reference[0], '-t', str(job.cores), 'in.gfa'],
+                            ['vg', 'view', '-Rj', '-']],
+                outfile=snarls, work_dir=work_dir)
+
+    walks = zip_walks_mode(config_node)
+    if walks == 'gaf':
+        assert gaf_id
+        # merged and bgzipped by minigraph_map_all; rgfa-zip reads it plain
+        job.fileStore.readGlobalFile(gaf_id, os.path.join(work_dir, 'walks.gaf.gz'))
+        cactus_call(parameters=['bgzip', '-d', '--threads', str(job.cores), 'walks.gaf.gz'], work_dir=work_dir)
+        walks = 'gaf:walks.gaf'
+
+    # zipOptions pass through.  cactus adds the aligner and the job's resources unless they are
+    # set there: -t sites in parallel and -j aligner processes are the job's cores, and --mem is
+    # what is left of its memory once rgfa-zip holds the graph, which rgfa-zip lowers -j to fit
+    opts = zip_options_list(config_node)
+    cores = max(1, int(job.cores))
+    raw_gfa_bytes = os.path.getsize(in_gfa)
+    if '-m' in opts:
+        RealtimeLogger.info('rgfa-zip aligner for {}: {}, from zipOptions'.format(name, opts[opts.index('-m') + 1]))
+    else:
+        opts = ['-m', zip_minimap2(work_dir)] + opts
+    if '-t' not in opts:
+        opts += ['-t', str(cores)]
+    if '-j' not in opts:
+        opts += ['-j', str(cores)]
+    if '--mem' not in opts:
+        aligner_memory = zip_aligner_memory(job.memory, raw_gfa_bytes)
+        opts += ['--mem', str(aligner_memory)]
+        RealtimeLogger.info('rgfa-zip on {}: {} of job memory, less {}x the {} GFA, leaves --mem {}, room for {} aligner '
+                            'process(es)'.format(name, bytes2human(job.memory), ZIP_GFA_MEMORY_FACTOR,
+                                                 bytes2human(raw_gfa_bytes), aligner_memory,
+                                                 aligner_memory // ZIP_ALIGNER_MEMORY))
+    if '--tmpdir' not in opts:
+        os.makedirs(os.path.join(work_dir, 'zip-tmp'))
+        opts += ['--tmpdir', 'zip-tmp']
+    out_gfa = os.path.join(work_dir, 'zipped.gfa')
+    report = os.path.join(work_dir, 'zip.tsv')
+    log_path = os.path.join(work_dir, 'zip.log')
+    cmd = ['rgfa-zip'] + opts + ['--walks', walks, 'in.gfa', 'snarls.json', '-o', 'zipped.gfa', '-r', 'zip.tsv']
+    try:
+        cactus_call(parameters=['bash', '-c', ZIP_LOG_TEE, 'rgfa-zip'] + cmd, work_dir=work_dir,
+                    realtimeStderrPrefix='[rgfa-zip-{}]'.format(name), job_memory=job.memory)
+    except RuntimeError as e:
+        # Keep the exact inputs so the failure can be reproduced, and rgfa-zip's log, which the job
+        # log has interleaved with every other job's: by the time anyone looks, the job's temp dir
+        # is gone.  Under --mgSplit options.outputGFA is '' and gfa_path is a bare filename, so
+        # anchor on --outDir when the pipeline has one
+        meaning = zip_failure_meaning(str(e))
+        out_root = getattr(options, 'outDir', None) or os.path.dirname(gfa_path) or '.'
+        debug_dir = os.path.join(out_root, 'zip-failed')
+        if '://' not in debug_dir:
+            os.makedirs(debug_dir, exist_ok=True)
+        saved = []
+        cmd_path = os.path.join(work_dir, 'zip-input.cmd')
+        with open(cmd_path, 'w') as cmd_file:
+            cmd_file.write('# in.gfa is {0}.zip-input.gfa{1} and snarls.json {0}.zip-input.snarls.json{2}, all '
+                           'decompressed\n'.format(name, '.gz' if gzipped else '',
+                                                   ', walks.gaf {}.zip-input.gaf.gz'.format(name) if gaf_id else ''))
+            cmd_file.write(' '.join(cmd) + '\n')
+        for file_id, local, dest_name in ((pansn_gfa_id, None, name + '.zip-input.gfa' + ('.gz' if gzipped else '')),
+                                          (None, snarls, name + '.zip-input.snarls.json'),
+                                          (gaf_id, None, name + '.zip-input.gaf.gz'),
+                                          (None, cmd_path, name + '.zip-input.cmd'),
+                                          (None, log_path if os.path.isfile(log_path) else None, name + '.zip.log')):
+            if file_id is None and local is None:
+                continue
+            dest = os.path.join(debug_dir, dest_name)
+            job.fileStore.exportFile(file_id if file_id else job.fileStore.writeGlobalFile(local), makeURL(dest))
+            saved.append(dest)
+        raise RuntimeError('rgfa-zip failed on {} ({}).\nInputs and log saved for reproduction: {}\n{}'.format(
+            name, meaning, ' '.join(saved), e))
+    missing = [os.path.basename(path) for path in (out_gfa, report) if not os.path.isfile(path)]
+    if missing:
+        raise RuntimeError('rgfa-zip exited 0 on {} without writing {}'.format(name, ' and '.join(missing)))
+
+    # chains and bp from rgfa-zip's own totals: the report has a row per chain, but no bp total
+    totals = summarize_zip_log(log_path) if os.path.isfile(log_path) else {}
+    report_zipped, report_reverted = summarize_zip_report(report)
+    RealtimeLogger.info(zip_summary_line(name, totals, report_zipped, report_reverted, raw_gfa_bytes))
+    reverted = totals.get('reverted', report_reverted)
+    if reverted:
+        # each one cost only its own chain, which stayed alt: a warning, not a failure
+        job.fileStore.logToMaster('WARNING: rgfa-zip reverted {} chain(s) on {} after a validator refused them; '
+                                  'they stay unzipped.  See the reverted:<check> rows of its report'.format(reverted, name))
+    if totals.get('peak_rss', 0) > max(ZIP_GFA_MEMORY_FACTOR * raw_gfa_bytes, ZIP_ALIGNER_MEMORY):
+        # nothing failed, but the next graph like this one could: the job is sized on that factor.
+        # Below an aligner's 1.5 GB it is only rgfa-zip's fixed cost showing on a small graph
+        job.fileStore.logToMaster('WARNING: rgfa-zip on {} peaked at {}, {:.1f}x its {} GFA, above the {}x cactus '
+                                  'sizes its job for'.format(name, bytes2human(totals['peak_rss']),
+                                                             totals['peak_rss'] / raw_gfa_bytes,
+                                                             bytes2human(raw_gfa_bytes), ZIP_GFA_MEMORY_FACTOR))
+
+    if gzipped:
+        cactus_call(parameters=['bgzip', '--threads', str(job.cores)], infile=out_gfa, outfile=out_gfa + '.gz')
         out_gfa += '.gz'
     return job.fileStore.writeGlobalFile(out_gfa), job.fileStore.writeGlobalFile(report)
 

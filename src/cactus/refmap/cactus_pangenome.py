@@ -44,7 +44,8 @@ from cactus.progressive.cactus_prepare import human2bytesN
 from cactus.paf.last_scoring import last_train_enabled
 from cactus.refmap.cactus_minigraph import minigraph_construct_workflow, minigraph_construct_batch_workflow
 from cactus.refmap.cactus_minigraph import check_sample_names, read_chromfile
-from cactus.refmap.cactus_minigraph import minigraph_construct_import_sequences, export_minigraph_construct_output, export_collapse_artifacts
+from cactus.refmap.cactus_minigraph import minigraph_construct_import_sequences, export_minigraph_construct_output, export_rewrite_artifacts
+from cactus.refmap.cactus_minigraph import check_graph_rewrite_config
 from cactus.refmap.cactus_graphmap import minigraph_workflow, minigraph_batch_workflow, export_graphmap_output
 from cactus.refmap.cactus_graphmap import apply_mgsplit_filter_overrides, add_separate_ref_contigs_job
 from cactus.refmap.cactus_graphmap_split import graphmap_split_workflow, export_split_data
@@ -243,18 +244,19 @@ def pangenome_validate_options(options):
 def pangenome_config_overrides(options, config_node):
     """ push the cpu options into the config, and sort out the minigraph cores.  shared with
     cactus-panpatch """
-    # Collapsing splits nodes at alignment-block boundaries and rewires the edges around them, so
-    # a GAF made against the pre-collapse graph no longer tiles it.  Left alone this surfaces much
-    # later as a gaf2unstable tiling assertion inside check_reusable_gaf, whose diagnosis points at
-    # --mgSplit rather than at the collapse.
+    # Zipping (or collapsing) splits nodes at alignment-block boundaries, deletes the alt it
+    # replaces and rewires the edges around them, so a GAF made against the graph before that no
+    # longer tiles it.  Left alone this surfaces much later as a gaf2unstable tiling assertion
+    # inside check_reusable_gaf, whose diagnosis points at --mgSplit rather than at the rewrite.
     # getattr, not attribute access: cactus-panpatch shares this function and defines neither option
-    if getattr(options, 'inGAF', None) and not getattr(options, 'remap', False) and getOptionalAttrib(
-            findRequiredNode(config_node, "graphmap"), "collapseInversions", typeFn=bool, default=False):
+    rewrite_mode = check_graph_rewrite_config(config_node)
+    if getattr(options, 'inGAF', None) and not getattr(options, 'remap', False) and rewrite_mode:
+        attrib = 'zipAlleles' if rewrite_mode == 'zip' else 'collapseInversions'
         raise RuntimeError(
-            'collapseInversions cannot be used with --inGAF: the collapse rewrites node boundaries, so the '
-            'mappings in {} no longer resolve against the extended graph.  Either drop --inGAF (--inGFA still '
-            'saves the construction, which is the expensive half), add --remap to map every genome against the '
-            'collapsed graph, or turn collapseInversions off in the config.'.format(getattr(options, 'inGAF', '?')))
+            '{} cannot be used with --inGAF: it rewrites node boundaries, so the mappings in {} no longer '
+            'resolve against the extended graph.  Either drop --inGAF (--inGFA still saves the construction, '
+            'which is the expensive half), add --remap to map every genome against the rewritten graph, or '
+            'turn {} off in the config.'.format(attrib, getattr(options, 'inGAF', '?'), attrib))
     if options.mapCores is not None:
         findRequiredNode(config_node, "graphmap").attrib["cpu"] = str(options.mapCores)
     mg_cores = getOptionalAttrib(findRequiredNode(config_node, "graphmap"), "cpu", typeFn=int, default=1)
@@ -382,13 +384,13 @@ def main():
     logger.info("cactus-pangenome has finished after {} seconds".format(run_time))
 
 def export_minigraph_wrapper(job, options, sv_gfa_id, sv_gfa_path, last_scores_id,
-                             uncollapsed_pansn_gfa_id=None, collapse_report_id=None):
-    """ export the GFA from minigraph.  sv_gfa_id is the collapsed graph when collapseInversions is
-    on, the same graph the rest of the pipeline maps against; the pre-collapse graph and the per-call
-    report go beside it """
+                             input_pansn_gfa_id=None, rewrite_artifacts=None):
+    """ export the GFA from minigraph.  sv_gfa_id is the zipped graph when zipAlleles is on (or the
+    collapsed one with collapseInversions), the same graph the rest of the pipeline maps against;
+    the graph as minigraph built it, the report and any walks GAF go beside it """
     out_gfa_path = os.path.join(options.outDir, os.path.basename(sv_gfa_path))
     job.fileStore.exportFile(sv_gfa_id, makeURL(out_gfa_path))
-    export_collapse_artifacts(job.fileStore, out_gfa_path, uncollapsed_pansn_gfa_id, collapse_report_id)
+    export_rewrite_artifacts(job.fileStore, out_gfa_path, input_pansn_gfa_id, rewrite_artifacts)
     if last_scores_id:
         scores_path = makeURL(os.path.join(options.outDir, options.outName + '.train'))
         job.fileStore.exportFile(last_scores_id, makeURL(os.path.join(options.outDir, os.path.basename(scores_path))))        
@@ -500,7 +502,7 @@ def export_minigraph_batch_wrapper(job, options, config_node, input_seqfiles, in
     options.outputGFA = out_dir
     export_minigraph_construct_output(options, input_seqfiles, minigraph_batch_results, job.fileStore)
 
-    # minigraph_batch_results:  chrom-> (gfa_id, pansn_gfa_id, uncollapsed_pansn_gfa_id, collapse_report_id, train_id)
+    # minigraph_batch_results:  chrom-> (gfa_id, pansn_gfa_id, input_pansn_gfa_id, rewrite_artifacts, train_id)
     # filter out the pansn gfas (they were exported above) and continue with the
     # regualar gfas
     output_dict = {}
@@ -713,18 +715,19 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
     else:
         split_config_node = config_node
         split_config_wrapper = config_wrapper
+    # scores_id: a --scoresFile model, for the mapping zipWalks="gaf" runs before the zip
     minigraph_job = prev_job.addFollowOnJobFn(minigraph_construct_workflow, mg_options, split_config_node, seq_id_map, seq_order, sv_gfa_path, sanitize=False,
-                                              in_gfa_id=in_gfa_id, walltime=cactus_walltime())
+                                              in_gfa_id=in_gfa_id, scores_id=last_scores_id, walltime=cactus_walltime())
     sv_gfa_id = minigraph_job.rv(0)
     pansn_sv_gfa_id = minigraph_job.rv(1)
     if not last_scores_id:
         # index 4: minigraph_construct_workflow returns
-        # (gfa, pansn_gfa, collapsed_gfa, collapse_report, train)
+        # (gfa, pansn_gfa, input_pansn_gfa, rewrite_artifacts, train)
         last_scores_id = minigraph_job.rv(4)
     # only build reference graph on first pass when doing minigraph-by-chrom pipeline
     minigraph_wrapper_job = minigraph_job.addFollowOnJobFn(export_minigraph_wrapper, options, pansn_sv_gfa_id, sv_gfa_path, last_scores_id,
-                                                           uncollapsed_pansn_gfa_id=minigraph_job.rv(2),
-                                                           collapse_report_id=minigraph_job.rv(3),
+                                                           input_pansn_gfa_id=minigraph_job.rv(2),
+                                                           rewrite_artifacts=minigraph_job.rv(3),
                                                            walltime=cactus_walltime(0, io_bytes=2 * input_seq_bytes))
 
     # cactus_graphmap
@@ -796,6 +799,7 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
         minigraph_batch_job = sanitize_job.addFollowOnJobFn(minigraph_construct_batch_workflow, options, config_node,
                                                             input_map, None,  sanitize=False,
                                                             construct_ref_id_map=wg_ref_id_map,
+                                                            scores_id=last_scores_id if options.scoresFile else None,
                                                             walltime=cactus_walltime())
         minigraph_batch_results = minigraph_batch_job.rv()
         minigraph_batch_export_job = minigraph_batch_job.addFollowOnJobFn(export_minigraph_batch_wrapper, options, config_node,

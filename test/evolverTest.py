@@ -808,7 +808,7 @@ class TestCase(unittest.TestCase):
                                ['--xg', '--vcf', '--giraffe', 'clip', 'filter', '--lrGiraffe'] + cactus_opts + ['--indexCores', '4'])
 
     def _run_yeast_pangenome(self, binariesMode, mgSplit=False, wholeGenomeRef=False, collapse=False, gref=None,
-                             vcfL=None, extend=None, collapseInversions=False):
+                             vcfL=None, extend=None, collapseInversions=False, zipAlleles=False, zipWalks=None):
         """ yeast pangenome chromosome by chromosome pipeline, as run through a single invocations.
 
         extend, if given, is the list of genomes to build a graph out of first, with the
@@ -816,8 +816,9 @@ class TestCase(unittest.TestCase):
         tests this exercises the translated PAF through cactus-graphmap-split, which is the one
         downstream stage that reads it before cactus-align
 
-        note that collapseInversions (the rgfa-collapse postprocessor, a config attribute) is a
-        different feature from collapse (--collapse, which incorporates minimap2 self-alignments).
+        note that collapseInversions (the deprecated rgfa-collapse postprocessor, a config attribute)
+        and zipAlleles (rgfa-zip, which replaces it; zipWalks picks its walk source) are a different
+        feature from collapse (--collapse, which incorporates minimap2 self-alignments).
         """
 
         orig_seq_file_path = './examples/yeastPangenome.txt'
@@ -847,16 +848,24 @@ class TestCase(unittest.TestCase):
         if extend:
             base = self._build_yeast_base_graph(binariesMode, orig_seq_file_path, extend)
             cactus_pangenome_cmd += ['--inGFA', base['gfa'], '--inGAF', base['gaf']]
-        if collapseInversions:
-            # there is no command-line flag for it, so edit the config the way _run_evolver does
-            config_path = os.path.join(self.tempDir, 'config.collapse.xml')
+        if collapseInversions or zipAlleles:
+            # there is no command-line flag for these, so edit the config the way _run_evolver does
+            config_path = os.path.join(self.tempDir, 'config.rewrite.xml')
             shutil.copyfile('src/cactus/cactus_progressive_config.xml', config_path)
             xml_root = ET.parse(config_path).getroot()
-            xml_root.find('graphmap').attrib['collapseInversions'] = '1'
+            if collapseInversions:
+                xml_root.find('graphmap').attrib['collapseInversions'] = '1'
+            if zipAlleles:
+                xml_root.find('graphmap').attrib['zipAlleles'] = '1'
+                if zipWalks:
+                    xml_root.find('graphmap').attrib['zipWalks'] = zipWalks
             with open(config_path, 'w') as config_file:
                 config_file.write(minidom.parseString(
                     ET.tostring(xml_root, encoding='unicode')).toprettyxml())
             cactus_pangenome_cmd += ['--configFile', config_path]
+        if zipAlleles:
+            # the leader's log, where _check_zip_log reads the zip's summary lines
+            cactus_pangenome_cmd += ['--logFile', self._yeast_log_path()]
         subprocess.check_call(cactus_pangenome_cmd + cactus_opts)
 
         #compatibility with older test
@@ -1188,6 +1197,116 @@ class TestCase(unittest.TestCase):
         self.assertTrue(gfa_names, 'no per-chromosome minigraphs in {}'.format(mg_dir))
         for gfa_name in gfa_names:
             self._check_collapse_output(mg_dir, gfa_name=gfa_name)
+
+    def _check_zip_output(self, join_path, gfa_name='yeast.sv.gfa.gz', walks=False):
+        """ with zipAlleles on, the minigraph job exports the zipped graph to the normal path and
+        keeps the graph minigraph built beside it, plus rgfa-zip's report, and with zipWalks="gaf"
+        the GAF the zip read its walks from.  Like the collapse check, this holds whether or not the
+        dataset has a zippable allele: it pins down the integration -- config read, jobs scheduled,
+        rgfa-zip invoked, outputs exported -- and that the walks GAF belongs to the graph that was
+        zipped, which is the one thing that differs between the --mgSplit modes. """
+        zipped = os.path.join(join_path, gfa_name)
+        unzipped = zipped.replace('.sv.gfa.gz', '.sv.unzipped.gfa.gz')
+        report = zipped.replace('.sv.gfa.gz', '.sv.zip.tsv')
+        walks_gaf = zipped.replace('.sv.gfa.gz', '.sv.unzipped.gaf.gz')
+        self.assertTrue(os.path.exists(zipped), 'zipped graph missing: {}'.format(zipped))
+        self.assertTrue(os.path.exists(unzipped),
+                        'zipAlleles is on but the unzipped graph was not kept: {}'.format(unzipped))
+        self.assertTrue(os.path.exists(report), 'zipAlleles is on but no report was written: {}'.format(report))
+        if walks:
+            self.assertTrue(os.path.exists(walks_gaf), 'zipWalks is gaf but its GAF was not kept: {}'.format(walks_gaf))
+            self._check_gaf_resolves(walks_gaf, unzipped)
+        else:
+            self.assertFalse(os.path.exists(walks_gaf), 'zipWalks is not gaf, but {} was written'.format(walks_gaf))
+        # the zip deletes and splits nodes and rewires links, so a bad edit shows up as a dangling or
+        # duplicate link
+        self._validate_sv_gfa(zipped)
+
+    def _yeast_log_path(self):
+        """ the --logFile of _run_yeast_pangenome, given with zipAlleles """
+        return os.path.join(self.tempDir, 'yeast.pangenome.log')
+
+    def _check_zip_log(self, log_path, names, graphs=None):
+        """ the job log has one summary line per zipped graph, named as the zip names it (the
+        chromosome with --mgSplit), giving rgfa-zip's own count of the chains and bp it zipped.
+        graphs, if given, is the graph before the zip and the graph exported after it, which in
+        whole-genome mode is all the zip changed (--mgSplitWholeGenomeRef prunes in between): the bp
+        must then be exactly the non-reference bp the graph lost.  Each zip job is also sized from the
+        graph's real size, so the --mem it hands rgfa-zip leaves an aligner process per core """
+        import gzip
+        import re
+        summary_re = re.compile(r'\brgfa-zip on (\S+): zipped (\d+) chain\(s\), (\d+) bp \(')
+        cores_re = re.compile(r'\bScheduling rgfa-zip on (\S+): (\d+) cores, ')
+        room_re = re.compile(r'\brgfa-zip on (\S+): .* leaves --mem \d+, room for (\d+) aligner process')
+        zipped_bp, cores, room = {}, {}, {}
+        with open(log_path) as log_file:
+            for line in log_file:
+                for regex, found in ((summary_re, zipped_bp), (cores_re, cores), (room_re, room)):
+                    match = regex.search(line)
+                    if match:
+                        found[match.group(1)] = int(match.group(3) if regex is summary_re else match.group(2))
+        self.assertEqual(sorted(zipped_bp), sorted(names), 'graphs with a zip summary line in {}'.format(log_path))
+        self.assertEqual(sorted(cores), sorted(names), 'graphs with a zip scheduling line in {}'.format(log_path))
+        for name in names:
+            self.assertGreaterEqual(room.get(name, 0), cores[name],
+                                    'aligner processes the --mem of the zip of {} leaves, against its cores'.format(name))
+        if graphs:
+            def alt_bp(gfa_path):
+                total = 0
+                with gzip.open(gfa_path, 'rt') as gfa_file:
+                    for line in gfa_file:
+                        if line.startswith('S\t'):
+                            toks = line.rstrip('\n').split('\t')
+                            tags = dict((t[:5], t[5:]) for t in toks[3:])
+                            if int(tags.get('SR:i:', '0')) > 0:
+                                total += int(tags['LN:i:']) if 'LN:i:' in tags else len(toks[2])
+                return total
+            self.assertEqual(len(names), 1)
+            self.assertEqual(alt_bp(graphs[0]) - alt_bp(graphs[1]), zipped_bp[names[0]],
+                             'the bp rgfa-zip logged against the alt bp {} lost'.format(graphs[1]))
+
+    def _check_chrom_zip_output(self, join_path, walks=False):
+        """ _check_chrom_collapse_output, for zipAlleles.  With --mgSplitWholeGenomeRef the unzipped
+        graph and the walks GAF are both the whole-reference graph before the prune, and must match """
+        mg_dir = os.path.join(join_path, 'chrom-minigraph')
+        gfa_names = sorted(f for f in os.listdir(mg_dir) if f.endswith('.sv.gfa.gz'))
+        self.assertTrue(gfa_names, 'no per-chromosome minigraphs in {}'.format(mg_dir))
+        for gfa_name in gfa_names:
+            self._check_zip_output(mg_dir, gfa_name=gfa_name, walks=walks)
+
+    def _check_gaf_resolves(self, gaf_path, gfa_path):
+        """ every step of every record of a stable-coordinate GAF names a contig of the graph and
+        lands on its node boundaries, the query names are PanSN like the graph's, and every genome
+        of the graph was mapped: what rgfa-zip needs of the GAF it takes its walks from """
+        import gzip
+        import re
+        nodes = {}
+        with gzip.open(gfa_path, 'rt') as gfa_file:
+            for line in gfa_file:
+                if line.startswith('S\t'):
+                    toks = line.rstrip('\n').split('\t')
+                    tags = dict((t[:5], t[5:]) for t in toks[3:])
+                    length = int(tags['LN:i:']) if 'LN:i:' in tags else len(toks[2])
+                    nodes.setdefault(tags['SN:Z:'], {})[int(tags['SO:i:'])] = length
+        graph_haps = set('#'.join(sn.split('#')[:2]) for sn in nodes)
+        gaf_haps = set()
+        records = 0
+        with gzip.open(gaf_path, 'rt') as gaf_file:
+            for line in gaf_file:
+                toks = line.rstrip('\n').split('\t')
+                records += 1
+                self.assertGreaterEqual(toks[0].count('#'), 2, 'GAF query {} is not PanSN'.format(toks[0]))
+                gaf_haps.add('#'.join(toks[0].split('#')[:2]))
+                for name, start, end in re.findall(r'[<>]([^<>]+):(\d+)-(\d+)', toks[5]):
+                    self.assertIn(name, nodes, '{} names {}, which {} does not have'.format(gaf_path, name, gfa_path))
+                    pos = int(start)
+                    self.assertIn(pos, nodes[name], '{}:{} is not a node start of {}'.format(name, start, gfa_path))
+                    while pos < int(end):
+                        self.assertIn(pos, nodes[name], '{}:{}-{} does not tile {}'.format(name, start, end, gfa_path))
+                        pos += nodes[name][pos]
+                    self.assertEqual(pos, int(end), '{}:{}-{} overruns a node of {}'.format(name, start, end, gfa_path))
+        self.assertGreater(records, 0, '{} is empty'.format(gaf_path))
+        self.assertEqual(graph_haps - gaf_haps, set(), 'genomes of {} with no record in {}'.format(gfa_path, gaf_path))
 
     def _check_yeast_pangenome(self, binariesMode, other_ref=None, expect_odgi=False, expect_haplo=False, expect_unchopped_gfa=False, expect_gref=False, vcfL=None, expect_report=True):
         """ yeast pangenome chromosome by chromosome pipeline
@@ -2156,13 +2275,17 @@ class TestCase(unittest.TestCase):
         self._check_yeast_pangenome(name, other_ref='UWOPS034614', expect_report=False)
 
     def testYeastPangenomeLocal(self):
-        """ Run pangenome pipeline (including contig splitting!) on yeast dataset using cactus-pangenome """
+        """ Run pangenome pipeline (including contig splitting!) on yeast dataset using cactus-pangenome,
+        with rgfa-zip (zipAlleles) on the whole-genome graph, reading its walks from the graph alone """
         name = "local"
-        self._run_yeast_pangenome(name, collapse=True, collapseInversions=True)
+        self._run_yeast_pangenome(name, collapse=True, zipAlleles=True)
 
         # check the output
         self._check_yeast_pangenome(name, other_ref='DBVPG6044', expect_odgi=True, expect_haplo=False, expect_unchopped_gfa=True)
-        self._check_collapse_output(os.path.join(self.tempDir, 'join'))
+        join_path = os.path.join(self.tempDir, 'join')
+        self._check_zip_output(join_path)
+        self._check_zip_log(self._yeast_log_path(), ['yeast.sv'],
+                            graphs=(os.path.join(join_path, 'yeast.sv.unzipped.gfa.gz'), os.path.join(join_path, 'yeast.sv.gfa.gz')))
 
     def testYeastPangenomeExtendLocal(self):
         """ Yeast pangenome built three strains at a time with cactus-pangenome --inGFA.
@@ -2582,7 +2705,9 @@ class TestCase(unittest.TestCase):
         testYeastPangenomeSplitLocal covers --mgSplitWholeGenomeRef, which takes a different route
         through the export (the whole-genome graph only reaches its final path after the prune).
         This covers the plain option: the collapse is skipped on the reference-only first pass and
-        runs on each all-sample chromosome graph. """
+        runs on each all-sample chromosome graph.  It is also what keeps the deprecated
+        collapseInversions running in CI until rgfa-zip (zipAlleles, tested by the other two)
+        replaces it for good. """
         name = "local"
         self._run_yeast_pangenome(name, mgSplit=True, collapseInversions=True)
 
@@ -2595,14 +2720,19 @@ class TestCase(unittest.TestCase):
 
         Uses --mgSplitWholeGenomeRef, which implies --mgSplit: it runs everything the plain option
         does and adds the whole-genome reference substitution and the prune that undoes it, so it is
-        the stricter of the two to keep in CI. """
+        the stricter of the two to keep in CI.  rgfa-zip (zipAlleles) runs on each chromosome's graph
+        with zipWalks="gaf": every genome is mapped to that graph before it is zipped, which in this
+        mode is the whole-reference graph the prune later cuts down, so the walks GAF has to match
+        that graph and not the pruned one. """
         name = "local"
-        self._run_yeast_pangenome(name, wholeGenomeRef=True, gref='clip', vcfL=0.95, collapseInversions=True)
+        self._run_yeast_pangenome(name, wholeGenomeRef=True, gref='clip', vcfL=0.95, zipAlleles=True, zipWalks='gaf')
 
         # check the output
         self._check_yeast_pangenome(name, other_ref='DBVPG6044', expect_odgi=True, expect_haplo=True, expect_unchopped_gfa=True, expect_gref=True, vcfL=0.95)
         self._check_pruned_chrom_minigraphs(os.path.join(self.tempDir, 'join'))
-        self._check_chrom_collapse_output(os.path.join(self.tempDir, 'join'))
+        self._check_chrom_zip_output(os.path.join(self.tempDir, 'join'), walks=True)
+        mg_dir = os.path.join(self.tempDir, 'join', 'chrom-minigraph')
+        self._check_zip_log(self._yeast_log_path(), [f[:-len('.sv.gfa.gz')] for f in os.listdir(mg_dir) if f.endswith('.sv.gfa.gz')])
 
         # Test bypass re-indexing with --vgClip and --vgFilter
         self._test_vg_bypass(name)
