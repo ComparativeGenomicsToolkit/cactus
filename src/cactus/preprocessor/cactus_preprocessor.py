@@ -74,13 +74,29 @@ def fasta_pass_walltime(size, passes=1, io_multiple=2):
     return cactus_walltime(passes * FASTA_PASS_SECS_PER_GB * size / 1e9,
                            io_bytes=io_multiple * size)
 
+def spread_sample_indexes(n, i, k):
+    """Indexes of k of the n chunks, spread evenly around the genome and never chunk i itself.
+
+    This is spreadSample's alternative to taking the k chunks flanking chunk i.  Flanking
+    chunks over-represent the sequence near the query: tandem gene clusters and local
+    segmental duplications show up in them far more often than their genome-wide copy
+    number warrants, so they get masked.  Measured on a sawshark chunk, a flanking target
+    newly masked 19.5% of what Red left unmasked where a genome-wide sample of the same
+    proportion masked 12.5%.  Leaving the query chunk out also keeps every base from
+    counting its own two overlapping fragments, so the depth threshold counts copies
+    elsewhere in the genome only.  Deterministic: a function of n, i and k alone.
+    """
+    k = min(k, n - 1)
+    return [(i + 1 + (r * (n - 1)) // k) % n for r in range(k)]
+
 class PreprocessorOptions:
     def __init__(self, chunkSize, memory, cpu, check, proportionToSample, unmask,
                  preprocessJob, checkAssemblyHub=None, lastzOptions=None, minPeriod=None,
                  gpu=0, lastz_memory=None, dnabrnnOpts=None,
                  dnabrnnAction=None, redOpts=None, redPrefilterOpts=None, fastanOpts=None, fastanPrefilterOpts=None,
                  eventName=None, minLength=None,
-                 cutBefore=None, cutBeforeOcc=None, cutAfter=None, inputBedID=None):
+                 cutBefore=None, cutBeforeOcc=None, cutAfter=None, inputBedID=None,
+                 spreadSample=False):
         self.chunkSize = chunkSize
         self.memory = memory
         self.cpu = cpu
@@ -110,6 +126,7 @@ class PreprocessorOptions:
         self.cutBeforeOcc = cutBeforeOcc
         self.cutAfter = cutAfter
         self.inputBedID = inputBedID
+        self.spreadSample = spreadSample
 
 class CheckUniqueHeaders(RoundedJob):
     """
@@ -271,11 +288,15 @@ class PreprocessSequence(RoundedJob):
             #Calculate the number of chunks to use
             inChunkNumber = int(max(1, math.ceil(len(inChunkList) * self.prepOptions.proportionToSample)))
             assert inChunkNumber <= len(inChunkList) and inChunkNumber > 0
-            #Now get the list of chunks flanking and including the current chunk
-            j = max(0, i - inChunkNumber//2)
-            inChunkIDs = inChunkIDList[j:j+inChunkNumber]
-            if len(inChunkIDs) < inChunkNumber: #This logic is like making the list circular
-                inChunkIDs += inChunkIDList[:inChunkNumber-len(inChunkIDs)]
+            if self.prepOptions.spreadSample and len(inChunkIDList) > 1:
+                inChunkIDs = [inChunkIDList[j] for j in spread_sample_indexes(len(inChunkIDList), i, inChunkNumber)]
+                inChunkNumber = len(inChunkIDs)
+            else:
+                #Now get the list of chunks flanking and including the current chunk
+                j = max(0, i - inChunkNumber//2)
+                inChunkIDs = inChunkIDList[j:j+inChunkNumber]
+                if len(inChunkIDs) < inChunkNumber: #This logic is like making the list circular
+                    inChunkIDs += inChunkIDList[:inChunkNumber-len(inChunkIDs)]
             assert len(inChunkIDs) == inChunkNumber
             if self.prepOptions.gpu:
                 # when using gpu lastz, we pass through the proportion directly to segalign
@@ -347,7 +368,8 @@ class BatchPreprocessor(RoundedJob):
                                               cutBefore = getOptionalAttrib(prepNode, "cutBefore", typeFn=str, default=None),
                                               cutBeforeOcc = getOptionalAttrib(prepNode, "cutBeforeOcc", typeFn=int, default=None),
                                               cutAfter = getOptionalAttrib(prepNode, "cutAfter", typeFn=str, default=None),
-                                              inputBedID = getOptionalAttrib(prepNode, "inputBedID", typeFn=str, default=None))
+                                              inputBedID = getOptionalAttrib(prepNode, "inputBedID", typeFn=str, default=None),
+                                              spreadSample = getOptionalAttrib(prepNode, "spreadSample", typeFn=bool, default=False))
 
             if prepOptions.unmask:
                 inSequence = fileStore.readGlobalFile(self.inSequenceID)

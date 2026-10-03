@@ -280,8 +280,9 @@ class ConfigWrapper:
 
     def initLastz(self, options):
         """ Turn on GPU and / or check options make sense """
-        # fastga trumps all.  we explicitly disable gpu if it's on
-        if options.fastga:
+        # fastga trumps all.  we explicitly disable gpu if it's on.  cactus-preprocess has no
+        # --fastga, so it gets here without the option at all whenever lastzRepeatMask is active
+        if getattr(options, 'fastga', False):
             findRequiredNode(self.xmlRoot, 'blast').attrib['mapper'] = 'fastga'
         fastga = getOptionalAttrib(findRequiredNode(self.xmlRoot, 'blast'), 'mapper', typeFn=str) == 'fastga'
         fastga_fill = getOptionalAttrib(findRequiredNode(self.xmlRoot, 'blast'), 'fastga_fill', typeFn=bool, default=False)
