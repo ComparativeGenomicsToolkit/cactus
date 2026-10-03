@@ -561,6 +561,9 @@
 	<!-- lastTrain: train the abPOA scoring model with last-train, on the reference against a typical-sized genome from the middle of the mash order, instead of using the default (HOXD70) scores. With mgSplit, each chromosome gets its own model, and one that can't be trained borrows another chromosome's. Training failures only ever fall back, never fail the run. Ignored with scoresFile. [0: off, 1: on] -->
 	<!-- lastTrainMap: also derive minigraph's base-alignment penalties (its wfa-pen option) from the trained (or scoresFile) model when mapping. minigraph's aligner scores a match as 0 and has one mismatch penalty, so only the mean match and mismatch scores and the gap costs carry over. A human model gives mismatch 8, gap open 11, gap extend 1, against minigraph's 4, 4 and 2. Mapping HG01978 chr20 to a CHM13+HG01978.1 graph, this dropped 9-11% of the mismatches (for 10-20% more gap bases), and only 33-37% of the dropped ones were transitions, which is what random mismatches give, against 57-58% of the ones kept. Chaining is unaffected, so the mappings themselves are the same. Has no effect when minigraphMapOptions already sets wfa-pen. [0: off, 1: on] -->
 	<!-- leftAlign: move every indel in the minigraph alignments as far left on its graph node as the sequences allow (paffy left_align), without changing the alignment's score. minigraph places an indel in a repeat at a seed anchor, and at a mirrored place when a contig maps to the reverse strand, so haplotypes carrying the same indel get it in different places and the graph gets a parallel edge for each. Mapping yeast YPS128 as-is and reverse complemented, 21% of the indels were placed identically in both, and 89% once left-aligned. Costs a node fasta (the size of the GFA) on disk in each mapping job. [0: off, 1: on (default)] -->
+	<!-- zipAlleles: after construction (on every per-chromosome graph with mgSplit, never on its reference-only first pass), run rgfa-zip on the minigraph GFA. Each allele minigraph stored as novel sequence is aligned, on both strands, to the reference window it bypasses (and, if zipOptions turn the alt-vs-alt pass on, failing that to a parallel allele with the same bounding nodes); where the homology is confident (by default at least 5 kb at 95% gap-compressed identity, in a unique placement and an unfragmented chain) the allele is replaced by the sequence it duplicates, inversions included. Every later stage (mapping, splitting, cactus-align, the join) sees the zipped graph, and <x>.sv.unzipped.gfa.gz (the graph as minigraph built it) and <x>.sv.zip.tsv (one row per candidate and per skipped site, with its outcome) are written beside <x>.sv.gfa.gz. On by default: set to 0 to keep the graph as minigraph built it (a config without this attribute leaves it off). Cannot be combined with reusing mappings (inGAF without remap) when adding genomes to an existing graph, so set it to 0 for that; resuming from a graph with nothing to add zips nothing. [0: off, 1: on (default)] -->
+	<!-- zipOptions: options passed to rgfa-zip as they are. The default (also used when this attribute is missing) is rgfa-zip's own defaults, "-b 5000 -i 0.95 -G 50 -x asm20" (the minimum chain bp, minimum gap-compressed identity, indel length that splits an alignment, and minimap2 preset), plus its no-alt flag (double-dashed, as in the value below), which zips onto the reference only and skips the second, alt-vs-alt pass: on a CHM13 30-way pangenome that pass was a small but consistent loss. Drop the no-alt flag to add the alt-vs-alt pass. cactus adds the minimap2 it ships (-m, which rgfa-zip requires as an explicit path), the job's cores (-t and -j: mgCores, at most 16), the memory left once the graph is loaded (mem) and the job's temporary directory (tmpdir), unless they are set here. The output files and the walk source (zipWalks) cannot be set here -->
+	<!-- zipWalks: which haplotype walks rgfa-zip aligns and checks its edits against. "creator" (default): one walk per minigraph insertion, rebuilt from the graph alone. "gaf": first map every input genome to the unzipped graph exactly as cactus-graphmap does (same options and model, except that with mgSplit a chromosome that borrows its model maps these walks with minigraph's default penalties, as the model is only borrowed after every chromosome is built), and give rgfa-zip the walks observed in that GAF, which is exported as <x>.sv.unzipped.gaf.gz. This costs an extra round of mapping, and recovers zips the graph alone cannot show to be safe. "witness": the graph-only fallback walks, for testing. -->
 	<graphmap
 		 assemblyName="_MINIGRAPH_"
 		 minigraphMapOptions="-c -xasm --par-align"
@@ -590,8 +593,9 @@
 		 minIdentity="0.5"
 		 minScore="1"
 		 removeMinigraphFromPAF="0"
-		 collapseInversions="0"
-		 collapseOptions="-k 300 -b 5000 -i 0.95 -D -A 3 -x asm20 -M 1.05"
+		 zipAlleles="1"
+		 zipOptions="-b 5000 -i 0.95 -G 50 -x asm20 --no-alt"
+		 zipWalks="creator"
 		 cpu="6"
 		 lastTrain="1"
 		 lastTrainMap="1"
@@ -611,6 +615,7 @@
 	<!-- refContigDropoff: When detecting refContigs, sort in reverse order by size, and pick refContigs up until contig N is this many times smaller than contig 1 (or maxRefContigs) is reached.  The general idea is to have a refContig for each chromosome then lump all the tiny ones into their own graphs. -->
 	<!-- refContigRegex: If specified, automatically promote any matching contig name into its own graph, regardless of how small it is.  Useful for making sure chrM doesn't get mixed with KI270322.1 etc. By defaulat it's anything beginning with chr (any case) followed by 0-3 chracters. This takes precedence over refContigDropoff -->
 	<!-- otherContigName: When determining refContigs automatically, other contigs get lumped into a graph with this name. This affects the file structure but has zero bearing on whole-genome graphs/indexes -->
+	<!-- wholeGenomeRef: with cactus-pangenome's mgSplit option, build each chromosome's second-pass minigraph against the whole primary reference genome rather than just that chromosome, so off-chromosome mappings can compete and be filtered the way they are in the whole-genome pipeline. The off-chromosome material is pruned back out before cactus-align. This costs indexing the whole reference for every chromosome. Set to 0 to build each chromosome's graph on that chromosome's reference only, as mgSplit did before (and as the step-by-step interface does). Ignored without mgSplit. [0: off, 1: on (default)] -->
   	<graphmap_split
 		 minQueryCoverages="0.75 0.5 0.25"
 		 minQueryCoverageThresholds="100000 1000000"
@@ -621,6 +626,7 @@
 		 refContigDropoff="10.0"
 		 refContigRegex="[c,C][h,H][r,R].?.?.?"
 		 otherContigName="chrOther"
+		 wholeGenomeRef="1"
 		 />
 	<!-- cactus-graphmap-join options -->
 	<!-- maxNodeLength: chop graphs so that nodes have at most this many bases. set to 0 to disable chopping. if this value exceeds 1024 then vg-based files will have different node id spaces than GFA (GBZ will contain translation) -->

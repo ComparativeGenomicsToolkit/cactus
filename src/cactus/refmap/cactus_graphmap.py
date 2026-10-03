@@ -396,7 +396,7 @@ RGFA2PAF_SECS_PER_GB = 40
 # for the vg convert that precedes it on the whole-panel GFA, against 802s worst case on the
 # per-chromosome ones.
 #
-# This looks far too high under --mgSplitWholeGenomeRef, where the whole job came to 563 s over
+# This looks far too high under mgSplitWholeGenomeRef, where the whole job came to 563 s over
 # 50 jobs against a graph term of 4386 s.  Do not cut the rate to close that gap: the rate is
 # right and the size it is applied to is wrong.  gfa_id_size is the compressed GFA expanded by
 # the hardcoded 10 above, which the whole-panel measurement supports (0.83 GiB gz to 8.3 GiB raw)
@@ -627,11 +627,17 @@ TRANSLATE_GAF_SECS_PER_GB = 400
 # check_reusable_gaf loads the graph and resolves a sample of records against it.
 GAF_CHECK_SECS = 600
 
-def minigraph_map_all(job, options, config, gfa_id, fa_id_map, graph_event, in_gaf_map=None, scores_id=None):
+def minigraph_map_all(job, options, config, gfa_id, fa_id_map, graph_event, in_gaf_map=None, scores_id=None,
+                      gaf_only=False):
     """ top-level job to run the minigraph mapping in parallel, returns paf.
 
     a genome that in_gaf_map already has mappings for has its PAF re-derived from them rather
-    than being mapped again -- see translate_gaf_one() """
+    than being mapped again -- see translate_gaf_one()
+
+    gaf_only maps every genome exactly the same way but stops at the GAF, returning (None, merged
+    PanSN GAF).  It is how zipAlleles with zipWalks="gaf" gets the walks graphmap would see on the
+    graph before it is zipped (cactus_minigraph.zip_alleles_workflow) """
+    assert not (gaf_only and in_gaf_map)
     # hang everything on this job, to self-contain workflow
     top_job = Job(walltime=cactus_walltime())
     job.addChild(top_job)
@@ -646,7 +652,7 @@ def minigraph_map_all(job, options, config, gfa_id, fa_id_map, graph_event, in_g
     paf_id_map = {}
                 
     # the estimate below is anchored on the query, which holds while the graph is no bigger than the
-    # chromosome the query came from.  the --mgSplitWholeGenomeRef second pass breaks that -- the graph
+    # chromosome the query came from.  the mgSplitWholeGenomeRef second pass breaks that -- the graph
     # is whole-genome while the query stays one chromosome, so the index dominates and the graph term
     # has to carry it: measured at ~5.5x the (already decompressed) GFA on HPRC, against the 2x below.
     # it must be gated on batch as well as the option: the option's own first pass maps whole-genome
@@ -680,7 +686,8 @@ def minigraph_map_all(job, options, config, gfa_id, fa_id_map, graph_event, in_g
                                                                      io_bytes=2*gaf_shard_id.size + gfa_id.size + la_bytes))
         else:
             map_job = top_job.addChildJobFn(minigraph_map_one, config, event_name, fa_id, gfa_id, scores_id=scores_id,
-                                            cores=mg_cores, disk=5*fa_id.size + (2 if left_align else 1)*gfa_id.size,
+                                            gaf_only=gaf_only,
+                                            cores=mg_cores, disk=5*fa_id.size + (2 if left_align and not gaf_only else 1)*gfa_id.size,
                                             memory=cactus_clamp_memory(mem),
                                             walltime=cactus_walltime(MINIGRAPH_MAP_SECS + MINIGRAPH_MAP_SECS_PER_GB * fa_id.size / 1e9,
                                                                      io_bytes=2*fa_id.size + gfa_id.size))
@@ -693,13 +700,15 @@ def minigraph_map_all(job, options, config, gfa_id, fa_id_map, graph_event, in_g
     # sets the real disk and walltime from them, so these two are just the coordination job
     merge_name = getattr(options, 'mg_chrom_name', None) if options.batch else None
     merge_name = merge_name if merge_name else 'merged'
-    paf_merge_job = top_job.addFollowOnJobFn(merge_pafs_sized, paf_id_map,
-                                             merged_name='{}.paf'.format(merge_name), walltime=cactus_walltime())
+    paf_merge_job = None
+    if not gaf_only:
+        paf_merge_job = top_job.addFollowOnJobFn(merge_pafs_sized, paf_id_map,
+                                                 merged_name='{}.paf'.format(merge_name), walltime=cactus_walltime())
     gaf_merge_job = top_job.addFollowOnJobFn(merge_pafs_sized, gaf_id_map, gzip=True,
                                              merged_name='{}.gaf'.format(merge_name),
                                              gzip_cores=mg_cores, walltime=cactus_walltime())
 
-    return paf_merge_job.rv(), gaf_merge_job.rv()
+    return paf_merge_job.rv() if paf_merge_job else None, gaf_merge_job.rv()
 
 # id=EVENT|CONTIG, as it appears in a stable GAF's query column and in each of its path segments
 # anchored to a field start (line start or tab) or a path-segment orientation mark, because
@@ -837,9 +846,10 @@ def gaf_to_pansn(gaf_path, out_path):
         for line in in_file:
             out_file.write(gaf_pansn_re.sub(lambda m: m.group(1) + event_to_pansn_prefix(m.group(2)) + '#', line))
 
-def minigraph_map_one(job, config, event_name, fa_file_id, gfa_file_id, scores_id=None):
+def minigraph_map_one(job, config, event_name, fa_file_id, gfa_file_id, scores_id=None, gaf_only=False):
     """ Run minigraph to map a Fasta file to a GFA graph, producing a GAF output.  scores_id is a
-    last-train model to derive minigraph's base-alignment penalties from """
+    last-train model to derive minigraph's base-alignment penalties from.  gaf_only returns
+    (PanSN GAF, None): the same GAF as the mapping publishes, without deriving a PAF from it """
 
     work_dir = job.fileStore.getLocalTempDir()
     gfa_path = os.path.join(work_dir, "mg.gfa")
@@ -880,6 +890,12 @@ def minigraph_map_one(job, config, event_name, fa_file_id, gfa_file_id, scores_i
 
     cactus_call(parameters=cmd, job_memory=job.memory)
 
+    if gaf_only:
+        # what stable_gaf_to_paf() below publishes: minigraph's own GAF, renamed to PanSN
+        pansn_gaf_path = gaf_path + '.pansn'
+        gaf_to_pansn(gaf_path, pansn_gaf_path)
+        return job.fileStore.writeGlobalFile(pansn_gaf_path), None
+
     return stable_gaf_to_paf(job, config, gaf_path, gfa_path, fa_path=fa_path)
 
 # how many reused GAF records the up-front check resolves before trusting the rest
@@ -893,7 +909,9 @@ def check_reusable_gaf(job, config, gaf_file_id, gfa_file_id, genome_names, gaf_
     <outName>.sv.gfa.gz and <outName>.gaf.gz that look like a pair and are not: the GAF is the
     whole-genome pass against the reference-only first-pass graph, while the GFA is the merged
     per-chromosome graphs.  Same stable coordinates, different node boundaries, so gaf2unstable
-    fails on the tiling rather than on a name and the mismatch is not obvious from the error. """
+    fails on the tiling rather than on a name and the mismatch is not obvious from the error.  The
+    other trap is the zip (zipAlleles, on by default): cactus-minigraph --inGFA zips the graph it
+    extends, which rewrites the nodes the mappings are anchored to, and nothing here can tell """
     work_dir = job.fileStore.getLocalTempDir()
     gfa_local = os.path.join(work_dir, 'mg.gfa')
     job.fileStore.readGlobalFile(gfa_file_id, gfa_local)
@@ -928,9 +946,11 @@ def check_reusable_gaf(job, config, gaf_file_id, gfa_file_id, genome_names, gaf_
             'The first {} records only ever walk through: {}.\n'
             'A --mgSplit run is the usual way to get a mismatched pair that looks like a matching one: its '
             '<outName>.gaf.gz is the whole-genome pass against the reference-only first-pass graph, while its '
-            '<outName>.sv.gfa.gz is the merged per-chromosome graphs.  Drop --inGAF to map every genome '
-            'against the extended graph instead -- --inGFA still saves the construction, which is the '
-            'expensive half.\nUnderlying error: {}'.format(
+            '<outName>.sv.gfa.gz is the merged per-chromosome graphs.  The other is a graph extended with '
+            'cactus-minigraph --inGFA while <graphmap zipAlleles> was on (the default): the zip rewrites the '
+            'nodes the mappings are anchored to, so extend it with zipAlleles="0" to reuse them.  Otherwise '
+            'drop --inGAF (or add --remap) to map every genome against the extended graph instead -- --inGFA '
+            'still saves the construction, which is the expensive half.\nUnderlying error: {}'.format(
                 gaf_path, gfa_path, GAF_REUSE_CHECK_RECORDS,
                 ' '.join(sorted(step_genomes)[:12]) or '(nothing)', e))
 

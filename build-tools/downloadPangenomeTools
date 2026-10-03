@@ -223,7 +223,7 @@ fi
 cd ${pangenomeBuildDir}
 git clone https://github.com/ComparativeGenomicsToolkit/cactus-gfa-tools.git
 cd cactus-gfa-tools
-git checkout 1002b6c86f57515ee2c4c6c1acda5676c5b7ac47
+git checkout 7e7424b2596f38eb86fc22565e4dbf52d77ffa46
 make -j ${numcpu}
 if [[ $STATIC_CHECK -ne 1 || $(ldd paf2lastz | grep so | wc -l) -eq 0 ]]
 then
@@ -249,9 +249,10 @@ then
 else
 	 exit 1
 fi
-if [[ $STATIC_CHECK -ne 1 || $(ldd rgfa-collapse | grep so | wc -l) -eq 0 ]]
+# rgfa-zip (<graphmap zipAlleles>) runs minimap2 itself, always the one cactus puts in ${binDir} above
+if [[ $STATIC_CHECK -ne 1 || $(ldd rgfa-zip | grep so | wc -l) -eq 0 ]]
 then
-	 mv rgfa-collapse ${binDir}
+	 mv rgfa-zip ${binDir}
 else
 	 exit 1
 fi
