@@ -412,6 +412,9 @@ def make_align_job(options, toil, config_wrapper=None, chrom_name=None):
         barNode.attrib["minimumBlockDegree"] = "1"
         # turn off POA seeding
         engineNode.attrib[seedingAttr] = "1"
+        # what <bar poaOrientation="reference"> goes by
+        if options.reference:
+            barNode.attrib["poaReferenceEvent"] = options.reference[0]
 
     # import the PAF alignments
     paf_id = toil.importFile(makeURL(options.pafFile))

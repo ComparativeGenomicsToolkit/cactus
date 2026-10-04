@@ -911,6 +911,27 @@ PoaParameters *poaParameters_constructFromCactusParams(CactusParams *params, Bas
         }
 #endif
     }
+    // optional, so a config from before these existed still runs (as NONE)
+    poaParameters->orientation = POA_ORIENT_NONE;
+    if (cactusParams_has(params, 2, "bar", "poaOrientation")) {
+        char *orientation = cactusParams_get_string(params, 2, "bar", "poaOrientation");
+        // auto is reference, which goes by poaReferenceEvent where there is one and is canonical otherwise
+        if (strcmp(orientation, "reference") == 0 || strcmp(orientation, "auto") == 0) {
+            poaParameters->orientation = POA_ORIENT_REFERENCE;
+        } else if (strcmp(orientation, "canonical") == 0) {
+            poaParameters->orientation = POA_ORIENT_CANONICAL;
+        } else if (strcmp(orientation, "none") != 0) {
+            st_errAbort("<bar poaOrientation> must be auto, none, reference or canonical, not %s", orientation);
+        }
+        free(orientation);
+    }
+    if (cactusParams_has(params, 2, "bar", "poaReferenceEvent")) {
+        poaParameters->referenceEvent = cactusParams_get_string(params, 2, "bar", "poaReferenceEvent");
+        if (poaParameters->referenceEvent[0] == '\0') {
+            free(poaParameters->referenceEvent);
+            poaParameters->referenceEvent = NULL;
+        }
+    }
     return poaParameters;
 }
 
@@ -921,6 +942,7 @@ void poaParameters_destruct(PoaParameters *poaParameters) {
     if (poaParameters->abpt != NULL) {
         abpoa_free_para(poaParameters->abpt);
     }
+    free(poaParameters->referenceEvent);
 #ifdef HAVE_MINIPOA
     if (poaParameters->mpt != NULL) {
         minipoa_free_para((minipoa_para_t *)poaParameters->mpt);
@@ -1190,6 +1212,111 @@ Msa *msa_make_partial_order_alignment(char **seqs, int *seq_lens, int64_t seq_no
     return output_msa;
 }
 
+/* ============================================================================ */
+/* Shared: which way round to align (see PoaOrientation)                        */
+/* ============================================================================ */
+
+
+static void reverse_complement_in_place(char *s, int64_t n) {
+    for (int64_t i = 0, j = n - 1; i <= j; i++, j--) {
+        char c = stString_reverseComplementChar(s[i]);
+        s[i] = stString_reverseComplementChar(s[j]);
+        s[j] = c;
+    }
+}
+
+/* base i of s, read reverse complemented if rc */
+static inline char oriented_base(const char *s, int64_t n, bool rc, int64_t i) {
+    return toupper(rc ? stString_reverseComplementChar(s[n - 1 - i]) : s[i]);
+}
+
+/* strcmp of a and b, each read in the given orientation, ignoring case */
+static int oriented_compare(const char *a, int64_t a_n, bool a_rc, const char *b, int64_t b_n, bool b_rc) {
+    int64_t n = a_n < b_n ? a_n : b_n;
+    for (int64_t i = 0; i < n; i++) {
+        char x = oriented_base(a, a_n, a_rc, i), y = oriented_base(b, b_n, b_rc, i);
+        if (x != y) {
+            return x < y ? -1 : 1;
+        }
+    }
+    return a_n < b_n ? -1 : (a_n > b_n ? 1 : 0);
+}
+
+/*
+ * Whether the threads leaving caps (side-false caps, whose strings are what will be aligned) should be aligned
+ * reverse complemented to read the way <bar poaOrientation> asks.
+ *
+ * The strings out of an end are fixed by the graph, but which end a flower is aligned from is not, so with
+ * NONE a gap lands at one end of a repeat or the other depending on how the graph happened to be built. Both
+ * rules here look only at the threads, so they pick the same physical direction whichever end is aligned from.
+ * CANONICAL takes the thread that is smallest in either orientation and makes it read that way: flipping every
+ * thread leaves each one's smaller orientation, and so the choice, unchanged.
+ */
+static bool poa_should_flip(Flower *flower, Cap **caps, char **strings, int *lengths, int64_t n,
+                            PoaParameters *poa_parameters) {
+    if (poa_parameters == NULL || poa_parameters->orientation == POA_ORIENT_NONE) {
+        return false;
+    }
+    if (poa_parameters->orientation == POA_ORIENT_REFERENCE && poa_parameters->referenceEvent != NULL) {
+        Event *ref = eventTree_getEventByHeader(flower_getEventTree(flower), poa_parameters->referenceEvent);
+        if (ref != NULL) {
+            // a side-false cap on the positive strand reads its adjacency forward. weigh each thread by its
+            // length, plus one so an empty one still counts
+            int64_t forward = 0, reverse = 0;
+            for (int64_t i = 0; i < n; i++) {
+                if (cap_getEvent(caps[i]) == ref) {
+                    if (cap_getStrand(caps[i])) {
+                        forward += lengths[i] + 1;
+                    } else {
+                        reverse += lengths[i] + 1;
+                    }
+                }
+            }
+            if (forward != reverse) {
+                return reverse > forward;
+            }
+        }
+    }
+    int64_t best = -1;
+    bool best_rc = false;
+    for (int64_t i = 0; i < n; i++) {
+        int c = oriented_compare(strings[i], lengths[i], 0, strings[i], lengths[i], 1);
+        if (c == 0) {
+            continue; // reads the same both ways, so says nothing about direction
+        }
+        bool rc = c > 0;
+        if (best == -1 || oriented_compare(strings[i], lengths[i], rc, strings[best], lengths[best], best_rc) < 0) {
+            best = i;
+            best_rc = rc;
+        }
+    }
+    return best_rc;
+}
+
+/*
+ * msa_make_partial_order_alignment, but if flip is set the sequences are aligned reverse complemented and the
+ * MSA is turned back round. The result is an alignment of the sequences as given, with its gaps placed as
+ * the engine places them reading the other way.
+ */
+Msa *msa_make_oriented_partial_order_alignment(char **seqs, int *seq_lens, int64_t seq_no, bool flip,
+                                               int64_t window_size, int64_t max_prog_rows,
+                                               double max_prog_length_diff, PoaParameters *poa_parameters) {
+    if (flip) {
+        for (int64_t i = 0; i < seq_no; i++) {
+            reverse_complement_in_place(seqs[i], seq_lens[i]);
+        }
+    }
+    Msa *msa = msa_make_partial_order_alignment(seqs, seq_lens, seq_no, window_size, max_prog_rows,
+                                                max_prog_length_diff, poa_parameters);
+    if (flip) {
+        flip_msa_seq(msa);
+        for (int64_t i = 0; i < seq_no; i++) {
+            reverse_complement_in_place(seqs[i], seq_lens[i]);
+        }
+    }
+    return msa;
+}
+
 /*
  * The partial order alignments below used to run under a nested OpenMP region for flowers
  * with at least 50 ends.  That is gone.  A nested num_threads(k) region creates k new
@@ -1203,14 +1330,16 @@ Msa *msa_make_partial_order_alignment(char **seqs, int *seq_lens, int64_t seq_no
 
 Msa **make_consistent_partial_order_alignments(int64_t end_no, int64_t *end_lengths, char ***end_strings,
         int **end_string_lengths, int64_t **right_end_indexes, int64_t **right_end_row_indexes, int64_t **overlaps,
-        int64_t window_size, int64_t max_prog_rows, double max_prog_length_diff, PoaParameters *poa_parameters) {
+        int64_t window_size, int64_t max_prog_rows, double max_prog_length_diff, PoaParameters *poa_parameters,
+        bool *flips) {
     // Calculate the initial, potentially inconsistent msas and column scores for each msa
     float *column_scores[end_no];
     Msa **msas = st_malloc(sizeof(Msa *) * end_no);
 
     for(int64_t i=0; i<end_no; i++) {
-        msas[i] = msa_make_partial_order_alignment(end_strings[i], end_string_lengths[i], end_lengths[i], window_size,
-                                                   max_prog_rows, max_prog_length_diff, poa_parameters);
+        msas[i] = msa_make_oriented_partial_order_alignment(end_strings[i], end_string_lengths[i], end_lengths[i],
+                                                            flips != NULL && flips[i], window_size,
+                                                            max_prog_rows, max_prog_length_diff, poa_parameters);
         column_scores[i] = make_column_scores(msas[i]);
     }
 
@@ -1615,8 +1744,9 @@ stList *make_flower_alignment_poa(Flower *flower, int64_t max_seq_length, int64_
         Cap *indices_to_caps[seq_no];
 
         get_end_sequences(dominantEnd, end_strings, end_string_lengths, overlaps, indices_to_caps, max_seq_length, mask_filter);
-        Msa *msa = msa_make_partial_order_alignment(end_strings, end_string_lengths, seq_no, window_size,
-                                                    max_prog_rows, max_prog_length_diff, poa_parameters);
+        bool flip = poa_should_flip(flower, indices_to_caps, end_strings, end_string_lengths, seq_no, poa_parameters);
+        Msa *msa = msa_make_oriented_partial_order_alignment(end_strings, end_string_lengths, seq_no, flip, window_size,
+                                                             max_prog_rows, max_prog_length_diff, poa_parameters);
 
         //Now convert to set of alignment blocks
         stList *alignment_blocks = stList_construct3(0, (void (*)(void *))alignmentBlock_destruct);
@@ -1687,10 +1817,18 @@ stList *make_flower_alignment_poa(Flower *flower, int64_t max_seq_length, int64_
     }
     flower_destructEndIterator(endIterator);
 
+    // Which way round to align each end. Each end's MSA is turned back before the ends are trimmed against
+    // one another, so the trimming sees them as it always has
+    bool flips[end_no];
+    for(int64_t i=0; i<end_no; i++) {
+        flips[i] = poa_should_flip(flower, indices_to_caps[i], end_strings[i], end_string_lengths[i], end_lengths[i],
+                                   poa_parameters);
+    }
+
     // Now make the consistent MSAs
     Msa **msas = make_consistent_partial_order_alignments(end_no, end_lengths, end_strings, end_string_lengths,
                                                           right_end_indexes, right_end_row_indexes, overlaps, window_size,
-                                                          max_prog_rows, max_prog_length_diff, poa_parameters);
+                                                          max_prog_rows, max_prog_length_diff, poa_parameters, flips);
 
     // Temp debug output
     //for(int64_t i=0; i<end_no; i++) {

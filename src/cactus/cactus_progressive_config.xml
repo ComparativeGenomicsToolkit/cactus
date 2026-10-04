@@ -87,10 +87,12 @@
 	     an outgroup rather than an ingroup, so that its coverage to its descendants is not starved during chaining. Set
 	     to 0 to restore the old behaviour of treating the pinned root as an ingroup -->
 	<!-- slurmChunkScale Multiply chunkSize and divide dechunkBatchSize by this value when running slurm in order to decrease job count -->
+	<!-- leftAlign: move each indel in the lastz alignments along its repeat without changing the alignment's score (paffy left_align). "none", or "canonical" (default): at whichever end makes the repeat read smaller than its reverse complement, which gives every pairwise alignment through a repeat the same placement whatever the pair or strand, so they agree when pinched together. "left" (left on the target) only makes alignments agree when no sequence is aligned on its reverse strand, and makes things worse otherwise; it is here for comparison. lastz only -->
 	<blast chunkSize="30000000"
 	       bigChunkSize="6000000000"
 		   overlapSize="10000"
 		   mapper="lastz"
+		   leftAlign="canonical"
 		   minimap2_params="-x asm20"
 		   fastga_params="-pafs -M"
 		   fastga_fill="1"
@@ -260,6 +262,8 @@
 	<!-- minimumIngroupDegree The minimum number ingroup sequences to form a block in the ancestor -->
 	<!-- minimumOutgroupDegree The minimum number of outgroup sequences to form a block in the ancestor -->
 	<!-- minimumNumberOfSpecies The minimum of number of different species for an alignment block to be kept -->
+	<!-- poaOrientation Which way round abpoa / minipoa align each set of threads. They put a gap that could go anywhere along a repeat at its left end, so this picks which end of the repeat it lands on. "auto" (default): "reference" if poaReferenceEvent is set, which cactus-pangenome does, and "canonical" otherwise. "none": whichever end of the flower is aligned from, which depends on how the graph was built and so on the orientation of the input contigs. "reference": so the threads of poaReferenceEvent read forward, putting gaps left on the reference (cactus-pangenome sets poaReferenceEvent to its reference), falling back to "canonical" where it has no thread. "canonical": so the thread that is lexicographically smallest in either orientation reads that way, which needs no reference and gives the same direction whichever way round the inputs are. Ignored by pecan -->
+	<!-- poaReferenceEvent Event (genome) name "reference" orientation goes by -->
 	<bar
 		runBar="1"
 		bandingLimit="1000000"
@@ -268,6 +272,8 @@
 		minimumIngroupDegree="1"
 		minimumOutgroupDegree="0"
 		minimumNumberOfSpecies="1"
+		poaOrientation="auto"
+		poaReferenceEvent=""
 	>
 		<!-- Parameters for using cPecan to generate MSAs. -->
 		<!-- spanningTrees The number of spanning trees to construct in choosing which pairwise alignments to include
@@ -512,6 +518,7 @@
 	<!-- cpu: use up to this many cpus for each minigraph command. -->
 	<!-- lastTrain: train the abPOA scoring model with last-train, on the reference against a typical-sized genome from the middle of the mash order, instead of using the default (HOXD70) scores. With mgSplit, each chromosome gets its own model, and one that can't be trained borrows another chromosome's. Training failures only ever fall back, never fail the run. Ignored with scoresFile. [0: off, 1: on] -->
 	<!-- lastTrainMap: also derive minigraph's base-alignment penalties (its wfa-pen option) from the trained (or scoresFile) model when mapping. minigraph's aligner scores a match as 0 and has one mismatch penalty, so only the mean match and mismatch scores and the gap costs carry over. A human model gives mismatch 8, gap open 11, gap extend 1, against minigraph's 4, 4 and 2. Mapping HG01978 chr20 to a CHM13+HG01978.1 graph, this dropped 9-11% of the mismatches (for 10-20% more gap bases), and only 33-37% of the dropped ones were transitions, which is what random mismatches give, against 57-58% of the ones kept. Chaining is unaffected, so the mappings themselves are the same. Has no effect when minigraphMapOptions already sets wfa-pen. [0: off, 1: on] -->
+	<!-- leftAlign: move every indel in the minigraph alignments as far left on its graph node as the sequences allow (paffy left_align), without changing the alignment's score. minigraph places an indel in a repeat at a seed anchor, and at a mirrored place when a contig maps to the reverse strand, so haplotypes carrying the same indel get it in different places and the graph gets a parallel edge for each. Mapping yeast YPS128 as-is and reverse complemented, 21% of the indels were placed identically in both, and 89% once left-aligned. Costs a node fasta (the size of the GFA) on disk in each mapping job. [0: off, 1: on (default)] -->
 	<graphmap
 		 assemblyName="_MINIGRAPH_"
 		 minigraphMapOptions="-c -xasm --par-align"
@@ -546,6 +553,7 @@
 		 cpu="6"
 		 lastTrain="1"
 		 lastTrainMap="1"
+		 leftAlign="1"
 		 />
 	<!-- cactus-graphmap-split options -->
 	<!-- minQueryCoverages: (space-separated) At least this fraction of input contig must align to reference contig for it to be assigned. -->

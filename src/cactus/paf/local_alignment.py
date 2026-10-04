@@ -130,8 +130,26 @@ def run_lastz(job, name_A, genome_A, name_B, genome_B, distance, params):
             with open(alignment_file, 'w') as alignment_fh:
                 pass
 
+    alignment_file = left_align_paf(alignment_file, [genome_a_file, genome_b_file], lastz_params_node, job)
+
     # Return the alignment file
     return job.fileStore.writeGlobalFile(alignment_file)
+
+def left_align_paf(alignment_file, fasta_files, blast_node, job):
+    """ Apply <blast leftAlign> to a PAF of alignments between the given (uncompressed) fastas, returning the
+    PAF to use.  "left" puts each indel at the left of the target's forward strand, which only makes alignments
+    agree when every pair shares a strand -- with a sequence aligned to one on its reverse strand it makes the
+    transitive closure worse than doing nothing.  "canonical" puts it at whichever end of its repeat reads
+    smaller than the reverse complement, which does not depend on the pair or on strand.  Only the cigars change """
+    mode = getOptionalAttrib(blast_node, "leftAlign", typeFn=str, default="none")
+    if mode in ("none", "0"):
+        return alignment_file
+    if mode not in ("left", "canonical"):
+        raise RuntimeError('<blast leftAlign> must be none, left or canonical, not {}'.format(mode))
+    out_file = alignment_file + '.left_align'
+    cmd = ['paffy', 'left_align', '-i', alignment_file] + (['--canonical'] if mode == "canonical" else []) + fasta_files
+    cactus_call(parameters=cmd, outfile=out_file, job_memory=job.memory)
+    return out_file
 
 
 def run_minimap2(job, name_A, genome_A, name_B, genome_B, distance, params):
