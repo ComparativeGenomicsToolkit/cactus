@@ -78,6 +78,7 @@ typedef struct _PoaParameters {
      */
     int mat[25];
     int gapOpen, gapExt;
+    int gapOpen2, gapExt2; /* minipoa's optional convex second piece; 0 = off */
     int bandConstant;
     double bandFraction;
     bool seeding;
