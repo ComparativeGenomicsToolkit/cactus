@@ -23,6 +23,7 @@ from cactus.shared.version import cactus_commit
 from cactus.progressive.cactus_prepare import human2bytesN
 
 from cactus.paf.local_alignment import sanitize_then_make_paf_alignments
+from cactus.paf.last_scoring import bar_train_enabled, trained_models_path
 
 from toil.job import Job
 from toil.common import Toil
@@ -157,10 +158,18 @@ def runCactusBlastOnly(options):
                     input_seq_id_map[genome] = toil.importFile(seq)
 
             paf_id = toil.start(Job.wrapJobFn(sanitize_then_make_paf_alignments, NXNewick().writeString(spanning_tree),
-                                              input_seq_id_map, options.root, config_node, options.outputFile, walltime=cactus_walltime()))
+                                              input_seq_id_map, options.root, config_node, options.outputFile,
+                                              return_trained_models=bar_train_enabled(config_node),
+                                              walltime=cactus_walltime()))
 
-        # export the alignments
+        # export the alignments, and with <bar trainedModels> the scoring models trained for them, where
+        # cactus-align looks for them (see trained_models_path)
+        models_id = None
+        if isinstance(paf_id, dict):
+            paf_id, models_id = paf_id['paf'], paf_id['models']
         toil.exportFile(paf_id, makeURL(options.outputFile))
+        if models_id is not None:
+            toil.exportFile(models_id, makeURL(trained_models_path(options.outputFile)))
 
 
 if __name__ == '__main__':

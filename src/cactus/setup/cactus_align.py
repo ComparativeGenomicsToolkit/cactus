@@ -37,7 +37,7 @@ from cactus.shared.configWrapper import ConfigWrapper
 from cactus.refmap.cactus_graphmap import filter_paf
 from cactus.refmap.cactus_minigraph import check_sample_names
 from cactus.preprocessor.checkUniqueHeaders import sanitize_fasta_headers
-from cactus.paf.last_scoring import parse_train_file, apply_scores_to_config
+from cactus.paf.last_scoring import parse_train_file, apply_scores_to_config, bar_train_enabled, trained_models_path
 
 from toil.job import Job
 from toil.common import Toil
@@ -418,6 +418,16 @@ def make_align_job(options, toil, config_wrapper=None, chrom_name=None):
 
     # import the PAF alignments
     paf_id = toil.importFile(makeURL(options.pafFile))
+
+    # and with <bar trainedModels>, the scoring models cactus-blast trained for them, which it leaves next to them
+    trained_models_id = None
+    if bar_train_enabled(config_wrapper.xmlRoot):
+        models_url = makeURL(trained_models_path(options.pafFile))
+        try:
+            trained_models_id = toil.importFile(models_url)
+        except Exception as e:
+            logger.warning('<bar trainedModels> is set, but there are no trained models at {} ({}), so bar keeps its '
+                           'settings: were the alignments made by cactus-blast with it set?'.format(models_url, e))
     
     #import the sequences
     input_seq_id_map = {}
@@ -452,13 +462,14 @@ def make_align_job(options, toil, config_wrapper=None, chrom_name=None):
                               do_filter_paf=options.pangenome,
                               chrom_name=chrom_name,
                               scores_id=scores_id,
+                              trained_models_id=trained_models_id,
                               branch_scale=options.branchScale,
                               validate=getattr(options, 'validate', False), walltime=cactus_walltime())
     return align_job
 
 def cactus_align(job, config_wrapper, mc_tree, input_seq_map, input_seq_id_map, paf_id, paf_path, root_name, og_map, checkpointInfo, doVG, doGFA, delay=0,
                  referenceEvents=None, pafMaskFilter=None, paf2Stable=False, cons_cores = None, cons_memory = None, cons_retain_pages = None, do_filter_paf=False, chrom_name=None, scores_id=None, branch_scale=1.0,
-                 validate=False):
+                 validate=False, trained_models_id=None):
 
     head_job = Job(walltime=cactus_walltime())
     job.addChild(head_job)
@@ -530,7 +541,8 @@ def cactus_align(job, config_wrapper, mc_tree, input_seq_map, input_seq_id_map, 
     # run consolidated
     cons_job = head_job.addFollowOnJobFn(cactus_cons_with_resources, spanning_tree, root_name, config_wrapper.xmlRoot, new_seq_id_map, og_map, paf_id,
                                          cons_cores = cons_cores, cons_memory=cons_memory, chrom_name=chrom_name,
-                                         cons_retain_pages=cons_retain_pages, walltime=cactus_walltime())
+                                         cons_retain_pages=cons_retain_pages, trained_models=trained_models_id,
+                                         walltime=cactus_walltime())
     results = {root_name : (cons_job.rv(1), cons_job.rv(2))}
 
     # get the immediate subtree (which is all export_hal can use)

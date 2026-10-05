@@ -10,6 +10,7 @@
 import os
 import copy
 import sys
+import json
 from toil.lib.bioio import system
 from toil.lib.bioio import getLogLevelString
 from toil.realtimeLogger import RealtimeLogger
@@ -21,6 +22,7 @@ from cactus.shared.configWrapper import ConfigWrapper
 from cactus.shared.common import findRequiredNode, getOptionalAttrib
 from cactus.shared.common import cactus_clamp_memory
 from cactus.shared.common import cactus_walltime
+from cactus.paf.last_scoring import bar_train_enabled, apply_trained_models_to_config
 
 ############################################################
 ############################################################
@@ -73,8 +75,9 @@ def bar_base_aligner(tree, ancestor_event, config_node, name=None):
 
 def cactus_cons_with_resources(job, tree, ancestor_event, config_node, seq_id_map, og_map, paf_id,
                                cons_cores = None, cons_memory = None, intermediate_results_url = None, chrom_name = None,
-                               cons_retain_pages = None):
-    ''' run cactus_consolidated as a child job, requesting resources based on input sizes '''
+                               cons_retain_pages = None, trained_models = None):
+    ''' run cactus_consolidated as a child job, requesting resources based on input sizes.  trained_models is the
+    file of scoring models the blast step trained for the ancestor's pairs of genomes, if any (see cactus_cons) '''
 
     cons_node = findRequiredNode(config_node, 'consolidated')
     name = chrom_name if chrom_name else ancestor_event
@@ -248,18 +251,31 @@ def cactus_cons_with_resources(job, tree, ancestor_event, config_node, seq_id_ma
     cons_job = job.addChildJobFn(cactus_cons, tree, ancestor_event, config_node, seq_id_map, og_map, paf_id,
                                  intermediate_results_url=intermediate_results_url, chrom_name=chrom_name, cores = cons_cores,
                                  memory=cactus_clamp_memory(mem), disk=disk, retain_pages=retain_pages,
-                                 poa_window=poa_window, base_aligner=base_aligner, walltime=cactus_walltime(walltime_secs))
+                                 poa_window=poa_window, base_aligner=base_aligner, trained_models=trained_models,
+                                 walltime=cactus_walltime(walltime_secs))
     return cons_job.rv()
 
 def cactus_cons(job, tree, ancestor_event, config_node, seq_id_map, og_map, paf_id,
                 intermediate_results_url = None, chrom_name = None, retain_pages = None,
-                poa_window = None, base_aligner = None):
-    ''' run cactus_consolidated '''
+                poa_window = None, base_aligner = None, trained_models = None):
+    ''' run cactus_consolidated.  With <bar trainedModels>, bar scores with trained_models, the file of
+    scoring models the blast step trained for the ancestor's pairs of genomes (see
+    last_scoring.apply_trained_models_to_config); without it, or without the file, bar keeps its settings '''
 
     # cactus_consolidated reads its settings from the config, so the resolved page retention
     # goes into the copy it is given (this job's copy of the node, so nothing else sees it)
-    if retain_pages is not None or poa_window is not None or base_aligner is not None:
+    use_trained_models = bar_train_enabled(config_node)
+    if use_trained_models and trained_models is None:
+        RealtimeLogger.warning('cactus_consolidated({}): <bar trainedModels> is set, but no models were trained for '
+                               'this ancestor, so bar keeps its settings'.format(ancestor_event))
+    if retain_pages is not None or poa_window is not None or base_aligner is not None or \
+       (use_trained_models and trained_models is not None):
         config_node = copy.deepcopy(config_node)
+        if use_trained_models and trained_models is not None:
+            with open(job.fileStore.readGlobalFile(trained_models)) as models_file:
+                models = json.load(models_file)
+            apply_trained_models_to_config(config_node, models, findRequiredNode(config_node, 'reference').attrib.get(
+                'reconstructionTree'))
         if retain_pages is not None:
             findRequiredNode(config_node, 'consolidated').set('retain_pages', str(retain_pages))
         # only the workflow applies partialOrderAlignmentWindowBigGenome, so the window it resolved
