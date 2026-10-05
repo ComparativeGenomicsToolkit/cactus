@@ -21,14 +21,14 @@ from cactus.shared.common import get_faidx_subpath_rename_cmd
 from cactus.shared.common import cactus_clamp_memory
 from cactus.shared.common import cactus_walltime
 from cactus.preprocessor.checkPreprocessedSequence import check_sequence_preserved
-from cactus.preprocessor.maskingCommon import prefilter_cmd, masked_base_count
+from cactus.preprocessor.maskingCommon import masked_base_count
 from cactus.preprocessor.maskingCommon import extract_masking_bed, soft_mask_intervals
 from cactus.preprocessor.maskingCommon import log_masking_delta
 
 from toil.realtimeLogger import RealtimeLogger
 
 
-def red_memory_estimate(fasta_size, longest_record_bytes, count_cap=False):
+def red_memory_estimate(fasta_size, longest_record_bytes, count_cap=False, sketch=False):
     """Peak memory Red needs for a fasta of this shape, in bytes.
 
     Red's footprint is the k-mer table plus a fixed cost per base of the *longest
@@ -62,6 +62,14 @@ def red_memory_estimate(fasta_size, longest_record_bytes, count_cap=False):
     With -cap (count_cap), Red also keeps one bit per table entry flagging the
     k-mers counted above the cap, 1/32 of the table: 128 MiB at k=15.  Measured on
     CHM13 chr15-19 at k=14, the peak went from 1.78 GB to 1.81 GB.
+
+    With -sketch 1, Red first counts the genome into two count-min sketches, one
+    after the other, each 2 x 2^bits cells with bits = ceil(log2(size)) + 1 clamped
+    to [20, 30], one byte a cell (two above about 12 Gbp), while it holds one record.
+    Each is freed before Red builds its own table, so it only matters for small
+    genomes, where it can exceed Red's table.  What it keeps through Red's run is
+    its masked intervals, 8 bytes each, budgeted here at one per 250 bp of genome:
+    1.3 GB on a 40 Gbp lungfish.
     """
     # Red picks k from the non-N genome size; using the file size can only round it
     # up, which errs towards a bigger table than Red will really allocate.
@@ -69,7 +77,13 @@ def red_memory_estimate(fasta_size, longest_record_bytes, count_cap=False):
     table_bytes = 4 * (4 ** k)
     if count_cap:
         table_bytes += (4 ** k) // 8
-    return int(1.25 * (table_bytes + 8 * longest_record_bytes))
+    peak = table_bytes + 8 * longest_record_bytes
+    if sketch:
+        bits = max(20, min(30, math.ceil(math.log2(max(fasta_size, 2))) + 1))
+        cell_bytes = 2 if 128 * fasta_size / 5.923e9 > 255 else 1
+        peak = max(peak, 2 * (2 ** bits) * cell_bytes + longest_record_bytes)
+        peak += 8 * (fasta_size // 250)
+    return int(1.25 * peak)
 
 
 # How much faster Red is than it was when the VGP 577-way logs were made.  Named because
@@ -87,25 +101,32 @@ RED_SECS_PER_GB = 2799 / RED_SPEEDUP
 # rate above predates -cap, so its p99 cannot be counted on to absorb a cost every run pays.
 RED_CAP_SLOWDOWN = 1.25
 
+# Red -sketch 1 reads the genome five more times (once to size it, then a count pass and a scoring
+# pass per sketch).  On a 0.38 Gbp pufferfish genome it added 140 s to Red's 108 s, 365 s/Gb, linear in the genome; 600
+# leaves room for slower nodes.  Added to Red's rate rather than multiplied, because it does not
+# depend on how hard the genome is for Red.
+RED_SKETCH_SECS_PER_GB = 600
+
 
 class RedMaskJob(RoundedJob):
-    def __init__(self, fastaID, redOpts, redPrefilterOpts, eventName=None, unmask=False,
-                 longestRecordSize=None):
+    def __init__(self, fastaID, redOpts, eventName=None, unmask=False, longestRecordSize=None):
         # Without a measurement, fall back to assuming the whole input is one
         # sequence, which is the worst case for Red's memory.
         if longestRecordSize is None:
             longestRecordSize = fastaID.size
-        count_cap = redOpts is not None and '-cap' in redOpts.split()
+        opts = redOpts.split() if redOpts else []
+        count_cap = '-cap' in opts
+        sketch = '-sketch' in opts and opts[opts.index('-sketch') + 1:][:1] == ['1']
         memory = cactus_clamp_memory(red_memory_estimate(fastaID.size, longestRecordSize,
-                                                         count_cap=count_cap))
+                                                         count_cap=count_cap, sketch=sketch))
         disk = 5*(fastaID.size)
-        secs_per_gb = RED_SECS_PER_GB * (RED_CAP_SLOWDOWN if count_cap else 1.0)
+        secs_per_gb = RED_SECS_PER_GB * (RED_CAP_SLOWDOWN if count_cap else 1.0) + \
+            (RED_SKETCH_SECS_PER_GB if sketch else 0.0)
         RoundedJob.__init__(self, memory=memory, disk=disk, preemptable=True,
                             walltime=cactus_walltime(secs_per_gb * fastaID.size / 1e9,
                                                      io_bytes=2 * fastaID.size))
         self.fastaID = fastaID
         self.redOpts = redOpts
-        self.redPrefilterOpts = redPrefilterOpts
         self.eventName = eventName if eventName else 'seq'
         self.unmask = unmask
 
@@ -122,51 +143,46 @@ class RedMaskJob(RoundedJob):
         RED can cost us masking but never sequence.  It is also checked for outright, so
         it should not get that far.
         """
-        # download fasta
+        # download fasta.  Red is given every contig: it passes through the ones it cannot score
+        # (empty, all N, no 20 bases without an N) rather than failing on them, so small contigs
+        # get masked too
         work_dir = fileStore.getLocalTempDir()
         red_in_dir = os.path.join(work_dir, 'red-in-{}'.format(self.eventName))
         red_out_dir = os.path.join(work_dir, 'red-out-{}'.format(self.eventName))
         os.makedirs(red_in_dir)
         os.makedirs(red_out_dir)
-        raw_fa_path = os.path.join(work_dir, '{}.fa'.format(self.eventName))
-        in_fa_path = os.path.join(red_in_dir, '{}.filter.fa'.format(self.eventName))
-        red_msk_path = os.path.join(red_out_dir, '{}.filter.msk'.format(self.eventName))
+        in_fa_path = os.path.join(red_in_dir, '{}.fa'.format(self.eventName))
+        red_msk_path = os.path.join(red_out_dir, '{}.msk'.format(self.eventName))
         out_fa_path = os.path.join(work_dir, '{}.mask.fa'.format(self.eventName))
-        fileStore.readGlobalFile(self.fastaID, raw_fa_path)
+        fileStore.readGlobalFile(self.fastaID, in_fa_path)
 
-        # get rid of small or single-base contigs that might crash Red
-        filter_cmd = prefilter_cmd(raw_fa_path, self.redPrefilterOpts)
-        cactus_call(parameters=filter_cmd, outfile=in_fa_path)
+        if os.path.getsize(in_fa_path) == 0:
+            RealtimeLogger.info('Skipping Red for {} because there is no sequence to give it'.format(self.eventName))
+            return fileStore.writeGlobalFile(in_fa_path)
 
-        if os.path.getsize(in_fa_path) > 0:
-            # measure the masking the input already carried, for the log line below
-            pre_mask_size = masked_base_count(in_fa_path)
+        # measure the masking the input already carried, for the log line below
+        pre_mask_size = masked_base_count(in_fa_path)
 
-            # run red
-            red_cmd = ['Red', '-gnm', red_in_dir, '-msk', red_out_dir]
-            if self.redOpts:
-                red_cmd += self.redOpts.split()
-            cactus_call(parameters=red_cmd)
+        # run red
+        red_cmd = ['Red', '-gnm', red_in_dir, '-msk', red_out_dir]
+        if self.redOpts:
+            red_cmd += self.redOpts.split()
+        cactus_call(parameters=red_cmd)
 
-            # RED has been seen returning less sequence than it was given, so make sure
-            # its output still describes the same bases before believing its intervals
-            check_sequence_preserved(in_fa_path, red_msk_path, event_name=self.eventName,
-                                     step_name='Red')
+        # RED has been seen returning less sequence than it was given, so make sure
+        # its output still describes the same bases before believing its intervals
+        check_sequence_preserved(in_fa_path, red_msk_path, event_name=self.eventName,
+                                 step_name='Red')
 
-            # take the intervals RED masked.  this picks up the N runs as well, which is
-            # harmless: they end up soft-masked rather than left as upper case Ns
-            red_bed = os.path.join(work_dir, '{}.red.masking.bed'.format(self.eventName))
-            extract_masking_bed(red_msk_path, red_bed)
+        # take the intervals RED masked.  this picks up the N runs as well, which is
+        # harmless: they end up soft-masked rather than left as upper case Ns
+        red_bed = os.path.join(work_dir, '{}.red.masking.bed'.format(self.eventName))
+        extract_masking_bed(red_msk_path, red_bed)
 
-            # and apply them to the input, not to RED's output.  see maskingCommon
-            soft_mask_intervals(in_fa_path, red_bed, out_fa_path, unmask=self.unmask)
+        # and apply them to the input, not to RED's output.  see maskingCommon
+        soft_mask_intervals(in_fa_path, red_bed, out_fa_path, unmask=self.unmask)
 
-            log_masking_delta('Red', self.eventName, pre_mask_size,
-                              masked_base_count(out_fa_path))
-        else:
-            RealtimeLogger.info('Skipping Red for {} because contigs are too small'.format(self.eventName))
-
-        # put the filtered contigs back
-        cactus_call(parameters=filter_cmd + ['-x'], outfile=out_fa_path, outappend=True)
+        log_masking_delta('Red', self.eventName, pre_mask_size,
+                          masked_base_count(out_fa_path))
 
         return fileStore.writeGlobalFile(out_fa_path)
