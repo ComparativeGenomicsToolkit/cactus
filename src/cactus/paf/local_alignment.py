@@ -639,8 +639,8 @@ def chunked_alignment_walltime(genome_a, genome_b):
 
 
 def make_chunked_alignments(job, event_a, genome_a, event_b, genome_b, distance, params, score_model=None):
-    """ score_model is the pair's trained models, if it has them (see train_pair_scoring_models): lastz scores
-    with them with <blast lastzTrain> """
+    """ score_model is the pair's trained models, if lastz is to score with them (see train_pair_scoring_models,
+    and <blast lastzTrain>) """
     lastz_params_node = params.find("blast")
     gpu = getOptionalAttrib(lastz_params_node, 'gpu', typeFn=int, default=0)
     fastga = getOptionalAttrib(lastz_params_node, 'mapper', typeFn=str) == 'fastga'        
@@ -673,8 +673,7 @@ def make_chunked_alignments(job, event_a, genome_a, event_b, genome_b, distance,
         for j, chunk_b in enumerate(chunks_b):
             mappers = { "lastz":run_lastz, "minimap2":run_minimap2, "fastga":run_fastga}
             mappingFn = mappers[params.find("blast").attrib["mapper"]]
-            mapper_args = {'trained_score_model': score_model['lastz']} if score_model is not None and \
-                mappingFn is run_lastz and lastz_train_enabled(params) else {}
+            mapper_args = {'trained_score_model': score_model['lastz']} if score_model is not None and mappingFn is run_lastz else {}
             memory = lastz_memory if lastz_memory else max(200000000, 15*(chunk_a.size+chunk_b.size))
             chunked_alignment_files.append(job.addChildJobFn(mappingFn, '{}_{}'.format(event_a, i), chunk_a,
                                                              '{}_{}'.format(event_b, j), chunk_b, distance, params,
@@ -1156,7 +1155,8 @@ def make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancest
     # whole genomes (the trimmed ingroups aligned to later outgroups are what earlier ones left) and alongside the
     # unmasking, which only changes case: last-train masks repeats its own way
     score_models = {}
-    if lastz_train_enabled(params) or bar_train_enabled(params):
+    lastz_trained = lastz_train_enabled(params)
+    if lastz_trained or bar_train_enabled(params):
         train_cores = getOptionalAttrib(lastz_params_node, 'lastzTrainCores', typeFn=int, default=4)
         pairs = [(ingroup, ingroup2) for ingroup, ingroup2, _ in get_event_pairs(ancestor_event, ingroup_events)] + \
                 [(ingroup, outgroup) for ingroup in ingroup_events for outgroup in outgroup_events]
@@ -1179,6 +1179,8 @@ def make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancest
         new_root_job = Job(walltime=cactus_walltime())
         root_job.addFollowOn(new_root_job)
         root_job = new_root_job
+    # the models lastz aligns with, if it is to use them (bar's go by write_trained_models below)
+    lastz_models = score_models if lastz_trained else {}
 
     # for each pair of ingroups make alignments
     ingroup_alignments = []
@@ -1198,7 +1200,7 @@ def make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancest
                                                          disk=2*total_sequence_size,
                                                          walltime=chunked_alignment_walltime(input_sequence_map[ingroup.iD],
                                                                                              input_sequence_map[ingroup2.iD]),
-                                                         score_model=score_models.get(lastz_pair_key(ingroup.iD, ingroup2.iD))).rv())
+                                                         score_model=lastz_models.get(lastz_pair_key(ingroup.iD, ingroup2.iD))).rv())
         ingroup_alignment_names.append('{}-{}_vs_{}'.format(ancestor_event_string, ingroup.iD, ingroup2.iD))
 
     distances = get_distances(event_tree)  # Distances between all pairs of nodes
@@ -1212,7 +1214,7 @@ def make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancest
     if int(params.find("blast").attrib["trimIngroups"]):  # Trim the ingroup sequences
         outgroup_alignments = [root_job.addChildJobFn(make_ingroup_to_outgroup_alignments_0, ingroup, outgroup_events,
                                                       dict(event_names_to_sequences), distances, params, walltime=cactus_walltime(),
-                                                      score_models=score_models).rv()
+                                                      score_models=lastz_models).rv()
                                 for ingroup in ingroup_events] if len(outgroup_events) > 0 else []
     else:
         outgroup_alignments = [root_job.addChildJobFn(make_chunked_alignments,
@@ -1225,7 +1227,7 @@ def make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancest
                                                       disk=2*total_sequence_size,
                                                       walltime=chunked_alignment_walltime(input_sequence_map[ingroup.iD],
                                                                                           input_sequence_map[outgroup.iD]),
-                                                      score_model=score_models.get(lastz_pair_key(ingroup.iD, outgroup.iD))).rv()
+                                                      score_model=lastz_models.get(lastz_pair_key(ingroup.iD, outgroup.iD))).rv()
                                for ingroup in ingroup_events for outgroup in outgroup_events]
     # for better logs
     outgroup_alignment_names = ['{}-og_{}'.format(ancestor_event_string, i) for i in range(len(outgroup_alignments))]

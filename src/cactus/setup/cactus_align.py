@@ -420,8 +420,9 @@ def make_align_job(options, toil, config_wrapper=None, chrom_name=None):
     paf_id = toil.importFile(makeURL(options.pafFile))
 
     # and with <bar trainedModels>, the scoring models cactus-blast trained for them, which it leaves next to them
+    # (pangenome alignments come from minigraph, with nothing of the kind)
     trained_models_id = None
-    if bar_train_enabled(config_wrapper.xmlRoot):
+    if bar_train_enabled(config_wrapper.xmlRoot) and not options.pangenome:
         models_url = makeURL(trained_models_path(options.pafFile))
         try:
             trained_models_id = toil.importFile(models_url)

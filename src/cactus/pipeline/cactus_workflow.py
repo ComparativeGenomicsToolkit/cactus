@@ -265,9 +265,6 @@ def cactus_cons(job, tree, ancestor_event, config_node, seq_id_map, og_map, paf_
     # cactus_consolidated reads its settings from the config, so the resolved page retention
     # goes into the copy it is given (this job's copy of the node, so nothing else sees it)
     use_trained_models = bar_train_enabled(config_node)
-    if use_trained_models and trained_models is None:
-        RealtimeLogger.warning('cactus_consolidated({}): <bar trainedModels> is set, but no models were trained for '
-                               'this ancestor, so bar keeps its settings'.format(ancestor_event))
     if retain_pages is not None or poa_window is not None or base_aligner is not None or \
        (use_trained_models and trained_models is not None):
         config_node = copy.deepcopy(config_node)
