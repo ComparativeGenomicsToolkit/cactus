@@ -963,27 +963,58 @@ static void rowModels_load(CactusParams *params, PoaParameters *pp) {
         free(rule);
     }
     pp->rowModelMaxDistance = st_malloc(sizeof(double) * pp->rowModelNo);
+    pp->rowModelGenomes = st_malloc(sizeof(char *) * 2 * pp->rowModelNo);
     pp->rowModelAbpt = st_malloc(sizeof(abpoa_para_t *) * pp->rowModelNo);
+    int64_t keyed = 0;
+    double lastMaxDistance = -INFINITY;
     for (int64_t m = 0; m < pp->rowModelNo; ++m) {
         char *name = stString_print("rowModel%" PRIi64, m);
-        pp->rowModelMaxDistance[m] = cactusParams_get_float(params, 4, "bar", "poa", name, "maxDistance");
-        if (m > 0 && pp->rowModelMaxDistance[m] < pp->rowModelMaxDistance[m-1]) {
-            st_errAbort("bar row models must be in ascending maxDistance, but %s has %f after %f", name,
-                        pp->rowModelMaxDistance[m], pp->rowModelMaxDistance[m-1]);
+        barModel_readGenomes(params, "poa", name, pp->rowModelGenomes + 2 * m);
+        keyed += pp->rowModelGenomes[2 * m] != NULL;
+        pp->rowModelMaxDistance[m] = NAN;
+        if (cactusParams_has(params, 4, "bar", "poa", name, "maxDistance")) {
+            pp->rowModelMaxDistance[m] = cactusParams_get_float(params, 4, "bar", "poa", name, "maxDistance");
+            if (pp->rowModelMaxDistance[m] < lastMaxDistance) {
+                st_errAbort("bar row models must be in ascending maxDistance, but %s has %f after %f", name,
+                            pp->rowModelMaxDistance[m], lastMaxDistance);
+            }
+            lastMaxDistance = pp->rowModelMaxDistance[m];
+        } else if (pp->rowModelGenomes[2 * m] == NULL) {
+            st_errAbort("bar row model %s has neither genomes nor a maxDistance", name);
         }
         pp->rowModelAbpt[m] = abpoaParameters_construct(params, name);
         free(name);
     }
     pp->distances = barDistances_constructFromCactusParams(params);
-    st_logInfo("bar: %" PRIi64 " row models, distances to the nearest %s on the %s tree\n", pp->rowModelNo,
-               pp->rowModelToIngroups ? "ingroup" : "genome",
+    st_logInfo("bar: %" PRIi64 " row models (%" PRIi64 " for pairs of genomes), distances to the nearest %s on the %s tree\n",
+               pp->rowModelNo, keyed, pp->rowModelToIngroups ? "ingroup" : "genome",
                barDistances_hasReconstructionTree(pp->distances) ? "reconstruction" : "event");
 }
 
 /*
- * The row model for each row of an end's alignment (-1 for the default), from the distance between
- * the row's genome and the nearest other genome among the rows (the nearest other ingroup genome with
- * rowModelToIngroups).  NULL when there are no row models.
+ * The row model for a genome and its partner at the given distance (no partner: NULL, and INFINITY): the
+ * model for the pair, else the first whose maxDistance covers the distance, else -1, the default.
+ */
+static int rowModels_choose(PoaParameters *pp, Event *event, Event *partner, double distance) {
+    if (partner != NULL) {
+        for (int64_t m = 0; m < pp->rowModelNo; ++m) {
+            if (barModel_isForGenomes(pp->rowModelGenomes + 2 * m, event_getHeader(event), event_getHeader(partner))) {
+                return (int)m;
+            }
+        }
+    }
+    for (int64_t m = 0; m < pp->rowModelNo; ++m) {
+        if (distance <= pp->rowModelMaxDistance[m]) { // false for a NAN maxDistance
+            return (int)m;
+        }
+    }
+    return -1;
+}
+
+/*
+ * The row model for each row of an end's alignment (-1 for the default), for the row's genome and its
+ * partner, the nearest other genome among the rows (the nearest other ingroup genome with
+ * rowModelToIngroups): see rowModels_choose.  NULL when there are no row models.
  */
 static int *rowModels_assign(PoaParameters *pp, Cap **caps, int64_t row_no) {
     if (pp == NULL || pp->rowModelNo == 0) {
@@ -1004,22 +1035,30 @@ static int *rowModels_assign(PoaParameters *pp, Cap **caps, int64_t row_no) {
         }
         row_event[i] = j;
     }
-    // nearest other genome, and nearest other ingroup genome
+    // nearest other genome, and nearest other ingroup genome, and which they are (-1 for none; ties go to
+    // the first met)
     double *nearest = st_malloc(sizeof(double) * event_no);
     double *nearestIngroup = st_malloc(sizeof(double) * event_no);
+    int64_t *partner = st_malloc(sizeof(int64_t) * event_no);
+    int64_t *ingroupPartner = st_malloc(sizeof(int64_t) * event_no);
     for (int64_t j = 0; j < event_no; ++j) {
         nearest[j] = nearestIngroup[j] = INFINITY;
+        partner[j] = ingroupPartner[j] = -1;
     }
     for (int64_t j = 0; j < event_no; ++j) {
         for (int64_t k = j + 1; k < event_no; ++k) {
             double d = barDistances_get(pp->distances, events[j], events[k]);
-            nearest[j] = d < nearest[j] ? d : nearest[j];
-            nearest[k] = d < nearest[k] ? d : nearest[k];
-            if (!event_isOutgroup(events[k])) {
-                nearestIngroup[j] = d < nearestIngroup[j] ? d : nearestIngroup[j];
+            if (d < nearest[j]) {
+                nearest[j] = d, partner[j] = k;
             }
-            if (!event_isOutgroup(events[j])) {
-                nearestIngroup[k] = d < nearestIngroup[k] ? d : nearestIngroup[k];
+            if (d < nearest[k]) {
+                nearest[k] = d, partner[k] = j;
+            }
+            if (!event_isOutgroup(events[k]) && d < nearestIngroup[j]) {
+                nearestIngroup[j] = d, ingroupPartner[j] = k;
+            }
+            if (!event_isOutgroup(events[j]) && d < nearestIngroup[k]) {
+                nearestIngroup[k] = d, ingroupPartner[k] = j;
             }
         }
     }
@@ -1027,25 +1066,26 @@ static int *rowModels_assign(PoaParameters *pp, Cap **caps, int64_t row_no) {
     // and the rest (only one ingroup genome, or none, in this alignment) to the nearest genome of any kind
     if (pp->rowModelToIngroups) {
         for (int64_t j = 0; j < event_no; ++j) {
-            if (nearestIngroup[j] != INFINITY) {
-                nearest[j] = nearestIngroup[j];
+            if (ingroupPartner[j] >= 0) {
+                nearest[j] = nearestIngroup[j], partner[j] = ingroupPartner[j];
             }
         }
     }
+    int *eventModels = st_malloc(sizeof(int) * event_no);
+    for (int64_t j = 0; j < event_no; ++j) {
+        eventModels[j] = rowModels_choose(pp, events[j], partner[j] >= 0 ? events[partner[j]] : NULL, nearest[j]);
+    }
     int *models = st_malloc(sizeof(int) * row_no);
     for (int64_t i = 0; i < row_no; ++i) {
-        models[i] = -1;
-        for (int64_t m = 0; m < pp->rowModelNo; ++m) {
-            if (nearest[row_event[i]] <= pp->rowModelMaxDistance[m]) {
-                models[i] = (int)m;
-                break;
-            }
-        }
+        models[i] = eventModels[row_event[i]];
     }
     free(events);
     free(row_event);
     free(nearest);
     free(nearestIngroup);
+    free(partner);
+    free(ingroupPartner);
+    free(eventModels);
     return models;
 }
 
@@ -1108,6 +1148,10 @@ void poaParameters_destruct(PoaParameters *poaParameters) {
     }
     free(poaParameters->rowModelAbpt);
     free(poaParameters->rowModelMaxDistance);
+    for (int64_t i = 0; i < 2 * poaParameters->rowModelNo; ++i) {
+        free(poaParameters->rowModelGenomes[i]);
+    }
+    free(poaParameters->rowModelGenomes);
     if (poaParameters->distances != NULL) {
         barDistances_destruct(poaParameters->distances);
     }

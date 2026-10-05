@@ -108,20 +108,23 @@ typedef struct _PoaParameters {
     char *referenceEvent;
     /*
      * Per-row scoring, abPOA only.  <poa partialOrderAlignmentRowModels="N"> switches it on, and its
-     * children <rowModel0> .. <rowModelN-1> each carry a maxDistance and their own
-     * partialOrderAlignmentSubMatrix and gap penalties, in ascending maxDistance.  A row is scored
-     * with the first whose maxDistance is at least the distance from its genome to the nearest other
-     * genome in the same alignment; rows beyond the last, or with no other genome, keep abpt.
-     * Distances are on <reference reconstructionTree> (the unscaled tree), falling back to the event
-     * tree for a genome it does not name.  rowModelNo is 0 when the config has no row models.
-     * With rowModelToIngroups (partialOrderAlignmentRowModelDistance="ingroup") the distance is to the
-     * nearest other ingroup genome instead, so an outgroup is scored for how far it is from what is
-     * being reconstructed rather than from another outgroup; a row with no other ingroup genome in the
-     * alignment falls back to the nearest genome of any kind.
+     * children <rowModel0> .. <rowModelN-1> each carry their own partialOrderAlignmentSubMatrix and gap
+     * penalties, and a genomes (two genome names: a model for that pair of genomes, as one trained on them)
+     * or a maxDistance (a model for a distance), or both.  A row's partner is the nearest other genome in
+     * the same alignment, and the row is scored with the model for it and its partner if there is one, else
+     * with the first, in order, whose maxDistance is at least the distance between them (the ones that have
+     * a maxDistance must come in ascending order of it).  Rows with no model, or no other genome, keep abpt.
+     * Distances are on <reference reconstructionTree> (the unscaled tree), falling back to the event tree
+     * for a genome it does not name.  rowModelNo is 0 when the config has no row models.  With
+     * rowModelToIngroups (partialOrderAlignmentRowModelDistance="ingroup") the partner is the nearest other
+     * ingroup genome instead, so an outgroup is scored for how far it is from what is being reconstructed
+     * rather than from another outgroup; a row with no other ingroup genome in the alignment falls back to
+     * the nearest genome of any kind.
      */
     int64_t rowModelNo;
     bool rowModelToIngroups;
-    double *rowModelMaxDistance;
+    double *rowModelMaxDistance; // NAN for a model with none
+    char **rowModelGenomes; // model m's two genomes at 2m and 2m+1, NULL for a model with none
     abpoa_para_t **rowModelAbpt;
     BarDistances *distances; // NULL when there are no row models
 } PoaParameters;

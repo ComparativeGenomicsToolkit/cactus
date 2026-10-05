@@ -5,6 +5,7 @@
  */
 
 #include "endAligner.h"
+#include <math.h>
 #include "multipleAligner.h"
 #include "adjacencySequences.h"
 #include "pairwiseAligner.h"
@@ -117,9 +118,31 @@ void barDistances_destruct(BarDistances *distances) {
     free(distances);
 }
 
+void barModel_readGenomes(CactusParams *params, const char *section, const char *name, char **genomes) {
+    genomes[0] = genomes[1] = NULL;
+    if (!cactusParams_has(params, 4, "bar", section, name, "genomes")) {
+        return;
+    }
+    char *value = cactusParams_get_string(params, 4, "bar", section, name, "genomes");
+    stList *tokens = stString_split(value);
+    if (stList_length(tokens) != 2) {
+        st_errAbort("bar model %s/%s has genomes=\"%s\", which is not two genome names", section, name, value);
+    }
+    genomes[0] = stString_copy(stList_get(tokens, 0));
+    genomes[1] = stString_copy(stList_get(tokens, 1));
+    stList_destruct(tokens);
+    free(value);
+}
+
+bool barModel_isForGenomes(char **genomes, const char *a, const char *b) {
+    return genomes[0] != NULL && ((strcmp(genomes[0], a) == 0 && strcmp(genomes[1], b) == 0) ||
+                                  (strcmp(genomes[0], b) == 0 && strcmp(genomes[1], a) == 0));
+}
+
 struct _pecanPairModels {
     int64_t modelNo;
-    double *maxDistance;
+    double *maxDistance; // NAN for a model with none
+    char **genomes; // model m's two genomes at 2m and 2m+1, NULL for a model with none
     StateMachine **stateMachines;
     BarDistances *distances;
 };
@@ -133,13 +156,24 @@ PecanPairModels *pecanPairModels_constructFromCactusParams(CactusParams *params)
     PecanPairModels *pairModels = st_calloc(1, sizeof(PecanPairModels));
     pairModels->modelNo = modelNo;
     pairModels->maxDistance = st_malloc(sizeof(double) * modelNo);
+    pairModels->genomes = st_malloc(sizeof(char *) * 2 * modelNo);
     pairModels->stateMachines = st_malloc(sizeof(StateMachine *) * modelNo);
+    int64_t keyed = 0;
+    double lastMaxDistance = -INFINITY;
     for (int64_t m = 0; m < modelNo; m++) {
         char *name = stString_print("pairModel%" PRIi64, m);
-        pairModels->maxDistance[m] = cactusParams_get_float(params, 4, "bar", "pecan", name, "maxDistance");
-        if (m > 0 && pairModels->maxDistance[m] < pairModels->maxDistance[m - 1]) {
-            st_errAbort("pecan pair models must be in ascending maxDistance, but %s has %f after %f", name,
-                        pairModels->maxDistance[m], pairModels->maxDistance[m - 1]);
+        barModel_readGenomes(params, "pecan", name, pairModels->genomes + 2 * m);
+        keyed += pairModels->genomes[2 * m] != NULL;
+        pairModels->maxDistance[m] = NAN;
+        if (cactusParams_has(params, 4, "bar", "pecan", name, "maxDistance")) {
+            pairModels->maxDistance[m] = cactusParams_get_float(params, 4, "bar", "pecan", name, "maxDistance");
+            if (pairModels->maxDistance[m] < lastMaxDistance) {
+                st_errAbort("pecan pair models must be in ascending maxDistance, but %s has %f after %f", name,
+                            pairModels->maxDistance[m], lastMaxDistance);
+            }
+            lastMaxDistance = pairModels->maxDistance[m];
+        } else if (pairModels->genomes[2 * m] == NULL) {
+            st_errAbort("pecan pair model %s has neither genomes nor a maxDistance", name);
         }
         char *json = cactusParams_get_string(params, 4, "bar", "pecan", name, "hmm");
         Hmm *hmm = hmm_jsonParse(json, strlen(json));
@@ -153,8 +187,8 @@ PecanPairModels *pecanPairModels_constructFromCactusParams(CactusParams *params)
         free(name);
     }
     pairModels->distances = barDistances_constructFromCactusParams(params);
-    st_logInfo("bar: %" PRIi64 " pecan pair models, distances on the %s tree\n", modelNo,
-               barDistances_hasReconstructionTree(pairModels->distances) ? "reconstruction" : "event");
+    st_logInfo("bar: %" PRIi64 " pecan pair models (%" PRIi64 " for pairs of genomes), distances on the %s tree\n",
+               modelNo, keyed, barDistances_hasReconstructionTree(pairModels->distances) ? "reconstruction" : "event");
     return pairModels;
 }
 
@@ -165,6 +199,10 @@ void pecanPairModels_destruct(PecanPairModels *pairModels) {
     for (int64_t m = 0; m < pairModels->modelNo; m++) {
         stateMachine_destruct(pairModels->stateMachines[m]);
     }
+    for (int64_t i = 0; i < 2 * pairModels->modelNo; i++) {
+        free(pairModels->genomes[i]);
+    }
+    free(pairModels->genomes);
     free(pairModels->stateMachines);
     free(pairModels->maxDistance);
     barDistances_destruct(pairModels->distances);
@@ -172,7 +210,7 @@ void pecanPairModels_destruct(PecanPairModels *pairModels) {
 }
 
 /*
- * cPecan's per-pair callback: the model for the distance between the two sequences' genomes.
+ * cPecan's per-pair callback: the model for the two sequences' genomes, else for the distance between them.
  */
 typedef struct {
     PecanPairModels *pairModels;
@@ -185,10 +223,16 @@ static StateMachine *choosePairModel(int64_t seqX, int64_t seqY, void *extraArgs
     if (eventX == eventY) {
         return NULL;
     }
-    double distance = barDistances_get(choice->pairModels->distances, eventX, eventY);
-    for (int64_t m = 0; m < choice->pairModels->modelNo; m++) {
-        if (distance <= choice->pairModels->maxDistance[m]) {
-            return choice->pairModels->stateMachines[m];
+    PecanPairModels *pairModels = choice->pairModels;
+    for (int64_t m = 0; m < pairModels->modelNo; m++) {
+        if (barModel_isForGenomes(pairModels->genomes + 2 * m, event_getHeader(eventX), event_getHeader(eventY))) {
+            return pairModels->stateMachines[m];
+        }
+    }
+    double distance = barDistances_get(pairModels->distances, eventX, eventY);
+    for (int64_t m = 0; m < pairModels->modelNo; m++) {
+        if (distance <= pairModels->maxDistance[m]) { // false for a NAN maxDistance
+            return pairModels->stateMachines[m];
         }
     }
     return NULL;
