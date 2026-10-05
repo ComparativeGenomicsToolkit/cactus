@@ -184,7 +184,7 @@ void test_make_consistent_partial_order_alignments_two_ends(CuTest *testCase) {
         // generate the alignments
         Msa **msas = make_consistent_partial_order_alignments(end_no, end_lengths, end_strings, end_string_lengths,
                                                               right_end_indexes, right_end_row_indexes, overlaps,
-                                                              1000000, 100, 0.02, poaParams);
+                                                              1000000, 100, 0.02, poaParams, NULL);
 
         // print the msas
 #ifdef stderr_logging
@@ -447,11 +447,47 @@ void test_shipped_config_is_loadable(CuTest *testCase) {
     cactusParams_destruct(params);
 }
 
+static char *msa_row_string(Msa *msa, int64_t row) {
+    char *r = st_malloc(msa->column_no + 1);
+    for (int64_t j = 0; j < msa->column_no; j++) {
+        r[j] = msa_to_base(msa->msa_seq[row][j]);
+    }
+    r[msa->column_no] = '\0';
+    return r;
+}
+
+/*
+ * A CA deleted from (CA)3: the engines put the gap at the left of the repeat, so aligned reverse complemented
+ * (and turned back) it must come out at the right, and either way every row must still spell its sequence.
+ */
+void test_make_oriented_partial_order_alignment(CuTest *testCase) {
+    for (int64_t engine_i = 0; engine_i < TEST_ENGINE_NO; engine_i++) {
+        PoaParameters *poaParams = test_poa_params(TEST_ENGINES[engine_i]);
+        for (int flip = 0; flip < 2; flip++) {
+            char **seqs = st_malloc(2 * sizeof(char *));
+            int *lens = st_malloc(2 * sizeof(int));
+            seqs[0] = stString_copy("GGTCACACAGTTG");
+            seqs[1] = stString_copy("GGTCACAGTTG");
+            lens[0] = 13; lens[1] = 11;
+            Msa *msa = msa_make_oriented_partial_order_alignment(seqs, lens, 2, flip, 1000000, 100, 0.02, poaParams);
+            CuAssertStrEquals(testCase, "GGTCACACAGTTG", seqs[0]); // restored
+            CuAssertStrEquals(testCase, "GGTCACAGTTG", seqs[1]);
+            char *r0 = msa_row_string(msa, 0), *r1 = msa_row_string(msa, 1);
+            CuAssertStrEquals(testCase, "GGTCACACAGTTG", r0);
+            CuAssertStrEquals(testCase, flip ? "GGTCACA--GTTG" : "GGT--CACAGTTG", r1);
+            free(r0); free(r1);
+            msa_destruct(msa);
+        }
+        poaParameters_destruct(poaParams);
+    }
+}
+
 CuSuite* poaBarAlignerTestSuite(void) {
     CuSuite* suite = CuSuiteNew();
     SUITE_ADD_TEST(suite, test_shipped_config_is_loadable);
     SUITE_ADD_TEST(suite, test_baseAligner_selection);
     SUITE_ADD_TEST(suite, test_make_partial_order_alignment);
+    SUITE_ADD_TEST(suite, test_make_oriented_partial_order_alignment);
     SUITE_ADD_TEST(suite, test_make_consistent_partial_order_alignments_two_ends);
     SUITE_ADD_TEST(suite, test_make_flower_alignment_poa);
     SUITE_ADD_TEST(suite, test_get_adjacency_string_and_overlap_bounded);

@@ -637,6 +637,9 @@ def minigraph_map_all(job, options, config, gfa_id, fa_id_map, graph_event, in_g
     job.addChild(top_job)
 
     mg_cores = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "cpu", typeFn=int, default=1)
+    # left-aligning writes out the graph's node sequences next to it, and reads them back in along
+    # with the genome
+    left_align = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "leftAlign", typeFn=bool, default=False)
 
     # do the mapping
     gaf_id_map = {}
@@ -663,17 +666,21 @@ def minigraph_map_all(job, options, config, gfa_id, fa_id_map, graph_event, in_g
             mem *= 2
             event_name = '{}.{}'.format(event, options.mg_chrom_name)
         if in_gaf_map and event in in_gaf_map:
-            # no minigraph, and no input fasta: gaf2unstable/gaffilter/gaf2paf against the new graph
-            # is the whole job.  gaffilter reads its input into memory, as it does when mapping
+            # no minigraph: gaf2unstable/gaffilter/gaf2paf against the new graph is the whole job.
+            # gaffilter reads its input into memory, as it does when mapping.  the input fasta is
+            # only fetched when left-aligning, which needs it to produce what mapping would
             gaf_shard_id = in_gaf_map[event]
+            la_fa_id = fa_id if left_align else None
+            la_bytes = fa_id.size + gfa_id.size if left_align else 0
             map_job = top_job.addChildJobFn(translate_gaf_one, config, event_name, gaf_shard_id, gfa_id, genome_names,
-                                            disk=12*gaf_shard_id.size + 2*gfa_id.size,
-                                            memory=cactus_clamp_memory(24*gaf_shard_id.size + 4*gfa_id.size),
+                                            fa_file_id=la_fa_id,
+                                            disk=12*gaf_shard_id.size + 2*gfa_id.size + la_bytes,
+                                            memory=cactus_clamp_memory(24*gaf_shard_id.size + 4*gfa_id.size + la_bytes),
                                             walltime=cactus_walltime(TRANSLATE_GAF_SECS_PER_GB * gaf_shard_id.size / 1e9,
-                                                                     io_bytes=2*gaf_shard_id.size + gfa_id.size))
+                                                                     io_bytes=2*gaf_shard_id.size + gfa_id.size + la_bytes))
         else:
             map_job = top_job.addChildJobFn(minigraph_map_one, config, event_name, fa_id, gfa_id, scores_id=scores_id,
-                                            cores=mg_cores, disk=5*fa_id.size + gfa_id.size,
+                                            cores=mg_cores, disk=5*fa_id.size + (2 if left_align else 1)*gfa_id.size,
                                             memory=cactus_clamp_memory(mem),
                                             walltime=cactus_walltime(MINIGRAPH_MAP_SECS + MINIGRAPH_MAP_SECS_PER_GB * fa_id.size / 1e9,
                                                                      io_bytes=2*fa_id.size + gfa_id.size))
@@ -862,17 +869,18 @@ def minigraph_map_one(job, config, event_name, fa_file_id, gfa_file_id, scores_i
     cmd = []
 
     # optional hardmasking of softmasked fasta input (to ignore masked sequence)
+    mg_fa_path = fa_path
     mask_filter = getOptionalAttrib(xml_node, "maskFilter", int, default=-1)
     if mask_filter >= 0:
         cmd += [['cactus_softmask2hardmask', fa_path, '-m', str(mask_filter)]]
-        fa_path = '-'
+        mg_fa_path = '-'
 
     # run minigraph mapping
-    cmd += [["minigraph", gfa_path, fa_path, "-o", gaf_path] + opts_list]
+    cmd += [["minigraph", gfa_path, mg_fa_path, "-o", gaf_path] + opts_list]
 
     cactus_call(parameters=cmd, job_memory=job.memory)
 
-    return stable_gaf_to_paf(job, config, gaf_path, gfa_path)
+    return stable_gaf_to_paf(job, config, gaf_path, gfa_path, fa_path=fa_path)
 
 # how many reused GAF records the up-front check resolves before trusting the rest
 GAF_REUSE_CHECK_RECORDS = 1000
@@ -928,7 +936,7 @@ def check_reusable_gaf(job, config, gaf_file_id, gfa_file_id, genome_names, gaf_
 
     RealtimeLogger.info('Reused mappings from {} resolve against the graph'.format(gaf_path))
 
-def translate_gaf_one(job, config, event_name, gaf_file_id, gfa_file_id, genome_names):
+def translate_gaf_one(job, config, event_name, gaf_file_id, gfa_file_id, genome_names, fa_file_id=None):
     """ Re-derive one genome's PAF from mappings it already has, against a (possibly extended) graph.
 
     minigraph GAF is in stable coordinates -- rGFA SN/SO names and offsets -- which adding genomes
@@ -937,7 +945,8 @@ def translate_gaf_one(job, config, event_name, gaf_file_id, gfa_file_id, genome_
     matter of running the same gaf2unstable/gaf2paf chain minigraph_map_one() runs, against the new
     graph, which gaf2unstable resolves into the new (finer) node ids for free.
 
-    the graph the genome was originally mapped to is not needed, and neither is minigraph """
+    the graph the genome was originally mapped to is not needed, and neither is minigraph.  the
+    genome's fasta is only needed for <graphmap leftAlign>, and is passed in only then """
 
     work_dir = job.fileStore.getLocalTempDir()
     gfa_path = os.path.join(work_dir, "mg.gfa")
@@ -951,9 +960,14 @@ def translate_gaf_one(job, config, event_name, gaf_file_id, gfa_file_id, genome_
     job.fileStore.readGlobalFile(gaf_file_id, in_gaf_path)
     gaf_from_pansn(genome_names, in_gaf_path, gaf_path)
 
+    fa_path = None
+    if fa_file_id:
+        fa_path = os.path.join(work_dir, "{}.fa".format(event_name))
+        job.fileStore.readGlobalFile(fa_file_id, fa_path)
+
     # the reused GAF is published back (PanSN in, PanSN out, unchanged), so a run that extends a
     # pangenome can itself be extended
-    return stable_gaf_to_paf(job, config, gaf_path, gfa_path, regranulated=True)
+    return stable_gaf_to_paf(job, config, gaf_path, gfa_path, regranulated=True, fa_path=fa_path)
 
 # a GAF path step: an orientation mark followed by a name that runs to the next mark
 gaf_step_re = re.compile(r'[<>][^<>]+')
@@ -1029,7 +1043,7 @@ def trim_unstable_gaf(gaf_path, out_path, node_lengths_path):
 
     return trimmed_records
 
-def stable_gaf_to_paf(job, config, gaf_path, gfa_path, regranulated=False):
+def stable_gaf_to_paf(job, config, gaf_path, gfa_path, regranulated=False, fa_path=None):
     """ Turn a stable-coordinate (ie minigraph output) GAF into the node-coordinate PAF cactus
     consumes, returning (published PanSN gaf id, paf id).  Shared by mapping and by reuse of an
     existing mapping, so that the two produce identical output for identical input.
@@ -1037,7 +1051,9 @@ def stable_gaf_to_paf(job, config, gaf_path, gfa_path, regranulated=False):
     regranulated says the GAF was made against a coarser version of this graph, so its path offsets
     have to be brought back inside their first and last steps -- see trim_unstable_gaf().  It is a
     no-op when the graph has not changed, but it is only asked for on the reuse path so that
-    mapping keeps running exactly the commands it always has """
+    mapping keeps running exactly the commands it always has
+
+    fa_path is the (uncompressed) fasta of the mapped genome, which <graphmap leftAlign> needs """
 
     xml_node = findRequiredNode(config.xmlRoot, "graphmap")
 
@@ -1100,9 +1116,20 @@ def stable_gaf_to_paf(job, config, gaf_path, gfa_path, regranulated=False):
     # also tack on the unique id to the target column
     graph_event = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "assemblyName", default="_MINIGRAPH_")
     unstable_paf_path = unstable_gaf_path + '.paf'
-    unstable_paf_cmd = [['gaf2paf', unstable_gaf_path, '-l', mg_lengths_path],
-                        ['awk', 'BEGIN{{OFS=\"	\"}} {{$6="id={}|"$6; print}}'.format(graph_event)]]
+    unstable_paf_cmd = [['gaf2paf', unstable_gaf_path, '-l', mg_lengths_path]]
+    nodes_fa_path = None
+    if getOptionalAttrib(xml_node, "leftAlign", typeFn=bool, default=False):
+        # put each indel in one place, at the left of its node, however minigraph happened to place it.
+        # this has to see the PAF while its targets are still the bare node names gfa2fa writes
+        if fa_path is None:
+            raise RuntimeError('<graphmap leftAlign> needs the fasta of the mapped genome')
+        nodes_fa_path = gfa_path + '.nodes.fa'
+        cactus_call(parameters=['gfatools', 'gfa2fa', gfa_path], outfile=nodes_fa_path, job_memory=job.memory)
+        unstable_paf_cmd.append(['paffy', 'left_align', nodes_fa_path, fa_path])
+    unstable_paf_cmd.append(['awk', 'BEGIN{{OFS=\"	\"}} {{$6="id={}|"$6; print}}'.format(graph_event)])
     cactus_call(parameters=unstable_paf_cmd, outfile=unstable_paf_path, job_memory=job.memory)
+    if nodes_fa_path:
+        os.remove(nodes_fa_path)
 
     # the gaf is published as-is, so put it in PanSN to match the exported minigraph GFA
     # (the filtering chain above has already consumed gaf_path in its cactus-named form)

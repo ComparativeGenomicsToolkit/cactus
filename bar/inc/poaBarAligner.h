@@ -53,6 +53,24 @@ BaseAligner baseAligner_constructFromCactusParams(CactusParams *params);
 const char *baseAligner_toString(BaseAligner engine);
 
 /**
+ * Which way round each set of threads is given to the POA engine. The engines put a gap that could
+ * go anywhere along a repeat at its left end, so this decides which end of the repeat it lands on.
+ *
+ * NONE:      read out of whichever end the flower happens to be aligned from (as before), which depends
+ *            on the order the graph was built in, and so on the orientation of the input sequences
+ * REFERENCE: so the reference's threads read forward, putting gaps left on the reference. Where there is
+ *            no reference thread to go by, or no reference event at all, as CANONICAL. <bar poaOrientation="auto">
+ *            is this, so it is reference-left in pangenome mode, which sets the reference, and canonical otherwise
+ * CANONICAL: so the thread that is lexicographically smallest in either orientation reads in that
+ *            orientation. Needs no reference, and gives the same direction whichever way the inputs were
+ */
+typedef enum _PoaOrientation {
+    POA_ORIENT_NONE = 0,
+    POA_ORIENT_REFERENCE = 1,
+    POA_ORIENT_CANONICAL = 2
+} PoaOrientation;
+
+/**
  * Engine-agnostic handle for whatever the chosen aligner needs.
  *
  * mpt is void* rather than minipoa_para_t* on purpose: this header is included by C code that
@@ -85,6 +103,9 @@ typedef struct _PoaParameters {
     bool adaptiveBand;
     bool progressive;
     int minimizerK, minimizerW, anchorWindow;
+    /* <bar poaOrientation> and <bar poaReferenceEvent>, the event header REFERENCE goes by (NULL if none) */
+    PoaOrientation orientation;
+    char *referenceEvent;
 } PoaParameters;
 
 /**
@@ -152,6 +173,15 @@ Msa *msa_make_partial_order_alignment(char **seqs,
                                       PoaParameters *poa_parameters);
 
 /**
+ * As msa_make_partial_order_alignment, but if flip is set the sequences are aligned reverse complemented and
+ * the MSA turned back round: an alignment of the sequences as given, with gaps placed reading the other way.
+ * The sequences are reverse complemented in place while aligning, and restored before returning.
+ */
+Msa *msa_make_oriented_partial_order_alignment(char **seqs, int *seq_lens, int64_t seq_no, bool flip,
+                                               int64_t window_size, int64_t max_prog_rows,
+                                               double max_prog_length_diff, PoaParameters *poa_parameters);
+
+/**
  * Takes a set of ends and returns a set of consistent multiple alignments,
  * one for each of them.
  *
@@ -173,11 +203,13 @@ Msa *msa_make_partial_order_alignment(char **seqs,
  * @param max_prog_rows Disable abpoas progressive alignment if there are more than this many rows (avoid quadratic dist mat blowup)
  * @param max_prog_length_diff Disable abpoa's progresive alignment if the 1 - shortest (last) sequence / longest (first) sequence is more than this 
  * @param poa_parameters base aligner parameters
+ * @param flips For each end, whether to align its strings reverse complemented (see PoaOrientation), or NULL for none
  * @return A consistent Msa for each end
  */
 Msa **make_consistent_partial_order_alignments(int64_t end_no, int64_t *end_lengths, char ***end_strings,
         int **end_string_lengths, int64_t **right_end_indexes, int64_t **right_end_row_indexes, int64_t **overlaps,
-        int64_t window_size, int64_t max_prog_rows, double max_prog_length_diff, PoaParameters *poa_parameters);
+        int64_t window_size, int64_t max_prog_rows, double max_prog_length_diff, PoaParameters *poa_parameters,
+        bool *flips);
 
 /**
  * Represents a gapless alignment of a set of sequences.
