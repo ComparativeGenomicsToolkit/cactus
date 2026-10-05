@@ -402,15 +402,15 @@ class ConfigWrapper:
     def getSystemMemory(self):
         return getOptionalAttrib(findRequiredNode(self.xmlRoot, 'constants'), 'system_memory', typeFn=int, default=None)
 
-    def applySlurmChunkScaling(self, options):
-        """ make the chunk size bigger so as not to spam the slurm queue with too many jobs """
-        if options.batchSystem.lower() in ['slurm', 'lsf', 'torque']:
-            blast_node = findRequiredNode(self.xmlRoot, 'blast')
-            scale = getOptionalAttrib(blast_node, 'slurmChunkScale', typeFn=int, default=1)
-            if scale > 1:
-                logger.info('Scaling blast chunkSize up and dechunkBatchSize down by {} to be more cluster-friendly'.format(scale))
-                blast_node.attrib['chunkSize'] = str(scale * int(blast_node.attrib['chunkSize']))
-                blast_node.attrib['dechunkBatchSize'] = str(max(1, int(int(blast_node.attrib['dechunkBatchSize']) / scale)))
+    def warnLegacyChunkScaling(self):
+        """ slurmChunkScale used to multiply the blast chunkSize on Slurm, LSF and Torque.  chunkSize is now the same on
+        every batch system (90 Mbp by default), so the attribute is ignored -- but a config copied from an older release
+        still has its 30 Mbp chunkSize, which would now run unscaled: about nine times as many lastz jobs. """
+        blast_node = findRequiredNode(self.xmlRoot, 'blast')
+        if 'slurmChunkScale' in blast_node.attrib:
+            logger.warning('Ignoring <blast slurmChunkScale="{}">: chunkSize ({}) is no longer scaled by batch system. If this config '
+                           'was copied from an older release, update chunkSize (the default is now 90000000) and the lastz '
+                           '--queryhspbest values with it'.format(blast_node.attrib['slurmChunkScale'], blast_node.attrib.get('chunkSize')))
 
     def scaleBranchLengths(self, branch_scale):
         """ Scale effective branch lengths by dividing divergence thresholds (higher scale = longer branches = more sensitive) """

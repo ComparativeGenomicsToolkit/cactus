@@ -43,7 +43,9 @@
 	<preprocessor unmask="1" memory="littleMemory" preprocessJob="dna-brnn" dna-brnnOpts='-A' active="0" action="softmask" cpu="2" minLength="100000"/>
 
 	<!-- Params for blast -->
-	<!-- chunkSize The size of sequences in a blast job. Increase the chunkSize in the caf tag to reduce the number of blast jobs approximately quadratically -->
+	<!-- chunkSize The size of sequences in a blast job, the same for every batch system (it is also used by FastGA's lastz fill step).
+	     The lastz options below are set for this size (queryhspbest in particular, a budget per query sequence, which is per chunk for
+	     chromosome-scale sequences), so change them together.  Increasing it reduces the number of blast jobs approximately quadratically -->
 	<!-- bigChunkSize overrides chunkSize for KegAlign and FastGA, which work on whole-genome scale inputs -->
 	<!-- overlapSize The amount of basepair overlap between chunks -->
 	<!-- mapper The local alignment program to use, currently either lastz or minimap2 or fastga -->
@@ -86,9 +88,8 @@
 	<!-- includeRootAsOutgroup When the root sequence is supplied (cactus-blast/cactus-align with includeRoot), treat it as
 	     an outgroup rather than an ingroup, so that its coverage to its descendants is not starved during chaining. Set
 	     to 0 to restore the old behaviour of treating the pinned root as an ingroup -->
-	<!-- slurmChunkScale Multiply chunkSize and divide dechunkBatchSize by this value when running slurm in order to decrease job count -->
 	<!-- leftAlign: move each indel in the lastz alignments along its repeat without changing the alignment's score (paffy left_align). "none", or "canonical" (default): at whichever end makes the repeat read smaller than its reverse complement, which gives every pairwise alignment through a repeat the same placement whatever the pair or strand, so they agree when pinched together. "left" (left on the target) only makes alignments agree when no sequence is aligned on its reverse strand, and makes things worse otherwise; it is here for comparison. lastz only -->
-	<blast chunkSize="30000000"
+	<blast chunkSize="90000000"
 	       bigChunkSize="6000000000"
 		   overlapSize="10000"
 		   mapper="lastz"
@@ -119,27 +120,34 @@
 		   trimFlanking="100"
 		   trimOutgroupFlanking="2000"
 		   outputSecondaryAlignments="0"
-		   dechunkBatchSize="1000"
+		   dechunkBatchSize="333"
 		   pickIngroupPrimaryAlignmentsSeparatelyToOutgroups="1"
 		   includeRootAsOutgroup="1"
-		   slurmChunkScale="3"
 		   bigGenomeChunkScale="2"
 		   >
 
 		<!-- The following are parametrised to produce the same results as the default settings,
 		within a margin of 0.2% sensitivity, should be very fast for close genomes, these were tuned using the blast/blastParametersScript.py
 		We could go even faster for less than 0.05 divergence using, but want to be robust to poor branch length estimates -->
+		<!-- queryhspbest keeps only the best N HSPs per query sequence, which bounds the runtime of repeat pile-ups.  It is set for
+		     the 90 Mbp chunkSize: 300000 is the per-query-Mbp budget that 100000 gave with the old 30 Mbp chunks.  100000 at 90 Mbp
+		     (what Slurm runs used to get from slurmChunkScale) silently dropped 3-9% of the alignment of some syntenic chunk pairs
+		     (rodents 9%, birds 6%, sharks 4%, primates 0.3%, human x mouse 0).  300000 recovers it for about 7% more lastz
+		     instructions, or 20-35% more CPU time, on those pairs, and changes nothing on non-syntenic pairs of well-masked
+		     genomes; 1000000 adds at most 0.5% more (rodents).  Where the budget binds on under-masked repeats the work grows
+		     with it: 1.65-2.56x the instructions of 100000 on the shark tests.  The budget is per query sequence, so it does not
+		     bound a chunk made of many short unmasked contigs. -->
 		<lastzArguments
-				one="--step=2 --ambiguous=iupac,100,100 --ydrop=3000 --notransition --queryhspbest=100000"
-				two="--step=5 --ambiguous=iupac,100,100 --ydrop=3000 --queryhspbest=100000"
-				three="--step=4 --ambiguous=iupac,100,100 --ydrop=3500 --hspthresh=2800 --queryhspbest=100000"
-				four="--step=3 --ambiguous=iupac,100,100 --ydrop=3500 --hspthresh=2600 --gappedthresh=2800 --queryhspbest=100000"
-				five="--step=2 --ambiguous=iupac,100,100 --ydrop=4000 --hspthresh=2400 --gappedthresh=2600 --queryhspbest=100000"
-				default="--step=1 --ambiguous=iupac,100,100 --ydrop=4000 --hspthresh=2200 --gappedthresh=2400 --queryhspbest=100000"
+				one="--step=2 --ambiguous=iupac,100,100 --ydrop=3000 --notransition --queryhspbest=300000"
+				two="--step=5 --ambiguous=iupac,100,100 --ydrop=3000 --queryhspbest=300000"
+				three="--step=4 --ambiguous=iupac,100,100 --ydrop=3500 --hspthresh=2800 --queryhspbest=300000"
+				four="--step=3 --ambiguous=iupac,100,100 --ydrop=3500 --hspthresh=2600 --gappedthresh=2800 --queryhspbest=300000"
+				five="--step=2 --ambiguous=iupac,100,100 --ydrop=4000 --hspthresh=2400 --gappedthresh=2600 --queryhspbest=300000"
+				default="--step=1 --ambiguous=iupac,100,100 --ydrop=4000 --hspthresh=2200 --gappedthresh=2400 --queryhspbest=300000"
 		/>
 		<!-- Estimated runtime, in seconds, of one lastz job in each divergence class, for a
-		     pair of full-sized (chunkSize) chunks.  These are the p99 of 827k lastz runs from
-		     the VGP 577-way alignment, halved for the 2x lastz speedup since; Cactus scales
+		     pair of full-sized (chunkSize, 90 Mbp) chunks.  These are the p99 of 827k lastz runs from
+		     the VGP 577-way alignment (90 Mbp chunks, queryhspbest 100000, so they predate 300000), halved for the 2x lastz speedup since; Cactus scales
 		     them by the actual chunk sizes and applies the walltime factor on top.  Slurm picks a
 		     partition from the time limit, so these being per-class rather than one global
 		     number is what keeps the 147k closely-related pairs out of the long queue. -->

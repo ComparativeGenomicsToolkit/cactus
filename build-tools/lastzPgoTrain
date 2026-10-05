@@ -73,10 +73,10 @@ Q="${WORK}/train_query.fa"
 # the four distinct shapes in <lastzArguments>;  three, four and five differ from
 # two only in thresholds, which do not change which code paths run
 for opts in \
-    "--step=2 --ambiguous=iupac,100,100 --ydrop=3000 --notransition --queryhspbest=100000" \
-    "--step=5 --ambiguous=iupac,100,100 --ydrop=3000 --queryhspbest=100000" \
-    "--step=2 --ambiguous=iupac,100,100 --ydrop=4000 --hspthresh=2400 --gappedthresh=2600 --queryhspbest=100000" \
-    "--step=1 --ambiguous=iupac,100,100 --ydrop=4000 --hspthresh=2200 --gappedthresh=2400 --queryhspbest=100000" ; do
+    "--step=2 --ambiguous=iupac,100,100 --ydrop=3000 --notransition --queryhspbest=300000" \
+    "--step=5 --ambiguous=iupac,100,100 --ydrop=3000 --queryhspbest=300000" \
+    "--step=2 --ambiguous=iupac,100,100 --ydrop=4000 --hspthresh=2400 --gappedthresh=2600 --queryhspbest=300000" \
+    "--step=1 --ambiguous=iupac,100,100 --ydrop=4000 --hspthresh=2200 --gappedthresh=2400 --queryhspbest=300000" ; do
     # stderr to a log, not the build output: the synthetic query has a few
     # near-identical stretches, which make long alignments and provoke lastz's
     # traceback-truncation warnings.  Harmless for training, noisy in a build.
