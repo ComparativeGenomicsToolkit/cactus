@@ -68,16 +68,16 @@ def write_lastz_scores(model, path):
 
 
 def lastz_train_enabled(params):
-    """ Whether to train lastz's scores on each pair of genomes it aligns: <blast lastzTrain> """
+    """ Whether to train lastz's scores on each pair of genomes it aligns: <blast lastzTrain>, on by default, so
+    it passes over the mappers it does not apply to, minimap2, FastGA and KegAlign, rather than stopping them """
     lastz_params_node = params.find("blast")
     if not getOptionalAttrib(lastz_params_node, 'lastzTrain', typeFn=bool, default=False):
         return False
     if lastz_params_node.attrib["mapper"] != "lastz":
-        logger.warning("<blast lastzTrain> is ignored: it is for lastz, and the mapper is {}".format(
-            lastz_params_node.attrib["mapper"]))
         return False
     if getOptionalAttrib(lastz_params_node, 'gpu', typeFn=int, default=0):
-        raise RuntimeError("<blast lastzTrain> is not supported with KegAlign")
+        logger.warning("<blast lastzTrain> does not apply to KegAlign, whose alignments keep its default scores")
+        return False
     return True
 
 

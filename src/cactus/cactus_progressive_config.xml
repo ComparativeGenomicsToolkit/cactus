@@ -91,8 +91,10 @@
 	<!-- leftAlign: move each indel in the lastz alignments along its repeat without changing the alignment's score (paffy left_align). "none", or "canonical" (default): at whichever end makes the repeat read smaller than its reverse complement, which gives every pairwise alignment through a repeat the same placement whatever the pair or strand, so they agree when pinched together. "left" (left on the target) only makes alignments agree when no sequence is aligned on its reverse strand, and makes things worse otherwise; it is here for comparison. lastz only -->
 	<!-- lastzTrain Train lastz's scores on each pair of genomes it aligns with last-train (needs LAST), on the whole
 	     genomes, and align the pair with them, rescaled to HOXD70's units (see lastzScoreModel below).  A pair that
-	     cannot be trained (the smaller genome under 500kb, or last-train failing) falls back to the lastzScoreModel
-	     table, else HOXD70.  Not supported with KegAlign -->
+	     cannot be trained (the smaller genome under 500kb, or last-train failing, as without LAST) falls back to the
+	     lastzScoreModel table, else HOXD70.  It does not apply to KegAlign, minimap2 or FastGA.  On evolver mammals
+	     it raised pooled leaf-pair precision from 0.816 to 0.830 and recall from 0.740 to 0.744, for about 0.3% of
+	     the 577-way's lastz CPU; set it to 0 for lastz's HOXD70 everywhere -->
 	<!-- lastzTrainGaps With lastzTrain, use the trained gap penalties; 0 keeps HOXD70's (400 and 30) with the trained
 	     substitution scores -->
 	<!-- lastzTrainCores Cores for each pair's training -->
@@ -131,7 +133,7 @@
 		   pickIngroupPrimaryAlignmentsSeparatelyToOutgroups="1"
 		   includeRootAsOutgroup="1"
 		   bigGenomeChunkScale="2"
-		   lastzTrain="0"
+		   lastzTrain="1"
 		   lastzTrainGaps="1"
 		   lastzTrainCores="4"
 		   >
