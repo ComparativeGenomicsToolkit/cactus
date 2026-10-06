@@ -78,7 +78,7 @@ class PreprocessorOptions:
     def __init__(self, chunkSize, memory, cpu, check, proportionToSample, unmask,
                  preprocessJob, checkAssemblyHub=None, lastzOptions=None, minPeriod=None,
                  gpu=0, lastz_memory=None, dnabrnnOpts=None,
-                 dnabrnnAction=None, redOpts=None, redPrefilterOpts=None, fastanOpts=None, fastanPrefilterOpts=None,
+                 dnabrnnAction=None, redOpts=None, fastanOpts=None, fastanPrefilterOpts=None,
                  eventName=None, minLength=None,
                  cutBefore=None, cutBeforeOcc=None, cutAfter=None, inputBedID=None):
         self.chunkSize = chunkSize
@@ -101,7 +101,6 @@ class PreprocessorOptions:
         self.dnabrnnAction = dnabrnnAction
         assert dnabrnnAction in ('softmask', 'hardmask', 'clip')
         self.redOpts = redOpts
-        self.redPrefilterOpts = redPrefilterOpts
         self.fastanOpts = fastanOpts
         self.fastanPrefilterOpts = fastanPrefilterOpts        
         self.eventName = eventName
@@ -218,7 +217,6 @@ class PreprocessSequence(RoundedJob):
             # it is worth the one scan of the chunk to find out what that is.
             return RedMaskJob(inChunkID,
                               redOpts=self.prepOptions.redOpts,
-                              redPrefilterOpts=self.prepOptions.redPrefilterOpts,
                               eventName=self.prepOptions.eventName,
                               unmask=self.prepOptions.unmask,
                               longestRecordSize=longest_record_size(inChunkPath)
@@ -339,7 +337,6 @@ class BatchPreprocessor(RoundedJob):
                                               dnabrnnOpts = getOptionalAttrib(prepNode, "dna-brnnOpts", default=""),
                                               dnabrnnAction = getOptionalAttrib(prepNode, "action", typeFn=str, default="softmask"),
                                               redOpts = getOptionalAttrib(prepNode, "redOpts", default=""),
-                                              redPrefilterOpts = getOptionalAttrib(prepNode, "redPrefilterOpts", default=""),
                                               fastanOpts = getOptionalAttrib(prepNode, "fastanOpts", default=""),
                                               fastanPrefilterOpts = getOptionalAttrib(prepNode, "fastanPrefilterOpts", default=""),
                                               eventName = getOptionalAttrib(prepNode, "eventName", typeFn=str, default=None),

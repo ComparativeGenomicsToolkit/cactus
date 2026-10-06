@@ -27,8 +27,9 @@ from toil.realtimeLogger import RealtimeLogger
 
 
 # FasTAN is active="0" by default and has never run in a logged workflow, so there is no rate
-# for it.  This job is RedMaskJob's twin -- same prefilter, same bed extraction, same interval
-# application, one different repeat masker in the middle -- so Red's measured rate stands in.
+# for it.  This job is RedMaskJob's twin -- same bed extraction, same interval application, one
+# different repeat masker in the middle, plus a prefilter Red no longer needs -- so Red's measured
+# rate stands in.
 # RED_SECS_PER_GB has Red's 3x speedup divided out of it, and FasTAN has no claim to that
 # discount, so it is multiplied back: this is Red's rate as measured, before Red got faster.
 # --doubleTime buys the retry if FasTAN turns out slower still.
