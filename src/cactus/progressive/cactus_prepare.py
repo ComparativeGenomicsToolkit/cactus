@@ -36,6 +36,7 @@ from cactus.shared.common import cactus_override_toil_options, add_cactus_toil_o
 from cactus.pipeline.cactus_workflow import cons_core_scale
 from cactus.shared.common import cactus_clamp_memory
 from cactus.shared.common import cactus_walltime
+from cactus.paf.last_scoring import trained_models_path
 
 from toil.job import Job
 from toil.common import Toil
@@ -1039,7 +1040,11 @@ def wdl_task_blast(options):
         s += '        docker: \"{}\"\n'.format(options.dockerImage)
         s += '        zones: \"{}\"\n'.format(options.zone)
     s += '    }\n'
-    s += '    output {\n        Array[File] out_files=glob(\"${out_name}*\")\n    }\n'
+    # the alignments, and the scoring models trained for bar (see <bar trainedModels>) if any were
+    s += '    output {\n'
+    s += '        File out_paf=\"${out_name}\"\n'
+    s += '        Array[File] out_models=glob(\"{}\")\n'.format(trained_models_path('${out_name}'))
+    s += '    }\n'
     s += '}\n'
     
     return s
@@ -1132,7 +1137,8 @@ def wdl_task_align(options):
     s += '        Array[String] in_fa_names\n'
     s += '        Array[File] in_fa_files\n'
     s += '        Array[String]? in_fa_urls\n'    
-    s += '        Array[File] in_blast_files\n'
+    s += '        File in_blast_file\n'
+    s += '        Array[File] in_blast_models\n'
     s += '        String in_root\n'
     s += '        File? in_config_file\n'
     s += '        File? in_chrom_info_file\n'
@@ -1144,7 +1150,10 @@ def wdl_task_align(options):
     # two commands run here, so without set -e a failed cactus-align would be
     # masked by whatever cactus-hal2fasta returns afterwards
     s += 'set -eo pipefail\n        '
-    s += 'cactus-align {} ${{in_seq_file}} ${{sep=\" \" in_blast_files}} ${{out_hal_name}} --root ${{in_root}}'.format(get_jobstore(options, 'align'))
+    s += 'cactus-align {} ${{in_seq_file}} ${{in_blast_file}} ${{out_hal_name}} --root ${{in_root}}'.format(get_jobstore(options, 'align'))
+    # and --trainedModels, if blast trained any.  Not with prefix(): cromwell 49 can't put the empty array it makes
+    # into a command, and a String declared from a File is its path before localization
+    s += ' ${true=\"--trainedModels \" false=\"\" length(in_blast_models) > 0}${sep=\" \" in_blast_models}'
     s += ' --pathOverrides ${{sep=\" \" in_fa_files}} ${{sep=\" \" in_fa_urls}} --pathOverrideNames ${{sep=\" \" in_fa_names}} {}'.format(options.cactusOptions)
     s += ' ${\"--chromInfo \" + in_chrom_info_file}'
     s += ' {} {}{} ${{\"--configFile \" + in_config_file}} ${{in_options}}'.format(get_toil_resource_opts(options, 'align'),
@@ -1201,7 +1210,8 @@ def wdl_call_align(options, in_seq_file, mc_tree, og_map, event, cigar_name, hal
     s += ' in_fa_files=[{}],'.format(', '.join(input_fas))
     if input_urls:
         s += ' in_fa_urls=[{}],'.format(', '.join(input_urls))
-    s += ' in_blast_files={}.out_files,'.format(blast_call_name(event))
+    s += ' in_blast_file={}.out_paf,'.format(blast_call_name(event))
+    s += ' in_blast_models={}.out_models,'.format(blast_call_name(event))
     s += ' in_root=\"{}\",'.format(event)
     s += ' in_config_file=config_file,'
     s += ' in_chrom_info_file=chrom_info_file,'
@@ -1222,11 +1232,17 @@ def toil_call_align(job, options, seq_file, mc_tree, og_map, event, cigar_name, 
     with open(seq_file_path, 'w') as sf:
         sf.write(str(seq_file))
 
-    # download the blast output from the file store
+    # download the blast output from the file store: the alignments, and any scoring models trained for bar
+    # (see <bar trainedModels>), which cactus-align takes by option
     blast_files = []
+    models_files = []
     for blast_file_name, blast_file_id in blast_output:
-        blast_files.append(os.path.join(work_dir, blast_file_name))
-        job.fileStore.readGlobalFile(blast_file_id, blast_files[-1])
+        local_path = os.path.join(work_dir, blast_file_name)
+        job.fileStore.readGlobalFile(blast_file_id, local_path)
+        if blast_file_name == os.path.basename(trained_models_path(cigar_name)):
+            models_files.append(local_path)
+        else:
+            blast_files.append(local_path)
 
     # read the fasta files
     assert len(dep_names) == len(dep_fa_ids)
@@ -1239,7 +1255,8 @@ def toil_call_align(job, options, seq_file, mc_tree, og_map, event, cigar_name, 
     cactus_call(parameters=['cactus-align', os.path.join(work_dir, 'js'), seq_file_path] + blast_files +
                 [out_hal_path, '--root', event,
                  '--pathOverrides'] + fa_paths + ['--pathOverrideNames'] + dep_names +
-                ['--workDir', work_dir, '--maxCores', str(int(job.cores)), '--maxDisk', bytes2humanN(job.disk), '--maxMemory', bytes2humanN(job.memory)] + options.cactusOptions.strip().split(' ') + (['--chromInfo', options.chromInfo] if options.chromInfo else []) + (['--branchScale', str(options.branchScale)] if options.branchScale else []) + ([] if options.noValidate else ['--validate']))
+                ['--workDir', work_dir, '--maxCores', str(int(job.cores)), '--maxDisk', bytes2humanN(job.disk), '--maxMemory', bytes2humanN(job.memory)] + options.cactusOptions.strip().split(' ') + (['--chromInfo', options.chromInfo] if options.chromInfo else []) + (['--branchScale', str(options.branchScale)] if options.branchScale else []) + ([] if options.noValidate else ['--validate']) +
+                (['--trainedModels', models_files[0]] if models_files else []))
 
     out_hal_id = job.fileStore.writeGlobalFile(out_hal_path)
 

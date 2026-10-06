@@ -98,6 +98,9 @@ def main():
                         help = "File containing scoring parameters (output of last-train, as made by cactus-minigraph by default)")
     parser.add_argument("--scoresFromChromfile", action="store_true", default=False,
                         help = "Load scoring parameters from the 4th column of chromfile (as made by cactus-minigraph --batch)")
+    parser.add_argument("--trainedModels", type=str,
+                        help = "Scoring models cactus-blast trained for the alignments, for bar (see <bar trainedModels> in "
+                        "the config) [default=<pafFile>.models.json, where cactus-blast leaves them]")
     
     parser.add_argument("--singleCopySpecies", type=str,
                         help="Filter out all self-alignments in given species")
@@ -192,6 +195,8 @@ def main():
         raise RuntimeError('--scoresFile is only currently supported with --pangenome')
     if options.scoresFromChromfile and (not options.pangenome or not options.batch or options.scoresFile):
         raise RuntimeError('--scoresFromChromfile can only be used with --batch --pangenome and without --scoresFile')
+    if options.trainedModels and options.pangenome:
+        raise RuntimeError('--trainedModels is not supported with --pangenome')
     
     options.buildHal = True
     options.buildFasta = True
@@ -420,15 +425,21 @@ def make_align_job(options, toil, config_wrapper=None, chrom_name=None):
     paf_id = toil.importFile(makeURL(options.pafFile))
 
     # and with <bar trainedModels>, the scoring models cactus-blast trained for them, which it leaves next to them
-    # (pangenome alignments come from minigraph, with nothing of the kind)
+    # unless --trainedModels says where (pangenome alignments come from minigraph, with nothing of the kind).
+    # getattr as cactus-pangenome comes through here with its own options
     trained_models_id = None
+    trained_models_file = getattr(options, 'trainedModels', None)
     if bar_train_enabled(config_wrapper.xmlRoot) and not options.pangenome:
-        models_url = makeURL(trained_models_path(options.pafFile))
+        models_url = makeURL(trained_models_file if trained_models_file else trained_models_path(options.pafFile))
         try:
             trained_models_id = toil.importFile(models_url)
         except Exception as e:
+            if trained_models_file:
+                raise
             logger.warning('<bar trainedModels> is set, but there are no trained models at {} ({}), so bar keeps its '
                            'settings: were the alignments made by cactus-blast with it set?'.format(models_url, e))
+    elif trained_models_file:
+        logger.warning('Ignoring --trainedModels, as <bar trainedModels> is not set')
     
     #import the sequences
     input_seq_id_map = {}
