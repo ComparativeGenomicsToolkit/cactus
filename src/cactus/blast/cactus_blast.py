@@ -112,7 +112,7 @@ def runCactusBlastOnly(options):
             config_node = ET.parse(options.configFile).getroot()
             config_wrapper = ConfigWrapper(config_node)
             config_wrapper.substituteAllPredefinedConstantsWithLiterals(options)
-            config_wrapper.applySlurmChunkScaling(options)
+            config_wrapper.warnLegacyChunkScaling()
             # apply gpu override
             config_wrapper.initLastz(options)
             mc_tree, input_seq_map, og_candidates = parse_seqfile(options.seqFile, config_wrapper)
