@@ -404,7 +404,7 @@ def graphmap_join_options(parser):
 
     parser.add_argument("--collapse", help = "Incorporate minimap2 self-alignments.", action='store_true', default=False)
 
-    parser.add_argument("--delEdgeFilter", type=int, default=None, help = "Remove edges that span more than Nbp on the reference genome (vg clip -D). Applied during clipping.")
+    parser.add_argument("--delEdgeFilter", type=int, default=None, help = "Remove edges that span more than Nbp on the reference genome (vg clip -D). Applied during clipping. 0 disables. [default from config: delEdgeFilter in <graphmap_join>, 10000000]")
 
     parser.add_argument("--gref", nargs='?', const='clip', default=None,
                         help="[EXPERIMENTAL] Generate graph reference outputs. Adds synthetic "
@@ -433,6 +433,8 @@ def graphmap_join_config_overrides(options, config_node):
     shared by cactus-graphmap-join and cactus-pangenome, which load the config separately """
     if getattr(options, 'clipFlank', None) is not None:
         findRequiredNode(config_node, "graphmap_join").attrib["clipFlank"] = str(options.clipFlank)
+    if getattr(options, 'delEdgeFilter', None) is not None:
+        findRequiredNode(config_node, "graphmap_join").attrib["delEdgeFilter"] = str(options.delEdgeFilter)
 
 def graphmap_join_validate_options(options):
     """ make sure the options make sense and fill in sensible defaults """
@@ -1582,14 +1584,18 @@ def clip_vg(job, options, config, vg_path, vg_id, phase):
             # todo: do we want to add the minigraph prefix to keep stubs from minigraph? but I don't think it makes stubs....
             cmd.append(stub_cmd)
 
-        # Optional deletion-edge filter to go after huge snarls that may negatively impact giraffe.
+        # Deletion-edge filter to go after huge snarls that may negatively impact giraffe (on by
+        # default, like filter-paf-deletions upstream; <graphmap_join delEdgeFilter="0"> disables it).
+        # A config from before the attribute existed gets the default too, so the filter can't be lost
+        # by reusing an older config.
         # clip-phase only: the clip graph is built from the full graph, so running it in both phases
         # just repeats the same work, and removals made in "full" would be indistinguishable from
         # sequence that never aligned at all in the exclusion report.
-        if phase == 'clip' and options.delEdgeFilter:
+        del_edge_filter = getOptionalAttrib(join_xml_node, "delEdgeFilter", typeFn=int, default=10000000)
+        if phase == 'clip' and del_edge_filter > 0:
             clip_context = getOptionalAttrib(join_xml_node, "clipContext", typeFn=int, default=0)
             min_fragment = getOptionalAttrib(join_xml_node, "minFilterFragment", typeFn=int, default=0)
-            del_clip_cmd = ['vg', 'clip', '-', '-D', str(options.delEdgeFilter), '-P', options.reference[0]]
+            del_clip_cmd = ['vg', 'clip', '-', '-D', str(del_edge_filter), '-P', options.reference[0]]
             if clip_context:
                 del_clip_cmd += ['-c', str(clip_context)]
             if min_fragment:
