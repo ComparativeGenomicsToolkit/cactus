@@ -25,7 +25,7 @@ from cactus.shared.common import cactus_call, getOptionalAttrib, zip_gz, cactus_
 from cactus.preprocessor.checkUniqueHeaders import sanitize_fasta_headers
 from cactus.preprocessor.unmasking import unmask_contigs_all
 from cactus.preprocessor.cactus_preprocessor import clean_if_different
-from cactus.shared.common import cactus_clamp_memory
+from cactus.shared.common import cactus_clamp_memory, cactus_clamp_cores
 
 def get_divergence_class(distance, params):
     """ The <constants><divergences> bucket a pair at the given distance falls in ("one" through
@@ -1143,7 +1143,7 @@ def make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancest
             db_letters = min(letters[event_a.iD], letters[event_b.iD])
             score_models[lastz_pair_key(event_a.iD, event_b.iD)] = root_job.addChildJobFn(
                 train_lastz_score_model, event_a.iD, genome_a, event_b.iD, genome_b, params,
-                cores=train_cores,
+                cores=cactus_clamp_cores(train_cores),
                 memory=cactus_clamp_memory(int(1e9 + 5.5 * db_letters)),
                 disk=int(2e9 + 5 * db_letters + genome_a.size + genome_b.size),
                 walltime=cactus_walltime(1800 + 1500 * db_letters / 1e9, io_bytes=genome_a.size + genome_b.size)).rv()
