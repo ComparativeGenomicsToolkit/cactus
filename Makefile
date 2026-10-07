@@ -7,7 +7,7 @@ modules = api setup caf bar hal reference pipeline preprocessor
 # submodules are in multiple pass to handle dependencies cactus2hal being dependent on
 # both cactus and sonLib
 # jemalloc is conditionally added based on include.mk settings
-submodules1 = sonLib cPecan hal matchingAndOrdering pinchesAndCacti abPOA lastz paffy red collapse-bubble FASTGA FASTAN alntools
+submodules1 = sonLib cPecan hal matchingAndOrdering pinchesAndCacti abPOA lastz last paffy red collapse-bubble FASTGA FASTAN alntools
 ifeq ($(minipoa),on)
 submodules1 += minipoa
 endif
@@ -405,6 +405,24 @@ else
 	cd submodules/lastz && ${archEnv} LIBS="${jemallocSubLibs}" ${MAKE}
 endif
 	ln -f submodules/lastz/src/lastz bin
+
+# LAST: cactus trains its scoring models with last-train (and lastdb and lastal).  Its makefile writes
+# "CXXFLAGS = ..." with spaces around the '=': make that line add to ours, rather than replace them, and leave the
+# sub-make override on its line 3 alone, since that is how src/makefile receives the value.  Checked, as a sed that
+# stops matching after an upstream change is silently a no-op.  LAST has no LIBS variable either, so add one after
+# the objects: a static archive named before them resolves nothing, and lastal would quietly keep glibc's
+# allocator.  Its -msse4 only suits x86 compilers, and its README has ARM builds go without it too.
+ifdef arm
+lastSedArm = -e 's/ -msse4//'
+endif
+suball.last: suball.jemalloc
+	cd submodules/last && sed -i -e 's/^CXXFLAGS *= */CXXFLAGS += /' ${lastSedArm} makefile && grep -qE '^CXXFLAGS \+= ' makefile \
+	  || { echo "last: no 'CXXFLAGS =' line in its makefile; check that cactus's CXXFLAGS still reach lastal" >&2; exit 1; }
+	cd submodules/last && sed -i -e '/LIBS/!s/ -lz$$/ -lz $$(LIBS)/' src/makefile && grep -q -- '-lz $$(LIBS)' src/makefile \
+	  || { echo "last: no '-lz' link line in src/makefile; check that jemalloc still reaches lastal" >&2; exit 1; }
+	cd submodules/last && CXXFLAGS="$${CXXFLAGS} ${CACTUS_ARCH_FLAGS}" LIBS="${jemallocSubLibs}" ${MAKE}
+	ln -f submodules/last/bin/lastal submodules/last/bin/lastdb submodules/last/bin/last-train \
+	  submodules/last/bin/last-postmask ${BINDIR}
 
 suball.paffy:
 	# paffy carries its own sonLib clone, which is put at the commit cactus pins. That clone has only
