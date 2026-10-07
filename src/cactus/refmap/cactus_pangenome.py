@@ -48,6 +48,7 @@ from cactus.refmap.cactus_minigraph import minigraph_construct_import_sequences,
 from cactus.refmap.cactus_minigraph import check_graph_rewrite_config
 from cactus.refmap.cactus_graphmap import minigraph_workflow, minigraph_batch_workflow, export_graphmap_output
 from cactus.refmap.cactus_graphmap import apply_mgsplit_filter_overrides, add_separate_ref_contigs_job
+from cactus.refmap.cactus_graphmap import check_overlap_filter_config, check_overlap_filter_tools
 from cactus.refmap.cactus_graphmap_split import graphmap_split_workflow, export_split_data
 from cactus.setup.cactus_align import make_batch_align_jobs, batch_align_jobs
 from cactus.refmap.cactus_graphmap_join import graphmap_join_workflow, export_join_data, graphmap_join_options, graphmap_join_validate_options, graphmap_join_config_overrides, vcflib_checks
@@ -254,6 +255,7 @@ def pangenome_config_overrides(options, config_node):
     # is only a problem when the --inGFA graph gets genomes added (and so zipped), which is not
     # known until its SN tags are read: minigraph_construct_run checks it before constructing
     check_graph_rewrite_config(config_node)
+    check_overlap_filter_config(config_node)
     if options.mapCores is not None:
         findRequiredNode(config_node, "graphmap").attrib["cpu"] = str(options.mapCores)
     mg_cores = getOptionalAttrib(findRequiredNode(config_node, "graphmap"), "cpu", typeFn=int, default=1)
@@ -397,7 +399,7 @@ def export_minigraph_wrapper(job, options, sv_gfa_id, sv_gfa_path, last_scores_i
         scores_path = makeURL(os.path.join(options.outDir, options.outName + '.train'))
         job.fileStore.exportFile(last_scores_id, makeURL(os.path.join(options.outDir, os.path.basename(scores_path))))        
 
-def export_graphmap_wrapper(job, options, paf_id, paf_path, gaf_id, unfiltered_paf_id, paf_filter_log):
+def export_graphmap_wrapper(job, options, paf_id, paf_path, gaf_id, unfiltered_paf_id, paf_filter_log, junctions_id=None):
     """ export the PAF file from minigraph """
     paf_path = os.path.join(options.outDir, os.path.basename(paf_path))
     job.fileStore.exportFile(paf_id, makeURL(paf_path))
@@ -407,6 +409,8 @@ def export_graphmap_wrapper(job, options, paf_id, paf_path, gaf_id, unfiltered_p
     if unfiltered_paf_id:
         job.fileStore.exportFile(unfiltered_paf_id, makeURL(paf_path + '.unfiltered.gz'))
         job.fileStore.exportFile(paf_filter_log, makeURL(paf_path + '.filter.log'))        
+    if junctions_id:
+        job.fileStore.exportFile(junctions_id, makeURL(paf_path + '.junctions.tsv'))
 
 def update_seqfile(job, options, seq_id_map, seq_path_map, seq_order, gfa_fa_id, gfa_fa_path, graph_event):
     """ put the minigraph gfa.fa file into the seqfile and export both """
@@ -551,9 +555,9 @@ def export_graphmap_batch_wrapper(job, options, config_node, graphmap_batch_resu
     # put these in easy to delete lists
     output_list = []
     for chrom, gm_output in graphmap_batch_results.items():
-        #chrom -> paf_id, gfa_fa_id, gaf_id, unfiltered_paf_id, paf_filter_log, paf_was_filtered, separate_log_id
-        # anything past that is the pruned PanSN GFA the join has yet to merge: leave it alone
-        for fid in gm_output[:7]:
+        #chrom -> paf_id, gfa_fa_id, gaf_id, unfiltered_paf_id, paf_filter_log, paf_was_filtered, junctions_id,
+        # separate_log_id.  anything past that is the pruned PanSN GFA the join has yet to merge: leave it alone
+        for fid in gm_output[:8]:
             if fid and fid != True:
                 output_list.append(fid)
 
@@ -569,7 +573,7 @@ def export_pruned_minigraph_gfa_wrapper(job, options, graphmap_batch_results, un
     pansn_gfa_ids = []
     unused_ids = []
     for chrom, gm_output in sorted(graphmap_batch_results.items()):
-        pansn_gfa_id = gm_output[7] if len(gm_output) > 7 else None
+        pansn_gfa_id = gm_output[8] if len(gm_output) > 8 else None
         if pansn_gfa_id:
             unused_ids.append(unpruned_pansn_gfas.get(chrom))
         else:
@@ -654,6 +658,9 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
     root_job = Job(walltime=cactus_walltime())
     job.addChild(root_job)
     config_node = config_wrapper.xmlRoot
+    # a cactus-gfa-tools without the exact overlap filter would otherwise only fail once construction
+    # is done and the mapping starts
+    check_overlap_filter_tools(config_node)
 
     # Every file this pipeline exports -- the GFA, the PAF, the seqfile, the whole join output --
     # is produced by a job further down and reaches its export site as a promise, which has no
@@ -746,6 +753,7 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
                                                           in_gaf_id=in_gaf_id, scores_id=last_scores_id, walltime=cactus_walltime())
     paf_id, gfa_fa_id, gaf_id, unfiltered_paf_id, paf_filter_log = graphmap_job.rv(0), graphmap_job.rv(1), graphmap_job.rv(2), graphmap_job.rv(3), graphmap_job.rv(4)
     graphmap_export_job = graphmap_job.addFollowOnJobFn(export_graphmap_wrapper, options, paf_id, paf_path, gaf_id, unfiltered_paf_id, paf_filter_log,
+                                                        junctions_id=graphmap_job.rv(6),
                                                         walltime=cactus_walltime(0, io_bytes=2 * input_seq_bytes))
 
     # we need to update the seqfile with the phonied in minigraph event

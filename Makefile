@@ -271,6 +271,9 @@ evolver_test_all_local: evolver_test_local evolver_test_prepare_toil evolver_tes
 yeast_test_local:
 	PYTHONPATH="${CWD}/submodules/" CACTUS_BINARIES_MODE=local CACTUS_DOCKER_MODE=0 ${PYTHON} -m pytest ${pytestOpts} -s test/evolverTest.py::TestCase::testYeastPangenomeLocal
 
+yeast_test_stock_filter_local:
+	PYTHONPATH="${CWD}/submodules/" CACTUS_BINARIES_MODE=local CACTUS_DOCKER_MODE=0 ${PYTHON} -m pytest ${pytestOpts} -s test/evolverTest.py::TestCase::testYeastPangenomeStockOverlapFilterLocal
+
 yeast_test_mgsplit_local:
 	PYTHONPATH="${CWD}/submodules/" CACTUS_BINARIES_MODE=local CACTUS_DOCKER_MODE=0 ${PYTHON} -m pytest ${pytestOpts} -s test/evolverTest.py::TestCase::testYeastPangenomeMgSplitLocal
 

@@ -827,7 +827,7 @@ class TestCase(unittest.TestCase):
                                ['--xg', '--vcf', '--giraffe', 'clip', 'filter', '--lrGiraffe'] + cactus_opts + ['--indexCores', '4'])
 
     def _run_yeast_pangenome(self, binariesMode, mgSplit=False, wholeGenomeRef=True, collapse=False, gref=None,
-                             vcfL=None, extend=None, zipAlleles=True, zipWalks=None):
+                             vcfL=None, extend=None, zipAlleles=True, zipWalks=None, exactOverlapFilter=True):
         """ yeast pangenome chromosome by chromosome pipeline, as run through a single invocations.
 
         extend, if given, is the list of genomes to build a graph out of first, with the
@@ -841,6 +841,9 @@ class TestCase(unittest.TestCase):
         so a config is only written when one of them is asked to differ from the default.  note
         that zipAlleles is a different feature from collapse (--collapse, which incorporates
         minimap2 self-alignments).
+
+        exactOverlapFilter=False turns off <graphmap GAFOverlapFilterExact> (gaffilter -x, on by
+        default), for the stock whole-record overlap filter.
         """
 
         orig_seq_file_path = './examples/yeastPangenome.txt'
@@ -864,6 +867,8 @@ class TestCase(unittest.TestCase):
             graphmap_attribs['zipAlleles'] = '0'
         if zipWalks:
             graphmap_attribs['zipWalks'] = zipWalks
+        if not exactOverlapFilter:
+            graphmap_attribs['GAFOverlapFilterExact'] = '0'
         graphmap_split_attribs = {} if wholeGenomeRef else {'wholeGenomeRef': '0'}
         config_path = None
         if graphmap_attribs or graphmap_split_attribs:
@@ -2300,7 +2305,8 @@ class TestCase(unittest.TestCase):
     def testYeastPangenomeLocal(self):
         """ Run pangenome pipeline (including contig splitting!) on yeast dataset using cactus-pangenome,
         with the default config: rgfa-zip (zipAlleles) runs on the whole-genome graph, onto the
-        reference only (--no-alt in zipOptions), reading its walks from the graph alone """
+        reference only (--no-alt in zipOptions), reading its walks from the graph alone, and the GAF
+        overlap filter is the exact one (GAFOverlapFilterExact, gaffilter -x) """
         name = "local"
         self._run_yeast_pangenome(name, collapse=True)
 
@@ -2311,6 +2317,41 @@ class TestCase(unittest.TestCase):
         self._check_zip_log(self._yeast_log_path(), ['yeast.sv'],
                             graphs={'yeast.sv': (os.path.join(join_path, 'yeast.sv.unzipped.gfa.gz'),
                                                  os.path.join(join_path, 'yeast.sv.gfa.gz'))})
+        self._check_exact_overlap_filter_output(join_path)
+
+    def _check_exact_overlap_filter_output(self, join_path, expect_exact=True):
+        """ the exact GAF overlap filter (<graphmap GAFOverlapFilterExact>, gaffilter -x, on by default)
+        exports its junction review log beside the PAF, and every genome's mapping job logs its summary.
+        With it off there is neither """
+        junctions_path = os.path.join(join_path, 'yeast.paf.junctions.tsv')
+        with open(self._yeast_log_path()) as log_file:
+            summaries = [line for line in log_file if 'gaffilter' in line and '-x:' in line and 'records whole' in line]
+        if not expect_exact:
+            self.assertFalse(os.path.exists(junctions_path))
+            self.assertEqual(summaries, [])
+            return
+        with open(junctions_path) as junctions_file:
+            header = junctions_file.readline()
+            self.assertTrue(header.startswith('#query') and header.rstrip().endswith('recurrence'))
+            for line in junctions_file:
+                toks = line.rstrip('\n').split('\t')
+                self.assertEqual(len(toks), 20)
+                self.assertIn(toks[11], ['cross', 'inv', 'fjump', 'back'])
+                self.assertGreaterEqual(int(toks[19]), 1)
+        # one per non-reference-only genome mapped (S288C is mapped too: its records get the stock rule)
+        self.assertGreaterEqual(len(summaries), 5)
+
+    def testYeastPangenomeStockOverlapFilterLocal(self):
+        """ Run the pangenome pipeline on yeast with the exact GAF overlap filter turned off
+        (<graphmap GAFOverlapFilterExact="0">), which gives the stock gaffilter rule, whole-record
+        deletion.  The graph has to pass the same checks as the default run, and none of the exact
+        filter's output may appear """
+        name = "local"
+        self._run_yeast_pangenome(name, exactOverlapFilter=False)
+
+        # check the output
+        self._check_yeast_pangenome(name, other_ref='DBVPG6044', expect_odgi=True, expect_haplo=False, expect_unchopped_gfa=True)
+        self._check_exact_overlap_filter_output(os.path.join(self.tempDir, 'join'), expect_exact=False)
 
     def testYeastPangenomeExtendLocal(self):
         """ Yeast pangenome built three strains at a time with cactus-pangenome --inGFA.
