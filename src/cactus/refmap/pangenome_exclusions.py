@@ -868,7 +868,7 @@ def write_summary(result, out_path, refgap_bp=None, notes=None):
                        'its sequence did not make the full graph\n')
         out_file.write('# lost later, so present in the earlier graphs:\n')
         out_file.write('#   clip   = removed by the clip phase (clip-vg -u/-a, vg clip -d1/-sS'
-                       ', vg clip -D with --delEdgeFilter)\n')
+                       ', vg clip -D with delEdgeFilter)\n')
         out_file.write('#   filter = removed by the filter phase (vg clip -d <filter> -m, vg clip -sS)\n')
         out_file.write('# refgap = reference bp with zero non-reference depth. PRESENT in the graph.'
                        ' NOT lost. Excluded from TOTAL lost.\n')

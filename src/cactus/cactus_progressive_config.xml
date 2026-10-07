@@ -632,7 +632,8 @@
 	<!-- clipFlankThreshold: advanced.  keep trimming while more than this fraction of bases are unaligned, by the same test the clipping itself uses.  Negative calibrates per graph, which is almost always what you want: over 24 human chromosomes the calibrated value ran from 0.054 to 0.230, a 4.3x spread that tracks neither haplotype count nor chromosome size -->
 	<!-- minimizerOptions: options for vg minimizer -->
 	<!-- minFilterFragment: discard fragments that result from the vg clip frequency filter if they are smaller than this -->
-	<!-- clipContext: use this many context steps when doing edge clipping (activated via delEdgeFilter cli option) -->	
+	<!-- delEdgeFilter: when making the clip graph, remove edges that span more than this many bp on the reference genome (vg clip -D), the join's counterpart of the 10 Mb delFilter that filter-paf-deletions applies to the mappings.  0 disables.  The delEdgeFilter command-line option of cactus-graphmap-join and cactus-pangenome overrides it -->
+	<!-- clipContext: use this many context steps when doing edge clipping (delEdgeFilter) -->
 	<!-- removeStubs: remove any nodes dangling off reference paths (ie softclips) -->
 	<!-- refGapMinLength: minimum length of a reference gap (run of reference with no other assembly aligned) to report in the exclusion report. set to 0 to skip the reference gap scan entirely -->
 	<!-- odgiVizOptions: options to odgi viz, used for 1d viz -->
@@ -657,6 +658,7 @@
 		 minimizerOptions="-k 29 -w 11"
 		 lrMinimizerOptions="-k 31 -w 50 -W"
 		 minFilterFragment="1000"
+		 delEdgeFilter="10000000"
 		 clipContext="1000"
 		 removeStubs="1"
 		 refGapMinLength="10000"
