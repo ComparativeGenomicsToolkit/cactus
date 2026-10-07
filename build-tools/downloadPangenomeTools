@@ -105,7 +105,9 @@ pushd minigraph
 # derives from the last-train model (<graphmap lastTrainMap>), with the closed-form alignment of
 # N gaps extended to any penalties: without it, the pure-N gaps of a GRCh38 reference cost minutes
 # per haplotype (200 s for the five largest on chr1 and chr9 at 8,11,1, against 9 ms with it).
-git checkout 1487052c0b1727b8fa7316c30d4bcae18b03aec6
+# fix-reversed-cigar: a stock bug (since r508, lh3/minigraph#87) printed the cg of every record
+# after a query's first reverse-strand stable-coordinate record with its ops reversed.
+git checkout c59d03d23c3045515fba4790acdc3e8aa0e038db
 # hack in flags support
 sed -i Makefile -e 's/CFLAGS=/CFLAGS+=/' -e 's/LIBS=/LIBS+=/'
 LIBS="${jemallocLib}" make -j ${numcpu}
