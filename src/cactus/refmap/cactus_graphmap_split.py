@@ -1029,8 +1029,10 @@ def export_split_data(toil, input_name_map, output_id_map, split_log_id, contig_
         if seq_file_path.startswith('s3://'):
             write_s3(seq_file_temp_path, seq_file_path)
 
-        # Top-level seqfile
-        chrom_file_map[ref_contig] = seq_file_path, paf_path
+        # Top-level seqfile.  the GFA is the graph the PAF's targets are nodes of, which <graphmap
+        # unanchorRepeats> needs in cactus-align
+        gfa_path = os.path.join(ref_contig_path, '{}.gfa'.format(ref_contig)) if 'gfa' in output_id_map[ref_contig] else None
+        chrom_file_map[ref_contig] = seq_file_path, paf_path, gfa_path
 
     # Chromfile : <coutput_dir>/chromfile.txt
     chrom_file_path = os.path.join(output_dir, 'chromfile.txt')
@@ -1041,8 +1043,12 @@ def export_split_data(toil, input_name_map, output_id_map, split_log_id, contig_
     with open(chrom_file_temp_path, 'w') as chromfile:
         for ref_contig, seqfile_paf in chrom_file_map.items():
             if ref_contig != amb_name and ref_contig not in empty_contigs:
-                seqfile, paf = seqfile_paf[0], seqfile_paf[1]
-                chromfile.write('{}\t{}\t{}\n'.format(ref_contig, seqfile, paf))
+                seqfile, paf, gfa = seqfile_paf
+                if gfa:
+                    # chrom seqfile paf train minigraph-gfa, with no train (cactus-align's --scoresFromChromfile)
+                    chromfile.write('{}\t{}\t{}\t*\t{}\n'.format(ref_contig, seqfile, paf, gfa))
+                else:
+                    chromfile.write('{}\t{}\t{}\n'.format(ref_contig, seqfile, paf))
     if chrom_file_path.startswith('s3://'):
         write_s3(chrom_file_temp_path, chrom_file_path)
         

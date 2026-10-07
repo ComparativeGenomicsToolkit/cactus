@@ -50,7 +50,7 @@ from cactus.refmap.cactus_graphmap import minigraph_workflow, minigraph_batch_wo
 from cactus.refmap.cactus_graphmap import apply_mgsplit_filter_overrides, add_separate_ref_contigs_job
 from cactus.refmap.cactus_graphmap import check_overlap_filter_config, check_overlap_filter_tools
 from cactus.refmap.cactus_graphmap_split import graphmap_split_workflow, export_split_data
-from cactus.setup.cactus_align import make_batch_align_jobs, batch_align_jobs
+from cactus.setup.cactus_align import make_batch_align_jobs, batch_align_jobs, check_unanchor_config, export_unanchor_outputs
 from cactus.refmap.cactus_graphmap_join import graphmap_join_workflow, export_join_data, graphmap_join_options, graphmap_join_validate_options, graphmap_join_config_overrides, vcflib_checks
 from cactus.refmap.pangenome_exclusions import contig_sizes_job
 
@@ -273,6 +273,11 @@ def pangenome_config_overrides(options, config_node):
 
     if options.collapse:
         findRequiredNode(config_node, "graphmap").attrib["collapse"] = 'all'
+    # likewise <graphmap unanchorRepeats>, which runs in cactus-align, hours in.  (--collapseRefPAF
+    # sets collapse="reference" only once this has run, so it is checked here by name)
+    if check_unanchor_config(config_node) and getattr(options, 'collapseRefPAF', None):
+        raise RuntimeError('<graphmap unanchorRepeats="1"> cannot be used with --collapseRefPAF: paffy unanchor needs '
+                           'every alignment to be to a minigraph node')
 
     # with --mgSplit, each chromosome's second-pass graph is built against the whole primary
     # reference unless <graphmap_split wholeGenomeRef="0">; the workflow reads the result
@@ -438,8 +443,11 @@ def phony_chromfile(job, options, paf_path):
     # note: this is the same path used in export_graphmap_wrapper()
     paf_path = makeURL(os.path.join(options.outDir, os.path.basename(paf_path)))
     chromfile_path = os.path.join(options.outDir, 'chromfile.txt')        
+    # the whole-genome minigraph GFA (exported by export_minigraph_wrapper) is the graph the PAF's targets
+    # are nodes of, which <graphmap unanchorRepeats> needs in cactus-align.  there is no train column
+    gfa_path = makeURL(options.minigraphGFA)
     with open(chromfile_path, 'w') as chromfile:
-        chromfile.write('all\t{}\t{}'.format(seqfile_path, paf_path))
+        chromfile.write('all\t{}\t{}\t*\t{}'.format(seqfile_path, paf_path, gfa_path))
     return chromfile_path
 
 def split_reference_ids(job, seq_id_map, references):
@@ -610,11 +618,13 @@ def make_batch_align_jobs_wrapper(job, options, chromfile_path, config_wrapper, 
     return align_jobs
     
 def export_align_wrapper(job, options, results_dict):
-    """ toil job wrapper for exporting from cactus_align """
+    """ toil job wrapper for exporting from cactus_align.  returns the join's options, and its vg,
+    hal and clip-vg neutral BED ids (one per chromosome, None where <graphmap unanchorRepeats> made none) """
     vg_ids = []
     vg_paths = []
     hal_ids = []
     hal_paths = []
+    neutral_bed_ids = []
     chrom_dir = os.path.join(options.outDir, 'chrom-alignments')
     if not chrom_dir.startswith('s3://') and not os.path.isdir(chrom_dir):
         os.makedirs(chrom_dir)
@@ -630,6 +640,10 @@ def export_align_wrapper(job, options, results_dict):
         hal_ids.append(results[0])
         hal_paths.append(hal_path)
         vg_ids.append(results[1])
+        # <graphmap unanchorRepeats>: <chrom>.unanchor.{loci.bed,...}, and the neutral BED for the join's clip-vg
+        unanchor_outputs = results[3] if len(results) > 3 else None
+        export_unanchor_outputs(job.fileStore, unanchor_outputs, os.path.join(chrom_dir, chrom))
+        neutral_bed_ids.append(unanchor_outputs['neutral.bed'] if unanchor_outputs else None)
         # the join gets the file ids directly, and only ever uses these paths to name its outputs,
         # so hand it the untagged name (as cactus-graphmap-join does with its own inputs)
         vg_paths.append(makeURL(os.path.join(chrom_dir, '{}.vg'.format(chrom))))
@@ -638,7 +652,7 @@ def export_align_wrapper(job, options, results_dict):
     join_options.hal = hal_paths
     join_options.vg = vg_paths
 
-    return join_options, vg_ids, hal_ids
+    return join_options, vg_ids, hal_ids, neutral_bed_ids
 
 def export_join_wrapper(job, options, wf_output, contig_sizes_id=None):
     """ toil join wrapper for cactus_graphmap_join """
@@ -870,6 +884,7 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
     align_export_job = align_job.addFollowOnJobFn(export_align_wrapper, options, results_dict,
                                                   walltime=cactus_walltime(0, io_bytes=2 * input_seq_bytes))
     join_options, vg_ids, hal_ids = align_export_job.rv(0), align_export_job.rv(1), align_export_job.rv(2)
+    neutral_bed_ids = align_export_job.rv(3)
 
     # cactus_graphmap_join
     # if we're not making a hal (cactus-panpatch), skip the merge. it's the only thing that reads
@@ -878,7 +893,8 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
     join_job = align_export_job.addFollowOnJobFn(graphmap_join_workflow, join_options, config_wrapper, vg_ids,
                                                  [] if options.noHal else hal_ids, minigraph_pansn_sv_gfa_ids,
                                                  contig_sizes_id=contig_sizes_id,
-                                                 split_log_id=split_log_id, walltime=cactus_walltime())
+                                                 split_log_id=split_log_id, neutral_bed_ids=neutral_bed_ids,
+                                                 walltime=cactus_walltime())
     join_wf_output = join_job.rv()
     if options.noHal:
         join_job.addFollowOnJobFn(clean_jobstore_files, file_ids=hal_ids, walltime=cactus_walltime())

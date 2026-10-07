@@ -334,7 +334,11 @@ def export_graphmap_output(options, config_node, input_map, output_dict, toil):
         #update the chromfile and copy the seqfile
         if options.batch:
             toil.exportFile(out_seqfile_path, paf_path[:-4] + '.gm.seqfile')
-            chromfile.write('{}\t{}\t{}\t{}\n'.format(chrom, paf_path[:-4] + '.gm.seqfile', paf_path, construct_chromfile[chrom][2]))
+            # chrom seqfile paf train minigraph-gfa: the last two from cactus-minigraph --batch's chromfile.
+            # the GFA is the graph the PAF's targets are nodes of, which <graphmap unanchorRepeats> needs in
+            # cactus-align
+            chromfile.write('{}\t{}\t{}\t{}\t{}\n'.format(chrom, paf_path[:-4] + '.gm.seqfile', paf_path, construct_chromfile[chrom][2],
+                                                       construct_chromfile[chrom][1]))
 
     if options.batch:
         chromfile.close()

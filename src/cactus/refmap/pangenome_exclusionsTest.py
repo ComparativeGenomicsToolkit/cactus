@@ -21,7 +21,7 @@ from cactus.refmap.pangenome_exclusions import (
     BASELINE_HEADER, baseline_by_key, contig_sizes_from_fai,
     event_by_pansn_prefix, event_to_pansn_prefix, intersect_intervals, merge_intervals,
     parse_path_name, parse_split_log, read_baseline_tsv, resolve_subpath_naming,
-    safe_event_filename, subtract_intervals, total_bp, write_baseline_tsv)
+    safe_event_filename, subtract_intervals, total_bp, unanchor_query_bed_to_pansn, write_baseline_tsv)
 
 
 class TestSubpathNaming(unittest.TestCase):
@@ -121,6 +121,51 @@ class TestIntervals(unittest.TestCase):
         self.assertEqual(missing_full, [])
         self.assertEqual(subtract_intervals(missing_clip, missing_full),
                          [(0, 100), (900, 1000)])
+
+
+class TestUnanchorQueryBed(unittest.TestCase):
+    """ paffy unanchor's query BED (PAF query names and coordinates) to the graph path names and
+    base-contig coordinates that clip-vg --neutral-bed reads """
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.in_path = os.path.join(self.tmp, 'query.bed')
+        self.out_path = os.path.join(self.tmp, 'neutral.bed')
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp)
+
+    def convert(self, lines):
+        with open(self.in_path, 'w') as f:
+            f.write(''.join(line + '\n' for line in lines))
+        stats = unanchor_query_bed_to_pansn(self.in_path, self.out_path)
+        with open(self.out_path) as f:
+            return [tuple(line.rstrip('\n').split('\t')) for line in f], stats
+
+    def test_names(self):
+        rows, stats = self.convert(['id=HG002.1|chr1\t5\t10', 'id=CHM13|chr1\t0\t3', 'id=HG002.2|chr1\t7\t9'])
+        self.assertEqual(rows, [('CHM13#0#chr1', '0', '3'), ('HG002#1#chr1', '5', '10'), ('HG002#2#chr1', '7', '9')])
+        self.assertEqual(stats, (3, 10, 3))
+
+    def test_subpath_offsets(self):
+        # a fragment is put back on its contig, nested fragments at the sum of their starts
+        rows, _ = self.convert(['id=X.2|ctg_sub_100_600\t5\t10', 'id=X.2|ctg_sub_1000_2000_sub_10_20\t0\t4'])
+        self.assertEqual(rows, [('X#2#ctg', '105', '110'), ('X#2#ctg', '1010', '1014')])
+
+    def test_merge_and_sort(self):
+        # overlapping and touching intervals merge, also across fragments of one contig; sorted by name then start
+        rows, stats = self.convert(['id=S.1|b\t20\t30', 'id=S.1|b\t0\t10', 'id=S.1|b\t10\t15',
+                                    'id=S.1|a_sub_100_200\t0\t10', 'id=S.1|a\t105\t120', '# comment', ''])
+        self.assertEqual(rows, [('S#1#a', '100', '120'), ('S#1#b', '0', '15'), ('S#1#b', '20', '30')])
+        self.assertEqual(stats, (3, 45, 2))
+
+    def test_empty(self):
+        rows, stats = self.convert([])
+        self.assertEqual((rows, stats), ([], (0, 0, 0)))
+
+    def test_missing_prefix_raises(self):
+        with self.assertRaises(RuntimeError):
+            self.convert(['chr1\t0\t10'])
 
 
 class TestHprcTwoFragmentClosure(unittest.TestCase):

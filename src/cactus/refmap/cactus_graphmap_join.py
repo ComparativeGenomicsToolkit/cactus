@@ -251,6 +251,10 @@ def main():
                         "Filter threshold inferred from .dX.vg filename pattern. Incompatible with --vg")
     parser.add_argument("--hal", nargs='+', default = [], help = "Input hal files (for merging)")
     parser.add_argument("--sv-gfa", nargs='+', default= [], help = "Input minigraph gfa files to merge (from cactus-minigraph --batch)")
+    parser.add_argument("--unanchorBed", nargs='+', default=[],
+                        help = "clip-vg neutral BEDs made by cactus-align with <graphmap unanchorRepeats=\"1\"> (<chrom>.unanchor.neutral.bed, "
+                        "at most one per chromosome, matched to the --vg files by chromosome name).  Their bases count as neither aligned "
+                        "nor unaligned when clipping (see clipUnanchorNeutral in <graphmap_join>). Not with --vgFull/--vgClip/--vgFilter")
     parser.add_argument("--outDir", required=True, type=str, help = "Output directory")
     parser.add_argument("--outName", required=True, type=str, help = "Basename of all output files")
     parser.add_argument("--reference", required=True, nargs='+', type=str, help = "Reference event name(s). The first will be the \"true\" reference and will be left unclipped and uncollapsed. It also should have been used with --reference in all upstream commands. Other names will be promoted to reference paths in vg")
@@ -309,6 +313,9 @@ def main():
     options._vgRaw_paths = options.vg
     options.vg = [os.path.join(os.path.dirname(p), vg_chrom_name(p) + '.vg') for p in options.vg]
 
+    # line the clip-vg neutral BEDs up with the vgs (None where a chromosome has none)
+    options._unanchorBed_paths = match_unanchor_beds(options.unanchorBed, options.vg, options.bypass)
+
     # Mess with some toil options to create useful defaults.
     cactus_override_toil_options(options)
 
@@ -329,6 +336,35 @@ def main():
     end_time = timeit.default_timer()
     run_time = end_time - start_time
     logger.info("cactus-graphmap-join has finished after {} seconds".format(run_time))
+
+UNANCHOR_BED_SUFFIX = '.unanchor.neutral.bed'
+
+def match_unanchor_beds(bed_paths, vg_paths, bypass):
+    """ the --unanchorBed files, put in the order of vg_paths by chromosome name: each BED is named
+    <chrom>.unanchor.neutral.bed, as cactus-align writes it.  None for a chromosome without one, and
+    None altogether when there are no BEDs """
+    if not bed_paths:
+        return None
+    if bypass:
+        raise RuntimeError('--unanchorBed cannot be used with --vgFull, --vgClip or --vgFilter: they skip the clip phase it is for')
+    vg_chroms = [vg_chrom_name(p) for p in vg_paths]
+    bed_by_chrom = {}
+    for bed_path in bed_paths:
+        base = os.path.basename(bed_path)
+        if not base.endswith(UNANCHOR_BED_SUFFIX) or len(base) == len(UNANCHOR_BED_SUFFIX):
+            raise RuntimeError('--unanchorBed file {} is not named <chrom>{}, as cactus-align writes it'.format(
+                bed_path, UNANCHOR_BED_SUFFIX))
+        chrom = base[:-len(UNANCHOR_BED_SUFFIX)]
+        if chrom in bed_by_chrom:
+            raise RuntimeError('--unanchorBed has two files for {}: {} and {}'.format(chrom, bed_by_chrom[chrom], bed_path))
+        if chrom not in vg_chroms:
+            raise RuntimeError('--unanchorBed file {} is for {}, which is not among the --vg chromosomes'.format(bed_path, chrom))
+        bed_by_chrom[chrom] = bed_path
+    missing = [chrom for chrom in vg_chroms if chrom not in bed_by_chrom]
+    if missing:
+        logger.warning('--unanchorBed has no BED for {} of the {} chromosomes ({}): they are clipped as if '
+                       'unanchorRepeats had been off'.format(len(missing), len(vg_chroms), ', '.join(missing)))
+    return [bed_by_chrom.get(chrom) for chrom in vg_chroms]
 
 def graphmap_join_options(parser):
     """ we share these options with cactus-pangenome """
@@ -857,10 +893,16 @@ def graphmap_join(options):
                 for vg_path in options._vgRaw_paths:
                     vg_ids.append(toil.importFile(makeURL(vg_path)))
 
+                # and the clip-vg neutral BEDs from <graphmap unanchorRepeats>, one per vg or None
+                neutral_bed_ids = None
+                if getattr(options, '_unanchorBed_paths', None):
+                    neutral_bed_ids = [toil.importFile(makeURL(p)) if p else None for p in options._unanchorBed_paths]
+
                 # run the workflow
                 wf_output = toil.start(Job.wrapJobFn(graphmap_join_workflow, options, config, vg_ids,
                                                      hal_ids, sv_gfa_ids,
                                                      contig_sizes_id=contig_sizes_id,
+                                                     neutral_bed_ids=neutral_bed_ids,
                                                      walltime=cactus_walltime()))
 
 
@@ -886,7 +928,9 @@ def vcflib_checks(job, options, config_node):
         
 def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
                            bypass_full_ids=None, bypass_clip_ids=None, bypass_filter_ids=None,
-                           contig_sizes_id=None, split_log_id=None):
+                           contig_sizes_id=None, split_log_id=None, neutral_bed_ids=None):
+    """ neutral_bed_ids, if given, is aligned with vg_ids: each chromosome's clip-vg --neutral-bed from
+    <graphmap unanchorRepeats> in cactus-align, or None """
 
     root_job = Job(walltime=cactus_walltime())
     job.addChild(root_job)
@@ -985,8 +1029,10 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
             prev_job.addFollowOn(clip_root_job)
             clip_vg_stats = []
             assert len(options.vg) == len(full_vg_ids) == len(vg_ids)
-            for vg_path, vg_id, input_vg_id in zip(options.vg, full_vg_ids, vg_ids):
+            assert not neutral_bed_ids or len(neutral_bed_ids) == len(vg_ids)
+            for i, (vg_path, vg_id, input_vg_id) in enumerate(zip(options.vg, full_vg_ids, vg_ids)):
                 clip_job = Job.wrapJobFn(clip_vg, options, config, vg_path, vg_id, 'clip',
+                                         neutral_bed_id=neutral_bed_ids[i] if neutral_bed_ids else None,
                                          disk=input_vg_id.size * 20, memory=max(2**31, min(input_vg_id.size * 20, max_mem)),
                                          walltime=scaled_walltime(CLIP_VG_SECS_PER_GB['clip'], input_vg_id.size))
                 clip_root_job.addChild(clip_job)
@@ -1465,8 +1511,9 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
     return (output_full_vg_ids, clip_vg_ids, clipped_stats, filter_vg_ids, out_dicts, og_chrom_ids,
             exclusion_ids, full_vg_empty)
 
-def clip_vg(job, options, config, vg_path, vg_id, phase):
-    """ run clip-vg 
+def clip_vg(job, options, config, vg_path, vg_id, phase, neutral_bed_id=None):
+    """ run clip-vg.  neutral_bed_id, used in the clip phase only, is the BED of bases whose
+    alignment to the minigraph genome <graphmap unanchorRepeats> took away in cactus-align
     """
     assert phase in ['full', 'clip']
     
@@ -1547,6 +1594,13 @@ def clip_vg(job, options, config, vg_path, vg_id, phase):
                 clip_vg_cmd += ['-k', str(flank),
                                 '-T', str(getOptionalAttrib(join_xml_node, "clipFlankThreshold",
                                                             typeFn=float, default=-1.0))]
+            # the bases <graphmap unanchorRepeats> freed from their minigraph anchors count as neither
+            # aligned nor unaligned, so that clearing a locus cannot pull the clipping or the flank
+            # trimming (or its calibration) into correctly placed sequence around it
+            if neutral_bed_id and getOptionalAttrib(join_xml_node, "clipUnanchorNeutral", typeFn=bool, default=True):
+                neutral_bed_path = os.path.join(work_dir, 'unanchor.neutral.bed')
+                job.fileStore.readGlobalFile(neutral_bed_id, neutral_bed_path)
+                clip_vg_cmd += ['--neutral-bed', neutral_bed_path]
 
     # disable reference cycle check if desiired
     if getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "collapse", typeFn=str, default="none") in ["all", "reference"]:
@@ -1638,6 +1692,14 @@ def clip_vg(job, options, config, vg_path, vg_id, phase):
                 stat_of.get('length', 'NA')))
         # sample-stats and contig-stats are written by the exclusion report instead: they need the
         # input contig lengths, which are not available here
+        # what --neutral-bed matched goes to the log, and clip-vg's warning that the BED does not fit
+        # the graph (names or coordinates that miss their paths, whose bases then count as if
+        # unanchorRepeats had been off) as a warning
+        for err_line in (clip_stderr or '').split('\n'):
+            if 'Neutral BED:' in err_line:
+                RealtimeLogger.info('clip-vg on {}: {}'.format(chr_name, err_line.split(']:', 1)[-1].strip()))
+            elif 'neutral-bed does not fit' in err_line:
+                RealtimeLogger.warning('clip-vg on {}: {}'.format(chr_name, err_line.split('warning:', 1)[-1].strip()))
         # -T calibrates against each graph, and the threshold it lands on decides how much
         # sequence -k removes.  It is reported on clip-vg's stderr, which cactus_call only surfaces
         # when a command fails, so record it here or it is lost.  The threshold gets its own column

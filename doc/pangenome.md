@@ -235,6 +235,32 @@ The other attributes:
 
 `GAFOverlapFilterExact="0"` gives the stock rule, whole-mapping deletion, as does a config without the attribute (one made from an older default).  The exact filter does nothing when `GAFOverlapFilterRatio` is 0 (no overlap filter at all), and, like the other overlap filters, is off in `--mgSplit`'s reference-only splitting pass.  It needs a cactus-gfa-tools with `gaffilter -x`, which is checked when the workflow starts.  It replaces `GAFOverlapFilterTrim` (`gaffilter -t`), which has been removed: a config that still sets `GAFOverlapFilterTrim="1"` is an error, and `GAFOverlapFilterTrimMinMAPQ` and `GAFOverlapFilterTrimEdge` are ignored.
 
+### Unanchoring Tandem Repeats (unanchorRepeats)
+
+`cactus-align` pinches every haplotype onto the minigraph nodes it was mapped to, so inside a tandem repeat the haplotypes' indels stay wherever `minigraph` happened to put them, which often differs from one haplotype to the next, and Cactus's base aligner (BAR) never gets to align those bases.  Setting `unanchorRepeats="1"` in the `<graphmap>` section of the configuration XML (it is off by default) has `cactus-align` run `paffy unanchor` on each chromosome's PAF, after the PAF filter and before `cactus_consolidated`.  It scans the reference path of the minigraph graph for tandem repeats, and at the repeat loci where at least two contigs pass with alleles of different lengths it removes the minigraph anchors of *every* genome (the reference included) to the nodes there, so that BAR aligns the locus itself.  It leaves alone loci longer than 5 kb (half of `cactus-align`'s `--maxLen`), satellite arrays, alleles that look like structural variants rather than repeat-length changes (novel, inverted or duplicated sequence of 50 bp or more), and the loci where the haplotypes differ only in the base-level alignment and no minigraph node boundary falls inside: clearing those made the alignment to the reference worse.  On the CHM13 30-way chr16 this clears 544 loci (411 kb) and on chr20 445 (350 kb).  At the bubble loci (where an allele goes through a minigraph alt node), the cost of the alignment to CHM13, over the optimal pairwise alignment of the same sequences, fell by 35% with every haplotype improving, and between haplotypes by 50%.
+
+* `unanchorOptions`: passed to `paffy unanchor` as they are (see `paffy unanchor -h`), for example `--keepCigarNoBoundary` to also clear the base-level-only loci with no node boundary, or `--noSvVeto`.  Cactus sets the inputs and outputs, the reference and minigraph genome names, `--maxLen` (from `bandingLimit` in `<bar>`) and `--cafTrim` (from `trim` in `<caf>`).  `-t N` runs the tandem scan on N threads (the job then asks for N cores).
+* It needs the minigraph GFA of each chromosome, which `cactus-pangenome` passes along, and cannot be combined with `removeMinigraphFromPAF="1"` or with `--collapse`/`--collapseRefPAF`.
+
+For each chromosome it writes, in `chrom-alignments/` (beside the chromosome's HAL with `cactus-align`):
+
+* `<chrom>.unanchor.loci.bed`: the cleared loci, on the reference.
+* `<chrom>.unanchor.hub.bed`: the minigraph node intervals whose anchors were removed.
+* `<chrom>.unanchor.veto.bed`: the candidate loci that were not cleared, with the reasons.
+* `<chrom>.unanchor.neutral.bed`: the bases of every haplotype that lost all their minigraph anchors, in graph path names (`SAMPLE#HAP#CONTIG`).
+* `<chrom>.unanchor.log`: `paffy unanchor`'s summary.  The log of the run gets its `cleared loci` and `cut_paf` lines too.
+
+The neutral BED is for the clip phase of `cactus-graphmap-join`.  Clipping (`--clip`, and the flank trimming of `clipFlank`) counts a base as aligned only if it is aligned to the minigraph genome, so the bases the unanchoring freed would otherwise count as unaligned and pull the clipping into correctly placed sequence near the edges of existing clipped regions (up to about 11 kb per haplotype end in the tests).  `clip-vg` counts the BED's bases as neither aligned nor unaligned, both when clipping and when it calibrates its flank threshold.  `clipUnanchorNeutral="0"` in `<graphmap_join>` turns this off, for comparison.  The side effect measured in the tests is the other way: a little sequence the clipping would have removed without the unanchoring is kept (48 kb over the 30 haplotypes of CHM13 chr16, mostly pericentromeric; none on chr20).  Two others are possible but did not occur on either chromosome: the flank trimming can walk across freed bases that the base aligner did align back to the minigraph genome (they cost it nothing, where anchored bases would have stopped it), and a single unaligned node that holds freed bases can join two unaligned stretches that each fall short of `--clip`.  Bases that lose their minigraph alignment without having had a minigraph anchor to lose (the base aligner had aligned them next to a cleared locus) are not in the BED, so they can still tip the clipping: on chr16, 356 such bases pushed one 10 kb haplotype end over `--clip`.  `clip-vg` reports on the log how much of the BED it matched to graph paths, and warns if any of it does not fit the graph.
+
+With the step-by-step interface:
+
+* `cactus-graphmap --batch` and `cactus-graphmap-split` write the minigraph GFA of each chromosome as a fifth column of their chromfile (`chrom seqfile paf train gfa`, with `*` for a missing train), which `cactus-align --batch` reads.  A chromfile from an earlier version of Cactus has no such column, and `cactus-align --batch` with `unanchorRepeats="1"` stops with an error for it; `cactus-align` without `--batch` takes the GFA with `--unanchorGFA`.  The deprecated `cactus-align-batch` does not support `unanchorRepeats`.
+* Give `cactus-graphmap-join` the neutral BEDs with `--unanchorBed`, which matches them to the `--vg` graphs by chromosome name:
+```
+cactus-graphmap-join ./jobstore --vg chrom-alignments/*.vg --hal chrom-alignments/*.hal \
+  --unanchorBed chrom-alignments/*.unanchor.neutral.bed ...
+```
+
 ### Pipeline
 
 The Minigraph-Cactus pipeline is run via the `cactus-pangenome` command. It consists of five stages which can also be run individually (below). `cactus-pangenome` writes output files into `--outDir` at the end of each stage. So different stages can be rerun with if necessary using the lower-level commands.

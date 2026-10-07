@@ -827,7 +827,8 @@ class TestCase(unittest.TestCase):
                                ['--xg', '--vcf', '--giraffe', 'clip', 'filter', '--lrGiraffe'] + cactus_opts + ['--indexCores', '4'])
 
     def _run_yeast_pangenome(self, binariesMode, mgSplit=False, wholeGenomeRef=True, collapse=False, gref=None,
-                             vcfL=None, extend=None, zipAlleles=True, zipWalks=None, exactOverlapFilter=True):
+                             vcfL=None, extend=None, zipAlleles=True, zipWalks=None, exactOverlapFilter=True,
+                             unanchor=False):
         """ yeast pangenome chromosome by chromosome pipeline, as run through a single invocations.
 
         extend, if given, is the list of genomes to build a graph out of first, with the
@@ -844,6 +845,9 @@ class TestCase(unittest.TestCase):
 
         exactOverlapFilter=False turns off <graphmap GAFOverlapFilterExact> (gaffilter -x, on by
         default), for the stock whole-record overlap filter.
+
+        unanchor turns on <graphmap unanchorRepeats> (paffy unanchor in cactus-align, and its neutral
+        BED in the join's clip-vg), another config attribute.
         """
 
         orig_seq_file_path = './examples/yeastPangenome.txt'
@@ -869,6 +873,8 @@ class TestCase(unittest.TestCase):
             graphmap_attribs['zipWalks'] = zipWalks
         if not exactOverlapFilter:
             graphmap_attribs['GAFOverlapFilterExact'] = '0'
+        if unanchor:
+            graphmap_attribs['unanchorRepeats'] = '1'
         graphmap_split_attribs = {} if wholeGenomeRef else {'wholeGenomeRef': '0'}
         config_path = None
         if graphmap_attribs or graphmap_split_attribs:
@@ -1273,6 +1279,45 @@ class TestCase(unittest.TestCase):
         self.assertTrue(gfa_names, 'no per-chromosome minigraphs in {}'.format(mg_dir))
         for gfa_name in gfa_names:
             self._check_zip_output(mg_dir, gfa_name=gfa_name, walks=walks)
+
+    def _check_unanchor_output(self, join_path, log_path):
+        """ with <graphmap unanchorRepeats="1">, cactus-align writes paffy unanchor's BEDs and log
+        for each chromosome beside its hal, the job log has its summary, and the join's clip-vg got
+        the neutral BED (which says how many of its names matched a graph path) """
+        import re
+        align_dir = os.path.join(join_path, 'chrom-alignments')
+        chroms = sorted(f[:-len('.hal')] for f in os.listdir(align_dir) if f.endswith('.hal'))
+        self.assertTrue(chroms, 'no chromosome alignments in {}'.format(align_dir))
+        bed_re = re.compile(r'^[^#\t]+#\d+#[^\t]+\t\d+\t\d+$')
+        total_bp = 0
+        for chrom in chroms:
+            for key in ['loci.bed', 'hub.bed', 'veto.bed', 'neutral.bed', 'log']:
+                self.assertTrue(os.path.isfile(os.path.join(align_dir, '{}.unanchor.{}'.format(chrom, key))),
+                                'missing {}.unanchor.{} in {}'.format(chrom, key, align_dir))
+            with open(os.path.join(align_dir, chrom + '.unanchor.neutral.bed')) as bed_file:
+                for line in bed_file:
+                    self.assertRegex(line.rstrip('\n'), bed_re)
+                    toks = line.split('\t')
+                    self.assertLess(int(toks[1]), int(toks[2]))
+                    total_bp += int(toks[2]) - int(toks[1])
+            with open(os.path.join(align_dir, chrom + '.unanchor.log')) as log_file:
+                self.assertIn('cleared loci', log_file.read())
+        # yeast has loci to clear
+        self.assertGreater(total_bp, 0)
+        cleared_re = re.compile(r'\bpaffy unanchor on (\S+): cleared loci (\d+)')
+        neutral_re = re.compile(r'\bclip-vg on (\S+): Neutral BED: (\d+) intervals, (\d+) bp on (\d+) of (\d+) paths; (\d+) BED names match no path; (\d+) bp lie outside')
+        cleared, neutral = {}, {}
+        with open(log_path) as log_file:
+            for line in log_file:
+                for regex, found in ((cleared_re, cleared), (neutral_re, neutral)):
+                    match = regex.search(line)
+                    if match:
+                        found[match.group(1)] = match.groups()[1:]
+        self.assertEqual(sorted(cleared), chroms, 'chromosomes with a paffy unanchor summary in {}'.format(log_path))
+        self.assertEqual(sorted(neutral), chroms, 'chromosomes whose clip-vg reported a neutral BED in {}'.format(log_path))
+        for chrom, (intervals, bp, paths, all_paths, unmatched, outside) in neutral.items():
+            self.assertEqual(int(unmatched), 0, 'neutral BED names of {} that match no graph path'.format(chrom))
+            self.assertEqual(int(outside), 0, 'neutral BED bp of {} outside the graph paths they name'.format(chrom))
 
     def _check_gaf_resolves(self, gaf_path, gfa_path):
         """ every step of every record of a stable-coordinate GAF names a contig of the graph and
@@ -2795,6 +2840,18 @@ class TestCase(unittest.TestCase):
         self._check_zip_log(self._yeast_log_path(), chroms,
                             graphs={chrom: (os.path.join(mg_dir, chrom + '.sv.unzipped.gfa.gz'),
                                             os.path.join(mg_dir, chrom + '.sv.gfa.gz')) for chrom in chroms})
+
+    def testYeastPangenomeUnanchorLocal(self):
+        """ Run the pangenome pipeline on yeast with --mgSplit and <graphmap unanchorRepeats="1">:
+        cactus-align runs paffy unanchor on each chromosome's PAF (taking the minigraph GFA from the
+        fifth column of chrom-graphmap/chromfile.gm.txt), and the join's clip-vg gets each
+        chromosome's neutral BED """
+        name = "local"
+        self._run_yeast_pangenome(name, mgSplit=True, unanchor=True)
+
+        # check the output
+        self._check_yeast_pangenome(name, other_ref='DBVPG6044', expect_odgi=True, expect_haplo=False, expect_unchopped_gfa=True)
+        self._check_unanchor_output(os.path.join(self.tempDir, 'join'), self._yeast_log_path())
 
     def testYeastPangenomeSplitLocal(self):
         """ Run pangenome pipeline (including contig splitting!) on yeast dataset using cactus-pangenome.

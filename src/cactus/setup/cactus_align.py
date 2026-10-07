@@ -38,11 +38,13 @@ from cactus.refmap.cactus_graphmap import filter_paf
 from cactus.refmap.cactus_minigraph import check_sample_names
 from cactus.preprocessor.checkUniqueHeaders import sanitize_fasta_headers
 from cactus.paf.last_scoring import parse_train_file, apply_scores_to_config
+from cactus.refmap.pangenome_exclusions import unanchor_query_bed_to_pansn
 
 from toil.job import Job
 from toil.common import Toil
 from toil.statsAndLogging import logger
 from toil.statsAndLogging import set_logging_from_options
+from toil.realtimeLogger import RealtimeLogger
 from cactus.shared.common import cactus_cpu_count
 from cactus.progressive.cactus_prepare import human2bytesN
 
@@ -77,6 +79,69 @@ FILTER_PAF_SECS_PER_GB = 95
 # logged runs, so cactus_walltime()'s factor is what covers it.
 HAL2VG_SECS_PER_GB = 600
 
+# paffy unanchor (<graphmap unanchorRepeats>), in seconds per GB of (filtered) PAF, on top of a
+# fixed part.  An estimate: on the CHM13 30-way chromosomes it takes 12 s for chr20 (a 40 MB PAF)
+# and 18 s for chr16 on 3 threads, 22 s and 38 s on one, most of it the tandem scan of the
+# reference path, which grows with the chromosome rather than with the PAF
+UNANCHOR_BASE_SECS = 600
+UNANCHOR_SECS_PER_GB = 300
+
+# the paffy unanchor options cactus sets itself: the inputs, the outputs and the genome names
+UNANCHOR_RESERVED_OPTIONS = ('-i', '--inputFile', '-o', '--outputFile', '-n', '--nodes', '-g', '--gfa',
+                             '-r', '--ref', '-H', '--hub', '-L', '--lociBed', '-b', '--hubBed', '-v', '--vetoBed',
+                             '-q', '--queryBed', '-e', '--logFile', '-c', '--callsBed', '-s', '--svReport',
+                             '--scanFasta', '-h', '--help')
+
+# the files cactus-align keeps of each paffy unanchor run, written as <chrom>.unanchor.<key>
+UNANCHOR_OUTPUTS = ('loci.bed', 'hub.bed', 'veto.bed', 'neutral.bed', 'log')
+
+def unanchor_enabled(config_node):
+    """ whether <graphmap unanchorRepeats> asks for paffy unanchor in cactus-align """
+    return getOptionalAttrib(findRequiredNode(config_node, "graphmap"), "unanchorRepeats", typeFn=bool, default=False)
+
+def unanchor_options_list(config_node):
+    """ <graphmap unanchorOptions>, split.  Passed through to paffy unanchor as they are, except for
+    the inputs, outputs and genome names, which belong to cactus """
+    opts = getOptionalAttrib(findRequiredNode(config_node, "graphmap"), "unanchorOptions", str, default="")
+    opts = opts.split() if opts else []
+    for opt in opts:
+        # --long[=value] (or an abbreviation of it, which getopt_long takes too), or -x with its value
+        # attached (-ofile)
+        key = opt.split('=')[0] if opt.startswith('--') else opt[:2]
+        if key in UNANCHOR_RESERVED_OPTIONS or (len(key) > 2 and key.startswith('--') and
+                                                any(r.startswith(key) for r in UNANCHOR_RESERVED_OPTIONS)):
+            raise RuntimeError('<graphmap unanchorOptions> cannot contain {}: cactus sets the inputs, outputs, '
+                               'reference and minigraph names of paffy unanchor'.format(opt))
+    return opts
+
+def unanchor_threads(opts):
+    """ the scan threads (-t/--threads) in the unanchorOptions, which is what the job asks for in cores """
+    threads = 1
+    for i, opt in enumerate(opts):
+        if opt in ('-t', '--threads') and i + 1 < len(opts):
+            threads = int(opts[i + 1])
+        elif opt.startswith('--threads='):
+            threads = int(opt.split('=', 1)[1])
+        elif opt.startswith('-t') and not opt.startswith('--') and len(opt) > 2:
+            threads = int(opt[2:])
+    return max(1, threads)
+
+def check_unanchor_config(config_node):
+    """ fail early on a <graphmap unanchorRepeats> that cannot run: paffy unanchor needs a PAF whose
+    every target is a minigraph node, which removeMinigraphFromPAF and collapse both break.
+    Returns whether unanchorRepeats is on """
+    if not unanchor_enabled(config_node):
+        return False
+    graphmap_node = findRequiredNode(config_node, "graphmap")
+    if getOptionalAttrib(graphmap_node, "removeMinigraphFromPAF", typeFn=bool, default=False):
+        raise RuntimeError('<graphmap unanchorRepeats="1"> cannot be used with removeMinigraphFromPAF="1": '
+                           'paffy unanchor needs the alignments to the minigraph nodes')
+    if getOptionalAttrib(graphmap_node, "collapse", typeFn=str, default="none") in ['reference', 'all']:
+        raise RuntimeError('<graphmap unanchorRepeats="1"> cannot be used with collapse (--collapse or '
+                           '--collapseRefPAF): paffy unanchor needs every alignment to be to a minigraph node')
+    unanchor_threads(unanchor_options_list(config_node))
+    return True
+
 def main():
     parser = Job.Runner.getDefaultArgumentParser()
     add_cactus_toil_options(parser)
@@ -98,7 +163,10 @@ def main():
                         help = "File containing scoring parameters (output of last-train, as made by cactus-minigraph by default)")
     parser.add_argument("--scoresFromChromfile", action="store_true", default=False,
                         help = "Load scoring parameters from the 4th column of chromfile (as made by cactus-minigraph --batch)")
-    
+    parser.add_argument("--unanchorGFA", type=str, default=None,
+                        help = "The minigraph GFA the PAF's targets are nodes of, which <graphmap unanchorRepeats=\"1\"> in the config needs "
+                        "(with --pangenome).  Not with --batch, which takes it from the 5th column of the chromfile")
+
     parser.add_argument("--singleCopySpecies", type=str,
                         help="Filter out all self-alignments in given species")
     parser.add_argument("--barMaskFilter", type=int, default=None,
@@ -192,7 +260,9 @@ def main():
         raise RuntimeError('--scoresFile is only currently supported with --pangenome')
     if options.scoresFromChromfile and (not options.pangenome or not options.batch or options.scoresFile):
         raise RuntimeError('--scoresFromChromfile can only be used with --batch --pangenome and without --scoresFile')
-    
+    if options.unanchorGFA and options.batch:
+        raise RuntimeError('--unanchorGFA cannot be used with --batch: the GFA of each chromosome is the 5th column of the chromfile')
+
     options.buildHal = True
     options.buildFasta = True
 
@@ -243,7 +313,8 @@ def main():
                     if options.outVG:
                         toil.exportFile(results[1], makeURL(os.path.join(options.outHal, '{}{}.vg'.format(chrom, RAW_VG_SUFFIX))))
                     if options.outGFA:
-                        toil.exportFile(results[2], makeURL(os.path.join(options.outHal, '{}.gfa.gz'.format(chrom))))                    
+                        toil.exportFile(results[2], makeURL(os.path.join(options.outHal, '{}.gfa.gz'.format(chrom))))
+                    export_unanchor_outputs(toil, results[3], os.path.join(options.outHal, chrom))
             else:
                 assert len(results_dict) == 1 and None in results_dict
                 halID, vgID, gfaID = results_dict[None][0], results_dict[None][1], results_dict[None][2]
@@ -254,11 +325,21 @@ def main():
                     toil.exportFile(vgID, makeURL(os.path.splitext(options.outHal)[0] + '.vg'))
                 if options.outGFA:
                     toil.exportFile(gfaID, makeURL(os.path.splitext(options.outHal)[0] + '.gfa.gz'))
+                export_unanchor_outputs(toil, results_dict[None][3], os.path.splitext(options.outHal)[0])
                                 
     end_time = timeit.default_timer()
     run_time = end_time - start_time
     logger.info("cactus-align has finished after {} seconds".format(run_time))
-    
+
+def export_unanchor_outputs(exporter, unanchor_outputs, prefix):
+    """ write what paffy unanchor made for an alignment (cactus_align's 4th return value, None when
+    <graphmap unanchorRepeats> is off) to <prefix>.unanchor.<key>.  exporter is a Toil or a FileStore """
+    if not unanchor_outputs:
+        return
+    for key in UNANCHOR_OUTPUTS:
+        if unanchor_outputs.get(key):
+            exporter.exportFile(unanchor_outputs[key], makeURL('{}.unanchor.{}'.format(prefix, key)))
+
 def batch_align_jobs(job, jobs_dict):
     """ todo: clean this up """
     rv_dict = {}
@@ -278,14 +359,17 @@ def make_batch_align_jobs(options, toil, filestore=None, config_wrapper=None):
             for line in chrom_file:
                 toks = line.strip().split()
                 if len(toks):
-                    assert len(toks) in [3,4]
+                    # chrom seqfile paf [train [minigraph-gfa]], with * for a missing train or gfa
+                    assert len(toks) in [3,4,5]
                     chrom, seqfile, alnFile = toks[0], toks[1], toks[2]
                     chrom_options = copy.deepcopy(options)
                     chrom_options.batch = False
                     if options.scoresFromChromfile:
-                        assert len(toks) == 4
+                        assert len(toks) >= 4
                         if toks[3] != '*':
                             chrom_options.scoresFile = toks[3]
+                    # the graph the PAF's targets are nodes of, for <graphmap unanchorRepeats>
+                    chrom_options.unanchorGFA = toks[4] if len(toks) == 5 and toks[4] != '*' else None
                     if filestore:
                         seqfile_id = toil.importFile(makeURL(seqfile))
                         local_seqfile = os.path.join(work_dir, os.path.basename(seqfile))
@@ -418,7 +502,24 @@ def make_align_job(options, toil, config_wrapper=None, chrom_name=None):
 
     # import the PAF alignments
     paf_id = toil.importFile(makeURL(options.pafFile))
-    
+
+    # <graphmap unanchorRepeats>: paffy unanchor needs the minigraph GFA, as well as the PAF and the
+    # minigraph node fasta that are aligned anyway
+    unanchor_gfa_id = None
+    if check_unanchor_config(config_node):
+        if not options.pangenome:
+            logger.warning('<graphmap unanchorRepeats="1"> is ignored without --pangenome')
+        else:
+            unanchor_gfa = getattr(options, 'unanchorGFA', None)
+            if not unanchor_gfa:
+                raise RuntimeError('<graphmap unanchorRepeats="1"> needs the minigraph GFA{}: give it with --unanchorGFA, or '
+                                   'with --batch in the 5th column of the chromfile (cactus-graphmap --batch and '
+                                   'cactus-graphmap-split write it there)'.format(
+                                       ' of {}'.format(chrom_name) if chrom_name else ''))
+            if not options.reference:
+                raise RuntimeError('<graphmap unanchorRepeats="1"> needs --reference')
+            unanchor_gfa_id = toil.importFile(makeURL(unanchor_gfa))
+
     #import the sequences
     input_seq_id_map = {}
     for (genome, seq) in input_seq_map.items():
@@ -453,12 +554,16 @@ def make_align_job(options, toil, config_wrapper=None, chrom_name=None):
                               chrom_name=chrom_name,
                               scores_id=scores_id,
                               branch_scale=options.branchScale,
-                              validate=getattr(options, 'validate', False), walltime=cactus_walltime())
+                              validate=getattr(options, 'validate', False),
+                              unanchor_gfa_id=unanchor_gfa_id, walltime=cactus_walltime())
     return align_job
 
 def cactus_align(job, config_wrapper, mc_tree, input_seq_map, input_seq_id_map, paf_id, paf_path, root_name, og_map, checkpointInfo, doVG, doGFA, delay=0,
                  referenceEvents=None, pafMaskFilter=None, paf2Stable=False, cons_cores = None, cons_memory = None, cons_retain_pages = None, do_filter_paf=False, chrom_name=None, scores_id=None, branch_scale=1.0,
-                 validate=False):
+                 validate=False, unanchor_gfa_id=None):
+    """ returns (hal, vg, gfa, unanchor_outputs) ids: vg and gfa are None unless doVG and doGFA ask for
+    them, and unanchor_outputs, a dict of UNANCHOR_OUTPUTS to file ids, is None unless
+    unanchor_gfa_id (the minigraph GFA, given when <graphmap unanchorRepeats> is on) turns on paffy unanchor """
 
     head_job = Job(walltime=cactus_walltime())
     job.addChild(head_job)
@@ -527,8 +632,36 @@ def cactus_align(job, config_wrapper, mc_tree, input_seq_map, input_seq_id_map, 
     # get the spanning tree (which is what consolidated wants)
     spanning_tree = get_spanning_subtree(scaled_tree, root_name, config_wrapper, og_map)
 
+    # <graphmap unanchorRepeats>: drop the minigraph anchors at tandem-repeat loci from the filtered
+    # PAF, so that consolidated (BAR) aligns them.  a follow-on of head_job, so the sanitized minigraph
+    # fasta and the filtered PAF it reads are both done
+    prev_job = head_job
+    unanchor_outputs = None
+    clean_ids = [paf_id]
+    if unanchor_gfa_id:
+        graph_event = getOptionalAttrib(findRequiredNode(config_wrapper.xmlRoot, "graphmap"), "assemblyName", default="_MINIGRAPH_")
+        if graph_event not in input_seq_id_map:
+            raise RuntimeError('<graphmap unanchorRepeats="1"> needs the minigraph genome, {}, in the seqfile'.format(graph_event))
+        fasta_bytes = input_seq_id_map[graph_event].size
+        if input_seq_map.get(graph_event, '').endswith('.gz'):
+            fasta_bytes *= 10
+        unanchor_cores = unanchor_threads(unanchor_options_list(config_wrapper.xmlRoot))
+        unanchor_job = head_job.addFollowOnJobFn(unanchor_repeats, config_wrapper, paf_id, new_seq_id_map, unanchor_gfa_id,
+                                                 graph_event, referenceEvents[0], chrom_name,
+                                                 cores=unanchor_cores,
+                                                 memory=cactus_clamp_memory(2**31 + 4 * fasta_bytes + paf_size // 4),
+                                                 disk=3 * paf_size + 2 * fasta_bytes + 10 * unanchor_gfa_id.size,
+                                                 walltime=cactus_walltime(UNANCHOR_BASE_SECS + UNANCHOR_SECS_PER_GB * paf_size / 1e9,
+                                                                          io_bytes=4 * paf_size))
+        paf_id = unanchor_job.rv(0)
+        unanchor_outputs = unanchor_job.rv(1)
+        # the filtered PAF above and the cut one are both done with once consolidated is.  (the GFA
+        # is imported, like the inputs, which are left alone)
+        clean_ids.append(paf_id)
+        prev_job = unanchor_job
+
     # run consolidated
-    cons_job = head_job.addFollowOnJobFn(cactus_cons_with_resources, spanning_tree, root_name, config_wrapper.xmlRoot, new_seq_id_map, og_map, paf_id,
+    cons_job = prev_job.addFollowOnJobFn(cactus_cons_with_resources, spanning_tree, root_name, config_wrapper.xmlRoot, new_seq_id_map, og_map, paf_id,
                                          cons_cores = cons_cores, cons_memory=cons_memory, chrom_name=chrom_name,
                                          cons_retain_pages=cons_retain_pages, walltime=cactus_walltime())
     results = {root_name : (cons_job.rv(1), cons_job.rv(2))}
@@ -547,7 +680,7 @@ def cactus_align(job, config_wrapper, mc_tree, input_seq_map, input_seq_id_map, 
                                         walltime=cactus_walltime())
 
     # clean out some of the  intermediate jobstore files
-    hal_job.addFollowOnJobFn(clean_jobstore_files, file_id_maps=[new_seq_id_map], file_ids=[paf_id], walltime=cactus_walltime())
+    hal_job.addFollowOnJobFn(clean_jobstore_files, file_id_maps=[new_seq_id_map], file_ids=clean_ids, walltime=cactus_walltime())
 
     # optionally create the VG
     if doVG or doGFA:
@@ -560,7 +693,49 @@ def cactus_align(job, config_wrapper, mc_tree, input_seq_map, input_seq_id_map, 
     else:
         vg_file_id, gfa_file_id = None, None
         
-    return hal_job.rv(), vg_file_id, gfa_file_id
+    return hal_job.rv(), vg_file_id, gfa_file_id, unanchor_outputs
+
+def unanchor_repeats(job, config_wrapper, paf_id, seq_id_map, gfa_id, graph_event, reference, chrom_name):
+    """ run paffy unanchor (<graphmap unanchorRepeats>) on the filtered PAF: at the tandem-repeat
+    loci of the reference where the haplotypes' minigraph anchors disagree, take out the anchors of
+    every genome, so that consolidated aligns those loci with BAR.  returns the cut PAF and a dict of
+    UNANCHOR_OUTPUTS to file ids, among them the neutral BED: the bases that lost every anchor, in
+    graph path names, for the clip-vg --neutral-bed of the join's clip phase """
+    work_dir = job.fileStore.getLocalTempDir()
+    paf_path = os.path.join(work_dir, 'in.paf')
+    job.fileStore.readGlobalFile(paf_id, paf_path)
+    # paffy reads either plain or gzipped fasta and GFA, so neither is unzipped here
+    nodes_path = os.path.join(work_dir, 'nodes.fa')
+    job.fileStore.readGlobalFile(seq_id_map[graph_event], nodes_path)
+    gfa_path = os.path.join(work_dir, 'minigraph.gfa')
+    job.fileStore.readGlobalFile(gfa_id, gfa_path)
+
+    out_paths = {key : os.path.join(work_dir, 'unanchor.' + key) for key in UNANCHOR_OUTPUTS + ('query.bed',)}
+    out_paf_path = os.path.join(work_dir, 'out.paf')
+    config_node = config_wrapper.xmlRoot
+    cmd = ['paffy', 'unanchor', '-i', paf_path, '-o', out_paf_path, '-n', nodes_path, '-g', gfa_path,
+           '-r', reference, '-H', graph_event,
+           # loci are cleared only up to what BAR aligns, and the anchors kept must outlast CAF's trim
+           '--maxLen', str(getOptionalAttrib(findRequiredNode(config_node, "bar"), "bandingLimit", typeFn=int, default=10000)),
+           '--cafTrim', str(getOptionalAttrib(findRequiredNode(config_node, "caf"), "trim", typeFn=int, default=3)),
+           '-L', out_paths['loci.bed'], '-b', out_paths['hub.bed'], '-v', out_paths['veto.bed'],
+           '-q', out_paths['query.bed'], '-e', out_paths['log']]
+    cmd += unanchor_options_list(config_node)
+    cactus_call(parameters=cmd, job_memory=job.memory)
+
+    # clip-vg wants the bases in graph path names (SAMPLE#HAP#CONTIG), which are cactus's to work out
+    n_intervals, n_bp, n_names = unanchor_query_bed_to_pansn(out_paths['query.bed'], out_paths['neutral.bed'])
+
+    label = chrom_name if chrom_name else 'the alignment'
+    with open(out_paths['log'], 'r') as log_file:
+        for line in log_file:
+            if line.startswith('cleared loci') or line.startswith('cut_paf:'):
+                RealtimeLogger.info('paffy unanchor on {}: {}'.format(label, line.rstrip()))
+    RealtimeLogger.info('paffy unanchor on {}: neutral BED for clip-vg: {} intervals, {} bp on {} paths'.format(
+        label, n_intervals, n_bp, n_names))
+
+    return (job.fileStore.writeGlobalFile(out_paf_path),
+            {key : job.fileStore.writeGlobalFile(out_paths[key]) for key in UNANCHOR_OUTPUTS})
 
 
 def export_vg(job, hal_id, config_wrapper, doVG, doGFA, referenceEvents, checkpointInfo=None, resource_spec = False,
@@ -720,7 +895,9 @@ def main_batch():
                 for line in chrom_file:
                     toks = line.strip().split()
                     if len(toks):
-                        assert len(toks) == 3
+                        # the train and minigraph GFA columns, if any, are not used here: neither
+                        # --scoresFromChromfile nor <graphmap unanchorRepeats> is supported by this (deprecated) tool
+                        assert len(toks) >= 3
                         chrom, seqfile, alnFile = toks[0], toks[1], toks[2]
                         chrom_dict[chrom] = toil.importFile(makeURL(seqfile)), toil.importFile(makeURL(alnFile))
                         if chrom in options.configOverrides:

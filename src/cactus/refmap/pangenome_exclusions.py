@@ -232,6 +232,40 @@ def total_bp(intervals):
     return sum(end - start for start, end in intervals)
 
 
+def unanchor_query_bed_to_pansn(in_path, out_path):
+    """ turn the query BED of paffy unanchor (<graphmap unanchorRepeats>) into the BED that
+    clip-vg --neutral-bed reads.  paffy writes PAF query names, id=EVENT|CONTIG, in the coordinates
+    of the PAF query sequence; clip-vg wants the graph path naming hal2vg gives the same bases,
+    SAMPLE#HAP#CONTIG, in the coordinates of the base contig, so a _sub_START_END fragment (nested
+    or not) is put back on its contig at START.  merged per name (overlapping or touching
+    intervals) and sorted by name, then start.
+
+    returns (intervals, bp, names) written """
+    intervals = {}
+    with open(in_path, 'r') as in_file:
+        for line in in_file:
+            if not line.strip() or line.startswith('#'):
+                continue
+            toks = line.rstrip('\n').split('\t')
+            if len(toks) < 3:
+                raise RuntimeError('unanchor query BED line with fewer than 3 columns: {}'.format(line.rstrip()))
+            query = toks[0]
+            if not query.startswith('id=') or query.find('|') < 4:
+                raise RuntimeError('unanchor query BED name without the id=EVENT| prefix: {}'.format(query))
+            event, contig = query[3:].split('|', 1)
+            base, offset, _ = resolve_subpath_naming(contig)
+            name = '{}#{}'.format(event_to_pansn_prefix(event), base)
+            intervals.setdefault(name, []).append((int(toks[1]) + offset, int(toks[2]) + offset))
+    n_intervals, bp = 0, 0
+    with open(out_path, 'w') as out_file:
+        for name in sorted(intervals):
+            for start, end in merge_intervals(intervals[name]):
+                out_file.write('{}\t{}\t{}\n'.format(name, start, end))
+                n_intervals += 1
+                bp += end - start
+    return n_intervals, bp, len(intervals)
+
+
 def merge_sorted_bed_stream(line_iter, min_length, path_offsets=None):
     """ merge an already-sorted stream of `name <TAB> start <TAB> end` BED lines into maximal runs,
     keeping only those at least min_length long.  streaming, so a reference with no alignment at all
