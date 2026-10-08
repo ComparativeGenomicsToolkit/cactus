@@ -49,7 +49,7 @@ fi
 
 # CPU baseline.  include.mk is the single source of truth; ask make for it rather than
 # duplicating the arm/legacy/x86 selection here, where it would silently drift.  Without this
-# nothing built by this script -- minigraph, minimap2, gfatools, last, samtools/bcftools --
+# nothing built by this script -- minigraph, minimap2, gfatools, samtools/bcftools --
 # gets an arch flag at all: confirmed against the v3.3.0 tarball, where minigraph carried zero
 # AVX2 in its own code, only glibc's runtime-dispatched string routines.
 # MAKEFLAGS is cleared because "make binRelease" reaches this from inside a make recipe.
@@ -426,54 +426,6 @@ then
     build-tools/downloadVCFWave
     cd ${CWD}
     mkdir -p ${pangenomeBuildDir}
-fi
-
-# last
-cd ${pangenomeBuildDir}
-git clone https://gitlab.com/mcfrith/last.git --recursive
-cd last
-git checkout 1651
-# last writes "CXXFLAGS = ..." with spaces around the '=', so the old
-# 's/CXXFLAGS=/CXXFLAGS+=/' never matched line 1.  What it did match was the sub-make
-# override on line 3 ($(MAKE) CXXFLAGS="$(CXXFLAGS)" -> CXXFLAGS+="$(CXXFLAGS)"), which only
-# doubled last's own flags while its line-1 assignment carried on clobbering ours -- so
-# nothing cactus sets has ever reached lastal/lastdb.  Anchor to the line start and allow the
-# spaces; leave line 3 alone, since that override is how src/makefile receives the value.
-# Guarded: this sed was silently a no-op for years, which is exactly what we don't want twice.
-grep -qE '^CXXFLAGS *=' makefile || {
-    echo "ERROR: last: no 'CXXFLAGS =' assignment at the start of a line in makefile." >&2
-    echo "       Upstream changed its build; re-check that cactus's CXXFLAGS reach lastal." >&2
-    exit 1
-}
-sed -i makefile -e 's/^CXXFLAGS *= */CXXFLAGS += /'
-# last has no LIBS variable, so add one after the objects.  Order matters: a static archive
-# named before the objects resolves nothing and is discarded, and lastal would silently fall
-# back to glibc's allocator.
-sed -i src/makefile -e '/LIBS/!s/ -lz$/ -lz $(LIBS)/'
-LIBS="${jemallocLib}" make -j ${numcpu}
-if [[ $STATIC_CHECK -ne 1 || $(ldd bin/lastal | grep so | wc -l) -eq 0 ]]
-then
-    mv bin/lastal ${binDir}
-else
-    exit 1
-fi
-if [[ $STATIC_CHECK -ne 1 || $(ldd bin/lastdb | grep so | wc -l) -eq 0 ]]
-then
-    mv bin/lastdb ${binDir}
-else
-    exit 1
-fi
-if [[ $STATIC_CHECK -ne 1 || $(ldd bin/last-train | grep so | wc -l) -eq 0 ]]
-then
-    mv bin/last-train ${binDir}
-else
-    exit 1
-fi
-if [[ $STATIC_CHECK -ne 1 || $(ldd bin/last-postmask | grep so | wc -l) -eq 0 ]]
-then
-    mv bin/last-postmask ${binDir}
-else
-    exit 1
 fi
 
 cd ${CWD}

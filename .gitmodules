@@ -50,3 +50,6 @@
 	path = submodules/minipoa
 	url = https://github.com/ComparativeGenomicsToolkit/minipoa.git
 	branch = cactus-integration
+[submodule "submodules/last"]
+	path = submodules/last
+	url = https://gitlab.com/mcfrith/last.git
