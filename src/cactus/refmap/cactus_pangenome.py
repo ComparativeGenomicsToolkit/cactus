@@ -13,7 +13,7 @@ to make it easier to recover from errors
 """
 
 import os, sys
-from argparse import ArgumentParser
+from argparse import ArgumentParser, SUPPRESS
 import xml.etree.ElementTree as ET
 import copy
 import timeit, time
@@ -44,7 +44,8 @@ from cactus.progressive.cactus_prepare import human2bytesN
 from cactus.paf.last_scoring import last_train_enabled
 from cactus.refmap.cactus_minigraph import minigraph_construct_workflow, minigraph_construct_batch_workflow
 from cactus.refmap.cactus_minigraph import check_sample_names, read_chromfile
-from cactus.refmap.cactus_minigraph import minigraph_construct_import_sequences, export_minigraph_construct_output, export_collapse_artifacts
+from cactus.refmap.cactus_minigraph import minigraph_construct_import_sequences, export_minigraph_construct_output, export_rewrite_artifacts
+from cactus.refmap.cactus_minigraph import check_graph_rewrite_config
 from cactus.refmap.cactus_graphmap import minigraph_workflow, minigraph_batch_workflow, export_graphmap_output
 from cactus.refmap.cactus_graphmap import apply_mgsplit_filter_overrides, add_separate_ref_contigs_job
 from cactus.refmap.cactus_graphmap_split import graphmap_split_workflow, export_split_data
@@ -69,9 +70,17 @@ def pangenome_options(parser):
     parser.add_argument("--scoresFile", type=str,
                         help = "File containing scoring parameters (output of last-train)")
     parser.add_argument("--mgSplit", action="store_true", default=False,
-                        help = "Run minigraph construction and mapping independently on each chromosome")                        
-    parser.add_argument("--mgSplitWholeGenomeRef", action="store_true", default=False,
-                        help = "Implies --mgSplit, and builds each chromosome's second-pass minigraph against the whole primary reference genome rather than just that chromosome, so off-chromosome mappings can compete and be filtered the way they are in the whole-genome pipeline. The off-chromosome material is pruned back out before cactus-align.")
+                        help = "Run minigraph construction and mapping independently on each chromosome. Each chromosome's "
+                        "second-pass minigraph is built against the whole primary reference genome rather than just that "
+                        "chromosome, so off-chromosome mappings can compete and be filtered the way they are in the "
+                        "whole-genome pipeline, and the off-chromosome material is pruned back out before cactus-align. "
+                        "Set wholeGenomeRef=\"0\" in <graphmap_split> in the config to build it on that chromosome's "
+                        "reference only")
+    # removed: --mgSplit now does what it did.  Still parsed, hidden, only so that passing it fails with
+    # a pointer to the config toggle (pangenome_validate_options) rather than argparse's "unrecognized
+    # arguments".  options.mgSplitWholeGenomeRef is then set from --mgSplit and the toggle
+    # (pangenome_config_overrides), and that is what the workflow reads
+    parser.add_argument("--mgSplitWholeGenomeRef", action="store_true", default=False, help=SUPPRESS)
     parser.add_argument("--inGFA", type=str, default=None,
                         help = "Start from this existing minigraph GFA (<outName>.sv.gfa.gz from a previous run, or a published release) "
                         "rather than building one. If the seqFile names genomes the graph does not have, they are constructed into it and "
@@ -207,11 +216,9 @@ def pangenome_validate_options(options):
             raise RuntimeError('--collapseRefPAF cannot be used with --collapse')
 
     if options.mgSplitWholeGenomeRef:
-        # it only elaborates the second minigraph pass, so it turns that on rather than making you
-        # ask for both
-        if options.noSplit:
-            raise RuntimeError('you cannot use both --mgSplitWholeGenomeRef and --noSplit together: pick one')
-        options.mgSplit = True
+        raise RuntimeError('--mgSplitWholeGenomeRef has been removed: --mgSplit now builds each chromosome\'s graph '
+                           'against the whole reference by default.  To build it on the chromosome\'s reference only, '
+                           'as --mgSplit used to, set wholeGenomeRef="0" in <graphmap_split> in the config')
 
     if options.mgSplit and options.noSplit:
         raise RuntimeError('you cannot use both --mgSplit and --noSplit together: pick one')
@@ -243,18 +250,10 @@ def pangenome_validate_options(options):
 def pangenome_config_overrides(options, config_node):
     """ push the cpu options into the config, and sort out the minigraph cores.  shared with
     cactus-panpatch """
-    # Collapsing splits nodes at alignment-block boundaries and rewires the edges around them, so
-    # a GAF made against the pre-collapse graph no longer tiles it.  Left alone this surfaces much
-    # later as a gaf2unstable tiling assertion inside check_reusable_gaf, whose diagnosis points at
-    # --mgSplit rather than at the collapse.
-    # getattr, not attribute access: cactus-panpatch shares this function and defines neither option
-    if getattr(options, 'inGAF', None) and not getattr(options, 'remap', False) and getOptionalAttrib(
-            findRequiredNode(config_node, "graphmap"), "collapseInversions", typeFn=bool, default=False):
-        raise RuntimeError(
-            'collapseInversions cannot be used with --inGAF: the collapse rewrites node boundaries, so the '
-            'mappings in {} no longer resolve against the extended graph.  Either drop --inGAF (--inGFA still '
-            'saves the construction, which is the expensive half), add --remap to map every genome against the '
-            'collapsed graph, or turn collapseInversions off in the config.'.format(getattr(options, 'inGAF', '?')))
+    # a config that cannot run should fail here, not after construction.  zipAlleles with --inGAF
+    # is only a problem when the --inGFA graph gets genomes added (and so zipped), which is not
+    # known until its SN tags are read: minigraph_construct_run checks it before constructing
+    check_graph_rewrite_config(config_node)
     if options.mapCores is not None:
         findRequiredNode(config_node, "graphmap").attrib["cpu"] = str(options.mapCores)
     mg_cores = getOptionalAttrib(findRequiredNode(config_node, "graphmap"), "cpu", typeFn=int, default=1)
@@ -272,6 +271,11 @@ def pangenome_config_overrides(options, config_node):
 
     if options.collapse:
         findRequiredNode(config_node, "graphmap").attrib["collapse"] = 'all'
+
+    # with --mgSplit, each chromosome's second-pass graph is built against the whole primary
+    # reference unless <graphmap_split wholeGenomeRef="0">; the workflow reads the result
+    options.mgSplitWholeGenomeRef = getattr(options, 'mgSplit', False) and getOptionalAttrib(
+        findRequiredNode(config_node, "graphmap_split"), "wholeGenomeRef", typeFn=bool, default=True)
 
     # written here, before the --mgSplit deep-copy below, so that the one flag reaches all three
     # consumers: gaffilter -i in cactus-graphmap, and the filter_paf line filter in both
@@ -382,13 +386,13 @@ def main():
     logger.info("cactus-pangenome has finished after {} seconds".format(run_time))
 
 def export_minigraph_wrapper(job, options, sv_gfa_id, sv_gfa_path, last_scores_id,
-                             uncollapsed_pansn_gfa_id=None, collapse_report_id=None):
-    """ export the GFA from minigraph.  sv_gfa_id is the collapsed graph when collapseInversions is
-    on, the same graph the rest of the pipeline maps against; the pre-collapse graph and the per-call
-    report go beside it """
+                             input_pansn_gfa_id=None, rewrite_artifacts=None):
+    """ export the GFA from minigraph.  sv_gfa_id is the zipped graph when zipAlleles is on, the same
+    graph the rest of the pipeline maps against; the graph as minigraph built it, the report and any
+    walks GAF go beside it """
     out_gfa_path = os.path.join(options.outDir, os.path.basename(sv_gfa_path))
     job.fileStore.exportFile(sv_gfa_id, makeURL(out_gfa_path))
-    export_collapse_artifacts(job.fileStore, out_gfa_path, uncollapsed_pansn_gfa_id, collapse_report_id)
+    export_rewrite_artifacts(job.fileStore, out_gfa_path, input_pansn_gfa_id, rewrite_artifacts)
     if last_scores_id:
         scores_path = makeURL(os.path.join(options.outDir, options.outName + '.train'))
         job.fileStore.exportFile(last_scores_id, makeURL(os.path.join(options.outDir, os.path.basename(scores_path))))        
@@ -435,7 +439,7 @@ def phony_chromfile(job, options, paf_path):
     return chromfile_path
 
 def split_reference_ids(job, seq_id_map, references):
-    """ separate the whole-genome reference fastas from everything else, so --mgSplitWholeGenomeRef
+    """ separate the whole-genome reference fastas from everything else, so mgSplitWholeGenomeRef
     can hold them back from the post-split cleanup and build the second-pass minigraphs against them.
 
     only --reference[0] belongs here, and putting a secondary reference in is a decomposition bug.
@@ -500,7 +504,7 @@ def export_minigraph_batch_wrapper(job, options, config_node, input_seqfiles, in
     options.outputGFA = out_dir
     export_minigraph_construct_output(options, input_seqfiles, minigraph_batch_results, job.fileStore)
 
-    # minigraph_batch_results:  chrom-> (gfa_id, pansn_gfa_id, uncollapsed_pansn_gfa_id, collapse_report_id, train_id)
+    # minigraph_batch_results:  chrom-> (gfa_id, pansn_gfa_id, input_pansn_gfa_id, rewrite_artifacts, train_id)
     # filter out the pansn gfas (they were exported above) and continue with the
     # regualar gfas
     output_dict = {}
@@ -556,7 +560,7 @@ def export_graphmap_batch_wrapper(job, options, config_node, graphmap_batch_resu
     return output_list, chromfile_path    
     
 def export_pruned_minigraph_gfa_wrapper(job, options, graphmap_batch_results, unpruned_pansn_gfas):
-    """ with --mgSplitWholeGenomeRef the per-chromosome graph is only chromosome-only once the
+    """ with mgSplitWholeGenomeRef the per-chromosome graph is only chromosome-only once the
     separation pass has cut the rest of the reference out of it, so it's written here rather than in
     export_minigraph_batch_wrapper.  same paths chromfile.mg.txt already names """
     out_dir = os.path.join(options.outDir, 'chrom-minigraph')
@@ -713,18 +717,19 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
     else:
         split_config_node = config_node
         split_config_wrapper = config_wrapper
+    # scores_id: a --scoresFile model, for the mapping zipWalks="gaf" runs before the zip
     minigraph_job = prev_job.addFollowOnJobFn(minigraph_construct_workflow, mg_options, split_config_node, seq_id_map, seq_order, sv_gfa_path, sanitize=False,
-                                              in_gfa_id=in_gfa_id, walltime=cactus_walltime())
+                                              in_gfa_id=in_gfa_id, scores_id=last_scores_id, walltime=cactus_walltime())
     sv_gfa_id = minigraph_job.rv(0)
     pansn_sv_gfa_id = minigraph_job.rv(1)
     if not last_scores_id:
         # index 4: minigraph_construct_workflow returns
-        # (gfa, pansn_gfa, collapsed_gfa, collapse_report, train)
+        # (gfa, pansn_gfa, input_pansn_gfa, rewrite_artifacts, train)
         last_scores_id = minigraph_job.rv(4)
     # only build reference graph on first pass when doing minigraph-by-chrom pipeline
     minigraph_wrapper_job = minigraph_job.addFollowOnJobFn(export_minigraph_wrapper, options, pansn_sv_gfa_id, sv_gfa_path, last_scores_id,
-                                                           uncollapsed_pansn_gfa_id=minigraph_job.rv(2),
-                                                           collapse_report_id=minigraph_job.rv(3),
+                                                           input_pansn_gfa_id=minigraph_job.rv(2),
+                                                           rewrite_artifacts=minigraph_job.rv(3),
                                                            walltime=cactus_walltime(0, io_bytes=2 * input_seq_bytes))
 
     # cactus_graphmap
@@ -767,7 +772,7 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
                                                       walltime=cactus_walltime(0, io_bytes=2 * input_seq_bytes))
         chromfile_path = os.path.join(split_out_path, 'chromfile.txt')
 
-    # with --mgSplitWholeGenomeRef the second pass builds each chromosome's graph against the whole
+    # with mgSplitWholeGenomeRef the second pass builds each chromosome's graph against the whole
     # reference, so hold the (already sanitized) reference fastas back from the cleanup just below
     wg_ref_id_map = None
     clean_seq_id_map = seq_id_map
@@ -796,6 +801,7 @@ def pangenome_end_to_end_workflow(job, options, config_wrapper, seq_id_map, seq_
         minigraph_batch_job = sanitize_job.addFollowOnJobFn(minigraph_construct_batch_workflow, options, config_node,
                                                             input_map, None,  sanitize=False,
                                                             construct_ref_id_map=wg_ref_id_map,
+                                                            scores_id=last_scores_id if options.scoresFile else None,
                                                             walltime=cactus_walltime())
         minigraph_batch_results = minigraph_batch_job.rv()
         minigraph_batch_export_job = minigraph_batch_job.addFollowOnJobFn(export_minigraph_batch_wrapper, options, config_node,

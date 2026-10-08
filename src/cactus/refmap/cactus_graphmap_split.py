@@ -547,7 +547,7 @@ def bins_for_chrom(chrom, ref_contigs, bin_ref_contigs):
     """ which of a graph's reference contigs belong to one chromosome's bin.  a normal chromosome owns
     the contig it is named after; the --otherContig lump owns whichever reference contigs its own
     fasta holds.  only needed when the graph holds more of the reference than the chromosome it was
-    built for, ie under --mgSplitWholeGenomeRef.
+    built for, ie under mgSplitWholeGenomeRef.
 
     the lump is read off its fasta rather than inferred from the surviving bin names because the two
     disagree: export_split_data drops a reference contig that fewer than two genomes align to
@@ -565,7 +565,7 @@ def separate_ref_contigs_batch(job, config, graphmap_input_dict, graphmap_batch_
     per-chromosome graphmap that follows can align a sample contig across two, which welds them into
     one component in the final graph.  Run rgfa-split over each bin to hold the contigs apart.
 
-    With --mgSplitWholeGenomeRef every bin's graph carries the whole reference, so this pass runs on
+    With mgSplitWholeGenomeRef every bin's graph carries the whole reference, so this pass runs on
     all of them and does the real work of the option: dropping the mappings that landed on another
     chromosome, and cutting the graph artifacts back down to this chromosome.
 
@@ -619,7 +619,7 @@ def separate_ref_contigs(job, config, chrom, gfa_id, gm_result, reference_event,
     way the sequence stays in the bin's fasta, so cactus-align sees it as unaligned and the usual
     non-minigraph clipping takes it out.
 
-    Under --mgSplitWholeGenomeRef the graph holds the whole reference rather than one chromosome, so
+    Under mgSplitWholeGenomeRef the graph holds the whole reference rather than one chromosome, so
     every bin lands here with something to do: a query that maps better to another chromosome loses
     its alignments to this one, which is the inter-chromosome competition the whole-genome pipeline
     gets for free.  In that mode this pass is required for correctness, not just quality:
