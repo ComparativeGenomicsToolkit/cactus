@@ -229,6 +229,13 @@ def cactus_override_toil_options(options):
     os.environ['CACTUS_MAX_MEMORY'] = str(max_mem)
     os.environ['CACTUS_DEFAULT_MEMORY'] = str(human2bytes(str(options.defaultMemory)) if options.defaultMemory else 2**31)
 
+    # and the most cores a job can ask for: Toil refuses a job that asks for more than --maxCores, or on a single
+    # machine than the machine has (see cactus_clamp_cores)
+    max_cores = sys.maxsize if options.maxCores in (None, float('inf')) else int(options.maxCores)
+    if options.batchSystem.lower() in ['single_machine', 'singleMachine']:
+        max_cores = min(max_cores, cactus_cpu_count())
+    os.environ['CACTUS_MAX_CORES'] = str(max(1, max_cores))
+
     # store the walltime knobs here so cactus_walltime() can get at them without carrying
     # options around, and so they propagate to workers just like the memory limits above
     os.environ['CACTUS_WALLTIME_FACTOR'] = str(getattr(options, 'walltimeFactor', WALLTIME_FACTOR))
@@ -260,6 +267,11 @@ def cactus_override_toil_options(options):
         os.environ['CACTUS_LOG_MEMORY'] = '1'
     except:
         pass
+
+def cactus_clamp_cores(cores):
+    """ use the environment variable from --maxCores (and a single machine's cores) to clamp a job's cores, as
+    cactus_clamp_memory does its memory: Toil refuses a job that asks for more """
+    return max(1, min(int(os.environ.get('CACTUS_MAX_CORES', cores)), int(cores)))
 
 def cactus_clamp_memory(memory_bytes):
     """ use the environment variables from --maxMemory and --defaultMemory to clamp a given memory value """

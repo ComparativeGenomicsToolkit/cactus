@@ -20,11 +20,12 @@ import math
 import copy
 from Bio import SeqIO
 from cactus.paf.paf import get_event_pairs, get_leaves, get_node, get_distances
+from cactus.paf.last_scoring import lastz_scores_from_train
 from cactus.shared.common import cactus_call, getOptionalAttrib, zip_gz, cactus_walltime
 from cactus.preprocessor.checkUniqueHeaders import sanitize_fasta_headers
 from cactus.preprocessor.unmasking import unmask_contigs_all
 from cactus.preprocessor.cactus_preprocessor import clean_if_different
-from cactus.shared.common import cactus_clamp_memory
+from cactus.shared.common import cactus_clamp_memory, cactus_clamp_cores
 
 def get_divergence_class(distance, params):
     """ The <constants><divergences> bucket a pair at the given distance falls in ("one" through
@@ -37,6 +38,120 @@ def get_divergence_class(distance, params):
         if distance <= float(divergences.attrib[i]):
             return i
     return "default"
+
+
+def get_lastz_score_model(distance, params):
+    """ The <blast><lastzScoreModel> lastz aligns a pair at the given distance with: the one with the
+    smallest maxDistance the distance is within, or None, leaving lastz its default (HOXD70), when there
+    are none or the distance is past them all.  The distance is the one the divergence class is chosen by. """
+    models = params.find("blast").findall("lastzScoreModel")
+    for model in sorted(models, key=lambda m: float(m.attrib["maxDistance"])):
+        if distance <= float(model.attrib["maxDistance"]):
+            return model
+    return None
+
+
+def write_lastz_scores(model, path):
+    """ A lastz scoring model -- a <blast><lastzScoreModel>'s attributes, or a trained model -- as a lastz
+    scores file: its substitution matrix (rows and columns A, C, G, T) and gap penalties, a gap of length k
+    costing gapOpen + k * gapExtend, as with lastz's --gap.  Anything else the file could set is left to the
+    command line. """
+    matrix = [int(s) for s in model["matrix"].split()]
+    if len(matrix) != 16:
+        raise RuntimeError("lastz scoring matrix has {} scores, not 16".format(len(matrix)))
+    with open(path, 'w') as scores_file:
+        scores_file.write('gap_open_penalty = {}\n'.format(int(model["gapOpen"])))
+        scores_file.write('gap_extend_penalty = {}\n'.format(int(model["gapExtend"])))
+        scores_file.write('  A C G T\n')
+        for i, base in enumerate('ACGT'):
+            scores_file.write('{} {}\n'.format(base, ' '.join(str(s) for s in matrix[4 * i:4 * i + 4])))
+
+
+def lastz_train_enabled(params):
+    """ Whether to train lastz's scores on each pair of genomes it aligns: <blast lastzTrain>, on by default, so
+    it passes over the mappers it does not apply to, minimap2, FastGA and KegAlign, rather than stopping them """
+    lastz_params_node = params.find("blast")
+    if not getOptionalAttrib(lastz_params_node, 'lastzTrain', typeFn=bool, default=False):
+        return False
+    if lastz_params_node.attrib["mapper"] != "lastz":
+        return False
+    if getOptionalAttrib(lastz_params_node, 'gpu', typeFn=int, default=0):
+        logger.warning("<blast lastzTrain> does not apply to KegAlign, whose alignments keep its default scores")
+        return False
+    return True
+
+
+def fasta_is_gzipped(job, genome):
+    with job.fileStore.readGlobalFileStream(genome) as stream:
+        return stream.read(2) == b'\x1f\x8b'
+
+
+def fasta_letters_estimate(job, genome):
+    """ About how many bases a fasta file holds: its size, or four times that when it is gzipped """
+    return genome.size * (4 if fasta_is_gzipped(job, genome) else 1)
+
+
+def lastz_pair_key(event_a, event_b):
+    """ The key of a pair of genomes' trained lastz model, whichever way round they are aligned """
+    return ' '.join(sorted([event_a, event_b]))
+
+
+def last_train_has_tolerance():
+    """ Whether last-train has --tolerance, which stops training once no score moves by more than a given
+    percentage, rather than waiting for the scores to repeat exactly (a proposed patch to LAST) """
+    try:
+        return '--tolerance' in cactus_call(parameters=['last-train', '--help'], check_output=True)
+    except Exception:
+        return False
+
+
+def train_lastz_score_model(job, event_a, genome_a, event_b, genome_b, params):
+    """ A scoring model for lastz to align a pair of genomes with, trained on the pair with last-train, as
+    lastz_scores_from_train makes it -- or None, leaving the pair to the lastzScoreModel table or HOXD70,
+    when the smaller genome has under 500kb to train on or training fails. """
+    # lastdb is most of the work, so the smaller genome is the database (an ancestor's fasta is gzipped)
+    genomes = []
+    for event, genome in (event_a, genome_a), (event_b, genome_b):
+        genomes.append((fasta_letters_estimate(job, genome), event, genome, fasta_is_gzipped(job, genome)))
+    genomes.sort(key=lambda g: (g[0], g[1]))
+    db_event, query_event = genomes[0][1], genomes[1][1]
+    work_dir = job.fileStore.getLocalTempDir()
+    local_fastas = []
+    for name, (_, _, genome, gzipped) in zip(('db', 'query'), genomes):
+        # last-train goes by the name to tell a gzipped fasta
+        local_fastas.append(name + ('.fa.gz' if gzipped else '.fa'))
+        job.fileStore.readGlobalFile(genome, os.path.join(work_dir, local_fastas[-1]))
+    trained_gaps = getOptionalAttrib(params.find("blast"), 'lastzTrainGaps', typeFn=bool, default=True)
+
+    # lastdb -c and -C2 are LAST's recipe for training on genomes: -c keeps masked letters out of the seeds, and
+    # -C2 drops gapless alignments nested in two others.  -R10 makes the masked letters the inputs' soft-masking
+    # (cactus's Red), which masks repeats from seeding as it does for lastz, in place of LAST's default of masking
+    # only simple repeats with tantan (lastal follows lastdb's -R).  That makes lastdb ~3x and training ~10x cheaper
+    # on a mammal genome (human against mouse: 991 rather than 4494 CPU-s in all), and keeps interspersed repeats
+    # out of the model: two mouse assemblies trained to 99.35% identity without, from alignments between repeat
+    # copies, and 100.00% with.
+    train_cmd = ['last-train', '--revsym', '--matsym', '--gapsym', '-C2', '-P', str(job.cores)]
+    if last_train_has_tolerance():
+        train_cmd.append('--tolerance=1')
+    train_cmd += ['db', local_fastas[1]]
+    train_file = os.path.join(work_dir, 'pair.train')
+    try:
+        cactus_call(parameters=['lastdb', '-c', '-R10', '-P', str(job.cores), 'db', local_fastas[0]], work_dir=work_dir)
+        with open(os.path.join(work_dir, 'db.prj')) as prj:
+            db_letters = int(next(line for line in prj if line.startswith('numofletters=')).split('=')[1])
+        if db_letters < 500000:
+            RealtimeLogger.warning("Not training lastz scores for {} and {}: {} has {} bases, too few to train on".format(
+                event_a, event_b, db_event, db_letters))
+            return None
+        cactus_call(parameters=train_cmd, outfile=train_file, work_dir=work_dir)
+        model = lastz_scores_from_train(train_file, trained_gaps)
+    except Exception as e:
+        RealtimeLogger.warning("Training lastz scores for {} and {} failed, so the pair falls back to the "
+                               "lastzScoreModel table or HOXD70: {}".format(event_a, event_b, e))
+        return None
+    RealtimeLogger.info("Trained lastz scores for {} and {} ({} against {}): identity {:.1f}%, matrix {}, gap {}+{}k".format(
+        event_a, event_b, query_event, db_event, model['identity'], model['matrix'], model['gapOpen'], model['gapExtend']))
+    return model
 
 
 def get_lastz_walltime(distance, params, chunk_a, chunk_b):
@@ -67,7 +182,8 @@ def get_lastz_walltime(distance, params, chunk_a, chunk_b):
     return base
 
 
-def run_lastz(job, name_A, genome_A, name_B, genome_B, distance, params):
+def run_lastz(job, name_A, genome_A, name_B, genome_B, distance, params, trained_score_model=None):
+    """ trained_score_model is the pair's model from train_lastz_score_model, if <blast lastzTrain> made one """
     # Create a local temporary file to put the alignments in.
     work_dir = job.fileStore.getLocalTempDir()
     alignment_file = os.path.join(work_dir, '{}_{}.paf'.format(name_A, name_B))
@@ -85,9 +201,25 @@ def run_lastz(job, name_A, genome_A, name_B, genome_B, distance, params):
     lastz_divergence_node = lastz_params_node.find("kegalignArguments" if gpu else "lastzArguments")
     divergences = params.find("constants").find("divergences")
     lastz_params = lastz_divergence_node.attrib[get_divergence_class(distance, params)]
+    # the pair's trained model if it has one, else the table's for its distance, else lastz's own HOXD70
+    score_model, score_model_source = trained_score_model, 'trained on this pair'
+    if score_model is None:
+        table_model = get_lastz_score_model(distance, params)
+        if table_model is not None:
+            score_model = table_model.attrib
+            score_model_source = 'the lastzScoreModel for distances up to {}'.format(table_model.attrib["maxDistance"])
+    if score_model is not None:
+        if gpu:
+            raise RuntimeError("lastz scoring models are not supported with KegAlign")
+        # cactus_call runs lastz in work_dir
+        write_lastz_scores(score_model, os.path.join(work_dir, 'lastz.scores'))
+        lastz_params += ' --scores=lastz.scores'
     if not getOptionalAttrib(divergences, 'useDefault', typeFn=bool, default=False):
         logger.info("For distance {} for genomes {}, {} using {} lastz parameters".format(distance, genome_A,
                                                                                           genome_B, lastz_params))
+    if score_model is not None:
+        logger.info("Scoring with {}: {}, gap {}+{}k".format(score_model_source, score_model["matrix"],
+                                                            score_model["gapOpen"], score_model["gapExtend"]))
     if gpu:
         lastz_bin = 'run_kegalign'
         suffix_a, suffix_b = '', ''
@@ -492,7 +624,8 @@ def chunked_alignment_walltime(genome_a, genome_b):
     return cactus_walltime(CHUNK_SECS_PER_GB * seq_size / 1e9, io_bytes=2 * seq_size)
 
 
-def make_chunked_alignments(job, event_a, genome_a, event_b, genome_b, distance, params):
+def make_chunked_alignments(job, event_a, genome_a, event_b, genome_b, distance, params, score_model=None):
+    """ score_model is the pair's trained lastz model, if <blast lastzTrain> made one """
     lastz_params_node = params.find("blast")
     gpu = getOptionalAttrib(lastz_params_node, 'gpu', typeFn=int, default=0)
     fastga = getOptionalAttrib(lastz_params_node, 'mapper', typeFn=str) == 'fastga'        
@@ -525,6 +658,7 @@ def make_chunked_alignments(job, event_a, genome_a, event_b, genome_b, distance,
         for j, chunk_b in enumerate(chunks_b):
             mappers = { "lastz":run_lastz, "minimap2":run_minimap2, "fastga":run_fastga}
             mappingFn = mappers[params.find("blast").attrib["mapper"]]
+            mapper_args = {'trained_score_model': score_model} if score_model is not None and mappingFn is run_lastz else {}
             memory = lastz_memory if lastz_memory else max(200000000, 15*(chunk_a.size+chunk_b.size))
             chunked_alignment_files.append(job.addChildJobFn(mappingFn, '{}_{}'.format(event_a, i), chunk_a,
                                                              '{}_{}'.format(event_b, j), chunk_b, distance, params,
@@ -532,7 +666,8 @@ def make_chunked_alignments(job, event_a, genome_a, event_b, genome_b, distance,
                                                              disk=max(4*(chunk_a.size+chunk_b.size), memory),
                                                              memory=cactus_clamp_memory(memory),
                                                              accelerators=accelerators,
-                                                             walltime=cactus_walltime(get_lastz_walltime(distance, params, chunk_a, chunk_b))).rv())
+                                                             walltime=cactus_walltime(get_lastz_walltime(distance, params, chunk_a, chunk_b)),
+                                                             **mapper_args).rv())
 
     dechunk_batch_size = getOptionalAttrib(lastz_params_node, 'dechunkBatchSize', typeFn=int, default=1e9)
     # combine_chunks either dechunks the chunk pafs itself or fans them out in batches, so it never
@@ -554,10 +689,13 @@ def invert_alignments(job, alignment_file):
     return job.fileStore.writeGlobalFile(inverted_alignment_file_local)
 
 
-def make_ingroup_to_outgroup_alignments_0(job, ingroup_event, outgroup_events, event_names_to_sequences, distances, params):
+def make_ingroup_to_outgroup_alignments_0(job, ingroup_event, outgroup_events, event_names_to_sequences, distances, params,
+                                          score_models=None):
+    """ score_models holds the trained lastz models, by lastz_pair_key, if <blast lastzTrain> made them """
     # Generate the alignments fle
     alignment_file = job.addChildJobFn(make_ingroup_to_outgroup_alignments_1, ingroup_event, outgroup_events,
-                                            event_names_to_sequences, distances, params, walltime=cactus_walltime()).rv()
+                                            event_names_to_sequences, distances, params, walltime=cactus_walltime(),
+                                            score_models=score_models).rv()
 
     # Invert the final alignment so that the query is the outgroup and the target is the ingroup.
     # paffy invert holds the alignment and its inverse on local disk at once. The alignment's size
@@ -575,7 +713,8 @@ def make_ingroup_to_outgroup_alignments_0(job, ingroup_event, outgroup_events, e
                                                          io_bytes=4 * alignment_seq_size)).rv()
 
 
-def make_ingroup_to_outgroup_alignments_1(job, ingroup_event, outgroup_events, event_names_to_sequences, distances, params):
+def make_ingroup_to_outgroup_alignments_1(job, ingroup_event, outgroup_events, event_names_to_sequences, distances, params,
+                                          score_models=None):
     #  a job should never set its own follow-on, so we hang everything off root_job here to encapsulate
     root_job = Job(walltime=cactus_walltime())
     job.addChild(root_job)
@@ -583,6 +722,8 @@ def make_ingroup_to_outgroup_alignments_1(job, ingroup_event, outgroup_events, e
     #  align ingroup to first outgroup to produce paf alignments
     outgroup = outgroup_events[0] # The first outgroup
     logger.info("Building alignment between ingroup event: {} and outgroup event: {}".format(ingroup_event.iD, outgroup.iD))
+    # the model trained on the whole ingroup, though only what earlier outgroups left of it is aligned here
+    score_model = score_models.get(lastz_pair_key(ingroup_event.iD, outgroup.iD)) if score_models else None
     alignment = root_job.addChildJobFn(make_chunked_alignments,
                                        outgroup.iD, event_names_to_sequences[outgroup.iD],
                                        ingroup_event.iD, event_names_to_sequences[ingroup_event.iD], distances[ingroup_event, outgroup], params,
@@ -590,14 +731,15 @@ def make_ingroup_to_outgroup_alignments_1(job, ingroup_event, outgroup_events, e
                                                                        event_names_to_sequences[ingroup_event.iD], params),
                                        disk=4*(event_names_to_sequences[ingroup_event.iD].size+event_names_to_sequences[outgroup.iD].size),
                                        walltime=chunked_alignment_walltime(event_names_to_sequences[outgroup.iD],
-                                                                           event_names_to_sequences[ingroup_event.iD])).rv()
+                                                                           event_names_to_sequences[ingroup_event.iD]),
+                                       score_model=score_model).rv()
 
     #  post process the alignments and recursively generate alignments to remaining outgroups
     # Memory: paffy to_bed creates SequenceCountArray (2 bytes per base) for query (ingroup) sequences
     ingroup_size = event_names_to_sequences[ingroup_event.iD].size
     outgroup_size = event_names_to_sequences[outgroup.iD].size
     return root_job.addFollowOnJobFn(make_ingroup_to_outgroup_alignments_2, alignment, ingroup_event, outgroup_events[1:],
-                                     event_names_to_sequences, distances, params,
+                                     event_names_to_sequences, distances, params, score_models=score_models,
                                      disk=4*(ingroup_size + outgroup_size),
                                      memory=cactus_clamp_memory(4*ingroup_size + 2*outgroup_size),
                                      # _2 runs paffy to_bed over the ingroup-to-outgroup paf and then
@@ -609,7 +751,7 @@ def make_ingroup_to_outgroup_alignments_1(job, ingroup_event, outgroup_events, e
 
 
 def make_ingroup_to_outgroup_alignments_2(job, alignments, ingroup_event, outgroup_events,
-                                          event_names_to_sequences, distances, params):
+                                          event_names_to_sequences, distances, params, score_models=None):
     
     # a job should never set its own follow-on, so we hang everything off root_job here to encapsulate
     root_job = Job(walltime=cactus_walltime())
@@ -644,7 +786,8 @@ def make_ingroup_to_outgroup_alignments_2(job, alignments, ingroup_event, outgro
 
     # recursively make alignments with the remaining outgroups
     alignments2 = root_job.addChildJobFn(make_ingroup_to_outgroup_alignments_1, ingroup_event, outgroup_events,
-                                         event_names_to_sequences, distances, params, walltime=cactus_walltime()).rv()
+                                         event_names_to_sequences, distances, params, walltime=cactus_walltime(),
+                                         score_models=score_models).rv()
 
     # _3 with has_resources unset only re-schedules itself once the two pafs have resolved, so it
     # is coordination; the instance that does the merging is sized below
@@ -981,10 +1124,35 @@ def make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancest
         unmask_job = root_job.addChildJobFn(unmask_contigs_all, input_sequence_map, ingroups, params, walltime=cactus_walltime())
         for i,ingroup in enumerate(ingroups):
             event_names_to_sequences[ingroup] = unmask_job.rv(i)
+
+    # train lastz's scores on each pair of genomes it will align (see <blast lastzTrain>), on the whole genomes
+    # (the trimmed ingroups aligned to later outgroups are what earlier ones left) and alongside the unmasking,
+    # which only changes case: last-train masks repeats its own way
+    score_models = {}
+    if lastz_train_enabled(params):
+        train_cores = getOptionalAttrib(lastz_params_node, 'lastzTrainCores', typeFn=int, default=4)
+        pairs = [(ingroup, ingroup2) for ingroup, ingroup2, _ in get_event_pairs(ancestor_event, ingroup_events)] + \
+                [(ingroup, outgroup) for ingroup in ingroup_events for outgroup in outgroup_events]
+        letters = {event.iD: fasta_letters_estimate(job, input_sequence_map[event.iD])
+                   for pair in pairs for event in pair}
+        for event_a, event_b in pairs:
+            genome_a, genome_b = input_sequence_map[event_a.iD], input_sequence_map[event_b.iD]
+            # lastdb takes the smaller genome.  Its database is about 4.6 bytes per base (6.3 GB for a 1.4 Gb fish
+            # genome), and lastdb, and lastal in training, hold it all.  With 4 threads lastdb took 6 minutes on the
+            # fish genome and 34 on a mouse one (split into volumes), and training took 2 to 17 minutes.
+            db_letters = min(letters[event_a.iD], letters[event_b.iD])
+            score_models[lastz_pair_key(event_a.iD, event_b.iD)] = root_job.addChildJobFn(
+                train_lastz_score_model, event_a.iD, genome_a, event_b.iD, genome_b, params,
+                cores=cactus_clamp_cores(train_cores),
+                memory=cactus_clamp_memory(int(1e9 + 5.5 * db_letters)),
+                disk=int(2e9 + 5 * db_letters + genome_a.size + genome_b.size),
+                walltime=cactus_walltime(1800 + 1500 * db_letters / 1e9, io_bytes=genome_a.size + genome_b.size)).rv()
+
+    if unmask_job is not None or score_models:
         new_root_job = Job(walltime=cactus_walltime())
         root_job.addFollowOn(new_root_job)
         root_job = new_root_job
-    
+
     # for each pair of ingroups make alignments
     ingroup_alignments = []
     # for better logs
@@ -1002,7 +1170,8 @@ def make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancest
                                                                                          input_sequence_map[ingroup2.iD], params),
                                                          disk=2*total_sequence_size,
                                                          walltime=chunked_alignment_walltime(input_sequence_map[ingroup.iD],
-                                                                                             input_sequence_map[ingroup2.iD])).rv())
+                                                                                             input_sequence_map[ingroup2.iD]),
+                                                         score_model=score_models.get(lastz_pair_key(ingroup.iD, ingroup2.iD))).rv())
         ingroup_alignment_names.append('{}-{}_vs_{}'.format(ancestor_event_string, ingroup.iD, ingroup2.iD))
 
     distances = get_distances(event_tree)  # Distances between all pairs of nodes
@@ -1015,7 +1184,8 @@ def make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancest
     # for each ingroup make alignments to the outgroups
     if int(params.find("blast").attrib["trimIngroups"]):  # Trim the ingroup sequences
         outgroup_alignments = [root_job.addChildJobFn(make_ingroup_to_outgroup_alignments_0, ingroup, outgroup_events,
-                                                      dict(event_names_to_sequences), distances, params, walltime=cactus_walltime()).rv()
+                                                      dict(event_names_to_sequences), distances, params, walltime=cactus_walltime(),
+                                                      score_models=score_models).rv()
                                 for ingroup in ingroup_events] if len(outgroup_events) > 0 else []
     else:
         outgroup_alignments = [root_job.addChildJobFn(make_chunked_alignments,
@@ -1027,7 +1197,8 @@ def make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancest
                                                                                       input_sequence_map[outgroup.iD], params),
                                                       disk=2*total_sequence_size,
                                                       walltime=chunked_alignment_walltime(input_sequence_map[ingroup.iD],
-                                                                                          input_sequence_map[outgroup.iD])).rv()
+                                                                                          input_sequence_map[outgroup.iD]),
+                                                      score_model=score_models.get(lastz_pair_key(ingroup.iD, outgroup.iD))).rv()
                                for ingroup in ingroup_events for outgroup in outgroup_events]
     # for better logs
     outgroup_alignment_names = ['{}-og_{}'.format(ancestor_event_string, i) for i in range(len(outgroup_alignments))]
