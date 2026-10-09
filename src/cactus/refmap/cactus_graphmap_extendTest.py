@@ -11,16 +11,23 @@ being recomputed.  That only holds if the published GAF round trips exactly, whi
 pin down.
 
 These are fast and offline.  The end-to-end extension is covered by evolverTest.py.
+
+TestGafOverlapFilterConfig, at the end, pins down which GAF overlap filter command each <graphmap>
+setting runs (the exact filter, gaffilter -x, is on by default; "0" must give the stock command).
 """
 
+import copy
 import gzip
 import os
 import re
 import tempfile
 import unittest
+import xml.etree.ElementTree as ET
 
+from cactus.shared.common import cactusRootPath
 from cactus.refmap.cactus_graphmap import (
-    gaf_from_pansn, gaf_to_pansn, pansn_to_event_map, split_gaf_file_by_event, trim_unstable_gaf)
+    gaf_from_pansn, gaf_to_pansn, pansn_to_event_map, split_gaf_file_by_event, trim_unstable_gaf,
+    gaf_to_unstable_commands, overlap_filter_exact, check_overlap_filter_config, apply_mgsplit_filter_overrides)
 
 
 # a stable GAF line as minigraph writes it: query name, then a path of stable segments with
@@ -298,6 +305,78 @@ class TestTrimUnstableGaf(unittest.TestCase):
             self.assertEqual(trim_unstable_gaf(in_path, out_path, lengths_path), 0)
             with open(out_path) as out_file:
                 self.assertEqual(out_file.read(), text)
+
+
+class TestGafOverlapFilterConfig(unittest.TestCase):
+    """ the gaf2unstable | gaffilter command stable_gaf_to_paf() runs, per <graphmap> setting """
+
+    # what the default <graphmap> (minMAPQ 5, minGAFBlockLength 250000, minIdentity 0.5, ratio 5,
+    # min length ratio 0.25) gives with the exact filter off: the command every release before it ran
+    STOCK = [['gaf2unstable', 'g.gaf', '-g', 'g.gfa', '-o', 'g.len'],
+             ['gaffilter', '-', '-r', '5.0', '-m', '0.25', '-q', '5', '-b', '250000', '-i', '0.5']]
+
+    def config(self, **attribs):
+        root = ET.parse(os.path.join(cactusRootPath(), 'cactus_progressive_config.xml')).getroot()
+        root.find('graphmap').attrib.update(attribs)
+        return root
+
+    def commands(self, root, reference='S288C'):
+        return gaf_to_unstable_commands(root, 'g.gaf', 'g.gfa', 'g.len', reference)
+
+    def test_exact_is_the_default(self):
+        root = self.config()
+        self.assertTrue(overlap_filter_exact(root))
+        self.assertTrue(check_overlap_filter_config(root))
+        cmd, junctions_path, summary_path = self.commands(root)
+        self.assertEqual(cmd[0], self.STOCK[0] + ['-n', 'g.gfa.node_table.tsv'])
+        self.assertEqual(cmd[1], self.STOCK[1] + ['-x', '--exact-nodes', 'g.gfa.node_table.tsv', '--exact-ref', 'S288C',
+                                                  '--a0-paf-ratio', '5.0', '--a0-paf-min-overlap', '0.0', '--gap', '31000',
+                                                  '--junctions', 'g.gaf.junctions.tsv',
+                                                  '--exact-summary', 'g.gaf.exact.log'])
+        self.assertEqual((junctions_path, summary_path), ('g.gaf.junctions.tsv', 'g.gaf.exact.log'))
+
+    def test_off_is_stock(self):
+        # "0", and a config from before the attribute existed, both run the stock filter, unchanged
+        root = self.config(GAFOverlapFilterExact='0')
+        self.assertFalse(check_overlap_filter_config(root))
+        self.assertEqual(self.commands(root), (self.STOCK, None, None))
+        del root.find('graphmap').attrib['GAFOverlapFilterExact']
+        self.assertEqual(self.commands(root), (self.STOCK, None, None))
+
+    def test_no_overlap_filter(self):
+        # with GAFOverlapFilterRatio 0 there is no overlap filter to make exact: no error, no gaffilter
+        root = self.config(GAFOverlapFilterRatio='0')
+        self.assertFalse(overlap_filter_exact(root))
+        self.assertEqual(self.commands(root), (self.STOCK[0], None, None))
+        root = self.config()
+        apply_mgsplit_filter_overrides(root)
+        self.assertFalse(overlap_filter_exact(root))
+        self.assertEqual(self.commands(root)[1:], (None, None))
+
+    def test_exact_options(self):
+        root = self.config(GAFOverlapFilterExactRatio='2', GAFOverlapFilterExactGuard='1', GAFOverlapFilterExactGap='21000',
+                           GAFOverlapFilterExactOptions='--min-remainder 5000', collapse='all')
+        gaffilter = self.commands(root, reference=None)[0][1]
+        self.assertNotIn('--exact-ref', gaffilter)
+        # collapsing skips filter_paf's -p stage, which the exact filter's notion of "new" models
+        self.assertEqual(gaffilter[gaffilter.index('--a0-paf-ratio') + 1], '0')
+        for opts in (['--exact-ratio', '2'], ['--guard'], ['--gap', '21000'], ['--min-remainder', '5000']):
+            i = gaffilter.index(opts[0])
+            self.assertEqual(gaffilter[i:i + len(opts)], opts)
+        with self.assertRaises(RuntimeError):
+            check_overlap_filter_config(self.config(GAFOverlapFilterExactRatio='0'))
+
+    def test_trim_removed(self):
+        # gaffilter -t is gone: a config that still asks for it fails rather than silently getting -x
+        for value in ('1', 'true'):
+            with self.assertRaisesRegex(RuntimeError, 'GAFOverlapFilterTrim> has been removed'):
+                check_overlap_filter_config(self.config(GAFOverlapFilterTrim=value))
+            with self.assertRaises(RuntimeError):
+                self.commands(self.config(GAFOverlapFilterTrim=value, GAFOverlapFilterExact='0'))
+        # turned off (or its tuning attributes left behind) is harmless
+        root = self.config(GAFOverlapFilterTrim='0', GAFOverlapFilterTrimEdge='5000', GAFOverlapFilterTrimMinMAPQ='20',
+                           GAFOverlapFilterExact='0')
+        self.assertEqual(self.commands(root), (self.STOCK, None, None))
 
 
 if __name__ == '__main__':

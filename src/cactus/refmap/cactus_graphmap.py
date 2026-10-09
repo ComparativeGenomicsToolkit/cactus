@@ -165,7 +165,8 @@ def graph_map(options):
             input_map['all'] = options.seqFile, options.minigraphGFA
         
         if options.restart:
-            # output_dict maps chrom -> (paf_id, gfa_fa_id, gaf_id, unfiltered_paf_id, paf_filter_log, paf_was_filtered)
+            # output_dict maps chrom -> (paf_id, gfa_fa_id, gaf_id, unfiltered_paf_id, paf_filter_log, paf_was_filtered,
+            # junctions_id, separate_log_id)
             output_dict = toil.restart()
         else:
             # load the config
@@ -182,6 +183,8 @@ def graph_map(options):
                 findRequiredNode(config_node, "graphmap").attrib["delFilter"] = str(options.delFilter)
             if options.minIdentity is not None:
                 findRequiredNode(config_node, "graphmap").attrib["minIdentity"] = str(options.minIdentity)
+            # a config whose overlap filter settings cannot work together fails here, not per genome
+            check_overlap_filter_config(config_node)
 
             # apply cpu override                
             if options.mapCores is not None:
@@ -270,7 +273,8 @@ def graph_map(options):
             in_gaf_id = toil.importFile(makeURL(options.inGAF)) if options.inGAF and not options.remap else None
 
             # run the workflow
-            # output_dict is chrom -> paf_id, gfa_fa_id, gaf_id, unfiltered_paf_id, paf_filter_log, paf_was_filtered
+            # output_dict is chrom -> paf_id, gfa_fa_id, gaf_id, unfiltered_paf_id, paf_filter_log, paf_was_filtered,
+            # junctions_id, separate_log_id
             output_dict = toil.start(Job.wrapJobFn(minigraph_batch_separate_workflow, options, config_wrapper, input_dict, graph_event, True,
                                                    in_gaf_id=in_gaf_id, scores_id_map=scores_id_map, walltime=cactus_walltime()))
 
@@ -288,8 +292,10 @@ def export_graphmap_output(options, config_node, input_map, output_dict, toil):
         construct_chromfile = read_chromfile(options.seqFile)
     for chrom, output_ids in output_dict.items():
         paf_id, gfa_fa_id, gaf_id, unfiltered_paf_id, paf_filter_log, paf_was_filtered = output_ids[:6]
-        # the batch path appends the log of the pass that holds multi-reference-contig bins apart
-        separate_log_id = output_ids[6] if len(output_ids) > 6 else None
+        # the exact overlap filter's junction log (minigraph_workflow), then the log of the pass that
+        # holds multi-reference-contig bins apart (appended by that pass)
+        junctions_id = output_ids[6] if len(output_ids) > 6 else None
+        separate_log_id = output_ids[7] if len(output_ids) > 7 else None
         if options.batch:
             paf_path = os.path.join(options.outputPAF, chrom + '.paf')
         else:
@@ -303,6 +309,8 @@ def export_graphmap_output(options, config_node, input_map, output_dict, toil):
         if paf_was_filtered:
             toil.exportFile(unfiltered_paf_id, makeURL(paf_path + ".unfiltered.gz"))
             toil.exportFile(paf_filter_log, makeURL(paf_path + ".filter.log"))
+        if junctions_id:
+            toil.exportFile(junctions_id, makeURL(paf_path + ".junctions.tsv"))
         if separate_log_id:
             toil.exportFile(separate_log_id, makeURL(os.path.join(os.path.dirname(paf_path),
                                                                  'mgSplit.{}.log'.format(chrom))))
@@ -567,7 +575,9 @@ def minigraph_workflow(job, options, config, seq_id_map, gfa_id, graph_event, sa
                                                        walltime=merge_pafs_walltime(paf_bytes))
         out_paf_id = merge_collapse_job.rv()
 
-    return out_paf_id, fa_id if options.outputFasta else None, paf_job.rv(1), unfiltered_paf_id, filtered_paf_log, paf_was_filtered
+    # the last is the exact overlap filter's junction log (None unless <graphmap GAFOverlapFilterExact>)
+    return out_paf_id, fa_id if options.outputFasta else None, paf_job.rv(1), unfiltered_paf_id, filtered_paf_log, paf_was_filtered, \
+        paf_job.rv(2)
 
 def add_paf_prefixes(job, paf_id, name):
     """ Add prefixes to paf """
@@ -598,6 +608,134 @@ def make_minigraph_fasta(job, gfa_file_id, gfa_file_path, name):
     cactus_call(outfile=fa_path, parameters=cmd)
 
     return job.fileStore.writeGlobalFile(fa_path)
+
+def overlap_filter_exact(config_node):
+    """ does the GAF overlap filter run as gaffilter -x: <graphmap GAFOverlapFilterExact> (on by
+    default; a config without the attribute gets the stock rule), and only while there is an overlap
+    filter at all to run (GAFOverlapFilterRatio > 0, which mgSplit's reference-only pass zeroes) """
+    graphmap_node = findRequiredNode(config_node, "graphmap")
+    return getOptionalAttrib(graphmap_node, "GAFOverlapFilterExact", typeFn=bool, default=False) and \
+        getOptionalAttrib(graphmap_node, "GAFOverlapFilterRatio", typeFn=float, default=0) > 0
+
+def check_overlap_filter_config(config_node):
+    """ check the GAF overlap filter settings up front: a config that cannot run should fail before
+    the hours of construction that come before the mapping.  Returns whether the exact filter is on """
+    graphmap_node = findRequiredNode(config_node, "graphmap")
+    # gaffilter -t is gone (gaffilter -x replaces it, and is on by default).  A config that still
+    # turns it on must not quietly get something else
+    if getOptionalAttrib(graphmap_node, "GAFOverlapFilterTrim", typeFn=bool, default=False):
+        raise RuntimeError('<graphmap GAFOverlapFilterTrim> has been removed, along with GAFOverlapFilterTrimMinMAPQ '
+                           'and GAFOverlapFilterTrimEdge: GAFOverlapFilterExact (gaffilter -x), on by default, replaces '
+                           'it.  Remove GAFOverlapFilterTrim from the config (or set it to 0)')
+    exact = overlap_filter_exact(config_node)
+    if exact:
+        exact_ratio = getOptionalAttrib(graphmap_node, "GAFOverlapFilterExactRatio", typeFn=str, default="")
+        if exact_ratio:
+            try:
+                if not float(exact_ratio) > 0:
+                    raise ValueError()
+            except ValueError:
+                raise RuntimeError('<graphmap GAFOverlapFilterExactRatio> must be empty (meaning GAFOverlapFilterRatio) '
+                                   'or a number > 0, not "{}"'.format(exact_ratio))
+    return exact
+
+def exact_filter_options(config_node, node_table_path, reference):
+    """ the gaffilter -x options <graphmap> asks for, past the stock -r -m -q -b -i """
+    graphmap_node = findRequiredNode(config_node, "graphmap")
+    opts = ['-x', '--exact-nodes', node_table_path]
+    if reference:
+        opts += ['--exact-ref', reference]
+    # "new" sequence is what the stock chain would not anchor, and that chain ends in filter_paf's
+    # -p stage, which filter_paf skips when collapsing
+    paf_ratio = getOptionalAttrib(graphmap_node, "PAFOverlapFilterRatio", typeFn=float, default=0)
+    if getOptionalAttrib(graphmap_node, "collapse", typeFn=str, default="none") != "none":
+        paf_ratio = 0
+    paf_min_overlap = getOptionalAttrib(graphmap_node, "PAFOverlapFilterMinLengthRatio", typeFn=float, default=0)
+    opts += ['--a0-paf-ratio', str(paf_ratio), '--a0-paf-min-overlap', str(paf_min_overlap)]
+    exact_ratio = getOptionalAttrib(graphmap_node, "GAFOverlapFilterExactRatio", typeFn=str, default="")
+    if exact_ratio:
+        opts += ['--exact-ratio', exact_ratio]
+    if getOptionalAttrib(graphmap_node, "GAFOverlapFilterExactGuard", typeFn=bool, default=False):
+        opts += ['--guard']
+    opts += ['--gap', str(getOptionalAttrib(graphmap_node, "GAFOverlapFilterExactGap", typeFn=int, default=31000))]
+    opts += getOptionalAttrib(graphmap_node, "GAFOverlapFilterExactOptions", typeFn=str, default="").split()
+    return opts
+
+def check_overlap_filter_tools(config_node):
+    """ with the exact overlap filter on, make sure the cactus-gfa-tools in use has it, rather than
+    letting every mapping job fail on an unknown option.  Each tool prints its usage when run without
+    arguments (and exits 1, which an old or a new one alike does, hence the || true) """
+    if not overlap_filter_exact(config_node):
+        return
+    script = ('echo gaffilter; gaffilter 2>&1 || true; echo gaf2unstable; gaf2unstable 2>&1 || true; '
+              'echo gaf2paf; gaf2paf 2>&1 || true')
+    usage = cactus_call(parameters=['bash', '-c', script], check_output=True)
+    missing = [what for what, needle in (('gaffilter -x/--exact', '--exact-nodes'),
+                                         ('gaf2unstable -n/--out-nodes', '--out-nodes'),
+                                         ('gaf2paf kq:Z:', 'kq:Z'))
+               if needle not in usage]
+    if missing:
+        raise RuntimeError('<graphmap GAFOverlapFilterExact="1"> needs {}, which the installed cactus-gfa-tools does '
+                           'not have: the commit pinned in build-tools/downloadPangenomeTools must be at or after the '
+                           'one adding gaffilter -x'.format(', '.join(missing)))
+
+# the columns gaffilter -x writes to its --junctions log, one row per junction between two pieces
+# placed apart on the reference (a jump, an inversion or a cross-chromosome join)
+JUNCTION_COLUMNS = ['query', 'chrom', 'p_idx', 'p_s', 'p_e', 'q_idx', 'q_s', 'q_e', 'p_new', 'q_new', 'gap', 'kind',
+                    'dr', 'c1', 'x1', 'c2', 'x2', 'exempt', 'act']
+# two junctions are the same one when both reference endpoints agree to within this (either way round)
+JUNCTION_RECURRENCE_TOL = 10000
+
+def junction_recurrence(rows):
+    """ for each junction row (a list of JUNCTION_COLUMNS fields), the number of distinct haplotypes
+    (the query name up to its first |) with a junction of the same kind whose reference endpoints
+    (c1:x1, c2:x2) both lie within JUNCTION_RECURRENCE_TOL of this one's, in either order.  It counts
+    the row's own haplotype, so 1 means a singleton.  This is the overlap pilot's supported-jump
+    test: a jump two or more haplotypes walk is structure, a singleton is suspect """
+    col = {name: i for i, name in enumerate(JUNCTION_COLUMNS)}
+    tol = JUNCTION_RECURRENCE_TOL
+    ends = []
+    buckets = {}
+    for i, row in enumerate(rows):
+        a = (row[col['c1']], int(row[col['x1']]))
+        b = (row[col['c2']], int(row[col['x2']]))
+        ends.append((row[col['kind']], row[col['query']].split('|')[0], a, b))
+        for c, x in (a, b):
+            buckets.setdefault((row[col['kind']], c, x // tol), []).append(i)
+    def near(p, q):
+        return p[0] == q[0] and abs(p[1] - q[1]) <= tol
+    counts = []
+    for kind, hap, a, b in ends:
+        candidates = set()
+        for k in (-1, 0, 1):
+            candidates.update(buckets.get((kind, a[0], a[1] // tol + k), ()))
+        haps = set()
+        for j in candidates:
+            kind2, hap2, a2, b2 = ends[j]
+            if (near(a, a2) and near(b, b2)) or (near(a, b2) and near(b, a2)):
+                haps.add(hap2)
+        counts.append(len(haps))
+    return counts
+
+def merge_junction_logs(job, junction_id_map):
+    """ merge the per-genome junction logs of the exact overlap filter, adding the recurrence column
+    (junction_recurrence()), which only all the genomes together can give """
+    rows = []
+    for event in sorted(junction_id_map):
+        if junction_id_map[event]:
+            with open(job.fileStore.readGlobalFile(junction_id_map[event])) as junction_file:
+                for line in junction_file:
+                    if line.strip() and not line.startswith('#'):
+                        rows.append(line.rstrip('\n').split('\t'))
+    counts = junction_recurrence(rows)
+    merged_path = os.path.join(job.fileStore.getLocalTempDir(), 'junctions.tsv')
+    with open(merged_path, 'w') as merged_file:
+        merged_file.write('#' + '\t'.join(JUNCTION_COLUMNS + ['recurrence']) + '\n')
+        for row, count in zip(rows, counts):
+            merged_file.write('\t'.join(row + [str(count)]) + '\n')
+    RealtimeLogger.info('Exact overlap filter: {} junctions logged across {} genomes, {} of them in a single haplotype'.format(
+        len(rows), len(junction_id_map), counts.count(1)))
+    return job.fileStore.writeGlobalFile(merged_path)
 
 # minigraph mapping, per job and per GB of sanitized fasta.  Both re-fitted on the 27,097
 # mappings of an HPRC v2.1 run, the first at scale with the faster minigraph, which separate
@@ -635,7 +773,8 @@ def minigraph_map_all(job, options, config, gfa_id, fa_id_map, graph_event, in_g
     than being mapped again -- see translate_gaf_one()
 
     gaf_only maps every genome exactly the same way but stops at the GAF, returning (None, merged
-    PanSN GAF).  It is how zipAlleles with zipWalks="gaf" gets the walks graphmap would see on the
+    PanSN GAF, None).  The third value is otherwise the exact overlap filter's merged junction log
+    (merge_junction_logs), or None when <graphmap GAFOverlapFilterExact> is off.  It is how zipAlleles with zipWalks="gaf" gets the walks graphmap would see on the
     graph before it is zipped (cactus_minigraph.zip_alleles_workflow) """
     assert not (gaf_only and in_gaf_map)
     # hang everything on this job, to self-contain workflow
@@ -646,10 +785,16 @@ def minigraph_map_all(job, options, config, gfa_id, fa_id_map, graph_event, in_g
     # left-aligning writes out the graph's node sequences next to it, and reads them back in along
     # with the genome
     left_align = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "leftAlign", typeFn=bool, default=False)
+    # the exact overlap filter needs tools a stale cactus-gfa-tools does not have: find that out once,
+    # here, rather than in every mapping job
+    exact_filter = not gaf_only and overlap_filter_exact(config.xmlRoot)
+    if exact_filter:
+        check_overlap_filter_tools(config.xmlRoot)
 
     # do the mapping
     gaf_id_map = {}
     paf_id_map = {}
+    junction_id_map = {}
                 
     # the estimate below is anchored on the query, which holds while the graph is no bigger than the
     # chromosome the query came from.  the mgSplitWholeGenomeRef second pass breaks that -- the graph
@@ -662,8 +807,11 @@ def minigraph_map_all(job, options, config, gfa_id, fa_id_map, graph_event, in_g
     # every genome whose contigs can name a step in the GAF's paths, which is more than the
     # genomes being mapped: --refFromGFA takes the reference out of the sequence map
     genome_names = set(fa_id_map.keys())
+    # the first reference: the exact overlap filter gives its records the stock rule, as filter_paf does
+    reference = None
     if options.reference:
-        genome_names.add(options.reference if type(options.reference) is str else options.reference[0])
+        reference = options.reference if type(options.reference) is str else options.reference[0]
+        genome_names.add(reference)
     for event, fa_id in fa_id_map.items():
         mem = 72*fa_id.size + gfa_coefficient*gfa_id.size
         event_name = event
@@ -679,20 +827,22 @@ def minigraph_map_all(job, options, config, gfa_id, fa_id_map, graph_event, in_g
             la_fa_id = fa_id if left_align else None
             la_bytes = fa_id.size + gfa_id.size if left_align else 0
             map_job = top_job.addChildJobFn(translate_gaf_one, config, event_name, gaf_shard_id, gfa_id, genome_names,
-                                            fa_file_id=la_fa_id,
+                                            fa_file_id=la_fa_id, reference=reference,
                                             disk=12*gaf_shard_id.size + 2*gfa_id.size + la_bytes,
                                             memory=cactus_clamp_memory(24*gaf_shard_id.size + 4*gfa_id.size + la_bytes),
                                             walltime=cactus_walltime(TRANSLATE_GAF_SECS_PER_GB * gaf_shard_id.size / 1e9,
                                                                      io_bytes=2*gaf_shard_id.size + gfa_id.size + la_bytes))
         else:
             map_job = top_job.addChildJobFn(minigraph_map_one, config, event_name, fa_id, gfa_id, scores_id=scores_id,
-                                            gaf_only=gaf_only,
+                                            gaf_only=gaf_only, reference=reference,
                                             cores=mg_cores, disk=5*fa_id.size + (2 if left_align and not gaf_only else 1)*gfa_id.size,
                                             memory=cactus_clamp_memory(mem),
                                             walltime=cactus_walltime(MINIGRAPH_MAP_SECS + MINIGRAPH_MAP_SECS_PER_GB * fa_id.size / 1e9,
                                                                      io_bytes=2*fa_id.size + gfa_id.size))
         gaf_id_map[event] = map_job.rv(0)
         paf_id_map[event] = map_job.rv(1)
+        if exact_filter:
+            junction_id_map[event] = map_job.rv(2)
 
     # merge up.  these two are the merges whose inputs scale with the number of genomes, so they get
     # sized off them rather than taking the default; the GAF one also bgzips, so give it the mapping
@@ -707,8 +857,13 @@ def minigraph_map_all(job, options, config, gfa_id, fa_id_map, graph_event, in_g
     gaf_merge_job = top_job.addFollowOnJobFn(merge_pafs_sized, gaf_id_map, gzip=True,
                                              merged_name='{}.gaf'.format(merge_name),
                                              gzip_cores=mg_cores, walltime=cactus_walltime())
+    # the exact overlap filter's junction logs: each genome's is only its own, and whether a junction
+    # recurs in other haplotypes is the first thing a reviewer asks of it
+    junctions_id = None
+    if exact_filter:
+        junctions_id = top_job.addFollowOnJobFn(merge_junction_logs, junction_id_map, walltime=cactus_walltime()).rv()
 
-    return paf_merge_job.rv() if paf_merge_job else None, gaf_merge_job.rv()
+    return paf_merge_job.rv() if paf_merge_job else None, gaf_merge_job.rv(), junctions_id
 
 # id=EVENT|CONTIG, as it appears in a stable GAF's query column and in each of its path segments
 # anchored to a field start (line start or tab) or a path-segment orientation mark, because
@@ -846,10 +1001,11 @@ def gaf_to_pansn(gaf_path, out_path):
         for line in in_file:
             out_file.write(gaf_pansn_re.sub(lambda m: m.group(1) + event_to_pansn_prefix(m.group(2)) + '#', line))
 
-def minigraph_map_one(job, config, event_name, fa_file_id, gfa_file_id, scores_id=None, gaf_only=False):
+def minigraph_map_one(job, config, event_name, fa_file_id, gfa_file_id, scores_id=None, gaf_only=False, reference=None):
     """ Run minigraph to map a Fasta file to a GFA graph, producing a GAF output.  scores_id is a
     last-train model to derive minigraph's base-alignment penalties from.  gaf_only returns
-    (PanSN GAF, None): the same GAF as the mapping publishes, without deriving a PAF from it """
+    (PanSN GAF, None, None): the same GAF as the mapping publishes, without deriving a PAF from it.
+    Otherwise returns what stable_gaf_to_paf() does.  reference is the (first) reference event """
 
     work_dir = job.fileStore.getLocalTempDir()
     gfa_path = os.path.join(work_dir, "mg.gfa")
@@ -894,9 +1050,9 @@ def minigraph_map_one(job, config, event_name, fa_file_id, gfa_file_id, scores_i
         # what stable_gaf_to_paf() below publishes: minigraph's own GAF, renamed to PanSN
         pansn_gaf_path = gaf_path + '.pansn'
         gaf_to_pansn(gaf_path, pansn_gaf_path)
-        return job.fileStore.writeGlobalFile(pansn_gaf_path), None
+        return job.fileStore.writeGlobalFile(pansn_gaf_path), None, None
 
-    return stable_gaf_to_paf(job, config, gaf_path, gfa_path, fa_path=fa_path)
+    return stable_gaf_to_paf(job, config, gaf_path, gfa_path, fa_path=fa_path, reference=reference)
 
 # how many reused GAF records the up-front check resolves before trusting the rest
 GAF_REUSE_CHECK_RECORDS = 1000
@@ -956,7 +1112,7 @@ def check_reusable_gaf(job, config, gaf_file_id, gfa_file_id, genome_names, gaf_
 
     RealtimeLogger.info('Reused mappings from {} resolve against the graph'.format(gaf_path))
 
-def translate_gaf_one(job, config, event_name, gaf_file_id, gfa_file_id, genome_names, fa_file_id=None):
+def translate_gaf_one(job, config, event_name, gaf_file_id, gfa_file_id, genome_names, fa_file_id=None, reference=None):
     """ Re-derive one genome's PAF from mappings it already has, against a (possibly extended) graph.
 
     minigraph GAF is in stable coordinates -- rGFA SN/SO names and offsets -- which adding genomes
@@ -987,7 +1143,7 @@ def translate_gaf_one(job, config, event_name, gaf_file_id, gfa_file_id, genome_
 
     # the reused GAF is published back (PanSN in, PanSN out, unchanged), so a run that extends a
     # pangenome can itself be extended
-    return stable_gaf_to_paf(job, config, gaf_path, gfa_path, regranulated=True, fa_path=fa_path)
+    return stable_gaf_to_paf(job, config, gaf_path, gfa_path, regranulated=True, fa_path=fa_path, reference=reference)
 
 # a GAF path step: an orientation mark followed by a name that runs to the next mark
 gaf_step_re = re.compile(r'[<>][^<>]+')
@@ -1008,9 +1164,9 @@ def trim_unstable_gaf(gaf_path, out_path, node_lengths_path):
     against the graph it is being resolved against -- every line is passed through untouched.
 
     Nothing in cactus-gfa-tools does this today.  gaffilter's rebase_path() is the same algorithm in
-    C++, but it runs only on the records -t actually trims, and only when trimming is on at all, so
-    it never sees the reuse case.  gaf2unstable, which is the thing changing the granularity, is
-    where this belongs if it ever moves. """
+    C++, but gaffilter does not apply it to the records it passes through, so it does not cover the
+    reuse case.  gaf2unstable, which is the thing changing the granularity, is where this belongs if
+    it ever moves. """
     node_len = {}
     with open(node_lengths_path) as lengths_file:
         for line in lengths_file:
@@ -1063,10 +1219,51 @@ def trim_unstable_gaf(gaf_path, out_path, node_lengths_path):
 
     return trimmed_records
 
-def stable_gaf_to_paf(job, config, gaf_path, gfa_path, regranulated=False, fa_path=None):
+def gaf_to_unstable_commands(config_node, gaf_path, gfa_path, mg_lengths_path, reference=None):
+    """ the gaf2unstable command, piped into the GAF overlap filter (gaffilter) when there is one,
+    that stable_gaf_to_paf() runs, returned with the exact filter's junction log and summary paths
+    (None, None when it is off).  gaf2unstable writes the node lengths gaf2paf needs to
+    mg_lengths_path.  Kept apart from the job so that what each <graphmap> setting runs can be
+    checked without one """
+    xml_node = findRequiredNode(config_node, "graphmap")
+    # note: the gfa needs to be uncompressed for this tool to work
+    cmd = ['gaf2unstable', gaf_path, '-g', gfa_path, '-o', mg_lengths_path]
+
+    # optional gaf overlap filter
+    overlap_ratio = getOptionalAttrib(xml_node, "GAFOverlapFilterRatio", typeFn=float, default=0)
+    length_ratio = getOptionalAttrib(xml_node, "GAFOverlapFilterMinLengthRatio", typeFn=float, default=0)
+    min_block = getOptionalAttrib(xml_node, "minGAFBlockLength", typeFn=int, default=0)
+    min_mapq = getOptionalAttrib(xml_node, "minMAPQ", typeFn=int, default=0)
+    min_ident = getOptionalAttrib(xml_node, "minIdentity", typeFn=float, default=0)
+    overlap_exact = check_overlap_filter_config(config_node)
+    junctions_path = None
+    exact_summary_path = None
+    if overlap_ratio:
+        overlap_cmd = ['gaffilter', '-', '-r', str(overlap_ratio), '-m', str(length_ratio), '-q', str(min_mapq),
+                       '-b', str(min_block), '-i', str(min_ident)]
+        if overlap_exact:
+            # per-segment resolution instead of whole-record deletion.  it needs each node's rank and
+            # reference position, which gaf2unstable writes with -n before its first GAF line, so it is
+            # complete by the time gaffilter, which reads all of its input first, opens it.  a record
+            # it cuts comes out whole with the query intervals it keeps in kq:Z:, which gaf2paf applies
+            # line by line, so every line still carries the whole record's block length for filter_paf
+            node_table_path = gfa_path + '.node_table.tsv'
+            cmd += ['-n', node_table_path]
+            junctions_path = gaf_path + '.junctions.tsv'
+            exact_summary_path = gaf_path + '.exact.log'
+            overlap_cmd += exact_filter_options(config_node, node_table_path, reference) + \
+                ['--junctions', junctions_path, '--exact-summary', exact_summary_path]
+        cmd = [cmd, overlap_cmd]
+    return cmd, junctions_path, exact_summary_path
+
+def stable_gaf_to_paf(job, config, gaf_path, gfa_path, regranulated=False, fa_path=None, reference=None):
     """ Turn a stable-coordinate (ie minigraph output) GAF into the node-coordinate PAF cactus
-    consumes, returning (published PanSN gaf id, paf id).  Shared by mapping and by reuse of an
-    existing mapping, so that the two produce identical output for identical input.
+    consumes, returning (published PanSN gaf id, paf id, junction log id).  Shared by mapping and by
+    reuse of an existing mapping, so that the two produce identical output for identical input.
+
+    The junction log is the exact overlap filter's (<graphmap GAFOverlapFilterExact>), None when
+    that is off.  reference is the (first) reference event, whose records that filter leaves to the
+    stock rule.
 
     regranulated says the GAF was made against a coarser version of this graph, so its path offsets
     have to be brought back inside their first and last steps -- see trim_unstable_gaf().  It is a
@@ -1077,43 +1274,11 @@ def stable_gaf_to_paf(job, config, gaf_path, gfa_path, regranulated=False, fa_pa
 
     xml_node = findRequiredNode(config.xmlRoot, "graphmap")
 
-    # convert the gaf into unstable gaf (targets are node sequences)
-    # note: the gfa needs to be uncompressed for this tool to work
+    # convert the gaf into unstable gaf (targets are node sequences), through the overlap filter
     mg_lengths_path = gfa_path + '.node_lengths.tsv'
     unstable_gaf_path = gaf_path + '.unstable'
-    cmd = ['gaf2unstable', gaf_path, '-g', gfa_path, '-o', mg_lengths_path]
-
-    # optional gaf overlap filter
-    overlap_ratio = getOptionalAttrib(xml_node, "GAFOverlapFilterRatio", typeFn=float, default=0)
-    length_ratio = getOptionalAttrib(xml_node, "GAFOverlapFilterMinLengthRatio", typeFn=float, default=0)
-    min_block = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "minGAFBlockLength", typeFn=int, default=0)
-    min_mapq = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "minMAPQ", typeFn=int, default=0)
-    min_ident = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "minIdentity", typeFn=float, default=0)    
-    overlap_trim = getOptionalAttrib(xml_node, "GAFOverlapFilterTrim", typeFn=bool, default=False)
-    trim_edge = getOptionalAttrib(xml_node, "GAFOverlapFilterTrimEdge", typeFn=int, default=5000)
-    trim_min_mapq = getOptionalAttrib(xml_node, "GAFOverlapFilterTrimMinMAPQ", typeFn=int, default=20)
-    if overlap_ratio:
-        if overlap_trim:
-            # GAFOverlapFilterMinLengthRatio exists because deleting a record is expensive: it stops
-            # a small overlap from destroying a whole one.  A trim costs only the contested span, so
-            # the guard has nothing left to protect and only leaves small conflicts between long
-            # contigs unadjudicated -- measured on a 12-sample chr15 graph, trimming with it at 0.25
-            # doubly places 409,584 bp on one segmental-duplication pair that 0 does not.  There is
-            # no setting of it that helps while trimming, so it is not a knob here.
-            length_ratio = 0
-        overlap_cmd = ['gaffilter', '-', '-r', str(overlap_ratio), '-m', str(length_ratio), '-q', str(min_mapq),
-                       '-b', str(min_block), '-i', str(min_ident)]
-        if overlap_trim:
-            # cut the contested span out of a losing record instead of deleting the record whole.
-            # -l: the unstable GAF names bare nodes, so gaffilter needs their lengths to shorten a
-            # path.  gaf2unstable writes that file in full before it emits its first GAF line, so
-            # it is complete by the time gaffilter, which reads all of its input first, opens it.
-            # gaffilter's -g/--close-holes are deliberately not exposed: --close-holes is off and
-            # cannot be justified (no claimant to a hole can meet the bar -r sets), and with it off
-            # -g provably does not change the output.
-            overlap_cmd += ['-t', '-e', str(trim_edge), '-Q', str(trim_min_mapq),
-                            '-l', mg_lengths_path]
-        cmd = [cmd, overlap_cmd]
+    cmd, junctions_path, exact_summary_path = gaf_to_unstable_commands(config.xmlRoot, gaf_path, gfa_path,
+                                                                       mg_lengths_path, reference)
     try:
         cactus_call(parameters=cmd, outfile=unstable_gaf_path, job_memory=job.memory)
     except RuntimeError as e:
@@ -1125,6 +1290,13 @@ def stable_gaf_to_paf(job, config, gaf_path, gfa_path, regranulated=False, fa_pa
         raise RuntimeError('Failed to resolve reused mappings against this graph. If the GAF names sequence the graph '
                            'does not have, it was made against a different pangenome: the GAF must come from the run '
                            'that produced the graph being reused. Underlying error: {}'.format(e))
+
+    junctions_id = None
+    if exact_summary_path:
+        with open(exact_summary_path) as summary_file:
+            for line in summary_file:
+                RealtimeLogger.info('gaffilter {}: {}'.format(os.path.basename(gaf_path), line.rstrip()))
+        junctions_id = job.fileStore.writeGlobalFile(junctions_path)
 
     if regranulated:
         trimmed_path = unstable_gaf_path + '.trimmed'
@@ -1159,8 +1331,8 @@ def stable_gaf_to_paf(job, config, gaf_path, gfa_path, regranulated=False, fa_pa
     # to hold both
     os.remove(gaf_path)
 
-    # return the stable gaf (minigraph output) and the unstable paf
-    return job.fileStore.writeGlobalFile(pansn_gaf_path), job.fileStore.writeGlobalFile(unstable_paf_path)
+    # return the stable gaf (minigraph output), the unstable paf and the exact filter's junction log
+    return job.fileStore.writeGlobalFile(pansn_gaf_path), job.fileStore.writeGlobalFile(unstable_paf_path), junctions_id
 
 # What is left of a merge_pafs job once its staging is accounted for: catFiles runs no command, so
 # this is worker startup and the python copy loop.
@@ -1298,6 +1470,8 @@ def apply_mgsplit_filter_overrides(config_node):
         Caller deep-copies the config first if it must be preserved for other branches. """
     graphmap_node = findRequiredNode(config_node, "graphmap")
     graphmap_node.attrib["GAFOverlapFilterRatio"] = "0"
+    # (the exact filter is an overlap filter too, and needs the ratio)
+    graphmap_node.attrib["GAFOverlapFilterExact"] = "0"
     graphmap_node.attrib["PAFOverlapFilterRatio"] = "0"
     graphmap_node.attrib["minGAFBlockLength"] = "0"
     graphmap_node.attrib["delFilter"] = "-1"
