@@ -45,6 +45,7 @@ from cactus.preprocessor.checkUniqueHeaders import sanitize_fasta_headers
 from cactus.preprocessor.checkPreprocessedSequence import preprocessed_fasta_id
 from cactus.hal.cactus_validate import fail_hal_validation, validate_hal_export
 from cactus.paf.local_alignment import make_paf_alignments, trim_unaligned_sequences
+from cactus.paf.last_scoring import bar_train_enabled
 from cactus.shared.configWrapper import ConfigWrapper
 from cactus.progressive.multiCactusTree import MultiCactusTree
 from cactus.shared.common import setupBinaries, importSingularityImage
@@ -189,30 +190,36 @@ def progressive_step(job, options, config_node, seq_id_map, tree, og_map, event)
     # get the spanning tree (which is what consolidated wants)
     spanning_tree = get_spanning_subtree(tree, event, ConfigWrapper(config_node), og_map)
 
-    # do the blast
+    # do the blast, keeping the scoring models it trains for bar if it is to use them
+    trained = bar_train_enabled(config_node)
     paf_job = job.addChildJobFn(make_paf_alignments, NXNewick().writeString(spanning_tree),
-                                subtree_eventmap, event, config_node, walltime=cactus_walltime()).encapsulate()
+                                subtree_eventmap, event, config_node, return_trained_models=trained,
+                                walltime=cactus_walltime()).encapsulate()
+    paf = paf_job.rv('paf') if trained else paf_job.rv()
+    trained_models = paf_job.rv('models') if trained else None
 
     outgroups = og_map[event] if event in og_map else []
     # trim the outgroups
     if outgroups and int(config_node.find("blast").attrib["trimOutgroups"]):  # Trim the outgroup sequences
         trim_sequences = paf_job.addChildJobFn(trim_unaligned_sequences,
-                                               [subtree_eventmap[i] for i in outgroups], paf_job.rv(), config_node,
+                                               [subtree_eventmap[i] for i in outgroups], paf, config_node,
                                                walltime=cactus_walltime())
         cons_job = paf_job.addFollowOnJobFn(progressive_step_2, trim_sequences.rv(), options, config_node, subtree_eventmap,
-                                            spanning_tree, og_map, event, walltime=cactus_walltime())
+                                            spanning_tree, og_map, event, trained_models=trained_models,
+                                            walltime=cactus_walltime())
         
     else:  # Without outgroup trimming (or if there are no outgroups to trim)
         cons_job = paf_job.addChildJobFn(cactus_cons_with_resources, spanning_tree, event, config_node, subtree_eventmap,
-                                         og_map, paf_job.rv(), cons_cores=options.consCores, cons_memory=options.consMemory, cons_retain_pages=getattr(options, 'consRetainPages', None),
-                                         intermediate_results_url=options.intermediateResultsUrl, walltime=cactus_walltime())
+                                         og_map, paf, cons_cores=options.consCores, cons_memory=options.consMemory, cons_retain_pages=getattr(options, 'consRetainPages', None),
+                                         intermediate_results_url=options.intermediateResultsUrl,
+                                         trained_models=trained_models, walltime=cactus_walltime())
     # erase the paf since its now longer needed
-    cons_job.addFollowOnJobFn(clean_jobstore_files, file_ids=[paf_job.rv()], walltime=cactus_walltime())
+    cons_job.addFollowOnJobFn(clean_jobstore_files, file_ids=[paf], walltime=cactus_walltime())
     return cons_job.rv()
 
 
 def progressive_step_2(job, trimmed_outgroups_and_alignments, options, config_node, subtree_eventmap,
-                       spanning_tree, og_map, event):
+                       spanning_tree, og_map, event, trained_models=None):
     trimmed_outgroup_seqs, pafs = trimmed_outgroups_and_alignments  # unpack the pafs and outgroup sequences
     # set the outgroup seqs
     for outgroup, sequence in zip(og_map[event] if event in og_map else [], trimmed_outgroup_seqs):
@@ -221,7 +228,8 @@ def progressive_step_2(job, trimmed_outgroups_and_alignments, options, config_no
     # now do consolidated
     return job.addChildJobFn(cactus_cons_with_resources, spanning_tree, event, config_node, subtree_eventmap, og_map,
                              pafs, cons_cores=options.consCores, cons_memory=options.consMemory, cons_retain_pages=getattr(options, 'consRetainPages', None),
-                             intermediate_results_url=options.intermediateResultsUrl, walltime=cactus_walltime()).rv()
+                             intermediate_results_url=options.intermediateResultsUrl,
+                             trained_models=trained_models, walltime=cactus_walltime()).rv()
 
 
 def export_hal(job, mc_tree, config_node, seq_id_map, og_map, results, event=None, cacheBytes=None,

@@ -92,9 +92,10 @@
 	<!-- lastzTrain Train lastz's scores on each pair of genomes it aligns with last-train (needs LAST), on the whole
 	     genomes, and align the pair with them, rescaled to HOXD70's units (see lastzScoreModel below).  A pair that
 	     cannot be trained (the smaller genome under 500kb, or last-train failing, as without LAST) falls back to the
-	     lastzScoreModel table, else HOXD70.  It does not apply to KegAlign, minimap2 or FastGA.  On evolver mammals
-	     it raised pooled leaf-pair precision from 0.816 to 0.830 and recall from 0.740 to 0.744, for about 0.3% of
-	     the 577-way's lastz CPU; set it to 0 for lastz's HOXD70 everywhere -->
+	     lastzScoreModel table, else HOXD70.  With <bar trainedModels> the same models score bar too.  It does not apply
+	     to KegAlign, minimap2 or FastGA.  On evolver mammals it raised pooled leaf-pair precision from 0.816 to 0.830
+	     and recall from 0.740 to 0.744, for about 0.3% of the 577-way's lastz CPU; set it to 0 for lastz's HOXD70
+	     everywhere -->
 	<!-- lastzTrainGaps With lastzTrain, use the trained gap penalties; 0 keeps HOXD70's (400 and 30) with the trained
 	     substitution scores -->
 	<!-- lastzTrainCores Cores for each pair's training -->
@@ -298,6 +299,15 @@
 	So an ancestor of two ancestors can reach 0.5 however deep it is.  0 turns it off.  Over the 576 ancestors of the VGP
 	577-way tree with branchScale 2 the median is 0.17 and 15% are 0.5 or more: MammalsAnc0 0.58, MammalsAnc1 0.50,
 	RayFinnedFishesAnc00 0.81, RayFinnedFishesAnc01 0.53, PrimatesAnc0 0.46, HominidaeAnc4 0.001. -->
+	<!-- trainedModels: score bar with the models the blast step trains with last-train on each pair of genomes it aligns
+	(see <blast lastzTrain>, whose training this switches on too, whether or not lastz uses it): abPOA scores each row
+	with the model for its genome and the nearest ingroup (<poa partialOrderAlignmentRowModels>, measured "ingroup"),
+	and pecan each pair of sequences with the model for their two genomes (<pecan pecanPairModels>); a pair blast did
+	not train, as pecan's outgroup pairs, takes the model trained nearest its distance.  They replace any row or pair
+	models in the config.  cactus-blast leaves them next to its PAF, as <paf>.models.json, for cactus-align; pangenome
+	alignments have none.  On by default: on evolver mammals, with lastz trained too, abPOA went from pooled leaf-pair
+	precision/recall 0.830/0.744 (lastz alone) to 0.836/0.742, losing up to 0.9 points of ancestor recall, and pecan
+	from 0.838/0.752 (neither trained) to 0.855/0.760.  0 keeps bar's own settings -->
 	<!-- minimumBlockDegree The minimum number of sequences to form a block in the ancestor -->
 	<!-- minimumIngroupDegree The minimum number ingroup sequences to form a block in the ancestor -->
 	<!-- minimumOutgroupDegree The minimum number of outgroup sequences to form a block in the ancestor -->
@@ -310,6 +320,7 @@
 		baseAligner="abpoa"
 		deepAligner="pecan"
 		deepAlignerDivergence="0"
+		trainedModels="1"
 		minimumBlockDegree="2"
 		minimumIngroupDegree="1"
 		minimumOutgroupDegree="0"

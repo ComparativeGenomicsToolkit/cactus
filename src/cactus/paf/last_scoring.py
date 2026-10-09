@@ -16,6 +16,9 @@ from toil.realtimeLogger import RealtimeLogger
 import os
 import re
 import math
+import json
+import xml.etree.ElementTree as ET
+from sonLib.nxnewick import NXNewick
 from cactus.shared.common import cactus_call, getOptionalAttrib
 from cactus.shared.common import cactus_clamp_memory
 from cactus.shared.common import findRequiredNode
@@ -217,7 +220,8 @@ def implied_lambda(matrix, freqs):
 def parse_train_model(train_file_path):
     """ last-train's final model at the scale it trains at (parse_train_file reads the integer one it ends
     with, whose scores are too coarse to rescale): matrix rows and columns A, C, G, T, the gap existence and
-    extension costs, the query's base frequencies and the identity of the last pass's alignments.  The
+    extension costs, the substitution and gap probabilities they come from (as the last pass counted them),
+    the query's base frequencies, and the identity of the last pass's alignments.  The
     training scale differs from one run to the next (last-train raises it 10% at a time when rounding gets
     too coarse), so the numbers are only comparable between runs once rescaled. """
     with open(train_file_path) as train_file:
@@ -235,19 +239,27 @@ def parse_train_model(train_file_path):
         if not found:
             raise RuntimeError('no {} in {}'.format(key, train_file_path))
         return found
+    probs = {}
+    for line in txt.split('# probability matrix (query letters = columns, reference letters = rows):')[-1].splitlines()[2:6]:
+        toks = line.split()
+        probs[toks[1]] = [float(x) for x in toks[2:6]]
     # the last identity printed is the one the final integer scores imply, whose rounding can move it by
     # several points; the one before is the last pass's, from the alignments it counted
-    return {'matrix': [rows[b] for b in 'ACGT'],
+    return {'matrix': [rows[b] for b in 'ACGT'], 'probs': [probs[b] for b in 'ACGT'],
             'open': int(values('delExistCost')[-1]), 'extend': int(values('delExtendCost')[-1]),
+            'open_prob': float(values('delOpenProb')[-1]), 'extend_prob': float(values('delExtendProb')[-1]),
             'freqs': [float(x) / 100 for x in re.findall(r'# qry letter %: (.*)', txt)[-1].split()],
             'identity': float(values('substitution percent identity')[-2])}
 
-def lastz_scores_from_train(train_file_path, trained_gaps=True):
-    """ the model last-train fitted, as lastz scores on HOXD70's scale: a dict of a <blast><lastzScoreModel>'s
+def hoxd70_scale(model):
+    """ the factor that puts a parse_train_model model on HOXD70's scale (lambda) """
+    return implied_lambda(model['matrix'], model['freqs']) / implied_lambda(HOXD70, HOXD70_FREQS)
+
+def lastz_scores_from_model(model, trained_gaps=True):
+    """ a parse_train_model model as lastz scores on HOXD70's scale: a dict of a <blast><lastzScoreModel>'s
     matrix, gapOpen and gapExtend (see local_alignment.write_lastz_scores), plus the trained identity.  Without
     trained_gaps the gap penalties are HOXD70's, 400 and 30, as lastz has them by default. """
-    model = parse_train_model(train_file_path)
-    scale = implied_lambda(model['matrix'], model['freqs']) / implied_lambda(HOXD70, HOXD70_FREQS)
+    scale = hoxd70_scale(model)
     matrix = [int(round(s * scale)) for row in model['matrix'] for s in row]
     if any(matrix[5 * i] <= 0 for i in range(4)):
         raise RuntimeError('trained matrix {} has a non-positive match score'.format(matrix))
@@ -255,6 +267,147 @@ def lastz_scores_from_train(train_file_path, trained_gaps=True):
             'gapOpen': str(int(round(model['open'] * scale))) if trained_gaps else '400',
             'gapExtend': str(max(1, int(round(model['extend'] * scale)))) if trained_gaps else '30',
             'identity': model['identity']}
+
+def lastz_scores_from_train(train_file_path, trained_gaps=True):
+    """ lastz_scores_from_model for a last-train output file """
+    return lastz_scores_from_model(parse_train_model(train_file_path), trained_gaps)
+
+def poa_scores_from_model(model, open2_factor, extend2_factor):
+    """ a parse_train_model model as abPOA's scoring attributes, on HOXD70's scale, which is also that of the
+    shipped <poa> matrix: the substitution matrix (with N scored as apply_scores_to_config scores it), the
+    trained gap as the first piece of abPOA's convex gap penalty, and a second, long-gap piece made the way
+    apply_long_gap makes one for the pangenome, open2_factor times dearer to open and extend2_factor times
+    cheaper to extend (<poa partialOrderAlignmentTrainedGapOpen2Factor>, ...Extension2Factor). """
+    scale = hoxd70_scale(model)
+    m = [[int(round(s * scale)) for s in row] for row in model['matrix']]
+    gap_open, gap_extend = int(round(model['open'] * scale)), max(1, int(round(model['extend'] * scale)))
+    mismatch = max(m[i][j] for i in range(4) for j in range(4) if i != j)
+    match = min(m[i][i] for i in range(4))
+    sub = []
+    for i in range(4):
+        sub += m[i] + [mismatch]
+    sub += [mismatch] * 4 + [match]
+    return {'partialOrderAlignmentSubMatrix': ' '.join(str(x) for x in sub),
+            'partialOrderAlignmentGapOpenPenalty1': str(gap_open),
+            'partialOrderAlignmentGapExtensionPenalty1': str(gap_extend),
+            'partialOrderAlignmentGapOpenPenalty2': str(gap_open * open2_factor),
+            'partialOrderAlignmentGapExtensionPenalty2': str(max(1, int(round(gap_extend / extend2_factor))))}
+
+# cPecan's built-in five-state model (stateMachine5_construct), whose short:long gap ratios pecan_hmm_from_model keeps
+PECAN_DEFAULT = {'short_open': 0.0129868352330243, 'short_extend': 0.7126062401851738, 'short_switch': 0.0073673675173412815,
+                 'long_open': 0.001821479941473, 'long_extend': 0.99656342579062, 'long_switch': 0.001821479941473}
+
+def pecan_hmm_from_model(model):
+    """ a parse_train_model model as cPecan's symmetric five-state pair HMM (match, short gap x/y, long gap x/y),
+    in the JSON hmm_jsonParse reads.  Match emissions are last-train's substitution probabilities, symmetrised,
+    and gap emissions the letter frequencies.  last-train fits one affine gap where pecan has a short and a long
+    one: its gap-open probability is split between them in the ratio of pecan's own (trained) defaults, so the
+    total is last-train's; short gaps extend as last-train's do, long ones as pecan's; and switching between an
+    insertion and a deletion scales with the open probability. """
+    d = PECAN_DEFAULT
+    f = model['open_prob'] / (d['short_open'] + d['long_open'])
+    short_open, long_open = d['short_open'] * f, d['long_open'] * f
+    short_extend, long_extend = model['extend_prob'], d['long_extend']
+    short_switch = min(d['short_switch'] * f, (1 - short_extend) / 2)
+    long_switch = min(d['long_switch'] * f, (1 - long_extend) / 2)
+    M, SX, SY, LX, LY = range(5)
+    t = [[0.0] * 5 for _ in range(5)]
+    t[M][M] = 1 - 2 * (short_open + long_open)
+    t[M][SX] = t[M][SY] = short_open
+    t[M][LX] = t[M][LY] = long_open
+    for g, o, ext, sw in ((SX, SY, short_extend, short_switch), (SY, SX, short_extend, short_switch),
+                          (LX, LY, long_extend, long_switch), (LY, LX, long_extend, long_switch)):
+        t[g][g], t[g][o], t[g][M] = ext, sw, 1 - ext - sw
+    if any(abs(sum(row) - 1) > 1e-9 or min(row) < 0 for row in t):
+        raise RuntimeError('trained gap probabilities open {} extend {} make no pecan model'.format(
+            model['open_prob'], model['extend_prob']))
+    total = sum(sum(row) for row in model['probs'])
+    probs = [[(model['probs'][x][y] + model['probs'][y][x]) / (2 * total) for y in range(4)] for x in range(4)]
+    q = model['freqs']
+    emissions = []
+    for state in range(5):
+        for x in range(4):
+            for y in range(4):
+                emissions.append(probs[x][y] if state == M else (q[x] if state in (SX, LX) else q[y]) / 4)
+    return json.dumps({'type': 0, 'transitions': [v for row in t for v in row], 'emissions': emissions, 'likelihood': 0.0})
+
+def scoring_models_from_train(train_file_path, config_node, trained_gaps=True):
+    """ everything one last-train run on a pair of genomes scores: the pair's model for lastz
+    (lastz_scores_from_model, with or without its trained gaps), for abPOA's rows (poa_scores_from_model, with
+    the <poa> long-gap factors) and for pecan (pecan_hmm_from_model), and the identity it was trained to """
+    model = parse_train_model(train_file_path)
+    poa_node = findRequiredNode(findRequiredNode(config_node, 'bar'), 'poa')
+    return {'lastz': lastz_scores_from_model(model, trained_gaps),
+            'poa': poa_scores_from_model(model, int(poa_node.attrib['partialOrderAlignmentTrainedGapOpen2Factor']),
+                                         int(poa_node.attrib['partialOrderAlignmentTrainedGapExtension2Factor'])),
+            'pecan': pecan_hmm_from_model(model),
+            'identity': model['identity']}
+
+def trained_models_path(paf_path):
+    """ where cactus-blast leaves the scoring models it trained for a PAF, for cactus-align to give bar """
+    return paf_path + '.models.json'
+
+def bar_train_enabled(config_node):
+    """ whether bar scores with the models trained per pair of genomes in the blast step: <bar trainedModels> """
+    return getOptionalAttrib(findRequiredNode(config_node, 'bar'), 'trainedModels', typeFn=bool, default=False)
+
+def tree_distances(newick, names):
+    """ path lengths between the named nodes of a newick tree, by unordered pair (a frozenset), for those it has """
+    tree = NXNewick().parseString(newick)
+    nodes = {tree.getName(n): n for n in tree.postOrderTraversal() if tree.getName(n) in names}
+    def ancestors(n):
+        path, depth = [n], [0.0]
+        while tree.hasParent(path[-1]):
+            parent = tree.getParent(path[-1])
+            depth.append(depth[-1] + tree.getWeight(parent, path[-1]))
+            path.append(parent)
+        return dict(zip(path, depth))
+    up = {name: ancestors(n) for name, n in nodes.items()}
+    distances = {}
+    for a in nodes:
+        for b in nodes:
+            if a < b:
+                common = min((d + up[b][n] for n, d in up[a].items() if n in up[b]), default=None)
+                if common is not None:
+                    distances[frozenset((a, b))] = common
+    return distances
+
+def apply_trained_models_to_config(config_node, trained_models, reconstruction_tree=None):
+    """ give bar the models trained per pair of genomes in the blast step, in place of any it has: each as
+    a <poa> row model and a <pecan> pair model for its pair of genomes, abPOA's measured to the nearest ingroup
+    (partialOrderAlignmentRowModelDistance="ingroup", so every row's pair is one blast trained).  Pairs blast
+    did not train (pecan aligns outgroups to each other) take the model trained nearest their distance in log
+    terms: each model also covers the distances up to the geometric mean of its pair's and the next one's, on
+    reconstruction_tree, the tree bar measures distances on (the models of pairs it does not name only match
+    their own pair).  trained_models is the list the blast step writes: dicts of genomes (two names), poa
+    and pecan. """
+    bar_node = findRequiredNode(config_node, 'bar')
+    poa_node, pecan_node = findRequiredNode(bar_node, 'poa'), findRequiredNode(bar_node, 'pecan')
+    for node, prefix in (poa_node, 'rowModel'), (pecan_node, 'pairModel'):
+        for child in [c for c in node if c.tag.startswith(prefix)]:
+            node.remove(child)
+    names = {g for m in trained_models for g in m['genomes']}
+    distances = tree_distances(reconstruction_tree, names) if reconstruction_tree else {}
+    # in order of distance, the pairs the tree does not give last; a bin each for the distinct distances
+    def distance(m):
+        return distances.get(frozenset(m['genomes']))
+    ordered = sorted(trained_models, key=lambda m: (distance(m) is None, distance(m) or 0.0, sorted(m['genomes'])))
+    known = sorted({distance(m) for m in ordered if distance(m) is not None})
+    bound = {d: math.sqrt(d * known[i + 1]) if i + 1 < len(known) else 1e9 for i, d in enumerate(known)}
+    binned = set()
+    for i, m in enumerate(ordered):
+        d = distance(m)
+        attrib = {'genomes': ' '.join(m['genomes'])}
+        if d is not None and d not in binned:  # the first model at a distance covers it for unnamed pairs
+            attrib['maxDistance'] = repr(bound[d])
+            binned.add(d)
+        poa_node.append(ET.Element('rowModel{}'.format(i), dict(attrib, **m['poa'])))
+        pecan_node.append(ET.Element('pairModel{}'.format(i), dict(attrib, hmm=m['pecan'])))
+    poa_node.set('partialOrderAlignmentRowModels', str(len(ordered)))
+    poa_node.set('partialOrderAlignmentRowModelDistance', 'ingroup')
+    pecan_node.set('pecanPairModels', str(len(ordered)))
+    RealtimeLogger.info('bar scores with {} models trained per pair of genomes, {} also by distance'.format(
+        len(ordered), len(binned)))
 
 def last_train(job, config, seq_order, seq_id_map, ref_name=None):
     """ run last_train on a pair of fasta files, using the first as the database.
@@ -292,7 +445,17 @@ def last_train(job, config, seq_order, seq_id_map, ref_name=None):
 
     # note: there are some specific options for distant genomes that should be
     # incorporated if/when this ever gets used in progressive cactus
-    train_cmd = ['last-train', '--revsym', '--matsym', '--gapsym',
+    #
+    # -C2 (with lastdb -c below) is LAST's own recipe for genome-genome training: without them each
+    # lastal pass spends most of its time aligning tandem repeats every which way.  lastdb -c stops
+    # them seeding (its default -R01 marks them with tantan; the input's own soft-masking is not
+    # used), and -C2 drops gapless alignments nested in two others.  Measured with 4 threads and
+    # last-train's 1 Mb sample against an 83 Mb chr17 database, in lastal CPU seconds per pass:
+    # CHM13 against GRCh38, centromere included, went from 2831 to 207 for the first pass (run with
+    # LAST's default HUMSUM scores, far too loose for so close a pair) and from ~350 to ~60 for each
+    # pass after it; human against mouse chr11 went from ~440 to ~105.  The trained model came out
+    # the same both times, to within the jitter between last-train's own iterations.
+    train_cmd = ['last-train', '--revsym', '--matsym', '--gapsym', '-C2',
                  '-P', str(job.cores), name1 + '_db', fa2_path]
     train_file = os.path.join(work_dir, '{}_{}.train'.format(name1, name2))
 
@@ -300,7 +463,7 @@ def last_train(job, config, seq_order, seq_id_map, ref_name=None):
     # to converge on too little alignment, or writing something parse_train_file won't accept),
     # the alignment falls back to the default scores, or to another chromosome's model in batch mode
     try:
-        cactus_call(parameters=['lastdb', name1 + '_db', fa1_path, '-P', str(job.cores)])
+        cactus_call(parameters=['lastdb', '-c', name1 + '_db', fa1_path, '-P', str(job.cores)])
         cactus_call(parameters=train_cmd, outfile=train_file)
         parse_train_file(train_file)
     except Exception as e:

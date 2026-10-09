@@ -14,13 +14,14 @@ from toil.lib.bioio import getLogLevelString
 from toil.realtimeLogger import RealtimeLogger
 from sonLib.bioio import newickTreeParser
 import glob
+import json
 import os
 import shutil
 import math
 import copy
 from Bio import SeqIO
 from cactus.paf.paf import get_event_pairs, get_leaves, get_node, get_distances
-from cactus.paf.last_scoring import lastz_scores_from_train
+from cactus.paf.last_scoring import scoring_models_from_train, bar_train_enabled
 from cactus.shared.common import cactus_call, getOptionalAttrib, zip_gz, cactus_walltime
 from cactus.preprocessor.checkUniqueHeaders import sanitize_fasta_headers
 from cactus.preprocessor.unmasking import unmask_contigs_all
@@ -105,10 +106,11 @@ def last_train_has_tolerance():
         return False
 
 
-def train_lastz_score_model(job, event_a, genome_a, event_b, genome_b, params):
-    """ A scoring model for lastz to align a pair of genomes with, trained on the pair with last-train, as
-    lastz_scores_from_train makes it -- or None, leaving the pair to the lastzScoreModel table or HOXD70,
-    when the smaller genome has under 500kb to train on or training fails. """
+def train_pair_scoring_models(job, event_a, genome_a, event_b, genome_b, params):
+    """ Scoring models for a pair of genomes, trained on the pair with last-train: for lastz to align them
+    with (<blast lastzTrain>), and for bar's abPOA rows and pecan pairs (<bar trainedModels>), as
+    scoring_models_from_train makes them -- or None when the smaller genome has under 500kb to train on or
+    training fails, which leaves lastz the lastzScoreModel table or HOXD70, and bar its own settings. """
     # lastdb is most of the work, so the smaller genome is the database (an ancestor's fasta is gzipped)
     genomes = []
     for event, genome in (event_a, genome_a), (event_b, genome_b):
@@ -140,18 +142,30 @@ def train_lastz_score_model(job, event_a, genome_a, event_b, genome_b, params):
         with open(os.path.join(work_dir, 'db.prj')) as prj:
             db_letters = int(next(line for line in prj if line.startswith('numofletters=')).split('=')[1])
         if db_letters < 500000:
-            RealtimeLogger.warning("Not training lastz scores for {} and {}: {} has {} bases, too few to train on".format(
+            RealtimeLogger.warning("Not training scoring for {} and {}: {} has {} bases, too few to train on".format(
                 event_a, event_b, db_event, db_letters))
             return None
         cactus_call(parameters=train_cmd, outfile=train_file, work_dir=work_dir)
-        model = lastz_scores_from_train(train_file, trained_gaps)
+        models = scoring_models_from_train(train_file, params, trained_gaps)
     except Exception as e:
-        RealtimeLogger.warning("Training lastz scores for {} and {} failed, so the pair falls back to the "
-                               "lastzScoreModel table or HOXD70: {}".format(event_a, event_b, e))
+        RealtimeLogger.warning("Training scoring for {} and {} failed, so lastz falls back to the lastzScoreModel "
+                               "table or HOXD70, and bar to its own settings: {}".format(event_a, event_b, e))
         return None
-    RealtimeLogger.info("Trained lastz scores for {} and {} ({} against {}): identity {:.1f}%, matrix {}, gap {}+{}k".format(
-        event_a, event_b, query_event, db_event, model['identity'], model['matrix'], model['gapOpen'], model['gapExtend']))
-    return model
+    RealtimeLogger.info("Trained scoring for {} and {} ({} against {}): identity {:.1f}%, lastz matrix {}, gap {}+{}k".format(
+        event_a, event_b, query_event, db_event, models['identity'], models['lastz']['matrix'],
+        models['lastz']['gapOpen'], models['lastz']['gapExtend']))
+    return models
+
+
+def write_trained_models(job, trained):
+    """ The models train_pair_scoring_models made for the pairs of genomes it could train, by lastz_pair_key,
+    as the JSON list cactus-align, and progressive cactus's consolidated, give bar (see
+    last_scoring.apply_trained_models_to_config): its file ID """
+    models = [dict(model, genomes=key.split(' ')) for key, model in sorted(trained.items()) if model is not None]
+    path = job.fileStore.getLocalTempFile()
+    with open(path, 'w') as out_file:
+        json.dump(models, out_file, indent=1)
+    return job.fileStore.writeGlobalFile(path)
 
 
 def get_lastz_walltime(distance, params, chunk_a, chunk_b):
@@ -183,7 +197,7 @@ def get_lastz_walltime(distance, params, chunk_a, chunk_b):
 
 
 def run_lastz(job, name_A, genome_A, name_B, genome_B, distance, params, trained_score_model=None):
-    """ trained_score_model is the pair's model from train_lastz_score_model, if <blast lastzTrain> made one """
+    """ trained_score_model is the pair's lastz model from train_pair_scoring_models, with <blast lastzTrain> """
     # Create a local temporary file to put the alignments in.
     work_dir = job.fileStore.getLocalTempDir()
     alignment_file = os.path.join(work_dir, '{}_{}.paf'.format(name_A, name_B))
@@ -625,7 +639,8 @@ def chunked_alignment_walltime(genome_a, genome_b):
 
 
 def make_chunked_alignments(job, event_a, genome_a, event_b, genome_b, distance, params, score_model=None):
-    """ score_model is the pair's trained lastz model, if <blast lastzTrain> made one """
+    """ score_model is the pair's trained models, if lastz is to score with them (see train_pair_scoring_models,
+    and <blast lastzTrain>) """
     lastz_params_node = params.find("blast")
     gpu = getOptionalAttrib(lastz_params_node, 'gpu', typeFn=int, default=0)
     fastga = getOptionalAttrib(lastz_params_node, 'mapper', typeFn=str) == 'fastga'        
@@ -658,7 +673,7 @@ def make_chunked_alignments(job, event_a, genome_a, event_b, genome_b, distance,
         for j, chunk_b in enumerate(chunks_b):
             mappers = { "lastz":run_lastz, "minimap2":run_minimap2, "fastga":run_fastga}
             mappingFn = mappers[params.find("blast").attrib["mapper"]]
-            mapper_args = {'trained_score_model': score_model} if score_model is not None and mappingFn is run_lastz else {}
+            mapper_args = {'trained_score_model': score_model['lastz']} if score_model is not None and mappingFn is run_lastz else {}
             memory = lastz_memory if lastz_memory else max(200000000, 15*(chunk_a.size+chunk_b.size))
             chunked_alignment_files.append(job.addChildJobFn(mappingFn, '{}_{}'.format(event_a, i), chunk_a,
                                                              '{}_{}'.format(event_b, j), chunk_b, distance, params,
@@ -1066,10 +1081,17 @@ def merge_processed_alignments(job, processed_file_ids):
         
 
 def sanitize_then_make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancestor_event_string, params,
-                                       output_path=None):
+                                       output_path=None, return_trained_models=False):
+    """ As make_paf_alignments, with the output gzipped if output_path ends in .gz """
     sanitize_job = job.addChildJobFn(sanitize_fasta_headers, event_names_to_sequences, walltime=cactus_walltime())
     paf_job = sanitize_job.addFollowOnJobFn(make_paf_alignments, event_tree_string, sanitize_job.rv(),
-                                            ancestor_event_string, params, walltime=cactus_walltime())
+                                            ancestor_event_string, params, return_trained_models=return_trained_models,
+                                            walltime=cactus_walltime())
+    if return_trained_models:
+        paf, models = paf_job.rv('paf'), paf_job.rv('models')
+        if output_path and output_path.endswith('.gz'):
+            paf = paf_job.addFollowOnJobFn(zip_gz, output_path, paf, walltime=cactus_walltime(900)).rv()
+        return {'paf': paf, 'models': models}
     # gzip the output if requested
     if output_path and output_path.endswith('.gz'):
         # gzipping the final paf: one per run in the 577-way blast logs, p50 165s, p99 575s, max
@@ -1081,7 +1103,11 @@ def sanitize_then_make_paf_alignments(job, event_tree_string, event_names_to_seq
     return paf_job.rv()
 
 
-def make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancestor_event_string, params):
+def make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancestor_event_string, params,
+                        return_trained_models=False):
+    """ The PAF of the alignments for an ancestor, or with return_trained_models a dict of it ('paf') and of the
+    file of the scoring models trained for its pairs of genomes ('models', see write_trained_models; None when
+    none were trained) """
     # a job should never set its own follow-on, so we hang everything off the root_job here to encapsulate
     root_job = Job(walltime=cactus_walltime())
     job.addChild(root_job)
@@ -1125,11 +1151,12 @@ def make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancest
         for i,ingroup in enumerate(ingroups):
             event_names_to_sequences[ingroup] = unmask_job.rv(i)
 
-    # train lastz's scores on each pair of genomes it will align (see <blast lastzTrain>), on the whole genomes
-    # (the trimmed ingroups aligned to later outgroups are what earlier ones left) and alongside the unmasking,
-    # which only changes case: last-train masks repeats its own way
+    # train scoring on each pair of genomes to be aligned (see <blast lastzTrain> and <bar trainedModels>), on the
+    # whole genomes (the trimmed ingroups aligned to later outgroups are what earlier ones left) and alongside the
+    # unmasking, which only changes case: last-train masks repeats its own way
     score_models = {}
-    if lastz_train_enabled(params):
+    lastz_trained = lastz_train_enabled(params)
+    if lastz_trained or bar_train_enabled(params):
         train_cores = getOptionalAttrib(lastz_params_node, 'lastzTrainCores', typeFn=int, default=4)
         pairs = [(ingroup, ingroup2) for ingroup, ingroup2, _ in get_event_pairs(ancestor_event, ingroup_events)] + \
                 [(ingroup, outgroup) for ingroup in ingroup_events for outgroup in outgroup_events]
@@ -1142,7 +1169,7 @@ def make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancest
             # fish genome and 34 on a mouse one (split into volumes), and training took 2 to 17 minutes.
             db_letters = min(letters[event_a.iD], letters[event_b.iD])
             score_models[lastz_pair_key(event_a.iD, event_b.iD)] = root_job.addChildJobFn(
-                train_lastz_score_model, event_a.iD, genome_a, event_b.iD, genome_b, params,
+                train_pair_scoring_models, event_a.iD, genome_a, event_b.iD, genome_b, params,
                 cores=cactus_clamp_cores(train_cores),
                 memory=cactus_clamp_memory(int(1e9 + 5.5 * db_letters)),
                 disk=int(2e9 + 5 * db_letters + genome_a.size + genome_b.size),
@@ -1152,6 +1179,8 @@ def make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancest
         new_root_job = Job(walltime=cactus_walltime())
         root_job.addFollowOn(new_root_job)
         root_job = new_root_job
+    # the models lastz aligns with, if it is to use them (bar's go by write_trained_models below)
+    lastz_models = score_models if lastz_trained else {}
 
     # for each pair of ingroups make alignments
     ingroup_alignments = []
@@ -1171,7 +1200,7 @@ def make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancest
                                                          disk=2*total_sequence_size,
                                                          walltime=chunked_alignment_walltime(input_sequence_map[ingroup.iD],
                                                                                              input_sequence_map[ingroup2.iD]),
-                                                         score_model=score_models.get(lastz_pair_key(ingroup.iD, ingroup2.iD))).rv())
+                                                         score_model=lastz_models.get(lastz_pair_key(ingroup.iD, ingroup2.iD))).rv())
         ingroup_alignment_names.append('{}-{}_vs_{}'.format(ancestor_event_string, ingroup.iD, ingroup2.iD))
 
     distances = get_distances(event_tree)  # Distances between all pairs of nodes
@@ -1185,7 +1214,7 @@ def make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancest
     if int(params.find("blast").attrib["trimIngroups"]):  # Trim the ingroup sequences
         outgroup_alignments = [root_job.addChildJobFn(make_ingroup_to_outgroup_alignments_0, ingroup, outgroup_events,
                                                       dict(event_names_to_sequences), distances, params, walltime=cactus_walltime(),
-                                                      score_models=score_models).rv()
+                                                      score_models=lastz_models).rv()
                                 for ingroup in ingroup_events] if len(outgroup_events) > 0 else []
     else:
         outgroup_alignments = [root_job.addChildJobFn(make_chunked_alignments,
@@ -1198,26 +1227,31 @@ def make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancest
                                                       disk=2*total_sequence_size,
                                                       walltime=chunked_alignment_walltime(input_sequence_map[ingroup.iD],
                                                                                           input_sequence_map[outgroup.iD]),
-                                                      score_model=score_models.get(lastz_pair_key(ingroup.iD, outgroup.iD))).rv()
+                                                      score_model=lastz_models.get(lastz_pair_key(ingroup.iD, outgroup.iD))).rv()
                                for ingroup in ingroup_events for outgroup in outgroup_events]
     # for better logs
     outgroup_alignment_names = ['{}-og_{}'.format(ancestor_event_string, i) for i in range(len(outgroup_alignments))]
+
+    # the trained models, for bar
+    models = root_job.addChildJobFn(write_trained_models, score_models, walltime=cactus_walltime()).rv() \
+        if return_trained_models and score_models else None
 
     # Now do the chaining, either getting ingroup primary alignments separately to primary ingroup to outgroup
     # alignments if the following option is true, otherwise get every sequence to pick its primary alignment without
     # regard to whether the other sequence is an ingroup or an outgroup
     if int(params.find("blast").attrib["pickIngroupPrimaryAlignmentsSeparatelyToOutgroups"]):
-        return root_job.addFollowOnJobFn(chain_alignments_splitting_ingroups_and_outgroups,
+        paf = root_job.addFollowOnJobFn(chain_alignments_splitting_ingroups_and_outgroups,
                                          ingroup_alignments, ingroup_alignment_names,
                                          outgroup_alignments, outgroup_alignment_names,
                                          ancestor_event_string, params,
                                          total_sequence_size=total_sequence_size, walltime=cactus_walltime()).rv()
+        return {'paf': paf, 'models': models} if return_trained_models else paf
 
     # Delete the unmasked fastas (todo: should we do the unmasking somewhere further upstream?)
     for ingroup in ingroup_events:
         root_job.addFollowOnJobFn(clean_if_different, event_names_to_sequences[ingroup.iD], input_sequence_map[ingroup.iD], walltime=cactus_walltime())
 
-    return root_job.addFollowOnJobFn(chain_alignments, ingroup_alignments + outgroup_alignments,
+    paf = root_job.addFollowOnJobFn(chain_alignments, ingroup_alignments + outgroup_alignments,
                                      ingroup_alignment_names + outgroup_alignment_names,
                                      ancestor_event_string, params,
                                      total_sequence_size=total_sequence_size,
@@ -1228,6 +1262,7 @@ def make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancest
                                      # and split_file at the p99 paf-to-sequence ratio of about 7
                                      walltime=cactus_walltime(600 * total_sequence_size / 1e9,
                                                               io_bytes=8 * total_sequence_size)).rv()
+    return {'paf': paf, 'models': models} if return_trained_models else paf
 
 
 def trim_unaligned_sequences(job, sequences, alignments, params, has_resources=False):
