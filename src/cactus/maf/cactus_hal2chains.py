@@ -64,6 +64,11 @@ def main():
                         help="set --maxAnchorDistance in halSynteny")
     parser.add_argument("--minBlockSize", type=int,
                         help="set --minBlockSize in halSynteny")
+    parser.add_argument("--coalescenceLimit",
+                        help="set --coalescenceLimit in halLiftover: the ancestor at which to stop looking for homologies "
+                        "through paralogies (default: the MRCA of each query and target). Raise it to recover homology between "
+                        "gene copies that are separate in the MRCA and only coalesce higher up the tree; the root works for "
+                        "every pair. Must be at or above the MRCA of every (query,target) pair. Not supported by --useHalSynteny")
     parser.add_argument("--linearGapThreshold", type=float, default=1.0,
                         help="Use axtChain -linearGap=medium if the tree distance between query and target is less than this value, and -linearGap=loose otherwise. UCSC's guidance (from doBlastzChainNet.pl) is to use medium for pairs within the same taxonomic class (e.g. mammal-mammal) and loose across class boundaries (e.g. mammal-bird) [default=1.0]")
 
@@ -109,6 +114,9 @@ def main():
         raise RuntimeError('--minBlockSize can only be used with --useHalSynteny')
     if options.includeSelfAlignments and options.useHalSynteny:
         raise RuntimeError('--includeSelfAlignments cannot be used with --useHalSynteny')
+    if options.coalescenceLimit and options.useHalSynteny:
+        # halSynteny has no such option: its hal2psl hard-codes the limit to the MRCA
+        raise RuntimeError('--coalescenceLimit cannot be used with --useHalSynteny')
 
     if options.batchSize and options.batchCount:
         raise RuntimeError('Only one of --batchSize and --batchCount can be specified')
@@ -131,6 +139,14 @@ def main():
     if not options.batchCount and not options.batchSize:
         logger.info('Using default batch count of 1')
         options.batchCount = 1
+
+    # a bad --coalescenceLimit is otherwise only caught after the job store is made and the HAL
+    # imported, so check the genomes against a local HAL now.  hal2chains_get_genomes checks
+    # again for a remote HAL, or with singularity, whose image is only imported in the Toil context
+    if options.coalescenceLimit and not options.restart and os.path.isfile(options.halFile) and \
+       os.environ.get("CACTUS_BINARIES_MODE") != "singularity":
+        tree_str = cactus_call(parameters=['halStats', options.halFile, '--tree'], check_output=True).strip()
+        check_genomes(ConfigWrapper(ET.parse(options.configFile).getroot()), options, tree_str)
 
     # Mess with some toil options to create useful defaults.
     cactus_override_toil_options(options)
@@ -221,6 +237,22 @@ def hal2chains_get_genomes(job, config, options, hal_id):
     RealtimeLogger.info("Reading HAL file from job store to {}".format(hal_path))    
     job.fileStore.readGlobalFile(hal_id, hal_path)
     tree_str = cactus_call(parameters=['halStats', hal_path, '--tree'], check_output=True).strip()
+    leaf_genomes = check_genomes(config, options, tree_str)
+
+    # Distances between all pairs of nodes
+    event_tree = newickTreeParser(tree_str)
+    distances = get_distances(event_tree)
+    distance_matrix = {}
+    for k,v in distances.items():
+        g1,g2 = k[0].iD, k[1].iD
+        if g1 not in distance_matrix:
+            distance_matrix[g1] = {}
+        distance_matrix[g1][g2] = v
+
+    return leaf_genomes, distance_matrix
+
+def check_genomes(config, options, tree_str):
+    """ check the input genomes against the hal tree, returning its leaf genomes """
     mc_tree = MultiCactusTree(NXNewick().parseString(tree_str, addImpliedRoots=False))
     graph_event = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "assemblyName", default="_MINIGRAPH_")
     leaf_genomes = []
@@ -243,18 +275,45 @@ def hal2chains_get_genomes(job, config, options, hal_id):
             if input_genome not in leaf_genomes and input_genome not in anc_genomes:
                 raise RuntimeError('Input --queryGenomes {} not found in HAL file'.format(input_genome))
 
-    # Distances between all pairs of nodes
-    event_tree = newickTreeParser(tree_str)
-    distances = get_distances(event_tree)
-    distance_matrix = {}
-    for k,v in distances.items():
-        g1,g2 = k[0].iD, k[1].iD
-        if g1 not in distance_matrix:
-            distance_matrix[g1] = {}
-        distance_matrix[g1][g2] = v
-    
-    return leaf_genomes, distance_matrix
-    
+    if options.coalescenceLimit:
+        check_coalescence_limit(mc_tree, options, leaf_genomes)
+
+    return leaf_genomes
+
+def check_coalescence_limit(mc_tree, options, leaf_genomes):
+    """ halLiftover's paralogy search climbs from the MRCA of the query and target, and only stops at
+    --coalescenceLimit if it gets there: from anywhere else it climbs past the root and throws "Hit root
+    genome when attempting to map paralogies".  So the limit must be at or above both genomes of every
+    pair, which this checks for all of them rather than letting the batches fail one at a time """
+    limit = options.coalescenceLimit
+    if limit not in mc_tree.nameToId:
+        raise RuntimeError('Input --coalescenceLimit {} not found in HAL file'.format(limit))
+    under_limit = set([mc_tree.getName(node) for node in mc_tree.preOrderTraversal(mc_tree.nameToId[limit])])
+
+    # query and target default to all leaves, as in hal2chains_chrom_info_all
+    query_genomes = options.queryGenomes if options.queryGenomes else leaf_genomes
+    target_genomes = options.targetGenomes if options.targetGenomes else leaf_genomes
+    num_pairs = 0
+    bad_pairs = []
+    for q in query_genomes:
+        for t in target_genomes:
+            if options.includeSelfAlignments or t != q:
+                num_pairs += 1
+                if q not in under_limit or t not in under_limit:
+                    bad_pairs.append((q, t))
+
+    if bad_pairs:
+        # an all-vs-all can be 100,000s of pairs, so only name the first few
+        def preview(items, count=20):
+            return ', '.join(items[:count]) + (' (...and {} more)'.format(len(items) - count) if len(items) > count else '')
+        outside = sorted(set([g for pair in bad_pairs for g in pair if g not in under_limit]))
+        raise RuntimeError('--coalescenceLimit {} must be the MRCA of the query and target genomes or one of its ancestors, '
+                           'which it is not for {} of the {} (query,target) pairs: {}. Genomes not at or below {}: {}. '
+                           'Use the root, {}, which works for every pair, or only choose --queryGenomes and --targetGenomes '
+                           'at or below {}'.format(limit, len(bad_pairs), num_pairs,
+                                                   preview(['({},{})'.format(q, t) for q, t in bad_pairs]),
+                                                   limit, preview(outside), mc_tree.getName(mc_tree.rootId), limit))
+
 def compute_batches(num_items, options):
     """ figure out the number of batches and items per batch given --batchSize/--batchCount """
     if num_items <= 0:
@@ -566,6 +625,8 @@ def hal2chains_batch(job, config, options, hal_id, batch_pairs, batch_chrom_info
             first = 'halLiftover {hal} {q} {q}.bed {t} /dev/stdout --outPSL'.format(hal=hal_base, q=q, t=t)
             if options.inMemory:
                 first += ' --inMemory'
+            if options.coalescenceLimit:
+                first += ' --coalescenceLimit {}'.format(options.coalescenceLimit)
 
         cmd = ('set -eo pipefail && '
                '{first} | pslPosTarget /dev/stdin /dev/stdout | '
