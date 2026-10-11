@@ -33,6 +33,11 @@ from concurrent.futures import ThreadPoolExecutor
 from cactus.shared.common import cactus_call
 
 MATCH, SHORT_GAP_X, SHORT_GAP_Y, LONG_GAP_X, LONG_GAP_Y = range(5)   # cPecan's five states, in its order
+# cPecan's built-in long-gap state (stateMachine5_construct), which training keeps: lastz's alignments, local and split
+# at any long indel, show next to no long gaps, and EM on them turns the long state into a second short one (on
+# evolver mammals, open 0.014 and extend 0.83 against these), which cost pecan two points of precision there
+LONG_GAP_OPEN = 0.001821479941473
+LONG_GAP_EXTEND = 0.99656342579062
 # the same states with the two sequences exchanged
 XY_SWAP = [MATCH, SHORT_GAP_Y, SHORT_GAP_X, LONG_GAP_Y, LONG_GAP_X]
 COMPLEMENT = bytes.maketrans(b'ACGTacgtNn', b'TGCAtgcaNn')
@@ -225,10 +230,21 @@ def write_hmm(path, transitions, emissions):
 def maximise(transitions, emissions):
     """ the five-state model that the expected counts make, with the two sequences made alike (as pecan aligns
     them either way round) and the two strands alike: transitions[from * 5 + to], emissions[state * 16 + x * 4 + y],
-    bases in the order A C G T.  The gap states share one base distribution, the letters they emit. """
+    bases in the order A C G T.  The gap states share one base distribution, the letters they emit.  The long-gap
+    state's transitions are held at cPecan's (LONG_GAP_OPEN, LONG_GAP_EXTEND), and the rest of the match state's
+    share out what they leave in proportion to their counts: the most likely model with the long gaps fixed. """
     T = [[max(transitions[i * 5 + j], 0.0) + 1e-6 for j in range(5)] for i in range(5)]
     T = [[(T[i][j] + T[XY_SWAP[i]][XY_SWAP[j]]) / 2 for j in range(5)] for i in range(5)]
     T = [[v / sum(row) for v in row] for row in T]
+    free = T[MATCH][MATCH] + T[MATCH][SHORT_GAP_X] + T[MATCH][SHORT_GAP_Y]
+    for j in (MATCH, SHORT_GAP_X, SHORT_GAP_Y):
+        T[MATCH][j] *= (1 - 2 * LONG_GAP_OPEN) / free
+    T[MATCH][LONG_GAP_X] = T[MATCH][LONG_GAP_Y] = LONG_GAP_OPEN
+    # as cPecan's own: extend or return to match, and a switch to the other sequence's long gap (which its recursion
+    # does not use) of the open probability
+    for g, other in ((LONG_GAP_X, LONG_GAP_Y), (LONG_GAP_Y, LONG_GAP_X)):
+        T[g] = [0.0] * 5
+        T[g][g], T[g][MATCH], T[g][other] = LONG_GAP_EXTEND, 1 - LONG_GAP_EXTEND, LONG_GAP_OPEN
     E = [[[max(emissions[s * 16 + x * 4 + y], 0.0) + 1e-6 for y in range(4)] for x in range(4)] for s in range(5)]
     # A C G T reversed is the complement of each: (x, y) and (3 - x, 3 - y) are the same pair on the other strand
     M = [[(E[MATCH][x][y] + E[MATCH][y][x] + E[MATCH][3 - x][3 - y] + E[MATCH][3 - y][3 - x]) / 4 for y in range(4)]
@@ -286,14 +302,9 @@ def train_pair_hmm(batch_dir, batches, iterations, threads):
 
 
 def single_gap(transitions):
-    """ the model's two gap states (in one sequence) as one affine gap, (open, extend) probabilities: open their
-    total, extension the one that keeps their mean gap length.  Both, not the short one alone: fitted to lastz's
-    alignments, the two can come out alike, with the "long" one taking most of the gaps. """
-    T = lambda i, j: transitions[i * 5 + j]
-    ds, es, dl, el = T(MATCH, SHORT_GAP_X), T(SHORT_GAP_X, SHORT_GAP_X), T(MATCH, LONG_GAP_X), T(LONG_GAP_X, LONG_GAP_X)
-    open_prob = ds + dl
-    mean_length = (ds / (1 - es) + dl / (1 - el)) / open_prob
-    return open_prob, 1 - 1 / mean_length
+    """ the model's gaps (in one sequence) as one affine gap, (open, extend) probabilities: its short-gap state's,
+    the one trained (see maximise) """
+    return transitions[MATCH * 5 + SHORT_GAP_X], transitions[SHORT_GAP_X * 5 + SHORT_GAP_X]
 
 
 def score_model_from_hmm(transitions, emissions, units_per_nat=100.0):
