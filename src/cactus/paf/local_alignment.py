@@ -21,7 +21,8 @@ import math
 import copy
 from Bio import SeqIO
 from cactus.paf.paf import get_event_pairs, get_leaves, get_node, get_distances
-from cactus.paf.last_scoring import scoring_models_from_train, bar_train_enabled
+from cactus.paf.last_scoring import scoring_models_from_hmm, bar_train_enabled
+from cactus.paf.pair_hmm_training import sample_pieces, paf_to_cpecan_batches, train_pair_hmm
 from cactus.shared.common import cactus_call, getOptionalAttrib, zip_gz, cactus_walltime
 from cactus.preprocessor.checkUniqueHeaders import sanitize_fasta_headers
 from cactus.preprocessor.unmasking import unmask_contigs_all
@@ -97,62 +98,95 @@ def lastz_pair_key(event_a, event_b):
     return ' '.join(sorted([event_a, event_b]))
 
 
-def last_train_has_tolerance():
-    """ Whether last-train has --tolerance, which stops training once no score moves by more than a given
-    percentage, rather than waiting for the scores to repeat exactly (a proposed patch to LAST) """
+def train_pair_scoring_models(job, event_a, genome_a, event_b, genome_b, distance, params):
+    """ Scoring models for a pair of genomes, trained on the pair with cPecan's pair HMM (see pair_hmm_training): for
+    lastz to align them with (<blast lastzTrain>), and for bar's abPOA rows and pecan pairs (<bar trainedModels>), as
+    scoring_models_from_hmm makes them -- or None when the smaller genome has under 500kb to train on or training
+    fails, which leaves lastz the lastzScoreModel table or HOXD70, and bar its own settings.
+
+    Random pieces of the larger genome (<blast trainPieces> of <blast trainPieceLength>) are aligned to the smaller
+    by the blast step's own make_chunked_alignments, as it aligns a pair it has no model for, and the model is fitted
+    to those alignments (fit_pair_scoring_models).  Returns that job's promise. """
+    # the smaller genome is searched, the larger sampled (an ancestor's fasta is gzipped)
+    genomes = sorted([(fasta_letters_estimate(job, genome), event, genome) for event, genome in
+                      ((event_a, genome_a), (event_b, genome_b))], key=lambda g: (g[0], g[1]))
+    (db_letters, db_event, db_genome), (sample_letters, sample_event, sample_genome) = genomes
+    if db_letters < 500000:
+        RealtimeLogger.warning("Not training scoring for {} and {}: {} has about {} bases, too few to train on".format(
+            event_a, event_b, db_event, db_letters))
+        return None
+    blast_node = params.find("blast")
+    pieces = getOptionalAttrib(blast_node, 'trainPieces', typeFn=int, default=5000)
+    piece_length = getOptionalAttrib(blast_node, 'trainPieceLength', typeFn=int, default=2000)
+    sample_job = job.addChildJobFn(sample_training_pieces, sample_event, sample_genome, pieces, piece_length,
+                                   memory=cactus_clamp_memory(int(1e9 + 0.5 * sample_letters)),
+                                   disk=int(1e9 + sample_genome.size + pieces * piece_length),
+                                   walltime=cactus_walltime(300 + 120 * sample_letters / 1e9, io_bytes=2 * sample_genome.size))
+    align_job = sample_job.addFollowOnJobFn(align_training_pieces, db_event, db_genome, sample_job.rv(), distance, params,
+                                            walltime=cactus_walltime())
+    fit_job = job.addFollowOnJobFn(fit_pair_scoring_models, event_a, event_b, db_event, db_genome, sample_event,
+                                   sample_job.rv(), align_job.rv(), params,
+                                   cores=cactus_clamp_cores(getOptionalAttrib(blast_node, 'lastzTrainCores', typeFn=int, default=4)),
+                                   memory=cactus_clamp_memory(int(2e9 + 0.5 * db_letters)),
+                                   disk=int(2e9 + db_genome.size + 10 * pieces * piece_length),
+                                   walltime=cactus_walltime(1800 + 300 * db_letters / 1e9, io_bytes=2 * db_genome.size))
+    return fit_job.rv()
+
+
+def sample_training_pieces(job, event, genome, pieces, piece_length):
+    """ the fasta of random pieces of a genome to train a pair's scoring models on (pair_hmm_training.sample_pieces),
+    or None when the genome has too few long enough sequences to give any """
+    fasta = job.fileStore.readGlobalFile(genome)
+    sample = job.fileStore.getLocalTempFile()
+    written = sample_pieces(fasta, sample, pieces, piece_length)
+    if written == 0:
+        RealtimeLogger.warning("Not training scoring on {}: it has no {}bp pieces to sample".format(event, piece_length))
+        return None
+    RealtimeLogger.info("Sampled {} pieces of {}bp from {} to train scoring on".format(written, piece_length, event))
+    return job.fileStore.writeGlobalFile(sample)
+
+
+def align_training_pieces(job, db_event, db_genome, sample, distance, params):
+    """ the training sample aligned to the genome it was not drawn from, by make_chunked_alignments with no model,
+    as the blast step aligns any pair it has none for: the sample is the query, as one chunk """
+    if sample is None:
+        return None
+    return job.addChildJobFn(make_chunked_alignments, db_event, db_genome, 'trainSample', sample, distance, params,
+                             memory=chunked_alignment_memory(db_genome, sample, params),
+                             disk=2 * (db_genome.size + sample.size),
+                             walltime=chunked_alignment_walltime(db_genome, sample)).rv()
+
+
+def fit_pair_scoring_models(job, event_a, event_b, db_event, db_genome, sample_event, sample, paf, params):
+    """ the pair's scoring models, fitted by EM to the training sample's alignments to db_genome
+    (pair_hmm_training.train_pair_hmm) and converted by scoring_models_from_hmm; None if there is nothing to fit,
+    or the fit fails """
+    if sample is None or paf is None:
+        return None
+    blast_node = params.find("blast")
+    trained_gaps = getOptionalAttrib(blast_node, 'lastzTrainGaps', typeFn=bool, default=False)
+    iterations = getOptionalAttrib(blast_node, 'trainIterations', typeFn=int, default=5)
+    threads = max(1, int(job.cores))
+    batches = 4 * threads
     try:
-        return '--tolerance' in cactus_call(parameters=['last-train', '--help'], check_output=True)
-    except Exception:
-        return False
-
-
-def train_pair_scoring_models(job, event_a, genome_a, event_b, genome_b, params):
-    """ Scoring models for a pair of genomes, trained on the pair with last-train: for lastz to align them
-    with (<blast lastzTrain>), and for bar's abPOA rows and pecan pairs (<bar trainedModels>), as
-    scoring_models_from_train makes them -- or None when the smaller genome has under 500kb to train on or
-    training fails, which leaves lastz the lastzScoreModel table or HOXD70, and bar its own settings. """
-    # lastdb is most of the work, so the smaller genome is the database (an ancestor's fasta is gzipped)
-    genomes = []
-    for event, genome in (event_a, genome_a), (event_b, genome_b):
-        genomes.append((fasta_letters_estimate(job, genome), event, genome, fasta_is_gzipped(job, genome)))
-    genomes.sort(key=lambda g: (g[0], g[1]))
-    db_event, query_event = genomes[0][1], genomes[1][1]
-    work_dir = job.fileStore.getLocalTempDir()
-    local_fastas = []
-    for name, (_, _, genome, gzipped) in zip(('db', 'query'), genomes):
-        # last-train goes by the name to tell a gzipped fasta
-        local_fastas.append(name + ('.fa.gz' if gzipped else '.fa'))
-        job.fileStore.readGlobalFile(genome, os.path.join(work_dir, local_fastas[-1]))
-    trained_gaps = getOptionalAttrib(params.find("blast"), 'lastzTrainGaps', typeFn=bool, default=True)
-
-    # lastdb -c and -C2 are LAST's recipe for training on genomes: -c keeps masked letters out of the seeds, and
-    # -C2 drops gapless alignments nested in two others.  -R10 makes the masked letters the inputs' soft-masking
-    # (cactus's Red), which masks repeats from seeding as it does for lastz, in place of LAST's default of masking
-    # only simple repeats with tantan (lastal follows lastdb's -R).  That makes lastdb ~3x and training ~10x cheaper
-    # on a mammal genome (human against mouse: 991 rather than 4494 CPU-s in all), and keeps interspersed repeats
-    # out of the model: two mouse assemblies trained to 99.35% identity without, from alignments between repeat
-    # copies, and 100.00% with.
-    train_cmd = ['last-train', '--revsym', '--matsym', '--gapsym', '-C2', '-P', str(job.cores)]
-    if last_train_has_tolerance():
-        train_cmd.append('--tolerance=1')
-    train_cmd += ['db', local_fastas[1]]
-    train_file = os.path.join(work_dir, 'pair.train')
-    try:
-        cactus_call(parameters=['lastdb', '-c', '-R10', '-P', str(job.cores), 'db', local_fastas[0]], work_dir=work_dir)
-        with open(os.path.join(work_dir, 'db.prj')) as prj:
-            db_letters = int(next(line for line in prj if line.startswith('numofletters=')).split('=')[1])
-        if db_letters < 500000:
-            RealtimeLogger.warning("Not training scoring for {} and {}: {} has {} bases, too few to train on".format(
-                event_a, event_b, db_event, db_letters))
+        work_dir = job.fileStore.getLocalTempDir()
+        stats = paf_to_cpecan_batches(job.fileStore.readGlobalFile(paf), job.fileStore.readGlobalFile(sample),
+                                      job.fileStore.readGlobalFile(db_genome), os.path.join(work_dir, 'batches'), batches)
+        if stats['kept'] == 0:
+            RealtimeLogger.warning("Not training scoring for {} and {}: none of the {} alignments of {}'s sample to {} "
+                                   "is usable".format(event_a, event_b, stats['alignments'], sample_event, db_event))
             return None
-        cactus_call(parameters=train_cmd, outfile=train_file, work_dir=work_dir)
-        models = scoring_models_from_train(train_file, params, trained_gaps)
+        transitions, emissions, identities = train_pair_hmm(os.path.join(work_dir, 'batches'), batches, iterations, threads)
+        models = scoring_models_from_hmm(transitions, emissions, params, trained_gaps)
     except Exception as e:
         RealtimeLogger.warning("Training scoring for {} and {} failed, so lastz falls back to the lastzScoreModel "
                                "table or HOXD70, and bar to its own settings: {}".format(event_a, event_b, e))
         return None
-    RealtimeLogger.info("Trained scoring for {} and {} ({} against {}): identity {:.1f}%, lastz matrix {}, gap {}+{}k".format(
-        event_a, event_b, query_event, db_event, models['identity'], models['lastz']['matrix'],
+    RealtimeLogger.info("Trained scoring for {} and {} ({}'s sample against {}: {} alignments, {} bp, median identity {}; "
+                        "EM identity by iteration {}): identity {:.1f}%, lastz matrix {}, gap {}+{}k".format(
+        event_a, event_b, sample_event, db_event, stats['kept'], stats['aligned_bp'],
+        '{:.1f}%'.format(100 * stats['identity']) if stats['identity'] is not None else 'unknown',
+        ' '.join('{:.1f}'.format(100 * i) for i in identities), models['identity'], models['lastz']['matrix'],
         models['lastz']['gapOpen'], models['lastz']['gapExtend']))
     return models
 
@@ -1153,27 +1187,19 @@ def make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancest
 
     # train scoring on each pair of genomes to be aligned (see <blast lastzTrain> and <bar trainedModels>), on the
     # whole genomes (the trimmed ingroups aligned to later outgroups are what earlier ones left) and alongside the
-    # unmasking, which only changes case: last-train masks repeats its own way
+    # unmasking, which only changes case.  Each pair's training is a small workflow of its own: sampling, a lastz
+    # job per chunk of the smaller genome, and the fit (see train_pair_scoring_models), with resources of their own
     score_models = {}
     lastz_trained = lastz_train_enabled(params)
     if lastz_trained or bar_train_enabled(params):
-        train_cores = getOptionalAttrib(lastz_params_node, 'lastzTrainCores', typeFn=int, default=4)
         pairs = [(ingroup, ingroup2) for ingroup, ingroup2, _ in get_event_pairs(ancestor_event, ingroup_events)] + \
                 [(ingroup, outgroup) for ingroup in ingroup_events for outgroup in outgroup_events]
-        letters = {event.iD: fasta_letters_estimate(job, input_sequence_map[event.iD])
-                   for pair in pairs for event in pair}
+        pair_distances = get_distances(event_tree)
         for event_a, event_b in pairs:
             genome_a, genome_b = input_sequence_map[event_a.iD], input_sequence_map[event_b.iD]
-            # lastdb takes the smaller genome.  Its database is about 4.6 bytes per base (6.3 GB for a 1.4 Gb fish
-            # genome), and lastdb, and lastal in training, hold it all.  With 4 threads lastdb took 6 minutes on the
-            # fish genome and 34 on a mouse one (split into volumes), and training took 2 to 17 minutes.
-            db_letters = min(letters[event_a.iD], letters[event_b.iD])
             score_models[lastz_pair_key(event_a.iD, event_b.iD)] = root_job.addChildJobFn(
-                train_pair_scoring_models, event_a.iD, genome_a, event_b.iD, genome_b, params,
-                cores=cactus_clamp_cores(train_cores),
-                memory=cactus_clamp_memory(int(1e9 + 5.5 * db_letters)),
-                disk=int(2e9 + 5 * db_letters + genome_a.size + genome_b.size),
-                walltime=cactus_walltime(1800 + 1500 * db_letters / 1e9, io_bytes=genome_a.size + genome_b.size)).rv()
+                train_pair_scoring_models, event_a.iD, genome_a, event_b.iD, genome_b,
+                pair_distances[(event_a, event_b)], params, walltime=cactus_walltime()).rv()
 
     if unmask_job is not None or score_models:
         new_root_job = Job(walltime=cactus_walltime())

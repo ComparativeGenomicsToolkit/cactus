@@ -22,6 +22,7 @@ from sonLib.nxnewick import NXNewick
 from cactus.shared.common import cactus_call, getOptionalAttrib
 from cactus.shared.common import cactus_clamp_memory
 from cactus.shared.common import findRequiredNode
+from cactus.paf.pair_hmm_training import score_model_from_hmm, pecan_hmm_json
 
 
 def parse_train_file(train_file_path):
@@ -341,6 +342,19 @@ def scoring_models_from_train(train_file_path, config_node, trained_gaps=True):
             'poa': poa_scores_from_model(model, int(poa_node.attrib['partialOrderAlignmentTrainedGapOpen2Factor']),
                                          int(poa_node.attrib['partialOrderAlignmentTrainedGapExtension2Factor'])),
             'pecan': pecan_hmm_from_model(model),
+            'identity': model['identity']}
+
+def scoring_models_from_hmm(transitions, emissions, config_node, trained_gaps=False):
+    """ everything a pair's cPecan model (pair_hmm_training.train_pair_hmm) scores, as scoring_models_from_train
+    makes it from last-train's: the model for lastz (lastz_scores_from_model, with or without its gaps), for abPOA's
+    rows (poa_scores_from_model, with the <poa> long-gap factors), for pecan (the trained model itself, which is
+    pecan's own five states) and the identity it was trained to """
+    model = score_model_from_hmm(transitions, emissions)
+    poa_node = findRequiredNode(findRequiredNode(config_node, 'bar'), 'poa')
+    return {'lastz': lastz_scores_from_model(model, trained_gaps),
+            'poa': poa_scores_from_model(model, int(poa_node.attrib['partialOrderAlignmentTrainedGapOpen2Factor']),
+                                         int(poa_node.attrib['partialOrderAlignmentTrainedGapExtension2Factor'])),
+            'pecan': pecan_hmm_json(transitions, emissions),
             'identity': model['identity']}
 
 def trained_models_path(paf_path):

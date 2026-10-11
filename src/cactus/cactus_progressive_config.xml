@@ -89,16 +89,24 @@
 	     an outgroup rather than an ingroup, so that its coverage to its descendants is not starved during chaining. Set
 	     to 0 to restore the old behaviour of treating the pinned root as an ingroup -->
 	<!-- leftAlign: move each indel in the lastz alignments along its repeat without changing the alignment's score (paffy left_align). "none", or "canonical" (default): at whichever end makes the repeat read smaller than its reverse complement, which gives every pairwise alignment through a repeat the same placement whatever the pair or strand, so they agree when pinched together. "left" (left on the target) only makes alignments agree when no sequence is aligned on its reverse strand, and makes things worse otherwise; it is here for comparison. lastz only -->
-	<!-- lastzTrain Train lastz's scores on each pair of genomes it aligns with last-train (needs LAST), on the whole
-	     genomes, and align the pair with them, rescaled to HOXD70's units (see lastzScoreModel below).  A pair that
-	     cannot be trained (the smaller genome under 500kb, or last-train failing, as without LAST) falls back to the
-	     lastzScoreModel table, else HOXD70.  With <bar trainedModels> the same models score bar too.  It does not apply
-	     to KegAlign, minimap2 or FastGA.  On evolver mammals it raised pooled leaf-pair precision from 0.816 to 0.830
-	     and recall from 0.740 to 0.744, for about 0.3% of the 577-way's lastz CPU; set it to 0 for lastz's HOXD70
-	     everywhere -->
-	<!-- lastzTrainGaps With lastzTrain, use the trained gap penalties; 0 keeps HOXD70's (400 and 30) with the trained
-	     substitution scores -->
-	<!-- lastzTrainCores Cores for each pair's training -->
+	<!-- lastzTrain Train a scoring model on each pair of genomes it aligns, cPecan's five-state pair HMM fitted by EM
+	     to lastz's alignments of a sample of one genome to the other (see trainPieces), and align the pair with lastz
+	     scored by its substitution matrix, rescaled to HOXD70's units (see lastzScoreModel below).  A pair that cannot
+	     be trained (the smaller genome under 500kb, or the fit failing) falls back to the lastzScoreModel table, else
+	     HOXD70.  With <bar trainedModels> the same models score bar too.  It does not apply to KegAlign, minimap2 or
+	     FastGA; set it to 0 for lastz's HOXD70 everywhere.  In raw lastz alignments of human to mouse, the trained
+	     matrix (with HOXD70's gaps) left the coding sequence aligned to its ortholog as it was, gave up 9% of the
+	     intron and flank so aligned, and cut what aligned elsewhere by 58% and alignment of reversed sequence by 77%;
+	     to chicken it scaled both down alike -->
+	<!-- lastzTrainGaps With lastzTrain, use the model's gap penalties too (its two gap states as one affine gap); 0, the
+	     default, keeps HOXD70's (400 and 30), which kept more of the alignment to orthologs at every distance tried -->
+	<!-- trainPieces, trainPieceLength The sample a pair's model is trained on: this many random pieces of this many
+	     bases of the larger genome (no more than would cover half of it), aligned to the smaller by lastz as the blast
+	     step aligns a pair it has no model for.  The search is done once and the model fitted to what it found: a
+	     search repeated with the model it yields, as last-train's is, finds only more conserved sequence each time at
+	     a deep distance, and settles on a model of the conserved minority -->
+	<!-- trainIterations EM iterations, from cPecan's default model; the parameters settle in 3 or 4 -->
+	<!-- lastzTrainCores Cores for each pair's fit -->
 	<blast chunkSize="90000000"
 	       bigChunkSize="6000000000"
 		   overlapSize="10000"
@@ -135,7 +143,10 @@
 		   includeRootAsOutgroup="1"
 		   bigGenomeChunkScale="2"
 		   lastzTrain="1"
-		   lastzTrainGaps="1"
+		   lastzTrainGaps="0"
+		   trainPieces="5000"
+		   trainPieceLength="2000"
+		   trainIterations="5"
 		   lastzTrainCores="4"
 		   >
 
@@ -299,15 +310,13 @@
 	So an ancestor of two ancestors can reach 0.5 however deep it is.  0 turns it off.  Over the 576 ancestors of the VGP
 	577-way tree with branchScale 2 the median is 0.17 and 15% are 0.5 or more: MammalsAnc0 0.58, MammalsAnc1 0.50,
 	RayFinnedFishesAnc00 0.81, RayFinnedFishesAnc01 0.53, PrimatesAnc0 0.46, HominidaeAnc4 0.001. -->
-	<!-- trainedModels: score bar with the models the blast step trains with last-train on each pair of genomes it aligns
-	(see <blast lastzTrain>, whose training this switches on too, whether or not lastz uses it): abPOA scores each row
-	with the model for its genome and the nearest ingroup (<poa partialOrderAlignmentRowModels>, measured "ingroup"),
-	and pecan each pair of sequences with the model for their two genomes (<pecan pecanPairModels>); a pair blast did
-	not train, as pecan's outgroup pairs, takes the model trained nearest its distance.  They replace any row or pair
-	models in the config.  cactus-blast leaves them next to its PAF, as <paf>.models.json, for cactus-align; pangenome
-	alignments have none.  On by default: on evolver mammals, with lastz trained too, abPOA went from pooled leaf-pair
-	precision/recall 0.830/0.744 (lastz alone) to 0.836/0.742, losing up to 0.9 points of ancestor recall, and pecan
-	from 0.838/0.752 (neither trained) to 0.855/0.760.  0 keeps bar's own settings -->
+	<!-- trainedModels: score bar with the models the blast step trains on each pair of genomes it aligns (cPecan's
+	pair HMM, see <blast lastzTrain>, whose training this switches on too, whether or not lastz uses it): abPOA scores
+	each row with the model for its genome and the nearest ingroup (<poa partialOrderAlignmentRowModels>, measured
+	"ingroup"), and pecan each pair of sequences with the model for their two genomes (<pecan pecanPairModels>), which
+	for pecan is the trained HMM itself; a pair blast did not train, as pecan's outgroup pairs, takes the model trained
+	nearest its distance.  They replace any row or pair models in the config.  cactus-blast leaves them next to its
+	PAF, as <paf>.models.json, for cactus-align; pangenome alignments have none.  0 keeps bar's own settings -->
 	<!-- minimumBlockDegree The minimum number of sequences to form a block in the ancestor -->
 	<!-- minimumIngroupDegree The minimum number ingroup sequences to form a block in the ancestor -->
 	<!-- minimumOutgroupDegree The minimum number of outgroup sequences to form a block in the ancestor -->
