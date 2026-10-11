@@ -574,7 +574,7 @@ cactus-pangenome ./js ./seqfile.txt --outDir pg --outName pg --reference CHM13 -
 
 The regions come from targets on the first `--reference`:
 
-* `--pgrealign` alone finds each chromosome's tandem repeats on its reference path, with `pgrealign catalog`: pgrealign's trfind for repeats with periods of 7 bp or more, and TRF run the way RepeatMasker 4.1 finds its Simple_repeat records for the shorter ones. That is how pgrealign's own CHM13 catalogue was built, from RepeatMasker's annotation in place of TRF: on CHM13 chr20, this finds 98% of that catalogue's entries and writes 1.9 times as many, as RepeatMasker also filters TRF's repeats in ways `catalog` does not.
+* `--pgrealign` alone finds each chromosome's tandem repeats on its reference path, with `pgrealign catalog`: pgrealign's trfind for repeats with periods of 7 bp or more, and for the shorter ones strf, pgrealign's reimplementation of the part of TRF (Tandem Repeats Finder) that RepeatMasker 4.1 uses to find its Simple_repeat records. That is how pgrealign's own CHM13 catalogue was built, from RepeatMasker's annotation in place of strf: on CHM13 chr20, this finds 98% of that catalogue's entries and writes 1.9 times as many, as RepeatMasker also filters TRF's repeats in ways `catalog` does not.
 * `--pgrealign <BED>` takes the targets from a BED instead. Its contigs are named as the contig field of the reference's path names (`chr1` for `CHM13#0#chr1`), as in pgrealign's CHM13 v2.0 catalogue, [catalogs/chm13v2.0_tr.bed.gz](https://github.com/benedictpaten/pgrealign/tree/main/catalogs).
 
 It writes two kinds of report to `<outName>.stats/`:
@@ -588,7 +588,7 @@ These `<graphmap_join>` config attributes pass options to the pgrealign stages:
 
 | Attribute | Default | Effect |
 | --- | --- | --- |
-| `pgrealignCatalogOptions` | `--trf trf` | Options to `pgrealign catalog`, when no BED is given. |
+| `pgrealignCatalogOptions` | `--strf strf` | Options to `pgrealign catalog`, when no BED is given. `--trf <binary>` in place of `--strf strf` runs a TRF binary instead. |
 | `pgrealignRegionsOptions` | | Options to `pgrealign regions`, such as `--pad` and `--max-span`. |
 | `pgrealignExtractOptions` | | Options to `pgrealign extract`, such as `--max-internal-bp`. |
 | `pgrealignRealignOptions` | | Options to `pgrealign realign`, such as `--timeout` and `--max-cells`. Its `-j` and `--max-memory` come from the job's cores (`--indexCores`) and memory. |
@@ -599,7 +599,7 @@ Things to know:
 
 * Only a reference contig that has one whole path in a chromosome graph is realigned. A graph without one, such as an unplaced bin, passes through unchanged.
 * Clipping can come out slightly differently, as it judges sequence aligned by the nodes it shares with the minigraph paths, which realignment changes. On the yeast test data, each genome's clipped sequence moved by at most 0.2% of its input, in both directions.
-* pgrealign runs the `pgrealign`, `abpoa`, `trfind` and `trf` commands. Cactus's `make` builds the last three from its submodules, and `pip install` installs pgrealign from its own, as do the Docker image and the binary release.
+* pgrealign runs the `pgrealign`, `abpoa`, `trfind` and `strf` commands. Cactus's `make` builds the last three from its submodules, and `pip install` installs pgrealign from its own, as do the Docker image and the binary release.
 * It cannot be combined with the `--vgFull`/`--vgClip`/`--vgFilter` bypass options, and it has not been tried with `--collapse`.
 
 ### Haplotype Sampling Instead of Filtering (NEW)

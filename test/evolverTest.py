@@ -2814,8 +2814,8 @@ class TestCase(unittest.TestCase):
                     self.assertIn('{}.pgrealign/{}'.format(chrom, name), names)
                 with gzip.open(archive.extractfile('{}.pgrealign/catalog.bed.gz'.format(chrom)), 'rt') as catalog:
                     catalogs[chrom] = [line.split('\t')[:3] for line in catalog if not line.startswith('#')]
-            # TRF finds the short repeats that trfind cannot
-            self.assertIn('trf/STR', summary['catalog']['records_by_source_class'])
+            # strf finds the short repeats that trfind cannot
+            self.assertIn('strf/STR', summary['catalog']['records_by_source_class'])
             self.assertEqual((int(row['length_before']), int(row['length_after'])),
                              (summary['length_before'], summary['length_after']))
             if int(row['realigned']):
