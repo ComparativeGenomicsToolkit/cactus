@@ -7,7 +7,7 @@ modules = api setup caf bar hal reference pipeline preprocessor
 # submodules are in multiple pass to handle dependencies cactus2hal being dependent on
 # both cactus and sonLib
 # jemalloc is conditionally added based on include.mk settings
-submodules1 = sonLib cPecan hal matchingAndOrdering pinchesAndCacti abPOA lastz last paffy red collapse-bubble FASTGA FASTAN alntools
+submodules1 = sonLib cPecan hal matchingAndOrdering pinchesAndCacti abPOA lastz last paffy red collapse-bubble FASTGA FASTAN alntools pgrealign TRF
 ifeq ($(minipoa),on)
 submodules1 += minipoa
 endif
@@ -356,8 +356,10 @@ suball.hal: suball.sonLib
 	-ln -f submodules/hal/bin/* bin/
 	-ln -f submodules/hal/lib/libHal.a submodules/hal/lib/halLib.a
 
+# abPOA's makefile sets its own CFLAGS, so -static (make static, the binary release) reaches the abpoa
+# command's link line through LIB, its list of libraries, instead
 suball.abPOA:
-	cd submodules/abPOA && CFLAGS="$(filter-out --pedantic,$(CFLAGS))" ${MAKE}
+	cd submodules/abPOA && CFLAGS="$(filter-out --pedantic,$(CFLAGS))" ${MAKE} LIB="-lm -lz -lpthread $${LIBS}"
 	if [ -f submodules/abPOA/lib/libabpoa_sse2.a ]; then ln -f submodules/abPOA/lib/libabpoa_sse2.a ${LIBDIR}/libabpoa.a; fi
 	if [ -f submodules/abPOA/lib/libabpoa_sse41.a ]; then ln -f submodules/abPOA/lib/libabpoa_sse41.a ${LIBDIR}/libabpoa.a; fi
 	if [ -f submodules/abPOA/lib/libabpoa_avx2.a ]; then ln -f submodules/abPOA/lib/libabpoa_avx2.a ${LIBDIR}/libabpoa.a; fi
@@ -365,6 +367,9 @@ suball.abPOA:
 	if [ -f submodules/abPOA/lib/libabpoa.a ]; then ln -f submodules/abPOA/lib/libabpoa.a ${LIBDIR}/libabpoa.a; fi
 	ln -f submodules/abPOA/include/*.h ${INCLDIR}
 	rm -fr ${INCLDIR}/simde && cp -r submodules/abPOA/include/simde ${INCLDIR}
+	# the abpoa command, for pgrealign (--pgrealign).  It is named for the SIMD level it was built at, like
+	# the library, so take the one just built
+	ln -f $$(ls -t submodules/abPOA/bin/abpoa* | head -1) ${BINDIR}/abpoa
 
 # minipoa carries a plain Makefile for this, because cactus does not drive cmake and because
 # upstream's CMakeLists picks its SIMD backend by probing the build host.  It reads the same
@@ -460,6 +465,26 @@ suball.alntools:
 	cd submodules/alntools && ${MAKE} CC="$${CC:-gcc} ${CACTUS_ARCH_FLAGS}"
 	ln -f submodules/alntools/tanbed ${BINDIR}
 
+# pgrealign (--pgrealign) is pip installed with cactus from its submodule (setup.py).  Its catalog stage
+# compiles its tandem-repeat finder, trfind, on first use, which a container with no compiler cannot do, so
+# build trfind here from the same source, as pgrealign would (-O2 -lm), for cactus to name with --trfind.
+# This and TRF below take nothing from CFLAGS, which in make static and the binary release is exported
+# carrying sonLib's -Werror --pedantic; -static comes in LIBS, which include.mk leaves alone
+suball.pgrealign:
+	$${CC:-gcc} ${CACTUS_ARCH_FLAGS} -O2 -o ${BINDIR}/trfind submodules/pgrealign/pgrealign/c/trfind.c -lm $${LIBS}
+
+# TRF, which pgrealign catalog runs as RepeatMasker would to find --pgrealign's short tandem repeats.  Its
+# autotools output is checked in, and a checkout gives those files and their sources arbitrary relative
+# mtimes, so make can find configure or a Makefile.in out of date and rerun autoconf or automake, which
+# rewrites them in the submodule, or fails where they are not installed.  Touching them in dependency order
+# stops that.  Built outside the source tree, which stays clean.  CFLAGS needs -O2 spelled out, as autoconf
+# only supplies its default when CFLAGS is unset (see build-tools/makeBinRelease)
+suball.TRF:
+	cd submodules/TRF && touch aclocal.m4 && touch configure Makefile.in src/Makefile.in config.h.in
+	mkdir -p submodules/TRF/build
+	cd submodules/TRF/build && ../configure CFLAGS="${CACTUS_ARCH_FLAGS} -O2" LIBS="$${LIBS}" && ${MAKE}
+	ln -f submodules/TRF/build/src/trf ${BINDIR}
+
 ifeq ($(jemalloc),on)
 subclean.jemalloc:
 	cd submodules/jemalloc && ${MAKE} clean || true
@@ -467,6 +492,10 @@ else
 subclean.jemalloc:
 	@echo "Skipping jemalloc clean (disabled on this platform)"
 endif
+
+# TRF builds outside its source tree, and its checked-in Makefile.in would otherwise send make clean there
+subclean.TRF:
+	rm -rf submodules/TRF/build
 
 subclean.%:
 	if [ $(shell ls submodules/$* | grep -i makefile | wc -l) != 0 ]; then cd submodules/$* && ${MAKE} clean; fi

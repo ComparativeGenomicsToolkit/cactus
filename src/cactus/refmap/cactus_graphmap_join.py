@@ -29,6 +29,8 @@ import re
 import subprocess
 import gzip
 import shutil
+import json
+import tarfile
 
 from operator import itemgetter
 from collections import defaultdict
@@ -91,6 +93,16 @@ CLIP_VG_SECS_PER_GB = {'full' : 800, 'clip' : 600}
 
 # vg_clip_vg: vg clip three times plus vg validate.  n=75, 292-349 s/GB at p50, 382-440 at the max
 VG_CLIP_VG_SECS_PER_GB = 450
+
+# pgrealign_vg: unmeasured, as --pgrealign is new.  per chromosome it runs vg convert -f (the
+# vg_to_gfa rate, 250 s/GB), vg paths -F and vg snarls, about four single-threaded python passes over
+# a GFA several times the size of the vg, and the realignment itself, whose cost depends on the tandem
+# repeats rather than on bytes.  a guess at well over the clip_vg 'full' rate, until there is a
+# whole-genome run to fit it to
+PGREALIGN_SECS_PER_GB = 2000
+# and what pgrealign verify adds to clip_vg's 'full' phase, where it runs by default: vg stats, vg
+# paths -M and vg paths -F on each of two vgs, hashing every base of every path.  also a guess
+PGREALIGN_VERIFY_SECS_PER_GB = 300
 
 # vg_to_og: vg convert -f | grep, then odgi build.  n=75, 307-310 s/GB at p50, 357-370 at the max
 VG_TO_OG_SECS_PER_GB = 400
@@ -415,6 +427,17 @@ def graphmap_join_options(parser):
                         "are 'full', 'clip', 'filter'. Default: 'clip'. [default: disabled]")
     parser.add_argument("--minGrefLen", type=int, default=None,
                         help="Minimum graph reference fragment length [default from config: 50]")
+    parser.add_argument("--pgrealign", nargs='?', const=True, default=None, metavar='TARGETS',
+                        help="[EXPERIMENTAL] Realign each chromosome's tandem repeats with pgrealign "
+                        "(https://github.com/benedictpaten/pgrealign) before the full graph is "
+                        "normalized, so the full, clip and filter graphs all carry the realignment. "
+                        "TARGETS, if given, is a BED of the intervals to realign, on the first "
+                        "--reference's contigs (named as the contig field of its path names, such as "
+                        "chr1), for example pgrealign's catalogs/chm13v2.0_tr.bed.gz. Without it, the "
+                        "tandem repeats are found from each reference path with pgrealign catalog. "
+                        "Every path spells the same sequence afterwards; only how the paths share nodes "
+                        "inside the realigned regions changes. Per-chromosome reports go in "
+                        "<outDir>/<outName>.stats/")
 
 def graphmap_join_defaults(options):
     """ fill in the graphmap-join option defaults for tools (ie cactus-panpatch) that run the join
@@ -507,6 +530,9 @@ def graphmap_join_validate_options(options):
         # Disallow options that don't apply in bypass mode
         if getattr(options, 'collapse', False):
             raise RuntimeError('--collapse cannot be used with bypass options (--vgFull/--vgClip/--vgFilter)')
+        if getattr(options, 'pgrealign', None):
+            raise RuntimeError('--pgrealign cannot be used with bypass options: it realigns the graphs '
+                               'before the full phase, which bypass mode skips')
         if getattr(options, 'delEdgeFilter', None):
             raise RuntimeError('--delEdgeFilter cannot be used with bypass options')
     else:
@@ -753,6 +779,14 @@ def graphmap_join_validate_options(options):
             raise RuntimeError('--gref is not compatible with --collapse or --collapseRefPAF '
                                '(vg paths -u requires acyclic reference paths)')
 
+    # check the --pgrealign targets now rather than after the alignment that cactus-pangenome runs
+    # first.  the workflow imports them from a job, whose working directory is not the user's
+    pgrealign_targets = getattr(options, 'pgrealign', None)
+    if isinstance(pgrealign_targets, str) and '://' not in pgrealign_targets:
+        if not os.path.isfile(pgrealign_targets):
+            raise RuntimeError('--pgrealign targets file {} not found'.format(pgrealign_targets))
+        options.pgrealign = os.path.abspath(pgrealign_targets)
+
     # validate --vcfL
     if options.vcfL is not None:
         if options.vcfL <= 0.0 or options.vcfL > 1.0:
@@ -935,14 +969,38 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
             workflow_phases.append(('filter', filter_vg_ids, root_job))
         prev_job = root_job
     else:
+        # the --pgrealign targets, when a file names them (otherwise each chromosome finds its own)
+        pgrealign_targets_id = None
+        if isinstance(options.pgrealign, str):
+            pgrealign_targets_id = job.fileStore.importFile(makeURL(options.pgrealign))
+
         # run the "full" phase to do pre-clipping stuff
         full_vg_ids = []
+        pgrealign_stats = []
         assert len(options.vg) == len(vg_ids)
+        # with --pgrealign, the full phase also checks the realigned graph's paths (see pgrealign_verify)
+        full_secs_per_gb = CLIP_VG_SECS_PER_GB['full']
+        if options.pgrealign and getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"),
+                                                   "pgrealignVerify", typeFn=bool, default=True):
+            full_secs_per_gb += PGREALIGN_VERIFY_SECS_PER_GB
         for vg_path, vg_id in zip(options.vg, vg_ids):
-            full_job = Job.wrapJobFn(clip_vg, options, config, vg_path, vg_id, 'full',
-                                     disk=vg_id.size * 20, memory=max(2**31, min(vg_id.size * 20, max_mem)),
-                                     walltime=scaled_walltime(CLIP_VG_SECS_PER_GB['full'], vg_id.size))
-            root_job.addChild(full_job)
+            full_resources = dict(disk=vg_id.size * 20, memory=max(2**31, min(vg_id.size * 20, max_mem)),
+                                  walltime=scaled_walltime(full_secs_per_gb, vg_id.size))
+            if options.pgrealign:
+                # pgrealign runs on the graph cactus-align wrote and hands the full phase the realigned
+                # graph as the GFA its gfaffix step would otherwise make from the vg
+                pgrealign_job = root_job.addChildJobFn(
+                    pgrealign_vg, options, config, vg_path, vg_id, pgrealign_targets_id,
+                    cores=options.indexCores, disk=vg_id.size * 40,
+                    memory=cactus_clamp_memory(min(max(2**33, vg_id.size * 20), max_mem)),
+                    walltime=scaled_walltime(PGREALIGN_SECS_PER_GB, vg_id.size, io_multiple=6))
+                full_job = pgrealign_job.addFollowOnJobFn(clip_vg, options, config, vg_path, vg_id, 'full',
+                                                          gfa_id=pgrealign_job.rv(0),
+                                                          gfa_realigned=pgrealign_job.rv(2), **full_resources)
+                pgrealign_stats.append(pgrealign_job.rv(1))
+            else:
+                full_job = Job.wrapJobFn(clip_vg, options, config, vg_path, vg_id, 'full', **full_resources)
+                root_job.addChild(full_job)
             full_vg_ids.append(full_job.rv(0))
             if 'full' in options.odgi + options.chrom_og + options.viz + options.draw:
                 full_og_job = full_job.addFollowOnJobFn(vg_to_og, options, config, vg_path, full_job.rv(0),
@@ -1000,10 +1058,13 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
                                                                                      input_vg_id.size, io_multiple=3))
                     og_chrom_ids['clip']['og'].append(clip_og_job.rv())
 
-            # join the stats
-            clipped_stats = clip_root_job.addFollowOnJobFn(cat_stats, clip_vg_stats,
+            # join the stats (pgrealign's are gathered with them, as they go in the same directory)
+            clipped_stats = clip_root_job.addFollowOnJobFn(cat_stats, clip_vg_stats + pgrealign_stats,
                                                            walltime=cactus_walltime(CAT_STATS_SECS)).rv()
             prev_job = clip_root_job
+        elif pgrealign_stats:
+            clipped_stats = join_job.addFollowOnJobFn(cat_stats, pgrealign_stats,
+                                                      walltime=cactus_walltime(CAT_STATS_SECS)).rv()
 
         # run the "filter" phase to do the vg clip clipping
         filter_vg_ids = []
@@ -1465,8 +1526,9 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
     return (output_full_vg_ids, clip_vg_ids, clipped_stats, filter_vg_ids, out_dicts, og_chrom_ids,
             exclusion_ids, full_vg_empty)
 
-def clip_vg(job, options, config, vg_path, vg_id, phase):
-    """ run clip-vg 
+def clip_vg(job, options, config, vg_path, vg_id, phase, gfa_id=None, gfa_realigned=False):
+    """ run clip-vg.  in the full phase, gfa_id is the graph pgrealign_vg made of vg_id, which is used
+    in its place, and gfa_realigned says whether pgrealign changed it
     """
     assert phase in ['full', 'clip']
     
@@ -1493,22 +1555,31 @@ def clip_vg(job, options, config, vg_path, vg_id, phase):
     join_xml_node = findRequiredNode(config.xmlRoot, "graphmap_join")
     graph_event = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "assemblyName", default="_MINIGRAPH_")
 
-    # optional gfaffixing -- only happens in full
-    if phase == 'full' and getOptionalAttrib(join_xml_node, "gfaffix", typeFn=bool, default=True):
-        normalized_path = vg_path + '.gfaffixed'
+    # optional gfaffixing -- only happens in full.  gfa_id, from pgrealign_vg, is the graph realigned and
+    # already in GFA, which takes the place of the vg here whether or not gfaffix runs
+    do_gfaffix = phase == 'full' and getOptionalAttrib(join_xml_node, "gfaffix", typeFn=bool, default=True)
+    assert not gfa_id or phase == 'full'
+    if do_gfaffix or gfa_id:
+        normalized_path = vg_path + ('.gfaffixed' if do_gfaffix else '.realigned')
         gfa_in_path = vg_path + '.gfa'
-        gfa_out_path = normalized_path + '.gfa'
-        # GFAffix supports W-lines as reference paths since v0.2.0
-        cactus_call(parameters=['vg', 'convert', '-f', vg_path], outfile=gfa_in_path, job_memory=job.memory)
-        fix_cmd = ['gfaffix', gfa_in_path, '--output_refined', gfa_out_path, '--check_transformation', '--threads', str(job.cores)]
-        if options.reference:
-            fix_cmd += ['--dont_collapse', options.reference[0] + '#[.]*']
-        cactus_call(parameters=fix_cmd, job_memory=job.memory)
+        gfa_out_path = normalized_path + '.gfa' if do_gfaffix else gfa_in_path
+        if gfa_id:
+            job.fileStore.readGlobalFile(gfa_id, gfa_in_path)
+        else:
+            cactus_call(parameters=['vg', 'convert', '-f', vg_path], outfile=gfa_in_path, job_memory=job.memory)
+        if do_gfaffix:
+            # GFAffix supports W-lines as reference paths since v0.2.0
+            fix_cmd = ['gfaffix', gfa_in_path, '--output_refined', gfa_out_path, '--check_transformation', '--threads', str(job.cores)]
+            if options.reference:
+                fix_cmd += ['--dont_collapse', options.reference[0] + '#[.]*']
+            cactus_call(parameters=fix_cmd, job_memory=job.memory)
         # Come back from gfa to vg
         conv_cmd = [['vg', 'convert', '-g', '-p', gfa_out_path]]
         # GFAFfix doesn't unchop, so we do that in vg after
         conv_cmd.append(['vg', 'mod', '-u', '-'])
         cactus_call(parameters=conv_cmd, outfile=normalized_path)
+        if gfa_realigned and getOptionalAttrib(join_xml_node, 'pgrealignVerify', typeFn=bool, default=True):
+            pgrealign_verify(job, vg_path, normalized_path)
         vg_path = normalized_path
 
     # run clip-vg no matter what, but we don't actually remove anything in full
@@ -1614,6 +1685,8 @@ def clip_vg(job, options, config, vg_path, vg_id, phase):
 
     if phase == 'full':
         job.fileStore.deleteGlobalFile(vg_id)
+        if gfa_id:
+            job.fileStore.deleteGlobalFile(gfa_id)
         
     # keep some stats of the chromosomal vg file:
     # Path Lengths
@@ -1674,6 +1747,204 @@ def clip_vg(job, options, config, vg_path, vg_id, phase):
     else:
         out_stats = None
     return job.fileStore.writeGlobalFile(clipped_path), out_stats
+
+def pgrealign_verify(job, before_path, after_path):
+    """ check that every path of after_path, the vg clip_vg made from the GFA pgrealign_vg realigned
+    (then gfaffixed), spells what it did in before_path, the vg that cactus-align wrote, and has the
+    same name and metadata, failing the job if not.  Checking the two vgs, rather than the GFAs that
+    pgrealign_vg read and wrote, spares vg parsing GFA, and covers gfaffix and the conversion too """
+    report_path = after_path + '.pgrealign-verify.json'
+    try:
+        cactus_call(parameters=['pgrealign', 'verify', '--before', before_path, '--after', after_path,
+                                '-o', report_path], check_output=True, job_memory=job.memory)
+    except RuntimeError:
+        # pgrealign verify writes its report, then exits 1 when the paths differ
+        if not os.path.isfile(report_path):
+            raise
+        with open(report_path) as report_file:
+            report = json.load(report_file)
+        raise RuntimeError('--pgrealign changed paths of {}: {} missing {}, {} extra {}, {} differing {}, '
+                           'metadata identical: {}'.format(
+                               os.path.basename(before_path), report['paths_missing'],
+                               report['paths_missing_names'], report['paths_extra'], report['paths_extra_names'],
+                               report['paths_differ'], report['paths_differ_names'], report['metadata_identical']))
+    with open(report_path) as report_file:
+        report = json.load(report_file)
+    RealtimeLogger.info('pgrealign verify {}: {} paths, {} bp, unchanged'.format(
+        os.path.basename(before_path), report['paths'], report['bases']))
+
+def gfa_sequence_length(gfa_path):
+    """ the total length of a GFA's nodes, from its S lines, which vg convert -f and pgrealign replace
+    both write before any path, so the paths, nearly all of the file, are not read """
+    length = 0
+    with open(gfa_path) as gfa_file:
+        for line in gfa_file:
+            if line[0] == 'S':
+                length += len(line.split('\t', 3)[2].rstrip('\n'))
+            elif line[0] in 'PW':
+                break
+    return length
+
+def pgrealign_vg(job, options, config, vg_path, vg_id, targets_id=None):
+    """ realign one chromosome graph with pgrealign, ahead of the full phase: the tandem repeats that
+    pgrealign catalog finds on each of its reference paths, or the intervals of targets_id (the
+    --pgrealign TARGETS BED).  returns the graph as GFA, realigned, for clip_vg to use in place of the
+    vg; the stats: this chromosome's row of pgrealign-stats.tsv and an archive of pgrealign's reports;
+    and whether any region was replaced, for clip_vg to check the paths only then.  a graph pgrealign
+    cannot work on, such as an unplaced bin with no reference path, comes back as it went in """
+    work_dir = job.fileStore.getLocalTempDir()
+    vg_path = os.path.join(work_dir, os.path.basename(vg_path))
+    job.fileStore.readGlobalFile(vg_id, vg_path)
+    chrom = os.path.splitext(os.path.basename(vg_path))[0]
+    ref = options.reference[0]
+    join_xml_node = findRequiredNode(config.xmlRoot, "graphmap_join")
+    threads = str(job.cores)
+
+    def config_opts(name):
+        opts = getOptionalAttrib(join_xml_node, name, typeFn=str, default='')
+        return opts.split() if opts else []
+
+    def pgrealign(*args):
+        # every pgrealign stage prints its summary as JSON
+        return json.loads(cactus_call(parameters=['pgrealign'] + [str(a) for a in args],
+                                      check_output=True, job_memory=job.memory))
+
+    # everything under report_dir goes in the archive, except the two tables only replace reads
+    report_dir = os.path.join(work_dir, chrom + '.pgrealign')
+    report_skip = {'occurrences.tsv.gz', 'interiors.tsv.gz'}
+    os.makedirs(report_dir)
+    summary = {'chrom': chrom}
+
+    # pgrealign streams the graph as GFA, and clip_vg's gfaffix reads the same GFA next
+    gfa_path = os.path.join(work_dir, chrom + '.gfa')
+    cactus_call(parameters=['vg', 'convert', '-f', '-t', threads, vg_path], outfile=gfa_path,
+                job_memory=job.memory)
+    out_gfa_path = gfa_path
+
+    # pgrealign anchors its targets on one whole reference path per contig, so a contig the
+    # reference has in pieces, or as a subrange, is left as it is.  Without a targets BED, pgrealign
+    # catalog needs the reference's sequence, whose FASTA names its paths too, so one load of the
+    # graph does for both
+    ref_paths = defaultdict(list)
+    if targets_id:
+        for line in cactus_call(parameters=['vg', 'paths', '-M', '-S', ref, '-x', vg_path],
+                                check_output=True).split('\n'):
+            toks = line.split('\t')
+            if len(toks) >= 7 and not line.startswith('#'):
+                ref_paths[toks[4]].append(toks[6])
+    else:
+        # pgrealign names targets by contig alone: the last field of <ref>#<haplotype>#<contig>
+        ref_fa_path = os.path.join(work_dir, chrom + '.ref.fa')
+        cactus_call(parameters=[['vg', 'paths', '-F', '-S', ref, '-x', vg_path],
+                                ['sed', '-e', 's/^>[^#]*#[^#]*#/>/']], outfile=ref_fa_path)
+        with open(ref_fa_path) as ref_fa_file:
+            for line in ref_fa_file:
+                if line.startswith('>'):
+                    # vg spells a subrange in the name, as <contig>[<start>-<end>]
+                    name = line[1:].split()[0]
+                    ref_paths[name.split('[')[0]].append(name[name.find('['):] if '[' in name else 'NO_SUBRANGE')
+    contigs = sorted(c for c, subranges in ref_paths.items() if subranges == ['NO_SUBRANGE'])
+    if len(contigs) < len(ref_paths):
+        RealtimeLogger.warning('pgrealign: leaving {} of {} as it is, as {} is not one whole path there'.format(
+            ', '.join(sorted(set(ref_paths) - set(contigs))), chrom, ref))
+    summary['contigs'] = contigs
+
+    if contigs:
+        if targets_id:
+            targets_path = os.path.join(work_dir, 'targets.bed' + ('.gz' if options.pgrealign.endswith('.gz') else ''))
+            job.fileStore.readGlobalFile(targets_id, targets_path)
+        else:
+            targets_path = os.path.join(report_dir, 'catalog.bed.gz')
+            summary['catalog'] = pgrealign('catalog', '--reference', ref_fa_path, '--contigs', ','.join(contigs),
+                                           '--trfind', 'trfind', '-j', threads, '-o', targets_path,
+                                           *config_opts('pgrealignCatalogOptions'))
+
+        # one snarl decomposition of the whole graph serves every contig: prepare skips the snarls it
+        # finds already made, and writes the reference path's positions beside them
+        snarls_path = os.path.join(work_dir, chrom + '.snarls.pb')
+        cactus_call(parameters=['vg', 'snarls', '-T', '-P', ref + '#', '-t', threads, vg_path],
+                    outfile=snarls_path, job_memory=job.memory)
+        prep_dir = os.path.join(work_dir, 'prepare')
+        os.makedirs(prep_dir)
+        summary['regions'] = {}
+        regions_path = os.path.join(report_dir, 'regions.tsv.gz')
+        with gzip.open(regions_path, 'wt') as regions_file:
+            for i, contig in enumerate(contigs):
+                # (prepare prints the paths it writes, but as a container sees them in docker mode)
+                contig_snarls_path = os.path.join(prep_dir, contig + '.snarls.pb')
+                os.link(snarls_path, contig_snarls_path)
+                pgrealign('prepare', '--graph', gfa_path, '--contig', contig, '--ref-sample', ref,
+                          '-o', prep_dir, '-t', threads)
+                contig_regions_path = os.path.join(prep_dir, contig + '.regions.tsv.gz')
+                summary['regions'][contig] = pgrealign('regions', '--targets', targets_path, '--contig', contig,
+                                                       '--snarls', contig_snarls_path,
+                                                       '--ref', os.path.join(prep_dir, contig + '.ref.tsv.gz'),
+                                                       '-o', contig_regions_path,
+                                                       *config_opts('pgrealignRegionsOptions'))
+                # one table for the graph: the first contig's header, then every contig's rows
+                with gzip.open(contig_regions_path, 'rt') as contig_regions_file:
+                    for line in contig_regions_file:
+                        if i == 0 or not line.startswith('#'):
+                            regions_file.write(line)
+
+        extract_dir = os.path.join(report_dir, 'extract')
+        if any(r['status'].get('ok') for r in summary['regions'].values()):
+            summary['extract'] = pgrealign('extract', '--graph', gfa_path, '--regions', regions_path,
+                                           '-o', extract_dir, '--ref-sample', ref, '-t', threads,
+                                           *config_opts('pgrealignExtractOptions'))
+        if summary.get('extract', {}).get('status', {}).get('ok'):
+            msas_path = os.path.join(report_dir, 'msas.jsonl.gz')
+            # realign's budget covers the regions it aligns at once; extract and replace, which hold
+            # the graph's tables, run before and after it
+            summary['realign'] = pgrealign('realign', '--packages', os.path.join(extract_dir, 'packages.jsonl.gz'),
+                                           '-o', msas_path, '-j', threads, '--abpoa', 'abpoa',
+                                           '--max-memory', '{:.1f}'.format(max(1.0, job.memory / 2**30 / 2)),
+                                           *config_opts('pgrealignRealignOptions'))
+            if summary['realign']['realigned'].get('ok'):
+                realigned_gfa_path = os.path.join(work_dir, chrom + '.realigned.gfa')
+                summary['replace'] = pgrealign('replace', '--graph', gfa_path, '--extract', extract_dir,
+                                               '--msas', msas_path, '-o', realigned_gfa_path, '-t', threads)
+                # (pgrealignVerify is checked by clip_vg, on the vg it makes from this GFA)
+                if getOptionalAttrib(join_xml_node, 'pgrealignQC', typeFn=bool, default=False):
+                    summary['qc'] = pgrealign('qc', '--extract', extract_dir, '--msas', msas_path,
+                                              '-o', os.path.join(report_dir, 'qc.tsv'), '--graph', gfa_path,
+                                              '--ref-sample', ref, '-j', threads, '-t', threads,
+                                              '--abpoa', 'abpoa',
+                                              '--max-memory', '{:.1f}'.format(max(1.0, job.memory / 2**30 / 2)))
+                out_gfa_path = realigned_gfa_path
+
+    summary['length_before'] = gfa_sequence_length(gfa_path)
+    summary['length_after'] = gfa_sequence_length(out_gfa_path)
+    with open(os.path.join(report_dir, 'summary.json'), 'w') as summary_file:
+        json.dump(summary, summary_file, indent=1)
+    archive_path = os.path.join(work_dir, 'pgrealign.{}.tar.gz'.format(chrom))
+    with tarfile.open(archive_path, 'w:gz') as archive:
+        archive.add(report_dir, arcname=os.path.basename(report_dir),
+                    filter=lambda info: None if os.path.basename(info.name) in report_skip else info)
+
+    # one row per chromosome; see STATS_HEADERS for the columns
+    def status_count(stage, key, status):
+        return sum(s.get(key, {}).get(status, 0) for s in
+                   (summary.get(stage, {}).values() if stage == 'regions' else [summary.get(stage, {})]))
+    replace_stats = summary.get('replace', {})
+    realign_counts = summary.get('realign', {}).get('realigned', {})
+    row = [chrom, len(contigs), sum(r.get('targets', 0) for r in summary.get('regions', {}).values()),
+           status_count('regions', 'status', 'ok'), status_count('regions', 'status', 'too_long'),
+           status_count('extract', 'status', 'ok'), status_count('extract', 'status', 'invariant'),
+           status_count('extract', 'status', 'complex'), status_count('extract', 'status', 'no_runs'),
+           realign_counts.get('ok', 0), sum(n for s, n in realign_counts.items() if s != 'ok'),
+           replace_stats.get('nodes_removed', 0), replace_stats.get('nodes_added', 0),
+           summary['length_before'], summary['length_after']]
+    stats_path = os.path.join(work_dir, 'pgrealign-stats.tsv')
+    with open(stats_path, 'w') as stats_file:
+        stats_file.write('\t'.join(str(v) for v in row) + '\n')
+    RealtimeLogger.info('pgrealign {}: {}'.format(chrom, json.dumps({k: v for k, v in summary.items()
+                                                                     if k not in ('catalog', 'qc')})))
+
+    out_gfa_id = job.fileStore.writeGlobalFile(out_gfa_path)
+    return out_gfa_id, {'pgrealign-stats.tsv': job.fileStore.writeGlobalFile(stats_path),
+                        os.path.basename(archive_path): job.fileStore.writeGlobalFile(archive_path)}, \
+        out_gfa_path != gfa_path
 
 def vg_clip_vg(job , options, config, vg_path, vg_id):
     """ run vg clip, chaining multiple invocations if desired.
@@ -3102,6 +3373,13 @@ STATS_HEADERS = {
     'graph-stats.tsv': '#ref_chrom\tnodes\tedges\tlength',
     'flank-stats.tsv': '#ref_chrom\tflank_threshold\tcalibration',
     'inversion-stats.tsv': '#ref_chrom\tsevered\tfound\tmessage',
+    # --pgrealign: per chromosome, the reference contigs it worked on, the targets on them, the
+    # regions of each status that regions and extract gave, the regions realign aligned and those
+    # it could not (too_big, timeout, ...), the nodes replace took out and put in, and the graph's
+    # length before and after
+    'pgrealign-stats.tsv': '#ref_chrom\tcontigs\ttargets\tregions_ok\tregions_too_long\textract_ok\t'
+                           'extract_invariant\textract_complex\textract_no_runs\trealigned\tnot_realigned\t'
+                           'nodes_removed\tnodes_added\tlength_before\tlength_after',
 }
 
 # path-stats has a row per surviving path fragment, which runs to millions on a filtered graph.
