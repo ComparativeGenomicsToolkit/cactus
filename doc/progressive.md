@@ -372,6 +372,8 @@ will create `./chains-dir` and populate it with a Chain alignment between simHum
 
 By default, chains will be created using `halLiftover` [as in CAT](https://github.com/ComparativeGenomicsToolkit/Comparative-Annotation-Toolkit/blob/fc1623da5df1309d2e2f0b9bb0363aaab84708f4/cat/chaining.py#L96-L98). An option `--useHalSynteny` is provided to use that tool instead.
 
+`halLiftover` only follows paralogies that coalesce at or below the most recent common ancestor (MRCA) of the query and target, so it misses homology between gene copies that are separate in the MRCA and only merge further up the tree. Use `--coalescenceLimit` to raise that limit to a given ancestor. It must be at or above the MRCA of every (query, target) pair, which the root always is, and it cannot be used with `--useHalSynteny`.
+
 In order to view your chains on the UCSC Genome Browser, you need to [convert to bigChain](https://genome.ucsc.edu/goldenPath/help/bigChain.html).  Use the `--bigChain` flag to have `cactus-hal2chains` produce `bigChain.bb` and `bigChain.link.bb` output files in addtion to `chain.gz`.
 
 For large HAL files on cluster batch systems (slurm, etc.), the HAL copy required by each chain-building job is often the dominant cost. `cactus-hal2chains` groups (query, target) pairs into batches: each batch is a single Toil job that copies the HAL once and then runs many `halLiftover | axtChain` pipelines concurrently via GNU `parallel`. Use `--batchCount` to send the work to *N* cluster nodes (with `--batchCores` cores per node and `--batchParallelHal2chains` concurrent pipelines within each node), or `--batchSize` to pin the number of pairs per batch. E.g. to build 500 chains across 10 nodes with 50 pipelines per node:
