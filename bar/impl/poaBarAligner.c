@@ -864,11 +864,11 @@ static void run_minipoa_window(Msa *msa, uint8_t **bseqs, PoaParameters *poa_par
 /* ============================================================================ */
 
 /*
- * <bar baseAligner="..."> picks the engine, abpoa when the attribute is absent.
+ * <bar baseAligner="..."> picks the engine, pecan (the default) when the attribute is absent.
  */
 BaseAligner baseAligner_constructFromCactusParams(CactusParams *params) {
     if (!cactusParams_has(params, 2, "bar", "baseAligner")) {
-        return BASE_ALIGNER_ABPOA;
+        return BASE_ALIGNER_PECAN;
     }
     char *name = cactusParams_get_string(params, 2, "bar", "baseAligner");
     BaseAligner engine;

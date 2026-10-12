@@ -34,7 +34,7 @@ PairwiseAlignmentParameters *pairwiseAlignmentParameters_constructFromCactusPara
 /**
  * Which engine computes the base-level multiple alignment.
  *
- * Selected by <bar baseAligner="pecan|abpoa|minipoa">, abpoa when absent.
+ * Selected by <bar baseAligner="pecan|abpoa|minipoa">, pecan (the default) when absent.
  */
 typedef enum {
     BASE_ALIGNER_PECAN = 0,
