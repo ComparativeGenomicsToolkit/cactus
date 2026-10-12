@@ -116,10 +116,18 @@ def cactus_cons_with_resources(job, tree, ancestor_event, config_node, seq_id_ma
     # evolver-sized test the power law's extrapolation.
     ramp = min(1.0, input_gb / 0.02)
     estimate = int(mem_coef * (input_gb ** mem_exp) * ramp * 2**30) if input_gb > 0 else 0
-    # A POA aligner (abPOA or minipoa) needs a table even for tiny alignments
+    # A POA aligner (abPOA or minipoa) needs a table even for tiny alignments.  pecan's peak follows how much is
+    # aligned rather than the size of the input, and is a fraction of the power law's (which was fitted to abPOA
+    # runs), so it gets a model of its own, capped by the power law, which it was not fitted far enough to replace
+    # (see <consolidated pecan_memory_base_gb> in the config)
     base_aligner = bar_base_aligner(tree, ancestor_event, config_node, name)
     if base_aligner != 'pecan':
         estimate = max(estimate, int(4e9))
+    else:
+        pecan_gib = (getOptionalAttrib(cons_node, 'pecan_memory_base_gb', typeFn=float, default=12.0) +
+                     getOptionalAttrib(cons_node, 'pecan_memory_sequence_gb', typeFn=float, default=4.0) * total_sequence_size / 1e9 +
+                     getOptionalAttrib(cons_node, 'pecan_memory_paf_gb', typeFn=float, default=80.0) * paf_id.size / 1e9)
+        estimate = min(estimate, int(pecan_gib * 2**30))
 
     poa_node = findRequiredNode(config_node, 'bar').find('poa')
     poa_window = getOptionalAttrib(poa_node, 'partialOrderAlignmentWindow', typeFn=int, default=10000) if poa_node is not None else 10000

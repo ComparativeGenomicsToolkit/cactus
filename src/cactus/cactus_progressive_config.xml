@@ -759,6 +759,13 @@
 	     AnuraAnc6 sets it: its flowers run to 847 ends against MammalsAnc0's 208, so it peaks 2.2x
 	     higher on 1.5x the input, which no power of the input can follow.  Below 0.02 GB of input
 	     the estimate tapers to zero. -->
+	<!-- pecan_memory_base_gb, pecan_memory_sequence_gb, pecan_memory_paf_gb: with pecan as bar's base aligner, the
+	     estimate is the smaller of the one above and pecan_memory_base_gb + pecan_memory_sequence_gb *
+	     total_sequence_GB + pecan_memory_paf_gb * paf_GB, in GiB.  pecan's peak follows how much is aligned rather
+	     than the size of the input: over 26 ancestors of two vertebrate test sets (5 and 11 genomes, up to 11 GB of
+	     input, 64 cores) the power law above, fitted to abPOA runs, asked a median 9x what pecan used, and this model
+	     put every one of their peaks, measured with page retention on, under its estimate (at most 0.84 of it) for a
+	     third of the memory.  It is never more than the power law, which bounds it where those runs did not reach. -->
 	<!-- og_size_scale_pct: scale outgroup sizes by this factor (percent) when computing total sequence size -->
 	<!-- retain_pages: whether cactus_consolidated keeps the pages jemalloc frees instead of
 	     returning them to the OS.  Keeping them makes bar 2 to 2.5x faster (MammalsAnc0 on jemalloc
@@ -815,6 +822,9 @@
 		 retain_pages_release_pct="80"
 		 memory_coefficient_gb="175"
 		 memory_input_exponent="0.30"
+		 pecan_memory_base_gb="12"
+		 pecan_memory_sequence_gb="4"
+		 pecan_memory_paf_gb="80"
 		 walltime_coefficient_secs="400"
 		 walltime_banded_coefficient_secs="550"
 		 walltime_banded_exponent="0.35"
