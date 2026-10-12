@@ -482,7 +482,7 @@ def cactus_align(job, config_wrapper, mc_tree, input_seq_map, input_seq_id_map, 
         scores_path = os.path.join(job.fileStore.getLocalTempDir(), 'last.train')
         job.fileStore.readGlobalFile(scores_id, scores_path)
         score_dict = parse_train_file(scores_path)
-        apply_scores_to_config(score_dict, config_wrapper.xmlRoot)
+        apply_scores_to_config(score_dict, config_wrapper.xmlRoot, label=chrom_name)
 
     # unzip the input sequences and enforce unique header prefixes
     sanitize_job = head_job.addChildJobFn(sanitize_fasta_headers, input_seq_id_map, pangenome=doVG or doGFA or do_filter_paf, walltime=cactus_walltime())
