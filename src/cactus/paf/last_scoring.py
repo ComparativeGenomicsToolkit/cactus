@@ -58,6 +58,12 @@ def parse_train_file(train_file_path):
         for key in ['GAP-OPEN', 'GAP-EXTEND', 'A', 'C', 'G', 'T']:
             if key not in score_dict:
                 raise RuntimeError('Information for {} not parsed from {}'.format(key, train_file_path))
+        # apply_long_gap() needs an extension of at least 1 to scale by, and a model with a negative gap
+        # open or a match score of 0 or less is not one the aligners can use.  Raising here makes
+        # last_train() fall back to the defaults (or a borrowed model) rather than hand such a model on.
+        if score_dict['GAP-EXTEND'] < 1 or score_dict['GAP-OPEN'] < 0 or min(score_dict[b][b] for b in 'ACGT') <= 0:
+            raise RuntimeError('Unusable scoring model in {}: gap open {}, gap extend {}, matches {}'.format(
+                train_file_path, score_dict['GAP-OPEN'], score_dict['GAP-EXTEND'], [score_dict[b][b] for b in 'ACGT']))
         for i in ['A', 'C', 'G', 'T']:
             rci = { 'A' : 'T', 'C' : 'G', 'G' : 'C', 'T' : 'A' }[i]
             for j in ['A', 'C', 'G', 'T']:
@@ -90,10 +96,52 @@ def apply_long_gap(score_dict, open_factor, extend_factor):
 
     score_dict['GAP-OPEN-2'] = score_dict['GAP-OPEN'] * open_factor
     score_dict['GAP-EXTEND-2'] = max(1, score_dict['GAP-EXTEND'] // extend_factor)
+    return reduce_scores(score_dict)
 
-def apply_scores_to_config(score_dict, config_xml):
+def reduce_scores(score_dict):
+    """ divide every score of a model (substitutions and both gap pieces) by their greatest common
+    divisor, and return it.  The aligners' choices, ties included, are unchanged by a common positive
+    factor, so the alignments are identical with smaller numbers.  apply_long_gap() scales by
+    extend_factor (30) to make room for a long-gap extension 30 times cheaper, and a learned extension
+    that shares a factor with it leaves every score that many times larger than needed: a learned
+    extension of 2 reached abPOA as 60 (GapOpen 1290; GapExtend 60; GapOpen2 3870; GapExtend2 2), more
+    than the abPOA cactus pinned before could hold in its 16-bit DP (the HPRC oct9 CHM13 chr2 model
+    aborted with "Error in cg_backtrack", and misaligned windows that did not abort).  Divided by 2 it
+    is 645, 30, 1935, 1.  Extensions of 1 (all but one model so far) are left alone. """
+    bases = ['A', 'C', 'G', 'T']
+    gaps = ['GAP-OPEN', 'GAP-EXTEND', 'GAP-OPEN-2', 'GAP-EXTEND-2']
+    d = 0
+    for v in [score_dict[i][j] for i in bases for j in bases] + [score_dict[k] for k in gaps]:
+        d = math.gcd(d, abs(v))
+    if d > 1:
+        for i in bases:
+            for j in bases:
+                score_dict[i][j] //= d
+        for k in gaps:
+            score_dict[k] //= d
+    return max(d, 1)
+
+def abpoa_exact_depth(matrix, gap_open1, gap_ext1, gap_open2, gap_ext2, window):
+    """ the deepest graph (rows on a path) for which abPOA can prove, up front, that a window-long
+    sequence aligns exactly in 32 bits, in its worst case (AVX-512 lanes, a band narrower than the
+    window).  This mirrors simd_abpoa_score_range() in cactus's abPOA: deeper graphs still align
+    exactly, but abPOA has to check every score as it goes, and aborts with a message rather than
+    give a wrong alignment if the scores ever outgrow 32 bits.  Trained models allow over 100
+    window-lengths of depth; much less means the scores are far larger than they need to be.
+    Path scores are left out, as cactus does not use them. """
+    M, X = max(0, max(matrix)), max(0, -min(matrix))
+    convex = gap_open1 > 0 and gap_open2 > 0  # abPOA's affine and linear modes use one piece
+    oe = [gap_open1 + gap_ext1] + ([gap_open2 + gap_ext2] if convex else [])
+    OE, EM, lanes = max(oe), max(gap_ext1, gap_ext2) if convex else gap_ext1, 16
+    floor = -2**31 + (window + 2) * X + OE + lanes // 2 * EM
+    ztop = floor + (window + 1) * M + M + 2 * X + 2 * OE
+    # every real score is at least -max(X, min(oe)) * (window + depth)
+    return max(0, (-ztop - 1) // max(1, X, min(oe)) - window)
+
+def apply_scores_to_config(score_dict, config_xml, label=None):
     """ load the score dict into the config.  since last won't train long gaps,
-    should be specified by the parameters.  note that they are disabled with 0, untouched with None"""
+    should be specified by the parameters.  note that they are disabled with 0, untouched with None.
+    label (the chromosome, say) only goes into the log, so a model can be traced back to its job """
 
     bar_node = findRequiredNode(config_xml, "bar")
     poa_node = findRequiredNode(bar_node, "poa")
@@ -103,10 +151,16 @@ def apply_scores_to_config(score_dict, config_xml):
     # that's applied to the trained gap parameters
     long_gap_open_factor = int(poa_node.attrib['partialOrderAlignmentTrainedGapOpen2Factor'])
     long_gap_extend_factor = int(poa_node.attrib['partialOrderAlignmentTrainedGapExtension2Factor'])
-    # the open factor was being passed the extend factor, so TrainedGapOpen2Factor was read and
-    # then discarded.  Both default to 3, so the shipped config is unaffected; setting them to
-    # different values silently did the wrong thing.
-    apply_long_gap(score_dict, long_gap_open_factor, long_gap_extend_factor)
+    # the open factor used to be passed the extend factor, so TrainedGapOpen2Factor was read and
+    # then discarded.  That went unnoticed while both defaulted to 3; the defaults are now 3 for the
+    # open and 30 for the extension.
+    trained_ext = score_dict['GAP-EXTEND']
+    divisor = apply_long_gap(score_dict, long_gap_open_factor, long_gap_extend_factor)
+    if divisor > 1:
+        RealtimeLogger.info('Trained scoring model{} learned a gap extension of {}: its scores, multiplied by {} for the '
+                            'long-gap piece, are all divided by their common factor {} (the alignments are the same, '
+                            'the numbers smaller)'.format(' for ' + label if label else '', trained_ext,
+                                                          long_gap_extend_factor, divisor))
     
     poa_node.attrib['partialOrderAlignmentGapOpenPenalty1'] = str(score_dict['GAP-OPEN'])
     poa_node.attrib['partialOrderAlignmentGapExtensionPenalty1'] = str(score_dict['GAP-EXTEND'])
@@ -139,6 +193,16 @@ def apply_scores_to_config(score_dict, config_xml):
             
     poa_node.attrib['partialOrderAlignmentSubMatrix'] = score_string
 
+    window = int(poa_node.attrib.get('partialOrderAlignmentWindow', 10000))
+    depth = abpoa_exact_depth([int(v) for v in score_string.split()], score_dict['GAP-OPEN'], score_dict['GAP-EXTEND'],
+                              score_dict['GAP-OPEN-2'], score_dict['GAP-EXTEND-2'], window)
+    if depth < 50 * window:
+        RealtimeLogger.warning('Trained scoring model{} is very large (gap open {}, gap extend {}, matrix {}): abPOA can only '
+                               'guarantee exact {} bp alignments to graphs up to {} deep, and will check deeper ones as it goes, '
+                               'aborting if they overflow.  Consider --scoresFile or lastTrain="0"'.format(
+                                   ' for ' + label if label else '', score_dict['GAP-OPEN'], score_dict['GAP-EXTEND'],
+                                   score_string, window, depth))
+
     # minipoa gets the learned gaps verbatim, as a single affine piece: last-train fits a single
     # affine gap model, and the GAP-OPEN-2/GAP-EXTEND-2 pair above is a synthesised second piece
     # that exists only because abPOA is unstable without one, so it would be wrong to hand it on.
@@ -156,12 +220,14 @@ def apply_scores_to_config(score_dict, config_xml):
             minipoa_node.attrib['minipoaGapOpenPenalty'],
             minipoa_node.attrib['minipoaGapExtensionPenalty']))
 
-    RealtimeLogger.info("Overriding abPOA scores with trained values: GapOpen {}; GapExtend {}; GapOpen2 {}; GapExtend2 {}; SubMatrix {}".format(
+    # the line keeps its old prefix, which logs are grepped for; the label and scaling go on the end
+    RealtimeLogger.info("Overriding abPOA scores with trained values: GapOpen {}; GapExtend {}; GapOpen2 {}; GapExtend2 {}; SubMatrix {} ({}learned gap extension {}; all scores multiplied by {}{})".format(
         poa_node.attrib['partialOrderAlignmentGapOpenPenalty1'],
         poa_node.attrib['partialOrderAlignmentGapExtensionPenalty1'],
         poa_node.attrib['partialOrderAlignmentGapOpenPenalty2'],
         poa_node.attrib['partialOrderAlignmentGapExtensionPenalty2'],
-        poa_node.attrib['partialOrderAlignmentSubMatrix']))
+        poa_node.attrib['partialOrderAlignmentSubMatrix'], label + ': ' if label else '', trained_ext, long_gap_extend_factor,
+        ', then divided by their common factor {}'.format(divisor) if divisor > 1 else ''))
 
 def minigraph_wfa_penalties(score_dict):
     """ convert a last-train model into minigraph's base-alignment penalties, as (x, o, e) for

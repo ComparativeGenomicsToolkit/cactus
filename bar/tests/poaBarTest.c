@@ -482,12 +482,71 @@ void test_make_oriented_partial_order_alignment(CuTest *testCase) {
     }
 }
 
+/*
+ * abPOA with the scores of the HPRC oct9 CHM13 chr2 model (a learned gap extension of 2, scaled 30x): the abPOA
+ * cactus pinned before could not hold them in its 16-bit DP, whose "minus infinity" floor came out above real
+ * scores, and aborted with "Error in cg_backtrack" or misaligned silently.  The same model with every score
+ * divided by div is the same model, and must give the same alignment.
+ */
+static PoaParameters *chr2_model_params(int div) {
+    static const int chr2_mat[25] = { 150, -960, -780, -1020, -780,  -960, 210, -900, -780, -780,
+                                     -780, -900, 210, -960, -780,  -1020, -780, -960, 150, -780,
+                                     -780, -780, -780, -780, 150 };
+    PoaParameters *poaParams = st_calloc(1, sizeof(PoaParameters));
+    poaParams->engine = BASE_ALIGNER_ABPOA;
+    abpoa_para_t *abpt = abpoa_init_para();
+    abpt->wb = 1000; abpt->wf = 0.1; // the shipped band, under which every short window is a full-band DP
+    abpt->gap_open1 = 1290 / div; abpt->gap_ext1 = 60 / div; abpt->gap_open2 = 3870 / div; abpt->gap_ext2 = 2 / div;
+    abpt->progressive_poa = 1;
+    abpoa_post_set_para(abpt);
+    // as abpoaParamaters_constructFromCactusParams overrides the matrix
+    abpt->use_score_matrix = 1; abpt->max_mat = abpt->min_mis = 0;
+    for (int i = 0; i < 25; i++) {
+        abpt->mat[i] = chr2_mat[i] / div;
+        if (abpt->mat[i] > abpt->max_mat) abpt->max_mat = abpt->mat[i];
+        if (-abpt->mat[i] > abpt->min_mis) abpt->min_mis = -abpt->mat[i];
+    }
+    poaParams->abpt = abpt;
+    return poaParams;
+}
+
+void test_trained_scores_beyond_16_bits(CuTest *testCase) {
+    PoaParameters *full = chr2_model_params(1), *half = chr2_model_params(2);
+    for (int64_t test = 0; test < 200; test++) {
+        char *parent_string = getRandomACGTSequence(st_randomInt(1, 150));
+        int64_t seq_no = st_randomInt(2, 20);
+        char **seqs = st_malloc(sizeof(char *) * seq_no), **seqs_half = st_malloc(sizeof(char *) * seq_no);
+        int *seq_lens = st_malloc(sizeof(int) * seq_no), *seq_lens_half = st_malloc(sizeof(int) * seq_no);
+        for (int64_t i = 0; i < seq_no; i++) {
+            seqs[i] = evolveSequence(parent_string);
+            seqs_half[i] = stString_copy(seqs[i]);
+            seq_lens[i] = seq_lens_half[i] = strlen(seqs[i]);
+        }
+        // the msas take ownership of their sequences
+        Msa *msa = msa_make_partial_order_alignment(seqs, seq_lens, seq_no, 10000, 5000, 1.0, full);
+        Msa *msa_half = msa_make_partial_order_alignment(seqs_half, seq_lens_half, seq_no, 10000, 5000, 1.0, half);
+        int64_t lengths[seq_no];
+        validate_msa(testCase, msa, lengths);
+        CuAssertIntEquals(testCase, msa_half->column_no, msa->column_no);
+        for (int64_t i = 0; i < seq_no; i++) {
+            CuAssertTrue(testCase, lengths[i] == seq_lens[i]);
+            char *r = msa_row_string(msa, i), *r_half = msa_row_string(msa_half, i);
+            CuAssertStrEquals(testCase, r_half, r);
+            free(r); free(r_half);
+        }
+        msa_destruct(msa); msa_destruct(msa_half);
+        free(parent_string);
+    }
+    poaParameters_destruct(full); poaParameters_destruct(half);
+}
+
 CuSuite* poaBarAlignerTestSuite(void) {
     CuSuite* suite = CuSuiteNew();
     SUITE_ADD_TEST(suite, test_shipped_config_is_loadable);
     SUITE_ADD_TEST(suite, test_baseAligner_selection);
     SUITE_ADD_TEST(suite, test_make_partial_order_alignment);
     SUITE_ADD_TEST(suite, test_make_oriented_partial_order_alignment);
+    SUITE_ADD_TEST(suite, test_trained_scores_beyond_16_bits);
     SUITE_ADD_TEST(suite, test_make_consistent_partial_order_alignments_two_ends);
     SUITE_ADD_TEST(suite, test_make_flower_alignment_poa);
     SUITE_ADD_TEST(suite, test_get_adjacency_string_and_overlap_bounded);
