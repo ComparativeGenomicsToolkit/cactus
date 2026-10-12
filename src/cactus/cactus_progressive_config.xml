@@ -258,7 +258,12 @@
 	<!-- The bar tag contains parameters for the bar algorithm. -->
 	<!-- runBar Toggle the bar stage on or off. Turned off you get a sparse alignment just using the CAF phase-->
 	<!-- bandingLimit is the maximum sequence size fed into the multiple aligner.  Sequences longer than this are trimmed accordingly -->
-    <!-- baseAligner selects the core multiple alignment algorithm: "pecan", "abpoa" or "minipoa".
+    <!-- baseAligner selects the core multiple alignment algorithm: "pecan" (the default), "abpoa" or "minipoa".
+    On an 11-genome ladder from hg38 out through CHM13, chimp, orangutan, macaque, marmoset, lemur, mouse, opossum
+    and chicken to gar, pecan matched abpoa on BUSCO coding alignment and CTCF motif conservation from CHM13 to lemur
+    and beat it from opossum out (human-gar BUSCO bases in phase 77.2% against 64.8%), in 7.6 h of
+    cactus_consolidated against abpoa's 8.7 and 2-18x less memory per ancestor.  abpoa aligned 0.1-0.7 points more of
+    human at short distances, but on hg38-CHM13 chr20 95% of that was hg38's modeled centromere, at 94% identity.
     pecan aligns every pair of sequences with a pair HMM and merges the posteriors, so its cost grows with
     the square of the number of sequences in an end, where abpoa's grows linearly; but it is the more
     accurate on diverged sequence.  With seed anchors (<pecan anchorMethod="seed">): evolver mammals
@@ -272,6 +277,9 @@
     single affine gap).  Its memory still grows about as window x (bandConstant + bandFraction x
     window), so it does not afford a much larger window.  minipoa shares abpoa's substitution matrix
     (from <poa partialOrderAlignmentSubMatrix>) but has its own gap penalties in <minipoa>. -->
+	<!-- pangenomeBaseAligner: the base aligner pangenome mode (cactus-pangenome, and cactus-align in pangenome mode) uses in place of
+	baseAligner, abpoa by default: a pangenome's ends hold many sequences, which abpoa aligns in linear time and pecan
+	pair by pair -->
 	<!-- deepAligner, deepAlignerDivergence: use deepAligner instead of baseAligner for the ancestors whose ingroups are at
 	least deepAlignerDivergence apart: the sum of the ancestor's two longest child branches, in the same scaled tree cactus
 	takes its other divergence-dependent settings from, i.e. after branchScale and, with <divergences
@@ -288,7 +296,8 @@
 	<bar
 		runBar="1"
 		bandingLimit="1000000"
-		baseAligner="abpoa"
+		baseAligner="pecan"
+		pangenomeBaseAligner="abpoa"
 		deepAligner="pecan"
 		deepAlignerDivergence="0"
 		minimumBlockDegree="2"

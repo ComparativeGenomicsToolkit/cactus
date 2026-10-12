@@ -60,7 +60,7 @@ def bar_base_aligner(tree, ancestor_event, config_node, name=None):
     """ The base aligner bar uses for this ancestor: <bar deepAligner> when its ingroups are at least
     <bar deepAlignerDivergence> apart, else <bar baseAligner>. """
     bar_node = findRequiredNode(config_node, 'bar')
-    base_aligner = getOptionalAttrib(bar_node, 'baseAligner', typeFn=str, default='abpoa')
+    base_aligner = getOptionalAttrib(bar_node, 'baseAligner', typeFn=str, default='pecan')
     deep_aligner = getOptionalAttrib(bar_node, 'deepAligner', typeFn=str, default='')
     deep_divergence = getOptionalAttrib(bar_node, 'deepAlignerDivergence', typeFn=float, default=0.0)
     if deep_aligner and deep_aligner != base_aligner and deep_divergence > 0:

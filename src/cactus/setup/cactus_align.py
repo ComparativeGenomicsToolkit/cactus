@@ -384,7 +384,11 @@ def make_align_job(options, toil, config_wrapper=None, chrom_name=None):
     # selected -- writing only to <poa> would make --barMaskFilter a silent no-op under minipoa,
     # and that is the lever that decides whether a repeat-rich run finishes at all.
     engineNode, maskFilterAttr, seedingAttr = poaNode, "partialOrderAlignmentMaskFilter", "partialOrderAlignmentDisableSeeding"
-    if getOptionalAttrib(barNode, "baseAligner", typeFn=str, default="abpoa") == "minipoa":
+    # pangenome mode has a base aligner of its own (<bar pangenomeBaseAligner>, abpoa by default): pecan, the
+    # progressive default, aligns every pair of sequences in an end, and a pangenome's ends hold many
+    if options.pangenome:
+        barNode.attrib["baseAligner"] = getOptionalAttrib(barNode, "pangenomeBaseAligner", typeFn=str, default="abpoa")
+    if getOptionalAttrib(barNode, "baseAligner", typeFn=str, default="pecan") == "minipoa":
         engineNode = findRequiredNode(barNode, "minipoa")
         maskFilterAttr, seedingAttr = "minipoaMaskFilter", "minipoaDisableSeeding"
     if options.singleCopySpecies:
