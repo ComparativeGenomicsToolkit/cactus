@@ -83,10 +83,10 @@ def fasta_lengths(path):
     return lengths
 
 
-def sample_pieces(fasta_path, out_path, pieces, length, seed=1, max_n=0.05):
+def sample_pieces(fasta_path, out_path, pieces, length, seed=1, max_n=0.05, prefix='trainPiece'):
     """ write up to pieces random, non-overlapping pieces of length bases of the genome at fasta_path, drawn
     uniformly over its sequences of at least that length, with no more than max_n of them N, as a fasta of
-    sequences named trainPiece<i>; and no more of them than would cover half the genome, so that a small genome
+    sequences named <prefix><i>; and no more of them than would cover half the genome, so that a small genome
     is not mostly sampled twice over.  Returns how many were written. """
     lengths = fasta_lengths(fasta_path)
     usable = sorted(name for name, n in lengths.items() if n >= length)
@@ -113,7 +113,7 @@ def sample_pieces(fasta_path, out_path, pieces, length, seed=1, max_n=0.05):
             for start in sorted(starts[name]):
                 piece = seq[start:start + length]
                 if written < pieces and piece.count(b'N') + piece.count(b'n') <= max_n * length:
-                    out.write(b'>trainPiece%d\n%s\n' % (written, piece))
+                    out.write(b'>%s%d\n%s\n' % (prefix.encode(), written, piece))
                     written += 1
     return written
 
@@ -227,15 +227,19 @@ def write_hmm(path, transitions, emissions):
         f.write('\t'.join(repr(float(v)) for v in emissions) + '\n')
 
 
-def maximise(transitions, emissions):
+def maximise(transitions, emissions, train_long_gap=False):
     """ the five-state model that the expected counts make, with the two sequences made alike (as pecan aligns
     them either way round) and the two strands alike: transitions[from * 5 + to], emissions[state * 16 + x * 4 + y],
-    bases in the order A C G T.  The gap states share one base distribution, the letters they emit.  The long-gap
-    state's transitions are held at cPecan's (LONG_GAP_OPEN, LONG_GAP_EXTEND), and the rest of the match state's
-    share out what they leave in proportion to their counts: the most likely model with the long gaps fixed. """
+    bases in the order A C G T.  The gap states share one base distribution, the letters they emit.  Unless
+    train_long_gap, the long-gap state's transitions are held at cPecan's (LONG_GAP_OPEN, LONG_GAP_EXTEND), and the
+    rest of the match state's share out what they leave in proportion to their counts: the most likely model with
+    the long gaps fixed.  Train them only from alignments that have long gaps in them, as whole-haplotype ones do. """
+    E = [[[max(emissions[s * 16 + x * 4 + y], 0.0) + 1e-6 for y in range(4)] for x in range(4)] for s in range(5)]
     T = [[max(transitions[i * 5 + j], 0.0) + 1e-6 for j in range(5)] for i in range(5)]
     T = [[(T[i][j] + T[XY_SWAP[i]][XY_SWAP[j]]) / 2 for j in range(5)] for i in range(5)]
     T = [[v / sum(row) for v in row] for row in T]
+    if train_long_gap:
+        return [v for row in T for v in row], gap_and_match_emissions(E)
     free = T[MATCH][MATCH] + T[MATCH][SHORT_GAP_X] + T[MATCH][SHORT_GAP_Y]
     for j in (MATCH, SHORT_GAP_X, SHORT_GAP_Y):
         T[MATCH][j] *= (1 - 2 * LONG_GAP_OPEN) / free
@@ -245,7 +249,12 @@ def maximise(transitions, emissions):
     for g, other in ((LONG_GAP_X, LONG_GAP_Y), (LONG_GAP_Y, LONG_GAP_X)):
         T[g] = [0.0] * 5
         T[g][g], T[g][MATCH], T[g][other] = LONG_GAP_EXTEND, 1 - LONG_GAP_EXTEND, LONG_GAP_OPEN
-    E = [[[max(emissions[s * 16 + x * 4 + y], 0.0) + 1e-6 for y in range(4)] for x in range(4)] for s in range(5)]
+    return [v for row in T for v in row], gap_and_match_emissions(E)
+
+
+def gap_and_match_emissions(E):
+    """ maximise's emissions: the match state's symmetrised over the two sequences and the two strands, and one base
+    distribution for every gap state """
     # A C G T reversed is the complement of each: (x, y) and (3 - x, 3 - y) are the same pair on the other strand
     M = [[(E[MATCH][x][y] + E[MATCH][y][x] + E[MATCH][3 - x][3 - y] + E[MATCH][3 - y][3 - x]) / 4 for y in range(4)]
          for x in range(4)]
@@ -265,15 +274,15 @@ def maximise(transitions, emissions):
         for x in range(4):
             for y in range(4):
                 emissions.append(M[x][y] if s == MATCH else gap[x] * gap[y])
-    return [v for row in T for v in row], emissions
+    return emissions
 
 
-def train_pair_hmm(batch_dir, batches, iterations, threads):
+def train_pair_hmm(batch_dir, batches, iterations, threads, train_long_gap=False):
     """ fit cPecan's five-state model to the alignments of paf_to_cpecan_batches by EM, iterations times from its
-    default model, cPecanRealign running on threads batches at once.  Returns (transitions, emissions) and the
-    match identity after each iteration.  (cPecanRealign also reports a likelihood, but adds each matrix's once per
-    diagonal of its band, so it is not the likelihood EM maximises and need not rise: the parameters settling is
-    what to watch.) """
+    default model, cPecanRealign running on threads batches at once, the long-gap state trained too with
+    train_long_gap (see maximise).  Returns (transitions, emissions) and the match identity after each iteration.
+    (cPecanRealign also reports a likelihood, but adds each matrix's once per diagonal of its band, so it is not
+    the likelihood EM maximises and need not rise: the parameters settling is what to watch.) """
     hmm_path = None
     identities = []
     def expectations(b, iteration):
@@ -294,11 +303,20 @@ def train_pair_hmm(batch_dir, batches, iterations, threads):
                     emissions = [a + b for a, b in zip(emissions, r[1])]
         if sum(emissions) == 0:
             raise RuntimeError('cPecanRealign counted nothing in the alignments in {}'.format(batch_dir))
-        transitions, emissions = maximise(transitions, emissions)
+        transitions, emissions = maximise(transitions, emissions, train_long_gap)
         hmm_path = os.path.join(batch_dir, 'model.{}.hmm'.format(iteration))
         write_hmm(hmm_path, transitions, emissions)
         identities.append(sum(emissions[MATCH * 16 + x * 5] for x in range(4)))
     return transitions, emissions, identities
+
+
+def combined_gap(transitions):
+    """ the model's two gap states (in one sequence) as one affine gap, (open, extend) probabilities: open their total,
+    extension the one that keeps their mean gap length -- for when EM has made both of them short gaps """
+    T = lambda i, j: transitions[i * 5 + j]
+    ds, es, dl, el = T(MATCH, SHORT_GAP_X), T(SHORT_GAP_X, SHORT_GAP_X), T(MATCH, LONG_GAP_X), T(LONG_GAP_X, LONG_GAP_X)
+    mean_length = (ds / (1 - es) + dl / (1 - el)) / (ds + dl)
+    return ds + dl, 1 - 1 / mean_length
 
 
 def single_gap(transitions):
