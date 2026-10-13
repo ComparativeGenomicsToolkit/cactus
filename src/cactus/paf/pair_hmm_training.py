@@ -118,15 +118,24 @@ def sample_pieces(fasta_path, out_path, pieces, length, seed=1, max_n=0.05, pref
     return written
 
 
-def paf_to_cpecan_batches(paf_path, sample_path, genome_path, out_dir, batches, max_masked=0.5):
+def paf_to_cpecan_batches(paf_path, sample_path, genome_path, out_dir, batches, max_masked=0.5, identity_weighting=False):
     """ the alignments in paf_path between the sample (sample_path) and the genome (genome_path) as input for
     cPecanRealign, spread round-robin over batches pairs of files out_dir/<i>.fa and out_dir/<i>.cigar.  Each
     alignment's two spans are written as their own sequences, the genome's forward (X) and the sample's in the
     orientation that aligns to it (Y), with a cigar over them, so cPecanRealign sees every alignment on the
     forward strands.  Alignments mostly soft-masked on either side are left out, as last-postmask leaves them out
-    of last-train's counts: repeats aligned to repeats teach the model about repeats.  Returns
-    {'alignments', 'kept', 'aligned_bp', 'identity'}, the identity being the median over aligned bases, from the
-    cigars' = and X (None for a mapper whose cigars have only M, which cPecanRealign takes all the same). """
+    of last-train's counts: repeats aligned to repeats teach the model about repeats.
+
+    With identity_weighting the alignments are binned by identity (5% bins), each bin into batches of its own, and
+    each batch given a weight for train_pair_hmm that evens out the aligned bases of the bins: at a deep distance
+    most of what aligns is conserved coding sequence, and a model fitted to it unweighted fits that and is too
+    strict for the more diverged rest.  A bin holding under 1% of the aligned bases keeps weight 1, and no weight
+    exceeds 4, so that a few chance alignments at the low end are not made to count.
+
+    Returns {'alignments', 'kept', 'aligned_bp', 'identity', 'batch_weights', 'sample_bp', 'covered_bp'}: the
+    identity is the median over aligned bases, from the cigars' = and X (None for a mapper whose cigars have only M,
+    which cPecanRealign takes all the same); batch_weights one per batch written (out_dir/<i>.fa, .cigar); and
+    covered_bp how many of the sample's sample_bp bases the kept alignments cover. """
     sample = dict(fasta_records(sample_path))
     records = []
     wanted = {}
@@ -152,11 +161,10 @@ def paf_to_cpecan_batches(paf_path, sample_path, genome_path, out_dir, batches, 
         for i in wanted[name]:
             spans[i] = seq[records[i][5]:records[i][6]]
 
-    os.makedirs(out_dir, exist_ok=True)
-    files = [(open(os.path.join(out_dir, '{}.fa'.format(b)), 'wb'), open(os.path.join(out_dir, '{}.cigar'.format(b)), 'w'))
-             for b in range(batches)]
     stats = {'alignments': len(records), 'kept': 0, 'aligned_bp': 0}
     identities = []
+    kept = []           # (record index, x, y, ops, aligned bases, identity or None)
+    covered = {}
     for i, (q_name, q_start, q_end, strand, t_name, t_start, t_end, cigar, sample_is_query) in enumerate(records):
         x, y = spans.get(i), sample[q_name][q_start:q_end]
         if x is None or len(x) != t_end - t_start:
@@ -190,9 +198,45 @@ def paf_to_cpecan_batches(paf_path, sample_path, genome_path, out_dir, batches, 
             ops.reverse()
         stats['kept'] += 1
         stats['aligned_bp'] += aligned
-        if matches + mismatches:
-            identities.append((matches / (matches + mismatches), matches + mismatches))
-        fa, cig = files[stats['kept'] % batches]
+        identity = matches / (matches + mismatches) if matches + mismatches else None
+        if identity is not None:
+            identities.append((identity, matches + mismatches))
+        kept.append((i, x, y, ops, aligned, identity))
+        covered.setdefault(q_name, []).append((q_start, q_end))
+
+    # how much of the sample the kept alignments cover
+    stats['sample_bp'] = sum(len(seq) for seq in sample.values())
+    stats['covered_bp'] = 0
+    for intervals in covered.values():
+        end = -1
+        for start, stop in sorted(intervals):
+            stats['covered_bp'] += max(0, stop - max(start, end))
+            end = max(end, stop)
+
+    # the batches: round-robin over them all, or each identity bin over batches of its own, weighted
+    if identity_weighting and stats['aligned_bp']:
+        mass = {}
+        for _, _, _, _, aligned, identity in kept:
+            b = None if identity is None else min(19, int(identity * 20))
+            mass[b] = mass.get(b, 0) + aligned
+        big = [b for b, m in mass.items() if m >= 0.01 * stats['aligned_bp']]
+        target = sum(mass[b] for b in big) / len(big)
+        bin_weight = {b: (min(4.0, target / m) if b in big else 1.0) for b, m in mass.items()}
+        bin_batches, batch_weights = {}, []
+        for b in sorted(mass, key=lambda b: -1 if b is None else b):
+            n = max(1, int(round(batches * mass[b] / stats['aligned_bp'])))
+            bin_batches[b] = list(range(len(batch_weights), len(batch_weights) + n))
+            batch_weights += [bin_weight[b]] * n
+        assign = [bin_batches[None if identity is None else min(19, int(identity * 20))] for *_, identity in kept]
+    else:
+        batch_weights = [1.0] * batches
+        assign = [list(range(batches))] * len(kept)
+    stats['batch_weights'] = batch_weights
+    os.makedirs(out_dir, exist_ok=True)
+    files = [(open(os.path.join(out_dir, '{}.fa'.format(b)), 'wb'), open(os.path.join(out_dir, '{}.cigar'.format(b)), 'w'))
+             for b in range(len(batch_weights))]
+    for k, ((i, x, y, ops, aligned, identity), choices) in enumerate(zip(kept, assign)):
+        fa, cig = files[choices[k % len(choices)]]
         fa.write(b'>x%d\n%s\n>y%d\n%s\n' % (i, x, i, y))
         # a sonLib cigar names its second sequence (Y) first
         cig.write('cigar: y{} 0 {} + x{} 0 {} + 0 {}\n'.format(i, len(y), i, len(x), ' '.join('{} {}'.format(c, n) for c, n in ops)))
@@ -277,12 +321,15 @@ def gap_and_match_emissions(E):
     return emissions
 
 
-def train_pair_hmm(batch_dir, batches, iterations, threads, train_long_gap=False):
+def train_pair_hmm(batch_dir, batches, iterations, threads, train_long_gap=False, batch_weights=None, shrink_weight=None):
     """ fit cPecan's five-state model to the alignments of paf_to_cpecan_batches by EM, iterations times from its
     default model, cPecanRealign running on threads batches at once, the long-gap state trained too with
-    train_long_gap (see maximise).  Returns (transitions, emissions) and the match identity after each iteration.
-    (cPecanRealign also reports a likelihood, but adds each matrix's once per diagonal of its band, so it is not
-    the likelihood EM maximises and need not rise: the parameters settling is what to watch.) """
+    train_long_gap (see maximise), and each batch's counts multiplied by its batch_weights entry if given
+    (paf_to_cpecan_batches's identity weighting).  With shrink_weight the fitted model is then mixed with cPecan's
+    default, shrink_weight of it to the rest of the default (shrink_to_default).  Returns (transitions, emissions)
+    and the match identity after each iteration.  (cPecanRealign also reports a likelihood, but adds each matrix's
+    once per diagonal of its band, so it is not the likelihood EM maximises and need not rise: the parameters
+    settling is what to watch.) """
     hmm_path = None
     identities = []
     def expectations(b, iteration):
@@ -294,20 +341,57 @@ def train_pair_hmm(batch_dir, batches, iterations, threads, train_long_gap=False
                                 '--outputExpectations={}'.format(out)] + (['--loadHmm={}'.format(hmm_path)] if hmm_path else []),
                     infile=cigar, outfile=out + '.stdout', rt_log_cmd=False)
         return read_expectations(out)
+    weights = batch_weights if batch_weights is not None else [1.0] * batches
     for iteration in range(iterations):
         transitions, emissions = [0.0] * 25, [0.0] * 80
         with ThreadPoolExecutor(max_workers=max(1, threads)) as pool:
-            for r in pool.map(lambda b: expectations(b, iteration), range(batches)):
+            for w, r in zip(weights, pool.map(lambda b: expectations(b, iteration), range(len(weights)))):
                 if r is not None:
-                    transitions = [a + b for a, b in zip(transitions, r[0])]
-                    emissions = [a + b for a, b in zip(emissions, r[1])]
+                    transitions = [a + w * b for a, b in zip(transitions, r[0])]
+                    emissions = [a + w * b for a, b in zip(emissions, r[1])]
         if sum(emissions) == 0:
             raise RuntimeError('cPecanRealign counted nothing in the alignments in {}'.format(batch_dir))
         transitions, emissions = maximise(transitions, emissions, train_long_gap)
         hmm_path = os.path.join(batch_dir, 'model.{}.hmm'.format(iteration))
         write_hmm(hmm_path, transitions, emissions)
         identities.append(sum(emissions[MATCH * 16 + x * 5] for x in range(4)))
+    if shrink_weight is not None and shrink_weight < 1:
+        transitions, emissions = shrink_to_default(transitions, emissions, shrink_weight)
     return transitions, emissions, identities
+
+
+def default_model():
+    """ cPecan's built-in five-state model (stateMachine5_construct), as (transitions, emissions) in train_pair_hmm's
+    layout: its match emissions as it has them, summing to 0.64 rather than 1, and its gap emissions (0.2 a base)
+    spread over the other sequence's letters, as a trained model's are """
+    match, transversion, transition = 0.12064298095701059, 0.010367271172731285, 0.01862247669752685
+    short_open, short_extend, short_switch = 0.0129868352330243, 0.7126062401851738, 0.0073673675173412815
+    T = [[0.0] * 5 for _ in range(5)]
+    T[MATCH] = [0.9703833696510062, short_open, short_open, LONG_GAP_OPEN, LONG_GAP_OPEN]
+    for g, other in ((SHORT_GAP_X, SHORT_GAP_Y), (SHORT_GAP_Y, SHORT_GAP_X)):
+        T[g][g], T[g][other], T[g][MATCH] = short_extend, short_switch, 0.280026392297485
+    for g, other in ((LONG_GAP_X, LONG_GAP_Y), (LONG_GAP_Y, LONG_GAP_X)):
+        T[g][g], T[g][other], T[g][MATCH] = LONG_GAP_EXTEND, LONG_GAP_OPEN, 1 - LONG_GAP_EXTEND
+    emissions = []
+    for state in range(5):
+        for x in range(4):
+            for y in range(4):
+                if state != MATCH:
+                    emissions.append(0.2 / 4)
+                elif x == y:
+                    emissions.append(match)
+                else:
+                    emissions.append(transition if (x + y) % 2 == 0 else transversion)   # A C G T: A/G and C/T are even sums
+    return [v for row in T for v in row], emissions
+
+
+def shrink_to_default(transitions, emissions, weight):
+    """ the fitted model mixed with cPecan's default (default_model), weight of it: for a pair whose sample mostly
+    did not align, so that the alignments it was fitted to are the conserved minority of what bar will align,
+    against a default that does well on diverged sequence """
+    t0, e0 = default_model()
+    return ([weight * a + (1 - weight) * b for a, b in zip(transitions, t0)],
+            [weight * a + (1 - weight) * b for a, b in zip(emissions, e0)])
 
 
 def combined_gap(transitions):
@@ -333,7 +417,10 @@ def score_model_from_hmm(transitions, emissions, units_per_nat=100.0):
     ln(p_ab / (f_a f_b)) + ln(m), m the match-continue probability, and a gap of length k costs d + (k - 1) e, with
     d = -ln(delta (1 - epsilon) / m), e = -ln(epsilon) for single_gap's delta and epsilon -- which as an open plus
     k extensions is open = d - e, extend = e. """
-    P = [[emissions[MATCH * 16 + x * 4 + y] for y in range(4)] for x in range(4)]
+    # as probabilities: a model mixed with cPecan's default (shrink_to_default) has match emissions summing to less
+    # than 1, as the default's do
+    total = sum(emissions[MATCH * 16:MATCH * 16 + 16])
+    P = [[emissions[MATCH * 16 + x * 4 + y] / total for y in range(4)] for x in range(4)]
     f = [sum(row) for row in P]
     m = transitions[MATCH * 5 + MATCH]
     delta, epsilon = single_gap(transitions)

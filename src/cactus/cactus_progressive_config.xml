@@ -106,6 +106,12 @@
 	     search repeated with the model it yields, as last-train's is, finds only more conserved sequence each time at
 	     a deep distance, and settles on a model of the conserved minority -->
 	<!-- trainIterations EM iterations, from cPecan's default model; the parameters settle in 3 or 4 -->
+	<!-- trainIdentityWeighting Weight the training alignments so that each 5% band of identity counts alike (no band
+	     more than 4x, bands under 1% of the bases as they are): at a deep distance what aligns is mostly conserved
+	     coding sequence, and a model fitted to it unweighted is too strict for the more diverged rest -->
+	<!-- trainShrinkToDefault Mix each fitted model with cPecan's default, keeping the share of it that is the share of
+	     the sample that aligned: a pair whose sample mostly did not align, a deep one, was fitted to the conserved
+	     minority of what bar will align -->
 	<!-- lastzTrainCores Cores for each pair's fit -->
 	<blast chunkSize="90000000"
 	       bigChunkSize="6000000000"
@@ -147,6 +153,8 @@
 		   trainPieces="5000"
 		   trainPieceLength="2000"
 		   trainIterations="5"
+		   trainIdentityWeighting="0"
+		   trainShrinkToDefault="0"
 		   lastzTrainCores="4"
 		   >
 

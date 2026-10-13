@@ -166,25 +166,34 @@ def fit_pair_scoring_models(job, event_a, event_b, db_event, db_genome, sample_e
     blast_node = params.find("blast")
     trained_gaps = getOptionalAttrib(blast_node, 'lastzTrainGaps', typeFn=bool, default=False)
     iterations = getOptionalAttrib(blast_node, 'trainIterations', typeFn=int, default=5)
+    identity_weighting = getOptionalAttrib(blast_node, 'trainIdentityWeighting', typeFn=bool, default=False)
+    shrink = getOptionalAttrib(blast_node, 'trainShrinkToDefault', typeFn=bool, default=False)
     threads = max(1, int(job.cores))
     batches = 4 * threads
     try:
         work_dir = job.fileStore.getLocalTempDir()
         stats = paf_to_cpecan_batches(job.fileStore.readGlobalFile(paf), job.fileStore.readGlobalFile(sample),
-                                      job.fileStore.readGlobalFile(db_genome), os.path.join(work_dir, 'batches'), batches)
+                                      job.fileStore.readGlobalFile(db_genome), os.path.join(work_dir, 'batches'), batches,
+                                      identity_weighting=identity_weighting)
         if stats['kept'] == 0:
             RealtimeLogger.warning("Not training scoring for {} and {}: none of the {} alignments of {}'s sample to {} "
                                    "is usable".format(event_a, event_b, stats['alignments'], sample_event, db_event))
             return None
-        transitions, emissions, identities = train_pair_hmm(os.path.join(work_dir, 'batches'), batches, iterations, threads)
+        # the share of the sample that aligned: what <blast trainShrinkToDefault> keeps of the fitted model
+        covered = stats['covered_bp'] / stats['sample_bp'] if stats['sample_bp'] else 1.0
+        transitions, emissions, identities = train_pair_hmm(os.path.join(work_dir, 'batches'), batches, iterations, threads,
+                                                            batch_weights=stats['batch_weights'],
+                                                            shrink_weight=covered if shrink else None)
         models = scoring_models_from_hmm(transitions, emissions, params, trained_gaps)
     except Exception as e:
         RealtimeLogger.warning("Training scoring for {} and {} failed, so lastz falls back to the lastzScoreModel "
                                "table or HOXD70, and bar to its own settings: {}".format(event_a, event_b, e))
         return None
-    RealtimeLogger.info("Trained scoring for {} and {} ({}'s sample against {}: {} alignments, {} bp, median identity {}; "
-                        "EM identity by iteration {}): identity {:.1f}%, lastz matrix {}, gap {}+{}k".format(
-        event_a, event_b, sample_event, db_event, stats['kept'], stats['aligned_bp'],
+    RealtimeLogger.info("Trained scoring for {} and {} ({}'s sample against {}: {} alignments, {} bp, {:.1f}% of the sample "
+                        "aligned{}{}, median identity {}; EM identity by iteration {}): identity {:.1f}%, lastz matrix {}, gap {}+{}k".format(
+        event_a, event_b, sample_event, db_event, stats['kept'], stats['aligned_bp'], 100 * covered,
+        ', identity-weighted' if identity_weighting else '',
+        ', shrunk to {:.2f} of the fit'.format(covered) if shrink else '',
         '{:.1f}%'.format(100 * stats['identity']) if stats['identity'] is not None else 'unknown',
         ' '.join('{:.1f}'.format(100 * i) for i in identities), models['identity'], models['lastz']['matrix'],
         models['lastz']['gapOpen'], models['lastz']['gapExtend']))
