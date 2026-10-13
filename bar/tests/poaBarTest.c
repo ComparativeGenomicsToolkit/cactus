@@ -401,11 +401,11 @@ void test_baseAligner_selection(CuTest *testCase) {
     CuAssertIntEquals(testCase, BASE_ALIGNER_ABPOA, engine_for_config(testCase, "baseAligner=\"abpoa\""));
     CuAssertIntEquals(testCase, BASE_ALIGNER_MINIPOA, engine_for_config(testCase, "baseAligner=\"minipoa\""));
 
-    // absent: abpoa
-    CuAssertIntEquals(testCase, BASE_ALIGNER_ABPOA, engine_for_config(testCase, ""));
+    // absent: pecan, the default
+    CuAssertIntEquals(testCase, BASE_ALIGNER_PECAN, engine_for_config(testCase, ""));
 
     // the old boolean is ignored, alone or alongside baseAligner
-    CuAssertIntEquals(testCase, BASE_ALIGNER_ABPOA, engine_for_config(testCase, "partialOrderAlignment=\"0\""));
+    CuAssertIntEquals(testCase, BASE_ALIGNER_PECAN, engine_for_config(testCase, "partialOrderAlignment=\"1\""));
     CuAssertIntEquals(testCase, BASE_ALIGNER_MINIPOA,
                       engine_for_config(testCase, "partialOrderAlignment=\"0\" baseAligner=\"minipoa\""));
 }
@@ -428,7 +428,7 @@ void test_shipped_config_is_loadable(CuTest *testCase) {
     CactusParams *params = cactusParams_load((char *)path);
     CuAssertPtrNotNull(testCase, params);
 
-    CuAssertIntEquals(testCase, BASE_ALIGNER_ABPOA, baseAligner_constructFromCactusParams(params));
+    CuAssertIntEquals(testCase, BASE_ALIGNER_PECAN, baseAligner_constructFromCactusParams(params));
 
     // every attribute poaBarAligner.c reads; the getters st_errAbort on a missing one
     PoaParameters *abpoa = poaParameters_constructFromCactusParams(params, BASE_ALIGNER_ABPOA);
