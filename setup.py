@@ -32,7 +32,7 @@ setup(
     install_requires = [
         'sonlib @ file:./submodules/sonLib',
         'decorator',
-        'networkx>=2,<2.8.1',
+        'networkx>=2,!=2.8.1',
         'pytest',
         'biopython',
         'pysam'],
