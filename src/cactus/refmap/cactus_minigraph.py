@@ -656,11 +656,13 @@ LAST_TRAIN_SECS = 6000
 #   v2  zipOptions without --no-alt: the reference pass, then alt-vs-alt
 #   v3  zipWalks="gaf" with v2's options: walks observed by mapping every genome to the unzipped graph
 # On a CHM13 30-way pangenome the alt-vs-alt pass was a small but consistent loss (raw GT F1 lower
-# than v1's for 13 of its 14 samples), hence the default
+# than v1's for 13 of its 14 samples), hence the default.  --tandem (in the default) replaces a long
+# insertion that is a forward tandem copy of the reference beside it by a back link over the
+# reference copy, so a copy number has one route through the graph
 
 # v1's zipOptions, as in the shipped config, for a config that turns zipAlleles on without giving
 # them: rgfa-zip's own defaults would be v2.  An explicit zipOptions="" still means those
-ZIP_DEFAULT_OPTIONS = '-b 5000 -i 0.95 -G 50 -x asm20 --no-alt'
+ZIP_DEFAULT_OPTIONS = '-b 5000 -i 0.95 -G 50 -x asm20 --no-alt --tandem'
 
 # rgfa-zip's walk sources.  creator (the default) and witness are rebuilt from the graph alone; gaf
 # reads them from a GAF that zip_alleles_workflow makes by mapping every genome to the graph
