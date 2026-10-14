@@ -271,14 +271,17 @@ def write_hmm(path, transitions, emissions):
         f.write('\t'.join(repr(float(v)) for v in emissions) + '\n')
 
 
-def maximise(transitions, emissions, train_long_gap=False):
+def maximise(transitions, emissions, train_long_gap=False, hold_transitions=False):
     """ the five-state model that the expected counts make, with the two sequences made alike (as pecan aligns
     them either way round) and the two strands alike: transitions[from * 5 + to], emissions[state * 16 + x * 4 + y],
     bases in the order A C G T.  The gap states share one base distribution, the letters they emit.  Unless
     train_long_gap, the long-gap state's transitions are held at cPecan's (LONG_GAP_OPEN, LONG_GAP_EXTEND), and the
     rest of the match state's share out what they leave in proportion to their counts: the most likely model with
-    the long gaps fixed.  Train them only from alignments that have long gaps in them, as whole-haplotype ones do. """
+    the long gaps fixed.  Train them only from alignments that have long gaps in them, as whole-haplotype ones do.
+    With hold_transitions all the transitions are cPecan's (default_model) and only the emissions are fitted. """
     E = [[[max(emissions[s * 16 + x * 4 + y], 0.0) + 1e-6 for y in range(4)] for x in range(4)] for s in range(5)]
+    if hold_transitions:
+        return default_model()[0], gap_and_match_emissions(E)
     T = [[max(transitions[i * 5 + j], 0.0) + 1e-6 for j in range(5)] for i in range(5)]
     T = [[(T[i][j] + T[XY_SWAP[i]][XY_SWAP[j]]) / 2 for j in range(5)] for i in range(5)]
     T = [[v / sum(row) for v in row] for row in T]
@@ -321,10 +324,11 @@ def gap_and_match_emissions(E):
     return emissions
 
 
-def train_pair_hmm(batch_dir, batches, iterations, threads, train_long_gap=False, batch_weights=None, shrink_weight=None):
+def train_pair_hmm(batch_dir, batches, iterations, threads, train_long_gap=False, batch_weights=None, shrink_weight=None,
+                   hold_transitions=False):
     """ fit cPecan's five-state model to the alignments of paf_to_cpecan_batches by EM, iterations times from its
     default model, cPecanRealign running on threads batches at once, the long-gap state trained too with
-    train_long_gap (see maximise), and each batch's counts multiplied by its batch_weights entry if given
+    train_long_gap or held at cPecan's with hold_transitions (see maximise), and each batch's counts multiplied by its batch_weights entry if given
     (paf_to_cpecan_batches's identity weighting).  With shrink_weight the fitted model is then mixed with cPecan's
     default, shrink_weight of it to the rest of the default (shrink_to_default).  Returns (transitions, emissions)
     and the match identity after each iteration.  (cPecanRealign also reports a likelihood, but adds each matrix's
@@ -351,7 +355,7 @@ def train_pair_hmm(batch_dir, batches, iterations, threads, train_long_gap=False
                     emissions = [a + w * b for a, b in zip(emissions, r[1])]
         if sum(emissions) == 0:
             raise RuntimeError('cPecanRealign counted nothing in the alignments in {}'.format(batch_dir))
-        transitions, emissions = maximise(transitions, emissions, train_long_gap)
+        transitions, emissions = maximise(transitions, emissions, train_long_gap, hold_transitions)
         hmm_path = os.path.join(batch_dir, 'model.{}.hmm'.format(iteration))
         write_hmm(hmm_path, transitions, emissions)
         identities.append(sum(emissions[MATCH * 16 + x * 5] for x in range(4)))
@@ -362,9 +366,13 @@ def train_pair_hmm(batch_dir, batches, iterations, threads, train_long_gap=False
 
 def default_model():
     """ cPecan's built-in five-state model (stateMachine5_construct), as (transitions, emissions) in train_pair_hmm's
-    layout: its match emissions as it has them, summing to 0.64 rather than 1, and its gap emissions (0.2 a base)
-    spread over the other sequence's letters, as a trained model's are """
-    match, transversion, transition = 0.12064298095701059, 0.010367271172731285, 0.01862247669752685
+    layout, as a model loaded from a file or JSON must give it.  The built-in's emissions are 0.2 a base in a gap
+    and sum to 0.64 = 0.8 * 0.8 over the match state; loading normalises the gap emissions (to 0.25 a base) but
+    not the match ones, so here the match emissions are scaled to sum to 1, which gives the built-in's posteriors
+    exactly (as cPecanRealign --outputExpectations shows).  The gap emissions are spread over the other sequence's
+    letters, as a trained model's are. """
+    # the built-in's match emissions, over 0.8 * 0.8
+    match, transversion, transition = (p / 0.64 for p in (0.12064298095701059, 0.010367271172731285, 0.01862247669752685))
     short_open, short_extend, short_switch = 0.0129868352330243, 0.7126062401851738, 0.0073673675173412815
     T = [[0.0] * 5 for _ in range(5)]
     T[MATCH] = [0.9703833696510062, short_open, short_open, LONG_GAP_OPEN, LONG_GAP_OPEN]
@@ -417,10 +425,7 @@ def score_model_from_hmm(transitions, emissions, units_per_nat=100.0):
     ln(p_ab / (f_a f_b)) + ln(m), m the match-continue probability, and a gap of length k costs d + (k - 1) e, with
     d = -ln(delta (1 - epsilon) / m), e = -ln(epsilon) for single_gap's delta and epsilon -- which as an open plus
     k extensions is open = d - e, extend = e. """
-    # as probabilities: a model mixed with cPecan's default (shrink_to_default) has match emissions summing to less
-    # than 1, as the default's do
-    total = sum(emissions[MATCH * 16:MATCH * 16 + 16])
-    P = [[emissions[MATCH * 16 + x * 4 + y] / total for y in range(4)] for x in range(4)]
+    P = [[emissions[MATCH * 16 + x * 4 + y] for y in range(4)] for x in range(4)]
     f = [sum(row) for row in P]
     m = transitions[MATCH * 5 + MATCH]
     delta, epsilon = single_gap(transitions)

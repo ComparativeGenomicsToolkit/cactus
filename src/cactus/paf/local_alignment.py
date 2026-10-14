@@ -168,6 +168,7 @@ def fit_pair_scoring_models(job, event_a, event_b, db_event, db_genome, sample_e
     iterations = getOptionalAttrib(blast_node, 'trainIterations', typeFn=int, default=5)
     identity_weighting = getOptionalAttrib(blast_node, 'trainIdentityWeighting', typeFn=bool, default=False)
     shrink = getOptionalAttrib(blast_node, 'trainShrinkToDefault', typeFn=bool, default=False)
+    train_transitions = getOptionalAttrib(blast_node, 'trainTransitions', typeFn=bool, default=True)
     threads = max(1, int(job.cores))
     batches = 4 * threads
     try:
@@ -183,17 +184,19 @@ def fit_pair_scoring_models(job, event_a, event_b, db_event, db_genome, sample_e
         covered = stats['covered_bp'] / stats['sample_bp'] if stats['sample_bp'] else 1.0
         transitions, emissions, identities = train_pair_hmm(os.path.join(work_dir, 'batches'), batches, iterations, threads,
                                                             batch_weights=stats['batch_weights'],
-                                                            shrink_weight=covered if shrink else None)
+                                                            shrink_weight=covered if shrink else None,
+                                                            hold_transitions=not train_transitions)
         models = scoring_models_from_hmm(transitions, emissions, params, trained_gaps)
     except Exception as e:
         RealtimeLogger.warning("Training scoring for {} and {} failed, so lastz falls back to the lastzScoreModel "
                                "table or HOXD70, and bar to its own settings: {}".format(event_a, event_b, e))
         return None
     RealtimeLogger.info("Trained scoring for {} and {} ({}'s sample against {}: {} alignments, {} bp, {:.1f}% of the sample "
-                        "aligned{}{}, median identity {}; EM identity by iteration {}): identity {:.1f}%, lastz matrix {}, gap {}+{}k".format(
+                        "aligned{}{}{}, median identity {}; EM identity by iteration {}): identity {:.1f}%, lastz matrix {}, gap {}+{}k".format(
         event_a, event_b, sample_event, db_event, stats['kept'], stats['aligned_bp'], 100 * covered,
         ', identity-weighted' if identity_weighting else '',
         ', shrunk to {:.2f} of the fit'.format(covered) if shrink else '',
+        ', transitions held at the default' if not train_transitions else '',
         '{:.1f}%'.format(100 * stats['identity']) if stats['identity'] is not None else 'unknown',
         ' '.join('{:.1f}'.format(100 * i) for i in identities), models['identity'], models['lastz']['matrix'],
         models['lastz']['gapOpen'], models['lastz']['gapExtend']))

@@ -112,6 +112,9 @@
 	<!-- trainShrinkToDefault Mix each fitted model with cPecan's default, keeping the share of it that is the share of
 	     the sample that aligned: a pair whose sample mostly did not align, a deep one, was fitted to the conserved
 	     minority of what bar will align -->
+	<!-- trainTransitions 0 holds each model's transitions, its gap rates, at cPecan's default and fits only the
+	     emissions: lastz's alignments stop where indels crowd, so the gap rates fitted to them are low for
+	     indel-rich diverged sequence -->
 	<!-- lastzTrainCores Cores for each pair's fit -->
 	<blast chunkSize="90000000"
 	       bigChunkSize="6000000000"
@@ -155,6 +158,7 @@
 		   trainIterations="5"
 		   trainIdentityWeighting="0"
 		   trainShrinkToDefault="0"
+		   trainTransitions="1"
 		   lastzTrainCores="4"
 		   >
 
