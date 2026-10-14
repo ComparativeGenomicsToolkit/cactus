@@ -529,7 +529,7 @@
 	<!-- cactus-graphmap options -->
 	<!-- assemblyName: special name of "virtual" minigraph assembly, which is just the list of sequences from the graph. -->
 	<!-- minigraphMapOptions: flags to pass to minigraph for mapping -->
-	<!-- minigraphConstructOptions: flags to pass to minigraph for construction.  Add "--ggs-cnv" (glennhickey/minigraph ggs-cnv, off by default) to place copy-number variants by their own sequence: long deletion-only chain gaps and self-revisiting chains, so a copy loss or gain is no longer routed onto a near-identical paralog (chr1, 464 HPRC genomes: AMY haplotypes all placed right, AMY-locus NM -68%, but +16% alt sequence, mostly 1q21 paralogs). -->
+	<!-- minigraphConstructOptions: flags to pass to minigraph for construction.  Add the ggs-cnv option (glennhickey/minigraph branch ggs-cnv, off by default) to place copy-number variants by their own sequence: long deletion-only chain gaps and self-revisiting chains, so a copy loss or gain is no longer routed onto a near-identical paralog (chr1, 464 HPRC genomes: AMY haplotypes all placed right, AMY-locus NM -68%, but +16% alt sequence, mostly 1q21 paralogs). -->
 	<!-- par-align is output-preserving, ~1.3x on whole-genome construction for ~10% more CPU.
 	     Needs the glennhickey/minigraph fork; stock minigraph exits on the unknown option. -->
 	<!-- minigraphConstructBatchSize: break minigraph construction into chunks of this size. this allows recovering from a failure during graph construction, and avoiding really long argument lists for each job. -->
