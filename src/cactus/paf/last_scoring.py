@@ -429,16 +429,19 @@ def apply_trained_models_to_config(config_node, trained_models, reconstruction_t
     RealtimeLogger.info('bar scores with {} models trained per pair of genomes, {} also by distance'.format(
         len(ordered), len(binned)))
 
-def write_pair_hmm_train_file(path, transitions, emissions, comment, open2_factor=3, extend2_factor=30, long_gap_trained=True):
+def write_pair_hmm_train_file(path, transitions, emissions, comment, open2_factor=3, extend2_factor=30, long_gap_trained=True,
+                              min_long_gap_mean=10.0):
     """ a pair HMM (pair_hmm_training.train_pair_hmm) as a .train file that parse_train_file reads, at abPOA's scale --
     HOXD70's units, as the shipped <poa> scores are -- rather than last-train's coarse integers, whose gap extension
     can only be 1 or 2 (and which last-train caps at exp(-1/t), which held 17 of the 25 human chromosomes' models of
     the oct9 HPRC build at one value): substitutions are log-odds, and the gaps the two pieces of abPOA's convex gap,
     the first written as #last -a/-b and the second as #cactus -a2/-b2, which apply_scores_to_config uses as they are.
     When the long-gap state was trained and came out a real long gap -- dearer to open than the short one, cheaper to
-    extend -- the two states are the two pieces.  Otherwise (it was held at cPecan's default, which is a prior for
-    divergent sequence, or EM made it a second short gap, as 2kb pieces of human haplotypes do: they hold next to no
-    long indels) the first piece is all the trained gaps as one (pair_hmm_training.combined_gap; the short state's
+    extend, and with a mean length of at least min_long_gap_mean bases -- the two states are the two pieces.  On
+    human chr10 haplotypes, 10kb pieces gave long states of 23-40bp, and those that EM made a second short gap had
+    2.4-4.8bp; one of those (1073+22 against 909+48) cost abPOA 20% more events than the factors' piece.  Otherwise
+    (it was held at cPecan's default, which is a prior for divergent sequence, or EM made it a second short gap, as
+    2kb pieces of human haplotypes do: they hold next to no long indels) the first piece is all the trained gaps as one (pair_hmm_training.combined_gap; the short state's
     alone when the long one was held), and the second is made from it as poa_scores_from_model makes one, open2_factor
     times dearer to open and extend2_factor times cheaper to extend (<poa partialOrderAlignmentTrainedGapOpen2Factor>
     and ...Extension2Factor). """
@@ -453,7 +456,8 @@ def write_pair_hmm_train_file(path, transitions, emissions, comment, open2_facto
         return int(round((d - e) / lam)), max(1, int(round(e / lam)))
     a1, b1 = piece(transitions[MATCH * 5 + SHORT_GAP_X], transitions[SHORT_GAP_X * 5 + SHORT_GAP_X])
     a2, b2 = piece(transitions[MATCH * 5 + LONG_GAP_X], transitions[LONG_GAP_X * 5 + LONG_GAP_X])
-    if not (long_gap_trained and a2 > a1 and b2 < b1):
+    long_mean = 1 / (1 - transitions[LONG_GAP_X * 5 + LONG_GAP_X])
+    if not (long_gap_trained and a2 > a1 and b2 < b1 and long_mean >= min_long_gap_mean):
         if long_gap_trained:
             a1, b1 = piece(*combined_gap(transitions))
         a2, b2 = a1 * open2_factor, max(1, b1 // extend2_factor)    # as apply_long_gap divides
@@ -521,8 +525,8 @@ def pair_hmm_train_pangenome(job, config, name1, seq_order, seq_id_map):
         sampled, stats, identities = train_pair_hmm_file(
             job.fileStore.readGlobalFile(seq_id_map[name1]), [job.fileStore.readGlobalFile(seq_id_map[p]) for p in partners],
             train_file, work_dir,
-            pieces=getOptionalAttrib(graphmap_node, 'trainPieces', typeFn=int, default=5000),
-            piece_length=getOptionalAttrib(graphmap_node, 'trainPieceLength', typeFn=int, default=2000),
+            pieces=getOptionalAttrib(graphmap_node, 'trainPieces', typeFn=int, default=1000),
+            piece_length=getOptionalAttrib(graphmap_node, 'trainPieceLength', typeFn=int, default=10000),
             iterations=getOptionalAttrib(graphmap_node, 'trainIterations', typeFn=int, default=5),
             threads=max(1, int(job.cores)),
             train_long_gap=getOptionalAttrib(graphmap_node, 'trainLongGap', typeFn=bool, default=True),
