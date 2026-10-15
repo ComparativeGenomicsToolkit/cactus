@@ -56,4 +56,4 @@
 [submodule "submodules/pgrealign"]
 	path = submodules/pgrealign
 	url = https://github.com/benedictpaten/pgrealign.git
-	branch = cactus-integration
+	branch = main
