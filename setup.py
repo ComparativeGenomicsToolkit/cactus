@@ -31,6 +31,8 @@ setup(
 
     install_requires = [
         'sonlib @ file:./submodules/sonLib',
+        # for --pgrealign, which also needs the trfind, trf and abpoa binaries that make builds
+        'pgrealign @ file:./submodules/pgrealign',
         'decorator',
         'networkx>=2,!=2.8.1',
         'pytest',

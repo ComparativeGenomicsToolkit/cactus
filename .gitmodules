@@ -53,3 +53,7 @@
 [submodule "submodules/last"]
 	path = submodules/last
 	url = https://gitlab.com/mcfrith/last.git
+[submodule "submodules/pgrealign"]
+	path = submodules/pgrealign
+	url = https://github.com/benedictpaten/pgrealign.git
+	branch = cactus-integration

@@ -12,6 +12,7 @@ Please cite the [Minigraph-Cactus paper](https://doi.org/10.1038/s41587-023-0179
 * [Interface](#interface)
 * [VCF Output](#vcf-output)
 * [Graph Reference Paths (--gref)](#graph-reference-paths---gref)
+* [Realigning Tandem Repeats (--pgrealign)](#realigning-tandem-repeats---pgrealign)
 * [Output](#output)
 * [Patching Assemblies (cactus-panpatch)](#patching-assemblies-cactus-panpatch)
 * [Advanced Configuration](#advanced-configuration)
@@ -560,6 +561,46 @@ The gref VCF holds two coordinate systems, and the same sample sequence appears 
 Do not pool reference-contig and gref-contig records when computing allele frequencies or site counts, or that sequence is counted twice. In `.wave.vcf.gz`, match `RS` with a tolerance: realignment can shift the reference-contig record a few bases from where `RS` points.
 
 `vg` counts `LV` within each reference contig rather than as absolute depth in the snarl tree, so gref-contig sites reach `LV=0` and the whole VCF goes through a single `vcfbub --max-level 0` pass.
+
+### Realigning Tandem Repeats (`--pgrealign`)
+
+**Experimental.** [pgrealign](https://github.com/benedictpaten/pgrealign) realigns chosen regions of a graph, by default its tandem repeats. For each region, between two snarl boundary nodes of the reference, it aligns the alleles that the paths spell there to one another (a star alignment around a central allele, with abPOA) and replaces the region's nodes with a graph built from that alignment. Every path spells the same sequence afterwards: only how the paths share nodes inside the realigned regions changes.
+
+`--pgrealign` runs it on each chromosome graph that `cactus-align` wrote, before the join's full phase normalizes it (GFAffix, path normalization), so the full, clip and filter graphs, and everything built from them, carry the realignment. pgrealign works on the GFA that the GFAffix step reads, so it adds no conversion of its own to the full phase.
+
+```
+cactus-pangenome ./js ./seqfile.txt --outDir pg --outName pg --reference CHM13 --vcf --giraffe --pgrealign
+```
+
+The regions come from targets on the first `--reference`:
+
+* `--pgrealign` alone finds each chromosome's tandem repeats on its reference path, with `pgrealign catalog`: pgrealign's trfind for repeats with periods of 7 bp or more, and for the shorter ones strf, pgrealign's reimplementation of the part of TRF (Tandem Repeats Finder) that RepeatMasker 4.1 uses to find its Simple_repeat records. That is how pgrealign's own CHM13 catalogue was built, from RepeatMasker's annotation in place of strf: on CHM13 chr20, this finds 98% of that catalogue's entries and writes 1.9 times as many, as RepeatMasker also filters TRF's repeats in ways `catalog` does not.
+* `--pgrealign <BED>` takes the targets from a BED instead. Its contigs are named as the contig field of the reference's path names (`chr1` for `CHM13#0#chr1`), as in pgrealign's CHM13 v2.0 catalogue, [catalogs/chm13v2.0_tr.bed.gz](https://github.com/benedictpaten/pgrealign/tree/main/catalogs).
+
+It writes two kinds of report to `<outName>.stats/`:
+
+| File | Contents |
+| --- | --- |
+| `pgrealign-stats.tsv` | One row per chromosome: the targets, the regions of each status that pgrealign's `regions` and `extract` stages gave, the regions it realigned and those it could not (too large, timed out), the nodes it replaced, and the graph's length before and after. |
+| `pgrealign.<chrom>.tar.gz` | pgrealign's own outputs for the chromosome: the catalogue, `regions.tsv.gz`, the extracted alleles (`extract/packages.jsonl.gz`), the alignments (`msas.jsonl.gz`), each with its manifest, and a `summary.json` of every stage. With `pgrealignQC="1"`, also `qc.tsv`, how well each alignment agrees with optimal pairwise alignments, beside the original graph's. |
+
+These `<graphmap_join>` config attributes pass options to the pgrealign stages:
+
+| Attribute | Default | Effect |
+| --- | --- | --- |
+| `pgrealignCatalogOptions` | `--strf strf` | Options to `pgrealign catalog`, when no BED is given. `--trf <binary>` in place of `--strf strf` runs a TRF binary instead. |
+| `pgrealignRegionsOptions` | | Options to `pgrealign regions`, such as `--pad` and `--max-span`. |
+| `pgrealignExtractOptions` | | Options to `pgrealign extract`, such as `--max-internal-bp`. |
+| `pgrealignRealignOptions` | | Options to `pgrealign realign`, such as `--timeout` and `--max-cells`. Its `-j` and `--max-memory` come from the job's cores (`--indexCores`) and memory. |
+| `pgrealignVerify` | `1` | Check that every path of the realigned graph spells what it did before, failing the job if not. It compares the full phase's graph, once GFAffix has run and it is back in vg's format, with the graph `cactus-align` wrote. |
+| `pgrealignQC` | `0` | Run `pgrealign qc` on each chromosome. It can take longer than the realignment. |
+
+Things to know:
+
+* Only a reference contig that has one whole path in a chromosome graph is realigned. A graph without one, such as an unplaced bin, passes through unchanged.
+* Clipping can come out slightly differently, as it judges sequence aligned by the nodes it shares with the minigraph paths, which realignment changes. On the yeast test data, each genome's clipped sequence moved by at most 0.2% of its input, in both directions.
+* pgrealign runs the `pgrealign`, `abpoa`, `trfind` and `strf` commands. Cactus's `make` builds the last three from its submodules, and `pip install` installs pgrealign from its own, as do the Docker image and the binary release.
+* It cannot be combined with the `--vgFull`/`--vgClip`/`--vgFilter` bypass options, and it has not been tried with `--collapse`.
 
 ### Haplotype Sampling Instead of Filtering (NEW)
 

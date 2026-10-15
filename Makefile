@@ -7,7 +7,7 @@ modules = api setup caf bar hal reference pipeline preprocessor
 # submodules are in multiple pass to handle dependencies cactus2hal being dependent on
 # both cactus and sonLib
 # jemalloc is conditionally added based on include.mk settings
-submodules1 = sonLib cPecan hal matchingAndOrdering pinchesAndCacti abPOA lastz last paffy red collapse-bubble FASTGA FASTAN alntools
+submodules1 = sonLib cPecan hal matchingAndOrdering pinchesAndCacti abPOA lastz last paffy red collapse-bubble FASTGA FASTAN alntools pgrealign
 ifeq ($(minipoa),on)
 submodules1 += minipoa
 endif
@@ -357,8 +357,10 @@ suball.hal: suball.sonLib
 	-ln -f submodules/hal/bin/* bin/
 	-ln -f submodules/hal/lib/libHal.a submodules/hal/lib/halLib.a
 
+# abPOA's makefile sets its own CFLAGS, so -static (make static, the binary release) reaches the abpoa
+# command's link line through LIB, its list of libraries, instead
 suball.abPOA:
-	cd submodules/abPOA && CFLAGS="$(filter-out --pedantic,$(CFLAGS))" ${MAKE}
+	cd submodules/abPOA && CFLAGS="$(filter-out --pedantic,$(CFLAGS))" ${MAKE} LIB="-lm -lz -lpthread $${LIBS}"
 	if [ -f submodules/abPOA/lib/libabpoa_sse2.a ]; then ln -f submodules/abPOA/lib/libabpoa_sse2.a ${LIBDIR}/libabpoa.a; fi
 	if [ -f submodules/abPOA/lib/libabpoa_sse41.a ]; then ln -f submodules/abPOA/lib/libabpoa_sse41.a ${LIBDIR}/libabpoa.a; fi
 	if [ -f submodules/abPOA/lib/libabpoa_avx2.a ]; then ln -f submodules/abPOA/lib/libabpoa_avx2.a ${LIBDIR}/libabpoa.a; fi
@@ -366,6 +368,9 @@ suball.abPOA:
 	if [ -f submodules/abPOA/lib/libabpoa.a ]; then ln -f submodules/abPOA/lib/libabpoa.a ${LIBDIR}/libabpoa.a; fi
 	ln -f submodules/abPOA/include/*.h ${INCLDIR}
 	rm -fr ${INCLDIR}/simde && cp -r submodules/abPOA/include/simde ${INCLDIR}
+	# the abpoa command, for pgrealign (--pgrealign).  It is named for the SIMD level it was built at, like
+	# the library, so take the one just built
+	ln -f $$(ls -t submodules/abPOA/bin/abpoa* | head -1) ${BINDIR}/abpoa
 
 # minipoa carries a plain Makefile for this, because cactus does not drive cmake and because
 # upstream's CMakeLists picks its SIMD backend by probing the build host.  It reads the same
@@ -460,6 +465,17 @@ suball.FASTAN: suball.jemalloc
 suball.alntools:
 	cd submodules/alntools && ${MAKE} CC="$${CC:-gcc} ${CACTUS_ARCH_FLAGS}"
 	ln -f submodules/alntools/tanbed ${BINDIR}
+
+# pgrealign (--pgrealign) is pip installed with cactus from its submodule (setup.py).  Its catalog stage
+# compiles its tandem-repeat finders on first use, which a container with no compiler cannot do, so build
+# them here from the same sources, as pgrealign would (-O2 -lm), for cactus to name with --trfind and
+# --strf: trfind for the longer periods, and strf, pgrealign's reimplementation of the part of TRF that
+# RepeatMasker uses, for the short ones.  They take nothing from CFLAGS, which in make static and the
+# binary release is exported carrying sonLib's -Werror --pedantic; -static comes in LIBS, which include.mk
+# leaves alone
+suball.pgrealign:
+	$${CC:-gcc} ${CACTUS_ARCH_FLAGS} -O2 -o ${BINDIR}/trfind submodules/pgrealign/pgrealign/c/trfind.c -lm $${LIBS}
+	$${CC:-gcc} ${CACTUS_ARCH_FLAGS} -O2 -o ${BINDIR}/strf submodules/pgrealign/pgrealign/c/strf.c -lm $${LIBS}
 
 ifeq ($(jemalloc),on)
 subclean.jemalloc:

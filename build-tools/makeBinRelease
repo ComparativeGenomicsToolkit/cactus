@@ -172,6 +172,11 @@ cp -r bin src examples ${binPackageDir}
 cp *.md *.py *.txt ${binPackageDir}
 # sonLib needed for pip install
 find submodules/sonLib -name '*.py' | cpio -pdum ${binPackageDir}
+# and pgrealign, which setup.py installs from its submodule too: its package, its pyproject.toml with the
+# README that reads, and its licence (its tests and its 14M CHM13 catalogue stay behind)
+mkdir -p ${binPackageDir}/submodules/pgrealign
+cp -r submodules/pgrealign/pyproject.toml submodules/pgrealign/README.md submodules/pgrealign/LICENSE \
+   submodules/pgrealign/pgrealign ${binPackageDir}/submodules/pgrealign
 # install the hal python libraries, requires PYTHONPATH set by user.
 # todo: probably a better way
 mkdir -p $(binPackageDir)/lib

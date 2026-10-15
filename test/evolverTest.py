@@ -827,7 +827,8 @@ class TestCase(unittest.TestCase):
                                ['--xg', '--vcf', '--giraffe', 'clip', 'filter', '--lrGiraffe'] + cactus_opts + ['--indexCores', '4'])
 
     def _run_yeast_pangenome(self, binariesMode, mgSplit=False, wholeGenomeRef=True, collapse=False, gref=None,
-                             vcfL=None, extend=None, zipAlleles=True, zipWalks=None, exactOverlapFilter=True):
+                             vcfL=None, extend=None, zipAlleles=True, zipWalks=None, exactOverlapFilter=True,
+                             pgrealign=False):
         """ yeast pangenome chromosome by chromosome pipeline, as run through a single invocations.
 
         extend, if given, is the list of genomes to build a graph out of first, with the
@@ -861,6 +862,8 @@ class TestCase(unittest.TestCase):
                                                             '--snarlStats']
         if mgSplit:
             cactus_pangenome_cmd += ['--mgSplit']
+        if pgrealign:
+            cactus_pangenome_cmd += ['--pgrealign']
         # there is no command-line flag for these
         graphmap_attribs = {}
         if not zipAlleles:
@@ -2772,6 +2775,72 @@ class TestCase(unittest.TestCase):
             shell=True).strip())
         self.assertEqual(orig_vcf_records, bypass_vcf_records)
 
+    def _check_pgrealign(self, binariesMode, references):
+        """ the reports of a cactus-pangenome run with --pgrealign, which realigned the tandem repeats it
+        found on the reference itself (pgrealign catalog with trfind and TRF), then cactus-graphmap-join
+        --pgrealign on two of its chromosome graphs, with a BED of targets.  The full phase fails the
+        join unless every path spells what it did before (pgrealignVerify, see pgrealign_verify), so
+        what is left to check here is that it realigned something, and reported what it did """
+        import glob
+        import gzip
+        import json
+        import tarfile
+
+        join_path = os.path.join(self.tempDir, 'join')
+        raw_vgs = sorted(glob.glob(os.path.join(join_path, 'chrom-alignments', '*.raw.vg')))
+        self.assertGreater(len(raw_vgs), 2)
+        chroms = [os.path.basename(p)[:-len('.raw.vg')] for p in raw_vgs]
+
+        def read_stats(stats_dir):
+            with open(os.path.join(stats_dir, 'pgrealign-stats.tsv')) as stats_file:
+                header = stats_file.readline().lstrip('#').split()
+                return {line.split('\t')[0]: dict(zip(header, line.rstrip('\n').split('\t'))) for line in stats_file}
+
+        # every chromosome, on the tandem repeats pgrealign catalog found.  a graph with no reference
+        # path (an unplaced bin) is passed through, as no contigs
+        stats_dir = os.path.join(join_path, 'yeast.stats')
+        rows = read_stats(stats_dir)
+        self.assertEqual(sorted(rows), sorted(chroms))
+        self.assertGreater(sum(int(row['contigs']) for row in rows.values()), 2)
+        self.assertGreater(sum(int(row['realigned']) for row in rows.values()), 100)
+        catalogs = {}
+        for chrom, row in rows.items():
+            with tarfile.open(os.path.join(stats_dir, 'pgrealign.{}.tar.gz'.format(chrom))) as archive:
+                names = set(archive.getnames())
+                summary = json.load(archive.extractfile('{}.pgrealign/summary.json'.format(chrom)))
+                if row['contigs'] == '0':
+                    continue
+                for name in ['catalog.bed.gz', 'regions.tsv.gz']:
+                    self.assertIn('{}.pgrealign/{}'.format(chrom, name), names)
+                with gzip.open(archive.extractfile('{}.pgrealign/catalog.bed.gz'.format(chrom)), 'rt') as catalog:
+                    catalogs[chrom] = [line.split('\t')[:3] for line in catalog if not line.startswith('#')]
+            # strf finds the short repeats that trfind cannot
+            self.assertIn('strf/STR', summary['catalog']['records_by_source_class'])
+            self.assertEqual((int(row['length_before']), int(row['length_after'])),
+                             (summary['length_before'], summary['length_after']))
+            if int(row['realigned']):
+                self.assertGreater(int(row['nodes_added']), 0)
+            else:
+                self.assertEqual(row['length_before'], row['length_after'])
+
+        # two chromosomes, on a plain BED: the first one's catalogue above, and nothing on the second
+        bed_chroms = [c for c in chroms if c in catalogs][:2]
+        bed_path = os.path.join(self.tempDir, 'pgrealign-targets.bed')
+        with open(bed_path, 'w') as bed_file:
+            for fields in catalogs[bed_chroms[0]]:
+                bed_file.write('\t'.join(fields) + '\n')
+        out_path = os.path.join(self.tempDir, 'pgrealign-bed')
+        subprocess.check_call(['cactus-graphmap-join', self._job_store(binariesMode) + '-pgrealign-bed',
+                               '--vg'] + [raw_vgs[chroms.index(c)] for c in bed_chroms] +
+                              ['--outDir', out_path, '--outName', 'yeast', '--reference'] + references +
+                              ['--gbz', 'clip', '--pgrealign', bed_path, '--binariesMode', binariesMode,
+                               '--logInfo', '--workDir', self.tempDir, '--maxCores', '4', '--indexCores', '4'])
+        rows = read_stats(os.path.join(out_path, 'yeast.stats'))
+        self.assertEqual(sorted(rows), sorted(bed_chroms))
+        self.assertEqual(int(rows[bed_chroms[0]]['targets']), len(catalogs[bed_chroms[0]]))
+        self.assertGreater(int(rows[bed_chroms[0]]['realigned']), 0)
+        self.assertEqual((rows[bed_chroms[1]]['targets'], rows[bed_chroms[1]]['realigned']), ('0', '0'))
+
     def testYeastPangenomeMgSplitLocal(self):
         """ Run the pangenome pipeline on yeast with --mgSplit and wholeGenomeRef="0" in
         <graphmap_split>, so that each chromosome's graph is built on that chromosome's reference
@@ -2781,9 +2850,12 @@ class TestCase(unittest.TestCase):
         a different route through the export (the whole-genome graph only reaches its final path
         after the prune).  This covers the original form: the zip is skipped on the reference-only
         first pass and runs on each all-sample chromosome graph, which is exported as it was zipped,
-        so the bp each zip logs must be exactly the non-reference bp its chromosome's graph lost. """
+        so the bp each zip logs must be exactly the non-reference bp its chromosome's graph lost.
+
+        It also realigns the tandem repeats with --pgrealign (_check_pgrealign).  The graph checks
+        it shares with the other yeast tests are ranges that the realignment stays within. """
         name = "local"
-        self._run_yeast_pangenome(name, mgSplit=True, wholeGenomeRef=False)
+        self._run_yeast_pangenome(name, mgSplit=True, wholeGenomeRef=False, pgrealign=True)
 
         # check the output
         self._check_yeast_pangenome(name, other_ref='DBVPG6044', expect_odgi=True, expect_haplo=False, expect_unchopped_gfa=True)
@@ -2795,6 +2867,9 @@ class TestCase(unittest.TestCase):
         self._check_zip_log(self._yeast_log_path(), chroms,
                             graphs={chrom: (os.path.join(mg_dir, chrom + '.sv.unzipped.gfa.gz'),
                                             os.path.join(mg_dir, chrom + '.sv.gfa.gz')) for chrom in chroms})
+
+        # its tandem repeats were realigned with pgrealign
+        self._check_pgrealign(name, ['S288C', 'DBVPG6044'])
 
     def testYeastPangenomeSplitLocal(self):
         """ Run pangenome pipeline (including contig splitting!) on yeast dataset using cactus-pangenome.
