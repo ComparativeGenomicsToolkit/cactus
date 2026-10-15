@@ -58,7 +58,7 @@ def main():
                         help="Memory in bytes for the minigraph construction job (defaults to an estimate based on the input data size). "
                         "Standard suffixes like K, Ki, M, Mi, G or Gi are supported (default=bytes))", default=None)
     parser.add_argument("--lastTrain", action="store_true",
-                        help="Deprecated: last-train is now on by default. Use the lastTrain attribute of <graphmap> "
+                        help="Deprecated: training the scoring model is now on by default. Use the lastTrain attribute of <graphmap> "
                         "in the config to turn it off", default=False)
     parser.add_argument("--refOnly", action="store_true",
                         help="Only build the graph out of reference genome(s). Can be used when it will only be used for chromosome-splitting, for example")
@@ -371,7 +371,7 @@ def minigraph_construct_batch_workflow(job, options, config_node, input_dict, gf
     return output_dict
 
 def borrow_last_train_models(job, output_dict, ref_sizes):
-    """ a chromosome that couldn't train its own scoring model (too small, no partner, or last-train
+    """ a chromosome that couldn't train its own scoring model (too small, no partner, or training
     failed) gets another chromosome's instead of falling back to the default scores: a model trained
     on the same genomes is much closer to right than HOXD70 is.  The donor is the chromosome with a
     model whose reference size is the median of those that have one, as neither the smallest (least
@@ -394,8 +394,8 @@ def minigraph_construct_workflow(job, options, config_node, seq_id_map, seq_orde
     """ minigraph can handle bgzipped files but not gzipped; so unzip everything in case before running
 
     construct_seq_id_map, when given, replaces seq_id_map for the graph construction alone.  it is how
-    mgSplitWholeGenomeRef hands each chromosome the whole reference: mash sorting and last-training
-    (and the size estimate for last-training's own job) keep using the chromosome's own much smaller
+    mgSplitWholeGenomeRef hands each chromosome the whole reference: mash sorting and training the
+    scoring model (and the size estimate for training's own job) keep using the chromosome's own much smaller
     reference slice, since training against a whole genome would be both expensive and
     cross-chromosome contaminated -- and would silently produce no model at all, as last_train()
     requires its partner sequence to be at least half the size of the database it trains against.
@@ -436,7 +436,7 @@ def minigraph_construct_run(job, options, config_node, seq_id_map, seq_order, gf
     # the PanSN rename at the end of construction has to resolve every SN tag in the finished
     # graph, which on the extend path is more genomes than minigraph is being given
     graph_names = set(seq_id_map.keys())
-    # last-training is over fastas, so it wants every genome, not just the ones still to construct
+    # training is over fastas, so it wants every genome, not just the ones still to construct
     train_seq_id_map, train_seq_order = seq_id_map, seq_order
     if seed_events is not None:
         if options.reference[0] not in seed_events:
@@ -537,19 +537,17 @@ def minigraph_construct_run(job, options, config_node, seq_id_map, seq_order, gf
                                               seed_gfa_id=seed_gfa_id, graph_names=graph_names,
                                               walltime=cactus_walltime())
 
-    # last-train is scheduled ahead of the zip below only because zipWalks="gaf" maps with its
+    # training is scheduled ahead of the zip below only because zipWalks="gaf" maps with its
     # model, and so has to wait for it.  It still runs alongside construction either way
     train_id, last_train_job = None, None
     if options.lastTrain and len(seq_id_map) > 1:
-        # note: somehow last training memory overruns don't seem to be detected by slurm so we
-        # give 12G at least whenever possible, as --doubleMem won't help...
-        # lastdb dominates the runtime and is erratic: over the 24 per-chromosome runs of the
-        # HPRC v2.1 pangenome (2.0e8-byte reference, 8 cores) it took 55 s at the p50 but
-        # 3934 s at the worst, while the 16x bigger whole-genome reference of HPRC v2.0
-        # (32 cores) took 2821 s.  last-train itself adds 409-680 s on top.  So the estimate is
-        # mostly a flat allowance for that tail, with a small linear term so that small inputs
-        # aren't over-provisioned.  The I/O is the reference plus the training partner, which
-        # last_train() only picks inside the job but constrains to at least half the reference.
+        # training maps its pieces to the reference with minimap2, whose index of the reference is
+        # most of the memory (cPecanRealign takes a few MB a thread), so 12G at least whenever
+        # possible, as memory overruns in training didn't seem to be detected by slurm in the past
+        # (with last-train) and --doubleMem won't help.  The walltime is a flat allowance (see
+        # LAST_TRAIN_SECS) with a small linear term so that small inputs aren't over-provisioned.
+        # The I/O is the reference plus the partners, read one at a time, which last_train() only
+        # picks inside the job but constrains to at least half the reference.
         last_train_job = prev_job.addFollowOnJobFn(last_train, config_node, seq_order, sanitized_seq_id_map,
                                                    ref_name=options.reference[0] if seed_events is not None else None,
                                                    cores=options.mgCores,
@@ -603,7 +601,7 @@ def minigraph_construct_run(job, options, config_node, seq_id_map, seq_order, gf
             elif seed_only:
                 gaf_seq_id_maps.append(seed_only)
             # the model graphmap will map with: --scoresFile's, or the one trained on this graph's
-            # genomes, which means waiting for last-train.  A --mgSplit chromosome that trains no
+            # genomes, which means waiting for training.  A --mgSplit chromosome that trains no
             # model of its own borrows one only once every chromosome is built, which is after its
             # zip, so its walks are mapped with minigraph's default penalties.  They only change the
             # base-level alignment, not the chaining that picks the walk
@@ -627,16 +625,20 @@ def minigraph_construct_run(job, options, config_node, seq_id_map, seq_order, gf
         gfa_ids = (minigraph_job.rv(0), minigraph_job.rv(1))
 
     # (cactus-named graph, PanSN graph, the PanSN graph before zipping or None, the zip's artifacts
-    #  or None, LAST scoring model or None).  slots 0 and 1 are the graph the pipeline uses; slot 3
+    #  or None, trained scoring model or None).  slots 0 and 1 are the graph the pipeline uses; slot 3
     #  is the dict export_rewrite_artifacts() reads
     return gfa_ids[0], gfa_ids[1], input_pansn_gfa_id, rewrite_artifacts, train_id
 
-# Fixed seconds for a last_train job.  last-train's cost is set by how divergent the pair it picks
-# is, not by how big the reference is, and the two are close to anti-correlated here: over the 27
-# per-chromosome buckets of two HPRC v2.1 runs the median job took 130 s and the largest reference
-# (chr1) finished in 188 s, while the *second smallest* -- the unplaced/unlocalized bucket -- ran
-# 9807 s in one run and 6931 s in the other.  last_train() picks the furthest genome in the mash
-# order that clears its size floor, and that bucket's mash distances span the whole range, so its
+# Fixed seconds for a last_train job, measured when it ran LAST's last-train, before it trained with cPecan's pair HMM
+# (whose cost is set by its sample, 10Mb by default: about two minutes with 8 threads for a human chr10 reference,
+# most of it minimap2 and EM, so this is very generous until it is measured on a whole HPRC build).
+#
+# last-train's cost was set by how divergent the pair it picked was, not by how big the reference
+# is, and the two are close to anti-correlated here: over the 27 per-chromosome buckets of two
+# HPRC v2.1 runs the median job took 130 s and the largest reference (chr1) finished in 188 s,
+# while the *second smallest* -- the unplaced/unlocalized bucket -- ran 9807 s in one run and
+# 6931 s in the other.  last_train() then picked the furthest genome in the mash order that
+# cleared its size floor, and that bucket's mash distances span the whole range, so its
 # pick sits at 0.106 against 0.0007-0.0037 for a real chromosome.
 #
 # ref_size is therefore the wrong regressor and this flat term is what carries the pathology.  The
@@ -782,7 +784,7 @@ def zip_alleles_workflow(job, options, config_node, gfa_id, pansn_gfa_id, gfa_pa
 
     gaf_seq_id_maps, given only with zipWalks="gaf", hold the (sanitized) fasta of every genome in
     the graph.  Each is then mapped to the unzipped graph exactly the way cactus-graphmap maps it to
-    the zipped one afterwards -- minigraph_map_all, the same options, the same last-train model
+    the zipped one afterwards -- minigraph_map_all, the same options, the same trained model
     (scores_id) -- and rgfa-zip reads its walks from the merged GAF.  The graph mapped to is always
     the one this zip is about to rewrite, so the GAF and the graph match in every mode:
       whole-genome           the whole-genome graph and every genome
@@ -803,7 +805,7 @@ def zip_alleles_workflow(job, options, config_node, gfa_id, pansn_gfa_id, gfa_pa
         map_options = copy.deepcopy(options)
         map_options.mg_chrom_name = graph_rewrite_name(gfa_path)
         RealtimeLogger.info('Mapping {} genomes to the unzipped {} for rgfa-zip\'s walks{}'.format(
-            len(seq_id_map), graph_rewrite_name(gfa_path), ' (with the last-train model)' if scores_id else ''))
+            len(seq_id_map), graph_rewrite_name(gfa_path), ' (with the trained scoring model)' if scores_id else ''))
         if gfa_path.endswith('.gz'):
             # graphmap maps to the decompressed graph and sizes its mapping jobs from it, so do the same
             unzip_job = job.addChildJobFn(unzip_gz, gfa_path, gfa_id, delete_original=False, disk=5*gfa_id.size,

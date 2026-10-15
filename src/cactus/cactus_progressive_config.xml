@@ -369,8 +369,8 @@
 		<!-- partialOrderAlignmentGapExtensionPenalty1 abpoa gap extension penalty -->
 		<!-- partialOrderAlignmentGapOpenPenalty2 abpoa second gap open penalty (convex mode takes the minimum of both gap models, 0 disables convex) -->
 		<!-- partialOrderAlignmentGapExtensionPenalty abpoa second gap extension penalty (convex mode takes the minimum of both gap models) -->
-		<!-- partialOrderAlignmentTrainedGapOpen2Factor when learning scores last-train, set a gap-open-2 penalty that's this many times bigger than the learned gap penalty (last-train only learns one gap parameter but abpoa crashes unless it gets both) -->
-		<!-- partialOrderAlignmentTrainedGapExtension2Factor when learning scores last-train, set a gap-extend-2 penalty that's this many times smaller than the learned gap penalty (last-train only learns one gap parameter but abpoa crashes unless it gets both).  30 matches the ratio of the untrained defaults above (30 and 1).  At 3, long indels cost three times more relative to a match than with the defaults (a 1 kb gap ~73 matches against ~23); measured with abPOA on 285 HPRC chr10 windows (137 STR sites, 148 other indels, 12 haplotypes each), 30 gives fewer gap runs and mismatches than 3 in 47 windows and more in 15, and both beat the untrained defaults in 273 of 285 -->
+		<!-- partialOrderAlignmentTrainedGapOpen2Factor when a trained model has only one gap piece (a last-train scoresFile, or <graphmap lastTrain> when the long-gap state did not train into one), set a gap-open-2 penalty that's this many times bigger than the learned gap penalty (abpoa crashes unless it gets both) -->
+		<!-- partialOrderAlignmentTrainedGapExtension2Factor when a trained model has only one gap piece (as above), set a gap-extend-2 penalty that's this many times smaller than the learned gap penalty (abpoa crashes unless it gets both).  30 matches the ratio of the untrained defaults above (30 and 1).  At 3, long indels cost three times more relative to a match than with the defaults (a 1 kb gap ~73 matches against ~23); measured with abPOA on 285 HPRC chr10 windows (137 STR sites, 148 other indels, 12 haplotypes each), 30 gives fewer gap runs and mismatches than 3 in 47 windows and more in 15, and both beat the untrained defaults in 273 of 285 -->
 		<!-- partialOrderAlignmentDisableSeeding abpoa disable minimizer seeding. toggling this on to disable seeding will slightly increase accuracy and robustness, at the cost of speed in the BAR phase on some inputs -->
 		<!-- partialOrderAlignmentMinimizerK abpoa kmer size for minimizer seeding. -->
 		<!-- partialOrderAlignmentMinimizerW abpoa window size for minimizer seeding. -->
@@ -412,8 +412,8 @@
 
 		<!-- Parameters for using minipoa to generate MSAs.  Only used when baseAligner="minipoa". -->
 		<!-- minipoaSubMatrix minipoa's own 5x5 ACGTN substitution matrix.  Empty by default, which means inherit <poa
-		partialOrderAlignmentSubMatrix> - that is what last-train writes into and what the FastGA PAF
-		scoring reads, so sharing it keeps the engines consistent and lets last-train reach minipoa.
+		partialOrderAlignmentSubMatrix> - that is what a trained model writes into and what the FastGA PAF
+		scoring reads, so sharing it keeps the engines consistent and lets the trained model reach minipoa.
 		Set it to override.  lastz's own default matrix (HOXD70 with -31 transitions rather than the
 		-61 abpoa is given) was measured here and is a wash: slightly better precision, slightly worse
 		recall on evolver mammals. -->
@@ -428,9 +428,9 @@
 		convex 0.852/0.650, convex with minipoaProgressiveMode 0.854/0.652, against abpoa's
 		0.853/0.652.  94% of the gap bases in the evolver mammals truth sit in runs of 28bp or
 		longer, which is why the long-gap price matters so much there.
-		With last-train (the cactus -lastTrain option) the first piece is replaced by the trained
-		single affine model and the second piece is turned off, so minipoa runs the model exactly as
-		trained.  -->
+		With a trained model (<graphmap lastTrain>, or a scoresFile) the first piece is replaced by
+		the model's first gap piece and the second piece is turned off, so minipoa runs a single
+		affine piece as trained.  -->
 		<!-- minipoaGapOpenPenalty minipoa gap open penalty -->
 		<!-- minipoaGapExtensionPenalty minipoa gap extension penalty -->
 		<!-- minipoaGapOpenPenalty2 open penalty of the second, convex gap piece (0 with
@@ -569,7 +569,11 @@
 	<!-- minScore: ignore PAF lines with score (AS:i) less than this (adding this to filter negative-scoring minimap2 lines) -->
 	<!-- removeMinigraphFromPAF: replace all minigraph contigs with transitive alignments in cactus-align-->
 	<!-- cpu: use up to this many cpus for each minigraph command. -->
-	<!-- lastTrain: train the abPOA scoring model with last-train, on the reference against a typical-sized genome from the middle of the mash order, instead of using the default (HOXD70) scores. With mgSplit, each chromosome gets its own model, and one that can't be trained borrows another chromosome's. Training failures only ever fall back, never fail the run. Ignored with scoresFile. [0: off, 1: on] -->
+	<!-- lastTrain: train the abPOA scoring model on the reference against typical-sized genomes from the middle of the mash order, instead of using the default (HOXD70) scores: random pieces of the partners (trainPartners) are mapped to the reference with minimap2 and cPecan's pair HMM is fitted to the alignments by EM, its substitutions as log-odds and its two gap states as abPOA's two gap pieces. (This used to be LAST's last-train, hence the name; on 285 abPOA windows of human chr10, STR sites and other indels with GRCh38 and 12 haplotypes, the two halve the mismatches plus gap runs of the untrained scores and are within 1.5% of each other.) With mgSplit, each chromosome gets its own model, and one that can't be trained borrows another chromosome's. Training failures only ever fall back, never fail the run. Ignored with scoresFile. [0: off, 1: on] -->
+	<!-- trainPartners: the most partner genomes the pieces are drawn from, the candidates nearest the middle of the mash order, so that the model is not one partner's -->
+	<!-- trainPieces, trainPieceLength: the sample, this many pieces of this length in all, shared between the partners. Pieces long enough to hold long indels let EM train the long-gap state (trainLongGap): on human chr10, 10kb pieces gave it 23-40bp gaps on average, and 2kb pieces left it a second short gap -->
+	<!-- trainIterations: EM iterations, from cPecan's default model; the parameters settle in 3 or 4 -->
+	<!-- trainLongGap: also train the long-gap state, used as abPOA's second gap piece when it comes out a real long gap (at least 10bp on average); otherwise the second piece is made from the first with the poa TrainedGap*2Factor attributes. 0 holds the state at cPecan's default and always makes the second piece that way. [0: off, 1: on] -->
 	<!-- lastTrainMap: also derive minigraph's base-alignment penalties (its wfa-pen option) from the trained (or scoresFile) model when mapping. minigraph's aligner scores a match as 0 and has one mismatch penalty, so only the mean match and mismatch scores and the gap costs carry over. A human model gives mismatch 8, gap open 11, gap extend 1, against minigraph's 4, 4 and 2. Mapping HG01978 chr20 to a CHM13+HG01978.1 graph, this dropped 9-11% of the mismatches (for 10-20% more gap bases), and only 33-37% of the dropped ones were transitions, which is what random mismatches give, against 57-58% of the ones kept. Chaining is unaffected, so the mappings themselves are the same. Has no effect when minigraphMapOptions already sets wfa-pen. [0: off, 1: on] -->
 	<!-- leftAlign: move every indel in the minigraph alignments as far left on its graph node as the sequences allow (paffy left_align), without changing the alignment's score. minigraph places an indel in a repeat at a seed anchor, and at a mirrored place when a contig maps to the reverse strand, so haplotypes carrying the same indel get it in different places and the graph gets a parallel edge for each. Mapping yeast YPS128 as-is and reverse complemented, 21% of the indels were placed identically in both, and 89% once left-aligned. Costs a node fasta (the size of the GFA) on disk in each mapping job. [0: off, 1: on (default)] -->
 	<!-- zipAlleles: after construction (on every per-chromosome graph with mgSplit, never on its reference-only first pass), run rgfa-zip on the minigraph GFA. Each allele minigraph stored as novel sequence is aligned, on both strands, to the reference window it bypasses (and, if zipOptions turn the alt-vs-alt pass on, failing that to a parallel allele with the same bounding nodes); where the homology is confident (by default at least 5 kb at 95% gap-compressed identity, in a unique placement and an unfragmented chain) the allele is replaced by the sequence it duplicates, inversions included. Every later stage (mapping, splitting, cactus-align, the join) sees the zipped graph, and <x>.sv.unzipped.gfa.gz (the graph as minigraph built it) and <x>.sv.zip.tsv (one row per candidate and per skipped site, with its outcome) are written beside <x>.sv.gfa.gz. On by default: set to 0 to keep the graph as minigraph built it (a config without this attribute leaves it off). Cannot be combined with reusing mappings (inGAF without remap) when adding genomes to an existing graph, so set it to 0 for that; resuming from a graph with nothing to add zips nothing. [0: off, 1: on (default)] -->
@@ -611,6 +615,11 @@
 		 zipWalks="creator"
 		 cpu="6"
 		 lastTrain="1"
+		 trainPartners="4"
+		 trainPieces="1000"
+		 trainPieceLength="10000"
+		 trainIterations="5"
+		 trainLongGap="1"
 		 lastTrainMap="1"
 		 leftAlign="1"
 		 />

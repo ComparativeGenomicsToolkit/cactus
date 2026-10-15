@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 
 """
-Methods for reading and computing pairwise alignment scoring matrices using last
+Methods for training, reading and applying the scoring models of cactus-pangenome's abPOA alignments: trained with
+cPecan's pair HMM (cactus.paf.pair_hmm_training), or given as a .train file (cactus's own, or last-train's)
 
 Copyright (C) 2009-2021 by Benedict Paten, Joel Armstrong and Glenn Hickey
 
@@ -21,9 +22,10 @@ from cactus.shared.common import findRequiredNode
 
 
 def parse_train_file(train_file_path):
-    """ read the .train file (from last-train) into a dict
+    """ read the .train file (cactus's, write_pair_hmm_train_file, or last-train's) into a dict
     subsitions are in, ex dict['A']['C'] and gaps are in
-    dict['GAP-OPEN'] and dict['GAP-EXTEND']
+    dict['GAP-OPEN'] and dict['GAP-EXTEND'], and a trained second gap piece (cactus's
+    #cactus -a2/-b2 lines) in dict['GAP-OPEN-2'] and dict['GAP-EXTEND-2']
     to keep things simple, only symmetric matrices are accepted"""
     score_dict = {}
     with open(train_file_path, 'r') as train_file:
@@ -42,6 +44,9 @@ def parse_train_file(train_file_path):
                     raise RuntimeError('Asymmetric gap extend score detected in {}: please use --gapsym with last-train'.format(
                         train_file_path))
                 score_dict[key] = val
+            elif line.startswith('#cactus -a2') or line.startswith('#cactus -b2'):
+                # the second piece of abPOA's convex gap, trained (see write_pair_hmm_train_file)
+                score_dict['GAP-OPEN-2' if line.startswith('#cactus -a2') else 'GAP-EXTEND-2'] = int(line.split()[-1])
             elif line[0] in ['A', 'C', 'G', 'T']:
                 try:
                     row_toks = line.strip().split()
@@ -139,8 +144,9 @@ def abpoa_exact_depth(matrix, gap_open1, gap_ext1, gap_open2, gap_ext2, window):
     return max(0, (-ztop - 1) // max(1, X, min(oe)) - window)
 
 def apply_scores_to_config(score_dict, config_xml, label=None):
-    """ load the score dict into the config.  since last won't train long gaps,
-    should be specified by the parameters.  note that they are disabled with 0, untouched with None.
+    """ load the score dict into the config.  A model with only one gap piece (last-train's) gets a second, long-gap
+    piece made from it with the <poa> TrainedGap*2Factor attributes; one with its own (cactus's) is used as it is.
+    note that they are disabled with 0, untouched with None.
     label (the chromosome, say) only goes into the log, so a model can be traced back to its job """
 
     bar_node = findRequiredNode(config_xml, "bar")
@@ -155,8 +161,10 @@ def apply_scores_to_config(score_dict, config_xml, label=None):
     # then discarded.  That went unnoticed while both defaulted to 3; the defaults are now 3 for the
     # open and 30 for the extension.
     trained_ext = score_dict['GAP-EXTEND']
-    divisor = apply_long_gap(score_dict, long_gap_open_factor, long_gap_extend_factor)
-    if divisor > 1:
+    # a model with a second gap piece of its own is at abPOA's scale already (write_pair_hmm_train_file)
+    two_pieces = 'GAP-OPEN-2' in score_dict
+    divisor = reduce_scores(score_dict) if two_pieces else apply_long_gap(score_dict, long_gap_open_factor, long_gap_extend_factor)
+    if divisor > 1 and not two_pieces:
         RealtimeLogger.info('Trained scoring model{} learned a gap extension of {}: its scores, multiplied by {} for the '
                             'long-gap piece, are all divided by their common factor {} (the alignments are the same, '
                             'the numbers smaller)'.format(' for ' + label if label else '', trained_ext,
@@ -203,9 +211,10 @@ def apply_scores_to_config(score_dict, config_xml, label=None):
                                    ' for ' + label if label else '', score_dict['GAP-OPEN'], score_dict['GAP-EXTEND'],
                                    score_string, window, depth))
 
-    # minipoa gets the learned gaps verbatim, as a single affine piece: last-train fits a single
-    # affine gap model, and the GAP-OPEN-2/GAP-EXTEND-2 pair above is a synthesised second piece
-    # that exists only because abPOA is unstable without one, so it would be wrong to hand it on.
+    # minipoa gets the learned first gap piece verbatim, as a single affine piece: last-train fits a
+    # single affine gap model, and a cactus model's second piece is only its own when the long-gap
+    # state trained into one (otherwise it is made from the first, as apply_long_gap makes one, because
+    # abPOA is unstable without one), so the second piece is not handed on.
     # minipoa's own second piece is turned off too: its shipped values are priced against the
     # shipped first piece, not the learned one.  minipoaSubMatrix is left alone: empty
     # means inherit <poa>'s matrix, which is the learned one we just wrote, so the trained
@@ -221,25 +230,28 @@ def apply_scores_to_config(score_dict, config_xml, label=None):
             minipoa_node.attrib['minipoaGapExtensionPenalty']))
 
     # the line keeps its old prefix, which logs are grepped for; the label and scaling go on the end
-    RealtimeLogger.info("Overriding abPOA scores with trained values: GapOpen {}; GapExtend {}; GapOpen2 {}; GapExtend2 {}; SubMatrix {} ({}learned gap extension {}; all scores multiplied by {}{})".format(
+    if two_pieces:
+        scaling = 'both gap pieces as trained'
+    else:
+        scaling = 'learned gap extension {}; all scores multiplied by {}'.format(trained_ext, long_gap_extend_factor)
+    RealtimeLogger.info("Overriding abPOA scores with trained values: GapOpen {}; GapExtend {}; GapOpen2 {}; GapExtend2 {}; SubMatrix {} ({}{}{})".format(
         poa_node.attrib['partialOrderAlignmentGapOpenPenalty1'],
         poa_node.attrib['partialOrderAlignmentGapExtensionPenalty1'],
         poa_node.attrib['partialOrderAlignmentGapOpenPenalty2'],
         poa_node.attrib['partialOrderAlignmentGapExtensionPenalty2'],
-        poa_node.attrib['partialOrderAlignmentSubMatrix'], label + ': ' if label else '', trained_ext, long_gap_extend_factor,
+        poa_node.attrib['partialOrderAlignmentSubMatrix'], label + ': ' if label else '', scaling,
         ', then divided by their common factor {}'.format(divisor) if divisor > 1 else ''))
 
 def minigraph_wfa_penalties(score_dict):
-    """ convert a last-train model into minigraph's base-alignment penalties, as (x, o, e) for
+    """ convert a trained model into minigraph's base-alignment penalties, as (x, o, e) for
     its --wfa-pen option.
 
     minigraph fills the gaps between its chain anchors with WFA, which scores a match as 0, so only
     one match score M (the mean of the diagonal) and one mismatch score X (the mean of the rest)
     survive: there is no room for the transition/transversion split.  The Smith-Waterman to WFA
     transform is then x = 2(M + X), o = 2*open, e = 2*extend + M (doubled to stay integral).
-    last-train fits a single affine gap, and with gap extension already cheap next to M (1 against
-    ~6.5 on human), a cheaper long-gap piece would have no room either, so --wfa-pen gets just the
-    one piece.
+    WFA's long-gap piece would have no room next to so cheap an extension, so --wfa-pen gets just the
+    first piece.
 
     WFA works through every score up to the alignment's, so its cost grows with the size of the
     penalties: they are scaled so that e, much the smallest, is 1.  Human models come out at about
@@ -258,10 +270,101 @@ def minigraph_wfa_penalties(score_dict):
             match, -mismatch, score_dict['GAP-OPEN'], score_dict['GAP-EXTEND']))
     return max(1, round(x / e)), round(o / e), 1
 
-def last_train(job, config, seq_order, seq_id_map, ref_name=None):
-    """ run last_train on a pair of fasta files, using the first as the database.
+# lastz's default scores, HOXD70, and the base frequencies its scale is measured with.  A trained model is written
+# at the same scale (lambda), which is the one abPOA's shipped scores are in
+HOXD70 = [[91, -114, -31, -123], [-114, 100, -125, -31], [-31, -125, 100, -114], [-123, -31, -114, 91]]
+HOXD70_FREQS = [0.26585, 0.23415, 0.23415, 0.26585]
 
-    ref_name names the database genome when it is not seq_order[0], as when extending an existing
+def implied_lambda(matrix, freqs):
+    """ the lambda with sum_ij f_i f_j exp(lambda s_ij) = 1: the scale of a score matrix, in nats per unit """
+    def excess(lam):
+        return sum(freqs[i] * freqs[j] * math.exp(lam * matrix[i][j]) for i in range(4) for j in range(4)) - 1
+    lo, hi = 1e-6, 1.0
+    if not (excess(lo) < 0 < excess(hi)):
+        raise RuntimeError('score matrix {} has no positive lambda'.format(matrix))
+    for _ in range(200):
+        mid = (lo + hi) / 2
+        if excess(mid) < 0:
+            lo = mid
+        else:
+            hi = mid
+    return (lo + hi) / 2
+
+def write_pair_hmm_train_file(path, transitions, emissions, comment, open2_factor=3, extend2_factor=30, long_gap_trained=True,
+                              min_long_gap_mean=10.0):
+    """ a pair HMM (pair_hmm_training.train_pair_hmm) as a .train file that parse_train_file reads, at abPOA's scale --
+    HOXD70's units, as the shipped <poa> scores are -- rather than last-train's coarse integers, whose gap extension
+    can only be 1 or 2 (and which last-train caps at exp(-1/t), which held 17 of the 25 human chromosomes' models of
+    the oct9 HPRC build at one value).  Substitutions are log-odds (Durbin et al., ch. 4, end effects ignored):
+    ln(p_ab / (f_a f_b)) + ln(m), m the match-continue probability, and a gap state of open and extend probabilities
+    delta and epsilon costs d + (k - 1) e for k bases, d = -ln(delta (1 - epsilon) / m) and e = -ln(epsilon), which
+    as an open plus k extensions is open = d - e, extend = e.  The two pieces of abPOA's convex gap are written as
+    #last -a/-b and #cactus -a2/-b2, which apply_scores_to_config uses as they are.
+
+    When the long-gap state was trained and came out a real long gap -- dearer to open than the short one, cheaper to
+    extend, and with a mean length of at least min_long_gap_mean bases -- the two states are the two pieces.  On
+    human chr10 haplotypes, 10kb pieces gave long states of 23-40bp, and those that EM made a second short gap had
+    2.4-4.8bp; one of those (1073+22 against 909+48) cost abPOA 20% more events than the factors' piece.  Otherwise
+    (it was held at cPecan's default, which is a prior for divergent sequence, or EM made it a second short gap, as
+    2kb pieces of human haplotypes do: they hold next to no long indels) the first piece is all the trained gaps as
+    one (pair_hmm_training.combined_gap; the short state's alone when the long one was held), and the second is made
+    from it as apply_long_gap makes one, open2_factor times dearer to open and extend2_factor times cheaper to
+    extend (<poa partialOrderAlignmentTrainedGapOpen2Factor> and ...Extension2Factor). """
+    from cactus.paf.pair_hmm_training import MATCH, SHORT_GAP_X, LONG_GAP_X, combined_gap
+    lam = implied_lambda(HOXD70, HOXD70_FREQS)
+    P = [[emissions[MATCH * 16 + x * 4 + y] for y in range(4)] for x in range(4)]
+    f = [sum(row) for row in P]
+    m = transitions[MATCH * 5 + MATCH]
+    matrix = [[int(round((math.log(P[x][y] / (f[x] * f[y])) + math.log(m)) / lam)) for y in range(4)] for x in range(4)]
+    def piece(open_prob, extend_prob):
+        d, e = -math.log(open_prob * (1 - extend_prob) / m), -math.log(extend_prob)
+        return int(round((d - e) / lam)), max(1, int(round(e / lam)))
+    a1, b1 = piece(transitions[MATCH * 5 + SHORT_GAP_X], transitions[SHORT_GAP_X * 5 + SHORT_GAP_X])
+    a2, b2 = piece(transitions[MATCH * 5 + LONG_GAP_X], transitions[LONG_GAP_X * 5 + LONG_GAP_X])
+    long_mean = 1 / (1 - transitions[LONG_GAP_X * 5 + LONG_GAP_X])
+    if not (long_gap_trained and a2 > a1 and b2 < b1 and long_mean >= min_long_gap_mean):
+        if long_gap_trained:
+            a1, b1 = piece(*combined_gap(transitions))
+        a2, b2 = a1 * open2_factor, max(1, b1 // extend2_factor)    # as apply_long_gap divides
+    with open(path, 'w') as out:
+        out.write('# cactus pair HMM model (cPecan EM), at HOXD70\'s scale: {}\n'.format(comment))
+        out.write('# substitution percent identity: {:.6}\n'.format(100 * sum(P[x][x] for x in range(4))))
+        out.write('#last -a {}\n#last -A {}\n#last -b {}\n#last -B {}\n'.format(a1, a1, b1, b1))
+        out.write('#cactus -a2 {}\n#cactus -b2 {}\n'.format(a2, b2))
+        out.write('# score matrix (query letters = columns, reference letters = rows):\n')
+        out.write('       A      C      G      T\n')
+        for base, row in zip('ACGT', matrix):
+            out.write('{} {}\n'.format(base, ' '.join('{:6d}'.format(v) for v in row)))
+
+def train_pair_hmm_file(ref_path, sample_path, train_file, work_dir, iterations=5, threads=1, train_long_gap=True,
+                        open2_factor=3, extend2_factor=30, preset='asm5'):
+    """ train a model for aligning to the reference at ref_path and write it as train_file
+    (write_pair_hmm_train_file): the pieces at sample_path (pair_hmm_training.sample_pieces) mapped to the reference
+    with minimap2 (-x preset, primary alignments), and cPecan's pair HMM fitted to the alignments by EM
+    (pair_hmm_training.train_pair_hmm), training its long-gap state too with train_long_gap.  Returns
+    (paf_to_cpecan_batches's statistics, the identity by iteration), or raises if there is nothing to train on. """
+    from cactus.paf.pair_hmm_training import paf_to_cpecan_batches, train_pair_hmm
+    paf_path = os.path.join(work_dir, 'sample.paf')
+    cactus_call(parameters=['minimap2', '-c', '--eqx', '--secondary=no', '-x', preset, '-t', str(threads),
+                            ref_path, sample_path], outfile=paf_path)
+    batches = 4 * threads
+    batch_dir = os.path.join(work_dir, 'batches')
+    stats = paf_to_cpecan_batches(paf_path, sample_path, ref_path, batch_dir, batches)
+    if stats['kept'] == 0:
+        raise RuntimeError('none of the {} alignments of the sample is usable'.format(stats['alignments']))
+    transitions, emissions, identities = train_pair_hmm(batch_dir, batches, iterations, threads, train_long_gap)
+    write_pair_hmm_train_file(train_file, transitions, emissions, '{} alignments, {} bp'.format(
+        stats['kept'], stats['aligned_bp']), open2_factor, extend2_factor, train_long_gap)
+    return stats, identities
+
+def last_train(job, config, seq_order, seq_id_map, ref_name=None):
+    """ train the scoring model for aligning to the reference with cPecan's pair HMM (train_pair_hmm_file): up to
+    <graphmap trainPartners> partner genomes (pick_train_partners), <graphmap trainPieces> pieces of
+    <graphmap trainPieceLength> from them in all, the long-gap state trained too unless <graphmap trainLongGap="0">.
+    The name is last-train's, which this replaces.  Returns the .train file's id, or None when there is nothing to
+    train on or the fit fails.
+
+    ref_name names the reference genome when it is not seq_order[0], as when extending an existing
     minigraph where the order holds only the genomes being added """
 
     if ref_name is None:
@@ -271,50 +374,82 @@ def last_train(job, config, seq_order, seq_id_map, ref_name=None):
         seq_order = [ref_name] + list(seq_order)
 
     name1 = ref_name
-    name2 = None
 
     # short circuit if ref sequence is too small to have a hope of training        
     if seq_id_map[name1].size < 500000:
         RealtimeLogger.warning('Input fasta for {} too small to train scoring model on.  Will fall back to defaults'.format(os.path.basename(name1)))
         return None
-    
-    name2 = pick_train_partner(name1, seq_order, seq_id_map)
+
+    graphmap_node = findRequiredNode(config, 'graphmap')
+    poa_node = findRequiredNode(findRequiredNode(config, 'bar'), 'poa')
+    partners = pick_train_partners(name1, seq_order, seq_id_map,
+                                   getOptionalAttrib(graphmap_node, 'trainPartners', typeFn=int, default=4))
 
     # short circuit if we can't find anything to train on
-    if name2 is None:
-       RealtimeLogger.warning('Unable to find sequence to train scoring model on for {}.  Will fall back to defaults'.format(os.path.basename(name1)))
-       return None
+    if not partners:
+        RealtimeLogger.warning('Unable to find sequence to train scoring model on for {}.  Will fall back to defaults'.format(os.path.basename(name1)))
+        return None
+    names = ' '.join(os.path.basename(p) for p in partners)
 
-    fa1_id, fa2_id = seq_id_map[name1], seq_id_map[name2]
+    from cactus.paf.pair_hmm_training import sample_pieces
     work_dir = job.fileStore.getLocalTempDir()
-    fa1_path = os.path.join(work_dir, name1 + '.fa')
-    job.fileStore.readGlobalFile(fa1_id, fa1_path)
-    fa2_path = os.path.join(work_dir, name2 + '.fa')
-    job.fileStore.readGlobalFile(fa2_id, fa2_path)
+    train_file = os.path.join(work_dir, '{}.train'.format(os.path.basename(name1)))
+    pieces = getOptionalAttrib(graphmap_node, 'trainPieces', typeFn=int, default=1000)
+    piece_length = getOptionalAttrib(graphmap_node, 'trainPieceLength', typeFn=int, default=10000)
 
-    # note: there are some specific options for distant genomes that should be
-    # incorporated if/when this ever gets used in progressive cactus
-    train_cmd = ['last-train', '--revsym', '--matsym', '--gapsym',
-                 '-P', str(job.cores), name1 + '_db', fa2_path]
-    train_file = os.path.join(work_dir, '{}_{}.train'.format(name1, name2))
-
-    # a model is an optimization, not a requirement: whatever goes wrong here (last-train failing
-    # to converge on too little alignment, or writing something parse_train_file won't accept),
-    # the alignment falls back to the default scores, or to another chromosome's model in batch mode
+    # a model is an optimization, not a requirement: whatever goes wrong here (too little alignment to fit, or a
+    # model parse_train_file won't accept), the alignment falls back to the default scores, or to another
+    # chromosome's model in batch mode
     try:
-        cactus_call(parameters=['lastdb', name1 + '_db', fa1_path, '-P', str(job.cores)])
-        cactus_call(parameters=train_cmd, outfile=train_file)
-        parse_train_file(train_file)
+        # the pieces, shared between the partners, each read in turn and let go once sampled, so that only one
+        # partner is on disk at a time
+        sample_path = os.path.join(work_dir, 'sample.fa')
+        sampled = 0
+        with open(sample_path, 'wb') as sample:
+            for i, partner in enumerate(partners):
+                part_path = os.path.join(work_dir, 'sample.{}.fa'.format(i))
+                sampled += sample_pieces(job.fileStore.readGlobalFile(seq_id_map[partner]), part_path,
+                                         max(1, pieces // len(partners)), piece_length, seed=i + 1,
+                                         prefix='trainPiece{}_'.format(i))
+                job.fileStore.deleteLocalFile(seq_id_map[partner])
+                with open(part_path, 'rb') as part:
+                    sample.write(part.read())
+        if sampled == 0:
+            raise RuntimeError('the partners have no {}bp pieces to sample'.format(piece_length))
+        stats, identities = train_pair_hmm_file(
+            job.fileStore.readGlobalFile(seq_id_map[name1]), sample_path, train_file, work_dir,
+            iterations=getOptionalAttrib(graphmap_node, 'trainIterations', typeFn=int, default=5),
+            threads=max(1, int(job.cores)),
+            train_long_gap=getOptionalAttrib(graphmap_node, 'trainLongGap', typeFn=bool, default=True),
+            open2_factor=int(poa_node.attrib['partialOrderAlignmentTrainedGapOpen2Factor']),
+            extend2_factor=int(poa_node.attrib['partialOrderAlignmentTrainedGapExtension2Factor']))
+        score_dict = parse_train_file(train_file)
     except Exception as e:
         RealtimeLogger.warning('Training scoring model for {} against {} failed, so it will fall back to defaults: {}'.format(
-            os.path.basename(name1), os.path.basename(name2), e))
+            os.path.basename(name1), names, e))
         return None
 
-    RealtimeLogger.info('Trained scoring model for {} against {}'.format(os.path.basename(name1), os.path.basename(name2)))
+    RealtimeLogger.info('Trained scoring model for {} against {} (cPecan pair HMM, {} pieces, {} alignments, {} bp; EM '
+                        'identity by iteration {}): gap {}+{}k, long gap {}+{}k, matrix {}'.format(
+        os.path.basename(name1), names, sampled, stats['kept'], stats['aligned_bp'],
+        ' '.join('{:.2f}'.format(100 * i) for i in identities), score_dict['GAP-OPEN'], score_dict['GAP-EXTEND'],
+        score_dict['GAP-OPEN-2'], score_dict['GAP-EXTEND-2'],
+        ' '.join(str(score_dict[a][b]) for a in 'ACGT' for b in 'ACGT')))
     return job.fileStore.writeGlobalFile(train_file)
 
-def pick_train_partner(name1, seq_order, seq_id_map, min_size=500000, min_ref_frac=0.5, size_band=2.0):
-    """ choose the genome to train name1's model against.
+def pick_train_partners(name1, seq_order, seq_id_map, count, **kwargs):
+    """ up to count genomes to train name1's model against: pick_train_partner's candidates nearest its pick, the middle
+    of them, so that the model is not one partner's (in the oct9 HPRC build the same chromosome's model moved from
+    run to run with its partner) """
+    candidates = pick_train_partner(name1, seq_order, seq_id_map, all_candidates=True, **kwargs)
+    if not candidates:
+        return []
+    middle = len(candidates) // 2
+    nearest = sorted(range(len(candidates)), key=lambda i: (abs(i - middle), i))[:count]
+    return [candidates[i] for i in sorted(nearest)]
+
+def pick_train_partner(name1, seq_order, seq_id_map, min_size=500000, min_ref_frac=0.5, size_band=2.0, all_candidates=False):
+    """ choose the genome to train name1's model against (or, with all_candidates, the candidates, in order).
 
     The candidates are the genomes big enough to hold a meaningful amount of alignment: over
     min_size and over min_ref_frac of name1.  Of those, only the ones within size_band of their
@@ -322,19 +457,19 @@ def pick_train_partner(name1, seq_order, seq_id_map, min_size=500000, min_ref_fr
     of one chromosome) assembly doesn't set the model for everything.  The pick is then the middle
     of these in seq_order, which is by mash distance to the reference when minigraph sorts it: the
     furthest genome is by construction the outlier, and trained models barely depend on the partner
-    anyway (gap open 42-45, extend 1 across the HPRC partners tried), so a typical one is the
-    safest bet. """
+    anyway (gap open 42-45, extend 1 across the HPRC partners tried with last-train), so a typical
+    one is the safest bet. """
     ref_size = seq_id_map[name1].size
     candidates = [seq for seq in seq_order if seq != name1 and seq in seq_id_map and
                   seq_id_map[seq].size > min_size and float(seq_id_map[seq].size) / float(ref_size) > min_ref_frac]
     if not candidates:
-        return None
+        return [] if all_candidates else None
     sizes = sorted(seq_id_map[seq].size for seq in candidates)
     median_size = sizes[len(sizes) // 2]
     typical = [seq for seq in candidates if median_size / size_band <= seq_id_map[seq].size <= median_size * size_band]
     if typical:
         candidates = typical
-    return candidates[len(candidates) // 2]
+    return candidates if all_candidates else candidates[len(candidates) // 2]
 
 def last_train_enabled(options, config_node):
     """ training is switched on and off by graphmap's lastTrain attribute.  --lastTrain is
