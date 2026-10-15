@@ -35,7 +35,6 @@ LONG_GAP_EXTEND = 0.99656342579062
 # the same states with the two sequences exchanged
 XY_SWAP = [MATCH, SHORT_GAP_Y, SHORT_GAP_X, LONG_GAP_Y, LONG_GAP_X]
 COMPLEMENT = bytes.maketrans(b'ACGTacgtNn', b'TGCAtgcaNn')
-LOWER_CASE = bytes(range(97, 123))
 CIGAR_OPS = re.compile(r'(\d+)([MIDNX=])')
 
 
@@ -112,13 +111,15 @@ def sample_pieces(fasta_path, out_path, pieces, length, seed=1, max_n=0.05, pref
     return written
 
 
-def paf_to_cpecan_batches(paf_path, sample_path, genome_path, out_dir, batches, max_masked=0.5):
+def paf_to_cpecan_batches(paf_path, sample_path, genome_path, out_dir, batches):
     """ the alignments in paf_path between the sample (sample_path) and the genome (genome_path) as input for
     cPecanRealign, spread round-robin over batches pairs of files out_dir/<i>.fa and out_dir/<i>.cigar.  Each
     alignment's two spans are written as their own sequences, the genome's forward (X) and the sample's in the
     orientation that aligns to it (Y), with a cigar over them, so cPecanRealign sees every alignment on the
-    forward strands.  Alignments mostly soft-masked on either side are left out (as last-train leaves them out of
-    its counts): repeats aligned to repeats teach the model about repeats.  Returns
+    forward strands.  Soft-masking is ignored, as it is by the rest of the pangenome pipeline (most inputs have
+    none, and vg drops it), and abPOA aligns repeats like anything else.  Leaving out alignments mostly
+    soft-masked, as last-train does, kept 323 of 1091 on a CHM13 chr10 reference (53% soft-masked), and with them
+    went the long indels the long-gap state is fitted to.  Returns
     {'alignments', 'kept', 'aligned_bp', 'identity'}, the identity being the median over aligned bases, from the
     cigars' = and X (None for a mapper whose cigars have only M, which cPecanRealign takes all the same). """
     sample = dict(fasta_records(sample_path))
@@ -155,9 +156,6 @@ def paf_to_cpecan_batches(paf_path, sample_path, genome_path, out_dir, batches, 
         x, y = spans.get(i), sample[q_name][q_start:q_end]
         if x is None or len(x) != t_end - t_start:
             raise RuntimeError('{} has no span {}:{}-{} that {} aligns to'.format(genome_path, t_name, t_start, t_end, paf_path))
-        if (len(y) - len(y.translate(None, LOWER_CASE)) > max_masked * len(y) or
-                len(x) - len(x.translate(None, LOWER_CASE)) > max_masked * len(x)):
-            continue
         if strand == '-':
             y = y.translate(COMPLEMENT)[::-1]
         # in the PAF's cigar I takes from its query and D from its target; cPecanRealign's sonLib cigar has D take
