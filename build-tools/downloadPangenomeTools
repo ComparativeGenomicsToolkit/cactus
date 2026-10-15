@@ -107,7 +107,11 @@ pushd minigraph
 # per haplotype (200 s for the five largest on chr1 and chr9 at 8,11,1, against 9 ms with it).
 # fix-reversed-cigar: a stock bug (since r508, lh3/minigraph#87) printed the cg of every record
 # after a query's first reverse-strand stable-coordinate record with its ops reversed.
-git checkout c59d03d23c3045515fba4790acdc3e8aa0e038db
+# par-align-default: --par-align (parallel base alignment of one query's anchor gaps, byte-identical
+# output) is on by default; --no-par-align turns it off.
+# ggs-cnv: opt-in --ggs-cnv, graph generation that places copy-number variants by their own
+# sequence (off by default, output unchanged without it).
+git checkout a9d1a79bd6ecd4f4b0b28f3819b8af8d2e026655
 # hack in flags support
 sed -i Makefile -e 's/CFLAGS=/CFLAGS+=/' -e 's/LIBS=/LIBS+=/'
 LIBS="${jemallocLib}" make -j ${numcpu}
