@@ -25,7 +25,8 @@ def parse_train_file(train_file_path):
     """ read the .train file (cactus's, write_pair_hmm_train_file, or last-train's) into a dict
     subsitions are in, ex dict['A']['C'] and gaps are in
     dict['GAP-OPEN'] and dict['GAP-EXTEND'], and a trained second gap piece (cactus's
-    #cactus -a2/-b2 lines) in dict['GAP-OPEN-2'] and dict['GAP-EXTEND-2']
+    #cactus -a2/-b2 lines) in dict['GAP-OPEN-2'] and dict['GAP-EXTEND-2'], and the single affine gap
+    for aligners that take one piece (#cactus -as/-bs) in dict['GAP-OPEN-SINGLE'] and dict['GAP-EXTEND-SINGLE']
     to keep things simple, only symmetric matrices are accepted"""
     score_dict = {}
     with open(train_file_path, 'r') as train_file:
@@ -47,6 +48,9 @@ def parse_train_file(train_file_path):
             elif line.startswith('#cactus -a2') or line.startswith('#cactus -b2'):
                 # the second piece of abPOA's convex gap, trained (see write_pair_hmm_train_file)
                 score_dict['GAP-OPEN-2' if line.startswith('#cactus -a2') else 'GAP-EXTEND-2'] = int(line.split()[-1])
+            elif line.startswith('#cactus -as') or line.startswith('#cactus -bs'):
+                # the model's gaps as a single affine piece, for minigraph and minipoa
+                score_dict['GAP-OPEN-SINGLE' if line.startswith('#cactus -as') else 'GAP-EXTEND-SINGLE'] = int(line.split()[-1])
             elif line[0] in ['A', 'C', 'G', 'T']:
                 try:
                     row_toks = line.strip().split()
@@ -114,7 +118,8 @@ def reduce_scores(score_dict):
     aborted with "Error in cg_backtrack", and misaligned windows that did not abort).  Divided by 2 it
     is 645, 30, 1935, 1.  Extensions of 1 (all but one model so far) are left alone. """
     bases = ['A', 'C', 'G', 'T']
-    gaps = ['GAP-OPEN', 'GAP-EXTEND', 'GAP-OPEN-2', 'GAP-EXTEND-2']
+    gaps = ['GAP-OPEN', 'GAP-EXTEND', 'GAP-OPEN-2', 'GAP-EXTEND-2'] + \
+        [k for k in ('GAP-OPEN-SINGLE', 'GAP-EXTEND-SINGLE') if k in score_dict]
     d = 0
     for v in [score_dict[i][j] for i in bases for j in bases] + [score_dict[k] for k in gaps]:
         d = math.gcd(d, abs(v))
@@ -211,18 +216,18 @@ def apply_scores_to_config(score_dict, config_xml, label=None):
                                    ' for ' + label if label else '', score_dict['GAP-OPEN'], score_dict['GAP-EXTEND'],
                                    score_string, window, depth))
 
-    # minipoa gets the learned first gap piece verbatim, as a single affine piece: last-train fits a
-    # single affine gap model, and a cactus model's second piece is only its own when the long-gap
-    # state trained into one (otherwise it is made from the first, as apply_long_gap makes one, because
-    # abPOA is unstable without one), so the second piece is not handed on.
+    # minipoa gets the learned gaps as a single affine piece: last-train fits a single affine gap model,
+    # and a cactus model has its gaps as one piece as well (GAP-OPEN-SINGLE, both of its gap states as one).
+    # The second piece abPOA gets is not handed on: last-train's is made from the first, as apply_long_gap
+    # makes one, because abPOA is unstable without one.
     # minipoa's own second piece is turned off too: its shipped values are priced against the
     # shipped first piece, not the learned one.  minipoaSubMatrix is left alone: empty
     # means inherit <poa>'s matrix, which is the learned one we just wrote, so the trained
     # substitution scores reach minipoa too.
     minipoa_node = bar_node.find("minipoa")
     if minipoa_node is not None:
-        minipoa_node.attrib['minipoaGapOpenPenalty'] = str(score_dict['GAP-OPEN'])
-        minipoa_node.attrib['minipoaGapExtensionPenalty'] = str(score_dict['GAP-EXTEND'])
+        minipoa_node.attrib['minipoaGapOpenPenalty'] = str(score_dict.get('GAP-OPEN-SINGLE', score_dict['GAP-OPEN']))
+        minipoa_node.attrib['minipoaGapExtensionPenalty'] = str(score_dict.get('GAP-EXTEND-SINGLE', score_dict['GAP-EXTEND']))
         minipoa_node.attrib['minipoaGapOpenPenalty2'] = '0'
         minipoa_node.attrib['minipoaGapExtensionPenalty2'] = '0'
         RealtimeLogger.info("Overriding minipoa scores with trained values: GapOpen {}; GapExtend {} (single affine, as trained)".format(
@@ -250,8 +255,10 @@ def minigraph_wfa_penalties(score_dict):
     one match score M (the mean of the diagonal) and one mismatch score X (the mean of the rest)
     survive: there is no room for the transition/transversion split.  The Smith-Waterman to WFA
     transform is then x = 2(M + X), o = 2*open, e = 2*extend + M (doubled to stay integral).
-    WFA's long-gap piece would have no room next to so cheap an extension, so --wfa-pen gets just the
-    first piece.
+    WFA's long-gap piece would have no room next to so cheap an extension, so --wfa-pen gets just one piece:
+    last-train's, or a cactus model's gaps as a single piece (GAP-OPEN-SINGLE).  A cactus model's first piece
+    is its short-gap state alone, 2bp long on average, whose dear extension, as the e everything is divided
+    by, took human models from 8-9,11,1 down to 6,7,1, which in an HPRC 30-way left 0.7% more SNV errors.
 
     WFA works through every score up to the alignment's, so its cost grows with the size of the
     penalties: they are scaled so that e, much the smallest, is 1.  Human models come out at about
@@ -263,11 +270,13 @@ def minigraph_wfa_penalties(score_dict):
     match = sum(score_dict[a][a] for a in bases) / 4.
     mismatch = -sum(score_dict[a][b] for a in bases for b in bases if a != b) / 12.
     x = 2. * (match + mismatch)
-    o = 2. * score_dict['GAP-OPEN']
-    e = 2. * score_dict['GAP-EXTEND'] + match
+    gap_open = score_dict.get('GAP-OPEN-SINGLE', score_dict['GAP-OPEN'])
+    gap_extend = score_dict.get('GAP-EXTEND-SINGLE', score_dict['GAP-EXTEND'])
+    o = 2. * gap_open
+    e = 2. * gap_extend + match
     if x <= 0 or o < 0 or e <= 0:
         raise RuntimeError('Scoring model does not convert to minigraph penalties: match {} mismatch {} gap open {} extend {}'.format(
-            match, -mismatch, score_dict['GAP-OPEN'], score_dict['GAP-EXTEND']))
+            match, -mismatch, gap_open, gap_extend))
     return max(1, round(x / e)), round(o / e), 1
 
 # lastz's default scores, HOXD70, and the base frequencies its scale is measured with.  A trained model is written
@@ -299,7 +308,9 @@ def write_pair_hmm_train_file(path, transitions, emissions, comment, open2_facto
     ln(p_ab / (f_a f_b)) + ln(m), m the match-continue probability, and a gap state of open and extend probabilities
     delta and epsilon costs d + (k - 1) e for k bases, d = -ln(delta (1 - epsilon) / m) and e = -ln(epsilon), which
     as an open plus k extensions is open = d - e, extend = e.  The two pieces of abPOA's convex gap are written as
-    #last -a/-b and #cactus -a2/-b2, which apply_scores_to_config uses as they are.
+    #last -a/-b and #cactus -a2/-b2, which apply_scores_to_config uses as they are, and the gaps as one affine
+    piece (both states, pair_hmm_training.combined_gap) as #cactus -as/-bs, which minigraph's penalties
+    (minigraph_wfa_penalties) and minipoa use.
 
     When the long-gap state was trained and came out a real long gap -- dearer to open than the short one, cheaper to
     extend, and with a mean length of at least min_long_gap_mean bases -- the two states are the two pieces.  On
@@ -326,11 +337,16 @@ def write_pair_hmm_train_file(path, transitions, emissions, comment, open2_facto
         if long_gap_trained:
             a1, b1 = piece(*combined_gap(transitions))
         a2, b2 = a1 * open2_factor, max(1, b1 // extend2_factor)    # as apply_long_gap divides
+    # both gap states as one affine piece, for the aligners that take only one (minigraph's WFA, minipoa): the short
+    # state alone is 2bp on average, and as minigraph's gap it priced mismatches and gap opens too low.  Held at
+    # cPecan's default, the long state is not the data's, so then it is the first piece
+    s1, t1 = piece(*combined_gap(transitions)) if long_gap_trained else (a1, b1)
     with open(path, 'w') as out:
         out.write('# cactus pair HMM model (cPecan EM), at HOXD70\'s scale: {}\n'.format(comment))
         out.write('# substitution percent identity: {:.6}\n'.format(100 * sum(P[x][x] for x in range(4))))
         out.write('#last -a {}\n#last -A {}\n#last -b {}\n#last -B {}\n'.format(a1, a1, b1, b1))
         out.write('#cactus -a2 {}\n#cactus -b2 {}\n'.format(a2, b2))
+        out.write('#cactus -as {}\n#cactus -bs {}\n'.format(s1, t1))
         out.write('# score matrix (query letters = columns, reference letters = rows):\n')
         out.write('       A      C      G      T\n')
         for base, row in zip('ACGT', matrix):

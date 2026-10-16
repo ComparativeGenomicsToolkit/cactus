@@ -10,7 +10,7 @@ import unittest
 from sonLib.bioio import newickTreeParser
 from cactus.paf.paf import *
 from cactus.paf.last_scoring import apply_long_gap, apply_scores_to_config, abpoa_exact_depth, parse_train_file
-from cactus.paf.last_scoring import write_pair_hmm_train_file, pick_train_partners
+from cactus.paf.last_scoring import write_pair_hmm_train_file, pick_train_partners, minigraph_wfa_penalties
 from cactus.paf.pair_hmm_training import maximise, combined_gap, LONG_GAP_OPEN, LONG_GAP_EXTEND
 from toil.realtimeLogger import RealtimeLogger
 import logging
@@ -191,13 +191,33 @@ class PairHmmTrainFileTest(unittest.TestCase):
         # second piece is made from its first
         root = LastScoringTest.config()
         pieces = LastScoringTest.gaps(dict(d))
+        single = d['GAP-OPEN-SINGLE'], d['GAP-EXTEND-SINGLE']
+        # one piece for both states: opened more often than the short state alone, and extended more cheaply
+        self.assertLess(single[1], d['GAP-EXTEND'])
         apply_scores_to_config(d, root)
         poa = root.find('bar/poa')
         got = [int(poa.attrib[k]) for k in ('partialOrderAlignmentGapOpenPenalty1', 'partialOrderAlignmentGapExtensionPenalty1',
                                             'partialOrderAlignmentGapOpenPenalty2', 'partialOrderAlignmentGapExtensionPenalty2')]
         factor = pieces[0] // got[0]
         self.assertEqual([g * factor for g in got], list(pieces))
-        self.assertEqual(root.find('bar/minipoa').attrib['minipoaGapOpenPenalty2'], '0')
+        # minipoa gets the gaps as one piece, both states as one (the same factor applied)
+        minipoa = root.find('bar/minipoa')
+        self.assertEqual(minipoa.attrib['minipoaGapOpenPenalty2'], '0')
+        self.assertEqual(int(minipoa.attrib['minipoaGapOpenPenalty']) * factor, single[0])
+        self.assertEqual(int(minipoa.attrib['minipoaGapExtensionPenalty']) * factor, single[1])
+
+    def test_single_gap_for_minigraph(self):
+        # minigraph's penalties come from the gaps as one piece: with the short state's alone (2bp on average, so a
+        # dear extension, which everything is divided by) the mismatch and gap open would come out far lower
+        with tempfile.TemporaryDirectory() as tmp:
+            d = self.write_and_parse(tmp, *self.hmm(short_open=1.3e-4, short_extend=0.525, long_open=3e-5, long_extend=0.9565))
+        short_only = dict(d)
+        del short_only['GAP-OPEN-SINGLE'], short_only['GAP-EXTEND-SINGLE']
+        x, o, e = minigraph_wfa_penalties(d)
+        x_short, o_short, _ = minigraph_wfa_penalties(short_only)
+        self.assertEqual(e, 1)
+        self.assertGreater(x, x_short)
+        self.assertGreater(o, o_short)
 
     def test_short_long_state_falls_back(self):
         # a "long" state of under 10bp on average is a second short gap: the first piece is both states as one, and
@@ -210,6 +230,9 @@ class PairHmmTrainFileTest(unittest.TestCase):
         # short state alone
         self.assertEqual((held['GAP-OPEN-2'], held['GAP-EXTEND-2']), (3 * held['GAP-OPEN'], max(1, held['GAP-EXTEND'] // 30)))
         self.assertGreater(held['GAP-EXTEND'], d['GAP-EXTEND'])
+        # with no real long gap, the one piece is the first: both states as one, or the short state when held
+        self.assertEqual((d['GAP-OPEN-SINGLE'], d['GAP-EXTEND-SINGLE']), (d['GAP-OPEN'], d['GAP-EXTEND']))
+        self.assertEqual((held['GAP-OPEN-SINGLE'], held['GAP-EXTEND-SINGLE']), (held['GAP-OPEN'], held['GAP-EXTEND']))
 
     def test_combined_gap_keeps_mean_length(self):
         transitions, _ = self.hmm(short_open=1e-4, short_extend=0.5, long_open=1e-4, long_extend=0.75)
