@@ -111,7 +111,7 @@ def sample_pieces(fasta_path, out_path, pieces, length, seed=1, max_n=0.05, pref
     return written
 
 
-def paf_to_cpecan_batches(paf_path, sample_path, genome_path, out_dir, batches):
+def paf_to_cpecan_batches(paf_path, sample_path, genome_path, out_dir, batches, min_mapq=0):
     """ the alignments in paf_path between the sample (sample_path) and the genome (genome_path) as input for
     cPecanRealign, spread round-robin over batches pairs of files out_dir/<i>.fa and out_dir/<i>.cigar.  Each
     alignment's two spans are written as their own sequences, the genome's forward (X) and the sample's in the
@@ -119,7 +119,10 @@ def paf_to_cpecan_batches(paf_path, sample_path, genome_path, out_dir, batches):
     forward strands.  Soft-masking is ignored, as it is by the rest of the pangenome pipeline (most inputs have
     none, and vg drops it), and abPOA aligns repeats like anything else.  Leaving out alignments mostly
     soft-masked, as last-train does, kept 323 of 1091 on a CHM13 chr10 reference (53% soft-masked), and with them
-    went the long indels the long-gap state is fitted to.  Returns
+    went the long indels the long-gap state is fitted to.  Alignments with a mapping quality (PAF column 12) below
+    min_mapq are left out: a piece of a segmental duplication mapped to another copy of it is a paralog, not an
+    ortholog, and on CHM13 chr10 the 8% of the alignments under MAPQ 60 were 94.8% identical against 99.5%,
+    which made the mismatch scores milder than the orthologous sequence's.  Returns
     {'alignments', 'kept', 'aligned_bp', 'identity'}, the identity being the median over aligned bases, from the
     cigars' = and X (None for a mapper whose cigars have only M, which cPecanRealign takes all the same). """
     sample = dict(fasta_records(sample_path))
@@ -135,6 +138,8 @@ def paf_to_cpecan_batches(paf_path, sample_path, genome_path, out_dir, batches):
                 q_name, q_start, q_end, strand, t_name, t_start, t_end = p[5], int(p[7]), int(p[8]), p[4], p[0], int(p[2]), int(p[3])
                 sample_is_query = False
             else:
+                continue
+            if min_mapq and int(p[11]) < min_mapq:
                 continue
             cigar = next((x[5:] for x in p[12:] if x.startswith('cg:Z:')), None)
             if cigar is None:

@@ -353,10 +353,11 @@ def write_pair_hmm_train_file(path, transitions, emissions, comment, open2_facto
             out.write('{} {}\n'.format(base, ' '.join('{:6d}'.format(v) for v in row)))
 
 def train_pair_hmm_file(ref_path, sample_path, train_file, work_dir, iterations=5, threads=1, train_long_gap=True,
-                        open2_factor=3, extend2_factor=30, preset='asm5'):
+                        open2_factor=3, extend2_factor=30, preset='asm5', min_mapq=60):
     """ train a model for aligning to the reference at ref_path and write it as train_file
     (write_pair_hmm_train_file): the pieces at sample_path (pair_hmm_training.sample_pieces) mapped to the reference
-    with minimap2 (-x preset, primary alignments), and cPecan's pair HMM fitted to the alignments by EM
+    with minimap2 (-x preset, primary alignments of mapping quality min_mapq or more), and cPecan's pair HMM fitted
+    to the alignments by EM
     (pair_hmm_training.train_pair_hmm), training its long-gap state too with train_long_gap.  Returns
     (paf_to_cpecan_batches's statistics, the identity by iteration), or raises if there is nothing to train on. """
     from cactus.paf.pair_hmm_training import paf_to_cpecan_batches, train_pair_hmm
@@ -365,7 +366,7 @@ def train_pair_hmm_file(ref_path, sample_path, train_file, work_dir, iterations=
                             ref_path, sample_path], outfile=paf_path)
     batches = 4 * threads
     batch_dir = os.path.join(work_dir, 'batches')
-    stats = paf_to_cpecan_batches(paf_path, sample_path, ref_path, batch_dir, batches)
+    stats = paf_to_cpecan_batches(paf_path, sample_path, ref_path, batch_dir, batches, min_mapq=min_mapq)
     if stats['kept'] == 0:
         raise RuntimeError('none of the {} alignments of the sample is usable'.format(stats['alignments']))
     transitions, emissions, identities = train_pair_hmm(batch_dir, batches, iterations, threads, train_long_gap)
@@ -437,6 +438,7 @@ def last_train(job, config, seq_order, seq_id_map, ref_name=None):
             iterations=getOptionalAttrib(graphmap_node, 'trainIterations', typeFn=int, default=5),
             threads=max(1, int(job.cores)),
             train_long_gap=getOptionalAttrib(graphmap_node, 'trainLongGap', typeFn=bool, default=True),
+            min_mapq=getOptionalAttrib(graphmap_node, 'trainMinMapQ', typeFn=int, default=60),
             open2_factor=int(poa_node.attrib['partialOrderAlignmentTrainedGapOpen2Factor']),
             extend2_factor=int(poa_node.attrib['partialOrderAlignmentTrainedGapExtension2Factor']))
         score_dict = parse_train_file(train_file)

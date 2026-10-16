@@ -573,6 +573,7 @@
 	<!-- trainPartners: the most partner genomes the pieces are drawn from, the candidates nearest the middle of the mash order, so that the model is not one partner's -->
 	<!-- trainPieces, trainPieceLength: the sample, this many pieces of this length in all, shared between the partners. Pieces long enough to hold long indels let EM train the long-gap state (trainLongGap): on human chr10, 10kb pieces gave it 23-40bp gaps on average, and 2kb pieces left it a second short gap -->
 	<!-- trainIterations: EM iterations, from cPecan's default model; the parameters settle in 3 or 4 -->
+	<!-- trainMinMapQ: train only on the pieces' alignments of at least this mapping quality: a piece of a segmental duplication mapped to another copy of it is a paralog, and on CHM13 chr10 the 8% of the alignments under MAPQ 60 were 94.8% identical against 99.5%, which made the mismatch scores milder than the orthologous sequence's. 0 keeps every alignment -->
 	<!-- trainLongGap: also train the long-gap state, used as abPOA's second gap piece when it comes out a real long gap (at least 10bp on average); otherwise the second piece is made from the first with the poa TrainedGap*2Factor attributes. 0 holds the state at cPecan's default and always makes the second piece that way. [0: off, 1: on] -->
 	<!-- lastTrainMap: also derive minigraph's base-alignment penalties (its wfa-pen option) from the trained (or scoresFile) model when mapping. minigraph's aligner scores a match as 0 and has one mismatch penalty, so only the mean match and mismatch scores and the gap costs carry over. A human model gives mismatch 8, gap open 11, gap extend 1, against minigraph's 4, 4 and 2. Mapping HG01978 chr20 to a CHM13+HG01978.1 graph, this dropped 9-11% of the mismatches (for 10-20% more gap bases), and only 33-37% of the dropped ones were transitions, which is what random mismatches give, against 57-58% of the ones kept. Chaining is unaffected, so the mappings themselves are the same. Has no effect when minigraphMapOptions already sets wfa-pen. [0: off, 1: on] -->
 	<!-- leftAlign: move every indel in the minigraph alignments as far left on its graph node as the sequences allow (paffy left_align), without changing the alignment's score. minigraph places an indel in a repeat at a seed anchor, and at a mirrored place when a contig maps to the reverse strand, so haplotypes carrying the same indel get it in different places and the graph gets a parallel edge for each. Mapping yeast YPS128 as-is and reverse complemented, 21% of the indels were placed identically in both, and 89% once left-aligned. Costs a node fasta (the size of the GFA) on disk in each mapping job. [0: off, 1: on (default)] -->
@@ -619,6 +620,7 @@
 		 trainPieces="1000"
 		 trainPieceLength="10000"
 		 trainIterations="5"
+		 trainMinMapQ="60"
 		 trainLongGap="1"
 		 lastTrainMap="1"
 		 leftAlign="1"

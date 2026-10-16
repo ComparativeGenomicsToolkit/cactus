@@ -11,7 +11,7 @@ from sonLib.bioio import newickTreeParser
 from cactus.paf.paf import *
 from cactus.paf.last_scoring import apply_long_gap, apply_scores_to_config, abpoa_exact_depth, parse_train_file
 from cactus.paf.last_scoring import write_pair_hmm_train_file, pick_train_partners, minigraph_wfa_penalties
-from cactus.paf.pair_hmm_training import maximise, combined_gap, LONG_GAP_OPEN, LONG_GAP_EXTEND
+from cactus.paf.pair_hmm_training import maximise, combined_gap, LONG_GAP_OPEN, LONG_GAP_EXTEND, paf_to_cpecan_batches
 from toil.realtimeLogger import RealtimeLogger
 import logging
 import os
@@ -253,6 +253,25 @@ class PairHmmTrainFileTest(unittest.TestCase):
             for i in range(5):
                 self.assertAlmostEqual(sum(t[i * 5:i * 5 + 3]) + sum(t[i * 5 + 3:i * 5 + 5]), 1.0 if i < 3 else
                                        1.0 + (LONG_GAP_OPEN if t is held else 0.0), places=6)
+
+    def test_batches_mapq_filter(self):
+        # a piece mapped below min_mapq (as a duplication's piece mapped to another copy is) is left out; soft-masking
+        # (lowercase) is not looked at
+        import random
+        rng = random.Random(1)
+        genome = ''.join(rng.choice('ACGT') for _ in range(300))
+        with tempfile.TemporaryDirectory() as tmp:
+            with open(os.path.join(tmp, 'genome.fa'), 'w') as f:
+                f.write('>g1\n{}\n'.format(genome.lower()))
+            with open(os.path.join(tmp, 'sample.fa'), 'w') as f:
+                f.write('>s1\n{}\n>s2\n{}\n'.format(genome[10:110], genome[150:250]))
+            with open(os.path.join(tmp, 'sample.paf'), 'w') as f:
+                f.write('s1\t100\t0\t100\t+\tg1\t300\t10\t110\t100\t100\t60\tcg:Z:100=\n')
+                f.write('s2\t100\t0\t100\t+\tg1\t300\t150\t250\t100\t100\t3\tcg:Z:100=\n')
+            args = [os.path.join(tmp, n) for n in ('sample.paf', 'sample.fa', 'genome.fa')]
+            self.assertEqual(paf_to_cpecan_batches(*args, os.path.join(tmp, 'all'), 2)['kept'], 2)
+            unique = paf_to_cpecan_batches(*args, os.path.join(tmp, 'unique'), 2, min_mapq=60)
+            self.assertEqual((unique['alignments'], unique['kept'], unique['aligned_bp']), (1, 1, 100))
 
     def test_pick_train_partners(self):
         # the candidates are the genomes of typical size, in seq_order (by mash distance), and the partners the ones
