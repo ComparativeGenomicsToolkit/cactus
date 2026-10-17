@@ -581,7 +581,7 @@ It writes two kinds of report to `<outName>.stats/`:
 
 | File | Contents |
 | --- | --- |
-| `pgrealign-stats.tsv` | One row per chromosome: the targets, the regions of each status that pgrealign's `regions` and `extract` stages gave, the regions it realigned and those it could not (too large, timed out), the nodes it replaced, and the graph's length before and after. |
+| `pgrealign-stats.tsv` | One row per chromosome: the targets, the regions of each status that pgrealign's `regions` and `extract` stages gave, the regions it realigned and those it did not (too large, timed out, or with an allele unrelated to the others), the nodes it replaced, and the graph's length before and after. |
 | `pgrealign.<chrom>.tar.gz` | pgrealign's own outputs for the chromosome: the catalogue, `regions.tsv.gz`, the extracted alleles (`extract/packages.jsonl.gz`), the alignments (`msas.jsonl.gz`), each with its manifest, and a `summary.json` of every stage. With `pgrealignQC="1"`, also `qc.tsv`, how well each alignment agrees with optimal pairwise alignments, beside the original graph's. |
 
 These `<graphmap_join>` config attributes pass options to the pgrealign stages:
@@ -591,13 +591,14 @@ These `<graphmap_join>` config attributes pass options to the pgrealign stages:
 | `pgrealignCatalogOptions` | `--strf strf` | Options to `pgrealign catalog`, when no BED is given. `--trf <binary>` in place of `--strf strf` runs a TRF binary instead. |
 | `pgrealignRegionsOptions` | | Options to `pgrealign regions`, such as `--pad` and `--max-span`. |
 | `pgrealignExtractOptions` | | Options to `pgrealign extract`, such as `--max-internal-bp`. |
-| `pgrealignRealignOptions` | | Options to `pgrealign realign`, such as `--timeout` and `--max-cells`. Its `-j` and `--max-memory` come from the job's cores (`--indexCores`) and memory. |
+| `pgrealignRealignOptions` | | Options to `pgrealign realign`, such as `--timeout`, `--max-cells` and `--min-share`. Its `-j` and `--max-memory` come from the job's cores (`--indexCores`) and memory. |
 | `pgrealignVerify` | `1` | Check that every path of the realigned graph spells what it did before, failing the job if not. It compares the full phase's graph, once GFAffix has run and it is back in vg's format, with the graph `cactus-align` wrote. |
 | `pgrealignQC` | `0` | Run `pgrealign qc` on each chromosome. It can take longer than the realignment. |
 
 Things to know:
 
 * Only a reference contig that has one whole path in a chromosome graph is realigned. A graph without one, such as an unplaced bin, passes through unchanged.
+* A region is left as it is when one of its alleles is unrelated to the others or reversed against them, as at an inversion or a non-homologous structural variant: pgrealign's `not_homologous` (an allele sharing less than `--min-share`, 0.5, of its 15-mers with the region's central allele) and `complex` (an inversion) statuses. Aligned forward, such an allele would be threaded through the others by chance matches, each a variant of its own. On the HPRC CHM13 graph this is 0.25% of the realigned regions, at loci such as chrX's MAGEA and MAGED4B.
 * Clipping can come out slightly differently, as it judges sequence aligned by the nodes it shares with the minigraph paths, which realignment changes. On the yeast test data, each genome's clipped sequence moved by at most 0.2% of its input, in both directions.
 * pgrealign runs the `pgrealign`, `abpoa`, `trfind` and `strf` commands. Cactus's `make` builds the last three from its submodules, and `pip install` installs pgrealign from its own, as do the Docker image and the binary release.
 * It cannot be combined with the `--vgFull`/`--vgClip`/`--vgFilter` bypass options, and it has not been tried with `--collapse`.
