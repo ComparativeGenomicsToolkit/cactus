@@ -10,6 +10,8 @@ import unittest
 from sonLib.bioio import newickTreeParser
 from cactus.paf.paf import *
 from cactus.paf.last_scoring import apply_long_gap, apply_scores_to_config, abpoa_exact_depth, parse_train_file
+from cactus.paf.last_scoring import write_pair_hmm_train_file, pick_train_partners, minigraph_wfa_penalties
+from cactus.paf.pair_hmm_training import maximise, combined_gap, LONG_GAP_OPEN, LONG_GAP_EXTEND
 from toil.realtimeLogger import RealtimeLogger
 import logging
 import os
@@ -148,6 +150,124 @@ class LastScoringTest(unittest.TestCase):
                 self.write_train(path, gap_open, gap_extend, rows)
                 with self.assertRaises(RuntimeError):
                     parse_train_file(path)
+
+class PairHmmTrainFileTest(unittest.TestCase):
+    """ how a cPecan pair HMM becomes a .train file and abPOA's scores (cactus.paf.last_scoring) """
+
+    @staticmethod
+    def hmm(short_open=1e-4, short_extend=0.5, long_open=3e-5, long_extend=0.9565, identity=0.998):
+        # five states, match and a short and a long gap in each sequence; transitions[from * 5 + to]
+        T = [[0.0] * 5 for _ in range(5)]
+        T[0] = [1 - 2 * short_open - 2 * long_open, short_open, short_open, long_open, long_open]
+        for g in (1, 2):
+            T[g][g], T[g][0] = short_extend, 1 - short_extend
+        for g in (3, 4):
+            T[g][g], T[g][0] = long_extend, 1 - long_extend
+        # transitions twice as likely as each transversion, A/T a little commoner than C/G
+        freq = {0: 0.27, 1: 0.23, 2: 0.23, 3: 0.27}
+        match = [[freq[x] * identity if x == y else (1 - identity) * (2 if (x + y) % 2 == 0 else 1) / 16
+                  for y in range(4)] for x in range(4)]
+        total = sum(map(sum, match))
+        emissions = [match[x][y] / total for x in range(4) for y in range(4)] + [1 / 16] * 64
+        return [v for row in T for v in row], emissions
+
+    def write_and_parse(self, tmp, transitions, emissions, **kwargs):
+        path = os.path.join(tmp, 'model.train')
+        write_pair_hmm_train_file(path, transitions, emissions, 'test', 3, 30, **kwargs)
+        return parse_train_file(path)
+
+    def test_trained_long_gap_is_second_piece(self):
+        # a long state of 23bp on average is a real long gap: dearer to open, cheaper to extend, and kept as it is
+        with tempfile.TemporaryDirectory() as tmp:
+            d = self.write_and_parse(tmp, *self.hmm())
+        self.assertGreater(d['GAP-OPEN-2'], d['GAP-OPEN'])
+        self.assertLess(d['GAP-EXTEND-2'], d['GAP-EXTEND'])
+        self.assertNotEqual(d['GAP-OPEN-2'], 3 * d['GAP-OPEN'])
+        for i in 'ACGT':
+            self.assertGreater(d[i][i], 0)
+            for j in 'ACGT':
+                self.assertEqual(d[i][j], d[j][i])
+        # apply_scores_to_config leaves the two pieces as they are (but for a common factor), where a one-piece model's
+        # second piece is made from its first
+        root = LastScoringTest.config()
+        pieces = LastScoringTest.gaps(dict(d))
+        single = d['GAP-OPEN-SINGLE'], d['GAP-EXTEND-SINGLE']
+        # one piece for both states: opened more often than the short state alone, and extended more cheaply
+        self.assertLess(single[1], d['GAP-EXTEND'])
+        apply_scores_to_config(d, root)
+        poa = root.find('bar/poa')
+        got = [int(poa.attrib[k]) for k in ('partialOrderAlignmentGapOpenPenalty1', 'partialOrderAlignmentGapExtensionPenalty1',
+                                            'partialOrderAlignmentGapOpenPenalty2', 'partialOrderAlignmentGapExtensionPenalty2')]
+        factor = pieces[0] // got[0]
+        self.assertEqual([g * factor for g in got], list(pieces))
+        # minipoa gets the gaps as one piece, both states as one (the same factor applied)
+        minipoa = root.find('bar/minipoa')
+        self.assertEqual(minipoa.attrib['minipoaGapOpenPenalty2'], '0')
+        self.assertEqual(int(minipoa.attrib['minipoaGapOpenPenalty']) * factor, single[0])
+        self.assertEqual(int(minipoa.attrib['minipoaGapExtensionPenalty']) * factor, single[1])
+
+    def test_single_gap_for_minigraph(self):
+        # minigraph's penalties come from the gaps as one piece: with the short state's alone (2bp on average, so a
+        # dear extension, which everything is divided by) the mismatch and gap open would come out far lower
+        with tempfile.TemporaryDirectory() as tmp:
+            d = self.write_and_parse(tmp, *self.hmm(short_open=1.3e-4, short_extend=0.525, long_open=3e-5, long_extend=0.9565))
+        short_only = dict(d)
+        del short_only['GAP-OPEN-SINGLE'], short_only['GAP-EXTEND-SINGLE']
+        x, o, e = minigraph_wfa_penalties(d)
+        x_short, o_short, _ = minigraph_wfa_penalties(short_only)
+        self.assertEqual(e, 1)
+        self.assertGreater(x, x_short)
+        self.assertGreater(o, o_short)
+
+    def test_short_long_state_falls_back(self):
+        # a "long" state of under 10bp on average is a second short gap: the first piece is both states as one, and
+        # the second is made from it with the factors, as apply_long_gap makes one
+        with tempfile.TemporaryDirectory() as tmp:
+            d = self.write_and_parse(tmp, *self.hmm(long_extend=0.79))
+            held = self.write_and_parse(tmp, *self.hmm(), long_gap_trained=False)
+        self.assertEqual((d['GAP-OPEN-2'], d['GAP-EXTEND-2']), (3 * d['GAP-OPEN'], max(1, d['GAP-EXTEND'] // 30)))
+        # held at cPecan's default, the long state is not trained, so the second piece is made the same way, from the
+        # short state alone
+        self.assertEqual((held['GAP-OPEN-2'], held['GAP-EXTEND-2']), (3 * held['GAP-OPEN'], max(1, held['GAP-EXTEND'] // 30)))
+        self.assertGreater(held['GAP-EXTEND'], d['GAP-EXTEND'])
+        # with no real long gap, the one piece is the first: both states as one, or the short state when held
+        self.assertEqual((d['GAP-OPEN-SINGLE'], d['GAP-EXTEND-SINGLE']), (d['GAP-OPEN'], d['GAP-EXTEND']))
+        self.assertEqual((held['GAP-OPEN-SINGLE'], held['GAP-EXTEND-SINGLE']), (held['GAP-OPEN'], held['GAP-EXTEND']))
+
+    def test_combined_gap_keeps_mean_length(self):
+        transitions, _ = self.hmm(short_open=1e-4, short_extend=0.5, long_open=1e-4, long_extend=0.75)
+        open_prob, extend_prob = combined_gap(transitions)
+        self.assertAlmostEqual(open_prob, 2e-4)
+        # gaps of 2 and 4bp on average, opened as often: 3bp
+        self.assertAlmostEqual(1 / (1 - extend_prob), 3.0)
+
+    def test_maximise_holds_long_gap(self):
+        # expected counts with a long state that looks like a short one: held at cPecan's unless train_long_gap
+        transitions, emissions = self.hmm(long_extend=0.5)
+        held, _ = maximise([v * 1000 for v in transitions], [v * 1000 for v in emissions])
+        self.assertAlmostEqual(held[0 * 5 + 3], LONG_GAP_OPEN)
+        self.assertAlmostEqual(held[3 * 5 + 3], LONG_GAP_EXTEND)
+        trained, _ = maximise([v * 1000 for v in transitions], [v * 1000 for v in emissions], train_long_gap=True)
+        self.assertAlmostEqual(trained[3 * 5 + 3], 0.5, places=3)
+        for t in (held, trained):
+            for i in range(5):
+                self.assertAlmostEqual(sum(t[i * 5:i * 5 + 3]) + sum(t[i * 5 + 3:i * 5 + 5]), 1.0 if i < 3 else
+                                       1.0 + (LONG_GAP_OPEN if t is held else 0.0), places=6)
+
+    def test_pick_train_partners(self):
+        # the candidates are the genomes of typical size, in seq_order (by mash distance), and the partners the ones
+        # nearest the middle of them; a fragment and an oversized assembly are never picked
+        class Fasta:
+            def __init__(self, size):
+                self.size = size
+        sizes = {'ref': 10**8, 'a': 10**8, 'b': 10**8, 'tiny': 10**5, 'c': 10**8, 'd': 10**8, 'huge': 5 * 10**8,
+                 'e': 10**8, 'f': 10**8}
+        seq_id_map = {name: Fasta(size) for name, size in sizes.items()}
+        order = ['ref', 'a', 'b', 'tiny', 'c', 'd', 'huge', 'e', 'f']
+        self.assertEqual(pick_train_partners('ref', order, seq_id_map, 4), ['b', 'c', 'd', 'e'])
+        self.assertEqual(pick_train_partners('ref', order, seq_id_map, 1), ['d'])
+        self.assertEqual(pick_train_partners('ref', order, seq_id_map, 10), ['a', 'b', 'c', 'd', 'e', 'f'])
+        self.assertEqual(pick_train_partners('ref', ['ref', 'tiny'], seq_id_map, 4), [])
 
 if __name__ == '__main__':
     unittest.main()
