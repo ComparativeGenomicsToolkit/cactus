@@ -66,10 +66,10 @@ def pangenome_options(parser):
                         help="Memory in bytes for the minigraph construction job (defaults to an estimate based on the input data size). "
                         "Standard suffixes like K, Ki, M, Mi, G or Gi are supported (default=bytes))", default=None)
     parser.add_argument("--lastTrain", action="store_true",
-                        help="Deprecated: last-train is now on by default. Use the lastTrain attribute of <graphmap> "
+                        help="Deprecated: training the scoring model is now on by default. Use the lastTrain attribute of <graphmap> "
                         "in the config to turn it off", default=False)
     parser.add_argument("--scoresFile", type=str,
-                        help = "File containing scoring parameters (output of last-train)")
+                        help = "File containing scoring parameters (a .train file: as cactus-minigraph writes it, or from last-train)")
     parser.add_argument("--mgSplit", action="store_true", default=False,
                         help = "Run minigraph construction and mapping independently on each chromosome. Each chromosome's "
                         "second-pass minigraph is built against the whole primary reference genome rather than just that "

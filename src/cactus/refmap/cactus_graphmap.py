@@ -72,7 +72,7 @@ def main():
                         "genomes then see the nodes contributed by the newly added ones, as they would in a from-scratch run")
 
     parser.add_argument("--scoresFile", type=str,
-                        help = "Scoring model (output of last-train, as cactus-minigraph writes it next to the graph) to derive "
+                        help = "Scoring model (a .train file, as cactus-minigraph writes it next to the graph) to derive "
                         "minigraph's base-alignment penalties from. With --batch, the models in the chromfile's fourth column "
                         "are used without this option, and this one overrides them. Toggled with the lastTrainMap attribute of "
                         "<graphmap> in the config")
@@ -211,7 +211,7 @@ def graph_map(options):
                                 
             # load up the chromfile / seqfiles
             input_dict = {} # chrom -> seq_id_map, gfa_id, ref_collapse_paf_id, seqfile_path, gfa_path
-            scores_id_map = {} # chrom -> last-train model
+            scores_id_map = {} # chrom -> trained scoring model
             for chrom, inputs in input_map.items():
                 input_seqfile, input_gfa = inputs[0], inputs[1]
             
@@ -344,7 +344,7 @@ def export_graphmap_output(options, config_node, input_map, output_dict, toil):
 def minigraph_batch_workflow(job, options, config, input_dict, graph_event, sanitize, pansn_gfa_input=True, in_gaf_id=None,
                              scores_id_map=None):
     """ Batch wrapper to run grpahmap independently at the chromosome level.  scores_id_map maps a
-    chromosome to the last-train model its mapping should use, if any """
+    chromosome to the trained scoring model its mapping should use, if any """
     output_dict = {}
     options.mg_chrom_name = None
     for chrom, input_info in input_dict.items():
@@ -418,7 +418,7 @@ FILTER_PAF_DELETIONS_SECS_PER_GB = 500
 def minigraph_workflow(job, options, config, seq_id_map, gfa_id, graph_event, sanitize, ref_collapse_paf_id, pansn_gfa_input=True,
                        in_gaf_id=None, scores_id=None):
     """ Overall workflow takes command line options and returns (paf-id, (optional) fa-id).  scores_id
-    is a last-train model to derive minigraph's base-alignment penalties from """
+    is a trained scoring model to derive minigraph's base-alignment penalties from """
     fa_id = None
     gfa_id_size = gfa_id.size
     genome_names = set(seq_id_map.keys())
@@ -1003,7 +1003,7 @@ def gaf_to_pansn(gaf_path, out_path):
 
 def minigraph_map_one(job, config, event_name, fa_file_id, gfa_file_id, scores_id=None, gaf_only=False, reference=None):
     """ Run minigraph to map a Fasta file to a GFA graph, producing a GAF output.  scores_id is a
-    last-train model to derive minigraph's base-alignment penalties from.  gaf_only returns
+    trained scoring model to derive minigraph's base-alignment penalties from.  gaf_only returns
     (PanSN GAF, None, None): the same GAF as the mapping publishes, without deriving a PAF from it.
     Otherwise returns what stable_gaf_to_paf() does.  reference is the (first) reference event """
 
