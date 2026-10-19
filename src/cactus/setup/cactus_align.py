@@ -149,6 +149,9 @@ def main():
                         help="Scale branch lengths by this factor to adjust alignment sensitivity (e.g., 2.0 = treat branches as 2x longer, more sensitive).  Ancestral reconstruction uses the scaled lengths too")
     parser.add_argument("--hdf5Codec", choices=["deflate", "lz4", "zstd", "none"], default=None,
                         help="HDF5 compression codec for HAL output (overrides config XML, default=deflate)")
+    parser.add_argument("--halFormat", choices=["hdf5", "3"], default=None,
+                        help="Output HAL format: hdf5 (the default), or 3 (HAL format 3, which hal merge "
+                        "stitches; not with --pangenome)")
     parser.add_argument("--validate", action="store_true",
                         help="Before writing the output, check that every sequence in the HAL is "
                         "still identical (modulo soft-masking) to the sequence that was aligned. "
@@ -321,6 +324,10 @@ def make_align_job(options, toil, config_wrapper=None, chrom_name=None):
             findRequiredNode(config_node, "graphmap").attrib["minIdentity"] = str(options.minIdentity)
     if hasattr(options, 'hdf5Codec') and options.hdf5Codec:
         config_node.find("hal").attrib["hdf5Codec"] = options.hdf5Codec
+    if getattr(options, 'halFormat', None):
+        if options.halFormat == "3" and getattr(options, "pangenome", False):
+            raise RuntimeError("--halFormat 3 is not supported with --pangenome (hal2vg reads HDF5)")
+        config_node.find("hal").attrib["format"] = options.halFormat
     config_wrapper.setSystemMemory(options)
     mc_tree, input_seq_map, og_candidates = parse_seqfile(options.seqFile, config_wrapper,
                                                           pangenome=options.pangenome)
