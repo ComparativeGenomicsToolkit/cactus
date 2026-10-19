@@ -17,6 +17,7 @@ import timeit
 import shutil
 import shlex
 import math
+from base64 import b64encode
 
 from operator import itemgetter
 
@@ -96,6 +97,33 @@ HAL_APPEND_SECS_PER_SUBTREE = 600
 # pushing the grown target back up.
 HAL_APPEND_STAGING_SECS_PER_SUBTREE = 120
 
+# Seconds for the one hal merge that replaces the appends in HAL format 3, where the sizes are
+# promises.  An estimate, not a measurement: the merge copies each file once and checks the
+# result, so it is bound by I/O -- about 2 h for a terabyte at 150 MB/s.
+HAL_MERGE_SECS = 7200
+
+# the first bytes of a HAL format 3 alignment packed as one file
+HAL3_PACK_MAGIC = b'\x89HAL\r\n\x1a\n'
+
+def hal_format_opt(options):
+    """ the option that passes --halFormat on to cactus-align (or cactus) """
+    return ' --halFormat 3' if getattr(options, 'halFormat', None) == "3" else ''
+
+def is_hal_format3(path):
+    """ whether the (local) alignment at path is HAL format 3, a pack or a directory """
+    if os.path.isdir(path):
+        return os.path.isfile(os.path.join(path, 'manifest'))
+    with open(path, 'rb') as f:
+        return f.read(len(HAL3_PACK_MAGIC)) == HAL3_PACK_MAGIC
+
+def hal_merge(out_path, in_paths, config_path):
+    """ HAL format 3: stitch the subproblems' alignments (the root's first) into one.  Each
+    stamped its own CACTUS_CONFIG and CACTUS_COMMIT, which may differ, so the merge sets them """
+    with open(config_path, 'rb') as config_file:
+        config_b64 = b64encode(config_file.read()).decode()
+    cactus_call(parameters=['hal', 'merge', out_path] + in_paths +
+                ['--meta', 'CACTUS_COMMIT=' + cactus_commit, '--meta', 'CACTUS_CONFIG=' + config_b64])
+
 def main_toil():
     return main(toil_mode=True)
 
@@ -138,6 +166,10 @@ def main(toil_mode=False):
     parser.add_argument("--preprocessBatchSize", type=int, default=32, help="size (number of genomes) of preprocessing jobs")
     parser.add_argument("--halAppendBatchSize", type=int, default=50, help="size (number of genomes) of halAppendSubtree jobs (WDL-only)")
     parser.add_argument("--halOptions", type=str, default="--hdf5InMemory", help="options for every hal command")
+    parser.add_argument("--halFormat", choices=["hdf5", "3"], default="hdf5",
+                        help="Output HAL format: hdf5 (the default), or 3 (HAL format 3: each cactus-align writes "
+                        "its subproblem in format 3, and one hal merge, in place of the halAppendSubtree "
+                        "chain, makes the alignment)")
     parser.add_argument("--cactusOptions", type=str, default="", help="options for every cactus command")
     parser.add_argument("--preprocessOnly", action="store_true", help="only decompose into preprocessor and cactus jobs")
     parser.add_argument("--maskMode", 
@@ -586,8 +618,8 @@ def get_plan(options, inSeqFile, outSeqFile, configWrapper, toil):
 
     if options.preprocessOnly:
         plan += '\n## Cactus\n'
-        plan += 'cactus {} {} {} {}{}\n'.format(get_jobstore(options), options.outSeqFile,
-                                                options.outHal, options.cactusOptions,
+        plan += 'cactus {} {} {} {}{}{}\n'.format(get_jobstore(options), options.outSeqFile,
+                                                options.outHal, options.cactusOptions, hal_format_opt(options),
                                                 get_log_options(options, 'preprocess', 'all'))
         return plan
 
@@ -710,7 +742,7 @@ def get_plan(options, inSeqFile, outSeqFile, configWrapper, toil):
                         ' && \\' if options.script else '')
                     plan += 'cactus-align {} {} {} {} --root {} {} {}{}{}{}{}{}{}\n'.format(
                         get_jobstore(options), options.outSeqFile, cigarPath(event), halPath(event), event,
-                        cactus_options, get_toil_resource_opts(options, 'align'),
+                        cactus_options + hal_format_opt(options), get_toil_resource_opts(options, 'align'),
                         ' --includeRoot' if options.includeRoot and event == mc_tree.getRootName() else '',
                         ' --chromInfo {}'.format(options.chromInfo) if options.chromInfo else '',
                         ' --branchScale {}'.format(options.branchScale) if options.branchScale else '',
@@ -742,14 +774,18 @@ def get_plan(options, inSeqFile, outSeqFile, configWrapper, toil):
             if event != root:
                 event_list.append(event)
 
+    # HAL format 3: one merge of every subproblem's alignment (it streams, so there is no
+    # reason to batch), rather than a chain of appends
+    append_batch_size = max(1, len(event_list)) if options.halFormat == "3" else options.halAppendBatchSize
+
     if not options.toil and not options.wdl:
         prev_event = root
         idx = 0
         batch_count = 0
         while idx < len(event_list):
-            event_subset = event_list[idx:idx+options.halAppendBatchSize]
+            event_subset = event_list[idx:idx+append_batch_size]
             input_hal = '{}{}'.format(halPath(root), '.append.{}'.format(batch_count -1) if batch_count else '')
-            if idx + options.halAppendBatchSize >= len(event_list):
+            if idx + append_batch_size >= len(event_list):
                 output_hal = options.outHal
             else:
                 output_hal = '{}.append.{}'.format(halPath(root), batch_count)
@@ -768,7 +804,7 @@ def get_plan(options, inSeqFile, outSeqFile, configWrapper, toil):
                     plan += '\nrm -f {}'.format(input_hal)
             plan += '\n'
             prev_event = event_subset[-1]
-            idx += options.halAppendBatchSize
+            idx += append_batch_size
             batch_count += 1
 
     if options.toil:
@@ -783,17 +819,18 @@ def get_plan(options, inSeqFile, outSeqFile, configWrapper, toil):
                                                          cores=1,
                                                          memory=options.alignMemory,
                                                          disk=options.halAppendDisk,
-                                                         walltime=cactus_walltime((HAL_APPEND_SECS_PER_SUBTREE +
+                                                         walltime=cactus_walltime(HAL_MERGE_SECS if options.halFormat == "3" else
+                                                                                  (HAL_APPEND_SECS_PER_SUBTREE +
                                                                                    HAL_APPEND_STAGING_SECS_PER_SUBTREE) * len(event_list)))
 
     if options.wdl:
         prev_event = mc_tree.getRootName()
         idx = 0
         while idx < len(event_list):
-            event_subset = event_list[idx:idx+options.halAppendBatchSize]
+            event_subset = event_list[idx:idx+append_batch_size]
             plan += wdl_call_hal_append(options, mc_tree, og_map, event_subset, prev_event)
             prev_event = event_subset[-1]
-            idx += options.halAppendBatchSize
+            idx += append_batch_size
         plan += wdl_workflow_end(options, prev_event, len(event_list) > 1)
 
     if options.toil:
@@ -1145,7 +1182,8 @@ def wdl_task_align(options):
     # masked by whatever cactus-hal2fasta returns afterwards
     s += 'set -eo pipefail\n        '
     s += 'cactus-align {} ${{in_seq_file}} ${{sep=\" \" in_blast_files}} ${{out_hal_name}} --root ${{in_root}}'.format(get_jobstore(options, 'align'))
-    s += ' --pathOverrides ${{sep=\" \" in_fa_files}} ${{sep=\" \" in_fa_urls}} --pathOverrideNames ${{sep=\" \" in_fa_names}} {}'.format(options.cactusOptions)
+    s += ' --pathOverrides ${{sep=\" \" in_fa_files}} ${{sep=\" \" in_fa_urls}} --pathOverrideNames ${{sep=\" \" in_fa_names}} {}{}'.format(options.cactusOptions,
+                                                                                                                                       hal_format_opt(options))
     s += ' ${\"--chromInfo \" + in_chrom_info_file}'
     s += ' {} {}{} ${{\"--configFile \" + in_config_file}} ${{in_options}}'.format(get_toil_resource_opts(options, 'align'),
                                                                                    '--branchScale {}'.format(options.branchScale) if options.branchScale else '',
@@ -1239,7 +1277,8 @@ def toil_call_align(job, options, seq_file, mc_tree, og_map, event, cigar_name, 
     cactus_call(parameters=['cactus-align', os.path.join(work_dir, 'js'), seq_file_path] + blast_files +
                 [out_hal_path, '--root', event,
                  '--pathOverrides'] + fa_paths + ['--pathOverrideNames'] + dep_names +
-                ['--workDir', work_dir, '--maxCores', str(int(job.cores)), '--maxDisk', bytes2humanN(job.disk), '--maxMemory', bytes2humanN(job.memory)] + options.cactusOptions.strip().split(' ') + (['--chromInfo', options.chromInfo] if options.chromInfo else []) + (['--branchScale', str(options.branchScale)] if options.branchScale else []) + ([] if options.noValidate else ['--validate']))
+                ['--workDir', work_dir, '--maxCores', str(int(job.cores)), '--maxDisk', bytes2humanN(job.disk), '--maxMemory', bytes2humanN(job.memory)] + options.cactusOptions.strip().split(' ') + (['--chromInfo', options.chromInfo] if options.chromInfo else []) + (['--branchScale', str(options.branchScale)] if options.branchScale else []) + ([] if options.noValidate else ['--validate']) +
+                hal_format_opt(options).split())
 
     out_hal_id = job.fileStore.writeGlobalFile(out_hal_path)
 
@@ -1267,14 +1306,20 @@ def wdl_task_hal_append(options):
 
     # note: I've been unable to modify an input file then return it as an output
     #       so we explicitly copy it into a local string here first
-    s += '        cp ~{in_hal_parent} ./~{parent_name}\n'
+    if options.halFormat != "3":
+        s += '        cp ~{in_hal_parent} ./~{parent_name}\n'
     # convert WDL arrays to bash arrays (don't think spaces in names will be supported, but that's true almost everywhere else too)
-    s += '        HA_CHILDS=(~{sep=" " in_hal_childs})\n'
-    s += '        HA_NAMES=(~{sep=" " in_names})\n'    
-    s += '        for i in "${!HA_NAMES[@]}"; do\n'
-    s += '             halAppendSubtree ./~{{parent_name}} ${{HA_CHILDS[$i]}} ${{HA_NAMES[$i]}} ${{HA_NAMES[$i]}} --merge --hdf5InMemory {}\n'.format(
-options.halOptions)
-    s += '        done\n'
+    if options.halFormat == "3":
+        # one hal merge of the parent and every child, nothing modified in place
+        s += '        cactus-halAppendSubtrees {} ~{{in_hal_parent}} ~{{sep=" " in_hal_childs}} ./~{{parent_name}} {}\n'.format(
+            get_jobstore(options), options.cactusOptions)
+    else:
+        s += '        HA_CHILDS=(~{sep=" " in_hal_childs})\n'
+        s += '        HA_NAMES=(~{sep=" " in_names})\n'    
+        s += '        for i in "${!HA_NAMES[@]}"; do\n'
+        s += '             halAppendSubtree ./~{{parent_name}} ${{HA_CHILDS[$i]}} ${{HA_NAMES[$i]}} ${{HA_NAMES[$i]}} --merge --hdf5InMemory {}\n'.format(
+            options.halOptions)
+        s += '        done\n'
     s += '    >>>\n'
     s += '    runtime {\n'
     s += '        docker: \"{}\"\n'.format(options.dockerImage)
@@ -1318,16 +1363,22 @@ def toil_call_hal_append_subtrees(job, options, mc_tree, og_map, root_name, root
     # donload the root hal file
     root_file = os.path.join(work_dir, '{}.hal'.format(root_name))
     job.fileStore.readGlobalFile(root_hal_id, root_file, mutable=True)
-    
+    format3 = is_hal_format3(root_file)
+
     # download the hal files from the file store
     hal_files = []
     for event_name, event_id in zip(event_names, event_ids):
         hal_files.append(os.path.join(work_dir, '{}.hal'.format(event_name)))
         job.fileStore.readGlobalFile(event_id, hal_files[-1])
 
-        # append to the root
-        cactus_call(parameters=['halAppendSubtree', root_file, hal_files[-1], event_name, event_name, '--merge', '--hdf5InMemory'] +
-                    options.halOptions.strip().split(' '))
+        # append to the root (HAL format 3: merge them all at the end)
+        if not format3:
+            cactus_call(parameters=['halAppendSubtree', root_file, hal_files[-1], event_name, event_name, '--merge', '--hdf5InMemory'] +
+                        options.halOptions.strip().split(' '))
+    if format3:
+        merged_file = os.path.join(work_dir, 'merged.hal')
+        hal_merge(merged_file, [root_file] + hal_files, options.configFile)
+        root_file = merged_file
 
     # bypassing toil.exportFile for now as it only works on promises returned by the
     # start job, which isn't how this is set up. also in practice it's often more convenient
@@ -1409,7 +1460,7 @@ def hal2fasta(job, hal_id, hal_path, genome, fa_path):
     job.fileStore.readGlobalFile(hal_id, hal_path)
     fa_path = os.path.join(work_dir, os.path.basename(fa_path))
 
-    cmd = ['hal2fasta', hal_path, genome]
+    cmd = ['hal', 'fasta', hal_path, genome] if is_hal_format3(hal_path) else ['hal2fasta', hal_path, genome]
     if fa_path.endswith('.gz'):
         cmd = [cmd, ['bgzip', '--threads', str(job.cores)]]
 
@@ -1465,11 +1516,19 @@ def main_hal_append_subtrees():
             # mutable, every subtree HAL coming down, and the grown target going back up, which
             # is what dominates once the target is a few hundred GiB.
             sub_hal_bytes = sum([f.size for f in sub_hal_ids])
-            out_hal_id = toil.start(Job.wrapJobFn(hal_append_subtrees, hal_id, sub_hal_ids, options,
-                                                  memory=cactus_clamp_memory(10 * max([f.size for f in sub_hal_ids])),
-                                                  disk=2 * (hal_id.size + sub_hal_bytes),
-                                                  walltime=cactus_walltime(HAL_APPEND_SECS_PER_SUBTREE * len(sub_hal_ids),
-                                                                           io_bytes=2 * (hal_id.size + sub_hal_bytes))))
+            if '://' not in options.tgtFile and is_hal_format3(options.tgtFile):
+                # HAL format 3: one hal merge, which streams -- every input down, the
+                # alignment (about their total) written and checked, and back up
+                out_hal_id = toil.start(Job.wrapJobFn(hal_append_subtrees, hal_id, sub_hal_ids, options,
+                                                      memory=cactus_clamp_memory(2**31),
+                                                      disk=3 * (hal_id.size + sub_hal_bytes),
+                                                      walltime=cactus_walltime(600, io_bytes=4 * (hal_id.size + sub_hal_bytes))))
+            else:
+                out_hal_id = toil.start(Job.wrapJobFn(hal_append_subtrees, hal_id, sub_hal_ids, options,
+                                                      memory=cactus_clamp_memory(10 * max([f.size for f in sub_hal_ids])),
+                                                      disk=2 * (hal_id.size + sub_hal_bytes),
+                                                      walltime=cactus_walltime(HAL_APPEND_SECS_PER_SUBTREE * len(sub_hal_ids),
+                                                                               io_bytes=2 * (hal_id.size + sub_hal_bytes))))
 
         # export the alignments
         toil.exportFile(out_hal_id, makeURL(options.outHalFile))  
@@ -1486,6 +1545,17 @@ def hal_append_subtrees(job, hal_id, sub_hal_ids, options):
     work_dir = job.fileStore.getLocalTempDir()
     hal_path = os.path.join(work_dir, os.path.basename(options.tgtFile))
     job.fileStore.readGlobalFile(hal_id, hal_path, mutable=True)
+
+    if is_hal_format3(hal_path):
+        # HAL format 3: one hal merge of the target and every subtree, in their order
+        sub_paths = []
+        for i, (sub_id, sub_input_path) in enumerate(zip(sub_hal_ids, options.subFiles)):
+            # numbered, as subtree files from different directories may share a name
+            sub_paths.append(os.path.join(work_dir, '{}.{}'.format(i, os.path.basename(sub_input_path))))
+            job.fileStore.readGlobalFile(sub_id, sub_paths[-1])
+        out_path = os.path.join(work_dir, 'merged.' + os.path.basename(options.outHalFile))
+        hal_merge(out_path, [hal_path] + sub_paths, options.configFile)
+        return job.fileStore.writeGlobalFile(out_path)
 
     for sub_id, sub_input_path in zip(sub_hal_ids, options.subFiles):
         sub_path = os.path.join(work_dir, os.path.basename(sub_input_path))
