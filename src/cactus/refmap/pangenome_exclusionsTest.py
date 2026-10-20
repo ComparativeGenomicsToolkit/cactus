@@ -59,6 +59,21 @@ class TestEventToPansn(unittest.TestCase):
     def test_numeric_suffix_after_dotted_name(self):
         self.assertEqual(event_to_pansn_prefix('HG002.verkko.1'), 'HG002.verkko#1')
 
+    def test_pansn(self):
+        # SAMPLE#HAP is its own prefix, and a '.' before it is part of the sample
+        self.assertEqual(event_to_pansn_prefix('HG002#1'), 'HG002#1')
+        self.assertEqual(event_to_pansn_prefix('GCA_054883195.1#0'), 'GCA_054883195.1#0')
+        self.assertEqual(event_to_pansn_prefix('KOLF2.1J'), 'KOLF2.1J#0')
+        # as vg would write the haplotype
+        self.assertEqual(event_to_pansn_prefix('HG002#01'), 'HG002#1')
+
+    def test_inverse(self):
+        self.assertEqual(pansn_prefix_to_event('S288C#0'), 'S288C')
+        self.assertEqual(pansn_prefix_to_event('HG002#1'), 'HG002#1')
+        # GCA_054883195.1 on its own would be the old spelling of haplotype 1 of GCA_054883195
+        self.assertEqual(pansn_prefix_to_event('GCA_054883195.1#0'), 'GCA_054883195.1#0')
+        self.assertEqual(pansn_prefix_to_event('KOLF2.1J#0'), 'KOLF2.1J')
+
 
 class TestParsePathName(unittest.TestCase):
 

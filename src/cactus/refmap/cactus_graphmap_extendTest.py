@@ -39,15 +39,20 @@ def gaf_line(query, path, tags='60\ttp:A:P\tcm:i:100'):
 class TestPansnToEventMap(unittest.TestCase):
 
     def test_haploid_and_diploid(self):
-        self.assertEqual(pansn_to_event_map({'S288C', 'HG002.1', 'HG002.2'}),
-                         {'S288C#0': 'S288C', 'HG002#1': 'HG002.1', 'HG002#2': 'HG002.2'})
+        self.assertEqual(pansn_to_event_map({'S288C', 'HG002#1', 'HG002#2'}),
+                         {'S288C#0': 'S288C', 'HG002#1': 'HG002#1', 'HG002#2': 'HG002#2'})
 
     def test_explicit_hap_zero_beats_bare_name(self):
-        # event_to_pansn_prefix maps both S288C and S288C.0 onto S288C#0.  whichever wins, the map
+        # event_to_pansn_prefix maps both S288C and S288C#0 onto S288C#0.  whichever wins, the map
         # has to be single valued or the round trip would be ambiguous
-        prefix_map = pansn_to_event_map({'S288C', 'S288C.0'})
+        prefix_map = pansn_to_event_map({'S288C', 'S288C#0'})
         self.assertEqual(len(prefix_map), 1)
-        self.assertIn(prefix_map['S288C#0'], ('S288C', 'S288C.0'))
+        self.assertIn(prefix_map['S288C#0'], ('S288C', 'S288C#0'))
+
+    def test_dots_in_the_sample(self):
+        # a '.' is only a haplotype in the old SAMPLE.N spelling, which normalized names never use
+        self.assertEqual(pansn_to_event_map({'KOLF2.1J', 'GCA_054883195.1#0'}),
+                         {'KOLF2.1J#0': 'KOLF2.1J', 'GCA_054883195.1#0': 'GCA_054883195.1#0'})
 
     def test_non_numeric_suffix_is_part_of_the_sample(self):
         # HG002.pat is not a haplotype suffix, so the whole thing is the sample
@@ -78,8 +83,8 @@ class TestGafPansnRoundTrip(unittest.TestCase):
         self.assertEqual(back, gaf)
 
     def test_reverse_steps(self):
-        names = {'HG002.1', 'HG002.2', 'GRCh38'}
-        gaf = gaf_line('id=HG002.2|chr1', '<id=GRCh38|chr1>id=HG002.1|chr1<id=GRCh38|chr1')
+        names = {'HG002#1', 'HG002#2', 'GRCh38'}
+        gaf = gaf_line('id=HG002#2|chr1', '<id=GRCh38|chr1>id=HG002#1|chr1<id=GRCh38|chr1')
         pansn, back = self.round_trip(names, gaf)
         self.assertIn('<GRCh38#0#chr1>HG002#1#chr1<GRCh38#0#chr1', pansn)
         self.assertEqual(back, gaf)
@@ -95,11 +100,33 @@ class TestGafPansnRoundTrip(unittest.TestCase):
     def test_contig_name_containing_a_hash(self):
         # PanSN phase blocks put a fourth '#' field on a path name.  going back, only the first two
         # '#' belong to the prefix
-        names = {'HG002.1', 'GRCh38'}
-        gaf = gaf_line('id=HG002.1|chr1#0', '>id=GRCh38|chr1#0')
+        names = {'HG002#1', 'GRCh38'}
+        gaf = gaf_line('id=HG002#1|chr1#0', '>id=GRCh38|chr1#0')
         pansn, back = self.round_trip(names, gaf)
         self.assertIn('HG002#1#chr1#0', pansn)
         self.assertEqual(back, gaf)
+
+    def test_dots_in_the_sample(self):
+        names = {'KOLF2.1J', 'GCA_054883195.1#0'}
+        gaf = gaf_line('id=KOLF2.1J|chr1', '>id=GCA_054883195.1#0|chr1<id=KOLF2.1J|chr1')
+        pansn, back = self.round_trip(names, gaf)
+        self.assertIn('KOLF2.1J#0#chr1', pansn)
+        self.assertIn('>GCA_054883195.1#0#chr1<KOLF2.1J#0#chr1', pansn)
+        self.assertEqual(back, gaf)
+
+    def test_old_cactus_haplotype_spelling_is_updated(self):
+        # a GAF published by a cactus that spelled haplotypes SAMPLE.N, read against a seqfile whose
+        # names have been normalized to SAMPLE#N
+        names = {'HG002#1', 'GRCh38'}
+        gaf = gaf_line('id=HG002.1|chr1', '>id=GRCh38|chr1<id=HG002.1|chr1')
+        with tempfile.TemporaryDirectory() as work_dir:
+            in_path = os.path.join(work_dir, 'in.gaf')
+            out_path = os.path.join(work_dir, 'out.gaf')
+            with open(in_path, 'w') as in_file:
+                in_file.write(gaf)
+            gaf_from_pansn(names, in_path, out_path)
+            with open(out_path) as out_file:
+                self.assertEqual(out_file.read(), gaf_line('id=HG002#1|chr1', '>id=GRCh38|chr1<id=HG002#1|chr1'))
 
     def test_contig_name_containing_a_pipe(self):
         names = {'S288C', 'SK1'}
@@ -186,11 +213,19 @@ class TestSplitGafByEvent(unittest.TestCase):
         self.assertEqual(contents['SK1'], b1)
 
     def test_diploid_haplotypes_are_separate_shards(self):
-        names = {'HG002.1', 'HG002.2'}
+        names = {'HG002#1', 'HG002#2'}
         h1 = gaf_line('HG002#1#chr1', '>GRCh38#0#chr1')
         h2 = gaf_line('HG002#2#chr1', '>GRCh38#0#chr1')
         contents, _ = self.split(h1 + h2, names)
-        self.assertEqual(contents, {'HG002.1': h1, 'HG002.2': h2})
+        self.assertEqual(contents, {'HG002#1': h1, 'HG002#2': h2})
+
+    def test_old_cactus_haplotype_spelling_finds_its_genome(self):
+        names = {'HG002#1', 'HG002#2'}
+        h1 = gaf_line('id=HG002.1|chr1', '>id=GRCh38|chr1')
+        h2 = gaf_line('id=HG002#2|chr1', '>id=GRCh38|chr1')
+        contents, dropped = self.split(h1 + h2, names)
+        self.assertEqual(contents, {'HG002#1': h1, 'HG002#2': h2})
+        self.assertEqual(dropped, set())
 
     def test_genome_not_in_seqfile_is_dropped_and_reported(self):
         names = {'S288C'}

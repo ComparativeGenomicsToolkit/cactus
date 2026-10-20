@@ -19,7 +19,7 @@ from cactus.shared.common import setupBinaries, importSingularityImage, cactus_w
 from cactus.pipeline.cactus_workflow import cactus_cons_with_resources
 from cactus.progressive.progressive_decomposition import compute_outgroups, parse_seqfile, get_subtree, get_spanning_subtree, get_event_set, get_ancestor_scaled_tree
 from cactus.progressive.cactus_progressive import export_hal
-from cactus.shared.common import makeURL, catFiles
+from cactus.shared.common import makeURL, catFiles, resolve_pangenome_name
 from cactus.shared.common import RAW_VG_SUFFIX
 from cactus.shared.common import enableDumpStack
 from cactus.shared.common import cactus_override_toil_options, add_cactus_toil_options
@@ -343,7 +343,7 @@ def make_align_job(options, toil, config_wrapper=None, chrom_name=None):
 
     if options.reference and options.pangenome:
         # validate the sample names
-        check_sample_names(input_seq_map.keys(), options.reference)
+        options.reference = check_sample_names(input_seq_map.keys(), options.reference)
         
     # apply path overrides.  this was necessary for wdl which doesn't take kindly to
     # text files of local paths (ie seqfile).  one way to fix would be to add support
@@ -351,6 +351,8 @@ def make_align_job(options, toil, config_wrapper=None, chrom_name=None):
     # interface shift away from files of paths throughout all of cactus
     if options.pathOverrides:
         for name, override in zip(options.pathOverrideNames, options.pathOverrides):
+            if options.pangenome:
+                name = resolve_pangenome_name(name, input_seq_map) or name
             input_seq_map[name] = override
 
     # infer default root

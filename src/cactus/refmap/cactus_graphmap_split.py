@@ -18,7 +18,7 @@ from cactus.progressive.multiCactusTree import MultiCactusTree
 from cactus.shared.common import setupBinaries, importSingularityImage, cactus_walltime
 from cactus.shared.common import cactusRootPath
 from cactus.shared.configWrapper import ConfigWrapper
-from cactus.shared.common import makeURL, catFiles
+from cactus.shared.common import makeURL, catFiles, pangenome_file_name
 from cactus.shared.common import enableDumpStack
 from cactus.shared.common import cactus_override_toil_options, add_cactus_toil_options
 from cactus.shared.common import cactus_call
@@ -146,7 +146,7 @@ def cactus_graphmap_split(options):
             graph_event = getOptionalAttrib(findRequiredNode(config_node, "graphmap"), "assemblyName", default="_MINIGRAPH_")
 
             # load the seqfile
-            seqFile = SeqFile(options.seqFile, defaultBranchLen=config.getDefaultBranchLen(pangenome=True))
+            seqFile = SeqFile(options.seqFile, defaultBranchLen=config.getDefaultBranchLen(pangenome=True), pangenome=True)
 
             #import the graph
             gfa_id = toil.importFile(makeURL(options.minigraphGFA))
@@ -161,11 +161,11 @@ def cactus_graphmap_split(options):
             
             if graph_event not in leaves:
                 raise RuntimeError("Minigraph name {} not found in seqfile".format(graph_event))
-            if options.reference and options.reference not in leaves:
-                raise RuntimeError("Name given with --reference {} not found in seqfile".format(options.reference))
 
             # validate the sample names
-            check_sample_names(seqFile.pathMap.keys(), options.reference)
+            options.reference = check_sample_names(seqFile.pathMap.keys(), options.reference)
+            if options.reference and options.reference not in leaves:
+                raise RuntimeError("Name given with --reference {} not found in seqfile".format(options.reference))
                         
             for genome, seq in seqFile.pathMap.items():
                 if genome in leaves:
@@ -997,7 +997,7 @@ def export_split_data(toil, input_name_map, output_id_map, split_log_id, contig_
             fa_base = os.path.join(ref_contig_path, 'fasta')
             if not os.path.isdir(fa_base) and not fa_base.startswith('s3://'):
                 os.makedirs(fa_base)
-            fa_path = makeURL(os.path.join(fa_base, '{}_{}.fa'.format(event, ref_contig)))
+            fa_path = makeURL(os.path.join(fa_base, '{}_{}.fa'.format(pangenome_file_name(event), ref_contig)))
             if input_name_map[event].endswith('.gz'):
                 fa_path += '.gz'
             seq_file_map[event] = fa_path

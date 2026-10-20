@@ -68,6 +68,7 @@ class TestPanpatchUnit(unittest.TestCase):
             'a:b:100-200'             : 'a_b_sub_99_200',       # earlier ':' replaced, range converted
             'chr1:2000-1000'          : 'chr1_2000-1000',       # end < start: not a range, ':' -> '_'
             'chr1:10a-20'             : 'chr1_10a-20',          # non-numeric start: not a range
+            'id=HG002#1|chr1'         : 'chr1',                 # already sanitized: '#' in the genome
         }
         for header, expected in cases.items():
             self.assertEqual(sanitize_contig_name(header), expected,
@@ -83,6 +84,13 @@ class TestPanpatchUnit(unittest.TestCase):
         self.assertEqual(sample_hap('HG002.verkko.2'), 2)
         self.assertIsNone(sample_hap('HG002.verkko'))                    # haploid: no suffix
         self.assertEqual(sample_hap('CHM13.0'), 0)
+        # PanSN: '#' gives the haplotype, and a '.' elsewhere is part of the sample name
+        self.assertEqual(sample_base('HG002.verkko#1'), 'HG002.verkko')
+        self.assertEqual(sample_hap('HG002.verkko#1'), 1)
+        self.assertEqual(sample_base('KOLF2.1J'), 'KOLF2.1J')
+        self.assertIsNone(sample_hap('KOLF2.1J'))
+        self.assertEqual(sample_base('GCA_054883195.1#0'), 'GCA_054883195.1')
+        self.assertEqual(sample_hap('GCA_054883195.1#0'), 0)
 
     # ---- make_runs: reference-free (default) ----
 
@@ -108,9 +116,10 @@ class TestPanpatchUnit(unittest.TestCase):
         self.assertEqual(run1['reference'], ['HG002_verkko_1'])
         # target first (renamed), then the (un-renamed) donor
         self.assertEqual(run1['samples'], ['HG002_verkko_1', 'HG002.hifiasm'])
-        # the graph is the renamed target haplotype plus both donor haplotypes
+        # the graph is the renamed target haplotype plus both donor haplotypes (whose old SAMPLE.N
+        # names are rewritten to SAMPLE#N as the seqfile is read)
         self.assertEqual(run1['seq_rows'],
-                         [('HG002_verkko_1', 'v1.fa'), ('HG002.hifiasm.1', 'h1.fa'), ('HG002.hifiasm.2', 'h2.fa')])
+                         [('HG002_verkko_1', 'v1.fa'), ('HG002.hifiasm#1', 'h1.fa'), ('HG002.hifiasm#2', 'h2.fa')])
         # panpatch writes hap0 for the renamed haploid target; target_haps keys the rescue fasta by it
         self.assertEqual(run1['target_haps'], [(0, 'v1.fa')])
 
@@ -513,8 +522,9 @@ class TestPanpatchErrorBeds(unittest.TestCase):
         runs = make_runs(options, GRAPH_EVENT)
         self.assertEqual(len(runs), 1)
         run = runs[0]
-        # masking is keyed by the seqfile event name (both target and donor); the reference is never masked
-        self.assertEqual(run['mask_beds'], {'TGT.1': '/x/t1.bed', 'DON.2': '/x/d2.bed'})
+        # masking is keyed by the seqfile event name (both target and donor), normalized like the seqfile's
+        # (TGT.1 is TGT#1); the reference is never masked
+        self.assertEqual(run['mask_beds'], {'TGT#1': '/x/t1.bed', 'DON#2': '/x/d2.bed'})
         # target report-tagging beds are keyed by graph haplotype (TGT.1 -> hap 1)
         self.assertEqual(run['target_error_beds'], {1: '/x/t1.bed'})
 

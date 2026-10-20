@@ -35,6 +35,7 @@ from sonLib.bioio import absSymPath
 from sonLib.nxtree import NXTree
 from sonLib.nxnewick import NXNewick
 from sonLib.bioio import popenCatch
+from cactus.shared.common import normalize_pangenome_name, pangenome_name_to_pansn_prefix, split_pangenome_name
 
 from toil.statsAndLogging import logger
 from toil.statsAndLogging import set_logging_from_options
@@ -62,12 +63,14 @@ from toil.realtimeLogger import RealtimeLogger
 # *cat /tmp/cat/
 
 class SeqFile:
-    def __init__(self, path=None, defaultBranchLen=1.0, root_name = None):
+    def __init__(self, path=None, defaultBranchLen=1.0, root_name = None, pangenome = False):
         self.branchLen = defaultBranchLen        
         if path is not None:
-            self.parseFile(path, root_name)
+            self.parseFile(path, root_name, pangenome)
 
-    def parseFile(self, path, root_name = None):
+    def parseFile(self, path, root_name = None, pangenome = False):
+        """ with pangenome, the genome names are PanSN (see normalize_pangenome_name), and the
+        names Cactus used to give a haplotype with (HG002.1) are rewritten to it (HG002#1) """
         if not os.path.isfile(path):
             raise RuntimeError("File not found: %s" % path)
         self.tree = None
@@ -107,6 +110,40 @@ class SeqFile:
             self.starTree()
         self.cleanTree(root_name)
         self.validate()
+        if pangenome:
+            self.normalizePangenomeNames()
+
+    def normalizePangenomeNames(self):
+        """ rewrite every genome name to its normalize_pangenome_name() spelling, warning about any
+        that change, and make sure no two names are the same PanSN genome (HG002.1 and HG002#1, or
+        CHM13 and CHM13#0).  ancestor names in a given tree are left alone """
+        renamed = {}
+        by_prefix = {}
+        for name in self.pathMap:
+            new_name = normalize_pangenome_name(name)
+            if new_name != name:
+                renamed[name] = new_name
+            prefix = pangenome_name_to_pansn_prefix(new_name)
+            if prefix in by_prefix:
+                raise RuntimeError('Genome names {} and {} are both haplotype {} of sample {}: '
+                                   'each sample#haplotype can only be given once'.format(
+                                       by_prefix[prefix], name, *split_pangenome_name(new_name)[::-1]))
+            by_prefix[prefix] = name
+        if not renamed:
+            return
+        logger.warning('Haplotypes are now given in the PanSN style, SAMPLE#HAPLOTYPE, and names '
+                       'are no longer read as SAMPLE.HAPLOTYPE except for this backward compatible '
+                       'rewrite, which is also how they will be spelled in the output (HAL, MAF '
+                       'etc.): {}.  Please use the new names in the seqfile.  A sample whose name '
+                       'really ends in .N, like a versioned accession, must give its haplotype '
+                       'explicitly, ex GCA_054883195.1#0'.format(
+                           ', '.join('{} -> {}'.format(k, v) for k, v in renamed.items())))
+        self.pathMap = {renamed.get(name, name) : path for name, path in self.pathMap.items()}
+        self.seqOrder = [renamed.get(name, name) for name in self.seqOrder]
+        self.outgroups = [renamed.get(name, name) for name in self.outgroups]
+        for node in self.tree.postOrderTraversal():
+            if self.tree.isLeaf(node) and self.tree.getName(node) in renamed:
+                self.tree.setName(node, renamed[self.tree.getName(node)])
 
     def starTree(self):
         self.tree = NXTree()
