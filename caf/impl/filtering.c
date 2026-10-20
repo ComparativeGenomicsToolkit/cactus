@@ -167,9 +167,70 @@ bool stCaf_filterByMultipleSpecies(stPinchSegment *segment1,
     return false;
 }
 
+static bool blockHasEvent(stPinchBlock *block, Event *event, Flower *flower) {
+    stPinchBlockIt it = stPinchBlock_getSegmentIterator(block);
+    stPinchSegment *segment;
+    while ((segment = stPinchBlockIt_getNext(&it)) != NULL) {
+        if (stCaf_getEvent(segment, flower) == event) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// at most this many distinct events of a block are gathered on the stack, above it the sets are used
+#define REPEAT_SPECIES_MAX_STACK_EVENTS 64
+
 bool stCaf_filterByRepeatSpecies(stPinchSegment *segment1,
                                  stPinchSegment *segment2, Flower *flower) {
-    return checkIntersection(getEvents(segment1, flower), getEvents(segment2, flower));
+    // whether the events of segment1 (or of its block) and of segment2 (or of its block) intersect, as
+    // checkIntersection(getEvents(segment1, flower), getEvents(segment2, flower)), but stopping at the first event in
+    // common and without allocating: this is the filter of every secondary alignment of a multifurcation
+    stPinchBlock *block1 = stPinchSegment_getBlock(segment1);
+    stPinchBlock *block2 = stPinchSegment_getBlock(segment2);
+    if (block1 == NULL) {
+        Event *event1 = stCaf_getEvent(segment1, flower);
+        return block2 == NULL ? event1 == stCaf_getEvent(segment2, flower) : blockHasEvent(block2, event1, flower);
+    }
+    if (block2 == NULL) {
+        return blockHasEvent(block1, stCaf_getEvent(segment2, flower), flower);
+    }
+    if (block1 == block2) {
+        return true;
+    }
+    // gather the distinct events of the smaller block, then look for them in the bigger one
+    if (stPinchBlock_getDegree(block1) > stPinchBlock_getDegree(block2)) {
+        stPinchBlock *block = block1;
+        block1 = block2;
+        block2 = block;
+    }
+    Event *events[REPEAT_SPECIES_MAX_STACK_EVENTS];
+    int64_t eventNumber = 0;
+    stPinchBlockIt it = stPinchBlock_getSegmentIterator(block1);
+    stPinchSegment *segment;
+    while ((segment = stPinchBlockIt_getNext(&it)) != NULL) {
+        Event *event = stCaf_getEvent(segment, flower);
+        int64_t i = 0;
+        while (i < eventNumber && events[i] != event) {
+            i++;
+        }
+        if (i == eventNumber) {
+            if (eventNumber == REPEAT_SPECIES_MAX_STACK_EVENTS) {
+                return checkIntersection(getEvents(segment1, flower), getEvents(segment2, flower));
+            }
+            events[eventNumber++] = event;
+        }
+    }
+    it = stPinchBlock_getSegmentIterator(block2);
+    while ((segment = stPinchBlockIt_getNext(&it)) != NULL) {
+        Event *event = stCaf_getEvent(segment, flower);
+        for (int64_t i = 0; i < eventNumber; i++) {
+            if (events[i] == event) {
+                return true;
+            }
+        }
+    }
+    return false;
 }
 
 bool stCaf_relaxedFilterByRepeatSpecies(stPinchSegment *segment1,

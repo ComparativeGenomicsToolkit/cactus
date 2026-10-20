@@ -405,6 +405,8 @@ def make_align_job(options, toil, config_wrapper=None, chrom_name=None):
         cafNode.attrib["maxRecoverableChainLength"] = str(int(options.maxLen / 2))
 
     if options.pangenome:
+        # the pair secondaries of multifurcations come from progressive alignment's chaining, which this does not use
+        findRequiredNode(config_node, "blast").attrib["multifurcationPairSecondaries"] = "0"
         # turn off the megablock filter as it ruins non-all-to-all alignments
         cafNode.attrib["minimumBlockHomologySupport"] = "0"
         cafNode.attrib["minimumBlockDegreeToCheckSupport"] = "9999999999"
