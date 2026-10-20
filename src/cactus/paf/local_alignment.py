@@ -15,11 +15,12 @@ from toil.realtimeLogger import RealtimeLogger
 from sonLib.bioio import newickTreeParser
 import glob
 import os
+import re
 import shutil
 import math
 import copy
 from Bio import SeqIO
-from cactus.paf.paf import get_event_pairs, get_leaves, get_node, get_distances
+from cactus.paf.paf import get_event_pairs, get_leaves, get_node, get_distances, multifurcation_pair_secondaries
 from cactus.shared.common import cactus_call, getOptionalAttrib, zip_gz, cactus_walltime
 from cactus.preprocessor.checkUniqueHeaders import sanitize_fasta_headers
 from cactus.preprocessor.unmasking import unmask_contigs_all
@@ -716,9 +717,15 @@ def merge_alignments(job, alignment_file1, alignment_file2, has_resources=False)
 
 def chain_alignments_splitting_ingroups_and_outgroups(job, ingroup_alignment_files, ingroup_alignment_names,
                                                       outgroup_alignment_files, outgroup_alignment_names,
-                                                      reference_event_name, params, total_sequence_size=0):
+                                                      reference_event_name, params, total_sequence_size=0,
+                                                      ingroup_alignment_distances=None, pair_secondaries=False,
+                                                      pair_secondary_files=None):
     """ Chains/tiles/etc. the ingroup alignments to each other so that every ingroup sequence has a primary alignment to
-    another ingroup sequence, and separately each outgroup sequence has a primary alignment to an ingroup."""
+    another ingroup sequence, and separately each outgroup sequence has a primary alignment to an ingroup.
+
+    If pair_secondaries is set, each ingroup alignment file (pair of ingroups) is first chained on its own as well,
+    and the results are added to the output as secondaries, closest pair (by ingroup_alignment_distances) first
+    (see multifurcation_pair_secondaries).  They come back here as pair_secondary_files."""
 
     # Check we have the expected number of alignment files
     assert len(ingroup_alignment_files) == len(ingroup_alignment_names)
@@ -728,6 +735,29 @@ def chain_alignments_splitting_ingroups_and_outgroups(job, ingroup_alignment_fil
     chain_split_min_size = int(params.find("blast").attrib.get("chainSplitMinSize", "1000000000"))
     ingroup_size = sum(f.size for f in ingroup_alignment_files)
     outgroup_size = sum(f.size for f in outgroup_alignment_files)
+
+    if pair_secondaries:
+        # Chain each pair of ingroups on its own, keeping the input files for the chaining of them all together, which
+        # deletes them, so it runs after
+        pair_order = sorted(range(len(ingroup_alignment_files)),
+                            key=lambda i: (ingroup_alignment_distances[i], ingroup_alignment_names[i]))
+        pair_secondary_files = []
+        for i in pair_order:
+            pair_size = ingroup_alignment_files[i].size
+            pair_secondary_files.append(job.addChildJobFn(chain_alignments, [ingroup_alignment_files[i]],
+                                                          [ingroup_alignment_names[i]], reference_event_name, params,
+                                                          total_sequence_size=total_sequence_size,
+                                                          delete_inputs=False,
+                                                          disk=6 * pair_size,
+                                                          memory=cactus_clamp_memory(2 * min(pair_size,
+                                                                                             chain_split_min_size)),
+                                                          walltime=cactus_walltime(200 * pair_size / 1e9,
+                                                                                   io_bytes=4 * pair_size)).rv())
+        return job.addFollowOnJobFn(chain_alignments_splitting_ingroups_and_outgroups,
+                                    ingroup_alignment_files, ingroup_alignment_names,
+                                    outgroup_alignment_files, outgroup_alignment_names,
+                                    reference_event_name, params, total_sequence_size=total_sequence_size,
+                                    pair_secondary_files=pair_secondary_files, walltime=cactus_walltime()).rv()
 
     # Chain and pick the primary alignments of the ingroups to each other
     # bound the memory requested by the threshold at which split up the paf file by contig
@@ -766,17 +796,56 @@ def chain_alignments_splitting_ingroups_and_outgroups(job, ingroup_alignment_fil
     # Merge the resulting two alignment files into a single set of alignments
     # (both inputs are promises, so this is merge_alignments' coordination instance -- it schedules
     # the sized one, which is where the merging happens)
-    return job.addFollowOnJobFn(merge_alignments, chained_ingroup_alignments, chained_outgroup_alignments,
-                                walltime=cactus_walltime()).rv()
+    merge_job = job.addFollowOnJobFn(merge_alignments, chained_ingroup_alignments, chained_outgroup_alignments,
+                                     walltime=cactus_walltime())
+    if pair_secondary_files:
+        return merge_job.addFollowOnJobFn(add_secondary_alignments, merge_job.rv(), pair_secondary_files,
+                                          walltime=cactus_walltime()).rv()
+    return merge_job.rv()
 
-def concat_global_files(job, file_ids, output_path):
-    """Download and concatenate file_ids into output_path, deleting each from the job store after use."""
+
+def add_secondary_alignments(job, alignment_file, secondary_files, has_resources=False):
+    """ Append the alignments of secondary_files, in order, to those of alignment_file as secondaries, leaving out
+    the ones that are already there (whatever their chaining tags) """
+    if not has_resources:
+        # unpack promises for disk requirement
+        paf_size = alignment_file.size + sum(f.size for f in secondary_files)
+        # the alignments are only streamed through, but the keys of the first file's are kept in memory
+        return job.addChildJobFn(add_secondary_alignments, alignment_file, secondary_files, has_resources=True,
+                                 disk=2 * paf_size, memory=cactus_clamp_memory(alignment_file.size),
+                                 walltime=cactus_walltime(100 * paf_size / 1e9, io_bytes=2 * paf_size)).rv()
+
+    def paf_key(line):
+        toks = line.rstrip('\n').split('\t')
+        return hash('\t'.join(toks[:9] + [tok for tok in toks[12:] if tok.startswith('cg:')]))
+
+    work_dir = job.fileStore.getLocalTempDir()
+    output_path = os.path.join(work_dir, 'output_alignments.paf')
+    keys = set()
+    with open(output_path, 'w') as output_file:
+        with open(job.fileStore.readGlobalFile(alignment_file)) as input_file:
+            for line in input_file:
+                output_file.write(line)
+                keys.add(paf_key(line))
+        for secondary_file in secondary_files:
+            with open(job.fileStore.readGlobalFile(secondary_file)) as input_file:
+                for line in input_file:
+                    if paf_key(line) not in keys:
+                        line, tagged = re.subn('\ttp:A:.', '\ttp:A:S', line, count=1)
+                        output_file.write(line if tagged else line.rstrip('\n') + '\ttp:A:S\n')
+    for file_id in [alignment_file] + secondary_files:
+        job.fileStore.deleteGlobalFile(file_id)
+    return job.fileStore.writeGlobalFile(output_path)
+
+def concat_global_files(job, file_ids, output_path, delete=True):
+    """Download and concatenate file_ids into output_path, deleting each from the job store after use if delete."""
     with open(output_path, 'wb') as outf:
         for file_id in file_ids:
             local_path = job.fileStore.readGlobalFile(file_id)
             with open(local_path, 'rb') as inf:
                 shutil.copyfileobj(inf, outf)
-            job.fileStore.deleteGlobalFile(file_id)
+            if delete:
+                job.fileStore.deleteGlobalFile(file_id)
 
 
 # Seconds per GB of input paf for the whole chain -> tile -> trim -> filter -> rechain -> filter
@@ -787,7 +856,7 @@ CHAIN_SECS_PER_GB = 400
 
 
 def chain_alignments(job, alignment_files, alignment_names, reference_event_name, params,
-                     include_inverted_alignments=True, total_sequence_size=0):
+                     include_inverted_alignments=True, total_sequence_size=0, delete_inputs=True):
     """Merge all input PAFs, split by query contig, run the full chain/tile/trim/filter
     pipeline per contig in parallel, then merge the results.
 
@@ -796,7 +865,7 @@ def chain_alignments(job, alignment_files, alignment_names, reference_event_name
     work_dir = job.fileStore.getLocalTempDir()
     merged_path = os.path.join(work_dir, 'merged.paf')
 
-    concat_global_files(job, alignment_files, merged_path)
+    concat_global_files(job, alignment_files, merged_path, delete=delete_inputs)
 
     if include_inverted_alignments:
         inv_path = os.path.join(work_dir, 'merged_copy.paf')
@@ -948,6 +1017,14 @@ def make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancest
 
     ancestor_event = get_node(event_tree, ancestor_event_string)
     ingroup_events = get_leaves(ancestor_event) # Get the set of ingroup events
+    # decided by the number of children, before the root may be added to the ingroups below
+    num_children = len(ingroup_events)
+    pair_secondaries = multifurcation_pair_secondaries(num_children, params)
+    if num_children > 3 and not pair_secondaries:
+        RealtimeLogger.warning("Multifurcation {} has {} children, which may not all get aligned to each other without "
+                               "<blast multifurcationPairSecondaries> (which needs "
+                               "pickIngroupPrimaryAlignmentsSeparatelyToOutgroups)".format(ancestor_event_string,
+                                                                                           num_children))
     # to be consistent with pre-refactor (and work with updating tests), we include the root when its id is input
     # and just treat it as an ingroup
     root_provided = ancestor_event.iD in event_names_to_sequences and event_names_to_sequences[ancestor_event.iD]
@@ -989,6 +1066,7 @@ def make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancest
     ingroup_alignments = []
     # for better logs
     ingroup_alignment_names = []
+    ingroup_alignment_distances = []
     for ingroup, ingroup2, distance_a_b in get_event_pairs(ancestor_event, ingroup_events):
         logger.info("Building alignment between event: {} (ingroup) and event: {} (ingroup)".format(ingroup.iD, ingroup2.iD))
         ingroup_alignments.append(root_job.addChildJobFn(make_chunked_alignments,
@@ -1004,6 +1082,7 @@ def make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancest
                                                          walltime=chunked_alignment_walltime(input_sequence_map[ingroup.iD],
                                                                                              input_sequence_map[ingroup2.iD])).rv())
         ingroup_alignment_names.append('{}-{}_vs_{}'.format(ancestor_event_string, ingroup.iD, ingroup2.iD))
+        ingroup_alignment_distances.append(distance_a_b)
 
     distances = get_distances(event_tree)  # Distances between all pairs of nodes
 
@@ -1040,7 +1119,9 @@ def make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancest
                                          ingroup_alignments, ingroup_alignment_names,
                                          outgroup_alignments, outgroup_alignment_names,
                                          ancestor_event_string, params,
-                                         total_sequence_size=total_sequence_size, walltime=cactus_walltime()).rv()
+                                         total_sequence_size=total_sequence_size,
+                                         ingroup_alignment_distances=ingroup_alignment_distances,
+                                         pair_secondaries=pair_secondaries, walltime=cactus_walltime()).rv()
 
     # Delete the unmasked fastas (todo: should we do the unmasking somewhere further upstream?)
     for ingroup in ingroup_events:

@@ -1,4 +1,6 @@
 
+from cactus.shared.common import getOptionalAttrib
+
 ## Functions for manipulating sonLib BinaryTree trees
 
 def get_subtree_nodes(tree):
@@ -69,3 +71,15 @@ def get_event_pairs(tree, events):
     for i in range(len(events)):
         for j in range(i+1, len(events)):
             yield events[i], events[j], distances[(events[i], events[j])]
+
+def multifurcation_pair_secondaries(num_children, params):
+    """ Whether the chaining for an ancestor with num_children children gives cactus_consolidated the alignments of each
+    pair of its ingroups as secondaries.  Its primaries let each ingroup base keep just one partner, its best one,
+    so mutually closest children, like (mouse,rat) and (cow,dog) in a star of (human,mouse,rat,cow,dog), can pick only
+    each other and almost never be aligned to the rest.  CAF uses the pair secondaries to join such groups, and only
+    where they have no species in common, so they cannot pull paralogs together (<caf secondaryAlignmentFilter>).
+    Three children cannot split like that, but their pair secondaries still add what the median rule of paffy tile
+    drops along with a mostly-overlapped alignment. """
+    blast = params.find("blast")
+    return num_children > 2 and getOptionalAttrib(blast, "multifurcationPairSecondaries", typeFn=bool, default=True) and \
+        getOptionalAttrib(blast, "pickIngroupPrimaryAlignmentsSeparatelyToOutgroups", typeFn=bool, default=False)

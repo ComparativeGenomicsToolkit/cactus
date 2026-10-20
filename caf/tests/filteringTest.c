@@ -348,11 +348,62 @@ static void testHGVMFiltering(CuTest *testCase) {
     }
 }
 
+// Random pinches through stCaf_filterByRepeatSpecies (<caf secondaryAlignmentFilter="sharedSpecies">) must never put
+// two segments of one species in a block, while still building blocks of several species.
+static void testRepeatSpeciesFiltering(CuTest *testCase) {
+    for (int64_t testNum = 0; testNum < 50; testNum++) {
+        int64_t numRandomPinches = 500;
+        setup(testCase, true);
+        addThreadToFlower(flower, ingroup1, 100);
+        addThreadToFlower(flower, ingroup1, 100);
+        addThreadToFlower(flower, ingroup2, 100);
+        addThreadToFlower(flower, ingroup2, 100);
+        addThreadToFlower(flower, outgroup1, 100);
+        addThreadToFlower(flower, outgroup2, 100);
+
+        stPinchThreadSet *threadSet = stCaf_setup(flower);
+
+        for (int64_t i = 0; i < numRandomPinches; i++) {
+            stPinch pinch = stPinchThreadSet_getRandomPinch(threadSet);
+            stPinchThread_filterPinch(stPinchThreadSet_getThread(threadSet, pinch.name1),
+                                      stPinchThreadSet_getThread(threadSet, pinch.name2),
+                                      pinch.start1,
+                                      pinch.start2,
+                                      pinch.length,
+                                      pinch.strand,
+                                      (bool(*)(stPinchSegment *, stPinchSegment *, void *))stCaf_filterByRepeatSpecies, flower);
+        }
+
+        int64_t maxDegree = 0;
+        stPinchThreadSetBlockIt blockIt = stPinchThreadSet_getBlockIt(threadSet);
+        stPinchBlock *block;
+        while ((block = stPinchThreadSetBlockIt_getNext(&blockIt)) != NULL) {
+            stSet *events = stSet_construct();
+            stPinchBlockIt segmentIt = stPinchBlock_getSegmentIterator(block);
+            stPinchSegment *segment;
+            while ((segment = stPinchBlockIt_getNext(&segmentIt)) != NULL) {
+                Event *event = stCaf_getEvent(segment, flower);
+                CuAssertTrue(testCase, stSet_search(events, event) == NULL);
+                stSet_insert(events, event);
+            }
+            stSet_destruct(events);
+            if (stPinchBlock_getDegree(block) > maxDegree) {
+                maxDegree = stPinchBlock_getDegree(block);
+            }
+        }
+        CuAssertTrue(testCase, maxDegree > 2);
+
+        stPinchThreadSet_destruct(threadSet);
+        teardown(testCase);
+    }
+}
+
 CuSuite* filteringTestSuite(void) {
     CuSuite* suite = CuSuiteNew();
     SUITE_ADD_TEST(suite, testChainHasUnequalNumberOfIngroupCopies);
     SUITE_ADD_TEST(suite, testChainHasUnequalNumberOfIngroupCopiesOrNoOutgroup);
     SUITE_ADD_TEST(suite, testChainHasUnequalNumberOfIngroupCopiesOrNoOutgroup_noOutgroups);
     SUITE_ADD_TEST(suite, testHGVMFiltering);
+    SUITE_ADD_TEST(suite, testRepeatSpeciesFiltering);
     return suite;
 }

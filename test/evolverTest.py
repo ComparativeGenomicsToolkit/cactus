@@ -120,20 +120,9 @@ class TestCase(unittest.TestCase):
                 seq_file.write('{}\t{}\n'.format(genome, genome_path))
             seq_file.write(new_child_line)
 
-        # use the same logic cactus does to get default config
-        config_path = 'src/cactus/cactus_progressive_config.xml' if not configFile else configFile
+        # the shipped default config
+        mc_config_path = 'src/cactus/cactus_progressive_config.xml' if not configFile else configFile
 
-        xml_root = ET.parse(config_path).getroot()
-        decomp_elem = xml_root.find("multi_cactus").find("decomposition")
-        # force cactus to accept multifurcation in tree
-        decomp_elem.attrib["allow_multifurcations"] = "1"
-
-        mc_config_path = os.path.join(self.tempDir, "config.mc.xml")
-        with open(mc_config_path, 'w') as mc_config_file:
-            xmlString = ET.tostring(xml_root, encoding='unicode')
-            xmlString = minidom.parseString(xmlString).toprettyxml()
-            mc_config_file.write(xmlString)
-            
         # run the alignment
         out_hal = os.path.join(self.tempDir, '{}.hal'.format(new_root))
         if step_by_step:
@@ -234,10 +223,13 @@ class TestCase(unittest.TestCase):
             for genome in genomes if genomes is not None else self.PRIMATES:
                 seq_file.write('{}\t{}\n'.format(genome, url.format(genome)))
 
-    def _write_seqfile_subset(self, in_path, out_path, genomes):
-        """ copy a seqfile keeping only the named genomes, in the order they appear in it """
+    def _write_seqfile_subset(self, in_path, out_path, genomes, tree=None):
+        """ copy a seqfile keeping only the named genomes, in the order they appear in it, under the given
+        newick tree if there is one (otherwise cactus makes a star tree) """
         keep = set(genomes)
         with open(in_path) as in_file, open(out_path, 'w') as out_file:
+            if tree:
+                out_file.write(tree + '\n')
             for line in in_file:
                 toks = line.split()
                 if toks and toks[0] in keep:
@@ -414,19 +406,8 @@ class TestCase(unittest.TestCase):
         seq_file_path = os.path.join(self.tempDir, 'primates.txt')
         self._write_primates_seqfile(seq_file_path)
 
-        # use the same logic cactus does to get default config
-        config_path = 'src/cactus/cactus_progressive_config.xml'
-
-        xml_root = ET.parse(config_path).getroot()
-        decomp_elem = xml_root.find("multi_cactus").find("decomposition")
-        # force cactus to accept multifurcation in tree
-        decomp_elem.attrib["allow_multifurcations"] = "1"
-
-        mc_config_path = os.path.join(self.tempDir, "config.mc.xml")
-        with open(mc_config_path, 'w') as mc_config_file:
-            xmlString = ET.tostring(xml_root, encoding='unicode')
-            xmlString = minidom.parseString(xmlString).toprettyxml()
-            mc_config_file.write(xmlString)
+        # the shipped default config
+        mc_config_path = 'src/cactus/cactus_progressive_config.xml'
 
         # do the mapping
         cigar_path = os.path.join(self.tempDir, 'aln.paf')
@@ -457,10 +438,6 @@ class TestCase(unittest.TestCase):
         bar_elem = xml_root.find("bar")
         bar_elem.attrib["baseAligner"] = "abpoa"
         bar_elem.attrib["partialOrderAlignmentMaskFilter"] = "1"
-        
-        # force cactus to accept multifurcation in tree
-        decomp_elem = xml_root.find("multi_cactus").find("decomposition")
-        decomp_elem.attrib["allow_multifurcations"] = "1"
 
         poa_config_path = os.path.join(self.tempDir, "config.poa.xml")
         with open(poa_config_path, 'w') as poa_config_file:
@@ -1638,8 +1615,9 @@ class TestCase(unittest.TestCase):
                 self.assertGreaterEqual(int(oval[i]), int(val[i]) - delta)
                 self.assertLessEqual(int(oval[i]), int(val[i]) + delta)
 
-    def _check_maf_accuracy(self, halPath, delta, dataset="mammals", binariesMode="local"):
-        """ Compare mafComparator output of evolver mammals to baseline
+    def _check_maf_accuracy(self, halPath, delta, dataset="mammals", binariesMode="local", subranges=True):
+        """ Compare mafComparator output of evolver mammals to baseline.  For mammals, subranges also checks
+        cactus-hal2maf's subrange options against hal2maf, and smoke tests cactus-phast, both for the binary tree
         """
         assert dataset in ('mammals', 'primates')
         # this is just pasted from a successful run.  it will be used to catch serious regressions
@@ -1702,7 +1680,7 @@ class TestCase(unittest.TestCase):
         self.assertGreaterEqual(acc[1] + delta[1], baseline_acc[1])
 
         # check that subranges work in cactus-hal2maf
-        if dataset == 'mammals':
+        if dataset == 'mammals' and subranges:
             ranges_truth_file = os.path.join(self.tempDir, 'ranges-truth.maf')
             ranges = [('simHuman.chr6', 10, 21), ('simHuman.chr6', 100000, 149998), ('simHuman.chr6', 40, 41)]
             first = True
@@ -1902,6 +1880,33 @@ class TestCase(unittest.TestCase):
 
         self._check_maf_accuracy(self._out_hal(name), delta=(0.1,0.13))
 
+    # the evolver mammals tree collapsed to a five-way star at the root, each leaf keeping its root-to-leaf path
+    # length from examples/evolverMammals.txt (ex simMouse_chr6: 0.084509 + 0.271974 + 0.020593)
+    MAMMALS_STAR_TREE = ('(simHuman_chr6:0.164611,simMouse_chr6:0.377076,simRat_chr6:0.384156,'
+                         'simCow_chr6:0.221978,simDog_chr6:0.195928)Anc0;')
+
+    def testEvolverMammalsStarLocal(self):
+        """ Check that a multifurcation aligns as well as the binary tree, using the evolver mammals collapsed to a
+        five-way star with the default config.  Its children make two mutually closest pairs, (simMouse,simRat) and
+        (simCow,simDog), which the primary alignments almost never align to each other: without the pair secondaries
+        (multifurcationPairSecondaries="0"), human covered 10% of mouse instead of 70%, which the coverage check
+        catches.
+        """
+        name = "local"
+        seq_file_path = os.path.join(self.tempDir, 'evolverMammalsStar.txt')
+        self._write_seqfile_subset('./examples/evolverMammals.txt', seq_file_path,
+                                   ['simHuman_chr6', 'simMouse_chr6', 'simRat_chr6', 'simCow_chr6', 'simDog_chr6'],
+                                   tree=self.MAMMALS_STAR_TREE)
+        self._run_evolver(name, seqFile=seq_file_path)
+
+        self._check_valid_hal(self._out_hal(name), expected_tree=self.MAMMALS_STAR_TREE)
+
+        # compare to the binary tree's baselines.  coverage is of simMouse, by each other leaf
+        self._check_coverage(self._out_hal(name), delta_pct=0.20, columns=1)
+        # without the subrange checks, whose normalized-vs-raw thresholds are the binary tree's (normalization moves
+        # more of a multifurcation's bigger blocks), and whose phast smoke test needs its Anc1
+        self._check_maf_accuracy(self._out_hal(name), delta=(0.05,0.13), subranges=False)
+
 
     def testEvolverPrepareWDL(self):
 
@@ -2013,9 +2018,6 @@ class TestCase(unittest.TestCase):
         xml_root = ET.parse(config_path).getroot()
         bar_elem = xml_root.find("bar")
         bar_elem.attrib["baseAligner"] = "abpoa"
-        decomp_elem = xml_root.find("multi_cactus").find("decomposition")
-        # force cactus to accept multifurcation in tree
-        decomp_elem.attrib["allow_multifurcations"] = "1"
 
         poa_config_path = os.path.join(self.tempDir, "config.poa.xml")
         with open(poa_config_path, 'w') as poa_config_file:
@@ -2030,7 +2032,7 @@ class TestCase(unittest.TestCase):
         # check the output
         self._check_maf_accuracy(self._out_hal("local"), delta=(0.0025,0.0075), dataset='primates')
 
-    def _write_base_aligner_config(self, base_aligner, star=False):
+    def _write_base_aligner_config(self, base_aligner):
         """ Copy the shipped config, point <bar> at the given base aligner, and return the path.
         Returns the path so a test can hand it to --configFile.
         """
@@ -2038,9 +2040,6 @@ class TestCase(unittest.TestCase):
         xml_root = ET.parse(config_path).getroot()
         bar_elem = xml_root.find("bar")
         bar_elem.attrib["baseAligner"] = base_aligner
-        if star:
-            # force cactus to accept multifurcation in tree
-            xml_root.find("multi_cactus").find("decomposition").attrib["allow_multifurcations"] = "1"
         out_path = os.path.join(self.tempDir, "config.{}.xml".format(base_aligner))
         with open(out_path, 'w') as out_file:
             xmlString = ET.tostring(xml_root, encoding='unicode')
@@ -2053,7 +2052,7 @@ class TestCase(unittest.TestCase):
         abpoa.  Same dataset and same tolerance, so the two are directly comparable: this is the
         sharpest accuracy instrument in the suite.
         """
-        minipoa_config_path = self._write_base_aligner_config("minipoa", star=True)
+        minipoa_config_path = self._write_base_aligner_config("minipoa")
         name = "local"
         self._run_evolver_primates_star(name, configFile = minipoa_config_path)
         self._check_maf_accuracy(self._out_hal("local"), delta=(0.0025,0.0075), dataset='primates')
@@ -2073,7 +2072,7 @@ class TestCase(unittest.TestCase):
         """ testEvolverPOALocal with baseAligner="pecan": the same data and tolerance, so the two
         engines are directly comparable.
         """
-        pecan_config_path = self._write_base_aligner_config("pecan", star=True)
+        pecan_config_path = self._write_base_aligner_config("pecan")
         name = "local"
         self._run_evolver_primates_star(name, configFile = pecan_config_path)
         self._check_maf_accuracy(self._out_hal("local"), delta=(0.0025,0.0075), dataset='primates')
