@@ -99,16 +99,20 @@ Please see the Progressive Cactus documentation for how to run Cactus on [SLURM]
 
 ### Sample Names
 
-**A naming convention must be followed for sample names where "." characters have special meaning**: The "." character is used to specify haplotype, and should be avoided in sample names unless it is being used that way.  For haploid samples, just don't use a "`.`".  For diploid or polyploid samples, use the form `SAMPLE.HAPLOTYPE` where `HAPLOTYPE` is `1` or `2` for a diploid sample etc:
+Sample names follow the [PanSN](https://github.com/pangenome/PanSN-spec) convention, where the "`#`" character specifies the haplotype.  For haploid samples, just use the sample name (which is haplotype `0`).  For diploid or polyploid samples, use the form `SAMPLE#HAPLOTYPE` where `HAPLOTYPE` is `1` or `2` for a diploid sample etc:
 
 ```
 # Diploid sample:
-HG002.1  ./HG002.paternal.fa
-HG002.2  ./HG002.maternal.fa
+HG002#1  ./HG002.paternal.fa
+HG002#2  ./HG002.maternal.fa
 
 # Haploid sample:
 CHM13  ./chm13.fa
 ```
+
+These names are used as-is throughout the pipeline and in its output: the HAL and MAF genomes are `HG002#1`, `HG002#2` and `CHM13`, and the graph paths and VCF samples are their PanSN equivalents (`HG002#1#chr1`, sample `HG002`).
+
+A "`.`" can be used anywhere in a sample name (ex `KOLF2.1J`), except for one case kept for backward compatibility: Cactus used to specify haplotypes as `SAMPLE.HAPLOTYPE`, so a name that ends in `.N`, where `N` is an integer, is still read as haplotype `N` and renamed to `SAMPLE#N` (with a warning).  So `HG002.1` is `HG002#1`, and to keep the version of an accession like `GCA_054883195.1` in its name, its haplotype must be given explicitly: `GCA_054883195.1#0`.  The same applies to names given on the command line, ex with `--reference`.
 
 ### Contig Names
 
@@ -774,10 +778,10 @@ If you want to revert to the previous logic of only the `vg giraffe`-specific fi
 `cactus-panpatch` takes a seqfile listing assemblies of the same sample.  The target (to be patched) assembly comes first, with donor assemblies following in priority order.  For example:
 
 ```
-PAN028-verkko.1   PAN028.hap1.verkko.fa      # <- the assembly to patch (chromosome-scale)
-PAN028-verkko.2   PAN028.hap2.verkko.fa
-PAN028-hifiasm.1  PAN028.hifiasm.hap1.fa     # <- donor
-PAN028-hifiasm.2  PAN028.hifiasm.hap2.fa
+PAN028-verkko#1   PAN028.hap1.verkko.fa      # <- the assembly to patch (chromosome-scale)
+PAN028-verkko#2   PAN028.hap2.verkko.fa
+PAN028-hifiasm#1  PAN028.hifiasm.hap1.fa     # <- donor
+PAN028-hifiasm#2  PAN028.hifiasm.hap2.fa
 ```
 ```
 cactus-panpatch ./js seqfile.txt --outDir patched
@@ -805,11 +809,11 @@ The `t2t_contigs` / `contigs_analyzed` columns, and the `#Contig` lines at the e
 
 ### Masking assembly errors
 
-If you have BED files of *suspected assembly errors* — for the target, for donors, or for any subset of them — `--assemblyErrorBeds` will steer patching away from them. The argument is a manifest with one `<seqfile-event-name> <bed-path>` line per assembly (a subset is fine); the event name is the assembly's first-column name in the seqfile (e.g. `PAN028-verkko.1`), so a single manifest covers every sample in a `--batch`:
+If you have BED files of *suspected assembly errors* — for the target, for donors, or for any subset of them — `--assemblyErrorBeds` will steer patching away from them. The argument is a manifest with one `<seqfile-event-name> <bed-path>` line per assembly (a subset is fine); the event name is the assembly's first-column name in the seqfile (e.g. `PAN028-verkko#1`), so a single manifest covers every sample in a `--batch`:
 
 ```
-PAN028-verkko.1   errors/PAN028.hap1.bed     # <- target haplotype 1
-PAN028-hifiasm.2  errors/hifiasm.hap2.bed     # <- a donor
+PAN028-verkko#1   errors/PAN028.hap1.bed     # <- target haplotype 1
+PAN028-hifiasm#2  errors/hifiasm.hap2.bed     # <- a donor
 ```
 ```
 cactus-panpatch ./js chromfile.txt --outDir patched --batch --assemblyErrorBeds manifest.txt
@@ -1238,8 +1242,8 @@ export VERSION=may4
 wget -q https://raw.githubusercontent.com/human-pangenomics/HPP_Year1_Assemblies/main/assembly_index/Year1_assemblies_v2_genbank.index
 grep GRCh38 Year1_assemblies_v2_genbank.index | sed -e 's/_no_alt_analysis_set\t/\t/g' | awk '{print $1 "\t" $2}' > hprc-${VERSION}-mc.seqfile
 printf "CHM13v2\thttps://s3-us-west-2.amazonaws.com/human-pangenomics/T2T/CHM13/assemblies/analysis_set/chm13v2.0_maskedY_rCRS.fa.gz\n" >> hprc-${VERSION}-mc.seqfile
-tail -n +2 Year1_assemblies_v2_genbank.index | awk '{print $1 ".1\t" $2}' | grep -v CHM13 | grep -v GRCh38 >> hprc-${VERSION}-mc.seqfile
-tail -n +2 Year1_assemblies_v2_genbank.index | awk '{print $1 ".2\t" $3}' | grep -v CHM13 | grep -v GRCh38 >> hprc-${VERSION}-mc.seqfile
+tail -n +2 Year1_assemblies_v2_genbank.index | awk '{print $1 "#1\t" $2}' | grep -v CHM13 | grep -v GRCh38 >> hprc-${VERSION}-mc.seqfile
+tail -n +2 Year1_assemblies_v2_genbank.index | awk '{print $1 "#2\t" $3}' | grep -v CHM13 | grep -v GRCh38 >> hprc-${VERSION}-mc.seqfile
 sort -k1 hprc-${VERSION}-mc.seqfile > hprc-${VERSION}-mc.seqfile.sort ; mv hprc-${VERSION}-mc.seqfile.sort hprc-${VERSION}-mc.seqfile
 sed hprc-${VERSION}-mc.seqfile -i -e 's%s3://human-pangenomics/working/%https://s3-us-west-2.amazonaws.com/human-pangenomics/working/%g'
 ```
@@ -1251,7 +1255,7 @@ grep -v 'HG002\|HG005\|NA19240' hprc-${VERSION}-mc.seqfile > t && mv t hprc-${VE
 
 Also, a misjoin in `HG02080#1#JAHEOW010000073.1` was manually corrected by using `samtools faidx` to break it into `HG02080#1#JAHEOW010000073.1_sub_0_7238466` and `HG02080#1#JAHEOW010000073.1_sub_7238466_12869124`.  The `sub_X_Y` (0-based, open-ended like BED) coordinates are understood by the pipeline, and the offsets will be preserved in the GFA W-lines at the end.  If we don't apply this change, then path names with ":"'s will end up in the HAL which will prevent it from working with assembly hubs.  
 ```
-wget -q $(grep HG02080\.1 hprc-${VERSION}-mc.seqfile | tail -1 | awk '{print $2}') -O HG02080.1.fa.gz
+wget -q $(grep 'HG02080#1' hprc-${VERSION}-mc.seqfile | tail -1 | awk '{print $2}') -O HG02080.1.fa.gz
 gzip -d HG02080.1.fa.gz
 samtools faidx HG02080.1.fa
 keep_contigs=$(awk '{print $1}' HG02080.1.fa.fai | grep -v JAHEOW010000073\.1)
@@ -1264,21 +1268,21 @@ bgzip HG02080.1.fix.fa --threads 8
 If on aws, but the revised sequence in your bucket:
 ```
 aws s3 cp HG02080.1.fix.fa.gz ${MYBUCKET}/fasta/
-grep -v HG02080\.1 hprc-${VERSION}-mc.seqfile > t && mv t hprc-${VERSION}-mc.seqfile
-printf "HG02080.1\t${MYBUCKET}/fasta/HG02080.1.fix.fa.gz\n" >> hprc-${VERSION}-mc.seqfile
+grep -v 'HG02080#1' hprc-${VERSION}-mc.seqfile > t && mv t hprc-${VERSION}-mc.seqfile
+printf "HG02080#1\t${MYBUCKET}/fasta/HG02080.1.fix.fa.gz\n" >> hprc-${VERSION}-mc.seqfile
 ```
 otherwise, just leave it local:
 ```
-grep -v HG02080\.1 hprc-${VERSION}-mc.seqfile > t && mv t hprc-${VERSION}-mc.seqfile
-printf "HG02080.1\t./HG02080.1.fix.fa.gz\n" >> hprc-${VERSION}-mc.seqfile
+grep -v 'HG02080#1' hprc-${VERSION}-mc.seqfile > t && mv t hprc-${VERSION}-mc.seqfile
+printf "HG02080#1\t./HG02080.1.fix.fa.gz\n" >> hprc-${VERSION}-mc.seqfile
 ```
 
 ```
 head -4 hprc-${VERSION}-mc.seqfile
 CHM13v2 https://s3-us-west-2.amazonaws.com/human-pangenomics/T2T/CHM13/assemblies/analysis_set/chm13v2.0_maskedY_rCRS.fa.gz
 GRCh38  https://s3-us-west-2.amazonaws.com/human-pangenomics/working/HPRC_PLUS/GRCh38/assemblies/GCA_000001405.15_GRCh38_no_alt_analysis_set.fna.gz
-HG00438.1       https://s3-us-west-2.amazonaws.com/human-pangenomics/working/HPRC/HG00438/assemblies/year1_f1_assembly_v2_genbank/HG00438.paternal.f1_assembly_v2_genbank.fa.gz
-HG00438.2       https://s3-us-west-2.amazonaws.com/human-pangenomics/working/HPRC/HG00438/assemblies/year1_f1_assembly_v2_genbank/HG00438.maternal.f1_assembly_v2_genbank.fa.gz
+HG00438#1       https://s3-us-west-2.amazonaws.com/human-pangenomics/working/HPRC/HG00438/assemblies/year1_f1_assembly_v2_genbank/HG00438.paternal.f1_assembly_v2_genbank.fa.gz
+HG00438#2       https://s3-us-west-2.amazonaws.com/human-pangenomics/working/HPRC/HG00438/assemblies/year1_f1_assembly_v2_genbank/HG00438.maternal.f1_assembly_v2_genbank.fa.gz
 ```
 
 ### HPRC Graph: Running all at once

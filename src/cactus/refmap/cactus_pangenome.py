@@ -325,12 +325,12 @@ def main():
             graph_event = getOptionalAttrib(findRequiredNode(config_node, "graphmap"), "assemblyName", default="_MINIGRAPH_")
 
             # load the seqfile
-            seqFile = SeqFile(options.seqFile)
+            seqFile = SeqFile(options.seqFile, pangenome=True)
             input_seq_map = seqFile.pathMap
             raw_input_seq_order = seqFile.seqOrder
 
             # validate the sample names
-            check_sample_names(input_seq_map.keys(), options.reference)
+            options.reference = check_sample_names(input_seq_map.keys(), options.reference)
 
             # make sure the reference is first
             input_seq_order = [options.reference[0]]
