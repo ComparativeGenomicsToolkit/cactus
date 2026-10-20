@@ -12,10 +12,15 @@ from cactus.paf.paf import *
 from cactus.paf.last_scoring import apply_long_gap, apply_scores_to_config, abpoa_exact_depth, parse_train_file
 from cactus.paf.last_scoring import write_pair_hmm_train_file, pick_train_partners, minigraph_wfa_penalties
 from cactus.paf.pair_hmm_training import maximise, combined_gap, LONG_GAP_OPEN, LONG_GAP_EXTEND
+from cactus.paf.local_alignment import chain_tile_trim_filter_one_contig
+from cactus.shared.common import cactusRootPath
 from toil.realtimeLogger import RealtimeLogger
 import logging
 import os
+import shutil
 import tempfile
+import types
+import unittest.mock
 import xml.etree.ElementTree as ET
 
 class TestCase(unittest.TestCase):
@@ -53,6 +58,65 @@ class TestCase(unittest.TestCase):
 
     def test_get_leaves(self):
         self.assertEqual({ "simCow", "simDog", "simChimp", "simHuman" }, { i.iD for i in get_leaves(self.tree) })
+
+class ChainSecondariesTest(unittest.TestCase):
+    """ the secondary alignments chain_tile_trim_filter_one_contig outputs with <blast outputSecondaryAlignments="1">:
+    the alignments paffy tile puts above level 1, and the primaries whose chains score too low.  It needs paffy on the
+    PATH """
+    LENGTH = 100000
+    ALN_LEN = 45000
+
+    class FileStore:
+        """ just enough of a toil file store, its file ids are paths """
+        def __init__(self, work_dir):
+            self.work_dir = work_dir
+        def getLocalTempDir(self):
+            return tempfile.mkdtemp(dir=self.work_dir)
+        def readGlobalFile(self, file_id, path):
+            shutil.copyfile(file_id, path)
+        def writeGlobalFile(self, path):
+            return path
+        def deleteGlobalFile(self, file_id):
+            pass
+
+    def setUp(self):
+        self.work_dir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.work_dir)
+        env = unittest.mock.patch.dict(os.environ, {'CACTUS_BINARIES_MODE': 'local'})
+        env.start()
+        self.addCleanup(env.stop)
+
+    def _chain(self, output_secondaries, tags=()):
+        """ return {(query contig, target genome, tp tag)}, given the alignments with the extra tags """
+        input_path = os.path.join(self.work_dir, 'input.paf')
+        with open(input_path, 'w') as paf_file:
+            # chr1 aligns to A and, less well, to B over the same bases, so B's alignment is tiled above A's.  chr2's
+            # only alignment, to C, is too short to chain to minPrimaryChainScore
+            for contig, target, length, identity, score in [('chr1', 'A', self.ALN_LEN, 0.95, 40000),
+                                                            ('chr1', 'B', self.ALN_LEN, 0.80, 20000),
+                                                            ('chr2', 'C', 5000, 0.95, 4000)]:
+                matches = int(length * identity)
+                paf_file.write('\t'.join(str(x) for x in [
+                    'id=Q|' + contig, self.LENGTH, 0, length, '+', 'id={}|chr1'.format(target), self.LENGTH, 0, length,
+                    matches, length, 255] + list(tags) + ['AS:i:{}'.format(score),
+                                                          'cg:Z:{}={}X'.format(matches, length - matches)]) + '\n')
+        params = ET.parse(os.path.join(cactusRootPath(), 'cactus_progressive_config.xml')).getroot()
+        params.find('blast').attrib['outputSecondaryAlignments'] = str(int(output_secondaries))
+        job = types.SimpleNamespace(fileStore=self.FileStore(self.work_dir), memory=2**30)
+        with open(chain_tile_trim_filter_one_contig(job, input_path, 'Anc0', params)) as paf_file:
+            return {(toks[0].split('|')[1], toks[5].split('|')[0][3:], [t[5:] for t in toks[12:] if t.startswith('tp:A:')][0])
+                    for toks in (line.rstrip('\n').split('\t') for line in paf_file)}
+
+    def test_secondaries(self):
+        self.assertEqual(self._chain(output_secondaries=True), {('chr1', 'A', 'P'), ('chr1', 'B', 'S'), ('chr2', 'C', 'S')})
+
+    def test_secondaries_tagged_primary(self):
+        """ minimap2 tags its alignments tp:A:P, which paffy keeps whatever level it tiles them at """
+        self.assertEqual(self._chain(output_secondaries=True, tags=['tp:A:P']),
+                         {('chr1', 'A', 'P'), ('chr1', 'B', 'S'), ('chr2', 'C', 'S')})
+
+    def test_no_secondaries(self):
+        self.assertEqual(self._chain(output_secondaries=False), {('chr1', 'A', 'P')})
 
 class LastScoringTest(unittest.TestCase):
     """ how a last-train model is scaled for abPOA (cactus.paf.last_scoring) """

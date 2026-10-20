@@ -18,6 +18,7 @@
 - `<bar baseAligner>` replaces the `<bar partialOrderAlignment>` boolean as the way to choose between pecan, abpoa and minipoa. The boolean is no longer read: a config that selected pecan with `partialOrderAlignment="0"` needs `baseAligner="pecan"` instead, and a config with neither gets the default, now pecan.
 - Fix `--lastTrain` ignoring `partialOrderAlignmentTrainedGapOpen2Factor`: `apply_long_gap` was being passed the extension factor in both the open and extension positions, so the open factor was read from the config and discarded. Both default to 3, so results with the shipped config are unchanged; setting them to different values previously did nothing (and setting the extension factor to 1 raised an assertion).
 - `CACTUS_BAR_DUMP_DIR` dumps every window handed to the base aligner, with a command line that replays it. This was previously a commented-out `#define` that also deleted its own output.
+- Fix `<blast outputSecondaryAlignments="1">`, which since v2.6.0 has given CAF only the primary alignments whose chains scored too low, and never the alignments `paffy tile` puts above level 1: those were picked from the file already filtered down to level 1. With the evolver mammals, the option now gives a precision and recall of 0.890 and 0.689, against 0.876 and 0.671 before the fix and 0.876 and 0.669 without it. It is still off by default.
 
 # Release 3.3.0 2026-08-11
 
