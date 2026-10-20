@@ -118,6 +118,15 @@ class ChainSecondariesTest(unittest.TestCase):
     def test_no_secondaries(self):
         self.assertEqual(self._chain(output_secondaries=False), {('chr1', 'A', 'P')})
 
+    def test_tagged_by_mapper(self):
+        """ minimap2 tags the alignments it did not pick tp:A:S and inversions tp:A:I (and the inverted copies keep the
+        tag), but a primary is whatever paffy tile puts at level 1, with or without secondaries """
+        for tag in ['tp:A:S', 'tp:A:I']:
+            with self.subTest(tag=tag):
+                self.assertEqual(self._chain(output_secondaries=True, tags=[tag]),
+                                 {('chr1', 'A', 'P'), ('chr1', 'B', 'S'), ('chr2', 'C', 'S')})
+                self.assertEqual(self._chain(output_secondaries=False, tags=[tag]), {('chr1', 'A', 'P')})
+
 class LastScoringTest(unittest.TestCase):
     """ how a last-train model is scaled for abPOA (cactus.paf.last_scoring) """
     ROWS = {'A': [5, -32, -26, -34], 'C': [-32, 7, -30, -26], 'G': [-26, -30, 7, -32], 'T': [-34, -26, -32, 5]}
