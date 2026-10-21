@@ -983,6 +983,19 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
         if options.pgrealign and getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"),
                                                    "pgrealignVerify", typeFn=bool, default=True):
             full_secs_per_gb += PGREALIGN_VERIFY_SECS_PER_GB
+        if options.pgrealign:
+            # the largest regions realign aligns, the same for every chromosome of the run, from the
+            # largest job the run can have
+            pgrealign_max_mem = cactus_clamp_memory(max_mem)
+            pgrealign_realign_limits = pgrealign_limits(pgrealign_max_mem)
+            if pgrealign_realign_limits:
+                RealtimeLogger.info('pgrealign: realign aligns regions of up to {} GB of memory and {} GB of abPOA '
+                                    'address space (--max-region-memory, --max-address-space), as jobs of this run '
+                                    'can have up to {:.1f} GiB; pgrealignRealignOptions in the config can set them '
+                                    'instead'.format(*pgrealign_realign_limits, pgrealign_max_mem / 2**30))
+            else:
+                RealtimeLogger.info('pgrealign: the largest job this run can have is not known (--maxMemory), so '
+                                    'realign keeps its own limits on a region\'s memory and address space')
         for vg_path, vg_id in zip(options.vg, vg_ids):
             full_resources = dict(disk=vg_id.size * 20, memory=max(2**31, min(vg_id.size * 20, max_mem)),
                                   walltime=scaled_walltime(full_secs_per_gb, vg_id.size))
@@ -991,6 +1004,7 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
                 # graph as the GFA its gfaffix step would otherwise make from the vg
                 pgrealign_job = root_job.addChildJobFn(
                     pgrealign_vg, options, config, vg_path, vg_id, pgrealign_targets_id,
+                    pgrealign_realign_limits, pgrealign_max_mem,
                     cores=options.indexCores, disk=vg_id.size * 40,
                     memory=cactus_clamp_memory(min(max(2**33, vg_id.size * 20), max_mem)),
                     walltime=scaled_walltime(PGREALIGN_SECS_PER_GB, vg_id.size, io_multiple=6))
@@ -1785,13 +1799,34 @@ def gfa_sequence_length(gfa_path):
                 break
     return length
 
-def pgrealign_vg(job, options, config, vg_path, vg_id, targets_id=None):
+def pgrealign_limits(max_mem):
+    """ the largest regions pgrealign realign aligns, in GB, from max_mem, the largest job (in bytes) the
+    run can have, so that a desktop and a cluster of terabyte nodes each realign what they can: a region's
+    memory estimate (--max-region-memory), which a job twice as large holds, and abPOA's largest
+    reservation of address space (--max-address-space), which a node with that much memory grants.
+    Both are powers of two, so that machines of about the same size get the same limits, and the same
+    graph, and stop at 128 and 256 GB, beyond which there is little left to align (on the HPRC CHM13
+    graph, 20 regions) at the cost of jobs of 257 GiB.  None when the largest job is not known (no
+    --maxMemory, on a batch system cactus cannot ask), which leaves pgrealign's own limits """
+    if max_mem >= 2**50:
+        return None
+    gb = max_mem / 2**30
+    def pow2_floor(x):
+        return 1 << (int(x).bit_length() - 1) if x >= 1 else 1
+    return min(128, pow2_floor((gb - 1) / 2)), min(256, pow2_floor(gb))
+
+def pgrealign_vg(job, options, config, vg_path, vg_id, targets_id=None, realign_limits=None, max_mem=None,
+                 resized=False):
     """ realign one chromosome graph with pgrealign, ahead of the full phase: the tandem repeats that
     pgrealign catalog finds on each of its reference paths, or the intervals of targets_id (the
     --pgrealign TARGETS BED).  returns the graph as GFA, realigned, for clip_vg to use in place of the
     vg; the stats: this chromosome's row of pgrealign-stats.tsv and an archive of pgrealign's reports;
     and whether any region was replaced, for clip_vg to check the paths only then.  a graph pgrealign
-    cannot work on, such as an unplaced bin with no reference path, comes back as it went in """
+    cannot work on, such as an unplaced bin with no reference path, comes back as it went in.  the
+    memory realign needs is known only once extract has run: a job with too little starts again, as a
+    child with enough (resized).  realign_limits, (--max-region-memory, --max-address-space), and
+    max_mem, the largest job it may have, come from pgrealign_limits """
+    in_vg_path = vg_path
     work_dir = job.fileStore.getLocalTempDir()
     vg_path = os.path.join(work_dir, os.path.basename(vg_path))
     job.fileStore.readGlobalFile(vg_id, vg_path)
@@ -1894,12 +1929,64 @@ def pgrealign_vg(job, options, config, vg_path, vg_id, targets_id=None):
                                            *config_opts('pgrealignExtractOptions'))
         if summary.get('extract', {}).get('status', {}).get('ok'):
             msas_path = os.path.join(report_dir, 'msas.jsonl.gz')
-            # realign's budget covers the regions it aligns at once; extract and replace, which hold
-            # the graph's tables, run before and after it
-            summary['realign'] = pgrealign('realign', '--packages', os.path.join(extract_dir, 'packages.jsonl.gz'),
-                                           '-o', msas_path, '-j', threads, '--abpoa', 'abpoa',
-                                           '--max-memory', '{:.1f}'.format(max(1.0, job.memory / 2**30 / 2)),
-                                           *config_opts('pgrealignRealignOptions'))
+            packages_path = os.path.join(extract_dir, 'packages.jsonl.gz')
+            # with no time limit, whether a region is realigned depends on its package alone, never on
+            # the machine or the job: pgrealign's limits on a region's work, memory and address space,
+            # which pgrealignRealignOptions can set, leave a region too big for them as it is (too_big)
+            realign_opts = ['--abpoa', 'abpoa', '--timeout', '0']
+            if realign_limits:
+                realign_opts += ['--max-region-memory', realign_limits[0], '--max-address-space', realign_limits[1]]
+            realign_opts += config_opts('pgrealignRealignOptions')
+            # realign's budget, half the job's memory, covers the regions it aligns at once; extract and
+            # replace, which hold the graph's tables, run before and after it.  The budget decides only
+            # how many run at once, and must hold the largest region realign admits, which plan gives.
+            # The node must also grant abPOA's largest reservation of address space, as Linux does up to
+            # its memory and swap; a job asks for a node only by its memory
+            budget_gb = max(1.0, job.memory / 2**30 / 2)
+            plan = pgrealign('realign', '--packages', packages_path, '--plan', *realign_opts)
+            summary['realign_plan'] = plan
+            RealtimeLogger.info('pgrealign {}: realign admits {} regions and leaves {} too_big ({}); its largest, '
+                                '{}, needs {} GB, and abPOA reserves up to {:g} GB'.format(
+                                    chrom, plan['admitted'], sum(plan['too_big'].values()),
+                                    json.dumps(plan['too_big']), plan['largest'], plan['need_gb'],
+                                    plan['reservation_gb']))
+            short = []
+            want = job.memory
+            if plan['need_gb'] > budget_gb:
+                short.append('{} GB of memory for region {}, of which realign has half'.format(plan['need_gb'],
+                                                                                         plan['largest']))
+                want = max(want, int((2 * plan['need_gb'] + 1) * 2**30))
+            if plan['granted_gb'] is not None and plan['reservation_gb'] > plan['granted_gb']:
+                short.append('a node that grants abPOA {:g} GB of address space, more than this one\'s {} GB of '
+                             'memory and swap'.format(plan['reservation_gb'], plan['granted_gb']))
+                want = max(want, int(plan['reservation_gb'] * 2**30))
+            if short:
+                memory = min(cactus_clamp_memory(want), max_mem or sys.maxsize)
+                # (a job that already has the memory, but not the address space, would only start again on a
+                # machine like this one)
+                if resized or memory < want or memory <= job.memory:
+                    raise RuntimeError('pgrealign {}: realign needs {}, {}.  Raise --maxMemory, or lower pgrealign '
+                                       'realign\'s --max-region-memory or --max-address-space (pgrealignRealignOptions '
+                                       'in the config), which leaves such regions as they are'.format(
+                                           chrom, ' and '.join(short),
+                                           'and --maxMemory allows a job at most {:.1f} GiB'.format(memory / 2**30)
+                                           if memory < want else 'even with {:.1f} GiB'.format(job.memory / 2**30)))
+                RealtimeLogger.info('pgrealign {}: starting again with {:.1f} GiB of memory, as realign needs {}'.format(
+                    chrom, memory / 2**30, ' and '.join(short)))
+                child_job = job.addChildJobFn(pgrealign_vg, options, config, in_vg_path, vg_id, targets_id,
+                                              realign_limits, max_mem, resized=True,
+                                              cores=job.cores, disk=job.disk, memory=memory,
+                                              walltime=scaled_walltime(PGREALIGN_SECS_PER_GB, vg_id.size,
+                                                                       io_multiple=6))
+                return child_job.rv(0), child_job.rv(1), child_job.rv(2)
+            summary['realign'] = pgrealign('realign', '--packages', packages_path, '-o', msas_path, '-j', threads,
+                                           '--max-memory', '{:.3f}'.format(budget_gb), *realign_opts)
+            # every region realign leaves as it is, by status (too_big, not_homologous, ...), where it is seen
+            realigned = summary['realign']['realigned']
+            left = {status: n for status, n in realigned.items() if status != 'ok'}
+            if left:
+                RealtimeLogger.warning('pgrealign {}: realign left {} of {} regions as they were: {}'.format(
+                    chrom, sum(left.values()), sum(realigned.values()), json.dumps(left)))
             if summary['realign']['realigned'].get('ok'):
                 realigned_gfa_path = os.path.join(work_dir, chrom + '.realigned.gfa')
                 summary['replace'] = pgrealign('replace', '--graph', gfa_path, '--extract', extract_dir,
