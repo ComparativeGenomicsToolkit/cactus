@@ -112,7 +112,7 @@
 		   chainGapOpen="5000"
 		   chainGapExtend="1"
 		   chainTrimFraction="1.0"
-		   pafTrimIdentity="0.2"
+		   pafTrimIdentity="0.35"
 		   minPrimaryChainScore="10000"
 		   trimIngroups="1"
 		   trimOutgroups="1"
