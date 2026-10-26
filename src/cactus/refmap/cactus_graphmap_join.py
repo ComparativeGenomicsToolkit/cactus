@@ -42,6 +42,7 @@ from cactus.shared.common import cactusRootPath
 from cactus.shared.configWrapper import ConfigWrapper
 from cactus.shared.common import makeURL, catFiles
 from cactus.shared.common import vg_chrom_name
+from cactus.shared.common import normalize_pangenome_name, resolve_pangenome_name, pangenome_name_sample
 from cactus.shared.common import enableDumpStack
 from cactus.shared.common import cactus_override_toil_options, add_cactus_toil_options
 from cactus.shared.common import cactus_call
@@ -57,7 +58,6 @@ from toil.statsAndLogging import logger
 from toil.statsAndLogging import set_logging_from_options
 from toil.realtimeLogger import RealtimeLogger
 from cactus.shared.common import cactus_cpu_count
-from cactus.refmap.cactus_minigraph import check_sample_names
 from cactus.refmap.panacus import run_panacus
 from cactus.refmap.pangenome_exclusions import path_coverage_job, ref_gaps_job, compute_exclusions_job
 from cactus.refmap.pangenome_exclusions import check_baseline_header
@@ -572,8 +572,9 @@ def graphmap_join_validate_options(options):
             raise RuntimeError('--clipFlank cannot be used with --clip disabled: it trims outward '
                                'from the intervals --clip removes.')
 
-    # check the reference name suffix
-    check_sample_names(options.reference, options.reference[0])
+    # the references are genome names, normalized as the seqfile's are (so HG002.1 is HG002#1).
+    # graphmap_join_workflow turns them into the vg samples they belong to
+    options.reference = [normalize_pangenome_name(ref) for ref in options.reference]
 
     # if no graph output specified, default to gfa.gz
     if not options.gfa and not options.unchopped_gfa and not options.xg and not options.gbz:
@@ -702,9 +703,11 @@ def graphmap_join_validate_options(options):
     if not options.vcfReference:
         options.vcfReference = [options.reference[0]]
     else:
-        for vcfref in options.vcfReference:
-            if vcfref not in options.reference:
+        for i, vcfref in enumerate(options.vcfReference):
+            resolved_vcfref = resolve_pangenome_name(vcfref, options.reference)
+            if resolved_vcfref is None:
                 raise RuntimeError('--vcfReference {} invalid because {} was not specified as a --reference'.format(vcfref, vcfref))
+            options.vcfReference[i] = resolved_vcfref
 
     if options.snarlStats == []:
         options.snarlStats = ['clip'] if options.clip else ['full']
@@ -927,16 +930,13 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
 
     root_job = vcflib_checks(root_job, options, config.xmlRoot)
 
-    # make sure reference doesn't have a haplotype suffix, as it will have been changed upstream
-    ref_base, ref_ext = os.path.splitext(options.reference[0])
-    assert len(ref_base) > 0
-    if ref_ext:
-        assert len(ref_ext) > 1 and ref_ext[1:].isnumeric()
-        options.reference[0] = ref_base
-        if options.vcfReference:
-            for i in range(len(options.vcfReference)):
-                if options.vcfReference[i] == ref_base + ref_ext:
-                    options.vcfReference[i] = ref_base
+    # from here on a reference is the vg sample of the reference genome (HG002 for HG002#1), which
+    # is how vg selects it.  the genome names themselves are still needed to report on the reference
+    # alongside the other genomes, by name
+    options.referenceEvents = list(options.reference)
+    options.reference = list(dict.fromkeys(pangenome_name_sample(ref) for ref in options.reference))
+    if options.vcfReference:
+        options.vcfReference = list(dict.fromkeys(pangenome_name_sample(ref) for ref in options.vcfReference))
 
     # get the single machine memory
     config.setSystemMemory(options)    
@@ -1489,7 +1489,7 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
         ref_gap_min = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"),
                                         "refGapMinLength", typeFn=int, default=10000)
         if ref_gap_min > 0 and options.reference:
-            ref_event = options.reference[0]
+            ref_event = options.referenceEvents[0]
             gap_ids = []
             for vg_path, phase_vg_id, input_vg_id in zip(options.vg, deepest_vg_ids, vg_ids):
                 chrom_name = os.path.splitext(os.path.basename(vg_path))[0]
@@ -1571,7 +1571,8 @@ def clip_vg(job, options, config, vg_path, vg_id, phase, gfa_id=None, gfa_realig
             # GFAffix supports W-lines as reference paths since v0.2.0
             fix_cmd = ['gfaffix', gfa_in_path, '--output_refined', gfa_out_path, '--check_transformation', '--threads', str(job.cores)]
             if options.reference:
-                fix_cmd += ['--dont_collapse', options.reference[0] + '#[.]*']
+                # a regex, matched anywhere in the path name, and a sample name can have a '.' in it
+                fix_cmd += ['--dont_collapse', '^' + options.reference[0].replace('.', '[.]') + '#']
             cactus_call(parameters=fix_cmd, job_memory=job.memory)
         # Come back from gfa to vg
         conv_cmd = [['vg', 'convert', '-g', '-p', gfa_out_path]]
