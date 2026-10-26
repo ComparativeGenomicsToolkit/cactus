@@ -556,6 +556,7 @@
 	<!-- GAFOverlapFilterExactRatio: the dominance ratio of the exact filter, for its segment contests and for deciding which records are demoted. Empty means GAFOverlapFilterRatio. Lower values decide more contests (and leave fewer holes), at the risk of giving a span to the wrong paralog: see GAFOverlapFilterExactGuard -->
 	<!-- GAFOverlapFilterExactGuard: with GAFOverlapFilterExactRatio below GAFOverlapFilterRatio, cancel a win the lower ratio decides (and GAFOverlapFilterRatio would leave tied) over every run of at least 20 kb where the losing record is at least 1% more identical, extended while it stays more identical (gaffilter -x guard). The span becomes a hole instead of going to the less similar copy. Has no effect when the two ratios are equal [0=disable] -->
 	<!-- GAFOverlapFilterExactGap: the query gap, in bp, by which the exact filter breaks a junction it will not keep, and under which it treats a junction to a newly anchored piece as joined. A two-sided excursion with an unanchored query gap at least this long between its own pieces is broken too, since the clip would remove the gap and leave two halves joined on one side each. 31000 is the cactus-graphmap-join clip threshold (10 kb) plus the BAR banding limit from each side (2 x 10 kb) plus 1 kb, so that no later stage can rejoin it -->
+	<!-- GAFOverlapFilterExactWinIdent: give a contested query segment (of at least 1 kb) to a record whose identity over it beats another claimant's by at least this much, before the dominance test (the win-ident option of gaffilter -x). Without it, a long record that runs into a paralogous copy wins it on length alone: at an inversion flanked by inverted repeats, the forward mapping took each repeat from the inverted one that places it on the right copy. On the CHM13 30-way it gave 1.07% fewer dipcall errors over the 14 samples (13 better; NA18879 0.3k worse, mostly near the chr7 centromere), 0.6% fewer GIAB HG002 small-variant and 0.4% fewer SV errors, and 40 Mb less clipping. A config without the attribute leaves it off. REQUIRES the cactus-gfa-tools whose gaffilter has win-ident (checked when the workflow starts) [0=disable] -->
 	<!-- GAFOverlapFilterExactOptions: further gaffilter -x options, passed as they are (see gaffilter's usage: for example min-remainder, min-remainder-ident, id-floor, skip-onetoone, each with a double dash) -->
 	<!-- PAFOverlapFilterRatio: Same as GAFOverlapFilterRatio, but applied after conversion to PAF -->
 	<!-- PAFOverlapFilterMinLengthRatio: Same as GAFOverlapFilterMinLengthRatio, but applies after conversion to PAF -->
@@ -598,6 +599,7 @@
 		 GAFOverlapFilterExactRatio=""
 		 GAFOverlapFilterExactGuard="0"
 		 GAFOverlapFilterExactGap="31000"
+		 GAFOverlapFilterExactWinIdent="0.01"
 		 GAFOverlapFilterExactOptions=""
 		 PAFOverlapFilterRatio="5"
 		 PAFOverlapFilterMinLengthRatio="0"
