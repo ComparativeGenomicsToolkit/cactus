@@ -538,7 +538,7 @@
 	<!-- cactus-graphmap options -->
 	<!-- assemblyName: special name of "virtual" minigraph assembly, which is just the list of sequences from the graph. -->
 	<!-- minigraphMapOptions: flags to pass to minigraph for mapping -->
-	<!-- minigraphConstructOptions: flags to pass to minigraph for construction.  The pinned minigraph (glennhickey/minigraph) also takes ggs-cnv (with a double dash), off by default, which places copy-number variants by their own sequence: graph chaining may cross a long deletion (up to 300 kb) whose flanking chains touch on the query, and a variant is inserted even where its own chain passes the same graph interval twice, so a lost copy is no longer routed through a near-identical paralog and a gained copy is inserted instead of skipped.  On chr1 with 464 HPRC genomes it placed every AMY1/AMY2 haplotype class on the right copy and cut the locus edit distance by 68%, for 16% more alternate sequence, mostly 1q21 paralogs.  On a CHM13 30-way pangenome it had about 0.6% fewer dipcall errors, but chr19 and chr10 were worse and the SMN and IGK snarls grew.  It is for construction only (in minigraphMapOptions it would change how mappings are chained), and stock minigraph exits on it. -->
+	<!-- minigraphConstructOptions: flags to pass to minigraph for construction.  ggs-cnv (with a double dash, on by default; it needs the pinned glennhickey/minigraph) places copy-number variants by their own sequence: graph chaining may cross a long deletion (up to 300 kb) whose flanking chains touch on the query, and a variant is inserted even where its own chain passes the same graph interval twice, so a lost copy is no longer routed through a near-identical paralog and a gained copy is inserted instead of skipped.  On chr1 with 464 HPRC genomes it placed every AMY1/AMY2 haplotype class on the right copy and cut the locus edit distance by 68%, for 16% more alternate sequence, mostly 1q21 paralogs.  On a CHM13 30-way pangenome it had about 0.6% fewer dipcall errors, but chr19 and chr10 were worse and the SMN and IGK snarls grew.  Remove it to build the graph as before.  It is for construction only (in minigraphMapOptions it would change how mappings are chained), and stock minigraph exits on it. -->
 	<!-- par-align is output-preserving, ~1.3x on whole-genome construction for ~10% more CPU.
 	     Needs the glennhickey/minigraph fork; stock minigraph exits on the unknown option.  The pinned
 	     fork has it on by default (no-par-align turns it off), so it is only kept here for older builds
@@ -585,7 +585,7 @@
 	<graphmap
 		 assemblyName="_MINIGRAPH_"
 		 minigraphMapOptions="-c -xasm --par-align"
-		 minigraphConstructOptions="-c -xggs --par-align"
+		 minigraphConstructOptions="-c -xggs --par-align --ggs-cnv"
 		 minimapCollapseOptions="-c -D -xasm5 -m500"
 		 collapse="none"
 		 maxCollapseDistanceRatio="5"
