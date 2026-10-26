@@ -427,7 +427,7 @@ void caf(Flower *flower, CactusParams *params, char *alignmentsFile, char *secon
 
         if (sortAlignments) {
             tempFile1 = getTempFile();
-            //stCaf_sortCigarsFileByScoreInDescendingOrder(alignmentsFile, tempFile1);
+            stPinchIterator_sortFileByScoreInDescendingOrder(alignmentsFile, tempFile1);
             pinchIterator = stPinchIterator_constructFromFile(tempFile1);
         } else {
             pinchIterator = stPinchIterator_constructFromFile(alignmentsFile);
@@ -436,7 +436,7 @@ void caf(Flower *flower, CactusParams *params, char *alignmentsFile, char *secon
         if(secondaryAlignmentsFile != NULL) {
             if (sortSecondaryAlignments) {
                 tempFile2 = getTempFile();
-                //stCaf_sortCigarsFileByScoreInDescendingOrder(secondaryAlignmentsFile, tempFile2);
+                stPinchIterator_sortFileByScoreInDescendingOrder(secondaryAlignmentsFile, tempFile2);
                 secondaryPinchIterator = stPinchIterator_constructFromFile(tempFile2);
             } else {
                 secondaryPinchIterator = stPinchIterator_constructFromFile(secondaryAlignmentsFile);

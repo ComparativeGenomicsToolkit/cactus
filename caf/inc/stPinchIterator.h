@@ -43,6 +43,12 @@ void stPinchIterator_destruct(
 stPinchIterator *stPinchIterator_constructFromFile(const char *alignmentFile);
 
 /*
+ * Writes the alignments of a PAF file to sortedFile in descending order of score (their AS tag, 0 if they have none),
+ * keeping the order of the file among equal scores.  It uses unix sort, so the file does not have to fit in memory.
+ */
+void stPinchIterator_sortFileByScoreInDescendingOrder(const char *alignmentFile, const char *sortedFile);
+
+/*
  * Constructs iterator from aligned pairs.
  */
 stPinchIterator *stPinchIterator_constructFromAlignedPairs(stSortedSet *alignedPairs,
