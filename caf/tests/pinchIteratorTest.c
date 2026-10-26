@@ -119,8 +119,67 @@ static void testPinchIteratorFromFile(CuTest *testCase) {
     }
 }
 
+static void testSortFileByScoreInDescendingOrder(CuTest *testCase) {
+    for (int64_t test = 0; test < 20; test++) {
+        // random alignments with random scores, some tied, written in random order.  The scores sort differently as
+        // strings, and one needs 64 bits
+        static const int64_t scores[] = { -100, -9, 0, 9, 10, 100, 1000000000000 };
+        stList *pafs = getRandomPairwiseAlignments();
+        for (int64_t i = 0; i < stList_length(pafs); i++) {
+            Paf *paf = stList_get(pafs, i);
+            paf->score = scores[st_randomInt(0, 7)];
+            paf->tile_level = st_randomInt(1, 3); // tags both before and after AS
+            paf->chain_id = i;
+        }
+        char *tempFile = "tempFileForSortTest.paf", *sortedFile = "tempFileForSortTest.sorted.paf";
+        FILE *fileHandle = fopen(tempFile, "w");
+        write_pafs(fileHandle, pafs);
+        // one alignment without a score, which sorts (and reads back) as 0
+        Paf *noScore = stList_length(pafs) > 0 ? stList_get(pafs, 0) : NULL;
+        int64_t noScoreId = stList_length(pafs);
+        if (noScore != NULL) {
+            int64_t score = noScore->score, chainId = noScore->chain_id;
+            noScore->score = INT_MAX; // paf_write leaves the tag out
+            noScore->chain_id = noScoreId;
+            paf_write(noScore, fileHandle);
+            noScore->score = score;
+            noScore->chain_id = chainId;
+        }
+        fclose(fileHandle);
+
+        stPinchIterator_sortFileByScoreInDescendingOrder(tempFile, sortedFile);
+
+        fileHandle = fopen(sortedFile, "r");
+        stList *sortedPafs = read_pafs(fileHandle, 0);
+        fclose(fileHandle);
+        CuAssertIntEquals(testCase, stList_length(pafs) + (noScore != NULL ? 1 : 0), stList_length(sortedPafs));
+        for (int64_t i = 0; i < stList_length(sortedPafs); i++) {
+            Paf *paf = stList_get(sortedPafs, i);
+            // each line is unchanged
+            Paf *original = paf->chain_id == noScoreId ? noScore : stList_get(pafs, paf->chain_id);
+            CuAssertIntEquals(testCase, original->query_start, paf->query_start);
+            CuAssertIntEquals(testCase, original->target_end, paf->target_end);
+            CuAssertIntEquals(testCase, original->tile_level, paf->tile_level);
+            CuAssertTrue(testCase, (paf->chain_id == noScoreId ? 0 : original->score) == paf->score);
+            if (i > 0) {
+                // the scores descend, and ties keep the file's order
+                Paf *previous = stList_get(sortedPafs, i - 1);
+                CuAssertTrue(testCase, previous->score >= paf->score);
+                if (previous->score == paf->score) {
+                    CuAssertTrue(testCase, previous->chain_id < paf->chain_id);
+                }
+            }
+        }
+        stList_destruct(sortedPafs);
+        stList_destruct(pafs);
+        stFile_rmtree(tempFile);
+        stFile_rmtree(sortedFile);
+    }
+}
+
 CuSuite* pinchIteratorTestSuite(void) {
     CuSuite* suite = CuSuiteNew();
     SUITE_ADD_TEST(suite, testPinchIteratorFromFile);
+    SUITE_ADD_TEST(suite, testSortFileByScoreInDescendingOrder);
     return suite;
 }
