@@ -141,6 +141,20 @@ stPinchIterator *stPinchIterator_constructFromFile(const char *alignmentFile) {
     return pinchIterator;
 }
 
+void stPinchIterator_sortFileByScoreInDescendingOrder(const char *alignmentFile, const char *sortedFile) {
+    // The AS tag has no fixed column for sort to key on, so a copy of the score goes in front of each line, which
+    // is sorted on it and then cut off again.  Each step is its own command so that a failure is not hidden by a pipe
+    char *keyedFile = stString_print("%s.keyed", sortedFile);
+    if (st_system("awk 'BEGIN { FS = OFS = \"\\t\" } { s = 0; for (i = 13; i <= NF; i++) if (substr($i, 1, 5) == \"AS:i:\") "
+                  "{ s = substr($i, 6); break } print s, $0 }' %s > %s", alignmentFile, keyedFile) != 0 ||
+        st_system("LC_ALL=C sort -s -k1,1nr -o %s %s", keyedFile, keyedFile) != 0 ||
+        st_system("cut -f 2- %s > %s", keyedFile, sortedFile) != 0) {
+        st_errAbort("Encountered an error when sorting the alignments in file: %s\n", alignmentFile);
+    }
+    st_system("rm -f %s", keyedFile);
+    free(keyedFile);
+}
+
 stSortedSetIterator *startAlignmentStackForAlignedPairs(stSortedSetIterator *it) {
     while (stSortedSet_getPrevious(it) != NULL) {
         ;

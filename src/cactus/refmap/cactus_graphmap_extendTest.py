@@ -366,7 +366,7 @@ class TestGafOverlapFilterConfig(unittest.TestCase):
         self.assertEqual(cmd[0], self.STOCK[0] + ['-n', 'g.gfa.node_table.tsv'])
         self.assertEqual(cmd[1], self.STOCK[1] + ['-x', '--exact-nodes', 'g.gfa.node_table.tsv', '--exact-ref', 'S288C',
                                                   '--a0-paf-ratio', '5.0', '--a0-paf-min-overlap', '0.0', '--gap', '31000',
-                                                  '--junctions', 'g.gaf.junctions.tsv',
+                                                  '--win-ident', '0.01', '--junctions', 'g.gaf.junctions.tsv',
                                                   '--exact-summary', 'g.gaf.exact.log'])
         self.assertEqual((junctions_path, summary_path), ('g.gaf.junctions.tsv', 'g.gaf.exact.log'))
 
@@ -398,6 +398,26 @@ class TestGafOverlapFilterConfig(unittest.TestCase):
         for opts in (['--exact-ratio', '2'], ['--guard'], ['--gap', '21000'], ['--min-remainder', '5000']):
             i = gaffilter.index(opts[0])
             self.assertEqual(gaffilter[i:i + len(opts)], opts)
+
+    def test_win_ident(self):
+        # on at 0.01 by default; any other margin is passed on as written
+        gaffilter = self.commands(self.config(GAFOverlapFilterExactWinIdent='0.05'))[0][1]
+        i = gaffilter.index('--win-ident')
+        self.assertEqual(gaffilter[i:i + 2], ['--win-ident', '0.05'])
+        # 0, empty, and a config from before the attribute existed all leave it off
+        for value in ('0', '', None):
+            root = self.config(GAFOverlapFilterExactWinIdent=value or '')
+            if value is None:
+                del root.find('graphmap').attrib['GAFOverlapFilterExactWinIdent']
+            self.assertTrue(check_overlap_filter_config(root))
+            self.assertNotIn('--win-ident', self.commands(root)[0][1])
+        for value in ('-0.01', 'x'):
+            with self.assertRaisesRegex(RuntimeError, 'GAFOverlapFilterExactWinIdent> must be a number'):
+                check_overlap_filter_config(self.config(GAFOverlapFilterExactWinIdent=value))
+        # it is a gaffilter -x option, so the stock filter neither checks nor passes it
+        root = self.config(GAFOverlapFilterExact='0', GAFOverlapFilterExactWinIdent='x')
+        self.assertFalse(check_overlap_filter_config(root))
+        self.assertEqual(self.commands(root), (self.STOCK, None, None))
         with self.assertRaises(RuntimeError):
             check_overlap_filter_config(self.config(GAFOverlapFilterExactRatio='0'))
 

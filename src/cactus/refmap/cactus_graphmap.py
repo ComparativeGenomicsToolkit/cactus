@@ -637,7 +637,21 @@ def check_overlap_filter_config(config_node):
             except ValueError:
                 raise RuntimeError('<graphmap GAFOverlapFilterExactRatio> must be empty (meaning GAFOverlapFilterRatio) '
                                    'or a number > 0, not "{}"'.format(exact_ratio))
+        exact_win_ident(graphmap_node)
     return exact
+
+def exact_win_ident(graphmap_node):
+    """ <graphmap GAFOverlapFilterExactWinIdent>, the identity margin by which gaffilter -x --win-ident
+    decides a contested segment, as passed on: "" when it is off (0, empty, or a config without it) """
+    value = getOptionalAttrib(graphmap_node, "GAFOverlapFilterExactWinIdent", typeFn=str, default="").strip()
+    try:
+        margin = float(value) if value else 0.
+        if not margin >= 0:
+            raise ValueError()
+    except ValueError:
+        raise RuntimeError('<graphmap GAFOverlapFilterExactWinIdent> must be a number >= 0 (0 turns it off), '
+                           'not "{}"'.format(value))
+    return value if margin > 0 else ""
 
 def exact_filter_options(config_node, node_table_path, reference):
     """ the gaffilter -x options <graphmap> asks for, past the stock -r -m -q -b -i """
@@ -658,6 +672,9 @@ def exact_filter_options(config_node, node_table_path, reference):
     if getOptionalAttrib(graphmap_node, "GAFOverlapFilterExactGuard", typeFn=bool, default=False):
         opts += ['--guard']
     opts += ['--gap', str(getOptionalAttrib(graphmap_node, "GAFOverlapFilterExactGap", typeFn=int, default=31000))]
+    win_ident = exact_win_ident(graphmap_node)
+    if win_ident:
+        opts += ['--win-ident', win_ident]
     opts += getOptionalAttrib(graphmap_node, "GAFOverlapFilterExactOptions", typeFn=str, default="").split()
     return opts
 
@@ -670,14 +687,16 @@ def check_overlap_filter_tools(config_node):
     script = ('echo gaffilter; gaffilter 2>&1 || true; echo gaf2unstable; gaf2unstable 2>&1 || true; '
               'echo gaf2paf; gaf2paf 2>&1 || true')
     usage = cactus_call(parameters=['bash', '-c', script], check_output=True)
-    missing = [what for what, needle in (('gaffilter -x/--exact', '--exact-nodes'),
-                                         ('gaf2unstable -n/--out-nodes', '--out-nodes'),
-                                         ('gaf2paf kq:Z:', 'kq:Z'))
-               if needle not in usage]
+    needles = [('gaffilter -x/--exact', '--exact-nodes'),
+               ('gaf2unstable -n/--out-nodes', '--out-nodes'),
+               ('gaf2paf kq:Z:', 'kq:Z')]
+    if exact_win_ident(findRequiredNode(config_node, "graphmap")):
+        needles.append(('gaffilter --win-ident (for GAFOverlapFilterExactWinIdent)', '--win-ident'))
+    missing = [what for what, needle in needles if needle not in usage]
     if missing:
         raise RuntimeError('<graphmap GAFOverlapFilterExact="1"> needs {}, which the installed cactus-gfa-tools does '
                            'not have: the commit pinned in build-tools/downloadPangenomeTools must be at or after the '
-                           'one adding gaffilter -x'.format(', '.join(missing)))
+                           'ones adding them'.format(', '.join(missing)))
 
 # the columns gaffilter -x writes to its --junctions log, one row per junction between two pieces
 # placed apart on the reference (a jump, an inversion or a cross-chromosome join)
