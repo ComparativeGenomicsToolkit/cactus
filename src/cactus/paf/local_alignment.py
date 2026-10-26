@@ -725,7 +725,8 @@ def chain_alignments_splitting_ingroups_and_outgroups(job, ingroup_alignment_fil
 
     If pair_secondaries is set, each ingroup alignment file (pair of ingroups) is first chained on its own as well,
     and the results are added to the output as secondaries, closest pair (by ingroup_alignment_distances) first
-    (see multifurcation_pair_secondaries).  They come back here as pair_secondary_files."""
+    (see multifurcation_pair_secondaries).  They come back here as pair_secondary_files.  With outputSecondaryAlignments
+    they are not needed: the chaining's own secondaries hold every pair alignment that is not a primary."""
 
     # Check we have the expected number of alignment files
     assert len(ingroup_alignment_files) == len(ingroup_alignment_names)
@@ -735,6 +736,11 @@ def chain_alignments_splitting_ingroups_and_outgroups(job, ingroup_alignment_fil
     chain_split_min_size = int(params.find("blast").attrib.get("chainSplitMinSize", "1000000000"))
     ingroup_size = sum(f.size for f in ingroup_alignment_files)
     outgroup_size = sum(f.size for f in outgroup_alignment_files)
+
+    # with outputSecondaryAlignments the chaining's own secondaries already hold the pairs' alignments, in chain score
+    # order, which aligned the evolver mammals as a star about as well as closest pair first
+    if pair_secondaries and int(params.find("blast").attrib["outputSecondaryAlignments"]):
+        pair_secondaries = False
 
     if pair_secondaries:
         # Chain each pair of ingroups on its own, keeping the input files for the chaining of them all together, which

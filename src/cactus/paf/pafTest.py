@@ -382,9 +382,11 @@ class IngroupChainingTest(unittest.TestCase):
                     'cg:Z:{}={}X{}='.format(matches // 2, self.ALN_LEN - matches, matches - matches // 2)]) + '\n')
         return path
 
-    def _chain(self, pair_secondaries):
-        """ chain the star's alignments and return {(query genome, target genome, tp tag): aligned query bases} """
+    def _chain_lines(self, pair_secondaries, output_secondaries=False):
+        """ chain the star's alignments and return [(query genome, target genome, tp tag, aligned query bases)], in the
+        order of the output """
         params = ET.parse(os.path.join(cactusRootPath(), 'cactus_progressive_config.xml')).getroot()
+        params.find('blast').set('outputSecondaryAlignments', '1' if output_secondaries else '0')
         # one file per ingroup pair, the first of the pair the target, as make_paf_alignments makes them
         ingroup_paths, ingroup_names, ingroup_distances = [], [], []
         for a, b in itertools.combinations(self.GENOMES, 2):
@@ -395,8 +397,9 @@ class IngroupChainingTest(unittest.TestCase):
             ingroup_distances.append(0.1 if cherry else 0.3)
         # the outgroup is the query, the ingroup the target
         outgroup_path = self._write_paf('O_vs_A', 'O', 'A', 0.85, 700)
-        out_path = os.path.join(self.work_dir, 'out.{}.paf'.format(int(pair_secondaries)))
-        options = Job.Runner.getDefaultOptions(os.path.join(self.work_dir, 'js.{}'.format(int(pair_secondaries))))
+        run = '{}.{}'.format(int(pair_secondaries), int(output_secondaries))
+        out_path = os.path.join(self.work_dir, 'out.{}.paf'.format(run))
+        options = Job.Runner.getDefaultOptions(os.path.join(self.work_dir, 'js.{}'.format(run)))
         options.disableCaching = True
         options.maxCores = 2
         with Toil(options) as toil:
@@ -407,12 +410,19 @@ class IngroupChainingTest(unittest.TestCase):
                                               ingroup_alignment_distances=ingroup_distances,
                                               pair_secondaries=pair_secondaries))
             toil.exportFile(out_id, makeURL(out_path))
-        pairs = collections.Counter()
+        lines = []
         with open(out_path) as paf_file:
             for line in paf_file:
                 toks = line.rstrip('\n').split('\t')
                 tp = [tok[5:] for tok in toks[12:] if tok.startswith('tp:A:')][0]
-                pairs[(toks[0].split('|')[0][3:], toks[5].split('|')[0][3:], tp)] += int(toks[3]) - int(toks[2])
+                lines.append((toks[0].split('|')[0][3:], toks[5].split('|')[0][3:], tp, int(toks[3]) - int(toks[2])))
+        return lines
+
+    def _chain(self, pair_secondaries, output_secondaries=False):
+        """ {(query genome, target genome, tp tag): aligned query bases} of _chain_lines """
+        pairs = collections.Counter()
+        for query, target, tp, aligned in self._chain_lines(pair_secondaries, output_secondaries):
+            pairs[(query, target, tp)] += aligned
         return pairs
 
     PRIMARIES = {('A', 'B', 'P'), ('B', 'A', 'P'), ('C', 'D', 'P'), ('D', 'C', 'P'), ('O', 'A', 'P')}
@@ -427,6 +437,15 @@ class IngroupChainingTest(unittest.TestCase):
         for a, b in itertools.permutations(self.GENOMES, 2):
             self.assertEqual(pairs[(a, b, 'P')] + pairs[(a, b, 'S')], aligned, '{} to {}'.format(a, b))
         self.assertEqual(pairs[('O', 'A', 'P')], aligned)
+
+    def test_pair_secondaries_with_tile_secondaries(self):
+        """ with outputSecondaryAlignments="1" the chaining's own secondaries already hold every pair's alignments, so
+        the pairs are not chained again """
+        lines = self._chain_lines(pair_secondaries=True, output_secondaries=True)
+        self.assertEqual(lines, self._chain_lines(pair_secondaries=False, output_secondaries=True))
+        self.assertEqual({(query, target, tp) for query, target, tp, aligned in lines},
+                         self.PRIMARIES | {(a, b, 'S') for a, b in itertools.permutations(self.GENOMES, 2)
+                                           if {a, b} not in self.CHERRIES})
 
     def test_pooled_chaining_splits_cherries(self):
         """ why multifurcations get pair secondaries: if this starts aligning across the pairs, paffy tile has changed
