@@ -108,7 +108,7 @@ def compleasm_tools(r):
             assert s.count(old) == 1, 'compleasm.py has changed; the lineage-unpacking patch no longer applies'
             p.write_text(s.replace(old, new))
             PATCH
-            python3 -m venv venv-compleasm || {{ rm -rf venv-compleasm; python3 -m virtualenv venv-compleasm; }}
+            {make_venv}
             venv-compleasm/bin/pip install -q pandas
             venv-compleasm/bin/python compleasm_kit/compleasm.py download {lineage} -L mb_downloads
             db=mb_downloads/{lineage}_odb12/refseq_db.faa
@@ -120,7 +120,8 @@ def compleasm_tools(r):
             kept=$(gzip -dc $db.gz | grep '>' | sed 's/^>//; s/_.*//' | sort -u | wc -l)
             echo "reference proteins limited to taxa {panel}: $(gzip -dc $db.gz | grep -c '>') covering $kept BUSCOs"
             [ $kept -gt 3500 ] || {{ echo "the taxon panel covers only $kept BUSCOs" >&2; exit 1; }}
-            '''.format(d=shlex.quote(d), v=COMPLEASM_VERSION, lineage=LINEAGE, panel=' '.join(PANEL)),
+            '''.format(d=shlex.quote(d), v=COMPLEASM_VERSION, lineage=LINEAGE, panel=' '.join(PANEL),
+                       make_venv=r.make_venv('venv-compleasm')),
             cpus=4, mem='8G', time='4:00:00')
     return r.cached('compleasm-{}-{}-{}'.format(COMPLEASM_VERSION, LINEAGE, '.'.join(PANEL)), setup)
 

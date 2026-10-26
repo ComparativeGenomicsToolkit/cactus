@@ -149,6 +149,13 @@ def seqfile_genomes(path):
                 genomes.append((p[0].lstrip('*'), p[1]))
     return genomes
 
+def make_venv(d):
+    """shell that makes a virtualenv with pip at d, with the python3 on the PATH: in a step, the cactus venv's.  A
+    python without ensurepip (Debian's, short of python3-venv) cannot put pip in a venv itself, so the cactus venv's
+    pip does it"""
+    return ('python3 -m venv {d} || {{ rm -rf {d}; python3 -m venv --without-pip {d} && '
+            'python3 -m pip -q --python {d}/bin/python install pip; }}').format(d=shlex.quote(d))
+
 class Run:
     """one run's directory, parameters and the means to run its steps:
 
@@ -172,6 +179,7 @@ class Run:
         self._print_lock = threading.Lock()
 
     seqfile_genomes = staticmethod(seqfile_genomes)
+    make_venv = staticmethod(make_venv)
 
     def path(self, *p):
         return os.path.join(self.out, *p)

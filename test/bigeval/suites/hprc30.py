@@ -135,13 +135,14 @@ def toil_vcfcomp(r):
         r.sh(['bash', '-c', '''set -eo pipefail
             git clone -q {repo} {d}/src
             git -C {d}/src checkout -q {commit}
-            python3 -m venv {d}/venv || {{ rm -rf {d}/venv; python3 -m virtualenv {d}/venv; }}
+            {make_venv}
             . {d}/venv/bin/activate
             pip install -q -U pip
             pip install -q -U -r {d}/src/toil-requirement.txt
             pip install -q -U {d}/src
             which toil-vcfcomp _toil_worker
-            '''.format(repo=TOIL_VCFCOMP_REPO, d=shlex.quote(d), commit=TOIL_VCFCOMP_COMMIT)], 'toil-vcfcomp')
+            '''.format(repo=TOIL_VCFCOMP_REPO, d=shlex.quote(d), commit=TOIL_VCFCOMP_COMMIT,
+                       make_venv=r.make_venv(os.path.join(d, 'venv')))], 'toil-vcfcomp')
     return os.path.join(r.cached('toil-vcfcomp-' + TOIL_VCFCOMP_COMMIT[:7], install), 'venv')
 
 def score(r, truth):
