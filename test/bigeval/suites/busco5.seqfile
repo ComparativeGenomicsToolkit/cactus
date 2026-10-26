@@ -1,0 +1,15 @@
+# busco5: five genomes spanning the deep nodes where base aligners disagree (substitutions per site, from the
+# VGP 577-way's tree cut down to these five with their pairwise distances kept; URLs are the 577-way's).
+#   GCA_000001405.15  human (GRCh38 no-alt analysis set)
+#   GCA_000001635.9   mouse (mm39)
+#   GCF_027887165.1   opossum      -> the placental-marsupial node
+#   GCF_016700215.2   chicken      -> the amniote node
+#   GCF_040954835.1   spotted gar  -> the fish-tetrapod root.  Gar rather than zebrafish: the teleost genome
+#                     duplication leaves many BUSCOs duplicated in zebrafish, which muddies a 1:1 truth set
+((GCF_016700215.2:0.32478,((GCA_000001635.9:0.22590,GCA_000001405.15:0.10259):0.13695,GCF_027887165.1:0.12204):0.18192):0.24010,GCF_040954835.1:0.47781);
+
+GCF_016700215.2	https://hgdownload.soe.ucsc.edu/hubs/VGP/alignment/primary/birds/GCF_016700215.2.fa.gz
+GCF_027887165.1	https://hgdownload.soe.ucsc.edu/hubs/VGP/alignment/primary/mammals/GCF_027887165.1.fa.gz
+GCF_040954835.1	https://hgdownload.soe.ucsc.edu/hubs/VGP/alignment/primary/fish/GCF_040954835.1.fa.gz
+GCA_000001635.9	https://hgdownload.soe.ucsc.edu/goldenPath/mm39/bigZips/mm39.fa.gz
+GCA_000001405.15	https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/references/GRCh38/GCA_000001405.15_GRCh38_no_alt_analysis_set.fasta.gz
