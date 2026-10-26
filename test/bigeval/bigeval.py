@@ -177,6 +177,8 @@ class Run:
         self.cache = self.p['cache']
         self.tag = 'bigeval.' + os.path.basename(self.out)
         self._print_lock = threading.Lock()
+        self._env_lock = threading.Lock()
+        self._activated = {}
 
     seqfile_genomes = staticmethod(seqfile_genomes)
     make_venv = staticmethod(make_venv)
@@ -198,15 +200,35 @@ class Run:
         with self._print_lock:
             print('[{}] {}'.format(now(), msg), flush=True)
 
+    def activated(self, venv):
+        """this environment with venv's activate script sourced.  An install's activate does more than a bare
+        venv's: a source build's and a release's both put the install's lib/ on LD_LIBRARY_PATH, which some of its
+        binaries (vcfwave) cannot run without"""
+        with self._env_lock:
+            if venv not in self._activated:
+                # the script as $1, not $0: virtualenv's activate refuses to run if $0 is itself
+                r = subprocess.run(['bash', '-c', '. "$1" > /dev/null && env -0', 'bigeval',
+                                    os.path.join(venv, 'bin', 'activate')], capture_output=True, stdin=subprocess.DEVNULL)
+                if r.returncode:
+                    raise RuntimeError('could not source {}/bin/activate: {}'.format(venv, r.stderr.decode().strip()))
+                env = dict(kv.split('=', 1) for kv in r.stdout.decode(errors='replace').split('\0') if '=' in kv)
+                # bash's own bookkeeping, not activate's
+                for k in ('_', 'SHLVL', 'PWD', 'OLDPWD'):
+                    env.pop(k, None)
+                    if k in os.environ:
+                        env[k] = os.environ[k]
+                self._activated[venv] = env
+            return dict(self._activated[venv])
+
     def env(self, venv=None, cactus_bin=True):
         """the environment to run a step in: venv activated and, unless cactus_bin is False, this install's
         binaries next on the PATH.  With cactus_bin False, every cactus install is taken off the PATH, so a tool
         that needs its own bcftools (say) does not pick up cactus's.  Toil workers inherit the leader's
         environment, so this is theirs too."""
         venv = venv or self.venv
-        env = dict(os.environ)
+        env = self.activated(venv)
         env.pop('PYTHONHOME', None)
-        path = [d for d in env.get('PATH', '').split(':') if d and not (
+        path = [d for d in env.get('PATH', '').split(':') if d and d != os.path.join(venv, 'bin') and not (
             os.path.exists(os.path.join(d, 'cactus_consolidated')) or os.path.exists(os.path.join(d, 'cactus')))]
         env['PATH'] = ':'.join([os.path.join(venv, 'bin')] + ([self.bin] if cactus_bin else []) + path)
         env['VIRTUAL_ENV'] = venv
