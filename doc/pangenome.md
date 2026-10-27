@@ -1085,12 +1085,13 @@ total 72M
 2.1M chrII.raw.vg  4.4M chrIV.raw.vg   1.6M chrV.raw.vg   2.4M chrVII.raw.vg  1.7M chrX.raw.vg     3.1M chrXII.raw.vg  2.4M chrXIV.raw.vg   2.5M chrXVI.raw.vg
 ```
 
-`hal2vg` runs with `--lowMemory`, set in `hal2vgOptions` in the `<hal2vg>` section of the
-[cactus config](../src/cactus/cactus_progressive_config.xml).  On large alignments this needs much
-less memory than the original conversion.  It makes the same graph, except that it can leave a
-node broken in two where the original conversion makes one, so a `.raw.vg` can have slightly more
-nodes.  `cactus-graphmap-join` unchops the graph after normalizing it with GFAffix, which removes
-the difference.  To use the original conversion, remove `--lowMemory` from `hal2vgOptions`.
+`hal2vg` works out where the pinch blocks whose members disagree on a base divide, and makes those
+nodes as it builds the graph.  Older versions of `hal2vg` split those blocks in the pinch graph
+itself, which needed much more memory on large alignments.  The graph is the same, except that the
+`.raw.vg` can have a few more nodes, where the old conversion would have merged two into one, and
+`cactus-graphmap-join` removes the difference when it unchops the graph after normalizing it with
+GFAffix.  To use the old conversion, add `--legacyConversion` to `hal2vgOptions` in the `<hal2vg>`
+section of the [cactus config](../src/cactus/cactus_progressive_config.xml).
 
 ### Yeast: Joining the Chromosome Alignments
 

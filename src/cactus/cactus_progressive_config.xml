@@ -726,7 +726,7 @@
 		 includeMinigraph="1"
 		 includeAncestor="0"
 		 prependGenomeNames="1"
-		 hal2vgOptions="--progress --inMemory --lowMemory"
+		 hal2vgOptions="--progress --inMemory"
 		 />
 	<!-- panacus options (pangenome coverage/growth statistics with a native interactive-HTML plot) -->
 	<!-- countType: comma-separated graph feature(s) to count, each one of node, bp, edge (a separate report section is made for each) -->
