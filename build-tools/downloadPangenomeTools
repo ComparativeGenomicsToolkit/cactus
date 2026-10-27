@@ -223,7 +223,7 @@ fi
 cd ${pangenomeBuildDir}
 git clone https://github.com/ComparativeGenomicsToolkit/cactus-gfa-tools.git
 cd cactus-gfa-tools
-git checkout 0a53ad204edeed9e96492743228f841479bd38ba
+git checkout 9ecb8513e6e9cdd945305ed64b4e9d6eba67a2b0
 make -j ${numcpu}
 if [[ $STATIC_CHECK -ne 1 || $(ldd paf2lastz | grep so | wc -l) -eq 0 ]]
 then
@@ -293,7 +293,7 @@ fi
 cd ${pangenomeBuildDir}
 git clone https://github.com/ComparativeGenomicsToolkit/hal2vg.git
 cd hal2vg
-git checkout 99059d937c8c5ba2da440e149584cd5174e4cdc0
+git checkout 81752165474ae3e5f532f0450a365b40ebb41bb3
 git submodule update --init --recursive
 # makeBinRelease and the Dockerfile set ENABLE_PHYLOP, ENABLE_UDC and KENTSRC for cactus's own
 # hal, whose phast and kent sit beside it.  hal2vg builds a second hal with neither, so those

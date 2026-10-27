@@ -554,14 +554,15 @@ def validate_plan(job, hal_id, seqfile_genomes, unreadable, options, config):
                             'pangenome' if pangenome else 'progressive',
                             ' (forced with --pangenome)' if options.pangenome else ''))
 
-    # a pangenome seqfile that still spells a haplotype the old way (HG002.1) names
-    # the genome cactus put in the HAL as HG002#1.  such a genome goes by its HAL
-    # name from here on, and seqfile_names maps it back
+    # a pangenome seqfile that still spells a haplotype the old way (HG002.1, read
+    # with <graphmap dotHaplotypes="1">) names the genome cactus put in the HAL as
+    # HG002#1, and a genome given with its #0 (S288C#0) is S288C in the HAL.  such a
+    # genome goes by its HAL name from here on, and seqfile_names maps it back
     seqfile_names = {}
     if pangenome:
         for genome in seqfile_genomes:
             try:
-                hal_genome = normalize_pangenome_name(genome)
+                hal_genome = normalize_pangenome_name(genome, config.getDotHaplotypes())
             except RuntimeError:
                 continue
             if genome not in in_hal and hal_genome in in_hal:

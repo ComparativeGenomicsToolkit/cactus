@@ -188,12 +188,13 @@ def minigraph_construct_import_sequences(options, config_wrapper, input_seqfiles
     for chrom, seqfile_path in input_seqfiles.items():
         if type(seqfile_path) is list:
             seqfile_path = seqfile_path[0]
-        seqFile = SeqFile(seqfile_path, defaultBranchLen=config_wrapper.getDefaultBranchLen(pangenome=True), pangenome=True)
+        seqFile = SeqFile(seqfile_path, defaultBranchLen=config_wrapper.getDefaultBranchLen(pangenome=True), pangenome=True,
+                          dot_haplotypes=config_wrapper.getDotHaplotypes())
         input_seq_map = seqFile.pathMap
         raw_input_seq_order = seqFile.seqOrder
 
         # validate the sample names
-        options.reference = check_sample_names(input_seq_map.keys(), options.reference)
+        options.reference = check_sample_names(input_seq_map.keys(), options.reference, config_wrapper.getDotHaplotypes())
 
         # make sure the reference is first
         input_seq_order = [options.reference[0]]
@@ -305,10 +306,12 @@ def export_minigraph_construct_output(options, input_seqfiles, output_dict, toil
         if chrom_file_path.startswith('s3://'):
             write_s3(chrom_file_temp_path, chrom_file_path)
 
-def check_sample_names(sample_names, references):
+def check_sample_names(sample_names, references, dot_haplotypes):
     """ make sure we have a workable set of genome names, as read by SeqFile(pangenome=True), and
-    return the references (a list or a single name, like references) resolved against them, so
-    that HG002.1 becomes HG002#1 here as it does in the seqfile, and CHM13 finds CHM13#0 """
+    return the references (a list or a single name, like references) resolved against them
+    (resolve_pangenome_name): GCA_054883195.1 is the genome of that name if there is one, and
+    otherwise read as the seqfile's names were, so that with dot_haplotypes (<graphmap
+    dotHaplotypes>) HG002.1 becomes HG002#1 here as it does in the seqfile, and S288C#0 finds S288C """
 
     for sample in sample_names:
         if normalize_pangenome_name(sample) != sample:
@@ -320,10 +323,13 @@ def check_sample_names(sample_names, references):
     assert type(references) in [list, str]
     resolved = []
     for i, reference in enumerate([references] if type(references) is str else references):
-        resolved_reference = resolve_pangenome_name(reference, sample_names)
+        resolved_reference = resolve_pangenome_name(reference, sample_names, dot_haplotypes)
         if resolved_reference is None:
             # only the first reference has to be there: a chromosome's seqfile leaves out a genome
-            # with no sequence on it, and that can be another reference
+            # with no sequence on it, and that can be another reference.  it keeps its name as given
+            # (bar a #0), as the dotHaplotypes reading is only for finding a genome that is here.  that
+            # way one already resolved against another seqfile (--batch, or cactus-pangenome) comes
+            # through unchanged
             if i == 0:
                 raise RuntimeError("Specified reference, \"{}\" not in seqfile".format(reference))
             resolved_reference = normalize_pangenome_name(reference)
@@ -1615,8 +1621,9 @@ def minigraph_gfa_from_pansn(job, names, gfa_path, gfa_id):
 
     a GFA that is already in cactus naming -- from a cactus old enough to have published one, or
     handed straight from one stage to the next -- is read for its genome set and returned as-is,
-    unless it spells its haplotypes the old way (id=HG002.1|), in which case those are renamed to
-    the seqfile's genomes (id=HG002#1|) like everything else that is read in
+    unless it spells a genome another way than the seqfile now does (id=S288C#0| for S288C), in
+    which case those are renamed to the seqfile's genomes.  a '.' is never read as a haplotype here:
+    id=HG002.1| is the genome HG002.1, not HG002#1
     """
     work_dir = job.fileStore.getLocalTempDir()
     gfa_path = os.path.join(work_dir, os.path.basename(gfa_path))
@@ -1638,8 +1645,8 @@ def minigraph_gfa_from_pansn(job, names, gfa_path, gfa_id):
             for i, tok in enumerate(toks[4:]):
                 if tok.startswith('SN:Z:'):
                     if tok.startswith('SN:Z:id='):
-                        # already cactus-named: just harvest the genome, unless it's an old
-                        # spelling of a seqfile genome
+                        # already cactus-named: just harvest the genome, unless it's another
+                        # spelling of a seqfile genome (with its #0)
                         barpos = tok.find('|')
                         if barpos > 8:
                             name = tok[8:barpos]

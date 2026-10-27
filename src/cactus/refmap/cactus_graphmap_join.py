@@ -42,7 +42,7 @@ from cactus.shared.common import cactusRootPath
 from cactus.shared.configWrapper import ConfigWrapper
 from cactus.shared.common import makeURL, catFiles
 from cactus.shared.common import vg_chrom_name
-from cactus.shared.common import normalize_pangenome_name, resolve_pangenome_name, pangenome_name_sample
+from cactus.shared.common import normalize_pangenome_name, resolve_pangenome_name, pangenome_name_sample, split_pangenome_name
 from cactus.shared.common import enableDumpStack
 from cactus.shared.common import cactus_override_toil_options, add_cactus_toil_options
 from cactus.shared.common import cactus_call
@@ -572,10 +572,6 @@ def graphmap_join_validate_options(options):
             raise RuntimeError('--clipFlank cannot be used with --clip disabled: it trims outward '
                                'from the intervals --clip removes.')
 
-    # the references are genome names, normalized as the seqfile's are (so HG002.1 is HG002#1).
-    # graphmap_join_workflow turns them into the vg samples they belong to
-    options.reference = [normalize_pangenome_name(ref) for ref in options.reference]
-
     # if no graph output specified, default to gfa.gz
     if not options.gfa and not options.unchopped_gfa and not options.xg and not options.gbz:
         options.gfa = ['clip'] if options.clip else ['full']
@@ -700,15 +696,6 @@ def graphmap_join_validate_options(options):
         if options.batchSystem == 'single_machine':
             options.vcfwaveCores = min(options.vcfwaveCores, cactus_cpu_count())
         
-    if not options.vcfReference:
-        options.vcfReference = [options.reference[0]]
-    else:
-        for i, vcfref in enumerate(options.vcfReference):
-            resolved_vcfref = resolve_pangenome_name(vcfref, options.reference)
-            if resolved_vcfref is None:
-                raise RuntimeError('--vcfReference {} invalid because {} was not specified as a --reference'.format(vcfref, vcfref))
-            options.vcfReference[i] = resolved_vcfref
-
     if options.snarlStats == []:
         options.snarlStats = ['clip'] if options.clip else ['full']
     options.snarlStats = list(set(options.snarlStats)) if options.snarlStats else []    
@@ -836,14 +823,41 @@ def graphmap_join_validate_options(options):
             raise RuntimeError('--gref {} requested but {} was not provided as a bypass input'.format(
                 options.gref, options.gref))
 
-        # In bypass mode, VCF normalization extracts fasta from VG files which only
-        # works for the first (primary) reference
-        if options.vcf and options.vcfReference and options.vcfReference != [options.reference[0]]:
-            raise RuntimeError('--vcfReference can only specify the first reference ({}) in bypass mode'.format(
-                options.reference[0]))
-
     return options
-    
+
+def graphmap_join_resolve_references(options, dot_haplotypes, references_resolved=False):
+    """ make --reference and --vcfReference genome names, as the seqfile's are normalized.  this needs
+    the config's <graphmap dotHaplotypes>, so it comes after graphmap_join_validate_options().
+    cactus-pangenome has resolved the references against its seqfile already (references_resolved);
+    cactus-graphmap-join has no seqfile, so it reads them as a seqfile's names are read.  each
+    --vcfReference must be one of the references.  graphmap_join_workflow turns them all into the vg
+    samples they belong to """
+    if not references_resolved:
+        for i, ref in enumerate(options.reference):
+            options.reference[i] = normalize_pangenome_name(ref, dot_haplotypes)
+            if '#' not in ref and options.reference[i] != ref:
+                # with no seqfile at hand, a haplotype 0 genome whose name ends in .N can't be told
+                # from the old spelling of a haplotype, so say which way it went
+                logger.warning('--reference {} is read as {}, haplotype {} of {}, as <graphmap dotHaplotypes="1">.  '
+                               'If it is the genome named {} (haplotype 0), give it as {}#0'.format(
+                                   ref, options.reference[i], *split_pangenome_name(options.reference[i])[::-1],
+                                   ref, ref))
+
+    if not options.vcfReference:
+        options.vcfReference = [options.reference[0]]
+    else:
+        for i, vcfref in enumerate(options.vcfReference):
+            resolved_vcfref = resolve_pangenome_name(vcfref, options.reference, dot_haplotypes)
+            if resolved_vcfref is None:
+                raise RuntimeError('--vcfReference {} invalid because {} was not specified as a --reference'.format(vcfref, vcfref))
+            options.vcfReference[i] = resolved_vcfref
+
+    # In bypass mode, VCF normalization extracts fasta from VG files which only
+    # works for the first (primary) reference
+    if options.bypass and options.vcf and options.vcfReference != [options.reference[0]]:
+        raise RuntimeError('--vcfReference can only specify the first reference ({}) in bypass mode'.format(
+            options.reference[0]))
+
 def graphmap_join(options):
     with Toil(options) as toil:
         importSingularityImage(options)
@@ -862,6 +876,8 @@ def graphmap_join(options):
                 findRequiredNode(configNode, "graphmap").attrib["collapse"] = 'all'
 
             graphmap_join_config_overrides(options, configNode)
+
+            graphmap_join_resolve_references(options, config.getDotHaplotypes())
 
             # load up the hals
             hal_ids = []
