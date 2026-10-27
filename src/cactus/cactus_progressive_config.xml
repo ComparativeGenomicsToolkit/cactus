@@ -661,9 +661,9 @@
 	<!-- clipInversionMin: sever one-sided inversions when clipping.  A run of at least this many bp of reference nodes that a haplotype walks backwards is an inversion allele; when clipping has removed its junction with the forward reference at one end but not the other, the surviving junction is clipped too, so the inverted run becomes its own path fragment instead of an edge into the reverse strand with no way out (a 4.9Mb one-contig bubble on HPRC chr9).  Needs clip-vg >= 1.2.4.  0 disables -->
 	<!-- clipFlankThreshold: advanced.  keep trimming while more than this fraction of bases are unaligned, by the same test the clipping itself uses.  Negative calibrates per graph, which is almost always what you want: over 24 human chromosomes the calibrated value ran from 0.054 to 0.230, a 4.3x spread that tracks neither haplotype count nor chromosome size -->
 	<!-- minimizerOptions: options for vg minimizer -->
-	<!-- minFilterFragment: discard fragments that result from the vg clip frequency filter if they are smaller than this -->
+	<!-- minFilterFragment: discard fragments that result from the vg clip frequency filter (and from delEdgeFilter) if they are smaller than this -->
 	<!-- delEdgeFilter: when making the clip graph, remove edges that span more than this many bp on the reference genome (vg clip -D), the join's counterpart of the 10 Mb delFilter that filter-paf-deletions applies to the mappings.  0 disables.  The delEdgeFilter command-line option of cactus-graphmap-join and cactus-pangenome overrides it -->
-	<!-- clipContext: use this many context steps when doing edge clipping (delEdgeFilter) -->
+	<!-- clipContext: use this many context steps when doing edge clipping (delEdgeFilter).  0 or less means the default, 1000 -->
 	<!-- removeStubs: remove any nodes dangling off reference paths (ie softclips) -->
 	<!-- refGapMinLength: minimum length of a reference gap (run of reference with no other assembly aligned) to report in the exclusion report. set to 0 to skip the reference gap scan entirely -->
 	<!-- odgiVizOptions: options to odgi viz, used for 1d viz -->

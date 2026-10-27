@@ -88,11 +88,13 @@ def scaled_walltime(secs_per_gb, size_bytes, io_multiple=2):
 
 # clip_vg, the whole load/GFAffix/clip/normalise/validate pipeline.  n=75: the 'full' phase (the
 # only one that runs GFAffix) came to 597-630 s/GB at p50 and 729-951 s/GB at p99, the 'clip'
-# phase to 336-443 and 454-590.  the largest chromosome, 33.4 GB, took 6.1 hours in 'full'
-CLIP_VG_SECS_PER_GB = {'full' : 800, 'clip' : 600}
+# phase to 336-443 and 454-590.  the largest chromosome, 33.4 GB, took 6.1 hours in 'full'.  two
+# vg clip passes (-d 1 and -s, about 75 s/GB together) were added to 'clip' after this was measured
+CLIP_VG_SECS_PER_GB = {'full' : 800, 'clip' : 670}
 
-# vg_clip_vg: vg clip three times plus vg validate.  n=75, 292-349 s/GB at p50, 382-440 at the max
-VG_CLIP_VG_SECS_PER_GB = 450
+# vg_clip_vg: vg clip three times plus vg validate.  n=75, 292-349 s/GB at p50, 382-440 at the max.
+# a fourth vg clip pass (-d 1, about 38 s/GB) was added after this was measured
+VG_CLIP_VG_SECS_PER_GB = 500
 
 # pgrealign_vg: unmeasured, as --pgrealign is new.  per chromosome it runs vg convert -f (the
 # vg_to_gfa rate, 250 s/GB), vg paths -F and vg snarls, about four single-threaded python passes over
