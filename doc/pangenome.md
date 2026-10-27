@@ -1073,6 +1073,12 @@ cactus-align ./jobstore ./yeast-pg/chroms/chromfile.txt yeast-pg/chrom-alignment
 --batch --pangenome --reference S288C --outVG 
 ```
 
+HAL-to-graph export uses `hal2vg --lowMemory` by default. This constructs the output from
+compact base-group plans instead of expanding the intermediate pinch graph, reducing peak
+memory without temporary path spooling. Node IDs and equivalent linear subdivisions may
+change. The original conversion remains available by removing `--lowMemory` from the
+`hal2vgOptions` attribute of the `<hal2vg>` configuration element.
+
 The results are a HAL and VG file for each chromosome.  The `.raw.vg` graphs are the direct
 `hal2vg` output: they have not been clipped, filtered or otherwise normalized, which is what
 distinguishes them from the `<outName>.chroms/` graphs that `cactus-graphmap-join` makes below.

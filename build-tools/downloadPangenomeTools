@@ -293,7 +293,7 @@ fi
 cd ${pangenomeBuildDir}
 git clone https://github.com/ComparativeGenomicsToolkit/hal2vg.git
 cd hal2vg
-git checkout 99059d937c8c5ba2da440e149584cd5174e4cdc0
+git checkout 31bfa08a6b6beca44e83c75fb60a1d7f1325c62b
 git submodule update --init --recursive
 # makeBinRelease and the Dockerfile set ENABLE_PHYLOP, ENABLE_UDC and KENTSRC for cactus's own
 # hal, whose phast and kent sit beside it.  hal2vg builds a second hal with neither, so those
