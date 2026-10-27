@@ -88,9 +88,9 @@ def scaled_walltime(secs_per_gb, size_bytes, io_multiple=2):
 
 # clip_vg, the whole load/GFAffix/clip/normalise/validate pipeline.  n=75: the 'full' phase (the
 # only one that runs GFAffix) came to 597-630 s/GB at p50 and 729-951 s/GB at p99, the 'clip'
-# phase to 336-443 and 454-590.  the largest chromosome, 33.4 GB, took 6.1 hours in 'full'.  two
-# vg clip passes (-d 1 and -s, about 75 s/GB together) were added to 'clip' after this was measured
-CLIP_VG_SECS_PER_GB = {'full' : 800, 'clip' : 670}
+# phase to 336-443 and 454-590.  the largest chromosome, 33.4 GB, took 6.1 hours in 'full'.  three
+# vg clip passes (-d 1 twice and -s, about 120 s/GB together) were added to 'clip' after this was measured
+CLIP_VG_SECS_PER_GB = {'full' : 800, 'clip' : 720}
 
 # vg_clip_vg: vg clip three times plus vg validate.  n=75, 292-349 s/GB at p50, 382-440 at the max.
 # a fourth vg clip pass (-d 1, about 38 s/GB) was added after this was measured
@@ -1684,8 +1684,12 @@ def clip_vg(job, options, config, vg_path, vg_id, phase, gfa_id=None, gfa_realig
                 # the fragments -m drops can leave nodes and edges no path covers
                 cmd.append(['vg', 'clip', '-d', '1', '-', '-P', options.reference[0]])
             if remove_stubs:
-                # each edge -D cuts can leave sequence dangling
-                cmd.append(['vg', 'clip', '-s', '-', '-P', options.reference[0]])
+                # each edge -D cuts can leave sequence dangling. -D chops the other references too, and their
+                # pieces stay, as they did when stubs were only removed before -D
+                stub_cmd = ['vg', 'clip', '-s', '-']
+                for ref in options.reference:
+                    stub_cmd += ['-P', ref]
+                cmd.append(stub_cmd)
 
         if remove_stubs:
             # -S, -s or -D can each leave a cycle (a telomeric repeat cut off a reference end, say) as a
