@@ -1648,12 +1648,6 @@ def clip_vg(job, options, config, vg_path, vg_id, phase, gfa_id=None, gfa_realig
         # Also: any kind of clipping or path dropping can leave uncovered edges, so we remove them with vg clip        
         clip_cmd = ['vg', 'clip', '-d', '1', '-', '-P', options.reference[0]]
         cmd.append(clip_cmd)
-        if phase == 'clip' and getOptionalAttrib(join_xml_node, "removeStubs", typeFn=bool, default=True):
-            # todo: could save a little time by making vg clip smart enough to do two things at once
-            stub_cmd = ['vg', 'clip', '-sS', '-', '-P', options.reference[0]]
-
-            # todo: do we want to add the minigraph prefix to keep stubs from minigraph? but I don't think it makes stubs....
-            cmd.append(stub_cmd)
 
         # Deletion-edge filter to go after huge snarls that may negatively impact giraffe (on by
         # default, like filter-paf-deletions upstream; <graphmap_join delEdgeFilter="0"> disables it).
@@ -1662,6 +1656,7 @@ def clip_vg(job, options, config, vg_path, vg_id, phase, gfa_id=None, gfa_realig
         # clip-phase only: the clip graph is built from the full graph, so running it in both phases
         # just repeats the same work, and removals made in "full" would be indistinguishable from
         # sequence that never aligned at all in the exclusion report.
+        # It goes before the stub removal, since each edge it cuts can leave sequence dangling.
         del_edge_filter = getOptionalAttrib(join_xml_node, "delEdgeFilter", typeFn=int, default=10000000)
         if phase == 'clip' and del_edge_filter > 0:
             clip_context = getOptionalAttrib(join_xml_node, "clipContext", typeFn=int, default=0)
@@ -1672,6 +1667,20 @@ def clip_vg(job, options, config, vg_path, vg_id, phase, gfa_id=None, gfa_realig
             if min_fragment:
                 del_clip_cmd += ['-m', str(min_fragment)]
             cmd.append(del_clip_cmd)
+            if min_fragment:
+                # the fragments -m drops can leave nodes and edges no path covers
+                cmd.append(['vg', 'clip', '-d', '1', '-', '-P', options.reference[0]])
+
+        if phase == 'clip' and getOptionalAttrib(join_xml_node, "removeStubs", typeFn=bool, default=True):
+            # todo: could save a little time by making vg clip smart enough to do two things at once
+            stub_cmd = ['vg', 'clip', '-sS', '-', '-P', options.reference[0]]
+
+            # todo: do we want to add the minigraph prefix to keep stubs from minigraph? but I don't think it makes stubs....
+            cmd.append(stub_cmd)
+            # -S can cut a cycle (a telomeric repeat, say) off a reference end, and -s only removes what
+            # ends in a tip, so the cycle is left as a component of its own, which vg haplotypes rejects.
+            # -d drops every component with no reference path
+            cmd.append(['vg', 'clip', '-d', '1', '-', '-P', options.reference[0]])
 
     # and we sort by id on the first go-around
     if phase == 'full':
@@ -1954,28 +1963,25 @@ def vg_clip_vg(job , options, config, vg_path, vg_id):
     job.fileStore.readGlobalFile(vg_id, vg_path)
     clipped_path = vg_path + '.clip'
 
-    clip_cmd = ['vg', 'clip', vg_path, '-d', str(options.filter)]
+    ref_opts = []
     for ref in options.reference:
-        clip_cmd += ['-P', ref]
+        ref_opts += ['-P', ref]
+    clip_cmd = [['vg', 'clip', vg_path, '-d', str(options.filter)] + ref_opts]
     min_fragment = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "minFilterFragment", typeFn=int, default=None)
     if min_fragment:
-        clip_cmd += ['-m', str(min_fragment)]
-        # the min-fragment option is kind of ill thought out, and works as post-processing.  therefore it can
-        # actually leave uncovered nodes, we clean here but note that it can leave fragments smaller than min-fragment
-        clean_cmd = ['vg', 'clip', '-d', '1', '-']
-        for ref in options.reference:
-            clean_cmd += ['-P', ref]
-        clip_cmd = [clip_cmd, clean_cmd]
+        clip_cmd[0] += ['-m', str(min_fragment)]
+        # the min-fragment option works as post-processing, so the fragments it drops can leave
+        # uncovered nodes: clean them out
+        clip_cmd.append(['vg', 'clip', '-d', '1', '-'] + ref_opts)
 
     if getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "removeStubs", typeFn=bool, default=True):
-        # this command can also leave fragments smaller than min-fragment
+        # this command can leave fragments smaller than min-fragment
         stub_cmd = ['vg', 'clip', '-sS', '-']
         if options.reference:
             stub_cmd += ['-P', options.reference[0]]
-        if min_fragment:
-            clip_cmd.append(stub_cmd)
-        else:
-            clip_cmd = [clip_cmd, stub_cmd]
+        clip_cmd.append(stub_cmd)
+        # -S can cut a cycle off a reference end, which -s then leaves as a component of its own: drop those
+        clip_cmd.append(['vg', 'clip', '-d', '1', '-'] + ref_opts)
 
     cactus_call(parameters=clip_cmd, outfile=clipped_path, job_memory=job.memory)
 
