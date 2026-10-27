@@ -1659,7 +1659,9 @@ def clip_vg(job, options, config, vg_path, vg_id, phase, gfa_id=None, gfa_realig
         # It goes before the stub removal, since each edge it cuts can leave sequence dangling.
         del_edge_filter = getOptionalAttrib(join_xml_node, "delEdgeFilter", typeFn=int, default=10000000)
         if phase == 'clip' and del_edge_filter > 0:
-            clip_context = getOptionalAttrib(join_xml_node, "clipContext", typeFn=int, default=0)
+            # the default context also applies to configs from before clipContext existed: without -c, vg clip
+            # searches as many steps as the -D length, which is far too slow on a whole chromosome
+            clip_context = getOptionalAttrib(join_xml_node, "clipContext", typeFn=int, default=1000)
             min_fragment = getOptionalAttrib(join_xml_node, "minFilterFragment", typeFn=int, default=0)
             del_clip_cmd = ['vg', 'clip', '-', '-D', str(del_edge_filter), '-P', options.reference[0]]
             if clip_context:
