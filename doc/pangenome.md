@@ -1073,12 +1073,6 @@ cactus-align ./jobstore ./yeast-pg/chroms/chromfile.txt yeast-pg/chrom-alignment
 --batch --pangenome --reference S288C --outVG 
 ```
 
-HAL-to-graph export uses `hal2vg --lowMemory` by default. This constructs the output from
-compact base-group plans instead of expanding the intermediate pinch graph, reducing peak
-memory without temporary path spooling. Node IDs and equivalent linear subdivisions may
-change. The original conversion remains available by removing `--lowMemory` from the
-`hal2vgOptions` attribute of the `<hal2vg>` configuration element.
-
 The results are a HAL and VG file for each chromosome.  The `.raw.vg` graphs are the direct
 `hal2vg` output: they have not been clipped, filtered or otherwise normalized, which is what
 distinguishes them from the `<outName>.chroms/` graphs that `cactus-graphmap-join` makes below.
@@ -1090,6 +1084,13 @@ total 72M
 2.7M chrII.hal     5.1M chrIV.hal      2.0M chrV.hal      3.1M chrVII.hal     2.1M chrX.hal        3.5M chrXII.hal     2.7M chrXIV.hal      3.2M chrXVI.hal
 2.1M chrII.raw.vg  4.4M chrIV.raw.vg   1.6M chrV.raw.vg   2.4M chrVII.raw.vg  1.7M chrX.raw.vg     3.1M chrXII.raw.vg  2.4M chrXIV.raw.vg   2.5M chrXVI.raw.vg
 ```
+
+`hal2vg` runs with `--lowMemory`, set in `hal2vgOptions` in the `<hal2vg>` section of the
+[cactus config](../src/cactus/cactus_progressive_config.xml).  On large alignments this needs much
+less memory than the original conversion.  It makes the same graph, except that it can leave a
+node broken in two where the original conversion makes one, so a `.raw.vg` can have slightly more
+nodes.  `cactus-graphmap-join` unchops the graph after normalizing it with GFAffix, which removes
+the difference.  To use the original conversion, remove `--lowMemory` from `hal2vgOptions`.
 
 ### Yeast: Joining the Chromosome Alignments
 
