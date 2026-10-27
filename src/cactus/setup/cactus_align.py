@@ -577,7 +577,10 @@ def export_vg(job, hal_id, config_wrapper, doVG, doGFA, referenceEvents, checkpo
     if not resource_spec:
         # caller couldn't figure out the resrouces from hal_id promise.  do that
         # now and try again
-        vg_memory = hal_id.size * 30 if not memory_override else memory_override
+        # hal2vg peaked at 3.0-3.8x the HAL on every chromosome of a 466-haplotype HPRC graph, and at
+        # 2.5-4.0x on a 30-way one, now that it plans where the blocks whose members disagree divide
+        # instead of splitting them in the pinch graph (which took 6.7-8.3x).  10x leaves 2.5x room.
+        vg_memory = hal_id.size * 10 if not memory_override else memory_override
         # optional floor from config: hal2vg memory is set from the alignment's cons_memory, which
         # for large unclipped graphs (eg cactus-panpatch reference-free, where a "chromosome" is a
         # whole assembly contig) can be far less than hal2vg --inMemory needs.  cactus-panpatch sets
