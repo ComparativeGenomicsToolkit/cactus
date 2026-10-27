@@ -1648,6 +1648,13 @@ def clip_vg(job, options, config, vg_path, vg_id, phase, gfa_id=None, gfa_realig
         # Also: any kind of clipping or path dropping can leave uncovered edges, so we remove them with vg clip        
         clip_cmd = ['vg', 'clip', '-d', '1', '-', '-P', options.reference[0]]
         cmd.append(clip_cmd)
+        remove_stubs = phase == 'clip' and getOptionalAttrib(join_xml_node, "removeStubs", typeFn=bool, default=True)
+        if remove_stubs:
+            # todo: could save a little time by making vg clip smart enough to do two things at once
+            stub_cmd = ['vg', 'clip', '-sS', '-', '-P', options.reference[0]]
+
+            # todo: do we want to add the minigraph prefix to keep stubs from minigraph? but I don't think it makes stubs....
+            cmd.append(stub_cmd)
 
         # Deletion-edge filter to go after huge snarls that may negatively impact giraffe (on by
         # default, like filter-paf-deletions upstream; <graphmap_join delEdgeFilter="0"> disables it).
@@ -1656,32 +1663,32 @@ def clip_vg(job, options, config, vg_path, vg_id, phase, gfa_id=None, gfa_realig
         # clip-phase only: the clip graph is built from the full graph, so running it in both phases
         # just repeats the same work, and removals made in "full" would be indistinguishable from
         # sequence that never aligned at all in the exclusion report.
-        # It goes before the stub removal, since each edge it cuts can leave sequence dangling.
+        # It goes after the stub removal, which cuts the edges off the outer sides of the reference ends:
+        # otherwise sequence joined to the outside of an end looks like it spans to the end of the
+        # chromosome, and -D can cut an ordinary insertion's edge instead.
         del_edge_filter = getOptionalAttrib(join_xml_node, "delEdgeFilter", typeFn=int, default=10000000)
         if phase == 'clip' and del_edge_filter > 0:
-            # the default context also applies to configs from before clipContext existed: without -c, vg clip
-            # searches as many steps as the -D length, which is far too slow on a whole chromosome
+            # the default context also applies to configs from before clipContext existed (and to 0): without
+            # -c, vg clip searches as many steps as the -D length, which is far too slow on a whole chromosome
             clip_context = getOptionalAttrib(join_xml_node, "clipContext", typeFn=int, default=1000)
+            if clip_context <= 0:
+                clip_context = 1000
             min_fragment = getOptionalAttrib(join_xml_node, "minFilterFragment", typeFn=int, default=0)
-            del_clip_cmd = ['vg', 'clip', '-', '-D', str(del_edge_filter), '-P', options.reference[0]]
-            if clip_context:
-                del_clip_cmd += ['-c', str(clip_context)]
+            del_clip_cmd = ['vg', 'clip', '-', '-D', str(del_edge_filter), '-P', options.reference[0], '-c', str(clip_context)]
             if min_fragment:
                 del_clip_cmd += ['-m', str(min_fragment)]
             cmd.append(del_clip_cmd)
             if min_fragment:
                 # the fragments -m drops can leave nodes and edges no path covers
                 cmd.append(['vg', 'clip', '-d', '1', '-', '-P', options.reference[0]])
+            if remove_stubs:
+                # each edge -D cuts can leave sequence dangling
+                cmd.append(['vg', 'clip', '-s', '-', '-P', options.reference[0]])
 
-        if phase == 'clip' and getOptionalAttrib(join_xml_node, "removeStubs", typeFn=bool, default=True):
-            # todo: could save a little time by making vg clip smart enough to do two things at once
-            stub_cmd = ['vg', 'clip', '-sS', '-', '-P', options.reference[0]]
-
-            # todo: do we want to add the minigraph prefix to keep stubs from minigraph? but I don't think it makes stubs....
-            cmd.append(stub_cmd)
-            # -S can cut a cycle (a telomeric repeat, say) off a reference end, and -s only removes what
-            # ends in a tip, so the cycle is left as a component of its own, which vg haplotypes rejects.
-            # -d drops every component with no reference path
+        if remove_stubs:
+            # -S, -s or -D can each leave a cycle (a telomeric repeat cut off a reference end, say) as a
+            # component of its own, which vg haplotypes rejects. -d drops every component with no reference
+            # path. only the first reference counts, so a component that carries just another reference goes too
             cmd.append(['vg', 'clip', '-d', '1', '-', '-P', options.reference[0]])
 
     # and we sort by id on the first go-around
@@ -1982,7 +1989,7 @@ def vg_clip_vg(job , options, config, vg_path, vg_id):
         if options.reference:
             stub_cmd += ['-P', options.reference[0]]
         clip_cmd.append(stub_cmd)
-        # -S can cut a cycle off a reference end, which -s then leaves as a component of its own: drop those
+        # -S or -s can leave a cycle as a component of its own: drop those
         clip_cmd.append(['vg', 'clip', '-d', '1', '-'] + ref_opts)
 
     cactus_call(parameters=clip_cmd, outfile=clipped_path, job_memory=job.memory)
