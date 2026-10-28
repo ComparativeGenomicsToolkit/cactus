@@ -494,11 +494,13 @@ def split_gfa(job, config, gfa_id, paf_ids, ref_contigs, other_contig, reference
             if name not in output_id_map:
                 output_id_map[name] = {}
             if ext == '.paf':
-                # apply the hacky naming correction so that subpaths have no special characterse in the hal (to make hubs happy)
-                # this gets undone by hal2vg
-                cmd = get_faidx_subpath_rename_cmd()
-                cmd += ['-e', 's/ /\t/g', '-i', os.path.join(work_dir, out_name)]
-                cactus_call(parameters=cmd)
+                # spaces become tabs.  This used to be sed -i, with the subpath rename of
+                # get_faidx_subpath_rename_cmd(), which never matched; GNU sed's -i and \t do not work on Mac.
+                paf_path = os.path.join(work_dir, out_name)
+                with open(paf_path, 'r') as paf_file, open(paf_path + '.tabs', 'w') as tab_file:
+                    for line in paf_file:
+                        tab_file.write(line.replace(' ', '\t'))
+                os.replace(paf_path + '.tabs', paf_path)
             output_id_map[name][ext[1:]] = job.fileStore.writeGlobalFile(os.path.join(work_dir, out_name))
             
     return output_id_map, job.fileStore.writeGlobalFile(log_path)
