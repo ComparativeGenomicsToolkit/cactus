@@ -97,7 +97,7 @@ In order to compile the binaries locally and not use a Docker image, you need so
 grep apt-get Dockerfile | head -1 | sed -e 's/RUN //g' -e 's/apt-get/sudo apt-get/g'
 ```
 
-Progressive Cactus can be built on ARM cpus including on [Mac](#building-on-mac), but Minigraph-Cactus is currently X86-only.
+Progressive Cactus can be built on ARM cpus including on [Mac](#building-on-mac).  Minigraph-Cactus can be built on X86 Linux and on Mac, but not yet on ARM Linux.
 
 To build Cactus, run (from inside `cactus/`):
 ```
@@ -147,7 +147,14 @@ I pasted the install commanid from the [Homebrew homepage](https://brew.sh/) int
 Then I installed the brew dependencies for Cactus
 
 ```
-brew install coreutils libomp hdf5 libdeflate parallel wget samtools bcftools 
+brew install coreutils libomp hdf5 libdeflate parallel wget samtools bcftools python
+```
+
+For Minigraph-Cactus, `build-tools/downloadPangenomeTools` builds vg and mash from source on Mac, so it also needs vg's dependencies (from the Brewfile of the vg version it builds) and mash's `capnp` and `gsl`:
+
+```
+curl -fsSL https://raw.githubusercontent.com/vgteam/vg/v1.78.0/Brewfile | brew bundle --file=-
+brew install capnp gsl
 ```
 
 When installing `libomp` above (use `brew reinstall libomp` if you missed it), it printed some messages about setting:
@@ -172,17 +179,17 @@ source ~/.zprofile
 
 #### Virtualenv
 
-Python3 seemed to be installed by default.  In order to install virtualenv I ran
+Cactus needs Python 3.10 or newer, and the `python3` that comes with the developer tools is older, so use Homebrew's (installed above, and first in `PATH` once Homebrew is set up).  It does not allow `pip install virtualenv`, so create the virtualenv with its built-in `venv` module instead of the `python3 -m virtualenv` in the [steps](#creating-the-python-virtualenv):
 
 ```
-python3 -m pip install virtualenv
+python3 -m venv cactus_env
 ```
 
 #### That's it
 
 You should now be able to run the [steps](#installing-manually-from-source) to clone, setup the virtualenv and compile the binaries exactly as they are described above. 
 
-**Note that Minigraph-Cactus is not (yet) supported on Mac.**
+On Mac, `build-tools/downloadPangenomeTools` does not build odgi or vcfwave, so the `--odgi`, `--viz`, `--draw` and `--vcfwave` options of Minigraph-Cactus are not available.
 
 I recommend running
 ```
