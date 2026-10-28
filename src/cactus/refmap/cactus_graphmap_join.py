@@ -1137,11 +1137,15 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
     else:
         # hacky heuristic to get memory for vg jobs, where vg minimizer is tricky as
         # it's not really based on graph size so much (ie simple graphs can take lots of mem)
+        # the last factor has no upper bound: make_vg_indexes' vg gbwt -G took 592Gi on HPRC's 378Gi of
+        # input, 1.57x, so a bigger panel must not drop to 1x.  but no more than any node has, which
+        # would leave the jobs pending forever
         index_mem = sum(f.size for f in vg_ids)
-        for tot_size, fac in zip([1e6, 1e9, 10e9, 50e9, 100e9, 500e9], [1000, 32, 10, 6, 5, 2]):
+        for tot_size, fac in zip([1e6, 1e9, 10e9, 50e9, 100e9, float('inf')], [1000, 32, 10, 6, 5, 2]):
             if index_mem < tot_size:
                 index_mem *= fac
                 break
+        index_mem = cactus_clamp_memory(index_mem)
     max_system_memory = config.getSystemMemory()
     if max_system_memory and index_mem > max_system_memory:
         RealtimeLogger.info("Clamping index memory {} to system limit of {}".format(index_mem, max_system_memory))
