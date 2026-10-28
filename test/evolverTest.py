@@ -627,7 +627,7 @@ class TestCase(unittest.TestCase):
         because bgzip block boundaries depend on the thread count, so two byte-identical graphs
         can have different .gz bytes """
         self.assertTrue(os.path.exists(gfa_path), '{} not found'.format(gfa_path))
-        return subprocess.check_output('zcat {}'.format(gfa_path), shell=True)
+        return subprocess.check_output('gzip -dc {}'.format(gfa_path), shell=True)
 
     def _gfa_genomes(self, gfa_path):
         """ the set of genomes an rGFA's SN tags name """
@@ -918,11 +918,11 @@ class TestCase(unittest.TestCase):
         return base
 
     def _validate_sv_gfa(self, gfa_path):
-        """ run `zcat <gfa_path> | vg validate -` and assert it passes.
+        """ run `gzip -dc <gfa_path> | vg validate -` and assert it passes.
         catches things like missing edges in the merged minigraph SV GFA.
         """
         self.assertTrue(os.path.exists(gfa_path), 'sv.gfa.gz not found at {}'.format(gfa_path))
-        proc = subprocess.run('zcat {} | vg validate -'.format(gfa_path),
+        proc = subprocess.run('gzip -dc {} | vg validate -'.format(gfa_path),
                               shell=True, capture_output=True)
         self.assertEqual(proc.returncode, 0,
                          'vg validate failed for {}\nstderr:\n{}'.format(gfa_path, proc.stderr.decode()))
@@ -1817,7 +1817,7 @@ class TestCase(unittest.TestCase):
 
         # Per-base wigs must decompress and contain at least one fixedStep header.
         for wig_gz in (out_wig, sub_wig):
-            wig_text = subprocess.check_output(['zcat', wig_gz]).decode('utf-8')
+            wig_text = subprocess.check_output(['gzip', '-dc', wig_gz]).decode('utf-8')
             self.assertIn('fixedStep chrom={}'.format(refContig), wig_text)
 
         # bigWig magic: 0x888FFC26 little-endian = 26 fc 8f 88.
@@ -2164,8 +2164,8 @@ class TestCase(unittest.TestCase):
         with open(base['paf'], 'rb') as base_paf, open(extended['paf'], 'rb') as ext_paf:
             self.assertEqual(ext_paf.read(), base_paf.read())
         # and the republished GAF is intact, so the extended run can itself be extended
-        self.assertEqual(subprocess.check_output('zcat {}'.format(extended['gaf']), shell=True),
-                         subprocess.check_output('zcat {}'.format(base['gaf']), shell=True))
+        self.assertEqual(subprocess.check_output('gzip -dc {}'.format(extended['gaf']), shell=True),
+                         subprocess.check_output('gzip -dc {}'.format(base['gaf']), shell=True))
 
         # an unchanged graph is the one graph construction hands back without writing it, so it is
         # the one that can come out at the compression of the file it was read from rather than of
