@@ -5,7 +5,7 @@ libSources = impl/*.c
 libHeaders = inc/*.h
 libTests = tests/*.c
 
-commonCafLibs = ${sonLibDir}/stPinchesAndCacti.a ${sonLibDir}/3EdgeConnected.a ${LIBDIR}/cactusLib.a ${LIBDIR}/stPaf.a
+commonCafLibs = ${sonLibDir}/stPinchesAndCacti.a ${LIBDIR}/cactusLib.a ${LIBDIR}/stPaf.a
 stCafDependencies =  ${commonCafLibs} ${LIBDEPENDS}
 stCafLibs = ${commonCafLibs} ${LDLIBS}
 
