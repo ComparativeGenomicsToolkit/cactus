@@ -89,8 +89,9 @@ def scaled_walltime(secs_per_gb, size_bytes, io_multiple=2):
 # clip_vg, the whole load/GFAffix/clip/normalise/validate pipeline.  n=75: the 'full' phase (the
 # only one that runs GFAffix) came to 597-630 s/GB at p50 and 729-951 s/GB at p99, the 'clip'
 # phase to 336-443 and 454-590.  the largest chromosome, 33.4 GB, took 6.1 hours in 'full'.  three
-# vg clip passes (-d 1 twice and -s, about 120 s/GB together) were added to 'clip' after this was measured
-CLIP_VG_SECS_PER_GB = {'full' : 800, 'clip' : 720}
+# vg clip passes (-d 1 twice and -s, about 120 s/GB together) were added to 'clip' after this was
+# measured, and one (-Sk, about 40 s/GB) to 'full'
+CLIP_VG_SECS_PER_GB = {'full' : 840, 'clip' : 720}
 
 # vg_clip_vg: vg clip three times plus vg validate.  n=75, 292-349 s/GB at p50, 382-440 at the max.
 # a fourth vg clip pass (-d 1, about 38 s/GB) was added after this was measured
@@ -1696,6 +1697,15 @@ def clip_vg(job, options, config, vg_path, vg_id, phase, gfa_id=None, gfa_realig
             # component of its own, which vg haplotypes rejects. -d drops every component with no reference
             # path. only the first reference counts, so a component that carries just another reference goes too
             cmd.append(['vg', 'clip', '-d', '1', '-', '-P', options.reference[0]])
+
+        # vg haplotypes needs the reference paths to end in tips: the distance index for --haplo roots
+        # its snarl tree on reference[0]'s ends, and an end that lies on a cycle makes a top-level chain
+        # that loops.  -S cuts the edges off the outer sides of the end nodes, and -k keeps every node:
+        # a piece hanging off an end stays attached to it (a dead end with no tip gets one cut in), so the
+        # full graph loses a few edges but no sequence, and no node is cut off from the reference.  it goes
+        # after -d 1, which could otherwise remove a node that a kept piece hangs from
+        if phase == 'full' and getOptionalAttrib(join_xml_node, "fullStubbify", typeFn=bool, default=True):
+            cmd.append(['vg', 'clip', '-Sk', '-', '-P', options.reference[0]])
 
     # and we sort by id on the first go-around
     if phase == 'full':

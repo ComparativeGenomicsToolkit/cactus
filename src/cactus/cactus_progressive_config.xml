@@ -665,6 +665,7 @@
 	<!-- delEdgeFilter: when making the clip graph, remove edges that span more than this many bp on the reference genome (vg clip -D), the join's counterpart of the 10 Mb delFilter that filter-paf-deletions applies to the mappings.  0 disables.  The delEdgeFilter command-line option of cactus-graphmap-join and cactus-pangenome overrides it -->
 	<!-- clipContext: use this many context steps when doing edge clipping (delEdgeFilter).  0 or less means the default, 1000 -->
 	<!-- removeStubs: remove any nodes dangling off reference paths (ie softclips) -->
+	<!-- fullStubbify: make the first reference's paths end in tips in the full graph by cutting the edges off the outer sides of their end nodes (vg clip -Sk).  Every node is kept: sequence hanging off an end stays attached to it (if it loops back on itself, one edge in the loop is cut to give it a tip).  vg haplotypes needs this to index the full graph (haplo full) when a reference end lies on a cycle.  It cuts the haplotype paths that cross those edges into pieces -->
 	<!-- refGapMinLength: minimum length of a reference gap (run of reference with no other assembly aligned) to report in the exclusion report. set to 0 to skip the reference gap scan entirely -->
 	<!-- odgiVizOptions: options to odgi viz, used for 1d viz -->
 	<!-- odgiLayoutOptions: options to odgi layout, used for 2d viz -->
@@ -697,6 +698,7 @@
 		 delEdgeFilter="10000000"
 		 clipContext="1000"
 		 removeStubs="1"
+		 fullStubbify="1"
 		 refGapMinLength="10000"
 		 odgiVizOptions="-x 1500 -y 500 -a 10"
 		 odgiLayoutOptions="-x 50"
