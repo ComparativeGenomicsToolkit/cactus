@@ -1159,9 +1159,11 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
     if options.bypass and need_ref_fasta and options.vcf:
         # in bypass mode, extract reference fasta from the first available bypass vg set
         ref_vg_ids = bypass_full_ids or bypass_clip_ids or bypass_filter_ids
+        # vg paths -F runs on one chromosome at a time, so the biggest sets the memory: 6x, as for the
+        # vg paths in drop_graph_event
         ref_fasta_job = root_job.addFollowOnJobFn(extract_vg_fasta, options, ref_vg_ids,
                                                    disk=sum(f.size for f in vg_ids) * 2,
-                                                   memory=cactus_clamp_memory(sum(f.size for f in vg_ids) * 4),
+                                                   memory=cactus_clamp_memory(min(max(f.size for f in vg_ids) * 6, max_mem)),
                                                    walltime=scaled_walltime(EXTRACT_VG_FASTA_SECS_PER_GB,
                                                                             sum(f.size for f in vg_ids),
                                                                             io_multiple=1))
@@ -1355,7 +1357,7 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
                 
                 snarl_stats_job = gfa_root_job.addChildJobFn(snarl_stats, options, config, vg_path, vg_id,
                                                              disk=input_vg_id.size * 2,
-                                                             memory=cactus_clamp_memory(input_vg_id.size * 10),
+                                                             memory=cactus_clamp_memory(min(input_vg_id.size * 10, max_mem)),
                                                              cores=options.indexCores,
                                                              walltime=scaled_walltime(SNARL_STATS_SECS_PER_GB,
                                                                                       input_vg_id.size))
@@ -1439,10 +1441,11 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
         gref_fasta_dict = None
         gref_parent_job = gref_root_job
         if need_ref_fasta and options.vcf:
+            # sized as in the bypass call above
             gref_fasta_job = gref_root_job.addFollowOnJobFn(extract_vg_fasta, options, gref_vg_ids,
                                                               vcf_ref=gref_sample,
                                                               disk=sum(f.size for f in vg_ids) * 2,
-                                                              memory=cactus_clamp_memory(sum(f.size for f in vg_ids) * 4),
+                                                              memory=cactus_clamp_memory(min(max(f.size for f in vg_ids) * 6, max_mem)),
                                                               walltime=scaled_walltime(EXTRACT_VG_FASTA_SECS_PER_GB,
                                                                                        sum(f.size for f in vg_ids),
                                                                                        io_multiple=1))
@@ -2276,6 +2279,8 @@ def make_vcf(job, config, options, workflow_phase, index_mem, vcf_ref, vg_ids, r
         # keep clustered VCFs from being mistaken for the normal ones sitting beside them
         vcftag += '.L{}'.format(int(round(decon_L * 100)))
     do_wave = options.vcfwave and decon_L is None
+    # --indexMemory promises that no job asks for more
+    max_mem = options.indexMemory if options.indexMemory else sys.maxsize
     raw_vcf_tbi_ids, bub_vcf_tbi_ids, wave_vcf_tbi_ids = [], [], []
     for vg_path, vg_id, in zip(options.vg, vg_ids):
         deconstruct_job = root_job.addChildJobFn(deconstruct, config, options.outName,
@@ -2296,7 +2301,7 @@ def make_vcf(job, config, options, workflow_phase, index_mem, vcf_ref, vg_ids, r
                                                           ref_fasta_dict,
                                                           tag=os.path.splitext(os.path.basename(vg_path))[0] + '.' + vcftag + '.',
                                                           disk = vg_id.size * 6,
-                                                          memory=cactus_clamp_memory(vg_id.size * 2),
+                                                          memory=cactus_clamp_memory(min(vg_id.size * 2, max_mem)),
                                                           walltime=scaled_walltime(VCFBUB_SECS_PER_GB, vg_id.size,
                                                                                    io_multiple=0.5))
             bub_vcf_id, bub_tbi_id = vcfbub_job.rv(0), vcfbub_job.rv(1)
@@ -2308,9 +2313,10 @@ def make_vcf(job, config, options, workflow_phase, index_mem, vcf_ref, vg_ids, r
                                                            options.vcfbub,
                                                            ref_fasta_dict,
                                                            tag=os.path.splitext(os.path.basename(vg_path))[0] + '.' + vcftag + '.',
+                                                           max_mem=max_mem,
                                                            cores=options.vcfwaveCores,
                                                            disk=vg_id.size * 6,
-                                                           memory=cactus_clamp_memory(options.vcfwaveMemory),
+                                                           memory=cactus_clamp_memory(min(options.vcfwaveMemory, max_mem)),
                                                            walltime=scaled_walltime(CHUNKED_VCFWAVE_SECS_PER_GB,
                                                                                     vg_id.size, io_multiple=0.5))
             wave_vcf_id, wave_tbi_id = vcfwave_job.rv(0), vcfwave_job.rv(1)
@@ -2326,7 +2332,7 @@ def make_vcf(job, config, options, workflow_phase, index_mem, vcf_ref, vg_ids, r
                                               fix_ploidies=True,
                                               cores = cat_cores,
                                               disk = sum(f.size for f in vg_ids) * 26,
-                                              memory = cactus_clamp_memory(sum(f.size for f in vg_ids)),
+                                              memory = cactus_clamp_memory(min(sum(f.size for f in vg_ids), max_mem)),
                                               walltime=scaled_walltime(VCF_CAT_SECS_PER_GB,
                                                                        sum(f.size for f in vg_ids),
                                                                        io_multiple=0.125))
@@ -2337,7 +2343,7 @@ def make_vcf(job, config, options, workflow_phase, index_mem, vcf_ref, vg_ids, r
                                                   fix_ploidies=True,
                                                   cores = cat_cores,
                                                   disk = sum(f.size for f in vg_ids) * 26,
-                                                  memory = cactus_clamp_memory(sum(f.size for f in vg_ids)),
+                                                  memory = cactus_clamp_memory(min(sum(f.size for f in vg_ids), max_mem)),
                                                   walltime=scaled_walltime(VCF_CAT_SECS_PER_GB,
                                                                            sum(f.size for f in vg_ids),
                                                                            io_multiple=0.125))
@@ -2348,7 +2354,7 @@ def make_vcf(job, config, options, workflow_phase, index_mem, vcf_ref, vg_ids, r
                                                    fix_ploidies=True,
                                                    cores = cat_cores,
                                                    disk = sum(f.size for f in vg_ids) * 26,
-                                                   memory = cactus_clamp_memory(sum(f.size for f in vg_ids)),
+                                                   memory = cactus_clamp_memory(min(sum(f.size for f in vg_ids), max_mem)),
                                                    walltime=scaled_walltime(VCF_CAT_SECS_PER_GB,
                                                                             sum(f.size for f in vg_ids),
                                                                             io_multiple=0.125))
@@ -2735,8 +2741,9 @@ def check_vcffixup(job):
     except:
         raise RuntimeError('vcf normalization with merge_duplicates enabled, but vcffixup tool (used in postprocessing) not found in PATH. vcffixup is *not* included in the cactus binary release, but it is in the cactus Docker image. If you have Docker installed, you can try running again with --binariesMode docker. Or running your whole command with docker run. If you cannot use Docker, then you will need to build vcflib yourself before retrying: source code and details here: https://github.com/vcflib/vcflib. Running the ./build-tools/downloadVCFWave script (from the cactus/ directory) will attemp to download and build vcfwave.')    
     
-def chunked_vcfwave(job, config, out_name, vcf_ref, vcf_id, tbi_id, max_ref_allele, fasta_ref_dict, tag):
-    """ run vcfwave in parallel chunks """
+def chunked_vcfwave(job, config, out_name, vcf_ref, vcf_id, tbi_id, max_ref_allele, fasta_ref_dict, tag,
+                    max_mem=sys.maxsize):
+    """ run vcfwave in parallel chunks.  max_mem is --indexMemory, which no job may ask for more than """
     if vcf_id is None:
         return None, None
 
@@ -2835,7 +2842,7 @@ def chunked_vcfwave(job, config, out_name, vcf_ref, vcf_id, tbi_id, max_ref_alle
     vcfwave_cat_job = root_job.addFollowOnJobFn(vcf_cat, chunk_vcf_tbi_ids, tag, sort=True,
                                                 fix_ploidies=False,
                                                 disk=vcf_id.size * 10,
-                                                memory=cactus_clamp_memory(vcf_id.size*5),
+                                                memory=cactus_clamp_memory(min(vcf_id.size*5, max_mem)),
                                                 walltime=scaled_walltime(VCF_CAT_CHUNK_SECS_PER_GB, vcf_id.size,
                                                                          io_multiple=4))
 
@@ -2847,7 +2854,7 @@ def chunked_vcfwave(job, config, out_name, vcf_ref, vcf_id, tbi_id, max_ref_alle
         norm_job = vcfwave_cat_job.addFollowOnJobFn(vcfnorm, config, vcf_ref, vcfwave_cat_job.rv(0),
                                                     vcfwave_path, vcfwave_cat_job.rv(1), fasta_ref_dict,
                                                     disk=vcf_id.size*12,
-                                                    memory=cactus_clamp_memory(vcf_id.size*5),
+                                                    memory=cactus_clamp_memory(min(vcf_id.size*5, max_mem)),
                                                     walltime=scaled_walltime(VCFNORM_WAVE_SECS_PER_GB, vcf_id.size,
                                                                              io_multiple=6))
         return norm_job.rv()
