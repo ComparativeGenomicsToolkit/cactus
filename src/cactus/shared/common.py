@@ -1622,12 +1622,16 @@ def delete_directory(dir_path):
 
 def get_faidx_subpath_rename_cmd():
     """
-    transform chr1:10-15 (1-based inclusive) into chr1_sub_9_15 (0-based end open)
+    meant to transform chr1:10-15 (1-based inclusive) into chr1_sub_9_15 (0-based end open)
     this is a format that contains no special characters in order to make assembly hubs
     happy.  But it does require conversion going into vg which wants chr[9-15] and
     hal2vg is updated to do this autmatically
+
+    this used to be a GNU sed command (its e flag), but in a basic regex [0-9]+ matches a digit and
+    a literal '+', so it never renamed anything.  cactus_sanitizeFastaHeaders does the renaming.
+    a pass-through keeps that behaviour, and works with macOS sed, which has no e flag.
     """
-    return ['sed', '-e', r's/\([^:]*\):\([0-9]+\)-\([0-9]+\)/echo "\\1_sub_$((\\2-1))_\\3"/e']
+    return ['cat']
 
 def clean_jobstore_files(job, file_id_maps=None, file_ids=None, allow_none=False):
     """ clean some intermediate files that are no longer needed out of the jobstore """

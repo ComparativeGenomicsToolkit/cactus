@@ -2835,7 +2835,7 @@ def vcfwave(job, config, vcf_path, vcf_id):
     vcfwave_path = os.path.join(work_dir, 'wave.{}'.format(os.path.basename(vcf_path)))
     wave_opts = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "vcfwaveOptions", typeFn=str, default=None)
     assert wave_opts
-    cactus_call(parameters=[['zcat', vcf_path],
+    cactus_call(parameters=[['gzip', '-dc', vcf_path],
                             ['vcfwave'] + wave_opts.split(' ') + ['-t', str(job.cores)],
                             ['bgzip']], outfile=vcfwave_path)
 
