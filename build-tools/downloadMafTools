@@ -27,9 +27,9 @@ fi
 set -x
 
 # detect jemalloc for faster memory allocation
-# disable for legacy arch builds (same as include.mk)
+# disable for legacy arch builds and on Mac (same as include.mk)
 jemallocLib=""
-if [ -z ${CACTUS_LEGACY_ARCH+x} ]; then
+if [[ -z ${CACTUS_LEGACY_ARCH+x} && "$(uname -s)" != "Darwin" ]]; then
     if pkg-config --exists jemalloc 2>/dev/null; then
         jemallocLib="-ljemalloc -lm"
     elif [ -f "$(pwd)/lib/libjemalloc.a" ]; then

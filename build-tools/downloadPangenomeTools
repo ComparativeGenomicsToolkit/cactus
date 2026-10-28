@@ -19,7 +19,7 @@
 # all binaries get copied into cactus/bin
 #
 # On Mac (with the Homebrew dependencies in the README), the tools are built from source or taken
-# from bioconda's Mac packages instead, and odgi and vcfwave are skipped
+# from bioconda's Mac packages instead
 
 # set this to one to make sure everything gets built statically (necessary for binary release)
 STATIC_CHECK=$1
@@ -58,9 +58,9 @@ export CMAKE_POLICY_VERSION_MINIMUM=${CMAKE_POLICY_VERSION_MINIMUM:-3.5}
 set -x
 
 # detect jemalloc for faster memory allocation
-# disable for legacy arch builds (same as include.mk)
+# disable for legacy arch builds and on Mac (same as include.mk)
 jemallocLib=""
-if [ -z ${CACTUS_LEGACY_ARCH+x} ]; then
+if [[ -z ${CACTUS_LEGACY_ARCH+x} && "$(uname -s)" != "Darwin" ]]; then
     if pkg-config --exists jemalloc 2>/dev/null; then
         jemallocLib="-ljemalloc -lm"
     elif [ -f "${libDir}/libjemalloc.a" ]; then
@@ -392,7 +392,7 @@ fi
 cd ${pangenomeBuildDir}
 git clone --recursive https://github.com/glennhickey/panpatch.git
 cd panpatch
-git checkout 60507e378a14577ba0e0502254b3cb437495e172
+git checkout f9aa91569f4329bc52ab3d2fe3a7a6b97dd0d3b5
 git submodule update --init --recursive
 if [[ $STATIC_CHECK -eq 1 ]]
 then
@@ -429,7 +429,9 @@ condaBinary() {
 }
 
 # The Mac builds of gfaffix, vcfbub and panacus come from bioconda too.  They link only system
-# libraries.  vcfbub is 0.1.2 there, because bioconda has no 0.1.1 for Apple Silicon.
+# libraries.  vcfbub is 0.1.2 there, because bioconda has no 0.1.1 for Apple Silicon.  0.1.2 only
+# changes Cargo dependency pins (its src/main.rs and bundled htslib are the same), so it filters
+# exactly like the Linux 0.1.1 static release.
 if [[ $isMac -eq 1 && "$(uname -m)" == "arm64" ]]
 then
 	 gfaffixMacPkg=osx-arm64/gfaffix-0.2.2-hfc06a8d_0.conda
@@ -510,38 +512,53 @@ else
 fi
 
 # odgi
-# Not built on Mac yet.  It is only needed for cactus-graphmap-join --odgi, --viz and --draw.
-if [[ $isMac -ne 1 ]]
+cd ${pangenomeBuildDir}
+wget -nv --tries=5 --waitretry=3 --timeout=60 --retry-connrefused https://github.com/pangenome/odgi/releases/download/v0.9.4/odgi-v0.9.4.tar.gz
+tar --no-same-owner -zxf odgi-v0.9.4.tar.gz
+cd odgi-v0.9.4
+# "Generic" is odgi's portable build type -- it exists to dodge the -Ofast -march=native
+# that CMAKE_BUILD_TYPE=Release injects (odgi CMakeLists.txt:77-91).  But odgi only sets
+# CMAKE_CXX_FLAGS under Release/RelWithDebInfo, and CMake has no CMAKE_CXX_FLAGS_GENERIC of
+# its own, so Generic ended up with no -O flag at all and odgi shipped at -O0.  Supplying
+# CMAKE_CXX_FLAGS_GENERIC adds -O3 for that config only; overriding CMAKE_CXX_FLAGS instead
+# would drop the -fopenmp that Generic does supply through it.
+if [[ $STATIC_CHECK -eq 1 ]]
 then
-	 cd ${pangenomeBuildDir}
-	 wget -nv --tries=5 --waitretry=3 --timeout=60 --retry-connrefused https://github.com/pangenome/odgi/releases/download/v0.9.4/odgi-v0.9.4.tar.gz
-	 tar --no-same-owner -zxf odgi-v0.9.4.tar.gz
-	 cd odgi-v0.9.4
-	 # "Generic" is odgi's portable build type -- it exists to dodge the -Ofast -march=native
-	 # that CMAKE_BUILD_TYPE=Release injects (odgi CMakeLists.txt:77-91).  But odgi only sets
-	 # CMAKE_CXX_FLAGS under Release/RelWithDebInfo, and CMake has no CMAKE_CXX_FLAGS_GENERIC of
-	 # its own, so Generic ended up with no -O flag at all and odgi shipped at -O0.  Supplying
-	 # CMAKE_CXX_FLAGS_GENERIC adds -O3 for that config only; overriding CMAKE_CXX_FLAGS instead
-	 # would drop the -fopenmp that Generic does supply through it.
-	 if [[ $STATIC_CHECK -eq 1 ]]
-	 then
-	     CXXFLAGS="" CFLAGS="" LDFLAGS="" LIBS="" cmake -DBUILD_STATIC=1 -DCMAKE_BUILD_TYPE=Generic -DCMAKE_C_FLAGS_GENERIC="-O3 ${CACTUS_ARCH_FLAGS}" -DCMAKE_CXX_FLAGS_GENERIC="-O3 ${CACTUS_ARCH_FLAGS}" -H. -Bbuild && CXXFLAGS="" CFLAGS="" LDFLAGS="" LIBS="" cmake --build build -- -j ${numcpu}
-	 else
-	     cmake -H. -Bbuild -DCMAKE_BUILD_TYPE=Generic -DCMAKE_C_FLAGS_GENERIC="-O3 ${CACTUS_ARCH_FLAGS}" -DCMAKE_CXX_FLAGS_GENERIC="-O3 ${CACTUS_ARCH_FLAGS}" && cmake --build build -- -j ${numcpu}
-	 fi
-	 if [[ $STATIC_CHECK -ne 1 || $(ldd bin/odgi | grep so | wc -l) -eq 0 ]]
-	 then
-	     mv bin/odgi ${binDir}
-	 else
-	     exit 1
-	 fi
+    CXXFLAGS="" CFLAGS="" LDFLAGS="" LIBS="" cmake -DBUILD_STATIC=1 -DCMAKE_BUILD_TYPE=Generic -DCMAKE_C_FLAGS_GENERIC="-O3 ${CACTUS_ARCH_FLAGS}" -DCMAKE_CXX_FLAGS_GENERIC="-O3 ${CACTUS_ARCH_FLAGS}" -H. -Bbuild && CXXFLAGS="" CFLAGS="" LDFLAGS="" LIBS="" cmake --build build -- -j ${numcpu}
+elif [[ $isMac -eq 1 ]]
+then
+    # Apple clang needs some help with odgi and what it bundles:
+    # - sdsl-lite only recognizes clang by a "clang" compiler path or a "Clang" id, and takes
+    #   /usr/bin/c++ ("AppleClang") for MSVC, so name clang outright.  Its ExternalProject reads
+    #   CC and CXX when it configures, during the build step, so they stay set for that too.
+    # - the same sdsl-lite has a louds_tree::swap bug current clang rejects (vgteam/sdsl-lite 89e146a)
+    # - atomic_queue's superfluous "template" keywords are an error in current clang
+    # - uint64_t is unsigned long long on Mac, so std::min(3UL, num_threads) cannot deduce a type
+    # - odgi's Mac OpenMP flags assume MacPorts and CMake ignores CPPFLAGS, so Homebrew's paths
+    #   (libomp is keg-only) go in through CFLAGS, CXXFLAGS and LDFLAGS
+    # It links Homebrew's libomp and jemalloc.
+    sed -i.bak -e 's/tree\.m_select\([01]\)/tree.m_bv_select\1/g' deps/sdsl-lite/include/sdsl/louds_tree.hpp
+    sed -i.bak -e 's/std::min(3UL, num_threads)/std::min<uint64_t>(3, num_threads)/' src/subcommand/similarity_main.cpp
+    ompPrefix=$(brew --prefix libomp)
+    (export CC=clang CXX=clang++ \
+            CFLAGS="${CFLAGS} ${CPPFLAGS} -I${ompPrefix}/include" \
+            CXXFLAGS="${CXXFLAGS} ${CPPFLAGS} -I${ompPrefix}/include -Wno-missing-template-arg-list-after-template-kw" \
+            LDFLAGS="${LDFLAGS} -L${ompPrefix}/lib"
+     cmake -H. -Bbuild -DCMAKE_BUILD_TYPE=Generic -DCMAKE_C_FLAGS_GENERIC="-O3 ${CACTUS_ARCH_FLAGS}" -DCMAKE_CXX_FLAGS_GENERIC="-O3 ${CACTUS_ARCH_FLAGS}" && cmake --build build -- -j ${numcpu})
+else
+    cmake -H. -Bbuild -DCMAKE_BUILD_TYPE=Generic -DCMAKE_C_FLAGS_GENERIC="-O3 ${CACTUS_ARCH_FLAGS}" -DCMAKE_CXX_FLAGS_GENERIC="-O3 ${CACTUS_ARCH_FLAGS}" && cmake --build build -- -j ${numcpu}
+fi
+if [[ $STATIC_CHECK -ne 1 || $(ldd bin/odgi | grep so | wc -l) -eq 0 ]]
+then
+    mv bin/odgi ${binDir}
+else
+    exit 1
 fi
 
 # vcfwave
 cd ${CWD}
 # todo: it's be nice to figure out a static build. for now we skip entirely if static enabled.
-# Not built on Mac yet either.  It is only needed for cactus-graphmap-join --vcfwave.
-if [[ $STATIC_CHECK -ne 1 && $isMac -ne 1 ]]
+if [[ $STATIC_CHECK -ne 1 ]]
 then
     build-tools/downloadVCFWave
     cd ${CWD}

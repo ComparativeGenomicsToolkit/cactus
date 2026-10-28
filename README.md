@@ -150,11 +150,11 @@ Then I installed the brew dependencies for Cactus
 brew install coreutils libomp hdf5 libdeflate parallel wget samtools bcftools python
 ```
 
-For Minigraph-Cactus, `build-tools/downloadPangenomeTools` builds vg and mash from source on Mac, so it also needs vg's dependencies (from the Brewfile of the vg version it builds) and mash's `capnp` and `gsl`:
+For Minigraph-Cactus, `build-tools/downloadPangenomeTools` builds vg, mash and odgi from source on Mac, so it also needs vg's dependencies (from the Brewfile of the vg version it builds), mash's `capnp` and `gsl`, and odgi's `jemalloc`:
 
 ```
 curl -fsSL https://raw.githubusercontent.com/vgteam/vg/v1.78.0/Brewfile | brew bundle --file=-
-brew install capnp gsl
+brew install capnp gsl jemalloc
 ```
 
 When installing `libomp` above (use `brew reinstall libomp` if you missed it), it printed some messages about setting:
@@ -188,8 +188,6 @@ python3 -m venv cactus_env
 #### That's it
 
 You should now be able to run the [steps](#installing-manually-from-source) to clone, setup the virtualenv and compile the binaries exactly as they are described above. 
-
-On Mac, `build-tools/downloadPangenomeTools` does not build odgi or vcfwave, so the `--odgi`, `--viz`, `--draw` and `--vcfwave` options of Minigraph-Cactus are not available.
 
 I recommend running
 ```
