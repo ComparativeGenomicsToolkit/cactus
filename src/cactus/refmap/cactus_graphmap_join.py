@@ -88,11 +88,14 @@ def scaled_walltime(secs_per_gb, size_bytes, io_multiple=2):
 
 # clip_vg, the whole load/GFAffix/clip/normalise/validate pipeline.  n=75: the 'full' phase (the
 # only one that runs GFAffix) came to 597-630 s/GB at p50 and 729-951 s/GB at p99, the 'clip'
-# phase to 336-443 and 454-590.  the largest chromosome, 33.4 GB, took 6.1 hours in 'full'
-CLIP_VG_SECS_PER_GB = {'full' : 800, 'clip' : 600}
+# phase to 336-443 and 454-590.  the largest chromosome, 33.4 GB, took 6.1 hours in 'full'.  three
+# vg clip passes (-d 1 twice and -s, about 120 s/GB together) were added to 'clip' after this was
+# measured, and one (-Sk, about 40 s/GB) to 'full'
+CLIP_VG_SECS_PER_GB = {'full' : 840, 'clip' : 720}
 
-# vg_clip_vg: vg clip three times plus vg validate.  n=75, 292-349 s/GB at p50, 382-440 at the max
-VG_CLIP_VG_SECS_PER_GB = 450
+# vg_clip_vg: vg clip three times plus vg validate.  n=75, 292-349 s/GB at p50, 382-440 at the max.
+# a fourth vg clip pass (-d 1, about 38 s/GB) was added after this was measured
+VG_CLIP_VG_SECS_PER_GB = 500
 
 # pgrealign_vg: unmeasured, as --pgrealign is new.  per chromosome it runs vg convert -f (the
 # vg_to_gfa rate, 250 s/GB), vg paths -F and vg snarls, about four single-threaded python passes over
@@ -190,6 +193,18 @@ MAKE_GIRAFFE_INDEXES_SECS_PER_GB = 12
 # make_haplo_index: vg index -j, vg gbwt -r and vg haplotypes -H.  n=3, 8.5-12.1 ks over 408 GB
 # (21-30 s/GB) at 64 cores
 MAKE_HAPLO_INDEX_SECS_PER_GB = 35
+
+# make_giraffe_indexes starts with vg index -j, as does make_haplo_index unless it is handed the giraffe
+# job's .dist, and it is what needs the most memory on a big graph.  it tracks the snarl decomposition,
+# so the size of the snarls file make_vg_indexes writes predicts it, and vg haplotypes along with it.  on
+# HPRC (64 cores) vg index -j --no-nested-distance used 307.5Gi on the full graph, whose snarls file is
+# 614 MB (538 bytes per byte), after being killed at 128Gi and 256Gi; vg haplotypes then reached 259Gi
+# (453 bytes per byte).  vg index -j was killed at 128Gi on a --clip 10000000000 graph (534 MB
+# of snarls), and used all of a 128Gi limit without going over on three clip graphs (237-268 MB).  the
+# GBZ is no guide: a filter graph's is twice the size of its clip graph's, from the haplotypes cut into
+# fragments, while its nested vg index -j took 103.8Gi.  nor is index_mem, which comes from the input
+# vgs, the same for every phase.  this is about 20% over the full graph
+INDEX_MEMORY_PER_SNARLS_BYTE = 640
 
 # odgi_squeeze: no logged run asked for a whole-genome --odgi.  squeeze concatenates graphs that
 # are already built, so it belongs at the odgi sort end of the measured odgi work (286-707 s per
@@ -1122,11 +1137,15 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
     else:
         # hacky heuristic to get memory for vg jobs, where vg minimizer is tricky as
         # it's not really based on graph size so much (ie simple graphs can take lots of mem)
+        # the last factor has no upper bound: make_vg_indexes' vg gbwt -G took 592Gi on HPRC's 378Gi of
+        # input, 1.57x, so a bigger panel must not drop to 1x.  but no more than any node has, which
+        # would leave the jobs pending forever
         index_mem = sum(f.size for f in vg_ids)
-        for tot_size, fac in zip([1e6, 1e9, 10e9, 50e9, 100e9, 500e9], [1000, 32, 10, 6, 5, 2]):
+        for tot_size, fac in zip([1e6, 1e9, 10e9, 50e9, 100e9, float('inf')], [1000, 32, 10, 6, 5, 2]):
             if index_mem < tot_size:
                 index_mem *= fac
                 break
+        index_mem = cactus_clamp_memory(index_mem)
     max_system_memory = config.getSystemMemory()
     if max_system_memory and index_mem > max_system_memory:
         RealtimeLogger.info("Clamping index memory {} to system limit of {}".format(index_mem, max_system_memory))
@@ -1140,9 +1159,11 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
     if options.bypass and need_ref_fasta and options.vcf:
         # in bypass mode, extract reference fasta from the first available bypass vg set
         ref_vg_ids = bypass_full_ids or bypass_clip_ids or bypass_filter_ids
+        # vg paths -F runs on one chromosome at a time, so the biggest sets the memory: 6x, as for the
+        # vg paths in drop_graph_event
         ref_fasta_job = root_job.addFollowOnJobFn(extract_vg_fasta, options, ref_vg_ids,
                                                    disk=sum(f.size for f in vg_ids) * 2,
-                                                   memory=cactus_clamp_memory(sum(f.size for f in vg_ids) * 4),
+                                                   memory=cactus_clamp_memory(min(max(f.size for f in vg_ids) * 6, max_mem)),
                                                    walltime=scaled_walltime(EXTRACT_VG_FASTA_SECS_PER_GB,
                                                                             sum(f.size for f in vg_ids),
                                                                             io_multiple=1))
@@ -1266,47 +1287,36 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
         # optional giraffe
         giraffe_job = None
         if workflow_phase in options.giraffe + options.lrGiraffe:
+            # this job only reads the snarls file's size, and runs the indexing as a child with the
+            # memory it calls for (see index_job_memory).  vg minimizer's memory tracks the graph's
+            # sequence, not the panel: 73.6Gi on a 6-genome GRCh38 graph and 79.5Gi on all of
+            # HPRC, where index_mem is 30.6Gi and 760Gi.  so 3x index_mem, capped at 128Gi
             giraffe_job = gfa_merge_job.addFollowOnJobFn(make_giraffe_indexes, options, config, current_out_dict,
                                                          short_read=workflow_phase in options.giraffe,
                                                          long_read=workflow_phase in options.lrGiraffe,
                                                          tag=workflow_phase + '.',
-                                                         cores=options.indexCores,
-                                                         disk = sum(f.size for f in vg_ids) * 16,
-                                                         # vg minimizer's memory tracks the graph's
-                                                         # sequence, not the panel: 73.6Gi on a
-                                                         # 6-genome GRCh38 graph and 79.5Gi on all
-                                                         # of HPRC.  index_mem swings 25x between
-                                                         # those two (30.6Gi and 760Gi), so scale it
-                                                         # up to cover the small end and cap it so
-                                                         # the big end stops reserving a terabyte
-                                                         # for an 80Gi job.  a reference much longer
-                                                         # than a human one will exceed the cap and
-                                                         # get there through --doubleMem
-                                                         memory=cactus_clamp_memory(
-                                                             min(index_mem * 3, 128 * 2**30)),
-                                                         walltime=scaled_walltime(MAKE_GIRAFFE_INDEXES_SECS_PER_GB,
-                                                                                  sum(f.size for f in vg_ids),
-                                                                                  io_multiple=0.5))
+                                                         sizing=dict(index_mem=index_mem, index_mem_factor=3,
+                                                                     disk=sum(f.size for f in vg_ids) * 16,
+                                                                     walltime=scaled_walltime(MAKE_GIRAFFE_INDEXES_SECS_PER_GB,
+                                                                                              sum(f.size for f in vg_ids),
+                                                                                              io_multiple=0.5)),
+                                                         walltime=cactus_walltime())
             out_dicts.append(giraffe_job.rv())
             
         # optional haplo index
         if workflow_phase in options.haplo:
             prec_job = giraffe_job if giraffe_job else gfa_merge_job
+            # sized like the giraffe job above.  vg haplotypes saturates like vg minimizer: 31.8Gi on
+            # a 6-genome GRCh38 graph and 73.8Gi on all of HPRC, so 1.5x index_mem, capped at 128Gi
             haplo_job = prec_job.addFollowOnJobFn(make_haplo_index, options, config, current_out_dict,
                                                   giraffe_job.rv() if giraffe_job else None,
                                                   tag=workflow_phase + '.',
-                                                  cores=options.indexCores,
-                                                  disk = sum(f.size for f in vg_ids) * 16,
-                                                  # like vg minimizer, vg haplotypes saturates:
-                                                  # 31.8Gi on a 6-genome GRCh38 graph and 73.8Gi
-                                                  # on all of HPRC, against an index_mem of 30.6Gi
-                                                  # and 760Gi.  scale up for the small end, where
-                                                  # it barely overflowed, and cap the big end
-                                                  memory=cactus_clamp_memory(
-                                                      min(int(index_mem * 1.5), 128 * 2**30)),
-                                                  walltime=scaled_walltime(MAKE_HAPLO_INDEX_SECS_PER_GB,
-                                                                           sum(f.size for f in vg_ids),
-                                                                           io_multiple=0.5))
+                                                  sizing=dict(index_mem=index_mem, index_mem_factor=1.5,
+                                                              disk=sum(f.size for f in vg_ids) * 16,
+                                                              walltime=scaled_walltime(MAKE_HAPLO_INDEX_SECS_PER_GB,
+                                                                                       sum(f.size for f in vg_ids),
+                                                                                       io_multiple=0.5)),
+                                                  walltime=cactus_walltime())
             out_dicts.append(haplo_job.rv())
 
         # optional full-genome odgi
@@ -1347,7 +1357,7 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
                 
                 snarl_stats_job = gfa_root_job.addChildJobFn(snarl_stats, options, config, vg_path, vg_id,
                                                              disk=input_vg_id.size * 2,
-                                                             memory=cactus_clamp_memory(input_vg_id.size * 10),
+                                                             memory=cactus_clamp_memory(min(input_vg_id.size * 10, max_mem)),
                                                              cores=options.indexCores,
                                                              walltime=scaled_walltime(SNARL_STATS_SECS_PER_GB,
                                                                                       input_vg_id.size))
@@ -1431,10 +1441,11 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
         gref_fasta_dict = None
         gref_parent_job = gref_root_job
         if need_ref_fasta and options.vcf:
+            # sized as in the bypass call above
             gref_fasta_job = gref_root_job.addFollowOnJobFn(extract_vg_fasta, options, gref_vg_ids,
                                                               vcf_ref=gref_sample,
                                                               disk=sum(f.size for f in vg_ids) * 2,
-                                                              memory=cactus_clamp_memory(sum(f.size for f in vg_ids) * 4),
+                                                              memory=cactus_clamp_memory(min(max(f.size for f in vg_ids) * 6, max_mem)),
                                                               walltime=scaled_walltime(EXTRACT_VG_FASTA_SECS_PER_GB,
                                                                                        sum(f.size for f in vg_ids),
                                                                                        io_multiple=1))
@@ -1649,7 +1660,8 @@ def clip_vg(job, options, config, vg_path, vg_id, phase, gfa_id=None, gfa_realig
         # Also: any kind of clipping or path dropping can leave uncovered edges, so we remove them with vg clip        
         clip_cmd = ['vg', 'clip', '-d', '1', '-', '-P', options.reference[0]]
         cmd.append(clip_cmd)
-        if phase == 'clip' and getOptionalAttrib(join_xml_node, "removeStubs", typeFn=bool, default=True):
+        remove_stubs = phase == 'clip' and getOptionalAttrib(join_xml_node, "removeStubs", typeFn=bool, default=True)
+        if remove_stubs:
             # todo: could save a little time by making vg clip smart enough to do two things at once
             stub_cmd = ['vg', 'clip', '-sS', '-', '-P', options.reference[0]]
 
@@ -1663,16 +1675,46 @@ def clip_vg(job, options, config, vg_path, vg_id, phase, gfa_id=None, gfa_realig
         # clip-phase only: the clip graph is built from the full graph, so running it in both phases
         # just repeats the same work, and removals made in "full" would be indistinguishable from
         # sequence that never aligned at all in the exclusion report.
+        # It goes after the stub removal, which cuts the edges off the outer sides of the reference ends:
+        # otherwise sequence joined to the outside of an end looks like it spans to the end of the
+        # chromosome, and -D can cut an ordinary insertion's edge instead.
         del_edge_filter = getOptionalAttrib(join_xml_node, "delEdgeFilter", typeFn=int, default=10000000)
         if phase == 'clip' and del_edge_filter > 0:
-            clip_context = getOptionalAttrib(join_xml_node, "clipContext", typeFn=int, default=0)
+            # the default context also applies to configs from before clipContext existed (and to 0): without
+            # -c, vg clip searches as many steps as the -D length, which is far too slow on a whole chromosome
+            clip_context = getOptionalAttrib(join_xml_node, "clipContext", typeFn=int, default=1000)
+            if clip_context <= 0:
+                clip_context = 1000
             min_fragment = getOptionalAttrib(join_xml_node, "minFilterFragment", typeFn=int, default=0)
-            del_clip_cmd = ['vg', 'clip', '-', '-D', str(del_edge_filter), '-P', options.reference[0]]
-            if clip_context:
-                del_clip_cmd += ['-c', str(clip_context)]
+            del_clip_cmd = ['vg', 'clip', '-', '-D', str(del_edge_filter), '-P', options.reference[0], '-c', str(clip_context)]
             if min_fragment:
                 del_clip_cmd += ['-m', str(min_fragment)]
             cmd.append(del_clip_cmd)
+            if min_fragment:
+                # the fragments -m drops can leave nodes and edges no path covers
+                cmd.append(['vg', 'clip', '-d', '1', '-', '-P', options.reference[0]])
+            if remove_stubs:
+                # each edge -D cuts can leave sequence dangling. -D chops the other references too, and their
+                # pieces stay, as they did when stubs were only removed before -D
+                stub_cmd = ['vg', 'clip', '-s', '-']
+                for ref in options.reference:
+                    stub_cmd += ['-P', ref]
+                cmd.append(stub_cmd)
+
+        if remove_stubs:
+            # -S, -s or -D can each leave a cycle (a telomeric repeat cut off a reference end, say) as a
+            # component of its own, which vg haplotypes rejects. -d drops every component with no reference
+            # path. only the first reference counts, so a component that carries just another reference goes too
+            cmd.append(['vg', 'clip', '-d', '1', '-', '-P', options.reference[0]])
+
+        # vg haplotypes needs the reference paths to end in tips: the distance index for --haplo roots
+        # its snarl tree on reference[0]'s ends, and an end that lies on a cycle makes a top-level chain
+        # that loops.  -S cuts the edges off the outer sides of the end nodes, and -k keeps every node:
+        # a piece hanging off an end stays attached to it (a dead end with no tip gets one cut in), so the
+        # full graph loses a few edges but no sequence, and no node is cut off from the reference.  it goes
+        # after -d 1, which could otherwise remove a node that a kept piece hangs from
+        if phase == 'full' and getOptionalAttrib(join_xml_node, "fullStubbify", typeFn=bool, default=True):
+            cmd.append(['vg', 'clip', '-Sk', '-', '-P', options.reference[0]])
 
     # and we sort by id on the first go-around
     if phase == 'full':
@@ -1955,28 +1997,25 @@ def vg_clip_vg(job , options, config, vg_path, vg_id):
     job.fileStore.readGlobalFile(vg_id, vg_path)
     clipped_path = vg_path + '.clip'
 
-    clip_cmd = ['vg', 'clip', vg_path, '-d', str(options.filter)]
+    ref_opts = []
     for ref in options.reference:
-        clip_cmd += ['-P', ref]
+        ref_opts += ['-P', ref]
+    clip_cmd = [['vg', 'clip', vg_path, '-d', str(options.filter)] + ref_opts]
     min_fragment = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "minFilterFragment", typeFn=int, default=None)
     if min_fragment:
-        clip_cmd += ['-m', str(min_fragment)]
-        # the min-fragment option is kind of ill thought out, and works as post-processing.  therefore it can
-        # actually leave uncovered nodes, we clean here but note that it can leave fragments smaller than min-fragment
-        clean_cmd = ['vg', 'clip', '-d', '1', '-']
-        for ref in options.reference:
-            clean_cmd += ['-P', ref]
-        clip_cmd = [clip_cmd, clean_cmd]
+        clip_cmd[0] += ['-m', str(min_fragment)]
+        # the min-fragment option works as post-processing, so the fragments it drops can leave
+        # uncovered nodes: clean them out
+        clip_cmd.append(['vg', 'clip', '-d', '1', '-'] + ref_opts)
 
     if getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "removeStubs", typeFn=bool, default=True):
-        # this command can also leave fragments smaller than min-fragment
+        # this command can leave fragments smaller than min-fragment
         stub_cmd = ['vg', 'clip', '-sS', '-']
         if options.reference:
             stub_cmd += ['-P', options.reference[0]]
-        if min_fragment:
-            clip_cmd.append(stub_cmd)
-        else:
-            clip_cmd = [clip_cmd, stub_cmd]
+        clip_cmd.append(stub_cmd)
+        # -S or -s can leave a cycle as a component of its own: drop those
+        clip_cmd.append(['vg', 'clip', '-d', '1', '-'] + ref_opts)
 
     cactus_call(parameters=clip_cmd, outfile=clipped_path, job_memory=job.memory)
 
@@ -2241,6 +2280,8 @@ def make_vcf(job, config, options, workflow_phase, index_mem, vcf_ref, vg_ids, r
         # keep clustered VCFs from being mistaken for the normal ones sitting beside them
         vcftag += '.L{}'.format(int(round(decon_L * 100)))
     do_wave = options.vcfwave and decon_L is None
+    # --indexMemory promises that no job asks for more
+    max_mem = options.indexMemory if options.indexMemory else sys.maxsize
     raw_vcf_tbi_ids, bub_vcf_tbi_ids, wave_vcf_tbi_ids = [], [], []
     for vg_path, vg_id, in zip(options.vg, vg_ids):
         deconstruct_job = root_job.addChildJobFn(deconstruct, config, options.outName,
@@ -2261,7 +2302,7 @@ def make_vcf(job, config, options, workflow_phase, index_mem, vcf_ref, vg_ids, r
                                                           ref_fasta_dict,
                                                           tag=os.path.splitext(os.path.basename(vg_path))[0] + '.' + vcftag + '.',
                                                           disk = vg_id.size * 6,
-                                                          memory=cactus_clamp_memory(vg_id.size * 2),
+                                                          memory=cactus_clamp_memory(min(vg_id.size * 2, max_mem)),
                                                           walltime=scaled_walltime(VCFBUB_SECS_PER_GB, vg_id.size,
                                                                                    io_multiple=0.5))
             bub_vcf_id, bub_tbi_id = vcfbub_job.rv(0), vcfbub_job.rv(1)
@@ -2273,9 +2314,10 @@ def make_vcf(job, config, options, workflow_phase, index_mem, vcf_ref, vg_ids, r
                                                            options.vcfbub,
                                                            ref_fasta_dict,
                                                            tag=os.path.splitext(os.path.basename(vg_path))[0] + '.' + vcftag + '.',
+                                                           max_mem=max_mem,
                                                            cores=options.vcfwaveCores,
                                                            disk=vg_id.size * 6,
-                                                           memory=cactus_clamp_memory(options.vcfwaveMemory),
+                                                           memory=cactus_clamp_memory(min(options.vcfwaveMemory, max_mem)),
                                                            walltime=scaled_walltime(CHUNKED_VCFWAVE_SECS_PER_GB,
                                                                                     vg_id.size, io_multiple=0.5))
             wave_vcf_id, wave_tbi_id = vcfwave_job.rv(0), vcfwave_job.rv(1)
@@ -2291,7 +2333,7 @@ def make_vcf(job, config, options, workflow_phase, index_mem, vcf_ref, vg_ids, r
                                               fix_ploidies=True,
                                               cores = cat_cores,
                                               disk = sum(f.size for f in vg_ids) * 26,
-                                              memory = cactus_clamp_memory(sum(f.size for f in vg_ids)),
+                                              memory = cactus_clamp_memory(min(sum(f.size for f in vg_ids), max_mem)),
                                               walltime=scaled_walltime(VCF_CAT_SECS_PER_GB,
                                                                        sum(f.size for f in vg_ids),
                                                                        io_multiple=0.125))
@@ -2302,7 +2344,7 @@ def make_vcf(job, config, options, workflow_phase, index_mem, vcf_ref, vg_ids, r
                                                   fix_ploidies=True,
                                                   cores = cat_cores,
                                                   disk = sum(f.size for f in vg_ids) * 26,
-                                                  memory = cactus_clamp_memory(sum(f.size for f in vg_ids)),
+                                                  memory = cactus_clamp_memory(min(sum(f.size for f in vg_ids), max_mem)),
                                                   walltime=scaled_walltime(VCF_CAT_SECS_PER_GB,
                                                                            sum(f.size for f in vg_ids),
                                                                            io_multiple=0.125))
@@ -2313,7 +2355,7 @@ def make_vcf(job, config, options, workflow_phase, index_mem, vcf_ref, vg_ids, r
                                                    fix_ploidies=True,
                                                    cores = cat_cores,
                                                    disk = sum(f.size for f in vg_ids) * 26,
-                                                   memory = cactus_clamp_memory(sum(f.size for f in vg_ids)),
+                                                   memory = cactus_clamp_memory(min(sum(f.size for f in vg_ids), max_mem)),
                                                    walltime=scaled_walltime(VCF_CAT_SECS_PER_GB,
                                                                             sum(f.size for f in vg_ids),
                                                                             io_multiple=0.125))
@@ -2700,8 +2742,9 @@ def check_vcffixup(job):
     except:
         raise RuntimeError('vcf normalization with merge_duplicates enabled, but vcffixup tool (used in postprocessing) not found in PATH. vcffixup is *not* included in the cactus binary release, but it is in the cactus Docker image. If you have Docker installed, you can try running again with --binariesMode docker. Or running your whole command with docker run. If you cannot use Docker, then you will need to build vcflib yourself before retrying: source code and details here: https://github.com/vcflib/vcflib. Running the ./build-tools/downloadVCFWave script (from the cactus/ directory) will attemp to download and build vcfwave.')    
     
-def chunked_vcfwave(job, config, out_name, vcf_ref, vcf_id, tbi_id, max_ref_allele, fasta_ref_dict, tag):
-    """ run vcfwave in parallel chunks """
+def chunked_vcfwave(job, config, out_name, vcf_ref, vcf_id, tbi_id, max_ref_allele, fasta_ref_dict, tag,
+                    max_mem=sys.maxsize):
+    """ run vcfwave in parallel chunks.  max_mem is --indexMemory, which no job may ask for more than """
     if vcf_id is None:
         return None, None
 
@@ -2800,7 +2843,7 @@ def chunked_vcfwave(job, config, out_name, vcf_ref, vcf_id, tbi_id, max_ref_alle
     vcfwave_cat_job = root_job.addFollowOnJobFn(vcf_cat, chunk_vcf_tbi_ids, tag, sort=True,
                                                 fix_ploidies=False,
                                                 disk=vcf_id.size * 10,
-                                                memory=cactus_clamp_memory(vcf_id.size*5),
+                                                memory=cactus_clamp_memory(min(vcf_id.size*5, max_mem)),
                                                 walltime=scaled_walltime(VCF_CAT_CHUNK_SECS_PER_GB, vcf_id.size,
                                                                          io_multiple=4))
 
@@ -2812,7 +2855,7 @@ def chunked_vcfwave(job, config, out_name, vcf_ref, vcf_id, tbi_id, max_ref_alle
         norm_job = vcfwave_cat_job.addFollowOnJobFn(vcfnorm, config, vcf_ref, vcfwave_cat_job.rv(0),
                                                     vcfwave_path, vcfwave_cat_job.rv(1), fasta_ref_dict,
                                                     disk=vcf_id.size*12,
-                                                    memory=cactus_clamp_memory(vcf_id.size*5),
+                                                    memory=cactus_clamp_memory(min(vcf_id.size*5, max_mem)),
                                                     walltime=scaled_walltime(VCFNORM_WAVE_SECS_PER_GB, vcf_id.size,
                                                                              io_multiple=6))
         return norm_job.rv()
@@ -2923,8 +2966,28 @@ def vcf_cat(job, vcf_tbi_ids, tag, sort=False, fix_ploidies=True):
 
     return job.fileStore.writeGlobalFile(cat_vcf_path), job.fileStore.writeGlobalFile(tbi_path)
     
-def make_giraffe_indexes(job, options, config, index_dict, short_read, long_read, tag=''):
-    """ make giraffe-specific indexes: distance and minimaer """
+def index_job_memory(options, sizing, index_dict, tag):
+    """ memory for make_giraffe_indexes or make_haplo_index.  --indexMemory is used as given.  otherwise
+    the larger of index_mem_factor * index_mem, capped at 128Gi, which covers vg minimizer and vg
+    haplotypes on a small graph without reserving a terabyte on a big panel, and
+    INDEX_MEMORY_PER_SNARLS_BYTE times the size of the graph's snarls file, which covers vg index -j on a
+    big graph.  a gref graph has no snarls file, and gets the first alone """
+    if options.indexMemory:
+        return sizing['index_mem']
+    memory = min(int(sizing['index_mem'] * sizing['index_mem_factor']), 128 * 2**30)
+    snarls_id = index_dict.get('{}snarls'.format(tag))
+    if snarls_id:
+        memory = max(memory, snarls_id.size * INDEX_MEMORY_PER_SNARLS_BYTE)
+    return cactus_clamp_memory(memory)
+
+def make_giraffe_indexes(job, options, config, index_dict, short_read, long_read, tag='', sizing=None):
+    """ make giraffe-specific indexes: distance and minimaer.  with sizing (from graphmap_join_workflow),
+    the snarls file, made by the job before this one, has a size at last: run this again as a child with
+    the cores, disk and walltime in sizing and the memory that size calls for """
+    if sizing:
+        return job.addChildJobFn(make_giraffe_indexes, options, config, index_dict, short_read, long_read, tag=tag,
+                                 cores=options.indexCores, disk=sizing['disk'], walltime=sizing['walltime'],
+                                 memory=index_job_memory(options, sizing, index_dict, tag)).rv()
     work_dir = job.fileStore.getLocalTempDir()
     gbz_path = os.path.join(work_dir, tag + os.path.basename(options.outName) + '.gbz')
     job.fileStore.readGlobalFile(index_dict['{}gbz'.format(tag)], gbz_path)
@@ -2955,8 +3018,13 @@ def make_giraffe_indexes(job, options, config, index_dict, short_read, long_read
 
     return out_dict
 
-def make_haplo_index(job, options, config, index_dict, giraffe_dict, tag=''):
-    """ make new haplotype subsampling (.hapl) index.  this generally replaces the giraffe (.min .dist) indexes """
+def make_haplo_index(job, options, config, index_dict, giraffe_dict, tag='', sizing=None):
+    """ make new haplotype subsampling (.hapl) index.  this generally replaces the giraffe (.min .dist) indexes.
+    sizing works as in make_giraffe_indexes """
+    if sizing:
+        return job.addChildJobFn(make_haplo_index, options, config, index_dict, giraffe_dict, tag=tag,
+                                 cores=options.indexCores, disk=sizing['disk'], walltime=sizing['walltime'],
+                                 memory=index_job_memory(options, sizing, index_dict, tag)).rv()
     work_dir = job.fileStore.getLocalTempDir()
     gbz_path = os.path.join(work_dir, tag + os.path.basename(options.outName) + '.gbz')
     job.fileStore.readGlobalFile(index_dict['{}gbz'.format(tag)], gbz_path)
@@ -3123,16 +3191,15 @@ def build_vg_indexes_and_vcf(parent_job, options, config, phase_vg_ids, vg_ids,
 
     # optional haplo index
     if do_haplo:
+        # see the other make_haplo_index call site
         haplo_job = gbz_job.addFollowOnJobFn(make_haplo_index, options, config, index_dict,
                                               None, tag=tag,
-                                              cores=options.indexCores,
-                                              disk=sum(f.size for f in vg_ids) * 16,
-                                              # see the other make_haplo_index call site
-                                              memory=cactus_clamp_memory(
-                                                  min(int(index_mem * 1.5), 128 * 2**30)),
-                                              walltime=scaled_walltime(MAKE_HAPLO_INDEX_SECS_PER_GB,
-                                                                       sum(f.size for f in vg_ids),
-                                                                       io_multiple=0.5))
+                                              sizing=dict(index_mem=index_mem, index_mem_factor=1.5,
+                                                          disk=sum(f.size for f in vg_ids) * 16,
+                                                          walltime=scaled_walltime(MAKE_HAPLO_INDEX_SECS_PER_GB,
+                                                                                   sum(f.size for f in vg_ids),
+                                                                                   io_multiple=0.5)),
+                                              walltime=cactus_walltime())
         out_dicts.append(haplo_job.rv())
 
     return out_dicts
