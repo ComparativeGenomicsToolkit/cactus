@@ -194,6 +194,18 @@ MAKE_GIRAFFE_INDEXES_SECS_PER_GB = 12
 # (21-30 s/GB) at 64 cores
 MAKE_HAPLO_INDEX_SECS_PER_GB = 35
 
+# make_giraffe_indexes starts with vg index -j, as does make_haplo_index unless it is handed the giraffe
+# job's .dist, and it is what needs the most memory on a big graph.  it tracks the snarl decomposition,
+# so the size of the snarls file make_vg_indexes writes predicts it, and vg haplotypes along with it.  on
+# HPRC (64 cores) vg index -j --no-nested-distance used 307.5Gi on the full graph, whose snarls file is
+# 614 MB (538 bytes per byte), after being killed at 128Gi and 256Gi; vg haplotypes then reached 259Gi
+# (453 bytes per byte).  vg index -j was killed at 128Gi on a --clip 10000000000 graph (534 MB
+# of snarls), and used all of a 128Gi limit without going over on three clip graphs (237-268 MB).  the
+# GBZ is no guide: a filter graph's is twice the size of its clip graph's, from the haplotypes cut into
+# fragments, while its nested vg index -j took 103.8Gi.  nor is index_mem, which comes from the input
+# vgs, the same for every phase.  this is about 20% over the full graph
+INDEX_MEMORY_PER_SNARLS_BYTE = 640
+
 # odgi_squeeze: no logged run asked for a whole-genome --odgi.  squeeze concatenates graphs that
 # are already built, so it belongs at the odgi sort end of the measured odgi work (286-707 s per
 # chromosome) rather than the odgi build end (4.2-9.8 ks); staging every .og dominates either way
@@ -1269,47 +1281,36 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
         # optional giraffe
         giraffe_job = None
         if workflow_phase in options.giraffe + options.lrGiraffe:
+            # this job only reads the snarls file's size, and runs the indexing as a child with the
+            # memory it calls for (see index_job_memory).  vg minimizer's memory tracks the graph's
+            # sequence, not the panel: 73.6Gi on a 6-genome GRCh38 graph and 79.5Gi on all of
+            # HPRC, where index_mem is 30.6Gi and 760Gi.  so 3x index_mem, capped at 128Gi
             giraffe_job = gfa_merge_job.addFollowOnJobFn(make_giraffe_indexes, options, config, current_out_dict,
                                                          short_read=workflow_phase in options.giraffe,
                                                          long_read=workflow_phase in options.lrGiraffe,
                                                          tag=workflow_phase + '.',
-                                                         cores=options.indexCores,
-                                                         disk = sum(f.size for f in vg_ids) * 16,
-                                                         # vg minimizer's memory tracks the graph's
-                                                         # sequence, not the panel: 73.6Gi on a
-                                                         # 6-genome GRCh38 graph and 79.5Gi on all
-                                                         # of HPRC.  index_mem swings 25x between
-                                                         # those two (30.6Gi and 760Gi), so scale it
-                                                         # up to cover the small end and cap it so
-                                                         # the big end stops reserving a terabyte
-                                                         # for an 80Gi job.  a reference much longer
-                                                         # than a human one will exceed the cap and
-                                                         # get there through --doubleMem
-                                                         memory=cactus_clamp_memory(
-                                                             min(index_mem * 3, 128 * 2**30)),
-                                                         walltime=scaled_walltime(MAKE_GIRAFFE_INDEXES_SECS_PER_GB,
-                                                                                  sum(f.size for f in vg_ids),
-                                                                                  io_multiple=0.5))
+                                                         sizing=dict(index_mem=index_mem, index_mem_factor=3,
+                                                                     disk=sum(f.size for f in vg_ids) * 16,
+                                                                     walltime=scaled_walltime(MAKE_GIRAFFE_INDEXES_SECS_PER_GB,
+                                                                                              sum(f.size for f in vg_ids),
+                                                                                              io_multiple=0.5)),
+                                                         walltime=cactus_walltime())
             out_dicts.append(giraffe_job.rv())
             
         # optional haplo index
         if workflow_phase in options.haplo:
             prec_job = giraffe_job if giraffe_job else gfa_merge_job
+            # sized like the giraffe job above.  vg haplotypes saturates like vg minimizer: 31.8Gi on
+            # a 6-genome GRCh38 graph and 73.8Gi on all of HPRC, so 1.5x index_mem, capped at 128Gi
             haplo_job = prec_job.addFollowOnJobFn(make_haplo_index, options, config, current_out_dict,
                                                   giraffe_job.rv() if giraffe_job else None,
                                                   tag=workflow_phase + '.',
-                                                  cores=options.indexCores,
-                                                  disk = sum(f.size for f in vg_ids) * 16,
-                                                  # like vg minimizer, vg haplotypes saturates:
-                                                  # 31.8Gi on a 6-genome GRCh38 graph and 73.8Gi
-                                                  # on all of HPRC, against an index_mem of 30.6Gi
-                                                  # and 760Gi.  scale up for the small end, where
-                                                  # it barely overflowed, and cap the big end
-                                                  memory=cactus_clamp_memory(
-                                                      min(int(index_mem * 1.5), 128 * 2**30)),
-                                                  walltime=scaled_walltime(MAKE_HAPLO_INDEX_SECS_PER_GB,
-                                                                           sum(f.size for f in vg_ids),
-                                                                           io_multiple=0.5))
+                                                  sizing=dict(index_mem=index_mem, index_mem_factor=1.5,
+                                                              disk=sum(f.size for f in vg_ids) * 16,
+                                                              walltime=scaled_walltime(MAKE_HAPLO_INDEX_SECS_PER_GB,
+                                                                                       sum(f.size for f in vg_ids),
+                                                                                       io_multiple=0.5)),
+                                                  walltime=cactus_walltime())
             out_dicts.append(haplo_job.rv())
 
         # optional full-genome odgi
@@ -2953,8 +2954,28 @@ def vcf_cat(job, vcf_tbi_ids, tag, sort=False, fix_ploidies=True):
 
     return job.fileStore.writeGlobalFile(cat_vcf_path), job.fileStore.writeGlobalFile(tbi_path)
     
-def make_giraffe_indexes(job, options, config, index_dict, short_read, long_read, tag=''):
-    """ make giraffe-specific indexes: distance and minimaer """
+def index_job_memory(options, sizing, index_dict, tag):
+    """ memory for make_giraffe_indexes or make_haplo_index.  --indexMemory is used as given.  otherwise
+    the larger of index_mem_factor * index_mem, capped at 128Gi, which covers vg minimizer and vg
+    haplotypes on a small graph without reserving a terabyte on a big panel, and
+    INDEX_MEMORY_PER_SNARLS_BYTE times the size of the graph's snarls file, which covers vg index -j on a
+    big graph.  a gref graph has no snarls file, and gets the first alone """
+    if options.indexMemory:
+        return sizing['index_mem']
+    memory = min(int(sizing['index_mem'] * sizing['index_mem_factor']), 128 * 2**30)
+    snarls_id = index_dict.get('{}snarls'.format(tag))
+    if snarls_id:
+        memory = max(memory, snarls_id.size * INDEX_MEMORY_PER_SNARLS_BYTE)
+    return cactus_clamp_memory(memory)
+
+def make_giraffe_indexes(job, options, config, index_dict, short_read, long_read, tag='', sizing=None):
+    """ make giraffe-specific indexes: distance and minimaer.  with sizing (from graphmap_join_workflow),
+    the snarls file, made by the job before this one, has a size at last: run this again as a child with
+    the cores, disk and walltime in sizing and the memory that size calls for """
+    if sizing:
+        return job.addChildJobFn(make_giraffe_indexes, options, config, index_dict, short_read, long_read, tag=tag,
+                                 cores=options.indexCores, disk=sizing['disk'], walltime=sizing['walltime'],
+                                 memory=index_job_memory(options, sizing, index_dict, tag)).rv()
     work_dir = job.fileStore.getLocalTempDir()
     gbz_path = os.path.join(work_dir, tag + os.path.basename(options.outName) + '.gbz')
     job.fileStore.readGlobalFile(index_dict['{}gbz'.format(tag)], gbz_path)
@@ -2985,8 +3006,13 @@ def make_giraffe_indexes(job, options, config, index_dict, short_read, long_read
 
     return out_dict
 
-def make_haplo_index(job, options, config, index_dict, giraffe_dict, tag=''):
-    """ make new haplotype subsampling (.hapl) index.  this generally replaces the giraffe (.min .dist) indexes """
+def make_haplo_index(job, options, config, index_dict, giraffe_dict, tag='', sizing=None):
+    """ make new haplotype subsampling (.hapl) index.  this generally replaces the giraffe (.min .dist) indexes.
+    sizing works as in make_giraffe_indexes """
+    if sizing:
+        return job.addChildJobFn(make_haplo_index, options, config, index_dict, giraffe_dict, tag=tag,
+                                 cores=options.indexCores, disk=sizing['disk'], walltime=sizing['walltime'],
+                                 memory=index_job_memory(options, sizing, index_dict, tag)).rv()
     work_dir = job.fileStore.getLocalTempDir()
     gbz_path = os.path.join(work_dir, tag + os.path.basename(options.outName) + '.gbz')
     job.fileStore.readGlobalFile(index_dict['{}gbz'.format(tag)], gbz_path)
@@ -3153,16 +3179,15 @@ def build_vg_indexes_and_vcf(parent_job, options, config, phase_vg_ids, vg_ids,
 
     # optional haplo index
     if do_haplo:
+        # see the other make_haplo_index call site
         haplo_job = gbz_job.addFollowOnJobFn(make_haplo_index, options, config, index_dict,
                                               None, tag=tag,
-                                              cores=options.indexCores,
-                                              disk=sum(f.size for f in vg_ids) * 16,
-                                              # see the other make_haplo_index call site
-                                              memory=cactus_clamp_memory(
-                                                  min(int(index_mem * 1.5), 128 * 2**30)),
-                                              walltime=scaled_walltime(MAKE_HAPLO_INDEX_SECS_PER_GB,
-                                                                       sum(f.size for f in vg_ids),
-                                                                       io_multiple=0.5))
+                                              sizing=dict(index_mem=index_mem, index_mem_factor=1.5,
+                                                          disk=sum(f.size for f in vg_ids) * 16,
+                                                          walltime=scaled_walltime(MAKE_HAPLO_INDEX_SECS_PER_GB,
+                                                                                   sum(f.size for f in vg_ids),
+                                                                                   io_multiple=0.5)),
+                                              walltime=cactus_walltime())
         out_dicts.append(haplo_job.rv())
 
     return out_dicts
