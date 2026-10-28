@@ -75,7 +75,12 @@ void cactusCheck2(bool condition, char *string, ...) {
  * 809 GiB request.  This is the way out.  The limit is a fraction of the job's request, set
  * by the workflow.  Once tripped it stays tripped -- there is nothing to switch back on.
  */
+#if defined(__APPLE__)
+// Mach-O will not link a weak reference that nothing defines, and jemalloc is never linked on Mac
+static int (*const mallctl)(const char *, void *, size_t *, void *, size_t) = NULL;
+#else
 extern int mallctl(const char *, void *, size_t *, void *, size_t) __attribute__((weak));
+#endif
 
 static volatile int retentionGuardTripped = 0;
 static volatile time_t retentionGuardLastCheck = 0;
