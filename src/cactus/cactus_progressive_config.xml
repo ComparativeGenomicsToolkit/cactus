@@ -493,7 +493,7 @@
 	    so that each pair of bases in each sequence connected by a gap of length k contributes a score proportional
 	    to (1-theta)**k.
 	    (3) Refine the matching using a simulated annealing algorithm. -->
-	<!-- matchingAlgorithm the matching algorithm used to pick the adjcanecies (e.g. Blossum) -->
+	<!-- matchingAlgorithm the matching algorithm used to pick the adjacencies between the stub ends of the top level problem: edmonds (an exact maximum weight matching), greedy, maxWeight or maxCardinality (the last two run matchGraph.py). blossom5, the old default, is a deprecated alias of edmonds. -->
 	<!-- theta each pair of bases connected in a sequence by a gap of k bases contributes score proportional to (1-theta)**k the adjacency.-->
 	<!-- numberOfNs is the number of Ns to insert into an ancestral sequence when an adjacency is uncertain, think of its as the Ns in a scaffold gap -->
 	<!-- minNumberOfSequencesToSupportAdjacency is the number of sequences needed to bridge an adjacency [THIS SET TO 0, SO NO ADJACENCIES WILL BE BROKEN] -->
@@ -504,7 +504,7 @@
 	     adjacency in a nested flower (snarl) to be considered for breaking. -->
 	<!-- phi is the coefficient used to control how much weight to place on an adjacency given its phylogenetic distance from the reference node -->
 	<reference
-		matchingAlgorithm="blossom5"
+		matchingAlgorithm="edmonds"
 		reference="reference"
 		useSimulatedAnnealing="1"
 		theta="0.000001"

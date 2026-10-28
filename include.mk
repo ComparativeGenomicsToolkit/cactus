@@ -242,8 +242,7 @@ archEnv = CFLAGS="$${CFLAGS} ${CACTUS_ARCH_FLAGS}" CXXFLAGS="$${CXXFLAGS} ${CACT
 # pinchesAndCacti/threeEdgeConnected and matchingAndOrdering/matchGraph are all in that
 # position, and CGL_DEBUG=ultra then fails on unrelated fscanf and format warnings -- which is
 # how CI broke.  paffy is in the same position at one remove: it builds its own nested
-# sonLib, quicktree and all.  Bundled C++ (blossom) is fine, since CXXFLAGS_ultraDbg
-# carries no -Werror.
+# sonLib, quicktree and all.
 #
 # Hand the baseline to those four through CC instead.  A command-line override reaches the
 # nested makes through MAKEFLAGS just as effectively, but carries nothing but the arch flag.
