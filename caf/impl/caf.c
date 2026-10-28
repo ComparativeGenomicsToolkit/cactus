@@ -477,6 +477,8 @@ void caf(Flower *flower, CactusParams *params, char *alignmentsFile, char *secon
                 }
             }
             double secondaryAnnealTime = stCaf_now() - t;
+            // free what stCaf_filterByRepeatSpecies keeps of the blocks, as melting leaves some of it to dead blocks
+            stCaf_clearRepeatSpeciesCache();
 
             t = stCaf_now();
             st_logInfo("Sequence graph statistics after annealing:\n");

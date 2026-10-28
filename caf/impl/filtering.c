@@ -91,7 +91,7 @@ bool stCaf_relaxedFilterByOutgroup(stPinchSegment *segment1,
 }
 
 /*
- * Filtering by presence of repeat species in block. This code is inefficient and does not scale.
+ * Filtering by presence of repeat species in block.
  */
 
 static bool checkIntersection(stSortedSet *names1, stSortedSet *names2) {
@@ -117,6 +117,8 @@ static stSortedSet *getEvents(stPinchSegment *segment, Flower *flower) {
     return events;
 }
 
+static void forgetRepeatSpeciesMask(stPinchBlock *block);
+
 static bool containsMoreThanOneEvent(stPinchSegment *segment, Flower *flower) {
     if(stPinchSegment_getBlock(segment) == NULL) {
         return false;
@@ -127,6 +129,7 @@ static bool containsMoreThanOneEvent(stPinchSegment *segment, Flower *flower) {
     }
     stPinchBlock_setModifiedFlag(block, false); // this ensures that we won't evaluate this again unless
     // we've added to the block
+    forgetRepeatSpeciesMask(block); // the block may have changed since stCaf_filterByRepeatSpecies took its events
     if(stPinchBlock_getFilterFlag(block)) { // note: having this line assumes that we won't remove segments
         // from blocks during the annealing phase
         return true;
@@ -181,11 +184,10 @@ static bool blockHasEvent(stPinchBlock *block, Event *event, Flower *flower) {
 // at most this many distinct events of a block are gathered on the stack, above it the sets are used
 #define REPEAT_SPECIES_MAX_STACK_EVENTS 64
 
-bool stCaf_filterByRepeatSpecies(stPinchSegment *segment1,
-                                 stPinchSegment *segment2, Flower *flower) {
+static bool filterByRepeatSpeciesScanning(stPinchSegment *segment1, stPinchSegment *segment2, Flower *flower) {
     // whether the events of segment1 (or of its block) and of segment2 (or of its block) intersect, as
     // checkIntersection(getEvents(segment1, flower), getEvents(segment2, flower)), but stopping at the first event in
-    // common and without allocating: this is the filter of every secondary alignment of a multifurcation
+    // common and without allocating
     stPinchBlock *block1 = stPinchSegment_getBlock(segment1);
     stPinchBlock *block2 = stPinchSegment_getBlock(segment2);
     if (block1 == NULL) {
@@ -226,6 +228,181 @@ bool stCaf_filterByRepeatSpecies(stPinchSegment *segment1,
         Event *event = stCaf_getEvent(segment, flower);
         for (int64_t i = 0; i < eventNumber; i++) {
             if (events[i] == event) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+/*
+ * stCaf_filterByRepeatSpecies keeps the events of each block of degree at least REPEAT_SPECIES_MIN_CACHED_DEGREE that
+ * it meets, as a mask with a bit for each event of the flower, so that a repeat block of high degree is not scanned
+ * again for every secondary alignment that reaches it. A mask is good while the block's modified flag stays clear.
+ * The pinch graph sets the flag on a block whenever a segment joins it, so on every new block too (one at a freed
+ * block's address included), and a split leaves the events of both halves as they were. Only this code and
+ * containsMoreThanOneEvent clear the flag: this code rescans the block and sets the filter flag to what
+ * containsMoreThanOneEvent would, and containsMoreThanOneEvent drops the block's mask. The masks also take the event
+ * of each thread to be fixed, see stCaf_clearRepeatSpeciesCache.
+ */
+
+#define REPEAT_SPECIES_MIN_CACHED_DEGREE 16 // below this, scanning the block is as quick as finding its mask
+
+static Flower *repeatSpeciesFlower = NULL; // the flower the event bits and masks belong to
+static bool repeatSpeciesTooManyEvents = false; // more events turned up than the flower had bits for: no masks
+static stHash *repeatSpeciesMasks = NULL; // block -> the mask of its events, repeatSpeciesMaskWords long
+static int64_t repeatSpeciesMaskWords = 0;
+static Event **repeatSpeciesEvents = NULL; // the events with bits, by open addressing, NULL where a slot is free
+static int64_t *repeatSpeciesEventBits = NULL; // the bit of the event in each slot
+static int64_t repeatSpeciesEventSlotShift = 0; // there are 2^(64 - shift) slots, at least twice as many as bits
+static int64_t repeatSpeciesEventNumber = 0; // the bits given out
+
+void stCaf_clearRepeatSpeciesCache(void) {
+    if (repeatSpeciesMasks != NULL) {
+        stHash_destruct(repeatSpeciesMasks);
+        repeatSpeciesMasks = NULL;
+    }
+    free(repeatSpeciesEvents);
+    repeatSpeciesEvents = NULL;
+    free(repeatSpeciesEventBits);
+    repeatSpeciesEventBits = NULL;
+    repeatSpeciesEventNumber = 0;
+    repeatSpeciesTooManyEvents = false;
+    repeatSpeciesFlower = NULL;
+}
+
+static void resetRepeatSpeciesCache(Flower *flower) {
+    stCaf_clearRepeatSpeciesCache();
+    repeatSpeciesFlower = flower;
+    int64_t eventNumber = eventTree_getEventNumber(flower_getEventTree(flower));
+    repeatSpeciesMaskWords = eventNumber > 64 ? (eventNumber + 63) / 64 : 1;
+    int64_t slotNumberLog2 = 7;
+    while ((INT64_C(1) << slotNumberLog2) < 2 * 64 * repeatSpeciesMaskWords) {
+        slotNumberLog2++;
+    }
+    repeatSpeciesEventSlotShift = 64 - slotNumberLog2;
+    repeatSpeciesEvents = st_calloc(INT64_C(1) << slotNumberLog2, sizeof(Event *));
+    repeatSpeciesEventBits = st_malloc((INT64_C(1) << slotNumberLog2) * sizeof(int64_t));
+    repeatSpeciesMasks = stHash_construct2(NULL, free);
+}
+
+static void forgetRepeatSpeciesMask(stPinchBlock *block) {
+    if (repeatSpeciesMasks != NULL) {
+        free(stHash_remove(repeatSpeciesMasks, block));
+    }
+}
+
+// the bit of the event, or -1 if it has none; if add, an event without one is given the next free bit, if any
+static int64_t getRepeatSpeciesEventBit(Event *event, bool add) {
+    // at most half the slots are taken, so the probe always ends at a free slot
+    uint64_t slotMask = (UINT64_C(1) << (64 - repeatSpeciesEventSlotShift)) - 1;
+    uint64_t i = ((uint64_t)(uintptr_t)event * UINT64_C(0x9E3779B97F4A7C15)) >> repeatSpeciesEventSlotShift;
+    while (repeatSpeciesEvents[i] != NULL) {
+        if (repeatSpeciesEvents[i] == event) {
+            return repeatSpeciesEventBits[i];
+        }
+        i = (i + 1) & slotMask;
+    }
+    if (!add || repeatSpeciesEventNumber == 64 * repeatSpeciesMaskWords) {
+        return -1;
+    }
+    repeatSpeciesEvents[i] = event;
+    repeatSpeciesEventBits[i] = repeatSpeciesEventNumber;
+    return repeatSpeciesEventNumber++;
+}
+
+static bool repeatSpeciesMaskHasBit(uint64_t *mask, int64_t bit) {
+    return bit >= 0 && ((mask[bit / 64] >> (bit % 64)) & 1);
+}
+
+// the mask of the events of the block, rescanning the block if it has none or may have changed since. NULL, having
+// dropped all the masks until the cache is next reset, if the block has an event without a bit and none are left
+static uint64_t *getRepeatSpeciesMask(stPinchBlock *block, Flower *flower) {
+    uint64_t *mask = stHash_search(repeatSpeciesMasks, block);
+    if (mask != NULL && !stPinchBlock_getModifiedFlag(block)) {
+        return mask;
+    }
+    if (mask == NULL) {
+        mask = st_malloc(repeatSpeciesMaskWords * sizeof(uint64_t));
+        stHash_insert(repeatSpeciesMasks, block, mask);
+    }
+    memset(mask, 0, repeatSpeciesMaskWords * sizeof(uint64_t));
+    int64_t eventNumber = 0;
+    stPinchThread *thread = NULL;
+    stPinchBlockIt it = stPinchBlock_getSegmentIterator(block);
+    stPinchSegment *segment;
+    while ((segment = stPinchBlockIt_getNext(&it)) != NULL) {
+        if (stPinchSegment_getThread(segment) != thread) { // a segment's event is its thread's
+            thread = stPinchSegment_getThread(segment);
+            int64_t bit = getRepeatSpeciesEventBit(stCaf_getEvent(segment, flower), true);
+            if (bit < 0) {
+                stHash_destruct(repeatSpeciesMasks);
+                repeatSpeciesMasks = NULL;
+                repeatSpeciesTooManyEvents = true;
+                return NULL;
+            }
+            if (!repeatSpeciesMaskHasBit(mask, bit)) {
+                mask[bit / 64] |= UINT64_C(1) << (bit % 64);
+                eventNumber++;
+            }
+        }
+    }
+    stPinchBlock_setModifiedFlag(block, false);
+    stPinchBlock_setFilterFlag(block, eventNumber > 1); // as containsMoreThanOneEvent would
+    return mask;
+}
+
+bool stCaf_filterByRepeatSpecies(stPinchSegment *segment1,
+                                 stPinchSegment *segment2, Flower *flower) {
+    // whether the events of segment1 (or of its block) and of segment2 (or of its block) intersect, as
+    // checkIntersection(getEvents(segment1, flower), getEvents(segment2, flower)): this is the filter of every
+    // secondary alignment of a multifurcation
+    stPinchBlock *block1 = stPinchSegment_getBlock(segment1);
+    stPinchBlock *block2 = stPinchSegment_getBlock(segment2);
+    if (block1 == block2) { // the same block, or two segments in no block
+        return block1 != NULL || stCaf_getEvent(segment1, flower) == stCaf_getEvent(segment2, flower);
+    }
+    // make side 1 the smaller: a segment in no block, or the block of lower degree
+    if (block1 != NULL && (block2 == NULL || stPinchBlock_getDegree(block1) > stPinchBlock_getDegree(block2))) {
+        stPinchSegment *segment = segment1;
+        segment1 = segment2;
+        segment2 = segment;
+        block1 = block2;
+        block2 = stPinchSegment_getBlock(segment2);
+    }
+    if (stPinchBlock_getDegree(block2) < REPEAT_SPECIES_MIN_CACHED_DEGREE || flower == NULL) {
+        return filterByRepeatSpeciesScanning(segment1, segment2, flower); // the masks are sized by the flower's events
+    }
+    if (flower != repeatSpeciesFlower) {
+        resetRepeatSpeciesCache(flower);
+    }
+    uint64_t *mask2;
+    if (repeatSpeciesTooManyEvents || (mask2 = getRepeatSpeciesMask(block2, flower)) == NULL) {
+        return filterByRepeatSpeciesScanning(segment1, segment2, flower);
+    }
+    if (block1 == NULL) { // an event without a bit is in no block with a mask
+        return repeatSpeciesMaskHasBit(mask2, getRepeatSpeciesEventBit(stCaf_getEvent(segment1, flower), false));
+    }
+    if (stPinchBlock_getDegree(block1) >= REPEAT_SPECIES_MIN_CACHED_DEGREE) {
+        uint64_t *mask1 = getRepeatSpeciesMask(block1, flower); // each mask is allocated alone, so mask2 stays put
+        if (mask1 == NULL) {
+            return filterByRepeatSpeciesScanning(segment1, segment2, flower);
+        }
+        for (int64_t i = 0; i < repeatSpeciesMaskWords; i++) {
+            if (mask1[i] & mask2[i]) {
+                return true;
+            }
+        }
+        return false;
+    }
+    // look for the events of the small block among those of the big one
+    stPinchThread *thread = NULL;
+    stPinchBlockIt it = stPinchBlock_getSegmentIterator(block1);
+    stPinchSegment *segment;
+    while ((segment = stPinchBlockIt_getNext(&it)) != NULL) {
+        if (stPinchSegment_getThread(segment) != thread) {
+            thread = stPinchSegment_getThread(segment);
+            if (repeatSpeciesMaskHasBit(mask2, getRepeatSpeciesEventBit(stCaf_getEvent(segment, flower), false))) {
                 return true;
             }
         }
