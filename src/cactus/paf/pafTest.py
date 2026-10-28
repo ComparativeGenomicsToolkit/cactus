@@ -402,12 +402,14 @@ class IngroupChainingTest(unittest.TestCase):
         options = Job.Runner.getDefaultOptions(os.path.join(self.work_dir, 'js.{}'.format(run)))
         options.disableCaching = True
         options.maxCores = 2
+        # with outputSecondaryAlignments the pairs must not be chained again, so they get no distances to be ordered by,
+        # which makes chaining them fail
         with Toil(options) as toil:
             ingroup_ids = [toil.importFile(makeURL(path)) for path in ingroup_paths]
             outgroup_ids = [toil.importFile(makeURL(outgroup_path))]
             out_id = toil.start(Job.wrapJobFn(chain_alignments_splitting_ingroups_and_outgroups,
                                               ingroup_ids, ingroup_names, outgroup_ids, ['Anc0-og_0'], 'Anc0', params,
-                                              ingroup_alignment_distances=ingroup_distances,
+                                              ingroup_alignment_distances=None if output_secondaries else ingroup_distances,
                                               pair_secondaries=pair_secondaries))
             toil.exportFile(out_id, makeURL(out_path))
         lines = []
