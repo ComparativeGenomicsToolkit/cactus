@@ -1085,6 +1085,16 @@ total 72M
 2.1M chrII.raw.vg  4.4M chrIV.raw.vg   1.6M chrV.raw.vg   2.4M chrVII.raw.vg  1.7M chrX.raw.vg     3.1M chrXII.raw.vg  2.4M chrXIV.raw.vg   2.5M chrXVI.raw.vg
 ```
 
+`hal2vg` works out where the pinch blocks whose members disagree on a base divide, and makes those
+nodes as it builds the graph.  Older versions of `hal2vg` split those blocks in the pinch graph
+itself, which needed much more memory on large alignments.  The graph is the same up to node IDs and
+the orientation some nodes are stored in, except that the `.raw.vg` can have a few more nodes, where
+the old conversion would have merged two into one.  `cactus-graphmap-join` removes those when it
+unchops the graph after normalizing it with GFAffix.  To use the old conversion, add
+`--legacyConversion` to `hal2vgOptions` in the `<hal2vg>` section of the
+[cactus config](../src/cactus/cactus_progressive_config.xml), and Cactus will ask for 30 times the
+HAL's size in memory for each `hal2vg` job, rather than 10.
+
 ### Yeast: Joining the Chromosome Alignments
 
 As in the primates example, `cactus-graphmap-join` is used to make the final indexes.  Its use is identical, except multiple graphs are passed as input.  We also pass in the HAL files so it can merge them too.
