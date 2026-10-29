@@ -339,7 +339,7 @@ suball.jemalloc:
 endif
 
 suball.pinchesAndCacti: suball.sonLib
-	cd submodules/pinchesAndCacti && ${archEnvExt} ${MAKE} ${archCC}
+	cd submodules/pinchesAndCacti && ${archEnv} ${MAKE}
 
 suball.matchingAndOrdering: suball.sonLib
 	cd submodules/matchingAndOrdering && ${archEnvExt} ${MAKE} ${archCC}
