@@ -7,7 +7,7 @@ mydir=$(dirname $(which $0))
 source ${mydir}/releaseLib.sh
 
 keep=no
-if [ $1 -eq '--keep' ] ; then
+if [ "${1:-}" = '--keep' ] ; then
     keep=yes
 fi
 set -beEu -o pipefail
@@ -190,7 +190,7 @@ cp -r submodules/pgrealign/pyproject.toml submodules/pgrealign/README.md submodu
    submodules/pgrealign/pgrealign ${binPackageDir}/submodules/pgrealign
 # install the hal python libraries, requires PYTHONPATH set by user.
 # todo: probably a better way
-mkdir -p $(binPackageDir)/lib
+mkdir -p ${binPackageDir}/lib
 rsync -avm --include='*.py' -f 'hide,! */' ./submodules/hal ${binPackageDir}/lib
 # need .git dir for pip install -U ., but don't need everything
 cp -r .git ${binPackageDir}
