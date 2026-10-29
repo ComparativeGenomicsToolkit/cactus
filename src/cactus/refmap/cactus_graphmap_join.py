@@ -50,6 +50,7 @@ from cactus.shared.common import getOptionalAttrib, findRequiredNode
 from cactus.shared.common import unzip_gz, write_s3
 from cactus.shared.common import cactus_clamp_memory
 from cactus.shared.common import clean_jobstore_files
+from cactus.shared.common import read_global_file_mutable
 from cactus.shared.version import cactus_commit
 from cactus.preprocessor.fileMasking import get_mask_bed_from_fasta
 from toil.job import Job
@@ -2060,7 +2061,7 @@ def join_vg(job, options, config, clipped_vg_ids):
     assert len(options.vg) == len(clipped_vg_ids)
     for vg_path, vg_id in zip(options.vg, clipped_vg_ids):
         vg_path = os.path.join(work_dir, os.path.basename(vg_path))
-        job.fileStore.readGlobalFile(vg_id, vg_path, mutable=True)
+        read_global_file_mutable(job, vg_id, vg_path)
         vg_paths.append(vg_path)
         
     cactus_call(parameters=['vg', 'ids', '-j'] + vg_paths, job_memory=job.memory)
@@ -3338,9 +3339,11 @@ def merge_hal(job, options, config, hal_ids, remove_minigraph=True):
     graph_event = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "assemblyName", default="_MINIGRAPH_")
     for in_path, hal_id in zip(options.hal, hal_ids):
         hal_path = os.path.join(work_dir, os.path.basename(in_path))
-        job.fileStore.readGlobalFile(hal_id, hal_path, mutable=remove_minigraph)
         if remove_minigraph:
+            read_global_file_mutable(job, hal_id, hal_path)
             cactus_call(parameters=['halRemoveGenome', hal_path, graph_event])            
+        else:
+            job.fileStore.readGlobalFile(hal_id, hal_path)
         hal_paths.append(hal_path)
 
     merged_path = os.path.join(work_dir, '__merged__.hal')
