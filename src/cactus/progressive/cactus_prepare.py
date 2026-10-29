@@ -36,6 +36,7 @@ from cactus.shared.common import cactus_override_toil_options, add_cactus_toil_o
 from cactus.pipeline.cactus_workflow import cons_core_scale
 from cactus.shared.common import cactus_clamp_memory
 from cactus.shared.common import cactus_walltime
+from cactus.shared.common import read_global_file_mutable
 
 from toil.job import Job
 from toil.common import Toil
@@ -1322,7 +1323,7 @@ def toil_call_hal_append_subtrees(job, options, mc_tree, og_map, root_name, root
 
     # donload the root hal file
     root_file = os.path.join(work_dir, '{}.hal'.format(root_name))
-    job.fileStore.readGlobalFile(root_hal_id, root_file, mutable=True)
+    read_global_file_mutable(job, root_hal_id, root_file)
     
     # download the hal files from the file store
     hal_files = []
@@ -1492,7 +1493,7 @@ def hal_append_subtrees(job, hal_id, sub_hal_ids, options):
 
     work_dir = job.fileStore.getLocalTempDir()
     hal_path = os.path.join(work_dir, os.path.basename(options.tgtFile))
-    job.fileStore.readGlobalFile(hal_id, hal_path, mutable=True)
+    read_global_file_mutable(job, hal_id, hal_path)
 
     for sub_id, sub_input_path in zip(sub_hal_ids, options.subFiles):
         sub_path = os.path.join(work_dir, os.path.basename(sub_input_path))

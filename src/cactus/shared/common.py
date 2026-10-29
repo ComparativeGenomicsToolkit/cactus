@@ -1408,6 +1408,19 @@ def readGlobalFileWithoutCache(fileStore, jobStoreID):
     fileStore.jobStore.readFile(jobStoreID, f)
     return f
 
+def read_global_file_mutable(job, file_id, path):
+    """ readGlobalFile(mutable=True), for a file that will be changed in place.  toil's non-caching
+    file store (the default for a file job store) ignores mutable and hardlinks the job store's file,
+    which for an imported local file is the user's own input (--symlinkImports).  changing that would
+    change the input, as well as the copy a retried job starts from, so anything still sharing its
+    inode is copied first """
+    job.fileStore.readGlobalFile(file_id, path, mutable=True)
+    if os.path.islink(path) or os.stat(path).st_nlink > 1:
+        copy_path = path + '.copy'
+        shutil.copyfile(path, copy_path)
+        os.replace(copy_path, path)
+    return path
+
 class ChildTreeJob(RoundedJob):
     """Spreads the child-job initialization work among multiple jobs.
 
