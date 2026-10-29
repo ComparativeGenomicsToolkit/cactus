@@ -42,7 +42,7 @@ from cactus.shared.common import cactusRootPath
 from cactus.shared.configWrapper import ConfigWrapper
 from cactus.shared.common import makeURL, catFiles
 from cactus.shared.common import vg_chrom_name
-from cactus.shared.common import normalize_pangenome_name, resolve_pangenome_name, pangenome_name_sample
+from cactus.shared.common import normalize_pangenome_name, resolve_pangenome_name, pangenome_name_sample, split_pangenome_name
 from cactus.shared.common import enableDumpStack
 from cactus.shared.common import cactus_override_toil_options, add_cactus_toil_options
 from cactus.shared.common import cactus_call
@@ -572,10 +572,6 @@ def graphmap_join_validate_options(options):
             raise RuntimeError('--clipFlank cannot be used with --clip disabled: it trims outward '
                                'from the intervals --clip removes.')
 
-    # the references are genome names, normalized as the seqfile's are (so HG002.1 is HG002#1).
-    # graphmap_join_workflow turns them into the vg samples they belong to
-    options.reference = [normalize_pangenome_name(ref) for ref in options.reference]
-
     # if no graph output specified, default to gfa.gz
     if not options.gfa and not options.unchopped_gfa and not options.xg and not options.gbz:
         options.gfa = ['clip'] if options.clip else ['full']
@@ -700,15 +696,6 @@ def graphmap_join_validate_options(options):
         if options.batchSystem == 'single_machine':
             options.vcfwaveCores = min(options.vcfwaveCores, cactus_cpu_count())
         
-    if not options.vcfReference:
-        options.vcfReference = [options.reference[0]]
-    else:
-        for i, vcfref in enumerate(options.vcfReference):
-            resolved_vcfref = resolve_pangenome_name(vcfref, options.reference)
-            if resolved_vcfref is None:
-                raise RuntimeError('--vcfReference {} invalid because {} was not specified as a --reference'.format(vcfref, vcfref))
-            options.vcfReference[i] = resolved_vcfref
-
     if options.snarlStats == []:
         options.snarlStats = ['clip'] if options.clip else ['full']
     options.snarlStats = list(set(options.snarlStats)) if options.snarlStats else []    
@@ -836,14 +823,41 @@ def graphmap_join_validate_options(options):
             raise RuntimeError('--gref {} requested but {} was not provided as a bypass input'.format(
                 options.gref, options.gref))
 
-        # In bypass mode, VCF normalization extracts fasta from VG files which only
-        # works for the first (primary) reference
-        if options.vcf and options.vcfReference and options.vcfReference != [options.reference[0]]:
-            raise RuntimeError('--vcfReference can only specify the first reference ({}) in bypass mode'.format(
-                options.reference[0]))
-
     return options
-    
+
+def graphmap_join_resolve_references(options, dot_haplotypes, references_resolved=False):
+    """ make --reference and --vcfReference genome names, as the seqfile's are normalized.  this needs
+    the config's <graphmap dotHaplotypes>, so it comes after graphmap_join_validate_options().
+    cactus-pangenome has resolved the references against its seqfile already (references_resolved);
+    cactus-graphmap-join has no seqfile, so it reads them as a seqfile's names are read.  each
+    --vcfReference must be one of the references.  graphmap_join_workflow turns them all into the vg
+    samples they belong to """
+    if not references_resolved:
+        for i, ref in enumerate(options.reference):
+            options.reference[i] = normalize_pangenome_name(ref, dot_haplotypes)
+            if '#' not in ref and options.reference[i] != ref:
+                # with no seqfile at hand, a haplotype 0 genome whose name ends in .N can't be told
+                # from the old spelling of a haplotype, so say which way it went
+                logger.warning('--reference {} is read as {}, haplotype {} of {}, as <graphmap dotHaplotypes="1">.  '
+                               'If it is the genome named {} (haplotype 0), give it as {}#0'.format(
+                                   ref, options.reference[i], *split_pangenome_name(options.reference[i])[::-1],
+                                   ref, ref))
+
+    if not options.vcfReference:
+        options.vcfReference = [options.reference[0]]
+    else:
+        for i, vcfref in enumerate(options.vcfReference):
+            resolved_vcfref = resolve_pangenome_name(vcfref, options.reference, dot_haplotypes)
+            if resolved_vcfref is None:
+                raise RuntimeError('--vcfReference {} invalid because {} was not specified as a --reference'.format(vcfref, vcfref))
+            options.vcfReference[i] = resolved_vcfref
+
+    # In bypass mode, VCF normalization extracts fasta from VG files which only
+    # works for the first (primary) reference
+    if options.bypass and options.vcf and options.vcfReference != [options.reference[0]]:
+        raise RuntimeError('--vcfReference can only specify the first reference ({}) in bypass mode'.format(
+            options.reference[0]))
+
 def graphmap_join(options):
     with Toil(options) as toil:
         importSingularityImage(options)
@@ -862,6 +876,8 @@ def graphmap_join(options):
                 findRequiredNode(configNode, "graphmap").attrib["collapse"] = 'all'
 
             graphmap_join_config_overrides(options, configNode)
+
+            graphmap_join_resolve_references(options, config.getDotHaplotypes())
 
             # load up the hals
             hal_ids = []
@@ -983,6 +999,8 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
         if options.pgrealign and getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"),
                                                    "pgrealignVerify", typeFn=bool, default=True):
             full_secs_per_gb += PGREALIGN_VERIFY_SECS_PER_GB
+        # the largest job a pgrealign_vg job may start again with, when realign needs more memory
+        pgrealign_max_mem = cactus_clamp_memory(max_mem)
         for vg_path, vg_id in zip(options.vg, vg_ids):
             full_resources = dict(disk=vg_id.size * 20, memory=max(2**31, min(vg_id.size * 20, max_mem)),
                                   walltime=scaled_walltime(full_secs_per_gb, vg_id.size))
@@ -990,7 +1008,7 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
                 # pgrealign runs on the graph cactus-align wrote and hands the full phase the realigned
                 # graph as the GFA its gfaffix step would otherwise make from the vg
                 pgrealign_job = root_job.addChildJobFn(
-                    pgrealign_vg, options, config, vg_path, vg_id, pgrealign_targets_id,
+                    pgrealign_vg, options, config, vg_path, vg_id, pgrealign_targets_id, pgrealign_max_mem,
                     cores=options.indexCores, disk=vg_id.size * 40,
                     memory=cactus_clamp_memory(min(max(2**33, vg_id.size * 20), max_mem)),
                     walltime=scaled_walltime(PGREALIGN_SECS_PER_GB, vg_id.size, io_multiple=6))
@@ -1786,13 +1804,16 @@ def gfa_sequence_length(gfa_path):
                 break
     return length
 
-def pgrealign_vg(job, options, config, vg_path, vg_id, targets_id=None):
+def pgrealign_vg(job, options, config, vg_path, vg_id, targets_id=None, max_mem=None, resized=False):
     """ realign one chromosome graph with pgrealign, ahead of the full phase: the tandem repeats that
     pgrealign catalog finds on each of its reference paths, or the intervals of targets_id (the
     --pgrealign TARGETS BED).  returns the graph as GFA, realigned, for clip_vg to use in place of the
     vg; the stats: this chromosome's row of pgrealign-stats.tsv and an archive of pgrealign's reports;
     and whether any region was replaced, for clip_vg to check the paths only then.  a graph pgrealign
-    cannot work on, such as an unplaced bin with no reference path, comes back as it went in """
+    cannot work on, such as an unplaced bin with no reference path, comes back as it went in.  the
+    memory realign needs is known only once extract has run: a job with too little starts again, as a
+    child with enough (resized), up to max_mem """
+    in_vg_path = vg_path
     work_dir = job.fileStore.getLocalTempDir()
     vg_path = os.path.join(work_dir, os.path.basename(vg_path))
     job.fileStore.readGlobalFile(vg_id, vg_path)
@@ -1895,12 +1916,52 @@ def pgrealign_vg(job, options, config, vg_path, vg_id, targets_id=None):
                                            *config_opts('pgrealignExtractOptions'))
         if summary.get('extract', {}).get('status', {}).get('ok'):
             msas_path = os.path.join(report_dir, 'msas.jsonl.gz')
-            # realign's budget covers the regions it aligns at once; extract and replace, which hold
-            # the graph's tables, run before and after it
-            summary['realign'] = pgrealign('realign', '--packages', os.path.join(extract_dir, 'packages.jsonl.gz'),
-                                           '-o', msas_path, '-j', threads, '--abpoa', 'abpoa',
-                                           '--max-memory', '{:.1f}'.format(max(1.0, job.memory / 2**30 / 2)),
-                                           *config_opts('pgrealignRealignOptions'))
+            packages_path = os.path.join(extract_dir, 'packages.jsonl.gz')
+            # whether a region is realigned depends on its package and the config alone, never on the
+            # machine, the batch system or the job: realign has no time limit, and its limits are sizes of
+            # the alignment (--max-cells, --max-work), pgrealign's own or those pgrealignRealignOptions
+            # sets, which leave a region too big for them as it is (too_big).  The memory and time it needs
+            # follow from them, and a job with too little memory starts again, below, rather than realign less
+            realign_opts = ['--abpoa', 'abpoa'] + config_opts('pgrealignRealignOptions')
+            # realign's budget, half the job's memory, covers the regions it aligns at once; extract and
+            # replace, which hold the graph's tables, run before and after it.  The budget decides only
+            # how many run at once, and must hold the largest region realign admits, which plan gives
+            budget_gb = max(1.0, job.memory / 2**30 / 2)
+            plan = pgrealign('realign', '--packages', packages_path, '--plan', '-j', threads,
+                             '--max-memory', '{:.3f}'.format(budget_gb), *realign_opts)
+            summary['realign_plan'] = plan
+            RealtimeLogger.info('pgrealign {}: realign admits {} regions and leaves {} too_big ({}); its largest, '
+                                '{}, needs {} GB, and it should take about {} s'.format(
+                                    chrom, plan['admitted'], sum(plan['too_big'].values()),
+                                    json.dumps(plan['too_big']), plan['largest'], plan['need_gb'], plan['seconds']))
+            if plan['need_gb'] > budget_gb:
+                short = '{} GB of memory for region {}, of which realign has half'.format(plan['need_gb'],
+                                                                                    plan['largest'])
+                want = int((2 * plan['need_gb'] + 1) * 2**30)
+                memory = min(cactus_clamp_memory(want), max_mem or sys.maxsize)
+                if resized or memory < want:
+                    raise RuntimeError('pgrealign {}: realign needs {}, {}.  Raise --maxMemory, or lower pgrealign '
+                                       'realign\'s --max-cells (pgrealignRealignOptions in the config), which bounds '
+                                       'every region\'s memory but changes which are realigned'.format(
+                                           chrom, short,
+                                           'and --maxMemory allows a job at most {:.1f} GiB'.format(memory / 2**30)
+                                           if memory < want else 'even with {:.1f} GiB'.format(job.memory / 2**30)))
+                RealtimeLogger.info('pgrealign {}: starting again with {:.1f} GiB of memory, as realign needs {}'.format(
+                    chrom, memory / 2**30, short))
+                child_job = job.addChildJobFn(pgrealign_vg, options, config, in_vg_path, vg_id, targets_id,
+                                              max_mem, resized=True,
+                                              cores=job.cores, disk=job.disk, memory=memory,
+                                              walltime=scaled_walltime(PGREALIGN_SECS_PER_GB, vg_id.size,
+                                                                       io_multiple=6))
+                return child_job.rv(0), child_job.rv(1), child_job.rv(2)
+            summary['realign'] = pgrealign('realign', '--packages', packages_path, '-o', msas_path, '-j', threads,
+                                           '--max-memory', '{:.3f}'.format(budget_gb), *realign_opts)
+            # every region realign leaves as it is, by status (too_big, not_homologous, ...), where it is seen
+            realigned = summary['realign']['realigned']
+            left = {status: n for status, n in realigned.items() if status != 'ok'}
+            if left:
+                RealtimeLogger.warning('pgrealign {}: realign left {} of {} regions as they were: {}'.format(
+                    chrom, sum(left.values()), sum(realigned.values()), json.dumps(left)))
             if summary['realign']['realigned'].get('ok'):
                 realigned_gfa_path = os.path.join(work_dir, chrom + '.realigned.gfa')
                 summary['replace'] = pgrealign('replace', '--graph', gfa_path, '--extract', extract_dir,
@@ -2835,7 +2896,7 @@ def vcfwave(job, config, vcf_path, vcf_id):
     vcfwave_path = os.path.join(work_dir, 'wave.{}'.format(os.path.basename(vcf_path)))
     wave_opts = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "vcfwaveOptions", typeFn=str, default=None)
     assert wave_opts
-    cactus_call(parameters=[['zcat', vcf_path],
+    cactus_call(parameters=[['gzip', '-dc', vcf_path],
                             ['vcfwave'] + wave_opts.split(' ') + ['-t', str(job.cores)],
                             ['bgzip']], outfile=vcfwave_path)
 

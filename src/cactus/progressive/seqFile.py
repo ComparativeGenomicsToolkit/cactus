@@ -24,6 +24,7 @@ from sonLib.nxtree import NXTree
 from sonLib.nxnewick import NXNewick
 from sonLib.bioio import popenCatch
 from cactus.shared.common import normalize_pangenome_name, pangenome_name_to_pansn_prefix, split_pangenome_name
+from cactus.shared.common import pangenome_file_name, split_dot_haplotype
 
 from toil.statsAndLogging import logger
 from toil.statsAndLogging import set_logging_from_options
@@ -51,14 +52,16 @@ from toil.realtimeLogger import RealtimeLogger
 # *cat /tmp/cat/
 
 class SeqFile:
-    def __init__(self, path=None, defaultBranchLen=1.0, root_name = None, pangenome = False):
+    def __init__(self, path=None, defaultBranchLen=1.0, root_name = None, pangenome = False, dot_haplotypes = None):
         self.branchLen = defaultBranchLen        
         if path is not None:
-            self.parseFile(path, root_name, pangenome)
+            self.parseFile(path, root_name, pangenome, dot_haplotypes)
 
-    def parseFile(self, path, root_name = None, pangenome = False):
-        """ with pangenome, the genome names are PanSN (see normalize_pangenome_name), and the
-        names Cactus used to give a haplotype with (HG002.1) are rewritten to it (HG002#1) """
+    def parseFile(self, path, root_name = None, pangenome = False, dot_haplotypes = None):
+        """ with pangenome, the genome names are PanSN (see normalize_pangenome_name), and
+        dot_haplotypes (<graphmap dotHaplotypes>, which has to be given) rewrites the names Cactus
+        used to give a haplotype with (HG002.1) to it (HG002#1) """
+        assert not pangenome or dot_haplotypes is not None, 'a pangenome seqfile is read with its config\'s dotHaplotypes'
         if not os.path.isfile(path):
             raise RuntimeError("File not found: %s" % path)
         self.tree = None
@@ -99,16 +102,18 @@ class SeqFile:
         self.cleanTree(root_name)
         self.validate()
         if pangenome:
-            self.normalizePangenomeNames()
+            self.normalizePangenomeNames(dot_haplotypes)
 
-    def normalizePangenomeNames(self):
+    def normalizePangenomeNames(self, dot_haplotypes):
         """ rewrite every genome name to its normalize_pangenome_name() spelling, warning about any
-        that change, and make sure no two names are the same PanSN genome (HG002.1 and HG002#1, or
-        CHM13 and CHM13#0).  ancestor names in a given tree are left alone """
+        read the old way (HG002.1 as HG002#1), and make sure no two names are the same PanSN genome
+        (HG002.1 and HG002#1, or CHM13 and CHM13#0) or would give the same file names
+        (GCA_054883195.1#0 and GCA_054883195#1).  ancestor names in a given tree are left alone """
         renamed = {}
         by_prefix = {}
+        by_file_name = {}
         for name in self.pathMap:
-            new_name = normalize_pangenome_name(name)
+            new_name = normalize_pangenome_name(name, dot_haplotypes)
             if new_name != name:
                 renamed[name] = new_name
             prefix = pangenome_name_to_pansn_prefix(new_name)
@@ -117,15 +122,37 @@ class SeqFile:
                                    'each sample#haplotype can only be given once'.format(
                                        by_prefix[prefix], name, *split_pangenome_name(new_name)[::-1]))
             by_prefix[prefix] = name
+            file_name = pangenome_file_name(new_name)
+            if file_name in by_file_name:
+                raise RuntimeError('Genome names {} and {} cannot both be used: files are named after '
+                                   'their genomes with any "#" made a ".", which would name both {}.  '
+                                   'Please rename one of them'.format(by_file_name[file_name], name, file_name))
+            by_file_name[file_name] = name
+        dot_renamed = {name : new_name for name, new_name in renamed.items() if '#' not in name}
+        if dot_renamed:
+            logger.warning('Haplotypes are now given in the PanSN style, SAMPLE#HAPLOTYPE, and names '
+                           'are no longer read as SAMPLE.HAPLOTYPE except for this backward compatible '
+                           'rewrite, which is also how they will be spelled in the output (HAL, MAF '
+                           'etc.): {}.  Please use the new names in the seqfile.  A sample whose name '
+                           'really ends in .N, like a versioned accession, must give its haplotype '
+                           'explicitly, ex GCA_054883195.1#0, or set <graphmap dotHaplotypes="0"> in '
+                           'the config to take every name without a "#" as it is'.format(
+                               ', '.join('{} -> {}'.format(k, v) for k, v in dot_renamed.items())))
+        elif not dot_haplotypes:
+            # with dotHaplotypes="0" (some day the default), names in the old spelling are samples
+            # in their own right, which is quietly wrong for the haplotypes of a diploid
+            by_stem = {}
+            for name in self.pathMap:
+                if split_dot_haplotype(name):
+                    by_stem.setdefault(split_dot_haplotype(name)[0], []).append(name)
+            lookalikes = [names for names in by_stem.values() if len(names) > 1]
+            if lookalikes:
+                logger.warning('Genome names {} are each a haploid sample of their own, as <graphmap '
+                               'dotHaplotypes="0"> takes a name without a "#" as it is.  If they are '
+                               'the haplotypes of one sample, name them SAMPLE#1, SAMPLE#2 etc.'.format(
+                                   ', '.join(' '.join(names) for names in lookalikes)))
         if not renamed:
             return
-        logger.warning('Haplotypes are now given in the PanSN style, SAMPLE#HAPLOTYPE, and names '
-                       'are no longer read as SAMPLE.HAPLOTYPE except for this backward compatible '
-                       'rewrite, which is also how they will be spelled in the output (HAL, MAF '
-                       'etc.): {}.  Please use the new names in the seqfile.  A sample whose name '
-                       'really ends in .N, like a versioned accession, must give its haplotype '
-                       'explicitly, ex GCA_054883195.1#0'.format(
-                           ', '.join('{} -> {}'.format(k, v) for k, v in renamed.items())))
         self.pathMap = {renamed.get(name, name) : path for name, path in self.pathMap.items()}
         self.seqOrder = [renamed.get(name, name) for name in self.seqOrder]
         self.outgroups = [renamed.get(name, name) for name in self.outgroups]
