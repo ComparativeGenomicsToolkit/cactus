@@ -983,6 +983,8 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
         if options.pgrealign and getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"),
                                                    "pgrealignVerify", typeFn=bool, default=True):
             full_secs_per_gb += PGREALIGN_VERIFY_SECS_PER_GB
+        # the largest job a pgrealign_vg job may start again with, when realign needs more memory
+        pgrealign_max_mem = cactus_clamp_memory(max_mem)
         for vg_path, vg_id in zip(options.vg, vg_ids):
             full_resources = dict(disk=vg_id.size * 20, memory=max(2**31, min(vg_id.size * 20, max_mem)),
                                   walltime=scaled_walltime(full_secs_per_gb, vg_id.size))
@@ -990,7 +992,7 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
                 # pgrealign runs on the graph cactus-align wrote and hands the full phase the realigned
                 # graph as the GFA its gfaffix step would otherwise make from the vg
                 pgrealign_job = root_job.addChildJobFn(
-                    pgrealign_vg, options, config, vg_path, vg_id, pgrealign_targets_id,
+                    pgrealign_vg, options, config, vg_path, vg_id, pgrealign_targets_id, pgrealign_max_mem,
                     cores=options.indexCores, disk=vg_id.size * 40,
                     memory=cactus_clamp_memory(min(max(2**33, vg_id.size * 20), max_mem)),
                     walltime=scaled_walltime(PGREALIGN_SECS_PER_GB, vg_id.size, io_multiple=6))
@@ -1786,13 +1788,16 @@ def gfa_sequence_length(gfa_path):
                 break
     return length
 
-def pgrealign_vg(job, options, config, vg_path, vg_id, targets_id=None):
+def pgrealign_vg(job, options, config, vg_path, vg_id, targets_id=None, max_mem=None, resized=False):
     """ realign one chromosome graph with pgrealign, ahead of the full phase: the tandem repeats that
     pgrealign catalog finds on each of its reference paths, or the intervals of targets_id (the
     --pgrealign TARGETS BED).  returns the graph as GFA, realigned, for clip_vg to use in place of the
     vg; the stats: this chromosome's row of pgrealign-stats.tsv and an archive of pgrealign's reports;
     and whether any region was replaced, for clip_vg to check the paths only then.  a graph pgrealign
-    cannot work on, such as an unplaced bin with no reference path, comes back as it went in """
+    cannot work on, such as an unplaced bin with no reference path, comes back as it went in.  the
+    memory realign needs is known only once extract has run: a job with too little starts again, as a
+    child with enough (resized), up to max_mem """
+    in_vg_path = vg_path
     work_dir = job.fileStore.getLocalTempDir()
     vg_path = os.path.join(work_dir, os.path.basename(vg_path))
     job.fileStore.readGlobalFile(vg_id, vg_path)
@@ -1895,12 +1900,52 @@ def pgrealign_vg(job, options, config, vg_path, vg_id, targets_id=None):
                                            *config_opts('pgrealignExtractOptions'))
         if summary.get('extract', {}).get('status', {}).get('ok'):
             msas_path = os.path.join(report_dir, 'msas.jsonl.gz')
-            # realign's budget covers the regions it aligns at once; extract and replace, which hold
-            # the graph's tables, run before and after it
-            summary['realign'] = pgrealign('realign', '--packages', os.path.join(extract_dir, 'packages.jsonl.gz'),
-                                           '-o', msas_path, '-j', threads, '--abpoa', 'abpoa',
-                                           '--max-memory', '{:.1f}'.format(max(1.0, job.memory / 2**30 / 2)),
-                                           *config_opts('pgrealignRealignOptions'))
+            packages_path = os.path.join(extract_dir, 'packages.jsonl.gz')
+            # whether a region is realigned depends on its package and the config alone, never on the
+            # machine, the batch system or the job: realign has no time limit, and its limits are sizes of
+            # the alignment (--max-cells, --max-work), pgrealign's own or those pgrealignRealignOptions
+            # sets, which leave a region too big for them as it is (too_big).  The memory and time it needs
+            # follow from them, and a job with too little memory starts again, below, rather than realign less
+            realign_opts = ['--abpoa', 'abpoa'] + config_opts('pgrealignRealignOptions')
+            # realign's budget, half the job's memory, covers the regions it aligns at once; extract and
+            # replace, which hold the graph's tables, run before and after it.  The budget decides only
+            # how many run at once, and must hold the largest region realign admits, which plan gives
+            budget_gb = max(1.0, job.memory / 2**30 / 2)
+            plan = pgrealign('realign', '--packages', packages_path, '--plan', '-j', threads,
+                             '--max-memory', '{:.3f}'.format(budget_gb), *realign_opts)
+            summary['realign_plan'] = plan
+            RealtimeLogger.info('pgrealign {}: realign admits {} regions and leaves {} too_big ({}); its largest, '
+                                '{}, needs {} GB, and it should take about {} s'.format(
+                                    chrom, plan['admitted'], sum(plan['too_big'].values()),
+                                    json.dumps(plan['too_big']), plan['largest'], plan['need_gb'], plan['seconds']))
+            if plan['need_gb'] > budget_gb:
+                short = '{} GB of memory for region {}, of which realign has half'.format(plan['need_gb'],
+                                                                                    plan['largest'])
+                want = int((2 * plan['need_gb'] + 1) * 2**30)
+                memory = min(cactus_clamp_memory(want), max_mem or sys.maxsize)
+                if resized or memory < want:
+                    raise RuntimeError('pgrealign {}: realign needs {}, {}.  Raise --maxMemory, or lower pgrealign '
+                                       'realign\'s --max-cells (pgrealignRealignOptions in the config), which bounds '
+                                       'every region\'s memory but changes which are realigned'.format(
+                                           chrom, short,
+                                           'and --maxMemory allows a job at most {:.1f} GiB'.format(memory / 2**30)
+                                           if memory < want else 'even with {:.1f} GiB'.format(job.memory / 2**30)))
+                RealtimeLogger.info('pgrealign {}: starting again with {:.1f} GiB of memory, as realign needs {}'.format(
+                    chrom, memory / 2**30, short))
+                child_job = job.addChildJobFn(pgrealign_vg, options, config, in_vg_path, vg_id, targets_id,
+                                              max_mem, resized=True,
+                                              cores=job.cores, disk=job.disk, memory=memory,
+                                              walltime=scaled_walltime(PGREALIGN_SECS_PER_GB, vg_id.size,
+                                                                       io_multiple=6))
+                return child_job.rv(0), child_job.rv(1), child_job.rv(2)
+            summary['realign'] = pgrealign('realign', '--packages', packages_path, '-o', msas_path, '-j', threads,
+                                           '--max-memory', '{:.3f}'.format(budget_gb), *realign_opts)
+            # every region realign leaves as it is, by status (too_big, not_homologous, ...), where it is seen
+            realigned = summary['realign']['realigned']
+            left = {status: n for status, n in realigned.items() if status != 'ok'}
+            if left:
+                RealtimeLogger.warning('pgrealign {}: realign left {} of {} regions as they were: {}'.format(
+                    chrom, sum(left.values()), sum(realigned.values()), json.dumps(left)))
             if summary['realign']['realigned'].get('ok'):
                 realigned_gfa_path = os.path.join(work_dir, chrom + '.realigned.gfa')
                 summary['replace'] = pgrealign('replace', '--graph', gfa_path, '--extract', extract_dir,
