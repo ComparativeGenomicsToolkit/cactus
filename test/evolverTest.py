@@ -1513,9 +1513,14 @@ class TestCase(unittest.TestCase):
                 shell=True).strip())
             self.assertGreater(gref_bub_alt_records, 0)
 
-            # likewise no gref-specific haplo index: the base graph's yeast.hapl (checked above
-            # via expect_haplo) is built on identical topology and applies to yeast.gref.gbz
-            self.assertFalse(os.path.exists(os.path.join(join_path, 'yeast.gref.hapl')))
+            # the haplo index, unlike the snarls, cannot be shared: the gref paths renumber the
+            # GBWT paths it refers to, so gref.gbz gets its own.  --statistics loads the .hapl
+            # against the graph without needing kmers, and fails on a mismatched pair
+            if expect_haplo:
+                gref_hapl_path = os.path.join(join_path, 'yeast.gref.hapl')
+                self.assertGreaterEqual(os.path.getsize(gref_hapl_path), 9000000)
+                subprocess.check_call(['vg', 'haplotypes', '-i', gref_hapl_path, '--statistics', 'S288C',
+                                       gref_gbz_path], stdout=subprocess.DEVNULL)
 
             # check that the gref segments table exists and has content
             gref_segs_path = os.path.join(join_path, 'yeast.gref.gref-segs.tsv.gz')
