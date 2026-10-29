@@ -18,7 +18,7 @@ from cactus.progressive.multiCactusTree import MultiCactusTree
 from cactus.shared.common import setupBinaries, importSingularityImage, cactus_walltime
 from cactus.shared.common import cactusRootPath
 from cactus.shared.configWrapper import ConfigWrapper
-from cactus.shared.common import makeURL, catFiles, pangenome_file_name
+from cactus.shared.common import makeURL, catFiles, pangenome_file_name, pangenome_seqfile_name
 from cactus.shared.common import enableDumpStack
 from cactus.shared.common import cactus_override_toil_options, add_cactus_toil_options
 from cactus.shared.common import cactus_call
@@ -146,7 +146,8 @@ def cactus_graphmap_split(options):
             graph_event = getOptionalAttrib(findRequiredNode(config_node, "graphmap"), "assemblyName", default="_MINIGRAPH_")
 
             # load the seqfile
-            seqFile = SeqFile(options.seqFile, defaultBranchLen=config.getDefaultBranchLen(pangenome=True), pangenome=True)
+            seqFile = SeqFile(options.seqFile, defaultBranchLen=config.getDefaultBranchLen(pangenome=True), pangenome=True,
+                              dot_haplotypes=config.getDotHaplotypes())
 
             #import the graph
             gfa_id = toil.importFile(makeURL(options.minigraphGFA))
@@ -163,7 +164,7 @@ def cactus_graphmap_split(options):
                 raise RuntimeError("Minigraph name {} not found in seqfile".format(graph_event))
 
             # validate the sample names
-            options.reference = check_sample_names(seqFile.pathMap.keys(), options.reference)
+            options.reference = check_sample_names(seqFile.pathMap.keys(), options.reference, config.getDotHaplotypes())
             if options.reference and options.reference not in leaves:
                 raise RuntimeError("Name given with --reference {} not found in seqfile".format(options.reference))
                         
@@ -1027,7 +1028,7 @@ def export_split_data(toil, input_name_map, output_id_map, split_log_id, contig_
                 # cactus can't handle empty fastas.  if there are no sequences for a sample for this
                 # contig, just don't add it.
                 if output_id_map[ref_contig]['fa'][event].size > 0:
-                    seq_file.write('{}\t{}\n'.format(event, fa_path))
+                    seq_file.write('{}\t{}\n'.format(pangenome_seqfile_name(event), fa_path))
         if seq_file_path.startswith('s3://'):
             write_s3(seq_file_temp_path, seq_file_path)
 

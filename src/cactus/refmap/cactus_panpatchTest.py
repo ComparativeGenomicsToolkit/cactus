@@ -23,6 +23,9 @@ from cactus.refmap.cactus_panpatch import parse_bed_blocks, mask_assembly_errors
 from cactus.refmap.cactus_panpatch import tag_report_gap_origin, summarize_report, write_batch_summary, concat_reports
 
 GRAPH_EVENT = '_MINIGRAPH_'
+# <graphmap dotHaplotypes> as the default config has it, which is what the seqfiles below, with their
+# old SAMPLE.N names, are written for
+DOT_HAPLOTYPES = True
 
 class TestPanpatchUnit(unittest.TestCase):
     def setUp(self):
@@ -74,23 +77,23 @@ class TestPanpatchUnit(unittest.TestCase):
             self.assertEqual(sanitize_contig_name(header), expected,
                              'sanitize_contig_name({!r})'.format(header))
 
-    # ---- sample_base / sample_hap (only a numeric extension is a haplotype) ----
+    # ---- sample_base / sample_hap (only a #N is a haplotype) ----
 
     def test_sample_base_and_hap(self):
-        self.assertEqual(sample_base('HG002.verkko.1'), 'HG002.verkko')  # strip numeric suffix only
-        self.assertEqual(sample_base('HG002.verkko'), 'HG002.verkko')    # dotted base is kept
-        self.assertEqual(sample_base('S288C'), 'S288C')
-        self.assertEqual(sample_hap('HG002.verkko.1'), 1)
-        self.assertEqual(sample_hap('HG002.verkko.2'), 2)
-        self.assertIsNone(sample_hap('HG002.verkko'))                    # haploid: no suffix
-        self.assertEqual(sample_hap('CHM13.0'), 0)
-        # PanSN: '#' gives the haplotype, and a '.' elsewhere is part of the sample name
+        # PanSN: '#' gives the haplotype, and a '.' is part of the sample name.  these take genome names as
+        # the seqfile's are normalized, so the old SAMPLE.N spelling has been rewritten to SAMPLE#N already
         self.assertEqual(sample_base('HG002.verkko#1'), 'HG002.verkko')
         self.assertEqual(sample_hap('HG002.verkko#1'), 1)
+        self.assertEqual(sample_hap('HG002.verkko#2'), 2)
+        self.assertEqual(sample_base('HG002.verkko'), 'HG002.verkko')    # dotted base is kept
+        self.assertIsNone(sample_hap('HG002.verkko'))                    # haploid: no haplotype
+        self.assertEqual(sample_base('S288C'), 'S288C')
         self.assertEqual(sample_base('KOLF2.1J'), 'KOLF2.1J')
         self.assertIsNone(sample_hap('KOLF2.1J'))
-        self.assertEqual(sample_base('GCA_054883195.1#0'), 'GCA_054883195.1')
-        self.assertEqual(sample_hap('GCA_054883195.1#0'), 0)
+        self.assertEqual(sample_base('GCA_054883195.1'), 'GCA_054883195.1')
+        self.assertIsNone(sample_hap('GCA_054883195.1'))
+        self.assertEqual(sample_base('HG002.verkko.1'), 'HG002.verkko.1')
+        self.assertIsNone(sample_hap('HG002.verkko.1'))
 
     # ---- make_runs: reference-free (default) ----
 
@@ -103,7 +106,7 @@ class TestPanpatchUnit(unittest.TestCase):
         options = self._options(seqfile)   # no --reference -> reference-free
         self.assertTrue(options.referenceFree)
 
-        runs = self._by_name(make_runs(options, GRAPH_EVENT))
+        runs = self._by_name(make_runs(options, GRAPH_EVENT, DOT_HAPLOTYPES))
         # one run per target haplotype
         self.assertEqual(set(runs), {'HG002.verkko.hap1', 'HG002.verkko.hap2'})
 
@@ -138,7 +141,7 @@ class TestPanpatchUnit(unittest.TestCase):
         options = self._options(seqfile, reference=['CHM13'])
         self.assertFalse(options.referenceFree)
 
-        runs = make_runs(options, GRAPH_EVENT)
+        runs = make_runs(options, GRAPH_EVENT, DOT_HAPLOTYPES)
         self.assertEqual(len(runs), 1)   # not per-haplotype
         run = runs[0]
         self.assertFalse(run['referenceFree'])
@@ -161,7 +164,7 @@ class TestPanpatchUnit(unittest.TestCase):
             ('A.1', 'a1.fa'), ('A.2', 'a2.fa'),
             ('B.1', 'b1.fa'), ('B.2', 'b2.fa')])
         options = self._options(seqfile, reference=['CHM13'], sample=['B', 'A'])
-        run = make_runs(options, GRAPH_EVENT)[0]
+        run = make_runs(options, GRAPH_EVENT, DOT_HAPLOTYPES)[0]
         self.assertEqual(run['name'], 'B')
         self.assertEqual(run['samples'], ['B', 'A'])   # B patched, A as donor
 
@@ -177,7 +180,7 @@ class TestPanpatchUnit(unittest.TestCase):
         chromfile = self._seqfile('chromfile.txt', [('SAMP1', sf1), ('SAMP2', sf2)])
         options = self._options(chromfile, batch=True)
 
-        runs = self._by_name(make_runs(options, GRAPH_EVENT))
+        runs = self._by_name(make_runs(options, GRAPH_EVENT, DOT_HAPLOTYPES))
         # two samples x two haplotypes, named from the chromfile
         self.assertEqual(set(runs), {'SAMP1.hap1', 'SAMP1.hap2', 'SAMP2.hap1', 'SAMP2.hap2'})
         self.assertEqual(runs['SAMP1.hap1']['panpatchReference'], 'S1_verkko_1')
@@ -186,12 +189,36 @@ class TestPanpatchUnit(unittest.TestCase):
     # ---- validation rejections ----
 
     def test_reject_reference_with_haplotype_suffix(self):
+        # CHM13.1 is the old spelling of CHM13#1, one haplotype of a diploid, which can't be the reference
         seqfile = self._seqfile('r.seqfile', [('CHM13.1', 'c.fa'), ('A.1', 'a.fa')])
-        for bad in (['CHM13.1'], ['CHM13.2'], ['OK', 'CHM13.1']):
+        for bad in (['CHM13.1'], ['CHM13#1'], ['CHM13.2'], ['OK', 'CHM13.1']):
             with self.assertRaises(RuntimeError):
-                self._options(seqfile, reference=bad)
-        # a .0 (or suffix-less) reference is allowed
-        self._options(seqfile, reference=['CHM13.0'])
+                make_runs(self._options(seqfile, reference=bad), GRAPH_EVENT, DOT_HAPLOTYPES)
+        # with dotHaplotypes="0", it's a haploid sample named CHM13.1
+        run = make_runs(self._options(seqfile, reference=['CHM13.1']), GRAPH_EVENT, False)[0]
+        self.assertEqual(run['panpatchReference'], 'CHM13.1')
+        # a .0, #0 or suffix-less reference is allowed
+        seqfile = self._seqfile('r0.seqfile', [('CHM13', 'c.fa'), ('A.1', 'a.fa')])
+        for good in (['CHM13'], ['CHM13#0'], ['CHM13.0']):
+            run = make_runs(self._options(seqfile, reference=good), GRAPH_EVENT, DOT_HAPLOTYPES)[0]
+            self.assertEqual(run['reference'], ['CHM13'])
+
+    def test_make_runs_versioned_reference(self):
+        # an accession's version: GCA_054883195.1#0 keeps it with dotHaplotypes, after which the genome is
+        # GCA_054883195.1 and found by that name.  with dotHaplotypes="0" it needs no #0 in the first place
+        for dots, ref_name in [(True, 'GCA_054883195.1#0'), (False, 'GCA_054883195.1')]:
+            seqfile = self._seqfile('v.seqfile', [(ref_name, 'ref.fa'), ('TGT#1', 't1.fa'), ('TGT#2', 't2.fa')])
+            for reference in (['GCA_054883195.1'], ['GCA_054883195.1#0']):
+                run = make_runs(self._options(seqfile, reference=reference), GRAPH_EVENT, dots)[0]
+                self.assertEqual(run['reference'], ['GCA_054883195.1'])
+                self.assertEqual(run['panpatchReference'], 'GCA_054883195.1')
+                self.assertEqual(run['seq_rows'][0], ('GCA_054883195.1', 'ref.fa'))
+                self.assertEqual(sorted(run['target_haps']), [(1, 't1.fa'), (2, 't2.fa')])
+        # whereas a seqfile's GCA_054883195.1 is haplotype 1 of GCA_054883195 with dotHaplotypes, which can't be a
+        # reference
+        seqfile = self._seqfile('v1.seqfile', [('GCA_054883195.1', 'ref.fa'), ('TGT#1', 't1.fa')])
+        with self.assertRaises(RuntimeError):
+            make_runs(self._options(seqfile, reference=['GCA_054883195.1']), GRAPH_EVENT, True)
 
     def test_reject_nosplit(self):
         seqfile = self._seqfile('n.seqfile', [('A.1', 'a.fa'), ('B.1', 'b.fa')])
@@ -213,13 +240,13 @@ class TestPanpatchUnit(unittest.TestCase):
         seqfile = self._seqfile('m.seqfile', [('A.1', 'a.fa'), ('B.1', 'b.fa')])
         options = self._options(seqfile, reference=['CHM13'])
         with self.assertRaises(RuntimeError):
-            make_runs(options, GRAPH_EVENT)
+            make_runs(options, GRAPH_EVENT, DOT_HAPLOTYPES)
 
     def test_reject_sample_not_in_seqfile(self):
         seqfile = self._seqfile('s.seqfile', [('A.1', 'a.fa'), ('B.1', 'b.fa')])
         options = self._options(seqfile, sample=['NOPE'])
         with self.assertRaises(RuntimeError):
-            make_runs(options, GRAPH_EVENT)
+            make_runs(options, GRAPH_EVENT, DOT_HAPLOTYPES)
 
 class _FakeFileStore:
     """ a minimal Toil fileStore backed by local files, so the file-id-taking helpers (mask / revert /
@@ -519,7 +546,7 @@ class TestPanpatchErrorBeds(unittest.TestCase):
                                               ('DON.1', 'd1.fa'), ('DON.2', 'd2.fa')])
         errmap = {'TGT.1': '/x/t1.bed', 'DON.2': '/x/d2.bed'}
         options = self._options_with_beds(seqfile, errmap, reference=['CHM13'])
-        runs = make_runs(options, GRAPH_EVENT)
+        runs = make_runs(options, GRAPH_EVENT, DOT_HAPLOTYPES)
         self.assertEqual(len(runs), 1)
         run = runs[0]
         # masking is keyed by the seqfile event name (both target and donor), normalized like the seqfile's
@@ -533,7 +560,7 @@ class TestPanpatchErrorBeds(unittest.TestCase):
         errmap = {'TGT.1': '/x/t1.bed', 'DON': '/x/d.bed'}
         options = self._options_with_beds(seqfile, errmap)
         self.assertTrue(options.referenceFree)
-        runs = self._by_name(make_runs(options, GRAPH_EVENT))
+        runs = self._by_name(make_runs(options, GRAPH_EVENT, DOT_HAPLOTYPES))
         # the TGT.1 run (named <base>.hap<N>): the target is renamed to graph_name TGT_1, so its mask
         # bed is keyed by that; the donor keeps its name; the report-tagging bed is keyed by graph hap 0
         r1 = runs['TGT.hap1']
@@ -549,7 +576,7 @@ class TestPanpatchErrorBeds(unittest.TestCase):
         errmap = {'BOGUS': '/x/bogus.bed'}
         options = self._options_with_beds(seqfile, errmap, reference=['CHM13'])
         with self.assertRaises(RuntimeError):
-            make_runs(options, GRAPH_EVENT)
+            make_runs(options, GRAPH_EVENT, DOT_HAPLOTYPES)
 
     def test_make_runs_rejects_unmatched_event_sharing_a_bed_path(self):
         # the typo check must compare EVENT names, not bed paths: a mistyped event that happens to share
@@ -560,12 +587,12 @@ class TestPanpatchErrorBeds(unittest.TestCase):
         errmap = {'TGT.1': shared, 'BOGUS': shared}
         options = self._options_with_beds(seqfile, errmap, reference=['CHM13'])
         with self.assertRaises(RuntimeError):
-            make_runs(options, GRAPH_EVENT)
+            make_runs(options, GRAPH_EVENT, DOT_HAPLOTYPES)
         # naming the reference (which is never masked) is likewise an error, even sharing a valid path
         errmap2 = {'DON.1': shared, 'CHM13': shared}
         options2 = self._options_with_beds(seqfile, errmap2, reference=['CHM13'])
         with self.assertRaises(RuntimeError):
-            make_runs(options2, GRAPH_EVENT)
+            make_runs(options2, GRAPH_EVENT, DOT_HAPLOTYPES)
 
 
     # ---- batch summary (summarize_report / write_batch_summary) ----

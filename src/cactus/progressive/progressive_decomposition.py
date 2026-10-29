@@ -40,7 +40,7 @@ def parse_seqfile(seqfile_path, config_wrapper, root_name = None, pangenome = Fa
     with pangenome, the genome names are normalized to PanSN (see SeqFile)
     """
     seq_file = SeqFile(seqfile_path, root_name = root_name, defaultBranchLen=config_wrapper.getDefaultBranchLen(pangenome=pangenome),
-                       pangenome = pangenome)
+                       pangenome = pangenome, dot_haplotypes = config_wrapper.getDotHaplotypes() if pangenome else None)
 
     mc_tree = MultiCactusTree(seq_file.tree)
     mc_tree.nameUnlabeledInternalNodes(config_wrapper.getDefaultInternalNodePrefix())
