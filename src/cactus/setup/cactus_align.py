@@ -343,8 +343,8 @@ def make_align_job(options, toil, config_wrapper=None, chrom_name=None):
 
     if options.reference and options.pangenome:
         # validate the sample names
-        options.reference = check_sample_names(input_seq_map.keys(), options.reference)
-        
+        options.reference = check_sample_names(input_seq_map.keys(), options.reference, config_wrapper.getDotHaplotypes())
+
     # apply path overrides.  this was necessary for wdl which doesn't take kindly to
     # text files of local paths (ie seqfile).  one way to fix would be to add support
     # for s3 paths and force wdl to use it.  a better way would be a more fundamental
@@ -352,7 +352,7 @@ def make_align_job(options, toil, config_wrapper=None, chrom_name=None):
     if options.pathOverrides:
         for name, override in zip(options.pathOverrideNames, options.pathOverrides):
             if options.pangenome:
-                name = resolve_pangenome_name(name, input_seq_map) or name
+                name = resolve_pangenome_name(name, input_seq_map, config_wrapper.getDotHaplotypes()) or name
             input_seq_map[name] = override
 
     # infer default root

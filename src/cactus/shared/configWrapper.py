@@ -142,6 +142,12 @@ class ConfigWrapper:
         else:
             return float(decompElem.attrib["default_branch_len"])
 
+    def getDotHaplotypes(self):
+        """ <graphmap dotHaplotypes>: whether a pangenome seqfile name with no '#' that ends in .N
+        is read as the old spelling of haplotype N (see normalize_pangenome_name).  a config made
+        before the attribute existed keeps that old behaviour """
+        return getOptionalAttrib(findRequiredNode(self.xmlRoot, "graphmap"), "dotHaplotypes", typeFn=bool, default=True)
+
     def getBuildHal(self):
         halElem = self.xmlRoot.find("hal")
         if halElem is not None and "buildHal" in halElem.attrib:

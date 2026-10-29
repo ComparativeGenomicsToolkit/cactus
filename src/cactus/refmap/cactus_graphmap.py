@@ -215,11 +215,12 @@ def graph_map(options):
             for chrom, inputs in input_map.items():
                 input_seqfile, input_gfa = inputs[0], inputs[1]
             
-                seqFile = SeqFile(input_seqfile, defaultBranchLen=config_wrapper.getDefaultBranchLen(pangenome=True), pangenome=True)
+                seqFile = SeqFile(input_seqfile, defaultBranchLen=config_wrapper.getDefaultBranchLen(pangenome=True), pangenome=True,
+                                  dot_haplotypes=config_wrapper.getDotHaplotypes())
                 input_seq_map = seqFile.pathMap
 
                 # validate the sample names
-                options.reference = check_sample_names(input_seq_map.keys(), options.reference)
+                options.reference = check_sample_names(input_seq_map.keys(), options.reference, config_wrapper.getDotHaplotypes())
                 
                 # check --reference input (a bit redundant to above, but does additional leaf check)
                 if options.reference:
@@ -900,7 +901,8 @@ def pansn_to_event_map(names):
 
 def cactus_name_to_event(event, names, prefix_map):
     """ the seqfile event that the EVENT of an id=EVENT| name is, or None.  a GAF from a cactus that
-    spelled haplotypes SAMPLE.HAP (id=HG002.1|) finds its genome (HG002#1) through prefix_map """
+    kept the #0 of a genome given that way (id=S288C#0|) finds the genome (S288C) through prefix_map.
+    a '.' is never a haplotype here: id=HG002.1| is the genome HG002.1, not HG002#1 """
     if event in names:
         return event
     try:
@@ -919,8 +921,8 @@ def gaf_from_pansn(names, gaf_path, out_path):
 
     a prefix that is not one of the seqfile's genomes is left alone rather than mangled, which
     covers both an already-cactus-named GAF (from a cactus old enough to have published one) and
-    any contig name that happens to look like a PanSN prefix.  the old cactus spelling of a
-    haplotype in such a GAF (id=HG002.1|) is updated to the seqfile's (id=HG002#1|) """
+    any contig name that happens to look like a PanSN prefix.  a genome spelled with its #0 in such
+    a GAF (id=S288C#0|) is updated to the seqfile's spelling (id=S288C|) """
     prefix_map = pansn_to_event_map(names)
 
     def replace(m):

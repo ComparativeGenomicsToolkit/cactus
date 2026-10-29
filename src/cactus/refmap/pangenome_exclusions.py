@@ -135,24 +135,18 @@ def resolve_subpath_naming(name):
 
 def event_to_pansn_prefix(event):
     """ the SAMPLE#HAP prefix that graph paths for a given seqfile event carry.  mirrors hal2vg's
-    resolve_haplotype_naming: SAMPLE#HAP is its own prefix, a name with no haplotype is SAMPLE#0,
-    and the old SAMPLE.HAP spelling (HAP all digits) is still read as SAMPLE#HAP """
+    resolve_haplotype_naming: SAMPLE#HAP is its own prefix, and a name with no haplotype is
+    SAMPLE#0, whatever '.'s it has (GCA_054883195.1 is GCA_054883195.1#0) """
     return pangenome_name_to_pansn_prefix(event)
 
 
 def pansn_prefix_to_event(pansn_prefix):
     """ inverse of event_to_pansn_prefix, for the degraded mode where the seqfile event names are
     not available.  SAMPLE#0 -> SAMPLE, SAMPLE#1 -> SAMPLE#1, so the two haplotypes of a diploid
-    still land in separate files instead of being merged.  the #0 stays when the bare sample name
-    would read as the old SAMPLE.N spelling of another haplotype (GCA_054883195.1#0) """
+    still land in separate files instead of being merged """
     toks = pansn_prefix.split('#')
-    if len(toks) != 2:
-        return pansn_prefix
-    try:
-        if toks[1] == '0' and pangenome_name_to_pansn_prefix(toks[0]) == pansn_prefix:
-            return toks[0]
-    except RuntimeError:
-        pass
+    if len(toks) == 2 and toks[1] == '0':
+        return toks[0]
     return pansn_prefix
 
 

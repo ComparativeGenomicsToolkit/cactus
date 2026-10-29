@@ -50,9 +50,9 @@ class TestPansnToEventMap(unittest.TestCase):
         self.assertIn(prefix_map['S288C#0'], ('S288C', 'S288C#0'))
 
     def test_dots_in_the_sample(self):
-        # a '.' is only a haplotype in the old SAMPLE.N spelling, which normalized names never use
-        self.assertEqual(pansn_to_event_map({'KOLF2.1J', 'GCA_054883195.1#0'}),
-                         {'KOLF2.1J#0': 'KOLF2.1J', 'GCA_054883195.1#0': 'GCA_054883195.1#0'})
+        # a '.' is never a haplotype in a genome name: the old SAMPLE.N spelling is only read in the seqfile
+        self.assertEqual(pansn_to_event_map({'KOLF2.1J', 'GCA_054883195.1', 'HG002.1'}),
+                         {'KOLF2.1J#0': 'KOLF2.1J', 'GCA_054883195.1#0': 'GCA_054883195.1', 'HG002.1#0': 'HG002.1'})
 
     def test_non_numeric_suffix_is_part_of_the_sample(self):
         # HG002.pat is not a haplotype suffix, so the whole thing is the sample
@@ -107,18 +107,14 @@ class TestGafPansnRoundTrip(unittest.TestCase):
         self.assertEqual(back, gaf)
 
     def test_dots_in_the_sample(self):
-        names = {'KOLF2.1J', 'GCA_054883195.1#0'}
-        gaf = gaf_line('id=KOLF2.1J|chr1', '>id=GCA_054883195.1#0|chr1<id=KOLF2.1J|chr1')
+        names = {'KOLF2.1J', 'GCA_054883195.1'}
+        gaf = gaf_line('id=KOLF2.1J|chr1', '>id=GCA_054883195.1|chr1<id=KOLF2.1J|chr1')
         pansn, back = self.round_trip(names, gaf)
         self.assertIn('KOLF2.1J#0#chr1', pansn)
         self.assertIn('>GCA_054883195.1#0#chr1<KOLF2.1J#0#chr1', pansn)
         self.assertEqual(back, gaf)
 
-    def test_old_cactus_haplotype_spelling_is_updated(self):
-        # a GAF published by a cactus that spelled haplotypes SAMPLE.N, read against a seqfile whose
-        # names have been normalized to SAMPLE#N
-        names = {'HG002#1', 'GRCh38'}
-        gaf = gaf_line('id=HG002.1|chr1', '>id=GRCh38|chr1<id=HG002.1|chr1')
+    def from_pansn(self, names, gaf):
         with tempfile.TemporaryDirectory() as work_dir:
             in_path = os.path.join(work_dir, 'in.gaf')
             out_path = os.path.join(work_dir, 'out.gaf')
@@ -126,7 +122,18 @@ class TestGafPansnRoundTrip(unittest.TestCase):
                 in_file.write(gaf)
             gaf_from_pansn(names, in_path, out_path)
             with open(out_path) as out_file:
-                self.assertEqual(out_file.read(), gaf_line('id=HG002#1|chr1', '>id=GRCh38|chr1<id=HG002#1|chr1'))
+                return out_file.read()
+
+    def test_genome_spelled_with_its_hap_zero_is_updated(self):
+        # a cactus-named GAF from a cactus that kept the #0 of a genome given as S288C#0, read against a
+        # seqfile whose names are normalized to S288C
+        gaf = gaf_line('id=SK1|chrI', '>id=S288C#0|chrI<id=SK1|chrI')
+        self.assertEqual(self.from_pansn({'S288C', 'SK1'}, gaf), gaf_line('id=SK1|chrI', '>id=S288C|chrI<id=SK1|chrI'))
+
+    def test_dot_is_not_a_haplotype(self):
+        # the old SAMPLE.N spelling is only read in a seqfile, so in a GAF it is a genome of that name
+        gaf = gaf_line('id=HG002.1|chr1', '>id=GRCh38|chr1<id=HG002.1|chr1')
+        self.assertEqual(self.from_pansn({'HG002#1', 'GRCh38'}, gaf), gaf)
 
     def test_contig_name_containing_a_pipe(self):
         names = {'S288C', 'SK1'}
@@ -219,13 +226,22 @@ class TestSplitGafByEvent(unittest.TestCase):
         contents, _ = self.split(h1 + h2, names)
         self.assertEqual(contents, {'HG002#1': h1, 'HG002#2': h2})
 
-    def test_old_cactus_haplotype_spelling_finds_its_genome(self):
+    def test_hap_zero_spelling_finds_its_genome(self):
+        names = {'S288C', 'SK1'}
+        a = gaf_line('id=S288C#0|chrI', '>id=S288C#0|chrI')
+        b = gaf_line('id=SK1|chrI', '>id=S288C#0|chrI')
+        contents, dropped = self.split(a + b, names)
+        self.assertEqual(contents, {'S288C': a, 'SK1': b})
+        self.assertEqual(dropped, set())
+
+    def test_dot_is_not_a_haplotype(self):
+        # id=HG002.1| is a genome named HG002.1, which is not in the seqfile
         names = {'HG002#1', 'HG002#2'}
         h1 = gaf_line('id=HG002.1|chr1', '>id=GRCh38|chr1')
         h2 = gaf_line('id=HG002#2|chr1', '>id=GRCh38|chr1')
         contents, dropped = self.split(h1 + h2, names)
-        self.assertEqual(contents, {'HG002#1': h1, 'HG002#2': h2})
-        self.assertEqual(dropped, set())
+        self.assertEqual(contents, {'HG002#2': h2})
+        self.assertEqual(dropped, {'HG002.1'})
 
     def test_genome_not_in_seqfile_is_dropped_and_reported(self):
         names = {'S288C'}
