@@ -22,6 +22,7 @@ import threading
 import traceback
 import errno
 import shlex
+import re
 
 try:
     import boto3
@@ -30,7 +31,7 @@ try:
 except:
     has_s3 = False
 
-from urllib.parse import urlparse
+from urllib.parse import urlparse, quote
 from datetime import datetime
 
 from toil.statsAndLogging import logger
@@ -366,10 +367,85 @@ def add_cactus_toil_options(parser):
 
 
 def makeURL(path_or_url):
+    """ a local path is quoted on its way into a file:// URL, as Toil unquotes it on the way out:
+    a raw '#' would otherwise read as the start of a fragment, and HG002#1.fa be imported from (or
+    exported to) HG002 """
     if urlparse(path_or_url).scheme == '':
-        return "file://" + os.path.abspath(path_or_url)
+        return "file://" + quote(os.path.abspath(path_or_url))
     else:
         return path_or_url
+
+# Minigraph-Cactus genome names follow PanSN (https://github.com/pangenome/PanSN-spec): a genome
+# is SAMPLE#HAPLOTYPE, the first two fields of the SAMPLE#HAPLOTYPE#CONTIG path names in the
+# graph, or just SAMPLE for haplotype 0.  These names are used as-is throughout: in the id=EVENT|
+# fasta prefixes, the HAL and the MAF.  Cactus used to spell the haplotype SAMPLE.HAPLOTYPE, so a
+# name with no '#' that ends in .N (N all digits) is still read that way, and rewritten to
+# SAMPLE#N on input.  A '.' anywhere else is just part of the sample name (KOLF2.1J), and to keep
+# one before trailing digits the haplotype has to be given (GCA_054883195.1#0).
+#
+# Once rewritten, no name without a '#' ends in .N, which is what makes these two unambiguous:
+# hal2vg's fallback to the old convention for HALs made before it, and pangenome_file_name()
+_PANSN_HAPLOTYPE_RE = re.compile(r'[0-9]+')
+
+def normalize_pangenome_name(name):
+    """ the canonical spelling of a pangenome genome name: SAMPLE or SAMPLE#HAP, with a legacy
+    SAMPLE.HAP rewritten to SAMPLE#HAP and HAP without leading zeros (as vg stores it).  raises
+    RuntimeError on a name the pipeline cannot carry """
+    def invalid(why):
+        raise RuntimeError('Genome name "{}" is invalid: {}'.format(name, why))
+    if not name:
+        invalid('it is empty')
+    if name.startswith('.'):
+        invalid('it begins with "."')
+    if '|' in name or any(c.isspace() for c in name):
+        invalid('it contains whitespace or "|"')
+    if name.count('#') > 1:
+        invalid('a genome name is SAMPLE#HAPLOTYPE (PanSN), so it can contain at most one "#"')
+    sample, hash_sep, hap = name.partition('#')
+    if hash_sep:
+        if not sample:
+            invalid('the sample name before "#" is empty')
+        if not _PANSN_HAPLOTYPE_RE.fullmatch(hap):
+            invalid('the haplotype after "#" must be an integer')
+        return '{}#{}'.format(sample, int(hap))
+    dot = name.rfind('.')
+    if dot > 0 and _PANSN_HAPLOTYPE_RE.fullmatch(name[dot + 1:]):
+        return '{}#{}'.format(name[:dot], int(name[dot + 1:]))
+    return name
+
+def split_pangenome_name(name):
+    """ (sample, haplotype) of a pangenome genome name, haplotype 0 when it doesn't give one """
+    sample, _, hap = normalize_pangenome_name(name).partition('#')
+    return sample, int(hap) if hap else 0
+
+def pangenome_name_to_pansn_prefix(name):
+    """ the SAMPLE#HAP prefix of the graph path names for a genome """
+    return '{}#{}'.format(*split_pangenome_name(name))
+
+def pangenome_name_sample(name):
+    """ the PanSN sample of a genome, which is what vg means by a sample (ex vg deconstruct -P) """
+    return split_pangenome_name(name)[0]
+
+def resolve_pangenome_name(name, names):
+    """ the genome in names that name refers to, or None.  name is normalized the way the seqfile's
+    names are (so HG002.1 finds HG002#1), and SAMPLE and SAMPLE#0, being the same genome, find
+    each other """
+    norm = normalize_pangenome_name(name)
+    if norm in names:
+        return norm
+    sample, hap = split_pangenome_name(norm)
+    if hap == 0:
+        for alt in (sample, sample + '#0'):
+            if alt in names:
+                return alt
+    return None
+
+def pangenome_file_name(name):
+    """ a genome name as it appears in the name of a file that is imported or exported.  A '#' can't
+    be got into an S3 or GS key through Toil at all, so it becomes a '.', which keeps the layout of
+    the files the same as when the name was spelled HG002.1.  This can't collide, as no normalized
+    name without a '#' ends in .N """
+    return name.replace('#', '.')
 
 # cactus-align tags its raw, per-chromosome hal2vg output as <chrom>.raw.vg.  cactus-graphmap-join
 # writes the normalized graphs for the same chromosomes into <outName>.chroms/, and when both were
@@ -1546,12 +1622,16 @@ def delete_directory(dir_path):
 
 def get_faidx_subpath_rename_cmd():
     """
-    transform chr1:10-15 (1-based inclusive) into chr1_sub_9_15 (0-based end open)
+    meant to transform chr1:10-15 (1-based inclusive) into chr1_sub_9_15 (0-based end open)
     this is a format that contains no special characters in order to make assembly hubs
     happy.  But it does require conversion going into vg which wants chr[9-15] and
     hal2vg is updated to do this autmatically
+
+    this used to be a GNU sed command (its e flag), but in a basic regex [0-9]+ matches a digit and
+    a literal '+', so it never renamed anything.  cactus_sanitizeFastaHeaders does the renaming.
+    a pass-through keeps that behaviour, and works with macOS sed, which has no e flag.
     """
-    return ['sed', '-e', r's/\([^:]*\):\([0-9]+\)-\([0-9]+\)/echo "\\1_sub_$((\\2-1))_\\3"/e']
+    return ['cat']
 
 def clean_jobstore_files(job, file_id_maps=None, file_ids=None, allow_none=False):
     """ clean some intermediate files that are no longer needed out of the jobstore """

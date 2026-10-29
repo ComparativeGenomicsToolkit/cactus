@@ -3,9 +3,30 @@ import pytest
 import unittest
 import subprocess
 import shutil
+import gzip
+import hashlib
+import re
+import tarfile
 from sonLib.bioio import getTempDirectory, popenCatch, popen
 import xml.etree.ElementTree as ET
 from xml.dom import minidom
+
+def pgrealign_tables(out_dir, chrom):
+    """ the tables a cactus-graphmap-join --pgrealign run archived for chrom: regions, packages and
+    alignments, as text, without the seconds each region took to align, which vary from run to run """
+    tables = {}
+    with tarfile.open(os.path.join(out_dir, 'yeast.stats', 'pgrealign.{}.tar.gz'.format(chrom))) as archive:
+        names = set(archive.getnames())
+        for name in ['regions.tsv.gz', 'extract/packages.jsonl.gz', 'msas.jsonl.gz']:
+            member = '{}.pgrealign/{}'.format(chrom, name)
+            if member in names:
+                with gzip.open(archive.extractfile(member), 'rt') as table:
+                    tables[name] = re.sub(r',"seconds":[0-9.]+', '', table.read())
+    return tables
+
+def file_sha256(path):
+    with open(path, 'rb') as f:
+        return hashlib.sha256(f.read()).hexdigest()
 
 class TestCase(unittest.TestCase):
     def setUp(self):
@@ -604,7 +625,7 @@ class TestCase(unittest.TestCase):
         because bgzip block boundaries depend on the thread count, so two byte-identical graphs
         can have different .gz bytes """
         self.assertTrue(os.path.exists(gfa_path), '{} not found'.format(gfa_path))
-        return subprocess.check_output('zcat {}'.format(gfa_path), shell=True)
+        return subprocess.check_output('gzip -dc {}'.format(gfa_path), shell=True)
 
     def _gfa_genomes(self, gfa_path):
         """ the set of genomes an rGFA's SN tags name """
@@ -895,11 +916,11 @@ class TestCase(unittest.TestCase):
         return base
 
     def _validate_sv_gfa(self, gfa_path):
-        """ run `zcat <gfa_path> | vg validate -` and assert it passes.
+        """ run `gzip -dc <gfa_path> | vg validate -` and assert it passes.
         catches things like missing edges in the merged minigraph SV GFA.
         """
         self.assertTrue(os.path.exists(gfa_path), 'sv.gfa.gz not found at {}'.format(gfa_path))
-        proc = subprocess.run('zcat {} | vg validate -'.format(gfa_path),
+        proc = subprocess.run('gzip -dc {} | vg validate -'.format(gfa_path),
                               shell=True, capture_output=True)
         self.assertEqual(proc.returncode, 0,
                          'vg validate failed for {}\nstderr:\n{}'.format(gfa_path, proc.stderr.decode()))
@@ -1795,7 +1816,7 @@ class TestCase(unittest.TestCase):
 
         # Per-base wigs must decompress and contain at least one fixedStep header.
         for wig_gz in (out_wig, sub_wig):
-            wig_text = subprocess.check_output(['zcat', wig_gz]).decode('utf-8')
+            wig_text = subprocess.check_output(['gzip', '-dc', wig_gz]).decode('utf-8')
             self.assertIn('fixedStep chrom={}'.format(refContig), wig_text)
 
         # bigWig magic: 0x888FFC26 little-endian = 26 fc 8f 88.
@@ -2163,8 +2184,8 @@ class TestCase(unittest.TestCase):
         with open(base['paf'], 'rb') as base_paf, open(extended['paf'], 'rb') as ext_paf:
             self.assertEqual(ext_paf.read(), base_paf.read())
         # and the republished GAF is intact, so the extended run can itself be extended
-        self.assertEqual(subprocess.check_output('zcat {}'.format(extended['gaf']), shell=True),
-                         subprocess.check_output('zcat {}'.format(base['gaf']), shell=True))
+        self.assertEqual(subprocess.check_output('gzip -dc {}'.format(extended['gaf']), shell=True),
+                         subprocess.check_output('gzip -dc {}'.format(base['gaf']), shell=True))
 
         # an unchanged graph is the one graph construction hands back without writing it, so it is
         # the one that can come out at the compression of the file it was read from rather than of
@@ -2839,6 +2860,24 @@ class TestCase(unittest.TestCase):
         self.assertEqual(int(rows[bed_chroms[0]]['targets']), len(catalogs[bed_chroms[0]]))
         self.assertGreater(int(rows[bed_chroms[0]]['realigned']), 0)
         self.assertEqual((rows[bed_chroms[1]]['targets'], rows[bed_chroms[1]]['realigned']), ('0', '0'))
+
+        # the realigned graph depends on the input and the config alone: the same join with half the
+        # realign workers and, where the machine has the memory, jobs started with enough of it that none
+        # needs to start again, writes the same regions, packages and alignments, and the same graph
+        from toil import physicalMemory
+        again_path = os.path.join(self.tempDir, 'pgrealign-bed-again')
+        resources = ['--maxCores', '4', '--indexCores', '2']
+        if physicalMemory() >= 16 * 2**30:
+            resources += ['--defaultMemory', '12G']
+        subprocess.check_call(['cactus-graphmap-join', self._job_store(binariesMode) + '-pgrealign-bed-again',
+                               '--vg'] + [raw_vgs[chroms.index(c)] for c in bed_chroms] +
+                              ['--outDir', again_path, '--outName', 'yeast', '--reference'] + references +
+                              ['--gbz', 'clip', '--pgrealign', bed_path, '--binariesMode', binariesMode,
+                               '--logInfo', '--workDir', self.tempDir] + resources)
+        for chrom in bed_chroms:
+            self.assertEqual(pgrealign_tables(out_path, chrom), pgrealign_tables(again_path, chrom))
+        self.assertEqual(file_sha256(os.path.join(out_path, 'yeast.gbz')),
+                         file_sha256(os.path.join(again_path, 'yeast.gbz')))
 
     def testYeastPangenomeMgSplitLocal(self):
         """ Run the pangenome pipeline on yeast with --mgSplit and wholeGenomeRef="0" in

@@ -99,16 +99,20 @@ Please see the Progressive Cactus documentation for how to run Cactus on [SLURM]
 
 ### Sample Names
 
-**A naming convention must be followed for sample names where "." characters have special meaning**: The "." character is used to specify haplotype, and should be avoided in sample names unless it is being used that way.  For haploid samples, just don't use a "`.`".  For diploid or polyploid samples, use the form `SAMPLE.HAPLOTYPE` where `HAPLOTYPE` is `1` or `2` for a diploid sample etc:
+Sample names follow the [PanSN](https://github.com/pangenome/PanSN-spec) convention, where the "`#`" character specifies the haplotype.  For haploid samples, just use the sample name (which is haplotype `0`).  For diploid or polyploid samples, use the form `SAMPLE#HAPLOTYPE` where `HAPLOTYPE` is `1` or `2` for a diploid sample etc:
 
 ```
 # Diploid sample:
-HG002.1  ./HG002.paternal.fa
-HG002.2  ./HG002.maternal.fa
+HG002#1  ./HG002.paternal.fa
+HG002#2  ./HG002.maternal.fa
 
 # Haploid sample:
 CHM13  ./chm13.fa
 ```
+
+These names are used as-is throughout the pipeline and in its output: the HAL and MAF genomes are `HG002#1`, `HG002#2` and `CHM13`, and the graph paths and VCF samples are their PanSN equivalents (`HG002#1#chr1`, sample `HG002`).
+
+A "`.`" can be used anywhere in a sample name (ex `KOLF2.1J`), except for one case kept for backward compatibility: Cactus used to specify haplotypes as `SAMPLE.HAPLOTYPE`, so a name that ends in `.N`, where `N` is an integer, is still read as haplotype `N` and renamed to `SAMPLE#N` (with a warning).  So `HG002.1` is `HG002#1`, and to keep the version of an accession like `GCA_054883195.1` in its name, its haplotype must be given explicitly: `GCA_054883195.1#0`.  The same applies to names given on the command line, ex with `--reference`.
 
 ### Contig Names
 
@@ -567,7 +571,7 @@ Do not pool reference-contig and gref-contig records when computing allele frequ
 
 ### Realigning Tandem Repeats (`--pgrealign`)
 
-**Experimental.** [pgrealign](https://github.com/benedictpaten/pgrealign) realigns chosen regions of a graph, by default its tandem repeats. For each region, between two snarl boundary nodes of the reference, it aligns the alleles that the paths spell there to one another (a star alignment around a central allele, with abPOA) and replaces the region's nodes with a graph built from that alignment. Every path spells the same sequence afterwards: only how the paths share nodes inside the realigned regions changes.
+**Experimental.** [pgrealign](https://github.com/benedictpaten/pgrealign) realigns chosen regions of a graph, by default its tandem repeats. For each region, between two snarl boundary nodes of the reference, it aligns the alleles that the paths spell there to one another (a star alignment around the reference's allele, with abPOA, so that each allele's alignment to the reference is its optimal one; or, where the reference does not span the region, around the allele closest to the others) and replaces the region's nodes with a graph built from that alignment. Every path spells the same sequence afterwards: only how the paths share nodes inside the realigned regions changes.
 
 `--pgrealign` runs it on each chromosome graph that `cactus-align` wrote, before the join's full phase normalizes it (GFAffix, path normalization), so the full, clip and filter graphs, and everything built from them, carry the realignment. pgrealign works on the GFA that the GFAffix step reads, so it adds no conversion of its own to the full phase.
 
@@ -584,7 +588,7 @@ It writes two kinds of report to `<outName>.stats/`:
 
 | File | Contents |
 | --- | --- |
-| `pgrealign-stats.tsv` | One row per chromosome: the targets, the regions of each status that pgrealign's `regions` and `extract` stages gave, the regions it realigned and those it did not (too large, timed out, or with an allele unrelated to the others), the nodes it replaced, and the graph's length before and after. |
+| `pgrealign-stats.tsv` | One row per chromosome: the targets, the regions of each status that pgrealign's `regions` and `extract` stages gave, the regions it realigned and those it did not (too large for realign's limits, or with an allele unrelated to the others), the nodes it replaced, and the graph's length before and after. |
 | `pgrealign.<chrom>.tar.gz` | pgrealign's own outputs for the chromosome: the catalogue, `regions.tsv.gz`, the extracted alleles (`extract/packages.jsonl.gz`), the alignments (`msas.jsonl.gz`), each with its manifest, and a `summary.json` of every stage. With `pgrealignQC="1"`, also `qc.tsv`, how well each alignment agrees with optimal pairwise alignments, beside the original graph's. |
 
 These `<graphmap_join>` config attributes pass options to the pgrealign stages:
@@ -594,14 +598,14 @@ These `<graphmap_join>` config attributes pass options to the pgrealign stages:
 | `pgrealignCatalogOptions` | `--strf strf` | Options to `pgrealign catalog`, when no BED is given. `--trf <binary>` in place of `--strf strf` runs a TRF binary instead. |
 | `pgrealignRegionsOptions` | | Options to `pgrealign regions`, such as `--pad` and `--max-span`. |
 | `pgrealignExtractOptions` | | Options to `pgrealign extract`, such as `--max-internal-bp`. |
-| `pgrealignRealignOptions` | | Options to `pgrealign realign`, such as `--timeout`, `--max-cells` and `--min-share`. Its `-j` and `--max-memory` come from the job's cores (`--indexCores`) and memory. |
+| `pgrealignRealignOptions` | | Options to `pgrealign realign`, such as `--max-cells`, `--max-work`, `--min-share`, `--centre` and `--max-excess`. Its limits are sizes of the alignment, as a window and a band are for cactus's own alignments, never sizes of the machine: `--max-cells` (450 million) is the largest alignment run unbanded, and 7 times as many cells the largest alignment of any kind; `--max-work` (2 × 10^11) bounds the cells of a region's alignments in all. A region too big for them is left as it is (`too_big`), and realign has no time limit, so the realigned graph depends only on the input and the config: on any machine or batch system, and with any memory, the same regions are realigned the same way. The memory and time realign needs follow from them. Its `-j` and `--max-memory` come from the job's cores (`--indexCores`) and memory, and a job with too little memory for the largest region `realign --plan` admits starts again with enough: for human graphs, jobs of up to 140 GiB. A run that cannot have that stops, naming the region and the options, rather than realign less; a smaller `--max-cells` needs less, and changes the result. Each chromosome's skipped regions are counted in a warning. |
 | `pgrealignVerify` | `1` | Check that every path of the realigned graph spells what it did before, failing the job if not. It compares the full phase's graph, once GFAffix has run and it is back in vg's format, with the graph `cactus-align` wrote. |
 | `pgrealignQC` | `0` | Run `pgrealign qc` on each chromosome. It can take longer than the realignment. |
 
 Things to know:
 
 * Only a reference contig that has one whole path in a chromosome graph is realigned. A graph without one, such as an unplaced bin, passes through unchanged.
-* A region is left as it is when one of its alleles is unrelated to the others or reversed against them, as at an inversion or a non-homologous structural variant: pgrealign's `not_homologous` (an allele sharing less than `--min-share`, 0.5, of its 15-mers with the region's central allele) and `complex` (an inversion) statuses. Aligned forward, such an allele would be threaded through the others by chance matches, each a variant of its own. On the HPRC CHM13 graph this is 0.25% of the realigned regions, at loci such as chrX's MAGEA and MAGED4B.
+* A region is left as it is when one of its alleles is unrelated to the others or reversed against them, as at an inversion or a non-homologous structural variant: pgrealign's `not_homologous` (an allele sharing less than `--min-share`, 0.5, of its 15-mers with the region's central allele, usually the reference's) and `complex` (an inversion) statuses. Aligned forward, such an allele would be threaded through the others by chance matches, each a variant of its own. On the HPRC CHM13 graph this is 0.25% of the realigned regions, at loci such as chrX's MAGEA and MAGED4B.
 * Clipping can come out slightly differently, as it judges sequence aligned by the nodes it shares with the minigraph paths, which realignment changes. On the yeast test data, each genome's clipped sequence moved by at most 0.2% of its input, in both directions.
 * pgrealign runs the `pgrealign`, `abpoa`, `trfind` and `strf` commands. Cactus's `make` builds the last three from its submodules, and `pip install` installs pgrealign from its own, as do the Docker image and the binary release.
 * It cannot be combined with the `--vgFull`/`--vgClip`/`--vgFilter` bypass options, and it has not been tried with `--collapse`.
@@ -775,10 +779,10 @@ If you want to revert to the previous logic of only the `vg giraffe`-specific fi
 `cactus-panpatch` takes a seqfile listing assemblies of the same sample.  The target (to be patched) assembly comes first, with donor assemblies following in priority order.  For example:
 
 ```
-PAN028-verkko.1   PAN028.hap1.verkko.fa      # <- the assembly to patch (chromosome-scale)
-PAN028-verkko.2   PAN028.hap2.verkko.fa
-PAN028-hifiasm.1  PAN028.hifiasm.hap1.fa     # <- donor
-PAN028-hifiasm.2  PAN028.hifiasm.hap2.fa
+PAN028-verkko#1   PAN028.hap1.verkko.fa      # <- the assembly to patch (chromosome-scale)
+PAN028-verkko#2   PAN028.hap2.verkko.fa
+PAN028-hifiasm#1  PAN028.hifiasm.hap1.fa     # <- donor
+PAN028-hifiasm#2  PAN028.hifiasm.hap2.fa
 ```
 ```
 cactus-panpatch ./js seqfile.txt --outDir patched
@@ -806,11 +810,11 @@ The `t2t_contigs` / `contigs_analyzed` columns, and the `#Contig` lines at the e
 
 ### Masking assembly errors
 
-If you have BED files of *suspected assembly errors* — for the target, for donors, or for any subset of them — `--assemblyErrorBeds` will steer patching away from them. The argument is a manifest with one `<seqfile-event-name> <bed-path>` line per assembly (a subset is fine); the event name is the assembly's first-column name in the seqfile (e.g. `PAN028-verkko.1`), so a single manifest covers every sample in a `--batch`:
+If you have BED files of *suspected assembly errors* — for the target, for donors, or for any subset of them — `--assemblyErrorBeds` will steer patching away from them. The argument is a manifest with one `<seqfile-event-name> <bed-path>` line per assembly (a subset is fine); the event name is the assembly's first-column name in the seqfile (e.g. `PAN028-verkko#1`), so a single manifest covers every sample in a `--batch`:
 
 ```
-PAN028-verkko.1   errors/PAN028.hap1.bed     # <- target haplotype 1
-PAN028-hifiasm.2  errors/hifiasm.hap2.bed     # <- a donor
+PAN028-verkko#1   errors/PAN028.hap1.bed     # <- target haplotype 1
+PAN028-hifiasm#2  errors/hifiasm.hap2.bed     # <- a donor
 ```
 ```
 cactus-panpatch ./js chromfile.txt --outDir patched --batch --assemblyErrorBeds manifest.txt
@@ -1081,6 +1085,16 @@ total 72M
 2.1M chrII.raw.vg  4.4M chrIV.raw.vg   1.6M chrV.raw.vg   2.4M chrVII.raw.vg  1.7M chrX.raw.vg     3.1M chrXII.raw.vg  2.4M chrXIV.raw.vg   2.5M chrXVI.raw.vg
 ```
 
+`hal2vg` works out where the pinch blocks whose members disagree on a base divide, and makes those
+nodes as it builds the graph.  Older versions of `hal2vg` split those blocks in the pinch graph
+itself, which needed much more memory on large alignments.  The graph is the same up to node IDs and
+the orientation some nodes are stored in, except that the `.raw.vg` can have a few more nodes, where
+the old conversion would have merged two into one.  `cactus-graphmap-join` removes those when it
+unchops the graph after normalizing it with GFAffix.  To use the old conversion, add
+`--legacyConversion` to `hal2vgOptions` in the `<hal2vg>` section of the
+[cactus config](../src/cactus/cactus_progressive_config.xml), and Cactus will ask for 30 times the
+HAL's size in memory for each `hal2vg` job, rather than 10.
+
 ### Yeast: Joining the Chromosome Alignments
 
 As in the primates example, `cactus-graphmap-join` is used to make the final indexes.  Its use is identical, except multiple graphs are passed as input.  We also pass in the HAL files so it can merge them too.
@@ -1239,8 +1253,8 @@ export VERSION=may4
 wget -q https://raw.githubusercontent.com/human-pangenomics/HPP_Year1_Assemblies/main/assembly_index/Year1_assemblies_v2_genbank.index
 grep GRCh38 Year1_assemblies_v2_genbank.index | sed -e 's/_no_alt_analysis_set\t/\t/g' | awk '{print $1 "\t" $2}' > hprc-${VERSION}-mc.seqfile
 printf "CHM13v2\thttps://s3-us-west-2.amazonaws.com/human-pangenomics/T2T/CHM13/assemblies/analysis_set/chm13v2.0_maskedY_rCRS.fa.gz\n" >> hprc-${VERSION}-mc.seqfile
-tail -n +2 Year1_assemblies_v2_genbank.index | awk '{print $1 ".1\t" $2}' | grep -v CHM13 | grep -v GRCh38 >> hprc-${VERSION}-mc.seqfile
-tail -n +2 Year1_assemblies_v2_genbank.index | awk '{print $1 ".2\t" $3}' | grep -v CHM13 | grep -v GRCh38 >> hprc-${VERSION}-mc.seqfile
+tail -n +2 Year1_assemblies_v2_genbank.index | awk '{print $1 "#1\t" $2}' | grep -v CHM13 | grep -v GRCh38 >> hprc-${VERSION}-mc.seqfile
+tail -n +2 Year1_assemblies_v2_genbank.index | awk '{print $1 "#2\t" $3}' | grep -v CHM13 | grep -v GRCh38 >> hprc-${VERSION}-mc.seqfile
 sort -k1 hprc-${VERSION}-mc.seqfile > hprc-${VERSION}-mc.seqfile.sort ; mv hprc-${VERSION}-mc.seqfile.sort hprc-${VERSION}-mc.seqfile
 sed hprc-${VERSION}-mc.seqfile -i -e 's%s3://human-pangenomics/working/%https://s3-us-west-2.amazonaws.com/human-pangenomics/working/%g'
 ```
@@ -1252,7 +1266,7 @@ grep -v 'HG002\|HG005\|NA19240' hprc-${VERSION}-mc.seqfile > t && mv t hprc-${VE
 
 Also, a misjoin in `HG02080#1#JAHEOW010000073.1` was manually corrected by using `samtools faidx` to break it into `HG02080#1#JAHEOW010000073.1_sub_0_7238466` and `HG02080#1#JAHEOW010000073.1_sub_7238466_12869124`.  The `sub_X_Y` (0-based, open-ended like BED) coordinates are understood by the pipeline, and the offsets will be preserved in the GFA W-lines at the end.  If we don't apply this change, then path names with ":"'s will end up in the HAL which will prevent it from working with assembly hubs.  
 ```
-wget -q $(grep HG02080\.1 hprc-${VERSION}-mc.seqfile | tail -1 | awk '{print $2}') -O HG02080.1.fa.gz
+wget -q $(grep 'HG02080#1' hprc-${VERSION}-mc.seqfile | tail -1 | awk '{print $2}') -O HG02080.1.fa.gz
 gzip -d HG02080.1.fa.gz
 samtools faidx HG02080.1.fa
 keep_contigs=$(awk '{print $1}' HG02080.1.fa.fai | grep -v JAHEOW010000073\.1)
@@ -1265,21 +1279,21 @@ bgzip HG02080.1.fix.fa --threads 8
 If on aws, but the revised sequence in your bucket:
 ```
 aws s3 cp HG02080.1.fix.fa.gz ${MYBUCKET}/fasta/
-grep -v HG02080\.1 hprc-${VERSION}-mc.seqfile > t && mv t hprc-${VERSION}-mc.seqfile
-printf "HG02080.1\t${MYBUCKET}/fasta/HG02080.1.fix.fa.gz\n" >> hprc-${VERSION}-mc.seqfile
+grep -v 'HG02080#1' hprc-${VERSION}-mc.seqfile > t && mv t hprc-${VERSION}-mc.seqfile
+printf "HG02080#1\t${MYBUCKET}/fasta/HG02080.1.fix.fa.gz\n" >> hprc-${VERSION}-mc.seqfile
 ```
 otherwise, just leave it local:
 ```
-grep -v HG02080\.1 hprc-${VERSION}-mc.seqfile > t && mv t hprc-${VERSION}-mc.seqfile
-printf "HG02080.1\t./HG02080.1.fix.fa.gz\n" >> hprc-${VERSION}-mc.seqfile
+grep -v 'HG02080#1' hprc-${VERSION}-mc.seqfile > t && mv t hprc-${VERSION}-mc.seqfile
+printf "HG02080#1\t./HG02080.1.fix.fa.gz\n" >> hprc-${VERSION}-mc.seqfile
 ```
 
 ```
 head -4 hprc-${VERSION}-mc.seqfile
 CHM13v2 https://s3-us-west-2.amazonaws.com/human-pangenomics/T2T/CHM13/assemblies/analysis_set/chm13v2.0_maskedY_rCRS.fa.gz
 GRCh38  https://s3-us-west-2.amazonaws.com/human-pangenomics/working/HPRC_PLUS/GRCh38/assemblies/GCA_000001405.15_GRCh38_no_alt_analysis_set.fna.gz
-HG00438.1       https://s3-us-west-2.amazonaws.com/human-pangenomics/working/HPRC/HG00438/assemblies/year1_f1_assembly_v2_genbank/HG00438.paternal.f1_assembly_v2_genbank.fa.gz
-HG00438.2       https://s3-us-west-2.amazonaws.com/human-pangenomics/working/HPRC/HG00438/assemblies/year1_f1_assembly_v2_genbank/HG00438.maternal.f1_assembly_v2_genbank.fa.gz
+HG00438#1       https://s3-us-west-2.amazonaws.com/human-pangenomics/working/HPRC/HG00438/assemblies/year1_f1_assembly_v2_genbank/HG00438.paternal.f1_assembly_v2_genbank.fa.gz
+HG00438#2       https://s3-us-west-2.amazonaws.com/human-pangenomics/working/HPRC/HG00438/assemblies/year1_f1_assembly_v2_genbank/HG00438.maternal.f1_assembly_v2_genbank.fa.gz
 ```
 
 ### HPRC Graph: Running all at once

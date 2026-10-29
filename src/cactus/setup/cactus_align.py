@@ -19,7 +19,7 @@ from cactus.shared.common import setupBinaries, importSingularityImage, cactus_w
 from cactus.pipeline.cactus_workflow import cactus_cons_with_resources
 from cactus.progressive.progressive_decomposition import compute_outgroups, parse_seqfile, get_subtree, get_spanning_subtree, get_event_set, get_ancestor_scaled_tree
 from cactus.progressive.cactus_progressive import export_hal
-from cactus.shared.common import makeURL, catFiles
+from cactus.shared.common import makeURL, catFiles, resolve_pangenome_name
 from cactus.shared.common import RAW_VG_SUFFIX
 from cactus.shared.common import enableDumpStack
 from cactus.shared.common import cactus_override_toil_options, add_cactus_toil_options
@@ -343,7 +343,7 @@ def make_align_job(options, toil, config_wrapper=None, chrom_name=None):
 
     if options.reference and options.pangenome:
         # validate the sample names
-        check_sample_names(input_seq_map.keys(), options.reference)
+        options.reference = check_sample_names(input_seq_map.keys(), options.reference)
         
     # apply path overrides.  this was necessary for wdl which doesn't take kindly to
     # text files of local paths (ie seqfile).  one way to fix would be to add support
@@ -351,6 +351,8 @@ def make_align_job(options, toil, config_wrapper=None, chrom_name=None):
     # interface shift away from files of paths throughout all of cactus
     if options.pathOverrides:
         for name, override in zip(options.pathOverrideNames, options.pathOverrides):
+            if options.pangenome:
+                name = resolve_pangenome_name(name, input_seq_map) or name
             input_seq_map[name] = override
 
     # infer default root
@@ -577,7 +579,15 @@ def export_vg(job, hal_id, config_wrapper, doVG, doGFA, referenceEvents, checkpo
     if not resource_spec:
         # caller couldn't figure out the resrouces from hal_id promise.  do that
         # now and try again
-        vg_memory = hal_id.size * 30 if not memory_override else memory_override
+        # hal2vg peaked at 3.0-3.8x the HAL on every chromosome but chrM of a 466-haplotype HPRC graph,
+        # and at 2.5-4.0x on a 30-way one, now that it plans where the blocks whose members disagree
+        # divide instead of splitting them in the pinch graph, as --legacyConversion still does (6.6-8.3x
+        # on the 466-haplotype autosomes, so it keeps the 30x it had).  10x leaves 2.5x room on those
+        # graphs, but the multiple grows with the number of haplotypes, so much larger pangenomes may
+        # need the minMemory floor below or --consMemory
+        hal2vg_opts = getOptionalAttrib(findRequiredNode(config_wrapper.xmlRoot, "hal2vg"), "hal2vgOptions", default="")
+        hal2vg_factor = 30 if '--legacyConversion' in hal2vg_opts.split() else 10
+        vg_memory = hal_id.size * hal2vg_factor if not memory_override else memory_override
         # optional floor from config: hal2vg memory is set from the alignment's cons_memory, which
         # for large unclipped graphs (eg cactus-panpatch reference-free, where a "chromosome" is a
         # whole assembly contig) can be far less than hal2vg --inMemory needs.  cactus-panpatch sets

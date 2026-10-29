@@ -393,8 +393,8 @@ suball.lastz: suball.jemalloc
 # fine in developer trees only because a previous build had already patched the file, which
 # is why it survived local testing.  Match around whatever sits between -lm and -o instead,
 # skip lines that already have LIBS so repeated builds stay idempotent, and verify.
-	cd submodules/lastz/src && sed -i -e '/LIBS/!s/-lm\(.*\) -o \$$@/-lm\1 $${LIBS} -o $$@/' Makefile \
-	  && grep -q 'LIBS' Makefile
+	cd submodules/lastz/src && sed -i.bak -e '/LIBS/!s/-lm\(.*\) -o \$$@/-lm\1 $${LIBS} -o $$@/' Makefile \
+	  && rm -f Makefile.bak && grep -q 'LIBS' Makefile
 ifeq ($(lastzPgo),on)
 # Profile-guided build: instrument, train on generated input covering each
 # parameter bucket, rebuild using the profile.  Worth 8-16%, most of it on the
@@ -430,7 +430,7 @@ suball.paffy:
 	ln -f submodules/paffy/inc/*.h ${INCLDIR}
 
 suball.red: suball.jemalloc
-	cd submodules/red && sed -i -e '/LIBS/!s/-o \$$(TRed) \$$(OBJS)/-o $$(TRed) $$(OBJS) $$(LIBS)/' src/Makefile
+	cd submodules/red && sed -i.bak -e '/LIBS/!s/-o \$$(TRed) \$$(OBJS)/-o $$(TRed) $$(OBJS) $$(LIBS)/' src/Makefile && rm -f src/Makefile.bak
 	cd submodules/red && CXXFLAGS="$${CXXFLAGS} ${CACTUS_ARCH_FLAGS}" LIBS="${jemallocSubLibs}" ${MAKE}
 	ln -f submodules/red/bin/Red ${BINDIR}
 
@@ -438,14 +438,14 @@ suball.collapse-bubble:
 	chmod +x submodules/collapse-bubble/scripts/merge_duplicates.py
 	ln -f submodules/collapse-bubble/scripts/merge_duplicates.py ${BINDIR}
 suball.FASTGA: suball.jemalloc
-	cd submodules/FASTGA && sed -i -e '/-lpthread/!s/-lm -lz/-lpthread -lm -lz/g' -e '/LIBS/!s/-lpthread -lm -lz/-lpthread -lm -lz $$(LIBS)/g' Makefile && LIBS="${jemallocSubLibs}" ${MAKE} CC="$${CC:-gcc} ${CACTUS_ARCH_FLAGS}"
+	cd submodules/FASTGA && sed -i.bak -e '/-lpthread/!s/-lm -lz/-lpthread -lm -lz/g' -e '/LIBS/!s/-lpthread -lm -lz/-lpthread -lm -lz $$(LIBS)/g' Makefile && rm -f Makefile.bak && LIBS="${jemallocSubLibs}" ${MAKE} CC="$${CC:-gcc} ${CACTUS_ARCH_FLAGS}"
 	ln -f submodules/FASTGA/FastGA ${BINDIR}
 	ln -f submodules/FASTGA/ALNtoPAF ${BINDIR}
 	ln -f submodules/FASTGA/FAtoGDB ${BINDIR}
 	ln -f submodules/FASTGA/GIXmake ${BINDIR}
 	ln -f submodules/FASTGA/GIXrm ${BINDIR}
 suball.FASTAN: suball.jemalloc
-	cd submodules/FASTAN && sed -i -e 's/-lm -lz/-lm -lpthread -lz/g' -e '/LIBS/!s/-lm -lpthread -lz/-lm -lpthread -lz $$(LIBS)/g' Makefile && LIBS="${jemallocSubLibs}" ${MAKE} CC="$${CC:-gcc} ${CACTUS_ARCH_FLAGS}" || true
+	cd submodules/FASTAN && sed -i.bak -e 's/-lm -lz/-lm -lpthread -lz/g' -e '/LIBS/!s/-lm -lpthread -lz/-lm -lpthread -lz $$(LIBS)/g' Makefile && rm -f Makefile.bak && LIBS="${jemallocSubLibs}" ${MAKE} CC="$${CC:-gcc} ${CACTUS_ARCH_FLAGS}" || true
 	ln -f submodules/FASTAN/FasTAN ${BINDIR}
 suball.alntools:
 	cd submodules/alntools && ${MAKE} CC="$${CC:-gcc} ${CACTUS_ARCH_FLAGS}"

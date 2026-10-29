@@ -21,6 +21,7 @@ from cactus.progressive.seqFile import SeqFile
 from cactus.shared.common import setupBinaries, importSingularityImage, cactus_walltime
 from cactus.refmap.pangenome_exclusions import event_to_pansn_prefix
 from cactus.shared.common import cactusRootPath
+from cactus.shared.common import normalize_pangenome_name, resolve_pangenome_name, pangenome_name_sample
 from cactus.shared.configWrapper import ConfigWrapper
 from cactus.shared.common import makeURL, catFiles, write_s3
 from cactus.shared.common import enableDumpStack
@@ -187,9 +188,12 @@ def minigraph_construct_import_sequences(options, config_wrapper, input_seqfiles
     for chrom, seqfile_path in input_seqfiles.items():
         if type(seqfile_path) is list:
             seqfile_path = seqfile_path[0]
-        seqFile = SeqFile(seqfile_path, defaultBranchLen=config_wrapper.getDefaultBranchLen(pangenome=True))
+        seqFile = SeqFile(seqfile_path, defaultBranchLen=config_wrapper.getDefaultBranchLen(pangenome=True), pangenome=True)
         input_seq_map = seqFile.pathMap
         raw_input_seq_order = seqFile.seqOrder
+
+        # validate the sample names
+        options.reference = check_sample_names(input_seq_map.keys(), options.reference)
 
         # make sure the reference is first
         input_seq_order = [options.reference[0]]
@@ -204,9 +208,6 @@ def minigraph_construct_import_sequences(options, config_wrapper, input_seqfiles
             for sample in options.reference:
                 ref_seq_map[sample] = input_seq_map[sample]
             input_seq_map = ref_seq_map
-
-        # validate the sample names
-        check_sample_names(input_seq_map.keys(), options.reference)
 
         #import the sequences
         input_seq_id_map = {}
@@ -305,32 +306,41 @@ def export_minigraph_construct_output(options, input_seqfiles, output_dict, toil
             write_s3(chrom_file_temp_path, chrom_file_path)
 
 def check_sample_names(sample_names, references):
-    """ make sure we have a workable set of sample names """
+    """ make sure we have a workable set of genome names, as read by SeqFile(pangenome=True), and
+    return the references (a list or a single name, like references) resolved against them, so
+    that HG002.1 becomes HG002#1 here as it does in the seqfile, and CHM13 finds CHM13#0 """
 
-    # make sure we have the reference
-    if references:
-        assert type(references) in [list, str]
-        if type(references) is str:
-            references = [references]
-        if references[0] not in sample_names:
-            raise RuntimeError("Specified reference, \"{}\" not in seqfile".format(references[0]))
-        for reference in references:
-            # graphmap-join uses reference names as prefixes, so make sure we don't get into trouble with that
-            reference_base = os.path.splitext(reference)[0]
-            for sample in sample_names:
-                sample_base = os.path.splitext(sample)[0]
-                if sample != reference and sample_base.startswith(reference_base):
-                    raise RuntimeError("Input sample {} is prefixed by given reference {}. ".format(sample_base, reference_base) +    
-                                       "This is not supported by this version of Cactus, " +
-                                       "so one of these samples needs to be renamed to continue")
-
-    # the "." character is overloaded to specify haplotype, make sure that it makes sense
     for sample in sample_names:
-        sample_base, sample_ext = os.path.splitext(sample)
-        if not sample_base or (not sample_ext and sample_base.startswith(".")):
-            raise RuntimeError("Sample name {} invalid because it begins with \".\"".format(sample))
-        if sample_ext and (len(sample_ext) == 1 or not sample_ext[1:].isnumeric()):
-            raise RuntimeError("Sample name {} with \"{}\" suffix is not supported. You must either remove this suffix or use .N where N is an integer to specify haplotype".format(sample, sample_ext))
+        if normalize_pangenome_name(sample) != sample:
+            # SeqFile(pangenome=True) has failed to rewrite it
+            raise RuntimeError("Genome name {} is not normalized to {}".format(sample, normalize_pangenome_name(sample)))
+
+    if not references:
+        return references
+    assert type(references) in [list, str]
+    resolved = []
+    for i, reference in enumerate([references] if type(references) is str else references):
+        resolved_reference = resolve_pangenome_name(reference, sample_names)
+        if resolved_reference is None:
+            # only the first reference has to be there: a chromosome's seqfile leaves out a genome
+            # with no sequence on it, and that can be another reference
+            if i == 0:
+                raise RuntimeError("Specified reference, \"{}\" not in seqfile".format(reference))
+            resolved_reference = normalize_pangenome_name(reference)
+        resolved.append(resolved_reference)
+
+    for reference in resolved:
+        # graphmap-join uses reference samples as prefixes, so make sure we don't get into trouble
+        # with that.  that goes for the other haplotypes of the reference's own sample too, as a
+        # reference is a whole vg sample
+        reference_sample = pangenome_name_sample(reference)
+        for sample in sample_names:
+            if sample != reference and pangenome_name_sample(sample).startswith(reference_sample):
+                raise RuntimeError("Input genome {} is prefixed by given reference sample {}. ".format(sample, reference_sample) +
+                                   "This is not supported by this version of Cactus, " +
+                                   "so one of these samples needs to be renamed to continue")
+
+    return resolved[0] if type(references) is str else resolved
 
 def minigraph_construct_batch_workflow(job, options, config_node, input_dict, gfa_path, sanitize=True,
                                        construct_ref_id_map=None, in_gfa_id=None, scores_id=None):
@@ -1190,12 +1200,12 @@ def sort_minigraph_input_with_mash(job, options, config_node, seq_id_map, seq_or
     # than the one with chrY, which makes the resulting order pretty meaningless.
     #
     # so to get around this, we group the haplotypes by sample, and compute their distances together
-    # so, for example HG002.1 and HG002.2 would be always be consecutive in the order and their distance
+    # so, for example HG002#1 and HG002#2 would be always be consecutive in the order and their distance
     # will be determined jointly (by just concatenating them).
     seq_by_sample = defaultdict(list)
     # note: seq_order[0] is (first) reference, so we don't include it
     for seq_name in seq_order[1:]:
-        sample_name = seq_name[:seq_name.rfind('.')] if '.' in seq_name and sort_by_sample else seq_name
+        sample_name = pangenome_name_sample(seq_name) if sort_by_sample else seq_name
         seq_by_sample[sample_name].append(seq_name)
 
     # list of dictionary (promises) that map genome name to mash distance output
@@ -1224,7 +1234,7 @@ def mash_sketch(job, ref_seq, seq_id_map):
 def mash_dist(job, query_seqs, ref_seq, seq_id_map, ref_sketch_id):
     """ get the mash distance
     returns a map from genome name to -> (sample distance, distance, size)
-    where sample_distance is the concatentation of all sequences from the same sample (ie HG002.1 and HG002.2)
+    where sample_distance is the concatentation of all sequences from the same sample (ie HG002#1 and HG002#2)
     """
     work_dir = job.fileStore.getLocalTempDir()
     ref_sketch_path = os.path.join(ref_seq + '.fa.msh')
@@ -1556,11 +1566,8 @@ def bgzip_gfa_rename(raw_out_path, out_gfa_path, threads):
         os.remove(raw_out_path)
 
 def minigraph_gfa_to_pansn(names, gfa_path, out_gfa_path, threads=1):
-    """ hack to convert cactus names like id=simChimp.0|simChimp.chr6 to PanSN simChimp#0#simpChimp.chr6
-    so that minigraph GFA file can be used outside of catus
-
-    todo: Cactus should probably be changed to just use PanSN internally as well, but that's a much
-    bigger lift
+    """ hack to convert cactus names like id=simChimp|simChimp.chr6 to PanSN simChimp#0#simChimp.chr6
+    (and id=HG002#1|chr1 to HG002#1#chr1) so that minigraph GFA file can be used outside of cactus
     """
     in_file, out_file, raw_out_path = open_gfa_for_rename(gfa_path, out_gfa_path)
 
@@ -1574,10 +1581,8 @@ def minigraph_gfa_to_pansn(names, gfa_path, out_gfa_path, threads=1):
                     assert barpos > 8
                     name = tok[8:barpos]
                     assert name in names
-                    # one splitter for every artifact: this GFA, the GAF that indexes into it,
-                    # and hal2vg's final graph.  splitting here on the last '.' verbatim instead
-                    # gave HG002.01 -> HG002#01# against the GAF's HG002#1#, and HG002.pat ->
-                    # HG002#pat#, which is not a PanSN haplotype at all
+                    # one PanSN prefix for every artifact: this GFA, the GAF that indexes into
+                    # it, and hal2vg's final graph.  a genome with no haplotype is SAMPLE#0
                     toks[4+i] = 'SN:Z:{}#{}'.format(event_to_pansn_prefix(name), tok[barpos+1:])
                     break
             out_file.write(('\t'.join(toks) + '\n').encode())
@@ -1601,18 +1606,17 @@ RAW_BYTES_PER_GZ_BYTE = 10
 GFA_RENAME_SECS_PER_GB = 700
 
 def minigraph_gfa_from_pansn(job, names, gfa_path, gfa_id):
-    """ hack to convert PanSN names like simChimp#0#simpChimp.chr6 to Cactus names like id=simChimp.0|simChimp.chr6
-    so that a minigrpah GFA (as converted panSN by minigraph_gfa_to_pansn() above) can be read back into Cactus
+    """ hack to convert PanSN names like simChimp#0#simChimp.chr6 to Cactus names like id=simChimp|simChimp.chr6
+    so that a minigraph GFA (as converted to PanSN by minigraph_gfa_to_pansn() above) can be read back into Cactus
 
     returns (converted gfa id, set of genomes the graph was built from).  the genome set is what
     --inGFA needs to work out which of the seqfile's genomes are new to the graph, and it comes
     free with the pass that has to read every SN tag anyway.
 
     a GFA that is already in cactus naming -- from a cactus old enough to have published one, or
-    handed straight from one stage to the next -- is read for its genome set and returned as-is.
-
-    todo: Cactus should probably be changed to just use PanSN internally as well, but that's a much
-    bigger lift
+    handed straight from one stage to the next -- is read for its genome set and returned as-is,
+    unless it spells its haplotypes the old way (id=HG002.1|), in which case those are renamed to
+    the seqfile's genomes (id=HG002#1|) like everything else that is read in
     """
     work_dir = job.fileStore.getLocalTempDir()
     gfa_path = os.path.join(work_dir, os.path.basename(gfa_path))
@@ -1621,9 +1625,12 @@ def minigraph_gfa_from_pansn(job, names, gfa_path, gfa_id):
 
     in_file, out_file, raw_out_path = open_gfa_for_rename(gfa_path, out_gfa_path)
 
+    # SAMPLE#HAP -> seqfile genome.  this is what pairs SAMPLE#0#chr1 with a genome named SAMPLE
+    event_of = {event_to_pansn_prefix(name) : name for name in names}
+
     events = set()
     unresolved = set()
-    already_cactus = False
+    renamed = False
     for line in in_file:
         line = line.decode()
         if line.startswith('S'):
@@ -1631,38 +1638,45 @@ def minigraph_gfa_from_pansn(job, names, gfa_path, gfa_id):
             for i, tok in enumerate(toks[4:]):
                 if tok.startswith('SN:Z:'):
                     if tok.startswith('SN:Z:id='):
-                        # already cactus-named: nothing to rewrite, just harvest the genome
-                        already_cactus = True
+                        # already cactus-named: just harvest the genome, unless it's an old
+                        # spelling of a seqfile genome
                         barpos = tok.find('|')
                         if barpos > 8:
-                            events.add(tok[8:barpos])
+                            name = tok[8:barpos]
+                            if name not in names:
+                                try:
+                                    event = event_of.get(event_to_pansn_prefix(name))
+                                except RuntimeError:
+                                    event = None
+                                if event is not None:
+                                    toks[4+i] = 'SN:Z:id={}|{}'.format(event, tok[barpos+1:])
+                                    name = event
+                                    renamed = True
+                            events.add(name)
                         break
                     hashpos = tok.find('#')
                     if hashpos < 0:
                         # no prefix found: do nothing and hope for the best
                         continue
-                    hashpos2 = hashpos + 1 + tok[hashpos+1:].find('#')
+                    hashpos2 = tok.find('#', hashpos + 1)
                     if hashpos2 < 0:
-                        name = tok[5:]
-                        hap = "0"
+                        # SAMPLE#CONTIG, which has no haplotype
+                        event = event_of.get(tok[5:hashpos] + '#0')
+                        contig = tok[hashpos+1:]
                     else:
-                        name = tok[5:hashpos]
-                        hap = tok[hashpos+1:hashpos2]
-                    # minigraph_to_pansn() will add #0 to names without any dots
-                    # we untangle that here using the names list                    
-                    if name not in names:
-                        if '{}.{}'.format(name, hap) in names:
-                            name = '{}.{}'.format(name, hap)
-                        else:
-                            # collected rather than asserted on: with --inGFA this is usually
-                            # the user leaving a genome out of the seqfile, which deserves to be
-                            # named.  the whole tag goes in the message because the other way to
-                            # land here is an SN tag that is not SAMPLE#HAP#CONTIG at all, and
-                            # then the prefix alone says nothing about what is wrong
-                            unresolved.add(tok)
-                            break
-                    events.add(name)
-                    toks[4+i] = 'SN:Z:id={}|{}'.format(name, tok[hashpos2+1:])
+                        event = event_of.get(tok[5:hashpos2])
+                        contig = tok[hashpos2+1:]
+                    if event is None:
+                        # collected rather than asserted on: with --inGFA this is usually
+                        # the user leaving a genome out of the seqfile, which deserves to be
+                        # named.  the whole tag goes in the message because the other way to
+                        # land here is an SN tag that is not SAMPLE#HAP#CONTIG at all, and
+                        # then the prefix alone says nothing about what is wrong
+                        unresolved.add(tok)
+                        break
+                    events.add(event)
+                    toks[4+i] = 'SN:Z:id={}|{}'.format(event, contig)
+                    renamed = True
                     break
             out_file.write(('\t'.join(toks) + '\n').encode())
         else:
@@ -1678,7 +1692,7 @@ def minigraph_gfa_from_pansn(job, names, gfa_path, gfa_id):
                            'by cactus and cannot be read back into it'.format(
                                len(unresolved), gfa_path, ' '.join(sorted(unresolved)[:10])))
 
-    if already_cactus:
+    if not renamed:
         return gfa_id, events
 
     bgzip_gfa_rename(raw_out_path, out_gfa_path, job.cores)

@@ -37,8 +37,10 @@ def parse_seqfile(seqfile_path, config_wrapper, root_name = None, pangenome = Fa
     """
     parse the seqfile
     returns (tree, event->path map, og list (from *'s in seqfile)
+    with pangenome, the genome names are normalized to PanSN (see SeqFile)
     """
-    seq_file = SeqFile(seqfile_path, root_name = root_name, defaultBranchLen=config_wrapper.getDefaultBranchLen(pangenome=pangenome))
+    seq_file = SeqFile(seqfile_path, root_name = root_name, defaultBranchLen=config_wrapper.getDefaultBranchLen(pangenome=pangenome),
+                       pangenome = pangenome)
 
     mc_tree = MultiCactusTree(seq_file.tree)
     mc_tree.nameUnlabeledInternalNodes(config_wrapper.getDefaultInternalNodePrefix())
