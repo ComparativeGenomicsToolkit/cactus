@@ -34,7 +34,18 @@ set -beEu -o pipefail
 # the CACTUS_PORTABLE_BUILD set below, so it would also strip the legacy
 # tarball of the -msse2 that is its only reason to exist.  CACTUS_LEGACY_ARCH
 # is deliberately not in this list: "make binRelease" passes it in on purpose.
-unset sonLibRootDir PYTHONPATH CACTUS_ARCH_FLAGS CACTUS_NATIVE_BUILD
+#
+# The SIMD levels go because the invoking make does export one, and on the
+# legacy line it is the wrong one.  include.mk exports avx2=1 for abPOA and
+# minipoa, or sse2=1 under CACTUS_LEGACY_ARCH, but "make binRelease" reads
+# include.mk once, without CACTUS_LEGACY_ARCH, so it passes avx2=1 to its legacy
+# line too.  Nothing below takes it back: the export below and the clone's own
+# include.mk only add sse41 and sse2 beside it, and the two libraries pick from
+# the levels set in opposite orders.  abPOA takes the lowest and was unaffected;
+# minipoa takes the highest, and so built AVX2 into the legacy tarball's
+# cactus_consolidated.  avx512bw goes too, as the one level minipoa ranks above
+# avx2.
+unset sonLibRootDir PYTHONPATH CACTUS_ARCH_FLAGS CACTUS_NATIVE_BUILD avx512bw avx2 sse41 sse2
 # the Makefile prepends exactly "${CWD}/bin:", so take that one prefix back off
 PATH=${PATH#"$(pwd)/bin:"}
 export PATH
