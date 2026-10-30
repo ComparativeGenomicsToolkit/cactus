@@ -50,6 +50,7 @@ from cactus.shared.common import getOptionalAttrib, findRequiredNode
 from cactus.shared.common import unzip_gz, write_s3
 from cactus.shared.common import cactus_clamp_memory
 from cactus.shared.common import clean_jobstore_files
+from cactus.shared.common import read_global_file_mutable
 from cactus.shared.version import cactus_commit
 from cactus.preprocessor.fileMasking import get_mask_bed_from_fasta
 from toil.job import Job
@@ -416,6 +417,9 @@ def graphmap_join_options(parser):
 
     parser.add_argument("--collapse", help = "Incorporate minimap2 self-alignments.", action='store_true', default=False)
 
+    parser.add_argument("--hdf5Codec", choices=["deflate", "lz4", "zstd", "none"], default=None,
+                        help="HDF5 compression codec for HAL output (overrides config XML, default=deflate)")
+
     parser.add_argument("--delEdgeFilter", type=int, default=None, help = "Remove edges that span more than Nbp on the reference genome (vg clip -D). Applied during clipping. 0 disables. [default from config: delEdgeFilter in <graphmap_join>, 10000000]")
 
     parser.add_argument("--gref", nargs='?', const='clip', default=None,
@@ -452,12 +456,14 @@ def graphmap_join_defaults(options):
     return options
 
 def graphmap_join_config_overrides(options, config_node):
-    """ apply the command-line options that override <graphmap_join> config attributes.
+    """ apply the command-line options that override <graphmap_join> (and <hal>) config attributes.
     shared by cactus-graphmap-join and cactus-pangenome, which load the config separately """
     if getattr(options, 'clipFlank', None) is not None:
         findRequiredNode(config_node, "graphmap_join").attrib["clipFlank"] = str(options.clipFlank)
     if getattr(options, 'delEdgeFilter', None) is not None:
         findRequiredNode(config_node, "graphmap_join").attrib["delEdgeFilter"] = str(options.delEdgeFilter)
+    if getattr(options, 'hdf5Codec', None):
+        findRequiredNode(config_node, "hal").attrib["hdf5Codec"] = options.hdf5Codec
 
 def graphmap_join_validate_options(options):
     """ make sure the options make sense and fill in sensible defaults """
@@ -2055,7 +2061,7 @@ def join_vg(job, options, config, clipped_vg_ids):
     assert len(options.vg) == len(clipped_vg_ids)
     for vg_path, vg_id in zip(options.vg, clipped_vg_ids):
         vg_path = os.path.join(work_dir, os.path.basename(vg_path))
-        job.fileStore.readGlobalFile(vg_id, vg_path, mutable=True)
+        read_global_file_mutable(job, vg_id, vg_path)
         vg_paths.append(vg_path)
         
     cactus_call(parameters=['vg', 'ids', '-j'] + vg_paths, job_memory=job.memory)
@@ -3333,9 +3339,11 @@ def merge_hal(job, options, config, hal_ids, remove_minigraph=True):
     graph_event = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "assemblyName", default="_MINIGRAPH_")
     for in_path, hal_id in zip(options.hal, hal_ids):
         hal_path = os.path.join(work_dir, os.path.basename(in_path))
-        job.fileStore.readGlobalFile(hal_id, hal_path, mutable=remove_minigraph)
         if remove_minigraph:
+            read_global_file_mutable(job, hal_id, hal_path)
             cactus_call(parameters=['halRemoveGenome', hal_path, graph_event])            
+        else:
+            job.fileStore.readGlobalFile(hal_id, hal_path)
         hal_paths.append(hal_path)
 
     merged_path = os.path.join(work_dir, '__merged__.hal')
@@ -3349,6 +3357,9 @@ def merge_hal(job, options, config, hal_ids, remove_minigraph=True):
            ','.join([os.path.basename(p) for p in hal_paths]),
            os.path.basename(merged_path),
            '--progress']
+    codec = getOptionalAttrib(findRequiredNode(config.xmlRoot, "hal"), "hdf5Codec")
+    if codec:
+        cmd += ['--hdf5Codec', codec]
     cactus_call(parameters=cmd, work_dir = work_dir, job_memory=job.memory)
 
     return { 'full.hal' : job.fileStore.writeGlobalFile(merged_path) }

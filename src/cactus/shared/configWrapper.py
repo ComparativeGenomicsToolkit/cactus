@@ -148,10 +148,6 @@ class ConfigWrapper:
         before the attribute existed keeps that old behaviour """
         return getOptionalAttrib(findRequiredNode(self.xmlRoot, "graphmap"), "dotHaplotypes", typeFn=bool, default=True)
 
-    def getAllowMultifurcations(self):
-        decompElem = self.getDecompositionElem()
-        return getOptionalAttrib(decompElem, attribName="allow_multifurcations", typeFn=bool, default=False)
-        
     def getBuildHal(self):
         halElem = self.xmlRoot.find("hal")
         if halElem is not None and "buildHal" in halElem.attrib:
