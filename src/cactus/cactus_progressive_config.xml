@@ -85,6 +85,12 @@
 	<!-- pickIngroupPrimaryAlignmentsSeparatelyToOutgroups Separately make ingroups pick their primary alignment to
 	     other ingroups without outgroups, then get the outgroups to pick their primary alignment to the ingroups. If 0
 	     get every sequence to pick its primary alignment without regard to if the other sequence is an ingroup or outgroup -->
+	<!-- multifurcationPairSecondaries For ancestors with more than two children (multifurcations), also chain the
+	     alignments of each pair of ingroups on their own, and give them to CAF as secondary alignments (closest pair
+	     first), filtered by <caf secondaryAlignmentFilter>. The primary alignments let each ingroup base keep a single
+	     partner, which can leave groups of ingroups almost unaligned to each other (ex: (mouse,rat) and (cow,dog) in a
+	     star tree): the secondaries join them. Only used when pickIngroupPrimaryAlignmentsSeparatelyToOutgroups is 1.
+	     With outputSecondaryAlignments="1" the pairs are not chained again, as the secondaries already hold them -->
 	<!-- includeRootAsOutgroup When the root sequence is supplied (cactus-blast/cactus-align with includeRoot), treat it as
 	     an outgroup rather than an ingroup, so that its coverage to its descendants is not starved during chaining. Set
 	     to 0 to restore the old behaviour of treating the pinned root as an ingroup -->
@@ -122,6 +128,7 @@
 		   outputSecondaryAlignments="0"
 		   dechunkBatchSize="333"
 		   pickIngroupPrimaryAlignmentsSeparatelyToOutgroups="1"
+		   multifurcationPairSecondaries="1"
 		   includeRootAsOutgroup="1"
 		   bigGenomeChunkScale="2"
 		   >
@@ -206,6 +213,12 @@
 	<!-- minimumTreeCoverage The fraction of the tree spanned by species with sequences in a block for the block
 	to be included as a block in the alignment. -->
 	<!-- alignmentFilter TODO -->
+	<!-- secondaryAlignmentFilter Filter for the secondary alignments alone, in place of the one alignmentFilter gives
+	     them: "sharedSpecies" (never join two segments or blocks that have a species in common, as alignmentFilter
+	     "singleCopy" does), "multipleSequences" (reject a pinch only if both segments are already in blocks) or "none".
+	     Empty to keep alignmentFilter's. When set, the secondaries are annealed in the order they are given.
+	     Multifurcations with <blast multifurcationPairSecondaries> get "sharedSpecies" when it is empty, for all their
+	     secondaries -->
 	<!-- maxAdjacencyComponentSizeRatio TODO -->
 	<!-- minLengthForChromosome TODO -->
 	<!-- proportionOfUnalignedBasesForNewChromosome TODO-->
@@ -226,6 +239,7 @@
 		 minimumOutgroupDegree="0"
 		 minimumTreeCoverage="0.0"
 		 alignmentFilter="filterSecondariesByMultipleSequences"
+		 secondaryAlignmentFilter=""
 		 maxAdjacencyComponentSizeRatio="50"
 		 minLengthForChromosome="1000000"
 		 proportionOfUnalignedBasesForNewChromosome="0.95"
@@ -762,12 +776,10 @@
 		<!-- default_internal_node_prefix: internal nodes of the tree are labeled with this prefix then a BFS order number -->
 		<!-- default_branch_len: use this branch length if information is missing from the input tree -->
 		<!-- default_branch_len_pangenome: use this branch length (for implicit star tree) in pangenome mode -->
-		<!-- allow_multifurcations: added in v2.7.2 and defaulted to 0, since multifurcations (ancestors with > 2 children) have been shown to reduce coverage. -->
 	 	<decomposition
 	 		default_internal_node_prefix="Anc"
 			default_branch_len="1"
 			default_branch_len_pangenome="0.02"
-			allow_multifurcations="0"
 	 	/>
   	</multi_cactus>
 	<!-- cactus_consolidated memory.  One number is estimated: the peak with jemalloc page retention
