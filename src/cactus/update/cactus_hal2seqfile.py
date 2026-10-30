@@ -33,7 +33,7 @@ from toil.statsAndLogging import set_logging_from_options
 from cactus.shared.common import setupBinaries, importSingularityImage, cactus_walltime
 from cactus.shared.common import enableDumpStack
 from cactus.shared.common import cactus_override_toil_options, add_cactus_toil_options
-from cactus.shared.common import makeURL, cactus_call, cactus_clamp_memory
+from cactus.shared.common import makeURL, cactus_call, cactus_clamp_memory, pangenome_file_name
 from cactus.shared.version import cactus_commit
 
 
@@ -187,9 +187,14 @@ def main():
             fa_ids = toil.start(Job.wrapJobFn(export_subtree_fastas, hal_id,
                                               os.path.basename(options.halFile), genomes, lengths, walltime=cactus_walltime()))
 
-        # export each gzipped fasta to <outDir>/<genome>.fa.gz
+        # export each gzipped fasta to <outDir>/<genome>.fa.gz, with any '#' in the genome name (a
+        # PanSN haplotype, HG002#1) made a '.', as it can't be exported to S3
+        file_names = {genome : pangenome_file_name(genome) for genome in fa_ids}
+        if len(set(file_names.values())) != len(file_names):
+            raise RuntimeError('Genome names {} would give the same file names'.format(
+                ', '.join(sorted(g for g in file_names if list(file_names.values()).count(file_names[g]) > 1))))
         for genome, fa_id in fa_ids.items():
-            out_path = os.path.join(out_dir, '{}.fa.gz'.format(genome))
+            out_path = os.path.join(out_dir, '{}.fa.gz'.format(file_names[genome]))
             toil.exportFile(fa_id, makeURL(out_path))
             paths[genome] = out_path
 

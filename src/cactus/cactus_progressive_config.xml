@@ -85,6 +85,12 @@
 	<!-- pickIngroupPrimaryAlignmentsSeparatelyToOutgroups Separately make ingroups pick their primary alignment to
 	     other ingroups without outgroups, then get the outgroups to pick their primary alignment to the ingroups. If 0
 	     get every sequence to pick its primary alignment without regard to if the other sequence is an ingroup or outgroup -->
+	<!-- multifurcationPairSecondaries For ancestors with more than two children (multifurcations), also chain the
+	     alignments of each pair of ingroups on their own, and give them to CAF as secondary alignments (closest pair
+	     first), filtered by <caf secondaryAlignmentFilter>. The primary alignments let each ingroup base keep a single
+	     partner, which can leave groups of ingroups almost unaligned to each other (ex: (mouse,rat) and (cow,dog) in a
+	     star tree): the secondaries join them. Only used when pickIngroupPrimaryAlignmentsSeparatelyToOutgroups is 1.
+	     With outputSecondaryAlignments="1" the pairs are not chained again, as the secondaries already hold them -->
 	<!-- includeRootAsOutgroup When the root sequence is supplied (cactus-blast/cactus-align with includeRoot), treat it as
 	     an outgroup rather than an ingroup, so that its coverage to its descendants is not starved during chaining. Set
 	     to 0 to restore the old behaviour of treating the pinned root as an ingroup -->
@@ -122,6 +128,7 @@
 		   outputSecondaryAlignments="0"
 		   dechunkBatchSize="333"
 		   pickIngroupPrimaryAlignmentsSeparatelyToOutgroups="1"
+		   multifurcationPairSecondaries="1"
 		   includeRootAsOutgroup="1"
 		   bigGenomeChunkScale="2"
 		   >
@@ -206,6 +213,12 @@
 	<!-- minimumTreeCoverage The fraction of the tree spanned by species with sequences in a block for the block
 	to be included as a block in the alignment. -->
 	<!-- alignmentFilter TODO -->
+	<!-- secondaryAlignmentFilter Filter for the secondary alignments alone, in place of the one alignmentFilter gives
+	     them: "sharedSpecies" (never join two segments or blocks that have a species in common, as alignmentFilter
+	     "singleCopy" does), "multipleSequences" (reject a pinch only if both segments are already in blocks) or "none".
+	     Empty to keep alignmentFilter's. When set, the secondaries are annealed in the order they are given.
+	     Multifurcations with <blast multifurcationPairSecondaries> get "sharedSpecies" when it is empty, for all their
+	     secondaries -->
 	<!-- maxAdjacencyComponentSizeRatio TODO -->
 	<!-- minLengthForChromosome TODO -->
 	<!-- proportionOfUnalignedBasesForNewChromosome TODO-->
@@ -226,6 +239,7 @@
 		 minimumOutgroupDegree="0"
 		 minimumTreeCoverage="0.0"
 		 alignmentFilter="filterSecondariesByMultipleSequences"
+		 secondaryAlignmentFilter=""
 		 maxAdjacencyComponentSizeRatio="50"
 		 minLengthForChromosome="1000000"
 		 proportionOfUnalignedBasesForNewChromosome="0.95"
@@ -493,7 +507,7 @@
 	    so that each pair of bases in each sequence connected by a gap of length k contributes a score proportional
 	    to (1-theta)**k.
 	    (3) Refine the matching using a simulated annealing algorithm. -->
-	<!-- matchingAlgorithm the matching algorithm used to pick the adjcanecies (e.g. Blossum) -->
+	<!-- matchingAlgorithm the matching algorithm used to pick the adjacencies between the stub ends of the top level problem: edmonds (an exact maximum weight matching), greedy, maxWeight or maxCardinality (the last two run matchGraph.py). blossom5, the old default, is a deprecated alias of edmonds. -->
 	<!-- theta each pair of bases connected in a sequence by a gap of k bases contributes score proportional to (1-theta)**k the adjacency.-->
 	<!-- numberOfNs is the number of Ns to insert into an ancestral sequence when an adjacency is uncertain, think of its as the Ns in a scaffold gap -->
 	<!-- minNumberOfSequencesToSupportAdjacency is the number of sequences needed to bridge an adjacency [THIS SET TO 0, SO NO ADJACENCIES WILL BE BROKEN] -->
@@ -504,7 +518,7 @@
 	     adjacency in a nested flower (snarl) to be considered for breaking. -->
 	<!-- phi is the coefficient used to control how much weight to place on an adjacency given its phylogenetic distance from the reference node -->
 	<reference
-		matchingAlgorithm="blossom5"
+		matchingAlgorithm="edmonds"
 		reference="reference"
 		useSimulatedAnnealing="1"
 		theta="0.000001"
@@ -537,6 +551,7 @@
 	</hal>
 	<!-- cactus-graphmap options -->
 	<!-- assemblyName: special name of "virtual" minigraph assembly, which is just the list of sequences from the graph. -->
+	<!-- dotHaplotypes: read a seqfile genome name with no '#' that ends in .N (N an integer), like HG002.1, as the old spelling of haplotype N of its sample (HG002#1). With "0", such a name is taken as it is (GCA_054883195.1 is a sample of that name). Either way, this only applies to the names in a seqfile (and the names given on the command line in place of them): a '.' is never read as a haplotype anywhere else. Haplotypes are given the PanSN way, SAMPLE#N, and this default will change to "0" -->
 	<!-- minigraphMapOptions: flags to pass to minigraph for mapping -->
 	<!-- minigraphConstructOptions: flags to pass to minigraph for construction.  ggs-cnv (with a double dash, on by default; it needs the pinned glennhickey/minigraph) places copy-number variants by their own sequence: graph chaining may cross a long deletion (up to 300 kb) whose flanking chains touch on the query, and a variant is inserted even where its own chain passes the same graph interval twice, so a lost copy is no longer routed through a near-identical paralog and a gained copy is inserted instead of skipped.  On chr1 with 464 HPRC genomes it placed every AMY1/AMY2 haplotype class on the right copy and cut the locus edit distance by 68%, for 16% more alternate sequence, mostly 1q21 paralogs.  On a CHM13 30-way pangenome it had about 0.6% fewer dipcall errors, but chr19 and chr10 were worse and the SMN and IGK snarls grew.  Remove it to build the graph as before.  It is for construction only (in minigraphMapOptions it would change how mappings are chained), and stock minigraph exits on it. -->
 	<!-- par-align is output-preserving, ~1.3x on whole-genome construction for ~10% more CPU.
@@ -584,6 +599,7 @@
 	<!-- zipWalks: which haplotype walks rgfa-zip aligns and checks its edits against. "creator" (default): one walk per minigraph insertion, rebuilt from the graph alone. "gaf": first map every input genome to the unzipped graph exactly as cactus-graphmap does (same options and model, except that with mgSplit a chromosome that borrows its model maps these walks with minigraph's default penalties, as the model is only borrowed after every chromosome is built), and give rgfa-zip the walks observed in that GAF, which is exported as <x>.sv.unzipped.gaf.gz. This costs an extra round of mapping, and recovers zips the graph alone cannot show to be safe. "witness": the graph-only fallback walks, for testing. -->
 	<graphmap
 		 assemblyName="_MINIGRAPH_"
+		 dotHaplotypes="1"
 		 minigraphMapOptions="-c -xasm --par-align"
 		 minigraphConstructOptions="-c -xggs --par-align --ggs-cnv"
 		 minimapCollapseOptions="-c -D -xasm5 -m500"
@@ -682,7 +698,7 @@
 	<!-- pgrealignCatalogOptions: options to pgrealign catalog, which finds each chromosome's tandem repeats on its reference path when the pgrealign option is given no targets.  It always runs pgrealign's trfind, for periods of 7 to 2000 bp, which finds no repeat shorter than 40 bp.  The default also runs strf, through pgrealign catalog's strf option naming the binary strf: pgrealign's reimplementation of the part of TRF that RepeatMasker 4.1 uses to find its Simple_repeat records, from which pgrealign's own CHM13 catalogue drew its STRs through RepeatMasker's annotation.  On CHM13 chr20 that catches 98% of that catalogue's entries (98% of its STRs, which trfind alone all but misses), along with 1.9 times as many entries in all, since RepeatMasker also rescores TRF's repeats and masks interspersed repeats first.  To run TRF itself instead, give its trf option naming a TRF binary in place of the strf option -->
 	<!-- pgrealignRegionsOptions: options to pgrealign regions (pad, max-span), which anchors each target between two snarl boundary nodes of the reference -->
 	<!-- pgrealignExtractOptions: options to pgrealign extract (max-internal-bp) -->
-	<!-- pgrealignRealignOptions: options to pgrealign realign (select, timeout, max-cells, scores).  Its jobs and max-memory come from the job's cores and memory -->
+	<!-- pgrealignRealignOptions: options to pgrealign realign (select, centre, max-excess, max-cells, max-work, min-share, scores).  Its limits are sizes of the alignment, as the window and band are for the alignments above, never sizes of the machine: max-cells, the largest alignment run unbanded, of which 7 times as many cells is the largest alignment of any kind, and max-work, the cells of a region's alignments in all.  A region too big for them is left as it is, the same on every machine, and there is no time limit, so the realigned graph depends only on the input and the config.  The memory and time realign needs follow from them: its jobs and max-memory come from the job's cores and memory, and a job with too little memory for the largest region realign plans to align starts again with enough, up to 140 GiB for human graphs; a run that cannot have that stops rather than realign less.  A smaller max-cells needs less, and changes the result -->
 	<!-- pgrealignVerify: check that every path of each realigned graph spells what it did before (pgrealign verify), failing the job if not.  It runs in the full phase, on the vg made from the realigned and GFAffixed GFA against the vg cactus-align wrote, so vg parses no GFA for it, and it covers GFAffix and the conversion too -->
 	<!-- pgrealignQC: measure each realigned region's alignment, and the graph's before it, against optimal pairwise alignments (pgrealign qc), into the archive of reports.  Off by default: it can take longer than the realignment -->
 	<graphmap_join
@@ -762,12 +778,10 @@
 		<!-- default_internal_node_prefix: internal nodes of the tree are labeled with this prefix then a BFS order number -->
 		<!-- default_branch_len: use this branch length if information is missing from the input tree -->
 		<!-- default_branch_len_pangenome: use this branch length (for implicit star tree) in pangenome mode -->
-		<!-- allow_multifurcations: added in v2.7.2 and defaulted to 0, since multifurcations (ancestors with > 2 children) have been shown to reduce coverage. -->
 	 	<decomposition
 	 		default_internal_node_prefix="Anc"
 			default_branch_len="1"
 			default_branch_len_pangenome="0.02"
-			allow_multifurcations="0"
 	 	/>
   	</multi_cactus>
 	<!-- cactus_consolidated memory.  One number is estimated: the peak with jemalloc page retention

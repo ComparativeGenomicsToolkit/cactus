@@ -30,6 +30,7 @@ from cactus.progressive.seqFile import SeqFile
 from cactus.progressive.cactus_prepare import human2bytesN
 from cactus.shared.common import importSingularityImage, cactus_walltime, add_cactus_toil_options
 from cactus.shared.common import makeURL
+from cactus.shared.common import normalize_pangenome_name, pangenome_name_sample
 from cactus.shared.common import cactus_call
 from cactus.shared.common import cactus_clamp_memory
 from cactus.shared.common import delete_directory
@@ -40,7 +41,7 @@ from cactus.shared.common import enableDumpStack
 from cactus.shared.configWrapper import ConfigWrapper
 from cactus.shared.version import cactus_commit
 from cactus.refmap.cactus_minigraph import check_sample_names
-from cactus.refmap.cactus_graphmap_join import graphmap_join_defaults
+from cactus.refmap.cactus_graphmap_join import graphmap_join_defaults, graphmap_join_resolve_references
 from cactus.refmap.cactus_pangenome import pangenome_options, pangenome_validate_options
 from cactus.refmap.cactus_pangenome import pangenome_config_overrides, pangenome_end_to_end_workflow
 from toil.job import Job
@@ -58,7 +59,7 @@ def main():
     parser.add_argument("--outDir", help = "Output directory", required=True)
     parser.add_argument("--outName", help = "Output name (without extension) [default: the name of the sample being patched]")
     parser.add_argument("--reference", nargs='+', type=str,
-                        help = "Reference event name(s), as in cactus-pangenome. Must be haploid (no .1/.2 haplotype suffix). "
+                        help = "Reference event name(s), as in cactus-pangenome. Must be haploid (no #1/#2 haplotype). "
                         "If omitted, patching is done reference-free: each haplotype of the sample is its own reference, so a "
                         "separate pangenome (and panpatch) is built for each haplotype -- N times the cost of a normal run -- "
                         "and the seqfile must contain only the sample to patch (first) and its donors")
@@ -129,13 +130,15 @@ def main():
     # is caught before anything expensive runs
     options.errorBedMap = read_error_bed_manifest(options.assemblyErrorBeds) if options.assemblyErrorBeds else {}
 
-    # we need the minigraph event name to filter it out of the seqfiles below
-    graph_event = getOptionalAttrib(findRequiredNode(ET.parse(options.configFile).getroot(), "graphmap"),
+    # we need the minigraph event name to filter it out of the seqfiles below, and how to read their names
+    config_node = ET.parse(options.configFile).getroot()
+    graph_event = getOptionalAttrib(findRequiredNode(config_node, "graphmap"),
                                     "assemblyName", default="_MINIGRAPH_")
+    dot_haplotypes = ConfigWrapper(config_node).getDotHaplotypes()
 
     # work out the runs (one cactus-pangenome + panpatch each) before validating, since with
     # --referenceFree the reference is derived from the sample being patched
-    runs = make_runs(options, graph_event)
+    runs = make_runs(options, graph_event, dot_haplotypes)
     if not options.reference:
         # --referenceFree: each run has its own reference (its own haplotype). the validation below
         # just needs a representative one -- every run gets its own via pg_options further down
@@ -231,6 +234,7 @@ def main():
                 pg_options.outDir = pangenome_dir(options, run)
                 pg_options.outName = run['name']
                 pg_options.reference = list(run['reference'])
+                graphmap_join_resolve_references(pg_options, dot_haplotypes, references_resolved=True)
                 pg_options.seqFile = run['seqFile']
                 # we only want the chromosome vgs: don't make a hal we'd throw away, and don't
                 # export the vgs into the pangenome directory when we're about to export them
@@ -252,24 +256,28 @@ def main():
     logger.info("cactus-panpatch has finished after {} seconds".format(run_time))
 
 def sample_base(sample):
-    """ strip the .N haplotype suffix off a sample name to get the name it has in the graph, which is
-    the name panpatch wants.  only a *numeric* extension is a haplotype: a base name is allowed to
-    contain dots of its own (ex HG002.verkko.1 is haplotype 1 of HG002.verkko), and the names given
-    to --sample / --defaultSample are base names already """
-    base, ext = os.path.splitext(sample)
-    return base if ext and ext[1:].isdigit() else sample
+    """ strip the #N haplotype off a genome name to get the (PanSN) sample name it has in the graph,
+    which is the name panpatch wants.  a sample name is allowed to contain dots of its own (ex
+    HG002.verkko#1 is haplotype 1 of HG002.verkko), and the names given to --sample / --defaultSample
+    are sample names already.  the old SAMPLE.N spelling of a haplotype is only read in the seqfile
+    (see normalize_pangenome_name), so a '.' is never a haplotype here """
+    return pangenome_name_sample(sample)
 
 def sample_hap(sample):
-    """ the haplotype number of a seqfile sample name, or None if it's haploid (no .N suffix) """
-    ext = os.path.splitext(sample)[1]
-    return int(ext[1:]) if ext and ext[1:].isdigit() else None
+    """ the haplotype number of a genome name (as normalized from the seqfile), or None if it
+    doesn't give one (haploid) """
+    hap = sample.partition('#')[2]
+    return int(hap) if hap else None
 
 def sanitize_contig_name(header):
     """ mirror cactus_sanitizeFastaHeaders -p on a single fasta header, so an input contig name
-    matches the CONTIG field of the graph path names (SAMPLE#HAP#CONTIG).  cut at whitespace, strip
+    matches the CONTIG field of the graph path names (SAMPLE#HAP#CONTIG).  cut at whitespace, drop
+    an id=EVENT| prefix (which cactus_consolidated strips, and whose EVENT can contain a '#'), strip
     through the last '#', convert a trailing ':start-end' range to '_sub_(start-1)_end', and replace
     any other ':' with '_' (kept consistent with cactus_sanitizeFastaHeaders.c) """
     name = header.split()[0]
+    if name.startswith('id=') and '|' in name:
+        name = name[name.find('|') + 1:]
     if '#' in name:
         name = name.rsplit('#', 1)[-1]
     colon = name.rfind(':')
@@ -351,15 +359,9 @@ def panpatch_validate_options(options):
         options.errorBedMap = {}
 
     # reference-free (each haplotype patched against itself) is the default; giving --reference
-    # switches to external-reference mode
+    # switches to external-reference mode (whose reference make_seqfile_runs checks is haploid, once
+    # it knows which genome the name is)
     options.referenceFree = not options.reference
-    if options.reference:
-        # a Minigraph-Cactus reference must be haploid: a .1/.2/... suffix means it is one haplotype
-        # of a diploid sample, which cannot be the reference (use reference-free for that)
-        for ref in options.reference:
-            if sample_hap(ref) not in (None, 0):
-                raise RuntimeError('--reference {} must be haploid: it cannot have a .1/.2/... haplotype suffix '
-                                   '(use no suffix, or .0)'.format(ref))
 
     if options.noSplit:
         # a single unsplit graph has every reference chromosome in it, and panpatch skips any graph
@@ -394,10 +396,10 @@ def disable_pangenome_outputs(options):
     options.vcfwave = False
     assert options.chrom_vg == ['full']
 
-def read_seqfile(seqfile_path, graph_event):
+def read_seqfile(seqfile_path, graph_event, dot_haplotypes):
     """ the (sample, fasta) rows of a seqfile, in order.  the minigraph event is skipped: a seqfile
     that cactus-pangenome exported from a previous run will have it """
-    seq_file = SeqFile(seqfile_path)
+    seq_file = SeqFile(seqfile_path, pangenome=True, dot_haplotypes=dot_haplotypes)
     leaves = set(seq_file.tree.getName(node) for node in seq_file.tree.getLeaves())
     return [(sample, seq_file.pathMap[sample]) for sample in seq_file.seqOrder
             if sample in leaves and sample != graph_event]
@@ -422,28 +424,41 @@ def read_batch_file(batch_path):
         raise RuntimeError('No samples found in --batch file {}'.format(batch_path))
     return rows
 
-def make_runs(options, graph_event):
+def make_runs(options, graph_event, dot_haplotypes):
     """ work out the runs implied by the options: one cactus-pangenome + panpatch each.  a normal
     invocation is a single run, --referenceFree is one run per haplotype of the sample being patched,
-    and --batch multiplies all that by the number of samples """
+    and --batch multiplies all that by the number of samples.  dot_haplotypes is the config's
+    <graphmap dotHaplotypes>, for reading the seqfiles """
     if options.panpatchBatch:
         # with --batch the seqFile argument is the chromfile (as in cactus-align --batch)
         seqfiles = read_batch_file(options.seqFile)
     else:
         seqfiles = [(options.outName, options.seqFile)]
 
+    # the --assemblyErrorBeds events are named as in the seqfile, so they're normalized the same way
+    # (TGT.1 is TGT#1 with dotHaplotypes).  given_events maps them back to how they were given, to
+    # report them
+    given_events = {}
+    for event in options.errorBedMap:
+        norm_event = normalize_pangenome_name(event, dot_haplotypes)
+        if norm_event in given_events and given_events[norm_event] != event:
+            raise RuntimeError('--assemblyErrorBeds has more than one entry for {}: {} and {}'.format(
+                norm_event, given_events[norm_event], event))
+        given_events[norm_event] = event
+    options.errorBedMap = {normalize_pangenome_name(event, dot_haplotypes) : bed for event, bed in options.errorBedMap.items()}
+
     runs = []
     for name, seqfile_path in seqfiles:
-        runs += make_seqfile_runs(options, name, seqfile_path, graph_event)
+        runs += make_seqfile_runs(options, name, seqfile_path, graph_event, dot_haplotypes)
 
     names = [run['name'] for run in runs]
     if len(set(names)) != len(names):
         raise RuntimeError('Output names are not unique: {}'.format(names))
     for run_name in names:
         # the names get pasted into output paths (and into a directory we later delete), so don't
-        # let them wander out of --outDir
-        if os.path.basename(run_name) != run_name or run_name.startswith('.'):
-            raise RuntimeError('Invalid output name "{}": it cannot contain "/" or begin with "."'.format(run_name))
+        # let them wander out of --outDir.  nor can they have a '#', which Toil can't export to S3
+        if os.path.basename(run_name) != run_name or run_name.startswith('.') or '#' in run_name:
+            raise RuntimeError('Invalid output name "{}": it cannot contain "/" or "#" or begin with "."'.format(run_name))
 
     # every event named in --assemblyErrorBeds must have matched an assembly in some run, else it's a
     # typo (or a reference, which is never masked) -- catch it before anything expensive runs.  compare
@@ -453,19 +468,26 @@ def make_runs(options, graph_event):
         matched = set()
         for run in runs:
             matched.update(run['error_events'])
-        unmatched = sorted(set(options.errorBedMap) - matched)
+        unmatched = sorted(given_events[event] for event in set(options.errorBedMap) - matched)
         if unmatched:
             raise RuntimeError('--assemblyErrorBeds event(s) did not match any patchable assembly (the target or a '
                                'donor) in any seqfile -- check the names (the reference is never masked): {}'.format(
                                    ', '.join(unmatched)))
     return runs
 
-def make_seqfile_runs(options, name, seqfile_path, graph_event):
+def make_seqfile_runs(options, name, seqfile_path, graph_event, dot_haplotypes):
     """ the runs implied by a single seqfile """
-    rows = read_seqfile(seqfile_path, graph_event)
+    rows = read_seqfile(seqfile_path, graph_event, dot_haplotypes)
     if not rows:
         raise RuntimeError('No sequences found in {}'.format(seqfile_path))
-    check_sample_names([row[0] for row in rows], options.reference)
+    options.reference = check_sample_names([row[0] for row in rows], options.reference, dot_haplotypes)
+    if options.reference:
+        # a Minigraph-Cactus reference must be haploid: a #1/#2/... haplotype means it is one haplotype
+        # of a diploid sample, which cannot be the reference (use reference-free for that)
+        for ref in options.reference:
+            if sample_hap(ref):
+                raise RuntimeError('--reference {} must be haploid: it cannot be haplotype {} of {} '
+                                   '(use no haplotype, or #0)'.format(ref, sample_hap(ref), sample_base(ref)))
 
     # the sample names as they appear in the graph, in seqfile order
     samples = []
@@ -475,8 +497,8 @@ def make_seqfile_runs(options, name, seqfile_path, graph_event):
 
     # the reference is never inferred from the seqfile: it's either given with --reference, or (with
     # --referenceFree) it *is* the sample being patched, which is named just below.  note that cactus
-    # takes the reference as it's named in the seqfile (which can carry a .N haplotype suffix),
-    # whereas panpatch wants the name it has in the graph, which never does
+    # takes the reference as it's named in the seqfile (which can carry a #N haplotype),
+    # whereas panpatch wants the sample name it has in the graph, which never does
     reference = None
     references = set()
     if not options.referenceFree:
@@ -509,8 +531,8 @@ def make_seqfile_runs(options, name, seqfile_path, graph_event):
         seq_rows += [row for row in rows if sample_base(row[0]) != reference]
         # target_haps maps each target haplotype's graph number to its input fasta -- used to rescue
         # dropped contigs (see run_panpatch).  panpatch names its output for haplotype N after the
-        # PanSN haplotype of the target path: the seqfile's .N suffix, or 0 for a suffix-less
-        # (haploid) target -- which is the number panpatch actually writes (.hap0)
+        # PanSN haplotype of the target path: the seqfile's #N, or 0 for a haploid target
+        # that gives none -- which is the number panpatch actually writes (.hap0)
         target_haps = [(sample_hap(row[0]) if sample_hap(row[0]) is not None else 0, row[1])
                        for row in target_rows]
         # attach per-assembly error BEDs (see make_seqfile_runs's --referenceFree branch for the keying
@@ -537,18 +559,17 @@ def make_seqfile_runs(options, name, seqfile_path, graph_event):
                  'hap' : None}]
 
     # --referenceFree: a Minigraph-Cactus reference must be haploid, so we can't just point
-    # --reference at TARGET.1 (cactus would read that as haplotype 1 of a diploid TARGET). we rename
-    # it to the suffix-free TARGET_1 instead, which makes it a haploid sample in its own right, and
+    # --reference at TARGET#1 (haplotype 1 of a diploid TARGET). we rename it to the haplotype-free
+    # TARGET_1 instead, which makes it a haploid sample in its own right, and
     # build a separate graph -- and run panpatch -- for each haplotype of the target. the other
     # haplotypes of the target (and anything else in the seqfile) are left out of the graph
     runs = []
     errmap = options.errorBedMap
     for target_row in target_rows:
         hap = sample_hap(target_row[0])
-        # the "." is what cactus uses to mark a haplotype, so it can't survive into the new name:
-        # SAMPLE.1 -> SAMPLE_1.  a base name is allowed to contain dots of its own (only the last
-        # one is the haplotype), and those have to go too, or check_sample_names would read the
-        # result as a bogus haplotype suffix (ex HG002.verkko.1 -> HG002_verkko_1)
+        # SAMPLE#1 -> SAMPLE_1.  the dots of a sample name are flattened as well (HG002.verkko#1 ->
+        # HG002_verkko_1): that was needed when a '.' marked the haplotype, and it keeps the names
+        # the same as they were
         graph_name = target.replace('.', '_') if hap is None else '{}_{}'.format(target.replace('.', '_'), hap)
         # per-assembly error BEDs.  the target is renamed to graph_name in seq_rows so its mask BED is
         # keyed by graph_name; donors keep their original names.  the reference-free target is graph

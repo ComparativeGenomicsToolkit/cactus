@@ -24,7 +24,7 @@ from cactus.progressive.seqFile import SeqFile
 from cactus.shared.common import setupBinaries, importSingularityImage, cactus_walltime
 from cactus.shared.common import cactusRootPath
 from cactus.shared.configWrapper import ConfigWrapper
-from cactus.shared.common import makeURL, catFiles
+from cactus.shared.common import makeURL, catFiles, pangenome_seqfile_name
 from cactus.shared.common import RAW_VG_SUFFIX
 from cactus.shared.common import enableDumpStack
 from cactus.shared.common import cactus_override_toil_options, add_cactus_toil_options
@@ -52,6 +52,7 @@ from cactus.refmap.cactus_graphmap import check_overlap_filter_config, check_ove
 from cactus.refmap.cactus_graphmap_split import graphmap_split_workflow, export_split_data
 from cactus.setup.cactus_align import make_batch_align_jobs, batch_align_jobs
 from cactus.refmap.cactus_graphmap_join import graphmap_join_workflow, export_join_data, graphmap_join_options, graphmap_join_validate_options, graphmap_join_config_overrides, vcflib_checks
+from cactus.refmap.cactus_graphmap_join import graphmap_join_resolve_references
 from cactus.refmap.pangenome_exclusions import contig_sizes_job
 
 def pangenome_options(parser):
@@ -325,12 +326,13 @@ def main():
             graph_event = getOptionalAttrib(findRequiredNode(config_node, "graphmap"), "assemblyName", default="_MINIGRAPH_")
 
             # load the seqfile
-            seqFile = SeqFile(options.seqFile)
+            seqFile = SeqFile(options.seqFile, pangenome=True, dot_haplotypes=config_wrapper.getDotHaplotypes())
             input_seq_map = seqFile.pathMap
             raw_input_seq_order = seqFile.seqOrder
 
             # validate the sample names
-            check_sample_names(input_seq_map.keys(), options.reference)
+            options.reference = check_sample_names(input_seq_map.keys(), options.reference, config_wrapper.getDotHaplotypes())
+            graphmap_join_resolve_references(options, config_wrapper.getDotHaplotypes(), references_resolved=True)
 
             # make sure the reference is first
             input_seq_order = [options.reference[0]]
@@ -420,7 +422,7 @@ def update_seqfile(job, options, seq_id_map, seq_path_map, seq_order, gfa_fa_id,
     local_seqfile = os.path.join(work_dir, 'seqfile.txt')
     with open(local_seqfile, 'w') as seqfile:
         for sample in seq_order:
-            seqfile.write('{}\t{}\n'.format(sample, seq_path_map[sample]))
+            seqfile.write('{}\t{}\n'.format(pangenome_seqfile_name(sample), seq_path_map[sample]))
         seqfile.write('{}\t{}\n'.format(graph_event, gfa_fa_path))            
     job.fileStore.exportFile(job.fileStore.writeGlobalFile(local_seqfile), makeURL(os.path.join(options.outDir, os.path.basename(options.seqFile))))
     job.fileStore.exportFile(gfa_fa_id, makeURL(os.path.join(options.outDir, os.path.basename(gfa_fa_path))))

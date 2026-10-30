@@ -50,14 +50,33 @@ class TestEventToPansn(unittest.TestCase):
         self.assertEqual(event_to_pansn_prefix('S288C'), 'S288C#0')
 
     def test_diploid(self):
-        self.assertEqual(event_to_pansn_prefix('HG002.1'), 'HG002#1')
-        self.assertEqual(event_to_pansn_prefix('HG002.2'), 'HG002#2')
+        self.assertEqual(event_to_pansn_prefix('HG002#1'), 'HG002#1')
+        self.assertEqual(event_to_pansn_prefix('HG002#2'), 'HG002#2')
 
     def test_non_numeric_suffix_is_not_a_haplotype(self):
         self.assertEqual(event_to_pansn_prefix('HG002.verkko'), 'HG002.verkko#0')
 
-    def test_numeric_suffix_after_dotted_name(self):
-        self.assertEqual(event_to_pansn_prefix('HG002.verkko.1'), 'HG002.verkko#1')
+    def test_numeric_suffix_is_not_a_haplotype(self):
+        # the old SAMPLE.N spelling is only read in the seqfile, which rewrites it to SAMPLE#N, so an
+        # event that still has one is a sample of that name
+        self.assertEqual(event_to_pansn_prefix('HG002.1'), 'HG002.1#0')
+        self.assertEqual(event_to_pansn_prefix('HG002.verkko.1'), 'HG002.verkko.1#0')
+
+    def test_pansn(self):
+        # SAMPLE#HAP is its own prefix, and a '.' before it is part of the sample
+        self.assertEqual(event_to_pansn_prefix('HG002#1'), 'HG002#1')
+        self.assertEqual(event_to_pansn_prefix('GCA_054883195.1'), 'GCA_054883195.1#0')
+        self.assertEqual(event_to_pansn_prefix('GCA_054883195.1#0'), 'GCA_054883195.1#0')
+        self.assertEqual(event_to_pansn_prefix('KOLF2.1J'), 'KOLF2.1J#0')
+        # as vg would write the haplotype
+        self.assertEqual(event_to_pansn_prefix('HG002#01'), 'HG002#1')
+
+    def test_inverse(self):
+        self.assertEqual(pansn_prefix_to_event('S288C#0'), 'S288C')
+        self.assertEqual(pansn_prefix_to_event('HG002#1'), 'HG002#1')
+        # a '.' is never a haplotype in an event name, so the #0 comes off this one too
+        self.assertEqual(pansn_prefix_to_event('GCA_054883195.1#0'), 'GCA_054883195.1')
+        self.assertEqual(pansn_prefix_to_event('KOLF2.1J#0'), 'KOLF2.1J')
 
 
 class TestParsePathName(unittest.TestCase):
@@ -129,8 +148,8 @@ class TestHprcTwoFragmentClosure(unittest.TestCase):
     coverage, which is the single most damaging way this feature could be wrong """
 
     def test_two_fragments_close_to_zero(self):
-        rows = [('HG02080.1', 'HG02080#1', 'JAHEOW010000073.1', 0, 7238466),
-                ('HG02080.1', 'HG02080#1', 'JAHEOW010000073.1', 7238466, 5630658)]
+        rows = [('HG02080#1', 'HG02080#1', 'JAHEOW010000073.1', 0, 7238466),
+                ('HG02080#1', 'HG02080#1', 'JAHEOW010000073.1', 7238466, 5630658)]
         baseline = baseline_by_key(rows)
         key = ('HG02080#1', 'JAHEOW010000073.1')
         self.assertEqual(baseline[key], [(0, 12869124)])
@@ -150,9 +169,9 @@ class TestHprcTwoFragmentClosure(unittest.TestCase):
         try:
             fai_path = os.path.join(tmp_dir, 'x.fa.fai')
             with open(fai_path, 'w') as fai_file:
-                fai_file.write('id=HG02080.1|JAHEOW010000073.1_sub_0_7238466\t7238466\t0\t60\t61\n')
-                fai_file.write('id=HG02080.1|JAHEOW010000073.1_sub_7238466_12869124\t5630658\t0\t60\t61\n')
-            rows = contig_sizes_from_fai(fai_path, 'HG02080.1')
+                fai_file.write('id=HG02080#1|JAHEOW010000073.1_sub_0_7238466\t7238466\t0\t60\t61\n')
+                fai_file.write('id=HG02080#1|JAHEOW010000073.1_sub_7238466_12869124\t5630658\t0\t60\t61\n')
+            rows = contig_sizes_from_fai(fai_path, 'HG02080#1')
             self.assertEqual(len(rows), 2)
             self.assertEqual(baseline_by_key(rows)[('HG02080#1', 'JAHEOW010000073.1')],
                              [(0, 12869124)])
@@ -204,8 +223,10 @@ class TestBaselineTsv(unittest.TestCase):
 
     def test_event_lookup(self):
         rows = [('S288C', 'S288C#0', 'chrI', 0, 219929),
-                ('HG002.1', 'HG002#1', 'chr1', 0, 100)]
-        self.assertEqual(event_by_pansn_prefix(rows), {'S288C#0': 'S288C', 'HG002#1': 'HG002.1'})
+                ('HG002#1', 'HG002#1', 'chr1', 0, 100),
+                ('GCA_054883195.1', 'GCA_054883195.1#0', 'chr1', 0, 100)]
+        self.assertEqual(event_by_pansn_prefix(rows), {'S288C#0': 'S288C', 'HG002#1': 'HG002#1',
+                                                       'GCA_054883195.1#0': 'GCA_054883195.1'})
 
 
 class TestDepthToBed(unittest.TestCase):
@@ -300,14 +321,14 @@ class TestSplitLog(unittest.TestCase):
         try:
             path = os.path.join(tmp_dir, 'minigraph.split.log')
             with open(path, 'w') as log_file:
-                log_file.write('Assigned contig to chr6: id=HG002.1|chr6_sub_300000_597871  '
+                log_file.write('Assigned contig to chr6: id=HG002#1|chr6_sub_300000_597871  '
                                'len=297871 cov=0.93 (vs 0.5) uf= infinity (vs 2)\n')
-                log_file.write('Query contig is ambiguous: id=HG002.1|chr1_sub_10_20_sub_2_5  '
+                log_file.write('Query contig is ambiguous: id=HG002#1|chr1_sub_10_20_sub_2_5  '
                                'len=3 cov=0.1 (vs 0.5) uf=1.1 (vs 2)\n')
             assigned, ambiguous = parse_split_log(path)
-            self.assertEqual(assigned, {('HG002.1', 'chr6', 300000): 'chr6'})
+            self.assertEqual(assigned, {('HG002#1', 'chr6', 300000): 'chr6'})
             # nested fragment names collapse to the summed offset, as hal2vg resolves them
-            self.assertEqual(ambiguous, {('HG002.1', 'chr1', 12)})
+            self.assertEqual(ambiguous, {('HG002#1', 'chr1', 12)})
         finally:
             shutil.rmtree(tmp_dir)
 

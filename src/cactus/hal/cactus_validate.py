@@ -65,6 +65,7 @@ from cactus.shared.common import findRequiredNode
 from cactus.shared.common import getOptionalAttrib
 from cactus.shared.common import importSingularityImage
 from cactus.shared.common import makeURL
+from cactus.shared.common import normalize_pangenome_name
 from cactus.shared.common import setupBinaries
 from cactus.shared.configWrapper import ConfigWrapper
 from cactus.shared.version import cactus_commit
@@ -119,17 +120,18 @@ def hal_sequence_name(header, pangenome=False):
     """
     fields = header.split()
     name = fields[0] if fields else ''
+    # the sanitizer adds "id=<genome>|" unless the header already carries one,
+    # and cactus_consolidated drops that first '|'-separated token again.  the
+    # genome can be SAMPLE#HAP, so the sanitizer only looks for '#' after it
+    if name.startswith('id='):
+        bar = name.find('|')
+        if bar >= 0:
+            name = name[bar + 1:]
     if pangenome:
         pound = name.rfind('#')
         if pound >= 0:
             name = name[pound + 1:]
         name = _convert_faidx_range(name)
-    # the sanitizer adds "id=<genome>|" unless the header already carries one,
-    # and cactus_consolidated drops that first '|'-separated token again
-    if name.startswith('id='):
-        bar = name.find('|')
-        if bar >= 0:
-            name = name[bar + 1:]
     return name
 
 
@@ -533,7 +535,8 @@ def validate_plan(job, hal_id, seqfile_genomes, unreadable, options, config):
     """Work out which genomes to check, and under which naming convention.
 
     Returns (problems so far, genomes to check, whether names are pangenome-style,
-    each of those genomes' length in the HAL).
+    each of those genomes' length in the HAL, the seqfile's name for any genome
+    to check that the HAL spells differently).
     """
     work_dir = job.fileStore.getLocalTempDir()
     hal_path = read_read_only(job, hal_id, os.path.join(
@@ -550,6 +553,23 @@ def validate_plan(job, hal_id, seqfile_genomes, unreadable, options, config):
                             os.path.basename(hal_path), len(in_hal), len(leaves),
                             'pangenome' if pangenome else 'progressive',
                             ' (forced with --pangenome)' if options.pangenome else ''))
+
+    # a pangenome seqfile that still spells a haplotype the old way (HG002.1, read
+    # with <graphmap dotHaplotypes="1">) names the genome cactus put in the HAL as
+    # HG002#1, and a genome given with its #0 (S288C#0) is S288C in the HAL.  such a
+    # genome goes by its HAL name from here on, and seqfile_names maps it back
+    seqfile_names = {}
+    if pangenome:
+        for genome in seqfile_genomes:
+            try:
+                hal_genome = normalize_pangenome_name(genome, config.getDotHaplotypes())
+            except RuntimeError:
+                continue
+            if genome not in in_hal and hal_genome in in_hal:
+                seqfile_names[hal_genome] = genome
+    hal_names = {genome: hal_genome for hal_genome, genome in seqfile_names.items()}
+    seqfile_genomes = [hal_names.get(genome, genome) for genome in seqfile_genomes]
+    unreadable = {hal_names.get(genome, genome): path for genome, path in unreadable.items()}
 
     problems = []
     missing_genomes = sorted(set(seqfile_genomes) - in_hal)
@@ -581,7 +601,7 @@ def validate_plan(job, hal_id, seqfile_genomes, unreadable, options, config):
 
     genomes = sorted((set(seqfile_genomes) & in_hal) - set(blocked))
     lengths = {name: hal_info[name][0] for name in genomes}
-    return problems, genomes, pangenome, lengths
+    return problems, genomes, pangenome, lengths, seqfile_names
 
 
 def validate_all(job, hal_id, seq_id_map, seq_paths, plan, options):
@@ -596,7 +616,7 @@ def validate_all(job, hal_id, seq_id_map, seq_paths, plan, options):
     and -- the big one -- each asks for memory the size of its own genome
     rather than a share of an 800 GB file.
     """
-    problems, genomes, pangenome, lengths = plan
+    problems, genomes, pangenome, lengths, seqfile_names = plan
     if not genomes:
         return problems
 
@@ -630,8 +650,9 @@ def validate_all(job, hal_id, seq_id_map, seq_paths, plan, options):
         # per-ancestor exports of the VGP 577-way (HAL2FASTA_SECS_PER_GB in cactus_hal2seqfile),
         # and the comparison is the cheaper half.  The HAL arrives by symlink, so only the input
         # fasta and the extracted copy are I/O.
-        results.append(job.addChildJobFn(validate_one, hal_id, seq_id_map[genome],
-                                         seq_paths.get(genome), genome, pangenome, options,
+        seqfile_genome = seqfile_names.get(genome, genome)
+        results.append(job.addChildJobFn(validate_one, hal_id, seq_id_map[seqfile_genome],
+                                         seq_paths.get(seqfile_genome), genome, pangenome, options,
                                          cores=1, disk=disk, memory=memory,
                                          walltime=cactus_walltime(VALIDATE_SECS_PER_GB * length / 1e9,
                                                                   io_bytes=2 * length)).rv())

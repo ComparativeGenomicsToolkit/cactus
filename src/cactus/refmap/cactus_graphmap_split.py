@@ -18,7 +18,7 @@ from cactus.progressive.multiCactusTree import MultiCactusTree
 from cactus.shared.common import setupBinaries, importSingularityImage, cactus_walltime
 from cactus.shared.common import cactusRootPath
 from cactus.shared.configWrapper import ConfigWrapper
-from cactus.shared.common import makeURL, catFiles
+from cactus.shared.common import makeURL, catFiles, pangenome_file_name, pangenome_seqfile_name
 from cactus.shared.common import enableDumpStack
 from cactus.shared.common import cactus_override_toil_options, add_cactus_toil_options
 from cactus.shared.common import cactus_call
@@ -146,7 +146,8 @@ def cactus_graphmap_split(options):
             graph_event = getOptionalAttrib(findRequiredNode(config_node, "graphmap"), "assemblyName", default="_MINIGRAPH_")
 
             # load the seqfile
-            seqFile = SeqFile(options.seqFile, defaultBranchLen=config.getDefaultBranchLen(pangenome=True))
+            seqFile = SeqFile(options.seqFile, defaultBranchLen=config.getDefaultBranchLen(pangenome=True), pangenome=True,
+                              dot_haplotypes=config.getDotHaplotypes())
 
             #import the graph
             gfa_id = toil.importFile(makeURL(options.minigraphGFA))
@@ -161,11 +162,11 @@ def cactus_graphmap_split(options):
             
             if graph_event not in leaves:
                 raise RuntimeError("Minigraph name {} not found in seqfile".format(graph_event))
-            if options.reference and options.reference not in leaves:
-                raise RuntimeError("Name given with --reference {} not found in seqfile".format(options.reference))
 
             # validate the sample names
-            check_sample_names(seqFile.pathMap.keys(), options.reference)
+            options.reference = check_sample_names(seqFile.pathMap.keys(), options.reference, config.getDotHaplotypes())
+            if options.reference and options.reference not in leaves:
+                raise RuntimeError("Name given with --reference {} not found in seqfile".format(options.reference))
                         
             for genome, seq in seqFile.pathMap.items():
                 if genome in leaves:
@@ -493,11 +494,13 @@ def split_gfa(job, config, gfa_id, paf_ids, ref_contigs, other_contig, reference
             if name not in output_id_map:
                 output_id_map[name] = {}
             if ext == '.paf':
-                # apply the hacky naming correction so that subpaths have no special characterse in the hal (to make hubs happy)
-                # this gets undone by hal2vg
-                cmd = get_faidx_subpath_rename_cmd()
-                cmd += ['-e', 's/ /\t/g', '-i', os.path.join(work_dir, out_name)]
-                cactus_call(parameters=cmd)
+                # spaces become tabs.  This used to be sed -i, with the subpath rename of
+                # get_faidx_subpath_rename_cmd(), which never matched; GNU sed's -i and \t do not work on Mac.
+                paf_path = os.path.join(work_dir, out_name)
+                with open(paf_path, 'r') as paf_file, open(paf_path + '.tabs', 'w') as tab_file:
+                    for line in paf_file:
+                        tab_file.write(line.replace(' ', '\t'))
+                os.replace(paf_path + '.tabs', paf_path)
             output_id_map[name][ext[1:]] = job.fileStore.writeGlobalFile(os.path.join(work_dir, out_name))
             
     return output_id_map, job.fileStore.writeGlobalFile(log_path)
@@ -997,7 +1000,7 @@ def export_split_data(toil, input_name_map, output_id_map, split_log_id, contig_
             fa_base = os.path.join(ref_contig_path, 'fasta')
             if not os.path.isdir(fa_base) and not fa_base.startswith('s3://'):
                 os.makedirs(fa_base)
-            fa_path = makeURL(os.path.join(fa_base, '{}_{}.fa'.format(event, ref_contig)))
+            fa_path = makeURL(os.path.join(fa_base, '{}_{}.fa'.format(pangenome_file_name(event), ref_contig)))
             if input_name_map[event].endswith('.gz'):
                 fa_path += '.gz'
             seq_file_map[event] = fa_path
@@ -1025,7 +1028,7 @@ def export_split_data(toil, input_name_map, output_id_map, split_log_id, contig_
                 # cactus can't handle empty fastas.  if there are no sequences for a sample for this
                 # contig, just don't add it.
                 if output_id_map[ref_contig]['fa'][event].size > 0:
-                    seq_file.write('{}\t{}\n'.format(event, fa_path))
+                    seq_file.write('{}\t{}\n'.format(pangenome_seqfile_name(event), fa_path))
         if seq_file_path.startswith('s3://'):
             write_s3(seq_file_temp_path, seq_file_path)
 

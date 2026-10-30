@@ -3,9 +3,30 @@ import pytest
 import unittest
 import subprocess
 import shutil
+import gzip
+import hashlib
+import re
+import tarfile
 from sonLib.bioio import getTempDirectory, popenCatch, popen
 import xml.etree.ElementTree as ET
 from xml.dom import minidom
+
+def pgrealign_tables(out_dir, chrom):
+    """ the tables a cactus-graphmap-join --pgrealign run archived for chrom: regions, packages and
+    alignments, as text, without the seconds each region took to align, which vary from run to run """
+    tables = {}
+    with tarfile.open(os.path.join(out_dir, 'yeast.stats', 'pgrealign.{}.tar.gz'.format(chrom))) as archive:
+        names = set(archive.getnames())
+        for name in ['regions.tsv.gz', 'extract/packages.jsonl.gz', 'msas.jsonl.gz']:
+            member = '{}.pgrealign/{}'.format(chrom, name)
+            if member in names:
+                with gzip.open(archive.extractfile(member), 'rt') as table:
+                    tables[name] = re.sub(r',"seconds":[0-9.]+', '', table.read())
+    return tables
+
+def file_sha256(path):
+    with open(path, 'rb') as f:
+        return hashlib.sha256(f.read()).hexdigest()
 
 class TestCase(unittest.TestCase):
     def setUp(self):
@@ -120,20 +141,9 @@ class TestCase(unittest.TestCase):
                 seq_file.write('{}\t{}\n'.format(genome, genome_path))
             seq_file.write(new_child_line)
 
-        # use the same logic cactus does to get default config
-        config_path = 'src/cactus/cactus_progressive_config.xml' if not configFile else configFile
+        # the shipped default config
+        mc_config_path = 'src/cactus/cactus_progressive_config.xml' if not configFile else configFile
 
-        xml_root = ET.parse(config_path).getroot()
-        decomp_elem = xml_root.find("multi_cactus").find("decomposition")
-        # force cactus to accept multifurcation in tree
-        decomp_elem.attrib["allow_multifurcations"] = "1"
-
-        mc_config_path = os.path.join(self.tempDir, "config.mc.xml")
-        with open(mc_config_path, 'w') as mc_config_file:
-            xmlString = ET.tostring(xml_root, encoding='unicode')
-            xmlString = minidom.parseString(xmlString).toprettyxml()
-            mc_config_file.write(xmlString)
-            
         # run the alignment
         out_hal = os.path.join(self.tempDir, '{}.hal'.format(new_root))
         if step_by_step:
@@ -234,10 +244,13 @@ class TestCase(unittest.TestCase):
             for genome in genomes if genomes is not None else self.PRIMATES:
                 seq_file.write('{}\t{}\n'.format(genome, url.format(genome)))
 
-    def _write_seqfile_subset(self, in_path, out_path, genomes):
-        """ copy a seqfile keeping only the named genomes, in the order they appear in it """
+    def _write_seqfile_subset(self, in_path, out_path, genomes, tree=None):
+        """ copy a seqfile keeping only the named genomes, in the order they appear in it, under the given
+        newick tree if there is one (otherwise cactus makes a star tree) """
         keep = set(genomes)
         with open(in_path) as in_file, open(out_path, 'w') as out_file:
+            if tree:
+                out_file.write(tree + '\n')
             for line in in_file:
                 toks = line.split()
                 if toks and toks[0] in keep:
@@ -414,19 +427,8 @@ class TestCase(unittest.TestCase):
         seq_file_path = os.path.join(self.tempDir, 'primates.txt')
         self._write_primates_seqfile(seq_file_path)
 
-        # use the same logic cactus does to get default config
-        config_path = 'src/cactus/cactus_progressive_config.xml'
-
-        xml_root = ET.parse(config_path).getroot()
-        decomp_elem = xml_root.find("multi_cactus").find("decomposition")
-        # force cactus to accept multifurcation in tree
-        decomp_elem.attrib["allow_multifurcations"] = "1"
-
-        mc_config_path = os.path.join(self.tempDir, "config.mc.xml")
-        with open(mc_config_path, 'w') as mc_config_file:
-            xmlString = ET.tostring(xml_root, encoding='unicode')
-            xmlString = minidom.parseString(xmlString).toprettyxml()
-            mc_config_file.write(xmlString)
+        # the shipped default config
+        mc_config_path = 'src/cactus/cactus_progressive_config.xml'
 
         # do the mapping
         cigar_path = os.path.join(self.tempDir, 'aln.paf')
@@ -457,10 +459,6 @@ class TestCase(unittest.TestCase):
         bar_elem = xml_root.find("bar")
         bar_elem.attrib["baseAligner"] = "abpoa"
         bar_elem.attrib["partialOrderAlignmentMaskFilter"] = "1"
-        
-        # force cactus to accept multifurcation in tree
-        decomp_elem = xml_root.find("multi_cactus").find("decomposition")
-        decomp_elem.attrib["allow_multifurcations"] = "1"
 
         poa_config_path = os.path.join(self.tempDir, "config.poa.xml")
         with open(poa_config_path, 'w') as poa_config_file:
@@ -627,7 +625,7 @@ class TestCase(unittest.TestCase):
         because bgzip block boundaries depend on the thread count, so two byte-identical graphs
         can have different .gz bytes """
         self.assertTrue(os.path.exists(gfa_path), '{} not found'.format(gfa_path))
-        return subprocess.check_output('zcat {}'.format(gfa_path), shell=True)
+        return subprocess.check_output('gzip -dc {}'.format(gfa_path), shell=True)
 
     def _gfa_genomes(self, gfa_path):
         """ the set of genomes an rGFA's SN tags name """
@@ -918,11 +916,11 @@ class TestCase(unittest.TestCase):
         return base
 
     def _validate_sv_gfa(self, gfa_path):
-        """ run `zcat <gfa_path> | vg validate -` and assert it passes.
+        """ run `gzip -dc <gfa_path> | vg validate -` and assert it passes.
         catches things like missing edges in the merged minigraph SV GFA.
         """
         self.assertTrue(os.path.exists(gfa_path), 'sv.gfa.gz not found at {}'.format(gfa_path))
-        proc = subprocess.run('zcat {} | vg validate -'.format(gfa_path),
+        proc = subprocess.run('gzip -dc {} | vg validate -'.format(gfa_path),
                               shell=True, capture_output=True)
         self.assertEqual(proc.returncode, 0,
                          'vg validate failed for {}\nstderr:\n{}'.format(gfa_path, proc.stderr.decode()))
@@ -1638,8 +1636,9 @@ class TestCase(unittest.TestCase):
                 self.assertGreaterEqual(int(oval[i]), int(val[i]) - delta)
                 self.assertLessEqual(int(oval[i]), int(val[i]) + delta)
 
-    def _check_maf_accuracy(self, halPath, delta, dataset="mammals", binariesMode="local"):
-        """ Compare mafComparator output of evolver mammals to baseline
+    def _check_maf_accuracy(self, halPath, delta, dataset="mammals", binariesMode="local", subranges=True):
+        """ Compare mafComparator output of evolver mammals to baseline.  For mammals, subranges also checks
+        cactus-hal2maf's subrange options against hal2maf, and smoke tests cactus-phast, both for the binary tree
         """
         assert dataset in ('mammals', 'primates')
         # this is just pasted from a successful run.  it will be used to catch serious regressions
@@ -1702,7 +1701,7 @@ class TestCase(unittest.TestCase):
         self.assertGreaterEqual(acc[1] + delta[1], baseline_acc[1])
 
         # check that subranges work in cactus-hal2maf
-        if dataset == 'mammals':
+        if dataset == 'mammals' and subranges:
             ranges_truth_file = os.path.join(self.tempDir, 'ranges-truth.maf')
             ranges = [('simHuman.chr6', 10, 21), ('simHuman.chr6', 100000, 149998), ('simHuman.chr6', 40, 41)]
             first = True
@@ -1817,7 +1816,7 @@ class TestCase(unittest.TestCase):
 
         # Per-base wigs must decompress and contain at least one fixedStep header.
         for wig_gz in (out_wig, sub_wig):
-            wig_text = subprocess.check_output(['zcat', wig_gz]).decode('utf-8')
+            wig_text = subprocess.check_output(['gzip', '-dc', wig_gz]).decode('utf-8')
             self.assertIn('fixedStep chrom={}'.format(refContig), wig_text)
 
         # bigWig magic: 0x888FFC26 little-endian = 26 fc 8f 88.
@@ -1901,6 +1900,33 @@ class TestCase(unittest.TestCase):
                               expected_tree='((simHuman_chr6:0.144018,((simMouse_chr6:0.084509,simRat_chr6:0.091589)mr:0.171974,simGorilla:0.2)AncGorilla:0.1)Anc1:0.020593,(simCow_chr6:0.18908,simDog_chr6:0.16303)Anc2:0.032898)Anc0;')
 
         self._check_maf_accuracy(self._out_hal(name), delta=(0.1,0.13))
+
+    # the evolver mammals tree collapsed to a five-way star at the root, each leaf keeping its root-to-leaf path
+    # length from examples/evolverMammals.txt (ex simMouse_chr6: 0.084509 + 0.271974 + 0.020593)
+    MAMMALS_STAR_TREE = ('(simHuman_chr6:0.164611,simMouse_chr6:0.377076,simRat_chr6:0.384156,'
+                         'simCow_chr6:0.221978,simDog_chr6:0.195928)Anc0;')
+
+    def testEvolverMammalsStarLocal(self):
+        """ Check that a multifurcation aligns as well as the binary tree, using the evolver mammals collapsed to a
+        five-way star with the default config.  Its children make two mutually closest pairs, (simMouse,simRat) and
+        (simCow,simDog), which the primary alignments almost never align to each other: without the pair secondaries
+        (multifurcationPairSecondaries="0"), human covered 10% of mouse instead of 70%, which the coverage check
+        catches.
+        """
+        name = "local"
+        seq_file_path = os.path.join(self.tempDir, 'evolverMammalsStar.txt')
+        self._write_seqfile_subset('./examples/evolverMammals.txt', seq_file_path,
+                                   ['simHuman_chr6', 'simMouse_chr6', 'simRat_chr6', 'simCow_chr6', 'simDog_chr6'],
+                                   tree=self.MAMMALS_STAR_TREE)
+        self._run_evolver(name, seqFile=seq_file_path)
+
+        self._check_valid_hal(self._out_hal(name), expected_tree=self.MAMMALS_STAR_TREE)
+
+        # compare to the binary tree's baselines.  coverage is of simMouse, by each other leaf
+        self._check_coverage(self._out_hal(name), delta_pct=0.20, columns=1)
+        # without the subrange checks, whose normalized-vs-raw thresholds are the binary tree's (normalization moves
+        # more of a multifurcation's bigger blocks), and whose phast smoke test needs its Anc1
+        self._check_maf_accuracy(self._out_hal(name), delta=(0.05,0.13), subranges=False)
 
 
     def testEvolverPrepareWDL(self):
@@ -2013,9 +2039,6 @@ class TestCase(unittest.TestCase):
         xml_root = ET.parse(config_path).getroot()
         bar_elem = xml_root.find("bar")
         bar_elem.attrib["baseAligner"] = "abpoa"
-        decomp_elem = xml_root.find("multi_cactus").find("decomposition")
-        # force cactus to accept multifurcation in tree
-        decomp_elem.attrib["allow_multifurcations"] = "1"
 
         poa_config_path = os.path.join(self.tempDir, "config.poa.xml")
         with open(poa_config_path, 'w') as poa_config_file:
@@ -2030,7 +2053,7 @@ class TestCase(unittest.TestCase):
         # check the output
         self._check_maf_accuracy(self._out_hal("local"), delta=(0.0025,0.0075), dataset='primates')
 
-    def _write_base_aligner_config(self, base_aligner, star=False):
+    def _write_base_aligner_config(self, base_aligner):
         """ Copy the shipped config, point <bar> at the given base aligner, and return the path.
         Returns the path so a test can hand it to --configFile.
         """
@@ -2038,9 +2061,6 @@ class TestCase(unittest.TestCase):
         xml_root = ET.parse(config_path).getroot()
         bar_elem = xml_root.find("bar")
         bar_elem.attrib["baseAligner"] = base_aligner
-        if star:
-            # force cactus to accept multifurcation in tree
-            xml_root.find("multi_cactus").find("decomposition").attrib["allow_multifurcations"] = "1"
         out_path = os.path.join(self.tempDir, "config.{}.xml".format(base_aligner))
         with open(out_path, 'w') as out_file:
             xmlString = ET.tostring(xml_root, encoding='unicode')
@@ -2053,7 +2073,7 @@ class TestCase(unittest.TestCase):
         abpoa.  Same dataset and same tolerance, so the two are directly comparable: this is the
         sharpest accuracy instrument in the suite.
         """
-        minipoa_config_path = self._write_base_aligner_config("minipoa", star=True)
+        minipoa_config_path = self._write_base_aligner_config("minipoa")
         name = "local"
         self._run_evolver_primates_star(name, configFile = minipoa_config_path)
         self._check_maf_accuracy(self._out_hal("local"), delta=(0.0025,0.0075), dataset='primates')
@@ -2073,7 +2093,7 @@ class TestCase(unittest.TestCase):
         """ testEvolverPOALocal with baseAligner="pecan": the same data and tolerance, so the two
         engines are directly comparable.
         """
-        pecan_config_path = self._write_base_aligner_config("pecan", star=True)
+        pecan_config_path = self._write_base_aligner_config("pecan")
         name = "local"
         self._run_evolver_primates_star(name, configFile = pecan_config_path)
         self._check_maf_accuracy(self._out_hal("local"), delta=(0.0025,0.0075), dataset='primates')
@@ -2164,8 +2184,8 @@ class TestCase(unittest.TestCase):
         with open(base['paf'], 'rb') as base_paf, open(extended['paf'], 'rb') as ext_paf:
             self.assertEqual(ext_paf.read(), base_paf.read())
         # and the republished GAF is intact, so the extended run can itself be extended
-        self.assertEqual(subprocess.check_output('zcat {}'.format(extended['gaf']), shell=True),
-                         subprocess.check_output('zcat {}'.format(base['gaf']), shell=True))
+        self.assertEqual(subprocess.check_output('gzip -dc {}'.format(extended['gaf']), shell=True),
+                         subprocess.check_output('gzip -dc {}'.format(base['gaf']), shell=True))
 
         # an unchanged graph is the one graph construction hands back without writing it, so it is
         # the one that can come out at the compression of the file it was read from rather than of
@@ -2840,6 +2860,24 @@ class TestCase(unittest.TestCase):
         self.assertEqual(int(rows[bed_chroms[0]]['targets']), len(catalogs[bed_chroms[0]]))
         self.assertGreater(int(rows[bed_chroms[0]]['realigned']), 0)
         self.assertEqual((rows[bed_chroms[1]]['targets'], rows[bed_chroms[1]]['realigned']), ('0', '0'))
+
+        # the realigned graph depends on the input and the config alone: the same join with half the
+        # realign workers and, where the machine has the memory, jobs started with enough of it that none
+        # needs to start again, writes the same regions, packages and alignments, and the same graph
+        from toil import physicalMemory
+        again_path = os.path.join(self.tempDir, 'pgrealign-bed-again')
+        resources = ['--maxCores', '4', '--indexCores', '2']
+        if physicalMemory() >= 16 * 2**30:
+            resources += ['--defaultMemory', '12G']
+        subprocess.check_call(['cactus-graphmap-join', self._job_store(binariesMode) + '-pgrealign-bed-again',
+                               '--vg'] + [raw_vgs[chroms.index(c)] for c in bed_chroms] +
+                              ['--outDir', again_path, '--outName', 'yeast', '--reference'] + references +
+                              ['--gbz', 'clip', '--pgrealign', bed_path, '--binariesMode', binariesMode,
+                               '--logInfo', '--workDir', self.tempDir] + resources)
+        for chrom in bed_chroms:
+            self.assertEqual(pgrealign_tables(out_path, chrom), pgrealign_tables(again_path, chrom))
+        self.assertEqual(file_sha256(os.path.join(out_path, 'yeast.gbz')),
+                         file_sha256(os.path.join(again_path, 'yeast.gbz')))
 
     def testYeastPangenomeMgSplitLocal(self):
         """ Run the pangenome pipeline on yeast with --mgSplit and wholeGenomeRef="0" in
