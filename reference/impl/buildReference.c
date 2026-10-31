@@ -1299,8 +1299,12 @@ void cactus_make_reference(stList *flowers, char *referenceEventString,
         matchingAlgorithm = chooseMatching_maximumCardinalityMatching;
     } else if (strcmp("maxWeight", matchAlgorithmString) == 0) {
         matchingAlgorithm = chooseMatching_maximumWeightMatching;
+    } else if (strcmp("edmonds", matchAlgorithmString) == 0) {
+        matchingAlgorithm = chooseMatching_edmonds;
     } else if (strcmp("blossom5", matchAlgorithmString) == 0) {
-        matchingAlgorithm = chooseMatching_blossom5;
+        // blossom5 is no longer shipped, as its license does not allow it; edmonds finds a matching of the same weight
+        st_logCritical("The reference matchingAlgorithm \"blossom5\" is deprecated, using \"edmonds\" instead\n");
+        matchingAlgorithm = chooseMatching_edmonds;
     } else {
         stThrowNew(REFERENCE_BUILDING_EXCEPTION, "Input error: unrecognized matching algorithm: %s", matchAlgorithmString);
     }

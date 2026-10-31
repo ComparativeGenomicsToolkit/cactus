@@ -12,9 +12,14 @@ from cactus.paf.paf import *
 from cactus.paf.last_scoring import apply_long_gap, apply_scores_to_config, abpoa_exact_depth, parse_train_file
 from cactus.paf.last_scoring import write_pair_hmm_train_file, pick_train_partners, minigraph_wfa_penalties
 from cactus.paf.pair_hmm_training import maximise, combined_gap, LONG_GAP_OPEN, LONG_GAP_EXTEND
+from cactus.paf.local_alignment import chain_alignments_splitting_ingroups_and_outgroups
 from cactus.paf.local_alignment import chain_tile_trim_filter_one_contig
-from cactus.shared.common import cactusRootPath
+from cactus.shared.common import makeURL, cactusRootPath
+from toil.common import Toil
+from toil.job import Job
 from toil.realtimeLogger import RealtimeLogger
+import collections
+import itertools
 import logging
 import os
 import shutil
@@ -341,6 +346,114 @@ class PairHmmTrainFileTest(unittest.TestCase):
         self.assertEqual(pick_train_partners('ref', order, seq_id_map, 1), ['d'])
         self.assertEqual(pick_train_partners('ref', order, seq_id_map, 10), ['a', 'b', 'c', 'd', 'e', 'f'])
         self.assertEqual(pick_train_partners('ref', ['ref', 'tiny'], seq_id_map, 4), [])
+
+class IngroupChainingTest(unittest.TestCase):
+    """ chain_alignments_splitting_ingroups_and_outgroups on a star of four ingroups that make two mutually closest
+    pairs, (A,B) and (C,D), plus an outgroup O.  Chained all together, the six ingroup pairs let each base keep only
+    its best partner, so the primaries never align the pairs to each other.  The pair secondaries made for
+    multifurcations do.  This runs small Toil workflows, and needs paffy on the PATH. """
+    GENOMES = ['A', 'B', 'C', 'D']
+    CHERRIES = [{'A', 'B'}, {'C', 'D'}]
+    LENGTH = 100000
+    STARTS = (0, 50000)
+    ALN_LEN = 45000
+
+    def setUp(self):
+        self.work_dir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.work_dir)
+        # cactus sets these from its command line
+        env = unittest.mock.patch.dict(os.environ, {'CACTUS_BINARIES_MODE': 'local',
+                                                    'CACTUS_MAX_MEMORY': str(2**32),
+                                                    'CACTUS_DEFAULT_MEMORY': str(2**28)})
+        env.start()
+        self.addCleanup(env.stop)
+
+    def _write_paf(self, name, query, target, identity, score_per_kb):
+        """ two colinear alignments of query to target, as lastz would give for a pair of genomes, with their
+        mismatches in the middle so that paffy trim leaves them whole """
+        path = os.path.join(self.work_dir, name + '.paf')
+        with open(path, 'w') as paf_file:
+            for start in self.STARTS:
+                matches = int(self.ALN_LEN * identity)
+                paf_file.write('\t'.join(str(x) for x in [
+                    'id={}|chr1'.format(query), self.LENGTH, start, start + self.ALN_LEN, '+',
+                    'id={}|chr1'.format(target), self.LENGTH, start, start + self.ALN_LEN,
+                    matches, self.ALN_LEN, 255, 'AS:i:{}'.format(score_per_kb * self.ALN_LEN // 1000),
+                    'cg:Z:{}={}X{}='.format(matches // 2, self.ALN_LEN - matches, matches - matches // 2)]) + '\n')
+        return path
+
+    def _chain_lines(self, pair_secondaries, output_secondaries=False):
+        """ chain the star's alignments and return [(query genome, target genome, tp tag, aligned query bases)], in the
+        order of the output """
+        params = ET.parse(os.path.join(cactusRootPath(), 'cactus_progressive_config.xml')).getroot()
+        params.find('blast').set('outputSecondaryAlignments', '1' if output_secondaries else '0')
+        # one file per ingroup pair, the first of the pair the target, as make_paf_alignments makes them
+        ingroup_paths, ingroup_names, ingroup_distances = [], [], []
+        for a, b in itertools.combinations(self.GENOMES, 2):
+            cherry = {a, b} in self.CHERRIES
+            ingroup_paths.append(self._write_paf('{}_vs_{}'.format(a, b), b, a, 0.95 if cherry else 0.80,
+                                                 900 if cherry else 500))
+            ingroup_names.append('Anc0-{}_vs_{}'.format(a, b))
+            ingroup_distances.append(0.1 if cherry else 0.3)
+        # the outgroup is the query, the ingroup the target
+        outgroup_path = self._write_paf('O_vs_A', 'O', 'A', 0.85, 700)
+        run = '{}.{}'.format(int(pair_secondaries), int(output_secondaries))
+        out_path = os.path.join(self.work_dir, 'out.{}.paf'.format(run))
+        options = Job.Runner.getDefaultOptions(os.path.join(self.work_dir, 'js.{}'.format(run)))
+        options.disableCaching = True
+        options.maxCores = 2
+        # with outputSecondaryAlignments the pairs must not be chained again, so they get no distances to be ordered by,
+        # which makes chaining them fail
+        with Toil(options) as toil:
+            ingroup_ids = [toil.importFile(makeURL(path)) for path in ingroup_paths]
+            outgroup_ids = [toil.importFile(makeURL(outgroup_path))]
+            out_id = toil.start(Job.wrapJobFn(chain_alignments_splitting_ingroups_and_outgroups,
+                                              ingroup_ids, ingroup_names, outgroup_ids, ['Anc0-og_0'], 'Anc0', params,
+                                              ingroup_alignment_distances=None if output_secondaries else ingroup_distances,
+                                              pair_secondaries=pair_secondaries))
+            toil.exportFile(out_id, makeURL(out_path))
+        lines = []
+        with open(out_path) as paf_file:
+            for line in paf_file:
+                toks = line.rstrip('\n').split('\t')
+                tp = [tok[5:] for tok in toks[12:] if tok.startswith('tp:A:')][0]
+                lines.append((toks[0].split('|')[0][3:], toks[5].split('|')[0][3:], tp, int(toks[3]) - int(toks[2])))
+        return lines
+
+    def _chain(self, pair_secondaries, output_secondaries=False):
+        """ {(query genome, target genome, tp tag): aligned query bases} of _chain_lines """
+        pairs = collections.Counter()
+        for query, target, tp, aligned in self._chain_lines(pair_secondaries, output_secondaries):
+            pairs[(query, target, tp)] += aligned
+        return pairs
+
+    PRIMARIES = {('A', 'B', 'P'), ('B', 'A', 'P'), ('C', 'D', 'P'), ('D', 'C', 'P'), ('O', 'A', 'P')}
+
+    def test_pair_secondaries_align_every_ingroup_pair(self):
+        pairs = self._chain(pair_secondaries=True)
+        aligned = len(self.STARTS) * self.ALN_LEN
+        # the primaries are unchanged, and the secondaries add every pair they leave out, once
+        self.assertEqual({k for k in pairs if k[2] == 'P'}, self.PRIMARIES)
+        self.assertEqual({k for k in pairs if k[2] == 'S'},
+                         {(a, b, 'S') for a, b in itertools.permutations(self.GENOMES, 2) if {a, b} not in self.CHERRIES})
+        for a, b in itertools.permutations(self.GENOMES, 2):
+            self.assertEqual(pairs[(a, b, 'P')] + pairs[(a, b, 'S')], aligned, '{} to {}'.format(a, b))
+        self.assertEqual(pairs[('O', 'A', 'P')], aligned)
+
+    def test_pair_secondaries_with_tile_secondaries(self):
+        """ with outputSecondaryAlignments="1" the chaining's own secondaries already hold every pair's alignments, so
+        the pairs are not chained again """
+        lines = self._chain_lines(pair_secondaries=True, output_secondaries=True)
+        self.assertEqual(lines, self._chain_lines(pair_secondaries=False, output_secondaries=True))
+        self.assertEqual({(query, target, tp) for query, target, tp, aligned in lines},
+                         self.PRIMARIES | {(a, b, 'S') for a, b in itertools.permutations(self.GENOMES, 2)
+                                           if {a, b} not in self.CHERRIES})
+
+    def test_pooled_chaining_splits_cherries(self):
+        """ why multifurcations get pair secondaries: if this starts aligning across the pairs, paffy tile has changed
+        and multifurcationPairSecondaries may no longer be needed """
+        pairs = self._chain(pair_secondaries=False)
+        self.assertEqual(set(pairs), self.PRIMARIES)
 
 if __name__ == '__main__':
     unittest.main()

@@ -19,5 +19,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 
-This license excludes certain files in the 'externalTools' sub-directory, please
-see for copyright information and license information.
+The license above covers the Cactus source in this repository, except for files
+that carry their own license notice. The projects under submodules/, and the tools
+that build-tools/ downloads into binary releases and container images, are separate
+works under their own licenses; see the LICENSE or COPYING file of each.

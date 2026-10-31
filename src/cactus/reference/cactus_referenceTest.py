@@ -25,8 +25,8 @@ class TestCase(unittest.TestCase):
         runCactus_Random(self, "greedy")
 
     @TestStatus.mediumLength
-    def testCactus_Random_Blossum(self):
-        runCactus_Random(self, "blossom5")
+    def testCactus_Random_Edmonds(self):
+        runCactus_Random(self, "edmonds")
 
     @TestStatus.mediumLength
     def testCactus_Random_MaxCardinality(self):
@@ -38,8 +38,8 @@ class TestCase(unittest.TestCase):
 
     @unittest.skip("test was never updated when changes were made to the way ancestors work (ERROR: Couldn't find reference event reference)")
     @TestStatus.mediumLength
-    def testCactus_Blanchette_Blossum(self):
-        runCactus_Blanchette(self, "blossom5")
+    def testCactus_Blanchette_Edmonds(self):
+        runCactus_Blanchette(self, "edmonds")
 
     @TestStatus.shortLength
     def testCuTest(self):

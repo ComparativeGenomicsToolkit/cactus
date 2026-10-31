@@ -5,7 +5,7 @@ libTests = tests/*.c
 libSources = impl/*.c
 libHeaders = inc/*.h
 
-commonCafLibs = ${LIBDIR}/stCactusToHal.a ${LIBDIR}/stReference.a ${LIBDIR}/cactusBarLib.a ${LIBDIR}/stCaf.a ${LIBDIR}/stCactusSetup.a ${sonLibDir}/stPinchesAndCacti.a ${sonLibDir}/matchingAndOrdering.a ${sonLibDir}/3EdgeConnected.a ${sonLibDir}/cPecanLib.a  ${LIBDIR}/cactusLib.a ${LIBDIR}/stPaf.a
+commonCafLibs = ${LIBDIR}/stCactusToHal.a ${LIBDIR}/stReference.a ${LIBDIR}/cactusBarLib.a ${LIBDIR}/stCaf.a ${LIBDIR}/stCactusSetup.a ${sonLibDir}/stPinchesAndCacti.a ${sonLibDir}/matchingAndOrdering.a ${sonLibDir}/cPecanLib.a  ${LIBDIR}/cactusLib.a ${LIBDIR}/stPaf.a
 # simde (included via abPOA) doesn't compile with --Werror --pedantic
 CFLAGS:=$(filter-out --pedantic,$(CFLAGS))
 

@@ -181,7 +181,10 @@ bool stCaf_relaxedFilterByOutgroup(stPinchSegment *segment1,
 
 /*
  * Filters incoming alignments by presence of repeat species in
- * block. This code is inefficient and does not scale.
+ * block: true if the two segments (or their blocks) have a species in
+ * common. The species of each block of high degree are remembered between
+ * calls (see stCaf_clearRepeatSpeciesCache), using and clearing the blocks'
+ * modified flags as stCaf_filterByMultipleSpecies does.
  */
 bool stCaf_filterByRepeatSpecies(stPinchSegment *segment1,
                                  stPinchSegment *segment2, Flower *flower);
@@ -192,6 +195,15 @@ bool stCaf_filterByRepeatSpecies(stPinchSegment *segment1,
  */
 bool stCaf_relaxedFilterByRepeatSpecies(stPinchSegment *segment1,
                                         stPinchSegment *segment2, Flower *flower);
+
+/*
+ * Frees what stCaf_filterByRepeatSpecies remembers about the blocks. That
+ * takes the event of every thread to stay the same, so this has to be called
+ * before the user data of a thread changes, and before a thread set is used
+ * with a flower other than the one it was built from. caf() calls it after the
+ * annealing of each round.
+ */
+void stCaf_clearRepeatSpeciesCache(void);
 
 /**
  * As stCaf_filterByRepeatSpecies, but apply filter only to a particular event

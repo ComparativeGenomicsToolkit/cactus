@@ -8,7 +8,9 @@
 
 import unittest
 import os
+import shutil
 import sys
+import xml.etree.ElementTree as ET
 
 from sonLib.bioio import TestStatus
 from sonLib.bioio import getTempDirectory
@@ -16,6 +18,9 @@ from sonLib.bioio import logger
 from sonLib.bioio import system
 
 from cactus.progressive.multiCactusTree import MultiCactusTree
+from cactus.progressive.progressive_decomposition import parse_seqfile
+from cactus.shared.common import cactusRootPath
+from cactus.shared.configWrapper import ConfigWrapper
 from sonLib.nxnewick import NXNewick
 
 class TestCase(unittest.TestCase):
@@ -109,6 +114,24 @@ class TestCase(unittest.TestCase):
     @TestStatus.shortLength
     def testGetChildren(self):
         self.assertEqual(self.mcTree1.getChildNames('Anc6'), ['PIG', 'COW'])
+
+    @TestStatus.shortLength
+    def testParseSeqfileMultifurcations(self):
+        """ multifurcations are accepted, even by configs from v2.7.2 to v3.3.0, which refused them with
+        allow_multifurcations="0" """
+        temp_dir = getTempDirectory()
+        self.addCleanup(shutil.rmtree, temp_dir)
+        seq_path = os.path.join(temp_dir, 'star.txt')
+        with open(seq_path, 'w') as seq_file:
+            seq_file.write('(a:1,b:1,c:1,d:1)r;\n')
+            for name in 'abcd':
+                seq_file.write('{}\t{}\n'.format(name, os.path.join(temp_dir, name + '.fa')))
+        config_root = ET.parse(os.path.join(cactusRootPath(), 'cactus_progressive_config.xml')).getroot()
+        mc_tree, _, _ = parse_seqfile(seq_path, ConfigWrapper(config_root))
+        self.assertEqual(mc_tree.getChildNames('r'), ['a', 'b', 'c', 'd'])
+        config_root.find('multi_cactus').find('decomposition').attrib['allow_multifurcations'] = '0'
+        mc_tree, _, _ = parse_seqfile(seq_path, ConfigWrapper(config_root))
+        self.assertEqual(mc_tree.getChildNames('r'), ['a', 'b', 'c', 'd'])
 
     def __generateTrees(self):
         self.tree1 = '((((HUMAN:0.006969,CHIMP:0.009727):0.025291,BABOON:0.044568):0.11,(MOUSE:0.072818,RAT:0.081244):0.260342):0.02326,((DOG:0.07,CAT:0.07):0.087381,(PIG:0.06,COW:0.06):0.104728):0.04);'

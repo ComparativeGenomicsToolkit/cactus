@@ -337,6 +337,26 @@ void caf(Flower *flower, CactusParams *params, char *alignmentsFile, char *secon
         secondaryFilterFn = filterFn;
         sortSecondaryAlignments = sortAlignments;
     }
+    // optionally override the filter for the secondary alignments alone. "sharedSpecies" never joins two
+    // segments or blocks that have a species in common: it is used for multifurcations, whose secondaries are the
+    // alignments of each pair of ingroups, to join the groups of ingroups that the primaries left apart. The
+    // secondaries are then annealed in the order they are in the file
+    if (cactusParams_has(params, 2, "caf", "secondaryAlignmentFilter")) {
+        char *secondaryAlignmentFilter = cactusParams_get_string(params, 2, "caf", "secondaryAlignmentFilter");
+        if (secondaryAlignmentFilter[0] != '\0') {
+            if (strcmp(secondaryAlignmentFilter, "sharedSpecies") == 0) {
+                secondaryFilterFn = stCaf_filterByRepeatSpecies;
+            } else if (strcmp(secondaryAlignmentFilter, "multipleSequences") == 0) {
+                secondaryFilterFn = stCaf_filterByMultipleSequences;
+            } else if (strcmp(secondaryAlignmentFilter, "none") == 0) {
+                secondaryFilterFn = NULL;
+            } else {
+                st_errAbort("Could not recognize secondaryAlignmentFilter option %s", secondaryAlignmentFilter);
+            }
+            sortSecondaryAlignments = false;
+        }
+        free(secondaryAlignmentFilter);
+    }
 
     ///////////////////////////////////////////////////////////////////////////
     // (0) Check the inputs.
@@ -457,6 +477,8 @@ void caf(Flower *flower, CactusParams *params, char *alignmentsFile, char *secon
                 }
             }
             double secondaryAnnealTime = stCaf_now() - t;
+            // free what stCaf_filterByRepeatSpecies keeps of the blocks, as melting leaves some of it to dead blocks
+            stCaf_clearRepeatSpeciesCache();
 
             t = stCaf_now();
             st_logInfo("Sequence graph statistics after annealing:\n");

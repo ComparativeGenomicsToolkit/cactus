@@ -1731,7 +1731,7 @@ def phyloP_chunk(job, options, chunk_spec, model_id, subtree):
     # Decompress chunk for phyloP (which reads MAF, not gzipped MAF).
     sub_maf = os.path.join(work_dir, 'sub.{}.maf'.format(region_tag))
     cactus_call(parameters=['bash', '-c',
-        'set -eo pipefail && zcat {chunk} > {out}'.format(
+        'set -eo pipefail && gzip -dc {chunk} > {out}'.format(
             chunk=shlex.quote(chunk_path), out=shlex.quote(sub_maf))])
     os.remove(chunk_path)
 

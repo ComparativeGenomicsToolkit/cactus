@@ -5,6 +5,10 @@
 // gethostname and sysconf are POSIX, and this file is compiled as strict c99, which declares
 // neither.  Ask for POSIX 2001 only; _GNU_SOURCE would also change declarations already in use here.
 #define _POSIX_C_SOURCE 200112L
+// On Mac, asking for POSIX hides _SC_NPROCESSORS_ONLN, which is an extension there too
+#if defined(__APPLE__)
+#define _DARWIN_C_SOURCE
+#endif
 #include <time.h>
 #include <getopt.h>
 #include <string.h>
@@ -72,7 +76,12 @@
 // A weak reference resolves to jemalloc's mallctl when it is linked and stays null when it
 // is not, with no dlfcn and no _GNU_SOURCE (RTLD_DEFAULT is a GNU extension, and defining
 // _GNU_SOURCE for this one call would change other declarations in this file).
+#if defined(__APPLE__)
+// Mach-O will not link a weak reference that nothing defines, and jemalloc is never linked on Mac
+static int (*const mallctl)(const char *, void *, size_t *, void *, size_t) = NULL;
+#else
 extern int mallctl(const char *, void *, size_t *, void *, size_t) __attribute__((weak));
+#endif
 
 static void cactus_jemalloc_retain_pages(CactusParams *params) {
     // Which jemalloc actually got loaded.  Reported before anything below can return early:

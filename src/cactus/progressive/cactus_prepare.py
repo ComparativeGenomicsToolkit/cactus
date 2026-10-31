@@ -36,6 +36,7 @@ from cactus.shared.common import cactus_override_toil_options, add_cactus_toil_o
 from cactus.pipeline.cactus_workflow import cons_core_scale
 from cactus.shared.common import cactus_clamp_memory
 from cactus.shared.common import cactus_walltime
+from cactus.shared.common import read_global_file_mutable
 
 from toil.job import Job
 from toil.common import Toil
@@ -1251,6 +1252,11 @@ def toil_call_align(job, options, seq_file, mc_tree, og_map, event, cigar_name, 
 
     return out_fa_id, out_hal_id    
     
+def hal_append_codec_options(options):
+    """ the --hdf5Codec to give halAppendSubtree.  it writes the final hal, so it needs the codec
+    as much as cactus does.  but it isn't in --halOptions, which also go to tools that only read """
+    return ['--hdf5Codec', options.hdf5Codec] if getattr(options, 'hdf5Codec', None) else []
+
 def wdl_task_hal_append(options):
     s = 'task hal_append_subtree {\n'
     s += '    input {\n'
@@ -1273,7 +1279,7 @@ def wdl_task_hal_append(options):
     s += '        HA_NAMES=(~{sep=" " in_names})\n'    
     s += '        for i in "${!HA_NAMES[@]}"; do\n'
     s += '             halAppendSubtree ./~{{parent_name}} ${{HA_CHILDS[$i]}} ${{HA_NAMES[$i]}} ${{HA_NAMES[$i]}} --merge --hdf5InMemory {}\n'.format(
-options.halOptions)
+' '.join([options.halOptions] + hal_append_codec_options(options)))
     s += '        done\n'
     s += '    >>>\n'
     s += '    runtime {\n'
@@ -1317,7 +1323,7 @@ def toil_call_hal_append_subtrees(job, options, mc_tree, og_map, root_name, root
 
     # donload the root hal file
     root_file = os.path.join(work_dir, '{}.hal'.format(root_name))
-    job.fileStore.readGlobalFile(root_hal_id, root_file, mutable=True)
+    read_global_file_mutable(job, root_hal_id, root_file)
     
     # download the hal files from the file store
     hal_files = []
@@ -1327,7 +1333,7 @@ def toil_call_hal_append_subtrees(job, options, mc_tree, og_map, root_name, root
 
         # append to the root
         cactus_call(parameters=['halAppendSubtree', root_file, hal_files[-1], event_name, event_name, '--merge', '--hdf5InMemory'] +
-                    options.halOptions.strip().split(' '))
+                    options.halOptions.strip().split(' ') + hal_append_codec_options(options))
 
     # bypassing toil.exportFile for now as it only works on promises returned by the
     # start job, which isn't how this is set up. also in practice it's often more convenient
@@ -1438,6 +1444,8 @@ def main_hal_append_subtrees():
                         "rather than pulling one from quay.io")
     parser.add_argument("--binariesMode", choices=["docker", "local", "singularity"],
                         help="The way to run the Cactus binaries", default=None)
+    parser.add_argument("--hdf5Codec", choices=["deflate", "lz4", "zstd", "none"], default=None,
+                        help="HDF5 compression codec for HAL output (default=deflate)")
     
     options = parser.parse_args()
 
@@ -1485,14 +1493,15 @@ def hal_append_subtrees(job, hal_id, sub_hal_ids, options):
 
     work_dir = job.fileStore.getLocalTempDir()
     hal_path = os.path.join(work_dir, os.path.basename(options.tgtFile))
-    job.fileStore.readGlobalFile(hal_id, hal_path, mutable=True)
+    read_global_file_mutable(job, hal_id, hal_path)
 
     for sub_id, sub_input_path in zip(sub_hal_ids, options.subFiles):
         sub_path = os.path.join(work_dir, os.path.basename(sub_input_path))
         job.fileStore.readGlobalFile(sub_id, sub_path)
         anc_name = cactus_call(parameters=['halStats', '--root', sub_path], check_output=True).strip()
         # note: halAppendSubtree is unusably slow without --inMemory, so we just hardcode
-        cactus_call(parameters=['halAppendSubtree', hal_path, sub_path, anc_name, anc_name, '--merge', '--hdf5InMemory'])
+        cactus_call(parameters=['halAppendSubtree', hal_path, sub_path, anc_name, anc_name, '--merge', '--hdf5InMemory'] +
+                    hal_append_codec_options(options))
         os.remove(sub_path)
 
     return job.fileStore.writeGlobalFile(hal_path)

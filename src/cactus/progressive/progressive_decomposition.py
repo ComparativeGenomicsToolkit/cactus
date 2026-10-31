@@ -37,8 +37,10 @@ def parse_seqfile(seqfile_path, config_wrapper, root_name = None, pangenome = Fa
     """
     parse the seqfile
     returns (tree, event->path map, og list (from *'s in seqfile)
+    with pangenome, the genome names are normalized to PanSN (see SeqFile)
     """
-    seq_file = SeqFile(seqfile_path, root_name = root_name, defaultBranchLen=config_wrapper.getDefaultBranchLen(pangenome=pangenome))
+    seq_file = SeqFile(seqfile_path, root_name = root_name, defaultBranchLen=config_wrapper.getDefaultBranchLen(pangenome=pangenome),
+                       pangenome = pangenome, dot_haplotypes = config_wrapper.getDotHaplotypes() if pangenome else None)
 
     mc_tree = MultiCactusTree(seq_file.tree)
     mc_tree.nameUnlabeledInternalNodes(config_wrapper.getDefaultInternalNodePrefix())
@@ -47,9 +49,6 @@ def parse_seqfile(seqfile_path, config_wrapper, root_name = None, pangenome = Fa
     check_branch_lengths(mc_tree)
 
     check_degree2_ancestors(mc_tree)
-
-    if not pangenome and not config_wrapper.getAllowMultifurcations():
-        check_multifurcations(mc_tree)
 
     return (mc_tree, seq_file.pathMap, seq_file.outgroups)
 
@@ -335,10 +334,3 @@ def check_degree2_ancestors(mc_tree):
         child_nodes = mc_tree.getChildren(node)
         if len(child_nodes) == 1:
             raise RuntimeError("Error parsing tree \"{}\":\n Node {} (parent of {}) has single descendant: Please remove all such nodes and try again.".format(NXNewick().writeString(mc_tree), mc_tree.getName(node), mc_tree.getName(child_nodes[0])))
-
-def check_multifurcations(mc_tree):
-    for node in mc_tree.postOrderTraversal():
-        child_nodes = mc_tree.getChildren(node)
-        if len(child_nodes) > 2:
-            raise RuntimeError("Error parsing tree \"{}\":\n Node {} has more than two children: {}. Such nodes have been shown to drastically drop coverage in recent versions of Cactus. For best results, binarize your tree and try again. You can override this check by toggling \"allow_multifurcations\" to \"1\" in the configuration XML".format(NXNewick().writeString(mc_tree), mc_tree.getName(node), [mc_tree.getName(child) for child in child_nodes]))
-    

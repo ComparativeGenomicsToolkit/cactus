@@ -22,6 +22,7 @@ import threading
 import traceback
 import errno
 import shlex
+import re
 
 try:
     import boto3
@@ -30,7 +31,7 @@ try:
 except:
     has_s3 = False
 
-from urllib.parse import urlparse
+from urllib.parse import urlparse, quote
 from datetime import datetime
 
 from toil.statsAndLogging import logger
@@ -366,10 +367,100 @@ def add_cactus_toil_options(parser):
 
 
 def makeURL(path_or_url):
+    """ a local path is quoted on its way into a file:// URL, as Toil unquotes it on the way out:
+    a raw '#' would otherwise read as the start of a fragment, and HG002#1.fa be imported from (or
+    exported to) HG002 """
     if urlparse(path_or_url).scheme == '':
-        return "file://" + os.path.abspath(path_or_url)
+        return "file://" + quote(os.path.abspath(path_or_url))
     else:
         return path_or_url
+
+# Minigraph-Cactus genome names follow PanSN (https://github.com/pangenome/PanSN-spec): a genome
+# is SAMPLE#HAPLOTYPE, the first two fields of the SAMPLE#HAPLOTYPE#CONTIG path names in the
+# graph, or just SAMPLE for haplotype 0.  A genome is spelled one way from the seqfile on, SAMPLE
+# for haplotype 0 (S288C#0 is S288C) and SAMPLE#HAPLOTYPE for any other, and used as-is
+# throughout: in the id=EVENT| fasta prefixes, the HAL and the MAF.  Only the graph's path names
+# spell out the #0.
+#
+# Cactus used to spell the haplotype SAMPLE.HAPLOTYPE.  A seqfile is still read that way while
+# <graphmap dotHaplotypes="1"> (the default): a name with no '#' that ends in .N (N all digits) is
+# rewritten to SAMPLE#N, and keeping a '.' before trailing digits takes a #0 (GCA_054883195.1#0).
+# That is the only place a '.' is ever read as a haplotype: past the seqfile, and anywhere with
+# dotHaplotypes="0", it is part of the sample name (KOLF2.1J, GCA_054883195.1)
+_PANSN_HAPLOTYPE_RE = re.compile(r'[0-9]+')
+
+def split_dot_haplotype(name):
+    """ (SAMPLE, N) if name is SAMPLE.N, the old spelling of a haplotype, else None """
+    dot = name.rfind('.')
+    if '#' not in name and dot > 0 and _PANSN_HAPLOTYPE_RE.fullmatch(name[dot + 1:]):
+        return name[:dot], name[dot + 1:]
+    return None
+
+def normalize_pangenome_name(name, dot_haplotypes=False):
+    """ the canonical spelling of a pangenome genome name: SAMPLE for haplotype 0, else SAMPLE#HAP
+    with HAP without leading zeros (as vg stores it).  dot_haplotypes is for a name as given in a
+    seqfile (<graphmap dotHaplotypes>), and reads the old SAMPLE.HAP spelling as SAMPLE#HAP.  raises
+    RuntimeError on a name the pipeline cannot carry """
+    def invalid(why):
+        raise RuntimeError('Genome name "{}" is invalid: {}'.format(name, why))
+    if not name:
+        invalid('it is empty')
+    if name.startswith('.'):
+        invalid('it begins with "."')
+    if '|' in name or any(c.isspace() for c in name):
+        invalid('it contains whitespace or "|"')
+    if name.count('#') > 1:
+        invalid('a genome name is SAMPLE#HAPLOTYPE (PanSN), so it can contain at most one "#"')
+    sample, hash_sep, hap = name.partition('#')
+    if hash_sep:
+        if not sample:
+            invalid('the sample name before "#" is empty')
+        if not _PANSN_HAPLOTYPE_RE.fullmatch(hap):
+            invalid('the haplotype after "#" must be an integer')
+    elif dot_haplotypes and split_dot_haplotype(name):
+        sample, hap = split_dot_haplotype(name)
+    return '{}#{}'.format(sample, int(hap)) if hap and int(hap) else sample
+
+def split_pangenome_name(name):
+    """ (sample, haplotype) of a genome name as spelled from the seqfile on (see
+    normalize_pangenome_name), haplotype 0 when it doesn't give one.  a '.' is never read as a
+    haplotype here """
+    sample, _, hap = name.partition('#')
+    if hap and not _PANSN_HAPLOTYPE_RE.fullmatch(hap):
+        raise RuntimeError('Genome name "{}" is not SAMPLE#HAPLOTYPE'.format(name))
+    return sample, int(hap) if hap else 0
+
+def pangenome_name_to_pansn_prefix(name):
+    """ the SAMPLE#HAP prefix of the graph path names for a genome """
+    return '{}#{}'.format(*split_pangenome_name(name))
+
+def pangenome_name_sample(name):
+    """ the PanSN sample of a genome, which is what vg means by a sample (ex vg deconstruct -P) """
+    return split_pangenome_name(name)[0]
+
+def resolve_pangenome_name(name, names, dot_haplotypes=False):
+    """ the genome in names (a seqfile's, as normalized) that name, as given on the command line,
+    refers to, or None.  a name that is one of them is taken as it is (so GCA_054883195.1 finds a
+    haplotype 0 genome of that name), and any other is normalized the way the seqfile's names were
+    (so S288C#0 finds S288C and, with dot_haplotypes, HG002.1 finds HG002#1) """
+    if name in names:
+        return name
+    norm = normalize_pangenome_name(name, dot_haplotypes)
+    return norm if norm in names else None
+
+def pangenome_file_name(name):
+    """ a genome name as it appears in the name of a file that is imported or exported.  A '#' can't
+    be got into an S3 or GS key through Toil at all, so it becomes a '.', which keeps the layout of
+    the files the same as when the name was spelled HG002.1.  Two of a seqfile's genomes that would
+    collide this way (GCA_054883195.1 and GCA_054883195#1) are an error when it is read """
+    return name.replace('#', '.')
+
+def pangenome_seqfile_name(name):
+    """ a genome name as cactus writes it into a seqfile for a later step to read.  that's the name
+    itself, unless it would read as the old SAMPLE.N spelling of a haplotype, when it gets its #0
+    back (GCA_054883195.1#0): the seqfile then means the same genomes to a step whatever its
+    <graphmap dotHaplotypes> """
+    return name + '#0' if split_dot_haplotype(name) else name
 
 # cactus-align tags its raw, per-chromosome hal2vg output as <chrom>.raw.vg.  cactus-graphmap-join
 # writes the normalized graphs for the same chromosomes into <outName>.chroms/, and when both were
@@ -1317,6 +1408,19 @@ def readGlobalFileWithoutCache(fileStore, jobStoreID):
     fileStore.jobStore.readFile(jobStoreID, f)
     return f
 
+def read_global_file_mutable(job, file_id, path):
+    """ readGlobalFile(mutable=True), for a file that will be changed in place.  toil's non-caching
+    file store (the default for a file job store) ignores mutable and hardlinks the job store's file,
+    which for an imported local file is the user's own input (--symlinkImports).  changing that would
+    change the input, as well as the copy a retried job starts from, so anything still sharing its
+    inode is copied first """
+    job.fileStore.readGlobalFile(file_id, path, mutable=True)
+    if os.path.islink(path) or os.stat(path).st_nlink > 1:
+        copy_path = path + '.copy'
+        shutil.copyfile(path, copy_path)
+        os.replace(copy_path, path)
+    return path
+
 class ChildTreeJob(RoundedJob):
     """Spreads the child-job initialization work among multiple jobs.
 
@@ -1546,12 +1650,16 @@ def delete_directory(dir_path):
 
 def get_faidx_subpath_rename_cmd():
     """
-    transform chr1:10-15 (1-based inclusive) into chr1_sub_9_15 (0-based end open)
+    meant to transform chr1:10-15 (1-based inclusive) into chr1_sub_9_15 (0-based end open)
     this is a format that contains no special characters in order to make assembly hubs
     happy.  But it does require conversion going into vg which wants chr[9-15] and
     hal2vg is updated to do this autmatically
+
+    this used to be a GNU sed command (its e flag), but in a basic regex [0-9]+ matches a digit and
+    a literal '+', so it never renamed anything.  cactus_sanitizeFastaHeaders does the renaming.
+    a pass-through keeps that behaviour, and works with macOS sed, which has no e flag.
     """
-    return ['sed', '-e', r's/\([^:]*\):\([0-9]+\)-\([0-9]+\)/echo "\\1_sub_$((\\2-1))_\\3"/e']
+    return ['cat']
 
 def clean_jobstore_files(job, file_id_maps=None, file_ids=None, allow_none=False):
     """ clean some intermediate files that are no longer needed out of the jobstore """

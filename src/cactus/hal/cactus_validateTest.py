@@ -100,11 +100,15 @@ class TestCase(unittest.TestCase):
         self.assertEqual('chr1_sub_0_15', hal_sequence_name('chr1:0-15', pangenome=True))
         self.assertEqual('weird_name_here', hal_sequence_name('weird:name:here', pangenome=True))
         self.assertEqual('chr1', hal_sequence_name('id=HG002.1|chr1', pangenome=True))
+        # an already-sanitized header: the '#' in its genome is not a PanSN contig prefix
+        self.assertEqual('chr1', hal_sequence_name('id=HG002#1|chr1', pangenome=True))
+        self.assertEqual('chr1_sub_9_15', hal_sequence_name('id=HG002#1|HG002#1#chr1:10-15', pangenome=True))
 
     @unittest.skipIf(SANITIZER is None, 'cactus_sanitizeFastaHeaders not on PATH')
     def testNameMatchesTheSanitizer(self):
         headers = ['chr1 with a description', 'HG002#1#chr2:11-20', 'HG002#1#chr3',
-                   'id=OTHER|chr4', 'weird:name:here', 'a|pipe|name', 'chr5:0-4']
+                   'id=OTHER|chr4', 'weird:name:here', 'a|pipe|name', 'chr5:0-4',
+                   'id=HG002#1|chr6', 'id=HG002#1|HG002#1#chr7:11-20']
         path = self.writeFasta('headers.fa', [(h, 'ACGT') for h in headers])
         for pangenome in (False, True):
             command = [SANITIZER, path, 'MYGENOME'] + (['-p'] if pangenome else [])

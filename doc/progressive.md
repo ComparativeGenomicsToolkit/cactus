@@ -83,7 +83,7 @@ cactus <jobStorePath> <seqFile> <outputHal>
 
 The `jobStorePath` is where intermediate files, as well as job metadata, [will be kept by Toil](https://toil.readthedocs.io/en/latest/running/introduction.html#job-store). **It must be accessible to all worker systems.** 
 
-The `seqFile` is a text file containing the locations of the input sequences as well as their phylogenetic tree. The tree will be used to progressively decompose the alignment by iteratively aligning sibling genomes to estimate their parents in a bottom-up fashion. Polytomies in the tree are *no longer* allowed, as changes to chaining have caused them to lead to drops in coverage. Cactus uses the predicted branch lengths from the tree to determine appropriate pairwise alignment parameters, allowing closely related species to be aligned more quickly with no loss in accuracy. The file is formatted as follows:
+The `seqFile` is a text file containing the locations of the input sequences as well as their phylogenetic tree. The tree will be used to progressively decompose the alignment by iteratively aligning sibling genomes to estimate their parents in a bottom-up fashion. Polytomies (ancestors with more than two children) are allowed, but every pair of their children is aligned, so runtime grows quadratically with their number (see the FAQ below). Cactus uses the predicted branch lengths from the tree to determine appropriate pairwise alignment parameters, allowing closely related species to be aligned more quickly with no loss in accuracy. The file is formatted as follows:
 
     NEWICK tree
     name1 path1
@@ -676,7 +676,7 @@ We are currently working on incorporating a fast genome tree estimation workflow
 
 **A**:  Changes in the tree topology will affect the alignment, but like the Progressive Cactus paper shows, it'll be fairly minimal for small, local changes. For most data, there is no single correct tree anyway, due to things like incomplete lineage sorting, hybridization and lateral gene transfer.
 
-That said, cactus can handle multifurcations up to a point: runtime increases quadratically with the number of species in the split. So depending on your genome size, you probably won't be able to go much beyond 5. This should be more accurate in theory, but I haven't run the experiments to back it up.
+That said, cactus can handle multifurcations up to a point: runtime increases quadratically with the number of species in the split. So depending on your genome size, you probably won't be able to go much beyond 5. Versions 2.7.2 to 3.3.0 refused them unless `allow_multifurcations="1"` was set in the config, because the alignments between all the children are chained together, letting each base keep a primary alignment to only one other child, and groups of children could end up never aligned to each other. The alignments of each pair of children are now also chained on their own and used to join such groups (`<blast multifurcationPairSecondaries="1">`), which doubles the chaining's work. With the evolver mammals collapsed into a five-way star at the root, the alignment is at least as accurate as with the binary tree (mafComparator precision and recall of 0.895 and 0.702, against 0.876 and 0.669).
 
 **Q**: I'm running out of memory, or getting crashes, or very long runtimes in one of the `paf_xxxx` tools (`paf_tile, paf_to_bed` etc.). What can I do?
 

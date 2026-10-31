@@ -21,6 +21,7 @@ from cactus.shared.configWrapper import ConfigWrapper
 from cactus.shared.common import findRequiredNode, getOptionalAttrib
 from cactus.shared.common import cactus_clamp_memory
 from cactus.shared.common import cactus_walltime
+from cactus.paf.paf import multifurcation_pair_secondaries
 
 ############################################################
 ############################################################
@@ -264,9 +265,16 @@ def cactus_cons(job, tree, ancestor_event, config_node, seq_id_map, og_map, paf_
                 poa_window = None, base_aligner = None):
     ''' run cactus_consolidated '''
 
+    # a multifurcation's alignments come with the alignments of each pair of its ingroups as secondaries, which
+    # CAF must only use where they do not put two segments of one species in a block
+    pair_secondaries = multifurcation_pair_secondaries(len(tree.getChildren(tree.getNodeId(ancestor_event))),
+                                                       config_node)
+    pair_secondary_filter = pair_secondaries and not getOptionalAttrib(findRequiredNode(config_node, 'caf'),
+                                                                       'secondaryAlignmentFilter', default='')
+
     # cactus_consolidated reads its settings from the config, so the resolved page retention
     # goes into the copy it is given (this job's copy of the node, so nothing else sees it)
-    if retain_pages is not None or poa_window is not None or base_aligner is not None:
+    if retain_pages is not None or poa_window is not None or base_aligner is not None or pair_secondary_filter:
         config_node = copy.deepcopy(config_node)
         if retain_pages is not None:
             findRequiredNode(config_node, 'consolidated').set('retain_pages', str(retain_pages))
@@ -278,6 +286,8 @@ def cactus_cons(job, tree, ancestor_event, config_node, seq_id_map, og_map, paf_
         # likewise the base aligner, if <bar deepAligner> chose it for this ancestor
         if base_aligner is not None:
             findRequiredNode(config_node, 'bar').set('baseAligner', base_aligner)
+        if pair_secondary_filter:
+            findRequiredNode(config_node, 'caf').set('secondaryAlignmentFilter', 'sharedSpecies')
 
     # Build up a genome -> fasta map.
     work_dir = job.fileStore.getLocalTempDir()
@@ -304,6 +314,7 @@ def cactus_cons(job, tree, ancestor_event, config_node, seq_id_map, og_map, paf_
     use_secondary_alignments = int(config_node.find("blast").attrib["outputSecondaryAlignments"])  # We should really switch to
     # the empty string being false instead of 0
     assert use_secondary_alignments == 0 or use_secondary_alignments == 1
+    use_secondary_alignments = use_secondary_alignments or pair_secondaries
     if use_secondary_alignments:
         secondary_alignment_file = os.path.join(work_dir, f'{ancestor_event}_secondary.paf')
         system(f"grep 'tp:A:S' {paf_path} > {secondary_alignment_file} || [ $? -eq 1 ]")  # Alignments that are secondaries

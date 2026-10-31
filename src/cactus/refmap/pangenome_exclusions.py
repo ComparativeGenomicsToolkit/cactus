@@ -27,6 +27,7 @@ import shutil
 
 from cactus.shared.common import cactus_call, getOptionalAttrib, findRequiredNode, cactus_walltime
 from cactus.shared.common import cactus_clamp_memory
+from cactus.shared.common import pangenome_name_to_pansn_prefix, pangenome_file_name
 from toil.realtimeLogger import RealtimeLogger
 
 logger = logging.getLogger(__name__)
@@ -134,21 +135,19 @@ def resolve_subpath_naming(name):
 
 def event_to_pansn_prefix(event):
     """ the SAMPLE#HAP prefix that graph paths for a given seqfile event carry.  mirrors hal2vg's
-    resolve_haplotype_naming: a trailing .N with N all digits is the haplotype, otherwise 0 """
-    dot = event.rfind('.')
-    if dot != -1 and event[dot + 1:].isdigit():
-        return '{}#{}'.format(event[:dot], int(event[dot + 1:]))
-    return '{}#0'.format(event)
+    resolve_haplotype_naming: SAMPLE#HAP is its own prefix, and a name with no haplotype is
+    SAMPLE#0, whatever '.'s it has (GCA_054883195.1 is GCA_054883195.1#0) """
+    return pangenome_name_to_pansn_prefix(event)
 
 
 def pansn_prefix_to_event(pansn_prefix):
     """ inverse of event_to_pansn_prefix, for the degraded mode where the seqfile event names are
-    not available.  SAMPLE#0 -> SAMPLE, SAMPLE#1 -> SAMPLE.1, so the two haplotypes of a diploid
+    not available.  SAMPLE#0 -> SAMPLE, SAMPLE#1 -> SAMPLE#1, so the two haplotypes of a diploid
     still land in separate files instead of being merged """
     toks = pansn_prefix.split('#')
-    if len(toks) != 2:
-        return pansn_prefix.replace('#', '.')
-    return toks[0] if toks[1] == '0' else '{}.{}'.format(toks[0], toks[1])
+    if len(toks) == 2 and toks[1] == '0':
+        return toks[0]
+    return pansn_prefix
 
 
 def parse_path_name(name, path_length=None):
@@ -377,8 +376,8 @@ def event_by_pansn_prefix(rows):
 
 
 def safe_event_filename(event):
-    """ event names become file basenames; check_sample_names only constrains a leading '.' and a
-    numeric suffix, so guard against a name that would escape the output directory """
+    """ event names become file basenames; normalize_pangenome_name only rules out a leading '.',
+    so guard against a name that would escape the output directory """
     if os.sep in event or '/' in event or event in ('.', '..'):
         raise RuntimeError('genome name {} cannot be used as a file name'.format(event))
     return event
@@ -467,7 +466,7 @@ def ref_gaps_job(job, config, options, vg_path, vg_id, chrom_name, ref_event, dr
     """ the reference is never clipped, so its exclusions cannot be measured by absence.  measure
     them the way refgaps.sh does instead: runs along the reference with no other assembly aligned.
 
-    `vg depth -m0 -P <ref>#` prints one line per reference base as `path <TAB> 1-based-pos <TAB>
+    `vg depth -m0 -P <SAMPLE#HAP>#` prints one line per reference base as `path <TAB> 1-based-pos <TAB>
     depth`, where depth excludes the reference path itself.  It is streamed, never materialised """
     work_dir = job.fileStore.getLocalTempDir()
     local_vg_path = os.path.join(work_dir, os.path.basename(vg_path))
@@ -496,7 +495,7 @@ def ref_gaps_job(job, config, options, vg_path, vg_id, chrom_name, ref_event, dr
     # does the 1-based -> 0-based half-open conversion, emitting one [pos-1, pos) singleton per
     # zero base, which merge_sorted_bed_stream then joins back into runs
     zeros_path = os.path.join(work_dir, '{}.zeros.bed'.format(chrom_name))
-    cactus_call(parameters=[['vg', 'depth', depth_input_path, '-m0', '-P', ref_event + '#'],
+    cactus_call(parameters=[['vg', 'depth', depth_input_path, '-m0', '-P', event_to_pansn_prefix(ref_event) + '#'],
                             ['awk', DEPTH_TO_BED_AWK]],
                 outfile=zeros_path, job_memory=job.memory)
 
@@ -1036,7 +1035,7 @@ def compute_exclusions_job(job, config, options, phase_coverage, baseline_id, sp
         if not ids:
             continue
         name = 'refgaps.bed.gz' if len(refgap_ids) == 1 else 'refgaps.{}.bed.gz'.format(
-            safe_event_filename(ref_event))
+            safe_event_filename(pangenome_file_name(ref_event)))
         path = os.path.join(out_dir, name)
         rows = bp = 0
         with gzip.open(path, 'wt') as out_file:

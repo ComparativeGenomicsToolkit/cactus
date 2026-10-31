@@ -649,7 +649,7 @@ def main():
         # don't mask
         options.maskMode = 'none'
         # set cutBefore to #
-        # so HG002#0#chrY would turn into id=HG002.0|chrY (so long as event name is HG002.0)
+        # so HG002#1#chrY would turn into id=HG002#1|chrY (so long as event name is HG002#1)
         for node in configNode.findall("preprocessor"):
             if getOptionalAttrib(node, "preprocessJob") == 'cutHeaders':
                 node.attrib["cutBefore"] = "#"

@@ -215,11 +215,12 @@ def graph_map(options):
             for chrom, inputs in input_map.items():
                 input_seqfile, input_gfa = inputs[0], inputs[1]
             
-                seqFile = SeqFile(input_seqfile, defaultBranchLen=config_wrapper.getDefaultBranchLen(pangenome=True))
+                seqFile = SeqFile(input_seqfile, defaultBranchLen=config_wrapper.getDefaultBranchLen(pangenome=True), pangenome=True,
+                                  dot_haplotypes=config_wrapper.getDotHaplotypes())
                 input_seq_map = seqFile.pathMap
 
                 # validate the sample names
-                check_sample_names(input_seq_map.keys(), options.reference)
+                options.reference = check_sample_names(input_seq_map.keys(), options.reference, config_wrapper.getDotHaplotypes())
                 
                 # check --reference input (a bit redundant to above, but does additional leaf check)
                 if options.reference:
@@ -892,11 +893,22 @@ gaf_pansn_re = re.compile(r'(^|[\t><])id=([^|\t\n<>]+)\|')
 
 def pansn_to_event_map(names):
     """ SAMPLE#HAP -> seqfile event, for the genomes in names.  event_to_pansn_prefix is lossy
-    (both S288C and S288C.0 give S288C#0), so going back needs the event names to hand """
+    (both S288C and S288C#0 give S288C#0), so going back needs the event names to hand """
     prefix_map = {}
     for event in names:
         prefix_map.setdefault(event_to_pansn_prefix(event), event)
     return prefix_map
+
+def cactus_name_to_event(event, names, prefix_map):
+    """ the seqfile event that the EVENT of an id=EVENT| name is, or None.  a GAF from a cactus that
+    kept the #0 of a genome given that way (id=S288C#0|) finds the genome (S288C) through prefix_map.
+    a '.' is never a haplotype here: id=HG002.1| is the genome HG002.1, not HG002#1 """
+    if event in names:
+        return event
+    try:
+        return prefix_map.get(event_to_pansn_prefix(event))
+    except RuntimeError:
+        return None
 
 # SAMPLE#HAP, as it appears in a published (PanSN) GAF's query column and in each of its path
 # segments.  anchored like gaf_pansn_re above, and stopping at the second '#' so that a PanSN
@@ -909,7 +921,8 @@ def gaf_from_pansn(names, gaf_path, out_path):
 
     a prefix that is not one of the seqfile's genomes is left alone rather than mangled, which
     covers both an already-cactus-named GAF (from a cactus old enough to have published one) and
-    any contig name that happens to look like a PanSN prefix """
+    any contig name that happens to look like a PanSN prefix.  a genome spelled with its #0 in such
+    a GAF (id=S288C#0|) is updated to the seqfile's spelling (id=S288C|) """
     prefix_map = pansn_to_event_map(names)
 
     def replace(m):
@@ -918,9 +931,15 @@ def gaf_from_pansn(names, gaf_path, out_path):
             return m.group(0)
         return '{}id={}|'.format(m.group(1), event)
 
+    def replace_cactus(m):
+        event = cactus_name_to_event(m.group(2), names, prefix_map)
+        if event is None or event == m.group(2):
+            return m.group(0)
+        return '{}id={}|'.format(m.group(1), event)
+
     with open(gaf_path, 'r') as in_file, open(out_path, 'w') as out_file:
         for line in in_file:
-            out_file.write(pansn_gaf_re.sub(replace, line))
+            out_file.write(gaf_pansn_re.sub(replace_cactus, pansn_gaf_re.sub(replace, line)))
 
 def split_gaf_by_event(job, gaf_id, names, gaf_path):
     """ split a published (merged) GAF into one file per genome, returning {event: file id} """
@@ -960,8 +979,7 @@ def split_gaf_file_by_event(gaf_path, names, shard_dir):
         """ the seqfile event a GAF query column belongs to, or None """
         if query_name.startswith('id='):
             barpos = query_name.find('|')
-            event = query_name[3:barpos] if barpos > 3 else None
-            return event if event in names else None
+            return cactus_name_to_event(query_name[3:barpos], names, prefix_map) if barpos > 3 else None
         hashpos = query_name.find('#')
         if hashpos < 0:
             return None
@@ -1011,8 +1029,7 @@ def gaf_to_pansn(gaf_path, out_path):
     naming, so the two files cactus publishes sat in different namespaces.  Nothing inside
     cactus was affected -- gaf2unstable runs above on the cactus-named GAF against the
     cactus-named GFA -- but a reader of the published pair could not resolve a GAF path
-    segment against the graph it came from, nor recover sample and haplotype without knowing
-    that cactus encodes the haplotype as a .N suffix.
+    segment against the graph it came from.
 
     Both the query column and the path column are rewritten: id=EVENT| appears in each and
     nowhere else in the record, so a single substitution over the line covers it. """

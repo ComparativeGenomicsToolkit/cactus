@@ -24,7 +24,7 @@
 
 void usage() {
     fprintf(stderr, "cactus_santizeFastaHeaders [fastaFile] [EVENT] (-p)\n");
-    fprintf(stderr, "-p: add pangenome-specific processing to strip everything before (up to) last occurrence of #\n");
+    fprintf(stderr, "-p: add pangenome-specific processing to strip everything before (up to) last occurrence of # (after any id=EVENT| prefix)\n");
 }
 
 static stSet* header_set = NULL;
@@ -64,12 +64,24 @@ void addUniqueFastaPrefix(void* destination, const char *fastaHeader, const char
         exit(1);
     }
 
+    // a header that's already been sanitized keeps its id=EVENT| prefix.  the event name can be
+    // SAMPLE#HAP, so everything below (the # stripping, the range conversion) is only applied to
+    // the contig name after it, and the prefix is put back on at the end
+    int64_t last = strlen(fastaHeader);
+    int64_t prefix_len = 0;
+    if (strncmp(fastaHeader, "id=", 3) == 0) {
+        for (int64_t i = 3; i < last && !isspace(fastaHeader[i]); ++i) {
+            if (fastaHeader[i] == '|') {
+                prefix_len = i + 1;
+                break;
+            }
+        }
+    }
+
     // we cut at whitespace (like preprocessor does by default)
     // optionally cut out up to last #
-    int64_t start = 0;
-    int64_t last = strlen(fastaHeader);
-
-    for (size_t i = start; i < last; ++i) {
+    int64_t start = prefix_len;
+    for (int64_t i = start; i < last; ++i) {
         if (isspace(fastaHeader[i])) {
             last = i;
             break;
@@ -130,20 +142,22 @@ void addUniqueFastaPrefix(void* destination, const char *fastaHeader, const char
         }
     }
 
+    // put the prefix back on, or add one if there wasn't any
+    char* prefixed_header = (char*)st_malloc(strlen(clipped_header) + prefix_len + strlen(eventName) + 8);
+    if (prefix_len > 0) {
+        sprintf(prefixed_header, "%.*s%s", (int)prefix_len, fastaHeader, clipped_header);
+    } else {
+        sprintf(prefixed_header, "id=%s|%s", eventName, clipped_header);
+    }
+    free(clipped_header);
+    clipped_header = prefixed_header;
+
     if (stSet_search(header_set, (void*)clipped_header) != NULL) {
         fprintf(stderr, "Error: The sanitzied fasta header \"%s\" appears more than once for event \"%s\". Please ensure fast headers are unique for each input\n", clipped_header, eventName);
         exit(1);
     }
 
     stSet_insert(header_set, stString_copy(clipped_header));
-    
-    if (strncmp(clipped_header, "id=", 3) != 0 || strchr(clipped_header, '|') == NULL) {
-        // no prefix found, we add one
-        char* prefixed_header = (char*)st_malloc(strlen(clipped_header) + strlen(eventName) + 8);
-        sprintf(prefixed_header, "id=%s|%s", eventName, clipped_header);
-        free(clipped_header);
-        clipped_header = prefixed_header;
-    }
     
     // sanity check
     int64_t n = strlen(string);
