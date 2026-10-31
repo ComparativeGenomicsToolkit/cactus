@@ -551,8 +551,9 @@ cactus-pangenome ./js ./seqfile.txt --outDir pg --outName pg --reference GRCh38 
 | `<outName>.gref.gbz`, `.gref.gfa.gz` | The source graph with the `gref_<reference>` sample added. |
 | `<outName>.gref.vcf.gz` etc. | The VCF set from the [table above](#vcf-output) (`.raw`, `.wave`, `.L<NN>`), deconstructed against `gref_<reference>` rather than the reference sample. |
 | `<outName>.gref.gref-segs.tsv.gz` | Where every synthetic fragment came from (see below). |
+| `<outName>.gref.hapl` | Haplotype sampling index for `gref.gbz`, when the `--gref` source graph is one of the `--haplo` types. |
 
-The gref graph adds paths only, no nodes or edges, so it is topologically identical to the base graph and gets no topology indexes of its own. Use the base graph's `<outName>.snarls`, `.dist` and `.hapl` with `gref.gbz`. `.gref.snarls` and `.gref.hapl` are not produced.
+The gref graph adds paths only, no nodes or edges, so it is topologically identical to the base graph. Use the base graph's `<outName>.snarls` and `.dist` with `gref.gbz`; `.gref.snarls` is not produced. The `.hapl` is the exception, because it refers to haplotypes by their numbering in the GBZ and the gref paths change that numbering. `vg haplotypes` rejects the base `<outName>.hapl` on `gref.gbz`, so use `<outName>.gref.hapl`. Its distance index is rooted on the reference sample. That is the same as rooting on the base `gref_<reference>` paths, which end on the same nodes, while leaving out the `_alt` fragments.
 
 The segment table maps a gref coordinate back onto an assembly one. Tab-separated, one row per fragment, with a header naming the columns; the first six are a valid BED6.
 

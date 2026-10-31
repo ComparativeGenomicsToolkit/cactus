@@ -425,9 +425,10 @@ def graphmap_join_options(parser):
     parser.add_argument("--gref", nargs='?', const='clip', default=None,
                         help="[EXPERIMENTAL] Generate graph reference outputs. Adds synthetic "
                         "reference paths covering non-reference graph regions via vg paths -u, then "
-                        "produces additional .gref.* outputs (gbz, gfa, vcf). The gref graph is "
-                        "topologically identical to the base graph, so the base graph's indexes "
-                        "(snarls, dist, hapl) apply to gref.gbz directly. Valid source types "
+                        "produces additional .gref.* outputs (gbz, gfa, vcf, and hapl if the source "
+                        "type is among the --haplo types). The gref graph is topologically identical "
+                        "to the base graph, so the base graph's snarls and dist apply to gref.gbz "
+                        "directly, but its hapl does not. Valid source types "
                         "are 'full', 'clip', 'filter'. Default: 'clip'. [default: disabled]")
     parser.add_argument("--minGrefLen", type=int, default=None,
                         help="Minimum graph reference fragment length [default from config: 50]")
@@ -774,6 +775,10 @@ def graphmap_join_validate_options(options):
         if getattr(options, 'collapse', False) or getattr(options, 'collapseRefPAF', None):
             raise RuntimeError('--gref is not compatible with --collapse or --collapseRefPAF '
                                '(vg paths -u requires acyclic reference paths)')
+        # the base graph's .hapl cannot stand in for a .gref.hapl (see the gref call site)
+        if options.haplo and options.gref not in options.haplo:
+            logger.warning('No .gref.hapl will be made since the --gref source graph ({}) is not among the '
+                           '--haplo types ({})'.format(options.gref, ' '.join(options.haplo)))
 
     # check the --pgrealign targets now rather than after the alignment that cactus-pangenome runs
     # first.  the workflow imports them from a job, whose working directory is not the user's
@@ -1466,11 +1471,15 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
             gref_parent_job = gref_fasta_job
 
         # build GFA, GBZ and, if VCFs were asked for, a VCF from the graph-reference VGs.  the gref
-        # graph is topologically identical to the base graph (it only adds paths), so it never gets
-        # its own topology indexes (snarls/dist/hapl): the base graph's indexes work on gref.gbz.
+        # graph is topologically identical to the base graph (it only adds paths), so the base
+        # graph's snarls and dist work on gref.gbz and it gets none of its own.  the .hapl is the
+        # exception: it addresses haplotypes by GBWT path id, and the gref paths, which land
+        # within each chromosome's block of paths, renumber nearly all of them.  vg haplotypes
+        # refuses a .hapl built for a different path count, so gref.gbz needs its own
         gref_out_dicts = build_vg_indexes_and_vcf(gref_parent_job, options, config, gref_vg_ids, vg_ids,
                                                  tag='gref.', index_mem=index_mem, max_mem=max_mem,
-                                                 vcf_ref=gref_sample, vcftag='gref', do_haplo=False,
+                                                 vcf_ref=gref_sample, vcftag='gref',
+                                                 do_haplo=options.gref in options.haplo,
                                                  ref_fasta_dict=gref_fasta_dict,
                                                  is_gref=True, decon_L=options.vcfL)
         out_dicts.extend(gref_out_dicts)
@@ -3036,6 +3045,9 @@ def make_haplo_index(job, options, config, index_dict, giraffe_dict, tag=''):
         # note we are using --no-nested-distance here to reduce memory, and its all haplo sampling needs.
         # -P always roots the snarl tree on the true reference: it must be an acyclic linear backbone,
         # so never the graph-reference cover (whose _alt fragments make a top-level chain that loops).
+        # -P is a prefix that upweights the end nodes of the paths it matches, so -P gref_<ref> would
+        # take in the fragments too.  on gref.gbz, -P <ref> roots on exactly the base gref_<ref>
+        # paths, which are copies of the reference paths and so end on the same nodes
         dist_path += '1'
         dist_cmd = ['vg', 'index', '-t', str(job.cores), '-j', dist_path, gbz_path, '--no-nested-distance',
                     '-P', options.reference[0]]
@@ -3141,8 +3153,8 @@ def build_vg_indexes_and_vcf(parent_job, options, config, phase_vg_ids, vg_ids,
                              ref_fasta_dict=None, do_haplo=False, is_gref=False,
                              decon_L=None):
     """ Common workflow: per-chrom VG -> GFA -> GBZ (+snarls unless is_gref), with optional VCF and haplo.
-    For the gref graph (is_gref) the topology matches the base graph, so no snarls/haplo are built;
-    pass do_haplo=False at the call site.  Returns list of output dicts to append to out_dicts.
+    For the gref graph (is_gref) the topology matches the base graph, so no snarls are built, but
+    its haplo index must be its own.  Returns list of output dicts to append to out_dicts.
     """
     out_dicts = []
 
