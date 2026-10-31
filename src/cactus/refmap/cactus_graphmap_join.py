@@ -1218,6 +1218,8 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
     # collected across the phase loop; a single combined panacus report is built afterwards
     panacus_phase_dicts = {}
     panacus_merge_jobs = []
+    # each phase's make_vg_indexes job, whose output holds its snarls, for sizing the gref graph's indexes
+    phase_index_jobs = {}
 
     for workflow_phase, phase_vg_ids, phase_root_job in workflow_phases:
 
@@ -1250,6 +1252,7 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
             out_dicts.append(gfa_merge_job.rv())
             prev_job = gfa_merge_job
             current_out_dict = gfa_merge_job.rv()
+            phase_index_jobs[workflow_phase] = gfa_merge_job
             if workflow_phase == 'full' and need_ref_fasta and not options.bypass:
                 # we need fasta references from the gbz for vcf normalization
                 ref_fasta_job = gfa_merge_job.addFollowOnJobFn(extract_gbz_fasta, options, current_out_dict,
@@ -1492,7 +1495,9 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
                                                  vcf_ref=gref_sample, vcftag='gref',
                                                  do_haplo=options.gref in options.haplo,
                                                  ref_fasta_dict=gref_fasta_dict,
-                                                 is_gref=True, decon_L=options.vcfL)
+                                                 is_gref=True, decon_L=options.vcfL,
+                                                 source_index_job=phase_index_jobs.get(options.gref),
+                                                 source_tag=options.gref + '.')
         out_dicts.extend(gref_out_dicts)
 
         # merge gref segments
@@ -3047,11 +3052,14 @@ def index_job_memory(options, sizing, index_dict, tag):
     the larger of index_mem_factor * index_mem, capped at 128Gi, which covers vg minimizer and vg
     haplotypes on a small graph without reserving a terabyte on a big panel, and
     INDEX_MEMORY_PER_SNARLS_BYTE times the size of the graph's snarls file, which covers vg index -j on a
-    big graph.  a gref graph has no snarls file, and gets the first alone """
+    big graph.  a gref graph has no snarls file, so it uses the snarls of the phase it was made from
+    (sizing's source_dict and source_tag), whose topology it has """
     if options.indexMemory:
         return sizing['index_mem']
     memory = min(int(sizing['index_mem'] * sizing['index_mem_factor']), 128 * 2**30)
     snarls_id = index_dict.get('{}snarls'.format(tag))
+    if not snarls_id and sizing.get('source_dict'):
+        snarls_id = sizing['source_dict'].get('{}snarls'.format(sizing['source_tag']))
     if snarls_id:
         memory = max(memory, snarls_id.size * INDEX_MEMORY_PER_SNARLS_BYTE)
     return cactus_clamp_memory(memory)
@@ -3219,10 +3227,12 @@ def snarl_stats(job, options, config, vg_path, vg_id):
 def build_vg_indexes_and_vcf(parent_job, options, config, phase_vg_ids, vg_ids,
                              tag, index_mem, max_mem, vcf_ref=None, vcftag=None,
                              ref_fasta_dict=None, do_haplo=False, is_gref=False,
-                             decon_L=None):
+                             decon_L=None, source_index_job=None, source_tag=None):
     """ Common workflow: per-chrom VG -> GFA -> GBZ (+snarls unless is_gref), with optional VCF and haplo.
     For the gref graph (is_gref) the topology matches the base graph, so no snarls are built, but
-    its haplo index must be its own.  Returns list of output dicts to append to out_dicts.
+    its haplo index must be its own.  source_index_job is the make_vg_indexes job of the phase the
+    gref graph was made from, and source_tag its tag: its snarls size the haplo index.  Returns list
+    of output dicts to append to out_dicts.
     """
     out_dicts = []
 
@@ -3271,14 +3281,20 @@ def build_vg_indexes_and_vcf(parent_job, options, config, phase_vg_ids, vg_ids,
     # optional haplo index
     if do_haplo:
         # see the other make_haplo_index call site
+        sizing = dict(index_mem=index_mem, index_mem_factor=1.5,
+                      disk=sum(f.size for f in vg_ids) * 16,
+                      walltime=scaled_walltime(MAKE_HAPLO_INDEX_SECS_PER_GB,
+                                               sum(f.size for f in vg_ids),
+                                               io_multiple=0.5))
+        if source_index_job:
+            sizing.update(source_dict=source_index_job.rv(), source_tag=source_tag)
         haplo_job = gbz_job.addFollowOnJobFn(make_haplo_index, options, config, index_dict,
-                                              None, tag=tag,
-                                              sizing=dict(index_mem=index_mem, index_mem_factor=1.5,
-                                                          disk=sum(f.size for f in vg_ids) * 16,
-                                                          walltime=scaled_walltime(MAKE_HAPLO_INDEX_SECS_PER_GB,
-                                                                                   sum(f.size for f in vg_ids),
-                                                                                   io_multiple=0.5)),
+                                              None, tag=tag, sizing=sizing,
                                               walltime=cactus_walltime())
+        if source_index_job:
+            # the source phase's indexes are not otherwise done before this graph's, and
+            # index_job_memory reads its snarls
+            source_index_job.addFollowOn(haplo_job)
         out_dicts.append(haplo_job.rv())
 
     return out_dicts
