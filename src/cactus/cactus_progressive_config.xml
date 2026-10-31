@@ -553,9 +553,11 @@
 	<!-- assemblyName: special name of "virtual" minigraph assembly, which is just the list of sequences from the graph. -->
 	<!-- dotHaplotypes: read a seqfile genome name with no '#' that ends in .N (N an integer), like HG002.1, as the old spelling of haplotype N of its sample (HG002#1). With "0", such a name is taken as it is (GCA_054883195.1 is a sample of that name). Either way, this only applies to the names in a seqfile (and the names given on the command line in place of them): a '.' is never read as a haplotype anywhere else. Haplotypes are given the PanSN way, SAMPLE#N, and this default will change to "0" -->
 	<!-- minigraphMapOptions: flags to pass to minigraph for mapping -->
-	<!-- minigraphConstructOptions: flags to pass to minigraph for construction -->
+	<!-- minigraphConstructOptions: flags to pass to minigraph for construction.  ggs-cnv (with a double dash, on by default; it needs the pinned glennhickey/minigraph) places copy-number variants by their own sequence: graph chaining may cross a long deletion (up to 300 kb) whose flanking chains touch on the query, and a variant is inserted even where its own chain passes the same graph interval twice, so a lost copy is no longer routed through a near-identical paralog and a gained copy is inserted instead of skipped.  On chr1 with 464 HPRC genomes it placed every AMY1/AMY2 haplotype class on the right copy and cut the locus edit distance by 68%, for 16% more alternate sequence, mostly 1q21 paralogs.  On a CHM13 30-way pangenome it had about 0.6% fewer dipcall errors, but chr19 and chr10 were worse and the SMN and IGK snarls grew.  Remove it to build the graph as before.  It is for construction only (in minigraphMapOptions it would change how mappings are chained), and stock minigraph exits on it. -->
 	<!-- par-align is output-preserving, ~1.3x on whole-genome construction for ~10% more CPU.
-	     Needs the glennhickey/minigraph fork; stock minigraph exits on the unknown option. -->
+	     Needs the glennhickey/minigraph fork; stock minigraph exits on the unknown option.  The pinned
+	     fork has it on by default (no-par-align turns it off), so it is only kept here for older builds
+	     of the fork. -->
 	<!-- minigraphConstructBatchSize: break minigraph construction into chunks of this size. this allows recovering from a failure during graph construction, and avoiding really long argument lists for each job. -->
 	<!-- minimapCollapseOptions: options for minimap2 when using it for  self-alignments. Note these were inspired in part by https://github.com/lh3/minimap2/issues/106 !-->
 	<!-- collapse: Toggles self-alignment logic. Supported values are "none" and "all". Experimental values "reference" and "nonref" can also be tried.  -->
@@ -599,7 +601,7 @@
 		 assemblyName="_MINIGRAPH_"
 		 dotHaplotypes="1"
 		 minigraphMapOptions="-c -xasm --par-align"
-		 minigraphConstructOptions="-c -xggs --par-align"
+		 minigraphConstructOptions="-c -xggs --par-align --ggs-cnv"
 		 minimapCollapseOptions="-c -D -xasm5 -m500"
 		 collapse="none"
 		 maxCollapseDistanceRatio="5"
