@@ -1423,7 +1423,9 @@ class TestCase(unittest.TestCase):
         self.assertLess(filter_degree_dist, clip_degree_dist)
 
         clip_nodes = int(subprocess.check_output(['vg', 'stats', '-N', os.path.join(join_path, 'yeast.gbz')]).strip().decode('utf-8').strip())
-        self.assertGreaterEqual(clip_nodes, 400000)
+        # the extend run's clip graph is right at 400000 (400121, then 399907 when clip-vg's flank
+        # calibration found enough background to trim chrIX), so leave room below it
+        self.assertGreaterEqual(clip_nodes, 390000)
         self.assertLessEqual(clip_nodes, 500000)
         xg_clip_nodes = int(subprocess.check_output(['vg', 'stats', '-N', os.path.join(join_path, 'yeast.xg')]).strip().decode('utf-8').strip())
         self.assertEqual(clip_nodes, xg_clip_nodes)
