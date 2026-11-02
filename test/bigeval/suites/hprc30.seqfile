@@ -3,7 +3,8 @@
 # The maternal (.2) haplotypes of the 13 non-HG002 samples are v1.2.0 in v2.1, which is v1.0.1 with its
 # mitochondrion replaced by GenBank's corrected (.2) record.  v1.2.0 has no public copy, so the URLs below are
 # v1.0.1's, and the suite makes v1.2.0 from them (MITO in hprc30.py).  Used as it is, this seqfile differs from
-# v2.1's inputs only in those 13 mitochondria.
+# v2.1's inputs only in those 13 mitochondria.  Haplotypes are named SAMPLE.N, the spelling older cactus builds
+# need; a run's seqfile spells them SAMPLE#N for a cactus that reads PanSN names (reads_pansn in hprc30.py).
 CHM13	https://s3-us-west-2.amazonaws.com/human-pangenomics/working/HPRC_PLUS/CHM13/assemblies/analysis_set/pansn/chm13v2.0_maskedY_rCRS.fa.PanSN.fa.gz
 GRCh38	https://s3-us-west-2.amazonaws.com/human-pangenomics/pangenomes/freeze/release2/minigraph-cactus/v2.1/input/hg38.chroms.fa.gz
 HG00408.2	https://s3-us-west-2.amazonaws.com/human-pangenomics/working/HPRC/HG00408/assemblies/release2/HG00408_mat_hprc_r2_v1.0.1.fa.gz

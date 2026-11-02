@@ -24,6 +24,7 @@ delete its chrom-* directories once it is recorded, unless they are wanted.  cac
 walltimes (--doubleTime) need --toilOpts '--slurmTime 24:00:00' or so: Toil's default is too short for some jobs.
 """
 import collections, csv, os, re, shlex
+import xml.etree.ElementTree as ET
 
 NAME = 'hprc30'
 DESCRIPTION = 'cactus-pangenome on CHM13, GRCh38 and 28 HPRC haplotypes: dipcall and GIAB HG002 accuracy'
@@ -81,12 +82,19 @@ def download(r):
     genomes = r.seqfile_genomes(r.data(SEQFILE))
     paths = dict(zip([g for g, _ in genomes], r.fetch_all([u for _, u in genomes])))
     r.parallel(*[lambda g=g: paths.__setitem__(g, mito_corrected(r, g, paths[g])) for g in MITO])
+    pansn = reads_pansn(r)
     with open(r.data(SEQFILE)) as f, open(r.path(SEQFILE), 'w') as out:
         for line in f:
             p = line.split()
             if len(p) == 2 and p[0] in paths:
-                line = '{}\t{}\n'.format(p[0], paths[p[0]])
+                line = '{}\t{}\n'.format(re.sub(r'\.(\d+)$', r'#\1', p[0]) if pansn else p[0], paths[p[0]])
             out.write(line)
+
+def reads_pansn(r):
+    """whether the cactus under test takes a haplotype as SAMPLE#N, the PanSN spelling, in a seqfile.  The suite names
+    them SAMPLE.N, the only spelling a cactus older than <graphmap dotHaplotypes> reads as a haplotype; one with it
+    reads SAMPLE#N, and is to stop reading SAMPLE.N (dotHaplotypes="0" is to be the default)"""
+    return any('dotHaplotypes' in e.attrib for e in ET.parse(r.path('config.xml')).iter('graphmap'))
 
 def mito_corrected(r, genome, v101):
     """genome's v1.2.0 fasta, made from its v1.0.1 download (in the cache, once)"""
