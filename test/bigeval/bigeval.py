@@ -156,6 +156,18 @@ def make_venv(d):
     return ('python3 -m venv {d} || {{ rm -rf {d}; python3 -m venv --without-pip {d} && '
             'python3 -m pip -q --python {d}/bin/python install pip; }}').format(d=shlex.quote(d))
 
+def slurm_seconds(t):
+    """a slurm time limit in seconds: MM, MM:SS, HH:MM:SS or D-HH[:MM[:SS]], or infinite"""
+    if t in ('infinite', 'UNLIMITED'):
+        return float('inf')
+    days, dash, rest = t.rpartition('-')
+    f = [int(x) for x in rest.split(':')]
+    if dash:
+        h, m, s = f + [0] * (3 - len(f))
+    else:
+        h, m, s = (0, f[0], 0) if len(f) == 1 else [0] * (3 - len(f)) + f
+    return ((int(days or 0) * 24 + h) * 60 + m) * 60 + s
+
 class Run:
     """one run's directory, parameters and the means to run its steps:
 
@@ -179,6 +191,8 @@ class Run:
         self._print_lock = threading.Lock()
         self._env_lock = threading.Lock()
         self._activated = {}
+        self._slurm_lock = threading.Lock()
+        self._partitions = None
 
     seqfile_genomes = staticmethod(seqfile_genomes)
     make_venv = staticmethod(make_venv)
@@ -310,14 +324,30 @@ class Run:
             f.write(textwrap.dedent(script).strip() + '\n')
         cmd = ['sbatch', '--wait', '--parsable', '-J', self.tag + '.' + name, '-c', str(cpus), '--mem', mem,
                '--time', time, '-o', log]
-        if self.p.get('partition'):
-            cmd += ['-p', self.p['partition']]
+        partition = self.partition(time)
+        if partition:
+            cmd += ['-p', partition]
         cmd += shlex.split(self.p.get('sbatch_opts') or '') + [job]
         self.log('{}: sbatch {} ({} cores, {})'.format(name, job, cpus, mem))
         r = subprocess.run(cmd, stdout=subprocess.DEVNULL, stdin=subprocess.DEVNULL,
                            env=self.env(venv, cactus_bin))
         if r.returncode:
             raise RuntimeError('slurm job {} failed, see {}'.format(name, log))
+
+    def partition(self, limit):
+        """the partition for a job with time limit limit: --partition, else the one Toil would choose -- one without
+        GRES, then of the lowest priority tier, then with the shortest time limit that holds the job.  The cluster's
+        default partition may be too short for it.  None leaves it to slurm."""
+        if self.p.get('partition'):
+            return self.p['partition']
+        with self._slurm_lock:
+            if self._partitions is None:
+                r = subprocess.run(['sinfo', '-a', '-h', '-o', '%P %G %l %p'], capture_output=True, text=True,
+                                   stdin=subprocess.DEVNULL)
+                self._partitions = [l.split() for l in r.stdout.splitlines() if len(l.split()) == 4]
+        fits = [(gres != '(null)', int(tier) if tier.isdigit() else sys.maxsize, slurm_seconds(t), name.rstrip('*'))
+                for name, gres, t, tier in self._partitions if slurm_seconds(t) >= slurm_seconds(limit)]
+        return min(fits)[3] if fits else None
 
     @contextlib.contextmanager
     def cache_lock(self, key):
@@ -594,7 +624,8 @@ def main():
                    help='set a config attribute, which must be in the config already, on one element (repeatable)')
     s.add_argument('--cactusOpts', dest='cactus_opts', help='more options for the suite\'s cactus command, in quotes')
     s.add_argument('--cache', help='the cache shared between runs [$BIGEVAL_CACHE, else cache/ beside the run]')
-    s.add_argument('--partition', help='slurm partition, for both Toil and sbatch [the cluster\'s default]')
+    s.add_argument('--partition', help='slurm partition, for both Toil and sbatch [chosen by each job\'s time limit, '
+                   'as Toil does]')
     s.add_argument('--sbatchOpts', dest='sbatch_opts', help='more options for every sbatch, in quotes')
     s.add_argument('--toilOpts', dest='toil_opts', help='more options for every Toil workflow, in quotes')
     s.add_argument('--detach', action='store_true', help='run in the background')
