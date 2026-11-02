@@ -92,7 +92,10 @@ def identity(venv):
     head = git(checkout, 'rev-parse', 'HEAD')
     ident['checkout_head'] = head or ''
     ident['cactus_version'] = (git(checkout, 'describe', '--tags', '--always') or '') if head else ''
-    ident['dirty'] = bool(head and git(checkout, 'status', '--porcelain', '-uno', '--ignore-submodules=untracked'))
+    # changes to the code, not those its build makes (cactus's Makefile edits some submodules' Makefiles; a submodule
+    # at another commit still counts) nor a binary release's missing files (it ships part of the tree, with its .git)
+    ident['dirty'] = bool(head and git(checkout, 'diff', 'HEAD', '--name-only', '--diff-filter=d',
+                                       '--ignore-submodules=dirty'))
     return ident
 
 def harness_identity():
