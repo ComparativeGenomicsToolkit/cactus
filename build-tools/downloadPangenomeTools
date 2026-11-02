@@ -356,8 +356,10 @@ if [[ $isMac -eq 1 ]]
 then
 	 # There is no Mac release binary, so build it.  Its Makefile finds Homebrew's dependencies
 	 # itself and chooses its own flags.
-	 git clone --recursive --branch v1.78.0 https://github.com/vgteam/vg.git
+	 git clone --recursive https://github.com/vgteam/vg.git
 	 cd vg
+	 git checkout 453e6c01bb412186eaa948fd1bb413d45c089f0e
+	 git submodule update --init --recursive
 	 env -u CFLAGS -u CXXFLAGS -u CPPFLAGS -u LDFLAGS make -j ${numcpu}
 	 # vg links some of the libraries it builds (libvgio, libhts, ...) from its own lib/ by absolute
 	 # path.  Copy them to ${libDir}, have vg and each other find them through vg's rpath, and
@@ -382,7 +384,8 @@ then
 	 done
 	 mv bin/vg ${binDir}
 else
-	 wget -nv --tries=5 --waitretry=3 --timeout=60 --retry-connrefused https://github.com/vgteam/vg/releases/download/v1.78.0/vg
+	 #wget -nv --tries=5 --waitretry=3 --timeout=60 --retry-connrefused https://github.com/vgteam/vg/releases/download/v1.78.0/vg
+	 wget -nv --tries=5 --waitretry=3 --timeout=60 --retry-connrefused https://public.gi.ucsc.edu/~ghickey/vg-patch/vg.453e6c01bb412186eaa948fd1bb413d45c089f0e -O vg
 	 chmod +x vg
 	 if [[ $STATIC_CHECK -ne 1 || $(ldd vg | grep so | wc -l) -eq 0 ]]
 	 then
