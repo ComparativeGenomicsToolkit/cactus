@@ -104,7 +104,8 @@ def mito_corrected(r, genome, v101):
     def make(d):
         r.sbatch('mito-' + genome, '''
             cd {d}
-            wget -q -O mito.fa '{url}'
+            # the 13 jobs start together, and NCBI turns away more than 3 requests a second
+            wget -nv --tries 10 --waitretry 60 --retry-on-http-error=429,500,502,503,504 -O mito.fa '{url}'
             [ "$(head -1 mito.fa | cut -c2- | cut -d' ' -f1)" = {acc}.2 ] || {{ echo "GenBank did not return {acc}.2" >&2; exit 1; }}
             seq=$(grep -v '^>' mito.fa | tr -d '\\n' | tr a-z A-Z)
             [ "$(printf %s "$seq" | md5sum | cut -d' ' -f1)" = {md5} ] || {{ echo "{acc}.2 is not the sequence HPRC v2.1 has" >&2; exit 1; }}
