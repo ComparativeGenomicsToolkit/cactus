@@ -36,7 +36,8 @@ SUITES = os.path.join(HARNESS, 'suites')
 SCORING = os.path.join(HARNESS, 'scoring')
 RESULTS = os.path.join(HARNESS, 'results')
 # columns every row starts with, before the suite's metrics
-ID_COLUMNS = ['date', 'label', 'cactus_commit', 'cactus_version', 'dirty', 'config', 'cactus_opts', 'eval']
+ID_COLUMNS = ['date', 'label', 'cactus_commit', 'cactus_version', 'dirty', 'config', 'cactus_opts', 'eval',
+              'harness_commit']
 
 def now():
     return datetime.datetime.now().astimezone().isoformat(timespec='seconds')
@@ -170,6 +171,11 @@ def slurm_seconds(t):
     else:
         h, m, s = (0, f[0], 0) if len(f) == 1 else [0] * (3 - len(f)) + f
     return ((int(days or 0) * 24 + h) * 60 + m) * 60 + s
+
+def slurm_bytes(s):
+    """a sacct memory figure (19523348K, 1.5G, 0, or nothing) in bytes"""
+    m = re.match(r'([\d.]+)([KMGTP]?)$', s)
+    return float(m.group(1)) * 1024 ** ' KMGTP'.index(m.group(2) or ' ') if m else 0
 
 class Run:
     """one run's directory, parameters and the means to run its steps:
@@ -416,13 +422,43 @@ class Run:
             return ''
         return round((max(s['end'] for s in st) - min(s['start'] for s in st)) / 3600, 2)
 
+    def slurm_cost(self, *names):
+        """(CPU hours, peak GiB) of the slurm jobs of Toil workflows names, from sacct: each job's elapsed time times
+        its cores, summed, and the most memory any one job used (MaxRSS, which slurm samples, so a job of seconds
+        shows none).  Every job Toil submitted counts, those that failed and were retried too.  ('', '') if sacct
+        cannot account for them all."""
+        ids = []
+        for n in names:
+            try:
+                with open(self.path('logs', n + '.log'), errors='replace') as f:
+                    ids += re.findall(r'queued as job (\d+)', f.read())
+            except FileNotFoundError:
+                return '', ''
+        ids = sorted(set(ids))
+        seen, cpu_s, peak = set(), 0, 0
+        for i in range(0, len(ids), 500):
+            r = subprocess.run(['sacct', '-n', '-P', '-o', 'JobID,AllocCPUS,ElapsedRaw,MaxRSS', '-j',
+                                ','.join(ids[i:i + 500])], capture_output=True, text=True, stdin=subprocess.DEVNULL)
+            if r.returncode:
+                return '', ''
+            for line in r.stdout.splitlines():
+                job, cpus, elapsed, rss = line.split('|')
+                if job in ids and job not in seen:
+                    seen.add(job)
+                    cpu_s += int(cpus) * int(elapsed)
+                peak = max(peak, slurm_bytes(rss))
+        if not ids or len(seen) != len(ids):
+            return '', ''
+        return round(cpu_s / 3600, 1), round(peak / 2 ** 30, 1)
+
 def summarize(r):
     """the run's row: who and what, then the suite's metrics"""
     metrics = r.suite.summarize(r)
     ident = r.p['identity']
     row = collections.OrderedDict()
     steps = r.steps()
-    row['date'] = datetime.date.fromtimestamp(max(s['end'] for s in steps.values())).isoformat()
+    # the day the run started
+    row['date'] = r.p['created'][:10]
     row['label'] = r.p['label']
     row['cactus_commit'] = ident['cactus_commit'][:12]
     row['cactus_version'] = ident['cactus_version']
@@ -431,6 +467,8 @@ def summarize(r):
     row['config'] = ','.join(r.p['set']) or ('stock' if not r.p['config'] else os.path.basename(r.p['config']))
     row['cactus_opts'] = r.p.get('cactus_opts') or ''
     row['eval'] = r.suite.EVAL_VERSION
+    # the harness (this cactus checkout) the run was started from
+    row['harness_commit'] = r.p['harness']['harness_commit'][:12] + ('-dirty' if r.p['harness']['harness_dirty'] else '')
     row.update(metrics)
     row['run'] = r.out
     summary = collections.OrderedDict([('suite', r.p['suite']), ('row', row), ('params', r.p), ('steps', steps)])

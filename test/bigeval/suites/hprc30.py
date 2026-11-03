@@ -16,7 +16,8 @@ among them, as in the HPRC v2.1 graph -- with CHM13 as reference, scored by the 
             Run to run noise is about 0.0002 F1.
   graph     nodes, edges and Mb of the graph and the % of input sequence left out of it (cactus-graphmap-join's
             stats; blank for a cactus that does not write them)
-  cost      build_h: cactus-pangenome's wall-clock hours, queueing included
+  cost      build_h: cactus-pangenome's wall-clock hours, queueing included; build_cpu_h: its slurm jobs' hours times
+            their cores, summed (retried jobs included); build_peak_gib: the most memory any one of them used
 
 The truths are fixed manifests (hprc30.dipcall.csv, hprc30.giab.csv) and toil-vcfcomp a fixed commit, so every run
 is scored the same way and runs compare by their rows.  A run takes about 130 GB, almost all of it in hprc30/:
@@ -240,6 +241,7 @@ def summarize(r):
             m[k] = round(m[k], 6)
     m['nodes'], m['edges'], m['graph_mb'], m['clipped_pct'] = graph(r)
     m['build_h'] = r.hours('build')
+    m['build_cpu_h'], m['build_peak_gib'] = r.slurm_cost('build')
     return m
 
 def contig_order(c):

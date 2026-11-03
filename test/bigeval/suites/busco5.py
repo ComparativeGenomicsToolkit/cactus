@@ -17,7 +17,8 @@
             over the 20 pairs.  It rewards aligning noise as much as homology, so it ranks aligners almost exactly
             backwards; it is here to show how much is aligned, not how well
   cost      cons_h and cons_peak_gib: cactus_consolidated's hours summed over the ancestors, and its peak memory;
-            align_h: the alignment's wall-clock hours, mostly queueing
+            align_h: the alignment's wall-clock hours, mostly queueing; align_cpu_h and align_peak_gib: its slurm
+            jobs' hours times their cores, summed (retried jobs included), and the most memory any one of them used
   busco_truth  a digest of the BUSCO calls: compleasm does not make the same calls twice, so only rows with the
             same digest are comparable.  They are made once and kept in the cache.
 
@@ -332,6 +333,7 @@ def summarize(r):
     m['cons_h'] = round(sum(h for h, gib in cons.values()), 2) if cons else ''
     m['cons_peak_gib'] = round(max(gib for h, gib in cons.values()), 1) if cons else ''
     m['align_h'] = r.hours('align')
+    m['align_cpu_h'], m['align_peak_gib'] = r.slurm_cost('align')
     m['busco_truth'] = busco_truth(r, names)
     return m
 
