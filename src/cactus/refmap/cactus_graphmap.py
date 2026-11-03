@@ -330,7 +330,8 @@ def export_graphmap_output(options, config_node, input_map, output_dict, toil):
                 shutil.copyfile(input_map[chrom][0], out_seqfile_path)
             else:
                 assert input_map[chrom][0] == options.seqFile
-            add_genome_to_seqfile(out_seqfile_path, makeURL(fa_path), graph_event)
+            add_genome_to_seqfile(out_seqfile_path, makeURL(fa_path), graph_event,
+                                  ConfigWrapper(config_node).getDefaultBranchLen(pangenome=True))
 
         #update the chromfile and copy the seqfile
         if options.batch:
@@ -1645,9 +1646,14 @@ def filter_paf_deletions(job, paf_id, gfa_id, max_deletion, filter_threshold, fi
     # return the results
     return (job.fileStore.writeGlobalFile(filter_paf_path), job.fileStore.writeGlobalFile(filter_log_path), was_filtered)  
 
-def add_genome_to_seqfile(seqfile_path, fasta_path, name):
-    """ hack the auto-generated minigraph assembly back into the seqfile for future use """
-    seq_file = SeqFile(seqfile_path)
+def add_genome_to_seqfile(seqfile_path, fasta_path, name, default_branch_len):
+    """ hack the auto-generated minigraph assembly back into the seqfile for future use.
+    default_branch_len is the pangenome one (<decomposition default_branch_len_pangenome>), which the
+    minigraph assembly's branch, and any branch a given tree leaves out, get.  a seqfile without a tree
+    is written back without one, so cactus-align gives its star tree the pangenome default itself:
+    writing out the star tree here, with SeqFile's default of 1.0, put every pangenome aligned from
+    this seqfile (all of --mgSplit) in the wrong <caf annealingRounds> bucket """
+    seq_file = SeqFile(seqfile_path, defaultBranchLen=default_branch_len)
 
     # add the genome to the tree (branching off root)
     in_tree = False
@@ -1668,7 +1674,7 @@ def add_genome_to_seqfile(seqfile_path, fasta_path, name):
 
     # write the seq file back to disk
     with open(seqfile_path, 'w') as seqfile_handle:
-        seqfile_handle.write(str(seq_file))
+        seqfile_handle.write(seq_file.toString(withTree=not seq_file.implicitTree))
 
 if __name__ == "__main__":
     main()

@@ -12,22 +12,29 @@ pin down.
 
 These are fast and offline.  The end-to-end extension is covered by evolverTest.py.
 
-TestGafOverlapFilterConfig, at the end, pins down which GAF overlap filter command each <graphmap>
-setting runs (the exact filter, gaffilter -x, is on by default; "0" must give the stock command).
+TestGafOverlapFilterConfig pins down which GAF overlap filter command each <graphmap> setting runs
+(the exact filter, gaffilter -x, is on by default; "0" must give the stock command).
+
+TestAddGenomeToSeqFile, at the end, checks that the seqfile cactus-graphmap adds the minigraph
+assembly to keeps the pangenome default branch length.
 """
 
 import copy
 import gzip
 import os
 import re
+import shutil
 import tempfile
 import unittest
 import xml.etree.ElementTree as ET
 
 from cactus.shared.common import cactusRootPath
+from cactus.shared.configWrapper import ConfigWrapper
+from cactus.progressive.progressive_decomposition import parse_seqfile
 from cactus.refmap.cactus_graphmap import (
     gaf_from_pansn, gaf_to_pansn, pansn_to_event_map, split_gaf_file_by_event, trim_unstable_gaf,
-    gaf_to_unstable_commands, overlap_filter_exact, check_overlap_filter_config, apply_mgsplit_filter_overrides)
+    gaf_to_unstable_commands, overlap_filter_exact, check_overlap_filter_config, apply_mgsplit_filter_overrides,
+    add_genome_to_seqfile)
 
 
 # a stable GAF line as minigraph writes it: query name, then a path of stable segments with
@@ -448,6 +455,54 @@ class TestGafOverlapFilterConfig(unittest.TestCase):
         root = self.config(GAFOverlapFilterTrim='0', GAFOverlapFilterTrimEdge='5000', GAFOverlapFilterTrimMinMAPQ='20',
                            GAFOverlapFilterExact='0')
         self.assertEqual(self.commands(root), (self.STOCK, None, None))
+
+
+class TestAddGenomeToSeqFile(unittest.TestCase):
+    """ cactus-graphmap adds the minigraph assembly to the seqfile cactus-align then reads (the
+    chrom-graphmap/*.gm.seqfile of --mgSplit).  the tree cactus-align gets must have the pangenome
+    default branch length, which picks <caf annealingRounds>, rather than SeqFile's own 1.0 """
+
+    def setUp(self):
+        self.temp_dir = tempfile.mkdtemp()
+        config_root = ET.parse(os.path.join(cactusRootPath(), 'cactus_progressive_config.xml')).getroot()
+        # the seqfiles below use the old HG002.N spelling of a haplotype
+        config_root.find('graphmap').set('dotHaplotypes', '1')
+        self.config = ConfigWrapper(config_root)
+        self.pg_len = self.config.getDefaultBranchLen(pangenome=True)
+
+    def tearDown(self):
+        shutil.rmtree(self.temp_dir)
+
+    def write_seqfile(self, lines):
+        path = os.path.join(self.temp_dir, 'seqfile.txt')
+        with open(path, 'w') as seq_file:
+            seq_file.write('\n'.join(lines) + '\n')
+        return path
+
+    def branch_lengths(self, path):
+        mc_tree = parse_seqfile(path, self.config, pangenome=True)[0]
+        return {mc_tree.getName(leaf) : mc_tree.getWeight(mc_tree.getParent(leaf), leaf) for leaf in mc_tree.getLeaves()}
+
+    def test_no_tree(self):
+        # written back without a tree, so cactus-align makes its own star tree
+        self.assertNotEqual(self.pg_len, 1.0)
+        path = self.write_seqfile(['CHM13\tchm13.fa', 'HG002.1\tpat.fa', '*HG002#2\tmat.fa'])
+        add_genome_to_seqfile(path, 'mg.fa', '_MINIGRAPH_', self.pg_len)
+        with open(path) as seq_file:
+            self.assertEqual(seq_file.read(), 'CHM13\tchm13.fa\nHG002.1\tpat.fa\n*HG002#2\tmat.fa\n_MINIGRAPH_\tmg.fa\n')
+        self.assertEqual(self.branch_lengths(path), {name : self.pg_len for name in ['CHM13', 'HG002#1', 'HG002#2', '_MINIGRAPH_']})
+
+    def test_tree(self):
+        # a given tree keeps its lengths, and the minigraph assembly and a missing branch get the pangenome default
+        path = self.write_seqfile(['(CHM13:0.01,HG002.1,HG002.2:0.03);', 'CHM13\tchm13.fa', 'HG002.1\tpat.fa', 'HG002.2\tmat.fa'])
+        add_genome_to_seqfile(path, 'mg.fa', '_MINIGRAPH_', self.pg_len)
+        self.assertEqual(self.branch_lengths(path), {'CHM13' : 0.01, 'HG002#1' : self.pg_len, 'HG002#2' : 0.03, '_MINIGRAPH_' : self.pg_len})
+        # adding it again changes nothing
+        with open(path) as seq_file:
+            before = seq_file.read()
+        add_genome_to_seqfile(path, 'mg.fa', '_MINIGRAPH_', self.pg_len)
+        with open(path) as seq_file:
+            self.assertEqual(seq_file.read(), before)
 
 
 if __name__ == '__main__':

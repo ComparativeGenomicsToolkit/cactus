@@ -54,6 +54,7 @@ from toil.realtimeLogger import RealtimeLogger
 class SeqFile:
     def __init__(self, path=None, defaultBranchLen=1.0, root_name = None, pangenome = False, dot_haplotypes = None):
         self.branchLen = defaultBranchLen        
+        self.implicitTree = False
         if path is not None:
             self.parseFile(path, root_name, pangenome, dot_haplotypes)
 
@@ -97,7 +98,9 @@ class SeqFile:
                 elif len(tokens) > 0:
                     sys.stderr.write("Skipping line %s\n" % l)
 
-        if self.tree is None:
+        # a seqfile without a tree gets a star tree, whose branch lengths are this reader's default
+        self.implicitTree = self.tree is None
+        if self.implicitTree:
             self.starTree()
         self.cleanTree(root_name)
         self.validate()
@@ -301,10 +304,17 @@ class SeqFile:
 
     # convert to string
     def __str__(self):
+        return self.toString()
+
+    # withTree=False leaves the tree out, so a seqfile read without one can be written back without one,
+    # and whoever reads it next gives its star tree their own default branch length
+    def toString(self, withTree=True):
         og_set = set(self.outgroups)
             
-        s = NXNewick().writeString(self.tree)
-        s += '\n'
+        s = ''
+        if withTree:
+            s += NXNewick().writeString(self.tree)
+            s += '\n'
         for name, path in self.pathMap.items():
             if name in og_set:
                 s += '*'
