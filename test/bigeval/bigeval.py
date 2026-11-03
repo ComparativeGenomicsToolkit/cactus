@@ -630,17 +630,23 @@ def cmd_record(a):
         with open(table) as f:
             rd = csv.DictReader(f, delimiter='\t')
             header, rows = list(rd.fieldnames), list(rd)
-    if any(x.get('run') == row['run'] and x.get('date') == row['date'] for x in rows):
-        sys.exit('{} already has this run'.format(table))
-    header += [k for k in row if k not in header]
-    rows.append(row)
+    same = [i for i, x in enumerate(rows) if x.get('run') == row['run'] and x.get('date') == row['date']]
+    if same and not a.replace:
+        sys.exit('{} already has this run: --replace it with its summary as it is now'.format(table))
+    # the columns in the order this row has them (a suite's new columns land among their kind, not after the
+    # last), then any only older rows have
+    header = list(row) + [k for k in header if k not in row]
+    if same:
+        rows[same[0]] = row
+    else:
+        rows.append(row)
     os.makedirs(os.path.dirname(os.path.abspath(table)), exist_ok=True)
     with open(table + '.tmp', 'w') as f:
         w = csv.DictWriter(f, header, delimiter='\t', lineterminator='\n', restval='')
         w.writeheader()
         w.writerows(rows)
     os.replace(table + '.tmp', table)
-    print('added {} to {}'.format(row['label'], table))
+    print('{} {} in {}'.format('replaced' if same else 'added', row['label'], table))
 
 def cmd_compare(a):
     runs = [Run(d) for d in a.dirs]
@@ -686,6 +692,8 @@ def main():
     s = sub.add_parser('record', help='add a finished run\'s row to its suite\'s results table')
     s.add_argument('dir')
     s.add_argument('--results', help='the table [results/SUITE.tsv beside this script]')
+    s.add_argument('--replace', action='store_true', help='replace the run\'s row if the table has it already, '
+                   'e.g. after summarize adds columns')
     s = sub.add_parser('compare', help='finished runs of one suite side by side, in detail')
     s.add_argument('dirs', nargs='+')
     a = ap.parse_args()

@@ -62,7 +62,9 @@ test/bigeval/bigeval.py record DIR        # appends the row to test/bigeval/resu
 git add test/bigeval/results/<suite>.tsv  # and commit
 ```
 
-`record` can run anywhere that can read the run directory. To see runs side by side in detail (per pair, per
+`record` can run anywhere that can read the run directory. When a suite gains columns, `summarize DIR` remakes a
+finished run's row and `record --replace DIR` puts it in place of the old one. GitHub shows the tables as tables,
+scrolling sideways. To see runs side by side in detail (per pair, per
 ancestor, per sample, and so on, depending on the suite):
 
 ```

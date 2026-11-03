@@ -14,8 +14,12 @@ among them, as in the HPRC v2.1 graph -- with CHM13 as reference, scored by the 
               GIAB     HG002 against GIAB's Q100 benchmark on CHM13v2.0: small variants (smvar) and structural
                        variants (stvar), GT F1 and errors
             Run to run noise is about 0.0002 F1.
-  graph     nodes, edges and Mb of the graph and the % of input sequence left out of it (cactus-graphmap-join's
-            stats; blank for a cactus that does not write them)
+  graph     nodes, edges and Mb of the graph and the % of input sequence left out of it; path_frags, the paths (path
+            fragments: clipping breaks a contig into several) in the graph, CHM13's and GRCh38's included, and
+            path_mb, their length (cactus-graphmap-join's stats; blank for a cactus that does not write them).
+            From --snarlStats (vg stats -R): snarls, all of them, and snarls_top, the top-level ones; snarls_10kb
+            and snarls_100kb, the top-level snarls with that much sequence or more, their children's included; and
+            snarl_max_kb, the most sequence in any snarl.  Big snarls are tangles that the VCFs simplify or drop
   cost      build_h: cactus-pangenome's wall-clock hours, queueing included; build_cpu_h: its slurm jobs' hours times
             their cores, summed (retried jobs included); build_peak_gib: the most memory any one of them used
 
@@ -24,7 +28,7 @@ is scored the same way and runs compare by their rows.  A run takes about 130 GB
 delete its chrom-* directories once it is recorded, unless they are wanted.  cactus builds that predate per-job
 walltimes (--doubleTime) need --toilOpts '--slurmTime 24:00:00' or so: Toil's default is too short for some jobs.
 """
-import collections, csv, os, re, shlex
+import collections, csv, gzip, os, re, shlex
 import xml.etree.ElementTree as ET
 
 NAME = 'hprc30'
@@ -217,6 +221,41 @@ def graph(r):
         return '', '', '', ''
     return n, e, round(l / 1e6, 1), clipped[0] if clipped else ''
 
+def paths(r):
+    """(fragments, Mb) of the graph's paths, from cactus-graphmap-join's path-stats (vg paths -E on the clipped graph,
+    the GBZ's), if it wrote them"""
+    for name in ('path-stats.tsv.gz', 'path-stats.tsv'):
+        path = os.path.join(prefix(r) + '.stats', name)
+        if os.path.exists(path):
+            with (gzip.open if name.endswith('.gz') else open)(path, 'rt') as f:
+                lengths = [int(row[2]) for row in csv.reader(f, delimiter='\t') if row and not row[0].startswith('#')]
+            return len(lengths), round(sum(lengths) / 1e6, 1)
+    return '', ''
+
+def snarls(r):
+    """(snarls, top-level snarls, top-level snarls of >= 10 kb and of >= 100 kb, kb in the biggest), a snarl's size
+    being the bases in it, its children's included, from --snarlStats' table (vg stats -R), if there is one"""
+    path = prefix(r) + '.snarl-stats.tsv.gz'
+    if not os.path.exists(path):
+        return '', '', '', '', ''
+    n = top = big = huge = biggest = 0
+    with gzip.open(path, 'rt') as f:
+        for line in f:
+            # vg stats -R's columns from Start on; --snarl-sample puts the reference interval before them.
+            # Deep-Bases is the 12th, Depth the 13th.
+            x = line.rstrip('\n').rsplit('\t', 17)[-17:]
+            if not x[0].isdigit():
+                # a chromosome's header
+                continue
+            n += 1
+            if x[12] == '0':
+                top += 1
+                b = int(x[11])
+                big += b >= 10000
+                huge += b >= 100000
+                biggest = max(biggest, b)
+    return n, top, big, huge, round(biggest / 1000, 1)
+
 def summarize(r):
     m = collections.OrderedDict()
     dipcall, giab = report(r, 'dipcall'), report(r, 'giab')
@@ -240,6 +279,8 @@ def summarize(r):
         if isinstance(m[k], float):
             m[k] = round(m[k], 6)
     m['nodes'], m['edges'], m['graph_mb'], m['clipped_pct'] = graph(r)
+    m['path_frags'], m['path_mb'] = paths(r)
+    m['snarls'], m['snarls_top'], m['snarls_10kb'], m['snarls_100kb'], m['snarl_max_kb'] = snarls(r)
     m['build_h'] = r.hours('build')
     m['build_cpu_h'], m['build_peak_gib'] = r.slurm_cost('build')
     return m
