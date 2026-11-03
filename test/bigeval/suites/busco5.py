@@ -341,7 +341,7 @@ def compare(runs, out):
     """the BUSCO groups and cactus_consolidated per ancestor, a column per run; then each scorer's own side-by-side
     tables: BUSCO per pair, coverage per pair, and CTCF per target with what each run aligns that the first does not"""
     names = list(DEPTH)
-    labels = [r.p['label'] for r in runs]
+    labels = runs[0].short_labels([r.p['label'] for r in runs])
     head = lambda title: out.write('{:24s}'.format(title) + ''.join(' {:>17s}'.format(l[:17]) for l in labels) + '\n')
     out.write('# BUSCO, pairs pooled by the deepest split they span: % of CDS correct / misaligned\n')
     head('group')
@@ -364,8 +364,8 @@ def compare(runs, out):
     out.flush()
     py = os.path.join(runs[0].venv, 'bin', 'python')
     subprocess.run([py, runs[0].scorer('busco-align-eval.py'), '--summarize'] +
-                   ['{}={}'.format(r.p['label'], r.path('busco-eval.txt')) for r in runs], stdout=out, check=True)
+                   ['{}={}'.format(l, r.path('busco-eval.txt')) for l, r in zip(labels, runs)], stdout=out, check=True)
     out.write('\n')
     out.flush()
     subprocess.run([py, runs[0].scorer('ctcf-align-eval.py'), 'summarize', '--baseline', labels[0]] +
-                   ['{}={}'.format(r.p['label'], r.path('ctcf-sites.tsv.gz')) for r in runs], stdout=out, check=True)
+                   ['{}={}'.format(l, r.path('ctcf-sites.tsv.gz')) for l, r in zip(labels, runs)], stdout=out, check=True)

@@ -252,7 +252,7 @@ def contig_order(c):
 def compare(runs, out):
     """dipcall errors per sample and per chromosome, GIAB F1 per variant type: a column per run, then the change
     from the first run"""
-    labels = [r.p['label'] for r in runs]
+    labels = runs[0].short_labels([r.p['label'] for r in runs])
     def head(title):
         out.write('{:24s}'.format(title) + ''.join(' {:>14s}'.format(l[:14]) for l in labels) +
                   ''.join(' {:>9s}'.format('\u0394' + l[:8]) for l in labels[1:]) + '\n')

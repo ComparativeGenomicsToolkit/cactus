@@ -160,6 +160,12 @@ def make_venv(d):
     return ('python3 -m venv {d} || {{ rm -rf {d}; python3 -m venv --without-pip {d} && '
             'python3 -m pip -q --python {d}/bin/python install pip; }}').format(d=shlex.quote(d))
 
+def short_labels(labels):
+    """labels less the words they all start with (a suite and date, say, of runs started together), for columns"""
+    common = os.path.commonprefix(labels) if len(labels) > 1 else ''
+    common = common[:max(common.rfind('-'), common.rfind('_')) + 1]
+    return [l[len(common):] or l for l in labels]
+
 def slurm_seconds(t):
     """a slurm time limit in seconds: MM, MM:SS, HH:MM:SS or D-HH[:MM[:SS]], or infinite"""
     if t in ('infinite', 'UNLIMITED'):
@@ -205,6 +211,7 @@ class Run:
 
     seqfile_genomes = staticmethod(seqfile_genomes)
     make_venv = staticmethod(make_venv)
+    short_labels = staticmethod(short_labels)
 
     def path(self, *p):
         return os.path.join(self.out, *p)
