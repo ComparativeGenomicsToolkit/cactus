@@ -779,11 +779,14 @@
 
 		<!-- default_internal_node_prefix: internal nodes of the tree are labeled with this prefix then a BFS order number -->
 		<!-- default_branch_len: use this branch length if information is missing from the input tree -->
-		<!-- default_branch_len_pangenome: use this branch length (for implicit star tree) in pangenome mode -->
+		<!-- default_branch_len_pangenome: use this branch length (for implicit star tree) in pangenome mode.  The star
+		     tree's longest path, twice this length, picks <caf annealingRounds>: 0.15 gives 0.3, past the "five"
+		     divergence, so pangenomes chain with the "default" minimum length of 256.  On a CHM13 pangenome of 30 HPRC
+		     haplotypes, 512, 1024 and 2048 made 0.2%, 0.4% and 0.9% more dipcall errors -->
 	 	<decomposition
 	 		default_internal_node_prefix="Anc"
 			default_branch_len="1"
-			default_branch_len_pangenome="0.02"
+			default_branch_len_pangenome="0.15"
 	 	/>
   	</multi_cactus>
 	<!-- cactus_consolidated memory.  One number is estimated: the peak with jemalloc page retention
