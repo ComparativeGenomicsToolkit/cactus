@@ -101,6 +101,7 @@ testModules = \
     refmap/cactus_graphmap_extendTest.py \
     refmap/cactus_panpatchTest.py \
     refmap/pangenome_exclusionsTest.py \
+    refmap/telomere_anchorsTest.py \
     update/cactus_update_prepareTest.py
 
 # Unit tests (just collecting everything in bin/ with "test" in the name)

@@ -549,13 +549,14 @@ def cactus_align(job, config_wrapper, mc_tree, input_seq_map, input_seq_id_map, 
     # export_hal called without has_resources stages no file: it resolves the c2h/fasta promises
     # into sizes and re-dispatches itself with them, so this pass is coordination.  halAppendCactusSubtree
     # runs in the resourced pass, which sizes its own walltime.
-    hal_job = cons_job.addFollowOnJobFn(export_hal, sub_tree, config_wrapper.xmlRoot, new_seq_id_map, og_map, results, event=root_name, inMemory=True,
+    # cons_job.rv(4) is new_seq_id_map as consolidated aligned it: the minigraph fasta with any telomere anchor targets
+    hal_job = cons_job.addFollowOnJobFn(export_hal, sub_tree, config_wrapper.xmlRoot, cons_job.rv(4), og_map, results, event=root_name, inMemory=True,
                                         checkpointInfo=checkpointInfo, acyclicEvent=referenceEvents[0] if referenceEvents and not allow_collapse else None,
                                         memory_override=cons_memory, validate=validate,
                                         walltime=cactus_walltime())
 
     # clean out some of the  intermediate jobstore files
-    hal_job.addFollowOnJobFn(clean_jobstore_files, file_id_maps=[new_seq_id_map], file_ids=[paf_id], walltime=cactus_walltime())
+    hal_job.addFollowOnJobFn(clean_jobstore_files, file_id_maps=[new_seq_id_map, cons_job.rv(4)], file_ids=[paf_id], walltime=cactus_walltime())
 
     # optionally create the VG
     if doVG or doGFA:

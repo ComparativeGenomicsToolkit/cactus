@@ -135,7 +135,10 @@ pushd minigraph
 # sequence (off by default in minigraph, output unchanged without it; cactus's config turns it on).
 # canonical-ins-order: the segments added for one input file are numbered by where they attach and
 # what they insert, not by the order of the file's contigs, which used to change the graph later on.
-git checkout 9b1397ff8df097df3d16f97a7df18c05ffdd7080
+# ggs-ends: opt-in --ggs-ends, graph generation that adds a query's overhang past a chromosome end of
+# the graph as a tip attached at one side (off by default in minigraph; cactus's config turns it on,
+# with the telomere anchors of <graphmap telomereAnchors>).
+git checkout cb0f8fc895577701db548c9491092e8350334d9e
 # hack in flags support
 sed -i.bak -e 's/CFLAGS=/CFLAGS+=/' -e 's/LIBS=/LIBS+=/' Makefile
 LIBS="${jemallocLib}" make -j ${numcpu}
