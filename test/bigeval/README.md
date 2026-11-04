@@ -44,6 +44,8 @@ Options worth knowing:
   attribute must already be there, on exactly one element (of tag `ELEMENT`, if given), so a typo or a build without
   the option fails at once, not days later. `--config FILE` starts from another config instead.
 - `--cactusOpts '...'` adds options to the suite's cactus command.
+- `--dropOpts=FLAGS` leaves flags (options without a value) out of the suite's cactus command, e.g.
+  `--dropOpts=--mgSplit`. A flag the suite does not pass fails the run at once.
 - `--label NAME` names the run in its row (default: the run directory's name).
 - `--partition`, `--sbatchOpts`, `--toilOpts` for the cluster.
 - `--cache DIR`: see below. Default `$BIGEVAL_CACHE`, else `cache/` beside the run directory.
@@ -81,7 +83,7 @@ Each row starts with:
 | `cactus_version` | `git describe` of the install's checkout, if it is one |
 | `dirty` | `yes` if the checkout had local changes or was not at the installed commit |
 | `config` | the `--set` changes, `stock` for none, or the `--config` file's name |
-| `cactus_opts` | `--cactusOpts` |
+| `cactus_opts` | `--cactusOpts`, then `without FLAG` for each `--dropOpts` flag |
 | `eval` | the suite's `EVAL_VERSION`: rows scored by different versions are not comparable |
 
 and ends with `run`, the run directory.

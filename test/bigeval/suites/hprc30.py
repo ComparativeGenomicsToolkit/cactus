@@ -128,8 +128,7 @@ def mito_corrected(r, genome, v101):
 def build(r):
     os.makedirs(r.path(NAME), exist_ok=True)
     r.toil('build', ['cactus-pangenome', r.path(SEQFILE), '--outDir', r.path(NAME), '--outName', NAME,
-                     '--configFile', r.path('config.xml')] + CACTUS_OPTS +
-           shlex.split(r.p.get('cactus_opts') or ''), output=prefix(r) + '.gbz')
+                     '--configFile', r.path('config.xml')] + r.cactus_opts(CACTUS_OPTS), output=prefix(r) + '.gbz')
     for q in ('raw', 'wave'):
         if not os.path.exists('{}.{}.vcf.gz'.format(prefix(r), q)):
             raise RuntimeError('cactus-pangenome finished without making {}.{}.vcf.gz'.format(prefix(r), q))

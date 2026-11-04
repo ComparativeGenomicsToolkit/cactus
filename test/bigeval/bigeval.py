@@ -310,6 +310,11 @@ class Run:
             opts += ['--slurmPartition', self.p['partition']]
         return opts + shlex.split(self.p.get('toil_opts') or '')
 
+    def cactus_opts(self, defaults):
+        """the suite's cactus options, defaults, less the flags --dropOpts names, then --cactusOpts"""
+        drop = shlex.split(self.p.get('drop_opts') or '')
+        return [o for o in defaults if o not in drop] + shlex.split(self.p.get('cactus_opts') or '')
+
     def toil(self, name, cmd, output=None, env=None, toil_opts=None):
         """run the Toil workflow cmd, its jobstore (js/name) inserted as its first argument.  It is restarted when an
         earlier attempt left its jobstore.  A workflow removes its jobstore when it finishes, so if output exists
@@ -472,7 +477,8 @@ def summarize(r):
     row['dirty'] = 'yes' if ident['dirty'] or (ident['checkout_head'] and
                             ident['cactus_commit'][:12] != ident['checkout_head'][:12]) else 'no'
     row['config'] = ','.join(r.p['set']) or ('stock' if not r.p['config'] else os.path.basename(r.p['config']))
-    row['cactus_opts'] = r.p.get('cactus_opts') or ''
+    row['cactus_opts'] = '; '.join([o for o in [r.p.get('cactus_opts')] if o] +
+                                   ['without ' + o for o in shlex.split(r.p.get('drop_opts') or '')])
     row['eval'] = r.suite.EVAL_VERSION
     # the harness (this cactus checkout) the run was started from
     row['harness_commit'] = r.p['harness']['harness_commit'][:12] + ('-dirty' if r.p['harness']['harness_dirty'] else '')
@@ -531,6 +537,12 @@ def cmd_run(a):
     if os.path.exists(out):
         sys.exit('{} already exists: resume it, or choose another --out'.format(out))
     suite = load_suite(a.suite)
+    opts = getattr(suite, 'CACTUS_OPTS', [])
+    for o in shlex.split(a.drop_opts or ''):
+        # only a flag: an option's value would be left behind on its own
+        if o not in opts or opts.index(o) + 1 < len(opts) and not opts[opts.index(o) + 1].startswith('-'):
+            sys.exit('--dropOpts {}: not a flag of the {} suite\'s cactus command ({})'.format(
+                o, a.suite, ' '.join(opts)))
     venv = os.path.abspath(a.cactus)
     if not os.path.exists(os.path.join(venv, 'bin', 'activate')):
         sys.exit('--cactus {}: not a virtualenv'.format(venv))
@@ -547,8 +559,9 @@ def cmd_run(a):
     params = collections.OrderedDict([
         ('suite', a.suite), ('label', a.label or os.path.basename(out)), ('cactus', venv),
         ('config', os.path.abspath(a.config) if a.config else None), ('set', a.set or []),
-        ('cactus_opts', a.cactus_opts), ('cache', os.path.abspath(a.cache or os.environ.get('BIGEVAL_CACHE') or
-                                                                  os.path.join(os.path.dirname(out), 'cache'))),
+        ('cactus_opts', a.cactus_opts), ('drop_opts', a.drop_opts),
+        ('cache', os.path.abspath(a.cache or os.environ.get('BIGEVAL_CACHE') or
+                                  os.path.join(os.path.dirname(out), 'cache'))),
         ('partition', a.partition), ('sbatch_opts', a.sbatch_opts), ('toil_opts', a.toil_opts),
         ('created', now()), ('identity', ident), ('harness', harness_identity())])
     os.makedirs(out)
@@ -677,6 +690,8 @@ def main():
     s.add_argument('--set', action='append', metavar='[ELEMENT.]ATTR=VALUE',
                    help='set a config attribute, which must be in the config already, on one element (repeatable)')
     s.add_argument('--cactusOpts', dest='cactus_opts', help='more options for the suite\'s cactus command, in quotes')
+    s.add_argument('--dropOpts', dest='drop_opts', help='flags to leave out of the suite\'s cactus command, in quotes '
+                   '(--dropOpts=--mgSplit: with the =, so that it is not taken for an option of its own)')
     s.add_argument('--cache', help='the cache shared between runs [$BIGEVAL_CACHE, else cache/ beside the run]')
     s.add_argument('--partition', help='slurm partition, for both Toil and sbatch [chosen by each job\'s time limit, '
                    'as Toil does]')

@@ -86,7 +86,7 @@ def download(r, from_seqfile):
 def align(r):
     hal = r.path(NAME + '.hal')
     r.toil('align', ['cactus', r.path(SEQFILE), hal, '--configFile', r.path('config.xml'),
-                     '--chromInfo', r.data(CHROMINFO)] + CACTUS_OPTS + shlex.split(r.p.get('cactus_opts') or ''),
+                     '--chromInfo', r.data(CHROMINFO)] + r.cactus_opts(CACTUS_OPTS),
            output=hal)
     if not os.path.exists(hal):
         raise RuntimeError('cactus finished without making {}'.format(hal))
