@@ -138,7 +138,7 @@ pushd minigraph
 # ggs-ends: opt-in --ggs-ends, graph generation that adds a query's overhang past a chromosome end of
 # the graph as a tip attached at one side (off by default in minigraph; cactus's config turns it on,
 # with the telomere anchors of <graphmap telomereAnchors>).
-git checkout cb0f8fc895577701db548c9491092e8350334d9e
+git checkout 6ef255e29113fd84a379edb8e9677c0bc379c516
 # hack in flags support
 sed -i.bak -e 's/CFLAGS=/CFLAGS+=/' -e 's/LIBS=/LIBS+=/' Makefile
 LIBS="${jemallocLib}" make -j ${numcpu}
