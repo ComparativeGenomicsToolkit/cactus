@@ -23,7 +23,7 @@ clean :
 ${BINDIR}/cactus_halGeneratorTests : ${libTests} ${LIBDIR}/stCactusToHal.a ${stHalDependencies}
 	${CC} ${CPPFLAGS} ${CFLAGS} ${LDFLAGS} -Wno-error -o ${BINDIR}/cactus_halGeneratorTests ${libTests} ${LIBDIR}/stCactusToHal.a ${LDLIBS}
 
-${LIBDIR}/stCactusToHal.a : ${libSources} ${libHeaders}
+${LIBDIR}/stCactusToHal.a : ${libSources} ${libHeaders} ${stHalDependencies}
 	${CC} ${CPPFLAGS} ${CFLAGS} ${LDFLAGS} -c ${libSources}
 	${AR} rc stCactusToHal.a *.o
 	${RANLIB} stCactusToHal.a

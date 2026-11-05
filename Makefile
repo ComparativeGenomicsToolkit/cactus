@@ -85,6 +85,14 @@ all_progs.%:
 # special ordering
 all_libs.blastLib: all_libs.api
 
+# What the modules need from each other.  Before make 4.4, the .NOTPARALLEL below serialized this whole
+# file whatever it names, so the order of ${modules} was enough.  From 4.4 it only applies to what it
+# names, these run in parallel under -j, and a clean build stopped at "No rule to make target
+# ../lib/cactusLib.a".  stCactusToHal.a, which pipeline links, is built by hal's all_progs.
+all_libs.setup all_libs.caf all_libs.reference: all_libs.api
+all_libs.bar: all_libs.caf
+all_progs.pipeline: all_progs.hal
+
 ##
 # tests, see DEVELOPMENT.md for environment variables controling tests.
 ##
@@ -313,11 +321,26 @@ clean: selfClean ${submodules:%=subclean.%} subclean.jemalloc
 suball1: ${submodules1:%=suball.%}
 suball2: ${submodules2:%=suball.%}
 
+# Hard link what a submodule built into bin/, lib/ and include/ if it is out of date by mtime, as
+# make would judge it.  A bare "ln -f" replaces the directory entry even when nothing changed, which
+# moves the mtime of those directories in every make.  A missing source still fails, in ln.
+define linkFile
+if [ ! -e "$(1)" ] || [ "$(1)" -nt "$(2)" ]; then echo ln -f "$(1)" "$(2)"; ln -f "$(1)" "$(2)" || exit 1; fi
+endef
+define linkInto
+@for f in $(1); do $(call linkFile,$$f,$(2)/$${f##*/}); done
+endef
+
+# The touch: sonLib's rule for its daemonize script has the phony cP as a prerequisite, so its
+# make recopies the script every time, and bin/ has a hard link to the copy.  Its own make has to
+# keep running, so give the copy the source's time stamp back.  Then it only moves if the source
+# did.  The fix belongs in sonLib, as an order-only "| cP", which would make this line redundant.
 suball.sonLib:
 	cd submodules/sonLib && PKG_CONFIG_PATH=${CWD}/lib/pkgconfig:${PKG_CONFIG_PATH} ${archEnvExt} ${MAKE} ${archCC}
+	touch -r submodules/sonLib/sonLib_daemonize.py submodules/sonLib/bin/sonLib_daemonize.py
 	rm -rf submodules/sonLib/bin/*.dSYM
-	ln -f submodules/sonLib/bin/[a-zA-Z]* ${BINDIR}
-	ln -f submodules/sonLib/lib/*.a ${LIBDIR}
+	$(call linkInto,submodules/sonLib/bin/[a-zA-Z]*,${BINDIR})
+	$(call linkInto,submodules/sonLib/lib/*.a,${LIBDIR})
 
 ifeq ($(jemalloc),on)
 # The clean first: jemalloc's build records each object's header dependencies in src/*.d,
@@ -347,33 +370,49 @@ suball.pinchesAndCacti: suball.sonLib
 suball.matchingAndOrdering: suball.sonLib
 	cd submodules/matchingAndOrdering && ${archEnvExt} ${MAKE} ${archCC}
 
+# Two workarounds for cPecan's make.
+#
+# Its last step reinstalls its bundled lastz into sonLib's bin/ and renames it, unconditionally.
+# install -p keeps that lastz's mtime, so the copy in bin/ is not seen as out of date.
+#
+# It publishes inc/*.h to sonLib's lib/, and safesort.h is also sonLib's own, so cPecan's copy lands
+# on top of sonLib's and is newer than every sonLib object, all of which depend on lib/*.h.  The
+# next sonLib make, in suball2 of the same build, then recompiled all of sonLib after everything
+# that links it had been built, so the following make relinked the whole tree.  Put sonLib's copy
+# back with its own time stamp.  The fix belongs in cPecan, by not publishing a header it does not
+# own.
 suball.cPecan: suball.sonLib
-	cd submodules/cPecan && ${archEnvExt} ${MAKE} ${archCC}
-	rm -f ${BINDIR}/cPecanLastz*
+	cd submodules/cPecan && ${archEnvExt} ${MAKE} ${archCC} INSTALL="install -p"
+	cp -p submodules/sonLib/C/inc/safesort.h submodules/sonLib/lib/safesort.h
 
 suball.cactus2hal: suball.sonLib suball.hal all_libs.api
 	cd submodules/cactus2hal && ${archEnv} ${MAKE}
-	-ln -f submodules/cactus2hal/bin/* bin/
+	-$(call linkInto,submodules/cactus2hal/bin/*,bin)
 
 suball.hal: suball.sonLib
 	cd submodules/hal && ${archEnv} LIBS="${jemallocLib}" ${MAKE}
-	-ln -f submodules/hal/bin/* bin/
-	-ln -f submodules/hal/lib/libHal.a submodules/hal/lib/halLib.a
+	-$(call linkInto,submodules/hal/bin/*,bin)
+	-@$(call linkFile,submodules/hal/lib/libHal.a,submodules/hal/lib/halLib.a)
 
 # abPOA's makefile sets its own CFLAGS, so -static (make static, the binary release) reaches the abpoa
 # command's link line through LIB, its list of libraries, instead
-suball.abPOA:
+suball.abPOA: ${INCLDIR}/simde
 	cd submodules/abPOA && CFLAGS="$(filter-out --pedantic,$(CFLAGS))" ${MAKE} LIB="-lm -lz -lpthread $${LIBS}"
-	if [ -f submodules/abPOA/lib/libabpoa_sse2.a ]; then ln -f submodules/abPOA/lib/libabpoa_sse2.a ${LIBDIR}/libabpoa.a; fi
-	if [ -f submodules/abPOA/lib/libabpoa_sse41.a ]; then ln -f submodules/abPOA/lib/libabpoa_sse41.a ${LIBDIR}/libabpoa.a; fi
-	if [ -f submodules/abPOA/lib/libabpoa_avx2.a ]; then ln -f submodules/abPOA/lib/libabpoa_avx2.a ${LIBDIR}/libabpoa.a; fi
-	if [ -f submodules/abPOA/lib/libabpoa_avx512bw.a ]; then ln -f submodules/abPOA/lib/libabpoa_avx512bw.a ${LIBDIR}/libabpoa.a; fi
-	if [ -f submodules/abPOA/lib/libabpoa.a ]; then ln -f submodules/abPOA/lib/libabpoa.a ${LIBDIR}/libabpoa.a; fi
-	ln -f submodules/abPOA/include/*.h ${INCLDIR}
-	rm -fr ${INCLDIR}/simde && cp -r submodules/abPOA/include/simde ${INCLDIR}
+	@if [ -f submodules/abPOA/lib/libabpoa_sse2.a ]; then $(call linkFile,submodules/abPOA/lib/libabpoa_sse2.a,${LIBDIR}/libabpoa.a); fi
+	@if [ -f submodules/abPOA/lib/libabpoa_sse41.a ]; then $(call linkFile,submodules/abPOA/lib/libabpoa_sse41.a,${LIBDIR}/libabpoa.a); fi
+	@if [ -f submodules/abPOA/lib/libabpoa_avx2.a ]; then $(call linkFile,submodules/abPOA/lib/libabpoa_avx2.a,${LIBDIR}/libabpoa.a); fi
+	@if [ -f submodules/abPOA/lib/libabpoa_avx512bw.a ]; then $(call linkFile,submodules/abPOA/lib/libabpoa_avx512bw.a,${LIBDIR}/libabpoa.a); fi
+	@if [ -f submodules/abPOA/lib/libabpoa.a ]; then $(call linkFile,submodules/abPOA/lib/libabpoa.a,${LIBDIR}/libabpoa.a); fi
+	$(call linkInto,submodules/abPOA/include/*.h,${INCLDIR})
 	# the abpoa command, for pgrealign (--pgrealign).  It is named for the SIMD level it was built at, like
 	# the library, so take the one just built
-	ln -f $$(ls -t submodules/abPOA/bin/abpoa* | head -1) ${BINDIR}/abpoa
+	@f=$$(ls -t submodules/abPOA/bin/abpoa* | head -1) && $(call linkFile,$$f,${BINDIR}/abpoa)
+
+# The directory stands for the copy: it is newer than everything it was copied from until one of
+# those changes.  find, with no -type, so that a file deleted from simde counts as well, through
+# the mtime of the directory it was in.
+${INCLDIR}/simde: $(shell find submodules/abPOA/include/simde 2>/dev/null)
+	rm -fr $@ && cp -r submodules/abPOA/include/simde ${INCLDIR}/
 
 # minipoa carries a plain Makefile for this, because cactus does not drive cmake and because
 # upstream's CMakeLists picks its SIMD backend by probing the build host.  It reads the same
@@ -382,10 +421,21 @@ suball.abPOA:
 # Only minipoa_c.h is published: the rest of minipoa's headers are C++ and bar is C.
 suball.minipoa:
 	cd submodules/minipoa && ${MAKE}
-	ln -f submodules/minipoa/lib/libminipoa.a ${LIBDIR}/libminipoa.a
-	ln -f submodules/minipoa/include/minipoa_c.h ${INCLDIR}
+	$(call linkInto,submodules/minipoa/lib/libminipoa.a,${LIBDIR})
+	$(call linkInto,submodules/minipoa/include/minipoa_c.h,${INCLDIR})
 
-suball.lastz: suball.jemalloc
+# A real file target, because the PGO build below starts by running lastz's make clean and so can
+# never be a no-op once it starts: as a rule with no file behind it, every make spent about 25 s
+# instrumenting, training and recompiling lastz only to arrive at the same binary.  The
+# prerequisites are what lastz's own makefile checks.
+lastzDepends = ${jemallocDepends} $(wildcard submodules/lastz/src/*.[ch]) submodules/lastz/src/version.mak
+ifeq ($(lastzPgo),on)
+lastzDepends += build-tools/buildLastzPgo build-tools/lastzPgoTrain
+endif
+
+suball.lastz: suball.jemalloc ${BINDIR}/lastz
+
+${BINDIR}/lastz: ${lastzDepends}
 # Inject ${LIBS} into lastz's link lines so jemalloc reaches it.  This must not assume the
 # link line is still pristine: makeBinRelease seds 's/-lm/-lm -static/g' into this same file
 # *before* make runs, and the old pattern here ('-lm -o') then no longer matched, so ${LIBS}
@@ -425,31 +475,34 @@ suball.paffy:
 	git -C submodules/paffy/submodules/sonLib checkout -q $$(git -C submodules/sonLib rev-parse HEAD)
 	cd submodules/paffy && ${archEnvExt} LIBS="${jemallocLib}" ${MAKE} ${archCC}
 	rm -rf submodules/paffy/bin/*.dSYM
-	ln -f submodules/paffy/bin/[a-zA-Z]* ${BINDIR}
-	ln -f submodules/paffy/lib/*.a ${LIBDIR}
-	ln -f submodules/paffy/inc/*.h ${INCLDIR}
+	$(call linkInto,submodules/paffy/bin/[a-zA-Z]*,${BINDIR})
+# Not paffy/lib/*.a: that also has sonLib.a and cuTest.a from paffy's nested sonLib clone, and lib/
+# takes those two from cactus's own sonLib (suball.sonLib).  Linking both swapped the same two
+# files back and forth in every make.
+	$(call linkInto,submodules/paffy/lib/stPaf.a submodules/paffy/lib/libsonLib.a,${LIBDIR})
+	$(call linkInto,submodules/paffy/inc/*.h,${INCLDIR})
 
 suball.red: suball.jemalloc
 	cd submodules/red && sed -i.bak -e '/LIBS/!s/-o \$$(TRed) \$$(OBJS)/-o $$(TRed) $$(OBJS) $$(LIBS)/' src/Makefile && rm -f src/Makefile.bak
 	cd submodules/red && CXXFLAGS="$${CXXFLAGS} ${CACTUS_ARCH_FLAGS}" LIBS="${jemallocSubLibs}" ${MAKE}
-	ln -f submodules/red/bin/Red ${BINDIR}
+	$(call linkInto,submodules/red/bin/Red,${BINDIR})
 
 suball.collapse-bubble:
 	chmod +x submodules/collapse-bubble/scripts/merge_duplicates.py
-	ln -f submodules/collapse-bubble/scripts/merge_duplicates.py ${BINDIR}
+	$(call linkInto,submodules/collapse-bubble/scripts/merge_duplicates.py,${BINDIR})
 suball.FASTGA: suball.jemalloc
 	cd submodules/FASTGA && sed -i.bak -e '/-lpthread/!s/-lm -lz/-lpthread -lm -lz/g' -e '/LIBS/!s/-lpthread -lm -lz/-lpthread -lm -lz $$(LIBS)/g' Makefile && rm -f Makefile.bak && LIBS="${jemallocSubLibs}" ${MAKE} CC="$${CC:-gcc} ${CACTUS_ARCH_FLAGS}"
-	ln -f submodules/FASTGA/FastGA ${BINDIR}
-	ln -f submodules/FASTGA/ALNtoPAF ${BINDIR}
-	ln -f submodules/FASTGA/FAtoGDB ${BINDIR}
-	ln -f submodules/FASTGA/GIXmake ${BINDIR}
-	ln -f submodules/FASTGA/GIXrm ${BINDIR}
+	$(call linkInto,submodules/FASTGA/FastGA,${BINDIR})
+	$(call linkInto,submodules/FASTGA/ALNtoPAF,${BINDIR})
+	$(call linkInto,submodules/FASTGA/FAtoGDB,${BINDIR})
+	$(call linkInto,submodules/FASTGA/GIXmake,${BINDIR})
+	$(call linkInto,submodules/FASTGA/GIXrm,${BINDIR})
 suball.FASTAN: suball.jemalloc
 	cd submodules/FASTAN && sed -i.bak -e 's/-lm -lz/-lm -lpthread -lz/g' -e '/LIBS/!s/-lm -lpthread -lz/-lm -lpthread -lz $$(LIBS)/g' Makefile && rm -f Makefile.bak && LIBS="${jemallocSubLibs}" ${MAKE} CC="$${CC:-gcc} ${CACTUS_ARCH_FLAGS}" || true
-	ln -f submodules/FASTAN/FasTAN ${BINDIR}
+	$(call linkInto,submodules/FASTAN/FasTAN,${BINDIR})
 suball.alntools:
 	cd submodules/alntools && ${MAKE} CC="$${CC:-gcc} ${CACTUS_ARCH_FLAGS}"
-	ln -f submodules/alntools/tanbed ${BINDIR}
+	$(call linkInto,submodules/alntools/tanbed,${BINDIR})
 
 # pgrealign (--pgrealign) is pip installed with cactus from its submodule (setup.py).  Its catalog stage
 # compiles its tandem-repeat finders on first use, which a container with no compiler cannot do, so build
@@ -458,9 +511,10 @@ suball.alntools:
 # RepeatMasker uses, for the short ones.  They take nothing from CFLAGS, which in make static and the
 # binary release is exported carrying sonLib's -Werror --pedantic; -static comes in LIBS, which include.mk
 # leaves alone
-suball.pgrealign:
-	$${CC:-gcc} ${CACTUS_ARCH_FLAGS} -O2 -o ${BINDIR}/trfind submodules/pgrealign/pgrealign/c/trfind.c -lm $${LIBS}
-	$${CC:-gcc} ${CACTUS_ARCH_FLAGS} -O2 -o ${BINDIR}/strf submodules/pgrealign/pgrealign/c/strf.c -lm $${LIBS}
+suball.pgrealign: ${BINDIR}/trfind ${BINDIR}/strf
+
+${BINDIR}/trfind ${BINDIR}/strf: ${BINDIR}/%: submodules/pgrealign/pgrealign/c/%.c
+	$${CC:-gcc} ${CACTUS_ARCH_FLAGS} -O2 -o $@ $< -lm $${LIBS}
 
 ifeq ($(jemalloc),on)
 subclean.jemalloc:
