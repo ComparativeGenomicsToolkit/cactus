@@ -24,8 +24,7 @@
 	<preprocessor memory="littleMemory" preprocessJob="checkUniqueHeaders" checkAssemblyHub="1" active="1"/>
 	<!-- Use RED (Repeat DEtector) to masks repetitive sequence. -->
 	<!-- unmask: discard any previous masking on the input fasta, only masking from Red is kept -->
-	<!-- redOpts: any command line options can be passed to Red here.  -cap 99.8 also masks every k-mer counted (both strands) above the 99.8th percentile of the genome's distinct k-mer counts.  That count is WindowMasker's t_high on the same genome, but WindowMasker masks windows by average score where -cap masks each k-mer above it outright.  Red on its own leaves some k-mers with tens of thousands of copies unmasked, mostly microsatellites; measured as lastz 12of19 self seed hits, -cap 99.8 halves them on CHM13 chr15-19 (20.8G -> 10.6G) and cuts them by 38% on an axolotl chromosome (29.8G -> 18.5G), on par with running WindowMasker alongside Red, for ~20% more Red time.  -sketch 1 also masks runs of seeds that are high-copy across the whole genome, judged from their counts alone: 16-mers, and 32-base purine/pyrimidine patterns that still match old copies drifted by transitions.  Its thresholds scale with genome size, so they hold a fixed density per lastz chunk.  It is there for genomes that arrive with little or no repeat masking, such as NCBI/GenBank assemblies, which are soft-masked by WindowMasker only: with -cap alone, lastz did 1.4-2.5x the work on those that it did on the same genomes RepeatMasked (primates, rodents, sharks), and 1.15-1.55x with -sketch 1 added.  On RepeatMasked genomes it cost 0.2-2.3% of colinear alignment coverage (most for sharks, least for rodents and birds).  It adds about 365 s of Red per Gbp of genome.  Set redOpts="" for Red alone. -->
-	<!-- Red is given every contig, small ones included.  It passes through the records it cannot score (empty, all N, or no 20 bases free of N) instead of failing on them, which is what the redPrefilterOpts this element used to take was for; that attribute is no longer read. -->
+	<!-- redOpts: command line options to pass to Red.  -cap 99.8 also masks every k-mer whose count is above the 99.8th percentile of the genome's distinct k-mer counts, and -sketch 1 also masks runs of seeds that are high-copy across the whole genome, which helps with genomes that come with little or no repeat masking.  Set redOpts="" for Red alone. -->
 	<preprocessor unmask="0" memory="mediumMemory" preprocessJob="red" redOpts="-cap 99.8 -sketch 1" active="1"/>
 	<!-- Use FasTAN (A Fast Repeat Tandem Repeat Finder) to masks repetitive sequence. -->
 	<!-- unmask: discard any previous masking on the input fasta, only masking from FasTAN is kept -->
@@ -43,9 +42,9 @@
 	<preprocessor unmask="1" memory="littleMemory" preprocessJob="dna-brnn" dna-brnnOpts='-A' active="0" action="softmask" cpu="2" minLength="100000"/>
 
 	<!-- Params for blast -->
-	<!-- chunkSize The size of sequences in a blast job, the same for every batch system (it is also used by FastGA's lastz fill step).
-	     The lastz options below are set for this size (queryhspbest in particular, a budget per query sequence, which is per chunk for
-	     chromosome-scale sequences), so change them together.  Increasing it reduces the number of blast jobs approximately quadratically -->
+	<!-- chunkSize The size of sequences in a blast job (also used by FastGA's lastz fill step).  Increasing it reduces the number
+	     of blast jobs approximately quadratically.  The queryhspbest values in lastzArguments are set for this size, so change
+	     them together -->
 	<!-- bigChunkSize overrides chunkSize for KegAlign and FastGA, which work on whole-genome scale inputs -->
 	<!-- overlapSize The amount of basepair overlap between chunks -->
 	<!-- mapper The local alignment program to use, currently either lastz or minimap2 or fastga -->
@@ -87,14 +86,14 @@
 	     get every sequence to pick its primary alignment without regard to if the other sequence is an ingroup or outgroup -->
 	<!-- multifurcationPairSecondaries For ancestors with more than two children (multifurcations), also chain the
 	     alignments of each pair of ingroups on their own, and give them to CAF as secondary alignments (closest pair
-	     first), filtered by <caf secondaryAlignmentFilter>. The primary alignments let each ingroup base keep a single
-	     partner, which can leave groups of ingroups almost unaligned to each other (ex: (mouse,rat) and (cow,dog) in a
-	     star tree): the secondaries join them. Only used when pickIngroupPrimaryAlignmentsSeparatelyToOutgroups is 1.
-	     With outputSecondaryAlignments="1" the pairs are not chained again, as the secondaries already hold them -->
+	     first), filtered by <caf secondaryAlignmentFilter>. This joins groups of ingroups that the primary alignments,
+	     which let each ingroup base keep a single partner, leave unaligned to each other. Only used when
+	     pickIngroupPrimaryAlignmentsSeparatelyToOutgroups is 1. With outputSecondaryAlignments="1" the pairs are not
+	     chained again, as the secondaries already hold them -->
 	<!-- includeRootAsOutgroup When the root sequence is supplied (cactus-blast/cactus-align with includeRoot), treat it as
 	     an outgroup rather than an ingroup, so that its coverage to its descendants is not starved during chaining. Set
 	     to 0 to restore the old behaviour of treating the pinned root as an ingroup -->
-	<!-- leftAlign: move each indel in the lastz alignments along its repeat without changing the alignment's score (paffy left_align). "none", or "canonical" (default): at whichever end makes the repeat read smaller than its reverse complement, which gives every pairwise alignment through a repeat the same placement whatever the pair or strand, so they agree when pinched together. "left" (left on the target) only makes alignments agree when no sequence is aligned on its reverse strand, and makes things worse otherwise; it is here for comparison. lastz only -->
+	<!-- leftAlign: move each indel in the lastz alignments along its repeat without changing the alignment's score (paffy left_align). "canonical" (default): to whichever end makes the repeat read smaller than its reverse complement, so that every pairwise alignment through a repeat places it the same way, whatever the pair or strand. "left": to the left on the target (only consistent when nothing aligns on the reverse strand). "none": leave them where lastz put them. lastz and KegAlign only -->
 	<blast chunkSize="90000000"
 	       bigChunkSize="6000000000"
 		   overlapSize="10000"
@@ -137,13 +136,7 @@
 		within a margin of 0.2% sensitivity, should be very fast for close genomes, these were tuned using the blast/blastParametersScript.py
 		We could go even faster for less than 0.05 divergence using, but want to be robust to poor branch length estimates -->
 		<!-- queryhspbest keeps only the best N HSPs per query sequence, which bounds the runtime of repeat pile-ups.  It is set for
-		     the 90 Mbp chunkSize: 300000 is the per-query-Mbp budget that 100000 gave with the old 30 Mbp chunks.  100000 at 90 Mbp
-		     (what Slurm runs used to get from slurmChunkScale) silently dropped 3-9% of the alignment of some syntenic chunk pairs
-		     (rodents 9%, birds 6%, sharks 4%, primates 0.3%, human x mouse 0).  300000 recovers it for about 7% more lastz
-		     instructions, or 20-35% more CPU time, on those pairs, and changes nothing on non-syntenic pairs of well-masked
-		     genomes; 1000000 adds at most 0.5% more (rodents).  Where the budget binds on under-masked repeats the work grows
-		     with it: 1.65-2.56x the instructions of 100000 on the shark tests.  The budget is per query sequence, so it does not
-		     bound a chunk made of many short unmasked contigs. -->
+		     the 90 Mbp chunkSize: a lower value can drop real alignments between syntenic chunks of that size -->
 		<lastzArguments
 				one="--step=2 --ambiguous=iupac,100,100 --ydrop=3000 --notransition --queryhspbest=300000"
 				two="--step=5 --ambiguous=iupac,100,100 --ydrop=3000 --queryhspbest=300000"
@@ -152,12 +145,9 @@
 				five="--step=2 --ambiguous=iupac,100,100 --ydrop=4000 --hspthresh=2400 --gappedthresh=2600 --queryhspbest=300000"
 				default="--step=1 --ambiguous=iupac,100,100 --ydrop=4000 --hspthresh=2200 --gappedthresh=2400 --queryhspbest=300000"
 		/>
-		<!-- Estimated runtime, in seconds, of one lastz job in each divergence class, for a
-		     pair of full-sized (chunkSize, 90 Mbp) chunks.  These are the p99 of 827k lastz runs from
-		     the VGP 577-way alignment (90 Mbp chunks, queryhspbest 100000, so they predate 300000), halved for the 2x lastz speedup since; Cactus scales
-		     them by the actual chunk sizes and applies the walltime factor on top.  Slurm picks a
-		     partition from the time limit, so these being per-class rather than one global
-		     number is what keeps the 147k closely-related pairs out of the long queue. -->
+		<!-- Estimated runtime, in seconds, of one lastz job in each divergence class, for a pair of full-sized chunks (chunkSize,
+		     or bigChunkSize for KegAlign and FastGA).  Cactus scales them by the actual chunk sizes, and applies the
+		     walltimeFactor option on top. -->
 		<lastzWalltime
 				one="350"
 				two="1400"
@@ -273,24 +263,10 @@
 	<!-- runBar Toggle the bar stage on or off. Turned off you get a sparse alignment just using the CAF phase-->
 	<!-- bandingLimit is the maximum sequence size fed into the multiple aligner.  Sequences longer than this are trimmed accordingly -->
     <!-- baseAligner selects the core multiple alignment algorithm: "pecan" (the default), "abpoa" or "minipoa".
-    On an 11-genome ladder from hg38 out through CHM13, chimp, orangutan, macaque, marmoset, lemur, mouse, opossum
-    and chicken to gar, pecan matched abpoa on BUSCO coding alignment and CTCF motif conservation from CHM13 to lemur
-    and beat it from opossum out (human-gar BUSCO bases in phase 77.2% against 64.8%), in 7.6 h of
-    cactus_consolidated against abpoa's 8.7 and 2-18x less memory per ancestor.  abpoa aligned 0.1-0.7 points more of
-    human at short distances, but on hg38-CHM13 chr20 95% of that was hg38's modeled centromere, at 94% identity.
-    pecan aligns every pair of sequences with a pair HMM and merges the posteriors, so its cost grows with
-    the square of the number of sequences in an end, where abpoa's grows linearly; but it is the more
-    accurate on diverged sequence.  With seed anchors (<pecan anchorMethod="seed">): evolver mammals
-    0.869/0.666 against abpoa's 0.853/0.652, evolver primates 0.9977/0.9846 against 0.9973/0.9844, and on
-    8Mb of human/mouse bar took 26s and 0.5GB against abpoa's 59s and 6.7GB while aligning slightly more
-    of human to mouse.  On evolver mammals it takes about twice abpoa's CPU time in bar.  minipoa is a
-    POA like abpoa, with a static band and a vectorised dp that streams its matrices, and with the
-    shipped <minipoa> settings (the same convex gaps as abpoa, and a guide tree) it is as accurate:
-    evolver mammals 0.854/0.652 against abpoa's 0.853/0.652, primates equal.  On 8Mb of human/mouse
-    at 8 threads its bar took 12s and 4GB against abpoa's 59s and 6.7GB (9s and 2.8GB with a
-    single affine gap).  Its memory still grows about as window x (bandConstant + bandFraction x
-    window), so it does not afford a much larger window.  minipoa shares abpoa's substitution matrix
-    (from <poa partialOrderAlignmentSubMatrix>) but has its own gap penalties in <minipoa>. -->
+    pecan aligns pairs of sequences with a pair HMM and merges the posteriors, and is the most accurate on diverged
+    sequence.  abpoa and minipoa are partial order aligners, which add each sequence to the alignment in turn.  minipoa
+    shares abpoa's substitution matrix (from <poa partialOrderAlignmentSubMatrix>) but has its own gap penalties in
+    <minipoa>. -->
 	<!-- pangenomeBaseAligner: the base aligner pangenome mode (cactus-pangenome, and cactus-align in pangenome mode) uses in place of
 	baseAligner, abpoa by default: a pangenome's ends hold many sequences, which abpoa aligns in linear time and pecan
 	pair by pair -->
@@ -298,14 +274,12 @@
 	least deepAlignerDivergence apart: the sum of the ancestor's two longest child branches, in the same scaled tree cactus
 	takes its other divergence-dependent settings from, i.e. after branchScale and, with <divergences
 	upweightAncestorDistances>, with an ancestral child's height added to its branch (each capped at the "five" divergence).
-	So an ancestor of two ancestors can reach 0.5 however deep it is.  0 turns it off.  Over the 576 ancestors of the VGP
-	577-way tree with branchScale 2 the median is 0.17 and 15% are 0.5 or more: MammalsAnc0 0.58, MammalsAnc1 0.50,
-	RayFinnedFishesAnc00 0.81, RayFinnedFishesAnc01 0.53, PrimatesAnc0 0.46, HominidaeAnc4 0.001. -->
+	0 turns it off. -->
 	<!-- minimumBlockDegree The minimum number of sequences to form a block in the ancestor -->
 	<!-- minimumIngroupDegree The minimum number ingroup sequences to form a block in the ancestor -->
 	<!-- minimumOutgroupDegree The minimum number of outgroup sequences to form a block in the ancestor -->
 	<!-- minimumNumberOfSpecies The minimum of number of different species for an alignment block to be kept -->
-	<!-- poaOrientation Which way round abpoa / minipoa align each set of threads. They put a gap that could go anywhere along a repeat at its left end, so this picks which end of the repeat it lands on. "auto" (default): "reference" if poaReferenceEvent is set, which cactus-pangenome does, and "canonical" otherwise. "none": whichever end of the flower is aligned from, which depends on how the graph was built and so on the orientation of the input contigs. "reference": so the threads of poaReferenceEvent read forward, putting gaps left on the reference (cactus-pangenome sets poaReferenceEvent to its reference), falling back to "canonical" where it has no thread. "canonical": so the thread that is lexicographically smallest in either orientation reads that way, which needs no reference and gives the same direction whichever way round the inputs are. Ignored by pecan -->
+	<!-- poaOrientation Which way round abpoa / minipoa align each set of threads. They put a gap that could go anywhere along a repeat at its left end, so this picks which end of the repeat it lands on. "auto" (default): "reference" if poaReferenceEvent is set, which cactus-pangenome does, and "canonical" otherwise. "reference": so the threads of poaReferenceEvent read forward, putting gaps left on the reference, falling back to "canonical" where it has no thread. "canonical": so the thread that is lexicographically smallest in either orientation reads that way, which does not depend on the orientation of the inputs. "none": whichever end of the flower is aligned from, which does. Ignored by pecan -->
 	<!-- poaReferenceEvent Event (genome) name "reference" orientation goes by -->
 	<bar
 		runBar="1"
@@ -341,16 +315,11 @@
 		<!-- anchorMethod  How pecan finds the anchors that band its pairwise alignments (in matrices bigger than
 		anchorMatrixBiggerThanThis): "seed", "mum" or "lastz".  If absent, useMumAnchors chooses between the last two.
 		  seed: 12of19 spaced seeds allowing a transition, ungapped HOXD70 extension and the heaviest colinear chain,
-		  done in process - lastz's recipe without a lastz process per alignment.  The gaps between anchors are searched
-		  again (seedRecursionDepth levels, default 2) at a threshold that falls with the gap's area, down to
-		  seedHspThresholdMin (default 1000).
-		  mum: maximal unique matches.  Fast, but "unique" admits matches of a dozen bases, and on diverged sequence
-		  most are random: at 0.3 substitutions per site per branch, half the anchors were off the true alignment and
-		  recall fell to a third of what the same pairs reach without anchors.
-		  lastz: one lastz process per anchored alignment, ~50ms of startup each.
-		On evolver mammals seed scores 0.869/0.666 against mum's 0.859/0.654 (abpoa 0.853/0.652) in the same bar time. -->
-		<!-- seedHspThreshold  HOXD70 score an ungapped extension needs to anchor a whole alignment when anchorMethod="seed".
-		On unrelated random sequence, 2000 admits 16 chance HSPs into a 1Mb x 1Mb chain and none into a 10kb x 10kb one. -->
+		  done in process.  The gaps between anchors are searched again (seedRecursionDepth levels, default 2) at a
+		  threshold that falls with the gap's area, down to seedHspThresholdMin (default 1000).
+		  mum: maximal unique matches.  Fast, but unreliable on diverged sequence.
+		  lastz: one lastz process per anchored alignment. -->
+		<!-- seedHspThreshold  HOXD70 score an ungapped extension needs to anchor a whole alignment when anchorMethod="seed". -->
 		<!-- useMumAnchors  Use maximal unique matches to create alignment anchors, otherwise call out to Lastz.  Only read
 		when anchorMethod is absent. -->
 		<!-- recursiveMums  If using MUM anchors, recursively search for anchors in gaps. -->
@@ -384,20 +353,14 @@
 		<!-- partialOrderAlignmentGapOpenPenalty2 abpoa second gap open penalty (convex mode takes the minimum of both gap models, 0 disables convex) -->
 		<!-- partialOrderAlignmentGapExtensionPenalty abpoa second gap extension penalty (convex mode takes the minimum of both gap models) -->
 		<!-- partialOrderAlignmentTrainedGapOpen2Factor when a trained model has only one gap piece (a last-train scoresFile, or <graphmap lastTrain> when the long-gap state did not train into one), set a gap-open-2 penalty that's this many times bigger than the learned gap penalty (abpoa crashes unless it gets both) -->
-		<!-- partialOrderAlignmentTrainedGapExtension2Factor when a trained model has only one gap piece (as above), set a gap-extend-2 penalty that's this many times smaller than the learned gap penalty (abpoa crashes unless it gets both).  30 matches the ratio of the untrained defaults above (30 and 1).  At 3, long indels cost three times more relative to a match than with the defaults (a 1 kb gap ~73 matches against ~23); measured with abPOA on 285 HPRC chr10 windows (137 STR sites, 148 other indels, 12 haplotypes each), 30 gives fewer gap runs and mismatches than 3 in 47 windows and more in 15, and both beat the untrained defaults in 273 of 285 -->
+		<!-- partialOrderAlignmentTrainedGapExtension2Factor when a trained model has only one gap piece (as above), set a gap-extend-2 penalty that's this many times smaller than the learned gap penalty (abpoa crashes unless it gets both).  30 matches the ratio of the untrained defaults above (30 and 1) -->
 		<!-- partialOrderAlignmentDisableSeeding abpoa disable minimizer seeding. toggling this on to disable seeding will slightly increase accuracy and robustness, at the cost of speed in the BAR phase on some inputs -->
 		<!-- partialOrderAlignmentMinimizerK abpoa kmer size for minimizer seeding. -->
 		<!-- partialOrderAlignmentMinimizerW abpoa window size for minimizer seeding. -->
 		<!-- partialOrderAlignmentMinimizerMinW abpoa minimum window size. -->
-		<!-- partialOrderAlignmentWindowBigGenome: window to use instead when the largest genome is at
-		     least partialOrderAlignmentWindowBigGenomeThreshold bases.  Once sequence is long and
-		     repeat-rich the window is the only thing bounding the DP: on 22 Gb salamanders halving it
-		     took bar's peak from 798.5 to 368.7 GiB and roughly doubled throughput, while costing
-		     0.06 points of recall on evolver mammals (measured against the mafComparator truth set,
-		     where the curve stays flat to 2000 and only degrades below it).  The largest genome of
-		     any role, outgroups included: bar aligns their sequence too, and lungfish Anc2 pairs a
-		     40 GB outgroup with 1 and 2 GB ingroups.  The threshold is per genome and not a total,
-		     so a typical vgp alignment of five 3 GB genomes is nowhere near it.  0 to disable. -->
+		<!-- partialOrderAlignmentWindowBigGenome: abpoa only.  Window to use instead when the largest genome (of any
+		     role, outgroups included) is at least partialOrderAlignmentWindowBigGenomeThreshold bases, to bound bar's
+		     memory on very large, repeat-rich genomes.  0 to disable. -->
 		<!-- partialOrderAlignmentProgressiveMode use guide tree from jaccard distance matrix to determine poa order -->
 		<!-- partialOrderAlignmentProgressiveMaxRows disable progressive mode if there are more than this many rows to align -->
 		<!-- partialOrderAlignmentProgressiveMaxLengthDif disable progressive mode if 1 - len(smallest seq) / len(biggest seq) is greater than this number. in other words, we stick with sorting by length unless the lengths are all really similar -->
@@ -426,57 +389,32 @@
 
 		<!-- Parameters for using minipoa to generate MSAs.  Only used when baseAligner="minipoa". -->
 		<!-- minipoaSubMatrix minipoa's own 5x5 ACGTN substitution matrix.  Empty by default, which means inherit <poa
-		partialOrderAlignmentSubMatrix> - that is what a trained model writes into and what the FastGA PAF
-		scoring reads, so sharing it keeps the engines consistent and lets the trained model reach minipoa.
-		Set it to override.  lastz's own default matrix (HOXD70 with -31 transitions rather than the
-		-61 abpoa is given) was measured here and is a wash: slightly better precision, slightly worse
-		recall on evolver mammals. -->
+		partialOrderAlignmentSubMatrix>, which is also what a trained model writes into. -->
 		<!-- GAP penalties.  minipoa's gap cost can be convex, exactly as abpoa's is: a gap of length L
-		costs min(open + L*ext, open2 + L*ext2).  The defaults are abpoa's shipped values, 400/30 and
-		1200/1, so beyond L~28 a gap extends for 1.  Setting minipoaGapOpenPenalty2 and
+		costs min(open + L*ext, open2 + L*ext2).  The defaults are abpoa's.  Setting minipoaGapOpenPenalty2 and
 		minipoaGapExtensionPenalty2 to 0 leaves a single affine piece, which needs about a quarter
-		less memory and time.  A single piece cannot price short and long gaps well
-		at once: with only 400/30 long gaps cost ~30x what abpoa charges and bases get packed into
-		shared columns (0.79 on evolver mammals); the best single piece found, 600/4, makes short
-		gaps dearer instead.  Measured on evolver mammals (mafComparator): single 600/4 0.846/0.646,
-		convex 0.852/0.650, convex with minipoaProgressiveMode 0.854/0.652, against abpoa's
-		0.853/0.652.  94% of the gap bases in the evolver mammals truth sit in runs of 28bp or
-		longer, which is why the long-gap price matters so much there.
-		With a trained model (<graphmap lastTrain>, or a scoresFile) the first piece is replaced by
-		the model's first gap piece and the second piece is turned off, so minipoa runs a single
-		affine piece as trained.  -->
+		less memory and time but is less accurate.  With a trained model (<graphmap lastTrain>, or a scoresFile),
+		minipoa is given the model's single affine gap piece and the second piece is turned off. -->
 		<!-- minipoaGapOpenPenalty minipoa gap open penalty -->
 		<!-- minipoaGapExtensionPenalty minipoa gap extension penalty -->
 		<!-- minipoaGapOpenPenalty2 open penalty of the second, convex gap piece (0 with
 		minipoaGapExtensionPenalty2 0 = single affine piece) -->
 		<!-- minipoaGapExtensionPenalty2 extension penalty of the second gap piece -->
-		<!-- minipoaWindow sliding window size.  Same 10000 as abpoa, and for the same reason: memory
-		is quadratic-ish in it.  On human/chimp chr10 at 8 cores, 10kb/15kb/20kb/30kb cost
-		3.5/5.9/9.3/15.1 GB and 50kb upwards is killed, while BAR time is flat across that range - so
-		a larger window buys nothing and costs a great deal.  Raising it needs both memory headroom
-		and a reason; neither seeding nor a tighter band rescued 100kb. -->
+		<!-- minipoaWindow sliding window size.  Memory is roughly quadratic in it. -->
 		<!-- minipoaMaskFilter trim input sequences as soon as more than this many soft or hard masked bases are encountered (-1=disabled) -->
 		<!-- minipoaBandConstant band half-width is <minipoaBandConstant> + <minipoaBandFraction>*<Length>, the same form as abpoa's wb/wf -->
 		<!-- minipoaBandFraction second band parameter (see above).  minipoa stores this as an integer
 		divisor internally, so only fractions of the form 1/n are exactly representable; 0 disables
 		banding and runs full DP -->
-		<!-- minipoaAdaptiveBand use minipoa's adaptive band.  Off by default and rarely worth turning on:
-		the adaptive path sizes its scratch for the full matrix before narrowing the band, so it buys
-		speed rather than memory -->
-		<!-- minipoaDisableSeeding minimizer seeding and anchoring.  Off by default for the same reason
-		abpoa's is: a false-positive anchor becomes a forced match and the alignment cannot recover from
-		it.  Turning it on is what makes minipoa's memory flat on very long windows -->
+		<!-- minipoaAdaptiveBand use minipoa's adaptive band, which saves time but not memory. -->
+		<!-- minipoaDisableSeeding disable minimizer seeding and anchoring.  As with abpoa, seeding is off by default: it
+		is less accurate, though it keeps memory flat on very long windows -->
 		<!-- minipoaMinimizerK kmer size for minimizer seeding -->
 		<!-- minipoaMinimizerW window size for minimizer seeding -->
 		<!-- minipoaAnchorWindow minimum distance between adjacent anchors (0 = use minipoa's own default,
 		which is the consensus length over 24, clamped to [500, 20000]) -->
 		<!-- minipoaProgressiveMode use a guide tree from a minimizer jaccard distance matrix to choose the
-		order sequences are added to the graph, as <poa partialOrderAlignmentProgressiveMode> does for abpoa.
-		On a tree-shaped window - two sister ingroups and outgroups, as progressive cactus aligns - adding
-		the closest sequences first raised recall of simulated truth by 1-2 points at moderate divergence
-		and 7-13 at high divergence, and was worth 0.2/0.2 on evolver mammals on top of the convex gap.
-		(Earlier measurements that found it a no-op predate a fix: below 8 sequences the tree was
-		built from no minimizers at all and came out as the input order.) -->
+		order sequences are added to the graph, as <poa partialOrderAlignmentProgressiveMode> does for abpoa. -->
 		<!-- minipoaProgressiveMaxRows disable progressive mode above this many rows: the guide tree is
 		quadratic in both time and memory (a dense NxN matrix of doubles) -->
 		<minipoa
@@ -551,13 +489,9 @@
 	</hal>
 	<!-- cactus-graphmap options -->
 	<!-- assemblyName: special name of "virtual" minigraph assembly, which is just the list of sequences from the graph. -->
-	<!-- dotHaplotypes: read a seqfile genome name with no '#' that ends in .N (N an integer), like HG002.1, as the old spelling of haplotype N of its sample (HG002#1). With "0", such a name is taken as it is (GCA_054883195.1 is a sample of that name). Either way, this only applies to the names in a seqfile (and the names given on the command line in place of them): a '.' is never read as a haplotype anywhere else. Haplotypes are given the PanSN way, SAMPLE#N, and this default will change to "0" -->
+	<!-- dotHaplotypes: read a seqfile genome name with no '#' that ends in .N (N an integer), like HG002.1, as the old spelling of haplotype N of its sample (HG002#1). With "0", such a name is taken as it is (GCA_054883195.1 is a sample of that name). This only applies to the names in a seqfile (and the names given on the command line in place of them). This default will change to "0" -->
 	<!-- minigraphMapOptions: flags to pass to minigraph for mapping -->
-	<!-- minigraphConstructOptions: flags to pass to minigraph for construction.  ggs-cnv (with a double dash, on by default; it needs the pinned glennhickey/minigraph) places copy-number variants by their own sequence: graph chaining may cross a long deletion (up to 300 kb) whose flanking chains touch on the query, and a variant is inserted even where its own chain passes the same graph interval twice, so a lost copy is no longer routed through a near-identical paralog and a gained copy is inserted instead of skipped.  On chr1 with 464 HPRC genomes it placed every AMY1/AMY2 haplotype class on the right copy and cut the locus edit distance by 68%, for 16% more alternate sequence, mostly 1q21 paralogs.  On a CHM13 30-way pangenome it had about 0.6% fewer dipcall errors, but chr19 and chr10 were worse and the SMN and IGK snarls grew.  Remove it to build the graph as before.  It is for construction only (in minigraphMapOptions it would change how mappings are chained), and stock minigraph exits on it. -->
-	<!-- par-align is output-preserving, ~1.3x on whole-genome construction for ~10% more CPU.
-	     Needs the glennhickey/minigraph fork; stock minigraph exits on the unknown option.  The pinned
-	     fork has it on by default (no-par-align turns it off), so it is only kept here for older builds
-	     of the fork. -->
+	<!-- minigraphConstructOptions: flags to pass to minigraph for construction.  ggs-cnv (with a double dash; for construction only, not for minigraphMapOptions) places copy-number variants by their own sequence, so that a lost copy is not routed through a near-identical paralog and a gained copy is inserted instead of skipped.  Remove it to build the graph as before.  par-align (also with a double dash) aligns the gaps between anchors in parallel, without changing the output.  It is the default in the minigraph cactus builds, so removing it changes nothing: no-par-align turns it off.  Both need that minigraph (the glennhickey/minigraph fork): stock minigraph exits on them. -->
 	<!-- minigraphConstructBatchSize: break minigraph construction into chunks of this size. this allows recovering from a failure during graph construction, and avoiding really long argument lists for each job. -->
 	<!-- minimapCollapseOptions: options for minimap2 when using it for  self-alignments. Note these were inspired in part by https://github.com/lh3/minimap2/issues/106 !-->
 	<!-- collapse: Toggles self-alignment logic. Supported values are "none" and "all". Experimental values "reference" and "nonref" can also be tried.  -->
@@ -569,34 +503,34 @@
 	<!-- minGAFBlockLength: ignore minigraph alignments with block length less than this -->
 	<!-- GAFOverlapFilterRatio: filter overlapping (by query) gaf records. keep records if their MAPQ or query length are <ratio> bigger than overlapping interval (see gaffilter -r) [0=disable] -->
 	<!-- GAFOverlapFilterMinLengthRatio: only consider overlaps (for above) whose lengths represent at least this much (ratio between 0 and 1) of the block length -->
-	<!-- GAFOverlapFilterExact: resolve overlapping gaf records per query segment instead of deleting whole records (gaffilter -x). A record keeps every segment where it beats (the GAFOverlapFilterRatio test) every other record claiming it. A record the stock rule would delete (it loses an overlap covering GAFOverlapFilterMinLengthRatio of its block) only fills segments no record the stock rule keeps claims, in pieces of at least 10 kb at 95% identity. Sequence the stock filters would not have anchored must be at least 98% identical to the reference it is placed on, and must not place reference its haplotype already covers; and wherever it would make a new junction that cannot be a real two-sided rearrangement, the junction is broken by a GAFOverlapFilterExactGap query gap rather than kept. Records that are cut reach the PAF whole, with the query intervals they keep in a kq:Z: tag, which gaf2paf applies, so every PAF line keeps its record's block length for minGAFBlockLength. Writes <paf>.junctions.tsv: every junction between pieces placed apart on the reference (jumps, inversions, cross-chromosome joins), with how many haplotypes share it (recurrence). Does nothing when GAFOverlapFilterRatio is 0 (no overlap filter at all), and is turned off in the reference-only splitting pass of mgSplit like the other overlap filters. On the CHM13 30-way chr16 pilot it anchored 15.3 Mb more than the stock filter (so 15 Mb less was clipped) while the broken junctions cost 0.1 Mb of sequence the stock filter anchors, and had 8.7k fewer dipcall errors over the 14 samples scored, none of them worse. It replaces GAFOverlapFilterTrim (gaffilter -t), which has been removed: a config that still sets GAFOverlapFilterTrim="1" is an error. On by default: set to 0 for the stock rule, whole-record deletion (a config without this attribute also gets the stock rule). REQUIRES the cactus-gfa-tools with gaffilter -x (checked when the workflow starts) [0: off, 1: on (default)] -->
+	<!-- GAFOverlapFilterExact: resolve overlapping gaf records per query segment instead of deleting whole records (gaffilter -x): a record keeps every segment where it beats (the GAFOverlapFilterRatio test) every other record claiming it. Sequence the whole-record rule would not have anchored must be at least 98% identical to the reference it is placed on and must not place reference its haplotype already covers, and wherever it would make a new junction that cannot be a real two-sided rearrangement, the junction is broken by a GAFOverlapFilterExactGap query gap. Writes <paf>.junctions.tsv: every junction between pieces placed apart on the reference, with how many haplotypes share it. Does nothing when GAFOverlapFilterRatio is 0, and a config without this attribute gets the whole-record rule. See "Overlapping Mappings" in doc/pangenome.md [0: off, 1: on (default)] -->
 	<!-- GAFOverlapFilterExactRatio: the dominance ratio of the exact filter, for its segment contests and for deciding which records are demoted. Empty means GAFOverlapFilterRatio. Lower values decide more contests (and leave fewer holes), at the risk of giving a span to the wrong paralog: see GAFOverlapFilterExactGuard -->
 	<!-- GAFOverlapFilterExactGuard: with GAFOverlapFilterExactRatio below GAFOverlapFilterRatio, cancel a win the lower ratio decides (and GAFOverlapFilterRatio would leave tied) over every run of at least 20 kb where the losing record is at least 1% more identical, extended while it stays more identical (gaffilter -x guard). The span becomes a hole instead of going to the less similar copy. Has no effect when the two ratios are equal [0=disable] -->
-	<!-- GAFOverlapFilterExactGap: the query gap, in bp, by which the exact filter breaks a junction it will not keep, and under which it treats a junction to a newly anchored piece as joined. A two-sided excursion with an unanchored query gap at least this long between its own pieces is broken too, since the clip would remove the gap and leave two halves joined on one side each. 31000 is the cactus-graphmap-join clip threshold (10 kb) plus the BAR banding limit from each side (2 x 10 kb) plus 1 kb, so that no later stage can rejoin it -->
-	<!-- GAFOverlapFilterExactWinIdent: give a contested query segment (of at least 1 kb) to a record whose identity over it beats another claimant's by at least this much, before the dominance test (the win-ident option of gaffilter -x). Without it, a long record that runs into a paralogous copy wins it on length alone: at an inversion flanked by inverted repeats, the forward mapping took each repeat from the inverted one that places it on the right copy. On the CHM13 30-way it gave 1.07% fewer dipcall errors over the 14 samples (13 better; NA18879 0.3k worse, mostly near the chr7 centromere), 0.6% fewer GIAB HG002 small-variant and 0.4% fewer SV errors, and 40 Mb less clipping. A config without the attribute leaves it off. REQUIRES the cactus-gfa-tools whose gaffilter has win-ident (checked when the workflow starts) [0=disable] -->
+	<!-- GAFOverlapFilterExactGap: the query gap, in bp, by which the exact filter breaks a junction it will not keep, and under which it treats a junction to a newly anchored piece as joined. A two-sided excursion with an unanchored query gap at least this long between its own pieces is broken too. 31000 is the cactus-graphmap-join clip threshold (10 kb) plus the BAR banding limit from each side (2 x 10 kb) plus 1 kb, so that no later stage can rejoin it -->
+	<!-- GAFOverlapFilterExactWinIdent: give a contested query segment (of at least 1 kb) to a record whose identity over it beats another claimant's by at least this much, before the dominance test (the win-ident option of gaffilter -x). Without it, a long record that runs into a paralogous copy wins it on length alone. A config without the attribute leaves it off [0=disable] -->
 	<!-- GAFOverlapFilterExactOptions: further gaffilter -x options, passed as they are (see gaffilter's usage: for example min-remainder, min-remainder-ident, id-floor, skip-onetoone, each with a double dash) -->
 	<!-- PAFOverlapFilterRatio: Same as GAFOverlapFilterRatio, but applied after conversion to PAF -->
 	<!-- PAFOverlapFilterMinLengthRatio: Same as GAFOverlapFilterMinLengthRatio, but applies after conversion to PAF -->
 	<!-- maskFilter: any softmasked sequence intervals > than this many bp will be hardmasked before being read by the minigraph mapper [negative value = disable]-->
 	<!-- delFilter: any deletions implied by split-read mappings greater than this are removed from the paf (by removing all lines of the smallest block bordering deletion)-->
 	<!-- delFilterThreshold: only remove deletion if it costs < delFilterThreshold * deletion-size matches. must be in range (0, 1] -->
-	<!-- delFilterMaxRemove: a deletion that delFilterThreshold refuses to resolve is still resolved, removing up to this many matched bases, when fewer than delFilterMinSupport query contigs assert it once everything else is filtered.  The relative threshold scales its budget with the deletion, so the biggest false joins (one contig carrying a distant paralog, implying a 40Mb deletion) are the ones it never fixes; a few hundred kb of alignment undoes them.  Deletions many contigs make the same way (every haplotype spanning a reference gap) keep the relative threshold's protection.  -1 disables -->
+	<!-- delFilterMaxRemove: a deletion that delFilterThreshold refuses to resolve is still resolved, removing up to this many matched bases, when fewer than delFilterMinSupport query contigs assert it once everything else is filtered (so that a single contig's misplaced paralog cannot imply a giant deletion).  -1 disables -->
 	<!-- delFilterMinSupport: with delFilterMaxRemove, the number of distinct query contigs whose surviving deletions reciprocally overlap a deletion by at least half for it to count as supported -->
 	<!-- delFilterQuerySizeThreshold: deletion removed if the supporting query contig has length < delFilterQuerySizeThreshold * deletion-size --> 
 	<!-- minIdentity: ignore PAF lines with identity (col 10 / col 11) is less than this -->
 	<!-- minScore: ignore PAF lines with score (AS:i) less than this (adding this to filter negative-scoring minimap2 lines) -->
 	<!-- removeMinigraphFromPAF: replace all minigraph contigs with transitive alignments in cactus-align-->
 	<!-- cpu: use up to this many cpus for each minigraph command. -->
-	<!-- lastTrain: train the abPOA scoring model on the reference against typical-sized genomes from the middle of the mash order, instead of using the default (HOXD70) scores: random pieces of the partners (trainPartners) are mapped to the reference with minimap2 and cPecan's pair HMM is fitted to the alignments by EM, its substitutions as log-odds and its two gap states as abPOA's two gap pieces. (This used to be LAST's last-train, hence the name; on 285 abPOA windows of human chr10, STR sites and other indels with GRCh38 and 12 haplotypes, the two halve the mismatches plus gap runs of the untrained scores and are within 1.5% of each other.) With mgSplit, each chromosome gets its own model, and one that can't be trained borrows another chromosome's. Training failures only ever fall back, never fail the run. Ignored with scoresFile. [0: off, 1: on] -->
-	<!-- trainPartners: the most partner genomes the pieces are drawn from, the candidates nearest the middle of the mash order, so that the model is not one partner's -->
-	<!-- trainPieces, trainPieceLength: the sample, this many pieces of this length in all, shared between the partners. Pieces long enough to hold long indels let EM train the long-gap state (trainLongGap): on human chr10, 10kb pieces gave it 23-40bp gaps on average, and 2kb pieces left it a second short gap -->
-	<!-- trainIterations: EM iterations, from cPecan's default model; the parameters settle in 3 or 4 -->
+	<!-- lastTrain: train the abPOA scoring model from the input instead of using the default (HOXD70) scores: random pieces of typical-sized genomes from the middle of the mash order (trainPartners) are mapped to the reference with minimap2, and cPecan's pair HMM is fitted to the alignments by EM, its substitutions as log-odds and its two gap states as abPOA's two gap pieces. (The name is from LAST's last-train, which this used to run.) With mgSplit, each chromosome gets its own model, and one that can't be trained borrows another chromosome's. Training never fails the run: without a model, the default scores are used. Ignored with scoresFile. [0: off, 1: on] -->
+	<!-- trainPartners: the most partner genomes the pieces are drawn from, the candidates nearest the middle of the mash order -->
+	<!-- trainPieces, trainPieceLength: the sample, this many pieces of this length in all, shared between the partners. The pieces should be long enough to hold the long indels that the long-gap state (trainLongGap) is trained on -->
+	<!-- trainIterations: EM iterations, starting from cPecan's default model -->
 	<!-- trainLongGap: also train the long-gap state, used as abPOA's second gap piece when it comes out a real long gap (at least 10bp on average); otherwise the second piece is made from the first with the poa TrainedGap*2Factor attributes. 0 holds the state at cPecan's default and always makes the second piece that way. [0: off, 1: on] -->
-	<!-- lastTrainMap: also derive minigraph's base-alignment penalties (its wfa-pen option) from the trained (or scoresFile) model when mapping. minigraph's aligner scores a match as 0 and has one mismatch penalty, so only the mean match and mismatch scores and the gap costs carry over. A human model gives mismatch 8, gap open 11, gap extend 1, against minigraph's 4, 4 and 2. Mapping HG01978 chr20 to a CHM13+HG01978.1 graph, this dropped 9-11% of the mismatches (for 10-20% more gap bases), and only 33-37% of the dropped ones were transitions, which is what random mismatches give, against 57-58% of the ones kept. Chaining is unaffected, so the mappings themselves are the same. Has no effect when minigraphMapOptions already sets wfa-pen. [0: off, 1: on] -->
-	<!-- leftAlign: move every indel in the minigraph alignments as far left on its graph node as the sequences allow (paffy left_align), without changing the alignment's score. minigraph places an indel in a repeat at a seed anchor, and at a mirrored place when a contig maps to the reverse strand, so haplotypes carrying the same indel get it in different places and the graph gets a parallel edge for each. Mapping yeast YPS128 as-is and reverse complemented, 21% of the indels were placed identically in both, and 89% once left-aligned. Costs a node fasta (the size of the GFA) on disk in each mapping job. [0: off, 1: on (default)] -->
-	<!-- zipAlleles: after construction (on every per-chromosome graph with mgSplit, never on its reference-only first pass), run rgfa-zip on the minigraph GFA. Each allele minigraph stored as novel sequence is aligned, on both strands, to the reference window it bypasses (and, if zipOptions turn the alt-vs-alt pass on, failing that to a parallel allele with the same bounding nodes); where the homology is confident (by default at least 5 kb at 95% gap-compressed identity, in a unique placement and an unfragmented chain) the allele is replaced by the sequence it duplicates, inversions included. Every later stage (mapping, splitting, cactus-align, the join) sees the zipped graph, and <x>.sv.unzipped.gfa.gz (the graph as minigraph built it) and <x>.sv.zip.tsv (one row per candidate and per skipped site, with its outcome) are written beside <x>.sv.gfa.gz. On by default: set to 0 to keep the graph as minigraph built it (a config without this attribute leaves it off). Cannot be combined with reusing mappings (inGAF without remap) when adding genomes to an existing graph, so set it to 0 for that; resuming from a graph with nothing to add zips nothing. [0: off, 1: on (default)] -->
-	<!-- zipOptions: options passed to rgfa-zip as they are. The default (also used when this attribute is missing) is rgfa-zip's own defaults, "-b 5000 -i 0.95 -G 50 -x asm20" (the minimum chain bp, minimum gap-compressed identity, indel length that splits an alignment, and minimap2 preset), plus its no-alt flag (double-dashed, as in the value below), which zips onto the reference only and skips the second, alt-vs-alt pass: on a CHM13 30-way pangenome that pass was a small but consistent loss. Drop the no-alt flag to add the alt-vs-alt pass. cactus adds the minimap2 it ships (-m, which rgfa-zip requires as an explicit path), the job's cores (-t and -j: mgCores, at most 16), the memory left once the graph is loaded (mem) and the job's temporary directory (tmpdir), unless they are set here. The output files and the walk source (zipWalks) cannot be set here -->
-	<!-- zipWalks: which haplotype walks rgfa-zip aligns and checks its edits against. "creator" (default): one walk per minigraph insertion, rebuilt from the graph alone. "gaf": first map every input genome to the unzipped graph exactly as cactus-graphmap does (same options and model, except that with mgSplit a chromosome that borrows its model maps these walks with minigraph's default penalties, as the model is only borrowed after every chromosome is built), and give rgfa-zip the walks observed in that GAF, which is exported as <x>.sv.unzipped.gaf.gz. This costs an extra round of mapping, and recovers zips the graph alone cannot show to be safe. "witness": the graph-only fallback walks, for testing. -->
+	<!-- lastTrainMap: also derive minigraph's base-alignment penalties (its wfa-pen option) from the trained (or scoresFile) model when mapping. minigraph's aligner scores a match as 0 and has one mismatch penalty, so only the mean match and mismatch scores and the gap costs carry over. Chaining is unaffected, so the mappings themselves are the same. Has no effect when minigraphMapOptions already sets wfa-pen. [0: off, 1: on] -->
+	<!-- leftAlign: move every indel in the minigraph alignments as far left on its graph node as the sequences allow (paffy left_align), without changing the alignment's score, so that haplotypes carrying the same indel in a repeat place it the same way. Costs a node fasta (the size of the GFA) on disk in each mapping job. [0: off, 1: on (default)] -->
+	<!-- zipAlleles: run rgfa-zip on the minigraph GFA after construction (with mgSplit, on every per-chromosome graph but never on the reference-only first pass). Each allele minigraph stored as novel sequence is aligned, on both strands, to the reference window it bypasses, and where the homology is confident the allele is replaced by the sequence it duplicates, inversions included. Every later stage sees the zipped graph, and <x>.sv.unzipped.gfa.gz (the graph as minigraph built it) and <x>.sv.zip.tsv (the report) are written beside <x>.sv.gfa.gz. Cannot be combined with reusing mappings (inGAF without remap) when adding genomes to an existing graph. A config without this attribute leaves it off. See "Zipping Alleles onto the Reference" in doc/pangenome.md [0: off, 1: on (default)] -->
+	<!-- zipOptions: options passed to rgfa-zip as they are. The default (also used when this attribute is missing) is rgfa-zip's own defaults, "-b 5000 -i 0.95 -G 50 -x asm20" (the minimum chain bp, minimum gap-compressed identity, indel length that splits an alignment, and minimap2 preset), plus its no-alt flag (double-dashed, as in the value below), which zips onto the reference only. Drop the no-alt flag to add a second pass that zips alleles onto parallel alleles with the same bounding nodes. cactus adds the minimap2 it ships (-m), the job's cores (-t and -j), the memory left for the aligners once the graph is loaded (mem) and the job's temporary directory (tmpdir), unless they are set here. The output files and the walk source (zipWalks) cannot be set here -->
+	<!-- zipWalks: which haplotype walks rgfa-zip aligns and checks its edits against. "creator" (default): one walk per minigraph insertion, rebuilt from the graph alone. "gaf": first map every input genome to the unzipped graph as cactus-graphmap does, and give rgfa-zip the walks observed in that GAF, which is exported as <x>.sv.unzipped.gaf.gz. This costs an extra round of mapping, and recovers zips the graph alone cannot show to be safe. "witness": the graph-only fallback walks, for testing. -->
 	<graphmap
 		 assemblyName="_MINIGRAPH_"
 		 dotHaplotypes="1"
@@ -657,7 +591,7 @@
 	<!-- refContigDropoff: When detecting refContigs, sort in reverse order by size, and pick refContigs up until contig N is this many times smaller than contig 1 (or maxRefContigs) is reached.  The general idea is to have a refContig for each chromosome then lump all the tiny ones into their own graphs. -->
 	<!-- refContigRegex: If specified, automatically promote any matching contig name into its own graph, regardless of how small it is.  Useful for making sure chrM doesn't get mixed with KI270322.1 etc. By defaulat it's anything beginning with chr (any case) followed by 0-3 chracters. This takes precedence over refContigDropoff -->
 	<!-- otherContigName: When determining refContigs automatically, other contigs get lumped into a graph with this name. This affects the file structure but has zero bearing on whole-genome graphs/indexes -->
-	<!-- wholeGenomeRef: with cactus-pangenome's mgSplit option, build each chromosome's second-pass minigraph against the whole primary reference genome rather than just that chromosome, so off-chromosome mappings can compete and be filtered the way they are in the whole-genome pipeline. The off-chromosome material is pruned back out before cactus-align. This costs indexing the whole reference for every chromosome. Set to 0 to build each chromosome's graph on that chromosome's reference only, as mgSplit did before (and as the step-by-step interface does). Ignored without mgSplit. [0: off, 1: on (default)] -->
+	<!-- wholeGenomeRef: with cactus-pangenome's mgSplit option, build each chromosome's second-pass minigraph against the whole primary reference genome rather than just that chromosome, so off-chromosome mappings can compete and be filtered the way they are in the whole-genome pipeline. The off-chromosome material is pruned back out before cactus-align. Set to 0 to build each chromosome's graph on that chromosome's reference only (as the step-by-step interface does). Ignored without mgSplit. [0: off, 1: on (default)] -->
   	<graphmap_split
 		 minQueryCoverages="0.75 0.5 0.25"
 		 minQueryCoverageThresholds="100000 1000000"
@@ -675,9 +609,9 @@
 	<!-- gfaffix: toggle gfaffix normalization on/off -->
 	<!-- pathNormalize: toggle path normalization (merge equivalent paths through same site) on/off -->
 	<!-- clipNonMinigraph: clip out regions if the don't align to minigraph (if disabled, clip if they don't align to anything) -->
-	<!-- clipFlank: trim the fringe an aligner leaves where it extended anchors into a repeat, outward from each clipped interval by up to this many bp, for as long as unaligned sequence stays dense.  0 disables.  This value is the main control: inside a repeat the gate seldom closes on its own, so the cap decides how much goes.  Measured on a 124-haplotype chrY, 3.4% of edges at 20000, 9.4% at 50000, 29.4% at 200000.  50000 is the value benchmarked whole-genome (231/231 samples improved on F1); lowering it does not sharpen the trim, it just removes less -->
-	<!-- clipInversionMin: sever one-sided inversions when clipping.  A run of at least this many bp of reference nodes that a haplotype walks backwards is an inversion allele; when clipping has removed its junction with the forward reference at one end but not the other, the surviving junction is clipped too, so the inverted run becomes its own path fragment instead of an edge into the reverse strand with no way out (a 4.9Mb one-contig bubble on HPRC chr9).  Needs clip-vg >= 1.2.4.  0 disables -->
-	<!-- clipFlankThreshold: advanced.  keep trimming while more than this fraction of bases are unaligned, by the same test the clipping itself uses.  Negative calibrates per graph, which is almost always what you want: over 24 human chromosomes the calibrated value ran from 0.054 to 0.230, a 4.3x spread that tracks neither haplotype count nor chromosome size -->
+	<!-- clipFlank: trim the fringe an aligner leaves where it extended anchors into a repeat, outward from each clipped interval by up to this many bp, for as long as unaligned sequence stays dense.  0 disables -->
+	<!-- clipInversionMin: sever one-sided inversions when clipping.  A run of at least this many bp of reference nodes that a haplotype walks backwards is an inversion allele; when clipping has removed its junction with the forward reference at one end but not the other, the surviving junction is clipped too, so the inverted run becomes its own path fragment instead of an edge into the reverse strand with no way out.  Needs clip-vg >= 1.2.4.  0 disables -->
+	<!-- clipFlankThreshold: advanced.  keep trimming (clipFlank) while more than this fraction of bases are unaligned, by the same test the clipping itself uses.  Negative (the default) calibrates it per graph -->
 	<!-- minimizerOptions: options for vg minimizer -->
 	<!-- minFilterFragment: discard fragments that result from the vg clip frequency filter (and from delEdgeFilter) if they are smaller than this -->
 	<!-- delEdgeFilter: when making the clip graph, remove edges that span more than this many bp on the reference genome (vg clip -D), the join's counterpart of the 10 Mb delFilter that filter-paf-deletions applies to the mappings.  0 disables.  The delEdgeFilter command-line option of cactus-graphmap-join and cactus-pangenome overrides it -->
@@ -696,11 +630,11 @@
 	<!-- bcftoolsNorm: Run bcftools norm -f (left shifting) on (non-raw, non-wave) VCF output (may result in overlapping variants) -->
 	<!-- mergeDuplicatesOptions: Run merge_duplicates script with these options (empty string means default options) after bcftools norm to prevent multiple entries at the same position.  If "0", merge_duplicates will not be run.  This applies to normalization as toggled by vcfwaveNorm and/or bctoolsNorm (and is ever run after bcftools norm) -->
 	<!-- filterAC0: sometimes vg deconstruct will report "conflict" sites where there are no alt genotypes found.  Setting this flag to 1 will filter these out: a site with no carried allele at all is dropped, and any allele nothing carries is trimmed off the sites that remain, so a big bubble is reported with just the alleles its samples actually take.  Never applies to .raw.vcf.gz, which keeps every traversal the graph has -->
-	<!-- pgrealignCatalogOptions: options to pgrealign catalog, which finds each chromosome's tandem repeats on its reference path when the pgrealign option is given no targets.  It always runs pgrealign's trfind, for periods of 7 to 2000 bp, which finds no repeat shorter than 40 bp.  The default also runs strf, through pgrealign catalog's strf option naming the binary strf: pgrealign's reimplementation of the part of TRF that RepeatMasker 4.1 uses to find its Simple_repeat records, from which pgrealign's own CHM13 catalogue drew its STRs through RepeatMasker's annotation.  On CHM13 chr20 that catches 98% of that catalogue's entries (98% of its STRs, which trfind alone all but misses), along with 1.9 times as many entries in all, since RepeatMasker also rescores TRF's repeats and masks interspersed repeats first.  To run TRF itself instead, give its trf option naming a TRF binary in place of the strf option -->
+	<!-- pgrealignCatalogOptions: options to pgrealign catalog, which finds each chromosome's tandem repeats on its reference path when the pgrealign option is given no targets.  It always runs pgrealign's trfind, for periods of 7 to 2000 bp.  The default also runs strf, through pgrealign catalog's strf option naming the binary strf: pgrealign's reimplementation of the part of TRF that RepeatMasker uses to find simple repeats, for the shorter periods.  To run TRF itself instead, give its trf option naming a TRF binary in place of the strf option -->
 	<!-- pgrealignRegionsOptions: options to pgrealign regions (pad, max-span), which anchors each target between two snarl boundary nodes of the reference -->
 	<!-- pgrealignExtractOptions: options to pgrealign extract (max-internal-bp) -->
-	<!-- pgrealignRealignOptions: options to pgrealign realign (select, centre, max-excess, max-cells, max-work, min-share, scores).  Its limits are sizes of the alignment, as the window and band are for the alignments above, never sizes of the machine: max-cells, the largest alignment run unbanded, of which 7 times as many cells is the largest alignment of any kind, and max-work, the cells of a region's alignments in all.  A region too big for them is left as it is, the same on every machine, and there is no time limit, so the realigned graph depends only on the input and the config.  The memory and time realign needs follow from them: its jobs and max-memory come from the job's cores and memory, and a job with too little memory for the largest region realign plans to align starts again with enough, up to 140 GiB for human graphs; a run that cannot have that stops rather than realign less.  A smaller max-cells needs less, and changes the result -->
-	<!-- pgrealignVerify: check that every path of each realigned graph spells what it did before (pgrealign verify), failing the job if not.  It runs in the full phase, on the vg made from the realigned and GFAffixed GFA against the vg cactus-align wrote, so vg parses no GFA for it, and it covers GFAffix and the conversion too -->
+	<!-- pgrealignRealignOptions: options to pgrealign realign (select, centre, max-excess, max-cells, max-work, min-share, scores).  Its limits are sizes of the alignment, never of the machine, so the realigned graph depends only on the input and the config: max-cells is the largest alignment run unbanded, and max-work bounds the cells of a region's alignments in all.  A region too big for them is left as it is.  realign's jobs and max-memory come from the job's cores and memory, and a job with too little memory for its largest region starts again with enough; a run that cannot have that stops rather than realign less -->
+	<!-- pgrealignVerify: check that every path of each realigned graph spells what it did before (pgrealign verify), failing the job if not -->
 	<!-- pgrealignQC: measure each realigned region's alignment, and the graph's before it, against optimal pairwise alignments (pgrealign qc), into the archive of reports.  Off by default: it can take longer than the realignment -->
 	<graphmap_join
 		 maxNodeLength="1024"
@@ -781,8 +715,7 @@
 		<!-- default_branch_len: use this branch length if information is missing from the input tree -->
 		<!-- default_branch_len_pangenome: use this branch length (for implicit star tree) in pangenome mode.  The star
 		     tree's longest path, twice this length, picks <caf annealingRounds>: 0.15 gives 0.3, past the "five"
-		     divergence, so pangenomes chain with the "default" minimum length of 256.  On a CHM13 pangenome of 30 HPRC
-		     haplotypes, 512, 1024 and 2048 made 0.2%, 0.4% and 0.9% more dipcall errors -->
+		     divergence, so pangenomes chain with the "default" minimum length of 256 -->
 	 	<decomposition
 	 		default_internal_node_prefix="Anc"
 			default_branch_len="1"
@@ -790,75 +723,29 @@
 	 	/>
   	</multi_cactus>
 	<!-- cactus_consolidated memory.  One number is estimated: the peak with jemalloc page retention
-	     OFF.  That peak is caf's, not bar's (350.0 GiB across five salamander Anc3 runs with
-	     different filters, windows and core counts), so it answers to input size and to nothing
-	     bar does: memory_coefficient_gb * (paf_GB + total_sequence_GB)^memory_input_exponent.  The
-	     exponent is well under 1: the two workloads measured for this quantity under the same
-	     configuration are MammalsAnc0 at 122.5 GiB on 4.3 GB of input and salamander Anc3 at 350.0
-	     on 122 GB, 28x the input for 2.9x the peak, an exponent of 0.31.  Fitted to 575 VGP
-	     alignments from the 577way run, which predate page retention and still had bar's nested
-	     parallelism in, so the fitted 220 is scaled down to 175, where the three retention-off
-	     peaks measured under the shipped configuration (huge pages on) put it: MammalsAnc0 122.5
-	     GiB (2.2x under the estimate), AnuraAnc6 265.1 (1.14x), salamander 350.0 (2.1x).
-	     AnuraAnc6 sets it: its flowers run to 847 ends against MammalsAnc0's 208, so it peaks 2.2x
-	     higher on 1.5x the input, which no power of the input can follow.  Below 0.02 GB of input
-	     the estimate tapers to zero. -->
+	     off, as memory_coefficient_gb * (paf_GB + total_sequence_GB)^memory_input_exponent.  Below 0.02 GB
+	     of input the estimate tapers to zero (but is at least 4 GB with abpoa or minipoa). -->
 	<!-- pecan_memory_base_gb, pecan_memory_sequence_gb, pecan_memory_paf_gb: with pecan as bar's base aligner, the
 	     estimate is the smaller of the one above and pecan_memory_base_gb + pecan_memory_sequence_gb *
-	     total_sequence_GB + pecan_memory_paf_gb * paf_GB, in GiB.  pecan's peak follows how much is aligned rather
-	     than the size of the input: over 26 ancestors of two vertebrate test sets (5 and 11 genomes, up to 11 GB of
-	     input, 64 cores) the power law above, fitted to abPOA runs, asked a median 9x what pecan used, and this model
-	     put every one of their peaks, measured with page retention on, under its estimate (at most 0.84 of it) for a
-	     third of the memory.  It is never more than the power law, which bounds it where those runs did not reach. -->
+	     total_sequence_GB + pecan_memory_paf_gb * paf_GB, in GiB. -->
 	<!-- og_size_scale_pct: scale outgroup sizes by this factor (percent) when computing total sequence size -->
 	<!-- retain_pages: whether cactus_consolidated keeps the pages jemalloc frees instead of
-	     returning them to the OS.  Keeping them makes bar 2 to 2.5x faster (MammalsAnc0 on jemalloc
-	     5.3.1 with huge pages: 1837 s against 4517 s) at 2.4 to 2.6x the peak (117 to 299 GiB), and
-	     that peak follows cumulative churn rather than the working set, so it is not estimated: it
-	     is given room.  "1" always, "0" never, "auto" keeps the pages when memory_retain_multiple
-	     times the estimate, plus one further estimate of headroom, fits what the job can be given
-	     (the system memory on a single machine, or the maxMemory option), and then asks for that
-	     multiple; otherwise the pages are returned and the request is the estimate itself.  Where
-	     that ceiling is not known at all, which is every batch system but single_machine and slurm
-	     unless maxMemory is given, the pages are returned: an unschedulable request costs more than
-	     the speed does.  The consRetainPages command line option overrides. -->
+	     returning them to the OS, which is much faster but takes 2-3x the peak memory.  "1" always, "0" never,
+	     "auto" keeps the pages when memory_retain_multiple times the estimate, plus one further estimate of
+	     headroom, fits what the job can be given (the system memory on a single machine, the largest node on
+	     slurm, or the maxMemory option), and then asks for that multiple; otherwise the pages are returned
+	     and the request is the estimate itself.  Where that ceiling is not known, which is every batch system
+	     but single_machine and slurm unless maxMemory is given, the pages are returned.  The consRetainPages
+	     command line option overrides. -->
 	<!-- memory_retain_multiple: how many times the retention-off estimate a retained job asks
-	     for.  The request is not a prediction of the retention peak, which follows cumulative
-	     churn and has no ceiling of its own; it is what retention is allowed to grow into before
-	     retain_pages_release_pct hands the pages back.  So it only has to leave the guard
-	     somewhere sensible: 2 puts the trip point at 1.6 times the estimate, which on MammalsAnc0
-	     is 433.1 GiB, above that job's retention peak under this configuration (271.4 GiB) by
-	     1.60x and above the highest ever measured for it (319.9, on jemalloc 5.3.0 without huge
-	     pages) by 1.35x; on lungfish Anc2 it is 821.1 against a 331.7 peak, 2.48x.  Losing
-	     retention to a guard that fires too early is expensive,
-	     2.8x on MammalsAnc0's bar.  Larger is not free: at 4 MammalsAnc0 queued 13.5 hours for a
-	     job that ran in two, asking 928 GiB to peak at 271, and at 3 lungfish Anc2 asked 1293 to
-	     peak at 332.
-	     Retention also requires a whole further estimate of headroom beyond the request.  That is
-	     a tuned exclusion threshold, not something the mechanism implies (the guard already bounds
-	     a retained job inside its request), and what it is tuned to exclude is salamander
-	     Anc3, which would otherwise ask 1479 GiB of a 1700 GiB ceiling to buy a caf 10% faster and
-	     a guard that fires either way.  It is therefore sensitive to node size: a ceiling of
-	     2219 GiB or more re-admits that job. -->
+	     for.  The request is not a prediction of the retention peak: it is what retention is allowed to
+	     grow into before retain_pages_release_pct hands the pages back. -->
 	<!-- transparent_huge_pages: run cactus_consolidated under `env MALLOC_CONF=thp:always`, so
-	     jemalloc backs its extents with huge pages.  It has to reach the process through the
-	     environment because jemalloc reads MALLOC_CONF before main.  Applied in both retention
-	     modes.  Off: 44398 -> 33124 s on salamander Anc3 for 0.9% more peak.  On: measured on
-	     MammalsAnc0 as the fastest cell of its round with the least retention memory (4580 s /
-	     269 GiB, against 6536 s / 289 GiB without); and once the release guard has turned
-	     retention off mid-run, huge pages are the difference between the ~4100 s stock-decay mode
-	     and the 13433 s one.  A no-op where the kernel has THP set to never.  A MALLOC_CONF
-	     already in the environment is left alone. -->
+	     jemalloc backs its extents with huge pages, which is faster.  A no-op where the kernel has THP
+	     set to never.  A MALLOC_CONF already in the environment is left alone. -->
 	<!-- retain_pages_release_pct: with retention on, the pages are handed back for good once rss
-	     reaches this percentage of the job's memory, and the run continues in stock decay.  A wrong
-	     guess then runs slower instead of dying.  Checked from caf's melting rounds, after caf and
-	     after the flowers are extended, and from bar once per flower for every base aligner (it
-	     used to be only bar's poa loop, which left pecan unguarded); the first time it fired it
-	     was 67 seconds into bar, on 540 GiB that was all caf's.  80 rather than something smaller because
-	     the request is sized from it: rss overshoots the trip point by 0 to 12.2% across the runs
-	     measured, so 80 leaves rss at 90% of the request in the worst of them, while 65 would waste
-	     a quarter of every retained job's request.  One way only: purging repeatedly to hold a
-	     target was measured and lost.  0 disables. -->
+	     reaches this percentage of the job's memory, and the run continues without retention.  A wrong
+	     guess then runs slower instead of dying.  0 disables. -->
 	<consolidated
 		 retain_pages="auto"
 		 memory_retain_multiple="2"
