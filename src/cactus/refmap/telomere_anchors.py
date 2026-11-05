@@ -16,6 +16,9 @@ another chromosome's end) that only the telomere tied to the graph.  Per chromos
    min_array.  Its outer edge is the outermost telomeric k-mer reachable from the core in steps of at most 40bp, so
    degenerate telomere stays in the array and other junk (such as (TTAAAG)n) stays out.  An edge under two repeat
    units from the contig end is moved to the end; an array whose edge is further in than max_outer is not anchored.
+   Its inner edge is the end of the last telomeric hexamer in its last window that starts within 12bp of the one
+   before it: the window can reach up to 50bp into the subtelomere, which would be forced onto other haplotypes'
+   telomeres, and a hexamer the subtelomere has by chance is on its own.
    Nor is an array without min_run bp of perfect (CCCTAA)n: telomerase makes long perfect runs, while an interstitial
    telomeric repeat (ITS), which a contig that breaks next to it would leave at its end, is degenerate, and anchoring
    it would join the telomere to the middle of the chromosome.  Over CHM13 and the chromosome ends of 21 HPRC
@@ -34,12 +37,21 @@ another chromosome's end) that only the telomere tied to the graph.  Per chromos
    best over the outermost 600bp, and the inner end free (edlib, mode SHW): a slip in the repeat costs an indel
    rather than putting the rest of the array out of phase.  These anchor lines are tagged ct:i:1, which makes them
    constraints for cactus_consolidated, kept whatever chain they end up in.
+   The reference's array is pinned one repeat unit further in (6-11bp into the target, against 0-5bp for the
+   others), at the offset whose alignment of its outermost 600bp has the fewest edits and starts with an aligned pair.
+   vg haplotypes only samples a chromosome end from the haplotypes that pass through the reference's outermost node,
+   and the arrays' outer ends differ by a few bp (the phase they end in, and slips near the end): pinned with the
+   others, the reference's end was reached by as few as 3 of 40 haplotypes, whose ends were then the only ones
+   sampled.  One unit further in, the other arrays overhang it by up to 14bp, which the join clips as stubs, so that
+   their paths start on the reference's end, unless a slip puts a deletion or a mismatch on its outermost base.
 5. The existing PAF lines of an anchored contig are trimmed out of its anchored ends (the array and anything outside
    it), cutting their cigars, so that nothing else pairs the telomere up some other way.  A line left with no aligned
    pair is dropped.  Every other line is written unchanged.
 
-On 40 HPRC haplotypes x 8 chromosomes (with minigraph end events), anchoring kept all telomere sequence in the clipped
-graph, against 28.5% without it, and 98% of the swapped subtelomere blocks.
+On 40 HPRC haplotypes x 8 chromosomes (with minigraph end events), anchoring kept 99.9% of the telomere sequence in
+the clipped graph (all but the few bp of each haplotype outside the reference's end), against 28.5% without it, and 98%
+of the swapped subtelomere blocks.  618 of the 640 haplotype ends reached the reference's end, and vg haplotypes could
+sample 37-40 of the 40 haplotypes at every end (3-39 with the reference pinned like the others).
 
 Copyright (C) 2026 by Glenn Hickey
 
@@ -64,8 +76,10 @@ logger = logging.getLogger(__name__)
 WINDOW = 100     # arrays are measured in windows of this many bp
 SCAN = 100000    # bp read beyond max_outer at each contig end, to measure an array
 OUTER_GAP = 40   # the outer edge steps outward over telomeric k-mers at most this far apart
+INNER_GAP = 12   # the inner edge's hexamer starts at most this far past the end of the one before it
 PARTIAL = 11     # an outer edge this close to the contig end is moved to the end (under two repeat units)
 PHASE_BP = 600   # the anchor's repeat offset is the one that matches best over this many outer bp
+REFERENCE_INSET = 6  # the reference's anchor starts this much further in than the others (one repeat unit)
 TARGET_PAD = 1000  # a target is this much longer than the longest array anchored to it
 WORKER_BYTES = 1 << 30  # a process per this many bytes of fasta to scan
 MAX_WORKERS = 16   # the scan is bound by reading the fastas well before this many processes
@@ -133,22 +147,36 @@ def outer_edge(s, c):
     return 0 if e <= PARTIAL else e
 
 
+def inner_edge(s, x):
+    """ the array's inner edge in s, given x, where its last passing window ends: the end of the last telomeric
+    hexamer that starts in that window, within INNER_GAP of the end of the one before it, so that a hexamer the
+    subtelomere has by chance doesn't count """
+    starts = [m.start() for m in MOTIF_START_RE.finditer(s, max(0, x - 2 * WINDOW), x + 5)]
+    for a, b in zip(reversed(starts[:-1]), reversed(starts)):
+        if b - (a + 6) <= INNER_GAP:
+            return b + 6
+    return x
+
+
 def array_at_end(s, min_array, max_outer):
-    """ s: a contig end read from the end inward as CCCTAA, upper case.  (outer_bp, array_bp, status), the array being
-    s[outer_bp : outer_bp + array_bp].  status is ok; beyond (its edge is further in than max_outer: not to be
-    anchored); short (no core reaches min_array: this is the first telomeric run); or none (no telomeric window) """
+    """ s: a contig end read from the end inward as CCCTAA, upper case.  (outer_bp, array_bp, status, open_end), the
+    array being s[outer_bp : outer_bp + array_bp].  status is ok; beyond (its edge is further in than max_outer: not
+    to be anchored); short (no core reaches min_array: this is the first telomeric run); or none (no telomeric
+    window).  open_end: its walk ran out of s, so the array may go on past it """
     short = None
     for x0 in range(0, max_outer + WINDOW + 1, WINDOW):
         if telomere_fraction(s[x0:x0 + WINDOW]) < 0.5:
             continue
         L = array_walk(s, x0)
         e = outer_edge(s, MOTIF_START_RE.search(s, x0).start())
+        # a walk only stops short of the end of s at two failing windows
+        open_end = x0 + L + 2 * WINDOW > len(s)
         if L < min_array:
             if short is None:
-                short = (e, x0 + L - e, 'short')
+                short = (e, inner_edge(s, x0 + L) - e, 'short', open_end)
             continue
-        return e, x0 + L - e, ('ok' if e <= max_outer else 'beyond')
-    return short or (0, 0, 'none')
+        return e, inner_edge(s, x0 + L) - e, ('ok' if e <= max_outer else 'beyond'), open_end
+    return short or (0, 0, 'none', False)
 
 
 def perfect_run(array):
@@ -226,17 +254,18 @@ def fasta_ends(path, n, block_size=1 << 23):
 def scan_genome(event, path, min_array, max_outer):
     """ (event, contigs, error) for one genome's fasta.  contigs: (name, length, ends), ends being its 5' then 3' end as
     (end, outer_bp, array_bp, status, array, reaches_scan_limit, perfect_run), array the ok array's sequence read
-    from the end inward as CCCTAA, and perfect_run its perfect_run().  A fasta that can't be read gives (event, None,
-    the error) """
+    from the end inward as CCCTAA, reaches_scan_limit whether it may go on past the max_outer + SCAN bp read, and
+    perfect_run its perfect_run().  A fasta that can't be read gives (event, None, the error) """
     contigs = []
     try:
         for name, length, head, tail in fasta_ends(path, max_outer + SCAN):
             ends = []
             for end, s in (('5p', head.decode('latin-1').upper()),
                            ('3p', reverse_complement(tail.decode('latin-1').upper()))):
-                outer, L, status = array_at_end(s, min_array, max_outer)
+                outer, L, status, open_end = array_at_end(s, min_array, max_outer)
                 array = s[outer:outer + L] if status == 'ok' else None
-                ends.append((end, outer, L, status, array, outer + L >= len(s), perfect_run(array) if array else 0))
+                ends.append((end, outer, L, status, array, open_end and len(s) == max_outer + SCAN,
+                             perfect_run(array) if array else 0))
             contigs.append((name, length, ends))
     except (OSError, EOFError, zlib.error) as e:
         return event, None, '{}: {}'.format(path, e)
@@ -312,18 +341,52 @@ def trim_paf(t, lo, hi):
     return t
 
 
-def anchor_alignment(array, target_length):
+def leading_gap(ops):
+    """ bp of indels before the first aligned pair of ops """
+    n = 0
+    for k, op in ops:
+        if op in '=X':
+            break
+        n += k
+    return n
+
+
+def pin_outer_base(array, target, start, ops):
+    """ (start, ops) of an alignment of array to target from start, with any indels before its first aligned pair
+    replaced by aligned pairs of the array's bases before that pair and the target bases just outside it, so that the
+    array's outermost base is aligned """
+    k = next((i for i, (n, op) in enumerate(ops) if op in '=X'), len(ops))
+    i_bp = sum(n for n, op in ops[:k] if op == 'I')
+    s = start + sum(n for n, op in ops[:k] if op == 'D') - i_bp
+    if k == 0 or k == len(ops) or s < 0:
+        return start, ops
+    return s, [(1, '=' if a == b else 'X') for a, b in zip(array[:i_bp], target[s:s + i_bp])] + ops[k:]
+
+
+def anchor_alignment(array, target_length, reference=False):
     """ align array (read from its outer edge inward as CCCTAA) to (CCCTAA)n of target_length with the outer ends
-    pinned: (repeat offset r, ops outer end first, target bp used from r) """
+    pinned: (repeat offset r, target start, ops outer end first, target bp used from the start).  The array starts at
+    r, the offset that matches best over its outermost PHASE_BP.  The reference's starts a repeat unit further in, at
+    r + REFERENCE_INSET, r being the offset whose alignment of those bp has the fewest edits and, of those, the fewest
+    before its first aligned pair, and starts with an aligned pair """
     target = TEL_UNIT['p'] * (target_length // 6)
-    best = None
-    for r in range(6):
-        m = sum(1 for a, b in zip(array[:PHASE_BP], target[r:r + PHASE_BP]) if a == b)
-        if best is None or m > best[0]:
-            best = (m, r)
-    r = best[1]
-    ops = cigar_ops(edlib.align(array, target[r:], mode='SHW', task='path')['cigar'])
-    return r, ops, sum(n for n, op in ops if op in '=XD')
+    if reference:
+        def cost(r):
+            a = edlib.align(array[:PHASE_BP], target[r:r + 2 * PHASE_BP], mode='SHW', task='path')
+            return a['editDistance'], leading_gap(cigar_ops(a['cigar'])), r
+        r = min(cost(r) for r in range(6))[2]
+        start = r + REFERENCE_INSET
+    else:
+        best = None
+        for r in range(6):
+            m = sum(1 for a, b in zip(array[:PHASE_BP], target[r:r + PHASE_BP]) if a == b)
+            if best is None or m > best[0]:
+                best = (m, r)
+        r = start = best[1]
+    ops = cigar_ops(edlib.align(array, target[start:], mode='SHW', task='path')['cigar'])
+    if reference:
+        start, ops = pin_outer_base(array, target, start, ops)
+    return r, start, ops, sum(n for n, op in ops if op in '=XD')
 
 
 def read_paf_strands(paf_path, target_names, chrom):
@@ -452,11 +515,11 @@ ANCHOR_KEYS = ['event', 'contig', 'end', 'orientation', 'arm', 'outer_bp', 'arra
 def anchor_line(d, alignment, target, target_length, chrom):
     """ the PAF line anchoring contig end d to its arm's target, given its anchor_alignment(); fills in d's offset,
     identity, strand, target and target coordinates """
-    r, ops, used = alignment
+    r, start, ops, used = alignment
     if d['arm'] == 'p':
-        ts, te = r, r + used
+        ts, te = start, start + used
     else:   # the target is the reverse complement, so the alignment, outer end first, is read backwards
-        ts, te, ops = target_length - r - used, target_length - r, ops[::-1]
+        ts, te, ops = target_length - start - used, target_length - start, ops[::-1]
     strand = '+' if (d['end'] == '5p') == (d['arm'] == 'p') else '-'
     matches, block = sum(n for n, op in ops if op == '='), sum(n for n, op in ops)
     d.update(offset=r, identity=matches / block, strand=strand, target=target, target_length=target_length,
@@ -468,12 +531,14 @@ def anchor_line(d, alignment, target, target_length, chrom):
 
 
 def anchor_telomeres(chrom, fasta_paths, paf_path, out_paf_path, out_minigraph_path,
-                     minigraph_event='_MINIGRAPH_', min_array=500, max_outer=3000, min_run=72, threads=1):
+                     minigraph_event='_MINIGRAPH_', min_array=500, max_outer=3000, min_run=72, threads=1,
+                     reference=None):
     """ anchor the telomere arrays of chromosome chrom's contigs to targets tel_<chrom>p and tel_<chrom>q of the
     minigraph genome (see the top of this file).  fasta_paths maps each event, minigraph_event included, to its
     fasta, plain or gzipped, whose headers are the PAF's names (id=<event>|<contig>); paf_path holds the contigs'
     alignments to the minigraph segments, tagged rc:Z:<reference contig> as cactus-graphmap writes them (only contigs
-    mostly on reference contig chrom are anchored).  Writes out_paf_path, the PAF with the anchored ends trimmed out
+    mostly on reference contig chrom are anchored).  The arrays of event reference, if given, are anchored a repeat
+    unit further in than the others.  Writes out_paf_path, the PAF with the anchored ends trimmed out
     of its lines and one anchor line (tagged ct:i:1) per anchored end appended, every other line unchanged; and
     out_minigraph_path, the minigraph fasta (plain) with the targets of the arms that have anchors appended.  If
     nothing is anchored, the two are copies of the inputs.  A contig end that can't be anchored is skipped, and
@@ -572,7 +637,8 @@ def anchor_telomeres(chrom, fasta_paths, paf_path, out_paf_path, out_minigraph_p
                 zone[1] = d['q_start']
 
         # the pool aligns the anchors while the PAF is trimmed here
-        alignments = [pool.submit(anchor_alignment, d['array'], target_length[d['arm']]) for d in anchored]
+        alignments = [pool.submit(anchor_alignment, d['array'], target_length[d['arm']], d['event'] == reference)
+                      for d in anchored]
         n_trimmed = n_dropped = n_untrimmable = 0
         if not anchored:
             shutil.copyfile(paf_path, out_paf_path)

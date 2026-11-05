@@ -306,7 +306,8 @@ def cactus_cons(job, tree, ancestor_event, config_node, seq_id_map, og_map, paf_
     # In a pangenome chromosome, anchor every contig's telomere array to a synthetic telomere target for its chromosome
     # arm, added to the minigraph genome (see <graphmap telomereAnchors>).  The anchors are tagged ct:i:1, which makes
     # them constraints below.  A job of several reference contigs (--noSplit's "all", chrOther) anchors nothing, as the
-    # PAF lines' rc:Z: tags don't put its contigs on chrom_name
+    # PAF lines' rc:Z: tags don't put its contigs on chrom_name.  The reference (bar's poaReferenceEvent, which
+    # cactus-align sets from --reference) is anchored a repeat unit further in, so the haplotypes' paths reach its end
     graphmap_node = config_node.find('graphmap')
     mg_event = getOptionalAttrib(graphmap_node, 'assemblyName', default='_MINIGRAPH_')
     if chrom_name and mg_event in seq_path_map and \
@@ -319,7 +320,8 @@ def cactus_cons(job, tree, ancestor_event, config_node, seq_id_map, og_map, paf_
                                    min_array=getOptionalAttrib(graphmap_node, 'telomereMinArray', typeFn=int, default=500),
                                    max_outer=getOptionalAttrib(graphmap_node, 'telomereMaxOuter', typeFn=int, default=3000),
                                    min_run=getOptionalAttrib(graphmap_node, 'telomereMinRun', typeFn=int, default=72),
-                                   threads=job.cores)
+                                   threads=job.cores,
+                                   reference=getOptionalAttrib(config_node.find('bar'), 'poaReferenceEvent') or None)
         if anchors:
             # the input PAF goes, so the disk holds no more PAFs than it was sized for
             job.fileStore.deleteLocalFile(paf_id)

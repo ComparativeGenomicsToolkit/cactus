@@ -22,8 +22,8 @@ from unittest import mock
 import edlib
 
 from cactus.refmap import telomere_anchors
-from cactus.refmap.telomere_anchors import anchor_telomeres, anchor_summary, array_at_end, fasta_ends, perfect_run, \
-    trim_paf
+from cactus.refmap.telomere_anchors import anchor_alignment, anchor_telomeres, anchor_summary, array_at_end, \
+    fasta_ends, perfect_run, pin_outer_base, trim_paf
 
 MG = '_MINIGRAPH_'
 CHROM = 'chrT'
@@ -236,12 +236,14 @@ def verify_line(t, qseq, tseq, tag):
         j += n if op in '=XD' else 0
 
 
-def verify_outputs(fasta_paths, paf_path, out_paf_path, out_mg_path, max_outer=3000, chrom=CHROM, min_run=72):
+def verify_outputs(fasta_paths, paf_path, out_paf_path, out_mg_path, max_outer=3000, chrom=CHROM, min_run=72,
+                   reference=None):
     """ the checks of the prototype's --check, raising AssertionError on the first failure.  Anchors: tagged ct:i:1,
     one per end at most, to tel_<chrom>p/q, of contigs mostly on chrom (by the input lines' rc:Z: tags), on the
-    strand that holds most of the contig's aligned bases, pinned at the target's outer end, their query edge a
-    telomere/junk boundary at most max_outer from the end, holding min_run bp of perfect repeat, and the anchors of a
-    contig not overlapping.  Other lines: those of unanchored contigs byte-identical, those of anchored ones the
+    strand that holds most of the contig's aligned bases, pinned within 5bp of the target's outer end (the reference
+    event's 6-11bp in, starting with an aligned pair), their query edge a telomere/junk boundary at most max_outer from
+    the end, ending with a telomeric hexamer, holding min_run bp of perfect repeat, and the anchors of a contig not
+    overlapping.  Other lines: those of unanchored contigs byte-identical, those of anchored ones the
     reference trim to the zone between the anchors (or dropped where it leaves nothing).  Anchors and changed lines:
     '=' real matches and 'X' real mismatches.  Minigraph fasta: the input's records unchanged, then exact repeat
     targets.  Returns (anchor lines, changed lines, dropped lines, unchanged lines) """
@@ -278,8 +280,12 @@ def verify_outputs(fasta_paths, paf_path, out_paf_path, out_mg_path, max_outer=3
             '{}: strand {} against the contig\'s orientation'.format(tag, t[4])
         assert chrom_bp.get(name, [0, 0])[0] > chrom_bp.get(name, [0, 0])[1], '{}: not mostly on {}'.format(tag, chrom)
         T, ts, te = int(t[6]), int(t[7]), int(t[8])
-        assert not (arm == 'p' and ts > 5 or arm == 'q' and te < T - 5), \
-            '{}: not pinned at the target outer end ({}-{} of {})'.format(tag, ts, te, T)
+        inset = 6 if reference is not None and name.startswith('id={}|'.format(reference)) else 0
+        assert inset <= (ts if arm == 'p' else T - te) <= inset + 5, \
+            '{}: not pinned {}-{}bp from the target outer end ({}-{} of {})'.format(tag, inset, inset + 5, ts, te, T)
+        if inset:
+            ops = ops_of([x for x in t[12:] if x.startswith('cg:Z:')][0][5:])
+            assert (ops[0] if arm == 'p' else ops[-1])[1] in '=X', '{}: the reference starts with an indel'.format(tag)
         assert (qs if end == '5p' else ql - qe) <= max_outer, '{}: further inward than max_outer'.format(tag)
         z = zone.setdefault(name, [0, ql, set()])
         assert end not in z[2], '{}: two anchors at one end'.format(tag)
@@ -343,6 +349,9 @@ def verify_outputs(fasta_paths, paf_path, out_paf_path, out_mg_path, max_outer=3
             e = qs if five else len(qseq) - qe
             s = (qseq[:e + 200] if five else rc(qseq[max(0, qe - 200):])).upper()
             assert is_edge(s, e), '{}: outer edge {}bp from the end is not a telomere/junk boundary'.format(tag, e)
+            array = qseq[qs:qe].upper() if five else rc(qseq[qs:qe].upper())
+            assert array[-6:] in VARIANTS | {'CCCTAA'}, \
+                '{}: inner edge {} is not the end of a telomeric hexamer'.format(tag, array[-6:])
             run = max([len(r) for r in re.findall('(?:CCCTAA)+', qseq[qs:qe].upper())] +
                       [len(r) for r in re.findall('(?:TTAGGG)+', qseq[qs:qe].upper())])
             assert run >= min_run, '{}: longest perfect run {}bp'.format(tag, run)
@@ -427,7 +436,7 @@ class AnchorTestCase(unittest.TestCase):
         anchors = anchor_telomeres(CHROM, fasta_paths, paf_path, out_paf, out_mg, minigraph_event=MG, **kwargs)
         if verify:
             verify_outputs(fasta_paths, paf_path, out_paf, out_mg, max_outer=kwargs.get('max_outer', 3000),
-                           min_run=kwargs.get('min_run', 72))
+                           min_run=kwargs.get('min_run', 72), reference=kwargs.get('reference'))
         return anchors, fasta_paths, paf_path, out_paf, out_mg
 
     def assertSameFile(self, a, b, gunzip_a=False):
@@ -465,21 +474,21 @@ class TestArrayAtEnd(unittest.TestCase):
         self.body = random_dna(random.Random(3), 2000)
 
     def test_plain(self):
-        self.assertEqual(array_at_end('CCCTAA' * 500 + self.body, 500, 3000), (0, 3000, 'ok'))
+        self.assertEqual(array_at_end('CCCTAA' * 500 + self.body, 500, 3000)[:3], (0, 3000, 'ok'))
 
     def test_partial_unit_at_the_end(self):
-        # an edge under two repeat units from the end is moved to the end (the array's inner end is where its last
-        # passing 100bp window ends)
-        self.assertEqual(array_at_end('TAA' + 'CCCTAA' * 500 + self.body, 500, 3000), (0, 3000, 'ok'))
-        self.assertEqual(array_at_end('GGGGGGG' + 'CCCTAA' * 500 + self.body, 500, 3000), (0, 3000, 'ok'))
-        self.assertEqual(array_at_end('GGGGGGGGGGGG' + 'CCCTAA' * 500 + self.body, 500, 3000), (12, 2988, 'ok'))
+        # an edge under two repeat units from the end is moved to the end (the array's inner end is that of the last
+        # hexamer starting in its last passing 100bp window: the window ends at 3000)
+        self.assertEqual(array_at_end('TAA' + 'CCCTAA' * 500 + self.body, 500, 3000)[:3], (0, 3003, 'ok'))
+        self.assertEqual(array_at_end('GGGGGGG' + 'CCCTAA' * 500 + self.body, 500, 3000)[:3], (0, 3001, 'ok'))
+        self.assertEqual(array_at_end('GGGGGGGGGGGG' + 'CCCTAA' * 500 + self.body, 500, 3000)[:3], (12, 2988, 'ok'))
 
     def test_junk_outside(self):
         s = 'TTAAAG' * 50 + 'CCCTAA' * 500 + self.body
-        self.assertEqual(array_at_end(s, 500, 3000), (300, 3000, 'ok'))
+        self.assertEqual(array_at_end(s, 500, 3000)[:3], (300, 3000, 'ok'))
         # junk ending in TTTAA reads on as TAACC into the array
         s = 'CTTTAA' * 50 + 'CCCTAA' * 500 + self.body
-        self.assertEqual(array_at_end(s, 500, 3000), (297, 3003, 'ok'))
+        self.assertEqual(array_at_end(s, 500, 3000)[:3], (297, 3003, 'ok'))
 
     def test_degenerate_telomere_inside(self):
         s = DEGENERATE + 'CCCTAA' * 500 + self.body
@@ -490,16 +499,37 @@ class TestArrayAtEnd(unittest.TestCase):
     def test_beyond_max_outer(self):
         # the core window starts within max_outer + 100bp, but its outer edge is further in than max_outer
         s = 'TTAAAG' * 507 + 'CCCTAA' * 500 + self.body
-        self.assertEqual(array_at_end(s, 500, 3000), (3042, 2958, 'beyond'))
-        self.assertEqual(array_at_end(s, 500, 4000), (3042, 2958, 'ok'))
+        self.assertEqual(array_at_end(s, 500, 3000)[:3], (3042, 2958, 'beyond'))
+        self.assertEqual(array_at_end(s, 500, 4000)[:3], (3042, 2958, 'ok'))
         # no core window that close
-        self.assertEqual(array_at_end('TTAAAG' * 600 + 'CCCTAA' * 500 + self.body, 500, 3000), (0, 0, 'none'))
+        self.assertEqual(array_at_end('TTAAAG' * 600 + 'CCCTAA' * 500 + self.body, 500, 3000)[:3], (0, 0, 'none'))
 
     def test_min_array(self):
-        # 360bp of repeat: its last window is 60% telomeric, so it measures 400
+        # 360bp of repeat: its last window is 60% telomeric, so its walk reaches 400 (min_array), while the array
+        # ends with its last hexamer (the body has one by chance 13bp on, too far from the array to count)
         s = 'CCCTAA' * 60 + self.body
-        self.assertEqual(array_at_end(s, 500, 3000), (0, 400, 'short'))
-        self.assertEqual(array_at_end(s, 400, 3000), (0, 400, 'ok'))
+        self.assertEqual(array_at_end(s, 500, 3000)[:3], (0, 360, 'short'))
+        self.assertEqual(array_at_end(s, 400, 3000)[:3], (0, 360, 'ok'))
+
+    def test_inner_edge(self):
+        """ the array ends with the last telomeric hexamer of its last window, not where the window does, in the
+        subtelomere (HG02132#2's 6p array ends in CCCTCA, 11bp after the hexamer before it, then subtelomere, which
+        used to be anchored too); a hexamer more than 12bp after the one before it is on its own, and doesn't count """
+        sub = 'GCCGGCCCGCCCGCCCGGGTCTGACCTGAGGAGAACTGTGCTCC'
+        s = 'CCCTAA' * 495 + 'CCCTCGCGGTACCCTCA' + sub + self.body
+        self.assertEqual(array_at_end(s, 500, 3000)[:3], (0, 2987, 'ok'))
+        s = 'CCCTAA' * 495 + 'CCCTCGCGGTAGGCCCTCA' + sub + self.body
+        self.assertEqual(array_at_end(s, 500, 3000)[:3], (0, 2970, 'ok'))
+
+    def test_open_end(self):
+        """ an array whose walk runs out of the sequence may go on past it, whatever phase the sequence ends in (its
+        inner edge, the end of its last hexamer, is only at the end of the sequence in one phase of six) """
+        for k in range(6):
+            s = ('CCCTAA' * 1000)[k:5000 + k]
+            self.assertEqual(array_at_end(s, 500, 3000), (0, 5000 - (5000 + k) % 6, 'ok', True), k)
+            # two windows of body after the array: it ends there
+            self.assertFalse(array_at_end(s[:4800] + self.body, 500, 3000)[3], k)
+        self.assertFalse(array_at_end(self.body, 500, 3000)[3])
 
     def test_perfect_run(self):
         self.assertEqual(perfect_run('CCCTAA' * 20 + 'CCCTGA' + 'CCCTAA' * 30 + 'A'), 180)
@@ -508,9 +538,9 @@ class TestArrayAtEnd(unittest.TestCase):
         self.assertLess(perfect_run(degenerate_repeat(random.Random(1), 3000)), 72)
 
     def test_no_array(self):
-        self.assertEqual(array_at_end(self.body, 500, 3000), (0, 0, 'none'))
-        self.assertEqual(array_at_end('N' * 10000 + self.body, 500, 3000), (0, 0, 'none'))
-        self.assertEqual(array_at_end('', 500, 3000), (0, 0, 'none'))
+        self.assertEqual(array_at_end(self.body, 500, 3000)[:3], (0, 0, 'none'))
+        self.assertEqual(array_at_end('N' * 10000 + self.body, 500, 3000)[:3], (0, 0, 'none'))
+        self.assertEqual(array_at_end('', 500, 3000)[:3], (0, 0, 'none'))
         self.assertEqual(array_at_end('CCCTAA', 500, 3000)[2], 'short')
 
 
@@ -544,6 +574,43 @@ class TestTrimPaf(unittest.TestCase):
             trim_paf(t, 15, 100)
         with self.assertRaises(ValueError):
             trim_paf(t[:12], 15, 100)
+
+
+class TestAnchorAlignment(unittest.TestCase):
+
+    def test_reference_phase(self):
+        """ an array in phase 2 for 22bp and then 2bp short, the rest in phase 4 (CHM13's chr5p array is like that):
+        aligned as the others, at the offset most of its outer 600bp match, it starts with an insertion; as the
+        reference's, at the offset its outermost bases are in, a repeat unit further in """
+        unit = 'CCCTAA' * 200
+        array = unit[2:24] + unit[26:1000]
+        r, start, ops, used = anchor_alignment(array, 1200)
+        self.assertEqual((r, start, ops[0]), (4, 4, (2, 'I')))
+        r, start, ops, used = anchor_alignment(array, 1200, reference=True)
+        self.assertEqual((r, start, ops[0][1]), (2, 8, '='))
+        self.assertGreaterEqual(ops[0][0], 22)
+        self.assertEqual(sum(n for n, op in ops if op in 'XI'), 0)
+
+    def test_reference_outer_mismatch(self):
+        """ a reference array whose outermost base is not telomeric starts with that base as a mismatch, not an
+        insertion, in the phase of the rest, one repeat unit in """
+        self.assertEqual(anchor_alignment('G' + 'CCCTAA' * 100, 1200, reference=True), (5, 11, [(1, 'X'), (600, '=')],
+                                                                                          601))
+        self.assertEqual(anchor_alignment('CCCTAA' * 100, 1200, reference=True), (0, 6, [(600, '=')], 600))
+
+    def test_pin_outer_base(self):
+        target = 'CCCTAA' * 10
+        # a leading insertion: the array's first bases are paired with the target bases just outside
+        self.assertEqual(pin_outer_base('GCCCTAA', target, 6, [(1, 'I'), (6, '=')]), (5, [(1, 'X'), (6, '=')]))
+        self.assertEqual(pin_outer_base('ACCCTAA', target, 6, [(1, 'I'), (6, '=')]), (5, [(1, '='), (6, '=')]))
+        # a leading deletion moves the start in
+        self.assertEqual(pin_outer_base('CTAA', target, 6, [(2, 'D'), (4, '=')]), (8, [(4, '=')]))
+        self.assertEqual(pin_outer_base('GCCTAA', target, 6, [(1, 'D'), (1, 'I'), (5, '=')]),
+                         (6, [(1, 'X'), (5, '=')]))
+        # nothing to do, nothing aligned, or no target outside
+        self.assertEqual(pin_outer_base('CCCTAA', target, 6, [(6, '=')]), (6, [(6, '=')]))
+        self.assertEqual(pin_outer_base('CC', target, 6, [(2, 'I')]), (6, [(2, 'I')]))
+        self.assertEqual(pin_outer_base('GGCCCTAA', target, 1, [(2, 'I'), (6, '=')]), (1, [(2, 'I'), (6, '=')]))
 
 
 class TestFastaEnds(unittest.TestCase):
@@ -596,6 +663,37 @@ class TestAnchorTelomeres(AnchorTestCase):
                 self.assertEqual(a['t_end'] - a['t_start'], a['array_bp'])
         self.assertIn('12 telomere anchors (6 p to 7002bp, 6 q to 5202bp)', anchor_summary(anchors))
 
+    def test_reference_anchor(self):
+        """ the reference's arrays are anchored a repeat unit further in, in the phase of their outermost bases (its p
+        array starts like CHM13's chr5p, see TestAnchorAlignment), and mirror when its contig is reverse complemented;
+        the haplotypes' anchors are the same as without a reference """
+        unit = 'CCCTAA' * 600
+        ref = 'id=REF|' + CHROM
+        haps = self.plain_contigs()[:6]
+
+        def run(tag, reverse=False, **kwargs):
+            contigs = haps + [('REF', ref) + self.chrom.contig(ref, unit[2:24] + unit[26:2426], 'CCCTAA' * 300,
+                                                               reverse=reverse)]
+            anchors, _, _, out_paf, _ = self.run_anchors(contigs, tag=tag, **kwargs)
+            return anchors, self.paf_fields(out_paf)
+        anchors, lines = run('r', reference='REF')
+        ref_anchors = {a['arm']: a for a in anchors if a['event'] == 'REF'}
+        self.assertEqual((ref_anchors['p']['offset'], ref_anchors['p']['t_start']), (2, 8))
+        self.assertEqual((ref_anchors['q']['offset'], ref_anchors['q']['target_length'] - ref_anchors['q']['t_end']),
+                         (0, 6))
+        self.assertEqual(ref_anchors['q']['identity'], 1.0)
+        # as a haplotype, its p array would start at offset 4 with an insertion
+        plain_anchors, plain_lines = run('h')
+        self.assertEqual([(a['offset'], a['t_start']) for a in plain_anchors
+                          if a['event'] == 'REF' and a['arm'] == 'p'], [(4, 4)])
+        is_hap_anchor = lambda t: '|tel_' in t[5] and not t[0].startswith('id=REF|')
+        self.assertEqual([t for t in lines if is_hap_anchor(t)], [t for t in plain_lines if is_hap_anchor(t)])
+        # the reverse complemented reference's anchor lines mirror the forward ones
+        _, mirrored = run('m', reverse=True, reference='REF')
+        is_ref_anchor = lambda t: '|tel_' in t[5] and t[0] == ref
+        self.assertEqual(sorted(t for t in mirrored if is_ref_anchor(t)),
+                         sorted(mirror_line(t) for t in lines if is_ref_anchor(t)))
+
     def test_trimmed_lines(self):
         """ the s1 and s3 lines reach into the arrays and are cut back to their inner edges; the line within the p
         array is dropped; the reference's lines are untouched """
@@ -603,9 +701,9 @@ class TestAnchorTelomeres(AnchorTestCase):
         lines = [t for t in self.paf_fields(out_paf) if '|tel_' not in t[5]]
         self.assertEqual(len(lines), 6 * 3 + 3)
         for t in lines:
-            if t[0].startswith('id=H') and not t[0].startswith('id=H4#1'):
-                # the arrays are 600bp into s1 and the last 600 of s3: trimmed lines start and end on the body
-                # (H4's variant array is not a whole number of 100bp windows, so its zone edge is not the body's)
+            if t[0].startswith('id=H'):
+                # the arrays are 600bp into s1 and the last 600 of s3: trimmed lines start and end on the body (H4's
+                # variant array too, though it is not a whole number of 100bp windows, as it ends with a hexamer)
                 if t[5].endswith('|s1'):
                     self.assertEqual(int(t[7]), 600)
                 if t[5].endswith('|s3'):
@@ -687,6 +785,16 @@ class TestAnchorTelomeres(AnchorTestCase):
         self.assertEqual([a['arm'] for a in self.run_anchors(contigs, tag='a')[0]], ['q'])
         anchors = self.run_anchors(contigs, tag='b', max_outer=4000)[0]
         self.assertEqual(sorted((a['arm'], a['outer_bp']) for a in anchors), [('p', 3600), ('q', 0)])
+
+    def test_scan_limit(self):
+        """ an array longer than the bp read at a contig end (H2's 6000bp p array, with 5000bp read) is anchored as far
+        as it was read, and logged; H5's 4800bp p array, followed by two windows of body within what was read, isn't """
+        with mock.patch.object(telomere_anchors, 'SCAN', 2000):
+            with self.assertLogs(telomere_anchors.logger, level='INFO') as log:
+                anchors = self.run_anchors(self.plain_contigs())[0]
+        self.assertTrue(any('1 arrays reach the 5000bp scan limit, such as id=H2#1|' + CHROM in l for l in log.output),
+                        log.output)
+        self.assertEqual([a['array_bp'] for a in anchors if a['event'] == 'H2#1' and a['arm'] == 'p'], [4998])
 
     def test_gzip(self):
         """ gzipped fastas (named .fa, as in cactus_cons) give the same outputs """
@@ -927,6 +1035,20 @@ class TestVerifier(AnchorTestCase):
             args = self.run_anchors(self.junk_contigs(), verify=False)[1:]
         with self.assertRaisesRegex(AssertionError, 'not a telomere/junk boundary'):
             verify_outputs(*args)
+
+    def test_inner_edge_in_subtelomere(self):
+        # H4's variant array ends 37bp before its last window does
+        with mock.patch.object(telomere_anchors, 'inner_edge', lambda s, x: x):
+            args = self.run_anchors(self.plain_contigs(), verify=False)[1:]
+        with self.assertRaisesRegex(AssertionError, 'is not the end of a telomeric hexamer'):
+            verify_outputs(*args)
+
+    def test_reference_not_inset(self):
+        """ a reference anchored like the haplotypes is caught """
+        args = self.run_anchors(self.plain_contigs(), verify=False)[1:]
+        verify_outputs(*args)
+        with self.assertRaisesRegex(AssertionError, 'not pinned 6-11bp'):
+            verify_outputs(*args, reference='H0#1')
 
     def test_past_max_outer(self):
         args = self.run_anchors(self.junk_contigs(), verify=False, max_outer=3100)[1:]
