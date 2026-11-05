@@ -265,21 +265,24 @@ class Run:
         return env
 
     def step(self, name, fn, *args):
-        """run fn(*args) as step name, unless an earlier attempt finished it"""
+        """run fn(*args) as step name, unless an earlier attempt finished it.  first_start is the first attempt's
+        start, so that a step resumed after a stop or a failure counts its earlier attempts' time too"""
         marker = self.path('steps', name + '.json')
         m = read_json(marker)
         if m and m['status'] == 'done':
             return
         start = time.time()
-        write_json(marker, {'status': 'running', 'start': start})
+        first = m.get('first_start', m['start']) if m else start
+        write_json(marker, {'status': 'running', 'start': start, 'first_start': first})
         self.log('{}: started'.format(name))
         try:
             fn(*args)
         except BaseException as e:
-            write_json(marker, {'status': 'failed', 'start': start, 'end': time.time(), 'error': str(e)})
+            write_json(marker, {'status': 'failed', 'start': start, 'first_start': first, 'end': time.time(),
+                                'error': str(e)})
             self.log('{}: FAILED: {}'.format(name, e))
             raise
-        write_json(marker, {'status': 'done', 'start': start, 'end': time.time()})
+        write_json(marker, {'status': 'done', 'start': start, 'first_start': first, 'end': time.time()})
         self.log('{}: done after {}'.format(name, hms(time.time() - start)))
 
     def parallel(self, *fns):
@@ -428,11 +431,11 @@ class Run:
         return collections.OrderedDict(sorted(out.items(), key=lambda kv: kv[1]['start']))
 
     def hours(self, *names):
-        """wall-clock hours steps names took, all together"""
+        """wall-clock hours steps names took, all together, from their first attempts' start"""
         st = [self.steps().get(n) for n in names]
         if not st or any(s is None or s['status'] != 'done' for s in st):
             return ''
-        return round((max(s['end'] for s in st) - min(s['start'] for s in st)) / 3600, 2)
+        return round((max(s['end'] for s in st) - min(s.get('first_start', s['start']) for s in st)) / 3600, 2)
 
     def slurm_cost(self, *names):
         """(CPU hours, peak GiB) of the slurm jobs of Toil workflows names, from sacct: each job's elapsed time times
@@ -598,7 +601,7 @@ def cmd_status(a):
     for name, s in r.steps().items():
         # a step left running by a driver that is gone was cut off
         status = 'stopped' if s['status'] == 'running' and not running else s['status']
-        took = hms((s.get('end') or time.time()) - s['start']) if status != 'stopped' else ''
+        took = hms((s.get('end') or time.time()) - s.get('first_start', s['start'])) if status != 'stopped' else ''
         print('  {:24s} {:8s} {:>10s}{}'.format(name, status, took, '  ' + s['error'] if s.get('error') else ''))
     if os.path.exists(r.path('summary.tsv')):
         print()
