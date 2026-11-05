@@ -5,23 +5,20 @@ A file include.local.mk can be created in the root directory
 to override make variables, including setting environment variables.
 This should not be committed.
 
-It is included before any build decision is made, so it is the tidiest place for a setting
-that belongs to one checkout rather than to your shell.  For instance, put
-`CACTUS_NATIVE_BUILD = 1` there on a workstation whose binaries never leave it, and there is
-nothing to remember or unset later.  It cannot leak into anything we distribute: the
-Dockerfile deletes it before building, and `build-tools/makeBinRelease` builds a fresh clone.
+It is the tidiest place for a setting that belongs to one checkout rather than to your
+shell, such as `CACTUS_NATIVE_BUILD = 1`.  The Dockerfile and `build-tools/makeBinRelease`
+do not use it.
 
 ## Environment variables controlling how cactus is built
 - CACTUS_NATIVE_BUILD - compile for the machine doing the compiling (`-march=native`)?
   - unset <default> - portable: the baseline in include.mk, which any reasonably modern
     CPU of the same architecture can run
-  - 1 - native.  Only for binaries that stay on the build machine.  A native binary
-    SIGILLs on any older CPU, which is the normal outcome of building on a cluster head
-    node and running on a worker.  No effect on ARM or with CACTUS_LEGACY_ARCH.
+  - 1 - native.  Only for binaries that stay on the build machine: a native binary will
+    not run on an older CPU, such as a cluster node older than the head node it was built
+    on.  No effect on ARM or with CACTUS_LEGACY_ARCH.
 
 - CACTUS_PORTABLE_BUILD - force the portable baseline, overriding CACTUS_NATIVE_BUILD.
-  Set by the Dockerfile and by build-tools/makeBinRelease, since those builds get shipped.
-  Redundant otherwise, as portable is the default.
+  Set by the Dockerfile and by build-tools/makeBinRelease.
 
 - CACTUS_LEGACY_ARCH - build for pre-AVX2 CPUs (`-msse2`), for the legacy binary release.
 
@@ -66,6 +63,8 @@ The reasoning behind each value is in the comments in include.mk.
    - The main Cactus Python process will print out a stack trace of all of the Python
      threads if sent a SIGUSR1 signal.  They will then continue execution.  This
      maybe useful in determining the state of cactus.
+   - Setting `CACTUS_BAR_DUMP_DIR` to a directory makes `cactus_consolidated` dump every
+     window it hands to abPOA or minipoa in BAR there, with a command line that replays it.
    
    
 
