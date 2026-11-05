@@ -303,25 +303,32 @@ def cactus_cons(job, tree, ancestor_event, config_node, seq_id_map, og_map, paf_
     paf_path = os.path.join(work_dir, f'{ancestor_event}.paf')
     job.fileStore.readGlobalFile(paf_id, paf_path)
 
-    # In a pangenome chromosome, anchor every contig's telomere array to a synthetic telomere target for its chromosome
-    # arm, added to the minigraph genome (see <graphmap telomereAnchors>).  The anchors are tagged ct:i:1, which makes
-    # them constraints below.  A job of several reference contigs (--noSplit's "all", chrOther) anchors nothing, as the
-    # PAF lines' rc:Z: tags don't put its contigs on chrom_name.  The reference (bar's poaReferenceEvent, which
-    # cactus-align sets from --reference) is anchored a repeat unit further in, so the haplotypes' paths reach its end
+    # In a pangenome alignment, anchor every contig's telomere array to a synthetic telomere target for its reference
+    # contig's arm, added to the minigraph genome (see <graphmap telomereAnchors>).  The anchors are tagged ct:i:1,
+    # which makes them constraints below.  The rc:Z: tags of a contig's PAF lines give its reference contig, so a job of
+    # several (--noSplit's "all", chrOther, cactus-align without --batch) gets a pair of targets for each; chrom_name
+    # only labels the log.  The reference (bar's poaReferenceEvent, which cactus-align sets from --reference) is keyed
+    # by its own contig names, and anchored a repeat unit further in, so the haplotypes' paths reach its end.  The
+    # telomere motif is the one of telomereMotifs that the job's contig ends choose, or the only one given
     graphmap_node = config_node.find('graphmap')
     mg_event = getOptionalAttrib(graphmap_node, 'assemblyName', default='_MINIGRAPH_')
-    if chrom_name and mg_event in seq_path_map and \
-       getOptionalAttrib(graphmap_node, 'telomereAnchors', typeFn=bool, default=False):
-        from cactus.refmap.telomere_anchors import anchor_telomeres, anchor_summary
+    if mg_event in seq_path_map and getOptionalAttrib(graphmap_node, 'telomereAnchors', typeFn=bool, default=False):
+        from cactus.refmap.telomere_anchors import anchor_telomeres, anchor_summary, config_motifs
         anchored_paf_path = os.path.join(work_dir, f'{ancestor_event}.anchored.paf')
         anchored_mg_path = os.path.join(work_dir, f'{mg_event}.anchored.fa')
-        anchors = anchor_telomeres(chrom_name, seq_path_map, paf_path, anchored_paf_path, anchored_mg_path,
+        label = chrom_name or ancestor_event
+
+        def log_choice(text, warning):   # the worker's own log is dropped when the job succeeds
+            job.fileStore.logToMaster(f'{"WARNING: " if warning else ""}telomere anchors ({label}): {text}')
+        anchors = anchor_telomeres(label, seq_path_map, paf_path, anchored_paf_path, anchored_mg_path,
                                    minigraph_event=mg_event,
                                    min_array=getOptionalAttrib(graphmap_node, 'telomereMinArray', typeFn=int, default=500),
                                    max_outer=getOptionalAttrib(graphmap_node, 'telomereMaxOuter', typeFn=int, default=3000),
                                    min_run=getOptionalAttrib(graphmap_node, 'telomereMinRun', typeFn=int, default=72),
+                                   motifs=config_motifs(graphmap_node),
                                    threads=job.cores,
-                                   reference=getOptionalAttrib(config_node.find('bar'), 'poaReferenceEvent') or None)
+                                   reference=getOptionalAttrib(config_node.find('bar'), 'poaReferenceEvent') or None,
+                                   log_choice=log_choice)
         if anchors:
             # the input PAF goes, so the disk holds no more PAFs than it was sized for
             job.fileStore.deleteLocalFile(paf_id)
@@ -335,7 +342,7 @@ def cactus_cons(job, tree, ancestor_event, config_node, seq_id_map, og_map, paf_
             # with nothing anchored the outputs are copies of the inputs
             os.remove(anchored_paf_path)
             os.remove(anchored_mg_path)
-        job.fileStore.logToMaster(f'telomere anchors ({chrom_name}): {anchor_summary(anchors)}')
+        job.fileStore.logToMaster(f'telomere anchors ({label}): {anchor_summary(anchors)}')
 
     # Split the alignments file into primary and secondary
     primary_alignment_file = os.path.join(work_dir, f'{ancestor_event}_primary.paf')

@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
 
 """
-Unit tests for the telomere anchors of pangenome chromosomes (telomere_anchors.py): array detection and its outer
-edge, orientation and arm, the target, the anchor alignment and the trimming of existing PAF lines, on small
-synthetic chromosomes, in both contig orientations.  Every run's outputs go through verify_outputs(), which reads the
-sequences back and checks each anchor and each changed line against them, independently of the module.
+Unit tests for the telomere anchors of pangenome alignments (telomere_anchors.py): array detection and its outer
+edge, each contig's reference contig, orientation and arm, the targets, the anchor alignment and the trimming of
+existing PAF lines, on small synthetic chromosomes, in both contig orientations; the same for other telomere motifs,
+and the choice of a job's motif.  Every run's outputs go through verify_outputs(), which reads the sequences back and
+checks each anchor and each changed line against them, independently of the module.
 
 These are fast and offline.
 """
 
+import collections
 import gzip
 import os
 import random
@@ -16,14 +18,16 @@ import re
 import shutil
 import tempfile
 import unittest
+import xml.etree.ElementTree as ET
 import zlib
 from unittest import mock
 
 import edlib
 
 from cactus.refmap import telomere_anchors
-from cactus.refmap.telomere_anchors import anchor_alignment, anchor_telomeres, anchor_summary, array_at_end, \
-    fasta_ends, perfect_run, pin_outer_base, trim_paf
+from cactus.refmap.telomere_anchors import DEFAULT_MOTIFS, anchor_alignment, anchor_telomeres, anchor_summary, \
+    array_at_end, check_motifs, choose_motif, config_motifs, fasta_ends, make_motif, perfect_run, pin_outer_base, \
+    run_finder, target_name, telomere_run, trim_paf
 
 MG = '_MINIGRAPH_'
 CHROM = 'chrT'
@@ -38,6 +42,21 @@ PARTIAL = 11
 
 def rc(s):
     return s.translate(str.maketrans('ACGTacgtNn', 'TGCAtgcaNn'))[::-1]
+
+
+# the verifier's view of any telomere motif g (G strand): its unit read from a chromosome end inward (u), p, the k-mers
+# of the unit's cycle that keep the outer edge going (of p - 1bp, but 5 to 6bp) and the telomeric repeats (the unit,
+# and for TTAGGG, VARIANTS)
+View = collections.namedtuple('View', ['g', 'u', 'p', 'k', 'kmers', 'repeats'])
+
+
+def motif_view(g):
+    u, p = rc(g), len(g)
+    k = max(5, min(p - 1, 6))
+    return View(g, u, p, k, set((u * 3)[i:i + k] for i in range(p)), {u} | (VARIANTS if g == 'TTAGGG' else set()))
+
+
+HUMAN = motif_view('TTAGGG')
 
 
 def random_dna(rng, n):
@@ -76,6 +95,7 @@ def reference_trim(t, lo, hi):
     if (lo, hi) == (qs, qe):
         return t
     cg_i = next(i for i, x in enumerate(t) if x.startswith('cg:Z:'))
+    aligned_bp = sum(n for n, op in ops_of(t[cg_i][5:]) if op in '=XM')
     step = 1 if strand == '+' else -1
     q, tpos = (qs if strand == '+' else qe), int(t[7])
     keep = []   # (op, target base, query base) per step
@@ -105,7 +125,8 @@ def reference_trim(t, lo, hi):
     t[2], t[3] = str(min(k[2] for k in aligned)), str(max(k[2] for k in aligned) + 1)
     t[7], t[8] = str(min(k[1] for k in aligned)), str(max(k[1] for k in aligned) + 1)
     t[cg_i] = 'cg:Z:' + merge_ops([(1, k[0]) for k in keep])
-    t[9] = str(sum(1 for k in keep if k[0] == '='))
+    m = sum(1 for k in keep if k[0] == 'M')   # an M is a match or a mismatch: counted at the line's identity
+    t[9] = str(sum(1 for k in keep if k[0] == '=') + (round(m * int(t[9]) / aligned_bp) if m else 0))
     t[10] = str(len(keep))
     return t
 
@@ -120,6 +141,22 @@ def paf_line(name, contig, q0, q1, seg_name, segment, t0, t1, strand='+', ref_co
     return [name, str(len(contig)), str(q0), str(q1), strand, seg_name, str(len(segment)), str(t0), str(t1), str(m),
             str(b), '60', 'cg:Z:' + cigar, 'gi:f:{:.4f}'.format(m / b)] + \
         (['rc:Z:' + ref_contig] if ref_contig else []) + ['tp:A:P']
+
+
+def rgfa_line(name, contig, q0, q1, seg_name, segment):
+    """ a PAF line as cactus-graphmap's rgfa2paf writes the reference's own path through a minigraph segment, which
+    contig[q0:q1] is a copy of: cg:Z:<n>M, without rc:Z: or tp:A: tags """
+    n = q1 - q0
+    return [name, str(len(contig)), str(q0), str(q1), '+', seg_name, str(len(segment)), '0', str(len(segment)), str(n),
+            str(n), '60', 'cg:Z:{}M'.format(n)]
+
+
+def retag(contig, ref_contigs):
+    """ the (event, name, sequence, lines) contig with its lines' rc:Z: tags set to ref_contigs, one per line (None:
+    no tag) """
+    lines = [[x for x in t if not x.startswith('rc:Z:')] + (['rc:Z:' + r] if r else [])
+             for t, r in zip(contig[3], ref_contigs)]
+    return contig[:3] + (lines,)
 
 
 def write_fasta(path, records, gz=False, width=60):
@@ -144,16 +181,20 @@ def read_fasta(path):
 
 class Chromosome:
     """ a synthetic chromosome: a random body tiled by three minigraph segments, the first starting and the last ending
-    in 600bp of reference telomere, and contigs that copy the body with a few SNPs between telomere arrays """
+    in 600bp of reference telomere (unit read from the chromosome end inward, ending in a whole one), and contigs that
+    copy the body with a few SNPs between telomere arrays.  Their lines are tagged rc:Z:<ref_contig>; the segments are
+    named id=_MINIGRAPH_|<segment_prefix>1 to 3 """
 
-    def __init__(self, seed=1, body_bp=12000):
+    def __init__(self, seed=1, body_bp=12000, ref_contig=CHROM, segment_prefix='s', unit='CCCTAA'):
         rng = random.Random(seed)
+        self.ref_contig = ref_contig
         self.body = random_dna(rng, body_bp)
         self.bounds = [0, body_bp // 3, 2 * body_bp // 3, body_bp]
         pieces = [self.body[a:b] for a, b in zip(self.bounds, self.bounds[1:])]
-        pieces[0] = 'CCCTAA' * 100 + pieces[0]
-        pieces[-1] = pieces[-1] + 'TTAGGG' * 100
-        self.segments = [('id={}|s{}'.format(MG, i + 1), s) for i, s in enumerate(pieces)]
+        telomere = (unit * (600 // len(unit) + 1))[-600:]
+        pieces[0] = telomere + pieces[0]
+        pieces[-1] = pieces[-1] + rc(telomere)
+        self.segments = [('id={}|{}{}'.format(MG, segment_prefix, i + 1), s) for i, s in enumerate(pieces)]
 
     def contig(self, name, p_array='', q_array='', outer5='', outer3='', reverse=False, array_line=False):
         """ (sequence, PAF lines as field lists) of outer5 + p_array + body + q_array + outer3, where the arrays and
@@ -170,12 +211,13 @@ class Chromosome:
         a5, a3 = min(len(p_array), 600), min(len(q_array), 600)
         (n1, s1), (n2, s2), (n3, s3) = self.segments
         b = self.bounds
-        lines = [paf_line(name, seq, P - a5, P + b[1], n1, s1, 600 - a5, len(s1)),
-                 paf_line(name, seq, P + b[1], P + b[2], n2, s2, 0, len(s2)),
-                 paf_line(name, seq, P + b[2], P + b[3] + a3, n3, s3, 0, b[3] - b[2] + a3)]
+        ref = self.ref_contig
+        lines = [paf_line(name, seq, P - a5, P + b[1], n1, s1, 600 - a5, len(s1), ref_contig=ref),
+                 paf_line(name, seq, P + b[1], P + b[2], n2, s2, 0, len(s2), ref_contig=ref),
+                 paf_line(name, seq, P + b[2], P + b[3] + a3, n3, s3, 0, b[3] - b[2] + a3, ref_contig=ref)]
         if array_line:
             x = len(outer5) + 600
-            lines.append(paf_line(name, seq, x, x + 300, n1, s1, 0, 300))
+            lines.append(paf_line(name, seq, x, x + 300, n1, s1, 0, 300, ref_contig=ref))
         if reverse:
             seq, lines = rc(seq), [mirror_line(t) for t in lines]
         return seq, lines
@@ -198,29 +240,35 @@ def write_subproblem(work_dir, contigs, mg_records, gz=False, tag=''):
     return fasta_paths, paf_path
 
 
-def is_edge(s, e):
-    """ s, a contig end read inward as CCCTAA: whether e is a telomere/junk boundary as the outer edge rule draws
-    it: a telomeric k-mer starts at e and none within OUTER_GAP outside it, or e is the end and one starts within
-    PARTIAL """
-    def kmer_at(i):
-        return s[i:i + 5] in TEL5 or s[i:i + 6] in VARIANTS
+def kmer_at(s, i, v=HUMAN):
+    """ whether a telomeric k-mer of the motif v (motif_view()) starts at i in s, read inward as its unit """
+    return s[i:i + v.k] in v.kmers or any(s.startswith(r, i) for r in v.repeats)
+
+
+def is_edge(s, e, v=HUMAN):
+    """ s, a contig end read inward as CCCTAA (v's unit): whether e is a telomere/junk boundary as the outer edge rule
+    draws it: a telomeric k-mer starts at e and none within OUTER_GAP outside it, or e is the end and one starts within
+    PARTIAL (under two units) """
+    partial = 2 * v.p - 1
     if e == 0:
-        return any(kmer_at(i) for i in range(PARTIAL + 1))
-    return e > PARTIAL and kmer_at(e) and not any(kmer_at(i) for i in range(max(0, e - OUTER_GAP), e))
+        return any(kmer_at(s, i, v) for i in range(partial + 1))
+    return e > partial and kmer_at(s, e, v) and not any(kmer_at(s, i, v) for i in range(max(0, e - OUTER_GAP), e))
 
 
 def verify_line(t, qseq, tseq, tag):
-    """ coordinates, cigar lengths, = and X against the sequences, columns 10 and 11 """
+    """ coordinates, cigar lengths, = and X against the sequences (M, rgfa2paf's, can't be checked), columns 10 and
+    11 """
     ql, qs, qe, strand, tl, ts, te = int(t[1]), int(t[2]), int(t[3]), t[4], int(t[6]), int(t[7]), int(t[8])
     assert len(qseq) == ql, '{}: query length {} != {}'.format(tag, ql, len(qseq))
     assert len(tseq) == tl, '{}: target length {} != {}'.format(tag, tl, len(tseq))
     assert 0 <= qs < qe <= ql and 0 <= ts < te <= tl and strand in '+-', '{}: coordinates out of range'.format(tag)
     cg = [x for x in t[12:] if x.startswith('cg:Z:')]
-    assert len(cg) == 1 and re.fullmatch(r'(\d+[=XID])+', cg[0][5:]), '{}: bad cigar'.format(tag)
+    assert len(cg) == 1 and re.fullmatch(r'(\d+[=XIDM])+', cg[0][5:]), '{}: bad cigar'.format(tag)
     ops = ops_of(cg[0][5:])
-    assert sum(n for n, op in ops if op in '=XI') == qe - qs, '{}: cigar does not fit the query interval'.format(tag)
-    assert sum(n for n, op in ops if op in '=XD') == te - ts, '{}: cigar does not fit the target interval'.format(tag)
-    assert int(t[9]) == sum(n for n, op in ops if op == '=') and int(t[10]) == sum(n for n, op in ops), \
+    assert sum(n for n, op in ops if op in '=XMI') == qe - qs, '{}: cigar does not fit the query interval'.format(tag)
+    assert sum(n for n, op in ops if op in '=XMD') == te - ts, '{}: cigar does not fit the target interval'.format(tag)
+    eq, m = sum(n for n, op in ops if op == '='), sum(n for n, op in ops if op == 'M')
+    assert eq <= int(t[9]) <= eq + m and int(t[10]) == sum(n for n, op in ops), \
         '{}: columns 10/11 inconsistent with the cigar'.format(tag)
     # the query in target order: forward on '+', reverse complemented on '-'
     qa = qseq[qs:qe].upper() if strand == '+' else rc(qseq[qs:qe].upper())
@@ -232,21 +280,24 @@ def verify_line(t, qseq, tseq, tag):
         elif op == 'X':
             assert all(a != b for a, b in zip(qa[i:i + n], ta[j:j + n])), \
                 '{}: "X" run of {} at target {} holds a match'.format(tag, n, ts + j)
-        i += n if op in '=XI' else 0
-        j += n if op in '=XD' else 0
+        i += n if op in '=XMI' else 0
+        j += n if op in '=XMD' else 0
 
 
-def verify_outputs(fasta_paths, paf_path, out_paf_path, out_mg_path, max_outer=3000, chrom=CHROM, min_run=72,
-                   reference=None):
-    """ the checks of the prototype's --check, raising AssertionError on the first failure.  Anchors: tagged ct:i:1,
-    one per end at most, to tel_<chrom>p/q, of contigs mostly on chrom (by the input lines' rc:Z: tags), on the
-    strand that holds most of the contig's aligned bases, pinned within 5bp of the target's outer end (the reference
-    event's 6-11bp in, starting with an aligned pair), their query edge a telomere/junk boundary at most max_outer from
-    the end, ending with a telomeric hexamer, holding min_run bp of perfect repeat, and the anchors of a contig not
-    overlapping.  Other lines: those of unanchored contigs byte-identical, those of anchored ones the
-    reference trim to the zone between the anchors (or dropped where it leaves nothing).  Anchors and changed lines:
-    '=' real matches and 'X' real mismatches.  Minigraph fasta: the input's records unchanged, then exact repeat
-    targets.  Returns (anchor lines, changed lines, dropped lines, unchanged lines) """
+def verify_outputs(fasta_paths, paf_path, out_paf_path, out_mg_path, max_outer=3000, min_run=72, reference=None,
+                   motif='TTAGGG'):
+    """ the checks of the prototype's --check, raising AssertionError on the first failure, for anchors of telomere
+    motif (G strand unit; p bp).  Anchors: tagged ct:i:1, one per end at most, to tel_<key>p/q and tagged rc:Z:<key>,
+    key being the contig's reference contig (the reference event's own contig name, if any input line has a rc:Z: tag;
+    otherwise the rc:Z: tag of a strict majority of the contig's tagged bp), on the strand that holds most of the bp of
+    the contig's lines on its key (of all of them if none is), pinned within p - 1bp of the target's outer end (the
+    reference event's p to 2p - 1bp in, starting with an aligned pair), their query edge a telomere/junk boundary at
+    most max_outer from the end, ending with a telomeric repeat unit, holding min_run bp of perfect repeat, and the
+    anchors of a contig not overlapping.  Other lines: those of unanchored contigs byte-identical, those of anchored
+    ones the reference trim to the zone between the anchors (or dropped where it leaves nothing).  Anchors and changed
+    lines: '=' real matches and 'X' real mismatches.  Minigraph fasta: the input's records unchanged, then exact
+    repeat targets.  Returns (anchor lines, changed lines, dropped lines, unchanged lines) """
+    v = motif_view(motif)
     with open(paf_path, 'rb') as f:
         in_lines = f.read().split(b'\n')
     with open(out_paf_path, 'rb') as f:
@@ -254,15 +305,21 @@ def verify_outputs(fasta_paths, paf_path, out_paf_path, out_mg_path, max_outer=3
     assert in_lines[-1] == b'' or out_lines[-1] == b'', 'output PAF does not end with a line break'
     in_lines, out_lines = [l for l in in_lines if l], [l for l in out_lines if l]
 
-    # each contig's aligned bp per strand, and on chrom or not, by the input lines
-    strand_bp, chrom_bp = {}, {}
+    # each contig's aligned bp per reference contig (None: lines without a rc:Z: tag) and strand, by the input lines
+    ref_bp = {}
     for line in in_lines:
         t = line.decode().split('\t')
-        bp = int(t[3]) - int(t[2])
-        strand_bp.setdefault(t[0], [0, 0])[t[4] == '-'] += bp
-        ref_contig = [x[5:] for x in t[12:] if x.startswith('rc:Z:')]
-        if ref_contig:
-            chrom_bp.setdefault(t[0], [0, 0])[ref_contig[0] != chrom] += bp
+        ref_contig = ([x[5:] for x in t[12:] if x.startswith('rc:Z:')] + [None])[0]
+        ref_bp.setdefault(t[0], {}).setdefault(ref_contig, [0, 0])[t[4] == '-'] += int(t[3]) - int(t[2])
+    tagged = any(r is not None for bp in ref_bp.values() for r in bp)
+
+    def key_of(name):
+        own = 'id={}|'.format(reference)
+        if tagged and reference is not None and name.startswith(own):
+            return name[len(own):]
+        bp = {r: sum(x) for r, x in ref_bp.get(name, {}).items() if r is not None}
+        key = max(bp, key=bp.get, default=None)
+        return key if key is not None and 2 * bp[key] > sum(bp.values()) else None
 
     def is_anchor(line):
         t = line.split(b'\t')
@@ -275,14 +332,18 @@ def verify_outputs(fasta_paths, paf_path, out_paf_path, out_mg_path, max_outer=3
         end = '5p' if (t[4] == '+') == (arm == 'p') else '3p'
         tag = '{} anchor {}'.format(name, end)
         assert 'ct:i:1' in t[12:], '{}: no ct:i:1'.format(tag)
-        assert t[5] == 'id={}|tel_{}{}'.format(MG, chrom, arm) and arm in 'pq', '{}: target {}'.format(tag, t[5])
-        assert t[4] == ('+' if strand_bp[name][0] >= strand_bp[name][1] else '-'), \
-            '{}: strand {} against the contig\'s orientation'.format(tag, t[4])
-        assert chrom_bp.get(name, [0, 0])[0] > chrom_bp.get(name, [0, 0])[1], '{}: not mostly on {}'.format(tag, chrom)
+        key = key_of(name)
+        assert key is not None, '{}: no reference contig'.format(tag)
+        assert t[5] == 'id={}|tel_{}{}'.format(MG, key.replace('_sub_', '_sub-'), arm) and arm in 'pq' and \
+            'rc:Z:' + key in t[12:], '{}: target {} for reference contig {}'.format(tag, t[5], key)
+        plus, minus = ref_bp[name].get(key) or [sum(bp[i] for bp in ref_bp[name].values()) for i in (0, 1)]
+        assert t[4] == ('+' if plus >= minus else '-'), '{}: strand {} against the contig\'s orientation'.format(tag,
+                                                                                                             t[4])
         T, ts, te = int(t[6]), int(t[7]), int(t[8])
-        inset = 6 if reference is not None and name.startswith('id={}|'.format(reference)) else 0
-        assert inset <= (ts if arm == 'p' else T - te) <= inset + 5, \
-            '{}: not pinned {}-{}bp from the target outer end ({}-{} of {})'.format(tag, inset, inset + 5, ts, te, T)
+        inset = v.p if reference is not None and name.startswith('id={}|'.format(reference)) else 0
+        assert inset <= (ts if arm == 'p' else T - te) <= inset + v.p - 1, \
+            '{}: not pinned {}-{}bp from the target outer end ({}-{} of {})'.format(tag, inset, inset + v.p - 1, ts, te,
+                                                                                    T)
         if inset:
             ops = ops_of([x for x in t[12:] if x.startswith('cg:Z:')][0][5:])
             assert (ops[0] if arm == 'p' else ops[-1])[1] in '=X', '{}: the reference starts with an indel'.format(tag)
@@ -334,7 +395,7 @@ def verify_outputs(fasta_paths, paf_path, out_paf_path, out_mg_path, max_outer=3
     assert sorted(name for name, _ in targets) == sorted(set(t[5] for t in anchors)), 'targets do not match anchors'
     for name, s in targets:
         arm = name[-1]
-        assert len(s) % 6 == 0 and s == telomere_anchors.TEL_UNIT[arm] * (len(s) // 6), \
+        assert len(s) % v.p == 0 and s == {'p': v.u, 'q': v.g}[arm] * (len(s) // v.p), \
             '{} is not an exact repeat'.format(name)
     qseqs = {}
     for event, path in fasta_paths.items():
@@ -348,12 +409,13 @@ def verify_outputs(fasta_paths, paf_path, out_paf_path, out_mg_path, max_outer=3
             five = (t[4] == '+') == (t[5][-1] == 'p')
             e = qs if five else len(qseq) - qe
             s = (qseq[:e + 200] if five else rc(qseq[max(0, qe - 200):])).upper()
-            assert is_edge(s, e), '{}: outer edge {}bp from the end is not a telomere/junk boundary'.format(tag, e)
+            assert is_edge(s, e, v), '{}: outer edge {}bp from the end is not a telomere/junk boundary'.format(tag, e)
             array = qseq[qs:qe].upper() if five else rc(qseq[qs:qe].upper())
-            assert array[-6:] in VARIANTS | {'CCCTAA'}, \
-                '{}: inner edge {} is not the end of a telomeric hexamer'.format(tag, array[-6:])
-            run = max([len(r) for r in re.findall('(?:CCCTAA)+', qseq[qs:qe].upper())] +
-                      [len(r) for r in re.findall('(?:TTAGGG)+', qseq[qs:qe].upper())])
+            assert any(array.endswith(r) for r in v.repeats), \
+                '{}: inner edge {} is not the end of a telomeric {}'.format(tag, array[-v.p:],
+                                                                            'hexamer' if v.p == 6 else 'repeat unit')
+            run = max([len(r) for r in re.findall('(?:{})+'.format(v.u), qseq[qs:qe].upper())] +
+                      [len(r) for r in re.findall('(?:{})+'.format(v.g), qseq[qs:qe].upper())])
             assert run >= min_run, '{}: longest perfect run {}bp'.format(tag, run)
     return len(anchors), n_changed, n_dropped, n_same
 
@@ -427,16 +489,19 @@ class AnchorTestCase(unittest.TestCase):
     def tearDown(self):
         shutil.rmtree(self.work_dir)
 
-    def run_anchors(self, contigs, gz=False, tag='', verify=True, mg_records=None, **kwargs):
-        """ write the subproblem, anchor it and verify the outputs: (anchors, fasta_paths, paf, out paf, out mg) """
+    def run_anchors(self, contigs, gz=False, tag='', verify=True, mg_records=None, label=CHROM, motif='TTAGGG',
+                    **kwargs):
+        """ write the subproblem, anchor it (with motifs [motif], unless they are given) and verify the outputs as
+        motif's: (anchors, fasta_paths, paf, out paf, out mg) """
+        kwargs.setdefault('motifs', [motif])
         fasta_paths, paf_path = write_subproblem(self.work_dir, contigs, mg_records or self.chrom.segments, gz=gz,
                                                  tag=tag)
         out_paf = os.path.join(self.work_dir, 'out{}.paf'.format(tag))
         out_mg = os.path.join(self.work_dir, 'out{}.mg.fa'.format(tag))
-        anchors = anchor_telomeres(CHROM, fasta_paths, paf_path, out_paf, out_mg, minigraph_event=MG, **kwargs)
+        anchors = anchor_telomeres(label, fasta_paths, paf_path, out_paf, out_mg, minigraph_event=MG, **kwargs)
         if verify:
             verify_outputs(fasta_paths, paf_path, out_paf, out_mg, max_outer=kwargs.get('max_outer', 3000),
-                           min_run=kwargs.get('min_run', 72), reference=kwargs.get('reference'))
+                           min_run=kwargs.get('min_run', 72), reference=kwargs.get('reference'), motif=motif)
         return anchors, fasta_paths, paf_path, out_paf, out_mg
 
     def assertSameFile(self, a, b, gunzip_a=False):
@@ -451,17 +516,19 @@ class AnchorTestCase(unittest.TestCase):
         with open(path) as f:
             return [l.rstrip('\n').split('\t') for l in f if l.strip()]
 
-    def plain_contigs(self, reverse=lambda i: False):
-        """ six haplotypes with arrays at both ends (some long, some short, one variant-rich), and a reference
-        without arrays """
+    def plain_contigs(self, reverse=lambda i: False, unit='CCCTAA'):
+        """ six haplotypes with arrays of unit at both ends (some long, some short, one variant-rich: TTAGGG's variant
+        repeats and slips, another motif's slips), and a reference without arrays """
         contigs = []
         for i, (p, q) in enumerate([(3000, 2400), (1800, 4200), (6000, 600), (900, 3600), (2400, 2400), (4800, 1200)]):
             event = 'H{}#1'.format(i)
             name = 'id={}|{}'.format(event, CHROM)
-            p_array = 'CCCTAA' * (p // 6)
+            p_array = unit * (p // len(unit))
             if i == 4:   # variant repeats and a slip
-                p_array = ('CCCTAA' * 20 + 'CCCTGA' + 'CCCTAAA' + 'CCCCAA') * (p // 138)
-            seq, lines = self.chrom.contig(name, p_array, 'CCCTAA' * (q // 6), reverse=reverse(i), array_line=i == 2)
+                block = 'CCCTAA' * 20 + 'CCCTGA' + 'CCCTAAA' + 'CCCCAA' if unit == 'CCCTAA' else unit * 20 + unit[-1]
+                p_array = block * (p // len(block))
+            seq, lines = self.chrom.contig(name, p_array, unit * (q // len(unit)), reverse=reverse(i),
+                                           array_line=i == 2)
             contigs.append((event, name, seq, lines))
         seq, lines = self.chrom.contig('id=REF|' + CHROM)
         contigs.append(('REF', 'id=REF|' + CHROM, seq, lines))
@@ -531,6 +598,20 @@ class TestArrayAtEnd(unittest.TestCase):
             self.assertFalse(array_at_end(s[:4800] + self.body, 500, 3000)[3], k)
         self.assertFalse(array_at_end(self.body, 500, 3000)[3])
 
+    def test_degenerate_end(self):
+        """ a degenerate stretch at the very end, whose walk reaches min_array, doesn't hide the array behind it (as at
+        HG03225#1's chr19p: 400bp of degenerate telomere, windows of sparser degenerate telomere, then the array): the
+        array is the first core's with min_run bp of perfect repeat, whose outer edge steps out over the stretch to the
+        end.  If no core's has, it is the first core's whose walk reaches min_array, as without min_run """
+        end = degenerate_repeat(random.Random(1), 500) + ('CCCTAA' + 'G' * 34) * 5
+        s = end + 'CCCTAA' * 500 + self.body
+        self.assertEqual(array_at_end(s, 500, 3000)[:3], (0, 495, 'ok'))
+        self.assertLess(perfect_run(s[:495]), 72)
+        self.assertEqual(array_at_end(s, 500, 3000, 72)[:3], (0, 3700, 'ok'))
+        self.assertEqual(array_at_end(end + self.body, 500, 3000, 72)[:3], (0, 495, 'ok'))
+        # nor does a later core whose walk doesn't reach min_array count, whatever its run
+        self.assertEqual(array_at_end(end + 'CCCTAA' * 60 + self.body, 500, 3000, 72)[:3], (0, 495, 'ok'))
+
     def test_perfect_run(self):
         self.assertEqual(perfect_run('CCCTAA' * 20 + 'CCCTGA' + 'CCCTAA' * 30 + 'A'), 180)
         self.assertEqual(perfect_run('CCCTAAA' * 100), 6)
@@ -567,6 +648,31 @@ class TestTrimPaf(unittest.TestCase):
             self.assertEqual(got, expected, (t, lo, hi))
             if expected is t:
                 self.assertIs(got, t)
+
+    def test_m_ops(self):
+        """ M ops (rgfa2paf's lines are all M) count as matches at the line's identity: as many as their bp in an
+        rgfa2paf line, which has as many matches as bp """
+        t = ['q', '6000', '1000', '6000', '+', 't', '5000', '0', '5000', '5000', '5000', '60', 'cg:Z:5000M']
+        self.assertEqual(trim_paf(t, 0, 5000)[2:], ['1000', '5000', '+', 't', '5000', '0', '4000', '4000', '4000', '60',
+                                                   'cg:Z:4000M'])
+        self.assertEqual(trim_paf(mirror_line(t), 1000, 6000)[2:], ['1000', '5000', '-', 't', '5000', '0', '4000',
+                                                                   '4000', '4000', '60', 'cg:Z:4000M'])
+        t[9] = '4500'
+        self.assertEqual(trim_paf(t, 0, 3000)[9:11], ['1800', '2000'])
+        t[9], t[12] = '4750', 'cg:Z:2500=2500M'
+        self.assertEqual(trim_paf(t, 0, 5000)[9:13], ['3925', '4000', '60', 'cg:Z:2500=1500M'])   # 1500 at 0.95
+        # and as the per-base trim counts them, on random cigars
+        rng = random.Random(8)
+        for _ in range(1000):
+            ops = [(rng.randint(1, 6), rng.choice('=MMXID')) for _ in range(rng.randint(1, 8))] + [(1, 'M')]
+            qlen = sum(n for n, op in ops if op in '=XMI')
+            tlen = sum(n for n, op in ops if op in '=XMD')
+            aligned = sum(n for n, op in ops if op in '=XM')
+            t = ['q', str(qlen + 5), '0', str(qlen), rng.choice('+-'), 't', str(tlen), '0', str(tlen),
+                 str(rng.randint(0, aligned)), str(sum(n for n, _ in ops)), '60', 'cg:Z:' + merge_ops(ops)]
+            lo = rng.randint(-2, qlen + 1)
+            hi = rng.randint(lo, qlen + 2)
+            self.assertEqual(trim_paf(t, lo, hi), reference_trim(t, lo, hi), (t, lo, hi))
 
     def test_cigar_must_fit(self):
         t = ['q', '100', '10', '20', '+', 't', '100', '0', '10', '10', '10', '60', 'cg:Z:12=']
@@ -661,7 +767,7 @@ class TestAnchorTelomeres(AnchorTestCase):
             if a['event'] != 'H4#1':   # canonical arrays align exactly, from the target's outer end
                 self.assertEqual((a['identity'], a['offset']), (1.0, 0))
                 self.assertEqual(a['t_end'] - a['t_start'], a['array_bp'])
-        self.assertIn('12 telomere anchors (6 p to 7002bp, 6 q to 5202bp)', anchor_summary(anchors))
+        self.assertIn('12 telomere anchors (6 p, 6 q) to 2 targets of 5202-7002bp', anchor_summary(anchors))
 
     def test_reference_anchor(self):
         """ the reference's arrays are anchored a repeat unit further in, in the phase of their outermost bases (its p
@@ -858,32 +964,14 @@ class TestAnchorTelomeres(AnchorTestCase):
         anchors = self.run_anchors(contigs, tag='b', min_run=0)[0]
         self.assertIn((name, '5p', 'p'), [(a['contig'], a['end'], a['arm']) for a in anchors])
 
-    def test_reference_contigs(self):
-        """ the rc:Z: tags of a contig's lines must put most of it on the chromosome: a job of several reference
-        contigs (the --noSplit job, named all, or the chrOther bin) anchors nothing rather than give every telomere
-        the same target per arm, and in a chromosome's job a contig mostly on another reference contig, or whose lines
-        have no rc:Z: tags, is not anchored """
-        contigs = self.plain_contigs()
-        fasta_paths, paf_path = write_subproblem(self.work_dir, contigs, self.chrom.segments)
-        for chrom in ('all', 'chrOther'):
-            out_paf, out_mg = os.path.join(self.work_dir, chrom + '.paf'), os.path.join(self.work_dir, chrom + '.fa')
-            with self.assertLogs(telomere_anchors.logger, level='INFO') as log:
-                anchors = anchor_telomeres(chrom, fasta_paths, paf_path, out_paf, out_mg, minigraph_event=MG)
-            self.assertEqual(anchors, [])
-            self.assertSameFile(paf_path, out_paf)
-            self.assertSameFile(fasta_paths[MG], out_mg)
-            self.assertIn('other_chromosome 12', '\n'.join(log.output))
-            self.assertIn('no contig with an array is mostly on reference contig ' + chrom, '\n'.join(log.output))
-
-        def with_rc(lines, ref_contigs):
-            return [[x for x in t if not x.startswith('rc:Z:')] + (['rc:Z:' + r] if r else [])
-                    for t, r in zip(lines, ref_contigs)]
-        # H0: 2/3 on chrU; H1: no tags; H2: 1/3 on chrU, still anchored
-        contigs[0] = contigs[0][:3] + (with_rc(contigs[0][3], ['chrU', 'chrU', CHROM]),)
-        contigs[1] = contigs[1][:3] + (with_rc(contigs[1][3], [None, None, None]),)
-        contigs[2] = contigs[2][:3] + (with_rc(contigs[2][3], [CHROM, 'chrU', CHROM, CHROM]),)
-        anchors = self.run_anchors(contigs, tag='b')[0]
-        self.assertEqual(sorted(set(a['event'] for a in anchors)), ['H{}#1'.format(i) for i in range(2, 6)])
+    def test_degenerate_end(self):
+        """ an array behind a degenerate stretch at the very end is anchored, from the end (see TestArrayAtEnd) """
+        name = 'id=H0#1|' + CHROM
+        end = degenerate_repeat(random.Random(1), 500) + ('CCCTAA' + 'G' * 34) * 5
+        seq, lines = self.chrom.contig(name, end + 'CCCTAA' * 500, 'CCCTAA' * 300)
+        anchors = self.run_anchors([('H0#1', name, seq, lines)])[0]
+        self.assertEqual(sorted((a['arm'], a['outer_bp'], a['array_bp']) for a in anchors), [('p', 0, 3700),
+                                                                                            ('q', 0, 1800)])
 
     def test_fuzz(self):
         """ random subproblems of short, noisy, junk-capped and soft-masked contigs, with random lines on either
@@ -1020,6 +1108,473 @@ class TestAnchorTelomeres(AnchorTestCase):
         self.assertSameFile(out_mg, again_mg)
 
 
+class TestReferenceContigs(AnchorTestCase):
+    """ a job of any number of reference contigs: each contig is anchored to the targets of the reference contig that
+    the rc:Z: tags of its lines put it on (the reference's contigs to their own names'), whatever the job is called """
+
+    def tel(self, ref_contig, arm):
+        return 'id={}|tel_{}{}'.format(MG, ref_contig, arm)
+
+    def test_label(self):
+        """ the job's name only labels the log: --noSplit's job (all), the chrOther bin and none (a plain cactus-align)
+        give the same outputs as the chromosome's job """
+        _, _, _, paf_a, mg_a = self.run_anchors(self.plain_contigs(), tag='a')
+        for i, label in enumerate(['all', 'chrOther', None]):
+            with self.assertLogs(telomere_anchors.logger, level='INFO') as log:
+                _, _, _, paf_b, mg_b = self.run_anchors(self.plain_contigs(), tag=str(i), label=label)
+            self.assertSameFile(paf_a, paf_b)
+            self.assertSameFile(mg_a, mg_b)
+            self.assertIn('telomere anchors{}: 7 contigs in 7 genomes; anchored 6 p ends and 6 q ends (2 targets of '
+                          '5202-7002bp)'.format(' for ' + label if label else ''), log.output[-1])
+
+    def test_majority(self):
+        """ a contig is anchored to the targets of the reference contig that the rc:Z: tags of its lines put a strict
+        majority of its tagged bp on, whatever the job: H0 (2/3 on chrU) to tel_chrUp/q, H2 (1/3 on chrU) and the
+        others to tel_chrTp/q; H1 (no tags) and H3 (half on chrU, half on chrT, a line without a tag) are not
+        anchored """
+        contigs = self.plain_contigs()
+        contigs[0] = retag(contigs[0], ['chrU', 'chrU', CHROM])
+        contigs[1] = retag(contigs[1], [None, None, None])
+        contigs[2] = retag(contigs[2], [CHROM, 'chrU', CHROM, CHROM])
+        contigs[3] = retag(contigs[3], ['chrU', None, CHROM])   # its s1 and s3 lines are 4600bp each
+        with self.assertLogs(telomere_anchors.logger, level='INFO') as log:
+            anchors, _, _, out_paf, out_mg = self.run_anchors(contigs)
+        keys = [('H0#1', 'chrU')] + [('H{}#1'.format(i), CHROM) for i in (2, 4, 5)]
+        self.assertEqual(sorted((a['event'], a['target']) for a in anchors),
+                         sorted((event, self.tel(key, arm)) for event, key in keys for arm in 'pq'))
+        self.assertEqual([(name, len(s)) for name, s in read_fasta(out_mg)[3:]],
+                         [(self.tel(CHROM, 'p'), 7002), (self.tel(CHROM, 'q'), 3402), (self.tel('chrU', 'p'), 4002),
+                          (self.tel('chrU', 'q'), 3402)])
+        h0 = [t for t in self.paf_fields(out_paf) if t[0] == contigs[0][1] and '|tel_' in t[5]]
+        self.assertEqual([t[-3] for t in h0], ['rc:Z:chrU', 'rc:Z:chrU'])
+        for s in ('no_reference_contig 2', 'ambiguous_reference_contig 2', '(4 targets of 3402-7002bp)'):
+            self.assertIn(s, log.output[-1])
+
+    def test_orientation(self):
+        """ a contig is oriented by its lines on its reference contig: H0 is reverse complemented, its chrT lines on -,
+        while untagged lines (as a mapping over two reference contigs has) of two pieces of it aligned forward, to
+        segments of their own, hold most of its aligned bp """
+        name = 'id=H0#1|' + CHROM
+        seq, lines = self.chrom.contig(name, 'CCCTAA' * 300, 'CCCTAA' * 300, reverse=True)
+        pieces = [('id={}|s{}'.format(MG, i + 4), seq[x:x + 11000]) for i, x in enumerate((1800, 2800))]
+        lines += [paf_line(name, seq, x, x + 11000, n, s, 0, 11000, ref_contig=None)
+                  for (n, s), x in zip(pieces, (1800, 2800))]
+        anchors = self.run_anchors([('H0#1', name, seq, lines)], mg_records=self.chrom.segments + pieces)[0]
+        self.assertEqual(sorted((a['end'], a['orientation'], a['arm']) for a in anchors),
+                         [('3p', '-', 'p'), ('5p', '-', 'q')])
+
+    def test_two_chromosomes(self):
+        """ two chromosomes in one job: each gets its own pair of targets, and the same anchors and lines as in a job of
+        its own (the reference's contigs keyed by their own names) """
+        chroms = [Chromosome(seed=5, ref_contig='chrA', segment_prefix='a'),
+                  Chromosome(seed=6, body_bp=9000, ref_contig='chrB', segment_prefix='b')]
+
+        def contigs_of(chrom, arrays):
+            out = []
+            for i, (p, q) in enumerate(arrays):
+                event = 'H{}#1'.format(i)
+                name = 'id={}|{}'.format(event, chrom.ref_contig)
+                out.append((event, name) + chrom.contig(name, 'CCCTAA' * (p // 6), 'CCCTAA' * (q // 6),
+                                                        reverse=i == 1))
+            ref = 'id=REF|' + chrom.ref_contig
+            return out + [('REF', ref) + chrom.contig(ref, 'CCCTAA' * 400, 'CCCTAA' * 350)]
+        a = contigs_of(chroms[0], [(3000, 1200), (1800, 4200)])
+        b = contigs_of(chroms[1], [(2400, 600), (900, 1500)])
+        runs = [self.run_anchors(contigs, tag=tag, mg_records=segments, label=label, reference='REF')
+                for contigs, tag, segments, label in [(a, 'a', chroms[0].segments, 'chrA'),
+                                                      (b, 'b', chroms[1].segments, 'chrB'),
+                                                      (a + b, 'ab', chroms[0].segments + chroms[1].segments, 'all')]]
+        (_, _, _, paf_a, mg_a), (_, _, _, paf_b, mg_b), (anchors, _, _, paf_ab, mg_ab) = runs
+        self.assertEqual(sorted(set(x['target'] for x in anchors)),
+                         [self.tel(c, arm) for c in ('chrA', 'chrB') for arm in 'pq'])
+        self.assertIn('(6 p, 6 q) to 4 targets of', anchor_summary(anchors))
+        is_anchor = lambda t: '|tel_' in t[5]
+        lines_ab, lines_sep = self.paf_fields(paf_ab), self.paf_fields(paf_a) + self.paf_fields(paf_b)
+        self.assertEqual([t for t in lines_ab if not is_anchor(t)], [t for t in lines_sep if not is_anchor(t)])
+        self.assertEqual(sorted(t for t in lines_ab if is_anchor(t)), sorted(t for t in lines_sep if is_anchor(t)))
+        self.assertEqual(read_fasta(mg_ab)[6:], read_fasta(mg_a)[3:] + read_fasta(mg_b)[3:])
+
+    def test_reference_without_tags(self):
+        """ the reference's contigs are keyed by their own names, whatever their lines' tags: one with only rgfa2paf
+        lines (cg:Z:<n>M, no rc:Z:, as cactus-graphmap writes for a reference contig minigraph didn't map) is
+        anchored, and its trimmed lines keep their M bp as matches.  Not as the reference, nor in a PAF without any
+        rc:Z: tag (one not made by cactus-graphmap), is it anchored """
+        ref = 'id=REF|' + CHROM
+        seq = ''.join(s for _, s in self.chrom.segments)   # its path through the segments: 600bp arrays at its ends
+        lines, x = [], 0
+        for n, s in self.chrom.segments:
+            lines.append(rgfa_line(ref, seq, x, x + len(s), n, s))
+            x += len(s)
+        contigs = self.plain_contigs()[:2] + [('REF', ref, seq, lines)]
+        anchors, _, _, out_paf, _ = self.run_anchors(contigs, tag='a', reference='REF')
+        self.assertEqual(sorted((a['end'], a['target']) for a in anchors if a['event'] == 'REF'),
+                         [('3p', self.tel(CHROM, 'q')), ('5p', self.tel(CHROM, 'p'))])
+        self.assertEqual([(t[2], t[3], t[7], t[8], t[9], t[10], t[12]) for t in self.paf_fields(out_paf)
+                          if t[0] == ref and '|tel_' not in t[5]],
+                         [('600', '4600', '600', '4600', '4000', '4000', 'cg:Z:4000M'),
+                          ('4600', '8600', '0', '4000', '4000', '4000', 'cg:Z:4000M'),
+                          ('8600', '12600', '0', '4000', '4000', '4000', 'cg:Z:4000M')])
+        with self.assertLogs(telomere_anchors.logger, level='INFO') as log:
+            anchors = self.run_anchors(contigs, tag='b')[0]
+        self.assertNotIn('REF', [a['event'] for a in anchors])
+        self.assertIn('no_reference_contig 2', log.output[-1])
+        untagged = [retag(c, [None] * len(c[3])) for c in contigs]
+        with self.assertLogs(telomere_anchors.logger, level='INFO') as log:
+            anchors, fasta_paths, paf_path, out_paf, out_mg = self.run_anchors(untagged, tag='c', reference='REF')
+        self.assertEqual(anchors, [])
+        self.assertIn('no_reference_contig 6', log.output[-1])
+        self.assertSameFile(paf_path, out_paf)
+        self.assertSameFile(fasta_paths[MG], out_mg)
+
+    def test_names(self):
+        """ reference contig names with _sub_ (cactus's name for a piece of a contig) and |: a _sub_ is written _sub-
+        in the target names, as hal2vg would read tel_X_sub_0_100p and tel_X_sub_0_100q as the same subpath of X
+        (and tel_sub_0_100p as one of tel), and a | is kept (a name's event is up to its first |).  The anchor lines'
+        rc:Z: tags keep the names as they are """
+        self.assertEqual([target_name(MG, c, 'q') for c in ('chr19', 'sub_0_100', 'X_sub_sub_0_100')],
+                         ['id=_MINIGRAPH_|tel_chr19q', 'id=_MINIGRAPH_|tel_sub-0_100q',
+                          'id=_MINIGRAPH_|tel_X_sub-sub_0_100q'])
+        chrom = Chromosome(ref_contig='chr1_sub_100_12100')
+        name, ref = 'id=H0#1|chr1_sub_100_12100', 'id=REF|a|b'
+        contigs = [('H0#1', name) + chrom.contig(name, 'CCCTAA' * 300, 'CCCTAA' * 200),
+                   ('REF', ref) + chrom.contig(ref, 'CCCTAA' * 300, 'CCCTAA' * 200)]
+        anchors, _, _, out_paf, out_mg = self.run_anchors(contigs, reference='REF')
+        targets = [self.tel(c, arm) for c in ('a|b', 'chr1_sub-100_12100') for arm in 'pq']
+        self.assertEqual(sorted(set(a['target'] for a in anchors)), targets)
+        self.assertEqual([n for n, _ in read_fasta(out_mg)[3:]], targets)
+        self.assertEqual(sorted((t[0], t[5], t[-3]) for t in self.paf_fields(out_paf) if '|tel_' in t[5]),
+                         sorted([(name, targets[2], 'rc:Z:chr1_sub_100_12100'),
+                                 (name, targets[3], 'rc:Z:chr1_sub_100_12100'),
+                                 (ref, targets[0], 'rc:Z:a|b'), (ref, targets[1], 'rc:Z:a|b')]))
+
+    def test_already_anchored(self):
+        """ inputs that already hold a target of any reference contig, not only of the job's contigs (as a rerun on the
+        outputs of a job of other contigs would): a minigraph record, or a PAF line to one, and they are left as they
+        are """
+        other = ('id={}|tel_chrZp'.format(MG), 'CCCTAA' * 100)
+        anchors, fasta_paths, paf_path, out_paf, out_mg = self.run_anchors(
+            self.plain_contigs(), tag='a', mg_records=self.chrom.segments + [other])
+        self.assertEqual(anchors, [])
+        self.assertSameFile(paf_path, out_paf)
+        self.assertSameFile(fasta_paths[MG], out_mg)
+        contigs = self.plain_contigs()
+        name, seq, lines = contigs[0][1:]
+        contigs[0] = contigs[0][:3] + (lines + [paf_line(name, seq, 0, 600, other[0], other[1], 0, 600)],)
+        with self.assertLogs(telomere_anchors.logger, level='INFO') as log:
+            anchors, fasta_paths, paf_path, out_paf, out_mg = self.run_anchors(contigs, tag='b', verify=False)
+        self.assertEqual(anchors, [])
+        self.assertSameFile(paf_path, out_paf)
+        self.assertSameFile(fasta_paths[MG], out_mg)
+        self.assertIn('already_anchored 12', log.output[-1])
+
+
+class MotifTests:
+    """ the scan, the anchor alignment and the anchors of telomere motif G (one subclass per motif below, so that a
+    failure names it), whose numbers follow from its unit's length p as the TTAGGG tests' do from 6 """
+
+    def setUp(self):
+        super().setUp()
+        self.v = motif_view(self.G)
+        self.motif = make_motif(self.G)
+        self.chrom = Chromosome(unit=self.v.u)
+        self.body = random_dna(random.Random(3), 2000)
+        # junk: a base whose run doesn't read on into the array as a telomeric k-mer (G, but T for Allium's
+        # CCCATAACCGAG, which reads GCCCAT after a G)
+        self.junk = next(b for b in 'GTCA' if not any(kmer_at(b * 30 + self.v.u, i, self.v) for i in range(30)))
+
+    def test_array_at_end(self):
+        """ an array of whole units; with a partial unit at the end; with junk outside it, its edge moved to the end
+        under two units from it; beyond max_outer; and none on the other strand, nor of another motif """
+        u, p, motif = self.v.u, self.v.p, self.motif
+        n = 3000 // p
+        self.assertEqual(array_at_end(u * n + self.body, 500, 3000, 72, motif)[:3], (0, n * p, 'ok'))
+        self.assertEqual(array_at_end(u[-(p // 2):] + u * n + self.body, 500, 3000, 72, motif)[:3],
+                         (0, n * p + p // 2, 'ok'))
+        for junk, edge in ((2 * p - 1, 0), (2 * p, 2 * p), (300, 300)):
+            s = self.junk * junk + u * n + self.body
+            outer, L, status, _ = array_at_end(s, 500, 3000, 72, motif)
+            self.assertEqual((outer, status), (edge, 'ok'), junk)
+            self.assertEqual(s[outer + L - p:outer + L], u, junk)   # the inner edge ends a unit
+        s = self.junk * 3050 + u * n + self.body
+        self.assertEqual(array_at_end(s, 500, 3000, 72, motif)[:3:2], (3050, 'beyond'))
+        self.assertEqual(array_at_end(s, 500, 4000, 72, motif)[:3:2], (3050, 'ok'))
+        self.assertEqual(array_at_end(rc(u * n) + self.body, 500, 3000, 72, motif)[:3], (0, 0, 'none'))
+        other = rc('TTTAGGG' if self.G == 'TTAGGG' else 'TTAGGG')
+        s = other * (3000 // len(other)) + self.body
+        outer, L, status, _ = array_at_end(s, 500, 3000, 72, motif)
+        self.assertFalse(status == 'ok' and perfect_run(s[outer:outer + L], motif) >= 72)
+
+    def test_perfect_run(self):
+        u, p = self.v.u, self.v.p
+        self.assertEqual(perfect_run(u * 20 + self.junk + u * 30 + u[:-1], self.motif), 30 * p)
+        self.assertLess(perfect_run(rc(u * 50), self.motif), p)
+
+    def test_anchor_alignment(self):
+        """ an array in any phase at its offset r, pinned at r (the reference's at r + p, p to 2p - 1bp in); a
+        reference whose outermost base is not telomeric starts with it as a mismatch, in the phase of the rest """
+        u, p, motif = self.v.u, self.v.p, self.motif
+        for r in range(p):
+            array = (u * 101)[r:r + 100 * p]
+            self.assertEqual(anchor_alignment(array, 120 * p, motif=motif), (r, r, [(100 * p, '=')], 100 * p))
+            self.assertEqual(anchor_alignment(array, 120 * p, reference=True, motif=motif),
+                             (r, r + p, [(100 * p, '=')], 100 * p))
+        b = next(b for b in 'GTCA' if b not in (u[0], u[-1]))
+        self.assertEqual(anchor_alignment(b + u * 100, 120 * p, reference=True, motif=motif),
+                         (p - 1, 2 * p - 1, [(1, 'X'), (100 * p, '=')], 100 * p + 1))
+
+    def test_anchor_telomeres(self):
+        """ six haplotypes, three reverse complemented, and a reference, with arrays of the motif: every end anchored
+        (verify_outputs() checks them as the motif's, the reference's p to 2p - 1bp in), to targets of whole units,
+        the longest array + 1000bp rounded up """
+        p = self.v.p
+        contigs = self.plain_contigs(lambda i: i % 2 == 1, unit=self.v.u)
+        ref = 'id=REF|' + CHROM
+        contigs[-1] = ('REF', ref) + self.chrom.contig(ref, self.v.u * (2400 // p), self.v.u * (1800 // p))
+        anchors = self.run_anchors(contigs, motif=self.G, reference='REF')[0]
+        self.assertEqual(len(anchors), 14)
+        for a in anchors:
+            longest = max(b['array_bp'] for b in anchors if b['arm'] == a['arm'])
+            self.assertEqual(a['target_length'], -(-(longest + 1000) // p) * p)
+
+
+class TestMotifTTAGGG(MotifTests, AnchorTestCase):
+    G = 'TTAGGG'
+
+    def test_constants(self):
+        """ what TTAGGG's motif derives is what the code had as constants before there were others """
+        m = self.motif
+        self.assertEqual(m.repeat_re.pattern, 'CCCTAA|CCCTGA|CCCTCA|CCCCAA|CCCGAA')
+        self.assertEqual(m.edge_kmer_re.pattern,
+                         '(?=(?:AACCC|ACCCT|CCCTA|CCTAA|CTAAC|TAACC|CCCTGA|CCCTCA|CCCCAA|CCCGAA))')
+        self.assertEqual(m.perfect_re.pattern, '(?:CCCTAA)+')
+        self.assertEqual((m.p, m.longest, m.edge_reach, m.inner_gap, m.partial, m.reference_inset),
+                         (6, 6, 5, 12, 11, 6))
+        self.assertEqual(m.tel_unit, {'p': 'CCCTAA', 'q': 'TTAGGG'})
+
+
+class TestMotifTTTAGGG(MotifTests, AnchorTestCase):
+    G = 'TTTAGGG'
+
+
+class TestMotifTTAGG(MotifTests, AnchorTestCase):
+    G = 'TTAGG'
+
+
+class TestMotifTTAGGC(MotifTests, AnchorTestCase):
+    """ not a rotation of TTAGGG, whose cycle has its 5-mer CCTAA """
+    G = 'TTAGGC'
+
+
+class TestMotifCTCGGTTATGGG(MotifTests, AnchorTestCase):
+    G = 'CTCGGTTATGGG'
+
+
+class TestMotifChoice(AnchorTestCase):
+    """ a job's motif, of several: the one with a perfect run at the most contig ends, read inward, if at least 2, 4
+    times as many as read it the other way and 3 times as many as the runner-up; one given alone is taken """
+
+    def contigs_of(self, g, reverse=lambda i: False):
+        """ plain_contigs() of motif g, on a chromosome whose segments end in its telomeres """
+        self.chrom = Chromosome(unit=rc(g))
+        return self.plain_contigs(reverse, unit=rc(g))
+
+    def run_motifs(self, contigs, tag, motifs=DEFAULT_MOTIFS, **kwargs):
+        """ run_anchors() with motifs: (anchors, out paf, out mg, log lines) """
+        with self.assertLogs(telomere_anchors.logger, level='INFO') as log:
+            anchors, _, _, out_paf, out_mg = self.run_anchors(contigs, tag=tag, motifs=motifs, **kwargs)
+        return anchors, out_paf, out_mg, log.output
+
+    def test_choice(self):
+        """ human (with variant repeats), plant, insect and nematode arrays choose their motif of the default ones, and
+        are anchored as with it alone; not with another alone """
+        for g, other in (('TTAGGG', 'TTTAGGG'), ('TTTAGGG', 'TTAGGG'), ('TTAGG', 'TTAGGG'), ('TTAGGC', 'TTAGGG')):
+            contigs = self.contigs_of(g, lambda i: i % 2 == 1)
+            anchors, paf_a, mg_a, log = self.run_motifs(contigs, g + 'a', motif=g)
+            self.assertIn('telomere motif {} at 12 of 14 contig ends (0 read the other way), then'.format(g),
+                          '\n'.join(log))
+            self.assertEqual(len(anchors), 12)
+            _, _, _, paf_b, mg_b = self.run_anchors(contigs, tag=g + 'b', motif=g)
+            self.assertSameFile(paf_a, paf_b)
+            self.assertSameFile(mg_a, mg_b)
+            self.assertEqual(self.run_motifs(contigs, g + 'c', [other])[0], [])
+
+    def test_none(self):
+        """ irregular telomeres (yeast's TG1-3, read inward as C1-3A), a satellite read as often either way and no
+        telomeres choose no motif, and nothing is anchored """
+        rng = random.Random(6)
+        tg = lambda: ''.join(rng.choice(['CA', 'CCA', 'CCCA']) for _ in range(200))[:400]
+        cases = [('yeast', [(tg(), tg()) for _ in range(6)], 'TTAGGG at 0 of 12'),
+                 ('satellite', [('CCTAA' * 200, 'TTAGG' * 200)] * 6, 'TTAGG at 6 of 12 contig ends (6 read the other '
+                                                                     'way)'),
+                 ('none', [('', '')] * 6, 'TTAGGG at 0 of 12')]
+        for case, arrays, counts in cases:
+            contigs = []
+            for i, (p_array, q_array) in enumerate(arrays):
+                name = 'id=H{}#1|{}'.format(i, CHROM)
+                contigs.append(('H{}#1'.format(i), name) + self.chrom.contig(name, p_array, q_array))
+            anchors, out_paf, out_mg, log = self.run_motifs(contigs, case)
+            self.assertEqual(anchors, [], case)
+            self.assertIn('no telomere motif ({}'.format(counts), log[0])
+            self.assertTrue(log[0].endswith('): nothing anchored'), log)
+            self.assertIn('not anchored: no_motif 12;', log[-1])
+
+    def test_runner_up(self):
+        """ as many ends of one motif as of another (three contigs of TTAGGG arrays, three of TTTAGGG's): neither, with
+        a warning to give one alone, which is then anchored """
+        contigs = self.plain_contigs()[:3]
+        for i in range(3, 6):
+            name = 'id=H{}#1|{}'.format(i, CHROM)
+            contigs.append(('H{}#1'.format(i), name) + self.chrom.contig(name, 'CCCTAAA' * 400, 'CCCTAAA' * 300))
+        choices = []
+        with self.assertLogs(telomere_anchors.logger, level='WARNING') as log:
+            anchors = self.run_anchors(contigs, tag='a', motifs=DEFAULT_MOTIFS,
+                                       log_choice=lambda *a: choices.append(a))[0]
+        self.assertEqual(anchors, [])
+        self.assertIn('at 6 of 12 contig ends (0 read the other way), then TTTAGGG at 6): nothing anchored; to anchor '
+                      'one of them, give it alone in telomereMotifs', log.output[0])
+        self.assertEqual(len(choices), 1)
+        self.assertIn(choices[0][0], log.output[0])
+        self.assertTrue(choices[0][1])
+        for g, events in (('TTAGGG', ['H0#1', 'H1#1', 'H2#1']), ('TTTAGGG', ['H3#1', 'H4#1', 'H5#1'])):
+            anchors = self.run_anchors(contigs, tag=g, motif=g)[0]
+            self.assertEqual(sorted(set(a['event'] for a in anchors)), events)
+
+    def test_one_motif(self):
+        """ a motif given alone is taken without choosing, even for one end (one doesn't choose a motif of several) """
+        name = 'id=H0#1|' + CHROM
+        contigs = [('H0#1', name) + self.chrom.contig(name, 'CCTAA' * 300)]
+        choices = []
+        anchors, _, _, log = self.run_motifs(contigs, 'a', ['TTAGG'], motif='TTAGG',
+                                             log_choice=lambda *a: choices.append(a))
+        self.assertEqual([(a['end'], a['arm']) for a in anchors], [('5p', 'p')])
+        self.assertFalse(any('telomere motif' in l for l in log))
+        self.assertEqual(choices, [])
+        anchors, _, _, log = self.run_motifs(contigs, 'b')
+        self.assertEqual(anchors, [])
+        self.assertIn('no telomere motif (TTAGG at 1 of 2 contig ends', log[0])
+
+    def test_choose_motif(self):
+        """ the thresholds, and ties going to the most bp, then the first listed """
+        def choose(*tally):
+            return choose_motif(['TTAGGG', 'TTTAGGG', 'TTAGG'], [list(t) for t in tally], 100)
+        self.assertEqual(choose((2, 0, 9), (0, 0, 0), (0, 0, 0))[::2], (0, False))
+        self.assertEqual(choose((1, 0, 9), (0, 0, 0), (0, 0, 0))[::2], (None, False))
+        self.assertEqual(choose((0, 8, 9), (0, 0, 0), (8, 2, 9))[::2], (2, False))
+        self.assertEqual(choose((0, 8, 9), (0, 0, 0), (8, 3, 9))[::2], (None, False))
+        self.assertEqual(choose((3, 0, 9), (1, 1, 99), (0, 0, 0))[::2], (0, False))
+        self.assertEqual(choose((3, 0, 9), (2, 0, 99), (0, 0, 0))[::2], (None, True))
+        self.assertEqual(choose((6, 0, 9), (6, 1, 10), (0, 0, 0))[1],
+                         'no telomere motif (TTTAGGG at 6 of 100 contig ends (1 read the other way), then TTAGGG at '
+                         '6): nothing anchored; to anchor one of them, give it alone in telomereMotifs')
+        self.assertEqual(choose((0, 0, 0), (0, 0, 0), (0, 0, 0))[1],
+                         'no telomere motif (TTAGGG at 0 of 100 contig ends (0 read the other way), then TTTAGGG at '
+                         '0): nothing anchored')
+        self.assertEqual(choose((9, 0, 9), (0, 0, 0), (0, 0, 0))[1],
+                         'telomere motif TTAGGG at 9 of 100 contig ends (0 read the other way), then TTTAGGG at 0')
+
+    def test_telomere_run(self):
+        """ a perfect run in any phase, of at least need bp, starting at most limit bp in, read inward; where it starts
+        and ends, with a partial unit after its whole ones, and the outermost of two """
+        inward, other_way = run_finder('CCCTAA', 72), run_finder('TTAGGG', 72)
+        for phase in range(6):
+            run = ('CCCTAA' * 20)[phase:phase + 75]
+            self.assertEqual(telomere_run('G' * 100 + run + 'G' * 100, inward, 100), (100, 175), phase)
+            self.assertIsNone(telomere_run('G' * 101 + run + 'G' * 100, inward, 100), phase)
+            self.assertIsNone(telomere_run('G' * 100 + run[:71] + 'G' * 100, inward, 100), phase)
+            self.assertIsNone(telomere_run('G' * 100 + run + 'G' * 100, other_way, 100), phase)
+            self.assertEqual(telomere_run('C' * 100 + rc(run) + 'C' * 100, other_way, 100), (100, 175), phase)
+        s = 'G' * 50 + 'CCCTAA' * 13 + 'G' * 30 + 'CCCTAA' * 100 + 'G'
+        self.assertEqual(telomere_run(s, inward, 3000), (50, 128))
+        self.assertEqual(telomere_run(s, run_finder('CCCTAA', 144), 3000), (158, 758))
+        self.assertIsNone(telomere_run('CCCTAA' * 1000, run_finder('CCTAA', 72), 3000))
+
+    def test_short_contigs(self):
+        """ a run only counts at the end whose half of the contig it starts in, and a run read the other way not at
+        all if it is in the telomere the other end reads inward (its run, and its array if that starts in its half),
+        so that a contig made of telomere (also with variant repeats, so that the outermost runs at its two ends are
+        different ones), or a short one with its telomere, counts a telomere and nothing read the other way; one whose
+        array's first long run starts in the other half counts neither.  A short contig's second array, and an array
+        that reads the other way from the end whose half it starts in (though inward from the other end, also behind
+        a run there), do count as read the other way.  A job of such contigs chooses its motif """
+        rng = random.Random(7)
+        body = random_dna(rng, 2000)
+        variant = ''.join(rng.choice(['CCCTAA'] * 9 + ['CCCTGA', 'CCCCAA']) for _ in range(800))
+        cases = [('CCCTAA' * 800, (1, 0)), (variant, (1, 0)), ('CCCTAA' * 300 + body, (1, 0)),
+                 ('CCCTAA' * 400 + body, (1, 0)), (variant[:3000] + body[:1000], (1, 0)),
+                 (body + rc('CCCTAA' * 300), (1, 0)), (body + 'CCCTAA' * 300, (0, 1)),
+                 ('CCCTAA' * 300 + body + 'CCCTAA' * 100, (1, 1)),
+                 ((('CCCTAA' * 11 + 'CCCTGA') * 23)[:1600] + 'CCCTAA' * 200 + body[:200], (0, 0)),
+                 ('CCCTAA' * 13 + body + 'CCCTAA' * 300, (1, 1))]
+        path = os.path.join(self.work_dir, 'short.fa')
+        for i, (seq, counts) in enumerate(cases):
+            write_fasta(path, [('c', seq)])
+            tally = telomere_anchors.scan_genome('e', path, 500, 3000, 72, ['TTAGGG', 'TTTAGGG'])[2]
+            self.assertEqual(tuple(tally[0][:2]), counts, i)
+        contigs = [('id=H{}#1|c'.format(i), seq) for i, (seq, _) in enumerate(cases[:5])]
+        write_fasta(path, contigs + [('id=T#1|chrT', 'CCCTAA' * 500 + body + rc('CCCTAA' * 400))] * 3)
+        tally = telomere_anchors.scan_genome('e', path, 500, 3000, 72, DEFAULT_MOTIFS)[2]
+        self.assertEqual(choose_motif(DEFAULT_MOTIFS, tally, 16)[:2],
+                         (0, 'telomere motif TTAGGG at 11 of 16 contig ends (0 read the other way), then TTTAGGG at 0'))
+
+    def test_variant_runs(self):
+        """ an end counts for the motif whose run starts nearest it, so the perfect runs of TTGGGG (a candidate, and a
+        TTAGGG variant) that real TTAGGG telomeres hold further in don't count against TTAGGG: one T2T contig whose
+        telomeres both hold one (as HG002#1 chr5's 3' end does, 72bp at 1727) chooses TTAGGG """
+        rng = random.Random(11)
+        telomere = 'CCCTAA' * 280 + 'CCCCAA' * 13 + 'CCCTAA' * 150
+        path = os.path.join(self.work_dir, 'variant.fa')
+        write_fasta(path, [('c', telomere + random_dna(rng, 20000) + rc(telomere))])
+        tally = telomere_anchors.scan_genome('e', path, 500, 3000, 72, DEFAULT_MOTIFS)[2]
+        self.assertEqual([t[:2] for t in tally[:1] + tally[8:9]], [[2, 0], [0, 0]])   # TTAGGG, TTGGGG
+        self.assertEqual(choose_motif(DEFAULT_MOTIFS, tally, 2)[:2],
+                         (0, 'telomere motif TTAGGG at 2 of 2 contig ends (0 read the other way), then TTTAGGG at 0'))
+
+    def test_telomere_contigs(self):
+        """ contigs made of telomere (without PAF lines) and short contigs with their telomere, as a fragmented
+        assembly has, don't keep a job from choosing its motif: it anchors them as with the motif alone, and
+        log_choice gets the line about the choice """
+        contigs = self.plain_contigs()[:3]
+        contigs += [('H{}#1'.format(i), 'id=H{}#1|tel'.format(i), 'CCCTAA' * 800, []) for i in range(3)]
+        n2, s2 = self.chrom.segments[1]
+        for i in range(4):
+            name = 'id=F{}#1|frag'.format(i)
+            seq = 'CCCTAA' * 300 + s2[1000:3000]
+            contigs.append(('F{}#1'.format(i), name, seq, [paf_line(name, seq, 1800, len(seq), n2, s2, 1000, 3000)]))
+        choices = []
+        anchors, paf_a, mg_a, _ = self.run_motifs(contigs, 'a', log_choice=lambda *a: choices.append(a))
+        self.assertEqual(choices, [('telomere motif TTAGGG at 13 of 20 contig ends (0 read the other way), then '
+                                    'TTTAGGG at 0', False)])
+        self.assertEqual(len(anchors), 10)
+        _, _, _, paf_b, mg_b = self.run_anchors(contigs, tag='b')
+        self.assertSameFile(paf_a, paf_b)
+        self.assertSameFile(mg_a, mg_b)
+
+    def test_check_motifs(self):
+        self.assertEqual(check_motifs([' ttaggg', 'TTTAGGG ']), ['TTAGGG', 'TTTAGGG'])
+        self.assertEqual(check_motifs(DEFAULT_MOTIFS), DEFAULT_MOTIFS)
+        for motifs, error in (([], 'no telomere motifs'), (['TTAG'], "'TTAG' is not 5-12bp"),
+                              (['TTAGGGTTAGGGT'], 'is not 5-12bp'), (['TTAGN'], 'is not 5-12bp'),
+                              (['TTAGGTTAGG'], 'TTAGGTTAGG is a repeat of a shorter unit'),
+                              (['TTAGGG', 'TTAGG', 'TTAGGG'], 'TTAGGG is listed twice'),
+                              (['TTAGGG', 'GGTTAG'], 'TTAGGG and GGTTAG are rotations of one unit'),
+                              (['TTAGGG', 'CTAACC'], 'CTAACC is a rotation of the reverse complement of TTAGGG'),
+                              (['AAATTT'], 'AAATTT is a rotation of the reverse complement of itself')):
+            with self.assertRaisesRegex(ValueError, error):
+                check_motifs(motifs)
+        with self.assertRaisesRegex(ValueError, 'TTAG'):
+            self.run_anchors(self.plain_contigs(), motifs=['TTAGGG', 'TTAG'])
+
+    def test_config_motifs(self):
+        self.assertEqual(config_motifs(ET.fromstring('<graphmap/>')), DEFAULT_MOTIFS)
+        self.assertEqual(config_motifs(None), DEFAULT_MOTIFS)
+        self.assertEqual(config_motifs(ET.fromstring('<graphmap telomereMotifs="tttaggg, TTAGG,"/>')),
+                         ['TTTAGGG', 'TTAGG'])
+        self.assertEqual(config_motifs(ET.fromstring('<graphmap telomereMotifs=" TTAGGG "/>')), ['TTAGGG'])
+        for value, error in (('', 'no telomere motifs'), ('TTAGGG,TTAG', "'TTAG' is not 5-12bp")):
+            with self.assertRaisesRegex(RuntimeError, '<graphmap telomereMotifs="{}">: .*{}'.format(value, error)):
+                config_motifs(ET.fromstring('<graphmap telomereMotifs="{}"/>'.format(value)))
+
+
 class TestVerifier(AnchorTestCase):
     """ the verifier catches what it is there to catch (the prototype's negative controls) """
 
@@ -1031,14 +1586,14 @@ class TestVerifier(AnchorTestCase):
         return contigs
 
     def test_edge_ignoring_junk(self):
-        with mock.patch.object(telomere_anchors, 'outer_edge', lambda s, c: 0):
+        with mock.patch.object(telomere_anchors, 'outer_edge', lambda s, c, motif: 0):
             args = self.run_anchors(self.junk_contigs(), verify=False)[1:]
         with self.assertRaisesRegex(AssertionError, 'not a telomere/junk boundary'):
             verify_outputs(*args)
 
     def test_inner_edge_in_subtelomere(self):
         # H4's variant array ends 37bp before its last window does
-        with mock.patch.object(telomere_anchors, 'inner_edge', lambda s, x: x):
+        with mock.patch.object(telomere_anchors, 'inner_edge', lambda s, x, motif: x):
             args = self.run_anchors(self.plain_contigs(), verify=False)[1:]
         with self.assertRaisesRegex(AssertionError, 'is not the end of a telomeric hexamer'):
             verify_outputs(*args)

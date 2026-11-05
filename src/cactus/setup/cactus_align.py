@@ -319,6 +319,10 @@ def make_align_job(options, toil, config_wrapper=None, chrom_name=None):
             findRequiredNode(config_node, "graphmap").attrib["collapse"] = 'all'
         if getattr(options, 'minIdentity', None) is not None:
             findRequiredNode(config_node, "graphmap").attrib["minIdentity"] = str(options.minIdentity)
+    if options.pangenome and getOptionalAttrib(config_node.find("graphmap"), "telomereAnchors", typeFn=bool, default=False):
+        # telomere motifs that can't be anchored fail here, not in every chromosome's alignment
+        from cactus.refmap.telomere_anchors import config_motifs
+        config_motifs(config_node.find("graphmap"))
     if hasattr(options, 'hdf5Codec') and options.hdf5Codec:
         config_node.find("hal").attrib["hdf5Codec"] = options.hdf5Codec
     config_wrapper.setSystemMemory(options)
