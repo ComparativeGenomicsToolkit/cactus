@@ -65,10 +65,9 @@ def main():
     parser.add_argument("--minBlockSize", type=int,
                         help="set --minBlockSize in halSynteny")
     parser.add_argument("--coalescenceLimit",
-                        help="set --coalescenceLimit in halLiftover: the ancestor at which to stop looking for homologies "
-                        "through paralogies (default: the MRCA of each query and target). Raise it to recover homology between "
-                        "gene copies that are separate in the MRCA and only coalesce higher up the tree; the root works for "
-                        "every pair. Must be at or above the MRCA of every (query,target) pair. Not supported by --useHalSynteny")
+                        help="Ancestor at which halLiftover stops looking for homologies through paralogies (its "
+                        "--coalescenceLimit) [default: the MRCA of each query and target]. Must be at or above the MRCA of "
+                        "every (query,target) pair, as the root always is. Not supported by --useHalSynteny")
     parser.add_argument("--linearGapThreshold", type=float, default=1.0,
                         help="Use axtChain -linearGap=medium if the tree distance between query and target is less than this value, and -linearGap=loose otherwise. UCSC's guidance (from doBlastzChainNet.pl) is to use medium for pairs within the same taxonomic class (e.g. mammal-mammal) and loose across class boundaries (e.g. mammal-bird) [default=1.0]")
 

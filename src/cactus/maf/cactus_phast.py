@@ -109,27 +109,18 @@ def main():
                         help="Compute one output track per named internal node of the HAL tree. "
                              "For each name: phyloP --subtree <name> emits a per-base wig "
                              "expressing lineage-specific deviation from neutral on that subtree. "
-                             "The reference genome must be a leaf descendant of every named "
-                             "subtree (so the per-base score at each reference position has "
-                             "subtree-side data). As a special case, naming the (effective) "
-                             "tree root — the HAL tree root, or --root if set — produces the "
-                             "standard whole-tree conservation track for that node (no phyloP "
-                             "--subtree flag, no .s tag). So `--subtree squamata sauropsida root` "
-                             "produces three tracks: two lineage-specific plus the global, all "
-                             "anchored at the reference. With --root, every named subtree must "
-                             "be a descendant of --root (or equal it, for the global-within-"
-                             "clade track), and the reference must lie inside both. One model is "
-                             "trained and reused across all tracks. NOTE: phyloP --subtree fits "
-                             "a per-site likelihood for the subtree alone and will crash on "
-                             "columns where the subtree has no aligned data; pick subtrees with "
-                             "consistent coverage in your alignment.")
+                             "Naming the tree root (the HAL tree root, or --root if set) produces "
+                             "the standard whole-tree conservation track instead. So `--subtree "
+                             "squamata sauropsida root` produces three tracks: two lineage-specific "
+                             "plus the global. The reference genome must be a leaf descendant of "
+                             "every named subtree, and with --root, every named subtree must be "
+                             "--root or a descendant of it. NOTE: chunks where the subtree has too "
+                             "little aligned data for phyloP are skipped with a warning; pick "
+                             "subtrees with consistent coverage in your alignment.")
     parser.add_argument("--geneAnnotation", help="Gene annotation (genePred .gp, GFF/GFF3, GTF, or "
                                                 "UCSC ncbiRefSeq.txt-style genePred with leading bin "
                                                 "column). May be a local path or an http(s)/ftp URL. "
-                                                "The pipeline downloads, converts to genePred, filters "
-                                                "to records with cdsEnd > cdsStart, and runs "
-                                                "genePredSingleCover to produce a non-redundant "
-                                                "single-cover annotation. Required for --mode phyloFit; "
+                                                "Required for --mode phyloFit; "
                                                 "required for --mode phyloP if --neutralModel is not "
                                                 "given. Coordinates must use the same contig names as "
                                                 "--refGenome in the input MAF.")
@@ -142,27 +133,16 @@ def main():
 
     parser.add_argument("--bedRanges",
                         help="Restrict the analysis to the reference ranges in this BED file "
-                             "(coordinates in --refGenome, as with cactus-hal2maf --bedRanges). "
-                             "Only these ranges are chunked, scored, and (when training) used for "
-                             "4d-site extraction. Use it to skip contigs you don't want to process "
-                             "— e.g. select only the large chromosomes and leave out tens of "
-                             "thousands of tiny alt/unplaced contigs. BED sequence names must be "
-                             "the reference contig names (the same names used in --geneAnnotation), "
-                             "without the genome prefix; coordinates are 0-based half-open and "
-                             "overlapping/touching intervals on a contig are merged. "
+                             "(coordinates in --refGenome, as with cactus-hal2maf --bedRanges), "
+                             "e.g. to leave out tiny alt/unplaced contigs. BED sequence names must "
+                             "be the reference contig names (the same names used in "
+                             "--geneAnnotation), without the genome prefix. "
                              "[default: the whole reference]")
 
     parser.add_argument("--keepUnalignedContigs", action="store_true",
-                        help="By default, when the reference is a leaf genome, cactus-phast queries "
-                             "the HAL (via halAlignedExtract, a single scan of the reference's top "
-                             "segments) for reference contigs that have no alignment to anything — "
-                             "these only ever produce reference-only MAF columns that phyloP cannot "
-                             "score — and excludes them so the chunker doesn't waste time "
-                             "extracting them. This flag disables that check and processes every "
-                             "reference contig. The check is skipped automatically for an "
-                             "internal/ancestral reference (halAlignedExtract reports alignment to "
-                             "the parent only, so it cannot see contigs that align solely to "
-                             "descendants).")
+                        help="Process every reference contig. By default, when the reference is a "
+                             "leaf genome, reference contigs that have no alignment to anything "
+                             "(which phyloP cannot score) are left out.")
 
     # phyloFit-related options
     parser.add_argument("--substMod", default="REV",
@@ -176,9 +156,7 @@ def main():
     parser.add_argument("--precision", default="HIGH",
                         help="phyloFit --precision (HIGH|MED|LOW). Tighter EM convergence "
                              "yields more accurate parameter estimates at the cost of more "
-                             "iterations. phyloFit is one job per workflow but its model is "
-                             "reused by every phyloP chunk, so HIGH typically pays for itself. "
-                             "[default=HIGH]")
+                             "iterations. [default=HIGH]")
     parser.add_argument("--modFreqs", action="store_true",
                         help="After phyloFit, run modFreqs to symmetrize background base frequencies.")
 
@@ -212,20 +190,15 @@ def main():
                              "batch systems other than singleMachine; defaults to all "
                              "available cores on singleMachine.")
     parser.add_argument("--chunkMemory", type=human2bytesN, default=None,
-                        help="Memory for the chunker job. It runs --chunkCores "
-                             "taffy|mafDuplicateFilter|bgzip pipelines at once, so peak memory "
-                             "scales with --chunkCores (~100+ MiB per pipeline on a many-way MAF). "
-                             "If unset, a per-core budget is requested automatically. Override if "
-                             "you still see the job OOM (which surfaces as 'premature end to maf "
-                             "file' from a taffy child being killed mid-stream).")
+                        help="Memory for the chunker job, whose peak memory scales with "
+                             "--chunkCores. Raise it if the job runs out of memory, which can show "
+                             "up as a 'premature end to maf file' error. "
+                             "[default: estimated from --chunkCores]")
 
     # phyloFit job sizing
     parser.add_argument("--phyloFitMemory", type=human2bytesN, default=None,
-                        help="Memory for the (single) phyloFit job. If unset, Toil's default "
-                             "applies (~2 Gi); phyloFit on 1.4 GB SS / 577 species peaks at "
-                             "~300 MiB so the default is fine for typical runs. Override only "
-                             "if you observe an OOM, e.g. with much larger SS files or many "
-                             "more species.")
+                        help="Memory for the (single) phyloFit job. Rarely needed. "
+                             "[default: Toil's default memory]")
     parser.add_argument("--phyloFitCores", type=int, default=None,
                         help="Cores for the phyloFit job (passed to phyloFit's --threads, which "
                              "uses OpenMP-parallelized tree likelihoods in phast v1.9.7+). "
