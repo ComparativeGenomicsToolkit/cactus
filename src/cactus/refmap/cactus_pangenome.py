@@ -49,6 +49,7 @@ from cactus.refmap.cactus_minigraph import check_graph_rewrite_config
 from cactus.refmap.cactus_graphmap import minigraph_workflow, minigraph_batch_workflow, export_graphmap_output
 from cactus.refmap.cactus_graphmap import apply_mgsplit_filter_overrides, add_separate_ref_contigs_job
 from cactus.refmap.cactus_graphmap import check_overlap_filter_config, check_overlap_filter_tools
+from cactus.refmap.telomere_anchors import config_motifs
 from cactus.refmap.cactus_graphmap_split import graphmap_split_workflow, export_split_data
 from cactus.setup.cactus_align import make_batch_align_jobs, batch_align_jobs
 from cactus.refmap.cactus_graphmap_join import graphmap_join_workflow, export_join_data, graphmap_join_options, graphmap_join_validate_options, graphmap_join_config_overrides, vcflib_checks
@@ -257,6 +258,8 @@ def pangenome_config_overrides(options, config_node):
     # known until its SN tags are read: minigraph_construct_run checks it before constructing
     check_graph_rewrite_config(config_node)
     check_overlap_filter_config(config_node)
+    if getOptionalAttrib(findRequiredNode(config_node, "graphmap"), "telomereAnchors", typeFn=bool, default=False):
+        config_motifs(findRequiredNode(config_node, "graphmap"))
     if options.mapCores is not None:
         findRequiredNode(config_node, "graphmap").attrib["cpu"] = str(options.mapCores)
     mg_cores = getOptionalAttrib(findRequiredNode(config_node, "graphmap"), "cpu", typeFn=int, default=1)

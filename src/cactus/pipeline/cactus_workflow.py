@@ -303,12 +303,61 @@ def cactus_cons(job, tree, ancestor_event, config_node, seq_id_map, og_map, paf_
     paf_path = os.path.join(work_dir, f'{ancestor_event}.paf')
     job.fileStore.readGlobalFile(paf_id, paf_path)
 
+    # In a pangenome alignment, anchor every contig's telomere array to a synthetic telomere target for its reference
+    # contig's arm, added to the minigraph genome (see <graphmap telomereAnchors>).  The anchors are tagged ct:i:1,
+    # which makes them constraints below.  The rc:Z: tags of a contig's PAF lines give its reference contig, so a job of
+    # several (--noSplit's "all", chrOther, cactus-align without --batch) gets a pair of targets for each; chrom_name
+    # only labels the log.  The reference (bar's poaReferenceEvent, which cactus-align sets from --reference) is keyed
+    # by its own contig names, and anchored a repeat unit further in, so the haplotypes' paths reach its end.  The
+    # telomere motif is the one of telomereMotifs that the job's contig ends choose, or the only one given
+    graphmap_node = config_node.find('graphmap')
+    mg_event = getOptionalAttrib(graphmap_node, 'assemblyName', default='_MINIGRAPH_')
+    if mg_event in seq_path_map and getOptionalAttrib(graphmap_node, 'telomereAnchors', typeFn=bool, default=False):
+        from cactus.refmap.telomere_anchors import anchor_telomeres, anchor_summary, config_motifs
+        anchored_paf_path = os.path.join(work_dir, f'{ancestor_event}.anchored.paf')
+        anchored_mg_path = os.path.join(work_dir, f'{mg_event}.anchored.fa')
+        label = chrom_name or ancestor_event
+
+        def log_choice(text, warning):   # the worker's own log is dropped when the job succeeds
+            job.fileStore.logToMaster(f'{"WARNING: " if warning else ""}telomere anchors ({label}): {text}')
+        anchors = anchor_telomeres(label, seq_path_map, paf_path, anchored_paf_path, anchored_mg_path,
+                                   minigraph_event=mg_event,
+                                   min_array=getOptionalAttrib(graphmap_node, 'telomereMinArray', typeFn=int, default=500),
+                                   max_outer=getOptionalAttrib(graphmap_node, 'telomereMaxOuter', typeFn=int, default=3000),
+                                   min_run=getOptionalAttrib(graphmap_node, 'telomereMinRun', typeFn=int, default=72),
+                                   motifs=config_motifs(graphmap_node),
+                                   threads=job.cores,
+                                   reference=getOptionalAttrib(config_node.find('bar'), 'poaReferenceEvent') or None,
+                                   log_choice=log_choice)
+        if anchors:
+            # the input PAF goes, so the disk holds no more PAFs than it was sized for
+            job.fileStore.deleteLocalFile(paf_id)
+            paf_path = anchored_paf_path
+            # replaced, not written through: the fasta read above may be a link into the file store's cache
+            os.replace(anchored_mg_path, seq_path_map[mg_event])
+            # the HAL's minigraph genome now has the targets, so the fasta it is validated against needs them too
+            seq_id_map = dict(seq_id_map)
+            seq_id_map[mg_event] = job.fileStore.writeGlobalFile(seq_path_map[mg_event])
+        else:
+            # with nothing anchored the outputs are copies of the inputs
+            os.remove(anchored_paf_path)
+            os.remove(anchored_mg_path)
+        job.fileStore.logToMaster(f'telomere anchors ({label}): {anchor_summary(anchors)}')
+
     # Split the alignments file into primary and secondary
     primary_alignment_file = os.path.join(work_dir, f'{ancestor_event}_primary.paf')
     # grep exits 1 when nothing matched, which is fine and has to be tolerated,
     # but it exits 2 when the write itself failed.  `|| true` cannot tell those
     # apart, so a full disk here used to leave a short paf and carry on.
-    system(f"grep -v 'tp:A:S' {paf_path} > {primary_alignment_file} || [ $? -eq 1 ]")  # Alignments that are not-secondaries
+    # (the patterns hold real tabs, as grep has no -P on macOS or in busybox)
+    constraint_tag = "-e '\tct:i:1\t' -e '\tct:i:1$'"
+    system(f"grep -v -e 'tp:A:S' {constraint_tag} {paf_path} > {primary_alignment_file} || [ $? -eq 1 ]")  # Alignments that are not-secondaries or constraints
+
+    # Alignments tagged ct:i:1 are constraints, which caf keeps whatever the length of the chain they end up in
+    constraint_alignment_file = os.path.join(work_dir, f'{ancestor_event}_constraint.paf')
+    system(f"grep {constraint_tag} {paf_path} > {constraint_alignment_file} || [ $? -eq 1 ]")
+    if os.path.getsize(constraint_alignment_file) == 0:
+        constraint_alignment_file = None
 
     # Optionally parse our secondary alignments
     use_secondary_alignments = int(config_node.find("blast").attrib["outputSecondaryAlignments"])  # We should really switch to
@@ -345,6 +394,8 @@ def cactus_cons(job, tree, ancestor_event, config_node, seq_id_map, og_map, paf_
             "--referenceEvent", ancestor_event, "--threads", str(job.cores)]
     if use_secondary_alignments:  # Optionally add the secondary alignments
         args += ["--secondaryAlignments", secondary_alignment_file]
+    if constraint_alignment_file:
+        args += ["--constraintAlignments", constraint_alignment_file]
 
     # jemalloc reads MALLOC_CONF once, before main, so transparent huge pages cannot be switched on
     # through mallctl the way page retention is.  Prefixing `env` puts it in front of this one
@@ -407,7 +458,8 @@ def cactus_cons(job, tree, ancestor_event, config_node, seq_id_map, og_map, paf_
         url = intermediate_results_url + ".reference.fa"
         job.fileStore.exportFile(referenceID, makeURL(url))
 
-    return (ancestor_event, halID, fastaID, referenceID)
+    # seq_id_map is returned as the alignment saw it (with telomere targets, if any), for export_hal's validation
+    return (ancestor_event, halID, fastaID, referenceID, seq_id_map)
 
 
 if __name__ == '__main__':

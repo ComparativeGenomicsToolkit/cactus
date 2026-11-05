@@ -567,6 +567,14 @@ void caf(Flower *flower, CactusParams *params, char *alignmentsFile, char *secon
             st_logInfo("caf-timing: breakup-components %.3fs\n", stCaf_now() - t);
         }
 
+        //The constraints are annealed at the start of each round, but the melting that follows can take them out
+        //again: anneal them once more, so a constraint is kept whatever the length of the chain it ends up in
+        if (pinchIteratorForConstraints != NULL) {
+            t = stCaf_now();
+            stCaf_anneal(threadSet, pinchIteratorForConstraints, NULL, flower);
+            st_logInfo("caf-timing: constraints %.3fs\n", stCaf_now() - t);
+        }
+
         //Finish up
         t = stCaf_now();
         stCaf_finish(flower, threadSet, minLengthForChromosome, proportionOfUnalignedBasesForNewChromosome);
