@@ -733,6 +733,13 @@ class TestCase(unittest.TestCase):
         chromfile_path = os.path.join(batch_mg_path, 'chromfile.mg.txt')        
         subprocess.check_call(['cactus-graphmap', self._job_store(binariesMode), chromfile_path, batch_gm_path,  
                                '--reference', 'simChimp', '--batch'] + cactus_opts)
+        # the split's seqfiles have no tree, and adding the minigraph assembly must not write one in, or
+        # cactus-align would keep its branch lengths rather than give the pangenome default
+        with open(os.path.join(batch_gm_path, 'chromfile.gm.txt')) as gm_chromfile:
+            for line in gm_chromfile:
+                if line.strip():
+                    with open(line.split('\t')[1]) as gm_seqfile:
+                        self.assertFalse(gm_seqfile.readline().startswith('('), line.split('\t')[1])
 
         batch_align_path = os.path.join(self.tempDir, 'chrom-alignments')
         train_opts = ['--scoresFromChromfile'] if train else []
