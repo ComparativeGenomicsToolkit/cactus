@@ -657,7 +657,8 @@ def cmd_record(a):
         rows.append(row)
     os.makedirs(os.path.dirname(os.path.abspath(table)), exist_ok=True)
     with open(table + '.tmp', 'w') as f:
-        w = csv.DictWriter(f, header, delimiter='\t', lineterminator='\n', restval='')
+        # a row read back has every column of the table, those dropped above too, which are empty in it
+        w = csv.DictWriter(f, header, delimiter='\t', lineterminator='\n', restval='', extrasaction='ignore')
         w.writeheader()
         w.writerows(rows)
     os.replace(table + '.tmp', table)
