@@ -15,12 +15,14 @@ Nothing in here is data: genomes, annotations and truth sets are downloaded from
 Each suite's module, `suites/<suite>.py`, says what every column of its row means, and how much of a difference is
 noise. In short:
 
-- `busco5`: the share of coding bases aligned in phase to their BUSCO ortholog (`busco_correct`) and aligned
-  wrongly (`busco_misaligned`), overall and at each depth of the tree (mouse, opossum, chicken, gar); human CTCF
-  sites aligned, and kept beyond chance; genome-wide coverage; `cactus_consolidated`'s time and peak memory.
-- `hprc30`: GT F1 and errors (FN + FP) of the graph's raw VCF (sites over 10 kb dropped) and vcfwave VCF, against
-  each sample's dipcall calls and against GIAB's HG002 small and structural variant benchmarks; graph size and the
-  share of input left out of it.
+- `busco5`: CPU hours, then the recall and precision of BUSCO coding bases aligned in phase to their ortholog
+  (`busco_recall`, `busco_precision`), overall and at each depth of the tree (gar, the root, first; then mouse,
+  opossum, chicken); human CTCF sites aligned, and kept beyond chance; genome-wide coverage; `cactus_consolidated`'s
+  time and peak memory.
+- `hprc30`: CPU hours, then the recall, precision and F1 of the graph's raw VCF (sites over 10 kb dropped) against
+  the 14 samples' dipcall calls, pooled; errors (FN + FP) of it and of the vcfwave VCF, against dipcall and against
+  GIAB's HG002 small and structural variant benchmarks; graph size, path fragments, snarl sizes and the share of
+  input left out of the graph.
 
 ## Running
 
@@ -73,20 +75,22 @@ ancestor, per sample, and so on, depending on the suite):
 test/bigeval/bigeval.py compare DIR1 DIR2 ...
 ```
 
-Each row starts with:
+A row reads from the left: which run, then the suite's headline numbers (CPU hours, recall and precision), then
+the suite's details, then exactly what was run:
 
 | column | |
 |---|---|
-| `date` | when the run finished |
 | `label` | `--label` |
-| `cactus_commit` | the installed cactus package's commit |
-| `cactus_version` | `git describe` of the install's checkout, if it is one |
-| `dirty` | `yes` if the checkout had local changes or was not at the installed commit |
+| `cactus_version` | `git describe` of the install's checkout, or the installed commit if it is not a checkout |
+| ... | the suite's columns, its headline numbers first; `suites/<suite>.py` says what each means |
 | `config` | the `--set` changes, `stock` for none, or the `--config` file's name |
 | `cactus_opts` | `--cactusOpts`, then `without FLAG` for each `--dropOpts` flag |
+| `date` | the day the run started |
+| `cactus_commit` | the installed cactus package's commit |
+| `dirty` | `yes` if the checkout had local changes or was not at the installed commit |
 | `eval` | the suite's `EVAL_VERSION`: rows scored by different versions are not comparable |
-
-and ends with `run`, the run directory.
+| `harness_commit` | the commit of this harness the run was started from |
+| `run` | the run directory |
 
 ## The cache
 

@@ -1,12 +1,15 @@
 """busco5: progressive cactus on five vertebrates, human to gar, scored three ways against the alignment.
 
+The row's headline numbers come first: cpu_h, busco_recall and busco_precision, and gar_recall and gar_precision,
+the same at the root.
+
   BUSCO     for each ordered pair of genomes (A, B), the BUSCO genes compleasm calls Single in both, lifted base
             by base through the HAL (scoring/busco-align-eval.py).  With the counts of all 20 pairs pooled:
-              busco_correct     % of coding bases aligned in phase in the ortholog's CDS
-              busco_misaligned  % of coding bases aligned anywhere else: out of phase, outside the CDS, or
-                                outside the ortholog's locus altogether
+              busco_recall      % of coding bases aligned in phase in the ortholog's CDS
+              busco_precision   % of the coding bases aligned at all that are aligned in phase in the ortholog's
+                                CDS; the rest land out of phase, outside the CDS, or outside the ortholog's locus
               nc_inlocus        % of aligned intron and flank that lands in the ortholog's locus
-            and correct / misaligned again for the pairs of each split: mouse (human-mouse), opossum (the
+            and recall / precision again for the pairs of each split: mouse (human-mouse), opossum (the
             placental-marsupial node), chicken (the amniote node) and gar (the root).  Averages hide most of a
             difference at the deep nodes, so read those.
   CTCF      human CTCF cCREs (ENCODE V4, CA-CTCF) with a strong motif, lifted to each other genome
@@ -16,9 +19,10 @@
   coverage  halCoverage, a million sampled bases of each genome: the share aligned to each other genome, the mean
             over the 20 pairs.  It rewards aligning noise as much as homology, so it ranks aligners almost exactly
             backwards; it is here to show how much is aligned, not how well
-  cost      cons_h and cons_peak_gib: cactus_consolidated's hours summed over the ancestors, and its peak memory;
-            align_h: the alignment's wall-clock hours, mostly queueing; align_cpu_h and align_peak_gib: its slurm
-            jobs' hours times their cores, summed (retried jobs included), and the most memory any one of them used
+  cost      cpu_h: the alignment's slurm jobs' hours times their cores, summed (retried jobs included);
+            align_peak_gib: the most memory any one of them used; cons_h and cons_peak_gib: cactus_consolidated's
+            hours summed over the ancestors, and its peak memory; align_h: the alignment's wall-clock hours, mostly
+            queueing
   busco_truth  a digest of the BUSCO calls: compleasm does not make the same calls twice, so only rows with the
             same digest are comparable.  They are made once and kept in the cache.
 
@@ -238,6 +242,12 @@ def busco_scores(pairs):
     return (pct(cds[INPHASE], sum(cds)), pct(cds[ELSEWHERE] + cds[LOCUS] + cds[OUTPHASE], sum(cds)),
             pct(nc[LOCUS], sum(nc) - nc[UNALIGNED]))
 
+def recall_precision(pairs):
+    """(recall, precision) in %, the pairs' counts pooled: coding bases aligned in phase in the ortholog's CDS, of all
+    coding bases and of those aligned at all"""
+    correct, misaligned, _ = busco_scores(pairs)
+    return correct, pct(correct, correct + misaligned)
+
 def busco_groups(pairs):
     """group -> its pairs' counts"""
     out = collections.OrderedDict((g, []) for g in GROUPS)
@@ -317,10 +327,16 @@ def summarize(r):
     pairs = busco_pairs(r.path('busco-eval.txt'))
     if sorted(pairs) != sorted((a, b) for a in names for b in names if a != b):
         raise RuntimeError('busco-eval.txt does not have every pair of {}'.format(', '.join(names)))
+    groups = busco_groups(pairs)
+    root = GROUPS[-1]
     m = collections.OrderedDict()
-    m['busco_correct'], m['busco_misaligned'], m['nc_inlocus'] = busco_scores(pairs.values())
-    for g, ps in busco_groups(pairs).items():
-        m[g + '_correct'], m[g + '_misaligned'], _ = busco_scores(ps)
+    cpu_h, peak_gib = r.slurm_cost('align')
+    m['cpu_h'] = cpu_h
+    m['busco_recall'], m['busco_precision'] = recall_precision(pairs.values())
+    m[root + '_recall'], m[root + '_precision'] = recall_precision(groups[root])
+    for g in GROUPS[:-1]:
+        m[g + '_recall'], m[g + '_precision'] = recall_precision(groups[g])
+    m['nc_inlocus'] = busco_scores(pairs.values())[2]
     ctcf = ctcf_targets(r.path('ctcf-sites.tsv.gz'))
     m['ctcf_aligned'] = sum(t[1] for t in ctcf.values())
     m['ctcf_beyond_chance'] = int(round(sum(beyond_chance(t) for t in ctcf.values())))
@@ -333,7 +349,7 @@ def summarize(r):
     m['cons_h'] = round(sum(h for h, gib in cons.values()), 2) if cons else ''
     m['cons_peak_gib'] = round(max(gib for h, gib in cons.values()), 1) if cons else ''
     m['align_h'] = r.hours('align')
-    m['align_cpu_h'], m['align_peak_gib'] = r.slurm_cost('align')
+    m['align_peak_gib'] = peak_gib
     m['busco_truth'] = busco_truth(r, names)
     return m
 

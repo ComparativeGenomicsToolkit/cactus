@@ -35,9 +35,6 @@ HARNESS = os.path.dirname(os.path.abspath(__file__))
 SUITES = os.path.join(HARNESS, 'suites')
 SCORING = os.path.join(HARNESS, 'scoring')
 RESULTS = os.path.join(HARNESS, 'results')
-# columns every row starts with, before the suite's metrics
-ID_COLUMNS = ['date', 'label', 'cactus_commit', 'cactus_version', 'dirty', 'config', 'cactus_opts', 'eval',
-              'harness_commit']
 
 def now():
     return datetime.datetime.now().astimezone().isoformat(timespec='seconds')
@@ -467,25 +464,26 @@ class Run:
         return round(cpu_s / 3600, 1), round(peak / 2 ** 30, 1)
 
 def summarize(r):
-    """the run's row: who and what, then the suite's metrics"""
+    """the run's row: which run, the suite's metrics (its headline numbers first, so a table reads from the left),
+    then what exactly was run and how"""
     metrics = r.suite.summarize(r)
     ident = r.p['identity']
     row = collections.OrderedDict()
     steps = r.steps()
-    # the day the run started
-    row['date'] = r.p['created'][:10]
     row['label'] = r.p['label']
-    row['cactus_commit'] = ident['cactus_commit'][:12]
-    row['cactus_version'] = ident['cactus_version']
-    row['dirty'] = 'yes' if ident['dirty'] or (ident['checkout_head'] and
-                            ident['cactus_commit'][:12] != ident['checkout_head'][:12]) else 'no'
+    row['cactus_version'] = ident['cactus_version'] or ident['cactus_commit'][:12]
+    row.update(metrics)
     row['config'] = ','.join(r.p['set']) or ('stock' if not r.p['config'] else os.path.basename(r.p['config']))
     row['cactus_opts'] = '; '.join([o for o in [r.p.get('cactus_opts')] if o] +
                                    ['without ' + o for o in shlex.split(r.p.get('drop_opts') or '')])
+    # the day the run started
+    row['date'] = r.p['created'][:10]
+    row['cactus_commit'] = ident['cactus_commit'][:12]
+    row['dirty'] = 'yes' if ident['dirty'] or (ident['checkout_head'] and
+                            ident['cactus_commit'][:12] != ident['checkout_head'][:12]) else 'no'
     row['eval'] = r.suite.EVAL_VERSION
     # the harness (this cactus checkout) the run was started from
     row['harness_commit'] = r.p['harness']['harness_commit'][:12] + ('-dirty' if r.p['harness']['harness_dirty'] else '')
-    row.update(metrics)
     row['run'] = r.out
     summary = collections.OrderedDict([('suite', r.p['suite']), ('row', row), ('params', r.p), ('steps', steps)])
     write_json(r.path('summary.json'), summary)
@@ -650,8 +648,9 @@ def cmd_record(a):
     if same and not a.replace:
         sys.exit('{} already has this run: --replace it with its summary as it is now'.format(table))
     # the columns in the order this row has them (a suite's new columns land among their kind, not after the
-    # last), then any only older rows have
-    header = list(row) + [k for k in header if k not in row]
+    # last), then any only older rows have; a column no row has a value in any more, once renamed, is dropped
+    header = list(row) + [k for k in header if k not in row and any(x.get(k) for i, x in enumerate(rows)
+                                                                    if i not in same)]
     if same:
         rows[same[0]] = row
     else:

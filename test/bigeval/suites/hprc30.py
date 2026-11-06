@@ -1,6 +1,9 @@
 """hprc30: cactus-pangenome on 30 haplotypes -- CHM13, GRCh38 and both haplotypes of 14 HPRC release-2 samples, HG002
 among them, as in the HPRC v2.1 graph -- with CHM13 as reference, scored by the accuracy of its VCFs.
 
+The row's headline numbers come first: cpu_h, and dipcall_recall, dipcall_precision and dipcall_f1, the raw10k VCF
+against the 14 samples' dipcall calls, their counts pooled.
+
   accuracy  toil-vcfcomp (aardvark, genotype comparison, no normalization) on two of the graph's VCFs:
               raw10k  the raw VCF less its sites over 10 kb (vcfbub -l 0 -a 10000), since aardvark skips any allele
                       that long, so the default VCF's -r 100000 would bias it.  The headline: vcfwave hides under-
@@ -8,9 +11,9 @@ among them, as in the HPRC v2.1 graph -- with CHM13 as reference, scored by the 
               wave    vcfwave's VCF
             against two truths, both in-sample (the samples are in the graph):
               dipcall  each sample's own dipcall calls on CHM13v2 (HPRC), within dipcall's confident regions.
-                       dipcall_f1 is the mean GT F1 over the 14 samples; dipcall_err the errors (truth FN + query FP)
-                       summed over them, which move more than the mean F1 does; dipcall_sv50_err the same for
-                       variants of 50 bp and over
+                       Recall, precision and F1 are of the 14 samples' GT counts pooled; dipcall_err the errors
+                       (truth FN + query FP) summed over them, which move more than F1 does; dipcall_sv50_err the
+                       same for variants of 50 bp and over
               GIAB     HG002 against GIAB's Q100 benchmark on CHM13v2.0: small variants (smvar) and structural
                        variants (stvar), GT F1 and errors
             Run to run noise is about 0.0002 F1.
@@ -20,8 +23,8 @@ among them, as in the HPRC v2.1 graph -- with CHM13 as reference, scored by the 
             From --snarlStats (vg stats -R): snarls, all of them, and snarls_top, the top-level ones; snarls_10kb
             and snarls_100kb, the top-level snarls with that much sequence or more, their children's included; and
             snarl_max_kb, the most sequence in any snarl.  Big snarls are tangles that the VCFs simplify or drop
-  cost      build_h: cactus-pangenome's wall-clock hours, queueing included; build_cpu_h: its slurm jobs' hours times
-            their cores, summed (retried jobs included); build_peak_gib: the most memory any one of them used
+  cost      cpu_h: cactus-pangenome's slurm jobs' hours times their cores, summed (retried jobs included);
+            build_h: its wall-clock hours, queueing included; build_peak_gib: the most memory any one job used
 
 The truths are fixed manifests (hprc30.dipcall.csv, hprc30.giab.csv) and toil-vcfcomp a fixed commit, so every run
 is scored the same way and runs compare by their rows.  A run takes about 130 GB, almost all of it in hprc30/:
@@ -34,7 +37,7 @@ import xml.etree.ElementTree as ET
 NAME = 'hprc30'
 DESCRIPTION = 'cactus-pangenome on CHM13, GRCh38 and 28 HPRC haplotypes: dipcall and GIAB HG002 accuracy'
 # bump when anything below changes the numbers, so rows scored differently are not compared
-EVAL_VERSION = 1
+EVAL_VERSION = 2
 
 SEQFILE = 'hprc30.seqfile'
 # truthset name in the manifest -> manifest
@@ -191,10 +194,13 @@ def gt(rows, callset, truthset, variant_type='ALL'):
 def errors(x):
     return int(x['truth_fn']) + int(x['query_fp'])
 
-def f1_err(per_sample):
-    """(mean F1, summed errors)"""
+def pooled(per_sample):
+    """(recall, precision, F1, errors) of the samples' counts pooled.  For one sample they are aardvark's own"""
     xs = list(per_sample.values())
-    return sum(float(x['metric_f1']) for x in xs) / len(xs), sum(errors(x) for x in xs)
+    tp, fn = sum(int(x['truth_tp']) for x in xs), sum(int(x['truth_fn']) for x in xs)
+    qtp, fp = sum(int(x['query_tp']) for x in xs), sum(int(x['query_fp']) for x in xs)
+    recall, precision = tp / (tp + fn), qtp / (qtp + fp)
+    return recall, precision, 2 * recall * precision / (recall + precision), fn + fp
 
 def chrom(r, truth, callset, metrics):
     """contig -> count of metrics summed over the samples, from report.chrom.tsv"""
@@ -259,19 +265,25 @@ def summarize(r):
     m = collections.OrderedDict()
     dipcall, giab = report(r, 'dipcall'), report(r, 'giab')
     samples = len(open(r.data(TRUTH['dipcall'])).readlines()) - 1
+    cpu_h, peak_gib = r.slurm_cost('build')
+    m['cpu_h'] = cpu_h
     for q in QUERIES:
         per = gt(dipcall, q, 'dipcall')
         if len(per) != samples:
             raise RuntimeError('{} has {} samples scored against dipcall, not {}'.format(q, len(per), samples))
-        m['dipcall_f1_' + q], m['dipcall_err_' + q] = f1_err(per)
+        recall, precision, f1, err = pooled(per)
         if q == 'raw10k':
+            m['dipcall_recall'], m['dipcall_precision'], m['dipcall_f1'] = recall, precision, f1
+            m['dipcall_err_' + q] = err
             m['dipcall_sv50_err_' + q] = chrom(r, 'dipcall', q, ('SV50-FN', 'SV50-FP'))['_total_']
+        else:
+            m['dipcall_f1_' + q], m['dipcall_err_' + q] = f1, err
     for q in QUERIES:
         for t, label in (('v5.0q_smvar', 'smvar'), ('v5.0q_stvar', 'stvar')):
             per = gt(giab, q, t)
             if list(per) != ['HG002']:
                 raise RuntimeError('{} against {}: expected HG002 alone, got {}'.format(q, t, list(per)))
-            m['{}_f1_{}'.format(label, q)], err = f1_err(per)
+            m['{}_f1_{}'.format(label, q)], err = pooled(per)[2:]
             if q == 'raw10k':
                 m['{}_err_{}'.format(label, q)] = err
     for k in m:
@@ -281,7 +293,7 @@ def summarize(r):
     m['path_frags'], m['path_mb'] = paths(r)
     m['snarls'], m['snarls_top'], m['snarls_10kb'], m['snarls_100kb'], m['snarl_max_kb'] = snarls(r)
     m['build_h'] = r.hours('build')
-    m['build_cpu_h'], m['build_peak_gib'] = r.slurm_cost('build')
+    m['build_peak_gib'] = peak_gib
     return m
 
 def contig_order(c):
