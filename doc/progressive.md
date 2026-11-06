@@ -108,7 +108,7 @@ An example seqfile can be found [here](../examples/evolverMammals.txt).
 
 Please ensure your genomes are *soft*-masked, ideally with `RepeatMasker`. We do some basic masking as a preprocessing step to ensure highly repetitive elements are masked when repeat libraries are incomplete, but genomes that aren't properly masked can still take tens of times longer to align that those that are masked. Hard-masking (totally replacing repeats with stretches of Ns) isn't necessary, and is strongly discouraged (you will miss a *lot* of alignments!).
 
-You can specify the type of masking that Cactus performs in its preprocessor via the `--maskMode` option (or editing the configuration XML).  The default mode is currently [red](https://github.com/glennhickey/red), run with `-cap 99.8 -sketch 1`.  `-cap 99.8` masks any k-mer occurring far more often than almost all others (above the 99.8th percentile of k-mer counts, a threshold borrowed from [WindowMasker](https://doi.org/10.1093/bioinformatics/bti774)), and `-sketch 1` masks runs of sequence whose seeds are high-copy across the whole genome.  Together they make assemblies that come with little or no repeat masking practical to align: NCBI/GenBank assemblies, which are soft-masked by WindowMasker rather than RepeatMasker, cost lastz 1.15-1.55x the work of the same genomes RepeatMasked in our tests on primates, rodents and sharks.  Every contig goes to Red, however small (contigs under 20 kb used to be left with only the masking they came with).  Set `redOpts=""` in the config to run Red alone.  If you are worried about coverage, especially if your genomes have already gone through `RepeatMasker`, you can try `--maskMode fastan` to use [FastAN](https://github.com/thegenemyers/FASTAN/) instead (note: FasTAN is still in the prototype stage, and I haven't tested it very much in Cactus -- use at your own risk).  Another option is using lastz preprocessing (this was Cactus's original pipeline), but it is much slower and does not catch some repeats such as those found in T2T gorilla.
+You can specify the type of masking that Cactus performs in its preprocessor via the `--maskMode` option (or editing the configuration XML).  The default mode is currently [red](https://github.com/glennhickey/red), run with `-cap 99.8 -sketch 1`.  `-cap 99.8` masks any k-mer occurring far more often than almost all others (above the 99.8th percentile of k-mer counts), and `-sketch 1` masks runs of sequence whose seeds are high-copy across the whole genome.  Together they make assemblies that come with little or no repeat masking practical to align, such as NCBI/GenBank assemblies, which are soft-masked by WindowMasker rather than RepeatMasker.  Set `redOpts=""` in the config to run Red alone.  If you are worried about coverage, especially if your genomes have already gone through `RepeatMasker`, you can try `--maskMode fastan` to use [FastAN](https://github.com/thegenemyers/FASTAN/) instead (note: FasTAN is still in the prototype stage, and I haven't tested it very much in Cactus -- use at your own risk).  Another option is using lastz preprocessing (this was Cactus's original pipeline), but it is much slower and does not catch some repeats such as those found in T2T gorilla.
 
 The `--maskMode` option is available in `cactus`, `cactus-preprocess` and `cactus-prepare`.
 
@@ -118,7 +118,7 @@ It is possible for Cactus to reconstruct ancestral contigs that are completely m
 
 ### Adjusting Sensitivity
 
-Cactus uses branch lengths in the guide tree to estimate lastz and chaining parameters.  If there is a bias in the guide tree, say all the branch lengths are too short, then Cactus's sensitivity may be unexpectedly low. You can adjust your tree or twiddle with the parameters in the [config XML]((#advanced-configuration)), but a simpler interface is to use the `--branchScale` option to scale the effective branch lengths.  For example `--branchScale 2.0` will effectively treat the branch lengths as double their actual values, making parameters more sensitive.  You can go in the other direction too:  Use `--branchScale 0.5` to use less-conservative parameters (ie if your branch lengths are too long).  Note that the final HAL output will have the original input tree embedded within it -- the scaling is only used within `cactus_consolidated` and `lastz` alignment. 
+Cactus uses branch lengths in the guide tree to estimate lastz and chaining parameters.  If there is a bias in the guide tree, say all the branch lengths are too short, then Cactus's sensitivity may be unexpectedly low. You can adjust your tree or twiddle with the parameters in the [config XML](#advanced-configuration), but a simpler interface is to use the `--branchScale` option to scale the effective branch lengths.  For example `--branchScale 2.0` will effectively treat the branch lengths as double their actual values, making parameters more sensitive.  You can go in the other direction too:  Use `--branchScale 0.5` to use less-conservative parameters (ie if your branch lengths are too long).  Note that the final HAL output will have the original input tree embedded within it -- the scaling is only used within `cactus_consolidated` and `lastz` alignment. 
 
 ### Sex Chromosomes and Diploid Assemblies
 
@@ -152,7 +152,7 @@ Please [cite HAL](https://doi.org/10.1093/bioinformatics/btt128).
 
 ### Validating the Output
 
-Cactus builds the HAL from `cactus_consolidated`'s output rather than from the input fasta, so nothing normally compares the two -- a sequence truncated on the way in makes a perfectly valid HAL.  The `--validate` option checks every genome in the finished HAL base for base against the sequence that was aligned, and fails the alignment if they differ.  Differences in soft-masking and in sequence naming are expected and ignored.  It is available in `cactus`, `cactus-align` and `cactus-pangenome`, and `cactus-prepare` puts it on the `cactus-align` commands it writes by default (`--noValidate` turns that off).
+The `--validate` option checks every genome in the finished HAL base for base against the sequence that was aligned, and fails the alignment if they differ (differences in soft-masking and in sequence naming are expected and ignored).  It catches, for example, a sequence that was truncated on the way in, which otherwise makes a perfectly valid HAL.  It is available in `cactus`, `cactus-align` and `cactus-pangenome`, and `cactus-prepare` puts it on the `cactus-align` commands it writes by default (`--noValidate` turns that off).
 
 The same check runs on its own against an alignment you already have:
 
@@ -164,7 +164,7 @@ See `cactus-validate --help` for the options, notably `--lengthsOnly` (much fast
 
 ### HAL Compression
 
-By default, HAL files are compressed with `deflate` (gzip). The `--hdf5Codec` option can be used to select a different HDF5 compression codec. The available codecs are `deflate`, `lz4`, `zstd` and `none`. Using `zstd` is recommended for new alignments: it produces smaller files (ex. 24% smaller on a 12-mammal alignment) and is faster to read than `deflate`.  Note that HAL files written with `lz4` or `zstd` require a version of HAL that includes the corresponding codec support to read them.  The `--hdf5Codec` option is available in `cactus`, `cactus-align` and `cactus-prepare`.
+By default, HAL files are compressed with `deflate` (gzip). The `--hdf5Codec` option can be used to select a different HDF5 compression codec. The available codecs are `deflate`, `lz4`, `zstd` and `none`. Using `zstd` is recommended for new alignments: it produces smaller files (ex. 24% smaller on a 12-mammal alignment) and is faster to read than `deflate`.  Note that HAL files written with `lz4` or `zstd` require a version of HAL that includes the corresponding codec support to read them.  The `--hdf5Codec` option is available in `cactus`, `cactus-align`, `cactus-prepare`, `cactus-pangenome` and `cactus-graphmap-join`.
 
 ### MAF Export
 
@@ -314,15 +314,15 @@ Concretely, with a tree like `(((primates)apes)mammals)vertebrates`, ref = human
 `--subtree` accepts multiple values to produce several output tracks in one invocation, all sharing the single trained model. As a special case, naming the (effective) tree root produces the standard whole-tree conservation track (no `phyloP --subtree` flag, no `.s` filename token):
 
 ```
-cactus-phast ... out.wig.gz --subtree mammalsRoot primatesAnc squamataAnc
+cactus-phast ... out.wig.gz --subtree mammalsRoot primatesAnc apesAnc
 ```
 
 produces three tracks alongside one shared `out.mod` / `out.4d.ss`:
 - `out.wig.gz` — global (mammalsRoot is the tree root → no `.s` token)
-- `out.sPrimatesAnc.wig.gz` — primates-vs-rest LRT
-- `out.sSquamataAnc.wig.gz` — squamates-vs-rest LRT
+- `out.sprimatesAnc.wig.gz` — primates-vs-rest LRT
+- `out.sapesAnc.wig.gz` — apes-vs-rest LRT
 
-Combining flags: `--root mammalsRoot --subtree primatesAnc squamataAnc` would produce only the two lineage-specific tracks, restricted to the mammals clade and named `out.rMammalsRoot.sPrimatesAnc.wig.gz` and `out.rMammalsRoot.sSquamataAnc.wig.gz`. Tokens already present in the user-supplied output path aren't duplicated.
+Combining flags: `--root primatesAnc --subtree apesAnc` would produce only the lineage-specific track, restricted to the primates clade and named `out.rprimatesAnc.sapesAnc.wig.gz`. Tokens already present in the user-supplied output path aren't duplicated.
 
 #### Phast options
 
@@ -411,11 +411,15 @@ cactus /data/jobStore /data/evolverMammals.txt /data/evolverMammals.hal
 
 Cactus supports running on AWS using [Toil's autoscaling features](https://toil.readthedocs.io/en/latest/running/cloud/cloud.html). For more details on running in AWS, check out [these instructions](./running-in-aws.md).
 
-Cactus can also be run on Google Cloud Platform via [Terra](#running-on-cromwell/terra).
+Cactus can also be run on Google Cloud Platform via [Terra](#running-on-terra-or-cromwell).
 
 ## Running on a cluster
 
 Cactus supports [SLURM](https://github.com/SchedMD/slurm) since [version 2.6.1](https://github.com/ComparativeGenomicsToolkit/cactus/releases/tag/v2.6.1).  To run on SLURM, add `--batchSystem slurm` to your cactus command line and run it from your cluster's head node. For example,
+
+```
+cactus ./js ./examples/evolverMammals.txt evolverMammals.hal --batchSystem slurm --consCores 8
+```
 
 **IMPORTANT** In order to run cactus, you will need a shared filesystem across the cluster nodes where the jobstore (`./js` in the example above) and output file will be written.
 
@@ -427,21 +431,19 @@ These are the most relevant options for running on a cluster
 * `--workDir`: a local scratch directory available on each worker node (will default to `TEMPDIR` or `TMPDIR`). This could be on a shared filesystem, but it's much better if it's a local, physical disk on the worker node. 
 * `--maxMemory` (optional): when running on slurm, Cactus now queries the cluster with `sinfo` at startup and automatically clamps every job's memory request to the largest available node, just as it does using the host's physical memory on `--batchSystem single_machine`. This keeps Toil from scheduling a job that asks for more memory than any node can provide (which would otherwise sit pending forever and stall the workflow), so you no longer need to set this by hand. Pinning `--slurmPartition` (and/or `--slurmTime`) narrows the clamp to the node(s) those jobs will actually run on; you can also still pass `--maxMemory` to impose an even lower ceiling.
 * `--consMemory`: Override the memory for each `cactus_consolidated` job. Can be useful if Cactus's estimates are wrong, but a job that runs out of memory is already retried with double the memory by default, so this is rarely needed.
-* `--consRetainPages`: Whether `cactus_consolidated` keeps the memory pages it frees rather than returning them to the system (`auto`, `1` or `0`). Keeping them is much faster but takes 2-3x the peak memory. The default, `auto`, keeps them when twice the memory estimate, plus one further estimate of headroom, fits what the job can be given (the system memory on a single machine, or `--maxMemory`), and then requests twice the estimate; otherwise the pages are returned and the request is the estimate itself. Where that ceiling is not known, the pages are returned. Corresponds to `<consolidated retain_pages>` in the configuration.
-* **Large, repeat-rich genomes**: turn on `partialOrderAlignmentMaskFilter` in the `<bar><poa>` section of the config (e.g. `1000`; the default `-1` is off). On 20-30 Gb salamander genomes, leaving it off cost ~38x the BAR time and ran out of memory on a 2 TB node; with it on, BAR took under an hour. `partialOrderAlignmentWindow` is a far cheaper lever: halving it to `5000` saved ~25% memory and ~30% BAR time.
-* **Which base aligner**: `<bar baseAligner>` selects it -- `pecan` (the default), `abpoa` or `minipoa`; pangenome mode uses `<bar pangenomeBaseAligner>` instead, `abpoa` by default. The two levers above live in `<bar><poa>` and apply to **abpoa only**; under `minipoa` the equivalents are `minipoaMaskFilter` and `minipoaWindow` in `<bar><minipoa>` (and `--barMaskFilter` writes to whichever engine is selected). minipoa uses roughly half abpoa's memory at the *same* window, and ships the same `10000`: its memory is quadratic-ish in the window as well, and on human/chimp chr10 a 50 kb window is already OOM-killed while BAR time is flat from 10 kb to 30 kb. Raising `minipoaWindow` buys nothing measured and costs a lot; if you do raise it, note the `cactus_consolidated` memory estimate uses abpoa's fitted exponent, which under-requests badly for minipoa at larger windows. minipoa shares abpoa's substitution matrix (from `<bar><poa>`) but has its own gap penalties in `<bar><minipoa>`: `minipoaGapOpenPenalty`/`minipoaGapExtensionPenalty`, and a second piece, `minipoaGapOpenPenalty2`/`minipoaGapExtensionPenalty2`, that makes the gap cost convex exactly as abpoa's is. They ship with abpoa's values (400/30 and 1200/1), and together with the guide tree (`minipoaProgressiveMode`) that makes minipoa as accurate as abpoa on the evolver tests (mammals 0.854/0.652 against 0.853/0.652). Setting the second piece to 0 leaves a single affine piece, about a quarter cheaper in time and memory; it then needs a much lower extension than abpoa's first piece (the best found was 600/4), since past roughly 28bp abpoa's effective extension is 1 rather than 30. `--lastTrain` reaches both engines: it fits a single affine gap model, so minipoa gets the learned open/extend as its only piece, while abPOA additionally gets the synthesised second piece it needs to stay stable. minipoa inherits the learned substitution matrix too, via the empty `minipoaSubMatrix`.
+* `--consRetainPages`: Whether `cactus_consolidated` keeps the memory pages it frees rather than returning them to the system (`auto`, `1` or `0`). Keeping them is much faster but takes 2-3x the peak memory. The default, `auto`, keeps them, and requests twice the memory estimate, when three times the estimate fits what the job can be given (the system memory on a single machine, the largest node on Slurm, or `--maxMemory`); otherwise the pages are returned. Corresponds to `<consolidated retain_pages>` in the configuration.
+* **Base aligner**: `<bar baseAligner>` in the configuration selects the multiple aligner that BAR uses: `pecan` (the default), `abpoa` or `minipoa`. Pangenome mode uses `<bar pangenomeBaseAligner>` instead, `abpoa` by default. `minipoa` uses less memory than `abpoa`, and is not built on ARM.
+* **Large, repeat-rich genomes with `abpoa` or `minipoa`**: turn on the mask filter, which stops an alignment at a long run of masked bases and can save a great deal of time and memory: `partialOrderAlignmentMaskFilter` in `<bar><poa>` or `minipoaMaskFilter` in `<bar><minipoa>` (e.g. `1000`; the default `-1` is off), or `--barMaskFilter` in `cactus-align`. A smaller window (`partialOrderAlignmentWindow`, `minipoaWindow`) saves memory and time too. Neither applies to `pecan`.
 
-On a cluster with partitions and/or time limits, make sure to use
+On a cluster with partitions and/or time limits, Cactus estimates a walltime for each job from the size of its inputs, the same way it estimates memory, so that short jobs can go to short partitions.  There is nothing you need to set for this: the options below are for when the estimates do not suit your cluster.
 
-Slurm chooses a job's partition from its time limit, so giving every job one big time (the old `--slurmTime 200:00:00` advice) puts even the thousands of jobs that finish in seconds into the slowest queue.  **Cactus now estimates a walltime for each job itself**, from the size of that job's inputs, the same way it estimates memory.  There is nothing you need to set for this: the defaults below are the knobs for when the estimates do not suit your cluster.
-
-* `--doubleTime true` is **on by default**, the same way `--doubleMem` is.  It is the time analogue of `--doubleMem`: if slurm kills a job for running past its walltime, it is retried with double the walltime.  This is what makes tight per-job estimates safe -- an occasional underestimate costs one retry, not the run.  Pass `--doubleTime false` to turn it off.
-* `--walltimeFactor` is the safety multiplier applied to every estimate (default `2.5`).  Raise it if your cluster is slower than the ones the estimates were measured on and jobs are being killed for running over.  Pass `--walltimeFactor 0` to switch per-job walltimes off entirely, which puts every job back on `--defaultWalltime`.
-* `--minWalltime` is the floor for any request, in seconds (default `1800`).  A short partition is typically an hour, so every request below that routes the same way and there is nothing to gain by asking for less -- while a request that is short by a minute costs a whole `--doubleTime` retry.  Half an hour leaves room for worker startup and for jobstore staging under heavy concurrency, which no size-based estimate can see.
-* `--maxWalltime` is the ceiling, in seconds.  By default, on Slurm, Cactus queries `sinfo` and caps every request at *half* the longest time limit of any partition your jobs could land on.  This matters more than it looks: when Toil cannot find a partition that fits a job's walltime it raises rather than falling back to a default, and it does so on the batch system's own thread, taking the whole workflow down rather than just the job.  Since `--doubleTime` retries a killed job with twice the walltime, an estimate sitting at the longest partition's limit would turn its own first retry into exactly that crash -- hence the half.  A job needing more than half your longest partition still gets there, it just spends one attempt on the way.  With `--doubleTime false` there is nothing to retry into and the full limit is used.
-* `--defaultWalltime` is Toil's fallback for jobs Cactus did not estimate a time for.  With the estimates on there is very little left for it to cover, so you can usually leave it alone.
+* `--doubleTime` (on by default, like `--doubleMem`): if slurm kills a job for running past its walltime, it is retried with double the walltime.  Pass `--doubleTime false` to turn it off.
+* `--walltimeFactor`: the multiplier applied to every estimate (default `2.5`).  Raise it if jobs are being killed for running over.  `--walltimeFactor 0` turns per-job walltimes off entirely, which puts every job back on `--defaultWalltime`.
+* `--minWalltime`: the smallest walltime requested for a job, in seconds (default `1800`).
+* `--maxWalltime`: the largest walltime requested for a job, in seconds.  By default, on Slurm, Cactus queries `sinfo` and uses *half* the longest time limit of any partition your jobs could land on, so that a `--doubleTime` retry still fits (with `--doubleTime false`, the full limit is used).
+* `--defaultWalltime`: Toil's fallback for the few jobs Cactus has no estimate for.
 * `--slurmPartition / --slurmGPUPartition` to specify the slurm partition where CPU / GPU jobs end up on.  Cactus will try to figure this out on its own from each job's walltime along with whether or not the job needs GPU.  But this option will allow you to override that.
-* `--slurmTime` is a global override that forces a single time onto *every* job, ignoring the per-job estimates above (so it also disables the partition routing they exist for, and `--doubleTime` along with it).  Reach for it only as an escape hatch, e.g. if a job's time estimate turns out too low and it keeps getting killed: `--slurmTime 200:00:00`.
+* `--slurmTime`: a global override that forces a single time onto *every* job, ignoring the per-job estimates above (and so the partition routing, and `--doubleTime`).  Use it only as an escape hatch, e.g. if a job's time estimate turns out too low and it keeps getting killed: `--slurmTime 200:00:00`.
 
 You can also use
 
@@ -580,7 +582,7 @@ The same script can be used to download all the logs off Terra, which can be use
 gsutil ls -l -r gs://<BUCKET/PREFIX> | cactus-terra-helper scrape-logs
 ```
 
-## Running with SnakeMake](#running-with-snakemake)
+## Running with SnakeMake
 
 Please see this [Cactus Snakemake](https://github.com/harvardinformatics/cactus-snakemake) interface.  I haven't tried it yet but it seems like an extremely promising alternative to WDL for running large jobs step-by-step, including on clusters.  Credit to Gregg Thomos @gwct.
 
@@ -676,7 +678,7 @@ We are currently working on incorporating a fast genome tree estimation workflow
 
 **A**:  Changes in the tree topology will affect the alignment, but like the Progressive Cactus paper shows, it'll be fairly minimal for small, local changes. For most data, there is no single correct tree anyway, due to things like incomplete lineage sorting, hybridization and lateral gene transfer.
 
-That said, cactus can handle multifurcations up to a point: runtime increases quadratically with the number of species in the split. So depending on your genome size, you probably won't be able to go much beyond 5. Versions 2.7.2 to 3.3.0 refused them unless `allow_multifurcations="1"` was set in the config, because the alignments between all the children are chained together, letting each base keep a primary alignment to only one other child, and groups of children could end up never aligned to each other. The alignments of each pair of children are now also chained on their own and used to join such groups (`<blast multifurcationPairSecondaries="1">`), which doubles the chaining's work. With the evolver mammals collapsed into a five-way star at the root, the alignment is at least as accurate as with the binary tree (mafComparator precision and recall of 0.895 and 0.702, against 0.876 and 0.669).
+That said, cactus can handle multifurcations up to a point: runtime increases quadratically with the number of species in the split. So depending on your genome size, you probably won't be able to go much beyond 5. Versions 2.7.2 to 3.3.0 refused them unless `allow_multifurcations="1"` was set in the config, because groups of children could end up never aligned to each other; the alignments of each pair of children are now also chained on their own to join such groups (`<blast multifurcationPairSecondaries="1">`). In a test on simulated mammals, a five-way multifurcation at the root gave an alignment at least as accurate as the binary tree's.
 
 **Q**: I'm running out of memory, or getting crashes, or very long runtimes in one of the `paf_xxxx` tools (`paf_tile, paf_to_bed` etc.). What can I do?
 

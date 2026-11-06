@@ -393,17 +393,11 @@ def graphmap_join_options(parser):
     parser.add_argument("--vcfL", type=float, default=None,
                         help="[EXPERIMENTAL] Pass `-L <FLOAT>` to vg deconstruct: traversals whose "
                         "length-weighted Jaccard similarity is at least this are merged into a single "
-                        "allele. Applies to the raw and vcfbub VCFs, including the --gref ones. "
-                        "Merged samples are genotyped as the allele they were merged "
-                        "into (possibly the reference allele), with the discrepancy recorded in the "
-                        "TS/TL FORMAT fields, so the VCF no longer describes the samples exactly. "
-                        "For that reason this only ever ADDS VCFs: the normal outputs are still "
-                        "produced unclustered, and clustered copies appear beside them, named with "
-                        "an L<NN> tag where NN is the value times 100, rounded (e.g. 0.95 -> "
-                        ".L95.vcf.gz). No clustered .wave VCF is made -- -L is never composed with "
-                        "--vcfwave, whose whole job is to undo the allele merging that -L does. "
-                        "Costs an extra vg deconstruct pass per --vcf graph type per --vcfReference, "
-                        "plus one more for --gref; deconstruct is often the priciest job in the join.")
+                        "allele. Merged samples are genotyped as the allele they were merged into, "
+                        "so the VCF no longer describes the samples exactly. The normal VCFs are "
+                        "still written, with clustered copies of the raw and vcfbub ones (including "
+                        "--gref's, but not --vcfwave's) beside them, named with an L<NN> tag where NN "
+                        "is the value times 100 (e.g. 0.95 -> .L95.vcf.gz)")
     parser.add_argument("--snarlStats", nargs='*', help = "Write a list of snarl statistics for the graph type(s). Valid types are 'full', 'clip' and 'filter'. If no type specified, 'clip' will be used ('full' used if clipping disabled). Multipe types can be provided separated by space")
     parser.add_argument("--panacus", nargs='*', default=None, help = "Run panacus (pangenome coverage/growth statistics with a native interactive-HTML plot) on the GFA of the given graph type(s). Valid types are 'full', 'clip' and 'filter'. If no type specified, 'clip' will be used ('full' used if clipping disabled). Multiple types can be provided separated by space. Please cite panacus (https://github.com/codialab/panacus) if you use these outputs")
 
@@ -422,12 +416,9 @@ def graphmap_join_options(parser):
     
     parser.add_argument("--inputContigSizes", type=str, default=None,
                         help="Contig size table written by cactus-pangenome as "
-                        "<outDir>/<outName>.input-contig-sizes.tsv.gz. Only needed when running "
-                        "cactus-graphmap-join standalone, where it is the only way to know how much "
-                        "input sequence there was: without it no exclusion report is produced (only "
-                        "the reference gaps, which do not depend on it). Has no effect with "
-                        "--vgFull/--vgClip/--vgFilter, which produce no exclusion report either way. "
-                        "NOTE: this is not the same file as "
+                        "<outDir>/<outName>.input-contig-sizes.tsv.gz. Needed for the clipping "
+                        "report when running cactus-graphmap-join standalone (no effect with "
+                        "--vgFull/--vgClip/--vgFilter). NOTE: this is not the same file as "
                         "<outDir>/chrom-subproblems/contig_sizes.tsv.")
 
     parser.add_argument("--collapse", help = "Incorporate minimap2 self-alignments.", action='store_true', default=False)
@@ -440,24 +431,18 @@ def graphmap_join_options(parser):
     parser.add_argument("--gref", nargs='?', const='clip', default=None,
                         help="[EXPERIMENTAL] Generate graph reference outputs. Adds synthetic "
                         "reference paths covering non-reference graph regions via vg paths -u, then "
-                        "produces additional .gref.* outputs (gbz, gfa, vcf, and hapl if the source "
-                        "type is among the --haplo types). The gref graph is topologically identical "
-                        "to the base graph, so the base graph's snarls and dist apply to gref.gbz "
-                        "directly, but its hapl does not. Valid source types "
+                        "produces additional .gref.* outputs (gbz, gfa, vcf with --vcf, and hapl if the "
+                        "source type is among the --haplo types). The base graph's snarls and dist apply to "
+                        "gref.gbz, but its hapl does not. Valid source types "
                         "are 'full', 'clip', 'filter'. Default: 'clip'. [default: disabled]")
     parser.add_argument("--minGrefLen", type=int, default=None,
                         help="Minimum graph reference fragment length [default from config: 50]")
     parser.add_argument("--pgrealign", nargs='?', const=True, default=None, metavar='TARGETS',
                         help="[EXPERIMENTAL] Realign each chromosome's tandem repeats with pgrealign "
                         "(https://github.com/benedictpaten/pgrealign) before the full graph is "
-                        "normalized, so the full, clip and filter graphs all carry the realignment. "
-                        "TARGETS, if given, is a BED of the intervals to realign, on the first "
-                        "--reference's contigs (named as the contig field of its path names, such as "
-                        "chr1), for example pgrealign's catalogs/chm13v2.0_tr.bed.gz. Without it, the "
-                        "tandem repeats are found from each reference path with pgrealign catalog. "
-                        "Every path spells the same sequence afterwards; only how the paths share nodes "
-                        "inside the realigned regions changes. Per-chromosome reports go in "
-                        "<outDir>/<outName>.stats/")
+                        "normalized. TARGETS, if given, is a BED of the intervals to realign instead, "
+                        "on the first --reference's contigs (named as the contig field of its path "
+                        "names, such as chr1). Per-chromosome reports go in <outDir>/<outName>.stats/")
 
 def graphmap_join_defaults(options):
     """ fill in the graphmap-join option defaults for tools (ie cactus-panpatch) that run the join

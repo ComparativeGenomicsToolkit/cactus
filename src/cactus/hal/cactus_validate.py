@@ -717,10 +717,9 @@ def main():
     parser.add_argument("seqFile", help="Seq file the alignment was built from")
     parser.add_argument("halFile", help="HAL file to check")
     parser.add_argument("--allowMissing", action="store_true",
-                        help="Report sequences and genomes that are in the seqfile but not in "
-                        "the HAL as warnings rather than errors. Expected when the alignment "
-                        "was restricted with --root, has outgroups that were not exported, or "
-                        "is a pangenome whose contigs did not all get binned to a chromosome")
+                        help="Warn, rather than fail, about genomes and sequences that are in the "
+                        "seqfile but not in the HAL (expected with --root, with outgroups, or "
+                        "for pangenome contigs that were not assigned to a chromosome)")
     parser.add_argument("--lengthsOnly", action="store_true",
                         help="Compare only sequence lengths, which is much faster because the "
                         "HAL bases are never read. Catches truncation but not a substitution")

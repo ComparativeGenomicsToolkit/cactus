@@ -65,9 +65,8 @@ def main():
                         help="Only build the graph out of reference genome(s). Can be used when it will only be used for chromosome-splitting, for example")
     parser.add_argument("--inGFA", type=str, default=None,
                         help="Start from this existing minigraph GFA (as made by a previous cactus-minigraph or cactus-pangenome run) "
-                        "instead of building from scratch. Only the seqFile genomes that are not already in the graph get added, in "
-                        "mash-distance order among themselves; if there are none, the graph is passed through untouched. The seqFile "
-                        "must still contain every genome in the graph: genomes cannot be removed from a minigraph")
+                        "instead of building from scratch, adding only the seqFile genomes that are not already in it. The seqFile "
+                        "must contain every genome in the graph")
     parser.add_argument("--batch", action="store_true",
                         help="Run independently on set of chromosomea inputs (chromfile as from cactus-graphmap-split). Note that the output will be a directory and not a GFA")
         

@@ -6,9 +6,9 @@ cactus-pangenome
 panpatch
 
 panpatch (https://github.com/glennhickey/panpatch) uses a pangenome graph to patch a (slightly)
-fragmented assembly into T2T chromosomes: it fills N-gaps, scaffolds disconnected contigs and, with
---requireTelomeres, completes missing terminal telomeres, taking the patch sequence from one or more
-donor assemblies.
+fragmented assembly into T2T chromosomes: it fills N-gaps, scaffolds disconnected contigs and
+completes missing terminal telomeres (--requireTelomeres makes them mandatory), taking the patch
+sequence from one or more donor assemblies.
 
 the pangenome is built with --chrom-vg full and nothing else, since the per-chromosome "full" vg
 graphs are the only thing panpatch needs.  cactus-pangenome is the overwhelming majority of the
@@ -78,17 +78,15 @@ def main():
                         help = "Require a telomere at both ends of each patched haplotype (and none inside). A missing terminal "
                         "telomere is patched in from a donor when possible, otherwise the contig reverts to its input (panpatch -T)")
     parser.add_argument("--maxTelomerePatch", type=int, default=None,
-                        help = "Maximum bp of target sequence that a --requireTelomeres telomere patch may replace at a contig end "
+                        help = "Maximum bp of target sequence that a telomere patch may replace at a contig end "
                         "(panpatch -M) [default=500000]")
     parser.add_argument("--excludeBed", default=None,
-                        help = "BED file of target regions to leave untouched (panpatch -b)")
+                        help = "BED file of target regions to leave untouched, named by full graph path (panpatch -b)")
     parser.add_argument("--assemblyErrorBeds", default=None,
-                        help = "Manifest of per-assembly error BEDs: one \"<seqfile-event-name>\\t<bed-path>\" line "
-                        "per assembly (a subset is fine). Intervals are treated almost like runs of Ns: in a DONOR "
-                        "assembly they are never used to patch; in the TARGET they are patched like gaps when possible "
-                        "and otherwise left as the original sequence (never N). BED contig names are the assembly's own "
-                        "fasta-header first token, coordinates 0-based half-open in that assembly's frame. Distinct from "
-                        "--excludeBed (which protects target regions and uses full graph path names)")
+                        help = "Manifest of per-assembly BEDs of suspected errors: one \"<seqfile-event-name> <bed-path>\" line "
+                        "per assembly (a subset is fine), each BED in that assembly's own contig names and coordinates. "
+                        "A donor's intervals are never used to patch; the target's are patched like gaps when possible "
+                        "and otherwise left as they are")
     parser.add_argument("--defaultSample", default=None,
                         help = "Use this sample's contig when a patch is rejected (panpatch -e)")
     parser.add_argument("--panpatchOptions", type=str, default=None,

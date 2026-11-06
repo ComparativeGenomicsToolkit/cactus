@@ -348,22 +348,18 @@ def add_cactus_toil_options(parser):
     """ Add cactus-specific options on top of Toil's default argument parser
     (Job.Runner.getDefaultArgumentParser).  Call this right after creating the parser. """
     parser.add_argument("--walltimeFactor", type=float, default=WALLTIME_FACTOR,
-                        help="Safety multiplier applied to every per-job walltime Cactus estimates "
-                             "[default: {}].  Raise it if jobs are being killed for running over "
-                             "(a slower cluster than the estimates were tuned on); pass 0 to switch "
-                             "per-job walltimes off entirely, leaving every job on Toil's "
-                             "--defaultWalltime.".format(WALLTIME_FACTOR))
+                        help="Multiply every per-job walltime Cactus estimates by this factor. "
+                             "Raise it if jobs are being killed for running over their time; 0 "
+                             "turns the estimates off, leaving every job on Toil's "
+                             "--defaultWalltime [default: {}]".format(WALLTIME_FACTOR))
     parser.add_argument("--minWalltime", type=int, default=WALLTIME_MIN,
-                        help="Floor, in seconds, for any walltime Cactus requests [default: {}].  "
-                             "Cactus schedules many jobs that finish in under a second; this keeps "
-                             "worker startup and jobstore I/O from pushing them over their "
-                             "limit.".format(WALLTIME_MIN))
+                        help="Minimum walltime, in seconds, that Cactus requests for a job "
+                             "[default: {}]".format(WALLTIME_MIN))
     parser.add_argument("--maxWalltime", type=int, default=0,
-                        help="Ceiling, in seconds, for any walltime Cactus requests [default: on "
-                             "Slurm, the longest time limit of any partition the jobs could land "
-                             "on; otherwise none].  This matters because Toil raises, rather than "
-                             "falling back to a default, when no partition can fit a job's "
-                             "walltime.")
+                        help="Maximum walltime, in seconds, that Cactus requests for a job "
+                             "[default: on Slurm, the longest time limit of any partition the "
+                             "jobs could land on, halved when --doubleTime is on to leave room "
+                             "for the retry; otherwise none]")
 
 
 def makeURL(path_or_url):
