@@ -289,6 +289,7 @@ jemallocSubLibs = $(if ${jemallocLib},-L$(abspath ${LIBDIR}) ${jemallocLib})
 # link, and fails the ordinary one too wherever --as-needed is the default.
 ifeq ($(minipoa),on)
 	minipoaLib = -lminipoa
+	minipoaDepends = ${LIBDIR}/libminipoa.a
 	CFLAGS += -DHAVE_MINIPOA
 endif
 LDLIBS += ${cactusLibs} ${sonLibLibs} ${LIBS} -L${rootPath}/lib -Wl,-rpath,${rootPath}/lib -labpoa ${minipoaLib} ${jemallocLib} -lz -lbz2 -lpthread -lm -lstdc++ -lm -lxml2 ${CACTUS_STATIC_LINK_FLAGS}
