@@ -1,0 +1,37 @@
+# hprc30: CHM13, GRCh38 and both haplotypes of 14 HPRC release-2 samples, HG002 among them: the inputs of the
+# HPRC v2.1 graph for these samples.  GRCh38 is v2.1's: the no-alt analysis set cut down to chr1-22, X, Y and M.
+# The maternal (.2) haplotypes of the 13 non-HG002 samples are v1.2.0 in v2.1, which is v1.0.1 with its
+# mitochondrion replaced by GenBank's corrected (.2) record.  v1.2.0 has no public copy, so the URLs below are
+# v1.0.1's, and the suite makes v1.2.0 from them (MITO in hprc30.py).  Used as it is, this seqfile differs from
+# v2.1's inputs only in those 13 mitochondria.  Haplotypes are named SAMPLE.N, the spelling older cactus builds
+# need; a run's seqfile spells them SAMPLE#N for a cactus that reads PanSN names (reads_pansn in hprc30.py).
+CHM13	https://s3-us-west-2.amazonaws.com/human-pangenomics/working/HPRC_PLUS/CHM13/assemblies/analysis_set/pansn/chm13v2.0_maskedY_rCRS.fa.PanSN.fa.gz
+GRCh38	https://s3-us-west-2.amazonaws.com/human-pangenomics/pangenomes/freeze/release2/minigraph-cactus/v2.1/input/hg38.chroms.fa.gz
+HG00408.2	https://s3-us-west-2.amazonaws.com/human-pangenomics/working/HPRC/HG00408/assemblies/release2/HG00408_mat_hprc_r2_v1.0.1.fa.gz
+HG00408.1	https://s3-us-west-2.amazonaws.com/human-pangenomics/working/HPRC/HG00408/assemblies/release2/HG00408_pat_hprc_r2_v1.0.1.fa.gz
+HG00597.2	https://s3-us-west-2.amazonaws.com/human-pangenomics/working/HPRC/HG00597/assemblies/release2/HG00597_mat_hprc_r2_v1.0.1.fa.gz
+HG00597.1	https://s3-us-west-2.amazonaws.com/human-pangenomics/working/HPRC/HG00597/assemblies/release2/HG00597_pat_hprc_r2_v1.0.1.fa.gz
+HG01192.2	https://s3-us-west-2.amazonaws.com/human-pangenomics/working/HPRC/HG01192/assemblies/release2/HG01192_mat_hprc_r2_v1.0.1.fa.gz
+HG01192.1	https://s3-us-west-2.amazonaws.com/human-pangenomics/working/HPRC/HG01192/assemblies/release2/HG01192_pat_hprc_r2_v1.0.1.fa.gz
+HG01261.2	https://s3-us-west-2.amazonaws.com/human-pangenomics/working/HPRC/HG01261/assemblies/release2/HG01261_mat_hprc_r2_v1.0.1.fa.gz
+HG01261.1	https://s3-us-west-2.amazonaws.com/human-pangenomics/working/HPRC/HG01261/assemblies/release2/HG01261_pat_hprc_r2_v1.0.1.fa.gz
+HG02015.2	https://s3-us-west-2.amazonaws.com/human-pangenomics/working/HPRC/HG02015/assemblies/release2/HG02015_mat_hprc_r2_v1.0.1.fa.gz
+HG02015.1	https://s3-us-west-2.amazonaws.com/human-pangenomics/working/HPRC/HG02015/assemblies/release2/HG02015_pat_hprc_r2_v1.0.1.fa.gz
+HG02056.2	https://s3-us-west-2.amazonaws.com/human-pangenomics/working/HPRC/HG02056/assemblies/release2/HG02056_mat_hprc_r2_v1.0.1.fa.gz
+HG02056.1	https://s3-us-west-2.amazonaws.com/human-pangenomics/working/HPRC/HG02056/assemblies/release2/HG02056_pat_hprc_r2_v1.0.1.fa.gz
+HG02129.2	https://s3-us-west-2.amazonaws.com/human-pangenomics/working/HPRC/HG02129/assemblies/release2/HG02129_mat_hprc_r2_v1.0.1.fa.gz
+HG02129.1	https://s3-us-west-2.amazonaws.com/human-pangenomics/working/HPRC/HG02129/assemblies/release2/HG02129_pat_hprc_r2_v1.0.1.fa.gz
+HG01975.2	https://s3-us-west-2.amazonaws.com/human-pangenomics/working/HPRC/HG01975/assemblies/release2/HG01975_mat_hprc_r2_v1.0.1.fa.gz
+HG01975.1	https://s3-us-west-2.amazonaws.com/human-pangenomics/working/HPRC/HG01975/assemblies/release2/HG01975_pat_hprc_r2_v1.0.1.fa.gz
+HG02602.2	https://s3-us-west-2.amazonaws.com/human-pangenomics/working/HPRC/HG02602/assemblies/release2/HG02602_mat_hprc_r2_v1.0.1.fa.gz
+HG02602.1	https://s3-us-west-2.amazonaws.com/human-pangenomics/working/HPRC/HG02602/assemblies/release2/HG02602_pat_hprc_r2_v1.0.1.fa.gz
+HG04187.2	https://s3-us-west-2.amazonaws.com/human-pangenomics/working/HPRC/HG04187/assemblies/release2/HG04187_mat_hprc_r2_v1.0.1.fa.gz
+HG04187.1	https://s3-us-west-2.amazonaws.com/human-pangenomics/working/HPRC/HG04187/assemblies/release2/HG04187_pat_hprc_r2_v1.0.1.fa.gz
+NA18879.2	https://s3-us-west-2.amazonaws.com/human-pangenomics/working/HPRC/NA18879/assemblies/release2/NA18879_hap2_hprc_r2_v1.0.1.fa.gz
+NA18879.1	https://s3-us-west-2.amazonaws.com/human-pangenomics/working/HPRC/NA18879/assemblies/release2/NA18879_hap1_hprc_r2_v1.0.1.fa.gz
+NA20752.2	https://s3-us-west-2.amazonaws.com/human-pangenomics/working/HPRC/NA20752/assemblies/release2/NA20752_hap2_hprc_r2_v1.0.1.fa.gz
+NA20752.1	https://s3-us-west-2.amazonaws.com/human-pangenomics/working/HPRC/NA20752/assemblies/release2/NA20752_hap1_hprc_r2_v1.0.1.fa.gz
+HG002.1	https://s3-us-west-2.amazonaws.com/human-pangenomics/working/HPRC_PLUS/HG002/assemblies/Q100/pansn/hg002v1.1.pat.PanSN.fa.gz
+HG00232.2	https://s3-us-west-2.amazonaws.com/human-pangenomics/working/HPRC/HG00232/assemblies/release2/HG00232_hap2_hprc_r2_v1.0.1.fa.gz
+HG00232.1	https://s3-us-west-2.amazonaws.com/human-pangenomics/working/HPRC/HG00232/assemblies/release2/HG00232_hap1_hprc_r2_v1.0.1.fa.gz
+HG002.2	https://s3-us-west-2.amazonaws.com/human-pangenomics/working/HPRC_PLUS/HG002/assemblies/Q100/pansn/hg002v1.1.mat_MT.PanSN.fa.gz
