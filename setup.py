@@ -16,7 +16,7 @@ with open(versionFile, 'w') as versionFH:
 
 setup(
     name = "Cactus",
-    version = "3.3.0",
+    version = "4.0.0",
     author = "Benedict Paten",
     package_dir = {'': 'src'},
     packages = find_packages(where='src'),

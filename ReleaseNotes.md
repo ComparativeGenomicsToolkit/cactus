@@ -1,6 +1,6 @@
-# Unreleased
+# Release 4.0.0 2026-11-09
 
-This release makes Cactus's output reproducible and changes several defaults in both Progressive Cactus and Minigraph-Cactus, so alignments and pangenomes will differ from those of v3.3.0. It also adds output validation, per-job walltime estimates on Slurm, and the ability to extend an existing pangenome.
+This release makes Cactus's output reproducible and changes several defaults in both Progressive Cactus and Minigraph-Cactus. It is about 10% more accurate, at least 2-5x faster and uses less memory. It also adds output validation, per-job walltime estimates on Slurm, the ability to extend an existing pangenome and reintroduces support for multifurcations in guide trees. 
 
 **General**
 
@@ -24,7 +24,7 @@ This release makes Cactus's output reproducible and changes several defaults in 
 
 **Progressive Cactus**
 
-- pecan is the default base aligner in BAR again (`<bar baseAligner="pecan">`; pangenomes keep abPOA through `<bar pangenomeBaseAligner>`). It is now faster and deterministic, matches abPOA on closely related genomes, is more accurate on distant ones, and uses less memory. `baseAligner="abpoa"` restores the previous default. `baseAligner` replaces `<bar partialOrderAlignment>`, which is no longer read.
+- pecan is the default base aligner in BAR again (thanks @ofirr) (`<bar baseAligner="pecan">`; pangenomes keep abPOA through `<bar pangenomeBaseAligner>`). It is now faster and deterministic, matches abPOA on closely related genomes, is more accurate on distant ones, and uses less memory. `baseAligner="abpoa"` restores the previous default. `baseAligner` replaces `<bar partialOrderAlignment>`, which is no longer read.
 - `minipoa` added as a third base aligner (`<bar baseAligner="minipoa">`, x86 builds only): as accurate as abPOA in our tests, with less memory.
 - Multifurcations (ancestors with more than two children) are allowed again, and the `allow_multifurcations` config option is gone. They were refused since v2.7.2 because groups of children could be left unaligned to each other; each pair of children is now also chained on its own to join them (`<blast multifurcationPairSecondaries>`).
 - Fix `paffy trim` never trimming the end of forward-strand alignments (`<blast pafTrimIdentity>` is raised from 0.2 to 0.35 to go with it), and `paffy tile` and `paffy to_bed` miscounting the bases of reverse-strand alignments with insertions.
@@ -55,7 +55,7 @@ This release makes Cactus's output reproducible and changes several defaults in 
 - The giraffe and haplotype index jobs now reserve memory by the size of the graph's snarls rather than at most 128 GiB, which large graphs outgrew, and `--indexMemory` now caps every job in the join.
 - `--pgrealign` (experimental) realigns tandem repeats with [pgrealign](https://github.com/benedictpaten/pgrealign).
 - `filterAC0` now also trims the alleles that no sample carries from the VCF sites it keeps.
-- hal2vg's conversion now needs about half the memory. hal2vg and its tools are now built from source by `downloadPangenomeTools`, which adds the Boost headers (`libboost-dev`) to the build dependencies.
+- hal2vg's conversion now needs about half the memory (thanks @yeeus). hal2vg and its tools are now built from source by `downloadPangenomeTools`, which adds the Boost headers (`libboost-dev`) to the build dependencies.
 - `cactus-panpatch`: `--assemblyErrorBeds` steers patching away from suspected assembly errors, `panpatch-summary.tsv` summarizes every sample of a run, and telomeres are now completed by default.
 
 # Release 3.3.0 2026-08-11
