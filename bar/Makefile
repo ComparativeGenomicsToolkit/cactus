@@ -7,7 +7,12 @@ libTests = tests/adjacencySequencesTest.c tests/allTests.c tests/endAlignerTest.
 libRunEndAlignment = tests/runEndAlignment.c
 
 commonBarLibs = ${LIBDIR}/stCaf.a ${LIBDIR}/stPaf.a ${sonLibDir}/stPinchesAndCacti.a ${LIBDIR}/cactusLib.a ${sonLibDir}/cPecanLib.a
-stBarDependencies =  ${commonBarLibs} ${LIBDEPENDS}
+# abPOA and minipoa are only used from here, so they go here and not in LIBDEPENDS.  What links
+# bar's code is what needs relinking, and that all depends on cactusBarLib.a.  The headers are
+# what the submodules publish to include/, which poaBarAligner.c compiles against, and simde is
+# there through abpoa.h.  The whole simde directory is copied whenever any of it changes, so the
+# directory stands for its headers.
+stBarDependencies =  ${commonBarLibs} ${LIBDEPENDS} ${LIBDIR}/libabpoa.a ${minipoaDepends} $(wildcard ${INCLDIR}/*.h ${INCLDIR}/simde)
 LDLIBS += ${commonBarLibs} ${sonLibDir}/sonLib.a ${databaseLibs} -lm
 # simde (included via abPOA) doesn't compile with --Werror --pedantic
 CFLAGS:=$(filter-out --pedantic,$(CFLAGS))

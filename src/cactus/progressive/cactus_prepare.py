@@ -166,12 +166,7 @@ def main(toil_mode=False):
     parser.add_argument("--hdf5Codec", choices=["deflate", "lz4", "zstd", "none"], default=None,
                         help="HDF5 compression codec for HAL output (overrides config XML, default=deflate)")
     parser.add_argument("--noValidate", action="store_true",
-                        help="Do not pass --validate to the cactus-align commands. They check "
-                        "each HAL against the sequence that was aligned before writing it out, "
-                        "which is on by default here because the step-by-step recipes are what "
-                        "long cluster runs use, and a truncated input is exactly what goes "
-                        "unnoticed in one. Note this cannot go through --cactusOptions, which "
-                        "every command sees, not just cactus-align.")
+                        help="Do not add --validate to the cactus-align commands, which get it by default")
 
     if not toil_mode:
         parser.add_argument("--defaultCores", type=int, help="Number of cores for each job unless otherwise specified")

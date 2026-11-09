@@ -429,8 +429,8 @@ def main():
                         help="Memory in bytes for each cactus_consolidated job (defaults to an estimate based on the input data size). "
                         "Standard suffixes like K, Ki, M, Mi, G or Gi are supported (default=bytes))", default=None)
     parser.add_argument("--consRetainPages", choices=['auto', '0', '1'], default=None,
-                        help="Whether cactus_consolidated keeps the memory pages jemalloc frees, which is much faster but takes 2-3x the peak memory. "
-                        "auto (the default, from <consolidated retain_pages> in the config) keeps them when memory_retain_multiple times the estimate, plus one further estimate of headroom, fits what the job can be given, and asks for that multiple; where that ceiling is unknown (any batch system but single_machine and slurm, unless --maxMemory is given) the pages are returned")
+                        help="Whether cactus_consolidated keeps the memory pages it frees, which is much faster but takes 2-3x the peak memory. "
+                        "auto keeps them when the job can be given enough memory for it [default: retain_pages in <consolidated> in the config, auto]")
     parser.add_argument("--intermediateResultsUrl",
                         help="URL prefix to save intermediate results like DB dumps to (e.g. "
                         "prefix-dump-caf, prefix-dump-avg, etc.)", default=None)
@@ -457,10 +457,9 @@ def main():
     parser.add_argument("--hdf5Codec", choices=["deflate", "lz4", "zstd", "none"], default=None,
                         help="HDF5 compression codec for HAL output (overrides config XML, default=deflate)")
     parser.add_argument("--validate", action="store_true",
-                        help="Before writing the output, check that every sequence in the HAL is "
-                        "still identical (modulo soft-masking) to the sequence that was aligned. "
-                        "Costs one extra pass over the alignment; cactus-validate runs the same "
-                        "check by hand later.")
+                        help="Fail if any sequence in the output HAL differs (other than in soft-masking) "
+                        "from the sequence that was aligned. cactus-validate runs the same check "
+                        "on an existing HAL")
 
     options = parser.parse_args()
 

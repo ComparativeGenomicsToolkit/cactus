@@ -74,11 +74,8 @@ def pangenome_options(parser):
                         help = "File containing scoring parameters (a .train file: as cactus-minigraph writes it, or from last-train)")
     parser.add_argument("--mgSplit", action="store_true", default=False,
                         help = "Run minigraph construction and mapping independently on each chromosome. Each chromosome's "
-                        "second-pass minigraph is built against the whole primary reference genome rather than just that "
-                        "chromosome, so off-chromosome mappings can compete and be filtered the way they are in the "
-                        "whole-genome pipeline, and the off-chromosome material is pruned back out before cactus-align. "
-                        "Set wholeGenomeRef=\"0\" in <graphmap_split> in the config to build it on that chromosome's "
-                        "reference only")
+                        "graph is built against the whole primary reference genome, unless wholeGenomeRef is 0 in "
+                        "<graphmap_split> in the config")
     # removed: --mgSplit now does what it did.  Still parsed, hidden, only so that passing it fails with
     # a pointer to the config toggle (pangenome_validate_options) rather than argparse's "unrecognized
     # arguments".  options.mgSplitWholeGenomeRef is then set from --mgSplit and the toggle
@@ -86,15 +83,11 @@ def pangenome_options(parser):
     parser.add_argument("--mgSplitWholeGenomeRef", action="store_true", default=False, help=SUPPRESS)
     parser.add_argument("--inGFA", type=str, default=None,
                         help = "Start from this existing minigraph GFA (<outName>.sv.gfa.gz from a previous run, or a published release) "
-                        "rather than building one. If the seqFile names genomes the graph does not have, they are constructed into it and "
-                        "the rest is left alone; if it names exactly the genomes the graph already holds, nothing is constructed and the "
-                        "run resumes from it. Either way the seqFile must list every genome in the graph, since genomes cannot be removed "
-                        "from a minigraph. Construction is where nearly all of the minigraph cost is")
+                        "rather than building one. Genomes in the seqFile that the graph does not have are added to it; if there are "
+                        "none, the run resumes from the graph. The seqFile must list every genome in the graph")
     parser.add_argument("--inGAF", type=str, default=None,
-                        help = "Reuse the mappings in this GAF (<outName>.gaf.gz from the run that produced --inGFA) rather than re-running "
-                        "minigraph for the genomes it covers. Minigraph GAF is in stable coordinates, which adding genomes to a graph does "
-                        "not change, so they are re-derived against the graph instead. With a graph that needs nothing constructed this "
-                        "skips straight to cactus-graphmap-split. Without it, every genome is mapped again (see --remap)")
+                        help = "With --inGFA, reuse the mappings in this GAF (<outName>.gaf.gz from the run that produced the graph) "
+                        "rather than running minigraph for the genomes it covers. Without it, every genome is mapped again")
     parser.add_argument("--remap", action="store_true", default=False,
                         help = "With --inGAF, map every genome with minigraph anyway. Costs the full mapping stage, but every genome then "
                         "sees the whole graph, as it would in a from-scratch run")
@@ -121,13 +114,12 @@ def pangenome_options(parser):
                         help="Memory in bytes for each cactus_consolidated job (defaults to an estimate based on the input data size). "
                         "Standard suffixes like K, Ki, M, Mi, G or Gi are supported (default=bytes))", default=None)   
     parser.add_argument("--consRetainPages", choices=['auto', '0', '1'], default=None,
-                        help="Whether cactus_consolidated keeps the memory pages jemalloc frees, which is much faster but takes 2-3x the peak memory. "
-                        "auto (the default, from <consolidated retain_pages> in the config) keeps them when memory_retain_multiple times the estimate, plus one further estimate of headroom, fits what the job can be given, and asks for that multiple; where that ceiling is unknown (any batch system but single_machine and slurm, unless --maxMemory is given) the pages are returned")
+                        help="Whether cactus_consolidated keeps the memory pages it frees, which is much faster but takes 2-3x the peak memory. "
+                        "auto keeps them when the job can be given enough memory for it [default: retain_pages in <consolidated> in the config, auto]")
     parser.add_argument("--validate", action="store_true",
-                        help="Before writing each chromosome alignment, check that every sequence in "
-                        "its HAL is still identical (modulo soft-masking) to the sequence that was "
-                        "aligned. Costs one extra pass over each alignment; cactus-validate runs the "
-                        "same check by hand later.")
+                        help="Fail if any sequence in a chromosome's HAL differs (other than in "
+                        "soft-masking) from the sequence that was aligned. cactus-validate runs the "
+                        "same check on an existing HAL")
 
     # cactus-graphmap options
     parser.add_argument("--collapseRefPAF", help ="Incorporate given reference self-alignments in PAF format")

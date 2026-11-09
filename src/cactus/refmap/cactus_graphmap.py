@@ -63,19 +63,16 @@ def main():
     parser.add_argument("--collapse", help = "Incorporate minimap2 self-alignments.", action='store_true', default=False)
     parser.add_argument("--collapseRefPAF", help ="Incorporate given (reference-only) self-alignments in PAF format [Experimental]")
     parser.add_argument("--inGAF", type=str, default=None,
-                        help = "Reuse the mappings in this GAF (as published by a previous cactus-graphmap or cactus-pangenome run) "
-                        "instead of re-running minigraph for the genomes it covers. Minigraph GAF is in stable coordinates, which "
-                        "node splitting does not change, so these mappings are re-derived against the given graph instead. Only "
-                        "genomes the GAF does not cover are mapped. Intended for use with cactus-minigraph --inGFA")
+                        help = "Reuse the mappings in this GAF (from a previous cactus-graphmap or cactus-pangenome run) instead "
+                        "of running minigraph for the genomes it covers. For use with a graph made by cactus-minigraph --inGFA")
     parser.add_argument("--remap", action="store_true", default=False,
                         help = "Map every genome with minigraph even if --inGAF already covers it. Slower, but the existing "
                         "genomes then see the nodes contributed by the newly added ones, as they would in a from-scratch run")
 
     parser.add_argument("--scoresFile", type=str,
                         help = "Scoring model (a .train file, as cactus-minigraph writes it next to the graph) to derive "
-                        "minigraph's base-alignment penalties from. With --batch, the models in the chromfile's fourth column "
-                        "are used without this option, and this one overrides them. Toggled with the lastTrainMap attribute of "
-                        "<graphmap> in the config")
+                        "minigraph's base-alignment penalties from. With --batch, it overrides the models in the chromfile's "
+                        "fourth column. Not used if lastTrainMap is 0 in <graphmap> in the config")
     parser.add_argument("--batch", action="store_true",
                         help="Run independently on set of chromosomea inputs (chromfile as from cactus-minigraph --batch). Note that the output will be a directory and not a PAF")
     parser.add_argument("--mgSplit", action="store_true", default=False,

@@ -110,11 +110,11 @@ HG002#2  ./HG002.maternal.fa
 CHM13  ./chm13.fa
 ```
 
-These names are used as-is throughout the pipeline and in its output: the HAL and MAF genomes are `HG002#1`, `HG002#2` and `CHM13`, and the graph paths and VCF samples are their PanSN equivalents (`HG002#1#chr1`, sample `HG002`).  A haploid sample can also be given as `CHM13#0`, which is the same genome as `CHM13` and is spelled `CHM13` from then on: only the graph paths spell out the `#0` (`CHM13#0#chr1`).
+These names are used as-is throughout the pipeline and in its output: the HAL and MAF genomes are `HG002#1`, `HG002#2` and `CHM13`, and the graph paths and VCF samples are their PanSN equivalents (`HG002#1#chr1`, sample `HG002`).  A haploid sample can also be given as `CHM13#0`, which is the same genome as `CHM13`.
 
-A "`.`" can be used anywhere in a sample name (ex `KOLF2.1J`), except for one case kept for backward compatibility: Cactus used to specify haplotypes as `SAMPLE.HAPLOTYPE`, so in the seqfile, a name with no `#` that ends in `.N`, where `N` is an integer, is still read as haplotype `N` and renamed to `SAMPLE#N` (with a warning).  So `HG002.1` is `HG002#1`, and to keep the version of an accession like `GCA_054883195.1` in its name, its haplotype must be given explicitly: `GCA_054883195.1#0`, which is the genome `GCA_054883195.1` in the HAL and MAF and the sample `GCA_054883195.1` in the VCF.  This old reading can be switched off by setting `dotHaplotypes="0"` in the `<graphmap>` section of the config (see `--configFile`), so that every name without a `#` is taken as it is (`GCA_054883195.1` is just a sample name).  It will be off by default in a future release.
+A "`.`" can be used anywhere in a sample name (ex `KOLF2.1J`), except for one case kept for backward compatibility: Cactus used to specify haplotypes as `SAMPLE.HAPLOTYPE`, so in the seqfile, a name with no `#` that ends in `.N`, where `N` is an integer, is still read as haplotype `N` and renamed to `SAMPLE#N` (with a warning).  So `HG002.1` is `HG002#1`, and to keep the version of an accession like `GCA_054883195.1` in its name, its haplotype must be given explicitly: `GCA_054883195.1#0`.  This old reading can be switched off by setting `dotHaplotypes="0"` in the `<graphmap>` section of the config (see `--configFile`), and will be off by default in a future release.
 
-The `SAMPLE.HAPLOTYPE` reading only ever applies to names in the seqfile.  Names given on the command line in their place (ex `--reference`) are first looked for as they are among the seqfile's genomes, so `--reference GCA_054883195.1` finds `GCA_054883195.1#0`, and otherwise read as the seqfile's are (`--reference HG002.1` finds `HG002#1`).  `cactus-graphmap-join` has no seqfile to look in, so it reads `--reference` as a seqfile's name would be read, and warns when that makes it a haplotype: give it as `GCA_054883195.1#0` there.  Past the seqfile, a `.` is never read as a haplotype: in the HAL, a genome named `HG002.1` is the sample `HG002.1` (a HAL made by an older Cactus that named its haplotypes that way can be updated with `halRenameGenomes`).
+Names given on the command line (ex `--reference`) are first looked for as they are among the seqfile's genomes, so `--reference GCA_054883195.1` finds `GCA_054883195.1#0`, and otherwise read as the seqfile's are (`--reference HG002.1` finds `HG002#1`).  `cactus-graphmap-join` has no seqfile to look in, so give it such a name with its haplotype (`--reference GCA_054883195.1#0`).  A HAL made by an older Cactus, which named its haplotypes `SAMPLE.HAPLOTYPE`, can be updated with `halRenameGenomes`.
 
 ### Contig Names
 
@@ -149,17 +149,13 @@ It is therefore extremely important that the reference sample's assembly be **ch
 
 ### Multiple Alignment Scoring Parameters
 
-By default, the substitution, match and gap scores are trained from the input data, in the minigraph construct phase.  Random pieces of up to four typical input genomes (the middle of the minigraph (mash distance) order, among the genomes whose size is within 2x of the median) are mapped to the (first) reference sample with `minimap2`, and cPecan's pair HMM is fitted to those alignments by expectation maximisation.  Its substitution probabilities become the score matrix, and its two gap states (short and long) the two pieces of abPOA's gap scores.  These scores are then used in the cactus alignment phase to compute the base-level multiple alignment.  With `--mgSplit`, each chromosome is trained separately, and a chromosome that can't be (too small, or training fails on it) borrows the model of a typical-sized chromosome that was.  Training never fails the run: without any model, the default scores are used.  The sample is set by the `trainPartners`, `trainPieces` and `trainPieceLength` attributes of `<graphmap>` (by default 1000 pieces of 10kb, long enough to hold the long indels the long-gap state is fitted to).
+By default, the substitution, match and gap scores are trained from the input data, in the minigraph construct phase.  Random pieces of up to four typical input genomes are mapped to the (first) reference sample with `minimap2`, and cPecan's pair HMM is fitted to those alignments.  The scores are then used in the cactus alignment phase to compute the base-level multiple alignment, and to set minigraph's base-alignment penalties in the graphmap phase.  With `--mgSplit`, each chromosome is trained separately, and a chromosome that can't be (too small, or training fails on it) borrows the model of one that was.  Training never fails the run: without any model, the default scores are used.
 
-This replaces LAST's `last-train`, which cactus trained with before (LAST is GPL-licensed, and is no longer included).  On 285 abPOA windows of human chr10 (STR sites and other indels, with GRCh38 and 12 haplotypes), the two models halve the mismatches and gap runs of the untrained scores, and are within 1.5% of each other.
+The default scoring parameters, found in the config XML file, are derived from the HOXD70 matrix used in `lastz` and are most appropriate for very diverged genomes. But for pangenomes these scores can lead to, for example, long runs of transitions that really should be gaps, which the data-derived scores avoid.
 
-The same model also sets minigraph's base-alignment penalties in the graphmap phase (its `--wfa-pen` option).  minigraph's aligner scores a match as 0 and has a single mismatch penalty, so only the average match and mismatch scores and the gap costs carry over, not the rest of the matrix.  This is toggled separately with the `lastTrainMap` attribute of `<graphmap>`, and has no effect if `minigraphMapOptions` already sets `--wfa-pen`.  `cactus-graphmap` takes the model with `--scoresFile`, or, with `--batch`, from the chromfile `cactus-minigraph --batch` writes.
+Training is controlled by attributes of `<graphmap>` in the config: `lastTrain="0"` turns it off (the name is from LAST's `last-train`, which Cactus used to train with), `lastTrainMap="0"` leaves minigraph's own penalties in place, and `trainPartners`, `trainPieces` and `trainPieceLength` set the sample (by default 1000 pieces of 10kb, from up to four genomes).  The `--lastTrain` option is deprecated: it only turns training on, with a warning.
 
-Training is toggled with the `lastTrain` attribute of `<graphmap>` in the config (`lastTrain="0"` turns it off; the name is from `last-train`).  The `--lastTrain` option, which turned it on when it was an experimental prototype (added in [v2.9.3](https://github.com/ComparativeGenomicsToolkit/cactus/releases/tag/v2.9.3)), is deprecated and does nothing more than print a warning.
-
-The default scoring parameters, found in the config XML file, are derived from the HOXD70 matrix used in `lastz` and are most appropriate for very diverged genomes. But for pangenomes these scores can lead to, for example, long runs of transitions that really should be gaps. In this case, using the data-derived scores should be beneficial.
-
-You can also use the `--scoresFile` to input a `.train` file and use the scores contained in it to override cactus's defaults (training is then skipped): one cactus wrote (`cactus-minigraph` writes its model next to the graph), or one from `last-train`.  Be careful: only fully symmetric scoring matrices are accepted.
+You can also use the `--scoresFile` to input a `.train` file and use the scores contained in it to override cactus's defaults (training is then skipped): one cactus wrote (`cactus-minigraph` writes its model next to the graph), or one from `last-train`.  Be careful: only fully symmetric scoring matrices are accepted.  With the step-by-step interface, give `cactus-graphmap` and `cactus-align` the model with `--scoresFile`; with `--batch`, `cactus-graphmap` reads it from the chromfile, as `cactus-align` does with `--scoresFromChromfile`.
 
 ### Self-Alignment and the Collapse Option
 
@@ -177,9 +173,9 @@ Note: if you are using the step by step interface instead of `cactus-pangenome`,
 
 ### Running Minigraph on Chromosomes Independently
 
-By default, minigraph construction and mapping are performed at the whole-genome level, then split by (reference) chromosome so that Cactus (and some subsequent processing) can be run one chromosome at a time.  The `cactus-pangenome --mgSplit` option runs construction and mapping independently at the chromosome level instead, letting each chromosome pick its own minigraph construction ordering, which can improve accuracy.  It costs extra computation, since construction and mapping run twice, and makes for a more involved workflow.  On a CHM13 pangenome of 30 HPRC haplotypes, `--mgSplit` gave 1.2% fewer dipcall errors over the 14 samples scored, and 15% fewer small-variant and 7% fewer structural-variant errors against GIAB HG002, for 2.5 times the CPU time (895 against 358 core-hours; 8.4 against 6.5 hours of wall-clock time on a shared cluster).
+By default, minigraph construction and mapping are performed at the whole-genome level, then split by (reference) chromosome so that Cactus (and some subsequent processing) can be run one chromosome at a time.  The `cactus-pangenome --mgSplit` option runs construction and mapping independently at the chromosome level instead, letting each chromosome pick its own minigraph construction ordering, which can improve accuracy.  It costs extra computation, since construction and mapping run twice, and makes for a more involved workflow: on a CHM13 pangenome of 30 HPRC haplotypes, `--mgSplit` gave 15% fewer small-variant and 7% fewer structural-variant errors against GIAB HG002, for 2.5 times the CPU time.
 
-A graph built on its chromosome alone would lose some inter-chromosome context: a region homologous to several chromosomes (the acrocentric short arms, say) would have nothing to compete against in it, where the whole-genome pipeline would have filtered it out as ambiguous.  So `--mgSplit` builds each chromosome's second-pass minigraph against the whole primary reference genome, restoring that competition, and prunes the off-chromosome material back out before `cactus-align`, at the cost of indexing a whole reference per chromosome.  Setting `wholeGenomeRef="0"` in the `<graphmap_split>` section of the configuration XML builds each chromosome's graph on that chromosome's reference only instead.
+`--mgSplit` builds each chromosome's graph against the whole primary reference genome, so that a region homologous to several chromosomes (the acrocentric short arms, say) can be filtered out as ambiguous, as it is in the whole-genome pipeline, and prunes the off-chromosome material back out before `cactus-align`.  Setting `wholeGenomeRef="0"` in the `<graphmap_split>` section of the configuration XML builds each chromosome's graph on that chromosome's reference only instead.
 
 The step-by-step interface supports the `wholeGenomeRef="0"` form (the whole-reference one has no step-by-step equivalent), and on the small included example would look like
 
@@ -195,55 +191,31 @@ cactus-graphmap-join js --vg out-align/*.vg --hal out-align/*.hal --sv-gfa out-c
 
 ### Zipping Alleles onto the Reference (zipAlleles)
 
-minigraph stores an allele as novel sequence whenever it cannot align it to the graph at construction time, even when the allele is a copy of sequence the graph already has: an inversion of the reference, say, or a near-identical copy of an allele another haplotype already inserted.  Cactus cannot merge two separate minigraph nodes later, so such an allele stays a giant insertion, and an inversion never reaches the VCF.  So by default (`zipAlleles="1"` in the `<graphmap>` section of the configuration XML) Cactus runs `rgfa-zip` (from [cactus-gfa-tools](https://github.com/ComparativeGenomicsToolkit/cactus-gfa-tools)) on the graph after construction.  It works snarl by snarl: each allele is aligned with `minimap2`, on both strands, to the reference window it bypasses (and, if the alt-vs-alt pass is turned on, failing that to a parallel allele with the same bounding nodes), and where the homology is confident (by default at least 5 kb at 95% gap-compressed identity, in a unique placement and an unfragmented chain) the allele is replaced by the sequence it duplicates.  The edits are validated before they are kept: the reference is unchanged, and every haplotype walk the zip considered still exists and spells its allele, up to the differences under 50 bp that Cactus's base alignment recovers.
+minigraph stores an allele as novel sequence whenever it cannot align it to the graph at construction time, even when the allele is a copy of sequence the graph already has, such as an inversion of the reference.  Cactus cannot merge two separate minigraph nodes later, so such an allele stays a giant insertion, and an inversion never reaches the VCF.  So by default Cactus runs `rgfa-zip` (from [cactus-gfa-tools](https://github.com/ComparativeGenomicsToolkit/cactus-gfa-tools)) on the graph after construction: each allele is aligned with `minimap2`, on both strands, to the reference window it bypasses, and where the homology is confident (by default at least 5 kb at 95% gap-compressed identity, in a unique placement) the allele is replaced by the sequence it duplicates.
 
-Three `<graphmap>` attributes control it:
+The zipped graph replaces the constructed one in every later stage, and it is what `<outName>.sv.gfa.gz` holds.  Beside it go `<outName>.sv.unzipped.gfa.gz`, the graph as minigraph built it, and `<outName>.sv.zip.tsv`, `rgfa-zip`'s report, with one row per candidate and its outcome.  With `--mgSplit`, each chromosome's graph is zipped, and these files are in `chrom-minigraph/`, named after the chromosome (the unzipped graph there still holds the whole reference, which is pruned from the final one).  With the step-by-step interface, give `cactus-graphmap-join` the graphs as `--sv-gfa <dir>/*.sv.gfa.gz`: a looser `*.gfa.gz` also matches the unzipped graphs beside them.  If `rgfa-zip` fails, the run fails, with its inputs and log in `<outDir>/zip-failed/`.
 
-* `zipAlleles`: `1` (the default) to run it, `0` to keep the graph as minigraph built it.  A config without the attribute, such as one made from an older default, leaves it off.
-* `zipOptions`: passed to `rgfa-zip` as they are.  The default (also used when the attribute is missing), `-b 5000 -i 0.95 -G 50 -x asm20 --no-alt`, is `rgfa-zip`'s own defaults (the minimum chain length, the minimum gap-compressed identity, the indel length that splits an alignment, and the `minimap2` preset) plus `--no-alt`, which zips onto the reference only and skips the second, alt-vs-alt pass: on a CHM13 30-way pangenome that pass was a small but consistent loss (raw GT F1 against dipcall lower for 13 of its 14 samples).  Drop `--no-alt` to add the alt-vs-alt pass (v2 below).  Cactus adds the `minimap2` it ships (`-m`: `rgfa-zip` takes no `minimap2` from the `PATH`, because placements differ between versions), the job's cores (`-t` and `-j`: `--mgCores`, at most 16), the memory left once the graph is loaded (`--mem`) and the job's temporary directory (`--tmpdir`), unless they are set here.
-* `zipWalks`: where `rgfa-zip` gets the haplotype walks it aligns and checks its edits against.  `creator`, the default, rebuilds one walk per minigraph insertion from the graph alone.  `gaf` first maps every input genome to the unzipped graph exactly as `cactus-graphmap` does (the same `minigraph` options and scoring model) and gives `rgfa-zip` the walks observed there.  That recovers zips the graph alone cannot show to be safe, for the cost of an extra round of mapping.  The one difference: with `--mgSplit`, a chromosome that cannot train its own scoring model borrows one only after every chromosome is built, which is after its zip, so its walks are mapped with minigraph's default penalties.  These only change the base-level alignment, not the chaining that picks the walk.
+Three `<graphmap>` attributes in the configuration XML control it:
 
-The three versions that were compared are therefore:
+* `zipAlleles`: `1` (the default) to run it, `0` to keep the graph as minigraph built it.
+* `zipOptions`: options passed to `rgfa-zip`.  The default, `-b 5000 -i 0.95 -G 50 -x asm20 --no-alt`, is `rgfa-zip`'s own defaults (the minimum chain length, the minimum gap-compressed identity, the indel length that splits an alignment, and the `minimap2` preset) plus `--no-alt`, which zips onto the reference only.  Without `--no-alt`, a second pass zips alleles onto parallel alleles with the same bounding nodes.
+* `zipWalks`: where `rgfa-zip` gets the haplotype walks it aligns and checks its edits against.  `creator`, the default, rebuilds one walk per minigraph insertion from the graph alone.  `gaf` first maps every input genome to the unzipped graph as `cactus-graphmap` does, and gives `rgfa-zip` the walks observed there (kept as `<outName>.sv.unzipped.gaf.gz`).  That recovers zips the graph alone cannot show to be safe, for the cost of an extra round of mapping.
 
-| version | `zipOptions` | `zipWalks` |
-|---|---|---|
-| v1: onto the reference only (the default) | `-b 5000 -i 0.95 -G 50 -x asm20 --no-alt` | `creator` |
-| v2: then alt-vs-alt | `-b 5000 -i 0.95 -G 50 -x asm20` | `creator` |
-| v3: v2 with observed walks | `-b 5000 -i 0.95 -G 50 -x asm20` | `gaf` |
-
-The zipped graph replaces the constructed one: graphmap, the split, `cactus-align` and the join all see it, and it is what `<outName>.sv.gfa.gz` holds.  Beside it go `<outName>.sv.unzipped.gfa.gz`, the graph as minigraph built it; `<outName>.sv.zip.tsv`, `rgfa-zip`'s report, with one row per candidate and per skipped site and its outcome; and, with `zipWalks="gaf"`, `<outName>.sv.unzipped.gaf.gz`, the mappings it read its walks from.  Where it runs depends on how minigraph is run:
-
-* whole-genome (the default): on the whole-genome graph, with every genome mapped for `zipWalks="gaf"`.
-* `--mgSplit`: on each chromosome's graph, but not on the reference-only first pass, and the files above are in `chrom-minigraph/`, named after the chromosome.  The graph is zipped as it is built, when it still holds the whole reference.  The prune that cuts it back to the chromosome needs graphmap's mappings, and those are made to the zipped graph.  So `chrom-minigraph/<chrom>.sv.gfa.gz` is the zipped graph after the prune, while `<chrom>.sv.unzipped.gfa.gz` and `<chrom>.sv.unzipped.gaf.gz` are the whole-reference graph before it and the mappings to it: those of the chromosome's genomes, with the reference mapped as its chromosome slice, as graphmap maps it.
-* `--mgSplit` with `wholeGenomeRef="0"` in `<graphmap_split>`: on each chromosome's graph, which holds that chromosome and the genomes binned to it, and is published as it was zipped.
-
-With the step-by-step interface, give `cactus-graphmap-join` the graphs as `--sv-gfa <dir>/*.sv.gfa.gz`: a looser `*.gfa.gz` also matches the unzipped graphs beside them.
-
-Each zip ends with one line in the log, `rgfa-zip on <graph>: zipped N chain(s), M bp (...)`, with the bp it took out of the graph, split between the reference and any alt-vs-alt pass; the report has a row per chain but no such total.  A chain that `rgfa-zip` reverts because one of its validators refused it stays unzipped, and is logged as a warning.  Any other failure fails the run, after saving the inputs and `rgfa-zip`'s log to `<outDir>/zip-failed/` so that it can be reproduced.  `zipAlleles` cannot be used with `--inGAF` (without `--remap`) to add genomes to a graph, since the reused mappings would no longer resolve against the zipped extension, so set `zipAlleles="0"` for that.  Resuming from an `--inGFA` graph with nothing left to construct zips nothing and passes that graph on as it is, so it can reuse its mappings with the zip on.
+`zipAlleles` cannot be used with `--inGAF` (without `--remap`) to add genomes to a graph, since the reused mappings would no longer resolve against the zipped graph: set `zipAlleles="0"` for that (see [Starting From an Existing Graph or Mappings](#starting-from-an-existing-graph-or-mappings)).
 
 ### Overlapping Mappings (GAFOverlapFilterExact)
 
-`minigraph` can map two parts of a contig to the same place, or one part to two places.  Before the mappings are turned into the PAF `cactus-align` reads, `gaffilter` (from [cactus-gfa-tools](https://github.com/ComparativeGenomicsToolkit/cactus-gfa-tools)) settles every query overlap.  Its stock rule deletes a mapping, whole, when it does not beat each mapping overlapping it by `GAFOverlapFilterRatio` (5x, in MAPQ or else block length) and the overlap covers `GAFOverlapFilterMinLengthRatio` (a quarter) of it.  A long mapping that overlaps a paralog by a few tens of kb thus loses all of its length, and that sequence is left unaligned.
+`minigraph` can map two parts of a contig to the same place, or one part to two places.  Before the mappings are turned into the PAF `cactus-align` reads, `gaffilter` (from [cactus-gfa-tools](https://github.com/ComparativeGenomicsToolkit/cactus-gfa-tools)) settles every query overlap.  Its original rule deletes a mapping, whole, when it does not beat each mapping overlapping it by `GAFOverlapFilterRatio` (5x, in MAPQ or else block length) and the overlap covers `GAFOverlapFilterMinLengthRatio` (a quarter) of it.  A long mapping that overlaps a paralog by a few tens of kb thus loses all of its length, and that sequence is left unaligned.
 
 By default (`GAFOverlapFilterExact="1"` in `<graphmap>`) it does not delete whole mappings, but resolves each overlap exactly, per query segment (`gaffilter -x`):
 
-* Each query segment between mapping ends goes to the mapping that beats every other mapping claiming it, if there is one, so a mapping keeps everything it does not lose.  Identity is tried first: a mapping that aligns the segment at least 1% more identically than another (`GAFOverlapFilterExactWinIdent`) beats it, whatever their MAPQs and lengths.  A mapping the stock rule would delete only fills segments that no mapping the stock rule keeps claims, and only in pieces of at least 10 kb and 95% identity.  A segment nobody wins is left unaligned, as before.
-* Sequence the stock filters would not have anchored is held to more: at least 98% identity over its columns on reference nodes, and it may not place reference sequence the same haplotype already covers (one-to-one, judged in 10 kb chunks).
-* The structure it adds is tested.  Along each contig, the pieces form a colinear backbone and excursions off it.  An excursion that is new, or differs from the stock filter's own, is kept as it is when it is a two-sided rearrangement bounded by the backbone around it (an inversion in place, say).  Otherwise it keeps its sequence, but each junction it would make with the backbone is broken by a query gap of `GAFOverlapFilterExactGap` (31 kb: past the join's 10 kb clip threshold and `cactus-align`'s alignment band on both sides), so that it can only end up as an isolated fragment rather than a jump edge or a hollow snarl.  A two-sided excursion with at least that much unaligned query between its own pieces (a centromere, say) is broken the same way: the clip would remove that stretch and leave two halves, each joined to the backbone on one side only.
+* Each query segment between mapping ends goes to the mapping that beats every other mapping claiming it, if there is one, so a mapping keeps everything it does not lose.  Identity is tried first: a mapping that aligns the segment at least 1% more identically than another (`GAFOverlapFilterExactWinIdent`) beats it, whatever their MAPQs and lengths.  A segment nobody wins is left unaligned, as before.
+* Sequence the original rule would not have anchored is held to more: at least 98% identity to the reference, and it may not place reference sequence the same haplotype already covers.
+* The structure it adds is tested.  Along each contig, the pieces form a colinear backbone and excursions off it.  A new excursion is kept as it is when it is a two-sided rearrangement bounded by the backbone around it (an inversion in place, say).  Otherwise it keeps its sequence, but each junction it would make with the backbone is broken by a query gap of `GAFOverlapFilterExactGap` (31 kb), so that it can only end up as an isolated fragment rather than a jump edge or a giant snarl.
 
-A mapping that is cut reaches the PAF whole, with the query intervals it keeps in a `kq:Z:` tag that `gaf2paf` applies line by line.  Every PAF line therefore keeps its mapping's own block length, which `minGAFBlockLength` is judged on (a piece's own length would fail most of what the cut kept).  The other filters (`filter_paf` and `PAFOverlapFilterRatio`, `delFilter`) are unchanged and still run after it.  On the CHM13 30-way chr16 pilot this anchored 15.3 Mb more than the stock filter, while the broken junctions cost 0.1 Mb of sequence the stock filter anchors, so that 15 Mb less was clipped from the graph.  Real inversions stay represented, and dipcall (without normalization) found 8.7k fewer errors over the 14 samples scored, with none of them worse.
+`<outName>.paf.junctions.tsv` beside the PAF (with `--mgSplit`, `chrom-graphmap/<chrom>.paf.junctions.tsv` per chromosome) lists, for review, every junction between two pieces placed apart on the reference, what the filter did with it, and how many haplotypes share it (`recurrence`).
 
-`<outName>.paf.junctions.tsv` beside the PAF (with `--mgSplit`, `chrom-graphmap/<chrom>.paf.junctions.tsv` per chromosome) lists, for review, every junction between two pieces placed apart on the reference (a forward jump or back step of at least 50 kb, an inversion or a join across chromosomes), whether each side is new, what the filter did with it, and its `recurrence`: how many haplotypes have a junction of the same kind with both reference ends within 10 kb (1 means it is a singleton).  Each mapping job also logs a summary line per genome (`gaffilter ...: -x: ...`).
-
-The other attributes:
-
-* `GAFOverlapFilterExactRatio`: the dominance ratio of the exact filter.  Empty (the default) means `GAFOverlapFilterRatio`.  A lower ratio decides more contests and leaves fewer holes, but can hand a span to the wrong copy of a segmental duplication.
-* `GAFOverlapFilterExactGuard`: with a lower `GAFOverlapFilterExactRatio`, cancels a win the lower ratio decides (where `GAFOverlapFilterRatio` would tie) over any run of at least 20 kb where the losing mapping is at least 1% more identical, so that the span becomes a hole instead.  It has no effect when the two ratios are equal.
-* `GAFOverlapFilterExactGap`: the junction-breaking gap above.
-* `GAFOverlapFilterExactWinIdent`: the identity margin above (`gaffilter -x --win-ident`, 0.01 by default), for segments of at least 1 kb.  Without it, a long mapping that runs into a paralogous copy takes it, on length alone, from the mapping that places it on the right copy.  At an inversion flanked by inverted repeats on chr11 of a CHM13 30-way, the forward mapping took each repeat from the inverted one and aligned it to the other copy, at 97.9% identity instead of 99.7%, which put about 800 false mismatches into every carrier.  Over the whole 30-way, the margin gave 1.07% fewer dipcall errors over the 14 samples scored (13 better; NA18879 0.3k worse, mostly near the chr7 centromere), 0.6% fewer GIAB HG002 small-variant errors and 0.4% fewer SV errors, and 40 Mb less clipping.  `0`, or a config without the attribute, turns it off.
-* `GAFOverlapFilterExactOptions`: further `gaffilter -x` options, passed as they are (`gaffilter` lists them).
-
-`GAFOverlapFilterExact="0"` gives the stock rule, whole-mapping deletion, as does a config without the attribute (one made from an older default).  The exact filter does nothing when `GAFOverlapFilterRatio` is 0 (no overlap filter at all), and, like the other overlap filters, is off in `--mgSplit`'s reference-only splitting pass.  It needs a cactus-gfa-tools with `gaffilter -x` (and its `--win-ident`, while `GAFOverlapFilterExactWinIdent` is on), which is checked when the workflow starts.  It replaces `GAFOverlapFilterTrim` (`gaffilter -t`), which has been removed: a config that still sets `GAFOverlapFilterTrim="1"` is an error, and `GAFOverlapFilterTrimMinMAPQ` and `GAFOverlapFilterTrimEdge` are ignored.
+`GAFOverlapFilterExact="0"` gives the original rule, whole-mapping deletion, and `GAFOverlapFilterExactWinIdent="0"` turns the identity test off.  The other `GAFOverlapFilterExact*` attributes are described in the [config](../src/cactus/cactus_progressive_config.xml).
 
 ### Subtelomeres and Telomeres (ggs-ends, telomereAnchors)
 
@@ -271,7 +243,7 @@ The Minigraph-Cactus pipeline is run via the `cactus-pangenome` command. It cons
 * `--consMemory` the amount of memory for each `cactus-consolidated` job. By default, it is estimated from the data. When running on [SLURM](./progressive.md#running-on-a-cluster), Cactus now automatically clamps this (and every other) memory request down to the largest available node, so an over-large estimate will no longer leave the job unschedulable. You can still set `--consMemory` explicitly if an estimate comes out *too low*, though a job that runs out of memory is already retried with double the memory by default (this seems to be more of an issue for non-human data).
 * `--indexCores` the number of cores for each `vg` indexing job (default: all available - 1)
 * `--indexMemory` Like `--consMemory` above, you may want to set this when running on a cluster.
-* `--consRetainPages`: Whether `cactus-consolidated` keeps the memory pages it frees rather than returning them to the system (`auto`, `1` or `0`). Keeping them is much faster but takes 2-3x the peak memory. The default, `auto`, keeps them when twice the memory estimate, plus one further estimate of headroom, fits what the job can be given (the system memory on a single machine, or `--maxMemory`), and then requests twice the estimate; otherwise the pages are returned and the request is the estimate itself. Where that ceiling is not known, the pages are returned. Corresponds to `<consolidated retain_pages>` in the configuration.
+* `--consRetainPages`: Whether `cactus-consolidated` keeps the memory pages it frees rather than returning them to the system (`auto`, `1` or `0`). Keeping them is much faster but takes 2-3x the peak memory. The default, `auto`, keeps them when the job can be given enough memory for it (see [Running on a cluster](./progressive.md#running-on-a-cluster)).
 * The various output options: `--gbz`, `--gfa`, `--giraffe`, `--vcf`, `--odgi`, etc. which are explained in detail below. If you forget to add one of these and are missing the corresponding output, you will need to rerun `cactus-graphmap-join` (or use `vg` to manually make the file yourself).
 
 **PLEASE NOTE** While many Minigraph-Cactus parameters' default values were tuned on high-quality human assemblies from the HPRC where ample benchmarking data was available, we believe they will be suitable for other datasets and species, so long as the contigs can be mapped with [minigraph](https://github.com/lh3/minigraph). By default, [small contigs are filtered out](https://github.com/ComparativeGenomicsToolkit/cactus/blob/v2.4.4/src/cactus/cactus_progressive_config.xml#L319-L335) during chromosome assignment using more stringent thresholds. This might lead to a surprisingly low sensitivity on small, fragmented, diverse assemblies or difficult-to-assemble regions. Users wishing to *keep* these contigs in their graph can use the following option:
@@ -298,7 +270,7 @@ Then the pipeline will automatically determine, using the names and sizes (see t
 
 The individual parts of the pipeline can be run independently using the following commands.  See also the "step-by-step" yeast example below. 
 
-1) `cactus-minigraph <jobStore> <seqFile> <outputGFA> --reference`: Construct a minigraph in GFA format (may be gzipped) from a set of FASTA files (may also be gzipped).  This is a very thin wrapper over `minigraph -cxggs`.  The reference is added first and the remainder of samples are added in decreasing order of decreasing mash distance to the reference (see the `minigraphSortInput` parameter in the XML config to change or disable this).  Use the `--mapCores` option to specify the number of cores.
+1) `cactus-minigraph <jobStore> <seqFile> <outputGFA> --reference`: Construct a minigraph in GFA format (may be gzipped) from a set of FASTA files (may also be gzipped).  This is a very thin wrapper over `minigraph -cxggs`.  The reference is added first and the remainder of samples are added in decreasing order of decreasing mash distance to the reference (see the `minigraphSortInput` parameter in the XML config to change or disable this).  Use the `--mgCores` option to specify the number of cores.
 
 2) `cactus-graphmap <jobStore> <seqFile> <inputGFA> <outputPAF> --reference`: Map each input assembly back to the graph using `minigraph`.  The number of cores for each mapping job can be set with `--mapCores`.  
 
@@ -314,7 +286,7 @@ The individual parts of the pipeline can be run independently using the followin
 
 * `yeast.sv.gfa.gz`: This graph is output by `minigraph`, then zipped by `rgfa-zip` unless `zipAlleles="0"` (see [above](#zipping-alleles-onto-the-reference-zipalleles); the graph as `minigraph` built it is beside it as `yeast.sv.unzipped.gfa.gz`).  It contains SVs only, and doesn't have embedded paths for the input sequences.
 * `yeast.full.gfa.gz`: This is the `full` minigraph-cactus graph. It is normalized, but no sequence is removed. A few edges are cut at the ends of the (first) reference's paths so that each ends in a tip, as `--haplo full` needs, which splits the haplotypes that crossed them (toggled by `fullStubbify` in `<graphmap_join>`). It and its indexes will have `.full` in their filenames. 
-* `yeast.gfa.gz`. This is the default or `clip` graph. Stretches of sequence `>10kb` that were not aligned to the underlying SV/minigraph are removed. "Dangling" nodes (ie that don't have an edge on each side) that aren't on the reference path are also removed, so that each chromosome only has two tips in the graph.
+* `yeast.gfa.gz`. This is the default or `clip` graph. Stretches of sequence `>10kb` that were not aligned to the underlying SV/minigraph are removed, along with up to 50kb of the tangled fringe around each (`--clipFlank`), as are edges that span more than 10Mb of the reference (`--delEdgeFilter`). "Dangling" nodes (ie that don't have an edge on each side) that aren't on the reference path are also removed, so that each chromosome only has two tips in the graph.
 * `yeast.d2.gfa.gz`: This `filter` graph is made by removing nodes covered by fewer than 2 haplotypes (this value can be changed using the `--filter` option) from the `clip` graph. **Note** in newer versions of vg, you can usually get away without allele frequency filtering by way of haplotype sampling (using the `--haplo` option (without `--giraffe`)) to make an index for this). 
 
 The `clip` graph is a subgraph of the `full` graph and the `filter` graph is a subgraph of the `clip` graph. Put another way, any node in the `filter` graph exists with the exact same ID and sequence in the `clip` graph, etc. 
@@ -349,41 +321,26 @@ Note: per-chromosome output options (`--chrom-vg`, `--chrom-og`, `--viz`, `--dra
 
 ### Starting From an Existing Graph or Mappings
 
-`cactus-pangenome --inGFA` starts the pipeline from a minigraph GFA you already have instead of
-building one, and `--inGAF` does the same for that graph's mappings. What it does with them depends
-only on how the seqfile's genomes compare to the graph's:
+`cactus-pangenome --inGFA` starts the pipeline from a minigraph GFA you already have (the `<outName>.sv.gfa.gz` of a previous run) instead of building one, and `--inGAF` reuses that run's mappings (its `<outName>.gaf.gz`).  What happens depends on how the seqfile's genomes compare to the graph's:
 
 | seqfile vs. graph | what happens |
 |---|---|
-| names genomes the graph lacks | those are constructed into it; everything already there is left alone |
-| names exactly the graph's genomes | nothing is constructed — the run resumes from the graph |
+| names genomes the graph lacks | those are added to the graph; everything already there is left alone |
+| names exactly the graph's genomes | nothing is constructed: the run resumes from the graph |
 | omits a genome the graph has | error: genomes cannot be removed from a minigraph |
 
-So the same two options cover adding genomes to a finished pangenome and re-running the back half of
-the pipeline on one, without having to drive `cactus-graphmap-split`, `cactus-align --batch` and
-`cactus-graphmap-join` by hand.
+So the same two options cover adding genomes to a finished pangenome and re-running the later stages of the pipeline on one.  Either way, the seqfile needs every genome's FASTA, since `cactus-align` reads them, and everything after the minigraph stages is recomputed in full.
 
-Adding genomes while reusing mappings with `--inGAF` needs `zipAlleles="0"` in the `<graphmap>`
-section of the configuration XML (see [Zipping Alleles onto the Reference](#zipping-alleles-onto-the-reference-zipalleles)):
-the zip, on by default, rewrites the nodes of the extended graph that the reused mappings are
-anchored to.  The examples below that add genomes with `--inGAF`, including the step-by-step pair
-(give both commands the config), assume a `--configFile` that sets it.  Resuming needs no such
-change: nothing is constructed, so nothing is zipped.
-
-**Adding genomes.** `seqfile.txt` lists every genome, the ones already in the graph as well as the
-new ones:
+**Adding genomes.** `seqfile.txt` lists every genome, the ones already in the graph as well as the new ones:
 
 ```
 cactus-pangenome ./js ./seqfile.txt --reference GRCh38 --outDir pg2 --outName pg \
-  --inGFA pg1/pg.sv.gfa.gz --inGAF pg1/pg.gaf.gz
+  --inGFA pg1/pg.sv.gfa.gz --inGAF pg1/pg.gaf.gz --configFile config.xml
 ```
 
-This matters because `minigraph` construction is iterative in the input genomes and dominates the
-wall time of a large run — weeks, for an HPRC-scale release. Adding 50 genomes to a graph of 450
-costs 50 genomes' worth of construction, not 500.
+`minigraph` construction is iterative in the input genomes and dominates the run time of a large pangenome, so adding 50 genomes to a graph of 450 costs 50 genomes' worth of construction, not 500.  Reusing the mappings with `--inGAF` while adding genomes needs a config that sets `zipAlleles="0"` in `<graphmap>`, as `config.xml` does above (see [Zipping Alleles onto the Reference](#zipping-alleles-onto-the-reference-zipalleles)).  Without `--inGAF`, or with `--remap`, every genome is mapped again and the default config can be used.
 
-**Resuming.** Give the same command a seqfile whose genomes the graph already holds, and there is
-nothing to construct and nothing to map:
+**Resuming.** Give the same command a seqfile whose genomes the graph already holds, and there is nothing to construct (or to zip: the graph is used as it is):
 
 ```
 # resume at cactus-graphmap: re-map everything against the graph, then split, align, join
@@ -395,10 +352,7 @@ cactus-pangenome ./js ./seqfile.txt --reference GRCh38 --outDir pg2 --outName pg
   --inGFA pg1/pg.sv.gfa.gz --inGAF pg1/pg.gaf.gz
 ```
 
-The seqfile still needs every genome's FASTA either way, since `cactus-align` reads them.
-
-The step-by-step interface has the same two options, and they interoperate with the one-shot one in
-both directions:
+The step-by-step interface has the same two options (when adding genomes with `--inGAF`, give both commands the `zipAlleles="0"` config):
 
 ```
 cactus-minigraph ./js ./seqfile.txt pg2/pg.sv.gfa.gz --reference GRCh38 \
@@ -407,114 +361,13 @@ cactus-graphmap  ./js ./seqfile.txt pg2/pg.sv.gfa.gz pg2/pg.paf --reference GRCh
   --outputFasta pg2/pg.sv.gfa.fa.gz --inGAF pg1/pg.gaf.gz
 ```
 
-Everything after these two stages — `cactus-graphmap-split`, `cactus-align`, and especially
-`cactus-graphmap-join`'s `vg` indexing — is recomputed in full, and the output is an ordinary
-pangenome that can itself be used as an `--inGFA`/`--inGAF` input again.
+Things to know:
 
-#### What `--inGAF` does
-
-`cactus-graphmap` runs `minigraph` without `--vc`, so the GAF it publishes as `<outName>.gaf.gz` is
-in *stable* coordinates: rGFA `SN`/`SO` sequence names and offsets. Adding genomes to a graph never
-moves those. New nodes are appended and existing ones are only ever split, so the stable sequence a
-node covers stays exactly where it was.
-
-That means an existing genome's mappings do not have to be recomputed against the extended graph —
-they can be re-derived from the published GAF by the same `gaf2unstable` / `gaf2paf` conversion that
-produced the PAF in the first place, which resolves the stable coordinates into the new, finer node
-ids for free. `--inGAF` is the option that does this, and it turns the mapping stage from hours
-of `minigraph` into minutes of file conversion.
-
-`--inGAF` is optional. Without it — extending a published release for which only the GFA is
-available, say — every genome is mapped again, which is the fallback and costs a full mapping stage.
-
-**The GFA and the GAF must come from the same graphmap run.** They describe the same node
-boundaries, and reusing mappings against a graph that has different ones fails.
-
-With `--mgSplit` that means the `.refonly.` files, not the plain ones. Such a run has two
-construction passes: a whole-genome one that `cactus-minigraph --refOnly` builds from the
-references alone, and the per-chromosome one whose graphs `cactus-graphmap-join` merges into
-`<outName>.sv.gfa.gz` at the end of the run. The first pass therefore publishes its graph, mappings
-and node fasta under a `<outName>.refonly.` prefix — `refonly.sv.gfa.gz`, `refonly.gaf.gz`,
-`refonly.paf`, `refonly.sv.gfa.fa.gz` — so that they are not mistaken for, or overwritten by, the
-merged graph they do not describe. `<outName>.refonly.sv.gfa.gz` and `<outName>.refonly.gaf.gz` are
-a genuine pair and can be extended together; the merged `<outName>.sv.gfa.gz` has no GAF to go with
-it, so extend it with `--inGFA` alone. That still keeps the saving that matters, since
-construction is the expensive half.
-
-A sample of the reused mappings is resolved against the graph before anything else runs, so a
-mismatched pair fails in one job with a diagnosis rather than in every per-genome job after the
-fan-out. The tell is a GAF whose paths only ever walk through the reference genomes, however many
-samples the graph holds.
-
-#### Why an extended pangenome is not identical to one built all at once
-
-This section is about *adding* genomes. Resuming from a graph that needs nothing constructed does
-not enter into it: the graph is handed back unchanged, and with `--remap` (or without `--inGAF`)
-the mappings are made against it exactly as a from-scratch run would make them.
-
-For adding, there are exactly two sources of difference, and it is worth being precise about which
-is which.
-
-**1. Construction order.** `minigraph` construction is iterative in the input genomes, so the order
-they go in decides the graph. Building `A B C D` in one go sorts all four by mash distance to the
-reference; building `A C` and then extending with `B D` gives the effective order `A C B D`,
-because the genomes already in the graph cannot be reordered around the ones being added. There is
-no way around this, and it is why an extended graph is not the graph you would have got from
-scratch.
-
-It is the *only* construction-side difference, though: with the order pinned
-(`minigraphSortInput="none"` in the config), extending and building in one go produce a **byte
-identical** graph. That equivalence is what `make pangenome_extend_construction_test_local` checks,
-on `A B` + `C D` versus `A B C D`.
-
-**2. Reused mappings.** The genomes being *added* are mapped against the whole extended graph, so
-they are mapped exactly as a from-scratch run would map them. The genomes already in the graph are
-not: their alignments are the ones they had against the graph before it, re-expressed, so they
-never see nodes contributed by the newly added genomes.
-
-This is largely self-limiting — a node is only in the graph because some genome carries that
-allele, and an existing genome carrying it would have contributed it when the graph was first built
-— but it is not nothing, and where it bites is near-identical alleles, where an existing genome
-might now prefer a new genome's node. Measured against a from-scratch mapping on the very same
-graph:
-
-| | agreement |
-|---|---|
-| evolver primates, 2 extended by 2 | all 1183 alignments at identical coordinates; 5 CIGARs differ by a 2bp indel shift |
-| yeast, 3 strains extended by 3 | 97.8% of alignments at identical coordinates; the reused genomes' aligned bases differ by at most 0.09% |
-
-In both, the genomes that were *added* come out identical to a from-scratch mapping, because they
-are mapped against the whole extended graph. All the divergence is in the reused ones.
-
-`--remap` removes this second difference entirely: every genome is mapped against the extended
-graph, which reproduces a from-scratch mapping byte for byte, leaving construction order as the
-only thing that differs. It costs the full mapping stage — which, unlike construction, is
-embarrassingly parallel.
-
-#### Other caveats
-
-* The graph must have been built with a compatible configuration (`minigraphConstructOptions`, the
-  `<graphmap>` `assemblyName`) and with the same `--reference`.
-* `--mgSplit` and `--collapse` are not supported with `--inGFA`. `--mgSplit` has per-chromosome
-  graphs and mappings that would need extending as well; `--collapse` self-alignments come from
-  `minimap2` rather than from the GAF, so there is nothing in the GAF to reuse.
-* `zipAlleles` cannot be used with `--inGAF` to add genomes unless `--remap` is given: it rewrites
-  the extended graph after construction, so the reused mappings would no longer resolve against it.
-  It is on by default, so set `zipAlleles="0"` to add genomes while reusing mappings.
-  `cactus-pangenome` checks this once it has read the graph, before constructing anything, but
-  standalone `cactus-graphmap --inGAF` cannot tell whether its graph was zipped, so the
-  `cactus-minigraph --inGFA` run that extended it needs `zipAlleles="0"` too.  Resuming, with
-  nothing to add, is not affected.
-* Standalone `cactus-graphmap --inGAF` still imports and sanitizes every genome's FASTA even
-  though the reused ones are not mapped. On the `cactus-pangenome` path that work is not wasted —
-  `cactus-align` needs those FASTAs anyway.
-* A reused GAF needs one adjustment beyond re-running the conversion, handled by
-  `trim_unstable_gaf` in `cactus_graphmap.py`: `gaf2paf` reads a record's path start as an offset
-  into its *first* step, and splitting a node makes the steps finer while leaving the offset where
-  it was, so the offset can end up past the first of the nodes that replaced it. The steps it
-  reaches past hold none of the alignment, so they are taken off the front and back. This belongs
-  in `gaf2unstable`, which is the thing changing the granularity; it is done in cactus so that
-  reusing mappings does not wait on a `cactus-gfa-tools` release.
+* **The GFA and the GAF must come from the same run**: a mismatched pair fails when mapping starts, after any construction.  A pangenome made with `--mgSplit` has no such pair: its `<outName>.refonly.*` files are only its reference-only first pass, and its merged `<outName>.sv.gfa.gz` has no GAF to go with it, so extend that with `--inGFA` alone.
+* `--inGAF` is optional: without it, every genome is mapped again.  Reusing mappings is much faster, because minigraph's GAF is in stable coordinates, which adding genomes to a graph does not change, so the mappings only need to be converted again.  Do not reuse a GAF made by Cactus v3.3.0 or older: some of its CIGARs are reversed.
+* An extended pangenome is not identical to one built all at once.  The new genomes are added to the graph after the existing ones, rather than in the order a single run would have sorted them all into.  And the existing genomes' reused mappings never see the nodes that the new genomes add: `--remap` maps every genome again to avoid that.
+* The graph must have been built with a compatible configuration (`minigraphConstructOptions`, the `<graphmap>` `assemblyName`) and with the same `--reference`.
+* `--mgSplit` and `--collapse` are not supported with `--inGFA`.
 
 ### VCF Output
 
@@ -566,7 +419,7 @@ cactus-pangenome ./js ./seqfile.txt --outDir pg --outName pg --reference GRCh38 
 | `<outName>.gref.gref-segs.tsv.gz` | Where every synthetic fragment came from (see below). |
 | `<outName>.gref.hapl` | Haplotype sampling index for `gref.gbz`, when the `--gref` source graph is one of the `--haplo` types. |
 
-The gref graph adds paths only, no nodes or edges, so it is topologically identical to the base graph. Use the base graph's `<outName>.snarls` and `.dist` with `gref.gbz`; `.gref.snarls` is not produced. The `.hapl` is the exception, because it refers to haplotypes by their numbering in the GBZ and the gref paths change that numbering. `vg haplotypes` rejects the base `<outName>.hapl` on `gref.gbz`, so use `<outName>.gref.hapl`. Its distance index is rooted on the reference sample. That is the same as rooting on the base `gref_<reference>` paths, which end on the same nodes, while leaving out the `_alt` fragments.
+The gref graph adds paths only, no nodes or edges, so it is topologically identical to the base graph. Use the base graph's `<outName>.snarls` and `.dist` with `gref.gbz`; `.gref.snarls` is not produced. The `.hapl` is the exception, because it refers to haplotypes by their numbering in the GBZ and the gref paths change that numbering: use `<outName>.gref.hapl` with `gref.gbz`.
 
 The segment table maps a gref coordinate back onto an assembly one. Tab-separated, one row per fragment, with a header naming the columns; the first six are a valid BED6.
 
@@ -587,9 +440,9 @@ Do not pool reference-contig and gref-contig records when computing allele frequ
 
 ### Realigning Tandem Repeats (`--pgrealign`)
 
-**Experimental.** [pgrealign](https://github.com/benedictpaten/pgrealign) realigns chosen regions of a graph, by default its tandem repeats. For each region, between two snarl boundary nodes of the reference, it aligns the alleles that the paths spell there to one another (a star alignment around the reference's allele, with abPOA, so that each allele's alignment to the reference is its optimal one; or, where the reference does not span the region, around the allele closest to the others) and replaces the region's nodes with a graph built from that alignment. Every path spells the same sequence afterwards: only how the paths share nodes inside the realigned regions changes.
+**Experimental.** [pgrealign](https://github.com/benedictpaten/pgrealign) realigns chosen regions of a graph, by default its tandem repeats. For each region, between two snarl boundary nodes of the reference, it aligns the alleles that the paths spell there to one another and replaces the region's nodes with a graph built from that alignment. Every path spells the same sequence afterwards: only how the paths share nodes inside the realigned regions changes.
 
-`--pgrealign` runs it on each chromosome graph that `cactus-align` wrote, before the join's full phase normalizes it (GFAffix, path normalization), so the full, clip and filter graphs, and everything built from them, carry the realignment. pgrealign works on the GFA that the GFAffix step reads, so it adds no conversion of its own to the full phase.
+`--pgrealign` runs it on each chromosome graph that `cactus-align` wrote, before the join's full phase normalizes it, so the full, clip and filter graphs, and everything built from them, carry the realignment.
 
 ```
 cactus-pangenome ./js ./seqfile.txt --outDir pg --outName pg --reference CHM13 --vcf --giraffe --pgrealign
@@ -597,15 +450,15 @@ cactus-pangenome ./js ./seqfile.txt --outDir pg --outName pg --reference CHM13 -
 
 The regions come from targets on the first `--reference`:
 
-* `--pgrealign` alone finds each chromosome's tandem repeats on its reference path, with `pgrealign catalog`: pgrealign's trfind for repeats with periods of 7 bp or more, and for the shorter ones strf, pgrealign's reimplementation of the part of TRF (Tandem Repeats Finder) that RepeatMasker 4.1 uses to find its Simple_repeat records. That is how pgrealign's own CHM13 catalogue was built, from RepeatMasker's annotation in place of strf: on CHM13 chr20, this finds 98% of that catalogue's entries and writes 1.9 times as many, as RepeatMasker also filters TRF's repeats in ways `catalog` does not.
+* `--pgrealign` alone finds each chromosome's tandem repeats on its reference path, with `pgrealign catalog`.
 * `--pgrealign <BED>` takes the targets from a BED instead. Its contigs are named as the contig field of the reference's path names (`chr1` for `CHM13#0#chr1`), as in pgrealign's CHM13 v2.0 catalogue, [catalogs/chm13v2.0_tr.bed.gz](https://github.com/benedictpaten/pgrealign/tree/main/catalogs).
 
 It writes two kinds of report to `<outName>.stats/`:
 
 | File | Contents |
 | --- | --- |
-| `pgrealign-stats.tsv` | One row per chromosome: the targets, the regions of each status that pgrealign's `regions` and `extract` stages gave, the regions it realigned and those it did not (too large for realign's limits, or with an allele unrelated to the others), the nodes it replaced, and the graph's length before and after. |
-| `pgrealign.<chrom>.tar.gz` | pgrealign's own outputs for the chromosome: the catalogue, `regions.tsv.gz`, the extracted alleles (`extract/packages.jsonl.gz`), the alignments (`msas.jsonl.gz`), each with its manifest, and a `summary.json` of every stage. With `pgrealignQC="1"`, also `qc.tsv`, how well each alignment agrees with optimal pairwise alignments, beside the original graph's. |
+| `pgrealign-stats.tsv` | One row per chromosome: the targets, the regions it realigned and those it did not, the nodes it replaced, and the graph's length before and after. |
+| `pgrealign.<chrom>.tar.gz` | pgrealign's own outputs for the chromosome, with a `summary.json` of every stage. |
 
 These `<graphmap_join>` config attributes pass options to the pgrealign stages:
 
@@ -614,16 +467,16 @@ These `<graphmap_join>` config attributes pass options to the pgrealign stages:
 | `pgrealignCatalogOptions` | `--strf strf` | Options to `pgrealign catalog`, when no BED is given. `--trf <binary>` in place of `--strf strf` runs a TRF binary instead. |
 | `pgrealignRegionsOptions` | | Options to `pgrealign regions`, such as `--pad` and `--max-span`. |
 | `pgrealignExtractOptions` | | Options to `pgrealign extract`, such as `--max-internal-bp`. |
-| `pgrealignRealignOptions` | | Options to `pgrealign realign`, such as `--max-cells`, `--max-work`, `--min-share`, `--centre` and `--max-excess`. Its limits are sizes of the alignment, as a window and a band are for cactus's own alignments, never sizes of the machine: `--max-cells` (450 million) is the largest alignment run unbanded, and 7 times as many cells the largest alignment of any kind; `--max-work` (2 × 10^11) bounds the cells of a region's alignments in all. A region too big for them is left as it is (`too_big`), and realign has no time limit, so the realigned graph depends only on the input and the config: on any machine or batch system, and with any memory, the same regions are realigned the same way. The memory and time realign needs follow from them. Its `-j` and `--max-memory` come from the job's cores (`--indexCores`) and memory, and a job with too little memory for the largest region `realign --plan` admits starts again with enough: for human graphs, jobs of up to 140 GiB. A run that cannot have that stops, naming the region and the options, rather than realign less; a smaller `--max-cells` needs less, and changes the result. Each chromosome's skipped regions are counted in a warning. |
-| `pgrealignVerify` | `1` | Check that every path of the realigned graph spells what it did before, failing the job if not. It compares the full phase's graph, once GFAffix has run and it is back in vg's format, with the graph `cactus-align` wrote. |
-| `pgrealignQC` | `0` | Run `pgrealign qc` on each chromosome. It can take longer than the realignment. |
+| `pgrealignRealignOptions` | | Options to `pgrealign realign`, such as `--max-cells`, `--max-work`, `--min-share`, `--centre` and `--max-excess`. |
+| `pgrealignVerify` | `1` | Check that every path of the realigned graph spells what it did before, failing the job if not. |
+| `pgrealignQC` | `0` | Run `pgrealign qc` on each chromosome, adding a `qc.tsv` to its outputs. It can take longer than the realignment. |
 
 Things to know:
 
 * Only a reference contig that has one whole path in a chromosome graph is realigned. A graph without one, such as an unplaced bin, passes through unchanged.
-* A region is left as it is when one of its alleles is unrelated to the others or reversed against them, as at an inversion or a non-homologous structural variant: pgrealign's `not_homologous` (an allele sharing less than `--min-share`, 0.5, of its 15-mers with the region's central allele, usually the reference's) and `complex` (an inversion) statuses. Aligned forward, such an allele would be threaded through the others by chance matches, each a variant of its own. On the HPRC CHM13 graph this is 0.25% of the realigned regions, at loci such as chrX's MAGEA and MAGED4B.
-* Clipping can come out slightly differently, as it judges sequence aligned by the nodes it shares with the minigraph paths, which realignment changes. On the yeast test data, each genome's clipped sequence moved by at most 0.2% of its input, in both directions.
-* pgrealign runs the `pgrealign`, `abpoa`, `trfind` and `strf` commands. Cactus's `make` builds the last three from its submodules, and `pip install` installs pgrealign from its own, as do the Docker image and the binary release.
+* A region is left as it is when it is too big for realign's limits (`--max-cells` and `--max-work`), or when one of its alleles is unrelated to the others or reversed against them, as at an inversion or a non-homologous structural variant. Each chromosome's skipped regions are counted in a warning.
+* realign's limits are sizes of the alignment, not of the machine, so the same regions are realigned the same way whatever the machine and its memory. A job with too little memory for its largest region starts again with enough (up to 140 GiB for human graphs), and the run stops if it cannot get it.
+* Clipping can come out slightly differently, as it judges sequence aligned by the nodes it shares with the minigraph paths, which realignment changes.
 * It cannot be combined with the `--vgFull`/`--vgClip`/`--vgFilter` bypass options, and it has not been tried with `--collapse`.
 
 ### Haplotype Sampling Instead of Filtering (NEW)
@@ -654,6 +507,7 @@ Further reading:
 * `stats/`: Tables describing the graph and a complete accounting of input sequence that did *not* make it in. See [Statistics and Clipping Reports](#statistics-and-clipping-reports).
 * `og`: [odgi](https://github.com/pangenome/odgi)'s native format, can be read and written by `odgi`. Very useful for [visualization](#visualization).
 * `snarl-stats.tsv.gz`: Table with one row per snarl (bubble) in the graph, sorted in decreasing order of the distance they span on the (first) reference sample.  See the table header for a description of each column, and note that snarls can be nested in eachother.  This table is produced with the `--snarlStats` option.  
+
 #### Validating the Output
 
 `--validate` checks each chromosome alignment against the sequence that went into it -- see [Validating the Output](./progressive.md#validating-the-output).  `cactus-validate` recognises a pangenome from the HAL itself, so it needs no extra options, but checking the merged `<outName>.full.hal` against your original seqfile needs `--allowMissing`: contigs that were not binned to a reference chromosome are left out of the alignment, and `_MINIGRAPH_` is removed from the merged HAL.
@@ -790,7 +644,7 @@ If you want to revert to the previous logic of only the `vg giraffe`-specific fi
 
 ## Patching Assemblies (cactus-panpatch)
 
-[panpatch](https://github.com/glennhickey/panpatch) uses a pangenome graph to patch an assembly into telomere-to-telomere chromosomes — filling N-gaps, scaffolding contigs, and (with `--requireTelomeres`) completing telomeres. `cactus-panpatch` is a Toil workflow that builds the required graphs and runs `panpatch` all in a single script and, with the `--batch` option, can process many samples at once.
+[panpatch](https://github.com/glennhickey/panpatch) uses a pangenome graph to patch an assembly into telomere-to-telomere chromosomes — filling N-gaps, scaffolding contigs, and completing telomeres (with `--requireTelomeres`, a contig that cannot be given a telomere at both ends reverts to its input). `cactus-panpatch` is a Toil workflow that builds the required graphs and runs `panpatch` all in a single script and, with the `--batch` option, can process many samples at once.
 
 `cactus-panpatch` takes a seqfile listing assemblies of the same sample.  The target (to be patched) assembly comes first, with donor assemblies following in priority order.  For example:
 
@@ -845,7 +699,7 @@ BED contig names are the assembly's own fasta-header first token, with coordinat
 
 Because a masked target error looks like a gap, the per-patch report distinguishes the two with a `gap_origin` column: `bed-gap` for a fill over an error interval, `N-gap` for a genuine pre-existing `N` gap (`.` for non-gap patches). This column is always present in the report — without `--assemblyErrorBeds` every gap-fill is simply an `N-gap`. The reference is never masked.
 
-One thing to watch out for: **error intervals at contig tips interact with telomere patching.** Error BEDs frequently flag the first or last interval of a contig, and masking one takes that contig's telomere with it — so panpatch sees a capless end and may complete it from a donor even where the original tip was fine. The result is still non-destructive (an end that cannot be completed reverts to the original sequence), and the flagged sequence is genuinely replaced rather than merely extended, so the end still carries a telomere. But it is now the donor's telomere, which is a real change to the assembly. If you are measuring whether patching improved telomere completeness, compare against the **unmasked** assembly: measured against the masked input, the masking's own effect shows up as an improvement.
+One thing to watch out for: **error intervals at contig tips interact with telomere patching.** Error BEDs frequently flag the first or last interval of a contig, and masking one takes that contig's telomere with it, so panpatch may complete that end from a donor even where the original tip was fine. The end then carries the donor's telomere. If you are measuring whether patching improved telomere completeness, compare against the **unmasked** assembly.
 
 ### Cluster example
 
@@ -1101,15 +955,7 @@ total 72M
 2.1M chrII.raw.vg  4.4M chrIV.raw.vg   1.6M chrV.raw.vg   2.4M chrVII.raw.vg  1.7M chrX.raw.vg     3.1M chrXII.raw.vg  2.4M chrXIV.raw.vg   2.5M chrXVI.raw.vg
 ```
 
-`hal2vg` works out where the pinch blocks whose members disagree on a base divide, and makes those
-nodes as it builds the graph.  Older versions of `hal2vg` split those blocks in the pinch graph
-itself, which needed much more memory on large alignments.  The graph is the same up to node IDs and
-the orientation some nodes are stored in, except that the `.raw.vg` can have a few more nodes, where
-the old conversion would have merged two into one.  `cactus-graphmap-join` removes those when it
-unchops the graph after normalizing it with GFAffix.  To use the old conversion, add
-`--legacyConversion` to `hal2vgOptions` in the `<hal2vg>` section of the
-[cactus config](../src/cactus/cactus_progressive_config.xml), and Cactus will ask for 30 times the
-HAL's size in memory for each `hal2vg` job, rather than 10.
+`hal2vg` uses a conversion that needs about half the memory of the one in older versions.  To use the old one, add `--legacyConversion` to `hal2vgOptions` in the `<hal2vg>` section of the [cactus config](../src/cactus/cactus_progressive_config.xml).
 
 ### Yeast: Joining the Chromosome Alignments
 

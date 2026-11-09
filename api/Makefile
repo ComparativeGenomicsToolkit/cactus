@@ -18,7 +18,7 @@ all_progs: all_libs
 clean : 
 	rm -f ${LIBDIR}/cactusLib.a ${LIBDIR}/cactus*.h ${BINDIR}/cactusAPITests *.o
 
-${LIBDIR}/cactusLib.a : ${libSources} ${libHeaders} ${libInternalHeaders}
+${LIBDIR}/cactusLib.a : ${libSources} ${libHeaders} ${libInternalHeaders} ${sonLibDir}/sonLib.a
 	${CC} ${CPPFLAGS} ${CFLAGS} -I inc -I ${LIBDIR}/ -c ${libSources}
 	${AR} rc cactusLib.a *.o
 	${RANLIB} cactusLib.a 
