@@ -10,11 +10,9 @@ Cactus is a reference-free whole-genome alignment program, as well as a pangenom
 
 ## Getting help
 
-Please subscribe to the [cactus-announce](https://groups.google.com/d/forum/cactus-announce) low-volume mailing list so we may reach out about releases and other announcements.
+To file a bug report or enhancement request against the code or documentation, create a [GitHub Issue](https://github.com/ComparativeGenomicsToolkit/cactus/issues).
 
 To ask questions or request help, please use the [Cactus GitHub Discussions](https://github.com/ComparativeGenomicsToolkit/cactus/discussions).
-
-To file a bug report or enhancement request against the code or documentation, create a [GitHub Issue](https://github.com/ComparativeGenomicsToolkit/cactus/issues).
 
 ## Align Genomes from Different Species
 
