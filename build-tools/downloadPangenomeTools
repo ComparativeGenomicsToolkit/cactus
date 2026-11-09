@@ -135,7 +135,10 @@ pushd minigraph
 # sequence (off by default in minigraph, output unchanged without it; cactus's config turns it on).
 # canonical-ins-order: the segments added for one input file are numbered by where they attach and
 # what they insert, not by the order of the file's contigs, which used to change the graph later on.
-git checkout 9b1397ff8df097df3d16f97a7df18c05ffdd7080
+# ggs-ends: opt-in --ggs-ends, graph generation that adds a query's overhang past a chromosome end of
+# the graph as a tip attached at one side (off by default in minigraph; cactus's config turns it on,
+# with the telomere anchors of <graphmap telomereAnchors>).
+git checkout 6ef255e29113fd84a379edb8e9677c0bc379c516
 # hack in flags support
 sed -i.bak -e 's/CFLAGS=/CFLAGS+=/' -e 's/LIBS=/LIBS+=/' Makefile
 LIBS="${jemallocLib}" make -j ${numcpu}
@@ -401,7 +404,7 @@ fi
 cd ${pangenomeBuildDir}
 git clone --recursive https://github.com/glennhickey/panpatch.git
 cd panpatch
-git checkout f413472dfb52d04043ca6792af01589a3d5dfd59
+git checkout 02eb7d37a3579334c421b465a507f916141c19d3
 git submodule update --init --recursive
 if [[ $STATIC_CHECK -eq 1 ]]
 then

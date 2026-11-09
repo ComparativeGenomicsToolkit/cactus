@@ -37,7 +37,9 @@ setup(
         'networkx>=2,!=2.8.1',
         'pytest',
         'biopython',
-        'pysam'],
+        'pysam',
+        # for the telomere anchors of pangenome alignment (refmap/telomere_anchors.py)
+        'edlib'],
 
     entry_points= {
         'console_scripts': ['cactus = cactus.progressive.cactus_progressive:main',

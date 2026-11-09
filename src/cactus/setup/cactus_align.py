@@ -318,6 +318,10 @@ def make_align_job(options, toil, config_wrapper=None, chrom_name=None):
             findRequiredNode(config_node, "graphmap").attrib["collapse"] = 'all'
         if getattr(options, 'minIdentity', None) is not None:
             findRequiredNode(config_node, "graphmap").attrib["minIdentity"] = str(options.minIdentity)
+    if options.pangenome and getOptionalAttrib(config_node.find("graphmap"), "telomereAnchors", typeFn=bool, default=False):
+        # telomere motifs that can't be anchored fail here, not in every chromosome's alignment
+        from cactus.refmap.telomere_anchors import config_motifs
+        config_motifs(config_node.find("graphmap"))
     if hasattr(options, 'hdf5Codec') and options.hdf5Codec:
         config_node.find("hal").attrib["hdf5Codec"] = options.hdf5Codec
     config_wrapper.setSystemMemory(options)
@@ -548,13 +552,14 @@ def cactus_align(job, config_wrapper, mc_tree, input_seq_map, input_seq_id_map, 
     # export_hal called without has_resources stages no file: it resolves the c2h/fasta promises
     # into sizes and re-dispatches itself with them, so this pass is coordination.  halAppendCactusSubtree
     # runs in the resourced pass, which sizes its own walltime.
-    hal_job = cons_job.addFollowOnJobFn(export_hal, sub_tree, config_wrapper.xmlRoot, new_seq_id_map, og_map, results, event=root_name, inMemory=True,
+    # cons_job.rv(4) is new_seq_id_map as consolidated aligned it: the minigraph fasta with any telomere anchor targets
+    hal_job = cons_job.addFollowOnJobFn(export_hal, sub_tree, config_wrapper.xmlRoot, cons_job.rv(4), og_map, results, event=root_name, inMemory=True,
                                         checkpointInfo=checkpointInfo, acyclicEvent=referenceEvents[0] if referenceEvents and not allow_collapse else None,
                                         memory_override=cons_memory, validate=validate,
                                         walltime=cactus_walltime())
 
     # clean out some of the  intermediate jobstore files
-    hal_job.addFollowOnJobFn(clean_jobstore_files, file_id_maps=[new_seq_id_map], file_ids=[paf_id], walltime=cactus_walltime())
+    hal_job.addFollowOnJobFn(clean_jobstore_files, file_id_maps=[new_seq_id_map, cons_job.rv(4)], file_ids=[paf_id], walltime=cactus_walltime())
 
     # optionally create the VG
     if doVG or doGFA:
