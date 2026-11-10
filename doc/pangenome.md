@@ -13,6 +13,7 @@ Please cite the [Minigraph-Cactus paper](https://doi.org/10.1038/s41587-023-0179
 * [VCF Output](#vcf-output)
 * [Graph Reference Paths (--gref)](#graph-reference-paths---gref)
 * [Realigning Tandem Repeats (--pgrealign)](#realigning-tandem-repeats---pgrealign)
+* [Realigning Centromeres (--centrolign)](#realigning-centromeres---centrolign)
 * [Output](#output)
 * [Patching Assemblies (cactus-panpatch)](#patching-assemblies-cactus-panpatch)
 * [Advanced Configuration](#advanced-configuration)
@@ -478,6 +479,46 @@ Things to know:
 * realign's limits are sizes of the alignment, not of the machine, so the same regions are realigned the same way whatever the machine and its memory. A job with too little memory for its largest region starts again with enough (up to 140 GiB for human graphs), and the run stops if it cannot get it.
 * Clipping can come out slightly differently, as it judges sequence aligned by the nodes it shares with the minigraph paths, which realignment changes.
 * It cannot be combined with the `--vgFull`/`--vgClip`/`--vgFilter` bypass options, and it has not been tried with `--collapse`.
+
+### Realigning Centromeres (`--centrolign`)
+
+**Experimental.** [centrolign](https://github.com/jeizenga/centrolign) aligns megabase-scale tandem arrays, such as the active α-satellite arrays of centromeres, which Minigraph-Cactus leaves unaligned. `--centrolign <BED>` realigns each interval of the BED in each chromosome graph that `cactus-align` wrote, before the join's full phase. pgrealign anchors the interval between two snarl boundary nodes of the reference and extracts the haplotypes there, centrolign aligns the haplotypes that pass through both anchors, and pgrealign replaces the region's nodes with centrolign's graph. Every path spells the same sequence afterwards.
+
+```
+cactus-pangenome ./js ./seqfile.txt --outDir pg --outName pg --reference CHM13 --centrolign chm13-active-arrays.bed
+```
+
+The BED's contigs are named as the contig field of the reference's path names (`chr12` for `CHM13#0#chr12`). For CHM13 v2.0, the active arrays of its [CenSat annotation](https://s3-us-west-2.amazonaws.com/human-pangenomics/T2T/CHM13/assemblies/annotation/chm13v2.0_censat_v2.1.bed) are its `H1L` HORs, merged where they are less than 200 kb apart:
+
+```
+grep -P '\thor_[^\t]*H1L' chm13v2.0_censat_v2.1.bed | cut -f1-4 | sort -k1,1 -k2,2n \
+    | bedtools merge -d 200000 -c 4 -o collapse -i - | awk '$3 - $2 >= 100000' > chm13-active-arrays.bed
+```
+
+It writes two kinds of report to `<outName>.stats/`:
+
+| File | Contents |
+| --- | --- |
+| `centrolign-stats.tsv` | One row per chromosome: the targets, the regions it realigned and those it did not, their alleles and fragments, the nodes it replaced, and the graph's length before and after. |
+| `centrolign.<chrom>.tar.gz` | The regions and extract tables, each region's centrolign log and guide tree, and a `summary.json` of every stage. |
+
+These `<graphmap_join>` config attributes pass options to the stages:
+
+| Attribute | Default | Effect |
+| --- | --- | --- |
+| `centrolignRegionsOptions` | `--max-span 10000000` | Options to `pgrealign regions`. A centromere's anchors can be megabases apart, past the other satellites around its array. |
+| `centrolignExtractOptions` | `--max-internal-bp 10000000` | Options to `pgrealign extract`. |
+| `centrolignOptions` | | Extra options to `centrolign`. |
+| `centrolignVerify` | `1` | Check that every path of the realigned graph spells what it did before, failing the job if not. |
+
+Things to know:
+
+* Only haplotypes that pass through both anchors are aligned. The rest of a region's sequence, such as a contig that ends inside it, stays in the graph unaligned.
+* A region is left as it is when it has fewer than two such haplotypes, or a base other than A, C, G, T or N, which centrolign cannot keep.
+* Each region is aligned by one centrolign process, in a job of its own, whose memory grows quickly with the number of haplotypes.
+* The guide tree is a neighbor-joining tree of the haplotypes' `mash` distances.
+* The realigned regions are in the full graph only. The clip and filter graphs keep just the reference's sequence there, as minigraph's paths through a region no longer share its nodes once it is realigned, so clipping removes even the parts of it that were aligned before.
+* It cannot be combined with `--pgrealign` or with the bypass options.
 
 ### Haplotype Sampling Instead of Filtering (NEW)
 

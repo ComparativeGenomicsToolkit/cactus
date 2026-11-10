@@ -643,6 +643,10 @@
 	<!-- pgrealignRealignOptions: options to pgrealign realign (select, centre, max-excess, max-cells, max-work, min-share, scores).  Its limits are sizes of the alignment, never of the machine, so the realigned graph depends only on the input and the config: max-cells is the largest alignment run unbanded, and max-work bounds the cells of a region's alignments in all.  A region too big for them is left as it is.  realign's jobs and max-memory come from the job's cores and memory, and a job with too little memory for its largest region starts again with enough; a run that cannot have that stops rather than realign less -->
 	<!-- pgrealignVerify: check that every path of each realigned graph spells what it did before (pgrealign verify), failing the job if not -->
 	<!-- pgrealignQC: measure each realigned region's alignment, and the graph's before it, against optimal pairwise alignments (pgrealign qc), into the archive of reports.  Off by default: it can take longer than the realignment -->
+	<!-- centrolignRegionsOptions: options to pgrealign regions (pad, max-span) for the centrolign option, whose regions span a centromere's array and the satellites around it -->
+	<!-- centrolignExtractOptions: options to pgrealign extract (max-internal-bp) for the centrolign option: a contig that lies inside a region does not stop the region being realigned unless it is longer than max-internal-bp -->
+	<!-- centrolignOptions: extra options to centrolign -->
+	<!-- centrolignVerify: check that every path of each graph the centrolign option realigned spells what it did before (pgrealign verify), failing the job if not -->
 	<graphmap_join
 		 maxNodeLength="1024"
 		 gfaffix="1"
@@ -677,6 +681,10 @@
 		 pgrealignRealignOptions=""
 		 pgrealignVerify="1"
 		 pgrealignQC="0"
+		 centrolignRegionsOptions="--max-span 10000000"
+		 centrolignExtractOptions="--max-internal-bp 10000000"
+		 centrolignOptions=""
+		 centrolignVerify="1"
 		 />
 	<!-- hal2vg options -->
 	<!-- includeMinigraph: include minigraph node sequences as paths in output (note that cactus-graphmap-join will still remove them by default) -->
