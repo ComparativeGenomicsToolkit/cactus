@@ -54,3 +54,7 @@
 	path = submodules/pgrealign
 	url = https://github.com/benedictpaten/pgrealign.git
 	branch = main
+[submodule "submodules/centrolign"]
+	path = submodules/centrolign
+	url = https://github.com/glennhickey/centrolign.git
+	branch = cactus-integration

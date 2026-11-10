@@ -7,7 +7,7 @@ modules = api setup caf bar hal reference pipeline preprocessor
 # submodules are in multiple pass to handle dependencies cactus2hal being dependent on
 # both cactus and sonLib
 # jemalloc is conditionally added based on include.mk settings
-submodules1 = sonLib cPecan hal matchingAndOrdering pinchesAndCacti abPOA lastz paffy red collapse-bubble FASTGA FASTAN alntools pgrealign
+submodules1 = sonLib cPecan hal matchingAndOrdering pinchesAndCacti abPOA lastz paffy red collapse-bubble FASTGA FASTAN alntools pgrealign centrolign
 ifeq ($(minipoa),on)
 submodules1 += minipoa
 endif
@@ -516,6 +516,22 @@ suball.pgrealign: ${BINDIR}/trfind ${BINDIR}/strf
 
 ${BINDIR}/trfind ${BINDIR}/strf: ${BINDIR}/%: submodules/pgrealign/pgrealign/c/%.c
 	$${CC:-gcc} ${CACTUS_ARCH_FLAGS} -O2 -o $@ $< -lm $${LIBS}
+
+# centrolign (--centrolign) is built by its own CMake, in build/centrolign, which leaves its submodule's
+# tree clean.  It takes nothing from CFLAGS or CXXFLAGS, which make static and the binary release export
+# with sonLib's -Werror --pedantic, and -static comes in LIBS.  jemalloc, which takes about a third off
+# its peak memory, goes on the end of the link line (CMAKE_CXX_STANDARD_LIBRARIES): an archive only
+# replaces malloc when it comes after the objects that call it
+suball.centrolign: suball.jemalloc
+	mkdir -p build/centrolign
+	cd build/centrolign && CFLAGS="" CXXFLAGS="" LDFLAGS="" cmake $(abspath submodules/centrolign) \
+	    -DCMAKE_C_FLAGS="${CACTUS_ARCH_FLAGS}" -DCMAKE_CXX_FLAGS="${CACTUS_ARCH_FLAGS}" \
+	    -DCMAKE_EXE_LINKER_FLAGS="$${LIBS}" -DCMAKE_CXX_STANDARD_LIBRARIES="${jemallocSubLibs} -lpthread" && \
+	    ${MAKE} centrolign_exec
+	$(call linkFile,build/centrolign/centrolign,${BINDIR}/centrolign)
+
+subclean.centrolign:
+	rm -rf build/centrolign
 
 ifeq ($(jemalloc),on)
 subclean.jemalloc:
