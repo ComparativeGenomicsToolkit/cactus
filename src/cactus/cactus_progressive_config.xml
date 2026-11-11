@@ -644,7 +644,9 @@
 	<!-- pgrealignVerify: check that every path of each realigned graph spells what it did before (pgrealign verify), failing the job if not -->
 	<!-- pgrealignQC: measure each realigned region's alignment, and the graph's before it, against optimal pairwise alignments (pgrealign qc), into the archive of reports.  Off by default: it can take longer than the realignment -->
 	<!-- centrolignRegionsOptions: options to pgrealign regions (pad, max-span) for the centrolign option, whose regions span a centromere's array and the satellites around it -->
-	<!-- centrolignExtractOptions: options to pgrealign extract (max-internal-bp) for the centrolign option: a contig that lies inside a region does not stop the region being realigned unless it is longer than max-internal-bp -->
+	<!-- centrolignExtractOptions: options to pgrealign extract (max-internal-bp, allow-inversions) for the centrolign option: a contig that lies inside a region does not stop the region being realigned unless it is longer than max-internal-bp, and with allow-inversions a haplotype that crosses some of a region's nodes in the other orientation does not either: centrolign aligns its inverted sequence as it reads forward -->
+	<!-- centrolignGroupSimilarity: the centrolign option aligns a region's haplotypes in groups, cut from an average-linkage tree of the share of rare 31-mers each pair has in common where a cluster's halves share less than this on average -->
+	<!-- centrolignMaxGroup: most haplotypes the centrolign option aligns in one centrolign job: a larger group is split along its tree -->
 	<!-- centrolignOptions: extra options to centrolign -->
 	<!-- centrolignVerify: check that every path of each graph the centrolign option realigned spells what it did before (pgrealign verify), failing the job if not -->
 	<graphmap_join
@@ -682,7 +684,9 @@
 		 pgrealignVerify="1"
 		 pgrealignQC="0"
 		 centrolignRegionsOptions="--max-span 10000000"
-		 centrolignExtractOptions="--max-internal-bp 10000000"
+		 centrolignExtractOptions="--max-internal-bp 10000000 --allow-inversions"
+		 centrolignGroupSimilarity="0.2"
+		 centrolignMaxGroup="64"
 		 centrolignOptions=""
 		 centrolignVerify="1"
 		 />

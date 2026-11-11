@@ -30,7 +30,6 @@ import subprocess
 import gzip
 import shutil
 import json
-import math
 import tarfile
 
 from operator import itemgetter
@@ -114,14 +113,17 @@ PGREALIGN_VERIFY_SECS_PER_GB = 300
 # pgrealign_vg's guess
 CENTROLIGN_EXTRACT_SECS_PER_GB = PGREALIGN_SECS_PER_GB
 CENTROLIGN_REPLACE_SECS_PER_GB = PGREALIGN_SECS_PER_GB
-# centrolign_region: one centrolign run.  measured only on chr12's active array, alleles of 1.7-3 Mb
-# (4 threads, jemalloc): 2 alleles took 2 minutes and 4.4 GB, 4 took 5 minutes and 9.3 GB, 8 took 8.5
-# minutes and 13.8 GB, and one merge of 16 needed more than 18 GB.  until larger runs give a fit,
-# memory is a guess of 1 GB per Mb of allele sequence, at least 16 GB, and time 60 s per Mb times
-# log2 of the alleles, which covers those runs several times over
-CENTROLIGN_BYTES_PER_BP = 1000
+# centrolign_region: one centrolign run.  measured on chr12's active array, alleles of ~3 Mb with
+# 100 kb flanks (8 threads, jemalloc).  n alleles of B Mb in all took (n, B, minutes, peak GB):
+# (8, 25, 8.6, 15.2), (16, 49, 28, 27.4), (32, 99, 117, 55.3), (64, 199, 311, 155.4).  time grows
+# with B*n, not B, because each merge chains every pair of paths across its two sides: 600 s + 4 s per
+# Mb*allele covers those 1.9-2.8x.  memory per bp was flat at 550-610 bytes up to 32 alleles but 780
+# at 64, so it gets a per-allele term too: 800 + 6n bytes per bp, at least 16 GB, covers them 1.4-1.8x
+CENTROLIGN_BYTES_PER_BP = 800
+CENTROLIGN_BYTES_PER_BP_PER_ALLELE = 6
 CENTROLIGN_MIN_MEMORY = 16 * 2**30
-CENTROLIGN_SECS_PER_MB_LOG2 = 60
+CENTROLIGN_BASE_SECS = 600
+CENTROLIGN_SECS_PER_MB_ALLELE = 4
 
 # vg_to_og: vg convert -f | grep, then odgi build.  n=75, 307-310 s/GB at p50, 357-370 at the max
 VG_TO_OG_SECS_PER_GB = 400
@@ -2153,31 +2155,103 @@ def neighbor_joining(names, dist):
     a, b = list(nodes)
     return '({}:{:.6f},{}:{:.6f});'.format(nodes[a], d[a][b] / 2, nodes[b], d[a][b] / 2)
 
-def centrolign_guide_tree(job, fasta_path, names, work_dir):
-    """ centrolign's guide tree for the sequences of fasta_path, named names: neighbor-joining on their
-    mash distances.  21-mers, and sketches of 100,000, which hold all or most of the distinct 21-mers of
-    an array of a few Mb, as a tandem repeat has few """
-    if len(names) == 2:
-        return '({},{});'.format(*names)
-    threads = str(job.cores)
-    sketch_path = os.path.join(work_dir, 'alleles')
-    cactus_call(parameters=['mash', 'sketch', '-p', threads, '-k', '21', '-s', '100000', '-i', '-o', sketch_path,
-                            fasta_path])
-    dist = defaultdict(dict)
-    for line in cactus_call(parameters=['mash', 'dist', '-p', threads, sketch_path + '.msh', sketch_path + '.msh'],
-                            check_output=True).split('\n'):
-        toks = line.split('\t')
-        if len(toks) >= 3:
-            dist[toks[0]][toks[1]] = float(toks[2])
-    return neighbor_joining(names, dist)
+# centrolign_groups: an array's haplotypes are compared by the 31-mers that occur at most twice in each,
+# as centrolign anchors on matches that are rare in both sequences.  measured on centrolign's own
+# alignments of seven chromosomes' arrays (125-412 HPRC haplotypes each): pairs sharing over 25% of
+# their rare 31-mers were almost always aligned to each other, and cutting an average-linkage tree where
+# it falls below 20% split the haplotypes into groups whose separate alignments, read off the whole one,
+# made the graph 0-2% bigger and left each haplotype's aligned share as it was.  splitting groups down to
+# 64 haplotypes made it 1-10% bigger; aligning 64 haplotypes of chr12 as five groups of up to 16 made it
+# 2% bigger, in an eighth of the wall time (the groups run in parallel) and a quarter of the memory
+CENTROLIGN_RARE_K = 31
+CENTROLIGN_RARE_MAX_COUNT = 2
+
+def centrolign_rare_kmers(seq):
+    """ the sorted distinct k-mers (CENTROLIGN_RARE_K, 2 bits a base, forward strand) of seq that occur in
+    it at most CENTROLIGN_RARE_MAX_COUNT times, skipping any with a base other than ACGT """
+    import numpy as np
+    k = CENTROLIGN_RARE_K
+    codes = np.full(256, 255, dtype=np.uint8)
+    for i, base in enumerate(b'ACGT'):
+        codes[base] = codes[base + 32] = i
+    bases = codes[np.frombuffer(seq.encode(), dtype=np.uint8)]
+    n = len(bases) - k + 1
+    if n <= 0:
+        return np.zeros(0, dtype=np.uint64)
+    kmers = np.zeros(n, dtype=np.uint64)
+    bad = np.zeros(n, dtype=bool)
+    for j in range(k):
+        window = bases[j:j + n]
+        bad |= window == 255
+        kmers = (kmers << np.uint64(2)) | (window & 3).astype(np.uint64)
+    distinct, counts = np.unique(kmers[~bad], return_counts=True)
+    return distinct[counts <= CENTROLIGN_RARE_MAX_COUNT]
+
+def centrolign_groups(alleles, min_similarity, max_group):
+    """ split alleles ([{'id', 'seq'}], with sequence) into the groups that centrolign aligns apart:
+    the similarity of two alleles is the share of their rare k-mers (centrolign_rare_kmers) that they
+    have in common, of the smaller set, and groups are the clusters of an average-linkage tree on it,
+    cut where a cluster's two halves have a mean similarity below min_similarity, or where it has more
+    than max_group alleles.  returns [(ids, guide tree)], largest first: the tree is neighbor-joining on
+    1 - similarity, and None for a group of one """
+    import numpy as np
+    n = len(alleles)
+    if n == 0:
+        return []
+    rare = [centrolign_rare_kmers(a['seq']) for a in alleles]
+    sim = np.eye(n)
+    for i in range(n):
+        for j in range(i + 1, n):
+            smaller = min(len(rare[i]), len(rare[j]))
+            if smaller:
+                shared = len(np.intersect1d(rare[i], rare[j], assume_unique=True))
+                sim[i, j] = sim[j, i] = shared / smaller
+
+    # average linkage: merge the most similar pair of clusters, whose similarity to the rest is then the
+    # size-weighted mean of theirs.  a tree node is (left, right, merge similarity, leaves)
+    link = sim.copy()
+    np.fill_diagonal(link, -np.inf)
+    trees = [(i, None, None, [i]) for i in range(n)]
+    size = np.ones(n)
+    for _ in range(n - 1):
+        x, y = np.unravel_index(np.argmax(link), link.shape)
+        merged = (size[x] * link[x] + size[y] * link[y]) / (size[x] + size[y])
+        trees[x] = (trees[x], trees[y], link[x, y], trees[x][3] + trees[y][3])
+        size[x] += size[y]
+        link[x, :] = link[:, x] = merged
+        link[y, :] = link[:, y] = -np.inf
+        link[x, x] = -np.inf
+        trees[y] = None
+    root = next(t for t in trees if t is not None)
+    groups = []
+    stack = [root]
+    while stack:
+        t = stack.pop()
+        if t[1] is not None and (t[2] < min_similarity or len(t[3]) > max_group):
+            stack += [t[0], t[1]]
+        else:
+            groups.append(t[3])
+    result = []
+    for members in sorted(groups, key=len, reverse=True):
+        ids = [alleles[i]['id'] for i in members]
+        if len(ids) == 1:
+            tree = None
+        elif len(ids) == 2:
+            tree = '({},{});'.format(*ids)
+        else:
+            tree = neighbor_joining(ids, {alleles[i]['id']: {alleles[j]['id']: 1.0 - sim[i, j] for j in members}
+                                          for i in members})
+        result.append((ids, tree))
+    return result
 
 def centrolign_vg(job, options, config, vg_path, vg_id, targets_id, max_mem):
     """ realign the centromeres of one chromosome graph with centrolign, ahead of the full phase: each
     interval of targets_id (the --centrolign TARGETS BED) that pgrealign regions anchors between two
     nodes of the reference path, with the haplotypes that pgrealign extract finds passing through both.
-    this job finds and extracts the regions, then runs a centrolign_region job for each, sized by its
-    alleles up to max_mem, and centrolign_replace after them, whose (GFA, stats, replaced) it returns, as
-    pgrealign_vg does.  a graph with no region to realign comes back as it went in """
+    this job finds and extracts the regions, splits each region's alleles into groups (centrolign_groups),
+    then runs a centrolign_region job for each group of two or more, sized by its alleles up to max_mem,
+    and centrolign_replace after them, whose (GFA, stats, replaced) it returns, as pgrealign_vg does.  a
+    graph with no region to realign comes back as it went in """
     in_vg_path = vg_path
     work_dir = job.fileStore.getLocalTempDir()
     vg_path = os.path.join(work_dir, os.path.basename(vg_path))
@@ -2206,32 +2280,76 @@ def centrolign_vg(job, options, config, vg_path, vg_id, targets_id, max_mem):
         extract_dir = pgrealign_regions_extract(job, vg_path, gfa_path, ref, contigs, targets_path, work_dir,
                                                 report_dir, summary, config_opts('centrolignRegionsOptions'),
                                                 config_opts('centrolignExtractOptions'))
-        if summary.get('extract', {}).get('status', {}).get('ok'):
-            with gzip.open(os.path.join(extract_dir, 'packages.jsonl.gz'), 'rt') as packages_file:
-                packages = [pkg for pkg in map(json.loads, packages_file) if pkg['status'] == 'ok']
+        packages_path = os.path.join(extract_dir, 'packages.jsonl.gz')
+        if os.path.isfile(packages_path):
+            # the archive leaves out packages.jsonl.gz, as it holds every allele's sequence, so
+            # packages.tsv keeps the rest: why a region is complex, and the sizes that size its job
+            with gzip.open(packages_path, 'rt') as packages_file, \
+                 open(os.path.join(extract_dir, 'packages.tsv'), 'w') as packages_tsv:
+                packages_tsv.write('#id\tstatus\talleles\tallele_bp\tfragments\tfragment_bp\tcomplex\n')
+                for pkg in map(json.loads, packages_file):
+                    packages_tsv.write('{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(
+                        pkg['id'], pkg['status'], len(pkg['alleles']), sum(len(a['seq']) for a in pkg['alleles']),
+                        len(pkg['fragments']), sum(len(f['seq']) for f in pkg['fragments']),
+                        '; '.join(pkg['complex']) or '.'))
+                    if pkg['status'] == 'ok':
+                        packages.append(pkg)
     if not packages:
         return centrolign_report(job, work_dir, chrom, report_dir, summary, gfa_path, gfa_path)
 
-    # each region's alleles are aligned in a job of their own, sized by them, and replace splices the
-    # alignments in after them all.  (the region jobs' follow-on, and not this job's, so that clip_vg,
-    # which follows this job, waits for it)
+    # each region's alleles are split into groups (centrolign_groups), each group of two or more is aligned
+    # in a job of its own, sized by it, and replace splices the alignments in after them all.  (the group
+    # jobs' follow-on, and not this job's, so that clip_vg, which follows this job, waits for it)
+    min_similarity = getOptionalAttrib(join_xml_node, 'centrolignGroupSimilarity', typeFn=float, default=0.2)
+    max_group = getOptionalAttrib(join_xml_node, 'centrolignMaxGroup', typeFn=int, default=64)
     region_root_job = Job()
     job.addChild(region_root_job)
     region_results = []
     for i, pkg in enumerate(packages):
-        package_path = os.path.join(work_dir, 'region{}.package.json.gz'.format(i))
-        with gzip.open(package_path, 'wt') as package_file:
-            json.dump(pkg, package_file)
-        allele_bp = sum(len(a['seq']) for a in pkg['alleles'])
-        n_alleles = sum(1 for a in pkg['alleles'] if a['seq'])
-        RealtimeLogger.info('centrolign {}: region {} has {} alleles ({} bp) and {} fragments'.format(
-            chrom, pkg['id'], n_alleles, allele_bp, len(pkg['fragments'])))
-        region_job = region_root_job.addChildJobFn(
-            centrolign_region, config, job.fileStore.writeGlobalFile(package_path), pkg['id'],
-            cores=options.indexCores, disk=max(2**30, allele_bp * 20),
-            memory=cactus_clamp_memory(min(max(CENTROLIGN_MIN_MEMORY, allele_bp * CENTROLIGN_BYTES_PER_BP), max_mem)),
-            walltime=cactus_walltime(CENTROLIGN_SECS_PER_MB_LOG2 * allele_bp / 1e6 * max(1, math.log2(max(n_alleles, 2)))))
-        region_results.append(region_job.rv())
+        alleles = [a for a in pkg['alleles'] if a['seq']]
+        record = {'id': pkg['id'], 'method': 'centrolign', 'alleles': len(alleles),
+                  'allele_bp': sum(len(a['seq']) for a in alleles), 'fragments': len(pkg['fragments']),
+                  'fragment_bp': sum(len(f['seq']) for f in pkg['fragments'])}
+        # centrolign reads any base but ACGTN as a gap, which would change the haplotypes' sequence
+        unsupported = [a['id'] for a in alleles if re.search('[^ACGTNacgtn]', a['seq'])]
+        groups = [] if unsupported else centrolign_groups(alleles, min_similarity, max_group)
+        if unsupported:
+            record = dict(record, status='unsupported_bases', message='bases other than ACGTN in ' + ','.join(unsupported))
+        elif not groups or len(groups[0][0]) < 2:
+            record = dict(record, status='too_few_alleles',
+                          message='no two of {} allele(s) share enough rare k-mers'.format(len(alleles)))
+        RealtimeLogger.info('centrolign {}: region {} has {} alleles ({} bp) in groups of {}, and {} fragments'.format(
+            chrom, pkg['id'], len(alleles), record['allele_bp'], ','.join(str(len(g)) for g, t in groups),
+            len(pkg['fragments'])))
+        if 'status' in record:
+            region_results.append((record, [], None))
+            continue
+        record['groups'] = [len(g) for g, t in groups]
+        # the alleles of no group, and the fragments, go in unaligned, each a node and a path of its own:
+        # pgrealign replace links each to the anchor(s) it starts or ends at.  the fragments include the
+        # minigraph paths through the region, whose copies clip_vg's full phase then drops with them, so
+        # the clip phase finds no minigraph alignment in the region and clips all but the reference there
+        by_id = {a['id']: a for a in alleles}
+        unaligned_path = os.path.join(work_dir, 'region{}.unaligned.gfa'.format(i))
+        with open(unaligned_path, 'w') as unaligned_file:
+            for seq_id, seq in [(g[0], by_id[g[0]]['seq']) for g, t in groups if len(g) == 1] + \
+                    [(f['id'], f['seq']) for f in pkg['fragments'] if f['seq']]:
+                unaligned_file.write('S\tunaligned_{0}\t{1}\nP\t{0}\tunaligned_{0}+\t*\n'.format(seq_id, seq))
+        group_results = []
+        for j, (ids, tree) in enumerate(g for g in groups if len(g[0]) > 1):
+            package_path = os.path.join(work_dir, 'region{}.group{}.alleles.json.gz'.format(i, j))
+            with gzip.open(package_path, 'wt') as package_file:
+                json.dump([by_id[x] for x in ids], package_file)
+            allele_bp = sum(len(by_id[x]['seq']) for x in ids)
+            group_job = region_root_job.addChildJobFn(
+                centrolign_region, config, job.fileStore.writeGlobalFile(package_path),
+                '{}.group{}'.format(pkg['id'], j), tree,
+                cores=options.indexCores, disk=max(2**30, allele_bp * 20),
+                memory=cactus_clamp_memory(min(max(CENTROLIGN_MIN_MEMORY, allele_bp * (
+                    CENTROLIGN_BYTES_PER_BP + CENTROLIGN_BYTES_PER_BP_PER_ALLELE * len(ids))), max_mem)),
+                walltime=cactus_walltime(CENTROLIGN_BASE_SECS + CENTROLIGN_SECS_PER_MB_ALLELE * allele_bp / 1e6 * len(ids)))
+            group_results.append(group_job.rv())
+        region_results.append((record, group_results, job.fileStore.writeGlobalFile(unaligned_path)))
 
     # replace reads the extract tables, and the archive gets the reports so far: {path in report_dir: ID}
     report_ids = {}
@@ -2246,64 +2364,43 @@ def centrolign_vg(job, options, config, vg_path, vg_id, targets_id, max_mem):
         walltime=scaled_walltime(CENTROLIGN_REPLACE_SECS_PER_GB, vg_id.size, io_multiple=6))
     return replace_job.rv(0), replace_job.rv(1), replace_job.rv(2)
 
-def centrolign_region(job, config, package_id, region_id):
-    """ align one region with centrolign: the alleles of its package (from pgrealign extract) that have
-    any sequence, on a guide tree from centrolign_guide_tree.  returns the region's record for
-    msas.jsonl.gz, whose status says whether it was aligned; the file ID of the alignment's GFA, to
-    which each of the package's fragments (a haplotype that does not pass through both anchors) is
-    added unaligned, as a node and a path of its own; and the file ID of the region's log """
+def centrolign_region(job, config, alleles_id, label, tree):
+    """ align one group of a region's alleles (centrolign_groups) with centrolign, on the group's guide
+    tree.  alleles_id is a gzipped JSON list of the alleles ({'id', 'seq'}).  returns the group's record
+    ({'group': label, ...}), the file ID of the alignment's GFA and the file ID of its log """
     work_dir = job.fileStore.getLocalTempDir()
-    package_path = os.path.join(work_dir, 'package.json.gz')
-    job.fileStore.readGlobalFile(package_id, package_path)
-    with gzip.open(package_path, 'rt') as package_file:
-        pkg = json.load(package_file)
+    alleles_path = os.path.join(work_dir, 'alleles.json.gz')
+    job.fileStore.readGlobalFile(alleles_id, alleles_path)
+    with gzip.open(alleles_path, 'rt') as alleles_file:
+        alleles = json.load(alleles_file)
     join_xml_node = findRequiredNode(config.xmlRoot, "graphmap_join")
-    alleles = [a for a in pkg['alleles'] if a['seq']]
-    record = {'id': region_id, 'method': 'centrolign', 'alleles': len(alleles), 'fragments': len(pkg['fragments'])}
-    if len(alleles) < 2:
-        return dict(record, status='too_few_alleles',
-                    message='{} allele(s) with sequence'.format(len(alleles))), None, None
-    # centrolign reads any base but ACGTN as a gap, which would change the haplotypes' sequence
-    unsupported = [a['id'] for a in alleles if re.search('[^ACGTNacgtn]', a['seq'])]
-    if unsupported:
-        return dict(record, status='unsupported_bases',
-                    message='bases other than ACGTN in ' + ','.join(unsupported)), None, None
-
     start = timeit.default_timer()
     fasta_path = os.path.join(work_dir, 'alleles.fa')
     with open(fasta_path, 'w') as fasta_file:
         for a in alleles:
             fasta_file.write('>{}\n{}\n'.format(a['id'], a['seq']))
-    tree = centrolign_guide_tree(job, fasta_path, [a['id'] for a in alleles], work_dir)
     tree_path = os.path.join(work_dir, 'tree.nwk')
     with open(tree_path, 'w') as tree_file:
         tree_file.write(tree + '\n')
     centrolign_opts = getOptionalAttrib(join_xml_node, 'centrolignOptions', typeFn=str, default='')
-    gfa_path = os.path.join(work_dir, 'region.gfa')
+    gfa_path = os.path.join(work_dir, 'group.gfa')
     log = cactus_call(parameters=['centrolign', '-t', str(job.cores), '-v', '2', '--force-gfa-output',
                                   '-T', tree_path] + (centrolign_opts.split() if centrolign_opts else []) +
                       [fasta_path], outfile=gfa_path, returnStdErr=True, job_memory=job.memory)
-    # the fragments, unaligned: pgrealign replace links each to the anchor it starts or ends at.  they
-    # include the minigraph paths through the region, whose copies clip_vg's full phase then drops
-    # with them, so the clip phase finds no minigraph alignment in the region and clips all but the
-    # reference there
-    with open(gfa_path, 'a') as gfa_file:
-        for fragment in pkg['fragments']:
-            if fragment['seq']:
-                gfa_file.write('S\tfragment_{0}\t{1}\nP\t{0}\tfragment_{0}+\t*\n'.format(fragment['id'],
-                                                                                      fragment['seq']))
-    record = dict(record, status='ok', seconds=round(timeit.default_timer() - start, 1))
-    log_path = os.path.join(work_dir, 'region.log')
+    record = {'group': label, 'alleles': len(alleles), 'allele_bp': sum(len(a['seq']) for a in alleles),
+              'seconds': round(timeit.default_timer() - start, 1)}
+    log_path = os.path.join(work_dir, 'group.log')
     with open(log_path, 'w') as log_file:
         log_file.write('# {}\n# guide tree: {}\n{}'.format(json.dumps(record), tree, log or ''))
-    RealtimeLogger.info('centrolign region {}: {}'.format(region_id, json.dumps(record)))
+    RealtimeLogger.info('centrolign {}: {}'.format(label, json.dumps(record)))
     return record, job.fileStore.writeGlobalFile(gfa_path), job.fileStore.writeGlobalFile(log_path)
 
 def centrolign_replace(job, options, config, vg_path, vg_id, report_ids, summary, region_results):
     """ splice the alignments of the centrolign_region jobs into the chromosome graph vg_id with
     pgrealign replace, and return what centrolign_vg returns (see centrolign_report).  report_ids are
-    the files of centrolign_vg's report directory, by their paths in it; region_results are the region
-    jobs' returns, in the order of the regions' packages """
+    the files of centrolign_vg's report directory, by their paths in it; region_results are, in the
+    order of the regions' packages, (record, [group job returns], file ID of the unaligned alleles'
+    and fragments' GFA), with a status in the record already for a region it does not align """
     work_dir = job.fileStore.getLocalTempDir()
     vg_path = os.path.join(work_dir, os.path.basename(vg_path))
     job.fileStore.readGlobalFile(vg_id, vg_path)
@@ -2320,22 +2417,44 @@ def centrolign_replace(job, options, config, vg_path, vg_id, report_ids, summary
     aln_dir = os.path.join(report_dir, 'centrolign')
     os.makedirs(aln_dir)
 
-    # msas.jsonl.gz names each aligned region's GFA, relative to itself, in place of an MSA's rows
+    # msas.jsonl.gz names each aligned region's GFA, relative to itself, in place of an MSA's rows: its
+    # groups' alignments side by side, their node names kept apart by a prefix, then its unaligned
+    # alleles and fragments
     msas_path = os.path.join(report_dir, 'msas.jsonl.gz')
     statuses = defaultdict(int)
     with gzip.open(msas_path, 'wt') as msas_file:
-        for i, (record, gfa_id, log_id) in enumerate(region_results):
-            if log_id:
-                job.fileStore.readGlobalFile(log_id, os.path.join(aln_dir, 'region{}.log'.format(i)))
-            if gfa_id:
+        for i, (record, group_results, unaligned_id) in enumerate(region_results):
+            if 'status' not in record:
                 gfa_name = 'region{}.gfa'.format(i)
-                job.fileStore.readGlobalFile(gfa_id, os.path.join(aln_dir, gfa_name))
-                record = dict(record, gfa=os.path.join('centrolign', gfa_name))
+                with open(os.path.join(aln_dir, gfa_name), 'w') as region_gfa:
+                    for j, (group_record, group_gfa_id, group_log_id) in enumerate(group_results):
+                        job.fileStore.readGlobalFile(group_log_id, os.path.join(
+                            aln_dir, 'region{}.group{}.log'.format(i, j)))
+                        prefix = 'g{}_'.format(j)
+                        with open(job.fileStore.readGlobalFile(group_gfa_id)) as group_gfa:
+                            for line in group_gfa:
+                                toks = line.rstrip('\n').split('\t')
+                                if toks[0] == 'S':
+                                    toks[1] = prefix + toks[1]
+                                elif toks[0] == 'L':
+                                    toks[1] = prefix + toks[1]
+                                    toks[3] = prefix + toks[3]
+                                elif toks[0] == 'P':
+                                    toks[2] = ','.join(prefix + s for s in toks[2].split(','))
+                                else:
+                                    continue
+                                region_gfa.write('\t'.join(toks) + '\n')
+                    with open(job.fileStore.readGlobalFile(unaligned_id)) as unaligned_gfa:
+                        shutil.copyfileobj(unaligned_gfa, region_gfa)
+                record = dict(record, status='ok', gfa=os.path.join('centrolign', gfa_name),
+                              seconds=round(sum(g[0]['seconds'] for g in group_results), 1),
+                              max_group_seconds=max(g[0]['seconds'] for g in group_results))
             statuses[record['status']] += 1
             msas_file.write(json.dumps(record) + '\n')
     summary['centrolign'] = dict(statuses)
-    summary['centrolign_alleles'] = sum(r['alleles'] for r, g, l in region_results if g)
-    summary['centrolign_fragments'] = sum(r['fragments'] for r, g, l in region_results if g)
+    summary['centrolign_alleles'] = sum(r['alleles'] for r, g, u in region_results if g)
+    summary['centrolign_fragments'] = sum(r['fragments'] for r, g, u in region_results if g)
+    summary['centrolign_groups'] = [r['groups'] for r, g, u in region_results if g]
     left = {s: n for s, n in statuses.items() if s != 'ok'}
     if left:
         RealtimeLogger.warning('centrolign {}: left {} of {} regions as they were: {}'.format(
