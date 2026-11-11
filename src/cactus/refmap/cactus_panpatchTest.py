@@ -490,6 +490,25 @@ class TestPanpatchErrorBeds(unittest.TestCase):
         self.assertEqual(recs['chrX_hap_1'], b'T'*20 + b'C'*60 + b'G'*20)               # restored, not N
         self.assertNotIn(b'N', recs['chrX_hap_1'])
 
+    def test_revert_subrange_pieces(self):
+        # a contig cut into pieces in the graph (vg clip -S at a reference end) gives paths with a
+        # [START-END] subrange, and bed coordinates relative to the piece.  each piece must be restored
+        # from its own offset: copying from 0 shifts a patched piece, and restoring a whole-piece record
+        # as the whole contig duplicates it
+        T = 'TTAGGG' * 2 + 'A' * 40 + 'C' * 40 + 'G' * 8                                 # chr1, 100 bp
+        pristine = self._write('ps.fa', '>chr1\n{}\n'.format(T))
+        stub = 'N' * 12                                                                  # chr1[0-12], masked
+        piece = T[12:50] + 'N' * 10 + T[60:92]                                           # chr1[12-100] 0-80
+        combined = self._write('hs.fa', '>TGT#1#chr1#0[0-12]\n{}\n>chr1_hap_1\n{}\n'.format(stub, piece + 'ggg'))
+        bed = ('#Patched assembly on chr1 for TGT#1:\n'
+               'TGT#1#chr1#0[12-100]\t0\t80\t+\n'
+               'DON#1#dcontig#0\t5\t8\t+\n')
+        blocks = parse_bed_blocks(self._write('hs.bed', bed))
+        revert_target_to_original(self.job, combined, blocks, pristine, 'TGT', 1)
+        recs = _read_fasta_bytes(combined)
+        self.assertEqual(recs['TGT#1#chr1#0[0-12]'], T[0:12].encode())                  # the piece, not all of chr1
+        self.assertEqual(recs['chr1_hap_1'], T[12:92].encode() + b'ggg')                 # from offset 12, donor kept
+
     # ---- tag_report_gap_origin ----
 
     def test_tag_report_gap_origin(self):
