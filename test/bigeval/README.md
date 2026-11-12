@@ -11,6 +11,7 @@ Nothing in here is data: genomes, annotations and truth sets are downloaded from
 |---|---|---|---|---|
 | `busco5` | `cactus` on human, mouse, opossum, chicken and gar | BUSCO gene models (compleasm), ENCODE CTCF cCREs | about a day, mostly queueing | 10 GB |
 | `hprc30` | `cactus-pangenome` on CHM13, GRCh38 and 28 HPRC haplotypes, as in HPRC v2.1 | HPRC dipcall calls, GIAB HG002 Q100 | 5-20 h to build, 1 h to score | 130 GB |
+| `primates5` | `cactus` on human, chimp, gorilla, orangutan and macaque: the shallow ancestors busco5 has none of | as busco5 | not yet timed | not yet measured |
 
 Each suite's module, `suites/<suite>.py`, says what every column of its row means, and how much of a difference is
 noise. In short:
@@ -19,6 +20,9 @@ noise. In short:
   (`busco_recall`, `busco_precision`), overall and at each depth of the tree (gar, the root, first; then mouse,
   opossum, chicken); human CTCF sites aligned, and kept beyond chance; genome-wide coverage; `cactus_consolidated`'s
   time and peak memory.
+- `primates5`: busco5's columns, scored by busco5's code, with the depths of the tree being macaque (the root), then
+  chimp, gorilla and orangutan.  Its ancestors' ingroups are 0.013 to 0.085 apart, against busco5's 0.33 to 0.73, so
+  it is the one that sees changes to how cactus treats close genomes.
 - `hprc30`: CPU hours, then the recall, precision and F1 of the graph's raw VCF (sites over 10 kb dropped) against
   the 14 samples' dipcall calls, pooled; errors (FN + FP) of it and of the vcfwave VCF, against dipcall and against
   GIAB's HG002 small and structural variant benchmarks; graph size, path fragments, snarl sizes and the share of
