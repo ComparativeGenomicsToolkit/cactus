@@ -674,9 +674,11 @@ PAN027   PAN027.seqfile.txt
 cactus-panpatch ./js chromfile.txt --outDir patched --batch
 ```
 
-Each sample writes its own patched FASTA(s), `<name>.bed`, and per-patch report `<name>.tsv` into `--outDir`. Across all samples, a single `panpatch-summary.tsv` rolls those reports up: one row per sample with accepted patches by category (`gap_fill`, `scaffold`, `telomere`, and the error-BED `bed_gap` subset), telomere-to-telomere output contigs, and a `TOTAL` row.
+Each sample writes its own patched FASTA(s), `<name>.bed`, and per-patch report `<name>.tsv` into `--outDir`. Across all samples, a single `panpatch-summary.tsv` rolls those reports up: one row per run (a sample, or one haplotype of it when reference-free) with its input contigs and output records, the telomere-to-telomere contigs before and after patching (`input_t2t`, `t2t`), accepted patches by category (`gap_fill`, `scaffold`, `telomere`, and the error-BED `bed_gap` subset), the `rejected` candidates, and a `TOTAL` row.
 
-The `t2t_contigs` / `contigs_analyzed` columns, and the `#Contig` lines at the end of each `<name>.tsv`, describe the assembly that was actually written: one line per output record, with its telomere cap status measured on the final sequence after any error-BED regions were reverted. (You can reproduce them for any assembly with `panpatch --telomere-report <assembly.fa[.gz]>`.)
+Every record of a patched assembly that is one input contig keeps that contig's name (as cactus reads it from the FASTA header), patched or not, so a reference-free output is named exactly like its input; a reference-based patched chromosome is `<chrom>_hap_<N>`. The report and the bed name the assemblies as the seqfile does (`SAMPLE#HAP#CONTIG`). Every input contig is checked to reach the output (as a record of its own, part of a patched record, or taken over by an accepted patch): if one would not, the run fails rather than silently drop it.
+
+The `t2t` columns, and the `#Contig` lines at the end of each `<name>.tsv`, describe the assembly that was actually written: one line per output record, with its telomere cap status measured on the final sequence after any error-BED regions were reverted. (You can reproduce them for any assembly with `panpatch --telomere-report <assembly.fa[.gz]>`.)
 
 ### Masking assembly errors
 

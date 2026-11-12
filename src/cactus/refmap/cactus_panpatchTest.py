@@ -21,6 +21,9 @@ from cactus.refmap.cactus_panpatch import make_runs, panpatch_validate_options
 from cactus.refmap.cactus_panpatch import read_error_bed_manifest, parse_error_bed, intervals_overlap, revcomp
 from cactus.refmap.cactus_panpatch import parse_bed_blocks, mask_assembly_errors, revert_target_to_original
 from cactus.refmap.cactus_panpatch import tag_report_gap_origin, summarize_report, write_batch_summary, concat_reports
+from cactus.refmap.cactus_panpatch import clean_path_name, clean_report_names, clean_bed_names, run_renames
+from cactus.refmap.cactus_panpatch import output_record_name, rename_fasta_records, missing_target_contigs
+from cactus.refmap.cactus_panpatch import rescue_dropped_contigs, count_fasta_ns, PANPATCH_REPORT_COLUMNS
 
 GRAPH_EVENT = '_MINIGRAPH_'
 # <graphmap dotHaplotypes> as the default config has it, which is what the seqfiles below, with their
@@ -597,14 +600,14 @@ class TestPanpatchErrorBeds(unittest.TestCase):
 
     # ---- batch summary (summarize_report / write_batch_summary) ----
 
-    def _report(self, name, rows, contigs):
-        """ write a per-sample panpatch report (header + gap_origin column + rows + #Contig cap lines).
-        rows: (type, decision, gap_origin) tuples; contigs: (left_yes, right_yes) tuples """
+    def _report(self, name, rows, contigs, summary=()):
+        """ write a per-sample panpatch report (header + gap_origin column + rows + #Summary lines + #Contig
+        cap lines).  rows: (type, decision, gap_origin) tuples; contigs: (left_yes, right_yes) tuples """
         hdr = _REPORT_HEADER + '\tgap_origin'
         def row(typ, decision, gap_origin):
             return '\t'.join(['chr1', '1', typ, 'TGT#1#chr1', '100', 'DON#1#d', '20', '0',
                               '.', '100.0', '100.0', decision, '.', '10', '20', gap_origin])
-        lines = [hdr] + [row(*r) for r in rows]
+        lines = [hdr] + [row(*r) for r in rows] + list(summary)
         for i, (l, r) in enumerate(contigs):
             lines.append('#Contig TGT#1#c{} len=90000bp left={}(0.9) right={}(0.9)'.format(
                 i, 'YES' if l else 'NO', 'YES' if r else 'NO'))
@@ -623,6 +626,16 @@ class TestPanpatchErrorBeds(unittest.TestCase):
         self.assertEqual(s['counts'], {'gap-fill': 2, 'bed-gap': 1, 'scaffold': 1, 'telomere': 1})
         self.assertEqual(s['t2t'], 1)
         self.assertEqual(s['contigs'], 3)
+        self.assertEqual(s['rejected'], 1)               # the rejected gap-fill; passthrough is neither
+        self.assertEqual(s['output_records'], 3)         # no #Summary line: counted from the cap lines
+
+    def test_summarize_report_summary_lines(self):
+        # gather_panpatch's #Summary lines (one per haplotype) give the before/after counts, summed
+        rep = self._report('s.tsv', [('telomere', 'accepted', '.')], [(True, True)],
+                           summary=['#Summary hap=1 input_contigs=30 input_t2t=19 output_records=30 t2t=22',
+                                    '#Summary hap=2 input_contigs=24 input_t2t=19 output_records=25 t2t=23'])
+        s = summarize_report(rep)
+        self.assertEqual((s['input_contigs'], s['input_t2t'], s['output_records'], s['t2t']), (54, 38, 55, 45))
 
     def test_concat_reports_replaces_stale_cap_lines(self):
         # two per-chromosome reports, each carrying panpatch's own per-path cap lines (which describe
@@ -661,10 +674,12 @@ class TestPanpatchErrorBeds(unittest.TestCase):
         a = self._report('A.tsv',
                          [('gap-fill', 'accepted', 'bed-gap'), ('gap-fill', 'accepted', 'N-gap'),
                           ('scaffold', 'accepted', '.')],
-                         [(True, True), (True, True), (False, True)])          # 2 T2T of 3
+                         [(True, True), (True, True), (False, True)],          # 2 T2T of 3
+                         summary=['#Summary hap=1 input_contigs=4 input_t2t=1 output_records=3 t2t=2'])
         b = self._report('B.tsv',
-                         [('gap-fill', 'accepted', 'N-gap'), ('telomere', 'accepted', '.')],
-                         [(True, True), (False, False)])                       # 1 T2T of 2
+                         [('gap-fill', 'accepted', 'N-gap'), ('telomere', 'accepted', '.'),
+                          ('gap-fill', 'rejected', 'N-gap')],
+                         [(True, True), (False, False)])                       # 1 T2T of 2, no #Summary
         summaries = [('A', {'A.tsv': a}), ('B', {'B.tsv': b}),
                      ('SKIP', None), ('SKIP2', {'other.fa': a})]               # runs with no report -> skipped
         options = Namespace(outDir=self.tempDir)
@@ -673,12 +688,77 @@ class TestPanpatchErrorBeds(unittest.TestCase):
         with open(os.path.join(self.tempDir, 'panpatch-summary.tsv')) as f:
             lines = [l.rstrip('\n') for l in f if not l.startswith('#')]
         table = {c.split('\t')[0]: c.split('\t')[1:] for c in lines[1:]}   # skip the column header
-        self.assertEqual(lines[0], 'sample\tgap_fill\tbed_gap\tscaffold\ttelomere\tpatches\tt2t_contigs\tcontigs_analyzed')
-        self.assertEqual(table['A'], ['2', '1', '1', '0', '3', '2', '3'])
-        self.assertEqual(table['B'], ['1', '0', '0', '1', '2', '1', '2'])
-        self.assertEqual(table['TOTAL'], ['3', '1', '1', '1', '5', '3', '5'])
+        self.assertEqual(lines[0], 'run\tinput_contigs\toutput_records\tinput_t2t\tt2t\tpatches\tgap_fill\tbed_gap\t'
+                                   'scaffold\ttelomere\trejected')
+        self.assertEqual(table['A'], ['4', '3', '1', '2', '3', '2', '1', '1', '0', '0'])
+        self.assertEqual(table['B'], ['0', '2', '0', '1', '2', '1', '0', '0', '1', '1'])
+        self.assertEqual(table['TOTAL'], ['4', '5', '1', '3', '5', '3', '1', '1', '1', '1'])
         self.assertNotIn('SKIP', table)                                    # runs without a report are omitted
 
+    # ---- the delivered names, and the completeness check ----
+
+    def test_clean_path_name(self):
+        renames = run_renames({'referenceFree': True, 'samples': ['HG2_v_1', 'DON'], 'target_sample': 'HG2.v', 'hap': '1'})
+        self.assertEqual(renames, {'HG2_v_1': ('HG2.v', '1')})
+        self.assertEqual(clean_path_name('HG2_v_1#0#chr8_haplotype1-0000014', renames), 'HG2.v#1#chr8_haplotype1-0000014')
+        self.assertEqual(clean_path_name('DON#2#CM1.1#0', renames), 'DON#2#CM1.1')           # phase block dropped
+        self.assertEqual(clean_path_name('TGT#1#c#0[8-100]', {}), 'TGT#1#c[8-100]')         # a subrange is kept
+        self.assertEqual(clean_path_name('chr8_hap_1', renames), 'chr8_hap_1')              # not a path: as it is
+        self.assertEqual(run_renames({'referenceFree': False}), {})
+
+    def test_clean_report_and_bed_names(self):
+        renames = {'T_1': ('T', '1')}
+        rep = self._write('r.tsv', _REPORT_HEADER + '\tgap_origin\n' + '\t'.join(
+            ['c1', '0', 'gap-fill', 'T_1#0#c1', '100', 'DON#2#d#0', '20', '5', '.', '.', '.', 'rejected',
+             'contig reverted: contig T_1#0#c1 scaffolded to DON#2#d#0', '10', '15', 'N-gap']) + '\n'
+            + '#Contig c1 len=100bp left=YES(0.9) right=YES(0.9)\n')
+        clean_report_names(rep, renames, hap='1')
+        f = open(rep).read().split('\n')[1].split('\t')
+        self.assertEqual((f[1], f[3], f[5]), ('1', 'T#1#c1', 'DON#2#d'))
+        self.assertEqual(f[12], 'contig reverted: contig T#1#c1 scaffolded to DON#2#d')
+        self.assertIn('#Contig c1 len=100bp', open(rep).read())                         # cap lines untouched
+        bed = self._write('b.bed', '#Patched assembly on c1 for T_1#0:\nT_1#0#c1\t0\t10\t+\nDON#2#d#0\t3\t9\t+\n\n'
+                                   '#Unpatched (input contig) on c2 for T_1#0:\nT_1#0#c2\t0\t50\t+\n')
+        clean_bed_names(bed, renames)
+        self.assertEqual(open(bed).read(), '#Patched assembly on c1 for T#1:\nT#1#c1\t0\t10\t+\nDON#2#d\t3\t9\t+\n\n'
+                                           '#Unpatched (input contig) on c2 for T#1:\nT#1#c2\t0\t50\t+\n')
+
+    def test_output_record_names(self):
+        # reference-free: every record is one input contig and takes its name
+        self.assertEqual(output_record_name('c1_hap_0', True), 'c1')
+        self.assertEqual(output_record_name('T_1#0#c2', True), 'c2')
+        # reference-based: a patched chromosome keeps <chrom>_hap_<N>; a contig written as it is, its name
+        self.assertEqual(output_record_name('chr8_hap_1', False), 'chr8_hap_1')
+        self.assertEqual(output_record_name('T#1#c3#0', False), 'c3')
+        fa = self._write('n.fa', '>c1_hap_0\nACGT\n>T_1#0#c2\nGG\n')
+        self.assertEqual(rename_fasta_records(fa, True), ['c1', 'c2'])
+        self.assertEqual(open(fa).read(), '>c1\nACGT\n>c2\nGG\n')
+        dup = self._write('d.fa', '>c1_hap_0\nA\n>T_1#0#c1\nC\n')                        # both would be c1
+        with self.assertRaises(RuntimeError):
+            rename_fasta_records(dup, True)
+
+    def test_missing_target_contigs(self):
+        bed = self._write('m.bed', '#Patched assembly on chr1 for T#1:\nT#1#a#0\t0\t10\t+\nDON#1#x#0\t0\t5\t+\n'
+                                   'T#1#b#0\t0\t9\t+\n\n'
+                                   '#Patched assembly on chr1 for T#2:\nT#2#z#0\t0\t10\t+\n\n')
+        rep = self._write('m.tsv', _REPORT_HEADER + '\n' + '\t'.join(
+            ['chr1', '1', 'telomere', 'T#1#c#0', '9', 'DON#1#x#0', '20', '9', '.', '.', '.', 'accepted', '.', '0', '9']) + '\n')
+        # a and b are in a patched record, c was taken over by an accepted patch, d is written as itself,
+        # e is nowhere (and z is the other haplotype's, so it does not count for hap 1)
+        missing = missing_target_contigs(['a', 'b', 'c', 'd', 'e', 'z'], ['chr1_hap_1', 'T#1#d#0'], bed, rep, 'T', 1)
+        self.assertEqual(missing, ['e', 'z'])
+    def test_rescue_dropped_contigs(self):
+        # contigs no graph saw are appended as they are, as SAMPLE#HAP#CONTIG, and returned with their lengths
+        target = self._write('t.fa', '>c1 a comment\nACGT\nAC\n>c2\nGG\n>c3\nTTTTT\n')
+        out = self._write('o.fa', '>c1_hap_0\nACGTAC\n')
+        rescued = rescue_dropped_contigs(self.job, out, target, {'0#c1'}, 'T_1', 0, label='T.hap1')
+        self.assertEqual(rescued, [('c2', 2), ('c3', 5)])
+        self.assertEqual(open(out).read(), '>c1_hap_0\nACGTAC\n>T_1#0#c2\nGG\n>T_1#0#c3\nTTTTT\n')
+        self.assertEqual(count_fasta_ns(self._write('n.fa', '>x NNN\nACNNn\n>y\nN\n')), 4)
+
+    def test_report_columns_match(self):
+        # the header gather writes for a report panpatch never wrote is panpatch's own
+        self.assertEqual(PANPATCH_REPORT_COLUMNS, _REPORT_HEADER)
 
 if __name__ == '__main__':
     unittest.main()
