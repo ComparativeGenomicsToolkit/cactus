@@ -81,7 +81,7 @@ def main():
                         "telomere is patched in from a donor when possible, otherwise the contig reverts to its input (panpatch -T)")
     parser.add_argument("--maxTelomerePatch", type=int, default=None,
                         help = "Maximum bp of target sequence that a telomere patch may replace at a contig end "
-                        "(panpatch -M) [default=500000]")
+                        "(panpatch -M) [default=20000]")
     parser.add_argument("--excludeBed", default=None,
                         help = "BED file of target regions to leave untouched, named by full graph path (panpatch -b)")
     parser.add_argument("--assemblyErrorBeds", default=None,
