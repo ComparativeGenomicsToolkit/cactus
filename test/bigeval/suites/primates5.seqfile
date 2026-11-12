@@ -1,0 +1,16 @@
+# primates5: five catarrhines, a node apart from human to macaque (substitutions per site, from the VGP 577-way's tree
+# cut down to these five with their pairwise distances kept; URLs are the 577-way's).  With the suite's --branchScale
+# 2.0 the ancestors' ingroups are 0.013 (human-chimp), 0.021, 0.043 and 0.085 (the root) apart, the range where most of a
+# big mammal alignment's ancestors lie (in the 447-way, 72% of them are under 0.05) and busco5 has none.
+#   GCA_000001405.15  human (GRCh38 no-alt analysis set, as in busco5: the CTCF cCREs are on it)
+#   GCF_028858775.2   chimpanzee (T2T mPanTro3)   -> the human-chimp node
+#   GCF_029281585.2   gorilla (T2T mGorGor1)      -> the Homininae node
+#   GCF_028885655.2   Sumatran orangutan (T2T mPonAbe1) -> the Hominidae node
+#   GCF_037993035.1   crab-eating macaque (T2T-MFA8) -> the catarrhine root
+((((GCF_028858775.2:0.00304,GCA_000001405.15:0.00362):0.00158,GCF_029281585.2:0.00516):0.00530,GCF_028885655.2:0.01116):0.00905,GCF_037993035.1:0.02230);
+
+GCF_028858775.2	https://hgdownload.soe.ucsc.edu/hubs/VGP/alignment/primary/primates/GCF_028858775.2.fa.gz
+GCF_029281585.2	https://hgdownload.soe.ucsc.edu/hubs/VGP/alignment/primary/primates/GCF_029281585.2.fa.gz
+GCF_028885655.2	https://hgdownload.soe.ucsc.edu/hubs/VGP/alignment/primary/primates/GCF_028885655.2.fa.gz
+GCF_037993035.1	https://hgdownload.soe.ucsc.edu/hubs/VGP/alignment/primary/primates/GCF_037993035.1.fa.gz
+GCA_000001405.15	https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/references/GRCh38/GCA_000001405.15_GRCh38_no_alt_analysis_set.fasta.gz
