@@ -703,6 +703,14 @@ Because a masked target error looks like a gap, the per-patch report distinguish
 
 One thing to watch out for: **error intervals at contig tips interact with telomere patching.** Error BEDs frequently flag the first or last interval of a contig, and masking one takes that contig's telomere with it, so panpatch may complete that end from a donor even where the original tip was fine. The end then carries the donor's telomere. If you are measuring whether patching improved telomere completeness, compare against the **unmasked** assembly.
 
+Masking works differently for the target and the donors, so the two BEDs should be filtered differently. A target interval gets replaced, while a donor interval simply can't be used:
+
+* **Target: mask only what you are confident is an error.** Every masked target interval that a donor spans is swapped for donor sequence. A loose target BED therefore turns into many swaps, and these add new QC flags (elsewhere as well as on the swaps) about as fast as they remove old ones. For HPRC assemblies, keep the intervals that:
+  * at least two independent QC tools flag (e.g. Flagger on HiFi, Flagger on ONT, NucFlag);
+  * do not start or end within ~1 kb of a contig end. Nearly every contig end is flagged, mostly an edge effect of read coverage, and masking an end takes the telomere with it (see above);
+  * are not mostly (>50%) satellite according to a centromere/satellite annotation. In satellite, a donor is no more reliable than the target, and panpatch can't verify the swap.
+* **Donors: mask everything any tool flags, contig ends included.** A masked donor region is never used: a patch that would need it is rejected, and the report says why (a telomere completion, for example: *donor's run to its telomere contains N (an assembly gap or masked error region)*). Masking too much of a donor can only cost a patch, but masking too little can carry that donor's error into the output.
+
 ### Cluster example
 
 ```
