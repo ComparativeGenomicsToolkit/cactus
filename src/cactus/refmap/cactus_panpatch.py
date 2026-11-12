@@ -18,6 +18,7 @@ re-tuned without rebuilding the pangenome
 """
 
 import os, sys
+import re
 import copy
 import glob
 import gzip
@@ -182,6 +183,13 @@ def main():
             # floor the per-chromosome hal2vg memory (read by export_vg in cactus_align): its default
             # estimate under-provisions the large reference-free graphs we make
             findRequiredNode(config_node, "hal2vg").attrib["minMemory"] = str(int(options.halExportMemory))
+
+            # don't cut the reference's ends into tips in the full graphs.  that is only for vg haplotypes
+            # (--haplo full), which we never run, and it breaks patching: telomere anchors align every
+            # haplotype's array to the reference's end, which they overhang by a few bp, so the cut splits
+            # the target's own paths there.  an unpatched T2T contig then comes out as two records (a few-bp
+            # stub and the rest), and a tip cut off a patched contig is dropped without a report row
+            findRequiredNode(config_node, "graphmap_join").attrib["fullStubbify"] = "0"
 
             if options.collapseRefPAF:
                 findRequiredNode(config_node, "graphmap").attrib["collapse"] = 'reference'
@@ -986,12 +994,23 @@ def revert_target_to_original(job, combined_fasta, patched_blocks, pristine_targ
             pristine[cname] = b''.join(parts)
 
     def contig_of(path_name):
-        # graph paths are SAMPLE#HAP#CONTIG, or SAMPLE#HAP#CONTIG#OFFSET in the "full" graphs (a subrange
-        # offset, 0 for a whole contig).  the contig is field 2 (sanitize strips any '#' from the contig
-        # itself, so it never contains one); take exactly that field, NOT the '#'-joined remainder, or the
-        # trailing #OFFSET leaks in and the pristine lookup (keyed by the bare contig) never matches
-        parts = path_name.split('#')
+        # graph paths are SAMPLE#HAP#CONTIG, or SAMPLE#HAP#CONTIG#0 in the "full" graphs, plus a
+        # [START-END] subrange on a piece of a contig that something cut.  the contig is field 2 (sanitize
+        # strips any '#' from the contig itself, so it never contains one); take exactly that field, NOT
+        # the '#'-joined remainder, or the trailing fields leak in and the pristine lookup (keyed by the
+        # bare contig) never matches
+        parts = path_name.split('[')[0].split('#')
         return parts[2] if len(parts) >= 3 else path_name
+
+    def subrange_of(path_name):
+        # (START, END) of a path piece's [START-END] subrange (END None if absent), or None for a whole
+        # contig.  bed coordinates are relative to the piece, so a piece copied from 0 comes out shifted
+        m = re.search(r'\[(\d+)(?:-(\d+))?\]$', path_name)
+        return (int(m.group(1)), int(m.group(2)) if m.group(2) else None) if m else None
+
+    def offset_of(path_name):
+        sub = subrange_of(path_name)
+        return sub[0] if sub else 0
 
     def is_target(path_name):
         # sample must match AND the contig must be one we hold, so a donor contig that happens to share a
@@ -1009,7 +1028,11 @@ def revert_target_to_original(job, combined_fasta, patched_blocks, pristine_targ
             if '#' in name:
                 # a reverted / passthrough record: one whole target contig, restored from the original
                 if is_target(name):
+                    # a piece of a contig ([START-END]) is restored as that piece, not the whole contig
+                    sub = subrange_of(name)
                     new = pristine[contig_of(name)]
+                    if sub:
+                        new = new[sub[0]:sub[1] if sub[1] is not None else sub[0] + sum(len(p) for p in seq_parts)]
                     reverted_bp[0] += len(new)
                 else:
                     new = ''.join(seq_parts).encode('ascii')
@@ -1025,7 +1048,8 @@ def revert_target_to_original(job, combined_fasta, patched_blocks, pristine_targ
                     for (path_name, s, e, strand) in lines:
                         length = e - s
                         if is_target(path_name):
-                            seg = pristine[contig_of(path_name)][s:e]
+                            off = offset_of(path_name)
+                            seg = pristine[contig_of(path_name)][off + s:off + e]
                             chunks.append(revcomp(seg) if strand == '-' else seg)
                             reverted_bp[0] += length
                         else:
