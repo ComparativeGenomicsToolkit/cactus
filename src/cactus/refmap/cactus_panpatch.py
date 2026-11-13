@@ -6,9 +6,10 @@ cactus-pangenome
 panpatch
 
 panpatch (https://github.com/glennhickey/panpatch) uses a pangenome graph to patch a (slightly)
-fragmented assembly into T2T chromosomes: it fills N-gaps, scaffolds disconnected contigs and
-completes missing terminal telomeres (--requireTelomeres makes them mandatory), taking the patch
-sequence from one or more donor assemblies.
+fragmented assembly into T2T chromosomes: it fills N-gaps, scaffolds disconnected contigs,
+completes missing terminal telomeres (--requireTelomeres makes them mandatory) and replaces regions
+flagged as assembly errors (--assemblyErrorBeds), taking the patch sequence from one or more donor
+assemblies.
 
 the pangenome is built with --chrom-vg full and nothing else, since the per-chromosome "full" vg
 graphs are the only thing panpatch needs.  cactus-pangenome is the overwhelming majority of the
@@ -81,8 +82,8 @@ def main():
                         help = "Require a telomere at both ends of each patched haplotype (and none inside). A missing terminal "
                         "telomere is patched in from a donor when possible, otherwise the contig reverts to its input (panpatch -T)")
     parser.add_argument("--maxTelomerePatch", type=int, default=None,
-                        help = "Maximum bp of target sequence that a telomere patch may replace at a contig end "
-                        "(panpatch -M) [default=20000]")
+                        help = "Maximum bp of target sequence that a telomere patch, or a tip graft (a donor carrying the "
+                        "patch past the target's end), may replace at a contig end (panpatch -M) [default=20000]")
     parser.add_argument("--excludeBed", default=None,
                         help = "BED file of target regions to leave untouched, named by full graph path (panpatch -b)")
     parser.add_argument("--assemblyErrorBeds", default=None,
@@ -115,7 +116,7 @@ def main():
 
     # cactus-graphmap-join uses this to cap the memory of the vg jobs that we do run
     parser.add_argument("--indexMemory", type=human2bytesN,
-                        help="Memory in bytes to upper-bound the per-chromosome vg jobs. "
+                        help="Memory in bytes to upper-bound the per-chromosome vg and panpatch jobs. "
                         "Standard suffixes like K, Ki, M, Mi, G or Gi are supported (default=bytes))", default=None)
 
     # hal2vg (which converts each chromosome alignment to vg) is sized from the alignment's memory,
@@ -658,7 +659,7 @@ PANPATCH_BYTES_PER_SEC = 20e6
 
 # Bytes of output assembly per second for the gather pass: bgzip of each output haplotype (single-
 # threaded it runs 21-27 MB/s, measured on the HPRC PAFs -- see GZIP_COMPRESS_BYTES_PER_SEC in
-# cactus.shared.common), plus two whole-genome python passes over it (the masked-target revert and the
+# cactus.shared.common), plus two whole-genome python passes over it (the target revert and the
 # dropped-contig rescue) plus panpatch's telomere report over each finished fasta.  the rate is still
 # the single-threaded one, so the walltime it gives is an upper bound
 GATHER_BYTES_PER_SEC = 8e6
@@ -980,8 +981,9 @@ def parse_bed_blocks(bed_path):
     return blocks
 
 def revert_target_to_original(job, combined_fasta, patched_blocks, pristine_target_id, target_sample, hap, label=None):
-    """ rewrite a panpatch output haplotype so every target-sample byte comes from the original (unmasked)
-    assembly, while donor bytes are kept verbatim.  this restores a masked-but-unpatched error region (and
+    """ rewrite a panpatch output haplotype so every target-sample byte comes from the original
+    assembly, while donor bytes are kept verbatim.  (written for graphs built from N-masked assemblies;
+    they are now built unmasked, so the target bytes already match and this changes nothing.)  this restores a masked-but-unpatched error region (and
     any reverted / passthrough target contig, whose graph copy may carry masked Ns) to its original
     sequence -- never N.  driven by the panpatch --bed, which is a byte-exact description of the output:
     output = original_contig[start:end] (revcomp iff strand '-'), concatenated in order """
@@ -1237,8 +1239,9 @@ def missing_target_contigs(input_contigs, record_names, bed_path, report_path, t
 
 def gather_panpatch(job, options, run, chrom_results, target_fasta_ids, target_error_bed_ids):
     """ concatenate the per-chromosome panpatch outputs (in chromosome order, as panpatch itself would),
-    revert target bytes to the original assembly where the target was masked, rescue any target contig the
-    pangenome dropped, bgzip, and return the output file map """
+    take target bytes from the original assembly (they already match it: the graphs are built from the
+    unmasked assemblies), rescue any target contig the pangenome dropped, bgzip, and return the output
+    file map """
     work_dir = job.fileStore.getLocalTempDir()
 
     # every target contig panpatch saw across all the chromosome graphs.  a contig the pangenome
@@ -1318,15 +1321,15 @@ def gather_panpatch(job, options, run, chrom_results, target_fasta_ids, target_e
                         shutil.copyfileobj(f, out)
                     os.remove(chrom_fa)
 
-        # revert target-sample bytes to the original (unmasked) assembly, so a masked-but-unpatched error
-        # region comes back as its original sequence -- never N.  only for a haplotype whose target was
-        # masked; donor bytes stay exactly as panpatch emitted them
+        # take target-sample bytes from the original assembly, for a haplotype with target error BEDs.
+        # (this was for graphs built from N-masked assemblies, to restore a masked-but-unpatched error
+        # region; they are built unmasked now, so nothing changes.)  donor bytes stay as panpatch emitted them
         if hap in target_error_bed_ids and hap in target_fasta_ids:
             n_before = count_fasta_ns(combined)
             revert_target_to_original(job, combined, patched_blocks, target_fasta_ids[hap],
                                       run['samples'][0], hap, label=label)
-            RealtimeLogger.info('{}: {:,} bp of error-BED masking that no patch replaced are back to their '
-                                'original sequence'.format(label, n_before - count_fasta_ns(combined)))
+            RealtimeLogger.info('{}: {:,} N bp restored to the original target sequence'.format(
+                label, n_before - count_fasta_ns(combined)))
 
         # rescue any target contig the pangenome dropped, appending it verbatim from the input assembly, and
         # describe it in the report and the bed like any other record written as it is
@@ -1369,10 +1372,10 @@ def gather_panpatch(job, options, run, chrom_results, target_fasta_ids, target_e
         # the delivered names: each record that is one input contig takes that contig's name
         record_names = rename_fasta_records(combined, run['referenceFree'])
 
-        # Measure telomere completeness on the assembly we are actually delivering.  panpatch's own
-        # "#Contig" lines are measured before this function reverts masked target regions to their
-        # original sequence, so re-measure the finished FASTA with panpatch's own detector
-        # (--telomere-report, which shares seq_has_telomere with the in-graph check) and use those lines.
+        # Measure telomere completeness on the assembly we are actually delivering: panpatch's own
+        # "#Contig" lines are measured before this function renames, reverts and rescues, so re-measure the
+        # finished FASTA with panpatch's own detector (--telomere-report, which shares seq_has_telomere
+        # with the in-graph check) and use those lines.
         cap_out = cactus_call(parameters=['panpatch', '--telomere-report', combined] + telo_opts,
                               check_output=True)
         hap_caps = [l for l in cap_out.split('\n') if l.startswith('#Contig')]
