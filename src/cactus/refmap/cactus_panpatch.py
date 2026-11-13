@@ -351,11 +351,6 @@ def parse_error_bed(bed_path, sanitize=False):
             intervals.setdefault(contig, []).append((start, end))
     return intervals
 
-_REVCOMP = bytes.maketrans(b'ACGTNacgtnMRWSYKVHDBmrwsykvhdb', b'TGCANtgcanKYWSRMBDHVkywsrmbdhv')
-def revcomp(seq):
-    """ reverse-complement a bytes sequence (IUPAC-aware) """
-    return seq.translate(_REVCOMP)[::-1]
-
 def intervals_overlap(a_start, a_end, intervals):
     """ does [a_start, a_end) overlap any [s, e) in the list of half-open intervals? """
     return any(s < a_end and a_start < e for s, e in intervals)
@@ -396,6 +391,10 @@ def panpatch_validate_options(options):
                                'and its graphs are already kept')
         if options.fromGraphs.startswith('s3://') or not os.path.isdir(options.fromGraphs):
             raise RuntimeError('--fromGraphs {} is not a local directory'.format(options.fromGraphs))
+        out_dir = getattr(options, 'outDir', None)
+        if out_dir and not out_dir.startswith('s3://') and os.path.realpath(out_dir) == os.path.realpath(options.fromGraphs):
+            raise RuntimeError('--outDir cannot be the --fromGraphs directory {}: its run\'s outputs would be '
+                               'overwritten'.format(options.fromGraphs))
     if getattr(options, 'inGFA', None) or getattr(options, 'inGAF', None) or getattr(options, 'remap', False):
         # these come in via pangenome_options(), which panpatch shares.  the graph panpatch builds
         # is a throwaway, built per sample out of that sample and its donors, so there is nothing
@@ -659,8 +658,8 @@ PANPATCH_BYTES_PER_SEC = 20e6
 
 # Bytes of output assembly per second for the gather pass: bgzip of each output haplotype (single-
 # threaded it runs 21-27 MB/s, measured on the HPRC PAFs -- see GZIP_COMPRESS_BYTES_PER_SEC in
-# cactus.shared.common), plus two whole-genome python passes over it (the target revert and the
-# dropped-contig rescue) plus panpatch's telomere report over each finished fasta.  the rate is still
+# cactus.shared.common), plus whole-genome python passes over it (renaming and the dropped-contig rescue)
+# plus panpatch's telomere report over each finished fasta.  the rate is still
 # the single-threaded one, so the walltime it gives is an upper bound
 GATHER_BYTES_PER_SEC = 8e6
 
@@ -802,9 +801,7 @@ def add_panpatch_jobs(job, options, run, full_vg_ids, vg_names, ref_size, exclud
     # gather the per-chromosome outputs, rescue dropped contigs, and bgzip.  the concatenated fastas
     # are ~ploidy * genome
     gather_disk = int(run['ploidy'] * ref_size * 3) + sum(fid.size for fid in target_fasta_ids.values()) + 2**30
-    # reverting target bytes to the original loads one pristine target haplotype into memory, so give
-    # gather more headroom when a revert will actually run
-    gather_mem = ref_size * (3 if target_error_bed_ids else 2)
+    gather_mem = ref_size * 2
     gather_job = job.addFollowOnJobFn(gather_panpatch, options, run, [cj.rv() for cj in chrom_jobs],
                                       target_fasta_ids, target_error_bed_ids,
                                       cores=min(GATHER_CORES, int(options.maxCores)) if options.maxCores else GATHER_CORES,
@@ -980,101 +977,6 @@ def parse_bed_blocks(bed_path):
                     blocks[cur].append((toks[0], int(toks[1]), int(toks[2]), toks[3]))
     return blocks
 
-def revert_target_to_original(job, combined_fasta, patched_blocks, pristine_target_id, target_sample, hap, label=None):
-    """ rewrite a panpatch output haplotype so every target-sample byte comes from the original
-    assembly, while donor bytes are kept verbatim.  (written for graphs built from N-masked assemblies;
-    they are now built unmasked, so the target bytes already match and this changes nothing.)  this restores a masked-but-unpatched error region (and
-    any reverted / passthrough target contig, whose graph copy may carry masked Ns) to its original
-    sequence -- never N.  driven by the panpatch --bed, which is a byte-exact description of the output:
-    output = original_contig[start:end] (revcomp iff strand '-'), concatenated in order """
-    work_dir = job.fileStore.getLocalTempDir()
-    pristine_fa = os.path.join(work_dir, 'pristine_target.fa')
-    job.fileStore.readGlobalFile(pristine_target_id, pristine_fa)
-    with open(pristine_fa, 'rb') as fh:
-        is_gzipped = fh.read(2) == b'\x1f\x8b'
-    opener = gzip.open if is_gzipped else open
-
-    # load the pristine target haplotype, keyed by the graph CONTIG name (sanitized the way cactus did),
-    # so it lines up with the PanSN path names in the panpatch bed / fasta (exactly as rescue does)
-    pristine = {}
-    with opener(pristine_fa, 'rt') as inp:
-        cname, parts = None, []
-        for line in inp:
-            if line.startswith('>'):
-                if cname is not None:
-                    pristine[cname] = b''.join(parts)
-                cname, parts = sanitize_contig_name(line[1:]), []
-            else:
-                parts.append(line.strip().encode('ascii'))
-        if cname is not None:
-            pristine[cname] = b''.join(parts)
-
-    def contig_of(path_name):
-        # graph paths are SAMPLE#HAP#CONTIG, or SAMPLE#HAP#CONTIG#OFFSET in the "full" graphs (a subrange
-        # offset, 0 for a whole contig).  the contig is field 2 (sanitize strips any '#' from the contig
-        # itself, so it never contains one); take exactly that field, NOT the '#'-joined remainder, or the
-        # trailing #OFFSET leaks in and the pristine lookup (keyed by the bare contig) never matches
-        parts = path_name.split('#')
-        return parts[2] if len(parts) >= 3 else path_name
-
-    def is_target(path_name):
-        # sample must match AND the contig must be one we hold, so a donor contig that happens to share a
-        # target contig's bare name is never mistaken for the target
-        return path_name.split('#')[0] == target_sample and contig_of(path_name) in pristine
-
-    out_path = combined_fasta + '.reverted'
-    width, reverted_bp = 80, [0]
-    with open(combined_fasta) as inp, open(out_path, 'wb') as out:
-        name, seq_parts = None, []
-
-        def flush():
-            if name is None:
-                return
-            if '#' in name:
-                # a reverted / passthrough record: one whole target contig, restored from the original
-                if is_target(name):
-                    new = pristine[contig_of(name)]
-                    reverted_bp[0] += len(new)
-                else:
-                    new = ''.join(seq_parts).encode('ascii')
-            else:
-                # a patched record "<locus>_hap_<hap>": rebuild from its bed block -- target spans from the
-                # pristine assembly, donor spans kept verbatim from panpatch's own emitted bytes
-                raw = ''.join(seq_parts).encode('ascii')
-                lines = patched_blocks.get((name[:name.rfind('_hap_')], str(hap)))
-                if lines is None:
-                    new = raw
-                else:
-                    cursor, chunks = 0, []
-                    for (path_name, s, e, strand) in lines:
-                        length = e - s
-                        if is_target(path_name):
-                            seg = pristine[contig_of(path_name)][s:e]
-                            chunks.append(revcomp(seg) if strand == '-' else seg)
-                            reverted_bp[0] += length
-                        else:
-                            chunks.append(raw[cursor:cursor + length])
-                        cursor += length
-                    if cursor != len(raw):
-                        raise RuntimeError('panpatch revert: bed length {} != fasta record length {} for {} (hap {})'.format(
-                            cursor, len(raw), name, hap))
-                    new = b''.join(chunks)
-            out.write(('>' + name + '\n').encode('utf-8'))
-            for i in range(0, len(new), width):
-                out.write(new[i:i + width] + b'\n')
-
-        for line in inp:
-            if line.startswith('>'):
-                flush()
-                name, seq_parts = line[1:].rstrip('\n'), []
-            else:
-                seq_parts.append(line.strip())
-        flush()
-    os.replace(out_path, combined_fasta)
-    RealtimeLogger.debug('{}: copied {:,} bp of target sequence from the original assembly'.format(
-        label or 'hap {}'.format(hap), reverted_bp[0]))
-
-# the columns of panpatch's report (PATCH_TABLE_HEADER in panpatch_main.cpp); tag_report_gap_origin adds gap_origin
 PANPATCH_REPORT_COLUMNS = ('chrom\thap\ttype\ttarget\ttarget_bp\tdonor\tdonor_bp\treplaced_bp\tkmer%\tflankL%\t'
                            'flankR%\tdecision\treason\ttarget_start\ttarget_end')
 
@@ -1183,15 +1085,6 @@ def rename_fasta_records(fasta_path, reference_free):
     os.replace(out_path, fasta_path)
     return names
 
-def count_fasta_ns(fasta_path):
-    """ the number of N (or n) bases in a plaintext fasta """
-    n = 0
-    with open(fasta_path, 'rb') as f:
-        for line in f:
-            if not line.startswith(b'>'):
-                n += line.count(b'N') + line.count(b'n')
-    return n
-
 def fasta_contig_names(fasta_path):
     """ the contig names of a (maybe gzipped) fasta, sanitized as cactus sanitizes them for the graph """
     with open(fasta_path, 'rb') as fh:
@@ -1239,9 +1132,7 @@ def missing_target_contigs(input_contigs, record_names, bed_path, report_path, t
 
 def gather_panpatch(job, options, run, chrom_results, target_fasta_ids, target_error_bed_ids):
     """ concatenate the per-chromosome panpatch outputs (in chromosome order, as panpatch itself would),
-    take target bytes from the original assembly (they already match it: the graphs are built from the
-    unmasked assemblies), rescue any target contig the pangenome dropped, bgzip, and return the output
-    file map """
+    rescue any target contig the pangenome dropped, bgzip, and return the output file map """
     work_dir = job.fileStore.getLocalTempDir()
 
     # every target contig panpatch saw across all the chromosome graphs.  a contig the pangenome
@@ -1287,7 +1178,6 @@ def gather_panpatch(job, options, run, chrom_results, target_fasta_ids, target_e
             with open(p, 'rb') as f:
                 shutil.copyfileobj(f, out)
             os.remove(p)
-    patched_blocks = parse_bed_blocks(bed_out) if target_error_bed_ids else {}
 
     # and the reports: the TSV header from the first chromosome that has one, then every chromosome's
     # rows (a skipped graph has no report).  the completeness check below reads this one; the delivered
@@ -1320,16 +1210,6 @@ def gather_panpatch(job, options, run, chrom_results, target_fasta_ids, target_e
                     with open(chrom_fa, 'rb') as f:
                         shutil.copyfileobj(f, out)
                     os.remove(chrom_fa)
-
-        # take target-sample bytes from the original assembly, for a haplotype with target error BEDs.
-        # (this was for graphs built from N-masked assemblies, to restore a masked-but-unpatched error
-        # region; they are built unmasked now, so nothing changes.)  donor bytes stay as panpatch emitted them
-        if hap in target_error_bed_ids and hap in target_fasta_ids:
-            n_before = count_fasta_ns(combined)
-            revert_target_to_original(job, combined, patched_blocks, target_fasta_ids[hap],
-                                      run['samples'][0], hap, label=label)
-            RealtimeLogger.info('{}: {:,} N bp restored to the original target sequence'.format(
-                label, n_before - count_fasta_ns(combined)))
 
         # rescue any target contig the pangenome dropped, appending it verbatim from the input assembly, and
         # describe it in the report and the bed like any other record written as it is
@@ -1373,7 +1253,7 @@ def gather_panpatch(job, options, run, chrom_results, target_fasta_ids, target_e
         record_names = rename_fasta_records(combined, run['referenceFree'])
 
         # Measure telomere completeness on the assembly we are actually delivering: panpatch's own
-        # "#Contig" lines are measured before this function renames, reverts and rescues, so re-measure the
+        # "#Contig" lines are measured before this function renames and rescues, so re-measure the
         # finished FASTA with panpatch's own detector (--telomere-report, which shares seq_has_telomere
         # with the in-graph check) and use those lines.
         cap_out = cactus_call(parameters=['panpatch', '--telomere-report', combined] + telo_opts,
@@ -1534,7 +1414,7 @@ def summarize_report(report_path):
             if typ in ('gap-fill', 'scaffold', 'telomere'):
                 counts[typ] += 1
                 g = idx.get('gap_origin')
-                if typ == 'gap-fill' and g is not None and g < len(f2) and f2[g] == 'bed-gap':
+                if typ in ('gap-fill', 'telomere') and g is not None and g < len(f2) and f2[g] == 'bed-gap':
                     counts['bed-gap'] += 1
     if not have_summary:
         totals['output_records'], totals['t2t'] = caps, cap_t2t
@@ -1568,7 +1448,7 @@ def write_batch_summary(job, options, summaries):
     with open(summary_path, 'w') as out:
         out.write('# cactus-panpatch summary of {} run(s).  input_t2t / t2t: contigs with a telomere at both ends '
                   'before / after patching.  patches: accepted gap_fill + scaffold + telomere (bed_gap: the gap '
-                  'fills over error-BED intervals).  rejected: candidate patches turned down (see each run\'s '
+                  'fills and telomere patches over error-BED intervals).  rejected: candidate patches turned down (see each run\'s '
                   '.tsv for why)\n'.format(len(rows)))
         out.write('\t'.join(SUMMARY_COLUMNS) + '\n')
         for name, s in rows:

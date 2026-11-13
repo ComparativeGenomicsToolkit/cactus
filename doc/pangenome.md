@@ -685,7 +685,7 @@ PAN027   PAN027.seqfile.txt
 cactus-panpatch ./js chromfile.txt --outDir patched --batch
 ```
 
-Each sample writes its own patched FASTA(s), `<name>.bed`, and per-patch report `<name>.tsv` into `--outDir` (reference-free, there is one of each per haplotype: `<name>.hap1.fa.gz`, `<name>.hap1.bed`, `<name>.hap1.tsv`, ...). The report is [panpatch's](https://github.com/glennhickey/panpatch#the-report), with a `gap_origin` column added (see [below](#assembly-error-beds)). Across all samples, a single `panpatch-summary.tsv` rolls those reports up: one row per run (a sample, or one haplotype of it when reference-free) with its input contigs and output records, the telomere-to-telomere contigs before and after patching (`input_t2t`, `t2t`), accepted patches by category (`gap_fill`, `scaffold`, `telomere`, and `bed_gap`, the gap fills that are over error-BED intervals), the `rejected` candidates, and a `TOTAL` row.
+Each sample writes its own patched FASTA(s), `<name>.bed`, and per-patch report `<name>.tsv` into `--outDir` (reference-free, there is one of each per haplotype: `<name>.hap1.fa.gz`, `<name>.hap1.bed`, `<name>.hap1.tsv`, ...). The report is [panpatch's](https://github.com/glennhickey/panpatch#the-report), with a `gap_origin` column added (see [below](#assembly-error-beds)). Across all samples, a single `panpatch-summary.tsv` rolls those reports up: one row per run (a sample, or one haplotype of it when reference-free) with its input contigs and output records, the telomere-to-telomere contigs before and after patching (`input_t2t`, `t2t`), accepted patches by category (`gap_fill`, `scaffold`, `telomere`, and `bed_gap`, the gap fills and telomere patches over error-BED intervals), the `rejected` candidates, and a `TOTAL` row.
 
 Every record of a patched assembly that is one input contig keeps that contig's name (as cactus reads it from the FASTA header), patched or not, so a reference-free output is named exactly like its input; a reference-based patched chromosome is `<chrom>_hap_<N>`. The report and the bed name the assemblies as the seqfile does (`SAMPLE#HAP#CONTIG`). Every input contig is checked to reach the output (as a record of its own, part of a patched record, or taken over by an accepted patch): if one would not, the run fails rather than silently drop it.
 
@@ -726,7 +726,7 @@ The two kinds of interval work differently, so the target's and the donors' BEDs
 
 ### Re-running on kept graphs
 
-Building the graphs is nearly all of the compute; panpatch itself takes minutes. With `--keepGraphs`, the chromosome graphs panpatch ran on are kept in `<outDir>/<name>.chroms/`. A later run with `--fromGraphs <DIR>`, where `<DIR>` is that run's `--outDir`, patches those graphs instead of building them:
+Building the graphs is nearly all of the compute; panpatch itself takes minutes. With `--keepGraphs`, the chromosome graphs panpatch ran on are kept in `<outDir>/<name>.chroms/`. A later run with `--fromGraphs <DIR>`, where `<DIR>` is that run's `--outDir`, patches those graphs instead of building them, and writes to an `--outDir` of its own (not `<DIR>`, whose outputs it would otherwise overwrite):
 
 ```
 cactus-panpatch ./js chromfile.txt --outDir patched --batch --keepGraphs

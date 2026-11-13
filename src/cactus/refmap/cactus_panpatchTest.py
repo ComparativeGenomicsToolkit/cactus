@@ -18,12 +18,12 @@ from argparse import Namespace
 
 from cactus.refmap.cactus_panpatch import sanitize_contig_name, sample_base, sample_hap
 from cactus.refmap.cactus_panpatch import make_runs, panpatch_validate_options
-from cactus.refmap.cactus_panpatch import read_error_bed_manifest, parse_error_bed, intervals_overlap, revcomp
-from cactus.refmap.cactus_panpatch import parse_bed_blocks, make_panpatch_error_bed, revert_target_to_original
+from cactus.refmap.cactus_panpatch import read_error_bed_manifest, parse_error_bed, intervals_overlap
+from cactus.refmap.cactus_panpatch import parse_bed_blocks, make_panpatch_error_bed
 from cactus.refmap.cactus_panpatch import tag_report_gap_origin, summarize_report, write_batch_summary, concat_reports
 from cactus.refmap.cactus_panpatch import clean_path_name, clean_report_names, clean_bed_names, run_renames
 from cactus.refmap.cactus_panpatch import output_record_name, rename_fasta_records, missing_target_contigs
-from cactus.refmap.cactus_panpatch import rescue_dropped_contigs, count_fasta_ns, PANPATCH_REPORT_COLUMNS
+from cactus.refmap.cactus_panpatch import rescue_dropped_contigs, PANPATCH_REPORT_COLUMNS
 
 GRAPH_EVENT = '_MINIGRAPH_'
 # <graphmap dotHaplotypes> as the default config has it, which is what the seqfiles below, with their
@@ -331,12 +331,6 @@ class TestPanpatchErrorBeds(unittest.TestCase):
 
     # ---- pure helpers ----
 
-    def test_revcomp(self):
-        self.assertEqual(revcomp(b'ACGTN'), b'NACGT')
-        self.assertEqual(revcomp(b'acgtn'), b'nacgt')          # case preserved
-        self.assertEqual(revcomp(b'AAAC'), b'GTTT')
-        self.assertEqual(revcomp(revcomp(b'ACGTRYSWKM')), b'ACGTRYSWKM')  # IUPAC round-trips
-
     def test_intervals_overlap(self):
         ivs = [(10, 20), (30, 40)]
         self.assertTrue(intervals_overlap(15, 16, ivs))
@@ -411,79 +405,6 @@ class TestPanpatchErrorBeds(unittest.TestCase):
         with open(out) as f:
             self.assertEqual(f.read(), '')
 
-    # ---- revert_target_to_original ----
-
-    def test_revert_restores_target_keeps_donor(self):
-        # pristine target haplotype (what the revert reaches back to)
-        T   = b'A' * 30 + b'C' * 20 + b'G' * 10 + b'T' * 20 + b'A' * 20   # chr1, 100 bp
-        T2  = b'ACGTAC' * 4                                               # chr2, 24 bp
-        T1b = b'TTTTGGGGCCCCAAAA'                                         # chr1b, 16 bp
-        pristine = self._write('pristine.fa',
-                               '>chr1\n{}\n>chr2\n{}\n>chr1b\n{}\n'.format(T.decode(), T2.decode(), T1b.decode()))
-
-        # the panpatch output for hap 1: a masked-but-unpatched gap survives as N inside a patched
-        # record (chr1: target 0-60 carries N at 30-50, donor fills 60-80, target 80-100); chr2 is a
-        # reverse-strand patched record with a masked gap; chr1b is a reverted contig full of masked Ns;
-        # a donor contig record must pass through untouched
-        chr1_out = (T[0:30] + b'N' * 20 + T[50:60]) + (b'g' * 20) + T[80:100]
-        chr2_masked = T2[0:4] + b'N' * 4 + T2[8:24]
-        chr2_out = revcomp(chr2_masked)
-        chr1b_out = T1b[0:4] + b'N' * 4 + T1b[8:16]
-        don_out = b'g' * 12
-        combined = self._write('hap1.fa',
-                               '>chr1_hap_1\n{}\n>chr2_hap_1\n{}\n>TGT#1#chr1b\n{}\n>DON#1#dcontig2\n{}\n'.format(
-                                   chr1_out.decode(), chr2_out.decode(), chr1b_out.decode(), don_out.decode()))
-
-        bed = ('#Patched assembly on chr1 for TGT#1:\n'
-               'TGT#1#chr1\t0\t60\t+\n'
-               'DON#1#dcontig\t60\t80\t+\n'
-               'TGT#1#chr1\t80\t100\t+\n'
-               '\n'
-               '#Patched assembly on chr2 for TGT#1:\n'
-               'TGT#1#chr2\t0\t24\t-\n')
-        blocks = parse_bed_blocks(self._write('hap1.bed', bed))
-
-        revert_target_to_original(self.job, combined, blocks, pristine, 'TGT', 1)
-        recs = _read_fasta_bytes(combined)
-
-        # chr1: the N gap is restored from pristine, the donor bytes are kept verbatim
-        self.assertEqual(recs['chr1_hap_1'], T[0:60] + b'g' * 20 + T[80:100])
-        self.assertEqual(recs['chr1_hap_1'][30:50], b'C' * 20)   # was N, now original
-        self.assertEqual(recs['chr1_hap_1'][60:80], b'g' * 20)   # donor untouched
-        # chr2: reverse-strand target fully restored (revcomp of pristine), no Ns
-        self.assertEqual(recs['chr2_hap_1'], revcomp(T2))
-        self.assertNotIn(b'N', recs['chr2_hap_1'])
-        # chr1b: whole reverted contig restored from pristine
-        self.assertEqual(recs['TGT#1#chr1b'], T1b)
-        # donor contig record passes through unchanged
-        self.assertEqual(recs['DON#1#dcontig2'], don_out)
-
-    def test_revert_cursor_mismatch_raises(self):
-        # a bed block whose interval lengths do not sum to the record length is a corruption we must
-        # not silently accept (it would mean the byte-exact contract was violated)
-        pristine = self._write('p.fa', '>chr1\n{}\n'.format('A' * 100))
-        combined = self._write('h.fa', '>chr1_hap_1\n{}\n'.format('A' * 50))   # record is 50 bp
-        bed = '#Patched assembly on chr1 for TGT#1:\nTGT#1#chr1\t0\t100\t+\n'  # claims 100 bp
-        blocks = parse_bed_blocks(self._write('h.bed', bed))
-        with self.assertRaises(RuntimeError):
-            revert_target_to_original(self.job, combined, blocks, pristine, 'TGT', 1)
-
-    def test_revert_matches_4field_offset_path(self):
-        # cactus "full" graphs name paths SAMPLE#HAP#CONTIG#OFFSET (a trailing #0 subrange field). the
-        # revert must still match the contig to the pristine dict (keyed by the bare contig); otherwise
-        # is_target is always false, the revert is a silent no-op, and panpatch's masked (N) bytes -- e.g.
-        # N'd telomere tips -- are kept instead of restored to the original. this is the bug that dropped
-        # telomeres in the pilot.
-        pristine = self._write('p4.fa', '>chr1\n{}\n'.format('T'*20 + 'C'*60 + 'G'*20))  # tips T.../G...
-        masked = 'N'*20 + 'C'*60 + 'N'*20                                                # panpatch: tips N'd
-        combined = self._write('h4.fa', '>chrX_hap_1\n{}\n'.format(masked))
-        bed = '#Patched assembly on chrX for TGT#1:\nTGT#1#chr1#0\t0\t100\t+\n'          # 4-field path
-        blocks = parse_bed_blocks(self._write('h4.bed', bed))
-        revert_target_to_original(self.job, combined, blocks, pristine, 'TGT', 1)
-        recs = _read_fasta_bytes(combined)
-        self.assertEqual(recs['chrX_hap_1'], b'T'*20 + b'C'*60 + b'G'*20)               # restored, not N
-        self.assertNotIn(b'N', recs['chrX_hap_1'])
-
     # ---- tag_report_gap_origin ----
 
     def test_tag_report_gap_origin(self):
@@ -525,6 +446,20 @@ class TestPanpatchErrorBeds(unittest.TestCase):
             lines = [l.rstrip('\n') for l in f]
         self.assertEqual(lines[0], _REPORT_HEADER + '\tgap_origin')
         self.assertTrue(lines[1].endswith('\tN-gap'))
+
+    # ---- --fromGraphs ----
+
+    def test_from_graphs_out_dir(self):
+        # --fromGraphs must not write its outputs over the run whose graphs it reads
+        seqfile = self._seqfile('g.seqfile', [('TGT.1', 't1.fa'), ('DON.1', 'd1.fa')])
+        kept = os.path.join(self.tempDir, 'kept')
+        os.makedirs(kept)
+        opts = Namespace(seqFile=seqfile, reference=None, sample=None, outName=None, panpatchBatch=False,
+                         noSplit=False, defaultSample=None, fromGraphs=kept, outDir=kept + '/')
+        with self.assertRaises(RuntimeError):
+            panpatch_validate_options(opts)
+        opts.outDir = os.path.join(self.tempDir, 'new')
+        panpatch_validate_options(opts)
 
     # ---- make_runs wiring of the error beds ----
 
@@ -610,11 +545,12 @@ class TestPanpatchErrorBeds(unittest.TestCase):
                             ('gap-fill', 'accepted', 'N-gap'),
                             ('scaffold', 'accepted', '.'),
                             ('telomere', 'accepted', '.'),
+                            ('telomere', 'accepted', 'bed-gap'),   # a telomere patch over a flagged tip counts too
                             ('gap-fill', 'rejected', 'N-gap'),     # rejected -> not counted
                             ('passthrough', 'accepted', '.')],     # passthrough -> not a patch
                            [(True, True), (True, False), (False, True)])  # only the first is T2T
         s = summarize_report(rep)
-        self.assertEqual(s['counts'], {'gap-fill': 2, 'bed-gap': 1, 'scaffold': 1, 'telomere': 1})
+        self.assertEqual(s['counts'], {'gap-fill': 2, 'bed-gap': 2, 'scaffold': 1, 'telomere': 2})
         self.assertEqual(s['t2t'], 1)
         self.assertEqual(s['contigs'], 3)
         self.assertEqual(s['rejected'], 1)               # the rejected gap-fill; passthrough is neither
@@ -745,7 +681,6 @@ class TestPanpatchErrorBeds(unittest.TestCase):
         rescued = rescue_dropped_contigs(self.job, out, target, {'0#c1'}, 'T_1', 0, label='T.hap1')
         self.assertEqual(rescued, [('c2', 2), ('c3', 5)])
         self.assertEqual(open(out).read(), '>c1_hap_0\nACGTAC\n>T_1#0#c2\nGG\n>T_1#0#c3\nTTTTT\n')
-        self.assertEqual(count_fasta_ns(self._write('n.fa', '>x NNN\nACNNn\n>y\nN\n')), 4)
 
     def test_report_columns_match(self):
         # the header gather writes for a report panpatch never wrote is panpatch's own
