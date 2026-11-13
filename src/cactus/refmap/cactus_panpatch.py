@@ -656,12 +656,16 @@ def pangenome_dir(options, run):
 # chromosome graphs (`vg paths` p90 165s, `vg paths|awk` p90 471s, on graphs of ~24 GiB).
 PANPATCH_BYTES_PER_SEC = 20e6
 
-# Bytes of output assembly per second for the gather pass: single-threaded bgzip of each output
-# haplotype (21-27 MB/s, measured on the HPRC PAFs -- see GZIP_COMPRESS_BYTES_PER_SEC in
-# cactus.shared.common),
-# plus two whole-genome python passes over it (the masked-target revert and the dropped-contig
-# rescue) plus panpatch's telomere report over each finished fasta.
+# Bytes of output assembly per second for the gather pass: bgzip of each output haplotype (single-
+# threaded it runs 21-27 MB/s, measured on the HPRC PAFs -- see GZIP_COMPRESS_BYTES_PER_SEC in
+# cactus.shared.common), plus two whole-genome python passes over it (the masked-target revert and the
+# dropped-contig rescue) plus panpatch's telomere report over each finished fasta.  the rate is still
+# the single-threaded one, so the walltime it gives is an upper bound
 GATHER_BYTES_PER_SEC = 8e6
+
+# Cores for the gather pass.  only its bgzip uses more than one (bgzip --threads job.cores): one
+# thread took ~7 minutes per haplotype
+GATHER_CORES = 4
 
 def panpatch_batch_workflow(job, options, config_wrapper, run_inputs, exclude_bed_id):
     """ patch each sample.  the runs are completely independent of each other: they share no input
@@ -802,6 +806,7 @@ def add_panpatch_jobs(job, options, run, full_vg_ids, vg_names, ref_size, exclud
     gather_mem = ref_size * (3 if target_error_bed_ids else 2)
     gather_job = job.addFollowOnJobFn(gather_panpatch, options, run, [cj.rv() for cj in chrom_jobs],
                                       target_fasta_ids, target_error_bed_ids,
+                                      cores=min(GATHER_CORES, int(options.maxCores)) if options.maxCores else GATHER_CORES,
                                       memory=cactus_clamp_memory(max(2**32, gather_mem)),
                                       disk=gather_disk,
                                       walltime=cactus_walltime(run['ploidy'] * ref_size / GATHER_BYTES_PER_SEC,
