@@ -19,7 +19,7 @@ from argparse import Namespace
 from cactus.refmap.cactus_panpatch import sanitize_contig_name, sample_base, sample_hap
 from cactus.refmap.cactus_panpatch import make_runs, panpatch_validate_options
 from cactus.refmap.cactus_panpatch import read_error_bed_manifest, parse_error_bed, intervals_overlap, revcomp
-from cactus.refmap.cactus_panpatch import parse_bed_blocks, mask_assembly_errors, revert_target_to_original
+from cactus.refmap.cactus_panpatch import parse_bed_blocks, make_panpatch_error_bed, revert_target_to_original
 from cactus.refmap.cactus_panpatch import tag_report_gap_origin, summarize_report, write_batch_summary, concat_reports
 from cactus.refmap.cactus_panpatch import clean_path_name, clean_report_names, clean_bed_names, run_renames
 from cactus.refmap.cactus_panpatch import output_record_name, rename_fasta_records, missing_target_contigs
@@ -389,36 +389,27 @@ class TestPanpatchErrorBeds(unittest.TestCase):
         self.assertNotIn(('unplaced', '1'), blocks)
         self.assertEqual(len(blocks), 2)
 
-    # ---- mask_assembly_errors ----
+    # ---- make_panpatch_error_bed ----
 
-    def test_mask_assembly_errors_plain(self):
-        t = 'A' * 30 + 'C' * 20 + 'G' * 50            # 100 bp, one contig
-        fa = self._write('in.fa', '>chr1 some description\n{}\n>chr2\n{}\n'.format(t, 'T' * 40))
-        bed = self._write('m.bed', 'chr1\t30\t50\n')  # matches the header's FIRST token only
-        out = mask_assembly_errors(self.job, fa, bed)
-        recs = _read_fasta_bytes(out)
-        # mask preserves the header verbatim (the description survives; sanitize truncates it later), but
-        # matches the bed against the header's FIRST token only
-        self.assertIn('chr1 some description', recs)
-        masked = recs['chr1 some description']
-        self.assertEqual(len(masked), 100)                              # length preserved
-        self.assertEqual(masked, b'A' * 30 + b'N' * 20 + b'G' * 50)
-        self.assertEqual(recs['chr2'], b'T' * 40)                       # untouched contig unchanged
+    def test_make_panpatch_error_bed(self):
+        # the reference-free target is a haploid sample in the graph (TGT_1 -> haplotype 0); a donor keeps
+        # its seqfile sample and haplotype, and its contig names (here PanSN-prefixed, as the hprc-r2
+        # fastas have them) are sanitized down to the CONTIG field the graph uses
+        tgt = self._write('t.bed', 'chr1_haplotype1-0000003\t10\t20\nchr1_haplotype1-0000003\t30\t40\n')
+        don = self._write('d.bed', 'HG1#2#CM1.1\t5\t9\n# a comment\nctg:11-20\t0\t4\n')
+        out = make_panpatch_error_bed(self.job, {'TGT_1': tgt, 'DON#2': don})
+        with open(out) as f:
+            lines = f.read().splitlines()
+        # assemblies in sample-name order, each BED's intervals in its own order
+        self.assertEqual(lines, ['DON#2#CM1.1\t5\t9',
+                                 'DON#2#ctg_sub_10_20\t0\t4',
+                                 'TGT_1#0#chr1_haplotype1-0000003\t10\t20',
+                                 'TGT_1#0#chr1_haplotype1-0000003\t30\t40'])
 
-    def test_mask_assembly_errors_gzip_input(self):
-        t = 'A' * 100
-        raw = '>chr1\n{}\n'.format(t).encode()
-        gz = os.path.join(self.tempDir, 'in.fa.gz')
-        with gzip.open(gz, 'wb') as f:
-            f.write(raw)
-        bed = self._write('m.bed', 'chr1\t10\t20\n')
-        out = mask_assembly_errors(self.job, gz, bed)
-        # gzipped input is read transparently; output is plaintext (the sanitize step downstream sniffs
-        # magic bytes, so there is no reason to recompress)
-        with open(out, 'rb') as f:
-            self.assertNotEqual(f.read(2), b'\x1f\x8b')
-        recs = _read_fasta_bytes(out)
-        self.assertEqual(recs['chr1'], b'A' * 10 + b'N' * 10 + b'A' * 80)
+    def test_make_panpatch_error_bed_empty(self):
+        out = make_panpatch_error_bed(self.job, {'TGT_1': self._write('e.bed', '')})
+        with open(out) as f:
+            self.assertEqual(f.read(), '')
 
     # ---- revert_target_to_original ----
 
@@ -554,7 +545,7 @@ class TestPanpatchErrorBeds(unittest.TestCase):
         run = runs[0]
         # masking is keyed by the seqfile event name (both target and donor), normalized like the seqfile's
         # (TGT.1 is TGT#1); the reference is never masked
-        self.assertEqual(run['mask_beds'], {'TGT#1': '/x/t1.bed', 'DON#2': '/x/d2.bed'})
+        self.assertEqual(run['error_beds'], {'TGT#1': '/x/t1.bed', 'DON#2': '/x/d2.bed'})
         # target report-tagging beds are keyed by graph haplotype (TGT.1 -> hap 1)
         self.assertEqual(run['target_error_beds'], {1: '/x/t1.bed'})
 
@@ -567,11 +558,11 @@ class TestPanpatchErrorBeds(unittest.TestCase):
         # the TGT.1 run (named <base>.hap<N>): the target is renamed to graph_name TGT_1, so its mask
         # bed is keyed by that; the donor keeps its name; the report-tagging bed is keyed by graph hap 0
         r1 = runs['TGT.hap1']
-        self.assertEqual(r1['mask_beds'], {'DON': '/x/d.bed', 'TGT_1': '/x/t1.bed'})
+        self.assertEqual(r1['error_beds'], {'DON': '/x/d.bed', 'TGT_1': '/x/t1.bed'})
         self.assertEqual(r1['target_error_beds'], {0: '/x/t1.bed'})
         # the TGT.2 run has no target bed, only the donor mask
         r2 = runs['TGT.hap2']
-        self.assertEqual(r2['mask_beds'], {'DON': '/x/d.bed'})
+        self.assertEqual(r2['error_beds'], {'DON': '/x/d.bed'})
         self.assertEqual(r2['target_error_beds'], {})
 
     def test_make_runs_rejects_unmatched_event(self):
