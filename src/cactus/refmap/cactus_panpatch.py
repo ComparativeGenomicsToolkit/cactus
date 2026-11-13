@@ -86,6 +86,10 @@ def main():
                         "patch past the target's end), may replace at a contig end (panpatch -M) [default=20000]")
     parser.add_argument("--excludeBed", default=None,
                         help = "BED file of target regions to leave untouched, named by full graph path (panpatch -b)")
+    parser.add_argument("--noPatchFasta", default=None,
+                        help = "FASTA of more sequences no graft may replace or put in (panpatch --no-patch-fasta): high-copy "
+                        "sequence whose copies share their k-mers, so a swap of it cannot be verified.  panpatch already "
+                        "guards the human rDNA unit (--panpatchOptions --patch-rdna lets grafts take rDNA)")
     parser.add_argument("--assemblyErrorBeds", default=None,
                         help = "Manifest of per-assembly BEDs of suspected errors: one \"<seqfile-event-name> <bed-path>\" line "
                         "per assembly (a subset is fine), each BED in that assembly's own contig names and coordinates. "
@@ -199,6 +203,8 @@ def main():
             exclude_bed_id = None
             if options.excludeBed:
                 exclude_bed_id = toil.importFile(makeURL(options.excludeBed))
+            # the --noPatchFasta sequences, which every chromosome job hands to panpatch
+            options.noPatchFastaID = toil.importFile(makeURL(options.noPatchFasta)) if options.noPatchFasta else None
 
             # import the input for each run, and make each run its own cactus-pangenome options,
             # pointed at its own working directory.
@@ -932,6 +938,10 @@ def run_panpatch_chrom(job, options, run, vg_id, vg_name, exclude_bed_id, target
         error_bed_path = os.path.join(work_dir, 'errors.bed')
         job.fileStore.readGlobalFile(error_bed_id, error_bed_path)
         cmd += ['--error-bed', error_bed_path]
+    if getattr(options, 'noPatchFastaID', None):
+        no_patch_path = os.path.join(work_dir, 'no_patch.fa')
+        job.fileStore.readGlobalFile(options.noPatchFastaID, no_patch_path)
+        cmd += ['--no-patch-fasta', no_patch_path]
     if options.panpatchOptions:
         cmd += shlex.split(options.panpatchOptions)
 

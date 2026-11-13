@@ -667,6 +667,7 @@ The main options are below. The `cactus-pangenome` construction options (`--mgCo
 * `--sample`: the sample to patch followed by its donors in priority order, by sample name (default: every non-reference sample in the seqfile, in seqfile order).
 * `--outName`: the name of the output files (default: the name of the sample being patched).
 * `--requireTelomeres`, `--maxTelomerePatch`, `--excludeBed`, `--defaultSample`: panpatch's `-T`, `-M`, `-b` and `-e`. `--defaultSample` must be the sample being patched or one of its donors.
+* `--noPatchFasta`: more sequences no patch may replace or put in (panpatch `--no-patch-fasta`). panpatch already guards the human rDNA unit (KY962518.1), which it carries built in: rDNA units are near-identical, so k-mer checks can't tell one copy from another, and a swap of one can't be verified. `--panpatchOptions --patch-rdna` turns that off. The rDNA guard has no effect on genomes without human rDNA.
 * `--panpatchOptions`: any other [panpatch option](https://github.com/glennhickey/panpatch#options), as one quoted string, ex `--panpatchOptions "--min-cover 0.9 --graft-recovery 60"`.
 * `--assemblyErrorBeds`: BEDs of suspected assembly errors (see [below](#assembly-error-beds)).
 * `--keepGraphs`, `--fromGraphs`: keep the chromosome graphs, and patch them again later without rebuilding them (see [below](#re-running-on-kept-graphs)).
