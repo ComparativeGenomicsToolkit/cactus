@@ -197,6 +197,13 @@ def main():
             # estimate under-provisions the large reference-free graphs we make
             findRequiredNode(config_node, "hal2vg").attrib["minMemory"] = str(int(options.halExportMemory))
 
+            # don't cut the reference's ends into tips in the full graphs.  that is only for vg haplotypes
+            # (--haplo full), which we never run, and it breaks patching: telomere anchors align every
+            # haplotype's array to the reference's end, which they overhang by a few bp, so the cut splits
+            # the target's own paths there.  an unpatched T2T contig then comes out as two records (a few-bp
+            # stub and the rest), and a tip cut off a patched contig is dropped without a report row
+            findRequiredNode(config_node, "graphmap_join").attrib["fullStubbify"] = "0"
+
             if options.collapseRefPAF:
                 findRequiredNode(config_node, "graphmap").attrib["collapse"] = 'reference'
 

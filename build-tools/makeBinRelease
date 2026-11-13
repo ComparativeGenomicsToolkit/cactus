@@ -200,6 +200,18 @@ rm -f ${binPackageDir}/bin/*test ${binPackageDir}/bin/*tests ${binPackageDir}/bi
 # we now mention running downloadVCFWave in the BIN-INSTALL.md, so it should be included too
 mkdir ${binPackageDir}/build-tools
 cp build-tools/downloadVCFWave  ${binPackageDir}/build-tools
+# downloadVCFWave asks "make arch-flags" for its CPU baseline, but a binary release has no Makefile
+# to ask: v4.0.0 shipped that way and died with "No rule to make target 'arch-flags'".  So pin the
+# baseline this tarball was built with (-march=x86-64-v3, or -msse2 for legacy) into the packaged
+# copy, where vcfwave gets built for the same CPUs as the binaries beside it.  It is taken with :-,
+# so a CACTUS_ARCH_FLAGS the user sets still wins, and bash never runs the make fallback below it.
+# A source checkout's copy is untouched and still asks include.mk.
+archFlags=$(env -u MAKEFLAGS make -s arch-flags)
+test -n "${archFlags}"
+archFlagsLine="CACTUS_ARCH_FLAGS=\"\${CACTUS_ARCH_FLAGS:-${archFlags}}\""
+sed -i "2i # Inserted by makeBinRelease: a binary release has no Makefile to answer \"make arch-flags\"\n# below, so pin the baseline its binaries were built with.  An explicit CACTUS_ARCH_FLAGS still wins.\n${archFlagsLine}" \
+	 ${binPackageDir}/build-tools/downloadVCFWave
+grep -qxF "${archFlagsLine}" ${binPackageDir}/build-tools/downloadVCFWave
 # make binaries smaller, but leave debug info in cactus_consolidated
 bash -O extglob -c "strip -d ${binPackageDir}/bin/!(cactus_consolidated) 2> /dev/null || true"
 if [ -z ${CACTUS_LEGACY_ARCH+x} ]	

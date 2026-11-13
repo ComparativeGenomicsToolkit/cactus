@@ -242,7 +242,19 @@ def cactus_cons_with_resources(job, tree, ancestor_event, config_node, seq_id_ma
         # boundary, and always upward.  The banded exponent below is a different matter -- 0.35 is
         # genuinely concave, and linearising it either under-provisions the middle of the range by
         # 1.7x or over-provisions the top by 4.4x -- so that one stays.
-        wt_coef = getOptionalAttrib(cons_node, 'walltime_coefficient_secs', typeFn=float, default=400.0)
+        #
+        # Those 576 alignments were abPOA's.  pecan, the base aligner by default since v4.0.0, is
+        # several times faster in bar and no different anywhere else, so it gets a coefficient of
+        # its own.  Over 29 pecan alignments -- the four ancestors of busco5, in bigeval's run of
+        # master just before v4.0.0 and in six development runs, at 6 to 37 GB of `disk`, and
+        # salamander Anc3 at 551 GB -- consolidated took 42 to 141 s per GB, where the abPOA
+        # coefficient is 400.  The slowest is always busco5's root, the fish-tetrapod split.
+        # Salamander Anc3 took 51 (7.8 h, against 40.8 h with abPOA), and was asked for 6.4 days.
+        # 100 leaves that worst case 1.8x under the request once cactus_walltime()'s factor is on.
+        if base_aligner == 'pecan':
+            wt_coef = getOptionalAttrib(cons_node, 'walltime_pecan_coefficient_secs', typeFn=float, default=100.0)
+        else:
+            wt_coef = getOptionalAttrib(cons_node, 'walltime_coefficient_secs', typeFn=float, default=400.0)
         wt_exp = 1.0
     walltime_secs = wt_coef * ((disk / 1e9) ** wt_exp) if disk > 0 else 0
     # bar is 63.5% of consolidated's time across those 576 alignments, caf 20.3%, reference

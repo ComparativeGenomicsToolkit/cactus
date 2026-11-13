@@ -1500,7 +1500,7 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
     # siblings in the same phase, and the export would deserialise an unresolved promise and fail.
     exclusion_ids = None
     if do_exclusions and workflow_phases:
-        deepest_phase, deepest_vg_ids, deepest_root_job = workflow_phases[-1]
+        deepest_root_job = workflow_phases[-1][2]
         excl_root_job = Job(walltime=cactus_walltime())
         deepest_root_job.addFollowOn(excl_root_job)
 
@@ -1519,17 +1519,25 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
             exclusion_coverage[workflow_phase] = phase_coverage
 
         # the reference is never clipped, so its exclusions can't be measured by absence.  They're
-        # inferred instead as runs with no other assembly aligned, on the deepest graph built.
+        # inferred instead as runs with no other assembly aligned -- on the clip graph, or the full
+        # graph when there is no clip phase (bypass never gets here, so full is always first).
+        # Never on the filter graph, even when it is the deepest: the filter phase removes rare
+        # alleles by design, so reference covered only by rare alleles reads as unaligned there.
+        # On evolverPrimates, where nearly every simulated variant is private to one genome, the d2
+        # graph put 98.8% of the reference in gaps and raised the WARNING; the clip graph has no
+        # gap at all.  On the yeast test the two agree to within 154bp.
+        refgap_phase, refgap_vg_ids, _ = next((p for p in workflow_phases if p[0] == 'clip'),
+                                              workflow_phases[0])
         ref_gap_min = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"),
                                         "refGapMinLength", typeFn=int, default=10000)
         if ref_gap_min > 0 and options.reference:
             ref_event = options.referenceEvents[0]
             gap_ids = []
-            for vg_path, phase_vg_id, input_vg_id in zip(options.vg, deepest_vg_ids, vg_ids):
+            for vg_path, phase_vg_id, input_vg_id in zip(options.vg, refgap_vg_ids, vg_ids):
                 chrom_name = os.path.splitext(os.path.basename(vg_path))[0]
                 gap_job = excl_root_job.addChildJobFn(
                     ref_gaps_job, config, options, vg_path, phase_vg_id, chrom_name, ref_event,
-                    deepest_phase == 'full',
+                    refgap_phase == 'full',
                     disk=input_vg_id.size * 4,
                     # `vg depth -m0` walks the reference at ~53 bytes per base, plus the rest of
                     # the graph on top.  the second term is noise at 6 genomes (which is why this

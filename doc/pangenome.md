@@ -613,7 +613,8 @@ means it is a fragment of a longer input contig.
 `refgaps.bed.gz` is different in kind: the reference is never clipped, so it loses nothing. These
 are instead regions of the reference that **no other assembly aligns to** (runs of at least
 `refGapMinLength`, 10kb by default). This sequence is present in the graph and is never counted as
-clipped.
+clipped. They are measured on the clipped graph (or the full graph if there is no clip phase), never
+the `--filter` graph, where reference covered only by rare alleles would look unaligned.
 
 ##### `<outName>.WARNING`
 

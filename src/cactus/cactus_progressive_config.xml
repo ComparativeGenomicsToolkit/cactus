@@ -753,6 +753,11 @@
 	<!-- retain_pages_release_pct: with retention on, the pages are handed back for good once rss
 	     reaches this percentage of the job's memory, and the run continues without retention.  A wrong
 	     guess then runs slower instead of dying.  0 disables. -->
+	<!-- walltime_coefficient_secs, walltime_pecan_coefficient_secs: cactus_consolidated's estimated runtime, in
+	     seconds per GB of its disk request (5x the sequence plus 2x the paf), with abpoa or minipoa, or with pecan,
+	     as bar's base aligner.  When bar's bandingLimit is under walltime_banding_threshold the estimate is
+	     walltime_banded_coefficient_secs * GB^walltime_banded_exponent instead.  The walltimeFactor option goes
+	     on top. -->
 	<consolidated
 		 retain_pages="auto"
 		 memory_retain_multiple="2"
@@ -764,6 +769,7 @@
 		 pecan_memory_sequence_gb="4"
 		 pecan_memory_paf_gb="80"
 		 walltime_coefficient_secs="400"
+		 walltime_pecan_coefficient_secs="100"
 		 walltime_banded_coefficient_secs="550"
 		 walltime_banded_exponent="0.35"
 		 walltime_banding_threshold="100000"

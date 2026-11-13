@@ -869,8 +869,8 @@ def write_summary(result, out_path, refgap_bp=None, notes=None):
         out_file.write('#   clip   = removed by the clip phase (clip-vg -u/-a/-k/-I, vg clip -d1/-sS/-s'
                        ', vg clip -D -m with delEdgeFilter)\n')
         out_file.write('#   filter = removed by the filter phase (vg clip -d <filter> -m, vg clip -sS/-d1)\n')
-        out_file.write('# refgap = reference bp with zero non-reference depth. PRESENT in the graph.'
-                       ' NOT lost. Excluded from TOTAL lost.\n')
+        out_file.write('# refgap = reference bp with zero non-reference depth in the clip graph (full'
+                       ' if no clip phase). PRESENT in the graph. NOT lost. Excluded from TOTAL lost.\n')
         out_file.write('# outside_baseline_bp: {}\n'.format(result['outside_baseline_bp']))
         out_file.write('# orphan_paths: {}\n'.format(result['orphan_paths']))
         for note in (notes or []):
