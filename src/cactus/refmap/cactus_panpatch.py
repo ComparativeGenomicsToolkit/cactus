@@ -86,16 +86,12 @@ def main():
                         "patch past the target's end), may replace at a contig end (panpatch -M) [default=20000]")
     parser.add_argument("--excludeBed", default=None,
                         help = "BED file of target regions to leave untouched, named by full graph path (panpatch -b)")
-    parser.add_argument("--noPatchFasta", default=None,
-                        help = "FASTA of more sequences no graft may replace or put in (panpatch --no-patch-fasta): high-copy "
-                        "sequence whose copies share their k-mers, so a swap of it cannot be verified.  panpatch already "
-                        "guards the human rDNA unit (--panpatchOptions --patch-rdna lets grafts take rDNA)")
     parser.add_argument("--assemblyErrorBeds", default=None,
                         help = "Manifest of per-assembly BEDs of suspected errors: one \"<seqfile-event-name> <bed-path>\" line "
                         "per assembly (a subset is fine), each BED in that assembly's own contig names and coordinates. "
                         "The assemblies are aligned unmasked and the intervals passed to panpatch (--error-bed): a donor's "
-                        "are never used to patch; the target's are replaced by donor sequence where a donor differs and "
-                        "can patch them, and otherwise left as they are")
+                        "are never used to patch (contig ends aside: see panpatch --error-bed-end-slop); the target's are "
+                        "replaced by donor sequence where a donor differs and can patch them, and otherwise left as they are")
     parser.add_argument("--defaultSample", default=None,
                         help = "Use this sample's contig when a patch is rejected (panpatch -e)")
     parser.add_argument("--panpatchOptions", type=str, default=None,
@@ -210,8 +206,6 @@ def main():
             exclude_bed_id = None
             if options.excludeBed:
                 exclude_bed_id = toil.importFile(makeURL(options.excludeBed))
-            # the --noPatchFasta sequences, which every chromosome job hands to panpatch
-            options.noPatchFastaID = toil.importFile(makeURL(options.noPatchFasta)) if options.noPatchFasta else None
 
             # import the input for each run, and make each run its own cactus-pangenome options,
             # pointed at its own working directory.
@@ -367,6 +361,29 @@ def parse_error_bed(bed_path, sanitize=False):
 def intervals_overlap(a_start, a_end, intervals):
     """ does [a_start, a_end) overlap any [s, e) in the list of half-open intervals? """
     return any(s < a_end and a_start < e for s, e in intervals)
+
+def target_error_intervals_used(intervals, contig_len, end_slop):
+    """ the target error intervals panpatch acts on: merged, less a contig-end one (within end_slop bp of either end
+    of the contig), which panpatch ignores on the target (--error-bed-end-slop; 0 keeps them all) """
+    merged = []
+    for s, e in sorted(intervals):
+        if merged and s <= merged[-1][1]:
+            merged[-1][1] = max(merged[-1][1], e)
+        else:
+            merged.append([s, e])
+    return [(s, e) for s, e in merged if not (end_slop > 0 and (s <= end_slop or e >= contig_len - end_slop))]
+
+def panpatch_option_value(panpatch_options, name, default):
+    """ the value given to panpatch option name (as "name V" or "name=V") in a --panpatchOptions string, else
+    default.  the last one given wins, as for panpatch """
+    value = default
+    toks = shlex.split(panpatch_options) if panpatch_options else []
+    for i, tok in enumerate(toks):
+        if tok == name and i + 1 < len(toks):
+            value = toks[i + 1]
+        elif tok.startswith(name + '='):
+            value = tok[len(name) + 1:]
+    return value
 
 def panpatch_validate_options(options):
     """ check the cactus-panpatch options before doing anything expensive """
@@ -831,14 +848,14 @@ def add_panpatch_jobs(job, options, run, full_vg_ids, vg_names, ref_size, exclud
     # surface this run's output-file map (incl. its report id) up to the cross-sample batch summary
     return gather_job.rv()
 
-def tag_report_gap_origin(job, report_path, target_error_bed_ids):
+def tag_report_gap_origin(job, report_path, target_error_bed_ids, end_slop=1000):
     """ add a 'gap_origin' column to panpatch's per-chromosome report, distinguishing a genuine N-gap
     fill ('N-gap') from a fill of a target error interval ('bed-gap'); '.' for rows with no gap origin.
     panpatch reports both as gap-fill rows: a gap-fill OR telomere row is 'bed-gap' iff its replaced
-    target span overlaps a target error interval, which is how a telomere completed over a flagged tip
-    becomes self-evident in the report.  a gap-fill with no overlap is a genuine 'N-gap'; a telomere with
-    no overlap capped an unflagged end and stays '.'.  the column is appended so existing column positions
-    are unchanged """
+    target span overlaps a target error interval panpatch acts on -- not a contig-end one (end_slop, as
+    panpatch's --error-bed-end-slop), which panpatch ignores on the target, so it explains no patch.  a
+    gap-fill with no overlap is a genuine 'N-gap'; a telomere with no overlap capped an end and stays '.'.
+    the column is appended so existing column positions are unchanged """
     # target error intervals per graph haplotype, in sanitized (graph) contig coordinates
     err_by_hap = {}
     if target_error_bed_ids:
@@ -878,9 +895,11 @@ def tag_report_gap_origin(job, report_path, target_error_bed_ids):
                 tgt = fields[idx['target']]
                 contig = tgt.split('#')[2] if tgt.count('#') >= 2 else tgt
                 ts, te = fields[idx['target_start']], fields[idx['target_end']]
-                if ts not in ('.', '') and te not in ('.', '') \
-                   and intervals_overlap(int(ts), int(te), err_by_hap.get(hap, {}).get(contig, [])):
-                    origin = 'bed-gap'
+                if ts not in ('.', '') and te not in ('.', ''):
+                    used = target_error_intervals_used(err_by_hap.get(hap, {}).get(contig, []),
+                                                       int(fields[idx['target_bp']]), end_slop)
+                    if intervals_overlap(int(ts), int(te), used):
+                        origin = 'bed-gap'
             except (ValueError, KeyError, IndexError):
                 pass
         out_lines.append(stripped + '\t' + origin + '\n')
@@ -945,17 +964,18 @@ def run_panpatch_chrom(job, options, run, vg_id, vg_name, exclude_bed_id, target
         error_bed_path = os.path.join(work_dir, 'errors.bed')
         job.fileStore.readGlobalFile(error_bed_id, error_bed_path)
         cmd += ['--error-bed', error_bed_path]
-    if getattr(options, 'noPatchFastaID', None):
-        no_patch_path = os.path.join(work_dir, 'no_patch.fa')
-        job.fileStore.readGlobalFile(options.noPatchFastaID, no_patch_path)
-        cmd += ['--no-patch-fasta', no_patch_path]
     if options.panpatchOptions:
         cmd += shlex.split(options.panpatchOptions)
 
     cactus_call(parameters=cmd, outfile=report_path, job_memory=job.memory)
 
-    # tag each gap-fill row as a genuine N-gap or an error-BED-induced ('bed-gap') fill
-    tag_report_gap_origin(job, report_path, target_error_bed_ids)
+    # tag each gap-fill row as a genuine N-gap or an error-BED-induced ('bed-gap') fill, leaving out the contig-end
+    # intervals panpatch ignored
+    try:
+        end_slop = int(panpatch_option_value(options.panpatchOptions, '--error-bed-end-slop', 1000))
+    except ValueError:
+        end_slop = 1000
+    tag_report_gap_origin(job, report_path, target_error_bed_ids, end_slop)
 
     # one fasta per haplotype panpatch found target paths for, keyed by the PanSN haplotype number
     fastas = {}

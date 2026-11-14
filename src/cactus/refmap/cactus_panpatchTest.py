@@ -21,6 +21,7 @@ from cactus.refmap.cactus_panpatch import make_runs, panpatch_validate_options
 from cactus.refmap.cactus_panpatch import read_error_bed_manifest, parse_error_bed, intervals_overlap
 from cactus.refmap.cactus_panpatch import parse_bed_blocks, make_panpatch_error_bed
 from cactus.refmap.cactus_panpatch import tag_report_gap_origin, summarize_report, write_batch_summary, concat_reports
+from cactus.refmap.cactus_panpatch import target_error_intervals_used, panpatch_option_value
 from cactus.refmap.cactus_panpatch import clean_path_name, clean_report_names, clean_bed_names, run_renames
 from cactus.refmap.cactus_panpatch import output_record_name, rename_fasta_records, missing_target_contigs
 from cactus.refmap.cactus_panpatch import rescue_dropped_contigs, PANPATCH_REPORT_COLUMNS
@@ -408,20 +409,20 @@ class TestPanpatchErrorBeds(unittest.TestCase):
     # ---- tag_report_gap_origin ----
 
     def test_tag_report_gap_origin(self):
-        # a target error bed on hap 1, chr1, covering [30,50)
-        err = self._write('t1.bed', 'chr1\t30\t50\n')
+        # a target error bed on hap 1, chr1 (100 kb), covering [30000,50000)
+        err = self._write('t1.bed', 'chr1\t30000\t50000\n')
         target_error_bed_ids = {1: err}
 
         def row(chrom, hap, typ, target, ts, te):
-            return '\t'.join([chrom, str(hap), typ, target, '100', 'DON#1#d', '20', '0',
+            return '\t'.join([chrom, str(hap), typ, target, '100000', 'DON#1#d', '20', '0',
                               '.', '100.0', '100.0', 'accepted', '.', str(ts), str(te)])
         report = self._write('report.tsv', _REPORT_HEADER + '\n'
-                             + row('chr1', 1, 'gap-fill', 'TGT#1#chr1', 35, 45) + '\n'    # overlaps -> bed-gap
-                             + row('chr1', 1, 'gap-fill', 'TGT#1#chr1', 70, 80) + '\n'    # no overlap -> N-gap
-                             + row('chr1', 1, 'telomere', 'TGT#1#chr1', 35, 45) + '\n'    # overlaps (masked tip) -> bed-gap
-                             + row('chr1', 1, 'telomere', 'TGT#1#chr1', 0, 10) + '\n'     # no overlap (non-masked end) -> .
-                             + row('chr1', 2, 'gap-fill', 'TGT#2#chr1', 35, 45) + '\n'    # hap 2 has no bed -> N-gap
-                             + '#Contig TGT#1#chr1 len=100\n')
+                             + row('chr1', 1, 'gap-fill', 'TGT#1#chr1', 35000, 45000) + '\n'   # overlaps -> bed-gap
+                             + row('chr1', 1, 'gap-fill', 'TGT#1#chr1', 70000, 80000) + '\n'   # no overlap -> N-gap
+                             + row('chr1', 1, 'telomere', 'TGT#1#chr1', 45000, 55000) + '\n'   # overlaps -> bed-gap
+                             + row('chr1', 1, 'telomere', 'TGT#1#chr1', 0, 10000) + '\n'       # no overlap (unflagged end) -> .
+                             + row('chr1', 2, 'gap-fill', 'TGT#2#chr1', 35000, 45000) + '\n'   # hap 2 has no bed -> N-gap
+                             + '#Contig TGT#1#chr1 len=100000\n')
 
         tag_report_gap_origin(self.job, report, target_error_bed_ids)
         with open(report) as f:
@@ -430,10 +431,44 @@ class TestPanpatchErrorBeds(unittest.TestCase):
         self.assertEqual(lines[0], _REPORT_HEADER + '\tgap_origin')
         self.assertTrue(lines[1].endswith('\tbed-gap'))
         self.assertTrue(lines[2].endswith('\tN-gap'))
-        self.assertTrue(lines[3].endswith('\tbed-gap'))    # telomere over a masked tip
-        self.assertTrue(lines[4].endswith('\t.'))          # telomere over a non-masked end
+        self.assertTrue(lines[3].endswith('\tbed-gap'))    # telomere over a flagged interval
+        self.assertTrue(lines[4].endswith('\t.'))          # telomere over an unflagged end
         self.assertTrue(lines[5].endswith('\tN-gap'))      # hap 2, no error bed
-        self.assertEqual(lines[6], '#Contig TGT#1#chr1 len=100')   # comment passes through, no column
+        self.assertEqual(lines[6], '#Contig TGT#1#chr1 len=100000')   # comment passes through, no column
+
+    def test_tag_report_gap_origin_contig_ends(self):
+        # contig-end flags, which panpatch ignores on the target, explain no patch: [0,20000) and [20000,25000) join
+        # up into one from chr1's start, [95000,100000) runs to its end, and [60000,65000) is an ordinary flag
+        err = self._write('t2.bed', 'chr1\t0\t20000\nchr1\t20000\t25000\nchr1\t60000\t65000\nchr1\t95000\t100000\n')
+
+        def row(typ, ts, te):
+            return '\t'.join(['chr1', '1', typ, 'TGT#1#chr1', '100000', 'DON#1#d', '20', '0',
+                              '.', '100.0', '100.0', 'accepted', '.', str(ts), str(te)])
+        rows = [row('telomere', 0, 10000), row('gap-fill', 22000, 23000), row('gap-fill', 61000, 62000),
+                row('telomere', 96000, 100000)]
+        for slop, want in [(1000, ['.', 'N-gap', 'bed-gap', '.']), (0, ['bed-gap', 'bed-gap', 'bed-gap', 'bed-gap'])]:
+            report = self._write('ends{}.tsv'.format(slop), _REPORT_HEADER + '\n' + '\n'.join(rows) + '\n')
+            tag_report_gap_origin(self.job, report, {1: err}, slop)
+            with open(report) as f:
+                got = [l.rstrip('\n').split('\t')[-1] for l in f][1:]
+            self.assertEqual(got, want, 'end_slop {}'.format(slop))
+
+    def test_target_error_intervals_used(self):
+        # merged first, so a flag split over lines is judged as one; the slop boundary is inclusive, as in panpatch
+        self.assertEqual(target_error_intervals_used([(15000, 28999), (0, 15000), (40000, 50000)], 100000, 1000),
+                         [(40000, 50000)])
+        self.assertEqual(target_error_intervals_used([(1000, 5000), (1001, 5000)], 100000, 1000), [])
+        self.assertEqual(target_error_intervals_used([(1001, 5000), (95000, 98999)], 100000, 1000),
+                         [(1001, 5000), (95000, 98999)])
+        self.assertEqual(target_error_intervals_used([(95000, 99000)], 100000, 1000), [])
+        self.assertEqual(target_error_intervals_used([(0, 5000)], 100000, 0), [(0, 5000)])
+
+    def test_panpatch_option_value(self):
+        self.assertEqual(panpatch_option_value(None, '--error-bed-end-slop', 1000), 1000)
+        self.assertEqual(panpatch_option_value('--min-cover 0.9', '--error-bed-end-slop', 1000), 1000)
+        self.assertEqual(panpatch_option_value('--error-bed-end-slop 0 --min-cover 0.9', '--error-bed-end-slop', 1000), '0')
+        self.assertEqual(panpatch_option_value('--error-bed-end-slop=500', '--error-bed-end-slop', 1000), '500')
+        self.assertEqual(panpatch_option_value('--error-bed-end-slop 5 --error-bed-end-slop 7', '--error-bed-end-slop', 1000), '7')
 
     def test_tag_report_no_beds_still_adds_column(self):
         # with no target error beds, every gap-fill is a genuine N-gap but the column is still added

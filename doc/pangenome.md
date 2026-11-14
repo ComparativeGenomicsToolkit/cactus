@@ -668,12 +668,13 @@ The main options are below. The `cactus-pangenome` construction options (`--mgCo
 * `--sample`: the sample to patch followed by its donors in priority order, by sample name (default: every non-reference sample in the seqfile, in seqfile order).
 * `--outName`: the name of the output files (default: the name of the sample being patched).
 * `--requireTelomeres`, `--maxTelomerePatch`, `--excludeBed`, `--defaultSample`: panpatch's `-T`, `-M`, `-b` and `-e`. `--defaultSample` must be the sample being patched or one of its donors.
-* `--noPatchFasta`: more sequences no patch may replace or put in (panpatch `--no-patch-fasta`). panpatch already guards the human rDNA unit (KY962518.1), which it carries built in: rDNA units are near-identical, so k-mer checks can't tell one copy from another, and a swap of one can't be verified. `--panpatchOptions --patch-rdna` turns that off. The rDNA guard has no effect on genomes without human rDNA.
 * `--panpatchOptions`: any other [panpatch option](https://github.com/glennhickey/panpatch#options), as one quoted string, ex `--panpatchOptions "--min-cover 0.9 --graft-recovery 60"`.
 * `--assemblyErrorBeds`: BEDs of suspected assembly errors (see [below](#assembly-error-beds)).
 * `--keepGraphs`, `--fromGraphs`: keep the chromosome graphs, and patch them again later without rebuilding them (see [below](#re-running-on-kept-graphs)).
 * `--keepPangenome`: keep the intermediate `cactus-pangenome` output in `<outDir>/<name>.cactus-scratch/`, which is otherwise deleted once the run has succeeded.
 * `--indexMemory`, `--halExportMemory`: an upper bound on the memory of the per-chromosome vg and panpatch jobs, and a lower bound (default 24Gi) on that of the per-chromosome `hal2vg` jobs.
+
+panpatch never swaps rDNA: it carries the human rDNA unit (KY962518.1) built in, as rDNA copies are too alike for any k-mer check to verify a swap. `--panpatchOptions --patch-rdna` turns this off; it has no effect on genomes without human rDNA.
 
 ### Patching many samples
 
@@ -707,24 +708,23 @@ cactus-panpatch ./js chromfile.txt --outDir patched --batch --assemblyErrorBeds 
 
 The assemblies are not changed: the graphs are built from them as they are, and the intervals are passed to `panpatch --error-bed` (see [Error regions](https://github.com/glennhickey/panpatch#error-regions) in panpatch's README):
 
-* In a **donor**, a flagged interval is never used to patch — its sequence is kept out of every patch.
+* In a **donor**, a flagged interval is never used to patch — its sequence is kept out of every patch (contig ends aside, see below).
 * In the **target**, a flagged interval is replaced with donor sequence where a donor can be threaded across it, and otherwise left as it is.
 
 Because the flagged sequence is still aligned, a donor that agrees with the target there shares its nodes in the graph, and a patch changes the target only where the donor differs. A donor that is identical across a flagged interval is reported as rejected, with reason `nothing to patch`. A replacement is checked like any other patch.
 
+**Contig ends are handled automatically**, so there is no need to filter them out of the BEDs. Nearly every contig end is flagged, mostly because read coverage falls off there, and such a flag often runs far in. panpatch treats an interval that comes within 1 kb of either end of its contig as a contig-end flag, after joining intervals that touch or overlap (panpatch `--error-bed-end-slop`). On the target, a contig-end flag is ignored, however far in it runs: kept, it would turn the target's end into a [tip graft](https://github.com/glennhickey/panpatch#tip-grafts). On a donor, it is ignored only by a telomere patch taken from that end, so that the donor's telomere can still complete the target's. Every other patch keeps out of it, and a donor flagged from end to end is not used at all. Contig ends are thus left to telomere patching, which is kept small: a telomere patch may replace at most `--maxTelomerePatch` (20 kb) of the target's end, and may graft only the donor's telomere array, never more than 2 kb of donor subtelomere (panpatch `--max-subtelomere-graft`). Telomeres are poorly represented in reads, so read-based QC can rarely vouch for more than that.
+
 BED contig names are the assembly's own fasta-header first token, with coordinates 0-based half-open in that assembly's frame. An event in the manifest that matches no target or donor in any seqfile is an error (the reference is never patched, so it cannot have a BED). This is distinct from `--excludeBed`, which protects a region of the target from being touched at all and is given in graph path-name coordinates.
 
-In the per-patch report, panpatch gives a replaced error interval and a filled `N` gap the same type, `gap-fill`. The `gap_origin` column tells them apart: `bed-gap` for a gap fill, or a telomere patch, whose replaced span overlaps one of the target's error intervals, `N-gap` for any other gap fill, and `.` for every other row. This column is always present in the report — without `--assemblyErrorBeds` every gap-fill is simply an `N-gap`.
-
-One thing to watch out for: **error intervals at contig tips interact with telomere patching.** Error BEDs frequently flag the first or last interval of a contig. On the target, a donor then has to carry the patch out past the target's end, and panpatch holds such a [tip graft](https://github.com/glennhickey/panpatch#tip-grafts) to the limits of a telomere patch: one that would replace or add too much, or take off a telomere the target has, is rejected and the target keeps its own end. On a donor, a flagged end means that no telomere can be completed from it. A telomere patch that does replace a flagged target end is marked `bed-gap` in the report.
+In the per-patch report, panpatch gives a replaced error interval and a filled `N` gap the same type, `gap-fill`. The `gap_origin` column tells them apart: `bed-gap` for a gap fill, or a telomere patch, whose replaced span overlaps one of the target's error intervals (other than a contig-end flag, which panpatch ignores), `N-gap` for any other gap fill, and `.` for every other row. This column is always present in the report — without `--assemblyErrorBeds` every gap-fill is simply an `N-gap`.
 
 The two kinds of interval work differently, so the target's and the donors' BEDs should be filtered differently. A target interval gets replaced, while a donor interval simply can't be used:
 
 * **Target: flag only what you are confident is an error.** Every flagged target interval that a donor can be threaded across, and differs in, is swapped for donor sequence. A loose target BED therefore turns into many swaps, and these add new QC flags (elsewhere as well as on the swaps) about as fast as they remove old ones. For HPRC assemblies, keep the intervals that:
   * at least two independent QC tools flag (e.g. Flagger on HiFi, Flagger on ONT, NucFlag);
-  * do not start or end within ~1 kb of a contig end. Nearly every contig end is flagged, mostly an edge effect of read coverage, and a flagged end can only be replaced by a tip graft (see above);
   * are not mostly (>50%) satellite according to a centromere/satellite annotation. In satellite, a donor is no more reliable than the target, and panpatch can't verify the swap.
-* **Donors: flag everything any tool flags, except at the contig ends.** A flagged donor region is never used: a patch that would need it is not made, and for a telomere patch the report says why (*donor's run to its telomere crosses one of its --error-bed intervals*). Flagging too much of a donor can only cost a patch, but flagging too little can carry that donor's error into the output. Leave out the intervals within ~1 kb of a contig end, though. Nearly every donor end is flagged too, for the same edge-effect reason as the target's, and no telomere can be completed from a donor whose end is flagged. panpatch instead keeps telomere patches small: one may replace at most `--maxTelomerePatch` (20 kb) of the target's end, and it may graft only the donor's telomere array, never more than 2 kb of donor subtelomere (panpatch `--max-subtelomere-graft`, settable through `--panpatchOptions`). Telomeres are poorly represented in reads, so read-based QC can rarely vouch for more than that.
+* **Donors: flag everything any tool flags.** A flagged donor region is never used (contig ends aside, see above): a patch that would need it is not made, and for a telomere patch the report says why (*donor's run to its telomere crosses one of its --error-bed intervals*). Flagging too much of a donor can only cost a patch, but flagging too little can carry that donor's error into the output.
 
 ### Re-running on kept graphs
 
