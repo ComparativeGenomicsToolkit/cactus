@@ -91,7 +91,8 @@ def main():
                         "per assembly (a subset is fine), each BED in that assembly's own contig names and coordinates. "
                         "The assemblies are aligned unmasked and the intervals passed to panpatch (--error-bed): a donor's "
                         "are never used to patch (contig ends aside: see panpatch --error-bed-end-slop); the target's are "
-                        "replaced by donor sequence where a donor differs and can patch them, and otherwise left as they are")
+                        "replaced by donor sequence where a donor differs and can patch them, and otherwise left as they are "
+                        "(a target interval over 1 Mb is ignored: see panpatch --error-bed-max-len)")
     parser.add_argument("--defaultSample", default=None,
                         help = "Use this sample's contig when a patch is rejected (panpatch -e)")
     parser.add_argument("--panpatchOptions", type=str, default=None,
@@ -362,16 +363,18 @@ def intervals_overlap(a_start, a_end, intervals):
     """ does [a_start, a_end) overlap any [s, e) in the list of half-open intervals? """
     return any(s < a_end and a_start < e for s, e in intervals)
 
-def target_error_intervals_used(intervals, contig_len, end_slop):
+def target_error_intervals_used(intervals, contig_len, end_slop, max_len=0):
     """ the target error intervals panpatch acts on: merged, less a contig-end one (within end_slop bp of either end
-    of the contig), which panpatch ignores on the target (--error-bed-end-slop; 0 keeps them all) """
+    of the contig) and one longer than max_len, which panpatch ignores on the target (--error-bed-end-slop,
+    --error-bed-max-len; 0 keeps them all) """
     merged = []
     for s, e in sorted(intervals):
         if merged and s <= merged[-1][1]:
             merged[-1][1] = max(merged[-1][1], e)
         else:
             merged.append([s, e])
-    return [(s, e) for s, e in merged if not (end_slop > 0 and (s <= end_slop or e >= contig_len - end_slop))]
+    return [(s, e) for s, e in merged if not (end_slop > 0 and (s <= end_slop or e >= contig_len - end_slop))
+            and not (max_len > 0 and e - s > max_len)]
 
 def panpatch_option_value(panpatch_options, name, default):
     """ the value given to panpatch option name (as "name V" or "name=V") in a --panpatchOptions string, else
@@ -848,12 +851,13 @@ def add_panpatch_jobs(job, options, run, full_vg_ids, vg_names, ref_size, exclud
     # surface this run's output-file map (incl. its report id) up to the cross-sample batch summary
     return gather_job.rv()
 
-def tag_report_gap_origin(job, report_path, target_error_bed_ids, end_slop=1000):
+def tag_report_gap_origin(job, report_path, target_error_bed_ids, end_slop=1000, max_len=1000000):
     """ add a 'gap_origin' column to panpatch's per-chromosome report, distinguishing a genuine N-gap
     fill ('N-gap') from a fill of a target error interval ('bed-gap'); '.' for rows with no gap origin.
     panpatch reports both as gap-fill rows: a gap-fill OR telomere row is 'bed-gap' iff its replaced
     target span overlaps a target error interval panpatch acts on -- not a contig-end one (end_slop, as
-    panpatch's --error-bed-end-slop), which panpatch ignores on the target, so it explains no patch.  a
+    panpatch's --error-bed-end-slop) or one longer than max_len (--error-bed-max-len), which panpatch ignores
+    on the target, so it explains no patch.  a
     gap-fill with no overlap is a genuine 'N-gap'; a telomere with no overlap capped an end and stays '.'.
     the column is appended so existing column positions are unchanged """
     # target error intervals per graph haplotype, in sanitized (graph) contig coordinates
@@ -897,7 +901,7 @@ def tag_report_gap_origin(job, report_path, target_error_bed_ids, end_slop=1000)
                 ts, te = fields[idx['target_start']], fields[idx['target_end']]
                 if ts not in ('.', '') and te not in ('.', ''):
                     used = target_error_intervals_used(err_by_hap.get(hap, {}).get(contig, []),
-                                                       int(fields[idx['target_bp']]), end_slop)
+                                                       int(fields[idx['target_bp']]), end_slop, max_len)
                     if intervals_overlap(int(ts), int(te), used):
                         origin = 'bed-gap'
             except (ValueError, KeyError, IndexError):
@@ -970,12 +974,16 @@ def run_panpatch_chrom(job, options, run, vg_id, vg_name, exclude_bed_id, target
     cactus_call(parameters=cmd, outfile=report_path, job_memory=job.memory)
 
     # tag each gap-fill row as a genuine N-gap or an error-BED-induced ('bed-gap') fill, leaving out the contig-end
-    # intervals panpatch ignored
+    # and over-long target intervals panpatch ignored
     try:
         end_slop = int(panpatch_option_value(options.panpatchOptions, '--error-bed-end-slop', 1000))
     except ValueError:
         end_slop = 1000
-    tag_report_gap_origin(job, report_path, target_error_bed_ids, end_slop)
+    try:
+        max_len = int(panpatch_option_value(options.panpatchOptions, '--error-bed-max-len', 1000000))
+    except ValueError:
+        max_len = 1000000
+    tag_report_gap_origin(job, report_path, target_error_bed_ids, end_slop, max_len)
 
     # one fasta per haplotype panpatch found target paths for, keyed by the PanSN haplotype number
     fastas = {}

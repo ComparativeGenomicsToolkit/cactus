@@ -453,6 +453,24 @@ class TestPanpatchErrorBeds(unittest.TestCase):
                 got = [l.rstrip('\n').split('\t')[-1] for l in f][1:]
             self.assertEqual(got, want, 'end_slop {}'.format(slop))
 
+    def test_tag_report_gap_origin_long(self):
+        # a target interval over max_len (1 Mb by default, as panpatch's --error-bed-max-len) explains no patch
+        err = self._write('t3.bed', 'chr1\t100000\t1100001\nchr1\t2000000\t3000000\n')
+
+        def row(ts, te):
+            return '\t'.join(['chr1', '1', 'gap-fill', 'TGT#1#chr1', '5000000', 'DON#1#d', '20', '0',
+                              '.', '100.0', '100.0', 'accepted', '.', str(ts), str(te)])
+        rows = [row(500000, 510000), row(2500000, 2510000)]
+        for max_len, want in [(None, ['N-gap', 'bed-gap']), (0, ['bed-gap', 'bed-gap'])]:
+            report = self._write('long{}.tsv'.format(max_len), _REPORT_HEADER + '\n' + '\n'.join(rows) + '\n')
+            if max_len is None:
+                tag_report_gap_origin(self.job, report, {1: err})
+            else:
+                tag_report_gap_origin(self.job, report, {1: err}, 1000, max_len)
+            with open(report) as f:
+                got = [l.rstrip('\n').split('\t')[-1] for l in f][1:]
+            self.assertEqual(got, want, 'max_len {}'.format(max_len))
+
     def test_target_error_intervals_used(self):
         # merged first, so a flag split over lines is judged as one; the slop boundary is inclusive, as in panpatch
         self.assertEqual(target_error_intervals_used([(15000, 28999), (0, 15000), (40000, 50000)], 100000, 1000),
@@ -462,6 +480,11 @@ class TestPanpatchErrorBeds(unittest.TestCase):
                          [(1001, 5000), (95000, 98999)])
         self.assertEqual(target_error_intervals_used([(95000, 99000)], 100000, 1000), [])
         self.assertEqual(target_error_intervals_used([(0, 5000)], 100000, 0), [(0, 5000)])
+        # and one longer than max_len (after the merge; the limit itself is kept), unless max_len is 0
+        self.assertEqual(target_error_intervals_used([(10000, 20001), (30000, 40000)], 100000, 1000, 10000),
+                         [(30000, 40000)])
+        self.assertEqual(target_error_intervals_used([(10000, 15000), (15000, 20001)], 100000, 1000, 10000), [])
+        self.assertEqual(target_error_intervals_used([(10000, 20001)], 100000, 1000, 0), [(10000, 20001)])
 
     def test_panpatch_option_value(self):
         self.assertEqual(panpatch_option_value(None, '--error-bed-end-slop', 1000), 1000)
