@@ -609,16 +609,27 @@ class TestPanpatchErrorBeds(unittest.TestCase):
         # exactly: record coordinates back through the context, N counted with the repeats, the threshold exclusive
         rng = random.Random(1)
         uniq = lambda n: ''.join(rng.choice('ACGT') for _ in range(n))
-        chr1 = uniq(20000) + 'CATTC' * 1600 + uniq(20000) + 'N' * 6000 + uniq(26000)    # array [20000, 28000), N [48000, 54000)
-        fa = self._fasta('t.fa', [('chr1', chr1), ('chrA', 'A' * 4000 + 'C' * 500), ('chrS', 'ACGT' * 100)])
+        array = 'CATTC' * 1600
+        chr1 = uniq(20000) + array + uniq(20000) + 'N' * 6000 + uniq(26000)    # array [20000, 28000), N [48000, 54000)
+        chrJ = uniq(20000) + array + uniq(30000)                                # array [20000, 28000)
+        chrK = uniq(20000) + array + uniq(30000)                                # array [20000, 28000)
+        chrN = uniq(10000) + 'N' * 4000 + uniq(10000)                           # N [10000, 14000)
+        fa = self._fasta('t.fa', [('chr1', chr1), ('chrA', 'A' * 4000 + 'C' * 500), ('chrS', 'ACGT' * 100),
+                                  ('chrJ', chrJ), ('chrK', chrK), ('chrN', chrN)])
         bed = self._write('t.bed', '# a comment\n'
                           'chr1\t20000\t28000\n'    # the array: left out
                           'chr1\t30000\t40000\n'    # unique: kept
                           'chr1\t47000\t55000\n'    # 75% N: left out
-                          'chr1\t44000\t52000\n'    # 50% N, not more: kept
                           'chrA\t0\t4500\n'         # 89% one base: a tandem repeat of period 1, left out unrun
                           'chrS\t0\t400\n'          # too little sequence to run: judged on its N, kept
-                          'missing\t0\t100\n')      # a contig the fasta lacks: kept
+                          'missing\t0\t100\n'       # a contig the fasta lacks: kept
+                          'chrJ\t20000\t28000\n'    # the array joined to 2 kb beside it: 80% tandem, both left out
+                          'chrJ\t28000\t30000\n'
+                          'chrJ\t40000\t44000\n'    # unique, joined: kept
+                          'chrJ\t44000\t48000\n'
+                          'chrK\t28000\t40000\n'    # the array joined to 12 kb beside it (lines out of order): 40%
+                          'chrK\t20000\t28000\n'    # tandem, both kept, though the array's own line is all tandem
+                          'chrN\t6000\t14000\n')    # 50% N, not more: kept
         records = []
 
         def fake_fastan(fa_path, work_dir, threads):
@@ -628,13 +639,15 @@ class TestPanpatchErrorBeds(unittest.TestCase):
 
         out = os.path.join(self.tempDir, 'out.bed')
         n_ivs, dropped = tandem_filter_bed(bed, fa, out, 0.5, self.tempDir, find_tandem=fake_fastan)
-        self.assertEqual(n_ivs, 7)
+        self.assertEqual(n_ivs, 10)
         self.assertEqual([(c, s, e) for c, s, e, _ in dropped], [('chr1', 20000, 28000), ('chr1', 47000, 55000),
-                                                                 ('chrA', 0, 4500)])
-        self.assertEqual([round(f, 3) for _, _, _, f in dropped], [1.0, 0.75, 1.0])
+                                                                 ('chrA', 0, 4500), ('chrJ', 20000, 30000)])
+        self.assertEqual([round(f, 3) for _, _, _, f in dropped], [1.0, 0.75, 1.0, 0.8])
         with open(out) as f:
-            self.assertEqual(f.read(), '# a comment\nchr1\t30000\t40000\nchr1\t44000\t52000\nchrS\t0\t400\nmissing\t0\t100\n')
-        self.assertEqual(len(records), 4)       # the four chr1 intervals; chrA and chrS were judged without it
+            self.assertEqual(f.read(), '# a comment\nchr1\t30000\t40000\nchrS\t0\t400\nmissing\t0\t100\n'
+                             'chrJ\t40000\t44000\nchrJ\t44000\t48000\nchrK\t28000\t40000\nchrK\t20000\t28000\n'
+                             'chrN\t6000\t14000\n')
+        self.assertEqual(len(records), 7)       # chrA and chrS were judged without it, and missing not at all
         # a limit of 1 leaves everything in
         self.assertEqual(tandem_filter_bed(bed, fa, out, 1.0, self.tempDir, find_tandem=fake_fastan)[1], [])
 

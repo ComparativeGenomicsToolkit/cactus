@@ -833,9 +833,13 @@ def find_tandem_repeats(fasta_path, work_dir, threads=1):
 
 def tandem_filter_bed(bed_path, fasta_path, out_path, max_frac, work_dir, threads=1, find_tandem=find_tandem_repeats):
     """ copy the target's error BED to out_path less each interval more than max_frac of which is tandem repeat or N
-    (see filter_target_error_beds).  Every other line is copied as it is, including one on a contig the fasta does
-    not have.  returns (the number of intervals, [(contig, start, end, fraction)] for each one left out) """
-    lines, ivs = [], []
+    (see filter_target_error_beds).  Intervals that touch or overlap are joined first and judged as one, as panpatch
+    joins them before it judges a contig end or a long interval: judged line by line, dropping one line could split
+    what panpatch would join (and so free the rest of a contig-end flag, or bring an over-long one under the limit).
+    A joined interval's lines are kept or left out together; every other line is copied as it is, including one on a
+    contig the fasta does not have.  returns (the number of joined intervals, [(contig, start, end, fraction)] for
+    each one left out) """
+    lines, by_contig = [], collections.defaultdict(list)
     with open(bed_path) as f:
         for line in f:
             lines.append(line)
@@ -847,15 +851,26 @@ def tandem_filter_bed(bed_path, fasta_path, out_path, max_frac, work_dir, thread
             except ValueError:
                 continue
             if 0 <= start < end:
-                ivs.append((len(lines) - 1, toks[0], start, end))
+                by_contig[toks[0]].append((start, end, len(lines) - 1))
+    # joined intervals, as (contig, start, end, [BED lines]), in the order of their first line
+    ivs = []
+    for contig, contig_ivs in by_contig.items():
+        for start, end, line_i in sorted(contig_ivs):
+            if ivs and ivs[-1][0] == contig and start <= ivs[-1][2]:
+                ivs[-1][2] = max(ivs[-1][2], end)
+                ivs[-1][3].append(line_i)
+            else:
+                ivs.append([contig, start, end, [line_i]])
+    ivs.sort(key=lambda iv: min(iv[3]))
 
-    # write each interval's record for FasTAN, unless it can be judged without (TANDEM_MIN_ACGT, TANDEM_LOW_INFO).
-    # judged maps a BED line to its interval's [a, b) in the record, and the record's runs of N and tandem repeat
+    # write each joined interval's record for FasTAN, unless it can be judged without (TANDEM_MIN_ACGT,
+    # TANDEM_LOW_INFO).  judged maps an interval to its [a, b) in the record, and the record's runs of N and tandem
+    # repeat
     fa_path = os.path.join(work_dir, 'tandem.fa')
     judged, records = {}, {}
     with open(fa_path, 'w') as fa:
-        for k, lo, seq in error_interval_sequences(fasta_path, [iv[1:] for iv in ivs]):
-            line_i, contig, start, end = ivs[k]
+        for k, lo, seq in error_interval_sequences(fasta_path, [(c, s, e) for c, s, e, _ in ivs]):
+            contig, start, end, _ = ivs[k]
             a, b = start - lo, min(end - lo, len(seq))
             if a >= b:
                 continue        # past the end of its contig: left as it is
@@ -869,19 +884,19 @@ def tandem_filter_bed(bed_path, fasta_path, out_path, max_frac, work_dir, thread
                     fa.write('>{}\n'.format(name))
                     for p in range(0, len(seq), 100):
                         fa.write(seq[p:p + 100] + '\n')
-                    records[name] = line_i
-            judged[line_i] = (a, b, runs)
+                    records[name] = k
+            judged[k] = (a, b, runs)
     repeats = find_tandem(fa_path, work_dir, threads) if records else {}
-    for name, line_i in records.items():
-        judged[line_i][2].extend(repeats.get(name, []))
+    for name, k in records.items():
+        judged[k][2].extend(repeats.get(name, []))
 
     dropped, drop_lines = [], set()
-    for line_i, (a, b, runs) in sorted(judged.items()):
+    for k, (a, b, runs) in sorted(judged.items()):
         frac = covered_fraction(a, b, runs)
         if frac > max_frac:
-            toks = lines[line_i].split()
-            dropped.append((toks[0], int(toks[1]), int(toks[2]), frac))
-            drop_lines.add(line_i)
+            contig, start, end, line_is = ivs[k]
+            dropped.append((contig, start, end, frac))
+            drop_lines.update(line_is)
     with open(out_path, 'w') as out:
         for i, line in enumerate(lines):
             if i not in drop_lines:
@@ -898,7 +913,7 @@ def filter_target_error_beds(job, options, run, target_error_bed_ids, target_fas
     first filtered with one), but this needs only the target's own sequence.  On that pilot's 18 samples it made the
     patches the annotation-filtered BEDs did, every one: the swaps it kept out (HSat3 on the acrocentric short arms,
     alpha and beta satellite by the centromeres, two beside N gaps) were on intervals 61-90% tandem repeat or N, and
-    no interval under a swap it kept was over 43%.  rDNA, whose ~45 kb unit is too long a period for FasTAN, is left to panpatch, which
+    no interval under a swap it kept was over 38%.  rDNA, whose ~45 kb unit is too long a period for FasTAN, is left to panpatch, which
     never swaps it.  An interval that is mostly N flags the gap itself, which panpatch fills
     (or not) as a gap either way; kept, it would widen that fill over the flagged sequence beside the gap """
     max_frac = options.maxTargetErrorTandem
@@ -912,8 +927,8 @@ def filter_target_error_beds(job, options, run, target_error_bed_ids, target_fas
         job.fileStore.readGlobalFile(target_fasta_ids[hap], fasta_path)
         n_ivs, dropped = tandem_filter_bed(bed_path, fasta_path, out_path, max_frac, work_dir,
                                            threads=getattr(job, 'cores', None) or TANDEM_CORES)
-        RealtimeLogger.info('{} haplotype {}: ignoring {:,} of {:,} target error intervals ({:,} bp) as more than {:g}% '
-                            'tandem repeat or N (--maxTargetErrorTandem)'.format(
+        RealtimeLogger.info('{} haplotype {}: ignoring {:,} of {:,} target error intervals ({:,} bp; joined where they touch) as '
+                            'more than {:g}% tandem repeat or N (--maxTargetErrorTandem)'.format(
                                 run['name'], hap, len(dropped), n_ivs, sum(e - s for _, s, e, _ in dropped),
                                 100 * max_frac))
         filtered[hap] = job.fileStore.writeGlobalFile(out_path)
