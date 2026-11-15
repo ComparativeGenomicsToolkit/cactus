@@ -10,7 +10,9 @@ so the fasta paths below are dummies.  The end-to-end pipeline is covered by evo
 """
 
 import os
+import re
 import gzip
+import random
 import unittest
 import tempfile
 import shutil
@@ -25,6 +27,8 @@ from cactus.refmap.cactus_panpatch import target_error_intervals_used, panpatch_
 from cactus.refmap.cactus_panpatch import clean_path_name, clean_report_names, clean_bed_names, run_renames
 from cactus.refmap.cactus_panpatch import output_record_name, rename_fasta_records, missing_target_contigs
 from cactus.refmap.cactus_panpatch import rescue_dropped_contigs, PANPATCH_REPORT_COLUMNS
+from cactus.refmap.cactus_panpatch import target_error_bed_keys, error_interval_sequences, covered_fraction
+from cactus.refmap.cactus_panpatch import tandem_filter_bed, filter_target_error_beds
 
 GRAPH_EVENT = '_MINIGRAPH_'
 # <graphmap dotHaplotypes> as the default config has it, which is what the seqfiles below, with their
@@ -557,6 +561,105 @@ class TestPanpatchErrorBeds(unittest.TestCase):
         r2 = runs['TGT.hap2']
         self.assertEqual(r2['error_beds'], {'DON': '/x/d.bed'})
         self.assertEqual(r2['target_error_beds'], {})
+
+    def test_target_error_bed_keys(self):
+        # the target's BEDs in error_beds (keyed for panpatch) are the ones target_error_beds keys by graph haplotype
+        seqfile = self._seqfile('k.seqfile', [('CHM13', 'ref.fa'), ('TGT.1', 't1.fa'), ('TGT.2', 't2.fa'),
+                                              ('DON.1', 'd1.fa')])
+        errmap = {'TGT.1': '/x/t1.bed', 'TGT.2': '/x/t2.bed', 'DON.1': '/x/d1.bed'}
+        run = make_runs(self._options_with_beds(seqfile, errmap, reference=['CHM13']), GRAPH_EVENT, DOT_HAPLOTYPES)[0]
+        self.assertEqual(target_error_bed_keys(run), {1: 'TGT#1', 2: 'TGT#2'})
+        seqfile = self._seqfile('kf.seqfile', [('TGT.1', 't1.fa'), ('TGT.2', 't2.fa'), ('DON', 'd.fa')])
+        errmap = {'TGT.1': '/x/t1.bed', 'DON': '/x/d.bed'}
+        runs = self._by_name(make_runs(self._options_with_beds(seqfile, errmap), GRAPH_EVENT, DOT_HAPLOTYPES))
+        self.assertEqual(target_error_bed_keys(runs['TGT.hap1']), {0: 'TGT_1'})
+        self.assertEqual(target_error_bed_keys(runs['TGT.hap2']), {})       # the donor's BED only
+        for run in runs.values():
+            self.assertEqual({hap: run['error_beds'][key] for hap, key in target_error_bed_keys(run).items()},
+                             run['target_error_beds'])
+
+    # ---- the target's tandem-repeat filter (--maxTargetErrorTandem) ----
+
+    def _fasta(self, name, recs, gz=False, width=60):
+        path = os.path.join(self.tempDir, name)
+        with (gzip.open(path, 'wt') if gz else open(path, 'w')) as f:
+            for rec_name, seq in recs:
+                f.write('>{} a description\n'.format(rec_name))
+                f.write(''.join(seq[i:i + width] + '\n' for i in range(0, len(seq), width)))
+        return path
+
+    def test_error_interval_sequences(self):
+        a = ''.join('ACGT'[(i * 7 + i // 3) % 4] for i in range(1000))
+        b = 'T' * 50 + 'G' * 50
+        for gz in (False, True):
+            fa = self._fasta('s.fa.gz' if gz else 's.fa', [('ctgA', a), ('ctgB', b)], gz=gz)
+            ivs = [('ctgB', 10, 20), ('ctgA', 100, 200), ('missing', 0, 10), ('ctgA', 990, 1000)]
+            # each interval with up to 50 bp either side, clipped to its contig; one on a contig the fasta lacks is skipped
+            self.assertEqual(sorted(error_interval_sequences(fa, ivs, context=50)),
+                             [(0, 0, b[0:70]), (1, 50, a[50:250]), (3, 940, a[940:1000])])
+
+    def test_covered_fraction(self):
+        self.assertEqual(covered_fraction(0, 100, []), 0.0)
+        self.assertEqual(covered_fraction(0, 100, [(10, 30), (20, 40), (90, 200)]), 0.4)    # a union, clipped
+        self.assertEqual(covered_fraction(50, 100, [(0, 60), (55, 58)]), 0.2)
+        self.assertEqual(covered_fraction(5, 5, [(0, 10)]), 0.0)
+
+    def test_tandem_filter_bed(self):
+        # a stand-in for FasTAN that calls each run of the unit CATTC a tandem repeat, so the bookkeeping can be checked
+        # exactly: record coordinates back through the context, N counted with the repeats, the threshold exclusive
+        rng = random.Random(1)
+        uniq = lambda n: ''.join(rng.choice('ACGT') for _ in range(n))
+        chr1 = uniq(20000) + 'CATTC' * 1600 + uniq(20000) + 'N' * 6000 + uniq(26000)    # array [20000, 28000), N [48000, 54000)
+        fa = self._fasta('t.fa', [('chr1', chr1), ('chrA', 'A' * 4000 + 'C' * 500), ('chrS', 'ACGT' * 100)])
+        bed = self._write('t.bed', '# a comment\n'
+                          'chr1\t20000\t28000\n'    # the array: left out
+                          'chr1\t30000\t40000\n'    # unique: kept
+                          'chr1\t47000\t55000\n'    # 75% N: left out
+                          'chr1\t44000\t52000\n'    # 50% N, not more: kept
+                          'chrA\t0\t4500\n'         # 89% one base: a tandem repeat of period 1, left out unrun
+                          'chrS\t0\t400\n'          # too little sequence to run: judged on its N, kept
+                          'missing\t0\t100\n')      # a contig the fasta lacks: kept
+        records = []
+
+        def fake_fastan(fa_path, work_dir, threads):
+            recs = _read_fasta_bytes(fa_path)
+            records.extend(recs)
+            return {name: [(m.start(), m.end()) for m in re.finditer(rb'(?:CATTC){4,}', seq)] for name, seq in recs.items()}
+
+        out = os.path.join(self.tempDir, 'out.bed')
+        n_ivs, dropped = tandem_filter_bed(bed, fa, out, 0.5, self.tempDir, find_tandem=fake_fastan)
+        self.assertEqual(n_ivs, 7)
+        self.assertEqual([(c, s, e) for c, s, e, _ in dropped], [('chr1', 20000, 28000), ('chr1', 47000, 55000),
+                                                                 ('chrA', 0, 4500)])
+        self.assertEqual([round(f, 3) for _, _, _, f in dropped], [1.0, 0.75, 1.0])
+        with open(out) as f:
+            self.assertEqual(f.read(), '# a comment\nchr1\t30000\t40000\nchr1\t44000\t52000\nchrS\t0\t400\nmissing\t0\t100\n')
+        self.assertEqual(len(records), 4)       # the four chr1 intervals; chrA and chrS were judged without it
+        # a limit of 1 leaves everything in
+        self.assertEqual(tandem_filter_bed(bed, fa, out, 1.0, self.tempDir, find_tandem=fake_fastan)[1], [])
+
+    @unittest.skipUnless(shutil.which('FasTAN') and shutil.which('tanbed'), 'FasTAN and tanbed are not on the PATH')
+    def test_filter_target_error_beds_fastan(self):
+        # FasTAN itself, through the job: an array of a 171 bp unit (as alpha satellite's), its copies ~4% apart, is left
+        # out; unique sequence is kept
+        rng = random.Random(7)
+        uniq = lambda n: ''.join(rng.choice('ACGT') for _ in range(n))
+        unit = uniq(171)
+        array = ''.join(''.join(rng.choice('ACGT') if rng.random() < 0.02 else c for c in unit) for _ in range(120))
+        fa = self._fasta('t.fa', [('chr1', uniq(30000) + array + uniq(30000))])
+        bed = self._write('t.bed', 'chr1\t30000\t{}\nchr1\t5000\t25000\n'.format(30000 + len(array)))
+        mode = os.environ.get('CACTUS_BINARIES_MODE')
+        os.environ['CACTUS_BINARIES_MODE'] = 'local'
+        try:
+            out = filter_target_error_beds(self.job, Namespace(maxTargetErrorTandem=0.5), {'name': 'TGT.hap1'},
+                                           {0: bed}, {0: fa})
+        finally:
+            if mode is None:
+                del os.environ['CACTUS_BINARIES_MODE']
+            else:
+                os.environ['CACTUS_BINARIES_MODE'] = mode
+        with open(out[0]) as f:
+            self.assertEqual(f.read(), 'chr1\t5000\t25000\n')
 
     def test_make_runs_rejects_unmatched_event(self):
         seqfile = self._seqfile('u.seqfile', [('CHM13', 'ref.fa'), ('TGT.1', 't1.fa'), ('DON.1', 'd1.fa')])

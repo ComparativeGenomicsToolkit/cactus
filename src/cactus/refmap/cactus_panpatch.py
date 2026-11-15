@@ -92,7 +92,13 @@ def main():
                         "The assemblies are aligned unmasked and the intervals passed to panpatch (--error-bed): a donor's "
                         "are never used to patch (contig ends aside: see panpatch --error-bed-end-slop); the target's are "
                         "replaced by donor sequence where a donor differs and can patch them, and otherwise left as they are "
-                        "(a target interval over 1 Mb is ignored: see panpatch --error-bed-max-len)")
+                        "(a target interval over 1 Mb is ignored: see panpatch --error-bed-max-len; and so is one that is "
+                        "mostly tandem repeat: see --maxTargetErrorTandem)")
+    parser.add_argument("--maxTargetErrorTandem", type=float, default=0.5,
+                        help = "Ignore a target interval of --assemblyErrorBeds when more than this fraction of it is tandem "
+                        "repeat (as FasTAN finds it in the target's own sequence) or N. In a satellite array or another tandem "
+                        "repeat, a donor is no more reliable than the target and panpatch can't verify a swap. 1 turns this "
+                        "off [default=0.5]")
     parser.add_argument("--defaultSample", default=None,
                         help = "Use this sample's contig when a patch is rejected (panpatch -e)")
     parser.add_argument("--panpatchOptions", type=str, default=None,
@@ -410,6 +416,10 @@ def panpatch_validate_options(options):
     # switches to external-reference mode (whose reference make_seqfile_runs checks is haploid, once
     # it knows which genome the name is)
     options.referenceFree = not options.reference
+
+    max_tandem = getattr(options, 'maxTargetErrorTandem', None)
+    if max_tandem is not None and not 0 <= max_tandem <= 1:
+        raise RuntimeError('--maxTargetErrorTandem must be between 0 and 1 (1 turns it off), got {}'.format(max_tandem))
 
     if options.noSplit:
         # a single unsplit graph has every reference chromosome in it, and panpatch skips any graph
@@ -739,6 +749,176 @@ def make_panpatch_error_bed(job, error_bed_ids, label=None):
         label or 'make_panpatch_error_bed', n_ivs, len(error_bed_ids)))
     return job.fileStore.writeGlobalFile(out_path)
 
+# The target's error intervals are judged for tandem repeat (--maxTargetErrorTandem) by FasTAN, the tandem-repeat
+# finder cactus-preprocess --maskMode fastan runs.  Each interval goes to it with up to TANDEM_CONTEXT bp of its
+# contig either side, so that a repeat the interval cuts into still shows its period; the coverage is measured on
+# the interval alone.  A record with under TANDEM_MIN_ACGT bp of A/C/G/T is not run (FasTAN fails on a record with
+# no sequence, and cactus keeps tiny ones away from it: see fastanPrefilterOpts in the config), and nor is one in
+# which a single base makes up TANDEM_LOW_INFO of the A/C/G/T: that is a tandem repeat of period 1, and counts as one
+TANDEM_CONTEXT = 10000
+TANDEM_MIN_ACGT = 1000
+TANDEM_LOW_INFO = 0.75
+# FasTAN only sees the intervals, at about a CPU-second per Mb (all 415 Mb of the 18-sample HPRC pilot's target error
+# intervals took 4.4 CPU-minutes), so the job's time goes on the python pass that reads the target fasta.  On that
+# pilot's 3 GB (plain) haplotypes the pass read 87-100 MB/s, and the whole filter took 32-39 s; 40 MB/s leaves room
+# for a gzipped fasta and a busy disk
+TANDEM_CORES = 4
+TANDEM_BYTES_PER_SEC = 40e6
+
+def target_error_bed_keys(run):
+    """ {graph haplotype: key} of the target's BEDs in run['error_beds'], which are keyed by seq_rows sample name
+    (for panpatch's --error-bed), where run['target_error_beds'] keys the same BEDs by graph haplotype """
+    if run['referenceFree']:
+        ref = run['panpatchReference']
+        return {0: ref} if ref in run['error_beds'] else {}
+    return {(sample_hap(key) if sample_hap(key) is not None else 0): key for key in run['error_beds']
+            if sample_base(key) == run['target_sample']}
+
+def error_interval_sequences(fasta_path, intervals, context=TANDEM_CONTEXT):
+    """ the sequence around each of intervals ([(contig, start, end)], 0-based half-open, in the fasta's own contig
+    names: the first token of each header), from a plain or gzipped fasta read once, one contig at a time.  yields
+    (i, lo, seq) for each interval i whose contig is in the fasta: seq is [lo, lo + len(seq)) of the contig, the
+    interval with up to context bp either side """
+    by_contig = collections.defaultdict(list)
+    for i, (contig, start, end) in enumerate(intervals):
+        by_contig[contig].append((i, start, end))
+    with open(fasta_path, 'rb') as probe:
+        opener = gzip.open if probe.read(2) == b'\x1f\x8b' else open
+
+    def cut(name, chunks):
+        seq = b''.join(chunks).decode()
+        for i, start, end in by_contig[name]:
+            lo = max(0, start - context)
+            yield i, lo, seq[lo:min(len(seq), end + context)]
+
+    name, chunks = None, None
+    with opener(fasta_path, 'rb') as f:
+        for line in f:
+            if line.startswith(b'>'):
+                if chunks is not None:
+                    yield from cut(name, chunks)
+                toks = line[1:].split()
+                name = toks[0].decode() if toks else ''
+                chunks = [] if name in by_contig else None
+            elif chunks is not None:
+                chunks.append(line.strip())
+    if chunks is not None:
+        yield from cut(name, chunks)
+
+def covered_fraction(start, end, ivs):
+    """ the fraction of [start, end) that the union of ivs ([(s, e), ...]) covers """
+    if end <= start:
+        return 0.0
+    covered, reach = 0, start
+    for s, e in sorted(ivs):
+        s, e = max(s, reach), min(e, end)
+        if s < e:
+            covered += e - s
+            reach = e
+    return covered / (end - start)
+
+def find_tandem_repeats(fasta_path, work_dir, threads=1):
+    """ the tandem repeats FasTAN finds in a fasta, as {record: [(start, end), ...]} (tanbed's BED) """
+    aln_path = os.path.join(work_dir, 'tandem.1aln')
+    bed_path = os.path.join(work_dir, 'tandem.bed')
+    cactus_call(parameters=['FasTAN', '-T{}'.format(max(1, int(threads))), fasta_path, aln_path])
+    cactus_call(parameters=['tanbed', aln_path], outfile=bed_path)
+    repeats = collections.defaultdict(list)
+    with open(bed_path) as f:
+        for line in f:
+            toks = line.split()
+            if len(toks) >= 3:
+                repeats[toks[0]].append((int(toks[1]), int(toks[2])))
+    return repeats
+
+def tandem_filter_bed(bed_path, fasta_path, out_path, max_frac, work_dir, threads=1, find_tandem=find_tandem_repeats):
+    """ copy the target's error BED to out_path less each interval more than max_frac of which is tandem repeat or N
+    (see filter_target_error_beds).  Every other line is copied as it is, including one on a contig the fasta does
+    not have.  returns (the number of intervals, [(contig, start, end, fraction)] for each one left out) """
+    lines, ivs = [], []
+    with open(bed_path) as f:
+        for line in f:
+            lines.append(line)
+            toks = line.split()
+            if line.startswith(('#', 'track', 'browser')) or len(toks) < 3:
+                continue
+            try:
+                start, end = int(toks[1]), int(toks[2])
+            except ValueError:
+                continue
+            if 0 <= start < end:
+                ivs.append((len(lines) - 1, toks[0], start, end))
+
+    # write each interval's record for FasTAN, unless it can be judged without (TANDEM_MIN_ACGT, TANDEM_LOW_INFO).
+    # judged maps a BED line to its interval's [a, b) in the record, and the record's runs of N and tandem repeat
+    fa_path = os.path.join(work_dir, 'tandem.fa')
+    judged, records = {}, {}
+    with open(fa_path, 'w') as fa:
+        for k, lo, seq in error_interval_sequences(fasta_path, [iv[1:] for iv in ivs]):
+            line_i, contig, start, end = ivs[k]
+            a, b = start - lo, min(end - lo, len(seq))
+            if a >= b:
+                continue        # past the end of its contig: left as it is
+            runs = [(m.start(), m.end()) for m in re.finditer('[Nn]+', seq)]
+            acgt = len(seq) - sum(e - s for s, e in runs)
+            if acgt >= TANDEM_MIN_ACGT:
+                if max(seq.count(c) + seq.count(c.lower()) for c in 'ACGT') >= TANDEM_LOW_INFO * acgt:
+                    runs = [(0, len(seq))]
+                else:
+                    name = 'iv{}'.format(k)
+                    fa.write('>{}\n'.format(name))
+                    for p in range(0, len(seq), 100):
+                        fa.write(seq[p:p + 100] + '\n')
+                    records[name] = line_i
+            judged[line_i] = (a, b, runs)
+    repeats = find_tandem(fa_path, work_dir, threads) if records else {}
+    for name, line_i in records.items():
+        judged[line_i][2].extend(repeats.get(name, []))
+
+    dropped, drop_lines = [], set()
+    for line_i, (a, b, runs) in sorted(judged.items()):
+        frac = covered_fraction(a, b, runs)
+        if frac > max_frac:
+            toks = lines[line_i].split()
+            dropped.append((toks[0], int(toks[1]), int(toks[2]), frac))
+            drop_lines.add(line_i)
+    with open(out_path, 'w') as out:
+        for i, line in enumerate(lines):
+            if i not in drop_lines:
+                out.write(line)
+    return len(ivs), dropped
+
+def filter_target_error_beds(job, options, run, target_error_bed_ids, target_fasta_ids):
+    """ the target's error BEDs less each interval more than --maxTargetErrorTandem of which is tandem repeat or N,
+    as {graph haplotype: BED id}.
+
+    A target interval is swapped for donor sequence, and in a satellite array or another tandem repeat no check can
+    verify that swap: k-mer recovery and flank anchoring pass a copy of any array of the same family, and a donor is
+    no more reliable there than the target.  A satellite annotation does the same job (the HPRC pilot's BEDs were
+    first filtered with one), but this needs only the target's own sequence.  On that pilot's 18 samples it made the
+    patches the annotation-filtered BEDs did, every one: the swaps it kept out (HSat3 on the acrocentric short arms,
+    alpha and beta satellite by the centromeres, two beside N gaps) were on intervals 61-90% tandem repeat or N, and
+    no interval under a swap it kept was over 43%.  rDNA, whose ~45 kb unit is too long a period for FasTAN, is left to panpatch, which
+    never swaps it.  An interval that is mostly N flags the gap itself, which panpatch fills
+    (or not) as a gap either way; kept, it would widen that fill over the flagged sequence beside the gap """
+    max_frac = options.maxTargetErrorTandem
+    filtered = {}
+    for hap, bed_id in sorted(target_error_bed_ids.items()):
+        work_dir = job.fileStore.getLocalTempDir()
+        bed_path = os.path.join(work_dir, 'target.bed')
+        fasta_path = os.path.join(work_dir, 'target.fa')
+        out_path = os.path.join(work_dir, 'target.filtered.bed')
+        job.fileStore.readGlobalFile(bed_id, bed_path)
+        job.fileStore.readGlobalFile(target_fasta_ids[hap], fasta_path)
+        n_ivs, dropped = tandem_filter_bed(bed_path, fasta_path, out_path, max_frac, work_dir,
+                                           threads=getattr(job, 'cores', None) or TANDEM_CORES)
+        RealtimeLogger.info('{} haplotype {}: ignoring {:,} of {:,} target error intervals ({:,} bp) as more than {:g}% '
+                            'tandem repeat or N (--maxTargetErrorTandem)'.format(
+                                run['name'], hap, len(dropped), n_ivs, sum(e - s for _, s, e, _ in dropped),
+                                100 * max_frac))
+        filtered[hap] = job.fileStore.writeGlobalFile(out_path)
+    return filtered
+
 def panpatch_run_workflow(job, options, pg_options, config_wrapper, run, seq_id_map, seq_path_map, seq_order,
                           ref_collapse_paf_id, last_scores_id, exclude_bed_id, target_fasta_ids,
                           error_bed_ids, target_error_bed_ids, graph_ids=None):
@@ -750,9 +930,27 @@ def panpatch_run_workflow(job, options, pg_options, config_wrapper, run, seq_id_
     # and the anchors either side of a donor's own masked copy could land on the wrong ends of it
     error_bed_id = None
     if error_bed_ids:
-        error_bed_id = job.addChildJobFn(make_panpatch_error_bed, error_bed_ids, run['name'],
-                                         disk=sum(b.size for b in error_bed_ids.values()) * 3 + 2**28,
-                                         walltime=cactus_walltime()).rv()
+        bed_disk = sum(b.size for b in error_bed_ids.values()) * 3 + 2**28
+        if target_error_bed_ids and options.maxTargetErrorTandem < 1:
+            # the target's intervals that are mostly tandem repeat or N are left out first, so that neither panpatch
+            # nor the report tagging (run_panpatch_chrom) ever sees them
+            fasta_bytes = sum(target_fasta_ids[hap].size for hap in target_error_bed_ids)
+            seq_bytes = fasta_bytes * (4 if any(path.endswith('.gz') for _, path in run['target_haps']) else 1)
+            filter_job = job.addChildJobFn(filter_target_error_beds, options, run, target_error_bed_ids, target_fasta_ids,
+                                           cores=min(TANDEM_CORES, int(options.maxCores)) if options.maxCores else TANDEM_CORES,
+                                           memory=cactus_clamp_memory(max(2**33, seq_bytes // 4)),
+                                           disk=2 * fasta_bytes + 2**30,
+                                           walltime=cactus_walltime(seq_bytes / TANDEM_BYTES_PER_SEC, io_bytes=fasta_bytes))
+            error_bed_ids = dict(error_bed_ids)
+            for hap, key in target_error_bed_keys(run).items():
+                if hap in target_error_bed_ids:
+                    error_bed_ids[key] = filter_job.rv(hap)
+            target_error_bed_ids = {hap: filter_job.rv(hap) for hap in target_error_bed_ids}
+            error_bed_id = filter_job.addFollowOnJobFn(make_panpatch_error_bed, error_bed_ids, run['name'],
+                                                       disk=bed_disk, walltime=cactus_walltime()).rv()
+        else:
+            error_bed_id = job.addChildJobFn(make_panpatch_error_bed, error_bed_ids, run['name'],
+                                             disk=bed_disk, walltime=cactus_walltime()).rv()
 
     if graph_ids is not None:
         # --fromGraphs: nothing to build.  gather is sized by the reference (the sanitized input's size on
