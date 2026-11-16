@@ -404,7 +404,7 @@ fi
 cd ${pangenomeBuildDir}
 git clone --recursive https://github.com/glennhickey/panpatch.git
 cd panpatch
-git checkout 16b2ebd88b86c7aa6df3a7032c47378ee155042c
+git checkout 8f5ba317d4b4bea2723a38319fb83d0ecb355430
 git submodule update --init --recursive
 if [[ $STATIC_CHECK -eq 1 ]]
 then

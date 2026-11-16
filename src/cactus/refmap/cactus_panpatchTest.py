@@ -497,6 +497,9 @@ class TestPanpatchErrorBeds(unittest.TestCase):
         self.assertEqual(panpatch_option_value('--error-bed-end-slop 0 --min-cover 0.9', '--error-bed-end-slop', 1000), '0')
         self.assertEqual(panpatch_option_value('--error-bed-end-slop=500', '--error-bed-end-slop', 1000), '500')
         self.assertEqual(panpatch_option_value('--error-bed-end-slop 5 --error-bed-end-slop 7', '--error-bed-end-slop', 1000), '7')
+        # as the post-revert telomere measurement reads the threshold: unset -> None, either form -> its value
+        self.assertIsNone(panpatch_option_value('--min-cover 0.9', '--telomere-threshold', None))
+        self.assertEqual(panpatch_option_value('--min-cover 0.9 --telomere-threshold=0.7', '--telomere-threshold', None), '0.7')
 
     def test_tag_report_no_beds_still_adds_column(self):
         # with no target error beds, every gap-fill is a genuine N-gap but the column is still added

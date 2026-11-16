@@ -1416,12 +1416,9 @@ def gather_panpatch(job, options, run, chrom_results, target_fasta_ids, target_e
 
     # panpatch's telomere threshold, if the user overrode it, so our post-revert measurement below calls
     # a telomere exactly the way the run that produced these patches did
-    telo_opts = []
-    if options.panpatchOptions:
-        popts = shlex.split(options.panpatchOptions)
-        for i, o in enumerate(popts):
-            if o == '--telomere-threshold' and i + 1 < len(popts):
-                telo_opts = ['--telomere-threshold', popts[i + 1]]
+    # (either form, "--telomere-threshold F" or "--telomere-threshold=F"; the last one given wins, as for panpatch)
+    telo_threshold = panpatch_option_value(options.panpatchOptions, '--telomere-threshold', None)
+    telo_opts = ['--telomere-threshold', telo_threshold] if telo_threshold is not None else []
     cap_lines = []   # "#Contig" cap status of the assembly we actually deliver (filled per haplotype)
 
     # concatenate the beds first (chromosome order; a skipped graph has no bed).  the bed is a byte-exact
