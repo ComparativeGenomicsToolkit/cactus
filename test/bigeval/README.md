@@ -11,7 +11,7 @@ Nothing in here is data: genomes, annotations and truth sets are downloaded from
 |---|---|---|---|---|
 | `busco5` | `cactus` on human, mouse, opossum, chicken and gar | BUSCO gene models (compleasm), ENCODE CTCF cCREs | about a day, mostly queueing | 10 GB |
 | `hprc30` | `cactus-pangenome` on CHM13, GRCh38 and 28 HPRC haplotypes, as in HPRC v2.1 | HPRC dipcall calls, GIAB HG002 Q100 | 5-20 h to build, 1 h to score | 130 GB |
-| `primates5` | `cactus` on human, chimp, gorilla, orangutan and macaque: the shallow ancestors busco5 has none of | as busco5 | not yet timed | not yet measured |
+| `primates5` | `cactus` on human, chimp, gorilla, orangutan and macaque: the shallow ancestors busco5 has none of | as busco5 | half a day to three, mostly queueing | 11 GB |
 
 Each suite's module, `suites/<suite>.py`, says what every column of its row means, and how much of a difference is
 noise. In short:

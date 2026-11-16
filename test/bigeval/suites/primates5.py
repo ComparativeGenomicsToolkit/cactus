@@ -12,6 +12,11 @@ then macaque_recall and macaque_precision, the same at the root.  The pairs of e
 chimp (human-chimp), gorilla (the Homininae node), orangutan (the Hominidae node) and macaque (the root).  Between
 genomes this close BUSCO recall and precision are near their ceilings, so read nc_inlocus and ctcf_beyond_chance too:
 they are what sees non-coding sequence, repeats included, aligned outside its ortholog.
+
+Noise, from two runs with the same settings at the three ape ancestors (they differed only at the root): the coverage
+of a pair split by those ancestors moved by up to 0.1 points, and orangutan recall by 0.01.  A node's
+cactus_consolidated time moved by 70% (Homininae: 1.27 h and 2.14 h), so read cons_h across runs loosely.  A run
+takes 440-550 CPU hours.
 """
 import collections, importlib.util, os
 
