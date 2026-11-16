@@ -314,8 +314,9 @@
 		repeatMaskMatrixBiggerThanThis.  Between close genomes, soft-masked repeats are as conserved as the rest and
 		usually orthologous, so anchoring only in unmasked sequence leaves them unaligned: between rice lines (ingroups
 		0.002 to 0.013 apart) it cost a point or more of coverage.  Between distant genomes masking keeps paralogous
-		repeat copies from anchoring.  The default, 10000000, means in effect never masked.  0 for
-		shallowRepeatMaskDivergence turns this off. -->
+		repeat copies from anchoring.  The default of 0.025 takes in the human-chimp-gorilla ancestor (0.021) but not
+		the human-orangutan one (0.043), past which, on five primate genomes, it began to cost coding accuracy.  0 turns
+		this off.  shallowRepeatMaskMatrixBiggerThanThis's default, 10000000, means in effect never masked. -->
 		<!-- diagonalExpansion Expand the DP around anchors by this many diagonal coordinates. -->
 		<!-- constraintDiagonalTrim Trim anchors at their ends by this many bases. -->
 		<!-- alignAmbiguityCharacters Align together Ns or other wildcards. -->
@@ -341,7 +342,7 @@
 			splitMatrixBiggerThanThis="3000"
 			anchorMatrixBiggerThanThis="500"
 			repeatMaskMatrixBiggerThanThis="500"
-			shallowRepeatMaskDivergence="0.05"
+			shallowRepeatMaskDivergence="0.025"
 			shallowRepeatMaskMatrixBiggerThanThis="10000000"
 			diagonalExpansion="20"
 			constraintDiagonalTrim="14"
