@@ -9,6 +9,7 @@
 import unittest
 import os
 import shutil
+import subprocess
 import sys
 import xml.etree.ElementTree as ET
 
@@ -132,6 +133,27 @@ class TestCase(unittest.TestCase):
         config_root.find('multi_cactus').find('decomposition').attrib['allow_multifurcations'] = '0'
         mc_tree, _, _ = parse_seqfile(seq_path, ConfigWrapper(config_root))
         self.assertEqual(mc_tree.getChildNames('r'), ['a', 'b', 'c', 'd'])
+
+    @TestStatus.shortLength
+    def testSubtreeOutgroupOrder(self):
+        """ a subtree lists its outgroups in the outgroup map's order in every Python process, whatever its string
+        hashing: cactus_consolidated names the sequences in that order, and CAF and BAR break ties by those names """
+        script = '\n'.join([
+            'from sonLib.nxnewick import NXNewick',
+            'from cactus.progressive.multiCactusTree import MultiCactusTree',
+            'from cactus.progressive.progressive_decomposition import get_subtree',
+            'tree = MultiCactusTree(NXNewick().parseString("{}", addImpliedRoots=False))'.format(self.tree1),
+            'tree.nameUnlabeledInternalNodes()',
+            'tree.computeSubtreeRoots()',
+            'og_map = {"Anc7": ["MOUSE", "BABOON", "PIG", "DOG", "RAT"]}',
+            'subtree = get_subtree(tree, "Anc7", None, og_map)',
+            'print(" ".join(subtree.getName(leaf) for leaf in subtree.getLeaves()))'])
+        env = dict(os.environ)
+        env['PYTHONPATH'] = os.pathsep.join(p for p in sys.path if p)
+        for seed in range(8):
+            env['PYTHONHASHSEED'] = str(seed)
+            leaves = subprocess.check_output([sys.executable, '-c', script], env=env).decode().split()
+            self.assertEqual(leaves, ['HUMAN', 'CHIMP', 'MOUSE', 'BABOON', 'PIG', 'DOG', 'RAT'])
 
     def __generateTrees(self):
         self.tree1 = '((((HUMAN:0.006969,CHIMP:0.009727):0.025291,BABOON:0.044568):0.11,(MOUSE:0.072818,RAT:0.081244):0.260342):0.02326,((DOG:0.07,CAT:0.07):0.087381,(PIG:0.06,COW:0.06):0.104728):0.04);'
