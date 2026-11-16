@@ -444,6 +444,10 @@ void stCaf_finish(Flower *flower, stPinchThreadSet *threadSet, int64_t minLength
                   double proportionOfUnalignedBasesForNewChromosome) {
     stCactusNode *startCactusNode;
     stPinchComponent *deadEndComponent;
+    //The order the cactus graph's nodes and edges are made in, and so every name in the output, follows how the
+    //blocks list their segments, which comes from the order the alignments were pinched in.  Sort them first, so that
+    //the flowers come out the same whatever that order was
+    stPinchThreadSet_sortBlockSegments(threadSet);
     double t = stCaf_now();
     stCactusGraph *cactusGraph = stCaf_getCactusGraphForThreadSet(flower, threadSet, &startCactusNode, &deadEndComponent, 1, minLengthForChromosome,
                                                                   proportionOfUnalignedBasesForNewChromosome, 0, INT64_MAX);

@@ -575,6 +575,13 @@ void caf(Flower *flower, CactusParams *params, char *alignmentsFile, char *secon
             st_logInfo("caf-timing: constraints %.3fs\n", stCaf_now() - t);
         }
 
+        //Lay the blocks out in an order of their own (stCaf_finish does it too, for bar, and here finds it done)
+        t = stCaf_now();
+        int64_t reorderedBlocks = stPinchThreadSet_sortBlockSegments(threadSet);
+        double sortTime = stCaf_now() - t;
+        st_logInfo("caf-timing: sort-blocks %.3fs, %" PRIi64 " of %" PRIi64 " blocks reordered\n", sortTime,
+                   reorderedBlocks, stPinchThreadSet_getTotalBlockNumber(threadSet));
+
         //Finish up
         t = stCaf_now();
         stCaf_finish(flower, threadSet, minLengthForChromosome, proportionOfUnalignedBasesForNewChromosome);
