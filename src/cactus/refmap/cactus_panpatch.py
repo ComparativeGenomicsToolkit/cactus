@@ -1451,7 +1451,7 @@ def gather_panpatch(job, options, run, chrom_results, target_fasta_ids, target_e
     concat_reports(chrom_report_paths, [], report_out)
 
     def t2t_count(lines):
-        return sum(1 for l in lines if 'left=YES' in l and 'right=YES' in l)
+        return sum(1 for l in lines if contig_is_t2t(l))
 
     summary_lines = []   # "#Summary" lines, one per haplotype, for the batch summary
     rescue_rows = []     # passthrough rows for the contigs the rescue writes
@@ -1628,6 +1628,13 @@ def concat_reports(chrom_report_paths, cap_lines, out_path):
         for l in cap_lines:
             out.write(l.rstrip('\n') + '\n')
 
+def contig_is_t2t(cap_line):
+    """ is a panpatch '#Contig' cap line (its report, or --telomere-report) a telomere-to-telomere contig: a
+    telomere at both ends and no N gap left in it?  (a line from a panpatch too old to print gaps= is
+    judged by its telomeres alone) """
+    gaps = re.search(r' gaps=(\d+)', cap_line)
+    return 'left=YES' in cap_line and 'right=YES' in cap_line and (gaps is None or int(gaps.group(1)) == 0)
+
 def summarize_report(report_path):
     """ tally one run's panpatch report: accepted patches by category (and how many gap-fills were
     error-BED 'bed-gap' fills), rejected candidates, and from the '#Summary' lines gather_panpatch writes
@@ -1645,7 +1652,7 @@ def summarize_report(report_path):
             line = line.rstrip('\n')
             if line.startswith('#Contig'):                 # per-output-record telomere cap status
                 caps += 1
-                if 'left=YES' in line and 'right=YES' in line:
+                if contig_is_t2t(line):
                     cap_t2t += 1
                 continue
             if line.startswith('#Summary'):
@@ -1704,8 +1711,8 @@ def write_batch_summary(job, options, summaries):
     total = [0] * (len(SUMMARY_COLUMNS) - 1)
     summary_path = os.path.join(work_dir, 'panpatch-summary.tsv')
     with open(summary_path, 'w') as out:
-        out.write('# cactus-panpatch summary of {} run(s).  input_t2t / t2t: contigs with a telomere at both ends '
-                  'before / after patching.  patches: accepted gap_fill + scaffold + telomere (bed_gap: the gap '
+        out.write('# cactus-panpatch summary of {} run(s).  input_t2t / t2t: telomere-to-telomere contigs (a telomere '
+                  'at both ends and no N gap) before / after patching.  patches: accepted gap_fill + scaffold + telomere (bed_gap: the gap '
                   'fills and telomere patches over error-BED intervals).  rejected: candidate patches turned down (see each run\'s '
                   '.tsv for why)\n'.format(len(rows)))
         out.write('\t'.join(SUMMARY_COLUMNS) + '\n')

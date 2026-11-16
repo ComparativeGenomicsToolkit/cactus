@@ -23,6 +23,7 @@ from cactus.refmap.cactus_panpatch import make_runs, panpatch_validate_options
 from cactus.refmap.cactus_panpatch import read_error_bed_manifest, parse_error_bed, intervals_overlap
 from cactus.refmap.cactus_panpatch import parse_bed_blocks, make_panpatch_error_bed
 from cactus.refmap.cactus_panpatch import tag_report_gap_origin, summarize_report, write_batch_summary, concat_reports
+from cactus.refmap.cactus_panpatch import contig_is_t2t
 from cactus.refmap.cactus_panpatch import target_error_intervals_used, panpatch_option_value
 from cactus.refmap.cactus_panpatch import clean_path_name, clean_report_names, clean_bed_names, run_renames
 from cactus.refmap.cactus_panpatch import output_record_name, rename_fasta_records, missing_target_contigs
@@ -729,6 +730,19 @@ class TestPanpatchErrorBeds(unittest.TestCase):
         self.assertEqual(s['contigs'], 3)
         self.assertEqual(s['rejected'], 1)               # the rejected gap-fill; passthrough is neither
         self.assertEqual(s['output_records'], 3)         # no #Summary line: counted from the cap lines
+
+    def test_t2t_needs_no_gap(self):
+        # telomere-to-telomere = a telomere at both ends and no N gap; a cap line from a panpatch too old to
+        # print gaps= is judged by its telomeres alone
+        line = '#Contig TGT#1#c len=90000bp left={}(0.9) right={}(0.9){}'
+        self.assertTrue(contig_is_t2t(line.format('YES', 'YES', ' gaps=0')))
+        self.assertFalse(contig_is_t2t(line.format('YES', 'YES', ' gaps=1')))
+        self.assertFalse(contig_is_t2t(line.format('YES', 'YES', ' gaps=12')))
+        self.assertFalse(contig_is_t2t(line.format('YES', 'NO', ' gaps=0')))
+        self.assertTrue(contig_is_t2t(line.format('YES', 'YES', '')))
+        rep = self._write('g.tsv', _REPORT_HEADER + '\tgap_origin\n'
+                          + '\n'.join(line.format('YES', 'YES', g) for g in (' gaps=0', ' gaps=1', ' gaps=0')) + '\n')
+        self.assertEqual(summarize_report(rep)['t2t'], 2)
 
     def test_summarize_report_summary_lines(self):
         # gather_panpatch's #Summary lines (one per haplotype) give the before/after counts, summed
