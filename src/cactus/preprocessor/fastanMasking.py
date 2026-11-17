@@ -69,8 +69,8 @@ class FasTANMaskJob(RoundedJob):
             # measure the masking the input already carried, for the log line below
             pre_mask_size = masked_base_count(raw_fa_path)
 
-            # run FasTAN
-            fastan_cmd = ['FasTAN', in_fa_path, out_1aln_path]
+            # run FasTAN: -a writes the alignments of the repeats it finds to out_1aln_path (-o)
+            fastan_cmd = ['FasTAN', '-a', '-o' + out_1aln_path, in_fa_path]
             if self.fastanOpts:
                 fastan_cmd += self.fastanOpts.split()
             cactus_call(parameters=fastan_cmd)

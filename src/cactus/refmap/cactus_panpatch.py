@@ -799,7 +799,7 @@ def find_tandem_repeats(fasta_path, work_dir, threads=1):
     """ the tandem repeats FasTAN finds in a fasta, as {record: [(start, end), ...]} (tanbed's BED) """
     aln_path = os.path.join(work_dir, 'tandem.1aln')
     bed_path = os.path.join(work_dir, 'tandem.bed')
-    cactus_call(parameters=['FasTAN', '-T{}'.format(max(1, int(threads))), fasta_path, aln_path])
+    cactus_call(parameters=['FasTAN', '-a', '-T{}'.format(max(1, int(threads))), '-o' + aln_path, fasta_path])
     cactus_call(parameters=['tanbed', aln_path], outfile=bed_path)
     repeats = collections.defaultdict(list)
     with open(bed_path) as f:
