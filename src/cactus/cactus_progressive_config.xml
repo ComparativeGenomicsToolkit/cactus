@@ -24,8 +24,8 @@
 	<preprocessor memory="littleMemory" preprocessJob="checkUniqueHeaders" checkAssemblyHub="1" active="1"/>
 	<!-- Use RED (Repeat DEtector) to masks repetitive sequence. -->
 	<!-- unmask: discard any previous masking on the input fasta, only masking from Red is kept -->
-	<!-- redOpts: command line options to pass to Red.  -cap 99.8 also masks every k-mer whose count is above the 99.8th percentile of the genome's distinct k-mer counts, and -sketch 1 also masks runs of seeds that are high-copy across the whole genome, which helps with genomes that come with little or no repeat masking.  Set redOpts="" for Red alone. -->
-	<preprocessor unmask="0" memory="mediumMemory" preprocessJob="red" redOpts="-cap 99.8 -sketch 1" active="1"/>
+	<!-- redOpts: command line options to pass to Red.  -cap 99.8 also masks every k-mer whose count is above the 99.8th percentile of the genome's distinct k-mer counts, and -sketch 1 also masks runs of seeds that are high-copy across the whole genome, which helps with genomes that come with little or no repeat masking.  -mincopy 8 leaves unmasked any repeat Red finds in fewer than 8 copies, such as a 3- or 4-copy tandem gene array: masking it would save lastz almost nothing and would leave the copies without anchors.  Set redOpts="" for Red alone. -->
+	<preprocessor unmask="0" memory="mediumMemory" preprocessJob="red" redOpts="-cap 99.8 -sketch 1 -mincopy 8" active="1"/>
 	<!-- Use FasTAN (A Fast Repeat Tandem Repeat Finder) to masks repetitive sequence. -->
 	<!-- unmask: discard any previous masking on the input fasta, only masking from FasTAN is kept -->
 	<!-- fastanOpts: any command line options can be passed to FasTAN here -->
