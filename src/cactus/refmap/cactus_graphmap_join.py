@@ -1986,9 +1986,11 @@ def pgrealign_regions_extract(job, vg_path, gfa_path, ref, contigs, targets_path
             pgrealign_call(job, 'prepare', '--graph', gfa_path, '--contig', contig, '--ref-sample', ref,
                            '-o', prep_dir, '-t', threads)
             contig_regions_path = os.path.join(prep_dir, contig + '.regions.tsv.gz')
+            # (the graph is read only to anchor on the nodes few haplotypes go around, --max-bypass)
             summary['regions'][contig] = pgrealign_call(job, 'regions', '--targets', targets_path, '--contig', contig,
                                                         '--snarls', contig_snarls_path,
                                                         '--ref', os.path.join(prep_dir, contig + '.ref.tsv.gz'),
+                                                        '--graph', gfa_path, '--ref-sample', ref, '-t', threads,
                                                         '-o', contig_regions_path, *regions_opts)
             # one table for the graph: the first contig's header, then every contig's rows
             with gzip.open(contig_regions_path, 'rt') as contig_regions_file:
@@ -1998,8 +2000,10 @@ def pgrealign_regions_extract(job, vg_path, gfa_path, ref, contigs, targets_path
 
     extract_dir = os.path.join(report_dir, 'extract')
     if any(r['status'].get('ok') for r in summary['regions'].values()):
+        # (the reference indexes in prep_dir are read only with --exit-edges)
         summary['extract'] = pgrealign_call(job, 'extract', '--graph', gfa_path, '--regions', regions_path,
-                                            '-o', extract_dir, '--ref-sample', ref, '-t', threads, *extract_opts)
+                                            '-o', extract_dir, '--ref-sample', ref, '-t', threads,
+                                            '--ref-dir', prep_dir, *extract_opts)
     return extract_dir
 
 def pgrealign_vg(job, options, config, vg_path, vg_id, targets_id=None, max_mem=None, resized=False):
@@ -2353,12 +2357,14 @@ def centrolign_vg(job, options, config, vg_path, vg_id, targets_id, max_mem):
             # packages.tsv keeps the rest: why a region is complex, and the sizes that size its job
             with gzip.open(packages_path, 'rt') as packages_file, \
                  open(os.path.join(extract_dir, 'packages.tsv'), 'w') as packages_tsv:
-                packages_tsv.write('#id\tstatus\talleles\tallele_bp\tfragments\tfragment_bp\tcomplex\n')
+                packages_tsv.write('#id\tstatus\talleles\tallele_bp\tfragments\tfragment_bp\tkept_fragments\t'
+                                   'kept_fragment_bp\texit_runs\tkept_nodes\tcomplex\n')
                 for pkg in map(json.loads, packages_file):
-                    packages_tsv.write('{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(
+                    packages_tsv.write('{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(
                         pkg['id'], pkg['status'], len(pkg['alleles']), sum(len(a['seq']) for a in pkg['alleles']),
                         len(pkg['fragments']), sum(len(f['seq']) for f in pkg['fragments']),
-                        '; '.join(pkg['complex']) or '.'))
+                        pkg.get('kept_fragments', '.'), pkg.get('kept_fragment_bp', '.'),
+                        pkg.get('exit_runs', '.'), pkg.get('kept_nodes', '.'), '; '.join(pkg['complex']) or '.'))
                     if pkg['status'] == 'ok':
                         packages.append(pkg)
     if not packages:
@@ -2376,7 +2382,8 @@ def centrolign_vg(job, options, config, vg_path, vg_id, targets_id, max_mem):
         alleles = [a for a in pkg['alleles'] if a['seq']]
         record = {'id': pkg['id'], 'method': 'centrolign', 'alleles': len(alleles),
                   'allele_bp': sum(len(a['seq']) for a in alleles), 'fragments': len(pkg['fragments']),
-                  'fragment_bp': sum(len(f['seq']) for f in pkg['fragments'])}
+                  'fragment_bp': sum(len(f['seq']) for f in pkg['fragments']),
+                  'kept_fragments': pkg.get('kept_fragments', 0), 'kept_fragment_bp': pkg.get('kept_fragment_bp', 0)}
         # centrolign reads any base but ACGTN as a gap, which would change the haplotypes' sequence
         unsupported = [a['id'] for a in alleles if re.search('[^ACGTNacgtn]', a['seq'])]
         groups = [] if unsupported else centrolign_groups(alleles, min_similarity, max_group)
@@ -2385,17 +2392,21 @@ def centrolign_vg(job, options, config, vg_path, vg_id, targets_id, max_mem):
         elif not groups or len(groups[0][0]) < 2:
             record = dict(record, status='too_few_alleles',
                           message='no two of {} allele(s) share enough rare k-mers'.format(len(alleles)))
-        RealtimeLogger.info('centrolign {}: region {} has {} alleles ({} bp) in groups of {}, and {} fragments'.format(
+        RealtimeLogger.info('centrolign {}: region {} has {} alleles ({} bp) in groups of {}, {} fragments '
+                            'to put back unaligned and {} kept on their nodes'.format(
             chrom, pkg['id'], len(alleles), record['allele_bp'], ','.join(str(len(g)) for g, t in groups),
-            len(pkg['fragments'])))
+            len(pkg['fragments']), record['kept_fragments']))
         if 'status' in record:
             region_results.append((record, [], None))
             continue
         record['groups'] = [len(g) for g, t in groups]
-        # the alleles of no group, and the fragments, go in unaligned, each a node and a path of its own:
-        # pgrealign replace links each to the anchor(s) it starts or ends at.  the fragments include the
-        # minigraph paths through the region, whose copies clip_vg's full phase then drops with them, so
-        # the clip phase finds no minigraph alignment in the region and clips all but the reference there
+        # the alleles of no group go in unaligned, each a node and a path of its own, as do the fragments
+        # unless extract kept them on their nodes (--keep-fragments): pgrealign replace links each to the
+        # anchor(s) it starts or ends at.  the fragments include the minigraph paths through the region.
+        # put back unaligned, their copies are on no other path, so clip_vg's full phase drops them and the
+        # clip phase finds no minigraph alignment in the region, so clips all but the reference there.
+        # kept, they stay on the nodes they share with the other fragments, which the clip phase keeps.
+        # either way, the realigned alleles share no node with minigraph, so are clipped there
         by_id = {a['id']: a for a in alleles}
         unaligned_path = os.path.join(work_dir, 'region{}.unaligned.gfa'.format(i))
         with open(unaligned_path, 'w') as unaligned_file:
@@ -2527,6 +2538,7 @@ def centrolign_replace(job, options, config, vg_path, vg_id, report_ids, summary
     summary['centrolign'] = dict(statuses)
     summary['centrolign_alleles'] = sum(r['alleles'] for r, g, u in region_results if g)
     summary['centrolign_fragments'] = sum(r['fragments'] for r, g, u in region_results if g)
+    summary['centrolign_kept_fragments'] = sum(r['kept_fragments'] for r, g, u in region_results if g)
     summary['centrolign_groups'] = [r['groups'] for r, g, u in region_results if g]
     left = {s: n for s, n in statuses.items() if s != 'ok'}
     if left:
@@ -2568,6 +2580,7 @@ def centrolign_report(job, work_dir, chrom, report_dir, summary, gfa_path, out_g
            extract_status.get('ok', 0), sum(n for s, n in extract_status.items() if s != 'ok'),
            aligned.get('ok', 0), sum(n for s, n in aligned.items() if s != 'ok'),
            summary.get('centrolign_alleles', 0), summary.get('centrolign_fragments', 0),
+           summary.get('centrolign_kept_fragments', 0),
            replace_stats.get('nodes_removed', 0), replace_stats.get('nodes_added', 0),
            summary['length_before'], summary['length_after']]
     stats_path = os.path.join(work_dir, 'centrolign-stats.tsv')
@@ -4059,13 +4072,13 @@ STATS_HEADERS = {
                            'nodes_removed\tnodes_added\tlength_before\tlength_after',
     # --centrolign: per chromosome, the reference contigs it worked on, the targets on them, the
     # regions that regions and extract gave as ok and otherwise, the regions centrolign aligned and
-    # those it left (too_few_alleles, unsupported_bases), the alleles and fragments of the aligned
-    # regions, the nodes replace took out and put in, and the graph's length before and after.  the
-    # length after still counts the minigraph paths' own, unaligned copy of each realigned region,
-    # which the full phase drops
+    # those it left (too_few_alleles, unsupported_bases), the alleles of the aligned regions, their
+    # fragments put back unaligned and those kept on their nodes, the nodes replace took out and put
+    # in, and the graph's length before and after.  the length after still counts the nodes that only
+    # minigraph's paths are on, which the full phase drops
     'centrolign-stats.tsv': '#ref_chrom\tcontigs\ttargets\tregions_ok\tregions_other\textract_ok\t'
-                            'extract_other\taligned\tnot_aligned\talleles\tfragments\tnodes_removed\t'
-                            'nodes_added\tlength_before\tlength_after',
+                            'extract_other\taligned\tnot_aligned\talleles\tfragments\tkept_fragments\t'
+                            'nodes_removed\tnodes_added\tlength_before\tlength_after',
 }
 
 # path-stats has a row per surviving path fragment, which runs to millions on a filtered graph.
