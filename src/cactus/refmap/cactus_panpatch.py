@@ -7,7 +7,7 @@ panpatch
 
 panpatch (https://github.com/glennhickey/panpatch) uses a pangenome graph to patch a (slightly)
 fragmented assembly into T2T chromosomes: it fills N-gaps, scaffolds disconnected contigs,
-completes missing terminal telomeres (--requireTelomeres makes them mandatory) and replaces regions
+completes missing terminal telomeres (panpatch -T makes them mandatory) and replaces regions
 flagged as assembly errors (--assemblyErrorBeds), taking the patch sequence from one or more donor
 assemblies.
 
@@ -77,13 +77,8 @@ def main():
                         "\"<name> <seqfile>\" line per sample. Every seqfile is assumed to have the same layout, differing "
                         "only in its sample names. Cannot be used with --sample or --outName")
 
-    # panpatch options
-    parser.add_argument("--requireTelomeres", action="store_true", default=False,
-                        help = "Require a telomere at both ends of each patched haplotype (and none inside). A missing terminal "
-                        "telomere is patched in from a donor when possible, otherwise the contig reverts to its input (panpatch -T)")
-    parser.add_argument("--maxTelomerePatch", type=int, default=None,
-                        help = "Maximum bp of target sequence that a telomere patch, or a tip graft (a donor carrying the "
-                        "patch past the target's end), may replace at a contig end (panpatch -M) [default=20000]")
+    # panpatch's own options are given with --panpatchOptions; these are the ones the workflow takes part in
+    # (a file to bring into the job store, BEDs to translate and filter)
     parser.add_argument("--excludeBed", default=None,
                         help = "BED file of target regions to leave untouched, named by full graph path (panpatch -b)")
     parser.add_argument("--assemblyErrorBeds", default=None,
@@ -99,10 +94,8 @@ def main():
                         "repeat (as FasTAN finds it in the target's own sequence) or N. In a satellite array or another tandem "
                         "repeat, a donor is no more reliable than the target and panpatch can't verify a swap. 1 turns this "
                         "off [default=0.5]")
-    parser.add_argument("--defaultSample", default=None,
-                        help = "Use this sample's contig when a patch is rejected (panpatch -e)")
     parser.add_argument("--panpatchOptions", type=str, default=None,
-                        help = "Options to pass through to panpatch, ex --panpatchOptions \"--min-cover 0.9 --graft-recovery 60\" "
+                        help = "Options to pass through to panpatch, ex --panpatchOptions \"-T --min-cover 0.9\" "
                         "(don't forget to wrap in quotes)")
     parser.add_argument("--keepPangenome", action="store_true", default=False,
                         help = "Keep the intermediate cactus-pangenome output in <outDir>/<name>.cactus-scratch/ instead of "
@@ -292,7 +285,7 @@ def main():
 def sample_base(sample):
     """ strip the #N haplotype off a genome name to get the (PanSN) sample name it has in the graph,
     which is the name panpatch wants.  a sample name is allowed to contain dots of its own (ex
-    HG002.verkko#1 is haplotype 1 of HG002.verkko), and the names given to --sample / --defaultSample
+    HG002.verkko#1 is haplotype 1 of HG002.verkko), and the names given to --sample
     are sample names already.  the old SAMPLE.N spelling of a haplotype is only read in the seqfile
     (see normalize_pangenome_name), so a '.' is never a haplotype here """
     return pangenome_name_sample(sample)
@@ -618,7 +611,6 @@ def make_seqfile_runs(options, name, seqfile_path, graph_event, dot_haplotypes):
                  'panpatchReference' : reference,
                  'samples' : [target] + donors,
                  'target_sample' : target,
-                 'defaultSample' : resolve_default_sample(options, target, donors, target),
                  'target_haps' : target_haps,
                  'error_beds' : error_beds,
                  'error_events' : error_events,
@@ -660,7 +652,6 @@ def make_seqfile_runs(options, name, seqfile_path, graph_event, dot_haplotypes):
                      'panpatchReference' : graph_name,
                      'samples' : [graph_name] + donors,
                      'target_sample' : target,
-                     'defaultSample' : resolve_default_sample(options, target, donors, graph_name),
                      'target_haps' : [(0, target_row[1])],
                      'error_beds' : error_beds,
                      'error_events' : error_events,
@@ -669,20 +660,6 @@ def make_seqfile_runs(options, name, seqfile_path, graph_event, dot_haplotypes):
                      'referenceFree' : True,
                      'hap' : hap})
     return runs
-
-def resolve_default_sample(options, target, donors, target_graph_name):
-    """ --defaultSample as it's named in the graph.  it has to be one of the samples that's actually
-    in there, and it has to survive the --referenceFree rename if it's the sample being patched --
-    panpatch doesn't check -e (unlike -r and -s), it just quietly matches no paths """
-    if not options.defaultSample:
-        return None
-    default_sample = sample_base(options.defaultSample)
-    if default_sample == target:
-        return target_graph_name
-    if default_sample in donors:
-        return default_sample
-    raise RuntimeError('--defaultSample {} must be the sample being patched ({}) or one of its donors ({})'.format(
-        options.defaultSample, target, ', '.join(donors) if donors else '<none>'))
 
 def pangenome_dir(options, run):
     """ where a run's intermediate cactus-pangenome output goes (deleted on success) """
@@ -1167,12 +1144,6 @@ def run_panpatch_chrom(job, options, run, vg_id, vg_name, exclude_bed_id, target
     for sample in samples:
         cmd += ['-s', sample]
     cmd += ['-f', fasta_path, '--bed', bed_path]
-    if options.requireTelomeres:
-        cmd += ['-T']
-    if options.maxTelomerePatch is not None:
-        cmd += ['-M', str(options.maxTelomerePatch)]
-    if run['defaultSample'] and run['defaultSample'] in present_samples:
-        cmd += ['-e', run['defaultSample']]
     if exclude_bed_id:
         exclude_bed_path = os.path.join(work_dir, 'exclude.bed')
         job.fileStore.readGlobalFile(exclude_bed_id, exclude_bed_path)
@@ -1498,11 +1469,7 @@ def gather_panpatch(job, options, run, chrom_results, target_fasta_ids, target_e
             if missing:
                 msg = '{} target contig(s) of {} are missing from the patched assembly: {}{}'.format(
                     len(missing), label, ', '.join(missing[:20]), ' ...' if len(missing) > 20 else '')
-                if run['defaultSample']:
-                    # --defaultSample replaces a reverted target contig with the default sample's on purpose
-                    RealtimeLogger.warning('{} (replaced by --defaultSample {})'.format(msg, run['defaultSample']))
-                else:
-                    raise RuntimeError('cactus-panpatch: ' + msg)
+                raise RuntimeError('cactus-panpatch: ' + msg)
 
         # the delivered names: each record that is one input contig takes that contig's name
         record_names = rename_fasta_records(combined, run['referenceFree'])

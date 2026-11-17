@@ -53,11 +53,11 @@ class TestPanpatchUnit(unittest.TestCase):
         return path
 
     def _options(self, seqFile, reference=None, sample=None, outName=None, batch=False,
-                 noSplit=False, defaultSample=None):
+                 noSplit=False):
         """ a minimal options namespace with just what panpatch_validate_options / make_runs read.
         panpatch_validate_options fills in referenceFree """
         opts = Namespace(seqFile=seqFile, reference=reference, sample=sample, outName=outName,
-                         panpatchBatch=batch, noSplit=noSplit, defaultSample=defaultSample)
+                         panpatchBatch=batch, noSplit=noSplit)
         panpatch_validate_options(opts)
         return opts
 
@@ -521,7 +521,7 @@ class TestPanpatchErrorBeds(unittest.TestCase):
         kept = os.path.join(self.tempDir, 'kept')
         os.makedirs(kept)
         opts = Namespace(seqFile=seqfile, reference=None, sample=None, outName=None, panpatchBatch=False,
-                         noSplit=False, defaultSample=None, fromGraphs=kept, outDir=kept + '/')
+                         noSplit=False, fromGraphs=kept, outDir=kept + '/')
         with self.assertRaises(RuntimeError):
             panpatch_validate_options(opts)
         opts.outDir = os.path.join(self.tempDir, 'new')
@@ -531,7 +531,7 @@ class TestPanpatchErrorBeds(unittest.TestCase):
 
     def _options_with_beds(self, seqFile, error_map, reference=None, sample=None):
         opts = Namespace(seqFile=seqFile, reference=reference, sample=sample, outName=None,
-                         panpatchBatch=False, noSplit=False, defaultSample=None)
+                         panpatchBatch=False, noSplit=False)
         panpatch_validate_options(opts)
         opts.errorBedMap = error_map
         return opts
