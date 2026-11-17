@@ -57,6 +57,17 @@ before_script:
 after_script:
   - stopdocker || true
 
+# Run each commit once.  GitLab's GitHub integration starts two pipelines for every push
+# to a branch with an open PR -- a "push" pipeline and an "external_pull_request_event"
+# pipeline -- on the same SHA, so they test identical code and take two runner slots.
+# The push pipeline alone still reports its status on the PR's head commit.  Nothing is
+# lost for PRs from forks: GitLab only builds external PRs whose branch is in this repo.
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "external_pull_request_event"
+      when: never
+    - when: always
+
 stages:
   - test
 
