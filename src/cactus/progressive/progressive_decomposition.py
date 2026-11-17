@@ -145,7 +145,10 @@ def get_subtree(mc_tree, root_name, config_wrapper, outgroup_map, include_outgro
     
     # add the outgroups to the tree
     # computing distance to new root for each one
-    for og_name in external_outgroup_names:
+    # in outgroup_map's order rather than the set's, which changes with every Python process (string hashing is
+    # randomized): the order they are added in is the order their sequences are given to cactus_consolidated, which
+    # names the sequences in that order, and CAF and BAR break ties by those names
+    for og_name in [og for og in outgroup_map.get(root_name, []) if og in external_outgroup_names]:
         og_id = sub_tree.getNodeId(og_name)
         dist = 0.
         x = og_id

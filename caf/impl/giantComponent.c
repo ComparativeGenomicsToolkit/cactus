@@ -148,6 +148,82 @@ static void convertToNodesAndEdges(stList *adjacencyComponent, stList **nodes, s
     stHash_destruct(edgesToMultiplicityHash);
 }
 
+/*
+ * An end's place in its component, from what the end is rather than when its block was made.  A block's segments are
+ * the same however the alignments were pinched together, so the lowest (thread name, start) among them, and which side
+ * of that segment the end is on, give each end a key that does not depend on the order the alignments came in.
+ * Numbering the nodes in that order makes the greedy breakup, which breaks ties between equally supported edges by node
+ * number, break the same edges whatever that order was.
+ *
+ * The ends are ordered by a hash of the key rather than the key itself, so that ties do not always go to the edges of
+ * whichever genome has the highest thread names, or to the far end of each sequence.  The order the ends came in
+ * before, from when their blocks were made, favoured nothing in particular either; the hash keeps that while making
+ * it the same every time.
+ */
+typedef struct _endKey {
+    uint64_t hash;
+    int64_t threadName;
+    int64_t start;
+    int64_t orientation;
+    stPinchEnd *end;
+} EndKey;
+
+static uint64_t mix64(uint64_t x) { //splitmix64's finalizer
+    x += 0x9e3779b97f4a7c15ULL;
+    x = (x ^ (x >> 30)) * 0xbf58476d1ce4e5b9ULL;
+    x = (x ^ (x >> 27)) * 0x94d049bb133111ebULL;
+    return x ^ (x >> 31);
+}
+
+static int endKey_cmp(const void *a, const void *b) {
+    const EndKey *k1 = a, *k2 = b;
+    if (k1->hash != k2->hash) {
+        return k1->hash < k2->hash ? -1 : 1;
+    }
+    if (k1->threadName != k2->threadName) {
+        return k1->threadName < k2->threadName ? -1 : 1;
+    }
+    if (k1->start != k2->start) {
+        return k1->start < k2->start ? -1 : 1;
+    }
+    //no two blocks share a segment, so only the two ends of one block get this far
+    return k1->orientation < k2->orientation ? -1 : (k1->orientation > k2->orientation ? 1 : 0);
+}
+
+static stList *sortEndsByContent(stList *adjacencyComponent) {
+    int64_t n = stList_length(adjacencyComponent);
+    EndKey *keys = st_malloc(sizeof(EndKey) * (n > 0 ? n : 1));
+    for (int64_t i = 0; i < n; i++) {
+        stPinchEnd *end = stList_get(adjacencyComponent, i);
+        keys[i].threadName = INT64_MAX;
+        keys[i].start = INT64_MAX;
+        stPinchSegment *keySegment = NULL;
+        stPinchBlockIt segmentIt = stPinchBlock_getSegmentIterator(stPinchEnd_getBlock(end));
+        stPinchSegment *segment;
+        while ((segment = stPinchBlockIt_getNext(&segmentIt)) != NULL) {
+            int64_t threadName = stPinchThread_getName(stPinchSegment_getThread(segment));
+            int64_t start = stPinchSegment_getStart(segment);
+            if (threadName < keys[i].threadName || (threadName == keys[i].threadName && start < keys[i].start)) {
+                keys[i].threadName = threadName;
+                keys[i].start = start;
+                keySegment = segment;
+            }
+        }
+        //which side of the key segment the end is on: the end's own orientation is relative to the block's, which is
+        //that of whichever segment the block was made from
+        keys[i].orientation = stPinchEnd_getOrientation(end) == stPinchSegment_getBlockOrientation(keySegment);
+        keys[i].hash = mix64(mix64(mix64((uint64_t) keys[i].threadName) ^ (uint64_t) keys[i].start) ^ (uint64_t) keys[i].orientation);
+        keys[i].end = end;
+    }
+    qsort(keys, n, sizeof(EndKey), endKey_cmp);
+    stList *sortedEnds = stList_constructWithCapacity(n > 0 ? n : 1, NULL);
+    for (int64_t i = 0; i < n; i++) {
+        stList_append(sortedEnds, keys[i].end);
+    }
+    free(keys);
+    return sortedEnds;
+}
+
 static void breakEdges(stPinchThreadSet *threadSet, stPinchEnd *pinchEnd1, stPinchEnd *pinchEnd2) {
     stPinchBlockIt segmentIt = stPinchBlock_getSegmentIterator(stPinchEnd_getBlock(pinchEnd1));
     stPinchSegment *segment;
@@ -194,8 +270,11 @@ void stCaf_breakupComponentsGreedily(stPinchThreadSet *threadSet, float maximumA
     //Get adjacency components
     stList *adjacencyComponents = stPinchThreadSet_getAdjacencyComponents(threadSet);
     for (int64_t i = 0; i < stList_length(adjacencyComponents); i++) {
-        stList *adjacencyComponent = stList_get(adjacencyComponents, i);
-        if (maximumAdjacencyComponentSize < stList_length(adjacencyComponent)) {
+        if (maximumAdjacencyComponentSize < stList_length(stList_get(adjacencyComponents, i))) {
+            //The component's ends in an order of their own (see sortEndsByContent), which the nodes are numbered in.
+            //Breaking edges only splits the unaligned gaps between blocks, so it leaves the keys of the components
+            //still to come as they were
+            stList *adjacencyComponent = sortEndsByContent(stList_get(adjacencyComponents, i));
             //Get graph description
             stList *nodes, *edges;
             convertToNodesAndEdges(adjacencyComponent, &nodes, &edges);
@@ -223,6 +302,7 @@ void stCaf_breakupComponentsGreedily(stPinchThreadSet *threadSet, float maximumA
             stList_destruct(edges);
             stList_destruct(nodes);
             stList_destruct(edgesToDelete);
+            stList_destruct(adjacencyComponent);
         }
     }
     stList_destruct(adjacencyComponents);

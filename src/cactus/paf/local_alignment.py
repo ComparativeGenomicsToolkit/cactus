@@ -901,7 +901,10 @@ def chain_alignments(job, alignment_files, alignment_names, reference_event_name
                             '--logLevel', getLogLevelString()],
                 job_memory=job.memory)
 
-    split_paths = glob.glob(split_prefix + '*.paf')
+    # glob's order is the directory's, which differs between filesystems and so between runs: sort, so the merged
+    # output (and everything cactus_consolidated does with it) comes out the same.  The names are the contigs', or
+    # small_<i> for the files grouping small contigs, and which contig goes in which file depends only on the input
+    split_paths = sorted(glob.glob(split_prefix + '*.paf'))
     processed_rvs = []
     for split_path in split_paths:
         split_size = os.path.getsize(split_path)
