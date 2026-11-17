@@ -72,6 +72,22 @@ def bar_base_aligner(tree, ancestor_event, config_node, name=None):
             return deep_aligner
     return base_aligner
 
+def pecan_repeat_mask(tree, ancestor_event, config_node, name=None):
+    """ The <pecan repeatMaskMatrixBiggerThanThis> bar uses for this ancestor: <pecan
+    shallowRepeatMaskMatrixBiggerThanThis> when its ingroups are less than <pecan shallowRepeatMaskDivergence>
+    apart, else None, to leave the config's own. """
+    pecan_node = findRequiredNode(config_node, 'bar').find('pecan')
+    shallow_divergence = getOptionalAttrib(pecan_node, 'shallowRepeatMaskDivergence', typeFn=float, default=0.0)
+    shallow_mask = getOptionalAttrib(pecan_node, 'shallowRepeatMaskMatrixBiggerThanThis', typeFn=int, default=None)
+    if shallow_divergence > 0 and shallow_mask is not None:
+        divergence = ingroup_divergence(tree, ancestor_event)
+        if divergence < shallow_divergence:
+            RealtimeLogger.info('cactus_consolidated({}): ingroups {:g} apart, below shallowRepeatMaskDivergence {:g}, so pecan anchors with repeatMaskMatrixBiggerThanThis {} rather than {}'.format(
+                name if name else ancestor_event, divergence, shallow_divergence, shallow_mask,
+                getOptionalAttrib(pecan_node, 'repeatMaskMatrixBiggerThanThis', typeFn=str, default='')))
+            return shallow_mask
+    return None
+
 def cactus_cons_with_resources(job, tree, ancestor_event, config_node, seq_id_map, og_map, paf_id,
                                cons_cores = None, cons_memory = None, intermediate_results_url = None, chrom_name = None,
                                cons_retain_pages = None):
@@ -122,6 +138,7 @@ def cactus_cons_with_resources(job, tree, ancestor_event, config_node, seq_id_ma
     # runs), so it gets a model of its own, capped by the power law, which it was not fitted far enough to replace
     # (see <consolidated pecan_memory_base_gb> in the config)
     base_aligner = bar_base_aligner(tree, ancestor_event, config_node, name)
+    repeat_mask = pecan_repeat_mask(tree, ancestor_event, config_node, name) if base_aligner == 'pecan' else None
     if base_aligner != 'pecan':
         estimate = max(estimate, int(4e9))
     else:
@@ -269,12 +286,13 @@ def cactus_cons_with_resources(job, tree, ancestor_event, config_node, seq_id_ma
     cons_job = job.addChildJobFn(cactus_cons, tree, ancestor_event, config_node, seq_id_map, og_map, paf_id,
                                  intermediate_results_url=intermediate_results_url, chrom_name=chrom_name, cores = cons_cores,
                                  memory=cactus_clamp_memory(mem), disk=disk, retain_pages=retain_pages,
-                                 poa_window=poa_window, base_aligner=base_aligner, walltime=cactus_walltime(walltime_secs))
+                                 poa_window=poa_window, base_aligner=base_aligner, repeat_mask=repeat_mask,
+                                 walltime=cactus_walltime(walltime_secs))
     return cons_job.rv()
 
 def cactus_cons(job, tree, ancestor_event, config_node, seq_id_map, og_map, paf_id,
                 intermediate_results_url = None, chrom_name = None, retain_pages = None,
-                poa_window = None, base_aligner = None):
+                poa_window = None, base_aligner = None, repeat_mask = None):
     ''' run cactus_consolidated '''
 
     # a multifurcation's alignments come with the alignments of each pair of its ingroups as secondaries, which
@@ -286,7 +304,8 @@ def cactus_cons(job, tree, ancestor_event, config_node, seq_id_map, og_map, paf_
 
     # cactus_consolidated reads its settings from the config, so the resolved page retention
     # goes into the copy it is given (this job's copy of the node, so nothing else sees it)
-    if retain_pages is not None or poa_window is not None or base_aligner is not None or pair_secondary_filter:
+    if retain_pages is not None or poa_window is not None or base_aligner is not None or repeat_mask is not None or \
+       pair_secondary_filter:
         config_node = copy.deepcopy(config_node)
         if retain_pages is not None:
             findRequiredNode(config_node, 'consolidated').set('retain_pages', str(retain_pages))
@@ -298,6 +317,9 @@ def cactus_cons(job, tree, ancestor_event, config_node, seq_id_map, og_map, paf_
         # likewise the base aligner, if <bar deepAligner> chose it for this ancestor
         if base_aligner is not None:
             findRequiredNode(config_node, 'bar').set('baseAligner', base_aligner)
+        # and pecan's repeat masking, if <pecan shallowRepeatMaskDivergence> chose it for this ancestor
+        if repeat_mask is not None:
+            findRequiredNode(config_node, 'bar').find('pecan').set('repeatMaskMatrixBiggerThanThis', str(repeat_mask))
         if pair_secondary_filter:
             findRequiredNode(config_node, 'caf').set('secondaryAlignmentFilter', 'sharedSpecies')
 
