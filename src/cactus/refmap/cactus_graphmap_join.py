@@ -30,6 +30,7 @@ import subprocess
 import gzip
 import shutil
 import json
+import math
 import tarfile
 
 from operator import itemgetter
@@ -108,22 +109,46 @@ PGREALIGN_SECS_PER_GB = 2000
 # paths -M and vg paths -F on each of two vgs, hashing every base of every path.  also a guess
 PGREALIGN_VERIFY_SECS_PER_GB = 300
 
-# centrolign_vg and centrolign_replace: unmeasured, as --centrolign is new.  the first runs what
-# pgrealign_vg does up to extract, the second vg convert -f and pgrealign replace, so both take
-# pgrealign_vg's guess
-CENTROLIGN_EXTRACT_SECS_PER_GB = PGREALIGN_SECS_PER_GB
-CENTROLIGN_REPLACE_SECS_PER_GB = PGREALIGN_SECS_PER_GB
-# centrolign_region: one centrolign run.  measured on chr12's active array, alleles of ~3 Mb with
-# 100 kb flanks (8 threads, jemalloc).  n alleles of B Mb in all took (n, B, minutes, peak GB):
-# (8, 25, 8.6, 15.2), (16, 49, 28, 27.4), (32, 99, 117, 55.3), (64, 199, 311, 155.4).  time grows
-# with B*n, not B, because each merge chains every pair of paths across its two sides: 600 s + 4 s per
-# Mb*allele covers those 1.9-2.8x.  memory per bp was flat at 550-610 bytes up to 32 alleles but 780
-# at 64, so it gets a per-allele term too: 800 + 6n bytes per bp, at least 16 GB, covers them 1.4-1.8x
+# centrolign_vg runs what pgrealign_vg does up to extract, then centrolign_groups, but none of the
+# alignment, which the centrolign_region jobs do, so it needs a fraction of pgrealign_vg's time and
+# memory.  on oct9's 464-haplotype chr12 (a 17.1 GB vg, 32 threads) its commands took 1667 s, 97 s/GB,
+# and peaked at 1.5x the vg's size, in vg snarls.  it reads the vg once and writes little else.  the
+# threads only speed up vg convert, vg snarls and pgrealign, so it asks for at most
+# CENTROLIGN_EXTRACT_MAX_CORES of --indexCores
+CENTROLIGN_EXTRACT_SECS_PER_GB = 300
+CENTROLIGN_EXTRACT_MEMORY_PER_VG = 3
+CENTROLIGN_EXTRACT_MAX_CORES = 16
+# centrolign_replace runs vg convert -f and pgrealign replace, which streams the GFA but keeps a map of
+# every node's id.  on run4's 4-haplotype graphs (0.1-0.4 GB) it took 113-152 s/GB and 2.9-4.4x the
+# vg's size, mostly fixed costs at that size; vg convert -f alone took 20 s/GB and 1.2x the vg on oct9's
+# chr12.  it writes the realigned GFA, several times the vg's size.  only vg convert and pgrealign
+# replace use the threads, so it asks for at most CENTROLIGN_REPLACE_MAX_CORES of --indexCores
+CENTROLIGN_REPLACE_SECS_PER_GB = 300
+CENTROLIGN_REPLACE_MEMORY_PER_VG = 3
+CENTROLIGN_REPLACE_MAX_CORES = 8
+# centrolign_region: one centrolign run on a group of n alleles, B Mb in all.  measured on oct9's chr12
+# active array, whose 26 groups of 2-64 alleles and 7-270 Mb took 74 s to 2.4 h at 32 threads (jemalloc,
+# fast-chaining build).  time grew with B*sqrt(n): past a 2 minute floor the slowest group took 7.6 s per
+# Mb*sqrt(allele), so the estimate is 120 s + 10 s per Mb*sqrt(allele), a little over that for running
+# on fewer threads.  (an earlier test on 8-64 unrelated haplotypes, with the older chaining, grew with
+# B*n.)  memory: centrolign starts by aligning each allele to itself to calibrate its scoring, as many
+# at once as it has threads.  groups of 8-14 alleles, all calibrating at once, ran out of memory there at
+# 840-880 bytes per bp of the group and peaked at 960-1070 when they had room; oct9's chr22 groups of
+# 2-14 peaked at 700-980, but chr14's at up to 2060, so the job gets CENTROLIGN_CALIBRATE_BYTES_PER_BP
+# for each bp of its longest alleles, one per thread.  whole runs of 48-64 alleles peaked at 490-810
+# bytes per bp (chr22's 440-590), and the earlier test at 550-610 up to 32 alleles but 780 at 64, so
+# the job also gets 800 + 6n bytes per bp, and at least 16 GB.  chr14's groups of 35-60 peaked at
+# 540-1020, but one of 61 at 1510; covering it would double every large group's request, so a group
+# like that is left to --doubleMem (on by default) to retry.  at 32 threads the jobs
+# kept only 2-5 cores busy on average (4-8 at 48-64 alleles), so they ask for at most
+# CENTROLIGN_MAX_CORES of --indexCores
 CENTROLIGN_BYTES_PER_BP = 800
 CENTROLIGN_BYTES_PER_BP_PER_ALLELE = 6
+CENTROLIGN_CALIBRATE_BYTES_PER_BP = 2500
 CENTROLIGN_MIN_MEMORY = 16 * 2**30
-CENTROLIGN_BASE_SECS = 600
-CENTROLIGN_SECS_PER_MB_ALLELE = 4
+CENTROLIGN_MAX_CORES = 16
+CENTROLIGN_BASE_SECS = 120
+CENTROLIGN_SECS_PER_MB_SQRT_ALLELE = 10
 
 # vg_to_og: vg convert -f | grep, then odgi build.  n=75, 307-310 s/GB at p50, 357-370 at the max
 VG_TO_OG_SECS_PER_GB = 400
@@ -1062,9 +1087,10 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
                 if options.centrolign:
                     realign_job = root_job.addChildJobFn(
                         centrolign_vg, options, config, vg_path, vg_id, centrolign_targets_id, pgrealign_max_mem,
-                        cores=options.indexCores, disk=vg_id.size * 40,
-                        memory=cactus_clamp_memory(min(max(2**33, vg_id.size * 20), max_mem)),
-                        walltime=scaled_walltime(CENTROLIGN_EXTRACT_SECS_PER_GB, vg_id.size, io_multiple=6))
+                        cores=min(options.indexCores, CENTROLIGN_EXTRACT_MAX_CORES), disk=vg_id.size * 40,
+                        memory=cactus_clamp_memory(min(max(2**33, vg_id.size * CENTROLIGN_EXTRACT_MEMORY_PER_VG),
+                                                       max_mem)),
+                        walltime=scaled_walltime(CENTROLIGN_EXTRACT_SECS_PER_GB, vg_id.size))
                 else:
                     realign_job = root_job.addChildJobFn(
                         pgrealign_vg, options, config, vg_path, vg_id, pgrealign_targets_id, pgrealign_max_mem,
@@ -2187,6 +2213,50 @@ def centrolign_rare_kmers(seq):
     distinct, counts = np.unique(kmers[~bad], return_counts=True)
     return distinct[counts <= CENTROLIGN_RARE_MAX_COUNT]
 
+def centrolign_shared_kmers(kmer_sets):
+    """ the matrix of how many k-mers each pair of kmer_sets (sorted distinct arrays, as
+    centrolign_rare_kmers returns) has in common, with each set's own size on the diagonal.  it is the
+    product of the 0/1 matrix of sets by k-mers with its transpose, over only the k-mers that two or more
+    sets hold, taken a block of k-mers at a time so that every pair is counted at BLAS speed, not one
+    pair at a time """
+    import numpy as np
+    n = len(kmer_sets)
+    shared = np.zeros((n, n))
+    sizes = [len(s) for s in kmer_sets]
+    if sum(sizes) > 0:
+        kmers = np.concatenate(kmer_sets)
+        owner = np.repeat(np.arange(n, dtype=np.int32), sizes)
+        order = np.argsort(kmers, kind='stable')
+        kmers = kmers[order]
+        owner = owner[order]
+        del order
+        # number the distinct k-mers in sorted order, and keep those of two or more sets
+        first = np.empty(len(kmers), dtype=bool)
+        first[0] = True
+        np.not_equal(kmers[1:], kmers[:-1], out=first[1:])
+        del kmers
+        column = np.cumsum(first) - 1
+        del first
+        keep = np.bincount(column)[column] > 1
+        owner = owner[keep]
+        column = column[keep]
+        del keep
+        if len(column) > 0:
+            column = np.cumsum(np.r_[True, column[1:] != column[:-1]]) - 1
+        # blocks of up to 2^26 cells, with no more columns than float32 counts exactly
+        width = min(max(1, 2**26 // n), 2**24)
+        block = np.zeros((n, width), dtype=np.float32)
+        start = 0
+        while start < len(column):
+            left = column[start]
+            end = np.searchsorted(column, left + width)
+            block[:] = 0
+            block[owner[start:end], column[start:end] - left] = 1
+            shared += block @ block.T
+            start = end
+    np.fill_diagonal(shared, sizes)
+    return shared
+
 def centrolign_groups(alleles, min_similarity, max_group):
     """ split alleles ([{'id', 'seq'}], with sequence) into the groups that centrolign aligns apart:
     the similarity of two alleles is the share of their rare k-mers (centrolign_rare_kmers) that they
@@ -2198,14 +2268,11 @@ def centrolign_groups(alleles, min_similarity, max_group):
     n = len(alleles)
     if n == 0:
         return []
-    rare = [centrolign_rare_kmers(a['seq']) for a in alleles]
-    sim = np.eye(n)
-    for i in range(n):
-        for j in range(i + 1, n):
-            smaller = min(len(rare[i]), len(rare[j]))
-            if smaller:
-                shared = len(np.intersect1d(rare[i], rare[j], assume_unique=True))
-                sim[i, j] = sim[j, i] = shared / smaller
+    shared = centrolign_shared_kmers([centrolign_rare_kmers(a['seq']) for a in alleles])
+    sizes = np.diag(shared)
+    smaller = np.minimum.outer(sizes, sizes)
+    sim = np.divide(shared, smaller, out=np.zeros((n, n)), where=smaller > 0)
+    np.fill_diagonal(sim, 1.0)
 
     # average linkage: merge the most similar pair of clusters, whose similarity to the rest is then the
     # size-weighted mean of theirs.  a tree node is (left, right, merge similarity, leaves)
@@ -2341,13 +2408,18 @@ def centrolign_vg(job, options, config, vg_path, vg_id, targets_id, max_mem):
             with gzip.open(package_path, 'wt') as package_file:
                 json.dump([by_id[x] for x in ids], package_file)
             allele_bp = sum(len(by_id[x]['seq']) for x in ids)
+            cores = min(options.indexCores, CENTROLIGN_MAX_CORES)
+            # calibration aligns up to one allele per thread to itself at once
+            calibrate_bp = sum(sorted((len(by_id[x]['seq']) for x in ids), reverse=True)[:cores])
+            memory = max(CENTROLIGN_MIN_MEMORY, calibrate_bp * CENTROLIGN_CALIBRATE_BYTES_PER_BP,
+                         allele_bp * (CENTROLIGN_BYTES_PER_BP + CENTROLIGN_BYTES_PER_BP_PER_ALLELE * len(ids)))
             group_job = region_root_job.addChildJobFn(
                 centrolign_region, config, job.fileStore.writeGlobalFile(package_path),
                 '{}.group{}'.format(pkg['id'], j), tree,
-                cores=options.indexCores, disk=max(2**30, allele_bp * 20),
-                memory=cactus_clamp_memory(min(max(CENTROLIGN_MIN_MEMORY, allele_bp * (
-                    CENTROLIGN_BYTES_PER_BP + CENTROLIGN_BYTES_PER_BP_PER_ALLELE * len(ids))), max_mem)),
-                walltime=cactus_walltime(CENTROLIGN_BASE_SECS + CENTROLIGN_SECS_PER_MB_ALLELE * allele_bp / 1e6 * len(ids)))
+                cores=cores, disk=max(2**30, allele_bp * 20),
+                memory=cactus_clamp_memory(min(memory, max_mem)),
+                walltime=cactus_walltime(CENTROLIGN_BASE_SECS +
+                                         CENTROLIGN_SECS_PER_MB_SQRT_ALLELE * allele_bp / 1e6 * math.sqrt(len(ids))))
             group_results.append(group_job.rv())
         region_results.append((record, group_results, job.fileStore.writeGlobalFile(unaligned_path)))
 
@@ -2359,8 +2431,9 @@ def centrolign_vg(job, options, config, vg_path, vg_id, targets_id, max_mem):
             report_ids[os.path.relpath(path, report_dir)] = job.fileStore.writeGlobalFile(path)
     replace_job = region_root_job.addFollowOnJobFn(
         centrolign_replace, options, config, in_vg_path, vg_id, report_ids,
-        summary, region_results, cores=options.indexCores, disk=vg_id.size * 40,
-        memory=cactus_clamp_memory(min(max(2**33, vg_id.size * 20), max_mem)),
+        summary, region_results, cores=min(options.indexCores, CENTROLIGN_REPLACE_MAX_CORES),
+        disk=vg_id.size * 40,
+        memory=cactus_clamp_memory(min(max(2**33, vg_id.size * CENTROLIGN_REPLACE_MEMORY_PER_VG), max_mem)),
         walltime=scaled_walltime(CENTROLIGN_REPLACE_SECS_PER_GB, vg_id.size, io_multiple=6))
     return replace_job.rv(0), replace_job.rv(1), replace_job.rv(2)
 
