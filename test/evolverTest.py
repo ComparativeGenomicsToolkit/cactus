@@ -2548,6 +2548,18 @@ class TestCase(unittest.TestCase):
         # the yeast genome is ~12 Mb; panpatch must carry the target's sequence through to the output
         self.assertGreater(total_len, 10000000, 'patched output is too short ({} bp)'.format(total_len))
 
+        # each fasta is indexed: its .fai lists every record, with the lengths summing to the whole, and
+        # the .gzi of its bgzip blocks is there
+        fai_names, fai_len = [], 0
+        for fa_path in fa_paths:
+            self.assertTrue(os.path.isfile(fa_path + '.gzi'), 'missing {}.gzi'.format(fa_path))
+            with open(fa_path + '.fai') as f:
+                for line in f:
+                    fai_names.append(line.split('\t')[0])
+                    fai_len += int(line.split('\t')[1])
+        self.assertEqual(fai_names, [h.split()[0] for h in headers])
+        self.assertEqual(fai_len, total_len)
+
         # the bed and tsv reports are always written (possibly empty if nothing was patched)
         for ext in ('.bed', '.tsv'):
             report = os.path.join(out_dir, target + ext)

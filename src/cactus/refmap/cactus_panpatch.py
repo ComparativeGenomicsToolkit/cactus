@@ -679,7 +679,8 @@ PANPATCH_BYTES_PER_SEC = 20e6
 # Bytes of output assembly per second for the gather pass: bgzip of each output haplotype (single-
 # threaded it runs 21-27 MB/s, measured on the HPRC PAFs -- see GZIP_COMPRESS_BYTES_PER_SEC in
 # cactus.shared.common), plus whole-genome python passes over it (renaming and the dropped-contig rescue)
-# plus panpatch's telomere report over each finished fasta.  the rate is still
+# plus panpatch's telomere report over each finished fasta, plus samtools faidx over the bgzipped
+# result.  the rate is still
 # the single-threaded one, so the walltime it gives is an upper bound
 GATHER_BYTES_PER_SEC = 8e6
 
@@ -1361,7 +1362,7 @@ def missing_target_contigs(input_contigs, record_names, bed_path, report_path, t
 
 def gather_panpatch(job, options, run, chrom_results, target_fasta_ids, target_error_bed_ids):
     """ concatenate the per-chromosome panpatch outputs (in chromosome order, as panpatch itself would),
-    rescue any target contig the pangenome dropped, bgzip, and return the output file map """
+    rescue any target contig the pangenome dropped, bgzip and index, and return the output file map """
     work_dir = job.fileStore.getLocalTempDir()
 
     # every target contig panpatch saw across all the chromosome graphs.  a contig the pangenome
@@ -1489,7 +1490,11 @@ def gather_panpatch(job, options, run, chrom_results, target_fasta_ids, target_e
         # in the run name); otherwise keep panpatch's haplotype numbering
         output_name = (run['name'] + '.fa.gz') if run['referenceFree'] else (run['name'] + '.hap{}.fa.gz'.format(hap))
         cactus_call(parameters=['bgzip', combined, '--threads', str(int(job.cores))])
+        # index it (.fai, and .gzi for the bgzip blocks), so a region can be read without decompressing the rest
+        cactus_call(parameters=['samtools', 'faidx', combined + '.gz'])
         output_id_map[output_name] = job.fileStore.writeGlobalFile(combined + '.gz')
+        output_id_map[output_name + '.fai'] = job.fileStore.writeGlobalFile(combined + '.gz.fai')
+        output_id_map[output_name + '.gzi'] = job.fileStore.writeGlobalFile(combined + '.gz.gzi')
 
     # the delivered report and bed, in the user's names (the reference-free target's own sample and
     # haplotype, no #0 phase blocks): rows, then a "#Summary" line per haplotype, then the cap lines
