@@ -102,13 +102,6 @@ test-job:
     - sed -i Dockerfile -e 's/ENV avx2 1/ENV CACTUS_LEGACY_ARCH 1/g'
     - quiet make-docker make docker
     - export LD_LIBRARY_PATH=$(pwd)/lib:$LD_LIBRARY_PATH
-    # Cap Toil at 8 cores for the evolver tests.  Since the runners moved to kernel
-    # 7.0.0-43 (2026-11-11) every evolver test runs ~2.2x slower on identical code, while
-    # the -j 8 build steps did not slow down, so the 24 cores the VMs report no longer
-    # deliver 24 cores of work.  Toil reads ~/.toil/default.yaml, so this reaches every
-    # cactus command without touching the tests, and a test's own --maxCores still wins.
-    # Overwrite rather than append: earlier steps may already have generated the file.
-    - 'mkdir -p ~/.toil && echo "maxCores: 8" > ~/.toil/default.yaml'
     - make -j 8 evolver_test
 
   artifacts:
