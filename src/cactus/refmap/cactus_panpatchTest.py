@@ -442,8 +442,9 @@ class TestPanpatchErrorBeds(unittest.TestCase):
         self.assertEqual(lines[6], '#Contig TGT#1#chr1 len=100000')   # comment passes through, no column
 
     def test_tag_report_gap_origin_contig_ends(self):
-        # contig-end flags, which panpatch ignores on the target, explain no patch: [0,20000) and [20000,25000) join
-        # up into one from chr1's start, [95000,100000) runs to its end, and [60000,65000) is an ordinary flag
+        # with an end margin (panpatch --error-bed-end-margin), contig-end flags, which panpatch then ignores on the
+        # target, explain no patch: [0,20000) and [20000,25000) join up into one from chr1's start, [95000,100000) runs
+        # to its end, and [60000,65000) is an ordinary flag.  with none (0, the default) every flag counts
         err = self._write('t2.bed', 'chr1\t0\t20000\nchr1\t20000\t25000\nchr1\t60000\t65000\nchr1\t95000\t100000\n')
 
         def row(typ, ts, te):
@@ -451,12 +452,16 @@ class TestPanpatchErrorBeds(unittest.TestCase):
                               '.', '100.0', '100.0', 'accepted', '.', str(ts), str(te)])
         rows = [row('telomere', 0, 10000), row('gap-fill', 22000, 23000), row('gap-fill', 61000, 62000),
                 row('telomere', 96000, 100000)]
-        for slop, want in [(1000, ['.', 'N-gap', 'bed-gap', '.']), (0, ['bed-gap', 'bed-gap', 'bed-gap', 'bed-gap'])]:
-            report = self._write('ends{}.tsv'.format(slop), _REPORT_HEADER + '\n' + '\n'.join(rows) + '\n')
-            tag_report_gap_origin(self.job, report, {1: err}, slop)
+        for margin, want in [(1000, ['.', 'N-gap', 'bed-gap', '.']), (0, ['bed-gap', 'bed-gap', 'bed-gap', 'bed-gap']),
+                             (None, ['bed-gap', 'bed-gap', 'bed-gap', 'bed-gap'])]:
+            report = self._write('ends{}.tsv'.format(margin), _REPORT_HEADER + '\n' + '\n'.join(rows) + '\n')
+            if margin is None:
+                tag_report_gap_origin(self.job, report, {1: err})
+            else:
+                tag_report_gap_origin(self.job, report, {1: err}, margin)
             with open(report) as f:
                 got = [l.rstrip('\n').split('\t')[-1] for l in f][1:]
-            self.assertEqual(got, want, 'end_slop {}'.format(slop))
+            self.assertEqual(got, want, 'end_margin {}'.format(margin))
 
     def test_tag_report_gap_origin_long(self):
         # a target interval over max_len (1 Mb by default, as panpatch's --error-bed-max-len) explains no patch
@@ -477,7 +482,7 @@ class TestPanpatchErrorBeds(unittest.TestCase):
             self.assertEqual(got, want, 'max_len {}'.format(max_len))
 
     def test_target_error_intervals_used(self):
-        # merged first, so a flag split over lines is judged as one; the slop boundary is inclusive, as in panpatch
+        # merged first, so a flag split over lines is judged as one; the margin boundary is inclusive, as in panpatch
         self.assertEqual(target_error_intervals_used([(15000, 28999), (0, 15000), (40000, 50000)], 100000, 1000),
                          [(40000, 50000)])
         self.assertEqual(target_error_intervals_used([(1000, 5000), (1001, 5000)], 100000, 1000), [])
@@ -492,11 +497,11 @@ class TestPanpatchErrorBeds(unittest.TestCase):
         self.assertEqual(target_error_intervals_used([(10000, 20001)], 100000, 1000, 0), [(10000, 20001)])
 
     def test_panpatch_option_value(self):
-        self.assertEqual(panpatch_option_value(None, '--error-bed-end-slop', 1000), 1000)
-        self.assertEqual(panpatch_option_value('--min-cover 0.9', '--error-bed-end-slop', 1000), 1000)
-        self.assertEqual(panpatch_option_value('--error-bed-end-slop 0 --min-cover 0.9', '--error-bed-end-slop', 1000), '0')
-        self.assertEqual(panpatch_option_value('--error-bed-end-slop=500', '--error-bed-end-slop', 1000), '500')
-        self.assertEqual(panpatch_option_value('--error-bed-end-slop 5 --error-bed-end-slop 7', '--error-bed-end-slop', 1000), '7')
+        self.assertEqual(panpatch_option_value(None, '--error-bed-end-margin', 1000), 1000)
+        self.assertEqual(panpatch_option_value('--min-cover 0.9', '--error-bed-end-margin', 1000), 1000)
+        self.assertEqual(panpatch_option_value('--error-bed-end-margin 0 --min-cover 0.9', '--error-bed-end-margin', 1000), '0')
+        self.assertEqual(panpatch_option_value('--error-bed-end-margin=500', '--error-bed-end-margin', 1000), '500')
+        self.assertEqual(panpatch_option_value('--error-bed-end-margin 5 --error-bed-end-margin 7', '--error-bed-end-margin', 1000), '7')
         # as the post-revert telomere measurement reads the threshold: unset -> None, either form -> its value
         self.assertIsNone(panpatch_option_value('--min-cover 0.9', '--telomere-threshold', None))
         self.assertEqual(panpatch_option_value('--min-cover 0.9 --telomere-threshold=0.7', '--telomere-threshold', None), '0.7')
