@@ -362,7 +362,10 @@ def cactus_cons(job, tree, ancestor_event, config_node, seq_id_map, og_map, paf_
                                    motifs=config_motifs(graphmap_node),
                                    threads=job.cores,
                                    reference=getOptionalAttrib(config_node.find('bar'), 'poaReferenceEvent') or None,
-                                   log_choice=log_choice)
+                                   log_choice=log_choice,
+                                   support_window=getOptionalAttrib(graphmap_node, 'telomereSupportWindow', typeFn=int,
+                                                                    default=0),
+                                   support_bp=getOptionalAttrib(graphmap_node, 'telomereSupportMin', typeFn=int, default=0))
         if anchors:
             # the input PAF goes, so the disk holds no more PAFs than it was sized for
             job.fileStore.deleteLocalFile(paf_id)
