@@ -67,12 +67,17 @@ reference contigs), just before cactus_consolidated:
    them constraints for cactus_consolidated, kept whatever chain they end up in.
    The reference's array is pinned one repeat unit further in (p to 2p - 1bp into the target, against 0 to p - 1bp
    for the others), at the offset whose alignment of its outermost 600bp has the fewest edits and starts with an
-   aligned pair.
+   aligned pair, and that pair a match: a reference whose outermost base is out of the phase of the rest starts at
+   the column of that unit with its base, if there is one, with an indel after it.
    vg haplotypes only samples a chromosome end from the haplotypes that pass through the reference's outermost node,
    and the arrays' outer ends differ by a few bp (the phase they end in, and slips near the end): pinned with the
    others, the reference's end was reached by as few as 3 of 40 haplotypes, whose ends were then the only ones
    sampled.  One unit further in, the other arrays overhang it by up to 14bp, which the join clips as stubs, so that
    their paths start on the reference's end, unless a slip puts a deletion or a mismatch on its outermost base.
+   The reference's own outermost base has to match for the same reason: CHM13's chr1p, chr3p, chr4p and chrXp arrays
+   start with a base out of phase (CACCCTAA..., TCTAACCC..., ATAACCC..., ACCTAACC...), which, paired as a mismatch,
+   made the reference's end node its own, and in the v4.0.0 HPRC graph (464 haplotypes) vg haplotypes could sample 7,
+   5, 2 and 31 of them there, against 400-450 at the ends whose reference starts in phase.
 5. The existing PAF lines of an anchored contig are trimmed out of its anchored ends (the array and anything outside
    it), cutting their cigars, so that nothing else pairs the telomere up some other way.  A line left with no aligned
    pair is dropped.  Every other line is written unchanged.
@@ -575,13 +580,34 @@ def pin_outer_base(array, target, start, ops):
     return s, [(1, '=' if a == b else 'X') for a, b in zip(array[:i_bp], target[s:s + i_bp])] + ops[k:]
 
 
+def match_outer_base(array, target, motif):
+    """ (start, ops) of an alignment of a reference array to target that pairs its outermost base with an equal one:
+    at the column of the unit it is pinned in (the motif's reference inset to p - 1bp further) that has its base and
+    from which the rest of its outermost PHASE_BP aligns with the fewest edits, the rest aligned as in
+    anchor_alignment(); None if no column of the unit has its base """
+    best = None
+    for s in range(motif.reference_inset, motif.reference_inset + motif.p):
+        if target[s] == array[0]:
+            d = edlib.align(array[1:PHASE_BP], target[s + 1:s + 1 + 2 * PHASE_BP], mode='SHW')['editDistance']
+            if best is None or d < best[0]:
+                best = (d, s)
+    if best is None:
+        return None
+    s = best[1]
+    ops = cigar_ops(edlib.align(array[1:], target[s + 1:], mode='SHW', task='path')['cigar'])
+    if ops and ops[0][1] == '=':
+        return s, [(ops[0][0] + 1, '=')] + ops[1:]
+    return s, [(1, '=')] + ops
+
+
 def anchor_alignment(array, target_length, reference=False, motif=TTAGGG):
     """ align array (read from its outer edge inward as the motif's unit, CCCTAA) to the unit's repeat, (CCCTAA)n, of
     target_length (a whole number of units) with the outer ends pinned: (repeat offset r, target start, ops outer end
     first, target bp used from the start).  The array starts at r, the offset that matches best over its outermost
     PHASE_BP.  The reference's starts a repeat unit further in, at r + the motif's reference inset, r being the offset
     whose alignment of those bp has the fewest edits and, of those, the fewest before its first aligned pair, and
-    starts with an aligned pair """
+    starts with an aligned pair.  If that pair is a mismatch, the reference's starts instead where its outermost base
+    matches (match_outer_base()), if any column of the unit has that base """
     target = motif.unit * (target_length // motif.p)
     if reference:
         def cost(r):
@@ -599,6 +625,10 @@ def anchor_alignment(array, target_length, reference=False, motif=TTAGGG):
     ops = cigar_ops(edlib.align(array, target[start:], mode='SHW', task='path')['cigar'])
     if reference:
         start, ops = pin_outer_base(array, target, start, ops)
+        matched = match_outer_base(array, target, motif) if ops and ops[0][1] != '=' else None
+        if matched:
+            start, ops = matched
+            r = start - motif.reference_inset
     return r, start, ops, sum(n for n, op in ops if op in '=XD')
 
 
