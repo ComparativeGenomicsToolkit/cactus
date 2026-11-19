@@ -645,7 +645,7 @@ If you want to revert to the previous logic of only the `vg giraffe`-specific fi
 
 ## Patching Assemblies (cactus-panpatch)
 
-[panpatch](https://github.com/glennhickey/panpatch) uses a pangenome graph to patch an assembly into telomere-to-telomere chromosomes — filling N-gaps, scaffolding contigs, and completing telomeres (with `--requireTelomeres`, a contig that cannot be given a telomere at both ends reverts to its input). `cactus-panpatch` is a Toil workflow that builds the required graphs and runs `panpatch` all in a single script and, with the `--batch` option, can process many samples at once.
+[panpatch](https://github.com/glennhickey/panpatch) uses a pangenome graph to patch an assembly into telomere-to-telomere chromosomes — filling N-gaps, scaffolding contigs, completing telomeres (with panpatch's `-T`, a contig that cannot be given a telomere at both ends reverts to its input) and, given [BEDs of suspected assembly errors](#assembly-error-beds), replacing those regions with donor sequence. `cactus-panpatch` is a Toil workflow that builds the required graphs and runs `panpatch` all in a single script and, with the `--batch` option, can process many samples at once.
 
 `cactus-panpatch` takes a seqfile listing assemblies of the same sample.  The target (to be patched) assembly comes first, with donor assemblies following in priority order.  For example:
 
@@ -663,6 +663,21 @@ By default patching is reference-free: because Minigraph-Cactus references must 
 
 If the target assembly is not chromosome scale (you want the patching to scaffold across its contigs), you can include a chromosome-scale reference genome (ex hs1) as the first line of the seqfile, and then flag it as a reference using the `--reference` option (it must be haploid).
 
+The main options are below. The `cactus-pangenome` construction options (`--mgCores`, `--mapCores`, `--consCores`, `--refContigs` etc.) are accepted too, except `--noSplit`, `--inGFA`, `--inGAF` and `--remap`.
+
+* `--sample`: the sample to patch followed by its donors in priority order, by sample name (default: every non-reference sample in the seqfile, in seqfile order).
+* `--outName`: the name of the output files (default: the name of the sample being patched).
+* `--excludeBed`: panpatch's `-b`, BED regions of the target to leave untouched.
+* `--panpatchOptions`: any other [panpatch option](https://github.com/glennhickey/panpatch#options), as one quoted string, ex `--panpatchOptions "-T --min-cover 0.9"` (`-T` requires a telomere at both ends).
+* `--assemblyErrorBeds`, `--maxTargetErrorTandem`: BEDs of suspected assembly errors, and how much of a target interval may be tandem repeat before it is ignored (see [below](#assembly-error-beds)).
+* `--keepGraphs`, `--fromGraphs`: keep the chromosome graphs, and patch them again later without rebuilding them (see [below](#re-running-on-kept-graphs)).
+* `--keepPangenome`: keep the intermediate `cactus-pangenome` output in `<outDir>/<name>.cactus-scratch/`, which is otherwise deleted once the run has succeeded.
+* `--indexMemory`, `--halExportMemory`: an upper bound on the memory of the per-chromosome vg and panpatch jobs, and a lower bound (default 24Gi) on that of the per-chromosome `hal2vg` jobs.
+
+panpatch never swaps rDNA: it carries the human rDNA unit (KY962518.1) built in, as rDNA copies are too alike for any k-mer check to verify a swap. `--panpatchOptions --patch-rdna` turns this off; it has no effect on genomes without human rDNA.
+
+Filling an `N` gap is judged differently from swapping sequence. A gap's length is only a placeholder, so a fill that replaces mostly `N` is held to panpatch's `--max-graft-size-change` only when it makes the contig shorter, however much longer it makes it. A fill may also remove sequence: where the assembly has the same sequence on both sides of a gap, a donor spanning the gap has it once, and its fill keeps one copy (panpatch `--dedup-recovery`; see [Duplicates either side of a gap](https://github.com/glennhickey/panpatch#duplicates-either-side-of-a-gap)). Otherwise, a fill that also replaces real sequence beside the gap may not fall short of that sequence by more than `--max-swap-size-change` (10 kb), as a swap may not change its length by more.
+
 ### Patching many samples
 
 `--batch` patches many samples in one workflow; the argument is a chromfile with one `<name> <seqfile>` line per sample (as with `cactus-align --batch`), and works with or without `--reference`:
@@ -675,13 +690,15 @@ PAN027   PAN027.seqfile.txt
 cactus-panpatch ./js chromfile.txt --outDir patched --batch
 ```
 
-Each sample writes its own patched FASTA(s), `<name>.bed`, and per-patch report `<name>.tsv` into `--outDir`. Across all samples, a single `panpatch-summary.tsv` rolls those reports up: one row per sample with accepted patches by category (`gap_fill`, `scaffold`, `telomere`, and the error-BED `bed_gap` subset), telomere-to-telomere output contigs, and a `TOTAL` row.
+Each sample writes its own patched FASTA(s), `<name>.bed`, and per-patch report `<name>.tsv` into `--outDir` (reference-free, there is one of each per haplotype: `<name>.hap1.fa.gz`, `<name>.hap1.bed`, `<name>.hap1.tsv`, ...). Each FASTA is bgzipped, with `samtools faidx` indexes beside it (`.fa.gz.fai` and `.fa.gz.gzi`). The report is [panpatch's](https://github.com/glennhickey/panpatch#the-report), with a `gap_origin` column added (see [below](#assembly-error-beds)). Across all samples, a single `panpatch-summary.tsv` rolls those reports up: one row per run (a sample, or one haplotype of it when reference-free) with its input contigs and output records, the telomere-to-telomere contigs (a telomere at both ends and no `N` gap) before and after patching (`input_t2t`, `t2t`), accepted patches by category (`gap_fill`, `scaffold`, `telomere`, and `bed_gap`, the gap fills and telomere patches over error-BED intervals), the `rejected` candidates, and a `TOTAL` row.
 
-The `t2t_contigs` / `contigs_analyzed` columns, and the `#Contig` lines at the end of each `<name>.tsv`, describe the assembly that was actually written: one line per output record, with its telomere cap status measured on the final sequence after any error-BED regions were reverted. (You can reproduce them for any assembly with `panpatch --telomere-report <assembly.fa[.gz]>`.)
+Every record of a patched assembly that is one input contig keeps that contig's name (as cactus reads it from the FASTA header), patched or not, so a reference-free output is named exactly like its input; a reference-based patched chromosome is `<chrom>_hap_<N>`. The report and the bed name the assemblies as the seqfile does (`SAMPLE#HAP#CONTIG`). Every input contig is checked to reach the output (as a record of its own, part of a patched record, or taken over by an accepted patch): if one would not, the run fails rather than silently drop it.
 
-### Masking assembly errors
+The `t2t` columns, and the `#Contig` lines at the end of each `<name>.tsv`, describe the assembly that was actually written: one line per output record, with its telomere status and the `N` gaps left in it (`gaps=`), measured on the final sequence. (You can reproduce them for any assembly with `panpatch --telomere-report <assembly.fa[.gz]>`.)
 
-If you have BED files of *suspected assembly errors* — for the target, for donors, or for any subset of them — `--assemblyErrorBeds` will steer patching away from them. The argument is a manifest with one `<seqfile-event-name> <bed-path>` line per assembly (a subset is fine); the event name is the assembly's first-column name in the seqfile (e.g. `PAN028-verkko#1`), so a single manifest covers every sample in a `--batch`:
+### Assembly error BEDs
+
+If you have BED files of *suspected assembly errors* — for the target, for donors, or for any subset of them — `--assemblyErrorBeds` will use them to guide the patching. The argument is a manifest with one `<seqfile-event-name> <bed-path>` line per assembly (a subset is fine); the event name is the assembly's first-column name in the seqfile (e.g. `PAN028-verkko#1`), so a single manifest covers every sample in a `--batch`:
 
 ```
 PAN028-verkko#1   errors/PAN028.hap1.bed     # <- target haplotype 1
@@ -691,21 +708,48 @@ PAN028-hifiasm#2  errors/hifiasm.hap2.bed     # <- a donor
 cactus-panpatch ./js chromfile.txt --outDir patched --batch --assemblyErrorBeds manifest.txt
 ```
 
-Each interval is treated almost like a run of `N`s:
+The assemblies are not changed: the graphs are built from them as they are, and the intervals are passed to `panpatch --error-bed` (see [Error regions](https://github.com/glennhickey/panpatch#error-regions) in panpatch's README):
 
-* In a **donor**, the region is never used to patch — its sequence is kept out of every output.
-* In the **target**, the region is patched (replaced with a donor) when a donor spans it, exactly as a gap would be; when it *can't* be patched it is left as the **original sequence** (never `N`, so the result is non-destructive).
+* In a **donor**, a flagged interval is never used to patch — its sequence is kept out of every patch.
+* In the **target**, a flagged interval is replaced with donor sequence where a donor can be threaded across it, and otherwise left as it is.
 
-BED contig names are the assembly's own fasta-header first token, with coordinates 0-based half-open in that assembly's frame. This is distinct from `--excludeBed`, which protects a region of the target from being touched at all and is given in graph path-name coordinates.
+Because the flagged sequence is still aligned, a donor that agrees with the target there shares its nodes in the graph, and a patch changes the target only where the donor differs. A donor that is identical across a flagged interval is reported as rejected, with reason `nothing to patch`. A replacement is checked like any other patch.
 
-Because a masked target error looks like a gap, the per-patch report distinguishes the two with a `gap_origin` column: `bed-gap` for a fill over an error interval, `N-gap` for a genuine pre-existing `N` gap (`.` for non-gap patches). This column is always present in the report — without `--assemblyErrorBeds` every gap-fill is simply an `N-gap`. The reference is never masked.
+**Without error BEDs**, panpatch has nothing to tell an error in a donor's assembly from a real difference between the assemblies: it has neither reads nor annotation. On the 18-sample HPRC pilot (TTT targets, hprc-r2 donors of the same samples), run without them, it filled 12 more `N` gaps, and the reads contradicted 7 of them; the donors' QC flags kept all 12 out.
 
-One thing to watch out for: **error intervals at contig tips interact with telomere patching.** Error BEDs frequently flag the first or last interval of a contig, and masking one takes that contig's telomere with it, so panpatch may complete that end from a donor even where the original tip was fine. The end then carries the donor's telomere. If you are measuring whether patching improved telomere completeness, compare against the **unmasked** assembly.
+**Contig ends need no special handling in the BEDs.** Nearly every contig end is flagged, mostly because read coverage falls off there, and such a flag often runs far in. panpatch treats it like any other flag. A donor's flagged end goes into no patch, so no telomere patch takes it. A target's flagged end is replaced only by a patch whose flanks can anchor it, and a telomere array cannot: cactus aligns every haplotype's array at an end to one synthetic telomere, so the arrays share nodes, but a tandem repeat pins no position. Half of the 10 kb beside each end of a swap must be unique sequence (panpatch `--min-graft-complexity` and `--graft-complexity-window`), so a swap of the subtelomere needs unique sequence between it and the telomere. On the HPRC pilot, each telomere patch that brought in donor sequence took a donor end its own QC had flagged, and the reads bore the flags out; and 30 swaps of flagged subtelomere at contig ends were anchored on their outer side only by the telomere, of which the reads contradicted 10. panpatch `--error-bed-end-margin N` restores an exemption for flags within N bp of a contig end: ignored on the target, and on a donor by a telomere patch from that end. Telomere patching itself is kept small: a telomere patch may replace at most 20 kb of the target's end (panpatch `-M`), may graft only the donor's telomere array, never more than 2 kb of donor subtelomere nor 2 kb more than it replaces (panpatch `--max-subtelomere-graft`), may not take off more than 1 kb more telomere repeat than it brings in (panpatch `--max-telomere-loss`), and must bring in at least 500 bp of donor sequence (panpatch `--min-telomere-graft`). Telomeres are poorly represented in reads, so read-based QC can rarely vouch for more than that.
+
+**Very long target intervals are ignored.** A target interval longer than 1 Mb, after joining intervals that touch or overlap, is not used (panpatch `--error-bed-max-len`). A QC call that long only says that something is wrong somewhere in it, and a swap that size cannot be verified: a donor of the same haplotype passes every check while it changes bases scattered over megabases. In the HPRC pilot's QC consensus, one error-class interval ran 34.9 Mb, though two tools agreed on only 8 kb of it; a donor then replaced 23.4 Mb of it while differing at 145 bases. A donor's intervals are kept, however long.
+
+**Target intervals in tandem repeats are ignored.** A target interval more than half of which is tandem repeat or `N`, after joining intervals that touch or overlap, is not used (`--maxTargetErrorTandem`, default 0.5; 1 turns this off). cactus-panpatch finds the tandem repeats in the target's own sequence with [FasTAN](https://github.com/thegenemyers/FASTAN), which comes with Cactus, so no satellite annotation is needed. In a satellite array or another tandem repeat, a donor is no more reliable than the target, and none of panpatch's checks can verify a swap: k-mer recovery and flank anchoring pass a copy of any array of the same family. An interval that is mostly `N` flags the gap itself, which is filled (or not) as a gap either way. On the 18-sample HPRC pilot, patching with the error BEDs left unfiltered made exactly the patches that BEDs filtered with a satellite annotation did. The swaps it kept out were in HSat3 on the acrocentric short arms, in alpha and beta satellite next to centromeres, or beside an `N` gap, on intervals 61-90% tandem repeat or `N`; no interval under a swap it kept was over 38%. rDNA, whose unit is too long a period for FasTAN, is left to panpatch, which never swaps it (see above). A donor's intervals are all kept.
+
+BED contig names are the assembly's own fasta-header first token, with coordinates 0-based half-open in that assembly's frame. An event in the manifest that matches no target or donor in any seqfile is an error (the reference is never patched, so it cannot have a BED). This is distinct from `--excludeBed`, which protects a region of the target from being touched at all and is given in graph path-name coordinates.
+
+In the per-patch report, panpatch gives a replaced error interval and a filled `N` gap the same type, `gap-fill`. The `gap_origin` column tells them apart: `bed-gap` for a gap fill, or a telomere patch, whose replaced span overlaps one of the target's error intervals (other than one over 1 Mb, which panpatch ignores, one ignored as tandem repeat, or, with panpatch `--error-bed-end-margin`, a contig-end flag), `N-gap` for any other gap fill, and `.` for every other row. This column is always present in the report — without `--assemblyErrorBeds` every gap-fill is simply an `N-gap`.
+
+The two kinds of interval work differently, so the target's and the donors' BEDs should be filtered differently. A target interval gets replaced, while a donor interval simply can't be used:
+
+* **Target: flag only what you are confident is an error.** Every flagged target interval that a donor can be threaded across, and differs in at 100 or more bases (panpatch `--min-swap-change`), is swapped for donor sequence, if the swap passes panpatch's other checks. A donor that differs at fewer only exchanges a few bases, and at those the target is usually right. A loose target BED therefore turns into many swaps, and these add new QC flags (elsewhere as well as on the swaps) about as fast as they remove old ones. For HPRC assemblies, keep the intervals that at least two QC tools flag (e.g. Flagger on HiFi, Flagger on ONT, NucFlag). The tools are not fully independent (the two Flaggers share an algorithm, and NucFlag uses the same HiFi reads), but requiring two leaves the more confident calls. There is no need to filter out satellite: intervals in tandem repeats are ignored (see above).
+* **Donors: flag everything any tool flags.** A flagged donor region is never used: a patch that would need it is not made, and for a telomere patch the report says why (*donor's run to its telomere crosses one of its --error-bed intervals*). Flagging too much of a donor can only cost a patch, but flagging too little can carry that donor's error into the output.
+
+**Short donor contigs are passed over.** panpatch makes no patch from a donor contig, or the piece of one that a chromosome graph holds, shorter than a fifth of the target contig it would patch (panpatch `--min-donor-fraction`; 0 turns it off). A contig that short has too little sequence around the patch to show where it belongs, and in sequence that several chromosomes share, it can be aligned to the wrong one. On the HPRC pilot, the one swap from such a donor (a 6 Mb unplaced contig, on a 47 Mb chr21 contig) put chr13 short-arm sequence on chr21.
+
+### Re-running on kept graphs
+
+Building the graphs is nearly all of the compute; panpatch itself takes minutes. With `--keepGraphs`, the chromosome graphs panpatch ran on are kept in `<outDir>/<name>.chroms/`. A later run with `--fromGraphs <DIR>`, where `<DIR>` is that run's `--outDir`, patches those graphs instead of building them, and writes to an `--outDir` of its own (not `<DIR>`, whose outputs it would otherwise overwrite):
+
+```
+cactus-panpatch ./js chromfile.txt --outDir patched --batch --keepGraphs
+cactus-panpatch ./js chromfile.txt --outDir patched-strict --batch --fromGraphs patched \
+    --assemblyErrorBeds other-manifest.txt
+```
+
+The graphs do not depend on `--assemblyErrorBeds`, `--excludeBed` or any panpatch option, so this is the way to compare BEDs or tune panpatch's parameters. Give the same seqfile or chromfile (and `--reference`, `--sample` and `--outName`, if used) as the run that built the graphs. `<DIR>` must be a local directory, and `--fromGraphs` cannot be combined with `--keepGraphs` or `--keepPangenome`.
 
 ### Cluster example
 
 ```
-cactus-panpatch ./js chromfile.txt --outDir patched --batch --requireTelomeres \
+cactus-panpatch ./js chromfile.txt --outDir patched --batch --assemblyErrorBeds manifest.txt \
     --batchSystem slurm --maxMemory 1.5T --retryCount 10 \
     --consCores 16 --mgCores 32 --mapCores 16
 ```
