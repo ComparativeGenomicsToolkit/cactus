@@ -347,6 +347,32 @@ def check_sample_names(sample_names, references, dot_haplotypes):
 
     return resolved[0] if type(references) is str else resolved
 
+# the <graphmap> attributes a <contigOptions> can add to, in a chromosome's own minigraph jobs
+CONTIG_OPTION_ATTRIBS = ('minigraphConstructOptions', 'minigraphMapOptions')
+
+def chrom_config_node(config_node, chrom):
+    """ the config of chromosome chrom's own minigraph construction and mapping (the --mgSplit second pass, or a
+    --batch chromfile): config_node with the options of every <contigOptions> in <graphmap> that names chrom in its
+    contigs added after <graphmap>'s own (so that where the two set the same thing, the contigOptions win), or
+    config_node itself if none names it """
+    graphmap_node = findRequiredNode(config_node, "graphmap")
+    added = defaultdict(list)
+    for opts_node in graphmap_node.findall("contigOptions"):
+        unknown = set(opts_node.attrib) - set(CONTIG_OPTION_ATTRIBS) - {'contigs'}
+        if unknown:
+            raise RuntimeError('<contigOptions> in <graphmap> has attribute(s) {}: it only takes contigs and {}'.format(
+                ', '.join(sorted(unknown)), ', '.join(CONTIG_OPTION_ATTRIBS)))
+        if chrom in [c.strip() for c in opts_node.attrib.get('contigs', '').split(',')]:
+            for attrib in CONTIG_OPTION_ATTRIBS:
+                added[attrib] += opts_node.attrib.get(attrib, '').split()
+    if not any(added.values()):
+        return config_node
+    config_node = copy.deepcopy(config_node)
+    graphmap_node = findRequiredNode(config_node, "graphmap")
+    for attrib, opts in added.items():
+        graphmap_node.attrib[attrib] = ' '.join(graphmap_node.attrib.get(attrib, '').split() + opts)
+    return config_node
+
 def minigraph_construct_batch_workflow(job, options, config_node, input_dict, gfa_path, sanitize=True,
                                        construct_ref_id_map=None, in_gfa_id=None, scores_id=None):
     """ run the construction workflow on individual chromosomes.  construct_ref_id_map, if given,
@@ -369,11 +395,16 @@ def minigraph_construct_batch_workflow(job, options, config_node, input_dict, gf
         if construct_ref_id_map:
             construct_seq_id_map = dict(seq_id_map)
             construct_seq_id_map.update(construct_ref_id_map)
+        chrom_node = config_node
         if options.batch:
             gfa_path = os.path.join(options.outputGFA, '{}.gfa.gz'.format(chrom))
+            chrom_node = chrom_config_node(config_node, chrom)
+            if chrom_node is not config_node:
+                RealtimeLogger.info('Constructing {} with minigraph options {}'.format(
+                    chrom, getOptionalAttrib(findRequiredNode(chrom_node, 'graphmap'), 'minigraphConstructOptions')))
         else:
             gfa_path = options.outputGFA
-        mgwf_job = root_job.addChildJobFn(minigraph_construct_workflow, options, config_node, seq_id_map, seq_order, gfa_path,
+        mgwf_job = root_job.addChildJobFn(minigraph_construct_workflow, options, chrom_node, seq_id_map, seq_order, gfa_path,
                                           sanitize, construct_seq_id_map=construct_seq_id_map, in_gfa_id=in_gfa_id,
                                           scores_id=scores_id, walltime=cactus_walltime())
         output_dict[chrom] = mgwf_job.rv()

@@ -40,7 +40,7 @@ from toil.realtimeLogger import RealtimeLogger
 from cactus.shared.common import cactus_cpu_count
 from cactus.shared.common import cactus_clamp_memory
 from cactus.progressive.progressive_decomposition import compute_outgroups, parse_seqfile, get_subtree, get_spanning_subtree, get_event_set
-from cactus.refmap.cactus_minigraph import check_sample_names, minigraph_gfa_from_pansn, read_chromfile
+from cactus.refmap.cactus_minigraph import check_sample_names, minigraph_gfa_from_pansn, read_chromfile, chrom_config_node
 from cactus.refmap.cactus_minigraph import GFA_RENAME_SECS_PER_GB, RAW_BYTES_PER_GZ_BYTE
 from sonLib.nxnewick import NXNewick
 from sonLib.bioio import getTempDirectory, getTempFile
@@ -348,15 +348,21 @@ def minigraph_batch_workflow(job, options, config, input_dict, graph_event, sani
     options.mg_chrom_name = None
     for chrom, input_info in input_dict.items():
         seq_id_map, gfa_id, ref_collapse_paf_id, seqfile, gfa = input_info
+        chrom_config = config
         if options.batch:
             chrom_options = copy.deepcopy(options)
             chrom_options.minigraphGFA = gfa
             chrom_options.seqFile = seqfile
             chrom_options.outputFasta = 'sv.gfa.fa.gz'
             chrom_options.mg_chrom_name = chrom
+            chrom_node = chrom_config_node(config.xmlRoot, chrom)
+            if chrom_node is not config.xmlRoot:
+                chrom_config = ConfigWrapper(chrom_node)
+                RealtimeLogger.info('Mapping to {} with minigraph options {}'.format(
+                    chrom, getOptionalAttrib(findRequiredNode(chrom_node, 'graphmap'), 'minigraphMapOptions')))
         else:
             chrom_options = options
-        mgwf_job = job.addChildJobFn(minigraph_workflow, chrom_options, config, seq_id_map, gfa_id, graph_event,
+        mgwf_job = job.addChildJobFn(minigraph_workflow, chrom_options, chrom_config, seq_id_map, gfa_id, graph_event,
                                      sanitize, ref_collapse_paf_id, pansn_gfa_input, in_gaf_id=in_gaf_id,
                                      scores_id=scores_id_map.get(chrom) if scores_id_map else None,
                                      walltime=cactus_walltime())
