@@ -191,9 +191,17 @@ MAKE_XG_SECS_PER_GB = 30
 # which none of the runs built
 MAKE_GIRAFFE_INDEXES_SECS_PER_GB = 12
 
-# make_haplo_index: vg index -j, vg gbwt -r and vg haplotypes -H.  n=3, 8.5-12.1 ks over 408 GB
-# (21-30 s/GB) at 64 cores
-MAKE_HAPLO_INDEX_SECS_PER_GB = 35
+# make_haplo_index: vg index -j, vg gbwt -r and vg haplotypes -H, by the phase of the graph it indexes
+# (for a gref graph, the phase it was made from, whose snarls it has).  'clip': n=3, 8.5-12.1 ks over
+# 408 GB (21-30 s/GB) at 64 cores, and in the v4.0.0 release run, hprc-nov9-mc-chm13, 12.8 ks on the
+# clip graph and 10.2 ks on the gref graph made from it, over 406 GB.  'full': n=1, that run's full
+# graph, 75.1 ks (185 s/GB), 67.9 ks of it in vg haplotypes.  vg haplotypes builds each chromosome on
+# one thread, so the slowest one sets its time, and that follows no size in scope here: its snarls
+# files were 266 MB (clip, 7.7 ks), 534 MB (an earlier --clip 10000000000 graph, 28.1 ks) and 603 MB
+# (full, 67.9 ks).  at the 'clip' rate that job was given 15.2 h and killed.  90 is half the measured
+# rate, not at or above it as the header has these, so with only the one run the factor is all the
+# margin there is: it gives the job 30.7 h, 1.5x what it took
+MAKE_HAPLO_INDEX_SECS_PER_GB = {'full' : 90, 'clip' : 35}
 
 # make_giraffe_indexes starts with vg index -j, as does make_haplo_index unless it is handed the giraffe
 # job's .dist, and it is what needs the most memory on a big graph.  it tracks the snarl decomposition,
@@ -237,9 +245,11 @@ VCF_CAT_SECS_PER_GB = 45
 MERGE_HAL_SECS_PER_GB = 110
 
 # merge_sv_gfa, per GB of gzipped minigraph GFA: pure python, so it issues no command and is
-# invisible in the logs.  a gzipped GFA expands ~8x, and re-compressing that in-process runs at
-# the ~16 MB/s this file already measures for python gzip (see fix_vcf_ploidies)
-MERGE_SV_GFA_SECS_PER_GB = 500
+# invisible in the logs.  this was 500, reasoned from python gzip's speed, until the v4.0.0 release
+# run, hprc-nov9-mc-chm13, where the job took 37 min on 0.89 GB from 25 chromosomes (2.4 ks/GB)
+# after being killed at the 30 min --minWalltime.  n=1, and 1500 is below that rate: it leaves the
+# request (59 min there) 1.6x over what it took and inside an hour-long short partition
+MERGE_SV_GFA_SECS_PER_GB = 1500
 
 # vcf_cat of the vcfwave chunks, per GB of the raw VCF they were cut from.  n=75, 205-272 s/GB at
 # p50 and 289-341 at the max, single-core (that call site asks for no cores)
@@ -257,6 +267,15 @@ VCFNORM_BUB_SECS_PER_GB = 12000
 # the vcflib build from before commit 8f76312f, whose pathological tail is baked into the
 # aggregate; that build also ignored --vcfwaveCores, which is why this is a single-thread rate
 VCFWAVE_SECS_PER_MB = 254
+# and a floor under that, per chunk.  a chunk's time is set by the longest alleles in it, which its
+# bytes do not predict: in the v4.0.0 release run, hprc-nov9-mc-chm13 (5282 chunks at 8 threads),
+# the median chunk took 17 s and the p99 9 min, but 9 chunks of 3-12 MB took 33-100 min against the
+# 30 min --minWalltime that every chunk under ~22 MB got, for 12 --doubleTime retries between them.
+# 6 of the 9 took under an hour, and a seventh took 58 min once and was killed at an hour once.
+# 1420 s, with the staging term, comes to 59-60 min at the default --walltimeFactor, which Slurm,
+# counting in whole minutes, makes an hour: as long as a request can be and still land in an
+# hour-long short partition
+VCFWAVE_CHUNK_SECS = 1420
 
 # cat_stats: concatenate the per-chromosome clip and path stats and gzip them.  those TSVs are
 # promises at the call site and nothing in scope stands in for them, so this is a flat number.
@@ -1330,7 +1349,7 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
                                                   tag=workflow_phase + '.',
                                                   sizing=dict(index_mem=index_mem, index_mem_factor=1.5,
                                                               disk=sum(f.size for f in vg_ids) * 16,
-                                                              walltime=scaled_walltime(MAKE_HAPLO_INDEX_SECS_PER_GB,
+                                                              walltime=scaled_walltime(MAKE_HAPLO_INDEX_SECS_PER_GB[workflow_phase],
                                                                                        sum(f.size for f in vg_ids),
                                                                                        io_multiple=0.5)),
                                                   walltime=cactus_walltime())
@@ -2900,14 +2919,17 @@ def chunked_vcfwave(job, config, out_name, vcf_ref, vcf_id, tbi_id, max_ref_alle
         # 800x the chunk covers the bulk of the distribution, but peak RSS really tracks the
         # longest alleles vcfwave realigns rather than the chunk's bytes, and each thread pays
         # that separately -- so the floor catches the tail and scales per thread.  no chunk of
-        # two whole-genome HPRC runs, at 24 and 32 threads, exceeded these values.
+        # two whole-genome HPRC runs, at 24 and 32 threads, exceeded these values.  at 8 threads
+        # (the v4.0.0 release run) the per-thread term gave 7.5Gi, which killed one chunk of 5282,
+        # and that chunk peaked at 8.2Gi on its retry; hence the 10Gi under it all.
         # job.memory is --vcfwaveMemory, already clamped, and caps all of it
-        wave_mem = min(job.memory, max(6 * 2**30, job.cores * 960 * 2**20, chunk_id.size * 800))
+        wave_mem = min(job.memory, max(10 * 2**30, job.cores * 960 * 2**20, chunk_id.size * 800))
         vcfwave_job = root_job.addChildJobFn(vcfwave, config, chunk_path, chunk_id,
                                              disk=chunk_id.size * 10, cores=job.cores,
                                              memory=wave_mem,
                                              walltime=cactus_walltime(
-                                                 VCFWAVE_SECS_PER_MB * chunk_id.size / 1e6 / max(1, job.cores or 1),
+                                                 max(VCFWAVE_CHUNK_SECS,
+                                                     VCFWAVE_SECS_PER_MB * chunk_id.size / 1e6 / max(1, job.cores or 1)),
                                                  io_bytes=chunk_id.size * 4))
         chunk_vcf_tbi_ids.append(vcfwave_job.rv())
 
@@ -3273,10 +3295,10 @@ def build_vg_indexes_and_vcf(parent_job, options, config, phase_vg_ids, vg_ids,
 
     # optional haplo index
     if do_haplo:
-        # see the other make_haplo_index call site
+        # see the other make_haplo_index call site.  the rate is the source phase's, whose topology this has
         sizing = dict(index_mem=index_mem, index_mem_factor=1.5,
                       disk=sum(f.size for f in vg_ids) * 16,
-                      walltime=scaled_walltime(MAKE_HAPLO_INDEX_SECS_PER_GB,
+                      walltime=scaled_walltime(MAKE_HAPLO_INDEX_SECS_PER_GB[source_tag.rstrip('.')],
                                                sum(f.size for f in vg_ids),
                                                io_multiple=0.5))
         if source_index_job:
