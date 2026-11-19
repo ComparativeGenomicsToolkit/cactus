@@ -47,12 +47,29 @@ before_script:
         return $status
       fi
     }
+  - |
+    # Print this job's cgroup CPU limit and accounting.  Jobs run under an 8-CPU quota
+    # (cpu.max) even though `docker info` reports the host's 24.  Between two calls, the
+    # change in usage_usec over the change in epoch seconds is how many cores the job
+    # actually got, and throttled_usec is how long the kernel held it back for exceeding
+    # the quota.  /proc/loadavg and /proc/pressure are host-wide.  Added because the
+    # evolver tests ran 2.2x slower from Nov 11 2026 on identical code, coinciding with
+    # the runner kernel going from 7.0.0-42 to -43.
+    cgroup_cpu() {
+      echo "=== cgroup cpu: $1 at $(date -u +%s) ($(date -u +%FT%TZ)), nproc $(nproc) ==="
+      grep -H . /proc/self/cgroup /proc/loadavg /proc/pressure/cpu /sys/fs/cgroup/cpu.max \
+        /sys/fs/cgroup/cpuset.cpus.effective /sys/fs/cgroup/cpu.stat /sys/fs/cgroup/cpu.pressure 2>&1 || true
+      # cgroup v1 equivalents, silent if absent
+      grep -Hs . /sys/fs/cgroup/cpu/cpu.cfs_quota_us /sys/fs/cgroup/cpu/cpu.cfs_period_us \
+        /sys/fs/cgroup/cpu/cpu.stat /sys/fs/cgroup/cpuacct/cpuacct.usage || true
+    }
   # left as they are: apt is only 18KB of the log, and quieting the install line here would
   # collide with anything that adds a package to it
   - sudo apt-get -q -y update
   - sudo apt-get -q -y install --no-upgrade liblz4-dev libzstd-dev libblas-dev liblapack-dev libpcre3-dev gfortran libjansson-dev libboost-dev zstd
   - startdocker || true
   - docker info
+  - cgroup_cpu "job start"
 
 after_script:
   - stopdocker || true
@@ -102,7 +119,9 @@ test-job:
     - sed -i Dockerfile -e 's/ENV avx2 1/ENV CACTUS_LEGACY_ARCH 1/g'
     - quiet make-docker make docker
     - export LD_LIBRARY_PATH=$(pwd)/lib:$LD_LIBRARY_PATH
-    - make -j 8 evolver_test
+    - cgroup_cpu "before evolver_test"
+    # report again even if the tests fail (the script runs with errexit)
+    - make -j 8 evolver_test || status=$?; cgroup_cpu "after evolver_test"; exit ${status:-0}
 
   artifacts:
     when: always
