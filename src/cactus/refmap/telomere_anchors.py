@@ -60,10 +60,10 @@ reference contigs), just before cactus_consolidated:
    its key cover enough of the window inward of its array: the lines are the ones left after the PAF filters, so a
    subtelomere pruned to another reference contig (cactus-graphmap-split), filtered (MAPQ, GAF block length,
    identity) or never mapped doesn't count.  Its telomere would otherwise be all of its end that is aligned to the
-   arm's end.  In the v4.0.0 HPRC graph (464 haplotypes), a 50kb window with 1kb of support would have left out 717 of
-   its 18,910 haplotype anchors: 469 of the 797 at acrocentric p arms (subtelomeres pruned to another acrocentric, or
-   filtered), 83 of 85 at chrYp (CHM13's PAR is masked, so they map to chrX), 113 at 4q and 10q (D4Z4 arrays with
-   no alignment, or sent to the other arm), 23 at 17p and Xp and 5 of 49 at chrYq, but 5 of the 1,795 at
+   arm's end.  In the v4.0.0 HPRC graph (462 haplotypes and GRCh38), a 50kb window with 1kb of support would have left
+   out 717 of its 18,910 haplotype anchors: 469 of the 797 at acrocentric p arms (subtelomeres pruned to another
+   acrocentric, or filtered), 83 of 85 at chrYp (CHM13's PAR is masked, so they map to chrX), 113 at 4q and 10q (D4Z4
+   arrays with no alignment, or sent to the other arm), 23 at 17p and Xp and 5 of 49 at chrYq, but 5 of the 1,795 at
    6p/8p/9q/16p (1 of the 791 that carry a swapped subtelomere block, aligned to their own chromosome's minigraph end
    tips) and 19 of the 14,663 at other arms.  The clip graph kept those telomeres as path fragments cut off from the
    rest of their contigs, and the full graph made a bubble of each, from the telomere to wherever its contig aligns
