@@ -63,4 +63,17 @@ void cactusCheck2(bool condition, char *string, ...);
  */
 void cactus_retentionGuard(void);
 
+/*
+ * True when this machine uses strict overcommit accounting (vm.overcommit_memory = 2).  jemalloc
+ * reads the same setting when it starts, and under it gives freed memory back by remapping it
+ * PROT_NONE, which splits the process's mappings faster than the kernel merges them.  At
+ * vm.max_map_count (65530 by default) every allocation that needs a new mapping fails, with RAM to
+ * spare (https://github.com/jemalloc/jemalloc/issues/1328).  Measured on a 5-genome snake ancestor
+ * (7.7M blocks after melting): mappings climbed ~1500/s through stCaf_finish to the limit, and
+ * the job failed with most of the node's memory free.  Retaining pages never gives memory back, so
+ * it never remaps: the same job then ran to the end with at most 1413 mappings.  Read once and
+ * cached; false off Linux.
+ */
+bool cactus_strictOvercommit(void);
+
 #endif

@@ -112,11 +112,25 @@ static void cactus_jemalloc_retain_pages(CactusParams *params) {
     // the job can get, and written as "0" or "1" into the config it hands this program; run by
     // hand with "auto" still present, retention is on. CACTUS_JEMALLOC_RETAIN=0 in the
     // environment switches it off regardless, for a benchmark harness.
+    //
+    // Except under strict overcommit (cactus_strictOvercommit), where retention is what keeps
+    // jemalloc from running the process out of memory mappings, so it is on whatever retain_pages
+    // says: the workflow decides on the leader, which cannot see how the node this lands on is set.
+    // A glibc build (mallctl_fn NULL) has no such problem: the legacy release ran the same job under
+    // strict overcommit with at most 944 mappings.
+    bool strict = mallctl_fn != NULL && cactus_strictOvercommit();
     const char *retain = getenv("CACTUS_JEMALLOC_RETAIN");
     if (retain != NULL && strcmp(retain, "0") == 0) {
         st_logInfo("jemalloc page retention disabled by CACTUS_JEMALLOC_RETAIN=0\n");
+        if (strict) {
+            st_logCritical("WARNING: vm.overcommit_memory = 2 on this machine, and without page "
+                           "retention jemalloc can run this process out of memory mappings "
+                           "(vm.max_map_count), when allocations fail with memory to spare "
+                           "(https://github.com/jemalloc/jemalloc/issues/1328)\n");
+        }
         return;
     }
+    bool overridden = false;
     if (cactusParams_has(params, 2, "consolidated", "retain_pages")) {
         char *setting = cactusParams_get_string(params, 2, "consolidated", "retain_pages");
         bool off = strcmp(setting, "0") == 0;
@@ -124,13 +138,34 @@ static void cactus_jemalloc_retain_pages(CactusParams *params) {
         // the part a reader can act on.  Report by exception here, as the failure path below does.
         st_logDebug("<consolidated retain_pages=\"%s\">: jemalloc page retention %s\n", setting, off ? "off" : "on");
         free(setting);
-        if (off) {
+        if (off && !strict) {
             return;
         }
+        overridden = off;
     }
     if (mallctl_fn == NULL) {
         st_logInfo("no jemalloc in this build, so page retention is not available\n");
         return;
+    }
+    if (strict) {
+        long maxMapCount = -1;
+        FILE *f = fopen("/proc/sys/vm/max_map_count", "r");
+        if (f != NULL) {
+            if (fscanf(f, "%ld", &maxMapCount) != 1) {
+                maxMapCount = -1;
+            }
+            fclose(f);
+        }
+        const char *guard = getenv("CACTUS_RETENTION_OFF_MB");
+        // Critical, so it shows at any log level: it changes how much memory the job will use.
+        st_logCritical("vm.overcommit_memory = 2 on this machine (strict overcommit).  Under it jemalloc "
+                       "gives freed memory back by remapping it, which can run this process out of "
+                       "memory mappings (vm.max_map_count %ld) so that allocations fail with memory to "
+                       "spare (https://github.com/jemalloc/jemalloc/issues/1328).  Turning jemalloc page "
+                       "retention on to prevent it%s%s; expect more memory use than without "
+                       "retention.\n",
+                       maxMapCount, overridden ? ", overriding retain_pages=0" : "",
+                       guard != NULL && atoll(guard) > 0 ? ", with the memory guard off" : "");
     }
 
     const char *names[2] = { "dirty_decay_ms", "muzzy_decay_ms" };
@@ -177,6 +212,9 @@ static void cactus_jemalloc_retain_pages(CactusParams *params) {
     // speaks up when the decision could not be carried out.
     if (applied) {
         st_logDebug("jemalloc page retention applied: dirty_decay_ms and muzzy_decay_ms set to -1\n");
+    } else if (strict) {
+        st_logCritical("WARNING: jemalloc page retention could NOT be applied, so under strict "
+                       "overcommit this process may run out of memory mappings\n");
     } else {
         st_logInfo("jemalloc page retention was requested but could NOT be applied; "
                    "pages will be returned to the OS\n");
