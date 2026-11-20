@@ -15,8 +15,13 @@ These are fast and offline.  The end-to-end extension is covered by evolverTest.
 TestGafOverlapFilterConfig pins down which GAF overlap filter command each <graphmap> setting runs
 (the exact filter, gaffilter -x, is on by default; "0" must give the stock command).
 
-TestAddGenomeToSeqFile, at the end, checks that the seqfile cactus-graphmap adds the minigraph
-assembly to keeps the pangenome default branch length.
+TestAddGenomeToSeqFile checks that the seqfile cactus-graphmap adds the minigraph assembly to keeps
+the pangenome default branch length.
+
+TestPruneOtherContigs, at the end, checks the prune of what a --mgSplit wholeGenomeRef construction
+added to other chromosomes' reference (<graphmap_split pruneOtherContigs>): which segments and links
+go, that the reference never does, that both namings and the --otherContig lump are handled, and
+that anything but an rGFA is refused.
 """
 
 import copy
@@ -35,6 +40,9 @@ from cactus.refmap.cactus_graphmap import (
     gaf_from_pansn, gaf_to_pansn, pansn_to_event_map, split_gaf_file_by_event, trim_unstable_gaf,
     gaf_to_unstable_commands, overlap_filter_exact, check_overlap_filter_config, apply_mgsplit_filter_overrides,
     add_genome_to_seqfile)
+from cactus.refmap.cactus_graphmap_split import (
+    prune_other_contigs_gfa, prune_other_contigs_enabled, prune_other_contigs_memory, prune_other_contigs_plan,
+    prune_other_contigs_report, prune_own_contigs, scan_rgfa, gfa_ref_contig, PRUNE_MIN_MEMORY)
 
 
 # a stable GAF line as minigraph writes it: query name, then a path of stable segments with
@@ -503,6 +511,227 @@ class TestAddGenomeToSeqFile(unittest.TestCase):
         add_genome_to_seqfile(path, 'mg.fa', '_MINIGRAPH_', self.pg_len)
         with open(path) as seq_file:
             self.assertEqual(seq_file.read(), before)
+
+
+
+def rgfa_segment(name, seq, sn, sr, so=0):
+    """ an rGFA S line as minigraph writes it """
+    return 'S\t{}\t{}\tLN:i:{}\tSN:Z:{}\tSO:i:{}\tSR:i:{}\n'.format(name, seq, len(seq), sn, so, sr)
+
+def rgfa_link(a, b, sr):
+    return 'L\t{}\t+\t{}\t+\t0M\tSR:i:{}\n'.format(a, b, sr)
+
+
+class TestPruneOtherContigs(unittest.TestCase):
+    """ the prune of a --mgSplit wholeGenomeRef graph, built for one chromosome but against the whole
+    reference, back to what that chromosome's construction could have added to its own reference
+    (prune_other_contigs_plan) """
+
+    # CHM13's chr4, chr10 and chr22, each as linear rank-0 segments, plus what chr4's haplotypes added:
+    #   s9          a bubble on chr4                                  kept
+    #   s10-s11     a component on chr10 alone (eg D4Z4 units)        dropped, with its 3 links
+    #   s12         bridging chr4's s3 and chr22's s7                 kept, its link onto s7 dropped
+    #   s13         attached to nothing                               dropped
+    #   s14         a component on chr22 alone                        dropped, with its link
+    # and three sample links between rank-0 segments: a deletion on chr4 (kept), a deletion on chr10
+    # and a translocation from chr4 onto chr10 (both dropped)
+    SEGMENTS = [('s1', 'ACGTACGTAC', 'chr4', 0), ('s2', 'ACGTACGTAC', 'chr4', 0), ('s3', 'ACGTACGTAC', 'chr4', 0),
+                ('s4', 'GGGGCCCCAA', 'chr10', 0), ('s5', 'GGGGCCCCAA', 'chr10', 0), ('s6', 'GGGGCCCCAA', 'chr10', 0),
+                ('s7', 'TTTTAAAA', 'chr22', 0), ('s8', 'TTTTAAAA', 'chr22', 0),
+                ('s9', 'AAA', 'HG1#1|ctg1', 1),
+                ('s10', 'CCCCCCCCCCCC', 'HG1#1|ctg1', 1), ('s11', 'CCCCCCCC', 'HG1#1|ctg1', 1),
+                ('s12', 'GGGGG', 'HG2#1|ctg7', 2),
+                ('s13', 'TT', 'HG2#1|ctg9', 2),
+                ('s14', 'AAAAAAA', 'HG1#1|ctg3', 1)]
+    LINKS = [('s1', 's2', 0), ('s2', 's3', 0), ('s4', 's5', 0), ('s5', 's6', 0), ('s7', 's8', 0),
+             ('s1', 's9', 1), ('s9', 's2', 1),
+             ('s4', 's10', 1), ('s10', 's11', 1), ('s11', 's5', 1),
+             ('s3', 's12', 2), ('s12', 's7', 2),
+             ('s8', 's14', 1),
+             ('s1', 's3', 1),
+             ('s4', 's6', 2),
+             ('s3', 's4', 2)]
+    KEPT_SEGMENTS = {'s1', 's2', 's3', 's4', 's5', 's6', 's7', 's8', 's9', 's12'}
+    KEPT_LINKS = {('s1', 's2'), ('s2', 's3'), ('s4', 's5'), ('s5', 's6'), ('s7', 's8'), ('s1', 's9'), ('s9', 's2'),
+                  ('s3', 's12'), ('s1', 's3')}
+
+    def setUp(self):
+        self.work_dir = tempfile.mkdtemp()
+
+    def tearDown(self):
+        shutil.rmtree(self.work_dir)
+
+    def write_gfa(self, segments, links, name='g.gfa', pansn=False, gzipped=False):
+        """ the toy graph, named as the cactus pipeline names it (id=CHM13|chr4) or in PanSN (CHM13#0#chr4) """
+        def sn(name, rank):
+            if rank == 0:
+                return 'CHM13#0#' + name if pansn else 'id=CHM13|' + name
+            return name.replace('|', '#') if pansn else 'id=' + name
+        text = 'H\tVN:Z:1.0\n'
+        text += ''.join(rgfa_segment(n, seq, sn(c, r), r) for n, seq, c, r in segments)
+        text += ''.join(rgfa_link(a, b, r) for a, b, r in links)
+        path = os.path.join(self.work_dir, name + ('.gz' if gzipped else ''))
+        with (gzip.open(path, 'wt') if gzipped else open(path, 'w')) as gfa_file:
+            gfa_file.write(text)
+        return path
+
+    def read_gfa(self, path):
+        """ (S names, L (from, to) pairs, every line) of a GFA """
+        with open(path) as gfa_file:
+            lines = gfa_file.readlines()
+        segs = set(line.split('\t')[1] for line in lines if line.startswith('S\t'))
+        links = set(tuple(line.split('\t')[1:4:2]) for line in lines if line.startswith('L\t'))
+        return segs, links, lines
+
+    def prune(self, chrom, segments=None, links=None, bin_ref_contigs=None, **kwargs):
+        in_path = self.write_gfa(segments or self.SEGMENTS, links or self.LINKS, **kwargs)
+        out_path = os.path.join(self.work_dir, 'pruned.gfa')
+        summary = prune_other_contigs_gfa(in_path, out_path, chrom, bin_ref_contigs)
+        return summary, self.read_gfa(out_path)
+
+    def assert_reference_kept(self, segments, links, kept_segs, kept_links):
+        # every rank-0 segment and rank-0 link survives, whatever else goes
+        self.assertTrue(set(n for n, _, _, r in segments if r == 0) <= kept_segs)
+        self.assertTrue(set((a, b) for a, b, r in links if r == 0) <= kept_links)
+
+    def test_other_chromosome_material_goes(self):
+        summary, (segs, links, lines) = self.prune('chr4')
+        self.assertEqual(segs, self.KEPT_SEGMENTS)
+        self.assertEqual(links, self.KEPT_LINKS)
+        self.assert_reference_kept(self.SEGMENTS, self.LINKS, segs, links)
+        # anything that is neither S nor L is copied, and what is kept is copied unchanged and in order
+        self.assertEqual(lines[0], 'H\tVN:Z:1.0\n')
+        with open(os.path.join(self.work_dir, 'g.gfa')) as gfa_file:
+            self.assertEqual([line for line in gfa_file if line in lines], lines)
+        self.assertEqual(summary['own_contigs'], ['chr4'])
+        self.assertEqual(summary['dropped_components'], {'chr10': (1, 2, 20), 'chr22': (1, 1, 7), 'none': (1, 1, 2)})
+        self.assertEqual(summary['bridging_components'], {'chr22,chr4': (1, 1, 5)})
+        self.assertEqual(summary['links_to_dropped_segments'], 4)
+        self.assertEqual(summary['sample_links_onto_other_contigs'], {'chr10': 2, 'chr22': 1})
+        self.assertEqual((summary['dropped_segments'], summary['dropped_bp'], summary['dropped_links']), (4, 29, 7))
+        report = prune_other_contigs_report(summary)
+        self.assertIn('dropped 1 non-reference component(s) attached only to chr10: 2 segments, 20 bp', report)
+        self.assertIn('kept 1 bridging component(s) attached to chr22,chr4: 1 segments, 5 bp (their sample links onto '
+                      'other contigs are dropped)', report)
+        self.assertIn('dropped 1 non-reference component(s) attached to no reference contig: 1 segments, 2 bp', report)
+        self.assertEqual(report[-1], 'kept 10 of 14 segments (29 bp dropped) and 9 of 16 links')
+
+    def test_from_the_other_side(self):
+        # chr10's graph keeps the chr10 component and the chr10 deletion, and loses chr4's bubble, the
+        # bridge (which touches no chr10 reference), the chr4 deletion and the translocation, whose
+        # other end is on chr4's reference
+        summary, (segs, links, _) = self.prune('chr10')
+        self.assertEqual(segs, {'s1', 's2', 's3', 's4', 's5', 's6', 's7', 's8', 's10', 's11'})
+        self.assertEqual(links, {('s1', 's2'), ('s2', 's3'), ('s4', 's5'), ('s5', 's6'), ('s7', 's8'),
+                                 ('s4', 's10'), ('s10', 's11'), ('s11', 's5'), ('s4', 's6')})
+        self.assertEqual(summary['bridging_components'], {})
+        self.assertEqual(summary['sample_links_onto_other_contigs'], {'chr4': 2})
+
+    def test_pansn_and_gzip_prune_the_same(self):
+        _, cactus = self.prune('chr4')
+        for kwargs in ({'pansn': True}, {'gzipped': True}, {'pansn': True, 'gzipped': True}):
+            summary, pruned = self.prune('chr4', **kwargs)
+            self.assertEqual(pruned[:2], cactus[:2])
+            self.assertEqual(summary['dropped_links'], 7)
+
+    def test_contig_names(self):
+        self.assertEqual(gfa_ref_contig('id=CHM13|chr4'), 'chr4')
+        self.assertEqual(gfa_ref_contig('CHM13#0#chr4'), 'chr4')
+        self.assertEqual(gfa_ref_contig('S288C#chrIV'), 'chrIV')
+        self.assertEqual(gfa_ref_contig('chr4'), 'chr4')
+        self.assertEqual(gfa_ref_contig('id=CHM13|chrUn#1'), 'chrUn#1')
+
+    def test_other_contig_lump(self):
+        # the --otherContig bin (chrOther) owns the contigs its own reference fasta holds: chrUn_a and
+        # chrUn_b, not chr1.  A sample link between its two contigs is its own, and stays
+        segments = [('a1', 'ACGT', 'chrUn_a', 0), ('a2', 'ACGT', 'chrUn_a', 0), ('b1', 'GGCC', 'chrUn_b', 0),
+                    ('c1', 'TTTTTTTT', 'chr1', 0), ('c2', 'TTTTTTTT', 'chr1', 0),
+                    ('x1', 'AA', 'HG1#1|u1', 1), ('x2', 'CCC', 'HG1#1|u2', 1)]
+        links = [('a1', 'a2', 0), ('c1', 'c2', 0), ('a1', 'x1', 1), ('x1', 'a2', 1), ('c1', 'x2', 1), ('x2', 'c2', 1),
+                 ('a2', 'b1', 1), ('b1', 'c1', 1)]
+        calls = []
+        def bin_ref_contigs():
+            calls.append(1)
+            return {'id=CHM13|chrUn_a', 'id=CHM13|chrUn_b', 'id=CHM13|chrUn_gone'}
+        summary, (segs, kept_links, _) = self.prune('chrOther', segments, links, bin_ref_contigs)
+        self.assertEqual(calls, [1])
+        self.assertEqual(summary['own_contigs'], ['chrUn_a', 'chrUn_b'])
+        self.assertEqual(segs, {'a1', 'a2', 'b1', 'c1', 'c2', 'x1'})
+        self.assertEqual(kept_links, {('a1', 'a2'), ('c1', 'c2'), ('a1', 'x1'), ('x1', 'a2'), ('a2', 'b1')})
+        self.assert_reference_kept(segments, links, segs, kept_links)
+        # a plain set does as well as the function
+        self.assertEqual(self.prune('chrOther', segments, links, {'chrUn_a', 'chrUn_b'})[1][:2], (segs, kept_links))
+
+    def test_named_chromosome_never_reads_the_fasta(self):
+        def bin_ref_contigs():
+            raise AssertionError('the bin reference fasta is only for the --otherContig lump')
+        self.assertEqual(self.prune('chr4', bin_ref_contigs=bin_ref_contigs)[1][0], self.KEPT_SEGMENTS)
+        self.assertEqual(prune_own_contigs('chr4', ['chr4', 'chr10'], bin_ref_contigs), {'chr4'})
+
+    def test_no_own_contig_is_an_error(self):
+        with self.assertRaisesRegex(RuntimeError, 'nothing to prune it back to'):
+            self.prune('chrOther', bin_ref_contigs={'chrUn_x'})
+        with self.assertRaises(RuntimeError):
+            self.prune('chr5')
+
+    def test_nothing_to_prune(self):
+        # only chr4's own material: nothing goes, and the job leaves the graphs as they were
+        segments = [s for s in self.SEGMENTS if s[0] in ('s1', 's2', 's3', 's4', 's9')]
+        links = [l for l in self.LINKS if l[0] in ('s1', 's2', 's9') and l[1] in ('s2', 's3', 's9')]
+        scan = scan_rgfa(self.write_gfa(segments, links))
+        prune = prune_other_contigs_plan(scan, {'chr4'})
+        self.assertFalse(prune.dropped())
+        self.assertEqual(prune_other_contigs_report(prune.summary)[-1], 'kept 5 of 5 segments (0 bp dropped) and 5 of 5 links')
+
+    def test_not_an_rgfa(self):
+        path = os.path.join(self.work_dir, 'plain.gfa')
+        with open(path, 'w') as gfa_file:
+            gfa_file.write('S\ts1\tACGT\nS\ts2\tACGT\nL\ts1\t+\ts2\t+\t0M\n')
+        with self.assertRaisesRegex(RuntimeError, 'Segment s1 .* has no SR:i: tag: it is not an rGFA'):
+            scan_rgfa(path)
+        two_segments = rgfa_segment('s1', 'ACGT', 'id=CHM13|chr4', 0) + rgfa_segment('s2', 'ACGT', 'id=CHM13|chr4', 0)
+        # a link without its rank could be a sample link onto another chromosome, which the prune
+        # would then keep, so it is refused as a segment without one is
+        with open(path, 'w') as gfa_file:
+            gfa_file.write(two_segments + 'L\ts1\t+\ts2\t+\t0M\n')
+        with self.assertRaisesRegex(RuntimeError, 'Link s1 \\+ s2 \\+ .* has no SR:i: tag: it is not an rGFA'):
+            scan_rgfa(path)
+        # a path can name a segment the prune drops, and the prune does not know how to cut one
+        for path_line in ('W\tHG1\t1\tctg1\t0\t8\t>s1>s2\n', 'P\tHG1#1#ctg1\ts1+,s2+\t*\n'):
+            with open(path, 'w') as gfa_file:
+                gfa_file.write(two_segments + rgfa_link('s1', 's2', 0) + path_line)
+            with self.assertRaisesRegex(RuntimeError, 'has {} lines'.format(path_line[0])):
+                scan_rgfa(path)
+        with open(path, 'w') as gfa_file:
+            gfa_file.write(rgfa_segment('s1', 'ACGT', 'id=CHM13|chr4', 0) + rgfa_link('s1', 's2', 0))
+        with self.assertRaisesRegex(RuntimeError, 'have no S line'):
+            scan_rgfa(path)
+
+    def test_config(self):
+        root = ET.parse(os.path.join(cactusRootPath(), 'cactus_progressive_config.xml')).getroot()
+        node = root.find('graphmap_split')
+        # on in the default config, and in one without the attribute
+        self.assertEqual(node.get('pruneOtherContigs'), '1')
+        self.assertTrue(prune_other_contigs_enabled(root))
+        del node.attrib['pruneOtherContigs']
+        self.assertTrue(prune_other_contigs_enabled(root))
+        for value in ('0', 'false', 'False'):
+            node.set('pruneOtherContigs', value)
+            self.assertFalse(prune_other_contigs_enabled(root))
+        node.set('pruneOtherContigs', 'true')
+        self.assertTrue(prune_other_contigs_enabled(root))
+        # it applies to every chromosome or none: a list of them is refused rather than read as on
+        for value in ('chr4,chr21', ''):
+            node.set('pruneOtherContigs', value)
+            with self.assertRaisesRegex(RuntimeError, 'must be 0 or 1'):
+                prune_other_contigs_enabled(root)
+
+    def test_memory(self):
+        # 6x the longest reference contig, with a floor: CHM13 (chr1, 248 Mbp) is under the floor, a
+        # genome with a 2 Gbp chromosome is not
+        self.assertEqual(prune_other_contigs_memory(None), PRUNE_MIN_MEMORY)
+        self.assertEqual(prune_other_contigs_memory(248387328), PRUNE_MIN_MEMORY)
+        self.assertEqual(prune_other_contigs_memory(2 * 10**9), 12 * 10**9)
 
 
 if __name__ == '__main__':

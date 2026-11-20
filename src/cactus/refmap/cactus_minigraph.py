@@ -280,7 +280,7 @@ def export_minigraph_construct_output(options, input_seqfiles, output_dict, toil
             train_path = None
         #export the gfa
         # with mgSplitWholeGenomeRef this graph is still whole-genome: it only becomes
-        # chromosome-only after the post-mapping prune, which writes it to this same path
+        # chromosome-only after the post-mapping separation pass, which writes it to this same path
         # (export_pruned_minigraph_gfa_wrapper in cactus_pangenome.py).  the chromfile below is
         # still written now -- downstream only ever reads its .train column
         if not getattr(options, 'mgSplitWholeGenomeRef', False):
@@ -289,10 +289,11 @@ def export_minigraph_construct_output(options, input_seqfiles, output_dict, toil
             toil.exportFile(pansn_gfa_id, makeURL(gfa_path))
         # the pre-zip graph, the report and (zipWalks="gaf") the walks GAF are extra artifacts kept
         # beside the graph for comparison.  They go out even when the main export above is deferred
-        # to the prune: the prune never touches them, and keeping such artifacts inside that branch
+        # to the separation pass: it never touches them, and keeping such artifacts inside that branch
         # once left a 460-haplotype mgSplitWholeGenomeRef run with 25 rewritten chromosomes and not
-        # one report on disk.  In that mode the unzipped graph is the unpruned, whole-reference one,
-        # and the walks GAF is against it.
+        # one report on disk.  In that mode the unzipped graph is the whole-reference one (less, with
+        # <graphmap_split pruneOtherContigs>, what construction added to other chromosomes, see
+        # prune_other_contigs_workflow), and the walks GAF is against it.
         export_rewrite_artifacts(toil, gfa_path, input_pansn_gfa_id, rewrite_artifacts)
         if train_path:
             # export the scoring model (.train)
@@ -361,7 +362,26 @@ def minigraph_construct_batch_workflow(job, options, config_node, input_dict, gf
     # unresolved promise whenever it started first ("This job was passed promise ... that wasn't yet
     # resolved"), and only got through by being retried
     root_job = Job(walltime=cactus_walltime())
-    job.addChild(root_job)
+    # with the whole reference swapped in, each chromosome's graph is pruned of what its construction
+    # added to the rest of the reference (<graphmap_split pruneOtherContigs>), by a job whose memory
+    # follows the longest reference contig.  That is measured once, off the whole reference, ahead
+    # of every construction, so that all of them can read it
+    prune, longest_ref_contig = False, None
+    if construct_ref_id_map and options.batch:
+        # imported here because cactus_graphmap_split imports this module
+        from cactus.refmap.cactus_graphmap_split import prune_other_contigs_enabled, fasta_longest_record
+        prune = prune_other_contigs_enabled(config_node)
+        RealtimeLogger.info('{} what construction adds to other reference contigs from the whole-reference graphs of '
+                            'the {} chromosome(s) (<graphmap_split pruneOtherContigs>)'.format(
+                                'Pruning' if prune else 'Not pruning', len(input_dict)))
+    if prune:
+        ref_fa_id = construct_ref_id_map[options.reference[0]]
+        measure_job = job.addChildJobFn(fasta_longest_record, ref_fa_id, disk=2 * ref_fa_id.size,
+                                        walltime=cactus_walltime(60, io_bytes=ref_fa_id.size))
+        measure_job.addFollowOn(root_job)
+        longest_ref_contig = measure_job.rv()
+    else:
+        job.addChild(root_job)
     output_dict = {}
     for chrom, input_info in input_dict.items():
         seq_id_map, seq_order = input_info
@@ -375,7 +395,8 @@ def minigraph_construct_batch_workflow(job, options, config_node, input_dict, gf
             gfa_path = options.outputGFA
         mgwf_job = root_job.addChildJobFn(minigraph_construct_workflow, options, config_node, seq_id_map, seq_order, gfa_path,
                                           sanitize, construct_seq_id_map=construct_seq_id_map, in_gfa_id=in_gfa_id,
-                                          scores_id=scores_id, walltime=cactus_walltime())
+                                          scores_id=scores_id, prune_chrom=chrom if prune else None,
+                                          longest_ref_contig=longest_ref_contig, walltime=cactus_walltime())
         output_dict[chrom] = mgwf_job.rv()
     if options.lastTrain and len(input_dict) > 1:
         # sized off the chromosome's own reference slice, which is what it trains on
@@ -405,7 +426,8 @@ def borrow_last_train_models(job, output_dict, ref_sizes):
     return output_dict
                                     
 def minigraph_construct_workflow(job, options, config_node, seq_id_map, seq_order, gfa_path, sanitize=True,
-                                 construct_seq_id_map=None, in_gfa_id=None, scores_id=None):
+                                 construct_seq_id_map=None, in_gfa_id=None, scores_id=None, prune_chrom=None,
+                                 longest_ref_contig=None):
     """ minigraph can handle bgzipped files but not gzipped; so unzip everything in case before running
 
     construct_seq_id_map, when given, replaces seq_id_map for the graph construction alone.  it is how
@@ -419,10 +441,15 @@ def minigraph_construct_workflow(job, options, config_node, seq_id_map, seq_orde
     with a graph to extend, which genomes still need constructing is not known until that graph's
     SN tags have been read, so the rest of the workflow is deferred behind the job that reads them
 
-    scores_id is a --scoresFile model, only read by zipAlleles' zipWalks="gaf" mapping """
+    scores_id is a --scoresFile model, only read by zipAlleles' zipWalks="gaf" mapping
+
+    prune_chrom, given only with construct_seq_id_map, is the bin (chromosome) the whole-reference
+    graph is pruned back towards right after construction (<graphmap_split pruneOtherContigs>), by a
+    job sized off longest_ref_contig, the bytes of the reference's longest record """
     if not in_gfa_id:
         return minigraph_construct_run(job, options, config_node, seq_id_map, seq_order, gfa_path, sanitize,
-                                       construct_seq_id_map=construct_seq_id_map, scores_id=scores_id)
+                                       construct_seq_id_map=construct_seq_id_map, scores_id=scores_id,
+                                       prune_chrom=prune_chrom, longest_ref_contig=longest_ref_contig)
 
     # the renaming pass decompresses the GFA before bgzipping it back up, so it needs room for
     # the raw copy (reckoned at 10x, as elsewhere) on top of the compressed input and output
@@ -433,7 +460,8 @@ def minigraph_construct_workflow(job, options, config_node, seq_id_map, seq_orde
     run_job = rename_job.addFollowOnJobFn(minigraph_construct_run, options, config_node, seq_id_map, seq_order, gfa_path,
                                           sanitize, construct_seq_id_map,
                                           rename_job.rv(0), rename_job.rv(1), in_gfa_id,
-                                          scores_id=scores_id, walltime=cactus_walltime())
+                                          scores_id=scores_id, prune_chrom=prune_chrom,
+                                          longest_ref_contig=longest_ref_contig, walltime=cactus_walltime())
     # all five slots: minigraph_construct_run returns
     # (gfa, pansn_gfa, input_pansn_gfa, rewrite_artifacts, train).  Truncating here to three
     # left cactus_pangenome's rv(3)/rv(4) reading off the end of the tuple, which Toil reports as
@@ -442,7 +470,7 @@ def minigraph_construct_workflow(job, options, config_node, seq_id_map, seq_orde
 
 def minigraph_construct_run(job, options, config_node, seq_id_map, seq_order, gfa_path, sanitize=True,
                             construct_seq_id_map=None, seed_gfa_id=None, seed_events=None, seed_pansn_gfa_id=None,
-                            scores_id=None):
+                            scores_id=None, prune_chrom=None, longest_ref_contig=None):
     assert type(options.reference) is list
     # the substituted map is a plain dict here, but sanitized_seq_id_map below is a promise when
     # sanitize is on, so the two can't be reconciled in this job
@@ -552,6 +580,23 @@ def minigraph_construct_run(job, options, config_node, seq_id_map, seq_order, gf
                                               seed_gfa_id=seed_gfa_id, graph_names=graph_names,
                                               walltime=cactus_walltime())
 
+    # with mgSplitWholeGenomeRef, take what this chromosome's construction added to the other
+    # chromosomes' reference back out (<graphmap_split pruneOtherContigs>; see
+    # prune_other_contigs_plan) before anything maps to the graph: the zip below (and its
+    # zipWalks="gaf" mapping), and graphmap after it.  Both namings are pruned, the PanSN graph
+    # remade from the pruned cactus-named one, and they replace the unpruned pair from here on.
+    # The rest of the reference stays in, as linear sequence, until the separation pass
+    graph_job = minigraph_job
+    if prune_chrom and construct_seq_id_map and not getattr(options, 'refOnly', False):
+        # imported here because cactus_graphmap_split imports this module
+        from cactus.refmap.cactus_graphmap_split import prune_other_contigs_workflow
+        # the bin's own reference fasta, which says what the --otherContig lump owns
+        graph_job = minigraph_job.addFollowOnJobFn(prune_other_contigs_workflow, prune_chrom,
+                                                   minigraph_job.rv(0), minigraph_job.rv(1), gfa_path, graph_names,
+                                                   seq_id_map[options.reference[0]],
+                                                   longest_ref_contig=longest_ref_contig, max_cores=options.mgCores,
+                                                   walltime=cactus_walltime())
+
     # training is scheduled ahead of the zip below only because zipWalks="gaf" maps with its
     # model, and so has to wait for it.  It still runs alongside construction either way
     train_id, last_train_job = None, None
@@ -587,9 +632,10 @@ def minigraph_construct_run(job, options, config_node, seq_id_map, seq_order, gf
     # skipped on the --mgSplit reference-only first pass: that graph has no non-reference nodes, so
     # there is nothing to zip and the snarl decomposition would be pure cost.  it still runs on
     # the per-chromosome all-sample graphs, which is where the alleles are.  With
-    # mgSplitWholeGenomeRef those graphs hold the whole reference until the prune after graphmap,
-    # so that is the graph zipped: graphmap maps to it, and the prune then cuts the zipped graph
-    # back to the chromosome.
+    # mgSplitWholeGenomeRef those graphs hold the whole reference until the separation pass after
+    # graphmap (less what the prune above took off the other chromosomes), so that is the graph
+    # zipped: graphmap maps to it, and the separation pass then cuts the zipped graph back to the
+    # chromosome.
     input_pansn_gfa_id, rewrite_artifacts = None, None
     if not getattr(options, 'refOnly', False) and zip_alleles_enabled(config_node):
         # Size on the reference the graph was actually built from.  ref_size above is the
@@ -609,7 +655,8 @@ def minigraph_construct_run(job, options, config_node, seq_id_map, seq_order, gf
             seed_only = {name: fa_id for name, fa_id in train_seq_id_map.items()
                          if name not in seq_id_map} if seed_events is not None else {}
             if seed_only and sanitize:
-                # a child of construction, so it is done before construction's follow-on, the zip
+                # a child of construction, so it is done before construction's follow-ons, which
+                # lead to the zip
                 seed_sanitize_job = minigraph_job.addChildJobFn(sanitize_fasta_headers, seed_only, pangenome=True,
                                                                 walltime=cactus_walltime())
                 gaf_seq_id_maps.append(seed_sanitize_job.rv())
@@ -626,18 +673,19 @@ def minigraph_construct_run(job, options, config_node, seq_id_map, seq_order, gf
                 elif last_train_job:
                     zip_scores_id = train_id
                     wait_for_training = True
-        zip_job = minigraph_job.addFollowOnJobFn(zip_alleles_workflow, options, config_node,
-                                                 minigraph_job.rv(0), minigraph_job.rv(1), gfa_path, graph_names,
-                                                 zip_ref_size, gaf_seq_id_maps=gaf_seq_id_maps,
-                                                 scores_id=zip_scores_id, walltime=cactus_walltime())
+        zip_job = graph_job.addFollowOnJobFn(zip_alleles_workflow, options, config_node,
+                                             graph_job.rv(0), graph_job.rv(1), gfa_path, graph_names,
+                                             zip_ref_size, gaf_seq_id_maps=gaf_seq_id_maps,
+                                             scores_id=zip_scores_id, walltime=cactus_walltime())
         if wait_for_training:
             # a second predecessor: the zip starts once both construction and training are done
             last_train_job.addFollowOn(zip_job)
-        input_pansn_gfa_id = minigraph_job.rv(1)
+        # what the zip read, which with the prune above is the pruned graph
+        input_pansn_gfa_id = graph_job.rv(1)
         rewrite_artifacts = zip_job.rv(2)
         gfa_ids = (zip_job.rv(0), zip_job.rv(1))
     else:
-        gfa_ids = (minigraph_job.rv(0), minigraph_job.rv(1))
+        gfa_ids = (graph_job.rv(0), graph_job.rv(1))
 
     # (cactus-named graph, PanSN graph, the PanSN graph before zipping or None, the zip's artifacts
     #  or None, trained scoring model or None).  slots 0 and 1 are the graph the pipeline uses; slot 3
@@ -803,9 +851,11 @@ def zip_alleles_workflow(job, options, config_node, gfa_id, pansn_gfa_id, gfa_pa
     (scores_id) -- and rgfa-zip reads its walks from the merged GAF.  The graph mapped to is always
     the one this zip is about to rewrite, so the GAF and the graph match in every mode:
       whole-genome           the whole-genome graph and every genome
-      --mgSplit              this chromosome's graph as built, before graphmap's prune: the whole
-                             reference plus the genomes binned to the chromosome, of which the
-                             reference is mapped as its chromosome slice, as graphmap maps it
+      --mgSplit              this chromosome's graph as built (less, with <graphmap_split
+                             pruneOtherContigs>, what that added to other chromosomes), before
+                             the separation pass: the whole reference plus the genomes binned to
+                             the chromosome, of which the reference is mapped as its chromosome
+                             slice, as graphmap maps it
       --mgSplit, with <graphmap_split wholeGenomeRef="0">
                              this chromosome's graph and the genomes binned to it """
     gaf_id = None
