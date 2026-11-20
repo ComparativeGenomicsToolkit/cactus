@@ -698,11 +698,27 @@ class TestAnchorAlignment(unittest.TestCase):
         self.assertEqual(sum(n for n, op in ops if op in 'XI'), 0)
 
     def test_reference_outer_mismatch(self):
-        """ a reference array whose outermost base is not telomeric starts with that base as a mismatch, not an
-        insertion, in the phase of the rest, one repeat unit in """
+        """ a reference array whose outermost base is not telomeric (no column of the unit has it) starts with that base
+        as a mismatch, not an insertion, in the phase of the rest, one repeat unit in """
         self.assertEqual(anchor_alignment('G' + 'CCCTAA' * 100, 1200, reference=True), (5, 11, [(1, 'X'), (600, '=')],
                                                                                           601))
         self.assertEqual(anchor_alignment('CCCTAA' * 100, 1200, reference=True), (0, 6, [(600, '=')], 600))
+
+    def test_reference_outer_base_matched(self):
+        """ a reference array whose outermost base is out of the phase of the rest, but a base of the unit (CHM13's
+        chr1p, chr3p, chr4p and chrXp arrays start like these), starts with that base matched, at a column of the
+        unit one repeat unit in that has it, and an indel or two after it: as a mismatch it would make the
+        reference's end node its own, which no haplotype passes through """
+        target = 'CCCTAA' * 200
+        for array in ('CA' + 'CCCTAA' * 100, 'TC' + 'TAACCC' * 100, 'A' + 'TAACCC' * 100, 'A' + 'CCTAAC' * 100):
+            r, start, ops, used = anchor_alignment(array, 1200, reference=True)
+            self.assertEqual(ops[0][1], '=', array[:8])
+            self.assertEqual((target[start], start - r), (array[0], 6), array[:8])
+            self.assertTrue(6 <= start < 12, array[:8])
+            self.assertEqual(sum(n for n, op in ops if op in '=XI'), len(array), array[:8])
+            self.assertLessEqual(sum(n for n, op in ops if op in 'XID'), 3, array[:8])
+        # an outermost base in phase with the rest is aligned as it was
+        self.assertEqual(anchor_alignment('A' + 'CCCTAA' * 100, 1200, reference=True), (5, 11, [(601, '=')], 601))
 
     def test_pin_outer_base(self):
         target = 'CCCTAA' * 10
@@ -1311,16 +1327,24 @@ class MotifTests:
 
     def test_anchor_alignment(self):
         """ an array in any phase at its offset r, pinned at r (the reference's at r + p, p to 2p - 1bp in); a
-        reference whose outermost base is not telomeric starts with it as a mismatch, in the phase of the rest """
+        reference whose outermost base is out of the phase of the rest starts with it as a mismatch, in the phase of the
+        rest, if the unit has no such base, and matched at a column of the unit p to 2p - 1bp in that has it if it
+        does """
         u, p, motif = self.v.u, self.v.p, self.motif
         for r in range(p):
             array = (u * 101)[r:r + 100 * p]
             self.assertEqual(anchor_alignment(array, 120 * p, motif=motif), (r, r, [(100 * p, '=')], 100 * p))
             self.assertEqual(anchor_alignment(array, 120 * p, reference=True, motif=motif),
                              (r, r + p, [(100 * p, '=')], 100 * p))
-        b = next(b for b in 'GTCA' if b not in (u[0], u[-1]))
-        self.assertEqual(anchor_alignment(b + u * 100, 120 * p, reference=True, motif=motif),
-                         (p - 1, 2 * p - 1, [(1, 'X'), (100 * p, '=')], 100 * p + 1))
+        for b in (b for b in 'GTCA' if b not in (u[0], u[-1])):
+            r, start, ops, used = anchor_alignment(b + u * 100, 120 * p, reference=True, motif=motif)
+            if b not in u:
+                self.assertEqual((r, start, ops, used), (p - 1, 2 * p - 1, [(1, 'X'), (100 * p, '=')], 100 * p + 1))
+            else:
+                self.assertEqual((ops[0][1], (u * 3)[start], start - r), ('=', b, p), b)
+                self.assertTrue(p <= start < 2 * p, b)
+                self.assertEqual(sum(n for n, op in ops if op in '=XI'), 100 * p + 1, b)
+                self.assertLess(sum(n for n, op in ops if op in 'XID'), p, b)
 
     def test_anchor_telomeres(self):
         """ six haplotypes, three reverse complemented, and a reference, with arrays of the motif: every end anchored
