@@ -27,7 +27,7 @@ import edlib
 from cactus.refmap import telomere_anchors
 from cactus.refmap.telomere_anchors import DEFAULT_MOTIFS, anchor_alignment, anchor_telomeres, anchor_summary, \
     array_at_end, check_motifs, choose_motif, config_motifs, fasta_ends, make_motif, perfect_run, pin_outer_base, \
-    run_finder, target_name, telomere_run, trim_paf
+    run_finder, subtelomere_support, target_name, telomere_run, trim_paf
 
 MG = '_MINIGRAPH_'
 CHROM = 'chrT'
@@ -1122,6 +1122,78 @@ class TestAnchorTelomeres(AnchorTestCase):
         self.assertEqual(anchor_telomeres(CHROM, fasta_paths, out_paf, again_paf, again_mg, minigraph_event=MG), [])
         self.assertSameFile(out_paf, again_paf)
         self.assertSameFile(out_mg, again_mg)
+
+
+class TestSubtelomereSupport(AnchorTestCase):
+    """ support_window/support_bp: a contig end is anchored only if its lines on its reference contig cover enough of
+    the subtelomere inward of its array """
+
+    def test_support(self):
+        d = dict(end='5p', outer_bp=0, array_bp=1000, length=10000)
+        lines = [(500, 1500, CHROM), (1400, 2000, CHROM), (2500, 3000, 'chrO'), (2900, 3500, CHROM), (9000, 9500, CHROM)]
+        # [1000, 3000): 1000-2000 by the first two (overlapping), 2900-3000 by the fourth; the chrO line not
+        self.assertEqual(subtelomere_support(lines, CHROM, d, 2000), (1100, 2000))
+        self.assertEqual(subtelomere_support(lines, 'chrO', d, 2000), (500, 2000))
+        self.assertEqual(subtelomere_support(lines, CHROM, d, 0), (0, 0))
+        # a 3' end, its array 100bp in: [7000, 9000), which the last line doesn't reach
+        d = dict(end='3p', outer_bp=100, array_bp=900, length=10000)
+        self.assertEqual(subtelomere_support(lines + [(8500, 9100, CHROM)], CHROM, d, 2000), (500, 2000))
+        # a contig shorter than the window
+        d = dict(end='5p', outer_bp=0, array_bp=1000, length=2500)
+        self.assertEqual(subtelomere_support([(0, 2500, CHROM)], CHROM, d, 2000), (1500, 1500))
+
+    def lines_of(self, contigs, i):
+        return contigs[i][3]
+
+    def test_gate(self):
+        """ H1 loses its p end's line (s1), H3's q end line (s3) is on another reference contig, H5's s1 line only
+        covers 800bp of its subtelomere: those three ends are anchored without the gate, and not with it.  Every
+        other end, and every end of the contigs reverse complemented, as without the gate """
+        for reverse in (False, True):
+            contigs = self.plain_contigs(lambda i: reverse)
+            n1 = contigs[1][3]
+            contigs[1] = contigs[1][:3] + ([t for t in n1 if not t[5].endswith('|s1')],)
+            contigs[3] = retag(contigs[3], [CHROM, CHROM, 'chrO'])
+            seq5, lines5 = contigs[5][2], contigs[5][3]
+            P = 4800   # H5's p array
+            if not reverse:
+                lines5 = [trim_paf(t, 0, P + 800) if t[5].endswith('|s1') else t for t in lines5]
+            else:
+                L = len(seq5)
+                lines5 = [trim_paf(t, L - P - 800, L) if t[5].endswith('|s1') else t for t in lines5]
+            contigs[5] = contigs[5][:3] + (lines5,)
+            tag = 'r' if reverse else 'f'
+            ends = lambda anchors: sorted((a['event'], a['arm']) for a in anchors)
+            plain = self.run_anchors(contigs, tag=tag + '0')[0]
+            self.assertEqual(len(plain), 12)
+            gated = self.run_anchors(contigs, tag=tag + '1', support_window=3000, support_bp=1000)[0]
+            self.assertEqual(ends(gated), sorted(set(ends(plain)) - {('H1#1', 'p'), ('H3#1', 'q'), ('H5#1', 'p')}))
+            # what's left of an anchor is unchanged by the gate
+            same = lambda anchors: sorted(tuple(sorted(a.items())) for a in anchors)
+            self.assertEqual(same(gated), same(a for a in plain if (a['event'], a['arm']) in set(ends(gated))))
+            # 800bp of support is enough for 800
+            gated = self.run_anchors(contigs, tag=tag + '2', support_window=3000, support_bp=800)[0]
+            self.assertEqual(ends(gated), sorted(set(ends(plain)) - {('H1#1', 'p'), ('H3#1', 'q')}))
+
+    def test_reference_exempt(self):
+        """ the reference's ends are anchored whatever its lines cover """
+        ref = 'id=REF|' + CHROM
+        seq, lines = self.chrom.contig(ref, 'CCCTAA' * 400, 'CCCTAA' * 300)
+        contigs = self.plain_contigs()[:2] + [('REF', ref, seq, [t for t in lines if not t[5].endswith('|s1')])]
+        anchors = self.run_anchors(contigs, reference='REF', support_window=3000, support_bp=1000)[0]
+        self.assertEqual(sorted((a['event'], a['arm']) for a in anchors if a['event'] == 'REF'), [('REF', 'p'), ('REF', 'q')])
+        # as a haplotype its p end is not
+        anchors = self.run_anchors(contigs, tag='h', support_window=3000, support_bp=1000)[0]
+        self.assertEqual(sorted((a['event'], a['arm']) for a in anchors if a['event'] == 'REF'), [('REF', 'q')])
+
+    def test_log(self):
+        contigs = self.plain_contigs()
+        contigs[1] = contigs[1][:3] + ([t for t in contigs[1][3] if not t[5].endswith('|s1')],)
+        with self.assertLogs(telomere_anchors.logger, level='INFO') as cm:
+            self.run_anchors(contigs, support_window=3000, support_bp=1000)
+        text = '\n'.join(cm.output)
+        self.assertIn('1 telomere arrays are not anchored (1 p, 0 q)', text)
+        self.assertIn('unsupported_subtelomere 1', text)
 
 
 class TestReferenceContigs(AnchorTestCase):

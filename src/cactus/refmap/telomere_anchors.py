@@ -56,6 +56,18 @@ reference contigs), just before cactus_consolidated:
    targets of the chromosome that most of its contig lies on.  The contig's orientation is the PAF strand that holds
    most of the bases its lines on its key align (all its lines, if none is tagged with it), and puts each array on the
    p or q arm.  A contig without PAF lines can't be oriented, and is not anchored.
+   With a support window (telomereSupportWindow, telomereSupportMin), an end is anchored only if the contig's lines on
+   its key cover enough of the window inward of its array: the lines are the ones left after the PAF filters, so a
+   subtelomere pruned to another reference contig (cactus-graphmap-split), filtered (MAPQ, GAF block length,
+   identity) or never mapped doesn't count.  Its telomere would otherwise be all of its end that is aligned to the
+   arm's end.  In the v4.0.0 HPRC graph (462 haplotypes and GRCh38), a 50kb window with 1kb of support would have left
+   out 717 of its 18,910 haplotype anchors: 469 of the 797 at acrocentric p arms (subtelomeres pruned to another
+   acrocentric, or filtered), 83 of 85 at chrYp (CHM13's PAR is masked, so they map to chrX), 113 at 4q and 10q (D4Z4
+   arrays with no alignment, or sent to the other arm), 23 at 17p and Xp and 5 of 49 at chrYq, but 5 of the 1,795 at
+   6p/8p/9q/16p (1 of the 791 that carry a swapped subtelomere block, aligned to their own chromosome's minigraph end
+   tips) and 19 of the 14,663 at other arms.  The clip graph kept those telomeres as path fragments cut off from the
+   rest of their contigs, and the full graph made a bubble of each, from the telomere to wherever its contig aligns
+   again, megabases in at the acrocentric p arms.  A reference contig is anchored regardless.
 3. Target id=<minigraph event>|tel_<key>p is the unit's repeat, (CCCTAA)n, with the chromosome end at position 0, and
    tel_<key>q is its reverse complement, (TTAGGG)n with the end at its last base; a _sub_ in tel_<key> is written
    _sub-, as hal2vg would read tel_X_sub_0_100p and tel_X_sub_0_100q as the same subpath of X.  Each is the longest
@@ -139,7 +151,7 @@ WHITESPACE = b'\r\n\t '
 # why a contig end was not anchored, in the order the log lists them
 REASONS = ['no_motif', 'no_array', 'short_array', 'array_beyond_max_outer', 'degenerate_array', 'duplicate_name',
            'no_paf_lines', 'bad_paf_line', 'no_reference_contig', 'ambiguous_reference_contig', 'length_mismatch',
-           'arrays_overlap', 'already_anchored']
+           'arrays_overlap', 'unsupported_subtelomere', 'already_anchored']
 
 
 def reverse_complement(s):
@@ -639,12 +651,12 @@ def target_name(minigraph_event, ref_contig, arm):
     return 'id={}|{}{}'.format(minigraph_event, ('tel_' + ref_contig).replace('_sub_', '_sub-'), arm)
 
 
-def read_paf_strands(paf_path, target_prefix):
+def read_paf_strands(paf_path, target_prefix, near_end=0):
     """ one pass over the PAF.  Returns (queries, n_lines, n_bad, n_to_targets): queries maps each query to [bp
     aligned on +, bp aligned on -, its length, whether all its lines parse and agree on its length, {reference
-    contig: [bp aligned on +, bp aligned on -]}] (by the lines' rc:Z: tags, None for lines without one); n_bad counts
-    the lines that don't parse, n_to_targets those already aligned to a target (a name starting with target_prefix,
-    bytes) """
+    contig: [bp aligned on +, bp aligned on -]}, [(start, end, reference contig) of its lines that reach within
+    near_end bp of either end of it]] (by the lines' rc:Z: tags, None for lines without one); n_bad counts the lines
+    that don't parse, n_to_targets those already aligned to a target (a name starting with target_prefix, bytes) """
     queries = {}
     n_lines = n_bad = n_to_targets = 0
     with open(paf_path, 'rb') as f:
@@ -656,7 +668,7 @@ def read_paf_strands(paf_path, target_prefix):
                 continue
             q = queries.get(t[0])
             if q is None:
-                q = queries[t[0]] = [0, 0, None, True, {}]
+                q = queries[t[0]] = [0, 0, None, True, {}, []]
             try:
                 ql, qs, qe = int(t[1]), int(t[2]), int(t[3])
                 good = len(t) == 7 and t[4] in (b'+', b'-') and 0 <= qs < qe <= ql
@@ -679,12 +691,15 @@ def read_paf_strands(paf_path, target_prefix):
             if by_ref is None:
                 by_ref = q[4][ref_contig] = [0, 0]
             by_ref[strand] += qe - qs
+            if qs < near_end or qe > ql - near_end:
+                q[5].append((qs, qe, ref_contig))
             if q[2] is None:
                 q[2] = ql
             elif q[2] != ql:
                 q[3] = False
     for q in queries.values():
         q[4] = {r if r is None else r.decode('utf-8', 'surrogateescape'): bp for r, bp in q[4].items()}
+        q[5] = [(qs, qe, r if r is None else r.decode('utf-8', 'surrogateescape')) for qs, qe, r in q[5]]
     return ({name.decode('utf-8', 'surrogateescape'): q for name, q in queries.items()}, n_lines, n_bad,
             n_to_targets)
 
@@ -702,6 +717,23 @@ def contig_key(q, own_name=None):
     if 2 * tagged[key] <= sum(tagged.values()):
         return None, 'ambiguous_reference_contig'
     return key, None
+
+
+def subtelomere_support(lines, key, d, window):
+    """ bp of the window bp inward of contig end d's array (within its contig) that its lines (read_paf_strands()'s
+    (start, end, reference contig) near its ends) on reference contig key cover, and that window's length """
+    if d['end'] == '5p':
+        lo = d['outer_bp'] + d['array_bp']
+        hi = min(d['length'], lo + window)
+    else:
+        hi = d['length'] - d['outer_bp'] - d['array_bp']
+        lo = max(0, hi - window)
+    covered, last = 0, lo
+    for qs, qe in sorted((max(lo, qs), min(hi, qe)) for qs, qe, r in lines if r == key and qs < hi and lo < qe):
+        if qe > last:
+            covered += qe - max(qs, last)
+            last = qe
+    return covered, max(0, hi - lo)
 
 
 def write_trimmed_paf(paf_path, out, zones):
@@ -805,7 +837,7 @@ def anchor_line(d, alignment, target, target_length):
 
 def anchor_telomeres(label, fasta_paths, paf_path, out_paf_path, out_minigraph_path,
                      minigraph_event='_MINIGRAPH_', min_array=500, max_outer=3000, min_run=72, threads=1,
-                     reference=None, motifs=DEFAULT_MOTIFS, log_choice=None):
+                     reference=None, motifs=DEFAULT_MOTIFS, log_choice=None, support_window=0, support_bp=0):
     """ anchor the telomere arrays of the contigs to targets tel_<reference contig>p and tel_<reference contig>q of the
     minigraph genome, a pair for each reference contig with anchors (see the top of this file).  label names the job
     in the log, if not None.  fasta_paths maps each event, minigraph_event included, to its fasta, plain or gzipped,
@@ -820,8 +852,11 @@ def anchor_telomeres(label, fasta_paths, paf_path, out_paf_path, out_minigraph_p
     out_minigraph_path, the minigraph fasta (plain) with the targets of the arms that have anchors appended.  If nothing
     is anchored, the two are copies of the inputs.  A contig end that can't be anchored is skipped, and counted in the
     log.  The fastas are scanned, and the anchors aligned, by up to threads processes (fewer for small inputs; spawned,
-    so a script that calls this with threads > 1 needs the usual if __name__ == '__main__' guard).  Returns a dict per
-    anchored contig end, in the order of the anchor lines """
+    so a script that calls this with threads > 1 needs the usual if __name__ == '__main__' guard).  support_window and
+    support_bp, if not 0: a contig end is anchored only if its PAF lines on its reference contig cover at least
+    support_bp of the support_window bp inward of its array (or all of them, on a contig shorter than that), so that a
+    telomere is not aligned to its chromosome's end when the sequence behind it was not (see the top of this file).
+    Returns a dict per anchored contig end, in the order of the anchor lines """
     start_time = time.time()
     motifs = check_motifs(motifs)
     log_name = 'telomere anchors' if label is None else 'telomere anchors for {}'.format(label)
@@ -837,7 +872,8 @@ def anchor_telomeres(label, fasta_paths, paf_path, out_paf_path, out_minigraph_p
                  for event in genomes]
         mg_names = pool.submit(fasta_names, mg_path)
         queries, n_lines, n_bad, n_to_targets = read_paf_strands(paf_path,
-                                                                 target_prefix.encode('utf-8', 'surrogateescape'))
+                                                                 target_prefix.encode('utf-8', 'surrogateescape'),
+                                                                 max_outer + SCAN + support_window if support_bp else 0)
 
         # the job's motif: the only one, or the one its contig ends choose
         scanned = []
@@ -883,7 +919,11 @@ def anchor_telomeres(label, fasta_paths, paf_path, out_paf_path, out_minigraph_p
         # names', unless no PAF line has a rc:Z: tag (a PAF not made by cactus-graphmap, which anchors nothing)
         tagged = any(r is not None for q in queries.values() for r in q[4])
         reference_prefix = 'id={}|'.format(reference)
-        anchored, degenerate = [], []
+        anchored, degenerate, unsupported = [], [], []
+
+        def supported(q, key, d):
+            covered, window = subtelomere_support(q[5], key, d, support_window)
+            return covered >= min(support_bp, window)
         for name, ds in candidates.items():
             q = queries.get(name)
             own_name = None
@@ -916,6 +956,12 @@ def anchor_telomeres(label, fasta_paths, paf_path, out_paf_path, out_minigraph_p
                     d['reference_contig'] = key
                     d['orientation'] = '+' if plus >= minus else '-'
                     d['arm'] = ARM[(d['end'], d['orientation'])]
+                    if support_bp and own_name is None and not supported(q, key, d):
+                        # the sequence behind the telomere is not aligned to the reference contig (pruned to another
+                        # one, filtered or never mapped): its telomere would be all of it that is, at the arm's end
+                        unsupported.append(d)
+                        reasons['unsupported_subtelomere'] += 1
+                        continue
                     anchored.append(d)
                     continue
                 reasons[reason] += 1
@@ -981,6 +1027,11 @@ def anchor_telomeres(label, fasta_paths, paf_path, out_paf_path, out_minigraph_p
                     'where a contig breaks, or not {} telomeres), the longest of them {}bp at {} {} (its longest '
                     'perfect run {}bp)'.format(log_name, len(degenerate), min_run, motif.g, d['array_bp'], d['contig'],
                                                d['end'], d['perfect_run']))
+    if unsupported:
+        n_arm = collections.Counter(d['arm'] for d in unsupported)
+        logger.info('{}: {} telomere arrays are not anchored ({} p, {} q), as their contigs\' lines on their reference '
+                    'contigs cover less than {}bp of the {}bp inward of them'.format(
+                        log_name, len(unsupported), n_arm['p'], n_arm['q'], support_bp, support_window))
     at_limit = [d for d in anchored if d['at_scan_limit']]
     if at_limit:
         logger.warning('{}: {} arrays reach the {}bp scan limit, such as {}'.format(
