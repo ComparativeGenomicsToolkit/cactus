@@ -82,6 +82,22 @@ static int (*const mallctl)(const char *, void *, size_t *, void *, size_t) = NU
 extern int mallctl(const char *, void *, size_t *, void *, size_t) __attribute__((weak));
 #endif
 
+bool cactus_strictOvercommit(void) {
+    static int mode = -2;   // -2 unread, -1 unreadable
+    if (mode == -2) {
+        int m = -1;
+        FILE *f = fopen("/proc/sys/vm/overcommit_memory", "r");
+        if (f != NULL) {
+            if (fscanf(f, "%d", &m) != 1) {
+                m = -1;
+            }
+            fclose(f);
+        }
+        mode = m;
+    }
+    return mode == 2;
+}
+
 static volatile int retentionGuardTripped = 0;
 static volatile time_t retentionGuardLastCheck = 0;
 static int64_t retentionGuardLimitMb = -1;   // -1 unread, 0 disabled
@@ -102,7 +118,10 @@ void cactus_retentionGuard(void) {
     if (retentionGuardLimitMb < 0) {
         const char *env = getenv("CACTUS_RETENTION_OFF_MB");
         retentionGuardLimitMb = env != NULL ? atoll(env) : 0;
-        if (retentionGuardLimitMb <= 0) {
+        // Under strict overcommit the purge below, and the stock decay after it, are what split
+        // jemalloc's mappings until allocations fail (cactus_strictOvercommit), so never fire there:
+        // past the limit is a job that may be killed, short of it one that is sure to fail.
+        if (retentionGuardLimitMb <= 0 || cactus_strictOvercommit()) {
             retentionGuardLimitMb = 0;
             return;
         }
