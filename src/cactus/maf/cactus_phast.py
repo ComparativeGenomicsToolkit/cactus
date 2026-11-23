@@ -159,6 +159,11 @@ def main():
                              "iterations. [default=HIGH]")
     parser.add_argument("--modFreqs", action="store_true",
                         help="After phyloFit, run modFreqs to symmetrize background base frequencies.")
+    parser.add_argument("--keepUnderflowColumns", action="store_true",
+                        help="Train phyloFit on every 4d column. By default the few columns whose "
+                             "likelihood comes near the double-precision limit (which on big trees "
+                             "makes phyloFit's EM stop early with absurd branch lengths) are found "
+                             "with a pilot model and left out, and each fit is checked for them.")
 
     # phyloP-related options
     parser.add_argument("--method", default="LRT", choices=["SPH", "LRT", "SCORE", "GERP"],
@@ -1344,10 +1349,13 @@ def train_workflow(job, options, chunks, species_list, tree_str, ann_id):
     # fine unless the user overrides via --phyloFitMemory.
     #
     # The thread divisor is capped at 64 because that is the only setting the 18 runs used, and
-    # phast's scaling above it is unmeasured.
+    # phast's scaling above it is unmeasured.  The underflow screen (fit_neutral_model) adds a
+    # pilot fit on PILOT_COLUMNS columns and a few --lnl passes, all small next to the real fit,
+    # and its disk: the SS is written out again without the screened columns, so the 4 GiB
+    # that covered one 1.4 GB SS is doubled.
     fit_secs = (PHYLOFIT_CORE_SECS_PER_SPECIES * max(1, len(species_list))
                 / max(1, min(options.phyloFitCores or 1, 64)))
-    fit_kwargs = dict(disk=4 * 1024**3, cores=options.phyloFitCores,
+    fit_kwargs = dict(disk=8 * 1024**3, cores=options.phyloFitCores,
                       walltime=cactus_walltime(fit_secs))
     if options.phyloFitMemory:
         fit_kwargs['memory'] = cactus_clamp_memory(options.phyloFitMemory)
@@ -1538,7 +1546,7 @@ def aggregate_4d(job, options, ss_results, species_list, tree_str):
 
 
 def phyloFit_job(job, options, ss_id, tree_str, species_list):
-    """ Single big serial job: run phyloFit. """
+    """ Single big serial job: train the neutral model with phyloFit. """
     work_dir = job.fileStore.getLocalTempDir()
     ss_path = os.path.join(work_dir, 'all.4d.ss')
     job.fileStore.readGlobalFile(ss_id, ss_path)
@@ -1546,12 +1554,177 @@ def phyloFit_job(job, options, ss_id, tree_str, species_list):
     rewritten = rewrite_tree_to_phast_names(tree_str, species_list)
     with open(tree_path, 'w') as tf:
         tf.write(rewritten + '\n')
+    mod_path = fit_neutral_model(work_dir, options, ss_path, tree_path)
+    return job.fileStore.writeGlobalFile(mod_path)
 
-    out_root = os.path.join(work_dir, 'phyloFit')
+
+# -----------------------------------------------------------------------------
+# Keeping phyloFit's likelihood from underflowing
+# -----------------------------------------------------------------------------
+#
+# phyloFit (phast v1.9.7) computes each column's likelihood during EM by pruning without
+# rescaling (tl_compute_log_likelihood), so on a big tree a column with enough substitutions
+# comes out as exactly 0 and phast records log2(0) as -999999999.  A handful of those swamp the
+# real likelihood: the 447-way's 4d sites summed to -7.0e9 nats instead of -5.2e7, because 10 of
+# their 724k columns underflowed.  EM stops when the *relative* change in likelihood is small,
+# and against -7e9 every real improvement looks small, so it quit early and returned absurd
+# branches: the human-chimp stem came out at 4.8 substitutions/site instead of ~0.002.  Nothing
+# fails or warns.  (phyloP is not affected: the likelihoods it scores with are rescaled at every
+# node.)
+#
+# So training leaves out the columns whose likelihood is anywhere near underflowing.  To find
+# them it needs a model, so it first fits a pilot model on a random sample of the columns, scores
+# every column under it with `phyloFit --lnl --column-probs`, and drops those below
+# UNDERFLOW_SCREEN_LOG2 -- 43 of the 447-way's 724k (all nearly complete columns of mostly
+# mismatched bases).  Every fit is then checked by scoring its own training columns under the
+# model it returned: if any is still near underflow, those columns are dropped and the fit is
+# redone, so the model returned never comes from an EM run the underflow could have stopped
+# early.  When nothing underflows -- any tree small enough that it can't -- the model is exactly
+# what a plain phyloFit run on all the columns gives.
+
+# Columns are screened out when their log2 likelihood under the pilot model is below this.  Doubles
+# reach 0 below about 2^-1074; the margin is for the difference between the pilot's parameters and
+# the ones EM moves through.
+UNDERFLOW_SCREEN_LOG2 = -700
+# A fitted model is rejected (and the columns refit without) if any of its training columns has a
+# log2 likelihood below this under it, which includes phast's -999999999 for an exact 0.
+UNDERFLOW_CHECK_LOG2 = -1000
+# Columns sampled for the pilot model, and the seed that samples them.  The pilot is only used to
+# find columns to leave out, so it can be rough; a sample this size fits in minutes on a
+# 447-species tree.  Smaller SS files are fit whole without a pilot.
+PILOT_COLUMNS = 10000
+PILOT_SEED = 1
+# How many times one fit may be redone after its check finds underflowing columns.
+MAX_UNDERFLOW_REFITS = 3
+
+
+def read_ss_header(ss_path):
+    """ Read the header of a phast SS file: return (lines, fields), where lines are all the lines
+    before the first tuple (the blank separator included, without newlines) and fields are
+    their KEY = VALUE pairs. """
+    lines = []
+    with open(ss_path) as f:
+        for line in f:
+            if _ss_tuple_fields(line):
+                break
+            lines.append(line.rstrip('\n'))
+    fields = dict(l.split(' = ', 1) for l in lines if ' = ' in l)
+    for key in ('LENGTH', 'NTUPLES', 'TUPLE_SIZE'):
+        if key not in fields:
+            raise RuntimeError('No {} in the header of SS file {}'.format(key, ss_path))
+    return lines, fields
+
+
+def _ss_tuple_fields(line):
+    """ The (index, column, count) of an SS tuple line (`index<TAB>column<TAB>count`), or None if
+    the line is not one. """
+    p = line.rstrip('\n').split('\t')
+    if len(p) == 3 and p[0].isdigit() and p[2].isdigit():
+        return int(p[0]), p[1], int(p[2])
+    return None
+
+
+def iter_ss_tuples(ss_path):
+    """ Yield (index, column, count) for each tuple of an SS file. """
+    in_tuples = False
+    with open(ss_path) as f:
+        for line in f:
+            t = _ss_tuple_fields(line)
+            if t:
+                in_tuples = True
+                yield t
+            elif in_tuples and line.strip():
+                raise RuntimeError('Unexpected line after the tuples of SS file {}: {}'.format(
+                    ss_path, line[:80]))
+
+
+def read_ss_counts(ss_path):
+    """ The count of each tuple of an unordered, single-column SS file, by tuple index, checked
+    against the header (TUPLE_SIZE 1, tuples numbered 0..NTUPLES-1 in order, counts summing to
+    LENGTH) -- which is what lets phyloFit's column probabilities be matched up with tuples. """
+    _, fields = read_ss_header(ss_path)
+    if int(fields['TUPLE_SIZE']) != 1:
+        raise RuntimeError('SS file {} has TUPLE_SIZE {}, expected 1'.format(
+            ss_path, fields['TUPLE_SIZE']))
+    counts = []
+    for idx, _, count in iter_ss_tuples(ss_path):
+        if idx != len(counts):
+            raise RuntimeError('SS file {}: tuple {} found where tuple {} was expected'.format(
+                ss_path, idx, len(counts)))
+        counts.append(count)
+    if len(counts) != int(fields['NTUPLES']):
+        raise RuntimeError('SS file {} has {} tuples, its header says {}'.format(
+            ss_path, len(counts), fields['NTUPLES']))
+    if sum(counts) != int(fields['LENGTH']):
+        raise RuntimeError('SS file {}: tuple counts sum to {}, its header says LENGTH {}'.format(
+            ss_path, sum(counts), fields['LENGTH']))
+    return counts
+
+
+def write_ss_subset(in_path, out_path, new_counts):
+    """ Copy an SS file giving tuple i the count new_counts[i]: tuples with count 0 are left out
+    and the rest renumbered, and LENGTH and NTUPLES are updated.  Returns (LENGTH, NTUPLES). """
+    header, _ = read_ss_header(in_path)
+    length = sum(new_counts)
+    ntuples = sum(1 for c in new_counts if c > 0)
+    with open(out_path, 'w') as out:
+        for line in header:
+            if line.startswith('LENGTH = '):
+                line = 'LENGTH = {}'.format(length)
+            elif line.startswith('NTUPLES = '):
+                line = 'NTUPLES = {}'.format(ntuples)
+            out.write(line + '\n')
+        j = 0
+        for idx, col, _ in iter_ss_tuples(in_path):
+            if new_counts[idx] > 0:
+                out.write('{}\t{}\t{}\n'.format(j, col, new_counts[idx]))
+                j += 1
+    return length, ntuples
+
+
+def sample_ss_counts(counts, n_columns, seed):
+    """ Tuple counts for a uniform random sample (without replacement) of n_columns of the
+    columns the counts describe. """
+    import bisect
+    import itertools
+    import random
+    cum = list(itertools.accumulate(counts))
+    sampled = [0] * len(counts)
+    for col in random.Random(seed).sample(range(cum[-1]), n_columns):
+        sampled[bisect.bisect_right(cum, col)] += 1
+    return sampled
+
+
+def column_log2_probs(options, ss_path, mod_path, out_root, ntuples):
+    """ log2 likelihood of each tuple of an unordered SS file under a model, from
+    `phyloFit --lnl --column-probs`.  For an unordered SS, phyloFit writes tuple j's on line j
+    (lines past NTUPLES are padding). """
+    cactus_call(parameters=['phyloFit', '--init-model', mod_path, '--lnl', '--column-probs',
+                            '--msa-format', 'SS',
+                            '--threads', str(max(1, int(options.phyloFitCores or 1))),
+                            '--out-root', out_root, ss_path])
+    probs = []
+    with open(out_root + '.colprobs') as f:
+        for line in f:
+            if len(probs) == ntuples:
+                break
+            idx, log2p = line.split()
+            if int(idx) != len(probs):
+                raise RuntimeError('{}.colprobs: line {} is for column {}'.format(
+                    out_root, len(probs), idx))
+            probs.append(float(log2p))
+    if len(probs) != ntuples:
+        raise RuntimeError('{}.colprobs has {} lines for {} tuples'.format(
+            out_root, len(probs), ntuples))
+    return probs
+
+
+def run_phyloFit(options, ss_path, tree_path, out_root, label='phyloFit'):
+    """ phyloFit --EM from the starting tree; returns the .mod path. """
     threads = max(1, int(options.phyloFitCores or 1))
-    RealtimeLogger.info('Running phyloFit (subst-mod={}, precision={}, threads={}); '
-                        'this may take many hours.'.format(
-                            options.substMod, options.precision, threads))
+    RealtimeLogger.info('Running {} on {} (subst-mod={}, precision={}, threads={}); this may take '
+                        'many hours.'.format(label, os.path.basename(ss_path), options.substMod,
+                                             options.precision, threads))
     # Stream phyloFit's per-iteration EM progress to the leader log so a
     # multi-hour fit shows up live (otherwise nothing prints until the
     # process finishes).
@@ -1563,11 +1736,78 @@ def phyloFit_job(job, options, ss_id, tree_str, species_list):
                             '--tree', tree_path,
                             '--out-root', out_root,
                             ss_path],
-                realtimeStderrPrefix='phyloFit')
+                realtimeStderrPrefix=label)
     mod_path = out_root + '.mod'
     if not os.path.isfile(mod_path):
         raise RuntimeError('phyloFit did not produce expected output {}'.format(mod_path))
-    return job.fileStore.writeGlobalFile(mod_path)
+    return mod_path
+
+
+def fit_checked(options, work_dir, ss_path, tree_path, label):
+    """ Fit a model to an SS file, then check that none of its columns is near underflow under
+    that model; if some are, refit without them (up to MAX_UNDERFLOW_REFITS times).  Returns
+    (model path, path of the SS file the model was fit to). """
+    for attempt in range(MAX_UNDERFLOW_REFITS + 1):
+        root = os.path.join(work_dir, '{}.{}'.format(label, attempt))
+        mod_path = run_phyloFit(options, ss_path, tree_path, root, label)
+        counts = read_ss_counts(ss_path)
+        probs = column_log2_probs(options, ss_path, mod_path, root + '.check', len(counts))
+        bad = [i for i, p in enumerate(probs) if p < UNDERFLOW_CHECK_LOG2]
+        if not bad:
+            return mod_path, ss_path
+        RealtimeLogger.warning(
+            '{}: {} of {} columns ({} tuples) have a log2 likelihood below {} under the fitted '
+            'model, so its EM may have stopped early on an underflowed likelihood; refitting '
+            'without them.'.format(label, sum(counts[i] for i in bad), sum(counts), len(bad),
+                                   UNDERFLOW_CHECK_LOG2))
+        for i in bad:
+            counts[i] = 0
+        if not any(counts):
+            break
+        ss_path_next = os.path.join(work_dir, '{}.{}.ss'.format(label, attempt + 1))
+        write_ss_subset(ss_path, ss_path_next, counts)
+        ss_path = ss_path_next
+    raise RuntimeError('{}: the fitted model still underflows on some 4d columns after {} refits. '
+                       'Rerun with --keepUnderflowColumns to train on all the columns anyway '
+                       '(the model may be wrong).'.format(label, MAX_UNDERFLOW_REFITS))
+
+
+def fit_neutral_model(work_dir, options, ss_path, tree_path):
+    """ Train the neutral model on an aggregated 4d-site SS file, leaving out the columns whose
+    likelihood would underflow phyloFit's EM (see the comment above UNDERFLOW_SCREEN_LOG2).
+    Returns the .mod path. """
+    if options.keepUnderflowColumns:
+        return run_phyloFit(options, ss_path, tree_path, os.path.join(work_dir, 'phyloFit'))
+
+    counts = read_ss_counts(ss_path)
+    total = sum(counts)
+    train_ss = ss_path
+    if total > PILOT_COLUMNS:
+        # pilot model on a sample of the columns, only to find the columns to leave out
+        pilot_ss = os.path.join(work_dir, 'pilot.ss')
+        write_ss_subset(ss_path, pilot_ss, sample_ss_counts(counts, PILOT_COLUMNS, PILOT_SEED))
+        pilot_mod, _ = fit_checked(options, work_dir, pilot_ss, tree_path, 'phyloFit-pilot')
+        probs = column_log2_probs(options, ss_path, pilot_mod,
+                                  os.path.join(work_dir, 'screen'), len(counts))
+        drop = [i for i, p in enumerate(probs) if p < UNDERFLOW_SCREEN_LOG2]
+        if drop:
+            dropped = sum(counts[i] for i in drop)
+            RealtimeLogger.info(
+                'Leaving {} of {} 4d columns ({} tuples) out of training: their log2 likelihood '
+                'under a pilot model fit to {} sampled columns is below {} (lowest {}), near enough '
+                'the double-precision limit to underflow phyloFit\'s EM.'.format(
+                    dropped, total, len(drop), PILOT_COLUMNS, UNDERFLOW_SCREEN_LOG2,
+                    min(probs[i] for i in drop)))
+            train_ss = os.path.join(work_dir, 'train.ss')
+            write_ss_subset(ss_path, train_ss,
+                            [0 if p < UNDERFLOW_SCREEN_LOG2 else c for c, p in zip(counts, probs)])
+        else:
+            RealtimeLogger.info('No 4d column is near underflow under the pilot model; training on '
+                                'all {} columns.'.format(total))
+    mod_path, fit_ss = fit_checked(options, work_dir, train_ss, tree_path, 'phyloFit')
+    used = int(read_ss_header(fit_ss)[1]['LENGTH'])
+    RealtimeLogger.info('Neutral model trained on {} of {} 4d columns.'.format(used, total))
+    return mod_path
 
 
 def mod_freqs_job(job, options, model_id):
