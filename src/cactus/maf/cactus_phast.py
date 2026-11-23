@@ -1351,12 +1351,14 @@ def train_workflow(job, options, chunks, species_list, tree_str, ann_id):
     # The thread divisor is capped at 64 because that is the only setting the 18 runs used, and
     # phast's scaling above it is unmeasured.  The underflow screen (fit_neutral_model) adds a
     # pilot fit on PILOT_COLUMNS columns and a few --lnl passes, all small next to the real fit,
-    # and its disk: the SS is written out again without the screened columns, so the 4 GiB
-    # that covered one 1.4 GB SS is doubled.
+    # but if the screen misses an underflowing column the check refits, so the walltime allows
+    # for two full fits.  On disk it keeps up to four copies of the SS at once (the input, the
+    # screened train.ss, a refit's subset and the unit-count copy scored by --lnl), 5.6 GB for
+    # the 577-way's 1.4 GB SS.
     fit_secs = (PHYLOFIT_CORE_SECS_PER_SPECIES * max(1, len(species_list))
                 / max(1, min(options.phyloFitCores or 1, 64)))
     fit_kwargs = dict(disk=8 * 1024**3, cores=options.phyloFitCores,
-                      walltime=cactus_walltime(fit_secs))
+                      walltime=cactus_walltime(2 * fit_secs))
     if options.phyloFitMemory:
         fit_kwargs['memory'] = cactus_clamp_memory(options.phyloFitMemory)
     fit_job = aggregate_job.addFollowOnJobFn(phyloFit_job, options, aggregate_id,
@@ -1579,8 +1581,9 @@ def phyloFit_job(job, options, ss_id, tree_str, species_list):
 # mismatched bases).  Every fit is then checked by scoring its own training columns under the
 # model it returned: if any is still near underflow, those columns are dropped and the fit is
 # redone, so the model returned never comes from an EM run the underflow could have stopped
-# early.  When nothing underflows -- any tree small enough that it can't -- the model is exactly
-# what a plain phyloFit run on all the columns gives.
+# early.  When nothing underflows -- any tree small enough that it can't -- the model comes from
+# the same phyloFit call on the same columns as without any of this (phyloFit's results vary a
+# little from run to run anyway, even single-threaded).
 
 # Columns are screened out when their log2 likelihood under the pilot model is below this.  Doubles
 # reach 0 below about 2^-1074; the margin is for the difference between the pilot's parameters and
@@ -1591,11 +1594,18 @@ UNDERFLOW_SCREEN_LOG2 = -700
 UNDERFLOW_CHECK_LOG2 = -1000
 # Columns sampled for the pilot model, and the seed that samples them.  The pilot is only used to
 # find columns to leave out, so it can be rough; a sample this size fits in minutes on a
-# 447-species tree.  Smaller SS files are fit whole without a pilot.
+# 447-species tree.  An SS file of no more than PILOT_MIN_FACTOR times that many columns is fit
+# whole without a pilot (the check still applies), since a pilot on most of its columns would
+# just be a second full fit.
 PILOT_COLUMNS = 10000
+PILOT_MIN_FACTOR = 5
 PILOT_SEED = 1
 # How many times one fit may be redone after its check finds underflowing columns.
 MAX_UNDERFLOW_REFITS = 3
+# Underflow comes from a few pathological columns.  If the screen or the checks would leave out more
+# than this fraction of them, something else is wrong (a model far off, or a broken input), and
+# training on what's left would quietly bias the model, so it is an error instead.
+MAX_LEFT_OUT_FRACTION = 0.01
 
 
 def read_ss_header(ss_path):
@@ -1695,28 +1705,53 @@ def sample_ss_counts(counts, n_columns, seed):
     return sampled
 
 
-def column_log2_probs(options, ss_path, mod_path, out_root, ntuples):
-    """ log2 likelihood of each tuple of an unordered SS file under a model, from
-    `phyloFit --lnl --column-probs`.  For an unordered SS, phyloFit writes tuple j's on line j
-    (lines past NTUPLES are padding). """
+def column_log2_probs(options, ss_path, mod_path, out_root):
+    """ log2 likelihood of each tuple of an unordered SS file under a model, by tuple index, from
+    `phyloFit --lnl --column-probs`.  phyloFit writes one score per column, LENGTH of them, but for
+    an unordered SS it has only NTUPLES: column j is tuple j, and the scores past NTUPLES are read
+    from past the end of its buffer, which segfaults once LENGTH is well beyond NTUPLES (a few
+    species with many 4d sites).  So it scores a copy of the SS with every count set to 1, where
+    LENGTH == NTUPLES. """
+    ntuples = int(read_ss_header(ss_path)[1]['NTUPLES'])
+    unit_ss = out_root + '.unit.ss'
+    write_ss_subset(ss_path, unit_ss, [1] * ntuples)
     cactus_call(parameters=['phyloFit', '--init-model', mod_path, '--lnl', '--column-probs',
                             '--msa-format', 'SS',
                             '--threads', str(max(1, int(options.phyloFitCores or 1))),
-                            '--out-root', out_root, ss_path])
+                            '--out-root', out_root, unit_ss])
+    os.remove(unit_ss)
+    return read_colprobs(out_root + '.colprobs', ntuples)
+
+
+def read_colprobs(path, ntuples):
+    """ The scores in a phyloFit .colprobs file (`index<TAB>log2 likelihood` per column), which
+    must be one per tuple, in order. """
     probs = []
-    with open(out_root + '.colprobs') as f:
+    with open(path) as f:
         for line in f:
-            if len(probs) == ntuples:
-                break
             idx, log2p = line.split()
             if int(idx) != len(probs):
-                raise RuntimeError('{}.colprobs: line {} is for column {}'.format(
-                    out_root, len(probs), idx))
+                raise RuntimeError('{}: line {} is for column {}'.format(path, len(probs) + 1, idx))
             probs.append(float(log2p))
     if len(probs) != ntuples:
-        raise RuntimeError('{}.colprobs has {} lines for {} tuples'.format(
-            out_root, len(probs), ntuples))
+        raise RuntimeError('{} has {} lines for {} tuples'.format(path, len(probs), ntuples))
     return probs
+
+
+def below(log2p, threshold):
+    """ Whether a column's log2 likelihood is below a threshold; a NaN (which phast can print)
+    counts as below. """
+    return not log2p >= threshold
+
+
+def check_left_out(what, left_out, total):
+    """ Refuse to leave more than MAX_LEFT_OUT_FRACTION of the 4d columns out of training. """
+    if left_out > MAX_LEFT_OUT_FRACTION * total:
+        raise RuntimeError(
+            '{}: {} of {} 4d columns would be left out of training as near underflow, more than {:.0%}. '
+            'Underflow comes from a few extreme columns, so this means something else is wrong, '
+            'e.g. a model far off or a broken input. --keepUnderflowColumns trains on every column, '
+            'but the model can then be wrong.'.format(what, left_out, total, MAX_LEFT_OUT_FRACTION))
 
 
 def run_phyloFit(options, ss_path, tree_path, out_root, label='phyloFit'):
@@ -1747,29 +1782,33 @@ def fit_checked(options, work_dir, ss_path, tree_path, label):
     """ Fit a model to an SS file, then check that none of its columns is near underflow under
     that model; if some are, refit without them (up to MAX_UNDERFLOW_REFITS times).  Returns
     (model path, path of the SS file the model was fit to). """
+    input_ss = ss_path
+    total = sum(read_ss_counts(ss_path))
     for attempt in range(MAX_UNDERFLOW_REFITS + 1):
         root = os.path.join(work_dir, '{}.{}'.format(label, attempt))
         mod_path = run_phyloFit(options, ss_path, tree_path, root, label)
         counts = read_ss_counts(ss_path)
-        probs = column_log2_probs(options, ss_path, mod_path, root + '.check', len(counts))
-        bad = [i for i, p in enumerate(probs) if p < UNDERFLOW_CHECK_LOG2]
+        probs = column_log2_probs(options, ss_path, mod_path, root + '.check')
+        bad = [i for i, p in enumerate(probs) if below(p, UNDERFLOW_CHECK_LOG2)]
         if not bad:
             return mod_path, ss_path
         RealtimeLogger.warning(
             '{}: {} of {} columns ({} tuples) have a log2 likelihood below {} under the fitted '
-            'model, so its EM may have stopped early on an underflowed likelihood; refitting '
-            'without them.'.format(label, sum(counts[i] for i in bad), sum(counts), len(bad),
-                                   UNDERFLOW_CHECK_LOG2))
+            'model, so its EM may have stopped early on an underflowed likelihood.'.format(
+                label, sum(counts[i] for i in bad), sum(counts), len(bad), UNDERFLOW_CHECK_LOG2))
         for i in bad:
             counts[i] = 0
-        if not any(counts):
+        check_left_out(label, total - sum(counts), total)
+        if attempt == MAX_UNDERFLOW_REFITS:
             break
-        ss_path_next = os.path.join(work_dir, '{}.{}.ss'.format(label, attempt + 1))
-        write_ss_subset(ss_path, ss_path_next, counts)
-        ss_path = ss_path_next
-    raise RuntimeError('{}: the fitted model still underflows on some 4d columns after {} refits. '
-                       'Rerun with --keepUnderflowColumns to train on all the columns anyway '
-                       '(the model may be wrong).'.format(label, MAX_UNDERFLOW_REFITS))
+        RealtimeLogger.warning('{}: refitting without them.'.format(label))
+        next_ss = os.path.join(work_dir, '{}.{}.ss'.format(label, attempt + 1))
+        write_ss_subset(ss_path, next_ss, counts)
+        if ss_path != input_ss:
+            os.remove(ss_path)
+        ss_path = next_ss
+    raise RuntimeError('{}: the fitted model still has 4d columns near underflow after {} refits, so '
+                       'it cannot be trusted.'.format(label, MAX_UNDERFLOW_REFITS))
 
 
 def fit_neutral_model(work_dir, options, ss_path, tree_path):
@@ -1782,28 +1821,29 @@ def fit_neutral_model(work_dir, options, ss_path, tree_path):
     counts = read_ss_counts(ss_path)
     total = sum(counts)
     train_ss = ss_path
-    if total > PILOT_COLUMNS:
+    if total > PILOT_MIN_FACTOR * PILOT_COLUMNS:
         # pilot model on a sample of the columns, only to find the columns to leave out
         pilot_ss = os.path.join(work_dir, 'pilot.ss')
         write_ss_subset(ss_path, pilot_ss, sample_ss_counts(counts, PILOT_COLUMNS, PILOT_SEED))
         pilot_mod, _ = fit_checked(options, work_dir, pilot_ss, tree_path, 'phyloFit-pilot')
-        probs = column_log2_probs(options, ss_path, pilot_mod,
-                                  os.path.join(work_dir, 'screen'), len(counts))
-        drop = [i for i, p in enumerate(probs) if p < UNDERFLOW_SCREEN_LOG2]
-        if drop:
-            dropped = sum(counts[i] for i in drop)
+        probs = column_log2_probs(options, ss_path, pilot_mod, os.path.join(work_dir, 'screen'))
+        keep = [0 if below(p, UNDERFLOW_SCREEN_LOG2) else c for c, p in zip(counts, probs)]
+        left_out = total - sum(keep)
+        if left_out:
+            check_left_out('screen', left_out, total)
+            low = [p for c, p in zip(keep, probs) if c == 0]
             RealtimeLogger.info(
                 'Leaving {} of {} 4d columns ({} tuples) out of training: their log2 likelihood '
                 'under a pilot model fit to {} sampled columns is below {} (lowest {}), near enough '
                 'the double-precision limit to underflow phyloFit\'s EM.'.format(
-                    dropped, total, len(drop), PILOT_COLUMNS, UNDERFLOW_SCREEN_LOG2,
-                    min(probs[i] for i in drop)))
+                    left_out, total, len(low), PILOT_COLUMNS, UNDERFLOW_SCREEN_LOG2, min(low)))
             train_ss = os.path.join(work_dir, 'train.ss')
-            write_ss_subset(ss_path, train_ss,
-                            [0 if p < UNDERFLOW_SCREEN_LOG2 else c for c, p in zip(counts, probs)])
+            write_ss_subset(ss_path, train_ss, keep)
         else:
             RealtimeLogger.info('No 4d column is near underflow under the pilot model; training on '
                                 'all {} columns.'.format(total))
+    # per-tuple lists, tens of bytes a tuple, needn't sit in memory through the main fit
+    counts = probs = keep = None
     mod_path, fit_ss = fit_checked(options, work_dir, train_ss, tree_path, 'phyloFit')
     used = int(read_ss_header(fit_ss)[1]['LENGTH'])
     RealtimeLogger.info('Neutral model trained on {} of {} 4d columns.'.format(used, total))
