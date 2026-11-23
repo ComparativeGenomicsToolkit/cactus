@@ -20,8 +20,10 @@ import os, sys
 import re
 import shlex
 import shutil
+import socket
 import timeit
 import xml.etree.ElementTree as ET
+from urllib.parse import urlparse, unquote
 
 from cactus.shared.common import setupBinaries, importSingularityImage, cactus_walltime
 from cactus.shared.common import cactusRootPath
@@ -48,6 +50,7 @@ from toil.statsAndLogging import logger
 from toil.statsAndLogging import set_logging_from_options
 from toil.realtimeLogger import RealtimeLogger
 from toil.lib.humanize import bytes2human
+from toil.lib.url import URLAccess
 
 
 # Core-seconds of chunker_job per GB of source MAF.  The chunker runs one `taffy view` per
@@ -85,8 +88,12 @@ def main():
                                       "Accepts .maf, .maf.gz, .taf, or .taf.gz (auto-detected "
                                       "by taffy). The chunker job materializes per-chunk "
                                       "files as bgzipped MAF regardless of source format.")
-    parser.add_argument("halFile", help="HAL file matching inMaf (used for tree, species list, chrom sizes).")
-    parser.add_argument("refGenome", help="Reference genome name (matches cactus-hal2maf --refGenome).")
+    parser.add_argument("halFile", help="HAL file matching inMaf (used for tree, species list, chrom "
+                                        "sizes): a path, read in place (on a cluster it must be on "
+                                        "a filesystem the workers share), or an http(s):// or "
+                                        "s3:// URL, downloaded by the one job that reads it.")
+    parser.add_argument("refGenome", help="Reference genome name (matches cactus-hal2maf --refGenome). "
+                                          "With --renameGenomes, its name in the MAF.")
     parser.add_argument("output",
                         help="Primary output. For --mode phyloFit a .mod file. For --mode phyloP "
                              "a .wig.gz file. Other intermediates are written next to it using the "
@@ -139,20 +146,26 @@ def main():
                              "--geneAnnotation), without the genome prefix. "
                              "[default: the whole reference]")
 
+    parser.add_argument("--renameGenomes",
+                        help="File of `HAL-name MAF-name` lines (the halRenameGenomes format) for "
+                             "genomes whose names in the MAF differ from those in the HAL, e.g. a "
+                             "reference renamed from Homo_sapiens to hg38 after cactus-hal2maf. "
+                             "The HAL's tree and genome list are renamed to match the MAF, so "
+                             "refGenome, --root and --subtree take the MAF names, as do the "
+                             "outputs.")
+
     parser.add_argument("--keepUnalignedContigs", action="store_true",
                         help="Process every reference contig. By default, when the reference is a "
                              "leaf genome, reference contigs that have no alignment to anything "
                              "(which phyloP cannot score) are left out.")
 
     # phyloFit-related options
-    parser.add_argument("--substMod", default="REV",
-                        help="Substitution model passed to phyloFit --subst-mod. REV is the "
-                             "model used by every published UCSC phyloP track (100-way, 470-way, "
-                             "447-way Zoonomia, 200-mammals, etc.). SSREV is REV with a strand-"
-                             "symmetric constraint and is the better choice for splice-site / "
-                             "intronic-conservation analyses (it makes scores independent of "
-                             "transcription strand) but produces a wider score distribution "
-                             "and isn't comparable to the published tracks. [default=REV]")
+    parser.add_argument("--substMod", default="SSREV",
+                        help="Substitution model passed to phyloFit --subst-mod. SSREV is the general "
+                             "reversible model (REV) constrained to be strand-symmetric, so scores "
+                             "don't depend on which strand a feature is on; it is what UCSC's "
+                             "447-way (Zoonomia) phyloP track used. REV drops the constraint. "
+                             "[default=SSREV]")
     parser.add_argument("--precision", default="HIGH",
                         help="phyloFit --precision (HIGH|MED|LOW). Tighter EM convergence "
                              "yields more accurate parameter estimates at the cost of more "
@@ -229,6 +242,10 @@ def main():
     enableDumpStack()
 
     # validate inputs
+    options.genome_renames = read_genome_renames(options.renameGenomes) if options.renameGenomes else {}
+    if options.genome_renames:
+        logger.info('Renaming HAL genomes to their MAF names: {}'.format(
+            ', '.join('{}->{}'.format(a, b) for a, b in sorted(options.genome_renames.items()))))
     if not any(options.inMaf.endswith(s) for s in ('.maf', '.maf.gz', '.taf', '.taf.gz')):
         raise RuntimeError('inMaf must end with .maf, .maf.gz, .taf, or .taf.gz')
 
@@ -303,7 +320,7 @@ def main():
     # again as defense-in-depth).
     cli_mc_tree = None
     if (options.root or options.subtree) and os.path.isfile(options.halFile):
-        cli_mc_tree, _ = _parse_hal_tree(options.halFile)
+        cli_mc_tree, _ = _parse_hal_tree(options.halFile, options.genome_renames)
     if options.root and cli_mc_tree is not None:
         _validate_root_in_hal(options.halFile, options.refGenome, options.root,
                               mc_tree=cli_mc_tree)
@@ -388,7 +405,15 @@ def main():
             config.substituteAllPredefinedConstantsWithLiterals(options)
 
             maf_id = toil.importFile(makeURL(options.inMaf))
-            hal_id = toil.importFile(makeURL(options.halFile))
+            # The HAL is not imported.  Only phast_setup reads it, for the tree, the genome list
+            # and the reference's sequence sizes, and copying a HAL that can be over a terabyte
+            # into the job store and back out for a few halStats calls costs hours (and fails
+            # outright on a filesystem with a per-file size limit).  phast_setup reads it in place
+            # or downloads it straight to its own scratch space instead.
+            hal_url = makeURL(options.halFile)
+            if not URLAccess.url_exists(hal_url):
+                raise RuntimeError('HAL file not found: {}'.format(options.halFile))
+            hal_size = URLAccess.get_size(hal_url)
 
             # Try to import a .tai. --mafIndex overrides the default sibling path.
             # If the import fails and the user didn't ask for a specific one, the
@@ -421,8 +446,8 @@ def main():
                 bed_id = toil.importFile(makeURL(options.bedRanges))
 
             toil.start(Job.wrapJobFn(phast_workflow, config, options,
-                                     maf_id, tai_id, tai_built, hal_id, ann_id, model_id,
-                                     bed_id, walltime=cactus_walltime()))
+                                     maf_id, tai_id, tai_built, hal_url, hal_size, ann_id,
+                                     model_id, bed_id, walltime=cactus_walltime()))
 
     end_time = timeit.default_timer()
     logger.info("cactus-phast finished in {} seconds".format(end_time - start_time))
@@ -621,13 +646,46 @@ def rewrite_tree_to_phast_names(tree_str, species_list):
     return out
 
 
-def _parse_hal_tree(hal_path):
-    """ Parse the HAL tree into a MultiCactusTree. Returns the parsed tree. """
+def _parse_hal_tree(hal_path, renames=None):
+    """ Parse the HAL tree into a MultiCactusTree, with node names changed by the `renames` dict
+    (--renameGenomes) if given.  Returns the parsed tree and its Newick string. """
     from sonLib.nxnewick import NXNewick
     from cactus.progressive.multiCactusTree import MultiCactusTree
     tree_str = cactus_call(parameters=['halStats', hal_path, '--tree'],
                            check_output=True).strip()
+    if renames:
+        tree_str = rename_newick(tree_str, renames)
     return MultiCactusTree(NXNewick().parseString(tree_str, addImpliedRoots=False)), tree_str
+
+
+def rename_newick(tree_str, renames):
+    """ Change the node names of a Newick string (leaves and labeled internal nodes) that are keys
+    of `renames` to their values.  A name follows '(', ',' or ')' and runs up to ':', ',', ')',
+    '(' or ';', so branch lengths are never touched. """
+    return re.sub(r'(?<=[(),])([^:,();\s]+)', lambda m: renames.get(m.group(1), m.group(1)),
+                  tree_str)
+
+
+def read_genome_renames(path):
+    """ Read a --renameGenomes file: one `HAL-name MAF-name` pair per line (whitespace-separated,
+    the format of halRenameGenomes), blank lines and #-comments allowed.  Returns {HAL: MAF}. """
+    renames = {}
+    with open(path) as f:
+        for n, line in enumerate(f, 1):
+            toks = line.split('#', 1)[0].split()
+            if not toks:
+                continue
+            if len(toks) != 2:
+                raise RuntimeError('{} line {}: expected two names, got {!r}'.format(
+                    path, n, line.rstrip('\n')))
+            if toks[0] in renames:
+                raise RuntimeError('{} line {}: {} is renamed twice'.format(path, n, toks[0]))
+            renames[toks[0]] = toks[1]
+    targets = list(renames.values())
+    dups = sorted(set(t for t in targets if targets.count(t) > 1))
+    if dups:
+        raise RuntimeError('{}: several genomes renamed to {}'.format(path, ', '.join(dups)))
+    return renames
 
 
 def _hal_root_name(hal_path):
@@ -787,9 +845,12 @@ def localize_annotation(work_dir, ann_path, contig, ref_genome, idx):
 # Top-level workflow
 # -----------------------------------------------------------------------------
 
-def phast_workflow(job, config, options, maf_id, tai_id, tai_built, hal_id, ann_id, model_id,
-                   bed_id=None):
-    """ Orchestrate setup -> index -> plan -> shard -> (phyloFit?) -> (phyloP?) """
+def phast_workflow(job, config, options, maf_id, tai_id, tai_built, hal_url, hal_size, ann_id,
+                   model_id, bed_id=None):
+    """ Orchestrate setup -> index -> plan -> shard -> (phyloFit?) -> (phyloP?)
+
+    The HAL is passed as a URL (with its size in bytes, or None if unknown) rather than a file ID:
+    see phast_setup. """
 
     # fail fast if any required external binary is missing rather than crashing
     # mid-workflow on a remote worker after hours of localization
@@ -819,13 +880,18 @@ def phast_workflow(job, config, options, maf_id, tai_id, tai_built, hal_id, ann_
         setup_parent = check_job
 
     # halStats is seconds even on the 577-way (--genomes 5.6s, everything else under 0.1s), so
-    # what this job costs is the HAL copy plus halAlignedExtract, which scans the reference's
-    # top segments and streams a BED of them through awk.  That scan tracks the size of the
-    # REFERENCE, which the HAL's own size says nothing about (a two-genome HAL can have the same
-    # 3 Gb reference as the 577-way), so it goes in the constant rather than in io_bytes.
-    setup_job = setup_parent.addFollowOnJobFn(phast_setup, options, hal_id,
-                                              disk=int(hal_id.size * 1.1),
-                                              walltime=cactus_walltime(1800, io_bytes=hal_id.size))
+    # what this job costs is halAlignedExtract, which scans the reference's top segments and
+    # streams a BED of them through awk, plus the download when the HAL is given as a URL.  The
+    # scan tracks the size of the REFERENCE, which the HAL's own size says nothing about (a
+    # two-genome HAL can have the same 3 Gb reference as the 577-way), so it goes in the constant
+    # rather than in io_bytes.  A HAL at a path is read in place and needs no disk; one at a URL
+    # needs room for the download (left to Toil's default if the server wouldn't give a size).
+    setup_kwargs = dict(walltime=cactus_walltime(1800))
+    if hal_local_path(hal_url) is None:
+        setup_kwargs['walltime'] = cactus_walltime(1800, io_bytes=hal_size or 0)
+        if hal_size:
+            setup_kwargs['disk'] = int(hal_size * 1.1)
+    setup_job = setup_parent.addFollowOnJobFn(phast_setup, options, hal_url, **setup_kwargs)
     species_list = setup_job.rv(0)
     tree_str = setup_job.rv(1)
     ref_seq_lengths = setup_job.rv(2)
@@ -993,21 +1059,55 @@ def phast_check_tools(job, options):
         raise RuntimeError('\n'.join(lines))
 
 
-def phast_setup(job, options, hal_id):
-    """ Read tree + species list + ref chrom sizes from HAL. """
-    work_dir = job.fileStore.getLocalTempDir()
-    hal_path = os.path.join(work_dir, os.path.basename(options.halFile))
-    RealtimeLogger.info("Reading HAL file from job store to {}".format(hal_path))
-    job.fileStore.readGlobalFile(hal_id, hal_path)
+def hal_local_path(hal_url):
+    """ The path of a file:// URL (as made by makeURL, which quotes it), or None for any other
+    scheme. """
+    parsed = urlparse(hal_url)
+    return unquote(parsed.path) if parsed.scheme == 'file' else None
 
-    ref_seq_lengths = get_ref_sequence_lengths(hal_path, options.refGenome)
+
+def phast_setup(job, options, hal_url):
+    """ Read tree + species list + ref chrom sizes from HAL.
+
+    This is the only job that reads the HAL, which never goes through the job store: a path is
+    read in place (so on a cluster it must be somewhere the workers can see), and a URL is
+    downloaded straight to this job's scratch space. """
+    hal_path = hal_local_path(hal_url)
+    if hal_path is not None:
+        if not os.path.isfile(hal_path):
+            raise RuntimeError(
+                'HAL file {} is not visible on worker {}. cactus-phast reads a HAL given as a path '
+                'in place, so on a cluster it must be on a filesystem the workers share; otherwise '
+                'give its http(s):// or s3:// URL, and it will be downloaded.'.format(
+                    hal_path, socket.gethostname()))
+        RealtimeLogger.info("Reading HAL file in place: {}".format(hal_path))
+    else:
+        work_dir = job.fileStore.getLocalTempDir()
+        hal_path = os.path.join(work_dir, os.path.basename(urlparse(hal_url).path) or 'input.hal')
+        RealtimeLogger.info("Downloading HAL file {} to {}".format(hal_url, hal_path))
+        with open(hal_path, 'wb') as hal_file:
+            URLAccess.read_from_url(hal_url, hal_file)
+
+    # --renameGenomes: everything from here on uses the MAF's names, so only the two queries that
+    # name the reference to the HAL tools need its HAL name
+    renames = options.genome_renames
+    hal_genomes = cactus_call(parameters=['halStats', '--genomes', hal_path],
+                              check_output=True).strip().split()
+    missing = sorted(set(renames) - set(hal_genomes))
+    if missing:
+        raise RuntimeError('--renameGenomes names genome(s) not in the HAL: {}'.format(
+            ', '.join(missing)))
+    hal_ref = {new: old for old, new in renames.items()}.get(options.refGenome, options.refGenome)
+    ref_seq_lengths = get_ref_sequence_lengths(hal_path, hal_ref)
     if not ref_seq_lengths:
         raise RuntimeError('No sequences found for refGenome {} in {}'.format(
-            options.refGenome, options.halFile))
+            hal_ref, options.halFile))
 
-    species_list = cactus_call(parameters=['halStats', '--genomes', hal_path],
-                               check_output=True).strip().split()
-    mc_tree, tree_str = _parse_hal_tree(hal_path)
+    species_list = [renames.get(g, g) for g in hal_genomes]
+    if len(set(species_list)) != len(species_list):
+        raise RuntimeError('--renameGenomes gives a genome the name of another HAL genome: {}'.format(
+            ', '.join(sorted(set(g for g in species_list if species_list.count(g) > 1)))))
+    mc_tree, tree_str = _parse_hal_tree(hal_path, renames)
 
     # If the user picked a subtree, validate (again — main() does this too when
     # the HAL is local) and restrict species_list + tree_str to that subtree.
@@ -1117,7 +1217,7 @@ def phast_setup(job, options, hal_id):
                                 'needed.'.format(options.refGenome))
         else:
             try:
-                aligned = get_aligned_ref_contigs(hal_path, options.refGenome)
+                aligned = get_aligned_ref_contigs(hal_path, hal_ref)
             except RuntimeError as e:
                 # Don't let an auxiliary optimization break an otherwise-fine run:
                 # degrade to processing every contig (old behavior).

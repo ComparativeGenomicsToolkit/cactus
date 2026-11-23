@@ -19,7 +19,46 @@ from unittest import mock
 import cactus.maf.cactus_phast as cactus_phast
 from cactus.maf.cactus_phast import (
     read_ss_header, read_ss_counts, iter_ss_tuples, write_ss_subset, sample_ss_counts,
-    fit_neutral_model, column_log2_probs, read_colprobs, below)
+    fit_neutral_model, hal_local_path, rename_newick, read_genome_renames, column_log2_probs,
+    read_colprobs, below)
+from cactus.shared.common import makeURL
+
+
+class TestRenameGenomes(unittest.TestCase):
+
+    def test_rename_newick(self):
+        tree = '((Homo_sapiens:0.0067,Pan:0.0068)Anc1:0.01,(Homo_sapiens2:0.1,Mus:0.2)Anc2:0.3)Root;'
+        self.assertEqual(rename_newick(tree, {'Homo_sapiens': 'hg38', 'Anc2': 'Glires', 'Root': 'R'}),
+                         '((hg38:0.0067,Pan:0.0068)Anc1:0.01,(Homo_sapiens2:0.1,Mus:0.2)Glires:0.3)R;')
+        # names that look like branch lengths are only matched as names
+        self.assertEqual(rename_newick('(a:1,b:1)c;', {'1': 'x', 'a': 'A'}), '(A:1,b:1)c;')
+
+    def test_read(self):
+        d = tempfile.mkdtemp()
+        try:
+            p = os.path.join(d, 'r.txt')
+            with open(p, 'w') as f:
+                f.write('# HAL name, MAF name\nHomo_sapiens\thg38\n\nMus_musculus mm39  # mouse\n')
+            self.assertEqual(read_genome_renames(p), {'Homo_sapiens': 'hg38', 'Mus_musculus': 'mm39'})
+            for bad in ('a b c\n', 'a x\na y\n', 'a x\nb x\n'):
+                with open(p, 'w') as f:
+                    f.write(bad)
+                with self.assertRaises(RuntimeError):
+                    read_genome_renames(p)
+        finally:
+            shutil.rmtree(d)
+
+
+class TestHalLocalPath(unittest.TestCase):
+
+    def test_path_round_trips_through_makeURL(self):
+        # makeURL quotes the path ('#' would otherwise start a fragment)
+        self.assertEqual(hal_local_path(makeURL('/data/my#dir/x y.hal')), '/data/my#dir/x y.hal')
+        self.assertEqual(hal_local_path(makeURL('rel.hal')), os.path.abspath('rel.hal'))
+
+    def test_url_is_not_local(self):
+        self.assertIsNone(hal_local_path('https://example.org/data/a.hal'))
+        self.assertIsNone(hal_local_path('s3://bucket/a.hal'))
 
 
 def write_ss(path, names, columns):
