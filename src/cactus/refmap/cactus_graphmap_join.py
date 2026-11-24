@@ -139,12 +139,17 @@ CENTROLIGN_REPLACE_MAX_CORES = 8
 # bytes per bp (chr22's 440-590), and the earlier test at 550-610 up to 32 alleles but 780 at 64, so
 # the job also gets 800 + 6n bytes per bp, and at least 16 GB.  chr14's groups of 35-60 peaked at
 # 540-1020, but one of 61 at 1510; covering it would double every large group's request, so a group
-# like that is left to --doubleMem (on by default) to retry.  at 32 threads the jobs
+# like that is left to --doubleMem (on by default) to retry.  with the input trimmed to the array
+# (centrolignTrimMargin), the alleles are short and memory follows their number more than their bp: chr12-21's
+# groups of 20-62 alleles peaked at 1.0-1.4 GiB per allele whatever their length (chr21's 60 alleles of
+# 52 Mb at 1,710 bytes per bp, chr12's 62 of 209 Mb at 440), so the job also gets
+# CENTROLIGN_MEMORY_PER_ALLELE for each allele.  at 32 threads the jobs
 # kept only 2-5 cores busy on average (4-8 at 48-64 alleles), so they ask for at most
 # CENTROLIGN_MAX_CORES of --indexCores
 CENTROLIGN_BYTES_PER_BP = 800
 CENTROLIGN_BYTES_PER_BP_PER_ALLELE = 6
 CENTROLIGN_CALIBRATE_BYTES_PER_BP = 2500
+CENTROLIGN_MEMORY_PER_ALLELE = 3 * 2**29
 CENTROLIGN_MIN_MEMORY = 16 * 2**30
 CENTROLIGN_MAX_CORES = 16
 CENTROLIGN_BASE_SECS = 120
@@ -2266,7 +2271,9 @@ def centrolign_groups(alleles, min_similarity, max_group):
     the similarity of two alleles is the share of their rare k-mers (centrolign_rare_kmers) that they
     have in common, of the smaller set, and groups are the clusters of an average-linkage tree on it,
     cut where a cluster's two halves have a mean similarity below min_similarity, or where it has more
-    than max_group alleles.  returns [(ids, guide tree)], largest first: the tree is neighbor-joining on
+    than max_group alleles.  an allele the cut leaves alone joins the group of two or more it has the
+    highest mean similarity to, if that is above 0 and the group has room, as alone it would go in
+    unaligned.  returns [(ids, guide tree)], largest first: the tree is neighbor-joining on
     1 - similarity, and None for a group of one """
     import numpy as np
     n = len(alleles)
@@ -2302,6 +2309,14 @@ def centrolign_groups(alleles, min_similarity, max_group):
             stack += [t[0], t[1]]
         else:
             groups.append(t[3])
+    joined = [g for g in groups if len(g) > 1]
+    for g in [g for g in groups if len(g) == 1]:
+        best = max(((sim[g[0], h].mean(), k) for k, h in enumerate(joined) if len(h) < max_group), default=None)
+        if best is not None and best[0] > 0:
+            joined[best[1]].append(g[0])
+        else:
+            joined.append(g)
+    groups = joined
     result = []
     for members in sorted(groups, key=len, reverse=True):
         ids = [alleles[i]['id'] for i in members]
@@ -2338,6 +2353,19 @@ def centrolign_vg(job, options, config, vg_path, vg_id, targets_id, max_mem):
     report_dir = os.path.join(work_dir, chrom + '.centrolign')
     os.makedirs(report_dir)
     summary = {'chrom': chrom}
+    # extract cuts each haplotype's sequence of a region down to its copy of the target, found by the
+    # target's k-mers on the reference, with this much on either side: the rest stays on its nodes.  it
+    # cuts between nodes, and an unaligned stretch of a contig can be one node of megabases, so the graph
+    # is chopped first, as the full phase would chop it anyway, and replace works on the chopped graph
+    trim_margin = getOptionalAttrib(join_xml_node, 'centrolignTrimMargin', typeFn=int, default=20000)
+    max_node_len = getOptionalAttrib(join_xml_node, 'maxNodeLength', typeFn=int, default=-1)
+    if trim_margin >= 0 and max_node_len > 0:
+        chopped_path = os.path.join(work_dir, 'chopped', os.path.basename(vg_path))
+        os.makedirs(os.path.dirname(chopped_path))
+        cactus_call(parameters=['vg', 'mod', '-X', str(max_node_len), vg_path], outfile=chopped_path,
+                    job_memory=job.memory)
+        vg_path = chopped_path
+        vg_id = job.fileStore.writeGlobalFile(chopped_path)
     gfa_path = os.path.join(work_dir, chrom + '.gfa')
     cactus_call(parameters=['vg', 'convert', '-f', '-t', str(job.cores), vg_path], outfile=gfa_path,
                 job_memory=job.memory)
@@ -2348,9 +2376,10 @@ def centrolign_vg(job, options, config, vg_path, vg_id, targets_id, max_mem):
     if contigs:
         targets_path = os.path.join(work_dir, 'targets.bed' + ('.gz' if options.centrolign.endswith('.gz') else ''))
         job.fileStore.readGlobalFile(targets_id, targets_path)
+        trim_opts = ['--trim-targets', targets_path, '--trim-margin', str(trim_margin)] if trim_margin >= 0 else []
         extract_dir = pgrealign_regions_extract(job, vg_path, gfa_path, ref, contigs, targets_path, work_dir,
                                                 report_dir, summary, config_opts('centrolignRegionsOptions'),
-                                                config_opts('centrolignExtractOptions'))
+                                                config_opts('centrolignExtractOptions') + trim_opts)
         packages_path = os.path.join(extract_dir, 'packages.jsonl.gz')
         if os.path.isfile(packages_path):
             # the archive leaves out packages.jsonl.gz, as it holds every allele's sequence, so
@@ -2358,13 +2387,15 @@ def centrolign_vg(job, options, config, vg_path, vg_id, targets_id, max_mem):
             with gzip.open(packages_path, 'rt') as packages_file, \
                  open(os.path.join(extract_dir, 'packages.tsv'), 'w') as packages_tsv:
                 packages_tsv.write('#id\tstatus\talleles\tallele_bp\tfragments\tfragment_bp\tkept_fragments\t'
-                                   'kept_fragment_bp\texit_runs\tkept_nodes\tcomplex\n')
+                                   'kept_fragment_bp\texit_runs\tkept_nodes\ttrim\tcomplex\n')
                 for pkg in map(json.loads, packages_file):
-                    packages_tsv.write('{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(
+                    packages_tsv.write('{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(
                         pkg['id'], pkg['status'], len(pkg['alleles']), sum(len(a['seq']) for a in pkg['alleles']),
                         len(pkg['fragments']), sum(len(f['seq']) for f in pkg['fragments']),
                         pkg.get('kept_fragments', '.'), pkg.get('kept_fragment_bp', '.'),
-                        pkg.get('exit_runs', '.'), pkg.get('kept_nodes', '.'), '; '.join(pkg['complex']) or '.'))
+                        pkg.get('exit_runs', '.'), pkg.get('kept_nodes', '.'),
+                        json.dumps(pkg['trim'], separators=(',', ':')) if 'trim' in pkg else '.',
+                        '; '.join(pkg['complex']) or '.'))
                     if pkg['status'] == 'ok':
                         packages.append(pkg)
     if not packages:
@@ -2423,7 +2454,8 @@ def centrolign_vg(job, options, config, vg_path, vg_id, targets_id, max_mem):
             # calibration aligns up to one allele per thread to itself at once
             calibrate_bp = sum(sorted((len(by_id[x]['seq']) for x in ids), reverse=True)[:cores])
             memory = max(CENTROLIGN_MIN_MEMORY, calibrate_bp * CENTROLIGN_CALIBRATE_BYTES_PER_BP,
-                         allele_bp * (CENTROLIGN_BYTES_PER_BP + CENTROLIGN_BYTES_PER_BP_PER_ALLELE * len(ids)))
+                         allele_bp * (CENTROLIGN_BYTES_PER_BP + CENTROLIGN_BYTES_PER_BP_PER_ALLELE * len(ids)),
+                         len(ids) * CENTROLIGN_MEMORY_PER_ALLELE)
             group_job = region_root_job.addChildJobFn(
                 centrolign_region, config, job.fileStore.writeGlobalFile(package_path),
                 '{}.group{}'.format(pkg['id'], j), tree,
@@ -2556,14 +2588,15 @@ def centrolign_replace(job, options, config, vg_path, vg_id, report_ids, summary
 def centrolign_report(job, work_dir, chrom, report_dir, summary, gfa_path, out_gfa_path):
     """ the return of centrolign_vg: the chromosome graph as GFA, out_gfa_path, for clip_vg to use in
     place of the vg; its stats, a row of centrolign-stats.tsv and an archive of report_dir (without
-    the tables only replace reads and the alignments' GFAs); and whether it was realigned, so differs
-    from gfa_path """
+    the interiors, which only replace reads, the packages, which hold every allele's sequence, and the
+    alignments' GFAs; the occurrences stay, as they map the guide trees' allele ids to haplotypes); and
+    whether it was realigned, so differs from gfa_path """
     summary['length_before'] = gfa_sequence_length(gfa_path)
     summary['length_after'] = gfa_sequence_length(out_gfa_path)
     with open(os.path.join(report_dir, 'summary.json'), 'w') as summary_file:
         json.dump(summary, summary_file, indent=1)
     archive_path = os.path.join(work_dir, 'centrolign.{}.tar.gz'.format(chrom))
-    report_skip = {'occurrences.tsv.gz', 'interiors.tsv.gz', 'packages.jsonl.gz'}
+    report_skip = {'interiors.tsv.gz', 'packages.jsonl.gz'}
     with tarfile.open(archive_path, 'w:gz') as archive:
         archive.add(report_dir, arcname=os.path.basename(report_dir),
                     filter=lambda info: None if os.path.basename(info.name) in report_skip or

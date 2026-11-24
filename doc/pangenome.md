@@ -486,7 +486,9 @@ Things to know:
 
 The anchors are the nearest reference nodes on either side of the interval that few haplotypes go around (`--max-bypass`). A haplotype whose array never aligned to the reference's can leave the reference before an anchor and come back inside the region, or the reverse; pgrealign extract follows it in and out through those other nodes (`--exit-edges`), so it is aligned with the others, and the replaced region keeps its links to them.
 
-A region's haplotypes are aligned in groups, each by a centrolign job of its own. Haplotypes are compared by the share of their rare 31-mers (those occurring at most twice in each) that they have in common, and the groups are the clusters of an average-linkage tree on it, cut where a cluster's halves share less than `centrolignGroupSimilarity` on average. A group larger than `centrolignMaxGroup` is split along the tree. The groups' graphs lie side by side between the region's anchors.
+The anchors can lie well outside the interval, so a haplotype's sequence between them can hold much more than its array. pgrealign extract cuts each haplotype's sequence of the region down to its own copy of the interval, with `centrolignTrimMargin` bp on either side: the copy is the stretch dense in k-mers that occur at least twice in the reference's interval and are much rarer in the rest of the reference's region. The rest stays on the nodes it was on. A haplotype that holds a whole copy is aligned whether or not it crosses the region, as a contig that begins between an array and its anchor does.
+
+A region's haplotypes are aligned in groups, each by a centrolign job of its own. Haplotypes are compared by the share of their rare 31-mers (those occurring at most twice in each) that they have in common, and the groups are the clusters of an average-linkage tree on it, cut where a cluster's halves share less than `centrolignGroupSimilarity` on average. A group larger than `centrolignMaxGroup` is split along the tree. A haplotype the cut leaves alone joins the group it shares the most rare 31-mers with on average, if that group has room. The groups' graphs lie side by side in the region.
 
 ```
 cactus-pangenome ./js ./seqfile.txt --outDir pg --outName pg --reference CHM13 --centrolign chm13-active-arrays.bed
@@ -504,7 +506,7 @@ It writes two kinds of report to `<outName>.stats/`:
 | File | Contents |
 | --- | --- |
 | `centrolign-stats.tsv` | One row per chromosome: the targets, the regions it realigned and those it did not, their alleles, their fragments put back unaligned and those kept on their nodes, the nodes it replaced, and the graph's length before and after. |
-| `centrolign.<chrom>.tar.gz` | The regions and extract tables, a `packages.tsv` with each region's status, haplotype sizes and the reasons it is complex, each group's centrolign log and guide tree, and a `summary.json` of every stage. |
+| `centrolign.<chrom>.tar.gz` | The regions and extract tables, a `packages.tsv` with each region's status, haplotype sizes, what trimming cut and the reasons it is complex, a `cores.tsv.gz` with where each haplotype's copy of the interval was found, each group's centrolign log and guide tree, and a `summary.json` of every stage. |
 
 These `<graphmap_join>` config attributes pass options to the stages:
 
@@ -512,6 +514,7 @@ These `<graphmap_join>` config attributes pass options to the stages:
 | --- | --- | --- |
 | `centrolignRegionsOptions` | `--max-span 10000000 --max-bypass 0.1` | Options to `pgrealign regions`. `--max-bypass` anchors each region on the nearest reference nodes that at most this fraction of the haplotypes go around; without it, the anchors are snarl boundary nodes, which can be megabases apart, past the other satellites around an array. |
 | `centrolignExtractOptions` | `--max-internal-bp 10000000 --allow-inversions --exit-edges --keep-fragments` | Options to `pgrealign extract`. `--allow-inversions` realigns a region where a haplotype crosses some nodes in the other orientation, aligning its inverted sequence as it reads forward. `--exit-edges` lets a haplotype enter or leave a region through other reference nodes than its anchors, which `--max-bypass` needs. `--keep-fragments` leaves the sequence of a haplotype that does not cross a region, such as a contig that ends inside it, on the nodes it was on, rather than putting it back unaligned; it needs `--exit-edges`. |
+| `centrolignTrimMargin` | `20000` | Bp kept on either side of each haplotype's copy of the interval. A negative value aligns each haplotype's whole sequence of the region, and only haplotypes that cross it. |
 | `centrolignGroupSimilarity` | `0.2` | Cut the haplotypes' tree into groups aligned apart where a cluster's halves share less than this share of their rare 31-mers. |
 | `centrolignMaxGroup` | `64` | Most haplotypes aligned in one centrolign job. A larger group is split along its tree. |
 | `centrolignOptions` | | Extra options to `centrolign`. |
@@ -519,9 +522,9 @@ These `<graphmap_join>` config attributes pass options to the stages:
 
 Things to know:
 
-* Only haplotypes that cross a region, in on one side and out on the other, are aligned. The rest of its sequence, such as a contig that ends inside it, stays on the nodes it was on, so keeps the alignment Minigraph-Cactus gave it (`--keep-fragments`); without that option, it goes back in unaligned. A haplotype that goes around the whole region without touching it keeps its own nodes.
+* Only each haplotype's whole copy of the interval is aligned. The rest of a region's sequence, such as the satellites between an array and its anchors, or a contig that ends inside its array, stays on the nodes it was on, so keeps the alignment Minigraph-Cactus gave it (`--keep-fragments`). With a negative `centrolignTrimMargin`, only haplotypes that cross a region, in on one side and out on the other, are aligned, all of their sequence between the anchors. A haplotype that goes around the whole region without touching it keeps its own nodes.
 * A region is left as it is when no two of its haplotypes fall in the same group, when it has a base other than A, C, G, T or N, which centrolign cannot keep, or when pgrealign extract finds it complex, as when a haplotype loops back through it.
-* A haplotype in a group of its own stays in the region unaligned.
+* A haplotype that is still in a group of its own, sharing no rare 31-mer with any group that has room, stays in the region unaligned.
 * A centrolign job's time grows with the square of its haplotypes, and its memory faster than their total length.
 * Each group's guide tree is a neighbor-joining tree of its haplotypes' rare 31-mer distances.
 * The realigned haplotypes, other than the reference, are in the full graph only. Minigraph's paths no longer share their nodes once they are realigned, so clipping removes them, even the parts that were aligned before. The clip and filter graphs keep the reference's sequence there, and the parts of the rest of the region's sequence that minigraph's paths share.

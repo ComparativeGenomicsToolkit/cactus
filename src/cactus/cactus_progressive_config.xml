@@ -645,8 +645,9 @@
 	<!-- pgrealignQC: measure each realigned region's alignment, and the graph's before it, against optimal pairwise alignments (pgrealign qc), into the archive of reports.  Off by default: it can take longer than the realignment -->
 	<!-- centrolignRegionsOptions: options to pgrealign regions (pad, max-span, max-bypass) for the centrolign option, whose regions span a centromere's array and the satellites around it.  With max-bypass, a region is anchored on the nearest reference nodes on either side that at most that fraction of the haplotypes go around, rather than on snarl boundaries, which can lie far from the array; extract then needs exit-edges -->
 	<!-- centrolignExtractOptions: options to pgrealign extract (max-internal-bp, allow-inversions, exit-edges, keep-fragments) for the centrolign option: a contig that lies inside a region does not stop the region being realigned unless it is longer than max-internal-bp, and with allow-inversions a haplotype that crosses some of a region's nodes in the other orientation does not either: centrolign aligns its inverted sequence as it reads forward.  With exit-edges, a haplotype can enter or leave a region through other reference nodes than its anchors, as one anchored with max-bypass needs.  With keep-fragments, which needs exit-edges, the sequence of a haplotype that does not cross a region, such as a contig that ends inside it, stays on the nodes it was on rather than going back in unaligned -->
+	<!-- centrolignTrimMargin: bp kept on either side of each haplotype's copy of a target, found by the target's k-mers on the reference, when the centrolign option cuts each haplotype's sequence of a region down to its copy of the target (pgrealign extract's trim-targets).  The rest stays on the nodes it was on, and a haplotype that does not cross the region is aligned too if it holds a whole copy.  A negative value aligns each haplotype's whole sequence of the region -->
 	<!-- centrolignGroupSimilarity: the centrolign option aligns a region's haplotypes in groups, cut from an average-linkage tree of the share of rare 31-mers each pair has in common where a cluster's halves share less than this on average -->
-	<!-- centrolignMaxGroup: most haplotypes the centrolign option aligns in one centrolign job: a larger group is split along its tree -->
+	<!-- centrolignMaxGroup: most haplotypes the centrolign option aligns in one centrolign job: a larger group is split along its tree.  A haplotype the cut leaves alone joins the group it shares the most rare 31-mers with, if that group has room -->
 	<!-- centrolignOptions: extra options to centrolign -->
 	<!-- centrolignVerify: check that every path of each graph the centrolign option realigned spells what it did before (pgrealign verify), failing the job if not -->
 	<graphmap_join
@@ -685,6 +686,7 @@
 		 pgrealignQC="0"
 		 centrolignRegionsOptions="--max-span 10000000 --max-bypass 0.1"
 		 centrolignExtractOptions="--max-internal-bp 10000000 --allow-inversions --exit-edges --keep-fragments"
+		 centrolignTrimMargin="20000"
 		 centrolignGroupSimilarity="0.2"
 		 centrolignMaxGroup="64"
 		 centrolignOptions=""
