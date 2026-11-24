@@ -31,6 +31,7 @@ import gzip
 import shutil
 import json
 import tarfile
+import tempfile
 
 from operator import itemgetter
 from collections import defaultdict
@@ -427,6 +428,9 @@ def graphmap_join_options(parser):
     parser.add_argument("--haplo", nargs='*', default=None, help = "Generate haplotype subsampling (.ri, .hapl) indexes for the given graph type(s). Haplotype subsampling is a new, better alternative filtering by allele frequency. Valid types are 'full' and 'clip'. If not type specified, 'clip' will be used ('full' will be used if clipping disabled). Multiple types can be provided seperated by a space. NOTE: you normally want to use this option without --giraffe!")
     
     parser.add_argument("--indexCores", type=int, default=None, help = "cores for general indexing and VCF constructions (defaults to the same as --maxCores)")
+
+    parser.add_argument("--sequentialGraphStages", action="store_true",
+                        help="Run graph normalization and clipping pipeline stages one at a time, using temporary files to reduce peak memory.")
 
     
     parser.add_argument("--indexMemory", type=human2bytesN,
@@ -1587,6 +1591,27 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
     return (output_full_vg_ids, clip_vg_ids, clipped_stats, filter_vg_ids, out_dicts, og_chrom_ids,
             exclusion_ids, full_vg_empty)
 
+def run_graph_stages(parameters, outfile, sequential=False, **kwargs):
+    """Run a graph pipeline, optionally preventing adjacent stages from sharing memory."""
+    if not sequential or not isinstance(parameters[0], list) or len(parameters) == 1:
+        return cactus_call(parameters=parameters, outfile=outfile, **kwargs)
+    stderr = []
+    previous = None
+    with tempfile.TemporaryDirectory(prefix='join-stages-', dir=os.path.dirname(outfile)) as scratch:
+        for index, command in enumerate(parameters):
+            if previous is not None:
+                command = [previous if arg == '-' else arg for arg in command]
+            target = outfile if index == len(parameters) - 1 else os.path.join(scratch, str(index) + '.vg')
+            result = cactus_call(parameters=command, outfile=target, **kwargs)
+            if kwargs.get('returnStdErr') and result:
+                stderr.append(result)
+            if previous is not None:
+                os.unlink(previous)
+            previous = target
+    if kwargs.get('returnStdErr'):
+        return '\n'.join(stderr)
+
+
 def clip_vg(job, options, config, vg_path, vg_id, phase, gfa_id=None, gfa_realigned=False):
     """ run clip-vg.  in the full phase, gfa_id is the graph pgrealign_vg made of vg_id, which is used
     in its place, and gfa_realigned says whether pgrealign changed it
@@ -1639,7 +1664,7 @@ def clip_vg(job, options, config, vg_path, vg_id, phase, gfa_id=None, gfa_realig
         conv_cmd = [['vg', 'convert', '-g', '-p', gfa_out_path]]
         # GFAFfix doesn't unchop, so we do that in vg after
         conv_cmd.append(['vg', 'mod', '-u', '-'])
-        cactus_call(parameters=conv_cmd, outfile=normalized_path)
+        run_graph_stages(conv_cmd, normalized_path, getattr(options, "sequentialGraphStages", False))
         if gfa_realigned and getOptionalAttrib(join_xml_node, 'pgrealignVerify', typeFn=bool, default=True):
             pgrealign_verify(job, vg_path, normalized_path)
         vg_path = normalized_path
@@ -1770,8 +1795,8 @@ def clip_vg(job, options, config, vg_path, vg_id, phase, gfa_id=None, gfa_realig
     if phase == 'full':
         cmd.append(['vg', 'ids', '-s', '-'])
         
-    clip_stderr = cactus_call(parameters=cmd, outfile=clipped_path, job_memory=job.memory,
-                              returnStdErr=True)
+    clip_stderr = run_graph_stages(cmd, clipped_path, getattr(options, "sequentialGraphStages", False),
+                                   job_memory=job.memory, returnStdErr=True)
 
     # worth it
     cactus_call(parameters=['vg', 'validate', clipped_path])
@@ -2110,7 +2135,7 @@ def vg_clip_vg(job , options, config, vg_path, vg_id):
         # -S or -s can leave a cycle as a component of its own: drop those
         clip_cmd.append(['vg', 'clip', '-d', '1', '-'] + ref_opts)
 
-    cactus_call(parameters=clip_cmd, outfile=clipped_path, job_memory=job.memory)
+    run_graph_stages(clip_cmd, clipped_path, getattr(options, "sequentialGraphStages", False), job_memory=job.memory)
 
     # worth it
     cactus_call(parameters=['vg', 'validate', clipped_path])

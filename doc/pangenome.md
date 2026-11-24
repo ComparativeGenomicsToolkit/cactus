@@ -1407,3 +1407,9 @@ A: So current toolchains can work with your graphs.  But clipping and filtering 
 **Q**: Can I adjust the `minigraph` parameters?
 
 **A**: Yes, they can be tuned via the `<graphmap>` element in the [configuration XML](./progressive.md#advanced-configuration). The construction parameters are found in the `minigraphConstructOptions` attribuate, and the mapping parameters in `minigraphMapOptions`.
+### Reduce overlapping graph memory in join
+
+Use `--sequentialGraphStages` with `cactus-graphmap-join` or
+`cactus-pangenome` to run graph normalization and clipping subcommands one at
+a time. Each command finishes before the next loads its output. This trades
+extra temporary disk I/O in the job work directory for lower peak memory.
