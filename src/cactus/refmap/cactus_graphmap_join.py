@@ -427,6 +427,12 @@ def graphmap_join_options(parser):
     parser.add_argument("--fuseGraphStages", action="store_true",
                         help="Fuse matching join commands in vg. Requires a vg build with the --cactus-full, "
                              "--cactus-clip and --cactus-filter modes. Full fusion requires --defaultCores 1.")
+    parser.add_argument("--joinUnchopCores", type=int, default=None,
+                        help="Use fused GFA import and unchop with this many cores during graph join. "
+                             "Requires the corresponding vg and libhandlegraph support.")
+    parser.add_argument("--checkReferenceOnGFAExport", action="store_true",
+                        help="Check the primary reference during Full GFA export when possible. "
+                             "Requires vg convert --require-sample.")
     parser.add_argument("--haplo", nargs='*', default=None, help = "Generate haplotype subsampling (.ri, .hapl) indexes for the given graph type(s). Haplotype subsampling is a new, better alternative filtering by allele frequency. Valid types are 'full' and 'clip'. If not type specified, 'clip' will be used ('full' will be used if clipping disabled). Multiple types can be provided seperated by a space. NOTE: you normally want to use this option without --giraffe!")
     
     parser.add_argument("--indexCores", type=int, default=None, help = "cores for general indexing and VCF constructions (defaults to the same as --maxCores)")
@@ -1037,6 +1043,10 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
         for vg_path, vg_id in zip(options.vg, vg_ids):
             full_resources = dict(disk=vg_id.size * 20, memory=max(2**31, min(vg_id.size * 20, max_mem)),
                                   walltime=scaled_walltime(full_secs_per_gb, vg_id.size))
+            if getattr(options, 'joinUnchopCores', None) is not None:
+                if not 1 <= options.joinUnchopCores <= options.maxCores:
+                    raise RuntimeError("--joinUnchopCores must be between 1 and --maxCores")
+                full_resources['cores'] = max(options.defaultCores, options.joinUnchopCores)
             if options.pgrealign:
                 # pgrealign runs on the graph cactus-align wrote and hands the full phase the realigned
                 # graph as the GFA its gfaffix step would otherwise make from the vg
@@ -1635,11 +1645,19 @@ def clip_vg(job, options, config, vg_path, vg_id, phase, gfa_id=None, gfa_realig
     job.fileStore.readGlobalFile(vg_id, vg_path)
 
     clipped_path = vg_path + '.clip'
+    normalization_cores = (options.defaultCores
+                           if phase == 'full' and getattr(options, 'joinUnchopCores', None) is not None
+                           else job.cores)
+
+    join_xml_node = findRequiredNode(config.xmlRoot, "graphmap_join")
+    check_on_export = (phase == 'full' and not gfa_id and options.reference
+                       and getattr(options, 'checkReferenceOnGFAExport', False)
+                       and getOptionalAttrib(join_xml_node, "gfaffix", typeFn=bool, default=True))
 
     # everything below selects on --reference[0], so if it has no path here the graph quietly empties
     # out and some tool several steps later fails on the empty stream with an error that names
     # neither the reference nor this file.  say it plainly instead
-    if options.reference:
+    if options.reference and not check_on_export:
         graph_samples = sorted(set(p.split('#')[0] for p in
                                    cactus_call(parameters=['vg', 'paths', '-x', vg_path, '-L'],
                                                check_output=True).split('\n') if p.strip()))
@@ -1650,7 +1668,6 @@ def clip_vg(job, options, config, vg_path, vg_id, phase, gfa_id=None, gfa_realig
                 'and for a per-chromosome run it must be present in this chromosome.'.format(
                     options.reference[0], os.path.basename(vg_path), ', '.join(graph_samples)))
 
-    join_xml_node = findRequiredNode(config.xmlRoot, "graphmap_join")
     graph_event = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "assemblyName", default="_MINIGRAPH_")
 
     # optional gfaffixing -- only happens in full.  gfa_id, from pgrealign_vg, is the graph realigned and
@@ -1664,18 +1681,24 @@ def clip_vg(job, options, config, vg_path, vg_id, phase, gfa_id=None, gfa_realig
         if gfa_id:
             job.fileStore.readGlobalFile(gfa_id, gfa_in_path)
         else:
-            cactus_call(parameters=['vg', 'convert', '-f', vg_path], outfile=gfa_in_path, job_memory=job.memory)
+            export_cmd = ['vg', 'convert', '-f', vg_path]
+            if check_on_export:
+                export_cmd += ['--require-sample', options.reference[0]]
+            cactus_call(parameters=export_cmd, outfile=gfa_in_path, job_memory=job.memory)
         if do_gfaffix:
             # GFAffix supports W-lines as reference paths since v0.2.0
-            fix_cmd = ['gfaffix', gfa_in_path, '--output_refined', gfa_out_path, '--check_transformation', '--threads', str(job.cores)]
+            fix_cmd = ['gfaffix', gfa_in_path, '--output_refined', gfa_out_path, '--check_transformation', '--threads', str(normalization_cores)]
             if options.reference:
                 # a regex, matched anywhere in the path name, and a sample name can have a '.' in it
                 fix_cmd += ['--dont_collapse', '^' + options.reference[0].replace('.', '[.]') + '#']
             cactus_call(parameters=fix_cmd, job_memory=job.memory)
         # Come back from gfa to vg
-        conv_cmd = [['vg', 'convert', '-g', '-p', gfa_out_path]]
-        # GFAFfix doesn't unchop, so we do that in vg after
-        conv_cmd.append(['vg', 'mod', '-u', '-'])
+        if getattr(options, 'joinUnchopCores', None) is not None:
+            conv_cmd = ['vg', 'convert', '-g', '-p', '--unchop', '--unchop-threads',
+                        str(options.joinUnchopCores), gfa_out_path]
+        else:
+            # GFAffix leaves any mergeable nodes unmerged.
+            conv_cmd = [['vg', 'convert', '-g', '-p', gfa_out_path], ['vg', 'mod', '-u', '-']]
         cactus_call(parameters=conv_cmd, outfile=normalized_path)
         if gfa_realigned and getOptionalAttrib(join_xml_node, 'pgrealignVerify', typeFn=bool, default=True):
             pgrealign_verify(job, vg_path, normalized_path)
@@ -1736,7 +1759,7 @@ def clip_vg(job, options, config, vg_path, vg_id, phase, gfa_id=None, gfa_realig
             # if node-chopping isn't enabled, we take the time to mod before/after since path normalization requires chopping
             if max_node_len <= 0 or max_node_len > 1024:
                 cmd.append(['vg', 'mod', '-X', '1024', '-'])
-            norm_command = ['vg', 'paths', '-x', '-', '-n', '-Q', options.reference[0], '-t', str(job.cores)]
+            norm_command = ['vg', 'paths', '-x', '-', '-n', '-Q', options.reference[0], '-t', str(normalization_cores)]
             cmd.append(norm_command)
             if max_node_len <= 0 or max_node_len > 1024:
                 cmd.append(['vg', 'mod', '-u', '-'])
