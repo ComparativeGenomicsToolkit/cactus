@@ -424,6 +424,9 @@ def graphmap_join_options(parser):
 
     parser.add_argument("--lrGiraffe", nargs='*', default=None, help = "Generate Long Read Giraffe (.dist, .longread.withzip.min, .longread.zipcodes) indexes for the given graph type(s). Valid types are 'full', 'clip' and 'filter'. If not type specified, 'filter' will be used (will fall back to 'clip' than full if filtering, clipping disabled, respectively). Multiple types can be provided seperated by a space. NOTE: do not use this option if you want to use haplotype sampling. Use --haplo instead.")
 
+    parser.add_argument("--fuseGraphStages", action="store_true",
+                        help="Fuse matching join commands in vg. Requires a vg build with the --cactus-full, "
+                             "--cactus-clip and --cactus-filter modes. Full fusion requires --defaultCores 1.")
     parser.add_argument("--haplo", nargs='*', default=None, help = "Generate haplotype subsampling (.ri, .hapl) indexes for the given graph type(s). Haplotype subsampling is a new, better alternative filtering by allele frequency. Valid types are 'full' and 'clip'. If not type specified, 'clip' will be used ('full' will be used if clipping disabled). Multiple types can be provided seperated by a space. NOTE: you normally want to use this option without --giraffe!")
     
     parser.add_argument("--indexCores", type=int, default=None, help = "cores for general indexing and VCF constructions (defaults to the same as --maxCores)")
@@ -1587,6 +1590,40 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
     return (output_full_vg_ids, clip_vg_ids, clipped_stats, filter_vg_ids, out_dicts, og_chrom_ids,
             exclusion_ids, full_vg_empty)
 
+def fuse_graph_stages(cmd, phase, references, default_cores):
+    """Replace known command sequences, leaving any other stages in order."""
+    if not references:
+        return cmd
+    primary = ['-P', references[0]]
+    depth_one = ['vg', 'clip', '-d', '1', '-'] + primary
+    stub = ['vg', 'clip', '-sS', '-'] + primary
+    if phase == 'full' and default_cores == 1:
+        prefix = [
+            ['vg', 'mod', '-X', '1024', '-'],
+            ['vg', 'paths', '-x', '-', '-n', '-Q', references[0], '-t', '1'],
+            depth_one,
+        ]
+        if cmd[1:4] == prefix:
+            sort_ids = ['vg', 'ids', '-s', '-']
+            fused = ['vg', 'clip', '--cactus-full', '-'] + primary
+            if cmd[4:] == [sort_ids]:
+                return [cmd[0], fused]
+            if cmd[4:] == [['vg', 'clip', '-Sk', '-'] + primary, sort_ids]:
+                return [cmd[0], fused + ['-Sk']]
+    elif phase == 'clip':
+        if cmd[1:3] == [depth_one, stub] and len(cmd) > 3:
+            deletion = cmd[3]
+            if (len(deletion) in (9, 11) and deletion[:4] == ['vg', 'clip', '-', '-D']
+                    and deletion[5:7] == primary and deletion[7] == '-c'
+                    and (len(deletion) == 9 or deletion[9] == '-m')):
+                return [cmd[0], deletion[:2] + ['--cactus-clip'] + deletion[2:]] + cmd[4:]
+    elif phase == 'filter' and len(cmd) >= 3:
+        protected_refs = [arg for ref in references for arg in ('-P', ref)]
+        if cmd[1:3] == [['vg', 'clip', '-d', '1', '-'] + protected_refs, stub]:
+            return [cmd[0][:2] + ['--cactus-filter'] + cmd[0][2:]] + cmd[3:]
+    return cmd
+
+
 def clip_vg(job, options, config, vg_path, vg_id, phase, gfa_id=None, gfa_realigned=False):
     """ run clip-vg.  in the full phase, gfa_id is the graph pgrealign_vg made of vg_id, which is used
     in its place, and gfa_realigned says whether pgrealign changed it
@@ -1770,6 +1807,8 @@ def clip_vg(job, options, config, vg_path, vg_id, phase, gfa_id=None, gfa_realig
     if phase == 'full':
         cmd.append(['vg', 'ids', '-s', '-'])
         
+    if getattr(options, 'fuseGraphStages', False):
+        cmd = fuse_graph_stages(cmd, phase, options.reference, options.defaultCores)
     clip_stderr = cactus_call(parameters=cmd, outfile=clipped_path, job_memory=job.memory,
                               returnStdErr=True)
 
@@ -2110,6 +2149,8 @@ def vg_clip_vg(job , options, config, vg_path, vg_id):
         # -S or -s can leave a cycle as a component of its own: drop those
         clip_cmd.append(['vg', 'clip', '-d', '1', '-'] + ref_opts)
 
+    if getattr(options, 'fuseGraphStages', False):
+        clip_cmd = fuse_graph_stages(clip_cmd, 'filter', options.reference, options.defaultCores)
     cactus_call(parameters=clip_cmd, outfile=clipped_path, job_memory=job.memory)
 
     # worth it
