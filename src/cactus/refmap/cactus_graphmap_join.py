@@ -1046,7 +1046,7 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
             if getattr(options, 'joinUnchopCores', None) is not None:
                 if not 1 <= options.joinUnchopCores <= options.maxCores:
                     raise RuntimeError("--joinUnchopCores must be between 1 and --maxCores")
-                full_resources['cores'] = max(options.defaultCores, options.joinUnchopCores)
+                full_resources['cores'] = max(options.defaultCores or 1, options.joinUnchopCores)
             if options.pgrealign:
                 # pgrealign runs on the graph cactus-align wrote and hands the full phase the realigned
                 # graph as the GFA its gfaffix step would otherwise make from the vg
@@ -1645,7 +1645,7 @@ def clip_vg(job, options, config, vg_path, vg_id, phase, gfa_id=None, gfa_realig
     job.fileStore.readGlobalFile(vg_id, vg_path)
 
     clipped_path = vg_path + '.clip'
-    normalization_cores = (options.defaultCores
+    normalization_cores = (int(options.defaultCores or 1)
                            if phase == 'full' and getattr(options, 'joinUnchopCores', None) is not None
                            else job.cores)
 
