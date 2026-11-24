@@ -1292,7 +1292,7 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
         if workflow_phase in options.xg:
             xg_job = prev_job.addFollowOnJobFn(make_xg, config, options.outName, current_out_dict,
                                                tag=workflow_phase + '.',
-                                               cores=max(options.indexCores, 4),
+                                               cores=options.indexCores,
                                                disk = sum(f.size for f in vg_ids) * 10,
                                                memory=index_mem,
                                                walltime=scaled_walltime(MAKE_XG_SECS_PER_GB,
