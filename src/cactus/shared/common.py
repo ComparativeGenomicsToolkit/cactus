@@ -35,8 +35,6 @@ from urllib.parse import urlparse, quote
 from datetime import datetime
 
 from toil.statsAndLogging import logger
-from toil.lib.bioio import system
-from toil.lib.bioio import getLogLevelString
 from toil.common import Toil
 from toil.job import Job
 from toil.realtimeLogger import RealtimeLogger
@@ -51,6 +49,21 @@ from toil import physicalMemory
 _log = logging.getLogger(__name__)
 
 subprocess._has_poll = False
+
+# These two used to come from toil.lib.bioio.  Don't import that module: it loads toil.test,
+# which looks for AWS credentials as it is imported, by connecting to the EC2 metadata address
+# (169.254.169.254) up to six times with a one second timeout.  Wherever that address times out
+# instead of refusing, every cactus command and every Toil worker takes six seconds to start.
+def system(command):
+    """ Run a command, through the shell if it's a string, raising CalledProcessError if it fails
+    """
+    logger.debug("Running: {}".format(command))
+    subprocess.check_call(command, shell=isinstance(command, str), bufsize=-1)
+
+def getLogLevelString():
+    """ The name of the root logger's level, in the form the cactus binaries' --logLevel takes
+    """
+    return logging.getLevelName(logging.getLogger().getEffectiveLevel())
 
 def cactus_cpu_count():
     """ try the more cluster-friendly cpu counter before reverting to toil's

@@ -11,7 +11,6 @@ Released under the MIT license, see LICENSE.txt
 
 from toil.job import Job
 from toil.statsAndLogging import logger
-from toil.lib.bioio import getLogLevelString
 from sonLib.bioio import newickTreeParser
 from toil.realtimeLogger import RealtimeLogger
 import os

@@ -23,6 +23,7 @@ from cactus.shared.common import makeURL, catFiles
 from cactus.shared.common import enableDumpStack
 from cactus.shared.common import cactus_override_toil_options, add_cactus_toil_options
 from cactus.shared.common import cactus_call
+from cactus.shared.common import system
 from cactus.shared.common import getOptionalAttrib, findRequiredNode
 from cactus.shared.common import clean_jobstore_files
 
@@ -39,7 +40,6 @@ from toil.statsAndLogging import set_logging_from_options
 from toil.realtimeLogger import RealtimeLogger
 from cactus.shared.common import cactus_cpu_count
 from toil.lib.humanize import bytes2human
-from toil.lib.bioio import system
 from sonLib.bioio import getTempDirectory
 from cactus.shared.common import cactus_clamp_memory
 from sonLib.nxnewick import NXNewick
@@ -692,7 +692,7 @@ def hal2maf_batch(job, hal_id, batch_chunks, genome_list, options, config):
             # stage's status is seen, and since each chunk is appended to one
             # shared maf a single silent failure corrupts the whole stitch.
             # Those two are safe to write the option inline because cactus_call
-            # runs them under bash; this one goes through toil's system(), which
+            # runs them under bash; this one goes through system(), which
             # is /bin/sh, and that is dash on debian and ubuntu -- including our
             # own container -- where "set -o pipefail" is an illegal option and
             # aborts the shell before the command runs.  So ask for bash here.

@@ -10,7 +10,6 @@ Released under the MIT license, see LICENSE.txt
 
 from toil.job import Job
 from toil.statsAndLogging import logger
-from toil.lib.bioio import getLogLevelString
 from toil.realtimeLogger import RealtimeLogger
 from sonLib.bioio import newickTreeParser
 import glob
@@ -26,6 +25,7 @@ from cactus.preprocessor.checkUniqueHeaders import sanitize_fasta_headers
 from cactus.preprocessor.unmasking import unmask_contigs_all
 from cactus.preprocessor.cactus_preprocessor import clean_if_different
 from cactus.shared.common import cactus_clamp_memory
+from cactus.shared.common import getLogLevelString
 
 def get_divergence_class(distance, params):
     """ The <constants><divergences> bucket a pair at the given distance falls in ("one" through
