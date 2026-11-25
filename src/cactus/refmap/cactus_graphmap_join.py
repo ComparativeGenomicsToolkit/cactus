@@ -1694,7 +1694,7 @@ def clip_vg(job, options, config, vg_path, vg_id, phase, gfa_id=None, gfa_realig
             cactus_call(parameters=fix_cmd, job_memory=job.memory)
         # Come back from gfa to vg
         if getattr(options, 'joinUnchopCores', None) is not None:
-            conv_cmd = ['vg', 'convert', '-g', '-p', '--unchop', '--unchop-threads',
+            conv_cmd = ['vg', 'convert', '-g', '-p', '--unchop', '-t',
                         str(options.joinUnchopCores), gfa_out_path]
         else:
             # GFAffix leaves any mergeable nodes unmerged.
