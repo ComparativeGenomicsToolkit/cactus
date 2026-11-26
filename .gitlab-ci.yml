@@ -82,13 +82,6 @@ test-job:
     - quiet pip-cactus python3.10 -m pip install -U .
     # downgrad pysam to work around import pysam error: "module 'pysam.libcalignedsegment' has no attribute 'CMATCH'"
     - python3.10 -m pip install pysam==0.21.0
-    # cactus used to import toil.lib.bioio, which probes for AWS credentials as it loads and takes
-    # ~6s wherever 169.254.169.254 times out, in every Toil worker.  Time both imports, to see what
-    # that costs on this runner.  A failure here must not fail the job.
-    - |
-      for mod in toil.lib.bioio cactus.progressive.cactus_progressive cactus.refmap.cactus_graphmap_join; do
-        python3.10 -c "import time; t = time.time(); import $mod; print('import $mod took %.2fs' % (time.time() - t))" || true
-      done
     # these are the old travis tests, followed by its docker push
     - git clone https://github.com/ComparativeGenomicsToolkit/cactusTestData
     - export ASAN_OPTIONS="detect_leaks=0"
