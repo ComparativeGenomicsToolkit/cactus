@@ -129,9 +129,12 @@ CENTROLIGN_REPLACE_MAX_CORES = 8
 # centrolign_region: one centrolign run on a group of n alleles, B Mb in all.  measured on oct9's chr12
 # active array, whose 26 groups of 2-64 alleles and 7-270 Mb took 74 s to 2.4 h at 32 threads (jemalloc,
 # fast-chaining build).  time grew with B*sqrt(n): past a 2 minute floor the slowest group took 7.6 s per
-# Mb*sqrt(allele), so the estimate is 120 s + 10 s per Mb*sqrt(allele), a little over that for running
-# on fewer threads.  (an earlier test on 8-64 unrelated haplotypes, with the older chaining, grew with
-# B*n.)  memory: centrolign starts by aligning each allele to itself to calibrate its scoring, as many
+# Mb*sqrt(allele).  (an earlier test on 8-64 unrelated haplotypes, with the older chaining, grew with
+# B*n.)  the 590 groups of a whole-genome run and its chr3 and chr4 reruns, at 16 threads with that
+# build, took a median of 3.1 s per Mb*sqrt(allele) and 22 at the 99th percentile.  upstream's main, in
+# the submodule since dbe8dc2, took 1.1-2.3 times as long on three groups of 31-45 alleles, so the
+# estimate is 120 s + 25 s per Mb*sqrt(allele): with cactus_walltime's margin, that covers each of
+# those 590 groups at 2.5 times its time.  memory: centrolign starts by aligning each allele to itself to calibrate its scoring, as many
 # at once as it has threads.  groups of 8-14 alleles, all calibrating at once, ran out of memory there at
 # 840-880 bytes per bp of the group and peaked at 960-1070 when they had room; oct9's chr22 groups of
 # 2-14 peaked at 700-980, but chr14's at up to 2060, so the job gets CENTROLIGN_CALIBRATE_BYTES_PER_BP
@@ -143,7 +146,9 @@ CENTROLIGN_REPLACE_MAX_CORES = 8
 # (centrolignTrimMargin), the alleles are short and memory follows their number more than their bp: chr12-21's
 # groups of 20-62 alleles peaked at 1.0-1.4 GiB per allele whatever their length (chr21's 60 alleles of
 # 52 Mb at 1,710 bytes per bp, chr12's 62 of 209 Mb at 440), so the job also gets
-# CENTROLIGN_MEMORY_PER_ALLELE for each allele.  at 32 threads the jobs
+# CENTROLIGN_MEMORY_PER_ALLELE for each allele.  upstream's main peaked at 12.8-30.6 GB on the three
+# groups above, a third to a half of what the fork-built binary did there, and the requests are left as
+# they are.  at 32 threads the jobs
 # kept only 2-5 cores busy on average (4-8 at 48-64 alleles), so they ask for at most
 # CENTROLIGN_MAX_CORES of --indexCores
 CENTROLIGN_BYTES_PER_BP = 800
@@ -153,7 +158,7 @@ CENTROLIGN_MEMORY_PER_ALLELE = 3 * 2**29
 CENTROLIGN_MIN_MEMORY = 16 * 2**30
 CENTROLIGN_MAX_CORES = 16
 CENTROLIGN_BASE_SECS = 120
-CENTROLIGN_SECS_PER_MB_SQRT_ALLELE = 10
+CENTROLIGN_SECS_PER_MB_SQRT_ALLELE = 25
 
 # vg_to_og: vg convert -f | grep, then odgi build.  n=75, 307-310 s/GB at p50, 357-370 at the max
 VG_TO_OG_SECS_PER_GB = 400

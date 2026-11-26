@@ -519,7 +519,7 @@ ${BINDIR}/trfind ${BINDIR}/strf: ${BINDIR}/%: submodules/pgrealign/pgrealign/c/%
 
 # centrolign (--centrolign) is built by its own CMake, in build/centrolign, which leaves its submodule's
 # tree clean.  It takes nothing from CFLAGS or CXXFLAGS, which make static and the binary release export
-# with sonLib's -Werror --pedantic, and -static comes in LIBS.  jemalloc, which takes about a third off
+# with sonLib's -Werror --pedantic, and -static comes in LIBS.  jemalloc, which takes a sixth to a quarter off
 # its peak memory, goes on the end of the link line (CMAKE_CXX_STANDARD_LIBRARIES): an archive only
 # replaces malloc when it comes after the objects that call it
 suball.centrolign: suball.jemalloc
