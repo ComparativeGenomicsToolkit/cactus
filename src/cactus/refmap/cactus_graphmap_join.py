@@ -2674,6 +2674,15 @@ def vcfnorm(job, config, vcf_ref, vcf_id, vcf_path, tbi_id, fasta_ref_dict):
     multi_path = os.path.join(work_dir, 'multi.' + os.path.basename(vcf_path))
     postmerge_cmd = [['bcftools', 'norm', '-m', '+any', norm_path]]
     if merge_duplicates_opts not in [None, "0"]:
+        if getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "filterAC0", typeFn=bool, default=False):
+            # the AC=0 filter above runs before merge_duplicates.py, which then makes AC=0 records of
+            # its own: when it concatenates, say, a SNP and an insertion at the same position on one
+            # haplotype, it moves those haplotypes onto the new allele but still writes both source
+            # records out.  -m +any would turn every record nobody carries any more into an ALT of the
+            # site, padded to the site's longest REF.  merge_duplicates.py writes biallelic records
+            # and recomputes their AC, so a plain AC=0 is exact here
+            postmerge_cmd = [['bcftools', 'view', '-e', 'AC=0', norm_path],
+                             ['bcftools', 'norm', '-m', '+any', '-']]
         # note, we use vcffixup to fix up AC, AF, NS tags.  bcftools +fill-tags is about 1000 times faster
         # and does more, but isn't in the static binary being delivered with cactus so am using vcflib
         # for now (it's not in the binary either, but is already necessary for vcfwave)
