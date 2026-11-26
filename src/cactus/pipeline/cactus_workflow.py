@@ -10,13 +10,12 @@
 import os
 import copy
 import sys
-from toil.lib.bioio import system
-from toil.lib.bioio import getLogLevelString
 from toil.realtimeLogger import RealtimeLogger
 from toil.lib.conversions import bytes2human
 from sonLib.nxnewick import NXNewick
 from cactus.shared.common import makeURL
 from cactus.shared.common import cactus_call
+from cactus.shared.common import system, getLogLevelString
 from cactus.shared.configWrapper import ConfigWrapper
 from cactus.shared.common import findRequiredNode, getOptionalAttrib
 from cactus.shared.common import cactus_clamp_memory

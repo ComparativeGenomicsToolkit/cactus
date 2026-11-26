@@ -444,79 +444,16 @@ class TestCase(unittest.TestCase):
                                '--pangenome', '--maxLen', '20000'] + cactus_opts)
 
 
-    def _run_evolver_primates_graphmap(self, binariesMode):
-        """ primates star test but using graphmap pangenome pipeline
-        """
-        # borrow seqfile from other primates test
-        # todo: make a seqfile and add it to the repo
-        seq_file_path = os.path.join(self.tempDir, 'primates.txt')
-        self._write_primates_seqfile(seq_file_path)
-
-        # use the same logic cactus does to get default config
-        config_path = 'src/cactus/cactus_progressive_config.xml'
-
-        xml_root = ET.parse(config_path).getroot()
-        bar_elem = xml_root.find("bar")
-        bar_elem.attrib["baseAligner"] = "abpoa"
-        bar_elem.attrib["partialOrderAlignmentMaskFilter"] = "1"
-
-        poa_config_path = os.path.join(self.tempDir, "config.poa.xml")
-        with open(poa_config_path, 'w') as poa_config_file:
-            xmlString = ET.tostring(xml_root, encoding='unicode')
-            xmlString = minidom.parseString(xmlString).toprettyxml()
-            poa_config_file.write(xmlString)
-
-        # make an output seqfile for preprocessed sequences
-        out_seq_file_path = os.path.join(self.tempDir, 'prepared', 'primates.txt')
-        subprocess.check_call(['cactus-prepare', seq_file_path, '--outDir', os.path.dirname(out_seq_file_path)])
-
-        cactus_opts = ['--binariesMode', binariesMode, '--logInfo', '--workDir', self.tempDir, '--configFile', poa_config_path]
-
-        # preprocess with dna-brnn
-        subprocess.check_call(['cactus-preprocess', self._job_store(binariesMode), seq_file_path, out_seq_file_path, '--maskMode', 'brnn'] + cactus_opts)
-
-        # make the reference graph
-        mg_cmd = ['minigraph', '-xggs', '-t', '4']
-        with open(seq_file_path, 'r') as seq_file:
-            for line in seq_file:
-                toks = line.strip().split()
-                if len(toks) == 2:
-                    name = os.path.basename(toks[1])
-                    subprocess.check_call(['wget', toks[1]], cwd=self.tempDir)
-                    mg_cmd += [os.path.join(self.tempDir, name)]
-        mg_path = os.path.join(self.tempDir, 'refgraph.sv.gfa')
-        with open(mg_path, 'w') as mg_file:
-            subprocess.check_call(mg_cmd, stdout=mg_file)
-
-        # do the mapping
-        paf_path = os.path.join(self.tempDir, 'aln.paf')
-        fa_path = os.path.join(self.tempDir, 'refgraph.sv.gfa.fa')
-        # todo: it'd be nice to have an interface for setting tag to something not latest or commit
-        if binariesMode == 'docker':
-            cactus_opts += ['--latest']
-
-        # cactus-grpahmap just aligns all the leaves (except graph event) in the input, ignoring the tree
-        # so wee need to get rid of Anc0 which was added by prepare (todo: this pipeline isn't really
-        # realistic, and probably doesn't need to be in CI anymore)
-        seq_file_fix_path = out_seq_file_path + '.fix'
-        subprocess.check_call('grep -v ^Anc {} > {}'.format(out_seq_file_path, seq_file_fix_path), shell=True)
-        subprocess.check_call(['cactus-graphmap', self._job_store(binariesMode), seq_file_fix_path, mg_path, paf_path,
-                               '--outputFasta', fa_path, '--mapCores', '4'] + cactus_opts)
-
-        # do the alignment
-        subprocess.check_call(['cactus-align', self._job_store(binariesMode), seq_file_fix_path, paf_path, self._out_hal(binariesMode),
-                               '--pangenome', '--outVG', '--outGFA', '--pafMaskFilter', '10000', '--barMaskFilter', '10000'] + cactus_opts)
-        
-    def _run_evolver_primates_pangenome(self, binariesMode, mgSplit = False, extend = False, resume = False):
+    def _run_evolver_primates_pangenome(self, binariesMode, mgSplit = False, resume = False, train = True):
         """ run the primates start in using high-level cactus-pangenome interface.
 
-        with extend, half the genomes are built into a graph with the step-by-step tools first and
-        cactus-pangenome --inGFA adds the rest, which also checks that a graph made one way can
-        be extended the other.  with resume, that graph holds every genome in the seqfile, so there
-        is nothing to construct and nothing to map and the run picks up at cactus-graphmap-split.
-        both reuse the mappings (--inGAF).  zipping the extended graph (zipAlleles, on by default)
-        would invalidate them, so extend turns the zip off; resume constructs nothing and so zips
-        nothing, and keeps it on.
+        with resume, a graph of every genome in the seqfile is built with the step-by-step tools
+        first and handed in with its mappings (--inGFA/--inGAF), so there is nothing to construct and
+        nothing to map and the run picks up at cactus-graphmap-split.  it constructs nothing and so
+        zips nothing, and keeps the zip (zipAlleles, on by default) on.
+
+        train=False switches off <graphmap lastTrain> (on by default), for the default scoring
+        rather than a model trained from the input.
 
         with mgSplit, each chromosome's graph is built against the whole reference and pruned back
         (the default, <graphmap_split wholeGenomeRef>), and zipped before the prune """
@@ -534,8 +471,8 @@ class TestCase(unittest.TestCase):
 
         # force cactus to use minigraph chunking, and vcfwave chunking
         graphmap_attribs = {"minigraphConstructBatchSize": "2"}
-        if extend:
-            graphmap_attribs["zipAlleles"] = "0"
+        if not train:
+            graphmap_attribs["lastTrain"] = "0"
         mc_config_path = self._write_pangenome_config('mc',
                                                       graphmap_attribs=graphmap_attribs,
                                                       graphmap_join_attribs={"vcfwaveChunkLines": "1000"})
@@ -545,16 +482,13 @@ class TestCase(unittest.TestCase):
         out_name = os.path.splitext(os.path.basename(self._out_hal(binariesMode)))[0]
         cactus_pangenome_cmd = ['cactus-pangenome', self._job_store(binariesMode), seq_file_path, '--reference', 'simHuman', 'simChimp',
                                 '--outDir', out_dir, '--outName', out_name, '--odgi', '--chrom-og', '--viz', '--draw', '--haplo']
-        if not extend and not resume:
-            # collapse self-alignments are not derived from the GAF, so they cannot be reused
-            cactus_pangenome_cmd += ['--collapse']
-        elif resume:
+        if resume:
             # a graph of every genome in the seqfile: nothing to construct, nothing to map
             base = self._build_primates_base_graph(binariesMode, mc_config_path, self.PRIMATES)
             cactus_pangenome_cmd += ['--inGFA', base['gfa'], '--inGAF', base['gaf']]
         else:
-            base = self._build_primates_base_graph(binariesMode, mc_config_path, ['simHuman', 'simChimp'])
-            cactus_pangenome_cmd += ['--inGFA', base['gfa'], '--inGAF', base['gaf']]
+            # collapse self-alignments are not derived from the GAF, so they cannot be reused
+            cactus_pangenome_cmd += ['--collapse']
         if mgSplit:
             cactus_pangenome_cmd += ['--mgSplit']
         else:
@@ -569,10 +503,9 @@ class TestCase(unittest.TestCase):
             wave_vcf_bytes = os.path.getsize(os.path.join(out_dir, out_name + '.simChimp.wave.vcf.gz'))
             self.assertGreaterEqual(wave_vcf_bytes, 300000)
 
-        if extend or resume:
-            # extending adds the missing genomes; resuming hands the same graph straight back
-            self.assertEqual(self._gfa_genomes(os.path.join(out_dir, out_name + '.sv.gfa.gz')), set(self.PRIMATES))
         if resume:
+            # resuming hands the same graph straight back, which holds every genome
+            self.assertEqual(self._gfa_genomes(os.path.join(out_dir, out_name + '.sv.gfa.gz')), set(self.PRIMATES))
             # resuming must not rebuild the graph: what comes out is what went in
             self.assertEqual(self._gfa_text(os.path.join(out_dir, out_name + '.sv.gfa.gz')),
                              self._gfa_text(base['gfa']))
@@ -796,8 +729,13 @@ class TestCase(unittest.TestCase):
         # run graphmap in base mode
         paf_path = os.path.join(self.tempDir, 'yeast.paf')
         fa_path = os.path.join(self.tempDir, 'yeast.sv.gfa.fa')
+        # with the exact GAF overlap filter turned off (<graphmap GAFOverlapFilterExact="0">), for the
+        # stock gaffilter rule, whole-record deletion.  the tests run through cactus-pangenome keep
+        # the default, exact filter
+        stock_filter_config_path = self._write_pangenome_config('stockfilter', graphmap_attribs={'GAFOverlapFilterExact': '0'})
         subprocess.check_call(['cactus-graphmap', self._job_store(binariesMode), seq_file_path, mg_path, paf_path,
-                               '--outputFasta', fa_path, '--delFilter', '2000000'] + cactus_opts + ['--mapCores', '1'])
+                               '--outputFasta', fa_path, '--delFilter', '2000000', '--configFile', stock_filter_config_path,
+                               '--logFile', self._yeast_log_path()] + cactus_opts + ['--mapCores', '1'])
 
         # split into chromosomes
         chroms = ['chrI', 'chrII', 'chrIII', 'chrIV', 'chrV', 'chrVI', 'chrVII', 'chrVIII', 'chrIX', 'chrX', 'chrXI', 'chrXIV', 'chrXV']
@@ -832,7 +770,7 @@ class TestCase(unittest.TestCase):
                                ['--xg', '--vcf', '--giraffe', 'clip', 'filter', '--lrGiraffe'] + cactus_opts + ['--indexCores', '4'])
 
     def _run_yeast_pangenome(self, binariesMode, mgSplit=False, wholeGenomeRef=True, collapse=False, gref=None,
-                             vcfL=None, extend=None, zipAlleles=True, zipWalks=None, exactOverlapFilter=True,
+                             vcfL=None, extend=None, zipAlleles=True, zipWalks=None,
                              pgrealign=False):
         """ yeast pangenome chromosome by chromosome pipeline, as run through a single invocations.
 
@@ -847,9 +785,6 @@ class TestCase(unittest.TestCase):
         so a config is only written when one of them is asked to differ from the default.  note
         that zipAlleles is a different feature from collapse (--collapse, which incorporates
         minimap2 self-alignments).
-
-        exactOverlapFilter=False turns off <graphmap GAFOverlapFilterExact> (gaffilter -x, on by
-        default), for the stock whole-record overlap filter.
         """
 
         orig_seq_file_path = './examples/yeastPangenome.txt'
@@ -875,8 +810,6 @@ class TestCase(unittest.TestCase):
             graphmap_attribs['zipAlleles'] = '0'
         if zipWalks:
             graphmap_attribs['zipWalks'] = zipWalks
-        if not exactOverlapFilter:
-            graphmap_attribs['GAFOverlapFilterExact'] = '0'
         graphmap_split_attribs = {} if wholeGenomeRef else {'wholeGenomeRef': '0'}
         config_path = None
         if graphmap_attribs or graphmap_split_attribs:
@@ -1224,7 +1157,7 @@ class TestCase(unittest.TestCase):
         self._validate_sv_gfa(zipped)
 
     def _yeast_log_path(self):
-        """ the --logFile of _run_yeast_pangenome """
+        """ the --logFile of _run_yeast_pangenome, and of _run_yeast_pangenome_step_by_step's cactus-graphmap """
         return os.path.join(self.tempDir, 'yeast.pangenome.log')
 
     def _check_zip_log(self, log_path, names, graphs=None):
@@ -1988,19 +1921,6 @@ class TestCase(unittest.TestCase):
         #self._check_coverage(self._out_hal(name), delta_pct=0.20)
         self._check_maf_accuracy(self._out_hal(name), delta=(0.05,0.13))
 
-    def testEvolverDecomposedDocker(self):
-        """ Check that the output of halStats on a hal file produced by running cactus with --binariesMode docker is
-        is reasonable
-        """
-        # run cactus step by step via the plan made by cactus-prepare
-        name = "decomposed"
-        self._run_evolver_decomposed("docker", name)
-
-        # check the output
-        #self._check_stats(self._out_hal(name), delta_pct=0.25)
-        #self._check_coverage(self._out_hal(name), delta_pct=0.20)
-        self._check_maf_accuracy(self._out_hal(name), delta=(0.05,0.13))
-
     def testEvolverDocker(self):
         """ Check that the output of halStats on a hal file produced by running cactus with --binariesMode docker is
         is reasonable.  Note: the local image being tested should be set up via CACTUS_DOCKER_ORG (with tag==latest)
@@ -2114,16 +2034,6 @@ class TestCase(unittest.TestCase):
         self._run_evolver_primates_star(name, configFile = pecan_config_path)
         self._check_maf_accuracy(self._out_hal("local"), delta=(0.0025,0.0075), dataset='primates')
 
-    def testEvolverPecanMammalsLocal(self):
-        """ The mammals head-to-head with baseAligner="pecan", as testEvolverMinipoaMammalsLocal is
-        for minipoa.
-        """
-        pecan_config_path = self._write_base_aligner_config("pecan")
-        name = "local"
-        self._run_evolver(name, configFile = pecan_config_path,
-                          chromInfoDict = {'simChow' : 'X,Y',  'simDog' : 'X', 'simRat' : 'Y', 'simHuman' : 'X,Y,Z'})
-        self._check_maf_accuracy(self._out_hal(name), delta=(0.05,0.13))
-
     def testEvolverRefmapLocal(self):
         """ Use the new minimap pangenome pipeline to create an alignment of the primates, then compare with the baseline
         """
@@ -2132,27 +2042,6 @@ class TestCase(unittest.TestCase):
 
         # check the output
         self._check_maf_accuracy(self._out_hal("local"), delta=(0.01,0.01), dataset='primates')
-
-    def testEvolverMinigraphLocal(self):
-        """ Use the new minigraph pangenome pipeline to create an alignment of the primates, then compare with the baseline
-        """
-        name = "local"
-        self._run_evolver_primates_graphmap(name)
-
-        # check the output
-        # todo: tune config so that delta can be reduced
-        self._check_maf_accuracy(self._out_hal("local"), delta=(0.025,0.025), dataset='primates')
-
-
-    def testEvolverPrimatesPangenomeLocal(self):
-        """ Evolver (star) primates but using the (much much) newer cactus-pangenome interface
-        """
-        name = "local"
-        self._run_evolver_primates_pangenome(name)
-
-        # check the output
-        # todo: tune config so that delta can be reduced
-        self._check_maf_accuracy(self._out_hal("local"), delta=(0.025,0.025), dataset='primates')
 
     def testEvolverPrimatesPangenomeDocker(self):
         """ Evolver (star) primates but using the (much much) newer cactus-pangenome interface
@@ -2169,10 +2058,12 @@ class TestCase(unittest.TestCase):
         """ Evolver (star) primates but using the (much much) newer cactus-pangenome interface, with
         --mgSplit: each chromosome's graph is built on the whole reference, zipped and pruned back
         (the reference has one contig, so there is nothing off-chromosome to prune, but the route
-        through the export is the whole-reference one)
+        through the export is the whole-reference one).  It also runs with training off
+        (<graphmap lastTrain="0">), which the other primates pangenome tests leave on.
         """
         name = "local"
-        self._run_evolver_primates_pangenome(name, mgSplit=True)
+        # and untrained, for the coverage of <graphmap lastTrain="0">
+        self._run_evolver_primates_pangenome(name, mgSplit=True, train=False)
 
         # check the output
         # todo: tune config so that delta can be reduced
@@ -2288,16 +2179,6 @@ class TestCase(unittest.TestCase):
         with open(paf_path, 'rb') as paf_file:
             return paf_file.read()
 
-    def testEvolverPrimatesPangenomeExtendLocal(self):
-        """ Evolver (star) primates built two genomes at a time with cactus-pangenome --inGFA,
-        checked against the same accuracy baseline as the from-scratch run """
-        name = "local"
-        self._run_evolver_primates_pangenome(name, extend=True)
-
-        # check the output
-        # todo: tune config so that delta can be reduced
-        self._check_maf_accuracy(self._out_hal("local"), delta=(0.025,0.025), dataset='primates')
-
     def testEvolverPrimatesPangenomeResumeLocal(self):
         """ cactus-pangenome --inGFA/--inGAF on a graph that already holds every genome in the
         seqfile: nothing to construct, nothing to map, so the run picks up at
@@ -2322,24 +2203,17 @@ class TestCase(unittest.TestCase):
         # todo: tune config so that delta can be reduced
         self._check_maf_accuracy(self._out_hal("local"), delta=(0.025,0.025), dataset='primates')
 
-    def testEvolverPrimatesPangenomeStepByStepSplitDocker(self):
-        """ Evolver primates but using the step-by-step cactus-pangenome interface with splitting
-        """
-        name = "docker"
-        self._run_evolver_primates_step_by_step_mgsplit(name, train=False)
-
-        # check the output
-        # todo: tune config so that delta can be reduced
-        self._check_maf_accuracy(self._out_hal("docker"), delta=(0.025,0.025), dataset='primates')
-        
     def testYeastPangenomeStepByStepLocal(self):
-        """ Run pangenome pipeline (including contig splitting!) on yeast dataset step by step"""
+        """ Run pangenome pipeline (including contig splitting!) on yeast dataset step by step, mapping
+        with the stock GAF overlap filter (<graphmap GAFOverlapFilterExact="0">) """
         name = "local"
         self._run_yeast_pangenome_step_by_step(name)
 
         # the step-by-step join runs standalone without --inputContigSizes, so it writes no
         # clipping report -- only the baseline-free stats
         self._check_yeast_pangenome(name, other_ref='UWOPS034614', expect_report=False)
+        # it maps with the stock overlap filter, so none of the exact filter's output may appear
+        self._check_exact_overlap_filter_output(self.tempDir, expect_exact=False)
 
     def testYeastPangenomeLocal(self):
         """ Run pangenome pipeline (including contig splitting!) on yeast dataset using cactus-pangenome,
@@ -2358,11 +2232,11 @@ class TestCase(unittest.TestCase):
                                                  os.path.join(join_path, 'yeast.sv.gfa.gz'))})
         self._check_exact_overlap_filter_output(join_path)
 
-    def _check_exact_overlap_filter_output(self, join_path, expect_exact=True):
+    def _check_exact_overlap_filter_output(self, paf_dir, expect_exact=True):
         """ the exact GAF overlap filter (<graphmap GAFOverlapFilterExact>, gaffilter -x, on by default)
-        exports its junction review log beside the PAF, and every genome's mapping job logs its summary.
-        With it off there is neither """
-        junctions_path = os.path.join(join_path, 'yeast.paf.junctions.tsv')
+        exports its junction review log beside the PAF (paf_dir/yeast.paf), and every genome's mapping
+        job logs its summary.  With it off there is neither """
+        junctions_path = os.path.join(paf_dir, 'yeast.paf.junctions.tsv')
         with open(self._yeast_log_path()) as log_file:
             summaries = [line for line in log_file if 'gaffilter' in line and '-x:' in line and 'records whole' in line]
         if not expect_exact:
@@ -2379,18 +2253,6 @@ class TestCase(unittest.TestCase):
                 self.assertGreaterEqual(int(toks[19]), 1)
         # one per non-reference-only genome mapped (S288C is mapped too: its records get the stock rule)
         self.assertGreaterEqual(len(summaries), 5)
-
-    def testYeastPangenomeStockOverlapFilterLocal(self):
-        """ Run the pangenome pipeline on yeast with the exact GAF overlap filter turned off
-        (<graphmap GAFOverlapFilterExact="0">), which gives the stock gaffilter rule, whole-record
-        deletion.  The graph has to pass the same checks as the default run, and none of the exact
-        filter's output may appear """
-        name = "local"
-        self._run_yeast_pangenome(name, exactOverlapFilter=False)
-
-        # check the output
-        self._check_yeast_pangenome(name, other_ref='DBVPG6044', expect_odgi=True, expect_haplo=False, expect_unchopped_gfa=True)
-        self._check_exact_overlap_filter_output(os.path.join(self.tempDir, 'join'), expect_exact=False)
 
     def testYeastPangenomeExtendLocal(self):
         """ Yeast pangenome built three strains at a time with cactus-pangenome --inGFA.
@@ -2576,13 +2438,6 @@ class TestCase(unittest.TestCase):
             # (panpatch writes it as SAMPLE#HAP#CONTIG), so no assembly sequence is lost
             self.assertTrue(any(dropped_contig in h for h in headers),
                             'dropped contig {} not carried through to the output'.format(dropped_contig))
-
-    def testYeastPanpatchLocal(self):
-        """ cactus-panpatch reference-free (the default) on yeast: each target contig is its own
-        "chromosome" and is patched against the donor """
-        name = "local"
-        out_dir = self._run_yeast_panpatch(name)
-        self._check_yeast_panpatch(out_dir)
 
     def testYeastPanpatchReferenceLocal(self):
         """ cactus-panpatch against an external reference on yeast, with a synthetic unmappable contig

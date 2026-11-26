@@ -17,7 +17,6 @@ import timeit
 from argparse import ArgumentParser
 from base64 import b64encode
 
-from toil.lib.bioio import getTempFile
 from cactus.shared.common import cactus_cpu_count, cactus_walltime
 from toil.statsAndLogging import logger
 from toil.statsAndLogging import set_logging_from_options
@@ -51,7 +50,7 @@ from cactus.shared.common import setupBinaries, importSingularityImage
 from cactus.progressive.cactus_prepare import human2bytesN
 
 from sonLib.nxnewick import NXNewick
-from sonLib.bioio import getTempDirectory
+from sonLib.bioio import getTempDirectory, getTempFile
 
 # Seconds of halAppendCactusSubtree per GiB of the c2h + fasta it reads.  The cost per GiB is
 # steady across two very different data sets: the VGP 577-way spent 64.0 h appending ~7.0 TiB
