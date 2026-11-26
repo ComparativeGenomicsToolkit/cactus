@@ -455,8 +455,9 @@ class TestCase(unittest.TestCase):
         train=False switches off <graphmap lastTrain> (on by default), for the default scoring
         rather than a model trained from the input.
 
-        with mgSplit, each chromosome's graph is built against the whole reference and pruned back
-        (the default, <graphmap_split wholeGenomeRef>), and zipped before the prune """
+        with mgSplit, each chromosome's graph is built against the whole reference and cut back to the
+        chromosome by the separation pass (the default, <graphmap_split wholeGenomeRef>), and zipped
+        before that pass """
         # borrow seqfile from other primates test
         # todo: make a seqfile and add it to the repo
         seq_file_path = os.path.join(self.tempDir, 'primates.txt')
@@ -529,7 +530,7 @@ class TestCase(unittest.TestCase):
                 self.assertTrue(os.path.exists(os.path.join(out_dir, out_name + '.refonly' + ext)),
                                 'first-pass {} not published under the .refonly prefix'.format(ext))
             # the second pass built each chromosome's graph on the whole reference, zipped it and
-            # pruned it back to the chromosome
+            # cut it back to the chromosome in the separation pass
             self._check_pruned_chrom_minigraphs(out_dir)
             self._check_chrom_zip_output(out_dir)
 
@@ -1105,10 +1106,11 @@ class TestCase(unittest.TestCase):
 
     def _check_pruned_chrom_minigraphs(self, join_path):
         """ --mgSplit (with its default <graphmap_split wholeGenomeRef>) builds each chromosome's
-        minigraph against the whole reference and prunes it back afterwards.  a prune that silently
-        did nothing would leave every chromosome's published graph carrying the whole reference (all
-        16 S288C contigs, for yeast), and the rest of the pipeline would not notice, so this is what
-        separates the option working from the option merely running. """
+        minigraph against the whole reference and cuts it back to the chromosome afterwards, in the
+        separation pass.  a separation pass that silently did nothing would leave every chromosome's
+        published graph carrying the whole reference (all 16 S288C contigs, for yeast), and the rest
+        of the pipeline would not notice, so this is what separates the option working from the
+        option merely running. """
         import gzip
         mg_dir = os.path.join(join_path, 'chrom-minigraph')
         self.assertTrue(os.path.isdir(mg_dir), 'no chrom-minigraph directory in {}'.format(join_path))
@@ -1165,9 +1167,9 @@ class TestCase(unittest.TestCase):
         chromosome with --mgSplit), giving rgfa-zip's own count of the chains and bp it zipped.
         graphs, if given, maps a name to the graph before its zip and the graph exported after it,
         where that is all the zip changed (whole-genome, and --mgSplit with wholeGenomeRef="0"; with
-        its default whole-genome reference --mgSplit prunes in between): the bp must then be exactly
-        the non-reference bp the graph lost.  Each zip job is also sized from the graph's real size,
-        so the --mem it hands rgfa-zip leaves an aligner process per core """
+        its default whole-genome reference --mgSplit runs the separation pass in between): the bp
+        must then be exactly the non-reference bp the graph lost.  Each zip job is also sized from
+        the graph's real size, so the --mem it hands rgfa-zip leaves an aligner process per core """
         import gzip
         import re
         summary_re = re.compile(r'\brgfa-zip on (\S+): zipped (\d+) chain\(s\), (\d+) bp \(')
@@ -1204,10 +1206,10 @@ class TestCase(unittest.TestCase):
         """ under --mgSplit the zip runs on each all-sample chromosome graph, so every
         chrom-minigraph/<chrom>.sv.gfa.gz needs the graph as minigraph built it and the report beside
         it.  With --mgSplit's default whole-genome reference the main export of that graph is
-        deferred to the prune, and artifacts deferred with it were once never written at all: a
-        460-haplotype run finished with 25 rewritten chromosomes and not one report on disk.  In
-        that mode the unzipped graph and the walks GAF are both the whole-reference graph before the
-        prune, and must match.  The reference-only first-pass graph is not zipped and lives outside
+        deferred to the separation pass, and artifacts deferred with it were once never written at
+        all: a 460-haplotype run finished with 25 rewritten chromosomes and not one report on disk.
+        In that mode the unzipped graph and the walks GAF are both the whole-reference graph before
+        the separation pass, and must match.  The reference-only first-pass graph is not zipped and lives outside
         chrom-minigraph, so it is not checked. """
         mg_dir = os.path.join(join_path, 'chrom-minigraph')
         gfa_names = sorted(f for f in os.listdir(mg_dir) if f.endswith('.sv.gfa.gz'))
@@ -2056,9 +2058,9 @@ class TestCase(unittest.TestCase):
 
     def testEvolverPrimatesPangenomeSplitLocal(self):
         """ Evolver (star) primates but using the (much much) newer cactus-pangenome interface, with
-        --mgSplit: each chromosome's graph is built on the whole reference, zipped and pruned back
-        (the reference has one contig, so there is nothing off-chromosome to prune, but the route
-        through the export is the whole-reference one).  It also runs with training off
+        --mgSplit: each chromosome's graph is built on the whole reference, zipped and cut back by the
+        separation pass (the reference has one contig, so there is nothing off-chromosome to cut, but
+        the route through the export is the whole-reference one).  It also runs with training off
         (<graphmap lastTrain="0">), which the other primates pangenome tests leave on.
         """
         name = "local"
@@ -2769,7 +2771,7 @@ class TestCase(unittest.TestCase):
 
         testYeastPangenomeSplitLocal covers --mgSplit's default whole-genome reference, which takes
         a different route through the export (the whole-genome graph only reaches its final path
-        after the prune).  This covers the original form: the zip is skipped on the reference-only
+        after the separation pass).  This covers the original form: the zip is skipped on the reference-only
         first pass and runs on each all-sample chromosome graph, which is exported as it was zipped,
         so the bp each zip logs must be exactly the non-reference bp its chromosome's graph lost.
 
@@ -2797,11 +2799,12 @@ class TestCase(unittest.TestCase):
 
         Uses --mgSplit, which by default builds each chromosome's graph on the whole reference
         (<graphmap_split wholeGenomeRef>): it runs everything the chromosome-only form does and adds
-        the whole-genome reference substitution and the prune that undoes it, so it is the stricter
-        of the two to keep in CI.  rgfa-zip (zipAlleles, on by default) runs on each chromosome's
-        graph with zipWalks="gaf": every genome is mapped to that graph before it is zipped, which in
-        this mode is the whole-reference graph the prune later cuts down, so the walks GAF has to
-        match that graph and not the pruned one. """
+        the whole-genome reference substitution and the separation pass that undoes it, so it is the
+        stricter of the two to keep in CI.  rgfa-zip (zipAlleles, on by default) runs on each
+        chromosome's graph with zipWalks="gaf": every genome is mapped to that graph before it is
+        zipped, which in this mode is the whole-reference graph (less what <graphmap_split
+        pruneOtherContigs> took off the other chromosomes) that the separation pass later cuts down,
+        so the walks GAF has to match that graph and not the cut-down one. """
         name = "local"
         self._run_yeast_pangenome(name, mgSplit=True, gref='clip', vcfL=0.95, zipWalks='gaf')
 

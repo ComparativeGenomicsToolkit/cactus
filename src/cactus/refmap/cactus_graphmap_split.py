@@ -11,6 +11,8 @@ import shutil
 import re
 import gzip
 
+from array import array
+from collections import defaultdict
 from operator import itemgetter
 
 from cactus.progressive.seqFile import SeqFile
@@ -33,8 +35,11 @@ from cactus.preprocessor.checkUniqueHeaders import sanitize_fasta_headers
 from cactus.refmap.cactus_graphmap import filter_paf, apply_mgsplit_filter_overrides
 from cactus.refmap.cactus_graphmap import FILTER_PAF_SECS_PER_GB
 from cactus.refmap.cactus_minigraph import check_sample_names, minigraph_gfa_from_pansn, minigraph_gfa_to_pansn
+from cactus.refmap.cactus_minigraph import bgzip_gfa_rename
 from cactus.refmap.cactus_minigraph import GFA_RENAME_SECS_PER_GB, RAW_BYTES_PER_GZ_BYTE
+from cactus.preprocessor.maskingCommon import longest_record_size
 from toil.job import Job
+from toil.lib.conversions import bytes2human
 from toil.common import Toil
 from toil.statsAndLogging import logger
 from toil.statsAndLogging import set_logging_from_options
@@ -560,6 +565,418 @@ def bins_for_chrom(chrom, ref_contigs, bin_ref_contigs):
     if chrom in stripped:
         return {chrom}
     return stripped & set(strip_event_prefix(name) for name in (bin_ref_contigs or set()))
+
+# Pruning what a wholeGenomeRef construction added to the rest of the reference
+# (<graphmap_split pruneOtherContigs>).
+#
+# With mgSplitWholeGenomeRef each chromosome's second-pass minigraph is built against the whole
+# reference, so construction can attach that chromosome's haplotypes to other chromosomes'
+# reference as well: non-reference segments hanging only off another chromosome, and sample links
+# between another chromosome's reference segments (deletion and translocation edges, eg --ggs-cnv's).
+# The separation pass cuts all of that out again before cactus-align, but the zip and graphmap's
+# mapping both see it first, and it distorts them: copies of a repeat array added to another
+# chromosome's array (4q D4Z4 units on chr10's, in a chr4 graph) raise its minimizers' occurrence
+# towards minigraph's cap, and a chr21 haplotype's 171 kb deletion edge on chr13 gives the chr21
+# p-arm blocks a path to chain onto chr13 by.  So, before anything maps to the graph, keep
+# only what this chromosome's construction could have added to its own reference: every rank-0
+# segment and rank-0 link (the other chromosomes stay as flat linear reference, so they still compete
+# for MAPQ), the non-reference components attached to this chromosome, and of the sample (rank > 0)
+# links, those that touch no other chromosome's reference.
+
+# <graphmap_split pruneOtherContigs> for a config without it
+PRUNE_OTHER_CONTIGS_DEFAULT = True
+
+# The prune is single-threaded python bar its bgzips (in, and the two graphs out), which are all
+# that more cores speed up
+PRUNE_MAX_CORES = 8
+
+# Seconds per GB of compressed GFA, for the whole job: inflating it, the two python passes, the
+# python PanSN rename of the pruned graph, and bgzipping both graphs.  Measured on a 30-way CHM13
+# chr4 graph (767 MB bgzipped, 3.1 GB raw, 52,819 segments) at 8 cores: 141 s, of which the two
+# bgzips of the pruned graphs were 120 s, the rename 8 s and inflating, scanning and writing 13 s.
+# That is 184 s/GB; this allows 1.6x it
+PRUNE_SECS_PER_GB = 300
+
+# Memory.  What the scan keeps (a few arrays and a name index per segment) is small next to the
+# longest line, which the python passes, and minigraph_gfa_to_pansn most of all, copy several times
+# over.  On a whole-reference graph that is the longest reference contig, as one segment that no
+# haplotype of this chromosome touched: CHM13's chr1 is a single 248 MB segment in the chr4 graph
+# above, where the job peaked at 1.06 GB, 4.3x it.  So the job asks for 6x the longest reference
+# contig (prune_other_contigs_memory), and never less than the floor, which leaves room for ten times
+# that graph's segments
+PRUNE_MEMORY_PER_CONTIG_BYTE = 6
+PRUNE_MIN_MEMORY = 4 * 1024**3
+
+def prune_other_contigs_enabled(config_node):
+    """ <graphmap_split pruneOtherContigs>: whether each wholeGenomeRef graph is pruned of what its
+    construction added to other chromosomes' reference """
+    graphmap_split_node = findRequiredNode(config_node, "graphmap_split")
+    try:
+        return getOptionalAttrib(graphmap_split_node, "pruneOtherContigs", typeFn=bool,
+                                 default=PRUNE_OTHER_CONTIGS_DEFAULT)
+    except ValueError:
+        raise RuntimeError('<graphmap_split pruneOtherContigs="{}"> must be 0 or 1'.format(
+            graphmap_split_node.attrib.get("pruneOtherContigs")))
+
+def prune_other_contigs_memory(longest_ref_contig):
+    """ the memory of the prune of a whole-reference graph whose longest reference contig is
+    longest_ref_contig bytes (PRUNE_MEMORY_PER_CONTIG_BYTE), before cactus_clamp_memory """
+    return max(PRUNE_MIN_MEMORY, PRUNE_MEMORY_PER_CONTIG_BYTE * int(longest_ref_contig or 0))
+
+def fasta_longest_record(job, fa_id):
+    """ the size in bytes of the longest record of a fasta (uncompressed, as sanitize_fasta_headers
+    writes them), headers and newlines included: an upper bound on its longest sequence """
+    fa_path = os.path.join(job.fileStore.getLocalTempDir(), 'reference.fa')
+    job.fileStore.readGlobalFile(fa_id, fa_path)
+    with open(fa_path, 'rb') as fa_file:
+        if fa_file.read(2) == b'\x1f\x8b':
+            raise RuntimeError('{} is compressed, where a sanitized fasta is expected'.format(fa_id))
+    longest = longest_record_size(fa_path)
+    RealtimeLogger.info('The longest reference contig is at most {} bytes: each whole-reference graph prune '
+                        '(<graphmap_split pruneOtherContigs>) gets {}'.format(
+                            longest, bytes2human(cactus_clamp_memory(prune_other_contigs_memory(longest)))))
+    return longest
+
+def gfa_ref_contig(sn):
+    """ the contig an rGFA SN tag names, without its genome: chr4 from either the cactus naming,
+    id=CHM13|chr4 (as strip_event_prefix reads it), or PanSN, CHM13#0#chr4 (or SAMPLE#chr4) """
+    if sn.startswith('id='):
+        return strip_event_prefix(sn)
+    return sn.split('#', 2)[-1]
+
+def open_gfa_bytes(gfa_path):
+    """ a GFA, gzipped or not, for reading as bytes """
+    with open(gfa_path, 'rb') as gfa_file:
+        is_gzipped = gfa_file.read(2) == b'\x1f\x8b'
+    return gzip.open(gfa_path, 'rb') if is_gzipped else open(gfa_path, 'rb')
+
+def gfa_tag_value(tags, key):
+    """ the value of the first of tags (bytes) that starts with key (eg b'SR:i:'), or None """
+    for tag in tags:
+        if tag.startswith(key):
+            return tag[len(key):]
+    return None
+
+class RgfaScan:
+    """ what the prune needs of an rGFA, read without keeping its sequences: per segment (numbered in
+    the order the file first names it) its rank, reference contig and length, and per L line (in file
+    order) its two segments and rank.  minigraph writes S and L lines only (and an H line), and the
+    prune only knows how to drop those, so a W or P line, which could name a dropped segment, is an
+    error, as is an S or L line without its rank (SR:i:) """
+    def __init__(self):
+        self.index = {}              # segment name (bytes) -> number
+        self.rank = array('q')       # SR:i:, -1 while the segment has no S line
+        self.contig = array('q')     # a rank-0 segment's number in contigs, else -1
+        self.length = array('q')     # LN:i:, or the sequence length without one
+        self.contigs = []            # the reference contigs, as gfa_ref_contig names them
+        self.contig_index = {}
+        self.link_from = array('q')
+        self.link_to = array('q')
+        self.link_rank = array('q')  # SR:i:
+
+    def segment(self, name):
+        """ the number of the segment called name, which is given one if it is new """
+        number = self.index.get(name)
+        if number is None:
+            number = self.index[name] = len(self.rank)
+            self.rank.append(-1)
+            self.contig.append(-1)
+            self.length.append(0)
+        return number
+
+def gfa_segment_name_end(line, end):
+    """ where the name of an S line ends """
+    name_end = line.find(b'\t', 2, end)
+    if name_end < 0:
+        raise RuntimeError('Malformed GFA S line: {}'.format(line[:200]))
+    return name_end
+
+def scan_rgfa(gfa_path):
+    """ an RgfaScan of a minigraph rGFA (gzipped or not), streamed a line at a time """
+    scan = RgfaScan()
+    with open_gfa_bytes(gfa_path) as gfa_file:
+        for line in gfa_file:
+            if line.startswith(b'S\t'):
+                end = len(line.rstrip(b'\r\n'))
+                name_end = gfa_segment_name_end(line, end)
+                seq_end = line.find(b'\t', name_end + 1, end)
+                tags = line[seq_end + 1:end].split(b'\t') if seq_end >= 0 else []
+                if seq_end < 0:
+                    seq_end = end
+                number = scan.segment(line[2:name_end])
+                if scan.rank[number] >= 0:
+                    raise RuntimeError('Segment {} has two S lines in {}'.format(line[2:name_end].decode(), gfa_path))
+                rank = gfa_tag_value(tags, b'SR:i:')
+                if rank is None:
+                    raise RuntimeError('Segment {} in {} has no SR:i: tag: it is not an rGFA'.format(
+                        line[2:name_end].decode(), gfa_path))
+                scan.rank[number] = int(rank)
+                length = gfa_tag_value(tags, b'LN:i:')
+                scan.length[number] = int(length) if length is not None else seq_end - name_end - 1
+                if scan.rank[number] == 0:
+                    sn = gfa_tag_value(tags, b'SN:Z:')
+                    if sn is None:
+                        raise RuntimeError('Rank-0 segment {} in {} has no SN:Z: tag'.format(
+                            line[2:name_end].decode(), gfa_path))
+                    contig = gfa_ref_contig(sn.decode())
+                    if contig not in scan.contig_index:
+                        scan.contig_index[contig] = len(scan.contigs)
+                        scan.contigs.append(contig)
+                    scan.contig[number] = scan.contig_index[contig]
+            elif line.startswith(b'L\t'):
+                toks = line.rstrip(b'\r\n').split(b'\t')
+                rank = gfa_tag_value(toks[6:], b'SR:i:')
+                if rank is None:
+                    raise RuntimeError('Link {} in {} has no SR:i: tag: it is not an rGFA'.format(
+                        b' '.join(toks[1:5]).decode(), gfa_path))
+                scan.link_from.append(scan.segment(toks[1]))
+                scan.link_to.append(scan.segment(toks[3]))
+                scan.link_rank.append(int(rank))
+            elif line.startswith(b'W\t') or line.startswith(b'P\t'):
+                raise RuntimeError('{} has {} lines: the prune of a whole-reference minigraph only reads an rGFA '
+                                   '(S and L lines), and cannot drop the segments of a path'.format(
+                                       gfa_path, line[:1].decode()))
+    missing = [name.decode() for name, number in scan.index.items() if scan.rank[number] < 0]
+    if missing:
+        raise RuntimeError('{} segment(s) in links of {} have no S line, eg {}'.format(
+            len(missing), gfa_path, ' '.join(missing[:5])))
+    return scan
+
+def prune_own_contigs(chrom, ref_contigs, bin_ref_contigs=None):
+    """ the reference contigs (of ref_contigs, the graph's) that belong to chrom's bin, by
+    bins_for_chrom: the contig chrom is named after, or for the --otherContig lump, those its own
+    reference fasta holds, which are bin_ref_contigs.  That can be a function returning them, which is
+    only called for the lump """
+    if chrom not in ref_contigs and callable(bin_ref_contigs):
+        bin_ref_contigs = bin_ref_contigs()
+    elif callable(bin_ref_contigs):
+        bin_ref_contigs = None
+    own = bins_for_chrom(chrom, set(ref_contigs), set(gfa_ref_contig(name) for name in (bin_ref_contigs or ())))
+    if not own:
+        raise RuntimeError('None of the {} reference contigs in {}\'s graph belong to it, so there is nothing to '
+                           'prune it back to'.format(len(ref_contigs), chrom))
+    return own
+
+class OtherContigPrune:
+    """ what prune_other_contigs_plan decides: drop_seg (per segment number) and drop_link (per L line)
+    are 0 to keep, and for a link 1 where it touches a dropped segment, 2 where it is a sample link
+    onto another chromosome's reference.  summary is what prune_other_contigs_report reads """
+    def __init__(self, drop_seg, drop_link, summary):
+        self.drop_seg = drop_seg
+        self.drop_link = drop_link
+        self.summary = summary
+
+    def dropped(self):
+        return self.summary['dropped_segments'] > 0 or self.summary['dropped_links'] > 0
+
+def prune_other_contigs_plan(scan, own_contigs):
+    """ what to drop from a whole-reference rGFA (an RgfaScan) to keep only what could have been added
+    to own_contigs, its own reference contigs:
+      - every non-reference component (the rank > 0 segments, joined by the links between them) not
+        attached to an own contig's rank-0 segment, which includes one attached to no rank-0 segment.
+        a component attached to both an own contig and another is kept, and counted as bridging
+      - every link touching a dropped segment
+      - every sample link (SR:i: > 0) touching another contig's rank-0 segment: deletion or
+        translocation edges between other chromosomes' reference, and the links onto another
+        chromosome from a kept (bridging) component or from this chromosome's own reference
+    Every rank-0 segment and rank-0 link is kept """
+    num_segs, num_links = len(scan.rank), len(scan.link_from)
+    rank, contig, length = scan.rank, scan.contig, scan.length
+    own = bytearray(len(scan.contigs))
+    for name in own_contigs:
+        if name in scan.contig_index:
+            own[scan.contig_index[name]] = 1
+
+    # the non-reference components, by union-find
+    parent = array('q', range(num_segs))
+    def find(x):
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+    for a, b in zip(scan.link_from, scan.link_to):
+        if rank[a] > 0 and rank[b] > 0:
+            root_a, root_b = find(a), find(b)
+            if root_a != root_b:
+                parent[root_a] = root_b
+    touches = defaultdict(set)
+    for a, b in zip(scan.link_from, scan.link_to):
+        if rank[a] > 0 and rank[b] == 0:
+            touches[find(a)].add(contig[b])
+        if rank[b] > 0 and rank[a] == 0:
+            touches[find(b)].add(contig[a])
+
+    def contig_key(contig_numbers):
+        return ','.join(sorted(scan.contigs[c] for c in contig_numbers)) or 'none'
+
+    # each component's fate, decided at its first segment: (keep it, the tally it counts towards)
+    component = {}
+    dropped_components = defaultdict(lambda: [0, 0, 0])  # contigs it touches -> components, segments, bp
+    bridging_components = defaultdict(lambda: [0, 0, 0])
+    drop_seg = bytearray(num_segs)
+    for seg in range(num_segs):
+        if rank[seg] <= 0:
+            continue
+        root = find(seg)
+        if root not in component:
+            touched = touches.get(root, ())
+            keep = any(own[c] for c in touched)
+            if not keep:
+                tally = dropped_components[contig_key(touched)]
+            elif not all(own[c] for c in touched):
+                tally = bridging_components[contig_key(touched)]
+            else:
+                tally = None
+            if tally is not None:
+                tally[0] += 1
+            component[root] = (keep, tally)
+        keep, tally = component[root]
+        if not keep:
+            drop_seg[seg] = 1
+        if tally is not None:
+            tally[1] += 1
+            tally[2] += length[seg]
+
+    drop_link = bytearray(num_links)
+    links_to_dropped = 0
+    sample_links = defaultdict(int)  # the other contigs it touches -> links
+    for k in range(num_links):
+        a, b = scan.link_from[k], scan.link_to[k]
+        if drop_seg[a] or drop_seg[b]:
+            drop_link[k] = 1
+            links_to_dropped += 1
+        elif scan.link_rank[k] > 0:
+            others = set(contig[x] for x in (a, b) if rank[x] == 0 and not own[contig[x]])
+            if others:
+                drop_link[k] = 2
+                sample_links[contig_key(others)] += 1
+
+    summary = {'own_contigs': sorted(own_contigs),
+               'segments': num_segs,
+               'rank0_segments': sum(1 for r in rank if r == 0),
+               'links': num_links,
+               'dropped_segments': sum(drop_seg),
+               'dropped_bp': sum(length[s] for s in range(num_segs) if drop_seg[s]),
+               'dropped_links': links_to_dropped + sum(sample_links.values()),
+               'dropped_components': {k: tuple(v) for k, v in dropped_components.items()},
+               'bridging_components': {k: tuple(v) for k, v in bridging_components.items()},
+               'links_to_dropped_segments': links_to_dropped,
+               'sample_links_onto_other_contigs': dict(sample_links)}
+    return OtherContigPrune(drop_seg, drop_link, summary)
+
+def prune_other_contigs_report(summary):
+    """ the lines that say what prune_other_contigs_plan dropped and kept """
+    lines = ['own reference contig(s) {}; graph has {} segments ({} rank 0) and {} links'.format(
+        ','.join(summary['own_contigs']), summary['segments'], summary['rank0_segments'], summary['links'])]
+    for key, (comps, segs, bp) in sorted(summary['dropped_components'].items()):
+        lines.append('dropped {} non-reference component(s) attached {}: {} segments, {} bp'.format(
+            comps, 'only to ' + key if key != 'none' else 'to no reference contig', segs, bp))
+    for key, (comps, segs, bp) in sorted(summary['bridging_components'].items()):
+        lines.append('kept {} bridging component(s) attached to {}: {} segments, {} bp (their sample links onto '
+                     'other contigs are dropped)'.format(comps, key, segs, bp))
+    lines.append('dropped {} link(s) touching dropped segments'.format(summary['links_to_dropped_segments']))
+    for key, count in sorted(summary['sample_links_onto_other_contigs'].items()):
+        lines.append('dropped {} sample link(s) onto the reference of {}'.format(count, key))
+    lines.append('kept {} of {} segments ({} bp dropped) and {} of {} links'.format(
+        summary['segments'] - summary['dropped_segments'], summary['segments'], summary['dropped_bp'],
+        summary['links'] - summary['dropped_links'], summary['links']))
+    return lines
+
+def write_pruned_gfa(gfa_path, out_path, scan, prune):
+    """ stream gfa_path (the file scan was read from) to out_path (uncompressed), without the
+    segments and links prune drops.  Every other line is copied as it was """
+    num_links = 0
+    with open_gfa_bytes(gfa_path) as gfa_file, open(out_path, 'wb') as out_file:
+        for line in gfa_file:
+            if line.startswith(b'S\t'):
+                name_end = gfa_segment_name_end(line, len(line))
+                if prune.drop_seg[scan.index[line[2:name_end]]]:
+                    continue
+            elif line.startswith(b'L\t'):
+                num_links += 1
+                if prune.drop_link[num_links - 1]:
+                    continue
+            out_file.write(line)
+    if num_links != len(prune.drop_link):
+        raise RuntimeError('{} changed while it was being pruned: {} links, where it had {}'.format(
+            gfa_path, num_links, len(prune.drop_link)))
+
+def prune_other_contigs_gfa(gfa_path, out_path, chrom, bin_ref_contigs=None):
+    """ prune a whole-reference rGFA (gzipped or not, cactus or PanSN named) built for chrom's bin
+    (prune_other_contigs_plan) to out_path, uncompressed.  bin_ref_contigs is only read for an
+    --otherContig lump (prune_own_contigs).  Returns the summary prune_other_contigs_report reads.
+    This is the whole prune outside Toil """
+    scan = scan_rgfa(gfa_path)
+    prune = prune_other_contigs_plan(scan, prune_own_contigs(chrom, scan.contigs, bin_ref_contigs))
+    write_pruned_gfa(gfa_path, out_path, scan, prune)
+    return prune.summary
+
+def prune_other_contigs_workflow(job, chrom, gfa_id, pansn_gfa_id, gfa_path, graph_names, bin_ref_fa_id=None,
+                                 longest_ref_contig=None, max_cores=1):
+    """ size and schedule prune_other_contigs, which takes what chrom's wholeGenomeRef construction
+    added to other chromosomes' reference out of both its graphs, the cactus-named gfa_id and the PanSN
+    pansn_gfa_id (as minigraph_construct returned them).  A job of its own because the graph only has
+    a size once it exists.  longest_ref_contig (fasta_longest_record of the whole reference) sets the
+    memory, with PRUNE_MIN_MEMORY when it is not given.  Returns the two graphs, pruned """
+    cores = max(1, min(int(max_cores or 1), PRUNE_MAX_CORES))
+    gfa_bytes = gfa_id.size
+    raw_bytes = RAW_BYTES_PER_GZ_BYTE * gfa_bytes if gfa_path.endswith('.gz') else gfa_bytes
+    prune_job = job.addChildJobFn(prune_other_contigs, chrom, gfa_id, pansn_gfa_id, gfa_path, graph_names,
+                                  bin_ref_fa_id,
+                                  cores=cores,
+                                  memory=cactus_clamp_memory(prune_other_contigs_memory(longest_ref_contig)),
+                                  # the graph compressed, inflated and pruned, and the PanSN rename's
+                                  # uncompressed copy and both compressed outputs
+                                  disk=4 * gfa_bytes + 2 * raw_bytes + (bin_ref_fa_id.size if bin_ref_fa_id else 0),
+                                  walltime=cactus_walltime(PRUNE_SECS_PER_GB * gfa_bytes / 1e9,
+                                                           io_bytes=3 * gfa_bytes))
+    return prune_job.rv(0), prune_job.rv(1)
+
+def prune_other_contigs(job, chrom, gfa_id, pansn_gfa_id, gfa_path, graph_names, bin_ref_fa_id=None):
+    """ prune chrom's whole-reference cactus-named graph gfa_id (prune_other_contigs_plan) and make its
+    PanSN copy from the result, the way minigraph_construct made pansn_gfa_id from the unpruned one,
+    so the two stay the same graph.  Both are compressed the way gfa_path says.  Returns the pair, or
+    the graphs as they came in when there is nothing to drop """
+    work_dir = job.fileStore.getLocalTempDir()
+    name = os.path.basename(gfa_path)
+    in_path = os.path.join(work_dir, 'unpruned.' + name)
+    job.fileStore.readGlobalFile(gfa_id, in_path)
+    with open(in_path, 'rb') as gfa_file:
+        is_gzipped = gfa_file.read(2) == b'\x1f\x8b'
+    raw_path = in_path
+    if is_gzipped:
+        # two passes over it in python, so inflate it once, with threads, rather than twice in python
+        raw_path = os.path.join(work_dir, 'unpruned.gfa')
+        cactus_call(parameters=['bgzip', '-dc', '--threads', str(job.cores), os.path.basename(in_path)],
+                    work_dir=work_dir, outfile=raw_path)
+    scan = scan_rgfa(raw_path)
+
+    def read_bin_ref_contigs():
+        if not bin_ref_fa_id:
+            return set()
+        bin_ref_path = os.path.join(work_dir, 'bin_reference.fa')
+        job.fileStore.readGlobalFile(bin_ref_fa_id, bin_ref_path)
+        return read_fasta_names(bin_ref_path)
+    prune = prune_other_contigs_plan(scan, prune_own_contigs(chrom, scan.contigs, read_bin_ref_contigs))
+    report = prune_other_contigs_report(prune.summary)
+    if not prune.dropped():
+        RealtimeLogger.info('Nothing to prune from {}\'s whole-reference graph: {}'.format(chrom, report[0]))
+        return gfa_id, pansn_gfa_id
+    RealtimeLogger.info('Pruning what construction added to other reference contigs from {}\'s whole-reference '
+                        'graph:\n  {}'.format(chrom, '\n  '.join(report)))
+
+    out_path = os.path.join(work_dir, 'pruned.' + name)
+    raw_out_path = out_path[:-3] if out_path.endswith('.gz') else out_path
+    write_pruned_gfa(raw_path, raw_out_path, scan, prune)
+    if raw_path != in_path:
+        os.remove(raw_path)
+    pansn_out_path = os.path.join(work_dir, 'pan-sn.pruned.' + name)
+    minigraph_gfa_to_pansn(set(graph_names), raw_out_path, pansn_out_path, job.cores)
+    bgzip_gfa_rename(raw_out_path, out_path, job.cores)
+    # the unpruned graphs are nobody's input from here on.  deleted from a follow-on rather than
+    # inline so a retry of this job doesn't trip over its own delete
+    job.addFollowOnJobFn(clean_jobstore_files, file_ids=[gfa_id, pansn_gfa_id], walltime=cactus_walltime())
+    return job.fileStore.writeGlobalFile(out_path), job.fileStore.writeGlobalFile(pansn_out_path)
 
 def separate_ref_contigs_batch(job, config, graphmap_input_dict, graphmap_batch_results, reference_event,
                               permissive_contig_filter, whole_genome_ref=False):
