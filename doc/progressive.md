@@ -289,7 +289,7 @@ You can compute conservation scores on the MAF or TAF output of `cactus-hal2maf`
 
 Inputs:
 - the alignment as produced by `cactus-hal2maf` — `.maf`, `.maf.gz`, `.taf`, or `.taf.gz` are all accepted (auto-detected by `taffy`).
-- the original `.hal` (used for the species tree, the species list, and reference chromosome sizes).
+- the original `.hal` (used for the species tree, the species list, and reference chromosome sizes). It is read by a single job and never copied into the job store: a local path is read in place, so on a cluster it must be on a filesystem the workers share, and an `http(s)://` or `s3://` URL is downloaded straight to that job's local disk. Use a URL for a HAL that can't sit on a shared filesystem, e.g. one larger than its per-file size limit.
 - a reference genome name (must match the s-line prefix used in the MAF).
 - a gene annotation: a local file or an `http(s)` / `ftp` URL pointing at genePred (`.gp`), GFF / GFF3, GTF, or a UCSC `ncbiRefSeq.txt(.gz)`-style dump. The workflow downloads, converts to genePred, filters to records with `cdsEnd > cdsStart`, and runs `genePredSingleCover` for a non-redundant single-cover annotation.
 
@@ -328,16 +328,19 @@ Combining flags: `--root primatesAnc --subtree apesAnc` would produce only the l
 
 See the phast documentation for more details.
 
-- `--substMod` : substitution model for PhyloFit (default REV)
+- `--substMod` : substitution model for PhyloFit (default SSREV, the strand-symmetric version of REV, as used by the UCSC 447-way track)
 - `--precision` : precision for PhyloFit (default HIGH)
 - `--modFreqs` : toggle on `modFreqs` to make make fit model's background frequencies symmetric
 - `--method` : phyloP method (default LRT)
 - `--phyloPMode` phyloP mode (default CONACC)
 
+`phyloFit` computes column likelihoods without rescaling, so on large trees (hundreds of species) the likelihood of a column with many substitutions can underflow to zero. A few such columns are enough to make its EM stop early and return a nonsense model (on the 447-way, a human-chimp branch length of 4.8) without any error. `cactus-phast` therefore fits a pilot model on a sample of 10,000 4d columns, uses it to find the columns whose likelihood is near the double-precision limit, and trains on the rest (on the 447-way, 43 of 724k columns are left out). Each fit is then checked by re-scoring its training columns, and is redone without any that underflow. On smaller trees nothing is left out, and the model is trained just as a plain `phyloFit` run would train it. Use `--keepUnderflowColumns` to train on every column. `phyloP` scoring is not affected, because its likelihoods are rescaled.
+
 #### Other options
 
 - `--neutralModel <model.mod>` skips training and reuses a model from a prior run.
 - `--mode phyloFit` trains and exports the model only (no phyloP scoring).
+- `--renameGenomes <renames.txt>` is for a MAF whose genome names differ from the HAL's, e.g. one whose reference was renamed from `Homo_sapiens` to `hg38` after `cactus-hal2maf`. The file has one `HAL-name MAF-name` pair per line (the `halRenameGenomes` format). The HAL's tree and genome list are renamed to match the MAF, so the reference genome, `--root` and `--subtree` are given with the MAF names, which are also the names in the trained model. The HAL itself is not changed.
 - `--bedRanges <ranges.bed>` restricts the whole pipeline to the reference ranges in a BED file (same option name and format as `cactus-hal2maf --bedRanges`). Only these ranges are chunked, scored, and (when training) used for 4d-site extraction. Use it to skip contigs you don't want to process — e.g. select only the large chromosomes and leave out tens of thousands of tiny alt/unplaced contigs. BED sequence names must be the reference contig names (the same names used in `--geneAnnotation`), without the genome prefix; coordinates are 0-based half-open and overlapping/touching intervals are merged.
 - `--chunkSize <bp>` (default 1 Mb) sets the per-chunk reference-coordinate size. Smaller chunks → more Toil jobs and finer failure isolation, larger chunks → fewer Toil jobs and lower per-job overhead.
 - `--fitChunkGroup <int>` (default 10, must be ≥ 1) sets how many consecutive chunks are catted together for one 4d-site extraction job, so `msa_view --4d` amortizes its startup over a useful region size.
@@ -355,7 +358,7 @@ cactus-phast ./js-vgp \
     ./vgp-577way-v1-hg38.phyloP.wig.gz \
     --geneAnnotation https://hgdownload.soe.ucsc.edu/goldenPath/hg38/database/ncbiRefSeq.txt.gz \
     --bigwig --batchSystem slurm --chunkCores 32 --phyloFitCores 32 \
-    --substMod REV --modFreqs --precision HIGH \
+    --modFreqs --precision HIGH \
     --slurmPartition medium
 ```
 

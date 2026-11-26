@@ -20,8 +20,10 @@ import os, sys
 import re
 import shlex
 import shutil
+import socket
 import timeit
 import xml.etree.ElementTree as ET
+from urllib.parse import urlparse, unquote
 
 from cactus.shared.common import setupBinaries, importSingularityImage, cactus_walltime
 from cactus.shared.common import cactusRootPath
@@ -48,6 +50,7 @@ from toil.statsAndLogging import logger
 from toil.statsAndLogging import set_logging_from_options
 from toil.realtimeLogger import RealtimeLogger
 from toil.lib.humanize import bytes2human
+from toil.lib.url import URLAccess
 
 
 # Core-seconds of chunker_job per GB of source MAF.  The chunker runs one `taffy view` per
@@ -85,8 +88,12 @@ def main():
                                       "Accepts .maf, .maf.gz, .taf, or .taf.gz (auto-detected "
                                       "by taffy). The chunker job materializes per-chunk "
                                       "files as bgzipped MAF regardless of source format.")
-    parser.add_argument("halFile", help="HAL file matching inMaf (used for tree, species list, chrom sizes).")
-    parser.add_argument("refGenome", help="Reference genome name (matches cactus-hal2maf --refGenome).")
+    parser.add_argument("halFile", help="HAL file matching inMaf (used for tree, species list, chrom "
+                                        "sizes): a path, read in place (on a cluster it must be on "
+                                        "a filesystem the workers share), or an http(s):// or "
+                                        "s3:// URL, downloaded by the one job that reads it.")
+    parser.add_argument("refGenome", help="Reference genome name (matches cactus-hal2maf --refGenome). "
+                                          "With --renameGenomes, its name in the MAF.")
     parser.add_argument("output",
                         help="Primary output. For --mode phyloFit a .mod file. For --mode phyloP "
                              "a .wig.gz file. Other intermediates are written next to it using the "
@@ -139,26 +146,37 @@ def main():
                              "--geneAnnotation), without the genome prefix. "
                              "[default: the whole reference]")
 
+    parser.add_argument("--renameGenomes",
+                        help="File of `HAL-name MAF-name` lines (the halRenameGenomes format) for "
+                             "genomes whose names in the MAF differ from those in the HAL, e.g. a "
+                             "reference renamed from Homo_sapiens to hg38 after cactus-hal2maf. "
+                             "The HAL's tree and genome list are renamed to match the MAF, so "
+                             "refGenome, --root and --subtree take the MAF names, as do the "
+                             "outputs.")
+
     parser.add_argument("--keepUnalignedContigs", action="store_true",
                         help="Process every reference contig. By default, when the reference is a "
                              "leaf genome, reference contigs that have no alignment to anything "
                              "(which phyloP cannot score) are left out.")
 
     # phyloFit-related options
-    parser.add_argument("--substMod", default="REV",
-                        help="Substitution model passed to phyloFit --subst-mod. REV is the "
-                             "model used by every published UCSC phyloP track (100-way, 470-way, "
-                             "447-way Zoonomia, 200-mammals, etc.). SSREV is REV with a strand-"
-                             "symmetric constraint and is the better choice for splice-site / "
-                             "intronic-conservation analyses (it makes scores independent of "
-                             "transcription strand) but produces a wider score distribution "
-                             "and isn't comparable to the published tracks. [default=REV]")
+    parser.add_argument("--substMod", default="SSREV",
+                        help="Substitution model passed to phyloFit --subst-mod. SSREV is the general "
+                             "reversible model (REV) constrained to be strand-symmetric, so scores "
+                             "don't depend on which strand a feature is on; it is what UCSC's "
+                             "447-way (Zoonomia) phyloP track used. REV drops the constraint. "
+                             "[default=SSREV]")
     parser.add_argument("--precision", default="HIGH",
                         help="phyloFit --precision (HIGH|MED|LOW). Tighter EM convergence "
                              "yields more accurate parameter estimates at the cost of more "
                              "iterations. [default=HIGH]")
     parser.add_argument("--modFreqs", action="store_true",
                         help="After phyloFit, run modFreqs to symmetrize background base frequencies.")
+    parser.add_argument("--keepUnderflowColumns", action="store_true",
+                        help="Train phyloFit on every 4d column. By default the few columns whose "
+                             "likelihood comes near the double-precision limit (which on big trees "
+                             "makes phyloFit's EM stop early with absurd branch lengths) are found "
+                             "with a pilot model and left out, and each fit is checked for them.")
 
     # phyloP-related options
     parser.add_argument("--method", default="LRT", choices=["SPH", "LRT", "SCORE", "GERP"],
@@ -224,6 +242,10 @@ def main():
     enableDumpStack()
 
     # validate inputs
+    options.genome_renames = read_genome_renames(options.renameGenomes) if options.renameGenomes else {}
+    if options.genome_renames:
+        logger.info('Renaming HAL genomes to their MAF names: {}'.format(
+            ', '.join('{}->{}'.format(a, b) for a, b in sorted(options.genome_renames.items()))))
     if not any(options.inMaf.endswith(s) for s in ('.maf', '.maf.gz', '.taf', '.taf.gz')):
         raise RuntimeError('inMaf must end with .maf, .maf.gz, .taf, or .taf.gz')
 
@@ -298,7 +320,7 @@ def main():
     # again as defense-in-depth).
     cli_mc_tree = None
     if (options.root or options.subtree) and os.path.isfile(options.halFile):
-        cli_mc_tree, _ = _parse_hal_tree(options.halFile)
+        cli_mc_tree, _ = _parse_hal_tree(options.halFile, options.genome_renames)
     if options.root and cli_mc_tree is not None:
         _validate_root_in_hal(options.halFile, options.refGenome, options.root,
                               mc_tree=cli_mc_tree)
@@ -383,7 +405,15 @@ def main():
             config.substituteAllPredefinedConstantsWithLiterals(options)
 
             maf_id = toil.importFile(makeURL(options.inMaf))
-            hal_id = toil.importFile(makeURL(options.halFile))
+            # The HAL is not imported.  Only phast_setup reads it, for the tree, the genome list
+            # and the reference's sequence sizes, and copying a HAL that can be over a terabyte
+            # into the job store and back out for a few halStats calls costs hours (and fails
+            # outright on a filesystem with a per-file size limit).  phast_setup reads it in place
+            # or downloads it straight to its own scratch space instead.
+            hal_url = makeURL(options.halFile)
+            if not URLAccess.url_exists(hal_url):
+                raise RuntimeError('HAL file not found: {}'.format(options.halFile))
+            hal_size = URLAccess.get_size(hal_url)
 
             # Try to import a .tai. --mafIndex overrides the default sibling path.
             # If the import fails and the user didn't ask for a specific one, the
@@ -416,8 +446,8 @@ def main():
                 bed_id = toil.importFile(makeURL(options.bedRanges))
 
             toil.start(Job.wrapJobFn(phast_workflow, config, options,
-                                     maf_id, tai_id, tai_built, hal_id, ann_id, model_id,
-                                     bed_id, walltime=cactus_walltime()))
+                                     maf_id, tai_id, tai_built, hal_url, hal_size, ann_id,
+                                     model_id, bed_id, walltime=cactus_walltime()))
 
     end_time = timeit.default_timer()
     logger.info("cactus-phast finished in {} seconds".format(end_time - start_time))
@@ -616,13 +646,46 @@ def rewrite_tree_to_phast_names(tree_str, species_list):
     return out
 
 
-def _parse_hal_tree(hal_path):
-    """ Parse the HAL tree into a MultiCactusTree. Returns the parsed tree. """
+def _parse_hal_tree(hal_path, renames=None):
+    """ Parse the HAL tree into a MultiCactusTree, with node names changed by the `renames` dict
+    (--renameGenomes) if given.  Returns the parsed tree and its Newick string. """
     from sonLib.nxnewick import NXNewick
     from cactus.progressive.multiCactusTree import MultiCactusTree
     tree_str = cactus_call(parameters=['halStats', hal_path, '--tree'],
                            check_output=True).strip()
+    if renames:
+        tree_str = rename_newick(tree_str, renames)
     return MultiCactusTree(NXNewick().parseString(tree_str, addImpliedRoots=False)), tree_str
+
+
+def rename_newick(tree_str, renames):
+    """ Change the node names of a Newick string (leaves and labeled internal nodes) that are keys
+    of `renames` to their values.  A name follows '(', ',' or ')' and runs up to ':', ',', ')',
+    '(' or ';', so branch lengths are never touched. """
+    return re.sub(r'(?<=[(),])([^:,();\s]+)', lambda m: renames.get(m.group(1), m.group(1)),
+                  tree_str)
+
+
+def read_genome_renames(path):
+    """ Read a --renameGenomes file: one `HAL-name MAF-name` pair per line (whitespace-separated,
+    the format of halRenameGenomes), blank lines and #-comments allowed.  Returns {HAL: MAF}. """
+    renames = {}
+    with open(path) as f:
+        for n, line in enumerate(f, 1):
+            toks = line.split('#', 1)[0].split()
+            if not toks:
+                continue
+            if len(toks) != 2:
+                raise RuntimeError('{} line {}: expected two names, got {!r}'.format(
+                    path, n, line.rstrip('\n')))
+            if toks[0] in renames:
+                raise RuntimeError('{} line {}: {} is renamed twice'.format(path, n, toks[0]))
+            renames[toks[0]] = toks[1]
+    targets = list(renames.values())
+    dups = sorted(set(t for t in targets if targets.count(t) > 1))
+    if dups:
+        raise RuntimeError('{}: several genomes renamed to {}'.format(path, ', '.join(dups)))
+    return renames
 
 
 def _hal_root_name(hal_path):
@@ -782,9 +845,12 @@ def localize_annotation(work_dir, ann_path, contig, ref_genome, idx):
 # Top-level workflow
 # -----------------------------------------------------------------------------
 
-def phast_workflow(job, config, options, maf_id, tai_id, tai_built, hal_id, ann_id, model_id,
-                   bed_id=None):
-    """ Orchestrate setup -> index -> plan -> shard -> (phyloFit?) -> (phyloP?) """
+def phast_workflow(job, config, options, maf_id, tai_id, tai_built, hal_url, hal_size, ann_id,
+                   model_id, bed_id=None):
+    """ Orchestrate setup -> index -> plan -> shard -> (phyloFit?) -> (phyloP?)
+
+    The HAL is passed as a URL (with its size in bytes, or None if unknown) rather than a file ID:
+    see phast_setup. """
 
     # fail fast if any required external binary is missing rather than crashing
     # mid-workflow on a remote worker after hours of localization
@@ -814,13 +880,18 @@ def phast_workflow(job, config, options, maf_id, tai_id, tai_built, hal_id, ann_
         setup_parent = check_job
 
     # halStats is seconds even on the 577-way (--genomes 5.6s, everything else under 0.1s), so
-    # what this job costs is the HAL copy plus halAlignedExtract, which scans the reference's
-    # top segments and streams a BED of them through awk.  That scan tracks the size of the
-    # REFERENCE, which the HAL's own size says nothing about (a two-genome HAL can have the same
-    # 3 Gb reference as the 577-way), so it goes in the constant rather than in io_bytes.
-    setup_job = setup_parent.addFollowOnJobFn(phast_setup, options, hal_id,
-                                              disk=int(hal_id.size * 1.1),
-                                              walltime=cactus_walltime(1800, io_bytes=hal_id.size))
+    # what this job costs is halAlignedExtract, which scans the reference's top segments and
+    # streams a BED of them through awk, plus the download when the HAL is given as a URL.  The
+    # scan tracks the size of the REFERENCE, which the HAL's own size says nothing about (a
+    # two-genome HAL can have the same 3 Gb reference as the 577-way), so it goes in the constant
+    # rather than in io_bytes.  A HAL at a path is read in place and needs no disk; one at a URL
+    # needs room for the download (left to Toil's default if the server wouldn't give a size).
+    setup_kwargs = dict(walltime=cactus_walltime(1800))
+    if hal_local_path(hal_url) is None:
+        setup_kwargs['walltime'] = cactus_walltime(1800, io_bytes=hal_size or 0)
+        if hal_size:
+            setup_kwargs['disk'] = int(hal_size * 1.1)
+    setup_job = setup_parent.addFollowOnJobFn(phast_setup, options, hal_url, **setup_kwargs)
     species_list = setup_job.rv(0)
     tree_str = setup_job.rv(1)
     ref_seq_lengths = setup_job.rv(2)
@@ -988,21 +1059,55 @@ def phast_check_tools(job, options):
         raise RuntimeError('\n'.join(lines))
 
 
-def phast_setup(job, options, hal_id):
-    """ Read tree + species list + ref chrom sizes from HAL. """
-    work_dir = job.fileStore.getLocalTempDir()
-    hal_path = os.path.join(work_dir, os.path.basename(options.halFile))
-    RealtimeLogger.info("Reading HAL file from job store to {}".format(hal_path))
-    job.fileStore.readGlobalFile(hal_id, hal_path)
+def hal_local_path(hal_url):
+    """ The path of a file:// URL (as made by makeURL, which quotes it), or None for any other
+    scheme. """
+    parsed = urlparse(hal_url)
+    return unquote(parsed.path) if parsed.scheme == 'file' else None
 
-    ref_seq_lengths = get_ref_sequence_lengths(hal_path, options.refGenome)
+
+def phast_setup(job, options, hal_url):
+    """ Read tree + species list + ref chrom sizes from HAL.
+
+    This is the only job that reads the HAL, which never goes through the job store: a path is
+    read in place (so on a cluster it must be somewhere the workers can see), and a URL is
+    downloaded straight to this job's scratch space. """
+    hal_path = hal_local_path(hal_url)
+    if hal_path is not None:
+        if not os.path.isfile(hal_path):
+            raise RuntimeError(
+                'HAL file {} is not visible on worker {}. cactus-phast reads a HAL given as a path '
+                'in place, so on a cluster it must be on a filesystem the workers share; otherwise '
+                'give its http(s):// or s3:// URL, and it will be downloaded.'.format(
+                    hal_path, socket.gethostname()))
+        RealtimeLogger.info("Reading HAL file in place: {}".format(hal_path))
+    else:
+        work_dir = job.fileStore.getLocalTempDir()
+        hal_path = os.path.join(work_dir, os.path.basename(urlparse(hal_url).path) or 'input.hal')
+        RealtimeLogger.info("Downloading HAL file {} to {}".format(hal_url, hal_path))
+        with open(hal_path, 'wb') as hal_file:
+            URLAccess.read_from_url(hal_url, hal_file)
+
+    # --renameGenomes: everything from here on uses the MAF's names, so only the two queries that
+    # name the reference to the HAL tools need its HAL name
+    renames = options.genome_renames
+    hal_genomes = cactus_call(parameters=['halStats', '--genomes', hal_path],
+                              check_output=True).strip().split()
+    missing = sorted(set(renames) - set(hal_genomes))
+    if missing:
+        raise RuntimeError('--renameGenomes names genome(s) not in the HAL: {}'.format(
+            ', '.join(missing)))
+    hal_ref = {new: old for old, new in renames.items()}.get(options.refGenome, options.refGenome)
+    ref_seq_lengths = get_ref_sequence_lengths(hal_path, hal_ref)
     if not ref_seq_lengths:
         raise RuntimeError('No sequences found for refGenome {} in {}'.format(
-            options.refGenome, options.halFile))
+            hal_ref, options.halFile))
 
-    species_list = cactus_call(parameters=['halStats', '--genomes', hal_path],
-                               check_output=True).strip().split()
-    mc_tree, tree_str = _parse_hal_tree(hal_path)
+    species_list = [renames.get(g, g) for g in hal_genomes]
+    if len(set(species_list)) != len(species_list):
+        raise RuntimeError('--renameGenomes gives a genome the name of another HAL genome: {}'.format(
+            ', '.join(sorted(set(g for g in species_list if species_list.count(g) > 1)))))
+    mc_tree, tree_str = _parse_hal_tree(hal_path, renames)
 
     # If the user picked a subtree, validate (again — main() does this too when
     # the HAL is local) and restrict species_list + tree_str to that subtree.
@@ -1112,7 +1217,7 @@ def phast_setup(job, options, hal_id):
                                 'needed.'.format(options.refGenome))
         else:
             try:
-                aligned = get_aligned_ref_contigs(hal_path, options.refGenome)
+                aligned = get_aligned_ref_contigs(hal_path, hal_ref)
             except RuntimeError as e:
                 # Don't let an auxiliary optimization break an otherwise-fine run:
                 # degrade to processing every contig (old behavior).
@@ -1344,11 +1449,16 @@ def train_workflow(job, options, chunks, species_list, tree_str, ann_id):
     # fine unless the user overrides via --phyloFitMemory.
     #
     # The thread divisor is capped at 64 because that is the only setting the 18 runs used, and
-    # phast's scaling above it is unmeasured.
+    # phast's scaling above it is unmeasured.  The underflow screen (fit_neutral_model) adds a
+    # pilot fit on PILOT_COLUMNS columns and a few --lnl passes, all small next to the real fit,
+    # but if the screen misses an underflowing column the check refits, so the walltime allows
+    # for two full fits.  On disk it keeps up to four copies of the SS at once (the input, the
+    # screened train.ss, a refit's subset and the unit-count copy scored by --lnl), 5.6 GB for
+    # the 577-way's 1.4 GB SS.
     fit_secs = (PHYLOFIT_CORE_SECS_PER_SPECIES * max(1, len(species_list))
                 / max(1, min(options.phyloFitCores or 1, 64)))
-    fit_kwargs = dict(disk=4 * 1024**3, cores=options.phyloFitCores,
-                      walltime=cactus_walltime(fit_secs))
+    fit_kwargs = dict(disk=8 * 1024**3, cores=options.phyloFitCores,
+                      walltime=cactus_walltime(2 * fit_secs))
     if options.phyloFitMemory:
         fit_kwargs['memory'] = cactus_clamp_memory(options.phyloFitMemory)
     fit_job = aggregate_job.addFollowOnJobFn(phyloFit_job, options, aggregate_id,
@@ -1538,7 +1648,7 @@ def aggregate_4d(job, options, ss_results, species_list, tree_str):
 
 
 def phyloFit_job(job, options, ss_id, tree_str, species_list):
-    """ Single big serial job: run phyloFit. """
+    """ Single big serial job: train the neutral model with phyloFit. """
     work_dir = job.fileStore.getLocalTempDir()
     ss_path = os.path.join(work_dir, 'all.4d.ss')
     job.fileStore.readGlobalFile(ss_id, ss_path)
@@ -1546,12 +1656,210 @@ def phyloFit_job(job, options, ss_id, tree_str, species_list):
     rewritten = rewrite_tree_to_phast_names(tree_str, species_list)
     with open(tree_path, 'w') as tf:
         tf.write(rewritten + '\n')
+    mod_path = fit_neutral_model(work_dir, options, ss_path, tree_path)
+    return job.fileStore.writeGlobalFile(mod_path)
 
-    out_root = os.path.join(work_dir, 'phyloFit')
+
+# -----------------------------------------------------------------------------
+# Keeping phyloFit's likelihood from underflowing
+# -----------------------------------------------------------------------------
+#
+# phyloFit (phast v1.9.7) computes each column's likelihood during EM by pruning without
+# rescaling (tl_compute_log_likelihood), so on a big tree a column with enough substitutions
+# comes out as exactly 0 and phast records log2(0) as -999999999.  A handful of those swamp the
+# real likelihood: the 447-way's 4d sites summed to -7.0e9 nats instead of -5.2e7, because 10 of
+# their 724k columns underflowed.  EM stops when the *relative* change in likelihood is small,
+# and against -7e9 every real improvement looks small, so it quit early and returned absurd
+# branches: the human-chimp stem came out at 4.8 substitutions/site instead of ~0.002.  Nothing
+# fails or warns.  (phyloP is not affected: the likelihoods it scores with are rescaled at every
+# node.)
+#
+# So training leaves out the columns whose likelihood is anywhere near underflowing.  To find
+# them it needs a model, so it first fits a pilot model on a random sample of the columns, scores
+# every column under it with `phyloFit --lnl --column-probs`, and drops those below
+# UNDERFLOW_SCREEN_LOG2 -- 43 of the 447-way's 724k (all nearly complete columns of mostly
+# mismatched bases).  Every fit is then checked by scoring its own training columns under the
+# model it returned: if any is still near underflow, those columns are dropped and the fit is
+# redone, so the model returned never comes from an EM run the underflow could have stopped
+# early.  When nothing underflows -- any tree small enough that it can't -- the model comes from
+# the same phyloFit call on the same columns as without any of this (phyloFit's results vary a
+# little from run to run anyway, even single-threaded).
+
+# Columns are screened out when their log2 likelihood under the pilot model is below this.  Doubles
+# reach 0 below about 2^-1074; the margin is for the difference between the pilot's parameters and
+# the ones EM moves through.
+UNDERFLOW_SCREEN_LOG2 = -700
+# A fitted model is rejected (and the columns refit without) if any of its training columns has a
+# log2 likelihood below this under it, which includes phast's -999999999 for an exact 0.
+UNDERFLOW_CHECK_LOG2 = -1000
+# Columns sampled for the pilot model, and the seed that samples them.  The pilot is only used to
+# find columns to leave out, so it can be rough; a sample this size fits in minutes on a
+# 447-species tree.  An SS file of no more than PILOT_MIN_FACTOR times that many columns is fit
+# whole without a pilot (the check still applies), since a pilot on most of its columns would
+# just be a second full fit.
+PILOT_COLUMNS = 10000
+PILOT_MIN_FACTOR = 5
+PILOT_SEED = 1
+# How many times one fit may be redone after its check finds underflowing columns.
+MAX_UNDERFLOW_REFITS = 3
+# Underflow comes from a few pathological columns.  If the screen or the checks would leave out more
+# than this fraction of them, something else is wrong (a model far off, or a broken input), and
+# training on what's left would quietly bias the model, so it is an error instead.
+MAX_LEFT_OUT_FRACTION = 0.01
+
+
+def read_ss_header(ss_path):
+    """ Read the header of a phast SS file: return (lines, fields), where lines are all the lines
+    before the first tuple (the blank separator included, without newlines) and fields are
+    their KEY = VALUE pairs. """
+    lines = []
+    with open(ss_path) as f:
+        for line in f:
+            if _ss_tuple_fields(line):
+                break
+            lines.append(line.rstrip('\n'))
+    fields = dict(l.split(' = ', 1) for l in lines if ' = ' in l)
+    for key in ('LENGTH', 'NTUPLES', 'TUPLE_SIZE'):
+        if key not in fields:
+            raise RuntimeError('No {} in the header of SS file {}'.format(key, ss_path))
+    return lines, fields
+
+
+def _ss_tuple_fields(line):
+    """ The (index, column, count) of an SS tuple line (`index<TAB>column<TAB>count`), or None if
+    the line is not one. """
+    p = line.rstrip('\n').split('\t')
+    if len(p) == 3 and p[0].isdigit() and p[2].isdigit():
+        return int(p[0]), p[1], int(p[2])
+    return None
+
+
+def iter_ss_tuples(ss_path):
+    """ Yield (index, column, count) for each tuple of an SS file. """
+    in_tuples = False
+    with open(ss_path) as f:
+        for line in f:
+            t = _ss_tuple_fields(line)
+            if t:
+                in_tuples = True
+                yield t
+            elif in_tuples and line.strip():
+                raise RuntimeError('Unexpected line after the tuples of SS file {}: {}'.format(
+                    ss_path, line[:80]))
+
+
+def read_ss_counts(ss_path):
+    """ The count of each tuple of an unordered, single-column SS file, by tuple index, checked
+    against the header (TUPLE_SIZE 1, tuples numbered 0..NTUPLES-1 in order, counts summing to
+    LENGTH) -- which is what lets phyloFit's column probabilities be matched up with tuples. """
+    _, fields = read_ss_header(ss_path)
+    if int(fields['TUPLE_SIZE']) != 1:
+        raise RuntimeError('SS file {} has TUPLE_SIZE {}, expected 1'.format(
+            ss_path, fields['TUPLE_SIZE']))
+    counts = []
+    for idx, _, count in iter_ss_tuples(ss_path):
+        if idx != len(counts):
+            raise RuntimeError('SS file {}: tuple {} found where tuple {} was expected'.format(
+                ss_path, idx, len(counts)))
+        counts.append(count)
+    if len(counts) != int(fields['NTUPLES']):
+        raise RuntimeError('SS file {} has {} tuples, its header says {}'.format(
+            ss_path, len(counts), fields['NTUPLES']))
+    if sum(counts) != int(fields['LENGTH']):
+        raise RuntimeError('SS file {}: tuple counts sum to {}, its header says LENGTH {}'.format(
+            ss_path, sum(counts), fields['LENGTH']))
+    return counts
+
+
+def write_ss_subset(in_path, out_path, new_counts):
+    """ Copy an SS file giving tuple i the count new_counts[i]: tuples with count 0 are left out
+    and the rest renumbered, and LENGTH and NTUPLES are updated.  Returns (LENGTH, NTUPLES). """
+    header, _ = read_ss_header(in_path)
+    length = sum(new_counts)
+    ntuples = sum(1 for c in new_counts if c > 0)
+    with open(out_path, 'w') as out:
+        for line in header:
+            if line.startswith('LENGTH = '):
+                line = 'LENGTH = {}'.format(length)
+            elif line.startswith('NTUPLES = '):
+                line = 'NTUPLES = {}'.format(ntuples)
+            out.write(line + '\n')
+        j = 0
+        for idx, col, _ in iter_ss_tuples(in_path):
+            if new_counts[idx] > 0:
+                out.write('{}\t{}\t{}\n'.format(j, col, new_counts[idx]))
+                j += 1
+    return length, ntuples
+
+
+def sample_ss_counts(counts, n_columns, seed):
+    """ Tuple counts for a uniform random sample (without replacement) of n_columns of the
+    columns the counts describe. """
+    import bisect
+    import itertools
+    import random
+    cum = list(itertools.accumulate(counts))
+    sampled = [0] * len(counts)
+    for col in random.Random(seed).sample(range(cum[-1]), n_columns):
+        sampled[bisect.bisect_right(cum, col)] += 1
+    return sampled
+
+
+def column_log2_probs(options, ss_path, mod_path, out_root):
+    """ log2 likelihood of each tuple of an unordered SS file under a model, by tuple index, from
+    `phyloFit --lnl --column-probs`.  phyloFit writes one score per column, LENGTH of them, but for
+    an unordered SS it has only NTUPLES: column j is tuple j, and the scores past NTUPLES are read
+    from past the end of its buffer, which segfaults once LENGTH is well beyond NTUPLES (a few
+    species with many 4d sites).  So it scores a copy of the SS with every count set to 1, where
+    LENGTH == NTUPLES. """
+    ntuples = int(read_ss_header(ss_path)[1]['NTUPLES'])
+    unit_ss = out_root + '.unit.ss'
+    write_ss_subset(ss_path, unit_ss, [1] * ntuples)
+    cactus_call(parameters=['phyloFit', '--init-model', mod_path, '--lnl', '--column-probs',
+                            '--msa-format', 'SS',
+                            '--threads', str(max(1, int(options.phyloFitCores or 1))),
+                            '--out-root', out_root, unit_ss])
+    os.remove(unit_ss)
+    return read_colprobs(out_root + '.colprobs', ntuples)
+
+
+def read_colprobs(path, ntuples):
+    """ The scores in a phyloFit .colprobs file (`index<TAB>log2 likelihood` per column), which
+    must be one per tuple, in order. """
+    probs = []
+    with open(path) as f:
+        for line in f:
+            idx, log2p = line.split()
+            if int(idx) != len(probs):
+                raise RuntimeError('{}: line {} is for column {}'.format(path, len(probs) + 1, idx))
+            probs.append(float(log2p))
+    if len(probs) != ntuples:
+        raise RuntimeError('{} has {} lines for {} tuples'.format(path, len(probs), ntuples))
+    return probs
+
+
+def below(log2p, threshold):
+    """ Whether a column's log2 likelihood is below a threshold; a NaN (which phast can print)
+    counts as below. """
+    return not log2p >= threshold
+
+
+def check_left_out(what, left_out, total):
+    """ Refuse to leave more than MAX_LEFT_OUT_FRACTION of the 4d columns out of training. """
+    if left_out > MAX_LEFT_OUT_FRACTION * total:
+        raise RuntimeError(
+            '{}: {} of {} 4d columns would be left out of training as near underflow, more than {:.0%}. '
+            'Underflow comes from a few extreme columns, so this means something else is wrong, '
+            'e.g. a model far off or a broken input. --keepUnderflowColumns trains on every column, '
+            'but the model can then be wrong.'.format(what, left_out, total, MAX_LEFT_OUT_FRACTION))
+
+
+def run_phyloFit(options, ss_path, tree_path, out_root, label='phyloFit'):
+    """ phyloFit --EM from the starting tree; returns the .mod path. """
     threads = max(1, int(options.phyloFitCores or 1))
-    RealtimeLogger.info('Running phyloFit (subst-mod={}, precision={}, threads={}); '
-                        'this may take many hours.'.format(
-                            options.substMod, options.precision, threads))
+    RealtimeLogger.info('Running {} on {} (subst-mod={}, precision={}, threads={}); this may take '
+                        'many hours.'.format(label, os.path.basename(ss_path), options.substMod,
+                                             options.precision, threads))
     # Stream phyloFit's per-iteration EM progress to the leader log so a
     # multi-hour fit shows up live (otherwise nothing prints until the
     # process finishes).
@@ -1563,11 +1871,83 @@ def phyloFit_job(job, options, ss_id, tree_str, species_list):
                             '--tree', tree_path,
                             '--out-root', out_root,
                             ss_path],
-                realtimeStderrPrefix='phyloFit')
+                realtimeStderrPrefix=label)
     mod_path = out_root + '.mod'
     if not os.path.isfile(mod_path):
         raise RuntimeError('phyloFit did not produce expected output {}'.format(mod_path))
-    return job.fileStore.writeGlobalFile(mod_path)
+    return mod_path
+
+
+def fit_checked(options, work_dir, ss_path, tree_path, label):
+    """ Fit a model to an SS file, then check that none of its columns is near underflow under
+    that model; if some are, refit without them (up to MAX_UNDERFLOW_REFITS times).  Returns
+    (model path, path of the SS file the model was fit to). """
+    input_ss = ss_path
+    total = sum(read_ss_counts(ss_path))
+    for attempt in range(MAX_UNDERFLOW_REFITS + 1):
+        root = os.path.join(work_dir, '{}.{}'.format(label, attempt))
+        mod_path = run_phyloFit(options, ss_path, tree_path, root, label)
+        counts = read_ss_counts(ss_path)
+        probs = column_log2_probs(options, ss_path, mod_path, root + '.check')
+        bad = [i for i, p in enumerate(probs) if below(p, UNDERFLOW_CHECK_LOG2)]
+        if not bad:
+            return mod_path, ss_path
+        RealtimeLogger.warning(
+            '{}: {} of {} columns ({} tuples) have a log2 likelihood below {} under the fitted '
+            'model, so its EM may have stopped early on an underflowed likelihood.'.format(
+                label, sum(counts[i] for i in bad), sum(counts), len(bad), UNDERFLOW_CHECK_LOG2))
+        for i in bad:
+            counts[i] = 0
+        check_left_out(label, total - sum(counts), total)
+        if attempt == MAX_UNDERFLOW_REFITS:
+            break
+        RealtimeLogger.warning('{}: refitting without them.'.format(label))
+        next_ss = os.path.join(work_dir, '{}.{}.ss'.format(label, attempt + 1))
+        write_ss_subset(ss_path, next_ss, counts)
+        if ss_path != input_ss:
+            os.remove(ss_path)
+        ss_path = next_ss
+    raise RuntimeError('{}: the fitted model still has 4d columns near underflow after {} refits, so '
+                       'it cannot be trusted.'.format(label, MAX_UNDERFLOW_REFITS))
+
+
+def fit_neutral_model(work_dir, options, ss_path, tree_path):
+    """ Train the neutral model on an aggregated 4d-site SS file, leaving out the columns whose
+    likelihood would underflow phyloFit's EM (see the comment above UNDERFLOW_SCREEN_LOG2).
+    Returns the .mod path. """
+    if options.keepUnderflowColumns:
+        return run_phyloFit(options, ss_path, tree_path, os.path.join(work_dir, 'phyloFit'))
+
+    counts = read_ss_counts(ss_path)
+    total = sum(counts)
+    train_ss = ss_path
+    if total > PILOT_MIN_FACTOR * PILOT_COLUMNS:
+        # pilot model on a sample of the columns, only to find the columns to leave out
+        pilot_ss = os.path.join(work_dir, 'pilot.ss')
+        write_ss_subset(ss_path, pilot_ss, sample_ss_counts(counts, PILOT_COLUMNS, PILOT_SEED))
+        pilot_mod, _ = fit_checked(options, work_dir, pilot_ss, tree_path, 'phyloFit-pilot')
+        probs = column_log2_probs(options, ss_path, pilot_mod, os.path.join(work_dir, 'screen'))
+        keep = [0 if below(p, UNDERFLOW_SCREEN_LOG2) else c for c, p in zip(counts, probs)]
+        left_out = total - sum(keep)
+        if left_out:
+            check_left_out('screen', left_out, total)
+            low = [p for c, p in zip(keep, probs) if c == 0]
+            RealtimeLogger.info(
+                'Leaving {} of {} 4d columns ({} tuples) out of training: their log2 likelihood '
+                'under a pilot model fit to {} sampled columns is below {} (lowest {}), near enough '
+                'the double-precision limit to underflow phyloFit\'s EM.'.format(
+                    left_out, total, len(low), PILOT_COLUMNS, UNDERFLOW_SCREEN_LOG2, min(low)))
+            train_ss = os.path.join(work_dir, 'train.ss')
+            write_ss_subset(ss_path, train_ss, keep)
+        else:
+            RealtimeLogger.info('No 4d column is near underflow under the pilot model; training on '
+                                'all {} columns.'.format(total))
+    # per-tuple lists, tens of bytes a tuple, needn't sit in memory through the main fit
+    counts = probs = keep = None
+    mod_path, fit_ss = fit_checked(options, work_dir, train_ss, tree_path, 'phyloFit')
+    used = int(read_ss_header(fit_ss)[1]['LENGTH'])
+    RealtimeLogger.info('Neutral model trained on {} of {} 4d columns.'.format(used, total))
+    return mod_path
 
 
 def mod_freqs_job(job, options, model_id):

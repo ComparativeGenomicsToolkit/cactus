@@ -101,6 +101,7 @@ all_progs.pipeline: all_progs.hal
 testModules = \
     progressive/outgroupTest.py \
     hal/cactus_validateTest.py \
+    maf/cactus_phastTest.py \
     paf/pafTest.py \
     preprocessor/cactus_preprocessorTest.py \
     preprocessor/checkPreprocessedSequenceTest.py \
