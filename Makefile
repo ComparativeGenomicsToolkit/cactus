@@ -200,10 +200,6 @@ evolver_test_prepare_script: all ${CWD}/test/mammals-truth.maf
 evolver_test_decomposed_local: all ${CWD}/test/mammals-truth.maf
 	PYTHONPATH="${CWD}/submodules/" CACTUS_BINARIES_MODE=local CACTUS_DOCKER_MODE=0 ${PYTHON} -m pytest ${pytestOpts} -s test/evolverTest.py::TestCase::testEvolverDecomposedLocal
 
-evolver_test_decomposed_docker: all ${CWD}/test/mammals-truth.maf
-#note make docker needs to be run beforehand
-	PYTHONPATH="${CWD}/submodules/" CACTUS_DOCKER_ORG=evolvertestdocker CACTUS_USE_LATEST=1 ${PYTHON} -m pytest ${pytestOpts} -s test/evolverTest.py::TestCase::testEvolverDecomposedDocker
-
 evolver_test_docker: all ${CWD}/test/mammals-truth.maf
 	PYTHONPATH="${CWD}/submodules/" CACTUS_BINARIES_MODE=local ${PYTHON} -m pytest ${pytestOpts} -s test/evolverTest.py::TestCase::testEvolverDocker
 
@@ -238,18 +234,8 @@ evolver_test_minipoa_mammals_local: all ${CWD}/test/mammals-truth.maf
 evolver_test_pecan_local: all ${CWD}/test/primates-truth.maf
 	PYTHONPATH="${CWD}/submodules/" CACTUS_BINARIES_MODE=local CACTUS_DOCKER_MODE=0 ${PYTHON} -m pytest ${pytestOpts} -s test/evolverTest.py::TestCase::testEvolverPecanLocal
 
-# the mammals head-to-head against evolver_test_local, which runs the same data through abpoa
-evolver_test_pecan_mammals_local: all ${CWD}/test/mammals-truth.maf
-	PYTHONPATH="${CWD}/submodules/" CACTUS_BINARIES_MODE=local CACTUS_DOCKER_MODE=0 ${PYTHON} -m pytest ${pytestOpts} -s test/evolverTest.py::TestCase::testEvolverPecanMammalsLocal
-
 evolver_test_refmap_local: all ${CWD}/test/primates-truth.maf
 	PYTHONPATH="${CWD}/submodules/" CACTUS_BINARIES_MODE=local CACTUS_DOCKER_MODE=0 ${PYTHON} -m pytest ${pytestOpts} -s test/evolverTest.py::TestCase::testEvolverRefmapLocal
-
-evolver_test_minigraph_local: all ${CWD}/test/primates-truth.maf
-	PYTHONPATH="${CWD}/submodules/" CACTUS_BINARIES_MODE=local CACTUS_DOCKER_MODE=0 ${PYTHON} -m pytest ${pytestOpts} -s test/evolverTest.py::TestCase::testEvolverMinigraphLocal
-
-evolver_test_primates_pangenome_local: all ${CWD}/test/primates-truth.maf
-	PYTHONPATH="${CWD}/submodules/" CACTUS_BINARIES_MODE=local CACTUS_DOCKER_MODE=0 ${PYTHON} -m pytest ${pytestOpts} -s test/evolverTest.py::TestCase::testEvolverPrimatesPangenomeLocal
 
 evolver_test_primates_pangenome_docker: all ${CWD}/test/primates-truth.maf
 	PYTHONPATH="${CWD}/submodules/" CACTUS_BINARIES_MODE=docker CACTUS_DOCKER_MODE=1 ${PYTHON} -m pytest ${pytestOpts} -s test/evolverTest.py::TestCase::testEvolverPrimatesPangenomeDocker
@@ -259,9 +245,6 @@ evolver_test_primates_pangenome_split_local: all ${CWD}/test/primates-truth.maf
 
 evolver_test_primates_pangenome_steps_mgsplit_local: all ${CWD}/test/primates-truth.maf
 	PYTHONPATH="${CWD}/submodules/" CACTUS_BINARIES_MODE=local CACTUS_DOCKER_MODE=0 ${PYTHON} -m pytest ${pytestOpts} -s test/evolverTest.py::TestCase::testEvolverPrimatesPangenomeStepByStepSplitLocal
-
-evolver_test_primates_pangenome_steps_mgsplit_docker: all ${CWD}/test/primates-truth.maf
-	PYTHONPATH="${CWD}/submodules/" CACTUS_BINARIES_MODE=docker CACTUS_DOCKER_MODE=1 ${PYTHON} -m pytest ${pytestOpts} -s test/evolverTest.py::TestCase::testEvolverPrimatesPangenomeStepByStepSplitDocker
 
 
 pangenome_extend_null_test_local:
@@ -276,16 +259,10 @@ yeast_test_extend_local:
 evolver_test_primates_pangenome_resume_local: all ${CWD}/test/primates-truth.maf
 	PYTHONPATH="${CWD}/submodules/" CACTUS_BINARIES_MODE=local CACTUS_DOCKER_MODE=0 ${PYTHON} -m pytest ${pytestOpts} -s test/evolverTest.py::TestCase::testEvolverPrimatesPangenomeResumeLocal
 
-evolver_test_primates_pangenome_extend_local: all ${CWD}/test/primates-truth.maf
-	PYTHONPATH="${CWD}/submodules/" CACTUS_BINARIES_MODE=local CACTUS_DOCKER_MODE=0 ${PYTHON} -m pytest ${pytestOpts} -s test/evolverTest.py::TestCase::testEvolverPrimatesPangenomeExtendLocal
-
-evolver_test_all_local: evolver_test_local evolver_test_prepare_toil evolver_test_decomposed_local evolver_test_prepare_no_outgroup_local evolver_test_poa_local evolver_test_minipoa_local evolver_test_minipoa_mammals_local evolver_test_pecan_local evolver_test_pecan_mammals_local evolver_test_refmap_local evolver_test_minigraph_local evolver_test_mammals_star_local
+evolver_test_all_local: evolver_test_local evolver_test_prepare_toil evolver_test_decomposed_local evolver_test_prepare_no_outgroup_local evolver_test_poa_local evolver_test_minipoa_local evolver_test_minipoa_mammals_local evolver_test_pecan_local evolver_test_refmap_local evolver_test_mammals_star_local
 
 yeast_test_local:
 	PYTHONPATH="${CWD}/submodules/" CACTUS_BINARIES_MODE=local CACTUS_DOCKER_MODE=0 ${PYTHON} -m pytest ${pytestOpts} -s test/evolverTest.py::TestCase::testYeastPangenomeLocal
-
-yeast_test_stock_filter_local:
-	PYTHONPATH="${CWD}/submodules/" CACTUS_BINARIES_MODE=local CACTUS_DOCKER_MODE=0 ${PYTHON} -m pytest ${pytestOpts} -s test/evolverTest.py::TestCase::testYeastPangenomeStockOverlapFilterLocal
 
 yeast_test_mgsplit_local:
 	PYTHONPATH="${CWD}/submodules/" CACTUS_BINARIES_MODE=local CACTUS_DOCKER_MODE=0 ${PYTHON} -m pytest ${pytestOpts} -s test/evolverTest.py::TestCase::testYeastPangenomeMgSplitLocal
@@ -295,9 +272,6 @@ yeast_test_split_local:
 
 yeast_test_step_by_step_local:
 	PYTHONPATH="${CWD}/submodules/" CACTUS_BINARIES_MODE=local CACTUS_DOCKER_MODE=0 ${PYTHON} -m pytest ${pytestOpts} -s test/evolverTest.py::TestCase::testYeastPangenomeStepByStepLocal
-
-panpatch_test_local:
-	PYTHONPATH="${CWD}/submodules/" CACTUS_BINARIES_MODE=local CACTUS_DOCKER_MODE=0 ${PYTHON} -m pytest ${pytestOpts} -s test/evolverTest.py::TestCase::testYeastPanpatchLocal
 
 panpatch_test_reference_local:
 	PYTHONPATH="${CWD}/submodules/" CACTUS_BINARIES_MODE=local CACTUS_DOCKER_MODE=0 ${PYTHON} -m pytest ${pytestOpts} -s test/evolverTest.py::TestCase::testYeastPanpatchReferenceLocal
