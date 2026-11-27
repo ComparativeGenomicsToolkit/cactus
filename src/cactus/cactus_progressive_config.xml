@@ -524,6 +524,9 @@
 	<!-- GAFOverlapFilterExactOptions: further gaffilter -x options, passed as they are (see gaffilter's usage: for example min-remainder, min-remainder-ident, id-floor, skip-onetoone, each with a double dash) -->
 	<!-- PAFOverlapFilterRatio: Same as GAFOverlapFilterRatio, but applied after conversion to PAF -->
 	<!-- PAFOverlapFilterMinLengthRatio: Same as GAFOverlapFilterMinLengthRatio, but applies after conversion to PAF -->
+	<!-- PAFOneToOneFilter: make each haplotype's mappings one-to-one in the graph's coordinates (paf-one-to-one), which the overlap filters above only do in the haplotype's. A haplotype here is a query name up to its first "|", so an input genome. Wherever two or more stretches of one haplotype are mapped to the same position of the same minigraph node, those whose local mismatch rate is less than PAFOneToOneFilterMargin above the best one's are kept, and the stretch is cut out of the others, exactly; the rest of each mapping is kept. Two copies about as close to the node as each other (a real duplication) both stay, while a paralog placed on the wrong copy, which shows by its mismatches, goes. Runs once, on the merged PAF, after delFilter. The first reference is never cut, and mgSplit's reference-only pass does not run it. [0: off (default), 1: on] -->
+	<!-- PAFOneToOneFilterMargin: how much above the best mismatch rate (mismatches / aligned bases, measured over the contested stretch and 25 kb either side) a mapping may be and still keep a stretch that another mapping of its haplotype also covers. 0.01 is one more mismatch per 100 bases -->
+	<!-- PAFOneToOneFilterOptions: further paf-one-to-one options, passed as they are (see its usage) -->
 	<!-- maskFilter: any softmasked sequence intervals > than this many bp will be hardmasked before being read by the minigraph mapper [negative value = disable]-->
 	<!-- delFilter: any deletions implied by split-read mappings greater than this are removed from the paf (by removing all lines of the smallest block bordering deletion)-->
 	<!-- delFilterThreshold: only remove deletion if it costs < delFilterThreshold * deletion-size matches. must be in range (0, 1] -->
@@ -571,6 +574,9 @@
 		 GAFOverlapFilterExactOptions=""
 		 PAFOverlapFilterRatio="5"
 		 PAFOverlapFilterMinLengthRatio="0"
+		 PAFOneToOneFilter="0"
+		 PAFOneToOneFilterMargin="0.01"
+		 PAFOneToOneFilterOptions=""
 		 maskFilter="-1"
 		 delFilter="10000000"
 		 delFilterThreshold="0.01"

@@ -431,6 +431,9 @@ def minigraph_workflow(job, options, config, seq_id_map, gfa_id, graph_event, sa
 
     mg_cores = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "cpu", typeFn=int, default=1)
 
+    # the one-to-one filter runs after all of the mapping: find out now if its tool is missing
+    check_one_to_one_filter_tool(config.xmlRoot)
+
     # enforce unique prefixes and unzip fastas
     if sanitize:
         sanitize_job = root_job.addChildJobFn(sanitize_fasta_headers, seq_id_map, pangenome=True, walltime=cactus_walltime())
@@ -568,6 +571,16 @@ def minigraph_workflow(job, options, config, seq_id_map, gfa_id, graph_event, sa
         paf_was_filtered = del_filter_job.rv(2)
         prev_job = del_filter_job
 
+    # make each haplotype's mappings one-to-one on the graph (off unless <graphmap PAFOneToOneFilter>).
+    # last of the filters here, so that it judges the lines the others kept, and before the
+    # self-alignments are merged in, which are none of its business
+    one_to_one_opts = one_to_one_filter_options(config.xmlRoot, options.reference, graph_event)
+    if one_to_one_opts is not None:
+        one_to_one_job = prev_job.addFollowOnJobFn(filter_paf_one_to_one_sized, out_paf_id, one_to_one_opts,
+                                                   walltime=cactus_walltime())
+        out_paf_id = one_to_one_job.rv()
+        prev_job = one_to_one_job
+
     if collapse_paf_id:
         # note: the collapse paf doesn't get merged into unfiltered_paf
         merge_collapse_job = prev_job.addFollowOnJobFn(merge_pafs, {"1" : out_paf_id, "2" : collapse_paf_id}, disk=gfa_id_size,
@@ -696,6 +709,68 @@ def check_overlap_filter_tools(config_node):
         raise RuntimeError('<graphmap GAFOverlapFilterExact="1"> needs {}, which the installed cactus-gfa-tools does '
                            'not have: the commit pinned in build-tools/downloadPangenomeTools must be at or after the '
                            'ones adding them'.format(', '.join(missing)))
+
+def one_to_one_filter_options(config_node, reference=None, graph_event="_MINIGRAPH_"):
+    """ the paf-one-to-one options <graphmap PAFOneToOneFilter> asks for, or None when it is off (0, or
+    a config from before the attribute existed).  The lines that take part are those mapped to the
+    graph: a self-alignment (<graphmap collapse>) is many-to-one on purpose """
+    graphmap_node = findRequiredNode(config_node, "graphmap")
+    if not getOptionalAttrib(graphmap_node, "PAFOneToOneFilter", typeFn=bool, default=False):
+        return None
+    value = getOptionalAttrib(graphmap_node, "PAFOneToOneFilterMargin", typeFn=str, default="0.01").strip()
+    try:
+        if not float(value) >= 0:
+            raise ValueError()
+    except ValueError:
+        raise RuntimeError('<graphmap PAFOneToOneFilterMargin> must be a number >= 0, not "{}"'.format(value))
+    opts = ['--margin', value, '--target-prefix', 'id={}|'.format(graph_event)]
+    if reference:
+        # the reference is the graph's own backbone: as in filter_paf, its lines are left alone
+        opts += ['--ref', reference]
+    opts += getOptionalAttrib(graphmap_node, "PAFOneToOneFilterOptions", typeFn=str, default="").split()
+    return opts
+
+def check_one_to_one_filter_tool(config_node):
+    """ with <graphmap PAFOneToOneFilter> on, make sure the cactus-gfa-tools in use has paf-one-to-one,
+    rather than finding out after every genome has been mapped.  It prints its usage, and exits 1,
+    when run without arguments """
+    if one_to_one_filter_options(config_node) is None:
+        return
+    usage = cactus_call(parameters=['bash', '-c', 'paf-one-to-one 2>&1 || true'], check_output=True)
+    if '--margin' not in usage:
+        raise RuntimeError('<graphmap PAFOneToOneFilter="1"> needs paf-one-to-one, which the installed cactus-gfa-tools '
+                           'does not have: the commit pinned in build-tools/downloadPangenomeTools must be at or after '
+                           'the one adding it')
+
+# Seconds per GB of PAF for paf-one-to-one, which reads its input twice and the contested lines a
+# third time: 9-11 s (and 0.5 GB of memory) on the 1.1-1.3 GB per-chromosome PAFs of a 464-haplotype
+# human run, so about 10 s/GB, allowed for six times over
+ONE_TO_ONE_SECS_PER_GB = 60
+
+def filter_paf_one_to_one(job, paf_id, opts):
+    """ cut out of each haplotype's mappings the stretches that another, better mapping of the same
+    haplotype also places on the same stretch of a graph node (paf-one-to-one, see <graphmap
+    PAFOneToOneFilter>) """
+    work_dir = job.fileStore.getLocalTempDir()
+    paf_path = os.path.join(work_dir, 'mg.paf')
+    out_paf_path = os.path.join(work_dir, 'mg.one-to-one.paf')
+    job.fileStore.readGlobalFile(paf_id, paf_path)
+    # its summary, on stderr, says how much was covered more than once and how much of that was cut
+    summary = cactus_call(parameters=['paf-one-to-one', paf_path] + opts, outfile=out_paf_path, returnStdErr=True,
+                          job_memory=job.memory)
+    for line in (summary or '').split('\n'):
+        if line.strip():
+            RealtimeLogger.info(line.rstrip())
+    return job.fileStore.writeGlobalFile(out_paf_path)
+
+def filter_paf_one_to_one_sized(job, paf_id, opts):
+    """ filter_paf_one_to_one, sized off the PAF it is given: whoever schedules it holds a promise.
+    It holds the PAF and its filtered copy on disk, and in memory about 50 bytes a line plus the
+    record table, which came to 0.4 of the PAF's size """
+    return job.addChildJobFn(filter_paf_one_to_one, paf_id, opts,
+                             disk=max(3 * paf_id.size, 2**31), memory=cactus_clamp_memory(max(paf_id.size, 2**32)),
+                             walltime=cactus_walltime(60 + ONE_TO_ONE_SECS_PER_GB * paf_id.size / 1e9,
+                                                      io_bytes=3 * paf_id.size)).rv()
 
 # the columns gaffilter -x writes to its --junctions log, one row per junction between two pieces
 # placed apart on the reference (a jump, an inversion or a cross-chromosome join)
@@ -1507,6 +1582,9 @@ def apply_mgsplit_filter_overrides(config_node):
     # (the exact filter is an overlap filter too, and needs the ratio)
     graphmap_node.attrib["GAFOverlapFilterExact"] = "0"
     graphmap_node.attrib["PAFOverlapFilterRatio"] = "0"
+    # (nor is one haplotype mapping twice to one stretch of the reference something to resolve here:
+    # where its contigs go is the question this pass is asking)
+    graphmap_node.attrib["PAFOneToOneFilter"] = "0"
     graphmap_node.attrib["minGAFBlockLength"] = "0"
     graphmap_node.attrib["delFilter"] = "-1"
 

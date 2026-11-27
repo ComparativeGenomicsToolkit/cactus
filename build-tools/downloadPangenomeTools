@@ -263,7 +263,7 @@ fi
 cd ${pangenomeBuildDir}
 git clone https://github.com/ComparativeGenomicsToolkit/cactus-gfa-tools.git
 cd cactus-gfa-tools
-git checkout a2e932793f06573eb4e63f67485702f8565cf314
+git checkout f05335b47042cecab95781754a61dddd9ab95f35
 make -j ${numcpu}
 if [[ $STATIC_CHECK -ne 1 || $(ldd paf2lastz | grep so | wc -l) -eq 0 ]]
 then
@@ -286,6 +286,13 @@ fi
 if [[ $STATIC_CHECK -ne 1 || $(ldd gaffilter | grep so | wc -l) -eq 0 ]]
 then
 	 mv gaffilter ${binDir}
+else
+	 exit 1
+fi
+# paf-one-to-one (<graphmap PAFOneToOneFilter>)
+if [[ $STATIC_CHECK -ne 1 || $(ldd paf-one-to-one | grep so | wc -l) -eq 0 ]]
+then
+	 mv paf-one-to-one ${binDir}
 else
 	 exit 1
 fi
