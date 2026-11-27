@@ -1,6 +1,9 @@
 #!/bin/bash
-# Download vcfwave. You can run this when installing the release binaries because vcfwave
-# isn't included in the release (because no static build)
+# Build vcfwave and the other vcflib tools cactus uses (vcffixup, ...) into bin/.
+# downloadPangenomeTools runs it, so they are in the docker image and the binary release.  On
+# Linux they are fully static, so they never depend on finding the right libvcflib.so (through
+# LD_LIBRARY_PATH, or one a system happens to have installed) at run time.  Mac cannot link fully
+# static binaries, so there they stay dynamic, with their libraries in lib/.
 
 set -beEu -o pipefail
 
@@ -52,7 +55,7 @@ mkdir -p ${libDir}
 cd ${pangenomeBuildDir}
 git clone --recursive https://github.com/glennhickey/vcflib.git
 cd vcflib
-git checkout d2f3ad027ae494bd6634ed85eb7087f0800c13e8
+git checkout fe265ac5fb32dc95c44640e12b989627f6868386
 mkdir build
 cd build
 # RelWithDebInfo, not Debug: Debug is -g with no -O, which built vcffixup, vcfwave and the
@@ -61,26 +64,35 @@ cd build
 # RelWithDebInfo, byte-identical output.  Not Release -- that injects -march=native
 # (vcflib CMakeLists.txt:100-101), which we cannot ship.  vcflib's own CMakeLists.txt:4
 # recommends RelWithDebInfo.
-# BUILD_SHARED_LIBS=ON: vcflib's CMakeLists.txt no longer turns it on for a dynamic build, so
-# without it libvcflib is built static and there is no libvcflib.so (or .dylib) to install below.
+# Mac, BUILD_SHARED_LIBS=ON: vcflib's CMakeLists.txt no longer turns it on for a dynamic build, so
+# without it libvcflib is built static and there is no libvcflib.dylib to install below.
+# Linux, BUILD_STATIC=ON: links WFA2-lib and vcflib's own htslib (built without libcurl) statically.
+tools="vcfwave vcfcreatemulti vcfbreakmulti vcfuniq vcffixup"
 if [[ $isMac -eq 1 ]]
 then
 	 cmake -DZIG=OFF -DWFA_GITMODULE=ON -DCMAKE_BUILD_TYPE=RelWithDebInfo -DBUILD_SHARED_LIBS=ON \
 		  -DOpenMP_C_FLAGS="${ompFlags}" -DOpenMP_C_LIB_NAMES=omp \
 		  -DOpenMP_CXX_FLAGS="${ompFlags}" -DOpenMP_CXX_LIB_NAMES=omp \
 		  -DOpenMP_omp_LIBRARY=${ompPrefix}/lib/libomp.dylib ..
+	 cmake --build . -- -j ${numcpu}
 else
-	 cmake -DZIG=OFF -DWFA_GITMODULE=ON -DCMAKE_BUILD_TYPE=RelWithDebInfo -DBUILD_SHARED_LIBS=ON ..
+	 # BUILD_STATIC does the static linking itself, so vcflib gets the CPU baseline and nothing
+	 # else.  makeBinRelease exports -static in CFLAGS, CXXFLAGS, LDFLAGS and LIBS for everything
+	 # else, and with it CMake's library checks (FindLibLZMA, ...) fail: they link a test program
+	 # against the shared library they found before vcflib switches to .a files.  The bundled
+	 # htslib runs its configure during the build, so the build gets the same flags.
+	 (export CFLAGS="${CACTUS_ARCH_FLAGS}" CXXFLAGS="${CACTUS_ARCH_FLAGS}" LDFLAGS="" LIBS=""
+	  cmake -DZIG=OFF -DWFA_GITMODULE=ON -DCMAKE_BUILD_TYPE=RelWithDebInfo -DBUILD_STATIC=ON .. && \
+		  cmake --build . -- -j ${numcpu})
 fi
-cmake --build . -- -j ${numcpu}
-mv vcfwave vcfcreatemulti vcfbreakmulti vcfuniq vcffixup ${binDir}
 if [[ $isMac -eq 1 ]]
 then
+	 mv ${tools} ${binDir}
 	 # The tools find libvcflib and libwfa2 through rpaths into this build directory.  Copy the
 	 # libraries to ${libDir}, point the rpaths there instead, and re-sign, since changing the
 	 # load commands invalidates the signature.
 	 cp -L libvcflib.dylib contrib/WFA2-lib/libwfa2.0.dylib ${libDir}
-	 for tool in vcfwave vcfcreatemulti vcfbreakmulti vcfuniq vcffixup
+	 for tool in ${tools}
 	 do
 		  for rpath in $(otool -l ${binDir}/${tool} | awk '$1 == "path" {print $2}')
 		  do
@@ -90,8 +102,15 @@ then
 		  codesign --force -s - ${binDir}/${tool}
 	 done
 else
-	 mv ./contrib/WFA2-lib/libwfa2.so.0 ${libDir}
-	 mv ./libvcflib.so ${libDir}
+	 for tool in ${tools}
+	 do
+		  if [[ $(ldd ${tool} | grep so | wc -l) -ne 0 ]]
+		  then
+				echo "ERROR: ${tool} is not statically linked" >&2
+				exit 1
+		  fi
+	 done
+	 mv ${tools} ${binDir}
 fi
  
 cd ${CWD}
