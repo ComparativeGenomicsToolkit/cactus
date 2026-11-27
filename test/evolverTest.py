@@ -731,8 +731,10 @@ class TestCase(unittest.TestCase):
         fa_path = os.path.join(self.tempDir, 'yeast.sv.gfa.fa')
         # with the exact GAF overlap filter turned off (<graphmap GAFOverlapFilterExact="0">), for the
         # stock gaffilter rule, whole-record deletion.  the tests run through cactus-pangenome keep
-        # the default, exact filter
-        stock_filter_config_path = self._write_pangenome_config('stockfilter', graphmap_attribs={'GAFOverlapFilterExact': '0'})
+        # the default, exact filter.  and with the target-space filter (<graphmap PAFOneToOneFilter>,
+        # off by default) turned on, which no other test runs
+        stock_filter_config_path = self._write_pangenome_config('stockfilter', graphmap_attribs={'GAFOverlapFilterExact': '0',
+                                                                                               'PAFOneToOneFilter': '1'})
         subprocess.check_call(['cactus-graphmap', self._job_store(binariesMode), seq_file_path, mg_path, paf_path,
                                '--outputFasta', fa_path, '--delFilter', '2000000', '--configFile', stock_filter_config_path,
                                '--logFile', self._yeast_log_path()] + cactus_opts + ['--mapCores', '1'])
@@ -2205,9 +2207,15 @@ class TestCase(unittest.TestCase):
 
     def testYeastPangenomeStepByStepLocal(self):
         """ Run pangenome pipeline (including contig splitting!) on yeast dataset step by step, mapping
-        with the stock GAF overlap filter (<graphmap GAFOverlapFilterExact="0">) """
+        with the stock GAF overlap filter (<graphmap GAFOverlapFilterExact="0">) and with the
+        target-space one-to-one filter (<graphmap PAFOneToOneFilter="1">) """
         name = "local"
         self._run_yeast_pangenome_step_by_step(name)
+
+        # paf-one-to-one ran, once, on the merged PAF: it logs what it read and what it cut
+        with open(self._yeast_log_path()) as log_file:
+            summaries = [line for line in log_file if '[paf-one-to-one]: ' in line and ' lines in ' in line]
+        self.assertEqual(len(summaries), 1, 'expected one paf-one-to-one summary in the cactus-graphmap log')
 
         # the step-by-step join runs standalone without --inputContigSizes, so it writes no
         # clipping report -- only the baseline-free stats

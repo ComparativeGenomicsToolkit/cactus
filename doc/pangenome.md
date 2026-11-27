@@ -217,6 +217,12 @@ By default (`GAFOverlapFilterExact="1"` in `<graphmap>`) it does not delete whol
 
 `GAFOverlapFilterExact="0"` gives the original rule, whole-mapping deletion, and `GAFOverlapFilterExactWinIdent="0"` turns the identity test off.  The other `GAFOverlapFilterExact*` attributes are described in the [config](../src/cactus/cactus_progressive_config.xml).
 
+### Two Mappings to the Same Place (PAFOneToOneFilter)
+
+The overlap filter above makes a contig's mappings one-to-one along the contig.  It does not stop one haplotype from being mapped twice to the same stretch of the graph, by two contigs or by two parts of one.  The haplotype's path then passes through that stretch twice.  That is right for a duplication, where both copies are about as similar to the graph as each other.  It is wrong when one of them is a paralog whose own copy is missing from the graph, or went unmapped: it stands out by its mismatches, and every one of them becomes a variant at the wrong place.
+
+`PAFOneToOneFilter="1"` in `<graphmap>` (off by default) runs `paf-one-to-one` (from [cactus-gfa-tools](https://github.com/ComparativeGenomicsToolkit/cactus-gfa-tools)) once on the merged PAF of each mapping run.  Wherever two or more mappings of one input genome cover the same position of the same minigraph node, the ones whose local mismatch rate is less than `PAFOneToOneFilterMargin` (0.01, so one mismatch per 100 bases) above the best one's are kept, and that stretch is cut out of the others.  The rest of each mapping is kept, and the sequence that was cut is left unaligned there.  The first reference is never cut, and `--mgSplit`'s reference-only pass does not run the filter.  Each run logs how much was covered more than once and how much of that was cut.
+
 ### Subtelomeres and Telomeres (ggs-ends, telomereAnchors)
 
 The last 100-500 kb of a chromosome, its subtelomere, is often a block shared with other chromosome ends, and which block an end carries varies between haplotypes.  In the HPRC v2.1 graph, 81% of 6p ends lost a block of at least 100 kb at the telomere to clipping (68% of 8p, 42% of 9q and 28% of 16p), nearly always one that came from another chromosome's end, and most ends lost 2-20 kb of telomere.  Two default options keep them:

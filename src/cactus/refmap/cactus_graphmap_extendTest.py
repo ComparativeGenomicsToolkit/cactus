@@ -34,6 +34,7 @@ from cactus.progressive.progressive_decomposition import parse_seqfile
 from cactus.refmap.cactus_graphmap import (
     gaf_from_pansn, gaf_to_pansn, pansn_to_event_map, split_gaf_file_by_event, trim_unstable_gaf,
     gaf_to_unstable_commands, overlap_filter_exact, check_overlap_filter_config, apply_mgsplit_filter_overrides,
+    one_to_one_filter_options,
     add_genome_to_seqfile)
 
 
@@ -410,6 +411,28 @@ class TestGafOverlapFilterConfig(unittest.TestCase):
         apply_mgsplit_filter_overrides(root)
         self.assertFalse(overlap_filter_exact(root))
         self.assertEqual(self.commands(root)[1:], (None, None))
+
+    def test_one_to_one_filter(self):
+        # off by default, and for a config from before the attribute existed
+        root = self.config()
+        self.assertIsNone(one_to_one_filter_options(root, 'S288C'))
+        del root.find('graphmap').attrib['PAFOneToOneFilter']
+        self.assertIsNone(one_to_one_filter_options(root, 'S288C'))
+        # on: the margin, the graph's nodes as the only targets that take part, the reference left alone
+        root = self.config(PAFOneToOneFilter='1')
+        self.assertEqual(one_to_one_filter_options(root, 'S288C'),
+                         ['--margin', '0.01', '--target-prefix', 'id=_MINIGRAPH_|', '--ref', 'S288C'])
+        self.assertEqual(one_to_one_filter_options(root), ['--margin', '0.01', '--target-prefix', 'id=_MINIGRAPH_|'])
+        root = self.config(PAFOneToOneFilter='1', PAFOneToOneFilterMargin='0.02', PAFOneToOneFilterOptions='--pad 10000 -q 5')
+        self.assertEqual(one_to_one_filter_options(root, 'S288C', 'mg'),
+                         ['--margin', '0.02', '--target-prefix', 'id=mg|', '--ref', 'S288C', '--pad', '10000', '-q', '5'])
+        for value in ('-0.01', 'x', ''):
+            with self.assertRaises(RuntimeError):
+                one_to_one_filter_options(self.config(PAFOneToOneFilter='1', PAFOneToOneFilterMargin=value))
+        # mgSplit's reference-only pass turns it off with the other mapping filters
+        root = self.config(PAFOneToOneFilter='1')
+        apply_mgsplit_filter_overrides(root)
+        self.assertIsNone(one_to_one_filter_options(root, 'S288C'))
 
     def test_exact_options(self):
         root = self.config(GAFOverlapFilterExactRatio='2', GAFOverlapFilterExactGuard='1', GAFOverlapFilterExactGap='21000',
