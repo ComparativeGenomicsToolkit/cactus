@@ -52,23 +52,25 @@ mkdir -p ${libDir}
 cd ${pangenomeBuildDir}
 git clone --recursive https://github.com/glennhickey/vcflib.git
 cd vcflib
-git checkout 44eb97462eedc59365e8739103e2d5f7e2c76803
+git checkout d2f3ad027ae494bd6634ed85eb7087f0800c13e8
 mkdir build
 cd build
 # RelWithDebInfo, not Debug: Debug is -g with no -O, which built vcffixup, vcfwave and the
 # bundled WFA2-lib (vcfwave's alignment engine, an add_subdirectory so it inherits this) at
 # -O0.  Measured: vcffixup over 120k records x 60 samples, 53.2s at Debug vs 14.5s at
 # RelWithDebInfo, byte-identical output.  Not Release -- that injects -march=native
-# (vcflib CMakeLists.txt:77-78), which we cannot ship.  vcflib's own CMakeLists.txt:4
+# (vcflib CMakeLists.txt:100-101), which we cannot ship.  vcflib's own CMakeLists.txt:4
 # recommends RelWithDebInfo.
+# BUILD_SHARED_LIBS=ON: vcflib's CMakeLists.txt no longer turns it on for a dynamic build, so
+# without it libvcflib is built static and there is no libvcflib.so (or .dylib) to install below.
 if [[ $isMac -eq 1 ]]
 then
-	 cmake -DZIG=OFF -DWFA_GITMODULE=ON -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+	 cmake -DZIG=OFF -DWFA_GITMODULE=ON -DCMAKE_BUILD_TYPE=RelWithDebInfo -DBUILD_SHARED_LIBS=ON \
 		  -DOpenMP_C_FLAGS="${ompFlags}" -DOpenMP_C_LIB_NAMES=omp \
 		  -DOpenMP_CXX_FLAGS="${ompFlags}" -DOpenMP_CXX_LIB_NAMES=omp \
 		  -DOpenMP_omp_LIBRARY=${ompPrefix}/lib/libomp.dylib ..
 else
-	 cmake -DZIG=OFF -DWFA_GITMODULE=ON -DCMAKE_BUILD_TYPE=RelWithDebInfo ..
+	 cmake -DZIG=OFF -DWFA_GITMODULE=ON -DCMAKE_BUILD_TYPE=RelWithDebInfo -DBUILD_SHARED_LIBS=ON ..
 fi
 cmake --build . -- -j ${numcpu}
 mv vcfwave vcfcreatemulti vcfbreakmulti vcfuniq vcffixup ${binDir}
