@@ -567,15 +567,12 @@ else
     exit 1
 fi
 
-# vcfwave
+# vcfwave and the other vcflib tools: on Linux downloadVCFWave always builds them fully static,
+# and fails if they are not, so they go in the binary release too
 cd ${CWD}
-# todo: it's be nice to figure out a static build. for now we skip entirely if static enabled.
-if [[ $STATIC_CHECK -ne 1 ]]
-then
-    build-tools/downloadVCFWave
-    cd ${CWD}
-    mkdir -p ${pangenomeBuildDir}
-fi
+build-tools/downloadVCFWave
+cd ${CWD}
+mkdir -p ${pangenomeBuildDir}
 
 cd ${CWD}
 rm -rf ${pangenomeBuildDir}

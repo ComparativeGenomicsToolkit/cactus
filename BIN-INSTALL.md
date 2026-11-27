@@ -34,11 +34,6 @@ should set them up successfully on many 64 bit Linux systems:
 cd bin && for i in wigToBigWig faToTwoBit bedToBigBed bigBedToBed axtChain pslPosTarget bedSort hgGcPercent mafToBigMaf hgLoadMafSummary hgLoadChain genePredSingleCover gff3ToGenePred gtfToGenePred; do wget -q http://hgdownload.cse.ucsc.edu/admin/exe/linux.x86_64/${i}; chmod +x ${i}; done
 ```
 
-`vcfwave` isn't included in the release binaries (but is in the docker image).  You can can try building it and adding it to `bin/` with the following command
-```
-build-tools/downloadVCFWave
-```
-
 ## Testing
 
 To test Cactus, the following will run a tiny sumulated alignment.

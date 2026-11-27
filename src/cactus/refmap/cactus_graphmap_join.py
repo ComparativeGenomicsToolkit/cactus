@@ -2826,7 +2826,7 @@ def check_vcfwave(job):
     try:
         cactus_call(parameters=['vcfwave', '-h'])
     except:
-        raise RuntimeError('--vcfwave option used, but vcfwave tool not found in PATH. vcfwave is *not* included in the cactus binary release, but it is in the cactus Docker image. If you have Docker installed, you can try running again with --binariesMode docker. Or running your whole command with docker run. If you cannot use Docker, then you will need to build vcflib yourself before retrying: source code and details here: https://github.com/vcflib/vcflib.  Running the ./build-tools/downloadVCFWave script (from the cactus/ directory) will attemp to download and build vcfwave.')
+        raise RuntimeError('--vcfwave option used, but vcfwave could not be run from PATH. vcfwave is in the bin/ directory of the cactus binary release and in the cactus Docker image. In a source checkout, the ./build-tools/downloadVCFWave script (run from the cactus/ directory) builds it into bin/.')
 
     version = None
     try:
@@ -2842,7 +2842,7 @@ def check_vcffixup(job):
     try:
         cactus_call(parameters=[['echo', '##fileformat=VCFv4.2'], ['vcffixup', '-']])
     except:
-        raise RuntimeError('vcf normalization with merge_duplicates enabled, but vcffixup tool (used in postprocessing) not found in PATH. vcffixup is *not* included in the cactus binary release, but it is in the cactus Docker image. If you have Docker installed, you can try running again with --binariesMode docker. Or running your whole command with docker run. If you cannot use Docker, then you will need to build vcflib yourself before retrying: source code and details here: https://github.com/vcflib/vcflib. Running the ./build-tools/downloadVCFWave script (from the cactus/ directory) will attemp to download and build vcfwave.')    
+        raise RuntimeError('vcf normalization with merge_duplicates enabled, but vcffixup (used in postprocessing) could not be run from PATH. vcffixup is in the bin/ directory of the cactus binary release and in the cactus Docker image. In a source checkout, the ./build-tools/downloadVCFWave script (run from the cactus/ directory) builds it into bin/.')
     
 def chunked_vcfwave(job, config, out_name, vcf_ref, vcf_id, tbi_id, max_ref_allele, fasta_ref_dict, tag,
                     max_mem=sys.maxsize):
