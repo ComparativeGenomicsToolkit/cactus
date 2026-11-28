@@ -151,7 +151,7 @@ def main():
                         help="HDF5 compression codec for HAL output (overrides config XML, default=deflate)")
     parser.add_argument("--halFormat", choices=["hdf5", "3"], default=None,
                         help="Output HAL format: hdf5 (the default), or 3 (HAL format 3, which hal merge "
-                        "stitches; not with --pangenome)")
+                        "stitches)")
     parser.add_argument("--validate", action="store_true",
                         help="Before writing the output, check that every sequence in the HAL is "
                         "still identical (modulo soft-masking) to the sequence that was aligned. "
@@ -325,8 +325,6 @@ def make_align_job(options, toil, config_wrapper=None, chrom_name=None):
     if hasattr(options, 'hdf5Codec') and options.hdf5Codec:
         config_node.find("hal").attrib["hdf5Codec"] = options.hdf5Codec
     if getattr(options, 'halFormat', None):
-        if options.halFormat == "3" and getattr(options, "pangenome", False):
-            raise RuntimeError("--halFormat 3 is not supported with --pangenome (hal2vg reads HDF5)")
         config_node.find("hal").attrib["format"] = options.halFormat
     config_wrapper.setSystemMemory(options)
     mc_tree, input_seq_map, og_candidates = parse_seqfile(options.seqFile, config_wrapper,

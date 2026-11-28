@@ -247,9 +247,6 @@ def export_hal(job, mc_tree, config_node, seq_id_map, og_map, results, event=Non
     if hal_format(config_node) == "3":
         # HAL format 3: every subproblem wrote a fragment; one hal merge makes the alignment,
         # with the input tree's branch lengths
-        if acyclicEvent:
-            raise RuntimeError("--halFormat 3 cannot yet remove the duplications of {} (halRemoveDupes): "
-                               "use --halFormat hdf5".format(acyclicEvent))
         fragment_ids = [(mc_tree.getName(node), results[mc_tree.getName(node)][0]) for node in mc_tree.breadthFirstTraversal(root_node)
                         if mc_tree.getName(node) in subtree_roots]
         if not has_resources:
@@ -257,7 +254,8 @@ def export_hal(job, mc_tree, config_node, seq_id_map, og_map, results, event=Non
             # the fragments in, the alignment out (about their total), and room to spare;
             # the merge streams, so memory does not grow with the alignment
             return job.addChildJobFn(export_hal, mc_tree, config_node, seq_id_map, og_map, results, event=event,
-                                     checkpointInfo=checkpointInfo, has_resources=True, validate=validate,
+                                     checkpointInfo=checkpointInfo, acyclicEvent=acyclicEvent,
+                                     has_resources=True, validate=validate,
                                      disk=3 * total_size, memory=memory_override if memory_override else cactus_clamp_memory(2**31),
                                      walltime=cactus_walltime(600, io_bytes=int(2.2 * total_size))).rv()
         fragment_paths = []
@@ -282,6 +280,12 @@ def export_hal(job, mc_tree, config_node, seq_id_map, og_map, results, event=Non
                      "--meta", "CACTUS_CONFIG=" + config_b64], job_memory=job.memory)
         for path in fragment_paths:
             os.remove(path)
+        if acyclicEvent:
+            # halRemoveDupes: of the branch above the reference, keep only the canonical copy of
+            # each parent base, so the reference's path through the graph is acyclic.  only that
+            # genome's .hgn is rewritten
+            cactus_call(parameters=["hal", "update", "--inPlace", "--removeDupes", acyclicEvent, hal_path],
+                        job_memory=job.memory)
         if validate:
             cactus_call(parameters=["hal", "validate", hal_path])
         if checkpointInfo:
