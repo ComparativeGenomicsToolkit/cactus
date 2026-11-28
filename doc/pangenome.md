@@ -394,7 +394,7 @@ These combine, so `--reference CHM13 GRCh38 --vcfReference GRCh38 --vcf filter -
 
 Switch off `vcfbub` with `--vcfbub 0` or specify a different threshold with `--vcfbub N`.
 
-The `bcftoolsNorm` config attribute left-aligns indels in the `vcfbub` VCF. It is **off** by default, since left-shifting can leave overlapping variants behind. The wave VCF is normalized by default instead, under `vcfwaveNorm`.
+The `bcftoolsNorm` config attribute left-aligns indels in the `vcfbub` VCF. It is **off** by default. The wave VCF is normalized by default instead, under `vcfwaveNorm`. Both left-align with `vcfleftshift` (from Cactus's [vcflib fork](https://github.com/glennhickey/vcflib)). It trims and shifts indels the way `bcftools norm -f` does, but never moves an indel onto or across another variant on one of its haplotypes, so it doesn't change any haplotype's sequence.
 
 Also new in v2.8.2, the `--vcfwave` option writes an additional VCF normalized with [vcfwave](https://github.com/vcflib/vcflib/blob/master/doc/vcfwave.md), which does a good job of smoothing out small variants in complex regions but can take a while on larger graphs. `vcfwave` is included in the Cactus docker images and binary release. In a source checkout, `build-tools/downloadVCFWave` builds it into `bin/`. Use `--vcfwaveCores` and `--vcfwaveMemory` to set the cores and memory for each `vcfwave` job.
 

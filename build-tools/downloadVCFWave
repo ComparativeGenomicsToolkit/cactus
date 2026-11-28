@@ -55,7 +55,8 @@ mkdir -p ${libDir}
 cd ${pangenomeBuildDir}
 git clone --recursive https://github.com/glennhickey/vcflib.git
 cd vcflib
-git checkout fe265ac5fb32dc95c44640e12b989627f6868386
+# safe-left-shift branch (glennhickey/vcflib PR #3), for vcfleftshift
+git checkout e28ad6112ceccc789d36fb5371e0d481211a9365
 mkdir build
 cd build
 # RelWithDebInfo, not Debug: Debug is -g with no -O, which built vcffixup, vcfwave and the
@@ -67,7 +68,7 @@ cd build
 # Mac, BUILD_SHARED_LIBS=ON: vcflib's CMakeLists.txt no longer turns it on for a dynamic build, so
 # without it libvcflib is built static and there is no libvcflib.dylib to install below.
 # Linux, BUILD_STATIC=ON: links WFA2-lib and vcflib's own htslib (built without libcurl) statically.
-tools="vcfwave vcfcreatemulti vcfbreakmulti vcfuniq vcffixup"
+tools="vcfwave vcfcreatemulti vcfbreakmulti vcfuniq vcffixup vcfleftshift"
 if [[ $isMac -eq 1 ]]
 then
 	 cmake -DZIG=OFF -DWFA_GITMODULE=ON -DCMAKE_BUILD_TYPE=RelWithDebInfo -DBUILD_SHARED_LIBS=ON \

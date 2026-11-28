@@ -953,15 +953,18 @@ def graphmap_join(options):
 
 def vcflib_checks(job, options, config_node):
     """ run the vcflib checks"""
-        # vcfwave isn't included in the static binary release, so we start by checking it's available
+    # the vcflib tools are in the binary release and docker image, but not in a pip install from
+    # source, so check they're available before any expensive jobs run
     if options.vcfwave and options.vcf:
         vcfwave_check_job = job.addFollowOnJobFn(check_vcfwave, walltime=cactus_walltime())
         job = vcfwave_check_job
 
-    # vcffixup isn't included in the static binary release, so we start by checking it's available
     merge_dup = getOptionalAttrib(findRequiredNode(config_node, "graphmap_join"), "mergeDuplicatesOptions", typeFn=str, default=None) not in [None, "0"]
     wave_norm = getOptionalAttrib(findRequiredNode(config_node, "graphmap_join"), "vcfwaveNorm", typeFn=bool, default=True)
     bub_norm = getOptionalAttrib(findRequiredNode(config_node, "graphmap_join"), "bcftoolsNorm", typeFn=bool, default=False)
+    if options.vcf and (bub_norm or (options.vcfwave and wave_norm)):
+        vcfleftshift_check_job = job.addFollowOnJobFn(check_vcfleftshift, walltime=cactus_walltime())
+        job = vcfleftshift_check_job
     if options.vcf and merge_dup and (bub_norm or (options.vcfwave and wave_norm)):
         vcffixup_check_job = job.addFollowOnJobFn(check_vcffixup, walltime=cactus_walltime())
         job = vcffixup_check_job
@@ -2276,7 +2279,7 @@ def check_fasta_headers(fa_path, vcf_ref):
     """ fail here, before anything expensive, if the headers are not bare contig names
 
     a header still carrying '#' will not match the CHROM deconstruct emits, and the only symptom
-    is `bcftools norm -f` reporting the contig missing, once every deconstruct, vcfbub and
+    is vcfleftshift reporting the contig missing, once every deconstruct, vcfbub and
     vcfwave job has been paid for
     """
     bad = []
@@ -2642,7 +2645,7 @@ def vcfbub(job, config, out_name, vcf_ref, vcf_id, tbi_id, max_ref_allele, fasta
 
 
 def vcfnorm(job, config, vcf_ref, vcf_id, vcf_path, tbi_id, fasta_ref_dict):
-    """ run bcftools norm and merge_duplicates.py """
+    """ split, left-align with vcfleftshift, and run merge_duplicates.py """
     if vcf_id is None:
         return None, None
     work_dir = job.fileStore.getLocalTempDir()
@@ -2657,11 +2660,24 @@ def vcfnorm(job, config, vcf_ref, vcf_id, vcf_path, tbi_id, fasta_ref_dict):
     view_cmd = ['bcftools', 'view', '-H']
     if getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "filterAC0", typeFn=bool, default=False):
         view_cmd += ['-e', 'AC=0']
+    # left-align with vcfleftshift rather than bcftools norm -f.  norm -f places each record by the
+    # reference alone, so it can slide an insertion onto the base of a SNP the same haplotype
+    # carries (which merge_duplicates.py then fuses into one SNP+indel allele, losing the SNP), or
+    # a deletion across that haplotype's own SNPs.  vcfleftshift trims and shifts the same way,
+    # but stops an indel before it reaches another variant on one of its haplotypes.
+    # it needs sorted input, which vcfwave's output is not, and moving records can unsort them
+    # again.  the two sorts are separate calls, with the sorted records compressed in between,
+    # so that their temporary files never take up disk at the same time
+    sorted_path = os.path.join(work_dir, 'sorted.' + os.path.basename(vcf_path))
     cactus_call(parameters=[['bcftools', 'norm', '-m', '-any', vcf_path],
-                            ['bcftools', 'norm', '-f', fa_ref_path],
                             view_cmd,
                             ['sort', '-k1,1', '-k2,2n', '-s', '-T', work_dir],
+                            ['bgzip']], outfile=sorted_path)
+    cactus_call(parameters=[['bgzip', '-dc', sorted_path],
+                            ['vcfleftshift', '-f', fa_ref_path],
+                            ['sort', '-k1,1', '-k2,2n', '-s', '-T', work_dir],
                             ['bgzip']], outfile=norm_path, outappend=True)
+    os.remove(sorted_path)
     merge_duplicates_opts = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), "mergeDuplicatesOptions", typeFn=str, default=None)
     if merge_duplicates_opts not in [None, "0"]:
         merge_path = os.path.join(work_dir, 'merge.' + os.path.basename(vcf_path))
@@ -2843,7 +2859,14 @@ def check_vcffixup(job):
         cactus_call(parameters=[['echo', '##fileformat=VCFv4.2'], ['vcffixup', '-']])
     except:
         raise RuntimeError('vcf normalization with merge_duplicates enabled, but vcffixup (used in postprocessing) could not be run from PATH. vcffixup is in the bin/ directory of the cactus binary release and in the cactus Docker image. In a source checkout, the ./build-tools/downloadVCFWave script (run from the cactus/ directory) builds it into bin/.')
-    
+
+def check_vcfleftshift(job):
+    """ check to make sure vcfleftshift is installed """
+    try:
+        cactus_call(parameters=['vcfleftshift', '-h'])
+    except:
+        raise RuntimeError('vcf normalization enabled, but vcfleftshift (used to left-align indels) could not be run from PATH. vcfleftshift is in the bin/ directory of the cactus binary release and in the cactus Docker image. In a source checkout, the ./build-tools/downloadVCFWave script (run from the cactus/ directory) builds it into bin/.')
+
 def chunked_vcfwave(job, config, out_name, vcf_ref, vcf_id, tbi_id, max_ref_allele, fasta_ref_dict, tag,
                     max_mem=sys.maxsize):
     """ run vcfwave in parallel chunks.  max_mem is --indexMemory, which no job may ask for more than """
