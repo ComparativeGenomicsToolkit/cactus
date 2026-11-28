@@ -643,6 +643,9 @@
 	<!-- pgrealignRealignOptions: options to pgrealign realign (select, centre, max-excess, max-cells, max-work, min-share, scores).  Its limits are sizes of the alignment, never of the machine, so the realigned graph depends only on the input and the config: max-cells is the largest alignment run unbanded, and max-work bounds the cells of a region's alignments in all.  A region too big for them is left as it is.  realign's jobs and max-memory come from the job's cores and memory, and a job with too little memory for its largest region starts again with enough; a run that cannot have that stops rather than realign less -->
 	<!-- pgrealignVerify: check that every path of each realigned graph spells what it did before (pgrealign verify), failing the job if not -->
 	<!-- pgrealignQC: measure each realigned region's alignment, and the graph's before it, against optimal pairwise alignments (pgrealign qc), into the archive of reports.  Off by default: it can take longer than the realignment -->
+	<!-- centrolignMonomer: the length in bp of the monomer of the arrays that the centrolign option looks for on the reference when it is given no targets: 171 for alpha satellite -->
+	<!-- centrolignMinArray: the shortest array, in bp, that the centrolign option realigns when it is given no targets -->
+	<!-- centrolignArrayGap: when the centrolign option is given no targets, stretches of an array at most this many bp apart are one array -->
 	<!-- centrolignRegionsOptions: options to pgrealign regions (pad, max-span, max-bypass) for the centrolign option, whose regions span a centromere's array and the satellites around it.  With max-bypass, a region is anchored on the nearest reference nodes on either side that at most that fraction of the haplotypes go around, rather than on snarl boundaries, which can lie far from the array; extract then needs exit-edges -->
 	<!-- centrolignExtractOptions: options to pgrealign extract (max-internal-bp, allow-inversions, exit-edges, keep-fragments) for the centrolign option: a contig that lies inside a region does not stop the region being realigned unless it is longer than max-internal-bp, and with allow-inversions a haplotype that crosses some of a region's nodes in the other orientation does not either: centrolign aligns its inverted sequence as it reads forward.  With exit-edges, a haplotype can enter or leave a region through other reference nodes than its anchors, as one anchored with max-bypass needs.  With keep-fragments, which needs exit-edges, the sequence of a haplotype that does not cross a region, such as a contig that ends inside it, stays on the nodes it was on rather than going back in unaligned -->
 	<!-- centrolignTrimMargin: bp kept on either side of each haplotype's copy of a target, found by the target's k-mers on the reference, when the centrolign option cuts each haplotype's sequence of a region down to its copy of the target (pgrealign extract's trim-targets).  The rest stays on the nodes it was on, and a haplotype that does not cross the region is aligned too if it holds a whole copy.  A negative value aligns each haplotype's whole sequence of the region -->
@@ -684,6 +687,9 @@
 		 pgrealignRealignOptions=""
 		 pgrealignVerify="1"
 		 pgrealignQC="0"
+		 centrolignMonomer="171"
+		 centrolignMinArray="100000"
+		 centrolignArrayGap="20000"
 		 centrolignRegionsOptions="--max-span 10000000 --max-bypass 0.1"
 		 centrolignExtractOptions="--max-internal-bp 10000000 --allow-inversions --exit-edges --keep-fragments"
 		 centrolignTrimMargin="20000"

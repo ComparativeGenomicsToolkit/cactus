@@ -482,7 +482,7 @@ Things to know:
 
 ### Realigning Centromeres (`--centrolign`)
 
-**Experimental.** [centrolign](https://github.com/jeizenga/centrolign) aligns megabase-scale tandem arrays, such as the active α-satellite arrays of centromeres, which Minigraph-Cactus leaves unaligned. `--centrolign <BED>` realigns each interval of the BED in each chromosome graph that `cactus-align` wrote, before the join's full phase. pgrealign anchors the interval between two nodes of the reference and extracts the haplotypes there, centrolign aligns the haplotypes that cross the region, and pgrealign replaces the region's nodes with centrolign's graph. Every path spells the same sequence afterwards.
+**Experimental.** [centrolign](https://github.com/jeizenga/centrolign) aligns megabase-scale tandem arrays, such as the active α-satellite arrays of centromeres, which Minigraph-Cactus leaves unaligned. `--centrolign` realigns the reference's α-satellite arrays, or the intervals of a BED, in each chromosome graph that `cactus-align` wrote, before the join's full phase. pgrealign anchors the interval between two nodes of the reference and extracts the haplotypes there, centrolign aligns the haplotypes that cross the region, and pgrealign replaces the region's nodes with centrolign's graph. Every path spells the same sequence afterwards.
 
 The anchors are the nearest reference nodes on either side of the interval that few haplotypes go around (`--max-bypass`). A haplotype whose array never aligned to the reference's can leave the reference before an anchor and come back inside the region, or the reverse; pgrealign extract follows it in and out through those other nodes (`--exit-edges`), so it is aligned with the others, and the replaced region keeps its links to them.
 
@@ -491,8 +491,13 @@ The anchors can lie well outside the interval, so a haplotype's sequence between
 A region's haplotypes are aligned in groups, each by a centrolign job of its own. Haplotypes are compared by the share of their rare 31-mers (those occurring at most twice in each) that they have in common, and the groups are the clusters of an average-linkage tree on it, cut where a cluster's halves share less than `centrolignGroupSimilarity` on average. A group larger than `centrolignMaxGroup` is split along the tree. A haplotype the cut leaves alone joins the group it shares the most rare 31-mers with on average, if that group has room. The groups' graphs lie side by side in the region.
 
 ```
-cactus-pangenome ./js ./seqfile.txt --outDir pg --outName pg --reference CHM13 --centrolign chm13-active-arrays.bed
+cactus-pangenome ./js ./seqfile.txt --outDir pg --outName pg --reference CHM13 --centrolign
 ```
+
+The intervals are on the first `--reference`:
+
+* `--centrolign` alone finds each chromosome's α-satellite arrays on its reference path. pgrealign's `trfind` proposes them, as the tandem repeats whose period is a whole number of monomers of `centrolignMonomer` bp, taken together where they are within `centrolignArrayGap` bp of each other. An array is kept when it is at least `centrolignMinArray` bp long and most of its sequence repeats at one monomer or two and at nothing shorter, which a satellite of another unit does not. That takes in a chromosome's inactive and monomeric arrays with its active one. The arrays found are in the chromosome's archive, as `arrays.bed`.
+* `--centrolign <BED>` takes the intervals from a BED instead, such as the active arrays alone.
 
 The BED's contigs are named as the contig field of the reference's path names (`chr12` for `CHM13#0#chr12`). For CHM13 v2.0, the active arrays of its [CenSat annotation](https://s3-us-west-2.amazonaws.com/human-pangenomics/T2T/CHM13/assemblies/annotation/chm13v2.0_censat_v2.1.bed) are its `H1L` HORs, merged where they are less than 200 kb apart:
 
@@ -512,6 +517,9 @@ These `<graphmap_join>` config attributes pass options to the stages:
 
 | Attribute | Default | Effect |
 | --- | --- | --- |
+| `centrolignMonomer` | `171` | Length in bp of the monomer of the arrays to find, when no BED is given. |
+| `centrolignMinArray` | `100000` | Shortest array to realign, in bp, when no BED is given. |
+| `centrolignArrayGap` | `20000` | Stretches of an array at most this many bp apart are one array, when no BED is given. |
 | `centrolignRegionsOptions` | `--max-span 10000000 --max-bypass 0.1` | Options to `pgrealign regions`. `--max-bypass` anchors each region on the nearest reference nodes that at most this fraction of the haplotypes go around; without it, the anchors are snarl boundary nodes, which can be megabases apart, past the other satellites around an array. |
 | `centrolignExtractOptions` | `--max-internal-bp 10000000 --allow-inversions --exit-edges --keep-fragments` | Options to `pgrealign extract`. `--allow-inversions` realigns a region where a haplotype crosses some nodes in the other orientation, aligning its inverted sequence as it reads forward. `--exit-edges` lets a haplotype enter or leave a region through other reference nodes than its anchors, which `--max-bypass` needs. `--keep-fragments` leaves the sequence of a haplotype that does not cross a region, such as a contig that ends inside it, on the nodes it was on, rather than putting it back unaligned; it needs `--exit-edges`. |
 | `centrolignTrimMargin` | `20000` | Bp kept on either side of each haplotype's copy of the interval. A negative value aligns each haplotype's whole sequence of the region, and only haplotypes that cross it. |
@@ -528,7 +536,8 @@ Things to know:
 * A centrolign job's time grows with the square of its haplotypes, and its memory faster than their total length.
 * Each group's guide tree is a neighbor-joining tree of its haplotypes' rare 31-mer distances.
 * The realigned haplotypes, other than the reference, are in the full graph only. Minigraph's paths no longer share their nodes once they are realigned, so clipping removes them, even the parts that were aligned before. The clip and filter graphs keep the reference's sequence there, and the parts of the rest of the region's sequence that minigraph's paths share.
-* It cannot be combined with `--pgrealign` or with the bypass options.
+* With `--pgrealign` too, pgrealign runs first, on every target of its own that is not within `centrolignTrimMargin` of a `--centrolign` interval or array, and centrolign realigns the intervals in the graph it made. What pgrealign realigned around an array stays as it is. The paths are checked once, after both, unless `pgrealignVerify` and `centrolignVerify` are both off.
+* It cannot be combined with the bypass options.
 
 ### Haplotype Sampling Instead of Filtering (NEW)
 

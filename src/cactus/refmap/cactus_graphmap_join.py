@@ -30,8 +30,8 @@ import subprocess
 import gzip
 import shutil
 import json
-import math
 import tarfile
+import operator
 
 from operator import itemgetter
 from collections import defaultdict
@@ -116,6 +116,9 @@ PGREALIGN_VERIFY_SECS_PER_GB = 300
 # threads only speed up vg convert, vg snarls and pgrealign, so it asks for at most
 # CENTROLIGN_EXTRACT_MAX_CORES of --indexCores
 CENTROLIGN_EXTRACT_SECS_PER_GB = 300
+# centrolign_arrays loads the vg once, for vg paths -F, then runs trfind (seconds) and tests the arrays
+# it proposes in python (under a minute a chromosome).  it took 31 and 48 s on oct9's chr21 (a 9.9 GB vg)
+CENTROLIGN_ARRAYS_SECS_PER_GB = 150
 CENTROLIGN_EXTRACT_MEMORY_PER_VG = 3
 CENTROLIGN_EXTRACT_MAX_CORES = 16
 # centrolign_replace runs vg convert -f and pgrealign replace, which streams the GFA but keeps a map of
@@ -126,15 +129,19 @@ CENTROLIGN_EXTRACT_MAX_CORES = 16
 CENTROLIGN_REPLACE_SECS_PER_GB = 300
 CENTROLIGN_REPLACE_MEMORY_PER_VG = 3
 CENTROLIGN_REPLACE_MAX_CORES = 8
-# centrolign_region: one centrolign run on a group of n alleles, B Mb in all.  measured on oct9's chr12
-# active array, whose 26 groups of 2-64 alleles and 7-270 Mb took 74 s to 2.4 h at 32 threads (jemalloc,
-# fast-chaining build).  time grew with B*sqrt(n): past a 2 minute floor the slowest group took 7.6 s per
-# Mb*sqrt(allele).  (an earlier test on 8-64 unrelated haplotypes, with the older chaining, grew with
-# B*n.)  the 590 groups of a whole-genome run and its chr3 and chr4 reruns, at 16 threads with that
-# build, took a median of 3.1 s per Mb*sqrt(allele) and 22 at the 99th percentile.  upstream's main, in
-# the submodule since dbe8dc2, took 1.1-2.3 times as long on three groups of 31-45 alleles, so the
-# estimate is 120 s + 25 s per Mb*sqrt(allele): with cactus_walltime's margin, that covers each of
-# those 590 groups at 2.5 times its time.  memory: centrolign starts by aligning each allele to itself to calibrate its scoring, as many
+# centrolign_region: one centrolign run on a group of n alleles, B Mb in all, with upstream's main (in
+# the submodule since dbe8dc2) at 16 threads.  its time follows the number of alleles more than their
+# length: 146 groups of 2-64 alleles and 0.15-262 Mb, from oct9's chr3 and chr4 active arrays and
+# chr21's alpha-satellite arrays (alleles of 50 kb to 6 Mb), took 22 s to 8.6 h.  59-64 alleles took
+# 2.7-3 h whether they were 45 Mb or 158 in all, and 26-28 alleles of 2-2.5 Mb as long as 26-29 of
+# 21-128; 8.4n + 2.2n^2 + 10.6B s fits 136 of the groups, all but the largest of chr21's monomeric
+# arrays, to within 0.66-2.2 times.  those took longer for their size, 2.2-4.7 h for 36-64 alleles of
+# about 100 kb each and 8.6 h for one group of 64, and the same group took up to 1.9 times as long in
+# one join as in another (1.15 at the median).  the estimate is 20n + 6n^2 + 25B s, which is at least
+# the time of all but two of the groups' 251 runs (0.78 and 0.84 of those).  an earlier estimate of
+# 120 s + 25 s per Mb*sqrt(allele), fit to a fork's build on active arrays alone, gave those monomeric
+# groups 30-75 minutes, and none of the eight finished in twice that.
+# memory: centrolign starts by aligning each allele to itself to calibrate its scoring, as many
 # at once as it has threads.  groups of 8-14 alleles, all calibrating at once, ran out of memory there at
 # 840-880 bytes per bp of the group and peaked at 960-1070 when they had room; oct9's chr22 groups of
 # 2-14 peaked at 700-980, but chr14's at up to 2060, so the job gets CENTROLIGN_CALIBRATE_BYTES_PER_BP
@@ -146,19 +153,22 @@ CENTROLIGN_REPLACE_MAX_CORES = 8
 # (centrolignTrimMargin), the alleles are short and memory follows their number more than their bp: chr12-21's
 # groups of 20-62 alleles peaked at 1.0-1.4 GiB per allele whatever their length (chr21's 60 alleles of
 # 52 Mb at 1,710 bytes per bp, chr12's 62 of 209 Mb at 440), so the job also gets
-# CENTROLIGN_MEMORY_PER_ALLELE for each allele.  upstream's main peaked at 12.8-30.6 GB on the three
-# groups above, a third to a half of what the fork-built binary did there, and the requests are left as
-# they are.  at 32 threads the jobs
+# CENTROLIGN_MEMORY_PER_ALLELE for each allele.  upstream's main peaked at 12.8-30.6 GB on three of
+# those groups, a third to a half of what the fork-built binary did there, and at 0.6-1.0 GiB per
+# allele on most of chr21's groups of 100 kb alleles.  one monomeric array's groups of 36, 46 and 64
+# peaked at 1.7, 1.3 and 1.8 GiB per allele though, and at 1.5 the first ran out of memory after 39
+# minutes and the last after 6 hours, so it is 2 GiB.  at 32 threads the jobs
 # kept only 2-5 cores busy on average (4-8 at 48-64 alleles), so they ask for at most
 # CENTROLIGN_MAX_CORES of --indexCores
 CENTROLIGN_BYTES_PER_BP = 800
 CENTROLIGN_BYTES_PER_BP_PER_ALLELE = 6
 CENTROLIGN_CALIBRATE_BYTES_PER_BP = 2500
-CENTROLIGN_MEMORY_PER_ALLELE = 3 * 2**29
+CENTROLIGN_MEMORY_PER_ALLELE = 2 * 2**30
 CENTROLIGN_MIN_MEMORY = 16 * 2**30
 CENTROLIGN_MAX_CORES = 16
-CENTROLIGN_BASE_SECS = 120
-CENTROLIGN_SECS_PER_MB_SQRT_ALLELE = 25
+CENTROLIGN_SECS_PER_ALLELE = 20
+CENTROLIGN_SECS_PER_ALLELE_SQUARED = 6
+CENTROLIGN_SECS_PER_MB = 25
 
 # vg_to_og: vg convert -f | grep, then odgi build.  n=75, 307-310 s/GB at p50, 357-370 at the max
 VG_TO_OG_SECS_PER_GB = 400
@@ -495,13 +505,13 @@ def graphmap_join_options(parser):
                         "normalized. TARGETS, if given, is a BED of the intervals to realign instead, "
                         "on the first --reference's contigs (named as the contig field of its path "
                         "names, such as chr1). Per-chromosome reports go in <outDir>/<outName>.stats/")
-    parser.add_argument("--centrolign", default=None, metavar='TARGETS',
-                        help="[EXPERIMENTAL] Realign centromeres with centrolign "
+    parser.add_argument("--centrolign", nargs='?', const=True, default=None, metavar='TARGETS',
+                        help="[EXPERIMENTAL] Realign each chromosome's alpha-satellite arrays with centrolign "
                         "(https://github.com/jeizenga/centrolign) before the full graph is normalized. "
-                        "TARGETS is a BED of the intervals to realign, such as the reference's active "
-                        "alpha-satellite arrays, on the first --reference's contigs (named as the contig "
-                        "field of its path names, such as chr1). Only haplotypes aligned on both sides of "
-                        "an interval are realigned. Per-chromosome reports go in <outDir>/<outName>.stats/")
+                        "TARGETS, if given, is a BED of the intervals to realign instead, such as the "
+                        "reference's active arrays, on the first --reference's contigs (named as the contig "
+                        "field of its path names, such as chr1). With --pgrealign too, pgrealign leaves "
+                        "these intervals to centrolign. Per-chromosome reports go in <outDir>/<outName>.stats/")
 
 def graphmap_join_defaults(options):
     """ fill in the graphmap-join option defaults for tools (ie cactus-panpatch) that run the join
@@ -848,13 +858,10 @@ def graphmap_join_validate_options(options):
             raise RuntimeError('--pgrealign targets file {} not found'.format(pgrealign_targets))
         options.pgrealign = os.path.abspath(pgrealign_targets)
     centrolign_targets = getattr(options, 'centrolign', None)
-    if centrolign_targets:
-        if pgrealign_targets:
-            raise RuntimeError('--centrolign cannot be used with --pgrealign yet')
-        if '://' not in centrolign_targets:
-            if not os.path.isfile(centrolign_targets):
-                raise RuntimeError('--centrolign targets file {} not found'.format(centrolign_targets))
-            options.centrolign = os.path.abspath(centrolign_targets)
+    if isinstance(centrolign_targets, str) and '://' not in centrolign_targets:
+        if not os.path.isfile(centrolign_targets):
+            raise RuntimeError('--centrolign targets file {} not found'.format(centrolign_targets))
+        options.centrolign = os.path.abspath(centrolign_targets)
 
     # validate --vcfL
     if options.vcfL is not None:
@@ -1068,8 +1075,9 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
         pgrealign_targets_id = None
         if isinstance(options.pgrealign, str):
             pgrealign_targets_id = job.fileStore.importFile(makeURL(options.pgrealign))
+        # and the --centrolign targets, likewise (otherwise a centrolign_arrays job finds each chromosome's)
         centrolign_targets_id = None
-        if options.centrolign:
+        if isinstance(options.centrolign, str):
             centrolign_targets_id = job.fileStore.importFile(makeURL(options.centrolign))
 
         # run the "full" phase to do pre-clipping stuff
@@ -1077,13 +1085,14 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
         realign_stats = []
         assert len(options.vg) == len(vg_ids)
         # with --pgrealign or --centrolign, the full phase also checks the realigned graph's paths, unless
-        # the config's pgrealignVerify or centrolignVerify turns it off (see pgrealign_verify)
-        realign_option = '--centrolign' if options.centrolign else '--pgrealign' if options.pgrealign else None
+        # the config's pgrealignVerify or centrolignVerify turns it off (see pgrealign_verify).  with both,
+        # the one check is of the graph that both realigned, so it runs unless both turn it off
+        realign_options = [o for o in ('--pgrealign', '--centrolign') if getattr(options, o[2:])]
         verify_option = None
         full_secs_per_gb = CLIP_VG_SECS_PER_GB['full']
-        if realign_option and getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"),
-                                                realign_option[2:] + "Verify", typeFn=bool, default=True):
-            verify_option = realign_option
+        if any(getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_join"), o[2:] + "Verify",
+                                 typeFn=bool, default=True) for o in realign_options):
+            verify_option = ' and '.join(realign_options)
             full_secs_per_gb += PGREALIGN_VERIFY_SECS_PER_GB
         # the largest job a pgrealign_vg job may start again with, when realign needs more memory, and
         # the largest a centrolign_region job may have
@@ -1091,26 +1100,56 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
         for vg_path, vg_id in zip(options.vg, vg_ids):
             full_resources = dict(disk=vg_id.size * 20, memory=max(2**31, min(vg_id.size * 20, max_mem)),
                                   walltime=scaled_walltime(full_secs_per_gb, vg_id.size))
-            if realign_option:
+            if realign_options:
                 # pgrealign_vg or centrolign_vg runs on the graph cactus-align wrote and hands the full phase
-                # the realigned graph as the GFA its gfaffix step would otherwise make from the vg
-                if options.centrolign:
+                # the realigned graph as the GFA its gfaffix step would otherwise make from the vg.  with
+                # both, pgrealign_vg runs first, leaving the --centrolign intervals alone, and centrolign_vg
+                # runs on the GFA it made: what pgrealign realigned around an array stays on its nodes
+                # when centrolign_vg cuts each haplotype down to its copy of the array.  each job follows
+                # the one before it
+                realign_job = None
+                chrom_targets_id = centrolign_targets_id
+                if options.centrolign and not centrolign_targets_id:
+                    # --centrolign with no targets: this chromosome's arrays, found on its reference path
                     realign_job = root_job.addChildJobFn(
-                        centrolign_vg, options, config, vg_path, vg_id, centrolign_targets_id, pgrealign_max_mem,
+                        centrolign_arrays, options, config, vg_path, vg_id, disk=vg_id.size * 3,
+                        memory=cactus_clamp_memory(min(max(2**33, vg_id.size * CENTROLIGN_EXTRACT_MEMORY_PER_VG),
+                                                       max_mem)),
+                        walltime=scaled_walltime(CENTROLIGN_ARRAYS_SECS_PER_GB, vg_id.size))
+                    chrom_targets_id = realign_job.rv()
+                if options.pgrealign:
+                    pgrealign_args = [pgrealign_vg, options, config, vg_path, vg_id, pgrealign_targets_id,
+                                      pgrealign_max_mem]
+                    pgrealign_resources = dict(
+                        exclude_id=chrom_targets_id,
+                        cores=options.indexCores, disk=vg_id.size * 40,
+                        memory=cactus_clamp_memory(min(max(2**33, vg_id.size * 20), max_mem)),
+                        walltime=scaled_walltime(PGREALIGN_SECS_PER_GB, vg_id.size, io_multiple=6))
+                    realign_job = realign_job.addFollowOnJobFn(*pgrealign_args, **pgrealign_resources) \
+                        if realign_job else root_job.addChildJobFn(*pgrealign_args, **pgrealign_resources)
+                    realign_stats.append(realign_job.rv(1))
+                if options.centrolign:
+                    centrolign_resources = dict(
                         cores=min(options.indexCores, CENTROLIGN_EXTRACT_MAX_CORES), disk=vg_id.size * 40,
                         memory=cactus_clamp_memory(min(max(2**33, vg_id.size * CENTROLIGN_EXTRACT_MEMORY_PER_VG),
                                                        max_mem)),
                         walltime=scaled_walltime(CENTROLIGN_EXTRACT_SECS_PER_GB, vg_id.size))
-                else:
-                    realign_job = root_job.addChildJobFn(
-                        pgrealign_vg, options, config, vg_path, vg_id, pgrealign_targets_id, pgrealign_max_mem,
-                        cores=options.indexCores, disk=vg_id.size * 40,
-                        memory=cactus_clamp_memory(min(max(2**33, vg_id.size * 20), max_mem)),
-                        walltime=scaled_walltime(PGREALIGN_SECS_PER_GB, vg_id.size, io_multiple=6))
+                    if options.pgrealign:
+                        realign_job = realign_job.addFollowOnJobFn(
+                            centrolign_vg, options, config, vg_path, vg_id, chrom_targets_id, pgrealign_max_mem,
+                            gfa_id=realign_job.rv(0), gfa_realigned=realign_job.rv(2), **centrolign_resources)
+                    elif realign_job:
+                        realign_job = realign_job.addFollowOnJobFn(
+                            centrolign_vg, options, config, vg_path, vg_id, chrom_targets_id, pgrealign_max_mem,
+                            **centrolign_resources)
+                    else:
+                        realign_job = root_job.addChildJobFn(
+                            centrolign_vg, options, config, vg_path, vg_id, chrom_targets_id, pgrealign_max_mem,
+                            **centrolign_resources)
+                    realign_stats.append(realign_job.rv(1))
                 full_job = realign_job.addFollowOnJobFn(clip_vg, options, config, vg_path, vg_id, 'full',
                                                         gfa_id=realign_job.rv(0), gfa_realigned=realign_job.rv(2),
                                                         gfa_verify=verify_option, **full_resources)
-                realign_stats.append(realign_job.rv(1))
             else:
                 full_job = Job.wrapJobFn(clip_vg, options, config, vg_path, vg_id, 'full', **full_resources)
                 root_job.addChild(full_job)
@@ -2016,10 +2055,42 @@ def pgrealign_regions_extract(job, vg_path, gfa_path, ref, contigs, targets_path
                                             '--ref-dir', prep_dir, *extract_opts)
     return extract_dir
 
-def pgrealign_vg(job, options, config, vg_path, vg_id, targets_id=None, max_mem=None, resized=False):
+def bed_without_overlaps(bed_path, exclude_path, out_path, pad=0):
+    """ copy the intervals of bed_path (a BED or a pgrealign catalogue, gzipped if named .gz) that
+    overlap no interval of the BED exclude_path, each of those taken pad bp wider on either side, to
+    out_path, with the lines that are not intervals, as a catalogue's header is.  returns the number of
+    intervals left out """
+    def open_bed(path, mode='rt'):
+        return gzip.open(path, mode) if path.endswith('.gz') else open(path, mode[0])
+    def interval(line):
+        toks = line.split('\t')
+        if line.startswith(('#', 'track', 'browser')) or len(toks) < 3:
+            return None
+        return toks[0], int(toks[1]), int(toks[2])
+    exclude = defaultdict(list)
+    with open_bed(exclude_path) as exclude_file:
+        for line in exclude_file:
+            if interval(line):
+                contig, start, end = interval(line)
+                exclude[contig].append((start - pad, end + pad))
+    left_out = 0
+    with open_bed(bed_path) as bed_file, open_bed(out_path, 'wt') as out_file:
+        for line in bed_file:
+            if interval(line):
+                contig, start, end = interval(line)
+                if any(start < e and s < end for s, e in exclude[contig]):
+                    left_out += 1
+                    continue
+            out_file.write(line)
+    return left_out
+
+def pgrealign_vg(job, options, config, vg_path, vg_id, targets_id=None, max_mem=None, resized=False,
+                 exclude_id=None):
     """ realign one chromosome graph with pgrealign, ahead of the full phase: the tandem repeats that
     pgrealign catalog finds on each of its reference paths, or the intervals of targets_id (the
-    --pgrealign TARGETS BED).  returns the graph as GFA, realigned, for clip_vg to use in place of the
+    --pgrealign TARGETS BED), but none that overlaps an interval of exclude_id (the --centrolign TARGETS
+    BED, which centrolign_vg realigns after this job), or lies within centrolignTrimMargin of one.
+    returns the graph as GFA, realigned, for clip_vg to use in place of the
     vg; the stats: this chromosome's row of pgrealign-stats.tsv and an archive of pgrealign's reports;
     and whether any region was replaced, for clip_vg to check the paths only then.  a graph pgrealign
     cannot work on, such as an unplaced bin with no reference path, comes back as it went in.  the
@@ -2068,6 +2139,16 @@ def pgrealign_vg(job, options, config, vg_path, vg_id, targets_id=None, max_mem=
             summary['catalog'] = pgrealign('catalog', '--reference', ref_fa_path, '--contigs', ','.join(contigs),
                                            '--trfind', 'trfind', '-j', threads, '-o', targets_path,
                                            *config_opts('pgrealignCatalogOptions'))
+        if exclude_id:
+            # centrolign_vg replaces each haplotype's copy of its interval, with a margin on either side
+            # (centrolignTrimMargin), so what pgrealign made there would be thrown away
+            all_targets_path = targets_path
+            targets_path = os.path.join(work_dir, 'targets.kept.bed' + ('.gz' if targets_path.endswith('.gz') else ''))
+            exclude_path = os.path.join(work_dir, 'centrolign-targets.bed' + centrolign_targets_suffix(options))
+            job.fileStore.readGlobalFile(exclude_id, exclude_path)
+            margin = getOptionalAttrib(join_xml_node, 'centrolignTrimMargin', typeFn=int, default=20000)
+            summary['targets_left_to_centrolign'] = bed_without_overlaps(all_targets_path, exclude_path, targets_path,
+                                                                         pad=max(0, margin))
 
         extract_dir = pgrealign_regions_extract(job, vg_path, gfa_path, ref, contigs, targets_path, work_dir,
                                                 report_dir, summary, config_opts('pgrealignRegionsOptions'),
@@ -2107,7 +2188,7 @@ def pgrealign_vg(job, options, config, vg_path, vg_id, targets_id=None, max_mem=
                 RealtimeLogger.info('pgrealign {}: starting again with {:.1f} GiB of memory, as realign needs {}'.format(
                     chrom, memory / 2**30, short))
                 child_job = job.addChildJobFn(pgrealign_vg, options, config, in_vg_path, vg_id, targets_id,
-                                              max_mem, resized=True,
+                                              max_mem, resized=True, exclude_id=exclude_id,
                                               cores=job.cores, disk=job.disk, memory=memory,
                                               walltime=scaled_walltime(PGREALIGN_SECS_PER_GB, vg_id.size,
                                                                        io_multiple=6))
@@ -2335,18 +2416,144 @@ def centrolign_groups(alleles, min_similarity, max_group):
         result.append((ids, tree))
     return result
 
-def centrolign_vg(job, options, config, vg_path, vg_id, targets_id, max_mem):
+# centrolign_arrays: the arrays --centrolign realigns when it is given no targets.  trfind proposes them:
+# it chains the 10-mers that recur at about the same distance, so a higher-order repeat array comes out
+# at the period of its repeat unit, a multiple of the monomer.  that alone is not specific, as a 5 bp
+# satellite recurs at multiples of 5 bp, and so at some near every multiple of 171: about half of what
+# it proposed on CHM13 was HSat2 or HSat3.  so each is then tested on windows of its sequence for its
+# base period, the shortest lag at which it matches itself about as well as at any: the monomer's, or
+# two monomers' where the monomers alternate between two types.  measured against CHM13's cenSat
+# annotation, this keeps 68 arrays, 82.4 Mb: 34 mostly higher-order alpha satellite and 34 mostly
+# monomeric, 58-100% of each one's windows passing, and none of another satellite, whose windows never
+# pass.  they hold all 26 of its active arrays, whole but for 2.4% of one, which a 74 kb gap splits.
+# the test took 5-23 s a chromosome.  trfind's own identity and refined period cannot do this: they
+# compare the array with itself at one offset throughout, which an indel breaks, so they are low for
+# long arrays
+CENTROLIGN_ARRAY_MAX_PERIOD = 8000      # the longest repeat unit trfind looks for
+CENTROLIGN_ARRAY_WINDOW = 1000          # an array is tested on windows of this many bp
+CENTROLIGN_ARRAY_WINDOW_STEP = 10000    # one every this many bp
+CENTROLIGN_ARRAY_MIN_SHARE = 0.5        # and kept when at least this share of them have the monomer's period
+
+def centrolign_targets_suffix(options):
+    """ how the --centrolign targets file's name ends when it is gzipped (the arrays centrolign_arrays
+    finds are not) """
+    return '.gz' if isinstance(options.centrolign, str) and options.centrolign.endswith('.gz') else ''
+
+def centrolign_monomer_multiple(period, monomer):
+    """ whether period is about a whole number of monomers """
+    return period >= 0.9 * monomer and abs(period - round(period / monomer) * monomer) <= 2 + 0.01 * period
+
+def centrolign_base_period(seq, start, window, max_lag):
+    """ the base period of seq[start:start + window] (bytes): the smallest lag from 2 to max_lag bp
+    at which it matches the sequence that far on about as well (within 5% of the window) as at the
+    lag where it matches best.  None when the sequence ends before start + window + max_lag """
+    if start + window + max_lag > len(seq):
+        return None
+    here = seq[start:start + window]
+    matches = [sum(map(operator.eq, here, seq[start + lag:start + lag + window])) for lag in range(2, max_lag + 1)]
+    enough = max(matches) - 0.05 * window
+    return next(lag for lag, m in enumerate(matches, 2) if m >= enough)
+
+def centrolign_find_arrays(records, seqs, monomer, min_length, gap):
+    """ the arrays of monomers of about monomer bp among trfind's records, [(contig, start, end,
+    period)]: the records whose period is about a whole number of monomers, those within gap bp of each
+    other taken as one array, then the arrays of at least min_length bp in which at least
+    CENTROLIGN_ARRAY_MIN_SHARE of the windows tested have a base period of one monomer or two
+    (centrolign_base_period).  seqs is each contig's sequence, as upper-case bytes.  returns
+    [(contig, start, end, share of windows)] in order """
+    by_contig = defaultdict(list)
+    for contig, start, end, period in records:
+        if contig in seqs and centrolign_monomer_multiple(period, monomer):
+            by_contig[contig].append((start, end))
+    max_lag = int(2 * monomer * 1.025) + 1
+    arrays = []
+    for contig in sorted(by_contig):
+        merged = []
+        for start, end in sorted(by_contig[contig]):
+            if merged and start - merged[-1][1] <= gap:
+                merged[-1][1] = max(merged[-1][1], end)
+            else:
+                merged.append([start, end])
+        for start, end in merged:
+            if end - start < min_length:
+                continue
+            periods = [centrolign_base_period(seqs[contig], i, CENTROLIGN_ARRAY_WINDOW, max_lag)
+                       for i in range(start, end, CENTROLIGN_ARRAY_WINDOW_STEP)]
+            periods = [p for p in periods if p is not None]
+            share = sum(1 for p in periods if any(abs(p - n * monomer) <= 0.025 * n * monomer for n in (1, 2))) / \
+                max(1, len(periods))
+            if share >= CENTROLIGN_ARRAY_MIN_SHARE:
+                arrays.append((contig, start, end, share))
+    return arrays
+
+def centrolign_arrays(job, options, config, vg_path, vg_id):
+    """ find the arrays that --centrolign realigns in one chromosome graph when it is given no targets:
+    the tandem arrays of a monomer of centrolignMonomer bp, at least centrolignMinArray bp long, on each
+    contig the reference has as one whole path (see centrolign_find_arrays).  returns the file ID of a
+    BED of them, on the reference's contigs, which is empty for a graph with none """
+    work_dir = job.fileStore.getLocalTempDir()
+    vg_path = os.path.join(work_dir, os.path.basename(vg_path))
+    job.fileStore.readGlobalFile(vg_id, vg_path)
+    chrom = os.path.splitext(os.path.basename(vg_path))[0]
+    join_xml_node = findRequiredNode(config.xmlRoot, "graphmap_join")
+    monomer = getOptionalAttrib(join_xml_node, 'centrolignMonomer', typeFn=int, default=171)
+    min_length = getOptionalAttrib(join_xml_node, 'centrolignMinArray', typeFn=int, default=100000)
+    gap = getOptionalAttrib(join_xml_node, 'centrolignArrayGap', typeFn=int, default=20000)
+
+    ref_fa_path = os.path.join(work_dir, chrom + '.ref.fa')
+    contigs = pgrealign_reference_contigs(job, vg_path, options.reference[0], 'centrolign', fasta_path=ref_fa_path)
+    arrays = []
+    if contigs:
+        seqs, name = {}, None
+        with open(ref_fa_path) as ref_fa_file:
+            for line in ref_fa_file:
+                if line.startswith('>'):
+                    name = line[1:].split()[0]
+                    if name in contigs:
+                        seqs[name] = []
+                elif name in seqs:
+                    seqs[name].append(line.strip().upper())
+        seqs = {name: ''.join(lines).encode() for name, lines in seqs.items()}
+        records = []
+        for line in cactus_call(parameters=['trfind', ref_fa_path, str(int(0.9 * monomer)),
+                                            str(CENTROLIGN_ARRAY_MAX_PERIOD)], check_output=True).split('\n'):
+            toks = line.split('\t')
+            if len(toks) >= 4:
+                records.append((toks[0], int(toks[1]), int(toks[2]), int(toks[3])))
+        arrays = centrolign_find_arrays(records, seqs, monomer, min_length, gap)
+    bed_path = os.path.join(work_dir, chrom + '.centrolign-arrays.bed')
+    with open(bed_path, 'w') as bed_file:
+        for i, (contig, start, end, share) in enumerate(arrays):
+            bed_file.write('{}\t{}\t{}\tarray_{}_{}\n'.format(contig, start, end, contig, i + 1))
+    RealtimeLogger.info('centrolign {}: found {} arrays, {} bp, on {}: {}'.format(
+        chrom, len(arrays), sum(end - start for _, start, end, _ in arrays), ', '.join(contigs) or 'no contig',
+        ', '.join('{}:{}-{} ({:.2f})'.format(*a) for a in arrays)))
+    return job.fileStore.writeGlobalFile(bed_path)
+
+def centrolign_vg(job, options, config, vg_path, vg_id, targets_id, max_mem, gfa_id=None, gfa_realigned=False):
     """ realign the centromeres of one chromosome graph with centrolign, ahead of the full phase: each
     interval of targets_id (the --centrolign TARGETS BED) that pgrealign regions anchors between two
     nodes of the reference path, with the haplotypes that pgrealign extract finds passing through both.
     this job finds and extracts the regions, splits each region's alleles into groups (centrolign_groups),
     then runs a centrolign_region job for each group of two or more, sized by its alleles up to max_mem,
     and centrolign_replace after them, whose (GFA, stats, replaced) it returns, as pgrealign_vg does.  a
-    graph with no region to realign comes back as it went in """
+    graph with no region to realign comes back as it went in.  with --pgrealign too, gfa_id is the graph
+    as pgrealign_vg returned it, which this job works on in place of vg_id, and gfa_realigned whether
+    pgrealign_vg changed it, in which case what this job returns counts as realigned too """
     in_vg_path = vg_path
     work_dir = job.fileStore.getLocalTempDir()
     vg_path = os.path.join(work_dir, os.path.basename(vg_path))
-    job.fileStore.readGlobalFile(vg_id, vg_path)
+    if gfa_id and gfa_realigned:
+        # every step below, and centrolign_replace, starts from a vg.  (a GFA that pgrealign_vg left as
+        # it was is vg_id's own)
+        in_gfa_path = os.path.join(work_dir, 'pgrealign.gfa')
+        job.fileStore.readGlobalFile(gfa_id, in_gfa_path)
+        cactus_call(parameters=['vg', 'convert', '-g', '-p', '-t', str(job.cores), in_gfa_path], outfile=vg_path,
+                    job_memory=job.memory)
+        os.remove(in_gfa_path)
+        vg_id = None
+    else:
+        job.fileStore.readGlobalFile(vg_id, vg_path)
     chrom = os.path.splitext(os.path.basename(vg_path))[0]
     ref = options.reference[0]
     join_xml_node = findRequiredNode(config.xmlRoot, "graphmap_join")
@@ -2370,7 +2577,9 @@ def centrolign_vg(job, options, config, vg_path, vg_id, targets_id, max_mem):
         cactus_call(parameters=['vg', 'mod', '-X', str(max_node_len), vg_path], outfile=chopped_path,
                     job_memory=job.memory)
         vg_path = chopped_path
-        vg_id = job.fileStore.writeGlobalFile(chopped_path)
+        vg_id = None
+    if vg_id is None:
+        vg_id = job.fileStore.writeGlobalFile(vg_path)
     gfa_path = os.path.join(work_dir, chrom + '.gfa')
     cactus_call(parameters=['vg', 'convert', '-f', '-t', str(job.cores), vg_path], outfile=gfa_path,
                 job_memory=job.memory)
@@ -2378,9 +2587,16 @@ def centrolign_vg(job, options, config, vg_path, vg_id, targets_id, max_mem):
     packages = []
     contigs = pgrealign_reference_contigs(job, vg_path, ref, 'centrolign')
     summary['contigs'] = contigs
+    targets_path = os.path.join(work_dir, 'targets.bed' + centrolign_targets_suffix(options))
+    job.fileStore.readGlobalFile(targets_id, targets_path)
+    if not isinstance(options.centrolign, str):
+        # the arrays centrolign_arrays found go in the archive, and a graph with none is left as it is
+        shutil.copy(targets_path, os.path.join(report_dir, 'arrays.bed'))
+        with open(targets_path) as targets_file:
+            summary['arrays'] = sum(1 for line in targets_file if line.strip())
+        if not summary['arrays']:
+            contigs = []
     if contigs:
-        targets_path = os.path.join(work_dir, 'targets.bed' + ('.gz' if options.centrolign.endswith('.gz') else ''))
-        job.fileStore.readGlobalFile(targets_id, targets_path)
         trim_opts = ['--trim-targets', targets_path, '--trim-margin', str(trim_margin)] if trim_margin >= 0 else []
         extract_dir = pgrealign_regions_extract(job, vg_path, gfa_path, ref, contigs, targets_path, work_dir,
                                                 report_dir, summary, config_opts('centrolignRegionsOptions'),
@@ -2404,7 +2620,7 @@ def centrolign_vg(job, options, config, vg_path, vg_id, targets_id, max_mem):
                     if pkg['status'] == 'ok':
                         packages.append(pkg)
     if not packages:
-        return centrolign_report(job, work_dir, chrom, report_dir, summary, gfa_path, gfa_path)
+        return centrolign_report(job, work_dir, chrom, report_dir, summary, gfa_path, gfa_path, gfa_realigned)
 
     # each region's alleles are split into groups (centrolign_groups), each group of two or more is aligned
     # in a job of its own, sized by it, and replace splices the alignments in after them all.  (the group
@@ -2466,8 +2682,9 @@ def centrolign_vg(job, options, config, vg_path, vg_id, targets_id, max_mem):
                 '{}.group{}'.format(pkg['id'], j), tree,
                 cores=cores, disk=max(2**30, allele_bp * 20),
                 memory=cactus_clamp_memory(min(memory, max_mem)),
-                walltime=cactus_walltime(CENTROLIGN_BASE_SECS +
-                                         CENTROLIGN_SECS_PER_MB_SQRT_ALLELE * allele_bp / 1e6 * math.sqrt(len(ids))))
+                walltime=cactus_walltime(CENTROLIGN_SECS_PER_ALLELE * len(ids) +
+                                         CENTROLIGN_SECS_PER_ALLELE_SQUARED * len(ids) ** 2 +
+                                         CENTROLIGN_SECS_PER_MB * allele_bp / 1e6))
             group_results.append(group_job.rv())
         region_results.append((record, group_results, job.fileStore.writeGlobalFile(unaligned_path)))
 
@@ -2479,7 +2696,7 @@ def centrolign_vg(job, options, config, vg_path, vg_id, targets_id, max_mem):
             report_ids[os.path.relpath(path, report_dir)] = job.fileStore.writeGlobalFile(path)
     replace_job = region_root_job.addFollowOnJobFn(
         centrolign_replace, options, config, in_vg_path, vg_id, report_ids,
-        summary, region_results, cores=min(options.indexCores, CENTROLIGN_REPLACE_MAX_CORES),
+        summary, region_results, gfa_realigned, cores=min(options.indexCores, CENTROLIGN_REPLACE_MAX_CORES),
         disk=vg_id.size * 40,
         memory=cactus_clamp_memory(min(max(2**33, vg_id.size * CENTROLIGN_REPLACE_MEMORY_PER_VG), max_mem)),
         walltime=scaled_walltime(CENTROLIGN_REPLACE_SECS_PER_GB, vg_id.size, io_multiple=6))
@@ -2516,12 +2733,14 @@ def centrolign_region(job, config, alleles_id, label, tree):
     RealtimeLogger.info('centrolign {}: {}'.format(label, json.dumps(record)))
     return record, job.fileStore.writeGlobalFile(gfa_path), job.fileStore.writeGlobalFile(log_path)
 
-def centrolign_replace(job, options, config, vg_path, vg_id, report_ids, summary, region_results):
+def centrolign_replace(job, options, config, vg_path, vg_id, report_ids, summary, region_results,
+                       gfa_realigned=False):
     """ splice the alignments of the centrolign_region jobs into the chromosome graph vg_id with
     pgrealign replace, and return what centrolign_vg returns (see centrolign_report).  report_ids are
     the files of centrolign_vg's report directory, by their paths in it; region_results are, in the
     order of the regions' packages, (record, [group job returns], file ID of the unaligned alleles'
-    and fragments' GFA), with a status in the record already for a region it does not align """
+    and fragments' GFA), with a status in the record already for a region it does not align.
+    gfa_realigned says that vg_id is not the graph cactus-align wrote, as pgrealign_vg changed it """
     work_dir = job.fileStore.getLocalTempDir()
     vg_path = os.path.join(work_dir, os.path.basename(vg_path))
     job.fileStore.readGlobalFile(vg_id, vg_path)
@@ -2588,14 +2807,14 @@ def centrolign_replace(job, options, config, vg_path, vg_id, report_ids, summary
         summary['replace'] = pgrealign_call(job, 'replace', '--graph', gfa_path, '--extract',
                                             os.path.join(report_dir, 'extract'), '--msas', msas_path,
                                             '-o', out_gfa_path, '-t', str(job.cores))
-    return centrolign_report(job, work_dir, chrom, report_dir, summary, gfa_path, out_gfa_path)
+    return centrolign_report(job, work_dir, chrom, report_dir, summary, gfa_path, out_gfa_path, gfa_realigned)
 
-def centrolign_report(job, work_dir, chrom, report_dir, summary, gfa_path, out_gfa_path):
+def centrolign_report(job, work_dir, chrom, report_dir, summary, gfa_path, out_gfa_path, gfa_realigned=False):
     """ the return of centrolign_vg: the chromosome graph as GFA, out_gfa_path, for clip_vg to use in
     place of the vg; its stats, a row of centrolign-stats.tsv and an archive of report_dir (without
     the interiors, which only replace reads, the packages, which hold every allele's sequence, and the
     alignments' GFAs; the occurrences stay, as they map the guide trees' allele ids to haplotypes); and
-    whether it was realigned, so differs from gfa_path """
+    whether it was realigned, so differs from gfa_path, or was already (gfa_realigned) """
     summary['length_before'] = gfa_sequence_length(gfa_path)
     summary['length_after'] = gfa_sequence_length(out_gfa_path)
     with open(os.path.join(report_dir, 'summary.json'), 'w') as summary_file:
@@ -2628,7 +2847,7 @@ def centrolign_report(job, work_dir, chrom, report_dir, summary, gfa_path, out_g
     return job.fileStore.writeGlobalFile(out_gfa_path), \
         {'centrolign-stats.tsv': job.fileStore.writeGlobalFile(stats_path),
          os.path.basename(archive_path): job.fileStore.writeGlobalFile(archive_path)}, \
-        out_gfa_path != gfa_path
+        gfa_realigned or out_gfa_path != gfa_path
 
 def vg_clip_vg(job , options, config, vg_path, vg_id):
     """ run vg clip, chaining multiple invocations if desired.
