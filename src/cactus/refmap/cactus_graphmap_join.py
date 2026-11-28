@@ -61,7 +61,7 @@ from cactus.shared.common import cactus_cpu_count
 from cactus.refmap.panacus import run_panacus
 from cactus.refmap.pangenome_exclusions import path_coverage_job, ref_gaps_job, compute_exclusions_job
 from cactus.refmap.pangenome_exclusions import check_baseline_header
-from cactus.progressive.cactus_prepare import human2bytesN
+from cactus.progressive.cactus_prepare import human2bytesN, is_hal_format3
 
 from sonLib.nxnewick import NXNewick
 from sonLib.bioio import getTempDirectory, getTempFile, catFiles
@@ -219,6 +219,11 @@ VCF_CAT_SECS_PER_GB = 45
 # merge_hal, per GB of HAL: the longest job in the module, measured four times at 43.9-47.7 ks
 # over ~445 GB of chromosome HALs (~103 s/GB), with ~2.5 ks of halRemoveGenome on top
 MERGE_HAL_SECS_PER_GB = 110
+
+# hal merge --union, the HAL format 3 merge_hal: the most genomes it writes at once.  its time and
+# memory still use halMergeChroms's constants (above and in the caller), which are generous for a
+# merge that streams; they want refitting on an HPRC run
+MERGE_HAL3_CORES = 8
 
 # merge_sv_gfa, per GB of gzipped minigraph GFA: pure python, so it issues no command and is
 # invisible in the logs.  a gzipped GFA expands ~8x, and re-compressing that in-process runs at
@@ -879,7 +884,10 @@ def graphmap_join(options):
 
             graphmap_join_resolve_references(options, config.getDotHaplotypes())
 
-            # load up the hals
+            # load up the hals.  HAL format 3 is merged differently (and on more cores): this is
+            # known here for local files, and merge_hal checks it again whatever they are
+            if options.hal and all('://' not in p and is_hal_format3(p) for p in options.hal):
+                options.halFormat = "3"
             hal_ids = []
             for hal_path in options.hal:
                 hal_ids.append(toil.importFile(makeURL(hal_path)))
@@ -1113,8 +1121,9 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, sv_gfa_ids,
 
     # optional hal merge
     if hal_ids:
+        # hal merge --union (HAL format 3) writes several genomes at once; halMergeChroms one
         hal_merge_job = job.addChildJobFn(merge_hal, options, config, hal_ids,
-                                          cores = 1,
+                                          cores = min(options.indexCores, MERGE_HAL3_CORES) if getattr(options, 'halFormat', None) == "3" else 1,
                                           disk=sum(f.size for f in hal_ids) * 2,
                                           memory=min(max(f.size for f in hal_ids) * 2, max_mem),
                                           walltime=scaled_walltime(MERGE_HAL_SECS_PER_GB,
@@ -3326,20 +3335,42 @@ def merge_snarl_stats(job, vg_paths, snarl_stats_ids, tag):
     return { '{}snarl-stats.tsv.gz'.format(tag) : job.fileStore.writeGlobalFile(merged_stats_path) }
 
 def merge_hal(job, options, config, hal_ids, remove_minigraph=True):
-    """ call halMergeChroms to make one big hal file out of the chromosome hal files """
+    """ make one big hal file out of the chromosome hal files: for HAL format 3, one hal merge
+    --union, which also leaves out the minigraph genome; otherwise halRemoveGenome on each, then
+    halMergeChroms """
     work_dir = job.fileStore.getLocalTempDir()
     hal_paths = []
     assert len(options.hal) == len(hal_ids)
     graph_event = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "assemblyName", default="_MINIGRAPH_")
+    # halRemoveGenome edits an HDF5 HAL in place, so it needs a private copy; format 3 is only read
+    hal3 = getattr(options, 'halFormat', None) == "3"
     for in_path, hal_id in zip(options.hal, hal_ids):
         hal_path = os.path.join(work_dir, os.path.basename(in_path))
-        job.fileStore.readGlobalFile(hal_id, hal_path, mutable=remove_minigraph)
-        if remove_minigraph:
-            cactus_call(parameters=['halRemoveGenome', hal_path, graph_event])            
+        job.fileStore.readGlobalFile(hal_id, hal_path, mutable=remove_minigraph and not hal3)
         hal_paths.append(hal_path)
 
     merged_path = os.path.join(work_dir, '__merged__.hal')
     assert merged_path not in hal_paths
+
+    format3 = [is_hal_format3(p) for p in hal_paths]
+    if any(format3):
+        if not all(format3):
+            raise RuntimeError("the chromosome alignments mix HAL format 3 ({}) and HDF5 ({}): convert one kind "
+                               "with hal convert".format(', '.join(p for p, f in zip(options.hal, format3) if f),
+                                                         ', '.join(p for p, f in zip(options.hal, format3) if not f)))
+        # each genome gets every chromosome's sequences in turn, Anc0's renamed Anc0_i as
+        # halMergeChroms does.  the merge streams, writing --threads genomes at once
+        cmd = ['hal', 'merge', '--union', '--threads', str(max(1, int(job.cores)))]
+        if remove_minigraph:
+            cmd += ['--exclude', graph_event]
+        cactus_call(parameters=cmd + [merged_path] + hal_paths, job_memory=job.memory)
+        return { 'full.hal' : job.fileStore.writeGlobalFile(merged_path) }
+    if hal3:
+        raise RuntimeError("--halFormat 3, but the chromosome alignments are not HAL format 3")
+
+    if remove_minigraph:
+        for hal_path in hal_paths:
+            cactus_call(parameters=['halRemoveGenome', hal_path, graph_event])
 
     # note: cactus_call tries to sort out relative paths by itself for docker.  but the comma-separated list
     # will likely throw it off, so we take care to specify it relative manually.

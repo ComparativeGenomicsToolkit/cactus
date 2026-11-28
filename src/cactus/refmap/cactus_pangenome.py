@@ -127,6 +127,9 @@ def pangenome_options(parser):
                         "its HAL is still identical (modulo soft-masking) to the sequence that was "
                         "aligned. Costs one extra pass over each alignment; cactus-validate runs the "
                         "same check by hand later.")
+    parser.add_argument("--halFormat", choices=["hdf5", "3"], default=None,
+                        help="HAL format of the chromosome alignments and the full one: hdf5 (the "
+                        "default), or 3 (HAL format 3, joined by one hal merge --union)")
 
     # cactus-graphmap options
     parser.add_argument("--collapseRefPAF", help ="Incorporate given reference self-alignments in PAF format")
